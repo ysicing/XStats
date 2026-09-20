@@ -1,0 +1,10 @@
+.DS_Store
+build/
+*.xcodeproj/
+xcuserdata/
+.build/
+.swiftpm/
+Packages/XStatsKit/Package.resolved
+dist/
+__pycache__/
+docs/superpowers

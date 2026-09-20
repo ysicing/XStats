@@ -1,0 +1,116 @@
+name: XStats
+
+options:
+  bundleIdPrefix: work.12306.xstats
+  deploymentTarget:
+    macOS: "14.0"
+  developmentLanguage: zh-Hans
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.6.1"
+    # 构建号四位数字，每次 make build 加一；营销版本只在发布时用 Scripts/version.sh patch / minor 修改
+    CURRENT_PROJECT_VERSION: "0106"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    # 本地开发使用 ad-hoc 签名；发布时改为 Developer ID（见 docs/PLAN.md）
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: YES
+    DEAD_CODE_STRIPPING: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+packages:
+  XStatsKit:
+    path: Packages/XStatsKit
+
+targets:
+  XStats:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+      - path: Helper/work.12306.xstats.helper.plist
+        buildPhase:
+          copyFiles:
+            destination: wrapper
+            subpath: Contents/Library/LaunchDaemons
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleName: XStats
+        CFBundleDisplayName: XStats
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDevelopmentRegion: zh-Hans
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        LSUIElement: true
+        LSApplicationCategoryType: public.app-category.utilities
+        NSHumanReadableCopyright: © 2026 XStats
+    settings:
+      base:
+        PRODUCT_NAME: XStats
+        PRODUCT_BUNDLE_IDENTIFIER: work.12306.xstats.app
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - package: XStatsKit
+        product: XStatsUI
+      - target: XStatsHelper
+        embed: true
+        copy:
+          destination: executables
+      - target: XStatsWidget
+        embed: true
+
+  # 桌面小组件（沙盒扩展），嵌入 XStats.app/Contents/PlugIns
+  XStatsWidget:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Widget
+        excludes:
+          - "*.entitlements"
+    info:
+      path: Widget/Info.plist
+      properties:
+        CFBundleDisplayName: XStats
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Widget/XStatsWidget.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+    settings:
+      base:
+        PRODUCT_NAME: XStatsWidget
+        PRODUCT_BUNDLE_IDENTIFIER: work.12306.xstats.app.widget
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: XStatsKit
+        product: Metrics
+
+  XStatsHelper:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Helper
+        excludes:
+          - "*.plist"
+    settings:
+      base:
+        PRODUCT_NAME: XStatsHelper
+        PRODUCT_BUNDLE_IDENTIFIER: work.12306.xstats.helper
+        GENERATE_INFOPLIST_FILE: YES
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: XStatsKit
+        product: SMC
+      - package: XStatsKit
+        product: HelperShared

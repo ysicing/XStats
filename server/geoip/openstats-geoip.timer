@@ -1,0 +1,10 @@
+[Unit]
+Description=每周二、周五更新 GeoLite2（MaxMind 在这两天发布新数据）
+
+[Timer]
+OnCalendar=Tue,Fri *-*-* 08:00:00 UTC
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

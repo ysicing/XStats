@@ -1,0 +1,3 @@
+import XStatsUI
+
+XStatsApplication.main()

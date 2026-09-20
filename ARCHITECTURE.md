@@ -1,0 +1,261 @@
+# XStats
+
+macOS 14+ menu-bar system monitor. Swift 6 language mode, AppKit status item and panels
+hosting SwiftUI, no third-party dependencies. The Xcode project is generated from
+`project.yml` by XcodeGen; everything testable lives in the local Swift package.
+
+- `App/` — `main.swift` and the asset catalog.
+- `Widget/` — the sandboxed WidgetKit extension (“System overview”), embedded in `Contents/PlugIns`.
+  It samples CPU, memory, disk and battery itself through `Metrics`, so it works without the app.
+- `Helper/` — the privileged helper (`XStatsHelper`) and its launchd plist, embedded in
+  the app bundle for `SMAppService.daemon`.
+- `Packages/XStatsKit/Sources/Localization` — `tr(_:)` and the English table (see below).
+- `Packages/XStatsKit/Sources/SMC` — the AppleSMC user client, fan control, temperature
+  key discovery.
+- `Packages/XStatsKit/Sources/Metrics` — one sampler per metric and `MetricsHub`; power and CPU
+  frequency (`PowerSampler`), disk activity and NVMe SMART (`DiskSamplers`), Bluetooth battery,
+  the SQLite history store.
+- `Packages/XStatsKit/Sources/Cleaner` — cleanup rules, `SafetyGuard`, `CleanEngine`, the app
+  uninstaller's leftover search and the launchd startup-item list.
+- `Packages/XStatsKit/Sources/Updates` — the update manifest and the download → verify →
+  replace → relaunch steps.
+- `Packages/XStatsKit/Sources/HelperShared` — the XPC protocol and maintenance commands
+  shared by the app and the helper.
+- `Packages/XStatsKit/Sources/WebDAVSync` — manual WebDAV GET/PUT and endpoint-specific Keychain passwords.
+- `Packages/XStatsKit/Sources/XStatsUI` — design tokens, panel pages, settings,
+  menu-bar renderer, app controller, snapshot renderer.
+- `Packages/XStatsKit/Tests` — metrics, SMC decoding, cleanup safety, updates, UI logic and
+  localization.
+
+## Build
+
+**Xcode 26 or later is required** — CommandLineTools does not ship the SwiftUI macro plugins.
+
+```bash
+brew install xcodegen
+make build            # Release build, then replace /Applications/XStats.app and relaunch
+make test             # swift test in the package
+```
+
+Versions read `0.2.0 (0003)`: `MARKETING_VERSION` changes only when releasing
+(`make bump-patch` for small releases, `make bump-minor` for larger ones), and the four-digit
+`CURRENT_PROJECT_VERSION` goes up by one on every `make build` (`BUMP=0` skips it). Build numbers
+never reset, so every package has a larger `CFBundleVersion` than the one before. Every `make build` runs
+`Scripts/install_local.sh`: it ends the running app (the helper restores fans and sleep when the
+connection drops), deletes the old `/Applications/XStats.app`, *moves* the new bundle there so no
+copy stays in the build folder, re-registers it with Launch Services, and relaunches. Only one
+XStats ever exists on the machine, so Spotlight and the widget gallery never show duplicates.
+`INSTALL=0` compiles without installing; `Scripts/release.sh` uses it and installs the notarized
+build at the end.
+
+`project.yml` defaults to ad-hoc signing so the project opens anywhere. The Makefile passes
+the first Developer ID Application identity from the keychain (and `--timestamp` for Release)
+when there is one. `make release` runs `Scripts/release.sh`: build, verify team, timestamp and
+hardened runtime on both binaries, notarize and staple the app, build and notarize the DMG,
+write the online-update zip and `appcast.json`, and write a Homebrew cask (`auto_updates true`). The helper derives its client requirement from its own signing
+team at run time, so no team ID is hard-coded.
+
+## Sampling
+
+`MetricsHub` is an actor that runs one loop. `AppModel.demand` describes what is on screen —
+which menu-bar items are enabled, whether the panel is open and on which tab — and the hub
+samples only that: CPU always; memory and network cheaply; GPU, disk, processes, sensors and
+fans only when a visible surface needs them. Disk is read at most every 30 s, battery every
+10 s. The loop pauses on screen sleep, system sleep and session switch.
+
+Things that are easy to get wrong and are handled on purpose:
+
+- `host_processor_info` returns kernel-allocated memory; it is `vm_deallocate`d every sample.
+- `getifaddrs`' `if_data` counters are 32-bit and wrap at 4 GiB; network uses
+  `NET_RT_IFLIST2` and `if_data64`.
+- Memory follows Activity Monitor: app memory is `internal − purgeable` pages; the page size
+  comes from `host_page_size` (16 KB on Apple Silicon).
+- Process CPU time and wall time are both in mach absolute units, so their ratio needs no
+  timebase conversion.
+- Core types come from `hw.perflevelN`; logical CPUs are numbered from the lowest
+  performance level up.
+
+## SMC
+
+Temperatures are not hard-coded per chip. On first use the sampler enumerates every SMC key
+once (≈3,800 keys in about 10 ms on an M5 Max), groups `Tp*`/`Te*` as CPU, `Tg*` as GPU,
+`Tm*` as memory, `TB*` as battery and `Ts0P`/`Ts1P` as palm rest, keeps keys whose first
+reading is plausible, and samples at most 12 per group.
+
+Fans are read without privileges. Writing needs root and goes through the helper. On M5
+the mode key (`F0md`) accepts a direct write; M1–M4 first need `Ftst=1` and a pause while
+`thermalmonitord` lets go. The firmware records only manual or automatic, not who set it, so
+a fan in manual mode that XStats did not set is shown as controlled by another program.
+
+## Helper
+
+Registered with `SMAppService.daemon`; `RunAtLoad` so that an unclean exit is repaired at
+boot. The XPC interface is a fixed list of operations — no arbitrary commands — and each
+connection gets `setCodeSigningRequirement`. State that must be undone (manual fans, disabled
+sleep) is persisted to `/Library/Application Support/XStats/helper-state.plist` and
+reverted when the last client disconnects or at the next start. The helper exits after 30 s
+without clients.
+
+## Cleanup
+
+Every rule lists candidate items; every item passes `SafetyGuard` twice — at scan and again
+right before deletion, because apps start in between.
+
+- Deny by default: an item must sit strictly inside an allow-listed root under the home
+  folder, never be the root itself, contain no `..` or control characters, and still pass
+  after symlinks are resolved (resolution can only reject, never allow).
+- Under `Application Support`, only folders named like caches (`Code Cache`, `GPUCache`,
+  `CacheStorage`, …) are allowed.
+- Any path component matching a protected keyword (keychains, password managers, VPNs,
+  cookies, history, …) is rejected.
+- Reverse-DNS cache folders whose app is running are skipped; browser rules are blocked while
+  the browser runs; items modified in the last two minutes count as in use.
+
+Regenerable caches are deleted outright; user files go to the Trash. Each action is appended
+to `~/Library/Logs/XStats/cleanup.log` as a JSON line.
+
+## Disk tools
+
+The disk page is also where users act on the disk. `DiskToolsController` (`XStatsUI/State`) fronts four
+pieces of read-mostly logic in `Cleaner/DiskTools.swift`, each testable without the UI:
+
+- `SpaceScanner` walks a root (the home folder) once, sums every top-level entry and keeps the largest files;
+  packages (`.app`, `.photoslibrary`, …) count as one item. It never follows symlinks and skips folders it
+  cannot read. `canTrash` allows Trash only for files inside the home folder, outside `Library`, with no hidden
+  path component, checked again after resolving symlinks; everything else only gets "reveal in Finder".
+- `VolumeVerifier` runs `diskutil verifyVolume /` (read-only, no privileges) and reduces the output to OK /
+  problem plus the offending line.
+- `LocalSnapshots` parses `tmutil listlocalsnapshots /`. Deleting goes through the helper
+  (`deleteLocalSnapshots`, protocol version 4) and falls back to a one-off administrator prompt; both paths only
+  accept identifiers shaped like `2026-09-14-120000` (`HelperShared/LocalSnapshotCommand`).
+- `MountedVolumes` lists browsable non-root volumes; ejecting uses `NSWorkspace`.
+
+## Menu bar, popovers and main window
+
+`MenuBarController` owns the status items. In the *separate* layout every enabled metric gets
+its own `NSStatusItem` (created in reverse so they read left to right) and opens a 320 pt
+popover for that metric; in the *combined* layout a single item opens `CombinedPopoverView`: a status
+overview with one row per enabled metric, plus tabs that switch to each metric's full popover content
+(`PopoverDetail`, shared with the separate layout). While a detail tab is showing, `AppModel.openPopover`
+is set to that metric so sampling matches the standalone popover.
+
+Popovers are borderless, non-activating `NSPanel`s. The SwiftUI tree is created on open and
+destroyed on close, so a hidden popover costs nothing. Height comes from measuring a flat,
+scroll-free copy of the same view; placeholders keep that height stable until data arrives, and
+the window is resized without animation because animating it makes SwiftUI re-lay out every
+frame. Charts are drawn with `Canvas`, not Swift Charts.
+
+The main window reuses the popover content with `isDetailPage` set (all sections, taller charts)
+next to the dashboard and tool pages. Windows use a transparent, full-size-content title bar with
+an empty compact toolbar, so the traffic lights sit on the same ground colour as the sidebar and
+line up with the 40 pt page header; the app switches to a regular activation policy while a window
+is open and back to accessory when all are closed.
+
+## Network details
+
+`NetworkController` runs only while it is needed:
+
+- **Connection probe** — an unprivileged `SOCK_DGRAM` ICMP echo (`ConnectivityProbe`), matched on
+  sequence number and a random payload token because the kernel rewrites the identifier.
+- **Interface and addresses** — `SCDynamicStore` / `SCPreferences` for the primary and physical
+  service, `getifaddrs` for addresses, CoreWLAN for signal and rate.
+- **Public IP** — Cloudflare trace (ipify as fallback) for the address only. Location, ASN, network
+  type, native / broadcast and the cleanliness score come from `cleanip.io/cli?json=1`, queried directly
+  from each Mac by `PublicAddressLookup`. The endpoint only reports the caller's own address, so
+  `AddressFamilyRequest` opens one Network.framework connection pinned to IPv4 and one pinned to IPv6
+  (URLSession cannot choose the family) and speaks plain HTTP/1.1 over TLS; when a pinned connection
+  cannot be set up it falls back to URLSession and keeps the answer only if it is for the same family.
+  If cleanip.io sees a different exit than Cloudflare (split-routing proxies), its address is shown.
+  Results are cached per IP for an hour in memory and for a week on disk (failed lookups are not
+  cached), and a 429 stops further calls until the next UTC day. Country
+  codes are validated before being used as flag file names. `server/geoip/` still holds the systemd
+  timer that syncs MaxMind GeoLite2 onto `getopenstats.com/geoip/` (account and key in
+  `/etc/openstats/maxmind.env` on the server); the app no longer downloads those files, they are kept
+  for other uses.
+- **Per-process traffic** — cumulative bytes from `/usr/bin/nettop`, diffed between samples.
+- **DNS** — `networksetup -setdnsservers` through the helper (protocol 3), which re-validates the
+  service name and every address; without the helper, a one-off administrator prompt runs the
+  same fixed command.
+
+## Online updates
+
+### Battery and Bluetooth
+
+The battery item reuses `BatterySampler` (IOKit power sources, sampled every 10 s while the item is in the
+menu bar or its popover / page is open). `BatteryPopover` is both the popover and the main-window page
+(`DetailPage`). The 24-hour charge curve comes from the history database, which gained a `battery` column
+(migrated with `ALTER TABLE` on first open); `HistoryRecorder.loadBattery()` queries it independently of
+the History page's range. Macs without a battery show only Bluetooth devices, and the menu-bar segment
+falls back to the Bluetooth device with the lowest battery.
+
+`BluetoothController` (`XStatsUI/State`) wraps `BluetoothBatteryReader`, which shells out to
+`system_profiler` and takes a second or two, so it polls only on demand: every minute while the battery
+popover / page or the System page is open, every five minutes when the menu bar needs it (the
+low-battery hint or a Mac without a battery), otherwise not at all. `AppModel.bluetoothDemand` derives
+that from the same visibility state as `demand`.
+
+`UpdateController` fetches `https://getopenstats.com/download/appcast.json` at launch and daily
+(version, date, notes taken from `CHANGELOG.md` by `Scripts/appcast.py`, zip URL, sha256, size). An
+update is installed only after: sha256 matches, the zip holds exactly one `.app`, its bundle ID and
+version match, `SecStaticCodeCheckValidity` passes with a requirement pinned to the running app's
+team, and `spctl --assess` accepts it (notarized). The old bundle is renamed into a same-volume
+temporary folder, the new one moved into place (restored on failure; an administrator prompt is
+used when the folder is not writable), and a detached shell waits for the process to exit before
+reopening the app. After an update the old helper may still be running; the app disconnects, waits
+for its 30 s idle exit and checks the protocol version again before asking for a reinstall.
+
+## WebDAV settings sync
+
+Account login, OAuth callbacks and the old account backend have been removed.
+Sync only needs the user's WebDAV server and does not run at startup, on wake or on settings changes.
+
+WebDAVSync uses Basic authentication over HTTPS and reads/writes xstats-settings.json in an
+existing directory via GET/PUT. The temporary URLSession does not share cookies or credentials,
+uses normal certificate validation, refuses redirects, and streams downloads with a 1 MB limit.
+GET requires HTTP 200; PUT accepts 200, 201 or 204. Writes are not retried automatically.
+See [WebDAV PUT semantics](https://www.rfc-editor.org/rfc/rfc4918#section-9.7).
+
+SyncController runs on the main actor and allows one request at a time. Upload requires confirmation
+and overwrites the remote file without merging. Download validates a SettingsBackup envelope
+(format, version, timestamp and SettingsDocument schema), then waits for confirmation before applying
+the existing per-field validation. Cancellation and failures do not change local preferences.
+
+SettingsDocument remains an explicit allowlist. WebDAV credentials, connection settings, local page,
+helper state, monitoring data and history are excluded. Directory URL and username are saved separately
+in local defaults. Passwords use the file-based login Keychain service work.12306.xstats.webdav,
+with a separate account hash for each endpoint and username. Password storage must succeed before
+new connection details are committed. JSON backups are not additionally encrypted at rest.
+
+Configure every Mac separately. This version does not create remote directories, poll in the background,
+merge concurrent edits, or use iCloud. A missing remote file requires an initial upload.
+
+## Power, disk and history
+
+- System, adapter and battery power come from SMC `PSTR`, `PDTR`, `PPBR`. GPU power comes from the
+  IOReport *Energy Model* `GPU Energy` counter; CPU energy counters on recent chips barely update,
+  so CPU power is not shown. Cluster frequencies are residency-weighted averages of *CPU Complex
+  Performance States*, using the `voltage-states*-sram` tables of `pmgr` (Hz on older chips, MHz on
+  newer ones). Each IOReport sample costs about 5 ms of CPU, so it runs at most every 2 s and only
+  while a page shows it.
+- Disk activity diffs `IOBlockStorageDriver` statistics; SSD health reads the NVMe SMART log
+  through the system `NVMeSMARTLib` plug-in (no root).
+- `HistoryRecorder` folds each sample into a per-minute record (averages, CPU and temperature
+  peaks, worst memory pressure) and writes it to `history.sqlite`; records older than 8 days are
+  pruned hourly. Queries bucket by 1, 5 or 30 minutes and charts break lines across gaps.
+
+## Localization
+
+Source strings are Simplified Chinese. `Scripts/l10n_wrap.py` wraps every Chinese literal in
+`tr(...)` (skipping logger calls, `case` patterns and multi-line strings) and lists the keys.
+`tr` returns the input unless English is active; otherwise it looks the text up in
+`Localization/Translations.swift` — exact keys first, then templates where `{}` stands for an
+interpolated value, longest literal fragments first, translating captured values once more. The
+language is configured at launch (System follows the global `AppleLanguages`). Changing it
+reconfigures `L10n`, rebuilds the main window and update prompt through `.id(language)`, rebuilds the
+app menu and redraws the menu bar; popovers are created on open. Names supplied by macOS follow the
+app's `AppleLanguages`, which changes at the next launch. Dates use `L10n.locale`. `--snapshot <dir> --language en` renders English screenshots and
+writes any untranslated string to `untranslated.txt`.
+
+`--snapshot <dir>` renders every main-window page, popover, settings section and the menu bar in light and
+dark, through real `NSHostingView`s in off-screen windows — `ImageRenderer` washes out pages
+that contain bitmaps.

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>隐私政策 — OpenStats</title>
+<meta name="description" content="OpenStats 的隐私政策：监控数据不离开你的 Mac；可选的账号只用来同步偏好设置。">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0b0d" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="https://getopenstats.com/privacy.html">
+<link rel="icon" href="assets/favicon.ico" sizes="48x48">
+<script>
+  try {
+    const saved = localStorage.getItem("os-theme");
+    document.documentElement.dataset.theme = saved || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  } catch { document.documentElement.dataset.theme = "light"; }
+</script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<main>
+  <section class="band" id="privacy">
+    <div class="shell narrow">
+      <div class="section-head">
+        <p><a href="./">← 返回 OpenStats</a></p>
+        <h2>隐私政策</h2>
+        <p>最后更新：2026-09-15。OpenStats 由 GiantAccel, LLC 开发，本页说明应用与 getopenstats.com 会处理哪些数据。</p>
+      </div>
+
+      <div class="section-head">
+        <h2>监控数据不离开你的 Mac</h2>
+        <p>CPU、GPU、内存、网络、磁盘、温度、风扇、进程与电池等所有指标都在本机读取并显示，不会上传，没有统计上报，也没有广告或第三方分析 SDK。</p>
+      </div>
+      <ul class="fact-list">
+        <li><b>公网 IP</b><span>打开网络详情时向 Cloudflare 查询一次公网地址，10 分钟内不重复，可在设置中关闭</span></li>
+        <li><b>归属地</b><span>归属地、ASN、网络类型与纯净度评分由 cleanip.io 提供：这台 Mac 直接向它查询自己的公网 IP，只发送这个地址、不带其他信息，不经过 OpenStats 的服务器</span></li>
+        <li><b>连接探测</b><span>打开网络详情时每秒 ping 一次你选择的目标（后台每 10 秒），只在显示网络项时运行，可关闭</span></li>
+        <li><b>检查更新</b><span>启动时与每天一次读取 getopenstats.com 上的版本清单，请求不带任何标识</span></li>
+      </ul>
+
+      <div class="section-head" style="margin-top: var(--space-16)">
+        <h2>可选的账号与设置同步</h2>
+        <p>不登录也能使用全部功能。登录后，应用会把偏好设置保存到 getopenstats.com，让你在其他 Mac 上登录时自动恢复。</p>
+      </div>
+      <ul class="fact-list">
+        <li><b>登录方式</b><span>GitHub、Google 或 Apple。我们只从它们那里拿到一个用户标识、邮箱、姓名与头像地址，不会取得你在这些平台上的其他数据，也不会代你发布任何内容</span></li>
+        <li><b>保存的内容</b><span>邮箱、姓名、头像地址，以及一份设置文档：菜单栏项目与风格、刷新频率、外观与语言、详情弹窗的区块、连接探测、通知、快捷键、风扇安全温度、合盖电量下限。另记录每台登录设备的名称与上次同步时间</span></li>
+        <li><b>不保存的内容</b><span>任何监控数据、进程列表、IP 地址、硬件序列号、清理记录与历史记录</span></li>
+        <li><b>存放位置</b><span>getopenstats.com 的服务器，经 HTTPS 传输。登录令牌保存在你 Mac 的钥匙串里</span></li>
+        <li><b>删除</b><span>在「设置 · 账号与同步」里可以随时退出登录；「删除云端数据」会立即删除账号、所有登录方式与云端设置，无法恢复</span></li>
+        <li><b>不会做的事</b><span>不出售或共享你的数据，不用于广告，不发送营销邮件</span></li>
+      </ul>
+
+      <div class="section-head" style="margin-top: var(--space-16)">
+        <h2>联系</h2>
+        <p>对隐私有任何疑问，请到 <a href="https://github.com/gentpan/OpenStats/issues">GitHub 仓库</a>提交 issue。本政策有变化时会更新本页并注明日期。</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="shell footer__inner">
+    <span class="footer__brand"><img src="assets/icon.png" alt="" width="20" height="20">OpenStats</span>
+    <span class="footer__fine">© 2026 GiantAccel, LLC</span>
+    <span class="footer__fine">OpenStats 是独立的第三方应用，与 Apple 没有隶属关系。</span>
+  </div>
+</footer>
+
+</body>
+</html>

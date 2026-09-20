@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>work.12306.xstats.helper</string>
+	<key>BundleProgram</key>
+	<string>Contents/MacOS/XStatsHelper</string>
+	<key>MachServices</key>
+	<dict>
+		<key>work.12306.xstats.helper</key>
+		<true/>
+	</dict>
+	<key>AssociatedBundleIdentifiers</key>
+	<array>
+		<string>work.12306.xstats.app</string>
+	</array>
+	<!-- 开机时启动一次：若上次异常退出时留下了“禁止睡眠”，在这里恢复 -->
+	<key>RunAtLoad</key>
+	<true/>
+</dict>
+</plist>

@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenStats — Mac 的状态，抬眼就看见</title>
+<meta name="description" content="OpenStats 把 CPU、GPU、内存、网络与温度放进 macOS 菜单栏，还能调风扇、防休眠、一键清理。数据在本机读取，没有统计上报。">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0b0d" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="https://getopenstats.com/">
+<meta property="og:title" content="OpenStats — Mac 的状态，抬眼就看见">
+<meta property="og:description" content="CPU、GPU、内存、网络与温度常驻菜单栏，还能调风扇、防休眠、一键清理。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://getopenstats.com/">
+<meta property="og:site_name" content="OpenStats">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://getopenstats.com/assets/window-light.png">
+<link rel="icon" href="assets/favicon.ico?v=267ea9c7" sizes="48x48">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=267ea9c7">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=267ea9c7">
+<script>
+  // 在样式生效前确定主题，避免深色模式下先闪一下白底
+  try {
+    const saved = localStorage.getItem("os-theme");
+    document.documentElement.dataset.theme = saved || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  } catch { document.documentElement.dataset.theme = "light"; }
+</script>
+<link rel="stylesheet" href="styles.css?v=267ea9c7">
+<link rel="stylesheet" href="replica.css?v=267ea9c7">
+</head>
+<body>
+
+<!-- ── 首屏：整屏就是一台 Mac ───────────────────────────────────────
+     菜单栏同时是全站导航；右侧的 OpenStats 读数、点开的详情弹窗与主窗口都是 HTML 重建，
+     数据由 replica.js 模拟。往下滚才是普通的介绍页。 -->
+<header class="desktop" id="top">
+  <div class="desktop__wall" aria-hidden="true"></div>
+
+  <nav class="menubar" aria-label="站点导航">
+    <svg class="menubar__apple" viewBox="0 0 14 17" fill="currentColor" aria-hidden="true">
+      <path d="M11.5 9c0-1.9 1.5-2.8 1.6-2.9-.9-1.3-2.2-1.5-2.7-1.5-1.1-.1-2.2.7-2.8.7-.6 0-1.5-.7-2.4-.6-1.2 0-2.4.7-3 1.8-1.3 2.2-.3 5.4 1 7.2.6.8 1.3 1.8 2.2 1.7.9 0 1.2-.6 2.2-.6 1 0 1.3.6 2.2.5.9 0 1.5-.8 2.1-1.7.7-1 .9-1.9.9-1.9s-1.8-.7-1.8-2.7zM9.7 3.2c.5-.6.8-1.4.7-2.2-.7 0-1.6.5-2.1 1.1-.5.6-.9 1.4-.8 2.2.8.1 1.7-.4 2.2-1.1z"/>
+    </svg>
+
+    <div class="mb-menu">
+      <a class="mb-title mb-title--app" href="#top" aria-haspopup="menu" aria-expanded="false">OpenStats</a>
+      <div class="mb-drop" role="menu">
+        <a role="menuitem" href="#features">关于 OpenStats</a>
+        <a role="menuitem" href="#download">下载 for Mac…</a>
+      </div>
+    </div>
+    <div class="mb-menu">
+      <a class="mb-title" href="#features" aria-haspopup="menu" aria-expanded="false">功能</a>
+      <div class="mb-drop" role="menu">
+        <a role="menuitem" href="#styles">菜单栏风格</a>
+        <a role="menuitem" href="#network">网络详情与 DNS</a>
+        <a role="menuitem" href="#themes">主窗口与主题</a>
+        <a role="menuitem" href="#thermal">风扇与防休眠</a>
+        <a role="menuitem" href="#cleanup">清理与维护</a>
+      </div>
+    </div>
+    <div class="mb-menu">
+      <a class="mb-title" href="#privacy" aria-haspopup="menu" aria-expanded="false">隐私</a>
+      <div class="mb-drop" role="menu">
+        <a role="menuitem" href="#privacy">数据留在本机</a>
+        <a role="menuitem" href="#faq">辅助工具做什么</a>
+      </div>
+    </div>
+    <div class="mb-menu">
+      <a class="mb-title" href="#changelog" aria-haspopup="menu" aria-expanded="false">更新日志</a>
+      <div class="mb-drop" role="menu">
+        <a role="menuitem" href="#changelog">最近更新</a>
+      </div>
+    </div>
+    <div class="mb-menu">
+      <a class="mb-title" href="#faq" aria-haspopup="menu" aria-expanded="false">帮助</a>
+      <div class="mb-drop" role="menu">
+        <a role="menuitem" href="#faq">常见问题</a>
+        <a role="menuitem" href="#install">安装与卸载</a>
+      </div>
+    </div>
+
+    <div class="menubar__right">
+      <!-- OpenStats 的菜单栏图标：每个指标一个，内容由 replica.js 按当前风格绘制 -->
+      <div class="mb-items" id="mbItems"></div>
+      <svg class="menubar__extra" width="19" height="11" viewBox="0 0 19 11" fill="none" stroke="currentColor" stroke-width="1.1" aria-hidden="true">
+        <rect x="0.6" y="0.6" width="14" height="9.8" rx="2.6"/><rect x="2.2" y="2.2" width="9" height="6.6" rx="1.4" fill="currentColor" stroke="none"/><path d="M16.4 4v3" stroke-linecap="round"/>
+      </svg>
+      <svg class="menubar__extra" width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true">
+        <path d="M1 4a9 9 0 0 1 13 0M3.5 6.5a5.5 5.5 0 0 1 8 0"/><circle cx="7.5" cy="9.4" r="1" fill="currentColor" stroke="none"/>
+      </svg>
+      <button class="mb-icon" id="themeToggle" type="button" aria-label="切换浅色 / 深色">
+        <svg class="mb-icon__moon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M12 8.6A5.4 5.4 0 1 1 5.4 2a4.2 4.2 0 0 0 6.6 6.6z"/></svg>
+        <svg class="mb-icon__sun" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="2.6"/><path d="M7 .8v1.4M7 11.8v1.4M.8 7h1.4M11.8 7h1.4M2.6 2.6l1 1M10.4 10.4l1 1M11.4 2.6l-1 1M3.6 10.4l-1 1"/></svg>
+      </button>
+      <time class="menubar__clock" id="menubarClock"></time>
+    </div>
+  </nav>
+
+  <!-- 刘海岛：收起时是刘海，悬停或点击展开实时摘要 -->
+  <button class="island" id="island" type="button" aria-expanded="false" aria-label="展开 OpenStats 刘海岛">
+    <span class="island__compact">
+      <span class="island__dot"></span>
+      <span class="island__mini" data-bind="island-cpu">CPU 24%</span>
+    </span>
+    <span class="island__expanded" aria-hidden="true">
+      <span class="island__row">
+        <span class="island__brand"><img src="assets/icon.png?v=267ea9c7" alt="" width="18" height="18">OpenStats</span>
+        <span class="island__health" data-bind="island-health">各项指标正常</span>
+      </span>
+      <span class="island__grid">
+        <span class="island__tile"><span class="island__label">CPU</span><span class="island__value" data-bind="island-cpu-value">24%</span><span class="island__bar"><i data-bind="island-cpu-bar"></i></span></span>
+        <span class="island__tile"><span class="island__label">GPU</span><span class="island__value" data-bind="island-gpu-value">12%</span><span class="island__bar"><i data-bind="island-gpu-bar"></i></span></span>
+        <span class="island__tile"><span class="island__label">内存</span><span class="island__value" data-bind="island-mem-value">68%</span><span class="island__bar"><i data-bind="island-mem-bar"></i></span></span>
+        <span class="island__tile"><span class="island__label">温度</span><span class="island__value" data-bind="island-temp-value">52°</span><span class="island__bar"><i data-bind="island-temp-bar"></i></span></span>
+      </span>
+      <span class="island__foot">
+        <span><i class="dot dot--up"></i><b data-bind="island-up">12 KB/s</b></span>
+        <span><i class="dot dot--down"></i><b data-bind="island-down">1.4 MB/s</b></span>
+        <span data-bind="island-fan">风扇 1,840 RPM</span>
+      </span>
+    </span>
+  </button>
+
+  <!-- 左侧桌面图标 -->
+  <nav class="desk-icons" aria-label="快捷入口">
+    <a class="desk-icon" href="#download">
+      <span class="desk-icon__art desk-icon__art--dmg" aria-hidden="true"><img src="assets/icon.png?v=267ea9c7" alt="" width="40" height="40"></span>
+      <span class="desk-icon__name">OpenStats.dmg</span>
+    </a>
+    <a class="desk-icon" href="#faq">
+      <span class="desk-icon__art desk-icon__art--doc" aria-hidden="true"><span>FAQ</span></span>
+      <span class="desk-icon__name">常见问题</span>
+    </a>
+    <a class="desk-icon" href="#changelog">
+      <span class="desk-icon__art desk-icon__art--doc" aria-hidden="true"><span>LOG</span></span>
+      <span class="desk-icon__name">更新日志</span>
+    </a>
+    <a class="desk-icon" href="#privacy">
+      <span class="desk-icon__art desk-icon__art--folder" aria-hidden="true"></span>
+      <span class="desk-icon__name">隐私说明</span>
+    </a>
+  </nav>
+
+  <!-- 欢迎窗口：首屏的主要文案 -->
+  <section class="window hero" aria-labelledby="heroTitle">
+    <div class="window__bar">
+      <span class="window__lights" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="window__title">欢迎使用 OpenStats</span>
+    </div>
+    <div class="window__body hero__body">
+      <img class="hero__icon" src="assets/icon.png?v=267ea9c7" alt="OpenStats 图标" width="72" height="72">
+      <h1 class="hero__title" id="heroTitle">Mac 的状态，抬眼就看见</h1>
+      <p class="hero__lead">CPU、GPU、内存、网络与温度常驻菜单栏，还能调风扇、防休眠、一键清理、卸载应用，检测 IP 纯净度。所有数据在本机读取，没有统计上报。</p>
+      <div class="hero__actions">
+        <a class="btn btn--primary" href="#download">下载 for Mac</a>
+        <a class="btn btn--secondary" href="#changelog">更新日志</a>
+      </div>
+      <p class="hero__meta">macOS 14 及以上 · Apple 芯片与 Intel 芯片 · 已签名并经 Apple 公证</p>
+      <p class="hero__hint">点右上角菜单栏里的 CPU、内存或网速，看看每一项的详情 ↗</p>
+      <button class="hero__link" id="heroOpenWindow" type="button">或者打开 OpenStats 主窗口</button>
+    </div>
+  </section>
+
+  <!-- 菜单栏详情弹窗与主窗口：由 replica.js 渲染 -->
+  <div class="os-popover" id="osPopover" role="dialog" aria-label="OpenStats 详情" hidden></div>
+  <div class="os-window" id="osWindow" role="dialog" aria-label="OpenStats 主窗口" hidden></div>
+
+  <!-- 程序坞 -->
+  <nav class="dock" aria-label="程序坞">
+    <a class="dock__item" href="#features" title="访达"><span class="dock__art dock__art--finder" aria-hidden="true"></span></a>
+    <button class="dock__item" id="dockOpenStats" type="button" title="打开 OpenStats"><img class="dock__art" src="assets/icon.png?v=267ea9c7" alt="OpenStats"></button>
+    <a class="dock__item" href="#thermal" title="风扇与防休眠"><span class="dock__art dock__art--fan" aria-hidden="true"></span></a>
+    <a class="dock__item" href="#cleanup" title="清理"><span class="dock__art dock__art--clean" aria-hidden="true"></span></a>
+    <a class="dock__item" href="#install" title="Homebrew 安装"><span class="dock__art dock__art--terminal" aria-hidden="true"></span></a>
+    <span class="dock__divider" aria-hidden="true"></span>
+    <a class="dock__item" href="#download" title="下载"><span class="dock__art dock__art--download" aria-hidden="true"></span></a>
+  </nav>
+
+  <a class="scroll-cue" href="#features" aria-label="继续了解">继续了解 ↓</a>
+</header>
+
+<main>
+  <section class="band" id="features">
+    <div class="shell">
+      <div class="section-head">
+        <h2>每个指标一个图标，点开就是详情</h2>
+        <p>原生 Swift 编写，只显示菜单栏时约 0.3% CPU、16 MB 内存。</p>
+      </div>
+      <ul class="feature-grid">
+        <li class="feature">
+          <h3>八种菜单栏风格</h3>
+          <p>双行文字、圆环、饼图、柱状历史……整体选一种统一套用，也能给单个指标单独指定。</p>
+        </li>
+        <li class="feature">
+          <h3>单项详情，按需显示</h3>
+          <p>CPU、内存、网络、GPU、磁盘、电池、温度各有一个窄弹窗，显示哪些区块由你勾选；另有侧边栏主窗口看全部。</p>
+        </li>
+        <li class="feature">
+          <h3>网络详情与 DNS</h3>
+          <p>本地与公网 IPv4 / IPv6、归属地与 ASN、连接探测格子，一键刷新 DNS 或切换 Cloudflare、Google、腾讯、阿里云。</p>
+        </li>
+        <li class="feature">
+          <h3>IP 纯净度检测</h3>
+          <p>CleanIP.io 纯净度评分与 F 到 A+ 等级，一眼看出出口 IP 是否被标记为 VPN、代理、Tor、机房或有滥用记录；IPv4 / IPv6 分别检测。</p>
+        </li>
+        <li class="feature">
+          <h3>风扇调速与防休眠</h3>
+          <p>自动、降温、强冷、自定义风扇；屏幕常亮、合上屏幕继续运行，过热或电量过低时自动恢复。</p>
+        </li>
+        <li class="feature">
+          <h3>安全的清理</h3>
+          <p>缓存、日志、浏览器与开发者缓存先扫描预览再清理，钥匙串、Cookie 与历史记录一律不碰。</p>
+        </li>
+        <li class="feature">
+          <h3>卸载应用与启动项</h3>
+          <p>卸载时找出应用留下的缓存、偏好设置、容器与登录项，连同应用移到废纸篓可放回；LaunchAgents 与 LaunchDaemons 一览，自己的启动项一键停用。</p>
+        </li>
+        <li class="feature">
+          <h3>磁盘与电池</h3>
+          <p>空间占用分析、文件系统只读检查、本地快照与外置磁盘；电池 24 小时电量曲线、功耗、健康度与蓝牙设备电量。</p>
+        </li>
+        <li class="feature">
+          <h3>数据留在本机</h3>
+          <p>指标来自本机内核、IOKit 与 SMC，没有统计上报；账号可选，只用来同步设置；公网 IP 查询与连接探测都可关闭。</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="band band--alt" id="styles">
+    <div class="shell">
+      <div class="section-head">
+        <h2>菜单栏风格，由你挑</h2>
+        <p>点一下下面的风格，页面顶部菜单栏里的 OpenStats 会立即换成这个样子。</p>
+      </div>
+      <div class="style-picker" id="stylePicker" role="radiogroup" aria-label="菜单栏风格"></div>
+      <div class="style-preview">
+        <div class="style-preview__bar style-preview__bar--light" id="stylePreviewLight"></div>
+        <div class="style-preview__bar style-preview__bar--dark" id="stylePreviewDark"></div>
+        <p class="style-preview__caption" id="styleCaption"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="network">
+    <div class="shell split">
+      <div class="split__text">
+        <h2>网络，一眼看到底</h2>
+        <ul class="check-list">
+          <li>上下镜像的流量历史，上传绿、下载蓝</li>
+          <li>连接探测格子：每秒 ping 一次，通了是绿格、不通是红格，最近 60 次一眼看清</li>
+          <li>本地与公网 IPv4 / IPv6、路由器、Wi‑Fi 信号，点一下就拷贝</li>
+          <li>归属地显示国旗、城市、ASN 与网络运营方，原生 / 广播、住宅 / 机房直接标出</li>
+          <li>IP 纯净度：CleanIP.io 评分与 F 到 A+ 等级色带，列出 VPN、代理、Tor、机房、滥用记录等风险标记</li>
+          <li>一键刷新 DNS 缓存，一键切换 Cloudflare、Google、腾讯 DNSPod、阿里云，或手动填写</li>
+          <li>各进程的上传与下载速率</li>
+        </ul>
+        <p class="note">公网 IP 查询与连接探测都可以在设置里关闭。修改 DNS 需要管理员权限。</p>
+      </div>
+      <figure class="shot shot--popover split__media">
+        <img class="shot--light" src="assets/popover-network-light.png?v=267ea9c7" alt="OpenStats 网络详情弹窗" loading="lazy">
+        <img class="shot--dark" src="assets/popover-network-dark.png?v=267ea9c7" alt="OpenStats 网络详情弹窗，深色" loading="lazy">
+      </figure>
+    </div>
+  </section>
+
+  <section class="band band--alt" id="themes">
+    <div class="shell">
+      <div class="section-head">
+        <h2>白底蓝，黑底蓝，一套外观</h2>
+        <p>主窗口、设置和弹窗共用同一底色，侧边栏与标题栏不分栏着色；窗口宽高都能拖动调整。</p>
+      </div>
+      <div class="shots">
+        <figure class="shot"><img src="assets/window-light.png?v=267ea9c7" alt="OpenStats 主窗口仪表盘，浅色" loading="lazy"><figcaption>浅色</figcaption></figure>
+        <figure class="shot"><img src="assets/window-dark.png?v=267ea9c7" alt="OpenStats 主窗口仪表盘，深色" loading="lazy"><figcaption>深色</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="thermal">
+    <div class="shell split">
+      <div class="split__text">
+        <h2>热了就吹，要跑就别睡</h2>
+        <table class="mode-table">
+          <thead><tr><th>风扇模式</th><th>作用</th></tr></thead>
+          <tbody>
+            <tr><td>自动</td><td>交还 macOS 温控</td></tr>
+            <tr><td>降温</td><td>最低到最高转速之间的 60%</td></tr>
+            <tr><td>强冷</td><td>最高转速</td></tr>
+            <tr><td>自定义</td><td>滑块自由设定</td></tr>
+          </tbody>
+        </table>
+        <p>合盖后继续运行适合下载、渲染和远程连接。使用电池且电量低于下限时会自动关闭，避免在包里过热。</p>
+        <p class="note">风扇与合盖运行需要安装一次辅助工具。它只提供固定的几个操作，不执行任意命令，应用退出时自动恢复设置。</p>
+      </div>
+      <figure class="shot split__media"><img src="assets/thermal.png?v=267ea9c7" alt="OpenStats 散热页面" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <section class="band band--alt" id="cleanup">
+    <div class="shell split split--reverse">
+      <div class="split__text">
+        <h2>先看清再清理</h2>
+        <ul class="check-list">
+          <li>应用缓存、日志与崩溃报告</li>
+          <li>Chrome、Edge、Brave、Arc、Firefox、Safari 缓存</li>
+          <li>Xcode 编译缓存、模拟器与 npm 缓存</li>
+          <li>未完成的下载、安装包、废纸篓</li>
+          <li>一键刷新 DNS 缓存、释放内存</li>
+        </ul>
+        <p>只处理白名单目录；正在运行的应用会跳过，浏览器需先退出；删除前每一项再校验一次，所有操作写入日志。</p>
+      </div>
+      <figure class="shot split__media"><img src="assets/cleaner.png?v=267ea9c7" alt="OpenStats 清理页面" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <section class="band" id="privacy">
+    <div class="shell narrow">
+      <div class="section-head">
+        <h2>数据不出这台 Mac</h2>
+        <p>没有统计上报。账号是可选的，只用来同步偏好设置；另有两项可关闭的网络功能会联网。</p>
+      </div>
+      <ul class="fact-list">
+        <li><b>指标来源</b><span>内核接口（host_processor_info、host_statistics64、sysctl）、IOKit 与 SMC</span></li>
+        <li><b>账号</b><span>可选。用 GitHub、Google 或 Apple 登录后，偏好设置同步到你的其他 Mac；云端只保存邮箱、姓名与设置文档，可随时删除。详见<a href="privacy.html">隐私政策</a></span></li>
+        <li><b>统计上报</b><span>没有</span></li>
+        <li><b>公网 IP</b><span>打开网络详情时向 Cloudflare 查询一次公网地址，10 分钟内不重复，可关闭</span></li>
+        <li><b>归属地</b><span>归属地、ASN、网络类型与纯净度评分来自 cleanip.io，这台 Mac 直接向它查自己的公网 IP，只发送这个地址</span></li>
+        <li><b>连接探测</b><span>打开网络详情时每秒 ping 一次你选择的目标（后台每 10 秒），只在显示网络项时运行，可关闭</span></li>
+        <li><b>偏好设置</b><span>保存在本机；登录后同步的那一份不含任何监控数据</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="band band--alt" id="download">
+    <div class="shell narrow download">
+      <img src="assets/icon.png?v=267ea9c7" alt="" width="96" height="96">
+      <h2>下载 OpenStats</h2>
+      <p>使用 Developer ID 签名并经过 Apple 公证，打开时不会遇到安全拦截。</p>
+      <ul class="download__options">
+        <li class="download__option">
+          <h3>Apple 芯片</h3>
+          <p>M1、M2、M3、M4、M5 系列的 Mac</p>
+          <a class="btn btn--primary" href="download/OpenStats-0.6.1-AppleSilicon.dmg">下载 Apple 芯片版</a>
+        </li>
+        <li class="download__option">
+          <h3>Intel 芯片</h3>
+          <p>能升级到 macOS 14 的 Intel Mac（大多为 2018 年及以后的机型）</p>
+          <a class="btn btn--primary" href="download/OpenStats-0.6.1-Intel.dmg">下载 Intel 版</a>
+        </li>
+      </ul>
+      <p class="download__hint">不确定是哪种？打开苹果菜单 › 关于本机，看“芯片”或“处理器”那一行。</p>
+      <p class="hero__meta">版本 0.6.1 · macOS 14 Sonoma 及以上 · 简体中文与 English 界面 · <a href="#changelog">这个版本更新了什么</a></p>
+      <p class="download__brew">也可以用 Homebrew 安装：<code>brew install --cask gentpan/tap/openstats</code></p>
+    </div>
+  </section>
+
+  <section class="band" id="changelog">
+    <div class="shell narrow">
+      <div class="section-head">
+        <h2>更新日志</h2>
+        <p>每天改了什么，都记在这里。</p>
+      </div>
+      <!-- changelog:start -->
+      <!-- 由 Scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->
+      <div class="log">
+        <article class="log__day">
+          <div class="log__head"><time datetime="2026-09-18">2026-09-18</time><span class="log__tag">0.6.1</span></div>
+          <p class="log__counts">新增 1</p>
+          <ul class="log__list">
+            <li><span class="log__kind">新增</span>菜单栏“合并为一个”时，点击图标弹出状态总览，不再直接打开主窗口：菜单栏里开启的每一项占一行，写着当前数值、一句状态（负载与温度、已用内存、上下行速度、剩余时间等）和最近的走势，数值偏高时变色；点一行或点顶部的标签，就能看到该项的完整详情，与“每项独立”时点单个图标看到的一样。顶部标签可在总览与各项之间来回切换，面板高度随内容变化；标题栏右侧可以打开主窗口的仪表盘或设置。「设置 · 菜单栏」里各项弹窗显示哪些区块的选项，合并模式下同样可用。解决 <a href="https://github.com/gentpan/OpenStats/issues/2">Issue #2</a>：合并显示时点击只能打开主窗口，看不到各项状态。</li>
+          </ul>
+        </article>
+        <article class="log__day">
+          <div class="log__head"><time datetime="2026-09-18">2026-09-18</time><span class="log__tag">0.6.0</span></div>
+          <p class="log__counts">新增 5 · 样式 1</p>
+          <ul class="log__list">
+            <li><span class="log__kind">新增</span>新增出口与分流窗口：网络页顶栏和菜单栏网络弹窗各有一个入口。一次检测约十秒，看清 VPN 与代理有没有生效、各个网站分别从哪个出口出去。</li>
+            <li><span class="log__kind">新增</span>结论只用一句话说清：未使用代理、代理出口（地区）、代理没有生效、网络不通四种情况。右侧同时给出经代理、直连、连不上的网站数量。</li>
+            <li><span class="log__kind">新增</span>本机网络：物理网卡的出口 IP、归属地、运营商与 IPv6。归属地数据来自 cleanip.io。</li>
+            <li><span class="log__kind">新增</span>网站分流：25 个常用网站分别从哪个出口出去。按 AI、影音、社交、开发、国内分类筛选；接入 Cloudflare 的网站能实测出口与边缘节点，其余按国内 / 国际规则推断，每个网站带延迟信号条。</li>
+            <li><span class="log__kind">新增</span>代理方式一览：VPN / 隧道、系统代理、自动代理配置、DNS 与检测到的代理软件。DNS 被代理接管时会标出来。</li>
+            <li><span class="log__kind">样式</span>菜单栏网络弹窗的 DNS 区块重排：网络服务与线路做成两个徽章（Wi-Fi / 有线、直连或经过哪个代理），走隧道时标题旁有叹号提示 DNS 可能被接管，刷新 DNS 缓存改为图标按钮。</li>
+          </ul>
+        </article>
+        <article class="log__day">
+          <div class="log__head"><time datetime="2026-09-18">2026-09-18</time><span class="log__tag">0.5.0</span></div>
+          <p class="log__counts">新增 6</p>
+          <ul class="log__list">
+            <li><span class="log__kind">新增</span>新增网络测速窗口：网络页顶栏多一个“网络测速”按钮。窗口里四块内容各自独立，可以单独跑、也可以随时停，关窗即停。</li>
+            <li><span class="log__kind">新增</span>本机宽带测速：下行、上行、空载延迟与抖动。数据由 speed.cloudflare.com 测量，并显示这次走的是哪个 Cloudflare 边缘节点。</li>
+            <li><span class="log__kind">新增</span>国内分省三网延迟：31 个省份 × 三网共 93 个节点。给出电信、联通、移动各自的中位延迟与逐省数值；节点来自 zstaticcdn.com，只做 TCP 建连计时、不下载任何数据。</li>
+            <li><span class="log__kind">新增</span>全球节点测速：24 个节点，先测延迟再单独测下载。覆盖亚太、欧洲、北美等地，测速文件来自 Linode、Vultr、DataPacket。</li>
+            <li><span class="log__kind">新增</span>全球探针看目标：从全球 10 / 20 / 30 个社区探针 ping 你填的域名。看各地访问它的延迟与丢包，走 Globalping 的公开接口，请求从本机直接发出、不带任何密钥，用的是本机 IP 每小时的免费额度；测量结果在 Globalping 上公开，所以只测你自己填写的域名。</li>
+            <li><span class="log__kind">新增</span>测速有明确的用量上限：默认 10 秒 / 200 MB，先到哪个停哪个。顶栏可改成 3 秒 / 20 MB 或 5 秒 / 50 MB，并实时显示本次用掉多少流量。</li>
+          </ul>
+        </article>
+        <details class="log__older">
+          <summary>更早的更新（8 天）</summary>
+        <article class="log__day">
+          <div class="log__head"><time datetime="2026-09-17">2026-09-17</time><span class="log__tag">0.5.0</span></div>
+          <p class="log__counts">调整 1</p>
+          <ul class="log__list">
+            <li><span class="log__kind">调整</span>程序坞默认不再显示 OpenStats 图标：以前打开主窗口（比如从风扇弹窗进入温度与风扇页）时，图标会出现在程序坞与 ⌘Tab 里，关窗后才消失。现在和其他菜单栏工具一样始终只在菜单栏运行，主窗口照常打开并置于最前。想从程序坞或 ⌘Tab 切回主窗口的，可以在「设置 · 通用」打开“在程序坞显示图标”，开关立即生效。</li>
+          </ul>
+        </article>
+        <article class="log__day">
+          <div class="log__head"><time datetime="2026-09-16">2026-09-16</time><span class="log__tag">0.4.0</span></div>
+          <p class="log__counts">修复 1 · 调整 2 · 样式 6 · 新增 1</p>
+          <ul class="log__list">
+            <li><span class="log__kind">修复</span>修复网络弹窗偶尔露出一小截滚动条：以前弹窗打开时按当时的内容算高度，之后公网 IP、归属地等数据陆续到达，内容变高了窗口却不跟着变。现在内容一变高或变矮，窗口高度随之调整到正好放下，只有屏幕放不下时才出现滚动条；展开、收起区块时同样适用。</li>
+            <li><span class="log__kind">调整</span>网络弹窗只显示公网 IP，没有 IPv6 时不占行：本地 IPv4、本地 IPv6 与路由器只在主窗口的网络页显示；没有 IPv6 时不再显示“—”占一行，网卡没有 IPv6 地址就不显示“本地 IPv6”，拿不到公网 IPv6（网络或代理不支持）就不显示“公网 IPv6”。</li>
+            <li><span class="log__kind">调整</span>应用的 CPU 占用改为占整机的比例：CPU 弹窗与主窗口 CPU 页的“按应用汇总”、仪表盘的“高占用进程”，全部核心跑满为 100%，和顶部的总占用是同一把尺子。以前按单核满载为 100% 计（活动监视器的算法），多核 Mac 上一个应用动不动显示 99%、75%，容易误以为很吃 CPU；鼠标悬停在数值上仍可看到单核口径的数值。进程页保持单核口径，与活动监视器一致。</li>
+            <li><span class="log__kind">样式</span>主窗口在 macOS 26 上改用液态玻璃：侧边栏是一块浮在窗口里的玻璃面板，选中项垫一块淡蓝色圆角底并随切换滑动；顶栏右侧“在菜单栏显示”一组收进玻璃胶囊。主按钮是蓝色玻璃胶囊、次要按钮与图标按钮是透明玻璃，风扇模式等快捷切换是玻璃胶囊，开关换成系统开关（拖动时滑块变成玻璃）。设置分组与数据卡片保持实色，与系统设置一致。macOS 14、15 上保持原来的样式。</li>
+            <li><span class="log__kind">样式</span>菜单栏弹窗改为紧凑排版，参照 Stats：区块不再是灰底卡片，改成一条细分隔线隔开，行距收紧，顶栏按钮缩小；网络弹窗的 IP 纯净度与 DNS 默认收起成一行（纯净度显示分数与等级，DNS 显示正在使用的地址），点一下展开、标题栏右侧的箭头收起，状态会记住；流量图变矮，连接探测改为两行细格。网络弹窗从约 1520pt 降到约 950pt，其他弹窗矮了一到两成。主窗口的详情页保持原样，照常完整显示。</li>
+            <li><span class="log__kind">样式</span>IP 纯净度的标题行重新排版：置信度不再是带框的绿色徽章，改成标题旁一行浅灰小字，百分比按高低着色；“查看完整报告”文字链接换成外链图标，与刷新、收起并成一组按钮，macOS 26 上合成一颗玻璃胶囊。分数右侧的 cleanip.io 字标照旧可以打开完整报告。</li>
+            <li><span class="log__kind">样式</span>连接探测只用来看网络通不通：格子通了是绿色、不通是红色（不再用橙色表示延迟偏高），固定 60 格，弹窗排成 3 行、主窗口排成 2 行；去掉格子下面的延迟、抖动、丢包三项，标题右侧也不再写探测地址与频率。打开网络详情时固定每秒探测一次，「设置 · 网络」里的“探测间隔”选项随之去掉，后台低频探测仍是每 10 秒。</li>
+            <li><span class="log__kind">样式</span>主窗口顶栏加高，右上角按钮高度统一：顶栏改为标准高度（52pt，原来 40pt），右上角的按钮、“在菜单栏显示”开关组与“防休眠已开启”标记统一为 32pt 高，上下各留 10pt，各页高度一致，不再偏上。macOS 26 上红绿灯按钮留在侧边栏玻璃面板之外，面板从顶栏下方开始、与右侧内容卡片顶边对齐，顶栏那一条可以按住拖动窗口。</li>
+          </ul>
+          <details class="log__rest">
+            <summary>还有 2 项</summary>
+            <ul class="log__list">
+              <li><span class="log__kind">样式</span>分段切换改为苹果标准样式：灰色圆角底槽，各段等宽铺满，选中的一段是实心蓝色、白字，切换时蓝块滑过去；网络详情的 IPv4 / IPv6 切换同样是灰底蓝选中。</li>
+              <li><span class="log__kind">新增</span>清理、卸载等耗时操作进行中显示全局加载框：清理、卸载应用、导出诊断信息、修改 DNS 进行中，整个主窗口压暗，中间浮一块加载框写明正在做什么（macOS 26 上是液态玻璃），期间不能误点其他操作，完成后自动消失。</li>
+            </ul>
+          </details>
+        </article>
+        <article class="log__day">
+          <div class="log__head"><time datetime="2026-09-16">2026-09-16</time><span class="log__tag">0.3.2</span></div>
+          <p class="log__counts">修复 2</p>
+          <ul class="log__list">
+            <li><span class="log__kind">修复</span>修复网络详情里 IP 纯净度查不到的问题：之前一直显示“正在查询”、IP 地址区块只剩国家，因为 cleanip.io 不再接受查询指定 IP，改为只查请求方自己的出口。现在分别锁定 IPv4 与 IPv6 连接各查一次，两族仍然各有自己的归属地与纯净度；锁定地址族的连接建不起来时退回系统默认的请求方式。用了分流代理、cleanip.io 看到的出口与 Cloudflare 看到的不同时，以 cleanip.io 看到的地址显示，纯净度与地址对得上。</li>
+            <li><span class="log__kind">修复</span>修复查询失败后纯净度长时间空着：空结果不再被当成有效结果保存 7 天，没查到的下次打开网络详情就会重查，服务恢复后纯净度不会一直空着。</li>
+          </ul>
+        </article>
+        <article class="log__day">
+          <div class="log__head"><time datetime="2026-09-15">2026-09-15</time><span class="log__tag">0.3.1</span></div>
+          <p class="log__counts">新增 2</p>
+          <ul class="log__list">
+            <li><span class="log__kind">新增</span>支持 Intel 芯片的 Mac：分别发布 Apple 芯片版与 Intel 版安装包，官网与 Homebrew 按芯片提供下载（Homebrew 自动选择）。Intel 机型需要 macOS 14 Sonoma 或更高版本；用 Apple 智能解释进程只能在 Apple 芯片上使用，Intel 机型的 CPU 不分性能核与能效核，部分功耗与频率读数可能不显示。</li>
+            <li><span class="log__kind">新增</span>在线升级按芯片下载对应的安装包，并在安装前核对安装包支持这台 Mac 的芯片；在 Apple 芯片上经 Rosetta 运行的 Intel 版会升级为 Apple 芯片版。</li>
+          </ul>
+        </article>
+        <article class="log__day">
+          <div class="log__head"><time datetime="2026-09-15">2026-09-15</time><span class="log__tag">0.3.0</span></div>
+          <p class="log__counts">新增 8 · 调整 14 · 修复 3</p>
+          <ul class="log__list">
+            <li><span class="log__kind">新增</span>菜单栏新增“电池”项目：电量按九种风格显示（电量条、圆环、饼图、数字等），充电中带闪电，电量低于 20% 按“高负载时着色”变红。点击弹出电池详情：电量与剩余 / 充满时间、适配器功率、电池温度、最近 24 小时电量曲线、功耗、健康度与循环次数、已连接蓝牙设备的电量（AirPods 左右耳与充电盒、妙控键盘 / 鼠标 / 触控板），可跳到系统电池设置；主窗口也有对应的“电池”页，历史页多了电池电量曲线。没有电池的 Mac（mini、Studio、iMac）上这个项目改为显示电量最低的蓝牙设备，弹窗只列蓝牙设备。「设置 · 菜单栏」新增“蓝牙设备电量低时提示”：某个设备低于 20% 时在电池项目旁显示它的图标与电量。</li>
+            <li><span class="log__kind">新增</span>网络详情“接口”区块右上角新增重置按钮：把开机后下载 / 上传归零、从现在起重新累计，标题旁标出起算时间，两行改叫“重置后下载 / 上传”；重启后自动回到开机后累计，右键按钮可随时改回。</li>
+            <li><span class="log__kind">新增</span>磁盘页从展示页变成能动手的磁盘工具，新增四张卡片：<ul class="log__sub"><li>空间占用：统计家目录里每个文件夹占多少，并列出最大的 20 个文件（应用、照片图库等按整体算一个）；可在访达中显示，家目录里、Library 之外的文件可以直接移到废纸篓。只读扫描，文件多时需要几十秒，可随时停止。</li><li>文件系统检查：调用系统的 diskutil 对启动盘做一次只读检查，相当于“磁盘工具”的急救但不修改任何东西；记住上次检查的时间与结果，发现问题时提示去磁盘工具修复。</li><li>本地快照：列出 Time Machine 留在本机的快照（它们计入“可清除”空间），可一键全部删除；辅助工具够新时由它执行，否则请求一次管理员授权。辅助工具协议升到第 4 版，已安装的旧版会提示重新安装。</li><li>其他磁盘：列出外置硬盘、U 盘、镜像与网络共享的容量，可在访达中显示或直接推出；接入、拔出时自动刷新。</li></ul></li>
+            <li><span class="log__kind">新增</span>网络详情新增「IP 纯净度」区块：CleanIP.io 的纯净度评分与等级画成占满整行的 F 到 A+ 六段色带，分数在色带上方、得分处有标记，同一行右侧是 cleanip.io 字标，点了打开这个 IP 的完整报告；下面列出风险评分、命中的风险标记（VPN、代理、Tor、机房、滥用记录等）与一句评价。IP 地址区块用 cleanip.io 样式的徽章标出原生 / 广播、住宅 / 机房与运营商类型（ISP 等），徽章样式作为通用组件收进设计系统。</li>
+            <li><span class="log__kind">新增</span>账号与设置同步（设置 · 账号与同步）：用 GitHub、Google 或 Apple 登录后，菜单栏项目与风格、刷新频率、外观与语言、详情弹窗的区块、连接探测、通知、快捷键、风扇安全温度、合盖电量下限会保存到 getopenstats.com，换一台 Mac 登录即自动恢复。设置改动 2 秒后上传，启动、唤醒与每 15 分钟检查一次云端；第一次登录时本机与云端都有内容且不同，会让你选用哪一份，之后以最后写入为准。登录走系统的授权窗口，令牌存在钥匙串，云端只保存邮箱、姓名与设置文档，可随时退出或删除云端数据。不登录时应用行为不变。</li>
+            <li><span class="log__kind">新增</span>CPU 走势时长可选 1 / 3 / 5 分钟：走势线上方一行小字切换，弹窗与主窗口共用；曲线按真实采样时间定位，最新一次采样固定在右边缘，睡眠等超过 10 秒没有采样的地方线条断开。</li>
+            <li><span class="log__kind">新增</span>菜单栏新增“磁盘”项目：显示启动磁盘已用占比，八种风格都可用；点击弹出磁盘详情（容量与可用空间、读写速度、SSD 健康、读写最多的应用），区块可在设置里逐个隐藏。主窗口磁盘页右上角同样可以直接开关，“温度与风扇”页右上角现在有温度、风扇两个开关。</li>
+            <li><span class="log__kind">新增</span>CPU 详情新增“各核心占用”区块：主窗口里每个核心一个小圆环，中间写百分比，按“核心 1…N”编号并按类型分组，超过 60% 变橙、85% 变红；弹窗里是每核一根柱子的紧凑版，默认关闭，可在“设置 · 菜单栏”的 CPU 弹窗显示里打开。</li>
+          </ul>
+          <details class="log__rest">
+            <summary>还有 17 项</summary>
+            <ul class="log__list">
+              <li><span class="log__kind">调整</span>公网 IP 的归属地改用 cleanip.io：去掉本地 MaxMind GeoLite2 数据库（含下载、导入、自动更新的整个“IP 归属地数据库”设置区块）；归属地、ASN、网络类型与纯净度都由这台 Mac 直接向 cleanip.io 查询、不经过我们的服务器，只发送公网地址。</li>
+              <li><span class="log__kind">调整</span>「设置 · 菜单栏」每个显示项目下面多了一行“菜单栏风格”：给这一项单独选一种风格（默认跟随整体，菜单里标出整体现在是哪种），旁边是这一项按当前风格、实时读数画出的预览，改了立刻能看到。以前这个选择藏在开关旁一个没有说明的下拉里，不容易发现。温度、风扇只提供文字类的三种风格；原“风格”分组改名“整体风格”并加了说明。</li>
+              <li><span class="log__kind">调整</span>菜单栏弹窗右上角的两个按钮：左边改为该指标自己的图标（网络是网络图标、磁盘是硬盘），点了直接进主窗口里这个指标的页面；右边的齿轮进总设置。</li>
+              <li><span class="log__kind">调整</span>公网 IP 双栈支持：IPv4 与 IPv6 各自查询归属地与纯净度、各自缓存；两族都有时 IP 地址区块用胶囊开关切换 IPv4 / IPv6。纯净度区块的标题一行排开：地址族徽章（只有一族时不标）、置信度徽章（高绿、中灰、低黄）、完整报告链接，右侧是刷新按钮；IP 地址区块也有同样的刷新按钮，都是忽略缓存立即重查，查询进行中按钮变成系统的转圈。</li>
+              <li><span class="log__kind">调整</span>公网 IP 的归属地结果保存在本机：点开网络详情立刻显示上次的结果，后台只向 Cloudflare 核对一下地址；地址没变且不满 7 天就不再查归属地，换了 IP、超过 7 天或点了刷新才重新查。</li>
+              <li><span class="log__kind">调整</span>磁盘页与磁盘弹窗的“读取 / 写入”两组数值各占一半宽度，数字长短变化时位置不再左右挪动。</li>
+              <li><span class="log__kind">调整</span>磁盘“读写最多的应用”与网络详情“高占用进程”改为稳定的 5 条榜单：按最近十几秒的平均速率排序和画条，数字仍是当前速率；刚安静下来的应用会在榜上停留几秒再退出，不再随每秒的波动忽隐忽现、上下乱跳。</li>
+              <li><span class="log__kind">调整</span>磁盘页与磁盘弹窗的容量改为分段条：已用、可清除、可用三段按比例排在一条里，段内直接标名称与百分比，下方图例给出各自的容量；可清除是系统随时可以腾出的缓存，访达的“可用”把它算在内。</li>
+              <li><span class="log__kind">调整</span>磁盘页“读写最多的应用”与 CPU、内存详情“按应用汇总”的排行条不再画灰色底槽，只保留代表相对占比的蓝色条。</li>
+              <li><span class="log__kind">调整</span>「设置 · 菜单栏」的显示项目上方加了一条说明：按住 ⌘ 拖动可以调整菜单栏图标的顺序，新开启的项目由系统安排位置；各页面右上角的开关悬停时也有同样的提示。官网常见问题同步补充。</li>
+              <li><span class="log__kind">调整</span>网络详情的 DNS 切换改为下拉菜单：“配置方式”一行直接是菜单，选 Cloudflare、Google 等预设立即切换，选“手动”展开输入框，自定义地址时旁边有铅笔按钮可再次修改；不再显示六个并排的按钮，省下两行。</li>
+              <li><span class="log__kind">调整</span>主窗口的 CPU 走势图加上 0–100% 刻度与起点、中点、现在三个时间标签。</li>
+              <li><span class="log__kind">调整</span>CPU 详情的解释性文字不再常驻：热力图怎么看、每类核心是干什么的、平均负载怎么理解、按应用汇总为什么会超过 100%，都收进区块标题旁的 ⓘ，鼠标悬停 ⓘ 或卡片内容时才显示，界面上只留数据。</li>
+              <li><span class="log__kind">调整</span>核心类型说人话：核心分工的悬停说明写明每类核心是干什么的（最快的处理重活、更省电的负责后台和轻量任务，系统自动分配）；各核心占用的分组标题、热力图的行标签都带上核心数量，热力图说明写明“每行一个核心（共 N 个），颜色越深越忙”；最忙的核心改为“核心 7（性能核）”这种统一编号。</li>
+              <li><span class="log__kind">修复</span>菜单栏弹窗的内容整体偏左、右边留白更宽：接了鼠标时系统默认常驻滚动条，滚动区域给它预留了一条宽度。现在应用内一律用浮层滚动条，内容占满整个弹窗宽度，主窗口页面同样处理。</li>
+              <li><span class="log__kind">修复</span>网络详情里的归属地国旗画错：中国、乌兹别克斯坦等 63 面旗子的 SVG 用了嵌套引用，系统渲染器画成一大块白。现在国旗改为预先渲染好的 PNG，全部按参考图核对过。</li>
+              <li><span class="log__kind">修复</span>各监控页右上角的“在菜单栏显示”开关点不动：页面的滚动区域会自动向上延伸到顶栏底下，把开关的点击截走了；现在顶栏盖在滚动区域之上，GPU、磁盘等页面的开关可以正常点击。</li>
+            </ul>
+          </details>
+        </article>
+        <article class="log__day">
+          <div class="log__head"><time datetime="2026-09-14">2026-09-14</time><span class="log__tag">0.3.0</span></div>
+          <p class="log__counts">新增 2 · 调整 2</p>
+          <ul class="log__list">
+            <li><span class="log__kind">新增</span>系统通知新增“CPU 持续高负载”：总占用持续 1 分钟高于设定值（70% / 80% / 90%）时提醒，点通知打开 CPU 详情。</li>
+            <li><span class="log__kind">新增</span>菜单栏风格新增“折线历史”：最近 30 次采样（约 1 分钟）的走势折线，线下填淡色；设置里有示例预览。</li>
+            <li><span class="log__kind">调整</span>CPU 详情重新整理：顶部直接显示 CPU 温度（下方附离 100°C 的余量，不再把余量当主数值），走势线下标出最近 60 秒的峰值；核心热力图右侧加一根粗条画此刻各核心的占用；核心分工标出芯片型号，频率跟在占用后面用次要颜色显示；按应用汇总注明“以单核满载为 100%”，解释各应用相加为什么会超过顶部的总占用。</li>
+            <li><span class="log__kind">调整</span>主窗口的 CPU 页：走势线加高并带 25% / 50% / 75% 参考线，核心分工与排队程度并排显示，不再整页单列拉长。</li>
+          </ul>
+        </article>
+        <article class="log__day">
+          <div class="log__head"><time datetime="2026-09-13">2026-09-13</time><span class="log__tag">0.3.0</span></div>
+          <p class="log__counts">新增 13 · 调整 4</p>
+          <ul class="log__list">
+            <li><span class="log__kind">新增</span>在线升级：启动时和之后每天检查官网版本清单，发现新版本时弹出版本号与更新摘要，可一键安装、以后再说或跳过此版本；下载后依次核对 sha256、包名与版本、开发者签名团队和 Apple 公证，任何一项不通过都放弃安装；旧版先备份再原地替换，失败自动还原，装完自动重启到新版。「设置 · 关于」与应用菜单里可以手动检查更新。</li>
+            <li><span class="log__kind">新增</span>辅助工具版本检查：启动时核对正在运行的辅助工具版本；旧进程还在运行时先断开让它退出，由系统启动新版本，仍然旧时在风扇、合盖运行和辅助工具设置里提示“重新安装”，侧边栏对应项目显示提醒圆点；有新版本时“关于”旁同样显示圆点。</li>
+            <li><span class="log__kind">新增</span>导出诊断信息（设置 · 关于）：把版本、系统与辅助工具状态、主要设置、最近 3 天的运行日志、清理记录和最近的崩溃报告打包成 zip，反馈问题时附上；自动去掉用户目录名、IP 与硬件地址，不含序列号。应用与辅助工具的关键操作和错误写入系统日志。</li>
+            <li><span class="log__kind">新增</span>系统通知（设置 · 通知）：CPU 过热（持续 1 分钟高于设定温度）、内存压力严重（持续 30 秒）、磁盘空间不足（低于 10% 或 10 GB）、网络断开超过 20 秒（恢复后再提示）、电池最大容量低于 80%，逐项开关，默认关闭；同一状况持续期间只提醒一次并有冷却时间，点通知打开对应页面；可发送测试通知，通知被关闭时提示去系统设置打开。</li>
+            <li><span class="log__kind">新增</span>功耗与频率：“温度与风扇”页和温度详情新增功耗，显示整机功耗走势、电源输入、电池充放电功率和 GPU 功耗（读 SMC 与系统能耗统计，不需要辅助工具）；CPU 详情的核心分工显示各类核心工作时的平均频率。读取能耗统计有一定开销，只在这些界面打开时每 2 秒读一次。</li>
+            <li><span class="log__kind">新增</span>磁盘页（主窗口侧边栏“磁盘”）：启动磁盘容量、所有磁盘合计的实时读写速度与 60 秒走势、SSD 健康（通过系统自带的 NVMe SMART 接口读取剩余寿命、累计读写量、备用空间、温度、通电时间与次数、异常断电和介质错误，出现警告时提示备份）、读写磁盘最多的应用；磁盘空间不足的通知改为打开磁盘页。</li>
+            <li><span class="log__kind">新增</span>卸载应用（主窗口工具分组）：列出“应用程序”里的第三方应用及其体积，选中或把应用拖进来后找出它留下的应用数据、缓存、偏好设置、沙盒容器、窗口状态、日志、网页数据和登录启动项，可逐项取消勾选；确认后连同应用一起移到废纸篓（可放回），并从程序坞移除图标。只匹配应用包名与同名目录，系统自带和 Apple 的应用不列出，正在运行时提示先退出。</li>
+            <li><span class="log__kind">新增</span>启动项（主窗口工具分组）：列出当前用户、所有用户的 LaunchAgents 和系统 LaunchDaemons，显示所属应用、可执行文件、是否登录时运行 / 保持运行，以及运行中（PID）、已加载、已停用状态；当前用户的启动项可以直接停用或重新启用（写入 launchd 停用记录并卸载，不删除文件），其余只读并提供登录项设置入口。</li>
+          </ul>
+          <details class="log__rest">
+            <summary>还有 9 项</summary>
+            <ul class="log__list">
+              <li><span class="log__kind">新增</span>历史（主窗口监控分组）：每分钟把 CPU 平均与峰值、内存与内存压力、网络上下行、GPU、CPU 最高温度和整机功耗写入本机 SQLite 数据库，保留 7 天；可回看最近 1 小时 / 24 小时 / 7 天，睡眠等没有记录的时段线条断开，内存压力严重的时段标红，鼠标移到图上查看那一刻的数值；可关闭记录或清除历史，数据不上传。</li>
+              <li><span class="log__kind">新增</span>蓝牙设备电量：本机信息页列出已连接的键盘、鼠标、触控板和耳机的电量（AirPods 分左耳、右耳、充电盒），低于 20% 标红；通知里新增“蓝牙设备电量低”（低于 15%）。</li>
+              <li><span class="log__kind">新增</span>全局快捷键（设置 · 通用）：可为显示 / 隐藏主窗口、打开进程页、开关防休眠、释放内存录制快捷键，在任何应用中都能用，不需要辅助功能权限；被其他应用占用时提示更换。</li>
+              <li><span class="log__kind">新增</span>桌面小组件“系统概览”：小号显示 CPU、内存圆环与磁盘用量，中号显示 CPU、内存、磁盘、电池四个圆环和磁盘可用空间；在自己的沙盒进程里读取数据，主应用没开也能显示，刷新间隔由系统决定（几分钟一次）。</li>
+              <li><span class="log__kind">新增</span>英文界面（设置 · 通用 · 语言）：跟随系统、简体中文、English 三选一，系统首选语言不是中文时默认显示英文；约 880 条界面文案、通知、错误提示和 Apple 智能解释的回答都有英文版本，日期按英文格式显示；切换后界面、菜单与菜单栏立即换成新语言，显示器、应用名称等由系统提供的文字在下次启动时切换。</li>
+              <li><span class="log__kind">调整</span>连接探测更省电：打开网络详情时按设置的间隔探测；详情关闭、只在菜单栏显示网速时改为每 10 秒低频探测，并允许系统合并唤醒，也可以在设置里关闭后台探测。</li>
+              <li><span class="log__kind">调整</span>进程页每 2 秒刷新一次（读取全系统进程需要启动 ps），其他页面仍为每秒。</li>
+              <li><span class="log__kind">调整</span>菜单栏图标用 ⌘ 拖动调整的顺序会被记住，重启应用或切换显示项目后保持不变。</li>
+              <li><span class="log__kind">调整</span>本机信息的电池卡片提供“电池设置”入口，用 macOS 自带的充电上限（80%–100%）；新款机型不再开放第三方写入 SMC 充电控制键，因此不另做一套充电限制。</li>
+            </ul>
+          </details>
+        </article>
+        <article class="log__day">
+          <div class="log__head"><time datetime="2026-09-13">2026-09-13</time><span class="log__tag">0.2.0</span></div>
+          <p class="log__counts">新增 30 · 样式 12 · 修复 6</p>
+          <ul class="log__list">
+            <li><span class="log__kind">新增</span>菜单栏显示 CPU、GPU、内存、网速、CPU 温度和风扇转速。</li>
+            <li><span class="log__kind">新增</span>菜单栏风格：双行文字、单行文字、图标、圆环、饼图、柱状历史、电量条、状态圆点八种，整体选择一种统一套用，也可以给个别指标单独指定。设置里每种风格都有用示例数据画出的预览和说明，柱状历史注明是最近 10 次采样的变化。</li>
+            <li><span class="log__kind">新增</span>网速有双行圆点、双行箭头、单行三种样式，绿色上传、蓝色下载，带完整单位。</li>
+            <li><span class="log__kind">新增</span>鼠标悬停在菜单栏图标上显示完整读数。</li>
+            <li><span class="log__kind">新增</span>菜单栏布局：每项独立（每个指标一个图标，点击弹出该项的窄详情）或合并为一个（点击打开主窗口）。每个详情里显示哪些区块可以在设置中逐个勾选。</li>
+            <li><span class="log__kind">新增</span>详情弹窗：CPU（负载历史、各核心、处理器信息、高占用进程）、内存（使用历史、内存构成与释放内存、高占用进程）、GPU、温度与风扇（各组温度、风扇转速与快捷模式）。</li>
+            <li><span class="log__kind">新增</span>网络详情：上下镜像的流量历史；连接探测格子（每 1 / 2 / 5 秒 ping 一次 Cloudflare、Google、阿里云、腾讯或路由器，显示延迟、抖动、丢包）；接口、物理地址、Wi-Fi 信号与速率、VPN / 代理；本地 IPv4 / IPv6、路由器、公网 IPv4 / IPv6，点击即可拷贝；归属地显示 SVG 国旗、城市、ASN 与网络运营方；各进程上传下载速率。</li>
+            <li><span class="log__kind">新增</span>DNS：显示正在使用的 DNS 与配置方式，一键刷新 DNS 缓存，一键切换为自动、Cloudflare、Google、腾讯 DNSPod、阿里云，或手动填写地址（逐个校验为 IPv4 / IPv6）。流量经过 VPN / 代理时提示 DNS 可能被接管。</li>
+          </ul>
+          <details class="log__rest">
+            <summary>还有 40 项</summary>
+            <ul class="log__list">
+              <li><span class="log__kind">新增</span>主窗口：左侧边栏切换仪表盘、CPU、GPU、内存、网络、温度与风扇、进程、防休眠、清理；指标页右上角直接开关该项的菜单栏显示；宽度与高度都可调整，卡片按比例放大。打开主窗口时应用出现在程序坞中，关闭后回到仅菜单栏运行。</li>
+              <li><span class="log__kind">新增</span>CPU 详情：顶部是占用、状态（空闲 / 适中 / 繁忙 / 满载）、与 30 秒前相比的变化和温度余量，下面是走势线与用户 / 系统 / 空闲构成条；核心热力图（每行一个核心、每列一次采样）；核心分工（各类核心平均占用与最忙的核心）；排队程度（平均负载折算到每个核心，并提示负载在上升还是下降）；按应用汇总 CPU。</li>
+              <li><span class="log__kind">新增</span>内存详情：顶部是还可用多少、压力状态与最近 60 秒的压力走势条；内存水位条（App / 联动 / 压缩 / 缓存 / 空闲）；压缩与交换（压缩省下的内存、压缩比、交换区用量与实时换入换出速率，持续写盘时提示）；按应用汇总内存（合并辅助进程，显示占已用内存的比例）。</li>
+              <li><span class="log__kind">新增</span>用 Apple 智能解释进程：在进程上右键或点进程页的星形按钮，由系统自带的本机大模型说明它是什么、占用是否正常、能否退出；把路径、所属应用和签名方一起交给模型以减少猜测，全程不联网（需要 macOS 26 并开启 Apple 智能）。</li>
+              <li><span class="log__kind">新增</span>IP 归属地改为本地 MaxMind GeoLite2 数据库查询：自己实现 .mmdb 读取器（不依赖第三方库），国家、城市与 ASN 完全离线查；数据库由官网服务器每周二、周五用 MaxMind 账号同步，应用每 3 天检查清单、下载并按 sha256 校验后替换，也可以从文件导入；设置中可选是否包含城市库（约 60 MB）；数据库就绪前暂用 ipinfo.io 在线查询，网络详情里标明数据来源。</li>
+              <li><span class="log__kind">新增</span>本机信息页：机型图与名称、系统版本与版号、芯片与各类核心、内存与图形、存储用量、电池健康与循环次数、每台显示器的尺寸 / 原生分辨率 / 显示分辨率 / 刷新率、机型标识符、序列号（默认遮住，点眼睛图标显示，截图时始终遮住）与启动时间。</li>
+              <li><span class="log__kind">新增</span>进程管理器（主窗口“进程”页）：包括 root 与其他用户的系统进程（通过系统自带的 ps 读取，不需要辅助工具）；列出 CPU、CPU 时间、内存、线程、唤醒次数、磁盘读写与用户，点列标题排序；可搜索名称、PID 或用户，筛选全部 / 我的 / 系统，切换按进程或按应用合并；选中后显示路径与详情，可在访达中显示、用 Apple 智能解释、退出或强制退出（二次确认，系统进程与 loginwindow 等禁止结束）；底部汇总用户 / 系统 / 空闲与全系统进程数、线程数。</li>
+              <li><span class="log__kind">新增</span>进程显示应用的本地化名称（如“微信”）；按应用汇总时，同一应用的主进程与辅助进程合并计算。</li>
+              <li><span class="log__kind">新增</span>仪表盘顶部是健康评分和芯片、内存、系统版本、运行时长、机型徽章，下面是 CPU 柱状历史、GPU 折线、内存面积图、磁盘、网络双线、风扇三列卡片，以及核心负载、电池环形图、高占用进程和快捷开关。</li>
+              <li><span class="log__kind">新增</span>CPU 按超级核、性能核、能效核分组显示各核心负载；内存口径与活动监视器一致，并显示内存压力；网速读取 64 位计数器，大流量下不会回绕。</li>
+              <li><span class="log__kind">新增</span>温度与风扇：启动时枚举一次 SMC 键并按前缀归类，不按芯片型号硬编码，显示 CPU、GPU、内存、电池和掌托温度。</li>
+              <li><span class="log__kind">新增</span>按界面需要分级采样：只显示菜单栏时只采集菜单栏用到的指标，打开详情或主窗口时按页面加采，锁屏、屏幕休眠和系统睡眠时暂停。</li>
+              <li><span class="log__kind">新增</span>风扇调速：自动、降温、强冷、自定义四种模式。自定义模式下 CPU 达到安全温度会自动交还系统控制，应用退出或断开连接时风扇恢复自动。</li>
+              <li><span class="log__kind">新增</span>防休眠：屏幕保持常亮、仅系统不休眠、合盖后继续运行，可设定持续时间；使用电池且电量低于下限时自动关闭合盖运行。</li>
+              <li><span class="log__kind">新增</span>辅助工具：通过 SMAppService 注册，只提供设置风扇转速、切换合盖不睡眠、刷新 DNS、释放内存、为网络服务设置 DNS 几个固定操作（DNS 地址与服务名在辅助工具内再次校验）；运行时读取自己的签名团队，只接受同一团队签名的 OpenStats 调用；异常退出后下次开机自动恢复风扇与睡眠设置。</li>
+              <li><span class="log__kind">新增</span>清理：扫描应用缓存、日志与崩溃报告、Chrome / Edge / Brave / Arc / Firefox / Safari 缓存、Xcode 编译缓存、模拟器缓存、npm 缓存、Xcode 归档、未完成的下载、安装包和废纸篓。按类别显示大小，可展开查看具体项目；清理前二次确认，操作写入 <code>~/Library/Logs/OpenStats/cleanup.log</code>。</li>
+              <li><span class="log__kind">新增</span>清理的安全边界：只清理白名单目录，钥匙串、密码管理器、VPN、Cookie、历史记录一律不碰；正在运行的应用和浏览器自动跳过，执行前逐项重新校验。</li>
+              <li><span class="log__kind">新增</span>系统维护：一键刷新 DNS 缓存、释放内存，已安装辅助工具时直接执行，否则请求一次管理员授权。</li>
+              <li><span class="log__kind">新增</span>进程页按 CPU 或内存排序，辅助进程归并显示为所属应用。</li>
+              <li><span class="log__kind">新增</span>设置（主窗口侧边栏的“设置”分组）：外观、登录时启动、刷新频率、温度单位、菜单栏布局 / 显示项 / 样式 / 弹窗内容、连接探测与公网 IP 查询、风扇安全温度、合盖运行电量下限、辅助工具安装与卸载。</li>
+              <li><span class="log__kind">新增</span>统一外观：浅色为白底蓝色、深色为黑底蓝色，主窗口与弹窗共用同一底色；侧边栏、标题栏与页面不分栏着色，红绿灯按钮与页面标题对齐；卡片为浅灰 / 深灰实色。侧边栏的太阳 / 月亮按钮一键切换，也可以跟随系统。</li>
+              <li><span class="log__kind">新增</span>截图命令 <code>OpenStats --snapshot &lt;目录&gt;</code>：用本机实时数据渲染主窗口各页、详情弹窗、设置和菜单栏的浅色与深色截图，IP 与硬件地址替换为示例值。</li>
+              <li><span class="log__kind">样式</span>网络详情的流量历史：上传 / 下载峰值移到标题行（“60 秒峰值 ↑ … ↓ …”，箭头按上传绿、下载蓝着色），图表上不再压文字。</li>
+              <li><span class="log__kind">样式</span>设置并入主窗口：侧边栏新增“设置”分组（通用、菜单栏、辅助工具、关于）；网络设置（连接探测、公网 IP、IP 归属地数据库）放到“网络”页底部，风扇安全温度放到“温度与风扇”页底部，合盖运行电量下限放到“防休眠”页底部；弹窗齿轮、菜单栏右键“设置…”与 ⌘, 都打开主窗口的通用设置；不再有单独的设置窗口，已有偏好全部保留；导航较多时侧边栏可滚动。</li>
+              <li><span class="log__kind">样式</span>主窗口侧边栏的选中样式：左侧一条两端渐隐的细线，选中项有发光的蓝色光条，切换时带回弹地滑过去，右侧拖出渐淡的蓝色高亮；不再整块填蓝。</li>
+              <li><span class="log__kind">样式</span>仪表盘“快捷开关”改为开关样式：防休眠、合盖运行、散热模式各一行，右侧开关，下面一行小字说明当前状态。</li>
+              <li><span class="log__kind">样式</span>进程表按窗口宽度自动隐藏次要列，窄窗口里名称列不会被挤没。</li>
+              <li><span class="log__kind">样式</span>内存详情的“释放内存”移到标题栏，执行中与完成后在按钮上显示进度和结果；主窗口内存页顶栏同样提供。</li>
+              <li><span class="log__kind">样式</span>主窗口默认 1072×720，可自由调整大小；滚动条改为浮层样式，只在滚动时出现。</li>
+              <li><span class="log__kind">样式</span>菜单栏字号缩小并统一：两行布局为 7pt 标签加 10pt 数值，单行布局 11pt，网速两行 9pt；每种风格内部只用一套字号，指标之间留出更宽的间距。</li>
+              <li><span class="log__kind">样式</span>柱状历史去掉满高的灰色底槽，只保留一条淡基线，负载起伏更清楚。</li>
+              <li><span class="log__kind">样式</span>面板加宽为三列布局，高度按内容自动计算，常见屏幕上不需要滚动。</li>
+              <li><span class="log__kind">样式</span>更换应用图标，面板左上角和关于页使用同一图标。</li>
+              <li><span class="log__kind">样式</span>首次启动默认在菜单栏显示 CPU、内存与网速。</li>
+              <li><span class="log__kind">修复</span>深色菜单栏上 CPU、RAM 小标签颜色过深，几乎看不清。</li>
+              <li><span class="log__kind">修复</span>面板打开后高度会再调整一次、内容轻微回弹，看起来在抖动；面板打开时点击菜单栏图标关闭，会立刻又被打开。</li>
+              <li><span class="log__kind">修复</span>风扇被其他程序设为手动模式时，误显示为由 OpenStats 控制。</li>
+              <li><span class="log__kind">修复</span>风扇转速、PID 等数字出现千分位分隔符，例如 1,350 RPM。</li>
+              <li><span class="log__kind">修复</span>关闭液态玻璃后点击菜单栏图标，面板看起来打不开：面板内容被放大成两倍，窗口里只显示空白的一角。</li>
+              <li><span class="log__kind">修复</span>面板第一次打开时高度偏小：打开瞬间温度、风扇、进程等数据还没采集，现在启动时先完整采集一次。</li>
+            </ul>
+          </details>
+        </article>
+        </details>
+      </div>
+      <!-- changelog:end -->
+    </div>
+  </section>
+
+  <section class="band band--alt" id="faq">
+    <div class="shell narrow">
+      <div class="section-head"><h2>常见问题</h2></div>
+      <details class="faq">
+        <summary>会不会很耗电？</summary>
+        <p>只显示菜单栏时只采集菜单栏用到的指标，M5 Max 实测约 0.3% CPU、16 MB 内存；锁屏、屏幕休眠和系统睡眠时暂停采样与探测。</p>
+      </details>
+      <details class="faq">
+        <summary>辅助工具是做什么的，安全吗？</summary>
+        <p>调风扇、合盖不睡眠、刷新 DNS、修改 DNS 服务器和释放内存需要系统权限，由一个通过 SMAppService 注册的辅助工具完成。它只提供这几个固定操作，不执行任意命令，DNS 地址会再次校验；只接受同一开发团队签名的 OpenStats 调用，应用退出时自动恢复风扇与睡眠设置。</p>
+      </details>
+      <details class="faq">
+        <summary>会联网吗？</summary>
+        <p>只有几项可关闭的功能会：打开网络详情时向 Cloudflare 查询一次公网地址（10 分钟内不重复）；连接探测按你设定的间隔 ping 你选择的目标；归属地、ASN 与纯净度评分由这台 Mac 直接向 cleanip.io 查询，只发送公网地址；每天从本站检查一次新版本。账号可选，只用来同步设置；没有统计上报。</p>
+      </details>
+      <details class="faq">
+        <summary>为什么不上 App Store？</summary>
+        <p>App Store 的沙盒不允许访问 SMC、读取其他应用的缓存和安装特权辅助工具，而这正是大部分功能。</p>
+      </details>
+      <details class="faq">
+        <summary>清理会不会删掉重要文件？</summary>
+        <p>只清理白名单目录中的缓存与日志，钥匙串、密码管理器、VPN、Cookie、历史记录一律不碰；清理前可以展开查看每一项，下载目录中的内容会先移到废纸篓。</p>
+      </details>
+      <details class="faq" id="install">
+        <summary>怎么安装、卸载？</summary>
+        <p>下载 DMG 后把 OpenStats 拖进“应用程序”；也可以用 Homebrew：<code>brew install --cask gentpan/tap/openstats</code>。卸载时先在“设置 › 辅助工具”里卸载辅助工具，再把应用移到废纸篓；用 Homebrew 安装的执行 <code>brew uninstall --zap --cask openstats</code>。</p>
+      </details>
+      <details class="faq">
+        <summary>菜单栏图标的顺序怎么调？</summary>
+        <p>按住 ⌘ 键拖动任意一个图标即可，松开后位置会一直保留，重启也不变。新开启的项目由 macOS 安排初始位置，可能离其他图标较远，拖到一起就好。这是系统自带的功能，对所有菜单栏图标都有效。</p>
+      </details>
+      <details class="faq">
+        <summary>支持 Intel Mac 吗？</summary>
+        <p>支持，在上方下载 Intel 版即可，需要 macOS 14 Sonoma 或更高版本。用 Apple 智能解释进程只能在 Apple 芯片上使用；Intel 机型的 CPU 不分性能核与能效核，部分功耗与频率读数也可能不显示。开发主要在 Apple 芯片上进行，Intel 机型遇到风扇或温度读数不对，欢迎到 GitHub 反馈。</p>
+      </details>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="shell footer__inner">
+    <span class="footer__brand"><img src="assets/icon.png?v=267ea9c7" alt="" width="20" height="20">OpenStats</span>
+    <span class="footer__fine">© 2026 GiantAccel, LLC</span>
+    <span class="footer__fine">OpenStats 是独立的第三方应用，与 Apple 没有隶属关系。</span>
+  </div>
+</footer>
+
+<script src="app.js?v=267ea9c7" defer></script>
+<script src="replica.js?v=267ea9c7" defer></script>
+</body>
+</html>

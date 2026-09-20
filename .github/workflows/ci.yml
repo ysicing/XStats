@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+
+      # CommandLineTools alone cannot expand SwiftUI's @Observable / @Entry
+      # macros — the plugins ship only with full Xcode. Pick the newest Xcode
+      # on the image rather than the default one or a pinned version that a
+      # future image may not carry.
+      - name: Select Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Test
+        run: make test
+
+      - name: Build app
+        run: make build CONFIG=Release BUMP=0 INSTALL=0
+
+      - name: Verify bundle
+        run: |
+          APP=build/DerivedData/Build/Products/Release/XStats.app
+          test -x "$APP/Contents/MacOS/XStats"
+          test -x "$APP/Contents/MacOS/XStatsHelper"
+          test -f "$APP/Contents/Library/LaunchDaemons/work.12306.xstats.helper.plist"
+          test -f "$APP/Contents/Resources/AppIcon.icns"
+          codesign --verify --verbose "$APP"
+
+      # Smoke test: there is no menu bar or window to drive in CI, so render
+      # every main-window page, popover and settings section off-screen. A view
+      # that traps on layout fails here rather than the first time a user opens it.
+      - name: Render UI snapshots
+        run: |
+          build/DerivedData/Build/Products/Release/XStats.app/Contents/MacOS/XStats --snapshot "$PWD/snapshots"
+          test "$(ls snapshots/*.png | wc -l)" -ge 20
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ui-snapshots
+          path: snapshots/

@@ -1,0 +1,237 @@
+<div align="center">
+
+<img src="Assets/icon.png" alt="XStats" width="112" height="112">
+
+# XStats
+
+**Mac 상태를 한눈에 확인하세요. 메뉴 막대에서 CPU, GPU, 메모리, 네트워크와 온도를 확인하고, 팬 제어, 잠자기 방지, 캐시 정리, 앱 제거, IP 평판 확인 기능을 사용할 수 있습니다.**
+
+[![Release](https://img.shields.io/badge/version-0.6.1-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Stars](https://img.shields.io/github/stars/ysicing/xstats?style=flat&color=f5c518)](https://github.com/ysicing/xstats/stargazers)
+[![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
+[![macOS](https://img.shields.io/badge/macOS-14%2B-black)](https://github.com/ysicing/xstats/releases)
+[![License](https://img.shields.io/badge/license-MIT-black)](LICENSE)
+
+XStats는 CPU 코어별 사용량, GPU, 메모리 압력, 네트워크 속도, 디스크, 배터리, 온도와 팬 상태를 보여 주는 macOS 메뉴 막대 앱입니다.
+팬 속도 조절, 덮개를 닫은 상태에서 실행 유지, 캐시 정리, 앱과 관련 파일 제거, 시작 항목 관리도 지원합니다.
+네트워크 화면에서는 공인 IP가 VPN, 프록시, 데이터 센터 또는 악용 기록과 관련되어 있는지 확인할 수 있습니다.
+
+사용 통계를 수집하거나 전송하지 않습니다. XStats 계정 없이 자신의 WebDAV 서버로 설정을 수동 백업하고 복원할 수 있습니다.
+공인 IP 조회, 연결 테스트, 업데이트 확인 등의 네트워크 기능은 선택 사항입니다.
+
+[다운로드](https://github.com/ysicing/xstats/releases) · [변경 기록(중국어)](CHANGELOG.md) · [아키텍처(영어)](ARCHITECTURE.md)
+
+[简体中文](README.md) · [English](README.en.md) · [日本語](README.ja.md) · **한국어**
+
+</div>
+
+## 설치
+
+[GitHub Releases](https://github.com/ysicing/xstats/releases)에서 배포된 빌드를 확인하고 Mac에 맞는 AppleSilicon 또는 Intel 버전을 선택하세요.
+아직 배포된 빌드가 없다면 아래 설명에 따라 소스에서 빌드할 수 있습니다.
+
+macOS 14(Sonoma) 이상이 필요하며, 주로 Apple Silicon에서 개발하고 검증합니다.
+Intel Mac에서는 Apple Intelligence 프로세스 설명을 사용할 수 없고, CPU의 성능 코어/효율 코어 구분과 일부 전력·주파수 표시에도 제한이 있습니다.
+**앱의 표시 언어는 현재 중국어 간체와 영어입니다. 일본어와 한국어는 README 문서에만 지원됩니다.**
+앱 언어는 기본적으로 시스템 설정을 따르며, 앱 설정에서 바꿀 수 있습니다.
+
+XStats에는 아직 공식 웹사이트가 없습니다. 자동 업데이트와 기존 GeoIP 서비스는 유지하지만, 계정 로그인은 WebDAV 동기화로 대체했습니다.
+업데이트 시 앱 식별자와 서명을 계속 검증하므로, OpenStats용 설치 패키지로 XStats를 교체할 수는 없습니다.
+
+## 업데이트
+
+최신 변경 사항과 미출시 기능은 [CHANGELOG.md(중국어)](CHANGELOG.md)를 확인하세요.
+현재 설정 동기화는 WebDAV 수동 방식입니다. GitHub, Google, Apple 로그인과 기존 계정 백엔드는 제거되었습니다.
+
+## 개발 활동
+
+<p align="center">
+  <img src="Assets/readme/activity.svg" alt="최근 26주간 일별 커밋 수(영어 표기)" width="760">
+</p>
+
+<p align="center">
+  <a href="https://star-history.com/#ysicing/xstats&Date">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=ysicing/xstats&type=Date&theme=dark">
+      <img alt="GitHub 스타 수 변화" src="https://api.star-history.com/svg?repos=ysicing/xstats&type=Date" width="760">
+    </picture>
+  </a>
+</p>
+
+## 화면 미리 보기
+
+<p align="center">
+  <img src="Assets/readme/overview-dark.png" width="49%" alt="대시보드 다크 모드">
+  <img src="Assets/readme/overview-light.png" width="49%" alt="대시보드 라이트 모드">
+</p>
+
+스크린샷의 앱 화면은 중국어로 표시되어 있습니다.
+
+## 주요 기능
+
+**메뉴 막대**
+
+- 두 줄 텍스트, 한 줄 텍스트, 아이콘, 링, 원형 차트, 기록 막대, 배터리 막대, 상태 점 등 8가지 스타일을 제공합니다. 지표별로 다른 스타일을 지정할 수도 있습니다.
+- 네트워크 속도는 업로드를 초록색, 다운로드를 파란색으로 표시하며 KB/s, MB/s, GB/s 단위를 항상 보여 줍니다.
+- 고정 폭 숫자를 사용해 값이 바뀔 때 표시 폭이 흔들리는 현상을 줄입니다. 마우스를 올리면 전체 값을 볼 수 있습니다.
+
+<p align="center"><img src="Assets/readme/menubar-dark.png" width="600" alt="메뉴 막대"></p>
+
+**상세 팝오버**
+
+지표를 클릭하면 세부 정보가 열립니다. 표시할 영역은 설정에서 선택하고 Esc 키로 닫을 수 있습니다.
+
+- **CPU**: 사용량, 온도, 최근 1/3/5분 추이, 코어별 부하와 히트맵, 주파수, 평균 부하, 앱별 사용량.
+- **메모리**: 사용 가능한 용량, 메모리 압력, 압축 메모리, 스왑 읽기·쓰기, 앱별 사용량.
+- **네트워크**: 트래픽 기록, 최근 60회 연결 테스트, 인터페이스, Wi-Fi, VPN/프록시, 로컬·공인 IPv4/IPv6, 국가, ASN, IP 평판, DNS 관리, 프로세스별 트래픽.
+- **디스크**: 사용 중·정리 가능·사용 가능 용량, 읽기·쓰기 속도와 60초 추이, SSD 상태, 접근량이 많은 앱.
+- **GPU·온도·팬**: 사용 기록, 센서 그룹별 온도, 팬 회전수와 제어 모드.
+- **배터리**: 잔량, 남은 사용 시간·충전 완료 시간, 어댑터 출력, 온도, 24시간 추이, 소비 전력, 상태, 충전 사이클, 연결된 Bluetooth 기기의 배터리. 배터리가 없는 Mac에서는 Bluetooth 기기만 표시합니다.
+
+<p align="center">
+  <img src="Assets/readme/popover-cpu-light.png" width="32%" alt="CPU 상세 화면">
+  <img src="Assets/readme/popover-disk-light.png" width="32%" alt="디스크 상세 화면">
+  <img src="Assets/readme/popover-memory-dark.png" width="32%" alt="메모리 상세 화면">
+</p>
+
+**IP 평판과 네트워크 테스트**
+
+CleanIP.io 점수, F~A+ 등급, VPN·프록시·Tor·데이터 센터·악용 기록 등의 위험 표시를 제공합니다.
+IPv4와 IPv6를 따로 확인하며 결과는 최대 7일 동안 로컬에 캐시합니다. IP가 바뀌거나 새로 고침을 누르면 다시 조회합니다.
+속도 측정, 지역별 노드 연결 확인, Globalping 공개 프로브를 통한 지연 시간·패킷 손실 측정도 지원합니다.
+Globalping 측정 결과는 공개되므로 직접 지정한 대상을 확인하는 용도로 사용하세요. 속도 측정에는 시간과 데이터 사용량 제한이 있습니다.
+
+<p align="center">
+  <img src="Assets/readme/ip-purity-light.png" width="40%" alt="IP 주소와 평판 라이트 모드">
+  <img src="Assets/readme/ip-purity-dark.png" width="40%" alt="IP 주소와 평판 다크 모드">
+</p>
+
+**메인 창**
+
+사이드바에서 대시보드, 시스템 정보, 기록, 각종 지표, 프로세스, 시작 항목, 잠자기 방지, 정리, 앱 제거, 설정으로 이동합니다.
+창 크기를 조절할 수 있으며 라이트·다크 모드를 직접 선택하거나 시스템 설정을 따를 수 있습니다.
+
+**Apple Intelligence 프로세스 설명**
+
+프로세스를 오른쪽 클릭하면 시스템 내장 모델이 용도, 사용량이 정상인지, 종료해도 되는지 설명합니다.
+외부 AI 서비스에는 연결하지 않습니다. macOS 26 이상에서 Apple Intelligence를 켜야 합니다. 설명이 틀릴 수 있으므로 프로세스를 종료하기 전에 직접 확인하세요.
+
+<p align="center">
+  <img src="Assets/readme/thermal-dark.png" width="49%" alt="온도와 팬">
+  <img src="Assets/readme/keepawake-light.png" width="49%" alt="잠자기 방지">
+</p>
+
+## 팬 제어와 잠자기 방지
+
+| 모드 | 동작 |
+|---|---|
+| 자동 | macOS에 제어를 돌려줍니다 |
+| 냉각 | 최소~최대 회전수 범위의 60%로 고정합니다 |
+| 최대 냉각 | 최대 회전수로 작동합니다 |
+| 사용자 지정 | 슬라이더로 회전수를 지정합니다 |
+
+사용자 지정 모드에서 CPU가 안전 온도(기본 95°C)에 도달하면 시스템 제어로 돌아갑니다.
+XStats를 종료하거나 앱이 비정상 종료되면 팬이 자동 모드로 복원됩니다. 덮개를 닫은 상태에서 실행 유지는 배터리가 설정한 하한보다 낮아지면 해제됩니다.
+
+이 기능은 SMAppService로 등록한 권한 있는 보조 프로그램을 사용합니다. 처음 사용할 때 시스템 설정의 로그인 항목에서 허용해야 합니다.
+보조 프로그램은 호출 앱의 서명을 확인하고 팬 제어, 잠자기 설정, DNS 캐시 비우기, 메모리 확보 등 정해진 작업만 수행합니다.
+임의의 명령은 실행하지 않습니다. 연결이 끊기거나 비정상 종료 후 다시 시작하면 팬과 잠자기 설정을 복원합니다.
+
+## 정리
+
+- **대상**: 앱·브라우저 캐시, 로그, 충돌 보고서, Xcode·시뮬레이터·npm 캐시, Xcode 아카이브, 미완료 다운로드, 설치 파일, 휴지통.
+- **삭제 전 확인**: 유형별 용량과 개별 파일을 표시하고 실행 전에 다시 확인합니다. 기본적으로 캐시와 로그는 바로 삭제하고 다운로드는 휴지통으로 옮깁니다. 모두 휴지통으로 이동하도록 설정할 수도 있습니다.
+- **보호**: 허용된 디렉터리만 처리합니다. 키체인, 비밀번호 관리자, VPN, 쿠키, 기록 등을 보호하고 실행 중인 앱의 캐시는 건너뜁니다. 삭제 직전에 각 항목을 다시 검사합니다.
+- **기록**: 작업 로그는 ~/Library/Logs/XStats/cleanup.log에 저장합니다.
+- **유지 관리**: DNS 캐시 비우기와 메모리 확보를 지원합니다. 보조 프로그램이 없으면 관리자 인증을 요청합니다.
+
+<p align="center"><img src="Assets/readme/cleaner-light.png" width="600" alt="정리 화면"></p>
+
+## 앱 제거와 시작 항목
+
+- 앱을 선택하거나 끌어다 놓으면 관련 데이터, 캐시, 환경설정, 컨테이너, 로그, 시작 항목을 찾습니다. 항목별로 제외할 수 있으며 확인 후 앱과 함께 휴지통으로 옮깁니다. 시스템·Apple 앱은 제외하고, 실행 중인 앱은 먼저 종료하도록 안내합니다.
+- 사용자 및 시스템의 LaunchAgents/LaunchDaemons와 실행 상태를 표시합니다. 현재 사용자의 시작 항목은 파일을 삭제하지 않고 비활성화·재활성화할 수 있습니다. 다른 항목은 읽기 전용입니다.
+
+<p align="center"><img src="Assets/readme/startup-items-light.png" width="600" alt="시작 항목"></p>
+
+## 데이터와 개인정보
+
+지표는 로컬 커널, IOKit, SMC에서 읽으며 설정은 앱의 UserDefaults에 저장합니다. 사용 통계를 전송하지 않습니다.
+공인 IP는 Cloudflare(실패 시 ipify), IP 평판은 cleanip.io에 직접 조회합니다. 연결 테스트는 선택한 대상으로 ICMP ping을 보내고, 업데이트 확인은 getopenstats.com의 버전 정보를 읽습니다.
+이 기능들은 설정에서 끌 수 있습니다. Apple Intelligence 프로세스 설명은 기기 안에서 처리됩니다.
+
+### WebDAV 설정 동기화
+
+1. 자신의 WebDAV 서버에 디렉터리를 만든 다음, 앱의 **Settings → Settings Sync**(영어 UI)를 엽니다.
+2. 기존 디렉터리의 HTTPS URL, 사용자 이름, 비밀번호 또는 앱 전용 비밀번호를 저장합니다. Basic 인증과 유효한 TLS 인증서가 필요합니다. 리다이렉트를 따르지 않으므로 최종 디렉터리 URL을 입력하세요.
+3. **Upload Local Settings**에서 확인하면 xstats-settings.json을 만들거나 덮어씁니다. 다른 Mac의 변경 사항과 병합하지 않습니다.
+4. 다른 Mac에서도 같은 연결 정보를 설정한 다음 **Download and Apply**를 선택합니다. 검증 후 **Apply and Overwrite**를 눌러 해당 로컬 설정을 바꿉니다.
+
+동기화는 수동으로만 실행합니다. 앱 시작, 잠자기 해제, 설정 변경 시 자동으로 전송하지 않습니다.
+비밀번호는 각 Mac의 키체인에 저장하며, 모니터링 데이터·기록·WebDAV 연결 정보는 백업에 포함하지 않습니다.
+JSON 파일 자체는 추가 암호화하지 않으므로 비공개 디렉터리를 사용하세요.
+처음에는 업로드가 필요합니다. 1 MB를 넘는 파일, 잘못된 형식, 지원하지 않는 버전은 거부하며 로컬 설정을 변경하지 않습니다.
+기존 계정 로그인과 백엔드는 제거되었습니다. iCloud 동기화는 지원하지 않습니다.
+
+## 빌드와 실행
+
+macOS 14 이상, **Xcode 26 이상**, [XcodeGen](https://github.com/yonaskolb/XcodeGen)이 필요합니다.
+Command Line Tools만으로는 SwiftUI 매크로 플러그인이 부족합니다.
+
+~~~bash
+brew install xcodegen
+make run                  # Release 빌드, /Applications 설치, 실행
+make install              # make run과 동일
+make test                 # Swift 패키지 테스트
+make open                 # Xcode 프로젝트 생성 후 열기
+~~~
+
+설치 없이 빌드만 하려면 make build BUMP=0 INSTALL=0을 사용하세요. 일반 빌드는 빌드 번호를 올리고 설치된 앱을 교체합니다.
+로컬 데이터를 사용한 화면 캡처는 다음 명령으로 생성합니다.
+
+~~~bash
+/Applications/XStats.app/Contents/MacOS/XStats --snapshot ./snapshots
+~~~
+
+패널을 연 채로 유지하려면 --show-panel을 지정합니다.
+CHANGELOG.md를 수정한 뒤 python3 Scripts/sync_changelog.py를 실행하면 중국어·영어 README의 업데이트 정보와 활동 그래프를 다시 생성합니다.
+
+## 배포
+
+SMC, 다른 앱의 캐시, 권한 있는 보조 프로그램을 사용하므로 App Store 샌드박스를 대상으로 하지 않습니다.
+로컬 빌드는 Developer ID 인증서가 있으면 사용하고, 없으면 ad-hoc 서명을 사용합니다. ad-hoc 빌드는 로컬 검증용입니다.
+일반 배포에는 Developer ID 서명과 Apple 공증이 필요합니다. 보조 프로그램은 자신과 같은 팀으로 서명된 앱만 허용합니다.
+
+~~~bash
+make release                         # 서명, 공증, 티켓 첨부, DMG와 cask 생성
+NOTARY_PROFILE=XStats make release   # 저장된 공증 프로필 지정
+SKIP_NOTARIZE=1 make release          # 공증하지 않은 로컬 검증용 패키지
+~~~
+
+## 구조
+
+- Packages/XStatsKit/Sources/SMC: SMC 통신, 팬 제어, 온도 센서.
+- Packages/XStatsKit/Sources/Metrics: 지표 수집 및 필요한 항목만 수집하는 MetricsHub.
+- Packages/XStatsKit/Sources/Cleaner: 정리 규칙, 안전 검사, 실행.
+- Packages/XStatsKit/Sources/HelperShared: XPC 프로토콜과 유지 관리 작업.
+- Packages/XStatsKit/Sources/WebDAVSync: WebDAV 클라이언트와 키체인 비밀번호 저장.
+- Packages/XStatsKit/Sources/XStatsUI: 화면, 설정, 팝오버, 메뉴 막대.
+- Helper: 권한 있는 보조 프로그램. App: 앱 진입점.
+
+자세한 내용은 [ARCHITECTURE.md(영어)](ARCHITECTURE.md)를 참고하세요.
+
+## 감사의 글
+
+| 프로젝트 | 작성자 | 라이선스 | 사용하거나 참고한 내용 |
+|---|---|---|---|
+| [OpenStats](https://github.com/gentpan/OpenStats) | GiantAccel, LLC | MIT | XStats의 기반이 된 프로젝트. 오픈소스 기여에 감사드립니다 |
+| [Stats](https://github.com/exelban/stats) | Serhiy Mytrovtsiy | MIT | SMC 통신, Apple Silicon 팬 제어, 메뉴 막대 표시 |
+| [Mole](https://github.com/tw93/Mole) | tw93 | GPL-3.0 | 정리·보호 대상에 대한 아이디어. 정리 기능은 독립적인 Swift 구현이며 Mole 코드를 포함하지 않습니다 |
+| [QuotaBar](https://github.com/gentpan/quotabar) | GiantAccel, LLC | MIT | README 구성, 변경 기록 동기화, 활동 그래프 |
+
+자세한 내용은 [ThirdPartyNotices.md](ThirdPartyNotices.md)를 참고하세요.
+XStats는 독립적인 서드파티 앱이며 Apple이나 본문에 언급된 다른 회사가 승인하거나 후원하는 제품이 아닙니다.
+
+## 라이선스
+
+MIT. [LICENSE](LICENSE)를 참고하세요.

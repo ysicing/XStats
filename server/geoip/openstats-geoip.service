@@ -1,0 +1,13 @@
+[Unit]
+Description=下载 MaxMind GeoLite2 数据库供 OpenStats 更新
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/openstats-geoip-update
+# 只需要写官网的 geoip 目录
+ProtectSystem=strict
+ReadWritePaths=/var/www/getopenstats.com/geoip /tmp
+PrivateTmp=true
+NoNewPrivileges=true
