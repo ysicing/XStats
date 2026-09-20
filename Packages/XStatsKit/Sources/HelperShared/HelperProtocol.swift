@@ -9,11 +9,15 @@ public enum HelperConstants {
     public static let protocolVersion = 4
 
     /// 辅助工具对调用方的签名要求：与辅助工具自身同一团队签名的 XStats。
-    /// ad-hoc 签名的开发构建没有团队，只能校验 bundle identifier。
-    public static func clientRequirement(teamIdentifier: String?) -> String {
-        let identifier = "identifier \"\(appBundleIdentifier)\""
-        guard let teamIdentifier, !teamIdentifier.isEmpty else { return identifier }
-        return identifier + " and anchor apple generic and certificate leaf[subject.OU] = \"\(teamIdentifier)\""
+    ///
+    /// ad-hoc 签名的开发构建没有团队，此时返回 nil 表示“无法安全鉴权”。不能退化成只校验
+    /// bundle identifier：单独的 `identifier` 不含 anchor 约束，任何进程 `codesign -s -`
+    /// 伪造同一个 identifier 即可通过校验，进而以 root 驱动 DNS、睡眠、快照与风扇。
+    /// 在线升级在 ad-hoc 下同样是直接禁用（见 UpdateController），两处保持一致。
+    public static func clientRequirement(teamIdentifier: String?) -> String? {
+        guard let teamIdentifier, !teamIdentifier.isEmpty else { return nil }
+        return "identifier \"\(appBundleIdentifier)\" and anchor apple generic"
+            + " and certificate leaf[subject.OU] = \"\(teamIdentifier)\""
     }
 }
 

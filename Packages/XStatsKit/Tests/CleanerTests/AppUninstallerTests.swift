@@ -62,6 +62,27 @@ import Testing
         #expect(throws: Never.self) { try AppUninstaller.validate(normal) }
     }
 
+    /// leftovers 会扫描 Preferences、Caches、Containers 等十余个目录，前缀匹配一旦放行残缺包名，
+    /// 用户点一次卸载就会把 com.apple.dock.plist 在内的所有 com.* 条目移进废纸篓。
+    @Test func prefixMatchRequiresThreeSegmentIdentifier() {
+        #expect(!AppUninstaller.matchesIdentifier("com.apple.dock.plist", "com"))
+        #expect(!AppUninstaller.matchesIdentifier("com.example.foo.plist", "com"))
+        #expect(!AppUninstaller.matchesIdentifier("com.google.Chrome.plist", "com.google"))
+        // 精确同名仍要能删掉，否则短包名的应用会留下自己的残留
+        #expect(AppUninstaller.matchesIdentifier("com", "com"))
+        #expect(AppUninstaller.matchesIdentifier("com.google", "com.google"))
+    }
+
+    @Test func prefixMatchStillFindsDerivedNames() {
+        #expect(AppUninstaller.matchesIdentifier("com.example.foo", "com.example.foo"))
+        #expect(AppUninstaller.matchesIdentifier("com.example.foo.plist", "com.example.foo"))
+        #expect(AppUninstaller.matchesIdentifier("com.example.foo.savedState", "com.example.foo"))
+        #expect(AppUninstaller.matchesIdentifier("COM.EXAMPLE.FOO.helper", "com.example.foo"))
+        // 兄弟应用不能被当成残留
+        #expect(!AppUninstaller.matchesIdentifier("com.example.foobar", "com.example.foo"))
+        #expect(!AppUninstaller.matchesIdentifier("", "com.example.foo"))
+    }
+
     @Test func removesDockTile() {
         let tiles: [[String: Any]] = [
             ["tile-data": ["file-data": ["_CFURLString": "file:///Applications/Foo.app/", "_CFURLStringType": 15]]],

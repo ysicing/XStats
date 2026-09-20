@@ -180,7 +180,10 @@ public final class HelperClient {
         }
     }
 
-    /// 退出应用时使用：同步恢复风扇与睡眠设置，每步最多等待 1 秒
+    /// 退出应用时使用：同步恢复风扇与睡眠设置。
+    ///
+    /// 在主线程上阻塞，因此总等待时间设上限；每一步互相独立——取代理失败只跳过当前这步，
+    /// 不能提前 return，否则第一步失败就会连带跳过“恢复睡眠设置”，让 Mac 保持禁止睡眠。
     func restoreDefaultsSynchronously() {
         guard isReady else { return }
         let connection = ensureConnection()
@@ -188,14 +191,18 @@ public final class HelperClient {
             { proxy, reply in proxy.resetAllFans(reply: reply) },
             { proxy, reply in proxy.setSleepDisabled(false, reply: reply) },
         ]
+        let deadline = DispatchTime.now() + Self.restoreBudget
         for step in steps {
             let semaphore = DispatchSemaphore(value: 0)
             guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in semaphore.signal() })
-                    as? XStatsHelperProtocol else { return }
+                    as? XStatsHelperProtocol else { continue }
             step(proxy) { _ in semaphore.signal() }
-            _ = semaphore.wait(timeout: .now() + 1)
+            _ = semaphore.wait(timeout: deadline)
         }
     }
+
+    /// 退出时为恢复操作预留的总时长；辅助工具无响应时不让退出卡住超过这个值
+    private static let restoreBudget: DispatchTimeInterval = .milliseconds(1500)
 
     private func call(_ body: (XStatsHelperProtocol, @escaping @Sendable (String?) -> Void) -> Void) async -> String? {
         refreshStatus()

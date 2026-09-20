@@ -153,11 +153,17 @@ public enum AppUninstaller {
     }
 
     /// 名字等于包名，或是包名后接“.”的派生名（com.example.app.plist、com.example.app.savedState、com.example.app.helper）
+    ///
+    /// 前缀匹配要求包名至少三段反向域名：`leftovers` 会扫描 Preferences、Caches、Containers 等
+    /// 十余个目录，若放行 “com” 这类残缺包名，`hasPrefix("com.")` 会把 com.apple.dock.plist 在内的
+    /// 所有 com.* 条目都当成残留列出并默认勾选。精确匹配不受影响，短包名仍能删掉自己的同名条目。
     static func matchesIdentifier(_ name: String, _ identifier: String) -> Bool {
         guard !identifier.isEmpty else { return false }
         let lowered = name.lowercased()
         let id = identifier.lowercased()
-        return lowered == id || lowered.hasPrefix(id + ".")
+        if lowered == id { return true }
+        guard identifier.split(separator: ".").count >= 3 else { return false }
+        return lowered.hasPrefix(id + ".")
     }
 
     // MARK: 程序坞
