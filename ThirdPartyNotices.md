@@ -1,9 +1,11 @@
 # 第三方声明
 
+XStats 新增代码与修改采用 AGPL-3.0-or-later，范围见 [LICENSING.md](LICENSING.md)。以下原有第三方许可与版权声明继续保留。
+
 ## gentpan/OpenStats
 
 XStats 基于 [gentpan/OpenStats](https://github.com/gentpan/OpenStats) 开发，感谢原项目的开源贡献。
-原项目使用 MIT License，Copyright (c) 2026 GiantAccel, LLC；完整许可证与版权声明保留在 [LICENSE](LICENSE) 中。
+原项目使用 MIT License，Copyright (c) 2026 GiantAccel, LLC；完整许可证与版权声明保留在 [LICENSES/OpenStats-MIT.txt](LICENSES/OpenStats-MIT.txt) 中。
 
 ## flag-icons
 

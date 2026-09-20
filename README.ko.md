@@ -10,7 +10,7 @@
 [![Stars](https://img.shields.io/github/stars/ysicing/xstats?style=flat&color=f5c518)](https://github.com/ysicing/xstats/stargazers)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B-black)](https://github.com/ysicing/xstats/releases)
-[![License](https://img.shields.io/badge/license-MIT-black)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 
 XStats는 CPU 코어별 사용량, GPU, 메모리 압력, 네트워크 속도, 디스크, 배터리, 온도와 팬 상태를 보여 주는 macOS 메뉴 막대 앱입니다.
 팬 속도 조절, 덮개를 닫은 상태에서 실행 유지, 캐시 정리, 앱과 관련 파일 제거, 시작 항목 관리도 지원합니다.
@@ -234,4 +234,6 @@ XStats는 독립적인 서드파티 앱이며 Apple이나 본문에 언급된 �
 
 ## 라이선스
 
-MIT. [LICENSE](LICENSE)를 참고하세요.
+XStats의 새 코드와 수정 부분에는 **AGPL-3.0-or-later**를 적용합니다. [LICENSE](LICENSE)와 [적용 범위 및 기여 요건(중국어)](LICENSING.md)을 참고하세요.
+
+기존 OpenStats 코드는 원래의 [MIT 라이선스와 저작권 고지](LICENSES/OpenStats-MIT.txt)를 유지합니다. 다른 서드파티 라이선스는 [ThirdPartyNotices.md](ThirdPartyNotices.md)에 명시되어 있습니다.

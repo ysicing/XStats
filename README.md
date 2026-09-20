@@ -12,7 +12,7 @@
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ysicing/xstats?color=black&label=%E6%8F%90%E4%BA%A4)](https://github.com/ysicing/xstats/graphs/commit-activity)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20%E8%8A%AF%E7%89%87%20%2F%20Intel-black)](https://github.com/ysicing/xstats/releases)
-[![License](https://img.shields.io/badge/license-MIT-black)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 
 XStats 是一款 macOS 菜单栏应用，实时显示 Mac 正在做什么：各核心 CPU 负载、GPU、内存压力、
 网速、磁盘、电池、温度和风扇，并且可以直接处理：给风扇提速、合盖后继续运行、清理缓存、彻底卸载应用、停用启动项；
@@ -303,4 +303,6 @@ XStats 是独立的第三方应用，与 Apple 及文中提到的其他公司没
 
 ## 许可证
 
-MIT，见 [LICENSE](LICENSE)。
+XStats 新增代码与修改采用 **AGPL-3.0-or-later**，见 [LICENSE](LICENSE) 与 [许可范围及贡献要求](LICENSING.md)。
+
+OpenStats 上游代码保留原 [MIT 许可与版权声明](LICENSES/OpenStats-MIT.txt)，其他第三方许可见 [ThirdPartyNotices.md](ThirdPartyNotices.md)。

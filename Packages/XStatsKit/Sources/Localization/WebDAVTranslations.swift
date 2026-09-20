@@ -1,3 +1,6 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 extension Translations {
     static let webDAVEnglish = #"""
 请输入有效的 HTTPS WebDAV 目录地址，不要包含账号、查询参数或片段	Enter a valid HTTPS WebDAV directory URL without credentials, query parameters or fragments

@@ -12,7 +12,7 @@
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ysicing/xstats?color=black&label=commits)](https://github.com/ysicing/xstats/graphs/commit-activity)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20silicon%20%2F%20Intel-black)](https://github.com/ysicing/xstats/releases)
-[![License](https://img.shields.io/badge/license-MIT-black)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 
 XStats is a macOS menu-bar app that shows what your Mac is doing right now — per-core
 CPU load, GPU, memory pressure, network speed, disk, battery, temperatures and fans — and
@@ -306,4 +306,6 @@ respective owners.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+New XStats code and modifications are licensed under **AGPL-3.0-or-later**. See [LICENSE](LICENSE) and [licensing scope and contribution requirements](LICENSING.md) (Chinese).
+
+Upstream OpenStats code retains its [MIT license and copyright notice](LICENSES/OpenStats-MIT.txt). Other third-party terms are listed in [ThirdPartyNotices.md](ThirdPartyNotices.md).
