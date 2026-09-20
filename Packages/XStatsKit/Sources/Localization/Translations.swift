@@ -1,9 +1,14 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 // 英文译文：每行“中文原文<Tab>English”，由 Scripts/l10n_wrap.py 收集原文。
 // 带插值的原文用 {} 表示插入的内容；译文可以用 {1}、{2} 调整顺序。
 
 extension Translations {
     static var tables: [String] {
-        [english, webDAVEnglish]
+        [english, webDAVEnglish, languagePickerEnglish]
     }
 
     static let english = #"""

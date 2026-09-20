@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 import Localization
 import Metrics
@@ -247,11 +252,7 @@ extension AppLanguage: Identifiable {
 
     /// 语言名称用各自的文字写，不随界面语言翻译
     var title: String {
-        switch self {
-        case .system: tr("跟随系统")
-        case .chinese: "简体中文"
-        case .english: "English"
-        }
+        self == .system ? tr("自动检测") : nativeName
     }
 }
 

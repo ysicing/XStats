@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import AppKit
 import Localization
 import Metrics
@@ -36,6 +41,7 @@ struct PopoverFrame<Header: View, Content: View>: View {
         .frame(maxHeight: isSnapshot ? nil : .infinity, alignment: .top)
         .fixedSize(horizontal: false, vertical: isSnapshot)
         .background(DS.Palette.background, in: RoundedRectangle(cornerRadius: DS.Radius.xl))
+        .appLanguageEnvironment()
         .overlay {
             RoundedRectangle(cornerRadius: DS.Radius.xl).strokeBorder(DS.Palette.border, lineWidth: DS.Size.stroke)
         }

@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import AppKit
 import Localization
 import Metrics
@@ -34,7 +39,7 @@ public struct MainWindowView: View {
         // 内容延伸到透明标题栏下方，由顶栏高度留出红绿灯按钮的位置
         .ignoresSafeArea()
         // 文案在各视图计算时翻译好，切换语言后整棵视图重建
-        .id(model.settings.language)
+        .appLanguageEnvironment()
     }
 
     /// 顶栏在上、页面在下。没有用 macOS 26 的 safeAreaBar 让页面从顶栏下面滚过：

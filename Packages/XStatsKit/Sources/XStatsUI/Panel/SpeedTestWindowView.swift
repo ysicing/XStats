@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Localization
 import Metrics
 import SwiftUI
@@ -21,6 +26,7 @@ struct SpeedTestWindowView: View {
         }
         .background(DS.Palette.background)
         .ignoresSafeArea()
+        .appLanguageEnvironment()
     }
 }
 
@@ -180,7 +186,7 @@ private struct CarrierBadge: View {
     let carrier: ChinaCarrier
 
     var body: some View {
-        Text(verbatim: L10n.isEnglish ? carrier.markEnglish : carrier.mark)
+        Text(verbatim: L10n.usesEnglishNames ? carrier.markEnglish : carrier.mark)
             .dsFont(.xs, weight: .semibold)
             .foregroundStyle(.white)
             .frame(width: DS.Space.s6, height: DS.Size.iconInline)
@@ -236,7 +242,7 @@ private struct ChinaLatencyCard: View {
                     .padding(.vertical, DS.Space.s1)
                     ForEach(ChinaNode.provinces, id: \.code) { province in
                         HStack(spacing: DS.Space.s2) {
-                            Text(L10n.isEnglish ? province.english : province.name)
+                            Text(L10n.usesEnglishNames ? province.english : province.name)
                                 .dsFont(.xs)
                                 .foregroundStyle(DS.Palette.textSecondary)
                                 .lineLimit(1)
@@ -293,7 +299,7 @@ private struct GlobalNodeCard: View {
             ForEach(GlobalRegion.allCases, id: \.self) { region in
                 let nodes = GlobalNode.all.filter { $0.region == region }
                 if !nodes.isEmpty {
-                    Text(L10n.isEnglish ? region.nameEnglish : region.name)
+                    Text(L10n.usesEnglishNames ? region.nameEnglish : region.name)
                         .dsFont(.xs, weight: .medium)
                         .foregroundStyle(DS.Palette.textTertiary)
                         .padding(.top, DS.Space.s1)
@@ -319,7 +325,7 @@ private struct GlobalNodeRow: View {
         HStack(spacing: DS.Space.s2) {
             FlagImage(countryCode: node.countryCode, height: DS.Space.s4)
             VStack(alignment: .leading, spacing: 0) {
-                Text(L10n.isEnglish ? node.cityEnglish : node.city)
+                Text(L10n.usesEnglishNames ? node.cityEnglish : node.city)
                     .dsFont(.sm, weight: .medium)
                     .foregroundStyle(DS.Palette.textPrimary)
                 Text(verbatim: node.provider).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
@@ -415,7 +421,7 @@ private enum SpeedText {
     }
 
     static func carrier(_ carrier: ChinaCarrier) -> String {
-        L10n.isEnglish ? carrier.nameEnglish : carrier.name
+        L10n.usesEnglishNames ? carrier.nameEnglish : carrier.name
     }
 
     static func budget(_ budget: SpeedTestBudget) -> String {

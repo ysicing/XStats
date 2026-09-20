@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import AppKit
 import Localization
 import Metrics
@@ -29,6 +34,7 @@ struct EgressWindowView: View {
         .background(DS.Palette.background)
         // 内容延伸到透明标题栏下方，顶栏与红绿灯按钮在同一行
         .ignoresSafeArea()
+        .appLanguageEnvironment()
     }
 }
 
@@ -756,9 +762,9 @@ private enum EgressText {
     /// 国家 · 省 / 州 · 城市；英文界面优先用英文地名，重复的相邻项只留一个
     static func location(_ geo: EgressGeo?, fallback country: String?) -> String {
         guard let code = geo?.countryCode ?? country else { return "" }
-        let name = Locale(identifier: L10n.isEnglish ? "en" : "zh-Hans").localizedString(forRegionCode: code) ?? code
-        let region = L10n.isEnglish ? (geo?.regionEnglish ?? geo?.region) : geo?.region
-        let city = L10n.isEnglish ? (geo?.cityEnglish ?? geo?.city) : geo?.city
+        let name = L10n.locale.localizedString(forRegionCode: code) ?? code
+        let region = L10n.usesEnglishNames ? (geo?.regionEnglish ?? geo?.region) : geo?.region
+        let city = L10n.usesEnglishNames ? (geo?.cityEnglish ?? geo?.city) : geo?.city
         var parts = [name]
         for part in [region, city].compactMap({ $0 }) where part != parts.last { parts.append(part) }
         return parts.joined(separator: " · ")

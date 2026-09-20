@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import AppKit
 import Localization
 import Metrics
@@ -272,6 +277,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                        updateAction: #selector(checkForUpdatesFromMenu))
         menuBar.dismissPopovers()
         menuBar.refreshImages()
+        speedTestWindow.refreshLanguage()
+        egressWindow.refreshLanguage()
+        updateWindow.refreshLanguage()
     }
 
     private func updateNetworkVisibility() {
@@ -334,10 +342,11 @@ public enum XStatsApplication {
         L10n.configure(stored)
         if let index = CommandLine.arguments.firstIndex(of: "--snapshot") {
             let path = CommandLine.arguments.dropFirst(index + 1).first ?? "snapshots"
-            // --language en：渲染英文截图，并把没有翻译的中文记到 untranslated.txt
+            // --language 接受语言代码或设置枚举值，缺失翻译记录到 untranslated.txt。
             if let languageIndex = CommandLine.arguments.firstIndex(of: "--language"),
-               CommandLine.arguments.dropFirst(languageIndex + 1).first == "en" {
-                L10n.configure(.english)
+               let identifier = CommandLine.arguments.dropFirst(languageIndex + 1).first {
+                let language = AppLanguage(rawValue: identifier) ?? AppLanguage.resolve(preferredLanguages: [identifier])
+                L10n.configure(language)
                 let log = URL(fileURLWithPath: path).appendingPathComponent("untranslated.txt")
                 try? FileManager.default.createDirectory(at: URL(fileURLWithPath: path), withIntermediateDirectories: true)
                 try? FileManager.default.removeItem(at: log)

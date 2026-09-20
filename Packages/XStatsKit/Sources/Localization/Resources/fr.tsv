@@ -1,0 +1,1199 @@
+# Copyright (C) 2026 ysicing
+# SPDX-License-Identifier: AGPL-3.0-or-later
+ {} 英寸	 {} pouces
+ · {} 项使用中	 · {} utilisés
+ · 移到废纸篓	 · Déplacement vers la Corbeille
+# XStats 诊断信息	# Diagnostic XStats
+1 个传感器	1 capteur
+1 个应用，系统自带的不列出	1 app ; les apps intégrées ne sont pas affichées
+1 个进程	1 processus
+1 分钟	1 min
+1 小时	1 heure
+1 项	1 élément
+10 根柱子是最近 10 次采样（约 20 秒）的变化	10 barres représentent les 10 derniers relevés (environ 20 secondes)
+15 分钟	15 min
+2 小时	2 heures
+24 小时	24 heures
+5 分钟	5 min
+5 小时	5 heures
+60 秒峰值	Pic
+7 天	7 jours
+Apple 智能暂时不可用。	Apple Intelligence est temporairement indisponible.
+Apple 智能模型还在下载或准备中，请稍后再试。	Le modèle Apple Intelligence est encore en cours de téléchargement ou de préparation. Réessayez plus tard.
+Apple 智能没有给出回答：{}	Apple Intelligence n’a pas répondu : {}
+Apple 智能解释	Apple Intelligence
+Apple（系统自带）	Apple (intégré)
+Application Support 中只允许清理缓存目录	Seuls les dossiers de cache dans Application Support peuvent être nettoyés
+CPU 占用 {}，已持续超过 1 分钟。可以打开 CPU 详情，在“按应用汇总”里看看是哪个应用在占用。	L’utilisation du CPU est de {} depuis plus d’une minute. Ouvrez les détails du CPU et consultez « Par app » pour identifier l’app concernée.
+CPU 总占用持续 1 分钟高于设定值，通常是某个应用卡住或在后台狂跑	L’utilisation totale du CPU dépasse le seuil pendant 1 minute, généralement à cause d’une app bloquée ou très active en arrière-plan
+CPU 持续高负载	Charge CPU élevée prolongée
+CPU 时间	Temps CPU
+CPU 时间 {}	Temps CPU {}
+CPU 最高	CPU maximal
+CPU 核心最高温度	Cœur CPU le plus chaud
+CPU 温度	Température du CPU
+CPU 温度 {}	Température du CPU {}
+CPU 温度 {}，已持续超过 1 分钟。可以检查高占用进程，或在“温度与风扇”里提高风扇转速。	La température du CPU est de {} depuis plus d’une minute. Vérifiez les processus actifs ou augmentez la vitesse des ventilateurs dans « Température et ventilateurs ».
+CPU 温度偏高	CPU chaud
+CPU 温度持续 1 分钟高于设定值	La température du CPU dépasse le seuil pendant 1 minute
+CPU 温度达到 {}，已恢复系统自动控制	Le CPU a atteint {} ; les ventilateurs sont de nouveau gérés par le système
+CPU 温度过高	CPU trop chaud
+CPU 负载偏高	Charge CPU élevée
+CPU 负载很高	Charge CPU très élevée
+CPU 过热	Surchauffe du CPU
+CPU：{}（以单核满载为 100%）	CPU : {} (100 % = un cœur entièrement utilisé)
+Cloudflare 接入节点（机场代码）	Point de présence Cloudflare (code aéroport)
+Cloudflare（1.1.1.1）	Cloudflare (1.1.1.1)
+CoreSimulator 的动态库与运行时缓存	Caches dyld et d’environnements d’exécution de CoreSimulator
+DNS 地址格式不正确	Adresse DNS incorrecte
+DNS 已设置为 {}	DNS défini sur {}
+DNS 缓存已刷新	Cache DNS vidé
+DerivedData，下次编译时自动重建	DerivedData ; recréé à la prochaine compilation
+GPU 占用	Utilisation du GPU
+Globalping 返回了错误（HTTP {}）	Globalping a renvoyé une erreur (HTTP {})
+Google（8.8.8.8）	Google (8.8.8.8)
+IP 地址	Adresses IP
+IP 类型	Type d’IP
+IP 纯净度	Réputation de l’IP
+IPv6 没有经过代理：只走 IPv6 的连接会直接暴露本机地址 {}。	IPv6 ne passe pas par le proxy : les connexions uniquement IPv6 exposent votre adresse {}.
+IPv6 连接也经过代理。	Les connexions IPv6 passent également par le proxy.
+SMC [{}] 不支持的数据类型 {}	SMC [{}] : type de données {} non pris en charge
+SMC [{}] 被固件拒绝 (0x{})	SMC [{}] : refusé par le micrologiciel (0x{})
+SMC [{}] 调用失败 ({})	SMC [{}] : échec de l’appel ({})
+SMC 通信与 Apple Silicon 风扇解锁流程移植自该项目 · MIT License	L’accès au SMC et le déverrouillage des ventilateurs Apple Silicon proviennent de ce projet · Licence MIT
+SSD 健康	État du SSD
+Time Machine 在备份之间会先在本机留下快照，它们占的空间计入“可清除”，系统缺空间时会自动删。手动删除不影响已完成的备份。	Entre les sauvegardes, Time Machine conserve des instantanés sur ce Mac. Leur espace est considéré comme purgeable et macOS les supprime au besoin. Leur suppression manuelle n’affecte pas les sauvegardes terminées.
+VPN / 代理	VPN / Proxy
+VPN / 隧道	VPN / Tunnel
+VPN 不允许绕开它连接	Le VPN interdit les connexions qui le contournent
+VPN 不允许绕开它连接，读不到本机网络原本的出口。下方按出口列出各网站。	Le VPN interdit les connexions qui le contournent ; la sortie d’origine du réseau ne peut donc pas être déterminée. Les sites sont regroupés par sortie ci-dessous.
+VPN 隧道	Tunnel VPN
+WebDAV 地址发生重定向，请填写最终目录地址	L’adresse WebDAV redirige ailleurs. Saisissez l’URL finale du dossier
+WebDAV 存储空间不足	L’espace WebDAV est plein
+WebDAV 拒绝访问，请检查目录读写权限	Accès WebDAV refusé. Vérifiez les droits de lecture et d’écriture du dossier
+WebDAV 目录不存在，请先在服务器上创建该目录	Le dossier WebDAV n’existe pas. Créez-le d’abord sur le serveur
+WebDAV 目录地址	URL du dossier WebDAV
+WebDAV 认证失败，请检查用户名和密码	Échec de l’authentification WebDAV. Vérifiez le nom d’utilisateur et le mot de passe
+WebDAV 返回错误：{}	WebDAV a renvoyé une erreur : {}
+XStats {} 已发布	XStats {} est disponible
+XStats 基于 OpenStats 开发，感谢原项目的开源贡献 · MIT License	XStats repose sur OpenStats. Merci au projet d’origine pour ses contributions open source · Licence MIT
+XStats 控制	Géré par XStats
+XStats 控制中	Géré par XStats
+XStats 的通知被关闭了，打开的提醒不会显示。	Les notifications de XStats sont désactivées ; les alertes ne s’afficheront pas.
+XStats 辅助工具	Assistant XStats
+XStats 通知测试	Notification de test XStats
+XStats 防休眠	XStats – Maintien en éveil
+XStats 需要授权以安装新版本。	XStats a besoin d’une autorisation pour installer la nouvelle version.
+XStats 需要管理员权限来修改“{}”的 DNS。	XStats a besoin des droits d’administration pour modifier le DNS de « {} ».
+XStats 需要管理员权限来删除 Time Machine 本地快照。	XStats a besoin des droits d’administration pour supprimer les instantanés locaux de Time Machine.
+XStats 需要管理员权限来刷新 DNS 缓存。	XStats a besoin des droits d’administration pour vider le cache DNS.
+XStats 需要管理员权限来释放内存。	XStats a besoin des droits d’administration pour libérer de la mémoire.
+XStats-诊断-{}	XStats-Diagnostic-{}
+XStats-诊断-{}.zip	XStats-Diagnostic-{}.zip
+Xcode 归档	Archives Xcode
+Xcode 编译缓存	Cache de compilation Xcode
+cleanip.io 对这次评分的把握：各数据源结论越一致越高	Fiabilité du score selon cleanip.io : plus les sources concordent, plus elle est élevée
+macOS 系统目录（系统组件）	Dossier système macOS (composant système)
+npm 缓存	Cache npm
+{} {} 英寸	{} {} pouces
+{} · {} 个	{} · {}
+{} · {} 核	{} · {} cœurs
+{} · 约 {}	{} · environ {}
+{} · 负载 {}/{}	{} · charge {}/{}
+{} 个	{}
+{} 个传感器	{} capteurs
+{} 个应用，系统自带的不列出	{} apps ; les apps intégrées ne sont pas affichées
+{} 个网站	{} sites
+{} 个进程	{} processus
+{} 中位延迟	Médiane {}
+{} 分钟	{} min
+{} 可用 {} · 共 {}	{} {} libres · {} au total
+{} 天	{} j
+{} 天 {} 小时	{} j {} h
+{} 小时	{} h
+{} 小时 {} 分钟	{} h {} min
+{} 核	{} cœurs
+{} 核图形处理器	GPU à {} cœurs
+{} 正在运行	{} est en cours d’exécution
+{} 正在运行，卸载前需要先退出。	{} est en cours d’exécution. Quittez l’app avant de la désinstaller.
+{} 测	à {}
+{} 秒	{} s
+{} 秒 / {} MB	{} s / {} Mo
+{} 秒·{} MB	{} s · {} Mo
+{} 组	{} groupes
+{} 缓存	Cache {}
+{} 英寸	{} pouces
+{} 项	{} éléments
+{} 项 · 可直接停用	{} éléments · désactivables ici
+{} 项 · 需要管理员权限，只读	{} éléments · droits d’administration requis, lecture seule
+{} 项失败	{} échecs
+{}%（阈值 {}%）	{} % (seuil {} %)
+{}/{} 个节点连得上	{}/{} nœuds accessibles
+{}{}只剩 {}%，记得充电。	{}{} n’a plus que {} %. Pensez à recharger.
+{}{}（{}）	{}{} ({})
+{}。系统会自动分配任务，不用你操心	{}. macOS répartit automatiquement les tâches.
+{}中	{}
+{}前	il y a {}
+{}前检测	Vérifié il y a {}
+{}后充满	Pleine charge dans {}
+{}电量低	Batterie faible : {}
+{}（{}）	{} ({})
+{}（代理接管）	{} (pris en charge par le proxy)
+{}，{}，健康 {}	{}, {}, état {}
+{}，后台{}	{}, arrière-plan {}
+{}：{}	{} : {}
+{}：{}/{} 个节点连得上	{} : {}/{} nœuds accessibles
+~/.npm/_cacache，安装依赖时自动重新下载	~/.npm/_cacache ; téléchargé à nouveau lors de l’installation des dépendances
+~/Library/Caches 中各应用的缓存，删除后会按需重建	Caches des apps dans ~/Library/Caches ; recréés au besoin
+~/Library/Logs 中的日志和诊断报告	Journaux et rapports de diagnostic dans ~/Library/Logs
+· 结果反映 XStats 自己发出的请求，按应用分流的规则下其他应用可能走不同出口	· Les résultats concernent les requêtes de XStats ; avec des règles par app, les autres apps peuvent utiliser d’autres sorties
+“{}”只剩 {} 可用。可以用 XStats 的清理功能释放缓存。	« {} » ne dispose plus que de {} d’espace libre. Utilisez le nettoyage XStats pour vider les caches.
+“{}”（{}）会移到废纸篓，可以从废纸篓放回。	« {1} » ({2}) sera déplacé vers la Corbeille ; vous pourrez le remettre à sa place.
+、	, 
+一般	Correct
+一键安装	Installer maintenant
+上传	Envoi
+上传 {} · 下载 {}	Envoi {} · Réception {}
+上传与下载速度、IP 地址、DNS	Débit d’envoi et de réception, adresses IP, DNS
+上传并覆盖	Envoyer et remplacer
+上传本机设置	Envoyer les réglages de ce Mac
+上次同步：{}	Dernière synchronisation : {}
+上次检查 {}，最新 {}	Dernière vérification {}, dernière version {}
+上次检查发现问题	La dernière vérification a détecté des problèmes
+上次检查正常	Dernière vérification sans problème
+上次检查：{}	Dernière vérification : {}
+上行	Envoi
+下行	Réception
+下载	Télécharger
+下载失败：{}	Échec du téléchargement : {}
+下载并应用	Télécharger et appliquer
+下载目录中的 .dmg / .pkg / .xip / .iso，移到废纸篓	Fichiers .dmg / .pkg / .xip / .iso dans Téléchargements ; déplacés vers la Corbeille
+不可用	Indisponible
+不在允许清理的目录内	En dehors d’un dossier autorisé au nettoyage
+不在可卸载的位置：{}	Désinstallation impossible à cet emplacement : {}
+不提供电量	Aucune information sur la batterie
+不支持 IPv6	IPv6 non pris en charge
+不是团队 {} 签名的完整应用（{}）	Ce n’est pas une app complète signée par l’équipe {} ({})
+不是应用程序	Ce n’est pas une application
+不是绝对路径	Ce n’est pas un chemin absolu
+不经过代理	Sans proxy
+不能删除清理目录本身	Impossible de supprimer le dossier de nettoyage lui-même
+不限	Sans limite
+不限时	Indéfiniment
+与 30 秒前持平	Identique à il y a 30 s
+丢包 {}%	{} % de perte
+严重	Critique
+中位延迟	Médiane
+中等负载	Charge modérée
+中等风险	Risque moyen
+中继	Relais
+主显示器	Écran principal
+主窗口与弹窗的配色；菜单栏始终跟随系统	Couleurs de la fenêtre et des panneaux ; la barre des menus suit toujours le système
+云端只保存邮箱、姓名与设置文档	Le cloud ne conserve que votre adresse e-mail, votre nom et vos réglages
+云端已有 {} 在 {} 保存的设置，和这台 Mac 上的不一样。要用哪一份？	{1} a enregistré des réglages dans le cloud {2}, différents de ceux de ce Mac. Lesquels utiliser ?
+交换区	Mémoire d’échange
+仅系统不休眠	Maintenir le système éveillé
+介质错误	Erreurs du support
+从左侧选择应用，或把应用拖到这里	Choisissez une app à gauche ou déposez-en une ici
+从未	Jamais
+从这个节点下载测速，上限 {}	Test de réception depuis ce nœud, jusqu’à {}
+代理	Proxy
+代理出口	Sortie du proxy
+代理出口不支持 IPv6，IPv6 连接也不会绕过代理泄露地址。	La sortie du proxy ne prend pas en charge IPv6, et les connexions IPv6 ne contournent pas le proxy pour exposer votre adresse.
+代理出口（{}）	Sortie du proxy ({})
+代理方式	Configuration du proxy
+代理没有生效	Proxy inactif
+代理软件	Apps de proxy
+以单核满载为 100%	100 % = un cœur entièrement utilisé
+以后再说	Plus tard
+以系统权限运行的后台服务，只接受本应用的请求	Un service en arrière-plan doté de droits système, qui n’accepte que les requêtes de cette app
+仪表盘	Tableau de bord
+企业	Entreprise
+企业 IP	IP d’entreprise
+企业网络	Réseau d’entreprise
+会一并找出它留在资源库里的缓存、偏好设置、容器与登录启动项，全部移到废纸篓，可以放回	Recherche aussi les caches, préférences, conteneurs et agents de lancement dans votre bibliothèque et les place dans la Corbeille, d’où vous pouvez les restaurer
+会结束这个应用的 {} 个进程，未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	Cette action termine {} processus de l’app ; le travail non enregistré peut être perdu. « Forcer à quitter » les termine immédiatement sans permettre d’enregistrer.
+传输速率	Débit de liaison
+位置	Emplacement
+位置：{}	Emplacement : {}
+低负载	Charge faible
+低风险	Risque faible
+住宅 IP	IP résidentielle
+住宅代理	Proxy résidentiel
+住宅宽带	Connexion résidentielle
+住宅概率	Probabilité d’une IP résidentielle
+余量 {}	Marge {}
+使用 {} 登录	Se connecter avec {}
+使用云端设置	Utiliser les réglages du cloud
+使用历史	Historique d’utilisation
+使用电池	Sur batterie
+使用电池且电量低于该值时，自动关闭合盖运行	Désactiver le fonctionnement écran fermé lorsque la batterie passe sous ce seuil
+使用自己的 WebDAV 保存一份设置文件，仅手动上传和下载，不会自动合并。	Conservez un fichier de réglages sur votre serveur WebDAV. L’envoi et le téléchargement sont manuels ; les modifications ne sont pas fusionnées automatiquement.
+例如 1.1.1.1, 8.8.8.8	p. ex. 1.1.1.1, 8.8.8.8
+保存配置	Enregistrer la configuration
+保持唤醒	Maintenir éveillé
+保持运行	Maintenir actif
+信号强度	Signal
+修改 DNS 需要管理员权限：已安装辅助工具时直接修改，否则每次弹出系统授权框。	Modifier le DNS nécessite des droits d’administration : si l’assistant est installé, la modification est directe ; sinon, le système demande une autorisation à chaque fois.
+修改地址	Modifier les adresses
+偏好设置	Préférences
+偏高	Élevé
+停止	Arrêter
+停用	Désactiver
+停用失败：{}	Échec de la désactivation : {}
+健康 {}	État {}
+健康度	État
+健康度是现在充满时的容量与出厂容量之比，低于 80% 时苹果建议更换电池	L’état compare la capacité actuelle à pleine charge à la capacité d’origine ; Apple recommande un remplacement sous 80 %
+充电上限可在系统设置中设为 80%–100%，长期接电源时有助于延缓电池老化	Définissez une limite de charge de 80 à 100 % dans Réglages Système pour ralentir l’usure de la batterie en cas de branchement prolongé
+充电中	En charge
+充电盒	Boîtier
+全局代理	Proxy global
+全局快捷键（在任何应用中都能使用，需要包含 ⌘、⌥ 或 ⌃）	Raccourcis globaux (utilisables dans toutes les apps ; doivent inclure ⌘, ⌥ ou ⌃)
+全球探针看目标	Sondes mondiales
+全球节点	Nœuds mondiaux
+全选	Tout sélectionner
+全部	Tout
+全部删除	Tout supprimer
+全部经代理	Tout le trafic via le proxy
+公网 IP	IP publique
+公网 IP 查询	Recherche d’IP publique
+公网 IPv4	IPv4 publique
+公网 IPv6	IPv6 publique
+共 {}	{} au total
+共 {} 条记录	{} enregistrements
+共 {}，{} 个条目 · {}	{1} dans {2} éléments · {3}
+关	Désactivé
+关于	À propos
+关于 XStats	À propos de XStats
+关闭	Désactivé
+其他	Autres
+其他位置	Autres emplacements
+其他磁盘	Autres disques
+其他程序手动控制	Géré par une autre app
+其他程序控制	Autre app
+内存	Mémoire
+内存 {}	Mémoire {}
+内存与图形	Mémoire et graphismes
+内存压力严重	Pression mémoire critique
+内存压力严重的时段：{} 个（图上红色标记）	Périodes de pression mémoire critique : {} (en rouge)
+内存压力偏高	Pression mémoire élevée
+内存压力持续 30 秒处于严重，系统开始大量换页	La pression mémoire reste critique pendant 30 secondes et le système sollicite fortement la mémoire d’échange
+内存已整理	Mémoire nettoyée
+内存水位	Niveaux de mémoire
+内存类型	Type de mémoire
+内存：{}	Mémoire : {}
+写入	Écriture
+出口	Sortie
+出口与分流	Sorties et routage
+出口与分流：检查 VPN 与代理是否生效、各网站从哪个出口出去	Sorties et routage : vérifie le fonctionnement du VPN et du proxy, ainsi que la sortie utilisée par chaque site
+出口依据	Fondement
+出口未知	Sortie inconnue
+出现介质错误，建议备份	Erreurs du support détectées ; sauvegardez vos données
+分别经物理网卡、系统代理与 VPN 隧道访问检测目标，约需 10 秒。	Accès aux cibles de test via l’interface réseau, le proxy système et le tunnel VPN. Cela prend environ 10 secondes.
+分流正常	Routage séparé fonctionnel
+切换到浅色	Passer au mode clair
+切换到深色	Passer au mode sombre
+刚刚	À l’instant
+刚刚检测	Vérifié à l’instant
+刚刚被使用	Utilisé récemment
+删除	Supprimer
+删除…	Supprimer…
+删除中…	Suppression…
+删除云端数据	Supprimer les données du cloud
+删除云端数据？	Supprimer les données du cloud ?
+删除全部本地快照？	Supprimer tous les instantanés locaux ?
+删除账号、所有登录方式与云端保存的设置；这台 Mac 上的设置保留	Supprime le compte, toutes les méthodes de connexion et les réglages du cloud ; les réglages de ce Mac sont conservés
+到时后自动恢复系统默认的睡眠行为。	Le comportement normal de mise en veille reprend à la fin du délai.
+刷新	Actualiser
+刷新 DNS 缓存	Vider le cache DNS
+刷新 DNS 缓存、释放内存、为网络服务设置 DNS 服务器	Vider le cache DNS, libérer la mémoire, définir les serveurs DNS des services réseau
+刷新状态	Actualiser l’état
+刷新间隔	Intervalle d’actualisation
+刷新频率	Fréquence d’actualisation
+剩余 {}	{} restants
+剩余寿命	Durée de vie restante
+剩余寿命 {}% · 已写入 {}	{} % de durée de vie restante · {} écrits
+剪切	Couper
+功耗	Consommation
+包名是 {}	L’identifiant du bundle est {}
+包含城市数据	Inclure les données des villes
+协议版本	Version du protocole
+单个节点一次测速最多花的时间与流量，先到哪个停哪个	Limites de temps et de données d’un test de débit par nœud ; le test s’arrête à la première limite atteinte
+单行	Une ligne
+单行文字	Texte sur une ligne
+占整机 CPU 的比例：{} 个核心全部跑满为 100%	Part du CPU total : les {} cœurs entièrement utilisés représentent 100 %
+占用	Utilisation
+占用超过 85% 时数值与图形显示为红色	Afficher les valeurs et graphiques en rouge au-delà de 85 %
+占用超过 85%（电池电量低于 20%）时数值与图形显示为红色	Valeurs et graphiques en rouge au-delà de 85 % d’utilisation (sous 20 % de batterie)
+占用高于	Utilisation supérieure à
+卷	Volume
+卸载	Désinstaller
+卸载“{}”？	Désinstaller « {} » ?
+卸载失败：{}	Échec de la désinstallation : {}
+卸载应用	Désinstallation
+卸载辅助工具	Désinstaller l’assistant
+历史	Historique
+历史记录	Historique
+历史记录已关闭，下面是关闭前记录的数据。	L’enregistrement de l’historique est désactivé. Les données ci-dessous datent d’avant sa désactivation.
+压力 {}	Pression {}
+压力{}	{}
+压力走势	Évolution de la pression
+压缩	Compressée
+压缩与交换	Compression et échange
+压缩为你省下	Économisé par la compression
+压缩包里应当只有一个 .app	L’archive doit contenir exactement une .app
+压缩比	Taux de compression
+原因	Raison
+原生 / 广播	Native / diffusion
+原生 IP	IP native
+去批准	Autoriser
+去授权	Autoriser l’accès
+双行圆点	Points
+双行文字	Texte sur deux lignes
+双行箭头	Flèches
+反向解析	DNS inverse
+反馈问题	Signaler un problème
+发现新版本 {}	Version {} disponible
+发现问题	Problèmes détectés
+发现问题：{}	Problème détecté : {}
+发生这些状况时发送系统通知，点通知打开对应页面	Envoyer une notification lors de ces événements ; cliquer dessus ouvre la page correspondante
+发送	Envoyer
+发送测试通知	Envoyer une notification de test
+取消	Annuler
+受保护	Protégé
+受保护的项目：{}	Élément protégé : {}
+另一台 Mac	Un autre Mac
+另有 {} 个出口，见网站分流	{} autres sorties, voir Routage des sites
+另有 {} 移到废纸篓	{} supplémentaires déplacés vers la Corbeille
+另有 {} 项	{} autres
+只同步偏好设置，不上传监控数据、历史记录或 WebDAV 连接信息。每台 Mac 需单独配置 WebDAV。	Seules les préférences sont synchronisées. Les données de surveillance, l’historique et les informations WebDAV sont exclus. Configurez WebDAV séparément sur chaque Mac.
+只含当前用户的进程	Vos processus uniquement
+只在打开温度与风扇页面时记录	Enregistré uniquement lorsque Température et ventilateurs est ouvert
+只在菜单栏显示 GPU 或打开 GPU 相关页面时记录	Enregistré uniquement si le GPU est dans la barre des menus ou si une page GPU est ouverte
+只在菜单栏显示温度、开启过热通知或打开温度页面时记录	Enregistré uniquement si la température est dans la barre des menus, si les alertes de surchauffe sont actives ou si une page de température est ouverte
+只在菜单栏显示电池或打开电池页面时记录	Enregistré uniquement si Batterie est dans la barre des menus ou si la page Batterie est ouverte
+只显示菜单栏时的采样间隔；打开弹窗或主窗口时为 1 秒（进程页 2 秒）	Intervalle des relevés lorsque seule la barre des menus est affichée ; 1 seconde si un panneau ou la fenêtre est ouvert (2 secondes pour Processus)
+只查找以该应用包名命名的文件，以及 Application Support、Logs 下与应用同名的目录；钥匙串与其他应用共享的数据不会动。程序坞里的图标会一并移除	Seuls les fichiers nommés d’après l’identifiant du bundle et les dossiers au nom de l’app dans Application Support et Logs sont inclus. Les trousseaux et les données partagées restent intacts. L’icône du Dock est aussi retirée
+只设置了系统代理：浏览器等应用走代理，命令行工具、游戏等不读代理设置的程序仍在直连。要接管全部流量，可以开启增强模式或 TUN 模式。	Seul un proxy système est configuré : les navigateurs l’utilisent, mais les outils en ligne de commande, jeux et programmes ignorant les réglages du proxy se connectent directement. Activez le mode amélioré ou TUN pour acheminer tout le trafic.
+可以恢复，但清空废纸篓前不会释放空间	Récupérable, mais l’espace n’est libéré qu’après avoir vidé la Corbeille
+可执行文件：{}	Exécutable : {}
+可清理 · 已选 {} 项	Nettoyable · {} sélectionnés
+可清除	Purgeable
+可清除是系统随时可以腾出的缓存；访达显示的“可用”把它算在内	L’espace purgeable est constitué de caches libérables à tout moment ; le Finder l’inclut dans l’espace disponible.
+可用	Disponible
+可用 {}	{} disponibles
+可用 {} / 共 {}	{1} libres sur {2}
+可用内存只剩 {}，系统正在压缩和交换内存。关闭不用的应用可以缓解。	Il ne reste que {} de mémoire disponible ; le système compresse et utilise la mémoire d’échange. Quitter les apps inutilisées peut aider.
+可用空间包含系统可以随时清除的缓存，与访达显示一致	L’espace disponible inclut les caches purgeables, comme dans le Finder
+可访问	Accessible
+右侧风扇	Ventilateur droit
+右耳	Droite
+各核心占用	Charge par cœur
+各核心负载	Charge des cœurs
+各项指标正常	Tous les indicateurs sont normaux
+合上屏幕时 Mac 不进入睡眠，下载、渲染、远程连接不中断。	Votre Mac reste éveillé lorsque l’écran est fermé ; les téléchargements, rendus et sessions à distance se poursuivent.
+合并为一个	Combinés
+合盖后继续运行	Continuer avec l’écran fermé
+合盖电量下限	Seuil de batterie écran fermé
+合盖睡眠	Veille à la fermeture
+合盖运行	Écran fermé
+合盖运行时散热变差，请勿放入包中。使用电池且电量低于 {}% 时会自动关闭。	Le refroidissement est moins efficace écran fermé ; ne placez pas le Mac dans un sac. Désactivation automatique sous {} % de batterie.
+合盖运行设置	Mode écran fermé
+合盖运行需要修改系统睡眠设置，需安装辅助工具（管理员授权一次）。	Le mode écran fermé modifie les réglages de veille et nécessite l’assistant (une autorisation d’administration).
+同步	Synchroniser
+同步失败	Échec de la synchronisation
+同步的内容：菜单栏项目与风格、刷新频率、外观与语言、详情弹窗的区块、连接探测、通知、快捷键、风扇安全温度、合盖电量下限。当前页面、辅助工具与历史记录留在本机。	Sont synchronisés : éléments et styles de la barre des menus, fréquence d’actualisation, apparence, langue, sections des panneaux, sondes réseau, notifications, raccourcis, température de sécurité des ventilateurs et seuil de batterie écran fermé. La page actuelle, l’assistant et l’historique restent sur ce Mac.
+后台低频探测	Sondes en arrière-plan
+启动于	Démarrage
+启动时和之后每天检查一次，发现新版本时显示更新摘要	Vérifie les mises à jour au lancement puis chaque jour, et affiche les nouveautés lorsqu’une version est disponible
+启动磁盘	Disque de démarrage
+启动磁盘可用空间低于 10% 或 10 GB，每 10 分钟检查一次	Moins de 10 % ou 10 Go libres sur le disque de démarrage ; vérification toutes les 10 minutes
+启动磁盘已用占比	Disque de démarrage utilisé
+启动项	Éléments de démarrage
+启用	Activer
+启用 {}	Activer {}
+启用失败：{}	Échec de l’activation : {}
+哔哩哔哩	Bilibili
+唤醒	Réveils
+团队 {}	équipe {}
+国内	Chine
+国内分省三网延迟	Latence en Chine
+国内网站也绕到了{}，访问会变慢，也可能触发风控。	Les sites chinois passent aussi par {}, ce qui ralentit l’accès et peut déclencher des contrôles de sécurité.
+国内网站直连，国际网站经 {} 的{}。	Les sites chinois se connectent directement ; les sites internationaux passent par {} : {}.
+国内网站走了代理，访问会绕路变慢。	Les sites chinois passent par le proxy, ce qui allonge le trajet et ralentit l’accès.
+国内网络建议选阿里云或腾讯；选路由器只检测本地连接	En Chine continentale, privilégiez Alibaba Cloud ou Tencent ; « Routeur » ne teste que la liaison locale
+图形	Graphismes
+图形处理器	GPU
+图形核心	Cœurs GPU
+图标	Icône
+圆环	Anneau
+圆环表示当前占用比例	Un anneau représente l’utilisation actuelle
+在 cleanip.io 查看这个 IP 的完整报告	Ouvrir le rapport complet de cette IP sur cleanip.io
+在主窗口打开“{}”	Ouvrir « {} » dans la fenêtre principale
+在程序坞显示图标	Afficher l’icône dans le Dock
+在线升级	Mises à jour en ligne
+在线升级：发现新版本时显示更新摘要，一键安装并自动重启	Mises à jour en ligne : afficher les nouveautés, installer en un clic et relancer automatiquement
+在菜单栏显示	Afficher dans la barre des menus
+在菜单栏显示{}	Afficher {} dans la barre des menus
+在访达中显示	Afficher dans le Finder
+型号	Modèle
+域名，例如 example.com	Domaine, par exemple example.com
+处理器	Processeur
+处理器核心	Cœurs CPU
+备用空间	Réserve disponible
+备用空间低于阈值，建议备份	Capacité de réserve sous le seuil ; sauvegardez vos données
+外置硬盘、U 盘、镜像与网络共享	Disques externes, clés USB, images disque et partages réseau
+外观	Apparence
+存储	Stockage
+它只做这几件事	Ses seules fonctions
+安全温度	Température de sécurité
+安装	Installer
+安装包	Programmes d’installation
+安装包不支持这台 Mac 的芯片	Cette mise à jour ne prend pas en charge la puce de ce Mac
+安装包内容不正确：{}	Le paquet de mise à jour est incorrect : {}
+安装包校验值与版本清单不一致，已放弃安装	La somme de contrôle ne correspond pas au manifeste ; installation arrêtée
+安装失败：{}	Échec de l’installation : {}
+安装辅助工具	Installer l’assistant
+安静	Silencieux
+定时 ping 一个地址，记录网络是否通畅	Envoie régulièrement un ping à une adresse pour vérifier l’accès au réseau
+定时探测网络	Sonde de connexion
+实测	Mesuré
+家目录	Dossier personnel
+容量	Capacité
+密码仅保存在这台 Mac 的钥匙串中	Le mot de passe est conservé uniquement dans le trousseau de ce Mac
+密码或应用专用密码	Mot de passe ou mot de passe d’application
+导出…	Exporter…
+导出失败：{}	Échec de l’exportation : {}
+导出时间	Date d’exportation
+导出诊断信息	Exporter le diagnostic
+寿命偏低，注意备份	Durée de vie restante faible ; effectuez des sauvegardes
+寿命按厂商估算的已用比例计算；写入量越大消耗越快，日常使用通常可用很多年	La durée de vie repose sur l’estimation d’usure du fabricant. Les écritures intensives accélèrent l’usure ; un usage courant permet généralement plusieurs années de service.
+将应用 {} 保存的设置，覆盖本机对应偏好。	Appliquer les réglages enregistrés le {} en remplaçant les préférences locales correspondantes.
+将清理 {} 个项目，共 {}。{}	{} éléments, soit {} au total, seront nettoyés. {}
+将移到废纸篓	Sera déplacé vers la Corbeille
+小标签在上、数值在下，最紧凑	Petite étiquette au-dessus de la valeur ; le plus compact
+尚未检查	Pas encore vérifié
+屏幕保持常亮	Maintenir l’écran allumé
+屏幕可按设置关闭，下载、编译等后台任务继续运行	L’écran peut s’éteindre normalement tandis que les téléchargements et compilations continuent
+屏幕和系统都不会因闲置而关闭或休眠	L’écran et le système restent actifs même en cas d’inactivité
+展开{}	Développer {}
+峰值	Pic
+峰值 {}	Pic {}
+工具	Outils
+左侧风扇	Ventilateur gauche
+左耳	Gauche
+已{}“{}”	{} « {} »
+已使用 Developer ID 签名（团队 {}），辅助工具只接受同一团队签名的 XStats。	Signé avec Developer ID (équipe {}) ; l’assistant n’accepte que XStats signé par la même équipe.
+已停用	Désactivé
+已充满	Chargée
+已删除 {} 个快照，腾出的空间稍后会反映在“可清除”里	{} instantanés supprimés ; l’espace libéré apparaîtra bientôt dans l’espace purgeable
+已到设定时间，防休眠已关闭	Délai écoulé ; maintien en éveil désactivé
+已加载	Chargé
+已取消	Annulé
+已取消登录	Connexion annulée
+已启用	Activé
+已导出 {}	{} exporté
+已将 {} 与 {} 项残留移到废纸篓，约 {}{}{}。需要时可以在废纸篓里放回。	{} et {} résidus déplacés vers la Corbeille, soit environ {}{}{}. Vous pouvez les remettre à leur place depuis la Corbeille.
+已应用远端设置	Réglages distants appliqués
+已开启同步	Synchronisation activée
+已恢复自动获取 DNS	DNS de nouveau automatique
+已扫描 {} 个条目 · {}	{} éléments analysés · {}
+已把“{}”移到废纸篓	« {} » déplacé vers la Corbeille
+已拷贝	Copié
+已推出“{}”	« {} » éjecté
+已是最新版本	À jour
+已用	Utilisé
+已用 {} · {}	{} utilisés · {}
+已用内存占比	Mémoire utilisée
+已记录的数据会从本机删除，无法恢复。	Les données enregistrées seront supprimées de ce Mac sans possibilité de récupération.
+已运行	Durée de fonctionnement
+已运行 	Depuis 
+已连接	Connecté
+已连接的键盘、鼠标、耳机等电量低于 15%，每 10 分钟检查一次	La batterie d’un clavier, d’une souris, d’écouteurs ou d’un autre appareil connecté passe sous 15 % ; vérification toutes les 10 minutes
+已选 {} 项 · {}	{} sélectionnés · {}
+已释放	Libéré
+已释放 {} 缓存内存	{} de mémoire cache libérés
+布局	Disposition
+干净	Saine
+平均	Moyenne
+平均 {} · 峰值 {}{}	Moy. {} · Pic {}{}
+平均 {} · 最高 {}	Moy. {} · Max. {}
+平均温度	Température moyenne
+平均负载除以核心数：小于 1 表示任务不用排队，大于 1 表示有任务在等 CPU	Charge moyenne par cœur : sous 1, aucune attente ; au-dessus de 1, des tâches attendent le CPU
+广播 IP	IP de diffusion
+序列号	Numéro de série
+应用	Apps
+应用 UI 语言	Langue de l’interface
+应用 {} / 辅助工具 {}	App {} / Assistant {}
+应用与勾选的 {} 项残留会移到废纸篓，约 {}。清空废纸篓前都可以放回。	L’app et {} résidus sélectionnés seront déplacés vers la Corbeille, soit environ {}. Vous pourrez les restaurer tant que la Corbeille n’est pas vidée.
+应用包内未找到辅助工具，请使用完整构建的 XStats.app	Assistant introuvable dans le bundle de l’app. Utilisez une version complète de XStats.app.
+应用并覆盖	Appliquer et remplacer
+应用拒绝退出，可以试试强制退出	L’app refuse de quitter. Essayez « Forcer à quitter ».
+应用数据	Données des apps
+应用日志与崩溃报告	Journaux et rapports de plantage des apps
+应用本体	Application
+应用正在运行，请先退出	L’app est en cours d’exécution. Quittez-la d’abord.
+应用程序文件夹	Dossier Applications
+应用缓存	Caches des apps
+应用远端设置？	Appliquer les réglages distants ?
+应用退出或断开连接时，自动恢复风扇与睡眠设置	Restaure les réglages des ventilateurs et de veille lorsque l’app quitte ou se déconnecte
+废纸篓	Corbeille
+延迟	Latence
+开	Activé
+开关防休眠	Basculer le maintien en éveil
+开发	Développement
+开发构建不支持在线升级	Les versions de développement ne prennent pas en charge les mises à jour en ligne
+开发构建不支持在线升级，请下载安装包	Les versions de développement ne peuvent pas se mettre à jour en ligne ; téléchargez le programme d’installation
+开发版	Développement
+开发者	Développeur
+开启	Activé
+开启 / 关闭“合盖不睡眠”（等同 pmset disablesleep）	Activer ou désactiver le maintien en éveil écran fermé (équivalent à pmset disablesleep)
+开启后图标出现在菜单栏；按住 ⌘ 键拖动图标可以调整位置	Ajoute l’icône à la barre des menus ; maintenez ⌘ et faites-la glisser pour la déplacer
+开始分析	Analyser
+开始探测	Lancer
+开机以来	Depuis le démarrage
+开机后上传	Envois depuis le démarrage
+开机后下载	Réceptions depuis le démarrage
+开机后自动在菜单栏显示 XStats	Afficher automatiquement XStats dans la barre des menus après l’ouverture de session
+异常断电	Arrêts non sécurisés
+弹窗显示	Sections des panneaux
+强冷	Maximum
+强制刷新：忽略缓存，立即重新查询公网 IP 与归属地	Forcer l’actualisation : ignorer le cache et rechercher immédiatement l’IP publique et sa localisation
+强制退出	Forcer à quitter
+归属地	Localisation
+归属地数据来自	Données de localisation fournies par
+当前 {} · 发布于 {} · {} · {}	Actuelle {} · Publiée le {} · {} · {}
+当前为临时签名的开发构建，辅助工具只能校验应用标识。使用 Developer ID 证书构建后会自动启用团队校验。	Cette version de développement est signée ad hoc ; l’assistant ne peut vérifier que l’identifiant du bundle. Une version signée Developer ID active automatiquement la vérification de l’équipe.
+当前效果（实时数据）	Aperçu (données en direct)
+当前版本	Version actuelle
+当前版本 {}	Version actuelle {}
+当前版本 {} · {} · {}	Version actuelle {} · {} · {}
+当前用户	Utilisateur actuel
+录制快捷键	Enregistrer un raccourci
+影音	Vidéo
+循环 {} 次	{} cycles
+循环次数	Nombre de cycles
+微信	WeChat
+忙	Occupé
+快捷开关	Commandes rapides
+快照名称格式不认识，没有删除	Format des noms d’instantanés inconnu ; aucune suppression
+性能核	Performance
+总占用	Total
+总览	Vue d’ensemble
+恢复系统睡眠失败：{}	Échec de la restauration de la veille système : {}
+我的	Les miens
+截图已输出到 {}	Captures enregistrées dans {}
+所属应用：{}（{}）	App : {} ({})
+所有内容先移到废纸篓。	Tout est d’abord déplacé vers la Corbeille.
+所有指标合成一个图标，点击弹出状态总览，可切到各项详情	Toutes les mesures dans une icône ; un clic ouvre la vue d’ensemble, avec des onglets pour les détails
+所有检测目标都连不上。请检查网络连接，或者代理软件是否正常运行。	Aucune cible de test n’est accessible. Vérifiez la connexion réseau et le bon fonctionnement de votre app de proxy.
+所有用户	Tous les utilisateurs
+所有用户与系统级的启动项需要管理员权限，请在系统设置的登录项中管理	Les éléments communs et système nécessitent des droits d’administration ; gérez-les dans Ouverture des Réglages Système
+所有磁盘合计	Tous les disques
+手动	Manuel
+手动下载	Télécharger manuellement
+打包版本、系统与辅助工具状态、主要设置、最近 3 天的运行日志和崩溃报告，反馈问题时附上；会去掉序列号、IP 与硬件地址	Regroupe la version, l’état du système et de l’assistant, les principaux réglages, ainsi que les journaux et rapports de plantage des 3 derniers jours pour un signalement. Les numéros de série, adresses IP et matérielles sont retirés.
+打包生成的 .xcarchive，删除后无法重新符号化旧版本崩溃日志	Archives .xcarchive ; leur suppression empêche la symbolication des anciens rapports de plantage
+打开 SMC 失败 ({})	Impossible d’ouvrir le SMC ({})
+打开 XStats	Ouvrir XStats
+打开 XStats 主窗口	Ouvrir la fenêtre XStats
+打开登录项设置	Ouvrir les réglages d’ouverture
+打开网络详情时向 Cloudflare（1.1.1.1）或 ipify 查询一次公网地址，10 分钟内不重复请求；归属地、ASN、网络类型与纯净度由这台 Mac 直接向 cleanip.io 查询，只发送公网地址	À l’ouverture des détails réseau, l’adresse publique est demandée à Cloudflare (1.1.1.1) ou ipify, au maximum une fois toutes les 10 minutes. Ce Mac consulte directement cleanip.io pour la localisation, l’ASN, le type de réseau et la réputation, en envoyant uniquement l’adresse publique
+打开进程页	Afficher les processus
+打开通知设置	Ouvrir les réglages de notifications
+托管	Hébergement
+执行中	En cours
+扫描中	Analyse en cours
+扫描中…	Analyse…
+扫描于 	Analysé 
+抖动	Gigue
+抖音	Douyin
+折线历史	Historique en courbe
+折线是最近 30 次采样（约 1 分钟）的走势	La courbe représente les 30 derniers relevés (environ une minute)
+拷贝	Copier
+拷贝 PID	Copier le PID
+拷贝 PID {}	Copier le PID {}
+持续时间	Durée
+按下快捷键…	Appuyez sur le raccourci…
+按单核满载为 100% 计：{}	Par cœur (un cœur pleinement utilisé = 100 %) : {}
+按应用	Par app
+按应用汇总	Par app
+按文件夹	Par dossier
+按系统代理访问国际网站	Sites internationaux via le proxy système
+按系统休眠	Veille système
+按规则分流	Routage par règles
+按进程	Par processus
+换一台 Mac 登录后，菜单栏、外观、通知与快捷键等偏好会自动恢复。不登录也能使用全部功能。	Connectez-vous sur un autre Mac pour retrouver automatiquement vos préférences de barre des menus, d’apparence, de notifications et de raccourcis. Toutes les fonctions restent disponibles sans connexion.
+换入 / 换出	Entrées / sorties d’échange
+掌托	Repose-poignets
+排队程度	File d’attente
+探测目标	Cible de la sonde
+探针一直没有返回结果，稍后再试	Les sondes n’ont renvoyé aucun résultat ; réessayez plus tard
+探针数量，一个探针占一次额度	Nombre de sondes ; chaque sonde consomme un test du quota
+接入 Cloudflare 的网站能实测出口，其余按国内 / 国际规则推断	La sortie est mesurée pour les sites utilisant Cloudflare ; les autres sont déduites des règles Chine/international
+接口	Interface
+接通电源	Branché
+推出	Éjecter
+推出中…	Éjection…
+推断	Déduit
+搜索名称、PID 或用户	Rechercher un nom, PID ou utilisateur
+搜索应用	Rechercher des apps
+搜索语言	Rechercher une langue
+撤销	Annuler
+收起	Réduire
+改回开机后累计	Revenir aux totaux depuis le démarrage
+政府	Administration
+教育网	Éducation
+散热模式	Refroidissement
+数据	Données
+数据来源	Source
+整体风格	Style global
+整体风格套用到所有项目。想让某个项目不一样，在下面“显示项目”里给它单独选一种，比如 CPU 用圆环、风扇用数字。	Le style global s’applique à tous les éléments. Pour personnaliser un élément, choisissez son style sous « Éléments » ci-dessous, par exemple un anneau pour le CPU et des chiffres pour le ventilateur.
+整机	Système
+整机 {}	Système {}
+整机功耗	Consommation du système
+文件系统检查	Vérification du système de fichiers
+文件系统结构完好，没有发现错误	La structure du système de fichiers est intacte ; aucune erreur détectée
+新版本未通过 Apple 公证检查，已放弃安装	La nouvelle version a échoué à la vérification de notarisation Apple ; installation arrêtée
+新版本需要 macOS {} 或更高版本	La nouvelle version nécessite macOS {} ou ultérieur
+无	Aucun
+无 Bundle ID	Aucun identifiant de bundle
+无法创建电源断言（{}）	Impossible de créer une assertion d’alimentation ({})
+无法创建签名要求	Impossible de créer l’exigence de signature
+无法打开	Ouverture impossible
+无法打开登录窗口	Impossible d’ouvrir la fenêtre de connexion
+无法推出“{}”：{}	Impossible d’éjecter « {1} » : {2}
+无法确认是否经过代理	Utilisation du proxy non confirmée
+无法移到废纸篓：{}	Impossible de déplacer vers la Corbeille : {}
+无法读取	Illisible
+无法读取签名	Impossible de lire la signature
+无法连接 WebDAV，请检查网络、地址和 HTTPS 证书	Impossible de se connecter à WebDAV. Vérifiez le réseau, l’URL et le certificat HTTPS
+无法连接辅助工具	Impossible de se connecter à l’assistant
+无法连接辅助工具：{}	Impossible de se connecter à l’assistant : {}
+无需清理	Rien à nettoyer
+日志与崩溃报告	Journaux et rapports de plantage
+显卡信息	Informations GPU
+显示 / 隐藏主窗口	Afficher / masquer la fenêtre principale
+显示 {} 项	{} affichés
+显示为 {}×{}	Affichage équivalent à {}×{}
+显示名称：{}	Nom affiché : {}
+显示器	Écrans
+显示序列号	Afficher le numéro de série
+显示项目	Éléments
+暂时没有拿到评分，稍后会再试	Aucun score disponible ; une nouvelle tentative aura lieu plus tard
+更新内容	Nouveautés
+更省电，负责后台和轻量任务	Plus économe ; gère les tâches légères et d’arrière-plan
+替换后未找到应用	App introuvable après le remplacement
+替换应用失败：{}	Échec du remplacement de l’app : {}
+最低 {} · 最高 {} · 目标 {} RPM	Min. {} · Max. {} · Cible {} tr/min
+最大的文件	Fichiers les plus volumineux
+最小化	Réduire
+最强	Le plus fort
+最忙的核心	Cœur le plus sollicité
+最快，重活优先交给它们	Les plus rapides ; les tâches lourdes leur sont confiées en priorité
+最近 24 小时	Dernières 24 heures
+最近 60 秒	Dernières 60 secondes
+最近没有应用在读写磁盘	Aucune app ne lit ou n’écrit sur le disque actuellement
+最近的内存压力走势	Évolution récente de la pression mémoire
+最近错误	Dernière erreur
+最高	Maximum
+最高 / 平均	Max. / Moy.
+最高温度	Température maximale
+服务器在 getopenstats.com，不上传任何监控数据；随时可以删除。	Le serveur se trouve sur getopenstats.com. Aucune donnée de surveillance n’est envoyée ; vous pouvez tout supprimer à tout moment.
+服务器返回 {}	Le serveur a renvoyé {}
+服务器返回的数据格式不正确	Le serveur a renvoyé des données mal formées
+未使用	Inutilisé
+未使用代理	Aucun proxy utilisé
+未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	Le travail non enregistré peut être perdu. « Forcer à quitter » termine immédiatement l’app sans lui permettre d’enregistrer.
+未发现	Aucun résultat
+未安装	Non installé
+未完成的下载	Téléchargements incomplets
+未开启，Mac 按系统设置休眠	Désactivé ; le Mac se met en veille normalement
+未找到 AppleSMC 服务	Service AppleSMC introuvable
+未检出	Aucun détecté
+未检测到可调节的风扇	Aucun ventilateur réglable trouvé
+未检测到风扇	Aucun ventilateur détecté
+未知状态	État inconnu
+未签名或临时签名	Non signé ou signé ad hoc
+未签名（开发构建）	Non signé (version de développement)
+未设置	Non défini
+未连接	Non connecté
+未连接网络	Aucun réseau
+本地 IPv4	IPv4 locale
+本地 IPv6	IPv6 locale
+本地快照	Instantanés locaux
+本机 IP 这一小时还剩 {}/{} 次探针额度	{}/{} tests de sonde restants cette heure pour l’IP de ce Mac
+本机信息	Ce Mac
+本机宽带	Votre connexion
+本机网络	Votre réseau
+本机设置已上传	Réglages locaux envoyés
+本次用掉 {}	{} utilisés
+机型	Modèle
+机型标识符	Identifiant du modèle
+机房	Centre de données
+机房 IP	IP de centre de données
+极好	Excellent
+极高风险	Risque très élevé
+构建	Compilation
+查看	Afficher
+查看{}详情	Afficher les détails de {}
+查看全部进程	Tous les processus
+查看包含的项目	Afficher les éléments inclus
+查看完整更新日志	Historique complet des modifications
+查看清理日志	Afficher le journal de nettoyage
+查询中…	Recherche…
+查询公网 IP	Rechercher l’IP publique
+查询已关闭	Recherche désactivée
+柱状历史	Historique en barres
+标签与数值同一行，最易读	Étiquette et valeur sur une ligne ; le plus lisible
+标识	Identifiant
+核心	Cœurs
+核心 {}	Cœur {}
+核心 {}（{}）· {}	Cœur {} ({}) · {}
+核心分工	Types de cœurs
+核心数	Cœurs
+核心最高温度；余量是离 100°C 还差多少度，越接近 0 越可能因过热降频	Cœur le plus chaud ; la marge est l’écart jusqu’à 100 °C. Plus elle approche de 0, plus le risque de bridage thermique augmente
+核心热力图	Carte thermique des cœurs
+核心负载	Charge des cœurs
+检查	Vérifier
+检查 VPN 与代理是否生效、各网站从哪个出口出去	Vérifier le VPN, le proxy et la sortie utilisée par chaque site
+检查中…	Vérification…
+检查完成，但没有得到明确结论	Vérification terminée sans conclusion claire
+检查更新	Rechercher des mises à jour
+检查更新…	Rechercher des mises à jour…
+检查更新失败	Échec de la recherche de mises à jour
+检查未能完成（退出码 {}）	La vérification n’a pas abouti (code de sortie {})
+检测中 {}/{}	Vérification {}/{}
+检测到 {}，但测试的网站都在直连，没有经过代理出口。	{} détecté, mais tous les sites testés se connectent directement sans passer par un proxy.
+模式	Mode
+模拟器	Simulateurs
+模拟器缓存	Caches des simulateurs
+正在上传设置…	Envoi des réglages…
+正在下载	Téléchargement
+正在下载设置…	Téléchargement des réglages…
+正在使用	En cours d’utilisation
+正在修改 DNS…	Modification du DNS…
+正在同步	Synchronisation
+正在同步…	Synchronisation…
+正在安装，完成后 XStats 会自动重启。	Installation en cours. XStats redémarrera automatiquement une fois celle-ci terminée.
+正在导出…	Exportation…
+正在导出诊断信息…	Exportation du diagnostic…
+正在扫描应用…	Analyse des apps…
+正在收集走势…	Collecte de l’évolution…
+正在本机生成…	Génération sur ce Mac…
+正在查找残留…	Recherche de résidus…
+正在查询…	Recherche…
+正在核对启动盘的文件系统结构，通常几秒到几十秒	Vérification de la structure du système de fichiers du disque de démarrage ; cela prend généralement quelques secondes à une minute
+正在核对校验值、开发者签名与 Apple 公证…	Vérification de la somme de contrôle, de la signature du développeur et de la notarisation Apple…
+正在检查…	Vérification…
+正在检查更新	Recherche de mises à jour
+正在检测出口与分流…	Vérification des sorties et du routage…
+正在测 {}/{}	Test {}/{}
+正在测上行	Mesure du débit d’envoi
+正在测下行	Mesure du débit de réception
+正在测延迟	Mesure de la latence
+正在清理…	Nettoyage…
+正在移除…	Suppression…
+正在统计…	Comptage…
+正在统计各进程流量…	Mesure du trafic par processus…
+正在计算可清理空间	Calcul de l’espace nettoyable
+正在读取 SMART 信息；外置磁盘或不支持 NVMe SMART 的磁盘不显示	Lecture des données SMART ; les disques externes et ceux sans NVMe SMART ne sont pas affichés
+正在读取…	Chargement…
+正在读取传感器…	Lecture des capteurs…
+正在读取进程…	Lecture des processus…
+正在读取风扇…	Lecture des ventilateurs…
+正在释放…	Libération…
+正常	Normal
+此刻各核心的占用；超过 60% 变橙色、85% 变红色	Charge actuelle de chaque cœur ; orange au-dessus de 60 %, rouge au-dessus de 85 %
+此设备没有可调节的风扇	Ce Mac ne dispose d’aucun ventilateur réglable
+每个应用占整机 CPU 的比例：{} 个核心全部跑满为 100%，与顶部的总占用是同一把尺子。鼠标悬停在数值上可以看按单核计的占用（活动监视器的算法）	Part de chaque app dans le CPU total : les {} cœurs entièrement utilisés représentent 100 %, comme le total ci-dessus. Survolez une valeur pour voir l’utilisation par cœur, comme dans Moniteur d’activité
+每个指标一个图标，点击弹出该项详情	Une icône par mesure ; cliquez pour afficher ses détails
+每分钟把主要指标的平均值与峰值写入本机数据库，保留 7 天，不上传	Enregistre chaque minute les moyennes et pics des principales mesures dans une base locale. Conservation pendant 7 jours, sans envoi.
+每核 {}	{} par cœur
+每根柱子一个核心，按核心类型着色	Une barre par cœur, colorée selon son type
+每点 {}	{} par point
+每秒让 CPU 从空闲中唤醒的次数，越高越耗电	Nombre de réveils du CPU par seconde depuis l’inactivité ; une valeur élevée consomme davantage
+每秒读写磁盘的字节数	Octets lus et écrits par seconde
+每行一个核心（共 {} 个），每列一次采样，颜色越深越忙；右侧粗条是此刻的占用	Une ligne par cœur ({} au total), une colonne par relevé ; plus la couleur est sombre, plus la charge est forte. La barre large à droite montre la charge actuelle
+每项独立	Séparés
+比 30 秒前低 {}%	{} % de moins qu’il y a 30 s
+比 30 秒前高 {}%	{} % de plus qu’il y a 30 s
+永久删除废纸篓中的内容，无法恢复	Supprime définitivement le contenu de la Corbeille, sans possibilité de récupération
+沙盒容器	Conteneurs sandbox
+没有匹配的语言	Aucune langue correspondante
+没有匹配的进程	Aucun processus correspondant
+没有启动项	Aucun élément de démarrage
+没有已连接的蓝牙设备	Aucun appareil Bluetooth connecté
+没有检测到 VPN 或系统代理，所有流量都从本机网络直接出去。	Aucun VPN ni proxy système détecté. Tout le trafic sort directement de votre réseau.
+没有检测到显示器	Aucun écran détecté
+没有电池	Aucune batterie
+没有移动任何文件{}	Aucun fichier déplacé{}
+没有超过 50 MB 的文件	Aucun fichier de plus de 50 Mo
+流量历史	Historique du trafic
+流量经过 {}，系统 DNS 可能由它接管，修改后不一定生效。	Le trafic passe par {}, qui peut gérer le DNS système ; les modifications peuvent donc rester sans effet.
+浅色	Clair
+浅色菜单栏预览	Aperçu de la barre des menus claire
+测延迟	Latence
+测本机宽带、国内分省三网延迟与全球节点	Tester votre connexion, la latence par province et opérateur en Chine, ainsi que les nœuds mondiaux
+测试的网站都经 {} 的{}，没有暴露本机网络的地址。	Tous les sites testés passent par {} : {}. L’adresse de votre réseau n’est pas exposée.
+测速	Tester
+浏览器	Navigateurs
+淘宝	Taobao
+深色	Sombre
+深色菜单栏预览	Aperçu de la barre des menus sombre
+清理	Nettoyage
+清理中…	Nettoyage…
+清理可回收的缓存内存（需要管理员授权或辅助工具）	Libère la mémoire cache récupérable (autorisation d’administration ou assistant nécessaire)
+清理所选 {}	Nettoyer la sélection : {}
+清空废纸篓	Vider la Corbeille
+清除	Effacer
+清除…	Effacer…
+清除全部历史记录？	Effacer tout l’historique ?
+清除历史	Effacer l’historique
+清除快捷键	Effacer le raccourci
+清除搜索	Effacer la recherche
+温度	Température
+温度与风扇	Température et ventilateurs
+温度传感器	Capteurs de température
+温度单位	Unité de température
+满载	Charge maximale
+滥用记录	Signalements d’abus
+点击拷贝	Cliquer pour copier
+版本	Version
+版本 {}	Version {}
+版本 {}{}	Version {}{}
+版本是 {}，清单写的是 {}	La version est {}, mais le manifeste indique {}
+版本清单格式不正确	Manifeste de version incorrect
+物理地址	Adresse matérielle
+状态	État
+状态圆点	Point d’état
+状态总览	Vue d’ensemble de l’état
+状态正常	Bon état
+状态良好	Bon état
+现在	Maintenant
+现在没有本地快照	Aucun instantané local actuellement
+用 Apple 智能解释	Expliquer avec Apple Intelligence
+用户	Utilisateur
+用户 {}	Utilisateur {}
+用户名	Nom d’utilisateur
+用户资源库	Bibliothèque utilisateur
+用系统图标代替文字标签	Icônes système à la place des étiquettes
+由 Apple 智能在这台 Mac 上生成，不联网；内容可能不准确，结束进程前请自行确认。	Généré hors ligne sur ce Mac par Apple Intelligence. Le contenu peut être inexact ; vérifiez avant de terminer un processus.
+由 SMC 与系统能耗统计读取；新款芯片不提供可靠的 CPU 单独功耗	Données issues du SMC et des statistiques énergétiques du système ; les puces récentes ne fournissent pas de consommation fiable pour le CPU seul
+由 macOS 调节	Géré par macOS
+由辅助工具执行	Exécuté par l’assistant
+电池	Batterie
+电池 {}	Batterie {}
+电池供电	Sur batterie
+电池健康	État de la batterie
+电池健康度下降	État de la batterie dégradé
+电池充电	Batterie en charge
+电池放电	Batterie en décharge
+电池最大容量为 {}，续航会明显缩短。可以在“系统设置 › 电池”查看是否建议维修。	La capacité maximale de la batterie est de {}, ce qui réduit nettement l’autonomie. Consultez Réglages Système › Batterie pour les recommandations de réparation.
+电池最大容量低于 80%，每 30 天最多提醒一次	Capacité maximale de la batterie sous 80 % ; une alerte au maximum tous les 30 jours
+电池温度	Température de la batterie
+电池电量	Niveau de batterie
+电池设置	Réglages de la batterie
+电源	Alimentation
+电源供电	Sur adaptateur secteur
+电源输入	Entrée de l’adaptateur
+电源适配器{}	Adaptateur secteur{}
+电量	Batterie
+电量下限	Seuil de batterie
+电量与充电状态；没有电池的 Mac 显示蓝牙设备电量	Niveau et état de charge ; les Mac sans batterie affichent les batteries des appareils Bluetooth
+电量低于 {}%，已关闭合盖运行	Batterie sous {} % ; mode écran fermé désactivé
+电量历史	Historique de charge
+电量条	Jauge
+登录以同步设置	Se connecter pour synchroniser les réglages
+登录启动项	Agents de lancement
+登录回调不正确	Retour de connexion incorrect
+登录已失效，请重新登录	Votre session a expiré. Veuillez vous reconnecter.
+登录时启动	Ouvrir à la connexion
+登录时运行	Exécuté à la connexion
+登录项设置	Ouverture
+百度	Baidu
+监控	Surveillance
+目标转速	Vitesse cible
+直连	Direct
+相当于“磁盘工具”里的急救，但只检查不修改：核对启动盘的目录结构、文件分配与快照元数据是否一致。	Comme S.O.S. dans Utilitaire de disque, mais en lecture seule : vérifie la cohérence de la structure des dossiers, de l’allocation des fichiers et des métadonnées des instantanés du disque de démarrage.
+省份	Province
+确认清理	Nettoyer
+确认通知能正常显示	Vérifier l’affichage des notifications
+磁盘	Disque
+磁盘已用 {}	Disque : {} utilisés
+磁盘报告了严重警告，建议尽快备份	Le disque a signalé une alerte critique ; sauvegardez rapidement
+磁盘清理	Nettoyage du disque
+磁盘空间不足	Espace disque faible
+磁盘空间偏紧	Espace disque limité
+社交	Réseaux sociaux
+移到废纸篓	Déplacer vers la Corbeille
+移到废纸篓？	Déplacer vers la Corbeille ?
+移动网络	Mobile
+移动网络 IP	IP mobile
+移动运营商	Opérateur mobile
+空	Vide
+空格	Espace
+空闲	Inactif
+空间占用	Espace utilisé
+窗口	Fenêtre
+窗口状态	État enregistré
+立即切换；显示器、应用名称等由系统提供的文字在下次启动时切换	Application immédiate ; les textes fournis par macOS, comme les noms d’écrans et d’apps, changent au prochain lancement
+立即同步	Synchroniser maintenant
+竖向电量条表示当前占用比例	Une jauge verticale représente l’utilisation actuelle
+等待批准	En attente d’autorisation
+等待选择	En attente de votre choix
+签名团队	Équipe signataire
+签名方：{}	Signé par : {}
+签名校验未通过：{}	Échec de la vérification de signature : {}
+粘贴	Coller
+系统	Système
+系统代理	Proxy système
+系统或其他用户的进程，XStats 不提供结束	Processus système ou d’un autre utilisateur ; XStats ne peut pas le terminer
+系统服务	Services système
+系统正在把内存写到磁盘，可能会变慢。可以关掉占用大的应用。	Le système utilise le disque comme mémoire d’échange et peut ralentir. Quittez les apps qui consomment beaucoup de mémoire.
+系统版号	Compilation
+系统电池设置…	Réglages système de la batterie…
+系统级资源库（第三方驱动、辅助工具或后台服务）	Bibliothèque système (pilotes tiers, assistants ou services en arrière-plan)
+系统维护	Maintenance
+系统自动	Automatique
+系统自带的应用不能卸载	Les apps intégrées ne peuvent pas être désinstallées
+系统调节	Système
+累计写入	Données écrites
+累计读取	Données lues
+繁忙	Occupé
+纯净度 {} 分	Score de réputation {}
+纯净度看信誉、来路、邻居与网络类型四项；机房 IP 常见信誉高、来路和类型偏低。数据来自 cleanip.io	Le score évalue la réputation, l’origine, le voisinage et le type de réseau. Les IP de centres de données ont souvent une bonne réputation, mais des scores d’origine et de type plus faibles. Données de cleanip.io
+线程	Threads
+线程 {}	Threads {}
+线程数（只能读取自己的进程）	Nombre de threads (vos processus uniquement)
+经 Cloudflare {} 边缘节点	Via le point de présence Cloudflare {}
+经 {}	Via {}
+经 {} 直接连接	Directement via {}
+经代理	Via le proxy
+结束 {} 失败：{}	Impossible de terminer {} : {}
+结束“{}”？	Terminer « {} » ?
+结束它会注销当前用户，已禁止	Cette action fermerait votre session ; elle est donc bloquée
+结束进程…	Terminer le processus…
+统一内存（CPU 与 GPU 共享）	Mémoire unifiée (partagée entre CPU et GPU)
+统计家目录里每个文件夹占多少空间，并找出最大的文件；只读取大小，不改动任何文件。文件多时需要几十秒。	Mesure l’espace de chaque dossier personnel et repère les plus gros fichiers. Seules les tailles sont lues, sans modifier les fichiers. Avec beaucoup de fichiers, cela peut prendre une minute.
+继续运行	Continuer l’exécution
+绿色正常、橙色偏高（60% 以上）、红色很高（85% 以上）	Vert : normal, orange : élevé (au-dessus de 60 %), rouge : très élevé (au-dessus de 85 %)
+缓存	Caches
+缓存与日志直接删除，下载内容移到废纸篓。	Les caches et journaux sont supprimés ; les téléchargements sont déplacés vers la Corbeille.
+缓存也先移到废纸篓	Déplacer aussi les caches vers la Corbeille
+编辑	Édition
+网站	Site
+网站分流	Routage des sites
+网站没有接入 Cloudflare，读不到出口，按国内 / 国际规则归到对应出口	Ce site n’utilise pas Cloudflare ; sa sortie ne peut pas être lue et est attribuée selon la règle Chine/international
+网络	Réseau
+网络不通	Aucune connexion
+网络名称	Nom du réseau
+网络已恢复	Réseau rétabli
+网络断开	Réseau déconnecté
+网络测速	Test de débit réseau
+网络环境变了，下面是之前的结果，正在重新检测。	Le réseau a changé. Les résultats précédents sont affichés ci-dessous ; une nouvelle vérification est en cours.
+网络类型	Type de réseau
+网络详情打开时每秒 ping 一次，通了是绿格、不通是红格，显示最近 60 次	Envoie un ping par seconde lorsque les détails réseau sont ouverts : vert si accessible, rouge sinon. Affiche les 60 derniers résultats
+网络运营方	Opérateur réseau
+网络连接中断超过 20 秒，恢复后再提示一次	Réseau interrompu depuis plus de 20 secondes ; nouvelle notification au rétablissement
+网络连接已中断超过 20 秒。可以打开网络详情查看接口与路由器状态。	Le réseau est interrompu depuis plus de 20 secondes. Ouvrez les détails réseau pour vérifier l’interface et le routeur.
+网络连接已经恢复。	La connexion réseau est rétablie.
+网络：{}	Réseau : {}
+网页数据	Données web
+网页缓存与脚本缓存，不涉及 Cookie、历史记录和密码	Caches web et de scripts ; les cookies, l’historique et les mots de passe restent intacts
+置信度	Confiance
+联动	Résidente
+能效核	Efficacité
+腾讯 DNSPod	Tencent DNSPod
+腾讯（119.29.29.29）	Tencent (119.29.29.29)
+自 {} 起	Depuis {}
+自动	Automatique
+自动代理配置	Configuration automatique du proxy
+自动检查更新	Rechercher automatiquement
+自动检测	Détecter automatiquement
+自动（由路由器分配）	Automatique (depuis le routeur)
+自定义	Personnalisé
+自定义模式下 CPU 达到 {}°C 会自动交还系统控制；退出应用时风扇恢复自动。	En mode personnalisé, le système reprend le contrôle des ventilateurs lorsque le CPU atteint {} °C ; leur gestion redevient automatique à la fermeture de l’app.
+自定义转速时，CPU 达到该温度自动恢复系统控制	Avec une vitesse personnalisée, le système reprend le contrôle à cette température CPU
+自己的进程为实际占用内存，系统进程为常驻内存	Empreinte mémoire pour vos processus, mémoire résidente pour les processus système
+致谢	Remerciements
+良好	Bon
+节点	Nœud
+芯片	Puce
+菜单栏	Barre des menus
+菜单栏图标	Icônes de la barre des menus
+菜单栏布局	Disposition de la barre des menus
+菜单栏里的图标可以调整顺序：按住 ⌘ 键拖动任意一个，松开后位置会一直保留。新开启的项目由系统安排位置，可能离其他图标较远，拖一下就能挪到一起。	Pour réorganiser les icônes de la barre des menus, maintenez ⌘ et faites-les glisser ; leur position est conservée. macOS place les nouveaux éléments parfois loin des autres ; rapprochez-les en les faisant glisser.
+菜单栏里还没有开启任何项目。	Aucun élément n’est encore activé dans la barre des menus.
+菜单栏项目	Éléments de la barre des menus
+菜单栏风格	Style de la barre des menus
+蓝牙设备	Appareils Bluetooth
+蓝牙设备电量 {}%	Batterie de l’appareil Bluetooth {} %
+蓝牙设备电量低	Batterie Bluetooth faible
+蓝牙设备电量低时提示	Indiquer les batteries Bluetooth faibles
+覆盖远端设置？	Remplacer les réglages distants ?
+解压失败：{}	Échec de la décompression : {}
+计算中	Calcul en cours
+记录历史数据	Enregistrer l’historique
+设置	Réglages
+设置 · {}	Réglages · {}
+设置…	Réglages…
+设置同步	Synchronisation des réglages
+设置备份版本不受支持，请先更新 XStats	Cette version de sauvegarde n’est pas prise en charge. Mettez d’abord XStats à jour
+设置改动后 2 秒内上传；启动、唤醒与每 15 分钟检查一次云端	Les modifications sont envoyées sous 2 secondes ; vérification du cloud au lancement, au réveil et toutes les 15 minutes
+设置文件超过 1 MB，已停止同步	Le fichier de réglages dépasse 1 Mo. Synchronisation arrêtée
+设置风扇目标转速，或恢复系统自动控制	Définir la vitesse cible des ventilateurs ou rétablir la gestion automatique
+评分由 cleanip.io 提供，点击查看完整报告	Score fourni par cleanip.io. Cliquez pour ouvrir le rapport complet
+该项目在菜单栏里的实时效果	Aperçu en direct de cet élément dans la barre des menus
+详情关闭时，菜单栏显示网络项期间每 {} 秒探测一次，打开详情就能看到最近的连接情况；关闭后只在打开详情时探测，更省电	Lorsque les détails sont fermés et que l’élément réseau est dans la barre des menus, un test est effectué toutes les {} secondes pour disposer de résultats récents à l’ouverture. Désactivez cette option pour ne tester que lorsque les détails sont ouverts et économiser l’énergie.
+语言	Langue
+请从菜单退出 XStats	Quittez XStats depuis son menu
+请先保存 WebDAV 配置	Enregistrez d’abord la configuration WebDAV
+请先在“系统设置 → Apple 智能与 Siri”中开启 Apple 智能。	Activez d’abord Apple Intelligence dans Réglages Système → Apple Intelligence et Siri.
+请在“系统设置 › 通用 › 登录项”中允许 XStats 的后台项目。	Autorisez XStats en arrière-plan dans Réglages Système › Général › Ouverture.
+请填写一个域名，例如 example.com	Saisissez un domaine, par exemple example.com
+请填写已存在的 HTTPS 目录；文件名固定为 xstats-settings.json。	Saisissez un dossier HTTPS existant. Le fichier porte le nom xstats-settings.json.
+请打开系统自带的“磁盘工具”，选择启动盘运行“急救”进行修复	Ouvrez Utilitaire de disque, sélectionnez le disque de démarrage et lancez S.O.S. pour le réparer
+请输入 WebDAV 密码或应用专用密码	Saisissez votre mot de passe WebDAV ou d’application
+请输入 WebDAV 用户名，不能包含冒号或控制字符	Saisissez un nom d’utilisateur WebDAV sans deux-points ni caractères de contrôle
+请输入有效的 HTTPS WebDAV 目录地址，不要包含账号、查询参数或片段	Saisissez une URL valide de dossier WebDAV HTTPS, sans identifiants, paramètres de requête ni fragment
+读 {} · 写 {}	Lecture {} · Écriture {}
+读写最多的应用	Apps les plus actives sur le disque
+读写速度	Lecture et écriture
+读到了这次连接的出口	La sortie de cette connexion a été déterminée directement
+读取	Lecture
+读取中	Chargement
+调节风扇需要安装辅助工具，仅需管理员授权一次。	Le contrôle des ventilateurs nécessite l’assistant et une seule autorisation d’administration.
+调速模式	Mode des ventilateurs
+负载在上升	Charge en hausse
+负载在下降	Charge en baisse
+负载平稳	Charge stable
+账号	Compte
+账号与云端设置会立即删除，无法恢复。	Le compte et les réglages du cloud seront supprimés immédiatement, sans possibilité de récupération.
+账号与同步	Compte et synchronisation
+走势图显示最近多长时间	Période affichée dans le graphique d’évolution
+走势时长	Durée de l’évolution
+超时	Délai dépassé
+超级核	Super
+超过 1 天未更新的 .crdownload / .part / .download	Fichiers .crdownload / .part / .download non modifiés depuis plus d’un jour
+跟随整体	Suivre le style global
+跟随整体（{}）	Suivre le style global ({})
+跟随系统	Suivre le système
+路径不可读	Chemin illisible
+路径包含 ..	Le chemin contient ..
+路径包含控制字符	Le chemin contient des caractères de contrôle
+路由器	Routeur
+路由器（网关）	Routeur (passerelle)
+跳过 {} 项	{} ignorés
+跳过此版本	Ignorer cette version
+转速 {}	Vitesse {}
+转速最高的风扇	Ventilateur le plus rapide
+软件更新	Mise à jour logicielle
+轻量的 macOS 菜单栏系统监控：CPU、GPU、内存、网络、温度、风扇、防休眠与清理。	Un moniteur léger dans la barre des menus macOS : CPU, GPU, mémoire, réseau, température, ventilateurs, maintien en éveil et nettoyage.
+较弱	Faible
+辅助工具	Assistant
+辅助工具未启用	L’assistant n’est pas activé
+辅助工具版本比应用旧，部分功能可能无法使用，请重新安装一次（需要管理员授权）。	L’assistant est plus ancien que l’app ; certaines fonctions peuvent être indisponibles. Réinstallez-le (autorisation d’administration nécessaire).
+过热温度	Seuil de surchauffe
+运行中 · PID {}	En cours · PID {}
+还可用	Disponible
+还有 {} 个	{} autres
+还没有足够的记录。菜单栏显示电池或打开这个页面时，每分钟记录一次电量	Pas encore assez de données. Le niveau est enregistré chaque minute lorsque Batterie est dans la barre des menus ou que cette page est ouverte
+还能用 {}	{} restants
+这一类没有检测结果	Aucun résultat dans cette catégorie
+这个小时的免费额度用完了，{} 分钟后可以再试	Le quota gratuit de cette heure est épuisé ; réessayez dans {} minutes
+这个小时的免费额度用完了，过一会儿再试	Le quota gratuit de cette heure est épuisé ; réessayez plus tard
+这个快捷键已被其他应用或系统占用，请换一个	Ce raccourci est utilisé par une autre app ou par le système. Choisissez-en un autre.
+这台 Mac 不提供功耗读数	Ce Mac ne fournit pas de mesure de consommation
+这台 Mac 不支持 Apple 智能。	Ce Mac ne prend pas en charge Apple Intelligence.
+这台 Mac 没有电池	Ce Mac n’a pas de batterie
+这台 Mac 没有电池：菜单栏显示电量最低的蓝牙设备，弹窗只列蓝牙设备	Ce Mac n’a pas de batterie : la barre des menus affiche l’appareil Bluetooth le moins chargé, et le panneau ne liste que les appareils Bluetooth
+这段时间没有记录	Aucune donnée pour cette période
+这段时间还没有记录。XStats 运行时每分钟记录一次，睡眠与锁屏期间不记录。	Aucune donnée pour cette période. XStats enregistre chaque minute pendant son exécution, sauf en veille ou lorsque l’écran est verrouillé.
+这里列出资源库里的 LaunchAgents 与 LaunchDaemons。停用只写入系统的停用记录并卸载，不删除文件，随时可以重新启用；登录时打开的应用与后台权限在系统设置里管理。	Affiche les LaunchAgents et LaunchDaemons des bibliothèques. La désactivation les marque comme désactivés et les décharge sans supprimer de fichiers ; ils peuvent être réactivés à tout moment. Les apps d’ouverture de session et les autorisations d’arrière-plan se gèrent dans Réglages Système.
+这里只显示已连接蓝牙设备的电量	Seules les batteries des appareils Bluetooth connectés sont affichées ici
+进程	Processus
+进程 {} · 线程 {}	Processus {} · Threads {}
+进程名：{}	Nom du processus : {}
+进程启动以来累计占用的 CPU 时间	Temps CPU total depuis le démarrage du processus
+进程页刷新频率调整为每 2 秒	La page Processus s’actualise désormais toutes les 2 secondes
+远端尚无设置文件，请先上传本机设置	Aucun fichier de réglages distant. Envoyez d’abord les réglages locaux
+远端文件不是有效的 XStats 设置备份，本机设置未更改	Le fichier distant n’est pas une sauvegarde XStats valide. Les réglages locaux restent inchangés
+远端文件将替换为当前设置；其他 Mac 的改动不会合并。	Le fichier distant sera remplacé par ces réglages ; les modifications des autres Mac ne seront pas fusionnées.
+远端文件已锁定，请稍后重试	Le fichier distant est verrouillé. Réessayez plus tard
+连不上	Inaccessible
+连接信息有改动，请先保存配置	Les informations de connexion ont changé. Enregistrez d’abord la configuration
+连接探测	Connectivité
+连接探测历史	Historique des sondes
+连接探测只在需要时运行，更省电	Les sondes de connexion ne fonctionnent qu’au besoin, pour économiser l’énergie
+退出	Quitter
+退出 XStats	Quitter XStats
+退出应用	Quitter l’app
+退出应用…	Quitter l’app…
+退出登录	Se déconnecter
+适中	Modéré
+选择显示项目	Choisir les éléments
+选择语言	Choisir une langue
+通用	Général
+通电时间	Heures sous tension
+通电次数	Cycles d’alimentation
+通知	Notifications
+通知可以正常显示。发生你打开的状况时，会像这样提醒你。	Les notifications fonctionnent. Vous recevrez ce type d’alerte lorsqu’un événement activé se produira.
+通过 {} 登录	Connecté avec {}
+速度与省电介于两者之间	Intermédiaire en vitesse et en efficacité
+部分网站直连、部分经代理，每个网站走哪个出口见下方。	Certains sites se connectent directement, d’autres via un proxy. Les sorties utilisées figurent ci-dessous.
+部分项目需要“完全磁盘访问权限”才能扫描（Safari 缓存、废纸篓）。	Certains éléments nécessitent l’accès complet au disque pour être analysés (caches Safari, Corbeille).
+配置已保存，上传或下载时将验证连接	Configuration enregistrée. La connexion sera vérifiée lors de l’envoi ou du téléchargement
+配置方式	Configuration
+释放内存	Libérer la mémoire
+重做	Rétablir
+重新分析	Analyser à nouveau
+重新安装	Réinstaller
+重新扫描	Analyser à nouveau
+重新查询公网 IP	Rechercher à nouveau l’IP publique
+重新检测	Vérifier à nouveau
+重新生成	Régénérer
+重新读取蓝牙设备电量	Relire les batteries des appareils Bluetooth
+重置上传与下载统计：从现在起重新累计。重启后自动回到开机后的累计；右键可改回	Réinitialiser les totaux d’envoi et de réception pour compter à partir de maintenant. Après un redémarrage, les totaux depuis le démarrage reviennent ; un clic droit permet aussi de les rétablir
+重置后上传	Envois depuis la réinitialisation
+重置后下载	Réceptions depuis la réinitialisation
+键盘、鼠标、耳机等低于 20% 时，在菜单栏的电池项目旁显示该设备的图标与电量；需要开启电池项目	Lorsqu’un clavier, une souris, des écouteurs ou un autre appareil passe sous 20 %, afficher son icône et son niveau à côté de Batterie dans la barre des menus ; l’élément Batterie doit être activé
+闲	Inactif
+防休眠	Maintien en éveil
+防休眠已开启	Maintien en éveil activé
+阿里云	Alibaba Cloud
+阿里云（223.5.5.5）	Alibaba Cloud (223.5.5.5)
+降温	Refroidissement
+隐私	Confidentialité
+隐私政策	Politique de confidentialité
+隐藏 XStats	Masquer XStats
+隐藏序列号	Masquer le numéro de série
+需要 macOS 26 及以上，并在系统设置中开启 Apple 智能。	Nécessite macOS 26 ou ultérieur et Apple Intelligence activé dans Réglages Système.
+需要完全磁盘访问权限	Accès complet au disque nécessaire
+需要注意	Nécessite votre attention
+需要管理员授权	Autorisation d’administration nécessaire
+需要管理员权限。已完成的 Time Machine 备份不受影响，只是本机上这些快照对应的时间点无法再从本地恢复。	Droits d’administration nécessaires. Les sauvegardes Time Machine terminées sont conservées ; seuls les points dans le temps de ces instantanés ne pourront plus être restaurés localement sur ce Mac.
+非常干净	Très saine
+风扇	Ventilateurs
+风扇 {}	Ventilateur {}
+风扇安全温度	Température de sécurité des ventilateurs
+风扇模式	Mode des ventilateurs
+风扇设置	Réglages des ventilateurs
+风扇转速	Vitesse des ventilateurs
+风格	Style
+风险标记	Indicateurs de risque
+风险评分	Score de risque
+饼图	Camembert
+饼图表示当前占用比例	Un camembert représente l’utilisation actuelle
+首次发送时系统会询问是否允许通知	Le système demande l’autorisation lors du premier envoi
+高占用进程	Processus les plus actifs
+高负载	Charge élevée
+高负载时着色	Colorer les charges élevées
+高风险	Risque élevé
+默认只在菜单栏运行；打开后，主窗口开着时图标出现在程序坞与 ⌘Tab 中	XStats fonctionne par défaut dans la barre des menus. Activez cette option pour afficher son icône dans le Dock et ⌘Tab lorsque la fenêtre principale est ouverte
+（{}）	 ({})
+，	, 
+，{} 项未能移动	, {} n’ont pas pu être déplacés
+，充电中	, en charge
+，已从程序坞移除	, retiré du Dock
+：{}	: {}

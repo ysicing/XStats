@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import AppKit
 import HelperShared
 import Localization
@@ -244,9 +249,9 @@ private struct AddressSection: View {
 
     /// 国家 · 省 / 州 · 城市；英文界面优先用英文地名，重复的相邻项只留一个
     private func location(_ addresses: PublicAddresses, code: String) -> String {
-        let country = Locale(identifier: L10n.isEnglish ? "en" : "zh-Hans").localizedString(forRegionCode: code) ?? code
-        let region = L10n.isEnglish ? (addresses.regionEnglish ?? addresses.region) : addresses.region
-        let city = L10n.isEnglish ? (addresses.cityEnglish ?? addresses.city) : addresses.city
+        let country = L10n.locale.localizedString(forRegionCode: code) ?? code
+        let region = L10n.usesEnglishNames ? (addresses.regionEnglish ?? addresses.region) : addresses.region
+        let city = L10n.usesEnglishNames ? (addresses.cityEnglish ?? addresses.city) : addresses.city
         var parts: [String] = [country]
         for part in [region, city].compactMap({ $0 }) where part != parts.last { parts.append(part) }
         return parts.joined(separator: " · ")
@@ -405,7 +410,7 @@ private struct PuritySection: View {
                             .foregroundStyle(risk.flags.isEmpty ? DS.Palette.success : DS.Palette.error)
                     }
                 }
-                if let recommendation = purity.recommendation, !L10n.isEnglish {
+                if let recommendation = purity.recommendation, !L10n.usesEnglishNames {
                     Text(verbatim: recommendation)
                         .dsFont(.xs)
                         .foregroundStyle(DS.Palette.textSecondary)

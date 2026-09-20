@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import AppKit
 import Localization
 import SwiftUI
@@ -138,7 +143,7 @@ struct UpdatePromptView: View {
         .padding(.top, DS.Size.windowHeader)
         .frame(width: DS.Size.updateWindowWidth)
         .background(DS.Palette.background)
-        .id(model.settings.language)
+        .appLanguageEnvironment()
     }
 }
 

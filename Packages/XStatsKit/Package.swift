@@ -16,7 +16,7 @@ let package = Package(
         .library(name: "XStatsUI", targets: ["XStatsUI"]),
     ],
     targets: [
-        .target(name: "Localization"),
+        .target(name: "Localization", resources: [.process("Resources")]),
         .target(name: "SMC", dependencies: ["Localization"]),
         .target(name: "Metrics", dependencies: ["SMC", "Localization"], linkerSettings: [.linkedLibrary("IOReport")]),
         .target(name: "HelperShared", dependencies: ["Localization"]),
@@ -30,7 +30,7 @@ let package = Package(
         .testTarget(name: "HelperSharedTests", dependencies: ["HelperShared"]),
         .testTarget(name: "UpdatesTests", dependencies: ["Updates"]),
         .testTarget(name: "WebDAVSyncTests", dependencies: ["WebDAVSync"]),
-        .testTarget(name: "XStatsUITests", dependencies: ["XStatsUI", "Metrics", "WebDAVSync"]),
+        .testTarget(name: "XStatsUITests", dependencies: ["XStatsUI", "Metrics", "WebDAVSync", "Localization"]),
         .testTarget(name: "LocalizationTests", dependencies: ["Localization"]),
     ],
     swiftLanguageModes: [.v6]

@@ -41,15 +41,17 @@ The update installer still verifies bundle identity and signatures: packages bui
 
 Requires macOS 14 (Sonoma) or later. Developed and tested mainly on Apple silicon; on Intel Macs, Apple
 Intelligence process explanations are unavailable, CPU cores are not split into performance and efficiency
-groups, and some power and frequency readings may be missing. The interface is in English and Simplified Chinese, following the
-system language by default; switch it in Settings → General → Language.
+groups, and some power and frequency readings may be missing. The interface supports Simplified Chinese,
+Traditional Chinese, Japanese, Korean, English, German, Spanish, French and Arabic.
+It detects your preferred system language by default. Search and switch languages in Settings → General → Language;
+Arabic uses a right-to-left layout.
 
 ## Recent updates
 
 <!-- changelog:start -->
 <!-- Generated from CHANGELOG.md by Scripts/sync_changelog.py. Do not edit by hand. -->
 
-Latest release **0.6.1** (2026-09-18) · **2** changes in development · [full changelog](CHANGELOG.md) (kept in Chinese)
+Latest release **0.6.1** (2026-09-18) · **3** changes in development · [full changelog](CHANGELOG.md) (kept in Chinese)
 
 <!-- changelog:end -->
 

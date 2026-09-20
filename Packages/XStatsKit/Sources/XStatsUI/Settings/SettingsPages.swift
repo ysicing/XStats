@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import AppKit
 import HelperShared
 import Localization
@@ -86,10 +91,9 @@ struct GeneralSettings: View {
                 }
             }
             GroupRow {
-                SettingRow(title: "语言 / Language", subtitle: tr("立即切换；显示器、应用名称等由系统提供的文字在下次启动时切换")) {
-                    SegmentedControl(selection: $settings.language,
-                                     options: AppLanguage.allCases.map { ($0, $0.title) })
-                        .frame(width: DS.Size.sidebarWidth + DS.Space.s12)
+                SettingRow(title: tr("语言"), subtitle: tr("应用 UI 语言")) {
+                    LanguagePicker(selection: $settings.language)
+                        .help(tr("立即切换；显示器、应用名称等由系统提供的文字在下次启动时切换"))
                 }
             }
             GroupRow {

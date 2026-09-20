@@ -9,7 +9,7 @@ hosting SwiftUI, no third-party dependencies. The Xcode project is generated fro
   It samples CPU, memory, disk and battery itself through `Metrics`, so it works without the app.
 - `Helper/` — the privileged helper (`XStatsHelper`) and its launchd plist, embedded in
   the app bundle for `SMAppService.daemon`.
-- `Packages/XStatsKit/Sources/Localization` — `tr(_:)` and the English table (see below).
+- `Packages/XStatsKit/Sources/Localization` — `tr(_:)`, language resolution and nine-language catalogs (see below).
 - `Packages/XStatsKit/Sources/SMC` — the AppleSMC user client, fan control, temperature
   key discovery.
 - `Packages/XStatsKit/Sources/Metrics` — one sampler per metric and `MetricsHub`; power and CPU
@@ -247,14 +247,29 @@ merge concurrent edits, or use iCloud. A missing remote file requires an initial
 
 Source strings are Simplified Chinese. `Scripts/l10n_wrap.py` wraps every Chinese literal in
 `tr(...)` (skipping logger calls, `case` patterns and multi-line strings) and lists the keys.
-`tr` returns the input unless English is active; otherwise it looks the text up in
-`Localization/Translations.swift` — exact keys first, then templates where `{}` stands for an
-interpolated value, longest literal fragments first, translating captured values once more. The
-language is configured at launch (System follows the global `AppleLanguages`). Changing it
-reconfigures `L10n`, rebuilds the main window and update prompt through `.id(language)`, rebuilds the
-app menu and redraws the menu bar; popovers are created on open. Names supplied by macOS follow the
-app's `AppleLanguages`, which changes at the next launch. Dates use `L10n.locale`. `--snapshot <dir> --language en` renders English screenshots and
-writes any untranslated string to `untranslated.txt`.
+`tr` returns the source for Simplified Chinese. English uses the Swift tables; Traditional Chinese,
+Japanese, Korean, German, Spanish, French and Arabic load bundled TSV catalogs from Localization/Resources.
+Exact keys take priority, followed by templates with {} or numbered placeholders. Captured strings
+are translated recursively; inserted values are not reinterpreted as placeholders. Missing entries
+fall back to English, then the source. Translation tables are immutable; global language and caches
+share a lock because background collectors also call tr.
+
+The language picker uses a searchable native popover, native language names, a selected checkmark,
+and keyboard navigation. Search accepts Chinese, English, native names and language codes.
+Automatic detection walks global AppleLanguages in preference order, distinguishing zh-Hans from
+zh-Hant/TW/HK/MO and falling back to English if no supported language is found. Existing system,
+chinese and english preference values and WebDAV settings remain readable.
+
+Changing language rebuilds SwiftUI roots and AppKit menu/window titles. Each SwiftUI window and popover
+receives the selected locale and layout direction; Arabic uses right-to-left layout and isolates
+interpolated paths/numbers with Unicode directional isolates. Dates use L10n.locale. For remote geographic
+data available only in Chinese/English, other languages use English names; country names use the locale.
+Some macOS-provided names follow the application's AppleLanguages on the next launch.
+
+The nine supported languages are zh-Hans, zh-Hant, ja, ko, en, de, es, fr and ar. Snapshots accept these
+codes through --snapshot <dir> --language <code>, include the language picker, and record missing
+translations in untranslated.txt. New interface strings must be added to all catalogs; coverage and
+placeholder checks accompany the localization tests.
 
 `--snapshot <dir>` renders every main-window page, popover, settings section and the menu bar in light and
 dark, through real `NSHostingView`s in off-screen windows — `ImageRenderer` washes out pages

@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import AppKit
 import Localization
 import SwiftUI
@@ -7,6 +12,7 @@ import SwiftUI
 final class UpdateWindowController: NSObject, NSWindowDelegate {
     private let model: AppModel
     private var window: NSWindow?
+    func refreshLanguage() { window?.title = tr("软件更新") }
 
     init(model: AppModel) {
         self.model = model

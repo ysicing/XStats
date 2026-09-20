@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import AppKit
 import Localization
 import Metrics
@@ -13,6 +18,7 @@ enum SnapshotRenderer {
 
         let defaults = UserDefaults(suiteName: "XStats.snapshot") ?? .standard
         let settings = AppSettings(defaults: defaults)
+        settings.language = L10n.language
         settings.menuBarItems = [.cpu, .gpu, .memory, .network, .disk, .temperature, .battery]
         // 历史页用示例数据：最近 24 小时每分钟一条，中间留一段“睡眠”空档
         let historyURL = FileManager.default.temporaryDirectory.appendingPathComponent("xstats-snapshot-history.sqlite")
@@ -78,6 +84,9 @@ enum SnapshotRenderer {
             }
             write(UpdatePromptView {}, model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("update-prompt-\(suffix).png"))
+            write(LanguagePickerList(selection: settings.language) { _ in }.appLanguageEnvironment(),
+                  model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("language-picker-\(suffix).png"))
             for item in MenuBarItem.allCases where item != .fan {
                 write(PopoverRootView(item: item), model: model, appearance: appearance,
                       to: outputDirectory.appendingPathComponent("popover-\(item.rawValue)-\(suffix).png"))

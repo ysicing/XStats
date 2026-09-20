@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 import Localization
 import Metrics
@@ -90,7 +95,12 @@ public final class ProcessExplainer {
     }
 
     private static var instructions: String {
-        L10n.isEnglish ? englishInstructions : chineseInstructions
+        switch L10n.language {
+        case .chinese: chineseInstructions
+        case .english: englishInstructions
+        default:
+            englishInstructions.replacingOccurrences(of: "in English", with: "in \(L10n.language.nativeName)")
+        }
     }
 
     private static let chineseInstructions = """
