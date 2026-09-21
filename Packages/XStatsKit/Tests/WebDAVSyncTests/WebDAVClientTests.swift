@@ -11,6 +11,18 @@ private struct Transport: WebDAVTransport {
 }
 
 struct WebDAVClientTests {
+    @Test func normalizesTrailingSlashesWithoutDoubleEncoding() throws {
+        for base in ["https://dav.example.com", "https://dav.example.com/dav/My%20Settings", "https://dav.example.com/dav/我的设置"] {
+            let plain = try WebDAVConfiguration(address: base, username: "alice")
+            for suffix in ["/", "//", "///"] {
+                let other = try WebDAVConfiguration(address: base + suffix, username: "alice")
+                #expect(plain.fileURL == other.fileURL)
+                #expect(plain.credentialAccount == other.credentialAccount)
+            }
+            #expect(plain.fileURL.path.contains("//") == false)
+            #expect(plain.fileURL.absoluteString.contains("%2520") == false)
+        }
+    }
     private func configuration() throws -> WebDAVConfiguration {
         try WebDAVConfiguration(address: "https://dav.example.com/dav/我的设置", username: "alice")
     }
