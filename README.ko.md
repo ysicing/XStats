@@ -16,7 +16,7 @@ XStats는 CPU 코어별 사용량, GPU, 메모리 압력, 네트워크 속도, �
 팬 속도 조절, 덮개를 닫은 상태에서 실행 유지, 캐시 정리, 앱과 관련 파일 제거, 시작 항목 관리도 지원합니다.
 네트워크 화면에서는 공인 IP가 VPN, 프록시, 데이터 센터 또는 악용 기록과 관련되어 있는지 확인할 수 있습니다.
 
-사용 통계를 수집하거나 전송하지 않습니다. XStats 계정 없이 자신의 WebDAV 서버로 설정을 수동 백업하고 복원할 수 있습니다.
+모니터링 지표는 Mac 안에서만 처리하며 업로드하지 않습니다. XStats 계정 없이 자신의 WebDAV 서버로 설정을 수동 백업하고 복원할 수 있습니다. 업데이트 확인 시 익명 설치 수와 버전 분포를 집계하기 위해 현재 버전과 무작위 설치 ID의 SHA-256을 전송하며, 원본 무작위 값은 로컬 키체인에만 저장합니다.
 공인 IP 조회, 연결 테스트, 업데이트 확인 등의 네트워크 기능은 선택 사항입니다.
 
 [다운로드](https://github.com/ysicing/xstats/releases) · [변경 기록(중국어)](CHANGELOG.md) · [개발 안내(중국어)](DEVELOPMENT.md)
@@ -27,11 +27,10 @@ XStats는 CPU 코어별 사용량, GPU, 메모리 압력, 네트워크 속도, �
 
 ## 설치
 
-[GitHub Releases](https://github.com/ysicing/xstats/releases)에서 배포된 빌드를 확인하고 Mac에 맞는 AppleSilicon 또는 Intel 버전을 선택하세요.
-아직 배포된 빌드가 없다면 아래 설명에 따라 소스에서 빌드할 수 있습니다.
+[GitHub Releases](https://github.com/ysicing/xstats/releases)에서 Apple Silicon 버전을 다운로드하세요.
+아직 배포된 빌드가 없다면 [개발 안내(중국어)](DEVELOPMENT.md)를 참고하여 소스에서 빌드할 수 있습니다.
 
-macOS 14(Sonoma) 이상이 필요하며, 주로 Apple Silicon에서 개발하고 검증합니다.
-Intel Mac에서는 Apple Intelligence 프로세스 설명을 사용할 수 없고, CPU의 성능 코어/효율 코어 구분과 일부 전력·주파수 표시에도 제한이 있습니다.
+Apple Silicon Mac과 macOS 14(Sonoma) 이상이 필요합니다.
 앱은 중국어 간체, 중국어 번체, 일본어, 한국어, 영어, 독일어, 스페인어, 프랑스어, 아랍어를 지원합니다.
 기본적으로 시스템의 선호 언어를 자동 감지합니다. 설정의 언어 메뉴에서 검색하여 전환할 수 있으며, 아랍어는 오른쪽에서 왼쪽으로 배치됩니다.
 
@@ -156,8 +155,8 @@ XStats를 종료하거나 앱이 비정상 종료되면 팬이 자동 모드로 
 
 ## 데이터와 개인정보
 
-지표는 로컬 커널, IOKit, SMC에서 읽으며 설정은 앱의 UserDefaults에 저장합니다. 사용 통계를 전송하지 않습니다.
-공인 IP는 Cloudflare(실패 시 ipify), IP 평판은 cleanip.io에 직접 조회합니다. 연결 테스트는 선택한 대상으로 ICMP ping을 보내고, 업데이트 확인은 getopenstats.com의 버전 정보를 읽습니다.
+지표는 로컬 커널, IOKit, SMC에서 읽으며 설정은 앱의 UserDefaults에 저장합니다. 모니터링 지표, 기록, 하드웨어 일련번호와 프로세스 목록은 업로드하지 않습니다.
+공인 IP는 Cloudflare(실패 시 ipify), IP 평판은 cleanip.io에 직접 조회합니다. 연결 테스트는 선택한 대상으로 ICMP ping을 보냅니다. 업데이트 확인은 현재 버전과 무작위 설치 ID의 SHA-256을 getopenstats.com에 보내고 버전 정보를 읽습니다. 서버에는 해당 해시, 현재 버전, 최초·최근 확인 시각과 확인 횟수만 저장하며, 하드웨어 일련번호를 저장하지 않고 요청 IP도 영구 저장하지 않습니다(1분 동안의 메모리 내 속도 제한에만 사용). 자동 업데이트 확인을 끄면 자동 요청도 중지됩니다.
 이 기능들은 설정에서 끌 수 있습니다. Apple Intelligence 프로세스 설명은 기기 안에서 처리됩니다.
 
 ### WebDAV 설정 동기화

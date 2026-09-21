@@ -1,0 +1,142 @@
+<!--
+Copyright (C) 2026 ysicing
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="60">
+  <title>XStats 安装统计</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f5f2e9;
+      --muted: #9ca39e;
+      --line: rgba(245, 242, 233, .14);
+      --panel: rgba(18, 23, 21, .78);
+      --signal: #b9ff5a;
+      --amber: #ffbc42;
+      --void: #080b0a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 82% 10%, rgba(185, 255, 90, .08), transparent 28rem),
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px),
+        var(--void);
+      background-size: auto, 44px 44px, 44px 44px, auto;
+      font-family: "Avenir Next Condensed", "PingFang SC", sans-serif;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .2;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.12'/%3E%3C/svg%3E");
+    }
+    main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 64px 0 80px; }
+    header { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: end; margin-bottom: 42px; }
+    .eyebrow, .timestamp, .label, .version-meta {
+      font-family: "SFMono-Regular", Menlo, monospace;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .eyebrow { color: var(--signal); font-size: 12px; }
+    h1 { max-width: 760px; margin: 8px 0 0; font-family: "Iowan Old Style", "Songti SC", serif; font-size: clamp(46px, 7vw, 94px); font-weight: 400; line-height: .92; letter-spacing: -.055em; }
+    .timestamp { color: var(--muted); font-size: 11px; text-align: right; }
+    .metrics { display: grid; grid-template-columns: 1.3fr 1fr 1fr; border: 1px solid var(--line); background: var(--panel); backdrop-filter: blur(16px); }
+    .metric { position: relative; min-height: 190px; padding: 28px; border-right: 1px solid var(--line); overflow: hidden; }
+    .metric:last-child { border-right: 0; }
+    .metric:first-child::after { content: "01"; position: absolute; right: 18px; bottom: -24px; color: rgba(185,255,90,.06); font: 140px/1 "SFMono-Regular", monospace; }
+    .label { color: var(--muted); font-size: 11px; }
+    .value { display: block; margin-top: 34px; color: var(--signal); font-family: "SFMono-Regular", Menlo, monospace; font-size: clamp(42px, 6vw, 72px); line-height: 1; font-variant-numeric: tabular-nums; }
+    .unit { color: var(--muted); font-size: 15px; }
+    .versions { margin-top: 22px; padding: 28px; border: 1px solid var(--line); background: rgba(10, 14, 12, .72); }
+    .section-head { display: flex; justify-content: space-between; gap: 20px; align-items: baseline; margin-bottom: 24px; }
+    h2 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: .02em; }
+    .current { color: var(--amber); }
+    .version-row { display: grid; grid-template-columns: minmax(160px, 1fr) 4fr 70px; gap: 20px; align-items: center; padding: 15px 0; border-top: 1px solid var(--line); }
+    .version-name { font-family: "SFMono-Regular", Menlo, monospace; font-size: 13px; }
+    .track { height: 8px; background: rgba(245,242,233,.08); overflow: hidden; }
+    .fill { height: 100%; min-width: 2px; width: max(2px, calc(var(--percent) * 1%)); background: linear-gradient(90deg, var(--signal), #f0ffbd); box-shadow: 0 0 18px rgba(185,255,90,.25); }
+    .version-meta { color: var(--muted); font-size: 10px; text-align: right; }
+    .empty { padding: 36px 0 12px; color: var(--muted); }
+    footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 20px; color: var(--muted); font-size: 12px; }
+    footer a { color: var(--signal); text-underline-offset: 3px; }
+    @media (max-width: 760px) {
+      main { width: min(100% - 24px, 1180px); padding-top: 36px; }
+      header { grid-template-columns: 1fr; }
+      .timestamp { text-align: left; }
+      .metrics { grid-template-columns: 1fr; }
+      .metric { min-height: 145px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .metric:last-child { border-bottom: 0; }
+      .value { margin-top: 22px; }
+      .version-row { grid-template-columns: 1fr 60px; }
+      .track { grid-column: 1 / -1; grid-row: 2; }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      header, .metrics, .versions { animation: arrive .55s both; }
+      .metrics { animation-delay: .08s; }
+      .versions { animation-delay: .16s; }
+      @keyframes arrive { from { opacity: 0; transform: translateY(12px); } }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <div class="eyebrow">XStats / installation telemetry</div>
+        <h1>安装与版本<br>运行态势</h1>
+      </div>
+      <div class="timestamp">快照生成于<br>{{.GeneratedAt}}</div>
+    </header>
+
+    <section class="metrics" aria-label="安装统计摘要" data-total-installations="{{.TotalInstallations}}">
+      <article class="metric">
+        <div class="label">累计安装</div>
+        <strong class="value">{{.TotalInstallations}}</strong>
+        <span class="unit">独立安装</span>
+      </article>
+      <article class="metric">
+        <div class="label">24 小时活跃</div>
+        <strong class="value">{{.ActiveInstallations}}</strong>
+        <span class="unit">最近检查更新</span>
+      </article>
+      <article class="metric">
+        <div class="label">累计检查</div>
+        <strong class="value">{{.TotalChecks}}</strong>
+        <span class="unit">更新请求</span>
+      </article>
+    </section>
+
+    <section class="versions" aria-labelledby="versions-title">
+      <div class="section-head">
+        <h2 id="versions-title">已安装版本分布</h2>
+        {{if .CurrentVersion}}<div class="version-meta">当前发布 <span class="current">{{.CurrentVersion}}</span></div>{{end}}
+      </div>
+      {{range .Versions}}
+      <div class="version-row">
+        <div class="version-name">{{.Version}}</div>
+        <div class="track" aria-label="占比 {{.Percent}}%"><div class="fill" style="--percent: {{.Percent}}"></div></div>
+        <div class="version-meta">{{.Count}} / {{.Percent}}%</div>
+      </div>
+      {{else}}
+      <div class="empty">还没有安装检查数据。</div>
+      {{end}}
+    </section>
+
+    <footer>
+      <span>只统计匿名安装标识与当前版本，不采集设备信息和监控指标。</span>
+      <span><a href="https://github.com/ysicing/xstats">对应源码</a> · 页面每 60 秒刷新</span>
+    </footer>
+  </main>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import Foundation
 
-/// 官网上的版本清单（https://getopenstats.com/download/appcast.json），由 Scripts/publish_release.sh 生成
+/// 更新 API 返回的版本清单；发版时由 Scripts/appcast.py 生成并由 Scripts/publish_release.sh 提交
 public struct UpdateRelease: Codable, Sendable, Equatable {
     public let version: String
     public let build: String
@@ -75,7 +75,26 @@ public enum UpdateArchitecture: Sendable, Equatable {
 }
 
 public enum UpdateFeed {
-    public static let url = URL(string: "https://getopenstats.com/download/appcast.json")!
+    public static let url = URL(string: "https://getopenstats.com/api/v1/update/check")!
+
+    public static func checkRequest(currentVersion: String, installationID: String) throws -> URLRequest {
+        struct Body: Encodable {
+            let currentVersion: String
+            let installationID: String
+
+            enum CodingKeys: String, CodingKey {
+                case currentVersion = "current_version"
+                case installationID = "installation_id"
+            }
+        }
+
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("XStats", forHTTPHeaderField: "User-Agent")
+        request.httpBody = try JSONEncoder().encode(Body(currentVersion: currentVersion, installationID: installationID))
+        return request
+    }
 
     public static func parse(_ data: Data) -> UpdateRelease? {
         guard let release = try? JSONDecoder().decode(UpdateRelease.self, from: data),

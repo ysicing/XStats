@@ -9,10 +9,10 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 ## 开发环境
 
 需要 macOS 14+、**Xcode 26 或更高版本**（仅有 CommandLineTools 时缺少 SwiftUI 宏插件）、
-[Go Task](https://taskfile.dev/)、以及 [XcodeGen](https://github.com/yonaskolb/XcodeGen)。
+[Go 1.25+](https://go.dev/)、[Go Task](https://taskfile.dev/)、以及 [XcodeGen](https://github.com/yonaskolb/XcodeGen)。
 
 ```bash
-brew install go-task xcodegen
+brew install go go-task xcodegen
 ```
 
 ## 构建与测试
@@ -22,12 +22,35 @@ task generate                         # 由 project.yml 生成 Xcode 工程
 task build                           # Release 构建、安装并启动
 task build BUMP=0 INSTALL=0          # 只构建，不更新版本或安装
 task compile CONFIG=Debug            # 只编译 Debug，不安装
-task test                             # 版本脚本回归测试和 Swift 单元测试
+task test                             # 版本脚本、API 和 Swift 单元测试
 task open                             # 生成工程并用 Xcode 打开
 task clean                            # 删除 build/
 ```
 
-构建默认使用 `Release` 和本机架构。发布脚本通过 `ARCH=arm64` 或 `ARCH=x86_64` 分别构建两种芯片版本。
+更新与安装统计 API 位于 `server/api`，直接运行一个 Fiber/GORM 程序：
+
+```bash
+cd server/api
+XSTATS_RELEASE_TOKEN='本地测试令牌' go run .
+```
+
+默认监听 `:8080`，数据库为当前目录的 `xstats-api.sqlite`；可通过 `XSTATS_LISTEN` 和
+`XSTATS_DATABASE` 覆盖。`GET /stats` 是聚合统计大屏。正式发版前在环境中设置
+`XSTATS_RELEASE_TOKEN`；如接口地址不是默认值，再设置 `XSTATS_API_URL`。发布脚本会在安装包上传完成后
+把 `dist/appcast.json` 提交到 `PUT /api/v1/releases/current`。
+
+服务镜像可从仓库根目录构建：
+
+```bash
+docker build -f server/api/Dockerfile -t xstats-server:local .
+docker run --rm -p 8080:8080 -e XSTATS_RELEASE_TOKEN='本地测试令牌' \
+  -v xstats-api-data:/data xstats-server:local
+```
+
+GitHub Actions 只在分支 push 且 `server/**` 发生变化时构建并发布 amd64/arm64 镜像；PR 不运行。
+镜像发布到 `ghcr.io/<owner>/xstats-server`，标签格式为清洗后的 `<分支>-<完整提交哈希>`。
+
+构建固定使用 `arm64`，仅支持 Apple Silicon Mac。
 有 Developer ID Application 证书时，Taskfile 会自动使用钥匙串中的第一个证书；否则使用项目默认的 ad-hoc 签名。
 
 菜单栏应用没有普通窗口，可以用已安装的应用渲染实时截图：
@@ -58,7 +81,7 @@ task version-next                     # 预览下一公开版本号
 ## 发布
 
 正式分发需要 Apple Developer Program 的 **Developer ID Application** 证书、对应私钥，
-以及 `notarytool` 公证凭据。发布脚本会分别构建 Apple Silicon 和 Intel 版本，检查签名团队、
+以及 `notarytool` 公证凭据。发布脚本会构建 Apple Silicon 版本，检查签名团队、
 安全时间戳、Hardened Runtime、公证票据和 Gatekeeper，然后生成 DMG、在线升级包和 Homebrew cask。
 
 先将公证凭据保存到钥匙串：

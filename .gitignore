@@ -8,3 +8,5 @@ Packages/XStatsKit/Package.resolved
 dist/
 __pycache__/
 docs/superpowers
+server/api/*.sqlite*
+server/api/api

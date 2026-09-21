@@ -12,6 +12,17 @@ XStats 基于 [gentpan/OpenStats](https://github.com/gentpan/OpenStats) 开发�
 `Assets/flags-svg/` 中的国旗 SVG（应用内为 `Scripts/render_flags.sh` 渲染的 PNG）来自
 [lipis/flag-icons](https://github.com/lipis/flag-icons)，MIT License，Copyright (c) 2013 Panayiotis Lipiridis。
 
+## XStats API Go 依赖
+
+`server/api` 使用以下与 AGPL-3.0-or-later 兼容的依赖：
+
+- [gofiber/fiber](https://github.com/gofiber/fiber) v3.5.0，MIT License，Copyright (c) 2019-present Fenny and Contributors
+- [libtnb/sqlite](https://github.com/libtnb/sqlite) v1.2.2，MIT License，Copyright (c) TreeNewBee、glebarez、Jinzhu
+- [go-gorm/gorm](https://github.com/go-gorm/gorm) v1.31.2，MIT License，Copyright (c) 2013-present Jinzhu
+- [modernc.org/sqlite](https://gitlab.com/cznic/sqlite) v1.56.0（由 libtnb/sqlite 引入），BSD-3-Clause，Copyright (c) 2017 The Sqlite Authors
+
+随二进制分发时需要保留的完整文本见 [LICENSES/XStats-API-Dependencies.txt](LICENSES/XStats-API-Dependencies.txt)。
+
 ## 保留的登录品牌标志资源
 
 账号登录入口已移除。以下为暂时保留的旧资源及原使用说明。

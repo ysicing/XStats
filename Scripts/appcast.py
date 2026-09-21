@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """生成应用内在线升级读取的版本清单 appcast.json。
 
-    Scripts/appcast.py <版本> <build> <下载地址前缀> <Apple 芯片 zip> <Apple 芯片 dmg> <Intel zip> <Intel dmg> > dist/appcast.json
+    Scripts/appcast.py <版本> <build> <下载地址前缀> <Apple 芯片 zip> <Apple 芯片 dmg> > dist/appcast.json
 
-顶层的 url / sha256 / size / dmg 是 Apple 芯片版：0.3.0 只有 Apple 芯片版，也只认顶层字段。
-Intel 版放在 intel 字段里，0.3.1 起的 Intel 版应用读它。
+清单只发布 Apple Silicon 安装包。
 
 更新摘要取自 CHANGELOG.md 中该版本的条目：每条取冒号或句号之前的部分（过短时带上冒号后的内容），最多 10 条。
 """
@@ -63,7 +62,7 @@ def asset(base: str, zip_path: str, dmg_path: str) -> dict:
 
 
 def main() -> None:
-    version, build, base, arm_zip, arm_dmg, intel_zip, intel_dmg = sys.argv[1:8]
+    version, build, base, arm_zip, arm_dmg = sys.argv[1:6]
     root = os.path.join(os.path.dirname(__file__), "..")
     with open(os.path.join(root, "CHANGELOG.md"), encoding="utf-8") as handle:
         date, notes = release_notes(handle.read(), version)
@@ -75,7 +74,6 @@ def main() -> None:
         **asset(base, arm_zip, arm_dmg),
         "notes": notes,
         "changelog": "https://getopenstats.com/#changelog",
-        "intel": asset(base, intel_zip, intel_dmg),
     }
     json.dump(feed, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")

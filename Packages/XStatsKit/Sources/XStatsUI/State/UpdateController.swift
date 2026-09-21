@@ -78,7 +78,7 @@ public final class UpdateController {
         guard !isBusy else { return }
         phase = .checking
         task = Task {
-            let result = await Self.fetch()
+            let result = await Self.fetch(currentVersion: currentVersion)
             switch result {
             case .success(let feed):
                 // 只有拿到清单才算检查过：登录时网络常常还没连上，失败后由每小时的定时器重试，而不是等一整天
@@ -103,10 +103,10 @@ public final class UpdateController {
         }
     }
 
-    private static func fetch() async -> Result<UpdateRelease, UpdateError> {
-        var request = URLRequest(url: UpdateFeed.url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
-        request.setValue("OpenStats", forHTTPHeaderField: "User-Agent")
+    private static func fetch(currentVersion: String) async -> Result<UpdateRelease, UpdateError> {
         do {
+            let installationID = try InstallationIdentity().hashedID()
+            let request = try UpdateFeed.checkRequest(currentVersion: currentVersion, installationID: installationID)
             let (data, response) = try await URLSession.shared.data(for: request)
             if let http = response as? HTTPURLResponse, http.statusCode != 200 {
                 return .failure(.download(tr("服务器返回 \(http.statusCode)")))

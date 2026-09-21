@@ -11,7 +11,7 @@
 [![Last commit](https://img.shields.io/github/last-commit/ysicing/xstats?color=black&label=last%20commit)](https://github.com/ysicing/xstats/commits/main)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ysicing/xstats?color=black&label=commits)](https://github.com/ysicing/xstats/graphs/commit-activity)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
-[![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20silicon%20%2F%20Intel-black)](https://github.com/ysicing/xstats/releases)
+[![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20silicon-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 
 XStats is a macOS menu-bar app that shows what your Mac is doing right now — per-core
@@ -19,7 +19,7 @@ CPU load, GPU, memory pressure, network speed, disk, battery, temperatures and f
 lets you act on it: spin the fans up, keep the Mac awake with the lid closed, clear caches, fully
 uninstall apps and disable startup items. Network details also check how clean your public IP is —
 whether it is flagged as a VPN, proxy, data center or for abuse.
-Everything is read on your own Mac, and there is no telemetry. No XStats account is required: manually back up and restore preferences through your own WebDAV server. Other optional network features include a public-IP and cleanliness lookup when you open network details, a ping probe to a target you choose, and a daily check for a new version.
+All monitoring metrics are read on your own Mac and are never uploaded. No XStats account is required: manually back up and restore preferences through your own WebDAV server. Update checks send the current version and the SHA-256 of a random installation ID for anonymous installation and version-distribution statistics; the original random value remains in the local Keychain. Other optional network features include a public-IP and cleanliness lookup when you open network details, a ping probe to a target you choose, and a daily check for a new version.
 
 [Download](https://github.com/ysicing/xstats/releases) ·
 [Changelog](CHANGELOG.md) ·
@@ -33,15 +33,13 @@ Everything is read on your own Mac, and there is no telemetry. No XStats account
 
 ## Install
 
-Check [GitHub Releases](https://github.com/ysicing/xstats/releases) for published XStats builds.
-Choose AppleSilicon or Intel for your Mac. If no build is available, follow the source-build instructions below.
+Download the Apple Silicon build from [GitHub Releases](https://github.com/ysicing/xstats/releases).
+If no build is available, follow the [development guide](DEVELOPMENT.md) to build from source.
 
 XStats has no website yet. Automatic updates and the existing GeoIP service are unchanged; account login has been replaced with manual WebDAV sync.
 The update installer still verifies bundle identity and signatures: packages built for OpenStats cannot replace XStats.
 
-Requires macOS 14 (Sonoma) or later. Developed and tested mainly on Apple silicon; on Intel Macs, Apple
-Intelligence process explanations are unavailable, CPU cores are not split into performance and efficiency
-groups, and some power and frequency readings may be missing. The interface supports Simplified Chinese,
+Requires an Apple silicon Mac with macOS 14 (Sonoma) or later. The interface supports Simplified Chinese,
 Traditional Chinese, Japanese, Korean, English, German, Spanish, French and Arabic.
 It detects your preferred system language by default. Search and switch languages in Settings → General → Language;
 Arabic uses a right-to-left layout.
@@ -192,7 +190,7 @@ unclean exit restores them at the next boot.
 
 Metrics come from the kernel (`host_processor_info`, `host_statistics64`, `sysctl`), IOKit and the
 SMC on your own Mac. Preferences live in the app's user defaults and contain nothing personal.
-There is no analytics and no telemetry.
+Monitoring metrics, history, the hardware serial number and process lists are never uploaded.
 
 Every feature that touches the network can be turned off — the first two in Settings → Network, the update
 check in Settings → About:
@@ -204,8 +202,11 @@ check in Settings → About:
 - **Connection probe**: an ICMP ping to the target you pick (Cloudflare, Google, Alibaba Cloud,
   Tencent or your router) once a second while network details are open (every 10 seconds in the background), only while the network item is in the menu bar
   or network details are open.
-- **Update check**: at launch and once a day, the app reads a version manifest from getopenstats.com — the
-  manifest only. When a new version is out it asks; nothing installs without your click.
+- **Update check and installation statistics**: at launch and once a day, the app sends the current version and the
+  SHA-256 of a random installation ID to getopenstats.com and reads the version manifest. The server stores only that
+  hash, the current version, first and last check times, and the check count; it does not store a hardware serial number
+  or persist request IPs (an IP is used only for an in-memory one-minute rate limit). The original random value stays in the local Keychain. Turning off automatic update checks stops these
+  automatic requests. When a new version is out it asks; nothing installs without your click.
 
 WebDAV sync sends only preferences to your configured server. It excludes monitoring data, history and WebDAV credentials.
 

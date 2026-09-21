@@ -26,6 +26,7 @@ hosting SwiftUI, no third-party dependencies. The Xcode project is generated fro
   menu-bar renderer, app controller, snapshot renderer.
 - `Packages/XStatsKit/Tests` — metrics, SMC decoding, cleanup safety, updates, UI logic and
   localization.
+- `server/api` — the Fiber/GORM update API, SQLite installation counters and server-rendered statistics dashboard.
 
 ## Build
 
@@ -202,8 +203,11 @@ popover / page or the System page is open, every five minutes when the menu bar 
 low-battery hint or a Mac without a battery), otherwise not at all. `AppModel.bluetoothDemand` derives
 that from the same visibility state as `demand`.
 
-`UpdateController` fetches `https://getopenstats.com/download/appcast.json` at launch and daily
-(version, date, notes taken from `CHANGELOG.md` by `Scripts/appcast.py`, zip URL, sha256, size). An
+`UpdateController` posts the current version and a hashed random installation ID to
+`https://getopenstats.com/api/v1/update/check` at launch and daily. The original 32-byte random value is
+generated with `SecRandomCopyBytes` and remains in the device-only Keychain; no hardware serial number is
+used. The response has the same release manifest fields previously read from the static appcast (version,
+date, notes taken from `CHANGELOG.md` by `Scripts/appcast.py`, zip URL, sha256 and size). An
 update is installed only after: sha256 matches, the zip holds exactly one `.app`, its bundle ID and
 version match, `SecStaticCodeCheckValidity` passes with a requirement pinned to the running app's
 team, and `spctl --assess` accepts it (notarized). The old bundle is renamed into a same-volume
@@ -211,6 +215,20 @@ temporary folder, the new one moved into place (restored on failure; an administ
 used when the folder is not writable), and a detached shell waits for the process to exit before
 reopening the app. After an update the old helper may still be running; the app unregisters an outdated
 helper, re-registers the bundled version, and verifies the protocol before privileged calls resume.
+
+`server/api` is one Go program. Fiber exposes `POST /api/v1/update/check`, authenticated
+`PUT /api/v1/releases/current`, and the aggregate `GET /stats` dashboard. GORM uses
+`github.com/libtnb/sqlite` with WAL and one database connection so concurrent checks cannot compete for
+SQLite's single writer. Each installation row stores only the SHA-256 installation ID, current version,
+first/last check times and check count; request IPs and monitoring data are not persisted. The release
+endpoint requires `XSTATS_RELEASE_TOKEN`. `Scripts/publish_release.sh` uploads artifacts first and then
+submits the generated appcast through `Scripts/publish_api.py`, keeping the static and API manifests based
+on the same release metadata.
+
+`server/api/Dockerfile` cross-compiles a CGO-free binary for amd64 and arm64, then runs it as the
+distroless `nonroot` user with `/data` as the writable SQLite volume. When a branch push changes
+`server/**`, `.github/workflows/server-image.yml` builds both platforms and publishes
+`ghcr.io/<owner>/xstats-server:<sanitized-branch>-<full-commit-sha>`. Pull requests do not run this workflow.
 
 ## WebDAV settings sync
 

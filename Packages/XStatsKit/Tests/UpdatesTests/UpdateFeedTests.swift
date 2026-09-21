@@ -17,6 +17,22 @@ import Testing
         #expect(!UpdateFeed.systemSatisfies("15.0", current: sonoma))
     }
 
+    @Test func buildsAnAnonymousInstallationCheckRequest() throws {
+        let request = try UpdateFeed.checkRequest(
+            currentVersion: "2026.09.21.02",
+            installationID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        )
+        #expect(request.url?.absoluteString == "https://getopenstats.com/api/v1/update/check")
+        #expect(request.httpMethod == "POST")
+        #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+        let body = try #require(request.httpBody)
+        let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: String])
+        #expect(json == [
+            "current_version": "2026.09.21.02",
+            "installation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ])
+    }
+
     @Test func parsesAndRejectsBadFeeds() throws {
         let good = #"{"version":"0.3.0","build":"3","date":"2026-09-20","minimumSystem":"14.0","url":"https://getopenstats.com/download/OpenStats-0.3.0.zip","sha256":"\#(String(repeating: "a", count: 64))","size":123,"dmg":"https://getopenstats.com/download/OpenStats-0.3.0.dmg","notes":["新增在线升级"],"changelog":null}"#
         let release = try #require(UpdateFeed.parse(Data(good.utf8)))

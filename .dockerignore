@@ -1,0 +1,11 @@
+# Copyright (C) 2026 ysicing
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+*
+!server/api/**
+!LICENSE
+!LICENSING.md
+!ThirdPartyNotices.md
+!LICENSES/XStats-API-Dependencies.txt
+server/api/*.sqlite*
+server/api/api

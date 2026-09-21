@@ -11,13 +11,13 @@
 [![Last commit](https://img.shields.io/github/last-commit/ysicing/xstats?color=black&label=%E6%9C%80%E8%BF%91%E6%8F%90%E4%BA%A4)](https://github.com/ysicing/xstats/commits/main)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ysicing/xstats?color=black&label=%E6%8F%90%E4%BA%A4)](https://github.com/ysicing/xstats/graphs/commit-activity)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
-[![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20%E8%8A%AF%E7%89%87%20%2F%20Intel-black)](https://github.com/ysicing/xstats/releases)
+[![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20%E8%8A%AF%E7%89%87-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 
 XStats 是一款 macOS 菜单栏应用，实时显示 Mac 正在做什么：各核心 CPU 负载、GPU、内存压力、
 网速、磁盘、电池、温度和风扇，并且可以直接处理：给风扇提速、合盖后继续运行、清理缓存、彻底卸载应用、停用启动项；
 网络详情还能检测公网 IP 的纯净度，看出出口是否被标记为 VPN、代理、机房或有滥用记录。
-所有数据都在你自己的 Mac 上读取，没有统计上报。不需要 XStats 账号，可通过自己的 WebDAV 服务器手动备份和恢复偏好设置。其他可关闭的联网功能包括：打开网络详情时查询公网 IP 与纯净度、定时 ping 你选择的探测目标，以及每天检查一次新版本。
+所有监控指标都在你自己的 Mac 上读取，不会上传。不需要 XStats 账号，可通过自己的 WebDAV 服务器手动备份和恢复偏好设置。检查更新时会发送当前版本和随机安装标识的 SHA-256，用于匿名安装与版本分布统计；原始随机值只保存在本机钥匙串。其他可关闭的联网功能包括：打开网络详情时查询公网 IP 与纯净度、定时 ping 你选择的探测目标，以及每天检查一次新版本。
 
 [下载](https://github.com/ysicing/xstats/releases) ·
 [更新日志](CHANGELOG.md) ·
@@ -31,14 +31,13 @@ XStats 是一款 macOS 菜单栏应用，实时显示 Mac 正在做什么：各�
 
 ## 安装
 
-在 [GitHub Releases](https://github.com/ysicing/xstats/releases) 查看已发布的 XStats 构建，按 Mac 芯片选择 AppleSilicon 或 Intel。
-若尚无构建可下载，请按下文从源码构建。
+在 [GitHub Releases](https://github.com/ysicing/xstats/releases) 下载 Apple Silicon 版 XStats。
+若尚无构建可下载，请参考 [开发指南](DEVELOPMENT.md) 从源码构建。
 
 XStats 暂无官网。自动更新与现有 GeoIP 服务保持不变；账号登录已替换为手动 WebDAV 同步。
 更新安装仍严格检查应用身份与签名：旧服务提供的 OpenStats 安装包不能替换 XStats。
 
-需要 macOS 14（Sonoma）或更高版本。主要在 Apple 芯片上开发和测试；Intel 机型上不能用 Apple 智能解释进程，
-CPU 不分性能核与能效核，部分功耗与频率读数可能不显示。
+需要 Apple 芯片和 macOS 14（Sonoma）或更高版本。
 界面支持简体中文、繁體中文、日本語、한국어、English、Deutsch、Español、Français 和 العربية。
 默认自动检测系统首选语言，可在“设置 · 通用 · 语言”中搜索并切换；阿拉伯语使用从右到左布局。
 
@@ -206,13 +205,13 @@ CPU 不分性能核与能效核，部分功耗与频率读数可能不显示。
 ## 你的数据
 
 指标来自本机的内核接口（`host_processor_info`、`host_statistics64`、`sysctl`）、IOKit 与 SMC。
-偏好设置保存在应用自己的 user defaults 中，不含个人信息。没有任何统计与上报。
+偏好设置保存在应用自己的 user defaults 中，不含个人信息。监控指标、历史记录、硬件序列号和进程列表不会上传。
 
 会联网的功能都可以关闭。前两项在“设置 → 网络”中，检查更新在“设置 · 关于”中：
 
 - **公网 IP**：打开网络详情时向 Cloudflare `1.1.1.1`（回退 ipify）请求一次公网地址，10 分钟内不重复请求。归属地、ASN、网络类型与纯净度评分由这台 Mac 直接向 `cleanip.io` 查询，只发送公网地址、不经过我们的服务器；地址没变、不满 7 天就沿用上次结果，点刷新才重查。
 - **连接探测**：打开网络详情时每秒（后台每 10 秒）向你选择的目标（Cloudflare、Google、阿里云、腾讯或路由器）发送一次 ICMP ping，只在菜单栏显示网络项或打开网络详情时运行。
-- **检查更新**：启动时与之后每天向 getopenstats.com 读取一次版本清单，只下载清单本身；发现新版本时提示，由你决定是否安装。
+- **检查更新与安装统计**：启动时与之后每天向 getopenstats.com 发送当前版本和随机安装标识的 SHA-256，并读取版本清单；服务端只保存该哈希、当前版本、首次与最近检查时间及检查次数，不保存硬件序列号，也不持久化请求 IP（IP 只用于一分钟内的内存限流）。原始随机值只在本机钥匙串中。关闭自动检查更新后不会再自动请求；发现新版本时仍由你决定是否安装。
 
 WebDAV 只向你配置的服务器传输偏好设置，不上传监控数据、历史记录或 WebDAV 凭据。
 
