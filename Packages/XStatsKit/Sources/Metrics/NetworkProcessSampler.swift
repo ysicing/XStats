@@ -1,6 +1,23 @@
 import Darwin
 import Foundation
 
+private final class LockedProcessOutput: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data: Data?
+
+    func store(_ data: Data) {
+        lock.lock()
+        self.data = data
+        lock.unlock()
+    }
+
+    func load() -> Data? {
+        lock.lock()
+        defer { lock.unlock() }
+        return data
+    }
+}
+
 public struct NetworkProcessUsage: Sendable, Equatable, Identifiable {
     public var id: Int32 { pid }
     public let pid: Int32
@@ -13,14 +30,20 @@ public struct NetworkProcessUsage: Sendable, Equatable, Identifiable {
 /// 各进程的网络速率。系统没有公开接口，读取 /usr/bin/nettop 的累计字节数并与上次比较。
 /// 只在网络详情打开时运行，每次约 40 ms。
 public struct NetworkProcessSampler: Sendable {
+    private static let nettopLock = NSLock()
     private var previous: [Int32: (download: UInt64, upload: UInt64)] = [:]
     private var previousTime: UInt64 = 0
+    private var lastResults: [NetworkProcessUsage] = []
 
     public init() {}
 
     public mutating func sample(limit: Int = 8) -> [NetworkProcessUsage] {
-        guard let output = Self.runNettop() else { return [] }
-        let now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+        sample(output: Self.runNettop(), now: clock_gettime_nsec_np(CLOCK_UPTIME_RAW), limit: limit)
+    }
+
+    /// 将 `nettop` 的累计值换算成区间速率。读取失败时保留上次结果，避免界面短暂清空。
+    mutating func sample(output: String?, now: UInt64, limit: Int = 8) -> [NetworkProcessUsage] {
+        guard let output else { return lastResults }
         let seconds = previousTime > 0 ? Double(now - previousTime) / 1_000_000_000 : 0
         let totals = Self.parse(output)
 
@@ -32,7 +55,8 @@ public struct NetworkProcessSampler: Sendable {
                 let upload = entry.upload >= before.upload ? Double(entry.upload - before.upload) / seconds : 0
                 guard download + upload > 0 else { continue }
                 let meta = ProcessSampler.meta(for: pid)
-                results.append(NetworkProcessUsage(pid: pid, name: meta.bundle.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent } ?? meta.name,
+                let processName = meta.name == "PID \(pid)" ? entry.name : meta.name
+                results.append(NetworkProcessUsage(pid: pid, name: meta.bundle.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent } ?? processName,
                                                    appBundlePath: meta.bundle, download: download, upload: upload))
             }
         }
@@ -51,10 +75,12 @@ public struct NetworkProcessSampler: Sendable {
                 merged[key] = usage
             }
         }
-        return merged.values
+        let ranked = merged.values
             .sorted { $0.download + $0.upload > $1.download + $1.upload }
             .prefix(limit)
             .map { $0 }
+        lastResults = ranked
+        return ranked
     }
 
     /// 解析 `nettop -P -L 1 -x -J bytes_in,bytes_out` 的 CSV：`进程名.PID,入字节,出字节,`
@@ -73,19 +99,79 @@ public struct NetworkProcessSampler: Sendable {
     }
 
     private static func runNettop() -> String? {
+        nettopLock.lock()
+        defer { nettopLock.unlock() }
+        guard !Task.isCancelled else { return nil }
+        return run(path: "/usr/bin/nettop", arguments: ["-P", "-L", "1", "-n", "-x", "-J", "bytes_in,bytes_out"], timeout: 5)
+    }
+
+    /// 同步运行短命令并持续排空 stdout；超时后先 TERM、再 KILL，避免 `nettop` 挂住采样循环。
+    static func run(path: String, arguments: [String], timeout: TimeInterval) -> String? {
+        guard !Task.isCancelled else { return nil }
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-        process.arguments = ["-P", "-L", "1", "-n", "-x", "-J", "bytes_in,bytes_out"]
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = arguments
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
+
+        let output = LockedProcessOutput()
+        let drain = DispatchGroup()
+        drain.enter()
+        DispatchQueue.global(qos: .utility).async {
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            output.store(data)
+            drain.leave()
+        }
+
+        let terminated = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in terminated.signal() }
         do {
             try process.run()
         } catch {
+            pipe.fileHandleForWriting.closeFile()
+            drain.wait()
             return nil
         }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+
+        let timeoutNanoseconds = UInt64(max(0, timeout) * 1_000_000_000)
+        let deadline = DispatchTime.now().uptimeNanoseconds &+ timeoutNanoseconds
+        var stopped = false
+        var exited = false
+        while !exited {
+            if Task.isCancelled {
+                stopped = true
+                break
+            }
+            let now = DispatchTime.now().uptimeNanoseconds
+            guard now < deadline else {
+                stopped = true
+                break
+            }
+            let slice = min(deadline - now, 50_000_000)
+            exited = terminated.wait(timeout: .now() + .nanoseconds(Int(slice))) == .success
+        }
+
+        if stopped {
+            if process.isRunning { process.terminate() }
+            exited = terminated.wait(timeout: .now() + 0.5) == .success
+            if !exited {
+                kill(process.processIdentifier, SIGKILL)
+                exited = terminated.wait(timeout: .now() + 0.5) == .success
+            }
+        }
+        guard exited else {
+            pipe.fileHandleForReading.closeFile()
+            return nil
+        }
         process.waitUntilExit()
-        return process.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : nil
+        guard drain.wait(timeout: .now() + 0.5) == .success else {
+            pipe.fileHandleForReading.closeFile()
+            return nil
+        }
+
+        guard !stopped, process.terminationStatus == 0,
+              let data = output.load() else { return nil }
+        return String(decoding: data, as: UTF8.self)
     }
 }

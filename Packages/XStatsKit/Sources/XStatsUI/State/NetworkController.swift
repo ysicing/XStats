@@ -46,6 +46,7 @@ public final class NetworkController {
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private var probeTask: Task<Void, Never>?
     @ObservationIgnored private var detailTask: Task<Void, Never>?
+    @ObservationIgnored private var processSampler = NetworkProcessSampler()
     @ObservationIgnored private var probedAddress: String?
     @ObservationIgnored private var lastPublicLookup: (date: Date, localIPv4: [String])?
     @ObservationIgnored private var isPaused = false
@@ -164,7 +165,7 @@ public final class NetworkController {
         applyDetailState()
     }
 
-    /// 网络详情打开时每 2 秒刷新接口信息与进程流量，关闭后停止
+    /// 网络详情打开时每秒刷新进程流量、每 4 秒刷新接口信息，关闭后停止
     private func applyDetailState() {
         let shouldRun = wantsDetail && !isPaused
         guard shouldRun != (detailTask != nil) else { return }
@@ -173,26 +174,37 @@ public final class NetworkController {
         // 关闭时保留上次的进程列表，再次打开时不会先闪一下空白
         guard shouldRun else { return }
         detailTask = Task { [weak self] in
-            var sampler = NetworkProcessSampler()
             var tick = 0
+            let clock = ContinuousClock()
             while !Task.isCancelled {
-                // 接口信息每 4 秒读一次，进程流量每 2 秒
-                if tick % 2 == 0 {
+                guard let self else { return }
+                let started = clock.now
+                if tick % 4 == 0 {
                     let details = await Task.detached { NetworkDetailsReader.read() }.value
-                    guard !Task.isCancelled, let self else { return }
+                    guard !Task.isCancelled else { return }
                     if details != self.details { self.details = details }
                     if tick == 0 { self.lookUpPublicAddressesIfStale() }
                 }
-                let (usage, next) = await Task.detached { [sampler] in
+                let sampler = self.processSampler
+                let samplingTask = Task.detached { [sampler] in
                     var copy = sampler
                     let usage = copy.sample()
                     return (usage, copy)
-                }.value
-                sampler = next
-                guard !Task.isCancelled, let self else { return }
+                }
+                let (usage, next) = await withTaskCancellationHandler {
+                    await samplingTask.value
+                } onCancel: {
+                    samplingTask.cancel()
+                }
+                guard !Task.isCancelled else { return }
+                self.processSampler = next
                 self.processes = self.rankedProcesses(usage)
                 tick += 1
-                try? await Task.sleep(for: .seconds(2))
+                do {
+                    try await Task.sleep(until: started + .seconds(1), tolerance: .milliseconds(100), clock: clock)
+                } catch {
+                    return
+                }
             }
         }
     }

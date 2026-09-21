@@ -156,6 +156,79 @@ struct LiveSamplerTests {
         #expect(parsed[4521]?.upload == 95_191)
     }
 
+    @Test func usesNettopNameWhenProcessMetadataIsUnavailable() throws {
+        var sampler = NetworkProcessSampler()
+        _ = sampler.sample(output: """
+        ,bytes_in,bytes_out,
+        kernel_task.0,1000,2000,
+        """, now: 1_000_000_000)
+
+        let usage = sampler.sample(output: """
+        ,bytes_in,bytes_out,
+        kernel_task.0,3000,5000,
+        """, now: 2_000_000_000)
+
+        let kernel = try #require(usage.first)
+        #expect(kernel.pid == 0)
+        #expect(kernel.name == "kernel_task")
+        #expect(kernel.download == 2_000)
+        #expect(kernel.upload == 3_000)
+    }
+
+    @Test func keepsLastUsageWhenNettopFails() throws {
+        var sampler = NetworkProcessSampler()
+        _ = sampler.sample(output: """
+        ,bytes_in,bytes_out,
+        kernel_task.0,1000,2000,
+        """, now: 1_000_000_000)
+        let valid = sampler.sample(output: """
+        ,bytes_in,bytes_out,
+        kernel_task.0,3000,5000,
+        """, now: 2_000_000_000)
+
+        let retained = sampler.sample(output: nil, now: 3_000_000_000)
+
+        #expect(retained == valid)
+    }
+
+    @Test func stopsNettopCommandAfterTimeout() {
+        let clock = ContinuousClock()
+        let started = clock.now
+        let output = NetworkProcessSampler.run(
+            path: "/bin/sleep",
+            arguments: ["1"],
+            timeout: 0.01
+        )
+
+        #expect(output == nil)
+        #expect(started.duration(to: clock.now) < .milliseconds(500))
+    }
+
+    @Test func cancellationStopsRunningCommand() async throws {
+        let marker = FileManager.default.temporaryDirectory.appending(path: "xstats-process-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: marker) }
+        let clock = ContinuousClock()
+        let task = Task.detached {
+            NetworkProcessSampler.run(
+                path: "/bin/sh",
+                arguments: ["-c", "touch \"$1\"; sleep 5", "xstats-test", marker.path],
+                timeout: 5
+            )
+        }
+
+        let launchDeadline = clock.now + .seconds(1)
+        while !FileManager.default.fileExists(atPath: marker.path), clock.now < launchDeadline {
+            await Task.yield()
+        }
+        try #require(FileManager.default.fileExists(atPath: marker.path))
+        let cancelled = clock.now
+        task.cancel()
+        let output = await task.value
+
+        #expect(output == nil)
+        #expect(cancelled.duration(to: clock.now) < .seconds(1))
+    }
+
     @Test func parsesCloudflareTrace() {
         let fields = PublicAddressLookup.parseTrace("fl=123\nip=203.0.113.24\nloc=CN\n")
         #expect(fields["ip"] == "203.0.113.24")
