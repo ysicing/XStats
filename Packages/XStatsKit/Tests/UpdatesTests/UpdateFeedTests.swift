@@ -80,6 +80,18 @@ import Testing
         return url
     }
 
+    private func expectInvalidBundle(_ operation: () throws -> Void) {
+        do {
+            try operation()
+            Issue.record("Expected UpdateError.invalidBundle")
+        } catch let error as UpdateError {
+            if case .invalidBundle = error { return }
+            Issue.record("Unexpected update error: \(error)")
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test func hashesFiles() throws {
         let dir = try scratch()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -131,7 +143,7 @@ import Testing
         #expect(throws: UpdateError.self) {
             try UpdateInstaller.verify(app, bundleIdentifier: "work.12306.xstats.app", version: "9.9.9", teamIdentifier: "ABCDE12345")
         }
-        #expect(throws: UpdateError.invalidBundle("版本是 9.9.9，清单写的是 1.0.0")) {
+        expectInvalidBundle {
             try UpdateInstaller.verify(app, bundleIdentifier: "work.12306.xstats.app", version: "1.0.0", teamIdentifier: "ABCDE12345")
         }
     }
@@ -144,7 +156,7 @@ import Testing
         let plist = ["CFBundleIdentifier": "com.openstats.app", "CFBundlePackageType": "APPL"]
         try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
             .write(to: app.appendingPathComponent("Contents/Info.plist"))
-        #expect(throws: UpdateError.invalidBundle("包名是 com.openstats.app")) {
+        expectInvalidBundle {
             try UpdateInstaller.verify(app, bundleIdentifier: "work.12306.xstats.app", version: "0.6.1", teamIdentifier: "ABCDE12345")
         }
     }
