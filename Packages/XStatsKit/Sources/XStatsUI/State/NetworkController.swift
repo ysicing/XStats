@@ -33,7 +33,11 @@ public final class NetworkController {
         guard hasDualStack else { return nil }
         return publicResults[publicFamily] != nil ? publicFamily : (publicFamily == .v4 ? .v6 : .v4)
     }
+    /// 仅用于界面转圈：有缓存可显示时不转圈，后台悄悄核对
     public private(set) var isLookingUpPublic = false
+    /// 仅用于重入保护，与转圈状态相反——有缓存时也必须挡住并发查询，
+    /// 否则两个 Task 会各发三次请求、并发写缓存，失败结果可能覆盖好结果
+    @ObservationIgnored private var isFetchingPublic = false
     public private(set) var probes = History<ProbeSample>(capacity: probeCapacity)
     public private(set) var processes: [NetworkProcessUsage] = []
     /// 各进程流量的平滑排行，列表按它排序而不是按瞬时速率
@@ -203,11 +207,14 @@ public final class NetworkController {
     /// 因为它只查请求方自己）：地址没变、结果不满 7 天的那一族沿用缓存，否则重新查并写回缓存。
     /// `force` 为真时（用户点了刷新）两族都重查
     func lookUpPublicAddresses(force: Bool = false) {
-        guard settings.publicIPLookup, !isLookingUpPublic else { return }
+        guard settings.publicIPLookup, !isFetchingPublic else { return }
+        isFetchingPublic = true
         // 有缓存可显示时不转圈，后台悄悄核对
         isLookingUpPublic = publicResults.isEmpty || force
         let localIPv4 = details?.physical?.ipv4 ?? []
         Task {
+            // 无论正常结束、抛出还是被取消都要放开重入锁，否则查询会永久卡死
+            defer { isFetchingPublic = false }
             let base = await PublicAddressLookup.fetch(includeGeo: false)
             let cached = Self.loadCache()
             let now = Date()

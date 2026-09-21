@@ -205,6 +205,11 @@ private final class Subscription {
         self.subscription = subscription
     }
 
+    // subscription 是 OpaquePointer，不受 ARC 管理，本类也不释放它：IOReport 是私有框架，
+    // 没有公开的释放入口，而它是否为 CF 对象无法验证——释放错了会在 dealloc 时崩溃。
+    // 目前全进程只有 MetricsHub 持有的那一个 PowerSampler，两个 Subscription 各只创建一次且
+    // 随进程存在，不会增长。若将来 PowerSampler 改成可反复创建，必须先确认正确的释放方式再补 deinit。
+
     func sample() -> CFDictionary? {
         IOReportCreateSamples(subscription, channels, nil)?.takeRetainedValue()
     }
@@ -212,8 +217,10 @@ private final class Subscription {
     static func channels(in sample: CFDictionary) -> [CFDictionary] {
         let key = "IOReportChannels" as CFString
         guard let raw = CFDictionaryGetValue(sample, Unmanaged.passUnretained(key).toOpaque()) else { return [] }
-        let array = unsafeBitCast(raw, to: CFArray.self)
-        return (0..<CFArrayGetCount(array)).map { unsafeBitCast(CFArrayGetValueAtIndex(array, $0), to: CFDictionary.self) }
+        let array = Unmanaged<CFArray>.fromOpaque(raw).takeUnretainedValue()
+        return (0..<CFArrayGetCount(array)).map {
+            Unmanaged<CFDictionary>.fromOpaque(CFArrayGetValueAtIndex(array, $0)).takeUnretainedValue()
+        }
     }
 
     static func name(_ channel: CFDictionary) -> String {

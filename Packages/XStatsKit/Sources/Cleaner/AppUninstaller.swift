@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 import Localization
 
@@ -140,8 +145,9 @@ public enum AppUninstaller {
         scan("Containers", .containers)
         scan("Application Scripts", .containers)
         scan("Group Containers", .containers) { name in
+            guard supportsDerivedNames(id) else { return false }
             // 形如 “TEAMID.com.example.app” 或 “group.com.example.app”
-            name.hasSuffix("." + id) || name == "group." + id || name.hasPrefix("group." + id + ".")
+            return name.hasSuffix("." + id) || name == "group." + id || name.hasPrefix("group." + id + ".")
         }
         scan("Saved Application State", .savedState)
         scan("Logs", .logs) { $0 == app.name }
@@ -153,11 +159,22 @@ public enum AppUninstaller {
     }
 
     /// 名字等于包名，或是包名后接“.”的派生名（com.example.app.plist、com.example.app.savedState、com.example.app.helper）
+    ///
+    /// 前缀匹配要求包名至少三段反向域名：`leftovers` 会扫描 Preferences、Caches、Containers 等
+    /// 十余个目录，若放行 “com” 这类残缺包名，`hasPrefix("com.")` 会把 com.apple.dock.plist 在内的
+    /// 所有 com.* 条目都当成残留列出并默认勾选。精确匹配不受影响，短包名仍能删掉自己的同名条目。
     static func matchesIdentifier(_ name: String, _ identifier: String) -> Bool {
         guard !identifier.isEmpty else { return false }
         let lowered = name.lowercased()
         let id = identifier.lowercased()
-        return lowered == id || lowered.hasPrefix(id + ".")
+        if lowered == id { return true }
+        guard supportsDerivedNames(identifier) else { return false }
+        return lowered.hasPrefix(id + ".")
+    }
+
+    private static func supportsDerivedNames(_ identifier: String) -> Bool {
+        let parts = identifier.split(separator: ".", omittingEmptySubsequences: false)
+        return parts.count >= 3 && parts.allSatisfy { !$0.isEmpty }
     }
 
     // MARK: 程序坞

@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 import Security
 
@@ -6,14 +11,24 @@ public enum HelperConstants {
     public static let launchdPlistName = "work.12306.xstats.helper.plist"
     public static let appBundleIdentifier = "work.12306.xstats.app"
     /// 与 App 版本同步；App 发现辅助工具版本不一致时提示重新安装
-    public static let protocolVersion = 4
+    // 第 5 版起移除 ad-hoc 鉴权降级，旧版必须注销后升级，不能继续保持连接。
+    public static let protocolVersion = 5
+
+    public static func isCompatible(version: Int?) -> Bool {
+        guard let version else { return false }
+        return version >= protocolVersion
+    }
 
     /// 辅助工具对调用方的签名要求：与辅助工具自身同一团队签名的 XStats。
-    /// ad-hoc 签名的开发构建没有团队，只能校验 bundle identifier。
-    public static func clientRequirement(teamIdentifier: String?) -> String {
-        let identifier = "identifier \"\(appBundleIdentifier)\""
-        guard let teamIdentifier, !teamIdentifier.isEmpty else { return identifier }
-        return identifier + " and anchor apple generic and certificate leaf[subject.OU] = \"\(teamIdentifier)\""
+    ///
+    /// ad-hoc 签名的开发构建没有团队，此时返回 nil 表示“无法安全鉴权”。不能退化成只校验
+    /// bundle identifier：单独的 `identifier` 不含 anchor 约束，任何进程 `codesign -s -`
+    /// 伪造同一个 identifier 即可通过校验，进而以 root 驱动 DNS、睡眠、快照与风扇。
+    /// 在线升级在 ad-hoc 下同样是直接禁用（见 UpdateController），两处保持一致。
+    public static func clientRequirement(teamIdentifier: String?) -> String? {
+        guard let teamIdentifier, !teamIdentifier.isEmpty else { return nil }
+        return "identifier \"\(appBundleIdentifier)\" and anchor apple generic"
+            + " and certificate leaf[subject.OU] = \"\(teamIdentifier)\""
     }
 }
 

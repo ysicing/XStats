@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Localization
 import Metrics
 import SwiftUI
@@ -512,65 +517,84 @@ struct ScoreBand: View {
 
     private static let markerHeight: CGFloat = DS.Size.iconStandalone + DS.Space.s1
     private static let tickHeight: CGFloat = DS.Space.s3
+    private var clamped: Int { min(100, max(0, score)) }
 
     var body: some View {
-        let bands = DS.Grade.bands
-        let clamped = min(100, max(0, score))
         GeometryReader { proxy in
-            let width = proxy.size.width
             ZStack(alignment: .topLeading) {
                 VStack(spacing: DS.Space.s1 / 2) {
-                    HStack(spacing: 1) {
-                        ForEach(Array(bands.enumerated()), id: \.offset) { index, band in
-                            let lower = index == 0 ? 0 : bands[index - 1].upper
-                            let segmentWidth = width * CGFloat(band.upper - lower) / 100
-                            ZStack {
-                                Rectangle().fill(band.color)
-                                if segmentWidth >= DS.Space.s6 {
-                                    Text(verbatim: band.grade)
-                                        .dsFont(.xs, weight: .semibold)
-                                        .foregroundStyle(DS.Palette.onPrimary)
-                                }
-                            }
-                            .frame(width: max(0, segmentWidth - (index == bands.count - 1 ? 0 : 1)))
-                        }
-                    }
-                    .frame(height: height)
-                    ZStack(alignment: .topLeading) {
-                        // A 与 A+ 的分界太密，刻度上不标 95；弹窗那么窄时 85 也挤不下
-                        ForEach([0] + bands.map(\.upper).filter { $0 != 95 && ($0 != 85 || width >= DS.Size.panelWidth / 2) }, id: \.self) { tick in
-                            Text(verbatim: "\(tick)")
-                                .dsFont(.xs)
-                                .foregroundStyle(DS.Palette.textTertiary)
-                                .monospacedDigit()
-                                .fixedSize()
-                                .alignmentGuide(.leading) { dimensions in
-                                    // 0 靠左、100 靠右，其余居中对齐刻度
-                                    tick == 0 ? 0 : tick == 100 ? dimensions.width - width : dimensions.width / 2 - width * CGFloat(tick) / 100
-                                }
-                        }
-                    }
-                    .frame(width: width, height: Self.tickHeight, alignment: .topLeading)
+                    segments(width: proxy.size.width)
+                    tickLabels(width: proxy.size.width)
                 }
                 .padding(.top, Self.markerHeight)
-
-                // 得分标记：气泡里写等级，尖角指向色带
-                let color = DS.Grade.color(for: clamped)
-                VStack(spacing: 0) {
-                    Text(verbatim: DS.Grade.bands.first { clamped < $0.upper }?.grade ?? "A+")
-                        .dsFont(.xs, weight: .semibold)
-                        .foregroundStyle(DS.Palette.onPrimary)
-                        .padding(.horizontal, DS.Space.s1)
-                        .frame(height: DS.Size.iconInline)
-                        .background(color, in: RoundedRectangle(cornerRadius: DS.Radius.sm))
-                    Triangle().fill(color).frame(width: DS.Space.s2, height: DS.Space.s1)
-                }
-                .fixedSize()
-                .alignmentGuide(.leading) { dimensions in dimensions.width / 2 - width * CGFloat(clamped) / 100 }
+                marker(width: proxy.size.width)
             }
         }
         .frame(height: height + Self.markerHeight + Self.tickHeight + DS.Space.s1 / 2)
         .accessibilityLabel(tr("纯净度 \(clamped) 分"))
+    }
+
+    // 拆分独立视图约束，避免 CI 工具链对整个评分条的嵌套泛型进行超时推导。
+    private func segments(width: CGFloat) -> some View {
+        HStack(spacing: 1) {
+            ForEach(DS.Grade.bands.indices, id: \.self) { index in
+                let band = DS.Grade.bands[index]
+                let lower = index == 0 ? 0 : DS.Grade.bands[index - 1].upper
+                let segmentWidth = width * CGFloat(band.upper - lower) / 100
+                ZStack {
+                    Rectangle().fill(band.color)
+                    if segmentWidth >= DS.Space.s6 {
+                        Text(verbatim: band.grade)
+                            .dsFont(.xs, weight: .semibold)
+                            .foregroundStyle(DS.Palette.onPrimary)
+                    }
+                }
+                .frame(width: max(0, segmentWidth - (index == DS.Grade.bands.count - 1 ? 0 : 1)))
+            }
+        }
+        .frame(height: height)
+    }
+
+    private func ticks(width: CGFloat) -> [Int] {
+        // A 与 A+ 的分界太密，不标 95；窄弹窗下也不标 85。
+        let upperBounds: [Int] = DS.Grade.bands.map { $0.upper }
+        return [0] + upperBounds.filter { tick in
+            tick != 95 && (tick != 85 || width >= DS.Size.panelWidth / 2)
+        }
+    }
+
+    private func tickLabels(width: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(ticks(width: width), id: \.self) { tick in
+                Text(verbatim: "\(tick)")
+                    .dsFont(.xs)
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .monospacedDigit()
+                    .fixedSize()
+                    .alignmentGuide(.leading) { dimensions in
+                        if tick == 0 { return 0 }
+                        if tick == 100 { return dimensions.width - width }
+                        return dimensions.width / 2 - width * CGFloat(tick) / 100
+                    }
+            }
+        }
+        .frame(width: width, height: Self.tickHeight, alignment: .topLeading)
+    }
+
+    private func marker(width: CGFloat) -> some View {
+        let color = DS.Grade.color(for: clamped)
+        let grade = DS.Grade.bands.first { clamped < $0.upper }?.grade ?? "A+"
+        return VStack(spacing: 0) {
+            Text(verbatim: grade)
+                .dsFont(.xs, weight: .semibold)
+                .foregroundStyle(DS.Palette.onPrimary)
+                .padding(.horizontal, DS.Space.s1)
+                .frame(height: DS.Size.iconInline)
+                .background(color, in: RoundedRectangle(cornerRadius: DS.Radius.sm))
+            Triangle().fill(color).frame(width: DS.Space.s2, height: DS.Space.s1)
+        }
+        .fixedSize()
+        .alignmentGuide(.leading) { dimensions in dimensions.width / 2 - width * CGFloat(clamped) / 100 }
     }
 }
 

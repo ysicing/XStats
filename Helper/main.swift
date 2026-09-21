@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 //
 //  XStatsHelper
 //
@@ -45,6 +50,12 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
     // MARK: NSXPCListenerDelegate
 
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
+        // 没有团队签名（ad-hoc 开发构建）时无法安全鉴别调用方，一律拒绝服务。
+        // 客户端禁用安装与风扇/合盖控制；支持回退的维护操作走一次性管理员授权。
+        guard let clientRequirement else {
+            log.error("辅助工具未经团队签名，拒绝 XPC 连接")
+            return false
+        }
         // 系统在收到消息前校验调用方签名，不符合要求的连接会被直接失效
         connection.setCodeSigningRequirement(clientRequirement)
         connection.exportedInterface = NSXPCInterface(with: XStatsHelperProtocol.self)

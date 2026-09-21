@@ -264,6 +264,8 @@ apps' caches and installing a privileged helper, which is most of the feature se
 the keychain and fall back to ad-hoc without one. The helper reads its own team at run time
 and accepts only callers signed by the same team.
 
+Ad-hoc builds cannot install or use the privileged helper, so fan and lid-closed controls are unavailable. Maintenance operations with an existing fallback can request one-time administrator authorization. Startup unregisters previously registered ad-hoc helpers. Team-signed builds unregister and upgrade helpers older than protocol 5 before allowing privileged calls.
+
 ```bash
 make release                          # sign, notarize, staple, build the DMG and a Homebrew cask
 NOTARY_PROFILE=XStats make release # use another notarytool keychain profile

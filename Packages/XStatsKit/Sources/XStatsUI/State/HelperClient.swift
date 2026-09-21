@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 import HelperShared
 import Localization
@@ -34,11 +39,28 @@ public final class HelperClient {
     @ObservationIgnored var onReconnect: (() -> Void)?
 
     @ObservationIgnored private var connection: NSXPCConnection?
-    @ObservationIgnored private let service = SMAppService.daemon(plistName: HelperConstants.launchdPlistName)
+    @ObservationIgnored private let service: any HelperRegistration
+    @ObservationIgnored private let teamIdentifier: String?
+    @ObservationIgnored private let versionProbe: (@MainActor () async -> Int?)?
+    private var isCheckingVersion = false
+    private var hasVerifiedConnection = false
 
-    public init() {}
+    public convenience init() {
+        self.init(teamIdentifier: CodeSigningInfo.currentTeamIdentifier(), service: SystemHelperRegistration())
+    }
 
-    public var isReady: Bool { status == .enabled }
+    init(teamIdentifier: String?, service: any HelperRegistration,
+         versionProbe: (@MainActor () async -> Int?)? = nil) {
+        self.teamIdentifier = teamIdentifier
+        self.service = service
+        self.versionProbe = versionProbe
+    }
+
+    public var canInstall: Bool { HelperConstants.clientRequirement(teamIdentifier: teamIdentifier) != nil }
+    public var isReady: Bool { canInstall && status == .enabled && hasVerifiedConnection && !isOutdated && !isWorking && !isCheckingVersion }
+    static var signingMessage: String {
+        L10n.helperSigningMessage
+    }
 
     static var outdatedMessage: String { tr("辅助工具版本比应用旧，部分功能可能无法使用，请重新安装一次（需要管理员授权）。") }
 
@@ -46,6 +68,7 @@ public final class HelperClient {
     var needsAttention: Bool { !isReady || isOutdated }
 
     public func refreshStatus() {
+        guard canInstall else { status = .unavailable(Self.signingMessage); return }
         switch service.status {
         case .enabled: status = .enabled
         case .requiresApproval: status = .requiresApproval
@@ -59,9 +82,19 @@ public final class HelperClient {
                 : .unavailable(tr("应用包内未找到辅助工具，请使用完整构建的 XStats.app"))
         @unknown default: status = .unavailable(tr("未知状态"))
         }
+        if status == .enabled, !hasVerifiedConnection, !isCheckingVersion, !isWorking, !isOutdated {
+            Task {
+                guard !hasVerifiedConnection, !isOutdated else { return }
+                await verifyVersion()
+            }
+        }
     }
 
     public func install() {
+        guard canInstall, !isWorking else {
+            if !canInstall { status = .unavailable(Self.signingMessage); lastError = Self.signingMessage }
+            return
+        }
         isWorking = true
         defer { isWorking = false }
         lastError = nil
@@ -74,6 +107,8 @@ public final class HelperClient {
         refreshStatus()
         if status == .requiresApproval {
             SMAppService.openSystemSettingsLoginItems()
+        } else if status == .enabled, !isCheckingVersion {
+            Task { await verifyVersion() }
         }
     }
 
@@ -83,13 +118,10 @@ public final class HelperClient {
         lastError = nil
         connection?.invalidate()
         connection = nil
+        hasVerifiedConnection = false
         do {
             // 使用回调版本：不把非 Sendable 的 SMAppService 跨隔离域传递
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                service.unregister { error in
-                    if let error { continuation.resume(throwing: error) } else { continuation.resume() }
-                }
-            }
+            try await service.unregister()
         } catch {
             lastError = tr("卸载失败：\(error.localizedDescription)")
             Log.helper.error("卸载失败：\(error.localizedDescription, privacy: .public)")
@@ -99,35 +131,42 @@ public final class HelperClient {
 
     /// 卸载后重新登记，让 launchd 运行当前应用包里的辅助工具
     public func reinstall() async {
+        guard !isWorking else { return }
         await uninstall()
+        guard lastError == nil, canInstall else { return }
         install()
         await verifyVersion(allowRestart: false)
     }
 
-    /// 核对辅助工具的协议版本。版本旧通常是替换应用后旧的辅助工具进程还在运行（新应用一连上它就不会空闲退出）：
-    /// 先断开连接让它空闲 30 秒后退出，再连接时 launchd 会启动应用包里的新版本；仍然旧才提示重新安装
+    /// 注册状态不等于可安全调用。版本 5 之前必须注销旧服务，再注册并核对当前版本。
     func verifyVersion(allowRestart: Bool = true) async {
+        guard !isCheckingVersion, !isWorking else { return }
+        isCheckingVersion = true
+        defer { isCheckingVersion = false }
+        // 没有团队签名时不连接旧 daemon，注销已注册服务以关闭旧的宽松鉴权进程。
+        guard canInstall else {
+            if service.status == .enabled || service.status == .requiresApproval { await uninstall() }
+            refreshStatus()
+            return
+        }
         let remote = await remoteProtocolVersion()
-        Log.helper.info("辅助工具状态 \(self.status.title, privacy: .public)，协议版本 \(remote.map(String.init) ?? "未连接", privacy: .public)")
-        guard let version = remote, version < HelperConstants.protocolVersion else {
+        guard let version = remote else { hasVerifiedConnection = false; isOutdated = service.status == .enabled; return }
+        guard !HelperConstants.isCompatible(version: version) else {
+            hasVerifiedConnection = true
             isOutdated = false
             return
         }
-        guard allowRestart else {
-            isOutdated = true
-            return
-        }
+        isOutdated = true
         connection?.invalidate()
         connection = nil
-        try? await Task.sleep(for: .seconds(40))
-        guard let again = await remoteProtocolVersion() else { return }
-        isOutdated = again < HelperConstants.protocolVersion
-        if isOutdated {
-            Log.helper.error("辅助工具协议版本 \(again) 低于应用的 \(HelperConstants.protocolVersion)")
-        } else {
-            // 新的辅助工具进程没有之前的风扇与睡眠设置，重新下发
-            onReconnect?()
-        }
+        // 不能等待旧进程“自行空闲退出”：其他连接可能一直让它存活。
+        // 注销失败时保留过期状态，禁止后续特权调用，也不继续注册。
+        await uninstall()
+        guard lastError == nil, allowRestart else { return }
+        install()
+        guard lastError == nil, service.status == .enabled else { return }
+        isOutdated = !HelperConstants.isCompatible(version: await remoteProtocolVersion())
+        hasVerifiedConnection = !isOutdated
     }
 
     public func openLoginItemsSettings() {
@@ -170,7 +209,8 @@ public final class HelperClient {
     /// 已安装的辅助工具的协议版本；旧版本不认识新增的方法，调用前先确认
     func remoteProtocolVersion() async -> Int? {
         refreshStatus()
-        guard isReady else { return nil }
+        guard canInstall, status == .enabled else { return nil }
+        if let versionProbe { return await versionProbe() }
         let connection = ensureConnection()
         return await withCheckedContinuation { (continuation: CheckedContinuation<Int?, Never>) in
             let once = ResumeOnceValue<Int?>(continuation)
@@ -180,7 +220,10 @@ public final class HelperClient {
         }
     }
 
-    /// 退出应用时使用：同步恢复风扇与睡眠设置，每步最多等待 1 秒
+    /// 退出应用时使用：同步恢复风扇与睡眠设置。
+    ///
+    /// 在主线程上阻塞，因此总等待时间设上限；每一步互相独立——取代理失败只跳过当前这步，
+    /// 不能提前 return，否则第一步失败就会连带跳过“恢复睡眠设置”，让 Mac 保持禁止睡眠。
     func restoreDefaultsSynchronously() {
         guard isReady else { return }
         let connection = ensureConnection()
@@ -188,17 +231,22 @@ public final class HelperClient {
             { proxy, reply in proxy.resetAllFans(reply: reply) },
             { proxy, reply in proxy.setSleepDisabled(false, reply: reply) },
         ]
+        let deadline = DispatchTime.now() + Self.restoreBudget
         for step in steps {
             let semaphore = DispatchSemaphore(value: 0)
             guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in semaphore.signal() })
-                    as? XStatsHelperProtocol else { return }
+                    as? XStatsHelperProtocol else { continue }
             step(proxy) { _ in semaphore.signal() }
-            _ = semaphore.wait(timeout: .now() + 1)
+            _ = semaphore.wait(timeout: deadline)
         }
     }
 
+    /// 退出时为恢复操作预留的总时长；辅助工具无响应时不让退出卡住超过这个值
+    private static let restoreBudget: DispatchTimeInterval = .milliseconds(1500)
+
     private func call(_ body: (XStatsHelperProtocol, @escaping @Sendable (String?) -> Void) -> Void) async -> String? {
         refreshStatus()
+        if canInstall { await verifyVersion() }
         guard isReady else { return tr("辅助工具未启用") }
         let connection = ensureConnection()
         return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
@@ -219,11 +267,20 @@ public final class HelperClient {
         if let connection { return connection }
         let connection = NSXPCConnection(machServiceName: HelperConstants.machServiceName, options: .privileged)
         connection.remoteObjectInterface = NSXPCInterface(with: XStatsHelperProtocol.self)
-        connection.interruptionHandler = { [weak self] in
-            Task { @MainActor in self?.onReconnect?() }
+        connection.interruptionHandler = { [weak self, weak connection] in
+            Task { @MainActor in
+                guard let self, self.connection === connection else { return }
+                self.hasVerifiedConnection = false
+                await self.verifyVersion()
+                if self.isReady { self.onReconnect?() }
+            }
         }
-        connection.invalidationHandler = { [weak self] in
-            Task { @MainActor in self?.connection = nil }
+        connection.invalidationHandler = { [weak self, weak connection] in
+            Task { @MainActor in
+                guard let self, self.connection === connection else { return }
+                self.connection = nil
+                self.hasVerifiedConnection = false
+            }
         }
         connection.resume()
         self.connection = connection

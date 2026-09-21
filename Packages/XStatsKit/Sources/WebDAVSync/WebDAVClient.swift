@@ -48,11 +48,18 @@ public struct WebDAVConfiguration: Equatable, Sendable {
               components.query == nil, components.fragment == nil,
               !text.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
               !components.path.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }),
-              let url = components.url else { throw WebDAVError.invalidAddress }
+              components.url != nil else { throw WebDAVError.invalidAddress }
         guard !username.isEmpty, !username.contains(":"),
               !username.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
         else { throw WebDAVError.invalidUsername }
-        directoryURL = url.hasDirectoryPath ? url : url.appendingPathComponent("", isDirectory: true)
+        // macOS 15 对空 path component 的目录拼接可能产生双斜杠；显式保留一个尾斜杠，
+        // 并操作编码后的路径，避免中文或百分号被再次转义而改变端点/凭据键。
+        var directory = components
+        var path = directory.percentEncodedPath
+        while path.hasSuffix("/") { path.removeLast() }
+        directory.percentEncodedPath = path + "/"
+        guard let normalized = directory.url else { throw WebDAVError.invalidAddress }
+        directoryURL = normalized
         self.username = username
     }
 

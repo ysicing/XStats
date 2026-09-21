@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 
 /// 排行榜的平滑打分：给每个条目按指数移动平均记一个分数，列表按分数排序。
@@ -27,9 +32,12 @@ struct ActivityRanking: Equatable {
     }
 
     func ranked(limit: Int) -> [Entry] {
-        Array(scores.map { Entry(id: $0.key, score: $0.value) }
-            .sorted { $0.score == $1.score ? $0.id < $1.id : $0.score > $1.score }
-            .prefix(limit))
+        let entries: [Entry] = scores.map { Entry(id: $0.key, score: $0.value) }
+        let sorted = entries.sorted { left, right in
+            if left.score == right.score { return left.id < right.id }
+            return left.score > right.score
+        }
+        return Array(sorted.prefix(limit))
     }
 
     var isEmpty: Bool { scores.isEmpty }

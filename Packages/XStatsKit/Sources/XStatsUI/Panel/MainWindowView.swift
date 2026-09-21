@@ -178,7 +178,7 @@ private struct MainSidebar: View {
     private func badge(for tab: PanelTab) -> Tone? {
         switch tab {
         case .settingsAbout: model.updates.release != nil ? .primary : nil
-        case .settingsHelper: model.helper.isReady && model.helper.isOutdated ? .warning : nil
+        case .settingsHelper: model.helper.isOutdated ? .warning : nil
         case .settingsAccount:
             if model.sync.pendingDownload != nil { .primary } else if case .failed = model.sync.phase { .warning } else { nil }
         default: nil

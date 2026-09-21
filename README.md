@@ -267,6 +267,8 @@ make open                 # 生成工程并用 Xcode 打开
 `make build` 与 `make install` 会自动使用钥匙串里的第一个 Developer ID Application 证书签名，没有证书时退回 ad-hoc。
 辅助工具在运行时读取自己的签名团队，只接受同一团队签名的调用方。
 
+ad-hoc 构建不安装或使用特权辅助工具，风扇控制与合盖运行不可用；DNS、内存维护等已有回退的操作仍可请求一次性管理员授权。启动时会注销已注册的旧 ad-hoc 服务。团队签名构建会注销并升级协议版本低于 5 的辅助工具，验证成功后才允许特权调用。
+
 ```bash
 make release                          # 签名、公证、装订，生成 DMG 与 Homebrew cask
 NOTARY_PROFILE=XStats make release # 使用其他 notarytool 钥匙串凭据

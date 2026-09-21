@@ -147,8 +147,12 @@ final class DiagnosticsExporter {
         if !crashes.isEmpty {
             let crashFolder = folder.appendingPathComponent("crashes")
             try manager.createDirectory(at: crashFolder, withIntermediateDirectories: true)
+            // 崩溃报告同样要脱敏：.ips 里可能夹带进程内存中的字符串（WebDAV 目录、用户名、公网 IP、
+            // 主机名），而界面承诺导出内容不含 IP、序列号与硬件地址。读不出文本的不放进压缩包。
             for crash in crashes {
-                try? manager.copyItem(at: crash, to: crashFolder.appendingPathComponent(crash.lastPathComponent))
+                guard let text = try? String(contentsOf: crash, encoding: .utf8) else { continue }
+                try? redact(text).write(to: crashFolder.appendingPathComponent(crash.lastPathComponent),
+                                        atomically: true, encoding: .utf8)
             }
         }
 

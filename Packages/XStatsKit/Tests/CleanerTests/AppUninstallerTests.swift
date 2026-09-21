@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 import Testing
 @testable import Cleaner
@@ -62,6 +67,27 @@ import Testing
         #expect(throws: Never.self) { try AppUninstaller.validate(normal) }
     }
 
+    /// leftovers 会扫描 Preferences、Caches、Containers 等十余个目录，前缀匹配一旦放行残缺包名，
+    /// 用户点一次卸载就会把 com.apple.dock.plist 在内的所有 com.* 条目移进废纸篓。
+    @Test func prefixMatchRequiresThreeSegmentIdentifier() {
+        #expect(!AppUninstaller.matchesIdentifier("com.apple.dock.plist", "com"))
+        #expect(!AppUninstaller.matchesIdentifier("com.example.foo.plist", "com"))
+        #expect(!AppUninstaller.matchesIdentifier("com.google.Chrome.plist", "com.google"))
+        // 精确同名仍要能删掉，否则短包名的应用会留下自己的残留
+        #expect(AppUninstaller.matchesIdentifier("com", "com"))
+        #expect(AppUninstaller.matchesIdentifier("com.google", "com.google"))
+    }
+
+    @Test func prefixMatchStillFindsDerivedNames() {
+        #expect(AppUninstaller.matchesIdentifier("com.example.foo", "com.example.foo"))
+        #expect(AppUninstaller.matchesIdentifier("com.example.foo.plist", "com.example.foo"))
+        #expect(AppUninstaller.matchesIdentifier("com.example.foo.savedState", "com.example.foo"))
+        #expect(AppUninstaller.matchesIdentifier("COM.EXAMPLE.FOO.helper", "com.example.foo"))
+        // 兄弟应用不能被当成残留
+        #expect(!AppUninstaller.matchesIdentifier("com.example.foobar", "com.example.foo"))
+        #expect(!AppUninstaller.matchesIdentifier("", "com.example.foo"))
+    }
+
     @Test func removesDockTile() {
         let tiles: [[String: Any]] = [
             ["tile-data": ["file-data": ["_CFURLString": "file:///Applications/Foo.app/", "_CFURLStringType": 15]]],
@@ -70,5 +96,23 @@ import Testing
         let result = AppUninstaller.removingDockTile(for: URL(fileURLWithPath: "/Applications/Foo.app"), from: tiles)
         #expect(result?.count == 1)
         #expect(AppUninstaller.removingDockTile(for: URL(fileURLWithPath: "/Applications/Baz.app"), from: tiles) == nil)
+    }
+
+    @Test func shortIdentifiersCannotSelectOtherGroupContainers() throws {
+        let home = try makeHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let appURL = home.appendingPathComponent("Applications/Test.app")
+        try touch(appURL, directory: true)
+        for name in ["group.com.apple.example", "group.com.google.example", "TEAM.com.google", "com"] {
+            try touch(home.appendingPathComponent("Library/Group Containers/" + name), directory: true)
+        }
+        for identifier in ["com", "com.google", "com..google"] {
+            let app = InstalledApp(url: appURL, name: "Test", bundleIdentifier: identifier, version: nil, teamIdentifier: nil)
+            let found = Set(AppUninstaller.leftovers(for: app, home: home.path).map { $0.url.lastPathComponent })
+            #expect(found.contains("group.com.apple.example") == false)
+            #expect(found.contains("group.com.google.example") == false)
+            #expect(found.contains("TEAM.com.google") == false)
+            if identifier == "com" { #expect(found.contains("com")) }
+        }
     }
 }
