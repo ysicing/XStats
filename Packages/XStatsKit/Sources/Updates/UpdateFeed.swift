@@ -75,9 +75,24 @@ public enum UpdateArchitecture: Sendable, Equatable {
 }
 
 public enum UpdateFeed {
-    public static let url = URL(string: "https://getopenstats.com/api/v1/update/check")!
+    private static let globalURL = URL(string: "https://xstats-apps.12306.work/api/v1/update/check")!
+    private static let chinaURL = URL(string: "https://x-stats.china.12306.work/api/v1/update/check")!
 
-    public static func checkRequest(currentVersion: String, installationID: String) throws -> URLRequest {
+    public static func prefersChinaEndpoint(locale: Locale = .autoupdatingCurrent) -> Bool {
+        locale.region?.identifier.uppercased() == "CN"
+    }
+
+    /// 只串行请求：首选成功后不再访问备用端点，避免同一次检查被两边同时统计。
+    public static func checkURLs(prefersChina: Bool) -> [URL] {
+        prefersChina ? [chinaURL, globalURL] : [globalURL, chinaURL]
+    }
+
+    public static func checkRequest(
+        url: URL,
+        currentVersion: String,
+        installationID: String,
+        operatingSystemVersion: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion
+    ) throws -> URLRequest {
         struct Body: Encodable {
             let currentVersion: String
             let installationID: String
@@ -91,7 +106,10 @@ public enum UpdateFeed {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("XStats", forHTTPHeaderField: "User-Agent")
+        var systemComponents = [operatingSystemVersion.majorVersion, operatingSystemVersion.minorVersion]
+        if operatingSystemVersion.patchVersion > 0 { systemComponents.append(operatingSystemVersion.patchVersion) }
+        let systemVersion = systemComponents.map(String.init).joined(separator: ".")
+        request.setValue("XStats/\(currentVersion) (macOS \(systemVersion))", forHTTPHeaderField: "User-Agent")
         request.httpBody = try JSONEncoder().encode(Body(currentVersion: currentVersion, installationID: installationID))
         return request
     }

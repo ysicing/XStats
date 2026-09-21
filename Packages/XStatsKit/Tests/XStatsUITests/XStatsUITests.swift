@@ -122,6 +122,28 @@ private func isolatedDefaults() -> UserDefaults {
         let controller = UpdateController(settings: AppSettings(defaults: isolatedDefaults()))
         #expect(controller.installBlockedReason != nil)
     }
+
+    @Test func updateCheckFallsBackSequentially() async throws {
+        let feed = Data(#"{"version":"2026.09.21.03","build":"108","date":"2026-09-21","minimumSystem":"14.0","url":"https://example.test/XStats.zip","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":123,"notes":["fallback"]}"#.utf8)
+        var requested: [String] = []
+        let result = await UpdateController.fetch(
+            currentVersion: "2026.09.21.02",
+            installationID: String(repeating: "b", count: 64),
+            prefersChina: true
+        ) { request in
+            let url = try #require(request.url)
+            requested.append(url.absoluteString)
+            if requested.count == 1 { throw URLError(.cannotConnectToHost) }
+            let response = try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (feed, response)
+        }
+
+        #expect(try result.get().version == "2026.09.21.03")
+        #expect(requested == [
+            "https://x-stats.china.12306.work/api/v1/update/check",
+            "https://xstats-apps.12306.work/api/v1/update/check",
+        ])
+    }
 }
 
 @Suite struct DiagnosticsTests {

@@ -25,7 +25,7 @@
       <div class="section-head">
         <p><a href="./">← 返回 XStats</a></p>
         <h2>隐私政策</h2>
-        <p>最后更新：2026-09-21。本页说明 XStats 与 getopenstats.com 会处理哪些数据。</p>
+        <p>最后更新：2026-09-21。本页说明 XStats 与区域更新服务会处理哪些数据。</p>
       </div>
 
       <div class="section-head">
@@ -36,7 +36,7 @@
         <li><b>公网 IP</b><span>打开网络详情时向 Cloudflare 查询一次公网地址，10 分钟内不重复，可在设置中关闭</span></li>
         <li><b>归属地</b><span>归属地、ASN、网络类型与纯净度评分由 cleanip.io 提供：这台 Mac 直接向它查询自己的公网 IP，只发送这个地址、不带其他信息，不经过 XStats 的服务器</span></li>
         <li><b>连接探测</b><span>打开网络详情时每秒 ping 一次你选择的目标（后台每 10 秒），只在显示网络项时运行，可关闭</span></li>
-        <li><b>检查更新</b><span>启动时与每天一次发送当前版本和随机安装标识的 SHA-256，并读取版本清单；关闭自动检查更新后不再自动请求</span></li>
+        <li><b>检查更新</b><span>启动时与每天一次发送当前版本和随机安装标识的 SHA-256，并读取版本清单；中国地区优先请求 x-stats.china.12306.work，其他地区优先请求 xstats-apps.12306.work，失败时才串行回退；关闭自动检查更新后不再自动请求</span></li>
       </ul>
 
       <div class="section-head" style="margin-top: var(--space-16)">
@@ -48,7 +48,7 @@
         <li><b>不保存的内容</b><span>随机 ID 原值、硬件序列号、任何监控数据、进程列表、清理记录与历史记录；请求 IP 只用于一分钟内的内存限流，不持久化</span></li>
         <li><b>用途</b><span>只用于计算独立安装数、24 小时活跃数和已安装版本分布，不用于广告或跨服务追踪</span></li>
         <li><b>停止发送</b><span>在「设置 · 关于」关闭自动检查更新后，不再自动发送；手动检查更新仍会产生一次请求</span></li>
-        <li><b>设置同步</b><span>只连接你自己配置的 WebDAV 服务器；不会把设置、密码、监控指标或历史记录发送到 getopenstats.com</span></li>
+        <li><b>设置同步</b><span>只连接你自己配置的 WebDAV 服务器；不会把设置、密码、监控指标或历史记录发送到区域更新服务</span></li>
       </ul>
 
       <div class="section-head" style="margin-top: var(--space-16)">

@@ -36,8 +36,9 @@ XSTATS_RELEASE_TOKEN='本地测试令牌' go run .
 
 默认监听 `:8080`，数据库为当前目录的 `xstats-api.sqlite`；可通过 `XSTATS_LISTEN` 和
 `XSTATS_DATABASE` 覆盖。`GET /stats` 是聚合统计大屏。正式发版前在环境中设置
-`XSTATS_RELEASE_TOKEN`；如接口地址不是默认值，再设置 `XSTATS_API_URL`。发布脚本会在安装包上传完成后
-把 `dist/appcast.json` 提交到 `PUT /api/v1/releases/current`。
+`XSTATS_RELEASE_TOKEN`。发布脚本默认把 `dist/appcast.json` 同时提交到全球与国内服务的
+`PUT /api/v1/releases/current`；可用逗号分隔的 `XSTATS_API_URLS` 覆盖完整列表，旧的
+`XSTATS_API_URL` 仍可覆盖为单个接口。
 
 服务镜像可从仓库根目录构建：
 

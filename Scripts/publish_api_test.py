@@ -2,6 +2,8 @@
 # Copyright (C) 2026 ysicing
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+import contextlib
+import io
 import json
 import tempfile
 import threading
@@ -13,15 +15,23 @@ import publish_api
 
 
 class PublishAPITest(unittest.TestCase):
+    def test_defaults_to_both_regional_endpoints(self) -> None:
+        self.assertEqual(publish_api.configured_endpoints({}), [
+            "https://xstats-apps.12306.work/api/v1/releases/current",
+            "https://x-stats.china.12306.work/api/v1/releases/current",
+        ])
+
     def test_sends_manifest_with_bearer_token(self) -> None:
-        received = {}
+        received = []
 
         class Handler(BaseHTTPRequestHandler):
             def do_PUT(self) -> None:
-                received["path"] = self.path
-                received["authorization"] = self.headers.get("Authorization")
-                received["content_type"] = self.headers.get("Content-Type")
-                received["body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                received.append({
+                    "path": self.path,
+                    "authorization": self.headers.get("Authorization"),
+                    "content_type": self.headers.get("Content-Type"),
+                    "body": json.loads(self.rfile.read(int(self.headers["Content-Length"]))),
+                })
                 self.send_response(204)
                 self.end_headers()
 
@@ -35,16 +45,19 @@ class PublishAPITest(unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / "appcast.json"
                 path.write_text('{"version":"2026.09.21.03"}', encoding="utf-8")
-                publish_api.publish(path, f"http://127.0.0.1:{server.server_port}/api/v1/releases/current", "release-secret")
+                base = f"http://127.0.0.1:{server.server_port}"
+                with contextlib.redirect_stdout(io.StringIO()):
+                    publish_api.publish(path, [f"{base}/global", f"{base}/china"], "release-secret")
         finally:
             server.shutdown()
             thread.join()
             server.server_close()
 
-        self.assertEqual(received["path"], "/api/v1/releases/current")
-        self.assertEqual(received["authorization"], "Bearer release-secret")
-        self.assertEqual(received["content_type"], "application/json")
-        self.assertEqual(received["body"], {"version": "2026.09.21.03"})
+        self.assertEqual([item["path"] for item in received], ["/global", "/china"])
+        for item in received:
+            self.assertEqual(item["authorization"], "Bearer release-secret")
+            self.assertEqual(item["content_type"], "application/json")
+            self.assertEqual(item["body"], {"version": "2026.09.21.03"})
 
 
 if __name__ == "__main__":

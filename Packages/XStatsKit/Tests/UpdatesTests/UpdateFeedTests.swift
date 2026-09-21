@@ -18,19 +18,32 @@ import Testing
     }
 
     @Test func buildsAnAnonymousInstallationCheckRequest() throws {
+        let endpoint = try #require(URL(string: "https://x-stats.china.12306.work/api/v1/update/check"))
         let request = try UpdateFeed.checkRequest(
+            url: endpoint,
             currentVersion: "2026.09.21.02",
-            installationID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            installationID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            operatingSystemVersion: OperatingSystemVersion(majorVersion: 15, minorVersion: 7, patchVersion: 0)
         )
-        #expect(request.url?.absoluteString == "https://getopenstats.com/api/v1/update/check")
+        #expect(request.url == endpoint)
         #expect(request.httpMethod == "POST")
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+        #expect(request.value(forHTTPHeaderField: "User-Agent") == "XStats/2026.09.21.02 (macOS 15.7)")
         let body = try #require(request.httpBody)
         let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: String])
         #expect(json == [
             "current_version": "2026.09.21.02",
             "installation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         ])
+    }
+
+    @Test func ordersRegionalEndpointsWithoutDuplicatingRequests() {
+        let global = "https://xstats-apps.12306.work/api/v1/update/check"
+        let china = "https://x-stats.china.12306.work/api/v1/update/check"
+        #expect(UpdateFeed.checkURLs(prefersChina: true).map(\.absoluteString) == [china, global])
+        #expect(UpdateFeed.checkURLs(prefersChina: false).map(\.absoluteString) == [global, china])
+        #expect(UpdateFeed.prefersChinaEndpoint(locale: Locale(identifier: "zh_CN")))
+        #expect(!UpdateFeed.prefersChinaEndpoint(locale: Locale(identifier: "en_US")))
     }
 
     @Test func parsesAndRejectsBadFeeds() throws {

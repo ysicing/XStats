@@ -106,16 +106,43 @@ public final class UpdateController {
     private static func fetch(currentVersion: String) async -> Result<UpdateRelease, UpdateError> {
         do {
             let installationID = try InstallationIdentity().hashedID()
-            let request = try UpdateFeed.checkRequest(currentVersion: currentVersion, installationID: installationID)
-            let (data, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-                return .failure(.download(tr("服务器返回 \(http.statusCode)")))
-            }
-            guard let release = UpdateFeed.parse(data) else { return .failure(.download(tr("版本清单格式不正确"))) }
-            return .success(release)
+            return await fetch(
+                currentVersion: currentVersion,
+                installationID: installationID,
+                prefersChina: UpdateFeed.prefersChinaEndpoint()
+            ) { try await URLSession.shared.data(for: $0) }
         } catch {
             return .failure(.download(error.localizedDescription))
         }
+    }
+
+    static func fetch(
+        currentVersion: String,
+        installationID: String,
+        prefersChina: Bool,
+        send: (URLRequest) async throws -> (Data, URLResponse)
+    ) async -> Result<UpdateRelease, UpdateError> {
+        var lastError = UpdateError.download(tr("没有可用的更新服务"))
+        for endpoint in UpdateFeed.checkURLs(prefersChina: prefersChina) {
+            do {
+                let request = try UpdateFeed.checkRequest(
+                    url: endpoint, currentVersion: currentVersion, installationID: installationID
+                )
+                let (data, response) = try await send(request)
+                if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+                    lastError = .download(tr("服务器返回 \(http.statusCode)"))
+                    continue
+                }
+                guard let release = UpdateFeed.parse(data) else {
+                    lastError = .download(tr("版本清单格式不正确"))
+                    continue
+                }
+                return .success(release)
+            } catch {
+                lastError = .download(error.localizedDescription)
+            }
+        }
+        return .failure(lastError)
     }
 
     /// 截图用：直接放入一个示例版本

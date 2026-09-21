@@ -203,7 +203,9 @@ check in Settings → About:
   Tencent or your router) once a second while network details are open (every 10 seconds in the background), only while the network item is in the menu bar
   or network details are open.
 - **Update check and installation statistics**: at launch and once a day, the app sends the current version and the
-  SHA-256 of a random installation ID to getopenstats.com and reads the version manifest. The server stores only that
+  SHA-256 of a random installation ID and reads the version manifest. China-region locales prefer
+  `x-stats.china.12306.work`; all others prefer `xstats-apps.12306.work`. The app falls back serially to the other endpoint
+  only after a failure and stops after the first success. The server stores only that
   hash, the current version, first and last check times, and the check count; it does not store a hardware serial number
   or persist request IPs (an IP is used only for an in-memory one-minute rate limit). The original random value stays in the local Keychain. Turning off automatic update checks stops these
   automatic requests. When a new version is out it asks; nothing installs without your click.
