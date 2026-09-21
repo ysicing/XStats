@@ -162,6 +162,7 @@ npm 缓存	npm Cache
 上传与下载速度、IP 地址、DNS	Upload and download speed, IP addresses, DNS
 上传本机设置	Upload this Mac's settings
 上次同步：{}	Last synced: {}
+上次更新：{}	Last updated: {}
 上次检查 {}，最新 {}	Last checked {}, latest {}
 上次检查发现问题	Last check found problems
 上次检查正常	Last check was fine
@@ -1087,7 +1088,7 @@ npm 缓存	npm Cache
 这段时间没有记录	No records for this period
 这段时间还没有记录。XStats 运行时每分钟记录一次，睡眠与锁屏期间不记录。	No records for this period yet. XStats records once a minute while running, except during sleep and lock.
 这里列出资源库里的 LaunchAgents 与 LaunchDaemons。停用只写入系统的停用记录并卸载，不删除文件，随时可以重新启用；登录时打开的应用与后台权限在系统设置里管理。	Lists LaunchAgents and LaunchDaemons from your Library folders. Turning one off records it as disabled and unloads it without deleting files, so you can turn it back on anytime. Login apps and background permissions are managed in System Settings.
-这里只显示已连接蓝牙设备的电量	Only connected Bluetooth devices are shown here
+这里显示已连接设备，以及最近 30 分钟内读到的设备电量	Shows connected devices and battery readings seen in the last 30 minutes
 进程	Processes
 进程 {} · 线程 {}	Processes {} · Threads {}
 进程名：{}	Process name: {}

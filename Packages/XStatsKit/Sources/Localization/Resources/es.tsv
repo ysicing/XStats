@@ -158,6 +158,7 @@ npm 缓存	Caché de npm
 上传并覆盖	Subir y sobrescribir
 上传本机设置	Subir ajustes de este Mac
 上次同步：{}	Última sincronización: {}
+上次更新：{}	Última actualización: {}
 上次检查 {}，最新 {}	Última comprobación {}, versión más reciente {}
 上次检查发现问题	Se encontraron problemas en la última comprobación
 上次检查正常	Última comprobación correcta
@@ -1111,7 +1112,7 @@ npm 缓存	Caché de npm
 这段时间没有记录	Sin registros en este periodo
 这段时间还没有记录。XStats 运行时每分钟记录一次，睡眠与锁屏期间不记录。	Aún no hay registros. XStats registra cada minuto mientras funciona, excepto durante el reposo y el bloqueo.
 这里列出资源库里的 LaunchAgents 与 LaunchDaemons。停用只写入系统的停用记录并卸载，不删除文件，随时可以重新启用；登录时打开的应用与后台权限在系统设置里管理。	Muestra LaunchAgents y LaunchDaemons de tus bibliotecas. Desactivarlos registra el estado y los descarga sin borrar archivos, por lo que puedes reactivarlos. Las apps de inicio y permisos en segundo plano se gestionan en Ajustes del Sistema.
-这里只显示已连接蓝牙设备的电量	Solo se muestran los dispositivos Bluetooth conectados
+这里显示已连接设备，以及最近 30 分钟内读到的设备电量	Muestra dispositivos conectados y baterías leídas en los últimos 30 minutos
 进程	Procesos
 进程 {} · 线程 {}	Procesos {} · Hilos {}
 进程名：{}	Nombre del proceso: {}

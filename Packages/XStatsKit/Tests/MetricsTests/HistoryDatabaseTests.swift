@@ -66,4 +66,55 @@ import Testing
         #expect(BluetoothBatteryReader.percentValue("120%") == nil)
         #expect(BluetoothBatteryReader.parseSystemProfiler(Data("oops".utf8)).isEmpty)
     }
+
+    @Test func parsesNamedAccessoryPowerSources() {
+        let output = """
+        Now drawing from 'AC Power'
+         -Magic Keyboard (id=1234)\t98%; discharging present: true
+         -大唐西域进贡上等白玉耳坠 (id=5678)\t76%;
+         - (id=9999)\t24%; discharging present: true
+        """
+
+        let devices = BluetoothBatteryReader.parsePMSet(output)
+
+        #expect(devices.map(\.name) == ["Magic Keyboard", "大唐西域进贡上等白玉耳坠"])
+        #expect(devices.map { $0.batteries.first?.percent } == [98, 76])
+        #expect(devices.map(\.kind) == [.keyboard, .other])
+    }
+
+    @Test func mergesBatterySourcesByDeviceName() {
+        let profiler = BluetoothDevice(name: "Magic Keyboard", address: "AA:BB", kind: .keyboard, batteries: [])
+        let powerSource = BluetoothDevice(name: "Magic Keyboard", address: "", kind: .keyboard, batteries: [("电量", 98)])
+        let headphones = BluetoothDevice(name: "Headphones", address: "", kind: .headphones, batteries: [("电量", 76)])
+
+        let devices = BluetoothBatteryReader.merge([profiler], with: [powerSource, headphones])
+
+        #expect(devices.count == 2)
+        #expect(devices.first { $0.name == "Magic Keyboard" }?.address == "AA:BB")
+        #expect(devices.first { $0.name == "Magic Keyboard" }?.batteries.first?.percent == 98)
+    }
+
+    @Test func mergesUnnamedHIDBatteryByNormalizedAddress() {
+        let profiler = BluetoothDevice(name: "Magic Trackpad", address: "3C:A6:F6:BF:79:DC", kind: .trackpad, batteries: [])
+        let hid = BluetoothDevice(name: "", address: "3c-a6-f6-bf-79-dc", kind: .trackpad, batteries: [("电量", 23)])
+
+        let devices = BluetoothBatteryReader.merge([profiler], with: [hid])
+
+        #expect(devices.count == 1)
+        #expect(devices.first?.name == "Magic Trackpad")
+        #expect(devices.first?.batteries.first?.percent == 23)
+    }
+
+    @Test func keepsSameNameDevicesSeparateWhenAddressesDiffer() {
+        let first = BluetoothDevice(name: "Gamepad", address: "AA:AA", kind: .other, batteries: [])
+        let second = BluetoothDevice(name: "Gamepad", address: "BB:BB", kind: .other, batteries: [])
+        let firstBattery = BluetoothDevice(name: "Gamepad", address: "aa-aa", kind: .other, batteries: [("电量", 80)])
+        let secondBattery = BluetoothDevice(name: "Gamepad", address: "bb-bb", kind: .other, batteries: [("电量", 60)])
+
+        let devices = BluetoothBatteryReader.merge([first, second], with: [firstBattery, secondBattery])
+
+        #expect(devices.count == 2)
+        #expect(devices.first { $0.address == "AA:AA" }?.batteries.first?.percent == 80)
+        #expect(devices.first { $0.address == "BB:BB" }?.batteries.first?.percent == 60)
+    }
 }

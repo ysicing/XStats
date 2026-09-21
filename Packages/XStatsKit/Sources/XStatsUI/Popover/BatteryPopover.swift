@@ -3,7 +3,7 @@ import Localization
 import Metrics
 import SwiftUI
 
-/// 电池详情：电量与充电状态、最近 24 小时电量曲线、功耗、健康度，以及已连接蓝牙设备的电量。
+/// 电池详情：电量与充电状态、最近 24 小时电量曲线、功耗、健康度，以及蓝牙设备的当前或最近电量。
 /// 没有电池的 Mac（mini、Studio、iMac）只显示蓝牙设备
 struct BatteryPopover: View {
     @Environment(AppModel.self) private var model
@@ -86,7 +86,8 @@ private struct BatteryHero: View {
                         .foregroundStyle(DS.Palette.textSecondary)
                     VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
                         Text(tr("这台 Mac 没有电池")).dsFont(.sm, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
-                        Text(tr("这里只显示已连接蓝牙设备的电量")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                        Text(tr("这里显示已连接设备，以及最近 30 分钟内读到的设备电量"))
+                            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                     }
                     Spacer(minLength: 0)
                 }
@@ -171,7 +172,7 @@ private struct BatteryHealthSection: View {
 
 // MARK: - 蓝牙设备
 
-/// 已连接蓝牙设备的电量；弹窗打开期间每分钟刷新，也可以手动刷新
+/// 蓝牙设备的当前或最近电量；弹窗打开期间每分钟刷新，也可以手动刷新
 private struct BluetoothSection: View {
     @Environment(AppModel.self) private var model
 
@@ -188,7 +189,7 @@ private struct BluetoothSection: View {
     }
 }
 
-/// 蓝牙设备电量列表：本机信息页与电池弹窗共用
+/// 蓝牙设备电量列表：本机信息页与电池弹窗共用；暂时断开的设备以灰色显示最近读数
 struct BluetoothDeviceList: View {
     let devices: [BluetoothDevice]?
 
@@ -205,7 +206,7 @@ struct BluetoothDeviceList: View {
                         .frame(width: DS.Size.iconStandalone)
                     Text(verbatim: device.name)
                         .dsFont(.xs, weight: .medium)
-                        .foregroundStyle(DS.Palette.textPrimary)
+                        .foregroundStyle(device.isConnected ? DS.Palette.textPrimary : DS.Palette.textTertiary)
                         .lineLimit(1)
                     Spacer(minLength: DS.Space.s2)
                     if device.batteries.isEmpty {
@@ -217,14 +218,21 @@ struct BluetoothDeviceList: View {
                                 Text(verbatim: battery.label).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                             }
                             ProgressTrack(fraction: Double(battery.percent) / 100,
-                                          color: battery.percent <= 20 ? DS.Palette.error : DS.Palette.success,
+                                          color: device.isConnected
+                                              ? (battery.percent <= 20 ? DS.Palette.error : DS.Palette.success)
+                                              : DS.Palette.textTertiary,
                                           height: DS.Space.s1 + DS.Space.s1 / 2)
                                 .frame(width: DS.Space.s8)
                             Text(verbatim: "\(battery.percent)%")
                                 .dsFont(.xs, weight: .medium)
-                                .foregroundStyle(DS.Palette.textPrimary)
+                                .foregroundStyle(device.isConnected ? DS.Palette.textPrimary : DS.Palette.textTertiary)
                                 .monospacedDigit()
                         }
+                    }
+                    if !device.isConnected, let lastSeen = device.lastSeen {
+                        Text(tr("上次更新：\(lastSeen.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: L10n.locale)))"))
+                            .dsFont(.xs)
+                            .foregroundStyle(DS.Palette.textTertiary)
                     }
                 }
             }

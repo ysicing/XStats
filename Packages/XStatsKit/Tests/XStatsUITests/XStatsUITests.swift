@@ -11,6 +11,76 @@ private func isolatedDefaults() -> UserDefaults {
 }
 
 @MainActor
+@Suite struct BluetoothDeviceCacheTests {
+    private func device(_ name: String, percent: Int) -> BluetoothDevice {
+        BluetoothDevice(name: name, address: "", kind: .other, batteries: [("电量", percent)])
+    }
+
+    @Test func retainsDisconnectedDevicesForThirtyMinutes() throws {
+        let start = Date(timeIntervalSince1970: 1_000)
+        var cache = BluetoothDeviceCache(retention: 30 * 60)
+        _ = cache.merge(current: [device("耳机", percent: 76), device("触控板", percent: 24)], now: start)
+
+        let recent = cache.merge(current: [device("触控板", percent: 23)], now: start.addingTimeInterval(60))
+
+        let headphones = try #require(recent.first { $0.name == "耳机" })
+        #expect(!headphones.isConnected)
+        #expect(headphones.lastSeen == start)
+        #expect(BluetoothController.lowest(in: recent)?.device.name == "触控板")
+
+        let expired = cache.merge(current: [device("触控板", percent: 22)], now: start.addingTimeInterval(30 * 60 + 1))
+        #expect(!expired.contains { $0.name == "耳机" })
+    }
+
+    @Test func keepsSameNameDevicesSeparateByAddress() {
+        let start = Date(timeIntervalSince1970: 2_000)
+        var cache = BluetoothDeviceCache(retention: 30 * 60)
+        var first = device("Gamepad", percent: 80)
+        first.address = "AA:AA"
+        var second = device("Gamepad", percent: 60)
+        second.address = "BB:BB"
+
+        _ = cache.merge(current: [first, second], now: start)
+        let recent = cache.merge(current: [first], now: start.addingTimeInterval(60))
+
+        #expect(recent.count == 2)
+        #expect(recent.first { $0.address == "AA:AA" }?.isConnected == true)
+        #expect(recent.first { $0.address == "BB:BB" }?.isConnected == false)
+    }
+
+    @Test func upgradesNameIdentityWhenAddressAppears() {
+        let start = Date(timeIntervalSince1970: 3_000)
+        var cache = BluetoothDeviceCache(retention: 30 * 60)
+        let nameOnly = device("Headphones", percent: 76)
+        var withAddress = device("Headphones", percent: 75)
+        withAddress.address = "CC:CC"
+
+        _ = cache.merge(current: [nameOnly], now: start)
+        let current = cache.merge(current: [withAddress], now: start.addingTimeInterval(60))
+
+        #expect(current.count == 1)
+        #expect(current.first?.address == "CC:CC")
+        #expect(current.first?.isConnected == true)
+        #expect(current.first?.batteries.first?.percent == 75)
+    }
+
+    @Test func expiredIdentityDoesNotMigrateToNewNameOnlyDevice() {
+        let start = Date(timeIntervalSince1970: 4_000)
+        var cache = BluetoothDeviceCache(retention: 30 * 60)
+        var old = device("Headphones", percent: 76)
+        old.address = "DD:DD"
+
+        _ = cache.merge(current: [old], now: start)
+        let current = cache.merge(current: [device("Headphones", percent: 90)],
+                                  now: start.addingTimeInterval(30 * 60 + 1))
+
+        #expect(current.count == 1)
+        #expect(current.first?.address.isEmpty == true)
+        #expect(current.first?.batteries.first?.percent == 90)
+    }
+}
+
+@MainActor
 @Suite struct SettingsTests {
     @Test func defaultsAndInvalidValues() {
         let defaults = isolatedDefaults()

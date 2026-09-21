@@ -2,37 +2,69 @@ import Foundation
 import IOKit
 import Localization
 
-/// 已连接蓝牙设备的电量
+/// 蓝牙设备的当前或最近电量
 public struct BluetoothDevice: Sendable, Equatable, Identifiable {
     public enum Kind: String, Sendable {
         case keyboard, mouse, trackpad, headphones, phone, other
     }
 
-    public var id: String { address.isEmpty ? name : address }
+    public var id: String {
+        let normalizedAddress = address.lowercased().filter(\.isHexDigit)
+        if !normalizedAddress.isEmpty { return "address:\(normalizedAddress)" }
+        let normalizedName = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+        return "name:\(normalizedName)"
+    }
     public var name: String
     public var address: String
     public var kind: Kind
     /// 电量（0...100）；耳机分左耳、右耳、充电盒
     public var batteries: [(label: String, percent: Int)]
+    /// false 表示设备最近出现过，但当前读取不到；详情页会以“上次电量”展示
+    public var isConnected = true
+    public var lastSeen: Date? = nil
 
     public static func == (lhs: BluetoothDevice, rhs: BluetoothDevice) -> Bool {
         lhs.id == rhs.id && lhs.name == rhs.name && lhs.kind == rhs.kind
             && lhs.batteries.map(\.label) == rhs.batteries.map(\.label) && lhs.batteries.map(\.percent) == rhs.batteries.map(\.percent)
+            && lhs.isConnected == rhs.isConnected && lhs.lastSeen == rhs.lastSeen
     }
 }
 
-/// 电量来自两处：system_profiler 的蓝牙信息（AirPods 等耳机的左右耳与充电盒）和 IOKit 里 Apple 键盘、鼠标、触控板的 BatteryPercent
+/// 电量来自三处：system_profiler 的蓝牙信息、pmset 的附件电源，以及 IOKit 的 HID BatteryPercent。
 public enum BluetoothBatteryReader {
     public static func read() -> [BluetoothDevice] {
         var devices = parseSystemProfiler(runSystemProfiler())
-        for (product, percent) in hidBatteries() {
-            if let index = devices.firstIndex(where: { $0.name == product }) {
-                if devices[index].batteries.isEmpty { devices[index].batteries = [(tr("电量"), percent)] }
+        devices = merge(devices, with: parsePMSet(runPMSet()))
+        devices = merge(devices, with: hidBatteries())
+        return devices.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// system_profiler、pmset 与 IORegistry 对同一设备提供的信息并不完整，按名称合并并保留已有地址。
+    static func merge(_ devices: [BluetoothDevice], with additions: [BluetoothDevice]) -> [BluetoothDevice] {
+        var result = devices
+        for addition in additions {
+            let normalizedName = addition.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            let nameMatches = result.indices.filter {
+                result[$0].name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")) == normalizedName
+            }
+            let index: Int? = if !addition.address.isEmpty {
+                result.firstIndex(where: { !$0.address.isEmpty && $0.id == addition.id })
+                    ?? nameMatches.first(where: { result[$0].address.isEmpty })
+            } else if !addition.name.isEmpty, nameMatches.count == 1 {
+                nameMatches[0]
             } else {
-                devices.append(BluetoothDevice(name: product, address: "", kind: kind(forName: product, minorType: nil), batteries: [(tr("电量"), percent)]))
+                nil
+            }
+
+            if let index {
+                if result[index].address.isEmpty { result[index].address = addition.address }
+                if result[index].batteries.isEmpty { result[index].batteries = addition.batteries }
+                if result[index].kind == .other { result[index].kind = addition.kind }
+            } else if !addition.name.isEmpty, !addition.address.isEmpty || nameMatches.count <= 1 {
+                result.append(addition)
             }
         }
-        return devices.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return result
     }
 
     /// `system_profiler SPBluetoothDataType -json` 里 device_connected 分组的设备
@@ -64,8 +96,27 @@ public enum BluetoothBatteryReader {
 
     static func percentValue(_ value: Any?) -> Int? {
         if let number = value as? Int { return (0...100).contains(number) ? number : nil }
-        guard let text = value as? String, let number = Int(text.trimmingCharacters(in: CharacterSet(charactersIn: "% "))) else { return nil }
+        guard let text = value as? String else { return nil }
+        let separators = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "%"))
+        let normalized = text.trimmingCharacters(in: separators)
+        guard let number = Int(normalized) else { return nil }
         return (0...100).contains(number) ? number : nil
+    }
+
+    /// `pmset -g accps` 能补充部分 system_profiler / IORegistry 看不到的耳机和第三方 HID 电量。
+    /// 无名称的电源项由 IORegistry 提供产品名，这里跳过以免显示成匿名设备。
+    static func parsePMSet(_ output: String) -> [BluetoothDevice] {
+        output.split(whereSeparator: \.isNewline).compactMap { rawLine in
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard line.hasPrefix("-"), let idRange = line.range(of: "(id=") else { return nil }
+            let name = line[line.index(after: line.startIndex)..<idRange.lowerBound].trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty, let close = line[idRange.upperBound...].firstIndex(of: ")") else { return nil }
+            let remainder = line[line.index(after: close)...]
+            guard let percentText = remainder.split(separator: ";", maxSplits: 1).first,
+                  let percent = percentValue(String(percentText)) else { return nil }
+            return BluetoothDevice(name: name, address: "", kind: kind(forName: name, minorType: nil),
+                                   batteries: [(tr("电量"), percent)])
+        }
     }
 
     static func kind(forName name: String, minorType: String?) -> BluetoothDevice.Kind {
@@ -94,21 +145,42 @@ public enum BluetoothBatteryReader {
         return data
     }
 
-    private static func hidBatteries() -> [(String, Int)] {
+    private static func runPMSet() -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
+        process.arguments = ["-g", "accps"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { return "" }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return process.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : ""
+    }
+
+    private static func hidBatteries() -> [BluetoothDevice] {
         var iterator: io_iterator_t = 0
         guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleDeviceManagementHIDEventService"), &iterator) == KERN_SUCCESS else {
             return []
         }
         defer { IOObjectRelease(iterator) }
-        var results: [(String, Int)] = []
+        var results: [BluetoothDevice] = []
         while case let service = IOIteratorNext(iterator), service != 0 {
             defer { IOObjectRelease(service) }
             guard let percent = IORegistryEntryCreateCFProperty(service, "BatteryPercent" as CFString, kCFAllocatorDefault, 0)?
                     .takeRetainedValue() as? Int,
-                  let product = IORegistryEntryCreateCFProperty(service, "Product" as CFString, kCFAllocatorDefault, 0)?
-                    .takeRetainedValue() as? String,
-                  (0...100).contains(percent), !results.contains(where: { $0.0 == product }) else { continue }
-            results.append((product, percent))
+                  (0...100).contains(percent) else { continue }
+            let product = IORegistryEntryCreateCFProperty(service, "Product" as CFString, kCFAllocatorDefault, 0)?
+                .takeRetainedValue() as? String ?? ""
+            let address = IORegistryEntryCreateCFProperty(service, "DeviceAddress" as CFString, kCFAllocatorDefault, 0)?
+                .takeRetainedValue() as? String ?? ""
+            let category = IORegistryEntryCreateCFProperty(service, "Accessory Category" as CFString, kCFAllocatorDefault, 0)?
+                .takeRetainedValue() as? String
+            let name = product.isEmpty ? (category ?? "") : product
+            let device = BluetoothDevice(name: name, address: address, kind: kind(forName: name, minorType: category),
+                                         batteries: [(tr("电量"), percent)])
+            guard (!device.name.isEmpty || !device.address.isEmpty), !results.contains(where: { $0.id == device.id }) else { continue }
+            results.append(device)
         }
         return results
     }

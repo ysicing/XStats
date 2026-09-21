@@ -223,7 +223,7 @@ struct DisplayInfo {
     }
 }
 
-/// 已连接蓝牙设备的电量；页面打开期间由 BluetoothController 每分钟刷新
+/// 蓝牙设备的当前或最近电量；页面打开期间由 BluetoothController 每分钟刷新
 private struct BluetoothCard: View {
     @Environment(AppModel.self) private var model
 
