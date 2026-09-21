@@ -129,6 +129,15 @@ private func isolatedDefaults() -> UserDefaults {
     }
 }
 
+@Suite struct BluetoothDeviceRowLayoutTests {
+    @Test func expandsOnlyMultipartBatteries() {
+        #expect(BluetoothDeviceRowLayout(batteryCount: 0) == .compact)
+        #expect(BluetoothDeviceRowLayout(batteryCount: 1) == .compact)
+        #expect(BluetoothDeviceRowLayout(batteryCount: 2) == .parts)
+        #expect(BluetoothDeviceRowLayout(batteryCount: 3) == .parts)
+    }
+}
+
 @MainActor
 @Suite struct SettingsTests {
     @Test func defaultsAndInvalidValues() {

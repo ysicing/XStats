@@ -190,6 +190,15 @@ private struct BluetoothSection: View {
 }
 
 /// 蓝牙设备电量列表：本机信息页与电池弹窗共用；暂时断开的设备以灰色显示最近读数
+enum BluetoothDeviceRowLayout: Equatable {
+    case compact
+    case parts
+
+    init(batteryCount: Int) {
+        self = batteryCount > 1 ? .parts : .compact
+    }
+}
+
 struct BluetoothDeviceList: View {
     let devices: [BluetoothDevice]?
 
@@ -199,46 +208,137 @@ struct BluetoothDeviceList: View {
                 Text(tr("没有已连接的蓝牙设备")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
             }
             ForEach(devices) { device in
-                HStack(spacing: DS.Space.s2) {
-                    Image(systemName: device.kind.symbol)
-                        .font(.system(size: DS.TextSize.sm.rawValue))
-                        .foregroundStyle(DS.Palette.textSecondary)
-                        .frame(width: DS.Size.iconStandalone)
-                    Text(verbatim: device.name)
-                        .dsFont(.xs, weight: .medium)
-                        .foregroundStyle(device.isConnected ? DS.Palette.textPrimary : DS.Palette.textTertiary)
-                        .lineLimit(1)
-                    Spacer(minLength: DS.Space.s2)
-                    if device.batteries.isEmpty {
-                        Text(device.isConnected ? tr("不提供电量") : tr("未连接"))
-                            .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
-                    }
-                    ForEach(device.batteries, id: \.label) { battery in
-                        HStack(spacing: DS.Space.s1) {
-                            if device.batteries.count > 1 {
-                                Text(verbatim: battery.label).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
-                            }
-                            ProgressTrack(fraction: Double(battery.percent) / 100,
-                                          color: device.isConnected
-                                              ? (battery.percent <= 20 ? DS.Palette.error : DS.Palette.success)
-                                              : DS.Palette.textTertiary,
-                                          height: DS.Space.s1 + DS.Space.s1 / 2)
-                                .frame(width: DS.Space.s8)
-                            Text(verbatim: "\(battery.percent)%")
-                                .dsFont(.xs, weight: .medium)
-                                .foregroundStyle(device.isConnected ? DS.Palette.textPrimary : DS.Palette.textTertiary)
-                                .monospacedDigit()
-                        }
-                    }
-                    if !device.isConnected, let lastSeen = device.lastSeen {
-                        Text(tr("上次更新：\(lastSeen.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: L10n.locale)))"))
-                            .dsFont(.xs)
-                            .foregroundStyle(DS.Palette.textTertiary)
-                    }
-                }
+                BluetoothDeviceRow(device: device)
             }
         } else {
             Text(tr("正在读取…")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
         }
+    }
+}
+
+private struct BluetoothDeviceRow: View {
+    let device: BluetoothDevice
+
+    private var layout: BluetoothDeviceRowLayout {
+        BluetoothDeviceRowLayout(batteryCount: device.batteries.count)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s1) {
+            HStack(alignment: .center, spacing: DS.Space.s2) {
+                Image(systemName: device.kind.symbol)
+                    .font(.system(size: DS.TextSize.sm.rawValue))
+                    .foregroundStyle(DS.Palette.textSecondary)
+                    .frame(width: DS.Size.iconStandalone)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(verbatim: device.name)
+                        .dsFont(.xs, weight: .medium)
+                        .foregroundStyle(device.isConnected ? DS.Palette.textPrimary : DS.Palette.textTertiary)
+                        .lineLimit(1)
+                    if layout == .parts, let lastSeenText {
+                        Text(lastSeenText)
+                            .dsFont(.xs)
+                            .foregroundStyle(DS.Palette.textTertiary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: DS.Space.s2)
+                if layout == .compact {
+                    if let lastSeenText, let lastSeen = device.lastSeen {
+                        Text(verbatim: lastSeen.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: L10n.locale)))
+                            .dsFont(.xs)
+                            .foregroundStyle(DS.Palette.textTertiary)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .help(lastSeenText)
+                            .accessibilityLabel(lastSeenText)
+                    }
+                    compactValue
+                }
+            }
+
+            if layout == .parts {
+                HStack(alignment: .top, spacing: DS.Space.s2) {
+                    ForEach(device.batteries, id: \.label) { battery in
+                        BluetoothBatteryPart(device: device, battery: battery)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(.leading, DS.Size.iconStandalone + DS.Space.s2)
+                .frame(maxWidth: DS.Size.popoverWidth - DS.Size.iconStandalone - DS.Space.s6,
+                       alignment: .leading)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var lastSeenText: String? {
+        guard !device.isConnected, let lastSeen = device.lastSeen else { return nil }
+        return tr("上次更新：\(lastSeen.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: L10n.locale)))")
+    }
+
+    @ViewBuilder
+    private var compactValue: some View {
+        if let battery = device.batteries.first {
+            HStack(spacing: DS.Space.s1) {
+                batteryTrack(battery)
+                    .frame(width: DS.Space.s8)
+                batteryPercent(battery)
+            }
+        } else {
+            Text(device.isConnected ? tr("不提供电量") : tr("未连接"))
+                .dsFont(.xs)
+                .foregroundStyle(DS.Palette.textTertiary)
+                .lineLimit(1)
+        }
+    }
+
+    private func batteryTrack(_ battery: (label: String, percent: Int)) -> some View {
+        ProgressTrack(fraction: Double(battery.percent) / 100,
+                      color: device.isConnected
+                          ? (battery.percent <= 20 ? DS.Palette.error : DS.Palette.success)
+                          : DS.Palette.textTertiary,
+                      height: DS.Space.s1 + DS.Space.s1 / 2)
+            .accessibilityHidden(true)
+    }
+
+    private func batteryPercent(_ battery: (label: String, percent: Int)) -> some View {
+        Text(verbatim: "\(battery.percent)%")
+            .dsFont(.xs, weight: .medium)
+            .foregroundStyle(device.isConnected ? DS.Palette.textPrimary : DS.Palette.textTertiary)
+            .monospacedDigit()
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+    }
+}
+
+private struct BluetoothBatteryPart: View {
+    let device: BluetoothDevice
+    let battery: (label: String, percent: Int)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
+            Text(verbatim: battery.label)
+                .dsFont(.xs)
+                .foregroundStyle(DS.Palette.textTertiary)
+                .lineLimit(1)
+            HStack(spacing: DS.Space.s1) {
+                ProgressTrack(fraction: Double(battery.percent) / 100,
+                              color: device.isConnected
+                                  ? (battery.percent <= 20 ? DS.Palette.error : DS.Palette.success)
+                                  : DS.Palette.textTertiary,
+                              height: DS.Space.s1 + DS.Space.s1 / 2)
+                    .frame(minWidth: DS.Space.s4, maxWidth: .infinity)
+                    .accessibilityHidden(true)
+                Text(verbatim: "\(battery.percent)%")
+                    .dsFont(.xs, weight: .medium)
+                    .foregroundStyle(device.isConnected ? DS.Palette.textPrimary : DS.Palette.textTertiary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
