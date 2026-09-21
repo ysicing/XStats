@@ -215,7 +215,7 @@ public final class AlertController: NSObject {
     private func checkBluetooth(now: Date = Date()) async {
         guard settings.enabledAlerts.contains(.bluetoothBattery) else { return }
         let devices = await Task.detached { BluetoothBatteryReader.read() }.value
-        for device in devices {
+        for device in Self.connectedBluetoothDevices(devices) {
             guard let lowest = device.batteries.min(by: { $0.percent < $1.percent }), lowest.percent <= 15 else {
                 bluetoothNotified[device.id] = nil
                 continue
@@ -225,6 +225,10 @@ public final class AlertController: NSObject {
             let part = device.batteries.count > 1 ? "\(lowest.label)" : ""
             send(.bluetoothBattery, title: tr("\(device.name)电量低"), body: tr("\(device.name)\(part)只剩 \(lowest.percent)%，记得充电。"))
         }
+    }
+
+    static func connectedBluetoothDevices(_ devices: [BluetoothDevice]) -> [BluetoothDevice] {
+        devices.filter(\.isConnected)
     }
 
     private func fireIfNeeded(_ kind: AlertKind, isActive: Bool, now: Date, body: @autoclosure () -> String) {

@@ -78,6 +78,55 @@ private func isolatedDefaults() -> UserDefaults {
         #expect(current.first?.address.isEmpty == true)
         #expect(current.first?.batteries.first?.percent == 90)
     }
+
+    @Test func showsPairedAccessoryWithoutBatteryAsDisconnected() throws {
+        let now = Date(timeIntervalSince1970: 5_000)
+        var cache = BluetoothDeviceCache(retention: 30 * 60)
+        var paired = device("Headphones", percent: 0)
+        paired.address = "EE:EE"
+        paired.batteries = []
+        paired.isConnected = false
+
+        let devices = cache.merge(current: [paired], now: now)
+
+        let headphones = try #require(devices.first)
+        #expect(!headphones.isConnected)
+        #expect(headphones.batteries.isEmpty)
+        #expect(headphones.lastSeen == nil)
+        #expect(BluetoothController.lowest(in: devices) == nil)
+    }
+
+    @Test func disconnectedMetadataUsesRecentBattery() throws {
+        let start = Date(timeIntervalSince1970: 6_000)
+        var cache = BluetoothDeviceCache(retention: 30 * 60)
+        var connected = device("Headphones", percent: 76)
+        connected.address = "FF:FF"
+        _ = cache.merge(current: [connected], now: start)
+
+        var paired = connected
+        paired.batteries = []
+        paired.isConnected = false
+        let devices = cache.merge(current: [paired], now: start.addingTimeInterval(60))
+
+        let headphones = try #require(devices.first)
+        #expect(!headphones.isConnected)
+        #expect(headphones.batteries.first?.percent == 76)
+        #expect(headphones.lastSeen == start)
+    }
+}
+
+@MainActor
+@Suite struct BluetoothAlertCandidateTests {
+    @Test func keepsConnectedDevicesForAlertStateUpdates() {
+        let connectedLow = BluetoothDevice(name: "Mouse", address: "AA", kind: .mouse, batteries: [("电量", 10)])
+        var disconnectedLow = BluetoothDevice(name: "Headphones", address: "BB", kind: .headphones, batteries: [("电量", 5)])
+        disconnectedLow.isConnected = false
+        let connectedHealthy = BluetoothDevice(name: "Keyboard", address: "CC", kind: .keyboard, batteries: [("电量", 80)])
+
+        let candidates = AlertController.connectedBluetoothDevices([connectedLow, disconnectedLow, connectedHealthy])
+
+        #expect(candidates.map(\.name) == ["Mouse", "Keyboard"])
+    }
 }
 
 @MainActor

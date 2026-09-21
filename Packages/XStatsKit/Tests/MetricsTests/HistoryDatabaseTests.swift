@@ -54,15 +54,23 @@ import Testing
             {"AirPods Pro":{"device_address":"AA:BB","device_minorType":"Headphones","device_batteryLevelLeft":"80%","device_batteryLevelRight":"75 %","device_batteryLevelCase":"40%"}},
             {"Magic Keyboard":{"device_address":"CC:DD","device_minorType":"Keyboard","device_batteryLevelMain":"55%"}}
           ],
-          "device_not_connected":[{"Old Mouse":{"device_address":"EE:FF","device_minorType":"Mouse"}}]}]}
+          "device_not_connected":[
+            {"Old Mouse":{"device_address":"EE:FF","device_minorType":"Mouse"}},
+            {"Nearby Phone":{"device_address":"11:22"}}
+          ]}]}
         """
         let devices = BluetoothBatteryReader.parseSystemProfiler(Data(json.utf8))
-        #expect(devices.count == 2)
+        #expect(devices.count == 3)
         let airpods = devices.first { $0.name == "AirPods Pro" }
         #expect(airpods?.kind == .headphones)
         #expect(airpods?.batteries.map(\.percent) == [80, 75, 40])
         #expect(airpods?.batteries.map(\.label) == ["左耳", "右耳", "充电盒"])
         #expect(devices.first { $0.name == "Magic Keyboard" }?.batteries.first?.percent == 55)
+        let oldMouse = devices.first { $0.name == "Old Mouse" }
+        #expect(oldMouse?.kind == .mouse)
+        #expect(oldMouse?.isConnected == false)
+        #expect(oldMouse?.batteries.isEmpty == true)
+        #expect(!devices.contains { $0.name == "Nearby Phone" })
         #expect(BluetoothBatteryReader.percentValue("120%") == nil)
         #expect(BluetoothBatteryReader.parseSystemProfiler(Data("oops".utf8)).isEmpty)
     }
@@ -116,5 +124,16 @@ import Testing
         #expect(devices.count == 2)
         #expect(devices.first { $0.address == "AA:AA" }?.batteries.first?.percent == 80)
         #expect(devices.first { $0.address == "BB:BB" }?.batteries.first?.percent == 60)
+    }
+
+    @Test func liveBatterySourcePromotesPairedDeviceToConnected() {
+        var paired = BluetoothDevice(name: "Headphones", address: "AA:BB", kind: .headphones, batteries: [])
+        paired.isConnected = false
+        let powerSource = BluetoothDevice(name: "Headphones", address: "", kind: .headphones, batteries: [("电量", 76)])
+
+        let devices = BluetoothBatteryReader.merge([paired], with: [powerSource])
+
+        #expect(devices.first?.isConnected == true)
+        #expect(devices.first?.batteries.first?.percent == 76)
     }
 }

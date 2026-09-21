@@ -86,7 +86,7 @@ private struct BatteryHero: View {
                         .foregroundStyle(DS.Palette.textSecondary)
                     VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
                         Text(tr("这台 Mac 没有电池")).dsFont(.sm, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
-                        Text(tr("这里显示已连接设备，以及最近 30 分钟内读到的设备电量"))
+                        Text(tr("这里显示已配对蓝牙配件，以及最近 30 分钟内读到的电量"))
                             .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                     }
                     Spacer(minLength: 0)
@@ -210,7 +210,8 @@ struct BluetoothDeviceList: View {
                         .lineLimit(1)
                     Spacer(minLength: DS.Space.s2)
                     if device.batteries.isEmpty {
-                        Text(tr("不提供电量")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                        Text(device.isConnected ? tr("不提供电量") : tr("未连接"))
+                            .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                     }
                     ForEach(device.batteries, id: \.label) { battery in
                         HStack(spacing: DS.Space.s1) {

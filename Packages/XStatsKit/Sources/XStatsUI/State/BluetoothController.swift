@@ -16,24 +16,38 @@ struct BluetoothDeviceCache {
         let currentNameCounts = Dictionary(grouping: current, by: Self.normalizedName).mapValues(\.count)
         var currentKeys = Set<String>()
         var result: [BluetoothDevice] = []
-        for var device in current {
+        for var device in current.sorted(by: { $0.isConnected && !$1.isConnected }) {
             var key = Self.key(for: device)
+            var migratedEntry: (device: BluetoothDevice, lastSeen: Date)?
             if entries[key] == nil, currentNameCounts[Self.normalizedName(device)] == 1 {
                 let candidates = entries.filter {
                     Self.normalizedName($0.value.device) == Self.normalizedName(device)
                         && (device.address.isEmpty || $0.value.device.address.isEmpty)
                 }
                 if candidates.count == 1, let previous = candidates.first {
+                    migratedEntry = previous.value
                     entries[previous.key] = nil
                     if device.address.isEmpty { device.address = previous.value.device.address }
                     key = Self.key(for: device)
                 }
             }
             currentKeys.insert(key)
-            device.isConnected = true
-            device.lastSeen = nil
-            entries[key] = (device, now)
-            result.append(device)
+            if device.isConnected {
+                device.lastSeen = nil
+                entries[key] = (device, now)
+                result.append(device)
+            } else if let cached = entries[key] ?? migratedEntry {
+                var recent = cached.device
+                recent.name = device.name
+                recent.address = device.address
+                recent.kind = device.kind
+                recent.isConnected = false
+                recent.lastSeen = cached.lastSeen
+                result.append(recent)
+            } else {
+                device.lastSeen = nil
+                result.append(device)
+            }
         }
 
         for (key, entry) in entries where !currentKeys.contains(key) {

@@ -60,6 +60,7 @@ public enum BluetoothBatteryReader {
                 if result[index].address.isEmpty { result[index].address = addition.address }
                 if result[index].batteries.isEmpty { result[index].batteries = addition.batteries }
                 if result[index].kind == .other { result[index].kind = addition.kind }
+                result[index].isConnected = result[index].isConnected || addition.isConnected
             } else if !addition.name.isEmpty, !addition.address.isEmpty || nameMatches.count <= 1 {
                 result.append(addition)
             }
@@ -67,29 +68,35 @@ public enum BluetoothBatteryReader {
         return result
     }
 
-    /// `system_profiler SPBluetoothDataType -json` 里 device_connected 分组的设备
+    /// 读取已连接设备，以及已配对但未连接的键盘、鼠标、触控板和耳机。
     static func parseSystemProfiler(_ data: Data) -> [BluetoothDevice] {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let sections = root["SPBluetoothDataType"] as? [[String: Any]] else { return [] }
         var devices: [BluetoothDevice] = []
         for section in sections {
-            for entry in section["device_connected"] as? [[String: Any]] ?? [] {
-                for (name, value) in entry {
-                    guard let info = value as? [String: Any] else { continue }
-                    let labels: [(String, String)] = [("device_batteryLevelMain", tr("电量")), ("device_batteryLevel", tr("电量")),
-                                                      ("device_batteryLevelLeft", tr("左耳")), ("device_batteryLevelRight", tr("右耳")),
-                                                      ("device_batteryLevelCase", tr("充电盒"))]
-                    var batteries: [(String, Int)] = []
-                    for (key, label) in labels {
-                        if let percent = percentValue(info[key]), !batteries.contains(where: { $0.0 == label }) {
-                            batteries.append((label, percent))
+            func appendDevices(from key: String, isConnected: Bool) {
+                for entry in section[key] as? [[String: Any]] ?? [] {
+                    for (name, value) in entry {
+                        guard let info = value as? [String: Any] else { continue }
+                        let kind = kind(forName: name, minorType: info["device_minorType"] as? String)
+                        if !isConnected, ![.keyboard, .mouse, .trackpad, .headphones].contains(kind) { continue }
+                        let labels: [(String, String)] = [("device_batteryLevelMain", tr("电量")), ("device_batteryLevel", tr("电量")),
+                                                          ("device_batteryLevelLeft", tr("左耳")), ("device_batteryLevelRight", tr("右耳")),
+                                                          ("device_batteryLevelCase", tr("充电盒"))]
+                        var batteries: [(String, Int)] = []
+                        for (batteryKey, label) in labels {
+                            if let percent = percentValue(info[batteryKey]), !batteries.contains(where: { $0.0 == label }) {
+                                batteries.append((label, percent))
+                            }
                         }
+                        devices.append(BluetoothDevice(name: name, address: info["device_address"] as? String ?? "", kind: kind,
+                                                       batteries: batteries, isConnected: isConnected))
                     }
-                    devices.append(BluetoothDevice(name: name, address: info["device_address"] as? String ?? "",
-                                                   kind: kind(forName: name, minorType: info["device_minorType"] as? String),
-                                                   batteries: batteries))
                 }
             }
+
+            appendDevices(from: "device_connected", isConnected: true)
+            appendDevices(from: "device_not_connected", isConnected: false)
         }
         return devices
     }

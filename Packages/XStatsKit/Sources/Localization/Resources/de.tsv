@@ -1112,7 +1112,7 @@ npm 缓存	npm-Cache
 这段时间没有记录	Keine Aufzeichnungen für diesen Zeitraum
 这段时间还没有记录。XStats 运行时每分钟记录一次，睡眠与锁屏期间不记录。	Noch keine Aufzeichnungen für diesen Zeitraum. XStats zeichnet während des Betriebs jede Minute auf, außer im Ruhezustand oder bei gesperrtem Bildschirm.
 这里列出资源库里的 LaunchAgents 与 LaunchDaemons。停用只写入系统的停用记录并卸载，不删除文件，随时可以重新启用；登录时打开的应用与后台权限在系统设置里管理。	Zeigt LaunchAgents und LaunchDaemons aus den Library-Ordnern. Deaktivieren trägt sie nur als deaktiviert ein und entlädt sie, ohne Dateien zu löschen; eine erneute Aktivierung ist jederzeit möglich. Anmelde-Apps und Hintergrundrechte verwalten Sie in den Systemeinstellungen.
-这里显示已连接设备，以及最近 30 分钟内读到的设备电量	Zeigt verbundene Geräte und in den letzten 30 Minuten gelesene Akkustände
+这里显示已配对蓝牙配件，以及最近 30 分钟内读到的电量	Zeigt gekoppelte Bluetooth-Geräte und in den letzten 30 Minuten gelesene Akkustände
 进程	Prozesse
 进程 {} · 线程 {}	Prozesse {} · Threads {}
 进程名：{}	Prozessname: {}
