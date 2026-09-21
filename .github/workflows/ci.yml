@@ -17,24 +17,29 @@ jobs:
       # future image may not carry.
       - name: Select Xcode
         run: |
-          ls -d /Applications/Xcode*.app
-          XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          find /Applications -maxdepth 1 -type d -name 'Xcode*.app' -print
+          XCODE=$(find /Applications -maxdepth 1 -type d -name 'Xcode_*.app' -print | sort -V | tail -1)
           echo "Using $XCODE"
           sudo xcode-select -s "$XCODE/Contents/Developer"
           swift --version
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: server/api/go.mod
+          cache-dependency-path: server/api/go.sum
+
+      - name: Install build tools
+        run: brew install go-task xcodegen
 
       - name: Test
-        run: make test
+        run: task test
 
       - name: Build app
-        run: make build CONFIG=Release BUMP=0 INSTALL=0
+        run: task build CONFIG=Release BUMP=0 INSTALL=0
 
       - name: Verify bundle
         run: |
-          APP=build/DerivedData/Build/Products/Release/XStats.app
+          APP=build/DerivedData-arm64/Build/Products/Release/XStats.app
           test -x "$APP/Contents/MacOS/XStats"
           test -x "$APP/Contents/MacOS/XStatsHelper"
           test -f "$APP/Contents/Library/LaunchDaemons/work.12306.xstats.helper.plist"
@@ -46,8 +51,8 @@ jobs:
       # that traps on layout fails here rather than the first time a user opens it.
       - name: Render UI snapshots
         run: |
-          build/DerivedData/Build/Products/Release/XStats.app/Contents/MacOS/XStats --snapshot "$PWD/snapshots"
-          test "$(ls snapshots/*.png | wc -l)" -ge 20
+          build/DerivedData-arm64/Build/Products/Release/XStats.app/Contents/MacOS/XStats --snapshot "$PWD/snapshots"
+          test "$(find snapshots -maxdepth 1 -type f -name '*.png' | wc -l | tr -d ' ')" -ge 20
 
       - uses: actions/upload-artifact@v7
         with:
