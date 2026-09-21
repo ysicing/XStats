@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import AppKit
 import HelperShared
 import Localization
@@ -685,7 +690,7 @@ struct HelperSettings: View {
         if case .unavailable(let reason) = helper.status {
             InfoBanner(icon: "exclamationmark.triangle.fill", text: reason, tone: .error)
         }
-        if helper.isReady && helper.isOutdated {
+        if helper.canInstall && helper.isOutdated {
             InfoBanner(icon: "arrow.triangle.2.circlepath", text: HelperClient.outdatedMessage, tone: .warning) {
                 Button(tr("重新安装")) { Task { await helper.reinstall() } }
                     .buttonStyle(DSButtonStyle(kind: .primary))
@@ -698,7 +703,7 @@ struct HelperSettings: View {
         if let team = CodeSigningInfo.currentTeamIdentifier() {
             InfoBanner(icon: "checkmark.seal", text: tr("已使用 Developer ID 签名（团队 \(team)），辅助工具只接受同一团队签名的 XStats。"), tone: .success)
         } else {
-            InfoBanner(icon: "info.circle", text: tr("当前为临时签名的开发构建，辅助工具只能校验应用标识。使用 Developer ID 证书构建后会自动启用团队校验。"), tone: .neutral)
+            InfoBanner(icon: "info.circle", text: HelperClient.signingMessage, tone: .neutral)
         }
     }
 

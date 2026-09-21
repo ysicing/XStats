@@ -89,6 +89,13 @@ a fan in manual mode that XStats did not set is shown as controlled by another p
 
 ## Helper
 
+Protocol 5 removes the identifier-only ad-hoc authentication fallback. Ad-hoc apps refuse helper
+registration and unregister any previously registered helper without connecting to it. Fan and
+lid-closed controls require team signing; maintenance operations keep their existing admin-prompt fallback.
+Readiness requires an authenticated version handshake, not just an enabled SMAppService registration.
+For older helpers, the client unregisters the service before re-registering the current bundle and
+verifying its version. Unregister/handshake failures leave privileged calls disabled and surface an error.
+
 Registered with `SMAppService.daemon`; `RunAtLoad` so that an unclean exit is repaired at
 boot. The XPC interface is a fixed list of operations — no arbitrary commands — and each
 connection gets `setCodeSigningRequirement`. State that must be undone (manual fans, disabled
@@ -201,8 +208,8 @@ version match, `SecStaticCodeCheckValidity` passes with a requirement pinned to 
 team, and `spctl --assess` accepts it (notarized). The old bundle is renamed into a same-volume
 temporary folder, the new one moved into place (restored on failure; an administrator prompt is
 used when the folder is not writable), and a detached shell waits for the process to exit before
-reopening the app. After an update the old helper may still be running; the app disconnects, waits
-for its 30 s idle exit and checks the protocol version again before asking for a reinstall.
+reopening the app. After an update the old helper may still be running; the app unregisters an outdated
+helper, re-registers the bundled version, and verifies the protocol before privileged calls resume.
 
 ## WebDAV settings sync
 

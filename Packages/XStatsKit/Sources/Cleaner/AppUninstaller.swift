@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 import Localization
 
@@ -140,8 +145,9 @@ public enum AppUninstaller {
         scan("Containers", .containers)
         scan("Application Scripts", .containers)
         scan("Group Containers", .containers) { name in
+            guard supportsDerivedNames(id) else { return false }
             // 形如 “TEAMID.com.example.app” 或 “group.com.example.app”
-            name.hasSuffix("." + id) || name == "group." + id || name.hasPrefix("group." + id + ".")
+            return name.hasSuffix("." + id) || name == "group." + id || name.hasPrefix("group." + id + ".")
         }
         scan("Saved Application State", .savedState)
         scan("Logs", .logs) { $0 == app.name }
@@ -162,8 +168,13 @@ public enum AppUninstaller {
         let lowered = name.lowercased()
         let id = identifier.lowercased()
         if lowered == id { return true }
-        guard identifier.split(separator: ".").count >= 3 else { return false }
+        guard supportsDerivedNames(identifier) else { return false }
         return lowered.hasPrefix(id + ".")
+    }
+
+    private static func supportsDerivedNames(_ identifier: String) -> Bool {
+        let parts = identifier.split(separator: ".", omittingEmptySubsequences: false)
+        return parts.count >= 3 && parts.allSatisfy { !$0.isEmpty }
     }
 
     // MARK: 程序坞

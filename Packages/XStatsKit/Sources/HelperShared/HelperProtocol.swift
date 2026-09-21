@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 import Security
 
@@ -6,7 +11,13 @@ public enum HelperConstants {
     public static let launchdPlistName = "work.12306.xstats.helper.plist"
     public static let appBundleIdentifier = "work.12306.xstats.app"
     /// 与 App 版本同步；App 发现辅助工具版本不一致时提示重新安装
-    public static let protocolVersion = 4
+    // 第 5 版起移除 ad-hoc 鉴权降级，旧版必须注销后升级，不能继续保持连接。
+    public static let protocolVersion = 5
+
+    public static func isCompatible(version: Int?) -> Bool {
+        guard let version else { return false }
+        return version >= protocolVersion
+    }
 
     /// 辅助工具对调用方的签名要求：与辅助工具自身同一团队签名的 XStats。
     ///

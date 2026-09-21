@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 import Testing
 @testable import Cleaner
@@ -91,5 +96,23 @@ import Testing
         let result = AppUninstaller.removingDockTile(for: URL(fileURLWithPath: "/Applications/Foo.app"), from: tiles)
         #expect(result?.count == 1)
         #expect(AppUninstaller.removingDockTile(for: URL(fileURLWithPath: "/Applications/Baz.app"), from: tiles) == nil)
+    }
+
+    @Test func shortIdentifiersCannotSelectOtherGroupContainers() throws {
+        let home = try makeHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let appURL = home.appendingPathComponent("Applications/Test.app")
+        try touch(appURL, directory: true)
+        for name in ["group.com.apple.example", "group.com.google.example", "TEAM.com.google", "com"] {
+            try touch(home.appendingPathComponent("Library/Group Containers/" + name), directory: true)
+        }
+        for identifier in ["com", "com.google", "com..google"] {
+            let app = InstalledApp(url: appURL, name: "Test", bundleIdentifier: identifier, version: nil, teamIdentifier: nil)
+            let found = Set(AppUninstaller.leftovers(for: app, home: home.path).map { $0.url.lastPathComponent })
+            #expect(found.contains("group.com.apple.example") == false)
+            #expect(found.contains("group.com.google.example") == false)
+            #expect(found.contains("TEAM.com.google") == false)
+            if identifier == "com" { #expect(found.contains("com")) }
+        }
     }
 }
