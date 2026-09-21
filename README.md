@@ -21,7 +21,7 @@ XStats 是一款 macOS 菜单栏应用，实时显示 Mac 正在做什么：各�
 
 [下载](https://github.com/ysicing/xstats/releases) ·
 [更新日志](CHANGELOG.md) ·
-[架构说明](ARCHITECTURE.md)
+[开发指南](DEVELOPMENT.md)
 
 **简体中文** · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -230,65 +230,10 @@ GitHub、Google、Apple 登录及旧账号后端已移除，设置同步只需�
 
 用 Apple 智能解释进程完全在本机完成，进程信息不会离开这台 Mac。
 
-## 构建与运行
+## 开发者
 
-需要 macOS 14+、**Xcode 26 或更高版本**（仅有 CommandLineTools 时缺少 SwiftUI 宏插件）以及
-[XcodeGen](https://github.com/yonaskolb/XcodeGen)。
-
-```bash
-brew install xcodegen
-make run                  # 生成工程，编译 Release、安装并启动
-make install              # 编译 Release，安装到 /Applications 并启动
-make test                 # 单元测试：指标采集、SMC 编解码、清理安全边界
-make open                 # 生成工程并用 Xcode 打开
-```
-
-菜单栏应用没什么可截图的窗口，可以用本机实时数据渲染各个界面：
-
-```bash
-/Applications/XStats.app/Contents/MacOS/XStats --snapshot ./snapshots
-```
-
-需要测量面板打开时的资源占用，用 `--show-panel` 启动，面板会自动展开并固定。
-
-修改 `CHANGELOG.md` 后运行 `python3 Scripts/sync_changelog.py`，更新上方的“最近更新”和活跃度图。
-
-## 分发
-
-只走 Developer ID，不上 App Store——沙盒不允许访问 SMC、读取其他应用的缓存、安装特权辅助工具，
-而这正是大部分功能。
-
-| 你拥有的 | 别人打开时看到的 |
-|---|---|
-| 什么都没有 | ad-hoc 签名，只能在你自己的 Mac 上运行。别人会看到 *“XStats 已损坏”*。 |
-| Developer ID 证书 | 启用 Hardened Runtime。别人会看到 *“Apple 无法检查其是否包含恶意软件”*。 |
-| 证书 + 公证 | Gatekeeper 放行，只有常规的 *“从互联网下载”* 提示。 |
-
-`make build` 与 `make install` 会自动使用钥匙串里的第一个 Developer ID Application 证书签名，没有证书时退回 ad-hoc。
-辅助工具在运行时读取自己的签名团队，只接受同一团队签名的调用方。
-
-ad-hoc 构建不安装或使用特权辅助工具，风扇控制与合盖运行不可用；DNS、内存维护等已有回退的操作仍可请求一次性管理员授权。启动时会注销已注册的旧 ad-hoc 服务。团队签名构建会注销并升级协议版本低于 5 的辅助工具，验证成功后才允许特权调用。
-
-```bash
-make release                          # 签名、公证、装订，生成 DMG 与 Homebrew cask
-NOTARY_PROFILE=XStats make release # 使用其他 notarytool 钥匙串凭据
-SKIP_NOTARIZE=1 make release          # 生成未公证的 DMG，仅供本机测试
-```
-
-`Scripts/release.sh` 会拒绝生成 Gatekeeper 仍会拒绝的 DMG。
-
-## 架构
-
-- `Packages/XStatsKit/Sources/SMC`——SMC 读写、风扇控制、温度传感器发现。
-- `Packages/XStatsKit/Sources/Metrics`——CPU、内存、网络、GPU、磁盘、电池、进程、传感器的采集器，
-  以及只采集屏幕上需要的指标的 `MetricsHub`。
-- `Packages/XStatsKit/Sources/Cleaner`——清理规则、安全守卫、扫描与执行。
-- `Packages/XStatsKit/Sources/HelperShared`——XPC 协议与系统维护命令。
-- `Packages/XStatsKit/Sources/WebDAVSync`——WebDAV 手动同步与钥匙串密码存储。
-- `Packages/XStatsKit/Sources/XStatsUI`——设计 token、主窗口各页与设置页、详情弹窗、菜单栏绘制。
-- `Helper/`——特权辅助工具及其 launchd 配置；`App/`——应用入口。
-
-更多内容见 [ARCHITECTURE.md](ARCHITECTURE.md)。应用的每一项改动都按日期记录在 [CHANGELOG.md](CHANGELOG.md)。
+二次开发、构建、测试、版本号、签名发布和项目结构见
+[DEVELOPMENT.md](DEVELOPMENT.md)。深入架构说明见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 ## 致谢
 

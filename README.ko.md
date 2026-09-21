@@ -19,7 +19,7 @@ XStats는 CPU 코어별 사용량, GPU, 메모리 압력, 네트워크 속도, �
 사용 통계를 수집하거나 전송하지 않습니다. XStats 계정 없이 자신의 WebDAV 서버로 설정을 수동 백업하고 복원할 수 있습니다.
 공인 IP 조회, 연결 테스트, 업데이트 확인 등의 네트워크 기능은 선택 사항입니다.
 
-[다운로드](https://github.com/ysicing/xstats/releases) · [변경 기록(중국어)](CHANGELOG.md) · [아키텍처(영어)](ARCHITECTURE.md)
+[다운로드](https://github.com/ysicing/xstats/releases) · [변경 기록(중국어)](CHANGELOG.md) · [개발 안내(중국어)](DEVELOPMENT.md)
 
 [简体中文](README.md) · [English](README.en.md) · [日本語](README.ja.md) · **한국어**
 
@@ -173,54 +173,11 @@ JSON 파일 자체는 추가 암호화하지 않으므로 비공개 디렉터리
 처음에는 업로드가 필요합니다. 1 MB를 넘는 파일, 잘못된 형식, 지원하지 않는 버전은 거부하며 로컬 설정을 변경하지 않습니다.
 기존 계정 로그인과 백엔드는 제거되었습니다. iCloud 동기화는 지원하지 않습니다.
 
-## 빌드와 실행
+## 개발자용
 
-macOS 14 이상, **Xcode 26 이상**, [XcodeGen](https://github.com/yonaskolb/XcodeGen)이 필요합니다.
-Command Line Tools만으로는 SwiftUI 매크로 플러그인이 부족합니다.
-
-~~~bash
-brew install xcodegen
-make run                  # Release 빌드, /Applications 설치, 실행
-make install              # make run과 동일
-make test                 # Swift 패키지 테스트
-make open                 # Xcode 프로젝트 생성 후 열기
-~~~
-
-설치 없이 빌드만 하려면 make build BUMP=0 INSTALL=0을 사용하세요. 일반 빌드는 빌드 번호를 올리고 설치된 앱을 교체합니다.
-로컬 데이터를 사용한 화면 캡처는 다음 명령으로 생성합니다.
-
-~~~bash
-/Applications/XStats.app/Contents/MacOS/XStats --snapshot ./snapshots
-~~~
-
-패널을 연 채로 유지하려면 --show-panel을 지정합니다.
-CHANGELOG.md를 수정한 뒤 python3 Scripts/sync_changelog.py를 실행하면 중국어·영어 README의 업데이트 정보와 활동 그래프를 다시 생성합니다.
-
-## 배포
-
-SMC, 다른 앱의 캐시, 권한 있는 보조 프로그램을 사용하므로 App Store 샌드박스를 대상으로 하지 않습니다.
-로컬 빌드는 Developer ID 인증서가 있으면 사용하고, 없으면 ad-hoc 서명을 사용합니다. ad-hoc 빌드는 로컬 검증용입니다.
-일반 배포에는 Developer ID 서명과 Apple 공증이 필요합니다. 보조 프로그램은 자신과 같은 팀으로 서명된 앱만 허용합니다.
-
-ad-hoc 빌드에서는 권한 있는 보조 도구를 등록하거나 사용할 수 없어 팬 및 덮개 제어가 비활성화됩니다. 기존 대체 경로가 있는 유지 관리 작업은 관리자 인증으로 실행할 수 있습니다. 시작 시 이전 ad-hoc 도구의 등록을 해제하며, 팀 서명 빌드는 프로토콜 5 미만의 도구를 등록 해제하고 업데이트한 뒤에만 권한 작업을 허용합니다.
-
-~~~bash
-make release                         # 서명, 공증, 티켓 첨부, DMG와 cask 생성
-NOTARY_PROFILE=XStats make release   # 저장된 공증 프로필 지정
-SKIP_NOTARIZE=1 make release          # 공증하지 않은 로컬 검증용 패키지
-~~~
-
-## 구조
-
-- Packages/XStatsKit/Sources/SMC: SMC 통신, 팬 제어, 온도 센서.
-- Packages/XStatsKit/Sources/Metrics: 지표 수집 및 필요한 항목만 수집하는 MetricsHub.
-- Packages/XStatsKit/Sources/Cleaner: 정리 규칙, 안전 검사, 실행.
-- Packages/XStatsKit/Sources/HelperShared: XPC 프로토콜과 유지 관리 작업.
-- Packages/XStatsKit/Sources/WebDAVSync: WebDAV 클라이언트와 키체인 비밀번호 저장.
-- Packages/XStatsKit/Sources/XStatsUI: 화면, 설정, 팝오버, 메뉴 막대.
-- Helper: 권한 있는 보조 프로그램. App: 앱 진입점.
-
-자세한 내용은 [ARCHITECTURE.md(영어)](ARCHITECTURE.md)를 참고하세요.
+2차 개발, 빌드, 테스트, 버전, 서명·배포는
+[DEVELOPMENT.md](DEVELOPMENT.md)를 참고하세요. 자세한 구조는
+[ARCHITECTURE.md(영어)](ARCHITECTURE.md)에 있습니다.
 
 ## 감사의 글
 

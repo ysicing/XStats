@@ -19,7 +19,7 @@ XStats は、Mac の各 CPU コア、GPU、メモリ負荷、通信速度、デ�
 テレメトリーはありません。XStats のアカウントは不要で、自分の WebDAV サーバーを使って設定を手動でバックアップ・復元できます。
 公開 IP の照会、接続テスト、更新確認などのネットワーク機能は任意です。
 
-[ダウンロード](https://github.com/ysicing/xstats/releases) · [変更履歴（中国語）](CHANGELOG.md) · [アーキテクチャ（英語）](ARCHITECTURE.md)
+[ダウンロード](https://github.com/ysicing/xstats/releases) · [変更履歴（中国語）](CHANGELOG.md) · [開発ガイド（中国語）](DEVELOPMENT.md)
 
 [简体中文](README.md) · [English](README.en.md) · **日本語** · [한국어](README.ko.md)
 
@@ -173,54 +173,11 @@ JSON ファイル自体は追加暗号化しないため、非公開のディレ
 初回はアップロードが必要です。1 MB を超えるファイル、不正な形式、未対応のバージョンは拒否し、ローカル設定を変更しません。
 旧アカウントログインとバックエンドは削除済みです。iCloud 同期には対応していません。
 
-## ビルドと実行
+## 開発者向け
 
-macOS 14 以降、**Xcode 26 以降**、[XcodeGen](https://github.com/yonaskolb/XcodeGen) が必要です。
-Command Line Tools だけでは SwiftUI のマクロプラグインが不足します。
-
-~~~bash
-brew install xcodegen
-make run                  # Release ビルド、/Applications へインストール、起動
-make install              # make run と同じ
-make test                 # Swift パッケージのテスト
-make open                 # Xcode プロジェクトを生成して開く
-~~~
-
-ビルドのみ行う場合は make build BUMP=0 INSTALL=0 を使います。通常のビルドではビルド番号が増え、インストール済みアプリを置き換えます。
-ローカルの表示データを使ったスクリーンショットは次のコマンドで生成できます。
-
-~~~bash
-/Applications/XStats.app/Contents/MacOS/XStats --snapshot ./snapshots
-~~~
-
-パネルを開いたままにする場合は --show-panel を指定します。
-CHANGELOG.md の変更後は python3 Scripts/sync_changelog.py を実行して、中国語・英語 README の更新情報と活動グラフを再生成します。
-
-## 配布
-
-SMC、他アプリのキャッシュ、特権ヘルパーを使うため、App Store のサンドボックス向けではありません。
-ローカルビルドは Developer ID 証明書があれば使用し、なければ ad-hoc 署名を使います。ad-hoc ビルドはローカル検証用です。
-一般配布には Developer ID 署名と Apple の公証が必要です。ヘルパーは自身と同じチームの署名を持つアプリだけを受け付けます。
-
-ad-hoc ビルドでは特権ヘルパーを登録・使用できず、ファンと蓋閉じ制御は利用できません。既存の代替経路があるメンテナンスは管理者認証で実行できます。起動時に旧 ad-hoc ヘルパーを登録解除し、チーム署名ビルドではプロトコル 5 未満のヘルパーを登録解除・更新してから特権操作を許可します。
-
-~~~bash
-make release                         # 署名、公証、ステープル、DMG と cask の生成
-NOTARY_PROFILE=XStats make release   # 保存済みの公証プロファイルを指定
-SKIP_NOTARIZE=1 make release          # 未公証のローカル検証用パッケージ
-~~~
-
-## 構成
-
-- Packages/XStatsKit/Sources/SMC：SMC 通信、ファン制御、温度センサー。
-- Packages/XStatsKit/Sources/Metrics：各種指標の収集と必要な項目だけを取得する MetricsHub。
-- Packages/XStatsKit/Sources/Cleaner：クリーンアップ規則、安全検証、実行。
-- Packages/XStatsKit/Sources/HelperShared：XPC プロトコルとメンテナンス操作。
-- Packages/XStatsKit/Sources/WebDAVSync：WebDAV クライアントとキーチェーンのパスワード保存。
-- Packages/XStatsKit/Sources/XStatsUI：画面、設定、ポップオーバー、メニューバー。
-- Helper：特権ヘルパー。App：アプリのエントリーポイント。
-
-詳細は [ARCHITECTURE.md（英語）](ARCHITECTURE.md) を参照してください。
+二次開発、ビルド、テスト、バージョン、署名・配布は
+[DEVELOPMENT.md](DEVELOPMENT.md) を参照してください。詳しい構成は
+[ARCHITECTURE.md（英語）](ARCHITECTURE.md) にあります。
 
 ## 謝辞
 

@@ -11,9 +11,10 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.6.1"
-    # 构建号四位数字，每次 make build 加一；营销版本只在发布时用 Scripts/version.sh patch / minor 修改
-    CURRENT_PROJECT_VERSION: "0106"
+    # 公开版本号按“年.月.日.当日索引”生成，例如 2026.09.21.01
+    MARKETING_VERSION: "2026.09.21.02"
+    # Apple 内部构建号每次 task build 加一，独立于公开版本号且不重置
+    CURRENT_PROJECT_VERSION: "0107"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     # 本地开发使用 ad-hoc 签名；发布时改为 Developer ID（见 docs/PLAN.md）
     CODE_SIGN_STYLE: Manual

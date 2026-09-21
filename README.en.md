@@ -23,7 +23,7 @@ Everything is read on your own Mac, and there is no telemetry. No XStats account
 
 [Download](https://github.com/ysicing/xstats/releases) ·
 [Changelog](CHANGELOG.md) ·
-[Architecture](ARCHITECTURE.md)
+[Development](DEVELOPMENT.md)
 
 [简体中文](README.md) · **English** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -223,73 +223,11 @@ Legacy GitHub/Google/Apple login and the old account backend have been removed. 
 
 Process explanations run entirely on device through Apple Intelligence; process details never leave the Mac.
 
-## Build & run
+## Development
 
-Requires macOS 14+, **Xcode 26 or later** (CommandLineTools
-alone lacks the SwiftUI macro plugins) and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
-
-```bash
-brew install xcodegen
-make run                  # generate the project, build Release, install and launch
-make install              # build Release, install into /Applications and launch
-make test                 # unit tests: metrics, SMC decoding, cleanup safety
-make open                 # generate the project and open it in Xcode
-```
-
-The app is a menu-bar agent, so there is little to screenshot. Render the surfaces with
-live data instead:
-
-```bash
-/Applications/XStats.app/Contents/MacOS/XStats --snapshot ./snapshots
-```
-
-To measure the panel while it is open, launch with
-`--show-panel`, which opens the panel and pins it.
-
-After editing `CHANGELOG.md`, run `python3 Scripts/sync_changelog.py` to refresh the recent
-updates above and the activity chart.
-
-## Distribution
-
-Developer ID only, not the App Store — the sandbox forbids talking to the SMC, reading other
-apps' caches and installing a privileged helper, which is most of the feature set.
-
-| What you have | What others get |
-|---|---|
-| Nothing | Ad-hoc signature — runs on your Mac only. Others see *"XStats is damaged"*. |
-| Developer ID certificate | Hardened runtime. Others see *"Apple cannot check it for malicious software"*. |
-| Certificate + notarization | Gatekeeper accepts it — the normal *"downloaded from the internet"* prompt. |
-
-`make build` and `make install` sign with the first Developer ID Application certificate in
-the keychain and fall back to ad-hoc without one. The helper reads its own team at run time
-and accepts only callers signed by the same team.
-
-Ad-hoc builds cannot install or use the privileged helper, so fan and lid-closed controls are unavailable. Maintenance operations with an existing fallback can request one-time administrator authorization. Startup unregisters previously registered ad-hoc helpers. Team-signed builds unregister and upgrade helpers older than protocol 5 before allowing privileged calls.
-
-```bash
-make release                          # sign, notarize, staple, build the DMG and a Homebrew cask
-NOTARY_PROFILE=XStats make release # use another notarytool keychain profile
-SKIP_NOTARIZE=1 make release          # an unnotarized DMG for testing on this Mac only
-```
-
-`Scripts/release.sh` refuses to produce a DMG that Gatekeeper would still reject.
-
-## Architecture
-
-- `Packages/XStatsKit/Sources/SMC` — SMC reads and writes, fan control, temperature
-  sensor discovery.
-- `Packages/XStatsKit/Sources/Metrics` — samplers for CPU, memory, network, GPU, disk,
-  battery, processes and sensors, and `MetricsHub`, which samples only what is on screen.
-- `Packages/XStatsKit/Sources/Cleaner` — cleanup rules, the safety guard, scanning and
-  cleaning.
-- `Packages/XStatsKit/Sources/HelperShared` — the XPC protocol and maintenance commands.
-- `Packages/XStatsKit/Sources/WebDAVSync` — manual WebDAV sync and Keychain password storage.
-- `Packages/XStatsKit/Sources/XStatsUI` — design tokens, the panel, settings and the
-  menu-bar renderer.
-- `Helper/` — the privileged helper and its launchd plist. `App/` — the entry point.
-
-More in [ARCHITECTURE.md](ARCHITECTURE.md). Every change to the app is logged, dated, in
-[CHANGELOG.md](CHANGELOG.md).
+See [DEVELOPMENT.md](DEVELOPMENT.md) for secondary development, builds, tests, versioning,
+signing, releases and project structure. See [ARCHITECTURE.md](ARCHITECTURE.md) for deeper
+architecture notes.
 
 ## Acknowledgements
 

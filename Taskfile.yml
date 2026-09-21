@@ -1,0 +1,111 @@
+# Copyright (C) 2026 ysicing
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+version: '3'
+
+vars:
+  PROJECT: XStats.xcodeproj
+  SCHEME: XStats
+  CONFIG: '{{default "Release" .CONFIG}}'
+  ARCH: '{{default "" .ARCH}}'
+  DERIVED: '{{if .ARCH}}build/DerivedData-{{.ARCH}}{{else}}build/DerivedData{{end}}'
+  APP: '{{.DERIVED}}/Build/Products/{{.CONFIG}}/XStats.app'
+  BUMP: '{{default "1" .BUMP}}'
+  INSTALL: '{{default "1" .INSTALL}}'
+  SIGN_ID:
+    sh: |
+      if [ -n "${SIGN_ID:-}" ]; then
+        printf '%s\n' "$SIGN_ID"
+      else
+        security find-identity -v -p codesigning 2>/dev/null | grep 'Developer ID Application' | head -1 | sed -E 's/.*"(.*)".*/\1/' || true
+      fi
+  TEAM_ID:
+    sh: echo '{{.SIGN_ID}}' | sed -nE 's/.*\(([A-Z0-9]+)\)$/\1/p'
+
+tasks:
+  generate:
+    desc: 由 project.yml 生成 Xcode 工程
+    cmds:
+      - xcodegen generate --quiet
+
+  build:
+    desc: 编译 App（含辅助工具）并安装
+    cmds:
+      - |
+        if [ "{{.BUMP}}" != "0" ]; then ./Scripts/version.sh build; fi
+      - task: compile
+        vars:
+          CONFIG: '{{.CONFIG}}'
+          ARCH: '{{.ARCH}}'
+          SIGN_ID: '{{.SIGN_ID}}'
+      - |
+        if [ "{{.INSTALL}}" != "0" ]; then ./Scripts/install_local.sh "{{.APP}}"; fi
+
+  compile:
+    desc: 只编译 App，不安装
+    deps: [generate]
+    cmds:
+      - |
+        xcodebuild -project "{{.PROJECT}}" -scheme "{{.SCHEME}}" -configuration "{{.CONFIG}}" \
+          -derivedDataPath "{{.DERIVED}}" \
+          {{if .ARCH}}-destination 'generic/platform=macOS' ARCHS={{.ARCH}} ONLY_ACTIVE_ARCH=NO{{else}}-destination 'platform=macOS'{{end}} \
+          -quiet \
+          {{if .TEAM_ID}}CODE_SIGN_IDENTITY="{{.SIGN_ID}}" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM={{.TEAM_ID}}{{if eq .CONFIG "Release"}} OTHER_CODE_SIGN_FLAGS=--timestamp CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO{{end}}{{end}} \
+          build
+
+  run:
+    desc: 编译、安装并启动 App
+    deps: [build]
+
+  install:
+    desc: 编译、安装并启动 App
+    deps: [build]
+
+  release:
+    desc: 签名、公证、装订、打包 DMG 并生成 Homebrew cask
+    cmds:
+      - ./Scripts/release.sh
+
+  stop:
+    desc: 停止正在运行的 App
+    cmds:
+      - pkill -x XStats
+    ignore_error: true
+
+  test:
+    desc: 运行版本脚本和 Swift 单元测试
+    cmds:
+      - bash Scripts/version_test.sh
+      - task: test-swift
+
+  test-swift:
+    internal: true
+    dir: Packages/XStatsKit
+    cmds:
+      - swift test
+
+  snapshot:
+    desc: 用本机实时数据渲染页面截图
+    cmds:
+      - /Applications/XStats.app/Contents/MacOS/XStats --snapshot build/snapshots
+
+  open:
+    desc: 生成工程并用 Xcode 打开
+    deps: [generate]
+    cmds:
+      - open "{{.PROJECT}}"
+
+  clean:
+    desc: 删除构建产物
+    cmds:
+      - rm -rf build
+
+  version:
+    desc: 显示当前版本
+    cmds:
+      - ./Scripts/version.sh
+
+  version-next:
+    desc: 预览下一版本号
+    cmds:
+      - ./Scripts/version.sh next

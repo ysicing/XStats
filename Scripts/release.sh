@@ -19,21 +19,27 @@ DIST="${DIST:-dist}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-GiantAccel}"
 SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null \
   | grep 'Developer ID Application' | head -1 | sed -E 's/.*"(.*)".*/\1/' || true)}"
-VERSION="$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' project.yml | head -1)"
-# 编译架构与文件名里的芯片名：XStats-0.3.1-AppleSilicon.dmg、XStats-0.3.1-Intel.dmg
+# 编译架构与文件名里的芯片名：XStats-2026.09.21.01-AppleSilicon.dmg、XStats-2026.09.21.01-Intel.dmg
 ARCHS=(arm64 x86_64)
 chip() { [ "$1" = arm64 ] && echo AppleSilicon || echo Intel; }
 app_for() { echo "build/DerivedData-$1/Build/Products/Release/XStats.app"; }
 
-# 在线升级的更新摘要取自该版本的更新日志：发版前把 “## 未发布” 改成 “## 版本 · 日期”
-grep -q "^## ${VERSION} · " CHANGELOG.md \
-  || { echo "error: CHANGELOG.md 里没有 “## ${VERSION} · 日期” 标题，先把 “## 未发布” 改成正式版本。" >&2; exit 1; }
+# 在线升级的更新摘要取自下一版本的更新日志：发版前把 “## 未发布” 改成 “## 版本 · 日期”
+NEXT_VERSION="$(./Scripts/version.sh next)"
+grep -q "^## ${NEXT_VERSION} · " CHANGELOG.md \
+  || { echo "error: CHANGELOG.md 里没有 “## ${NEXT_VERSION} · 日期” 标题，先把 “## 未发布” 改成正式版本。" >&2; exit 1; }
 
 if [ -z "$SIGN_ID" ]; then
   echo "error: 钥匙串里没有 Developer ID Application 证书，无法发布。" >&2
   exit 1
 fi
 TEAM_ID="$(echo "$SIGN_ID" | sed -nE 's/.*\(([A-Z0-9]+)\)$/\1/p')"
+
+# 两种芯片共用一个公开版本号和内部构建号：先推进一次，各自构建时不再推进
+./Scripts/version.sh build >/dev/null
+VERSION="$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' project.yml | head -1)"
+BUILD="$(sed -nE 's/^ *CURRENT_PROJECT_VERSION: *"?([0-9]+)"?.*/\1/p' project.yml | head -1)"
+[ "$VERSION" = "$NEXT_VERSION" ] || { echo "error: 版本号生成结果不一致：${VERSION} != ${NEXT_VERSION}" >&2; exit 1; }
 echo "版本 ${VERSION} · 签名身份：${SIGN_ID}"
 
 notarize() {
@@ -46,10 +52,6 @@ trap 'rm -rf "$WORK"' EXIT
 rm -rf "$DIST"
 mkdir -p "$DIST"
 
-# 两种芯片共用一个构建号：先加一次，各自构建时不再加
-./Scripts/version.sh build >/dev/null
-BUILD="$(sed -nE 's/^ *CURRENT_PROJECT_VERSION: *"?([0-9]+)"?.*/\1/p' project.yml | head -1)"
-
 for arch in "${ARCHS[@]}"; do
   APP="$(app_for "$arch")"
   NAME="XStats-${VERSION}-$(chip "$arch")"
@@ -59,7 +61,7 @@ for arch in "${ARCHS[@]}"; do
   # ---- 构建 ------------------------------------------------------------------
 
   rm -rf "$APP"
-  make build CONFIG=Release INSTALL=0 BUMP=0 ARCH="$arch" SIGN_ID="$SIGN_ID"
+  task build CONFIG=Release INSTALL=0 BUMP=0 ARCH="$arch" SIGN_ID="$SIGN_ID"
 
   for binary in "$APP/Contents/MacOS/XStats" "$APP/Contents/MacOS/XStatsHelper" \
                 "$APP/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget"; do
