@@ -63,6 +63,16 @@ tasks:
     cmds:
       - ./Scripts/release.sh
 
+  publish:
+    desc: 发布已构建且已提交推送的制品
+    cmds:
+      - ./Scripts/publish_release.sh
+
+  release-all:
+    desc: 测试、构建、公证、提交推送并完成全部发布
+    cmds:
+      - ./Scripts/release_all.sh
+
   stop:
     desc: 停止正在运行的 App
     cmds:
@@ -74,6 +84,7 @@ tasks:
     cmds:
       - bash Scripts/version_test.sh
       - bash Scripts/arm64_release_test.sh
+      - bash Scripts/release_all_test.sh
       - python3 Scripts/release_provenance_test.py
       - python3 Scripts/publish_api_test.py
       - task: test-api

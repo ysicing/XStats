@@ -57,7 +57,9 @@ write the online-update zip and `appcast.json`, and write a Homebrew cask (`auto
 whose URLs point at the object storage prefix `https://c.ysicing.net/oss/apps/macOS/XStats`.
 The release records the source commit plus version-file hashes in `dist/release-provenance.json`;
 publishing accepts only a clean descendant that changed release metadata, so the Git tag cannot
-silently include source different from the packaged binaries. The helper derives its client
+silently include source different from the packaged binaries. `task release-all` runs tests, builds,
+commits and pushes only release metadata, then publishes every external target; `task publish`
+resumes the idempotent external half without rebuilding. The helper derives its client
 requirement from its own signing team at run time, so no team ID is hard-coded.
 
 ## Sampling

@@ -1,0 +1,7 @@
+# Copyright (C) 2026 ysicing
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+interface:
+  display_name: "XStats Release"
+  short_description: "Build, notarize, publish, and verify XStats releases"
+  default_prompt: "Use $xstats-release to publish and verify the next XStats macOS release."

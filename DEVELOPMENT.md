@@ -111,6 +111,20 @@ NOTARY_PROFILE=XStats task release
 `publish_release.sh` 会验证最终提交只改了允许的版本元数据，且工作区、版本文件与构建记录一致，
 避免安装包与 Git tag 对应源码不一致。
 
+准备好 CHANGELOG 正式标题和四个 README 的版本徽章后，可用一个命令执行完整流程：
+
+```bash
+# 需要提前通过安全环境提供 XSTATS_RELEASE_TOKEN；该命令会 commit、push 并写入所有发布目标
+task release-all
+```
+
+它会依次运行测试、签名公证构建、精确暂存版本元数据、创建并推送 release commit，
+再上传对象存储、创建 GitHub Release、发布双区域清单并更新 Homebrew tap。
+如果 release commit 已推送后外部发布失败，修复外部问题后运行 `task publish` 续跑，
+不要再次运行 `task release-all`，否则会重复推进构建号。
+
+需要逐阶段审阅或手工恢复时，按下面的分步流程执行。
+
 打包完成后按顺序执行：
 
 ```bash
