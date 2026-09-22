@@ -31,10 +31,11 @@ private func defaultsForAIUsage() -> UserDefaults {
     return defaults
 }
 
-private func usageSnapshot(percent: Double, at date: Date = Date(timeIntervalSince1970: 1_800_000_000)) -> AIUsageSnapshot {
-    AIUsageSnapshot(provider: .codex, planName: "Pro 20x",
-                    windows: [AIQuotaWindow(kind: .weekly, usedPercent: percent, resetsAt: nil)],
-                    remainingCredits: nil, fetchedAt: date)
+private func usageSnapshot(tokens: Int, id: AIProviderID = .codex, at date: Date = Date()) -> AIUsageSnapshot {
+    var snapshot = AIUsageSnapshot(provider: id, fetchedAt: date)
+    snapshot.localUsage = LocalUsageReport(rows: [ModelTokenUsage(day: Calendar.current.startOfDay(for: date),
+        model: "test", input: tokens, output: 0, records: 1)], fileCount: 1)
+    return snapshot
 }
 
 @MainActor
@@ -51,9 +52,7 @@ private func usageSnapshot(percent: Double, at date: Date = Date(timeIntervalSin
 
     @Test func disabledSourceIsNotFetchedOrIncludedInReports() async throws {
         let now = Date()
-        var snapshot = usageSnapshot(percent: 0, at: now)
-        snapshot.localUsage = LocalUsageReport(rows: [ModelTokenUsage(day: Calendar.current.startOfDay(for: now),
-            model: "test", input: 100, output: 10)], fileCount: 1)
+        let snapshot = usageSnapshot(tokens: 110, at: now)
         let codex = StubUsageProvider([.success(snapshot)])
         let claude = StubUsageProvider([.success(snapshot)], id: .claude)
         let settings = AppSettings(defaults: defaultsForAIUsage())
@@ -71,11 +70,12 @@ private func usageSnapshot(percent: Double, at date: Date = Date(timeIntervalSin
         #expect(await claude.count() == 1)
         #expect(controller.state(for: .claude).snapshot == nil)
     }
+
     @Test func localReportsFilterProvidersAndSumTodayWithoutLosingCacheCreation() async throws {
         let now = Date()
         let today = Calendar.current.startOfDay(for: now)
         func snapshot(_ id: AIProviderID, tokens: Int, created: Int) -> AIUsageSnapshot {
-            var value = AIUsageSnapshot(provider: id, planName: nil, windows: [], remainingCredits: nil, fetchedAt: now)
+            var value = AIUsageSnapshot(provider: id, fetchedAt: now)
             value.localUsage = LocalUsageReport(rows: [ModelTokenUsage(day: today, model: id.rawValue,
                 input: tokens, cached: 20, output: 10, records: 1, cacheCreated: created)], fileCount: 1)
             return value
@@ -92,6 +92,7 @@ private func usageSnapshot(percent: Double, at date: Date = Date(timeIntervalSin
         #expect(LocalUsageReport.total(try #require(controller.localReport(for: nil)).rows).cacheCreated == 50)
         #expect(controller.localReport(for: nil)?.fileCount == 2)
     }
+
     @Test func navigationExposesAIUsageAsAMonitorAndMenuBarItem() {
         #expect(PanelTab.monitors.contains(.aiUsage))
         #expect(PanelTab(item: .aiUsage) == .aiUsage)
@@ -103,11 +104,26 @@ private func usageSnapshot(percent: Double, at date: Date = Date(timeIntervalSin
 
         #expect(!settings.aiUsageEnabled)
         #expect(settings.aiUsageRefreshMinutes == 30)
-        #expect(settings.aiUsageDisplayMode == .remaining)
+    }
+
+    /// 菜单栏项是这个统计最自然的发现入口。开了却不扫描，用户只会看到一个
+    /// 永远不解释自己的 “AI —”，所以打开菜单栏项要一并打开扫描。
+    @Test func enablingTheMenuBarItemAlsoTurnsScanningOn() {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        #expect(!settings.aiUsageEnabled)
+
+        settings.setEnabled(.aiUsage, true)
+
+        #expect(settings.aiUsageEnabled)
+        #expect(settings.isEnabled(.aiUsage))
+        // 其他指标不应该有这种副作用
+        settings.aiUsageEnabled = false
+        settings.setEnabled(.cpu, true)
+        #expect(!settings.aiUsageEnabled)
     }
 
     @Test func transientFailurePreservesLastGoodSnapshotAsStale() async {
-        let provider = StubUsageProvider([.success(usageSnapshot(percent: 72)), .failure(.network)])
+        let provider = StubUsageProvider([.success(usageSnapshot(tokens: 72)), .failure(.invalidResponse)])
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.aiUsageEnabled = true
         let controller = AIUsageController(settings: settings, providers: [provider])
@@ -115,78 +131,26 @@ private func usageSnapshot(percent: Double, at date: Date = Date(timeIntervalSin
         await controller.refresh()
         await controller.refresh()
 
-        #expect(controller.state(for: .codex).snapshot?.window(.weekly)?.usedPercent == 72)
-        #expect(controller.state(for: .codex).failure == .network)
-        #expect(controller.state(for: .codex).isStale)
+        #expect(controller.todayTokens == 72)
+        #expect(controller.state(for: .codex).failure == .invalidResponse)
+        #expect(controller.localState(for: .codex).stale)
     }
 
-    @Test func authenticationFailureClearsLastGoodSnapshot() async {
-        let provider = StubUsageProvider([.success(usageSnapshot(percent: 72)), .failure(.unauthorized)])
-        let settings = AppSettings(defaults: defaultsForAIUsage())
-        settings.aiUsageEnabled = true
-        let controller = AIUsageController(settings: settings, providers: [provider])
-
-        await controller.refresh()
-        await controller.refresh()
-
-        #expect(controller.state(for: .codex).snapshot == nil)
-        #expect(controller.state(for: .codex).failure == .unauthorized)
-    }
-
-    @Test func rateLimitPreventsRequestsUntilRetryDate() async {
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let provider = StubUsageProvider([.failure(.rateLimited(now.addingTimeInterval(300)))])
-        let settings = AppSettings(defaults: defaultsForAIUsage())
-        settings.aiUsageEnabled = true
-        let controller = AIUsageController(settings: settings, providers: [provider], now: { now })
-
-        await controller.refresh()
-        await controller.refresh()
-
-        #expect(await provider.count() == 1)
-        #expect(controller.state(for: .codex).failure == .rateLimited(now.addingTimeInterval(300)))
-    }
-
-    @Test func menuBarReadingUsesAttentionWindowAndDisplayMode() async throws {
-        let provider = StubUsageProvider([.success(usageSnapshot(percent: 87))])
-        let settings = AppSettings(defaults: defaultsForAIUsage())
-        settings.aiUsageEnabled = true
-        let controller = AIUsageController(settings: settings, providers: [provider])
-
-        await controller.refresh()
-        let reading = try #require(controller.menuBarReading)
-
-        #expect(reading.displayedFraction == 0.13)
-        #expect(reading.usedFraction == 0.87)
-        #expect(reading.kind == .weekly)
-    }
-
-    @Test func disablingTrackingHidesCachedMenuBarReading() async {
-        let provider = StubUsageProvider([.success(usageSnapshot(percent: 87))])
+    @Test func disablingTrackingHidesCachedLocalReport() async {
+        let provider = StubUsageProvider([.success(usageSnapshot(tokens: 87))])
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.aiUsageEnabled = true
         let controller = AIUsageController(settings: settings, providers: [provider])
         await controller.refresh()
+        #expect(controller.todayTokens == 87)
 
         settings.aiUsageEnabled = false
 
-        #expect(controller.menuBarReading == nil)
-    }
-
-    @Test func fixedWindowNeverFallsBackToAnotherQuota() async {
-        let provider = StubUsageProvider([.success(usageSnapshot(percent: 87))])
-        let settings = AppSettings(defaults: defaultsForAIUsage())
-        settings.aiUsageEnabled = true
-        settings.aiUsageFocus = .session
-        let controller = AIUsageController(settings: settings, providers: [provider])
-        await controller.refresh()
-        #expect(controller.menuBarReading == nil)
-        settings.aiUsageFocus = .weekly
-        #expect(controller.menuBarReading?.kind == .weekly)
+        #expect(controller.todayTokens == nil)
     }
 
     @Test func pausedControllerDoesNotFetch() async {
-        let provider = StubUsageProvider([.success(usageSnapshot(percent: 87))])
+        let provider = StubUsageProvider([.success(usageSnapshot(tokens: 87))])
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.aiUsageEnabled = true
         let controller = AIUsageController(settings: settings, providers: [provider])

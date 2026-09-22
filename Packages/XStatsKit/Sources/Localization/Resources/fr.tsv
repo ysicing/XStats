@@ -1217,56 +1217,21 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 ，充电中	, en charge
 ，已从程序坞移除	, retiré du Dock
 ：{}	: {}
-AI 配额	Quota IA
-AI 配额 {}	Quota IA {}
-API Key 无法查询 ChatGPT 订阅配额。	Une clé API ne permet pas de consulter le quota d’abonnement ChatGPT.
-Codex · 数据已过期	Codex · Données périmées
-Codex · 自动显示最紧张的配额	Codex · Affichage automatique du quota le plus limité
-Codex 登录凭据无法读取，请重新登录。	Impossible de lire les identifiants Codex. Reconnectez-vous.
-Codex 登录已过期，请重新登录。	La connexion Codex a expiré. Reconnectez-vous.
-Codex 订阅配额、重置时间与积分余额	Quotas Codex, dates de réinitialisation et crédits
-Codex 返回了无法识别的配额数据。	Codex a renvoyé des données de quota non reconnues.
-Codex 配额	Quota Codex
-Codex 配额服务暂时不可用（HTTP {}）。	Le service de quota Codex est temporairement indisponible (HTTP {}).
-Spark 周配额	Quota hebdomadaire Spark
-XStats 只读 Codex CLI 的本机登录凭据，并直接向 ChatGPT 查询订阅配额；不会保存、刷新或修改登录信息。	XStats lit les identifiants locaux de Codex CLI et interroge directement ChatGPT. Il ne conserve, ne renouvelle et ne modifie pas les identifiants.
-会话	Session
-关闭后停止读取凭据和查询配额	La désactivation arrête la lecture des identifiants et les requêtes de quota
-凭据始终由 Codex CLI 管理。登录过期时，请回到 Codex CLI 重新登录。	Codex CLI gère les identifiants. En cas d’expiration, reconnectez-vous dans Codex CLI.
-剩余	Restant
-后重置	avant réinitialisation
-启用 Codex 配额	Activer le quota Codex
-周配额	Quota hebdomadaire
 尚未启用	Non activé
-尚未登录 Codex，请先在 Codex CLI 中登录。	Vous n’êtes pas connecté à Codex. Connectez-vous d’abord avec Codex CLI.
-暂无配额数据	Aucune donnée de quota
-暂时无法连接 Codex 配额服务。	Le service de quota Codex est temporairement inaccessible.
-本机设置	Réglage local
-查询过于频繁，可在 {} 后重试。	Trop de requêtes. Réessayez après {}.
-查询过于频繁，请稍后重试。	Trop de requêtes. Réessayez plus tard.
 正在刷新	Actualisation
-正在检查本机登录…	Vérification de la connexion locale…
-积分	Crédits
 立即刷新	Actualiser maintenant
-跟踪 Codex	Suivre Codex
-配额查询独立于系统指标刷新	Les requêtes de quota sont indépendantes des mesures système
 默认关闭	Désactivé par défaut
 AI 使用统计	Utilisation IA
 Codex / Claude Code 本机模型与 Token 使用统计	Utilisation locale des modèles et tokens Codex / Claude Code
-时间范围	Période
 今天	Aujourd’hui
-30 天	30 jours
 模型	Modèle
 全部模型	Tous les modèles
-本机记录	Historique local
 输入 Token	Tokens en entrée
 输出 Token	Tokens en sortie
 缓存 Token	Tokens en cache
 缓存命中率	Taux de succès du cache
 用量记录	Relevés d’utilisation
 模型排行	Classement des modèles
-每日用量	Utilisation quotidienne
-日期	Date
 启用使用统计	Activer les statistiques
 只读本机 Codex / Claude Code 会话日志，按模型统计 Token；不读取登录凭据，不查询订阅额度。	Lit les journaux locaux Codex / Claude Code pour compter les tokens par modèle, sans identifiants ni requêtes de quota.
 缓存 Token 已包含在输入中，推理 Token 已包含在输出中。	Les tokens en cache sont inclus en entrée et ceux de raisonnement en sortie.
@@ -1276,9 +1241,7 @@ Codex / Claude Code 本机模型与 Token 使用统计	Utilisation locale des mo
 正在读取会话日志…	Lecture des journaux de session…
 暂无本机用量数据	Aucune donnée d’utilisation locale
 仅统计本机日志，不代表订阅账单或其他设备的用量	Journaux locaux uniquement, pas la facture ni l’utilisation d’autres appareils
-未变化的日志使用缓存	Les journaux inchangés utilisent le cache
 缓存创建 Token	Tokens de création du cache
-1 年	1 an
 Token 活动	Activité des tokens
 每日	Par jour
 每周	Par semaine
