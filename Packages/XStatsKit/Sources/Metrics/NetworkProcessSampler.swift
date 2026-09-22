@@ -119,9 +119,11 @@ public struct NetworkProcessSampler: Sendable {
         let drain = DispatchGroup()
         drain.enter()
         DispatchQueue.global(qos: .utility).async {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            defer { drain.leave() }
+            // 旧的 readDataToEndOfFile() 在超时关闭 pipe 时可能抛出无法由 Swift 捕获的 NSException。
+            // throwing API 会把同一竞争转换成普通 I/O 错误，失败时由调用方按无采样结果处理。
+            guard let data = try? pipe.fileHandleForReading.readToEnd() else { return }
             output.store(data)
-            drain.leave()
         }
 
         let terminated = DispatchSemaphore(value: 0)
