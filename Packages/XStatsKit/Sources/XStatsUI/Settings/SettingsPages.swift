@@ -699,8 +699,8 @@ struct HelperSettings: View {
         if let error = helper.lastError {
             InfoBanner(icon: "exclamationmark.triangle.fill", text: error, tone: .error)
         }
-        if let team = CodeSigningInfo.currentTeamIdentifier() {
-            InfoBanner(icon: "checkmark.seal", text: tr("已使用 Developer ID 签名（团队 \(team)），辅助工具只接受同一团队签名的 XStats。"), tone: .success)
+        if CodeSigningInfo.currentTeamIdentifier() != nil {
+            InfoBanner(icon: "checkmark.seal", text: tr("已使用 Developer ID 签名"), tone: .success)
         } else {
             InfoBanner(icon: "info.circle", text: HelperClient.signingMessage, tone: .neutral)
         }

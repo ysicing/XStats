@@ -481,7 +481,7 @@ npm 缓存	npm Cache
 左侧风扇	Left Fan
 左耳	Left
 已{}“{}”	{} “{}”
-已使用 Developer ID 签名（团队 {}），辅助工具只接受同一团队签名的 XStats。	Signed with Developer ID (team {}); the helper only accepts XStats signed by the same team.
+已使用 Developer ID 签名	Signed with Developer ID
 已停用	Off
 已充满	Charged
 已删除 {} 个快照，腾出的空间稍后会反映在“可清除”里	Deleted {} snapshots; the freed space will show up under purgeable shortly

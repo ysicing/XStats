@@ -484,7 +484,7 @@ npm 缓存	Cache npm
 左侧风扇	Ventilateur gauche
 左耳	Gauche
 已{}“{}”	{} « {} »
-已使用 Developer ID 签名（团队 {}），辅助工具只接受同一团队签名的 XStats。	Signé avec Developer ID (équipe {}) ; l’assistant n’accepte que XStats signé par la même équipe.
+已使用 Developer ID 签名	Signé avec Developer ID
 已停用	Désactivé
 已充满	Chargée
 已删除 {} 个快照，腾出的空间稍后会反映在“可清除”里	{} instantanés supprimés ; l’espace libéré apparaîtra bientôt dans l’espace purgeable
