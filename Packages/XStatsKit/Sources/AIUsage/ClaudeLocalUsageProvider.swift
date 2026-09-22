@@ -6,10 +6,16 @@ import CoreFoundation
 
 /// Claude Code 的输入不包含缓存字段；归一化后与 Codex 共用“含缓存输入”的统计口径。
 public actor ClaudeLocalUsageProvider: AIUsageProvider {
+    /// 解析口径变化时提升版本号；旧命名空间的缓存行会在下一次扫描时被清掉。
+    private static let source = "claude-v2"
     public nonisolated let id = AIProviderID.claude
     private let roots: [URL]
     private let databaseURL: URL
     private var store: UsageScanStore?
+
+    public nonisolated var unownedExecutor: UnownedSerialExecutor {
+        ScanExecutor.shared.asUnownedSerialExecutor()
+    }
 
     public init(roots: [URL]? = nil, databaseURL: URL? = nil) {
         self.databaseURL = databaseURL ?? roots?.first?.appendingPathComponent("usage-cache.sqlite") ?? UsageScanStore.defaultURL
@@ -49,23 +55,22 @@ public actor ClaudeLocalUsageProvider: AIUsageProvider {
         if store == nil { store = try UsageScanStore(url: databaseURL) }
         guard let store else { throw AIUsageFailure.invalidResponse }
         var events: [String: ClaudeLocalLogParser.Event] = [:]
+        var scanned: Set<String> = []
         for url in files.sorted(by: { $0.path < $1.path }) {
             try Task.checkCancellation()
             do {
-                let parsed = try store.scan(url: url, source: "claude-v1", initial: ClaudeLogScanState(calendar: calendar)) {
-                    $0.consume($1)
-                }
+                let state = ClaudeLogScanState(calendar: calendar, cutoff: since)
+                let parsed = try store.scan(url: url, source: Self.source, initial: state) { $0.consume($1) }
+                scanned.insert(url.resolvingSymlinksInPath().path)
                 for event in parsed.events.values { ClaudeLocalLogParser.merge(event, into: &events) }
             } catch is CancellationError { throw CancellationError() }
             catch { unreadable += 1 }
         }
-        var rows: [String: ModelTokenUsage] = [:]
-        for event in events.values where event.row.day >= since {
-            var row = rows[event.row.id] ?? ModelTokenUsage(day: event.row.day, model: event.row.model)
-            row.add(event.row); rows[row.id] = row
-        }
-        var snapshot = AIUsageSnapshot(provider: .claude, planName: nil, windows: [], remainingCredits: nil, fetchedAt: now)
-        snapshot.localUsage = LocalUsageReport(rows: Array(rows.values), fileCount: files.count, unreadableFiles: unreadable)
+        // 项目目录被删掉后对应的缓存行不会再出现在扫描结果里，留着只会一直变大。
+        if unreadable == 0 { try? store.prune(family: "claude-", source: Self.source, keeping: scanned) }
+        var snapshot = AIUsageSnapshot(provider: .claude, fetchedAt: now)
+        snapshot.localUsage = LocalUsageReport(rows: LocalUsageReport.aggregated(events.values.map(\.row)),
+                                               fileCount: files.count, unreadableFiles: unreadable)
         return snapshot
     }
 }
@@ -79,7 +84,7 @@ enum ClaudeLocalLogParser {
     }
     private static let marker = Data("\"usage\"".utf8)
 
-    static func parse(_ data: Data, calendar: Calendar = .current) -> Event? {
+    static func parse(_ data: Data, calendar: Calendar = .current, iso: ISO8601Parser = ISO8601Parser()) -> Event? {
         guard data.range(of: marker) != nil,
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               object["type"] as? String == "assistant",
@@ -87,10 +92,7 @@ enum ClaudeLocalLogParser {
               let message = object["message"] as? [String: Any],
               let id = message["id"] as? String, !id.isEmpty,
               let usage = message["usage"] as? [String: Any],
-              let rawTime = object["timestamp"] as? String else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let time = formatter.date(from: rawTime) ?? ISO8601DateFormatter().date(from: rawTime) else { return nil }
+              let time = iso.date(object["timestamp"]) else { return nil }
         func count(_ value: Any?) -> Int? {
             guard let n = value as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID(),
                   n.doubleValue >= 0, n.doubleValue < 1e15 else { return nil }
@@ -124,13 +126,26 @@ enum ClaudeLocalLogParser {
 }
 
 
+/// 消息 ID 要跨文件去重，所以整张表都得落到检查点里。只保留统计窗口内的事件，
+/// 长期存在的会话文件才不会把检查点越写越大。
 private struct ClaudeLogScanState: Codable {
     let calendar: Calendar
+    let cutoff: Date
     var events: [String: ClaudeLocalLogParser.Event] = [:]
+    private let iso = ISO8601Parser()
+
+    private enum CodingKeys: String, CodingKey {
+        case calendar, cutoff, events
+    }
+
+    init(calendar: Calendar, cutoff: Date) {
+        self.calendar = calendar
+        self.cutoff = cutoff
+    }
 
     mutating func consume(_ line: Data) {
-        if let event = ClaudeLocalLogParser.parse(line, calendar: calendar) {
-            ClaudeLocalLogParser.merge(event, into: &events)
-        }
+        guard let event = ClaudeLocalLogParser.parse(line, calendar: calendar, iso: iso),
+              event.row.day >= cutoff else { return }
+        ClaudeLocalLogParser.merge(event, into: &events)
     }
 }

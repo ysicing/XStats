@@ -6,10 +6,16 @@ import CoreFoundation
 
 /// 只读取会话的模型和 Token 元数据，不读取 auth.json，不发送网络请求。
 public actor CodexLocalUsageProvider: AIUsageProvider {
+    /// 解析口径变化时提升版本号；旧命名空间的缓存行会在下一次扫描时被清掉。
+    private static let source = "codex-v2"
     public nonisolated let id = AIProviderID.codex
     private let root: URL
     private let databaseURL: URL
     private var store: UsageScanStore?
+
+    public nonisolated var unownedExecutor: UnownedSerialExecutor {
+        ScanExecutor.shared.asUnownedSerialExecutor()
+    }
 
     public init(root: URL? = nil, databaseURL: URL? = nil) {
         self.databaseURL = databaseURL ?? root?.appendingPathComponent("usage-cache.sqlite") ?? UsageScanStore.defaultURL
@@ -39,22 +45,27 @@ public actor CodexLocalUsageProvider: AIUsageProvider {
             if enumerationFailed { unreadable += 1 }
         }
         var seen: Set<String> = []
+        var scanned: Set<String> = []
         var rows: [ModelTokenUsage] = []
         if store == nil { store = try UsageScanStore(url: databaseURL) }
         guard let store else { throw AIUsageFailure.invalidResponse }
         for url in files {
             try Task.checkCancellation()
             do {
-                let parser = try store.scan(url: url, source: "codex-v1", initial: CodexLocalLogParser(calendar: calendar)) {
+                let parser = try store.scan(url: url, source: Self.source, initial: CodexLocalLogParser(calendar: calendar)) {
                     $0.consume($1)
                 }
+                scanned.insert(url.resolvingSymlinksInPath().path)
                 let session = parser.session ?? url.lastPathComponent
                 if seen.insert(session).inserted { rows += parser.rows.values.filter { $0.day >= since } }
             } catch is CancellationError { throw CancellationError() }
             catch { unreadable += 1 }
         }
-        var snapshot = AIUsageSnapshot(provider: .codex, planName: nil, windows: [], remainingCredits: nil, fetchedAt: now)
-        snapshot.localUsage = LocalUsageReport(rows: rows, fileCount: files.count, unreadableFiles: unreadable)
+        // 归档会改变 rollout 路径，被删掉的会话也不会再出现；只有本轮扫过的文件值得留着缓存。
+        if unreadable == 0 { try? store.prune(family: "codex-", source: Self.source, keeping: scanned) }
+        var snapshot = AIUsageSnapshot(provider: .codex, fetchedAt: now)
+        snapshot.localUsage = LocalUsageReport(rows: LocalUsageReport.aggregated(rows),
+                                               fileCount: files.count, unreadableFiles: unreadable)
         return snapshot
     }
 }
@@ -69,21 +80,14 @@ struct CodexLocalLogParser: Codable {
     private var previous: Counts?
     private var sawMeta = false
     private var replaying = false
-    private var created: Date?
-    private let fractional: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-    private let whole = ISO8601DateFormatter()
+    private let iso = ISO8601Parser()
 
     private enum CodingKeys: String, CodingKey {
-        case calendar, session, rows, model, previous, sawMeta, replaying, created
+        case calendar, session, rows, model, previous, sawMeta, replaying
     }
 
     init(calendar: Calendar = .current) {
         self.calendar = calendar
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     }
 
     mutating func consume(_ line: Data) {
@@ -93,7 +97,6 @@ struct CodexLocalLogParser: Codable {
               let payload = obj["payload"] as? [String: Any], let type = obj["type"] as? String else { return }
         if type == "session_meta", !sawMeta {
             sawMeta = true; session = payload["id"] as? String
-            created = date(obj["timestamp"])
             let source = payload["source"] as? [String: Any]
             replaying = [payload["forked_from_id"], payload["parent_thread_id"], source?["subagent"]]
                 .contains { value in
@@ -106,9 +109,10 @@ struct CodexLocalLogParser: Codable {
             model = modelName(payload) ?? model; return
         }
         guard type == "event_msg" else { return }
-        if payload["type"] as? String == "task_started", replaying,
-           let started = payload["started_at"] as? Double,
-           let baseline = created ?? date(obj["timestamp"]), started >= floor(baseline.timeIntervalSince1970) {
+        // 回放进来的父级累计快照总是排在首个 task_started 之前，所以第一次开工就结束回放。
+        // 不能拿 started_at 和会话创建时间比：子代理的 started_at 是父级回合的开始时间，
+        // 天然早于子会话文件；新版 Codex 更是完全不发这个字段。
+        if payload["type"] as? String == "task_started" {
             replaying = false; return
         }
         guard payload["type"] as? String == "token_count",
@@ -120,17 +124,12 @@ struct CodexLocalLogParser: Codable {
         if let total, total == previous { return }
         let usage = last ?? total.map { $0.delta(previous) }
         if let total { previous = total }
-        guard let usage, usage.input + usage.output > 0, let timestamp = date(obj["timestamp"]) else { return }
+        guard let usage, usage.input + usage.output > 0, let timestamp = iso.date(obj["timestamp"]) else { return }
         let day = calendar.startOfDay(for: timestamp)
         let key = "\(day.timeIntervalSince1970):\(model)"
         var row = rows[key] ?? ModelTokenUsage(day: day, model: model)
         row.input += usage.input; row.cached += min(usage.cached, usage.input)
         row.output += usage.output; row.records += 1; rows[key] = row
-    }
-
-    private func date(_ value: Any?) -> Date? {
-        guard let text = value as? String else { return nil }
-        return fractional.date(from: text) ?? whole.date(from: text)
     }
 
     private func modelName(_ object: [String: Any]) -> String? {

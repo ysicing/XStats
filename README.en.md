@@ -204,7 +204,6 @@ Every feature that touches the network can be turned off. Public IP and connecti
 - **Connection probe**: an ICMP ping to the target you pick (Cloudflare, Google, Alibaba Cloud,
   Tencent or your router) once a second while network details are open (every 10 seconds in the background), only while the network item is in the menu bar
   or network details are open.
-- **AI usage**: reads local Codex / Claude Code session logs for token totals, cache hit rate, daily trends and model ranking. Defaults to a one-year activity heatmap; switch between daily, weekly and cumulative year views and filter by model. SQLite persists parser checkpoints and statistics across restarts; appended logs are read incrementally. No credentials or quota API calls.
 - **Update check and installation statistics**: at launch and once a day, the app sends the current version and the
   SHA-256 of a random installation ID and reads the version manifest. China-region locales prefer
   `x-stats.china.12306.work`; all others prefer `xstats-apps.12306.work`. The app falls back serially to the other endpoint
@@ -212,6 +211,8 @@ Every feature that touches the network can be turned off. Public IP and connecti
   hash, the current version, first and last check times, and the check count; it does not store a hardware serial number
   or persist request IPs (an IP is used only for an in-memory one-minute rate limit). The original random value stays in local preferences and does not access Keychain. Turning off automatic update checks stops these
   automatic requests. When a new version is out it asks; nothing installs without your click.
+
+**AI usage** is entirely local: it reads Codex / Claude Code session logs on this Mac, never reads credentials, never queries subscription quotas and makes no network requests at all. Off by default.
 
 WebDAV sync sends only preferences to your configured server. It excludes monitoring data, history and WebDAV credentials.
 

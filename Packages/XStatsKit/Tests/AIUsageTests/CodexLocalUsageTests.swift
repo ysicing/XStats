@@ -45,6 +45,27 @@ import Testing
         #expect(LocalUsageReport.total(Array(parser.rows.values)).total == 120)
     }
 
+    /// 2026 年起的 Codex 构建发的 task_started 不带 started_at。以前要求这个字段存在
+    /// 才结束回放，于是子代理会话永远停在回放状态，全部 Token 被当成基线丢掉。
+    @Test func liveTurnCountsWhenTaskStartedOmitsStartedAt() {
+        var parser = CodexLocalLogParser()
+        parser.consume(line(#"{"id":"child","source":{"subagent":"review"}}"#, type: "session_meta"))
+        parser.consume(line(#"{"type":"task_started","turn_id":"t1","model_context_window":258400,"collaboration_mode_kind":"default"}"#))
+        parser.consume(line(usage(100, 20)))
+        #expect(LocalUsageReport.total(Array(parser.rows.values)).total == 120)
+    }
+
+    /// 子代理的 started_at 是父级回合的开始时间，天然早于子会话文件的创建时间。
+    /// 拿它和创建时间比较会把第一个真实回合误判成回放。
+    @Test func subagentFirstTurnSurvivesAParentStartedAt() {
+        var parser = CodexLocalLogParser()
+        parser.consume(line(#"{"id":"child","source":{"subagent":"review"}}"#,
+                            type: "session_meta", time: "2026-09-22T10:00:00Z"))
+        parser.consume(line(#"{"type":"task_started","started_at":1758535200}"#, time: "2026-09-22T10:00:02Z"))
+        parser.consume(line(usage(100, 20), time: "2026-09-22T10:00:05Z"))
+        #expect(LocalUsageReport.total(Array(parser.rows.values)).total == 120)
+    }
+
     @Test func rootNullParentAndMalformedLinesAreHandled() {
         var parser = CodexLocalLogParser()
         parser.consume(line(#"{"id":"root","forked_from_id":null,"source":{"subagent":null}}"#, type: "session_meta"))
@@ -74,6 +95,27 @@ import Testing
         try content.write(to: active)
         let changed = try await provider.fetch()
         #expect(LocalUsageReport.total(changed.localUsage!.rows).total == 180)
+    }
+
+    /// `ModelTokenUsage.id` 是“日期 + 模型”，多个会话文件必须先合并成一行，
+    /// 否则 report.rows 里会出现大量重复 id，视图按 id 渲染就会错。
+    @Test func sameDayAndModelFromDifferentSessionsCollapseToOneRow() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("sessions"), withIntermediateDirectories: true)
+        let time = ISO8601DateFormatter().string(from: Date())
+        for session in ["one", "two"] {
+            var content = line("{\"id\":\"\(session)\"}", type: "session_meta", time: time)
+            content.append(10)
+            content.append(line(#"{"model":"gpt-5"}"#, type: "turn_context", time: time)); content.append(10)
+            content.append(line(usage(100, 20), time: time)); content.append(10)
+            try content.write(to: root.appendingPathComponent("sessions/\(session).jsonl"))
+        }
+        let report = try #require(try await CodexLocalUsageProvider(root: root).fetch().localUsage)
+        #expect(report.rows.count == 1)
+        #expect(Set(report.rows.map(\.id)).count == report.rows.count)
+        #expect(LocalUsageReport.total(report.rows).total == 240)
+        #expect(LocalUsageReport.total(report.rows).records == 2)
     }
 
     @Test func dateAndModelFiltersUseOneConsistentTotal() {

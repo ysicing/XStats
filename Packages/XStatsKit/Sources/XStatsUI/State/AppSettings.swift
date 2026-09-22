@@ -423,13 +423,6 @@ public final class AppSettings {
     public var aiUsageRefreshMinutes: Int {
         didSet { defaults.set(aiUsageRefreshMinutes, forKey: Keys.aiUsageRefreshMinutes) }
     }
-    public var aiUsageDisplayMode: AIUsageDisplayMode {
-        didSet { defaults.set(aiUsageDisplayMode.rawValue, forKey: Keys.aiUsageDisplayMode) }
-    }
-    /// nil 自动选择；固定窗口暂时缺失时显示无数据，不暗中换成其他指标。
-    public var aiUsageFocus: AIQuotaKind? {
-        didSet { defaults.set(aiUsageFocus?.rawValue, forKey: "aiUsageFocus") }
-    }
     public var colorizeHighLoad: Bool {
         didSet { defaults.set(colorizeHighLoad, forKey: Keys.colorizeHighLoad) }
     }
@@ -568,8 +561,6 @@ public final class AppSettings {
             .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
         aiUsageRefreshMinutes = Self.aiUsageRefreshOptions.contains(defaults.integer(forKey: Keys.aiUsageRefreshMinutes))
             ? defaults.integer(forKey: Keys.aiUsageRefreshMinutes) : 30
-        aiUsageDisplayMode = defaults.string(forKey: Keys.aiUsageDisplayMode).flatMap(AIUsageDisplayMode.init(rawValue:)) ?? .remaining
-        aiUsageFocus = defaults.string(forKey: "aiUsageFocus").flatMap(AIQuotaKind.init(rawValue:))
         colorizeHighLoad = defaults.bool(forKey: Keys.colorizeHighLoad)
         bluetoothLowBatteryInMenuBar = defaults.object(forKey: Keys.bluetoothLowBatteryInMenuBar) as? Bool ?? true
         useFahrenheit = defaults.bool(forKey: Keys.useFahrenheit)
@@ -637,7 +628,13 @@ public final class AppSettings {
     }
 
     func setEnabled(_ item: MenuBarItem, _ enabled: Bool) {
-        if enabled { menuBarItems.insert(item) } else { menuBarItems.remove(item) }
+        if enabled {
+            menuBarItems.insert(item)
+            // 菜单栏项是本机用量统计最自然的发现入口；扫描没开的话只会显示一个永久的占位符。
+            if item == .aiUsage { aiUsageEnabled = true }
+        } else {
+            menuBarItems.remove(item)
+        }
     }
 
     private enum Keys {
@@ -649,7 +646,6 @@ public final class AppSettings {
         static let aiUsageEnabled = "aiUsageEnabled"
         static let aiUsageSources = "aiUsageSources"
         static let aiUsageRefreshMinutes = "aiUsageRefreshMinutes"
-        static let aiUsageDisplayMode = "aiUsageDisplayMode"
         static let colorizeHighLoad = "colorizeHighLoad"
         static let bluetoothLowBatteryInMenuBar = "bluetoothLowBatteryInMenuBar"
         static let useFahrenheit = "useFahrenheit"
