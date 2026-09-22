@@ -20,6 +20,7 @@ struct MenuBarReading {
     var battery: Double?
     var batteryHistory: [Double] = []
     var aiUsage: AIUsageMenuBarReading?
+    var aiTokens: Int?
     var batteryCharging = false
     /// 附在电池项旁的蓝牙设备：电量低的那一个，或没有电池的 Mac 上电量最低的那一个
     var bluetoothDevice: (symbol: String, percent: Int)?
@@ -46,6 +47,7 @@ struct MenuBarReading {
         battery = store.battery?.level
         batteryHistory = battery.map { Array(repeating: $0, count: 30) } ?? []
         aiUsage = model.aiUsage.menuBarReading
+        aiTokens = model.aiUsage.todayTokens
         batteryCharging = store.battery?.isCharging ?? false
         if let lowest = model.bluetooth.lowest,
            battery == nil || (model.settings.bluetoothLowBatteryInMenuBar && lowest.percent <= Self.lowBluetoothPercent) {
@@ -110,10 +112,7 @@ struct MenuBarReading {
                 battery.map { tr("电池 \(Format.percent($0))") + (batteryCharging ? tr("，充电中") : "") }
                     ?? bluetoothDevice.map { tr("蓝牙设备电量 \($0.percent)%") }
             case .aiUsage:
-                aiUsage.map { reading in
-                    let suffix = reading.isStale ? tr("，数据已过期") : ""
-                    return tr("AI 配额 \(Format.percent(reading.displayedFraction))") + suffix
-                }
+                aiTokens.map { "AI · \($0.formatted()) Tokens" }
             }
         }
         .joined(separator: "\n")
@@ -123,6 +122,9 @@ struct MenuBarReading {
 /// 菜单栏图标自绘：每次刷新只生成一张小图，避免在菜单栏里重建 SwiftUI 视图
 @MainActor
 enum MenuBarRenderer {
+    private static func tokenText(_ value: Int) -> String {
+        UsageNumber.short(value)
+    }
     /// 菜单栏只有 22pt 高，字号刻意小于面板的字号体系，与 Stats 等菜单栏工具同一量级。
     /// 每种风格内部只用这一套排版：两行布局是 7pt 标签 + 10pt 数值，单行布局 11pt，网速两行 9pt。
     private enum Metrics {
@@ -236,12 +238,8 @@ enum MenuBarRenderer {
         case .battery:
             return batterySegment(reading: reading, style: style, colorizeHighLoad: colorizeHighLoad)
         case .aiUsage:
-            let value = reading.aiUsage?.displayedFraction
-            let used = reading.aiUsage?.usedFraction
-            let resolved: MenuBarStyle = style == .history || style == .line ? .ring : style
-            return percentSegment(item: item, value: value, history: [], style: resolved,
-                                  colorizeHighLoad: colorizeHighLoad,
-                                  riskFraction: used, stale: reading.aiUsage?.isStale ?? false)
+            return textSegment(item: item, value: reading.aiTokens.map { Self.tokenText($0) } ?? "—",
+                               sample: "999.9M", style: style)
         }
     }
 

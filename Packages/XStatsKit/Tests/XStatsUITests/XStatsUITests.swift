@@ -218,10 +218,17 @@ private func isolatedDefaults() -> UserDefaults {
 }
 
 @Suite struct PanelTabTests {
+    @MainActor @Test func hiddenSyncPageRestoresToGeneralSettings() {
+        let defaults = isolatedDefaults()
+        defaults.set("settingsAccount", forKey: "panelTab")
+        #expect(AppSettings(defaults: defaults).panelTab == .settingsGeneral)
+    }
+
     @Test func sidebarGroupsCoverEveryTabOnce() {
         let grouped = PanelTab.monitors + PanelTab.tools + PanelTab.settings
-        #expect(grouped.count == PanelTab.allCases.count)
-        #expect(Set(grouped) == Set(PanelTab.allCases))
+        let visible = PanelTab.allCases.filter { $0 != .settingsAccount }
+        #expect(grouped.count == visible.count)
+        #expect(Set(grouped) == Set(visible))
         #expect(PanelTab.settings.allSatisfy { $0.isSettings })
         #expect(PanelTab.settingsAbout.headerTitle == "设置 · 关于")
     }

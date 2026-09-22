@@ -64,7 +64,7 @@ public final class AppModel {
     @ObservationIgnored var quit: () -> Void = {}
 
     public init(settings: AppSettings = AppSettings(), historyURL: URL? = HistoryDatabase.defaultURL,
-                aiUsageProviders: [any AIUsageProvider] = [CodexProvider()]) {
+                aiUsageProviders: [any AIUsageProvider] = [CodexLocalUsageProvider(), ClaudeLocalUsageProvider()]) {
         let store = MetricsStore()
         let helper = HelperClient()
         self.settings = settings

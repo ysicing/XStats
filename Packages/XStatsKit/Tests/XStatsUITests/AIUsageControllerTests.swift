@@ -7,11 +7,13 @@ import Testing
 @testable import XStatsUI
 
 private actor StubUsageProvider: AIUsageProvider {
-    nonisolated let id = AIProviderID.codex
+    nonisolated let id: AIProviderID
     private var results: [Result<AIUsageSnapshot, AIUsageFailure>]
     private(set) var fetchCount = 0
 
-    init(_ results: [Result<AIUsageSnapshot, AIUsageFailure>]) { self.results = results }
+    init(_ results: [Result<AIUsageSnapshot, AIUsageFailure>], id: AIProviderID = .codex) {
+        self.results = results; self.id = id
+    }
 
     func fetch() async throws -> AIUsageSnapshot {
         fetchCount += 1
@@ -37,10 +39,63 @@ private func usageSnapshot(percent: Double, at date: Date = Date(timeIntervalSin
 
 @MainActor
 @Suite struct AIUsageControllerTests {
+    @Test func sourceSelectionPersistsIncludingAllDisabled() {
+        let defaults = defaultsForAIUsage()
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.aiUsageSources == [.codex, .claude])
+        settings.aiUsageSources = [.claude]
+        #expect(AppSettings(defaults: defaults).aiUsageSources == [.claude])
+        settings.aiUsageSources = []
+        #expect(AppSettings(defaults: defaults).aiUsageSources.isEmpty)
+    }
+
+    @Test func disabledSourceIsNotFetchedOrIncludedInReports() async throws {
+        let now = Date()
+        var snapshot = usageSnapshot(percent: 0, at: now)
+        snapshot.localUsage = LocalUsageReport(rows: [ModelTokenUsage(day: Calendar.current.startOfDay(for: now),
+            model: "test", input: 100, output: 10)], fileCount: 1)
+        let codex = StubUsageProvider([.success(snapshot)])
+        let claude = StubUsageProvider([.success(snapshot)], id: .claude)
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        settings.aiUsageSources = [.claude]
+        let controller = AIUsageController(settings: settings, providers: [codex, claude])
+        await controller.refresh()
+        #expect(await codex.count() == 0)
+        #expect(await claude.count() == 1)
+        #expect(controller.todayTokens == 110)
+        settings.aiUsageSources = []
+        #expect(controller.localReport(for: .claude) == nil)
+        #expect(controller.todayTokens == nil)
+        await controller.refresh()
+        #expect(await claude.count() == 1)
+        #expect(controller.state(for: .claude).snapshot == nil)
+    }
+    @Test func localReportsFilterProvidersAndSumTodayWithoutLosingCacheCreation() async throws {
+        let now = Date()
+        let today = Calendar.current.startOfDay(for: now)
+        func snapshot(_ id: AIProviderID, tokens: Int, created: Int) -> AIUsageSnapshot {
+            var value = AIUsageSnapshot(provider: id, planName: nil, windows: [], remainingCredits: nil, fetchedAt: now)
+            value.localUsage = LocalUsageReport(rows: [ModelTokenUsage(day: today, model: id.rawValue,
+                input: tokens, cached: 20, output: 10, records: 1, cacheCreated: created)], fileCount: 1)
+            return value
+        }
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let controller = AIUsageController(settings: settings, providers: [
+            StubUsageProvider([.success(snapshot(.codex, tokens: 100, created: 0))]),
+            StubUsageProvider([.success(snapshot(.claude, tokens: 200, created: 50))], id: .claude)
+        ])
+        await controller.refresh()
+        #expect(controller.todayTokens == 320)
+        #expect(LocalUsageReport.total(try #require(controller.localReport(for: .claude)).rows).total == 210)
+        #expect(LocalUsageReport.total(try #require(controller.localReport(for: nil)).rows).cacheCreated == 50)
+        #expect(controller.localReport(for: nil)?.fileCount == 2)
+    }
     @Test func navigationExposesAIUsageAsAMonitorAndMenuBarItem() {
         #expect(PanelTab.monitors.contains(.aiUsage))
         #expect(PanelTab(item: .aiUsage) == .aiUsage)
-        #expect(MenuBarStyle.options(for: .aiUsage) == [.stacked, .inline, .icon, .ring, .pie, .meter, .dot])
+        #expect(MenuBarStyle.options(for: .aiUsage) == [.stacked, .inline, .icon])
     }
 
     @Test func settingsDefaultToOptInAndThirtyMinuteRefresh() {

@@ -2,6 +2,12 @@
 
 XStats 新增代码与修改采用 AGPL-3.0-or-later，范围见 [LICENSING.md](LICENSING.md)。以下原有第三方许可与版权声明继续保留。
 
+## 使用统计设计参考
+
+本机 Codex 模型统计参考 [CC Switch](https://github.com/farion1231/cc-switch)（MIT，Copyright (c) 2025 Jason Young）
+的时间/模型筛选、总览、趋势与模型排行，以及 OpenUsage 的本地会话日志解析边界。
+本轮 SwiftUI 界面与本机扫描器为 XStats 独立实现，未引入 CC Switch 的 Rust/React 源码或依赖。
+
 ## gentpan/OpenStats
 
 XStats 基于 [gentpan/OpenStats](https://github.com/gentpan/OpenStats) 开发，感谢原项目的开源贡献。

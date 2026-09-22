@@ -15,11 +15,11 @@
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 
 XStats is a macOS menu-bar app that shows what your Mac is doing right now — per-core
-CPU load, GPU, memory pressure, network speed, disk, battery, temperatures and fans, with optional Codex subscription quota — and
+CPU load, GPU, memory pressure, network speed, disk, battery, temperatures and fans, with optional local Codex / Claude Code model usage — and
 lets you act on it: spin the fans up, keep the Mac awake with the lid closed, clear caches, fully
 uninstall apps and disable startup items. Network details also check how clean your public IP is —
 whether it is flagged as a VPN, proxy, data center or for abuse.
-All system-monitoring metrics are read on your own Mac and are never uploaded. No XStats account is required: manually back up and restore preferences through your own WebDAV server. Update checks send the current version and the SHA-256 of a random installation ID for anonymous installation and version-distribution statistics; the original random value remains in local preferences, is not a credential, and is excluded from WebDAV sync. Other optional network features include a public-IP and cleanliness lookup, a ping probe, a read-only Codex CLI login used to query ChatGPT subscription quota directly, and a daily update check.
+All system-monitoring metrics are read on your own Mac and are never uploaded. No XStats account is required: manually back up and restore preferences through your own WebDAV server. Update checks send the current version and the SHA-256 of a random installation ID for anonymous installation and version-distribution statistics; the original random value remains in local preferences, is not a credential, and is excluded from WebDAV sync. Other optional network features include a public-IP and cleanliness lookup, a ping probe, and a daily update check.
 
 [Download](https://github.com/ysicing/xstats/releases) ·
 [Changelog](CHANGELOG.md) ·
@@ -103,7 +103,7 @@ Choose which sections each popover shows in Settings. `Esc` closes it.
   60-second history; SSD health; the apps reading and writing the most.
 - **GPU**, **Temperature & fans.** History, sensor groups, fan speeds and quick modes.
 - **Battery.** Charge level, time remaining, adapter wattage and battery temperature; a 24-hour charge curve; power draw; health and cycle count; the batteries of connected Bluetooth devices (AirPods, Magic Keyboard / Mouse / Trackpad). Macs without a battery show the Bluetooth devices only.
-- **AI quota.** Optionally reads the Codex CLI login to show session, weekly and Spark quotas, reset times and credit balance. Switch between left and used; temporary failures retain and mark the last value as stale.
+- **AI usage**: reads local Codex / Claude Code session logs for token totals, cache hit rate, daily trends and model ranking. Defaults to a one-year activity heatmap; switch between daily, weekly and cumulative year views and filter by model. SQLite persists parser checkpoints and statistics across restarts; appended logs are read incrementally. No credentials or quota API calls.
 
 <p align="center">
   <img src="Assets/readme/popover-cpu-light.png" width="32%" alt="CPU popover">
@@ -195,7 +195,7 @@ Metrics come from the kernel (`host_processor_info`, `host_statistics64`, `sysct
 SMC on your own Mac. Preferences live in the app's user defaults and contain nothing personal.
 Monitoring metrics, history, the hardware serial number and process lists are never uploaded.
 
-Every feature that touches the network can be turned off. Public IP and connection probes live on the Network page, AI quota on its monitor page, and update checks in Settings → About:
+Every feature that touches the network can be turned off. Public IP and connection probes live on the Network page, update checks in Settings → About:
 
 - **Public IP**: when you open network details, one request to Cloudflare `1.1.1.1` (ipify as fallback)
   for your public address, cached for 10 minutes. Location, ASN, network type and the cleanliness score
@@ -204,9 +204,7 @@ Every feature that touches the network can be turned off. Public IP and connecti
 - **Connection probe**: an ICMP ping to the target you pick (Cloudflare, Google, Alibaba Cloud,
   Tencent or your router) once a second while network details are open (every 10 seconds in the background), only while the network item is in the menu bar
   or network details are open.
-- **AI quota**: off by default. When enabled, XStats reads the access token managed by Codex CLI from
-  `$CODEX_HOME/auth.json`, `~/.config/codex/auth.json` or `~/.codex/auth.json` and directly requests
-  `chatgpt.com/backend-api/wham/usage`. XStats never stores, refreshes or writes the token.
+- **AI usage**: reads local Codex / Claude Code session logs for token totals, cache hit rate, daily trends and model ranking. Defaults to a one-year activity heatmap; switch between daily, weekly and cumulative year views and filter by model. SQLite persists parser checkpoints and statistics across restarts; appended logs are read incrementally. No credentials or quota API calls.
 - **Update check and installation statistics**: at launch and once a day, the app sends the current version and the
   SHA-256 of a random installation ID and reads the version manifest. China-region locales prefer
   `x-stats.china.12306.work`; all others prefer `xstats-apps.12306.work`. The app falls back serially to the other endpoint

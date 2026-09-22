@@ -88,7 +88,8 @@ public struct MainWindowView: View {
             case .settingsGeneral: SettingsTabPage { GeneralSettings() }
             case .settingsMenuBar: SettingsTabPage { MenuBarSettings() }
             case .settingsNotifications: SettingsTabPage { NotificationSettings() }
-            case .settingsAccount: SettingsTabPage { WebDAVSettings() }
+            // 设置同步暂时隐藏；旧路由进入通用设置，恢复时重新挂载 WebDAVSettings。
+            case .settingsAccount: SettingsTabPage { GeneralSettings() }
             case .settingsHelper: SettingsTabPage { HelperSettings() }
             case .settingsAbout: SettingsTabPage { AboutSettings() }
             }

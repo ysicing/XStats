@@ -40,7 +40,7 @@ public final class AIUsageController {
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var paused = false
 
-    public init(settings: AppSettings, providers: [any AIUsageProvider] = [CodexProvider()],
+    public init(settings: AppSettings, providers: [any AIUsageProvider] = [CodexLocalUsageProvider(), ClaudeLocalUsageProvider()],
                 now: @escaping @Sendable () -> Date = Date.init) {
         self.settings = settings
         self.providers = providers
@@ -54,9 +54,28 @@ public final class AIUsageController {
 
     public var isRefreshing: Bool { states.values.contains(where: \.isRefreshing) }
 
+    public var todayTokens: Int? {
+        guard settings.aiUsageEnabled, let report = localReport(for: nil) else { return nil }
+        return LocalUsageReport.total(report.selected(days: 1, now: now())).total
+    }
+
+    public func localReport(for provider: AIProviderID?) -> LocalUsageReport? {
+        let reports = states.values.filter { settings.aiUsageSources.contains($0.provider) && (provider == nil || $0.provider == provider) }
+            .compactMap { $0.snapshot?.localUsage }
+        guard !reports.isEmpty else { return nil }
+        return LocalUsageReport(rows: reports.flatMap(\.rows), fileCount: reports.reduce(0) { $0 + $1.fileCount },
+                                unreadableFiles: reports.reduce(0) { $0 + $1.unreadableFiles })
+    }
+
+    public func localState(for provider: AIProviderID?) -> (stale: Bool, updated: Date?) {
+        let selected = states.values.filter { settings.aiUsageSources.contains($0.provider) && (provider == nil || $0.provider == provider) }
+        return (selected.contains { $0.failure != nil }, selected.compactMap { $0.snapshot?.fetchedAt }.min())
+    }
+
     public var menuBarReading: AIUsageMenuBarReading? {
         guard settings.aiUsageEnabled else { return nil }
         let candidates = states.values.compactMap { state -> (AIUsageProviderState, AIQuotaWindow)? in
+            guard settings.aiUsageSources.contains(state.provider) else { return nil }
             let window = settings.aiUsageFocus.map { state.snapshot?.window($0) } ?? state.snapshot?.attentionWindow
             return window.map { (state, $0) }
         }
@@ -72,9 +91,13 @@ public final class AIUsageController {
     }
 
     public func start() {
-        cadenceTask?.cancel()
+        let previousTask = cadenceTask
+        previousTask?.cancel()
         cadenceTask = nil
-        guard settings.aiUsageEnabled, !paused else {
+        for provider in providers where !settings.aiUsageSources.contains(provider.id) {
+            states[provider.id] = AIUsageProviderState(provider: provider.id)
+        }
+        guard settings.aiUsageEnabled, !settings.aiUsageSources.isEmpty, !paused else {
             generation += 1
             if !settings.aiUsageEnabled {
                 states = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, AIUsageProviderState(provider: $0.id)) })
@@ -83,6 +106,9 @@ public final class AIUsageController {
         }
         let seconds = settings.aiUsageRefreshMinutes * 60
         cadenceTask = Task { [weak self] in
+            // 先等旧轮询退出，避免新刷新撞上 refreshInProgress 后睡过整个周期。
+            await previousTask?.value
+            guard !Task.isCancelled else { return }
             await self?.refresh()
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(seconds)) } catch { return }
@@ -114,6 +140,10 @@ public final class AIUsageController {
         let attempt = now()
 
         for provider in providers {
+            guard settings.aiUsageSources.contains(provider.id) else {
+                states[provider.id] = AIUsageProviderState(provider: provider.id)
+                continue
+            }
             var state = state(for: provider.id)
             if let retryAt = state.failure?.retryAt, retryAt > attempt { continue }
             state.isRefreshing = true
@@ -121,15 +151,21 @@ public final class AIUsageController {
             do {
                 let snapshot = try await provider.fetch()
                 guard currentGeneration == generation, settings.aiUsageEnabled, !Task.isCancelled else { return }
+                guard settings.aiUsageSources.contains(provider.id) else {
+                    states[provider.id] = AIUsageProviderState(provider: provider.id)
+                    continue
+                }
                 state.snapshot = snapshot
                 state.failure = nil
                 lastSuccessfulRefreshAt = snapshot.fetchedAt
             } catch let failure as AIUsageFailure {
                 guard currentGeneration == generation, settings.aiUsageEnabled, !Task.isCancelled else { return }
+                guard settings.aiUsageSources.contains(provider.id) else { continue }
                 if !failure.preservesLastGood { state.snapshot = nil }
                 state.failure = failure
             } catch {
                 guard currentGeneration == generation, settings.aiUsageEnabled, !Task.isCancelled else { return }
+                guard settings.aiUsageSources.contains(provider.id) else { continue }
                 state.failure = .network
             }
             state.isRefreshing = false

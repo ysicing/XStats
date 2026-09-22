@@ -4,7 +4,7 @@
 import Foundation
 
 public enum AIProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
-    case codex
+    case codex, claude
 
     public var id: Self { self }
 }
@@ -42,6 +42,7 @@ public struct AIUsageSnapshot: Equatable, Sendable {
     public let windows: [AIQuotaWindow]
     public let remainingCredits: Double?
     public let fetchedAt: Date
+    public var localUsage: LocalUsageReport?
 
     public init(provider: AIProviderID, planName: String?, windows: [AIQuotaWindow],
                 remainingCredits: Double?, fetchedAt: Date) {
@@ -50,6 +51,7 @@ public struct AIUsageSnapshot: Equatable, Sendable {
         self.windows = windows
         self.remainingCredits = remainingCredits
         self.fetchedAt = fetchedAt
+        self.localUsage = nil
     }
 
     public func window(_ kind: AIQuotaKind) -> AIQuotaWindow? {

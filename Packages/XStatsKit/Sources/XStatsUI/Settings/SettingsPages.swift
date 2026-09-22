@@ -753,6 +753,8 @@ struct AboutSettings: View {
                 Text(tr("轻量的 macOS 菜单栏系统监控：CPU、GPU、内存、网络、温度、风扇、防休眠与清理。"))
                     .dsFont(.sm)
                     .foregroundStyle(DS.Palette.textSecondary)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
 
