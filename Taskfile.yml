@@ -110,8 +110,3 @@ tasks:
     desc: 显示当前版本
     cmds:
       - ./Scripts/version.sh
-
-  version-next:
-    desc: 预览下一版本号
-    cmds:
-      - ./Scripts/version.sh next

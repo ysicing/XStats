@@ -54,7 +54,8 @@ build at the end.
 the first Developer ID Application identity from the keychain (and `--timestamp` for Release)
 when there is one. `task release` runs `Scripts/release.sh`: build, verify team, timestamp and
 hardened runtime on both binaries, notarize and staple the app, build and notarize the DMG,
-write the online-update zip and `appcast.json`, and write a Homebrew cask (`auto_updates true`). The helper derives its client requirement from its own signing
+write the online-update zip and `appcast.json`, and write a Homebrew cask (`auto_updates true`)
+whose URLs point at the object storage prefix `https://c.ysicing.net/oss/apps/macOS/XStats`. The helper derives its client requirement from its own signing
 team at run time, so no team ID is hard-coded.
 
 ## Sampling
@@ -225,9 +226,11 @@ helper, re-registers the bundled version, and verifies the protocol before privi
 `github.com/libtnb/sqlite` with WAL and one database connection so concurrent checks cannot compete for
 SQLite's single writer. Each installation row stores only the SHA-256 installation ID, current version,
 first/last check times and check count; request IPs and monitoring data are not persisted. The release
-endpoint requires `XSTATS_RELEASE_TOKEN`. `Scripts/publish_release.sh` uploads artifacts first and then
-submits the generated appcast through `Scripts/publish_api.py` to both regional services, keeping the
-static and API manifests based on the same release metadata.
+endpoint requires `XSTATS_RELEASE_TOKEN`. `Scripts/publish_release.sh` uploads the dmg and zip to
+object storage with `mc`, verifies each one by re-reading it from the CDN, creates the GitHub Release
+that carries the dmg for manual downloads, and only then submits the generated appcast through
+`Scripts/publish_api.py` to both regional services. The manifest lands last, so an installed app never
+sees a version whose package is not yet in place.
 
 `server/api/Dockerfile` cross-compiles a CGO-free binary for amd64 and arm64, then runs it as the
 distroless `nonroot` user with `/data` as the writable SQLite volume. When a branch push changes

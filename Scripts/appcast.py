@@ -73,7 +73,7 @@ def main() -> None:
         "minimumSystem": "14.0",
         **asset(base, arm_zip, arm_dmg),
         "notes": notes,
-        "changelog": "https://getopenstats.com/#changelog",
+        "changelog": "https://github.com/ysicing/xstats/blob/main/CHANGELOG.md",
     }
     json.dump(feed, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")

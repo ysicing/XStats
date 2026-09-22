@@ -7,7 +7,6 @@ Rewrites, from CHANGELOG.md and `git log`:
 
 - the "recent updates" block in README.md (Chinese) and README.en.md, between
   <!-- changelog:start --> and <!-- changelog:end -->;
-- the same block, as HTML, in web/index.html;
 - Assets/readme/activity.svg and activity.zh.svg, 26 weeks of commits.
 
 Run it after every CHANGELOG edit. Standard library only, so it runs on a
@@ -16,7 +15,6 @@ stock Mac and in CI. Adapted from QuotaBar's script of the same name.
 
 import argparse
 import datetime
-import html
 import math
 import pathlib
 import re
@@ -28,7 +26,6 @@ RECENT_DAYS = 3
 WEEKS = 26
 
 KIND_EN = {"新增": "Added", "样式": "Style", "调整": "Changed", "修复": "Fixed"}
-WEB_ITEMS_PER_DAY = 8
 
 
 # ── CHANGELOG.md ──────────────────────────────────────────────────────────
@@ -164,73 +161,6 @@ def replace_block(path, block, start="<!-- changelog:start -->", end="<!-- chang
     return False
 
 
-# ── Website ───────────────────────────────────────────────────────────────
-
-def inline_html(text):
-    """Escape an item and keep its `code`, **bold** and [links](url)."""
-    out = html.escape(text, quote=False)
-    out = re.sub(r"`([^`]+)`", r"<code>\1</code>", out)
-    out = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", out)
-    out = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r'<a href="\2">\1</a>', out)
-    return out
-
-
-def item_html(item):
-    """条目正文，子条目画成嵌套列表。"""
-    head, *subs = item.split("\n  - ")
-    out = inline_html(head)
-    if subs:
-        out += '<ul class="log__sub">' + "".join(f"<li>{inline_html(sub)}</li>" for sub in subs) + "</ul>"
-    return out
-
-
-def web_day(release, day, lines):
-    items = [(g["kind"], item) for g in day["groups"] for item in g["items"]]
-    lines.append('  <article class="log__day">')
-    lines.append(f'    <div class="log__head"><time datetime="{day["date"]}">{day["date"]}</time>'
-                 f'<span class="log__tag">{html.escape(release["version"])}</span></div>')
-    lines.append(f'    <p class="log__counts">{html.escape(counts(day, False))}</p>')
-
-    def item_lines(chunk, indent):
-        return [f'{indent}<li><span class="log__kind">{html.escape(kind)}</span>{item_html(item)}</li>'
-                for kind, item in chunk]
-
-    lines.append('    <ul class="log__list">')
-    lines += item_lines(items[:WEB_ITEMS_PER_DAY], "      ")
-    lines.append("    </ul>")
-    rest = items[WEB_ITEMS_PER_DAY:]
-    if rest:
-        # 仓库是私有的，完整条目直接折叠在官网上，不链接到 GitHub
-        lines.append('    <details class="log__rest">')
-        lines.append(f'      <summary>还有 {len(rest)} 项</summary>')
-        lines.append('      <ul class="log__list">')
-        lines += item_lines(rest, "        ")
-        lines.append("      </ul>")
-        lines.append("    </details>")
-    lines.append("  </article>")
-
-
-def web_block(releases, indent="      "):
-    """官网只展示已发布的版本：最近几天直接显示，更早的折叠。"""
-    released = [r for r in releases if r["version"]]
-    entries = day_entries(released)
-    lines = ["<!-- changelog:start -->",
-             "<!-- 由 Scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->",
-             '<div class="log">']
-    for release, day in entries[:RECENT_DAYS]:
-        web_day(release, day, lines)
-    older = entries[RECENT_DAYS:]
-    if older:
-        lines.append('  <details class="log__older">')
-        lines.append(f'    <summary>更早的更新（{len(older)} 天）</summary>')
-        for release, day in older:
-            web_day(release, day, lines)
-        lines.append("  </details>")
-    lines.append("</div>")
-    lines.append("<!-- changelog:end -->")
-    return "\n".join(lines[:1] + [indent + line for line in lines[1:]])
-
-
 # ── Commit calendar ───────────────────────────────────────────────────────
 
 def commit_days():
@@ -319,8 +249,6 @@ def main():
         changed.append("README.md")
     if replace_block(ROOT / "README.en.md", readme_block(releases, en=True)):
         changed.append("README.en.md")
-    if replace_block(ROOT / "web" / "index.html", web_block(releases)):
-        changed.append("web/index.html")
     # The calendar runs through yesterday by default: a finished day does not
     # change, so running this again after today's commits leaves the chart
     # alone rather than redrawing it with every commit that records the redraw.

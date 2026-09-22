@@ -13,18 +13,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# 安装包放在官网
-DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://getopenstats.com/download}"
+# 安装包放在对象存储，由 Scripts/publish_release.sh 用 mc 上传
+DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://c.ysicing.net/oss/apps/macOS/XStats}"
 DIST="${DIST:-dist}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-GiantAccel}"
 SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null \
   | grep 'Developer ID Application' | head -1 | sed -E 's/.*"(.*)".*/\1/' || true)}"
 APP="build/DerivedData-arm64/Build/Products/Release/XStats.app"
-
-# 在线升级的更新摘要取自下一版本的更新日志：发版前把 “## 未发布” 改成 “## 版本 · 日期”
-NEXT_VERSION="$(./Scripts/version.sh next)"
-grep -q "^## ${NEXT_VERSION} · " CHANGELOG.md \
-  || { echo "error: CHANGELOG.md 里没有 “## ${NEXT_VERSION} · 日期” 标题，先把 “## 未发布” 改成正式版本。" >&2; exit 1; }
 
 if [ -z "$SIGN_ID" ]; then
   echo "error: 钥匙串里没有 Developer ID Application 证书，无法发布。" >&2
@@ -32,11 +27,10 @@ if [ -z "$SIGN_ID" ]; then
 fi
 TEAM_ID="$(echo "$SIGN_ID" | sed -nE 's/.*\(([A-Z0-9]+)\)$/\1/p')"
 
-# 发布前推进一次公开版本号和内部构建号
-./Scripts/version.sh build >/dev/null
-VERSION="$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' project.yml | head -1)"
+# 公开版本号取自 CHANGELOG.md 顶部的正式标题，同时推进一次内部构建号；
+# 顶部还是 “## 未发布” 时脚本会在这里失败
+VERSION="$(./Scripts/version.sh release)"
 BUILD="$(sed -nE 's/^ *CURRENT_PROJECT_VERSION: *"?([0-9]+)"?.*/\1/p' project.yml | head -1)"
-[ "$VERSION" = "$NEXT_VERSION" ] || { echo "error: 版本号生成结果不一致：${VERSION} != ${NEXT_VERSION}" >&2; exit 1; }
 echo "版本 ${VERSION} · 签名身份：${SIGN_ID}"
 
 notarize() {
@@ -150,5 +144,6 @@ echo "   Homebrew cask：${DIST}/xstats.rb"
 if [ "${SKIP_NOTARIZE:-0}" = "1" ]; then
   echo "⚠️  未公证，仅供本机测试。"
 else
-  echo "下一步：./Scripts/publish_release.sh 上传安装包到官网并更新 gentpan/homebrew-tap。"
+  echo "下一步：提交并推送版本改动（project.yml、CHANGELOG.md、README 徽章），"
+  echo "        再运行 ./Scripts/publish_release.sh 上传安装包并发布。"
 fi

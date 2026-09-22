@@ -1,3 +1,7 @@
+# Copyright (c) 2026 GiantAccel, LLC
+# XStats modifications Copyright (C) 2026 ysicing
+# SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+
 name: CI
 
 on:
@@ -10,6 +14,24 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
+
+      - name: Version information
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r version build <<< "$(./Scripts/version.sh show)"
+          build="${build#(}"
+          build="${build%)}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          {
+            echo "### XStats build"
+            echo "- Version: $version"
+            echo "- Build: $build"
+            echo "- Ref: $GITHUB_REF_NAME"
+            echo "- Commit: $GITHUB_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # CommandLineTools alone cannot expand SwiftUI's @Observable / @Entry
       # macros — the plugins ship only with full Xcode. Pick the newest Xcode
@@ -44,7 +66,12 @@ jobs:
           test -x "$APP/Contents/MacOS/XStatsHelper"
           test -f "$APP/Contents/Library/LaunchDaemons/work.12306.xstats.helper.plist"
           test -f "$APP/Contents/Resources/AppIcon.icns"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")" = "$EXPECTED_VERSION"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")" = "$EXPECTED_BUILD"
           codesign --verify --verbose "$APP"
+        env:
+          EXPECTED_VERSION: ${{ steps.version.outputs.version }}
+          EXPECTED_BUILD: ${{ steps.version.outputs.build }}
 
       # Smoke test: there is no menu bar or window to drive in CI, so render
       # every main-window page, popover and settings section off-screen. A view
@@ -56,5 +83,5 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ui-snapshots
+          name: ui-snapshots-${{ steps.version.outputs.version }}-${{ steps.version.outputs.build }}
           path: snapshots/

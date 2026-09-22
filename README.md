@@ -6,7 +6,7 @@
 
 **Mac 的状态，抬眼就看见——CPU、GPU、内存、网络与温度常驻菜单栏，还能调风扇、防休眠、一键清理、卸载应用，检测 IP 纯净度。**
 
-[![Release](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.6.1-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-1.0.0-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![Stars](https://img.shields.io/github/stars/ysicing/xstats?style=flat&color=f5c518&label=%E6%98%9F%E6%A0%87)](https://github.com/ysicing/xstats/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/ysicing/xstats?color=black&label=%E6%9C%80%E8%BF%91%E6%8F%90%E4%BA%A4)](https://github.com/ysicing/xstats/commits/main)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ysicing/xstats?color=black&label=%E6%8F%90%E4%BA%A4)](https://github.com/ysicing/xstats/graphs/commit-activity)
@@ -46,7 +46,7 @@ XStats 暂无官网。自动更新与现有 GeoIP 服务保持不变；账号登
 <!-- changelog:start -->
 <!-- 由 Scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->
 
-最新版本 **0.6.1**（2026-09-18） · 开发中 **3** 项改动尚未发布 · [完整更新日志](CHANGELOG.md)
+尚未发布正式版本 · 开发中 **3** 项改动尚未发布 · [完整更新日志](CHANGELOG.md)
 
 <details open>
 <summary><b>2026-09-20</b> · 未发布 · 新增 2 · 调整 1</summary>
@@ -59,32 +59,6 @@ XStats 暂无官网。自动更新与现有 GeoIP 服务保持不变；账号登
 **调整**
 
 - 移除 GitHub、Google、Apple 账号登录及后台自动同步，不再依赖原账号服务和登录回调。自动更新及 GeoIP 服务保持现状。
-
-</details>
-
-<details>
-<summary><b>2026-09-18</b> · 0.6.1 · 新增 1</summary>
-
-**新增**
-
-- 菜单栏“合并为一个”时，点击图标弹出状态总览，不再直接打开主窗口：菜单栏里开启的每一项占一行，写着当前数值、一句状态（负载与温度、已用内存、上下行速度、剩余时间等）和最近的走势，数值偏高时变色；点一行或点顶部的标签，就能看到该项的完整详情，与“每项独立”时点单个图标看到的一样。顶部标签可在总览与各项之间来回切换，面板高度随内容变化；标题栏右侧可以打开主窗口的仪表盘或设置。「设置 · 菜单栏」里各项弹窗显示哪些区块的选项，合并模式下同样可用。解决 [Issue #2](https://github.com/gentpan/OpenStats/issues/2)：合并显示时点击只能打开主窗口，看不到各项状态。
-
-</details>
-
-<details>
-<summary><b>2026-09-18</b> · 0.6.0 · 新增 5 · 样式 1</summary>
-
-**新增**
-
-- 新增出口与分流窗口：网络页顶栏和菜单栏网络弹窗各有一个入口。一次检测约十秒，看清 VPN 与代理有没有生效、各个网站分别从哪个出口出去。
-- 结论只用一句话说清：未使用代理、代理出口（地区）、代理没有生效、网络不通四种情况。右侧同时给出经代理、直连、连不上的网站数量。
-- 本机网络：物理网卡的出口 IP、归属地、运营商与 IPv6。归属地数据来自 cleanip.io。
-- 网站分流：25 个常用网站分别从哪个出口出去。按 AI、影音、社交、开发、国内分类筛选；接入 Cloudflare 的网站能实测出口与边缘节点，其余按国内 / 国际规则推断，每个网站带延迟信号条。
-- 代理方式一览：VPN / 隧道、系统代理、自动代理配置、DNS 与检测到的代理软件。DNS 被代理接管时会标出来。
-
-**样式**
-
-- 菜单栏网络弹窗的 DNS 区块重排：网络服务与线路做成两个徽章（Wi-Fi / 有线、直连或经过哪个代理），走隧道时标题旁有叹号提示 DNS 可能被接管，刷新 DNS 缓存改为图标按钮。
 
 </details>
 

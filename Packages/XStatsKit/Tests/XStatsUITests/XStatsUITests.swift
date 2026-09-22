@@ -1,6 +1,7 @@
 import Foundation
 @testable import Metrics
 import Testing
+import Updates
 @testable import XStatsUI
 
 private func isolatedDefaults() -> UserDefaults {
@@ -249,6 +250,21 @@ private func isolatedDefaults() -> UserDefaults {
         // 测试进程不是签名的 XStats.app
         let controller = UpdateController(settings: AppSettings(defaults: isolatedDefaults()))
         #expect(controller.installBlockedReason != nil)
+    }
+
+    @Test func manualDownloadUsesReleaseDMGThenGitHubReleases() {
+        let controller = UpdateController(settings: AppSettings(defaults: isolatedDefaults()))
+        // 没拿到清单时（检查失败、还没检查）落到 GitHub Releases，那里必须挂着 dmg
+        #expect(controller.manualDownloadURL.absoluteString == "https://github.com/ysicing/xstats/releases/latest")
+
+        let dmg = "https://c.ysicing.net/oss/apps/macOS/XStats/XStats-1.0.0-AppleSilicon.dmg"
+        controller.showPreview(UpdateRelease(
+            version: "1.0.0", build: "110", date: "2026-09-21", minimumSystem: "14.0",
+            url: URL(string: "https://c.ysicing.net/oss/apps/macOS/XStats/XStats-1.0.0-AppleSilicon.zip")!,
+            sha256: String(repeating: "a", count: 64), size: 123,
+            dmg: URL(string: dmg)!, notes: ["示例"], changelog: nil))
+        // 清单里有 dmg 时优先用它，用户拿到的就是这次提示的那一版
+        #expect(controller.manualDownloadURL.absoluteString == dmg)
     }
 
     @Test func updateCheckFallsBackSequentially() async throws {

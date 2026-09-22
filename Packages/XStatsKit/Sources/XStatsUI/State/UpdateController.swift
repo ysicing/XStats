@@ -219,10 +219,13 @@ public final class UpdateController {
         task?.cancel()
     }
 
+    /// 手动下载地址：拿到清单时用其中的 DMG，否则回到 GitHub Releases——那里始终挂着最新版 dmg
+    var manualDownloadURL: URL {
+        release?.dmg ?? URL(string: "https://github.com/ysicing/xstats/releases/latest")!
+    }
+
     func openManualDownload() {
-        if let url = release?.dmg ?? URL(string: "https://getopenstats.com/#download") {
-            NSWorkspace.shared.open(url)
-        }
+        NSWorkspace.shared.open(manualDownloadURL)
     }
 
     /// 当前账户不能改写应用目录时（非管理员或应用放在受保护的位置），请求一次管理员授权完成替换

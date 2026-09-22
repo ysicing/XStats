@@ -30,7 +30,7 @@ let package = Package(
         .testTarget(name: "HelperSharedTests", dependencies: ["HelperShared"]),
         .testTarget(name: "UpdatesTests", dependencies: ["Updates"]),
         .testTarget(name: "WebDAVSyncTests", dependencies: ["WebDAVSync"]),
-        .testTarget(name: "XStatsUITests", dependencies: ["XStatsUI", "Metrics", "WebDAVSync", "Localization"]),
+        .testTarget(name: "XStatsUITests", dependencies: ["XStatsUI", "Metrics", "WebDAVSync", "Localization", "Updates"]),
         .testTarget(name: "LocalizationTests", dependencies: ["Localization"]),
     ],
     swiftLanguageModes: [.v6]

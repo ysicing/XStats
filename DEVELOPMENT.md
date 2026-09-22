@@ -81,6 +81,23 @@ task version-next                     # 预览下一公开版本号
 
 ## 发布
 
+### 版本号
+
+公开版本号是标准 semver，真源是 `CHANGELOG.md` 顶部的第一个二级标题，格式
+`## X.Y.Z · YYYY-MM-DD`；数字段不接受前导零，日期必须真实存在，不支持 `-rc` 等后缀。
+内部构建号是单调递增的整数，与日期无关。
+
+- `./Scripts/version.sh` 显示当前版本和构建号。
+- `./Scripts/version.sh build` 只推进构建号，`task build` 会自动调用。
+- `./Scripts/version.sh release` 按 CHANGELOG 顶部标题写入公开版本号并推进构建号，
+  由 `Scripts/release.sh` 调用，不需要手动执行。
+
+CI 不参与发版：它只在 push 到 `main` 和 PR 时跑测试与构建校验，不再由 tag 触发，
+也不写版本、不建 Release。Actions 摘要仍会显示版本、构建号、Git 引用和提交号，
+截图产物名也包含版本。服务器镜像工作流仍使用原有分支规则。发版全部在本地手动执行。
+
+### 签名与公证
+
 正式分发需要 Apple Developer Program 的 **Developer ID Application** 证书、对应私钥，
 以及 `notarytool` 公证凭据。发布脚本会构建 Apple Silicon 版本，检查签名团队、
 安全时间戳、Hardened Runtime、公证票据和 Gatekeeper，然后生成 DMG、在线升级包和 Homebrew cask。
@@ -102,9 +119,30 @@ NOTARY_PROFILE=XStats task release
 如果使用其他 profile，可以覆盖 `NOTARY_PROFILE`。`SKIP_NOTARIZE=1 task release` 只适合本机测试，
 生成的包不应公开分发。
 
-发布前需要先把对应版本写入 `CHANGELOG.md`，标题格式为：
+打包完成后按顺序执行：
 
-标题示例：`## 2026.09.21.01 · 2026-09-21`。
+```bash
+# 1. 检查 dist/ 产物：dmg、zip、appcast.json、xstats.rb
+ls dist/
+
+# 2. 提交并推送版本改动——publish_release.sh 会校验 HEAD 与 origin/main 一致，
+#    它不会替你 commit 或 push
+git add project.yml CHANGELOG.md README*.md Assets/readme
+git commit -m "chore(release): 1.0.0"
+git push
+
+# 3. 上传安装包到对象存储、建 GitHub Release、提交版本清单、更新 Homebrew tap
+./Scripts/publish_release.sh
+```
+
+发布需要本地装有 `mc`（MinIO 客户端，别名 `cos` 指向对象存储源站）和 `gh`（GitHub CLI）。
+安装包放在 `https://c.ysicing.net/oss/apps/macOS/XStats/`；GitHub Release 只挂 dmg，
+作为应用内「手动下载」和 README 的下载入口。版本徽章需在四个 README 的第 9 行手动更新，
+`Scripts/sync_changelog.py` 不处理徽章。
+
+发布前需要先把对应版本写入 `CHANGELOG.md`：把顶部的 `## 未发布` **整体替换**成正式标题，
+不要在它上面再留一个 `## 未发布`。标题示例：`## 1.0.0 · 2026-09-21`。
+发布完成后的下一次开发提交再插入新的空 `## 未发布`。
 
 ## 项目结构
 
