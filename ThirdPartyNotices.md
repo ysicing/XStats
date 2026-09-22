@@ -69,3 +69,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## AI 配额 Provider 契约参考
+
+XStats 的 AI 配额数据模型、Codex 凭据发现与配额响应映射参考了以下项目公开的 Provider 契约、测试样例与实现模式；
+XStats 未引入这些项目的可执行程序、Sparkle 更新模块或浏览器扩展，并保持凭据只读：
+
+- [burakgon/ai-usage-menubar](https://github.com/burakgon/ai-usage-menubar)，MIT License，Copyright (c) 2026 Burak Gon
+- [robinebers/openusage](https://github.com/robinebers/openusage)，MIT License，Copyright (c) 2026 Robin Ebers
+- [methol-dev/usage-bar](https://github.com/methol-dev/usage-bar)，BSD-2-Clause，Copyright (c) 2026 Krystian
+
+完整许可证文本见 [LICENSES/AI-Usage-and-OpenUsage-MIT.txt](LICENSES/AI-Usage-and-OpenUsage-MIT.txt)
+与 [LICENSES/usage-bar-BSD-2-Clause.txt](LICENSES/usage-bar-BSD-2-Clause.txt)。

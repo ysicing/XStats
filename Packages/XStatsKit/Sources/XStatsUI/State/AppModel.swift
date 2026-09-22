@@ -1,3 +1,4 @@
+import AIUsage
 import Foundation
 import Metrics
 import Observation
@@ -10,6 +11,7 @@ import Updates
 @Observable
 public final class AppModel {
     public let settings: AppSettings
+    public let aiUsage: AIUsageController
     public let store: MetricsStore
     public let helper: HelperClient
     public let fans: FanController
@@ -61,10 +63,12 @@ public final class AppModel {
     @ObservationIgnored var openSpeedTestWindow: () -> Void = {}
     @ObservationIgnored var quit: () -> Void = {}
 
-    public init(settings: AppSettings = AppSettings(), historyURL: URL? = HistoryDatabase.defaultURL) {
+    public init(settings: AppSettings = AppSettings(), historyURL: URL? = HistoryDatabase.defaultURL,
+                aiUsageProviders: [any AIUsageProvider] = [CodexProvider()]) {
         let store = MetricsStore()
         let helper = HelperClient()
         self.settings = settings
+        aiUsage = AIUsageController(settings: settings, providers: aiUsageProviders)
         self.store = store
         self.helper = helper
         fans = FanController(helper: helper, store: store, settings: settings)

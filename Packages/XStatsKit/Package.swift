@@ -7,6 +7,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "Localization", targets: ["Localization"]),
+        .library(name: "AIUsage", targets: ["AIUsage"]),
         .library(name: "SMC", targets: ["SMC"]),
         .library(name: "Metrics", targets: ["Metrics"]),
         .library(name: "HelperShared", targets: ["HelperShared"]),
@@ -17,13 +18,14 @@ let package = Package(
     ],
     targets: [
         .target(name: "Localization", resources: [.process("Resources")]),
+        .target(name: "AIUsage"),
         .target(name: "SMC", dependencies: ["Localization"]),
         .target(name: "Metrics", dependencies: ["SMC", "Localization"], linkerSettings: [.linkedLibrary("IOReport")]),
         .target(name: "HelperShared", dependencies: ["Localization"]),
         .target(name: "Cleaner", dependencies: ["Localization"]),
         .target(name: "Updates", dependencies: ["Localization"]),
         .target(name: "WebDAVSync", dependencies: ["Localization"]),
-        .target(name: "XStatsUI", dependencies: ["Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync"],
+        .target(name: "XStatsUI", dependencies: ["AIUsage", "Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync"],
                 resources: [.copy("Resources/Flags"), .copy("Resources/Logos")]),
         .testTarget(name: "MetricsTests", dependencies: ["Metrics", "SMC"]),
         .testTarget(name: "CleanerTests", dependencies: ["Cleaner"]),
@@ -32,6 +34,7 @@ let package = Package(
         .testTarget(name: "WebDAVSyncTests", dependencies: ["WebDAVSync"]),
         .testTarget(name: "XStatsUITests", dependencies: ["XStatsUI", "Metrics", "WebDAVSync", "Localization", "Updates"]),
         .testTarget(name: "LocalizationTests", dependencies: ["Localization"]),
+        .testTarget(name: "AIUsageTests", dependencies: ["AIUsage"]),
     ],
     swiftLanguageModes: [.v6]
 )

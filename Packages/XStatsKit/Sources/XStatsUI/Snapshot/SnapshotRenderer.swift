@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
 // See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
 
+import AIUsage
 import AppKit
 import Localization
 import Metrics
@@ -19,7 +20,8 @@ enum SnapshotRenderer {
         let defaults = UserDefaults(suiteName: "XStats.snapshot") ?? .standard
         let settings = AppSettings(defaults: defaults)
         settings.language = L10n.language
-        settings.menuBarItems = [.cpu, .gpu, .memory, .network, .disk, .temperature, .battery]
+        settings.menuBarItems = [.cpu, .gpu, .memory, .network, .disk, .temperature, .battery, .aiUsage]
+        settings.aiUsageEnabled = true
         // 历史页用示例数据：最近 24 小时每分钟一条，中间留一段“睡眠”空档
         let historyURL = FileManager.default.temporaryDirectory.appendingPathComponent("xstats-snapshot-history.sqlite")
         try? FileManager.default.removeItem(at: historyURL)
@@ -36,7 +38,9 @@ enum SnapshotRenderer {
                                                     power: index > 1200 ? 20 + wave * 25 : nil))
             }
         }
-        let model = AppModel(settings: settings, historyURL: historyURL)
+        let model = AppModel(settings: settings, historyURL: historyURL,
+                             aiUsageProviders: [SnapshotAIUsageProvider()])
+        await model.aiUsage.refresh()
         model.isMainWindowVisible = true
         model.network.setVisibility(inMenuBar: true, detailVisible: true)
 
@@ -148,5 +152,24 @@ enum SnapshotRenderer {
         image.draw(in: NSRect(origin: .zero, size: image.size))
         NSGraphicsContext.restoreGraphicsState()
         try? bitmap.representation(using: .png, properties: [:])?.write(to: url)
+    }
+}
+
+private struct SnapshotAIUsageProvider: AIUsageProvider {
+    let id = AIProviderID.codex
+
+    func fetch() async throws -> AIUsageSnapshot {
+        let now = Date()
+        return AIUsageSnapshot(
+            provider: .codex,
+            planName: "Pro 20x",
+            windows: [
+                AIQuotaWindow(kind: .session, usedPercent: 28, resetsAt: now.addingTimeInterval(95 * 60)),
+                AIQuotaWindow(kind: .weekly, usedPercent: 87, resetsAt: now.addingTimeInterval(4.5 * 24 * 60 * 60)),
+                AIQuotaWindow(kind: .sparkWeekly, usedPercent: 42, resetsAt: now.addingTimeInterval(6 * 24 * 60 * 60)),
+            ],
+            remainingCredits: 820,
+            fetchedAt: now
+        )
     }
 }

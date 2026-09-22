@@ -14,10 +14,10 @@
 
 XStats는 CPU 코어별 사용량, GPU, 메모리 압력, 네트워크 속도, 디스크, 배터리, 온도와 팬 상태를 보여 주는 macOS 메뉴 막대 앱입니다.
 팬 속도 조절, 덮개를 닫은 상태에서 실행 유지, 캐시 정리, 앱과 관련 파일 제거, 시작 항목 관리도 지원합니다.
-네트워크 화면에서는 공인 IP가 VPN, 프록시, 데이터 센터 또는 악용 기록과 관련되어 있는지 확인할 수 있습니다.
+네트워크 화면에서는 공인 IP가 VPN, 프록시, 데이터 센터 또는 악용 기록과 관련되어 있는지 확인할 수 있습니다. 필요하면 Codex CLI 로그인을 읽어 구독 할당량도 표시합니다.
 
 모니터링 지표는 Mac 안에서만 처리하며 업로드하지 않습니다. XStats 계정 없이 자신의 WebDAV 서버로 설정을 수동 백업하고 복원할 수 있습니다. 업데이트 확인 시 익명 설치 수와 버전 분포를 집계하기 위해 현재 버전과 무작위 설치 ID의 SHA-256을 전송하며, 원본 무작위 값은 로컬 키체인에만 저장합니다.
-공인 IP 조회, 연결 테스트, 업데이트 확인 등의 네트워크 기능은 선택 사항입니다.
+공인 IP 조회, 연결 테스트, Codex 할당량, 업데이트 확인 등의 네트워크 기능은 선택 사항입니다.
 
 [다운로드](https://github.com/ysicing/xstats/releases) · [변경 기록(중국어)](CHANGELOG.md) · [개발 안내(중국어)](DEVELOPMENT.md)
 
@@ -156,6 +156,7 @@ XStats를 종료하거나 앱이 비정상 종료되면 팬이 자동 모드로 
 ## 데이터와 개인정보
 
 지표는 로컬 커널, IOKit, SMC에서 읽으며 설정은 앱의 UserDefaults에 저장합니다. 모니터링 지표, 기록, 하드웨어 일련번호와 프로세스 목록은 업로드하지 않습니다.
+AI 할당량은 기본적으로 꺼져 있습니다. 사용하면 Codex CLI가 관리하는 로컬 액세스 토큰을 읽고 `chatgpt.com/backend-api/wham/usage`에 직접 요청합니다. XStats는 토큰을 저장하거나 갱신하거나 다시 쓰지 않습니다.
 공인 IP는 Cloudflare(실패 시 ipify), IP 평판은 cleanip.io에 직접 조회합니다. 연결 테스트는 선택한 대상으로 ICMP ping을 보냅니다. 업데이트 확인은 현재 버전과 무작위 설치 ID의 SHA-256을 보내고 버전 정보를 읽습니다. 중국 지역은 `x-stats.china.12306.work`, 그 외 지역은 `xstats-apps.12306.work`를 우선 사용하며, 실패한 경우에만 다른 엔드포인트로 순차 전환하고 첫 성공 후 중지합니다. 서버에는 해당 해시, 현재 버전, 최초·최근 확인 시각과 확인 횟수만 저장하며, 하드웨어 일련번호를 저장하지 않고 요청 IP도 영구 저장하지 않습니다(1분 동안의 메모리 내 속도 제한에만 사용). 자동 업데이트 확인을 끄면 자동 요청도 중지됩니다.
 이 기능들은 설정에서 끌 수 있습니다. Apple Intelligence 프로세스 설명은 기기 안에서 처리됩니다.
 
@@ -186,6 +187,8 @@ JSON 파일 자체는 추가 암호화하지 않으므로 비공개 디렉터리
 | [Stats](https://github.com/exelban/stats) | Serhiy Mytrovtsiy | MIT | SMC 통신, Apple Silicon 팬 제어, 메뉴 막대 표시 |
 | [Mole](https://github.com/tw93/Mole) | tw93 | GPL-3.0 | 정리·보호 대상에 대한 아이디어. 정리 기능은 독립적인 Swift 구현이며 Mole 코드를 포함하지 않습니다 |
 | [QuotaBar](https://github.com/gentpan/quotabar) | GiantAccel, LLC | MIT | README 구성, 변경 기록 동기화, 활동 그래프 |
+| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI Provider 계약, Codex 자격 증명 탐색, 할당량 응답 연구 |
+| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | 읽기 전용 자격 증명, 속도 제한, Provider 상태 설계 참고 |
 
 자세한 내용은 [ThirdPartyNotices.md](ThirdPartyNotices.md)를 참고하세요.
 XStats는 독립적인 서드파티 앱이며 Apple이나 본문에 언급된 다른 회사가 승인하거나 후원하는 제품이 아닙니다.

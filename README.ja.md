@@ -14,10 +14,10 @@
 
 XStats は、Mac の各 CPU コア、GPU、メモリ負荷、通信速度、ディスク、バッテリー、温度、ファンの状態を表示するメニューバーアプリです。
 状態の確認に加えて、ファンの回転数調整、蓋を閉じた状態でのスリープ防止、キャッシュ削除、アプリと関連ファイルの削除、起動項目の管理ができます。
-ネットワーク画面では、公開 IP が VPN、プロキシ、データセンター、不正利用などに関連付けられているかも確認できます。
+ネットワーク画面では、公開 IP が VPN、プロキシ、データセンター、不正利用などに関連付けられているかも確認できます。必要に応じて Codex CLI のログインを読み取り、サブスクリプション使用枠も表示できます。
 
 監視指標は Mac 内だけで処理され、アップロードされません。XStats のアカウントは不要で、自分の WebDAV サーバーを使って設定を手動でバックアップ・復元できます。更新確認では、匿名のインストール数とバージョン分布を集計するため、現在のバージョンとランダムなインストール ID の SHA-256 を送信します。元のランダム値はローカルのキーチェーンにのみ保存されます。
-公開 IP の照会、接続テスト、更新確認などのネットワーク機能は任意です。
+公開 IP の照会、接続テスト、Codex 使用枠、更新確認などのネットワーク機能は任意です。
 
 [ダウンロード](https://github.com/ysicing/xstats/releases) · [変更履歴（中国語）](CHANGELOG.md) · [開発ガイド（中国語）](DEVELOPMENT.md)
 
@@ -156,6 +156,7 @@ XStats の終了時やクラッシュ時には自動制御へ戻り、蓋を閉�
 ## データとプライバシー
 
 指標はローカルのカーネル、IOKit、SMC から取得し、設定はアプリの UserDefaults に保存します。監視指標、履歴、ハードウェアのシリアル番号、プロセス一覧はアップロードしません。
+AI 使用枠は初期状態で無効です。有効にすると Codex CLI が管理するローカルのアクセストークンを読み取り、`chatgpt.com/backend-api/wham/usage` へ直接問い合わせます。XStats はトークンを保存、更新、書き戻ししません。
 公開 IP は Cloudflare（失敗時は ipify）、IP 評価は cleanip.io に直接問い合わせます。接続テストは選択した対象へ ICMP ping を送ります。更新確認は現在のバージョンとランダムなインストール ID の SHA-256 を送信してバージョン情報を取得します。中国地域では `x-stats.china.12306.work`、その他では `xstats-apps.12306.work` を優先し、失敗時のみもう一方へ順番にフォールバックして、最初の成功後は停止します。サーバーはこのハッシュ、現在のバージョン、初回／最終確認時刻、確認回数のみを保存し、シリアル番号を保存せず、リクエスト IP も永続化しません（1 分間のメモリ内レート制限にのみ使用します）。自動更新確認を無効にすると自動送信も停止します。
 これらは設定で無効化できます。Apple Intelligence によるプロセス説明は端末内で行います。
 
@@ -186,6 +187,8 @@ JSON ファイル自体は追加暗号化しないため、非公開のディレ
 | [Stats](https://github.com/exelban/stats) | Serhiy Mytrovtsiy | MIT | SMC 通信、Apple Silicon のファン制御、メニューバー表示 |
 | [Mole](https://github.com/tw93/Mole) | tw93 | GPL-3.0 | 清掃対象と保護対象の考え方。クリーンアップは独自の Swift 実装で、Mole のコードを含みません |
 | [QuotaBar](https://github.com/gentpan/quotabar) | GiantAccel, LLC | MIT | README の構成、変更履歴の同期、活動グラフ |
+| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI Provider 契約、Codex 認証情報の検出、使用枠レスポンスの調査 |
+| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | 認証情報の読み取り専用処理、レート制限、Provider 状態設計の参考 |
 
 詳細は [ThirdPartyNotices.md](ThirdPartyNotices.md) を参照してください。
 XStats は独立した第三者アプリであり、Apple や本文中の他社による承認・支援を受けた製品ではありません。

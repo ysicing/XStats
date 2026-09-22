@@ -1217,3 +1217,37 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 ，充电中	, wird geladen
 ，已从程序坞移除	, aus dem Dock entfernt
 ：{}	: {}
+AI 配额	KI-Kontingent
+AI 配额 {}	KI-Kontingent {}
+API Key 无法查询 ChatGPT 订阅配额。	Ein API-Schlüssel kann das ChatGPT-Abonnementkontingent nicht abfragen.
+Codex · 数据已过期	Codex · Veraltete Daten
+Codex · 自动显示最紧张的配额	Codex · Knappstes Kontingent automatisch anzeigen
+Codex 登录凭据无法读取，请重新登录。	Codex-Anmeldedaten konnten nicht gelesen werden. Bitte erneut anmelden.
+Codex 登录已过期，请重新登录。	Codex-Anmeldung abgelaufen. Bitte erneut anmelden.
+Codex 订阅配额、重置时间与积分余额	Codex-Kontingente, Rücksetzzeiten und Guthaben
+Codex 返回了无法识别的配额数据。	Codex hat unbekannte Kontingentdaten zurückgegeben.
+Codex 配额	Codex-Kontingent
+Codex 配额服务暂时不可用（HTTP {}）。	Codex-Kontingentdienst vorübergehend nicht verfügbar (HTTP {}).
+Spark 周配额	Spark-Wochenkontingent
+XStats 只读 Codex CLI 的本机登录凭据，并直接向 ChatGPT 查询订阅配额；不会保存、刷新或修改登录信息。	XStats liest lokale Codex-CLI-Anmeldedaten und fragt ChatGPT direkt nach dem Kontingent. Anmeldedaten werden weder gespeichert noch erneuert oder verändert.
+会话	Sitzung
+关闭后停止读取凭据和查询配额	Deaktivieren beendet das Lesen der Anmeldedaten und die Kontingentabfragen
+凭据始终由 Codex CLI 管理。登录过期时，请回到 Codex CLI 重新登录。	Die Anmeldedaten werden von der Codex CLI verwaltet. Bei Ablauf bitte dort erneut anmelden.
+剩余	Übrig
+后重置	bis zum Zurücksetzen
+启用 Codex 配额	Codex-Kontingent aktivieren
+周配额	Wochenkontingent
+尚未启用	Nicht aktiviert
+尚未登录 Codex，请先在 Codex CLI 中登录。	Nicht bei Codex angemeldet. Bitte zuerst über die Codex CLI anmelden.
+暂无配额数据	Noch keine Kontingentdaten
+暂时无法连接 Codex 配额服务。	Codex-Kontingentdienst vorübergehend nicht erreichbar.
+本机设置	Lokale Einstellung
+查询过于频繁，可在 {} 后重试。	Zu viele Anfragen. Nach {} erneut versuchen.
+查询过于频繁，请稍后重试。	Zu viele Anfragen. Bitte später erneut versuchen.
+正在刷新	Wird aktualisiert
+正在检查本机登录…	Lokale Anmeldung wird geprüft…
+积分	Credits
+立即刷新	Jetzt aktualisieren
+跟踪 Codex	Codex verfolgen
+配额查询独立于系统指标刷新	Kontingentabfragen sind unabhängig von Systemmessungen
+默认关闭	Standardmäßig aus

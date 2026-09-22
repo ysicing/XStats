@@ -1174,6 +1174,40 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 风险评分	Risk score
 饼图	Pie
 饼图表示当前占用比例	A pie shows current usage
+AI 配额	AI Quota
+AI 配额 {}	AI quota {}
+API Key 无法查询 ChatGPT 订阅配额。	An API key cannot read ChatGPT subscription quota.
+Codex 配额	Codex Quota
+Codex 登录已过期，请重新登录。	Your Codex login has expired. Sign in again.
+Codex 返回了无法识别的配额数据。	Codex returned unrecognized quota data.
+Codex 登录凭据无法读取，请重新登录。	Codex login credentials could not be read. Sign in again.
+Codex 订阅配额、重置时间与积分余额	Codex subscription quota, reset times, and credit balance
+Codex 配额服务暂时不可用（HTTP {}）。	Codex quota service is temporarily unavailable (HTTP {}).
+Codex · 数据已过期	Codex · Data is stale
+Codex · 自动显示最紧张的配额	Codex · Automatically showing the tightest quota
+Spark 周配额	Spark Weekly
+XStats 只读 Codex CLI 的本机登录凭据，并直接向 ChatGPT 查询订阅配额；不会保存、刷新或修改登录信息。	XStats reads the local Codex CLI login credentials and queries ChatGPT directly for subscription quota. It never saves, refreshes, or modifies the login.
+会话	Session
+关闭后停止读取凭据和查询配额	Stops reading credentials and querying quota when turned off
+积分	Credits
+后重置	until reset
+周配额	Weekly
+启用 Codex 配额	Enable Codex Quota
+尚未启用	Not enabled
+尚未登录 Codex，请先在 Codex CLI 中登录。	You are not signed in to Codex. Sign in with the Codex CLI first.
+暂无配额数据	No quota data yet
+本机设置	Local setting
+正在刷新	Refreshing
+正在检查本机登录…	Checking the local login…
+立即刷新	Refresh Now
+查询过于频繁，可在 {} 后重试。	Too many requests. Try again after {}.
+查询过于频繁，请稍后重试。	Too many requests. Try again later.
+跟踪 Codex	Track Codex
+配额查询独立于系统指标刷新	Quota queries are independent from system metric refreshes
+剩余	Left
+凭据始终由 Codex CLI 管理。登录过期时，请回到 Codex CLI 重新登录。	Credentials always remain managed by the Codex CLI. If the login expires, sign in again from the Codex CLI.
+暂时无法连接 Codex 配额服务。	Codex quota service is temporarily unreachable.
+默认关闭	Off by default
 首次发送时系统会询问是否允许通知	The system asks for permission the first time
 高占用进程	Top Processes
 高负载	Heavy load

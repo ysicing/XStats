@@ -68,6 +68,7 @@ public struct MainWindowView: View {
             case .overview: OverviewPage()
             case .system: SystemInfoPage()
             case .history: HistoryPage()
+            case .aiUsage: AIUsagePage()
             case .cpu: DetailPage { CPUPopover() }
             case .gpu: DetailPage { GPUPopover() }
             case .memory: DetailPage { MemoryPopover() }

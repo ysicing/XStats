@@ -308,6 +308,17 @@ private struct OverviewReading {
             } else {
                 detail = tr("没有电池")
             }
+        case .aiUsage:
+            if let reading = model.aiUsage.menuBarReading {
+                setPercent(reading.displayedFraction)
+                tone = Self.loadTone(reading.usedFraction)
+                let color = reading.usedFraction >= 0.85 ? DS.Palette.error
+                    : reading.usedFraction >= 0.6 ? DS.Palette.warning : DS.Palette.primary
+                chart = .level(reading.displayedFraction, color)
+                detail = reading.isStale ? tr("Codex · 数据已过期") : tr("Codex · 自动显示最紧张的配额")
+            } else {
+                detail = model.settings.aiUsageEnabled ? tr("暂无配额数据") : tr("尚未启用")
+            }
         }
     }
 

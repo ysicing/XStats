@@ -15,6 +15,8 @@ hosting SwiftUI, no third-party dependencies. The Xcode project is generated fro
 - `Packages/XStatsKit/Sources/Metrics` — one sampler per metric and `MetricsHub`; power and CPU
   frequency (`PowerSampler`), disk activity and NVMe SMART (`DiskSamplers`), Bluetooth battery,
   the SQLite history store.
+- `Packages/XStatsKit/Sources/AIUsage` — provider-neutral quota models plus the read-only Codex
+  credential reader, usage client and response mapper. It never refreshes or writes third-party credentials.
 - `Packages/XStatsKit/Sources/Cleaner` — cleanup rules, `SafetyGuard`, `CleanEngine`, the app
   uninstaller's leftover search and the launchd startup-item list.
 - `Packages/XStatsKit/Sources/Updates` — the update manifest and the download → verify →
@@ -164,6 +166,25 @@ next to the dashboard and tool pages. Windows use a transparent, full-size-conte
 an empty compact toolbar, so the traffic lights sit on the same ground colour as the sidebar and
 line up with the 40 pt page header; the app switches to a regular activation policy while a window
 is open and back to accessory when all are closed.
+
+## AI quota
+
+AI quota polling is deliberately separate from `MetricsHub`: system metrics run every 1–5 seconds,
+while provider quota defaults to 30 minutes. `AIUsageController` owns scheduling, stale-value policy
+and provider cooldowns; a provider performs one read-only fetch and returns an `AIUsageSnapshot`.
+Temporary network, server, schema and rate-limit failures retain the last snapshot and mark it stale;
+authentication failures clear it. A `Retry-After` deadline is enforced before the provider is called again.
+
+The first provider is Codex. Credential lookup checks `$CODEX_HOME/auth.json`, then
+`~/.config/codex/auth.json` and `~/.codex/auth.json`. Only `tokens.access_token` and the optional
+account ID are held in memory for the request to `https://chatgpt.com/backend-api/wham/usage`.
+API-key-only authentication cannot expose ChatGPT subscription quota. XStats does not persist,
+refresh or rewrite Codex credentials, and diagnostics never include token or response-body data.
+
+The menu bar shows the quota window with the highest underlying used percentage; the popover and
+main-window page show every returned window, reset time and credit balance. Users opt in explicitly
+and can switch between remaining and used percentages. The setting is local to each Mac because the
+credential source is machine-specific.
 
 ## Network details
 
