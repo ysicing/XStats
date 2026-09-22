@@ -272,6 +272,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private func observeAIUsageSchedule() {
         withObservationTracking {
             _ = model.settings.aiUsageEnabled
+            _ = model.settings.aiUsageSources
             _ = model.settings.aiUsageRefreshMinutes
         } onChange: { [weak self] in
             Task { @MainActor in

@@ -24,7 +24,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: tr("CPU 温度")
         case .fan: tr("风扇转速")
         case .battery: tr("电池")
-        case .aiUsage: tr("AI 配额")
+        case .aiUsage: tr("AI 使用统计")
         }
     }
 
@@ -38,7 +38,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: tr("CPU 核心最高温度")
         case .fan: tr("转速最高的风扇")
         case .battery: tr("电量与充电状态；没有电池的 Mac 显示蓝牙设备电量")
-        case .aiUsage: tr("Codex 订阅配额、重置时间与积分余额")
+        case .aiUsage: tr("Codex / Claude Code 本机模型与 Token 使用统计")
         }
     }
 
@@ -68,7 +68,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: tr("温度")
         case .fan: tr("风扇")
         case .battery: tr("电池")
-        case .aiUsage: tr("AI 配额")
+        case .aiUsage: tr("AI 使用统计")
         }
     }
 
@@ -207,7 +207,7 @@ public enum MenuBarStyle: String, CaseIterable, Identifiable, Sendable {
     static func options(for item: MenuBarItem) -> [MenuBarStyle] {
         switch item {
         case .temperature, .fan: [.stacked, .inline, .icon]
-        case .aiUsage: [.stacked, .inline, .icon, .ring, .pie, .meter, .dot]
+        case .aiUsage: [.stacked, .inline, .icon]
         default: allCases
         }
     }
@@ -287,7 +287,9 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
 
     static let monitors: [PanelTab] = [.overview, .system, .history, .aiUsage, .cpu, .gpu, .memory, .disk, .network, .thermal, .battery]
     static let tools: [PanelTab] = [.processes, .startupItems, .keepAwake, .cleaner, .uninstaller]
-    static let settings: [PanelTab] = [.settingsGeneral, .settingsMenuBar, .settingsNotifications, .settingsAccount, .settingsHelper, .settingsAbout]
+    // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
+    static let settings: [PanelTab] = [.settingsGeneral, .settingsMenuBar, .settingsNotifications,
+                                     /* .settingsAccount, */ .settingsHelper, .settingsAbout]
 
     var isSettings: Bool { Self.settings.contains(self) }
 
@@ -299,7 +301,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .overview: tr("仪表盘")
         case .system: tr("本机信息")
         case .history: tr("历史")
-        case .aiUsage: tr("AI 配额")
+        case .aiUsage: tr("AI 使用统计")
         case .cpu: "CPU"
         case .gpu: "GPU"
         case .memory: tr("内存")
@@ -410,9 +412,13 @@ public final class AppSettings {
     public var refreshSeconds: Int {
         didSet { defaults.set(refreshSeconds, forKey: Keys.refreshSeconds) }
     }
-    /// AI 配额是外部网络查询，默认不启用；启用后独立于系统指标的秒级采样。
+    /// 本机 AI 日志统计默认不启用，独立于系统指标的秒级采样。
     public var aiUsageEnabled: Bool {
         didSet { defaults.set(aiUsageEnabled, forKey: Keys.aiUsageEnabled) }
+    }
+    /// 来源开关只保存在本机；关闭后不扫描，也不显示其历史缓存。
+    public var aiUsageSources: Set<AIProviderID> {
+        didSet { defaults.set(aiUsageSources.map(\.rawValue).sorted(), forKey: Keys.aiUsageSources) }
     }
     public var aiUsageRefreshMinutes: Int {
         didSet { defaults.set(aiUsageRefreshMinutes, forKey: Keys.aiUsageRefreshMinutes) }
@@ -558,6 +564,8 @@ public final class AppSettings {
         refreshSeconds = Self.refreshOptions.contains(defaults.integer(forKey: Keys.refreshSeconds))
             ? defaults.integer(forKey: Keys.refreshSeconds) : 2
         aiUsageEnabled = defaults.bool(forKey: Keys.aiUsageEnabled)
+        aiUsageSources = defaults.stringArray(forKey: Keys.aiUsageSources)
+            .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
         aiUsageRefreshMinutes = Self.aiUsageRefreshOptions.contains(defaults.integer(forKey: Keys.aiUsageRefreshMinutes))
             ? defaults.integer(forKey: Keys.aiUsageRefreshMinutes) : 30
         aiUsageDisplayMode = defaults.string(forKey: Keys.aiUsageDisplayMode).flatMap(AIUsageDisplayMode.init(rawValue:)) ?? .remaining
@@ -569,7 +577,8 @@ public final class AppSettings {
             ? defaults.integer(forKey: Keys.lidModeBatteryFloor) : 20
         fanSafetyTemperature = Self.fanSafetyOptions.contains(defaults.integer(forKey: Keys.fanSafetyTemperature))
             ? defaults.integer(forKey: Keys.fanSafetyTemperature) : 95
-        panelTab = defaults.string(forKey: Keys.panelTab).flatMap(PanelTab.init(rawValue:)) ?? .overview
+        let savedPanelTab = defaults.string(forKey: Keys.panelTab).flatMap(PanelTab.init(rawValue:)) ?? .overview
+        panelTab = savedPanelTab == .settingsAccount ? .settingsGeneral : savedPanelTab
         appearance = defaults.string(forKey: Keys.appearance).flatMap(AppearanceMode.init(rawValue:)) ?? .system
         showDockIcon = defaults.bool(forKey: Keys.showDockIcon)
         speedTestBudget = defaults.string(forKey: Keys.speedTestBudget).flatMap(SpeedTestBudget.init(rawValue:)) ?? .full
@@ -638,6 +647,7 @@ public final class AppSettings {
         static let styleOverrides = "styleOverrides"
         static let refreshSeconds = "refreshSeconds"
         static let aiUsageEnabled = "aiUsageEnabled"
+        static let aiUsageSources = "aiUsageSources"
         static let aiUsageRefreshMinutes = "aiUsageRefreshMinutes"
         static let aiUsageDisplayMode = "aiUsageDisplayMode"
         static let colorizeHighLoad = "colorizeHighLoad"

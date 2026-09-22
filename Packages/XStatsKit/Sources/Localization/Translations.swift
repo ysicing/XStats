@@ -12,6 +12,39 @@ extension Translations {
     }
 
     static let english = #"""
+Token 活动	Token activity
+每日	Daily
+每周	Weekly
+{} 当周：{} Tokens	Week of {}: {} Tokens
+截至 {} 当周累计：{} Tokens	Through the week of {}: {} Tokens cumulative
+1 年	1 year
+缓存创建 Token	Cache creation tokens
+AI 使用统计	AI Usage
+Codex / Claude Code 本机模型与 Token 使用统计	Local Codex / Claude Code model and token usage
+时间范围	Time range
+今天	Today
+30 天	30 days
+模型	Model
+全部模型	All models
+本机记录	Local history
+输入 Token	Input tokens
+输出 Token	Output tokens
+缓存 Token	Cached tokens
+缓存命中率	Cache hit rate
+用量记录	Usage records
+模型排行	Model ranking
+每日用量	Daily usage
+日期	Date
+启用使用统计	Enable usage statistics
+只读本机 Codex / Claude Code 会话日志，按模型统计 Token；不读取登录凭据，不查询订阅额度。	Reads local Codex / Claude Code session logs to count tokens by model. No login credentials or subscription quota requests.
+缓存 Token 已包含在输入中，推理 Token 已包含在输出中。	Cached tokens are included in input; reasoning tokens are included in output.
+所选时间范围没有用量记录	No usage in this time range
+部分会话日志无法读取，统计可能不完整	Some session logs could not be read; statistics may be incomplete
+读取失败，显示上次统计结果	Read failed; showing previous statistics
+正在读取会话日志…	Reading session logs…
+暂无本机用量数据	No local usage data
+仅统计本机日志，不代表订阅账单或其他设备的用量	Local logs only; not a subscription bill or usage from other devices
+未变化的日志使用缓存	Unchanged logs use cached results
  {} 英寸	 {}-inch
  · {} 项使用中	 · {} in use
  · 移到废纸篓	 · Moves to Trash

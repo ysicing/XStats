@@ -1251,3 +1251,36 @@ XStats 只读 Codex CLI 的本机登录凭据，并直接向 ChatGPT 查询订�
 跟踪 Codex	Suivre Codex
 配额查询独立于系统指标刷新	Les requêtes de quota sont indépendantes des mesures système
 默认关闭	Désactivé par défaut
+AI 使用统计	Utilisation IA
+Codex / Claude Code 本机模型与 Token 使用统计	Utilisation locale des modèles et tokens Codex / Claude Code
+时间范围	Période
+今天	Aujourd’hui
+30 天	30 jours
+模型	Modèle
+全部模型	Tous les modèles
+本机记录	Historique local
+输入 Token	Tokens en entrée
+输出 Token	Tokens en sortie
+缓存 Token	Tokens en cache
+缓存命中率	Taux de succès du cache
+用量记录	Relevés d’utilisation
+模型排行	Classement des modèles
+每日用量	Utilisation quotidienne
+日期	Date
+启用使用统计	Activer les statistiques
+只读本机 Codex / Claude Code 会话日志，按模型统计 Token；不读取登录凭据，不查询订阅额度。	Lit les journaux locaux Codex / Claude Code pour compter les tokens par modèle, sans identifiants ni requêtes de quota.
+缓存 Token 已包含在输入中，推理 Token 已包含在输出中。	Les tokens en cache sont inclus en entrée et ceux de raisonnement en sortie.
+所选时间范围没有用量记录	Aucune utilisation sur cette période
+部分会话日志无法读取，统计可能不完整	Certains journaux sont illisibles ; les statistiques peuvent être incomplètes
+读取失败，显示上次统计结果	Échec de lecture ; affichage des statistiques précédentes
+正在读取会话日志…	Lecture des journaux de session…
+暂无本机用量数据	Aucune donnée d’utilisation locale
+仅统计本机日志，不代表订阅账单或其他设备的用量	Journaux locaux uniquement, pas la facture ni l’utilisation d’autres appareils
+未变化的日志使用缓存	Les journaux inchangés utilisent le cache
+缓存创建 Token	Tokens de création du cache
+1 年	1 an
+Token 活动	Activité des tokens
+每日	Par jour
+每周	Par semaine
+{} 当周：{} Tokens	Semaine du {} : {} Tokens
+截至 {} 当周累计：{} Tokens	Cumul jusqu’à la semaine du {} : {} Tokens

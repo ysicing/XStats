@@ -81,7 +81,7 @@ enum SnapshotRenderer {
         for (appearanceName, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
             guard let appearance = NSAppearance(named: appearanceName) else { continue }
             NSApp.appearance = appearance
-            for tab in PanelTab.allCases {
+            for tab in PanelTab.allCases where tab != .settingsAccount {
                 settings.panelTab = tab
                 write(MainWindowView(), model: model, appearance: appearance,
                       to: outputDirectory.appendingPathComponent("window-\(tab.rawValue)-\(suffix).png"))
@@ -160,7 +160,7 @@ private struct SnapshotAIUsageProvider: AIUsageProvider {
 
     func fetch() async throws -> AIUsageSnapshot {
         let now = Date()
-        return AIUsageSnapshot(
+        var snapshot = AIUsageSnapshot(
             provider: .codex,
             planName: "Pro 20x",
             windows: [
@@ -171,5 +171,13 @@ private struct SnapshotAIUsageProvider: AIUsageProvider {
             remainingCredits: 820,
             fetchedAt: now
         )
+        snapshot.localUsage = LocalUsageReport(rows: (0..<30).flatMap { day in
+            let date = Calendar.current.date(byAdding: .day, value: -day, to: Calendar.current.startOfDay(for: now))!
+            return [ModelTokenUsage(day: date, model: "gpt-5.4", input: 240_000 + day * 3_000,
+                                    cached: 180_000, output: 32_000, records: 18),
+                    ModelTokenUsage(day: date, model: "gpt-5.4-mini", input: 80_000,
+                                    cached: 40_000, output: 12_000, records: 10)]
+        }, fileCount: 42)
+        return snapshot
     }
 }

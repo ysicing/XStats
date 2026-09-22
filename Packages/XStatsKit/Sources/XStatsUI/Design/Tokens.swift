@@ -202,6 +202,8 @@ extension DS {
     }
 
     enum Motion {
+        /// 使用统计的来源/时间筛选仅淡入选中底色，不移动正在阅读的数据。
+        static let usageSelection = Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.18)
         static let quick = Animation.easeOut(duration: 0.15)
     }
 

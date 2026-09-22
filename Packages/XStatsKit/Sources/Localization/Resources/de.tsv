@@ -1251,3 +1251,36 @@ XStats 只读 Codex CLI 的本机登录凭据，并直接向 ChatGPT 查询订�
 跟踪 Codex	Codex verfolgen
 配额查询独立于系统指标刷新	Kontingentabfragen sind unabhängig von Systemmessungen
 默认关闭	Standardmäßig aus
+AI 使用统计	KI-Nutzung
+Codex / Claude Code 本机模型与 Token 使用统计	Lokale Codex / Claude Code-Modell- und Token-Nutzung
+时间范围	Zeitraum
+今天	Heute
+30 天	30 Tage
+模型	Modell
+全部模型	Alle Modelle
+本机记录	Lokaler Verlauf
+输入 Token	Eingabe-Tokens
+输出 Token	Ausgabe-Tokens
+缓存 Token	Cache-Tokens
+缓存命中率	Cache-Trefferrate
+用量记录	Nutzungsdatensätze
+模型排行	Modellrangliste
+每日用量	Tägliche Nutzung
+日期	Datum
+启用使用统计	Nutzungsstatistik aktivieren
+只读本机 Codex / Claude Code 会话日志，按模型统计 Token；不读取登录凭据，不查询订阅额度。	Liest lokale Codex / Claude Code-Sitzungsprotokolle für Tokens je Modell. Keine Anmeldedaten oder Kontingentabfragen.
+缓存 Token 已包含在输入中，推理 Token 已包含在输出中。	Cache-Tokens sind in der Eingabe, Reasoning-Tokens in der Ausgabe enthalten.
+所选时间范围没有用量记录	Keine Nutzung in diesem Zeitraum
+部分会话日志无法读取，统计可能不完整	Einige Protokolle sind nicht lesbar; die Statistik ist eventuell unvollständig
+读取失败，显示上次统计结果	Lesen fehlgeschlagen; vorherige Statistik angezeigt
+正在读取会话日志…	Sitzungsprotokolle werden gelesen…
+暂无本机用量数据	Keine lokalen Nutzungsdaten
+仅统计本机日志，不代表订阅账单或其他设备的用量	Nur lokale Protokolle; keine Abrechnung oder Nutzung anderer Geräte
+未变化的日志使用缓存	Unveränderte Protokolle nutzen den Cache
+缓存创建 Token	Cache-Erstellungs-Tokens
+1 年	1 Jahr
+Token 活动	Token-Aktivität
+每日	Täglich
+每周	Wöchentlich
+{} 当周：{} Tokens	Woche vom {}: {} Tokens
+截至 {} 当周累计：{} Tokens	Bis zur Woche vom {}: {} Tokens kumuliert
