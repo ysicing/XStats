@@ -6,7 +6,7 @@
 
 **Your Mac at a glance — CPU, GPU, memory, network and temperatures in the menu bar, with fan control, keep-awake, one-click cleanup, an app uninstaller and an IP cleanliness check.**
 
-[![Release](https://img.shields.io/badge/release-0.7.0-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/release-0.7.1-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![Stars](https://img.shields.io/github/stars/ysicing/xstats?style=flat&color=f5c518&label=stars)](https://github.com/ysicing/xstats/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/ysicing/xstats?color=black&label=last%20commit)](https://github.com/ysicing/xstats/commits/main)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ysicing/xstats?color=black&label=commits)](https://github.com/ysicing/xstats/graphs/commit-activity)
@@ -49,7 +49,7 @@ Arabic uses a right-to-left layout.
 <!-- changelog:start -->
 <!-- Generated from CHANGELOG.md by Scripts/sync_changelog.py. Do not edit by hand. -->
 
-Not released yet · **3** changes in development · [full changelog](CHANGELOG.md) (kept in Chinese)
+Latest release **0.7.1** (2026-09-22) · [full changelog](CHANGELOG.md) (kept in Chinese)
 
 <!-- changelog:end -->
 

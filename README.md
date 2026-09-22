@@ -6,7 +6,7 @@
 
 **Mac 的状态，抬眼就看见——CPU、GPU、内存、网络与温度常驻菜单栏，还能调风扇、防休眠、一键清理、卸载应用，检测 IP 纯净度。**
 
-[![Release](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.7.0-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.7.1-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![Stars](https://img.shields.io/github/stars/ysicing/xstats?style=flat&color=f5c518&label=%E6%98%9F%E6%A0%87)](https://github.com/ysicing/xstats/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/ysicing/xstats?color=black&label=%E6%9C%80%E8%BF%91%E6%8F%90%E4%BA%A4)](https://github.com/ysicing/xstats/commits/main)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ysicing/xstats?color=black&label=%E6%8F%90%E4%BA%A4)](https://github.com/ysicing/xstats/graphs/commit-activity)
@@ -46,10 +46,24 @@ XStats 暂无官网。自动更新与现有 GeoIP 服务保持不变；账号登
 <!-- changelog:start -->
 <!-- 由 Scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->
 
-尚未发布正式版本 · 开发中 **3** 项改动尚未发布 · [完整更新日志](CHANGELOG.md)
+最新版本 **0.7.1**（2026-09-22） · [完整更新日志](CHANGELOG.md)
 
 <details open>
-<summary><b>2026-09-20</b> · 未发布 · 新增 2 · 调整 1</summary>
+<summary><b>2026-09-22</b> · 0.7.1 · 新增 1 · 调整 2</summary>
+
+**新增**
+
+- 清理页新增 npm、Yarn、pnpm、Bun、Go、Rust 与 uv 缓存，使用对应工具命令执行清理；工具缺失或命令失败时保留原缓存并显示原因。
+
+**调整**
+
+- 开发工具缓存首次不勾选，并记住用户在本机的选择；为各工具增加品牌图标，清理结果按执行前后实际占用计算。
+- 辅助工具设置不再显示签名团队标识，只提示已使用 Developer ID 签名。
+
+</details>
+
+<details>
+<summary><b>2026-09-20</b> · 0.7.0 · 新增 2 · 调整 1</summary>
 
 **新增**
 
