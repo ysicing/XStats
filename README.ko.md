@@ -6,7 +6,7 @@
 
 **Mac 상태를 한눈에 확인하세요. 메뉴 막대에서 CPU, GPU, 메모리, 네트워크와 온도를 확인하고, 팬 제어, 잠자기 방지, 캐시 정리, 앱 제거, IP 평판 확인 기능을 사용할 수 있습니다.**
 
-[![Release](https://img.shields.io/badge/version-1.0.0-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/version-0.7.0-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![Stars](https://img.shields.io/github/stars/ysicing/xstats?style=flat&color=f5c518)](https://github.com/ysicing/xstats/stargazers)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B-black)](https://github.com/ysicing/xstats/releases)

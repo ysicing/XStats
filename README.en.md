@@ -6,7 +6,7 @@
 
 **Your Mac at a glance — CPU, GPU, memory, network and temperatures in the menu bar, with fan control, keep-awake, one-click cleanup, an app uninstaller and an IP cleanliness check.**
 
-[![Release](https://img.shields.io/badge/release-1.0.0-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/release-0.7.0-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![Stars](https://img.shields.io/github/stars/ysicing/xstats?style=flat&color=f5c518&label=stars)](https://github.com/ysicing/xstats/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/ysicing/xstats?color=black&label=last%20commit)](https://github.com/ysicing/xstats/commits/main)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ysicing/xstats?color=black&label=commits)](https://github.com/ysicing/xstats/graphs/commit-activity)
