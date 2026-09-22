@@ -12,6 +12,18 @@ private func isolatedDefaults() -> UserDefaults {
 }
 
 @MainActor
+@Suite struct ToolBrandLogoTests {
+    @Test(arguments: ["tool-npm", "tool-yarn", "tool-pnpm", "tool-bun",
+                      "tool-go", "tool-rust", "tool-uv"])
+    func packagedSVGCanBeRenderedAsTemplate(_ name: String) throws {
+        let image = try #require(LogoCache.shared.image(named: name, template: true))
+        #expect(image.isTemplate)
+        #expect(image.size.width > 0)
+        #expect(image.size.height > 0)
+    }
+}
+
+@MainActor
 @Suite struct BluetoothDeviceCacheTests {
     private func device(_ name: String, percent: Int) -> BluetoothDevice {
         BluetoothDevice(name: name, address: "", kind: .other, batteries: [("电量", percent)])
@@ -167,6 +179,41 @@ private func isolatedDefaults() -> UserDefaults {
         #expect(!reloaded.probeInBackground)
         #expect(reloaded.hiddenPopoverSections == [.cpuHeatmap])
         #expect(reloaded.orderedMenuBarItems == [.gpu, .fan])
+    }
+}
+
+@MainActor
+@Suite struct CleanerSelectionTests {
+    private let toolRuleIDs: Set<String> = [
+        "developer.npm", "developer.yarn", "developer.pnpm", "developer.bun",
+        "developer.go", "developer.rust", "developer.uv",
+    ]
+
+    @Test func toolCachesStartUnselected() {
+        let controller = CleanerController(settings: AppSettings(defaults: isolatedDefaults()))
+
+        #expect(controller.selection.isDisjoint(with: toolRuleIDs))
+        #expect(controller.selection.contains("system.caches"))
+    }
+
+    @Test func userSelectionSurvivesControllerAndSettingsRecreation() {
+        let defaults = isolatedDefaults()
+        let controller = CleanerController(settings: AppSettings(defaults: defaults))
+        controller.selection.insert("developer.pnpm")
+
+        let reloaded = CleanerController(settings: AppSettings(defaults: defaults))
+
+        #expect(reloaded.selection.contains("developer.pnpm"))
+    }
+
+    @Test func explicitlyClearingSelectionDoesNotRestoreDefaults() {
+        let defaults = isolatedDefaults()
+        let controller = CleanerController(settings: AppSettings(defaults: defaults))
+        controller.selection.removeAll()
+
+        let reloaded = CleanerController(settings: AppSettings(defaults: defaults))
+
+        #expect(reloaded.selection.isEmpty)
     }
 }
 

@@ -158,11 +158,13 @@ unclean exit restores them at the next boot.
 ## Cleanup
 
 - **What it scans.** App caches, logs and crash reports, browser caches (Chrome, Edge,
-  Brave, Arc, Firefox, Safari), Xcode DerivedData, simulator caches, the npm cache, Xcode
-  archives, unfinished downloads, installers and the Trash.
+  Brave, Arc, Firefox, Safari), Xcode DerivedData, simulator caches, npm, Yarn, pnpm, Bun,
+  Go, Rust and uv caches, Xcode archives, unfinished downloads, installers and the Trash.
 - **Review first.** Sizes by category, every rule expandable to its items, a second click to
   confirm. Caches and logs are deleted outright so the space comes back at once; downloads go
-  to the Trash. One switch sends everything to the Trash instead.
+  to the Trash. Developer-tool caches are cleaned by their own commands rather than by
+  deleting internal folders; the Trash preference applies only to folder-based caches.
+  Developer-tool caches start unselected and remember their local selection afterwards.
 - **Safety.** Only allow-listed folders are ever touched. Keychains, password managers,
   VPNs, cookies and history are off limits. Caches of running apps are skipped, browsers must
   be quit first, and every item is checked again right before it goes. Each action is logged

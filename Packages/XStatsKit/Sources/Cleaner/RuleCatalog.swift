@@ -4,7 +4,9 @@ import Localization
 /// 清理规则。目录清单参考了 Mole 的清理范围（仅参考范围，代码为独立实现）。
 public enum RuleCatalog {
     public static func rules() -> [CleanRule] {
-        [userCaches, logs] + browsers.map(browserRule) + [xcodeDerivedData, simulatorCaches, npmCache, xcodeArchives,
+        [userCaches, logs] + browsers.map(browserRule) + [xcodeDerivedData, simulatorCaches,
+                                                          npmCache, yarnCache, pnpmCache, bunCache,
+                                                          goCache, rustCache, uvCache, xcodeArchives,
                                                           incompleteDownloads, installers, trash]
     }
 
@@ -127,10 +129,90 @@ public enum RuleCatalog {
 
     static let npmCache = CleanRule(
         id: "developer.npm", category: .developer, title: tr("npm 缓存"),
-        detail: tr("~/.npm/_cacache，安装依赖时自动重新下载"), symbol: "shippingbox"
+        detail: tr("npm 下载缓存，由 npm 自行清理"), symbol: "tool-npm",
+        selectedByDefault: false, minimumAge: 0,
+        requiredTool: "npm", cleanWithTool: { env in
+            _ = try await env.runTool("npm", ["cache", "clean", "--force"])
+        }
     ) { env in
         let path = env.home + "/.npm/_cacache"
         return FileManager.default.fileExists(atPath: path) ? [URL(fileURLWithPath: path)] : []
+    }
+
+    static let yarnCache = CleanRule(
+        id: "developer.yarn", category: .developer, title: tr("Yarn 缓存"),
+        detail: tr("Yarn 全局与离线镜像缓存，由 Yarn 自行清理"), symbol: "tool-yarn",
+        selectedByDefault: false, minimumAge: 0,
+        requiredTool: "yarn", cleanWithTool: { env in
+            let version = try await env.runTool("yarn", ["--version"]).output
+            let major = Int(version.split(separator: ".").first ?? "1") ?? 1
+            let arguments = major >= 2 ? ["cache", "clean", "--all"] : ["cache", "clean"]
+            _ = try await env.runTool("yarn", arguments)
+        }
+    ) { env in
+        try childrenIfExists(of: env.home + "/Library/Caches/Yarn")
+            + childrenIfExists(of: env.home + "/.yarn/berry/cache")
+    }
+
+    static let pnpmCache = CleanRule(
+        id: "developer.pnpm", category: .developer, title: tr("pnpm 缓存"),
+        detail: tr("pnpm 内容寻址存储，仅清理未被引用的包"), symbol: "tool-pnpm",
+        selectedByDefault: false, minimumAge: 0,
+        requiredTool: "pnpm", cleanWithTool: { env in
+            _ = try await env.runTool("pnpm", ["store", "prune"])
+        }
+    ) { env in
+        try childrenIfExists(of: env.home + "/Library/pnpm/store")
+            + childrenIfExists(of: env.home + "/.pnpm-store")
+    }
+
+    static let bunCache = CleanRule(
+        id: "developer.bun", category: .developer, title: tr("Bun 缓存"),
+        detail: tr("Bun 下载的包缓存，由 Bun 自行清理"), symbol: "tool-bun",
+        selectedByDefault: false, minimumAge: 0,
+        requiredTool: "bun", cleanWithTool: { env in
+            _ = try await env.runTool("bun", ["pm", "cache", "rm"])
+        }
+    ) { env in
+        try childrenIfExists(of: env.home + "/.bun/install/cache")
+    }
+
+    static let goCache = CleanRule(
+        id: "developer.go", category: .developer, title: tr("Go 缓存"),
+        detail: tr("Go 编译与完整模块缓存，由 go clean 清理"), symbol: "tool-go",
+        selectedByDefault: false, minimumAge: 0,
+        requiredTool: "go", cleanWithTool: { env in
+            _ = try await env.runTool("go", ["clean", "-cache", "-modcache"])
+        }
+    ) { env in
+        let fileManager = FileManager.default
+        let buildCache = URL(fileURLWithPath: env.home + "/Library/Caches/go-build")
+        var urls = fileManager.fileExists(atPath: buildCache.path) ? [buildCache] : []
+        urls += try childrenIfExists(of: env.home + "/go/pkg/mod")
+        return urls
+    }
+
+    static let rustCache = CleanRule(
+        id: "developer.rust", category: .developer, title: tr("Rust 缓存"),
+        detail: tr("Cargo 注册表与 Git 依赖缓存，需要 cargo-cache"), symbol: "tool-rust",
+        selectedByDefault: false, minimumAge: 0,
+        requiredTool: "cargo-cache", cleanWithTool: { env in
+            _ = try await env.runTool("cargo-cache", ["-r", "all"])
+        }
+    ) { env in
+        try childrenIfExists(of: env.home + "/.cargo/registry")
+            + childrenIfExists(of: env.home + "/.cargo/git")
+    }
+
+    static let uvCache = CleanRule(
+        id: "developer.uv", category: .developer, title: tr("uv 缓存"),
+        detail: tr("uv 下载的 Python 包与构建缓存，由 uv 自行清理"), symbol: "tool-uv",
+        selectedByDefault: false, minimumAge: 0,
+        requiredTool: "uv", cleanWithTool: { env in
+            _ = try await env.runTool("uv", ["cache", "clean"])
+        }
+    ) { env in
+        try childrenIfExists(of: env.home + "/.cache/uv")
     }
 
     static let xcodeArchives = CleanRule(

@@ -95,6 +95,25 @@ Xcode 编译缓存	Caché de compilación de Xcode
 cleanip.io 对这次评分的把握：各数据源结论越一致越高	Confianza de cleanip.io en la puntuación: aumenta cuanto más coinciden sus fuentes
 macOS 系统目录（系统组件）	Carpeta del sistema macOS (componente del sistema)
 npm 缓存	Caché de npm
+Go 缓存	Caché de Go
+Rust 缓存	Caché de Rust
+uv 缓存	Caché de uv
+Yarn 缓存	Caché de Yarn
+pnpm 缓存	Caché de pnpm
+Bun 缓存	Caché de Bun
+npm 下载缓存，由 npm 自行清理	Caché de descargas de npm, limpiada por npm
+Yarn 全局与离线镜像缓存，由 Yarn 自行清理	Caché global y espejo sin conexión de Yarn, limpiadas por Yarn
+pnpm 内容寻址存储，仅清理未被引用的包	Almacén direccionado por contenido de pnpm; solo se eliminan paquetes sin referencias
+Bun 下载的包缓存，由 Bun 自行清理	Caché de descarga de paquetes de Bun, limpiada por Bun
+Go 编译与完整模块缓存，由 go clean 清理	Cachés de compilación y módulos completos de Go, limpiadas con go clean
+Cargo 注册表与 Git 依赖缓存，需要 cargo-cache	Cachés del registro de Cargo y dependencias Git; requiere cargo-cache
+uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes de Python y compilación descargadas por uv, limpiadas por uv
+未找到 {}，无法安全清理	No se encontró {} y no se puede limpiar de forma segura
+{} 清理失败（退出码 {}）	Falló la limpieza de {} (código de salida {})
+{} 清理失败（退出码 {}）：{}	Falló la limpieza de {} (código de salida {}): {}
+{}：未找到 {}，无法安全清理	{}: no se encontró {} y no se puede limpiar de forma segura
+支持的内容先移到废纸篓；工具缓存由对应命令直接清理。	Los elementos compatibles se mueven primero a la papelera; las cachés de herramientas se limpian directamente con sus comandos.
+支持的缓存可以恢复；工具缓存始终由对应命令直接清理	Las cachés compatibles se pueden restaurar; las cachés de herramientas siempre se limpian directamente con sus comandos
 {} {} 英寸	{} de {} pulgadas
 {} · {} 个	{} · {}
 {} · {} 核	{} · {} núcleos

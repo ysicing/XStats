@@ -29,12 +29,18 @@ public enum CleanEngine {
         } catch {
             return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .needsFullDiskAccess)
         }
+        if !candidates.isEmpty, let tool = rule.requiredTool, !environment.isToolAvailable(tool) {
+            return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .toolUnavailable(tool))
+        }
 
         var items: [CleanItem] = []
         var skipped = 0
         for url in candidates {
             if Task.isCancelled { break }
-            if skipReason(for: url, rule: rule, running: running, environment: environment, safety: safety) != nil {
+            // 工具托管的缓存由工具自身处理锁与内部目录；这里的路径只用于只读计量，不能套用
+            // “应用数据保护词”过滤，否则名为 xstats 等普通包会被误报为正在使用。
+            if !rule.usesToolCleaner,
+               skipReason(for: url, rule: rule, running: running, environment: environment, safety: safety) != nil {
                 skipped += 1
                 continue
             }
@@ -97,6 +103,28 @@ public enum CleanEngine {
             let running = environment.runningBundleIdentifiers()
             if scan.rule.blockingApps.contains(where: { running.contains($0.bundleID) }) {
                 report.skippedCount += scan.items.count
+                continue
+            }
+            if let cleanWithTool = scan.rule.cleanWithTool {
+                if let tool = scan.rule.requiredTool, !environment.isToolAvailable(tool) {
+                    report.failures.append(tr("\(scan.rule.title)：未找到 \(tool)，无法安全清理"))
+                    continue
+                }
+                do {
+                    try await cleanWithTool(environment)
+                    for item in scan.items {
+                        let remaining = allocatedSize(of: item.url)
+                        log?.record(item: item, rule: scan.rule, action: "tool", detail: scan.rule.requiredTool)
+                        guard remaining < item.size else { continue }
+                        report.freedBytes += item.size - remaining
+                        report.removedCount += 1
+                    }
+                } catch {
+                    report.failures.append(tr("\(scan.rule.title)：\(error.localizedDescription)"))
+                    for item in scan.items {
+                        log?.record(item: item, rule: scan.rule, action: "fail", detail: error.localizedDescription)
+                    }
+                }
                 continue
             }
             // 废纸篓规则本身必须永久删除；其他可再生内容按用户偏好决定

@@ -14,7 +14,9 @@ public final class CleanerController {
     public private(set) var scans: [RuleScan] = []
     public private(set) var lastScan: Date?
     public private(set) var report: CleanReport?
-    public var selection: Set<String>
+    public var selection: Set<String> {
+        didSet { settings.cleanSelectedRuleIDs = selection }
+    }
     public var isConfirming = false
 
     @ObservationIgnored private let settings: AppSettings
@@ -23,7 +25,9 @@ public final class CleanerController {
 
     init(settings: AppSettings) {
         self.settings = settings
-        selection = Set(rules.filter(\.selectedByDefault).map(\.id))
+        let validIDs = Set(rules.map(\.id))
+        let initial = settings.cleanSelectedRuleIDs ?? Set(rules.filter(\.selectedByDefault).map(\.id))
+        selection = initial.intersection(validIDs)
     }
 
     var isBusy: Bool { phase == .scanning || phase == .cleaning }

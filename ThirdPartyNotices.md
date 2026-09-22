@@ -32,6 +32,12 @@ XStats 基于 [gentpan/OpenStats](https://github.com/gentpan/OpenStats) 开发�
 `google.svg` 是 Google 的品牌标志，仅按其品牌规范用于“使用 Google 登录”按钮。Apple 标志使用系统 SF Symbols 的 `apple.logo`。
 GitHub、Google 与 Apple 的名称和标志均为各自公司的商标。
 
+## 开发工具品牌图标
+
+`Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/tool-{npm,yarn,pnpm,bun,go,rust,uv}.svg` 来自
+[Simple Icons](https://github.com/simple-icons/simple-icons/tree/b86d5c9a0bdd4f3f5c30898a63654dd32f39fd76)，
+使用 CC0-1.0。npm、Yarn、pnpm、Bun、Go、Rust、uv 的名称与标志均为各自权利人的商标，XStats 仅用这些图标标识对应工具的缓存。
+
 ## exelban/stats
 
 XStats 的以下部分移植自 [exelban/stats](https://github.com/exelban/stats)：

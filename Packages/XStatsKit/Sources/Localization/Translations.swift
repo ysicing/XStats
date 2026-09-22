@@ -100,6 +100,25 @@ Xcode 编译缓存	Xcode Build Cache
 cleanip.io 对这次评分的把握：各数据源结论越一致越高	How sure cleanip.io is about this score: the more its sources agree, the higher
 macOS 系统目录（系统组件）	macOS system folder (system component)
 npm 缓存	npm Cache
+Go 缓存	Go Cache
+Rust 缓存	Rust Cache
+uv 缓存	uv Cache
+Yarn 缓存	Yarn Cache
+pnpm 缓存	pnpm Cache
+Bun 缓存	Bun Cache
+npm 下载缓存，由 npm 自行清理	npm download cache; cleaned by npm
+Yarn 全局与离线镜像缓存，由 Yarn 自行清理	Yarn global and offline mirror caches; cleaned by Yarn
+pnpm 内容寻址存储，仅清理未被引用的包	pnpm content-addressable store; only unreferenced packages are removed
+Bun 下载的包缓存，由 Bun 自行清理	Bun package download cache; cleaned by Bun
+Go 编译与完整模块缓存，由 go clean 清理	Go build and complete module caches; cleaned by go clean
+Cargo 注册表与 Git 依赖缓存，需要 cargo-cache	Cargo registry and Git dependency caches; requires cargo-cache
+uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and build caches downloaded by uv; cleaned by uv
+未找到 {}，无法安全清理	{} was not found, so it cannot be cleaned safely
+{} 清理失败（退出码 {}）	{} cleanup failed (exit code {})
+{} 清理失败（退出码 {}）：{}	{} cleanup failed (exit code {}): {}
+{}：未找到 {}，无法安全清理	{}: {} was not found, so it cannot be cleaned safely
+支持的内容先移到废纸篓；工具缓存由对应命令直接清理。	Supported items are moved to Trash first; tool caches are cleaned directly by their commands.
+支持的缓存可以恢复；工具缓存始终由对应命令直接清理	Supported caches can be restored; tool caches are always cleaned directly by their commands
 {} {} 英寸	{} {}-inch
 {} · {} 个	{} · {}
 {} · {} 核	{} · {} cores

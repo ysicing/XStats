@@ -499,6 +499,16 @@ public final class AppSettings {
     public var cleanPrefersTrash: Bool {
         didSet { defaults.set(cleanPrefersTrash, forKey: Keys.cleanPrefersTrash) }
     }
+    /// 清理页的规则选择；nil 表示用户从未调整过，使用规则默认值。空集合表示用户明确全部取消。
+    public var cleanSelectedRuleIDs: Set<String>? {
+        didSet {
+            if let cleanSelectedRuleIDs {
+                defaults.set(cleanSelectedRuleIDs.sorted(), forKey: Keys.cleanSelectedRuleIDs)
+            } else {
+                defaults.removeObject(forKey: Keys.cleanSelectedRuleIDs)
+            }
+        }
+    }
 
     public static let refreshOptions = [1, 2, 3, 5]
     public static let batteryFloorOptions = [10, 20, 30, 40]
@@ -532,6 +542,7 @@ public final class AppSettings {
         showDockIcon = defaults.bool(forKey: Keys.showDockIcon)
         speedTestBudget = defaults.string(forKey: Keys.speedTestBudget).flatMap(SpeedTestBudget.init(rawValue:)) ?? .full
         cleanPrefersTrash = defaults.bool(forKey: Keys.cleanPrefersTrash)
+        cleanSelectedRuleIDs = defaults.stringArray(forKey: Keys.cleanSelectedRuleIDs).map(Set.init)
         menuBarLayout = defaults.string(forKey: Keys.menuBarLayout).flatMap(MenuBarLayout.init(rawValue:)) ?? .separate
         expandedPopoverSections = Set((defaults.stringArray(forKey: Keys.expandedPopoverSections) ?? []).compactMap(PopoverSection.init(rawValue:)))
         hiddenPopoverSections = defaults.stringArray(forKey: Keys.hiddenPopoverSections)
@@ -604,6 +615,7 @@ public final class AppSettings {
         static let showDockIcon = "showDockIcon"
         static let speedTestBudget = "speedTestBudget"
         static let cleanPrefersTrash = "cleanPrefersTrash"
+        static let cleanSelectedRuleIDs = "cleanSelectedRuleIDs"
         static let menuBarLayout = "menuBarLayout"
         static let hiddenPopoverSections = "hiddenPopoverSections"
         static let expandedPopoverSections = "expandedPopoverSections"

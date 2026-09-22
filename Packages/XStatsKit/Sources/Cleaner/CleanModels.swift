@@ -27,6 +27,7 @@ public enum DeletionPolicy: Sendable {
 public enum SkipReason: Sendable, Equatable, Hashable {
     case appRunning(String)
     case needsFullDiskAccess
+    case toolUnavailable(String)
     case recentlyModified
     case protected
 
@@ -34,6 +35,7 @@ public enum SkipReason: Sendable, Equatable, Hashable {
         switch self {
         case .appRunning(let name): tr("\(name) 正在运行")
         case .needsFullDiskAccess: tr("需要完全磁盘访问权限")
+        case .toolUnavailable(let tool): tr("未找到 \(tool)，无法安全清理")
         case .recentlyModified: tr("刚刚被使用")
         case .protected: tr("受保护")
         }
@@ -45,13 +47,19 @@ public struct CleanEnvironment: Sendable {
     public var home: String
     public var runningBundleIdentifiers: @Sendable () -> Set<String>
     public var now: @Sendable () -> Date
+    public var isToolAvailable: @Sendable (String) -> Bool
+    public var runTool: @Sendable (String, [String]) async throws -> ToolRunResult
 
     public init(home: String = NSHomeDirectory(),
                 runningBundleIdentifiers: @escaping @Sendable () -> Set<String>,
-                now: @escaping @Sendable () -> Date = Date.init) {
+                now: @escaping @Sendable () -> Date = Date.init,
+                isToolAvailable: (@Sendable (String) -> Bool)? = nil,
+                runTool: (@Sendable (String, [String]) async throws -> ToolRunResult)? = nil) {
         self.home = home
         self.runningBundleIdentifiers = runningBundleIdentifiers
         self.now = now
+        self.isToolAvailable = isToolAvailable ?? { DeveloperToolRunner.executable(named: $0, home: home) != nil }
+        self.runTool = runTool ?? { try await DeveloperToolRunner.run($0, arguments: $1, home: home) }
     }
 }
 
@@ -69,13 +77,16 @@ public struct CleanRule: Sendable, Identifiable {
     public let checksOwnerApp: Bool
     /// 最近修改过的条目视为正在使用
     public let minimumAge: TimeInterval
+    public let requiredTool: String?
+    let cleanWithTool: (@Sendable (CleanEnvironment) async throws -> Void)?
     /// 列出候选条目（顶层文件或目录）
     let locate: @Sendable (CleanEnvironment) throws -> [URL]
 
     init(id: String, category: CleanCategory, title: String, detail: String, symbol: String,
          selectedByDefault: Bool = true, policy: DeletionPolicy = .delete,
          blockingApps: [(bundleID: String, name: String)] = [], checksOwnerApp: Bool = false,
-         minimumAge: TimeInterval = 120,
+         minimumAge: TimeInterval = 120, requiredTool: String? = nil,
+         cleanWithTool: (@Sendable (CleanEnvironment) async throws -> Void)? = nil,
          locate: @escaping @Sendable (CleanEnvironment) throws -> [URL]) {
         self.id = id
         self.category = category
@@ -87,8 +98,12 @@ public struct CleanRule: Sendable, Identifiable {
         self.blockingApps = blockingApps
         self.checksOwnerApp = checksOwnerApp
         self.minimumAge = minimumAge
+        self.requiredTool = requiredTool
+        self.cleanWithTool = cleanWithTool
         self.locate = locate
     }
+
+    public var usesToolCleaner: Bool { cleanWithTool != nil }
 }
 
 public struct CleanItem: Sendable, Identifiable, Hashable {
@@ -103,7 +118,7 @@ public struct RuleScan: Sendable, Identifiable {
     /// 按大小降序
     public let items: [CleanItem]
     public let skippedCount: Int
-    /// 整条规则被阻止的原因（浏览器运行中、缺少权限）
+    /// 整条规则被阻止的原因（浏览器运行中、缺少权限或对应工具不可用）
     public let blocked: SkipReason?
 
     public var totalSize: UInt64 { items.reduce(0) { $0 + $1.size } }

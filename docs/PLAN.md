@@ -240,7 +240,7 @@ struct CleanRule: Identifiable, Sendable {
 | 开机自启 | `SMAppService.mainApp.register()` | 不需要单独的 LaunchAtLogin helper |
 | 自动更新 | Sparkle 2 | 通过 SPM 引入 |
 | 快捷键 | sindresorhus/KeyboardShortcuts（MIT） | 可选 |
-| 图标 | SF Symbols（唯一图标集） | 16pt 行内 / 20pt 独立 |
+| 图标 | 默认使用 SF Symbols；工具和网站可使用有来源声明的品牌标志 | 16pt 行内 / 20pt 独立 |
 | 日志 | `os.Logger` + 清理操作 JSONL 文件 | |
 | 测试 | Swift Testing；清理用临时目录做沙箱测试 | SafetyGuard 必须覆盖符号链接、`..`、保护路径等用例 |
 | CI | GitHub Actions `macos-latest`：构建、测试、签名、公证、生成 DMG | 用 `xcrun notarytool` |

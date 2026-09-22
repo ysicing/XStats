@@ -95,6 +95,25 @@ Xcode 编译缓存	Xcode-Build-Cache
 cleanip.io 对这次评分的把握：各数据源结论越一致越高	Zuverlässigkeit der Bewertung von cleanip.io: steigt mit der Übereinstimmung der Datenquellen
 macOS 系统目录（系统组件）	macOS-Systemordner (Systemkomponente)
 npm 缓存	npm-Cache
+Go 缓存	Go-Cache
+Rust 缓存	Rust-Cache
+uv 缓存	uv-Cache
+Yarn 缓存	Yarn-Cache
+pnpm 缓存	pnpm-Cache
+Bun 缓存	Bun-Cache
+npm 下载缓存，由 npm 自行清理	npm-Download-Cache; wird von npm selbst bereinigt
+Yarn 全局与离线镜像缓存，由 Yarn 自行清理	Globaler Yarn- und Offline-Mirror-Cache; wird von Yarn selbst bereinigt
+pnpm 内容寻址存储，仅清理未被引用的包	Inhaltsadressierter pnpm-Speicher; nur nicht referenzierte Pakete werden entfernt
+Bun 下载的包缓存，由 Bun 自行清理	Bun-Paketdownload-Cache; wird von Bun selbst bereinigt
+Go 编译与完整模块缓存，由 go clean 清理	Go-Build- und vollständiger Modul-Cache; wird mit go clean bereinigt
+Cargo 注册表与 Git 依赖缓存，需要 cargo-cache	Cargo-Registry- und Git-Abhängigkeits-Cache; benötigt cargo-cache
+uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Python-Paket- und Build-Cache; wird von uv selbst bereinigt
+未找到 {}，无法安全清理	{} wurde nicht gefunden und kann daher nicht sicher bereinigt werden
+{} 清理失败（退出码 {}）	Bereinigung von {} fehlgeschlagen (Exit-Code {})
+{} 清理失败（退出码 {}）：{}	Bereinigung von {} fehlgeschlagen (Exit-Code {}): {}
+{}：未找到 {}，无法安全清理	{}: {} wurde nicht gefunden und kann daher nicht sicher bereinigt werden
+支持的内容先移到废纸篓；工具缓存由对应命令直接清理。	Unterstützte Inhalte werden zuerst in den Papierkorb verschoben; Tool-Caches werden direkt durch ihre Befehle bereinigt.
+支持的缓存可以恢复；工具缓存始终由对应命令直接清理	Unterstützte Caches können wiederhergestellt werden; Tool-Caches werden immer direkt durch ihre Befehle bereinigt
 {} {} 英寸	{} {} Zoll
 {} · {} 个	{} · {}
 {} · {} 核	{} · {} Kerne

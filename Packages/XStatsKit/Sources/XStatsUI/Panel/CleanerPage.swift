@@ -134,7 +134,9 @@ private struct SummaryCard: View {
     private var confirmationText: String {
         let cleaner = model.cleaner
         let count = cleaner.selectedScans.reduce(0) { $0 + $1.items.count }
-        let trashNote = model.settings.cleanPrefersTrash ? tr("所有内容先移到废纸篓。") : tr("缓存与日志直接删除，下载内容移到废纸篓。")
+        let trashNote = model.settings.cleanPrefersTrash
+            ? tr("支持的内容先移到废纸篓；工具缓存由对应命令直接清理。")
+            : tr("缓存与日志直接删除，下载内容移到废纸篓。")
         return tr("将清理 \(count) 个项目，共 \(Format.bytes(cleaner.selectedBytes, base: .decimal))。\(trashNote)")
     }
 
@@ -266,10 +268,7 @@ private struct RuleRow: View {
             HStack(spacing: DS.Space.s2) {
                 DSCheckbox(isOn: selected) { cleaner.toggle(scan) }
                     .disabled(!scan.isCleanable || cleaner.isBusy)
-                Image(systemName: scan.rule.symbol)
-                    .font(.system(size: DS.TextSize.sm.rawValue))
-                    .foregroundStyle(DS.Palette.textSecondary)
-                    .frame(width: DS.Size.iconStandalone)
+                RuleIcon(name: scan.rule.symbol)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(scan.rule.title)
                         .dsFont(.sm, weight: .medium)
@@ -335,6 +334,27 @@ private struct RuleRow: View {
     }
 }
 
+private struct RuleIcon: View {
+    let name: String
+
+    var body: some View {
+        Group {
+            if let image = LogoCache.shared.image(named: name, template: true) {
+                Image(nsImage: image)
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .frame(width: DS.Size.iconStandalone, height: DS.TextSize.sm.rawValue)
+            } else {
+                Image(systemName: name)
+                    .font(.system(size: DS.TextSize.sm.rawValue))
+            }
+        }
+        .foregroundStyle(DS.Palette.textSecondary)
+        .frame(width: DS.Size.iconStandalone, height: DS.Size.iconStandalone)
+    }
+}
+
 // MARK: - 底部
 
 private struct CleanerFooter: View {
@@ -347,7 +367,8 @@ private struct CleanerFooter: View {
             DSToggle(isOn: $settings.cleanPrefersTrash, label: tr("缓存也先移到废纸篓"))
             VStack(alignment: .leading, spacing: 0) {
                 Text(tr("缓存也先移到废纸篓")).dsFont(.sm, weight: .medium).foregroundStyle(DS.Palette.textPrimary)
-                Text(tr("可以恢复，但清空废纸篓前不会释放空间")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                Text(tr("支持的缓存可以恢复；工具缓存始终由对应命令直接清理"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
             }
             Spacer()
             Button(tr("查看清理日志")) { model.cleaner.revealLog() }
