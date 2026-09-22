@@ -128,7 +128,7 @@ git push
 ```
 
 发布需要本地装有 `mc`（MinIO 客户端，别名 `cos` 指向对象存储源站）和 `gh`（GitHub CLI）。
-安装包放在 `https://c.ysicing.net/oss/apps/macOS/XStats/`；GitHub Release 只挂 dmg，
+安装包放在 `https://cos.ysicing.net/oss/apps/macOS/XStats/`；GitHub Release 只挂 dmg，
 作为应用内「手动下载」和 README 的下载入口。版本徽章需在四个 README 的第 9 行手动更新，
 `Scripts/sync_changelog.py` 不处理徽章。
 

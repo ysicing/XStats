@@ -8,9 +8,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-TAP="${TAP:-gentpan/homebrew-tap}"
+TAP="${TAP:-ysicing/homebrew-tap}"
 MC_TARGET="${MC_TARGET:-cos/oss/apps/macOS/XStats}"
-DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://c.ysicing.net/oss/apps/macOS/XStats}"
+DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://cos.ysicing.net/oss/apps/macOS/XStats}"
 VERSION="$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' project.yml | head -1)"
 BUILD="$(sed -nE 's/^ *CURRENT_PROJECT_VERSION: *"?([0-9]+)"?.*/\1/p' project.yml | head -1)"
 APPCAST="dist/appcast.json"
@@ -108,4 +108,4 @@ else
   git -C "$WORK/tap" push -q
   echo "✅ 已提交 Casks/xstats.rb 到 $TAP"
 fi
-echo "安装：brew install --cask gentpan/tap/xstats"
+echo "安装：brew install --cask ysicing/tap/xstats"

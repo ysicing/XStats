@@ -5,7 +5,7 @@
 #   ./Scripts/release.sh
 #
 # 需要钥匙串里的 Developer ID Application 证书和 notarytool 凭据。凭据按 Apple ID 与团队保存，
-# 默认用 GiantAccel 开发者账号的 “GiantAccel” 凭据；也可以单独保存一份：
+# 默认使用 “XStats” 凭据；如尚未保存，可以执行：
 #   xcrun notarytool store-credentials XStats --apple-id you@example.com --team-id <TEAM_ID>
 #   NOTARY_PROFILE=XStats ./Scripts/release.sh
 #
@@ -14,9 +14,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # 安装包放在对象存储，由 Scripts/publish_release.sh 用 mc 上传
-DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://c.ysicing.net/oss/apps/macOS/XStats}"
+DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://cos.ysicing.net/oss/apps/macOS/XStats}"
 DIST="${DIST:-dist}"
-NOTARY_PROFILE="${NOTARY_PROFILE:-GiantAccel}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-XStats}"
 SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null \
   | grep 'Developer ID Application' | head -1 | sed -E 's/.*"(.*)".*/\1/' || true)}"
 APP="build/DerivedData-arm64/Build/Products/Release/XStats.app"

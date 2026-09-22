@@ -54,7 +54,7 @@ the first Developer ID Application identity from the keychain (and `--timestamp`
 when there is one. `task release` runs `Scripts/release.sh`: build, verify team, timestamp and
 hardened runtime on both binaries, notarize and staple the app, build and notarize the DMG,
 write the online-update zip and `appcast.json`, and write a Homebrew cask (`auto_updates true`)
-whose URLs point at the object storage prefix `https://c.ysicing.net/oss/apps/macOS/XStats`.
+whose URLs point at the object storage prefix `https://cos.ysicing.net/oss/apps/macOS/XStats`.
 The release records the source commit plus version-file hashes in `dist/release-provenance.json`;
 publishing accepts only a clean descendant that changed release metadata, so the Git tag cannot
 silently include source different from the packaged binaries. The helper derives its client
