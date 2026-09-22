@@ -10,3 +10,6 @@ __pycache__/
 docs/superpowers
 server/api/*.sqlite*
 server/api/api
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
