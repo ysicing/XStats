@@ -16,7 +16,7 @@ settings:
     # Apple 内部构建号每次 task build 加一，独立于公开版本号且不重置
     CURRENT_PROJECT_VERSION: "111"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
-    # 本地开发使用 ad-hoc 签名；发布时改为 Developer ID（见 docs/PLAN.md）
+    # 本地开发使用 ad-hoc 签名；正式发布使用 Developer ID（见 DEVELOPMENT.md）
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: "-"
     DEVELOPMENT_TEAM: ""
