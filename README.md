@@ -15,9 +15,9 @@
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 
 XStats 是一款 macOS 菜单栏应用，实时显示 Mac 正在做什么：各核心 CPU 负载、GPU、内存压力、
-网速、磁盘、电池、温度和风扇，并且可以直接处理：给风扇提速、合盖后继续运行、清理缓存、彻底卸载应用、停用启动项；
+网速、磁盘、电池、温度和风扇，也可以按需查看 Codex 订阅配额；并且可以直接处理：给风扇提速、合盖后继续运行、清理缓存、彻底卸载应用、停用启动项；
 网络详情还能检测公网 IP 的纯净度，看出出口是否被标记为 VPN、代理、机房或有滥用记录。
-所有监控指标都在你自己的 Mac 上读取，不会上传。不需要 XStats 账号，可通过自己的 WebDAV 服务器手动备份和恢复偏好设置。检查更新时会发送当前版本和随机安装标识的 SHA-256，用于匿名安装与版本分布统计；原始随机值只保存在本机偏好设置中，不作为凭据，也不参与 WebDAV 同步。其他可关闭的联网功能包括：打开网络详情时查询公网 IP 与纯净度、定时 ping 你选择的探测目标，以及每天检查一次新版本。
+所有系统监控指标都在你自己的 Mac 上读取，不会上传。不需要 XStats 账号，可通过自己的 WebDAV 服务器手动备份和恢复偏好设置。检查更新时会发送当前版本和随机安装标识的 SHA-256，用于匿名安装与版本分布统计；原始随机值只保存在本机偏好设置中，不作为凭据，也不参与 WebDAV 同步。其他可关闭的联网功能包括：打开网络详情时查询公网 IP 与纯净度、定时 ping 你选择的探测目标、只读本机 Codex CLI 登录后向 ChatGPT 查询订阅配额，以及每天检查一次新版本。
 
 [下载](https://github.com/ysicing/xstats/releases) ·
 [更新日志](CHANGELOG.md) ·
@@ -46,10 +46,14 @@ XStats 暂无官网。自动更新与现有 GeoIP 服务保持不变；账号登
 <!-- changelog:start -->
 <!-- 由 Scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->
 
-最新版本 **0.7.1**（2026-09-22） · 开发中 **1** 项改动尚未发布 · [完整更新日志](CHANGELOG.md)
+最新版本 **0.7.1**（2026-09-22） · 开发中 **2** 项改动尚未发布 · [完整更新日志](CHANGELOG.md)
 
 <details open>
-<summary><b>2026-09-22</b> · 未发布 · 修复 1</summary>
+<summary><b>2026-09-22</b> · 未发布 · 新增 1 · 修复 1</summary>
+
+**新增**
+
+- 新增 AI 配额监控：只读 Codex CLI 登录，显示会话、周配额、Spark、积分与重置时间；支持剩余/已用、菜单栏自动或固定指标，以及限流退避和过期提示。
 
 **修复**
 
@@ -130,6 +134,7 @@ XStats 暂无官网。自动更新与现有 GeoIP 服务保持不变；账号登
 - **磁盘**：启动磁盘容量分段条（已用、可清除、可用）；读写速度与 60 秒走势；SSD 健康；读写最多的应用。
 - **GPU**、**温度与风扇**：使用历史、各组温度、风扇转速与快捷模式。
 - **电池**：电量与剩余 / 充满时间、适配器功率与电池温度；最近 24 小时电量曲线；功耗；健康度与循环次数；已连接蓝牙设备的电量（AirPods、妙控键盘 / 鼠标 / 触控板）。没有电池的 Mac 只显示蓝牙设备。
+- **AI 配额**：按需只读 Codex CLI 登录，显示会话、周配额、Spark 配额、重置时间和积分余额；可切换剩余 / 已用，临时失败时保留旧值并标记过期。
 
 <p align="center">
   <img src="Assets/readme/popover-cpu-light.png" width="32%" alt="CPU 详情弹窗">
@@ -205,10 +210,11 @@ XStats 暂无官网。自动更新与现有 GeoIP 服务保持不变；账号登
 指标来自本机的内核接口（`host_processor_info`、`host_statistics64`、`sysctl`）、IOKit 与 SMC。
 偏好设置保存在应用自己的 user defaults 中，不含个人信息。监控指标、历史记录、硬件序列号和进程列表不会上传。
 
-会联网的功能都可以关闭。前两项在“设置 → 网络”中，检查更新在“设置 · 关于”中：
+会联网的功能都可以关闭。公网 IP 与连接探测在网络页中，AI 配额在对应监控页中，检查更新在“设置 · 关于”中：
 
 - **公网 IP**：打开网络详情时向 Cloudflare `1.1.1.1`（回退 ipify）请求一次公网地址，10 分钟内不重复请求。归属地、ASN、网络类型与纯净度评分由这台 Mac 直接向 `cleanip.io` 查询，只发送公网地址、不经过我们的服务器；地址没变、不满 7 天就沿用上次结果，点刷新才重查。
 - **连接探测**：打开网络详情时每秒（后台每 10 秒）向你选择的目标（Cloudflare、Google、阿里云、腾讯或路由器）发送一次 ICMP ping，只在菜单栏显示网络项或打开网络详情时运行。
+- **AI 配额**：默认关闭。启用后只读 `$CODEX_HOME/auth.json`、`~/.config/codex/auth.json` 或 `~/.codex/auth.json` 中由 Codex CLI 管理的访问令牌，直接请求 `chatgpt.com/backend-api/wham/usage`；XStats 不保存、不刷新也不写回令牌。
 - **检查更新与安装统计**：启动时与之后每天发送当前版本和随机安装标识的 SHA-256，并读取版本清单。中国地区优先使用 `x-stats.china.12306.work`，其他地区优先使用 `xstats-apps.12306.work`，首选失败才串行回退到另一个，首次成功后停止。服务端只保存该哈希、当前版本、首次与最近检查时间及检查次数，不保存硬件序列号，也不持久化请求 IP（IP 只用于一分钟内的内存限流）。原始随机值只在本机偏好设置中，不访问钥匙串。关闭自动检查更新后不会再自动请求；发现新版本时仍由你决定是否安装。
 
 WebDAV 只向你配置的服务器传输偏好设置，不上传监控数据、历史记录或 WebDAV 凭据。
@@ -242,6 +248,8 @@ XStats 基于以下开源项目，谢谢。
 | [Stats](https://github.com/exelban/stats) | Serhiy Mytrovtsiy | MIT | SMC 访问、Apple Silicon 风扇解锁流程、菜单栏迷你样式的字号参数 |
 | [Mole](https://github.com/tw93/Mole) | tw93 | GPL-3.0 | 哪些目录值得清理、哪些绝对不能碰；清理模块为独立的 Swift 实现，不含 Mole 代码 |
 | [QuotaBar](https://github.com/gentpan/quotabar) | GiantAccel, LLC | MIT | 本 README 的版式、更新日志同步与活跃度图脚本 |
+| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI Provider 契约、Codex 凭据发现与配额响应研究 |
+| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | 只读凭据、限流退避与 Provider 状态设计参考 |
 
 详见 [ThirdPartyNotices.md](ThirdPartyNotices.md)。
 

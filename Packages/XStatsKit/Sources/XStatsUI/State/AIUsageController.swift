@@ -1,0 +1,140 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import AIUsage
+import Foundation
+import Observation
+
+public struct AIUsageProviderState: Equatable, Sendable {
+    public let provider: AIProviderID
+    public var snapshot: AIUsageSnapshot?
+    public var failure: AIUsageFailure?
+    public var isRefreshing = false
+
+    public var isStale: Bool { snapshot != nil && failure != nil }
+
+    public init(provider: AIProviderID) { self.provider = provider }
+}
+
+public struct AIUsageMenuBarReading: Equatable, Sendable {
+    public let provider: AIProviderID
+    public let kind: AIQuotaKind
+    public let displayedFraction: Double
+    public let usedFraction: Double
+    public let isStale: Bool
+}
+
+/// AI 配额的低频刷新入口。Provider 只负责一次只读查询；调度、退避与“保留旧值”策略集中在这里。
+@MainActor
+@Observable
+public final class AIUsageController {
+    public private(set) var states: [AIProviderID: AIUsageProviderState]
+    public private(set) var lastAttemptAt: Date?
+    public private(set) var lastSuccessfulRefreshAt: Date?
+
+    @ObservationIgnored private let settings: AppSettings
+    @ObservationIgnored private let providers: [any AIUsageProvider]
+    @ObservationIgnored private let now: @Sendable () -> Date
+    @ObservationIgnored private var cadenceTask: Task<Void, Never>?
+    @ObservationIgnored private var refreshInProgress = false
+    @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var paused = false
+
+    public init(settings: AppSettings, providers: [any AIUsageProvider] = [CodexProvider()],
+                now: @escaping @Sendable () -> Date = Date.init) {
+        self.settings = settings
+        self.providers = providers
+        self.now = now
+        states = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, AIUsageProviderState(provider: $0.id)) })
+    }
+
+    public func state(for provider: AIProviderID) -> AIUsageProviderState {
+        states[provider] ?? AIUsageProviderState(provider: provider)
+    }
+
+    public var isRefreshing: Bool { states.values.contains(where: \.isRefreshing) }
+
+    public var menuBarReading: AIUsageMenuBarReading? {
+        guard settings.aiUsageEnabled else { return nil }
+        let candidates = states.values.compactMap { state -> (AIUsageProviderState, AIQuotaWindow)? in
+            let window = settings.aiUsageFocus.map { state.snapshot?.window($0) } ?? state.snapshot?.attentionWindow
+            return window.map { (state, $0) }
+        }
+        guard let (state, window) = candidates.max(by: { $0.1.usedPercent < $1.1.usedPercent }),
+              let snapshot = state.snapshot else { return nil }
+        return AIUsageMenuBarReading(
+            provider: state.provider,
+            kind: window.kind,
+            displayedFraction: snapshot.displayedPercent(for: window, mode: settings.aiUsageDisplayMode) / 100,
+            usedFraction: min(max(window.usedPercent / 100, 0), 1),
+            isStale: state.isStale
+        )
+    }
+
+    public func start() {
+        cadenceTask?.cancel()
+        cadenceTask = nil
+        guard settings.aiUsageEnabled, !paused else {
+            generation += 1
+            if !settings.aiUsageEnabled {
+                states = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, AIUsageProviderState(provider: $0.id)) })
+            }
+            return
+        }
+        let seconds = settings.aiUsageRefreshMinutes * 60
+        cadenceTask = Task { [weak self] in
+            await self?.refresh()
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(seconds)) } catch { return }
+                guard !Task.isCancelled else { return }
+                await self?.refresh()
+            }
+        }
+    }
+
+    public func stop() {
+        generation += 1
+        cadenceTask?.cancel()
+        cadenceTask = nil
+    }
+
+    public func setPaused(_ value: Bool) {
+        paused = value
+        if value { stop() } else { start() }
+    }
+
+    public func refresh() async {
+        guard settings.aiUsageEnabled, !paused, !refreshInProgress, !Task.isCancelled else { return }
+        refreshInProgress = true
+        let currentGeneration = generation
+        defer {
+            refreshInProgress = false
+            for id in states.keys { states[id]?.isRefreshing = false }
+        }
+        let attempt = now()
+
+        for provider in providers {
+            var state = state(for: provider.id)
+            if let retryAt = state.failure?.retryAt, retryAt > attempt { continue }
+            state.isRefreshing = true
+            states[provider.id] = state
+            do {
+                let snapshot = try await provider.fetch()
+                guard currentGeneration == generation, settings.aiUsageEnabled, !Task.isCancelled else { return }
+                state.snapshot = snapshot
+                state.failure = nil
+                lastSuccessfulRefreshAt = snapshot.fetchedAt
+            } catch let failure as AIUsageFailure {
+                guard currentGeneration == generation, settings.aiUsageEnabled, !Task.isCancelled else { return }
+                if !failure.preservesLastGood { state.snapshot = nil }
+                state.failure = failure
+            } catch {
+                guard currentGeneration == generation, settings.aiUsageEnabled, !Task.isCancelled else { return }
+                state.failure = .network
+            }
+            state.isRefreshing = false
+            states[provider.id] = state
+        }
+        lastAttemptAt = attempt
+    }
+}

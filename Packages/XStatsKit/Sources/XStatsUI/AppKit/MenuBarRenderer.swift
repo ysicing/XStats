@@ -19,6 +19,7 @@ struct MenuBarReading {
     var fanRPM: Double?
     var battery: Double?
     var batteryHistory: [Double] = []
+    var aiUsage: AIUsageMenuBarReading?
     var batteryCharging = false
     /// 附在电池项旁的蓝牙设备：电量低的那一个，或没有电池的 Mac 上电量最低的那一个
     var bluetoothDevice: (symbol: String, percent: Int)?
@@ -44,6 +45,7 @@ struct MenuBarReading {
         fanRPM = store.fastestFan?.current
         battery = store.battery?.level
         batteryHistory = battery.map { Array(repeating: $0, count: 30) } ?? []
+        aiUsage = model.aiUsage.menuBarReading
         batteryCharging = store.battery?.isCharging ?? false
         if let lowest = model.bluetooth.lowest,
            battery == nil || (model.settings.bluetoothLowBatteryInMenuBar && lowest.percent <= Self.lowBluetoothPercent) {
@@ -75,6 +77,8 @@ struct MenuBarReading {
         reading.fanRPM = 1840
         reading.battery = 0.82
         reading.batteryHistory = Array(repeating: 0.82, count: 30)
+        reading.aiUsage = AIUsageMenuBarReading(provider: .codex, kind: .weekly,
+                                                displayedFraction: 0.42, usedFraction: 0.58, isStale: false)
         return reading
     }()
 
@@ -85,6 +89,7 @@ struct MenuBarReading {
         case .memory: (memory, memoryHistory)
         case .disk: (disk, diskHistory)
         case .battery: (battery, batteryHistory)
+        case .aiUsage: (aiUsage?.displayedFraction, [])
         default: (nil, [])
         }
     }
@@ -104,6 +109,11 @@ struct MenuBarReading {
             case .battery:
                 battery.map { tr("电池 \(Format.percent($0))") + (batteryCharging ? tr("，充电中") : "") }
                     ?? bluetoothDevice.map { tr("蓝牙设备电量 \($0.percent)%") }
+            case .aiUsage:
+                aiUsage.map { reading in
+                    let suffix = reading.isStale ? tr("，数据已过期") : ""
+                    return tr("AI 配额 \(Format.percent(reading.displayedFraction))") + suffix
+                }
             }
         }
         .joined(separator: "\n")
@@ -225,6 +235,13 @@ enum MenuBarRenderer {
             return textSegment(item: item, value: reading.fanRPM.map { "\(Int($0))" } ?? "—", sample: "8888", style: style)
         case .battery:
             return batterySegment(reading: reading, style: style, colorizeHighLoad: colorizeHighLoad)
+        case .aiUsage:
+            let value = reading.aiUsage?.displayedFraction
+            let used = reading.aiUsage?.usedFraction
+            let resolved: MenuBarStyle = style == .history || style == .line ? .ring : style
+            return percentSegment(item: item, value: value, history: [], style: resolved,
+                                  colorizeHighLoad: colorizeHighLoad,
+                                  riskFraction: used, stale: reading.aiUsage?.isStale ?? false)
         }
     }
 
@@ -279,19 +296,22 @@ enum MenuBarRenderer {
     }
 
     private static func percentSegment(item: MenuBarItem, value: Double?, history: [Double],
-                                       style: MenuBarStyle, colorizeHighLoad: Bool) -> Segment {
+                                       style: MenuBarStyle, colorizeHighLoad: Bool,
+                                       riskFraction: Double? = nil, stale: Bool = false) -> Segment {
         let fraction = min(1, max(0, value ?? 0))
-        let text = value.map { Format.percent($0) } ?? "—"
-        let alert = colorizeHighLoad && fraction >= Metrics.highLevel
-        let stacked = stackedText(label: item.menuBarLabel, value: text, sample: "100%", alert: alert)
+        let text = (value.map { Format.percent($0) } ?? "—") + (stale ? "⚠︎" : "")
+        let alertFraction = riskFraction ?? fraction
+        let alert = colorizeHighLoad && alertFraction >= Metrics.highLevel
+        let sample = stale ? "100%⚠︎" : "100%"
+        let stacked = stackedText(label: item.menuBarLabel, value: text, sample: sample, alert: alert)
 
         switch style {
         case .stacked:
             return stacked
         case .inline:
-            return inlineText(label: item.menuBarLabel, value: text, sample: "100%", alert: alert)
+            return inlineText(label: item.menuBarLabel, value: text, sample: sample, alert: alert)
         case .icon:
-            return combine([symbolSegment(item.symbol), inlineValue(text, sample: "100%", alert: alert)])
+            return combine([symbolSegment(item.symbol), inlineValue(text, sample: sample, alert: alert)])
         case .ring:
             return combine([ring(fraction: fraction, alert: alert), stacked])
         case .pie:
@@ -303,7 +323,7 @@ enum MenuBarRenderer {
         case .meter:
             return combine([meter(fraction: fraction, alert: alert), stacked])
         case .dot:
-            return combine([levelDot(fraction: fraction), stacked])
+            return combine([levelDot(fraction: alertFraction), stacked])
         }
     }
 

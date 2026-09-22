@@ -3,13 +3,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
 // See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
 
+import AIUsage
 import Foundation
 import Localization
 import Metrics
 import Observation
 
 public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
-    case cpu, memory, network, gpu, disk, temperature, fan, battery
+    case cpu, memory, network, gpu, disk, temperature, fan, battery, aiUsage
 
     public var id: String { rawValue }
 
@@ -23,6 +24,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: tr("CPU 温度")
         case .fan: tr("风扇转速")
         case .battery: tr("电池")
+        case .aiUsage: tr("AI 配额")
         }
     }
 
@@ -36,6 +38,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: tr("CPU 核心最高温度")
         case .fan: tr("转速最高的风扇")
         case .battery: tr("电量与充电状态；没有电池的 Mac 显示蓝牙设备电量")
+        case .aiUsage: tr("Codex 订阅配额、重置时间与积分余额")
         }
     }
 
@@ -50,6 +53,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: "TEMP"
         case .fan: "FAN"
         case .battery: "BAT"
+        case .aiUsage: "AI"
         }
     }
 
@@ -64,6 +68,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: tr("温度")
         case .fan: tr("风扇")
         case .battery: tr("电池")
+        case .aiUsage: tr("AI 配额")
         }
     }
 
@@ -78,6 +83,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: [.thermalSensors, .thermalFans, .thermalPower]
         case .fan: [.thermalFans, .thermalSensors, .thermalPower]
         case .battery: [.batteryHistory, .batteryPower, .batteryHealth, .batteryBluetooth]
+        case .aiUsage: []
         }
     }
 
@@ -94,6 +100,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: "thermometer.medium"
         case .fan: "fan"
         case .battery: "battery.75"
+        case .aiUsage: "sparkles"
         }
     }
 }
@@ -200,6 +207,7 @@ public enum MenuBarStyle: String, CaseIterable, Identifiable, Sendable {
     static func options(for item: MenuBarItem) -> [MenuBarStyle] {
         switch item {
         case .temperature, .fan: [.stacked, .inline, .icon]
+        case .aiUsage: [.stacked, .inline, .icon, .ring, .pie, .meter, .dot]
         default: allCases
         }
     }
@@ -272,12 +280,12 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
 
 /// 主窗口侧边栏的页面
 public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
-    case overview, system, history, cpu, gpu, memory, disk, network, thermal, battery, processes, keepAwake, cleaner, uninstaller, startupItems
+    case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery, processes, keepAwake, cleaner, uninstaller, startupItems
     case settingsGeneral, settingsMenuBar, settingsNotifications, settingsAccount, settingsHelper, settingsAbout
 
     public var id: String { rawValue }
 
-    static let monitors: [PanelTab] = [.overview, .system, .history, .cpu, .gpu, .memory, .disk, .network, .thermal, .battery]
+    static let monitors: [PanelTab] = [.overview, .system, .history, .aiUsage, .cpu, .gpu, .memory, .disk, .network, .thermal, .battery]
     static let tools: [PanelTab] = [.processes, .startupItems, .keepAwake, .cleaner, .uninstaller]
     static let settings: [PanelTab] = [.settingsGeneral, .settingsMenuBar, .settingsNotifications, .settingsAccount, .settingsHelper, .settingsAbout]
 
@@ -291,6 +299,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .overview: tr("仪表盘")
         case .system: tr("本机信息")
         case .history: tr("历史")
+        case .aiUsage: tr("AI 配额")
         case .cpu: "CPU"
         case .gpu: "GPU"
         case .memory: tr("内存")
@@ -317,6 +326,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .overview: "square.grid.2x2"
         case .system: "laptopcomputer"
         case .history: "clock.arrow.circlepath"
+        case .aiUsage: "sparkles"
         case .cpu: "cpu"
         case .gpu: "square.3.layers.3d"
         case .memory: "memorychip"
@@ -348,6 +358,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .disk: .disk
         case .thermal: .temperature
         case .battery: .battery
+        case .aiUsage: .aiUsage
         default: nil
         }
     }
@@ -369,6 +380,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .disk: self = .disk
         case .temperature, .fan: self = .thermal
         case .battery: self = .battery
+        case .aiUsage: self = .aiUsage
         }
     }
 }
@@ -397,6 +409,20 @@ public final class AppSettings {
     }
     public var refreshSeconds: Int {
         didSet { defaults.set(refreshSeconds, forKey: Keys.refreshSeconds) }
+    }
+    /// AI 配额是外部网络查询，默认不启用；启用后独立于系统指标的秒级采样。
+    public var aiUsageEnabled: Bool {
+        didSet { defaults.set(aiUsageEnabled, forKey: Keys.aiUsageEnabled) }
+    }
+    public var aiUsageRefreshMinutes: Int {
+        didSet { defaults.set(aiUsageRefreshMinutes, forKey: Keys.aiUsageRefreshMinutes) }
+    }
+    public var aiUsageDisplayMode: AIUsageDisplayMode {
+        didSet { defaults.set(aiUsageDisplayMode.rawValue, forKey: Keys.aiUsageDisplayMode) }
+    }
+    /// nil 自动选择；固定窗口暂时缺失时显示无数据，不暗中换成其他指标。
+    public var aiUsageFocus: AIQuotaKind? {
+        didSet { defaults.set(aiUsageFocus?.rawValue, forKey: "aiUsageFocus") }
     }
     public var colorizeHighLoad: Bool {
         didSet { defaults.set(colorizeHighLoad, forKey: Keys.colorizeHighLoad) }
@@ -511,6 +537,7 @@ public final class AppSettings {
     }
 
     public static let refreshOptions = [1, 2, 3, 5]
+    public static let aiUsageRefreshOptions = [5, 15, 30, 60]
     public static let batteryFloorOptions = [10, 20, 30, 40]
     public static let fanSafetyOptions = [85, 90, 95, 100]
     public static let alertTemperatureOptions = [85, 90, 95, 100]
@@ -530,6 +557,11 @@ public final class AppSettings {
         })
         refreshSeconds = Self.refreshOptions.contains(defaults.integer(forKey: Keys.refreshSeconds))
             ? defaults.integer(forKey: Keys.refreshSeconds) : 2
+        aiUsageEnabled = defaults.bool(forKey: Keys.aiUsageEnabled)
+        aiUsageRefreshMinutes = Self.aiUsageRefreshOptions.contains(defaults.integer(forKey: Keys.aiUsageRefreshMinutes))
+            ? defaults.integer(forKey: Keys.aiUsageRefreshMinutes) : 30
+        aiUsageDisplayMode = defaults.string(forKey: Keys.aiUsageDisplayMode).flatMap(AIUsageDisplayMode.init(rawValue:)) ?? .remaining
+        aiUsageFocus = defaults.string(forKey: "aiUsageFocus").flatMap(AIQuotaKind.init(rawValue:))
         colorizeHighLoad = defaults.bool(forKey: Keys.colorizeHighLoad)
         bluetoothLowBatteryInMenuBar = defaults.object(forKey: Keys.bluetoothLowBatteryInMenuBar) as? Bool ?? true
         useFahrenheit = defaults.bool(forKey: Keys.useFahrenheit)
@@ -605,6 +637,9 @@ public final class AppSettings {
         static let networkStyle = "networkStyle"
         static let styleOverrides = "styleOverrides"
         static let refreshSeconds = "refreshSeconds"
+        static let aiUsageEnabled = "aiUsageEnabled"
+        static let aiUsageRefreshMinutes = "aiUsageRefreshMinutes"
+        static let aiUsageDisplayMode = "aiUsageDisplayMode"
         static let colorizeHighLoad = "colorizeHighLoad"
         static let bluetoothLowBatteryInMenuBar = "bluetoothLowBatteryInMenuBar"
         static let useFahrenheit = "useFahrenheit"

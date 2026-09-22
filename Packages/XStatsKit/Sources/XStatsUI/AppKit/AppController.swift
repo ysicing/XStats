@@ -70,6 +70,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
         observeWorkspace()
         observeModel()
         observeProbeSettings()
+        observeAIUsageSchedule()
+        observeAIUsagePresentation()
+        observeAIUsageState()
+        model.aiUsage.start()
         applyAppearance()
         updateNetworkVisibility()
         appliedLanguage = model.settings.language
@@ -82,7 +86,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         hotKeys.onAction = { [weak self] action in self?.perform(action) }
         applyHotKeys()
 
-        // 开发调试：--show-panel [overview|cpu|memory|network|gpu|disk|temperature|fan|battery] 启动后展开并固定弹窗
+        // 开发调试：--show-panel [overview|cpu|memory|network|gpu|disk|temperature|fan|battery|aiUsage] 启动后展开并固定弹窗
         // （overview 是合并模式的状态总览；合并模式下给某一项则打开面板并切到这一项）；--show-window 打开主窗口；
         // --show-egress 打开出口与分流窗口
         let arguments = CommandLine.arguments
@@ -136,6 +140,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        model.aiUsage.stop()
         model.keepAwake.releaseForTermination()
         if model.fans.mode != .automatic || model.keepAwake.lidClosedActive {
             model.helper.restoreDefaultsSynchronously()
@@ -263,6 +268,52 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// AI 配额使用独立的分钟级轮询；开关或间隔变化时重建这一条调度，不影响系统指标采样。
+    private func observeAIUsageSchedule() {
+        withObservationTracking {
+            _ = model.settings.aiUsageEnabled
+            _ = model.settings.aiUsageRefreshMinutes
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.model.aiUsage.start()
+                self.menuBar.refreshImages()
+                self.menuBar.refreshPopoverHeight()
+                self.observeAIUsageSchedule()
+            }
+        }
+    }
+
+    /// “剩余 / 已用”只改变呈现，不触发网络请求。
+    private func observeAIUsagePresentation() {
+        withObservationTracking {
+            _ = model.settings.aiUsageDisplayMode
+            _ = model.settings.aiUsageFocus
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.menuBar.refreshImages()
+                self.menuBar.refreshPopoverHeight()
+                self.observeAIUsagePresentation()
+            }
+        }
+    }
+
+    /// 一次低频查询结束后只重绘菜单栏和弹窗；不重启轮询，避免形成刷新回路。
+    private func observeAIUsageState() {
+        withObservationTracking {
+            _ = model.aiUsage.states
+            _ = model.aiUsage.lastAttemptAt
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.menuBar.refreshImages()
+                self.menuBar.refreshPopoverHeight()
+                self.observeAIUsageState()
+            }
+        }
+    }
+
     private var appliedLanguage: AppLanguage?
 
     /// 切换语言后重建应用菜单、菜单栏图标文字与已打开的弹窗
@@ -310,6 +361,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
                     guard let self else { return }
                     self.menuBar.dismissPopovers()
                     self.model.network.setPaused(true)
+                    self.model.aiUsage.setPaused(true)
                     self.model.history.flush()
                     Task { await self.model.hub.setPaused(true) }
                 }
@@ -320,6 +372,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     self.model.network.setPaused(false)
+                    self.model.aiUsage.setPaused(false)
                     Task {
                         await self.model.hub.setPaused(false)
                         await self.model.fans.reapply()

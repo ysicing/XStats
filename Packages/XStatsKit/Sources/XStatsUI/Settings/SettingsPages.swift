@@ -333,7 +333,7 @@ struct MenuBarSettings: View {
                         }
                         if settings.isEnabled(item) {
                             ItemStyleRow(item: item)
-                            PopoverSectionPicker(item: item)
+                            if !item.popoverSections.isEmpty { PopoverSectionPicker(item: item) }
                         }
                     }
                 }
