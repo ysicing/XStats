@@ -66,19 +66,6 @@ GitHub Actions 只在分支 push 且 `server/**` 发生变化时构建并发布 
 python3 Scripts/sync_changelog.py
 ```
 
-## 版本号
-
-公开版本号使用 `年.月.日.当日索引` 格式，例如 `2026.09.21.01`：
-
-- 当天首次构建使用 `.01`，同日后续构建递增。
-- 日期变化后索引重置为 `.01`。
-- `CURRENT_PROJECT_VERSION` 是独立的 Apple 内部构建号，每次构建持续递增且不重置。
-
-```bash
-task version                          # 显示当前版本
-task version-next                     # 预览下一公开版本号
-```
-
 ## 发布
 
 ### 版本号
@@ -118,6 +105,11 @@ NOTARY_PROFILE=XStats task release
 
 如果使用其他 profile，可以覆盖 `NOTARY_PROFILE`。`SKIP_NOTARIZE=1 task release` 只适合本机测试，
 生成的包不应公开分发。
+
+`release.sh` 开始时只允许版本元数据存在未提交改动，任何源码、脚本或新增文件都会中止构建；
+随后在 `dist/release-provenance.json` 记录构建前提交、版本、构建号及版本文件哈希。
+`publish_release.sh` 会验证最终提交只改了允许的版本元数据，且工作区、版本文件与构建记录一致，
+避免安装包与 Git tag 对应源码不一致。
 
 打包完成后按顺序执行：
 

@@ -12,16 +12,15 @@ TAP="${TAP:-gentpan/homebrew-tap}"
 MC_TARGET="${MC_TARGET:-cos/oss/apps/macOS/XStats}"
 DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://c.ysicing.net/oss/apps/macOS/XStats}"
 VERSION="$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' project.yml | head -1)"
+BUILD="$(sed -nE 's/^ *CURRENT_PROJECT_VERSION: *"?([0-9]+)"?.*/\1/p' project.yml | head -1)"
 APPCAST="dist/appcast.json"
 CASK="dist/xstats.rb"
+PROVENANCE="dist/release-provenance.json"
 
 # gh release 会在远端默认分支的 HEAD 上打 tag。版本改动没推送的话，v${VERSION} 会指向
-# 一个不含该版本的提交。这里只读校验，不替调用者 commit 或 push。
-RELEASE_FILES=(project.yml CHANGELOG.md README.md README.en.md README.ja.md README.ko.md)
-git diff --quiet -- "${RELEASE_FILES[@]}" \
-  || { echo "有未提交的发布文件改动，请先提交并推送" >&2; exit 1; }
-git diff --cached --quiet -- "${RELEASE_FILES[@]}" \
-  || { echo "暂存区还有未提交的发布文件，请先提交并推送" >&2; exit 1; }
+# 一个不含该版本的提交。来源记录还会校验工作区、版本文件哈希，以及构建后是否改过源码。
+# 这里只读校验，不替调用者 commit 或 push。
+python3 Scripts/release_provenance.py verify "$PROVENANCE" "$VERSION" "$BUILD"
 git fetch --quiet origin main
 HEAD_SHA="$(git rev-parse HEAD)"
 [ "$HEAD_SHA" = "$(git rev-parse origin/main)" ] \

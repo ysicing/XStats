@@ -21,6 +21,9 @@ SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null \
   | grep 'Developer ID Application' | head -1 | sed -E 's/.*"(.*)".*/\1/' || true)}"
 APP="build/DerivedData-arm64/Build/Products/Release/XStats.app"
 
+# 构建只允许版本元数据有未提交改动；Swift、脚本或其他源码必须来自当前 HEAD。
+BASE_SHA="$(python3 Scripts/release_provenance.py prepare)"
+
 if [ -z "$SIGN_ID" ]; then
   echo "error: 钥匙串里没有 Developer ID Application 证书，无法发布。" >&2
   exit 1
@@ -42,6 +45,8 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 rm -rf "$DIST"
 mkdir -p "$DIST"
+PROVENANCE="$DIST/release-provenance.json"
+python3 Scripts/release_provenance.py record "$PROVENANCE" "$BASE_SHA" "$VERSION" "$BUILD"
 
 NAME="XStats-${VERSION}-AppleSilicon"
 echo

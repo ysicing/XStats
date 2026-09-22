@@ -74,6 +74,7 @@ tasks:
     cmds:
       - bash Scripts/version_test.sh
       - bash Scripts/arm64_release_test.sh
+      - python3 Scripts/release_provenance_test.py
       - python3 Scripts/publish_api_test.py
       - task: test-api
       - task: test-swift

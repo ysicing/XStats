@@ -38,11 +38,10 @@ task build            # Release build, then replace /Applications/XStats.app and
 task test             # swift test in the package
 ```
 
-Versions read `2026.09.21.01 (0106)`: `MARKETING_VERSION` uses the build date plus a daily index.
-The first build of a day ends in `.01`, later builds increment the index, and a new day resets it to `.01`.
-The four-digit `CURRENT_PROJECT_VERSION` independently goes up by one on every `task build`
-(`BUMP=0` skips both changes). Internal build numbers never reset, so every package has a larger
-`CFBundleVersion` than the one before. Every `task build` runs
+Versions read `1.0.0 (110)`: `MARKETING_VERSION` is the semver from the first release heading in
+`CHANGELOG.md`, while `CURRENT_PROJECT_VERSION` is an independent, monotonically increasing build
+number. `task build` advances only the build number (`BUMP=0` skips it); `task release` takes the
+public version from the changelog and advances the build number once. Every `task build` runs
 `Scripts/install_local.sh`: it ends the running app (the helper restores fans and sleep when the
 connection drops), deletes the old `/Applications/XStats.app`, *moves* the new bundle there so no
 copy stays in the build folder, re-registers it with Launch Services, and relaunches. Only one
@@ -55,8 +54,11 @@ the first Developer ID Application identity from the keychain (and `--timestamp`
 when there is one. `task release` runs `Scripts/release.sh`: build, verify team, timestamp and
 hardened runtime on both binaries, notarize and staple the app, build and notarize the DMG,
 write the online-update zip and `appcast.json`, and write a Homebrew cask (`auto_updates true`)
-whose URLs point at the object storage prefix `https://c.ysicing.net/oss/apps/macOS/XStats`. The helper derives its client requirement from its own signing
-team at run time, so no team ID is hard-coded.
+whose URLs point at the object storage prefix `https://c.ysicing.net/oss/apps/macOS/XStats`.
+The release records the source commit plus version-file hashes in `dist/release-provenance.json`;
+publishing accepts only a clean descendant that changed release metadata, so the Git tag cannot
+silently include source different from the packaged binaries. The helper derives its client
+requirement from its own signing team at run time, so no team ID is hard-coded.
 
 ## Sampling
 
