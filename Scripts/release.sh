@@ -14,7 +14,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # 安装包放在对象存储，由 Scripts/publish_release.sh 用 mc 上传
-DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://cos.ysicing.net/oss/apps/macOS/XStats}"
+DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://c.ysicing.net/oss/apps/macOS/XStats}"
 DIST="${DIST:-dist}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-XStats}"
 SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null \
