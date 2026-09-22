@@ -11,27 +11,29 @@ protocol InstallationIDStore {
 }
 
 enum InstallationIdentityError: Error, LocalizedError {
-    case keychain(OSStatus)
     case random(OSStatus)
 
     var errorDescription: String? {
         switch self {
-        case .keychain(let status):
-            (SecCopyErrorMessageString(status, nil) as String?) ?? "Keychain error \(status)"
         case .random(let status):
             "Random generator error \(status)"
         }
     }
 }
 
-/// 每次安装首次使用时生成随机值并留存在本机钥匙串；网络侧只使用它的 SHA-256。
+/// 首次使用时生成随机值并留存在本机偏好设置；它不是凭据，不能因读取而触发钥匙串授权。
 public struct InstallationIdentity {
     private let store: any InstallationIDStore
     private let randomBytes: () throws -> Data
 
     public init() {
-        self.store = KeychainInstallationIDStore()
+        self.store = UserDefaultsInstallationIDStore(defaults: .standard)
         self.randomBytes = Self.generateRandomBytes
+    }
+
+    init(defaults: UserDefaults, randomBytes: @escaping () throws -> Data) {
+        self.store = UserDefaultsInstallationIDStore(defaults: defaults)
+        self.randomBytes = randomBytes
     }
 
     init(store: any InstallationIDStore, randomBytes: @escaping () throws -> Data) {
@@ -39,7 +41,7 @@ public struct InstallationIdentity {
         self.randomBytes = randomBytes
     }
 
-    /// 返回可上报的稳定哈希；随机原值永不离开钥匙串。
+    /// 返回可上报的稳定哈希；随机原值只保存在本机且不随设置同步。
     public func hashedID() throws -> String {
         let value: Data
         if let saved = try store.read() {
@@ -61,42 +63,11 @@ public struct InstallationIdentity {
     }
 }
 
-struct KeychainInstallationIDStore: InstallationIDStore {
-    private static let service = "work.12306.xstats.installation"
-    private static let account = "installation-id"
+struct UserDefaultsInstallationIDStore: InstallationIDStore {
+    static let key = "installationIdentitySeed"
+    let defaults: UserDefaults
 
-    init() {}
+    func read() throws -> Data? { defaults.data(forKey: Self.key) }
 
-    func read() throws -> Data? {
-        var query = baseQuery
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = result as? Data else {
-            throw InstallationIdentityError.keychain(status == errSecSuccess ? errSecDecode : status)
-        }
-        return data
-    }
-
-    func write(_ value: Data) throws {
-        let query = baseQuery
-        var status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: value] as CFDictionary)
-        if status == errSecItemNotFound {
-            var item = query
-            item[kSecValueData as String] = value
-            item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            status = SecItemAdd(item as CFDictionary, nil)
-        }
-        guard status == errSecSuccess else { throw InstallationIdentityError.keychain(status) }
-    }
-
-    private var baseQuery: [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.service,
-            kSecAttrAccount as String: Self.account,
-        ]
-    }
+    func write(_ value: Data) throws { defaults.set(value, forKey: Self.key) }
 }

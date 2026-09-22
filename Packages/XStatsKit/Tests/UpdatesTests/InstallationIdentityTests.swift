@@ -22,6 +22,24 @@ import Testing
         #expect(generations == 1)
         #expect(store.value == Data(0..<32))
     }
+
+    @Test func userDefaultsPersistsAcrossIdentityInstancesWithoutKeychain() throws {
+        let suite = "InstallationIdentityTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var generations = 0
+        let randomBytes = {
+            generations += 1
+            return Data(0..<32)
+        }
+
+        let first = try InstallationIdentity(defaults: defaults, randomBytes: randomBytes).hashedID()
+        let second = try InstallationIdentity(defaults: defaults, randomBytes: randomBytes).hashedID()
+
+        #expect(first == second)
+        #expect(generations == 1)
+        #expect(defaults.data(forKey: UserDefaultsInstallationIDStore.key) == Data(0..<32))
+    }
 }
 
 private final class MemoryInstallationIDStore: InstallationIDStore, @unchecked Sendable {

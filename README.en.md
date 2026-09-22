@@ -19,7 +19,7 @@ CPU load, GPU, memory pressure, network speed, disk, battery, temperatures and f
 lets you act on it: spin the fans up, keep the Mac awake with the lid closed, clear caches, fully
 uninstall apps and disable startup items. Network details also check how clean your public IP is —
 whether it is flagged as a VPN, proxy, data center or for abuse.
-All monitoring metrics are read on your own Mac and are never uploaded. No XStats account is required: manually back up and restore preferences through your own WebDAV server. Update checks send the current version and the SHA-256 of a random installation ID for anonymous installation and version-distribution statistics; the original random value remains in the local Keychain. Other optional network features include a public-IP and cleanliness lookup when you open network details, a ping probe to a target you choose, and a daily check for a new version.
+All monitoring metrics are read on your own Mac and are never uploaded. No XStats account is required: manually back up and restore preferences through your own WebDAV server. Update checks send the current version and the SHA-256 of a random installation ID for anonymous installation and version-distribution statistics; the original random value remains in local preferences, is not a credential, and is excluded from WebDAV sync. Other optional network features include a public-IP and cleanliness lookup when you open network details, a ping probe to a target you choose, and a daily check for a new version.
 
 [Download](https://github.com/ysicing/xstats/releases) ·
 [Changelog](CHANGELOG.md) ·
@@ -49,7 +49,7 @@ Arabic uses a right-to-left layout.
 <!-- changelog:start -->
 <!-- Generated from CHANGELOG.md by Scripts/sync_changelog.py. Do not edit by hand. -->
 
-Latest release **0.7.1** (2026-09-22) · [full changelog](CHANGELOG.md) (kept in Chinese)
+Latest release **0.7.1** (2026-09-22) · **1** changes in development · [full changelog](CHANGELOG.md) (kept in Chinese)
 
 <!-- changelog:end -->
 
@@ -209,7 +209,7 @@ check in Settings → About:
   `x-stats.china.12306.work`; all others prefer `xstats-apps.12306.work`. The app falls back serially to the other endpoint
   only after a failure and stops after the first success. The server stores only that
   hash, the current version, first and last check times, and the check count; it does not store a hardware serial number
-  or persist request IPs (an IP is used only for an in-memory one-minute rate limit). The original random value stays in the local Keychain. Turning off automatic update checks stops these
+  or persist request IPs (an IP is used only for an in-memory one-minute rate limit). The original random value stays in local preferences and does not access Keychain. Turning off automatic update checks stops these
   automatic requests. When a new version is out it asks; nothing installs without your click.
 
 WebDAV sync sends only preferences to your configured server. It excludes monitoring data, history and WebDAV credentials.
