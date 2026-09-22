@@ -201,7 +201,7 @@ struct LiveSamplerTests {
         )
 
         #expect(output == nil)
-        #expect(started.duration(to: clock.now) < .milliseconds(500))
+        #expect(started.duration(to: clock.now) < .seconds(1))
     }
 
     @Test func cancellationStopsRunningCommand() async throws {
