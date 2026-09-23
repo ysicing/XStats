@@ -335,6 +335,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 刷新状态	Actualizar estado
 刷新间隔	Intervalo de actualización
 刷新频率	Frecuencia de actualización
+剩余	Restante
+距重置	Hasta el reinicio
 剩余 {}	{} restantes
 剩余寿命	Vida útil restante
 剩余寿命 {}% · 已写入 {}	{}% de vida útil · {} escritos
@@ -1245,14 +1247,26 @@ Codex / Claude Code 本机模型与 Token 使用统计	Uso local de modelos y to
 用量记录	Registros de uso
 模型排行	Clasificación de modelos
 启用使用统计	Activar estadísticas
-只读本机 Codex / Claude Code 会话日志，按模型统计 Token；不读取登录凭据，不查询订阅额度。	Lee registros locales de Codex / Claude Code para contar tokens por modelo. No accede a credenciales ni consulta cuotas.
+启用后读取本机会话日志，并使用本机登录凭据向 Codex / Claude 查询订阅额度。	When enabled, reads local session logs and uses local login credentials to query Codex / Claude subscription usage.
+统计本机会话 Token，并使用本机登录凭据自动查询 Codex / Claude 订阅额度。	Counts local session tokens and automatically queries Codex / Claude subscription usage with local login credentials.
+订阅额度	Subscription usage
+服务端用量 · 与本机 Token 统计不同	Server usage · separate from local token statistics
+重置：	Resets:
+查询失败，显示上次额度	Query failed; showing previous quota
+暂无额度数据	No quota data yet
+未检测到登录凭据，请先登录对应 CLI	No login credentials found; sign in with the corresponding CLI
+登录已失效，请在对应 CLI 重新登录	Login expired; sign in again with the corresponding CLI
+服务暂时限流，稍后会自动重试	Rate limited; will retry later
+暂时无法连接额度服务	Cannot connect to the quota service right now
+额度接口返回了无法识别的数据	The quota service returned unrecognized data
+启用后自动读取本机 CLI 登录凭据，直接向 Codex / Claude 查询额度；凭据不保存到 XStats。	When enabled, reads local CLI login credentials and queries Codex / Claude directly; XStats does not save the credentials.
+本机 Token 统计不代表订阅账单或其他设备的用量	Local token statistics are not a subscription bill or usage from other devices
 缓存 Token 已包含在输入中，推理 Token 已包含在输出中。	Los tokens en caché están incluidos en la entrada y los de razonamiento en la salida.
 所选时间范围没有用量记录	Sin uso en este período
 部分会话日志无法读取，统计可能不完整	Algunos registros no se pudieron leer; las estadísticas pueden estar incompletas
 读取失败，显示上次统计结果	Error de lectura; se muestran estadísticas anteriores
 正在读取会话日志…	Leyendo registros de sesiones…
 暂无本机用量数据	Sin datos de uso local
-仅统计本机日志，不代表订阅账单或其他设备的用量	Solo registros locales; no refleja facturas ni uso de otros dispositivos
 缓存创建 Token	Tokens de creación de caché
 Token 活动	Actividad de tokens
 每日	Diario

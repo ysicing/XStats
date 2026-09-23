@@ -8,7 +8,7 @@ This policy explains what XStats processes on your Mac and which features contac
 
 CPU, GPU, memory, network, temperature, fan, and process metrics come from local system interfaces. Those metrics, their history, hardware serial numbers, and process lists are processed on your Mac and are not uploaded to the XStats update service. Preferences are stored locally; selected preferences become a remote backup only when you manually use WebDAV sync.
 
-AI Usage is off by default. When enabled, it reads local Codex / Claude Code session logs to summarize token usage by model. It does not read login credentials, query subscription quotas, or transmit those logs. Apple Intelligence process explanations run on-device and do not send process information to another AI service.
+AI Usage is off by default. When enabled, it reads local Codex / Claude Code session logs to summarize token usage by model. It also checks the corresponding CLI login credentials read-only and directly queries Codex and Claude for five-hour and weekly quota usage. Each request sends the login token to its respective provider; XStats does not save tokens in its preferences or statistics database, and does not send session-log contents with quota requests. A quota request may fail or be rate-limited without affecting local token statistics. Turning the feature off stops subsequent scans and quota requests. Apple Intelligence process explanations run on-device and do not send process information to another AI service.
 
 You choose whether and where to export diagnostics; they are not uploaded automatically. An exported archive may contain a settings summary, the last three days of system logs, cleanup records, and crash reports. Review it before sharing.
 
@@ -22,6 +22,7 @@ You can turn off automatic checks in Settings → About. You decide whether to d
 
 ## 3. Other network features
 
+- When AI Usage is enabled, XStats uses local Codex / Claude Code login credentials to contact the quota endpoints on `chatgpt.com` and `api.anthropic.com` directly. Those providers can observe the login token and connection metadata. Quota results are held only in app memory and are not uploaded to XStats servers.
 - When you open network details with public-IP lookup enabled, XStats contacts Cloudflare `1.1.1.1`, falling back to ipify. It sends your public IP address to `cleanip.io` for location, ASN, network type, and cleanliness information. Results are cached locally.
 - Connection probing sends ICMP packets to your selected target when enabled. Speed tests, egress checks, and DNS lookups contact selected test nodes, websites, or DNS services only when you use those features. Those services can observe connection metadata and the data needed for the test.
 - Globalping receives the target domain you enter. Measurement parameters and results can be retrieved by anyone with the measurement ID; do not enter a target you want to keep private.

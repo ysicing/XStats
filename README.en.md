@@ -118,7 +118,7 @@ Choose which sections each popover shows in Settings. `Esc` closes it.
   60-second history; SSD health; the apps reading and writing the most.
 - **GPU**, **Temperature & fans.** History, sensor groups, fan speeds and quick modes.
 - **Battery.** Charge level, time remaining, adapter wattage and battery temperature; a 24-hour charge curve; power draw; health and cycle count; the batteries of connected Bluetooth devices (AirPods, Magic Keyboard / Mouse / Trackpad). Macs without a battery show the Bluetooth devices only.
-- **AI usage**: reads local Codex / Claude Code session logs for token totals, cache hit rate, daily trends and model ranking. Defaults to a one-year activity heatmap; switch between daily, weekly and cumulative year views and filter by model. SQLite persists parser checkpoints and statistics across restarts; appended logs are read incrementally. No credentials or quota API calls.
+- **AI usage**: reads local Codex / Claude Code session logs for token totals, cache hit rate, daily trends and model ranking. Defaults to a one-year activity heatmap; switch between daily, weekly and cumulative year views and filter by model. SQLite persists parser checkpoints and statistics across restarts; appended logs are read incrementally. When enabled, it also reads local CLI login credentials and directly queries five-hour and weekly quotas.
 
 <p align="center">
   <img src="Assets/readme/popover-cpu-light.png" width="32%" alt="CPU popover">
@@ -225,7 +225,7 @@ Every feature that touches the network can be turned off. Public IP and connecti
   or persist request IPs (an IP is used only for an in-memory one-minute rate limit). The original random value stays in local preferences and does not access Keychain. Turning off automatic update checks stops these
   automatic requests. When a new version is out it asks; nothing installs without your click.
 
-**AI usage** is entirely local: it reads Codex / Claude Code session logs on this Mac, never reads credentials, never queries subscription quotas and makes no network requests at all. Off by default.
+**AI usage** is off by default. When enabled, local token statistics read only Codex / Claude Code session logs; quota checks read CLI login credentials and contact `chatgpt.com` / `api.anthropic.com` directly for five-hour and weekly usage. Tokens go only to the corresponding provider and are not saved in XStats preferences or its statistics database. Session logs are not sent with quota requests; quota failures do not affect local statistics.
 
 WebDAV sync sends only preferences when you configure a server and start a transfer manually. It excludes monitoring data, history and WebDAV credentials.
 

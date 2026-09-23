@@ -1,6 +1,24 @@
 import AppKit
+import AIUsage
 import Localization
 import Metrics
+
+struct MenuBarQuota {
+    let provider: AIProviderID
+    let window: AIQuotaWindow
+
+    var remainingPercent: Int { Int(window.remainingPercent.rounded()) }
+    var sourceName: String { provider == .codex ? "Codex" : "Claude" }
+    var shortWindowName: String { window.kind == .session ? "5h" : "7d" }
+
+    var resetText: String {
+        guard let reset = window.resetsAt else { return "—" }
+        let formatter = DateFormatter()
+        formatter.locale = L10n.locale
+        formatter.setLocalizedDateFormatFromTemplate("MdHm")
+        return formatter.string(from: reset)
+    }
+}
 
 /// 菜单栏上要画的读数，与数据来源解耦，设置页预览可以用示例数据绘制
 struct MenuBarReading {
@@ -21,6 +39,9 @@ struct MenuBarReading {
     var batteryHistory: [Double] = []
     /// 本机日志今日 Token 总量；扫描未开启或还没有数据时为 nil
     var aiTokens: Int?
+    /// 每个已登录来源选一个订阅窗口；菜单栏主读数取剩余最少者，完整列表放在悬停提示中。
+    var aiQuotas: [MenuBarQuota] = []
+    var primaryAIQuota: MenuBarQuota? { aiQuotas.min { $0.remainingPercent < $1.remainingPercent } }
     var batteryCharging = false
     /// 附在电池项旁的蓝牙设备：电量低的那一个，或没有电池的 Mac 上电量最低的那一个
     var bluetoothDevice: (symbol: String, percent: Int)?
@@ -47,6 +68,14 @@ struct MenuBarReading {
         battery = store.battery?.level
         batteryHistory = battery.map { Array(repeating: $0, count: 30) } ?? []
         aiTokens = model.aiUsage.todayTokens
+        aiQuotas = model.aiUsage.visibleQuotaProviders(for: nil).compactMap { provider in
+            guard let windows = model.aiUsage.visibleQuotaState(for: provider).snapshot?.windows else { return nil }
+            // 周额度比短时会话额度更适合作为常驻读数；模型专属周额度仅在通用周额度缺席时使用。
+            let window = windows.first(where: { $0.kind == .weekly })
+                ?? windows.first(where: { $0.kind == .opusWeekly || $0.kind == .sonnetWeekly })
+                ?? windows.first(where: { $0.kind == .session })
+            return window.map { MenuBarQuota(provider: provider, window: $0) }
+        }
         batteryCharging = store.battery?.isCharging ?? false
         if let lowest = model.bluetooth.lowest,
            battery == nil || (model.settings.bluetoothLowBatteryInMenuBar && lowest.percent <= Self.lowBluetoothPercent) {
@@ -110,7 +139,13 @@ struct MenuBarReading {
                     ?? bluetoothDevice.map { tr("蓝牙设备电量 \($0.percent)%") }
             // 没有读数也要给出一行，否则菜单栏只剩一个不会解释自己的 “AI —”
             case .aiUsage:
-                aiTokens.map { "AI · \(UsageNumber.exact($0)) Tokens" } ?? ("AI · " + tr("暂无本机用量数据"))
+                if !aiQuotas.isEmpty {
+                    aiQuotas.map { quota in
+                        "\(quota.sourceName) · \(quota.shortWindowName) · \(tr("剩余")) \(quota.remainingPercent)% · \(tr("重置：")) \(quota.resetText)"
+                    }.joined(separator: "\n")
+                } else {
+                    aiTokens.map { "AI · \(UsageNumber.exact($0)) Tokens" } ?? ("AI · " + tr("暂无本机用量数据"))
+                }
             }
         }
         .joined(separator: "\n")
@@ -236,6 +271,12 @@ enum MenuBarRenderer {
         case .battery:
             return batterySegment(reading: reading, style: style, colorizeHighLoad: colorizeHighLoad)
         case .aiUsage:
+            if let quota = reading.primaryAIQuota {
+                let status = stackedText(label: "\(quota.shortWindowName) · \(quota.resetText)",
+                                         value: "\(quota.sourceName) \(quota.remainingPercent)%",
+                                         sample: "Claude 100%", alert: false)
+                return style == .icon ? combine([symbolSegment(item.symbol), status]) : status
+            }
             return textSegment(item: item, value: reading.aiTokens.map { Self.tokenText($0) } ?? "—",
                                sample: "999.9M", style: style)
         }

@@ -24,6 +24,24 @@ private actor StubUsageProvider: AIUsageProvider {
     func count() -> Int { fetchCount }
 }
 
+private actor StubQuotaProvider: AIQuotaProvider {
+    nonisolated let id: AIProviderID
+    private var results: [Result<AIQuotaSnapshot, AIQuotaFailure>]
+    private(set) var count = 0
+
+    init(id: AIProviderID = .codex, results: [Result<AIQuotaSnapshot, AIQuotaFailure>]) {
+        self.id = id
+        self.results = results
+    }
+
+    func fetch() async throws -> AIQuotaSnapshot {
+        count += 1
+        return try results.removeFirst().get()
+    }
+
+    func fetchCount() -> Int { count }
+}
+
 private func defaultsForAIUsage() -> UserDefaults {
     let name = "AIUsageControllerTests.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: name)!
@@ -60,6 +78,123 @@ private actor GatedUsageProvider: AIUsageProvider {
 
 @MainActor
 @Suite struct AIUsageControllerTests {
+    @Test func menuBarPrefersWeeklyRemainingQuotaAndListsBothSourcesInTooltip() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let reset = Date(timeIntervalSince1970: 1_800_000_000)
+        let codex = AIQuotaSnapshot(provider: .codex, windows: [
+            AIQuotaWindow(kind: .session, usedPercent: 95, resetsAt: reset),
+            AIQuotaWindow(kind: .weekly, usedPercent: 73, resetsAt: reset),
+        ], fetchedAt: Date())
+        let claude = AIQuotaSnapshot(provider: .claude, windows: [
+            AIQuotaWindow(kind: .weekly, usedPercent: 48, resetsAt: reset),
+        ], fetchedAt: Date())
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [
+            StubQuotaProvider(results: [.success(codex)]),
+            StubQuotaProvider(id: .claude, results: [.success(claude)]),
+        ])
+        await model.aiUsage.refresh()
+
+        let reading = MenuBarReading(model: model)
+        #expect(reading.primaryAIQuota?.provider == .codex)
+        #expect(reading.primaryAIQuota?.window.kind == .weekly)
+        #expect(reading.primaryAIQuota?.remainingPercent == 27)
+        #expect(reading.primaryAIQuota?.resetText != "—")
+        let tooltip = reading.tooltip(items: [.aiUsage], fahrenheit: false)
+        #expect(tooltip.contains("Codex"))
+        #expect(tooltip.contains("27%"))
+        #expect(tooltip.contains("Claude"))
+        #expect(tooltip.contains("52%"))
+        #expect(!tooltip.contains("5%"))
+    }
+
+    @Test func menuBarFallsBackToLocalTokensWhenSubscriptionIsUnavailable() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let model = AppModel(settings: settings, historyURL: nil,
+            aiUsageProviders: [StubUsageProvider([.success(usageSnapshot(tokens: 42))])],
+            aiQuotaProviders: [StubQuotaProvider(results: [.failure(.notConfigured)])])
+        await model.aiUsage.refresh()
+
+        let tooltip = MenuBarReading(model: model).tooltip(items: [.aiUsage], fahrenheit: false)
+        #expect(tooltip.contains("42 Tokens"))
+        #expect(!tooltip.contains("剩余"))
+    }
+
+    @Test func quotaRefreshFollowsMasterSwitchAndKeepsLocalTokensOnAuthFailure() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        let quota = StubQuotaProvider(results: [.failure(.unauthorized)])
+        let local = StubUsageProvider([.success(usageSnapshot(tokens: 42))])
+        let controller = AIUsageController(settings: settings, providers: [local], quotaProviders: [quota])
+
+        await controller.refresh()
+        #expect(await quota.fetchCount() == 0)
+        settings.aiUsageEnabled = true
+        await controller.refresh()
+        #expect(await quota.fetchCount() == 1)
+        #expect(controller.todayTokens == 42)
+        #expect(controller.quotaState(for: .codex).failure == .unauthorized)
+        settings.aiUsageEnabled = false
+        #expect(controller.visibleQuotaState(for: .codex).snapshot == nil)
+    }
+
+    @Test func quotaTransportFailureKeepsLastValueButLogoutClearsIt() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let first = AIQuotaSnapshot(provider: .codex,
+            windows: [AIQuotaWindow(kind: .weekly, usedPercent: 63, resetsAt: nil)], fetchedAt: Date())
+        let quota = StubQuotaProvider(results: [.success(first), .failure(.network), .failure(.unauthorized)])
+        let controller = AIUsageController(settings: settings, providers: [], quotaProviders: [quota])
+
+        await controller.refresh()
+        #expect(controller.visibleQuotaState(for: .codex).snapshot?.window(.weekly)?.usedPercent == 63)
+        #expect(controller.visibleQuotaProviders(for: nil) == [.codex])
+        await controller.refresh()
+        #expect(controller.visibleQuotaState(for: .codex).snapshot?.window(.weekly)?.usedPercent == 63)
+        #expect(controller.visibleQuotaState(for: .codex).failure == .network)
+        #expect(controller.visibleQuotaProviders(for: nil) == [.codex])
+        await controller.refresh()
+        #expect(controller.visibleQuotaState(for: .codex).snapshot == nil)
+        #expect(controller.visibleQuotaState(for: .codex).failure == .unauthorized)
+        #expect(controller.visibleQuotaProviders(for: nil) == [.codex])
+    }
+
+    @Test func disabledSourceIsNotQueriedForQuota() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        settings.aiUsageSources = [.claude]
+        let codex = StubQuotaProvider(results: [])
+        let claude = StubQuotaProvider(id: .claude, results: [.failure(.notConfigured)])
+        let controller = AIUsageController(settings: settings, providers: [], quotaProviders: [codex, claude])
+
+        await controller.refresh()
+
+        #expect(await codex.fetchCount() == 0)
+        #expect(await claude.fetchCount() == 1)
+        #expect(controller.visibleQuotaState(for: .codex).failure == nil)
+    }
+
+    @Test func unconfiguredQuotaIsHiddenWithoutHidingLocalUsageOrOtherQuota() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let codexQuota = AIQuotaSnapshot(provider: .codex,
+            windows: [AIQuotaWindow(kind: .weekly, usedPercent: 61, resetsAt: nil)], fetchedAt: Date())
+        let controller = AIUsageController(settings: settings,
+            providers: [StubUsageProvider([.success(usageSnapshot(tokens: 42))])],
+            quotaProviders: [
+                StubQuotaProvider(results: [.success(codexQuota), .failure(.notConfigured)]),
+                StubQuotaProvider(id: .claude, results: [.failure(.notConfigured), .failure(.notConfigured)]),
+            ])
+
+        await controller.refresh()
+        #expect(controller.visibleQuotaProviders(for: nil) == [.codex])
+        #expect(controller.todayTokens == 42)
+
+        await controller.refresh()
+        #expect(controller.visibleQuotaProviders(for: nil).isEmpty)
+        #expect(controller.todayTokens == 42)
+    }
+
     @Test func sourceSelectionPersistsIncludingAllDisabled() {
         let defaults = defaultsForAIUsage()
         let settings = AppSettings(defaults: defaults)

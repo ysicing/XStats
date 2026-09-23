@@ -64,11 +64,12 @@ public final class AppModel {
     @ObservationIgnored var quit: () -> Void = {}
 
     public init(settings: AppSettings = AppSettings(), historyURL: URL? = HistoryDatabase.defaultURL,
-                aiUsageProviders: [any AIUsageProvider] = [CodexLocalUsageProvider(), ClaudeLocalUsageProvider()]) {
+                aiUsageProviders: [any AIUsageProvider] = [CodexLocalUsageProvider(), ClaudeLocalUsageProvider()],
+                aiQuotaProviders: [any AIQuotaProvider] = [CodexQuotaProvider(), ClaudeQuotaProvider()]) {
         let store = MetricsStore()
         let helper = HelperClient()
         self.settings = settings
-        aiUsage = AIUsageController(settings: settings, providers: aiUsageProviders)
+        aiUsage = AIUsageController(settings: settings, providers: aiUsageProviders, quotaProviders: aiQuotaProviders)
         self.store = store
         self.helper = helper
         fans = FanController(helper: helper, store: store, settings: settings)

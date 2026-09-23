@@ -15,8 +15,8 @@ hosting SwiftUI, no third-party dependencies. The Xcode project is generated fro
 - `Packages/XStatsKit/Sources/Metrics` — one sampler per metric and `MetricsHub`; power and CPU
   frequency (`PowerSampler`), disk activity and NVMe SMART (`DiskSamplers`), Bluetooth battery,
   the SQLite history store.
-- `Packages/XStatsKit/Sources/AIUsage` — local usage models and the two read-only log scanners.
-  It reads only session logs; it never reads, refreshes or writes third-party credentials.
+- `Packages/XStatsKit/Sources/AIUsage` — local usage models, two read-only log scanners and opt-in quota readers.
+  Quota readers inspect CLI credentials read-only and never refresh or write them.
 - `Packages/XStatsKit/Sources/Cleaner` — cleanup rules, `SafetyGuard`, `CleanEngine`, the app
   uninstaller's leftover search and the launchd startup-item list.
 - `Packages/XStatsKit/Sources/Updates` — the update manifest and the download → verify →
@@ -202,8 +202,9 @@ light/dark calendar screenshots without starting unrelated samplers or scans.
 
 ## AI usage statistics
 
-The active Codex provider reads local JSONL rollouts from CODEX_HOME (default ~/.codex),
-including sessions and archived_sessions. It does not read credentials or call quota APIs.
+The local Codex provider reads JSONL rollouts from CODEX_HOME (default ~/.codex),
+including sessions and archived_sessions. It never reads credentials or calls quota APIs;
+independent quota providers do that only while the master AI Usage switch is enabled.
 Parsing runs in a background actor pinned to a dedicated serial executor, so a cold scan (tens of
 seconds over a multi-gigabyte log directory) never occupies a Swift concurrency cooperative thread
 and cannot stall per-second metric sampling. It uses bounded line buffers and a SQLite checkpoint store at
@@ -228,7 +229,22 @@ history; `started_at` is not compared against the session creation time, because
 `started_at` is its parent turn's start and recent Codex builds omit the field entirely.
 Unknown models remain unknown.
 Local logs cannot reliably identify the paying account or usage on other devices. No cost,
-subscription limits or HTTP success rates are inferred.
+subscription limits or HTTP success rates are inferred from them. The separate in-memory quota
+snapshot instead queries Codex `wham/usage` and Claude `api/oauth/usage` using CLI OAuth tokens.
+It maps five-hour and seven-day windows, plus Claude's model-specific weekly windows, without
+combining them with local token totals. Credential discovery is repeated on each refresh; Codex
+reads `auth.json` under CODEX_HOME or the standard locations, while Claude reads its CLI credential
+file or a non-interactive Keychain item. Neither token nor quota result is persisted by XStats.
+Requests use isolated URL sessions and reject redirects so bearer tokens cannot be forwarded.
+Missing or expired credentials clear that provider's quota display; transient errors keep the last
+in-memory result marked stale. Both quota readers stop when AI Usage is disabled.
+When a subscription snapshot exists, the menu bar AI reading shows the weekly window (or the
+five-hour window if weekly is unavailable), its remaining percentage, and a compact reset time.
+With multiple providers it displays the one with less remaining quota; the tooltip lists both.
+Without a subscription snapshot it keeps the local daily Token reading.
+The quota detail card presents remaining allowance (not used allowance) and, when the server
+provides a reset date, a separate neutral bar for the time remaining in that five-hour or
+seven-day window; the time bar updates while the view is open.
 The UI follows CC Switch's filter/summary/trend/model-table organization, implemented in SwiftUI.
 The desktop toolbar groups source controls and settings. Token totals use compact notation with
 exact hover/VoiceOver values. Cache details are
@@ -265,7 +281,8 @@ Refreshes are queued rather than dropped: a refresh arriving while another is in
 so rebuilding the polling cadence cannot mistake a skipped call for a completed initial refresh and
 then sleep out the whole interval. Stopping cancels the in-flight scan. These settings are local and not synced through WebDAV.
 Cache creation is shown separately but already included in the input total. Claude credentials,
-account data, Cowork containers and subscription limits are outside this scanner's scope.
+account data, Cowork containers and subscription limits remain outside the local scanner's scope;
+the quota reader has no access to session-log content.
 
 ## Network details
 

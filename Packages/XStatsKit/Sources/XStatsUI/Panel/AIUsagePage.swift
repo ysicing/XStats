@@ -36,10 +36,13 @@ private struct LocalUsageContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? DS.Space.s3 : DS.Space.s4) {
             toolbar
+            if !model.aiUsage.visibleQuotaProviders(for: provider).isEmpty {
+                quotaSection
+            }
             if !model.settings.aiUsageEnabled {
                 Card {
                     Label(tr("AI 使用统计"), systemImage: "chart.bar").dsFont(.base, weight: .semibold)
-                    Text(tr("只读本机 Codex / Claude Code 会话日志，按模型统计 Token；不读取登录凭据，不查询订阅额度。"))
+                    Text(tr("启用后读取本机会话日志，并使用本机登录凭据向 Codex / Claude 查询订阅额度。"))
                         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Button(tr("启用使用统计")) { model.settings.aiUsageEnabled = true }
@@ -102,6 +105,96 @@ private struct LocalUsageContent: View {
             .disabled(!model.settings.aiUsageEnabled || model.settings.aiUsageSources.isEmpty || model.aiUsage.isRefreshing)
             if model.aiUsage.isRefreshing { ProgressView().controlSize(.small).accessibilityLabel(tr("正在刷新")) }
         }.frame(width: DS.Size.controlHeight, height: DS.Size.controlHeight)
+    }
+
+    private var quotaSection: some View {
+        Card(spacing: DS.Space.s3) {
+            let visibleProviders = model.aiUsage.visibleQuotaProviders(for: provider)
+            HStack(spacing: DS.Space.s1) {
+                Text(tr("订阅额度")).dsFont(.sm, weight: .semibold)
+                Image(systemName: "info.circle")
+                    .font(.system(size: DS.TextSize.xs.rawValue))
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .help(tr("服务端用量 · 与本机 Token 统计不同"))
+                    .accessibilityLabel(tr("服务端用量 · 与本机 Token 统计不同"))
+                Spacer()
+            }
+            ForEach(visibleProviders) { id in
+                let state = model.aiUsage.visibleQuotaState(for: id)
+                VStack(alignment: .leading, spacing: DS.Space.s3) {
+                    if provider == nil {
+                        Text(id == .codex ? "Codex" : "Claude Code").dsFont(.xs, weight: .semibold)
+                    }
+                    if let snapshot = state.snapshot {
+                        ForEach(snapshot.windows) { window in
+                            VStack(alignment: .leading, spacing: DS.Space.s1) {
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text(quotaTitle(window.kind))
+                                        .foregroundStyle(DS.Palette.textSecondary)
+                                    Spacer()
+                                    Text(tr("剩余"))
+                                        .foregroundStyle(DS.Palette.textSecondary)
+                                    Text("\(Int(window.remainingPercent.rounded()))%")
+                                        .monospacedDigit()
+                                        .foregroundStyle(DS.Palette.textPrimary)
+                                }
+                                .dsFont(.xs)
+                                ProgressView(value: window.remainingPercent, total: 100)
+                                    .tint(DS.Palette.primary)
+                                    .accessibilityLabel("\(quotaTitle(window.kind)) \(tr("剩余")) \(Int(window.remainingPercent.rounded()))%")
+                                if let reset = window.resetsAt {
+                                    Text(tr("重置：") + " " + reset.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))
+                                        .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                                    TimelineView(.periodic(from: .now, by: 60)) { context in
+                                        if let fraction = window.remainingTimeFraction(at: context.date) {
+                                            HStack(spacing: DS.Space.s2) {
+                                                Text(tr("距重置"))
+                                                    .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                                                ProgressView(value: fraction, total: 1)
+                                                    .tint(DS.Palette.textTertiary)
+                                                    .accessibilityLabel(tr("距重置"))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if state.failure != nil {
+                            Text(tr("查询失败，显示上次额度"))
+                                .dsFont(.xs).foregroundStyle(DS.Palette.warning)
+                        }
+                    } else if state.isRefreshing {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text(quotaFailureText(state.failure))
+                            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                    }
+                }
+                if id != visibleProviders.last {
+                    HairlineDivider()
+                }
+            }
+        }
+    }
+
+    private func quotaTitle(_ kind: AIQuotaKind) -> String {
+        switch kind {
+        case .session: tr("5 小时")
+        case .weekly: tr("7 天")
+        case .opusWeekly: "Opus · " + tr("7 天")
+        case .sonnetWeekly: "Sonnet · " + tr("7 天")
+        }
+    }
+
+    private func quotaFailureText(_ failure: AIQuotaFailure?) -> String {
+        switch failure {
+        case nil: tr("暂无额度数据")
+        case .notConfigured: tr("未检测到登录凭据，请先登录对应 CLI")
+        case .unauthorized: tr("登录已失效，请在对应 CLI 重新登录")
+        case .rateLimited: tr("服务暂时限流，稍后会自动重试")
+        case .network: tr("暂时无法连接额度服务")
+        case .invalidResponse: tr("额度接口返回了无法识别的数据")
+        }
     }
 
     private func modelRanking(report: LocalUsageReport, rows: [ModelTokenUsage], total: ModelTokenUsage) -> some View {
@@ -514,7 +607,10 @@ private struct UsageSettings: View {
                     }
                 }.labelsHidden()
             }
-            Text(tr("仅统计本机日志，不代表订阅账单或其他设备的用量"))
+            Text(tr("启用后自动读取本机 CLI 登录凭据，直接向 Codex / Claude 查询额度；凭据不保存到 XStats。"))
+                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(tr("本机 Token 统计不代表订阅账单或其他设备的用量"))
                 .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

@@ -107,7 +107,7 @@ struct GeneralSettings: View {
         SettingsGroup(caption: tr("可选功能")) {
             GroupRow(showsDivider: false) {
                 SettingRow(title: tr("AI 使用统计"),
-                           subtitle: tr("只读本机 Codex / Claude Code 会话日志，按模型统计 Token；不读取登录凭据，不查询订阅额度。"),
+                           subtitle: tr("统计本机会话 Token，并使用本机登录凭据自动查询 Codex / Claude 订阅额度。"),
                            icon: "sparkles") {
                     DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 使用统计"))
                 }

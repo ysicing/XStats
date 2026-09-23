@@ -14,16 +14,27 @@ public struct AIUsageProviderState: Equatable, Sendable {
     public init(provider: AIProviderID) { self.provider = provider }
 }
 
+public struct AIQuotaProviderState: Equatable, Sendable {
+    public let provider: AIProviderID
+    public var snapshot: AIQuotaSnapshot?
+    public var failure: AIQuotaFailure?
+    public var isRefreshing = false
+
+    public init(provider: AIProviderID) { self.provider = provider }
+}
+
 /// 本机用量的低频刷新入口。Provider 只负责一次只读扫描；调度与“保留旧值”策略集中在这里。
 @MainActor
 @Observable
 public final class AIUsageController {
     public private(set) var states: [AIProviderID: AIUsageProviderState]
+    public private(set) var quotaStates: [AIProviderID: AIQuotaProviderState]
     /// 供 AppController 观察的刷新脉冲；页面上的“上次检查”读的是各 Provider 的 fetchedAt。
     public private(set) var lastAttemptAt: Date?
 
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let providers: [any AIUsageProvider]
+    @ObservationIgnored private let quotaProviders: [any AIQuotaProvider]
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private var cadenceTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
@@ -31,18 +42,43 @@ public final class AIUsageController {
     @ObservationIgnored private var paused = false
 
     public init(settings: AppSettings, providers: [any AIUsageProvider] = [CodexLocalUsageProvider(), ClaudeLocalUsageProvider()],
+                quotaProviders: [any AIQuotaProvider] = [],
                 now: @escaping @Sendable () -> Date = Date.init) {
         self.settings = settings
         self.providers = providers
+        self.quotaProviders = quotaProviders
         self.now = now
         states = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, AIUsageProviderState(provider: $0.id)) })
+        quotaStates = Dictionary(uniqueKeysWithValues: quotaProviders.map { ($0.id, AIQuotaProviderState(provider: $0.id)) })
     }
 
     public func state(for provider: AIProviderID) -> AIUsageProviderState {
         states[provider] ?? AIUsageProviderState(provider: provider)
     }
 
-    public var isRefreshing: Bool { states.values.contains(where: \.isRefreshing) }
+    public func quotaState(for provider: AIProviderID) -> AIQuotaProviderState {
+        quotaStates[provider] ?? AIQuotaProviderState(provider: provider)
+    }
+
+    public func visibleQuotaState(for provider: AIProviderID) -> AIQuotaProviderState {
+        guard settings.aiUsageEnabled, settings.aiUsageSources.contains(provider) else {
+            return AIQuotaProviderState(provider: provider)
+        }
+        return quotaState(for: provider)
+    }
+
+    public func visibleQuotaProviders(for selection: AIProviderID?) -> [AIProviderID] {
+        guard settings.aiUsageEnabled else { return [] }
+        return AIProviderID.allCases.filter { id in
+            guard settings.aiUsageSources.contains(id), selection == nil || selection == id,
+                  let state = quotaStates[id] else { return false }
+            return state.snapshot != nil || state.failure != .notConfigured
+        }
+    }
+
+    public var isRefreshing: Bool {
+        states.values.contains(where: \.isRefreshing) || quotaStates.values.contains(where: \.isRefreshing)
+    }
 
     public var todayTokens: Int? {
         guard settings.aiUsageEnabled, let report = localReport(for: nil) else { return nil }
@@ -68,12 +104,16 @@ public final class AIUsageController {
         for provider in providers where !settings.aiUsageSources.contains(provider.id) {
             states[provider.id] = AIUsageProviderState(provider: provider.id)
         }
+        for provider in quotaProviders where !settings.aiUsageSources.contains(provider.id) {
+            quotaStates[provider.id] = AIQuotaProviderState(provider: provider.id)
+        }
         guard settings.aiUsageEnabled, !settings.aiUsageSources.isEmpty, !paused else {
             generation += 1
             // 不再轮询时，在途的冷扫描也没有意义了
             refreshTask?.cancel(); refreshTask = nil
             if !settings.aiUsageEnabled {
                 states = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, AIUsageProviderState(provider: $0.id)) })
+                quotaStates = Dictionary(uniqueKeysWithValues: quotaProviders.map { ($0.id, AIQuotaProviderState(provider: $0.id)) })
             }
             return
         }
@@ -121,8 +161,14 @@ public final class AIUsageController {
         let currentGeneration = generation
         defer {
             for id in states.keys { states[id]?.isRefreshing = false }
+            for id in quotaStates.keys { quotaStates[id]?.isRefreshing = false }
         }
         let attempt = now()
+
+        let selectedQuotaProviders = quotaProviders.filter { settings.aiUsageSources.contains($0.id) }
+        for provider in selectedQuotaProviders { quotaStates[provider.id]?.isRefreshing = true }
+        // 在线额度查询与本机日志扫描并行；扫描慢时不额外推迟网络请求。
+        async let quotaResults = Self.fetchQuotas(selectedQuotaProviders)
 
         for provider in providers {
             guard settings.aiUsageSources.contains(provider.id) else {
@@ -154,6 +200,39 @@ public final class AIUsageController {
             state.isRefreshing = false
             states[provider.id] = state
         }
+        for (id, result) in await quotaResults {
+            guard currentGeneration == generation, settings.aiUsageEnabled, !Task.isCancelled else { return }
+            guard settings.aiUsageSources.contains(id) else {
+                quotaStates[id] = AIQuotaProviderState(provider: id)
+                continue
+            }
+            var state = quotaState(for: id)
+            switch result {
+            case .success(let snapshot):
+                state.snapshot = snapshot
+                state.failure = nil
+            case .failure(let failure):
+                if !failure.preservesLastGood { state.snapshot = nil }
+                state.failure = failure
+            }
+            state.isRefreshing = false
+            quotaStates[id] = state
+        }
         lastAttemptAt = attempt
+    }
+
+    private static func fetchQuotas(_ providers: [any AIQuotaProvider]) async -> [(AIProviderID, Result<AIQuotaSnapshot, AIQuotaFailure>)] {
+        await withTaskGroup(of: (AIProviderID, Result<AIQuotaSnapshot, AIQuotaFailure>).self) { group in
+            for provider in providers {
+                group.addTask {
+                    do { return (provider.id, .success(try await provider.fetch())) }
+                    catch let failure as AIQuotaFailure { return (provider.id, .failure(failure)) }
+                    catch { return (provider.id, .failure(.network)) }
+                }
+            }
+            var results: [(AIProviderID, Result<AIQuotaSnapshot, AIQuotaFailure>)] = []
+            for await result in group { results.append(result) }
+            return results
+        }
     }
 }
