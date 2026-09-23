@@ -427,7 +427,10 @@ public final class AppSettings {
     }
     /// 本机 AI 日志统计默认不启用，独立于系统指标的秒级采样。
     public var aiUsageEnabled: Bool {
-        didSet { defaults.set(aiUsageEnabled, forKey: Keys.aiUsageEnabled) }
+        didSet {
+            defaults.set(aiUsageEnabled, forKey: Keys.aiUsageEnabled)
+            if !aiUsageEnabled && panelTab == .aiUsage { panelTab = .settingsGeneral }
+        }
     }
     /// 来源开关只保存在本机；关闭后不扫描，也不显示其历史缓存。
     public var aiUsageSources: Set<AIProviderID> {
@@ -573,7 +576,8 @@ public final class AppSettings {
         })
         refreshSeconds = Self.refreshOptions.contains(defaults.integer(forKey: Keys.refreshSeconds))
             ? defaults.integer(forKey: Keys.refreshSeconds) : 2
-        aiUsageEnabled = defaults.bool(forKey: Keys.aiUsageEnabled)
+        let isAIUsageEnabled = defaults.bool(forKey: Keys.aiUsageEnabled)
+        aiUsageEnabled = isAIUsageEnabled
         aiUsageSources = defaults.stringArray(forKey: Keys.aiUsageSources)
             .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
         aiUsageRefreshMinutes = Self.aiUsageRefreshOptions.contains(defaults.integer(forKey: Keys.aiUsageRefreshMinutes))
@@ -586,7 +590,8 @@ public final class AppSettings {
         fanSafetyTemperature = Self.fanSafetyOptions.contains(defaults.integer(forKey: Keys.fanSafetyTemperature))
             ? defaults.integer(forKey: Keys.fanSafetyTemperature) : 95
         let savedPanelTab = defaults.string(forKey: Keys.panelTab).flatMap(PanelTab.init(rawValue:)) ?? .overview
-        panelTab = savedPanelTab == .settingsAccount ? .settingsGeneral : savedPanelTab
+        panelTab = savedPanelTab == .settingsAccount || (savedPanelTab == .aiUsage && !isAIUsageEnabled)
+            ? .settingsGeneral : savedPanelTab
         appearance = defaults.string(forKey: Keys.appearance).flatMap(AppearanceMode.init(rawValue:)) ?? .system
         showDockIcon = defaults.bool(forKey: Keys.showDockIcon)
         speedTestBudget = defaults.string(forKey: Keys.speedTestBudget).flatMap(SpeedTestBudget.init(rawValue:)) ?? .full
@@ -616,9 +621,11 @@ public final class AppSettings {
             ? defaults.integer(forKey: Keys.cpuChartSeconds) : 60
     }
 
-    /// 按固定顺序返回已启用的菜单栏项目
+    /// 按固定顺序返回当前实际显示的菜单栏项目；可选模块关闭时保留展示偏好但不渲染。
     var orderedMenuBarItems: [MenuBarItem] {
-        MenuBarItem.allCases.filter(menuBarItems.contains)
+        MenuBarItem.allCases.filter { item in
+            menuBarItems.contains(item) && (item != .aiUsage || aiUsageEnabled)
+        }
     }
 
     func isEnabled(_ item: MenuBarItem) -> Bool { menuBarItems.contains(item) }
@@ -647,8 +654,6 @@ public final class AppSettings {
     func setEnabled(_ item: MenuBarItem, _ enabled: Bool) {
         if enabled {
             menuBarItems.insert(item)
-            // 菜单栏项是本机用量统计最自然的发现入口；扫描没开的话只会显示一个永久的占位符。
-            if item == .aiUsage { aiUsageEnabled = true }
         } else {
             menuBarItems.remove(item)
         }

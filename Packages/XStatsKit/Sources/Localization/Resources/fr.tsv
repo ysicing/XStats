@@ -1155,6 +1155,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 选择显示项目	Choisir les éléments
 选择语言	Choisir une langue
 通用	Général
+可选功能	Fonctionnalités facultatives
 通电时间	Heures sous tension
 通电次数	Cycles d’alimentation
 通知	Notifications

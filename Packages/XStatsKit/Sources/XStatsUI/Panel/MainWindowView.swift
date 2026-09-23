@@ -168,7 +168,7 @@ private struct MainSidebar: View {
 
     private var navigation: some View {
         VStack(alignment: .leading, spacing: DS.Space.s1) {
-            group(tr("监控"), PanelTab.monitors)
+            group(tr("监控"), PanelTab.monitors.filter { $0 != .aiUsage || model.settings.aiUsageEnabled })
             group(tr("工具"), PanelTab.tools)
             group(tr("设置"), PanelTab.settings)
         }
@@ -261,12 +261,14 @@ private struct PageHeader: View {
                 HStack(spacing: DS.Space.s3) {
                     Text(tr("在菜单栏显示")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                     ForEach(items) { item in
+                        let moduleEnabled = item != .aiUsage || settings.aiUsageEnabled
                         if items.count > 1 {
                             Text(item.popoverTitle).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                         }
                         DSToggle(isOn: Binding(get: { settings.isEnabled(item) }, set: { settings.setEnabled(item, $0) }),
                                  label: tr("在菜单栏显示\(item.title)"))
-                            .help(tr("开启后图标出现在菜单栏；按住 ⌘ 键拖动图标可以调整位置"))
+                            .disabled(!moduleEnabled)
+                            .help(moduleEnabled ? tr("开启后图标出现在菜单栏；按住 ⌘ 键拖动图标可以调整位置") : tr("尚未启用"))
                     }
                 }
                 .modifier(HeaderControlGroup())

@@ -1155,6 +1155,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 选择显示项目	Elemente auswählen
 选择语言	Sprache auswählen
 通用	Allgemein
+可选功能	Optionale Funktionen
 通电时间	Betriebsstunden
 通电次数	Einschaltvorgänge
 通知	Mitteilungen

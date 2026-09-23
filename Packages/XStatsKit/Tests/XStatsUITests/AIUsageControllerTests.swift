@@ -126,20 +126,47 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(settings.aiUsageRefreshMinutes == 30)
     }
 
-    /// 菜单栏项是这个统计最自然的发现入口。开了却不扫描，用户只会看到一个
-    /// 永远不解释自己的 “AI —”，所以打开菜单栏项要一并打开扫描。
-    @Test func enablingTheMenuBarItemAlsoTurnsScanningOn() {
+    @Test func disablingAIUsageLeavesItsHiddenPageAndRestoresNavigationOnEnable() {
+        let defaults = defaultsForAIUsage()
+        let settings = AppSettings(defaults: defaults)
+
+        settings.aiUsageEnabled = true
+        settings.panelTab = .aiUsage
+        settings.aiUsageEnabled = false
+
+        #expect(settings.panelTab == .settingsGeneral)
+        #expect(AppSettings(defaults: defaults).panelTab == .settingsGeneral)
+
+        settings.aiUsageEnabled = true
+        settings.panelTab = .aiUsage
+        #expect(settings.panelTab == .aiUsage)
+    }
+
+    @Test func disabledAIUsageDoesNotRestoreItsSavedPage() {
+        let defaults = defaultsForAIUsage()
+        defaults.set("aiUsage", forKey: "panelTab")
+
+        #expect(AppSettings(defaults: defaults).panelTab == .settingsGeneral)
+    }
+
+    /// 模块开关控制是否读取日志，菜单栏开关只保存展示偏好；模块关闭时不应显示占位图标，
+    /// 重新启用后应恢复用户原来的菜单栏选择。
+    @Test func menuBarPreferenceDoesNotEnableScanningAndIsRestoredWithTheModule() {
         let settings = AppSettings(defaults: defaultsForAIUsage())
         #expect(!settings.aiUsageEnabled)
 
         settings.setEnabled(.aiUsage, true)
 
-        #expect(settings.aiUsageEnabled)
-        #expect(settings.isEnabled(.aiUsage))
-        // 其他指标不应该有这种副作用
-        settings.aiUsageEnabled = false
-        settings.setEnabled(.cpu, true)
         #expect(!settings.aiUsageEnabled)
+        #expect(settings.isEnabled(.aiUsage))
+        #expect(!settings.orderedMenuBarItems.contains(.aiUsage))
+
+        settings.aiUsageEnabled = true
+        #expect(settings.orderedMenuBarItems.contains(.aiUsage))
+
+        settings.aiUsageEnabled = false
+        #expect(settings.isEnabled(.aiUsage))
+        #expect(!settings.orderedMenuBarItems.contains(.aiUsage))
     }
 
     @Test func transientFailurePreservesLastGoodSnapshotAsStale() async {

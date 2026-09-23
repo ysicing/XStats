@@ -1184,6 +1184,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 适中	Moderate
 选择显示项目	Choose Items
 通用	General
+可选功能	Optional Features
 通电时间	Power-on hours
 通电次数	Power cycles
 通知	Notifications

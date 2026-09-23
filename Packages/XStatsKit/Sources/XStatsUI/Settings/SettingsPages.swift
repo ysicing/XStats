@@ -104,6 +104,23 @@ struct GeneralSettings: View {
             }
         }
 
+        SettingsGroup(caption: tr("可选功能")) {
+            GroupRow(showsDivider: false) {
+                SettingRow(title: tr("AI 使用统计"),
+                           subtitle: tr("只读本机 Codex / Claude Code 会话日志，按模型统计 Token；不读取登录凭据，不查询订阅额度。"),
+                           icon: "sparkles") {
+                    DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 使用统计"))
+                }
+            }
+            GroupRow {
+                SettingRow(title: tr("菜单栏日历"),
+                           subtitle: tr("独立显示日期，点击打开月历；不受指标合并布局影响"),
+                           icon: "calendar") {
+                    DSToggle(isOn: $settings.calendarEnabled, label: tr("菜单栏日历"))
+                }
+            }
+        }
+
         HotKeySettings()
     }
 }
@@ -325,14 +342,22 @@ struct MenuBarSettings: View {
                            text: tr("菜单栏里的图标可以调整顺序：按住 ⌘ 键拖动任意一个，松开后位置会一直保留。新开启的项目由系统安排位置，可能离其他图标较远，拖一下就能挪到一起。"))
             }
             ForEach(Array(MenuBarItem.allCases.enumerated()), id: \.element) { index, item in
+                let moduleEnabled = item != .aiUsage || settings.aiUsageEnabled
                 GroupRow {
                     VStack(alignment: .leading, spacing: DS.Space.s3) {
-                        SettingRow(title: item.title, subtitle: itemSubtitle(item), icon: item.symbol) {
-                            DSToggle(isOn: Binding(get: { settings.isEnabled(item) },
-                                                   set: { settings.setEnabled(item, $0) }),
-                                     label: item.title)
+                        SettingRow(title: item.title,
+                                   subtitle: moduleEnabled ? itemSubtitle(item) : tr("尚未启用"),
+                                   icon: item.symbol) {
+                            if moduleEnabled {
+                                DSToggle(isOn: Binding(get: { settings.isEnabled(item) },
+                                                       set: { settings.setEnabled(item, $0) }),
+                                         label: item.title)
+                            } else {
+                                Button(tr("设置")) { settings.panelTab = .settingsGeneral }
+                                    .buttonStyle(DSButtonStyle(kind: .secondary))
+                            }
                         }
-                        if settings.isEnabled(item) {
+                        if moduleEnabled, settings.isEnabled(item) {
                             ItemStyleRow(item: item)
                             if !item.popoverSections.isEmpty { PopoverSectionPicker(item: item) }
                         }

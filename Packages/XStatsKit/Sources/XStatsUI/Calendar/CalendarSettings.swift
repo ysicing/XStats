@@ -12,7 +12,12 @@ struct CalendarSettings: View {
         SettingsGroup(caption: tr("日历")) {
             GroupRow(showsDivider: false) {
                 SettingRow(title: tr("菜单栏日历"), subtitle: tr("独立显示日期，点击打开月历；不受指标合并布局影响"), icon: "calendar") {
-                    DSToggle(isOn: $settings.calendarEnabled, label: tr("菜单栏日历"))
+                    if settings.calendarEnabled {
+                        StatusBadge(text: tr("已启用"), tone: .success)
+                    } else {
+                        Button(tr("设置")) { settings.panelTab = .settingsGeneral }
+                            .buttonStyle(DSButtonStyle(kind: .secondary))
+                    }
                 }
             }
             if settings.calendarEnabled {

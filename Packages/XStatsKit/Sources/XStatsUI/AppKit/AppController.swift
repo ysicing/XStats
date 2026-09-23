@@ -295,7 +295,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
             Task { @MainActor in
                 guard let self else { return }
                 self.model.aiUsage.start()
-                self.menuBar.refreshImages()
+                // 模块关闭时菜单栏保留展示偏好但隐藏实际项目，切换主开关需要重算布局。
+                self.menuBar.update()
                 self.menuBar.refreshPopoverHeight()
                 self.observeAIUsageSchedule()
             }

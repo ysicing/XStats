@@ -1155,6 +1155,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 选择显示项目	Elegir elementos
 选择语言	Elegir idioma
 通用	General
+可选功能	Funciones opcionales
 通电时间	Horas encendido
 通电次数	Ciclos de encendido
 通知	Notificaciones
