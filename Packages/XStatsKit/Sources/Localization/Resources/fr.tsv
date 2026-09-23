@@ -1363,3 +1363,29 @@ Apple 智能	Apple Intelligence
 子时显示当日早子时；23 点起的晚子时按次日干支计算	Zi affiche 00 h–00 h 59 ; dès 23 h, le cycle du lendemain s’applique
 吉	Favorable
 凶	Défavorable
+Sub2API 备用额度	Quota de secours Sub2API
+已配置	Configuré
+自动查询失败时才使用此 Sub2API 账号；后台不主动探测。	Ce compte Sub2API est utilisé uniquement si la récupération automatique échoue ; les vérifications en arrière-plan ne déclenchent pas de sondage actif.
+Sub2API 地址（HTTPS）	Adresse Sub2API (HTTPS)
+管理员邮箱	E-mail administrateur
+管理员密码	Mot de passe administrateur
+账号 ID	ID du compte
+管理员密码存于本机钥匙串；账号 ID 用于查询额度。	Le mot de passe administrateur reste dans le trousseau de ce Mac ; l’ID du compte détermine le quota consulté.
+保存并测试连接	Enregistrer et tester la connexion
+移除配置	Supprimer la configuration
+Sub2API 配置无效	Configuration Sub2API invalide
+Sub2API 配置无法读取，请检查设置	Impossible de lire la configuration Sub2API ; vérifiez les réglages
+Sub2API 配置已保存	Configuration Sub2API enregistrée
+Sub2API 配置已移除	Configuration Sub2API supprimée
+Sub2API 配置移除失败，请检查钥匙串权限	Impossible de supprimer la configuration Sub2API ; vérifiez l’accès au trousseau
+连接成功，读取到 {} 个额度窗口	Connexion réussie ; {} fenêtres de quota lues
+Sub2API 登录失败，请检查管理员邮箱和密码	Échec de la connexion à Sub2API ; vérifiez l’e-mail et le mot de passe administrateur
+Sub2API 连接失败，请检查地址、账号 ID 与服务状态	Impossible de joindre Sub2API ; vérifiez l’adresse, l’ID du compte et le serveur
+Sub2API 返回了无法识别的额度数据	Sub2API a renvoyé des données de quota non reconnues
+暂时无法连接 Sub2API	Sub2API est momentanément inaccessible
+请输入有效的 Sub2API HTTPS 地址	Saisissez une adresse HTTPS Sub2API valide
+请输入有效的账号 ID	Saisissez un ID de compte valide
+请填写管理员邮箱和密码	Saisissez l’e-mail et le mot de passe administrateur
+钥匙串读写失败，请检查权限	Impossible d’accéder au trousseau ; vérifiez les autorisations
+Sub2API 账号平台与所选来源不匹配	La plateforme du compte Sub2API ne correspond pas à la source sélectionnée
+本机账号可用，当前使用自动额度。	Le compte local est disponible ; les données de quota récupérées automatiquement sont utilisées.

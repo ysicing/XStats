@@ -108,6 +108,21 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(!tooltip.contains("5%"))
     }
 
+    @Test func menuBarLabelsManualQuotaAndOptionalFastWindow() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let snapshot = AIQuotaSnapshot(provider: .codex, windows: [
+            AIQuotaWindow(kind: .fableWeekly, usedPercent: 40, resetsAt: nil),
+        ], fetchedAt: Date(), source: .sub2api)
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [],
+                             aiQuotaProviders: [StubQuotaProvider(results: [.success(snapshot)])])
+        await model.aiUsage.refresh()
+
+        let reading = MenuBarReading(model: model)
+        #expect(reading.primaryAIQuota?.shortWindowName == "7d F")
+        #expect(reading.tooltip(items: [.aiUsage], fahrenheit: false).contains("Codex (Sub2API)"))
+    }
+
     @Test func menuBarFallsBackToLocalTokensWhenSubscriptionIsUnavailable() async {
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.aiUsageEnabled = true

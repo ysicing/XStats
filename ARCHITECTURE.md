@@ -238,13 +238,22 @@ file or a non-interactive Keychain item. Neither token nor quota result is persi
 Requests use isolated URL sessions and reject redirects so bearer tokens cannot be forwarded.
 Missing or expired credentials clear that provider's quota display; transient errors keep the last
 in-memory result marked stale. Both quota readers stop when AI Usage is disabled.
+Codex and Claude Code each have an optional, independently configured Sub2API source, tried only
+when that provider's direct quota fetch fails. Each HTTPS base URL, admin email and account ID remain
+in local preferences outside settings backups; passwords use separate Keychain items. The fallback
+signs in to its configured server, reads the account record to verify its platform (`openai` or
+`anthropic`), then reads `/api/v1/admin/accounts/{id}/usage` with `source=active&force=false`.
+If the detailed endpoint is unavailable, the account's `extra` fields provide coarser five-hour and
+weekly windows. Claude may also expose Sonnet and Fable weekly windows. Credentials and quota results
+are never sent to XStats servers; the UI marks fallback results as Sub2API.
 When a subscription snapshot exists, the menu bar AI reading shows the weekly window (or the
 five-hour window if weekly is unavailable), its remaining percentage, and a compact reset time.
 With multiple providers it displays the one with less remaining quota; the tooltip lists both.
 Without a subscription snapshot it keeps the local daily Token reading.
 The quota detail card presents remaining allowance (not used allowance) and, when the server
-provides a reset date, a separate neutral bar for the time remaining in that five-hour or
-seven-day window; the time bar updates while the view is open.
+provides a reset date, a separate bar for elapsed time in that five-hour or seven-day window.
+Allowance turns red as it runs low; the reset bar turns green as reset approaches and updates
+while the view is open.
 The UI follows CC Switch's filter/summary/trend/model-table organization, implemented in SwiftUI.
 The desktop toolbar groups source controls and settings. Token totals use compact notation with
 exact hover/VoiceOver values. Cache details are

@@ -50,6 +50,32 @@ Codex / Claude Code 本机模型与 Token 使用统计	Local Codex / Claude Code
 额度接口返回了无法识别的数据	The quota service returned unrecognized data
 启用后自动读取本机 CLI 登录凭据，直接向 Codex / Claude 查询额度；凭据不保存到 XStats。	When enabled, reads local CLI login credentials and queries Codex / Claude directly; XStats does not save the credentials.
 本机 Token 统计不代表订阅账单或其他设备的用量	Local token statistics are not a subscription bill or usage from other devices
+Sub2API 备用额度	Sub2API backup quota
+已配置	Configured
+自动查询失败时才使用此 Sub2API 账号；后台不主动探测。	Use this Sub2API account only when automatic lookup fails; background checks do not trigger active probes.
+本机账号可用，当前使用自动额度。	The local account is available; automatic quota data is in use.
+Sub2API 地址（HTTPS）	Sub2API address (HTTPS)
+管理员邮箱	Admin email
+管理员密码	Admin password
+账号 ID	Account ID
+管理员密码存于本机钥匙串；账号 ID 用于查询额度。	The admin password stays in this Mac's Keychain; the account ID selects the quota to view.
+保存并测试连接	Save and test connection
+移除配置	Remove configuration
+Sub2API 配置无效	Invalid Sub2API configuration
+Sub2API 配置无法读取，请检查设置	Cannot read Sub2API configuration; check the settings
+Sub2API 配置已保存	Sub2API configuration saved
+Sub2API 配置已移除	Sub2API configuration removed
+Sub2API 配置移除失败，请检查钥匙串权限	Could not remove Sub2API configuration; check Keychain access
+连接成功，读取到 {} 个额度窗口	Connection successful; read {} quota windows
+Sub2API 登录失败，请检查管理员邮箱和密码	Sub2API sign-in failed; check the admin email and password
+Sub2API 连接失败，请检查地址、账号 ID 与服务状态	Could not connect to Sub2API; check the address, account ID, and server
+Sub2API 返回了无法识别的额度数据	Sub2API returned unrecognized quota data
+Sub2API 账号平台与所选来源不匹配	The Sub2API account platform does not match the selected source
+暂时无法连接 Sub2API	Cannot connect to Sub2API right now
+请输入有效的 Sub2API HTTPS 地址	Enter a valid Sub2API HTTPS address
+请输入有效的账号 ID	Enter a valid account ID
+请填写管理员邮箱和密码	Enter the admin email and password
+钥匙串读写失败，请检查权限	Could not access Keychain; check permissions
 缓存 Token 已包含在输入中，推理 Token 已包含在输出中。	Cached tokens are included in input; reasoning tokens are included in output.
 所选时间范围没有用量记录	No usage in this time range
 部分会话日志无法读取，统计可能不完整	Some session logs could not be read; statistics may be incomplete

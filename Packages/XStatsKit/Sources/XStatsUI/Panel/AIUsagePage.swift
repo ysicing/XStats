@@ -20,16 +20,21 @@ private struct LocalUsageContent: View {
     @State private var settingsOpen = false
     @State private var activityMode = UsageActivityMode.daily
 
+    private var enabledProviders: [AIProviderID] {
+        AIProviderID.allCases.filter { model.settings.aiUsageSources.contains($0) }
+    }
+
     private var provider: AIProviderID? {
-        AIProviderID(rawValue: source).flatMap { model.settings.aiUsageSources.contains($0) ? $0 : nil }
+        if enabledProviders.count == 1 { return enabledProviders.first }
+        return AIProviderID(rawValue: source).flatMap { model.settings.aiUsageSources.contains($0) ? $0 : nil }
     }
     private var sourceOptions: [(String, String)] {
-        [("all", tr("全部"))] + AIProviderID.allCases.filter { model.settings.aiUsageSources.contains($0) }
+        [("all", tr("全部"))] + enabledProviders
             .map { ($0.rawValue, $0 == .codex ? "Codex" : "Claude") }
     }
     private var sourceTitle: String {
         if let provider { return provider == .codex ? "Codex" : "Claude Code" }
-        return AIProviderID.allCases.filter { model.settings.aiUsageSources.contains($0) }
+        return enabledProviders
             .map { $0 == .codex ? "Codex" : "Claude Code" }.joined(separator: " + ")
     }
 
@@ -82,16 +87,19 @@ private struct LocalUsageContent: View {
     private var toolbar: some View {
         VStack(spacing: DS.Space.s2) {
             HStack(spacing: DS.Space.s2) {
-                UsageChoices(selection: $source, options: sourceOptions,
-                             label: tr("数据来源"))
-                    .frame(maxWidth: compact ? .infinity : 260)
-                    .onChange(of: source) { _, _ in selectedModel = "" }
-                if !compact {
-                    Spacer(minLength: DS.Space.s4)
+                if model.settings.aiUsageEnabled && enabledProviders.count > 1 {
+                    UsageChoices(selection: $source, options: sourceOptions,
+                                 label: tr("数据来源"))
+                        .frame(maxWidth: compact ? .infinity : 260)
+                        .onChange(of: source) { _, _ in selectedModel = "" }
                 }
+                Spacer(minLength: DS.Space.s4)
                 refreshButton
                 MiniIconButton(systemName: "gearshape", help: tr("设置")) { settingsOpen.toggle() }
-                    .popover(isPresented: $settingsOpen) { UsageSettings().padding(DS.Space.s4).frame(width: 360) }
+                    .popover(isPresented: $settingsOpen) {
+                        ScrollView { UsageSettings().padding(DS.Space.s4) }
+                            .frame(width: 390, height: 520)
+                    }
             }
         }
     }
@@ -126,6 +134,10 @@ private struct LocalUsageContent: View {
                         Text(id == .codex ? "Codex" : "Claude Code").dsFont(.xs, weight: .semibold)
                     }
                     if let snapshot = state.snapshot {
+                        if snapshot.source == .sub2api {
+                            Text("Sub2API").dsFont(.xs, weight: .medium)
+                                .foregroundStyle(DS.Palette.textSecondary)
+                        }
                         ForEach(snapshot.windows) { window in
                             VStack(alignment: .leading, spacing: DS.Space.s1) {
                                 HStack(alignment: .firstTextBaseline) {
@@ -179,6 +191,7 @@ private struct LocalUsageContent: View {
         switch kind {
         case .session: tr("5 小时")
         case .weekly: tr("7 天")
+        case .fableWeekly: "Fable · " + tr("7 天")
         case .opusWeekly: "Opus · " + tr("7 天")
         case .sonnetWeekly: "Sonnet · " + tr("7 天")
         }
@@ -200,6 +213,11 @@ private struct LocalUsageContent: View {
         case .rateLimited: tr("服务暂时限流，稍后会自动重试")
         case .network: tr("暂时无法连接额度服务")
         case .invalidResponse: tr("额度接口返回了无法识别的数据")
+        case .sub2apiConfiguration: tr("Sub2API 配置无法读取，请检查设置")
+        case .sub2apiUnauthorized: tr("Sub2API 登录失败，请检查管理员邮箱和密码")
+        case .sub2apiNetwork: tr("暂时无法连接 Sub2API")
+        case .sub2apiInvalidResponse: tr("Sub2API 返回了无法识别的额度数据")
+        case .sub2apiAccountMismatch: tr("Sub2API 账号平台与所选来源不匹配")
         }
     }
 
@@ -603,6 +621,13 @@ private struct UsageSettings: View {
                         if enabled { settings.aiUsageSources.insert(provider) }
                         else { settings.aiUsageSources.remove(provider) }
                     }), label: name)
+                }
+                if settings.aiUsageEnabled && settings.aiUsageSources.contains(provider) {
+                    let quota = model.aiUsage.visibleQuotaState(for: provider)
+                    Sub2APISettingsView(provider: provider,
+                                        directAvailable: quota.snapshot?.source == .direct,
+                                        needsFallback: quota.snapshot?.source != .direct
+                                            && (quota.failure != nil || quota.snapshot?.source == .sub2api))
                 }
             }
             HairlineDivider()

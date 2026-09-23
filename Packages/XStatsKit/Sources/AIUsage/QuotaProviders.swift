@@ -6,7 +6,7 @@ import Security
 import LocalAuthentication
 
 public enum AIQuotaKind: String, Sendable, Identifiable {
-    case session, weekly, opusWeekly, sonnetWeekly
+    case session, weekly, fableWeekly, opusWeekly, sonnetWeekly
     public var id: Self { self }
 }
 
@@ -30,17 +30,31 @@ public struct AIQuotaSnapshot: Equatable, Sendable {
     public let provider: AIProviderID
     public let windows: [AIQuotaWindow]
     public let fetchedAt: Date
+    public let source: AIQuotaSource
+
+    public init(provider: AIProviderID, windows: [AIQuotaWindow], fetchedAt: Date,
+                source: AIQuotaSource = .direct) {
+        self.provider = provider
+        self.windows = windows
+        self.fetchedAt = fetchedAt
+        self.source = source
+    }
 
     public func window(_ kind: AIQuotaKind) -> AIQuotaWindow? { windows.first { $0.kind == kind } }
 }
 
+public enum AIQuotaSource: Equatable, Sendable {
+    case direct, sub2api
+}
+
 public enum AIQuotaFailure: Error, Equatable, Sendable {
     case notConfigured, unauthorized, rateLimited, network, invalidResponse
+    case sub2apiConfiguration, sub2apiUnauthorized, sub2apiNetwork, sub2apiInvalidResponse, sub2apiAccountMismatch
 
     public var preservesLastGood: Bool {
         switch self {
-        case .notConfigured, .unauthorized: false
-        case .rateLimited, .network, .invalidResponse: true
+        case .notConfigured, .unauthorized, .sub2apiConfiguration, .sub2apiUnauthorized, .sub2apiAccountMismatch: false
+        case .rateLimited, .network, .invalidResponse, .sub2apiNetwork, .sub2apiInvalidResponse: true
         }
     }
 }
@@ -54,7 +68,7 @@ protocol QuotaHTTPClient: Sendable {
     func send(_ request: URLRequest) async throws -> (Data, Int)
 }
 
-private actor URLSessionQuotaHTTPClient: QuotaHTTPClient {
+actor URLSessionQuotaHTTPClient: QuotaHTTPClient {
     private let session: URLSession
 
     init() {
@@ -74,7 +88,7 @@ private actor URLSessionQuotaHTTPClient: QuotaHTTPClient {
     }
 }
 
-/// Bearer 凭据只允许发送到固定域名；重定向不能携带原 Authorization 继续走。
+/// Bearer 凭据只发向请求的初始地址；拒绝重定向，避免转发 Authorization。
 private final class RejectQuotaRedirects: NSObject, URLSessionTaskDelegate, Sendable {
     func urlSession(_ session: URLSession, task: URLSessionTask,
                     willPerformHTTPRedirection response: HTTPURLResponse,
@@ -161,18 +175,39 @@ public actor CodexQuotaProvider: AIQuotaProvider {
     public nonisolated let id = AIProviderID.codex
     private let credentials: @Sendable () throws -> CodexQuotaCredentials
     private let http: any QuotaHTTPClient
+    private let sub2api: (any Sub2APIQuotaFetching)?
+    private let sub2apiConfiguration: @Sendable () async throws -> Sub2APIConfiguration?
 
     public init() {
         credentials = { try CodexQuotaCredentials.load() }
         http = URLSessionQuotaHTTPClient()
+        sub2api = Sub2APIQuotaClient.shared
+        sub2apiConfiguration = { try await Sub2APISettingsStore().load() }
     }
 
-    init(credentials: @escaping @Sendable () throws -> CodexQuotaCredentials, http: any QuotaHTTPClient) {
+    init(credentials: @escaping @Sendable () throws -> CodexQuotaCredentials, http: any QuotaHTTPClient,
+         sub2api: (any Sub2APIQuotaFetching)? = nil,
+         sub2apiConfiguration: @escaping @Sendable () async throws -> Sub2APIConfiguration? = { nil }) {
         self.credentials = credentials
         self.http = http
+        self.sub2api = sub2api
+        self.sub2apiConfiguration = sub2apiConfiguration
     }
 
     public func fetch() async throws -> AIQuotaSnapshot {
+        do { return try await fetchDirect() }
+        catch let directFailure as AIQuotaFailure {
+            guard let sub2api else { throw directFailure }
+            let configuration: Sub2APIConfiguration?
+            do { configuration = try await sub2apiConfiguration() }
+            catch { throw AIQuotaFailure.sub2apiConfiguration }
+            guard let configuration else { throw directFailure }
+            guard configuration.provider == .codex else { throw AIQuotaFailure.sub2apiConfiguration }
+            return try await sub2api.fetch(configuration: configuration)
+        }
+    }
+
+    private func fetchDirect() async throws -> AIQuotaSnapshot {
         let credential = try credentials()
         var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/usage")!)
         request.setValue("Bearer \(credential.token)", forHTTPHeaderField: "Authorization")
@@ -216,18 +251,39 @@ public actor ClaudeQuotaProvider: AIQuotaProvider {
     public nonisolated let id = AIProviderID.claude
     private let credentials: @Sendable () throws -> String
     private let http: any QuotaHTTPClient
+    private let sub2api: (any Sub2APIQuotaFetching)?
+    private let sub2apiConfiguration: @Sendable () async throws -> Sub2APIConfiguration?
 
     public init() {
         credentials = { try ClaudeQuotaCredentials.load() }
         http = URLSessionQuotaHTTPClient()
+        sub2api = Sub2APIQuotaClient.shared
+        sub2apiConfiguration = { try await Sub2APISettingsStore(provider: .claude).load() }
     }
 
-    init(credentials: @escaping @Sendable () throws -> String, http: any QuotaHTTPClient) {
+    init(credentials: @escaping @Sendable () throws -> String, http: any QuotaHTTPClient,
+         sub2api: (any Sub2APIQuotaFetching)? = nil,
+         sub2apiConfiguration: @escaping @Sendable () async throws -> Sub2APIConfiguration? = { nil }) {
         self.credentials = credentials
         self.http = http
+        self.sub2api = sub2api
+        self.sub2apiConfiguration = sub2apiConfiguration
     }
 
     public func fetch() async throws -> AIQuotaSnapshot {
+        do { return try await fetchDirect() }
+        catch let directFailure as AIQuotaFailure {
+            guard let sub2api else { throw directFailure }
+            let configuration: Sub2APIConfiguration?
+            do { configuration = try await sub2apiConfiguration() }
+            catch { throw AIQuotaFailure.sub2apiConfiguration }
+            guard let configuration else { throw directFailure }
+            guard configuration.provider == .claude else { throw AIQuotaFailure.sub2apiConfiguration }
+            return try await sub2api.fetch(configuration: configuration)
+        }
+    }
+
+    private func fetchDirect() async throws -> AIQuotaSnapshot {
         let token = try credentials()
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

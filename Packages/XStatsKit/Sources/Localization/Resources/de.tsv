@@ -1363,3 +1363,29 @@ Apple 智能	Apple Intelligence
 子时显示当日早子时；23 点起的晚子时按次日干支计算	Zi zeigt 00:00–00:59; ab 23:00 gilt der Zyklus des Folgetags
 吉	Glück
 凶	Unglück
+Sub2API 备用额度	Sub2API-Ersatzkontingent
+已配置	Konfiguriert
+自动查询失败时才使用此 Sub2API 账号；后台不主动探测。	Dieses Sub2API-Konto wird nur verwendet, wenn die automatische Abfrage fehlschlägt; Hintergrundabfragen lösen keine aktive Prüfung aus.
+Sub2API 地址（HTTPS）	Sub2API-Adresse (HTTPS)
+管理员邮箱	Administrator-E-Mail
+管理员密码	Administrator-Passwort
+账号 ID	Konto-ID
+管理员密码存于本机钥匙串；账号 ID 用于查询额度。	Das Administrator-Passwort bleibt im Schlüsselbund dieses Mac; die Konto-ID bestimmt das angezeigte Kontingent.
+保存并测试连接	Speichern und Verbindung testen
+移除配置	Konfiguration entfernen
+Sub2API 配置无效	Ungültige Sub2API-Konfiguration
+Sub2API 配置无法读取，请检查设置	Sub2API-Konfiguration kann nicht gelesen werden; prüfe die Einstellungen
+Sub2API 配置已保存	Sub2API-Konfiguration gespeichert
+Sub2API 配置已移除	Sub2API-Konfiguration entfernt
+Sub2API 配置移除失败，请检查钥匙串权限	Sub2API-Konfiguration konnte nicht entfernt werden; prüfe den Schlüsselbundzugriff
+连接成功，读取到 {} 个额度窗口	Verbindung erfolgreich; {} Kontingentfenster gelesen
+Sub2API 登录失败，请检查管理员邮箱和密码	Sub2API-Anmeldung fehlgeschlagen; prüfe Administrator-E-Mail und Passwort
+Sub2API 连接失败，请检查地址、账号 ID 与服务状态	Verbindung zu Sub2API fehlgeschlagen; prüfe Adresse, Konto-ID und Serverstatus
+Sub2API 返回了无法识别的额度数据	Sub2API hat unbekannte Kontingentdaten zurückgegeben
+暂时无法连接 Sub2API	Sub2API ist derzeit nicht erreichbar
+请输入有效的 Sub2API HTTPS 地址	Gib eine gültige Sub2API-HTTPS-Adresse ein
+请输入有效的账号 ID	Gib eine gültige Konto-ID ein
+请填写管理员邮箱和密码	Gib Administrator-E-Mail und Passwort ein
+钥匙串读写失败，请检查权限	Schlüsselbund konnte nicht gelesen oder beschrieben werden; prüfe die Berechtigungen
+Sub2API 账号平台与所选来源不匹配	Die Plattform des Sub2API-Kontos stimmt nicht mit der ausgewählten Quelle überein
+本机账号可用，当前使用自动额度。	Das lokale Konto ist verfügbar; derzeit werden automatisch abgerufene Kontingentdaten verwendet.

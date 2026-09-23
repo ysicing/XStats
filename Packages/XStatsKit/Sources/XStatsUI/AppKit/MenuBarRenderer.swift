@@ -6,10 +6,17 @@ import Metrics
 struct MenuBarQuota {
     let provider: AIProviderID
     let window: AIQuotaWindow
+    let source: AIQuotaSource
 
     var remainingPercent: Int { Int(window.remainingPercent.rounded()) }
     var sourceName: String { provider == .codex ? "Codex" : "Claude" }
-    var shortWindowName: String { window.kind == .session ? "5h" : "7d" }
+    var shortWindowName: String {
+        switch window.kind {
+        case .session: "5h"
+        case .fableWeekly: "7d F"
+        default: "7d"
+        }
+    }
 
     var resetText: String {
         guard let reset = window.resetsAt else { return "—" }
@@ -69,12 +76,14 @@ struct MenuBarReading {
         batteryHistory = battery.map { Array(repeating: $0, count: 30) } ?? []
         aiTokens = model.aiUsage.todayTokens
         aiQuotas = model.aiUsage.visibleQuotaProviders(for: nil).compactMap { provider in
-            guard let windows = model.aiUsage.visibleQuotaState(for: provider).snapshot?.windows else { return nil }
+            guard let snapshot = model.aiUsage.visibleQuotaState(for: provider).snapshot else { return nil }
+            let windows = snapshot.windows
             // 周额度比短时会话额度更适合作为常驻读数；模型专属周额度仅在通用周额度缺席时使用。
             let window = windows.first(where: { $0.kind == .weekly })
+                ?? windows.first(where: { $0.kind == .fableWeekly })
                 ?? windows.first(where: { $0.kind == .opusWeekly || $0.kind == .sonnetWeekly })
                 ?? windows.first(where: { $0.kind == .session })
-            return window.map { MenuBarQuota(provider: provider, window: $0) }
+            return window.map { MenuBarQuota(provider: provider, window: $0, source: snapshot.source) }
         }
         batteryCharging = store.battery?.isCharging ?? false
         if let lowest = model.bluetooth.lowest,
@@ -141,7 +150,7 @@ struct MenuBarReading {
             case .aiUsage:
                 if !aiQuotas.isEmpty {
                     aiQuotas.map { quota in
-                        "\(quota.sourceName) · \(quota.shortWindowName) · \(tr("剩余")) \(quota.remainingPercent)% · \(tr("重置：")) \(quota.resetText)"
+                        "\(quota.sourceName)\(quota.source == .sub2api ? " (Sub2API)" : "") · \(quota.shortWindowName) · \(tr("剩余")) \(quota.remainingPercent)% · \(tr("重置：")) \(quota.resetText)"
                     }.joined(separator: "\n")
                 } else {
                     aiTokens.map { "AI · \(UsageNumber.exact($0)) Tokens" } ?? ("AI · " + tr("暂无本机用量数据"))

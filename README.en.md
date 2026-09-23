@@ -227,6 +227,8 @@ Every feature that touches the network can be turned off. Public IP and connecti
 
 **AI usage** is off by default. When enabled, local token statistics read only Codex / Claude Code session logs; quota checks read CLI login credentials and contact `chatgpt.com` / `api.anthropic.com` directly for five-hour and weekly usage. Tokens go only to the corresponding provider and are not saved in XStats preferences or its statistics database. Session logs are not sent with quota requests; quota failures do not affect local statistics.
 
+If local Codex or Claude Code sign-in cannot provide quota data, you can configure a separate Sub2API HTTPS address, admin email and password, and account ID for each source in AI Usage settings. Each fallback is used only when that source's automatic lookup fails, and XStats checks the account platform before displaying its quota. Background requests use `force=false` to read cached data without triggering an active probe. Five-hour and seven-day windows are supported, along with Sonnet and Fable weekly windows when a Claude account provides them. The two admin passwords stay separately in this Mac's Keychain; connection settings stay local and are excluded from WebDAV backups. Sign-in sends the admin email and password to the configured Sub2API server; quota data is never uploaded to XStats servers.
+
 WebDAV sync sends only preferences when you configure a server and start a transfer manually. It excludes monitoring data, history and WebDAV credentials.
 
 Read the [Privacy Policy](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.en.md) and [Terms of Service](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.en.md) in the repository or under Settings → About in the app.

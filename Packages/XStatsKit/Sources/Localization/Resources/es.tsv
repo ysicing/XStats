@@ -1363,3 +1363,29 @@ Apple 智能	Apple Intelligence
 子时显示当日早子时；23 点起的晚子时按次日干支计算	Zi muestra 00:00–00:59; desde las 23:00 usa el ciclo del día siguiente
 吉	Bueno
 凶	Malo
+Sub2API 备用额度	Cuota de respaldo de Sub2API
+已配置	Configurado
+自动查询失败时才使用此 Sub2API 账号；后台不主动探测。	Esta cuenta de Sub2API solo se usa si falla la consulta automática; las consultas en segundo plano no activan sondeos activos.
+Sub2API 地址（HTTPS）	Dirección de Sub2API (HTTPS)
+管理员邮箱	Correo del administrador
+管理员密码	Contraseña del administrador
+账号 ID	ID de la cuenta
+管理员密码存于本机钥匙串；账号 ID 用于查询额度。	La contraseña del administrador queda en el llavero de este Mac; el ID de la cuenta determina la cuota consultada.
+保存并测试连接	Guardar y probar conexión
+移除配置	Eliminar configuración
+Sub2API 配置无效	Configuración de Sub2API no válida
+Sub2API 配置无法读取，请检查设置	No se puede leer la configuración de Sub2API; revisa los ajustes
+Sub2API 配置已保存	Configuración de Sub2API guardada
+Sub2API 配置已移除	Configuración de Sub2API eliminada
+Sub2API 配置移除失败，请检查钥匙串权限	No se pudo eliminar la configuración de Sub2API; revisa el acceso al llavero
+连接成功，读取到 {} 个额度窗口	Conexión correcta; se leyeron {} ventanas de cuota
+Sub2API 登录失败，请检查管理员邮箱和密码	Error al iniciar sesión en Sub2API; revisa el correo y la contraseña del administrador
+Sub2API 连接失败，请检查地址、账号 ID 与服务状态	No se puede conectar con Sub2API; revisa la dirección, el ID de la cuenta y el servidor
+Sub2API 返回了无法识别的额度数据	Sub2API devolvió datos de cuota no reconocidos
+暂时无法连接 Sub2API	Sub2API no está disponible en este momento
+请输入有效的 Sub2API HTTPS 地址	Introduce una dirección HTTPS de Sub2API válida
+请输入有效的账号 ID	Introduce un ID de cuenta válido
+请填写管理员邮箱和密码	Introduce el correo y la contraseña del administrador
+钥匙串读写失败，请检查权限	No se puede acceder al llavero; revisa los permisos
+Sub2API 账号平台与所选来源不匹配	La plataforma de la cuenta de Sub2API no coincide con la fuente seleccionada
+本机账号可用，当前使用自动额度。	La cuenta local está disponible; se usan los datos de cuota consultados automáticamente.
