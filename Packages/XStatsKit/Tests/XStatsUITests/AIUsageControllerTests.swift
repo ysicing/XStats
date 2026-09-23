@@ -38,6 +38,26 @@ private func usageSnapshot(tokens: Int, id: AIProviderID = .codex, at date: Date
     return snapshot
 }
 
+/// 可控闸门：第一次 fetch 会一直卡住，直到测试放行
+private actor GatedUsageProvider: AIUsageProvider {
+    nonisolated let id = AIProviderID.codex
+    private(set) var started = 0
+    private var gate: CheckedContinuation<Void, Never>?
+    private var open = false
+
+    func fetch() async throws -> AIUsageSnapshot {
+        started += 1
+        if !open { await withCheckedContinuation { gate = $0 } }
+        var snapshot = AIUsageSnapshot(provider: .codex, fetchedAt: Date())
+        snapshot.localUsage = LocalUsageReport(rows: [ModelTokenUsage(day: Calendar.current.startOfDay(for: Date()),
+            model: "test", input: 100, output: 0, records: 1)], fileCount: 1)
+        return snapshot
+    }
+
+    func release() { open = true; gate?.resume(); gate = nil }
+    func startCount() -> Int { started }
+}
+
 @MainActor
 @Suite struct AIUsageControllerTests {
     @Test func sourceSelectionPersistsIncludingAllDisabled() {
@@ -146,6 +166,43 @@ private func usageSnapshot(tokens: Int, id: AIProviderID = .codex, at date: Date
 
         settings.aiUsageEnabled = false
 
+        #expect(controller.todayTokens == nil)
+    }
+
+    /// 在途刷新期间到来的刷新必须排队执行，不能被静默丢弃：轮询任务会把那次丢弃当成
+    /// “首次刷新已完成”，接着睡满整个周期（最长 60 分钟），而在途那次的结果又会因
+    /// generation 变化被丢掉，关掉再打开统计后页面会一直空着。
+    @Test func aRefreshArrivingDuringAnotherIsQueuedNotDropped() async throws {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let provider = GatedUsageProvider()
+        let controller = AIUsageController(settings: settings, providers: [provider])
+
+        let first = Task { await controller.refresh() }
+        while await provider.startCount() == 0 { await Task.yield() }
+        let second = Task { await controller.refresh() }
+        try await Task.sleep(for: .milliseconds(50))
+        await provider.release()
+        _ = await (first.value, second.value)
+
+        #expect(await provider.startCount() == 2)
+        #expect(controller.todayTokens == 100)
+    }
+
+    /// 排队链上的任务是非结构化的，stop() 必须显式取消，否则关掉统计后几十秒的冷扫描还在跑。
+    @Test func stopCancelsAnInFlightRefresh() async throws {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let provider = GatedUsageProvider()
+        let controller = AIUsageController(settings: settings, providers: [provider])
+
+        let inFlight = Task { await controller.refresh() }
+        while await provider.startCount() == 0 { await Task.yield() }
+        controller.stop()
+        await provider.release()
+        await inFlight.value
+
+        // 结果按 generation 变化丢弃，不会写回状态
         #expect(controller.todayTokens == nil)
     }
 

@@ -216,8 +216,9 @@ background data refresh do not animate the data layout. Reduced motion uses the 
 
 Claude Code is a second local provider. It scans projects/ recursively (including subagents) under
 CLAUDE_CONFIG_DIR when set, otherwise ~/.claude and XDG_CONFIG_HOME/claude (default ~/.config/claude).
-Only events inside the retention window are kept in a checkpoint, so long-lived session files do not
-grow their stored event set without bound.
+A checkpoint keeps every assistant event for its file, because the retention window is recomputed from
+the current date on each fetch: a stored cutoff would freeze at the first scan and keep aged-out events
+forever instead of dropping them.
 Assistant message IDs are deduplicated across files: completed messages win over partial snapshots,
 then the greater output count wins. Claude input is normalized as fresh input + cache reads + cache
 creation; nested 5-minute/1-hour creation counts are a fallback, never added to the aggregate twice.
@@ -226,7 +227,10 @@ opt-in). Disabled sources are not scanned or included in cached reports/menu tot
 from the source selector. Disabling the selected source resets the filter to all enabled sources.
 Both switches may be off, in which case polling stops and the page offers the source settings.
 The menu bar totals enabled sources for today; enabling the menu-bar item also turns scanning on,
-since that item is the most natural place to discover the feature. These settings are local and not synced through WebDAV.
+since that item is the most natural place to discover the feature.
+Refreshes are queued rather than dropped: a refresh arriving while another is in flight runs after it,
+so rebuilding the polling cadence cannot mistake a skipped call for a completed initial refresh and
+then sleep out the whole interval. Stopping cancels the in-flight scan. These settings are local and not synced through WebDAV.
 Cache creation is shown separately but already included in the input total. Claude credentials,
 account data, Cowork containers and subscription limits are outside this scanner's scope.
 

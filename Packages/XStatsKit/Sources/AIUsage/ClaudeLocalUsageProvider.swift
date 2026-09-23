@@ -11,15 +11,17 @@ public actor ClaudeLocalUsageProvider: AIUsageProvider {
     public nonisolated let id = AIProviderID.claude
     private let roots: [URL]
     private let databaseURL: URL
+    private let now: @Sendable () -> Date
     private var store: UsageScanStore?
 
     public nonisolated var unownedExecutor: UnownedSerialExecutor {
         ScanExecutor.shared.asUnownedSerialExecutor()
     }
 
-    public init(roots: [URL]? = nil, databaseURL: URL? = nil) {
+    public init(roots: [URL]? = nil, databaseURL: URL? = nil, now: @escaping @Sendable () -> Date = Date.init) {
         self.databaseURL = databaseURL ?? roots?.first?.appendingPathComponent("usage-cache.sqlite") ?? UsageScanStore.defaultURL
         self.roots = roots ?? Self.defaultRoots()
+        self.now = now
     }
 
     public static func defaultRoots(environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -33,7 +35,7 @@ public actor ClaudeLocalUsageProvider: AIUsageProvider {
     }
 
     public func fetch() async throws -> AIUsageSnapshot {
-        let now = Date()
+        let now = self.now()
         let calendar = Calendar.current
         let since = calendar.date(byAdding: .day, value: -364, to: calendar.startOfDay(for: now))!
         var files: Set<URL> = []
@@ -59,7 +61,7 @@ public actor ClaudeLocalUsageProvider: AIUsageProvider {
         for url in files.sorted(by: { $0.path < $1.path }) {
             try Task.checkCancellation()
             do {
-                let state = ClaudeLogScanState(calendar: calendar, cutoff: since)
+                let state = ClaudeLogScanState(calendar: calendar)
                 let parsed = try store.scan(url: url, source: Self.source, initial: state) { $0.consume($1) }
                 scanned.insert(url.resolvingSymlinksInPath().path)
                 for event in parsed.events.values { ClaudeLocalLogParser.merge(event, into: &events) }
@@ -69,7 +71,8 @@ public actor ClaudeLocalUsageProvider: AIUsageProvider {
         // 项目目录被删掉后对应的缓存行不会再出现在扫描结果里，留着只会一直变大。
         if unreadable == 0 { try? store.prune(family: "claude-", source: Self.source, keeping: scanned) }
         var snapshot = AIUsageSnapshot(provider: .claude, fetchedAt: now)
-        snapshot.localUsage = LocalUsageReport(rows: LocalUsageReport.aggregated(events.values.map(\.row)),
+        let rows = events.values.lazy.map(\.row).filter { $0.day >= since }
+        snapshot.localUsage = LocalUsageReport(rows: LocalUsageReport.aggregated(rows),
                                                fileCount: files.count, unreadableFiles: unreadable)
         return snapshot
     }
@@ -126,26 +129,24 @@ enum ClaudeLocalLogParser {
 }
 
 
-/// 消息 ID 要跨文件去重，所以整张表都得落到检查点里。只保留统计窗口内的事件，
-/// 长期存在的会话文件才不会把检查点越写越大。
+/// 消息 ID 要跨文件去重，所以整张表都得落到检查点里。
+/// 这里不按保留窗口裁剪：检查点会被原样恢复，存进去的截止日期会永远停在首次扫描那天，
+/// 于是过期事件反而再也出不去。窗口一律在取数时按当天重新计算。
 private struct ClaudeLogScanState: Codable {
     let calendar: Calendar
-    let cutoff: Date
     var events: [String: ClaudeLocalLogParser.Event] = [:]
     private let iso = ISO8601Parser()
 
     private enum CodingKeys: String, CodingKey {
-        case calendar, cutoff, events
+        case calendar, events
     }
 
-    init(calendar: Calendar, cutoff: Date) {
+    init(calendar: Calendar) {
         self.calendar = calendar
-        self.cutoff = cutoff
     }
 
     mutating func consume(_ line: Data) {
-        guard let event = ClaudeLocalLogParser.parse(line, calendar: calendar, iso: iso),
-              event.row.day >= cutoff else { return }
+        guard let event = ClaudeLocalLogParser.parse(line, calendar: calendar, iso: iso) else { return }
         ClaudeLocalLogParser.merge(event, into: &events)
     }
 }
