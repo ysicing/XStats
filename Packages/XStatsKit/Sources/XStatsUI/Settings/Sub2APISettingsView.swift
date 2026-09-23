@@ -148,6 +148,7 @@ struct Sub2APISettingsView: View {
     private func clear() {
         do {
             try Sub2APISettingsStore(provider: provider).clear()
+            model.aiUsage.clearQuotaSnapshot(for: provider)
             draft.address = ""; draft.email = ""; draft.password = ""; draft.accountID = ""
             draft.configured = false
             show(tr("Sub2API 配置已移除"), error: false)

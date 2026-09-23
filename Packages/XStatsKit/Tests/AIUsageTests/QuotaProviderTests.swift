@@ -24,6 +24,33 @@ private actor StubQuotaHTTPClient: QuotaHTTPClient {
 }
 
 @Suite struct QuotaProviderTests {
+    @Test func quotaCacheKeepsOnlyTheLatestSnapshotPerProvider() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xstats-quota-store-\(UUID().uuidString).sqlite")
+        defer {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(atPath: url.path + suffix)
+            }
+        }
+        let store = try AIQuotaCacheStore(url: url)
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        let codex = AIQuotaSnapshot(provider: .codex,
+            windows: [AIQuotaWindow(kind: .weekly, usedPercent: 25, resetsAt: date)], fetchedAt: date)
+        let updatedCodex = AIQuotaSnapshot(provider: .codex,
+            windows: [AIQuotaWindow(kind: .weekly, usedPercent: 40, resetsAt: date)], fetchedAt: date)
+        let claude = AIQuotaSnapshot(provider: .claude,
+            windows: [AIQuotaWindow(kind: .fableWeekly, usedPercent: 70, resetsAt: nil)],
+            fetchedAt: date, source: .sub2api)
+        try store.save(codex)
+        try store.save(claude)
+        try store.save(updatedCodex)
+
+        let reopened = try AIQuotaCacheStore(url: url)
+        #expect(try reopened.load() == [.codex: updatedCodex, .claude: claude])
+        try reopened.clear(.codex)
+        #expect(try reopened.load() == [.claude: claude])
+    }
+
     @Test func quotaPresentationUsesRemainingAmountAndTimeUntilReset() throws {
         let now = Date(timeIntervalSince1970: 1_000_000)
         let weekly = AIQuotaWindow(kind: .weekly, usedPercent: 74,

@@ -1253,6 +1253,7 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Tokens locaux Codex / Cla
 服务端用量 · 与本机 Token 统计不同	Server usage · separate from local token statistics
 重置：	Resets:
 查询失败，显示上次额度	Query failed; showing previous quota
+上次额度	Quota précédent
 暂无额度数据	No quota data yet
 未检测到登录凭据，请先登录对应 CLI	No login credentials found; sign in with the corresponding CLI
 登录已失效，请在对应 CLI 重新登录	Login expired; sign in again with the corresponding CLI

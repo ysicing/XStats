@@ -18,6 +18,8 @@ public struct AIQuotaProviderState: Equatable, Sendable {
     public let provider: AIProviderID
     public var snapshot: AIQuotaSnapshot?
     public var failure: AIQuotaFailure?
+    /// 快照来自磁盘，或本次查询失败后保留的上次成功值。
+    public var isStale = false
     public var isRefreshing = false
 
     public init(provider: AIProviderID) { self.provider = provider }
@@ -35,6 +37,7 @@ public final class AIUsageController {
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let providers: [any AIUsageProvider]
     @ObservationIgnored private let quotaProviders: [any AIQuotaProvider]
+    @ObservationIgnored private let quotaCache: AIQuotaCacheStore?
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private var cadenceTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
@@ -43,13 +46,27 @@ public final class AIUsageController {
 
     public init(settings: AppSettings, providers: [any AIUsageProvider] = [CodexLocalUsageProvider(), ClaudeLocalUsageProvider()],
                 quotaProviders: [any AIQuotaProvider] = [],
+                quotaCacheURL: URL? = nil,
                 now: @escaping @Sendable () -> Date = Date.init) {
         self.settings = settings
         self.providers = providers
         self.quotaProviders = quotaProviders
+        quotaCache = quotaCacheURL.flatMap { try? AIQuotaCacheStore(url: $0) }
         self.now = now
         states = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, AIUsageProviderState(provider: $0.id)) })
         quotaStates = Dictionary(uniqueKeysWithValues: quotaProviders.map { ($0.id, AIQuotaProviderState(provider: $0.id)) })
+        restoreCachedQuotas()
+    }
+
+    private func restoreCachedQuotas() {
+        guard let cached = try? quotaCache?.load() else { return }
+        for provider in quotaProviders where settings.aiUsageSources.contains(provider.id) {
+            guard var state = quotaStates[provider.id], state.snapshot == nil,
+                  let snapshot = cached[provider.id] else { continue }
+            state.snapshot = snapshot
+            state.isStale = true
+            quotaStates[provider.id] = state
+        }
     }
 
     public func state(for provider: AIProviderID) -> AIUsageProviderState {
@@ -58,6 +75,12 @@ public final class AIUsageController {
 
     public func quotaState(for provider: AIProviderID) -> AIQuotaProviderState {
         quotaStates[provider] ?? AIQuotaProviderState(provider: provider)
+    }
+
+    /// 移除手动账号时同步丢弃该来源的旧额度，避免离线时继续显示已移除账号的数据。
+    func clearQuotaSnapshot(for provider: AIProviderID) {
+        quotaStates[provider] = AIQuotaProviderState(provider: provider)
+        try? quotaCache?.clear(provider)
     }
 
     public func visibleQuotaState(for provider: AIProviderID) -> AIQuotaProviderState {
@@ -117,6 +140,7 @@ public final class AIUsageController {
             }
             return
         }
+        restoreCachedQuotas()
         let seconds = settings.aiUsageRefreshMinutes * 60
         cadenceTask = Task { [weak self] in
             guard !Task.isCancelled else { return }
@@ -211,8 +235,16 @@ public final class AIUsageController {
             case .success(let snapshot):
                 state.snapshot = snapshot
                 state.failure = nil
+                state.isStale = false
+                try? quotaCache?.save(snapshot)
             case .failure(let failure):
-                if !failure.preservesLastGood { state.snapshot = nil }
+                if failure.preservesLastGood {
+                    state.isStale = state.snapshot != nil
+                } else {
+                    state.snapshot = nil
+                    state.isStale = false
+                    try? quotaCache?.clear(id)
+                }
                 state.failure = failure
             }
             state.isRefreshing = false

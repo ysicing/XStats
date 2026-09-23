@@ -5,12 +5,12 @@ import Foundation
 import Security
 import LocalAuthentication
 
-public enum AIQuotaKind: String, Sendable, Identifiable {
+public enum AIQuotaKind: String, Codable, Sendable, Identifiable {
     case session, weekly, fableWeekly, opusWeekly, sonnetWeekly
     public var id: Self { self }
 }
 
-public struct AIQuotaWindow: Equatable, Sendable, Identifiable {
+public struct AIQuotaWindow: Codable, Equatable, Sendable, Identifiable {
     public let kind: AIQuotaKind
     public let usedPercent: Double
     public let resetsAt: Date?
@@ -26,7 +26,7 @@ public struct AIQuotaWindow: Equatable, Sendable, Identifiable {
     }
 }
 
-public struct AIQuotaSnapshot: Equatable, Sendable {
+public struct AIQuotaSnapshot: Codable, Equatable, Sendable {
     public let provider: AIProviderID
     public let windows: [AIQuotaWindow]
     public let fetchedAt: Date
@@ -43,7 +43,7 @@ public struct AIQuotaSnapshot: Equatable, Sendable {
     public func window(_ kind: AIQuotaKind) -> AIQuotaWindow? { windows.first { $0.kind == kind } }
 }
 
-public enum AIQuotaSource: Equatable, Sendable {
+public enum AIQuotaSource: String, Codable, Equatable, Sendable {
     case direct, sub2api
 }
 

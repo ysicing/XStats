@@ -561,7 +561,8 @@ private struct MenuBarPreview: View {
         let image = MenuBarRenderer.image(for: model)
         VStack(alignment: .leading, spacing: DS.Space.s2) {
             Text(tr("当前效果（实时数据）")).dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
-            HStack(spacing: DS.Space.s3) {
+            // 实时图标宽度会随启用的项目变化；并排时两张预览可能撑出设置页。
+            VStack(spacing: DS.Space.s2) {
                 preview(image: image, dark: false)
                 preview(image: image, dark: true)
             }
@@ -569,10 +570,17 @@ private struct MenuBarPreview: View {
     }
 
     private func preview(image: NSImage, dark: Bool) -> some View {
-        HStack {
-            Spacer()
-            Image(nsImage: MenuBarRenderer.preview(image, dark: dark))
-            Spacer()
+        GeometryReader { geometry in
+            ScrollView(.horizontal) {
+                HStack {
+                    Spacer(minLength: DS.Space.s2)
+                    Image(nsImage: MenuBarRenderer.preview(image, dark: dark))
+                    Spacer(minLength: DS.Space.s2)
+                }
+                .frame(minWidth: geometry.size.width)
+                .frame(height: DS.Size.controlHeight + DS.Space.s2)
+            }
+            .scrollIndicators(.hidden)
         }
         .frame(height: DS.Size.controlHeight + DS.Space.s2)
         .background(dark ? Color(nsColor: NSColor(hex: 0x1F2937)) : Color(nsColor: NSColor(hex: 0xE5E7EB)),

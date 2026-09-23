@@ -69,11 +69,13 @@ public final class AppModel {
 
     public init(settings: AppSettings = AppSettings(), historyURL: URL? = HistoryDatabase.defaultURL,
                 aiUsageProviders: [any AIUsageProvider] = [CodexLocalUsageProvider(), ClaudeLocalUsageProvider()],
-                aiQuotaProviders: [any AIQuotaProvider] = [CodexQuotaProvider(), ClaudeQuotaProvider()]) {
+                aiQuotaProviders: [any AIQuotaProvider] = [CodexQuotaProvider(), ClaudeQuotaProvider()],
+                quotaCacheURL: URL? = nil) {
         let store = MetricsStore()
         let helper = HelperClient()
         self.settings = settings
-        aiUsage = AIUsageController(settings: settings, providers: aiUsageProviders, quotaProviders: aiQuotaProviders)
+        aiUsage = AIUsageController(settings: settings, providers: aiUsageProviders, quotaProviders: aiQuotaProviders,
+                                    quotaCacheURL: quotaCacheURL)
         self.store = store
         self.helper = helper
         fans = FanController(helper: helper, store: store, settings: settings)

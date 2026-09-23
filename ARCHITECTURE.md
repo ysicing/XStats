@@ -229,15 +229,19 @@ history; `started_at` is not compared against the session creation time, because
 `started_at` is its parent turn's start and recent Codex builds omit the field entirely.
 Unknown models remain unknown.
 Local logs cannot reliably identify the paying account or usage on other devices. No cost,
-subscription limits or HTTP success rates are inferred from them. The separate in-memory quota
+subscription limits or HTTP success rates are inferred from them. The separate quota
 snapshot instead queries Codex `wham/usage` and Claude `api/oauth/usage` using CLI OAuth tokens.
 It maps five-hour and seven-day windows, plus Claude's model-specific weekly windows, without
 combining them with local token totals. Credential discovery is repeated on each refresh; Codex
 reads `auth.json` under CODEX_HOME or the standard locations, while Claude reads its CLI credential
-file or a non-interactive Keychain item. Neither token nor quota result is persisted by XStats.
+file or a non-interactive Keychain item. Tokens are not persisted by XStats. Each provider's last
+successful quota snapshot is stored in a separate table of `ai-usage.sqlite`, without credentials.
+The controller restores it before the first network request and labels it with its fetch time.
 Requests use isolated URL sessions and reject redirects so bearer tokens cannot be forwarded.
 Missing or expired credentials clear that provider's quota display; transient errors keep the last
-in-memory result marked stale. Both quota readers stop when AI Usage is disabled.
+successful result marked stale across restarts. Authentication failures or removal of a manual
+account delete that provider's cached snapshot. Both quota readers stop when AI Usage is disabled;
+disabled providers are hidden while their cached snapshot remains available on re-enable.
 Codex and Claude Code each have an optional, independently configured Sub2API source, tried only
 when that provider's direct quota fetch fails. Each HTTPS base URL, admin email and account ID remain
 in local preferences outside settings backups; passwords use separate Keychain items. The fallback
@@ -246,8 +250,9 @@ signs in to its configured server, reads the account record to verify its platfo
 If the detailed endpoint is unavailable, the account's `extra` fields provide coarser five-hour and
 weekly windows. Claude may also expose Sonnet and Fable weekly windows. Credentials and quota results
 are never sent to XStats servers; the UI marks fallback results as Sub2API.
-When one provider has a subscription snapshot, the menu bar AI reading shows its weekly window
-(or five-hour window if weekly is unavailable), remaining percentage and compact reset time.
+When one provider has a subscription snapshot, the menu bar AI reading shows its name and remaining
+percentage. It prefers the weekly window (or five-hour window if weekly is unavailable); the tooltip
+shows the chosen window and reset time without crowding the 22-point menu bar.
 When both sources are enabled and either has quota data, the item shows a compact named reading
 for each source; one without quota data shows a dash. The tooltip lists reset times and missing
 data by source. Without any subscription snapshot it keeps the local daily Token reading.

@@ -7,6 +7,8 @@ struct MenuBarQuota {
     let provider: AIProviderID
     let window: AIQuotaWindow
     let source: AIQuotaSource
+    let fetchedAt: Date
+    let isStale: Bool
 
     var remainingPercent: Int { Int(window.remainingPercent.rounded()) }
     var sourceName: String { provider == .codex ? "Codex" : "Claude" }
@@ -79,14 +81,16 @@ struct MenuBarReading {
         aiQuotaProviders = model.settings.aiUsageEnabled
             ? AIProviderID.allCases.filter { model.settings.aiUsageSources.contains($0) } : []
         aiQuotas = model.aiUsage.visibleQuotaProviders(for: nil).compactMap { provider in
-            guard let snapshot = model.aiUsage.visibleQuotaState(for: provider).snapshot else { return nil }
+            let state = model.aiUsage.visibleQuotaState(for: provider)
+            guard let snapshot = state.snapshot else { return nil }
             let windows = snapshot.windows
             // 周额度比短时会话额度更适合作为常驻读数；模型专属周额度仅在通用周额度缺席时使用。
             let window = windows.first(where: { $0.kind == .weekly })
                 ?? windows.first(where: { $0.kind == .fableWeekly })
                 ?? windows.first(where: { $0.kind == .opusWeekly || $0.kind == .sonnetWeekly })
                 ?? windows.first(where: { $0.kind == .session })
-            return window.map { MenuBarQuota(provider: provider, window: $0, source: snapshot.source) }
+            return window.map { MenuBarQuota(provider: provider, window: $0, source: snapshot.source,
+                                             fetchedAt: snapshot.fetchedAt, isStale: state.isStale) }
         }
         batteryCharging = store.battery?.isCharging ?? false
         if let lowest = model.bluetooth.lowest,
@@ -156,7 +160,11 @@ struct MenuBarReading {
                         guard let quota = aiQuotas.first(where: { $0.provider == provider }) else {
                             return "\(provider == .codex ? "Codex" : "Claude") · \(tr("暂无额度数据"))"
                         }
-                        return "\(quota.sourceName)\(quota.source == .sub2api ? " (Sub2API)" : "") · \(quota.shortWindowName) · \(tr("剩余")) \(quota.remainingPercent)% · \(tr("重置：")) \(quota.resetText)"
+                        let previous = quota.isStale ? "\(tr("上次额度")) · " : ""
+                        let checked = quota.isStale
+                            ? " · \(tr("上次检查：\(quota.fetchedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))"
+                            : ""
+                        return "\(previous)\(quota.sourceName)\(quota.source == .sub2api ? " (Sub2API)" : "") · \(quota.shortWindowName) · \(tr("剩余")) \(quota.remainingPercent)% · \(tr("重置：")) \(quota.resetText)\(checked)"
                     }.joined(separator: "\n")
                 } else {
                     aiTokens.map { "AI · \(UsageNumber.exact($0)) Tokens" } ?? ("AI · " + tr("暂无本机用量数据"))
@@ -173,14 +181,15 @@ enum MenuBarRenderer {
     private static func tokenText(_ value: Int) -> String {
         UsageNumber.short(value)
     }
-    /// 菜单栏只有 22pt 高，字号刻意小于面板的字号体系，与 Stats 等菜单栏工具同一量级。
-    /// 每种风格内部只用这一套排版：两行布局是 7pt 标签 + 10pt 数值，单行布局 11pt，网速两行 9pt。
+    /// 菜单栏只有 22pt 高。额度读数单独使用更清晰的字号，其余指标保持紧凑排版。
     private enum Metrics {
         @MainActor static let labelFont = NSFont.systemFont(ofSize: 7, weight: .medium)
         @MainActor static let stackedValueFont = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
         @MainActor static let inlineLabelFont = NSFont.systemFont(ofSize: 10, weight: .regular)
         @MainActor static let inlineValueFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         @MainActor static let networkFont = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular)
+        @MainActor static let quotaLabelFont = NSFont.systemFont(ofSize: 9, weight: .semibold)
+        @MainActor static let quotaValueFont = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         static let barHeight: CGFloat = 22
         static let upperBaseline: CGFloat = 13
         static let lowerBaseline: CGFloat = 3
@@ -300,32 +309,34 @@ enum MenuBarRenderer {
         let status = combine(providers.map { provider in
             let name = provider == .codex ? "Codex" : "Claude"
             guard let quota = reading.aiQuotas.first(where: { $0.provider == provider }) else {
-                return style == .inline
-                    ? inlineText(label: name, value: "—", sample: "100%", alert: false)
-                    : stackedText(label: name, value: "—", sample: "100%", alert: false)
+                switch style {
+                case .ring, .history, .line, .pie, .meter, .dot:
+                    return aiQuotaInlineText(label: name, value: "—")
+                case .inline, .icon:
+                    return inlineText(label: name, value: "—", sample: "100%", alert: false)
+                case .stacked:
+                    return aiQuotaText(label: name, value: "—")
+                }
             }
             let label = "\(name) · \(quota.shortWindowName)"
             let value = "\(quota.remainingPercent)%"
-            let stacked = stackedText(label: label, value: value, sample: "100%", alert: false)
+            let stacked = aiQuotaText(label: name, value: value)
+            let inline = aiQuotaInlineText(label: name, value: value)
             let fraction = min(1, max(0, Double(quota.remainingPercent) / 100))
             let color = aiQuotaColor(quota.remainingPercent)
             switch style {
-            case .stacked:
-                // 单来源保留重置时间，双来源保持短标签，避免菜单栏占用过宽。
-                return providers.count == 1
-                    ? stackedText(label: "\(quota.shortWindowName) · \(quota.resetText)",
-                                  value: "\(quota.sourceName) \(value)", sample: "Claude 100%", alert: false)
-                    : stacked
+            case .stacked: return stacked
             case .inline: return inlineText(label: label, value: value, sample: "100%", alert: false)
             case .icon:
                 return providers.count == 1
                     ? combine([symbolSegment(MenuBarItem.aiUsage.symbol),
                                inlineValue(value, sample: "100%", alert: false)])
                     : inlineText(label: name, value: value, sample: "100%", alert: false)
-            case .ring, .history, .line: return combine([ring(fraction: fraction, alert: false, color: color), stacked])
-            case .pie: return combine([pie(fraction: fraction, alert: false, color: color), stacked])
-            case .meter: return combine([meter(fraction: fraction, alert: false, color: color), stacked])
-            case .dot: return combine([quotaDot(color: color), stacked])
+            case .ring, .history, .line:
+                return combine([ring(fraction: fraction, alert: false, color: color, diameter: 15, lineWidth: 2.5), inline])
+            case .pie: return combine([pie(fraction: fraction, alert: false, color: color), inline])
+            case .meter: return combine([meter(fraction: fraction, alert: false, color: color), inline])
+            case .dot: return combine([quotaDot(color: color), inline])
             }
         }, gap: DS.Space.s2)
         return style == .icon && providers.count > 1
@@ -340,6 +351,42 @@ enum MenuBarRenderer {
         case ...39: NSColor(DS.Palette.warning)
         case ...79: NSColor(DS.Palette.primary)
         default: NSColor(DS.Palette.success)
+        }
+    }
+
+    /// 额度是常驻读数：来源和百分比都用主文字色，时间窗及重置时间由悬停提示承载。
+    private static func aiQuotaText(label: String, value: String) -> Segment {
+        let labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: Metrics.quotaLabelFont, .foregroundColor: NSColor.labelColor,
+        ]
+        let valueAttributes: [NSAttributedString.Key: Any] = [
+            .font: Metrics.quotaValueFont, .foregroundColor: NSColor.labelColor,
+        ]
+        let width = ceil(max(textWidth(label, labelAttributes), textWidth(value, valueAttributes),
+                             textWidth("100%", valueAttributes)))
+        return Segment(width: width) { rect in
+            let base = baselineOrigin(in: rect)
+            drawText(label, labelAttributes, rightEdge: rect.maxX, baseline: base + 12)
+            drawText(value, valueAttributes, rightEdge: rect.maxX, baseline: base + 1)
+        }
+    }
+
+    private static func aiQuotaInlineText(label: String, value: String) -> Segment {
+        let labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: Metrics.inlineValueFont, .foregroundColor: NSColor.labelColor,
+        ]
+        let valueAttributes: [NSAttributedString.Key: Any] = [
+            .font: Metrics.quotaValueFont, .foregroundColor: NSColor.labelColor,
+        ]
+        let labelWidth = ceil(textWidth(label, labelAttributes))
+        let valueWidth = ceil(max(textWidth(value, valueAttributes), textWidth("100%", valueAttributes)))
+        return Segment(width: labelWidth + Metrics.innerGap + valueWidth) { rect in
+            drawText(label, labelAttributes, rightEdge: rect.minX + labelWidth,
+                     baseline: rect.midY - Metrics.inlineValueFont.capHeight / 2)
+            // 保留 100% 的宽度以免数字变化时状态项跳动，但数值紧跟来源名。
+            drawText(value, valueAttributes,
+                     rightEdge: rect.minX + labelWidth + Metrics.innerGap + textWidth(value, valueAttributes),
+                     baseline: rect.midY - Metrics.quotaValueFont.capHeight / 2)
         }
     }
 
@@ -486,20 +533,22 @@ enum MenuBarRenderer {
 
     // MARK: 图形
 
-    private static func ring(fraction: Double, alert: Bool, color: NSColor? = nil) -> Segment {
-        Segment(width: Metrics.gaugeDiameter, colored: color != nil) { rect in
-            let inset = Metrics.ringWidth / 2
-            let circle = NSRect(x: rect.minX + inset, y: rect.midY - Metrics.gaugeDiameter / 2 + inset,
-                                width: Metrics.gaugeDiameter - Metrics.ringWidth, height: Metrics.gaugeDiameter - Metrics.ringWidth)
+    private static func ring(fraction: Double, alert: Bool, color: NSColor? = nil,
+                             diameter: CGFloat = Metrics.gaugeDiameter,
+                             lineWidth: CGFloat = Metrics.ringWidth) -> Segment {
+        Segment(width: diameter, colored: color != nil) { rect in
+            let inset = lineWidth / 2
+            let circle = NSRect(x: rect.minX + inset, y: rect.midY - diameter / 2 + inset,
+                                width: diameter - lineWidth, height: diameter - lineWidth)
             let track = NSBezierPath(ovalIn: circle)
-            track.lineWidth = Metrics.ringWidth
+            track.lineWidth = lineWidth
             NSColor.labelColor.withAlphaComponent(Metrics.trackAlpha).setStroke()
             track.stroke()
             guard fraction > 0 else { return }
             let arc = NSBezierPath()
             arc.appendArc(withCenter: NSPoint(x: circle.midX, y: circle.midY), radius: circle.width / 2,
                           startAngle: 90, endAngle: 90 - 360 * fraction, clockwise: true)
-            arc.lineWidth = Metrics.ringWidth
+            arc.lineWidth = lineWidth
             arc.lineCapStyle = .round
             (color ?? foreground(alert)).setStroke()
             arc.stroke()

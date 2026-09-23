@@ -151,13 +151,15 @@ private struct LocalUsageContent: View {
                                 if let reset = window.resetsAt {
                                     Text(tr("重置：") + " " + reset.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))
                                         .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
-                                    TimelineView(.periodic(from: .now, by: 60)) { context in
-                                        if let fraction = window.remainingTimeFraction(at: context.date) {
-                                            // 时间条越接近重置越满、颜色越偏绿；额度条则随剩余量减少而变红。
-                                            ProgressTrack(fraction: 1 - fraction,
-                                                          color: progressTint(for: (1 - fraction) * 100))
-                                                .accessibilityLabel(tr("重置：") + " " + reset.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))
-                                                .accessibilityValue("\(Int(((1 - fraction) * 100).rounded()))%")
+                                    if !state.isStale {
+                                        TimelineView(.periodic(from: .now, by: 60)) { context in
+                                            if let fraction = window.remainingTimeFraction(at: context.date) {
+                                                // 旧快照不再推算重置进度；只对新鲜额度画动态时间条。
+                                                ProgressTrack(fraction: 1 - fraction,
+                                                              color: progressTint(for: (1 - fraction) * 100))
+                                                    .accessibilityLabel(tr("重置：") + " " + reset.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))
+                                                    .accessibilityValue("\(Int(((1 - fraction) * 100).rounded()))%")
+                                            }
                                         }
                                     }
                                 }
@@ -174,9 +176,18 @@ private struct LocalUsageContent: View {
                             .dsFont(.xs)
                             .foregroundStyle(DS.Palette.textTertiary)
                         }
-                        if state.failure != nil {
-                            Text(tr("查询失败，显示上次额度"))
-                                .dsFont(.xs).foregroundStyle(DS.Palette.warning)
+                        if state.isStale {
+                            VStack(alignment: .leading, spacing: DS.Space.s1) {
+                                Label(tr("上次额度"), systemImage: "clock")
+                                    .foregroundStyle(DS.Palette.warning)
+                                Text(tr("上次检查：\(snapshot.fetchedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))
+                                    .foregroundStyle(DS.Palette.textTertiary)
+                                if state.failure != nil {
+                                    Text(quotaFailureText(state.failure))
+                                        .foregroundStyle(DS.Palette.warning)
+                                }
+                            }
+                            .dsFont(.xs)
                         }
                     } else if state.isRefreshing {
                         ProgressView().controlSize(.small)

@@ -4,13 +4,14 @@
 // See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
 
 import AppKit
+import AIUsage
 import Localization
 import Metrics
 import SwiftUI
 
 @MainActor
 public final class AppController: NSObject, NSApplicationDelegate {
-    private let model = AppModel()
+    private let model = AppModel(quotaCacheURL: AIQuotaCacheStore.defaultURL)
     private var menuBar: MenuBarController!
     private var calendarMenuBar: CalendarMenuBarController!
     private var mainWindow: MainWindowController!

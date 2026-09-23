@@ -211,6 +211,49 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(controller.visibleQuotaProviders(for: nil) == [.codex])
     }
 
+    @Test func lastSuccessfulQuotaSurvivesRestartAndAuthFailureClearsDiskCache() async {
+        let cacheURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xstats-quota-\(UUID().uuidString).sqlite")
+        defer {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(atPath: cacheURL.path + suffix)
+            }
+        }
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let previous = AIQuotaSnapshot(provider: .codex, windows: [
+            AIQuotaWindow(kind: .weekly, usedPercent: 76, resetsAt: Date(timeIntervalSince1970: 1_800_000_000)),
+        ], fetchedAt: Date(timeIntervalSince1970: 1_799_000_000), source: .sub2api)
+        let first = AIUsageController(settings: settings, providers: [],
+            quotaProviders: [StubQuotaProvider(results: [.success(previous)])], quotaCacheURL: cacheURL)
+        await first.refresh()
+
+        let restored = AIUsageController(settings: settings, providers: [],
+            quotaProviders: [StubQuotaProvider(results: [.failure(.network)])], quotaCacheURL: cacheURL)
+        #expect(restored.visibleQuotaState(for: .codex).snapshot == previous)
+        #expect(restored.visibleQuotaState(for: .codex).isStale)
+        await restored.refresh()
+        #expect(restored.visibleQuotaState(for: .codex).snapshot == previous)
+        #expect(restored.visibleQuotaState(for: .codex).failure == .network)
+
+        let newer = AIQuotaSnapshot(provider: .codex, windows: [
+            AIQuotaWindow(kind: .weekly, usedPercent: 81, resetsAt: Date(timeIntervalSince1970: 1_800_000_000)),
+        ], fetchedAt: Date(timeIntervalSince1970: 1_799_100_000))
+        let refreshed = AIUsageController(settings: settings, providers: [],
+            quotaProviders: [StubQuotaProvider(results: [.success(newer)])], quotaCacheURL: cacheURL)
+        await refreshed.refresh()
+        #expect(refreshed.visibleQuotaState(for: .codex).snapshot == newer)
+        #expect(!refreshed.visibleQuotaState(for: .codex).isStale)
+
+        let logout = AIUsageController(settings: settings, providers: [],
+            quotaProviders: [StubQuotaProvider(results: [.failure(.unauthorized)])], quotaCacheURL: cacheURL)
+        await logout.refresh()
+        #expect(logout.visibleQuotaState(for: .codex).snapshot == nil)
+        let afterLogout = AIUsageController(settings: settings, providers: [],
+            quotaProviders: [StubQuotaProvider(results: [.failure(.network)])], quotaCacheURL: cacheURL)
+        #expect(afterLogout.visibleQuotaState(for: .codex).snapshot == nil)
+    }
+
     @Test func disabledSourceIsNotQueriedForQuota() async {
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.aiUsageEnabled = true
