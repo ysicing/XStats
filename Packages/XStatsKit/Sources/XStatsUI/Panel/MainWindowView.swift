@@ -46,8 +46,9 @@ public struct MainWindowView: View {
     /// 它在 macOS 上会在交界处画一条分隔线，滚动边缘样式设成柔和或隐藏都去不掉
     private var content: some View {
         VStack(spacing: 0) {
-            // 页面的滚动视图会自动向上延伸到标题栏下面，与顶栏重叠；顶栏必须在它之上，否则开关收不到点击
+            // 滚动内容会延伸到标题栏下面；顶栏垫底色遮住它，同时保持按钮可点击。
             PageHeader()
+                .background(DS.Palette.background)
                 .zIndex(1)
             page
         }
@@ -107,9 +108,12 @@ private struct SidebarPanel: ViewModifier {
     func body(content: Content) -> some View {
         if DS.Glass.isAvailable, !isSnapshot {
             // 红绿灯在面板外：面板从标题栏下方开始，标题栏那一条是窗口底色，按住可以拖动窗口
+            let shape = RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous)
             content
+                // glassEffect 只画表面，不会裁掉上滚时越过面板边界的导航项。
+                .clipShape(shape)
                 .environment(\.isInsideGlass, true)
-                .dsGlass(in: RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous))
+                .dsGlass(in: shape)
                 .padding(.horizontal, DS.Space.s2)
                 .padding(.bottom, DS.Space.s2)
                 .padding(.top, DS.Size.windowHeader)
@@ -143,6 +147,7 @@ private struct MainSidebar: View {
             } else {
                 ScrollView { navigation.overlayScrollers() }
                     .scrollBounceBehavior(.basedOnSize)
+                    .clipped()
             }
 
             HStack(spacing: DS.Space.s1) {
