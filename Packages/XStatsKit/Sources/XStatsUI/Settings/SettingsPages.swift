@@ -761,6 +761,8 @@ private struct CapabilityLine: View {
 // MARK: - 关于
 
 struct AboutSettings: View {
+    @State private var legalDocument: LegalDocument?
+
     var body: some View {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? tr("开发版")
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
@@ -790,6 +792,21 @@ struct AboutSettings: View {
         UpdateSettings()
         DiagnosticsSettings()
 
+        SettingsGroup(caption: tr("法律与隐私")) {
+            GroupRow(showsDivider: false) {
+                SettingRow(title: tr("服务条款"), subtitle: tr("了解 XStats 的使用条件与责任边界")) {
+                    Button(tr("查看")) { legalDocument = .terms }
+                        .buttonStyle(DSButtonStyle(kind: .secondary))
+                }
+            }
+            GroupRow {
+                SettingRow(title: tr("隐私政策"), subtitle: tr("了解本机数据、联网功能与信息处理方式")) {
+                    Button(tr("查看")) { legalDocument = .privacy }
+                        .buttonStyle(DSButtonStyle(kind: .secondary))
+                }
+            }
+        }
+
         SettingsGroup(caption: tr("致谢")) {
             GroupRow {
                 SettingRow(title: "gentpan/OpenStats", subtitle: tr("XStats 基于 OpenStats 开发，感谢原项目的开源贡献 · MIT License")) {
@@ -807,6 +824,9 @@ struct AboutSettings: View {
                     .buttonStyle(DSButtonStyle(kind: .secondary))
                 }
             }
+        }
+        .sheet(item: $legalDocument) { document in
+            LegalDocumentSheet(document: document)
         }
     }
 }

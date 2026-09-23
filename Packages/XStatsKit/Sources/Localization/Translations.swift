@@ -1188,6 +1188,12 @@ Apple 智能本机模型当前不可用。	The on-device Apple Intelligence mode
 降温	Cooling
 隐私	Privacy
 隐私政策	Privacy policy
+法律与隐私	Legal & Privacy
+服务条款	Terms of Service
+了解 XStats 的使用条件与责任边界	Read XStats's terms of use and responsibilities
+了解本机数据、联网功能与信息处理方式	Learn how local data and online features are handled
+无法读取法律文件	Unable to load legal document
+关闭文档	Close
 隐藏 XStats	Hide XStats
 隐藏序列号	Hide Serial Number
 需要 macOS 26 及以上，并在系统设置中开启 Apple 智能。	Requires macOS 26 or later with Apple Intelligence turned on in System Settings.

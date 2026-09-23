@@ -30,7 +30,7 @@ let package = Package(
         .target(name: "WebDAVSync", dependencies: ["Localization"]),
         .target(name: "XStatsUI", dependencies: ["AIUsage", "Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync",
                                                    .product(name: "Tyme4Swift", package: "tyme4swift")],
-                resources: [.copy("Resources/Flags"), .copy("Resources/Logos")]),
+                resources: [.copy("Resources/Flags"), .copy("Resources/Logos"), .copy("Resources/Legal")]),
         .testTarget(name: "MetricsTests", dependencies: ["Metrics", "SMC"]),
         .testTarget(name: "CleanerTests", dependencies: ["Cleaner"]),
         .testTarget(name: "HelperSharedTests", dependencies: ["HelperShared"]),

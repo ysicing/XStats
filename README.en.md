@@ -19,7 +19,7 @@ CPU load, GPU, memory pressure, network speed, disk, battery, temperatures and f
 lets you act on it: spin the fans up, keep the Mac awake with the lid closed, clear caches, fully
 uninstall apps and disable startup items. Network details also check how clean your public IP is —
 whether it is flagged as a VPN, proxy, data center or for abuse.
-All system-monitoring metrics are read on your own Mac and are never uploaded. No XStats account is required: manually back up and restore preferences through your own WebDAV server. Update checks send the current version and the SHA-256 of a random installation ID for anonymous installation and version-distribution statistics; the original random value remains in local preferences, is not a credential, and is excluded from WebDAV sync. Other optional network features include a public-IP and cleanliness lookup, a ping probe, and a daily update check.
+All system-monitoring metrics are read on your own Mac and are never uploaded. No XStats account is required: configure a WebDAV server yourself to manually back up and restore preferences; XStats does not provide or preconfigure a sync server. Update checks send the current version and the SHA-256 of a random installation ID for deduplicated installation and version-distribution statistics; the original random value remains in local preferences, is not a credential, and is excluded from WebDAV sync. Other optional network features include a public-IP and cleanliness lookup, a ping probe, and a daily update check.
 
 [Download](https://github.com/ysicing/xstats/releases) ·
 [Changelog](CHANGELOG.md) ·
@@ -205,7 +205,7 @@ unclean exit restores them at the next boot.
 ## Your data
 
 Metrics come from the kernel (`host_processor_info`, `host_statistics64`, `sysctl`), IOKit and the
-SMC on your own Mac. Preferences live in the app's user defaults and contain nothing personal.
+SMC on your own Mac. Preferences live in the app's user defaults. Apart from update-statistics aggregates and settings backups you manually upload to WebDAV, the app's other persisted data stays on your Mac. Network tools still send the requests needed for a lookup or test to the relevant third party.
 Monitoring metrics, history, the hardware serial number and process lists are never uploaded.
 
 Every feature that touches the network can be turned off. Public IP and connection probes live on the Network page, update checks in Settings → About:
@@ -227,7 +227,9 @@ Every feature that touches the network can be turned off. Public IP and connecti
 
 **AI usage** is entirely local: it reads Codex / Claude Code session logs on this Mac, never reads credentials, never queries subscription quotas and makes no network requests at all. Off by default.
 
-WebDAV sync sends only preferences to your configured server. It excludes monitoring data, history and WebDAV credentials.
+WebDAV sync sends only preferences when you configure a server and start a transfer manually. It excludes monitoring data, history and WebDAV credentials.
+
+Read the [Privacy Policy](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.en.md) and [Terms of Service](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.en.md) in the repository or under Settings → About in the app.
 
 ### WebDAV settings sync
 
