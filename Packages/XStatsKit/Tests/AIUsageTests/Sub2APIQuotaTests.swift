@@ -238,6 +238,21 @@ private final class InMemorySub2APISecretStore: Sub2APISecretStore {
         #expect(await http.requests().count == 2)
     }
 
+    @Test(arguments: [(401, AIQuotaFailure.sub2apiUnauthorized), (403, .sub2apiUnauthorized),
+                      (404, .sub2apiInvalidResponse), (502, .sub2apiNetwork)])
+    func loginFailureIsClassifiedByStatus(status: Int, expected: AIQuotaFailure) async throws {
+        let http = StubSub2APIHTTPClient([(status, #"{"code":1,"message":"error"}"#)])
+        do {
+            _ = try await Sub2APIQuotaClient(http: http).fetch(configuration: configuration())
+            Issue.record("Expected login status \(status) to fail")
+        } catch let failure as AIQuotaFailure {
+            #expect(failure == expected, "status \(status) mapped to \(failure)")
+            // 5xx 属于临时故障，必须保留上次额度；凭据错误则不能保留。
+            #expect(failure.preservesLastGood == (status == 502 || status == 404))
+        }
+        #expect(await http.requests().count == 1)
+    }
+
     @Test func concurrentRefreshesShareOneAdminLogin() async throws {
         let http = ConcurrentSub2APIHTTPClient()
         let client = Sub2APIQuotaClient(http: http)

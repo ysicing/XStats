@@ -412,9 +412,7 @@ private struct ItemStyleRow: View {
                                  options: NetworkMenuStyle.allCases.map { ($0, $0.title) })
                     .frame(width: DS.Size.sidebarWidth + DS.Space.s6)
             } else {
-                let inheritedStyle: MenuBarStyle = item == .aiUsage
-                    && (settings.menuBarStyle == .history || settings.menuBarStyle == .line)
-                    ? .ring : settings.menuBarStyle
+                let inheritedStyle = settings.menuBarStyle.resolved(for: item)
                 Picker(tr("菜单栏风格"), selection: Binding(get: { settings.styleOverrides[item] },
                                                        set: { settings.setStyleOverride($0, for: item) })) {
                     Text(tr("跟随整体（\(inheritedStyle.title)）")).tag(MenuBarStyle?.none)

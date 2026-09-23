@@ -77,10 +77,17 @@ public final class AIUsageController {
         quotaStates[provider] ?? AIQuotaProviderState(provider: provider)
     }
 
-    /// 移除手动账号时同步丢弃该来源的旧额度，避免离线时继续显示已移除账号的数据。
-    func clearQuotaSnapshot(for provider: AIProviderID) {
-        quotaStates[provider] = AIQuotaProviderState(provider: provider)
-        try? quotaCache?.clear(provider)
+    /// 移除手动账号时丢弃来自 Sub2API 的旧额度，保留本机直连快照。
+    /// 内存与磁盘分别判断：关闭模块会清空内存但保留缓存，缓存写入失败时两者来源也可能不同。
+    func clearSub2APIQuota(for provider: AIProviderID) {
+        if quotaStates[provider]?.snapshot?.source == .sub2api {
+            quotaStates[provider] = AIQuotaProviderState(provider: provider)
+        }
+        // 读不出缓存时无法确认来源，宁可清除，避免已移除账号的数据在离线启动时重现。
+        let cached = try? quotaCache?.load()
+        if cached == nil || cached?[provider]?.source == .sub2api {
+            try? quotaCache?.clear(provider)
+        }
     }
 
     public func visibleQuotaState(for provider: AIProviderID) -> AIQuotaProviderState {

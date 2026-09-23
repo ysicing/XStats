@@ -22,10 +22,7 @@ struct MenuBarQuota {
 
     var resetText: String {
         guard let reset = window.resetsAt else { return "—" }
-        let formatter = DateFormatter()
-        formatter.locale = L10n.locale
-        formatter.setLocalizedDateFormatFromTemplate("MdHm")
-        return formatter.string(from: reset)
+        return reset.formatted(.dateTime.month(.defaultDigits).day().hour().minute().locale(L10n.locale))
     }
 }
 
@@ -51,7 +48,6 @@ struct MenuBarReading {
     /// 每个已启用来源各占一个紧凑读数；没有额度时显示占位，避免来源从菜单栏消失。
     var aiQuotaProviders: [AIProviderID] = []
     var aiQuotas: [MenuBarQuota] = []
-    var primaryAIQuota: MenuBarQuota? { aiQuotas.min { $0.remainingPercent < $1.remainingPercent } }
     var batteryCharging = false
     /// 附在电池项旁的蓝牙设备：电量低的那一个，或没有电池的 Mac 上电量最低的那一个
     var bluetoothDevice: (symbol: String, percent: Int)?
@@ -83,7 +79,9 @@ struct MenuBarReading {
         aiQuotas = model.aiUsage.visibleQuotaProviders(for: nil).compactMap { provider in
             let state = model.aiUsage.visibleQuotaState(for: provider)
             guard let snapshot = state.snapshot else { return nil }
-            let windows = snapshot.windows
+            // 已过重置时间的窗口不再代表当前额度（常见于重启后离线恢复的缓存），宁可显示占位。
+            let now = Date()
+            let windows = snapshot.windows.filter { $0.resetsAt.map { $0 > now } ?? true }
             // 周额度比短时会话额度更适合作为常驻读数；模型专属周额度仅在通用周额度缺席时使用。
             let window = windows.first(where: { $0.kind == .weekly })
                 ?? windows.first(where: { $0.kind == .fableWeekly })
@@ -318,13 +316,13 @@ enum MenuBarRenderer {
             let name = provider == .codex ? "Codex" : "Claude"
             guard let quota = reading.aiQuotas.first(where: { $0.provider == provider }) else {
                 switch style {
-                case .ring, .history, .line, .pie, .meter, .dot:
+                case .ring, .history, .line, .pie, .meter:
                     return aiQuotaInlineText(label: name, value: "—")
                 case .inline:
                     return inlineText(label: name, value: "—", sample: "100%", alert: false)
                 case .icon:
                     return combine([aiProviderLogo(provider), inlineValue("—", sample: "100%", alert: false)])
-                case .stacked:
+                case .stacked, .dot:
                     return aiQuotaText(label: name, value: "—")
                 }
             }
@@ -343,7 +341,7 @@ enum MenuBarRenderer {
                 return combine([ring(fraction: fraction, alert: false, color: color, diameter: 15, lineWidth: 2.5), inline])
             case .pie: return combine([pie(fraction: fraction, alert: false, color: color), inline])
             case .meter: return combine([meter(fraction: fraction, alert: false, color: color), inline])
-            case .dot: return combine([quotaDot(color: color), inline])
+            case .dot: return combine([quotaDot(color: color), stacked])
             }
         }, gap: DS.Space.s2)
         return status

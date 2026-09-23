@@ -96,10 +96,10 @@ private actor GatedUsageProvider: AIUsageProvider {
         await model.aiUsage.refresh()
 
         let reading = MenuBarReading(model: model)
-        #expect(reading.primaryAIQuota?.provider == .codex)
-        #expect(reading.primaryAIQuota?.window.kind == .weekly)
-        #expect(reading.primaryAIQuota?.remainingPercent == 27)
-        #expect(reading.primaryAIQuota?.resetText != "—")
+        let codexQuota = reading.aiQuotas.first { $0.provider == .codex }
+        #expect(codexQuota?.window.kind == .weekly)
+        #expect(codexQuota?.remainingPercent == 27)
+        #expect(codexQuota?.resetText != "—")
         #expect(reading.aiQuotaProviders == [.codex, .claude])
         let both = MenuBarRenderer.image(reading: reading, items: [.aiUsage],
             style: { _ in .stacked }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
@@ -165,8 +165,36 @@ private actor GatedUsageProvider: AIUsageProvider {
         await model.aiUsage.refresh()
 
         let reading = MenuBarReading(model: model)
-        #expect(reading.primaryAIQuota?.shortWindowName == "7d F")
+        #expect(reading.aiQuotas.first?.shortWindowName == "7d F")
         #expect(reading.tooltip(items: [.aiUsage], fahrenheit: false).contains("Claude (Sub2API)"))
+    }
+
+    @Test func menuBarSkipsQuotaWindowsPastTheirReset() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let past = Date().addingTimeInterval(-3600)
+        let future = Date().addingTimeInterval(3600)
+        let partlyExpired = AIQuotaSnapshot(provider: .codex, windows: [
+            AIQuotaWindow(kind: .session, usedPercent: 30, resetsAt: future),
+            AIQuotaWindow(kind: .weekly, usedPercent: 95, resetsAt: past),
+        ], fetchedAt: past)
+        let allExpired = AIQuotaSnapshot(provider: .claude, windows: [
+            AIQuotaWindow(kind: .weekly, usedPercent: 95, resetsAt: past),
+        ], fetchedAt: past)
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [
+            StubQuotaProvider(results: [.success(partlyExpired)]),
+            StubQuotaProvider(id: .claude, results: [.success(allExpired)]),
+        ])
+        await model.aiUsage.refresh()
+
+        let reading = MenuBarReading(model: model)
+        // 周窗口已重置，退回仍有效的 5 小时窗口，而不是继续显示过期的 5%。
+        #expect(reading.aiQuotas.map(\.provider) == [.codex])
+        #expect(reading.aiQuotas.first?.window.kind == .session)
+        #expect(reading.aiQuotas.first?.remainingPercent == 70)
+        let tooltip = reading.tooltip(items: [.aiUsage], fahrenheit: false)
+        #expect(tooltip.contains("Claude · 暂无额度数据"), "tooltip: \(tooltip)")
+        #expect(!tooltip.contains("5%"), "tooltip: \(tooltip)")
     }
 
     @Test func menuBarFallsBackToLocalTokensWhenSubscriptionIsUnavailable() async {
@@ -261,6 +289,58 @@ private actor GatedUsageProvider: AIUsageProvider {
         let afterLogout = AIUsageController(settings: settings, providers: [],
             quotaProviders: [StubQuotaProvider(results: [.failure(.network)])], quotaCacheURL: cacheURL)
         #expect(afterLogout.visibleQuotaState(for: .codex).snapshot == nil)
+    }
+
+    @Test func removingSub2APIClearsItsPersistedQuotaButKeepsDirectOne() async throws {
+        let cacheURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xstats-quota-\(UUID().uuidString).sqlite")
+        defer {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(atPath: cacheURL.path + suffix)
+            }
+        }
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let reset = Date(timeIntervalSince1970: 1_800_000_000)
+        let manual = AIQuotaSnapshot(provider: .codex, windows: [
+            AIQuotaWindow(kind: .weekly, usedPercent: 60, resetsAt: reset),
+        ], fetchedAt: Date(), source: .sub2api)
+        let direct = AIQuotaSnapshot(provider: .claude, windows: [
+            AIQuotaWindow(kind: .weekly, usedPercent: 30, resetsAt: reset),
+        ], fetchedAt: Date())
+        func offline() -> AIUsageController {
+            AIUsageController(settings: settings, providers: [], quotaProviders: [
+                StubQuotaProvider(results: [.failure(.network)]),
+                StubQuotaProvider(id: .claude, results: [.failure(.network)]),
+            ], quotaCacheURL: cacheURL)
+        }
+
+        let online = AIUsageController(settings: settings, providers: [], quotaProviders: [
+            StubQuotaProvider(results: [.success(manual)]),
+            StubQuotaProvider(id: .claude, results: [.success(direct)]),
+        ], quotaCacheURL: cacheURL)
+        await online.refresh()
+        // 关闭模块：内存清空、磁盘仍保留 Sub2API 快照，此时移除配置必须按磁盘来源清理。
+        settings.aiUsageEnabled = false
+        online.start()
+        online.stop()
+        #expect(online.quotaState(for: .codex).snapshot == nil)
+        online.clearSub2APIQuota(for: .codex)
+        online.clearSub2APIQuota(for: .claude)
+        settings.aiUsageEnabled = true
+        let restarted = offline()
+        #expect(restarted.quotaState(for: .codex).snapshot == nil, "removed Sub2API quota reappeared from disk")
+        #expect(restarted.quotaState(for: .claude).snapshot == direct, "direct quota must survive Sub2API removal")
+
+        // 内存是 Sub2API、磁盘是直连（例如上次写缓存失败）：只清内存，保留磁盘上的直连快照。
+        let directCodex = AIQuotaSnapshot(provider: .codex, windows: manual.windows, fetchedAt: Date())
+        let mixed = AIUsageController(settings: settings, providers: [],
+            quotaProviders: [StubQuotaProvider(results: [.success(manual)])], quotaCacheURL: cacheURL)
+        await mixed.refresh()
+        try AIQuotaCacheStore(url: cacheURL).save(directCodex)
+        mixed.clearSub2APIQuota(for: .codex)
+        #expect(mixed.quotaState(for: .codex).snapshot == nil)
+        #expect(offline().quotaState(for: .codex).snapshot == directCodex)
     }
 
     @Test func disabledSourceIsNotQueriedForQuota() async {

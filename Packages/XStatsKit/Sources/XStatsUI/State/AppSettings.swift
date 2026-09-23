@@ -204,6 +204,11 @@ public enum MenuBarStyle: String, CaseIterable, Identifiable, Sendable {
     public var id: String { rawValue }
 
     /// 温度、风扇没有百分比；AI 额度没有历史采样，只提供当前剩余量的图形。
+    /// 整体选择历史图时，AI 额度尚无历史序列，用圆环表达当前剩余量。
+    func resolved(for item: MenuBarItem) -> MenuBarStyle {
+        item == .aiUsage && (self == .history || self == .line) ? .ring : self
+    }
+
     static func options(for item: MenuBarItem) -> [MenuBarStyle] {
         switch item {
         case .temperature, .fan: [.stacked, .inline, .icon]
@@ -632,10 +637,7 @@ public final class AppSettings {
     func isEnabled(_ item: MenuBarItem) -> Bool { menuBarItems.contains(item) }
 
     func style(for item: MenuBarItem) -> MenuBarStyle {
-        let selected = styleOverrides[item] ?? menuBarStyle
-        // 整体选择历史图时，AI 额度尚无历史序列，用圆环表达当前剩余量。
-        if item == .aiUsage && (selected == .history || selected == .line) { return .ring }
-        return selected
+        (styleOverrides[item] ?? menuBarStyle).resolved(for: item)
     }
 
     /// nil 表示跟随整体风格

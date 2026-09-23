@@ -12,9 +12,8 @@ import Updates
 public final class AppModel {
     public let settings: AppSettings
     public let aiUsage: AIUsageController
-    @ObservationIgnored let sub2apiDrafts: [AIProviderID: Sub2APIDraft] = [
-        .codex: Sub2APIDraft(), .claude: Sub2APIDraft(),
-    ]
+    @ObservationIgnored let sub2apiDrafts = Dictionary(uniqueKeysWithValues:
+        AIProviderID.allCases.map { ($0, Sub2APIDraft()) })
     public let store: MetricsStore
     public let helper: HelperClient
     public let fans: FanController

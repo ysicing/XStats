@@ -234,7 +234,14 @@ public actor Sub2APIQuotaClient: Sub2APIQuotaFetching {
         request.httpBody = try JSONSerialization.data(withJSONObject: ["email": configuration.email,
                                                                        "password": configuration.password])
         let (data, status) = try await send(request)
-        guard (200..<300).contains(status), let payload = Self.envelope(data),
+        // 只有明确的拒绝才算凭据错误；服务故障不能清空上次额度，也不能误导用户去改密码。
+        switch status {
+        case 200..<300: break
+        case 400, 401, 403: throw AIQuotaFailure.sub2apiUnauthorized
+        case 404: throw AIQuotaFailure.sub2apiInvalidResponse
+        default: throw AIQuotaFailure.sub2apiNetwork
+        }
+        guard let payload = Self.envelope(data),
               let token = payload["access_token"] as? String, !token.isEmpty else {
             throw AIQuotaFailure.sub2apiUnauthorized
         }
