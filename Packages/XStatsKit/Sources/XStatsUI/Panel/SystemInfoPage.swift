@@ -2,6 +2,9 @@ import AppKit
 import Localization
 import Metrics
 import SwiftUI
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
 /// 本机信息：机型、芯片、内存、图形、存储、显示器、电池与标识
 struct SystemInfoPage: View {
@@ -127,6 +130,10 @@ struct SystemInfoPage: View {
 
             InfoCard(icon: "number", title: tr("标识")) {
                 InfoRow(label: tr("机型标识符")) { CopyableText(text: system.modelIdentifier.isEmpty ? "—" : system.modelIdentifier) }
+                InfoRow(label: tr("Apple 智能"), text: AppleIntelligenceCompatibility
+                    .evaluate(chip: topology.brand, osVersion: ProcessInfo.processInfo.operatingSystemVersion)
+                    .localizedDescription)
+                    .help(tr("仅显示本机模型当前是否可用；设备兼容不代表当前可用。"))
                 InfoRow(label: tr("系统版号")) { CopyableText(text: system.osBuild.isEmpty ? "—" : system.osBuild) }
                 InfoRow(label: tr("序列号")) {
                     HStack(spacing: DS.Space.s1) {
@@ -165,6 +172,44 @@ struct SystemInfoPage: View {
 
     private func chipName(_ brand: String) -> String {
         brand.hasPrefix("Apple ") ? String(brand.dropFirst("Apple ".count)) : brand
+    }
+}
+
+/// “支持”表示本机模型已就绪，不再把仅满足设备和系统门槛当作当前可用。
+enum AppleIntelligenceCompatibility: Equatable {
+    case unsupportedHardware
+    case requiresSystemUpdate
+    case unknown
+    case unavailable
+    case supported
+
+    static func evaluate(chip: String, osVersion: OperatingSystemVersion) -> Self {
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *) {
+            return evaluate(chip: chip, osVersion: osVersion,
+                            modelIsAvailable: SystemLanguageModel.default.isAvailable)
+        }
+        #endif
+        return evaluate(chip: chip, osVersion: osVersion, modelIsAvailable: nil)
+    }
+
+    static func evaluate(chip: String, osVersion: OperatingSystemVersion, modelIsAvailable: Bool?) -> Self {
+        guard chip.hasPrefix("Apple M") || chip == "Apple A18 Pro" else { return .unsupportedHardware }
+        guard osVersion.majorVersion > 15 || (osVersion.majorVersion == 15 && osVersion.minorVersion >= 1) else {
+            return .requiresSystemUpdate
+        }
+        guard let modelIsAvailable else { return .unknown }
+        return modelIsAvailable ? .supported : .unavailable
+    }
+
+    var localizedDescription: String {
+        switch self {
+        case .unsupportedHardware: tr("设备不支持")
+        case .requiresSystemUpdate: tr("需要 macOS 15.1 或更新版本")
+        case .unknown: tr("无法检测")
+        case .unavailable: tr("不可用")
+        case .supported: tr("支持")
+        }
     }
 }
 

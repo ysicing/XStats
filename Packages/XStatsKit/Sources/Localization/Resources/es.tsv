@@ -1,5 +1,10 @@
 # Copyright (C) 2026 ysicing
 # SPDX-License-Identifier: AGPL-3.0-or-later
+设备不支持	Dispositivo no compatible
+需要 macOS 15.1 或更新版本	Requiere macOS 15.1 o posterior
+支持	Compatible
+无法检测	No se puede determinar
+仅显示本机模型当前是否可用；设备兼容不代表当前可用。	Muestra si el modelo local está disponible ahora. Que el dispositivo sea compatible no garantiza su disponibilidad actual.
  {} 英寸	 {} pulgadas
  · {} 项使用中	 · {} en uso
  · 移到废纸篓	 · Se mueve a la Papelera
@@ -1125,7 +1130,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 这个小时的免费额度用完了，过一会儿再试	Se agotó la cuota gratuita de esta hora; inténtalo más tarde
 这个快捷键已被其他应用或系统占用，请换一个	Otra app o el sistema usa este atajo. Elige otro.
 这台 Mac 不提供功耗读数	Este Mac no informa del consumo
-这台 Mac 不支持 Apple 智能。	Este Mac no admite Apple Intelligence.
+Apple 智能本机模型当前不可用。	El modelo de Apple Intelligence en el dispositivo no está disponible en este momento.
 这台 Mac 没有电池	Este Mac no tiene batería
 这台 Mac 没有电池：菜单栏显示电量最低的蓝牙设备，弹窗只列蓝牙设备	Este Mac no tiene batería: la barra de menús muestra el dispositivo Bluetooth con menos carga y la ventana emergente solo dispositivos Bluetooth
 这段时间没有记录	Sin registros en este periodo

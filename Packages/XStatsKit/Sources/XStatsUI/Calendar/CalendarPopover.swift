@@ -11,6 +11,8 @@ struct CalendarPopover: View {
     @Environment(AppModel.self) private var model
     @Environment(\.isSnapshot) private var isSnapshot
     @State private var month: CalendarMonth
+    @State private var yearInput: String
+    @FocusState private var yearFocused: Bool
     @State private var selected: CalendarDay?
     @State private var days: [CalendarDay]
     @State private var lastTodayID: String?
@@ -23,6 +25,7 @@ struct CalendarPopover: View {
         let today = CalendarEngine.today(at: referenceDate ?? Date())
         let month = CalendarMonth(year: today?.year ?? 2026, month: today?.month ?? 1)
         _month = State(initialValue: month)
+        _yearInput = State(initialValue: String(month.year))
         _selected = State(initialValue: today)
         _showsDayDetails = State(initialValue: showsDayDetails)
         _almanac = State(initialValue: showsDayDetails ? today.flatMap { CalendarEngine.almanac(for: $0) } : nil)
@@ -73,7 +76,10 @@ struct CalendarPopover: View {
         .appLanguageEnvironment()
         .overlay { RoundedRectangle(cornerRadius: DS.Radius.xl).strokeBorder(DS.Palette.border) }
         .onAppear { reload() }
-        .onChange(of: month) { _, _ in reload() }
+        .onChange(of: month) { _, newMonth in
+            yearInput = String(newMonth.year)
+            reload()
+        }
         .onChange(of: selected?.id) { _, _ in refreshAlmanac() }
         .onChange(of: model.settings.calendarFirstWeekday) { _, _ in reload() }
         .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in reload() }
@@ -87,10 +93,15 @@ struct CalendarPopover: View {
     private func header(today: CalendarDay?) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "calendar").foregroundStyle(Color.accentColor)
-            Picker(tr("年份"), selection: $month.year) {
-                ForEach(CalendarMonth.years, id: \.self) { Text(String($0)).tag($0) }
-            }
-            .labelsHidden().fixedSize()
+            TextField(tr("年份"), text: $yearInput)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.center)
+                .frame(width: 62)
+                .focused($yearFocused)
+                .onSubmit(commitYearInput)
+                .onChange(of: yearFocused) { _, focused in
+                    if !focused { commitYearInput() }
+                }
             Picker(tr("月份"), selection: $month.month) {
                 ForEach(1...12, id: \.self) { value in Text(monthName(value)).tag(value) }
             }
@@ -172,6 +183,13 @@ struct CalendarPopover: View {
         guard let next = month.shifted(by: delta) else { return }
         month = next
         selected = CalendarEngine.day(year: next.year, month: next.month, day: 1)
+    }
+
+    private func commitYearInput() {
+        if let year = Int(yearInput), CalendarMonth.years.contains(year) {
+            month.year = year
+        }
+        yearInput = String(month.year)
     }
 
     private func goToToday(_ today: CalendarDay) {

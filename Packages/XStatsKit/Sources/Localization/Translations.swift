@@ -21,6 +21,11 @@ AI 解释	AI Explanation
 配置 AI 助手	Configure AI Assistant
 默认服务	Default service
 Apple 智能	Apple Intelligence
+设备不支持	Device not supported
+需要 macOS 15.1 或更新版本	Requires macOS 15.1 or later
+支持	Supported
+无法检测	Can't determine
+仅显示本机模型当前是否可用；设备兼容不代表当前可用。	Shows whether the on-device model is available now; a compatible device may still be unable to use it.
 Apple 智能不可用时	When Apple Intelligence is unavailable
 备用服务	Fallback service
 不使用备用	No fallback
@@ -1160,7 +1165,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 这个小时的免费额度用完了，过一会儿再试	The free quota for this hour is used up; try again later
 这个快捷键已被其他应用或系统占用，请换一个	This shortcut is used by another app or the system. Choose another.
 这台 Mac 不提供功耗读数	This Mac doesn't report power
-这台 Mac 不支持 Apple 智能。	This Mac doesn't support Apple Intelligence.
+Apple 智能本机模型当前不可用。	The on-device Apple Intelligence model is currently unavailable.
 这台 Mac 没有电池	This Mac has no battery
 这台 Mac 没有电池：菜单栏显示电量最低的蓝牙设备，弹窗只列蓝牙设备	This Mac has no battery: the menu bar shows the Bluetooth device with the lowest battery, and the popover lists Bluetooth devices only
 这段时间没有记录	No records for this period

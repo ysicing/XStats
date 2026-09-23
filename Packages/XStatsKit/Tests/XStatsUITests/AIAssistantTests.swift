@@ -2,10 +2,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import Localization
 import Testing
 @testable import XStatsUI
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
 @Suite struct AIAssistantTests {
+    @MainActor @Test func ineligibleModelDoesNotClaimMacHardwareIsUnsupported() {
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *),
+           case .unavailable(.deviceNotEligible) = SystemLanguageModel.default.availability {
+            #expect(ProcessExplainer.appleAvailability == tr("Apple 智能本机模型当前不可用。"))
+        }
+        #endif
+    }
+
     @MainActor @Test func forcingUnselectedCLIIsRejectedBeforeReadingProcessFacts() {
         let name = "AIAssistantTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!

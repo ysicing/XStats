@@ -194,7 +194,7 @@ public final class ProcessExplainer {
     @available(macOS 26.0, *)
     private static func message(for reason: SystemLanguageModel.Availability.UnavailableReason) -> String {
         switch reason {
-        case .deviceNotEligible: tr("这台 Mac 不支持 Apple 智能。")
+        case .deviceNotEligible: tr("Apple 智能本机模型当前不可用。")
         case .appleIntelligenceNotEnabled: tr("请先在“系统设置 → Apple 智能与 Siri”中开启 Apple 智能。")
         case .modelNotReady: tr("Apple 智能模型还在下载或准备中，请稍后再试。")
         @unknown default: tr("Apple 智能暂时不可用。")
