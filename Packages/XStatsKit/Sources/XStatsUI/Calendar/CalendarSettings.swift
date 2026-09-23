@@ -5,23 +5,37 @@ import Localization
 import SwiftUI
 
 struct CalendarSettings: View {
+    var body: some View {
+        SettingsGroup(caption: tr("日历")) {
+            GroupRow(showsDivider: false) {
+                SettingRow(title: tr("菜单栏日历"), subtitle: tr("独立显示日期，点击打开月历；不受指标合并布局影响"), icon: "calendar") {
+                    CalendarOptionsButton()
+                }
+            }
+        }
+    }
+}
+
+struct CalendarOptionsButton: View {
+    @State private var isPresented = false
+
+    var body: some View {
+        Button(tr("设置")) { isPresented = true }
+            .buttonStyle(DSButtonStyle(kind: .secondary))
+            .popover(isPresented: $isPresented, arrowEdge: .top) {
+                CalendarOptionsPopover()
+            }
+    }
+}
+
+private struct CalendarOptionsPopover: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         @Bindable var settings = model.settings
-        SettingsGroup(caption: tr("日历")) {
-            GroupRow(showsDivider: false) {
-                SettingRow(title: tr("菜单栏日历"), subtitle: tr("独立显示日期，点击打开月历；不受指标合并布局影响"), icon: "calendar") {
-                    if settings.calendarEnabled {
-                        StatusBadge(text: tr("已启用"), tone: .success)
-                    } else {
-                        Button(tr("设置")) { settings.panelTab = .settingsGeneral }
-                            .buttonStyle(DSButtonStyle(kind: .secondary))
-                    }
-                }
-            }
-            if settings.calendarEnabled {
-                GroupRow {
+        ScrollView {
+            SettingsGroup(caption: tr("日历")) {
+                GroupRow(showsDivider: false) {
                     SettingRow(title: tr("每周开始于")) {
                         Picker(tr("每周开始于"), selection: $settings.calendarFirstWeekday) {
                             Text(tr("星期一")).tag(2)
@@ -48,6 +62,8 @@ struct CalendarSettings: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .padding(DS.Space.s4)
         }
+        .frame(width: 420, height: 480)
     }
 }

@@ -116,7 +116,10 @@ struct GeneralSettings: View {
                 SettingRow(title: tr("菜单栏日历"),
                            subtitle: tr("独立显示日期，点击打开月历；不受指标合并布局影响"),
                            icon: "calendar") {
-                    DSToggle(isOn: $settings.calendarEnabled, label: tr("菜单栏日历"))
+                    HStack(spacing: DS.Space.s2) {
+                        if settings.calendarEnabled { CalendarOptionsButton() }
+                        DSToggle(isOn: $settings.calendarEnabled, label: tr("菜单栏日历"))
+                    }
                 }
             }
         }
@@ -302,7 +305,7 @@ struct MenuBarSettings: View {
         @Bindable var settings = model.settings
 
         MenuBarPreview()
-        CalendarSettings()
+        if settings.calendarEnabled { CalendarSettings() }
 
         SettingsGroup(caption: tr("布局")) {
             GroupRow(showsDivider: false) {
