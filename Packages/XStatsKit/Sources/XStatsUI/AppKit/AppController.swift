@@ -12,6 +12,7 @@ import SwiftUI
 public final class AppController: NSObject, NSApplicationDelegate {
     private let model = AppModel()
     private var menuBar: MenuBarController!
+    private var calendarMenuBar: CalendarMenuBarController!
     private var mainWindow: MainWindowController!
     private var updateWindow: UpdateWindowController!
     private var speedTestWindow: SpeedTestWindowController!
@@ -31,6 +32,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = MainMenu.make(target: self, settingsAction: #selector(openSettingsFromMenu),
                                        updateAction: #selector(checkForUpdatesFromMenu))
         menuBar = MenuBarController(model: model)
+        calendarMenuBar = CalendarMenuBarController(model: model)
         mainWindow = MainWindowController(model: model)
         mainWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
         updateWindow = UpdateWindowController(model: model)
@@ -39,22 +41,27 @@ public final class AppController: NSObject, NSApplicationDelegate {
         egressWindow = EgressWindowController(model: model)
         egressWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
         menuBar.update()
+        calendarMenuBar.start()
 
         // 设置已并入主窗口：所有“设置…”入口都打开主窗口的通用设置
         model.openSettings = { [weak self] in
             self?.menuBar.dismissPopovers()
+            self?.calendarMenuBar.dismiss()
             self?.mainWindow.show(tab: .settingsGeneral)
         }
         model.openMainWindow = { [weak self] tab in
             self?.menuBar.dismissPopovers()
+            self?.calendarMenuBar.dismiss()
             self?.mainWindow.show(tab: tab)
         }
         model.openEgressWindow = { [weak self] in
             self?.menuBar.dismissPopovers()
+            self?.calendarMenuBar.dismiss()
             self?.egressWindow.show()
         }
         model.openSpeedTestWindow = { [weak self] in
             self?.menuBar.dismissPopovers()
+            self?.calendarMenuBar.dismiss()
             self?.speedTestWindow.show()
         }
         model.quit = { NSApp.terminate(nil) }
@@ -79,6 +86,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         startUpdateChecks()
         model.alerts.openTab = { [weak self] tab in
             self?.menuBar.dismissPopovers()
+            self?.calendarMenuBar.dismiss()
             self?.mainWindow.show(tab: tab)
         }
         model.alerts.start()
@@ -99,6 +107,13 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 } else {
                     self?.menuBar.togglePopover(item)
                 }
+            }
+        }
+        if arguments.contains("--show-calendar") {
+            model.settings.calendarEnabled = true
+            calendarMenuBar.update()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                self?.calendarMenuBar.show()
             }
         }
         if arguments.contains("--show-window") {
@@ -139,6 +154,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        calendarMenuBar.stop()
         model.aiUsage.stop()
         model.keepAwake.releaseForTermination()
         if model.fans.mode != .automatic || model.keepAwake.lidClosedActive {
@@ -188,6 +204,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private func startUpdateChecks() {
         model.updates.onPrompt = { [weak self] in
             self?.menuBar.dismissPopovers()
+            self?.calendarMenuBar.dismiss()
             self?.updateWindow.show()
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
