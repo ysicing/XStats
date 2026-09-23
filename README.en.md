@@ -246,8 +246,8 @@ XStats builds on these open-source projects. Thank you.
 | [Stats](https://github.com/exelban/stats) | Serhiy Mytrovtsiy | MIT | SMC access, the Apple Silicon fan unlock sequence and the menu-bar mini widget metrics |
 | [Mole](https://github.com/tw93/Mole) | tw93 | GPL-3.0 | Which folders are worth cleaning and which must never be touched; the cleaner is an independent Swift implementation and contains no Mole code |
 | [QuotaBar](https://github.com/gentpan/quotabar) | GiantAccel, LLC | MIT | This README's layout, the changelog sync and the activity chart |
-| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI provider contracts, Codex credential discovery and quota-response research |
-| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | Read-only credential, rate-limit and provider-state design references |
+| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI provider contracts and test fixtures |
+| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | Provider state and last-good-value design references |
 
 Details in [ThirdPartyNotices.md](ThirdPartyNotices.md).
 
