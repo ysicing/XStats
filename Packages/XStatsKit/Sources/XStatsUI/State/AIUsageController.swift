@@ -26,7 +26,7 @@ public final class AIUsageController {
     @ObservationIgnored private let providers: [any AIUsageProvider]
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private var cadenceTask: Task<Void, Never>?
-    @ObservationIgnored private var refreshInProgress = false
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var paused = false
 
@@ -63,14 +63,15 @@ public final class AIUsageController {
     }
 
     public func start() {
-        let previousTask = cadenceTask
-        previousTask?.cancel()
+        cadenceTask?.cancel()
         cadenceTask = nil
         for provider in providers where !settings.aiUsageSources.contains(provider.id) {
             states[provider.id] = AIUsageProviderState(provider: provider.id)
         }
         guard settings.aiUsageEnabled, !settings.aiUsageSources.isEmpty, !paused else {
             generation += 1
+            // 不再轮询时，在途的冷扫描也没有意义了
+            refreshTask?.cancel(); refreshTask = nil
             if !settings.aiUsageEnabled {
                 states = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, AIUsageProviderState(provider: $0.id)) })
             }
@@ -78,8 +79,6 @@ public final class AIUsageController {
         }
         let seconds = settings.aiUsageRefreshMinutes * 60
         cadenceTask = Task { [weak self] in
-            // 先等旧轮询退出，避免新刷新撞上 refreshInProgress 后睡过整个周期。
-            await previousTask?.value
             guard !Task.isCancelled else { return }
             await self?.refresh()
             while !Task.isCancelled {
@@ -94,6 +93,8 @@ public final class AIUsageController {
         generation += 1
         cadenceTask?.cancel()
         cadenceTask = nil
+        refreshTask?.cancel()
+        refreshTask = nil
     }
 
     public func setPaused(_ value: Bool) {
@@ -101,12 +102,24 @@ public final class AIUsageController {
         if value { stop() } else { start() }
     }
 
+    /// 刷新串行排队。旧实现遇到在途刷新就直接返回，而轮询任务把这次返回当成“首次刷新已完成”，
+    /// 接着睡满整个周期（最长 60 分钟）；那次在途刷新的结果又会因 generation 变化被丢弃，
+    /// 于是关掉再打开统计后页面会一直空着。链上的任务是非结构化的，stop() 必须显式取消它。
     public func refresh() async {
-        guard settings.aiUsageEnabled, !paused, !refreshInProgress, !Task.isCancelled else { return }
-        refreshInProgress = true
+        let previous = refreshTask
+        let task = Task { @MainActor [weak self] in
+            await previous?.value
+            guard !Task.isCancelled else { return }
+            await self?.performRefresh()
+        }
+        refreshTask = task
+        await task.value
+    }
+
+    private func performRefresh() async {
+        guard settings.aiUsageEnabled, !paused, !Task.isCancelled else { return }
         let currentGeneration = generation
         defer {
-            refreshInProgress = false
             for id in states.keys { states[id]?.isRefreshing = false }
         }
         let attempt = now()
