@@ -156,7 +156,7 @@ struct ProcessesPage: View {
     @ViewBuilder
     private func menu(for row: ProcessRowModel) -> some View {
         if ProcessExplainer.isSupported {
-            Button(tr("用 Apple 智能解释")) { model.explainProcess(.init(row.representative)) }
+            Button(tr("用 AI 解释")) { model.explainProcess(.init(row.representative)) }
             Divider()
         }
         if let path = row.bundlePath ?? row.representative.executablePath {
@@ -482,7 +482,7 @@ private struct ProcessInspector: View {
                 }
                 Spacer(minLength: DS.Space.s3)
                 if ProcessExplainer.isSupported {
-                    Button { onExplain() } label: { Label(tr("Apple 智能解释"), systemImage: "sparkles") }
+                    Button { onExplain() } label: { Label(tr("AI 解释"), systemImage: "sparkles") }
                         .buttonStyle(DSButtonStyle(kind: .secondary))
                 }
                 if let path = row.bundlePath ?? row.representative.executablePath {
@@ -549,26 +549,50 @@ private struct ProcessExplanationCard: View {
                     Image(systemName: "sparkles")
                         .font(.system(size: DS.TextSize.sm.rawValue, weight: .semibold))
                         .foregroundStyle(DS.Palette.primary)
-                    Text(tr("Apple 智能解释")).dsFont(.sm, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
+                    Text(tr("AI 解释")).dsFont(.sm, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
+                    Text(tr(explainer.activeProvider.title)).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                     Text(verbatim: "\(subject.displayName) · PID \(subject.pid)")
                         .dsFont(.xs)
                         .foregroundStyle(DS.Palette.textSecondary)
                         .lineLimit(1)
                     Spacer(minLength: DS.Space.s2)
-                    if explainer.phase == .done {
+                    if explainer.canRetry {
                         MiniIconButton(systemName: "arrow.clockwise", help: tr("重新生成")) { explainer.explain(subject) }
                     }
                     MiniIconButton(systemName: "xmark", help: tr("关闭")) { explainer.dismiss() }
                 }
 
                 switch explainer.phase {
+                case .needsFallback(let reason):
+                    InfoBanner(icon: "exclamationmark.triangle.fill", text: reason, tone: .warning)
+                    Text(tr("Apple 智能不可用。选择一次备用服务，后续会自动使用，也可以随时在设置中修改。"))
+                        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: DS.Space.s2) {
+                        Button("Codex CLI") {
+                            model.aiAssistant.fallbackChoice = .codex
+                            explainer.explain(subject, using: .codex)
+                        }
+                        Button("Claude Code") {
+                            model.aiAssistant.fallbackChoice = .claude
+                            explainer.explain(subject, using: .claude)
+                        }
+                        Button(tr("不使用备用")) {
+                            model.aiAssistant.fallbackChoice = .none
+                            explainer.explain(subject)
+                        }
+                        Button(tr("稍后再选")) { explainer.dismiss() }
+                    }
+                    .buttonStyle(DSButtonStyle(kind: .secondary))
                 case .failed(let message):
                     InfoBanner(icon: "exclamationmark.triangle.fill", text: message, tone: .warning)
+                    Button(tr("配置 AI 助手")) { model.settings.panelTab = .settingsAI }
+                        .buttonStyle(DSButtonStyle(kind: .secondary))
                 default:
                     if explainer.text.isEmpty {
                         HStack(spacing: DS.Space.s2) {
                             ProgressView().controlSize(.small)
-                            Text(tr("正在本机生成…")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
+                            Text(tr("正在生成解释…")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
                         }
                     } else {
                         Text(explainer.text)
@@ -579,7 +603,9 @@ private struct ProcessExplanationCard: View {
                     }
                 }
 
-                Text(tr("由 Apple 智能在这台 Mac 上生成，不联网；内容可能不准确，结束进程前请自行确认。"))
+                Text(tr(explainer.activeProvider == .apple
+                    ? "由 Apple 智能在这台 Mac 上生成，不联网；内容可能不准确，结束进程前请自行确认。"
+                    : "通过本机 CLI 调用 AI 服务，可能联网并消耗额度；结束进程前请自行确认。"))
                     .dsFont(.xs)
                     .foregroundStyle(DS.Palette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)

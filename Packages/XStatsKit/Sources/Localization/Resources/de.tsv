@@ -1284,3 +1284,36 @@ Token 活动	Token-Aktivität
 每周	Wöchentlich
 {} 当周：{} Tokens	Woche vom {}: {} Tokens
 截至 {} 当周累计：{} Tokens	Bis zur Woche vom {}: {} Tokens kumuliert
+AI 助手	AI Assistant
+AI 解释	AI Explanation
+用 AI 解释	Explain with AI
+配置 AI 助手	Configure AI Assistant
+默认服务	Default service
+Apple 智能	Apple Intelligence
+Apple 智能不可用时	When Apple Intelligence is unavailable
+备用服务	Fallback service
+不使用备用	No fallback
+CLI 服务	CLI services
+选择 Codex 或 Claude 作为默认或备用服务后，点击解释才会通过 CLI 联网发送脱敏进程摘要，并可能消耗额度。不发送完整路径、命令行参数或环境变量。	Choosing Codex or Claude as default or fallback authorizes sending a redacted process summary through that CLI when you click Explain. This may use the network and consume quota. Full paths, process arguments and environment variables are not sent.
+测试进程解释	Test process explanation
+正在生成解释…	Generating explanation…
+可用（本机生成）	Available (on-device)
+用于解释进程，不自动执行系统操作	Explains processes without automatically performing system actions
+仅在设备、系统或模型不可用时使用备用服务	Fallback is used only when the device, system or model is unavailable
+CLI 使用独立临时目录，不加载项目规则或扩展工具。Codex 忽略用户配置；模型留空使用 CLI 内置默认。登录由 CLI 自行管理。	CLI calls use a separate temporary directory without project rules or extension tools. Codex ignores user configuration; leave the model blank for the CLI built-in default. The CLI manages authentication.
+可执行文件路径（留空自动发现）	Executable path (blank for automatic discovery)
+模型（留空使用默认）	Model (blank for default)
+未找到 CLI，请先安装或指定路径。	CLI not found. Install it or specify its path.
+AI 助手已关闭，请在设置中启用。	AI Assistant is disabled. Enable it in Settings.
+通过本机 CLI 调用 AI 服务，可能联网并消耗额度；结束进程前请自行确认。	Uses a local CLI to call an AI service, which may access the network and consume quota. Verify before quitting a process.
+没有找到可执行的 CLI，请在 AI 助手设置中选择路径。	No executable CLI found. Specify its path in AI Assistant settings.
+CLI 调用失败（退出码 {}）。请检查 CLI 版本和登录状态后重试。	CLI failed (exit code {}). Check its version and login status before retrying.
+AI 请求超时，请稍后重试。	AI request timed out. Try again later.
+CLI 返回内容过多，已停止本次请求。	CLI output exceeded the limit. The request was stopped.
+CLI 尚未登录或登录已过期，请在终端重新登录。	CLI is not signed in or its login expired. Sign in again in your terminal.
+AI 服务限流或额度不足，请稍后重试。	The AI service is rate-limited or out of quota. Try again later.
+无法连接 AI 服务，请检查网络或 CLI 配置。	Cannot connect to the AI service. Check the network and CLI configuration.
+当前 CLI 不支持所需的隔离参数，请升级 CLI。	This CLI does not support the required isolation options. Please upgrade it.
+遇到时询问	Ask when unavailable
+Apple 智能不可用。选择一次备用服务，后续会自动使用，也可以随时在设置中修改。	Apple Intelligence is unavailable. Choose a fallback once; the choice will be remembered and can be changed in Settings.
+稍后再选	Decide later

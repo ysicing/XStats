@@ -21,7 +21,8 @@ public final class AppModel {
     public let network: NetworkController
     public let egress = EgressController()
     public let speedTest: SpeedTestController
-    public let explainer = ProcessExplainer()
+    public let aiAssistant: AIAssistantConfiguration
+    public let explainer: ProcessExplainer
     public let updates: UpdateController
     let diagnostics = DiagnosticsExporter()
     public let alerts: AlertController
@@ -68,6 +69,9 @@ public final class AppModel {
         let store = MetricsStore()
         let helper = HelperClient()
         self.settings = settings
+        let assistant = AIAssistantConfiguration()
+        aiAssistant = assistant
+        explainer = ProcessExplainer(configuration: assistant)
         aiUsage = AIUsageController(settings: settings, providers: aiUsageProviders)
         self.store = store
         self.helper = helper

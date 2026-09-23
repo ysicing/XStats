@@ -281,7 +281,7 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
 /// 主窗口侧边栏的页面
 public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery, processes, keepAwake, cleaner, uninstaller, startupItems
-    case settingsGeneral, settingsMenuBar, settingsNotifications, settingsAccount, settingsHelper, settingsAbout
+    case settingsGeneral, settingsMenuBar, settingsNotifications, settingsAccount, settingsAI, settingsHelper, settingsAbout
 
     public var id: String { rawValue }
 
@@ -289,7 +289,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     static let tools: [PanelTab] = [.processes, .startupItems, .keepAwake, .cleaner, .uninstaller]
     // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
     static let settings: [PanelTab] = [.settingsGeneral, .settingsMenuBar, .settingsNotifications,
-                                     /* .settingsAccount, */ .settingsHelper, .settingsAbout]
+                                     /* .settingsAccount, */ .settingsAI, .settingsHelper, .settingsAbout]
 
     var isSettings: Bool { Self.settings.contains(self) }
 
@@ -318,6 +318,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .settingsMenuBar: tr("菜单栏")
         case .settingsNotifications: tr("通知")
         case .settingsAccount: tr("设置同步")
+        case .settingsAI: tr("AI 助手")
         case .settingsHelper: tr("辅助工具")
         case .settingsAbout: tr("关于")
         }
@@ -345,6 +346,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .settingsMenuBar: "menubar.rectangle"
         case .settingsNotifications: "bell.badge"
         case .settingsAccount: "arrow.triangle.2.circlepath"
+        case .settingsAI: "sparkles"
         case .settingsHelper: "lock.shield"
         case .settingsAbout: "info.circle"
         }

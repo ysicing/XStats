@@ -71,6 +71,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         observeModel()
         observeProbeSettings()
         observeAIUsageSchedule()
+        observeAIAssistant()
         observeAIUsagePresentation()
         observeAIUsageState()
         model.aiUsage.start()
@@ -311,6 +312,30 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self.menuBar.refreshImages()
                 self.menuBar.refreshPopoverHeight()
                 self.observeAIUsageState()
+            }
+        }
+    }
+
+    private func observeAIAssistant() {
+        let previousProvider = model.aiAssistant.provider
+        withObservationTracking {
+            _ = model.aiAssistant.enabled
+            _ = model.aiAssistant.provider
+            _ = model.aiAssistant.fallbackChoice
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                let assistant = self.model.aiAssistant
+                let explainer = self.model.explainer
+                let active = explainer.activeProvider
+                let selected = active == assistant.provider || (assistant.provider == .apple && assistant.authorizedFallback == active)
+                let awaitingChoice: Bool
+                if case .needsFallback = explainer.phase { awaitingChoice = true } else { awaitingChoice = false }
+                if !assistant.enabled || awaitingChoice || (explainer.phase == .running &&
+                    (assistant.provider != previousProvider || !selected)) {
+                    explainer.dismiss()
+                }
+                self.observeAIAssistant()
             }
         }
     }
