@@ -78,8 +78,7 @@ SOFTWARE.
 
 ## AI Provider 契约参考
 
-XStats 的 AI Provider 契约与状态设计参考了以下项目公开的 Provider 契约、测试样例与实现模式；
-XStats 未引入这些项目的可执行程序、Sparkle 更新模块或浏览器扩展，也不读取任何登录凭据：
+XStats 的 AI Provider 契约与状态设计参考了以下项目公开的 Provider 契约、测试样例与实现模式：
 
 - [burakgon/ai-usage-menubar](https://github.com/burakgon/ai-usage-menubar)，MIT License，Copyright (c) 2026 Burak Gon
 - [robinebers/openusage](https://github.com/robinebers/openusage)，MIT License，Copyright (c) 2026 Robin Ebers

@@ -17,6 +17,7 @@ extension DS {
         static let success = Color.dynamic(light: 0x16A34A, dark: 0x22C55E)
         static let warning = Color.dynamic(light: 0xD97706, dark: 0xF59E0B)
         static let error = Color.dynamic(light: 0xDC2626, dark: 0xF87171)
+        static let critical = Color.dynamic(light: 0x991B1B, dark: 0xEF4444)
 
         // 文字
         static let textPrimary = Color.dynamic(light: 0x111827, dark: 0xF3F4F6)

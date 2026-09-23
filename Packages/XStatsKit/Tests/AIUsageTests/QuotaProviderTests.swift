@@ -57,6 +57,20 @@ private actor StubQuotaHTTPClient: QuotaHTTPClient {
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
     }
 
+    @Test func codexShowsOnlyQuotaWindowsReturnedForEachPlan() throws {
+        let now = Date(timeIntervalSince1970: 1_799_000_000)
+        let plus = Data(#"{"plan_type":"plus","rate_limit":{"primary_window":{"used_percent":35,"limit_window_seconds":18000,"reset_after_seconds":3600},"secondary_window":null}}"#.utf8)
+        let pro = Data(#"{"plan_type":"pro","rate_limit":{"primary_window":{"used_percent":74,"limit_window_seconds":604800,"reset_after_seconds":86400},"secondary_window":null}}"#.utf8)
+
+        let plusSnapshot = try CodexQuotaProvider.parse(plus, now: now)
+        #expect(plusSnapshot.window(.session)?.remainingPercent == 65)
+        #expect(plusSnapshot.window(.weekly) == nil)
+
+        let proSnapshot = try CodexQuotaProvider.parse(pro, now: now)
+        #expect(proSnapshot.window(.session) == nil)
+        #expect(proSnapshot.window(.weekly)?.remainingPercent == 26)
+    }
+
     @Test func claudeMapsFiveHourAndWeeklyBuckets() async throws {
         let http = StubQuotaHTTPClient(body: #"{"five_hour":{"utilization":22.5,"resets_at":"2026-09-23T10:00:00Z"},"seven_day":{"utilization":72,"resets_at":"2026-09-29T10:00:00Z"},"seven_day_sonnet":{"utilization":81,"resets_at":"2026-09-29T10:00:00Z"}}"#)
         let provider = ClaudeQuotaProvider(credentials: { "claude-test-token" }, http: http)

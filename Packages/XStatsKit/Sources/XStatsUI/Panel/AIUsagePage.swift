@@ -139,21 +139,19 @@ private struct LocalUsageContent: View {
                                         .foregroundStyle(DS.Palette.textPrimary)
                                 }
                                 .dsFont(.xs)
-                                ProgressView(value: window.remainingPercent, total: 100)
-                                    .tint(DS.Palette.primary)
+                                ProgressTrack(fraction: window.remainingPercent / 100,
+                                              color: progressTint(for: window.remainingPercent))
                                     .accessibilityLabel("\(quotaTitle(window.kind)) \(tr("剩余")) \(Int(window.remainingPercent.rounded()))%")
                                 if let reset = window.resetsAt {
                                     Text(tr("重置：") + " " + reset.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))
                                         .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                                     TimelineView(.periodic(from: .now, by: 60)) { context in
                                         if let fraction = window.remainingTimeFraction(at: context.date) {
-                                            HStack(spacing: DS.Space.s2) {
-                                                Text(tr("距重置"))
-                                                    .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
-                                                ProgressView(value: fraction, total: 1)
-                                                    .tint(DS.Palette.textTertiary)
-                                                    .accessibilityLabel(tr("距重置"))
-                                            }
+                                            // 时间条越接近重置越满、颜色越偏绿；额度条则随剩余量减少而变红。
+                                            ProgressTrack(fraction: 1 - fraction,
+                                                          color: progressTint(for: (1 - fraction) * 100))
+                                                .accessibilityLabel(tr("重置：") + " " + reset.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))
+                                                .accessibilityValue("\(Int(((1 - fraction) * 100).rounded()))%")
                                         }
                                     }
                                 }
@@ -184,6 +182,14 @@ private struct LocalUsageContent: View {
         case .opusWeekly: "Opus · " + tr("7 天")
         case .sonnetWeekly: "Sonnet · " + tr("7 天")
         }
+    }
+
+    private func progressTint(for percent: Double) -> Color {
+        if percent <= 10 { return DS.Palette.critical }
+        if percent <= 20 { return DS.Palette.error }
+        if percent < 40 { return DS.Palette.warning }
+        if percent < 80 { return DS.Palette.primary }
+        return DS.Palette.success
     }
 
     private func quotaFailureText(_ failure: AIQuotaFailure?) -> String {
