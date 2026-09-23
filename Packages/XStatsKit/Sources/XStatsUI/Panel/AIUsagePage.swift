@@ -145,7 +145,7 @@ private struct LocalUsageContent: View {
             HStack {
                 Spacer()
                 if let updated = state.updated {
-                    Text(tr("上次检查：\(updated.formatted(date: .omitted, time: .shortened))"))
+                    Text(tr("上次检查：\(updated.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: L10n.locale)))"))
                 }
             }.foregroundStyle(DS.Palette.textTertiary)
         }.dsFont(.xs)
@@ -206,7 +206,17 @@ private struct UsagePressStyle: ButtonStyle {
     }
 }
 
+/// 所有数字和日期都跟随应用语言（`L10n.locale`），不跟随系统语言：
+/// 否则中文系统 + 英文界面下，坐标轴、悬停提示和时间会夹在英文文案里显示中文。
 enum UsageNumber {
+    static func exact(_ value: Int, locale: Locale = L10n.locale) -> String {
+        value.formatted(.number.locale(locale))
+    }
+
+    static func day(_ date: Date, locale: Locale = L10n.locale) -> String {
+        date.formatted(.dateTime.year().month().day().locale(locale))
+    }
+
     static func short(_ value: Int, locale: Locale = L10n.locale) -> String {
         let chinese = locale.language.languageCode?.identifier == "zh"
         let units: [(Int, String)] = chinese
@@ -238,23 +248,23 @@ private struct UsageSummary: View {
                 Text(UsageNumber.short(total.total))
                     .dsFont(.xxl, weight: .semibold)
                     .tracking(-0.6).monospacedDigit()
-                    .help(total.total.formatted())
-                    .accessibilityLabel(total.total.formatted() + " Tokens")
+                    .help(UsageNumber.exact(total.total))
+                    .accessibilityLabel(UsageNumber.exact(total.total) + " Tokens")
                 Text("Tokens").dsFont(.sm).foregroundStyle(DS.Palette.textTertiary)
                 Spacer()
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: compact ? 2 : 4),
                       alignment: .leading, spacing: DS.Space.s3) {
-                UsageMetric(title: tr("输入 Token"), value: UsageNumber.short(total.input), exact: total.input.formatted())
-                UsageMetric(title: tr("输出 Token"), value: UsageNumber.short(total.output), exact: total.output.formatted())
+                UsageMetric(title: tr("输入 Token"), value: UsageNumber.short(total.input), exact: UsageNumber.exact(total.input))
+                UsageMetric(title: tr("输出 Token"), value: UsageNumber.short(total.output), exact: UsageNumber.exact(total.output))
                 UsageMetric(title: tr("缓存命中率"), value: total.input > 0
-                    ? (Double(total.cached) / Double(total.input)).formatted(.percent.precision(.fractionLength(1))) : "—")
-                UsageMetric(title: tr("用量记录"), value: total.records.formatted())
+                    ? (Double(total.cached) / Double(total.input)).formatted(.percent.precision(.fractionLength(1)).locale(L10n.locale)) : "—")
+                UsageMetric(title: tr("用量记录"), value: UsageNumber.exact(total.records))
             }
             DisclosureGroup(isExpanded: $expanded) {
                 VStack(spacing: DS.Space.s2) {
-                    InfoRow(label: tr("缓存 Token"), text: total.cached.formatted())
-                    InfoRow(label: tr("缓存创建 Token"), text: total.cacheCreated.formatted())
+                    InfoRow(label: tr("缓存 Token"), text: UsageNumber.exact(total.cached))
+                    InfoRow(label: tr("缓存创建 Token"), text: UsageNumber.exact(total.cacheCreated))
                     Text(tr("缓存 Token 已包含在输入中，推理 Token 已包含在输出中。"))
                         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -294,9 +304,9 @@ private struct UsageModelRow: View {
                 }
                 Spacer(minLength: DS.Space.s2)
                 Text(UsageNumber.short(item.total)).dsFont(.sm, weight: .semibold)
-                    .monospacedDigit().fixedSize().help(item.total.formatted())
-                    .accessibilityLabel(item.total.formatted() + " Tokens")
-                Text((total > 0 ? Double(item.total) / Double(total) : 0).formatted(.percent.precision(.fractionLength(0))))
+                    .monospacedDigit().fixedSize().help(UsageNumber.exact(item.total))
+                    .accessibilityLabel(UsageNumber.exact(item.total) + " Tokens")
+                Text((total > 0 ? Double(item.total) / Double(total) : 0).formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
                     .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                     .monospacedDigit().frame(width: DS.Space.s12, alignment: .trailing)
             }
@@ -308,7 +318,7 @@ private struct UsageModelRow: View {
                     Text(tr("输入 Token") + "  " + UsageNumber.short(item.input))
                     Text(tr("输出 Token") + "  " + UsageNumber.short(item.output))
                     Spacer()
-                    Text(tr("用量记录") + "  " + item.records.formatted())
+                    Text(tr("用量记录") + "  " + UsageNumber.exact(item.records))
                 }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary).monospacedDigit()
             }
         }.padding(.vertical, DS.Space.s1)
@@ -344,9 +354,11 @@ private struct UsageHeatmap: View {
                 .frame(height: DS.Space.s6)
                 .accessibilityHidden(hovered == nil)
             if compact {
+                // 窄弹窗里格子按设计尺寸铺开、溢出视口再横向滚动；
+                // 若把网格宽度钉在面板宽度上，格子会被压到刚好塞满，滚动就永远不会发生。
                 ScrollView(.horizontal) {
-                    ActivityGrid(activity: activity, mode: mode, hovered: $hovered)
-                        .frame(width: DS.Size.panelWidth - DS.Space.s8, height: gridHeight)
+                    ActivityGrid(activity: activity, mode: mode, hovered: $hovered, side: DS.Space.s3)
+                        .frame(height: gridHeight)
                 }
                 .defaultScrollAnchor(.trailing)
             } else {
@@ -355,8 +367,8 @@ private struct UsageHeatmap: View {
             }
             HStack {
                 if !compact {
-                    Text(activity.start.formatted(.dateTime.year().month().day()) + " – " +
-                         activity.end.formatted(.dateTime.month().day()))
+                    Text(UsageNumber.day(activity.start) + " – " +
+                         activity.end.formatted(.dateTime.month().day().locale(L10n.locale)))
                     Spacer()
                 }
                 Text("0")
@@ -368,7 +380,7 @@ private struct UsageHeatmap: View {
                                 .frame(width: DS.Space.s3, height: DS.Space.s3)
                         }
                 }.accessibilityHidden(true)
-                Text(UsageNumber.short(peak) + " Tokens").help(peak.formatted() + " Tokens")
+                Text(UsageNumber.short(peak) + " Tokens").help(UsageNumber.exact(peak) + " Tokens")
             }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
         }
         .onChange(of: mode) { _, _ in hovered = nil }
@@ -382,16 +394,27 @@ private struct ActivityGrid: View {
     let activity: UsageActivity
     let mode: UsageActivityMode
     @Binding var hovered: String?
+    /// 指定边长时按固有尺寸铺开（窄弹窗横向滚动）；为 nil 时收缩到可用宽度（宽面板整年铺满）。
+    var side: CGFloat?
+
+    private var gap: CGFloat { DS.Space.s1 / 2 }
 
     var body: some View {
-        GeometryReader { geometry in
-            let gap = DS.Space.s1 / 2
-            let columns = activity.weeks.count
-            let side = min(DS.Space.s3, max(1, (geometry.size.width - CGFloat(columns - 1) * gap) / CGFloat(max(1, columns))))
-            HStack(alignment: .top, spacing: gap) {
-                ForEach(activity.weeks) { week in
-                    ActivityWeek(week: week, activity: activity, mode: mode, side: side, hovered: $hovered)
-                }
+        if let side {
+            grid(side: side)
+        } else {
+            GeometryReader { geometry in
+                let columns = activity.weeks.count
+                grid(side: min(DS.Space.s3,
+                               max(1, (geometry.size.width - CGFloat(columns - 1) * gap) / CGFloat(max(1, columns)))))
+            }
+        }
+    }
+
+    private func grid(side: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: gap) {
+            ForEach(activity.weeks) { week in
+                ActivityWeek(week: week, activity: activity, mode: mode, side: side, hovered: $hovered)
             }
         }
     }
@@ -405,7 +428,7 @@ private struct ActivityWeek: View {
     @Binding var hovered: String?
 
     private var weekLabel: String {
-        let date = week.start.formatted(.dateTime.year().month().day())
+        let date = UsageNumber.day(week.start)
         return mode == .weekly
             ? tr("\(date) 当周：\(UsageNumber.short(week.total)) Tokens")
             : tr("截至 \(date) 当周累计：\(UsageNumber.short(week.cumulative)) Tokens")
@@ -424,7 +447,7 @@ private struct ActivityWeek: View {
                         let level = min(4, max(1, Int(ceil(Double(count) / Double(max(1, peak)) * 4))))
                         ActivityCell(side: side,
                             color: count == 0 ? DS.Palette.track : DS.Palette.primary.opacity(Double(level) / 4),
-                            label: date.formatted(.dateTime.year().month().day()) + " · " + UsageNumber.short(count) + " Tokens",
+                            label: UsageNumber.day(date) + " · " + UsageNumber.short(count) + " Tokens",
                             hovered: $hovered)
                     } else {
                         Color.clear.frame(width: side, height: side).accessibilityHidden(true)
@@ -437,7 +460,7 @@ private struct ActivityWeek: View {
             Color.clear.frame(width: side, height: DS.Space.s4)
                 .overlay(alignment: .leading) {
                     if let month = week.days.compactMap({ $0 }).first(where: { Calendar.current.component(.day, from: $0) == 1 }) {
-                        Text(month.formatted(.dateTime.month(.abbreviated)))
+                        Text(month.formatted(.dateTime.month(.abbreviated).locale(L10n.locale)))
                             .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary).fixedSize()
                     }
                 }

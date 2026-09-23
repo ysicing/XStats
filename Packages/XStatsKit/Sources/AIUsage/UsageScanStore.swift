@@ -25,7 +25,8 @@ final class UsageScanStore {
         let prefixHash: Data
         let boundaryHash: Data
         let state: State
-        let preview: State
+        /// 只有末行还没写完时才与 `state` 不同；相同就不存第二份，检查点因此小一半。
+        let preview: State?
     }
 
     init(url: URL) throws {
@@ -60,7 +61,7 @@ final class UsageScanStore {
         let zone = Calendar.current.timeZone.identifier
         let old = try load(source: source, path: path).flatMap { try? JSONDecoder().decode(Checkpoint<State>.self, from: $0) }
         if let old, old.size == size, old.modified == modified, old.inode == inode, old.timeZone == zone {
-            return old.preview
+            return old.preview ?? old.state
         }
         let file = try FileHandle(forReadingFrom: url)
         defer { try? file.close() }
@@ -100,16 +101,38 @@ final class UsageScanStore {
             }
         }
         var preview = state
-        if !skipping && !pending.isEmpty { consume(&preview, pending) }
+        let unfinished = !skipping && !pending.isEmpty
+        if unfinished { consume(&preview, pending) }
         // 超长且尚未结束的行不提交，下一次仍从上一个检查点重试。
         if skipping { return preview }
         let prefix = try hash(0, Int(min(4096, offset)))
         let boundary = try hash(offset - min(4096, offset), Int(min(4096, offset)))
         let checkpoint = Checkpoint(size: size, modified: modified, inode: inode, timeZone: zone, offset: offset,
-            prefixHash: prefix, boundaryHash: boundary, state: state, preview: preview)
+            prefixHash: prefix, boundaryHash: boundary, state: state, preview: unfinished ? preview : nil)
         try Task.checkCancellation()
         try save(try JSONEncoder().encode(checkpoint), source: source, path: path)
         return preview
+    }
+
+    /// 只保留本轮扫到的文件。归档搬走的 rollout、删掉的项目目录和旧解析命名空间
+    /// 都不会再出现在扫描结果里，留着只会让缓存库连同完整解析状态一起无限增长。
+    func prune(family: String, source: String, keeping paths: Set<String>) throws {
+        var query: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "SELECT source,path FROM usage_scan_v1 WHERE source LIKE ?", -1, &query, nil) == SQLITE_OK,
+              let query else { throw AIUsageFailure.invalidResponse }
+        sqlite3_bind_text(query, 1, family + "%", -1, transient)
+        var stale: [(source: String, path: String)] = []
+        while sqlite3_step(query) == SQLITE_ROW {
+            guard let rawSource = sqlite3_column_text(query, 0), let rawPath = sqlite3_column_text(query, 1) else { continue }
+            let existing = String(cString: rawSource), path = String(cString: rawPath)
+            if existing != source || !paths.contains(path) { stale.append((existing, path)) }
+        }
+        sqlite3_finalize(query)
+        for row in stale {
+            let s = try statement("DELETE FROM usage_scan_v1 WHERE source=? AND path=?", source: row.source, path: row.path)
+            defer { sqlite3_finalize(s) }
+            guard sqlite3_step(s) == SQLITE_DONE else { throw AIUsageFailure.invalidResponse }
+        }
     }
 
     private func statement(_ sql: String, source: String, path: String) throws -> OpaquePointer {

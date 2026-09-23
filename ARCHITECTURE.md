@@ -15,8 +15,8 @@ hosting SwiftUI, no third-party dependencies. The Xcode project is generated fro
 - `Packages/XStatsKit/Sources/Metrics` — one sampler per metric and `MetricsHub`; power and CPU
   frequency (`PowerSampler`), disk activity and NVMe SMART (`DiskSamplers`), Bluetooth battery,
   the SQLite history store.
-- `Packages/XStatsKit/Sources/AIUsage` — local usage models plus the read-only Codex
-  credential reader, usage client and response mapper. It never refreshes or writes third-party credentials.
+- `Packages/XStatsKit/Sources/AIUsage` — local usage models and the two read-only log scanners.
+  It reads only session logs; it never reads, refreshes or writes third-party credentials.
 - `Packages/XStatsKit/Sources/Cleaner` — cleanup rules, `SafetyGuard`, `CleanEngine`, the app
   uninstaller's leftover search and the launchd startup-item list.
 - `Packages/XStatsKit/Sources/Updates` — the update manifest and the download → verify →
@@ -178,32 +178,35 @@ as default or fallback is the persistent opt-in; selecting it alone sends nothin
 request runs only on user action. Apple availability failures alone may select the saved fallback.
 Choosing a CLI in the prompt runs that provider directly for the current request, then retains
 Apple as the default for later explanations. Forced calls still require the selected fallback.
-CLI errors are surfaced
-without switching to another provider. Disabling the assistant or changing the selected provider
-or fallback cancels an in-flight explanation.
+CLI errors are surfaced without switching to another provider. Disabling the assistant or changing
+the selected provider or fallback cancels an in-flight explanation.
 `ProcessExplainer` gathers process names, signer and resource usage with executable paths reduced
 to basenames, then streams Apple output or the selected CLI's JSON events. CLI prompts go through
 stdin, not command arguments. Each call uses an isolated temporary directory, a 60-second timeout,
 bounded stdout/stderr and normalized diagnostics; no prompt or raw diagnostic is logged.
 Codex ignores user config and project docs, skips host skill discovery, disables plugins,
-shell/exec, hooks, MCP apps, browser, image
-and multi-agent capabilities, and runs read-only/ephemeral. Claude uses safe mode, an empty built-in
-tool list, strict empty MCP config and no session persistence. Unsupported flags fail closed.
-The CLI continues to own authentication; XStats does not copy or rewrite credentials.
-Verified local versions: Codex CLI 0.154.0 and Claude Code 2.1.278. A credential-free loopback
-inspection of Codex's request retained only request_user_input; executable/file/image/MCP tools
-were absent. Claude's loopback request had an empty tools list. Real authenticated provider calls
-are a separate opt-in smoke test.
-Assistant settings currently have Chinese and English copy; other language catalogs use English
-fallback for this new panel. Model response instructions follow the resolved application language.
+shell/exec, hooks, MCP apps, browser, image and multi-agent capabilities, and runs read-only/ephemeral.
+Claude uses safe mode, an empty built-in tool list, strict empty MCP config and no session persistence.
+Unsupported flags fail closed. The CLI continues to own authentication; XStats does not copy or
+rewrite credentials. Verified local versions: Codex CLI 0.154.0 and Claude Code 2.1.278.
+A credential-free loopback inspection of Codex's request retained only request_user_input;
+executable/file/image/MCP tools were absent. Claude's loopback request had an empty tools list.
+Real authenticated provider calls are a separate opt-in smoke test. Assistant settings currently
+have Chinese and English copy; other language catalogs use English fallback for this new panel.
+Model response instructions follow the resolved application language.
 
 ## AI usage statistics
 
 The active Codex provider reads local JSONL rollouts from CODEX_HOME (default ~/.codex),
 including sessions and archived_sessions. It does not read credentials or call quota APIs.
-Parsing runs in a background actor with bounded line buffers and a SQLite checkpoint store at
+Parsing runs in a background actor pinned to a dedicated serial executor, so a cold scan (tens of
+seconds over a multi-gigabyte log directory) never occupies a Swift concurrency cooperative thread
+and cannot stall per-second metric sampling. It uses bounded line buffers and a SQLite checkpoint store at
 ~/Library/Application Support/XStats/ai-usage.sqlite. Each source/path row atomically stores file
-identity, size, mtime, newline-aligned byte offset and Codable parser/aggregate state. Unchanged
+identity, size, mtime, newline-aligned byte offset and Codable parser/aggregate state. The preview
+state is stored only when the final line is still unterminated, so the common case keeps one copy.
+Rows whose files were not seen in a completed scan are pruned, which covers rollouts moved to
+archived_sessions, deleted project directories and superseded parser namespaces. Unchanged
 files reuse stored results even after restart. Appends validate prefix/boundary hashes and read
 only the suffix; truncation, replacement, parser namespace or time-zone changes rebuild that file.
 An unterminated final line is previewed separately from committed state, so completing it cannot
@@ -212,11 +215,15 @@ still enumerated on each scheduled refresh; only currently discovered files cont
 The dashboard defaults to the last 365 local-calendar days by model, and shows input/output tokens, cache hit
 rate, record count, daily totals and model ranking. The menu bar shows today's token total.
 Cached input is a subset of input; reasoning is a subset of output, so neither is added twice.
+Rows are aggregated by day and model before leaving the provider, and ordered by day then model, so
+`ModelTokenUsage.id` stays unique and an unchanged corpus produces an equal report.
 Duplicate session IDs and unchanged cumulative snapshots are excluded. Child replayed history
-only seeds the cumulative baseline until the first live task. Unknown models remain unknown.
+only seeds the cumulative baseline until the first `task_started`, which always follows that
+history; `started_at` is not compared against the session creation time, because a subagent's
+`started_at` is its parent turn's start and recent Codex builds omit the field entirely.
+Unknown models remain unknown.
 Local logs cannot reliably identify the paying account or usage on other devices. No cost,
-subscription limits or HTTP success rates are inferred. Legacy quota provider types remain
-available to existing tests but are not constructed by the application.
+subscription limits or HTTP success rates are inferred.
 The UI follows CC Switch's filter/summary/trend/model-table organization, implemented in SwiftUI.
 The desktop toolbar groups source controls and settings. Token totals use compact notation with
 exact hover/VoiceOver values. Cache details are
@@ -229,12 +236,17 @@ header, not in a date-range toolbar. Summary and model ranking follow the mode: 
 weekly means the current calendar week, and cumulative means the current calendar month (all through
 now, using the local calendar). The heatmap independently keeps its 365-day window. Pointer hover
 immediately shows exact daily/weekly/cumulative counts above the chart; the same label is available
-to accessibility. The narrow popover scrolls the year grid horizontally, initially at the recent end.
+to accessibility. The narrow popover lays cells out at their design size and scrolls the year grid
+horizontally, initially at the recent end; the wide panel shrinks cells to fit instead.
+Numbers and dates follow the app language rather than the system locale.
 Pointer selection fades only the selected control background (180 ms); keyboard selection and
 background data refresh do not animate the data layout. Reduced motion uses the existing quick fade.
 
 Claude Code is a second local provider. It scans projects/ recursively (including subagents) under
 CLAUDE_CONFIG_DIR when set, otherwise ~/.claude and XDG_CONFIG_HOME/claude (default ~/.config/claude).
+A checkpoint keeps every assistant event for its file, because the retention window is recomputed from
+the current date on each fetch: a stored cutoff would freeze at the first scan and keep aged-out events
+forever instead of dropping them.
 Assistant message IDs are deduplicated across files: completed messages win over partial snapshots,
 then the greater output count wins. Claude input is normalized as fresh input + cache reads + cache
 creation; nested 5-minute/1-hour creation counts are a fallback, never added to the aggregate twice.
@@ -242,7 +254,11 @@ Independent local source switches enable Codex and Claude Code (both default on 
 opt-in). Disabled sources are not scanned or included in cached reports/menu totals, and are hidden
 from the source selector. Disabling the selected source resets the filter to all enabled sources.
 Both switches may be off, in which case polling stops and the page offers the source settings.
-The menu bar totals enabled sources for today. These settings are local and not synced through WebDAV.
+The menu bar totals enabled sources for today; enabling the menu-bar item also turns scanning on,
+since that item is the most natural place to discover the feature.
+Refreshes are queued rather than dropped: a refresh arriving while another is in flight runs after it,
+so rebuilding the polling cadence cannot mistake a skipped call for a completed initial refresh and
+then sleep out the whole interval. Stopping cancels the in-flight scan. These settings are local and not synced through WebDAV.
 Cache creation is shown separately but already included in the input total. Claude credentials,
 account data, Cowork containers and subscription limits are outside this scanner's scope.
 

@@ -160,17 +160,7 @@ private struct SnapshotAIUsageProvider: AIUsageProvider {
 
     func fetch() async throws -> AIUsageSnapshot {
         let now = Date()
-        var snapshot = AIUsageSnapshot(
-            provider: .codex,
-            planName: "Pro 20x",
-            windows: [
-                AIQuotaWindow(kind: .session, usedPercent: 28, resetsAt: now.addingTimeInterval(95 * 60)),
-                AIQuotaWindow(kind: .weekly, usedPercent: 87, resetsAt: now.addingTimeInterval(4.5 * 24 * 60 * 60)),
-                AIQuotaWindow(kind: .sparkWeekly, usedPercent: 42, resetsAt: now.addingTimeInterval(6 * 24 * 60 * 60)),
-            ],
-            remainingCredits: 820,
-            fetchedAt: now
-        )
+        var snapshot = AIUsageSnapshot(provider: .codex, fetchedAt: now)
         snapshot.localUsage = LocalUsageReport(rows: (0..<30).flatMap { day in
             let date = Calendar.current.date(byAdding: .day, value: -day, to: Calendar.current.startOfDay(for: now))!
             return [ModelTokenUsage(day: date, model: "gpt-5.4", input: 240_000 + day * 3_000,

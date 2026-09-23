@@ -44,6 +44,31 @@ import Testing
         }
     }
 
+    /// 保留窗口必须每次按当天重算。之前把截止日期存进了检查点，而检查点会被原样恢复，
+    /// 于是那个日期永远停在首次扫描那天，过期事件再也出不去——报告和检查点都会一直长。
+    @Test func retentionWindowIsRecomputedInsteadOfFrozenInTheCheckpoint() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = root.appendingPathComponent("projects")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let database = root.appendingPathComponent("cache.sqlite")
+
+        let start = Date(timeIntervalSince1970: 1_780_000_000)
+        let logged = try #require(Calendar.current.date(byAdding: .day, value: -300, to: start))
+        let data = Data(String(decoding: record(final: true), as: UTF8.self)
+            .replacingOccurrences(of: "2026-09-22T10:00:00Z", with: ISO8601DateFormatter().string(from: logged)).utf8)
+        try data.write(to: directory.appendingPathComponent("a.jsonl"))
+
+        // 300 天前，仍在窗口内
+        let inside = try await ClaudeLocalUsageProvider(roots: [root], databaseURL: database, now: { start }).fetch()
+        #expect(inside.localUsage?.rows.count == 1)
+
+        // 400 天后同一文件未变化，走检查点快路径；该事件已 700 天，必须离开报告
+        let later = try #require(Calendar.current.date(byAdding: .day, value: 400, to: start))
+        let outside = try await ClaudeLocalUsageProvider(roots: [root], databaseURL: database, now: { later }).fetch()
+        #expect(outside.localUsage?.rows.isEmpty == true)
+    }
+
     @Test func scansSubagentsAndDeduplicatesCopiedMessages() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

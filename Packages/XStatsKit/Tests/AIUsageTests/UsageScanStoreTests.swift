@@ -7,8 +7,8 @@ import Testing
 
 @Suite struct UsageScanStoreTests {
     private struct Sum: Codable { var total = 0 }
-    private func scan(_ store: UsageScanStore, _ file: URL) throws -> Int {
-        try store.scan(url: file, source: "test", initial: Sum()) { state, line in
+    private func scan(_ store: UsageScanStore, _ file: URL, source: String = "test") throws -> Int {
+        try store.scan(url: file, source: source, initial: Sum()) { state, line in
             state.total += Int(String(decoding: line, as: UTF8.self)) ?? 0
         }.total
     }
@@ -56,6 +56,41 @@ import Testing
         #expect(try scan(store, file) == 3)
         try Data("5\n6\n7\n".utf8).write(to: file, options: .atomic)
         #expect(try scan(store, file) == 18)
+    }
+
+    /// 归档会改变 rollout 路径、项目目录会被删掉、解析口径升级会换命名空间。
+    /// 这些行都不会再被扫到，留着就是让缓存库连同完整解析状态一起无限增长。
+    @Test func pruneDropsVanishedFilesAndOldNamespacesButKeepsOtherSources() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let store = try UsageScanStore(url: root.appendingPathComponent("cache.sqlite"))
+
+        var files: [String: URL] = [:]
+        for name in ["kept", "archived", "legacy", "other"] {
+            let url = root.appendingPathComponent("\(name).jsonl")
+            try Data("7\n".utf8).write(to: url)
+            files[name] = url
+        }
+        #expect(try scan(store, files["kept"]!, source: "codex-v2") == 7)
+        #expect(try scan(store, files["archived"]!, source: "codex-v2") == 7)
+        #expect(try scan(store, files["legacy"]!, source: "codex-v1") == 7)
+        #expect(try scan(store, files["other"]!, source: "claude-v2") == 7)
+
+        let live = Set([files["kept"]!.resolvingSymlinksInPath().path])
+        try store.prune(family: "codex-", source: "codex-v2", keeping: live)
+
+        // 还在的文件命中缓存，不重新读盘
+        #expect(try scan(store, files["kept"]!, source: "codex-v2") == 7)
+        #expect(store.bytesRead == 0)
+        // 被剪掉的两行要重新读盘
+        #expect(try scan(store, files["archived"]!, source: "codex-v2") == 7)
+        #expect(store.bytesRead > 0)
+        #expect(try scan(store, files["legacy"]!, source: "codex-v1") == 7)
+        #expect(store.bytesRead > 0)
+        // 另一个 Provider 的行不受影响
+        #expect(try scan(store, files["other"]!, source: "claude-v2") == 7)
+        #expect(store.bytesRead == 0)
     }
 
     @Test func codexParserRestoresModelAndFractionalTimestampBaseline() throws {

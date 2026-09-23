@@ -11,32 +11,22 @@ public struct AIUsageProviderState: Equatable, Sendable {
     public var failure: AIUsageFailure?
     public var isRefreshing = false
 
-    public var isStale: Bool { snapshot != nil && failure != nil }
-
     public init(provider: AIProviderID) { self.provider = provider }
 }
 
-public struct AIUsageMenuBarReading: Equatable, Sendable {
-    public let provider: AIProviderID
-    public let kind: AIQuotaKind
-    public let displayedFraction: Double
-    public let usedFraction: Double
-    public let isStale: Bool
-}
-
-/// AI 配额的低频刷新入口。Provider 只负责一次只读查询；调度、退避与“保留旧值”策略集中在这里。
+/// 本机用量的低频刷新入口。Provider 只负责一次只读扫描；调度与“保留旧值”策略集中在这里。
 @MainActor
 @Observable
 public final class AIUsageController {
     public private(set) var states: [AIProviderID: AIUsageProviderState]
+    /// 供 AppController 观察的刷新脉冲；页面上的“上次检查”读的是各 Provider 的 fetchedAt。
     public private(set) var lastAttemptAt: Date?
-    public private(set) var lastSuccessfulRefreshAt: Date?
 
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let providers: [any AIUsageProvider]
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private var cadenceTask: Task<Void, Never>?
-    @ObservationIgnored private var refreshInProgress = false
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var paused = false
 
@@ -72,33 +62,16 @@ public final class AIUsageController {
         return (selected.contains { $0.failure != nil }, selected.compactMap { $0.snapshot?.fetchedAt }.min())
     }
 
-    public var menuBarReading: AIUsageMenuBarReading? {
-        guard settings.aiUsageEnabled else { return nil }
-        let candidates = states.values.compactMap { state -> (AIUsageProviderState, AIQuotaWindow)? in
-            guard settings.aiUsageSources.contains(state.provider) else { return nil }
-            let window = settings.aiUsageFocus.map { state.snapshot?.window($0) } ?? state.snapshot?.attentionWindow
-            return window.map { (state, $0) }
-        }
-        guard let (state, window) = candidates.max(by: { $0.1.usedPercent < $1.1.usedPercent }),
-              let snapshot = state.snapshot else { return nil }
-        return AIUsageMenuBarReading(
-            provider: state.provider,
-            kind: window.kind,
-            displayedFraction: snapshot.displayedPercent(for: window, mode: settings.aiUsageDisplayMode) / 100,
-            usedFraction: min(max(window.usedPercent / 100, 0), 1),
-            isStale: state.isStale
-        )
-    }
-
     public func start() {
-        let previousTask = cadenceTask
-        previousTask?.cancel()
+        cadenceTask?.cancel()
         cadenceTask = nil
         for provider in providers where !settings.aiUsageSources.contains(provider.id) {
             states[provider.id] = AIUsageProviderState(provider: provider.id)
         }
         guard settings.aiUsageEnabled, !settings.aiUsageSources.isEmpty, !paused else {
             generation += 1
+            // 不再轮询时，在途的冷扫描也没有意义了
+            refreshTask?.cancel(); refreshTask = nil
             if !settings.aiUsageEnabled {
                 states = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, AIUsageProviderState(provider: $0.id)) })
             }
@@ -106,8 +79,6 @@ public final class AIUsageController {
         }
         let seconds = settings.aiUsageRefreshMinutes * 60
         cadenceTask = Task { [weak self] in
-            // 先等旧轮询退出，避免新刷新撞上 refreshInProgress 后睡过整个周期。
-            await previousTask?.value
             guard !Task.isCancelled else { return }
             await self?.refresh()
             while !Task.isCancelled {
@@ -122,6 +93,8 @@ public final class AIUsageController {
         generation += 1
         cadenceTask?.cancel()
         cadenceTask = nil
+        refreshTask?.cancel()
+        refreshTask = nil
     }
 
     public func setPaused(_ value: Bool) {
@@ -129,12 +102,24 @@ public final class AIUsageController {
         if value { stop() } else { start() }
     }
 
+    /// 刷新串行排队。旧实现遇到在途刷新就直接返回，而轮询任务把这次返回当成“首次刷新已完成”，
+    /// 接着睡满整个周期（最长 60 分钟）；那次在途刷新的结果又会因 generation 变化被丢弃，
+    /// 于是关掉再打开统计后页面会一直空着。链上的任务是非结构化的，stop() 必须显式取消它。
     public func refresh() async {
-        guard settings.aiUsageEnabled, !paused, !refreshInProgress, !Task.isCancelled else { return }
-        refreshInProgress = true
+        let previous = refreshTask
+        let task = Task { @MainActor [weak self] in
+            await previous?.value
+            guard !Task.isCancelled else { return }
+            await self?.performRefresh()
+        }
+        refreshTask = task
+        await task.value
+    }
+
+    private func performRefresh() async {
+        guard settings.aiUsageEnabled, !paused, !Task.isCancelled else { return }
         let currentGeneration = generation
         defer {
-            refreshInProgress = false
             for id in states.keys { states[id]?.isRefreshing = false }
         }
         let attempt = now()
@@ -145,7 +130,6 @@ public final class AIUsageController {
                 continue
             }
             var state = state(for: provider.id)
-            if let retryAt = state.failure?.retryAt, retryAt > attempt { continue }
             state.isRefreshing = true
             states[provider.id] = state
             do {
@@ -157,11 +141,10 @@ public final class AIUsageController {
                 }
                 state.snapshot = snapshot
                 state.failure = nil
-                lastSuccessfulRefreshAt = snapshot.fetchedAt
             } catch let failure as AIUsageFailure {
                 guard currentGeneration == generation, settings.aiUsageEnabled, !Task.isCancelled else { return }
                 guard settings.aiUsageSources.contains(provider.id) else { continue }
-                if !failure.preservesLastGood { state.snapshot = nil }
+                // 扫描失败不代表日志消失了，保留上一次的统计结果并在页面上标注为旧数据。
                 state.failure = failure
             } catch {
                 guard currentGeneration == generation, settings.aiUsageEnabled, !Task.isCancelled else { return }

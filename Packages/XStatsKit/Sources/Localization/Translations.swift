@@ -50,24 +50,18 @@ Token 活动	Token activity
 每周	Weekly
 {} 当周：{} Tokens	Week of {}: {} Tokens
 截至 {} 当周累计：{} Tokens	Through the week of {}: {} Tokens cumulative
-1 年	1 year
 缓存创建 Token	Cache creation tokens
 AI 使用统计	AI Usage
 Codex / Claude Code 本机模型与 Token 使用统计	Local Codex / Claude Code model and token usage
-时间范围	Time range
 今天	Today
-30 天	30 days
 模型	Model
 全部模型	All models
-本机记录	Local history
 输入 Token	Input tokens
 输出 Token	Output tokens
 缓存 Token	Cached tokens
 缓存命中率	Cache hit rate
 用量记录	Usage records
 模型排行	Model ranking
-每日用量	Daily usage
-日期	Date
 启用使用统计	Enable usage statistics
 只读本机 Codex / Claude Code 会话日志，按模型统计 Token；不读取登录凭据，不查询订阅额度。	Reads local Codex / Claude Code session logs to count tokens by model. No login credentials or subscription quota requests.
 缓存 Token 已包含在输入中，推理 Token 已包含在输出中。	Cached tokens are included in input; reasoning tokens are included in output.
@@ -77,7 +71,6 @@ Codex / Claude Code 本机模型与 Token 使用统计	Local Codex / Claude Code
 正在读取会话日志…	Reading session logs…
 暂无本机用量数据	No local usage data
 仅统计本机日志，不代表订阅账单或其他设备的用量	Local logs only; not a subscription bill or usage from other devices
-未变化的日志使用缓存	Unchanged logs use cached results
  {} 英寸	 {}-inch
  · {} 项使用中	 · {} in use
  · 移到废纸篓	 · Moves to Trash
@@ -1240,39 +1233,9 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 风险评分	Risk score
 饼图	Pie
 饼图表示当前占用比例	A pie shows current usage
-AI 配额	AI Quota
-AI 配额 {}	AI quota {}
-API Key 无法查询 ChatGPT 订阅配额。	An API key cannot read ChatGPT subscription quota.
-Codex 配额	Codex Quota
-Codex 登录已过期，请重新登录。	Your Codex login has expired. Sign in again.
-Codex 返回了无法识别的配额数据。	Codex returned unrecognized quota data.
-Codex 登录凭据无法读取，请重新登录。	Codex login credentials could not be read. Sign in again.
-Codex 订阅配额、重置时间与积分余额	Codex subscription quota, reset times, and credit balance
-Codex 配额服务暂时不可用（HTTP {}）。	Codex quota service is temporarily unavailable (HTTP {}).
-Codex · 数据已过期	Codex · Data is stale
-Codex · 自动显示最紧张的配额	Codex · Automatically showing the tightest quota
-Spark 周配额	Spark Weekly
-XStats 只读 Codex CLI 的本机登录凭据，并直接向 ChatGPT 查询订阅配额；不会保存、刷新或修改登录信息。	XStats reads the local Codex CLI login credentials and queries ChatGPT directly for subscription quota. It never saves, refreshes, or modifies the login.
-会话	Session
-关闭后停止读取凭据和查询配额	Stops reading credentials and querying quota when turned off
-积分	Credits
-后重置	until reset
-周配额	Weekly
-启用 Codex 配额	Enable Codex Quota
 尚未启用	Not enabled
-尚未登录 Codex，请先在 Codex CLI 中登录。	You are not signed in to Codex. Sign in with the Codex CLI first.
-暂无配额数据	No quota data yet
-本机设置	Local setting
 正在刷新	Refreshing
-正在检查本机登录…	Checking the local login…
 立即刷新	Refresh Now
-查询过于频繁，可在 {} 后重试。	Too many requests. Try again after {}.
-查询过于频繁，请稍后重试。	Too many requests. Try again later.
-跟踪 Codex	Track Codex
-配额查询独立于系统指标刷新	Quota queries are independent from system metric refreshes
-剩余	Left
-凭据始终由 Codex CLI 管理。登录过期时，请回到 Codex CLI 重新登录。	Credentials always remain managed by the Codex CLI. If the login expires, sign in again from the Codex CLI.
-暂时无法连接 Codex 配额服务。	Codex quota service is temporarily unreachable.
 默认关闭	Off by default
 首次发送时系统会询问是否允许通知	The system asks for permission the first time
 高占用进程	Top Processes

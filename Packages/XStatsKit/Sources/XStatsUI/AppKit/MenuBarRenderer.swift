@@ -19,7 +19,7 @@ struct MenuBarReading {
     var fanRPM: Double?
     var battery: Double?
     var batteryHistory: [Double] = []
-    var aiUsage: AIUsageMenuBarReading?
+    /// 本机日志今日 Token 总量；扫描未开启或还没有数据时为 nil
     var aiTokens: Int?
     var batteryCharging = false
     /// 附在电池项旁的蓝牙设备：电量低的那一个，或没有电池的 Mac 上电量最低的那一个
@@ -46,7 +46,6 @@ struct MenuBarReading {
         fanRPM = store.fastestFan?.current
         battery = store.battery?.level
         batteryHistory = battery.map { Array(repeating: $0, count: 30) } ?? []
-        aiUsage = model.aiUsage.menuBarReading
         aiTokens = model.aiUsage.todayTokens
         batteryCharging = store.battery?.isCharging ?? false
         if let lowest = model.bluetooth.lowest,
@@ -79,8 +78,7 @@ struct MenuBarReading {
         reading.fanRPM = 1840
         reading.battery = 0.82
         reading.batteryHistory = Array(repeating: 0.82, count: 30)
-        reading.aiUsage = AIUsageMenuBarReading(provider: .codex, kind: .weekly,
-                                                displayedFraction: 0.42, usedFraction: 0.58, isStale: false)
+        reading.aiTokens = 1_284_000
         return reading
     }()
 
@@ -91,7 +89,6 @@ struct MenuBarReading {
         case .memory: (memory, memoryHistory)
         case .disk: (disk, diskHistory)
         case .battery: (battery, batteryHistory)
-        case .aiUsage: (aiUsage?.displayedFraction, [])
         default: (nil, [])
         }
     }
@@ -111,8 +108,9 @@ struct MenuBarReading {
             case .battery:
                 battery.map { tr("电池 \(Format.percent($0))") + (batteryCharging ? tr("，充电中") : "") }
                     ?? bluetoothDevice.map { tr("蓝牙设备电量 \($0.percent)%") }
+            // 没有读数也要给出一行，否则菜单栏只剩一个不会解释自己的 “AI —”
             case .aiUsage:
-                aiTokens.map { "AI · \($0.formatted()) Tokens" }
+                aiTokens.map { "AI · \(UsageNumber.exact($0)) Tokens" } ?? ("AI · " + tr("暂无本机用量数据"))
             }
         }
         .joined(separator: "\n")
@@ -294,13 +292,11 @@ enum MenuBarRenderer {
     }
 
     private static func percentSegment(item: MenuBarItem, value: Double?, history: [Double],
-                                       style: MenuBarStyle, colorizeHighLoad: Bool,
-                                       riskFraction: Double? = nil, stale: Bool = false) -> Segment {
+                                       style: MenuBarStyle, colorizeHighLoad: Bool) -> Segment {
         let fraction = min(1, max(0, value ?? 0))
-        let text = (value.map { Format.percent($0) } ?? "—") + (stale ? "⚠︎" : "")
-        let alertFraction = riskFraction ?? fraction
-        let alert = colorizeHighLoad && alertFraction >= Metrics.highLevel
-        let sample = stale ? "100%⚠︎" : "100%"
+        let text = value.map { Format.percent($0) } ?? "—"
+        let alert = colorizeHighLoad && fraction >= Metrics.highLevel
+        let sample = "100%"
         let stacked = stackedText(label: item.menuBarLabel, value: text, sample: sample, alert: alert)
 
         switch style {
@@ -321,7 +317,7 @@ enum MenuBarRenderer {
         case .meter:
             return combine([meter(fraction: fraction, alert: alert), stacked])
         case .dot:
-            return combine([levelDot(fraction: alertFraction), stacked])
+            return combine([levelDot(fraction: fraction), stacked])
         }
     }
 
