@@ -603,7 +603,7 @@ private struct ExplainableRow<Content: View>: View {
         content
             .contentShape(Rectangle())
             .contextMenu(isSnapshot ? nil : ContextMenu {
-                Button(tr("用 Apple 智能解释")) { model.explainProcess(subject) }
+                Button(tr("用 AI 解释")) { model.explainProcess(subject) }
             })
     }
 }

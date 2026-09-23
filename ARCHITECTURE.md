@@ -167,6 +167,33 @@ an empty compact toolbar, so the traffic lights sit on the same ground colour as
 line up with the 40 pt page header; the app switches to a regular activation policy while a window
 is open and back to accessory when all are closed.
 
+## AI process explanations
+
+`AIAssistantConfiguration` stores device-local preferences independently of WebDAV backups.
+Apple Intelligence is the default. When it is unavailable, the explanation card asks once for
+Codex, Claude or no fallback. The four device-local states are ask, none, codex and claude:
+none is a saved decision, while ask prompts again on the next explanation if dismissed.
+The AI Assistant settings picker can reset or change this choice at any time. Selecting a CLI
+as default or fallback is the persistent opt-in; selecting it alone sends nothing, and a
+request runs only on user action. Apple availability failures alone may select the saved fallback.
+Choosing a CLI in the prompt runs that provider directly for the current request, then retains
+Apple as the default for later explanations. Forced calls still require the selected fallback.
+CLI errors are surfaced without switching to another provider. Disabling the assistant or changing
+the selected provider or fallback cancels an in-flight explanation.
+`ProcessExplainer` gathers process names, signer and resource usage with executable paths reduced
+to basenames, then streams Apple output or the selected CLI's JSON events. CLI prompts go through
+stdin, not command arguments. Each call uses an isolated temporary directory, a 60-second timeout,
+bounded stdout/stderr and normalized diagnostics; no prompt or raw diagnostic is logged.
+Codex ignores user config and project docs, skips host skill discovery, disables plugins,
+shell/exec, hooks, MCP apps, browser, image and multi-agent capabilities, and runs read-only/ephemeral.
+Claude uses safe mode, an empty built-in tool list, strict empty MCP config and no session persistence.
+Unsupported flags fail closed. The CLI continues to own authentication; XStats does not copy or
+rewrite credentials. Verified local versions: Codex CLI 0.154.0 and Claude Code 2.1.278.
+A credential-free loopback inspection of Codex's request retained only request_user_input;
+executable/file/image/MCP tools were absent. Claude's loopback request had an empty tools list.
+Real authenticated provider calls are a separate opt-in smoke test. Assistant settings currently
+have Chinese and English copy; other language catalogs use English fallback for this new panel.
+Model response instructions follow the resolved application language.
 ## Calendar
 
 `CalendarMenuBarController` owns a separate, opt-in status item, independent of the metrics
