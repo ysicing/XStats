@@ -6,7 +6,7 @@
 
 **Mac 的状态，抬眼就看见——CPU、GPU、内存、网络与温度常驻菜单栏，还能调风扇、防休眠、一键清理、卸载应用，检测 IP 纯净度。**
 
-[![Release](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.8.0-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.8.1-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![Stars](https://img.shields.io/github/stars/ysicing/xstats?style=flat&color=f5c518&label=%E6%98%9F%E6%A0%87)](https://github.com/ysicing/xstats/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/ysicing/xstats?color=black&label=%E6%9C%80%E8%BF%91%E6%8F%90%E4%BA%A4)](https://github.com/ysicing/xstats/commits/main)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ysicing/xstats?color=black&label=%E6%8F%90%E4%BA%A4)](https://github.com/ysicing/xstats/graphs/commit-activity)

@@ -12,9 +12,9 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     # 公开版本号是标准 semver，真源是 CHANGELOG.md 顶部的 “## X.Y.Z · YYYY-MM-DD”
-    MARKETING_VERSION: "0.8.0"
+    MARKETING_VERSION: "0.8.1"
     # Apple 内部构建号每次 task build 加一，独立于公开版本号且不重置
-    CURRENT_PROJECT_VERSION: "112"
+    CURRENT_PROJECT_VERSION: "113"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     # 本地开发使用 ad-hoc 签名；正式发布使用 Developer ID（见 DEVELOPMENT.md）
     CODE_SIGN_STYLE: Manual
