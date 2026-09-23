@@ -90,9 +90,9 @@ public final class SpeedTestController {
         liveBitsPerSecond = 0
         broadbandTask = Task { [limit] in
             let result = await BroadbandTest.run(limit: limit) { stage in
-                Task { @MainActor [weak self] in self?.broadbandStage = stage; self?.liveBitsPerSecond = 0 }
+                Task { @MainActor in self.broadbandStage = stage; self.liveBitsPerSecond = 0 }
             } progress: { speed, _ in
-                Task { @MainActor [weak self] in self?.liveBitsPerSecond = speed }
+                Task { @MainActor in self.liveBitsPerSecond = speed }
             }
             guard !Task.isCancelled else { return stopBroadband() }
             broadband = result
@@ -217,7 +217,7 @@ public final class SpeedTestController {
         liveBitsPerSecond = 0
         downloadTask = Task { [limit] in
             let result = await ThroughputProbe.download(node.downloadURL, limit: limit) { speed, _ in
-                Task { @MainActor [weak self] in self?.liveBitsPerSecond = speed }
+                Task { @MainActor in self.liveBitsPerSecond = speed }
             }
             guard !Task.isCancelled else {
                 downloadingNode = nil

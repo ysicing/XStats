@@ -62,7 +62,7 @@ public final class EgressController {
             let environment = await Self.readEnvironment()
             self.environment = environment
             let hits = await EgressProber.measure(interfaceName: environment.physicalInterface) { done in
-                Task { @MainActor [weak self] in self?.progress = done }
+                Task { @MainActor in self.progress = done }
             }
             let analysis = EgressAnalysis.evaluate(hits, environment: environment)
             let geo = await lookUpGeo(hits: hits, analysis: analysis, interfaceName: environment.physicalInterface)

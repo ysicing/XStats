@@ -34,9 +34,9 @@ final class StatusPanel: NSPanel {
                    defer: true)
         // 打开时按平铺布局测出的高度只是起点：真实内容会随数据刷新变高变矮，由滚动区域上报差值再校正
         makeContent = { [weak self] in
-            NSHostingView(rootView: content().environment(\.reportPopoverOverflow) { overflow in
+            NSHostingView(rootView: content().environment(\.reportPopoverOverflow, PopoverOverflowReporter { overflow in
                 self?.adjustHeight(by: overflow)
-            })
+            }))
         }
         isFloatingPanel = true
         level = .statusBar

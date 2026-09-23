@@ -257,8 +257,9 @@ public final class ProcessExplainer {
 
     nonisolated private static func executablePath(pid: Int32) -> String? {
         var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
-        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
-        return String(cString: buffer)
+        let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
+        guard length > 0 else { return nil }
+        return buffer.withUnsafeBytes { String(decoding: $0.prefix(Int(length)), as: UTF8.self) }
     }
 }
 

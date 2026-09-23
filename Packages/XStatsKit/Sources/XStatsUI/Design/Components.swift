@@ -1,6 +1,26 @@
+import Foundation
 import Localization
 import Metrics
 import SwiftUI
+
+/// 用独立身份包装不可比较的闭包，避免 SwiftUI 把无关环境刷新都视为回调变化。
+struct PopoverOverflowReporter: Equatable, Sendable {
+    private let id = UUID()
+    private let action: @MainActor @Sendable (CGFloat) -> Void
+
+    init(_ action: @escaping @MainActor @Sendable (CGFloat) -> Void) {
+        self.action = action
+    }
+
+    @MainActor
+    func callAsFunction(_ overflow: CGFloat) {
+        action(overflow)
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id
+    }
+}
 
 /// ImageRenderer 无法渲染 ScrollView 等 AppKit 承载的控件，截图模式下改用平铺布局。
 extension EnvironmentValues {
@@ -10,7 +30,7 @@ extension EnvironmentValues {
     /// 菜单栏弹窗：区块去掉卡片底色，用细分隔线隔开，排得更紧凑
     @Entry var isPopover = false
     /// 菜单栏弹窗：滚动内容的实际高度比可视区域高出（负数为矮出）多少，交给面板调整窗口高度
-    @Entry var reportPopoverOverflow: (@MainActor @Sendable (CGFloat) -> Void)? = nil
+    @Entry var reportPopoverOverflow: PopoverOverflowReporter?
 }
 
 // MARK: - 卡片

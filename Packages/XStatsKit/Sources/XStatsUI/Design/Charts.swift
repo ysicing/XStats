@@ -113,7 +113,7 @@ struct TimedLineChart: View {
     var grid = false
     var height: CGFloat = DS.Size.chartHeight
 
-    static let gapLimit: TimeInterval = 10
+    nonisolated static let gapLimit: TimeInterval = 10
 
     var body: some View {
         Canvas { context, size in
@@ -143,7 +143,7 @@ struct TimedLineChart: View {
     }
 
     /// 落在 [end − duration, end] 内的采样换算成坐标（0 在下、1 在上），按间隔断开成若干段
-    static func segments(_ points: [TimedValue], duration: TimeInterval, end: Date, in size: CGSize) -> [[CGPoint]] {
+    nonisolated static func segments(_ points: [TimedValue], duration: TimeInterval, end: Date, in size: CGSize) -> [[CGPoint]] {
         let start = end.addingTimeInterval(-duration)
         let inset = DS.Size.chartLine
         let usable = size.height - inset * 2
@@ -584,6 +584,7 @@ struct ScoreBand: View {
     private func marker(width: CGFloat) -> some View {
         let color = DS.Grade.color(for: clamped)
         let grade = DS.Grade.bands.first { clamped < $0.upper }?.grade ?? "A+"
+        let markerOffset = width * CGFloat(clamped) / 100
         return VStack(spacing: 0) {
             Text(verbatim: grade)
                 .dsFont(.xs, weight: .semibold)
@@ -594,7 +595,7 @@ struct ScoreBand: View {
             Triangle().fill(color).frame(width: DS.Space.s2, height: DS.Space.s1)
         }
         .fixedSize()
-        .alignmentGuide(.leading) { dimensions in dimensions.width / 2 - width * CGFloat(clamped) / 100 }
+        .alignmentGuide(.leading) { dimensions in dimensions.width / 2 - markerOffset }
     }
 }
 
