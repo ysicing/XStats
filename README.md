@@ -6,7 +6,7 @@
 
 **Mac 的状态，抬眼就看见——CPU、GPU、内存、网络与温度常驻菜单栏，还能调风扇、防休眠、一键清理、卸载应用，检测 IP 纯净度。**
 
-[![Release](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.7.1-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.8.0-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![Stars](https://img.shields.io/github/stars/ysicing/xstats?style=flat&color=f5c518&label=%E6%98%9F%E6%A0%87)](https://github.com/ysicing/xstats/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/ysicing/xstats?color=black&label=%E6%9C%80%E8%BF%91%E6%8F%90%E4%BA%A4)](https://github.com/ysicing/xstats/commits/main)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ysicing/xstats?color=black&label=%E6%8F%90%E4%BA%A4)](https://github.com/ysicing/xstats/graphs/commit-activity)
@@ -58,14 +58,26 @@ XStats 暂无官网。自动更新与现有 GeoIP 服务保持不变；账号登
 <!-- changelog:start -->
 <!-- 由 Scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->
 
-最新版本 **0.7.1**（2026-09-22） · 开发中 **2** 项改动尚未发布 · [完整更新日志](CHANGELOG.md)
+最新版本 **0.8.0**（2026-09-23） · [完整更新日志](CHANGELOG.md)
 
 <details open>
-<summary><b>2026-09-22</b> · 未发布 · 新增 1 · 修复 1</summary>
+<summary><b>2026-09-23</b> · 0.8.0 · 调整 3</summary>
+
+**调整**
+
+- 进程解释恢复为仅使用本机 Apple 智能；模型不可用时直接显示原因，不再提供 CLI 备用服务。
+- 菜单栏日历与 AI 使用统计改为独立可选模块；关闭后隐藏对应入口。日历统一在设置中启用，启用后通过设置按钮打开独立弹窗配置，不再重复显示开关。
+- 日历年份选择改为更紧凑的交互；本机信息按系统实际可用状态显示 Apple 智能提示。
+
+</details>
+
+<details>
+<summary><b>2026-09-22</b> · 0.8.0 · 新增 2 · 修复 1</summary>
 
 **新增**
 
-- 新增 AI 使用统计：按模型展示本机 Codex / Claude Code Token 用量、每日趋势与缓存命中率。
+- 新增 AI 使用统计：只读本机 Codex / Claude Code 会话日志，按模型展示 Token、缓存命中率、用量记录、每日趋势；默认显示近一年活动热力图，提供每日、每周、累计三种全年活动视图及模型筛选；SQLite 持久化扫描游标与统计，追加日志只读增量，菜单栏显示今日 Token。
+- 新增独立菜单栏日历，支持公历、农历、节假日、节气与黄历信息，并可按需配置显示内容。
 
 **修复**
 
@@ -84,20 +96,6 @@ XStats 暂无官网。自动更新与现有 GeoIP 服务保持不变；账号登
 
 - 开发工具缓存首次不勾选，并记住用户在本机的选择；为各工具增加品牌图标，清理结果按执行前后实际占用计算。
 - 辅助工具设置不再显示签名团队标识，只提示已使用 Developer ID 签名。
-
-</details>
-
-<details>
-<summary><b>2026-09-20</b> · 0.7.0 · 新增 2 · 调整 1</summary>
-
-**新增**
-
-- 语言设置支持搜索下拉选择、自动检测和选中标记，增加繁体中文、日语、韩语、德语、西班牙语、法语与阿拉伯语；阿拉伯语使用从右到左布局，语言偏好继续参与 WebDAV 设置备份。
-- 设置同步改用 WebDAV：配置已有 HTTPS 目录、用户名和密码，手动上传本机设置或下载后确认应用。密码只存本机钥匙串，备份不包含监控数据、历史记录和连接凭据；文件大小、格式与版本校验失败时保持本机设置不变。
-
-**调整**
-
-- 移除 GitHub、Google、Apple 账号登录及后台自动同步，不再依赖原账号服务和登录回调。自动更新及 GeoIP 服务保持现状。
 
 </details>
 

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="394" height="156" viewBox="0 0 394 156" role="img">
-<title>近 26 周共 13 次提交</title>
+<title>近 26 周共 30 次提交</title>
 <g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,PingFang SC,sans-serif" font-size="9" fill="#8b949e">
 <text x="44" y="12">4月</text>
 <text x="100" y="12">5月</text>
@@ -186,10 +186,11 @@
 <rect x="366" y="74" width="11" height="11" rx="2" fill="rgba(139,148,158,0.18)"><title>2026-09-17：0 次提交</title></rect>
 <rect x="366" y="88" width="11" height="11" rx="2" fill="rgba(139,148,158,0.18)"><title>2026-09-18：0 次提交</title></rect>
 <rect x="366" y="102" width="11" height="11" rx="2" fill="rgba(139,148,158,0.18)"><title>2026-09-19：0 次提交</title></rect>
-<rect x="380" y="18" width="11" height="11" rx="2" fill="#40c463"><title>2026-09-20：3 次提交</title></rect>
-<rect x="380" y="32" width="11" height="11" rx="2" fill="#216e39"><title>2026-09-21：10 次提交</title></rect>
+<rect x="380" y="18" width="11" height="11" rx="2" fill="#9be9a8"><title>2026-09-20：3 次提交</title></rect>
+<rect x="380" y="32" width="11" height="11" rx="2" fill="#30a14e"><title>2026-09-21：10 次提交</title></rect>
+<rect x="380" y="46" width="11" height="11" rx="2" fill="#216e39"><title>2026-09-22：17 次提交</title></rect>
 <g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,PingFang SC,sans-serif" font-size="10" fill="#8b949e">
-<text x="30" y="146">近 26 周共 13 次提交 · 截至 2026-09-21</text>
+<text x="30" y="146">近 26 周共 30 次提交 · 截至 2026-09-22</text>
 <text x="286" y="130" text-anchor="end">少</text>
 <rect x="290" y="120" width="11" height="11" rx="2" fill="rgba(139,148,158,0.18)"/>
 <rect x="304" y="120" width="11" height="11" rx="2" fill="#9be9a8"/>
