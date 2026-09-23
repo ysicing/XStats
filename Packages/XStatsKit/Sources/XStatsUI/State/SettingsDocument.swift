@@ -15,6 +15,9 @@ import WebDAVSync
 /// 应用时逐项校验，不认识的值跳过
 public struct SettingsDocument: Codable, Equatable, Sendable {
     public var schema: Int? = 1
+    public var calendarEnabled: Bool?
+    public var calendarFeatures: [String]?
+    public var calendarFirstWeekday: Int?
     public var menuBarItems: [String]?
     public var menuBarStyle: String?
     public var networkStyle: String?
@@ -49,6 +52,9 @@ extension AppSettings {
     /// 显式列出可同步的偏好；WebDAV 地址、用户名和密码不会进入备份。
     public func exportDocument() -> SettingsDocument {
         var doc = SettingsDocument()
+        doc.calendarEnabled = calendarEnabled
+        doc.calendarFeatures = calendarFeatures.map(\.rawValue).sorted()
+        doc.calendarFirstWeekday = calendarFirstWeekday
         doc.menuBarItems = menuBarItems.map(\.rawValue).sorted()
         doc.menuBarStyle = menuBarStyle.rawValue
         doc.networkStyle = networkStyle.rawValue
@@ -88,6 +94,9 @@ extension AppSettings {
             value.flatMap { options.contains($0) ? $0 : nil }
         }
 
+        assign(\.calendarEnabled, doc.calendarEnabled)
+        assign(\.calendarFeatures, doc.calendarFeatures.map { Set($0.compactMap(CalendarFeature.init(rawValue:))) })
+        assign(\.calendarFirstWeekday, option(doc.calendarFirstWeekday, in: [1, 2]))
         assign(\.menuBarItems, doc.menuBarItems.map { Set($0.compactMap(MenuBarItem.init(rawValue:))) })
         assign(\.menuBarStyle, doc.menuBarStyle.flatMap(MenuBarStyle.init(rawValue:)))
         assign(\.networkStyle, doc.networkStyle.flatMap(NetworkMenuStyle.init(rawValue:)))

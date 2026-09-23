@@ -31,6 +31,22 @@ All system-monitoring metrics are read on your own Mac and are never uploaded. N
 
 ---
 
+## Calendar
+
+Enable the independent date item in **Settings → Menu Bar → Calendar**. Browse months and years,
+return to today, and select a day for details. Gregorian dates stay visible; lunar dates, weekdays,
+festivals, solar terms, Chinese holidays and makeup workdays, sexagenary cycles, dog days and
+traditional plum-rain days each have a display switch. Tibetan and Hijri details are opt-in.
+The item stays separate when metrics are combined; calendar preferences are included in WebDAV backups.
+
+Calculations run locally using [Tyme4Swift 1.5.0](https://github.com/6tail/tyme4swift), licensed under MIT
+(see [third-party notices](ThirdPartyNotices.md)). Browse 1900–2100; Tibetan data covers Gregorian
+1951-01-08 through 2051-02-11. Chinese holiday data currently ends in 2026; unsupported dates show a notice.
+Plum-rain days follow traditional calendar rules and are not weather forecasts.
+
+Click a day for its traditional almanac: favorable and avoided activities, Na Yin, clashes, day deities, twelve-hour fortunes, twelve officers, fetal deity, Peng Zu taboos and lunar mansions. Returning to the month preserves the selection.
+
+
 ## Install
 
 Download the Apple Silicon build from [GitHub Releases](https://github.com/ysicing/xstats/releases).

@@ -1284,3 +1284,93 @@ Token 活动	Actividad de tokens
 每周	Semanal
 {} 当周：{} Tokens	Semana del {}: {} Tokens
 截至 {} 当周累计：{} Tokens	Acumulado hasta la semana del {}: {} Tokens
+
+日历	Calendario
+菜单栏日历	Calendario de la barra de menús
+日历设置…	Ajustes del calendario…
+独立显示日期，点击打开月历；不受指标合并布局影响	Muestra la fecha por separado; haz clic para abrir el calendario, incluso con métricas combinadas
+每周开始于	Primer día de la semana
+星期一	Lunes
+星期日	Domingo
+农历	Calendario lunar chino
+星期	Días de la semana
+法定节假日与调休	Festivos y días laborales compensatorios
+传统与公历节日	Fiestas tradicionales y gregorianas
+二十四节气	24 términos solares
+干支	Ciclo sexagenario
+三伏天	Días caniculares
+梅雨天	Lluvias de ciruela tradicionales
+藏历	Calendario tibetano
+回历	Calendario hiyri
+公历始终显示。藏历与回历显示在日期详情中；梅雨天按传统历法推算，并非天气预报。	Las fechas gregorianas siempre se muestran. Los calendarios tibetano e hiyri aparecen en los detalles del día. Las lluvias de ciruela se calculan según reglas tradicionales, no son pronósticos.
+该日期暂无藏历数据	No hay datos del calendario tibetano para esta fecha
+该年份暂无中国法定假日与调休数据	No hay datos de festivos chinos ni días laborales compensatorios para este año
+按传统历法推算，并非天气预报	Cálculo del calendario tradicional, no un pronóstico
+年份	Año
+月份	Mes
+上个月	Mes anterior
+下个月	Mes siguiente
+班	T
+休	D
+调休上班	Día laboral compensatorio
+放假	Festivo
+春节	Fiesta de la Primavera
+元宵节	Fiesta de los Faroles
+龙头节	Longtaitou
+上巳节	Fiesta de Shangsi
+清明节	Fiesta de Qingming
+端午节	Fiesta del Bote del Dragón
+七夕节	Fiesta de Qixi
+中元节	Fiesta de los Fantasmas
+中秋节	Fiesta del Medio Otoño
+重阳节	Fiesta del Doble Nueve
+冬至节	Fiesta del Solsticio de Invierno
+腊八节	Fiesta de Laba
+除夕	Víspera del Año Nuevo Lunar
+元旦	Año Nuevo
+劳动节	Día del Trabajo
+国庆节	Fiesta Nacional
+国庆中秋	Fiesta Nacional / Medio Otoño
+抗战胜利日	Día de la Victoria
+立春	Inicio de la primavera
+雨水	Agua de lluvia
+惊蛰	Despertar de los insectos
+春分	Equinoccio de primavera
+清明	Claridad pura
+谷雨	Lluvia para el grano
+立夏	Inicio del verano
+小满	Pequeña abundancia
+芒种	Grano en espiga
+夏至	Solsticio de verano
+小暑	Calor menor
+大暑	Calor mayor
+立秋	Inicio del otoño
+处暑	Fin del calor
+白露	Rocío blanco
+秋分	Equinoccio de otoño
+寒露	Rocío frío
+霜降	Descenso de la escarcha
+立冬	Inicio del invierno
+小雪	Nieve menor
+大雪	Nieve mayor
+冬至	Solsticio de invierno
+小寒	Frío menor
+大寒	Frío mayor
+返回月历	Volver al calendario
+控制月历格中的日干支；黄历详情始终显示年月日干支	Muestra el ciclo diario en las celdas; el almanaque siempre incluye los ciclos del año, mes y día
+宜	Favorable
+忌	Evitar
+纳音	Na Yin
+冲煞	Conflicto / Sha
+冲{} 煞{}	Conflicto: {} · Sha: {}
+值神	Deidad del día
+建除十二神	Doce oficiales
+吉神宜趋	Deidades favorables
+今日胎神	Deidad fetal
+凶神宜忌	Deidades desfavorables
+彭祖百忌	Tabúes de Peng Zu
+二十八星宿	Mansiones lunares
+时辰吉凶	Fortuna horaria
+子时显示当日早子时；23 点起的晚子时按次日干支计算	Zi muestra 00:00–00:59; desde las 23:00 usa el ciclo del día siguiente
+吉	Bueno
+凶	Malo

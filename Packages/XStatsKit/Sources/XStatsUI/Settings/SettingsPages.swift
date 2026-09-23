@@ -285,6 +285,7 @@ struct MenuBarSettings: View {
         @Bindable var settings = model.settings
 
         MenuBarPreview()
+        CalendarSettings()
 
         SettingsGroup(caption: tr("布局")) {
             GroupRow(showsDivider: false) {

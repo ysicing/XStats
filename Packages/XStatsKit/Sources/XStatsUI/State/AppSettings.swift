@@ -393,6 +393,17 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
 public final class AppSettings {
     @ObservationIgnored private let defaults: UserDefaults
 
+    /// 日历独立于性能指标，即使指标合并也保留单独入口；旧用户默认关闭。
+    public var calendarEnabled: Bool {
+        didSet { defaults.set(calendarEnabled, forKey: Keys.calendarEnabled) }
+    }
+    public var calendarFeatures: Set<CalendarFeature> {
+        didSet { defaults.set(calendarFeatures.map(\.rawValue).sorted(), forKey: Keys.calendarFeatures) }
+    }
+    public var calendarFirstWeekday: Int {
+        didSet { defaults.set(calendarFirstWeekday, forKey: Keys.calendarFirstWeekday) }
+    }
+
     public var menuBarItems: Set<MenuBarItem> {
         didSet { defaults.set(menuBarItems.map(\.rawValue).sorted(), forKey: Keys.menuBarItems) }
     }
@@ -552,6 +563,10 @@ public final class AppSettings {
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        calendarEnabled = defaults.bool(forKey: Keys.calendarEnabled)
+        calendarFeatures = defaults.stringArray(forKey: Keys.calendarFeatures)
+            .map { Set($0.compactMap(CalendarFeature.init(rawValue:))) } ?? CalendarFeature.defaults
+        calendarFirstWeekday = defaults.integer(forKey: Keys.calendarFirstWeekday) == 1 ? 1 : 2
         let items = defaults.stringArray(forKey: Keys.menuBarItems)?.compactMap(MenuBarItem.init(rawValue:))
         menuBarItems = Set(items ?? [.cpu, .memory, .network])
         menuBarStyle = defaults.string(forKey: Keys.menuBarStyle).flatMap(MenuBarStyle.init(rawValue:)) ?? .stacked
@@ -641,6 +656,9 @@ public final class AppSettings {
     }
 
     private enum Keys {
+        static let calendarEnabled = "calendarEnabled"
+        static let calendarFeatures = "calendarFeatures"
+        static let calendarFirstWeekday = "calendarFirstWeekday"
         static let menuBarItems = "menuBarItems"
         static let menuBarStyle = "menuBarStyle"
         static let networkStyle = "networkStyle"

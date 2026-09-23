@@ -1284,3 +1284,93 @@ Token 活动	Token-Aktivität
 每周	Wöchentlich
 {} 当周：{} Tokens	Woche vom {}: {} Tokens
 截至 {} 当周累计：{} Tokens	Bis zur Woche vom {}: {} Tokens kumuliert
+
+日历	Kalender
+菜单栏日历	Menüleistenkalender
+日历设置…	Kalendereinstellungen…
+独立显示日期，点击打开月历；不受指标合并布局影响	Separates Datum; ein Klick öffnet den Kalender, auch bei kombinierten Messwerten
+每周开始于	Wochenbeginn
+星期一	Montag
+星期日	Sonntag
+农历	Chinesischer Mondkalender
+星期	Wochentage
+法定节假日与调休	Feiertage und Ausgleichsarbeitstage
+传统与公历节日	Traditionelle und gregorianische Feste
+二十四节气	24 Sonnenperioden
+干支	Sechzigjahreszyklus
+三伏天	Hundstage
+梅雨天	Traditionelle Pflaumenregenzeit
+藏历	Tibetischer Kalender
+回历	Hidschri-Kalender
+公历始终显示。藏历与回历显示在日期详情中；梅雨天按传统历法推算，并非天气预报。	Gregorianische Daten bleiben sichtbar. Tibetische und Hidschri-Daten stehen in den Tagesdetails. Die Pflaumenregenzeit folgt traditionellen Kalenderregeln, nicht Wettervorhersagen.
+该日期暂无藏历数据	Für dieses Datum sind keine tibetischen Kalenderdaten verfügbar
+该年份暂无中国法定假日与调休数据	Für dieses Jahr fehlen chinesische Feiertags- und Ausgleichsarbeitstagsdaten
+按传统历法推算，并非天气预报	Traditionelle Kalenderberechnung, keine Wettervorhersage
+年份	Jahr
+月份	Monat
+上个月	Vorheriger Monat
+下个月	Nächster Monat
+班	A
+休	F
+调休上班	Ausgleichsarbeitstag
+放假	Feiertag
+春节	Frühlingsfest
+元宵节	Laternenfest
+龙头节	Longtaitou
+上巳节	Shangsi-Fest
+清明节	Qingming-Fest
+端午节	Drachenbootfest
+七夕节	Qixi-Fest
+中元节	Geisterfest
+中秋节	Mittherbstfest
+重阳节	Doppelneunfest
+冬至节	Wintersonnenwendfest
+腊八节	Laba-Fest
+除夕	Mondneujahrsabend
+元旦	Neujahr
+劳动节	Tag der Arbeit
+国庆节	Nationalfeiertag
+国庆中秋	Nationalfeiertag / Mittherbstfest
+抗战胜利日	Tag des Sieges
+立春	Frühlingsbeginn
+雨水	Regenwasser
+惊蛰	Erwachen der Insekten
+春分	Frühlings-Tagundnachtgleiche
+清明	Helle Klarheit
+谷雨	Getreideregen
+立夏	Sommerbeginn
+小满	Kleine Fülle
+芒种	Ährensaat
+夏至	Sommersonnenwende
+小暑	Kleine Hitze
+大暑	Große Hitze
+立秋	Herbstbeginn
+处暑	Ende der Hitze
+白露	Weißer Tau
+秋分	Herbst-Tagundnachtgleiche
+寒露	Kalter Tau
+霜降	Reifbeginn
+立冬	Winterbeginn
+小雪	Kleiner Schnee
+大雪	Großer Schnee
+冬至	Wintersonnenwende
+小寒	Kleine Kälte
+大寒	Große Kälte
+返回月历	Zurück zum Kalender
+控制月历格中的日干支；黄历详情始终显示年月日干支	Tageszyklus in Monatszellen anzeigen; Almanachdetails enthalten immer Jahres-, Monats- und Tageszyklen
+宜	Günstig
+忌	Meiden
+纳音	Na Yin
+冲煞	Konflikt / Sha
+冲{} 煞{}	Konflikt: {} · Sha: {}
+值神	Tagesgottheit
+建除十二神	Zwölf Tagesämter
+吉神宜趋	Günstige Gottheiten
+今日胎神	Fötusgottheit
+凶神宜忌	Ungünstige Gottheiten
+彭祖百忌	Peng-Zu-Tabus
+二十八星宿	Mondhäuser
+时辰吉凶	Stundenglück
+子时显示当日早子时；23 点起的晚子时按次日干支计算	Zi zeigt 00:00–00:59; ab 23:00 gilt der Zyklus des Folgetags
+吉	Glück
+凶	Unglück

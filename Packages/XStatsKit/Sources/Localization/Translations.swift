@@ -8,7 +8,7 @@
 
 extension Translations {
     static var tables: [String] {
-        [english, webDAVEnglish, languagePickerEnglish]
+        [english, webDAVEnglish, languagePickerEnglish, calendarEnglish]
     }
 
     static let english = #"""
