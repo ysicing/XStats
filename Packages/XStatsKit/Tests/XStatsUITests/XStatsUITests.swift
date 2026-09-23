@@ -33,6 +33,15 @@ private func isolatedDefaults() -> UserDefaults {
 
 @MainActor
 @Suite struct ToolBrandLogoTests {
+    @Test(arguments: ["site-openai", "site-claude"])
+    func brandLogosCanBeCachedAsBothColorAndMenuBarTemplates(_ name: String) throws {
+        let color = try #require(LogoCache.shared.image(named: name, template: false))
+        let template = try #require(LogoCache.shared.image(named: name, template: true))
+        #expect(!color.isTemplate)
+        #expect(template.isTemplate)
+        #expect(color !== template)
+    }
+
     @Test(arguments: ["tool-npm", "tool-yarn", "tool-pnpm", "tool-bun",
                       "tool-go", "tool-rust", "tool-uv"])
     func packagedSVGCanBeRenderedAsTemplate(_ name: String) throws {

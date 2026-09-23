@@ -109,6 +109,15 @@ private actor GatedUsageProvider: AIUsageProvider {
         let single = MenuBarRenderer.image(reading: codexOnly, items: [.aiUsage],
             style: { _ in .stacked }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
         #expect(both.size.width > single.size.width)
+        let codexIcon = MenuBarRenderer.image(reading: codexOnly, items: [.aiUsage],
+            style: { _ in .icon }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
+        var claudeOnly = reading
+        claudeOnly.aiQuotaProviders = [.claude]
+        claudeOnly.aiQuotas = reading.aiQuotas.filter { $0.provider == .claude }
+        let claudeIcon = MenuBarRenderer.image(reading: claudeOnly, items: [.aiUsage],
+            style: { _ in .icon }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
+        #expect(!codexIcon.isTemplate && !claudeIcon.isTemplate)
+        #expect(codexIcon.tiffRepresentation != claudeIcon.tiffRepresentation)
         for style in [MenuBarStyle.ring, .pie, .meter, .dot] {
             let bothGraphic = MenuBarRenderer.image(reading: reading, items: [.aiUsage],
                 style: { _ in style }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)

@@ -301,6 +301,12 @@ enum MenuBarRenderer {
 
     private static func aiUsageSegment(reading: MenuBarReading, style: MenuBarStyle) -> Segment {
         guard !reading.aiQuotas.isEmpty else {
+            if style == .icon, reading.aiQuotaProviders.count == 1,
+               let provider = reading.aiQuotaProviders.first {
+                return combine([aiProviderLogo(provider),
+                                inlineValue(reading.aiTokens.map { tokenText($0) } ?? "—",
+                                            sample: "999.9M", alert: false)])
+            }
             return textSegment(item: .aiUsage, value: reading.aiTokens.map { tokenText($0) } ?? "—",
                                sample: "999.9M", style: style)
         }
@@ -312,8 +318,10 @@ enum MenuBarRenderer {
                 switch style {
                 case .ring, .history, .line, .pie, .meter, .dot:
                     return aiQuotaInlineText(label: name, value: "—")
-                case .inline, .icon:
+                case .inline:
                     return inlineText(label: name, value: "—", sample: "100%", alert: false)
+                case .icon:
+                    return combine([aiProviderLogo(provider), inlineValue("—", sample: "100%", alert: false)])
                 case .stacked:
                     return aiQuotaText(label: name, value: "—")
                 }
@@ -328,10 +336,7 @@ enum MenuBarRenderer {
             case .stacked: return stacked
             case .inline: return inlineText(label: label, value: value, sample: "100%", alert: false)
             case .icon:
-                return providers.count == 1
-                    ? combine([symbolSegment(MenuBarItem.aiUsage.symbol),
-                               inlineValue(value, sample: "100%", alert: false)])
-                    : inlineText(label: name, value: value, sample: "100%", alert: false)
+                return combine([aiProviderLogo(provider), inlineValue(value, sample: "100%", alert: false)])
             case .ring, .history, .line:
                 return combine([ring(fraction: fraction, alert: false, color: color, diameter: 15, lineWidth: 2.5), inline])
             case .pie: return combine([pie(fraction: fraction, alert: false, color: color), inline])
@@ -339,8 +344,24 @@ enum MenuBarRenderer {
             case .dot: return combine([quotaDot(color: color), inline])
             }
         }, gap: DS.Space.s2)
-        return style == .icon && providers.count > 1
-            ? combine([symbolSegment(MenuBarItem.aiUsage.symbol), status]) : status
+        return status
+    }
+
+    private static func aiProviderLogo(_ provider: AIProviderID) -> Segment {
+        let isOpenAI = provider == .codex
+        let name = isOpenAI ? "site-openai" : "site-claude"
+        guard let logo = LogoCache.shared.image(named: name, template: isOpenAI) else {
+            return symbolSegment(MenuBarItem.aiUsage.symbol)
+        }
+        let size: CGFloat = 14
+        return Segment(width: size, colored: true) { rect in
+            let frame = NSRect(x: rect.minX, y: rect.midY - size / 2, width: size, height: size)
+            logo.draw(in: frame)
+            if isOpenAI {
+                NSColor.labelColor.setFill()
+                frame.fill(using: .sourceAtop)
+            }
+        }
     }
 
     /// 额度越少越需要关注；颜色仅辅助，旁边的百分比始终提供明确数值。

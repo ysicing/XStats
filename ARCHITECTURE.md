@@ -260,6 +260,8 @@ The AI menu bar item follows the global or per-item style. Ring, pie, meter, and
 show remaining quota beside its percentage for each available source; a source without quota
 shows a dash rather than a zero gauge. Since quota history is not stored, global history or
 line styles use a current-value ring for this item.
+Icon style uses the bundled OpenAI and Claude logo shapes for the corresponding quota source,
+including a dash when that source has no quota; aggregated local-only tokens keep the generic AI icon.
 The quota detail card presents remaining allowance (not used allowance) and, when the server
 provides a reset date, a separate bar for elapsed time in that five-hour or seven-day window.
 Allowance turns red as it runs low; the reset bar turns green as reset approaches and updates
