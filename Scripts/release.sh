@@ -139,13 +139,14 @@ cask "xstats" do
 end
 CASK
 
-# 本机只保留一份：把发布版装到 /Applications
-./Scripts/install_local.sh "$APP"
+# 发版只生成并校验制品，不替换或启动当前机器上的 XStats。
+# 已公证的 App 留在 DerivedData，供发布前核验；本地安装需另行明确执行。
 
 echo
 echo "✅ ${DIST}/${NAME}.dmg  SHA-256 $(shasum -a 256 "$DIST/$NAME.dmg" | cut -d' ' -f1)"
 echo "   在线升级：${DIST}/*.zip · ${DIST}/appcast.json"
 echo "   Homebrew cask：${DIST}/xstats.rb"
+echo "   本机已安装的 XStats 保持不变"
 if [ "${SKIP_NOTARIZE:-0}" = "1" ]; then
   echo "⚠️  未公证，仅供本机测试。"
 else

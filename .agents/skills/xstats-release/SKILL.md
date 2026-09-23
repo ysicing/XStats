@@ -30,12 +30,13 @@ Before acting, read the repository `AGENTS.md`, the release section of `DEVELOPM
 - Publish the same appcast to the global and China release APIs. The manifest must remain last: packages first, then GitHub Release, then update APIs.
 - The Homebrew target is `ysicing/homebrew-tap`, installed as `ysicing/tap/xstats`.
 - `dist/release-provenance.json` binds artifacts to the build-time commit, version, build number, and version-file hashes. Do not bypass it or rebuild provenance manually.
+- A release builds and verifies artifacts without quitting, replacing, or launching the XStats installed on the current machine. Do not run `install_local.sh` as part of `task release` or `task release-all`; local installation is a separate, explicit request.
 
 ## Execution shape
 
 1. Establish a clean, current source baseline and pass repository tests/CI.
 2. Prepare only release metadata, then let `task release` advance `project.yml`, build, sign, notarize, staple, and generate `dist/`.
-3. Verify the installed app and generated artifacts before committing release metadata.
+3. Verify the built app in `build/DerivedData-arm64/Build/Products/Release/XStats.app` and generated artifacts before committing release metadata; leave `/Applications/XStats.app` untouched.
 4. Commit and push only the allowed metadata, then run the provenance verifier.
 5. Run the idempotent publish script and verify every external destination independently.
 

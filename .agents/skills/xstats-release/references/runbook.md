@@ -54,6 +54,7 @@ task release
 ```
 
 `task release` defaults to the `XStats` notary profile. Capture both Apple submission IDs and require `Accepted` for the app and DMG.
+It builds and packages without installing or launching the release on the current machine.
 
 When the user explicitly authorizes commit, push, and all external publication, the canonical automated path is instead:
 
@@ -75,14 +76,14 @@ dist/xstats.rb
 dist/release-provenance.json
 ```
 
-`install_local.sh` moves the finished app to `/Applications`, so verify architecture and signatures there rather than assuming the DerivedData app still exists:
+The finished app remains in DerivedData. Verify that artifact directly; do not replace or launch `/Applications/XStats.app` during a release:
 
 ```bash
-lipo -archs /Applications/XStats.app/Contents/MacOS/XStats
-lipo -archs /Applications/XStats.app/Contents/MacOS/XStatsHelper
-lipo -archs /Applications/XStats.app/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget
-codesign --verify --deep --strict --verbose=2 /Applications/XStats.app
-spctl -a -vv /Applications/XStats.app
+lipo -archs build/DerivedData-arm64/Build/Products/Release/XStats.app/Contents/MacOS/XStats
+lipo -archs build/DerivedData-arm64/Build/Products/Release/XStats.app/Contents/MacOS/XStatsHelper
+lipo -archs build/DerivedData-arm64/Build/Products/Release/XStats.app/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget
+codesign --verify --deep --strict --verbose=2 build/DerivedData-arm64/Build/Products/Release/XStats.app
+spctl -a -vv build/DerivedData-arm64/Build/Products/Release/XStats.app
 xcrun stapler validate dist/XStats-X.Y.Z-AppleSilicon.dmg
 spctl -a -t open --context context:primary-signature -vv dist/XStats-X.Y.Z-AppleSilicon.dmg
 ```

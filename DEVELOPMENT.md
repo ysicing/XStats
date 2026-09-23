@@ -103,6 +103,10 @@ xcrun notarytool store-credentials XStats \
 NOTARY_PROFILE=XStats task release
 ```
 
+`task release` 只构建并校验制品，`task release-all` 会继续对外发布；两者都不会退出、替换或启动当前机器
+`/Applications/XStats.app`。发布版 App 留在 `build/DerivedData-arm64/Build/Products/Release/XStats.app`
+供签名、公证和架构核验；只有明确需要本地试用时才单独执行安装。
+
 如果使用其他 profile，可以覆盖 `NOTARY_PROFILE`。`SKIP_NOTARIZE=1 task release` 只适合本机测试，
 生成的包不应公开分发。
 
