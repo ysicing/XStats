@@ -5,6 +5,20 @@ import AIUsage
 import Localization
 import SwiftUI
 
+/// 会话内草稿由 AppModel 持有；弹窗关闭或切页时不丢弃未保存的凭据，且不写入磁盘。
+@MainActor @Observable final class Sub2APIDraft {
+    var loaded = false
+    var expanded = false
+    var address = ""
+    var email = ""
+    var password = ""
+    var accountID = ""
+    var configured = false
+    var testing = false
+    var result: String?
+    var isError = false
+}
+
 struct Sub2APISettingsView: View {
     let provider: AIProviderID
     let directAvailable: Bool
@@ -14,22 +28,15 @@ struct Sub2APISettingsView: View {
     private var hasStoredConfiguration: Bool {
         Sub2APISettingsStore(provider: provider).hasConfiguration()
     }
-    @State private var expanded = false
-    @State private var address = ""
-    @State private var email = ""
-    @State private var password = ""
-    @State private var accountID = ""
-    @State private var configured = false
-    @State private var testing = false
-    @State private var result: String?
-    @State private var isError = false
+    private var draft: Sub2APIDraft { model.sub2apiDrafts[provider]! }
 
     var body: some View {
+        @Bindable var form = draft
         Group {
             // 在用户正在填写时保持表单，避免后台自动查询恢复后突然移走输入框。
-            if needsFallback || configured || hasStoredConfiguration || expanded {
-                DisclosureGroup(isExpanded: $expanded) {
-                    if directAvailable && configured {
+            if needsFallback || form.configured || hasStoredConfiguration || form.expanded {
+                DisclosureGroup(isExpanded: $form.expanded) {
+                    if directAvailable && form.configured {
                         VStack(alignment: .leading, spacing: DS.Space.s2) {
                             Text(tr("本机账号可用，当前使用自动额度。"))
                                 .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
@@ -44,7 +51,7 @@ struct Sub2APISettingsView: View {
                     HStack {
                         Text(providerName + " · " + tr("Sub2API 备用额度"))
                         Spacer()
-                        if configured { Text(tr("已配置")).dsFont(.xs).foregroundStyle(DS.Palette.success) }
+                        if form.configured { Text(tr("已配置")).dsFont(.xs).foregroundStyle(DS.Palette.success) }
                     }
                 }
             }
@@ -53,17 +60,18 @@ struct Sub2APISettingsView: View {
     }
 
     private var configurationForm: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s2) {
+        @Bindable var form = draft
+        return VStack(alignment: .leading, spacing: DS.Space.s2) {
             Text(tr("自动查询失败时才使用此 Sub2API 账号；后台不主动探测。"))
                 .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            TextField(tr("Sub2API 地址（HTTPS）"), text: $address)
+            TextField(tr("Sub2API 地址（HTTPS）"), text: $form.address)
                 .textFieldStyle(.roundedBorder)
-            TextField(tr("管理员邮箱"), text: $email)
+            TextField(tr("管理员邮箱"), text: $form.email)
                 .textFieldStyle(.roundedBorder)
-            SecureField(tr("管理员密码"), text: $password)
+            SecureField(tr("管理员密码"), text: $form.password)
                 .textFieldStyle(.roundedBorder)
-            TextField(tr("账号 ID"), text: $accountID)
+            TextField(tr("账号 ID"), text: $form.accountID)
                 .textFieldStyle(.roundedBorder)
             Text(tr("管理员密码存于本机钥匙串；账号 ID 用于查询额度。"))
                 .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
@@ -71,17 +79,17 @@ struct Sub2APISettingsView: View {
             HStack(spacing: DS.Space.s2) {
                 Button(tr("保存并测试连接")) { Task { await saveAndTest() } }
                     .buttonStyle(DSButtonStyle(kind: .primary))
-                    .disabled(testing)
-                if configured {
+                    .disabled(form.testing)
+                if form.configured {
                     Button(tr("移除配置")) { clear() }
                         .buttonStyle(DSButtonStyle(kind: .secondary))
-                        .disabled(testing)
+                        .disabled(form.testing)
                 }
             }
-            if testing { ProgressView().controlSize(.small) }
-            if let result {
+            if form.testing { ProgressView().controlSize(.small) }
+            if let result = form.result {
                 Text(result).dsFont(.xs)
-                    .foregroundStyle(isError ? DS.Palette.error : DS.Palette.success)
+                    .foregroundStyle(form.isError ? DS.Palette.error : DS.Palette.success)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -90,8 +98,8 @@ struct Sub2APISettingsView: View {
 
     private func configuration() -> Sub2APIConfiguration? {
         do {
-            return try Sub2APIConfiguration(address: address, email: email,
-                                            password: password, accountID: accountID, provider: provider)
+            return try Sub2APIConfiguration(address: draft.address, email: draft.email,
+                                            password: draft.password, accountID: draft.accountID, provider: provider)
         } catch let error as Sub2APIConfigurationError {
             show(message(for: error), error: true)
         } catch {
@@ -101,13 +109,15 @@ struct Sub2APISettingsView: View {
     }
 
     private func load() {
+        guard !draft.loaded else { return }
+        draft.loaded = true
         do {
             guard let saved = try Sub2APISettingsStore(provider: provider).load() else { return }
-            address = saved.baseURL.absoluteString
-            email = saved.email
-            password = saved.password
-            accountID = String(saved.accountID)
-            configured = true
+            draft.address = saved.baseURL.absoluteString
+            draft.email = saved.email
+            draft.password = saved.password
+            draft.accountID = String(saved.accountID)
+            draft.configured = true
         } catch {
             show(tr("Sub2API 配置无法读取，请检查设置"), error: true)
         }
@@ -115,12 +125,12 @@ struct Sub2APISettingsView: View {
 
     private func saveAndTest() async {
         guard let configuration = configuration() else { return }
-        testing = true
-        defer { testing = false }
+        draft.testing = true
+        defer { draft.testing = false }
         do {
             let snapshot = try await Sub2APIQuotaClient.shared.fetch(configuration: configuration)
             try Sub2APISettingsStore(provider: provider).save(configuration)
-            configured = true
+            draft.configured = true
             show(tr("Sub2API 配置已保存") + " · "
                  + tr("连接成功，读取到 \(snapshot.windows.count) 个额度窗口"), error: false)
             await model.aiUsage.refresh()
@@ -138,8 +148,8 @@ struct Sub2APISettingsView: View {
     private func clear() {
         do {
             try Sub2APISettingsStore(provider: provider).clear()
-            address = ""; email = ""; password = ""; accountID = ""
-            configured = false
+            draft.address = ""; draft.email = ""; draft.password = ""; draft.accountID = ""
+            draft.configured = false
             show(tr("Sub2API 配置已移除"), error: false)
             Task {
                 await Sub2APIQuotaClient.shared.clearSession()
@@ -161,7 +171,7 @@ struct Sub2APISettingsView: View {
     }
 
     private func show(_ text: String, error: Bool) {
-        result = text
-        isError = error
+        draft.result = text
+        draft.isError = error
     }
 }

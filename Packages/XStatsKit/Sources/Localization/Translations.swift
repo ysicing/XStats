@@ -24,8 +24,8 @@ Token 活动	Token activity
 {} 当周：{} Tokens	Week of {}: {} Tokens
 截至 {} 当周累计：{} Tokens	Through the week of {}: {} Tokens cumulative
 缓存创建 Token	Cache creation tokens
-AI 使用统计	AI Usage
-Codex / Claude Code 本机模型与 Token 使用统计	Local Codex / Claude Code model and token usage
+AI 用量与额度	AI Usage & Quotas
+Codex / Claude Code 本机 Token 用量与订阅额度	Local Codex / Claude Code tokens and subscription quotas
 今天	Today
 模型	Model
 全部模型	All models

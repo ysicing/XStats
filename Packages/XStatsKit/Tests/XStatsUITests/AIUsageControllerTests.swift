@@ -109,6 +109,14 @@ private actor GatedUsageProvider: AIUsageProvider {
         let single = MenuBarRenderer.image(reading: codexOnly, items: [.aiUsage],
             style: { _ in .stacked }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
         #expect(both.size.width > single.size.width)
+        for style in [MenuBarStyle.ring, .pie, .meter, .dot] {
+            let bothGraphic = MenuBarRenderer.image(reading: reading, items: [.aiUsage],
+                style: { _ in style }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
+            let singleGraphic = MenuBarRenderer.image(reading: codexOnly, items: [.aiUsage],
+                style: { _ in style }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
+            #expect(bothGraphic.size.width > singleGraphic.size.width)
+            #expect(!bothGraphic.isTemplate)
+        }
         let tooltip = reading.tooltip(items: [.aiUsage], fahrenheit: false)
         #expect(tooltip.contains("Codex"))
         #expect(tooltip.contains("27%"))
@@ -295,7 +303,14 @@ private actor GatedUsageProvider: AIUsageProvider {
     @Test func navigationExposesAIUsageAsAMonitorAndMenuBarItem() {
         #expect(PanelTab.monitors.contains(.aiUsage))
         #expect(PanelTab(item: .aiUsage) == .aiUsage)
-        #expect(MenuBarStyle.options(for: .aiUsage) == [.stacked, .inline, .icon])
+        #expect(MenuBarStyle.options(for: .aiUsage) == [.stacked, .inline, .icon, .ring, .pie, .meter, .dot])
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.menuBarStyle = .history
+        #expect(settings.style(for: .aiUsage) == .ring)
+        settings.menuBarStyle = .line
+        #expect(settings.style(for: .aiUsage) == .ring)
+        settings.menuBarStyle = .pie
+        #expect(settings.style(for: .aiUsage) == .pie)
     }
 
     @Test func settingsDefaultToOptInAndThirtyMinuteRefresh() {

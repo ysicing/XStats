@@ -286,26 +286,60 @@ enum MenuBarRenderer {
         case .battery:
             return batterySegment(reading: reading, style: style, colorizeHighLoad: colorizeHighLoad)
         case .aiUsage:
-            if !reading.aiQuotas.isEmpty && reading.aiQuotaProviders.count > 1 {
-                let statuses = reading.aiQuotaProviders.map { provider -> Segment in
-                    let name = provider == .codex ? "Codex" : "Claude"
-                    guard let quota = reading.aiQuotas.first(where: { $0.provider == provider }) else {
-                        return stackedText(label: name, value: "—", sample: "100%", alert: false)
-                    }
-                    return stackedText(label: "\(name) · \(quota.shortWindowName)",
-                                       value: "\(quota.remainingPercent)%", sample: "100%", alert: false)
-                }
-                let status = combine(statuses, gap: DS.Space.s2)
-                return style == .icon ? combine([symbolSegment(item.symbol), status]) : status
-            }
-            if let quota = reading.primaryAIQuota {
-                let status = stackedText(label: "\(quota.shortWindowName) · \(quota.resetText)",
-                                         value: "\(quota.sourceName) \(quota.remainingPercent)%",
-                                         sample: "Claude 100%", alert: false)
-                return style == .icon ? combine([symbolSegment(item.symbol), status]) : status
-            }
-            return textSegment(item: item, value: reading.aiTokens.map { Self.tokenText($0) } ?? "—",
+            return aiUsageSegment(reading: reading, style: style)
+        }
+    }
+
+    private static func aiUsageSegment(reading: MenuBarReading, style: MenuBarStyle) -> Segment {
+        guard !reading.aiQuotas.isEmpty else {
+            return textSegment(item: .aiUsage, value: reading.aiTokens.map { tokenText($0) } ?? "—",
                                sample: "999.9M", style: style)
+        }
+        let providers = reading.aiQuotaProviders.count > 1
+            ? reading.aiQuotaProviders : [reading.aiQuotas[0].provider]
+        let status = combine(providers.map { provider in
+            let name = provider == .codex ? "Codex" : "Claude"
+            guard let quota = reading.aiQuotas.first(where: { $0.provider == provider }) else {
+                return style == .inline
+                    ? inlineText(label: name, value: "—", sample: "100%", alert: false)
+                    : stackedText(label: name, value: "—", sample: "100%", alert: false)
+            }
+            let label = "\(name) · \(quota.shortWindowName)"
+            let value = "\(quota.remainingPercent)%"
+            let stacked = stackedText(label: label, value: value, sample: "100%", alert: false)
+            let fraction = min(1, max(0, Double(quota.remainingPercent) / 100))
+            let color = aiQuotaColor(quota.remainingPercent)
+            switch style {
+            case .stacked:
+                // 单来源保留重置时间，双来源保持短标签，避免菜单栏占用过宽。
+                return providers.count == 1
+                    ? stackedText(label: "\(quota.shortWindowName) · \(quota.resetText)",
+                                  value: "\(quota.sourceName) \(value)", sample: "Claude 100%", alert: false)
+                    : stacked
+            case .inline: return inlineText(label: label, value: value, sample: "100%", alert: false)
+            case .icon:
+                return providers.count == 1
+                    ? combine([symbolSegment(MenuBarItem.aiUsage.symbol),
+                               inlineValue(value, sample: "100%", alert: false)])
+                    : inlineText(label: name, value: value, sample: "100%", alert: false)
+            case .ring, .history, .line: return combine([ring(fraction: fraction, alert: false, color: color), stacked])
+            case .pie: return combine([pie(fraction: fraction, alert: false, color: color), stacked])
+            case .meter: return combine([meter(fraction: fraction, alert: false, color: color), stacked])
+            case .dot: return combine([quotaDot(color: color), stacked])
+            }
+        }, gap: DS.Space.s2)
+        return style == .icon && providers.count > 1
+            ? combine([symbolSegment(MenuBarItem.aiUsage.symbol), status]) : status
+    }
+
+    /// 额度越少越需要关注；颜色仅辅助，旁边的百分比始终提供明确数值。
+    private static func aiQuotaColor(_ remainingPercent: Int) -> NSColor {
+        switch remainingPercent {
+        case ...10: NSColor(DS.Palette.critical)
+        case ...20: NSColor(DS.Palette.error)
+        case ...39: NSColor(DS.Palette.warning)
+        case ...79: NSColor(DS.Palette.primary)
+        default: NSColor(DS.Palette.success)
         }
     }
 
@@ -452,8 +486,8 @@ enum MenuBarRenderer {
 
     // MARK: 图形
 
-    private static func ring(fraction: Double, alert: Bool) -> Segment {
-        Segment(width: Metrics.gaugeDiameter) { rect in
+    private static func ring(fraction: Double, alert: Bool, color: NSColor? = nil) -> Segment {
+        Segment(width: Metrics.gaugeDiameter, colored: color != nil) { rect in
             let inset = Metrics.ringWidth / 2
             let circle = NSRect(x: rect.minX + inset, y: rect.midY - Metrics.gaugeDiameter / 2 + inset,
                                 width: Metrics.gaugeDiameter - Metrics.ringWidth, height: Metrics.gaugeDiameter - Metrics.ringWidth)
@@ -467,13 +501,13 @@ enum MenuBarRenderer {
                           startAngle: 90, endAngle: 90 - 360 * fraction, clockwise: true)
             arc.lineWidth = Metrics.ringWidth
             arc.lineCapStyle = .round
-            foreground(alert).setStroke()
+            (color ?? foreground(alert)).setStroke()
             arc.stroke()
         }
     }
 
-    private static func pie(fraction: Double, alert: Bool) -> Segment {
-        Segment(width: Metrics.gaugeDiameter) { rect in
+    private static func pie(fraction: Double, alert: Bool, color: NSColor? = nil) -> Segment {
+        Segment(width: Metrics.gaugeDiameter, colored: color != nil) { rect in
             let circle = NSRect(x: rect.minX, y: rect.midY - Metrics.gaugeDiameter / 2,
                                 width: Metrics.gaugeDiameter, height: Metrics.gaugeDiameter)
             NSColor.labelColor.withAlphaComponent(Metrics.trackAlpha).setFill()
@@ -485,7 +519,7 @@ enum MenuBarRenderer {
             wedge.appendArc(withCenter: center, radius: circle.width / 2,
                             startAngle: 90, endAngle: 90 - 360 * fraction, clockwise: true)
             wedge.close()
-            foreground(alert).setFill()
+            (color ?? foreground(alert)).setFill()
             wedge.fill()
         }
     }
@@ -541,18 +575,22 @@ enum MenuBarRenderer {
     }
 
     /// 竖向电量条
-    private static func meter(fraction: Double, alert: Bool) -> Segment {
-        Segment(width: Metrics.meterSize.width) { rect in
+    private static func meter(fraction: Double, alert: Bool, color: NSColor? = nil) -> Segment {
+        Segment(width: Metrics.meterSize.width, colored: color != nil) { rect in
             let frame = NSRect(x: rect.minX, y: rect.midY - Metrics.meterSize.height / 2,
                                width: Metrics.meterSize.width, height: Metrics.meterSize.height)
             let radius = Metrics.meterSize.width / 3
             NSColor.labelColor.withAlphaComponent(Metrics.trackAlpha).setFill()
-            NSBezierPath(roundedRect: frame, xRadius: radius, yRadius: radius).fill()
+            let outline = NSBezierPath(roundedRect: frame, xRadius: radius, yRadius: radius)
+            outline.fill()
             guard fraction > 0 else { return }
+            NSGraphicsContext.saveGraphicsState()
+            defer { NSGraphicsContext.restoreGraphicsState() }
+            outline.addClip()
             let filled = NSRect(x: frame.minX, y: frame.minY, width: frame.width,
-                                height: max(radius * 2, frame.height * fraction))
-            foreground(alert).setFill()
-            NSBezierPath(roundedRect: filled, xRadius: radius, yRadius: radius).fill()
+                                height: frame.height * fraction)
+            (color ?? foreground(alert)).setFill()
+            filled.fill()
         }
     }
 
@@ -567,6 +605,14 @@ enum MenuBarRenderer {
         }
         segment.colored = true
         return segment
+    }
+
+    private static func quotaDot(color: NSColor) -> Segment {
+        Segment(width: Metrics.dotSize, colored: true) { rect in
+            color.setFill()
+            NSBezierPath(ovalIn: NSRect(x: rect.minX, y: rect.midY - Metrics.dotSize / 2,
+                                        width: Metrics.dotSize, height: Metrics.dotSize)).fill()
+        }
     }
 
     private static func symbolSegment(_ name: String) -> Segment {

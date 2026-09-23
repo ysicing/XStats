@@ -17,7 +17,6 @@ private struct LocalUsageContent: View {
     @Environment(AppModel.self) private var model
     @State private var selectedModel = ""
     @State private var source = "all"
-    @State private var emptySettingsOpen = false
     @State private var activityMode = UsageActivityMode.daily
 
     private var enabledProviders: [AIProviderID] {
@@ -46,7 +45,7 @@ private struct LocalUsageContent: View {
             }
             if !model.settings.aiUsageEnabled {
                 Card {
-                    Label(tr("AI 使用统计"), systemImage: "chart.bar").dsFont(.base, weight: .semibold)
+                    Label(tr("AI 用量与额度"), systemImage: "chart.bar").dsFont(.base, weight: .semibold)
                     Text(tr("启用后读取本机会话日志，并使用本机登录凭据向 Codex / Claude 查询订阅额度。"))
                         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -56,9 +55,8 @@ private struct LocalUsageContent: View {
             } else if model.settings.aiUsageSources.isEmpty {
                 Card {
                     Text(tr("数据来源") + " · " + tr("尚未启用")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
-                    Button(tr("设置")) { emptySettingsOpen = true }
+                    Button(tr("设置")) { model.openAIUsageSettings() }
                         .buttonStyle(DSButtonStyle(kind: .secondary))
-                        .popover(isPresented: $emptySettingsOpen) { AIUsageSettingsPanel() }
                 }
             } else if let report = model.aiUsage.localReport(for: provider) {
                 let rows = report.summary(mode: activityMode, model: selectedModel.isEmpty ? nil : selectedModel)
@@ -627,18 +625,21 @@ struct AIUsageRefreshButton: View {
 }
 
 struct AIUsageSettingsButton: View {
-    @State private var isOpen = false
+    @Environment(AppModel.self) private var model
 
     var body: some View {
-        MiniIconButton(systemName: "gearshape", help: tr("AI 使用统计") + " · " + tr("设置")) { isOpen.toggle() }
-            .popover(isPresented: $isOpen) { AIUsageSettingsPanel() }
+        MiniIconButton(systemName: "gearshape", help: tr("AI 用量与额度") + " · " + tr("设置")) {
+            model.openAIUsageSettings()
+        }
     }
 }
 
-private struct AIUsageSettingsPanel: View {
+struct AIUsageSettingsPanel: View {
     var body: some View {
         ScrollView { UsageSettings().padding(DS.Space.s4) }
-            .frame(width: 390, height: 520)
+            .frame(minWidth: 390, minHeight: 480)
+            .background(DS.Palette.background)
+            .appLanguageEnvironment()
     }
 }
 
@@ -648,8 +649,8 @@ private struct UsageSettings: View {
         @Bindable var settings = model.settings
         VStack(alignment: .leading, spacing: DS.Space.s4) {
             Text(tr("设置")).dsFont(.base, weight: .semibold)
-            SettingRow(title: tr("AI 使用统计"), subtitle: nil) {
-                DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 使用统计"))
+            SettingRow(title: tr("AI 用量与额度"), subtitle: nil) {
+                DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 用量与额度"))
             }
             HairlineDivider()
             Text(tr("数据来源")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)

@@ -12,6 +12,9 @@ import Updates
 public final class AppModel {
     public let settings: AppSettings
     public let aiUsage: AIUsageController
+    @ObservationIgnored let sub2apiDrafts: [AIProviderID: Sub2APIDraft] = [
+        .codex: Sub2APIDraft(), .claude: Sub2APIDraft(),
+    ]
     public let store: MetricsStore
     public let helper: HelperClient
     public let fans: FanController
@@ -58,6 +61,7 @@ public final class AppModel {
     public private(set) var launchAtLoginError: String?
 
     @ObservationIgnored var openSettings: () -> Void = {}
+    @ObservationIgnored var openAIUsageSettings: () -> Void = {}
     @ObservationIgnored var openMainWindow: (PanelTab?) -> Void = { _ in }
     @ObservationIgnored var openEgressWindow: () -> Void = {}
     @ObservationIgnored var openSpeedTestWindow: () -> Void = {}

@@ -200,7 +200,7 @@ calendars default off and appear only in selected-day details. There is no event
 network request at runtime. Use `--snapshot <directory> --calendar-only` for deterministic
 light/dark calendar screenshots without starting unrelated samplers or scans.
 
-## AI usage statistics
+## AI usage and quotas
 
 The local Codex provider reads JSONL rollouts from CODEX_HOME (default ~/.codex),
 including sessions and archived_sessions. It never reads credentials or calls quota APIs;
@@ -251,6 +251,10 @@ When one provider has a subscription snapshot, the menu bar AI reading shows its
 When both sources are enabled and either has quota data, the item shows a compact named reading
 for each source; one without quota data shows a dash. The tooltip lists reset times and missing
 data by source. Without any subscription snapshot it keeps the local daily Token reading.
+The AI menu bar item follows the global or per-item style. Ring, pie, meter, and dot styles
+show remaining quota beside its percentage for each available source; a source without quota
+shows a dash rather than a zero gauge. Since quota history is not stored, global history or
+line styles use a current-value ring for this item.
 The quota detail card presents remaining allowance (not used allowance) and, when the server
 provides a reset date, a separate bar for elapsed time in that five-hour or seven-day window.
 Allowance turns red as it runs low; the reset bar turns green as reset approaches and updates
@@ -260,7 +264,9 @@ The desktop toolbar groups source controls and actions. In the compact menu-bar 
 owns refresh and AI Usage settings; the content shows a source switch only when multiple sources
 are enabled. Token totals use compact notation with
 exact hover/VoiceOver values. Cache details are
-disclosed on demand and local settings live in a native popover. Since source data is aggregated
+disclosed on demand. AI usage settings open in a separate window so users can copy account details
+from another app without closing the form. Unsaved Sub2API fields stay in memory for the current
+app session across page changes; passwords are not written to preferences. Since source data is aggregated
 by day, all three activity modes cover the same trailing 365 days: daily uses one cell per day;
 weekly uses a seven-cell-high bar per calendar week; cumulative sums usage from the window start
 through the selected week and uses the same bar grid. Zero weeks have no lit cells. Partial weeks

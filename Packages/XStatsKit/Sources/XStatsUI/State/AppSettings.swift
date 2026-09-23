@@ -24,7 +24,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: tr("CPU 温度")
         case .fan: tr("风扇转速")
         case .battery: tr("电池")
-        case .aiUsage: tr("AI 使用统计")
+        case .aiUsage: tr("AI 用量与额度")
         }
     }
 
@@ -38,7 +38,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: tr("CPU 核心最高温度")
         case .fan: tr("转速最高的风扇")
         case .battery: tr("电量与充电状态；没有电池的 Mac 显示蓝牙设备电量")
-        case .aiUsage: tr("Codex / Claude Code 本机模型与 Token 使用统计")
+        case .aiUsage: tr("Codex / Claude Code 本机 Token 用量与订阅额度")
         }
     }
 
@@ -68,7 +68,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: tr("温度")
         case .fan: tr("风扇")
         case .battery: tr("电池")
-        case .aiUsage: tr("AI 使用统计")
+        case .aiUsage: tr("AI 用量与额度")
         }
     }
 
@@ -203,11 +203,11 @@ public enum MenuBarStyle: String, CaseIterable, Identifiable, Sendable {
 
     public var id: String { rawValue }
 
-    /// 温度、风扇没有百分比，图形类风格画不出来，只给文字类的三种
+    /// 温度、风扇没有百分比；AI 额度没有历史采样，只提供当前剩余量的图形。
     static func options(for item: MenuBarItem) -> [MenuBarStyle] {
         switch item {
         case .temperature, .fan: [.stacked, .inline, .icon]
-        case .aiUsage: [.stacked, .inline, .icon]
+        case .aiUsage: [.stacked, .inline, .icon, .ring, .pie, .meter, .dot]
         default: allCases
         }
     }
@@ -301,7 +301,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .overview: tr("仪表盘")
         case .system: tr("本机信息")
         case .history: tr("历史")
-        case .aiUsage: tr("AI 使用统计")
+        case .aiUsage: tr("AI 用量与额度")
         case .cpu: "CPU"
         case .gpu: "GPU"
         case .memory: tr("内存")
@@ -632,7 +632,10 @@ public final class AppSettings {
     func isEnabled(_ item: MenuBarItem) -> Bool { menuBarItems.contains(item) }
 
     func style(for item: MenuBarItem) -> MenuBarStyle {
-        styleOverrides[item] ?? menuBarStyle
+        let selected = styleOverrides[item] ?? menuBarStyle
+        // 整体选择历史图时，AI 额度尚无历史序列，用圆环表达当前剩余量。
+        if item == .aiUsage && (selected == .history || selected == .line) { return .ring }
+        return selected
     }
 
     /// nil 表示跟随整体风格

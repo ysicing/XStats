@@ -106,10 +106,10 @@ struct GeneralSettings: View {
 
         SettingsGroup(caption: tr("可选功能")) {
             GroupRow(showsDivider: false) {
-                SettingRow(title: tr("AI 使用统计"),
+                SettingRow(title: tr("AI 用量与额度"),
                            subtitle: tr("统计本机会话 Token，并使用本机登录凭据自动查询 Codex / Claude 订阅额度。"),
                            icon: "sparkles") {
-                    DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 使用统计"))
+                    DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 用量与额度"))
                 }
             }
             GroupRow {
@@ -412,9 +412,12 @@ private struct ItemStyleRow: View {
                                  options: NetworkMenuStyle.allCases.map { ($0, $0.title) })
                     .frame(width: DS.Size.sidebarWidth + DS.Space.s6)
             } else {
+                let inheritedStyle: MenuBarStyle = item == .aiUsage
+                    && (settings.menuBarStyle == .history || settings.menuBarStyle == .line)
+                    ? .ring : settings.menuBarStyle
                 Picker(tr("菜单栏风格"), selection: Binding(get: { settings.styleOverrides[item] },
                                                        set: { settings.setStyleOverride($0, for: item) })) {
-                    Text(tr("跟随整体（\(settings.menuBarStyle.title)）")).tag(MenuBarStyle?.none)
+                    Text(tr("跟随整体（\(inheritedStyle.title)）")).tag(MenuBarStyle?.none)
                     Divider()
                     ForEach(MenuBarStyle.options(for: item)) { style in
                         Text(style.title).tag(MenuBarStyle?.some(style))
