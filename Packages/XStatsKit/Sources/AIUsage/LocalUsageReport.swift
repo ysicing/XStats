@@ -53,6 +53,20 @@ public struct LocalUsageReport: Equatable, Sendable {
         return rows.filter { $0.day >= start && $0.day <= now && (model == nil || $0.model == model) }
     }
 
+    /// 同一天同一模型会来自多个会话文件，而 `ModelTokenUsage.id` 正以“日期 + 模型”为键，
+    /// 所以必须先合并再交给视图，否则 `rows` 里会出现大量重复 id。
+    public static func aggregated(_ rows: some Sequence<ModelTokenUsage>) -> [ModelTokenUsage] {
+        var merged: [String: ModelTokenUsage] = [:]
+        for row in rows {
+            var value = merged[row.id] ?? ModelTokenUsage(day: row.day, model: row.model)
+            value.add(row)
+            merged[row.id] = value
+        }
+        // 必须定序：解析状态存在字典里，冷扫描和从检查点恢复的迭代顺序不同，
+        // 顺序不定会让每次刷新都产生一个“不相等”的报告，白白触发重绘并清掉悬停提示。
+        return merged.values.sorted { $0.day == $1.day ? $0.model < $1.model : $0.day < $1.day }
+    }
+
     public static func models(_ rows: [ModelTokenUsage]) -> [ModelTokenUsage] {
         var result: [String: ModelTokenUsage] = [:]
         for row in rows {

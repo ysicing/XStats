@@ -27,10 +27,7 @@ XStats 是一款 macOS 菜单栏应用，实时显示 Mac 正在做什么：各�
 
 </div>
 
----
-
 ## 日历
-
 在「设置 → 菜单栏 → 日历」开启独立日期入口，点击查看月历。支持切换月份、年份、
 返回今天和选择日期详情；公历始终显示，农历、星期、节日、节气、调休、干支、三伏天和梅雨天可分别开关。
 藏历和回历默认关闭，开启后显示在日期详情中。日历不受指标合并布局影响，设置可随 WebDAV 备份。
@@ -41,6 +38,8 @@ XStats 是一款 macOS 菜单栏应用，实时显示 Mac 正在做什么：各�
 
 点击日期可进入黄历详情，查看宜忌、纳音、冲煞、值神、十二时辰吉凶、建除十二神、吉凶神煞、胎神、彭祖百忌和二十八星宿；返回月历后保留原日期选择。
 
+
+---
 
 ## 安装
 
@@ -227,8 +226,9 @@ XStats 暂无官网。自动更新与现有 GeoIP 服务保持不变；账号登
 
 - **公网 IP**：打开网络详情时向 Cloudflare `1.1.1.1`（回退 ipify）请求一次公网地址，10 分钟内不重复请求。归属地、ASN、网络类型与纯净度评分由这台 Mac 直接向 `cleanip.io` 查询，只发送公网地址、不经过我们的服务器；地址没变、不满 7 天就沿用上次结果，点刷新才重查。
 - **连接探测**：打开网络详情时每秒（后台每 10 秒）向你选择的目标（Cloudflare、Google、阿里云、腾讯或路由器）发送一次 ICMP ping，只在菜单栏显示网络项或打开网络详情时运行。
-- **AI 使用统计**：只读本机 Codex / Claude Code 会话日志，按模型统计输入、输出、缓存 Token；默认显示近一年活动热力图，提供每日、每周、累计三种全年活动视图及模型筛选；SQLite 保存扫描游标和统计结果，重启可复用，日志追加时只读新增部分。无需登录凭据或配额接口。
 - **检查更新与安装统计**：启动时与之后每天发送当前版本和随机安装标识的 SHA-256，并读取版本清单。中国地区优先使用 `x-stats.china.12306.work`，其他地区优先使用 `xstats-apps.12306.work`，首选失败才串行回退到另一个，首次成功后停止。服务端只保存该哈希、当前版本、首次与最近检查时间及检查次数，不保存硬件序列号，也不持久化请求 IP（IP 只用于一分钟内的内存限流）。原始随机值只在本机偏好设置中，不访问钥匙串。关闭自动检查更新后不会再自动请求；发现新版本时仍由你决定是否安装。
+
+**AI 使用统计**完全在本机完成：只读取 Codex / Claude Code 的本机会话日志，不读取登录凭据、不查询订阅配额，也不发送任何网络请求。默认关闭。
 
 WebDAV 只向你配置的服务器传输偏好设置，不上传监控数据、历史记录或 WebDAV 凭据。
 
@@ -261,8 +261,8 @@ XStats 基于以下开源项目，谢谢。
 | [Stats](https://github.com/exelban/stats) | Serhiy Mytrovtsiy | MIT | SMC 访问、Apple Silicon 风扇解锁流程、菜单栏迷你样式的字号参数 |
 | [Mole](https://github.com/tw93/Mole) | tw93 | GPL-3.0 | 哪些目录值得清理、哪些绝对不能碰；清理模块为独立的 Swift 实现，不含 Mole 代码 |
 | [QuotaBar](https://github.com/gentpan/quotabar) | GiantAccel, LLC | MIT | 本 README 的版式、更新日志同步与活跃度图脚本 |
-| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI Provider 契约、Codex 凭据发现与配额响应研究 |
-| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | 只读凭据、限流退避与 Provider 状态设计参考 |
+| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI Provider 契约与测试样例 |
+| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | Provider 状态与保留上次结果的设计参考 |
 
 详见 [ThirdPartyNotices.md](ThirdPartyNotices.md)。
 

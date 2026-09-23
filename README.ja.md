@@ -26,7 +26,6 @@ XStats は、Mac の各 CPU コア、GPU、メモリ負荷、通信速度、デ�
 </div>
 
 ## カレンダー
-
 「設定 → メニューバー → カレンダー」で独立した日付表示を有効にできます。月・年の切り替え、
 今日への移動、日付の詳細表示に対応します。西暦を常に表示し、旧暦、曜日、祝祭日、中国の振替出勤日、
 二十四節気、干支、三伏、入梅・出梅は個別に切り替えられます。チベット暦とヒジュラ暦は初期設定では無効です。
@@ -201,8 +200,8 @@ JSON ファイル自体は追加暗号化しないため、非公開のディレ
 | [Stats](https://github.com/exelban/stats) | Serhiy Mytrovtsiy | MIT | SMC 通信、Apple Silicon のファン制御、メニューバー表示 |
 | [Mole](https://github.com/tw93/Mole) | tw93 | GPL-3.0 | 清掃対象と保護対象の考え方。クリーンアップは独自の Swift 実装で、Mole のコードを含みません |
 | [QuotaBar](https://github.com/gentpan/quotabar) | GiantAccel, LLC | MIT | README の構成、変更履歴の同期、活動グラフ |
-| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI Provider 契約、Codex 認証情報の検出、使用枠レスポンスの調査 |
-| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | 認証情報の読み取り専用処理、レート制限、Provider 状態設計の参考 |
+| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI Provider 契約とテスト事例 |
+| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | Provider 状態と前回値保持の設計参考 |
 
 詳細は [ThirdPartyNotices.md](ThirdPartyNotices.md) を参照してください。
 XStats は独立した第三者アプリであり、Apple や本文中の他社による承認・支援を受けた製品ではありません。

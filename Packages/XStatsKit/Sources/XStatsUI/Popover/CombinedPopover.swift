@@ -310,7 +310,8 @@ private struct OverviewReading {
             }
         case .aiUsage:
             if let tokens = model.aiUsage.todayTokens {
-                value = tokens.formatted(.number.notation(.compactName))
+                // 与菜单栏、面板共用同一套缩写，同一个数字不能在三处显示成三种样子。
+                value = UsageNumber.short(tokens)
                 unit = "Tokens"
                 detail = "AI · " + tr("今天")
             } else {

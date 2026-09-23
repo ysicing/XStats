@@ -78,7 +78,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
         observeModel()
         observeProbeSettings()
         observeAIUsageSchedule()
-        observeAIUsagePresentation()
         observeAIUsageState()
         model.aiUsage.start()
         applyAppearance()
@@ -298,21 +297,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self.menuBar.refreshImages()
                 self.menuBar.refreshPopoverHeight()
                 self.observeAIUsageSchedule()
-            }
-        }
-    }
-
-    /// “剩余 / 已用”只改变呈现，不触发网络请求。
-    private func observeAIUsagePresentation() {
-        withObservationTracking {
-            _ = model.settings.aiUsageDisplayMode
-            _ = model.settings.aiUsageFocus
-        } onChange: { [weak self] in
-            Task { @MainActor in
-                guard let self else { return }
-                self.menuBar.refreshImages()
-                self.menuBar.refreshPopoverHeight()
-                self.observeAIUsagePresentation()
             }
         }
     }

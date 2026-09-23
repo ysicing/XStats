@@ -26,7 +26,6 @@ XStats는 CPU 코어별 사용량, GPU, 메모리 압력, 네트워크 속도, �
 </div>
 
 ## 달력
-
 「설정 → 메뉴 막대 → 달력」에서 독립 날짜 항목을 켤 수 있습니다. 월·연도 이동, 오늘로 돌아가기,
 날짜별 상세 정보를 지원합니다. 양력은 항상 표시하며 음력, 요일, 명절, 중국 공휴일과 대체 근무일,
 절기, 간지, 삼복, 전통 입매·출매 날짜는 개별적으로 켜고 끌 수 있습니다. 티베트력과 이슬람력은 기본적으로 꺼져 있습니다.
@@ -201,8 +200,8 @@ JSON 파일 자체는 추가 암호화하지 않으므로 비공개 디렉터리
 | [Stats](https://github.com/exelban/stats) | Serhiy Mytrovtsiy | MIT | SMC 통신, Apple Silicon 팬 제어, 메뉴 막대 표시 |
 | [Mole](https://github.com/tw93/Mole) | tw93 | GPL-3.0 | 정리·보호 대상에 대한 아이디어. 정리 기능은 독립적인 Swift 구현이며 Mole 코드를 포함하지 않습니다 |
 | [QuotaBar](https://github.com/gentpan/quotabar) | GiantAccel, LLC | MIT | README 구성, 변경 기록 동기화, 활동 그래프 |
-| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI Provider 계약, Codex 자격 증명 탐색, 할당량 응답 연구 |
-| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | 읽기 전용 자격 증명, 속도 제한, Provider 상태 설계 참고 |
+| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI Provider 계약과 테스트 사례 |
+| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | Provider 상태와 이전 값 유지 설계 참고 |
 
 자세한 내용은 [ThirdPartyNotices.md](ThirdPartyNotices.md)를 참고하세요.
 XStats는 독립적인 서드파티 앱이며 Apple이나 본문에 언급된 다른 회사가 승인하거나 후원하는 제품이 아닙니다.

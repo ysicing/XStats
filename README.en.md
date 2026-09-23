@@ -29,10 +29,7 @@ All system-monitoring metrics are read on your own Mac and are never uploaded. N
 
 </div>
 
----
-
 ## Calendar
-
 Enable the independent date item in **Settings → Menu Bar → Calendar**. Browse months and years,
 return to today, and select a day for details. Gregorian dates stay visible; lunar dates, weekdays,
 festivals, solar terms, Chinese holidays and makeup workdays, sexagenary cycles, dog days and
@@ -46,6 +43,8 @@ Plum-rain days follow traditional calendar rules and are not weather forecasts.
 
 Click a day for its traditional almanac: favorable and avoided activities, Na Yin, clashes, day deities, twelve-hour fortunes, twelve officers, fetal deity, Peng Zu taboos and lunar mansions. Returning to the month preserves the selection.
 
+
+---
 
 ## Install
 
@@ -220,7 +219,6 @@ Every feature that touches the network can be turned off. Public IP and connecti
 - **Connection probe**: an ICMP ping to the target you pick (Cloudflare, Google, Alibaba Cloud,
   Tencent or your router) once a second while network details are open (every 10 seconds in the background), only while the network item is in the menu bar
   or network details are open.
-- **AI usage**: reads local Codex / Claude Code session logs for token totals, cache hit rate, daily trends and model ranking. Defaults to a one-year activity heatmap; switch between daily, weekly and cumulative year views and filter by model. SQLite persists parser checkpoints and statistics across restarts; appended logs are read incrementally. No credentials or quota API calls.
 - **Update check and installation statistics**: at launch and once a day, the app sends the current version and the
   SHA-256 of a random installation ID and reads the version manifest. China-region locales prefer
   `x-stats.china.12306.work`; all others prefer `xstats-apps.12306.work`. The app falls back serially to the other endpoint
@@ -228,6 +226,8 @@ Every feature that touches the network can be turned off. Public IP and connecti
   hash, the current version, first and last check times, and the check count; it does not store a hardware serial number
   or persist request IPs (an IP is used only for an in-memory one-minute rate limit). The original random value stays in local preferences and does not access Keychain. Turning off automatic update checks stops these
   automatic requests. When a new version is out it asks; nothing installs without your click.
+
+**AI usage** is entirely local: it reads Codex / Claude Code session logs on this Mac, never reads credentials, never queries subscription quotas and makes no network requests at all. Off by default.
 
 WebDAV sync sends only preferences to your configured server. It excludes monitoring data, history and WebDAV credentials.
 
@@ -261,8 +261,8 @@ XStats builds on these open-source projects. Thank you.
 | [Stats](https://github.com/exelban/stats) | Serhiy Mytrovtsiy | MIT | SMC access, the Apple Silicon fan unlock sequence and the menu-bar mini widget metrics |
 | [Mole](https://github.com/tw93/Mole) | tw93 | GPL-3.0 | Which folders are worth cleaning and which must never be touched; the cleaner is an independent Swift implementation and contains no Mole code |
 | [QuotaBar](https://github.com/gentpan/quotabar) | GiantAccel, LLC | MIT | This README's layout, the changelog sync and the activity chart |
-| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI provider contracts, Codex credential discovery and quota-response research |
-| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | Read-only credential, rate-limit and provider-state design references |
+| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI provider contracts and test fixtures |
+| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | Provider state and last-good-value design references |
 
 Details in [ThirdPartyNotices.md](ThirdPartyNotices.md).
 
