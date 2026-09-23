@@ -157,7 +157,7 @@ git push
 - `Helper/`：特权辅助工具及 launchd 配置。
 - `Packages/XStatsKit/Sources/SMC`：SMC 通信、温度传感器和风扇控制。
 - `Packages/XStatsKit/Sources/Metrics`：CPU、内存、网络、GPU、磁盘、电池、进程和传感器采集。
-- `Packages/XStatsKit/Sources/AIUsage`：AI Provider 配额模型、只读凭据发现、网络请求与响应映射。
+- `Packages/XStatsKit/Sources/AIUsage`：本机 Codex / Claude Code 会话日志的只读扫描、Token 统计与增量检查点。
 - `Packages/XStatsKit/Sources/Cleaner`：清理规则、安全守卫、扫描和执行。
 - `Packages/XStatsKit/Sources/Updates`：版本清单、下载校验和应用替换。
 - `Packages/XStatsKit/Sources/HelperShared`：应用与辅助工具共用的 XPC 协议和维护命令。

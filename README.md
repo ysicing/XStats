@@ -249,8 +249,8 @@ XStats 基于以下开源项目，谢谢。
 | [Stats](https://github.com/exelban/stats) | Serhiy Mytrovtsiy | MIT | SMC 访问、Apple Silicon 风扇解锁流程、菜单栏迷你样式的字号参数 |
 | [Mole](https://github.com/tw93/Mole) | tw93 | GPL-3.0 | 哪些目录值得清理、哪些绝对不能碰；清理模块为独立的 Swift 实现，不含 Mole 代码 |
 | [QuotaBar](https://github.com/gentpan/quotabar) | GiantAccel, LLC | MIT | 本 README 的版式、更新日志同步与活跃度图脚本 |
-| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI Provider 契约、Codex 凭据发现与配额响应研究 |
-| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | 只读凭据、限流退避与 Provider 状态设计参考 |
+| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI Provider 契约与测试样例 |
+| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | Provider 状态与保留上次结果的设计参考 |
 
 详见 [ThirdPartyNotices.md](ThirdPartyNotices.md)。
 

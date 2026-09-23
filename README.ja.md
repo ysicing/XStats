@@ -187,8 +187,8 @@ JSON ファイル自体は追加暗号化しないため、非公開のディレ
 | [Stats](https://github.com/exelban/stats) | Serhiy Mytrovtsiy | MIT | SMC 通信、Apple Silicon のファン制御、メニューバー表示 |
 | [Mole](https://github.com/tw93/Mole) | tw93 | GPL-3.0 | 清掃対象と保護対象の考え方。クリーンアップは独自の Swift 実装で、Mole のコードを含みません |
 | [QuotaBar](https://github.com/gentpan/quotabar) | GiantAccel, LLC | MIT | README の構成、変更履歴の同期、活動グラフ |
-| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI Provider 契約、Codex 認証情報の検出、使用枠レスポンスの調査 |
-| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | 認証情報の読み取り専用処理、レート制限、Provider 状態設計の参考 |
+| [AI Usage](https://github.com/burakgon/ai-usage-menubar) / [OpenUsage](https://github.com/robinebers/openusage) | Burak Gon / Robin Ebers | MIT | AI Provider 契約とテスト事例 |
+| [usage-bar](https://github.com/methol-dev/usage-bar) | Krystian | BSD-2-Clause | Provider 状態と前回値保持の設計参考 |
 
 詳細は [ThirdPartyNotices.md](ThirdPartyNotices.md) を参照してください。
 XStats は独立した第三者アプリであり、Apple や本文中の他社による承認・支援を受けた製品ではありません。
