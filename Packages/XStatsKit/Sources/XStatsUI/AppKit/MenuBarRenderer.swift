@@ -183,9 +183,9 @@ enum MenuBarRenderer {
     }
     /// 菜单栏只有 22pt 高。额度读数单独使用更清晰的字号，其余指标保持紧凑排版。
     private enum Metrics {
-        @MainActor static let labelFont = NSFont.systemFont(ofSize: 7, weight: .medium)
-        @MainActor static let stackedValueFont = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
-        @MainActor static let inlineLabelFont = NSFont.systemFont(ofSize: 10, weight: .regular)
+        @MainActor static let labelFont = NSFont.systemFont(ofSize: 9, weight: .medium)
+        @MainActor static let stackedValueFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+        @MainActor static let inlineLabelFont = NSFont.systemFont(ofSize: 10, weight: .medium)
         @MainActor static let inlineValueFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         @MainActor static let networkFont = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular)
         @MainActor static let quotaLabelFont = NSFont.systemFont(ofSize: 9, weight: .semibold)
@@ -193,6 +193,8 @@ enum MenuBarRenderer {
         static let barHeight: CGFloat = 22
         static let upperBaseline: CGFloat = 13
         static let lowerBaseline: CGFloat = 3
+        static let stackedUpperBaseline: CGFloat = 12
+        static let stackedLowerBaseline: CGFloat = 1
         static let symbolSize: CGFloat = 11
         static let itemGap = DS.Space.s3
         static let innerGap = DS.Space.s1
@@ -506,20 +508,20 @@ enum MenuBarRenderer {
         alert ? .systemRed : .labelColor
     }
 
-    /// 颜色保持动态（labelColor / secondaryLabelColor），在绘制时才按菜单栏外观解析
+    /// 文字色在绘制时按菜单栏外观解析；小标签也用主文字色，避免深色菜单栏里变得过淡。
     private static func stackedText(label: String, value: String, sample: String, alert: Bool) -> Segment {
-        let labelAttributes: [NSAttributedString.Key: Any] = [.font: Metrics.labelFont, .foregroundColor: NSColor.secondaryLabelColor]
+        let labelAttributes: [NSAttributedString.Key: Any] = [.font: Metrics.labelFont, .foregroundColor: NSColor.labelColor]
         let valueAttributes: [NSAttributedString.Key: Any] = [.font: Metrics.stackedValueFont, .foregroundColor: foreground(alert)]
         let width = ceil(max(textWidth(label, labelAttributes), textWidth(value, valueAttributes), textWidth(sample, valueAttributes)))
         return Segment(width: width) { rect in
             let base = baselineOrigin(in: rect)
-            drawText(label, labelAttributes, rightEdge: rect.maxX, baseline: base + Metrics.upperBaseline)
-            drawText(value, valueAttributes, rightEdge: rect.maxX, baseline: base + Metrics.lowerBaseline)
+            drawText(label, labelAttributes, rightEdge: rect.maxX, baseline: base + Metrics.stackedUpperBaseline)
+            drawText(value, valueAttributes, rightEdge: rect.maxX, baseline: base + Metrics.stackedLowerBaseline)
         }
     }
 
     private static func inlineText(label: String, value: String, sample: String, alert: Bool) -> Segment {
-        let labelAttributes: [NSAttributedString.Key: Any] = [.font: Metrics.inlineLabelFont, .foregroundColor: NSColor.secondaryLabelColor]
+        let labelAttributes: [NSAttributedString.Key: Any] = [.font: Metrics.inlineLabelFont, .foregroundColor: NSColor.labelColor]
         let labelWidth = ceil(textWidth(label, labelAttributes))
         let valueSegment = inlineValue(value, sample: sample, alert: alert)
         return Segment(width: labelWidth + Metrics.innerGap + valueSegment.width) { rect in
