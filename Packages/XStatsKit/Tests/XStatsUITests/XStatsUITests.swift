@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import SwiftUI
 @testable import Metrics
 import Testing
 import Updates
@@ -9,6 +11,24 @@ private func isolatedDefaults() -> UserDefaults {
     let defaults = UserDefaults(suiteName: name)!
     defaults.removePersistentDomain(forName: name)
     return defaults
+}
+
+@MainActor
+@Suite struct UpdatePromptLayoutTests {
+    @Test func releaseSummaryDoesNotLeaveAnEmptyHeaderRow() {
+        let model = AppModel(settings: AppSettings(defaults: isolatedDefaults()), historyURL: nil, aiUsageProviders: [])
+        model.updates.showPreview(UpdateRelease(
+            version: "0.8.1", build: "113", date: "2026-09-23", minimumSystem: "14.0",
+            url: URL(string: "https://example.test/XStats.zip")!, sha256: String(repeating: "a", count: 64),
+            size: 6_889_522, dmg: nil,
+            notes: ["在“设置 → 关于”提供服务条款和隐私政策，说明本机数据、更新统计、第三方联网功能及用户自行配…",
+                    "卸载应用时增加明确的二次确认，展示将移入废纸篓的项目与可恢复提示",
+                    "优化法律文档的关闭入口及标题、段落、列表排版，避免正文挤成一段"],
+            changelog: nil))
+        let hosting = NSHostingView(rootView: UpdatePromptView {}.environment(model))
+
+        #expect(hosting.fittingSize.height < 320)
+    }
 }
 
 @MainActor

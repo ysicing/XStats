@@ -5,7 +5,8 @@
 
 清单只发布 Apple Silicon 安装包。
 
-更新摘要取自 CHANGELOG.md 中该版本的条目：每条取冒号或句号之前的部分（过短时带上冒号后的内容），最多 10 条。
+更新摘要取自 CHANGELOG.md 中该版本的条目：每条取冒号或句号之前的部分（过短时带上冒号后的内容），
+过长时优先收短到逗号处、否则保留原文，最多 10 条。
 """
 import hashlib
 import json
@@ -24,7 +25,11 @@ def summarize(line: str) -> str:
     # 冒号前只是个标题（如“主窗口”）时带上后面的内容，否则摘要看不出改了什么
     text = head if len(head) >= 10 else text.split("。", 1)[0]
     text = text.rstrip("，、 ")
-    return text if len(text) <= MAX_LENGTH else text[: MAX_LENGTH - 1] + "…"
+    if len(text) <= MAX_LENGTH:
+        return text
+    # 摘要过长时只在完整分句处收短；没有合适断点就保留原文，交给客户端滚动展示。
+    clause = re.split(r"[，,]", text, maxsplit=1)[0]
+    return clause if 10 <= len(clause) <= MAX_LENGTH else text
 
 
 def release_notes(changelog: str, version: str) -> tuple[str, list[str]]:

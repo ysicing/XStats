@@ -140,7 +140,6 @@ struct UpdatePromptView: View {
         }
         .padding(.horizontal, DS.Space.s6)
         .padding(.bottom, DS.Space.s6)
-        .padding(.top, DS.Size.windowHeader)
         .frame(width: DS.Size.updateWindowWidth)
         .background(DS.Palette.background)
         .appLanguageEnvironment()

@@ -33,7 +33,7 @@ cat > "$WORK/repo/CHANGELOG.md" <<'LOG'
 
 #### 新增
 
-- 一条足够长的示例条目，用来检查摘要生成。
+- 在“设置 → 关于”提供服务条款和隐私政策，说明本机数据、更新统计、第三方联网功能及用户自行配置的 WebDAV 同步。
 LOG
 printf 'zip' > "$WORK/XStats-9.9.9-AppleSilicon.zip"
 printf 'dmg' > "$WORK/XStats-9.9.9-AppleSilicon.dmg"
@@ -48,6 +48,7 @@ assert "intel" not in feed, feed
 assert feed["url"].endswith("-AppleSilicon.zip"), feed
 assert feed["dmg"].endswith("-AppleSilicon.dmg"), feed
 assert feed["notes"], feed
+assert feed["notes"] == ["在“设置 → 关于”提供服务条款和隐私政策"], feed
 # 客户端点“查看更新日志”不能跳到上游 OpenStats 的站点
 assert feed["changelog"] == "https://github.com/ysicing/xstats/blob/main/CHANGELOG.md", feed
 PY
