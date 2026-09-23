@@ -194,6 +194,30 @@ executable/file/image/MCP tools were absent. Claude's loopback request had an em
 Real authenticated provider calls are a separate opt-in smoke test. Assistant settings currently
 have Chinese and English copy; other language catalogs use English fallback for this new panel.
 Model response instructions follow the resolved application language.
+## Calendar
+
+`CalendarMenuBarController` owns a separate, opt-in status item, independent of the metrics
+layout and `MetricsHub`. It reuses `StatusPanel`, updates the displayed date every minute and
+on day/time-zone changes or wake, and stops its timer when disabled. `CalendarPopover` uses a
+six-week Gregorian grid (1900–2100) and month/year navigation. Clicking a day opens an almanac
+page in the same panel; returning preserves the selected date and month. `CalendarAlmanac`
+loads Tyme's daily advice, deities and hour fortunes only for the selected day and caches the
+value model by civil-date ID. The twelve-hour grid uses early Zi through Hai, excluding the
+next day's late Zi entry at 23:00; each cell exposes its exact time range in a tooltip. Browsing
+history preserves the selection across midnight; a selection on today follows the new day.
+
+`CalendarEngine` is the sole adapter for the pinned MIT-licensed Tyme4Swift 1.5.0 dependency.
+All Tyme calls run on MainActor because upstream exposes mutable static tables; only value
+models leave the adapter. Civil dates use the system time zone and calendar day arithmetic,
+not 24-hour intervals. Tibetan conversion is guarded to the upstream Gregorian coverage
+1951-01-08 through 2051-02-11. Holiday data currently ends in 2026; unknown years show a notice.
+Plum-rain dates describe traditional calendar rules, not observed or forecast weather.
+
+Calendar enablement, visible features and week start persist through `AppSettings` and the
+optional fields in `SettingsDocument`. Older backups preserve those settings. Additional
+calendars default off and appear only in selected-day details. There is no event access or
+network request at runtime. Use `--snapshot <directory> --calendar-only` for deterministic
+light/dark calendar screenshots without starting unrelated samplers or scans.
 
 ## AI usage statistics
 

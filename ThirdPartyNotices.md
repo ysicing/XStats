@@ -87,3 +87,10 @@ XStats 未引入这些项目的可执行程序、Sparkle 更新模块或浏览�
 
 完整许可证文本见 [LICENSES/AI-Usage-and-OpenUsage-MIT.txt](LICENSES/AI-Usage-and-OpenUsage-MIT.txt)
 与 [LICENSES/usage-bar-BSD-2-Clause.txt](LICENSES/usage-bar-BSD-2-Clause.txt)。
+
+## Tyme4Swift
+
+日历功能通过 Swift Package Manager 使用 [6tail/tyme4swift](https://github.com/6tail/tyme4swift)
+1.5.0（MIT License，Copyright (c) 2026 6tail），提供公历、农历、藏历、回历、干支、
+节气、节日、调休、三伏与传统梅雨日期计算。未修改上游源码。
+完整许可见 [LICENSES/Tyme4Swift-MIT.txt](LICENSES/Tyme4Swift-MIT.txt)。

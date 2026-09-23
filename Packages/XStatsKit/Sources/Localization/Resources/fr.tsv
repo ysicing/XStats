@@ -1280,3 +1280,92 @@ AI 服务限流或额度不足，请稍后重试。	The AI service is rate-limit
 遇到时询问	Ask when unavailable
 Apple 智能不可用。选择一次备用服务，后续会自动使用，也可以随时在设置中修改。	Apple Intelligence is unavailable. Choose a fallback once; the choice will be remembered and can be changed in Settings.
 稍后再选	Decide later
+日历	Calendrier
+菜单栏日历	Calendrier de la barre des menus
+日历设置…	Réglages du calendrier…
+独立显示日期，点击打开月历；不受指标合并布局影响	Affiche la date séparément ; cliquez pour ouvrir le calendrier, même avec les indicateurs regroupés
+每周开始于	Premier jour de la semaine
+星期一	Lundi
+星期日	Dimanche
+农历	Calendrier lunaire chinois
+星期	Jours de la semaine
+法定节假日与调休	Jours fériés et jours de travail compensatoires
+传统与公历节日	Fêtes traditionnelles et grégoriennes
+二十四节气	24 périodes solaires
+干支	Cycle sexagésimal
+三伏天	Jours caniculaires
+梅雨天	Pluies des prunes traditionnelles
+藏历	Calendrier tibétain
+回历	Calendrier hégirien
+公历始终显示。藏历与回历显示在日期详情中；梅雨天按传统历法推算，并非天气预报。	Les dates grégoriennes restent visibles. Les dates tibétaines et hégiriennes figurent dans les détails du jour. Les pluies des prunes suivent les règles traditionnelles, sans prévision météo.
+该日期暂无藏历数据	Aucune donnée du calendrier tibétain pour cette date
+该年份暂无中国法定假日与调休数据	Aucune donnée sur les jours fériés chinois et les jours de travail compensatoires pour cette année
+按传统历法推算，并非天气预报	Calcul du calendrier traditionnel, pas une prévision météo
+年份	Année
+月份	Mois
+上个月	Mois précédent
+下个月	Mois suivant
+班	T
+休	R
+调休上班	Jour de travail compensatoire
+放假	Jour férié
+春节	Fête du Printemps
+元宵节	Fête des Lanternes
+龙头节	Longtaitou
+上巳节	Fête de Shangsi
+清明节	Fête de Qingming
+端午节	Fête des Bateaux-Dragons
+七夕节	Fête de Qixi
+中元节	Fête des Fantômes
+中秋节	Fête de la Mi-Automne
+重阳节	Fête du Double Neuf
+冬至节	Fête du Solstice d’Hiver
+腊八节	Fête de Laba
+除夕	Veille du Nouvel An lunaire
+元旦	Jour de l’An
+劳动节	Fête du Travail
+国庆节	Fête nationale
+国庆中秋	Fête nationale / Mi-Automne
+抗战胜利日	Jour de la Victoire
+立春	Début du printemps
+雨水	Eau de pluie
+惊蛰	Réveil des insectes
+春分	Équinoxe de printemps
+清明	Clarté pure
+谷雨	Pluie des céréales
+立夏	Début de l’été
+小满	Petite plénitude
+芒种	Grain en épi
+夏至	Solstice d’été
+小暑	Petite chaleur
+大暑	Grande chaleur
+立秋	Début de l’automne
+处暑	Fin de la chaleur
+白露	Rosée blanche
+秋分	Équinoxe d’automne
+寒露	Rosée froide
+霜降	Arrivée du givre
+立冬	Début de l’hiver
+小雪	Petite neige
+大雪	Grande neige
+冬至	Solstice d’hiver
+小寒	Petit froid
+大寒	Grand froid
+返回月历	Retour au calendrier
+控制月历格中的日干支；黄历详情始终显示年月日干支	Affiche le cycle du jour dans les cases ; l’almanach inclut toujours les cycles de l’année, du mois et du jour
+宜	Favorable
+忌	À éviter
+纳音	Na Yin
+冲煞	Opposition / Sha
+冲{} 煞{}	Opposition : {} · Sha : {}
+值神	Divinité du jour
+建除十二神	Douze officiers
+吉神宜趋	Divinités favorables
+今日胎神	Divinité fœtale
+凶神宜忌	Divinités défavorables
+彭祖百忌	Tabous de Peng Zu
+二十八星宿	Demeures lunaires
+时辰吉凶	Fortune des heures
+子时显示当日早子时；23 点起的晚子时按次日干支计算	Zi affiche 00 h–00 h 59 ; dès 23 h, le cycle du lendemain s’applique
+吉	Favorable
+凶	Défavorable

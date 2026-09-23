@@ -17,6 +17,12 @@ enum SnapshotRenderer {
     static func run(outputDirectory: URL) async {
         try? FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
 
+        // 日历快照只渲染固定日期，不启动系统采样、AI 扫描或磁盘扫描。
+        if CommandLine.arguments.contains("--calendar-only") {
+            renderCalendar(outputDirectory: outputDirectory)
+            return
+        }
+
         let defaults = UserDefaults(suiteName: "XStats.snapshot") ?? .standard
         let settings = AppSettings(defaults: defaults)
         settings.language = L10n.language
@@ -114,6 +120,29 @@ enum SnapshotRenderer {
             writePNG(padded, scale: 2, to: outputDirectory.appendingPathComponent("menubar-\(dark ? "dark" : "light").png"))
         }
         print(tr("截图已输出到 \(outputDirectory.path)"))
+    }
+
+    private static func renderCalendar(outputDirectory: URL) {
+        let name = "XStats.calendarSnapshot.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: name) else { return }
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = AppSettings(defaults: defaults)
+        settings.calendarEnabled = true
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [])
+        guard let september = CalendarEngine.day(year: 2026, month: 9, day: 23)?.date,
+              let summer = CalendarEngine.day(year: 2024, month: 6, day: 11)?.date else { return }
+        for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+            guard let appearance = NSAppearance(named: name) else { continue }
+            NSApp.appearance = appearance
+            settings.calendarFeatures = CalendarFeature.defaults
+            write(CalendarPopover(referenceDate: september), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("calendar-\(suffix).png"))
+            write(CalendarPopover(referenceDate: september, showsDayDetails: true), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("calendar-almanac-\(suffix).png"))
+            settings.calendarFeatures = Set(CalendarFeature.allCases)
+            write(CalendarPopover(referenceDate: summer, showsDayDetails: true), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("calendar-details-\(suffix).png"))
+        }
     }
 
     /// 用真实的 NSHostingView 放进离屏窗口截图，渲染路径与 App 内一致

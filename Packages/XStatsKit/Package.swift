@@ -16,6 +16,9 @@ let package = Package(
         .library(name: "WebDAVSync", targets: ["WebDAVSync"]),
         .library(name: "XStatsUI", targets: ["XStatsUI"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/6tail/tyme4swift.git", exact: "1.5.0"),
+    ],
     targets: [
         .target(name: "Localization", resources: [.process("Resources")]),
         .target(name: "AIUsage"),
@@ -25,7 +28,8 @@ let package = Package(
         .target(name: "Cleaner", dependencies: ["Localization"]),
         .target(name: "Updates", dependencies: ["Localization"]),
         .target(name: "WebDAVSync", dependencies: ["Localization"]),
-        .target(name: "XStatsUI", dependencies: ["AIUsage", "Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync"],
+        .target(name: "XStatsUI", dependencies: ["AIUsage", "Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync",
+                                                   .product(name: "Tyme4Swift", package: "tyme4swift")],
                 resources: [.copy("Resources/Flags"), .copy("Resources/Logos")]),
         .testTarget(name: "MetricsTests", dependencies: ["Metrics", "SMC"]),
         .testTarget(name: "CleanerTests", dependencies: ["Cleaner"]),
