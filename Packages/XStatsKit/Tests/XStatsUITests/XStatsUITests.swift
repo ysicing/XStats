@@ -218,6 +218,12 @@ private func isolatedDefaults() -> UserDefaults {
 }
 
 @Suite struct PanelTabTests {
+    @MainActor @Test func removedAssistantPageRestoresToGeneralSettings() {
+        let defaults = isolatedDefaults()
+        defaults.set("settingsAI", forKey: "panelTab")
+        #expect(AppSettings(defaults: defaults).panelTab == .settingsGeneral)
+    }
+
     @MainActor @Test func hiddenSyncPageRestoresToGeneralSettings() {
         let defaults = isolatedDefaults()
         defaults.set("settingsAccount", forKey: "panelTab")

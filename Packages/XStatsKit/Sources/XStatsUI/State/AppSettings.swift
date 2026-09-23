@@ -281,7 +281,7 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
 /// 主窗口侧边栏的页面
 public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery, processes, keepAwake, cleaner, uninstaller, startupItems
-    case settingsGeneral, settingsMenuBar, settingsNotifications, settingsAccount, settingsAI, settingsHelper, settingsAbout
+    case settingsGeneral, settingsMenuBar, settingsNotifications, settingsAccount, settingsHelper, settingsAbout
 
     public var id: String { rawValue }
 
@@ -289,7 +289,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     static let tools: [PanelTab] = [.processes, .startupItems, .keepAwake, .cleaner, .uninstaller]
     // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
     static let settings: [PanelTab] = [.settingsGeneral, .settingsMenuBar, .settingsNotifications,
-                                     /* .settingsAccount, */ .settingsAI, .settingsHelper, .settingsAbout]
+                                     /* .settingsAccount, */ .settingsHelper, .settingsAbout]
 
     var isSettings: Bool { Self.settings.contains(self) }
 
@@ -318,7 +318,6 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .settingsMenuBar: tr("菜单栏")
         case .settingsNotifications: tr("通知")
         case .settingsAccount: tr("设置同步")
-        case .settingsAI: tr("AI 助手")
         case .settingsHelper: tr("辅助工具")
         case .settingsAbout: tr("关于")
         }
@@ -346,7 +345,6 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .settingsMenuBar: "menubar.rectangle"
         case .settingsNotifications: "bell.badge"
         case .settingsAccount: "arrow.triangle.2.circlepath"
-        case .settingsAI: "sparkles"
         case .settingsHelper: "lock.shield"
         case .settingsAbout: "info.circle"
         }
@@ -589,8 +587,11 @@ public final class AppSettings {
             ? defaults.integer(forKey: Keys.lidModeBatteryFloor) : 20
         fanSafetyTemperature = Self.fanSafetyOptions.contains(defaults.integer(forKey: Keys.fanSafetyTemperature))
             ? defaults.integer(forKey: Keys.fanSafetyTemperature) : 95
-        let savedPanelTab = defaults.string(forKey: Keys.panelTab).flatMap(PanelTab.init(rawValue:)) ?? .overview
-        panelTab = savedPanelTab == .settingsAccount || (savedPanelTab == .aiUsage && !isAIUsageEnabled)
+        let savedPanelTabValue = defaults.string(forKey: Keys.panelTab)
+        let savedPanelTab = savedPanelTabValue.flatMap(PanelTab.init(rawValue:)) ?? .overview
+        // 旧版 AI 助手设置页已移除，升级后仍留在设置分组。
+        panelTab = savedPanelTabValue == "settingsAI" || savedPanelTab == .settingsAccount
+            || (savedPanelTab == .aiUsage && !isAIUsageEnabled)
             ? .settingsGeneral : savedPanelTab
         appearance = defaults.string(forKey: Keys.appearance).flatMap(AppearanceMode.init(rawValue:)) ?? .system
         showDockIcon = defaults.bool(forKey: Keys.showDockIcon)

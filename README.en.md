@@ -139,14 +139,7 @@ and results are cached on the Mac for 7 days unless the address changes or you r
 **Main window** — a sidebar with Dashboard, This Mac, History, CPU, GPU, Memory, Disk, Network, Temperature & fans,
 Battery, plus the Processes, Startup items, Keep awake, Clean and Uninstall tools; resizable in both directions. See [Cleanup](#cleanup).
 
-**Explain a process with AI** — choose Apple Intelligence, Codex CLI or Claude Code in Settings → AI Assistant.
-Apple is the default. Choosing a CLI as default or fallback authorizes sending a redacted process
-summary through that CLI when you request an explanation; selecting it alone sends nothing.
-When Apple is unavailable, the explanation card asks you once to choose Codex, Claude or no fallback.
-The choice is remembered and can be changed in Settings. A failed CLI request is not retried
-through another provider.
-CLI calls may use the network and consume quota. They use temporary directories, disabled execution
-tools and ephemeral sessions. Verify the explanation before quitting a process.
+**Explain a process with Apple Intelligence** — on supported macOS versions, right-click a process to ask the on-device model what it does, whether its resource use is normal, and what quitting it may affect. If the model is unavailable, XStats shows the reason and does not call another provider. Verify the answer before quitting a process.
 
 White and blue in light mode, black and blue in dark mode — one look across windows and popovers,
 switched with one click or following the system.
@@ -248,8 +241,7 @@ Passwords are stored only in the local Keychain. The JSON backup is not encrypte
 The first download returns “no remote settings file” until you upload once. Files over 1 MB, invalid backups and unsupported versions are rejected without changing local settings.
 Legacy GitHub/Google/Apple login and the old account backend have been removed. Settings sync only needs your WebDAV server.
 
-Apple explanations stay on device. A selected CLI receives process names, signatures and resource
-usage when you request an explanation, but not full paths, process arguments, environment variables or logs.
+Apple process explanations stay on device; process information is not sent to another AI service.
 
 ## Development
 

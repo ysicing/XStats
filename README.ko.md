@@ -126,10 +126,7 @@ Globalping 측정 결과는 공개되므로 직접 지정한 대상을 확인하
 **AI 프로세스 설명**
 
 프로세스를 오른쪽 클릭하면 시스템 내장 모델이 용도, 사용량이 정상인지, 종료해도 되는지 설명합니다.
-AI 도우미 설정에서 Apple Intelligence, Codex CLI, Claude Code를 선택할 수 있습니다. Apple은 기기 안에서 처리합니다.
-Apple Intelligence를 사용할 수 없으면 처음에 Codex, Claude 또는 대체 없음 중에서 선택할 수 있습니다. 선택은 기억되며 설정에서 언제든 바꿀 수 있습니다.
-Codex 또는 Claude를 기본·대체 서비스로 선택하면 설명 요청 시 민감 정보를 제외한 프로세스 요약을 CLI로 보내는 데 동의한 것으로 봅니다. 선택만 해서는 요청하지 않습니다.
-전체 사용자 경로나 환경 변수는 보내지 않고 모델의 명령 실행을 비활성화합니다. 종료 전에 설명을 확인하세요.
+Apple Intelligence의 기기 내 모델만 사용합니다. 사용할 수 없으면 이유를 표시하며 다른 서비스로 전환하지 않습니다. 프로세스를 종료하기 전에 설명을 확인하세요.
 
 <p align="center">
   <img src="Assets/readme/thermal-dark.png" width="49%" alt="온도와 팬">

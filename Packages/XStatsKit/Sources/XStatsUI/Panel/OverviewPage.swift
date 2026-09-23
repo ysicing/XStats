@@ -476,7 +476,7 @@ private struct TopProcessesCard: View {
                     NSPasteboard.general.setString(String(process.pid), forType: .string)
                 }
                 if ProcessExplainer.isSupported {
-                    Button(tr("用 AI 解释")) { model.explainProcess(.init(process)) }
+                    Button(tr("用 Apple 智能解释")) { model.explainProcess(.init(process)) }
                 }
                 Divider()
                 Button(tr("查看全部进程")) { model.settings.panelTab = .processes }
