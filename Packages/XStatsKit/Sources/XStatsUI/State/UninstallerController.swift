@@ -13,6 +13,7 @@ public final class UninstallerController {
     public private(set) var sizes: [String: UInt64] = [:]
     public private(set) var isLoading = false
     public private(set) var selected: InstalledApp?
+    public private(set) var pendingUninstall: InstalledApp?
     public private(set) var leftovers: [AppLeftover] = []
     public private(set) var isScanning = false
     public private(set) var isRemoving = false
@@ -52,6 +53,7 @@ public final class UninstallerController {
     }
 
     func select(_ app: InstalledApp?) {
+        pendingUninstall = nil
         selected = app
         leftovers = []
         chosen = []
@@ -96,7 +98,22 @@ public final class UninstallerController {
         NSRunningApplication.runningApplications(withBundleIdentifier: app.bundleIdentifier).forEach { $0.terminate() }
     }
 
-    func uninstall() {
+    func requestUninstall() {
+        guard let selected, !isRemoving else { return }
+        pendingUninstall = selected
+    }
+
+    func cancelUninstall() {
+        pendingUninstall = nil
+    }
+
+    func confirmUninstall() {
+        guard let pendingUninstall, pendingUninstall == selected else { return }
+        self.pendingUninstall = nil
+        uninstall()
+    }
+
+    private func uninstall() {
         guard let app = selected, !isRemoving else { return }
         do {
             try AppUninstaller.validate(app)

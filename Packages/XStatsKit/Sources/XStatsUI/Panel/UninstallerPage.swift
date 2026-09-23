@@ -8,7 +8,6 @@ import UniformTypeIdentifiers
 struct UninstallerPage: View {
     @Environment(AppModel.self) private var model
     @State private var search = ""
-    @State private var confirming = false
     @State private var isDropTargeted = false
 
     var body: some View {
@@ -19,7 +18,7 @@ struct UninstallerPage: View {
                 .frame(width: DS.Size.sidebarWidth + DS.Space.s16)
             PageScroll {
                 if let app = uninstaller.selected {
-                    AppDetailCard(app: app, confirm: { confirming = true })
+                    AppDetailCard(app: app, confirm: { uninstaller.requestUninstall() })
                 } else {
                     DropHint(isTargeted: isDropTargeted)
                 }
@@ -39,12 +38,57 @@ struct UninstallerPage: View {
             }
             return true
         }
-        .confirmationDialog(uninstaller.selected.map { tr("卸载“\($0.name)”？") } ?? "", isPresented: $confirming, titleVisibility: .visible) {
-            Button(tr("移到废纸篓"), role: .destructive) { uninstaller.uninstall() }
-            Button(tr("取消"), role: .cancel) {}
-        } message: {
-            Text(tr("应用与勾选的 \(max(0, uninstaller.chosen.count - 1)) 项残留会移到废纸篓，约 \(Format.bytes(uninstaller.chosenSize, base: .decimal))。清空废纸篓前都可以放回。"))
+        .sheet(item: Binding<InstalledApp?>(
+            get: { uninstaller.pendingUninstall },
+            set: { if $0 == nil { uninstaller.cancelUninstall() } }
+        )) { app in
+            UninstallConfirmationSheet(app: app, uninstaller: uninstaller)
         }
+    }
+}
+
+private struct UninstallConfirmationSheet: View {
+    let app: InstalledApp
+    let uninstaller: UninstallerController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s4) {
+            HStack(spacing: DS.Space.s3) {
+                AppIconCache.shared.image(bundlePath: app.url.path)
+                    .resizable()
+                    .frame(width: DS.Space.s8, height: DS.Space.s8)
+                Text(tr("卸载“\(app.name)”？"))
+                    .dsFont(.lg, weight: .semibold)
+                    .foregroundStyle(DS.Palette.textPrimary)
+                    .lineLimit(2)
+            }
+
+            VStack(alignment: .leading, spacing: DS.Space.s1) {
+                Text(tr("将移到废纸篓"))
+                    .dsFont(.sm, weight: .medium)
+                    .foregroundStyle(DS.Palette.textPrimary)
+                Text(tr("已选 \(uninstaller.chosen.count) 项 · \(Format.bytes(uninstaller.chosenSize, base: .decimal))"))
+                    .dsFont(.sm)
+                    .foregroundStyle(DS.Palette.textSecondary)
+                Text(tr("可以恢复，但清空废纸篓前不会释放空间"))
+                    .dsFont(.xs)
+                    .foregroundStyle(DS.Palette.textSecondary)
+            }
+
+            HStack(spacing: DS.Space.s2) {
+                Spacer()
+                Button(tr("取消")) { uninstaller.cancelUninstall() }
+                    .buttonStyle(DSButtonStyle(kind: .secondary))
+                    .keyboardShortcut(.cancelAction)
+                Button(tr("移到废纸篓"), role: .destructive) { uninstaller.confirmUninstall() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(DS.Palette.error)
+            }
+        }
+        .padding(DS.Space.s6)
+        .frame(width: 420)
+        .background(DS.Palette.background)
+        .appLanguageEnvironment()
     }
 }
 
