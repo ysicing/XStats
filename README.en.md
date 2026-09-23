@@ -119,6 +119,7 @@ Choose which sections each popover shows in Settings. `Esc` closes it.
 - **GPU**, **Temperature & fans.** History, sensor groups, fan speeds and quick modes.
 - **Battery.** Charge level, time remaining, adapter wattage and battery temperature; a 24-hour charge curve; power draw; health and cycle count; the batteries of connected Bluetooth devices (AirPods, Magic Keyboard / Mouse / Trackpad). Macs without a battery show the Bluetooth devices only.
 - **AI usage**: reads local Codex / Claude Code session logs for token totals, cache hit rate, daily trends and model ranking. Defaults to a one-year activity heatmap; switch between daily, weekly and cumulative year views and filter by model. SQLite persists parser checkpoints and statistics across restarts; appended logs are read incrementally. When enabled, it also reads local CLI login credentials and directly queries five-hour and weekly quotas.
+When both sources are enabled and at least one has quota data, the menu bar AI item shows Codex and Claude separately; a source without quota data shows a dash, and the tooltip lists reset times.
 
 <p align="center">
   <img src="Assets/readme/popover-cpu-light.png" width="32%" alt="CPU popover">
@@ -228,6 +229,7 @@ Every feature that touches the network can be turned off. Public IP and connecti
 **AI usage** is off by default. When enabled, local token statistics read only Codex / Claude Code session logs; quota checks read CLI login credentials and contact `chatgpt.com` / `api.anthropic.com` directly for five-hour and weekly usage. Tokens go only to the corresponding provider and are not saved in XStats preferences or its statistics database. Session logs are not sent with quota requests; quota failures do not affect local statistics.
 
 If local Codex or Claude Code sign-in cannot provide quota data, you can configure a separate Sub2API HTTPS address, admin email and password, and account ID for each source in AI Usage settings. Each fallback is used only when that source's automatic lookup fails, and XStats checks the account platform before displaying its quota. Background requests use `force=false` to read cached data without triggering an active probe. Five-hour and seven-day windows are supported, along with Sonnet and Fable weekly windows when a Claude account provides them. The two admin passwords stay separately in this Mac's Keychain; connection settings stay local and are excluded from WebDAV backups. Sign-in sends the admin email and password to the configured Sub2API server; quota data is never uploaded to XStats servers.
+When Sub2API provides no Fable value, the page says that quota data is unavailable instead of treating the missing value as 0% used.
 
 WebDAV sync sends only preferences when you configure a server and start a transfer manually. It excludes monitoring data, history and WebDAV credentials.
 

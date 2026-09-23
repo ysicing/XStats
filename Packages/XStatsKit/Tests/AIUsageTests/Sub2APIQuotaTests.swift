@@ -211,6 +211,18 @@ private final class InMemorySub2APISecretStore: Sub2APISecretStore {
         #expect(await fallbackHTTP.requests().count == 3)
     }
 
+    @Test func detailedClaudeFableWindowIsUsedOnlyWhenServerReturnsAValue() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let present = Data(#"{"code":0,"data":{"five_hour":{"utilization":12},"seven_day_fable":{"utilization":37,"remaining_seconds":86400}}}"#.utf8)
+        let missing = Data(#"{"code":0,"data":{"five_hour":{"utilization":12},"seven_day_fable":null}}"#.utf8)
+
+        let fable = try Sub2APIQuotaClient.parseUsage(present, now: now, provider: .claude)
+        #expect(fable.window(.fableWeekly)?.remainingPercent == 63)
+        #expect(fable.window(.fableWeekly)?.resetsAt == now.addingTimeInterval(86400))
+        let unavailable = try Sub2APIQuotaClient.parseUsage(missing, now: now, provider: .claude)
+        #expect(unavailable.window(.fableWeekly) == nil)
+    }
+
     @Test func mismatchedAccountPlatformIsRejectedBeforeUsageQuery() async throws {
         let http = StubSub2APIHTTPClient([
             (200, #"{"code":0,"data":{"access_token":"short-lived"}}"#),

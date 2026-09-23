@@ -17,7 +17,7 @@ private struct LocalUsageContent: View {
     @Environment(AppModel.self) private var model
     @State private var selectedModel = ""
     @State private var source = "all"
-    @State private var settingsOpen = false
+    @State private var emptySettingsOpen = false
     @State private var activityMode = UsageActivityMode.daily
 
     private var enabledProviders: [AIProviderID] {
@@ -56,7 +56,9 @@ private struct LocalUsageContent: View {
             } else if model.settings.aiUsageSources.isEmpty {
                 Card {
                     Text(tr("数据来源") + " · " + tr("尚未启用")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
-                    Button(tr("设置")) { settingsOpen = true }.buttonStyle(DSButtonStyle(kind: .secondary))
+                    Button(tr("设置")) { emptySettingsOpen = true }
+                        .buttonStyle(DSButtonStyle(kind: .secondary))
+                        .popover(isPresented: $emptySettingsOpen) { AIUsageSettingsPanel() }
                 }
             } else if let report = model.aiUsage.localReport(for: provider) {
                 let rows = report.summary(mode: activityMode, model: selectedModel.isEmpty ? nil : selectedModel)
@@ -84,8 +86,8 @@ private struct LocalUsageContent: View {
         }
     }
 
-    private var toolbar: some View {
-        VStack(spacing: DS.Space.s2) {
+    @ViewBuilder private var toolbar: some View {
+        if !compact || (model.settings.aiUsageEnabled && enabledProviders.count > 1) {
             HStack(spacing: DS.Space.s2) {
                 if model.settings.aiUsageEnabled && enabledProviders.count > 1 {
                     UsageChoices(selection: $source, options: sourceOptions,
@@ -93,26 +95,13 @@ private struct LocalUsageContent: View {
                         .frame(maxWidth: compact ? .infinity : 260)
                         .onChange(of: source) { _, _ in selectedModel = "" }
                 }
-                Spacer(minLength: DS.Space.s4)
-                refreshButton
-                MiniIconButton(systemName: "gearshape", help: tr("设置")) { settingsOpen.toggle() }
-                    .popover(isPresented: $settingsOpen) {
-                        ScrollView { UsageSettings().padding(DS.Space.s4) }
-                            .frame(width: 390, height: 520)
-                    }
+                if !compact {
+                    Spacer(minLength: DS.Space.s4)
+                    AIUsageRefreshButton()
+                    AIUsageSettingsButton()
+                }
             }
         }
-    }
-
-    private var refreshButton: some View {
-        ZStack {
-            MiniIconButton(systemName: "arrow.clockwise", help: tr("立即刷新")) {
-                Task { await model.aiUsage.refresh() }
-            }
-            .opacity(model.aiUsage.isRefreshing ? 0 : 1)
-            .disabled(!model.settings.aiUsageEnabled || model.settings.aiUsageSources.isEmpty || model.aiUsage.isRefreshing)
-            if model.aiUsage.isRefreshing { ProgressView().controlSize(.small).accessibilityLabel(tr("正在刷新")) }
-        }.frame(width: DS.Size.controlHeight, height: DS.Size.controlHeight)
     }
 
     private var quotaSection: some View {
@@ -126,18 +115,25 @@ private struct LocalUsageContent: View {
                     .help(tr("服务端用量 · 与本机 Token 统计不同"))
                     .accessibilityLabel(tr("服务端用量 · 与本机 Token 统计不同"))
                 Spacer()
+                if let provider, model.aiUsage.visibleQuotaState(for: provider).snapshot?.source == .sub2api {
+                    Text("Sub2API").dsFont(.xs, weight: .medium)
+                        .foregroundStyle(DS.Palette.textTertiary)
+                }
             }
             ForEach(visibleProviders) { id in
                 let state = model.aiUsage.visibleQuotaState(for: id)
                 VStack(alignment: .leading, spacing: DS.Space.s3) {
                     if provider == nil {
-                        Text(id == .codex ? "Codex" : "Claude Code").dsFont(.xs, weight: .semibold)
+                        HStack {
+                            Text(id == .codex ? "Codex" : "Claude Code").dsFont(.xs, weight: .semibold)
+                            Spacer()
+                            if state.snapshot?.source == .sub2api {
+                                Text("Sub2API").dsFont(.xs, weight: .medium)
+                                    .foregroundStyle(DS.Palette.textTertiary)
+                            }
+                        }
                     }
                     if let snapshot = state.snapshot {
-                        if snapshot.source == .sub2api {
-                            Text("Sub2API").dsFont(.xs, weight: .medium)
-                                .foregroundStyle(DS.Palette.textSecondary)
-                        }
                         ForEach(snapshot.windows) { window in
                             VStack(alignment: .leading, spacing: DS.Space.s1) {
                                 HStack(alignment: .firstTextBaseline) {
@@ -168,6 +164,17 @@ private struct LocalUsageContent: View {
                                     }
                                 }
                             }
+                        }
+                        // Sub2API 的 Fable 窗口可能为 null；显示缺失状态，不推断为 0% 已用。
+                        if id == .claude, snapshot.source == .sub2api,
+                           snapshot.window(.fableWeekly) == nil {
+                            HStack {
+                                Text(quotaTitle(.fableWeekly))
+                                Spacer()
+                                Text(tr("暂无额度数据"))
+                            }
+                            .dsFont(.xs)
+                            .foregroundStyle(DS.Palette.textTertiary)
                         }
                         if state.failure != nil {
                             Text(tr("查询失败，显示上次额度"))
@@ -600,6 +607,38 @@ private struct ActivityCell: View {
                 else if hovered == label { hovered = nil }
             }
             .accessibilityLabel(label)
+    }
+}
+
+struct AIUsageRefreshButton: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        ZStack {
+            MiniIconButton(systemName: "arrow.clockwise", help: tr("立即刷新")) {
+                Task { await model.aiUsage.refresh() }
+            }
+            .opacity(model.aiUsage.isRefreshing ? 0 : 1)
+            .disabled(!model.settings.aiUsageEnabled || model.settings.aiUsageSources.isEmpty || model.aiUsage.isRefreshing)
+            if model.aiUsage.isRefreshing { ProgressView().controlSize(.small).accessibilityLabel(tr("正在刷新")) }
+        }
+        .frame(width: DS.Size.controlHeight, height: DS.Size.controlHeight)
+    }
+}
+
+struct AIUsageSettingsButton: View {
+    @State private var isOpen = false
+
+    var body: some View {
+        MiniIconButton(systemName: "gearshape", help: tr("AI 使用统计") + " · " + tr("设置")) { isOpen.toggle() }
+            .popover(isPresented: $isOpen) { AIUsageSettingsPanel() }
+    }
+}
+
+private struct AIUsageSettingsPanel: View {
+    var body: some View {
+        ScrollView { UsageSettings().padding(DS.Space.s4) }
+            .frame(width: 390, height: 520)
     }
 }
 

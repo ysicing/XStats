@@ -46,7 +46,8 @@ struct MenuBarReading {
     var batteryHistory: [Double] = []
     /// 本机日志今日 Token 总量；扫描未开启或还没有数据时为 nil
     var aiTokens: Int?
-    /// 每个已登录来源选一个订阅窗口；菜单栏主读数取剩余最少者，完整列表放在悬停提示中。
+    /// 每个已启用来源各占一个紧凑读数；没有额度时显示占位，避免来源从菜单栏消失。
+    var aiQuotaProviders: [AIProviderID] = []
     var aiQuotas: [MenuBarQuota] = []
     var primaryAIQuota: MenuBarQuota? { aiQuotas.min { $0.remainingPercent < $1.remainingPercent } }
     var batteryCharging = false
@@ -75,6 +76,8 @@ struct MenuBarReading {
         battery = store.battery?.level
         batteryHistory = battery.map { Array(repeating: $0, count: 30) } ?? []
         aiTokens = model.aiUsage.todayTokens
+        aiQuotaProviders = model.settings.aiUsageEnabled
+            ? AIProviderID.allCases.filter { model.settings.aiUsageSources.contains($0) } : []
         aiQuotas = model.aiUsage.visibleQuotaProviders(for: nil).compactMap { provider in
             guard let snapshot = model.aiUsage.visibleQuotaState(for: provider).snapshot else { return nil }
             let windows = snapshot.windows
@@ -149,8 +152,11 @@ struct MenuBarReading {
             // 没有读数也要给出一行，否则菜单栏只剩一个不会解释自己的 “AI —”
             case .aiUsage:
                 if !aiQuotas.isEmpty {
-                    aiQuotas.map { quota in
-                        "\(quota.sourceName)\(quota.source == .sub2api ? " (Sub2API)" : "") · \(quota.shortWindowName) · \(tr("剩余")) \(quota.remainingPercent)% · \(tr("重置：")) \(quota.resetText)"
+                    aiQuotaProviders.map { provider in
+                        guard let quota = aiQuotas.first(where: { $0.provider == provider }) else {
+                            return "\(provider == .codex ? "Codex" : "Claude") · \(tr("暂无额度数据"))"
+                        }
+                        return "\(quota.sourceName)\(quota.source == .sub2api ? " (Sub2API)" : "") · \(quota.shortWindowName) · \(tr("剩余")) \(quota.remainingPercent)% · \(tr("重置：")) \(quota.resetText)"
                     }.joined(separator: "\n")
                 } else {
                     aiTokens.map { "AI · \(UsageNumber.exact($0)) Tokens" } ?? ("AI · " + tr("暂无本机用量数据"))
@@ -280,6 +286,18 @@ enum MenuBarRenderer {
         case .battery:
             return batterySegment(reading: reading, style: style, colorizeHighLoad: colorizeHighLoad)
         case .aiUsage:
+            if !reading.aiQuotas.isEmpty && reading.aiQuotaProviders.count > 1 {
+                let statuses = reading.aiQuotaProviders.map { provider -> Segment in
+                    let name = provider == .codex ? "Codex" : "Claude"
+                    guard let quota = reading.aiQuotas.first(where: { $0.provider == provider }) else {
+                        return stackedText(label: name, value: "—", sample: "100%", alert: false)
+                    }
+                    return stackedText(label: "\(name) · \(quota.shortWindowName)",
+                                       value: "\(quota.remainingPercent)%", sample: "100%", alert: false)
+                }
+                let status = combine(statuses, gap: DS.Space.s2)
+                return style == .icon ? combine([symbolSegment(item.symbol), status]) : status
+            }
             if let quota = reading.primaryAIQuota {
                 let status = stackedText(label: "\(quota.shortWindowName) · \(quota.resetText)",
                                          value: "\(quota.sourceName) \(quota.remainingPercent)%",

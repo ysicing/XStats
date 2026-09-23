@@ -78,7 +78,7 @@ private actor GatedUsageProvider: AIUsageProvider {
 
 @MainActor
 @Suite struct AIUsageControllerTests {
-    @Test func menuBarPrefersWeeklyRemainingQuotaAndListsBothSourcesInTooltip() async {
+    @Test func menuBarShowsBothSubscriptionSourcesAndKeepsWeeklySummary() async {
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.aiUsageEnabled = true
         let reset = Date(timeIntervalSince1970: 1_800_000_000)
@@ -100,6 +100,15 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(reading.primaryAIQuota?.window.kind == .weekly)
         #expect(reading.primaryAIQuota?.remainingPercent == 27)
         #expect(reading.primaryAIQuota?.resetText != "—")
+        #expect(reading.aiQuotaProviders == [.codex, .claude])
+        let both = MenuBarRenderer.image(reading: reading, items: [.aiUsage],
+            style: { _ in .stacked }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
+        var codexOnly = reading
+        codexOnly.aiQuotaProviders = [.codex]
+        codexOnly.aiQuotas = reading.aiQuotas.filter { $0.provider == .codex }
+        let single = MenuBarRenderer.image(reading: codexOnly, items: [.aiUsage],
+            style: { _ in .stacked }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
+        #expect(both.size.width > single.size.width)
         let tooltip = reading.tooltip(items: [.aiUsage], fahrenheit: false)
         #expect(tooltip.contains("Codex"))
         #expect(tooltip.contains("27%"))
@@ -108,19 +117,39 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(!tooltip.contains("5%"))
     }
 
+    @Test func menuBarNamesAnEnabledSourceWithoutQuotaBesideTheAvailableOne() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let codex = AIQuotaSnapshot(provider: .codex, windows: [
+            AIQuotaWindow(kind: .weekly, usedPercent: 50, resetsAt: nil),
+        ], fetchedAt: Date())
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [
+            StubQuotaProvider(results: [.success(codex)]),
+            StubQuotaProvider(id: .claude, results: [.failure(.notConfigured)]),
+        ])
+        await model.aiUsage.refresh()
+
+        let reading = MenuBarReading(model: model)
+        #expect(reading.aiQuotas.count == 1)
+        #expect(reading.tooltip(items: [.aiUsage], fahrenheit: false).contains("Claude · 暂无额度数据"))
+        let image = MenuBarRenderer.image(reading: reading, items: [.aiUsage],
+            style: { _ in .stacked }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
+        #expect(image.size.width > 0)
+    }
+
     @Test func menuBarLabelsManualQuotaAndOptionalFastWindow() async {
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.aiUsageEnabled = true
-        let snapshot = AIQuotaSnapshot(provider: .codex, windows: [
+        let snapshot = AIQuotaSnapshot(provider: .claude, windows: [
             AIQuotaWindow(kind: .fableWeekly, usedPercent: 40, resetsAt: nil),
         ], fetchedAt: Date(), source: .sub2api)
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [],
-                             aiQuotaProviders: [StubQuotaProvider(results: [.success(snapshot)])])
+                             aiQuotaProviders: [StubQuotaProvider(id: .claude, results: [.success(snapshot)])])
         await model.aiUsage.refresh()
 
         let reading = MenuBarReading(model: model)
         #expect(reading.primaryAIQuota?.shortWindowName == "7d F")
-        #expect(reading.tooltip(items: [.aiUsage], fahrenheit: false).contains("Codex (Sub2API)"))
+        #expect(reading.tooltip(items: [.aiUsage], fahrenheit: false).contains("Claude (Sub2API)"))
     }
 
     @Test func menuBarFallsBackToLocalTokensWhenSubscriptionIsUnavailable() async {

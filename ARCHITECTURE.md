@@ -246,16 +246,19 @@ signs in to its configured server, reads the account record to verify its platfo
 If the detailed endpoint is unavailable, the account's `extra` fields provide coarser five-hour and
 weekly windows. Claude may also expose Sonnet and Fable weekly windows. Credentials and quota results
 are never sent to XStats servers; the UI marks fallback results as Sub2API.
-When a subscription snapshot exists, the menu bar AI reading shows the weekly window (or the
-five-hour window if weekly is unavailable), its remaining percentage, and a compact reset time.
-With multiple providers it displays the one with less remaining quota; the tooltip lists both.
-Without a subscription snapshot it keeps the local daily Token reading.
+When one provider has a subscription snapshot, the menu bar AI reading shows its weekly window
+(or five-hour window if weekly is unavailable), remaining percentage and compact reset time.
+When both sources are enabled and either has quota data, the item shows a compact named reading
+for each source; one without quota data shows a dash. The tooltip lists reset times and missing
+data by source. Without any subscription snapshot it keeps the local daily Token reading.
 The quota detail card presents remaining allowance (not used allowance) and, when the server
 provides a reset date, a separate bar for elapsed time in that five-hour or seven-day window.
 Allowance turns red as it runs low; the reset bar turns green as reset approaches and updates
 while the view is open.
 The UI follows CC Switch's filter/summary/trend/model-table organization, implemented in SwiftUI.
-The desktop toolbar groups source controls and settings. Token totals use compact notation with
+The desktop toolbar groups source controls and actions. In the compact menu-bar popover, its header
+owns refresh and AI Usage settings; the content shows a source switch only when multiple sources
+are enabled. Token totals use compact notation with
 exact hover/VoiceOver values. Cache details are
 disclosed on demand and local settings live in a native popover. Since source data is aggregated
 by day, all three activity modes cover the same trailing 365 days: daily uses one cell per day;
