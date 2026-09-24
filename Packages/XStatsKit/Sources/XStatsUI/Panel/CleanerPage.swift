@@ -49,7 +49,7 @@ private struct SummaryCard: View {
 
         Card(padding: DS.Space.s3, spacing: DS.Space.s3) {
             HStack(spacing: DS.Space.s1) {
-                Image(systemName: "sparkles").font(.system(size: DS.TextSize.xs.rawValue, weight: .semibold))
+                Image(systemName: PanelTab.cleaner.symbol).font(.system(size: DS.TextSize.xs.rawValue, weight: .semibold))
                 Text(tr("磁盘清理")).dsFont(.xs, weight: .semibold)
                 Spacer()
                 if let last = cleaner.lastScan {

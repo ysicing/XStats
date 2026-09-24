@@ -343,7 +343,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .battery: "battery.75"
         case .processes: "list.bullet.rectangle"
         case .keepAwake: "cup.and.saucer"
-        case .cleaner: "sparkles"
+        case .cleaner: "eraser"
         case .uninstaller: "trash"
         case .startupItems: "power"
         case .settingsGeneral: "gearshape"
