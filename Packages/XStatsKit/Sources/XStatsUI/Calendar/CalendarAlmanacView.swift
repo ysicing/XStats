@@ -95,7 +95,10 @@ struct CalendarAlmanacView: View {
     }
 
     private func sideTile(_ title: String, value: String, isLucky: Bool? = nil) -> some View {
-        Group {
+        // 拆出无障碍文案：写在视图链里时 Swift 6.2 无法在限时内完成类型推断。
+        let luck: String = isLucky.map { " " + tr($0 ? "吉" : "凶") } ?? ""
+        let accessibilityText: String = title + " " + value + luck
+        return Group {
             if L10n.language.isChinese {
                 HStack(spacing: 6) {
                     Text(title.map(String.init).joined(separator: "\n"))
@@ -107,7 +110,7 @@ struct CalendarAlmanacView: View {
                     .font(.system(size: 12))
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(title + " " + value + (isLucky.map { " " + tr($0 ? "吉" : "凶") } ?? ""))
+                .accessibilityLabel(accessibilityText)
             } else {
                 VStack(spacing: 8) {
                     Text(title).font(.system(size: 13)).foregroundStyle(heading)
