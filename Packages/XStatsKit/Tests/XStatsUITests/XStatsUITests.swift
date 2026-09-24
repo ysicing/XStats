@@ -306,6 +306,29 @@ private func isolatedDefaults() -> UserDefaults {
         #expect(!model.demand.systemProcesses)
     }
 
+    @Test func staticPagesUseUserIntervalWhileLivePagesStayResponsive() {
+        let model = model()
+        model.settings.refreshSeconds = 5
+        model.isMainWindowVisible = true
+
+        for tab: PanelTab in [.history, .aiUsage, .keepAwake, .cleaner, .uninstaller,
+                              .startupItems, .settingsGeneral, .settingsMenuBar,
+                              .settingsNotifications, .settingsAccount, .settingsHelper, .settingsAbout] {
+            model.settings.panelTab = tab
+            #expect(model.demand.interval == .seconds(5), "\(tab) should use the configured interval")
+        }
+
+        for tab: PanelTab in [.overview, .system, .cpu, .gpu, .memory, .disk,
+                              .network, .thermal, .battery] {
+            model.settings.panelTab = tab
+            #expect(model.demand.interval == .seconds(1), "\(tab) should refresh live metrics")
+        }
+
+        model.settings.panelTab = .settingsAbout
+        model.openPopover = .cpu
+        #expect(model.demand.interval == .seconds(1))
+    }
+
     @Test func networkDetailVisibility() {
         let model = model()
         #expect(!model.isNetworkDetailVisible)

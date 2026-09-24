@@ -99,9 +99,12 @@ public final class AppModel {
         let menu = settings.menuBarItems
         let thermalPopover = popover == .temperature || popover == .fan
 
+        // 仅实时监控页需要每秒采样；历史、工具和设置页沿用用户设置的后台间隔。
+        let liveWindow = window && [.overview, .system, .cpu, .gpu, .memory, .disk,
+                                    .network, .thermal, .battery].contains(tab)
         // 进程页要读全系统进程（启动 ps），每 2 秒刷新一次足够，也更省电
         demand.interval = window && tab == .processes && popover == nil ? .seconds(2)
-            : window || popover != nil || isCombinedPopoverOpen ? .seconds(1) : .seconds(settings.refreshSeconds)
+            : liveWindow || popover != nil || isCombinedPopoverOpen ? .seconds(1) : .seconds(settings.refreshSeconds)
         demand.memory = true
         demand.network = true
         let showing = { (page: PanelTab, item: MenuBarItem) in (window && tab == page) || popover == item }
