@@ -168,36 +168,59 @@ private struct TomorrowWorkWidgetView: View {
     let entry: CalendarWidgetEntry
 
     private var needsWork: Bool? { entry.tomorrow?.schedule.needsWork }
+    private var tomorrowDate: Date {
+        Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: entry.date) ?? entry.date
+    }
+
+    private var scheduleTitle: String? {
+        guard let schedule = entry.tomorrow?.schedule else { return nil }
+        return switch schedule {
+        case .work: tr("工作日")
+        case .weekend: tr("周末")
+        case .holiday: tr("节假日")
+        case .makeupWork: tr("调休补班")
+        case .makeupDayOff: tr("调休放假")
+        case .dayOff: tr("放假")
+        case .unknown: nil
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(tr("明天上班吗"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
+            Text(tomorrowDate, format: .dateTime.month(.abbreviated).day().weekday(.abbreviated))
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Spacer(minLength: 0)
             if let needsWork {
-                VStack(spacing: 8) {
-                    Image(systemName: needsWork ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .font(.system(size: 46, weight: .medium))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(needsWork ? .green : .primary)
-                        .accessibilityHidden(true)
-                    Text(tr(needsWork ? "上班" : "不上班"))
-                        .font(.system(size: 22, weight: .semibold, design: .rounded))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                Text(tr(needsWork ? "上班" : "不上班"))
+                    .font(.system(size: 27, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                if let scheduleTitle {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(scheduleTitle)
+                        if entry.tomorrow?.schedule == .holiday, let holidayName = entry.tomorrow?.holidayName {
+                            Text(tr(holidayName))
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                 }
-                .frame(maxWidth: .infinity)
             } else {
                 Text(tr("暂无法判断"))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
             }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .padding(16)
+        .padding(14)
         .containerBackground(.background, for: .widget)
         .environment(\.locale, L10n.locale)
         .accessibilityElement(children: .combine)

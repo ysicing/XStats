@@ -41,15 +41,38 @@ struct CalendarTests {
     @Test func widgetSummaryKeepsTomorrowScheduleAndAlmanacSeparate() throws {
         let work = try #require(CalendarEngine.day(year: 2026, month: 9, day: 20, timeZone: zone))
         let holiday = try #require(CalendarEngine.day(year: 2026, month: 9, day: 25, timeZone: zone))
+        let holidayExtension = try #require(CalendarEngine.day(year: 2026, month: 10, day: 2, timeZone: zone))
+        let weekend = try #require(CalendarEngine.day(year: 2026, month: 9, day: 26, timeZone: zone))
+        let adjustedDayOff = try #require(CalendarEngine.day(year: 2026, month: 10, day: 5, timeZone: zone))
         let ordinary = try #require(CalendarEngine.day(year: 2026, month: 9, day: 24, timeZone: zone))
         let unknown = try #require(CalendarEngine.day(year: 2027, month: 1, day: 4, timeZone: zone))
 
         #expect(CalendarEngine.widgetSummary(for: work).schedule == .makeupWork)
-        #expect(CalendarEngine.widgetSummary(for: holiday).schedule == .dayOff)
+        #expect(CalendarEngine.widgetSummary(for: holiday).schedule.rawValue == "holiday")
+        #expect(CalendarEngine.widgetSummary(for: holidayExtension).schedule.rawValue == "holiday")
+        #expect(CalendarEngine.widgetSummary(for: weekend).schedule.rawValue == "weekend")
+        #expect(CalendarEngine.widgetSummary(for: adjustedDayOff).schedule.rawValue == "makeupDayOff")
         #expect(CalendarEngine.widgetSummary(for: ordinary).schedule == .work)
         #expect(CalendarEngine.widgetSummary(for: unknown).schedule == .unknown)
         #expect(CalendarEngine.widgetSummary(for: holiday).festivals.contains("中秋节"))
         #expect(CalendarEngine.widgetSummary(for: holiday).recommends.isEmpty == false)
+    }
+
+    @Test func official2026ScheduleSeparatesStatutoryWeekendAndAdjustedRest() throws {
+        let cases: [(Int, Int, String)] = [
+            (1, 2, "makeupDayOff"),
+            (2, 18, "holiday"),
+            (2, 20, "makeupDayOff"),
+            (4, 5, "holiday"),
+            (4, 6, "makeupDayOff"),
+            (5, 2, "holiday"),
+            (10, 3, "holiday"),
+            (10, 4, "weekend")
+        ]
+        for (month, day, expected) in cases {
+            let date = try #require(CalendarEngine.day(year: 2026, month: month, day: day, timeZone: zone))
+            #expect(CalendarEngine.widgetSummary(for: date).schedule.rawValue == expected)
+        }
     }
 
     @Test func termsAndSeasonalBoundaries() throws {

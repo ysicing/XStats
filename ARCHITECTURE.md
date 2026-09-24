@@ -18,6 +18,11 @@ independently, so it remains useful when the app is not running.
 AI, IP, and calendar widgets instead read a credential-free App Group snapshot. The main app
 precomputes an eight-day holiday and almanac window; missing coverage is shown as unavailable,
 not guessed from weekdays.
+The daily Token widget receives only per-provider totals and the local day, never session logs;
+its displayed count resets at local midnight even if the main app has not refreshed yet.
+The tomorrow-work widget uses the official 2026 holiday schedule to distinguish statutory
+holidays, adjusted days off, ordinary weekends, and makeup workdays; later years need their
+own confirmed schedule before receiving those specific labels.
 
 Things that are easy to get wrong and are handled on purpose:
 

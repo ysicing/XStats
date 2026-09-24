@@ -36,6 +36,11 @@ extension Translations {
 不上班	Day off
 暂无安排	No schedule data
 暂无法判断	Cannot determine yet
+工作日	Weekday
+周末	Weekend
+节假日	Public holiday
+调休补班	Makeup workday
+调休放假	Adjusted day off
 黄道日	Auspicious day
 黑道日	Inauspicious day
 查看今天的节日与黄历。	See today's festivals and almanac.

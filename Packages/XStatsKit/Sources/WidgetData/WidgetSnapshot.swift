@@ -3,17 +3,30 @@
 
 import Foundation
 
-/// 跨进程共享的展示摘要，不包含账号凭据、请求内容或本机 Token 日志。
+/// 跨进程共享的展示摘要，不包含账号凭据、请求内容或本机会话日志。
 public struct WidgetSnapshot: Codable, Equatable, Sendable {
+    public struct DailyTokenUsage: Codable, Equatable, Sendable {
+        public let provider: String
+        public let day: Date
+        public let tokens: Int
+
+        public init(provider: String, day: Date, tokens: Int) {
+            self.provider = provider
+            self.day = day
+            self.tokens = tokens
+        }
+    }
+
     public struct CalendarSummary: Codable, Equatable, Sendable {
         public enum Schedule: String, Codable, Sendable {
-            case work, dayOff, makeupWork, unknown
+            case work, weekend, holiday, makeupWork, makeupDayOff, unknown
+            case dayOff // 兼容旧版 App Group 摘要；新版会在下次同步时重算。
 
             /// 数据未覆盖的年份不能按普通工作日推断，避免给出错误的二元答案。
             public var needsWork: Bool? {
                 switch self {
                 case .work, .makeupWork: true
-                case .dayOff: false
+                case .weekend, .holiday, .makeupDayOff, .dayOff: false
                 case .unknown: nil
                 }
             }
@@ -68,17 +81,35 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         public let ip: String
         public let countryCode: String?
         public let city: String?
+        public let region: String?
+        public let cityEnglish: String?
+        public let regionEnglish: String?
+        public let asn: String?
         public let organization: String?
+        public let isNative: Bool?
+        public let ipType: String?
+        /// nil 表示尚无风险查询结果；空数组表示已查询且未检出标记。
+        public let riskFlags: [String]?
         public let purityScore: Int?
         public let purityGrade: String?
 
         public init(family: String, ip: String, countryCode: String?, city: String?,
-                    organization: String?, purityScore: Int?, purityGrade: String?) {
+                    organization: String?, purityScore: Int?, purityGrade: String?,
+                    region: String? = nil, cityEnglish: String? = nil, regionEnglish: String? = nil,
+                    asn: String? = nil, isNative: Bool? = nil, ipType: String? = nil,
+                    riskFlags: [String]? = nil) {
             self.family = family
             self.ip = ip
             self.countryCode = countryCode
             self.city = city
+            self.region = region
+            self.cityEnglish = cityEnglish
+            self.regionEnglish = regionEnglish
+            self.asn = asn
             self.organization = organization
+            self.isNative = isNative
+            self.ipType = ipType
+            self.riskFlags = riskFlags
             self.purityScore = purityScore
             self.purityGrade = purityGrade
         }
@@ -86,6 +117,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
 
     public var aiEnabled: Bool
     public var quotas: [Quota]
+    /// 仅共享每个来源的当日合计；可选以兼容旧版 App Group 摘要。
+    public var dailyTokens: [DailyTokenUsage]?
     public var publicIPEnabled: Bool
     public var addresses: [Address]
     public var language: String
@@ -94,12 +127,14 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     /// 可选以兼容旧版主应用写入的 App Group 摘要。
     public var calendarDays: [CalendarSummary]?
 
-    public init(aiEnabled: Bool = false, quotas: [Quota] = [], publicIPEnabled: Bool = false,
+    public init(aiEnabled: Bool = false, quotas: [Quota] = [], dailyTokens: [DailyTokenUsage]? = nil,
+                publicIPEnabled: Bool = false,
                 addresses: [Address] = [], language: String = "system",
                 calendarFirstWeekday: Int = 2, showsLunar: Bool = true,
                 calendarDays: [CalendarSummary]? = nil) {
         self.aiEnabled = aiEnabled
         self.quotas = quotas
+        self.dailyTokens = dailyTokens
         self.publicIPEnabled = publicIPEnabled
         self.addresses = addresses
         self.language = language
@@ -112,6 +147,13 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public func currentQuotas(at date: Date = .now) -> [Quota] {
         guard aiEnabled else { return [] }
         return quotas.filter { $0.resetsAt.map { $0 > date } ?? true }
+    }
+
+    /// 旧日快照保留来源，但数值归零；Widget 不得把昨天的使用量当作今天的结果。
+    public func todayTokens(for provider: String, at date: Date = .now,
+                            calendar: Calendar = .autoupdatingCurrent) -> Int? {
+        guard aiEnabled, let usage = dailyTokens?.first(where: { $0.provider == provider }) else { return nil }
+        return calendar.isDate(usage.day, inSameDayAs: date) ? usage.tokens : 0
     }
 
     public var visibleAddresses: [Address] { publicIPEnabled ? addresses : [] }

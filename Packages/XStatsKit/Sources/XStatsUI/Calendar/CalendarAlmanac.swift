@@ -34,14 +34,38 @@ struct CalendarAlmanac: Identifiable {
 }
 
 extension CalendarEngine {
+    // 逐日类型依据国办发明电〔2025〕7号及 2024 年修订的《全国年节及纪念日放假办法》。
+    // Tyme 只记录假期区间与补班，不区分法定日和调休放假；其他年份不套用此表。
+    private static let statutoryHolidays2026: Set<String> = [
+        "2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19",
+        "2026-04-05", "2026-05-01", "2026-05-02", "2026-06-19", "2026-09-25",
+        "2026-10-01", "2026-10-02", "2026-10-03"
+    ]
+    private static let adjustedDaysOff2026: Set<String> = [
+        "2026-01-02", "2026-02-20", "2026-02-23", "2026-04-06",
+        "2026-05-04", "2026-05-05", "2026-10-05", "2026-10-06", "2026-10-07"
+    ]
+
     static func widgetSummary(for day: CalendarDay) -> WidgetSnapshot.CalendarSummary {
         let schedule: WidgetSnapshot.CalendarSummary.Schedule
         if !hasHolidayData(year: day.year) {
             schedule = .unknown
         } else if let holiday = day.holiday {
-            schedule = holiday.isWork ? .makeupWork : .dayOff
+            if holiday.isWork {
+                schedule = .makeupWork
+            } else if day.year == 2026 {
+                if statutoryHolidays2026.contains(day.id) {
+                    schedule = .holiday
+                } else if adjustedDaysOff2026.contains(day.id) {
+                    schedule = .makeupDayOff
+                } else {
+                    schedule = day.isWeekend ? .weekend : .unknown
+                }
+            } else {
+                schedule = .dayOff
+            }
         } else {
-            schedule = day.isWeekend ? .dayOff : .work
+            schedule = day.isWeekend ? .weekend : .work
         }
         let almanac = almanac(for: day)
         return .init(dateKey: day.id, festivals: day.festivals,

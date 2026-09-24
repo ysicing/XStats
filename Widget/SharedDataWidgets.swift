@@ -18,9 +18,13 @@ struct SharedDataProvider: TimelineProvider {
             aiEnabled: true,
             quotas: [.init(provider: "codex", kind: "weekly", remainingPercent: 68,
                            resetsAt: now.addingTimeInterval(2 * 24 * 3600), fetchedAt: now, isStale: false)],
+            dailyTokens: [.init(provider: "codex", day: now, tokens: 28_400),
+                          .init(provider: "claude", day: now, tokens: 12_600)],
             publicIPEnabled: true,
-            addresses: [.init(family: "v4", ip: "203.0.113.8", countryCode: "CN", city: nil,
-                              organization: nil, purityScore: 85, purityGrade: "A")]))
+            addresses: [.init(family: "v4", ip: "203.0.113.8", countryCode: "CN", city: "上海",
+                              organization: "Example Network", purityScore: 85, purityGrade: "A",
+                              region: "上海", cityEnglish: "Shanghai", regionEnglish: "Shanghai",
+                              asn: "AS4134", isNative: true, ipType: "Residential IP", riskFlags: [])]))
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SharedDataEntry) -> Void) {
@@ -33,7 +37,8 @@ struct SharedDataProvider: TimelineProvider {
         let nextReset = entry.snapshot.currentQuotas(at: entry.date)
             .compactMap(\.resetsAt).min().map { $0.addingTimeInterval(1) }
         let periodic = entry.date.addingTimeInterval(15 * 60)
-        completion(Timeline(entries: [entry], policy: .after(min(nextReset ?? periodic, periodic))))
+        let nextMidnight = Calendar.autoupdatingCurrent.dateInterval(of: .day, for: entry.date)?.end
+        completion(Timeline(entries: [entry], policy: .after(min(nextReset ?? periodic, periodic, nextMidnight ?? periodic))))
     }
 
     private func read() -> SharedDataEntry {
@@ -145,6 +150,58 @@ struct AIQuotaWidget: Widget {
     }
 }
 
+private struct TodayTokensWidgetView: View {
+    let entry: SharedDataEntry
+
+    private var sources: [(name: String, tokens: Int)] {
+        ["codex", "claude"].compactMap { provider in
+            guard let tokens = entry.snapshot.todayTokens(for: provider, at: entry.date) else { return nil }
+            return (provider == "codex" ? "Codex" : "Claude", tokens)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            WidgetHeading(title: tr("今日消耗的 Token"), symbol: "sparkles")
+            if sources.isEmpty {
+                WidgetEmptyState(enabled: entry.snapshot.aiEnabled)
+            } else {
+                let total = sources.reduce(0) { $0 + $1.tokens }
+                Text(total.formatted(.number.notation(.compactName).locale(L10n.locale)))
+                    .font(.system(size: 36, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityLabel(total.formatted(.number.locale(L10n.locale)) + " Tokens")
+                Spacer(minLength: 0)
+                ForEach(sources, id: \.name) { source in
+                    HStack {
+                        Text(source.name)
+                        Spacer(minLength: 4)
+                        Text(source.tokens.formatted(.number.notation(.compactName).locale(L10n.locale)))
+                            .monospacedDigit()
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding()
+        .containerBackground(.background, for: .widget)
+        .environment(\.locale, L10n.locale)
+    }
+}
+
+struct TodayTokensWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "work.12306.xstats.widget.todayTokens", provider: SharedDataProvider()) { entry in
+            TodayTokensWidgetView(entry: entry)
+        }
+        .configurationDisplayName(tr("今日消耗的 Token"))
+        .description(tr("查看今天 Codex 和 Claude 的 Token 用量"))
+        .supportedFamilies([.systemSmall])
+    }
+}
+
 private struct IPPurityWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: SharedDataEntry
@@ -158,9 +215,10 @@ private struct IPPurityWidgetView: View {
             WidgetHeading(title: tr("IP 纯净度"), symbol: "checkmark.shield")
             if let first = addresses.first {
                 if family == .systemMedium {
-                    HStack(alignment: .top, spacing: 16) {
-                        ForEach(addresses, id: \.family) { address in purityColumn(address) }
-                        Spacer(minLength: 0)
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(addresses, id: \.family) { address in
+                            purityRow(address, compact: addresses.count > 1)
+                        }
                     }
                 } else {
                     purityColumn(first)
@@ -178,27 +236,67 @@ private struct IPPurityWidgetView: View {
         .environment(\.locale, L10n.locale)
     }
 
+    private func purityRow(_ address: WidgetSnapshot.Address, compact: Bool) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            score(for: address, compact: compact)
+                .frame(width: 90, alignment: .leading)
+            addressDetails(for: address, compact: compact)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
     private func purityColumn(_ address: WidgetSnapshot.Address) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text("\(address.purityScore ?? 0)")
-                    .font(.system(size: 36, weight: .semibold, design: .rounded))
-                Text(tr("分"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if let grade = address.purityGrade {
-                    Text(grade).font(.caption.weight(.bold)).foregroundStyle(.secondary)
-                }
-            }
-            Text(address.family == "v4" ? "IPv4" : "IPv6")
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(.secondary)
-            Text(address.ip)
-                .font(.caption.monospaced())
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+            score(for: address, compact: false)
+            addressDetails(for: address, compact: false)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func score(for address: WidgetSnapshot.Address, compact: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text("\(address.purityScore ?? 0)")
+                .font(.system(size: compact ? 27 : 36, weight: .semibold, design: .rounded))
+            Text(tr("分"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if let grade = address.purityGrade {
+                Text(grade).font(.caption.weight(.bold)).foregroundStyle(.secondary)
+            }
+        }
+        .lineLimit(1)
+    }
+
+    private func addressDetails(for address: WidgetSnapshot.Address, compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: compact ? 2 : 5) {
+            if compact {
+                HStack(spacing: 5) {
+                    Text(address.family == "v4" ? "IPv4" : "IPv6")
+                        .foregroundStyle(.secondary)
+                    Text(address.ip)
+                        .font(.caption2.monospaced())
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .font(.caption2)
+            } else {
+                Text(address.family == "v4" ? "IPv4" : "IPv6")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Text(address.ip)
+                    .font(.caption.monospaced())
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .minimumScaleFactor(0.7)
+            }
+            let labels = ipWidgetTags(for: address)
+            if !labels.isEmpty {
+                Text(labels.joined(separator: " · "))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
     }
 }
 
@@ -222,37 +320,98 @@ private struct PublicIPWidgetView: View {
             WidgetHeading(title: tr("公网 IP"), symbol: "globe")
             if let first = entry.snapshot.visibleAddresses.first {
                 if family == .systemMedium {
-                    ForEach(entry.snapshot.visibleAddresses, id: \.family) { address in addressRow(address) }
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(entry.snapshot.visibleAddresses, id: \.family) { address in addressColumn(address) }
+                    }
                 } else {
-                    addressRow(first)
+                    addressColumn(first)
                 }
             } else {
                 WidgetEmptyState(enabled: entry.snapshot.publicIPEnabled)
             }
             Spacer(minLength: 0)
-            Text(tr("主应用缓存"))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
         }
         .padding()
         .containerBackground(.background, for: .widget)
         .environment(\.locale, L10n.locale)
     }
 
-    private func addressRow(_ address: WidgetSnapshot.Address) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private func addressColumn(_ address: WidgetSnapshot.Address) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
             Text(address.family == "v4" ? "IPv4" : "IPv6")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             Text(address.ip)
-                .font(.system(size: family == .systemMedium ? 18 : 17, weight: .semibold, design: .monospaced))
+                .font(.system(size: family == .systemMedium ? 15 : 18, weight: .semibold, design: .monospaced))
                 .lineLimit(1)
-                .minimumScaleFactor(0.65)
-            if let location = [address.countryCode, address.city].compactMap({ $0 }).first {
-                Text(location).font(.caption2).foregroundStyle(.secondary)
+                .truncationMode(.middle)
+                .minimumScaleFactor(0.7)
+                .help(address.ip)
+            if let location = location(for: address) {
+                Text(location)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            if let asn = address.asn {
+                Text(asn)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            let tags = ipWidgetTags(for: address)
+            if !tags.isEmpty {
+                Text(tags.joined(separator: " · "))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func location(for address: WidgetSnapshot.Address) -> String? {
+        var parts: [String] = []
+        if let code = address.countryCode {
+            parts.append(L10n.locale.localizedString(forRegionCode: code) ?? code)
+        }
+        let region = L10n.usesEnglishNames ? (address.regionEnglish ?? address.region) : address.region
+        let city = L10n.usesEnglishNames ? (address.cityEnglish ?? address.city) : address.city
+        for part in [region, city].compactMap({ $0 }) where part != parts.last { parts.append(part) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+private func ipWidgetTags(for address: WidgetSnapshot.Address) -> [String] {
+    if let flags = address.riskFlags, !flags.isEmpty {
+        return Array(flags.prefix(2)).map { flag in
+            switch flag {
+            case "vpn": "VPN"
+            case "proxy": tr("代理")
+            case "residentialProxy": tr("住宅代理")
+            case "tor": "Tor"
+            case "relay": tr("中继")
+            case "datacenter": tr("机房")
+            case "hosting": tr("托管")
+            case "abuser": tr("滥用记录")
+            default: flag
             }
         }
     }
+    var labels: [String] = []
+    if let isNative = address.isNative { labels.append(tr(isNative ? "原生 IP" : "广播 IP")) }
+    if let ipType = address.ipType {
+        switch ipType.lowercased() {
+        case "residential ip": labels.append(tr("住宅 IP"))
+        case "datacenter ip", "hosting ip": labels.append(tr("机房 IP"))
+        case "mobile ip": labels.append(tr("移动网络 IP"))
+        case "business ip": labels.append(tr("企业 IP"))
+        default: break
+        }
+    }
+    if labels.isEmpty, address.riskFlags != nil { labels.append(tr("未检出")) }
+    return labels
 }
 
 struct PublicIPWidget: Widget {
@@ -261,7 +420,7 @@ struct PublicIPWidget: Widget {
             PublicIPWidgetView(entry: entry)
         }
         .configurationDisplayName(tr("公网 IP"))
-        .description(tr("显示主应用已查询的公网 IPv4 和 IPv6"))
+        .description(tr("查看公网 IP、归属地、ASN 和标记"))
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

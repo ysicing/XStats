@@ -347,6 +347,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             _ = model.settings.language
             _ = model.settings.calendarFirstWeekday
             _ = model.settings.calendarFeatures
+            _ = model.aiUsage.states
             _ = model.aiUsage.quotaStates
             _ = model.network.publicResults
         } onChange: { [weak self] in
@@ -366,7 +367,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         let todayKey = CalendarEngine.today(at: today)?.id
         // 多预备几天，Widget 午夜换日时无需唤醒主应用；主应用运行期间按小时补足窗口。
         let calendarDays: [WidgetSnapshot.CalendarSummary] = {
-            if previous.calendarDays?.count == 8, previous.calendarDays?.first?.dateKey == todayKey {
+            if previous.calendarDays?.count == 8, previous.calendarDays?.first?.dateKey == todayKey,
+               previous.calendarDays?.contains(where: { $0.schedule == .dayOff }) == false {
                 return previous.calendarDays ?? []
             }
             return (0..<8).compactMap { offset in
@@ -385,6 +387,12 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                          fetchedAt: quota.fetchedAt, isStale: state.isStale)
                 }
             } : []
+        let dailyTokens: [WidgetSnapshot.DailyTokenUsage]? = settings.aiUsageEnabled
+            ? AIProviderID.allCases.filter { settings.aiUsageSources.contains($0) }.compactMap { provider in
+                guard let report = model.aiUsage.state(for: provider).snapshot?.localUsage else { return nil }
+                let tokens = LocalUsageReport.total(report.selected(days: 1, now: today, calendar: calendar)).total
+                return WidgetSnapshot.DailyTokenUsage(provider: provider.rawValue, day: today, tokens: tokens)
+            } : nil
         let addresses: [WidgetSnapshot.Address] = settings.publicIPLookup
             ? IPFamily.allCases.compactMap { family in
                 guard let result = model.network.publicResults[family],
@@ -392,16 +400,22 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 return WidgetSnapshot.Address(family: family.rawValue, ip: ip,
                                               countryCode: result.countryCode, city: result.city,
                                               organization: result.organization,
-                                              purityScore: result.purity?.score, purityGrade: result.purity?.grade)
+                                              purityScore: result.purity?.score, purityGrade: result.purity?.grade,
+                                              region: result.region, cityEnglish: result.cityEnglish,
+                                              regionEnglish: result.regionEnglish, asn: result.asn,
+                                              isNative: result.isNative, ipType: result.ipType,
+                                              riskFlags: result.risk?.flags)
             } : []
         let snapshot = WidgetSnapshot(aiEnabled: settings.aiUsageEnabled, quotas: quotas,
+                                      dailyTokens: dailyTokens,
                                       publicIPEnabled: settings.publicIPLookup, addresses: addresses,
                                       language: settings.language.rawValue,
                                       calendarFirstWeekday: settings.calendarFirstWeekday,
                                       showsLunar: settings.calendarFeatures.contains(.lunar),
                                       calendarDays: calendarDays)
         guard snapshot != previous, widgetStore.save(snapshot) else { return }
-        for kind in ["work.12306.xstats.widget.aiQuota", "work.12306.xstats.widget.ipPurity",
+        for kind in ["work.12306.xstats.widget.aiQuota", "work.12306.xstats.widget.todayTokens",
+                     "work.12306.xstats.widget.ipPurity",
                      "work.12306.xstats.widget.publicIP"] {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)
         }

@@ -2,10 +2,13 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 暂无数据	Aucune donnée pour le moment
 主应用缓存	Cache de XStats
+今日消耗的 Token	Tokens consommés aujourd’hui
+查看今天 Codex 和 Claude 的 Token 用量	Afficher les tokens utilisés aujourd’hui par Codex et Claude
 分	points
 查看 Codex 和 Claude 的剩余额度与重置时间	Afficher les quotas restants de Codex et Claude et leur réinitialisation
 显示主应用已查询的公网 IP 纯净度	Afficher la réputation IP consultée par XStats
 显示主应用已查询的公网 IPv4 和 IPv6	Afficher les adresses IPv4 et IPv6 publiques consultées par XStats
+查看公网 IP、归属地、ASN 和标记	Voir l’IP publique, la localisation, l’ASN et les indicateurs
 查看今天的日期或本月月历。	Afficher la date du jour ou le calendrier du mois.
 设备不支持	Appareil non compatible
 需要 macOS 15.1 或更新版本	Nécessite macOS 15.1 ou une version ultérieure
@@ -1402,6 +1405,11 @@ Sub2API 账号平台与所选来源不匹配	La plateforme du compte Sub2API ne 
 不上班	Repos
 暂无安排	Aucune donnée
 暂无法判断	Impossible à déterminer pour le moment
+工作日	Jour ouvré
+周末	Week-end
+节假日	Jour férié
+调休补班	Travail de rattrapage
+调休放假	Repos compensatoire
 黄道日	Jour favorable
 黑道日	Jour défavorable
 查看今天的节日与黄历。	Consultez les fêtes et l'almanach du jour.
