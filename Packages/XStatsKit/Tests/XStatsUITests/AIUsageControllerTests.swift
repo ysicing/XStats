@@ -100,11 +100,10 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(codexQuota?.window.kind == .weekly)
         #expect(codexQuota?.remainingPercent == 27)
         #expect(codexQuota?.resetText != "—")
-        #expect(reading.aiQuotaProviders == [.codex, .claude])
+        #expect(reading.aiQuotas.map(\.provider) == [.codex, .claude])
         let both = MenuBarRenderer.image(reading: reading, items: [.aiUsage],
             style: { _ in .stacked }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
         var codexOnly = reading
-        codexOnly.aiQuotaProviders = [.codex]
         codexOnly.aiQuotas = reading.aiQuotas.filter { $0.provider == .codex }
         let single = MenuBarRenderer.image(reading: codexOnly, items: [.aiUsage],
             style: { _ in .stacked }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
@@ -112,7 +111,6 @@ private actor GatedUsageProvider: AIUsageProvider {
         let codexIcon = MenuBarRenderer.image(reading: codexOnly, items: [.aiUsage],
             style: { _ in .icon }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
         var claudeOnly = reading
-        claudeOnly.aiQuotaProviders = [.claude]
         claudeOnly.aiQuotas = reading.aiQuotas.filter { $0.provider == .claude }
         let claudeIcon = MenuBarRenderer.image(reading: claudeOnly, items: [.aiUsage],
             style: { _ in .icon }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
@@ -134,7 +132,7 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(!tooltip.contains("5%"))
     }
 
-    @Test func menuBarNamesAnEnabledSourceWithoutQuotaBesideTheAvailableOne() async {
+    @Test func menuBarOmitsSourceWithoutQuotaBesideTheAvailableOne() async {
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.aiUsageEnabled = true
         let codex = AIQuotaSnapshot(provider: .codex, windows: [
@@ -147,10 +145,8 @@ private actor GatedUsageProvider: AIUsageProvider {
         await model.aiUsage.refresh()
 
         let reading = MenuBarReading(model: model)
-        #expect(reading.aiQuotas.count == 1)
-        let claudeLine = reading.tooltip(items: [.aiUsage], fahrenheit: false)
-            .split(separator: "\n").first { $0.hasPrefix("Claude · ") }
-        #expect(claudeLine?.contains("%") == false)
+        #expect(reading.aiQuotas.map(\.provider) == [.codex])
+        #expect(!reading.tooltip(items: [.aiUsage], fahrenheit: false).contains("Claude"))
         let image = MenuBarRenderer.image(reading: reading, items: [.aiUsage],
             style: { _ in .stacked }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
         #expect(image.size.width > 0)
@@ -195,8 +191,7 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(reading.aiQuotas.first?.window.kind == .session)
         #expect(reading.aiQuotas.first?.remainingPercent == 70)
         let tooltip = reading.tooltip(items: [.aiUsage], fahrenheit: false)
-        let claudeLine = tooltip.split(separator: "\n").first { $0.hasPrefix("Claude · ") }
-        #expect(claudeLine?.contains("%") == false, "tooltip: \(tooltip)")
+        #expect(!tooltip.contains("Claude"), "tooltip: \(tooltip)")
         #expect(!tooltip.contains("5%"), "tooltip: \(tooltip)")
     }
 
@@ -208,7 +203,9 @@ private actor GatedUsageProvider: AIUsageProvider {
             aiQuotaProviders: [StubQuotaProvider(results: [.failure(.notConfigured)])])
         await model.aiUsage.refresh()
 
-        let tooltip = MenuBarReading(model: model).tooltip(items: [.aiUsage], fahrenheit: false)
+        let reading = MenuBarReading(model: model)
+        #expect(reading.aiQuotas.isEmpty)
+        let tooltip = reading.tooltip(items: [.aiUsage], fahrenheit: false)
         #expect(tooltip.contains("42 Tokens"))
         #expect(!tooltip.contains("剩余"))
     }

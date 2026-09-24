@@ -45,8 +45,7 @@ struct MenuBarReading {
     var batteryHistory: [Double] = []
     /// 本机日志今日 Token 总量；扫描未开启或还没有数据时为 nil
     var aiTokens: Int?
-    /// 每个已启用来源各占一个紧凑读数；没有额度时显示占位，避免来源从菜单栏消失。
-    var aiQuotaProviders: [AIProviderID] = []
+    /// 只有可显示额度的来源才占用菜单栏读数；本机 Token 统计独立于订阅额度。
     var aiQuotas: [MenuBarQuota] = []
     var batteryCharging = false
     /// 附在电池项旁的蓝牙设备：电量低的那一个，或没有电池的 Mac 上电量最低的那一个
@@ -74,12 +73,10 @@ struct MenuBarReading {
         battery = store.battery?.level
         batteryHistory = battery.map { Array(repeating: $0, count: 30) } ?? []
         aiTokens = model.aiUsage.todayTokens
-        aiQuotaProviders = model.settings.aiUsageEnabled
-            ? AIProviderID.allCases.filter { model.settings.aiUsageSources.contains($0) } : []
         aiQuotas = model.aiUsage.visibleQuotaProviders(for: nil).compactMap { provider in
             let state = model.aiUsage.visibleQuotaState(for: provider)
             guard let snapshot = state.snapshot else { return nil }
-            // 已过重置时间的窗口不再代表当前额度（常见于重启后离线恢复的缓存），宁可显示占位。
+            // 已过重置时间的窗口不再代表当前额度（常见于重启后离线恢复的缓存），不显示过期额度。
             let now = Date()
             let windows = snapshot.windows.filter { $0.resetsAt.map { $0 > now } ?? true }
             // 周额度比短时会话额度更适合作为常驻读数；模型专属周额度仅在通用周额度缺席时使用。
@@ -151,13 +148,10 @@ struct MenuBarReading {
             case .battery:
                 battery.map { tr("电池 \(Format.percent($0))") + (batteryCharging ? tr("，充电中") : "") }
                     ?? bluetoothDevice.map { tr("蓝牙设备电量 \($0.percent)%") }
-            // 没有读数也要给出一行，否则菜单栏只剩一个不会解释自己的 “AI —”
+            // 没有订阅额度时仍解释本机 Token 读数。
             case .aiUsage:
                 if !aiQuotas.isEmpty {
-                    aiQuotaProviders.map { provider in
-                        guard let quota = aiQuotas.first(where: { $0.provider == provider }) else {
-                            return "\(provider == .codex ? "Codex" : "Claude") · \(tr("暂无额度数据"))"
-                        }
+                    aiQuotas.map { quota in
                         let previous = quota.isStale ? "\(tr("上次额度")) · " : ""
                         let checked = quota.isStale
                             ? " · \(tr("上次检查：\(quota.fetchedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))"
@@ -301,31 +295,12 @@ enum MenuBarRenderer {
 
     private static func aiUsageSegment(reading: MenuBarReading, style: MenuBarStyle) -> Segment {
         guard !reading.aiQuotas.isEmpty else {
-            if style == .icon, reading.aiQuotaProviders.count == 1,
-               let provider = reading.aiQuotaProviders.first {
-                return combine([aiProviderLogo(provider),
-                                inlineValue(reading.aiTokens.map { tokenText($0) } ?? "—",
-                                            sample: "999.9M", alert: false)])
-            }
             return textSegment(item: .aiUsage, value: reading.aiTokens.map { tokenText($0) } ?? "—",
                                sample: "999.9M", style: style)
         }
-        let providers = reading.aiQuotaProviders.count > 1
-            ? reading.aiQuotaProviders : [reading.aiQuotas[0].provider]
-        let status = combine(providers.map { provider in
+        let status = combine(reading.aiQuotas.map { quota in
+            let provider = quota.provider
             let name = provider == .codex ? "Codex" : "Claude"
-            guard let quota = reading.aiQuotas.first(where: { $0.provider == provider }) else {
-                switch style {
-                case .ring, .history, .line, .pie, .meter:
-                    return aiQuotaInlineText(label: name, value: "—")
-                case .inline:
-                    return inlineText(label: name, value: "—", sample: "100%", alert: false)
-                case .icon:
-                    return combine([aiProviderLogo(provider), inlineValue("—", sample: "100%", alert: false)])
-                case .stacked, .dot:
-                    return aiQuotaText(label: name, value: "—")
-                }
-            }
             let label = "\(name) · \(quota.shortWindowName)"
             let value = "\(quota.remainingPercent)%"
             let stacked = aiQuotaText(label: name, value: value)
