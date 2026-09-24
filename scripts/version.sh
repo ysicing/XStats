@@ -7,9 +7,9 @@
 # 公开版本号是标准 semver，真源是 CHANGELOG.md 顶部的 “## X.Y.Z · YYYY-MM-DD”；
 # 内部构建号是单调递增的整数，与日期无关。
 #
-#   Scripts/version.sh          # 显示当前版本和构建号
-#   Scripts/version.sh build    # 只推进构建号（task build 会自动调用）
-#   Scripts/version.sh release  # 按 CHANGELOG 写入公开版本号并推进构建号，只输出版本号
+#   scripts/version.sh          # 显示当前版本和构建号
+#   scripts/version.sh build    # 只推进构建号（task build 会自动调用）
+#   scripts/version.sh release  # 按 CHANGELOG 写入公开版本号并推进构建号，只输出版本号
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -62,11 +62,11 @@ case "${1:-show}" in
     build="$(next_build)"
     set_value MARKETING_VERSION "$version"
     set_value CURRENT_PROJECT_VERSION "$build"
-    # 只输出版本号：Scripts/release.sh 直接拿它拼安装包文件名
+    # 只输出版本号：scripts/release.sh 直接拿它拼安装包文件名
     echo "$version"
     ;;
   *)
-    echo "用法：Scripts/version.sh [show|build|release]" >&2
+    echo "用法：scripts/version.sh [show|build|release]" >&2
     exit 1
     ;;
 esac

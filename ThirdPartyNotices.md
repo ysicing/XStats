@@ -15,7 +15,7 @@ XStats 基于 [gentpan/OpenStats](https://github.com/gentpan/OpenStats) 开发�
 
 ## flag-icons
 
-`Assets/flags-svg/` 中的国旗 SVG（应用内为 `Scripts/render_flags.sh` 渲染的 PNG）来自
+`Assets/flags-svg/` 中的国旗 SVG（应用内为 `scripts/render_flags.sh` 渲染的 PNG）来自
 [lipis/flag-icons](https://github.com/lipis/flag-icons)，MIT License，Copyright (c) 2013 Panayiotis Lipiridis。
 
 ## XStats API Go 依赖

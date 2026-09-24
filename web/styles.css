@@ -241,7 +241,7 @@ p { margin: 0; }
 .download__brew code, .faq code { font-family: var(--font-mono); font-size: var(--text-xs); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); background: var(--color-neutral-100); color: var(--color-text); }
 :root[data-theme="dark"] .download__brew code, :root[data-theme="dark"] .faq code { background: #25282d; }
 
-/* 更新日志（由 Scripts/sync_changelog.py 生成） */
+/* 更新日志（由 scripts/sync_changelog.py 生成） */
 .log { display: grid; gap: var(--space-4); }
 .log__day { padding: var(--space-6); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
 .log__head { display: flex; align-items: center; gap: var(--space-3); }

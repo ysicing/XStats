@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """生成应用内在线升级读取的版本清单 appcast.json。
 
-    Scripts/appcast.py <版本> <build> <下载地址前缀> <Apple 芯片 zip> <Apple 芯片 dmg> > dist/appcast.json
+    scripts/appcast.py <版本> <build> <下载地址前缀> <Apple 芯片 zip> <Apple 芯片 dmg> > dist/appcast.json
 
 清单只发布 Apple Silicon 安装包。
 

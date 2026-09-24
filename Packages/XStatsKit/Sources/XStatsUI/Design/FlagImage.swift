@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// 国旗：使用包内由 flag-icons（MIT）渲染好的 PNG，不使用 emoji。
-/// 不直接读 SVG：系统的 SVG 渲染器对嵌套 <use> 等写法支持不好，中国、乌兹别克斯坦等旗子会画错（见 Scripts/render_flags.sh）
+/// 不直接读 SVG：系统的 SVG 渲染器对嵌套 <use> 等写法支持不好，中国、乌兹别克斯坦等旗子会画错（见 scripts/render_flags.sh）
 struct FlagImage: View {
     let countryCode: String
     var height: CGFloat = DS.Space.s3

@@ -6,16 +6,16 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 ROOT="$PWD"
-[ -f Scripts/release_all.sh ] || { echo "缺少 Scripts/release_all.sh" >&2; exit 1; }
+[ -f scripts/release_all.sh ] || { echo "缺少 scripts/release_all.sh" >&2; exit 1; }
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 setup() {
   rm -rf "${WORK:?}/repo" "${WORK:?}/bin"
-  mkdir -p "$WORK/repo/Scripts" "$WORK/repo/Assets/readme" "$WORK/bin"
-  cp "$ROOT/Scripts/release_all.sh" "$WORK/repo/Scripts/release_all.sh"
-  chmod +x "$WORK/repo/Scripts/release_all.sh"
+  mkdir -p "$WORK/repo/scripts" "$WORK/repo/Assets/readme" "$WORK/bin"
+  cp "$ROOT/scripts/release_all.sh" "$WORK/repo/scripts/release_all.sh"
+  chmod +x "$WORK/repo/scripts/release_all.sh"
   cat > "$WORK/repo/project.yml" <<'YAML'
 settings:
   base:
@@ -62,13 +62,13 @@ set -euo pipefail
 echo "python3 $*" >> "$RELEASE_ALL_TEST_LOG"
 printf 'abc123\n'
 SH
-  cat > "$WORK/repo/Scripts/publish_release.sh" <<'SH'
+  cat > "$WORK/repo/scripts/publish_release.sh" <<'SH'
 #!/bin/bash
 set -euo pipefail
 echo publish >> "$RELEASE_ALL_TEST_LOG"
 SH
   chmod +x "$WORK/bin/git" "$WORK/bin/task" "$WORK/bin/python3" \
-    "$WORK/repo/Scripts/publish_release.sh"
+    "$WORK/repo/scripts/publish_release.sh"
 }
 
 expect_failure() {
@@ -83,7 +83,7 @@ expect_failure() {
 setup
 expect_failure "缺少发布 token" env -u XSTATS_RELEASE_TOKEN \
   PATH="$WORK/bin:$PATH" RELEASE_ALL_TEST_LOG="$WORK/log" \
-  "$WORK/repo/Scripts/release_all.sh"
+  "$WORK/repo/scripts/release_all.sh"
 grep -q 'XSTATS_RELEASE_TOKEN' "$WORK/stderr" \
   || { cat "$WORK/stderr" >&2; exit 1; }
 [ ! -s "$WORK/log" ] || { echo "缺少 token 时不应执行任何命令" >&2; exit 1; }
@@ -91,23 +91,23 @@ grep -q 'XSTATS_RELEASE_TOKEN' "$WORK/stderr" \
 setup
 expect_failure "非 main 分支" env XSTATS_RELEASE_TOKEN=test FAKE_BRANCH=feature \
   PATH="$WORK/bin:$PATH" RELEASE_ALL_TEST_LOG="$WORK/log" \
-  "$WORK/repo/Scripts/release_all.sh"
+  "$WORK/repo/scripts/release_all.sh"
 grep -q 'main' "$WORK/stderr" || { cat "$WORK/stderr" >&2; exit 1; }
 grep -qx 'git symbolic-ref --quiet --short HEAD' "$WORK/log"
 
 setup
 env XSTATS_RELEASE_TOKEN=test PATH="$WORK/bin:$PATH" RELEASE_ALL_TEST_LOG="$WORK/log" \
-  "$WORK/repo/Scripts/release_all.sh"
+  "$WORK/repo/scripts/release_all.sh"
 cat > "$WORK/expected" <<'LOG'
 git symbolic-ref --quiet --short HEAD
 git fetch --quiet origin main
 git rev-parse HEAD
 git rev-parse origin/main
 git ls-remote --exit-code --tags origin refs/tags/v0.8.0
-python3 Scripts/release_provenance.py prepare
+python3 scripts/release_provenance.py prepare
 task test
 task release
-python3 Scripts/release_provenance.py prepare
+python3 scripts/release_provenance.py prepare
 git add -- project.yml CHANGELOG.md README.md README.en.md README.ja.md README.ko.md Assets/readme/activity.svg Assets/readme/activity.zh.svg
 git diff --cached --quiet
 git commit -m chore(release): 发布 0.8.0

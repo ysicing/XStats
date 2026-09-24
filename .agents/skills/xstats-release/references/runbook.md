@@ -15,7 +15,7 @@ git fetch origin main
 git rev-parse HEAD
 git rev-parse origin/main
 task test
-./Scripts/version.sh
+./scripts/version.sh
 ```
 
 Confirm:
@@ -23,7 +23,7 @@ Confirm:
 - `HEAD` is the intended release source and is pushed before release metadata is prepared.
 - Existing working-tree changes are understood and limited to the release task.
 - The requested tag and GitHub Release do not already exist, unless this is an intentional idempotent resume.
-- The top changelog section contains the intended release content.
+- The top changelog section contains the intended release content. For a new release, follow `../../xstats-changelog/SKILL.md` to summarize changes since the previous tag before building; do not regenerate notes while resuming an already built release.
 
 Check external prerequisites without exposing credentials:
 
@@ -40,15 +40,15 @@ For the one-command path, `XSTATS_RELEASE_TOKEN` must already be available throu
 
 ## 2. Prepare version metadata
 
-- Replace the first `## 未发布` heading with `## X.Y.Z · YYYY-MM-DD`.
+- Use `xstats-changelog` to consolidate the release notes, then replace the first `## 未发布` heading with `## X.Y.Z · YYYY-MM-DD`.
 - Update the release badge in all four README files.
-- Do not manually change `project.yml`; `Scripts/version.sh release`, invoked by `task release`, writes the semver and increments the build number once.
+- Do not manually change `project.yml`; `scripts/version.sh release`, invoked by `task release`, writes the semver and increments the build number once.
 - Do not commit these metadata changes yet. They are allowed inputs to the provenance preflight.
 
 Run:
 
 ```bash
-python3 Scripts/release_provenance.py prepare
+python3 scripts/release_provenance.py prepare
 git diff --check
 task release
 ```
@@ -108,7 +108,7 @@ Include `Assets/readme/activity.svg` and `Assets/readme/activity.zh.svg` only if
 After pushing:
 
 ```bash
-python3 Scripts/release_provenance.py verify dist/release-provenance.json X.Y.Z BUILD
+python3 scripts/release_provenance.py verify dist/release-provenance.json X.Y.Z BUILD
 ```
 
 The verifier must pass before uploads or tag creation.

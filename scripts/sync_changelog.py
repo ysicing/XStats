@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Puts CHANGELOG.md where people look, and draws the commit calendar.
+"""Keeps the README release summary current and draws the commit calendar.
 
-    python3 Scripts/sync_changelog.py
+    python3 scripts/sync_changelog.py
 
 Rewrites, from CHANGELOG.md and `git log`:
 
-- the "recent updates" block in README.md (Chinese) and README.en.md, between
+- the short release summary in README.md and README.en.md, between
   <!-- changelog:start --> and <!-- changelog:end -->;
 - Assets/readme/activity.svg and activity.zh.svg, 26 weeks of commits.
 
@@ -22,10 +22,7 @@ import subprocess
 from collections import Counter
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-RECENT_DAYS = 3
 WEEKS = 26
-
-KIND_EN = {"新增": "Added", "样式": "Style", "调整": "Changed", "修复": "Fixed"}
 
 
 # ── CHANGELOG.md ──────────────────────────────────────────────────────────
@@ -41,6 +38,8 @@ def parse(text):
         heading = re.match(r"^## (.+)$", line)
         dated = re.match(r"^### (\d{4}-\d{2}-\d{2})\s*$", line)
         kind = re.match(r"^#### (.+)$", line)
+        if release is not None and release["version"] and kind is None:
+            kind = re.match(r"^### (.+)$", line)
         if heading:
             title = heading.group(1).strip()
             version = re.match(r"^v?([\d.]+)\s*·\s*(\d{4}-\d{2}-\d{2})$", title)
@@ -76,26 +75,8 @@ def parse(text):
     return [r for r in releases if r["days"]]
 
 
-def day_entries(releases):
-    """Every day, newest first, with the release it belongs to."""
-    days = [(release, day) for release in releases for day in release["days"]]
-    days.sort(key=lambda pair: pair[1]["date"] or "", reverse=True)
-    return days
-
-
 def item_count(day):
     return sum(len(g["items"]) for g in day["groups"])
-
-
-def counts(day, en):
-    parts = []
-    for g in day["groups"]:
-        n = len(g["items"])
-        if en:
-            parts.append(f"{n} {KIND_EN.get(g['kind'], g['kind']).lower()}")
-        else:
-            parts.append(f"{g['kind']} {n}")
-    return " · ".join(parts)
 
 
 def latest_release(releases):
@@ -113,8 +94,8 @@ def readme_block(releases, en):
     pending = unreleased(releases)
     pending_count = sum(item_count(d) for d in pending["days"]) if pending else 0
     lines = ["<!-- changelog:start -->"]
-    lines.append("<!-- Generated from CHANGELOG.md by Scripts/sync_changelog.py. Do not edit by hand. -->"
-                 if en else "<!-- 由 Scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->")
+    lines.append("<!-- Generated from CHANGELOG.md by scripts/sync_changelog.py. Do not edit by hand. -->"
+                 if en else "<!-- 由 scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->")
     head = []
     if latest:
         head.append(f"Latest release **{latest['version']}** ({latest['date']})" if en
@@ -128,23 +109,6 @@ def readme_block(releases, en):
                     else f"开发中 **{pending_count}** 项改动尚未发布")
     head.append("[full changelog](CHANGELOG.md) (kept in Chinese)" if en else "[完整更新日志](CHANGELOG.md)")
     lines += ["", " · ".join(head), ""]
-    # 英文 README 只生成英文摘要；完整条目仍以中文 CHANGELOG 为准，避免混入大段中文。
-    if en:
-        lines.append("<!-- changelog:end -->")
-        return "\n".join(lines)
-    for index, (release, day) in enumerate(day_entries(releases)[:RECENT_DAYS]):
-        label = release["version"] or ("Unreleased" if en else "未发布")
-        opened = " open" if index == 0 else ""
-        lines.append(f"<details{opened}>")
-        lines.append(f"<summary><b>{day['date']}</b> · {label} · {counts(day, en)}</summary>")
-        lines.append("")
-        for g in day["groups"]:
-            lines.append(f"**{KIND_EN.get(g['kind'], g['kind']) if en else g['kind']}**")
-            lines.append("")
-            lines += [f"- {item}" for item in g["items"]]
-            lines.append("")
-        lines.append("</details>")
-        lines.append("")
     lines.append("<!-- changelog:end -->")
     return "\n".join(lines)
 

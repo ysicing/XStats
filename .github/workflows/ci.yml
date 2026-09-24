@@ -20,7 +20,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          read -r version build <<< "$(./Scripts/version.sh show)"
+          read -r version build <<< "$(./scripts/version.sh show)"
           build="${build#(}"
           build="${build%)}"
           echo "version=$version" >> "$GITHUB_OUTPUT"

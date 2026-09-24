@@ -14,7 +14,7 @@ DOMAIN="${SITE_DOMAIN:-getopenstats.com}"
 SSH=(ssh -i "$KEY" -o BatchMode=yes)
 
 # 官网里的更新日志由 CHANGELOG.md 生成，发布前先同步
-python3 Scripts/sync_changelog.py
+python3 scripts/sync_changelog.py
 
 # 先洗掉 ?v= 再算指纹，否则指纹会把自己算进去，内容没变也每次换值
 STAMP="$( { cat web/styles.css web/replica.css web/app.js web/replica.js | /usr/bin/sed -E 's/\?v=[A-Za-z0-9]+//g'

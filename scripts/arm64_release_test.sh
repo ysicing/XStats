@@ -22,8 +22,8 @@ trap 'rm -rf "$WORK"' EXIT
 # appcast.py 只读它自己上一级目录的 CHANGELOG.md，没有路径参数。所以把脚本复制到
 # 临时目录、在那里配一份 fixture：测试从此与仓库真实的版本历史无关——归档旧版本、
 # 发布新版本都不会让它失效。
-mkdir -p "$WORK/repo/Scripts"
-cp Scripts/appcast.py "$WORK/repo/Scripts/appcast.py"
+mkdir -p "$WORK/repo/scripts"
+cp scripts/appcast.py "$WORK/repo/scripts/appcast.py"
 cat > "$WORK/repo/CHANGELOG.md" <<'LOG'
 # 更新日志
 
@@ -37,7 +37,7 @@ cat > "$WORK/repo/CHANGELOG.md" <<'LOG'
 LOG
 printf 'zip' > "$WORK/XStats-9.9.9-AppleSilicon.zip"
 printf 'dmg' > "$WORK/XStats-9.9.9-AppleSilicon.dmg"
-(cd "$WORK/repo" && python3 Scripts/appcast.py 9.9.9 110 https://example.test \
+(cd "$WORK/repo" && python3 scripts/appcast.py 9.9.9 110 https://example.test \
   "$WORK/XStats-9.9.9-AppleSilicon.zip" "$WORK/XStats-9.9.9-AppleSilicon.dmg") > "$WORK/appcast.json"
 python3 - "$WORK/appcast.json" <<'PY'
 import json

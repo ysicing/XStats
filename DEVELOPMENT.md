@@ -60,10 +60,10 @@ GitHub Actions 只在分支 push 且 `server/**` 发生变化时构建并发布 
 /Applications/XStats.app/Contents/MacOS/XStats --snapshot build/snapshots
 ```
 
-修改 `CHANGELOG.md` 后运行以下命令，更新 README 顶部的最近更新和活跃度图：
+修改 `CHANGELOG.md` 后运行以下命令，更新 README 中的版本摘要和活跃度图：
 
 ```bash
-python3 Scripts/sync_changelog.py
+python3 scripts/sync_changelog.py
 ```
 
 ## 发布
@@ -74,10 +74,10 @@ python3 Scripts/sync_changelog.py
 `## X.Y.Z · YYYY-MM-DD`；数字段不接受前导零，日期必须真实存在，不支持 `-rc` 等后缀。
 内部构建号是单调递增的整数，与日期无关。
 
-- `./Scripts/version.sh` 显示当前版本和构建号。
-- `./Scripts/version.sh build` 只推进构建号，`task build` 会自动调用。
-- `./Scripts/version.sh release` 按 CHANGELOG 顶部标题写入公开版本号并推进构建号，
-  由 `Scripts/release.sh` 调用，不需要手动执行。
+- `./scripts/version.sh` 显示当前版本和构建号。
+- `./scripts/version.sh build` 只推进构建号，`task build` 会自动调用。
+- `./scripts/version.sh release` 按 CHANGELOG 顶部标题写入公开版本号并推进构建号，
+  由 `scripts/release.sh` 调用，不需要手动执行。
 
 CI 不参与发版：它只在 push 到 `main` 和 PR 时跑测试与构建校验，不再由 tag 触发，
 也不写版本、不建 Release。Actions 摘要仍会显示版本、构建号、Git 引用和提交号，
@@ -142,13 +142,13 @@ git commit -m "chore(release): 1.0.0"
 git push
 
 # 3. 上传安装包到对象存储、建 GitHub Release、提交版本清单、更新 Homebrew tap
-./Scripts/publish_release.sh
+./scripts/publish_release.sh
 ```
 
 发布需要本地装有 `mc`（MinIO 客户端，别名 `c-ip` 指向对象存储源站）和 `gh`（GitHub CLI）。
 安装包放在 `https://c.ysicing.net/oss/apps/macOS/XStats/`；GitHub Release 只挂 dmg，
 作为应用内「手动下载」和 README 的下载入口。版本徽章需在四个 README 的第 9 行手动更新，
-`Scripts/sync_changelog.py` 不处理徽章。
+`scripts/sync_changelog.py` 不处理徽章。
 
 发布前需要先把对应版本写入 `CHANGELOG.md`：把顶部的 `## 未发布` **整体替换**成正式标题，
 不要在它上面再留一个 `## 未发布`。标题示例：`## 1.0.0 · 2026-09-21`。

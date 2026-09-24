@@ -1,6 +1,6 @@
 import Foundation
 
-/// 更新 API 返回的版本清单；发版时由 Scripts/appcast.py 生成并由 Scripts/publish_release.sh 提交
+/// 更新 API 返回的版本清单；发版时由 scripts/appcast.py 生成并由 scripts/publish_release.sh 提交
 public struct UpdateRelease: Codable, Sendable, Equatable {
     public let version: String
     public let build: String

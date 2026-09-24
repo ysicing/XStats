@@ -44,16 +44,16 @@ Versions read `1.0.0 (110)`: `MARKETING_VERSION` is the semver from the first re
 `CHANGELOG.md`, while `CURRENT_PROJECT_VERSION` is an independent, monotonically increasing build
 number. `task build` advances only the build number (`BUMP=0` skips it); `task release` takes the
 public version from the changelog and advances the build number once. Every `task build` runs
-`Scripts/install_local.sh`: it ends the running app (the helper restores fans and sleep when the
+`scripts/install_local.sh`: it ends the running app (the helper restores fans and sleep when the
 connection drops), deletes the old `/Applications/XStats.app`, *moves* the new bundle there so no
 copy stays in the build folder, re-registers it with Launch Services, and relaunches. Only one
 XStats ever exists on the machine, so Spotlight and the widget gallery never show duplicates.
-`INSTALL=0` compiles without installing; `Scripts/release.sh` uses it and installs the notarized
+`INSTALL=0` compiles without installing; `scripts/release.sh` uses it and installs the notarized
 build at the end.
 
 `project.yml` defaults to ad-hoc signing so the project opens anywhere. The Taskfile.yml passes
 the first Developer ID Application identity from the keychain (and `--timestamp` for Release)
-when there is one. `task release` runs `Scripts/release.sh`: build, verify team, timestamp and
+when there is one. `task release` runs `scripts/release.sh`: build, verify team, timestamp and
 hardened runtime on both binaries, notarize and staple the app, build and notarize the DMG,
 write the online-update zip and `appcast.json`, and write a Homebrew cask (`auto_updates true`)
 whose URLs point at the object storage prefix `https://c.ysicing.net/oss/apps/macOS/XStats`.
@@ -360,7 +360,7 @@ and the first success stops further requests so one check is not reported twice.
 The original 32-byte random value is generated with `SecRandomCopyBytes` and remains in the app's local
 `UserDefaults`; it is not a credential, is excluded from WebDAV settings sync, and never invokes Keychain
 authorization. No hardware serial number is used. The response has the same release manifest fields previously read from the static appcast (version,
-date, notes taken from `CHANGELOG.md` by `Scripts/appcast.py`, zip URL, sha256 and size). An
+date, notes taken from `CHANGELOG.md` by `scripts/appcast.py`, zip URL, sha256 and size). An
 update is installed only after: sha256 matches, the zip holds exactly one `.app`, its bundle ID and
 version match, `SecStaticCodeCheckValidity` passes with a requirement pinned to the running app's
 team, and `spctl --assess` accepts it (notarized). The old bundle is renamed into a same-volume
@@ -374,10 +374,10 @@ helper, re-registers the bundled version, and verifies the protocol before privi
 `github.com/libtnb/sqlite` with WAL and one database connection so concurrent checks cannot compete for
 SQLite's single writer. Each installation row stores only the SHA-256 installation ID, current version,
 first/last check times and check count; request IPs and monitoring data are not persisted. The release
-endpoint requires `XSTATS_RELEASE_TOKEN`. `Scripts/publish_release.sh` uploads the dmg and zip to
+endpoint requires `XSTATS_RELEASE_TOKEN`. `scripts/publish_release.sh` uploads the dmg and zip to
 object storage with `mc`, verifies each one by re-reading it from the CDN, creates the GitHub Release
 that carries the dmg for manual downloads, and only then submits the generated appcast through
-`Scripts/publish_api.py` to both regional services. The manifest lands last, so an installed app never
+`scripts/publish_api.py` to both regional services. The manifest lands last, so an installed app never
 sees a version whose package is not yet in place.
 
 `server/api/Dockerfile` cross-compiles a CGO-free binary for amd64 and arm64, then runs it as the
@@ -426,7 +426,7 @@ merge concurrent edits, or use iCloud. A missing remote file requires an initial
 
 ## Localization
 
-Source strings are Simplified Chinese. `Scripts/l10n_wrap.py` wraps every Chinese literal in
+Source strings are Simplified Chinese. `scripts/l10n_wrap.py` wraps every Chinese literal in
 `tr(...)` (skipping logger calls, `case` patterns and multi-line strings) and lists the keys.
 `tr` returns the source for Simplified Chinese. English uses the Swift tables; Traditional Chinese,
 Japanese, Korean, German, Spanish, French and Arabic load bundled TSV catalogs from Localization/Resources.

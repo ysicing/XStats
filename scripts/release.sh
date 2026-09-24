@@ -2,18 +2,18 @@
 # 发布一个可分发的 Apple Silicon 版本：Developer ID 签名 → 公证 → 装订 → DMG（签名、公证、装订）
 # → 在线升级包 → 版本清单 → Homebrew cask。
 #
-#   ./Scripts/release.sh
+#   ./scripts/release.sh
 #
 # 需要钥匙串里的 Developer ID Application 证书和 notarytool 凭据。凭据按 Apple ID 与团队保存，
 # 默认使用 “XStats” 凭据；如尚未保存，可以执行：
 #   xcrun notarytool store-credentials XStats --apple-id you@example.com --team-id <TEAM_ID>
-#   NOTARY_PROFILE=XStats ./Scripts/release.sh
+#   NOTARY_PROFILE=XStats ./scripts/release.sh
 #
 # SKIP_NOTARIZE=1 只生成未公证的 DMG 供本机测试——不要分发，别的 Mac 上 Gatekeeper 会拒绝打开。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# 安装包放在对象存储，由 Scripts/publish_release.sh 用 mc 上传
+# 安装包放在对象存储，由 scripts/publish_release.sh 用 mc 上传
 DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://c.ysicing.net/oss/apps/macOS/XStats}"
 DIST="${DIST:-dist}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-XStats}"
@@ -22,7 +22,7 @@ SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null \
 APP="build/DerivedData-arm64/Build/Products/Release/XStats.app"
 
 # 构建只允许版本元数据有未提交改动；Swift、脚本或其他源码必须来自当前 HEAD。
-BASE_SHA="$(python3 Scripts/release_provenance.py prepare)"
+BASE_SHA="$(python3 scripts/release_provenance.py prepare)"
 
 if [ -z "$SIGN_ID" ]; then
   echo "error: 钥匙串里没有 Developer ID Application 证书，无法发布。" >&2
@@ -32,7 +32,7 @@ TEAM_ID="$(echo "$SIGN_ID" | sed -nE 's/.*\(([A-Z0-9]+)\)$/\1/p')"
 
 # 公开版本号取自 CHANGELOG.md 顶部的正式标题，同时推进一次内部构建号；
 # 顶部还是 “## 未发布” 时脚本会在这里失败
-VERSION="$(./Scripts/version.sh release)"
+VERSION="$(./scripts/version.sh release)"
 BUILD="$(sed -nE 's/^ *CURRENT_PROJECT_VERSION: *"?([0-9]+)"?.*/\1/p' project.yml | head -1)"
 echo "版本 ${VERSION} · 签名身份：${SIGN_ID}"
 
@@ -46,7 +46,7 @@ trap 'rm -rf "$WORK"' EXIT
 rm -rf "$DIST"
 mkdir -p "$DIST"
 PROVENANCE="$DIST/release-provenance.json"
-python3 Scripts/release_provenance.py record "$PROVENANCE" "$BASE_SHA" "$VERSION" "$BUILD"
+python3 scripts/release_provenance.py record "$PROVENANCE" "$BASE_SHA" "$VERSION" "$BUILD"
 
 NAME="XStats-${VERSION}-AppleSilicon"
 echo
@@ -109,7 +109,7 @@ fi
 ditto -c -k --keepParent "$APP" "$DIST/$NAME.zip"
 
 # 版本清单只包含 Apple Silicon 安装包
-python3 Scripts/appcast.py "$VERSION" "$BUILD" "$DOWNLOAD_BASE" \
+python3 scripts/appcast.py "$VERSION" "$BUILD" "$DOWNLOAD_BASE" \
   "$DIST/XStats-${VERSION}-AppleSilicon.zip" "$DIST/XStats-${VERSION}-AppleSilicon.dmg" > "$DIST/appcast.json"
 
 # ---- Homebrew cask ------------------------------------------------------------
@@ -151,5 +151,5 @@ if [ "${SKIP_NOTARIZE:-0}" = "1" ]; then
   echo "⚠️  未公证，仅供本机测试。"
 else
   echo "下一步：提交并推送版本改动（project.yml、CHANGELOG.md、README 徽章），"
-  echo "        再运行 ./Scripts/publish_release.sh 上传安装包并发布。"
+  echo "        再运行 ./scripts/publish_release.sh 上传安装包并发布。"
 fi

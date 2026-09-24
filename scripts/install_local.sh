@@ -2,11 +2,11 @@
 # 本机只保留一个 XStats：退出正在运行的旧版 → 删除 /Applications 里的旧版 → 把刚编译的新版移进去 → 启动。
 # 用移动而不是复制，编译目录里不留第二份；其他位置被系统登记的同名应用会取消登记并提示。
 #
-#   Scripts/install_local.sh build/DerivedData-arm64/Build/Products/Release/XStats.app
+#   scripts/install_local.sh build/DerivedData-arm64/Build/Products/Release/XStats.app
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SOURCE="${1:?用法：Scripts/install_local.sh <XStats.app>}"
+SOURCE="${1:?用法：scripts/install_local.sh <XStats.app>}"
 TARGET="/Applications/XStats.app"
 BUNDLE_ID="work.12306.xstats.app"
 LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister

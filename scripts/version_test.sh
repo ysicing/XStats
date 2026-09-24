@@ -12,8 +12,8 @@ trap 'rm -rf "$WORK"' EXIT
 # 每个用例都在干净的副本里跑：脚本会改写 project.yml，不能污染仓库
 setup() {
   rm -rf "$WORK/case"
-  mkdir -p "$WORK/case/Scripts"
-  cp "$ROOT/Scripts/version.sh" "$WORK/case/Scripts/version.sh"
+  mkdir -p "$WORK/case/scripts"
+  cp "$ROOT/scripts/version.sh" "$WORK/case/scripts/version.sh"
   cp "$ROOT/project.yml" "$WORK/case/project.yml"
   sed -i '' -E "s/(MARKETING_VERSION: *)\"?[0-9.]+\"?/\1\"$1\"/" "$WORK/case/project.yml"
   sed -i '' -E "s/(CURRENT_PROJECT_VERSION: *)\"?[0-9.]+\"?/\1\"$2\"/" "$WORK/case/project.yml"
@@ -46,7 +46,7 @@ expect_project() {
 # 留下半修改的版本文件比直接失败更难排查
 expect_failure() {
   cp "$WORK/case/project.yml" "$WORK/before.yml"
-  if (cd "$WORK/case" && Scripts/version.sh "$1" >/dev/null 2>&1); then
+  if (cd "$WORK/case" && scripts/version.sh "$1" >/dev/null 2>&1); then
     echo "错误地接受了：$1（$2）" >&2
     exit 1
   fi
@@ -57,24 +57,24 @@ expect_failure() {
 # show 不修改任何文件
 setup 1.0.0 109 "$VALID_LOG"
 cp "$WORK/case/project.yml" "$WORK/before.yml"
-expect_output "$(cd "$WORK/case" && Scripts/version.sh)" "1.0.0 (109)"
+expect_output "$(cd "$WORK/case" && scripts/version.sh)" "1.0.0 (109)"
 cmp -s "$WORK/before.yml" "$WORK/case/project.yml" || { echo "show 不应修改 project.yml" >&2; exit 1; }
 
 # build 只推进构建号，公开版本号纹丝不动
 setup 1.0.0 109 "$VALID_LOG"
-expect_output "$(cd "$WORK/case" && Scripts/version.sh build)" "1.0.0 (110)"
+expect_output "$(cd "$WORK/case" && scripts/version.sh build)" "1.0.0 (110)"
 expect_project 1.0.0 110
-expect_output "$(cd "$WORK/case" && Scripts/version.sh build)" "1.0.0 (111)"
+expect_output "$(cd "$WORK/case" && scripts/version.sh build)" "1.0.0 (111)"
 expect_project 1.0.0 111
 
 # 旧的四位补零构建号按十进制读取并规范化：0109 → 110，不能被当成八进制
 setup 2026.09.21.04 0109 "$VALID_LOG"
-expect_output "$(cd "$WORK/case" && Scripts/version.sh build)" "2026.09.21.04 (110)"
+expect_output "$(cd "$WORK/case" && scripts/version.sh build)" "2026.09.21.04 (110)"
 expect_project 2026.09.21.04 110
 
 # release 从 CHANGELOG 顶部取版本，同时推进构建号，stdout 只有版本号
 setup 2026.09.21.04 0109 "$VALID_LOG"
-expect_output "$(cd "$WORK/case" && Scripts/version.sh release)" "1.0.0"
+expect_output "$(cd "$WORK/case" && scripts/version.sh release)" "1.0.0"
 expect_project 1.0.0 110
 
 # 顶部还是“未发布”时必须失败：不能跳过它去用下面的旧版本

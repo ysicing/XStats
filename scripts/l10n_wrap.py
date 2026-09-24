@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """把 Swift 源码里的中文字符串字面量包进 tr(...)，并输出需要翻译的文案模板。
 
-    Scripts/l10n_wrap.py --apply            # 改写源码
-    Scripts/l10n_wrap.py --list > keys.txt  # 只列出模板（插值写成 {}）
+    scripts/l10n_wrap.py --apply            # 改写源码
+    scripts/l10n_wrap.py --list > keys.txt  # 只列出模板（插值写成 {}）
 
 跳过注释、多行字符串、原始字符串、日志调用（Logger 需要字面量）、case 模式与 enum 原始值，
 以及已经包在 tr(...) 里的字面量。插值里嵌套的中文字面量也会各自包起来。

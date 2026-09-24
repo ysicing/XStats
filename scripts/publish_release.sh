@@ -2,9 +2,9 @@
 # 把已公证的 Apple Silicon DMG 与在线升级包上传到对象存储，建 GitHub Release（手动下载入口），
 # 最后把版本清单提交给版本 API（已安装的应用据此提示升级），cask 提交到 homebrew tap。
 #
-#   ./Scripts/release.sh          # 先打包、公证
+#   ./scripts/release.sh          # 先打包、公证
 #   git commit && git push        # 再提交并推送版本改动
-#   ./Scripts/publish_release.sh  # 最后发布
+#   ./scripts/publish_release.sh  # 最后发布
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -20,7 +20,7 @@ PROVENANCE="dist/release-provenance.json"
 # gh release 会在远端默认分支的 HEAD 上打 tag。版本改动没推送的话，v${VERSION} 会指向
 # 一个不含该版本的提交。来源记录还会校验工作区、版本文件哈希，以及构建后是否改过源码。
 # 这里只读校验，不替调用者 commit 或 push。
-python3 Scripts/release_provenance.py verify "$PROVENANCE" "$VERSION" "$BUILD"
+python3 scripts/release_provenance.py verify "$PROVENANCE" "$VERSION" "$BUILD"
 git fetch --quiet origin main
 HEAD_SHA="$(git rev-parse HEAD)"
 [ "$HEAD_SHA" = "$(git rev-parse origin/main)" ] \
@@ -30,10 +30,10 @@ grep -q "^## ${VERSION} · " CHANGELOG.md \
 
 for ext in dmg zip; do
   file="dist/XStats-${VERSION}-AppleSilicon.${ext}"
-  [ -f "$file" ] || { echo "缺少 $file，先运行 ./Scripts/release.sh" >&2; exit 1; }
+  [ -f "$file" ] || { echo "缺少 $file，先运行 ./scripts/release.sh" >&2; exit 1; }
 done
 for file in "$APPCAST" "$CASK"; do
-  [ -f "$file" ] || { echo "缺少 $file，先运行 ./Scripts/release.sh" >&2; exit 1; }
+  [ -f "$file" ] || { echo "缺少 $file，先运行 ./scripts/release.sh" >&2; exit 1; }
 done
 python3 - "$APPCAST" "$VERSION" "dist/XStats-${VERSION}-AppleSilicon.zip" <<'PY' \
   || { echo "$APPCAST 与升级包不一致" >&2; exit 1; }
@@ -92,7 +92,7 @@ echo "✅ https://github.com/ysicing/xstats/releases/tag/v${VERSION}"
 
 # 清单最后提交：安装包已在对象存储就位并校验通过后，已安装的应用才会看到新版本。
 # Token 只从环境变量读取，不出现在命令参数里。
-python3 Scripts/publish_api.py "$APPCAST"
+python3 scripts/publish_api.py "$APPCAST"
 
 # Homebrew tap
 WORK="$(mktemp -d)"

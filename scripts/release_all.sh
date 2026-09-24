@@ -52,7 +52,7 @@ on_error() {
 trap on_error ERR
 
 # 在投入签名和公证时间前拒绝任何未提交源码；版本元数据仍可按发布流程保持未提交。
-python3 Scripts/release_provenance.py prepare >/dev/null
+python3 scripts/release_provenance.py prepare >/dev/null
 task test
 task release
 
@@ -61,7 +61,7 @@ BUILT_VERSION="$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' project
   || { echo "error: 构建版本 $BUILT_VERSION 与 CHANGELOG 版本 $VERSION 不一致。" >&2; exit 1; }
 
 # 构建后再次检查，防止构建工具或并行编辑把源码变化混入 release commit。
-python3 Scripts/release_provenance.py prepare >/dev/null
+python3 scripts/release_provenance.py prepare >/dev/null
 RELEASE_FILES=(
   project.yml
   CHANGELOG.md
@@ -82,7 +82,7 @@ git commit -m "chore(release): 发布 ${VERSION}"
 RECOVERY=push
 git push origin main
 RECOVERY=publish
-./Scripts/publish_release.sh
+./scripts/publish_release.sh
 RECOVERY=""
 
 echo "✅ XStats ${VERSION} 完整发布完成"

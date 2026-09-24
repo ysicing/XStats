@@ -3,7 +3,7 @@
 # 应用不再直接读 SVG：系统 NSImage 的 SVG 渲染器对 flag-icons 里的嵌套 <use>、clipPath 等写法支持不好，
 # 中国、乌兹别克斯坦等旗子会画错。PNG 为 64×48，够 16 pt @3x 显示。
 #   brew install librsvg
-#   Scripts/render_flags.sh
+#   scripts/render_flags.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 SRC=Assets/flags-svg

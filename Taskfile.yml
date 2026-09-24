@@ -31,13 +31,13 @@ tasks:
     desc: 编译 App（含辅助工具）并安装
     cmds:
       - |
-        if [ "{{.BUMP}}" != "0" ]; then ./Scripts/version.sh build; fi
+        if [ "{{.BUMP}}" != "0" ]; then ./scripts/version.sh build; fi
       - task: compile
         vars:
           CONFIG: '{{.CONFIG}}'
           SIGN_ID: '{{.SIGN_ID}}'
       - |
-        if [ "{{.INSTALL}}" != "0" ]; then ./Scripts/install_local.sh "{{.APP}}"; fi
+        if [ "{{.INSTALL}}" != "0" ]; then ./scripts/install_local.sh "{{.APP}}"; fi
 
   compile:
     desc: 只编译 App，不安装
@@ -61,17 +61,17 @@ tasks:
   release:
     desc: 签名、公证、装订、打包 DMG 并生成 Homebrew cask
     cmds:
-      - ./Scripts/release.sh
+      - ./scripts/release.sh
 
   publish:
     desc: 发布已构建且已提交推送的制品
     cmds:
-      - ./Scripts/publish_release.sh
+      - ./scripts/publish_release.sh
 
   release-all:
     desc: 测试、构建、公证、提交推送并完成全部发布
     cmds:
-      - ./Scripts/release_all.sh
+      - ./scripts/release_all.sh
 
   stop:
     desc: 停止正在运行的 App
@@ -82,11 +82,11 @@ tasks:
   test:
     desc: 运行版本脚本、API 和 Swift 单元测试
     cmds:
-      - bash Scripts/version_test.sh
-      - bash Scripts/arm64_release_test.sh
-      - bash Scripts/release_all_test.sh
-      - python3 Scripts/release_provenance_test.py
-      - python3 Scripts/publish_api_test.py
+      - bash scripts/version_test.sh
+      - bash scripts/arm64_release_test.sh
+      - bash scripts/release_all_test.sh
+      - python3 scripts/release_provenance_test.py
+      - python3 scripts/publish_api_test.py
       - task: test-api
       - task: test-swift
 
@@ -121,4 +121,4 @@ tasks:
   version:
     desc: 显示当前版本
     cmds:
-      - ./Scripts/version.sh
+      - ./scripts/version.sh

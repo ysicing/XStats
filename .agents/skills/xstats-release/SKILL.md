@@ -10,7 +10,7 @@ description: Execute, resume, or verify the XStats macOS client release workflow
 
 Release the XStats macOS client without letting its binary, Git tag, object-storage artifacts, update manifests, or Homebrew cask drift apart.
 
-Before acting, read the repository `AGENTS.md`, the release section of `DEVELOPMENT.md`, `Taskfile.yml`, and `Scripts/release.sh` / `Scripts/publish_release.sh`. Treat the repository scripts as the current implementation; use [references/runbook.md](references/runbook.md) for the operational sequence and recovery checks.
+Before acting, read the repository `AGENTS.md`, the release section of `DEVELOPMENT.md`, `Taskfile.yml`, and `scripts/release.sh` / `scripts/publish_release.sh`. Treat the repository scripts as the current implementation; use [references/runbook.md](references/runbook.md) for the operational sequence and recovery checks. For every new release, invoke [xstats-changelog](../xstats-changelog/SKILL.md) to prepare or review its notes before the build; do not regenerate notes when only resuming publication of an already built release.
 
 ## Boundaries
 
@@ -34,7 +34,7 @@ Before acting, read the repository `AGENTS.md`, the release section of `DEVELOPM
 
 ## Execution shape
 
-1. Establish a clean, current source baseline and pass repository tests/CI.
+1. Establish a clean, current source baseline. Use `xstats-changelog` to prepare and review the user-facing release summary, then pass repository tests/CI.
 2. Prepare only release metadata, then let `task release` advance `project.yml`, build, sign, notarize, staple, and generate `dist/`.
 3. Verify the built app in `build/DerivedData-arm64/Build/Products/Release/XStats.app` and generated artifacts before committing release metadata; leave `/Applications/XStats.app` untouched.
 4. Commit and push only the allowed metadata, then run the provenance verifier.
