@@ -639,7 +639,7 @@ struct AIUsageSettingsButton: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        MiniIconButton(systemName: "gearshape", help: tr("AI 用量与额度") + " · " + tr("设置")) {
+        MiniIconButton(systemName: "slider.horizontal.3", help: tr("AI 用量与额度") + " · " + tr("数据来源")) {
             model.openAIUsageSettings()
         }
     }

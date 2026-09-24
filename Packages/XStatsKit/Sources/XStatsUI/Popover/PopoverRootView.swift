@@ -81,14 +81,17 @@ struct PopoverHeader: View {
                 .foregroundStyle(DS.Palette.textPrimary)
             Spacer(minLength: DS.Space.s2)
             if item == .memory { PurgeMemoryButton() }
-            // 左边的按钮用该指标自己的图标，点进主窗口里它的页面。
             let page = PanelTab(item: item)
-            MiniIconButton(systemName: item == .aiUsage ? "arrow.up.right.square" : page.symbol,
-                           help: tr("在主窗口打开“\(page.title)”")) { model.openMainWindow(page) }
             if item == .aiUsage {
+                // 当前数据的操作在前；来源配置用滑杆，最右侧齿轮进入 AI 主窗口。
                 AIUsageRefreshButton()
                 AIUsageSettingsButton()
+                MiniIconButton(systemName: "gearshape",
+                               help: tr("在主窗口打开“\(page.title)”")) { model.openMainWindow(page) }
             } else {
+                // 其他指标的齿轮统一打开应用通用设置。
+                MiniIconButton(systemName: page.symbol,
+                               help: tr("在主窗口打开“\(page.title)”")) { model.openMainWindow(page) }
                 MiniIconButton(systemName: "gearshape", help: tr("设置")) { model.openSettings() }
             }
         }
