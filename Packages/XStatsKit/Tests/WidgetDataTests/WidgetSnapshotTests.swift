@@ -101,3 +101,55 @@ import WidgetData
     let snapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: legacy)
     #expect(snapshot.todayTokens(for: "codex") == nil)
 }
+
+@Test func onlyWidgetsWhoseDisplayedDataChangedAreReloaded() {
+    let now = Date()
+    func quota(fetchedAt: Date, remaining: Double = 37) -> WidgetSnapshot.Quota {
+        .init(provider: "codex", kind: "weekly", remainingPercent: remaining, resetsAt: now.addingTimeInterval(3600),
+              fetchedAt: fetchedAt, isStale: false)
+    }
+    let address = WidgetSnapshot.Address(family: "v4", ip: "203.0.113.1", countryCode: "CN", city: nil,
+                                         organization: nil, purityScore: 82, purityGrade: "A")
+    let base = WidgetSnapshot(aiEnabled: true, quotas: [quota(fetchedAt: now)],
+                              dailyTokens: [.init(provider: "codex", day: now, tokens: 10)],
+                              publicIPEnabled: true, addresses: [address])
+
+    // 重新抓取但额度未变：抓取时间不显示在 Widget 上，不应消耗重载预算
+    var refetched = base
+    refetched.quotas = [quota(fetchedAt: now.addingTimeInterval(1800))]
+    #expect(refetched != base)
+    #expect(refetched.changedWidgetKinds(from: base).isEmpty)
+
+    var quotaChanged = base
+    quotaChanged.quotas = [quota(fetchedAt: now, remaining: 20)]
+    #expect(quotaChanged.changedWidgetKinds(from: base) == [WidgetKind.aiQuota])
+
+    var tokensChanged = base
+    tokensChanged.dailyTokens = [.init(provider: "codex", day: now, tokens: 11)]
+    #expect(tokensChanged.changedWidgetKinds(from: base) == [WidgetKind.todayTokens])
+
+    var ipDisabled = base
+    ipDisabled.publicIPEnabled = false
+    #expect(ipDisabled.changedWidgetKinds(from: base) == [WidgetKind.ipPurity, WidgetKind.publicIP])
+
+    var noAddress = base
+    noAddress.addresses = []
+    var noAddressDisabled = noAddress
+    noAddressDisabled.publicIPEnabled = false
+    #expect(noAddressDisabled.changedWidgetKinds(from: noAddress) == [WidgetKind.ipPurity, WidgetKind.publicIP])
+    #expect(noAddress.changedWidgetKinds(from: noAddressDisabled) == [WidgetKind.ipPurity, WidgetKind.publicIP])
+
+    var aiDisabled = base
+    aiDisabled.aiEnabled = false
+    #expect(aiDisabled.changedWidgetKinds(from: base) == [WidgetKind.aiQuota, WidgetKind.todayTokens])
+
+    var lunarHidden = base
+    lunarHidden.showsLunar = false
+    #expect(lunarHidden.changedWidgetKinds(from: base) == [WidgetKind.calendar, WidgetKind.tomorrowWork])
+
+    var relocalized = base
+    relocalized.language = "japanese"
+    #expect(relocalized.changedWidgetKinds(from: base) == [WidgetKind.aiQuota, WidgetKind.todayTokens,
+                                                           WidgetKind.ipPurity, WidgetKind.publicIP,
+                                                           WidgetKind.calendar, WidgetKind.tomorrowWork])
+}

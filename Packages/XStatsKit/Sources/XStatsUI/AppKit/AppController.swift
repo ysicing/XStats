@@ -414,15 +414,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                       showsLunar: settings.calendarFeatures.contains(.lunar),
                                       calendarDays: calendarDays)
         guard snapshot != previous, widgetStore.save(snapshot) else { return }
-        for kind in ["work.12306.xstats.widget.aiQuota", "work.12306.xstats.widget.todayTokens",
-                     "work.12306.xstats.widget.ipPurity",
-                     "work.12306.xstats.widget.publicIP"] {
+        for kind in snapshot.changedWidgetKinds(from: previous) {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)
-        }
-        if snapshot.language != previous.language || snapshot.calendarFirstWeekday != previous.calendarFirstWeekday
-            || snapshot.showsLunar != previous.showsLunar || snapshot.calendarDays != previous.calendarDays {
-            WidgetCenter.shared.reloadTimelines(ofKind: "work.12306.xstats.widget.calendar")
-            WidgetCenter.shared.reloadTimelines(ofKind: "work.12306.xstats.widget.tomorrowWork")
         }
     }
 

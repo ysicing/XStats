@@ -1,5 +1,6 @@
 import Metrics
 import SwiftUI
+import WidgetData
 import WidgetKit
 
 // 桌面小组件：在自己的沙盒进程里直接读取 CPU、内存、磁盘与电池，不依赖主应用是否运行。
@@ -196,7 +197,7 @@ struct SystemWidgetView: View {
 
 struct SystemWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "work.12306.xstats.widget.system", provider: SystemProvider()) { entry in
+        StaticConfiguration(kind: WidgetKind.system, provider: SystemProvider()) { entry in
             SystemWidgetView(entry: entry)
         }
         .configurationDisplayName("系统概览")

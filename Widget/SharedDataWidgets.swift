@@ -141,7 +141,7 @@ private struct AIQuotaWidgetView: View {
 
 struct AIQuotaWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "work.12306.xstats.widget.aiQuota", provider: SharedDataProvider()) { entry in
+        StaticConfiguration(kind: WidgetKind.aiQuota, provider: SharedDataProvider()) { entry in
             AIQuotaWidgetView(entry: entry)
         }
         .configurationDisplayName(tr("订阅额度"))
@@ -193,7 +193,7 @@ private struct TodayTokensWidgetView: View {
 
 struct TodayTokensWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "work.12306.xstats.widget.todayTokens", provider: SharedDataProvider()) { entry in
+        StaticConfiguration(kind: WidgetKind.todayTokens, provider: SharedDataProvider()) { entry in
             TodayTokensWidgetView(entry: entry)
         }
         .configurationDisplayName(tr("今日消耗的 Token"))
@@ -302,7 +302,7 @@ private struct IPPurityWidgetView: View {
 
 struct IPPurityWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "work.12306.xstats.widget.ipPurity", provider: SharedDataProvider()) { entry in
+        StaticConfiguration(kind: WidgetKind.ipPurity, provider: SharedDataProvider()) { entry in
             IPPurityWidgetView(entry: entry)
         }
         .configurationDisplayName(tr("IP 纯净度"))
@@ -416,7 +416,7 @@ private func ipWidgetTags(for address: WidgetSnapshot.Address) -> [String] {
 
 struct PublicIPWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "work.12306.xstats.widget.publicIP", provider: SharedDataProvider()) { entry in
+        StaticConfiguration(kind: WidgetKind.publicIP, provider: SharedDataProvider()) { entry in
             PublicIPWidgetView(entry: entry)
         }
         .configurationDisplayName(tr("公网 IP"))

@@ -168,7 +168,9 @@ public final class AIUsageController {
         refreshTask = nil
     }
 
+    /// 系统唤醒会连发屏幕唤醒与系统唤醒两个通知，重复的恢复不能再排一次扫描
     public func setPaused(_ value: Bool) {
+        guard value != paused else { return }
         paused = value
         if value { stop() } else { start() }
     }

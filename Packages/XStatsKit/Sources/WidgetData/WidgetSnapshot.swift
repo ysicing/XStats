@@ -158,12 +158,46 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
 
     public var visibleAddresses: [Address] { publicIPEnabled ? addresses : [] }
 
+    /// 只比较各 Widget 实际显示的字段。重载会消耗系统分配的刷新预算，
+    /// 额度的抓取时间不在 Widget 上显示，仅它变化时不重载。
+    public func changedWidgetKinds(from previous: WidgetSnapshot) -> [String] {
+        func displayed(_ quotas: [Quota]) -> [Quota] {
+            quotas.map { Quota(provider: $0.provider, kind: $0.kind, remainingPercent: $0.remainingPercent,
+                               resetsAt: $0.resetsAt, fetchedAt: .distantPast, isStale: $0.isStale) }
+        }
+        let relocalized = language != previous.language
+        let ai = relocalized || aiEnabled != previous.aiEnabled
+        var kinds: [String] = []
+        if ai || displayed(quotas) != displayed(previous.quotas) { kinds.append(WidgetKind.aiQuota) }
+        if ai || dailyTokens != previous.dailyTokens { kinds.append(WidgetKind.todayTokens) }
+        if relocalized || publicIPEnabled != previous.publicIPEnabled
+            || visibleAddresses != previous.visibleAddresses {
+            kinds += [WidgetKind.ipPurity, WidgetKind.publicIP]
+        }
+        if relocalized || calendarFirstWeekday != previous.calendarFirstWeekday || showsLunar != previous.showsLunar
+            || calendarDays != previous.calendarDays {
+            kinds += [WidgetKind.calendar, WidgetKind.tomorrowWork]
+        }
+        return kinds
+    }
+
     public func calendarSummary(for date: Date, calendar: Calendar = .autoupdatingCurrent) -> CalendarSummary? {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         guard let year = parts.year, let month = parts.month, let day = parts.day else { return nil }
         let key = String(format: "%04d-%02d-%02d", year, month, day)
         return calendarDays?.first { $0.dateKey == key }
     }
+}
+
+/// 各 Widget 的 kind，主应用据此按需重载
+public enum WidgetKind {
+    public static let system = "work.12306.xstats.widget.system"
+    public static let aiQuota = "work.12306.xstats.widget.aiQuota"
+    public static let todayTokens = "work.12306.xstats.widget.todayTokens"
+    public static let ipPurity = "work.12306.xstats.widget.ipPurity"
+    public static let publicIP = "work.12306.xstats.widget.publicIP"
+    public static let calendar = "work.12306.xstats.widget.calendar"
+    public static let tomorrowWork = "work.12306.xstats.widget.tomorrowWork"
 }
 
 public struct WidgetSnapshotStore {

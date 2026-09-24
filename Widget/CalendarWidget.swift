@@ -155,7 +155,7 @@ private struct CalendarWidgetView: View {
 
 struct CalendarWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "work.12306.xstats.widget.calendar", provider: CalendarWidgetProvider()) { entry in
+        StaticConfiguration(kind: WidgetKind.calendar, provider: CalendarWidgetProvider()) { entry in
             CalendarWidgetView(entry: entry)
         }
         .configurationDisplayName(tr("日历"))
@@ -224,7 +224,7 @@ private struct TomorrowWorkWidgetView: View {
 
 struct TomorrowWorkWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "work.12306.xstats.widget.tomorrowWork", provider: CalendarWidgetProvider()) { entry in
+        StaticConfiguration(kind: WidgetKind.tomorrowWork, provider: CalendarWidgetProvider()) { entry in
             TomorrowWorkWidgetView(entry: entry)
         }
         .configurationDisplayName(tr("明天上班吗"))

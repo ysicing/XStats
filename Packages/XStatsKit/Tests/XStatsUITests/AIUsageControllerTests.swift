@@ -559,6 +559,25 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(controller.todayTokens == nil)
     }
 
+    /// 系统唤醒会同时发出屏幕唤醒与系统唤醒通知；重复的恢复不能再排一次完整扫描和额度请求。
+    @Test func repeatedResumeDoesNotQueueAnotherRefresh() async throws {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let provider = GatedUsageProvider()
+        let controller = AIUsageController(settings: settings, providers: [provider])
+        defer { controller.stop() }
+
+        controller.setPaused(true)
+        controller.setPaused(false)
+        while await provider.startCount() == 0 { await Task.yield() }
+        controller.setPaused(false)
+        await provider.release()
+        try await Task.sleep(for: .milliseconds(100))
+
+        #expect(await provider.startCount() == 1)
+        #expect(controller.todayTokens == 100)
+    }
+
     @Test func pausedControllerDoesNotFetch() async {
         let provider = StubUsageProvider([.success(usageSnapshot(tokens: 87))])
         let settings = AppSettings(defaults: defaultsForAIUsage())
