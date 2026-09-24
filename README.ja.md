@@ -6,7 +6,7 @@
 
 **Mac の状態をひと目で。CPU、GPU、メモリ、ネットワーク、温度をメニューバーで確認し、ファン制御、スリープ防止、キャッシュ削除、アプリのアンインストール、IP 評価も行えます。**
 
-[![Release](https://img.shields.io/badge/version-0.8.1-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/version-0.9.0-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![Stars](https://img.shields.io/github/stars/ysicing/xstats?style=flat&color=f5c518)](https://github.com/ysicing/xstats/stargazers)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B-black)](https://github.com/ysicing/xstats/releases)
