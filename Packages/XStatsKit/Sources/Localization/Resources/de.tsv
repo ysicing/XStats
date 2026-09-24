@@ -1398,3 +1398,12 @@ Sub2API 返回了无法识别的额度数据	Sub2API hat unbekannte Kontingentda
 钥匙串读写失败，请检查权限	Schlüsselbund konnte nicht gelesen oder beschrieben werden; prüfe die Berechtigungen
 Sub2API 账号平台与所选来源不匹配	Die Plattform des Sub2API-Kontos stimmt nicht mit der ausgewählten Quelle überein
 本机账号可用，当前使用自动额度。	Das lokale Konto ist verfügbar; derzeit werden automatisch abgerufene Kontingentdaten verwendet.
+上班	Arbeitstag
+不上班	Frei
+暂无安排	Keine Daten
+暂无法判断	Derzeit nicht bestimmbar
+黄道日	Günstiger Tag
+黑道日	Ungünstiger Tag
+查看今天的节日与黄历。	Heutige Feiertage und Almanach anzeigen.
+明天上班吗	Morgen arbeiten?
+查看明天是否上班或放假。	Zeigt, ob morgen ein Arbeits- oder freier Tag ist.

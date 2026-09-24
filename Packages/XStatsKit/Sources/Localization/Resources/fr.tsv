@@ -1398,3 +1398,12 @@ Sub2API 返回了无法识别的额度数据	Sub2API a renvoyé des données de 
 钥匙串读写失败，请检查权限	Impossible d’accéder au trousseau ; vérifiez les autorisations
 Sub2API 账号平台与所选来源不匹配	La plateforme du compte Sub2API ne correspond pas à la source sélectionnée
 本机账号可用，当前使用自动额度。	Le compte local est disponible ; les données de quota récupérées automatiquement sont utilisées.
+上班	Jour travaillé
+不上班	Repos
+暂无安排	Aucune donnée
+暂无法判断	Impossible à déterminer pour le moment
+黄道日	Jour favorable
+黑道日	Jour défavorable
+查看今天的节日与黄历。	Consultez les fêtes et l'almanach du jour.
+明天上班吗	Travail demain ?
+查看明天是否上班或放假。	Vérifiez si demain est un jour travaillé ou chômé.

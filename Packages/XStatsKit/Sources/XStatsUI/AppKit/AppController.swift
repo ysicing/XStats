@@ -23,6 +23,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private var speedTestWindow: SpeedTestWindowController!
     private var egressWindow: EgressWindowController!
     private var updateTimer: Timer?
+    private var widgetTimer: Timer?
     private let hotKeys = HotKeyCenter()
     private var workspaceObservers: [NSObjectProtocol] = []
 
@@ -93,6 +94,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
         observeAIUsageState()
         observeWidgetState()
         syncWidgetSnapshot()
+        widgetTimer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.syncWidgetSnapshot() }
+        }
+        widgetTimer?.tolerance = 5 * 60
         model.aiUsage.start()
         applyAppearance()
         updateNetworkVisibility()
@@ -168,6 +173,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        widgetTimer?.invalidate()
         calendarMenuBar.stop()
         model.aiUsage.stop()
         model.keepAwake.releaseForTermination()
@@ -354,6 +360,21 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
     private func syncWidgetSnapshot() {
         let settings = model.settings
+        let previous = widgetStore.load()
+        let calendar = CalendarEngine.gregorian()
+        let today = calendar.startOfDay(for: .now)
+        let todayKey = CalendarEngine.today(at: today)?.id
+        // 多预备几天，Widget 午夜换日时无需唤醒主应用；主应用运行期间按小时补足窗口。
+        let calendarDays: [WidgetSnapshot.CalendarSummary] = {
+            if previous.calendarDays?.count == 8, previous.calendarDays?.first?.dateKey == todayKey {
+                return previous.calendarDays ?? []
+            }
+            return (0..<8).compactMap { offset in
+                guard let date = calendar.date(byAdding: .day, value: offset, to: today),
+                      let day = CalendarEngine.today(at: date) else { return nil }
+                return CalendarEngine.widgetSummary(for: day)
+            }
+        }()
         let quotas: [WidgetSnapshot.Quota] = settings.aiUsageEnabled
             ? AIProviderID.allCases.filter { settings.aiUsageSources.contains($0) }.flatMap { provider -> [WidgetSnapshot.Quota] in
                 let state = model.aiUsage.quotaState(for: provider)
@@ -377,16 +398,17 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                       publicIPEnabled: settings.publicIPLookup, addresses: addresses,
                                       language: settings.language.rawValue,
                                       calendarFirstWeekday: settings.calendarFirstWeekday,
-                                      showsLunar: settings.calendarFeatures.contains(.lunar))
-        let previous = widgetStore.load()
+                                      showsLunar: settings.calendarFeatures.contains(.lunar),
+                                      calendarDays: calendarDays)
         guard snapshot != previous, widgetStore.save(snapshot) else { return }
         for kind in ["work.12306.xstats.widget.aiQuota", "work.12306.xstats.widget.ipPurity",
                      "work.12306.xstats.widget.publicIP"] {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)
         }
         if snapshot.language != previous.language || snapshot.calendarFirstWeekday != previous.calendarFirstWeekday
-            || snapshot.showsLunar != previous.showsLunar {
+            || snapshot.showsLunar != previous.showsLunar || snapshot.calendarDays != previous.calendarDays {
             WidgetCenter.shared.reloadTimelines(ofKind: "work.12306.xstats.widget.calendar")
+            WidgetCenter.shared.reloadTimelines(ofKind: "work.12306.xstats.widget.tomorrowWork")
         }
     }
 

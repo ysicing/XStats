@@ -210,6 +210,7 @@ struct XStatsWidgets: WidgetBundle {
     var body: some Widget {
         SystemWidget()
         CalendarWidget()
+        TomorrowWorkWidget()
         AIQuotaWidget()
         IPPurityWidget()
         PublicIPWidget()

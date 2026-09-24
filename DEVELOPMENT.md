@@ -55,7 +55,7 @@ GitHub Actions 只在分支 push 且 `server/**` 发生变化时构建并发布 
 有 Developer ID Application 证书时，Taskfile 会自动使用钥匙串中第一个证书的唯一指纹；否则使用项目默认的 ad-hoc 签名。
 桌面小组件与主应用通过 `group.work.12306.xstats` App Group 共享只读展示摘要。
 用于正式签名的 Apple Developer 团队须为主应用和 Widget 扩展启用同一个 App Group；
-小组件不读取 AI 登录凭据，也不自行请求额度或 IP 服务。主应用未查询过数据时，小组件显示空状态。
+小组件不读取 AI 登录凭据，也不自行请求额度或 IP 服务。日历节假日与黄历由主应用预计算，Widget 只读共享摘要；主应用未生成数据时，小组件显示空状态。
 主应用与扩展的 Bundle ID 分别是 `work.12306.xstats.app` 和 `work.12306.xstats.app.widget`；
 带 App Group 能力的 Developer ID provisioning profile 要分别安装，并通过
 `XSTATS_APP_PROFILE`、`XSTATS_WIDGET_PROFILE` 指定 profile 名称后再签名构建。

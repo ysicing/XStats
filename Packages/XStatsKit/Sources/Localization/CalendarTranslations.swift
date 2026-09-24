@@ -32,6 +32,15 @@ extension Translations {
 休	R
 调休上班	Makeup workday
 放假	Holiday
+上班	Workday
+不上班	Day off
+暂无安排	No schedule data
+暂无法判断	Cannot determine yet
+黄道日	Auspicious day
+黑道日	Inauspicious day
+查看今天的节日与黄历。	See today's festivals and almanac.
+明天上班吗	Work tomorrow?
+查看明天是否上班或放假。	See whether tomorrow is a workday or holiday.
 春节	Spring Festival
 元宵节	Lantern Festival
 龙头节	Dragon Head-Raising Festival

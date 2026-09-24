@@ -1398,3 +1398,12 @@ Sub2API 返回了无法识别的额度数据	Sub2API devolvió datos de cuota no
 钥匙串读写失败，请检查权限	No se puede acceder al llavero; revisa los permisos
 Sub2API 账号平台与所选来源不匹配	La plataforma de la cuenta de Sub2API no coincide con la fuente seleccionada
 本机账号可用，当前使用自动额度。	La cuenta local está disponible; se usan los datos de cuota consultados automáticamente.
+上班	Día laborable
+不上班	Día libre
+暂无安排	Sin datos
+暂无法判断	Aún no se puede determinar
+黄道日	Día propicio
+黑道日	Día desfavorable
+查看今天的节日与黄历。	Consulta las festividades y el almanaque de hoy.
+明天上班吗	¿Trabajas mañana?
+查看明天是否上班或放假。	Consulta si mañana es laborable o festivo.

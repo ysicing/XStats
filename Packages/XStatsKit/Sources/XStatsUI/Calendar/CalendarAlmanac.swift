@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import WidgetData
 @preconcurrency import Tyme4Swift
 
 /// 选中日期才计算的黄历值模型，不在生成 42 格月历时重复查询宜忌表。
@@ -33,6 +34,23 @@ struct CalendarAlmanac: Identifiable {
 }
 
 extension CalendarEngine {
+    static func widgetSummary(for day: CalendarDay) -> WidgetSnapshot.CalendarSummary {
+        let schedule: WidgetSnapshot.CalendarSummary.Schedule
+        if !hasHolidayData(year: day.year) {
+            schedule = .unknown
+        } else if let holiday = day.holiday {
+            schedule = holiday.isWork ? .makeupWork : .dayOff
+        } else {
+            schedule = day.isWeekend ? .dayOff : .work
+        }
+        let almanac = almanac(for: day)
+        return .init(dateKey: day.id, festivals: day.festivals,
+                     solarTerm: day.solarTerm, schedule: schedule, holidayName: day.holiday?.name,
+                     twelveStar: almanac?.twelveStar, isEcliptic: almanac?.twelveStarIsLucky ?? false,
+                     recommends: Array(almanac?.recommends.prefix(3) ?? []),
+                     avoids: Array(almanac?.avoids.prefix(3) ?? []))
+    }
+
     static func almanac(for day: CalendarDay) -> CalendarAlmanac? {
         guard let solar = try? SolarDay.fromYmd(day.year, day.month, day.day) else { return nil }
         let lunar = solar.getLunarDay()

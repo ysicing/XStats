@@ -8,13 +8,14 @@ import WidgetKit
 
 struct CalendarWidgetEntry: TimelineEntry {
     let date: Date
-    let firstWeekday: Int
     let showsLunar: Bool
+    let today: WidgetSnapshot.CalendarSummary?
+    let tomorrow: WidgetSnapshot.CalendarSummary?
 }
 
 struct CalendarWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> CalendarWidgetEntry {
-        .init(date: .now, firstWeekday: 2, showsLunar: true)
+        .init(date: .now, showsLunar: true, today: nil, tomorrow: nil)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (CalendarWidgetEntry) -> Void) {
@@ -33,7 +34,11 @@ struct CalendarWidgetProvider: TimelineProvider {
     private func read() -> CalendarWidgetEntry {
         let snapshot = WidgetSnapshotStore().load()
         L10n.configure(AppLanguage(rawValue: snapshot.language) ?? .system)
-        return .init(date: .now, firstWeekday: snapshot.calendarFirstWeekday, showsLunar: snapshot.showsLunar)
+        let now = Date.now
+        let nextDay = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: now) ?? now
+        return .init(date: now, showsLunar: snapshot.showsLunar,
+                     today: snapshot.calendarSummary(for: now),
+                     tomorrow: snapshot.calendarSummary(for: nextDay))
     }
 }
 
@@ -51,13 +56,13 @@ private struct CalendarWidgetView: View {
     }
 
     private var dayView: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             Label(tr("日历"), systemImage: "calendar")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
             Text(entry.date, format: .dateTime.day())
-                .font(.system(size: 56, weight: .medium, design: .rounded))
+                .font(.system(size: 50, weight: .medium, design: .rounded))
                 .minimumScaleFactor(0.7)
             Text(entry.date, format: .dateTime.weekday(.wide).month(.wide))
                 .font(.subheadline)
@@ -68,53 +73,75 @@ private struct CalendarWidgetView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+            if let occasion = occasion {
+                Text(occasion)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.orange)
+                    .lineLimit(1)
+            }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .padding()
+        .padding(12)
     }
 
     private var monthView: some View {
-        var calendar = Calendar.autoupdatingCurrent
-        calendar.firstWeekday = entry.firstWeekday == 1 ? 1 : 2
-        let first = calendar.dateInterval(of: .month, for: entry.date)?.start ?? entry.date
-        let dayCount = calendar.range(of: .day, in: .month, for: entry.date)?.count ?? 30
-        let offset = (calendar.component(.weekday, from: first) - calendar.firstWeekday + 7) % 7
-        let formatter = DateFormatter()
-        formatter.locale = L10n.locale
-        let weekdays = formatter.veryShortStandaloneWeekdaySymbols ?? ["日", "一", "二", "三", "四", "五", "六"]
-        let orderedWeekdays = (0..<7).map { weekdays[($0 + calendar.firstWeekday - 1) % 7] }
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(entry.date, format: .dateTime.year().month(.wide))
-                    .font(.headline)
-                Spacer()
-                Image(systemName: "calendar")
+        HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 5) {
+                Label(tr("日历"), systemImage: "calendar")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-            }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 1) {
-                ForEach(orderedWeekdays.indices, id: \.self) { index in
-                    Text(orderedWeekdays[index])
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                Text(entry.date, format: .dateTime.day())
+                    .font(.system(size: 50, weight: .medium, design: .rounded))
+                Text(entry.date, format: .dateTime.weekday(.wide).month(.wide))
+                    .font(.caption)
+                    .lineLimit(1)
+                if entry.showsLunar {
+                    Text(lunarDate).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
-                ForEach(0..<(offset + dayCount), id: \.self) { index in
-                    if index < offset {
-                        Color.clear.frame(height: 16)
-                    } else {
-                        let day = index - offset + 1
-                        Text("\(day)")
-                            .font(.caption2.weight(day == calendar.component(.day, from: entry.date) ? .bold : .regular))
-                            .foregroundStyle(day == calendar.component(.day, from: entry.date) ? .white : .primary)
-                            .frame(maxWidth: .infinity, minHeight: 16)
-                            .background(day == calendar.component(.day, from: entry.date) ? Color.accentColor : .clear,
-                                        in: RoundedRectangle(cornerRadius: 5))
+                if let occasion {
+                    Text(occasion).font(.caption.weight(.medium)).foregroundStyle(.orange).lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Rectangle().fill(.quaternary).frame(width: 1)
+            VStack(alignment: .leading, spacing: 7) {
+                if let today = entry.today {
+                    if let star = today.twelveStar {
+                        HStack(spacing: 5) {
+                            Text(tr(today.isEcliptic ? "黄道日" : "黑道日"))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(today.isEcliptic ? .green : .secondary)
+                            Text(star).font(.caption2).foregroundStyle(.secondary)
+                        }
+                        Divider()
                     }
+                    advice(tr("宜"), values: today.recommends)
+                    advice(tr("忌"), values: today.avoids)
+                } else {
+                    Text(tr("暂无安排")).font(.caption).foregroundStyle(.secondary)
                 }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(10)
+        .padding(12)
+    }
+
+    private func advice(_ title: String, values: [String]) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(title).fontWeight(.semibold).foregroundStyle(.secondary)
+            Text(values.isEmpty ? tr("无") : values.joined(separator: " · "))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .font(.caption2)
+    }
+
+    private var occasion: String? {
+        if let festival = entry.today?.festivals.first { return tr(festival) }
+        if let term = entry.today?.solarTerm { return tr(term) }
+        return nil
     }
 
     private var lunarDate: String {
@@ -132,7 +159,58 @@ struct CalendarWidget: Widget {
             CalendarWidgetView(entry: entry)
         }
         .configurationDisplayName(tr("日历"))
-        .description(tr("查看今天的日期或本月月历。"))
+        .description(tr("查看今天的节日与黄历。"))
         .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
+private struct TomorrowWorkWidgetView: View {
+    let entry: CalendarWidgetEntry
+
+    private var needsWork: Bool? { entry.tomorrow?.schedule.needsWork }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(tr("明天上班吗"))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            if let needsWork {
+                VStack(spacing: 8) {
+                    Image(systemName: needsWork ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .font(.system(size: 46, weight: .medium))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(needsWork ? .green : .primary)
+                        .accessibilityHidden(true)
+                    Text(tr(needsWork ? "上班" : "不上班"))
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                Text(tr("暂无法判断"))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .padding(16)
+        .containerBackground(.background, for: .widget)
+        .environment(\.locale, L10n.locale)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+struct TomorrowWorkWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "work.12306.xstats.widget.tomorrowWork", provider: CalendarWidgetProvider()) { entry in
+            TomorrowWorkWidgetView(entry: entry)
+        }
+        .configurationDisplayName(tr("明天上班吗"))
+        .description(tr("查看明天是否上班或放假。"))
+        .supportedFamilies([.systemSmall])
     }
 }

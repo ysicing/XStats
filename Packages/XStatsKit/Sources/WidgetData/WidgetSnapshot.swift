@@ -5,6 +5,45 @@ import Foundation
 
 /// 跨进程共享的展示摘要，不包含账号凭据、请求内容或本机 Token 日志。
 public struct WidgetSnapshot: Codable, Equatable, Sendable {
+    public struct CalendarSummary: Codable, Equatable, Sendable {
+        public enum Schedule: String, Codable, Sendable {
+            case work, dayOff, makeupWork, unknown
+
+            /// 数据未覆盖的年份不能按普通工作日推断，避免给出错误的二元答案。
+            public var needsWork: Bool? {
+                switch self {
+                case .work, .makeupWork: true
+                case .dayOff: false
+                case .unknown: nil
+                }
+            }
+        }
+
+        public let dateKey: String
+        public let festivals: [String]
+        public let solarTerm: String?
+        public let schedule: Schedule
+        public let holidayName: String?
+        public let twelveStar: String?
+        public let isEcliptic: Bool
+        public let recommends: [String]
+        public let avoids: [String]
+
+        public init(dateKey: String, festivals: [String], solarTerm: String?,
+                    schedule: Schedule, holidayName: String?, twelveStar: String?, isEcliptic: Bool,
+                    recommends: [String], avoids: [String]) {
+            self.dateKey = dateKey
+            self.festivals = festivals
+            self.solarTerm = solarTerm
+            self.schedule = schedule
+            self.holidayName = holidayName
+            self.twelveStar = twelveStar
+            self.isEcliptic = isEcliptic
+            self.recommends = recommends
+            self.avoids = avoids
+        }
+    }
+
     public struct Quota: Codable, Equatable, Sendable {
         public let provider: String
         public let kind: String
@@ -52,10 +91,13 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public var language: String
     public var calendarFirstWeekday: Int
     public var showsLunar: Bool
+    /// 可选以兼容旧版主应用写入的 App Group 摘要。
+    public var calendarDays: [CalendarSummary]?
 
     public init(aiEnabled: Bool = false, quotas: [Quota] = [], publicIPEnabled: Bool = false,
                 addresses: [Address] = [], language: String = "system",
-                calendarFirstWeekday: Int = 2, showsLunar: Bool = true) {
+                calendarFirstWeekday: Int = 2, showsLunar: Bool = true,
+                calendarDays: [CalendarSummary]? = nil) {
         self.aiEnabled = aiEnabled
         self.quotas = quotas
         self.publicIPEnabled = publicIPEnabled
@@ -63,6 +105,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         self.language = language
         self.calendarFirstWeekday = calendarFirstWeekday
         self.showsLunar = showsLunar
+        self.calendarDays = calendarDays
     }
 
     /// 已过重置时间的缓存不再代表当前额度，Widget 不应继续显示旧百分比。
@@ -72,6 +115,13 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     }
 
     public var visibleAddresses: [Address] { publicIPEnabled ? addresses : [] }
+
+    public func calendarSummary(for date: Date, calendar: Calendar = .autoupdatingCurrent) -> CalendarSummary? {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        guard let year = parts.year, let month = parts.month, let day = parts.day else { return nil }
+        let key = String(format: "%04d-%02d-%02d", year, month, day)
+        return calendarDays?.first { $0.dateKey == key }
+    }
 }
 
 public struct WidgetSnapshotStore {

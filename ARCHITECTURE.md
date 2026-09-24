@@ -15,6 +15,9 @@ fans only when a visible surface needs them. Disk is read at most every 30 s, ba
 
 The sandboxed WidgetKit extension samples CPU, memory, disk, and battery through `Metrics`
 independently, so it remains useful when the app is not running.
+AI, IP, and calendar widgets instead read a credential-free App Group snapshot. The main app
+precomputes an eight-day holiday and almanac window; missing coverage is shown as unavailable,
+not guessed from weekdays.
 
 Things that are easy to get wrong and are handled on purpose:
 

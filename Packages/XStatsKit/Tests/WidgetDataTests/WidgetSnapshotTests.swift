@@ -30,3 +30,31 @@ import WidgetData
     #expect(disabled.currentQuotas(at: now).isEmpty)
     #expect(disabled.visibleAddresses.isEmpty)
 }
+
+@Test func calendarSummaryUsesLocalCivilDayAndOldCacheStillDecodes() throws {
+    let legacy = Data(#"{"aiEnabled":false,"quotas":[],"publicIPEnabled":false,"addresses":[],"language":"system","calendarFirstWeekday":2,"showsLunar":true}"#.utf8)
+    let oldSnapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: legacy)
+    #expect(oldSnapshot.calendarDays == nil)
+
+    let day = WidgetSnapshot.CalendarSummary(dateKey: "2026-09-25", festivals: ["中秋节"],
+                                             solarTerm: nil, schedule: .dayOff, holidayName: "中秋节",
+                                             twelveStar: "除", isEcliptic: true,
+                                             recommends: ["祭祀"], avoids: ["动土"])
+    var snapshot = oldSnapshot
+    snapshot.calendarDays = [day]
+    let instant = try #require(ISO8601DateFormatter().date(from: "2026-09-24T16:00:00Z"))
+    var shanghai = Calendar(identifier: .gregorian)
+    shanghai.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
+    var utc = Calendar(identifier: .gregorian)
+    utc.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+    #expect(snapshot.calendarSummary(for: instant, calendar: shanghai) == day)
+    #expect(snapshot.calendarSummary(for: instant, calendar: utc) == nil)
+    #expect(try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot)) == snapshot)
+}
+
+@Test func tomorrowWorkAnswerDoesNotGuessWithoutHolidayCoverage() {
+    #expect(WidgetSnapshot.CalendarSummary.Schedule.work.needsWork == true)
+    #expect(WidgetSnapshot.CalendarSummary.Schedule.makeupWork.needsWork == true)
+    #expect(WidgetSnapshot.CalendarSummary.Schedule.dayOff.needsWork == false)
+    #expect(WidgetSnapshot.CalendarSummary.Schedule.unknown.needsWork == nil)
+}

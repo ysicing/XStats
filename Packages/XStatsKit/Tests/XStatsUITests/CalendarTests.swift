@@ -38,6 +38,20 @@ struct CalendarTests {
         #expect(CalendarEngine.hasHolidayData(year: 2099) == false)
     }
 
+    @Test func widgetSummaryKeepsTomorrowScheduleAndAlmanacSeparate() throws {
+        let work = try #require(CalendarEngine.day(year: 2026, month: 9, day: 20, timeZone: zone))
+        let holiday = try #require(CalendarEngine.day(year: 2026, month: 9, day: 25, timeZone: zone))
+        let ordinary = try #require(CalendarEngine.day(year: 2026, month: 9, day: 24, timeZone: zone))
+        let unknown = try #require(CalendarEngine.day(year: 2027, month: 1, day: 4, timeZone: zone))
+
+        #expect(CalendarEngine.widgetSummary(for: work).schedule == .makeupWork)
+        #expect(CalendarEngine.widgetSummary(for: holiday).schedule == .dayOff)
+        #expect(CalendarEngine.widgetSummary(for: ordinary).schedule == .work)
+        #expect(CalendarEngine.widgetSummary(for: unknown).schedule == .unknown)
+        #expect(CalendarEngine.widgetSummary(for: holiday).festivals.contains("中秋节"))
+        #expect(CalendarEngine.widgetSummary(for: holiday).recommends.isEmpty == false)
+    }
+
     @Test func termsAndSeasonalBoundaries() throws {
         #expect(CalendarEngine.day(year: 2026, month: 9, day: 23, timeZone: zone)?.solarTerm == "秋分")
         #expect(CalendarEngine.day(year: 2026, month: 9, day: 24, timeZone: zone)?.solarTerm == nil)
