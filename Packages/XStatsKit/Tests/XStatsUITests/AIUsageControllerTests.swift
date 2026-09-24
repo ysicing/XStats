@@ -393,6 +393,78 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(AppSettings(defaults: defaults).aiUsageSources.isEmpty)
     }
 
+    @Test func localUsageCanBeDisabledWithoutStoppingSubscriptionQuota() async {
+        let defaults = defaultsForAIUsage()
+        // 旧版曾保存独立的额度开关；移除后不能让旧值继续阻止自动检测。
+        defaults.set(false, forKey: "aiUsageShowsQuota")
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.aiUsageShowsLocalUsage)
+        settings.aiUsageEnabled = true
+        settings.aiUsageShowsLocalUsage = false
+        #expect(!AppSettings(defaults: defaults).aiUsageShowsLocalUsage)
+
+        let local = StubUsageProvider([.success(usageSnapshot(tokens: 42))])
+        let quota = AIQuotaSnapshot(provider: .codex,
+            windows: [AIQuotaWindow(kind: .weekly, usedPercent: 40, resetsAt: nil)], fetchedAt: Date())
+        let remote = StubQuotaProvider(results: [.success(quota), .success(quota)])
+        let controller = AIUsageController(settings: settings, providers: [local], quotaProviders: [remote])
+
+        await controller.refresh()
+        #expect(await local.count() == 0)
+        #expect(await remote.fetchCount() == 1)
+        #expect(controller.localReport(for: nil) == nil)
+        #expect(controller.todayTokens == nil)
+        #expect(controller.quotaState(for: .codex).snapshot == quota)
+
+        settings.aiUsageShowsLocalUsage = true
+        await controller.refresh()
+        #expect(await local.count() == 1)
+        #expect(await remote.fetchCount() == 2)
+        #expect(controller.todayTokens == 42)
+
+        settings.aiUsageShowsLocalUsage = false
+        #expect(controller.todayTokens == nil)
+        #expect(controller.localReport(for: nil) == nil)
+        #expect(controller.quotaState(for: .codex).snapshot == quota)
+    }
+
+    @Test func missingLocalSessionLogsDoNotDisplayZeroTokens() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        var empty = AIUsageSnapshot(provider: .codex, fetchedAt: Date())
+        empty.localUsage = LocalUsageReport(rows: [], fileCount: 0)
+        let quota = AIQuotaSnapshot(provider: .codex,
+            windows: [AIQuotaWindow(kind: .weekly, usedPercent: 30, resetsAt: nil)],
+            fetchedAt: Date(), source: .sub2api)
+        let controller = AIUsageController(settings: settings,
+            providers: [StubUsageProvider([.success(empty)])],
+            quotaProviders: [StubQuotaProvider(results: [.success(quota)])])
+
+        await controller.refresh()
+
+        #expect(controller.localReport(for: .codex) == nil)
+        #expect(controller.todayTokens == nil)
+        #expect(controller.visibleQuotaState(for: .codex).snapshot == quota)
+    }
+
+    @Test func disablingLocalUsageDropsInFlightScanResult() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let local = GatedUsageProvider()
+        let controller = AIUsageController(settings: settings, providers: [local])
+        defer { controller.stop() }
+
+        let inFlight = Task { await controller.refresh() }
+        while await local.startCount() == 0 { await Task.yield() }
+        settings.aiUsageShowsLocalUsage = false
+        controller.start()
+        await local.release()
+        await inFlight.value
+
+        #expect(controller.state(for: .codex).snapshot == nil)
+        #expect(controller.todayTokens == nil)
+    }
+
     @Test func disabledSourceIsNotFetchedOrIncludedInReports() async throws {
         let now = Date()
         let snapshot = usageSnapshot(tokens: 110, at: now)
@@ -479,8 +551,7 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(AppSettings(defaults: defaults).panelTab == .settingsGeneral)
     }
 
-    /// 模块开关控制是否读取日志，菜单栏开关只保存展示偏好；模块关闭时不应显示占位图标，
-    /// 重新启用后应恢复用户原来的菜单栏选择。
+    /// 菜单栏开关只保存展示偏好；模块关闭时不显示占位图标。
     @Test func menuBarPreferenceDoesNotEnableScanningAndIsRestoredWithTheModule() {
         let settings = AppSettings(defaults: defaultsForAIUsage())
         #expect(!settings.aiUsageEnabled)
@@ -492,6 +563,9 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(!settings.orderedMenuBarItems.contains(.aiUsage))
 
         settings.aiUsageEnabled = true
+        #expect(settings.orderedMenuBarItems.contains(.aiUsage))
+
+        settings.aiUsageShowsLocalUsage = false
         #expect(settings.orderedMenuBarItems.contains(.aiUsage))
 
         settings.aiUsageEnabled = false

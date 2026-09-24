@@ -40,7 +40,7 @@ The interface supports Simplified and Traditional Chinese, English, Japanese, Ko
 
 ## Data and privacy
 
-System-monitoring data stays on your Mac; no XStats account is required. AI Usage & Quotas is off by default. If enabled, local statistics read session logs, while quota checks read the corresponding CLI credentials without modifying them and contact the providers directly. You may configure your own Sub2API server as a fallback quota source.
+System-monitoring data stays on your Mac; no XStats account is required. AI Usage & Quotas is off by default. Once enabled, subscription quotas are detected automatically. Local usage is shown by default and can be turned off separately to stop scanning session logs. Quota checks read the corresponding CLI credentials without modifying them and contact the providers directly. You may configure your own Sub2API server as a fallback quota source.
 
 Public-IP lookups and connection probes go online only when you use those features. Update checks send the app version and a SHA-256 hash of a random installation ID; the server does not persist request IPs. WebDAV sync uses a server you configure yourself and runs only when you start it; it transfers settings, not monitoring history or credentials.
 

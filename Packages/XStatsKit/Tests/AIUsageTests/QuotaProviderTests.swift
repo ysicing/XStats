@@ -70,6 +70,13 @@ private actor StubQuotaHTTPClient: QuotaHTTPClient {
         #expect(window.remainingTimeFraction(at: Date()) == nil)
     }
 
+    @Test func quotaCacheIgnoresRemovedSub2APIStats() throws {
+        // 已安装版本可能把该字段写入 SQLite 快照；移除展示后仍应读出额度。
+        let data = Data(#"{"kind":"weekly","usedPercent":74,"resetsAt":null,"sub2apiStats":{"requests":8,"tokens":12000}}"#.utf8)
+        let window = try JSONDecoder().decode(AIQuotaWindow.self, from: data)
+        #expect(window.remainingPercent == 26)
+    }
+
     @Test func codexMapsWeeklyWindowEvenWhenServerReversesSlots() async throws {
         let http = StubQuotaHTTPClient(body: #"{"rate_limit":{"primary_window":{"used_percent":61,"limit_window_seconds":604800,"reset_at":1800000000},"secondary_window":{"used_percent":18,"limit_window_seconds":18000,"reset_at":1799500000}}}"#)
         let provider = CodexQuotaProvider(credentials: { CodexQuotaCredentials(token: "test-token", accountID: "account-1") }, http: http)

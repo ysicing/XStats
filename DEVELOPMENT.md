@@ -168,12 +168,12 @@ git push
 - `Helper/`：特权辅助工具及 launchd 配置。
 - `Packages/XStatsKit/Sources/SMC`：SMC 通信、温度传感器和风扇控制。
 - `Packages/XStatsKit/Sources/Metrics`：CPU、内存、网络、GPU、磁盘、电池、进程和传感器采集。
-- `Packages/XStatsKit/Sources/AIUsage`：本机 Codex / Claude Code 会话日志的只读扫描、Token 统计与增量检查点。
+- `Packages/XStatsKit/Sources/AIUsage`：本机 Codex / Claude Code 会话日志的只读扫描、Token 统计与增量检查点；订阅额度在 AI 模块启用后自动查询，“显示本地用量”只控制日志扫描与本地 Token 展示。
 - `Packages/XStatsKit/Sources/Cleaner`：清理规则、安全守卫、扫描和执行。
 - `Packages/XStatsKit/Sources/Updates`：版本清单、下载校验和应用替换。
 - `Packages/XStatsKit/Sources/HelperShared`：应用与辅助工具共用的 XPC 协议和维护命令。
 - `Packages/XStatsKit/Sources/WebDAVSync`：WebDAV 同步和钥匙串密码存储。
-- `Packages/XStatsKit/Sources/WidgetData`：主应用与桌面小组件共享的无凭据展示摘要。
+- `Packages/XStatsKit/Sources/WidgetData`：主应用与桌面小组件共享的无凭据展示摘要；AI 额度沿用模块总开关，本地用量开关单独传给 Widget，旧摘要缺少新字段时沿用原有总开关。
 - `Packages/XStatsKit/Sources/XStatsUI`：界面、设置、弹窗和菜单栏渲染。
 - `Packages/XStatsKit/Tests`：Swift 单元测试。
 

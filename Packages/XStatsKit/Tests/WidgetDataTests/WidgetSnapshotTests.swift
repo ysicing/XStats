@@ -92,14 +92,21 @@ import WidgetData
     #expect(snapshot.todayTokens(for: "claude", at: scannedDay, calendar: shanghai) == nil)
     let restored = try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot))
     #expect(restored.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == 12_345)
+    snapshot.localUsageEnabled = false
+    #expect(snapshot.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == nil)
+    let hidden = try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot))
+    #expect(hidden.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == nil)
+    snapshot.localUsageEnabled = true
     snapshot.aiEnabled = false
     #expect(snapshot.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == nil)
 }
 
 @Test func oldWidgetSnapshotDecodesWithoutDailyTokens() throws {
-    let legacy = Data(#"{"aiEnabled":true,"quotas":[],"publicIPEnabled":false,"addresses":[],"language":"system","calendarFirstWeekday":2,"showsLunar":true}"#.utf8)
+    let legacy = Data(#"{"aiEnabled":true,"quotaEnabled":false,"quotas":[{"provider":"codex","kind":"weekly","remainingPercent":50,"resetsAt":null,"fetchedAt":0,"isStale":false}],"publicIPEnabled":false,"addresses":[],"language":"system","calendarFirstWeekday":2,"showsLunar":true}"#.utf8)
     let snapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: legacy)
     #expect(snapshot.todayTokens(for: "codex") == nil)
+    #expect(snapshot.currentQuotas().count == 1)
+    #expect(snapshot.localUsageEnabled == nil)
 }
 
 @Test func onlyWidgetsWhoseDisplayedDataChangedAreReloaded() {
@@ -127,6 +134,11 @@ import WidgetData
     var tokensChanged = base
     tokensChanged.dailyTokens = [.init(provider: "codex", day: now, tokens: 11)]
     #expect(tokensChanged.changedWidgetKinds(from: base) == [WidgetKind.todayTokens])
+
+    var localDisabled = base
+    localDisabled.localUsageEnabled = false
+    #expect(localDisabled.todayTokens(for: "codex", at: now) == nil)
+    #expect(localDisabled.changedWidgetKinds(from: base) == [WidgetKind.todayTokens])
 
     var ipDisabled = base
     ipDisabled.publicIPEnabled = false

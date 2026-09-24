@@ -45,6 +45,7 @@ struct MenuBarReading {
     var batteryHistory: [Double] = []
     /// 本机日志今日 Token 总量；扫描未开启或还没有数据时为 nil
     var aiTokens: Int?
+    var aiUsageShowsLocalUsage = true
     /// 只有可显示额度的来源才占用菜单栏读数；本机 Token 统计独立于订阅额度。
     var aiQuotas: [MenuBarQuota] = []
     var batteryCharging = false
@@ -73,6 +74,7 @@ struct MenuBarReading {
         battery = store.battery?.level
         batteryHistory = battery.map { Array(repeating: $0, count: 30) } ?? []
         aiTokens = model.aiUsage.todayTokens
+        aiUsageShowsLocalUsage = model.settings.aiUsageShowsLocalUsage
         aiQuotas = model.aiUsage.visibleQuotaProviders(for: nil).compactMap { provider in
             let state = model.aiUsage.visibleQuotaState(for: provider)
             guard let snapshot = state.snapshot else { return nil }
@@ -159,7 +161,8 @@ struct MenuBarReading {
                         return "\(previous)\(quota.sourceName)\(quota.source == .sub2api ? " (Sub2API)" : "") · \(quota.shortWindowName) · \(tr("剩余")) \(quota.remainingPercent)% · \(tr("重置：")) \(quota.resetText)\(checked)"
                     }.joined(separator: "\n")
                 } else {
-                    aiTokens.map { "AI · \(UsageNumber.exact($0)) Tokens" } ?? ("AI · " + tr("暂无本机用量数据"))
+                    aiTokens.map { "AI · \(UsageNumber.exact($0)) Tokens" }
+                        ?? ("AI · " + tr(aiUsageShowsLocalUsage ? "暂无本机用量数据" : "暂无额度数据"))
                 }
             }
         }

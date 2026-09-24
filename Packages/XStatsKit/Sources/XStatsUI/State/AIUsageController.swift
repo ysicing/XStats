@@ -113,19 +113,23 @@ public final class AIUsageController {
     }
 
     public var todayTokens: Int? {
-        guard settings.aiUsageEnabled, let report = localReport(for: nil) else { return nil }
+        guard settings.aiUsageEnabled, settings.aiUsageShowsLocalUsage,
+              let report = localReport(for: nil) else { return nil }
         return LocalUsageReport.total(report.selected(days: 1, now: now())).total
     }
 
     public func localReport(for provider: AIProviderID?) -> LocalUsageReport? {
+        guard settings.aiUsageShowsLocalUsage else { return nil }
         let reports = states.values.filter { settings.aiUsageSources.contains($0.provider) && (provider == nil || $0.provider == provider) }
             .compactMap { $0.snapshot?.localUsage }
+            .filter { !$0.rows.isEmpty || $0.fileCount > 0 }
         guard !reports.isEmpty else { return nil }
         return LocalUsageReport(rows: reports.flatMap(\.rows), fileCount: reports.reduce(0) { $0 + $1.fileCount },
                                 unreadableFiles: reports.reduce(0) { $0 + $1.unreadableFiles })
     }
 
     public func localState(for provider: AIProviderID?) -> (stale: Bool, updated: Date?) {
+        guard settings.aiUsageShowsLocalUsage else { return (false, nil) }
         let selected = states.values.filter { settings.aiUsageSources.contains($0.provider) && (provider == nil || $0.provider == provider) }
         return (selected.contains { $0.failure != nil }, selected.compactMap { $0.snapshot?.fetchedAt }.min())
     }
@@ -133,7 +137,13 @@ public final class AIUsageController {
     public func start() {
         cadenceTask?.cancel()
         cadenceTask = nil
-        for provider in providers where !settings.aiUsageSources.contains(provider.id) {
+        if !settings.aiUsageShowsLocalUsage {
+            // 关闭日志读取时丢弃在途扫描；额度轮询会在下方重新启动。
+            generation += 1
+            refreshTask?.cancel()
+            refreshTask = nil
+        }
+        for provider in providers where !settings.aiUsageShowsLocalUsage || !settings.aiUsageSources.contains(provider.id) {
             states[provider.id] = AIUsageProviderState(provider: provider.id)
         }
         for provider in quotaProviders where !settings.aiUsageSources.contains(provider.id) {
@@ -206,7 +216,7 @@ public final class AIUsageController {
         async let quotaResults = Self.fetchQuotas(selectedQuotaProviders)
 
         for provider in providers {
-            guard settings.aiUsageSources.contains(provider.id) else {
+            guard settings.aiUsageShowsLocalUsage, settings.aiUsageSources.contains(provider.id) else {
                 states[provider.id] = AIUsageProviderState(provider: provider.id)
                 continue
             }
@@ -216,7 +226,7 @@ public final class AIUsageController {
             do {
                 let snapshot = try await provider.fetch()
                 guard currentGeneration == generation, settings.aiUsageEnabled, !Task.isCancelled else { return }
-                guard settings.aiUsageSources.contains(provider.id) else {
+                guard settings.aiUsageShowsLocalUsage, settings.aiUsageSources.contains(provider.id) else {
                     states[provider.id] = AIUsageProviderState(provider: provider.id)
                     continue
                 }
@@ -224,12 +234,18 @@ public final class AIUsageController {
                 state.failure = nil
             } catch let failure as AIUsageFailure {
                 guard currentGeneration == generation, settings.aiUsageEnabled, !Task.isCancelled else { return }
-                guard settings.aiUsageSources.contains(provider.id) else { continue }
+                guard settings.aiUsageShowsLocalUsage, settings.aiUsageSources.contains(provider.id) else {
+                    states[provider.id] = AIUsageProviderState(provider: provider.id)
+                    continue
+                }
                 // 扫描失败不代表日志消失了，保留上一次的统计结果并在页面上标注为旧数据。
                 state.failure = failure
             } catch {
                 guard currentGeneration == generation, settings.aiUsageEnabled, !Task.isCancelled else { return }
-                guard settings.aiUsageSources.contains(provider.id) else { continue }
+                guard settings.aiUsageShowsLocalUsage, settings.aiUsageSources.contains(provider.id) else {
+                    states[provider.id] = AIUsageProviderState(provider: provider.id)
+                    continue
+                }
                 state.failure = .network
             }
             state.isRefreshing = false

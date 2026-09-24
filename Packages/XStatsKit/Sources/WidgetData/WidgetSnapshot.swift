@@ -119,6 +119,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public var quotas: [Quota]
     /// 仅共享每个来源的当日合计；可选以兼容旧版 App Group 摘要。
     public var dailyTokens: [DailyTokenUsage]?
+    /// 可选以兼容旧版摘要；缺失时沿用 AI 总开关的旧行为。
+    public var localUsageEnabled: Bool?
     public var publicIPEnabled: Bool
     public var addresses: [Address]
     public var language: String
@@ -128,6 +130,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public var calendarDays: [CalendarSummary]?
 
     public init(aiEnabled: Bool = false, quotas: [Quota] = [], dailyTokens: [DailyTokenUsage]? = nil,
+                localUsageEnabled: Bool? = nil,
                 publicIPEnabled: Bool = false,
                 addresses: [Address] = [], language: String = "system",
                 calendarFirstWeekday: Int = 2, showsLunar: Bool = true,
@@ -135,6 +138,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         self.aiEnabled = aiEnabled
         self.quotas = quotas
         self.dailyTokens = dailyTokens
+        self.localUsageEnabled = localUsageEnabled
         self.publicIPEnabled = publicIPEnabled
         self.addresses = addresses
         self.language = language
@@ -142,6 +146,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         self.showsLunar = showsLunar
         self.calendarDays = calendarDays
     }
+
+    public var showsLocalUsage: Bool { aiEnabled && localUsageEnabled != false }
 
     /// 已过重置时间的缓存不再代表当前额度，Widget 不应继续显示旧百分比。
     public func currentQuotas(at date: Date = .now) -> [Quota] {
@@ -152,7 +158,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     /// 旧日快照保留来源，但数值归零；Widget 不得把昨天的使用量当作今天的结果。
     public func todayTokens(for provider: String, at date: Date = .now,
                             calendar: Calendar = .autoupdatingCurrent) -> Int? {
-        guard aiEnabled, let usage = dailyTokens?.first(where: { $0.provider == provider }) else { return nil }
+        guard showsLocalUsage, let usage = dailyTokens?.first(where: { $0.provider == provider }) else { return nil }
         return calendar.isDate(usage.day, inSameDayAs: date) ? usage.tokens : 0
     }
 
@@ -166,10 +172,11 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
                                resetsAt: $0.resetsAt, fetchedAt: .distantPast, isStale: $0.isStale) }
         }
         let relocalized = language != previous.language
-        let ai = relocalized || aiEnabled != previous.aiEnabled
+        let quotaChanged = relocalized || aiEnabled != previous.aiEnabled
+        let localUsageChanged = relocalized || showsLocalUsage != previous.showsLocalUsage
         var kinds: [String] = []
-        if ai || displayed(quotas) != displayed(previous.quotas) { kinds.append(WidgetKind.aiQuota) }
-        if ai || dailyTokens != previous.dailyTokens { kinds.append(WidgetKind.todayTokens) }
+        if quotaChanged || displayed(quotas) != displayed(previous.quotas) { kinds.append(WidgetKind.aiQuota) }
+        if localUsageChanged || dailyTokens != previous.dailyTokens { kinds.append(WidgetKind.todayTokens) }
         if relocalized || publicIPEnabled != previous.publicIPEnabled
             || visibleAddresses != previous.visibleAddresses {
             kinds += [WidgetKind.ipPurity, WidgetKind.publicIP]

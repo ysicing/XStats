@@ -309,7 +309,15 @@ private struct OverviewReading {
                 detail = tr("没有电池")
             }
         case .aiUsage:
-            if let tokens = model.aiUsage.todayTokens {
+            if !model.settings.aiUsageShowsLocalUsage {
+                if let quota = MenuBarReading(model: model).aiQuotas.first {
+                    value = "\(quota.remainingPercent)"
+                    unit = "%"
+                    detail = quota.sourceName + " · " + tr("订阅额度")
+                } else {
+                    detail = tr("暂无额度数据")
+                }
+            } else if let tokens = model.aiUsage.todayTokens {
                 // 与菜单栏、面板共用同一套缩写，同一个数字不能在三处显示成三种样子。
                 value = UsageNumber.short(tokens)
                 unit = "Tokens"

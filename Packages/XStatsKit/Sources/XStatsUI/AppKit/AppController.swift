@@ -310,6 +310,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         withObservationTracking {
             _ = model.settings.aiUsageEnabled
             _ = model.settings.aiUsageSources
+            _ = model.settings.aiUsageShowsLocalUsage
             _ = model.settings.aiUsageRefreshMinutes
         } onChange: { [weak self] in
             Task { @MainActor in
@@ -343,6 +344,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         withObservationTracking {
             _ = model.settings.aiUsageEnabled
             _ = model.settings.aiUsageSources
+            _ = model.settings.aiUsageShowsLocalUsage
             _ = model.settings.publicIPLookup
             _ = model.settings.language
             _ = model.settings.calendarFirstWeekday
@@ -387,9 +389,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                          fetchedAt: quota.fetchedAt, isStale: state.isStale)
                 }
             } : []
-        let dailyTokens: [WidgetSnapshot.DailyTokenUsage]? = settings.aiUsageEnabled
+        let dailyTokens: [WidgetSnapshot.DailyTokenUsage]? = settings.aiUsageEnabled && settings.aiUsageShowsLocalUsage
             ? AIProviderID.allCases.filter { settings.aiUsageSources.contains($0) }.compactMap { provider in
-                guard let report = model.aiUsage.state(for: provider).snapshot?.localUsage else { return nil }
+                guard let report = model.aiUsage.localReport(for: provider) else { return nil }
                 let tokens = LocalUsageReport.total(report.selected(days: 1, now: today, calendar: calendar)).total
                 return WidgetSnapshot.DailyTokenUsage(provider: provider.rawValue, day: today, tokens: tokens)
             } : nil
@@ -408,6 +410,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             } : []
         let snapshot = WidgetSnapshot(aiEnabled: settings.aiUsageEnabled, quotas: quotas,
                                       dailyTokens: dailyTokens,
+                                      localUsageEnabled: settings.aiUsageShowsLocalUsage,
                                       publicIPEnabled: settings.publicIPLookup, addresses: addresses,
                                       language: settings.language.rawValue,
                                       calendarFirstWeekday: settings.calendarFirstWeekday,

@@ -51,7 +51,7 @@ private struct LocalUsageContent: View {
             if !model.settings.aiUsageEnabled {
                 Card {
                     Label(tr("AI 用量与额度"), systemImage: "chart.bar").dsFont(.base, weight: .semibold)
-                    Text(tr("启用后读取本机会话日志，并使用本机登录凭据向 Codex / Claude 查询订阅额度。"))
+                    Text(tr("自动检测 Codex / Claude 订阅额度；本地 Token 统计可单独关闭。"))
                         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Button(tr("启用使用统计")) { model.settings.aiUsageEnabled = true }
@@ -63,24 +63,28 @@ private struct LocalUsageContent: View {
                     Button(tr("设置")) { model.openAIUsageSettings() }
                         .buttonStyle(DSButtonStyle(kind: .secondary))
                 }
-            } else if let report = model.aiUsage.localReport(for: provider) {
-                let rows = report.summary(mode: activityMode, model: selectedModel.isEmpty ? nil : selectedModel)
-                let activityRows = report.selected(days: 365, model: selectedModel.isEmpty ? nil : selectedModel)
-                let total = LocalUsageReport.total(rows)
-                UsageSummary(total: total, compact: compact,
-                             title: selectedModel.isEmpty ? tr("本地用量") : selectedModel)
-                UsageHeatmap(rows: activityRows, compact: compact, mode: $activityMode)
-                modelRanking(report: report, rows: rows, total: total)
-                status(report)
-            } else {
-                VStack(spacing: DS.Space.s3) {
-                    if model.aiUsage.isRefreshing { ProgressView().controlSize(.small) }
-                    Image(systemName: "chart.bar.xaxis").font(.system(size: DS.TextSize.xl.rawValue))
-                        .foregroundStyle(DS.Palette.textTertiary)
-                    Text(tr(model.aiUsage.isRefreshing ? "正在读取会话日志…" : "暂无本机用量数据"))
-                        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            } else if model.settings.aiUsageShowsLocalUsage {
+                if let report = model.aiUsage.localReport(for: provider) {
+                    let rows = report.summary(mode: activityMode, model: selectedModel.isEmpty ? nil : selectedModel)
+                    let activityRows = report.selected(days: 365, model: selectedModel.isEmpty ? nil : selectedModel)
+                    let total = LocalUsageReport.total(rows)
+                    UsageSummary(total: total, compact: compact,
+                                 title: selectedModel.isEmpty ? tr("本地用量") : selectedModel)
+                    UsageHeatmap(rows: activityRows, compact: compact, mode: $activityMode)
+                    modelRanking(report: report, rows: rows, total: total)
+                    status(report)
+                } else {
+                    VStack(spacing: DS.Space.s3) {
+                        if model.aiUsage.isRefreshing { ProgressView().controlSize(.small) }
+                        Image(systemName: "chart.bar.xaxis").font(.system(size: DS.TextSize.xl.rawValue))
+                            .foregroundStyle(DS.Palette.textTertiary)
+                        Text(tr(model.aiUsage.isRefreshing ? "正在读取会话日志…" : "暂无本机用量数据"))
+                            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, DS.Space.s12)
                 }
-                .frame(maxWidth: .infinity).padding(.vertical, DS.Space.s12)
+            } else if model.aiUsage.visibleQuotaProviders(for: provider).isEmpty {
+                Card { Text(tr("暂无额度数据")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary) }
             }
         }
         .onChange(of: model.settings.aiUsageSources) { _, sources in
@@ -667,7 +671,7 @@ struct AIUsageSettingsButton: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        MiniIconButton(systemName: "slider.horizontal.3", help: tr("AI 用量与额度") + " · " + tr("数据来源")) {
+        MiniIconButton(systemName: "slider.horizontal.3", help: tr("AI 用量与额度") + " · " + tr("设置")) {
             model.openAIUsageSettings()
         }
     }
@@ -690,6 +694,10 @@ private struct UsageSettings: View {
             Text(tr("设置")).dsFont(.base, weight: .semibold)
             SettingRow(title: tr("AI 用量与额度"), subtitle: nil) {
                 DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 用量与额度"))
+            }
+            SettingRow(title: tr("显示本地用量"),
+                       subtitle: tr("读取本机会话日志；关闭后停止扫描并隐藏 Token 统计。")) {
+                DSToggle(isOn: $settings.aiUsageShowsLocalUsage, label: tr("显示本地用量"))
             }
             HairlineDivider()
             Text(tr("数据来源")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)

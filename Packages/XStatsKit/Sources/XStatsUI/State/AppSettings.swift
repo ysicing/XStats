@@ -428,7 +428,7 @@ public final class AppSettings {
     public var refreshSeconds: Int {
         didSet { defaults.set(refreshSeconds, forKey: Keys.refreshSeconds) }
     }
-    /// 本机 AI 日志统计默认不启用，独立于系统指标的秒级采样。
+    /// AI 用量模块默认不启用，独立于系统指标的秒级采样。
     public var aiUsageEnabled: Bool {
         didSet {
             defaults.set(aiUsageEnabled, forKey: Keys.aiUsageEnabled)
@@ -438,6 +438,10 @@ public final class AppSettings {
     /// 来源开关只保存在本机；关闭后不扫描，也不显示其历史缓存。
     public var aiUsageSources: Set<AIProviderID> {
         didSet { defaults.set(aiUsageSources.map(\.rawValue).sorted(), forKey: Keys.aiUsageSources) }
+    }
+    /// 订阅额度继续自动查询；关闭本地用量后停止扫描本机会话日志。
+    public var aiUsageShowsLocalUsage: Bool {
+        didSet { defaults.set(aiUsageShowsLocalUsage, forKey: Keys.aiUsageShowsLocalUsage) }
     }
     public var aiUsageRefreshMinutes: Int {
         didSet { defaults.set(aiUsageRefreshMinutes, forKey: Keys.aiUsageRefreshMinutes) }
@@ -583,6 +587,7 @@ public final class AppSettings {
         aiUsageEnabled = isAIUsageEnabled
         aiUsageSources = defaults.stringArray(forKey: Keys.aiUsageSources)
             .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
+        aiUsageShowsLocalUsage = defaults.object(forKey: Keys.aiUsageShowsLocalUsage) as? Bool ?? true
         aiUsageRefreshMinutes = Self.aiUsageRefreshOptions.contains(defaults.integer(forKey: Keys.aiUsageRefreshMinutes))
             ? defaults.integer(forKey: Keys.aiUsageRefreshMinutes) : 30
         colorizeHighLoad = defaults.bool(forKey: Keys.colorizeHighLoad)
@@ -676,6 +681,7 @@ public final class AppSettings {
         static let refreshSeconds = "refreshSeconds"
         static let aiUsageEnabled = "aiUsageEnabled"
         static let aiUsageSources = "aiUsageSources"
+        static let aiUsageShowsLocalUsage = "aiUsageShowsLocalUsage"
         static let aiUsageRefreshMinutes = "aiUsageRefreshMinutes"
         static let colorizeHighLoad = "colorizeHighLoad"
         static let bluetoothLowBatteryInMenuBar = "bluetoothLowBatteryInMenuBar"

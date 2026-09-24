@@ -1267,6 +1267,9 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Tokens locales de Codex /
 重置：	Resets:
 查询失败，显示上次额度	Query failed; showing previous quota
 上次额度	Cuota anterior
+显示本地用量	Mostrar uso local
+读取本机会话日志；关闭后停止扫描并隐藏 Token 统计。	Lee los registros de sesión locales; al desactivarlo, detiene el análisis y oculta las estadísticas de tokens.
+自动检测 Codex / Claude 订阅额度；本地 Token 统计可单独关闭。	Detecta automáticamente las cuotas de suscripción de Codex / Claude; las estadísticas locales de tokens pueden desactivarse por separado.
 暂无额度数据	No quota data yet
 未检测到登录凭据，请先登录对应 CLI	No login credentials found; sign in with the corresponding CLI
 登录已失效，请在对应 CLI 重新登录	Login expired; sign in again with the corresponding CLI

@@ -25,6 +25,9 @@ Token 活动	Token activity
 截至 {} 当周累计：{} Tokens	Through the week of {}: {} Tokens cumulative
 缓存创建 Token	Cache creation tokens
 AI 用量与额度	AI Usage & Quotas
+显示本地用量	Show local usage
+读取本机会话日志；关闭后停止扫描并隐藏 Token 统计。	Reads local session logs; turning this off stops scanning and hides token statistics.
+自动检测 Codex / Claude 订阅额度；本地 Token 统计可单独关闭。	Automatically detects Codex / Claude subscription quotas; local token statistics can be turned off separately.
 Codex / Claude Code 本机 Token 用量与订阅额度	Local Codex / Claude Code tokens and subscription quotas
 今天	Today
 模型	Model

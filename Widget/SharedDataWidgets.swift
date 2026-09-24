@@ -164,7 +164,7 @@ private struct TodayTokensWidgetView: View {
         VStack(alignment: .leading, spacing: 8) {
             WidgetHeading(title: tr("今日消耗的 Token"), symbol: "sparkles")
             if sources.isEmpty {
-                WidgetEmptyState(enabled: entry.snapshot.aiEnabled)
+                WidgetEmptyState(enabled: entry.snapshot.showsLocalUsage)
             } else {
                 let total = sources.reduce(0) { $0 + $1.tokens }
                 Text(total.formatted(.number.notation(.compactName).locale(L10n.locale)))
