@@ -40,6 +40,11 @@ private struct LocalUsageContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? DS.Space.s3 : DS.Space.s4) {
             toolbar
+            if model.settings.aiUsageEnabled && !enabledProviders.isEmpty {
+                Text(sourceTitle)
+                    .dsFont(.sm, weight: .semibold)
+                    .foregroundStyle(DS.Palette.textPrimary)
+            }
             if !model.aiUsage.visibleQuotaProviders(for: provider).isEmpty {
                 quotaSection
             }
@@ -63,7 +68,7 @@ private struct LocalUsageContent: View {
                 let activityRows = report.selected(days: 365, model: selectedModel.isEmpty ? nil : selectedModel)
                 let total = LocalUsageReport.total(rows)
                 UsageSummary(total: total, compact: compact,
-                             title: selectedModel.isEmpty ? sourceTitle : selectedModel)
+                             title: selectedModel.isEmpty ? tr("本地用量") : selectedModel)
                 UsageHeatmap(rows: activityRows, compact: compact, mode: $activityMode)
                 modelRanking(report: report, rows: rows, total: total)
                 status(report)
@@ -149,16 +154,31 @@ private struct LocalUsageContent: View {
                                               color: progressTint(for: window.remainingPercent))
                                     .accessibilityLabel("\(quotaTitle(window.kind)) \(tr("剩余")) \(Int(window.remainingPercent.rounded()))%")
                                 if let reset = window.resetsAt {
-                                    Text(tr("重置：") + " " + reset.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))
-                                        .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
-                                    if !state.isStale {
+                                    let resetText = tr("重置：") + " " + reset.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale))
+                                    if state.isStale {
+                                        Text(resetText)
+                                            .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                                    } else {
                                         TimelineView(.periodic(from: .now, by: 60)) { context in
-                                            if let fraction = window.remainingTimeFraction(at: context.date) {
-                                                // 旧快照不再推算重置进度；只对新鲜额度画动态时间条。
-                                                ProgressTrack(fraction: 1 - fraction,
-                                                              color: progressTint(for: (1 - fraction) * 100))
-                                                    .accessibilityLabel(tr("重置：") + " " + reset.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))
-                                                    .accessibilityValue("\(Int(((1 - fraction) * 100).rounded()))%")
+                                            let fraction = window.remainingTimeFraction(at: context.date)
+                                            HStack(alignment: .firstTextBaseline, spacing: DS.Space.s1) {
+                                                Text(resetText)
+                                                    .foregroundStyle(DS.Palette.textTertiary)
+                                                    .lineLimit(1)
+                                                    .minimumScaleFactor(0.8)
+                                                Spacer(minLength: DS.Space.s1)
+                                                if let fraction {
+                                                    Text("\(Int((fraction * 100).rounded()))%")
+                                                        .monospacedDigit()
+                                                        .foregroundStyle(DS.Palette.textSecondary)
+                                                }
+                                            }
+                                            .dsFont(.xs)
+                                            if let fraction {
+                                                // 条长表示距离重置的剩余时间，与右侧百分比一致。
+                                                ProgressTrack(fraction: fraction, color: DS.Palette.primary)
+                                                    .accessibilityLabel(tr("距重置"))
+                                                    .accessibilityValue("\(Int((fraction * 100).rounded()))%")
                                             }
                                         }
                                     }

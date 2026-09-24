@@ -749,6 +749,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 本地 IPv4	Lokale IPv4
 本地 IPv6	Lokale IPv6
 本地快照	Lokale Schnappschüsse
+本地用量	Lokale Nutzung
 本机 IP 这一小时还剩 {}/{} 次探针额度	{}/{} Tests in dieser Stunde für die IP dieses Mac übrig
 本机信息	Dieser Mac
 本机宽带	Ihr Anschluss

@@ -806,6 +806,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 本地 IPv4	Local IPv4
 本地 IPv6	Local IPv6
 本地快照	Local snapshots
+本地用量	Local usage
 本机 IP 这一小时还剩 {}/{} 次探针额度	{}/{} probe tests left this hour for this Mac's IP
 本机信息	This Mac
 本机宽带	Your Connection

@@ -749,6 +749,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 本地 IPv4	IPv4 locale
 本地 IPv6	IPv6 locale
 本地快照	Instantanés locaux
+本地用量	Utilisation locale
 本机 IP 这一小时还剩 {}/{} 次探针额度	{}/{} tests de sonde restants cette heure pour l’IP de ce Mac
 本机信息	Ce Mac
 本机宽带	Votre connexion
