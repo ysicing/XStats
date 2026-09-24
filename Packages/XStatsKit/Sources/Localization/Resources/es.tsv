@@ -197,6 +197,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 上次检查发现问题	Se encontraron problemas en la última comprobación
 上次检查正常	Última comprobación correcta
 上次检查：{}	Última comprobación: {}
+上次成功：{}	Última consulta correcta: {}
+最近刷新：{}	Última actualización: {}
 上行	Subida
 下行	Bajada
 下载	Descarga

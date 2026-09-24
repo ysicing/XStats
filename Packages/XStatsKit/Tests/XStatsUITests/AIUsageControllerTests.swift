@@ -230,10 +230,12 @@ private actor GatedUsageProvider: AIUsageProvider {
     @Test func quotaTransportFailureKeepsLastValueButLogoutClearsIt() async {
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.aiUsageEnabled = true
+        let attemptedAt = Date(timeIntervalSince1970: 1_800_100_000)
         let first = AIQuotaSnapshot(provider: .codex,
-            windows: [AIQuotaWindow(kind: .weekly, usedPercent: 63, resetsAt: nil)], fetchedAt: Date())
+            windows: [AIQuotaWindow(kind: .weekly, usedPercent: 63, resetsAt: nil)],
+            fetchedAt: attemptedAt.addingTimeInterval(-600))
         let quota = StubQuotaProvider(results: [.success(first), .failure(.network), .failure(.unauthorized)])
-        let controller = AIUsageController(settings: settings, providers: [], quotaProviders: [quota])
+        let controller = AIUsageController(settings: settings, providers: [], quotaProviders: [quota], now: { attemptedAt })
 
         await controller.refresh()
         #expect(controller.visibleQuotaState(for: .codex).snapshot?.window(.weekly)?.usedPercent == 63)
@@ -241,6 +243,8 @@ private actor GatedUsageProvider: AIUsageProvider {
         await controller.refresh()
         #expect(controller.visibleQuotaState(for: .codex).snapshot?.window(.weekly)?.usedPercent == 63)
         #expect(controller.visibleQuotaState(for: .codex).failure == .network)
+        #expect(controller.visibleQuotaState(for: .codex).snapshot?.fetchedAt == first.fetchedAt)
+        #expect(controller.visibleQuotaState(for: .codex).lastAttemptAt == attemptedAt)
         #expect(controller.visibleQuotaProviders(for: nil) == [.codex])
         await controller.refresh()
         #expect(controller.visibleQuotaState(for: .codex).snapshot == nil)

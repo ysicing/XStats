@@ -197,6 +197,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 上次检查发现问题	Letzte Prüfung ergab Probleme
 上次检查正常	Letzte Prüfung ohne Befund
 上次检查：{}	Zuletzt geprüft: {}
+上次成功：{}	Letzte erfolgreiche Abfrage: {}
+最近刷新：{}	Letzte Aktualisierung: {}
 上行	Upload
 下行	Download
 下载	Herunterladen

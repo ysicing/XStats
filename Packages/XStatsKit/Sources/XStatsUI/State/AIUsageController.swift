@@ -18,6 +18,8 @@ public struct AIQuotaProviderState: Equatable, Sendable {
     public let provider: AIProviderID
     public var snapshot: AIQuotaSnapshot?
     public var failure: AIQuotaFailure?
+    /// 最近一次完成额度查询的发起时间；与快照的上次成功时间分别显示。
+    public var lastAttemptAt: Date?
     /// 快照来自磁盘，或本次查询失败后保留的上次成功值。
     public var isStale = false
     public var isRefreshing = false
@@ -31,7 +33,7 @@ public struct AIQuotaProviderState: Equatable, Sendable {
 public final class AIUsageController {
     public private(set) var states: [AIProviderID: AIUsageProviderState]
     public private(set) var quotaStates: [AIProviderID: AIQuotaProviderState]
-    /// 供 AppController 观察的刷新脉冲；页面上的“上次检查”读的是各 Provider 的 fetchedAt。
+    /// 供 AppController 观察的刷新脉冲；各额度来源另有自己的 lastAttemptAt。
     public private(set) var lastAttemptAt: Date?
 
     @ObservationIgnored private let settings: AppSettings
@@ -256,6 +258,7 @@ public final class AIUsageController {
                 }
                 state.failure = failure
             }
+            state.lastAttemptAt = attempt
             state.isRefreshing = false
             quotaStates[id] = state
         }

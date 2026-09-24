@@ -200,14 +200,22 @@ private struct LocalUsageContent: View {
                             VStack(alignment: .leading, spacing: DS.Space.s1) {
                                 Label(tr("上次额度"), systemImage: "clock")
                                     .foregroundStyle(DS.Palette.warning)
-                                Text(tr("上次检查：\(snapshot.fetchedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))
+                                Text(tr("上次成功：\(snapshot.fetchedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))
                                     .foregroundStyle(DS.Palette.textTertiary)
+                                if let lastAttemptAt = state.lastAttemptAt {
+                                    Text(tr("最近刷新：\(lastAttemptAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))
+                                        .foregroundStyle(DS.Palette.textTertiary)
+                                }
                                 if state.failure != nil {
                                     Text(quotaFailureText(state.failure))
                                         .foregroundStyle(DS.Palette.warning)
                                 }
                             }
                             .dsFont(.xs)
+                        } else if let lastAttemptAt = state.lastAttemptAt {
+                            Text(tr("最近刷新：\(lastAttemptAt.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: L10n.locale)))"))
+                                .dsFont(.xs)
+                                .foregroundStyle(DS.Palette.textTertiary)
                         }
                     } else if state.isRefreshing {
                         ProgressView().controlSize(.small)

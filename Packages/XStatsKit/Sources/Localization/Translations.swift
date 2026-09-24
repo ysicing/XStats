@@ -267,6 +267,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 上次检查发现问题	Last check found problems
 上次检查正常	Last check was fine
 上次检查：{}	Last checked: {}
+上次成功：{}	Last successful: {}
+最近刷新：{}	Last refresh: {}
 上行	Upload
 下行	Download
 下载	Download

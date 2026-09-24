@@ -8,6 +8,8 @@ import Testing
         #expect(table.translate("内存") == "Memory")
         #expect(table.translate("AI 用量与额度") == "AI Usage & Quotas")
         #expect(table.translate("上次额度") == "Previous quota")
+        #expect(table.translate("上次成功：20:45") == "Last successful: 20:45")
+        #expect(table.translate("最近刷新：20:53") == "Last refresh: 20:53")
         #expect(table.translate("12 个进程") == "12 processes")
         #expect(table.translate("1 个进程") == "1 process")
         #expect(table.translate("不存在的文案") == nil)
