@@ -16,10 +16,14 @@ vars:
       if [ -n "${SIGN_ID:-}" ]; then
         printf '%s\n' "$SIGN_ID"
       else
-        security find-identity -v -p codesigning 2>/dev/null | grep 'Developer ID Application' | head -1 | sed -E 's/.*"(.*)".*/\1/' || true
+        security find-identity -v -p codesigning 2>/dev/null | awk '/Developer ID Application/ { print $2; exit }' || true
       fi
   TEAM_ID:
-    sh: echo '{{.SIGN_ID}}' | sed -nE 's/.*\(([A-Z0-9]+)\)$/\1/p'
+    sh: |
+      if [ -n '{{.SIGN_ID}}' ]; then
+        security find-identity -v -p codesigning 2>/dev/null \
+          | grep -F '{{.SIGN_ID}}' | head -1 | sed -nE 's/.*\(([A-Z0-9]+)\)"$/\1/p' || true
+      fi
 
 tasks:
   generate:
@@ -30,6 +34,15 @@ tasks:
   build:
     desc: 编译 App（含辅助工具）并安装
     cmds:
+      - |
+        if [ "{{.INSTALL}}" != "0" ] && pgrep -x XStatsWidget >/dev/null; then
+          pkill -x XStatsWidget 2>/dev/null || true
+          for _ in $(seq 1 25); do pgrep -x XStatsWidget >/dev/null || break; sleep 0.2; done
+          if pgrep -x XStatsWidget >/dev/null; then
+            echo "error: XStatsWidget 尚未退出，无法安全构建安装" >&2
+            exit 1
+          fi
+        fi
       - |
         if [ "{{.BUMP}}" != "0" ]; then ./scripts/version.sh build; fi
       - task: compile
@@ -47,6 +60,7 @@ tasks:
         xcodebuild -project "{{.PROJECT}}" -scheme "{{.SCHEME}}" -configuration "{{.CONFIG}}" \
           -derivedDataPath "{{.DERIVED}}" \
           -destination 'generic/platform=macOS' ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+          XSTATS_APP_PROFILE="${XSTATS_APP_PROFILE:-}" XSTATS_WIDGET_PROFILE="${XSTATS_WIDGET_PROFILE:-}" \
           {{if .TEAM_ID}}CODE_SIGN_IDENTITY="{{.SIGN_ID}}" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM={{.TEAM_ID}}{{if eq .CONFIG "Release"}} OTHER_CODE_SIGN_FLAGS=--timestamp CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO{{end}}{{end}} \
           build
 

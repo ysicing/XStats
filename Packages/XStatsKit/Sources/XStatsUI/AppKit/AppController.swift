@@ -8,10 +8,13 @@ import AIUsage
 import Localization
 import Metrics
 import SwiftUI
+import WidgetData
+import WidgetKit
 
 @MainActor
 public final class AppController: NSObject, NSApplicationDelegate {
     private let model = AppModel(quotaCacheURL: AIQuotaCacheStore.defaultURL)
+    private let widgetStore = WidgetSnapshotStore()
     private var menuBar: MenuBarController!
     private var calendarMenuBar: CalendarMenuBarController!
     private var mainWindow: MainWindowController!
@@ -88,6 +91,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         observeProbeSettings()
         observeAIUsageSchedule()
         observeAIUsageState()
+        observeWidgetState()
+        syncWidgetSnapshot()
         model.aiUsage.start()
         applyAppearance()
         updateNetworkVisibility()
@@ -324,6 +329,64 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self.menuBar.refreshPopoverHeight()
                 self.observeAIUsageState()
             }
+        }
+    }
+
+    /// Widget 只读共享的展示摘要；所有凭据读取和网络查询仍留在主应用。
+    private func observeWidgetState() {
+        withObservationTracking {
+            _ = model.settings.aiUsageEnabled
+            _ = model.settings.aiUsageSources
+            _ = model.settings.publicIPLookup
+            _ = model.settings.language
+            _ = model.settings.calendarFirstWeekday
+            _ = model.settings.calendarFeatures
+            _ = model.aiUsage.quotaStates
+            _ = model.network.publicResults
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.syncWidgetSnapshot()
+                self.observeWidgetState()
+            }
+        }
+    }
+
+    private func syncWidgetSnapshot() {
+        let settings = model.settings
+        let quotas: [WidgetSnapshot.Quota] = settings.aiUsageEnabled
+            ? AIProviderID.allCases.filter { settings.aiUsageSources.contains($0) }.flatMap { provider -> [WidgetSnapshot.Quota] in
+                let state = model.aiUsage.quotaState(for: provider)
+                guard let quota = state.snapshot else { return [] }
+                return quota.windows.map { window in
+                    WidgetSnapshot.Quota(provider: provider.rawValue, kind: window.kind.rawValue,
+                                         remainingPercent: window.remainingPercent, resetsAt: window.resetsAt,
+                                         fetchedAt: quota.fetchedAt, isStale: state.isStale)
+                }
+            } : []
+        let addresses: [WidgetSnapshot.Address] = settings.publicIPLookup
+            ? IPFamily.allCases.compactMap { family in
+                guard let result = model.network.publicResults[family],
+                      let ip = family == .v4 ? result.ipv4 : result.ipv6 else { return nil }
+                return WidgetSnapshot.Address(family: family.rawValue, ip: ip,
+                                              countryCode: result.countryCode, city: result.city,
+                                              organization: result.organization,
+                                              purityScore: result.purity?.score, purityGrade: result.purity?.grade)
+            } : []
+        let snapshot = WidgetSnapshot(aiEnabled: settings.aiUsageEnabled, quotas: quotas,
+                                      publicIPEnabled: settings.publicIPLookup, addresses: addresses,
+                                      language: settings.language.rawValue,
+                                      calendarFirstWeekday: settings.calendarFirstWeekday,
+                                      showsLunar: settings.calendarFeatures.contains(.lunar))
+        let previous = widgetStore.load()
+        guard snapshot != previous, widgetStore.save(snapshot) else { return }
+        for kind in ["work.12306.xstats.widget.aiQuota", "work.12306.xstats.widget.ipPurity",
+                     "work.12306.xstats.widget.publicIP"] {
+            WidgetCenter.shared.reloadTimelines(ofKind: kind)
+        }
+        if snapshot.language != previous.language || snapshot.calendarFirstWeekday != previous.calendarFirstWeekday
+            || snapshot.showsLunar != previous.showsLunar {
+            WidgetCenter.shared.reloadTimelines(ofKind: "work.12306.xstats.widget.calendar")
         }
     }
 

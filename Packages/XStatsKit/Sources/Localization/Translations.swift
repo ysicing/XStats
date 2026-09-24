@@ -39,6 +39,13 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Local Codex / Claude Code
 启用后读取本机会话日志，并使用本机登录凭据向 Codex / Claude 查询订阅额度。	When enabled, reads local session logs and uses local login credentials to query Codex / Claude subscription usage.
 统计本机会话 Token，并使用本机登录凭据自动查询 Codex / Claude 订阅额度。	Counts local session tokens and automatically queries Codex / Claude subscription usage with local login credentials.
 订阅额度	Subscription usage
+暂无数据	No data yet
+主应用缓存	From XStats cache
+分	points
+查看 Codex 和 Claude 的剩余额度与重置时间	View remaining Codex and Claude quota and reset times
+显示主应用已查询的公网 IP 纯净度	Show IP cleanliness already checked by the main app
+显示主应用已查询的公网 IPv4 和 IPv6	Show public IPv4 and IPv6 already checked by the main app
+查看今天的日期或本月月历。	View today's date or this month's calendar.
 服务端用量 · 与本机 Token 统计不同	Server usage · separate from local token statistics
 重置：	Resets:
 查询失败，显示上次额度	Query failed; showing previous quota

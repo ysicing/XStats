@@ -199,6 +199,7 @@ public final class UpdateController {
                 if UpdateInstaller.canReplaceInPlace(app) {
                     try await Task.detached { try UpdateInstaller.replace(app, with: candidate, backupDirectory: work) }.value
                 } else {
+                    try await Task.detached { try UpdateInstaller.stopWidgetExtension(in: app) }.value
                     try await replaceWithAdministratorPrompt(app, with: candidate)
                 }
                 skippedVersion = nil

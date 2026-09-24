@@ -52,10 +52,16 @@ targets:
         LSUIElement: true
         LSApplicationCategoryType: public.app-category.utilities
         NSHumanReadableCopyright: © 2026 XStats
+    entitlements:
+      path: App/XStats.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.work.12306.xstats
     settings:
       base:
         PRODUCT_NAME: XStats
         PRODUCT_BUNDLE_IDENTIFIER: work.12306.xstats.app
+        PROVISIONING_PROFILE_SPECIFIER: $(XSTATS_APP_PROFILE)
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - package: XStatsKit
@@ -88,14 +94,21 @@ targets:
       path: Widget/XStatsWidget.entitlements
       properties:
         com.apple.security.app-sandbox: true
+        com.apple.security.application-groups:
+          - group.work.12306.xstats
     settings:
       base:
         PRODUCT_NAME: XStatsWidget
         PRODUCT_BUNDLE_IDENTIFIER: work.12306.xstats.app.widget
+        PROVISIONING_PROFILE_SPECIFIER: $(XSTATS_WIDGET_PROFILE)
         SKIP_INSTALL: YES
     dependencies:
       - package: XStatsKit
         product: Metrics
+      - package: XStatsKit
+        product: WidgetData
+      - package: XStatsKit
+        product: Localization
 
   XStatsHelper:
     type: tool

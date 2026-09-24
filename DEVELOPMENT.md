@@ -52,7 +52,14 @@ GitHub Actions 只在分支 push 且 `server/**` 发生变化时构建并发布 
 镜像发布到 `ghcr.io/<owner>/xstats-server`，标签格式为清洗后的 `<分支>-<完整提交哈希>`。
 
 构建固定使用 `arm64`，仅支持 Apple Silicon Mac。
-有 Developer ID Application 证书时，Taskfile 会自动使用钥匙串中的第一个证书；否则使用项目默认的 ad-hoc 签名。
+有 Developer ID Application 证书时，Taskfile 会自动使用钥匙串中第一个证书的唯一指纹；否则使用项目默认的 ad-hoc 签名。
+桌面小组件与主应用通过 `group.work.12306.xstats` App Group 共享只读展示摘要。
+用于正式签名的 Apple Developer 团队须为主应用和 Widget 扩展启用同一个 App Group；
+小组件不读取 AI 登录凭据，也不自行请求额度或 IP 服务。主应用未查询过数据时，小组件显示空状态。
+主应用与扩展的 Bundle ID 分别是 `work.12306.xstats.app` 和 `work.12306.xstats.app.widget`；
+带 App Group 能力的 Developer ID provisioning profile 要分别安装，并通过
+`XSTATS_APP_PROFILE`、`XSTATS_WIDGET_PROFILE` 指定 profile 名称后再签名构建。
+若钥匙串里有多张同名证书，应确保所选证书包含在两个 profile 中；可用 `SIGN_ID` 指定对应证书的 SHA-1 指纹。
 
 菜单栏应用没有普通窗口，可以用已安装的应用渲染实时截图：
 
@@ -166,6 +173,7 @@ git push
 - `Packages/XStatsKit/Sources/Updates`：版本清单、下载校验和应用替换。
 - `Packages/XStatsKit/Sources/HelperShared`：应用与辅助工具共用的 XPC 协议和维护命令。
 - `Packages/XStatsKit/Sources/WebDAVSync`：WebDAV 同步和钥匙串密码存储。
+- `Packages/XStatsKit/Sources/WidgetData`：主应用与桌面小组件共享的无凭据展示摘要。
 - `Packages/XStatsKit/Sources/XStatsUI`：界面、设置、弹窗和菜单栏渲染。
 - `Packages/XStatsKit/Tests`：Swift 单元测试。
 

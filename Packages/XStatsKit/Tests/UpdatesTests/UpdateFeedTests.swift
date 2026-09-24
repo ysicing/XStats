@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Testing
 @testable import Updates
@@ -119,6 +120,43 @@ import Testing
             try UpdateInstaller.replace(current, with: dir.appendingPathComponent("Missing.app"), backupDirectory: dir)
         }
         #expect(String(decoding: try Data(contentsOf: current.appendingPathComponent("v")), as: UTF8.self) == "new")
+    }
+
+    @Test func replacingAppStopsItsOldWidgetExtension() throws {
+        let dir = try scratch()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let current = dir.appendingPathComponent("XStats.app")
+        let candidate = dir.appendingPathComponent("New.app")
+        let executable = current.appendingPathComponent("Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget")
+        let otherExecutable = dir.appendingPathComponent("Other.app/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget")
+        try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/sleep"), to: executable)
+        try FileManager.default.createDirectory(at: otherExecutable.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/sleep"), to: otherExecutable)
+        try FileManager.default.createDirectory(at: candidate, withIntermediateDirectories: true)
+
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = ["30"]
+        try process.run()
+        let otherProcess = Process()
+        otherProcess.executableURL = otherExecutable
+        otherProcess.arguments = ["30"]
+        try otherProcess.run()
+        defer {
+            if process.isRunning { process.terminate() }
+            process.waitUntilExit()
+            if otherProcess.isRunning { otherProcess.terminate() }
+            otherProcess.waitUntilExit()
+        }
+
+        var runningPath = [CChar](repeating: 0, count: 4096)
+        let pathLength = proc_pidpath(process.processIdentifier, &runningPath, UInt32(runningPath.count))
+        #expect(pathLength > 0)
+
+        try UpdateInstaller.replace(current, with: candidate, backupDirectory: dir)
+        #expect(!process.isRunning, "替换应用前应退出旧版小组件扩展")
+        #expect(otherProcess.isRunning, "不得退出其他应用的同名进程")
     }
 
     @Test func extractsSingleApp() throws {

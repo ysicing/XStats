@@ -1,5 +1,5 @@
 #!/bin/bash
-# 本机只保留一个 XStats：退出正在运行的旧版 → 删除 /Applications 里的旧版 → 把刚编译的新版移进去 → 启动。
+# 本机只保留一个 XStats：退出正在运行的旧版及小组件扩展 → 删除 /Applications 里的旧版 → 把刚编译的新版移进去 → 启动。
 # 用移动而不是复制，编译目录里不留第二份；其他位置被系统登记的同名应用会取消登记并提示。
 #
 #   scripts/install_local.sh build/DerivedData-arm64/Build/Products/Release/XStats.app
@@ -14,9 +14,10 @@ LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchSe
 [ -d "$SOURCE" ] || { echo "error: 找不到 $SOURCE" >&2; exit 1; }
 codesign --verify --deep --strict "$SOURCE"
 
-# 结束旧版。辅助工具在连接断开时会自动恢复风扇与睡眠设置，所以直接结束是安全的
+# 旧扩展可能在主应用退出后继续运行，必须在替换包之前结束。
+# 辅助工具在连接断开时会自动恢复风扇与睡眠设置，所以直接结束是安全的
 # （不用 AppleScript 退出，免得弹出“自动化”权限请求）
-for process_name in OpenStats XStats; do
+for process_name in XStatsWidget OpenStats XStats; do
   if pgrep -x "$process_name" >/dev/null; then
     pkill -x "$process_name" 2>/dev/null || true
     for _ in $(seq 1 25); do pgrep -x "$process_name" >/dev/null || break; sleep 0.2; done

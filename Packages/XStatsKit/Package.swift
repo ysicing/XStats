@@ -14,6 +14,7 @@ let package = Package(
         .library(name: "Cleaner", targets: ["Cleaner"]),
         .library(name: "Updates", targets: ["Updates"]),
         .library(name: "WebDAVSync", targets: ["WebDAVSync"]),
+        .library(name: "WidgetData", targets: ["WidgetData"]),
         .library(name: "XStatsUI", targets: ["XStatsUI"]),
     ],
     dependencies: [
@@ -28,7 +29,8 @@ let package = Package(
         .target(name: "Cleaner", dependencies: ["Localization"]),
         .target(name: "Updates", dependencies: ["Localization"]),
         .target(name: "WebDAVSync", dependencies: ["Localization"]),
-        .target(name: "XStatsUI", dependencies: ["AIUsage", "Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync",
+        .target(name: "WidgetData"),
+        .target(name: "XStatsUI", dependencies: ["AIUsage", "Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync", "WidgetData",
                                                    .product(name: "Tyme4Swift", package: "tyme4swift")],
                 resources: [.copy("Resources/Flags"), .copy("Resources/Logos"), .copy("Resources/Legal")]),
         .testTarget(name: "MetricsTests", dependencies: ["Metrics", "SMC"]),
@@ -39,6 +41,7 @@ let package = Package(
         .testTarget(name: "XStatsUITests", dependencies: ["XStatsUI", "Metrics", "WebDAVSync", "Localization", "Updates"]),
         .testTarget(name: "LocalizationTests", dependencies: ["Localization"]),
         .testTarget(name: "AIUsageTests", dependencies: ["AIUsage"]),
+        .testTarget(name: "WidgetDataTests", dependencies: ["WidgetData"]),
     ],
     swiftLanguageModes: [.v6]
 )

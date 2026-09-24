@@ -1,5 +1,12 @@
 # Copyright (C) 2026 ysicing
 # SPDX-License-Identifier: AGPL-3.0-or-later
+暂无数据	Aucune donnée pour le moment
+主应用缓存	Cache de XStats
+分	points
+查看 Codex 和 Claude 的剩余额度与重置时间	Afficher les quotas restants de Codex et Claude et leur réinitialisation
+显示主应用已查询的公网 IP 纯净度	Afficher la réputation IP consultée par XStats
+显示主应用已查询的公网 IPv4 和 IPv6	Afficher les adresses IPv4 et IPv6 publiques consultées par XStats
+查看今天的日期或本月月历。	Afficher la date du jour ou le calendrier du mois.
 设备不支持	Appareil non compatible
 需要 macOS 15.1 或更新版本	Nécessite macOS 15.1 ou une version ultérieure
 支持	Compatible

@@ -18,7 +18,7 @@ DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://c.ysicing.net/oss/apps/macOS/XStats}"
 DIST="${DIST:-dist}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-XStats}"
 SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null \
-  | grep 'Developer ID Application' | head -1 | sed -E 's/.*"(.*)".*/\1/' || true)}"
+  | awk '/Developer ID Application/ { print $2; exit }' || true)}"
 APP="build/DerivedData-arm64/Build/Products/Release/XStats.app"
 
 # 构建只允许版本元数据有未提交改动；Swift、脚本或其他源码必须来自当前 HEAD。
@@ -28,7 +28,8 @@ if [ -z "$SIGN_ID" ]; then
   echo "error: 钥匙串里没有 Developer ID Application 证书，无法发布。" >&2
   exit 1
 fi
-TEAM_ID="$(echo "$SIGN_ID" | sed -nE 's/.*\(([A-Z0-9]+)\)$/\1/p')"
+TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null \
+  | grep -F "$SIGN_ID" | head -1 | sed -nE 's/.*\(([A-Z0-9]+)\)"$/\1/p' || true)"
 
 # 公开版本号取自 CHANGELOG.md 顶部的正式标题，同时推进一次内部构建号；
 # 顶部还是 “## 未发布” 时脚本会在这里失败
