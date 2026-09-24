@@ -177,7 +177,7 @@ private struct TomorrowWorkWidgetView: View {
         return switch schedule {
         case .work: tr("工作日")
         case .weekend: tr("周末")
-        case .holiday: tr("节假日")
+        case .holiday: entry.tomorrow?.holidayName.flatMap { $0.isEmpty ? nil : tr($0) } ?? tr("节假日")
         case .makeupWork: tr("调休补班")
         case .makeupDayOff: tr("调休放假")
         case .dayOff: tr("放假")
@@ -201,16 +201,11 @@ private struct TomorrowWorkWidgetView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 if let scheduleTitle {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(scheduleTitle)
-                        if entry.tomorrow?.schedule == .holiday, let holidayName = entry.tomorrow?.holidayName {
-                            Text(tr(holidayName))
-                        }
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                    Text(scheduleTitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
             } else {
                 Text(tr("暂无法判断"))
