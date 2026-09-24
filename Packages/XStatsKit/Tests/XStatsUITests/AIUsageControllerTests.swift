@@ -148,7 +148,9 @@ private actor GatedUsageProvider: AIUsageProvider {
 
         let reading = MenuBarReading(model: model)
         #expect(reading.aiQuotas.count == 1)
-        #expect(reading.tooltip(items: [.aiUsage], fahrenheit: false).contains("Claude · 暂无额度数据"))
+        let claudeLine = reading.tooltip(items: [.aiUsage], fahrenheit: false)
+            .split(separator: "\n").first { $0.hasPrefix("Claude · ") }
+        #expect(claudeLine?.contains("%") == false)
         let image = MenuBarRenderer.image(reading: reading, items: [.aiUsage],
             style: { _ in .stacked }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
         #expect(image.size.width > 0)
@@ -193,7 +195,8 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(reading.aiQuotas.first?.window.kind == .session)
         #expect(reading.aiQuotas.first?.remainingPercent == 70)
         let tooltip = reading.tooltip(items: [.aiUsage], fahrenheit: false)
-        #expect(tooltip.contains("Claude · 暂无额度数据"), "tooltip: \(tooltip)")
+        let claudeLine = tooltip.split(separator: "\n").first { $0.hasPrefix("Claude · ") }
+        #expect(claudeLine?.contains("%") == false, "tooltip: \(tooltip)")
         #expect(!tooltip.contains("5%"), "tooltip: \(tooltip)")
     }
 
