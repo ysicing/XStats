@@ -6,7 +6,7 @@
 
 An open-source macOS menu-bar app for system monitoring and maintenance.
 
-[![Release](https://img.shields.io/badge/release-0.9.0-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/release-0.9.1-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20silicon-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
@@ -61,7 +61,7 @@ Issues and pull requests are welcome. See [DEVELOPMENT.md](DEVELOPMENT.md) for s
 <!-- changelog:start -->
 <!-- Generated from CHANGELOG.md by scripts/sync_changelog.py. Do not edit by hand. -->
 
-Latest release **0.9.0** (2026-09-24) · [full changelog](CHANGELOG.md) (kept in Chinese)
+Latest release **0.9.1** (2026-09-24) · [full changelog](CHANGELOG.md) (kept in Chinese)
 
 <!-- changelog:end -->
 

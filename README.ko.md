@@ -6,7 +6,7 @@
 
 macOS용 오픈 소스 메뉴 막대 시스템 모니터링 및 관리 앱입니다.
 
-[![Release](https://img.shields.io/badge/version-0.9.0-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/version-0.9.1-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
