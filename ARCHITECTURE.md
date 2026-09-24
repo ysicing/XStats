@@ -1,68 +1,9 @@
-# XStats
+# XStats architecture
 
 macOS 14+ menu-bar system monitor. Swift 6 language mode, AppKit status item and panels
-hosting SwiftUI, no third-party dependencies. The Xcode project is generated from
-`project.yml` by XcodeGen; everything testable lives in the local Swift package.
-
-- `App/` — `main.swift` and the asset catalog.
-- `Widget/` — the sandboxed WidgetKit extension (“System overview”), embedded in `Contents/PlugIns`.
-  It samples CPU, memory, disk and battery itself through `Metrics`, so it works without the app.
-- `Helper/` — the privileged helper (`XStatsHelper`) and its launchd plist, embedded in
-  the app bundle for `SMAppService.daemon`.
-- `Packages/XStatsKit/Sources/Localization` — `tr(_:)`, language resolution and nine-language catalogs (see below).
-- `Packages/XStatsKit/Sources/SMC` — the AppleSMC user client, fan control, temperature
-  key discovery.
-- `Packages/XStatsKit/Sources/Metrics` — one sampler per metric and `MetricsHub`; power and CPU
-  frequency (`PowerSampler`), disk activity and NVMe SMART (`DiskSamplers`), Bluetooth battery,
-  the SQLite history store.
-- `Packages/XStatsKit/Sources/AIUsage` — local usage models, two read-only log scanners and opt-in quota readers.
-  Quota readers inspect CLI credentials read-only and never refresh or write them.
-- `Packages/XStatsKit/Sources/Cleaner` — cleanup rules, `SafetyGuard`, `CleanEngine`, the app
-  uninstaller's leftover search and the launchd startup-item list.
-- `Packages/XStatsKit/Sources/Updates` — the update manifest and the download → verify →
-  replace → relaunch steps.
-- `Packages/XStatsKit/Sources/HelperShared` — the XPC protocol and maintenance commands
-  shared by the app and the helper.
-- `Packages/XStatsKit/Sources/WebDAVSync` — manual WebDAV GET/PUT and endpoint-specific Keychain passwords.
-- `Packages/XStatsKit/Sources/XStatsUI` — design tokens, panel pages, settings,
-  menu-bar renderer, app controller, snapshot renderer.
-- `Packages/XStatsKit/Tests` — metrics, SMC decoding, cleanup safety, updates, UI logic and
-  localization.
-- `server/api` — the Fiber/GORM update API, SQLite installation counters and server-rendered statistics dashboard.
-
-## Build
-
-**Xcode 26 or later is required** — CommandLineTools does not ship the SwiftUI macro plugins.
-
-```bash
-brew install go-task xcodegen
-task build            # Release build, then replace /Applications/XStats.app and relaunch
-task test             # swift test in the package
-```
-
-Versions read `1.0.0 (110)`: `MARKETING_VERSION` is the semver from the first release heading in
-`CHANGELOG.md`, while `CURRENT_PROJECT_VERSION` is an independent, monotonically increasing build
-number. `task build` advances only the build number (`BUMP=0` skips it); `task release` takes the
-public version from the changelog and advances the build number once. Every `task build` runs
-`scripts/install_local.sh`: it ends the running app (the helper restores fans and sleep when the
-connection drops), deletes the old `/Applications/XStats.app`, *moves* the new bundle there so no
-copy stays in the build folder, re-registers it with Launch Services, and relaunches. Only one
-XStats ever exists on the machine, so Spotlight and the widget gallery never show duplicates.
-`INSTALL=0` compiles without installing; `scripts/release.sh` uses it and installs the notarized
-build at the end.
-
-`project.yml` defaults to ad-hoc signing so the project opens anywhere. The Taskfile.yml passes
-the first Developer ID Application identity from the keychain (and `--timestamp` for Release)
-when there is one. `task release` runs `scripts/release.sh`: build, verify team, timestamp and
-hardened runtime on both binaries, notarize and staple the app, build and notarize the DMG,
-write the online-update zip and `appcast.json`, and write a Homebrew cask (`auto_updates true`)
-whose URLs point at the object storage prefix `https://c.ysicing.net/oss/apps/macOS/XStats`.
-The release records the source commit plus version-file hashes in `dist/release-provenance.json`;
-publishing accepts only a clean descendant that changed release metadata, so the Git tag cannot
-silently include source different from the packaged binaries. `task release-all` runs tests, builds,
-commits and pushes only release metadata, then publishes every external target; `task publish`
-resumes the idempotent external half without rebuilding. The helper derives its client
-requirement from its own signing team at run time, so no team ID is hard-coded.
+hosting SwiftUI. The Xcode project is generated from `project.yml` by XcodeGen;
+the app's testable components live in the local Swift package. For directory layout, build, test,
+and release instructions, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Sampling
 
@@ -71,6 +12,9 @@ which menu-bar items are enabled, whether the panel is open and on which tab —
 samples only that: CPU always; memory and network cheaply; GPU, disk, processes, sensors and
 fans only when a visible surface needs them. Disk is read at most every 30 s, battery every
 10 s. The loop pauses on screen sleep, system sleep and session switch.
+
+The sandboxed WidgetKit extension samples CPU, memory, disk, and battery through `Metrics`
+independently, so it remains useful when the app is not running.
 
 Things that are easy to get wrong and are handled on purpose:
 
@@ -107,8 +51,9 @@ verifying its version. Unregister/handshake failures leave privileged calls disa
 
 Registered with `SMAppService.daemon`; `RunAtLoad` so that an unclean exit is repaired at
 boot. The XPC interface is a fixed list of operations — no arbitrary commands — and each
-connection gets `setCodeSigningRequirement`. State that must be undone (manual fans, disabled
-sleep) is persisted to `/Library/Application Support/XStats/helper-state.plist` and
+connection gets `setCodeSigningRequirement`, derived from the helper's own signing team rather
+than a hard-coded team ID. State that must be undone (manual fans, disabled sleep) is persisted
+to `/Library/Application Support/XStats/helper-state.plist` and
 reverted when the last client disconnects or at the next start. The helper exits after 30 s
 without clients.
 
@@ -335,9 +280,7 @@ the quota reader has no access to session-log content.
   service name and every address; without the helper, a one-off administrator prompt runs the
   same fixed command.
 
-## Online updates
-
-### Battery and Bluetooth
+## Battery and Bluetooth
 
 The battery item reuses `BatterySampler` (IOKit power sources, sampled every 10 s while the item is in the
 menu bar or its popover / page is open). `BatteryPopover` is both the popover and the main-window page
@@ -351,6 +294,8 @@ falls back to the Bluetooth device with the lowest battery.
 popover / page or the System page is open, every five minutes when the menu bar needs it (the
 low-battery hint or a Mac without a battery), otherwise not at all. `AppModel.bluetoothDemand` derives
 that from the same visibility state as `demand`.
+
+## Online updates
 
 `UpdateController` posts the current version and a hashed random installation ID at launch and daily.
 China-region locales prefer `https://x-stats.china.12306.work/api/v1/update/check`; other locales prefer
@@ -379,11 +324,6 @@ object storage with `mc`, verifies each one by re-reading it from the CDN, creat
 that carries the dmg for manual downloads, and only then submits the generated appcast through
 `scripts/publish_api.py` to both regional services. The manifest lands last, so an installed app never
 sees a version whose package is not yet in place.
-
-`server/api/Dockerfile` cross-compiles a CGO-free binary for amd64 and arm64, then runs it as the
-distroless `nonroot` user with `/data` as the writable SQLite volume. When a branch push changes
-`server/**`, `.github/workflows/server-image.yml` builds both platforms and publishes
-`ghcr.io/<owner>/xstats-server:<sanitized-branch>-<full-commit-sha>`. Pull requests do not run this workflow.
 
 ## WebDAV settings sync
 
