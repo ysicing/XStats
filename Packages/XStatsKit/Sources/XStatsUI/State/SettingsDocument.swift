@@ -95,7 +95,7 @@ extension AppSettings {
         }
 
         assign(\.calendarEnabled, doc.calendarEnabled)
-        assign(\.calendarFeatures, doc.calendarFeatures.map { Set($0.compactMap(CalendarFeature.init(rawValue:))) })
+        assign(\.calendarFeatures, doc.calendarFeatures.map(CalendarFeature.restored(from:)))
         assign(\.calendarFirstWeekday, option(doc.calendarFirstWeekday, in: [1, 2]))
         assign(\.menuBarItems, doc.menuBarItems.map { Set($0.compactMap(MenuBarItem.init(rawValue:))) })
         assign(\.menuBarStyle, doc.menuBarStyle.flatMap(MenuBarStyle.init(rawValue:)))

@@ -37,6 +37,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         public let solarTerm: String?
         public let schedule: Schedule
         public let holidayName: String?
+        public let seasonalDescriptions: [String]?
         public let twelveStar: String?
         public let isEcliptic: Bool
         public let recommends: [String]
@@ -44,16 +45,52 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
 
         public init(dateKey: String, festivals: [String], solarTerm: String?,
                     schedule: Schedule, holidayName: String?, twelveStar: String?, isEcliptic: Bool,
-                    recommends: [String], avoids: [String]) {
+                    recommends: [String], avoids: [String], seasonalDescriptions: [String]? = nil) {
             self.dateKey = dateKey
             self.festivals = festivals
             self.solarTerm = solarTerm
             self.schedule = schedule
             self.holidayName = holidayName
+            self.seasonalDescriptions = seasonalDescriptions
             self.twelveStar = twelveStar
             self.isEcliptic = isEcliptic
             self.recommends = recommends
             self.avoids = avoids
+        }
+    }
+
+    /// 月历只保存格子需要的文字与休班标记，不复制每日黄历详情。
+    public struct MonthDay: Codable, Equatable, Sendable {
+        public let dateKey: String
+        public let number: Int
+        public let subtitle: String
+        public let holidayName: String?
+        public let isWork: Bool?
+        public let isWeekend: Bool
+
+        public init(dateKey: String, number: Int, subtitle: String, holidayName: String?,
+                    isWork: Bool?, isWeekend: Bool) {
+            self.dateKey = dateKey
+            self.number = number
+            self.subtitle = subtitle
+            self.holidayName = holidayName
+            self.isWork = isWork
+            self.isWeekend = isWeekend
+        }
+    }
+
+    public struct MonthSummary: Codable, Equatable, Sendable {
+        public let monthKey: String
+        public let firstWeekday: Int
+        /// 主应用用它判断设置变化后是否需要重算缓存。
+        public let featureKeys: [String]
+        public let days: [MonthDay]
+
+        public init(monthKey: String, firstWeekday: Int, featureKeys: [String], days: [MonthDay]) {
+            self.monthKey = monthKey
+            self.firstWeekday = firstWeekday
+            self.featureKeys = featureKeys
+            self.days = days
         }
     }
 
@@ -126,15 +163,20 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public var language: String
     public var calendarFirstWeekday: Int
     public var showsLunar: Bool
+    /// 可选以兼容旧版摘要；单日日历仅在用户开启时显示具体时令天数。
+    public var showsSeasonal: Bool?
     /// 可选以兼容旧版主应用写入的 App Group 摘要。
     public var calendarDays: [CalendarSummary]?
+    /// 当前与下个月的六周网格；旧版缓存缺失时 Widget 仍显示公历日期。
+    public var monthSummaries: [MonthSummary]?
 
     public init(aiEnabled: Bool = false, quotas: [Quota] = [], dailyTokens: [DailyTokenUsage]? = nil,
                 localUsageEnabled: Bool? = nil,
                 publicIPEnabled: Bool = false,
                 addresses: [Address] = [], language: String = "system",
                 calendarFirstWeekday: Int = 2, showsLunar: Bool = true,
-                calendarDays: [CalendarSummary]? = nil) {
+                calendarDays: [CalendarSummary]? = nil, monthSummaries: [MonthSummary]? = nil,
+                showsSeasonal: Bool? = nil) {
         self.aiEnabled = aiEnabled
         self.quotas = quotas
         self.dailyTokens = dailyTokens
@@ -144,7 +186,9 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         self.language = language
         self.calendarFirstWeekday = calendarFirstWeekday
         self.showsLunar = showsLunar
+        self.showsSeasonal = showsSeasonal
         self.calendarDays = calendarDays
+        self.monthSummaries = monthSummaries
     }
 
     public var showsLocalUsage: Bool { aiEnabled && localUsageEnabled != false }
@@ -181,11 +225,24 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             || visibleAddresses != previous.visibleAddresses {
             kinds += [WidgetKind.ipPurity, WidgetKind.publicIP]
         }
-        if relocalized || calendarFirstWeekday != previous.calendarFirstWeekday || showsLunar != previous.showsLunar
-            || calendarDays != previous.calendarDays {
+        let calendarChanged = relocalized || calendarFirstWeekday != previous.calendarFirstWeekday
+            || showsLunar != previous.showsLunar || calendarDays != previous.calendarDays
+        if calendarChanged {
             kinds += [WidgetKind.calendar, WidgetKind.tomorrowWork]
+        } else if showsSeasonal != previous.showsSeasonal {
+            kinds.append(WidgetKind.calendar)
+        }
+        if relocalized || calendarFirstWeekday != previous.calendarFirstWeekday || monthSummaries != previous.monthSummaries {
+            kinds.append(WidgetKind.calendarMonth)
         }
         return kinds
+    }
+
+    public func monthSummary(for date: Date, calendar: Calendar = .autoupdatingCurrent) -> MonthSummary? {
+        let parts = calendar.dateComponents([.year, .month], from: date)
+        guard let year = parts.year, let month = parts.month else { return nil }
+        let key = String(format: "%04d-%02d", year, month)
+        return monthSummaries?.first { $0.monthKey == key }
     }
 
     public func calendarSummary(for date: Date, calendar: Calendar = .autoupdatingCurrent) -> CalendarSummary? {
@@ -204,6 +261,7 @@ public enum WidgetKind {
     public static let ipPurity = "work.12306.xstats.widget.ipPurity"
     public static let publicIP = "work.12306.xstats.widget.publicIP"
     public static let calendar = "work.12306.xstats.widget.calendar"
+    public static let calendarMonth = "work.12306.xstats.widget.calendarMonth"
     public static let tomorrowWork = "work.12306.xstats.widget.tomorrowWork"
 }
 

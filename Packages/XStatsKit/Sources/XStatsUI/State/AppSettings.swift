@@ -570,7 +570,7 @@ public final class AppSettings {
         self.defaults = defaults
         calendarEnabled = defaults.bool(forKey: Keys.calendarEnabled)
         calendarFeatures = defaults.stringArray(forKey: Keys.calendarFeatures)
-            .map { Set($0.compactMap(CalendarFeature.init(rawValue:))) } ?? CalendarFeature.defaults
+            .map(CalendarFeature.restored(from:)) ?? CalendarFeature.defaults
         calendarFirstWeekday = defaults.integer(forKey: Keys.calendarFirstWeekday) == 1 ? 1 : 2
         let items = defaults.stringArray(forKey: Keys.menuBarItems)?.compactMap(MenuBarItem.init(rawValue:))
         menuBarItems = Set(items ?? [.cpu, .memory, .network])

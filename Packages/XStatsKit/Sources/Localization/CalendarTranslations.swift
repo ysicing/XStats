@@ -4,6 +4,8 @@
 extension Translations {
     static let calendarEnglish = #"""
 日历	Calendar
+月历	Month Calendar
+查看整月的公历、农历与节假日。	View the whole month with Gregorian and lunar dates and holidays.
 菜单栏日历	Menu Bar Calendar
 日历设置…	Calendar Settings…
 独立显示日期，点击打开月历；不受指标合并布局影响	Show a separate date item; click to open the calendar, even when metrics are combined
@@ -18,6 +20,22 @@ extension Translations {
 干支	Sexagenary cycle
 三伏天	Dog days
 梅雨天	Plum-rain days
+三伏·梅雨·数九	Fu · Plum rain · Nines
+初伏	Early Fu
+中伏	Middle Fu
+末伏	Late Fu
+入梅	Plum start
+出梅	Plum end
+一九	Nine 1
+二九	Nine 2
+三九	Nine 3
+四九	Nine 4
+五九	Nine 5
+六九	Nine 6
+七九	Nine 7
+八九	Nine 8
+九九	Nine 9
+{}第{}天	{1}, day {2}
 藏历	Tibetan calendar
 回历	Hijri calendar
 公历始终显示。藏历与回历显示在日期详情中；梅雨天按传统历法推算，并非天气预报。	Gregorian dates stay visible. Tibetan and Hijri dates appear in day details. Plum-rain days follow traditional calendar rules, not weather forecasts.

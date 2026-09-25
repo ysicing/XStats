@@ -1292,6 +1292,8 @@ Token 活动	Actividad de tokens
 截至 {} 当周累计：{} Tokens	Acumulado hasta la semana del {}: {} Tokens
 Apple 智能	Apple Intelligence
 日历	Calendario
+月历	Calendario mensual
+查看整月的公历、农历与节假日。	Ver todo el mes con fechas gregorianas, lunares y festivos.
 菜单栏日历	Calendario de la barra de menús
 日历设置…	Ajustes del calendario…
 独立显示日期，点击打开月历；不受指标合并布局影响	Muestra la fecha por separado; haz clic para abrir el calendario, incluso con métricas combinadas
@@ -1306,6 +1308,22 @@ Apple 智能	Apple Intelligence
 干支	Ciclo sexagenario
 三伏天	Días caniculares
 梅雨天	Lluvias de ciruela tradicionales
+三伏·梅雨·数九	Fu · Meiyu · Nueves
+初伏	Fu inicial
+中伏	Fu medio
+末伏	Fu final
+入梅	Inicio Meiyu
+出梅	Fin Meiyu
+一九	Nueve 1
+二九	Nueve 2
+三九	Nueve 3
+四九	Nueve 4
+五九	Nueve 5
+六九	Nueve 6
+七九	Nueve 7
+八九	Nueve 8
+九九	Nueve 9
+{}第{}天	{1}, día {2}
 藏历	Calendario tibetano
 回历	Calendario hiyri
 公历始终显示。藏历与回历显示在日期详情中；梅雨天按传统历法推算，并非天气预报。	Las fechas gregorianas siempre se muestran. Los calendarios tibetano e hiyri aparecen en los detalles del día. Las lluvias de ciruela se calculan según reglas tradicionales, no son pronósticos.

@@ -35,6 +35,7 @@ import WidgetData
     let legacy = Data(#"{"aiEnabled":false,"quotas":[],"publicIPEnabled":false,"addresses":[],"language":"system","calendarFirstWeekday":2,"showsLunar":true}"#.utf8)
     let oldSnapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: legacy)
     #expect(oldSnapshot.calendarDays == nil)
+    #expect(oldSnapshot.showsSeasonal == nil)
 
     let day = WidgetSnapshot.CalendarSummary(dateKey: "2026-09-25", festivals: ["中秋节"],
                                              solarTerm: nil, schedule: .dayOff, holidayName: "中秋节",
@@ -50,6 +51,35 @@ import WidgetData
     #expect(snapshot.calendarSummary(for: instant, calendar: shanghai) == day)
     #expect(snapshot.calendarSummary(for: instant, calendar: utc) == nil)
     #expect(try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot)) == snapshot)
+}
+
+@Test func seasonalDayToggleReloadsOnlyDailyCalendar() {
+    let previous = WidgetSnapshot()
+    var enabled = previous
+    enabled.showsSeasonal = true
+    #expect(enabled.changedWidgetKinds(from: previous) == [WidgetKind.calendar])
+}
+
+@Test func monthCalendarSnapshotRoundTripsAndReloadsItsOwnWidget() throws {
+    let previous = WidgetSnapshot()
+    let day = WidgetSnapshot.MonthDay(dateKey: "2026-09-25", number: 25, subtitle: "中秋节",
+                                      holidayName: "中秋节", isWork: false, isWeekend: false)
+    let month = WidgetSnapshot.MonthSummary(monthKey: "2026-09", firstWeekday: 2,
+                                            featureKeys: ["holidays", "lunar"], days: [day])
+    var snapshot = previous
+    snapshot.monthSummaries = [month]
+
+    #expect(snapshot.changedWidgetKinds(from: previous) == [WidgetKind.calendarMonth])
+    #expect(try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot)) == snapshot)
+    let date = try #require(ISO8601DateFormatter().date(from: "2026-08-31T16:00:00Z"))
+    var shanghai = Calendar(identifier: .gregorian)
+    shanghai.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
+    var utc = Calendar(identifier: .gregorian)
+    utc.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+    #expect(snapshot.monthSummary(for: date, calendar: shanghai) == month)
+    #expect(snapshot.monthSummary(for: date, calendar: utc) == nil)
+    let legacy = Data(#"{"aiEnabled":false,"quotas":[],"publicIPEnabled":false,"addresses":[],"language":"system","calendarFirstWeekday":2,"showsLunar":true}"#.utf8)
+    #expect(try JSONDecoder().decode(WidgetSnapshot.self, from: legacy).monthSummaries == nil)
 }
 
 @Test func publicAddressSnapshotKeepsLocationASAndFlagsWithoutBreakingOldData() throws {
@@ -163,5 +193,6 @@ import WidgetData
     relocalized.language = "japanese"
     #expect(relocalized.changedWidgetKinds(from: base) == [WidgetKind.aiQuota, WidgetKind.todayTokens,
                                                            WidgetKind.ipPurity, WidgetKind.publicIP,
-                                                           WidgetKind.calendar, WidgetKind.tomorrowWork])
+                                                           WidgetKind.calendar, WidgetKind.tomorrowWork,
+                                                           WidgetKind.calendarMonth])
 }

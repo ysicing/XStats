@@ -30,7 +30,7 @@ XStats shows CPU, GPU, memory, disk, network, battery, temperature and fan activ
 - **System tools:** fan control, keep-awake, cache cleanup, app removal and startup-item management, with previews and confirmation for destructive actions.
 - **Network tools:** inspect connections, DNS and public IPs; optionally check IP reputation and connectivity.
 - **Optional modules:** a separate menu-bar calendar, plus local Codex / Claude Code session-token statistics and subscription quota checks.
-- **Desktop widgets:** system overview, AI quotas, festival/almanac calendar, tomorrow's work status, IP cleanliness and public IP. AI, IP and calendar data come only from the main app's local cache.
+- **Desktop widgets:** system overview, AI quotas, festival/almanac calendar, full-month calendar, tomorrow's work status, IP cleanliness and public IP. AI, IP and calendar data come only from the main app's local cache.
 
 ## Install
 

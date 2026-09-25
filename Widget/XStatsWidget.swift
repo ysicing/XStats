@@ -211,6 +211,7 @@ struct XStatsWidgets: WidgetBundle {
     var body: some Widget {
         SystemWidget()
         CalendarWidget()
+        MonthCalendarWidget()
         TomorrowWorkWidget()
         AIQuotaWidget()
         TodayTokensWidget()

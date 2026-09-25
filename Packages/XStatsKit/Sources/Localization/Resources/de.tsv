@@ -1292,6 +1292,8 @@ Token 活动	Token-Aktivität
 截至 {} 当周累计：{} Tokens	Bis zur Woche vom {}: {} Tokens kumuliert
 Apple 智能	Apple Intelligence
 日历	Kalender
+月历	Monatskalender
+查看整月的公历、农历与节假日。	Den ganzen Monat mit gregorianischen und lunaren Daten sowie Feiertagen anzeigen.
 菜单栏日历	Menüleistenkalender
 日历设置…	Kalendereinstellungen…
 独立显示日期，点击打开月历；不受指标合并布局影响	Separates Datum; ein Klick öffnet den Kalender, auch bei kombinierten Messwerten
@@ -1306,6 +1308,22 @@ Apple 智能	Apple Intelligence
 干支	Sechzigjahreszyklus
 三伏天	Hundstage
 梅雨天	Traditionelle Pflaumenregenzeit
+三伏·梅雨·数九	Fu · Meiyu · Neuner
+初伏	Fu 1
+中伏	Fu 2
+末伏	Fu 3
+入梅	Meiyu-Start
+出梅	Meiyu-Ende
+一九	Neuner 1
+二九	Neuner 2
+三九	Neuner 3
+四九	Neuner 4
+五九	Neuner 5
+六九	Neuner 6
+七九	Neuner 7
+八九	Neuner 8
+九九	Neuner 9
+{}第{}天	{1}, Tag {2}
 藏历	Tibetischer Kalender
 回历	Hidschri-Kalender
 公历始终显示。藏历与回历显示在日期详情中；梅雨天按传统历法推算，并非天气预报。	Gregorianische Daten bleiben sichtbar. Tibetische und Hidschri-Daten stehen in den Tagesdetails. Die Pflaumenregenzeit folgt traditionellen Kalenderregeln, nicht Wettervorhersagen.

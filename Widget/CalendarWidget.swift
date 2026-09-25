@@ -9,13 +9,17 @@ import WidgetKit
 struct CalendarWidgetEntry: TimelineEntry {
     let date: Date
     let showsLunar: Bool
+    let showsSeasonal: Bool
+    let firstWeekday: Int
     let today: WidgetSnapshot.CalendarSummary?
     let tomorrow: WidgetSnapshot.CalendarSummary?
+    let month: WidgetSnapshot.MonthSummary?
 }
 
 struct CalendarWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> CalendarWidgetEntry {
-        .init(date: .now, showsLunar: true, today: nil, tomorrow: nil)
+        .init(date: .now, showsLunar: true, showsSeasonal: false, firstWeekday: 2,
+              today: nil, tomorrow: nil, month: nil)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (CalendarWidgetEntry) -> Void) {
@@ -36,9 +40,10 @@ struct CalendarWidgetProvider: TimelineProvider {
         L10n.configure(AppLanguage(rawValue: snapshot.language) ?? .system)
         let now = Date.now
         let nextDay = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: now) ?? now
-        return .init(date: now, showsLunar: snapshot.showsLunar,
+        return .init(date: now, showsLunar: snapshot.showsLunar, showsSeasonal: snapshot.showsSeasonal == true,
+                     firstWeekday: snapshot.calendarFirstWeekday,
                      today: snapshot.calendarSummary(for: now),
-                     tomorrow: snapshot.calendarSummary(for: nextDay))
+                     tomorrow: snapshot.calendarSummary(for: nextDay), month: snapshot.monthSummary(for: now))
     }
 }
 
@@ -78,6 +83,13 @@ private struct CalendarWidgetView: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.orange)
                     .lineLimit(1)
+            }
+            if entry.showsSeasonal, let seasons = entry.today?.seasonalDescriptions, !seasons.isEmpty {
+                Text(seasons.map(tr).joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
             Spacer(minLength: 0)
         }
@@ -164,6 +176,122 @@ struct CalendarWidget: Widget {
     }
 }
 
+private struct MonthCalendarWidgetView: View {
+    let entry: CalendarWidgetEntry
+
+    private var firstWeekday: Int { entry.firstWeekday == 1 ? 1 : 2 }
+
+    private var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .autoupdatingCurrent
+        return calendar
+    }
+
+    private var monthKey: String {
+        let parts = calendar.dateComponents([.year, .month], from: entry.date)
+        return String(format: "%04d-%02d", parts.year ?? 0, parts.month ?? 0)
+    }
+
+    private var todayKey: String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: entry.date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    private var days: [WidgetSnapshot.MonthDay] {
+        if let month = entry.month, month.days.count == 42 { return month.days }
+        let parts = calendar.dateComponents([.year, .month], from: entry.date)
+        guard let year = parts.year, let month = parts.month,
+              let first = calendar.date(from: DateComponents(year: year, month: month, day: 1, hour: 12)) else { return [] }
+        let offset = (calendar.component(.weekday, from: first) - firstWeekday + 7) % 7
+        return (0..<42).compactMap { index in
+            guard let date = calendar.date(byAdding: .day, value: index - offset, to: first) else { return nil }
+            let parts = calendar.dateComponents([.year, .month, .day, .weekday], from: date)
+            guard let year = parts.year, let month = parts.month, let day = parts.day,
+                  let weekday = parts.weekday else { return nil }
+            return WidgetSnapshot.MonthDay(dateKey: String(format: "%04d-%02d-%02d", year, month, day),
+                                           number: day, subtitle: "", holidayName: nil, isWork: nil,
+                                           isWeekend: weekday == 1 || weekday == 7)
+        }
+    }
+
+    private var weekdays: [String] {
+        let formatter = DateFormatter()
+        formatter.locale = L10n.locale
+        formatter.calendar = calendar
+        return (0..<7).map { offset in
+            let weekday = (firstWeekday - 1 + offset) % 7
+            return formatter.shortWeekdaySymbols[weekday]
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 9) {
+            HStack(spacing: 7) {
+                Image(systemName: "calendar").foregroundStyle(Color.accentColor)
+                Text(entry.date, format: .dateTime.year().month(.wide))
+                    .font(.system(size: 17, weight: .semibold))
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 3) {
+                ForEach(Array(weekdays.enumerated()), id: \.offset) { _, name in
+                    Text(name).font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary).lineLimit(1).frame(maxWidth: .infinity)
+                }
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 7), spacing: 4) {
+                ForEach(days, id: \.dateKey) { day in
+                    dayCell(day)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .containerBackground(.background, for: .widget)
+        .environment(\.locale, L10n.locale)
+    }
+
+    private func dayCell(_ day: WidgetSnapshot.MonthDay) -> some View {
+        let isToday = day.dateKey == todayKey
+        let isRest = day.isWork.map { !$0 } ?? day.isWeekend
+        return VStack(spacing: 2) {
+            Text(String(day.number))
+                .font(.system(size: 15, weight: isToday ? .semibold : .regular, design: .rounded))
+                .foregroundStyle(isToday ? Color.white : isRest ? Color.red : Color.primary)
+                .frame(width: 24, height: 24)
+                .background(isToday ? Color.accentColor : .clear, in: Circle())
+            Text(day.subtitle.isEmpty ? " " : tr(day.subtitle))
+                .font(.system(size: 9))
+                .foregroundStyle(day.holidayName == nil ? Color.secondary : Color.red)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 40)
+        .overlay(alignment: .topTrailing) {
+            if let isWork = day.isWork {
+                Text(tr(isWork ? "班" : "休"))
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(isWork ? Color.secondary : Color.red)
+            }
+        }
+        .opacity(day.dateKey.hasPrefix(monthKey) ? 1 : 0.38)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([day.dateKey, tr(day.subtitle), day.isWork.map { tr($0 ? "调休上班" : "放假") }]
+            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", "))
+    }
+}
+
+struct MonthCalendarWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: WidgetKind.calendarMonth, provider: CalendarWidgetProvider()) { entry in
+            MonthCalendarWidgetView(entry: entry)
+        }
+        .configurationDisplayName(tr("月历"))
+        .description(tr("查看整月的公历、农历与节假日。"))
+        .supportedFamilies([.systemLarge])
+    }
+}
+
 private struct TomorrowWorkWidgetView: View {
     let entry: CalendarWidgetEntry
 
@@ -176,7 +304,7 @@ private struct TomorrowWorkWidgetView: View {
         guard let schedule = entry.tomorrow?.schedule else { return nil }
         return switch schedule {
         case .work: tr("工作日")
-        case .weekend: tr("周末")
+        case .weekend: entry.tomorrow?.holidayName.flatMap { $0.isEmpty ? nil : tr($0) } ?? tr("周末")
         case .holiday: entry.tomorrow?.holidayName.flatMap { $0.isEmpty ? nil : tr($0) } ?? tr("节假日")
         case .makeupWork: tr("调休补班")
         case .makeupDayOff: tr("调休放假")

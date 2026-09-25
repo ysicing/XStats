@@ -18,11 +18,19 @@ independently, so it remains useful when the app is not running.
 AI, IP, and calendar widgets instead read a credential-free App Group snapshot. The main app
 precomputes an eight-day holiday and almanac window; missing coverage is shown as unavailable,
 not guessed from weekdays.
+The large month-calendar widget reads lightweight six-week grids for the current and next
+month from the same snapshot. It keeps Gregorian dates visible if that cache is missing,
+without inventing lunar or holiday annotations.
 The daily Token widget receives only per-provider totals and the local day, never session logs;
 its displayed count resets at local midnight even if the main app has not refreshed yet.
 The tomorrow-work widget uses the official 2026 holiday schedule to distinguish statutory
 holidays, adjusted days off, ordinary weekends, and makeup workdays; later years need their
 own confirmed schedule before receiving those specific labels.
+The single seasonal-calendar setting covers dog days, traditional plum-rain days, and the
+nine cold periods. Month cells and the large month widget show only phase starts and the
+plum-rain exit; the small daily widget and selected-day details keep the exact day count.
+Existing dog-day or plum-rain
+preferences migrate to the combined setting.
 
 Things that are easy to get wrong and are handled on purpose:
 

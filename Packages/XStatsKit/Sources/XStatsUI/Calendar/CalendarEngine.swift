@@ -8,7 +8,7 @@ import Localization
 
 /// 公历是月历的坐标；其余信息可独立隐藏，设置以稳定 rawValue 保存和同步。
 public enum CalendarFeature: String, CaseIterable, Identifiable, Sendable {
-    case lunar, weekdays, holidays, festivals, solarTerms, ganzhi, dogDays, plumRain, tibetan, hijri
+    case lunar, weekdays, holidays, festivals, solarTerms, ganzhi, seasonal, tibetan, hijri
     public var id: String { rawValue }
     public static let defaults: Set<Self> = [.lunar, .weekdays, .holidays, .festivals, .solarTerms]
 
@@ -20,11 +20,17 @@ public enum CalendarFeature: String, CaseIterable, Identifiable, Sendable {
         case .festivals: tr("传统与公历节日")
         case .solarTerms: tr("二十四节气")
         case .ganzhi: tr("干支")
-        case .dogDays: tr("三伏天")
-        case .plumRain: tr("梅雨天")
+        case .seasonal: tr("三伏·梅雨·数九")
         case .tibetan: tr("藏历")
         case .hijri: tr("回历")
         }
+    }
+
+    /// 旧偏好和备份里的两个独立开关合并为一个；任一项曾开启就保留用户的显示意愿。
+    static func restored(from rawValues: [String]) -> Set<Self> {
+        var features = Set(rawValues.compactMap(Self.init(rawValue:)))
+        if rawValues.contains("dogDays") || rawValues.contains("plumRain") { features.insert(.seasonal) }
+        return features
     }
 }
 
@@ -60,15 +66,17 @@ struct CalendarDay: Identifiable, Equatable {
     let holiday: Holiday?
     let dogDays: String?
     let plumRain: String?
+    let nineDays: String?
+    let seasonalBoundary: String?
     var id: String { String(format: "%04d-%02d-%02d", year, month, day) }
     var isWeekend: Bool { weekday == 1 || weekday == 7 }
 
     /// 每格仅显示一条主注释，所有启用的信息在选中日期详情中保留。
     func subtitle(features: Set<CalendarFeature>) -> String {
+        // 一九与冬至同日，阶段起点优先展示；节日和节气仍可在单日详情查看。
+        if features.contains(.seasonal), let seasonalBoundary { return seasonalBoundary }
         if features.contains(.festivals), let festival = festivals.first { return festival }
         if features.contains(.solarTerms), let solarTerm { return solarTerm }
-        if features.contains(.dogDays), let dogDays { return dogDays }
-        if features.contains(.plumRain), let plumRain { return plumRain }
         return features.contains(.lunar) ? lunarLabel : ""
     }
 }
@@ -127,6 +135,14 @@ enum CalendarEngine {
         let cycle = solar.getSixtyCycleDay()
         let term = solar.termDay
         let festivals = [lunar.festival?.getName(), solar.festival?.getName()].compactMap { $0 }
+        let dog = solar.dogDay
+        let plumRain = solar.plumRainDay
+        let nine = solar.nineDay
+        let seasonalBoundary: String?
+        if let dog, dog.dayIndex == 0 { seasonalBoundary = dog.getName() }
+        else if let plumRain, plumRain.dayIndex == 0 { seasonalBoundary = plumRain.getName() }
+        else if let nine, nine.dayIndex == 0 { seasonalBoundary = nine.getName() }
+        else { seasonalBoundary = nil }
         return CalendarDay(date: date, year: year, month: month, day: day,
                            weekday: calendar.component(.weekday, from: date),
                            lunarLabel: lunar.day == 1 ? lunar.lunarMonth.getName() : lunar.getName(),
@@ -134,7 +150,8 @@ enum CalendarEngine {
                            ganzhiSummary: "\(cycle.year.getName())年 \(cycle.month.getName())月 \(cycle.sixtyCycle.getName())日",
                            festivals: festivals, solarTerm: term.dayIndex == 0 ? term.solarTerm.getName() : nil,
                            holiday: solar.legalHoliday.map { .init(name: $0.name, isWork: $0.isWork) },
-                           dogDays: solar.dogDay?.description, plumRain: solar.plumRainDay?.description)
+                           dogDays: dog?.description, plumRain: plumRain?.description,
+                           nineDays: nine?.description, seasonalBoundary: seasonalBoundary)
     }
 
     /// 年份覆盖来自固定版本的数据本身；未收录年份不能把 nil 解读为“无需调休”。

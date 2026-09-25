@@ -369,7 +369,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         let todayKey = CalendarEngine.today(at: today)?.id
         // 多预备几天，Widget 午夜换日时无需唤醒主应用；主应用运行期间按小时补足窗口。
         let calendarDays: [WidgetSnapshot.CalendarSummary] = {
-            if previous.calendarDays?.count == 8, previous.calendarDays?.first?.dateKey == todayKey,
+            if previous.showsSeasonal != nil, previous.calendarDays?.count == 8,
+               previous.calendarDays?.first?.dateKey == todayKey,
                previous.calendarDays?.contains(where: { $0.schedule == .dayOff }) == false {
                 return previous.calendarDays ?? []
             }
@@ -379,6 +380,22 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 return CalendarEngine.widgetSummary(for: day)
             }
         }()
+        let monthFeatures = settings.calendarFeatures.map(\.rawValue).sorted()
+        let monthSummaries: [WidgetSnapshot.MonthSummary] = (0...1).compactMap { offset in
+            guard let date = calendar.date(byAdding: .month, value: offset, to: today) else { return nil }
+            let parts = calendar.dateComponents([.year, .month], from: date)
+            guard let year = parts.year, let month = parts.month else { return nil }
+            let key = String(format: "%04d-%02d", year, month)
+            if let cached = previous.monthSummaries?.first(where: {
+                $0.monthKey == key && $0.firstWeekday == settings.calendarFirstWeekday
+                    && $0.featureKeys == monthFeatures && $0.days.count == 42
+            }) {
+                return cached
+            }
+            return CalendarEngine.widgetMonthSummary(year: year, month: month,
+                                                     firstWeekday: settings.calendarFirstWeekday,
+                                                     features: settings.calendarFeatures)
+        }
         let quotas: [WidgetSnapshot.Quota] = settings.aiUsageEnabled
             ? AIProviderID.allCases.filter { settings.aiUsageSources.contains($0) }.flatMap { provider -> [WidgetSnapshot.Quota] in
                 let state = model.aiUsage.quotaState(for: provider)
@@ -415,7 +432,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                       language: settings.language.rawValue,
                                       calendarFirstWeekday: settings.calendarFirstWeekday,
                                       showsLunar: settings.calendarFeatures.contains(.lunar),
-                                      calendarDays: calendarDays)
+                                      calendarDays: calendarDays, monthSummaries: monthSummaries,
+                                      showsSeasonal: settings.calendarFeatures.contains(.seasonal))
         guard snapshot != previous, widgetStore.save(snapshot) else { return }
         for kind in snapshot.changedWidgetKinds(from: previous) {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)

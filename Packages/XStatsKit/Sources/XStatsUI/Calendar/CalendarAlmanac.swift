@@ -68,11 +68,26 @@ extension CalendarEngine {
             schedule = day.isWeekend ? .weekend : .work
         }
         let almanac = almanac(for: day)
+        let seasons = [day.dogDays, day.plumRain, day.nineDays].compactMap { $0 }
         return .init(dateKey: day.id, festivals: day.festivals,
                      solarTerm: day.solarTerm, schedule: schedule, holidayName: day.holiday?.name,
                      twelveStar: almanac?.twelveStar, isEcliptic: almanac?.twelveStarIsLucky ?? false,
                      recommends: Array(almanac?.recommends.prefix(3) ?? []),
-                     avoids: Array(almanac?.avoids.prefix(3) ?? []))
+                     avoids: Array(almanac?.avoids.prefix(3) ?? []),
+                     seasonalDescriptions: seasons.isEmpty ? nil : seasons)
+    }
+
+    static func widgetMonthSummary(year: Int, month: Int, firstWeekday: Int, features: Set<CalendarFeature>,
+                                   timeZone: TimeZone = .autoupdatingCurrent) -> WidgetSnapshot.MonthSummary {
+        let days = self.month(year: year, month: month, firstWeekday: firstWeekday, timeZone: timeZone).map { day in
+            let holiday = features.contains(.holidays) ? day.holiday : nil
+            return WidgetSnapshot.MonthDay(dateKey: day.id, number: day.day,
+                                           subtitle: holiday?.name ?? day.subtitle(features: features),
+                                           holidayName: holiday?.name, isWork: holiday?.isWork,
+                                           isWeekend: day.isWeekend)
+        }
+        return .init(monthKey: String(format: "%04d-%02d", year, month), firstWeekday: firstWeekday,
+                     featureKeys: features.map(\.rawValue).sorted(), days: days)
     }
 
     static func almanac(for day: CalendarDay) -> CalendarAlmanac? {

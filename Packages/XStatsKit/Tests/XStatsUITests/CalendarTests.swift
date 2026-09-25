@@ -51,11 +51,35 @@ struct CalendarTests {
         #expect(CalendarEngine.widgetSummary(for: holiday).schedule.rawValue == "holiday")
         #expect(CalendarEngine.widgetSummary(for: holidayExtension).schedule.rawValue == "holiday")
         #expect(CalendarEngine.widgetSummary(for: weekend).schedule.rawValue == "weekend")
+        #expect(CalendarEngine.widgetSummary(for: weekend).holidayName == "中秋节")
         #expect(CalendarEngine.widgetSummary(for: adjustedDayOff).schedule.rawValue == "makeupDayOff")
         #expect(CalendarEngine.widgetSummary(for: ordinary).schedule == .work)
         #expect(CalendarEngine.widgetSummary(for: unknown).schedule == .unknown)
         #expect(CalendarEngine.widgetSummary(for: holiday).festivals.contains("中秋节"))
         #expect(CalendarEngine.widgetSummary(for: holiday).recommends.isEmpty == false)
+    }
+
+    @Test func widgetMonthContainsSixWeeksAndOfficialHolidayNames() throws {
+        let month = CalendarEngine.widgetMonthSummary(year: 2026, month: 9, firstWeekday: 2,
+                                                      features: CalendarFeature.defaults, timeZone: zone)
+        #expect(month.days.count == 42)
+        #expect(month.days.first?.dateKey == "2026-08-31")
+        #expect(month.days.last?.dateKey == "2026-10-11")
+        let midAutumn = try #require(month.days.first { $0.dateKey == "2026-09-26" })
+        #expect(midAutumn.subtitle == "中秋节")
+        #expect(midAutumn.holidayName == "中秋节")
+        #expect(midAutumn.isWork == false)
+
+        let sundayFirst = CalendarEngine.widgetMonthSummary(year: 2026, month: 9, firstWeekday: 1,
+                                                            features: CalendarFeature.defaults, timeZone: zone)
+        #expect(sundayFirst.days.first?.dateKey == "2026-08-30")
+
+        let plain = CalendarEngine.widgetMonthSummary(year: 2026, month: 9, firstWeekday: 2,
+                                                      features: [], timeZone: zone)
+        let plainHoliday = try #require(plain.days.first { $0.dateKey == "2026-09-26" })
+        #expect(plainHoliday.subtitle.isEmpty)
+        #expect(plainHoliday.holidayName == nil)
+        #expect(plainHoliday.isWork == nil)
     }
 
     @Test func official2026ScheduleSeparatesStatutoryWeekendAndAdjustedRest() throws {
@@ -83,6 +107,30 @@ struct CalendarTests {
         #expect(CalendarEngine.day(year: 2024, month: 7, day: 6, timeZone: zone)?.plumRain == "出梅")
         #expect(CalendarEngine.day(year: 2024, month: 7, day: 7, timeZone: zone)?.plumRain == nil)
         #expect(CalendarEngine.day(year: 2012, month: 8, day: 8, timeZone: zone)?.dogDays == "末伏第2天")
+        #expect(CalendarEngine.day(year: 2020, month: 12, day: 22, timeZone: zone)?.nineDays == "一九第2天")
+        let nine = try #require(CalendarEngine.day(year: 2020, month: 12, day: 22, timeZone: zone))
+        #expect(CalendarEngine.widgetSummary(for: nine).seasonalDescriptions == ["一九第2天"])
+    }
+
+    @Test func seasonalMonthLabelsOnlyShowPhaseBoundaries() throws {
+        let examples: [(Int, Int, Int, String)] = [
+            (2011, 7, 14, "初伏"), (2011, 7, 24, "中伏"), (2011, 8, 13, "末伏"),
+            (2024, 6, 11, "入梅"), (2024, 7, 6, "出梅"),
+            (2020, 12, 21, "一九"), (2020, 12, 30, "二九"), (2021, 1, 8, "三九")
+        ]
+        for (year, month, day, label) in examples {
+            let date = try #require(CalendarEngine.day(year: year, month: month, day: day, timeZone: zone))
+            #expect(date.subtitle(features: [.seasonal]) == label)
+            #expect(date.subtitle(features: [.seasonal, .festivals, .solarTerms, .lunar]) == label)
+        }
+        for (year, month, day) in [(2012, 8, 8), (2024, 6, 12), (2020, 12, 22)] {
+            let date = try #require(CalendarEngine.day(year: year, month: month, day: day, timeZone: zone))
+            #expect(date.subtitle(features: [.seasonal]).isEmpty)
+        }
+        let june = CalendarEngine.widgetMonthSummary(year: 2024, month: 6, firstWeekday: 2,
+                                                     features: [.seasonal], timeZone: zone)
+        #expect(june.days.first { $0.dateKey == "2024-06-11" }?.subtitle == "入梅")
+        #expect(june.days.first { $0.dateKey == "2024-06-12" }?.subtitle == "")
     }
 
     @Test func optionalCalendarsHandleUnsupportedDates() throws {
@@ -162,5 +210,20 @@ struct CalendarTests {
         restored.apply(invalid)
         #expect(restored.calendarFeatures == [.hijri])
         #expect(restored.calendarFirstWeekday == 1)
+    }
+
+    @Test func oldSeasonalTogglesRestoreAsOneSetting() throws {
+        let name = "CalendarSeasonalTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(["dogDays", "plumRain", "lunar"], forKey: "calendarFeatures")
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.calendarFeatures == [.seasonal, .lunar])
+
+        var oldBackup = SettingsDocument()
+        oldBackup.calendarFeatures = ["plumRain", "weekdays"]
+        settings.apply(oldBackup)
+        #expect(settings.calendarFeatures == [.seasonal, .weekdays])
+        #expect(settings.exportDocument().calendarFeatures == ["seasonal", "weekdays"])
     }
 }

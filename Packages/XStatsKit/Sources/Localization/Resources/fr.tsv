@@ -1292,6 +1292,8 @@ Token 活动	Activité des tokens
 截至 {} 当周累计：{} Tokens	Cumul jusqu’à la semaine du {} : {} Tokens
 Apple 智能	Apple Intelligence
 日历	Calendrier
+月历	Calendrier mensuel
+查看整月的公历、农历与节假日。	Afficher tout le mois avec les dates grégoriennes et lunaires et les jours fériés.
 菜单栏日历	Calendrier de la barre des menus
 日历设置…	Réglages du calendrier…
 独立显示日期，点击打开月历；不受指标合并布局影响	Affiche la date séparément ; cliquez pour ouvrir le calendrier, même avec les indicateurs regroupés
@@ -1306,6 +1308,22 @@ Apple 智能	Apple Intelligence
 干支	Cycle sexagésimal
 三伏天	Jours caniculaires
 梅雨天	Pluies des prunes traditionnelles
+三伏·梅雨·数九	Fu · Meiyu · Neuvaines
+初伏	Fu initial
+中伏	Fu médian
+末伏	Fu final
+入梅	Début Meiyu
+出梅	Fin Meiyu
+一九	Neuvaine 1
+二九	Neuvaine 2
+三九	Neuvaine 3
+四九	Neuvaine 4
+五九	Neuvaine 5
+六九	Neuvaine 6
+七九	Neuvaine 7
+八九	Neuvaine 8
+九九	Neuvaine 9
+{}第{}天	{1}, jour {2}
 藏历	Calendrier tibétain
 回历	Calendrier hégirien
 公历始终显示。藏历与回历显示在日期详情中；梅雨天按传统历法推算，并非天气预报。	Les dates grégoriennes restent visibles. Les dates tibétaines et hégiriennes figurent dans les détails du jour. Les pluies des prunes suivent les règles traditionnelles, sans prévision météo.
