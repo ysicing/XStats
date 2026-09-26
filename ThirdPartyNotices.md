@@ -18,6 +18,15 @@ XStats 新增代码与修改采用 AGPL-3.0-or-later，范围见 [LICENSING.md](
 XStats 基于 [gentpan/OpenStats](https://github.com/gentpan/OpenStats) 开发，感谢原项目的开源贡献。
 原项目使用 MIT License，Copyright (c) 2026 GiantAccel, LLC；完整许可证与版权声明保留在 [LICENSES/OpenStats-MIT.txt](LICENSES/OpenStats-MIT.txt) 中。
 
+本次网络测速线路选择、传输与延迟计算移植自上游提交
+[b98c670](https://github.com/gentpan/OpenStats/commit/b98c670c160512385284fc953f6727ddd747f4d9)，
+按 XStats 的模块与标识适配。
+
+## 运营商标志
+
+`Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/carrier-*.svg` 来自上述 OpenStats 提交，
+分别是中国电信、中国联通、中国移动的标志，仅用于标明网络测速中的运营商。三家的名称和标志均为各自公司的商标。
+
 ## flag-icons
 
 `Assets/flags-svg/` 中的国旗 SVG（应用内为 `scripts/render_flags.sh` 渲染的 PNG）来自

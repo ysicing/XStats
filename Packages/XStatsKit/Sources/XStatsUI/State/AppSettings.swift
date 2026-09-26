@@ -541,6 +541,10 @@ public final class AppSettings {
     public var speedTestBudget: SpeedTestBudget {
         didSet { defaults.set(speedTestBudget.rawValue, forKey: Keys.speedTestBudget) }
     }
+    /// VPN / 代理开启时测速走直连还是代理；默认直连以测本机宽带。
+    public var speedTestRoute: SpeedRoute {
+        didSet { defaults.set(speedTestRoute.rawValue, forKey: Keys.speedTestRoute) }
+    }
     /// 主窗口开着时在程序坞与 ⌘Tab 中显示图标；默认关闭，和其他菜单栏工具一样只在菜单栏运行
     public var showDockIcon: Bool {
         didSet { defaults.set(showDockIcon, forKey: Keys.showDockIcon) }
@@ -698,6 +702,7 @@ public final class AppSettings {
         appearance = defaults.string(forKey: Keys.appearance).flatMap(AppearanceMode.init(rawValue:)) ?? .system
         showDockIcon = defaults.bool(forKey: Keys.showDockIcon)
         speedTestBudget = defaults.string(forKey: Keys.speedTestBudget).flatMap(SpeedTestBudget.init(rawValue:)) ?? .full
+        speedTestRoute = defaults.string(forKey: Keys.speedTestRoute).flatMap(SpeedRoute.init(rawValue:)) ?? .direct
         cleanPrefersTrash = defaults.bool(forKey: Keys.cleanPrefersTrash)
         cleanSelectedRuleIDs = defaults.stringArray(forKey: Keys.cleanSelectedRuleIDs).map(Set.init)
         menuBarLayout = defaults.string(forKey: Keys.menuBarLayout).flatMap(MenuBarLayout.init(rawValue:)) ?? .separate
@@ -794,6 +799,7 @@ public final class AppSettings {
         static let appearance = "appearance"
         static let showDockIcon = "showDockIcon"
         static let speedTestBudget = "speedTestBudget"
+        static let speedTestRoute = "speedTestRoute"
         static let cleanPrefersTrash = "cleanPrefersTrash"
         static let cleanSelectedRuleIDs = "cleanSelectedRuleIDs"
         static let menuBarLayout = "menuBarLayout"

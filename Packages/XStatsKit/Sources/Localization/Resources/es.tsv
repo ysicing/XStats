@@ -1485,3 +1485,6 @@ Sub2API 账号平台与所选来源不匹配	La plataforma de la cuenta de Sub2A
 切换迷你 HUD 样式	Cambiar estilo de Mini HUD
 拖动迷你 HUD	Arrastrar Mini HUD
 继续	Continuar
+VPN 不允许绕开它直连，TCP 建连会被本机代理提前应答，测不出真实延迟。关掉 VPN 再测	La VPN impide la conexión directa y el proxy local responde antes al enlace TCP, por lo que no se puede medir la latencia real. Desactiva la VPN y vuelve a intentarlo
+国内节点只能测 TCP 建连，经代理测不准，所以始终直连测	Los nodos de China solo permiten medir la conexión TCP; con un proxy sería impreciso, así que siempre se miden directamente
+检测到 {}。直连会绕开它，测的是本机宽带；经 {} 测的是代理线路	Se detectó {}. Directo lo evita y mide tu conexión; por {} mide la ruta del proxy

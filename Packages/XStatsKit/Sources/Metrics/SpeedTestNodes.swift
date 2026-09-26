@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 
 // MARK: - 国内分省三网
@@ -22,22 +27,6 @@ public enum ChinaCarrier: String, Sendable, CaseIterable, Codable {
         }
     }
 
-    /// 标记里的字：三家的正式标志是注册商标，不随应用打包，用品牌色加一个字代替
-    public var mark: String {
-        switch self {
-        case .telecom: "电"
-        case .unicom: "联"
-        case .mobile: "移"
-        }
-    }
-
-    public var markEnglish: String {
-        switch self {
-        case .telecom: "CT"
-        case .unicom: "CU"
-        case .mobile: "CM"
-        }
-    }
 }
 
 /// 国内测速节点：zstaticcdn.com 的省级 TCPPing 节点，每省电信、联通、移动各一个。

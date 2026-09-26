@@ -221,6 +221,7 @@ Time Machine 在备份之间会先在本机留下快照，它们占的空间计�
 VPN / 代理	VPN / Proxy
 VPN / 隧道	VPN / Tunnel
 VPN 不允许绕开它连接	The VPN doesn't allow bypassing it
+VPN 不允许绕开它直连，TCP 建连会被本机代理提前应答，测不出真实延迟。关掉 VPN 再测	The VPN doesn't allow bypassing it, and its local proxy answers TCP handshakes itself, so real latency can't be measured. Turn off the VPN and try again
 VPN 不允许绕开它连接，读不到本机网络原本的出口。下方按出口列出各网站。	The VPN doesn't allow connections that bypass it, so your network's original exit can't be read. Sites are listed by exit below.
 VPN 隧道	VPN Tunnel
 Xcode 归档	Xcode Archives
@@ -574,6 +575,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 国内网站直连，国际网站经 {} 的{}。	Chinese sites connect directly; international sites go through {}'s {}.
 国内网站走了代理，访问会绕路变慢。	Chinese sites are going through the proxy, which takes a longer route and is slower.
 国内网络建议选阿里云或腾讯；选路由器只检测本地连接	In mainland China, Alibaba Cloud or Tencent work best; Router only checks the local link
+国内节点只能测 TCP 建连，经代理测不准，所以始终直连测	China nodes only allow TCP connect timing, which a proxy distorts, so they're always tested directly
 图形	Graphics
 图形处理器	GPU
 图形核心	GPU cores
@@ -907,6 +909,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 检查更新失败	Update check failed
 检查未能完成（退出码 {}）	The check didn't complete (exit code {})
 检测中 {}/{}	Checking {}/{}
+检测到 {}。直连会绕开它，测的是本机宽带；经 {} 测的是代理线路	{} detected. Direct bypasses it to test your own connection; via {} tests the proxy route
 检测到 {}，但测试的网站都在直连，没有经过代理出口。	{} was detected, but all tested sites connect directly without going through a proxy exit.
 模式	Mode
 模拟器	Simulators

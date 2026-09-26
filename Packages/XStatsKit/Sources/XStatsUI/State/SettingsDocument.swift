@@ -8,6 +8,7 @@
 
 import Foundation
 import Localization
+import Metrics
 import WebDAVSync
 
 /// 同步到云端的设置文档：只含偏好，不含本机状态（当前页签、辅助工具安装状态、历史库）。
@@ -38,6 +39,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var fanSafetyTemperature: Int?
     public var appearance: String?
     public var showDockIcon: Bool?
+    public var speedTestRoute: String?
     public var menuBarLayout: String?
     public var hiddenPopoverSections: [String]?
     public var probeEnabled: Bool?
@@ -84,6 +86,7 @@ extension AppSettings {
         doc.fanSafetyTemperature = fanSafetyTemperature
         doc.appearance = appearance.rawValue
         doc.showDockIcon = showDockIcon
+        doc.speedTestRoute = speedTestRoute.rawValue
         doc.menuBarLayout = menuBarLayout.rawValue
         doc.hiddenPopoverSections = hiddenPopoverSections.map(\.rawValue).sorted()
         doc.probeEnabled = probeEnabled
@@ -140,6 +143,7 @@ extension AppSettings {
         assign(\.fanSafetyTemperature, option(doc.fanSafetyTemperature, in: Self.fanSafetyOptions))
         assign(\.appearance, doc.appearance.flatMap(AppearanceMode.init(rawValue:)))
         assign(\.showDockIcon, doc.showDockIcon)
+        assign(\.speedTestRoute, doc.speedTestRoute.flatMap(SpeedRoute.init(rawValue:)))
         assign(\.menuBarLayout, doc.menuBarLayout.flatMap(MenuBarLayout.init(rawValue:)))
         assign(\.hiddenPopoverSections, doc.hiddenPopoverSections.map { Set($0.compactMap(PopoverSection.init(rawValue:))) })
         assign(\.probeEnabled, doc.probeEnabled)

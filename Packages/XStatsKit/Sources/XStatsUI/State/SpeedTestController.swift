@@ -1,18 +1,39 @@
+// OpenStats source retained under MIT; XStats adaptations Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
+import AppKit
 import Foundation
 import Localization
 import Metrics
 import Observation
 
 /// 网络测速：本机宽带、国内分省三网延迟、全球节点、全球探针看目标。
-/// 四块互相独立，各自可以单独跑、单独停；下载类测试有明确的时间与流量上限
+/// 四块互相独立，各自可以单独跑、单独停；下载类测试有明确的时间与流量上限。
+///
+/// 开着 VPN / 代理时，测速按设置走直连（绑定物理网卡绕开它）或经代理；
+/// 国内三网只允许做 TCP 建连计时，经代理时握手由本机代理应答、测不出东西，所以始终直连
 @MainActor
 @Observable
 public final class SpeedTestController {
+    // MARK: 线路
+
+    /// 当前网络的代理环境；开着 VPN / 代理时界面上给出线路选择
+    public private(set) var environment: ProxyEnvironment?
+    public var hasProxy: Bool { environment?.hasProxy == true }
+
+    /// 代理的名字：隧道的服务名（例如 Surge），其次是正在运行的代理软件
+    public var proxyName: String {
+        environment?.tunnelName ?? environment?.apps.first ?? tr("代理")
+    }
+
     // MARK: 本机宽带
 
     public private(set) var broadband: BroadbandResult?
     public private(set) var broadbandDate: Date?
     public private(set) var broadbandStage: BroadbandTest.Stage?
+    /// 开着代理时这次走的线路，界面上标出来；没有代理时为 nil
+    public private(set) var broadbandRoute: SpeedRoute?
     /// 测试进行中的实时速率，bit/s
     public private(set) var liveBitsPerSecond: Double = 0
     public var isTestingBroadband: Bool { broadbandStage != nil }
@@ -23,6 +44,9 @@ public final class SpeedTestController {
     public private(set) var chinaDate: Date?
     public private(set) var chinaProgress = 0
     public private(set) var isTestingChina = false
+    public private(set) var chinaRoute: SpeedRoute?
+    /// 绕不开 VPN、没法测时的说明
+    public private(set) var chinaNotice: String?
 
     // MARK: 全球节点
 
@@ -31,6 +55,8 @@ public final class SpeedTestController {
     public private(set) var globalDate: Date?
     public private(set) var globalProgress = 0
     public private(set) var isTestingGlobal = false
+    /// 全球节点延迟与下载测速走的线路
+    public private(set) var globalRoute: SpeedRoute?
     /// 正在做下载测速的节点
     public private(set) var downloadingNode: String?
 
@@ -51,6 +77,8 @@ public final class SpeedTestController {
     @ObservationIgnored private var globalTask: Task<Void, Never>?
     @ObservationIgnored private var downloadTask: Task<Void, Never>?
     @ObservationIgnored private var probeTask: Task<Void, Never>?
+    @ObservationIgnored private var watchTask: Task<Void, Never>?
+    @ObservationIgnored private var details: NetworkDetails?
     @ObservationIgnored private let settings: AppSettings
 
     public init(settings: AppSettings) {
@@ -59,9 +87,54 @@ public final class SpeedTestController {
 
     var limit: SpeedLimit { settings.speedTestBudget.limit }
 
+    /// 窗口开着时每隔几秒读一次代理环境，VPN 开关后线路选择跟着出现或消失
+    func windowDidOpen() {
+        watchTask?.cancel()
+        watchTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refreshEnvironment()
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
+    }
+
     /// 关窗时停掉所有还在跑的测试，别让它继续占带宽
     func windowDidClose() {
+        watchTask?.cancel()
         cancelAll()
+    }
+
+    /// 换了线路，之前的结果属于另一条线路，全部清掉并停下正在跑的测试
+    public func routeDidChange() {
+        cancelAll()
+        broadband = nil
+        broadbandDate = nil
+        broadbandRoute = nil
+        chinaLatency = [:]
+        chinaDate = nil
+        chinaRoute = nil
+        chinaNotice = nil
+        globalLatency = [:]
+        globalSpeed = [:]
+        globalDate = nil
+        globalRoute = nil
+    }
+
+    private func refreshEnvironment() async {
+        let apps = NSWorkspace.shared.runningApplications.compactMap(\.localizedName)
+        let (details, environment) = await Task.detached {
+            let details = NetworkDetailsReader.read()
+            return (details, ProxyEnvironmentReader.read(details: details, runningAppNames: apps))
+        }.value
+        self.details = details
+        if environment != self.environment { self.environment = environment }
+    }
+
+    /// 定下这次测速走哪条路。每次开测前都重读网络环境，刚开关 VPN 也不会走错
+    private func resolvePath(_ route: SpeedRoute) async -> SpeedPath {
+        await refreshEnvironment()
+        guard let details, let environment else { return .system }
+        return await SpeedPath.make(route: route, details: details, environment: environment)
     }
 
     public func cancelAll() {
@@ -88,14 +161,17 @@ public final class SpeedTestController {
         }
         broadbandStage = .latency
         liveBitsPerSecond = 0
-        broadbandTask = Task { [limit] in
-            let result = await BroadbandTest.run(limit: limit) { stage in
-                Task { @MainActor in self.broadbandStage = stage; self.liveBitsPerSecond = 0 }
+        broadbandTask = Task { [self, limit, route = settings.speedTestRoute] in
+            let path = await resolvePath(route)
+            guard !Task.isCancelled else { return }
+            let result = await BroadbandTest.run(limit: limit, path: path) { stage in
+                Task { @MainActor [weak self] in self?.broadbandStage = stage; self?.liveBitsPerSecond = 0 }
             } progress: { speed, _ in
-                Task { @MainActor in self.liveBitsPerSecond = speed }
+                Task { @MainActor [weak self] in self?.liveBitsPerSecond = speed }
             }
-            guard !Task.isCancelled else { return stopBroadband() }
+            guard !Task.isCancelled else { return }
             broadband = result
+            broadbandRoute = path.route
             broadbandDate = Date()
             bytesUsed += result.totalBytes
             broadbandStage = nil
@@ -110,7 +186,8 @@ public final class SpeedTestController {
 
     // MARK: 国内分省三网
 
-    /// 93 个省级节点只做 TCP 建连计时，不下载数据
+    /// 93 个省级节点只做 TCP 建连计时，不下载数据。
+    /// 始终绑定物理网卡直连测：经代理时握手由本机代理当场应答，只剩零点几毫秒，与节点远近无关
     public func runChina() {
         if isTestingChina {
             chinaTask?.cancel()
@@ -119,31 +196,27 @@ public final class SpeedTestController {
         }
         isTestingChina = true
         chinaProgress = 0
+        chinaLatency = [:]
         chinaTask = Task {
-            let nodes = ChinaNode.all
-            await withTaskGroup(of: (String, LatencyResult).self) { group in
-                var next = 0
-                while next < min(Self.concurrency, nodes.count) {
-                    group.addTask { [node = nodes[next]] in
-                        (node.id, await TCPLatencyProbe.measure(host: node.host, port: node.port,
-                                                                attempts: 2, timeout: 3))
-                    }
-                    next += 1
-                }
-                for await (id, result) in group {
-                    chinaLatency[id] = result
-                    chinaProgress += 1
-                    if Task.isCancelled { break }
-                    if next < nodes.count {
-                        group.addTask { [node = nodes[next]] in
-                            (node.id, await TCPLatencyProbe.measure(host: node.host, port: node.port,
-                                                                    attempts: 2, timeout: 3))
-                        }
-                        next += 1
-                    }
-                }
-                group.cancelAll()
+            let path = await resolvePath(.direct)
+            guard !Task.isCancelled else { return }
+            guard !path.isProxied else {
+                chinaNotice = tr("VPN 不允许绕开它直连，TCP 建连会被本机代理提前应答，测不出真实延迟。关掉 VPN 再测")
+                chinaDate = nil
+                isTestingChina = false
+                return
             }
+            chinaNotice = nil
+            let nodes = ChinaNode.all
+            await measure(nodes, concurrency: Self.concurrency) { node in
+                // 远距离线路偶尔丢一个握手包，多给一次机会、超时放宽一点
+                await TCPLatencyProbe.measure(host: node.host, port: node.port, path: path, attempts: 3, timeout: 4)
+            } done: { node, result in
+                chinaLatency[node.id] = result
+                chinaProgress += 1
+            }
+            guard !Task.isCancelled else { return }
+            chinaRoute = path.route
             chinaDate = Date()
             isTestingChina = false
         }
@@ -166,6 +239,7 @@ public final class SpeedTestController {
 
     // MARK: 全球节点
 
+    /// 直连时用 TCP 建连计时；经代理时握手由本机代理应答，改用 HTTP 往返计时
     public func runGlobal() {
         if isTestingGlobal {
             globalTask?.cancel()
@@ -174,33 +248,44 @@ public final class SpeedTestController {
         }
         isTestingGlobal = true
         globalProgress = 0
-        globalTask = Task {
-            let nodes = GlobalNode.all
-            await withTaskGroup(of: (String, LatencyResult).self) { group in
-                var next = 0
-                while next < min(Self.concurrency, nodes.count) {
-                    group.addTask { [node = nodes[next]] in
-                        (node.id, await TCPLatencyProbe.measure(host: node.host, port: node.port,
-                                                                attempts: 3, timeout: 4))
-                    }
-                    next += 1
-                }
-                for await (id, result) in group {
-                    globalLatency[id] = result
-                    globalProgress += 1
-                    if Task.isCancelled { break }
-                    if next < nodes.count {
-                        group.addTask { [node = nodes[next]] in
-                            (node.id, await TCPLatencyProbe.measure(host: node.host, port: node.port,
-                                                                    attempts: 3, timeout: 4))
-                        }
-                        next += 1
-                    }
-                }
-                group.cancelAll()
+        globalLatency = [:]
+        globalTask = Task { [route = settings.speedTestRoute] in
+            let path = await resolvePath(route)
+            guard !Task.isCancelled else { return }
+            await measure(GlobalNode.all, concurrency: Self.concurrency) { node in
+                path.isProxied
+                    ? await HTTPLatencyProbe.measure(node.downloadURL, path: path, samples: 3, timeout: 5)
+                    : await TCPLatencyProbe.measure(host: node.host, port: node.port, path: path, attempts: 3, timeout: 4)
+            } done: { node, result in
+                globalLatency[node.id] = result
+                globalProgress += 1
             }
+            guard !Task.isCancelled else { return }
+            globalRoute = path.route
             globalDate = Date()
             isTestingGlobal = false
+        }
+    }
+
+    /// 限定并发地逐个测量节点，每测完一个就回到主线程交结果；取消后不再发新的
+    func measure<Node: Sendable>(_ nodes: [Node], concurrency: Int,
+                                         _ probe: @escaping @Sendable (Node) async -> LatencyResult,
+                                         done: (Node, LatencyResult) -> Void) async {
+        await withTaskGroup(of: (Node, LatencyResult).self) { group in
+            var next = 0
+            while next < min(concurrency, nodes.count) {
+                group.addTask { [node = nodes[next]] in (node, await probe(node)) }
+                next += 1
+            }
+            for await (node, result) in group {
+                if Task.isCancelled { break }
+                done(node, result)
+                if next < nodes.count {
+                    group.addTask { [node = nodes[next]] in (node, await probe(node)) }
+                    next += 1
+                }
+            }
+            group.cancelAll()
         }
     }
 
@@ -215,17 +300,16 @@ public final class SpeedTestController {
         downloadTask?.cancel()
         downloadingNode = node.id
         liveBitsPerSecond = 0
-        downloadTask = Task { [limit] in
-            let result = await ThroughputProbe.download(node.downloadURL, limit: limit) { speed, _ in
-                Task { @MainActor in self.liveBitsPerSecond = speed }
+        downloadTask = Task { [self, limit, route = settings.speedTestRoute] in
+            let path = await resolvePath(route)
+            guard !Task.isCancelled else { return }
+            let result = await ThroughputProbe.download(node.downloadURL, limit: limit, path: path) { speed, _ in
+                Task { @MainActor [weak self] in self?.liveBitsPerSecond = speed }
             }
-            guard !Task.isCancelled else {
-                downloadingNode = nil
-                liveBitsPerSecond = 0
-                return
-            }
+            guard !Task.isCancelled else { return }
             if let result {
                 globalSpeed[node.id] = result
+                globalRoute = path.route
                 bytesUsed += result.bytes
             }
             downloadingNode = nil

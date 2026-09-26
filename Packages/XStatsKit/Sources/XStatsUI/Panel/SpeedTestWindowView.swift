@@ -18,6 +18,7 @@ struct SpeedTestWindowView: View {
                 .background(DS.Palette.background)
                 .zIndex(1)
             PageScroll {
+                RouteBanner()
                 BroadbandCard()
                 ChinaLatencyCard()
                 GlobalNodeCard()
@@ -43,17 +44,18 @@ private struct SpeedTestHeader: View {
                 Text(tr("网络测速"))
                     .dsFont(.base, weight: .semibold)
                     .foregroundStyle(DS.Palette.textPrimary)
+                    .fixedSize()
                 Spacer(minLength: DS.Space.s3)
             }
             .frame(maxHeight: .infinity)
             .background(WindowDragArea())
 
             if speedTest.bytesUsed > 0 {
+                // 窗口窄时让它截断，不去挤标题
                 Text(tr("本次用掉 \(Format.bytes(Double(speedTest.bytesUsed)))"))
                     .dsFont(.xs)
                     .foregroundStyle(DS.Palette.textTertiary)
                     .lineLimit(1)
-                    .fixedSize()
             }
             SegmentedControl(selection: $settings.speedTestBudget,
                              options: SpeedTestBudget.allCases.map { ($0, SpeedText.budget($0)) })
@@ -66,8 +68,8 @@ private struct SpeedTestHeader: View {
         .frame(height: DS.Size.windowHeader)
     }
 
-    /// 三颗红绿灯按钮加间距约 80pt，标题从它们右边再隔一段开始
-    static let titleLeading = DS.Space.s16 * 5 + DS.Space.s4
+    /// 三颗红绿灯按钮加间距约 80pt，标题从它们右边再隔一段开始（与出口与分流窗口一致）
+    static let titleLeading = DS.Size.trafficLightsWidth + DS.Space.s4
 }
 
 /// 测速窗口里的一张卡片：图标标题行 + 一行说明 + 内容
@@ -110,6 +112,28 @@ private struct RunButton: View {
             .fixedSize()
         }
         .buttonStyle(DSButtonStyle(kind: isRunning ? .secondary : .primary))
+    }
+}
+
+// MARK: - 线路
+
+/// 开着 VPN / 代理时才出现：选直连（绕开它测本机宽带）还是经它测代理线路
+private struct RouteBanner: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        @Bindable var settings = model.settings
+        let speedTest = model.speedTest
+        if speedTest.hasProxy {
+            let name = speedTest.proxyName
+            InfoBanner(icon: "arrow.triangle.branch",
+                       text: tr("检测到 \(name)。直连会绕开它，测的是本机宽带；经 \(name) 测的是代理线路")) {
+                SegmentedControl(selection: $settings.speedTestRoute,
+                                 options: [(.direct, tr("直连")), (.proxy, tr("经 \(name)"))])
+                    .fixedSize()
+                    .onChange(of: settings.speedTestRoute) { speedTest.routeDidChange() }
+            }
+        }
     }
 }
 
@@ -161,13 +185,13 @@ private struct SpeedStatTile: View {
     let title: String
     let value: String
     var tone: Tone = .plain
-    /// 带运营商标记时，标题前面多一个品牌色小方块
-    var badge: ChinaCarrier?
+    /// 带运营商时，标题前面多一个运营商标志
+    var carrier: ChinaCarrier?
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s1) {
             HStack(spacing: DS.Space.s1) {
-                if let badge { CarrierBadge(carrier: badge) }
+                if let carrier { CarrierLogo(carrier: carrier) }
                 Text(title).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
             }
             Text(verbatim: value)
@@ -181,27 +205,22 @@ private struct SpeedStatTile: View {
     }
 }
 
-/// 运营商标记：品牌色小方块 + 一个字。三家的正式标志是注册商标，不随应用打包
-private struct CarrierBadge: View {
+/// 运营商标志，鼠标停留显示运营商名
+private struct CarrierLogo: View {
     let carrier: ChinaCarrier
 
     var body: some View {
-        Text(verbatim: L10n.usesEnglishNames ? carrier.markEnglish : carrier.mark)
-            .dsFont(.xs, weight: .semibold)
-            .foregroundStyle(.white)
-            .frame(width: DS.Space.s6, height: DS.Size.iconInline)
-            .background(color, in: RoundedRectangle(cornerRadius: DS.Radius.sm, style: .continuous))
-            .accessibilityLabel(SpeedText.carrier(carrier))
-            .help(SpeedText.carrier(carrier))
-    }
-
-    /// 三家各自的品牌色
-    private var color: Color {
-        switch carrier {
-        case .telecom: Color(red: 0, green: 0.36, blue: 0.67)
-        case .unicom: Color(red: 0.90, green: 0.07, blue: 0.09)
-        case .mobile: Color(red: 0.04, green: 0.63, blue: 0.86)
+        Group {
+            if let image = LogoCache.shared.image(named: "carrier-" + String(describing: carrier), template: false) {
+                Image(nsImage: image).resizable().scaledToFit()
+            } else {
+                Text(verbatim: SpeedText.carrier(carrier)).dsFont(.xs, weight: .semibold)
+            }
         }
+        .frame(width: DS.Size.iconInline, height: DS.Size.iconInline)
+        .accessibilityElement()
+        .accessibilityLabel(SpeedText.carrier(carrier))
+        .help(SpeedText.carrier(carrier))
     }
 }
 
@@ -215,16 +234,23 @@ private struct ChinaLatencyCard: View {
         SpeedSection(icon: "map", title: tr("国内分省三网延迟"),
                      subtitle: speedTest.isTestingChina
                          ? tr("正在测 \(speedTest.chinaProgress)/\(ChinaNode.all.count)")
-                         : SpeedText.checkedAt(speedTest.chinaDate)) {
+                         : SpeedText.status(route: speedTest.chinaRoute, date: speedTest.chinaDate, speedTest)) {
             RunButton(isRunning: speedTest.isTestingChina, title: tr("测延迟")) { speedTest.runChina() }
         } content: {
+            if let notice = speedTest.chinaNotice {
+                Text(notice).dsFont(.xs).foregroundStyle(DS.Palette.error)
+            } else if speedTest.hasProxy && speedTest.chinaLatency.isEmpty {
+                Text(tr("国内节点只能测 TCP 建连，经代理测不准，所以始终直连测"))
+                    .dsFont(.xs)
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
             if !speedTest.chinaLatency.isEmpty {
                 HStack(spacing: DS.Space.s3) {
                     ForEach(ChinaCarrier.allCases, id: \.self) { carrier in
                         let counts = speedTest.chinaReachable(carrier)
                         SpeedStatTile(title: tr("中位延迟"),
                                       value: SpeedText.milliseconds(speedTest.chinaMedian(carrier)),
-                                      badge: carrier)
+                                      carrier: carrier)
                             .help(tr("\(SpeedText.carrier(carrier))：\(counts.reachable)/\(counts.total) 个节点连得上"))
                     }
                 }
@@ -233,7 +259,7 @@ private struct ChinaLatencyCard: View {
                     HStack(spacing: DS.Space.s2) {
                         Text(tr("省份")).frame(width: DS.Space.s16 * 2, alignment: .leading)
                         ForEach(ChinaCarrier.allCases, id: \.self) { carrier in
-                            CarrierBadge(carrier: carrier)
+                            CarrierLogo(carrier: carrier)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                         }
                     }
@@ -293,7 +319,7 @@ private struct GlobalNodeCard: View {
         SpeedSection(icon: "globe", title: tr("全球节点"),
                      subtitle: speedTest.isTestingGlobal
                          ? tr("正在测 \(speedTest.globalProgress)/\(GlobalNode.all.count)")
-                         : SpeedText.checkedAt(speedTest.globalDate)) {
+                         : SpeedText.status(route: speedTest.globalRoute, date: speedTest.globalDate, speedTest)) {
             RunButton(isRunning: speedTest.isTestingGlobal, title: tr("测延迟")) { speedTest.runGlobal() }
         } content: {
             ForEach(GlobalRegion.allCases, id: \.self) { region in
@@ -438,10 +464,25 @@ private enum SpeedText {
         }
     }
 
-    /// 测过之后显示走的是哪个边缘节点、什么时候测的
+    /// 测过之后显示走的线路、哪个边缘节点、什么时候测的
     static func broadbandStatus(_ speedTest: SpeedTestController) -> String? {
-        guard let colo = speedTest.broadband?.colo else { return checkedAt(speedTest.broadbandDate) }
-        return tr("经 Cloudflare \(colo) 边缘节点") + (checkedAt(speedTest.broadbandDate).map { " · " + $0 } ?? "")
+        let colo = speedTest.broadband?.colo.map { tr("经 Cloudflare \($0) 边缘节点") }
+        let parts = [route(speedTest.broadbandRoute, speedTest), colo, checkedAt(speedTest.broadbandDate)].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// 线路与测量时间，例如“直连 · 17:34 测”；没有代理时只有时间
+    static func status(route value: SpeedRoute?, date: Date?, _ speedTest: SpeedTestController) -> String? {
+        guard let checked = checkedAt(date) else { return nil }
+        return route(value, speedTest).map { $0 + " · " + checked } ?? checked
+    }
+
+    static func route(_ route: SpeedRoute?, _ speedTest: SpeedTestController) -> String? {
+        switch route {
+        case .direct: tr("直连")
+        case .proxy: tr("经 \(speedTest.proxyName)")
+        case nil: nil
+        }
     }
 
     static func checkedAt(_ date: Date?) -> String? {

@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 import Testing
 @testable import Metrics
@@ -46,5 +51,32 @@ struct SpeedTestTests {
         #expect(Format.bandwidth(95_300_000) == "95.3 Mbps")
         #expect(Format.bandwidth(1_210_000_000) == "1.21 Gbps")
         #expect(Format.bandwidth(0) == "0 bps")
+    }
+
+    @Test func Cloudflare服务耗时不计入宽带延迟() {
+        let headers = ["server-timing": "cfSpeedEdge;dur=3, cfSpeedWorker;dur=21, cfL4;desc=\"?proto=TCP&rtt=65767\""]
+        #expect(BroadbandTest.serverMilliseconds(headers) == 24)
+        #expect(BroadbandTest.serverMilliseconds([:]) == 0)
+    }
+
+    @Test func 被代理接管的DNS需要直连解析() {
+        #expect(SpeedPath.isHijackedDNS("198.18.0.2"))
+        #expect(SpeedPath.isHijackedDNS("127.0.0.1"))
+        #expect(SpeedPath.isHijackedDNS("::1"))
+        #expect(!SpeedPath.isHijackedDNS("192.168.0.1"))
+        #expect(!SpeedPath.isHijackedDNS("223.5.5.5"))
+    }
+
+    @Test func 代理与非代理线路被如实标记() async {
+        let details = NetworkDetails(physical: nil, tunnel: nil, dnsServers: [])
+        for route in SpeedRoute.allCases {
+            let path = await SpeedPath.make(route: route, details: details, environment: ProxyEnvironment())
+            #expect(path.route == nil)
+            #expect(!path.isProxied)
+        }
+        let proxy = ProxyEnvironment(proxies: [.init(kind: .http, host: "127.0.0.1", port: 6152)])
+        let path = await SpeedPath.make(route: .proxy, details: details, environment: proxy)
+        #expect(path.route == .proxy)
+        #expect(path.isProxied)
     }
 }

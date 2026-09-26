@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 import Localization
 import Network
@@ -286,14 +291,21 @@ public enum EgressProber {
         return (ip, EgressGeo(info))
     }
 
-    /// 经指定网卡用 Cloudflare DoH（JSON 格式）解析域名
+    /// 经指定网卡用 DoH（JSON 格式）解析域名。某些线路上连不上 Cloudflare，依次换 Google、阿里
     static func resolve(_ name: String, ipv6: Bool, interface: NWInterface) async -> String? {
-        let server = ipv6 ? "[2606:4700:4700::1111]" : "1.1.1.1"
-        guard let url = URL(string: "https://\(server)/dns-query?name=\(name)&type=\(ipv6 ? "AAAA" : "A")"),
-              let body = ok(await AddressFamilyRequest.get(url, ipv6: ipv6, timeout: timeout,
-                                                        options: .init(interface: interface, bypassProxies: true,
-                                                                       accept: "application/dns-json"))) else { return nil }
-        return parseDoH(body, ipv6: ipv6)
+        let servers = ipv6
+            ? ["[2606:4700:4700::1111]/dns-query", "[2001:4860:4860::8888]/resolve", "[2400:3200::1]/resolve"]
+            : ["1.1.1.1/dns-query", "8.8.8.8/resolve", "223.5.5.5/resolve"]
+        for server in servers {
+            guard let url = URL(string: "https://\(server)?name=\(name)&type=\(ipv6 ? 28 : 1)") else { continue }
+            if let body = ok(await AddressFamilyRequest.get(url, ipv6: ipv6, timeout: timeout,
+                                                          options: .init(interface: interface, bypassProxies: true,
+                                                                         accept: "application/dns-json"))),
+               let address = parseDoH(body, ipv6: ipv6) {
+                return address
+            }
+        }
+        return nil
     }
 
     static func parseDoH(_ body: Data, ipv6: Bool) -> String? {

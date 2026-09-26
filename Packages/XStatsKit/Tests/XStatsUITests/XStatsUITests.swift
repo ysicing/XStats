@@ -50,6 +50,14 @@ private func isolatedDefaults() -> UserDefaults {
         #expect(image.size.width > 0)
         #expect(image.size.height > 0)
     }
+
+    @Test(arguments: ChinaCarrier.allCases)
+    func carrierLogoIsPackagedInColor(_ carrier: ChinaCarrier) throws {
+        let name = "carrier-" + String(describing: carrier)
+        let image = try #require(LogoCache.shared.image(named: name, template: false))
+        #expect(!image.isTemplate)
+        #expect(image.size.width > 0 && image.size.height > 0)
+    }
 }
 
 @MainActor
@@ -191,6 +199,7 @@ private func isolatedDefaults() -> UserDefaults {
         #expect(settings.panelTab == .overview)
         #expect(settings.menuBarItems == [.cpu, .memory, .network])
         #expect(settings.probeEnabled && settings.probeInBackground && settings.autoCheckUpdates)
+        #expect(settings.speedTestRoute == .direct)
         // 从未调整过弹窗区块时，默认隐藏的区块生效；走势默认 1 分钟
         #expect(settings.hiddenPopoverSections == PopoverSection.hiddenByDefault)
         #expect(!settings.isVisible(.cpuCores) && settings.isVisible(.cpuHeatmap))
@@ -202,12 +211,27 @@ private func isolatedDefaults() -> UserDefaults {
         let settings = AppSettings(defaults: defaults)
         settings.menuBarItems = [.gpu, .fan]
         settings.probeInBackground = false
+        settings.speedTestRoute = .proxy
         settings.hiddenPopoverSections = [.cpuHeatmap]
         let reloaded = AppSettings(defaults: defaults)
         #expect(reloaded.menuBarItems == [.gpu, .fan])
         #expect(!reloaded.probeInBackground)
+        #expect(reloaded.speedTestRoute == .proxy)
         #expect(reloaded.hiddenPopoverSections == [.cpuHeatmap])
         #expect(reloaded.orderedMenuBarItems == [.gpu, .fan])
+    }
+
+    @Test func speedTestRouteRoundTripsBackupAndIgnoresUnknownValues() {
+        let source = AppSettings(defaults: isolatedDefaults())
+        source.speedTestRoute = .proxy
+        let target = AppSettings(defaults: isolatedDefaults())
+        target.apply(source.exportDocument())
+        #expect(target.speedTestRoute == .proxy)
+
+        var unknown = SettingsDocument()
+        unknown.speedTestRoute = "unsupported"
+        target.apply(unknown)
+        #expect(target.speedTestRoute == .proxy)
     }
 }
 
