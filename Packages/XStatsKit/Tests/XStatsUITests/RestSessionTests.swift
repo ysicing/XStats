@@ -584,6 +584,23 @@ import Testing
         #expect(target.restHUDStyle == .hourglass)
     }
 
+    @Test(arguments: [false, true, nil] as [Bool?])
+    func legacyRestBackupRestoresModeFromWorkday(cycle: Bool?) {
+        let suite = "RestLegacyBackupTests.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.restMode = .workday
+        var document = SettingsDocument()
+        document.restCycleEnabled = cycle
+
+        settings.apply(document)
+
+        let expected: RestRunMode = cycle.map { $0 ? .cycle : .single } ?? .workday
+        #expect(settings.restMode == expected)
+        #expect(AppSettings(defaults: defaults).restMode == expected)
+    }
+
     @Test func workdayModeMigratesLegacyCycleAndRoundTripsBackup() {
         let oldSuite = "RestLegacyModeTests.\(UUID())"
         let oldDefaults = UserDefaults(suiteName: oldSuite)!

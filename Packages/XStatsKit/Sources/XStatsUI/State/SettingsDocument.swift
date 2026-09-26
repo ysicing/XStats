@@ -125,8 +125,9 @@ extension AppSettings {
         assign(\.restDailyGoal, option(doc.restDailyGoal, in: Self.restDailyGoalOptions))
         if let mode = doc.restMode.flatMap(RestRunMode.init(rawValue:)) {
             assign(\.restMode, mode)
-        } else {
-            assign(\.restCycleEnabled, doc.restCycleEnabled)
+        } else if let cycle = doc.restCycleEnabled {
+            // 工作番茄和单次的兼容布尔值均为 false，需比较完整模式才能正确恢复。
+            assign(\.restMode, cycle ? .cycle : .single)
         }
         assign(\.restSound, doc.restSound.flatMap(RestSound.init(rawValue:)))
         assign(\.restHUDStyle, doc.restHUDStyle.flatMap(RestHUDStyle.init(rawValue:)))
