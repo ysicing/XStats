@@ -343,6 +343,48 @@ private func isolatedDefaults() -> UserDefaults {
 
 @MainActor
 @Suite struct UpdateControllerTests {
+    @Test func updateSchedulesRespectLaunchAndElapsedIntervals() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let oneDayAgo = now.addingTimeInterval(-24 * 60 * 60)
+        let sixDaysAgo = now.addingTimeInterval(-6 * 24 * 60 * 60)
+        let sevenDaysAgo = now.addingTimeInterval(-7 * 24 * 60 * 60)
+        let monthAgo = Calendar.current.date(byAdding: .month, value: -1, to: now)!
+
+        #expect(UpdateCheckSchedule.never.shouldCheck(lastChecked: nil, now: now, atLaunch: true) == false)
+        #expect(UpdateCheckSchedule.atLaunch.shouldCheck(lastChecked: now, now: now, atLaunch: true))
+        #expect(!UpdateCheckSchedule.atLaunch.shouldCheck(lastChecked: nil, now: now, atLaunch: false))
+        #expect(UpdateCheckSchedule.daily.shouldCheck(lastChecked: oneDayAgo, now: now, atLaunch: false))
+        #expect(UpdateCheckSchedule.quietRuntime.shouldCheck(lastChecked: oneDayAgo, now: now, atLaunch: false))
+        #expect(!UpdateCheckSchedule.quietRuntime.promptsForUpdates)
+        #expect(!UpdateCheckSchedule.weekly.shouldCheck(lastChecked: sixDaysAgo, now: now, atLaunch: false))
+        #expect(UpdateCheckSchedule.weekly.shouldCheck(lastChecked: sevenDaysAgo, now: now, atLaunch: false))
+        #expect(UpdateCheckSchedule.monthly.shouldCheck(lastChecked: monthAgo, now: now, atLaunch: false))
+    }
+
+    @Test func legacyAutomaticUpdatePreferenceMigratesToSchedule() {
+        let defaults = isolatedDefaults()
+        defaults.set(false, forKey: "autoCheckUpdates")
+        #expect(AppSettings(defaults: defaults).updateCheckSchedule == .never)
+        defaults.set(true, forKey: "autoCheckUpdates")
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.updateCheckSchedule == .daily)
+        settings.updateCheckSchedule = .monthly
+        #expect(AppSettings(defaults: defaults).updateCheckSchedule == .monthly)
+    }
+
+    @Test func updateScheduleBackupRestoresNewAndLegacyFormats() {
+        let source = AppSettings(defaults: isolatedDefaults())
+        source.updateCheckSchedule = .weekly
+        let target = AppSettings(defaults: isolatedDefaults())
+        target.apply(source.exportDocument())
+        #expect(target.updateCheckSchedule == .weekly)
+
+        var legacy = SettingsDocument()
+        legacy.autoCheckUpdates = false
+        target.apply(legacy)
+        #expect(target.updateCheckSchedule == .never)
+    }
+
     @Test func automaticCheckRespectsSettingAndInterval() {
         let defaults = isolatedDefaults()
         let settings = AppSettings(defaults: defaults)

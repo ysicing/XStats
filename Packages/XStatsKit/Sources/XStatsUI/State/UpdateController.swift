@@ -37,8 +37,6 @@ public final class UpdateController {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var task: Task<Void, Never>?
 
-    static let checkInterval: TimeInterval = 24 * 60 * 60
-
     init(settings: AppSettings, defaults: UserDefaults = .standard) {
         self.settings = settings
         self.defaults = defaults
@@ -67,14 +65,14 @@ public final class UpdateController {
 
     // MARK: 检查
 
-    /// 启动后与每天一次的自动检查；距离上次检查不足一天时跳过
-    func checkIfNeeded() {
-        guard settings.autoCheckUpdates, !isBusy else { return }
-        if let lastChecked, Date().timeIntervalSince(lastChecked) < Self.checkInterval { return }
-        check(userInitiated: false)
+    /// 启动时或运行期间按用户选择的策略检查；失败后由后续调度重试。
+    func checkIfNeeded(atLaunch: Bool = false) {
+        let schedule = settings.updateCheckSchedule
+        guard !isBusy, schedule.shouldCheck(lastChecked: lastChecked, now: Date(), atLaunch: atLaunch) else { return }
+        check(userInitiated: false, suppressPrompt: !schedule.promptsForUpdates)
     }
 
-    func check(userInitiated: Bool) {
+    func check(userInitiated: Bool, suppressPrompt: Bool = false) {
         guard !isBusy else { return }
         phase = .checking
         task = Task {
@@ -94,7 +92,7 @@ public final class UpdateController {
                 phase = .available
                 Log.update.notice("发现新版本 \(latest.version, privacy: .public)")
                 // 手动检查时总是提示；自动检查时跳过用户选择忽略的版本
-                if userInitiated || latest.version != skippedVersion { onPrompt() }
+                if userInitiated || (!suppressPrompt && latest.version != skippedVersion) { onPrompt() }
             case .failure(let error):
                 Log.update.error("检查更新失败：\(error.localizedDescription, privacy: .public)")
                 // 自动检查失败不打扰用户，只在关于页里显示

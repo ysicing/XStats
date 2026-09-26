@@ -1050,6 +1050,12 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 自动	Automático
 自动代理配置	Configuración automática de proxy
 自动检查更新	Comprobar automáticamente
+运行时静默	En uso sin avisos
+启动时	Al iniciar
+每日一次	Una vez al día
+每周一次	Una vez a la semana
+每月一次	Una vez al mes
+从不	Nunca
 自动检测	Detectar automáticamente
 自动（由路由器分配）	Automático (del router)
 自定义	Personalizado

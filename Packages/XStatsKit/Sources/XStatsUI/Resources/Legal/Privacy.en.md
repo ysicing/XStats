@@ -15,11 +15,11 @@ You choose whether and where to export diagnostics; they are not uploaded automa
 
 ## 2. Update checks and installation statistics
 
-When automatic update checks are enabled, XStats sends its current version and the SHA-256 hash of a random installation identifier to the XStats update service after launch and approximately daily thereafter. Manual checks send the same information. China-region devices try `x-stats.china.12306.work` first; others try `xstats-apps.12306.work` first. The other endpoint is tried only if the preferred one fails. The original random value stays in local preferences and is excluded from WebDAV backups.
+When automatic update checks are enabled, XStats sends its current version and the SHA-256 hash of a random installation identifier to the XStats update service according to the schedule selected in Settings → About: quietly while running, at launch, daily, weekly, or monthly. Choosing Never limits these requests to manual checks. Quiet checks still contact the service but do not show an update prompt. China-region devices try `x-stats.china.12306.work` first; others try `xstats-apps.12306.work` first. The other endpoint is tried only if the preferred one fails. The original random value stays in local preferences and is excluded from WebDAV backups.
 
 The update service's application database stores the hash, current version, first and most recent check times, and cumulative check count. These aggregate records support deduplicated installation counts, version distribution, and activity statistics. They have no automatic expiry. The update service does not create a separate record for every request or store request IP addresses in its application database. It uses IP addresses in memory for one-minute rate limiting. Network infrastructure may process connection metadata under its own rules.
 
-You can turn off automatic checks in Settings → About. You decide whether to download and install an available update. To request access to or deletion of an associated aggregate record, email us below; we may need the hash of your local installation identifier to locate it.
+You can set automatic checks to Never in Settings → About. You decide whether to download and install an available update. To request access to or deletion of an associated aggregate record, email us below; we may need the hash of your local installation identifier to locate it.
 
 ## 3. Other network features
 

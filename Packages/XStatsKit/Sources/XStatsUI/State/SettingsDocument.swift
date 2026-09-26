@@ -51,6 +51,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var hotKeys: [String: HotKey]?
     public var historyEnabled: Bool?
     public var autoCheckUpdates: Bool?
+    public var updateCheckSchedule: String?
     public var cleanPrefersTrash: Bool?
 
     public init() {}
@@ -96,6 +97,7 @@ extension AppSettings {
         doc.hotKeys = Dictionary(uniqueKeysWithValues: hotKeys.map { ($0.key.rawValue, $0.value) })
         doc.historyEnabled = historyEnabled
         doc.autoCheckUpdates = autoCheckUpdates
+        doc.updateCheckSchedule = updateCheckSchedule.rawValue
         doc.cleanPrefersTrash = cleanPrefersTrash
         return doc
     }
@@ -154,7 +156,11 @@ extension AppSettings {
             })
         })
         assign(\.historyEnabled, doc.historyEnabled)
-        assign(\.autoCheckUpdates, doc.autoCheckUpdates)
+        if let schedule = doc.updateCheckSchedule.flatMap(UpdateCheckSchedule.init(rawValue:)) {
+            assign(\.updateCheckSchedule, schedule)
+        } else {
+            assign(\.autoCheckUpdates, doc.autoCheckUpdates)
+        }
         assign(\.cleanPrefersTrash, doc.cleanPrefersTrash)
     }
 

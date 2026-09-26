@@ -243,7 +243,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 启动 10 秒后检查一次，之后每小时看一眼是否已满一天（上次失败则直接重试）
+    /// 启动 10 秒后按策略检查，运行中每小时判断周期是否到期。
     private func startUpdateChecks() {
         model.updates.onPrompt = { [weak self] in
             self?.menuBar.dismissPopovers()
@@ -251,7 +251,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             self?.updateWindow.show()
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
-            self?.model.updates.checkIfNeeded()
+            self?.model.updates.checkIfNeeded(atLaunch: true)
         }
         updateTimer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.model.updates.checkIfNeeded() }

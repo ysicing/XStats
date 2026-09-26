@@ -1149,6 +1149,12 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 自动	Auto
 自动代理配置	Auto proxy config
 自动检查更新	Check Automatically
+运行时静默	Check quietly while running
+启动时	At launch
+每日一次	Once a day
+每周一次	Once a week
+每月一次	Once a month
+从不	Never
 自动（由路由器分配）	Automatic (from router)
 自定义	Custom
 自定义模式下 CPU 达到 {}°C 会自动交还系统控制；退出应用时风扇恢复自动。	In Custom mode, fans return to system control when the CPU reaches {}°C, and to automatic when you quit.

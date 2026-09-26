@@ -163,8 +163,34 @@ struct UpdateSettings: View {
                 }
             }
             GroupRow {
-                SettingRow(title: tr("自动检查更新"), subtitle: tr("启动时和之后每天检查一次，发现新版本时显示更新摘要")) {
-                    DSToggle(isOn: $settings.autoCheckUpdates, label: tr("自动检查更新"))
+                SettingRow(title: tr("自动检查更新")) {
+                    Menu {
+                        ForEach(UpdateCheckSchedule.allCases) { schedule in
+                            Button {
+                                settings.updateCheckSchedule = schedule
+                            } label: {
+                                if settings.updateCheckSchedule == schedule {
+                                    Label(schedule.title, systemImage: "checkmark")
+                                } else {
+                                    Text(schedule.title)
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: DS.Space.s2) {
+                            Text(settings.updateCheckSchedule.title)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(DS.Palette.textSecondary)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .buttonStyle(DSButtonStyle(kind: .secondary))
+                    .menuIndicator(.hidden)
+                    .accessibilityLabel(tr("自动检查更新"))
+                    .accessibilityValue(settings.updateCheckSchedule.title)
+                    .fixedSize()
                 }
             }
             if let release = updates.release {

@@ -394,6 +394,43 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// 自动更新检查策略；手动检查始终可用。
+public enum UpdateCheckSchedule: String, CaseIterable, Identifiable, Sendable {
+    case quietRuntime, atLaunch, daily, weekly, monthly, never
+
+    public var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .quietRuntime: tr("运行时静默")
+        case .atLaunch: tr("启动时")
+        case .daily: tr("每日一次")
+        case .weekly: tr("每周一次")
+        case .monthly: tr("每月一次")
+        case .never: tr("从不")
+        }
+    }
+
+    var promptsForUpdates: Bool { self != .quietRuntime && self != .never }
+
+    func shouldCheck(lastChecked: Date?, now: Date, atLaunch: Bool) -> Bool {
+        switch self {
+        case .never: return false
+        case .atLaunch: return atLaunch
+        case .quietRuntime, .daily, .weekly, .monthly:
+            guard let lastChecked else { return true }
+            let next: Date
+            switch self {
+            case .quietRuntime, .daily: next = lastChecked.addingTimeInterval(24 * 60 * 60)
+            case .weekly: next = lastChecked.addingTimeInterval(7 * 24 * 60 * 60)
+            case .monthly: next = Calendar.current.date(byAdding: .month, value: 1, to: lastChecked) ?? lastChecked
+            case .atLaunch, .never: return false
+            }
+            return now >= next
+        }
+    }
+}
+
 /// UserDefaults 持久化的偏好设置
 @MainActor
 @Observable
@@ -569,9 +606,16 @@ public final class AppSettings {
     public var historyEnabled: Bool {
         didSet { defaults.set(historyEnabled, forKey: Keys.historyEnabled) }
     }
-    /// 启动时与每天检查一次新版本
+    /// 旧版布尔设置只用于兼容旧备份；新界面以检查策略为准。
     public var autoCheckUpdates: Bool {
-        didSet { defaults.set(autoCheckUpdates, forKey: Keys.autoCheckUpdates) }
+        get { updateCheckSchedule != .never }
+        set { updateCheckSchedule = newValue ? .daily : .never }
+    }
+    public var updateCheckSchedule: UpdateCheckSchedule {
+        didSet {
+            defaults.set(updateCheckSchedule.rawValue, forKey: Keys.updateCheckSchedule)
+            defaults.set(autoCheckUpdates, forKey: Keys.autoCheckUpdates)
+        }
     }
     /// 可再生的缓存也先移到废纸篓（可恢复，但不会立即释放空间）
     public var cleanPrefersTrash: Bool {
@@ -664,7 +708,9 @@ public final class AppSettings {
         probeInBackground = defaults.object(forKey: Keys.probeInBackground) as? Bool ?? true
         probeTarget = defaults.string(forKey: Keys.probeTarget).flatMap(ProbeTarget.init(rawValue:)) ?? .cloudflare
         publicIPLookup = defaults.object(forKey: Keys.publicIPLookup) as? Bool ?? true
-        autoCheckUpdates = defaults.object(forKey: Keys.autoCheckUpdates) as? Bool ?? true
+        updateCheckSchedule = defaults.string(forKey: Keys.updateCheckSchedule)
+            .flatMap(UpdateCheckSchedule.init(rawValue:))
+            ?? ((defaults.object(forKey: Keys.autoCheckUpdates) as? Bool ?? true) ? .daily : .never)
         historyEnabled = defaults.object(forKey: Keys.historyEnabled) as? Bool ?? true
         language = defaults.string(forKey: Keys.language).flatMap(AppLanguage.init(rawValue:)) ?? .system
         let storedHotKeys = defaults.data(forKey: Keys.hotKeys).flatMap { try? JSONDecoder().decode([String: HotKey].self, from: $0) } ?? [:]
@@ -758,6 +804,7 @@ public final class AppSettings {
         static let probeTarget = "probeTarget"
         static let publicIPLookup = "publicIPLookup"
         static let autoCheckUpdates = "autoCheckUpdates"
+        static let updateCheckSchedule = "updateCheckSchedule"
         static let historyEnabled = "historyEnabled"
         static let hotKeys = "hotKeys"
         static let language = "language"
