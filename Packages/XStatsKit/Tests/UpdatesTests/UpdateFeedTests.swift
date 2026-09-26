@@ -122,16 +122,17 @@ import Testing
         #expect(String(decoding: try Data(contentsOf: current.appendingPathComponent("v")), as: UTF8.self) == "new")
     }
 
-    /// 较新的 macOS 会在启动时杀掉挪动过的 Apple 平台二进制；改为 ad-hoc 签名的副本才能作为替身进程运行。
-    private func copySleep(to url: URL) throws {
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/sleep"), to: url)
-        let sign = Process()
-        sign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-        sign.arguments = ["--force", "--sign", "-", url.path]
-        sign.standardError = FileHandle.nullDevice
-        try sign.run()
-        sign.waitUntilExit()
-        #expect(sign.terminationStatus == 0, "ad-hoc 签名失败：\(url.path)")
+    /// CI 不能可靠运行改名后的 Apple 平台二进制；编译普通替身，保留真实的进程路径检查。
+    private func makeSleepingExecutable(at url: URL) throws {
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xstats-widget-fixture-\(UUID().uuidString).c")
+        defer { try? FileManager.default.removeItem(at: source) }
+        try "#include <unistd.h>\nint main(void) { sleep(30); return 0; }\n"
+            .write(to: source, atomically: true, encoding: .utf8)
+        let compile = UpdateInstaller.run("/usr/bin/xcrun", ["clang", "-x", "c", source.path, "-o", url.path])
+        try #require(compile.status == 0, "测试替身编译失败：\(compile.output)")
+        let sign = UpdateInstaller.run("/usr/bin/codesign", ["--force", "--sign", "-", url.path])
+        try #require(sign.status == 0, "测试替身签名失败：\(sign.output)")
     }
 
     @Test func replacingAppStopsItsOldWidgetExtension() throws {
@@ -142,9 +143,9 @@ import Testing
         let executable = current.appendingPathComponent("Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget")
         let otherExecutable = dir.appendingPathComponent("Other.app/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget")
         try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try copySleep(to: executable)
+        try makeSleepingExecutable(at: executable)
         try FileManager.default.createDirectory(at: otherExecutable.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try copySleep(to: otherExecutable)
+        try makeSleepingExecutable(at: otherExecutable)
         try FileManager.default.createDirectory(at: candidate, withIntermediateDirectories: true)
 
         let process = Process()
