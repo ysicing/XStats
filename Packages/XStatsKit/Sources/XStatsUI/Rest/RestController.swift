@@ -195,18 +195,22 @@ final class RestController {
     private let localDefaults: UserDefaults
     private let defaults: UserDefaults?
     private let clock: () -> UInt64
+    /// 墙上时间只用于按自然日统计；计时仍以 clock 的单调时钟为准。
+    private let date: () -> Date
     var onRestChange: ((Bool) -> Void)?
     var onStateChange: (() -> Void)?
     let settings: AppSettings
 
     init(settings: AppSettings, localDefaults: UserDefaults = .standard,
          sharedDefaults: UserDefaults? = UserDefaults(suiteName: "group.work.12306.xstats"),
-         clock: @escaping () -> UInt64 = { RestClock.now() }) {
+         clock: @escaping () -> UInt64 = { RestClock.now() },
+         date: @escaping () -> Date = Date.init) {
         self.settings = settings
         self.localDefaults = localDefaults
         defaults = sharedDefaults
         self.clock = clock
-        let today = Self.todayKey()
+        self.date = date
+        let today = Self.todayKey(for: date())
         completedToday = localDefaults.string(forKey: "rest.day") == today
             ? localDefaults.integer(forKey: "rest.completedToday") : 0
     }
@@ -309,7 +313,7 @@ final class RestController {
         refreshDay()
         let now = clock()
         let completedAt = session.advance(to: now, cycle: settings.restCycleEnabled)
-        let nowDate = Date()
+        let nowDate = date()
         let today = Calendar.current.startOfDay(for: nowDate)
         let credited = completedAt.filter { completion in
             let date = nowDate.addingTimeInterval(-TimeInterval(now - completion) / 1_000_000_000)
@@ -361,7 +365,7 @@ final class RestController {
             defaults?.set(session.phase.rawValue, forKey: "rest.phase")
             defaults?.set(session.isRunning, forKey: "rest.running")
             defaults?.set(secondsRemaining, forKey: "rest.remaining")
-            defaults?.set(Date().addingTimeInterval(secondsRemaining).timeIntervalSince1970, forKey: "rest.deadline")
+            defaults?.set(date().addingTimeInterval(secondsRemaining).timeIntervalSince1970, forKey: "rest.deadline")
             defaults?.set(phaseDuration, forKey: "rest.duration")
             defaults?.set(settings.language.rawValue, forKey: "rest.language")
             lastSharedDeadline = session.deadline
@@ -403,7 +407,8 @@ final class RestController {
     }
 
     func suspend() {
-        if session?.isRunning == true { suspendedAt = clock() }
+        // 屏幕休眠与系统睡眠会先后到达，保留最早的暂停时刻，之后完成的专注都不计入。
+        if session?.isRunning == true { suspendedAt = suspendedAt ?? clock() }
         displayTimer?.invalidate()
         displayTimer = nil
         deadlineTimer?.invalidate()
@@ -429,7 +434,7 @@ final class RestController {
     }
 
     private func refreshDay() {
-        let today = Self.todayKey()
+        let today = Self.todayKey(for: date())
         guard localDefaults.string(forKey: "rest.day") != today else { return }
         completedToday = 0
         localDefaults.set(today, forKey: "rest.day")
@@ -442,8 +447,8 @@ final class RestController {
         localDefaults.set(completedToday, forKey: "rest.completedToday")
     }
 
-    private static func todayKey() -> String {
-        let parts = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+    private static func todayKey(for date: Date) -> String {
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: date)
         return "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
     }
 }

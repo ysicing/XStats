@@ -3,6 +3,7 @@
 
 import Foundation
 import Localization
+import WidgetData
 // Tyme 1.5 使用 Swift 5；并发兼容仅限此适配层，所有访问由 MainActor 串行化。
 @preconcurrency import Tyme4Swift
 
@@ -68,7 +69,7 @@ struct CalendarDay: Identifiable, Equatable {
     let plumRain: String?
     let nineDays: String?
     let seasonalBoundary: String?
-    var id: String { String(format: "%04d-%02d-%02d", year, month, day) }
+    var id: String { WidgetSnapshot.dayKey(year: year, month: month, day: day) }
     var isWeekend: Bool { weekday == 1 || weekday == 7 }
 
     /// 每格仅显示一条主注释，所有启用的信息在选中日期详情中保留。

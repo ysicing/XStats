@@ -101,6 +101,7 @@ tasks:
       - bash scripts/release_all_test.sh
       - python3 scripts/release_provenance_test.py
       - python3 scripts/publish_api_test.py
+      - python3 scripts/sync_changelog_test.py
       - task: test-api
       - task: test-swift
 

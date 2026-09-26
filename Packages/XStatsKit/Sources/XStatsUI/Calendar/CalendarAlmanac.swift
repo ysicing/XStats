@@ -86,7 +86,7 @@ extension CalendarEngine {
                                            holidayName: holiday?.name, isWork: holiday?.isWork,
                                            isWeekend: day.isWeekend)
         }
-        return .init(monthKey: String(format: "%04d-%02d", year, month), firstWeekday: firstWeekday,
+        return .init(monthKey: WidgetSnapshot.monthKey(year: year, month: month), firstWeekday: firstWeekday,
                      featureKeys: features.map(\.rawValue).sorted(), days: days)
     }
 

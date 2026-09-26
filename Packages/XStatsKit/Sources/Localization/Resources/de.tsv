@@ -1260,8 +1260,6 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Lokale Codex / Claude Cod
 用量记录	Nutzungsdatensätze
 模型排行	Modellrangliste
 启用使用统计	Nutzungsstatistik aktivieren
-启用后读取本机会话日志，并使用本机登录凭据向 Codex / Claude 查询订阅额度。	When enabled, reads local session logs and uses local login credentials to query Codex / Claude subscription usage.
-统计本机会话 Token，并使用本机登录凭据自动查询 Codex / Claude 订阅额度。	Counts local session tokens and automatically queries Codex / Claude subscription usage with local login credentials.
 订阅额度	Subscription usage
 服务端用量 · 与本机 Token 统计不同	Server usage · separate from local token statistics
 重置：	Resets:
@@ -1438,13 +1436,6 @@ Sub2API 账号平台与所选来源不匹配	Die Plattform des Sub2API-Kontos st
 查看今天的节日与黄历。	Heutige Feiertage und Almanach anzeigen.
 明天上班吗	Morgen arbeiten?
 查看明天是否上班或放假。	Zeigt, ob morgen ein Arbeits- oder freier Tag ist.
-护眼休息	Augenpause
-按时显示多屏柔和幕布；Esc 或长按随时跳过。全部计时留在本机。	Zur Pausenzeit auf allen Bildschirmen eine sanfte Einblendung anzeigen. Mit Esc oder langem Drücken jederzeit überspringen. Der Timer bleibt auf diesem Mac.
-工作时长	Arbeitsintervall
-休息时长	Pausendauer
-迷你 HUD	Mini-HUD
-在屏幕边缘显示当前计时	Timer am Bildschirmrand anzeigen
-显示或收起	Ein- oder ausblenden
 休息声音	Pausengeräusche
 仅在休息时本地实时合成	Während Pausen lokal in Echtzeit erzeugt
 白噪音	Weißes Rauschen
@@ -1454,9 +1445,6 @@ Sub2API 账号平台与所选来源不匹配	Die Plattform des Sub2API-Kontos st
 看看远处，轻轻眨眼，放松肩颈	Schauen Sie in die Ferne, blinzeln Sie sanft und entspannen Sie die Schultern
 长按跳过 · 或按 Esc 随时返回	Zum Überspringen gedrückt halten · oder Esc drücken
 休息中	Pause
-下次休息	Nächste Pause
-跳过休息	Pause überspringen
-重新计时	Timer neu starten
 收起迷你 HUD	Mini-HUD ausblenden
 护眼休息未开启	Augenpausen sind deaktiviert
 查看下一次休息或当前休息倒计时。	Countdown bis zur nächsten Pause oder bis zum Ende der aktuellen Pause anzeigen.
@@ -1476,11 +1464,9 @@ Sub2API 账号平台与所选来源不匹配	Die Plattform des Sub2API-Kontos st
 重置	Zurücksetzen
 跳过	Überspringen
 今日目标	Heutiges Ziel
-长休时长	Dauer der langen Pause
 每完成 4 轮专注后进入长休	Nach vier Fokusphasen folgt eine lange Pause
 每日目标	Tagesziel
 {} 轮	{} Runden
-打开番茄钟	Pomodoro öffnen
 再专注 5 分钟	5 Minuten länger fokussieren
 专注中	Im Fokus
 工作时长（分钟）	Arbeitsintervall (Minuten)

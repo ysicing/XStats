@@ -261,6 +261,8 @@ final class RestWindowController {
             let panel = RestPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
                                   backing: .buffered, defer: false, screen: screen)
             panel.level = .floating
+            // NSPanel 默认在应用失去前台时隐藏；幕布必须一直可见，状态才与界面一致。
+            panel.hidesOnDeactivate = false
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.isOpaque = false
             panel.backgroundColor = .clear
@@ -304,6 +306,7 @@ final class RestWindowController {
         hud = panel
         panel.isReleasedWhenClosed = false
         panel.level = .floating
+        panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isOpaque = false
         panel.backgroundColor = .clear

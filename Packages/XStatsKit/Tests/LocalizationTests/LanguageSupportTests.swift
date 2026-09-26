@@ -15,7 +15,7 @@ struct LanguageSupportTests {
         #expect(AppLanguage(rawValue: "system") == .system)
     }
 
-    @Test func resolvesscriptsRegionsAndPreferenceOrder() {
+    @Test func resolvesScriptsRegionsAndPreferenceOrder() {
         for value in ["zh-Hant", "zh-TW", "zh-HK", "zh_MO", "zh-Hant-CN"] {
             #expect(AppLanguage.resolve(preferredLanguages: [value]) == .traditionalChinese)
         }

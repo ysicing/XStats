@@ -12,21 +12,14 @@ extension Translations {
     }
 
     static let restEnglish = #"""
-护眼休息	Eye breaks
-按时显示多屏柔和幕布；Esc 或长按随时跳过。全部计时留在本机。	Show a gentle break screen on every display. Press Esc or hold to skip. Timers stay on this Mac.
-工作时长	Work interval
 工作时长（分钟）	Work interval (minutes)
-休息时长	Break duration
 休息时长（分钟）	Break duration (minutes)
-迷你 HUD	Mini HUD
 迷你 HUD 样式	Mini HUD style
 数字倒计时	Digital countdown
 进度圆环	Progress ring
 沙漏	Hourglass
 切换迷你 HUD 样式	Switch Mini HUD style
 拖动迷你 HUD	Drag Mini HUD
-在屏幕边缘显示当前计时	Show the timer at the edge of the screen
-显示或收起	Show or hide
 休息声音	Break sounds
 仅在休息时本地实时合成	Generated locally during breaks
 白噪音	White noise
@@ -36,9 +29,6 @@ extension Translations {
 看看远处，轻轻眨眼，放松肩颈	Look into the distance, blink gently, and relax your shoulders
 长按跳过 · 或按 Esc 随时返回	Hold to skip · or press Esc to return
 休息中	On a break
-下次休息	Next break
-跳过休息	Skip break
-重新计时	Restart timer
 收起迷你 HUD	Hide Mini HUD
 收起到迷你 HUD	Collapse to Mini HUD
 番茄钟	Pomodoro Timer
@@ -57,12 +47,10 @@ extension Translations {
 重置	Reset
 跳过	Skip
 今日目标	Today's goal
-长休时长	Long break duration
 长休时长（分钟）	Long break duration (minutes)
 每完成 4 轮专注后进入长休	Take a long break after four focus sessions
 每日目标	Daily goal
 {} 轮	{} sessions
-打开番茄钟	Open Pomodoro
 再专注 5 分钟	Focus 5 more minutes
 专注中	Focusing
 护眼休息未开启	Eye breaks are off
@@ -97,8 +85,6 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Local Codex / Claude Code
 用量记录	Usage records
 模型排行	Model ranking
 启用使用统计	Enable usage statistics
-启用后读取本机会话日志，并使用本机登录凭据向 Codex / Claude 查询订阅额度。	When enabled, reads local session logs and uses local login credentials to query Codex / Claude subscription usage.
-统计本机会话 Token，并使用本机登录凭据自动查询 Codex / Claude 订阅额度。	Counts local session tokens and automatically queries Codex / Claude subscription usage with local login credentials.
 订阅额度	Subscription usage
 今日消耗的 Token	Tokens used today
 查看今天 Codex 和 Claude 的 Token 用量	View today's Codex and Claude token usage

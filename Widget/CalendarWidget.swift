@@ -39,7 +39,7 @@ struct CalendarWidgetProvider: TimelineProvider {
         let snapshot = WidgetSnapshotStore().load()
         L10n.configure(AppLanguage(rawValue: snapshot.language) ?? .system)
         let now = Date.now
-        let nextDay = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: now) ?? now
+        let nextDay = WidgetSnapshot.keyCalendar.date(byAdding: .day, value: 1, to: now) ?? now
         return .init(date: now, showsLunar: snapshot.showsLunar, showsSeasonal: snapshot.showsSeasonal == true,
                      firstWeekday: snapshot.calendarFirstWeekday,
                      today: snapshot.calendarSummary(for: now),
@@ -181,21 +181,9 @@ private struct MonthCalendarWidgetView: View {
 
     private var firstWeekday: Int { entry.firstWeekday == 1 ? 1 : 2 }
 
-    private var calendar: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return calendar
-    }
-
-    private var monthKey: String {
-        let parts = calendar.dateComponents([.year, .month], from: entry.date)
-        return String(format: "%04d-%02d", parts.year ?? 0, parts.month ?? 0)
-    }
-
-    private var todayKey: String {
-        let parts = calendar.dateComponents([.year, .month, .day], from: entry.date)
-        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
-    }
+    private var calendar: Calendar { WidgetSnapshot.keyCalendar }
+    private var monthKey: String { WidgetSnapshot.monthKey(for: entry.date) }
+    private var todayKey: String { WidgetSnapshot.dayKey(for: entry.date) }
 
     private var days: [WidgetSnapshot.MonthDay] {
         if let month = entry.month, month.days.count == 42 { return month.days }
@@ -208,7 +196,7 @@ private struct MonthCalendarWidgetView: View {
             let parts = calendar.dateComponents([.year, .month, .day, .weekday], from: date)
             guard let year = parts.year, let month = parts.month, let day = parts.day,
                   let weekday = parts.weekday else { return nil }
-            return WidgetSnapshot.MonthDay(dateKey: String(format: "%04d-%02d-%02d", year, month, day),
+            return WidgetSnapshot.MonthDay(dateKey: WidgetSnapshot.dayKey(year: year, month: month, day: day),
                                            number: day, subtitle: "", holidayName: nil, isWork: nil,
                                            isWeekend: weekday == 1 || weekday == 7)
         }
@@ -297,7 +285,7 @@ private struct TomorrowWorkWidgetView: View {
 
     private var needsWork: Bool? { entry.tomorrow?.schedule.needsWork }
     private var tomorrowDate: Date {
-        Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: entry.date) ?? entry.date
+        WidgetSnapshot.keyCalendar.date(byAdding: .day, value: 1, to: entry.date) ?? entry.date
     }
 
     private var scheduleTitle: String? {

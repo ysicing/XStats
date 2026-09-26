@@ -24,6 +24,31 @@ private actor StubUsageProvider: AIUsageProvider {
     func count() -> Int { fetchCount }
 }
 
+/// 在请求中途挂起，用来复现“刷新在途时用户移除配置”的竞态。
+private actor GatedQuotaProvider: AIQuotaProvider {
+    nonisolated let id = AIProviderID.codex
+    private let snapshot: AIQuotaSnapshot
+    private var gate: CheckedContinuation<Void, Never>?
+    private var started: CheckedContinuation<Void, Never>?
+    private var hasStarted = false
+
+    init(snapshot: AIQuotaSnapshot) { self.snapshot = snapshot }
+
+    func fetch() async throws -> AIQuotaSnapshot {
+        hasStarted = true
+        started?.resume(); started = nil
+        await withCheckedContinuation { gate = $0 }
+        return snapshot
+    }
+
+    func waitUntilStarted() async {
+        if hasStarted { return }
+        await withCheckedContinuation { started = $0 }
+    }
+
+    func release() { gate?.resume(); gate = nil }
+}
+
 private actor StubQuotaProvider: AIQuotaProvider {
     nonisolated let id: AIProviderID
     private var results: [Result<AIQuotaSnapshot, AIQuotaFailure>]
@@ -293,6 +318,35 @@ private actor GatedUsageProvider: AIUsageProvider {
         let afterLogout = AIUsageController(settings: settings, providers: [],
             quotaProviders: [StubQuotaProvider(results: [.failure(.network)])], quotaCacheURL: cacheURL)
         #expect(afterLogout.visibleQuotaState(for: .codex).snapshot == nil)
+    }
+
+    @Test func removingSub2APIDiscardsAnInFlightRefresh() async throws {
+        let cacheURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xstats-quota-\(UUID().uuidString).sqlite")
+        defer {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(atPath: cacheURL.path + suffix)
+            }
+        }
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        settings.aiUsageSources = [.codex]
+        let manual = AIQuotaSnapshot(provider: .codex, windows: [
+            AIQuotaWindow(kind: .weekly, usedPercent: 60, resetsAt: Date().addingTimeInterval(3600)),
+        ], fetchedAt: Date(), source: .sub2api)
+        let provider = GatedQuotaProvider(snapshot: manual)
+        let controller = AIUsageController(settings: settings, providers: [], quotaProviders: [provider],
+                                           quotaCacheURL: cacheURL)
+        let refresh = Task { await controller.refresh() }
+        await provider.waitUntilStarted()
+        controller.clearSub2APIQuota(for: .codex)
+        await provider.release()
+        await refresh.value
+
+        #expect(controller.quotaState(for: .codex).snapshot == nil, "in-flight Sub2API result was written back")
+        let reopened = AIUsageController(settings: settings, providers: [],
+            quotaProviders: [StubQuotaProvider(results: [])], quotaCacheURL: cacheURL)
+        #expect(reopened.quotaState(for: .codex).snapshot == nil, "in-flight Sub2API result reached the disk cache")
     }
 
     @Test func removingSub2APIClearsItsPersistedQuotaButKeepsDirectOne() async throws {

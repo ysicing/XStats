@@ -65,7 +65,6 @@ public final class AppModel {
     @ObservationIgnored var openMainWindow: (PanelTab?) -> Void = { _ in }
     @ObservationIgnored var openEgressWindow: () -> Void = {}
     @ObservationIgnored var openSpeedTestWindow: () -> Void = {}
-    @ObservationIgnored var toggleRestHUD: () -> Void = {}
     @ObservationIgnored var collapseToRestHUD: () -> Void = {}
     @ObservationIgnored var quit: () -> Void = {}
 

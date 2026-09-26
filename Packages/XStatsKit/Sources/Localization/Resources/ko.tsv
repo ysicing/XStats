@@ -1260,8 +1260,6 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Codex / Claude Code 로�
 用量记录	사용 기록
 模型排行	모델 순위
 启用使用统计	사용 통계 활성화
-启用后读取本机会话日志，并使用本机登录凭据向 Codex / Claude 查询订阅额度。	When enabled, reads local session logs and uses local login credentials to query Codex / Claude subscription usage.
-统计本机会话 Token，并使用本机登录凭据自动查询 Codex / Claude 订阅额度。	Counts local session tokens and automatically queries Codex / Claude subscription usage with local login credentials.
 订阅额度	Subscription usage
 服务端用量 · 与本机 Token 统计不同	Server usage · separate from local token statistics
 重置：	Resets:
@@ -1438,13 +1436,6 @@ Sub2API 账号平台与所选来源不匹配	Sub2API 계정 플랫폼이 선택�
 查看今天的节日与黄历。	오늘의 명절과 황력을 확인합니다.
 明天上班吗	내일 출근하나요?
 查看明天是否上班或放假。	내일이 근무일인지 휴일인지 확인합니다.
-护眼休息	눈 휴식
-按时显示多屏柔和幕布；Esc 或长按随时跳过。全部计时留在本机。	휴식 시간이 되면 모든 화면에 부드러운 오버레이를 표시합니다. Esc 또는 길게 눌러 언제든 건너뛸 수 있습니다. 타이머는 이 Mac에서만 실행됩니다.
-工作时长	작업 시간
-休息时长	휴식 시간
-迷你 HUD	미니 HUD
-在屏幕边缘显示当前计时	화면 가장자리에 타이머 표시
-显示或收起	표시 또는 숨기기
 休息声音	휴식 소리
 仅在休息时本地实时合成	휴식 중 기기에서 실시간 합성
 白噪音	백색 소음
@@ -1454,9 +1445,6 @@ Sub2API 账号平台与所选来源不匹配	Sub2API 계정 플랫폼이 선택�
 看看远处，轻轻眨眼，放松肩颈	먼 곳을 바라보고 천천히 눈을 깜빡이며 어깨를 풀어 주세요
 长按跳过 · 或按 Esc 随时返回	길게 눌러 건너뛰기 · Esc로 언제든 돌아가기
 休息中	휴식 중
-下次休息	다음 휴식
-跳过休息	휴식 건너뛰기
-重新计时	타이머 다시 시작
 收起迷你 HUD	미니 HUD 숨기기
 护眼休息未开启	눈 휴식이 꺼져 있습니다
 查看下一次休息或当前休息倒计时。	다음 휴식 또는 현재 휴식의 남은 시간을 확인하세요.
@@ -1476,11 +1464,9 @@ Sub2API 账号平台与所选来源不匹配	Sub2API 계정 플랫폼이 선택�
 重置	재설정
 跳过	건너뛰기
 今日目标	오늘의 목표
-长休时长	긴 휴식 시간
 每完成 4 轮专注后进入长休	집중 4회를 마칠 때마다 긴 휴식이 시작됩니다
 每日目标	일일 목표
 {} 轮	{}회
-打开番茄钟	뽀모도로 열기
 再专注 5 分钟	5분 더 집중하기
 专注中	집중 중
 工作时长（分钟）	작업 시간(분)

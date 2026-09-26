@@ -22,9 +22,22 @@ public enum RestSound: String, CaseIterable, Identifiable, Sendable {
 final class RestSoundPlayer {
     private var engine: AVAudioEngine?
     private(set) var playing: RestSound = .off
+    /// 启动失败后短暂冷却；调用方每秒同步一次，不能每秒重建引擎。
+    private var failed: RestSound?
+    private var retryAfter: UInt64?
+    private var configurationObserver: NSObjectProtocol?
+    private let startEngine: (AVAudioEngine) throws -> Void
+    private let clock: () -> UInt64
+
+    init(startEngine: @escaping (AVAudioEngine) throws -> Void = { try $0.start() },
+         clock: @escaping () -> UInt64 = { RestClock.now() }) {
+        self.startEngine = startEngine
+        self.clock = clock
+    }
 
     func play(_ sound: RestSound) {
         guard sound != playing else { return }
+        if sound == failed, let retryAfter, clock() < retryAfter { return }
         stop()
         guard sound != .off else { return }
         let engine = AVAudioEngine()
@@ -34,18 +47,34 @@ final class RestSoundPlayer {
         engine.connect(node, to: engine.mainMixerNode, format: format)
         engine.mainMixerNode.outputVolume = 0.16
         do {
-            try engine.start()
+            try startEngine(engine)
             self.engine = engine
             playing = sound
+            // 切换耳机等输出设备时系统会停止引擎；按新配置重建，否则本次休息剩余时间都没有声音。
+            configurationObserver = NotificationCenter.default.addObserver(
+                forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    let current = self.playing
+                    self.stop()
+                    self.play(current)
+                }
+            }
         } catch {
             engine.stop()
+            failed = sound
+            retryAfter = clock() + 10_000_000_000
         }
     }
 
     func stop() {
+        if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
+        configurationObserver = nil
         engine?.stop()
         engine = nil
         playing = .off
+        failed = nil
+        retryAfter = nil
     }
 }
 

@@ -310,7 +310,7 @@ private struct OverviewReading {
             }
         case .aiUsage:
             if !model.settings.aiUsageShowsLocalUsage {
-                if let quota = MenuBarReading(model: model).aiQuotas.first {
+                if let quota = MenuBarReading(model: model).aiQuotas.min(by: { $0.remainingPercent < $1.remainingPercent }) {
                     value = "\(quota.remainingPercent)"
                     unit = "%"
                     detail = quota.sourceName + " · " + tr("订阅额度")

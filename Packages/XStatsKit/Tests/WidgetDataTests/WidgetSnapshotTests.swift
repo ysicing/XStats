@@ -53,6 +53,26 @@ import WidgetData
     #expect(try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot)) == snapshot)
 }
 
+@Test func dateKeysStayGregorianWhateverTheSystemCalendar() throws {
+    let noon = try #require(WidgetSnapshot.keyCalendar.date(from: DateComponents(year: 2026, month: 9, day: 25, hour: 12)))
+    var buddhist = Calendar(identifier: .buddhist)
+    buddhist.timeZone = .autoupdatingCurrent
+    // 佛历下同一天的年份是 2569；若用系统日历拼键，Widget 会找不到主应用写入的公历键。
+    #expect(buddhist.component(.year, from: noon) == 2569)
+    #expect(WidgetSnapshot.dayKey(for: noon) == "2026-09-25")
+    #expect(WidgetSnapshot.monthKey(for: noon) == "2026-09")
+    #expect(WidgetSnapshot.dayKey(year: 2026, month: 1, day: 2) == "2026-01-02")
+
+    let day = WidgetSnapshot.CalendarSummary(dateKey: "2026-09-25", festivals: [], solarTerm: nil,
+                                             schedule: .holiday, holidayName: "中秋节", twelveStar: "除",
+                                             isEcliptic: true, recommends: [], avoids: [])
+    let month = WidgetSnapshot.MonthSummary(monthKey: "2026-09", firstWeekday: 2, featureKeys: [], days: [])
+    let snapshot = WidgetSnapshot(calendarDays: [day], monthSummaries: [month])
+    #expect(snapshot.calendarSummary(for: noon) == day)
+    #expect(snapshot.monthSummary(for: noon) == month)
+    #expect(snapshot.calendarSummary(for: noon, calendar: buddhist) == nil)
+}
+
 @Test func seasonalDayToggleReloadsOnlyDailyCalendar() {
     let previous = WidgetSnapshot()
     var enabled = previous

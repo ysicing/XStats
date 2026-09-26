@@ -122,6 +122,18 @@ import Testing
         #expect(String(decoding: try Data(contentsOf: current.appendingPathComponent("v")), as: UTF8.self) == "new")
     }
 
+    /// 较新的 macOS 会在启动时杀掉挪动过的 Apple 平台二进制；改为 ad-hoc 签名的副本才能作为替身进程运行。
+    private func copySleep(to url: URL) throws {
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/sleep"), to: url)
+        let sign = Process()
+        sign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        sign.arguments = ["--force", "--sign", "-", url.path]
+        sign.standardError = FileHandle.nullDevice
+        try sign.run()
+        sign.waitUntilExit()
+        #expect(sign.terminationStatus == 0, "ad-hoc 签名失败：\(url.path)")
+    }
+
     @Test func replacingAppStopsItsOldWidgetExtension() throws {
         let dir = try scratch()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -130,9 +142,9 @@ import Testing
         let executable = current.appendingPathComponent("Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget")
         let otherExecutable = dir.appendingPathComponent("Other.app/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget")
         try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/sleep"), to: executable)
+        try copySleep(to: executable)
         try FileManager.default.createDirectory(at: otherExecutable.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/sleep"), to: otherExecutable)
+        try copySleep(to: otherExecutable)
         try FileManager.default.createDirectory(at: candidate, withIntermediateDirectories: true)
 
         let process = Process()
@@ -150,6 +162,8 @@ import Testing
             otherProcess.waitUntilExit()
         }
 
+        // 两个进程都必须真的在运行，否则下面“已退出”的断言会不经检验就通过。
+        #expect(process.isRunning && otherProcess.isRunning, "测试替身进程未能启动")
         var runningPath = [CChar](repeating: 0, count: 4096)
         let pathLength = proc_pidpath(process.processIdentifier, &runningPath, UInt32(runningPath.count))
         #expect(pathLength > 0)

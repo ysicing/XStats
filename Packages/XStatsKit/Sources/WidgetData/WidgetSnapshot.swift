@@ -20,7 +20,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public struct CalendarSummary: Codable, Equatable, Sendable {
         public enum Schedule: String, Codable, Sendable {
             case work, weekend, holiday, makeupWork, makeupDayOff, unknown
-            case dayOff // 兼容旧版 App Group 摘要；新版会在下次同步时重算。
+            /// 有放假数据但未细分法定假日与调休的年份。
+            case dayOff
 
             /// 数据未覆盖的年份不能按普通工作日推断，避免给出错误的二元答案。
             public var needsWork: Bool? {
@@ -169,6 +170,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public var calendarDays: [CalendarSummary]?
     /// 当前与下个月的六周网格；旧版缓存缺失时 Widget 仍显示公历日期。
     public var monthSummaries: [MonthSummary]?
+    /// 写入日历摘要的主应用构建号；新版可能内置新的放假数据，构建号不同时不复用缓存。
+    public var calendarDataVersion: String?
 
     public init(aiEnabled: Bool = false, quotas: [Quota] = [], dailyTokens: [DailyTokenUsage]? = nil,
                 localUsageEnabled: Bool? = nil,
@@ -176,7 +179,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
                 addresses: [Address] = [], language: String = "system",
                 calendarFirstWeekday: Int = 2, showsLunar: Bool = true,
                 calendarDays: [CalendarSummary]? = nil, monthSummaries: [MonthSummary]? = nil,
-                showsSeasonal: Bool? = nil) {
+                showsSeasonal: Bool? = nil, calendarDataVersion: String? = nil) {
         self.aiEnabled = aiEnabled
         self.quotas = quotas
         self.dailyTokens = dailyTokens
@@ -189,6 +192,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         self.showsSeasonal = showsSeasonal
         self.calendarDays = calendarDays
         self.monthSummaries = monthSummaries
+        self.calendarDataVersion = calendarDataVersion
     }
 
     public var showsLocalUsage: Bool { aiEnabled && localUsageEnabled != false }
@@ -238,18 +242,39 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         return kinds
     }
 
-    public func monthSummary(for date: Date, calendar: Calendar = .autoupdatingCurrent) -> MonthSummary? {
-        let parts = calendar.dateComponents([.year, .month], from: date)
-        guard let year = parts.year, let month = parts.month else { return nil }
-        let key = String(format: "%04d-%02d", year, month)
+    public func monthSummary(for date: Date, calendar: Calendar = keyCalendar) -> MonthSummary? {
+        let key = Self.monthKey(for: date, calendar: calendar)
         return monthSummaries?.first { $0.monthKey == key }
     }
 
-    public func calendarSummary(for date: Date, calendar: Calendar = .autoupdatingCurrent) -> CalendarSummary? {
-        let parts = calendar.dateComponents([.year, .month, .day], from: date)
-        guard let year = parts.year, let month = parts.month, let day = parts.day else { return nil }
-        let key = String(format: "%04d-%02d-%02d", year, month, day)
+    public func calendarSummary(for date: Date, calendar: Calendar = keyCalendar) -> CalendarSummary? {
+        let key = Self.dayKey(for: date, calendar: calendar)
         return calendarDays?.first { $0.dateKey == key }
+    }
+
+    /// 主应用与 Widget 共用的日期键固定用公历；系统日历为佛历、和历时年份才不会错位。
+    public static var keyCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .autoupdatingCurrent
+        return calendar
+    }
+
+    public static func dayKey(year: Int, month: Int, day: Int) -> String {
+        String(format: "%04d-%02d-%02d", year, month, day)
+    }
+
+    public static func monthKey(year: Int, month: Int) -> String {
+        String(format: "%04d-%02d", year, month)
+    }
+
+    public static func dayKey(for date: Date, calendar: Calendar = keyCalendar) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return dayKey(year: parts.year ?? 0, month: parts.month ?? 0, day: parts.day ?? 0)
+    }
+
+    public static func monthKey(for date: Date, calendar: Calendar = keyCalendar) -> String {
+        let parts = calendar.dateComponents([.year, .month], from: date)
+        return monthKey(year: parts.year ?? 0, month: parts.month ?? 0)
     }
 }
 

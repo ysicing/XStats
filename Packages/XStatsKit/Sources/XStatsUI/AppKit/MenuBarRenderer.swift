@@ -156,7 +156,7 @@ struct MenuBarReading {
                     aiQuotas.map { quota in
                         let previous = quota.isStale ? "\(tr("上次额度")) · " : ""
                         let checked = quota.isStale
-                            ? " · \(tr("上次检查：\(quota.fetchedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))"
+                            ? " · \(tr("上次成功：\(quota.fetchedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))"
                             : ""
                         return "\(previous)\(quota.sourceName)\(quota.source == .sub2api ? " (Sub2API)" : "") · \(quota.shortWindowName) · \(tr("剩余")) \(quota.remainingPercent)% · \(tr("重置：")) \(quota.resetText)\(checked)"
                     }.joined(separator: "\n")

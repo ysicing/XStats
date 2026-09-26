@@ -40,10 +40,14 @@ import Testing
         try touch(lib.appendingPathComponent("Preferences/ByHost/com.example.foo.ABCD.plist"))
         try touch(lib.appendingPathComponent("Containers/com.example.foo"), directory: true)
         try touch(lib.appendingPathComponent("Group Containers/TEAM123.com.example.foo"), directory: true)
+        try touch(lib.appendingPathComponent("Application Scripts/com.example.foo"), directory: true)
         try touch(lib.appendingPathComponent("Saved Application State/com.example.foo.savedState"), directory: true)
         try touch(lib.appendingPathComponent("LaunchAgents/com.example.foo.helper.plist"))
 
-        let found = Set(AppUninstaller.leftovers(for: app, home: home.path).map { $0.url.lastPathComponent })
+        let leftovers = AppUninstaller.leftovers(for: app, home: home.path)
+        let found = Set(leftovers.map { $0.url.lastPathComponent })
+        // 默认 APFS 不区分大小写，只检查文件存在无法发现目录名拼错；按代码拼出的路径逐字比较。
+        #expect(leftovers.contains { $0.url.path.hasSuffix("/Library/Application Scripts/com.example.foo") })
         #expect(found.contains("Foo.app"))
         #expect(found.contains("Foo"))
         #expect(found.contains("com.example.foo.plist"))

@@ -30,6 +30,11 @@ if [ -z "$SIGN_ID" ]; then
 fi
 TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null \
   | grep -F "$SIGN_ID" | head -1 | sed -nE 's/.*\(([A-Z0-9]+)\)"$/\1/p' || true)"
+# 取不到团队号时后面的 TeamIdentifier 校验会匹配任意值，必须在这里失败
+if [ -z "$TEAM_ID" ]; then
+  echo "error: 无法从签名身份 $SIGN_ID 解析团队 ID，无法校验签名团队。" >&2
+  exit 1
+fi
 
 # 公开版本号取自 CHANGELOG.md 顶部的正式标题，同时推进一次内部构建号；
 # 顶部还是 “## 未发布” 时脚本会在这里失败

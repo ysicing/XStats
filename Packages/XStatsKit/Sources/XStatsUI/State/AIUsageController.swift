@@ -82,6 +82,8 @@ public final class AIUsageController {
     /// 移除手动账号时丢弃来自 Sub2API 的旧额度，保留本机直连快照。
     /// 内存与磁盘分别判断：关闭模块会清空内存但保留缓存，缓存写入失败时两者来源也可能不同。
     func clearSub2APIQuota(for provider: AIProviderID) {
+        // 作废在途刷新，否则它返回后会把已移除账号的额度重新写回内存与缓存。
+        generation += 1
         if quotaStates[provider]?.snapshot?.source == .sub2api {
             quotaStates[provider] = AIQuotaProviderState(provider: provider)
         }

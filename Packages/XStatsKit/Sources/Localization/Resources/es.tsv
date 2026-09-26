@@ -1260,8 +1260,6 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Tokens locales de Codex /
 用量记录	Registros de uso
 模型排行	Clasificación de modelos
 启用使用统计	Activar estadísticas
-启用后读取本机会话日志，并使用本机登录凭据向 Codex / Claude 查询订阅额度。	When enabled, reads local session logs and uses local login credentials to query Codex / Claude subscription usage.
-统计本机会话 Token，并使用本机登录凭据自动查询 Codex / Claude 订阅额度。	Counts local session tokens and automatically queries Codex / Claude subscription usage with local login credentials.
 订阅额度	Subscription usage
 服务端用量 · 与本机 Token 统计不同	Server usage · separate from local token statistics
 重置：	Resets:
@@ -1438,13 +1436,6 @@ Sub2API 账号平台与所选来源不匹配	La plataforma de la cuenta de Sub2A
 查看今天的节日与黄历。	Consulta las festividades y el almanaque de hoy.
 明天上班吗	¿Trabajas mañana?
 查看明天是否上班或放假。	Consulta si mañana es laborable o festivo.
-护眼休息	Descansos visuales
-按时显示多屏柔和幕布；Esc 或长按随时跳过。全部计时留在本机。	Muestra una pantalla suave en todos los monitores al llegar la pausa. Pulsa Esc o mantén pulsado para omitirla. El temporizador permanece en este Mac.
-工作时长	Intervalo de trabajo
-休息时长	Duración del descanso
-迷你 HUD	Mini HUD
-在屏幕边缘显示当前计时	Mostrar el temporizador en el borde de la pantalla
-显示或收起	Mostrar u ocultar
 休息声音	Sonidos de descanso
 仅在休息时本地实时合成	Generados localmente en tiempo real durante los descansos
 白噪音	Ruido blanco
@@ -1454,9 +1445,6 @@ Sub2API 账号平台与所选来源不匹配	La plataforma de la cuenta de Sub2A
 看看远处，轻轻眨眼，放松肩颈	Mira a lo lejos, parpadea suavemente y relaja los hombros
 长按跳过 · 或按 Esc 随时返回	Mantén pulsado para omitir · o pulsa Esc para volver
 休息中	En descanso
-下次休息	Próximo descanso
-跳过休息	Omitir descanso
-重新计时	Reiniciar temporizador
 收起迷你 HUD	Ocultar Mini HUD
 护眼休息未开启	Los descansos visuales están desactivados
 查看下一次休息或当前休息倒计时。	Consulta la cuenta atrás hasta el próximo descanso o el final del actual.
@@ -1476,11 +1464,9 @@ Sub2API 账号平台与所选来源不匹配	La plataforma de la cuenta de Sub2A
 重置	Reiniciar
 跳过	Omitir
 今日目标	Objetivo de hoy
-长休时长	Duración del descanso largo
 每完成 4 轮专注后进入长休	Después de cuatro sesiones de concentración llega un descanso largo
 每日目标	Objetivo diario
 {} 轮	{} sesiones
-打开番茄钟	Abrir Pomodoro
 再专注 5 分钟	Concentrarse 5 minutos más
 专注中	Concentrándose
 工作时长（分钟）	Intervalo de trabajo (minutos)

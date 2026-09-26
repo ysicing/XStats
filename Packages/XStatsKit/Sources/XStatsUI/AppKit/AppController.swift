@@ -29,6 +29,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private var widgetTimer: Timer?
     private let hotKeys = HotKeyCenter()
     private var workspaceObservers: [NSObjectProtocol] = []
+    private var screenLocked = false
 
     public override init() {
         super.init()
@@ -61,7 +62,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
             if active { self?.restWindows.showRest() } else { self?.restWindows.hideRest() }
         }
         rest.onStateChange = { [weak self] in self?.restMenuBar.update() }
-        model.toggleRestHUD = { [weak self] in self?.restWindows.toggleHUD() }
         model.collapseToRestHUD = { [weak self] in
             self?.restWindows.showHUD()
             self?.mainWindow.close()
@@ -390,11 +390,12 @@ public final class AppController: NSObject, NSApplicationDelegate {
         let calendar = CalendarEngine.gregorian()
         let today = calendar.startOfDay(for: .now)
         let todayKey = CalendarEngine.today(at: today)?.id
+        let dataVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        let reusesCalendar = previous.calendarDataVersion == dataVersion
         // 多预备几天，Widget 午夜换日时无需唤醒主应用；主应用运行期间按小时补足窗口。
         let calendarDays: [WidgetSnapshot.CalendarSummary] = {
-            if previous.showsSeasonal != nil, previous.calendarDays?.count == 8,
-               previous.calendarDays?.first?.dateKey == todayKey,
-               previous.calendarDays?.contains(where: { $0.schedule == .dayOff }) == false {
+            if reusesCalendar, previous.showsSeasonal != nil, previous.calendarDays?.count == 8,
+               previous.calendarDays?.first?.dateKey == todayKey {
                 return previous.calendarDays ?? []
             }
             return (0..<8).compactMap { offset in
@@ -408,8 +409,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
             guard let date = calendar.date(byAdding: .month, value: offset, to: today) else { return nil }
             let parts = calendar.dateComponents([.year, .month], from: date)
             guard let year = parts.year, let month = parts.month else { return nil }
-            let key = String(format: "%04d-%02d", year, month)
-            if let cached = previous.monthSummaries?.first(where: {
+            let key = WidgetSnapshot.monthKey(year: year, month: month)
+            if reusesCalendar, let cached = previous.monthSummaries?.first(where: {
                 $0.monthKey == key && $0.firstWeekday == settings.calendarFirstWeekday
                     && $0.featureKeys == monthFeatures && $0.days.count == 42
             }) {
@@ -456,7 +457,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                       calendarFirstWeekday: settings.calendarFirstWeekday,
                                       showsLunar: settings.calendarFeatures.contains(.lunar),
                                       calendarDays: calendarDays, monthSummaries: monthSummaries,
-                                      showsSeasonal: settings.calendarFeatures.contains(.seasonal))
+                                      showsSeasonal: settings.calendarFeatures.contains(.seasonal),
+                                      calendarDataVersion: dataVersion)
         guard snapshot != previous, widgetStore.save(snapshot) else { return }
         for kind in snapshot.changedWidgetKinds(from: previous) {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)
@@ -496,7 +498,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 屏幕休眠、系统睡眠、切换用户时暂停采样与探测；唤醒后重新下发风扇设置
+    /// 屏幕休眠、系统睡眠、切换用户、锁屏时暂停采样与探测；唤醒后重新下发风扇设置
     private func observeWorkspace() {
         let center = NSWorkspace.shared.notificationCenter
         let pauses: [Notification.Name] = [NSWorkspace.screensDidSleepNotification,
@@ -507,32 +509,52 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                             NSWorkspace.sessionDidBecomeActiveNotification]
         for name in pauses {
             workspaceObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    guard let self else { return }
-                    self.menuBar.dismissPopovers()
-                    self.model.network.setPaused(true)
-                    self.model.aiUsage.setPaused(true)
-                    self.model.history.flush()
-                    self.restWindows.hideRest()
-                    self.rest.suspend()
-                    Task { await self.model.hub.setPaused(true) }
-                }
+                MainActor.assumeIsolated { self?.pauseForInactivity() }
             })
         }
         for name in resumes {
             workspaceObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    guard let self else { return }
-                    self.model.network.setPaused(false)
-                    self.model.aiUsage.setPaused(false)
-                    self.rest.sync()
-                    if self.rest.phase.isResting && self.rest.isRunning { self.restWindows.ensureRestVisible() }
-                    Task {
-                        await self.model.hub.setPaused(false)
-                        await self.model.fans.reapply()
-                    }
-                }
+                MainActor.assumeIsolated { self?.resumeFromInactivity() }
             })
+        }
+        // 锁屏后显示器可能仍亮着一段时间；这期间不应计入专注，也不应继续播放休息音效。
+        let distributed = DistributedNotificationCenter.default()
+        workspaceObservers.append(distributed.addObserver(forName: .init("com.apple.screenIsLocked"),
+                                                          object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.screenLocked = true
+                self?.pauseForInactivity()
+            }
+        })
+        workspaceObservers.append(distributed.addObserver(forName: .init("com.apple.screenIsUnlocked"),
+                                                          object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.screenLocked = false
+                self?.resumeFromInactivity()
+            }
+        })
+    }
+
+    private func pauseForInactivity() {
+        menuBar.dismissPopovers()
+        model.network.setPaused(true)
+        model.aiUsage.setPaused(true)
+        model.history.flush()
+        restWindows.hideRest()
+        rest.suspend()
+        Task { await model.hub.setPaused(true) }
+    }
+
+    private func resumeFromInactivity() {
+        // 系统唤醒时常仍停在锁屏界面，要等解锁后再恢复。
+        guard !screenLocked else { return }
+        model.network.setPaused(false)
+        model.aiUsage.setPaused(false)
+        rest.sync()
+        if rest.phase.isResting && rest.isRunning { restWindows.ensureRestVisible() }
+        Task {
+            await model.hub.setPaused(false)
+            await model.fans.reapply()
         }
     }
 

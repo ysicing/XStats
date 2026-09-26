@@ -143,7 +143,7 @@ public enum AppUninstaller {
         scan("Preferences", .preferences)
         scan("Preferences/ByHost", .preferences)
         scan("Containers", .containers)
-        scan("Application scripts", .containers)
+        scan("Application Scripts", .containers)
         scan("Group Containers", .containers) { name in
             guard supportsDerivedNames(id) else { return false }
             // 形如 “TEAMID.com.example.app” 或 “group.com.example.app”

@@ -33,12 +33,13 @@ struct SharedDataProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SharedDataEntry>) -> Void) {
         let entry = read()
-        // 不发起网络请求；到期额度须及时隐藏，主应用写入新缓存时也会主动要求重载。
+        // 不发起网络请求，也不周期轮询：数据变化时主应用会主动要求重载；
+        // 这里只需在额度到期（须隐藏）和午夜换日（当日 Token 归零）时自行刷新。
         let nextReset = entry.snapshot.currentQuotas(at: entry.date)
             .compactMap(\.resetsAt).min().map { $0.addingTimeInterval(1) }
-        let periodic = entry.date.addingTimeInterval(15 * 60)
         let nextMidnight = Calendar.autoupdatingCurrent.dateInterval(of: .day, for: entry.date)?.end
-        completion(Timeline(entries: [entry], policy: .after(min(nextReset ?? periodic, periodic, nextMidnight ?? periodic))))
+        let next = [nextReset, nextMidnight].compactMap { $0 }.min()
+        completion(Timeline(entries: [entry], policy: next.map { .after($0) } ?? .never))
     }
 
     private func read() -> SharedDataEntry {
