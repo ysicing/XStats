@@ -16,6 +16,14 @@ import WebDAVSync
 public struct SettingsDocument: Codable, Equatable, Sendable {
     public var schema: Int? = 1
     public var calendarEnabled: Bool?
+    public var restEnabled: Bool?
+    public var restWorkMinutes: Int?
+    public var restBreakMinutes: Int?
+    public var restLongBreakMinutes: Int?
+    public var restDailyGoal: Int?
+    public var restCycleEnabled: Bool?
+    public var restSound: String?
+    public var restHUDStyle: String?
     public var calendarFeatures: [String]?
     public var calendarFirstWeekday: Int?
     public var menuBarItems: [String]?
@@ -53,6 +61,14 @@ extension AppSettings {
     public func exportDocument() -> SettingsDocument {
         var doc = SettingsDocument()
         doc.calendarEnabled = calendarEnabled
+        doc.restEnabled = restEnabled
+        doc.restWorkMinutes = restWorkMinutes
+        doc.restBreakMinutes = restBreakMinutes
+        doc.restLongBreakMinutes = restLongBreakMinutes
+        doc.restDailyGoal = restDailyGoal
+        doc.restCycleEnabled = restCycleEnabled
+        doc.restSound = restSound.rawValue
+        doc.restHUDStyle = restHUDStyle.rawValue
         doc.calendarFeatures = calendarFeatures.map(\.rawValue).sorted()
         doc.calendarFirstWeekday = calendarFirstWeekday
         doc.menuBarItems = menuBarItems.map(\.rawValue).sorted()
@@ -95,6 +111,14 @@ extension AppSettings {
         }
 
         assign(\.calendarEnabled, doc.calendarEnabled)
+        assign(\.restEnabled, doc.restEnabled)
+        assign(\.restWorkMinutes, option(doc.restWorkMinutes, in: Self.restWorkOptions))
+        assign(\.restBreakMinutes, option(doc.restBreakMinutes, in: Self.restBreakOptions))
+        assign(\.restLongBreakMinutes, option(doc.restLongBreakMinutes, in: Self.restLongBreakOptions))
+        assign(\.restDailyGoal, option(doc.restDailyGoal, in: Self.restDailyGoalOptions))
+        assign(\.restCycleEnabled, doc.restCycleEnabled)
+        assign(\.restSound, doc.restSound.flatMap(RestSound.init(rawValue:)))
+        assign(\.restHUDStyle, doc.restHUDStyle.flatMap(RestHUDStyle.init(rawValue:)))
         assign(\.calendarFeatures, doc.calendarFeatures.map(CalendarFeature.restored(from:)))
         assign(\.calendarFirstWeekday, option(doc.calendarFirstWeekday, in: [1, 2]))
         assign(\.menuBarItems, doc.menuBarItems.map { Set($0.compactMap(MenuBarItem.init(rawValue:))) })

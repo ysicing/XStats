@@ -29,8 +29,8 @@ XStats shows CPU, GPU, memory, disk, network, battery, temperature and fan activ
 - **System monitoring:** choose menu-bar metrics and styles; inspect trends, processes and hardware in popovers or the main window.
 - **System tools:** fan control, keep-awake, cache cleanup, app removal and startup-item management, with previews and confirmation for destructive actions.
 - **Network tools:** inspect connections, DNS and public IPs; optionally check IP reputation and connectivity.
-- **Optional modules:** a separate menu-bar calendar, plus local Codex / Claude Code session-token statistics and subscription quota checks.
-- **Desktop widgets:** system overview, AI quotas, festival/almanac calendar, full-month calendar, tomorrow's work status, IP cleanliness and public IP. AI, IP and calendar data come only from the main app's local cache.
+- **Optional modules:** a separate menu-bar calendar; a local Pomodoro timer with a multi-display eye-break curtain, instant skip and Mini HUD; plus local Codex / Claude Code session-token statistics and subscription quota checks.
+- **Desktop widgets:** system overview, Pomodoro timer, AI quotas, festival/almanac calendar, full-month calendar, tomorrow's work status, IP cleanliness and public IP. AI, IP and calendar data come only from the main app's local cache.
 
 ## Install
 

@@ -1438,3 +1438,58 @@ Sub2API 账号平台与所选来源不匹配	La plateforme du compte Sub2API ne 
 查看今天的节日与黄历。	Consultez les fêtes et l'almanach du jour.
 明天上班吗	Travail demain ?
 查看明天是否上班或放假。	Vérifiez si demain est un jour travaillé ou chômé.
+护眼休息	Pauses visuelles
+按时显示多屏柔和幕布；Esc 或长按随时跳过。全部计时留在本机。	Affiche un voile doux sur tous les écrans à l'heure de la pause. Appuyez sur Esc ou maintenez enfoncé pour passer. Le minuteur reste sur ce Mac.
+工作时长	Période de travail
+休息时长	Durée de la pause
+迷你 HUD	Mini HUD
+在屏幕边缘显示当前计时	Afficher le minuteur au bord de l'écran
+显示或收起	Afficher ou masquer
+休息声音	Sons de pause
+仅在休息时本地实时合成	Générés localement en temps réel pendant les pauses
+白噪音	Bruit blanc
+粉红噪音	Bruit rose
+雨声	Pluie
+让眼睛休息一下	Reposez vos yeux
+看看远处，轻轻眨眼，放松肩颈	Regardez au loin, clignez doucement des yeux et détendez vos épaules
+长按跳过 · 或按 Esc 随时返回	Maintenez pour passer · ou appuyez sur Esc pour revenir
+休息中	En pause
+下次休息	Prochaine pause
+跳过休息	Passer la pause
+重新计时	Redémarrer le minuteur
+收起迷你 HUD	Masquer le Mini HUD
+护眼休息未开启	Les pauses visuelles sont désactivées
+查看下一次休息或当前休息倒计时。	Voir le compte à rebours avant la prochaine pause ou la fin de celle-ci.
+收起到迷你 HUD	Réduire en Mini HUD
+番茄钟	Minuteur Pomodoro
+番茄钟与护眼休息	Pomodoro et pauses visuelles
+专注计时、每日目标与多屏休息幕布；所有数据留在本机。	Minuteur de concentration, objectifs quotidiens et écran de pause sur tous les moniteurs. Les données restent sur ce Mac.
+专注	Concentration
+短休	Pause courte
+长休	Pause longue
+单次	Une fois
+循环	Cycle
+计时中	En cours
+已暂停	En pause
+暂停	Pause
+开始	Démarrer
+重置	Réinitialiser
+跳过	Passer
+今日目标	Objectif du jour
+长休时长	Durée de la pause longue
+每完成 4 轮专注后进入长休	Une pause longue suit quatre sessions de concentration
+每日目标	Objectif quotidien
+{} 轮	{} sessions
+打开番茄钟	Ouvrir Pomodoro
+再专注 5 分钟	Se concentrer 5 minutes de plus
+专注中	Concentration en cours
+工作时长（分钟）	Période de travail (minutes)
+休息时长（分钟）	Durée de la pause (minutes)
+长休时长（分钟）	Pause longue (minutes)
+迷你 HUD 样式	Style du Mini HUD
+数字倒计时	Compte à rebours numérique
+进度圆环	Anneau de progression
+沙漏	Sablier
+切换迷你 HUD 样式	Changer le style du Mini HUD
+拖动迷你 HUD	Faire glisser le Mini HUD
+继续	Reprendre

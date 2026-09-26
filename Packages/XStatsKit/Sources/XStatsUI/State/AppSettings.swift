@@ -285,13 +285,13 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
 
 /// 主窗口侧边栏的页面
 public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
-    case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery, processes, keepAwake, cleaner, uninstaller, startupItems
+    case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery, processes, keepAwake, rest, cleaner, uninstaller, startupItems
     case settingsGeneral, settingsMenuBar, settingsNotifications, settingsAccount, settingsHelper, settingsAbout
 
     public var id: String { rawValue }
 
     static let monitors: [PanelTab] = [.overview, .system, .history, .aiUsage, .cpu, .gpu, .memory, .disk, .network, .thermal, .battery]
-    static let tools: [PanelTab] = [.processes, .startupItems, .keepAwake, .cleaner, .uninstaller]
+    static let tools: [PanelTab] = [.processes, .startupItems, .keepAwake, .rest, .cleaner, .uninstaller]
     // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
     static let settings: [PanelTab] = [.settingsGeneral, .settingsMenuBar, .settingsNotifications,
                                      /* .settingsAccount, */ .settingsHelper, .settingsAbout]
@@ -316,6 +316,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .battery: tr("电池")
         case .processes: tr("进程")
         case .keepAwake: tr("防休眠")
+        case .rest: tr("番茄钟")
         case .cleaner: tr("清理")
         case .uninstaller: tr("卸载应用")
         case .startupItems: tr("启动项")
@@ -343,6 +344,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .battery: "battery.75"
         case .processes: "list.bullet.rectangle"
         case .keepAwake: "cup.and.saucer"
+        case .rest: "timer"
         case .cleaner: "eraser"
         case .uninstaller: "trash"
         case .startupItems: "power"
@@ -401,6 +403,34 @@ public final class AppSettings {
     /// 日历独立于性能指标，即使指标合并也保留单独入口；旧用户默认关闭。
     public var calendarEnabled: Bool {
         didSet { defaults.set(calendarEnabled, forKey: Keys.calendarEnabled) }
+    }
+    /// 休息提醒完全由本机计时；旧用户默认关闭。
+    public var restEnabled: Bool {
+        didSet {
+            defaults.set(restEnabled, forKey: Keys.restEnabled)
+            if !restEnabled && panelTab == .rest { panelTab = .settingsGeneral }
+        }
+    }
+    public var restWorkMinutes: Int {
+        didSet { defaults.set(restWorkMinutes, forKey: Keys.restWorkMinutes) }
+    }
+    public var restBreakMinutes: Int {
+        didSet { defaults.set(restBreakMinutes, forKey: Keys.restBreakMinutes) }
+    }
+    public var restLongBreakMinutes: Int {
+        didSet { defaults.set(restLongBreakMinutes, forKey: Keys.restLongBreakMinutes) }
+    }
+    public var restDailyGoal: Int {
+        didSet { defaults.set(restDailyGoal, forKey: Keys.restDailyGoal) }
+    }
+    public var restCycleEnabled: Bool {
+        didSet { defaults.set(restCycleEnabled, forKey: Keys.restCycleEnabled) }
+    }
+    public var restSound: RestSound {
+        didSet { defaults.set(restSound.rawValue, forKey: Keys.restSound) }
+    }
+    public var restHUDStyle: RestHUDStyle {
+        didSet { defaults.set(restHUDStyle.rawValue, forKey: Keys.restHUDStyle) }
     }
     public var calendarFeatures: Set<CalendarFeature> {
         didSet { defaults.set(calendarFeatures.map(\.rawValue).sorted(), forKey: Keys.calendarFeatures) }
@@ -559,6 +589,10 @@ public final class AppSettings {
     }
 
     public static let refreshOptions = [1, 2, 3, 5]
+    public static let restWorkOptions = [20, 25, 30, 45, 60]
+    public static let restBreakOptions = [3, 5, 10]
+    public static let restLongBreakOptions = [10, 15, 20, 30]
+    public static let restDailyGoalOptions = [4, 6, 8, 12]
     public static let aiUsageRefreshOptions = [5, 15, 30, 60]
     public static let batteryFloorOptions = [10, 20, 30, 40]
     public static let fanSafetyOptions = [85, 90, 95, 100]
@@ -568,6 +602,19 @@ public final class AppSettings {
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        let isRestEnabled = defaults.bool(forKey: Keys.restEnabled)
+        restEnabled = isRestEnabled
+        restWorkMinutes = Self.restWorkOptions.contains(defaults.integer(forKey: Keys.restWorkMinutes))
+            ? defaults.integer(forKey: Keys.restWorkMinutes) : 25
+        restBreakMinutes = Self.restBreakOptions.contains(defaults.integer(forKey: Keys.restBreakMinutes))
+            ? defaults.integer(forKey: Keys.restBreakMinutes) : 5
+        restLongBreakMinutes = Self.restLongBreakOptions.contains(defaults.integer(forKey: Keys.restLongBreakMinutes))
+            ? defaults.integer(forKey: Keys.restLongBreakMinutes) : 15
+        restDailyGoal = Self.restDailyGoalOptions.contains(defaults.integer(forKey: Keys.restDailyGoal))
+            ? defaults.integer(forKey: Keys.restDailyGoal) : 8
+        restCycleEnabled = defaults.bool(forKey: Keys.restCycleEnabled)
+        restSound = defaults.string(forKey: Keys.restSound).flatMap(RestSound.init(rawValue:)) ?? .off
+        restHUDStyle = defaults.string(forKey: Keys.restHUDStyle).flatMap(RestHUDStyle.init(rawValue:)) ?? .countdown
         calendarEnabled = defaults.bool(forKey: Keys.calendarEnabled)
         calendarFeatures = defaults.stringArray(forKey: Keys.calendarFeatures)
             .map(CalendarFeature.restored(from:)) ?? CalendarFeature.defaults
@@ -602,6 +649,7 @@ public final class AppSettings {
         // 旧版 AI 助手设置页已移除，升级后仍留在设置分组。
         panelTab = savedPanelTabValue == "settingsAI" || savedPanelTab == .settingsAccount
             || (savedPanelTab == .aiUsage && !isAIUsageEnabled)
+            || (savedPanelTab == .rest && !isRestEnabled)
             ? .settingsGeneral : savedPanelTab
         appearance = defaults.string(forKey: Keys.appearance).flatMap(AppearanceMode.init(rawValue:)) ?? .system
         showDockIcon = defaults.bool(forKey: Keys.showDockIcon)
@@ -671,6 +719,14 @@ public final class AppSettings {
     }
 
     private enum Keys {
+        static let restEnabled = "restEnabled"
+        static let restWorkMinutes = "restWorkMinutes"
+        static let restBreakMinutes = "restBreakMinutes"
+        static let restLongBreakMinutes = "restLongBreakMinutes"
+        static let restDailyGoal = "restDailyGoal"
+        static let restCycleEnabled = "restCycleEnabled"
+        static let restSound = "restSound"
+        static let restHUDStyle = "restHUDStyle"
         static let calendarEnabled = "calendarEnabled"
         static let calendarFeatures = "calendarFeatures"
         static let calendarFirstWeekday = "calendarFirstWeekday"

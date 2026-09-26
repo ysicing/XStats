@@ -11,6 +11,7 @@ import Updates
 @Observable
 public final class AppModel {
     public let settings: AppSettings
+    let rest: RestController
     public let aiUsage: AIUsageController
     @ObservationIgnored let sub2apiDrafts = Dictionary(uniqueKeysWithValues:
         AIProviderID.allCases.map { ($0, Sub2APIDraft()) })
@@ -64,6 +65,8 @@ public final class AppModel {
     @ObservationIgnored var openMainWindow: (PanelTab?) -> Void = { _ in }
     @ObservationIgnored var openEgressWindow: () -> Void = {}
     @ObservationIgnored var openSpeedTestWindow: () -> Void = {}
+    @ObservationIgnored var toggleRestHUD: () -> Void = {}
+    @ObservationIgnored var collapseToRestHUD: () -> Void = {}
     @ObservationIgnored var quit: () -> Void = {}
 
     public init(settings: AppSettings = AppSettings(), historyURL: URL? = HistoryDatabase.defaultURL,
@@ -73,6 +76,7 @@ public final class AppModel {
         let store = MetricsStore()
         let helper = HelperClient()
         self.settings = settings
+        rest = RestController(settings: settings)
         aiUsage = AIUsageController(settings: settings, providers: aiUsageProviders, quotaProviders: aiQuotaProviders,
                                     quotaCacheURL: quotaCacheURL)
         self.store = store

@@ -83,6 +83,7 @@ public struct MainWindowView: View {
             case .battery: DetailPage { BatteryPopover() }
             case .processes: ProcessesPage()
             case .keepAwake: KeepAwakePage()
+            case .rest: RestPage()
             case .cleaner: CleanerPage()
             case .uninstaller: UninstallerPage()
             case .startupItems: StartupItemsPage()
@@ -173,7 +174,7 @@ private struct MainSidebar: View {
     private var navigation: some View {
         VStack(alignment: .leading, spacing: DS.Space.s1) {
             group(tr("监控"), PanelTab.monitors.filter { $0 != .aiUsage || model.settings.aiUsageEnabled })
-            group(tr("工具"), PanelTab.tools)
+            group(tr("工具"), PanelTab.tools.filter { $0 != .rest || model.settings.restEnabled })
             group(tr("设置"), PanelTab.settings)
         }
         .sidebarGlider()
@@ -236,6 +237,11 @@ private struct PageHeader: View {
                 .padding(.horizontal, DS.Space.s3)
                 .frame(height: DS.Size.controlHeight)
                 .dsGlass(in: Capsule(), fallback: DS.Palette.primary.opacity(0.12))
+            }
+            if settings.restEnabled {
+                IconButton(systemName: "rectangle.inset.filled", help: tr("收起到迷你 HUD")) {
+                    model.collapseToRestHUD()
+                }
             }
             if tab == .memory { PurgeMemoryButton() }
             if tab == .network {

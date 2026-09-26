@@ -106,6 +106,16 @@ struct GeneralSettings: View {
 
         SettingsGroup(caption: tr("可选功能")) {
             GroupRow(showsDivider: false) {
+                SettingRow(title: tr("番茄钟与护眼休息"),
+                           subtitle: tr("专注计时、每日目标与多屏休息幕布；所有数据留在本机。"),
+                           icon: "eye") {
+                    HStack(spacing: DS.Space.s2) {
+                        if settings.restEnabled { RestOptionsButton() }
+                        DSToggle(isOn: $settings.restEnabled, label: tr("番茄钟与护眼休息"))
+                    }
+                }
+            }
+            GroupRow(showsDivider: false) {
                 SettingRow(title: tr("AI 用量与额度"),
                            subtitle: tr("自动检测 Codex / Claude 订阅额度；本地 Token 统计可单独关闭。"),
                            icon: "sparkles") {

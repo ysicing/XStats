@@ -22,6 +22,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private var updateWindow: UpdateWindowController!
     private var speedTestWindow: SpeedTestWindowController!
     private var egressWindow: EgressWindowController!
+    private var rest: RestController { model.rest }
+    private var restWindows: RestWindowController!
+    private var restMenuBar: RestMenuBarController!
     private var updateTimer: Timer?
     private var widgetTimer: Timer?
     private let hotKeys = HotKeyCenter()
@@ -48,6 +51,21 @@ public final class AppController: NSObject, NSApplicationDelegate {
         speedTestWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
         egressWindow = EgressWindowController(model: model)
         egressWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
+        restWindows = RestWindowController(rest: rest)
+        restMenuBar = RestMenuBarController(rest: rest, open: { [weak self] in
+            self?.model.openMainWindow(.rest)
+        }, toggleHUD: { [weak self] in
+            self?.restWindows.toggleHUD()
+        })
+        rest.onRestChange = { [weak self] active in
+            if active { self?.restWindows.showRest() } else { self?.restWindows.hideRest() }
+        }
+        rest.onStateChange = { [weak self] in self?.restMenuBar.update() }
+        model.toggleRestHUD = { [weak self] in self?.restWindows.toggleHUD() }
+        model.collapseToRestHUD = { [weak self] in
+            self?.restWindows.showHUD()
+            self?.mainWindow.close()
+        }
         menuBar.update()
         calendarMenuBar.start()
 
@@ -88,6 +106,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
 
         observeWorkspace()
+        observeRestSettings()
+        observeRestSound()
+        rest.sync()
+        restMenuBar.sync()
         observeModel()
         observeProbeSettings()
         observeAIUsageSchedule()
@@ -173,6 +195,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        rest.prepareForTermination()
         widgetTimer?.invalidate()
         calendarMenuBar.stop()
         model.aiUsage.stop()
@@ -490,6 +513,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
                     self.model.network.setPaused(true)
                     self.model.aiUsage.setPaused(true)
                     self.model.history.flush()
+                    self.restWindows.hideRest()
+                    self.rest.suspend()
                     Task { await self.model.hub.setPaused(true) }
                 }
             })
@@ -500,12 +525,42 @@ public final class AppController: NSObject, NSApplicationDelegate {
                     guard let self else { return }
                     self.model.network.setPaused(false)
                     self.model.aiUsage.setPaused(false)
+                    self.rest.sync()
+                    if self.rest.phase.isResting && self.rest.isRunning { self.restWindows.ensureRestVisible() }
                     Task {
                         await self.model.hub.setPaused(false)
                         await self.model.fans.reapply()
                     }
                 }
             })
+        }
+    }
+
+    private func observeRestSettings() {
+        withObservationTracking {
+            _ = model.settings.restEnabled
+            _ = model.settings.restWorkMinutes
+            _ = model.settings.restBreakMinutes
+            _ = model.settings.restLongBreakMinutes
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.rest.restart()
+                self.restMenuBar.sync()
+                if !self.model.settings.restEnabled { self.restWindows.hideHUD() }
+                self.observeRestSettings()
+            }
+        }
+    }
+
+    private func observeRestSound() {
+        withObservationTracking {
+            _ = model.settings.restSound
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.rest.syncSound()
+                self?.observeRestSound()
+            }
         }
     }
 }
