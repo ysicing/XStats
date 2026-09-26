@@ -6,7 +6,7 @@
 
 开源的 macOS 菜单栏系统监控与维护工具。
 
-[![Release](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.9.3-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.10.0-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20%E8%8A%AF%E7%89%87-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
@@ -62,7 +62,7 @@ task build BUMP=0 INSTALL=0
 <!-- changelog:start -->
 <!-- 由 scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->
 
-最新版本 **0.9.3**（2026-09-25） · [完整更新日志](CHANGELOG.md)
+最新版本 **0.10.0**（2026-09-26） · [完整更新日志](CHANGELOG.md)
 
 <!-- changelog:end -->
 
