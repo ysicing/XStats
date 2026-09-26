@@ -389,6 +389,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 去授权	Conceder acceso
 双行圆点	Puntos
 双行文字	Texto en dos líneas
+双行居中	Dos líneas centradas
 双行箭头	Flechas
 反向解析	DNS inverso
 反馈问题	Informar de un problema
@@ -510,7 +511,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 将应用 {} 保存的设置，覆盖本机对应偏好。	Aplicar los ajustes guardados el {}, sobrescribiendo las preferencias locales correspondientes.
 将清理 {} 个项目，共 {}。{}	Se limpiarán {} elementos, {} en total. {}
 将移到废纸篓	Se moverá a la Papelera
-小标签在上、数值在下，最紧凑	Etiqueta pequeña sobre el valor; el más compacto
+小标签在上、数值在下，两行靠右对齐，数值的右边不会跳	Etiqueta pequeña encima del valor; ambas líneas alineadas a la derecha para fijar el borde del valor
+同双行文字，但两行各自居中；标签比数值宽时（风扇、温度）不会偏到一边	Como el texto en dos líneas, pero cada línea centrada; los valores cortos quedan bajo etiquetas más anchas
 尚未检查	Sin comprobar
 屏幕保持常亮	Mantener pantalla encendida
 屏幕可按设置关闭，下载、编译等后台任务继续运行	La pantalla puede apagarse normalmente mientras continúan descargas y compilaciones

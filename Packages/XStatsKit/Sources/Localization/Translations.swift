@@ -504,6 +504,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 去授权	Grant Access
 双行圆点	Dots
 双行文字	Stacked Text
+双行居中	Stacked, Centered
 双行箭头	Arrows
 反向解析	Reverse DNS
 反馈问题	Report a Problem
@@ -622,7 +623,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 寿命按厂商估算的已用比例计算；写入量越大消耗越快，日常使用通常可用很多年	Life is based on the vendor's wear estimate. Heavy writes wear it faster; typical use lasts many years.
 将清理 {} 个项目，共 {}。{}	{} items, {} total, will be cleaned. {}
 将移到废纸篓	Will move to Trash
-小标签在上、数值在下，最紧凑	Small label above the value; most compact
+小标签在上、数值在下，两行靠右对齐，数值的右边不会跳	Small label above the value; both lines align right so the value's edge stays fixed
+同双行文字，但两行各自居中；标签比数值宽时（风扇、温度）不会偏到一边	Like Stacked Text, but each line is centered so short values stay beneath wider labels
 尚未检查	Not checked yet
 屏幕保持常亮	Keep display on
 屏幕可按设置关闭，下载、编译等后台任务继续运行	The display can turn off as usual while downloads and builds keep running

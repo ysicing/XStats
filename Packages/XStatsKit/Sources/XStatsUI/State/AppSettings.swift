@@ -199,7 +199,7 @@ public enum ProbeTarget: String, CaseIterable, Identifiable, Sendable {
 
 /// 菜单栏风格：整体选一种套用到所有指标，个别指标可以单独指定（AppSettings.styleOverrides）；风格内部的排版保持一致
 public enum MenuBarStyle: String, CaseIterable, Identifiable, Sendable {
-    case stacked, inline, icon, ring, pie, history, line, meter, dot
+    case stacked, stackedCenter, inline, icon, ring, pie, history, line, meter, dot
 
     public var id: String { rawValue }
 
@@ -211,8 +211,8 @@ public enum MenuBarStyle: String, CaseIterable, Identifiable, Sendable {
 
     static func options(for item: MenuBarItem) -> [MenuBarStyle] {
         switch item {
-        case .temperature, .fan: [.stacked, .inline, .icon]
-        case .aiUsage: [.stacked, .inline, .icon, .ring, .pie, .meter, .dot]
+        case .temperature, .fan: [.stacked, .stackedCenter, .inline, .icon]
+        case .aiUsage: [.stacked, .stackedCenter, .inline, .icon, .ring, .pie, .meter, .dot]
         default: allCases
         }
     }
@@ -220,6 +220,7 @@ public enum MenuBarStyle: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .stacked: tr("双行文字")
+        case .stackedCenter: tr("双行居中")
         case .inline: tr("单行文字")
         case .icon: tr("图标")
         case .ring: tr("圆环")
@@ -233,7 +234,8 @@ public enum MenuBarStyle: String, CaseIterable, Identifiable, Sendable {
 
     var detail: String {
         switch self {
-        case .stacked: tr("小标签在上、数值在下，最紧凑")
+        case .stacked: tr("小标签在上、数值在下，两行靠右对齐，数值的右边不会跳")
+        case .stackedCenter: tr("同双行文字，但两行各自居中；标签比数值宽时（风扇、温度）不会偏到一边")
         case .inline: tr("标签与数值同一行，最易读")
         case .icon: tr("用系统图标代替文字标签")
         case .ring: tr("圆环表示当前占用比例")

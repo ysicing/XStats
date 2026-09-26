@@ -128,6 +128,10 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(reading.aiQuotas.map(\.provider) == [.codex, .claude])
         let both = MenuBarRenderer.image(reading: reading, items: [.aiUsage],
             style: { _ in .stacked }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
+        let bothCentered = MenuBarRenderer.image(reading: reading, items: [.aiUsage],
+            style: { _ in .stackedCenter }, networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
+        #expect(bothCentered.size == both.size)
+        #expect(bothCentered.tiffRepresentation != both.tiffRepresentation)
         var codexOnly = reading
         codexOnly.aiQuotas = reading.aiQuotas.filter { $0.provider == .codex }
         let single = MenuBarRenderer.image(reading: codexOnly, items: [.aiUsage],
@@ -565,7 +569,7 @@ private actor GatedUsageProvider: AIUsageProvider {
     @Test func navigationExposesAIUsageAsAMonitorAndMenuBarItem() {
         #expect(PanelTab.monitors.contains(.aiUsage))
         #expect(PanelTab(item: .aiUsage) == .aiUsage)
-        #expect(MenuBarStyle.options(for: .aiUsage) == [.stacked, .inline, .icon, .ring, .pie, .meter, .dot])
+        #expect(MenuBarStyle.options(for: .aiUsage) == [.stacked, .stackedCenter, .inline, .icon, .ring, .pie, .meter, .dot])
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.menuBarStyle = .history
         #expect(settings.style(for: .aiUsage) == .ring)

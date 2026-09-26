@@ -389,6 +389,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 去授权	Zugriff erlauben
 双行圆点	Punkte
 双行文字	Zweizeiliger Text
+双行居中	Zweizeilig, zentriert
 双行箭头	Pfeile
 反向解析	Reverse DNS
 反馈问题	Problem melden
@@ -510,7 +511,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 将应用 {} 保存的设置，覆盖本机对应偏好。	Die am {} gesicherten Einstellungen anwenden und entsprechende lokale Einstellungen überschreiben.
 将清理 {} 个项目，共 {}。{}	{} Objekte mit insgesamt {} werden bereinigt. {}
 将移到废纸篓	Wird in den Papierkorb verschoben
-小标签在上、数值在下，最紧凑	Kleine Beschriftung über dem Wert; am kompaktesten
+小标签在上、数值在下，两行靠右对齐，数值的右边不会跳	Kleine Beschriftung über dem Wert; beide Zeilen rechtsbündig, damit der rechte Rand des Werts fest bleibt
+同双行文字，但两行各自居中；标签比数值宽时（风扇、温度）不会偏到一边	Wie zweizeiliger Text, aber jede Zeile zentriert; kurze Werte bleiben unter breiteren Beschriftungen
 尚未检查	Noch nicht geprüft
 屏幕保持常亮	Bildschirm eingeschaltet lassen
 屏幕可按设置关闭，下载、编译等后台任务继续运行	Der Bildschirm darf sich wie gewohnt ausschalten, während Downloads und Builds weiterlaufen

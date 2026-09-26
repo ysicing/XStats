@@ -190,6 +190,30 @@ private func isolatedDefaults() -> UserDefaults {
 
 @MainActor
 @Suite struct SettingsTests {
+    @Test func stackedCenteredStyleRendersDifferentPlacementAtSameWidth() {
+        #expect(MenuBarStyle.options(for: .fan).contains(.stackedCenter))
+        var reading = MenuBarReading.sample
+        reading.fanRPM = 0
+        let aligned = MenuBarRenderer.image(reading: reading, items: [.fan],
+                                            style: { _ in .stacked }, networkStyle: .dots,
+                                            colorizeHighLoad: false, fahrenheit: false)
+        let centered = MenuBarRenderer.image(reading: reading, items: [.fan],
+                                             style: { _ in .stackedCenter }, networkStyle: .dots,
+                                             colorizeHighLoad: false, fahrenheit: false)
+        #expect(aligned.size == centered.size)
+        #expect(aligned.tiffRepresentation != centered.tiffRepresentation)
+    }
+
+    @Test func centeredStylePersistsAndRestoresFromBackup() {
+        let source = AppSettings(defaults: isolatedDefaults())
+        source.menuBarStyle = .stackedCenter
+        source.styleOverrides = [.fan: .stackedCenter]
+        let target = AppSettings(defaults: isolatedDefaults())
+        target.apply(source.exportDocument())
+        #expect(target.menuBarStyle == .stackedCenter)
+        #expect(target.styleOverrides[.fan] == .stackedCenter)
+    }
+
     @Test func defaultsAndInvalidValues() {
         let defaults = isolatedDefaults()
         defaults.set(7, forKey: "refreshSeconds")
