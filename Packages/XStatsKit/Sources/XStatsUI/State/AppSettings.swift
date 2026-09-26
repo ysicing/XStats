@@ -415,10 +415,12 @@ public enum UpdateCheckSchedule: String, CaseIterable, Identifiable, Sendable {
 
     var promptsForUpdates: Bool { self != .quietRuntime && self != .never }
 
-    func shouldCheck(lastChecked: Date?, now: Date, atLaunch: Bool) -> Bool {
+    /// `launchedAt` 为本次运行的启动时刻。“启动时”策略在本次运行成功检查前一直待办，
+    /// 开机登录时网络常未就绪，首次失败后由每小时的定时器继续重试。
+    func shouldCheck(lastChecked: Date?, now: Date, launchedAt: Date) -> Bool {
         switch self {
         case .never: return false
-        case .atLaunch: return atLaunch
+        case .atLaunch: return lastChecked.map { $0 < launchedAt } ?? true
         case .quietRuntime, .daily, .weekly, .monthly:
             guard let lastChecked else { return true }
             let next: Date

@@ -36,10 +36,12 @@ public final class UpdateController {
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var task: Task<Void, Never>?
+    @ObservationIgnored private let launchedAt: Date
 
-    init(settings: AppSettings, defaults: UserDefaults = .standard) {
+    init(settings: AppSettings, defaults: UserDefaults = .standard, launchedAt: Date = Date()) {
         self.settings = settings
         self.defaults = defaults
+        self.launchedAt = launchedAt
         lastChecked = defaults.object(forKey: Keys.lastChecked) as? Date
         skippedVersion = defaults.string(forKey: Keys.skippedVersion)
     }
@@ -66,9 +68,9 @@ public final class UpdateController {
     // MARK: 检查
 
     /// 启动时或运行期间按用户选择的策略检查；失败后由后续调度重试。
-    func checkIfNeeded(atLaunch: Bool = false) {
+    func checkIfNeeded() {
         let schedule = settings.updateCheckSchedule
-        guard !isBusy, schedule.shouldCheck(lastChecked: lastChecked, now: Date(), atLaunch: atLaunch) else { return }
+        guard !isBusy, schedule.shouldCheck(lastChecked: lastChecked, now: Date(), launchedAt: launchedAt) else { return }
         check(userInitiated: false, suppressPrompt: !schedule.promptsForUpdates)
     }
 

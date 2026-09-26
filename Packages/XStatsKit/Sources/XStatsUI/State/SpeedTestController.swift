@@ -80,9 +80,22 @@ public final class SpeedTestController {
     @ObservationIgnored private var watchTask: Task<Void, Never>?
     @ObservationIgnored private var details: NetworkDetails?
     @ObservationIgnored private let settings: AppSettings
+    /// 每次开始、停止或结束宽带测速都换代；阶段与进度回调是另行投递到主线程的，
+    /// 过期回调据此丢弃，不会在停止后把界面改回“测试中”。
+    @ObservationIgnored private var broadbandRun = 0
+    typealias BroadbandRunner = @Sendable (SpeedLimit, SpeedPath,
+                                           @escaping @Sendable (BroadbandTest.Stage) -> Void,
+                                           @escaping @Sendable (Double, Int) -> Void) async -> BroadbandResult
+    @ObservationIgnored private let runBroadbandTest: BroadbandRunner
 
     public init(settings: AppSettings) {
         self.settings = settings
+        runBroadbandTest = { await BroadbandTest.run(limit: $0, path: $1, stage: $2, progress: $3) }
+    }
+
+    init(settings: AppSettings, broadband: @escaping BroadbandRunner) {
+        self.settings = settings
+        runBroadbandTest = broadband
     }
 
     var limit: SpeedLimit { settings.speedTestBudget.limit }
@@ -143,6 +156,7 @@ public final class SpeedTestController {
         globalTask?.cancel()
         downloadTask?.cancel()
         probeTask?.cancel()
+        broadbandRun += 1
         broadbandStage = nil
         isTestingChina = false
         isTestingGlobal = false
@@ -159,17 +173,27 @@ public final class SpeedTestController {
             stopBroadband()
             return
         }
+        broadbandRun += 1
+        let run = broadbandRun
         broadbandStage = .latency
         liveBitsPerSecond = 0
-        broadbandTask = Task { [self, limit, route = settings.speedTestRoute] in
+        broadbandTask = Task { [self, limit, route = settings.speedTestRoute, runBroadbandTest] in
             let path = await resolvePath(route)
             guard !Task.isCancelled else { return }
-            let result = await BroadbandTest.run(limit: limit, path: path) { stage in
-                Task { @MainActor [weak self] in self?.broadbandStage = stage; self?.liveBitsPerSecond = 0 }
-            } progress: { speed, _ in
-                Task { @MainActor [weak self] in self?.liveBitsPerSecond = speed }
-            }
-            guard !Task.isCancelled else { return }
+            let result = await runBroadbandTest(limit, path, { stage in
+                Task { @MainActor [weak self] in
+                    guard let self, self.broadbandRun == run else { return }
+                    self.broadbandStage = stage
+                    self.liveBitsPerSecond = 0
+                }
+            }, { speed, _ in
+                Task { @MainActor [weak self] in
+                    guard let self, self.broadbandRun == run else { return }
+                    self.liveBitsPerSecond = speed
+                }
+            })
+            guard !Task.isCancelled, broadbandRun == run else { return }
+            broadbandRun += 1
             broadband = result
             broadbandRoute = path.route
             broadbandDate = Date()
@@ -180,6 +204,7 @@ public final class SpeedTestController {
     }
 
     private func stopBroadband() {
+        broadbandRun += 1
         broadbandStage = nil
         liveBitsPerSecond = 0
     }

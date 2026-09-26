@@ -251,7 +251,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             self?.updateWindow.show()
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
-            self?.model.updates.checkIfNeeded(atLaunch: true)
+            self?.model.updates.checkIfNeeded()
         }
         updateTimer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.model.updates.checkIfNeeded() }

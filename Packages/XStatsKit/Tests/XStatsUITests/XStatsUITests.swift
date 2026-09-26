@@ -398,15 +398,18 @@ private func isolatedDefaults() -> UserDefaults {
         let sevenDaysAgo = now.addingTimeInterval(-7 * 24 * 60 * 60)
         let monthAgo = Calendar.current.date(byAdding: .month, value: -1, to: now)!
 
-        #expect(UpdateCheckSchedule.never.shouldCheck(lastChecked: nil, now: now, atLaunch: true) == false)
-        #expect(UpdateCheckSchedule.atLaunch.shouldCheck(lastChecked: now, now: now, atLaunch: true))
-        #expect(!UpdateCheckSchedule.atLaunch.shouldCheck(lastChecked: nil, now: now, atLaunch: false))
-        #expect(UpdateCheckSchedule.daily.shouldCheck(lastChecked: oneDayAgo, now: now, atLaunch: false))
-        #expect(UpdateCheckSchedule.quietRuntime.shouldCheck(lastChecked: oneDayAgo, now: now, atLaunch: false))
+        let launch = now.addingTimeInterval(-60 * 60)
+        #expect(UpdateCheckSchedule.never.shouldCheck(lastChecked: nil, now: now, launchedAt: launch) == false)
+        // “启动时”：本次运行尚未成功检查（上次在启动前或从未检查）就一直待办，失败后可由定时器重试
+        #expect(UpdateCheckSchedule.atLaunch.shouldCheck(lastChecked: nil, now: now, launchedAt: launch))
+        #expect(UpdateCheckSchedule.atLaunch.shouldCheck(lastChecked: oneDayAgo, now: now, launchedAt: launch))
+        #expect(!UpdateCheckSchedule.atLaunch.shouldCheck(lastChecked: launch.addingTimeInterval(10), now: now, launchedAt: launch))
+        #expect(UpdateCheckSchedule.daily.shouldCheck(lastChecked: oneDayAgo, now: now, launchedAt: launch))
+        #expect(UpdateCheckSchedule.quietRuntime.shouldCheck(lastChecked: oneDayAgo, now: now, launchedAt: launch))
         #expect(!UpdateCheckSchedule.quietRuntime.promptsForUpdates)
-        #expect(!UpdateCheckSchedule.weekly.shouldCheck(lastChecked: sixDaysAgo, now: now, atLaunch: false))
-        #expect(UpdateCheckSchedule.weekly.shouldCheck(lastChecked: sevenDaysAgo, now: now, atLaunch: false))
-        #expect(UpdateCheckSchedule.monthly.shouldCheck(lastChecked: monthAgo, now: now, atLaunch: false))
+        #expect(!UpdateCheckSchedule.weekly.shouldCheck(lastChecked: sixDaysAgo, now: now, launchedAt: launch))
+        #expect(UpdateCheckSchedule.weekly.shouldCheck(lastChecked: sevenDaysAgo, now: now, launchedAt: launch))
+        #expect(UpdateCheckSchedule.monthly.shouldCheck(lastChecked: monthAgo, now: now, launchedAt: launch))
     }
 
     @Test func legacyAutomaticUpdatePreferenceMigratesToSchedule() {
@@ -431,6 +434,19 @@ private func isolatedDefaults() -> UserDefaults {
         legacy.autoCheckUpdates = false
         target.apply(legacy)
         #expect(target.updateCheckSchedule == .never)
+    }
+
+    @Test func launchScheduleSkipsOnlyAfterACheckSucceededThisRun() {
+        let defaults = isolatedDefaults()
+        let settings = AppSettings(defaults: defaults)
+        settings.updateCheckSchedule = .atLaunch
+        let launch = Date()
+        // 本次启动后已成功检查过：定时器再触发也不重复请求
+        defaults.set(launch.addingTimeInterval(1), forKey: "updateLastChecked")
+        let checked = UpdateController(settings: settings, defaults: defaults, launchedAt: launch)
+        checked.checkIfNeeded()
+        #expect(checked.phase == .idle)
+        // 待办分支会真实联网上报，只在 shouldCheck 的纯函数测试里覆盖
     }
 
     @Test func automaticCheckRespectsSettingAndInterval() {
