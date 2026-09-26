@@ -810,7 +810,7 @@ struct AboutSettings: View {
                 }
             }
             GroupRow {
-                Text(tr("轻量的 macOS 菜单栏系统监控：CPU、GPU、内存、网络、温度、风扇、防休眠与清理。"))
+                Text(tr("在菜单栏掌握 Mac 状态；按需测速、控制风扇与清理空间，小组件和番茄钟助你保持专注。"))
                     .dsFont(.sm)
                     .foregroundStyle(DS.Palette.textSecondary)
                     .multilineTextAlignment(.leading)

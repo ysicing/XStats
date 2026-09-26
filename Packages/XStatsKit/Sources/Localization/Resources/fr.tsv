@@ -1137,7 +1137,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 转速 {}	Vitesse {}
 转速最高的风扇	Ventilateur le plus rapide
 软件更新	Mise à jour logicielle
-轻量的 macOS 菜单栏系统监控：CPU、GPU、内存、网络、温度、风扇、防休眠与清理。	Un moniteur léger dans la barre des menus macOS : CPU, GPU, mémoire, réseau, température, ventilateurs, maintien en éveil et nettoyage.
+在菜单栏掌握 Mac 状态；按需测速、控制风扇与清理空间，小组件和番茄钟助你保持专注。	Gardez un œil sur votre Mac depuis la barre des menus : testez le réseau, contrôlez les ventilateurs et libérez de l'espace. Les widgets et Pomodoro vous aident à rester concentré.
 较弱	Faible
 辅助工具	Assistant
 辅助工具未启用	L’assistant n’est pas activé

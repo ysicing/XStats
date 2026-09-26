@@ -1229,7 +1229,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 转速 {}	Speed {}
 转速最高的风扇	Fastest fan
 软件更新	Software Update
-轻量的 macOS 菜单栏系统监控：CPU、GPU、内存、网络、温度、风扇、防休眠与清理。	A lightweight macOS menu bar monitor: CPU, GPU, memory, network, temperature, fans, keep awake and cleanup.
+在菜单栏掌握 Mac 状态；按需测速、控制风扇与清理空间，小组件和番茄钟助你保持专注。	Keep an eye on your Mac from the menu bar. Test your network, control fans, free up space, and stay focused with widgets and a Pomodoro timer.
 较弱	Weak
 辅助工具	Helper
 辅助工具未启用	Helper is not enabled
