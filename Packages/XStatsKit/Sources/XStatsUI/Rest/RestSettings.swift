@@ -4,6 +4,21 @@
 import Localization
 import SwiftUI
 
+/// 专注与休息的运行方式；工作番茄由用户明确开始和结束一个工作时段。
+public enum RestRunMode: String, CaseIterable, Identifiable, Sendable {
+    case single, cycle, workday
+
+    public var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .single: tr("单次")
+        case .cycle: tr("循环")
+        case .workday: tr("工作番茄")
+        }
+    }
+}
+
 public enum RestHUDStyle: String, CaseIterable, Identifiable, Sendable {
     case countdown, ring, hourglass
 

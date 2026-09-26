@@ -190,6 +190,106 @@ import Testing
 
 @MainActor
 @Suite struct RestSettingsTests {
+    @Test func workdayStartsExplicitlyAndEndsWithoutLosingTodaysCount() {
+        let suite = "RestWorkdayTests.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.restEnabled = true
+        settings.restMode = .workday
+        var now: UInt64 = 0
+        let rest = RestController(settings: settings, localDefaults: defaults,
+                                  sharedDefaults: defaults, clock: { now })
+        rest.sync()
+        #expect(!rest.isWorkdayActive && !rest.isRunning && rest.phase == .work)
+
+        rest.startPause()
+        #expect(rest.isWorkdayActive && rest.isRunning)
+        now = 25 * 60_000_000_000
+        rest.sync()
+        #expect(rest.phase == .rest && rest.isRunning)
+        #expect(rest.completedToday == 1)
+
+        rest.endWorkday()
+        #expect(!rest.isWorkdayActive && !rest.isRunning && rest.phase == .work)
+        #expect(rest.secondsRemaining == 25 * 60)
+        #expect(rest.completedToday == 1)
+        rest.stop()
+    }
+
+    @Test func workdayCyclesIntoLongBreakAfterFourFocusPeriods() {
+        let suite = "RestWorkdayLongBreakTests.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.restEnabled = true
+        settings.restMode = .workday
+        var now: UInt64 = 0
+        let rest = RestController(settings: settings, localDefaults: defaults,
+                                  sharedDefaults: defaults, clock: { now })
+        rest.sync()
+        rest.startPause()
+        now = 115 * 60_000_000_000
+        rest.sync()
+        #expect(rest.phase == .longRest && rest.isRunning)
+        #expect(rest.completedToday == 4)
+        rest.stop()
+    }
+
+    @Test func switchingModesKeepsActiveWorkdayAndLongBreakCadence() {
+        let suite = "RestWorkdayModeChangeTests.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.restEnabled = true
+        settings.restMode = .workday
+        var now: UInt64 = 0
+        let rest = RestController(settings: settings, localDefaults: defaults,
+                                  sharedDefaults: defaults, clock: { now })
+        rest.sync()
+        rest.startPause()
+        now = 95 * 60_000_000_000
+        rest.sync()
+        #expect(rest.completedToday == 3 && rest.phase == .work)
+        settings.restMode = .single
+        rest.modeDidChange()
+        #expect(rest.isWorkdayActive && !rest.isRunning)
+        #expect(rest.secondsRemaining == 20 * 60 && rest.canContinue)
+        settings.restMode = .workday
+        rest.modeDidChange()
+        #expect(rest.isWorkdayActive && rest.secondsRemaining == 20 * 60)
+        rest.startPause()
+        now = 115 * 60_000_000_000
+        rest.sync()
+        #expect(rest.phase == .longRest && rest.completedToday == 4)
+        rest.stop()
+    }
+
+    @Test func changingDurationDoesNotEndWorkdayOrLoseRoundCount() {
+        let suite = "RestWorkdayDurationTests.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.restEnabled = true
+        settings.restMode = .workday
+        var now: UInt64 = 0
+        let rest = RestController(settings: settings, localDefaults: defaults,
+                                  sharedDefaults: defaults, clock: { now })
+        rest.sync()
+        rest.startPause()
+        now = 90 * 60_000_000_000
+        rest.sync()
+        #expect(rest.completedToday == 3 && rest.phase == .work)
+        settings.restBreakMinutes = 10
+        rest.restart()
+        #expect(rest.isWorkdayActive && !rest.isRunning)
+        rest.startPause()
+        now = 115 * 60_000_000_000
+        rest.sync()
+        #expect(rest.phase == .longRest && rest.completedToday == 4)
+        rest.stop()
+    }
+
     @Test func failedBreakSoundRetriesAfterCooldown() {
         enum StartupFailure: Error { case unavailable }
         var now: UInt64 = 0
@@ -482,5 +582,23 @@ import Testing
         #expect(target.restDailyGoal == 12)
         #expect(target.restSound == .rain)
         #expect(target.restHUDStyle == .hourglass)
+    }
+
+    @Test func workdayModeMigratesLegacyCycleAndRoundTripsBackup() {
+        let oldSuite = "RestLegacyModeTests.\(UUID())"
+        let oldDefaults = UserDefaults(suiteName: oldSuite)!
+        defer { oldDefaults.removePersistentDomain(forName: oldSuite) }
+        oldDefaults.set(true, forKey: "restCycleEnabled")
+        let source = AppSettings(defaults: oldDefaults)
+        #expect(source.restMode == .cycle)
+        source.restMode = .workday
+
+        let targetSuite = "RestModeBackupTests.\(UUID())"
+        let targetDefaults = UserDefaults(suiteName: targetSuite)!
+        defer { targetDefaults.removePersistentDomain(forName: targetSuite) }
+        let target = AppSettings(defaults: targetDefaults)
+        target.apply(source.exportDocument())
+        #expect(target.restMode == .workday)
+        #expect(AppSettings(defaults: targetDefaults).restMode == .workday)
     }
 }

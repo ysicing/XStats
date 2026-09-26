@@ -40,7 +40,8 @@ struct RestSession {
     let restNanoseconds: UInt64
     let longRestNanoseconds: UInt64
 
-    init(now: UInt64, workMinutes: Int, restMinutes: Int, longBreakMinutes: Int = 15) {
+    init(now: UInt64, workMinutes: Int, restMinutes: Int, longBreakMinutes: Int = 15,
+         completedFocus: Int = 0) {
         workNanoseconds = UInt64(max(1, workMinutes)) * 60_000_000_000
         restNanoseconds = UInt64(max(1, restMinutes)) * 60_000_000_000
         longRestNanoseconds = UInt64(max(1, longBreakMinutes)) * 60_000_000_000
@@ -49,6 +50,7 @@ struct RestSession {
         remainingByPhase = [.work: workNanoseconds, .rest: restNanoseconds, .longRest: longRestNanoseconds]
         activeDurationByPhase = remainingByPhase
         deadline = now + workNanoseconds
+        self.completedFocus = completedFocus
     }
 
     func remaining(at now: UInt64) -> TimeInterval {
@@ -172,6 +174,7 @@ struct RestSession {
 final class RestController {
     private(set) var phase: RestPhase = .work
     private(set) var isRunning = false
+    private(set) var isWorkdayActive = false
     private(set) var canContinue = false
     private(set) var secondsRemaining: TimeInterval = 0
     private(set) var phaseDuration: TimeInterval = 0
@@ -245,6 +248,10 @@ final class RestController {
 
     func startPause() {
         guard settings.restEnabled else { return }
+        if settings.restMode == .workday && !isWorkdayActive {
+            startWorkday()
+            return
+        }
         settleExpiredSession()
         guard var session else { return }
         let now = clock()
@@ -254,6 +261,42 @@ final class RestController {
             session.startOrContinue(at: now)
         }
         self.session = session
+        refresh()
+    }
+
+    /// 工作时段必须由用户开始；开始时从完整的第一轮专注计时。
+    private func startWorkday() {
+        let now = clock()
+        var session = RestSession(now: now, workMinutes: settings.restWorkMinutes,
+                                  restMinutes: settings.restBreakMinutes,
+                                  longBreakMinutes: settings.restLongBreakMinutes)
+        session.startOrContinue(at: now)
+        self.session = session
+        isWorkdayActive = true
+        suspendedAt = nil
+        lastFocusCredited = false
+        refresh()
+    }
+
+    func endWorkday() {
+        guard settings.restMode == .workday, isWorkdayActive else { return }
+        settleExpiredSession()
+        isWorkdayActive = false
+        suspendedAt = nil
+        lastFocusCredited = false
+        session = RestSession(now: clock(), workMinutes: settings.restWorkMinutes,
+                              restMinutes: settings.restBreakMinutes,
+                              longBreakMinutes: settings.restLongBreakMinutes)
+        refresh()
+    }
+
+    /// 改运行方式只暂停当前阶段并保留剩余时间；工作时段只能显式结束。
+    func modeDidChange() {
+        settleExpiredSession()
+        if var session {
+            session.pause(at: clock())
+            self.session = session
+        }
         refresh()
     }
 
@@ -275,15 +318,18 @@ final class RestController {
 
     func restart() {
         settleExpiredSession()
+        let completedFocus = isWorkdayActive ? session?.completedFocus ?? 0 : 0
         suspendedAt = nil
         lastFocusCredited = false
         session = RestSession(now: clock(), workMinutes: settings.restWorkMinutes,
                               restMinutes: settings.restBreakMinutes,
-                              longBreakMinutes: settings.restLongBreakMinutes)
+                              longBreakMinutes: settings.restLongBreakMinutes,
+                              completedFocus: completedFocus)
         sync()
     }
 
     func skip() {
+        guard settings.restMode != .workday || isWorkdayActive else { return }
         settleExpiredSession()
         guard var session else { return }
         session.skip(at: clock())
@@ -312,7 +358,9 @@ final class RestController {
         guard var session else { return }
         refreshDay()
         let now = clock()
-        let completedAt = session.advance(to: now, cycle: settings.restCycleEnabled)
+        let continuesAutomatically = settings.restMode == .cycle
+            || (settings.restMode == .workday && isWorkdayActive)
+        let completedAt = session.advance(to: now, cycle: continuesAutomatically)
         let nowDate = date()
         let today = Calendar.current.startOfDay(for: nowDate)
         let credited = completedAt.filter { completion in
@@ -392,6 +440,7 @@ final class RestController {
     func stop() {
         suspend()
         session = nil
+        isWorkdayActive = false
         suspendedAt = nil
         lastFocusCredited = false
         lastSharedDeadline = nil

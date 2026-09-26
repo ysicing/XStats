@@ -94,10 +94,12 @@ private struct RestOverlayView: View {
                     .foregroundStyle(accent)
                 }
                 .frame(width: 250, height: 250)
-                Text(tr("让眼睛休息一下"))
+                Text(tr(rest.settings.restMode == .workday ? "起身活动一下" : "让眼睛休息一下"))
                     .font(.system(size: 34, weight: .medium, design: .rounded))
                     .tracking(-1)
-                Text(tr("看看远处，轻轻眨眼，放松肩颈"))
+                Text(tr(rest.settings.restMode == .workday
+                        ? "走动几步，看看远处，让身体和眼睛都休息"
+                        : "看看远处，轻轻眨眼，放松肩颈"))
                     .font(.system(size: 16))
                     .foregroundStyle(.secondary)
                 HStack(spacing: 14) {
@@ -172,11 +174,19 @@ private struct RestHUDView: View {
                 Button { rest.startPause() } label: {
                     Image(systemName: rest.isRunning ? "pause.fill" : "play.fill")
                 }
-                .help(tr(rest.isRunning ? "暂停" : rest.canContinue ? "继续" : "开始"))
+                .help(tr(rest.isRunning ? "暂停"
+                         : rest.settings.restMode == .workday && !rest.isWorkdayActive ? "开始工作"
+                         : rest.canContinue || rest.isWorkdayActive ? "继续" : "开始"))
                 Button { rest.resetCurrentPhase() } label: { Image(systemName: "arrow.counterclockwise") }
                     .help(tr("重置"))
+                    .disabled(rest.settings.restMode == .workday && !rest.isWorkdayActive)
                 Button { rest.skip() } label: { Image(systemName: "forward.end.fill") }
                     .help(tr("跳过"))
+                    .disabled(rest.settings.restMode == .workday && !rest.isWorkdayActive)
+                if rest.settings.restMode == .workday && rest.isWorkdayActive {
+                    Button { rest.endWorkday() } label: { Image(systemName: "stop.fill") }
+                        .help(tr("结束工作"))
+                }
             }
             .buttonStyle(.plain)
         }

@@ -107,6 +107,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
         observeWorkspace()
         observeRestSettings()
+        observeRestMode()
         observeRestSound()
         rest.sync()
         restMenuBar.sync()
@@ -571,6 +572,18 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self.restMenuBar.sync()
                 if !self.model.settings.restEnabled { self.restWindows.hideHUD() }
                 self.observeRestSettings()
+            }
+        }
+    }
+
+    private func observeRestMode() {
+        withObservationTracking {
+            _ = model.settings.restMode
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.rest.modeDidChange()
+                self.observeRestMode()
             }
         }
     }

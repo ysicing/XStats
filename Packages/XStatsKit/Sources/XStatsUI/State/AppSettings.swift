@@ -464,8 +464,16 @@ public final class AppSettings {
     public var restDailyGoal: Int {
         didSet { defaults.set(restDailyGoal, forKey: Keys.restDailyGoal) }
     }
+    /// 兼容旧版布尔偏好与备份；新界面以 restMode 为准。
     public var restCycleEnabled: Bool {
-        didSet { defaults.set(restCycleEnabled, forKey: Keys.restCycleEnabled) }
+        get { restMode == .cycle }
+        set { restMode = newValue ? .cycle : .single }
+    }
+    public var restMode: RestRunMode {
+        didSet {
+            defaults.set(restMode.rawValue, forKey: Keys.restMode)
+            defaults.set(restCycleEnabled, forKey: Keys.restCycleEnabled)
+        }
     }
     public var restSound: RestSound {
         didSet { defaults.set(restSound.rawValue, forKey: Keys.restSound) }
@@ -664,7 +672,8 @@ public final class AppSettings {
             ? defaults.integer(forKey: Keys.restLongBreakMinutes) : 15
         restDailyGoal = Self.restDailyGoalOptions.contains(defaults.integer(forKey: Keys.restDailyGoal))
             ? defaults.integer(forKey: Keys.restDailyGoal) : 8
-        restCycleEnabled = defaults.bool(forKey: Keys.restCycleEnabled)
+        restMode = defaults.string(forKey: Keys.restMode).flatMap(RestRunMode.init(rawValue:))
+            ?? (defaults.bool(forKey: Keys.restCycleEnabled) ? .cycle : .single)
         restSound = defaults.string(forKey: Keys.restSound).flatMap(RestSound.init(rawValue:)) ?? .off
         restHUDStyle = defaults.string(forKey: Keys.restHUDStyle).flatMap(RestHUDStyle.init(rawValue:)) ?? .countdown
         calendarEnabled = defaults.bool(forKey: Keys.calendarEnabled)
@@ -780,6 +789,7 @@ public final class AppSettings {
         static let restLongBreakMinutes = "restLongBreakMinutes"
         static let restDailyGoal = "restDailyGoal"
         static let restCycleEnabled = "restCycleEnabled"
+        static let restMode = "restMode"
         static let restSound = "restSound"
         static let restHUDStyle = "restHUDStyle"
         static let calendarEnabled = "calendarEnabled"

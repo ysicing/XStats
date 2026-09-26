@@ -1490,3 +1490,10 @@ Sub2API 账号平台与所选来源不匹配	Die Plattform des Sub2API-Kontos st
 VPN 不允许绕开它直连，TCP 建连会被本机代理提前应答，测不出真实延迟。关掉 VPN 再测	Das VPN lässt keine direkte Verbindung zu. Der lokale Proxy beantwortet TCP-Verbindungen vorzeitig, daher ist keine echte Latenzmessung möglich. VPN ausschalten und erneut messen
 国内节点只能测 TCP 建连，经代理测不准，所以始终直连测	China-Knoten erlauben nur TCP-Verbindungszeiten; über einen Proxy wären sie ungenau und werden daher immer direkt gemessen
 检测到 {}。直连会绕开它，测的是本机宽带；经 {} 测的是代理线路	{} erkannt. Direkt umgeht es für einen Test Ihres Anschlusses; über {} wird die Proxy-Strecke gemessen
+工作番茄	Arbeit
+开始工作	Arbeit beginnen
+结束工作	Arbeit beenden
+待开始	Bereit zum Start
+手动开始工作，专注与休息自动交替；每 4 轮进入长休。	Arbeit manuell beginnen. Fokus und Pausen wechseln automatisch; nach vier Fokusphasen folgt eine lange Pause.
+起身活动一下	Aufstehen und bewegen
+走动几步，看看远处，让身体和眼睛都休息	Gehen Sie ein paar Schritte und blicken Sie in die Ferne, um Körper und Augen zu entspannen

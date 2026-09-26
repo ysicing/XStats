@@ -23,6 +23,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var restLongBreakMinutes: Int?
     public var restDailyGoal: Int?
     public var restCycleEnabled: Bool?
+    public var restMode: String?
     public var restSound: String?
     public var restHUDStyle: String?
     public var calendarFeatures: [String]?
@@ -70,6 +71,7 @@ extension AppSettings {
         doc.restLongBreakMinutes = restLongBreakMinutes
         doc.restDailyGoal = restDailyGoal
         doc.restCycleEnabled = restCycleEnabled
+        doc.restMode = restMode.rawValue
         doc.restSound = restSound.rawValue
         doc.restHUDStyle = restHUDStyle.rawValue
         doc.calendarFeatures = calendarFeatures.map(\.rawValue).sorted()
@@ -121,7 +123,11 @@ extension AppSettings {
         assign(\.restBreakMinutes, option(doc.restBreakMinutes, in: Self.restBreakOptions))
         assign(\.restLongBreakMinutes, option(doc.restLongBreakMinutes, in: Self.restLongBreakOptions))
         assign(\.restDailyGoal, option(doc.restDailyGoal, in: Self.restDailyGoalOptions))
-        assign(\.restCycleEnabled, doc.restCycleEnabled)
+        if let mode = doc.restMode.flatMap(RestRunMode.init(rawValue:)) {
+            assign(\.restMode, mode)
+        } else {
+            assign(\.restCycleEnabled, doc.restCycleEnabled)
+        }
         assign(\.restSound, doc.restSound.flatMap(RestSound.init(rawValue:)))
         assign(\.restHUDStyle, doc.restHUDStyle.flatMap(RestHUDStyle.init(rawValue:)))
         assign(\.calendarFeatures, doc.calendarFeatures.map(CalendarFeature.restored(from:)))

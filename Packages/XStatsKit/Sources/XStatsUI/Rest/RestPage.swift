@@ -20,12 +20,19 @@ struct RestPage: View {
                     ForEach(RestPhase.allCases) { phase in
                         Button(phase.title) { rest.selectPhase(phase) }
                             .buttonStyle(DSButtonStyle(kind: rest.phase == phase ? .primary : .secondary))
+                            .disabled(settings.restMode == .workday && !rest.isWorkdayActive)
                     }
                     Spacer()
                     RestOptionsButton()
-                    SegmentedControl(selection: $settings.restCycleEnabled,
-                                     options: [(false, tr("单次")), (true, tr("循环"))])
-                        .frame(width: 150)
+                    SegmentedControl(selection: $settings.restMode,
+                                     options: RestRunMode.allCases.map { ($0, $0.title) })
+                        .frame(width: 240)
+                }
+
+                if settings.restMode == .workday {
+                    Text(tr("手动开始工作，专注与休息自动交替；每 4 轮进入长休。"))
+                        .dsFont(.xs)
+                        .foregroundStyle(DS.Palette.textSecondary)
                 }
 
                 VStack(spacing: DS.Space.s4) {
@@ -44,7 +51,8 @@ struct RestPage: View {
                                 .font(.system(size: 48, weight: .light, design: .rounded))
                                 .monospacedDigit()
                                 .foregroundStyle(DS.Palette.textPrimary)
-                            Text(rest.isRunning ? tr("计时中") : tr("已暂停"))
+                            Text(rest.isRunning ? tr("计时中")
+                                 : settings.restMode == .workday && !rest.isWorkdayActive ? tr("待开始") : tr("已暂停"))
                                 .dsFont(.xs)
                                 .foregroundStyle(DS.Palette.textSecondary)
                         }
@@ -52,12 +60,18 @@ struct RestPage: View {
                     .frame(width: 214, height: 214)
 
                     HStack(spacing: DS.Space.s2) {
-                        Button(rest.isRunning ? tr("暂停") : rest.canContinue ? tr("继续") : tr("开始")) { rest.startPause() }
+                        Button(primaryTitle(rest: rest, mode: settings.restMode)) { rest.startPause() }
                             .buttonStyle(DSButtonStyle(kind: .primary))
                         Button(tr("重置")) { rest.resetCurrentPhase() }
                             .buttonStyle(DSButtonStyle(kind: .secondary))
+                            .disabled(settings.restMode == .workday && !rest.isWorkdayActive)
                         Button(tr("跳过")) { rest.skip() }
                             .buttonStyle(DSButtonStyle(kind: .secondary))
+                            .disabled(settings.restMode == .workday && !rest.isWorkdayActive)
+                        if settings.restMode == .workday && rest.isWorkdayActive {
+                            Button(tr("结束工作")) { rest.endWorkday() }
+                                .buttonStyle(DSButtonStyle(kind: .secondary))
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -89,6 +103,12 @@ struct RestPage: View {
     private static func clock(_ seconds: TimeInterval) -> String {
         let whole = max(0, Int(seconds.rounded(.up)))
         return String(format: "%02d:%02d", whole / 60, whole % 60)
+    }
+
+    private func primaryTitle(rest: RestController, mode: RestRunMode) -> String {
+        if rest.isRunning { return tr("暂停") }
+        if mode == .workday { return rest.isWorkdayActive ? tr("继续") : tr("开始工作") }
+        return rest.canContinue ? tr("继续") : tr("开始")
     }
 }
 

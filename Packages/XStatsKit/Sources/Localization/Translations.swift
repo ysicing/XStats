@@ -39,6 +39,13 @@ extension Translations {
 长休	Long break
 单次	Single
 循环	Cycle
+工作番茄	Workday
+开始工作	Start work
+结束工作	End work
+待开始	Ready to start
+手动开始工作，专注与休息自动交替；每 4 轮进入长休。	Start your workday manually. Focus and breaks alternate, with a long break after four focus sessions.
+起身活动一下	Stand up and move
+走动几步，看看远处，让身体和眼睛都休息	Walk a little and look into the distance to rest your body and eyes
 计时中	Running
 已暂停	Paused
 暂停	Pause
