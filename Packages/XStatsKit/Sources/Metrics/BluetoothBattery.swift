@@ -19,6 +19,8 @@ public struct BluetoothDevice: Sendable, Equatable, Identifiable {
     public var kind: Kind
     /// 电量（0...100）；耳机分左耳、右耳、充电盒
     public var batteries: [(label: String, percent: Int)]
+    /// nil 表示系统未提供充电状态，不据电量百分比推断。
+    public var isCharging: Bool? = nil
     /// false 表示设备最近出现过，但当前读取不到；详情页会以“上次电量”展示
     public var isConnected = true
     public var lastSeen: Date? = nil
@@ -26,6 +28,7 @@ public struct BluetoothDevice: Sendable, Equatable, Identifiable {
     public static func == (lhs: BluetoothDevice, rhs: BluetoothDevice) -> Bool {
         lhs.id == rhs.id && lhs.name == rhs.name && lhs.kind == rhs.kind
             && lhs.batteries.map(\.label) == rhs.batteries.map(\.label) && lhs.batteries.map(\.percent) == rhs.batteries.map(\.percent)
+            && lhs.isCharging == rhs.isCharging
             && lhs.isConnected == rhs.isConnected && lhs.lastSeen == rhs.lastSeen
     }
 }
@@ -33,10 +36,12 @@ public struct BluetoothDevice: Sendable, Equatable, Identifiable {
 /// 电量来自三处：system_profiler 的蓝牙信息、pmset 的附件电源，以及 IOKit 的 HID BatteryPercent。
 public enum BluetoothBatteryReader {
     public static func read() -> [BluetoothDevice] {
+        let powerOutput = runPMSet()
         var devices = parseSystemProfiler(runSystemProfiler())
-        devices = merge(devices, with: parsePMSet(runPMSet()))
+        devices = merge(devices, with: parsePMSet(powerOutput))
         devices = merge(devices, with: hidBatteries())
-        return devices.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return mergeChargingSources(devices, powerOutput: powerOutput)
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
     /// system_profiler、pmset 与 IORegistry 对同一设备提供的信息并不完整，按名称合并并保留已有地址。
@@ -59,6 +64,7 @@ public enum BluetoothBatteryReader {
             if let index {
                 if result[index].address.isEmpty { result[index].address = addition.address }
                 if result[index].batteries.isEmpty { result[index].batteries = addition.batteries }
+                if let charging = addition.isCharging { result[index].isCharging = charging }
                 if result[index].kind == .other { result[index].kind = addition.kind }
                 result[index].isConnected = result[index].isConnected || addition.isConnected
             } else if !addition.name.isEmpty, !addition.address.isEmpty || nameMatches.count <= 1 {
@@ -114,16 +120,41 @@ public enum BluetoothBatteryReader {
     /// 无名称的电源项由 IORegistry 提供产品名，这里跳过以免显示成匿名设备。
     static func parsePMSet(_ output: String) -> [BluetoothDevice] {
         output.split(whereSeparator: \.isNewline).compactMap { rawLine in
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
-            guard line.hasPrefix("-"), let idRange = line.range(of: "(id=") else { return nil }
-            let name = line[line.index(after: line.startIndex)..<idRange.lowerBound].trimmingCharacters(in: .whitespaces)
-            guard !name.isEmpty, let close = line[idRange.upperBound...].firstIndex(of: ")") else { return nil }
-            let remainder = line[line.index(after: close)...]
-            guard let percentText = remainder.split(separator: ";", maxSplits: 1).first,
-                  let percent = percentValue(String(percentText)) else { return nil }
-            return BluetoothDevice(name: name, address: "", kind: kind(forName: name, minorType: nil),
-                                   batteries: [(tr("电量"), percent)])
+            guard let source = parsePowerSourceLine(rawLine), !source.name.isEmpty else { return nil }
+            return BluetoothDevice(name: source.name, address: "", kind: kind(forName: source.name, minorType: nil),
+                                   batteries: [(tr("电量"), source.percent)], isCharging: source.isCharging)
         }
+    }
+
+    /// pmset 有时只给附件 ID，没有名称；仅在电量百分比唯一匹配到已连接设备时补充充电状态。
+    static func mergeChargingSources(_ devices: [BluetoothDevice], powerOutput: String) -> [BluetoothDevice] {
+        var result = devices
+        for line in powerOutput.split(whereSeparator: \.isNewline) {
+            guard let source = parsePowerSourceLine(line), source.name.isEmpty, source.isCharging == true else { continue }
+            let matches = result.indices.filter { index in
+                result[index].isConnected && result[index].batteries.contains { $0.percent == source.percent }
+            }
+            if matches.count == 1, result[matches[0]].isCharging == nil {
+                result[matches[0]].isCharging = true
+            }
+        }
+        return result
+    }
+
+    private static func parsePowerSourceLine(_ rawLine: Substring) -> (name: String, percent: Int, isCharging: Bool?)? {
+        let line = rawLine.trimmingCharacters(in: .whitespaces)
+        guard line.hasPrefix("-"), let idRange = line.range(of: "(id=") else { return nil }
+        let name = line[line.index(after: line.startIndex)..<idRange.lowerBound].trimmingCharacters(in: .whitespaces)
+        guard let close = line[idRange.upperBound...].firstIndex(of: ")") else { return nil }
+        let fields = line[line.index(after: close)...].split(separator: ";")
+        guard let first = fields.first, let percent = percentValue(String(first)) else { return nil }
+        let charging: Bool? = fields.dropFirst().compactMap { field in
+            let value = field.trimmingCharacters(in: .whitespaces).lowercased()
+            if value.hasPrefix("charging present:") { return value.hasSuffix("true") }
+            if value.hasPrefix("discharging present:") && value.hasSuffix("true") { return false }
+            return nil
+        }.first
+        return (name, percent, charging)
     }
 
     static func kind(forName name: String, minorType: String?) -> BluetoothDevice.Kind {

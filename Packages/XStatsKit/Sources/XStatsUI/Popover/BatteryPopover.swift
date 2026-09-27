@@ -199,6 +199,16 @@ enum BluetoothDeviceRowLayout: Equatable {
     }
 }
 
+/// 电量色只用于图标与进度条；数字保持正文颜色，便于在浅色背景上阅读。
+private func bluetoothBatteryColor(percent: Int, connected: Bool) -> Color {
+    guard connected else { return DS.Palette.textTertiary }
+    switch percent {
+    case ...20: return DS.Palette.error
+    case ...50: return DS.Palette.warning
+    default: return DS.Palette.success
+    }
+}
+
 struct BluetoothDeviceList: View {
     let devices: [BluetoothDevice]?
 
@@ -232,10 +242,15 @@ private struct BluetoothDeviceRow: View {
                     .frame(width: DS.Size.iconStandalone)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(verbatim: device.name)
-                        .dsFont(.xs, weight: .medium)
-                        .foregroundStyle(device.isConnected ? DS.Palette.textPrimary : DS.Palette.textTertiary)
-                        .lineLimit(1)
+                    HStack(spacing: DS.Space.s1) {
+                        Text(verbatim: device.name)
+                            .dsFont(.xs, weight: .medium)
+                            .foregroundStyle(device.isConnected ? DS.Palette.textPrimary : DS.Palette.textTertiary)
+                            .lineLimit(1)
+                        if layout == .parts && device.isConnected && device.isCharging == true {
+                            chargingSymbol
+                        }
+                    }
                     if layout == .parts, let lastSeenText {
                         Text(lastSeenText)
                             .dsFont(.xs)
@@ -281,10 +296,23 @@ private struct BluetoothDeviceRow: View {
     @ViewBuilder
     private var compactValue: some View {
         if let battery = device.batteries.first {
+            let charging = device.isConnected && device.isCharging == true
             HStack(spacing: DS.Space.s1) {
-                batteryTrack(battery)
-                    .frame(width: DS.Space.s8)
                 batteryPercent(battery)
+                Image(systemName: batterySymbol(for: battery.percent))
+                    .font(.system(size: DS.TextSize.sm.rawValue))
+                    .foregroundStyle(bluetoothBatteryColor(percent: battery.percent, connected: device.isConnected))
+                    .overlay {
+                        if charging {
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 7, weight: .black))
+                                .foregroundStyle(DS.Palette.textPrimary)
+                                .offset(x: -1)
+                        }
+                    }
+                    .help(charging ? tr("充电中") : tr("电量"))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(charging ? tr("充电中") : tr("电量"))
             }
         } else {
             Text(device.isConnected ? tr("不提供电量") : tr("未连接"))
@@ -294,13 +322,22 @@ private struct BluetoothDeviceRow: View {
         }
     }
 
-    private func batteryTrack(_ battery: (label: String, percent: Int)) -> some View {
-        ProgressTrack(fraction: Double(battery.percent) / 100,
-                      color: device.isConnected
-                          ? (battery.percent <= 20 ? DS.Palette.error : DS.Palette.success)
-                          : DS.Palette.textTertiary,
-                      height: DS.Space.s1 + DS.Space.s1 / 2)
-            .accessibilityHidden(true)
+    private var chargingSymbol: some View {
+        Image(systemName: "bolt.fill")
+            .font(.system(size: DS.TextSize.xs.rawValue, weight: .semibold))
+            .foregroundStyle(DS.Palette.primary)
+            .help(tr("充电中"))
+            .accessibilityLabel(tr("充电中"))
+    }
+
+    private func batterySymbol(for percent: Int) -> String {
+        switch percent {
+        case ..<13: "battery.0"
+        case ..<38: "battery.25"
+        case ..<63: "battery.50"
+        case ..<88: "battery.75"
+        default: "battery.100"
+        }
     }
 
     private func batteryPercent(_ battery: (label: String, percent: Int)) -> some View {
@@ -325,9 +362,7 @@ private struct BluetoothBatteryPart: View {
                 .lineLimit(1)
             HStack(spacing: DS.Space.s1) {
                 ProgressTrack(fraction: Double(battery.percent) / 100,
-                              color: device.isConnected
-                                  ? (battery.percent <= 20 ? DS.Palette.error : DS.Palette.success)
-                                  : DS.Palette.textTertiary,
+                              color: bluetoothBatteryColor(percent: battery.percent, connected: device.isConnected),
                               height: DS.Space.s1 + DS.Space.s1 / 2)
                     .frame(minWidth: DS.Space.s4, maxWidth: .infinity)
                     .accessibilityHidden(true)

@@ -310,6 +310,9 @@ falls back to the Bluetooth device with the lowest battery.
 popover / page or the System page is open, every five minutes when the menu bar needs it (the
 low-battery hint or a Mac without a battery), otherwise not at all. `AppModel.bluetoothDemand` derives
 that from the same visibility state as `demand`.
+Charging state comes from named `pmset -g accps` accessory entries. For anonymous entries, it is
+attached only when the reported percentage matches exactly one connected Bluetooth battery device;
+ambiguous matches remain unknown. Disconnected cached devices never retain a charging label.
 
 ## Online updates
 

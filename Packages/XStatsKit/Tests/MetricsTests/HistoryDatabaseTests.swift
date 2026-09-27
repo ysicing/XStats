@@ -79,7 +79,7 @@ import Testing
         let output = """
         Now drawing from 'AC Power'
          -Magic Keyboard (id=1234)\t98%; discharging present: true
-         -大唐西域进贡上等白玉耳坠 (id=5678)\t76%;
+         -大唐西域进贡上等白玉耳坠 (id=5678)\t76%; charging present: true
          - (id=9999)\t24%; discharging present: true
         """
 
@@ -88,6 +88,27 @@ import Testing
         #expect(devices.map(\.name) == ["Magic Keyboard", "大唐西域进贡上等白玉耳坠"])
         #expect(devices.map { $0.batteries.first?.percent } == [98, 76])
         #expect(devices.map(\.kind) == [.keyboard, .other])
+        #expect(devices.map(\.isCharging) == [false, true])
+    }
+
+    @Test func anonymousChargingSourceMatchesOnlyOneConnectedBattery() {
+        let output = """
+        Now drawing from 'AC Power'
+         - (id=53280768)\t69%; charging present: true
+        """
+        let trackpad = BluetoothDevice(name: "Magic Trackpad", address: "AA:BB", kind: .trackpad,
+                                       batteries: [("电量", 69)])
+        let connected = BluetoothBatteryReader.mergeChargingSources([trackpad], powerOutput: output)
+        #expect(connected.first?.isCharging == true)
+
+        let other = BluetoothDevice(name: "Headphones", address: "CC:DD", kind: .headphones,
+                                    batteries: [("电量", 69)])
+        let ambiguous = BluetoothBatteryReader.mergeChargingSources([trackpad, other], powerOutput: output)
+        #expect(ambiguous.allSatisfy { $0.isCharging == nil })
+        var knownNotCharging = other
+        knownNotCharging.isCharging = false
+        let mixed = BluetoothBatteryReader.mergeChargingSources([trackpad, knownNotCharging], powerOutput: output)
+        #expect(mixed.first?.isCharging == nil)
     }
 
     @Test func mergesBatterySourcesByDeviceName() {

@@ -42,6 +42,7 @@ struct BluetoothDeviceCache {
                 recent.address = device.address
                 recent.kind = device.kind
                 recent.isConnected = false
+                recent.isCharging = nil
                 recent.lastSeen = cached.lastSeen
                 result.append(recent)
             } else {
@@ -53,6 +54,7 @@ struct BluetoothDeviceCache {
         for (key, entry) in entries where !currentKeys.contains(key) {
             var device = entry.device
             device.isConnected = false
+            device.isCharging = nil
             device.lastSeen = entry.lastSeen
             result.append(device)
         }

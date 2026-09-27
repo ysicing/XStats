@@ -82,6 +82,18 @@ private func isolatedDefaults() -> UserDefaults {
         #expect(!expired.contains { $0.name == "耳机" })
     }
 
+    @Test func disconnectedDeviceDoesNotKeepChargingStatus() throws {
+        let start = Date(timeIntervalSince1970: 1_000)
+        var cache = BluetoothDeviceCache()
+        var trackpad = device("Magic Trackpad", percent: 69)
+        trackpad.isCharging = true
+        _ = cache.merge(current: [trackpad], now: start)
+
+        let disconnected = try #require(cache.merge(current: [], now: start.addingTimeInterval(60)).first)
+        #expect(!disconnected.isConnected)
+        #expect(disconnected.isCharging == nil)
+    }
+
     @Test func keepsSameNameDevicesSeparateByAddress() {
         let start = Date(timeIntervalSince1970: 2_000)
         var cache = BluetoothDeviceCache(retention: 30 * 60)
