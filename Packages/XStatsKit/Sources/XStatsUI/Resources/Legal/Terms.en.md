@@ -12,11 +12,9 @@ XStats provides local system monitoring, network tests, settings sync, cleanup, 
 
 Some features change local state, including file cleanup, app uninstallation, fan control, startup-item management, and update installation. The app presents relevant choices, permission requests, or confirmations, but you should still review targets, keep appropriate backups, and decide whether an action suits your device. Items moved to Trash may be recoverable only while Trash remains unemptied and macOS permits recovery.
 
-You configure the WebDAV server address and account yourself; XStats does not provide or preconfigure a sync server. You also start each sync manually. Uploading may replace the remote settings file; downloading and applying may overwrite corresponding local preferences. Manage server access, backups, and credentials accordingly.
-
 ## 3. Network features and third parties
 
-Update checks, network details, speed tests, egress checks, global probes, and WebDAV may connect to external services when used. Some services are run by independent third parties; their availability, accuracy, limits, and terms can change. Do not submit a target to Globalping if it must stay private. See the Privacy Policy for details.
+Update checks, network details, speed tests, egress checks, and global probes may connect to external services when used. Some services are run by independent third parties; their availability, accuracy, limits, and terms can change. Do not submit a target to Globalping if it must stay private. See the Privacy Policy for details.
 
 Finding an update does not install it automatically. You can review the changes and decide whether to upgrade.
 
