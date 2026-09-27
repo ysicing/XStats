@@ -1282,7 +1282,6 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Codex / Claude Code 로�
 服务暂时限流，稍后会自动重试	Rate limited; will retry later
 暂时无法连接额度服务	Cannot connect to the quota service right now
 额度接口返回了无法识别的数据	The quota service returned unrecognized data
-启用后自动读取本机 CLI 登录凭据，直接向 Codex / Claude 查询额度；凭据不保存到 XStats。	When enabled, reads local CLI login credentials and queries Codex / Claude directly; XStats does not save the credentials.
 本机 Token 统计不代表订阅账单或其他设备的用量	Local token statistics are not a subscription bill or usage from other devices
 缓存 Token 已包含在输入中，推理 Token 已包含在输出中。	캐시 토큰은 입력에, 추론 토큰은 출력에 포함됩니다.
 所选时间范围没有用量记录	선택한 기간에 사용 기록이 없습니다

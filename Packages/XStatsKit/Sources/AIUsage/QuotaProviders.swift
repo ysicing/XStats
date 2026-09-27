@@ -175,26 +175,34 @@ public actor CodexQuotaProvider: AIQuotaProvider {
     public nonisolated let id = AIProviderID.codex
     private let credentials: @Sendable () throws -> CodexQuotaCredentials
     private let http: any QuotaHTTPClient
+    private let appServer: @Sendable () async throws -> AIQuotaSnapshot
     private let sub2api: (any Sub2APIQuotaFetching)?
     private let sub2apiConfiguration: @Sendable () async throws -> Sub2APIConfiguration?
 
     public init() {
         credentials = { try CodexQuotaCredentials.load() }
         http = URLSessionQuotaHTTPClient()
+        appServer = { try await CodexAppServerQuotaClient.fetch() }
         sub2api = Sub2APIQuotaClient.shared
         sub2apiConfiguration = { try await Sub2APISettingsStore().load() }
     }
 
     init(credentials: @escaping @Sendable () throws -> CodexQuotaCredentials, http: any QuotaHTTPClient,
          sub2api: (any Sub2APIQuotaFetching)? = nil,
-         sub2apiConfiguration: @escaping @Sendable () async throws -> Sub2APIConfiguration? = { nil }) {
+         sub2apiConfiguration: @escaping @Sendable () async throws -> Sub2APIConfiguration? = { nil },
+         appServer: @escaping @Sendable () async throws -> AIQuotaSnapshot = { throw AIQuotaFailure.notConfigured }) {
         self.credentials = credentials
         self.http = http
+        self.appServer = appServer
         self.sub2api = sub2api
         self.sub2apiConfiguration = sub2apiConfiguration
     }
 
     public func fetch() async throws -> AIQuotaSnapshot {
+        // 优先通过 Codex 官方本机接口读取额度，让 CLI 自行维护 ChatGPT 登录。
+        do { return try await appServer() }
+        catch is CancellationError { throw CancellationError() }
+        catch { try Task.checkCancellation() }
         do { return try await fetchDirect() }
         catch let directFailure as AIQuotaFailure {
             guard let sub2api else { throw directFailure }
@@ -326,7 +334,12 @@ private func quotaResponse(for request: URLRequest, using http: any QuotaHTTPCli
     catch { throw AIQuotaFailure.network }
     switch status {
     case 200..<300: return data
-    case 401, 403: throw AIQuotaFailure.unauthorized
+    case 401: throw AIQuotaFailure.unauthorized
+    case 403:
+        let prefix = String(decoding: data.prefix(128), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        throw prefix.hasPrefix("<html") || prefix.hasPrefix("<!doctype html")
+            ? AIQuotaFailure.network : AIQuotaFailure.unauthorized
     case 429: throw AIQuotaFailure.rateLimited
     default: throw AIQuotaFailure.network
     }

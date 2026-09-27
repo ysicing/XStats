@@ -191,14 +191,20 @@ history; `started_at` is not compared against the session creation time, because
 Unknown models remain unknown.
 Local logs cannot reliably identify the paying account or usage on other devices. No cost,
 subscription limits or HTTP success rates are inferred from them. The separate quota
-snapshot instead queries Codex `wham/usage` and Claude `api/oauth/usage` using CLI OAuth tokens.
-It maps five-hour and seven-day windows, plus Claude's model-specific weekly windows, without
-combining them with local token totals. Credential discovery is repeated on each refresh; Codex
-reads `auth.json` under CODEX_HOME or the standard locations, while Claude reads its CLI credential
-file or a non-interactive Keychain item. Tokens are not persisted by XStats. Each provider's last
+snapshot prefers the installed Codex CLI's local app-server `account/rateLimits/read`; the CLI
+owns token refresh and XStats receives only rate-limit data. If that path is unavailable, XStats
+queries Codex `wham/usage` using its cached CLI OAuth token. Claude uses its CLI OAuth token for
+`api/oauth/usage`. It maps five-hour and seven-day windows, plus Claude's model-specific weekly
+windows, without combining them with local token totals. Direct credential discovery is repeated
+on each refresh; Codex reads `auth.json` under CODEX_HOME or the standard locations, while Claude
+reads its CLI credential file or a non-interactive Keychain item. Tokens are not persisted by
+XStats. Each provider's last
 successful quota snapshot is stored in a separate table of `ai-usage.sqlite`, without credentials.
 The controller restores it before the first network request and labels it with its fetch time.
 Requests use isolated URL sessions and reject redirects so bearer tokens cannot be forwarded.
+Codex app-server uses bounded stdio JSONL and falls back to direct HTTP if unavailable.
+An HTML 403 from an intermediary is a transient network failure, not proof of expired login.
+The existing per-provider Sub2API option is tried only after both automatic Codex paths fail.
 Missing or expired credentials clear that provider's quota display; transient errors keep the last
 successful result marked stale across restarts. Authentication failures or removal of a manual
 account delete that provider's cached snapshot. Both quota readers stop when AI Usage is disabled;

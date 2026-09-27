@@ -725,9 +725,6 @@ private struct UsageSettings: View {
                     }
                 }.labelsHidden()
             }
-            Text(tr("启用后自动读取本机 CLI 登录凭据，直接向 Codex / Claude 查询额度；凭据不保存到 XStats。"))
-                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
             Text(tr("本机 Token 统计不代表订阅账单或其他设备的用量"))
                 .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)

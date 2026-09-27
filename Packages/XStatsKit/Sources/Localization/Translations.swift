@@ -113,7 +113,6 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Local Codex / Claude Code
 服务暂时限流，稍后会自动重试	Rate limited; will retry later
 暂时无法连接额度服务	Cannot connect to the quota service right now
 额度接口返回了无法识别的数据	The quota service returned unrecognized data
-启用后自动读取本机 CLI 登录凭据，直接向 Codex / Claude 查询额度；凭据不保存到 XStats。	When enabled, reads local CLI login credentials and queries Codex / Claude directly; XStats does not save the credentials.
 本机 Token 统计不代表订阅账单或其他设备的用量	Local token statistics are not a subscription bill or usage from other devices
 Sub2API 备用额度	Sub2API backup quota
 已配置	Configured

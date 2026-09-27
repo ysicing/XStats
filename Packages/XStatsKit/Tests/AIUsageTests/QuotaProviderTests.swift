@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 @testable import AIUsage
+import Darwin
 import Foundation
 import Testing
 
@@ -139,6 +140,75 @@ private actor StubQuotaHTTPClient: QuotaHTTPClient {
             Issue.record("Expected an authentication failure")
         } catch let error as AIQuotaFailure {
             #expect(error == .unauthorized)
+        } catch {
+            Issue.record("Unexpected error type")
+        }
+    }
+
+    @Test func cloudflareHTMLForbiddenIsNotReportedAsExpiredLogin() async {
+        let http = StubQuotaHTTPClient(status: 403, body: "<html>Unable to load site</html>")
+        let provider = CodexQuotaProvider(credentials: { CodexQuotaCredentials(token: "test", accountID: nil) }, http: http)
+        do {
+            _ = try await provider.fetch()
+            Issue.record("Expected a transport failure")
+        } catch let error as AIQuotaFailure {
+            #expect(error == .network)
+        } catch {
+            Issue.record("Unexpected error type")
+        }
+    }
+
+    @Test func codexAppServerParsesWeeklyWindowAndRecoversBlockedDirectRequest() async throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let response = Data(#"{"id":1,"result":{"rateLimitsByLimitId":{"codex":{"primary":{"usedPercent":23,"windowDurationMins":10080,"resetsAt":1800003600},"secondary":{"usedPercent":12,"windowDurationMins":300,"resetsAt":1800001800}}}}}"#.utf8)
+        let fallback = try CodexAppServerQuotaClient.parse(response, now: now)
+        #expect(fallback.window(.weekly)?.usedPercent == 23)
+        #expect(fallback.window(.session)?.usedPercent == 12)
+        #expect(fallback.window(.weekly)?.resetsAt == now.addingTimeInterval(3600))
+
+        let http = StubQuotaHTTPClient(status: 403, body: "<html>Unable to load site</html>")
+        let provider = CodexQuotaProvider(credentials: { CodexQuotaCredentials(token: "test", accountID: nil) },
+                                          http: http, appServer: { fallback })
+        let result = try await provider.fetch()
+        #expect(result == fallback)
+        #expect(await http.lastRequest() == nil, "Codex App Server should be queried before direct HTTP")
+    }
+
+    @Test func codexAppServerClosingStdinDoesNotCrashQuotaRefresh() throws {
+        let script = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xstats-codex-closed-stdin-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: script) }
+        try "#!/bin/sh\nexec 0<&-\nprintf '{\"id\":0,\"result\":{}}\\n'\n"
+            .write(to: script, atomically: true, encoding: .utf8)
+        #expect(Darwin.chmod(script.path, 0o700) == 0)
+
+        #expect(throws: AIQuotaFailure.network) {
+            try CodexAppServerQuotaClient.readRateLimits(using: script)
+        }
+    }
+
+    @Test func codexDirectForbiddenJSONStillMeansUnauthorized() async {
+        let http = StubQuotaHTTPClient(status: 403, body: #"{"error":"invalid_token"}"#)
+        let provider = CodexQuotaProvider(credentials: { CodexQuotaCredentials(token: "test", accountID: nil) }, http: http)
+        do {
+            _ = try await provider.fetch()
+            Issue.record("Expected an authentication failure")
+        } catch let error as AIQuotaFailure {
+            #expect(error == .unauthorized)
+        } catch {
+            Issue.record("Unexpected error type")
+        }
+    }
+
+    @Test func cancellingCodexAppServerDoesNotStartDirectRequest() async {
+        let http = StubQuotaHTTPClient(body: #"{"rate_limit":{}}"#)
+        let provider = CodexQuotaProvider(credentials: { CodexQuotaCredentials(token: "test", accountID: nil) },
+                                          http: http, appServer: { throw CancellationError() })
+        do {
+            _ = try await provider.fetch()
+            Issue.record("Expected cancellation")
+        } catch is CancellationError {
+            #expect(await http.lastRequest() == nil)
         } catch {
             Issue.record("Unexpected error type")
         }
