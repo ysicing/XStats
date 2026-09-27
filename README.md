@@ -40,9 +40,11 @@ XStats 在菜单栏显示 CPU、GPU、内存、磁盘、网络、电池、温度
 
 ## 数据与隐私
 
-系统监控数据留在本机，不需要 XStats 账号。AI 用量与额度默认关闭；启用后自动检测订阅额度，本地用量默认显示，也可单独关闭以停止扫描会话日志。额度查询只读使用对应 CLI 的登录凭据并直接请求服务商，也可自行配置 Sub2API 作为备用来源。
+无需账号。以下功能会联网，均可在设置中关闭或按需使用：
 
-公网 IP 查询和连接探测仅在使用相关功能时联网。检查更新会发送版本号和随机安装标识的 SHA-256；服务端不持久化请求 IP。WebDAV 同步由用户自行配置服务器并手动触发，只同步设置，不上传监控历史或凭据。
+- **检查更新**：发送版本号和随机安装标识的哈希。
+- **AI 用量与额度**（默认关闭）：通过本机 Codex / Claude CLI 的登录查询订阅额度，可选配置 Sub2API 作为备用来源。
+- **公网 IP、测速与连接探测**：仅在使用时请求对应服务。
 
 完整说明见[隐私政策](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.zh-Hans.md)和[服务条款](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.zh-Hans.md)。
 

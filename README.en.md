@@ -40,9 +40,11 @@ The interface supports Simplified and Traditional Chinese, English, Japanese, Ko
 
 ## Data and privacy
 
-System-monitoring data stays on your Mac; no XStats account is required. AI Usage & Quotas is off by default. Once enabled, subscription quotas are detected automatically. Local usage is shown by default and can be turned off separately to stop scanning session logs. Quota checks read the corresponding CLI credentials without modifying them and contact the providers directly. You may configure your own Sub2API server as a fallback quota source.
+No account is required. These features go online, and each can be turned off or used only on demand:
 
-Public-IP lookups and connection probes go online only when you use those features. Update checks send the app version and a SHA-256 hash of a random installation ID; the server does not persist request IPs. WebDAV sync uses a server you configure yourself and runs only when you start it; it transfers settings, not monitoring history or credentials.
+- **Update checks**: send the app version and a hash of a random installation ID.
+- **AI Usage & Quotas** (off by default): checks subscription quotas through your local Codex / Claude CLI sign-in, with an optional Sub2API fallback.
+- **Public IP, speed tests and connection probes**: contact their services only when used.
 
 Read the [Privacy Policy](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.en.md) and [Terms of Service](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.en.md) for details.
 
