@@ -1512,3 +1512,35 @@ XStats 反馈 · {}	Comentarios sobre XStats · {}
 应用版本：{}	Versión de la app: {}
 系统版本：{}	Versión del sistema: {}
 请描述遇到的问题：	Describe el problema:
+项目产物	Artefactos del proyecto
+按需扫描项目构建产物，逐项选择后移到废纸篓。	Analiza los artefactos de compilación bajo demanda y mueve los elementos seleccionados a la Papelera.
+正在扫描项目…	Analizando proyectos…
+扫描项目	Analizar proyectos
+移到废纸篓 {}	Mover {} a la Papelera
+将 {} 项移到废纸篓，清空前可以恢复。	Mover {} elementos a la Papelera; pueden restaurarse hasta vaciarla.
+已移到废纸篓 {} 项 · {}	{} elementos movidos a la Papelera · {}
+跳过 {} 项 · 失败 {} 项	Omitidos {} · Fallidos {}
+{} 个目录未完成扫描，结果已排除	No se pudieron analizar por completo {} directorios; se excluyeron sus resultados
+没有发现可清理的项目产物	No se encontraron artefactos del proyecto para limpiar
+最近 7 天有活动	Actividad en los últimos 7 días
+超过 7 天未使用	Sin usar durante más de 7 días
+云盘	Almacenamiento en la nube
+Agent 工作树	Árbol de trabajo del agente
+{} 项 · {}	{} elementos · {}
+尚未扫描项目	Aún no se han analizado los proyectos
+扫描位置	Ubicaciones de análisis
+扫描目录	Carpetas de análisis
+仅扫描列表中的目录。移除后可通过“恢复默认”找回默认位置。	Solo se analizan las carpetas de esta lista. «Restaurar valores predeterminados» recupera las ubicaciones predeterminadas eliminadas.
+没有扫描目录	No hay carpetas para analizar
+移除目录	Quitar carpeta
+目录无效或已经添加	La carpeta no es válida o ya se añadió
+添加目录…	Añadir carpeta…
+恢复默认	Restaurar valores predeterminados
+完成	Listo
+选择项目目录	Elegir carpetas de proyectos
+添加	Añadir
+所选内容包含最近 7 天有活动的项目，清理后需要重新构建。	La selección incluye proyectos activos en los últimos 7 días; habrá que volver a compilarlos.
+云盘项目可能同步删除。	Los proyectos en la nube también podrían eliminarse en otros dispositivos.
+{} 项含手写或被 Git 跟踪的内容，已保护	{} elementos contienen archivos escritos a mano o seguidos por Git y están protegidos
+未安装 Xcode 命令行工具，无法确认 Git 仓库中的 {} 项是否被跟踪，已保留	Las herramientas de línea de comandos de Xcode no están instaladas: no se pudieron comprobar {} elementos de repositorios Git y se conservaron
+{} 项无法确认，已保留	No se pudieron comprobar {} elementos y se conservaron

@@ -1363,5 +1363,37 @@ XStats 反馈 · {}	XStats Feedback · {}
 应用版本：{}	App version: {}
 系统版本：{}	System version: {}
 请描述遇到的问题：	Describe the problem:
+项目产物	Project Artifacts
+按需扫描项目构建产物，逐项选择后移到废纸篓。	Scan project build artifacts on demand, then move selected items to Trash.
+正在扫描项目…	Scanning projects…
+扫描项目	Scan Projects
+移到废纸篓 {}	Move {} to Trash
+将 {} 项移到废纸篓，清空前可以恢复。	Move {} items to Trash; they can be restored until Trash is emptied.
+已移到废纸篓 {} 项 · {}	Moved {} items to Trash · {}
+跳过 {} 项 · 失败 {} 项	Skipped {} · Failed {}
+{} 个目录未完成扫描，结果已排除	{} directories could not be fully scanned; their results were excluded
+没有发现可清理的项目产物	No project artifacts to clean
+最近 7 天有活动	Activity in the last 7 days
+超过 7 天未使用	Unused for over 7 days
+云盘	Cloud storage
+Agent 工作树	Agent worktree
+{} 项 · {}	{} items · {}
+尚未扫描项目	Projects not scanned yet
+扫描位置	Scan Locations
+扫描目录	Scan Folders
+仅扫描列表中的目录。移除后可通过“恢复默认”找回默认位置。	Only folders in this list are scanned. Restore Defaults brings back removed default locations.
+没有扫描目录	No scan folders
+移除目录	Remove Folder
+目录无效或已经添加	The folder is invalid or already added
+添加目录…	Add Folder…
+恢复默认	Restore Defaults
+完成	Done
+选择项目目录	Choose Project Folders
+添加	Add
+所选内容包含最近 7 天有活动的项目，清理后需要重新构建。	The selection includes projects active in the last 7 days; they will need to be rebuilt.
+云盘项目可能同步删除。	Cloud projects may be deleted on other devices too.
+{} 项含手写或被 Git 跟踪的内容，已保护	{} items contain hand-written or Git-tracked files and are protected
+未安装 Xcode 命令行工具，无法确认 Git 仓库中的 {} 项是否被跟踪，已保留	Xcode Command Line Tools are not installed, so {} items in Git repositories could not be checked for tracked files and were kept
+{} 项无法确认，已保留	{} items could not be verified and were kept
 """#
 }

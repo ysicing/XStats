@@ -20,6 +20,7 @@ public final class AppModel {
     public let fans: FanController
     public let keepAwake: KeepAwakeController
     public let cleaner: CleanerController
+    let projectPurge: ProjectPurgeController
     public let maintenance: MaintenanceController
     public let network: NetworkController
     public let egress = EgressController()
@@ -66,6 +67,7 @@ public final class AppModel {
     @ObservationIgnored var openMainWindow: (PanelTab?) -> Void = { _ in }
     @ObservationIgnored var openEgressWindow: () -> Void = {}
     @ObservationIgnored var openSpeedTestWindow: () -> Void = {}
+    @ObservationIgnored var openProjectPurgeWindow: () -> Void = {}
     @ObservationIgnored var collapseToRestHUD: () -> Void = {}
     @ObservationIgnored var quit: () -> Void = {}
 
@@ -84,6 +86,7 @@ public final class AppModel {
         fans = FanController(helper: helper, store: store, settings: settings)
         keepAwake = KeepAwakeController(helper: helper, settings: settings)
         cleaner = CleanerController(settings: settings)
+        projectPurge = ProjectPurgeController(settings: settings)
         maintenance = MaintenanceController(helper: helper)
         network = NetworkController(settings: settings)
         updates = UpdateController(settings: settings)

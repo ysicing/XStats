@@ -1512,3 +1512,35 @@ XStats 反馈 · {}	XStats-Feedback · {}
 应用版本：{}	App-Version: {}
 系统版本：{}	Systemversion: {}
 请描述遇到的问题：	Beschreiben Sie das Problem:
+项目产物	Projektartefakte
+按需扫描项目构建产物，逐项选择后移到废纸篓。	Projekt-Buildartefakte bei Bedarf scannen und ausgewählte Elemente in den Papierkorb verschieben.
+正在扫描项目…	Projekte werden gescannt…
+扫描项目	Projekte scannen
+移到废纸篓 {}	{} in den Papierkorb
+将 {} 项移到废纸篓，清空前可以恢复。	{} Elemente in den Papierkorb verschieben; bis zum Leeren können sie wiederhergestellt werden.
+已移到废纸篓 {} 项 · {}	{} Elemente in den Papierkorb verschoben · {}
+跳过 {} 项 · 失败 {} 项	Übersprungen: {} · Fehlgeschlagen: {}
+{} 个目录未完成扫描，结果已排除	{} Verzeichnisse konnten nicht vollständig gescannt werden; ihre Ergebnisse wurden ausgeschlossen
+没有发现可清理的项目产物	Keine bereinigbaren Projektartefakte gefunden
+最近 7 天有活动	Aktivität in den letzten 7 Tagen
+超过 7 天未使用	Seit über 7 Tagen ungenutzt
+云盘	Cloudspeicher
+Agent 工作树	Agent-Worktree
+{} 项 · {}	{} Elemente · {}
+尚未扫描项目	Projekte noch nicht gescannt
+扫描位置	Scanorte
+扫描目录	Scanordner
+仅扫描列表中的目录。移除后可通过“恢复默认”找回默认位置。	Nur Ordner in dieser Liste werden gescannt. Mit „Standard wiederherstellen“ können Sie entfernte Standardorte zurückholen.
+没有扫描目录	Keine Scanordner
+移除目录	Ordner entfernen
+目录无效或已经添加	Ordner ist ungültig oder bereits hinzugefügt
+添加目录…	Ordner hinzufügen…
+恢复默认	Standard wiederherstellen
+完成	Fertig
+选择项目目录	Projektordner auswählen
+添加	Hinzufügen
+所选内容包含最近 7 天有活动的项目，清理后需要重新构建。	Die Auswahl enthält Projekte, die in den letzten 7 Tagen aktiv waren; sie müssen neu erstellt werden.
+云盘项目可能同步删除。	Cloud-Projekte werden möglicherweise auch auf anderen Geräten gelöscht.
+{} 项含手写或被 Git 跟踪的内容，已保护	{} Elemente enthalten selbst erstellte oder von Git verfolgte Dateien und sind geschützt
+未安装 Xcode 命令行工具，无法确认 Git 仓库中的 {} 项是否被跟踪，已保留	Die Xcode-Befehlszeilentools sind nicht installiert. {} Elemente in Git-Repositorys konnten nicht geprüft werden und wurden behalten
+{} 项无法确认，已保留	{} Elemente konnten nicht geprüft werden und wurden behalten

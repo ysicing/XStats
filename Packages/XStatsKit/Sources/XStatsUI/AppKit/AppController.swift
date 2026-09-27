@@ -21,6 +21,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private var aiUsageSettingsWindow: AIUsageSettingsWindowController!
     private var updateWindow: UpdateWindowController!
     private var speedTestWindow: SpeedTestWindowController!
+    private var projectPurgeWindow: ProjectPurgeWindowController!
     private var egressWindow: EgressWindowController!
     private var rest: RestController { model.rest }
     private var restWindows: RestWindowController!
@@ -52,6 +53,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         updateWindow = UpdateWindowController(model: model)
         speedTestWindow = SpeedTestWindowController(model: model)
         speedTestWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
+        projectPurgeWindow = ProjectPurgeWindowController(model: model)
+        projectPurgeWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
         egressWindow = EgressWindowController(model: model)
         egressWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
         restWindows = RestWindowController(rest: rest)
@@ -96,6 +99,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
             self?.menuBar.dismissPopovers()
             self?.calendarMenuBar.dismiss()
             self?.speedTestWindow.show()
+        }
+        model.openProjectPurgeWindow = { [weak self] in
+            self?.menuBar.dismissPopovers()
+            self?.calendarMenuBar.dismiss()
+            self?.projectPurgeWindow.show()
         }
         model.quit = { NSApp.terminate(nil) }
         model.helper.refreshStatus()
@@ -285,7 +293,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     /// 默认只在菜单栏运行、不占程序坞；打开了“在程序坞显示图标”时，有窗口开着才出现在程序坞与 ⌘Tab 里
     private func updateActivationPolicy() {
         let hasWindow = mainWindow.isVisible || aiUsageSettingsWindow.isVisible
-            || egressWindow.isVisible || speedTestWindow.isVisible
+            || egressWindow.isVisible || speedTestWindow.isVisible || projectPurgeWindow.isVisible
         let policy: NSApplication.ActivationPolicy = hasWindow && model.settings.showDockIcon ? .regular : .accessory
         guard NSApp.activationPolicy() != policy else { return }
         NSApp.setActivationPolicy(policy)
@@ -507,6 +515,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         menuBar.dismissPopovers()
         menuBar.refreshImages()
         speedTestWindow.refreshLanguage()
+        projectPurgeWindow.refreshLanguage()
         egressWindow.refreshLanguage()
         aiUsageSettingsWindow.refreshLanguage()
         updateWindow.refreshLanguage()

@@ -1512,3 +1512,35 @@ XStats 反馈 · {}	Commentaires XStats · {}
 应用版本：{}	Version de l’app : {}
 系统版本：{}	Version du système : {}
 请描述遇到的问题：	Décrivez le problème :
+项目产物	Artéfacts de projet
+按需扫描项目构建产物，逐项选择后移到废纸篓。	Analysez les artéfacts de compilation à la demande, puis déplacez les éléments sélectionnés vers la corbeille.
+正在扫描项目…	Analyse des projets…
+扫描项目	Analyser les projets
+移到废纸篓 {}	Déplacer {} vers la corbeille
+将 {} 项移到废纸篓，清空前可以恢复。	Déplacer {} éléments vers la corbeille ; ils restent récupérables avant de la vider.
+已移到废纸篓 {} 项 · {}	{} éléments déplacés vers la corbeille · {}
+跳过 {} 项 · 失败 {} 项	Ignorés : {} · Échecs : {}
+{} 个目录未完成扫描，结果已排除	{} dossiers n’ont pas pu être analysés entièrement ; leurs résultats ont été exclus
+没有发现可清理的项目产物	Aucun artéfact de projet à nettoyer
+最近 7 天有活动	Activité au cours des 7 derniers jours
+超过 7 天未使用	Inutilisé depuis plus de 7 jours
+云盘	Stockage cloud
+Agent 工作树	Arbre de travail Agent
+{} 项 · {}	{} éléments · {}
+尚未扫描项目	Projets non encore analysés
+扫描位置	Emplacements analysés
+扫描目录	Dossiers analysés
+仅扫描列表中的目录。移除后可通过“恢复默认”找回默认位置。	Seuls les dossiers de cette liste sont analysés. « Rétablir les valeurs par défaut » restaure les emplacements par défaut supprimés.
+没有扫描目录	Aucun dossier à analyser
+移除目录	Retirer le dossier
+目录无效或已经添加	Le dossier est invalide ou déjà ajouté
+添加目录…	Ajouter un dossier…
+恢复默认	Rétablir les valeurs par défaut
+完成	Terminé
+选择项目目录	Choisir des dossiers de projets
+添加	Ajouter
+所选内容包含最近 7 天有活动的项目，清理后需要重新构建。	La sélection contient des projets actifs ces 7 derniers jours ; ils devront être recompilés.
+云盘项目可能同步删除。	Les projets dans le cloud peuvent aussi être supprimés sur vos autres appareils.
+{} 项含手写或被 Git 跟踪的内容，已保护	{} éléments contiennent des fichiers écrits à la main ou suivis par Git et sont protégés
+未安装 Xcode 命令行工具，无法确认 Git 仓库中的 {} 项是否被跟踪，已保留	Les outils en ligne de commande Xcode ne sont pas installés : {} éléments dans des dépôts Git n’ont pas pu être vérifiés et ont été conservés
+{} 项无法确认，已保留	{} éléments n’ont pas pu être vérifiés et ont été conservés

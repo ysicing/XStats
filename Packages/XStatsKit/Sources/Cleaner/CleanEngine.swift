@@ -167,12 +167,16 @@ public struct CleanLog: Sendable {
     }
 
     func record(item: CleanItem, rule: CleanRule, action: String, detail: String?) {
+        record(url: item.url, ruleID: rule.id, bytes: item.size, action: action, detail: detail)
+    }
+
+    func record(url: URL, ruleID: String, bytes: UInt64, action: String, detail: String?) {
         var entry: [String: Any] = [
             "time": ISO8601DateFormatter().string(from: Date()),
-            "rule": rule.id,
+            "rule": ruleID,
             "action": action,
-            "path": item.url.path,
-            "bytes": item.size,
+            "path": url.path,
+            "bytes": bytes,
         ]
         if let detail { entry["detail"] = detail }
         guard var data = try? JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys]) else { return }

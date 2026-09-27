@@ -652,6 +652,16 @@ public final class AppSettings {
             }
         }
     }
+    /// nil 使用动态默认目录；空数组表示用户明确移除了所有目录。仅在本机保存。
+    public var projectPurgeConfiguredPaths: [String]? {
+        didSet {
+            if let projectPurgeConfiguredPaths {
+                defaults.set(projectPurgeConfiguredPaths, forKey: Keys.projectPurgeConfiguredPaths)
+            } else {
+                defaults.removeObject(forKey: Keys.projectPurgeConfiguredPaths)
+            }
+        }
+    }
 
     public static let refreshOptions = [1, 2, 3, 5]
     public static let restWorkOptions = [20, 25, 30, 45, 60]
@@ -723,6 +733,7 @@ public final class AppSettings {
         speedTestRoute = defaults.string(forKey: Keys.speedTestRoute).flatMap(SpeedRoute.init(rawValue:)) ?? .direct
         cleanPrefersTrash = defaults.bool(forKey: Keys.cleanPrefersTrash)
         cleanSelectedRuleIDs = defaults.stringArray(forKey: Keys.cleanSelectedRuleIDs).map(Set.init)
+        projectPurgeConfiguredPaths = defaults.stringArray(forKey: Keys.projectPurgeConfiguredPaths)
         menuBarLayout = defaults.string(forKey: Keys.menuBarLayout).flatMap(MenuBarLayout.init(rawValue:)) ?? .separate
         expandedPopoverSections = Set((defaults.stringArray(forKey: Keys.expandedPopoverSections) ?? []).compactMap(PopoverSection.init(rawValue:)))
         hiddenPopoverSections = defaults.stringArray(forKey: Keys.hiddenPopoverSections)
@@ -821,6 +832,7 @@ public final class AppSettings {
         static let speedTestRoute = "speedTestRoute"
         static let cleanPrefersTrash = "cleanPrefersTrash"
         static let cleanSelectedRuleIDs = "cleanSelectedRuleIDs"
+        static let projectPurgeConfiguredPaths = "projectPurgeConfiguredPaths"
         static let menuBarLayout = "menuBarLayout"
         static let hiddenPopoverSections = "hiddenPopoverSections"
         static let expandedPopoverSections = "expandedPopoverSections"

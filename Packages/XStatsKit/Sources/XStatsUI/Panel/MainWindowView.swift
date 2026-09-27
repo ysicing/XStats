@@ -303,6 +303,16 @@ private struct PageHeader: View {
                 }
             }
             if tab == .memory { PurgeMemoryButton() }
+            if tab == .cleaner {
+                Button { model.openProjectPurgeWindow() } label: {
+                    HStack(spacing: DS.Space.s1) {
+                        Image(systemName: "shippingbox")
+                        Text(tr("项目产物")).lineLimit(1).fixedSize()
+                    }
+                }
+                .buttonStyle(DSButtonStyle(kind: .secondary))
+                .help(tr("按需扫描项目构建产物，逐项选择后移到废纸篓。"))
+            }
             if tab == .network {
                 Button { model.openSpeedTestWindow() } label: {
                     HStack(spacing: DS.Space.s1) {

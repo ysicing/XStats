@@ -306,6 +306,66 @@ private func isolatedDefaults() -> UserDefaults {
     }
 }
 
+@MainActor
+@Suite struct ProjectPurgePathTests {
+    @Test func defaultPathsCanBeRemovedAndRestored() async throws {
+        let defaults = isolatedDefaults()
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("xstats-project-paths-\(UUID())")
+        let projects = home.appendingPathComponent("Projects")
+        let dev = home.appendingPathComponent("dev")
+        try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dev, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let controller = ProjectPurgeController(settings: AppSettings(defaults: defaults), home: home.path)
+        await controller.loadPaths()
+        #expect(Set(controller.roots.map(\.lastPathComponent)) == ["Projects", "dev"])
+        controller.removeRoot(projects)
+        #expect(controller.roots.map(\.lastPathComponent) == ["dev"])
+
+        let reloaded = ProjectPurgeController(settings: AppSettings(defaults: defaults), home: home.path)
+        await reloaded.loadPaths()
+        #expect(reloaded.roots.map(\.lastPathComponent) == ["dev"])
+        await reloaded.restoreDefaults()
+        #expect(Set(reloaded.roots.map(\.lastPathComponent)) == ["Projects", "dev"])
+        #expect(AppSettings(defaults: defaults).projectPurgeConfiguredPaths == nil)
+    }
+
+    @Test func addedRootsPersistAndDuplicatesAreRejected() async throws {
+        let defaults = isolatedDefaults()
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("xstats-project-paths-\(UUID())")
+        let projects = home.appendingPathComponent("Projects")
+        let extra = home.appendingPathComponent("Work")
+        let extraAlias = home.appendingPathComponent("WorkAlias")
+        try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: extra, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: extraAlias, withDestinationURL: extra)
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let controller = ProjectPurgeController(settings: AppSettings(defaults: defaults), home: home.path)
+        await controller.loadPaths()
+        #expect(controller.addRoot(extra))
+        #expect(!controller.addRoot(extra))
+        #expect(!controller.addRoot(extraAlias))
+        #expect(!controller.addRoot(projects))
+
+        let reloaded = ProjectPurgeController(settings: AppSettings(defaults: defaults), home: home.path)
+        await reloaded.loadPaths()
+        #expect(Set(reloaded.roots.map(\.lastPathComponent)) == ["Projects", "Work"])
+        reloaded.removeRoot(extra)
+        #expect(reloaded.roots.map(\.lastPathComponent) == ["Projects"])
+    }
+
+    @Test func unsafeRootsAreRejected() async {
+        let controller = ProjectPurgeController(settings: AppSettings(defaults: isolatedDefaults()))
+        await controller.loadPaths()
+        #expect(!controller.addRoot(URL(fileURLWithPath: "/")))
+        #expect(!controller.addRoot(FileManager.default.homeDirectoryForCurrentUser))
+        #expect(!controller.addRoot(URL(fileURLWithPath: "/System")))
+        #expect(!controller.addRoot(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library")))
+    }
+}
+
 @Suite struct PanelTabTests {
     @MainActor @Test func removedAssistantPageRestoresToGeneralSettings() {
         let defaults = isolatedDefaults()
