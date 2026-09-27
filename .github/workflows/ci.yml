@@ -4,10 +4,30 @@
 
 name: CI
 
+# 只改说明文档或 README 配图时不构建。CHANGELOG.md 决定版本号，不在忽略范围内；
+# 应用内的隐私政策等 Markdown 在 Packages/ 下，同样照常触发。
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'README*.md'
+      - 'ARCHITECTURE.md'
+      - 'DEVELOPMENT.md'
+      - 'AGENTS.md'
+      - 'LICENSING.md'
+      - 'ThirdPartyNotices.md'
+      - 'Assets/readme/**'
+      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
+    paths-ignore:
+      - 'README*.md'
+      - 'ARCHITECTURE.md'
+      - 'DEVELOPMENT.md'
+      - 'AGENTS.md'
+      - 'LICENSING.md'
+      - 'ThirdPartyNotices.md'
+      - 'Assets/readme/**'
+      - '.github/ISSUE_TEMPLATE/**'
 
 jobs:
   build-and-test:
