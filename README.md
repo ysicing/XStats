@@ -36,6 +36,14 @@ XStats 在菜单栏显示 CPU、GPU、内存、磁盘、网络、电池、温度
 
 从 [GitHub Releases](https://github.com/ysicing/xstats/releases) 下载。需要 **Apple Silicon Mac 和 macOS 14 或更新版本**。也可以按 [开发指南](DEVELOPMENT.md) 从源码构建。
 
+也可以通过 Homebrew 安装：
+
+```bash
+brew tap ysicing/tap
+brew trust ysicing/tap
+brew install --cask xstats
+```
+
 应用支持简体中文、繁體中文、English、日本語、한국어、Deutsch、Español、Français 和 العربية。发现更新后由用户决定是否安装。
 
 ## 数据与隐私

@@ -36,6 +36,14 @@ XStats は CPU、GPU、メモリ、ディスク、ネットワーク、バッテ
 
 [GitHub Releases](https://github.com/ysicing/xstats/releases) からダウンロードしてください。**Apple Silicon Mac と macOS 14 以降**が必要です。[ソースからのビルド](DEVELOPMENT.md)も可能です。
 
+Homebrew からインストールする場合：
+
+```bash
+brew tap ysicing/tap
+brew trust ysicing/tap
+brew install --cask xstats
+```
+
 画面は簡体字・繁体字中国語、英語、日本語、韓国語、ドイツ語、スペイン語、フランス語、アラビア語に対応します。更新が見つかっても、インストールするかどうかはユーザーが選べます。
 
 ## データとプライバシー

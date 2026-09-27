@@ -36,6 +36,14 @@ XStats shows CPU, GPU, memory, disk, network, battery, temperature and fan activ
 
 Download XStats from [GitHub Releases](https://github.com/ysicing/xstats/releases). It requires an **Apple silicon Mac running macOS 14 or later**. You can also [build from source](DEVELOPMENT.md).
 
+Or install it with Homebrew:
+
+```bash
+brew tap ysicing/tap
+brew trust ysicing/tap
+brew install --cask xstats
+```
+
 The interface supports Simplified and Traditional Chinese, English, Japanese, Korean, German, Spanish, French and Arabic. When an update is available, you decide whether to install it.
 
 ## Data and privacy
