@@ -1506,3 +1506,7 @@ XStats 运行时统计屏幕亮着且未锁定的时间	Compté pendant l’exé
 查看今天屏幕亮着且未锁定的时间	Voir le temps passé aujourd’hui avec l’écran allumé et déverrouillé
 定期更新	Mise à jour périodique
 同时清除指标和屏幕使用时间	Effacer les mesures et le temps d’écran ensemble
+XStats 反馈 · {}	Commentaires XStats · {}
+应用版本：{}	Version de l’app : {}
+系统版本：{}	Version du système : {}
+请描述遇到的问题：	Décrivez le problème :

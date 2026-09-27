@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+@testable import Localization
 import Testing
 @testable import XStatsUI
 
@@ -21,8 +22,20 @@ import Testing
         let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
         #expect(components.scheme == "mailto")
         #expect(components.path == "i@xiai.me")
-        #expect(components.queryItems?.first(where: { $0.name == "subject" })?.value?.isEmpty == false)
+        // 测试进程使用默认的简体中文；其余语言由目录完整性测试保证有译文
+        #expect(components.queryItems?.first(where: { $0.name == "subject" })?.value == "XStats 反馈 · 0.10.0")
         #expect(components.queryItems?.first(where: { $0.name == "body" })?.value
-                == "XStats 0.10.0 (119)\nmacOS Version 26.0 (Build 25A123)\n\n")
+                == "应用版本：0.10.0 (119)\n系统版本：macOS Version 26.0 (Build 25A123)\n\n请描述遇到的问题：\n\n")
+    }
+
+    @Test func feedbackEmailStringsAreTranslatedForEveryLanguage() throws {
+        for language in AppLanguage.allCases where language != .system && language != .chinese {
+            let catalog = try #require(Translations.catalog(for: language))
+            for key in ["XStats 反馈 · {}", "应用版本：{}", "系统版本：{}", "请描述遇到的问题："] {
+                let value = try #require(catalog.translate(key), "\(language) is missing \(key)")
+                #expect(!value.isEmpty && value != key, "\(language): \(key)")
+                #expect(value.contains("{}") == key.contains("{}"), "\(language) placeholder: \(value)")
+            }
+        }
     }
 }

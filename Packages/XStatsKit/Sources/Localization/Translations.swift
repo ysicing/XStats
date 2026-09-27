@@ -1357,5 +1357,9 @@ XStats 运行时统计屏幕亮着且未锁定的时间	Counted while XStats run
 查看今天屏幕亮着且未锁定的时间	See how long the screen has been on and unlocked today
 定期更新	Updates periodically
 同时清除指标和屏幕使用时间	Clear metrics and screen time together
+XStats 反馈 · {}	XStats Feedback · {}
+应用版本：{}	App version: {}
+系统版本：{}	System version: {}
+请描述遇到的问题：	Describe the problem:
 """#
 }

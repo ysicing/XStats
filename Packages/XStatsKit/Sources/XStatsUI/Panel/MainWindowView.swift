@@ -251,14 +251,17 @@ private struct FeedbackMenu: View {
 enum FeedbackLinks {
     static let githubBugReport = URL(string: "https://github.com/ysicing/XStats/issues/new?template=bug_report.md")!
 
+    /// 主题带版本号便于归类；主题与正文随应用语言切换，版本信息本身不翻译
     static func email(version: String, build: String?, systemVersion: String) -> URL? {
         let appVersion = build.map { "\(version) (\($0))" } ?? version
+        let body = [tr("应用版本：\(appVersion)"), tr("系统版本：macOS \(systemVersion)"), "",
+                    tr("请描述遇到的问题："), "", ""].joined(separator: "\n")
         var components = URLComponents()
         components.scheme = "mailto"
         components.path = "i@xiai.me"
         components.queryItems = [
-            URLQueryItem(name: "subject", value: tr("反馈问题")),
-            URLQueryItem(name: "body", value: "XStats \(appVersion)\nmacOS \(systemVersion)\n\n"),
+            URLQueryItem(name: "subject", value: tr("XStats 反馈 · \(version)")),
+            URLQueryItem(name: "body", value: body),
         ]
         return components.url
     }
