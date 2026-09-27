@@ -47,7 +47,8 @@ public final class HistoryRecorder {
     public private(set) var batteryPoints: [HistoryPoint] = []
 
     @ObservationIgnored private let settings: AppSettings
-    @ObservationIgnored private var database: HistoryDatabase?
+    /// 屏幕使用时间与指标历史共用同一个本机库
+    @ObservationIgnored private(set) var database: HistoryDatabase?
     @ObservationIgnored private var accumulator = HistoryAccumulator()
     @ObservationIgnored private var lastPrune = Date.distantPast
 
@@ -114,11 +115,10 @@ public final class HistoryRecorder {
         }
     }
 
-    func clear() {
-        guard let database else { return }
+    func clear(screenTime: ScreenTimeTracker) {
         accumulator = HistoryAccumulator()
         Task {
-            await database.clear()
+            await screenTime.clearHistory()
             load()
         }
     }

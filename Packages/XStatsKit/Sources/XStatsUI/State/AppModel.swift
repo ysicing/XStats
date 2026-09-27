@@ -32,6 +32,7 @@ public final class AppModel {
     public let bluetooth = BluetoothController()
     let startupItems = StartupItemsController()
     public let history: HistoryRecorder
+    public let screenTime: ScreenTimeTracker
     public let sync: SyncController
     let diskTools: DiskToolsController
     @ObservationIgnored public let hub = MetricsHub()
@@ -88,6 +89,7 @@ public final class AppModel {
         updates = UpdateController(settings: settings)
         alerts = AlertController(settings: settings)
         history = HistoryRecorder(settings: settings, databaseURL: historyURL)
+        screenTime = ScreenTimeTracker(settings: settings, database: history.database)
         sync = SyncController(settings: settings)
         diskTools = DiskToolsController(helper: helper)
         speedTest = SpeedTestController(settings: settings)

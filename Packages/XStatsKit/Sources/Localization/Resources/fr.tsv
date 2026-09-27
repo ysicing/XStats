@@ -850,7 +850,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 此设备没有可调节的风扇	Ce Mac ne dispose d’aucun ventilateur réglable
 每个应用占整机 CPU 的比例：{} 个核心全部跑满为 100%，与顶部的总占用是同一把尺子。鼠标悬停在数值上可以看按单核计的占用（活动监视器的算法）	Part de chaque app dans le CPU total : les {} cœurs entièrement utilisés représentent 100 %, comme le total ci-dessus. Survolez une valeur pour voir l’utilisation par cœur, comme dans Moniteur d’activité
 每个指标一个图标，点击弹出该项详情	Une icône par mesure ; cliquez pour afficher ses détails
-每分钟把主要指标的平均值与峰值写入本机数据库，保留 7 天，不上传	Enregistre chaque minute les moyennes et pics des principales mesures dans une base locale. Conservation pendant 7 jours, sans envoi.
+主要指标每分钟写入本机数据库并保留 7 天，屏幕使用时间保留 90 天	Les principales mesures sont enregistrées localement chaque minute et conservées 7 jours ; le temps d’écran est conservé 90 jours.
 每核 {}	{} par cœur
 每根柱子一个核心，按核心类型着色	Une barre par cœur, colorée selon son type
 每点 {}	{} par point
@@ -1459,7 +1459,7 @@ Sub2API 账号平台与所选来源不匹配	La plateforme du compte Sub2API ne 
 收起到迷你 HUD	Réduire en Mini HUD
 番茄钟	Minuteur Pomodoro
 番茄钟与护眼休息	Pomodoro et pauses visuelles
-专注计时、每日目标与多屏休息幕布；所有数据留在本机。	Minuteur de concentration, objectifs quotidiens et écran de pause sur tous les moniteurs. Les données restent sur ce Mac.
+专注计时、每日目标与多屏休息幕布。	Minuteur de concentration, objectifs quotidiens et écran de pause sur tous les moniteurs.
 专注	Concentration
 短休	Pause courte
 长休	Pause longue
@@ -1497,3 +1497,12 @@ VPN 不允许绕开它直连，TCP 建连会被本机代理提前应答，测不
 手动开始工作，专注与休息自动交替；每 4 轮进入长休。	Démarrez le travail manuellement. Concentration et pauses alternent ; une longue pause suit quatre sessions.
 起身活动一下	Levez-vous et bougez
 走动几步，看看远处，让身体和眼睛都休息	Marchez un peu et regardez au loin pour reposer votre corps et vos yeux
+屏幕使用时间	Temps d’écran
+今天 {}	Aujourd’hui {}
+有记录的日期日均 {}	Moyenne quotidienne des jours enregistrés : {}
+浅色为根据系统电源日志估算，可能包含锁屏时间	Les barres claires sont estimées à partir du journal d’alimentation et peuvent inclure le temps verrouillé
+今日屏幕使用时间	Temps d’écran du jour
+XStats 运行时统计屏幕亮着且未锁定的时间	Compté pendant l’exécution de XStats : temps écran allumé et déverrouillé
+查看今天屏幕亮着且未锁定的时间	Voir le temps passé aujourd’hui avec l’écran allumé et déverrouillé
+定期更新	Mise à jour périodique
+同时清除指标和屏幕使用时间	Effacer les mesures et le temps d’écran ensemble

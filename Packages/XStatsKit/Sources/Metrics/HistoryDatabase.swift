@@ -51,7 +51,8 @@ public struct HistoryPoint: Sendable, Equatable {
     public var battery: Double?
 }
 
-/// 本机 SQLite 历史库（~/Library/Application Support/XStats/history.sqlite），只存每分钟汇总，7 天约 1 万行
+/// 本机 SQLite 历史库（~/Library/Application Support/XStats/history.sqlite）：每分钟指标汇总保留 8 天（约 1 万行），
+/// 屏幕使用时间一天一行，保留 90 天
 public actor HistoryDatabase {
     public enum Error: Swift.Error {
         case open(String)
@@ -81,6 +82,12 @@ public actor HistoryDatabase {
             minute INTEGER PRIMARY KEY,
             cpu REAL, cpu_max REAL, memory REAL, pressure INTEGER,
             download REAL, upload REAL, gpu REAL, temperature REAL, power REAL, battery REAL
+        );
+        CREATE TABLE IF NOT EXISTS screen_time (
+            day INTEGER PRIMARY KEY, seconds REAL NOT NULL, estimated INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS history_metadata (
+            key TEXT PRIMARY KEY, value REAL NOT NULL
         );
         """
         guard sqlite3_exec(handle, schema, nil, nil, nil) == SQLITE_OK else {
@@ -157,8 +164,92 @@ public actor HistoryDatabase {
         sqlite3_step(statement)
     }
 
-    public func clear() {
-        sqlite3_exec(db, "DELETE FROM samples; VACUUM;", nil, nil, nil)
+    public func clear(at date: Date = Date()) {
+        // 删除数据和记录补录边界必须同时成功，重启不能复原用户已清除的历史。
+        guard sqlite3_exec(db, "BEGIN IMMEDIATE; DELETE FROM samples; DELETE FROM screen_time;", nil, nil, nil) == SQLITE_OK else {
+            sqlite3_exec(db, "ROLLBACK;", nil, nil, nil)
+            return
+        }
+        var statement: OpaquePointer?
+        let sql = "INSERT OR REPLACE INTO history_metadata (key, value) VALUES ('screenTimeClearedAt', ?)"
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            sqlite3_exec(db, "ROLLBACK;", nil, nil, nil)
+            return
+        }
+        sqlite3_bind_double(statement, 1, date.timeIntervalSince1970)
+        let saved = sqlite3_step(statement) == SQLITE_DONE
+        sqlite3_finalize(statement)
+        guard saved else {
+            sqlite3_exec(db, "ROLLBACK;", nil, nil, nil)
+            return
+        }
+        sqlite3_exec(db, "COMMIT; VACUUM;", nil, nil, nil)
+    }
+
+    // MARK: 屏幕使用时间（按当地零点的 Unix 时间戳一天一行）
+
+    /// 实时记录：累加到当天
+    public func addScreenTime(_ seconds: TimeInterval, day: Date) {
+        guard seconds > 0, seconds.isFinite else { return }
+        let sql = """
+        INSERT INTO screen_time (day, seconds, estimated) VALUES (?, ?, 0)
+        ON CONFLICT(day) DO UPDATE SET seconds = seconds + excluded.seconds
+        """
+        execute(sql, day: day, seconds: seconds)
+    }
+
+    /// 电源日志估算：只填补还没有记录的日期，不覆盖实时数据
+    public func seedScreenTime(_ seconds: TimeInterval, day: Date) {
+        guard seconds > 0, seconds.isFinite else { return }
+        // 估算只有日汇总，无法从中扣除清除前的部分，因此清除当天也不再补录。
+        var statement: OpaquePointer?
+        let sql = "SELECT value FROM history_metadata WHERE key = 'screenTimeClearedAt'"
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(statement) }
+        if sqlite3_step(statement) == SQLITE_ROW,
+           day.timeIntervalSince1970 <= sqlite3_column_double(statement, 0) { return }
+        execute("INSERT OR IGNORE INTO screen_time (day, seconds, estimated) VALUES (?, ?, 1)", day: day, seconds: seconds)
+    }
+
+    /// `from` 当天起、`to` 当天之前（按零点比较）
+    public func screenTime(from start: Date, to end: Date) -> [ScreenTimeDay] {
+        let sql = "SELECT day, seconds, estimated FROM screen_time WHERE day >= ? AND day < ? ORDER BY day"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_int64(statement, 1, Int64(start.timeIntervalSince1970))
+        sqlite3_bind_int64(statement, 2, Int64(end.timeIntervalSince1970))
+        var days: [ScreenTimeDay] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            days.append(ScreenTimeDay(day: Date(timeIntervalSince1970: TimeInterval(sqlite3_column_int64(statement, 0))),
+                                      seconds: sqlite3_column_double(statement, 1),
+                                      estimated: sqlite3_column_int(statement, 2) != 0))
+        }
+        return days
+    }
+
+    public func hasScreenTime() -> Bool {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "SELECT 1 FROM screen_time LIMIT 1", -1, &statement, nil) == SQLITE_OK else { return false }
+        defer { sqlite3_finalize(statement) }
+        return sqlite3_step(statement) == SQLITE_ROW
+    }
+
+    public func pruneScreenTime(before date: Date) {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "DELETE FROM screen_time WHERE day < ?", -1, &statement, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_int64(statement, 1, Int64(date.timeIntervalSince1970))
+        sqlite3_step(statement)
+    }
+
+    private func execute(_ sql: String, day: Date, seconds: TimeInterval) {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_int64(statement, 1, Int64(day.timeIntervalSince1970))
+        sqlite3_bind_double(statement, 2, seconds)
+        sqlite3_step(statement)
     }
 
     public func count() -> Int {

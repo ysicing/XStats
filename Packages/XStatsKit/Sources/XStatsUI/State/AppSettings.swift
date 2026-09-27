@@ -620,8 +620,13 @@ public final class AppSettings {
     }
     /// 每分钟把主要指标写入本机历史库
     public var historyEnabled: Bool {
-        didSet { defaults.set(historyEnabled, forKey: Keys.historyEnabled) }
+        didSet {
+            if historyEnabled != oldValue { historyRecordingGeneration += 1 }
+            defaults.set(historyEnabled, forKey: Keys.historyEnabled)
+        }
     }
+    /// 开关快速关闭再开启时，之前启动的异步补录仍须失效。
+    @ObservationIgnored private(set) var historyRecordingGeneration = 0
     /// 旧版布尔设置只用于兼容旧备份；新界面以检查策略为准。
     public var autoCheckUpdates: Bool {
         get { updateCheckSchedule != .never }

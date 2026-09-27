@@ -30,6 +30,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private let hotKeys = HotKeyCenter()
     private var workspaceObservers: [NSObjectProtocol] = []
     private var screenLocked = false
+    private var screenTimePausedByWorkspace = false
+    private var preparingToTerminate = false
 
     public override init() {
         super.init()
@@ -106,6 +108,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
 
         observeWorkspace()
+        model.screenTime.start()
+        observeScreenTimeHistorySetting()
         observeRestSettings()
         observeRestMode()
         observeRestSound()
@@ -118,7 +122,15 @@ public final class AppController: NSObject, NSApplicationDelegate {
         observeWidgetState()
         syncWidgetSnapshot()
         widgetTimer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.syncWidgetSnapshot() }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.model.screenTime.checkpoint()
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    await self.model.screenTime.pending?.value
+                    self.syncWidgetSnapshot()
+                }
+            }
         }
         widgetTimer?.tolerance = 5 * 60
         model.aiUsage.start()
@@ -193,6 +205,16 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self?.menuBar.refreshImages()
             }
         }
+    }
+
+    public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !preparingToTerminate else { return .terminateLater }
+        preparingToTerminate = true
+        Task { @MainActor in
+            await model.screenTime.prepareForTermination()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
@@ -376,6 +398,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
             _ = model.aiUsage.states
             _ = model.aiUsage.quotaStates
             _ = model.network.publicResults
+            _ = model.settings.historyEnabled
+            _ = model.screenTime.today
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -459,7 +483,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                       showsLunar: settings.calendarFeatures.contains(.lunar),
                                       calendarDays: calendarDays, monthSummaries: monthSummaries,
                                       showsSeasonal: settings.calendarFeatures.contains(.seasonal),
-                                      calendarDataVersion: dataVersion)
+                                      calendarDataVersion: dataVersion,
+                                      screenTime: settings.historyEnabled
+                                          ? .init(day: today, seconds: Int(model.screenTime.currentToday(at: .now)) / 900 * 900) : nil)
         guard snapshot != previous, widgetStore.save(snapshot) else { return }
         for kind in snapshot.changedWidgetKinds(from: previous) {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)
@@ -537,10 +563,12 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     private func pauseForInactivity() {
+        screenTimePausedByWorkspace = true
         menuBar.dismissPopovers()
         model.network.setPaused(true)
         model.aiUsage.setPaused(true)
         model.history.flush()
+        model.screenTime.stop()
         restWindows.hideRest()
         rest.suspend()
         Task { await model.hub.setPaused(true) }
@@ -549,13 +577,31 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private func resumeFromInactivity() {
         // 系统唤醒时常仍停在锁屏界面，要等解锁后再恢复。
         guard !screenLocked else { return }
+        screenTimePausedByWorkspace = false
         model.network.setPaused(false)
         model.aiUsage.setPaused(false)
+        model.screenTime.start()
         rest.sync()
         if rest.phase.isResting && rest.isRunning { restWindows.ensureRestVisible() }
         Task {
             await model.hub.setPaused(false)
             await model.fans.reapply()
+        }
+    }
+
+    private func observeScreenTimeHistorySetting() {
+        withObservationTracking {
+            _ = model.settings.historyEnabled
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if self.model.settings.historyEnabled && !self.screenTimePausedByWorkspace {
+                    self.model.screenTime.start()
+                } else {
+                    self.model.screenTime.stop()
+                }
+                self.observeScreenTimeHistorySetting()
+            }
         }
     }
 

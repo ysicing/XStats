@@ -73,6 +73,18 @@ import WidgetData
     #expect(snapshot.calendarSummary(for: noon, calendar: buddhist) == nil)
 }
 
+@Test func screenTimeResetsOnNewDayAndReloadsOnlyItsWidget() throws {
+    let noon = try #require(WidgetSnapshot.keyCalendar.date(from: DateComponents(year: 2026, month: 9, day: 26, hour: 12)))
+    let previous = WidgetSnapshot()
+    #expect(previous.todayScreenTime(at: noon) == nil, "history disabled or old snapshot shows nothing")
+    var snapshot = previous
+    snapshot.screenTime = .init(day: Calendar.autoupdatingCurrent.startOfDay(for: noon), seconds: 3 * 3600)
+    #expect(snapshot.todayScreenTime(at: noon) == 3 * 3600)
+    #expect(snapshot.todayScreenTime(at: noon.addingTimeInterval(24 * 3600)) == 0, "yesterday's time must not show as today")
+    #expect(snapshot.changedWidgetKinds(from: previous) == [WidgetKind.screenTime])
+    #expect(try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot)) == snapshot)
+}
+
 @Test func seasonalDayToggleReloadsOnlyDailyCalendar() {
     let previous = WidgetSnapshot()
     var enabled = previous
@@ -211,7 +223,7 @@ import WidgetData
 
     var relocalized = base
     relocalized.language = "japanese"
-    #expect(relocalized.changedWidgetKinds(from: base) == [WidgetKind.aiQuota, WidgetKind.todayTokens,
+    #expect(relocalized.changedWidgetKinds(from: base) == [WidgetKind.aiQuota, WidgetKind.todayTokens, WidgetKind.screenTime,
                                                            WidgetKind.ipPurity, WidgetKind.publicIP,
                                                            WidgetKind.calendar, WidgetKind.tomorrowWork,
                                                            WidgetKind.calendarMonth])

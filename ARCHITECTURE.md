@@ -379,6 +379,24 @@ merge concurrent edits, or use iCloud. A missing remote file requires an initial
 - `HistoryRecorder` folds each sample into a per-minute record (averages, CPU and temperature
   peaks, worst memory pressure) and writes it to `history.sqlite`; records older than 8 days are
   pruned hourly. Queries bucket by 1, 5 or 30 minutes and charts break lines across gaps.
+- `ScreenTimeTracker` adds daily screen time to the `screen_time` table of the same database
+  (one row per local day, kept 90 days). It counts only while the display is awake, the session is
+  active and the screen is unlocked; `AppController` stops it on display sleep, system sleep, lock
+  and user switch. The active interval is computed from its start time when shown in the history
+  page, and split at local midnight when suspended, at normal termination, or on the existing
+  hourly widget refresh. It has no independent periodic timer and does not inspect user input.
+  On its first start per launch it reads `pmset -g log` once, off the main
+  thread, with an eight-second and 16 MiB limit, and seeds days without a row with display-on time (flagged as estimated; the log's first,
+  partial day is skipped, and today is seeded only up to the moment live tracking starts). The
+  widget snapshot carries today's total rounded down to 15 minutes and refreshes with the
+  application's existing hourly widget timer or a state change.
+  Clearing history invalidates queued screen-time work, clears any queued recent-day result,
+  and atomically persists a backfill cutoff
+  with the deletion. Estimated daily totals on or before the cleared day are no longer imported,
+  including after relaunch; live tracking resumes from the clear time. Changes to the history
+  recording switch invalidate in-flight backfill results, even if the switch is enabled again.
+  Normal application termination uses AppKit's deferred termination reply to wait for the final
+  screen-time settlement before exiting.
 
 ## Localization
 

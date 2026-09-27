@@ -850,7 +850,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 此设备没有可调节的风扇	Este Mac no tiene ventiladores ajustables
 每个应用占整机 CPU 的比例：{} 个核心全部跑满为 100%，与顶部的总占用是同一把尺子。鼠标悬停在数值上可以看按单核计的占用（活动监视器的算法）	Uso de CPU total por app: los {} núcleos a plena carga equivalen al 100%, igual que el total superior. Pasa el cursor sobre el valor para ver el uso por núcleo, como en Monitor de Actividad
 每个指标一个图标，点击弹出该项详情	Un icono por métrica; pulsa para ver detalles
-每分钟把主要指标的平均值与峰值写入本机数据库，保留 7 天，不上传	Guarda medias y picos de las métricas en una base local cada minuto. Se conservan 7 días y no se suben.
+主要指标每分钟写入本机数据库并保留 7 天，屏幕使用时间保留 90 天	Las métricas principales se guardan localmente cada minuto y se conservan 7 días; el tiempo de pantalla, 90 días.
 每核 {}	{} por núcleo
 每根柱子一个核心，按核心类型着色	Una barra por núcleo, coloreada según su tipo
 每点 {}	{} por punto
@@ -1459,7 +1459,7 @@ Sub2API 账号平台与所选来源不匹配	La plataforma de la cuenta de Sub2A
 收起到迷你 HUD	Contraer al Mini HUD
 番茄钟	Temporizador Pomodoro
 番茄钟与护眼休息	Pomodoro y descansos visuales
-专注计时、每日目标与多屏休息幕布；所有数据留在本机。	Temporizador de concentración, objetivos diarios y pantalla de descanso en todos los monitores. Los datos permanecen en este Mac.
+专注计时、每日目标与多屏休息幕布。	Temporizador de concentración, objetivos diarios y pantalla de descanso en todos los monitores.
 专注	Concentración
 短休	Descanso corto
 长休	Descanso largo
@@ -1497,3 +1497,12 @@ VPN 不允许绕开它直连，TCP 建连会被本机代理提前应答，测不
 手动开始工作，专注与休息自动交替；每 4 轮进入长休。	Inicia el trabajo manualmente. La concentración y los descansos se alternan; tras cuatro sesiones, llega un descanso largo.
 起身活动一下	Levántate y muévete
 走动几步，看看远处，让身体和眼睛都休息	Camina un poco y mira a lo lejos para descansar el cuerpo y la vista
+屏幕使用时间	Tiempo de pantalla
+今天 {}	Hoy {}
+有记录的日期日均 {}	Media diaria de los días registrados: {}
+浅色为根据系统电源日志估算，可能包含锁屏时间	Las barras claras se estiman con el registro de energía del sistema y pueden incluir tiempo de bloqueo
+今日屏幕使用时间	Tiempo de pantalla de hoy
+XStats 运行时统计屏幕亮着且未锁定的时间	Cuenta el tiempo con la pantalla encendida y desbloqueada mientras XStats está abierto
+查看今天屏幕亮着且未锁定的时间	Consulta cuánto tiempo ha estado la pantalla encendida y desbloqueada hoy
+定期更新	Se actualiza periódicamente
+同时清除指标和屏幕使用时间	Borrar métricas y tiempo de pantalla a la vez
