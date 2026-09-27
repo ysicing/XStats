@@ -116,6 +116,8 @@ uv 缓存	uv 캐시
 Yarn 缓存	Yarn 캐시
 pnpm 缓存	pnpm 캐시
 Bun 缓存	Bun 캐시
+Homebrew 下载缓存	Homebrew 다운로드 캐시
+超过 1 天的 Homebrew 下载文件，不影响已安装软件	1일 이상 지난 Homebrew 다운로드 파일만 정리하며 설치된 소프트웨어에는 영향을 주지 않습니다
 npm 下载缓存，由 npm 自行清理	npm 다운로드 캐시이며 npm이 직접 정리합니다
 Yarn 全局与离线镜像缓存，由 Yarn 自行清理	Yarn 전역 및 오프라인 미러 캐시이며 Yarn이 직접 정리합니다
 pnpm 内容寻址存储，仅清理未被引用的包	pnpm 콘텐츠 주소 지정 저장소이며 참조되지 않은 패키지만 정리합니다

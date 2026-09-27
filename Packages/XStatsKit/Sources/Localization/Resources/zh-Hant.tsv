@@ -117,6 +117,8 @@ uv 缓存	uv 緩存
 Yarn 缓存	Yarn 緩存
 pnpm 缓存	pnpm 緩存
 Bun 缓存	Bun 緩存
+Homebrew 下载缓存	Homebrew 下載緩存
+超过 1 天的 Homebrew 下载文件，不影响已安装软件	超過 1 天的 Homebrew 下載檔案，不影響已安裝軟件
 npm 下载缓存，由 npm 自行清理	npm 下載緩存，由 npm 自行清理
 Yarn 全局与离线镜像缓存，由 Yarn 自行清理	Yarn 全局與離線鏡像緩存，由 Yarn 自行清理
 pnpm 内容寻址存储，仅清理未被引用的包	pnpm 內容尋址存儲，僅清理未被引用的包

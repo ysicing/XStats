@@ -116,6 +116,8 @@ uv 缓存	uv-Cache
 Yarn 缓存	Yarn-Cache
 pnpm 缓存	pnpm-Cache
 Bun 缓存	Bun-Cache
+Homebrew 下载缓存	Homebrew-Download-Cache
+超过 1 天的 Homebrew 下载文件，不影响已安装软件	Homebrew-Downloads, die älter als einen Tag sind; installierte Software bleibt erhalten
 npm 下载缓存，由 npm 自行清理	npm-Download-Cache; wird von npm selbst bereinigt
 Yarn 全局与离线镜像缓存，由 Yarn 自行清理	Globaler Yarn- und Offline-Mirror-Cache; wird von Yarn selbst bereinigt
 pnpm 内容寻址存储，仅清理未被引用的包	Inhaltsadressierter pnpm-Speicher; nur nicht referenzierte Pakete werden entfernt

@@ -6,7 +6,7 @@ public enum RuleCatalog {
     public static func rules() -> [CleanRule] {
         [userCaches, logs] + browsers.map(browserRule) + [xcodeDerivedData, simulatorCaches,
                                                           npmCache, yarnCache, pnpmCache, bunCache,
-                                                          goCache, rustCache, uvCache, xcodeArchives,
+                                                          goCache, rustCache, uvCache, homebrewCache, xcodeArchives,
                                                           incompleteDownloads, installers, trash]
     }
 
@@ -16,7 +16,7 @@ public enum RuleCatalog {
     static let excludedCacheNames: Set<String> = [
         "Google", "Firefox", "Microsoft Edge", "BraveSoftware", "Arc",
         "com.google.Chrome", "com.microsoft.edgemac", "com.brave.Browser", "company.thebrowser.Browser",
-        "org.mozilla.firefox", "com.apple.Safari",
+        "org.mozilla.firefox", "com.apple.Safari", "Homebrew",
     ]
 
     static let userCaches = CleanRule(
@@ -213,6 +213,30 @@ public enum RuleCatalog {
         }
     ) { env in
         try childrenIfExists(of: env.home + "/.cache/uv")
+    }
+
+    static let homebrewCache = CleanRule(
+        id: "developer.homebrew", category: .developer, title: tr("Homebrew 下载缓存"),
+        detail: tr("超过 1 天的 Homebrew 下载文件，不影响已安装软件"), symbol: "shippingbox",
+        selectedByDefault: false, minimumAge: 86_400
+    ) { env in
+        // 仅识别 Homebrew 已完成的内容寻址下载；同目录中的临时文件和其他缓存不属于本规则。
+        let cacheDirectory = URL(fileURLWithPath: env.home + "/Library/Caches/Homebrew")
+        let downloads = cacheDirectory.appendingPathComponent("downloads")
+        guard FileManager.default.fileExists(atPath: downloads.path) else { return [] }
+        guard try cacheDirectory.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true,
+              try downloads.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true else {
+            return []
+        }
+        return try children(of: downloads.path).filter { url in
+            let name = url.lastPathComponent
+            guard !name.hasSuffix(".incomplete"),
+                  name.range(of: #"^[0-9a-f]{64}--.+$"#, options: .regularExpression) != nil,
+                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]) else {
+                return false
+            }
+            return values.isRegularFile == true && values.isSymbolicLink != true
+        }
     }
 
     static let xcodeArchives = CleanRule(

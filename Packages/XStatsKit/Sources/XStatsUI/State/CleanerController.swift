@@ -66,11 +66,11 @@ public final class CleanerController {
         task = Task {
             let result = await CleanEngine.clean(scans, selected: selection, preferTrash: preferTrash, environment: environment)
             report = result
-            phase = .finished
             // 清理后重新计算剩余可清理空间
             let rescanned = await CleanEngine.scan(rules, environment: Self.environment())
             self.scans = rescanned
             lastScan = Date()
+            phase = .finished
         }
     }
 

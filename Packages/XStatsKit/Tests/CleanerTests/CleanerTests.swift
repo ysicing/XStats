@@ -122,10 +122,53 @@ struct DeveloperCacheRuleTests {
         let rules = Dictionary(uniqueKeysWithValues: RuleCatalog.rules().map { ($0.id, $0) })
 
         for id in ["developer.npm", "developer.yarn", "developer.pnpm", "developer.bun",
-                   "developer.go", "developer.rust", "developer.uv"] {
+                   "developer.go", "developer.rust", "developer.uv", "developer.homebrew"] {
             #expect(rules[id]?.category == .developer)
             #expect(rules[id]?.selectedByDefault == false)
         }
+    }
+
+    @Test func homebrewRuleOnlyCleansCompletedOlderDownloads() async throws {
+        let home = try FakeHome()
+        defer { home.remove() }
+        let hash = String(repeating: "a", count: 64)
+        let oldDownload = try home.file("Library/Caches/Homebrew/downloads/\(hash)--wget-1.0.tar.gz", age: 172_800)
+        let recentDownload = try home.file("Library/Caches/Homebrew/downloads/\(hash)--curl-1.0.tar.gz", age: 60)
+        let incomplete = try home.file("Library/Caches/Homebrew/downloads/\(hash)--git-1.0.tar.gz.incomplete", age: 172_800)
+        let unrelated = try home.file("Library/Caches/Homebrew/downloads/notes.txt", age: 172_800)
+        let backup = try home.file("Library/Caches/Homebrew/Backup/important.txt", age: 172_800)
+        let environment = home.environment()
+
+        let generic = try RuleCatalog.userCaches.locate(environment)
+        #expect(!generic.contains { $0.lastPathComponent == "Homebrew" })
+
+        let scans = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
+        let scan = try #require(scans.first)
+        #expect(scan.items.map { $0.url.resolvingSymlinksInPath() } == [oldDownload.resolvingSymlinksInPath()])
+
+        let report = await CleanEngine.clean(scans, selected: [RuleCatalog.homebrewCache.id],
+                                             preferTrash: false, environment: environment, log: nil)
+        #expect(report.removedCount == 1)
+        #expect(!FileManager.default.fileExists(atPath: oldDownload.path))
+        for retained in [recentDownload, incomplete, unrelated, backup] {
+            #expect(FileManager.default.fileExists(atPath: retained.path))
+        }
+    }
+
+    @Test func homebrewRuleRejectsLinkedDownloadDirectory() async throws {
+        let home = try FakeHome()
+        defer { home.remove() }
+        let hash = String(repeating: "b", count: 64)
+        let backup = try home.file("Library/Caches/Homebrew/Backup/\(hash)--archive.tar.gz", age: 172_800)
+        let downloads = home.root.appendingPathComponent("Library/Caches/Homebrew/downloads")
+        try FileManager.default.createSymbolicLink(at: downloads, withDestinationURL: backup.deletingLastPathComponent())
+
+        let environment = home.environment()
+        #expect(try RuleCatalog.homebrewCache.locate(environment).isEmpty)
+        let scans = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
+
+        #expect(scans.first?.items.isEmpty == true)
+        #expect(FileManager.default.fileExists(atPath: backup.path))
     }
 
     @Test func packageManagerCachesUseTheirBrandLogos() {
