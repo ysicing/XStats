@@ -418,7 +418,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 公网 IPv4	Public IPv4
 公网 IPv6	Public IPv6
 共 {}	{} total
-共 {} 条记录	{} records
 共 {}，{} 个条目 · {}	{1} in {2} items · {3}
 关	Off
 关于	About
