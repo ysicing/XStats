@@ -187,6 +187,36 @@ private actor StubQuotaHTTPClient: QuotaHTTPClient {
         }
     }
 
+    @Test func codexAppServerKeepsOneWindowPerKind() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        // 两个槽位都是 5 小时：只保留第一个，避免界面按窗口类型出现重复项
+        let same = Data(#"{"id":1,"result":{"rateLimits":{"primary":{"usedPercent":40,"windowDurationMins":300},"secondary":{"usedPercent":70,"windowDurationMins":300}}}}"#.utf8)
+        let snapshot = try CodexAppServerQuotaClient.parse(same, now: now)
+        #expect(snapshot.windows.map(\.kind) == [.session])
+        #expect(snapshot.window(.session)?.usedPercent == 40)
+        // 没给时长的槽位按位置推断，但让位于明确标注时长的同类窗口
+        let inferred = Data(#"{"id":1,"result":{"rateLimits":{"primary":{"usedPercent":10},"secondary":{"usedPercent":55,"windowDurationMins":300}}}}"#.utf8)
+        let mixed = try CodexAppServerQuotaClient.parse(inferred, now: now)
+        #expect(mixed.windows.map(\.kind) == [.session])
+        #expect(mixed.window(.session)?.usedPercent == 55)
+    }
+
+    @Test func codexAppServerReadStopsWhenCancelled() throws {
+        let script = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xstats-codex-silent-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: script) }
+        // 不回应 initialize 的 CLI：只能靠取消或 12 秒截止时间结束
+        try "#!/bin/sh\nsleep 30\n".write(to: script, atomically: true, encoding: .utf8)
+        #expect(Darwin.chmod(script.path, 0o700) == 0)
+        let started = Date()
+        #expect(throws: CancellationError.self) {
+            try CodexAppServerQuotaClient.readRateLimits(using: script, isCancelled: {
+                Date().timeIntervalSince(started) > 0.3
+            })
+        }
+        #expect(Date().timeIntervalSince(started) < 3, "cancellation was not honoured promptly")
+    }
+
     @Test func codexDirectForbiddenJSONStillMeansUnauthorized() async {
         let http = StubQuotaHTTPClient(status: 403, body: #"{"error":"invalid_token"}"#)
         let provider = CodexQuotaProvider(credentials: { CodexQuotaCredentials(token: "test", accountID: nil) }, http: http)

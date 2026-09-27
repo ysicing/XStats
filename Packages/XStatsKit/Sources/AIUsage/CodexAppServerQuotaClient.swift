@@ -9,11 +9,18 @@ import Foundation
 enum CodexAppServerQuotaClient {
     static func fetch() async throws -> AIQuotaSnapshot {
         guard let executable = executableURL() else { throw AIQuotaFailure.notConfigured }
-        let task = Task.detached(priority: .utility) { try readRateLimits(using: executable) }
+        // 读取最长阻塞 12 秒，放到 GCD 线程执行，不占用 Swift 并发的协作线程池
+        let cancelled = CancellationFlag()
         let response = try await withTaskCancellationHandler {
-            try await task.value
+            try await withCheckedThrowingContinuation { continuation in
+                DispatchQueue.global(qos: .utility).async {
+                    continuation.resume(with: Result {
+                        try readRateLimits(using: executable, isCancelled: { cancelled.isSet })
+                    })
+                }
+            }
         } onCancel: {
-            task.cancel()
+            cancelled.set()
         }
         return try parse(response, now: Date())
     }
@@ -25,21 +32,28 @@ enum CodexAppServerQuotaClient {
         guard let limits = buckets?["codex"] as? [String: Any]
                 ?? result["rateLimits"] as? [String: Any] else { throw AIQuotaFailure.invalidResponse }
 
-        var windows: [AIQuotaWindow] = []
+        // 每种窗口只保留一个，避免界面按窗口类型出现重复项
+        var selected: [AIQuotaKind: (window: AIQuotaWindow, exact: Bool)] = [:]
         for field in ["primary", "secondary"] {
             guard let window = limits[field] as? [String: Any],
                   let used = (window["usedPercent"] as? NSNumber)?.doubleValue,
                   used.isFinite, (0...100).contains(used) else { continue }
             let kind: AIQuotaKind
-            switch (window["windowDurationMins"] as? NSNumber)?.intValue {
+            let minutes = (window["windowDurationMins"] as? NSNumber)?.intValue
+            switch minutes {
             case 300: kind = .session
             case 10_080: kind = .weekly
             case nil: kind = field == "primary" ? .session : .weekly
             default: continue
             }
             let reset = (window["resetsAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
-            windows.append(AIQuotaWindow(kind: kind, usedPercent: used, resetsAt: reset))
+            let exact = minutes != nil
+            // 同类只保留一个：先到的 primary 优先，只有未标注时长的才被明确时长的替换
+            if selected[kind] == nil || (exact && selected[kind]?.exact == false) {
+                selected[kind] = (AIQuotaWindow(kind: kind, usedPercent: used, resetsAt: reset), exact)
+            }
         }
+        let windows = [AIQuotaKind.session, .weekly].compactMap { selected[$0]?.window }
         guard !windows.isEmpty else { throw AIQuotaFailure.invalidResponse }
         return AIQuotaSnapshot(provider: .codex, windows: windows, fetchedAt: now)
     }
@@ -58,7 +72,7 @@ enum CodexAppServerQuotaClient {
     }
 
     /// stdio JSONL：先 initialize，再等确认后读取 rate limits。进程始终有截止时间。
-    static func readRateLimits(using executable: URL) throws -> Data {
+    static func readRateLimits(using executable: URL, isCancelled: () -> Bool = { false }) throws -> Data {
         let process = Process()
         process.executableURL = executable
         process.arguments = ["app-server"]
@@ -95,7 +109,7 @@ enum CodexAppServerQuotaClient {
         var buffer = Data()
         var chunk = [UInt8](repeating: 0, count: 4096)
         while true {
-            if withUnsafeCurrentTask(body: { $0?.isCancelled ?? false }) { throw CancellationError() }
+            if isCancelled() { throw CancellationError() }
             let instant = DispatchTime.now().uptimeNanoseconds
             guard instant < deadline else { throw AIQuotaFailure.network }
             let waitMs = Int32(max(1, min((deadline - instant) / 1_000_000, 1_000)))
@@ -124,4 +138,12 @@ enum CodexAppServerQuotaClient {
             }
         }
     }
+}
+
+/// 在 GCD 线程上轮询的取消标记
+private final class CancellationFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    var isSet: Bool { lock.withLock { value } }
+    func set() { lock.withLock { value = true } }
 }
