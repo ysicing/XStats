@@ -153,6 +153,7 @@ private struct MainSidebar: View {
 
             HStack(spacing: DS.Space.s1) {
                 ThemeToggle()
+                FeedbackMenu()
                 Spacer(minLength: 0)
                 IconButton(systemName: "power", help: tr("退出 XStats")) { model.quit() }
             }
@@ -205,6 +206,61 @@ private struct MainSidebar: View {
                 model.settings.panelTab = tab
             }
         }
+    }
+}
+
+private struct FeedbackMenu: View {
+    @Environment(\.isInsideGlass) private var isInsideGlass
+    @State private var hovering = false
+
+    var body: some View {
+        let glass = DS.Glass.isAvailable && !isInsideGlass
+        Menu {
+            Button {
+                NSWorkspace.shared.open(FeedbackLinks.githubBugReport)
+            } label: {
+                Label(tr("在 GitHub 提交问题"), systemImage: "ladybug")
+            }
+            Button {
+                let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? tr("开发版")
+                let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+                let systemVersion = ProcessInfo.processInfo.operatingSystemVersionString
+                if let url = FeedbackLinks.email(version: version, build: build, systemVersion: systemVersion) {
+                    NSWorkspace.shared.open(url)
+                }
+            } label: {
+                Label(tr("发送反馈邮件"), systemImage: "envelope")
+            }
+        } label: {
+            Image(systemName: "ladybug")
+                .font(.system(size: DS.TextSize.sm.rawValue, weight: .medium))
+                .foregroundStyle(hovering ? DS.Palette.primary : glass ? DS.Palette.textPrimary : DS.Palette.textSecondary)
+                .frame(width: DS.Size.controlHeight, height: DS.Size.controlHeight)
+                .modifier(IconButtonSurface(hovering: hovering, glass: glass))
+                .contentShape(Circle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .frame(width: DS.Size.controlHeight)
+        .onHover { hovering = $0 }
+        .help(tr("反馈问题"))
+        .accessibilityLabel(tr("反馈问题"))
+    }
+}
+
+enum FeedbackLinks {
+    static let githubBugReport = URL(string: "https://github.com/ysicing/XStats/issues/new?template=bug_report.md")!
+
+    static func email(version: String, build: String?, systemVersion: String) -> URL? {
+        let appVersion = build.map { "\(version) (\($0))" } ?? version
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = "i@xiai.me"
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: tr("反馈问题")),
+            URLQueryItem(name: "body", value: "XStats \(appVersion)\nmacOS \(systemVersion)\n\n"),
+        ]
+        return components.url
     }
 }
 

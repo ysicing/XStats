@@ -397,6 +397,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 发现问题：{}	Problema encontrado: {}
 发生这些状况时发送系统通知，点通知打开对应页面	Enviar una notificación cuando ocurra; púlsala para abrir la página correspondiente
 发送	Enviar
+发送反馈邮件	Enviar correo de comentarios
 发送测试通知	Enviar notificación de prueba
 取消	Cancelar
 受保护	Protegido
@@ -467,6 +468,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 图标	Icono
 圆环	Anillo
 圆环表示当前占用比例	Un anillo muestra el uso actual
+在 GitHub 提交问题	Informar de un problema en GitHub
 在 cleanip.io 查看这个 IP 的完整报告	Abrir el informe completo de esta IP en cleanip.io
 在主窗口打开“{}”	Abrir «{}» en la ventana principal
 在程序坞显示图标	Mostrar icono en el Dock

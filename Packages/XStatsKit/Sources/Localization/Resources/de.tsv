@@ -397,6 +397,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 发现问题：{}	Problem gefunden: {}
 发生这些状况时发送系统通知，点通知打开对应页面	Bei diesen Ereignissen eine Mitteilung senden; ein Klick öffnet die entsprechende Seite
 发送	Senden
+发送反馈邮件	Feedback per E-Mail senden
 发送测试通知	Testmitteilung senden
 取消	Abbrechen
 受保护	Geschützt
@@ -467,6 +468,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 图标	Symbol
 圆环	Ring
 圆环表示当前占用比例	Ein Ring zeigt die aktuelle Auslastung
+在 GitHub 提交问题	Problem auf GitHub melden
 在 cleanip.io 查看这个 IP 的完整报告	Vollständigen Bericht zu dieser IP auf cleanip.io öffnen
 在主窗口打开“{}”	„{}“ im Hauptfenster öffnen
 在程序坞显示图标	Symbol im Dock anzeigen

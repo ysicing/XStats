@@ -518,6 +518,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 发现问题：{}	Problem found: {}
 发生这些状况时发送系统通知，点通知打开对应页面	Send a notification when these happen; click it to open the related page
 发送	Send
+发送反馈邮件	Send Feedback Email
 发送测试通知	Send Test Notification
 取消	Cancel
 受保护	Protected
@@ -588,6 +589,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 图标	Icon
 圆环	Ring
 圆环表示当前占用比例	A ring shows current usage
+在 GitHub 提交问题	Report a Problem on GitHub
 在 cleanip.io 查看这个 IP 的完整报告	Open this IP's full report on cleanip.io
 在主窗口打开“{}”	Open “{}” in the main window
 在程序坞显示图标	Show Icon in Dock

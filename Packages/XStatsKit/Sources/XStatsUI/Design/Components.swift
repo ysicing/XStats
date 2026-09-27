@@ -477,7 +477,7 @@ private struct GlassButtonSurface: ViewModifier {
     }
 }
 
-private struct IconButtonSurface: ViewModifier {
+struct IconButtonSurface: ViewModifier {
     let hovering: Bool
     let glass: Bool
 
