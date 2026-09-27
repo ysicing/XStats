@@ -595,6 +595,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.model.screenTime.historySettingChanged()
                 if self.model.settings.historyEnabled && !self.screenTimePausedByWorkspace {
                     self.model.screenTime.start()
                 } else {

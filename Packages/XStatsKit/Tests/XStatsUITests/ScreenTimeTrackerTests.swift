@@ -10,6 +10,7 @@ import Testing
 @MainActor
 private final class FakeEnvironment {
     var now: Date
+    var idle: TimeInterval = 0
     init(now: Date) { self.now = now }
 }
 
@@ -34,7 +35,7 @@ private final class FakeEnvironment {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("screen-time-\(UUID().uuidString).sqlite")
         let database = try HistoryDatabase(url: url)
         let tracker = ScreenTimeTracker(settings: settings, database: database,
-                                        now: { env.now }, powerLog: powerLog ?? { log })
+                                        now: { env.now }, powerLog: powerLog ?? { log }, idleSeconds: { env.idle })
         let cleanup = {
             defaults.removePersistentDomain(forName: suite)
             for suffix in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: url.path + suffix) }
@@ -125,7 +126,7 @@ private final class FakeEnvironment {
         2026-09-21 10:00:00 +0800 Notification Display is turned off
         """
         let relaunched = ScreenTimeTracker(settings: settings, database: database,
-                                           now: { env.now }, powerLog: { log })
+                                           now: { env.now }, powerLog: { log }, idleSeconds: { env.idle })
         relaunched.start()
         await settle(relaunched)
         #expect(await database.screenTime(from: day(0), to: day(3)).isEmpty)
@@ -296,4 +297,93 @@ private final class FakeEnvironment {
         #expect(await database.screenTime(from: day(0), to: day(2)).map(\.seconds) == [TimeInterval(60)])
     }
 
+
+    @Test func timeAfterUserLeavesIsNotCountedEvenIfDisplayStaysOn() async throws {
+        // 防休眠让屏幕常亮：10:00 起无人操作，11:00 的定期结算只计到最后输入后的 5 分钟
+        let env = FakeEnvironment(now: day(1, hour: 9))
+        let (tracker, database, _, cleanup) = try makeTracker(env)
+        defer { cleanup() }
+        tracker.start()
+        env.now = day(1, hour: 11)
+        env.idle = 60 * 60
+        tracker.checkpoint()
+        env.now = day(1, hour: 11, minute: 30)          // 11:00 回来一直在用
+        env.idle = 0
+        tracker.stop()
+        await tracker.pending?.value
+        let rows = await database.screenTime(from: day(1), to: day(2))
+        #expect(rows.first?.seconds == TimeInterval((65 + 30) * 60), "rows: \(rows)")
+    }
+
+    @Test func liveScreenTimeStopsGrowingAfterIdleThreshold() async throws {
+        let env = FakeEnvironment(now: day(1, hour: 10))
+        let (tracker, database, _, cleanup) = try makeTracker(env)
+        defer { cleanup() }
+        tracker.start()
+
+        env.now = day(1, hour: 10, minute: 30)
+        env.idle = 30 * 60
+        #expect(tracker.currentToday(at: env.now) == 5 * 60)
+        env.now = day(1, hour: 10, minute: 40)
+        env.idle = 40 * 60
+        #expect(tracker.currentToday(at: env.now) == 5 * 60)
+
+        tracker.stop()
+        await tracker.pending?.value
+        #expect(await database.screenTime(from: day(1), to: day(2)).first?.seconds == 5 * 60)
+    }
+
+    @Test func reenablingHistoryDoesNotBackfillTheDisabledDays() async throws {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss Z"
+        func line(_ date: Date, _ on: Bool) -> String {
+            "\(formatter.string(from: date)) Notification        \tDisplay is turned \(on ? "on" : "off")"
+        }
+        let log = [line(day(0, hour: 8), false),
+                   line(day(1, hour: 9), true), line(day(1, hour: 11), false),     // 关闭历史期间
+                   line(day(2, hour: 9), true), line(day(2, hour: 10), false)].joined(separator: "\n")
+        let env = FakeEnvironment(now: day(3, hour: 9))
+        let (tracker, database, settings, cleanup) = try makeTracker(env, log: log, historyEnabled: false)
+        defer { cleanup() }
+        tracker.start()                                   // 关闭时不计时、不补录
+        settings.historyEnabled = true
+        tracker.historySettingChanged()
+        tracker.start()
+        env.now = day(3, hour: 9, minute: 10)
+        tracker.stop()
+        await tracker.pending?.value
+        let rows = await database.screenTime(from: day(0), to: day(4))
+        #expect(rows.map(\.day) == [day(3)], "disabled days were backfilled: \(rows)")
+        #expect(rows.first?.estimated == false)
+
+        // 跨重启同样生效：新进程首次启动补录时也跳过这些日期
+        let relaunched = ScreenTimeTracker(settings: settings, database: database,
+                                           now: { env.now }, powerLog: { log }, idleSeconds: { 0 })
+        relaunched.start()
+        relaunched.stop()
+        await relaunched.pending?.value
+        #expect(await database.screenTime(from: day(0), to: day(3)).isEmpty)
+    }
+
+    @Test func terminationCancelsASlowPowerLogRead() async throws {
+        let (startedRead, continuation) = AsyncStream<Void>.makeStream()
+        let env = FakeEnvironment(now: day(1, hour: 9))
+        let (tracker, _, _, cleanup) = try makeTracker(env, powerLog: {
+            // 模拟读取很慢的 pmset：直到被取消才返回
+            continuation.yield(())
+            let deadline = Date().addingTimeInterval(10)
+            while Date() < deadline {
+                if withUnsafeCurrentTask(body: { $0?.isCancelled ?? false }) { return nil }
+                Thread.sleep(forTimeInterval: 0.01)
+            }
+            return nil
+        })
+        defer { cleanup() }
+        tracker.start()
+        for await _ in startedRead { break }
+        let started = Date()
+        await tracker.prepareForTermination()
+        #expect(Date().timeIntervalSince(started) < 2, "termination waited for the power log read")
+    }
 }

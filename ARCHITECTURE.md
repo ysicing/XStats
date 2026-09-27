@@ -391,13 +391,19 @@ merge concurrent edits, or use iCloud. A missing remote file requires an initial
 - `ScreenTimeTracker` adds daily screen time to the `screen_time` table of the same database
   (one row per local day, kept 90 days). It counts only while the display is awake, the session is
   active and the screen is unlocked; `AppController` stops it on display sleep, system sleep, lock
-  and user switch. The active interval is computed from its start time when shown in the history
-  page, and split at local midnight when suspended, at normal termination, or on the existing
-  hourly widget refresh. It has no independent periodic timer and does not inspect user input.
-  On its first start per launch it reads `pmset -g log` once, off the main
-  thread, with an eight-second and 16 MiB limit, and seeds days without a row with display-on time (flagged as estimated; the log's first,
-  partial day is skipped, and today is seeded only up to the moment live tracking starts). The
-  widget snapshot carries today's total rounded down to 15 minutes and refreshes with the
+  and user switch. The active interval is computed from its start time with the current-idle cutoff
+  for the history page and widget snapshot. It is split at local midnight when suspended, at normal
+  termination, or on the existing hourly widget refresh. It has no independent periodic timer.
+  Each settlement reads the idle time since the last keyboard or pointer input (`CGEventSource`,
+  no permission) and drops the current continuous idle tail beyond five minutes. A return before
+  the next settlement cannot be reconstructed and may count that gap. Turning history back on records
+  a backfill boundary in `history_metadata`, so days while it was off are never estimated later.
+  Termination cancels an in-flight power-log read and skips a backfill that has not started.
+  On its first start per launch it reads `pmset -g log` once, off the main thread, with an
+  eight-second and 16 MiB limit. It seeds days without a row with display-on time, flagged as
+  estimated and not adjusted for idle or lock time. The log's first partial day is skipped, and
+  today is seeded only up to the moment live tracking starts. The widget snapshot carries today's
+  total rounded down to 15 minutes and refreshes with the
   application's existing hourly widget timer or a state change.
   Clearing history invalidates queued screen-time work, clears any queued recent-day result,
   and atomically persists a backfill cutoff

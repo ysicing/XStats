@@ -36,6 +36,14 @@ public enum ScreenTime {
         return parts
     }
 
+    /// 结算时距上次键鼠输入超过这么久，视为人已离开（例如开着防休眠让屏幕常亮）
+    public static let idleThreshold: TimeInterval = 5 * 60
+
+    /// 最后一次键鼠输入后的 `threshold` 秒内仍算在用；更久没有输入的部分不计入
+    public static func activeEnd(at now: Date, idleSeconds: TimeInterval, threshold: TimeInterval = idleThreshold) -> Date {
+        min(now, now.addingTimeInterval(threshold - max(0, idleSeconds)))
+    }
+
     /// 从 `pmset -g log` 输出中取出屏幕点亮的时段。日志格式没有公开文档，只识别
     /// “Display is turned on/off” 两类行；日志末尾仍亮着的时段截止到 `now`
     public static func displayIntervals(powerLog: String, now: Date) -> [DateInterval] {

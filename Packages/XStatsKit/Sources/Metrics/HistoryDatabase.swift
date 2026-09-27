@@ -198,6 +198,19 @@ public actor HistoryDatabase {
         execute(sql, day: day, seconds: seconds)
     }
 
+    /// 此刻及之前的日期不再用电源日志补录；用于重新开启历史记录，关闭期间不应被估算回来
+    public func blockScreenTimeBackfill(through date: Date) {
+        var statement: OpaquePointer?
+        let sql = """
+        INSERT INTO history_metadata (key, value) VALUES ('screenTimeClearedAt', ?)
+        ON CONFLICT(key) DO UPDATE SET value = MAX(value, excluded.value)
+        """
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_double(statement, 1, date.timeIntervalSince1970)
+        sqlite3_step(statement)
+    }
+
     /// 电源日志估算：只填补还没有记录的日期，不覆盖实时数据
     public func seedScreenTime(_ seconds: TimeInterval, day: Date) {
         guard seconds > 0, seconds.isFinite else { return }
