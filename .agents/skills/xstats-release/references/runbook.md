@@ -150,7 +150,7 @@ Prove all of the following from live state:
 - Both public object URLs return bytes matching the local DMG and ZIP SHA-256 values.
 - Both regional update-check endpoints return the released version/build and `c.ysicing.net` URLs. Reuse one fixed validation installation ID instead of creating many statistics rows.
 - The remote Homebrew cask matches `dist/xstats.rb`; `brew info --cask ysicing/tap/xstats` shows the released version and arm64/macOS requirements.
-- The release commit and any immediate release-workflow fix commits have green GitHub Actions runs.
+- Check the release commit and any immediate release-workflow fix commits' GitHub Actions status once. Record each visible run's link and actual result; if queued, running, or not yet listed, report CI as pending or unobserved without waiting or polling. Investigate a run that has already completed with failure.
 - Temporary port forwards, credential aliases, debug pods, and staging directories created by this run are removed.
 
-Report separate evidence for signing/notarization, object storage, GitHub Release, both update APIs, Homebrew, CI, and Git cleanliness. If any item is missing, call the release partial rather than complete.
+Report separate evidence for signing/notarization, object storage, GitHub Release, both update APIs, Homebrew, current CI status, and Git cleanliness. Pending CI alone does not make an otherwise verified release partial; do not claim it passed. If a distribution check is missing or a completed CI failure affects the release, call the release partial rather than complete.

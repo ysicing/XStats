@@ -34,11 +34,13 @@ Before acting, read the repository `AGENTS.md`, the release section of `DEVELOPM
 
 ## Execution shape
 
-1. Establish a clean, current source baseline. Use `xstats-changelog` to prepare and review the user-facing release summary, then pass repository tests/CI.
+1. Establish a clean, current source baseline. Use `xstats-changelog` to prepare and review the user-facing release summary, then pass repository tests. Inspect any already completed source CI result, but do not wait for a running GitHub Actions workflow.
 2. Prepare only release metadata, then let `task release` advance `project.yml`, build, sign, notarize, staple, and generate `dist/`.
 3. Verify the built app in `build/DerivedData-arm64/Build/Products/Release/XStats.app` and generated artifacts before committing release metadata; leave `/Applications/XStats.app` untouched.
 4. Commit and push only the allowed metadata, then run the provenance verifier.
 5. Run the idempotent publish script and verify every external destination independently.
+
+GitHub Actions is asynchronous verification, not a release gate that requires waiting. After publication, check the release commit's current CI status once and report its link and status. Do not run `gh run watch` or poll until completion unless the user explicitly asks. Report a queued, running, or not-yet-listed workflow as pending or unobserved, never as passed; a completed failure still needs investigation.
 
 When the user explicitly authorizes the complete release, `task release-all` is the canonical one-command entry and includes commit, push, and every external publication. Use `task release` for build-only work and `task publish` to resume an already built and pushed release.
 
