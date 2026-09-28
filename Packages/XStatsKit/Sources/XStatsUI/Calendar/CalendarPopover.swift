@@ -6,9 +6,32 @@ import EventKit
 import Localization
 import SwiftUI
 
+/// 菜单栏月历随当前显示器的可用区域缩放；额外卡片超出高度时在面板内滚动。
+struct CalendarPopoverSizing: Equatable {
+    let width: CGFloat
+    let cellHeight: CGFloat
+    let dayFontSize: CGFloat
+    let subtitleFontSize: CGFloat
+    let headerPadding: CGFloat
+    let sectionSpacing: CGFloat
+    let maxHeight: CGFloat
+
+    static let standard = fitting(visibleSize: CGSize(width: 1920, height: 1080))
+
+    static func fitting(visibleSize: CGSize) -> Self {
+        let compact = visibleSize.width < 1100 || visibleSize.height < 850
+        let width = min(compact ? 460 : 520, max(1, visibleSize.width - 2 * DS.Space.s2))
+        let maxHeight = min(640, max(360, visibleSize.height * 0.72),
+                            max(1, visibleSize.height - DS.Space.s2))
+        return .init(width: width, cellHeight: compact ? 48 : 56,
+                     dayFontSize: compact ? 17 : 19, subtitleFontSize: compact ? 9 : 10,
+                     headerPadding: compact ? 14 : 16, sectionSpacing: compact ? 12 : 14,
+                     maxHeight: maxHeight)
+    }
+}
+
 /// 月历与黄历详情在同一个面板内切换；返回时保留浏览月份和选中的日期。
 struct CalendarPopover: View {
-    static let width: CGFloat = 560
     @Environment(AppModel.self) private var model
     @Environment(\.isSnapshot) private var isSnapshot
     @State private var month: CalendarMonth
@@ -21,9 +44,12 @@ struct CalendarPopover: View {
     @State private var almanac: CalendarAlmanac?
     @State private var holidayPlan: CalendarHolidayPlan?
     private let referenceDate: Date?
+    private let sizing: CalendarPopoverSizing
 
-    init(referenceDate: Date? = nil, showsDayDetails: Bool = false) {
+    init(referenceDate: Date? = nil, showsDayDetails: Bool = false,
+         sizing: CalendarPopoverSizing = .standard) {
         self.referenceDate = referenceDate
+        self.sizing = sizing
         let today = CalendarEngine.today(at: referenceDate ?? Date())
         let month = CalendarMonth(year: today?.year ?? 2026, month: today?.month ?? 1)
         _month = State(initialValue: month)
@@ -44,9 +70,9 @@ struct CalendarPopover: View {
                     if showsDayDetails { detailHeader(today: today) }
                     else { header(today: today) }
                 }
-                .padding(18)
+                .padding(sizing.headerPadding)
                 PageScroll {
-                    VStack(spacing: 16) {
+                    VStack(spacing: sizing.sectionSpacing) {
                         if showsDayDetails, let selected, let almanac {
                             if model.settings.calendarPreferences.showEvents || model.settings.calendarPreferences.showReminders {
                                 CalendarAgendaView(day: selected)
@@ -83,7 +109,7 @@ struct CalendarPopover: View {
                 holidayPlan = CalendarEngine.holidayPlan(from: referenceDate ?? context.date)
             }
         }
-        .frame(width: isSnapshot ? Self.width : nil)
+        .frame(width: isSnapshot ? sizing.width : nil)
         .frame(maxWidth: isSnapshot ? nil : .infinity)
         .frame(maxHeight: isSnapshot ? nil : .infinity, alignment: .top)
         .fixedSize(horizontal: false, vertical: isSnapshot)
@@ -167,24 +193,25 @@ struct CalendarPopover: View {
     private func calendarGrid(today: CalendarDay?) -> some View {
         let features = model.settings.calendarFeatures
         let firstWeekday = model.settings.calendarFirstWeekday
-        return VStack(spacing: 8) {
+        return VStack(spacing: sizing.cellHeight < 50 ? 6 : 7) {
             if features.contains(.weekdays) {
                 HStack(spacing: 4) {
                     ForEach(0..<7) { offset in
                         let weekday = (firstWeekday - 1 + offset) % 7 + 1
                         Text(weekdayName(weekday))
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: sizing.cellHeight < 50 ? 11 : 12, weight: .medium))
                             .foregroundStyle(weekday == 1 || weekday == 7 ? Color.red : .secondary)
                             .frame(maxWidth: .infinity)
                     }
                 }
-                .padding(.bottom, 4)
+                .padding(.bottom, sizing.cellHeight < 50 ? 2 : 3)
             }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 5) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7),
+                      spacing: sizing.cellHeight < 50 ? 3 : 4) {
                 ForEach(days) { day in
                     CalendarDayCell(day: day, features: features, isCurrentMonth: day.month == month.month,
                                     isToday: day.id == today?.id, isSelected: day.id == selected?.id,
-                                    preferences: model.settings.calendarPreferences,
+                                    preferences: model.settings.calendarPreferences, sizing: sizing,
                                     hasAgenda: model.calendarAgenda.items.contains { $0.occurs(on: day.date, calendar: CalendarEngine.gregorian()) }) {
                         selected = day
                         if day.month != month.month, CalendarMonth.years.contains(day.year) {
@@ -265,6 +292,7 @@ private struct CalendarDayCell: View {
     let isToday: Bool
     let isSelected: Bool
     let preferences: CalendarPreferences
+    let sizing: CalendarPopoverSizing
     let hasAgenda: Bool
     let action: () -> Void
 
@@ -274,19 +302,21 @@ private struct CalendarDayCell: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 3) {
-                Text(String(day.day)).font(.system(size: 21, weight: isToday ? .semibold : .regular, design: .rounded))
+            VStack(spacing: sizing.cellHeight < 50 ? 2 : 3) {
+                Text(String(day.day)).font(.system(size: sizing.dayFontSize,
+                                                   weight: isToday ? .semibold : .regular, design: .rounded))
                 Text(tr(day.subtitle(features: features)))
-                    .font(.system(size: preferences.largeLunarText ? 13 : 10, weight: preferences.strongerLunarText ? .semibold : .regular))
+                    .font(.system(size: preferences.largeLunarText ? sizing.subtitleFontSize + 2 : sizing.subtitleFontSize,
+                                  weight: preferences.strongerLunarText ? .semibold : .regular))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                 if features.contains(.ganzhi) {
-                    Text(day.ganzhiDay).font(.system(size: 9)).opacity(0.75)
+                    Text(day.ganzhiDay).font(.system(size: sizing.cellHeight < 50 ? 8 : 9)).opacity(0.75)
                 }
             }
             .foregroundStyle(foreground)
             .frame(maxWidth: .infinity)
-            .frame(height: preferences.largeLunarText ? 78 : 70)
+            .frame(height: sizing.cellHeight + (preferences.largeLunarText ? 8 : 0))
             .background(isSelected ? Color.accentColor : holiday != nil ? foreground.opacity(0.05) : .clear,
                         in: RoundedRectangle(cornerRadius: 10))
             .overlay {

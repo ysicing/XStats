@@ -11,6 +11,7 @@ final class CalendarMenuBarController: NSObject {
     private let model: AppModel
     private var item: NSStatusItem?
     private var panel: StatusPanel?
+    private var panelSizing: CalendarPopoverSizing?
     private var timer: Timer?
     private var hoverView: CalendarHoverView?
     private var hoverTask: Task<Void, Never>?
@@ -167,14 +168,17 @@ final class CalendarMenuBarController: NSObject {
     }
 
     func show() {
-        guard model.settings.calendarEnabled else { return }
-        if panel == nil {
+        // 菜单栏开关只控制常驻入口；全局快捷键仍可按需打开日历。
+        let screen = item?.button?.window?.screen ?? NSApp.keyWindow?.screen ?? NSScreen.main
+        let sizing = CalendarPopoverSizing.fitting(visibleSize: screen?.visibleFrame.size ?? CGSize(width: 520, height: 900))
+        if panel == nil || (panel?.isVisible == false && panelSizing != sizing) {
             let model = self.model
-            let panel = StatusPanel(width: CalendarPopover.width, minHeight: 380,
-                                    content: { CalendarPopover().environment(model) },
-                                    measuring: { CalendarPopover().environment(model).environment(\.isSnapshot, true) })
+            let panel = StatusPanel(width: sizing.width, minHeight: 380, maxHeight: sizing.maxHeight,
+                                    content: { CalendarPopover(sizing: sizing).environment(model) },
+                                    measuring: { CalendarPopover(sizing: sizing).environment(model).environment(\.isSnapshot, true) })
             panel.onVisibilityChange = { [weak self] visible in self?.item?.button?.highlight(visible) }
             self.panel = panel
+            panelSizing = sizing
         }
         refreshTitle()
         if let button = item?.button, let window = button.window, item?.isVisible == true {

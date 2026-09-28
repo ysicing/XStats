@@ -96,7 +96,9 @@ private actor CalendarAgendaReader {
                                          isAllDay: components.hour == nil, isReminder: true)
                         }
                     }
-                    Task { await self?.finish(id, items: items) }
+                    // 先固定 weak 引用，避免发送给 Task 的闭包捕获可变的 self。
+                    let reader = self
+                    Task { await reader?.finish(id, items: items) }
                 }
                 pending[id] = (token, continuation)
             }

@@ -22,11 +22,14 @@ final class StatusPanel: NSPanel {
     private let width: CGFloat
     /// 内容再少也不低于这个高度；合并模式的状态总览项目少时很矮，用更小的下限
     private let minHeight: CGFloat
+    private let maxHeight: CGFloat?
 
     init<Content: View, Measuring: View>(width: CGFloat, minHeight: CGFloat = DS.Size.panelMinHeight,
+                                         maxHeight: CGFloat? = nil,
                                          content: @escaping () -> Content, measuring: @escaping () -> Measuring) {
         self.width = width
         self.minHeight = minHeight
+        self.maxHeight = maxHeight
         makeMeasuringContent = { NSHostingView(rootView: measuring()) }
         super.init(contentRect: NSRect(x: 0, y: 0, width: width, height: minHeight),
                    styleMask: [.borderless, .nonactivatingPanel],
@@ -93,7 +96,7 @@ final class StatusPanel: NSPanel {
     /// 滚动内容比可视区域高出（或矮出）一截时调整窗口高度，顶边不动；屏幕放不下时停在最高处，由滚动条兜底
     func adjustHeight(by overflow: CGFloat) {
         guard contentView != nil, abs(overflow) > 1 else { return }
-        let height = min(max(frame.height + overflow, minHeight), availableHeight())
+        let height = min(max(frame.height + overflow, minHeight), availableHeight(), maxHeight ?? .greatestFiniteMagnitude)
         guard abs(height - frame.height) > 1 else { return }
         setFrame(NSRect(x: frame.minX, y: frame.maxY - height, width: frame.width, height: height), display: true)
         invalidateShadow()
@@ -133,8 +136,9 @@ final class StatusPanel: NSPanel {
     private func targetFrame() -> NSRect {
         let visible = (anchorScreen ?? NSScreen.main)?.visibleFrame ?? .zero
         let natural = makeMeasuringContent().fittingSize.height
+        let preferredHeight = min(max(natural, minHeight), maxHeight ?? .greatestFiniteMagnitude)
         return Self.constrainedFrame(anchor: anchor, visible: visible,
-                                     preferredSize: NSSize(width: width, height: max(natural, minHeight)))
+                                     preferredSize: NSSize(width: width, height: preferredHeight))
     }
 
     /// 显示器可用区始终优先于首选尺寸，窄屏和低分辨率下不能让最小高度把面板挤出屏幕。

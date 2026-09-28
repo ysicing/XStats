@@ -253,6 +253,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
             Task { await model.keepAwake.setActive(!model.keepAwake.isActive) }
         case .purgeMemory:
             Task { await model.maintenance.run(.purgeMemory) }
+        case .openCalendar:
+            menuBar.dismissPopovers()
+            model.openCalendar()
         }
     }
 

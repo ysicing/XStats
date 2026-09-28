@@ -4,7 +4,7 @@ import Localization
 
 /// 可以绑定全局快捷键的操作
 public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable {
-    case toggleMainWindow, showProcesses, toggleKeepAwake, purgeMemory
+    case toggleMainWindow, showProcesses, toggleKeepAwake, purgeMemory, openCalendar
 
     public var id: String { rawValue }
 
@@ -14,6 +14,7 @@ public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable 
         case .showProcesses: tr("打开进程页")
         case .toggleKeepAwake: tr("开关防休眠")
         case .purgeMemory: tr("释放内存")
+        case .openCalendar: tr("打开日历")
         }
     }
 

@@ -167,4 +167,14 @@ struct CalendarEnhancementTests {
         #expect(frame.minY >= visible.minY)
         #expect(frame.maxY <= visible.maxY)
     }
+
+    @Test func calendarPopoverShrinksWithAvailableScreenSpace() {
+        let desktop = CalendarPopoverSizing.fitting(visibleSize: CGSize(width: 1920, height: 1080))
+        let laptop = CalendarPopoverSizing.fitting(visibleSize: CGSize(width: 1024, height: 700))
+        #expect(desktop.width < 560)
+        #expect(desktop.maxHeight <= 640)
+        #expect(laptop.width < desktop.width)
+        #expect(laptop.cellHeight < desktop.cellHeight)
+        #expect(laptop.maxHeight <= 700 * 0.75)
+    }
 }

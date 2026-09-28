@@ -763,6 +763,16 @@ private func isolatedDefaults() -> UserDefaults {
 }
 
 @Suite struct HotKeyTests {
+    @Test func calendarActionKeepsExistingCarbonIDs() throws {
+        let calendar = try #require(HotKeyAction(rawValue: "openCalendar"))
+        #expect(HotKeyAction.allCases.last == calendar)
+        #expect(calendar.carbonID == 5)
+        #expect(HotKeyAction.toggleMainWindow.carbonID == 1)
+        #expect(HotKeyAction.showProcesses.carbonID == 2)
+        #expect(HotKeyAction.toggleKeepAwake.carbonID == 3)
+        #expect(HotKeyAction.purgeMemory.carbonID == 4)
+    }
+
     @Test func displaysAndValidates() {
         let hotKey = HotKey(keyCode: 1, modifiers: [.command, .option, .capsLock], key: "s")
         #expect(hotKey.display == "⌥⌘S")
@@ -776,8 +786,10 @@ private func isolatedDefaults() -> UserDefaults {
         let defaults = isolatedDefaults()
         let settings = AppSettings(defaults: defaults)
         settings.hotKeys[.toggleKeepAwake] = HotKey(keyCode: 40, modifiers: [.command, .shift], key: "k")
+        settings.hotKeys[.openCalendar] = HotKey(keyCode: 37, modifiers: [.command, .option], key: "l")
         let reloaded = AppSettings(defaults: defaults)
         #expect(reloaded.hotKeys[.toggleKeepAwake]?.display == "⇧⌘K")
+        #expect(reloaded.hotKeys[.openCalendar]?.display == "⌥⌘L")
     }
 }
 
