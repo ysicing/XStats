@@ -502,6 +502,32 @@ struct CleanEngineTests {
         #expect(kill(pid, 0) != 0)
     }
 
+    @Test func cancellationReturnsPromptlyWhileAGrandchildKeepsTheOutputOpen() async throws {
+        let home = try FakeHome()
+        defer { home.remove() }
+        // 后台孙进程继承输出管道并持续写入：结束 uv 后管道仍未到 EOF，读取任务不会立即结束。
+        // 取消不能等待读取，也不能在读取途中关闭它的句柄。
+        try home.executable("uv", script: "#!/bin/sh\n(while :; do echo tick; sleep 0.05; done) &\necho $! > \"$HOME/child\"\nexec /bin/sleep 30\n")
+        let task = Task { try await DeveloperToolRunner.run("uv", arguments: ["cache", "clean"], home: home.path) }
+        let childFile = home.root.appendingPathComponent("child")
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while !FileManager.default.fileExists(atPath: childFile.path), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        defer {
+            if let text = try? String(contentsOf: childFile, encoding: .utf8),
+               let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)) { kill(pid, SIGKILL) }
+        }
+        try await Task.sleep(for: .milliseconds(200))
+        let started = ContinuousClock.now
+        task.cancel()
+        do {
+            _ = try await task.value
+            Issue.record("取消命令不应成功")
+        } catch is CancellationError { }
+        #expect(ContinuousClock.now - started < .seconds(5), "cancellation waited on the still-open output pipe")
+    }
+
     @Test func cleanRechecksRunningAppsBeforeDeleting() async throws {
         let home = try FakeHome()
         defer { home.remove() }

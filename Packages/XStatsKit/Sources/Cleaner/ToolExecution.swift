@@ -96,18 +96,22 @@ enum DeveloperToolRunner {
         }
         try? pipe.fileHandleForWriting.close()
         let reader = pipe.fileHandleForReading
+        // 读取任务自己在读完后关闭句柄：取消时外面不能在它还在 read 时关掉同一个 fd，
+        // 否则读取会报错，或读到 fd 编号被系统复用后的其他文件。
         let outputTask = Task.detached(priority: .utility) {
+            defer { try? reader.close() }
             var tail = Data()
             let limit = max(0, outputLimit)
-            while let chunk = try reader.read(upToCount: 64 * 1024), !chunk.isEmpty {
+            while let chunk = try readChunk(reader) {
                 tail.append(chunk)
                 if tail.count > limit { tail.removeFirst(tail.count - limit) }
             }
             return String(decoding: tail, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        // 正常退出时读到 EOF；取消时通知读取任务自行退出并关闭句柄
         defer {
+            outputTask.cancel()
             stop(process)
-            try? reader.close()
         }
         while process.isRunning {
             try Task.checkCancellation()
@@ -174,12 +178,14 @@ enum DeveloperToolRunner {
         }
         try? pipe.fileHandleForWriting.close()
         let reader = pipe.fileHandleForReading
+        // 与 run 相同：句柄只由读取任务在读完后关闭，取消时不与读取竞争
         let outputTask = Task.detached(priority: .utility) {
-            try readHomebrewCleanupOutput(reader, outputLimit: outputLimit)
+            defer { try? reader.close() }
+            return try readHomebrewCleanupOutput(reader, outputLimit: outputLimit)
         }
         defer {
+            outputTask.cancel()
             stop(process)
-            try? reader.close()
         }
         while process.isRunning {
             try Task.checkCancellation()
@@ -207,7 +213,7 @@ enum DeveloperToolRunner {
         var lineTooLong = false
         var report = CleanReport()
         var hasInvalidSummary = false
-        while let chunk = try reader.read(upToCount: 64 * 1024), !chunk.isEmpty {
+        while let chunk = try readChunk(reader) {
             tail.append(chunk)
             if tail.count > outputLimit { tail.removeFirst(tail.count - max(0, outputLimit)) }
             for byte in chunk {
@@ -228,6 +234,25 @@ enum DeveloperToolRunner {
         }
         return CleanupOutput(output: String(decoding: tail, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines),
                              report: report, hasInvalidSummary: hasInvalidSummary)
+    }
+
+    /// 限时轮询让取消能中断读取；孙进程继承管道写端时，阻塞式 read 可能一直等不到 EOF。
+    private static func readChunk(_ reader: FileHandle) throws -> Data? {
+        var descriptor = pollfd(fd: reader.fileDescriptor, events: Int16(POLLIN | POLLHUP), revents: 0)
+        var bytes = [UInt8](repeating: 0, count: 64 * 1024)
+        while true {
+            try Task.checkCancellation()
+            let ready = Darwin.poll(&descriptor, 1, 100)
+            if ready == 0 || (ready < 0 && errno == EINTR) { continue }
+            guard ready > 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            let count = bytes.withUnsafeMutableBytes { Darwin.read(descriptor.fd, $0.baseAddress, $0.count) }
+            if count == 0 { return nil }
+            if count < 0 {
+                if errno == EINTR || errno == EAGAIN { continue }
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+            return Data(bytes.prefix(count))
+        }
     }
 
     private static func recordHomebrewLine(_ bytes: [UInt8], report: inout CleanReport, hasInvalidSummary: inout Bool) {
