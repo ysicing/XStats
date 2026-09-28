@@ -3,6 +3,7 @@
 
 import CryptoKit
 import Foundation
+import IOKit
 import Security
 
 protocol InstallationIDStore {
@@ -21,36 +22,50 @@ enum InstallationIdentityError: Error, LocalizedError {
     }
 }
 
-/// 首次使用时生成随机值并留存在本机偏好设置；它不是凭据，不能因读取而触发钥匙串授权。
+/// 旧安装沿用本机偏好中的随机值；新安装按机器序列号去重，均只上报哈希。
 public struct InstallationIdentity {
     private let store: any InstallationIDStore
+    private let serialNumber: () -> String?
     private let randomBytes: () throws -> Data
 
     public init() {
         self.store = UserDefaultsInstallationIDStore(defaults: .standard)
+        self.serialNumber = Self.readSerialNumber
         self.randomBytes = Self.generateRandomBytes
     }
 
-    init(defaults: UserDefaults, randomBytes: @escaping () throws -> Data) {
+    init(defaults: UserDefaults, serialNumber: @escaping () -> String?, randomBytes: @escaping () throws -> Data) {
         self.store = UserDefaultsInstallationIDStore(defaults: defaults)
+        self.serialNumber = serialNumber
         self.randomBytes = randomBytes
     }
 
-    init(store: any InstallationIDStore, randomBytes: @escaping () throws -> Data) {
+    init(store: any InstallationIDStore, serialNumber: @escaping () -> String?, randomBytes: @escaping () throws -> Data) {
         self.store = store
+        self.serialNumber = serialNumber
         self.randomBytes = randomBytes
     }
 
-    /// 返回可上报的稳定哈希；随机原值只保存在本机且不随设置同步。
+    /// 优先保留旧标识；新安装使用序列号，无法读取时才生成本机随机值。
     public func hashedID() throws -> String {
         let value: Data
         if let saved = try store.read() {
             value = saved
+        } else if let serial = serialNumber()?.trimmingCharacters(in: .whitespacesAndNewlines), !serial.isEmpty {
+            value = Data(serial.utf8)
         } else {
             value = try randomBytes()
             try store.write(value)
         }
         return SHA256.hash(data: value).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func readSerialNumber() -> String? {
+        let platform = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
+        guard platform != 0 else { return nil }
+        defer { IOObjectRelease(platform) }
+        return IORegistryEntryCreateCFProperty(platform, kIOPlatformSerialNumberKey as CFString, kCFAllocatorDefault, 0)?
+            .takeRetainedValue() as? String
     }
 
     private static func generateRandomBytes() throws -> Data {

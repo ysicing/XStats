@@ -50,7 +50,7 @@ The interface supports Simplified and Traditional Chinese, English, Japanese, Ko
 
 No account is required. These features go online, and each can be turned off or used only on demand:
 
-- **Update checks**: send the app version and a hash of a random installation ID.
+- **Update checks**: send the app version and a hashed installation ID.
 - **AI Usage & Quotas** (off by default): checks subscription quotas through your local Codex / Claude CLI sign-in, with an optional Sub2API fallback.
 - **Public IP, speed tests and connection probes**: contact their services only when used.
 

@@ -685,6 +685,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 平均负载除以核心数：小于 1 表示任务不用排队，大于 1 表示有任务在等 CPU	Load average per core: below 1 means no waiting; above 1 means tasks are waiting for the CPU
 广播 IP	Broadcast IP
 序列号	Serial Number
+安装标识	Installation ID
+复制安装标识	Copy Installation ID
 应用	Apps
 应用 {} / 辅助工具 {}	App {} / Helper {}
 应用与勾选的 {} 项残留会移到废纸篓，约 {}。清空废纸篓前都可以放回。	The app and {} selected leftovers will move to the Trash, about {}. You can restore them until you empty the Trash.

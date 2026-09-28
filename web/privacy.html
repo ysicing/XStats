@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>隐私政策 — OpenStats</title>
-<meta name="description" content="OpenStats 的隐私政策：监控数据不离开你的 Mac；可选的账号只用来同步偏好设置。">
+<title>隐私政策 — XStats</title>
+<meta name="description" content="XStats 的隐私政策：监控数据留在本机，更新检查发送安装标识的哈希。">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0b0b0d" media="(prefers-color-scheme: dark)">
 <link rel="canonical" href="https://getopenstats.com/privacy.html">
@@ -25,7 +25,7 @@
       <div class="section-head">
         <p><a href="./">← 返回 XStats</a></p>
         <h2>隐私政策</h2>
-        <p>最后更新：2026-09-21。本页说明 XStats 与区域更新服务会处理哪些数据。</p>
+        <p>最后更新：2026-09-28。本页说明 XStats 与区域更新服务会处理哪些数据。</p>
       </div>
 
       <div class="section-head">
@@ -36,17 +36,17 @@
         <li><b>公网 IP</b><span>打开网络详情时向 Cloudflare 查询一次公网地址，10 分钟内不重复，可在设置中关闭</span></li>
         <li><b>归属地</b><span>归属地、ASN、网络类型与纯净度评分由 cleanip.io 提供：这台 Mac 直接向它查询自己的公网 IP，只发送这个地址、不带其他信息，不经过 XStats 的服务器</span></li>
         <li><b>连接探测</b><span>打开网络详情时每秒 ping 一次你选择的目标（后台每 10 秒），只在显示网络项时运行，可关闭</span></li>
-        <li><b>检查更新</b><span>启动时与每天一次发送当前版本和随机安装标识的 SHA-256，并读取版本清单；中国地区优先请求 x-stats.china.12306.work，其他地区优先请求 xstats-apps.12306.work，失败时才串行回退；关闭自动检查更新后不再自动请求</span></li>
+        <li><b>检查更新</b><span>按设置的检查策略发送当前版本和安装标识的 SHA-256，并读取版本清单；中国地区优先请求 x-stats.china.12306.work，其他地区优先请求 xstats-apps.12306.work，失败时才串行回退；关闭自动检查更新后不再自动请求</span></li>
       </ul>
 
       <div class="section-head" style="margin-top: var(--space-16)">
-        <h2>匿名安装统计</h2>
-        <p>首次检查更新时，XStats 生成一个随机安装 ID，原值只保存在这台 Mac 的钥匙串中。服务器收到并保存的只有它的 SHA-256。</p>
+        <h2>安装统计</h2>
+        <p>安装标识在本机由随机值或 Mac 序列号生成。更新服务只收到其 SHA-256 哈希，不收到序列号原文。</p>
       </div>
       <ul class="fact-list">
         <li><b>保存的内容</b><span>安装 ID 哈希、当前版本、首次与最近检查时间、累计检查次数</span></li>
-        <li><b>不保存的内容</b><span>随机 ID 原值、硬件序列号、任何监控数据、进程列表、清理记录与历史记录；请求 IP 只用于一分钟内的内存限流，不持久化</span></li>
-        <li><b>用途</b><span>只用于计算独立安装数、24 小时活跃数和已安装版本分布，不用于广告或跨服务追踪</span></li>
+        <li><b>不保存的内容</b><span>随机 ID 原值、硬件序列号原文、任何监控数据、进程列表、清理记录与历史记录；请求 IP 只用于一分钟内的内存限流，不持久化</span></li>
+        <li><b>用途</b><span>只用于计算去重后的机器数、24 小时活跃数和已安装版本分布，不用于广告</span></li>
         <li><b>停止发送</b><span>在「设置 · 关于」关闭自动检查更新后，不再自动发送；手动检查更新仍会产生一次请求</span></li>
         <li><b>设置同步</b><span>只连接你自己配置的 WebDAV 服务器；不会把设置、密码、监控指标或历史记录发送到区域更新服务</span></li>
       </ul>

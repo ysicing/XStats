@@ -322,14 +322,17 @@ ambiguous matches remain unknown. Disconnected cached devices never retain a cha
 
 ## Online updates
 
-`UpdateController` posts the current version and a hashed random installation ID at launch and daily.
+`UpdateController` posts the current version and a hashed installation ID according to the user's update-check schedule.
 China-region locales prefer `https://x-stats.china.12306.work/api/v1/update/check`; other locales prefer
 `https://xstats-apps.12306.work/api/v1/update/check`. Failures fall back serially to the other endpoint,
 and the first success stops further requests so one check is not reported twice. Requests use the stable
 `XStats/<app-version> (macOS <system-version>)` User-Agent format for regional routing and diagnostics.
-The original 32-byte random value is generated with `SecRandomCopyBytes` and remains in the app's local
-`UserDefaults`; it is not a credential, is excluded from WebDAV settings sync, and never invokes Keychain
-authorization. No hardware serial number is used. The response has the same release manifest fields previously read from the static appcast (version,
+Existing installations retain the hash of their saved 32-byte random value, which remains in local
+`UserDefaults` and is excluded from WebDAV settings sync. New installations without a saved value hash
+the Mac serial number read through IOKit. If the serial is unavailable, they generate and save a random
+value with `SecRandomCopyBytes`. None of these paths invokes Keychain authorization, and the raw serial
+is never sent. Clearing preferences on an older installation can produce a new ID; historical rows are
+not merged. The response has the same release manifest fields previously read from the static appcast (version,
 date, notes taken from `CHANGELOG.md` by `scripts/appcast.py`, zip URL, sha256 and size). An
 update is installed only after: sha256 matches, the zip holds exactly one `.app`, its bundle ID and
 version match, `SecStaticCodeCheckValidity` passes with a requirement pinned to the running app's

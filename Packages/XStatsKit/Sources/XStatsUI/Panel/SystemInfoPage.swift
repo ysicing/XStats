@@ -2,6 +2,7 @@ import AppKit
 import Localization
 import Metrics
 import SwiftUI
+import Updates
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
@@ -11,6 +12,8 @@ struct SystemInfoPage: View {
     @Environment(AppModel.self) private var model
     @Environment(\.isSnapshot) private var isSnapshot
     @State private var revealSerial = false
+    @State private var installationID: String?
+    @State private var copiedInstallationID = false
 
     var body: some View {
         let store = model.store
@@ -149,10 +152,34 @@ struct SystemInfoPage: View {
                         }
                     }
                 }
+                InfoRow(label: tr("安装标识")) {
+                    if isSnapshot {
+                        Image(systemName: "doc.on.doc")
+                            .foregroundStyle(DS.Palette.textSecondary)
+                            .accessibilityHidden(true)
+                    } else if let installationID {
+                        MiniIconButton(systemName: copiedInstallationID ? "checkmark" : "doc.on.doc",
+                                       help: copiedInstallationID ? tr("已拷贝") : tr("复制安装标识")) {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(installationID, forType: .string)
+                            copiedInstallationID = true
+                            Task {
+                                try? await Task.sleep(for: .seconds(1.2))
+                                copiedInstallationID = false
+                            }
+                        }
+                    } else {
+                        Text(verbatim: "—")
+                    }
+                }
                 if let boot = system.bootDate {
                     InfoRow(label: tr("启动于"), text: boot.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))
                 }
             }
+        }
+        .task {
+            guard !isSnapshot else { return }
+            installationID = try? InstallationIdentity().hashedID()
         }
     }
 
