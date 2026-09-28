@@ -116,8 +116,8 @@ uv 缓存	uv-Cache
 Yarn 缓存	Yarn-Cache
 pnpm 缓存	pnpm-Cache
 Bun 缓存	Bun-Cache
-Homebrew 下载缓存	Homebrew-Download-Cache
-超过 1 天的 Homebrew 下载文件，不影响已安装软件	Homebrew-Downloads, die älter als einen Tag sind; installierte Software bleibt erhalten
+Homebrew 清理	Homebrew-Bereinigung
+由 Homebrew 清理旧版本与缓存，不自动移除依赖	Homebrew bereinigt alte Versionen und Caches, ohne Abhängigkeiten automatisch zu entfernen
 npm 下载缓存，由 npm 自行清理	npm-Download-Cache; wird von npm selbst bereinigt
 Yarn 全局与离线镜像缓存，由 Yarn 自行清理	Globaler Yarn- und Offline-Mirror-Cache; wird von Yarn selbst bereinigt
 pnpm 内容寻址存储，仅清理未被引用的包	Inhaltsadressierter pnpm-Speicher; nur nicht referenzierte Pakete werden entfernt
@@ -1544,3 +1544,10 @@ Agent 工作树	Agent-Worktree
 {} 项含手写或被 Git 跟踪的内容，已保护	{} Elemente enthalten selbst erstellte oder von Git verfolgte Dateien und sind geschützt
 未安装 Xcode 命令行工具，无法确认 Git 仓库中的 {} 项是否被跟踪，已保留	Die Xcode-Befehlszeilentools sind nicht installiert. {} Elemente in Git-Repositorys konnten nicht geprüft werden und wurden behalten
 {} 项无法确认，已保留	{} Elemente konnten nicht geprüft werden und wurden behalten
+预览失败：{}	Vorschau fehlgeschlagen: {}
+{} 执行超时，请稍后重试	Zeitüberschreitung bei {}; versuchen Sie es später erneut
+{} 输出过大，请在终端检查	Zu viel Ausgabe von {}; bitte im Terminal prüfen
+无法识别 Homebrew 清理预览，请在终端检查命令输出	Unbekannte Homebrew-Bereinigungsvorschau; prüfen Sie die Befehlsausgabe im Terminal
+Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依赖。	Homebrew bereinigt alte Versionen und Caches anhand des Zustands bei der Ausführung, ohne Abhängigkeiten automatisch zu entfernen.
+尚未扫描	Noch nicht gescannt
+点击重新扫描以计算可清理空间	Klicken Sie auf Erneut scannen, um den freigebbaren Speicher zu berechnen

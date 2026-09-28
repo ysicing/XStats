@@ -102,7 +102,11 @@ private struct SummaryCard: View {
                               systemImage: "trash")
                     }
                     .buttonStyle(DSButtonStyle(kind: .primary))
-                    .disabled(cleaner.isBusy || cleaner.selectedBytes == 0)
+                    .disabled(cleaner.isBusy || cleaner.selectedScans.isEmpty)
+                    if cleaner.isBusy {
+                        Button(tr("取消")) { cleaner.cancelOperation() }
+                            .buttonStyle(DSButtonStyle(kind: .secondary))
+                    }
                     Spacer()
                 }
             }
@@ -111,6 +115,7 @@ private struct SummaryCard: View {
 
     private var headline: String {
         let cleaner = model.cleaner
+        if cleaner.phase == .idle { return tr("尚未扫描") }
         if cleaner.phase == .finished { return Format.bytes(cleaner.report?.freedBytes ?? 0, base: .decimal) }
         return cleaner.scans.isEmpty ? tr("扫描中") : Format.bytes(cleaner.totalBytes, base: .decimal)
     }
@@ -118,12 +123,13 @@ private struct SummaryCard: View {
     private var subline: String {
         let cleaner = model.cleaner
         switch cleaner.phase {
-        case .idle, .scanning: return tr("正在计算可清理空间")
+        case .idle: return tr("点击重新扫描以计算可清理空间")
+        case .scanning: return tr("正在计算可清理空间")
         case .cleaning: return tr("正在清理…")
         case .ready: return tr("可清理 · 已选 \(cleaner.selectedScans.count) 项")
         case .finished:
             guard let report = cleaner.report else { return "" }
-            var parts = [tr("已释放")]
+            var parts = [report.wasCancelled ? tr("已取消") : tr("已释放")]
             if report.trashedBytes > 0 { parts.append(tr("另有 \(Format.bytes(report.trashedBytes, base: .decimal)) 移到废纸篓")) }
             if report.skippedCount > 0 { parts.append(tr("跳过 \(report.skippedCount) 项")) }
             if !report.failures.isEmpty { parts.append(tr("\(report.failures.count) 项失败")) }
@@ -137,7 +143,11 @@ private struct SummaryCard: View {
         let trashNote = model.settings.cleanPrefersTrash
             ? tr("支持的内容先移到废纸篓；工具缓存由对应命令直接清理。")
             : tr("缓存与日志直接删除，下载内容移到废纸篓。")
-        return tr("将清理 \(count) 个项目，共 \(Format.bytes(cleaner.selectedBytes, base: .decimal))。\(trashNote)")
+        var text = tr("将清理 \(count) 个项目，共 \(Format.bytes(cleaner.selectedBytes, base: .decimal))。\(trashNote)")
+        if cleaner.selectedScans.contains(where: { $0.id == "developer.homebrew" }) {
+            text += " " + tr("Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依赖。")
+        }
+        return text
     }
 
     private static func relative(_ date: Date, now: Date) -> String {
@@ -277,6 +287,7 @@ private struct RuleRow: View {
                         .dsFont(.xs)
                         .foregroundStyle(scan.blocked == nil ? DS.Palette.textTertiary : DS.Palette.warning)
                         .lineLimit(1)
+                        .help(scan.blocked?.title ?? scan.rule.detail)
                 }
                 Spacer(minLength: DS.Space.s1)
                 if scan.isCleanable {
@@ -298,18 +309,25 @@ private struct RuleRow: View {
 
             if expanded {
                 VStack(alignment: .leading, spacing: DS.Space.s1) {
-                    ForEach(scan.items.prefix(Self.previewLimit)) { item in
-                        Button { cleaner.reveal(item) } label: {
-                            HStack {
-                                Text(item.url.lastPathComponent).dsFont(.xs).lineLimit(1).truncationMode(.middle)
-                                Spacer(minLength: DS.Space.s2)
-                                Text(verbatim: Format.bytes(item.size, base: .decimal)).dsFont(.xs).monospacedDigit()
+                    if let preview = scan.toolPreview {
+                        Text(preview.details.components(separatedBy: .newlines).prefix(Self.previewLimit).joined(separator: "\n"))
+                            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        ForEach(scan.items.prefix(Self.previewLimit)) { item in
+                            Button { cleaner.reveal(item) } label: {
+                                HStack {
+                                    Text(item.url.lastPathComponent).dsFont(.xs).lineLimit(1).truncationMode(.middle)
+                                    Spacer(minLength: DS.Space.s2)
+                                    Text(verbatim: Format.bytes(item.size, base: .decimal)).dsFont(.xs).monospacedDigit()
+                                }
+                                .foregroundStyle(DS.Palette.textSecondary)
+                                .contentShape(Rectangle())
                             }
-                            .foregroundStyle(DS.Palette.textSecondary)
-                            .contentShape(Rectangle())
+                            .buttonStyle(.plain)
+                            .help(tr("在访达中显示"))
                         }
-                        .buttonStyle(.plain)
-                        .help(tr("在访达中显示"))
                     }
                     if scan.items.count > Self.previewLimit {
                         Text(verbatim: tr("另有 \(scan.items.count - Self.previewLimit) 项"))

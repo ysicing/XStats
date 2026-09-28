@@ -35,7 +35,8 @@ public enum RuleCatalog {
         detail: tr("~/Library/Logs 中的日志和诊断报告"), symbol: "doc.text",
         checksOwnerApp: true
     ) { env in
-        try children(of: env.home + "/Library/Logs")
+        // Homebrew 日志也是原生 cleanup 的候选，避免通用规则绕过其预览直接删除。
+        try children(of: env.home + "/Library/Logs").filter { $0.lastPathComponent != "Homebrew" }
     }
 
     // MARK: 浏览器
@@ -133,6 +134,7 @@ public enum RuleCatalog {
         selectedByDefault: false, minimumAge: 0,
         requiredTool: "npm", cleanWithTool: { env in
             _ = try await env.runTool("npm", ["cache", "clean", "--force"])
+            return nil
         }
     ) { env in
         let path = env.home + "/.npm/_cacache"
@@ -148,6 +150,7 @@ public enum RuleCatalog {
             let major = Int(version.split(separator: ".").first ?? "1") ?? 1
             let arguments = major >= 2 ? ["cache", "clean", "--all"] : ["cache", "clean"]
             _ = try await env.runTool("yarn", arguments)
+            return nil
         }
     ) { env in
         try childrenIfExists(of: env.home + "/Library/Caches/Yarn")
@@ -160,6 +163,7 @@ public enum RuleCatalog {
         selectedByDefault: false, minimumAge: 0,
         requiredTool: "pnpm", cleanWithTool: { env in
             _ = try await env.runTool("pnpm", ["store", "prune"])
+            return nil
         }
     ) { env in
         try childrenIfExists(of: env.home + "/Library/pnpm/store")
@@ -172,6 +176,7 @@ public enum RuleCatalog {
         selectedByDefault: false, minimumAge: 0,
         requiredTool: "bun", cleanWithTool: { env in
             _ = try await env.runTool("bun", ["pm", "cache", "rm"])
+            return nil
         }
     ) { env in
         try childrenIfExists(of: env.home + "/.bun/install/cache")
@@ -183,6 +188,7 @@ public enum RuleCatalog {
         selectedByDefault: false, minimumAge: 0,
         requiredTool: "go", cleanWithTool: { env in
             _ = try await env.runTool("go", ["clean", "-cache", "-modcache"])
+            return nil
         }
     ) { env in
         let fileManager = FileManager.default
@@ -198,6 +204,7 @@ public enum RuleCatalog {
         selectedByDefault: false, minimumAge: 0,
         requiredTool: "cargo-cache", cleanWithTool: { env in
             _ = try await env.runTool("cargo-cache", ["-r", "all"])
+            return nil
         }
     ) { env in
         try childrenIfExists(of: env.home + "/.cargo/registry")
@@ -210,34 +217,19 @@ public enum RuleCatalog {
         selectedByDefault: false, minimumAge: 0,
         requiredTool: "uv", cleanWithTool: { env in
             _ = try await env.runTool("uv", ["cache", "clean"])
+            return nil
         }
     ) { env in
         try childrenIfExists(of: env.home + "/.cache/uv")
     }
 
     static let homebrewCache = CleanRule(
-        id: "developer.homebrew", category: .developer, title: tr("Homebrew 下载缓存"),
-        detail: tr("超过 1 天的 Homebrew 下载文件，不影响已安装软件"), symbol: "shippingbox",
-        selectedByDefault: false, minimumAge: 86_400
-    ) { env in
-        // 仅识别 Homebrew 已完成的内容寻址下载；同目录中的临时文件和其他缓存不属于本规则。
-        let cacheDirectory = URL(fileURLWithPath: env.home + "/Library/Caches/Homebrew")
-        let downloads = cacheDirectory.appendingPathComponent("downloads")
-        guard FileManager.default.fileExists(atPath: downloads.path) else { return [] }
-        guard try cacheDirectory.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true,
-              try downloads.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true else {
-            return []
-        }
-        return try children(of: downloads.path).filter { url in
-            let name = url.lastPathComponent
-            guard !name.hasSuffix(".incomplete"),
-                  name.range(of: #"^[0-9a-f]{64}--.+$"#, options: .regularExpression) != nil,
-                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]) else {
-                return false
-            }
-            return values.isRegularFile == true && values.isSymbolicLink != true
-        }
-    }
+        id: "developer.homebrew", category: .developer, title: tr("Homebrew 清理"),
+        detail: tr("由 Homebrew 清理旧版本与缓存，不自动移除依赖"), symbol: "shippingbox",
+        selectedByDefault: false, minimumAge: 0, requiredTool: "brew",
+        previewWithTool: { try await HomebrewCleanup.preview($0) },
+        cleanWithTool: { try await HomebrewCleanup.clean($0) }
+    ) { _ in [] }
 
     static let xcodeArchives = CleanRule(
         id: "developer.archives", category: .developer, title: tr("Xcode 归档"),

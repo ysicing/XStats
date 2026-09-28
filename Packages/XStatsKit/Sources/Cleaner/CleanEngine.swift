@@ -9,7 +9,7 @@ public enum CleanEngine {
         let safety = SafetyGuard(home: environment.home)
         return await withTaskGroup(of: (Int, RuleScan).self) { group in
             for (index, rule) in rules.enumerated() {
-                group.addTask { (index, scanRule(rule, environment: environment, safety: safety)) }
+                group.addTask { (index, await scanRule(rule, environment: environment, safety: safety)) }
             }
             var results = [(Int, RuleScan)]()
             for await result in group { results.append(result) }
@@ -17,10 +17,22 @@ public enum CleanEngine {
         }
     }
 
-    static func scanRule(_ rule: CleanRule, environment: CleanEnvironment, safety: SafetyGuard) -> RuleScan {
+    static func scanRule(_ rule: CleanRule, environment: CleanEnvironment, safety: SafetyGuard) async -> RuleScan {
         let running = environment.runningBundleIdentifiers()
         if let app = rule.blockingApps.first(where: { running.contains($0.bundleID) }) {
             return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .appRunning(app.name))
+        }
+        if let previewWithTool = rule.previewWithTool {
+            if let tool = rule.requiredTool, !environment.isToolAvailable(tool) {
+                return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .toolUnavailable(tool))
+            }
+            do {
+                let preview = try await previewWithTool(environment)
+                return RuleScan(rule: rule, items: preview.items, skippedCount: 0, blocked: nil, toolPreview: preview)
+            } catch {
+                return RuleScan(rule: rule, items: [], skippedCount: 0,
+                                blocked: .previewFailed(error.localizedDescription))
+            }
         }
 
         let candidates: [URL]
@@ -100,6 +112,7 @@ public enum CleanEngine {
         var report = CleanReport()
 
         for scan in scans where selected.contains(scan.id) && scan.isCleanable {
+            if Task.isCancelled { report.wasCancelled = true; return report }
             let running = environment.runningBundleIdentifiers()
             if scan.rule.blockingApps.contains(where: { running.contains($0.bundleID) }) {
                 report.skippedCount += scan.items.count
@@ -111,7 +124,20 @@ public enum CleanEngine {
                     continue
                 }
                 do {
-                    try await cleanWithTool(environment)
+                    let toolReport = try await cleanWithTool(environment)
+                    if let toolReport {
+                        report.freedBytes += toolReport.freedBytes
+                        report.removedCount += toolReport.removedCount
+                        report.skippedCount += toolReport.skippedCount
+                        report.failures += toolReport.failures
+                        report.trashedBytes += toolReport.trashedBytes
+                        report.wasCancelled = toolReport.wasCancelled
+                        for item in scan.items {
+                            log?.record(item: item, rule: scan.rule, action: "tool", detail: scan.rule.requiredTool)
+                        }
+                        if report.wasCancelled { return report }
+                        continue
+                    }
                     for item in scan.items {
                         let remaining = allocatedSize(of: item.url)
                         log?.record(item: item, rule: scan.rule, action: "tool", detail: scan.rule.requiredTool)
@@ -120,6 +146,10 @@ public enum CleanEngine {
                         report.removedCount += 1
                     }
                 } catch {
+                    if error is CancellationError || Task.isCancelled {
+                        report.wasCancelled = true
+                        return report
+                    }
                     report.failures.append(tr("\(scan.rule.title)：\(error.localizedDescription)"))
                     for item in scan.items {
                         log?.record(item: item, rule: scan.rule, action: "fail", detail: error.localizedDescription)
@@ -127,11 +157,13 @@ public enum CleanEngine {
                 }
                 continue
             }
+            // 工具预览中的路径不受文件规则白名单约束，因此绝不能回退到手动删除。
+            guard scan.rule.previewWithTool == nil else { continue }
             // 废纸篓规则本身必须永久删除；其他可再生内容按用户偏好决定
             let useTrash = scan.rule.id != RuleCatalog.trash.id && (scan.rule.policy == .trash || preferTrash)
 
             for item in scan.items {
-                if Task.isCancelled { return report }
+                if Task.isCancelled { report.wasCancelled = true; return report }
                 if let reason = skipReason(for: item.url, rule: scan.rule, running: running,
                                            environment: environment, safety: safety) {
                     report.skippedCount += 1

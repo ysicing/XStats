@@ -241,8 +241,8 @@ uv 缓存	uv Cache
 Yarn 缓存	Yarn Cache
 pnpm 缓存	pnpm Cache
 Bun 缓存	Bun Cache
-Homebrew 下载缓存	Homebrew Download Cache
-超过 1 天的 Homebrew 下载文件，不影响已安装软件	Homebrew downloads older than one day; installed software is unaffected
+Homebrew 清理	Homebrew Cleanup
+由 Homebrew 清理旧版本与缓存，不自动移除依赖	Homebrew cleans old versions and caches without automatically removing dependencies
 npm 下载缓存，由 npm 自行清理	npm download cache; cleaned by npm
 Yarn 全局与离线镜像缓存，由 Yarn 自行清理	Yarn global and offline mirror caches; cleaned by Yarn
 pnpm 内容寻址存储，仅清理未被引用的包	pnpm content-addressable store; only unreferenced packages are removed
@@ -1395,5 +1395,12 @@ Agent 工作树	Agent worktree
 {} 项含手写或被 Git 跟踪的内容，已保护	{} items contain hand-written or Git-tracked files and are protected
 未安装 Xcode 命令行工具，无法确认 Git 仓库中的 {} 项是否被跟踪，已保留	Xcode Command Line Tools are not installed, so {} items in Git repositories could not be checked for tracked files and were kept
 {} 项无法确认，已保留	{} items could not be verified and were kept
+预览失败：{}	Preview failed: {}
+{} 执行超时，请稍后重试	{} timed out; try again later
+{} 输出过大，请在终端检查	{} produced too much output; check it in Terminal
+无法识别 Homebrew 清理预览，请在终端检查命令输出	Unrecognized Homebrew cleanup preview; check the command output in Terminal
+Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依赖。	Homebrew will clean old versions and caches based on their state at execution time, without automatically removing dependencies.
+尚未扫描	Not scanned yet
+点击重新扫描以计算可清理空间	Click Rescan to calculate reclaimable space
 """#
 }

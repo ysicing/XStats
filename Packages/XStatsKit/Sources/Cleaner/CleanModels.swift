@@ -28,6 +28,7 @@ public enum SkipReason: Sendable, Equatable, Hashable {
     case appRunning(String)
     case needsFullDiskAccess
     case toolUnavailable(String)
+    case previewFailed(String)
     case recentlyModified
     case protected
 
@@ -36,6 +37,7 @@ public enum SkipReason: Sendable, Equatable, Hashable {
         case .appRunning(let name): tr("\(name) 正在运行")
         case .needsFullDiskAccess: tr("需要完全磁盘访问权限")
         case .toolUnavailable(let tool): tr("未找到 \(tool)，无法安全清理")
+        case .previewFailed(let detail): tr("预览失败：\(detail)")
         case .recentlyModified: tr("刚刚被使用")
         case .protected: tr("受保护")
         }
@@ -78,7 +80,10 @@ public struct CleanRule: Sendable, Identifiable {
     /// 最近修改过的条目视为正在使用
     public let minimumAge: TimeInterval
     public let requiredTool: String?
-    let cleanWithTool: (@Sendable (CleanEnvironment) async throws -> Void)?
+    /// 原生工具预览；候选路径只用于展示和日志，不能进入直接删除流程。
+    let previewWithTool: (@Sendable (CleanEnvironment) async throws -> ToolCleanupPreview)?
+    /// 返回 nil 时沿用文件大小差值统计；工具有原生报告时直接使用其实际结果。
+    let cleanWithTool: (@Sendable (CleanEnvironment) async throws -> CleanReport?)?
     /// 列出候选条目（顶层文件或目录）
     let locate: @Sendable (CleanEnvironment) throws -> [URL]
 
@@ -86,7 +91,8 @@ public struct CleanRule: Sendable, Identifiable {
          selectedByDefault: Bool = true, policy: DeletionPolicy = .delete,
          blockingApps: [(bundleID: String, name: String)] = [], checksOwnerApp: Bool = false,
          minimumAge: TimeInterval = 120, requiredTool: String? = nil,
-         cleanWithTool: (@Sendable (CleanEnvironment) async throws -> Void)? = nil,
+         previewWithTool: (@Sendable (CleanEnvironment) async throws -> ToolCleanupPreview)? = nil,
+         cleanWithTool: (@Sendable (CleanEnvironment) async throws -> CleanReport?)? = nil,
          locate: @escaping @Sendable (CleanEnvironment) throws -> [URL]) {
         self.id = id
         self.category = category
@@ -99,6 +105,7 @@ public struct CleanRule: Sendable, Identifiable {
         self.checksOwnerApp = checksOwnerApp
         self.minimumAge = minimumAge
         self.requiredTool = requiredTool
+        self.previewWithTool = previewWithTool
         self.cleanWithTool = cleanWithTool
         self.locate = locate
     }
@@ -115,17 +122,27 @@ public struct CleanItem: Sendable, Identifiable, Hashable {
 public struct RuleScan: Sendable, Identifiable {
     public var id: String { rule.id }
     public let rule: CleanRule
-    /// 按大小降序
+    /// 文件扫描按大小降序；原生命令预览保持其输出顺序。
     public let items: [CleanItem]
     public let skippedCount: Int
     /// 整条规则被阻止的原因（浏览器运行中、缺少权限或对应工具不可用）
     public let blocked: SkipReason?
+    public var toolPreview: ToolCleanupPreview? = nil
 
-    public var totalSize: UInt64 { items.reduce(0) { $0 + $1.size } }
+    public var totalSize: UInt64 { toolPreview?.totalSize ?? items.reduce(0) { $0 + $1.size } }
     public var isCleanable: Bool { blocked == nil && !items.isEmpty }
 }
 
+/// 原生命令提供的清理计划；大小可能包括只按目录汇总、没有逐文件列出的内容。
+public struct ToolCleanupPreview: Sendable {
+    public let items: [CleanItem]
+    public let totalSize: UInt64
+    public let details: String
+}
+
 public struct CleanReport: Sendable {
+    /// 取消是用户操作，保留已完成部分的统计，但不作为工具失败。
+    public var wasCancelled = false
     public var freedBytes: UInt64 = 0
     public var removedCount = 0
     public var skippedCount = 0

@@ -40,6 +40,7 @@ public final class CleanerController {
         let rules = rules
         task = Task {
             let results = await CleanEngine.scan(rules, environment: environment)
+            guard !Task.isCancelled else { phase = scans.isEmpty ? .idle : .ready; return }
             scans = results
             lastScan = Date()
             phase = .ready
@@ -47,12 +48,17 @@ public final class CleanerController {
     }
 
     func requestClean() {
-        guard phase == .ready || phase == .finished, selectedBytes > 0 else { return }
+        guard phase == .ready || phase == .finished, !selectedScans.isEmpty else { return }
         isConfirming = true
     }
 
     func cancelClean() {
         isConfirming = false
+    }
+
+    func cancelOperation() {
+        guard isBusy else { return }
+        task?.cancel()
     }
 
     func confirmClean() {
@@ -64,12 +70,25 @@ public final class CleanerController {
         let selection = selection
         let preferTrash = settings.cleanPrefersTrash
         task = Task {
-            let result = await CleanEngine.clean(scans, selected: selection, preferTrash: preferTrash, environment: environment)
+            var result = await CleanEngine.clean(scans, selected: selection, preferTrash: preferTrash, environment: environment)
+            result.wasCancelled = result.wasCancelled || Task.isCancelled
             report = result
+            if result.wasCancelled {
+                // 清理可能已完成一部分，原来的候选列表不再代表当前状态。
+                self.scans = []
+                lastScan = nil
+                phase = .finished
+                return
+            }
             // 清理后重新计算剩余可清理空间
             let rescanned = await CleanEngine.scan(rules, environment: Self.environment())
-            self.scans = rescanned
-            lastScan = Date()
+            if !Task.isCancelled {
+                self.scans = rescanned
+                lastScan = Date()
+            } else {
+                self.scans = []
+                lastScan = nil
+            }
             phase = .finished
         }
     }

@@ -128,47 +128,48 @@ struct DeveloperCacheRuleTests {
         }
     }
 
-    @Test func homebrewRuleOnlyCleansCompletedOlderDownloads() async throws {
+    @Test func homebrewUsesNativePreviewAndCleanup() async throws {
         let home = try FakeHome()
         defer { home.remove() }
-        let hash = String(repeating: "a", count: 64)
-        let oldDownload = try home.file("Library/Caches/Homebrew/downloads/\(hash)--wget-1.0.tar.gz", age: 172_800)
-        let recentDownload = try home.file("Library/Caches/Homebrew/downloads/\(hash)--curl-1.0.tar.gz", age: 60)
-        let incomplete = try home.file("Library/Caches/Homebrew/downloads/\(hash)--git-1.0.tar.gz.incomplete", age: 172_800)
-        let unrelated = try home.file("Library/Caches/Homebrew/downloads/notes.txt", age: 172_800)
-        let backup = try home.file("Library/Caches/Homebrew/Backup/important.txt", age: 172_800)
-        let environment = home.environment()
-
-        let generic = try RuleCatalog.userCaches.locate(environment)
-        #expect(!generic.contains { $0.lastPathComponent == "Homebrew" })
-
+        let cached = try home.file("Library/Caches/Homebrew/downloads/cached.tar.gz")
+        try home.file("Library/Logs/Homebrew/tool/build.log")
+        let cellar = home.root.appendingPathComponent("custom prefix/Cellar/tool/1.0")
+        let environment = CleanEnvironment(
+            home: home.path, runningBundleIdentifiers: { [] }, isToolAvailable: { $0 == "brew" },
+            runTool: { tool, arguments in
+                #expect(tool == "brew")
+                if arguments == ["cleanup", "--prune=30", "--dry-run"] {
+                    return ToolRunResult(status: 0, output: "Would remove: \(cellar.path) (12 files, 1.2MB)\n==> This operation would free approximately 1.2MB of disk space.")
+                }
+                #expect(arguments == ["cleanup", "--prune=30"])
+                return ToolRunResult(status: 0, output: "Removing: \(cellar.path)... (12 files, 1.1MB)\n==> This operation has freed approximately 1.1MB of disk space.")
+            })
         let scans = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
         let scan = try #require(scans.first)
-        #expect(scan.items.map { $0.url.resolvingSymlinksInPath() } == [oldDownload.resolvingSymlinksInPath()])
-
-        let report = await CleanEngine.clean(scans, selected: [RuleCatalog.homebrewCache.id],
-                                             preferTrash: false, environment: environment, log: nil)
+        #expect(scan.items.map(\.url) == [cellar])
+        #expect(scan.totalSize == 1_200_000)
+        #expect(scan.rule.usesToolCleaner)
+        let report = await CleanEngine.clean(scans, selected: [scan.id], preferTrash: true,
+                                             environment: environment, log: nil)
+        #expect(report.freedBytes == 1_100_000)
         #expect(report.removedCount == 1)
-        #expect(!FileManager.default.fileExists(atPath: oldDownload.path))
-        for retained in [recentDownload, incomplete, unrelated, backup] {
-            #expect(FileManager.default.fileExists(atPath: retained.path))
-        }
+        #expect(report.trashedBytes == 0)
+        #expect(report.failures.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: cached.path))
+        let generic = try RuleCatalog.userCaches.locate(environment)
+        #expect(!generic.contains { $0.lastPathComponent == "Homebrew" })
+        let logs = try RuleCatalog.logs.locate(environment)
+        #expect(!logs.contains { $0.lastPathComponent == "Homebrew" })
     }
 
-    @Test func homebrewRuleRejectsLinkedDownloadDirectory() async throws {
+    @Test func missingHomebrewBlocksPreviewEvenWithoutDefaultCache() async throws {
         let home = try FakeHome()
         defer { home.remove() }
-        let hash = String(repeating: "b", count: 64)
-        let backup = try home.file("Library/Caches/Homebrew/Backup/\(hash)--archive.tar.gz", age: 172_800)
-        let downloads = home.root.appendingPathComponent("Library/Caches/Homebrew/downloads")
-        try FileManager.default.createSymbolicLink(at: downloads, withDestinationURL: backup.deletingLastPathComponent())
-
-        let environment = home.environment()
-        #expect(try RuleCatalog.homebrewCache.locate(environment).isEmpty)
-        let scans = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
-
-        #expect(scans.first?.items.isEmpty == true)
-        #expect(FileManager.default.fileExists(atPath: backup.path))
+        let environment = CleanEnvironment(home: home.path, runningBundleIdentifiers: { [] },
+                                           isToolAvailable: { _ in false },
+                                           runTool: { _, _ in throw TestError.unexpectedToolRun })
+        let scan = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
+        #expect(scan.first?.blocked == .toolUnavailable("brew"))
     }
 
     @Test func packageManagerCachesUseTheirBrandLogos() {
