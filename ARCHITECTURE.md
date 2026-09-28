@@ -388,8 +388,6 @@ merge concurrent edits, or use iCloud. A missing remote file requires an initial
 - `HistoryRecorder` folds each sample into a per-minute record (averages, CPU and temperature
   peaks, worst memory pressure) and writes it to `history.sqlite`; records older than 8 days are
   pruned hourly. Queries bucket by 1, 5 or 30 minutes and charts break lines across gaps.
-- Daily screen-time collection and its widget were removed. App termination no longer waits for a
-  screen-time database write.
 
 ## Localization
 
