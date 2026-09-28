@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import Localization
 import Testing
 @testable import XStatsUI
 
@@ -113,6 +114,44 @@ struct CalendarEnhancementTests {
                                          isAllDay: false, isReminder: true)
         #expect(!reminder.occurs(on: start, calendar: calendar))
         #expect(reminder.occurs(on: next, calendar: calendar))
+    }
+
+    @Test func overnightEventShowsContinuationInsteadOfYesterdaysStartTime() throws {
+        let calendar = CalendarEngine.gregorian(timeZone: zone)
+        let start = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 28, hour: 22)))
+        let nextDay = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 29)))
+        let night = CalendarAgendaItem(id: "night", title: "", source: "", start: start,
+                                       end: start.addingTimeInterval(4 * 3600), isAllDay: false, isReminder: false)
+        let first = night.timeLabel(on: start, calendar: calendar)
+        #expect(first != tr("续") && first != tr("全天"), "start day shows the start time: \(first)")
+        #expect(night.timeLabel(on: nextDay, calendar: calendar) == tr("续"))
+        let allDay = CalendarAgendaItem(id: "all", title: "", source: "", start: nextDay,
+                                        end: nextDay.addingTimeInterval(86_400), isAllDay: true, isReminder: false)
+        #expect(allDay.timeLabel(on: nextDay, calendar: calendar) == tr("全天"))
+    }
+
+    @Test func refreshingUnchangedAuthorizationDoesNotRestartTheQuery() {
+        let agenda = CalendarAgendaController()
+        let before = agenda.revision
+        // 打开面板、应用激活都会调用；授权没变时不能改动查询的 id，否则刚开始的查询会被取消重来
+        agenda.refreshAuthorization()
+        agenda.refreshAuthorization()
+        #expect(agenda.revision == before)
+        agenda.storeChanged()
+        #expect(agenda.revision == before + 1, "calendar content changes must trigger a reload")
+    }
+
+    @Test func holidayPlanCacheStillFollowsDayAndTimeZone() throws {
+        let before = try #require(CalendarEngine.day(year: 2026, month: 9, day: 23, timeZone: zone))
+        let first = try #require(CalendarEngine.holidayPlan(from: before.date, timeZone: zone))
+        let repeated = try #require(CalendarEngine.holidayPlan(from: before.date.addingTimeInterval(3600), timeZone: zone))
+        #expect(repeated.daysUntil == first.daysUntil && repeated.start == first.start)
+        // 换日或换时区都不能复用上一次的结果
+        let later = try #require(CalendarEngine.day(year: 2026, month: 9, day: 24, timeZone: zone))
+        #expect(try #require(CalendarEngine.holidayPlan(from: later.date, timeZone: zone)).daysUntil == first.daysUntil - 1)
+        let utc = TimeZone(secondsFromGMT: 0)!
+        let utcPlan = try #require(CalendarEngine.holidayPlan(from: before.date, timeZone: utc))
+        #expect(utcPlan.start != first.start, "a different time zone must be recomputed")
     }
 
     @Test func eventDayMatchingRespectsDSTInsteadOfFixed24Hours() throws {

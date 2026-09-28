@@ -126,7 +126,7 @@ struct CalendarPopover: View {
         }
         .onDisappear { if !isSnapshot { model.calendarAgenda.clear() } }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
-            if !isSnapshot { model.calendarAgenda.refreshAuthorization() }
+            if !isSnapshot { model.calendarAgenda.storeChanged() }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             if !isSnapshot { model.calendarAgenda.refreshAuthorization() }

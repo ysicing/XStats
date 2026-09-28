@@ -42,7 +42,7 @@ struct CalendarAgendaView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             Text(item.source).font(.caption).foregroundStyle(.secondary)
                         }
-                        Text(item.isAllDay ? tr("全天") : item.start.formatted(.dateTime.hour().minute().locale(L10n.locale)))
+                        Text(item.timeLabel(on: day.date, calendar: CalendarEngine.gregorian()))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }

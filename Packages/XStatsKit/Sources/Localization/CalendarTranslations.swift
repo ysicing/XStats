@@ -150,10 +150,6 @@ extension Translations {
 允许访问	Allow access
 打开系统设置	Open System Settings
 读取失败，请重试	Could not load. Try again.
-节假日数据	Holiday data
-最新数据年份：{}	Latest data year: {}
-假日数据随应用更新；未收录年份不推断调休。	Holiday data is updated with the app. Makeup workdays are not inferred for uncovered years.
-查看更新	View updates
 日程尚未授权	Calendar access not granted
 提醒事项尚未授权	Reminders access not granted
 无标题	Untitled
@@ -169,5 +165,6 @@ extension Translations {
 请假日期：{}	Leave dates: {}
 按双休及已公布的中国调休安排计算，实际请假以单位批准为准。	Based on a two-day weekend and published Chinese makeup workdays. Leave requires your employer’s approval.
 有日程或提醒	Has events or reminders
+续	cont.
 """#
 }

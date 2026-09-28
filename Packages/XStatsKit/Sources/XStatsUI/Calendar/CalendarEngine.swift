@@ -177,7 +177,6 @@ enum CalendarEngine {
 
     /// 年份覆盖来自固定版本的数据本身；未收录年份不能把 nil 解读为“无需调休”。
     static func hasHolidayData(year: Int) -> Bool { holidayYears.contains(year) }
-    static var latestHolidayYear: Int? { holidayYears.max() }
     private static let holidayYears: Set<Int> = {
         let data = Array(LegalHoliday.DATA.utf8)
         return Set(stride(from: 0, to: data.count, by: 13).compactMap { index in

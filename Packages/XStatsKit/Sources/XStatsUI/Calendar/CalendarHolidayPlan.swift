@@ -66,9 +66,20 @@ extension CalendarHolidayPlan {
 }
 
 extension CalendarEngine {
+    /// 同一天、同一时区的结果不变；面板每次测量都会新建视图，缓存避免在主线程上反复逐日查询约 390 天
+    private static var holidayPlanCache: (key: String, plan: CalendarHolidayPlan?)?
+
     static func holidayPlan(from date: Date, timeZone: TimeZone = .autoupdatingCurrent) -> CalendarHolidayPlan? {
         let calendar = gregorian(timeZone: timeZone)
         let today = calendar.startOfDay(for: date)
+        let key = "\(timeZone.identifier)|\(today.timeIntervalSince1970)"
+        if let cached = holidayPlanCache, cached.key == key { return cached.plan }
+        let plan = computeHolidayPlan(today: today, calendar: calendar)
+        holidayPlanCache = (key, plan)
+        return plan
+    }
+
+    private static func computeHolidayPlan(today: Date, calendar: Calendar) -> CalendarHolidayPlan? {
         var days: [CalendarWorkday] = []
         for offset in -21...370 {
             guard let date = calendar.date(byAdding: .day, value: offset, to: today) else { continue }

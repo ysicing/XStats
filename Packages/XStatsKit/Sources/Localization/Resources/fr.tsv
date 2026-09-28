@@ -1584,10 +1584,6 @@ Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依�
 允许访问	Autoriser l’accès
 打开系统设置	Ouvrir Réglages Système
 读取失败，请重试	Échec du chargement. Réessayez.
-节假日数据	Données des jours fériés
-最新数据年份：{}	Année des dernières données : {}
-假日数据随应用更新；未收录年份不推断调休。	Les données suivent les mises à jour de l’app. Aucun jour de travail compensatoire n’est déduit pour les années manquantes.
-查看更新	Voir les mises à jour
 日程尚未授权	Accès au calendrier non autorisé
 提醒事项尚未授权	Accès aux rappels non autorisé
 无标题	Sans titre
@@ -1609,3 +1605,4 @@ Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依�
 例如 yyyy-MM-dd、M月d日、dd/MM；年份可省略。	Exemples : yyyy-MM-dd, M/d, dd/MM. L’année est facultative.
 请包含月份 M 和日期 d；年份使用 y。格式无效时暂以月/日显示。	Incluez M pour le mois et d pour le jour ; utilisez y pour l’année. Un format invalide affiche provisoirement mois/jour.
 按住 ⌘ 拖动菜单栏图标可调整位置。	Maintenez ⌘ en faisant glisser l’icône de la barre des menus pour la déplacer.
+续	suite
