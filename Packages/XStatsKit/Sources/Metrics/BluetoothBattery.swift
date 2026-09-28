@@ -117,10 +117,11 @@ public enum BluetoothBatteryReader {
     }
 
     /// `pmset -g accps` 能补充部分 system_profiler / IORegistry 看不到的耳机和第三方 HID 电量。
-    /// 无名称的电源项由 IORegistry 提供产品名，这里跳过以免显示成匿名设备。
+    /// accps 也列出 Mac 内置电池；无名称的电源项由 IORegistry 提供产品名，这里都不作为附件展示。
     static func parsePMSet(_ output: String) -> [BluetoothDevice] {
         output.split(whereSeparator: \.isNewline).compactMap { rawLine in
-            guard let source = parsePowerSourceLine(rawLine), !source.name.isEmpty else { return nil }
+            guard let source = parsePowerSourceLine(rawLine), !source.name.isEmpty,
+                  source.name != "InternalBattery", !source.name.hasPrefix("InternalBattery-") else { return nil }
             return BluetoothDevice(name: source.name, address: "", kind: kind(forName: source.name, minorType: nil),
                                    batteries: [(tr("电量"), source.percent)], isCharging: source.isCharging)
         }

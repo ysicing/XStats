@@ -78,6 +78,7 @@ import Testing
     @Test func parsesNamedAccessoryPowerSources() {
         let output = """
         Now drawing from 'AC Power'
+         -InternalBattery-0 (id=23134307)\t80%; AC attached; not charging present: true
          -Magic Keyboard (id=1234)\t98%; discharging present: true
          -大唐西域进贡上等白玉耳坠 (id=5678)\t76%; charging present: true
          - (id=9999)\t24%; discharging present: true
