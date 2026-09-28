@@ -60,28 +60,53 @@ extension DS.Glass {
 /// 整个窗口压暗，中间浮一块玻璃加载框，写明正在做什么；任务结束自动消失
 struct LoadingHUD: View {
     let message: String
+    let progress: (completed: Int, total: Int, detail: String)?
+    let onCancel: (() -> Void)?
 
     var body: some View {
         ZStack {
-            // 压暗并拦住点击，避免任务进行中又触发别的操作
+            // 压暗并拦住背景点击；可取消任务在加载框内提供操作。
             Rectangle()
                 .fill(DS.Palette.scrim)
                 .contentShape(Rectangle())
                 .onTapGesture {}
 
-            HStack(spacing: DS.Space.s3) {
-                ProgressView().controlSize(.regular)
-                Text(verbatim: message)
-                    .dsFont(.base, weight: .medium)
-                    .foregroundStyle(DS.Palette.textPrimary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: DS.Space.s3) {
+                HStack(spacing: DS.Space.s3) {
+                    ProgressView().controlSize(.regular)
+                    Text(verbatim: message)
+                        .dsFont(.base, weight: .medium)
+                        .foregroundStyle(DS.Palette.textPrimary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let progress {
+                    let detail = tr("已处理 \(progress.completed)/\(progress.total) 步")
+                    ProgressView(value: Double(progress.completed), total: Double(max(1, progress.total)))
+                        .accessibilityValue(detail)
+                    HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
+                        Text(verbatim: progress.detail)
+                            .lineLimit(2)
+                        Spacer(minLength: 0)
+                        Text(detail)
+                            .monospacedDigit()
+                    }
+                    .dsFont(.xs)
+                    .foregroundStyle(DS.Palette.textSecondary)
+                }
+                if let onCancel {
+                    HStack {
+                        Spacer(minLength: 0)
+                        Button(tr("取消"), action: onCancel)
+                            .buttonStyle(DSButtonStyle(kind: .secondary))
+                    }
+                }
             }
             .padding(.horizontal, DS.Space.s8)
             .padding(.vertical, DS.Space.s6)
-            .frame(minWidth: DS.Size.sidebarWidth + DS.Space.s16)
+            .frame(minWidth: DS.Size.sidebarWidth + DS.Space.s16, maxWidth: 420)
             .modifier(HUDBackground())
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: onCancel == nil ? .combine : .contain)
             .accessibilityAddTraits(.updatesFrequently)
         }
         .transition(.opacity)
@@ -102,9 +127,10 @@ private struct HUDBackground: ViewModifier {
 
 extension View {
     /// 有文字时在上方盖一层全局加载框
-    func loadingHUD(_ message: String?) -> some View {
+    func loadingHUD(_ message: String?, progress: (completed: Int, total: Int, detail: String)? = nil,
+                    onCancel: (() -> Void)? = nil) -> some View {
         overlay {
-            if let message { LoadingHUD(message: message) }
+            if let message { LoadingHUD(message: message, progress: progress, onCancel: onCancel) }
         }
         .animation(DS.Motion.quick, value: message)
     }

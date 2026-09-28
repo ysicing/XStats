@@ -57,12 +57,17 @@ import Testing
                 throw ToolExecutionError.failed(tool: "brew", status: 1, output: "cannot acquire lock")
             })
         let scans = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
+        let capture = CleanProgressCapture()
         let report = await CleanEngine.clean(scans, selected: [RuleCatalog.homebrewCache.id], preferTrash: false,
-                                             environment: environment, log: CleanLog(url: logURL))
+                                             environment: environment, log: CleanLog(url: logURL),
+                                             onProgress: { await capture.record($0) })
         #expect(report.failures.count == 1)
         #expect(report.failures.first?.contains("cannot acquire lock") == true)
         #expect(report.freedBytes == 0)
         #expect(report.hasUncertainFreedBytes)
+        let updates = await capture.values()
+        #expect(updates.map(\.completed) == [0, 1])
+        #expect(updates.allSatisfy { $0.total == 1 })
         let logData = try Data(contentsOf: logURL)
         let entries = try logData.split(separator: 0x0A).map {
             try #require(JSONSerialization.jsonObject(with: Data($0)) as? [String: Any])

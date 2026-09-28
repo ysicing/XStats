@@ -2,6 +2,13 @@ import Foundation
 import Testing
 @testable import Cleaner
 
+actor CleanProgressCapture {
+    private var updates: [CleanProgress] = []
+
+    func record(_ progress: CleanProgress) { updates.append(progress) }
+    func values() -> [CleanProgress] { updates }
+}
+
 /// 在临时目录中构造一个假的家目录
 private struct FakeHome {
     let root: URL
@@ -414,6 +421,25 @@ struct CleanEngineTests {
         #expect(report.freedBytes > 0)
         #expect(!FileManager.default.fileExists(atPath: cache.deletingLastPathComponent().path))
         #expect(FileManager.default.fileExists(atPath: log.path))
+    }
+
+    @Test func cleaningProgressCountsSelectedFileItems() async throws {
+        let home = try FakeHome()
+        defer { home.remove() }
+        try home.file("Library/Caches/com.example.first/data.bin")
+        try home.file("Library/Caches/com.example.second/data.bin")
+        try home.file("Library/Logs/com.example.app/app.log")
+        let environment = home.environment()
+        let scans = await CleanEngine.scan([RuleCatalog.userCaches, RuleCatalog.logs], environment: environment)
+        let capture = CleanProgressCapture()
+
+        _ = await CleanEngine.clean(scans, selected: [RuleCatalog.userCaches.id], preferTrash: false,
+                                    environment: environment, log: nil,
+                                    onProgress: { await capture.record($0) })
+
+        let updates = await capture.values()
+        #expect(updates.map(\.completed) == [0, 1, 2])
+        #expect(updates.allSatisfy { $0.total == 2 && $0.currentRule == RuleCatalog.userCaches.title })
     }
 
     @Test func cleanRechecksRunningAppsBeforeDeleting() async throws {

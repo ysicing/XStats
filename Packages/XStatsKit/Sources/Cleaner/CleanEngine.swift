@@ -107,20 +107,33 @@ public enum CleanEngine {
 
     /// 清理选中规则的扫描结果。执行前逐项重新校验：扫描到执行之间应用可能已经启动
     public static func clean(_ scans: [RuleScan], selected: Set<String>, preferTrash: Bool,
-                             environment: CleanEnvironment, log: CleanLog? = CleanLog()) async -> CleanReport {
+                             environment: CleanEnvironment, log: CleanLog? = CleanLog(),
+                             onProgress: (@Sendable (CleanProgress) async -> Void)? = nil) async -> CleanReport {
         let safety = SafetyGuard(home: environment.home)
         var report = CleanReport()
+        let selectedScans = scans.filter { selected.contains($0.id) && $0.isCleanable }
+        let totalSteps = selectedScans.reduce(0) { $0 + ($1.rule.usesToolCleaner ? 1 : $1.items.count) }
+        let progressInterval = max(1, (totalSteps + 99) / 100)
+        var completedSteps = 0
 
-        for scan in scans where selected.contains(scan.id) && scan.isCleanable {
+        for scan in selectedScans {
             if Task.isCancelled { report.wasCancelled = true; return report }
+            await onProgress?(CleanProgress(completed: completedSteps, total: totalSteps,
+                                            currentRule: scan.rule.title))
             let running = environment.runningBundleIdentifiers()
             if scan.rule.blockingApps.contains(where: { running.contains($0.bundleID) }) {
                 report.skippedCount += scan.items.count
+                completedSteps += scan.rule.usesToolCleaner ? 1 : scan.items.count
+                await onProgress?(CleanProgress(completed: completedSteps, total: totalSteps,
+                                                currentRule: scan.rule.title))
                 continue
             }
             if let cleanWithTool = scan.rule.cleanWithTool {
                 if let tool = scan.rule.requiredTool, !environment.isToolAvailable(tool) {
                     report.failures.append(tr("\(scan.rule.title)：未找到 \(tool)，无法安全清理"))
+                    completedSteps += 1
+                    await onProgress?(CleanProgress(completed: completedSteps, total: totalSteps,
+                                                    currentRule: scan.rule.title))
                     continue
                 }
                 do {
@@ -135,14 +148,14 @@ public enum CleanEngine {
                         report.hasUncertainFreedBytes = report.hasUncertainFreedBytes || toolReport.hasUncertainFreedBytes
                         log?.recordTool(rule: scan.rule, report: toolReport)
                         if report.wasCancelled { return report }
-                        continue
-                    }
-                    for item in scan.items {
-                        let remaining = allocatedSize(of: item.url)
-                        log?.record(item: item, rule: scan.rule, action: "tool", detail: scan.rule.requiredTool)
-                        guard remaining < item.size else { continue }
-                        report.freedBytes += item.size - remaining
-                        report.removedCount += 1
+                    } else {
+                        for item in scan.items {
+                            let remaining = allocatedSize(of: item.url)
+                            log?.record(item: item, rule: scan.rule, action: "tool", detail: scan.rule.requiredTool)
+                            guard remaining < item.size else { continue }
+                            report.freedBytes += item.size - remaining
+                            report.removedCount += 1
+                        }
                     }
                 } catch {
                     if scan.rule.previewWithTool != nil {
@@ -161,10 +174,18 @@ public enum CleanEngine {
                         }
                     }
                 }
+                completedSteps += 1
+                await onProgress?(CleanProgress(completed: completedSteps, total: totalSteps,
+                                                currentRule: scan.rule.title))
                 continue
             }
             // 工具预览中的路径不受文件规则白名单约束，因此绝不能回退到手动删除。
-            guard scan.rule.previewWithTool == nil else { continue }
+            guard scan.rule.previewWithTool == nil else {
+                completedSteps += scan.items.count
+                await onProgress?(CleanProgress(completed: completedSteps, total: totalSteps,
+                                                currentRule: scan.rule.title))
+                continue
+            }
             // 废纸篓规则本身必须永久删除；其他可再生内容按用户偏好决定
             let useTrash = scan.rule.id != RuleCatalog.trash.id && (scan.rule.policy == .trash || preferTrash)
 
@@ -174,6 +195,11 @@ public enum CleanEngine {
                                            environment: environment, safety: safety) {
                     report.skippedCount += 1
                     log?.record(item: item, rule: scan.rule, action: "skip", detail: reason.title)
+                    completedSteps += 1
+                    if completedSteps % progressInterval == 0 || completedSteps == totalSteps {
+                        await onProgress?(CleanProgress(completed: completedSteps, total: totalSteps,
+                                                        currentRule: scan.rule.title))
+                    }
                     continue
                 }
                 do {
@@ -189,6 +215,11 @@ public enum CleanEngine {
                 } catch {
                     report.failures.append(tr("\(item.url.lastPathComponent)：\(error.localizedDescription)"))
                     log?.record(item: item, rule: scan.rule, action: "fail", detail: error.localizedDescription)
+                }
+                completedSteps += 1
+                if completedSteps % progressInterval == 0 || completedSteps == totalSteps {
+                    await onProgress?(CleanProgress(completed: completedSteps, total: totalSteps,
+                                                    currentRule: scan.rule.title))
                 }
             }
         }

@@ -152,3 +152,16 @@ public struct CleanReport: Sendable {
     /// 移到废纸篓的大小（不会立即释放）
     public var trashedBytes: UInt64 = 0
 }
+
+/// 已完成的清理步骤数；文件逐项计数，外部工具作为一个步骤，避免把预览数量当成执行进度。
+public struct CleanProgress: Sendable {
+    public let completed: Int
+    public let total: Int
+    public let currentRule: String
+
+    public init(completed: Int, total: Int, currentRule: String) {
+        self.completed = completed
+        self.total = total
+        self.currentRule = currentRule
+    }
+}

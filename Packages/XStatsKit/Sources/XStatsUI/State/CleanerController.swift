@@ -14,6 +14,9 @@ public final class CleanerController {
     public private(set) var scans: [RuleScan] = []
     public private(set) var lastScan: Date?
     public private(set) var report: CleanReport?
+    public private(set) var cleanProgress: CleanProgress?
+    /// 单次文件删除可能尚未返回；先显示取消请求，随后由任务停止剩余步骤。
+    public private(set) var isCancelling = false
     public var selection: Set<String> {
         didSet { settings.cleanSelectedRuleIDs = selection }
     }
@@ -58,25 +61,34 @@ public final class CleanerController {
 
     func cancelOperation() {
         guard isBusy else { return }
+        if phase == .cleaning { isCancelling = true }
         task?.cancel()
     }
 
     func confirmClean() {
         guard isConfirming else { return }
         isConfirming = false
+        report = nil
+        cleanProgress = nil
+        isCancelling = false
         phase = .cleaning
         let environment = Self.environment()
         let scans = scans
         let selection = selection
         let preferTrash = settings.cleanPrefersTrash
-        task = Task {
-            var result = await CleanEngine.clean(scans, selected: selection, preferTrash: preferTrash, environment: environment)
+        task = Task { [self] in
+            var result = await CleanEngine.clean(scans, selected: selection, preferTrash: preferTrash,
+                                                environment: environment) { [weak self] progress in
+                await MainActor.run { self?.cleanProgress = progress }
+            }
             result.wasCancelled = result.wasCancelled || Task.isCancelled
             report = result
+            cleanProgress = nil
             if result.wasCancelled {
                 // 清理可能已完成一部分，原来的候选列表不再代表当前状态。
                 self.scans = []
                 lastScan = nil
+                isCancelling = false
                 phase = .finished
                 return
             }
@@ -89,6 +101,7 @@ public final class CleanerController {
                 self.scans = []
                 lastScan = nil
             }
+            isCancelling = false
             phase = .finished
         }
     }

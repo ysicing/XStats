@@ -35,7 +35,8 @@ public struct MainWindowView: View {
         .fixedSize(horizontal: false, vertical: isSnapshot)
         .background(DS.Palette.background)
         // 需要等待的任务进行中，整个窗口压暗并显示加载框
-        .loadingHUD(isSnapshot ? nil : busyMessage)
+        .loadingHUD(isSnapshot ? nil : busyMessage, progress: isSnapshot ? nil : busyProgress,
+                    onCancel: isSnapshot ? nil : busyCancel)
         // 内容延伸到透明标题栏下方，由顶栏高度留出红绿灯按钮的位置
         .ignoresSafeArea()
         // 文案在各视图计算时翻译好，切换语言后整棵视图重建
@@ -56,11 +57,24 @@ public struct MainWindowView: View {
 
     /// 需要等待、期间不宜继续操作的任务
     private var busyMessage: String? {
-        if model.cleaner.phase == .cleaning { return tr("正在清理…") }
+        if model.cleaner.phase == .cleaning {
+            if model.cleaner.isCancelling { return tr("正在取消…") }
+            return model.cleaner.report == nil ? tr("正在清理…") : tr("正在重新扫描…")
+        }
         if model.uninstaller.isRemoving { return tr("正在移除…") }
         if model.diagnostics.phase == .collecting { return tr("正在导出诊断信息…") }
         if model.maintenance.isApplyingDNS { return tr("正在修改 DNS…") }
         return nil
+    }
+
+    private var busyProgress: (completed: Int, total: Int, detail: String)? {
+        guard model.cleaner.phase == .cleaning, let progress = model.cleaner.cleanProgress else { return nil }
+        return (progress.completed, progress.total, progress.currentRule)
+    }
+
+    private var busyCancel: (() -> Void)? {
+        guard model.cleaner.phase == .cleaning, !model.cleaner.isCancelling else { return nil }
+        return { model.cleaner.cancelOperation() }
     }
 
     private var page: some View {

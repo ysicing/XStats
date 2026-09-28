@@ -1553,3 +1553,6 @@ Agent 工作树	Arbre de travail Agent
 Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依赖。	Homebrew nettoiera les anciennes versions et les caches selon leur état à l’exécution, sans supprimer automatiquement les dépendances.
 尚未扫描	Pas encore analysé
 点击重新扫描以计算可清理空间	Cliquez sur Relancer l’analyse pour calculer l’espace récupérable
+正在重新扫描…	Nouvelle analyse en cours…
+已处理 {}/{} 步	{} étapes sur {} traitées
+正在取消…	Annulation en cours…

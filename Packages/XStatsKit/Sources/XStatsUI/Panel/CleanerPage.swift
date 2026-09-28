@@ -103,7 +103,7 @@ private struct SummaryCard: View {
                     }
                     .buttonStyle(DSButtonStyle(kind: .primary))
                     .disabled(cleaner.isBusy || cleaner.selectedScans.isEmpty)
-                    if cleaner.isBusy {
+                    if cleaner.phase == .scanning {
                         Button(tr("取消")) { cleaner.cancelOperation() }
                             .buttonStyle(DSButtonStyle(kind: .secondary))
                     }
