@@ -97,14 +97,11 @@ SOFTWARE.
 
 ## AI Provider 契约参考
 
-XStats 的 AI Provider 契约与状态设计参考了以下项目公开的 Provider 契约、测试样例与实现模式：
+XStats 的 AI Provider 契约与状态设计参考了以下项目公开的 Provider 契约与行为说明。
+当前版本未包含这些项目的源码或素材：
 
 - [burakgon/ai-usage-menubar](https://github.com/burakgon/ai-usage-menubar)，MIT License，Copyright (c) 2026 Burak Gon
 - [robinebers/openusage](https://github.com/robinebers/openusage)，MIT License，Copyright (c) 2026 Robin Ebers
-- [methol-dev/usage-bar](https://github.com/methol-dev/usage-bar)，BSD-2-Clause，Copyright (c) 2026 Krystian
-
-完整许可证文本见 [LICENSES/AI-Usage-and-OpenUsage-MIT.txt](LICENSES/AI-Usage-and-OpenUsage-MIT.txt)
-与 [LICENSES/usage-bar-BSD-2-Clause.txt](LICENSES/usage-bar-BSD-2-Clause.txt)。
 
 ## Tyme4Swift
 
