@@ -527,7 +527,9 @@ public enum ProjectPurge {
             let grace = Date().addingTimeInterval(1)
             while process.isRunning && Date() < grace { Thread.sleep(forTimeInterval: 0.02) }
             if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
-            process.waitUntilExit()
+            // 不用 waitUntilExit()：非 RunLoop 线程上错过退出通知会永久等待
+            let killed = Date().addingTimeInterval(2)
+            while process.isRunning && Date() < killed { Thread.sleep(forTimeInterval: 0.02) }
             return nil
         }
         return process.terminationStatus

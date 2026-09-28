@@ -237,13 +237,26 @@ enum DeveloperToolRunner {
     }
 
     /// 只结束本次启动的进程；取消后仍给予短暂退出时间，防止清理子进程留在后台。
+    /// 不调用 `waitUntilExit()`：它靠当前线程的 RunLoop 接收退出通知，而这里跑在不驱动 RunLoop 的
+    /// 并发线程上，错过通知就会永久等待（停止清理卡在“正在停止”）。改为有上限的轮询。
     private static func stop(_ process: Process) {
         guard process.isRunning else { return }
         process.terminate()
-        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
-        while process.isRunning && ContinuousClock.now < deadline { Thread.sleep(forTimeInterval: 0.01) }
-        if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
-        process.waitUntilExit()
+        guard !waitForExit(process, seconds: 1) else { return }
+        _ = Darwin.kill(process.processIdentifier, SIGKILL)
+        // SIGKILL 无法被忽略，进程很快会被回收；仍设上限，不让调用方无限等待
+        _ = waitForExit(process, seconds: 2)
+    }
+
+    /// 进程已退出返回 true。`kill(pid, 0)` 报 ESRCH 说明已被回收，不必再等 Foundation 更新 `isRunning`。
+    private static func waitForExit(_ process: Process, seconds: Int) -> Bool {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(seconds))
+        while ContinuousClock.now < deadline {
+            if !process.isRunning { return true }
+            if Darwin.kill(process.processIdentifier, 0) != 0 && errno == ESRCH { return true }
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        return !process.isRunning
     }
 
     private static func searchDirectories(home: String) -> [URL] {

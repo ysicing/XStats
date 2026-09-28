@@ -91,7 +91,9 @@ enum CodexAppServerQuotaClient {
                 process.terminate()
                 if process.isRunning { Darwin.kill(process.processIdentifier, SIGKILL) }
             }
-            process.waitUntilExit()
+            // 在 GCD 线程上运行，不用 waitUntilExit()：没有 RunLoop 时错过退出通知会永久等待
+            let deadline = DispatchTime.now().uptimeNanoseconds + 2_000_000_000
+            while process.isRunning && DispatchTime.now().uptimeNanoseconds < deadline { usleep(10_000) }
         }
 
         func send(_ message: [String: Any]) throws {
