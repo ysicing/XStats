@@ -1,0 +1,4 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+"NSCalendarsFullAccessUsageDescription" = "Muestra localmente los eventos seleccionados sin modificarlos ni subirlos.";
+"NSRemindersFullAccessUsageDescription" = "Muestra localmente los recordatorios seleccionados sin modificarlos ni subirlos.";

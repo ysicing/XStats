@@ -445,6 +445,16 @@ public final class AppSettings {
     public var calendarEnabled: Bool {
         didSet { defaults.set(calendarEnabled, forKey: Keys.calendarEnabled) }
     }
+    public var calendarPreferences: CalendarPreferences {
+        didSet { defaults.set(try? JSONEncoder().encode(calendarPreferences), forKey: Keys.calendarPreferences) }
+    }
+    /// nil 表示全部列表，空集合表示明确不显示任何列表；列表 ID 仅在本机有意义。
+    var calendarEventSourceIDs: Set<String>? {
+        didSet { defaults.set(calendarEventSourceIDs.map { Array($0).sorted() }, forKey: "calendarEventSourceIDs") }
+    }
+    var calendarReminderSourceIDs: Set<String>? {
+        didSet { defaults.set(calendarReminderSourceIDs.map { Array($0).sorted() }, forKey: "calendarReminderSourceIDs") }
+    }
     /// 休息提醒完全由本机计时；旧用户默认关闭。
     public var restEnabled: Bool {
         didSet {
@@ -699,6 +709,10 @@ public final class AppSettings {
         restSound = defaults.string(forKey: Keys.restSound).flatMap(RestSound.init(rawValue:)) ?? .off
         restHUDStyle = defaults.string(forKey: Keys.restHUDStyle).flatMap(RestHUDStyle.init(rawValue:)) ?? .countdown
         calendarEnabled = defaults.bool(forKey: Keys.calendarEnabled)
+        calendarPreferences = defaults.data(forKey: Keys.calendarPreferences)
+            .flatMap { try? JSONDecoder().decode(CalendarPreferences.self, from: $0) } ?? CalendarPreferences()
+        calendarEventSourceIDs = defaults.stringArray(forKey: "calendarEventSourceIDs").map { Set($0) }
+        calendarReminderSourceIDs = defaults.stringArray(forKey: "calendarReminderSourceIDs").map { Set($0) }
         calendarFeatures = defaults.stringArray(forKey: Keys.calendarFeatures)
             .map(CalendarFeature.restored(from:)) ?? CalendarFeature.defaults
         calendarFirstWeekday = defaults.integer(forKey: Keys.calendarFirstWeekday) == 1 ? 1 : 2
@@ -819,6 +833,7 @@ public final class AppSettings {
         static let restSound = "restSound"
         static let restHUDStyle = "restHUDStyle"
         static let calendarEnabled = "calendarEnabled"
+        static let calendarPreferences = "calendarPreferences"
         static let calendarFeatures = "calendarFeatures"
         static let calendarFirstWeekday = "calendarFirstWeekday"
         static let menuBarItems = "menuBarItems"

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import EventKit
 import Localization
 import SwiftUI
 
@@ -18,6 +19,7 @@ struct CalendarPopover: View {
     @State private var lastTodayID: String?
     @State private var showsDayDetails: Bool
     @State private var almanac: CalendarAlmanac?
+    @State private var holidayPlan: CalendarHolidayPlan?
     private let referenceDate: Date?
 
     init(referenceDate: Date? = nil, showsDayDetails: Bool = false) {
@@ -31,6 +33,7 @@ struct CalendarPopover: View {
         _almanac = State(initialValue: showsDayDetails ? today.flatMap { CalendarEngine.almanac(for: $0) } : nil)
         _lastTodayID = State(initialValue: today?.id)
         _days = State(initialValue: CalendarEngine.month(year: month.year, month: month.month, firstWeekday: 2))
+        _holidayPlan = State(initialValue: CalendarEngine.holidayPlan(from: referenceDate ?? Date()))
     }
 
     var body: some View {
@@ -45,9 +48,19 @@ struct CalendarPopover: View {
                 PageScroll {
                     VStack(spacing: 16) {
                         if showsDayDetails, let selected, let almanac {
+                            if model.settings.calendarPreferences.showEvents || model.settings.calendarPreferences.showReminders {
+                                CalendarAgendaView(day: selected)
+                            }
                             CalendarAlmanacView(day: selected, almanac: almanac, features: model.settings.calendarFeatures)
                         } else {
                             calendarGrid(today: today)
+                        }
+                        if !showsDayDetails, let selected, model.settings.calendarPreferences.showEvents || model.settings.calendarPreferences.showReminders {
+                            CalendarAgendaView(day: selected)
+                        }
+                        if !showsDayDetails, model.settings.calendarFeatures.contains(.holidays),
+                           model.settings.calendarPreferences.showHolidayOverview, let holidayPlan {
+                            CalendarHolidayPlanView(plan: holidayPlan)
                         }
                         if model.settings.calendarFeatures.contains(.holidays), !CalendarEngine.hasHolidayData(year: month.year) {
                             Text(tr("该年份暂无中国法定假日与调休数据"))
@@ -67,27 +80,58 @@ struct CalendarPopover: View {
                     month = CalendarMonth(year: today.year, month: today.month)
                 }
                 lastTodayID = newID
+                holidayPlan = CalendarEngine.holidayPlan(from: referenceDate ?? context.date)
             }
         }
-        .frame(width: Self.width)
+        .frame(width: isSnapshot ? Self.width : nil)
+        .frame(maxWidth: isSnapshot ? nil : .infinity)
         .frame(maxHeight: isSnapshot ? nil : .infinity, alignment: .top)
         .fixedSize(horizontal: false, vertical: isSnapshot)
         .background(DS.Palette.background, in: RoundedRectangle(cornerRadius: DS.Radius.xl))
         .appLanguageEnvironment()
         .overlay { RoundedRectangle(cornerRadius: DS.Radius.xl).strokeBorder(DS.Palette.border) }
-        .onAppear { reload() }
+        .onAppear {
+            reload()
+            if !isSnapshot { model.calendarAgenda.refreshAuthorization() }
+        }
+        .task(id: agendaQuery) {
+            guard !isSnapshot else { return }
+            await model.calendarAgenda.load(agendaQuery)
+        }
+        .onDisappear { if !isSnapshot { model.calendarAgenda.clear() } }
+        .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
+            if !isSnapshot { model.calendarAgenda.refreshAuthorization() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            if !isSnapshot { model.calendarAgenda.refreshAuthorization() }
+        }
         .onChange(of: month) { _, newMonth in
             yearInput = String(newMonth.year)
             reload()
         }
         .onChange(of: selected?.id) { _, _ in refreshAlmanac() }
         .onChange(of: model.settings.calendarFirstWeekday) { _, _ in reload() }
-        .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in reload() }
+        .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+            reload()
+            holidayPlan = CalendarEngine.holidayPlan(from: referenceDate ?? Date())
+        }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
             guard referenceDate == nil, let today = CalendarEngine.today() else { return }
             if selected?.id == lastTodayID { goToToday(today) }
             lastTodayID = today.id
         }
+    }
+
+    private var agendaQuery: CalendarAgendaQuery {
+        let calendar = CalendarEngine.gregorian()
+        let start = calendar.startOfDay(for: days.first?.date ?? referenceDate ?? Date())
+        let last = calendar.startOfDay(for: days.last?.date ?? start)
+        let end = calendar.date(byAdding: .day, value: 1, to: last) ?? last
+        let settings = model.settings
+        return .init(start: start, end: end,
+                     events: settings.calendarPreferences.showEvents, reminders: settings.calendarPreferences.showReminders,
+                     eventIDs: settings.calendarEventSourceIDs, reminderIDs: settings.calendarReminderSourceIDs,
+                     revision: model.calendarAgenda.revision)
     }
 
     private func header(today: CalendarDay?) -> some View {
@@ -139,7 +183,9 @@ struct CalendarPopover: View {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 5) {
                 ForEach(days) { day in
                     CalendarDayCell(day: day, features: features, isCurrentMonth: day.month == month.month,
-                                    isToday: day.id == today?.id, isSelected: day.id == selected?.id) {
+                                    isToday: day.id == today?.id, isSelected: day.id == selected?.id,
+                                    preferences: model.settings.calendarPreferences,
+                                    hasAgenda: model.calendarAgenda.items.contains { $0.occurs(on: day.date, calendar: CalendarEngine.gregorian()) }) {
                         selected = day
                         if day.month != month.month, CalendarMonth.years.contains(day.year) {
                             month = CalendarMonth(year: day.year, month: day.month)
@@ -218,6 +264,8 @@ private struct CalendarDayCell: View {
     let isCurrentMonth: Bool
     let isToday: Bool
     let isSelected: Bool
+    let preferences: CalendarPreferences
+    let hasAgenda: Bool
     let action: () -> Void
 
     private var holiday: CalendarDay.Holiday? { features.contains(.holidays) ? day.holiday : nil }
@@ -229,7 +277,7 @@ private struct CalendarDayCell: View {
             VStack(spacing: 3) {
                 Text(String(day.day)).font(.system(size: 21, weight: isToday ? .semibold : .regular, design: .rounded))
                 Text(tr(day.subtitle(features: features)))
-                    .font(.system(size: 10))
+                    .font(.system(size: preferences.largeLunarText ? 13 : 10, weight: preferences.strongerLunarText ? .semibold : .regular))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                 if features.contains(.ganzhi) {
@@ -238,7 +286,7 @@ private struct CalendarDayCell: View {
             }
             .foregroundStyle(foreground)
             .frame(maxWidth: .infinity)
-            .frame(height: 66)
+            .frame(height: preferences.largeLunarText ? 78 : 70)
             .background(isSelected ? Color.accentColor : holiday != nil ? foreground.opacity(0.05) : .clear,
                         in: RoundedRectangle(cornerRadius: 10))
             .overlay {
@@ -256,12 +304,18 @@ private struct CalendarDayCell: View {
                     Circle().fill(isSelected ? .white : Color.accentColor).frame(width: 5, height: 5).padding(5)
                 }
             }
+            .overlay(alignment: .bottom) {
+                if hasAgenda {
+                    Circle().fill(isSelected ? .white : Color.accentColor).frame(width: 4, height: 4).padding(.bottom, 3)
+                }
+            }
             .opacity(isCurrentMonth ? 1 : 0.35)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel([day.id, features.contains(.lunar) ? day.lunarSummary : "", tr(day.subtitle(features: features)),
-                             holiday.map { tr($0.isWork ? "调休上班" : "放假") } ?? "", isToday ? tr("今天") : ""]
+                             holiday.map { tr($0.isWork ? "调休上班" : "放假") } ?? "", isToday ? tr("今天") : "",
+                             hasAgenda ? tr("有日程或提醒") : ""]
             .filter { !$0.isEmpty }.joined(separator: ", "))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

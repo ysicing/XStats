@@ -12,6 +12,7 @@ import Updates
 public final class AppModel {
     public let settings: AppSettings
     let rest: RestController
+    let calendarAgenda = CalendarAgendaController()
     public let aiUsage: AIUsageController
     @ObservationIgnored let sub2apiDrafts = Dictionary(uniqueKeysWithValues:
         AIProviderID.allCases.map { ($0, Sub2APIDraft()) })
@@ -62,6 +63,8 @@ public final class AppModel {
     public private(set) var launchAtLoginError: String?
 
     @ObservationIgnored var openSettings: () -> Void = {}
+    @ObservationIgnored var openCalendar: () -> Void = {}
+    @ObservationIgnored var restoreCalendarEntry: () -> Void = {}
     @ObservationIgnored var openAIUsageSettings: () -> Void = {}
     @ObservationIgnored var openMainWindow: (PanelTab?) -> Void = { _ in }
     @ObservationIgnored var openEgressWindow: () -> Void = {}

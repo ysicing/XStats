@@ -1564,3 +1564,48 @@ Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依�
 “{}”只剩 {} 可用。请检查不再需要的文件。	En «{}» solo quedan {} disponibles. Revisa los archivos que ya no necesitas.
 安装标识	Identificador de instalación
 复制安装标识	Copiar identificador de instalación
+日期与星期	Fecha y día
+显示方式	Estilo de visualización
+放大农历文字	Texto lunar más grande
+增强农历对比度	Mayor contraste lunar
+假期倒计时与请假建议	Cuenta atrás y sugerencias de permiso
+预览	Vista previa
+悬停展开日历	Abrir calendario al pasar el cursor
+打开日历	Abrir calendario
+重新显示入口	Volver a mostrar el icono
+日程与提醒事项	Eventos y recordatorios
+显示系统日程	Mostrar eventos del calendario
+显示到期提醒	Mostrar recordatorios con fecha
+仅在本机展示日程与到期提醒，不修改内容。	Muestra eventos y recordatorios localmente sin modificarlos.
+选择列表	Elegir listas
+暂无可用列表	No hay listas disponibles
+需要授权后才能显示	Se necesita permiso para mostrar el contenido
+访问未获允许，请在系统设置中开启	Acceso no permitido. Actívalo en Ajustes del Sistema.
+允许访问	Permitir acceso
+打开系统设置	Abrir Ajustes del Sistema
+读取失败，请重试	No se pudo cargar. Inténtalo de nuevo.
+节假日数据	Datos de festivos
+最新数据年份：{}	Último año de datos: {}
+假日数据随应用更新；未收录年份不推断调休。	Los datos se actualizan con la app. No se deducen días laborables compensatorios para años sin datos.
+查看更新	Ver actualizaciones
+日程尚未授权	Acceso al calendario no concedido
+提醒事项尚未授权	Acceso a recordatorios no concedido
+无标题	Sin título
+全天	Todo el día
+更多内容请在系统日历或提醒事项中查看	Consulta más en Calendario o Recordatorios.
+尚未选择任何列表	Ninguna lista seleccionada
+这一天没有日程或到期提醒	No hay eventos ni recordatorios para este día
+假期中	De vacaciones
+还有 {} 天	Dentro de {} días
+{} · 连休 {} 天	{} · {} días libres
+请假建议	Ideas de permiso
+请 {} 天，连休 {} 天	Pide {} días para descansar {}
+请假日期：{}	Fechas de permiso: {}
+按双休及已公布的中国调休安排计算，实际请假以单位批准为准。	Se basa en fines de semana de dos días y días compensatorios publicados en China. Los permisos requieren aprobación de la empresa.
+有日程或提醒	Tiene eventos o recordatorios
+日期与农历	Fecha y fecha lunar
+日期格式	Formato de fecha
+年：yyyy 或 yy；月：MM 或 M；日：dd 或 d。分隔符可自行填写。	Año: yyyy o yy; mes: MM o M; día: dd o d. Puedes elegir los separadores.
+例如 yyyy-MM-dd、M月d日、dd/MM；年份可省略。	Ejemplos: yyyy-MM-dd, M/d, dd/MM. El año es opcional.
+请包含月份 M 和日期 d；年份使用 y。格式无效时暂以月/日显示。	Incluye M para el mes y d para el día; usa y para el año. Los formatos inválidos se muestran temporalmente como mes/día.
+按住 ⌘ 拖动菜单栏图标可调整位置。	Mantén pulsada ⌘ y arrastra el icono de la barra de menús para moverlo.

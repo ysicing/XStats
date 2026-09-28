@@ -124,5 +124,50 @@ extension Translations {
 子时显示当日早子时；23 点起的晚子时按次日干支计算	Zi shows 00:00–00:59; late Zi from 23:00 uses the next day's cycle
 吉	Lucky
 凶	Unlucky
+日期与星期	Date and weekday
+显示方式	Display style
+日期与农历	Date and lunar date
+日期格式	Date format
+年：yyyy 或 yy；月：MM 或 M；日：dd 或 d。分隔符可自行填写。	Year: yyyy or yy; month: MM or M; day: dd or d. Choose your own separators.
+例如 yyyy-MM-dd、M月d日、dd/MM；年份可省略。	Examples: yyyy-MM-dd, M/d, dd/MM. The year is optional.
+请包含月份 M 和日期 d；年份使用 y。格式无效时暂以月/日显示。	Include M for month and d for day; use y for year. Invalid formats temporarily display month/day.
+按住 ⌘ 拖动菜单栏图标可调整位置。	Hold ⌘ while dragging the menu bar icon to reposition it.
+放大农历文字	Larger lunar text
+增强农历对比度	Stronger lunar contrast
+假期倒计时与请假建议	Holiday countdown and leave ideas
+预览	Preview
+悬停展开日历	Open calendar on hover
+打开日历	Open calendar
+重新显示入口	Show menu bar item again
+日程与提醒事项	Events and reminders
+显示系统日程	Show calendar events
+显示到期提醒	Show due reminders
+仅在本机展示日程与到期提醒，不修改内容。	Displays events and due reminders locally without modifying them.
+选择列表	Choose lists
+暂无可用列表	No lists available
+需要授权后才能显示	Permission is needed to display content
+访问未获允许，请在系统设置中开启	Access is not allowed. Enable it in System Settings.
+允许访问	Allow access
+打开系统设置	Open System Settings
+读取失败，请重试	Could not load. Try again.
+节假日数据	Holiday data
+最新数据年份：{}	Latest data year: {}
+假日数据随应用更新；未收录年份不推断调休。	Holiday data is updated with the app. Makeup workdays are not inferred for uncovered years.
+查看更新	View updates
+日程尚未授权	Calendar access not granted
+提醒事项尚未授权	Reminders access not granted
+无标题	Untitled
+全天	All day
+更多内容请在系统日历或提醒事项中查看	View more in Calendar or Reminders.
+尚未选择任何列表	No lists selected
+这一天没有日程或到期提醒	No events or due reminders on this day
+假期中	Holiday in progress
+还有 {} 天	In {} days
+{} · 连休 {} 天	{} · {} days off
+请假建议	Leave ideas
+请 {} 天，连休 {} 天	Take {} leave days for {} days off
+请假日期：{}	Leave dates: {}
+按双休及已公布的中国调休安排计算，实际请假以单位批准为准。	Based on a two-day weekend and published Chinese makeup workdays. Leave requires your employer’s approval.
+有日程或提醒	Has events or reminders
 """#
 }

@@ -85,7 +85,7 @@ final class StatusPanel: NSPanel {
     func refreshHeight() {
         guard isVisible else { return }
         let frame = targetFrame()
-        guard abs(frame.height - self.frame.height) > 1 else { return }
+        guard frame != self.frame else { return }
         setFrame(frame, display: true)
         invalidateShadow()
     }
@@ -95,7 +95,7 @@ final class StatusPanel: NSPanel {
         guard contentView != nil, abs(overflow) > 1 else { return }
         let height = min(max(frame.height + overflow, minHeight), availableHeight())
         guard abs(height - frame.height) > 1 else { return }
-        setFrame(NSRect(x: frame.minX, y: frame.maxY - height, width: width, height: height), display: true)
+        setFrame(NSRect(x: frame.minX, y: frame.maxY - height, width: frame.width, height: height), display: true)
         invalidateShadow()
     }
 
@@ -132,22 +132,27 @@ final class StatusPanel: NSPanel {
 
     private func targetFrame() -> NSRect {
         let visible = (anchorScreen ?? NSScreen.main)?.visibleFrame ?? .zero
+        let natural = makeMeasuringContent().fittingSize.height
+        return Self.constrainedFrame(anchor: anchor, visible: visible,
+                                     preferredSize: NSSize(width: width, height: max(natural, minHeight)))
+    }
+
+    /// 显示器可用区始终优先于首选尺寸，窄屏和低分辨率下不能让最小高度把面板挤出屏幕。
+    static func constrainedFrame(anchor: NSRect, visible: NSRect, preferredSize: NSSize) -> NSRect {
         let margin = DS.Space.s2
         let top = min(anchor.minY - DS.Size.panelGap, visible.maxY)
-
-        let natural = makeMeasuringContent().fittingSize.height
-        let height = min(max(natural, minHeight), availableHeight())
-
-        var x = anchor.midX - width / 2
-        x = min(max(x, visible.minX + margin), visible.maxX - width - margin)
-        return NSRect(x: x, y: top - height, width: width, height: height)
+        let height = min(preferredSize.height, max(1, top - visible.minY - margin))
+        let fittedWidth = min(preferredSize.width, max(1, visible.width - 2 * margin))
+        var x = anchor.midX - fittedWidth / 2
+        x = min(max(x, visible.minX + margin), visible.maxX - fittedWidth - margin)
+        return NSRect(x: x, y: top - height, width: fittedWidth, height: height)
     }
 
     /// 菜单栏下方到屏幕底边（留一点边距）能放下的最大高度
     private func availableHeight() -> CGFloat {
         let visible = (anchorScreen ?? NSScreen.main)?.visibleFrame ?? .zero
         let top = min(anchor.minY - DS.Size.panelGap, visible.maxY)
-        return max(minHeight, top - visible.minY - DS.Space.s2)
+        return max(1, top - visible.minY - DS.Space.s2)
     }
 
     // MARK: 事件

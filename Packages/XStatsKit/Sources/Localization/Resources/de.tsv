@@ -1564,3 +1564,48 @@ Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依�
 “{}”只剩 {} 可用。请检查不再需要的文件。	Auf „{}“ sind nur noch {} verfügbar. Prüfe Dateien, die du nicht mehr benötigst.
 安装标识	Installationskennung
 复制安装标识	Installationskennung kopieren
+日期与星期	Datum und Wochentag
+显示方式	Anzeigeformat
+放大农历文字	Größere Mondkalenderschrift
+增强农历对比度	Höherer Mondkalenderkontrast
+假期倒计时与请假建议	Feiertags-Countdown und Urlaubstipps
+预览	Vorschau
+悬停展开日历	Kalender bei Mausberührung öffnen
+打开日历	Kalender öffnen
+重新显示入口	Menüleisteneintrag wieder einblenden
+日程与提醒事项	Termine und Erinnerungen
+显示系统日程	Kalendertermine anzeigen
+显示到期提醒	Fällige Erinnerungen anzeigen
+仅在本机展示日程与到期提醒，不修改内容。	Zeigt Termine und fällige Erinnerungen lokal an, ohne sie zu ändern.
+选择列表	Listen auswählen
+暂无可用列表	Keine Listen verfügbar
+需要授权后才能显示	Zum Anzeigen ist eine Berechtigung erforderlich
+访问未获允许，请在系统设置中开启	Zugriff nicht erlaubt. Bitte in den Systemeinstellungen aktivieren.
+允许访问	Zugriff erlauben
+打开系统设置	Systemeinstellungen öffnen
+读取失败，请重试	Laden fehlgeschlagen. Erneut versuchen.
+节假日数据	Feiertagsdaten
+最新数据年份：{}	Aktuellstes Datenjahr: {}
+假日数据随应用更新；未收录年份不推断调休。	Feiertagsdaten werden mit der App aktualisiert. Ausgleichsarbeitstage werden für fehlende Jahre nicht geschätzt.
+查看更新	Updates ansehen
+日程尚未授权	Kalenderzugriff nicht erlaubt
+提醒事项尚未授权	Erinnerungszugriff nicht erlaubt
+无标题	Ohne Titel
+全天	Ganztägig
+更多内容请在系统日历或提醒事项中查看	Weitere Einträge in Kalender oder Erinnerungen ansehen.
+尚未选择任何列表	Keine Listen ausgewählt
+这一天没有日程或到期提醒	Keine Termine oder fälligen Erinnerungen an diesem Tag
+假期中	Feiertage laufen
+还有 {} 天	In {} Tagen
+{} · 连休 {} 天	{} · {} freie Tage
+请假建议	Urlaubstipps
+请 {} 天，连休 {} 天	{} Urlaubstage für {} freie Tage
+请假日期：{}	Urlaubstage: {}
+按双休及已公布的中国调休安排计算，实际请假以单位批准为准。	Berechnet mit zwei freien Wochenendtagen und veröffentlichten chinesischen Ausgleichsarbeitstagen. Urlaub bedarf der Genehmigung des Arbeitgebers.
+有日程或提醒	Termine oder Erinnerungen vorhanden
+日期与农历	Datum und Monddatum
+日期格式	Datumsformat
+年：yyyy 或 yy；月：MM 或 M；日：dd 或 d。分隔符可自行填写。	Jahr: yyyy oder yy; Monat: MM oder M; Tag: dd oder d. Trennzeichen frei wählen.
+例如 yyyy-MM-dd、M月d日、dd/MM；年份可省略。	Beispiele: yyyy-MM-dd, M/d, dd/MM. Das Jahr ist optional.
+请包含月份 M 和日期 d；年份使用 y。格式无效时暂以月/日显示。	M für Monat und d für Tag angeben; y für das Jahr verwenden. Ungültige Formate erscheinen vorübergehend als Monat/Tag.
+按住 ⌘ 拖动菜单栏图标可调整位置。	Zum Verschieben das Menüleistensymbol bei gedrückter ⌘-Taste ziehen.

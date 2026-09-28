@@ -19,6 +19,19 @@ fi
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
+# Hardened Runtime 在缺少日历 entitlement 时会直接拒绝 EventKit 授权，不显示系统弹窗。
+python3 - <<'PY'
+import plistlib
+
+with open("App/XStats.entitlements", "rb") as source:
+    entitlements = plistlib.load(source)
+assert entitlements.get("com.apple.security.personal-information.calendars") is True, "缺少 EventKit 日历访问 entitlement"
+with open("App/Info.plist", "rb") as source:
+    info = plistlib.load(source)
+for key in ("NSCalendarsFullAccessUsageDescription", "NSRemindersFullAccessUsageDescription"):
+    assert info.get(key), f"缺少权限说明：{key}"
+PY
+
 # appcast.py 只读它自己上一级目录的 CHANGELOG.md，没有路径参数。所以把脚本复制到
 # 临时目录、在那里配一份 fixture：测试从此与仓库真实的版本历史无关——归档旧版本、
 # 发布新版本都不会让它失效。

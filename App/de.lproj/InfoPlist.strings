@@ -1,0 +1,4 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+"NSCalendarsFullAccessUsageDescription" = "Zeigt ausgewählte Kalendertermine lokal an, ohne sie zu ändern oder hochzuladen.";
+"NSRemindersFullAccessUsageDescription" = "Zeigt ausgewählte fällige Erinnerungen lokal an, ohne sie zu ändern oder hochzuladen.";

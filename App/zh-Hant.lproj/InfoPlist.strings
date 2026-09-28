@@ -1,0 +1,4 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+"NSCalendarsFullAccessUsageDescription" = "在本機日曆面板顯示您選擇的系統行程，不修改或上傳行程內容。";
+"NSRemindersFullAccessUsageDescription" = "在本機日曆面板顯示您選擇的到期提醒，不修改或上傳提醒內容。";

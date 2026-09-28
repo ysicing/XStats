@@ -104,6 +104,26 @@ enum CalendarEngine {
         return self.day(year: year, month: month, day: day, timeZone: timeZone)
     }
 
+    /// 菜单栏省略农历年份，但保留月份、初一及闰月标识，避免月初或跨月时产生歧义。
+    static func lunarDateTitle(at date: Date, locale: Locale, timeZone: TimeZone = .autoupdatingCurrent) -> String? {
+        let parts = gregorian(timeZone: timeZone).dateComponents([.year, .month, .day], from: date)
+        guard let year = parts.year, let month = parts.month, let day = parts.day,
+              (1899...2101).contains(year), let solar = try? SolarDay.fromYmd(year, month, day) else { return nil }
+        if locale.language.languageCode?.identifier == "zh" {
+            let lunar = solar.getLunarDay()
+            let title = lunar.lunarMonth.getName() + lunar.getName()
+            return locale.language.script?.identifier == "Hant"
+                ? title.applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? title : title
+        }
+        // 系统为其他语言提供农历月份名称和本地化数字；中文沿用 Tyme 的“初一、廿一”等写法。
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.calendar = Calendar(identifier: .chinese)
+        formatter.timeZone = timeZone
+        formatter.setLocalizedDateFormatFromTemplate("MMMMd")
+        return formatter.string(from: date)
+    }
+
     /// 保留同月的公历选择，并用当前时区重建 Date；不能复用旧时区的绝对时间。
     static func selection(_ previous: CalendarDay?, in month: CalendarMonth,
                           timeZone: TimeZone = .autoupdatingCurrent) -> CalendarDay? {
@@ -157,6 +177,7 @@ enum CalendarEngine {
 
     /// 年份覆盖来自固定版本的数据本身；未收录年份不能把 nil 解读为“无需调休”。
     static func hasHolidayData(year: Int) -> Bool { holidayYears.contains(year) }
+    static var latestHolidayYear: Int? { holidayYears.max() }
     private static let holidayYears: Set<Int> = {
         let data = Array(LegalHoliday.DATA.utf8)
         return Set(stride(from: 0, to: data.count, by: 13).compactMap { index in

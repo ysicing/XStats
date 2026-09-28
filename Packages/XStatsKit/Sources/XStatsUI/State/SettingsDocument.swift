@@ -17,6 +17,7 @@ import WebDAVSync
 public struct SettingsDocument: Codable, Equatable, Sendable {
     public var schema: Int? = 1
     public var calendarEnabled: Bool?
+    public var calendarPreferences: CalendarPreferences?
     public var restEnabled: Bool?
     public var restWorkMinutes: Int?
     public var restBreakMinutes: Int?
@@ -66,6 +67,7 @@ extension AppSettings {
     public func exportDocument() -> SettingsDocument {
         var doc = SettingsDocument()
         doc.calendarEnabled = calendarEnabled
+        doc.calendarPreferences = calendarPreferences
         doc.restEnabled = restEnabled
         doc.restWorkMinutes = restWorkMinutes
         doc.restBreakMinutes = restBreakMinutes
@@ -120,6 +122,7 @@ extension AppSettings {
         }
 
         assign(\.calendarEnabled, doc.calendarEnabled)
+        assign(\.calendarPreferences, doc.calendarPreferences)
         assign(\.restEnabled, doc.restEnabled)
         assign(\.restWorkMinutes, option(doc.restWorkMinutes, in: Self.restWorkOptions))
         assign(\.restBreakMinutes, option(doc.restBreakMinutes, in: Self.restBreakOptions))

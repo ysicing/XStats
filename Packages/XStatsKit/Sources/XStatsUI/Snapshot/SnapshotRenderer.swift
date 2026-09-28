@@ -129,6 +129,7 @@ enum SnapshotRenderer {
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = AppSettings(defaults: defaults)
         settings.calendarEnabled = true
+        settings.language = L10n.language
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [])
         guard let september = CalendarEngine.day(year: 2026, month: 9, day: 23)?.date,
               let summer = CalendarEngine.day(year: 2024, month: 6, day: 11)?.date else { return }
@@ -138,6 +139,22 @@ enum SnapshotRenderer {
             settings.calendarFeatures = CalendarFeature.defaults
             write(CalendarPopover(referenceDate: september), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("calendar-\(suffix).png"))
+            settings.calendarPreferences.largeLunarText = true
+            settings.calendarPreferences.strongerLunarText = true
+            settings.calendarPreferences.showEvents = true
+            settings.calendarPreferences.showReminders = true
+            write(CalendarPopover(referenceDate: september), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("calendar-agenda-\(suffix).png"))
+            write(CalendarOptionsPopover(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("calendar-options-\(suffix).png"))
+            settings.calendarPreferences.display = .custom
+            settings.calendarPreferences.dateFormat = "yyyy-MM-dd"
+            write(CalendarOptionsPopover(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("calendar-custom-\(suffix).png"))
+            settings.calendarPreferences.display = .dateLunar
+            write(CalendarOptionsPopover(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("calendar-lunar-\(suffix).png"))
+            settings.calendarPreferences = CalendarPreferences()
             write(CalendarPopover(referenceDate: september, showsDayDetails: true), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("calendar-almanac-\(suffix).png"))
             settings.calendarFeatures = Set(CalendarFeature.allCases)
