@@ -855,7 +855,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 此设备没有可调节的风扇	Dieser Mac hat keine regelbaren Lüfter
 每个应用占整机 CPU 的比例：{} 个核心全部跑满为 100%，与顶部的总占用是同一把尺子。鼠标悬停在数值上可以看按单核计的占用（活动监视器的算法）	Anteil jeder App an der gesamten CPU: Alle {} Kerne voll ausgelastet entsprechen 100 %, wie bei der Gesamtauslastung oben. Beim Bewegen des Zeigers über den Wert erscheint die Auslastung je Kern (wie in der Aktivitätsanzeige)
 每个指标一个图标，点击弹出该项详情	Ein Symbol je Kennzahl; ein Klick öffnet die Details
-主要指标每分钟写入本机数据库并保留 7 天，屏幕使用时间保留 90 天	Wichtige Messwerte werden jede Minute lokal gespeichert und 7 Tage aufbewahrt, die Bildschirmzeit 90 Tage.
+主要指标每分钟写入本机数据库并保留 7 天	Wichtige Messwerte werden jede Minute lokal gespeichert und 7 Tage aufbewahrt.
 每核 {}	{} je Kern
 每根柱子一个核心，按核心类型着色	Ein Balken je Kern, nach Kerntyp gefärbt
 每点 {}	{} je Punkt
@@ -1501,15 +1501,7 @@ VPN 不允许绕开它直连，TCP 建连会被本机代理提前应答，测不
 手动开始工作，专注与休息自动交替；每 4 轮进入长休。	Arbeit manuell beginnen. Fokus und Pausen wechseln automatisch; nach vier Fokusphasen folgt eine lange Pause.
 起身活动一下	Aufstehen und bewegen
 走动几步，看看远处，让身体和眼睛都休息	Gehen Sie ein paar Schritte und blicken Sie in die Ferne, um Körper und Augen zu entspannen
-屏幕使用时间	Bildschirmzeit
-今天 {}	Heute {}
-有记录的日期日均 {}	Tagesdurchschnitt an erfassten Tagen: {}
-浅色为根据系统电源日志估算，可能包含锁屏时间	Hellere Balken sind Schätzwerte aus dem Systemstromprotokoll und können Sperrzeiten enthalten
-今日屏幕使用时间	Heutige Bildschirmzeit
-XStats 运行时统计屏幕亮着且未锁定的时间	Zählt bei laufendem XStats die Zeit mit eingeschaltetem und entsperrtem Bildschirm
-查看今天屏幕亮着且未锁定的时间	Zeigt die heutige Zeit mit eingeschaltetem und entsperrtem Bildschirm
-定期更新	Wird regelmäßig aktualisiert
-同时清除指标和屏幕使用时间	Messwerte und Bildschirmzeit zusammen löschen
+清除本机记录的指标历史	Lokal gespeicherte Messwertverläufe löschen
 XStats 反馈 · {}	XStats-Feedback · {}
 应用版本：{}	App-Version: {}
 系统版本：{}	Systemversion: {}

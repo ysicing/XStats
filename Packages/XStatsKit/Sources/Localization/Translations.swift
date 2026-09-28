@@ -980,7 +980,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 此设备没有可调节的风扇	This Mac has no adjustable fans
 每个应用占整机 CPU 的比例：{} 个核心全部跑满为 100%，与顶部的总占用是同一把尺子。鼠标悬停在数值上可以看按单核计的占用（活动监视器的算法）	Each app's share of total CPU: all {} cores fully busy is 100%, the same scale as the total above. Hover a value to see it per core (the Activity Monitor way)
 每个指标一个图标，点击弹出该项详情	One icon per metric; click for its details
-主要指标每分钟写入本机数据库并保留 7 天，屏幕使用时间保留 90 天	Key metrics are written to a local database every minute and kept for 7 days; screen time is kept for 90 days.
+主要指标每分钟写入本机数据库并保留 7 天	Key metrics are written to a local database every minute and kept for 7 days.
 每核 {}	{} per core
 每根柱子一个核心，按核心类型着色	One bar per core, colored by core type
 每点 {}	{} per point
@@ -1367,15 +1367,7 @@ Apple 智能本机模型当前不可用。	The on-device Apple Intelligence mode
 ，充电中	, charging
 ，已从程序坞移除	, removed from the Dock
 ：{}	: {}
-屏幕使用时间	Screen Time
-今天 {}	Today {}
-有记录的日期日均 {}	Daily average on recorded days: {}
-浅色为根据系统电源日志估算，可能包含锁屏时间	Lighter bars are estimated from the system power log and may include locked time
-今日屏幕使用时间	Today's Screen Time
-XStats 运行时统计屏幕亮着且未锁定的时间	Counted while XStats runs: time the screen is on and unlocked
-查看今天屏幕亮着且未锁定的时间	See how long the screen has been on and unlocked today
-定期更新	Updates periodically
-同时清除指标和屏幕使用时间	Clear metrics and screen time together
+清除本机记录的指标历史	Clear locally recorded metric history.
 XStats 反馈 · {}	XStats Feedback · {}
 应用版本：{}	App version: {}
 系统版本：{}	System version: {}

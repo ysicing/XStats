@@ -216,7 +216,6 @@ struct XStatsWidgets: WidgetBundle {
         TomorrowWorkWidget()
         AIQuotaWidget()
         TodayTokensWidget()
-        ScreenTimeWidget()
         IPPurityWidget()
         PublicIPWidget()
     }

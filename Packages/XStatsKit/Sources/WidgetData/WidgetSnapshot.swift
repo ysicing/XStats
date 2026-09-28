@@ -17,17 +17,6 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         }
     }
 
-    /// 当天的屏幕使用时间；主应用按 15 分钟取整写入，避免每分钟重载 Widget
-    public struct ScreenTimeUsage: Codable, Equatable, Sendable {
-        public let day: Date
-        public let seconds: Int
-
-        public init(day: Date, seconds: Int) {
-            self.day = day
-            self.seconds = seconds
-        }
-    }
-
     public struct CalendarSummary: Codable, Equatable, Sendable {
         public enum Schedule: String, Codable, Sendable {
             case work, weekend, holiday, makeupWork, makeupDayOff, unknown
@@ -183,17 +172,13 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public var monthSummaries: [MonthSummary]?
     /// 写入日历摘要的主应用构建号；新版可能内置新的放假数据，构建号不同时不复用缓存。
     public var calendarDataVersion: String?
-    /// 关闭历史记录时为 nil；可选以兼容旧版摘要
-    public var screenTime: ScreenTimeUsage?
-
     public init(aiEnabled: Bool = false, quotas: [Quota] = [], dailyTokens: [DailyTokenUsage]? = nil,
                 localUsageEnabled: Bool? = nil,
                 publicIPEnabled: Bool = false,
                 addresses: [Address] = [], language: String = "system",
                 calendarFirstWeekday: Int = 2, showsLunar: Bool = true,
                 calendarDays: [CalendarSummary]? = nil, monthSummaries: [MonthSummary]? = nil,
-                showsSeasonal: Bool? = nil, calendarDataVersion: String? = nil,
-                screenTime: ScreenTimeUsage? = nil) {
+                showsSeasonal: Bool? = nil, calendarDataVersion: String? = nil) {
         self.aiEnabled = aiEnabled
         self.quotas = quotas
         self.dailyTokens = dailyTokens
@@ -207,13 +192,6 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         self.calendarDays = calendarDays
         self.monthSummaries = monthSummaries
         self.calendarDataVersion = calendarDataVersion
-        self.screenTime = screenTime
-    }
-
-    /// 与当日 Token 相同：旧日的记录归零，不把昨天的时长当作今天
-    public func todayScreenTime(at date: Date = .now, calendar: Calendar = .autoupdatingCurrent) -> Int? {
-        guard let screenTime else { return nil }
-        return calendar.isDate(screenTime.day, inSameDayAs: date) ? screenTime.seconds : 0
     }
 
     public var showsLocalUsage: Bool { aiEnabled && localUsageEnabled != false }
@@ -246,7 +224,6 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         var kinds: [String] = []
         if quotaChanged || displayed(quotas) != displayed(previous.quotas) { kinds.append(WidgetKind.aiQuota) }
         if localUsageChanged || dailyTokens != previous.dailyTokens { kinds.append(WidgetKind.todayTokens) }
-        if relocalized || screenTime != previous.screenTime { kinds.append(WidgetKind.screenTime) }
         if relocalized || publicIPEnabled != previous.publicIPEnabled
             || visibleAddresses != previous.visibleAddresses {
             kinds += [WidgetKind.ipPurity, WidgetKind.publicIP]
@@ -310,7 +287,6 @@ public enum WidgetKind {
     public static let calendar = "work.12306.xstats.widget.calendar"
     public static let calendarMonth = "work.12306.xstats.widget.calendarMonth"
     public static let tomorrowWork = "work.12306.xstats.widget.tomorrowWork"
-    public static let screenTime = "work.12306.xstats.widget.screenTime"
 }
 
 public struct WidgetSnapshotStore {

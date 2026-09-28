@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Localization
-import Metrics
 import SwiftUI
 import WidgetData
 import WidgetKit
@@ -25,8 +24,7 @@ struct SharedDataProvider: TimelineProvider {
             addresses: [.init(family: "v4", ip: "203.0.113.8", countryCode: "CN", city: "上海",
                               organization: "Example Network", purityScore: 85, purityGrade: "A",
                               region: "上海", cityEnglish: "Shanghai", regionEnglish: "Shanghai",
-                              asn: "AS4134", isNative: true, ipType: "Residential IP", riskFlags: [])],
-            screenTime: .init(day: now, seconds: 4 * 3600 + 30 * 60)))
+                              asn: "AS4134", isNative: true, ipType: "Residential IP", riskFlags: [])]))
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SharedDataEntry) -> Void) {
@@ -201,43 +199,6 @@ struct TodayTokensWidget: Widget {
         }
         .configurationDisplayName(tr("今日消耗的 Token"))
         .description(tr("查看今天 Codex 和 Claude 的 Token 用量"))
-        .supportedFamilies([.systemSmall])
-    }
-}
-
-private struct ScreenTimeWidgetView: View {
-    let entry: SharedDataEntry
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            WidgetHeading(title: tr("今日屏幕使用时间"), symbol: "display")
-            if let seconds = entry.snapshot.todayScreenTime(at: entry.date) {
-                Text(Format.duration(minutes: seconds / 60))
-                    .font(.system(size: 28, weight: .semibold, design: .rounded))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.6)
-                Spacer(minLength: 0)
-                // 借用主应用已有的 Widget 定期刷新，不额外启动屏幕时间计时器。
-                Text(tr("定期更新"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                WidgetEmptyState(enabled: false)
-            }
-        }
-        .padding()
-        .containerBackground(.background, for: .widget)
-        .environment(\.locale, L10n.locale)
-    }
-}
-
-struct ScreenTimeWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: WidgetKind.screenTime, provider: SharedDataProvider()) { entry in
-            ScreenTimeWidgetView(entry: entry)
-        }
-        .configurationDisplayName(tr("今日屏幕使用时间"))
-        .description(tr("查看今天屏幕亮着且未锁定的时间"))
         .supportedFamilies([.systemSmall])
     }
 }

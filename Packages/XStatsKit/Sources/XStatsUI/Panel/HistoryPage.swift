@@ -7,7 +7,6 @@ struct HistoryPage: View {
     @Environment(AppModel.self) private var model
     @State private var hoverDate: Date?
     @State private var confirmingClear = false
-    @State private var displayNow = Date()
 
     var body: some View {
         @Bindable var settings = model.settings
@@ -34,8 +33,6 @@ struct HistoryPage: View {
                     Button(tr("开启")) { settings.historyEnabled = true }.buttonStyle(DSButtonStyle(kind: .primary))
                 }
             }
-
-            ScreenTimeCard(tracker: model.screenTime, now: displayNow)
 
             if points.isEmpty {
                 Card {
@@ -78,33 +75,29 @@ struct HistoryPage: View {
 
             SettingsGroup(caption: tr("历史记录")) {
                 GroupRow(showsDivider: false) {
-                    SettingRow(title: tr("记录历史数据"), subtitle: tr("主要指标每分钟写入本机数据库并保留 7 天，屏幕使用时间保留 90 天")) {
+                    SettingRow(title: tr("记录历史数据"), subtitle: tr("主要指标每分钟写入本机数据库并保留 7 天")) {
                         DSToggle(isOn: $settings.historyEnabled, label: tr("记录历史数据"))
                     }
                 }
                 GroupRow {
-                    SettingRow(title: tr("清除历史"), subtitle: tr("同时清除指标和屏幕使用时间")) {
+                    SettingRow(title: tr("清除历史"), subtitle: tr("清除本机记录的指标历史")) {
                         Button(tr("清除…")) { confirmingClear = true }
                             .buttonStyle(DSButtonStyle(kind: .secondary))
-                            .disabled(history.recordCount == 0 && !model.screenTime.hasHistory)
+                            .disabled(history.recordCount == 0)
                     }
                 }
             }
         }
         .task {
             // 页面打开期间每分钟补上新记录的一点
-            displayNow = Date()
             history.load()
-            model.screenTime.loadRecent()
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(60)) } catch { break }
-                displayNow = Date()
                 if hoverDate == nil { history.load() }
-                model.screenTime.loadRecent()
             }
         }
         .confirmationDialog(tr("清除全部历史记录？"), isPresented: $confirmingClear, titleVisibility: .visible) {
-            Button(tr("清除"), role: .destructive) { history.clear(screenTime: model.screenTime) }
+            Button(tr("清除"), role: .destructive) { history.clear() }
             Button(tr("取消"), role: .cancel) {}
         } message: {
             Text(tr("已记录的数据会从本机删除，无法恢复。"))
@@ -118,70 +111,6 @@ struct HistoryPage: View {
     private func criticalNote(_ points: [HistoryPoint]) -> String? {
         let critical = points.filter { ($0.pressure ?? 0) >= MemoryPressure.critical.rawValue }.count
         return critical > 0 ? tr("内存压力严重的时段：\(critical) 个（图上红色标记）") : nil
-    }
-}
-
-/// 最近 7 天的屏幕使用时间：今天的数值实时更新，柱高按 7 天内最长的一天缩放
-private struct ScreenTimeCard: View {
-    let tracker: ScreenTimeTracker
-    let now: Date
-
-    private var days: [(day: Date, seconds: TimeInterval, estimated: Bool)] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: now)
-        let recorded = Dictionary(tracker.recentDays.map { ($0.day, $0) }, uniquingKeysWith: { $1 })
-        return (0..<7).reversed().compactMap { offset in
-            guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
-            // 今天用实时值，其余日期用库里的记录
-            let seconds = offset == 0 ? tracker.currentToday(at: now) : recorded[day]?.seconds ?? 0
-            return (day, seconds, recorded[day]?.estimated ?? false)
-        }
-    }
-
-    var body: some View {
-        let days = self.days
-        let longest = max(days.map(\.seconds).max() ?? 0, 60)
-        let recordedDays = days.filter { $0.seconds > 0 }
-        let average = recordedDays.isEmpty ? 0 : recordedDays.map(\.seconds).reduce(0, +) / Double(recordedDays.count)
-        Card {
-            CardHeader(icon: "display", title: tr("屏幕使用时间")) {
-                Text(tr("今天 \(Self.text(tracker.currentToday(at: now)))"))
-                    .dsFont(.xs, weight: .medium)
-                    .foregroundStyle(DS.Palette.textPrimary)
-                    .monospacedDigit()
-            }
-            HStack(alignment: .bottom, spacing: DS.Space.s2) {
-                ForEach(days, id: \.day) { day in
-                    VStack(spacing: DS.Space.s1) {
-                        RoundedRectangle(cornerRadius: DS.Space.s1)
-                            .fill(day.estimated ? DS.Palette.primarySoft : DS.Palette.primary)
-                            .frame(height: max(2, DS.Size.chartHeight * 2 * day.seconds / longest))
-                        Text(day.day.formatted(.dateTime.weekday(.abbreviated).locale(L10n.locale)))
-                            .dsFont(.xs)
-                            .foregroundStyle(DS.Palette.textTertiary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .help(day.day.formatted(.dateTime.month().day().locale(L10n.locale)) + " · " + Self.text(day.seconds))
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(day.day.formatted(.dateTime.month().day().weekday().locale(L10n.locale)))
-                    .accessibilityValue(Self.text(day.seconds))
-                }
-            }
-            .frame(height: DS.Size.chartHeight * 2 + DS.Space.s6, alignment: .bottom)
-            Text(recordedDays.isEmpty ? tr("XStats 运行时统计屏幕亮着且未锁定的时间")
-                                      : tr("有记录的日期日均 \(Self.text(average))"))
-                .dsFont(.xs)
-                .foregroundStyle(DS.Palette.textTertiary)
-            if days.contains(where: \.estimated) {
-                Text(tr("浅色为根据系统电源日志估算，可能包含锁屏时间"))
-                    .dsFont(.xs)
-                    .foregroundStyle(DS.Palette.textTertiary)
-            }
-        }
-    }
-
-    static func text(_ seconds: TimeInterval) -> String {
-        Format.duration(minutes: Int(seconds / 60))
     }
 }
 
