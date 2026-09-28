@@ -4,9 +4,9 @@
 
 # XStats
 
-macOS 向けのオープンソースのメニューバー監視・メンテナンスアプリです。
+**無料・オープンソースの macOS メニューバー用システムモニター。** CPU、メモリ、ネットワーク、温度をひと目で確認し、そのままクリーンアップ、ファン制御、スリープ防止もできます。
 
-[![Release](https://img.shields.io/badge/version-0.12.1-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/version-0.13.0-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
@@ -15,28 +15,9 @@ macOS 向けのオープンソースのメニューバー監視・メンテナ�
 
 [简体中文](README.md) · [English](README.en.md) · **日本語** · [한국어](README.ko.md)
 
+<img src="Assets/readme/menubar-dark.png" width="626" alt="XStats のメニューバー表示">
+
 </div>
-
-XStats は CPU、GPU、メモリ、ディスク、ネットワーク、バッテリー、温度、ファンの状態をメニューバーに表示します。項目を開くと履歴や詳細を確認でき、ファン制御、スリープ防止、キャッシュ削除、アプリのアンインストールも行えます。
-
-<p align="center">
-  <img src="Assets/readme/overview-dark.png" width="49%" alt="ダークモードの XStats ダッシュボード">
-  <img src="Assets/readme/overview-light.png" width="49%" alt="ライトモードの XStats ダッシュボード">
-</p>
-
-## 主な機能
-
-- **システム監視**：メニューバーの項目と表示形式を選び、ポップオーバーやメイン画面で推移、プロセス、ハードウェア情報を確認できます。
-- **システムツール**：ファン制御、スリープ防止、キャッシュとプロジェクト生成物の削除、アプリの削除、起動項目の管理。削除前には内容を確認できます。
-- **ネットワークツール**：接続、DNS、公開 IP を確認し、必要に応じて IP 評価や疎通を調べます。
-- **任意の機能**：独立したメニューバーカレンダー、複数画面の目の休憩オーバーレイと Mini HUD を備えたローカルのポモドーロタイマー、Codex / Claude Code のローカルセッションの Token 統計とサブスクリプション利用枠の照会。
-- **デスクトップウィジェット**：システム概要、ポモドーロタイマー、AI 利用枠、祝祭日・暦注カレンダー、月間カレンダー、明日の勤務予定、IP の信頼度、公開 IP。AI・IP・カレンダーのデータはメインアプリのローカルキャッシュから読み取ります。
-
-## インストール
-
-[GitHub Releases](https://github.com/ysicing/xstats/releases) からダウンロードしてください。**Apple Silicon Mac と macOS 14 以降**が必要です。[ソースからのビルド](DEVELOPMENT.md)も可能です。
-
-Homebrew からインストールする場合：
 
 ```bash
 brew tap ysicing/tap
@@ -44,7 +25,47 @@ brew trust ysicing/tap
 brew install --cask xstats
 ```
 
-画面は簡体字・繁体字中国語、英語、日本語、韓国語、ドイツ語、スペイン語、フランス語、アラビア語に対応します。更新が見つかっても、インストールするかどうかはユーザーが選べます。
+## XStats を選ぶ理由
+
+- **ひとつで何役も**：システム監視、ファン制御、スリープ防止、キャッシュのクリーンアップ、アプリのアンインストール、回線速度テスト、IP チェックをメニューバーからまとめて使えます。
+- **ネイティブ・オープンソース・無料**：Swift と SwiftUI で開発。ソースは AGPL-3.0 で公開され、アカウントは不要です。
+- **実行前に確認**：クリーンアップやアンインストールは対象を一覧表示し、確認してから実行します。先にゴミ箱へ移す設定もできます。
+- **表示は自由に**：メニューバーの項目、並び順、表示スタイルを選べ、使わないモジュールはまるごとオフにできます。
+- **9 つの表示言語**：简体中文、繁體中文、English、日本語、한국어、Deutsch、Español、Français、العربية。
+
+<p align="center">
+  <img src="Assets/readme/overview-dark.png" width="49%" alt="XStats ダッシュボード（ダーク）">
+  <img src="Assets/readme/overview-light.png" width="49%" alt="XStats ダッシュボード（ライト）">
+</p>
+
+## 主な機能
+
+**システム監視**：CPU、GPU、メモリ、ディスク、ネットワーク、バッテリー、温度、ファンから表示する項目を選べます。項目を開くと履歴、使用量の多いアプリ、ハードウェアの詳細を確認できます。
+
+<p align="center">
+  <img src="Assets/readme/popover-cpu-light.png" width="24%" alt="CPU の詳細">
+  <img src="Assets/readme/popover-memory-dark.png" width="24%" alt="メモリの詳細">
+  <img src="Assets/readme/popover-disk-light.png" width="24%" alt="ディスクの詳細">
+  <img src="Assets/readme/ip-purity-light.png" width="24%" alt="IP クリーン度">
+</p>
+
+**システムツール**：ファン制御、スリープ防止（蓋を閉じた状態にも対応）、アプリのアンインストール、ログイン項目の管理。キャッシュとプロジェクト成果物のクリーンアップは、設定でオンにすると使えます。
+
+**ネットワークツール**：接続、DNS、公開 IP を確認。必要なときに回線速度テスト、IP クリーン度と世界各地への接続性をチェックできます。
+
+**オプションモジュール**（初期状態はオフ）：
+
+- メニューバーカレンダー：旧暦、中国の祝日と振替出勤日、暦注に加え、カレンダーの予定とリマインダーも表示します。
+- ポモドーロと目の休憩：すべてのディスプレイに休憩画面を表示し、いつでもスキップ、一時停止、ミニ HUD への縮小ができます。
+- AI の使用量と利用枠：Codex / Claude Code のローカルのトークン使用量とサブスクリプション利用枠を確認します。
+
+**デスクトップウィジェット**：システム概要、ポモドーロ、AI 利用枠、カレンダーと月表示、「明日は出勤？」、IP クリーン度、公開 IP。
+
+## インストール
+
+**Apple Silicon Mac と macOS 14 以降**が必要です。上の Homebrew コマンドでのインストールをおすすめします。更新は `brew upgrade --cask xstats` で行えます。
+
+[GitHub Releases](https://github.com/ysicing/xstats/releases) から DMG をダウンロードするか、[ソースからビルド](DEVELOPMENT.md)することもできます。アプリ自身がアップデートを確認し、インストールするかどうかはユーザーが決められます。
 
 ## データとプライバシー
 
