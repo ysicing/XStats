@@ -4,6 +4,7 @@
 // See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
 
 import AppKit
+import Cleaner
 import Localization
 import Metrics
 import SwiftUI
@@ -36,6 +37,7 @@ public struct MainWindowView: View {
         .background(DS.Palette.background)
         // 需要等待的任务进行中，整个窗口压暗并显示加载框
         .loadingHUD(isSnapshot ? nil : busyMessage, progress: isSnapshot ? nil : busyProgress,
+                    cleanerStage: isSnapshot ? nil : busyCleanerStage,
                     onCancel: isSnapshot ? nil : busyCancel)
         // 内容延伸到透明标题栏下方，由顶栏高度留出红绿灯按钮的位置
         .ignoresSafeArea()
@@ -57,19 +59,24 @@ public struct MainWindowView: View {
 
     /// 需要等待、期间不宜继续操作的任务
     private var busyMessage: String? {
-        if model.cleaner.phase == .cleaning {
-            if model.cleaner.isCancelling { return tr("正在取消…") }
-            return model.cleaner.report == nil ? tr("正在清理…") : tr("正在重新扫描…")
-        }
+        if let busyCleanerStage { return busyCleanerStage.message }
         if model.uninstaller.isRemoving { return tr("正在移除…") }
         if model.diagnostics.phase == .collecting { return tr("正在导出诊断信息…") }
         if model.maintenance.isApplyingDNS { return tr("正在修改 DNS…") }
         return nil
     }
 
-    private var busyProgress: (completed: Int, total: Int, detail: String)? {
-        guard model.cleaner.phase == .cleaning, let progress = model.cleaner.cleanProgress else { return nil }
-        return (progress.completed, progress.total, progress.currentRule)
+    private var busyCleanerStage: CleanerHUDStage? {
+        guard model.cleaner.phase == .cleaning else { return nil }
+        if model.cleaner.report != nil {
+            return model.cleaner.isCancelling ? .skippingVerification : .verifying
+        }
+        return model.cleaner.isCancelling ? .stopping : .cleaning
+    }
+
+    private var busyProgress: CleanProgress? {
+        guard model.cleaner.phase == .cleaning else { return nil }
+        return model.cleaner.cleanProgress
     }
 
     private var busyCancel: (() -> Void)? {

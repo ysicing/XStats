@@ -335,6 +335,7 @@ struct DeveloperCacheRuleTests {
         #expect(report.failures.count == 1)
         #expect(report.failures.first?.contains("simulated failure") == true)
         #expect(report.failures.first?.contains("7") == true)
+        #expect(report.hasUncertainFreedBytes)
         #expect(FileManager.default.fileExists(atPath: cache.path))
     }
 
@@ -440,6 +441,52 @@ struct CleanEngineTests {
         let updates = await capture.values()
         #expect(updates.map(\.completed) == [0, 1, 2])
         #expect(updates.allSatisfy { $0.total == 2 && $0.currentRule == RuleCatalog.userCaches.title })
+        #expect(updates.map(\.currentRuleCompleted) == [0, 1, 2])
+        #expect(updates.allSatisfy { $0.currentRuleTotal == 2 && $0.ruleNumber == 1 && $0.ruleCount == 1 })
+        #expect(updates.allSatisfy { $0.toolScannedBytes == nil })
+    }
+
+    @Test func toolCleanupPreservesRuleProgressAndScannedSize() async throws {
+        let home = try FakeHome()
+        defer { home.remove() }
+        try home.file("Library/Caches/com.example.first/data.bin")
+        try home.file(".cache/uv/archive-v0/package/data")
+        try home.executable("uv", script: "#!/bin/sh\nexit 0\n")
+        let environment = home.environment()
+        let scans = await CleanEngine.scan([RuleCatalog.userCaches, RuleCatalog.uvCache], environment: environment)
+        let capture = CleanProgressCapture()
+
+        _ = await CleanEngine.clean(scans, selected: [RuleCatalog.userCaches.id, RuleCatalog.uvCache.id], preferTrash: false,
+                                    environment: environment, log: nil,
+                                    onProgress: { await capture.record($0) })
+
+        let updates = await capture.values()
+        #expect(updates.map(\.completed) == [0, 1, 1, 2])
+        #expect(updates.map(\.ruleNumber) == [1, 1, 2, 2])
+        #expect(updates.map(\.currentRuleCompleted) == [0, 1, 0, 1])
+        #expect(updates.allSatisfy { $0.ruleCount == 2 && $0.currentRuleTotal == 1 })
+        #expect(updates.prefix(2).allSatisfy { $0.toolScannedBytes == nil })
+        #expect(updates.suffix(2).allSatisfy { $0.toolScannedBytes == scans.last?.totalSize })
+    }
+
+    @Test func uvRunnerCancellationStopsTheStartedProcess() async throws {
+        let home = try FakeHome()
+        defer { home.remove() }
+        try home.executable("uv", script: "#!/bin/sh\necho $$ > \"$HOME/pid\"\nexec /bin/sleep 30\n")
+        let task = Task { try await DeveloperToolRunner.run("uv", arguments: ["cache", "clean"], home: home.path) }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        let pidFile = home.root.appendingPathComponent("pid")
+        while !FileManager.default.fileExists(atPath: pidFile.path), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        task.cancel()
+        do {
+            _ = try await task.value
+            Issue.record("取消命令不应成功")
+        } catch is CancellationError { }
+        let pidText = try String(contentsOf: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+        let pid = try #require(Int32(pidText))
+        #expect(kill(pid, 0) != 0)
     }
 
     @Test func cleanRechecksRunningAppsBeforeDeleting() async throws {

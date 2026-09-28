@@ -134,7 +134,7 @@ private struct SummaryCard: View {
             guard let report = cleaner.report else { return "" }
             var parts: [String]
             if report.wasCancelled {
-                parts = [tr("已取消")]
+                parts = [tr("已停止，已清理部分不会恢复")]
             } else if report.hasUncertainFreedBytes {
                 parts = [tr("部分结果未确认")]
             } else {

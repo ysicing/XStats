@@ -158,10 +158,27 @@ public struct CleanProgress: Sendable {
     public let completed: Int
     public let total: Int
     public let currentRule: String
+    /// 当前规则在选中规则中的位置，从 1 开始。
+    public let ruleNumber: Int
+    public let ruleCount: Int
+    public let currentRuleCompleted: Int
+    public let currentRuleTotal: Int
+    public let currentRuleStartedAt: Date
+    /// 工具清理无法按文件报告进度；这里只提供扫描时的大小，不代表实际释放量。
+    public let toolScannedBytes: UInt64?
 
-    public init(completed: Int, total: Int, currentRule: String) {
+    public init(completed: Int, total: Int, currentRule: String,
+                ruleNumber: Int, ruleCount: Int, currentRuleCompleted: Int, currentRuleTotal: Int,
+                currentRuleStartedAt: Date,
+                toolScannedBytes: UInt64? = nil) {
         self.completed = completed
         self.total = total
         self.currentRule = currentRule
+        self.ruleNumber = ruleNumber
+        self.ruleCount = ruleCount
+        self.currentRuleCompleted = currentRuleCompleted
+        self.currentRuleTotal = currentRuleTotal
+        self.currentRuleStartedAt = currentRuleStartedAt
+        self.toolScannedBytes = toolScannedBytes
     }
 }

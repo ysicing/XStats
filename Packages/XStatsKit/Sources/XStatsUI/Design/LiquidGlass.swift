@@ -1,4 +1,6 @@
+import Cleaner
 import Localization
+import Metrics
 import SwiftUI
 
 // MARK: - 液态玻璃
@@ -56,11 +58,28 @@ extension DS.Glass {
 
 // MARK: - 全局加载
 
+enum CleanerHUDStage {
+    case cleaning, stopping, verifying, skippingVerification
+
+    var message: String {
+        switch self {
+        case .cleaning: tr("正在清理…")
+        case .stopping: tr("正在停止清理…")
+        case .verifying: tr("正在核对剩余项目…")
+        case .skippingVerification: tr("正在跳过核对…")
+        }
+    }
+
+    var isVerifying: Bool { self == .verifying || self == .skippingVerification }
+    var isStopping: Bool { self == .stopping || self == .skippingVerification }
+}
+
 /// 需要等待、期间不宜继续操作的任务（清理、卸载、导出诊断、修改 DNS）：
 /// 整个窗口压暗，中间浮一块玻璃加载框，写明正在做什么；任务结束自动消失
 struct LoadingHUD: View {
     let message: String
-    let progress: (completed: Int, total: Int, detail: String)?
+    let progress: CleanProgress?
+    let cleanerStage: CleanerHUDStage?
     let onCancel: (() -> Void)?
 
     var body: some View {
@@ -80,21 +99,15 @@ struct LoadingHUD: View {
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                if let progress {
-                    let detail = tr("已处理 \(progress.completed)/\(progress.total) 步")
-                    ProgressView(value: Double(progress.completed), total: Double(max(1, progress.total)))
-                        .accessibilityValue(detail)
-                    HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
-                        Text(verbatim: progress.detail)
-                            .lineLimit(2)
+                if let cleanerStage {
+                    cleanerDetails(cleanerStage)
+                    HStack {
                         Spacer(minLength: 0)
-                        Text(detail)
-                            .monospacedDigit()
+                        Button(cleanerStage.isVerifying ? tr("跳过核对") : tr("停止清理")) { onCancel?() }
+                            .buttonStyle(DSButtonStyle(kind: .secondary))
+                            .disabled(cleanerStage.isStopping || onCancel == nil)
                     }
-                    .dsFont(.xs)
-                    .foregroundStyle(DS.Palette.textSecondary)
-                }
-                if let onCancel {
+                } else if let onCancel {
                     HStack {
                         Spacer(minLength: 0)
                         Button(tr("取消"), action: onCancel)
@@ -106,10 +119,65 @@ struct LoadingHUD: View {
             .padding(.vertical, DS.Space.s6)
             .frame(minWidth: DS.Size.sidebarWidth + DS.Space.s16, maxWidth: 420)
             .modifier(HUDBackground())
-            .accessibilityElement(children: onCancel == nil ? .combine : .contain)
+            .accessibilityElement(children: cleanerStage == nil && onCancel == nil ? .combine : .contain)
             .accessibilityAddTraits(.updatesFrequently)
         }
         .transition(.opacity)
+    }
+
+    private func cleanerDetails(_ stage: CleanerHUDStage) -> some View {
+        VStack(alignment: .leading, spacing: DS.Space.s2) {
+            if stage.isVerifying {
+                Text(tr("清理已结束，正在更新可清理空间"))
+                    .dsFont(.xs)
+                    .foregroundStyle(DS.Palette.textSecondary)
+            } else if let progress {
+                HStack(spacing: DS.Space.s2) {
+                    Text(verbatim: progress.currentRule)
+                        .dsFont(.sm, weight: .medium)
+                        .foregroundStyle(DS.Palette.textPrimary)
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                    if progress.ruleCount > 1 {
+                        Text(tr("第 \(progress.ruleNumber)/\(progress.ruleCount) 项"))
+                            .dsFont(.xs)
+                            .foregroundStyle(DS.Palette.textSecondary)
+                            .monospacedDigit()
+                    }
+                }
+                if progress.toolScannedBytes == nil, progress.currentRuleTotal > 1 {
+                    ProgressView(value: Double(progress.currentRuleCompleted),
+                                 total: Double(progress.currentRuleTotal))
+                        .accessibilityLabel(progress.currentRule)
+                        .accessibilityValue(tr("已处理 \(progress.currentRuleCompleted)/\(progress.currentRuleTotal) 项"))
+                }
+                HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
+                    Text(verbatim: detail(for: progress))
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                    Text(tr("已运行"))
+                    Text(progress.currentRuleStartedAt, style: .timer)
+                        .monospacedDigit()
+                }
+                .dsFont(.xs)
+                .foregroundStyle(DS.Palette.textSecondary)
+            } else {
+                Text(tr("正在准备清理…"))
+                    .dsFont(.xs)
+                    .foregroundStyle(DS.Palette.textSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: DS.Space.s16, alignment: .topLeading)
+    }
+
+    private func detail(for progress: CleanProgress) -> String {
+        if let bytes = progress.toolScannedBytes {
+            return tr("扫描大小约 \(Format.bytes(bytes, base: .decimal))")
+        }
+        if progress.currentRuleTotal > 1 {
+            return tr("已处理 \(progress.currentRuleCompleted)/\(progress.currentRuleTotal) 项")
+        }
+        return tr("正在处理当前项目")
     }
 }
 
@@ -127,10 +195,10 @@ private struct HUDBackground: ViewModifier {
 
 extension View {
     /// 有文字时在上方盖一层全局加载框
-    func loadingHUD(_ message: String?, progress: (completed: Int, total: Int, detail: String)? = nil,
+    func loadingHUD(_ message: String?, progress: CleanProgress? = nil, cleanerStage: CleanerHUDStage? = nil,
                     onCancel: (() -> Void)? = nil) -> some View {
         overlay {
-            if let message { LoadingHUD(message: message, progress: progress, onCancel: onCancel) }
+            if let message { LoadingHUD(message: message, progress: progress, cleanerStage: cleanerStage, onCancel: onCancel) }
         }
         .animation(DS.Motion.quick, value: message)
     }

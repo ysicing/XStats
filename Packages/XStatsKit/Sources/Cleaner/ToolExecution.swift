@@ -87,15 +87,34 @@ enum DeveloperToolRunner {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
+        process.standardInput = FileHandle.nullDevice
+        try Task.checkCancellation()
         do {
             try process.run()
         } catch {
             throw ToolExecutionError.failed(tool: name, status: -1, output: error.localizedDescription)
         }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        let output = String(decoding: data, as: UTF8.self)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        try? pipe.fileHandleForWriting.close()
+        let reader = pipe.fileHandleForReading
+        let outputTask = Task.detached(priority: .utility) {
+            var tail = Data()
+            let limit = max(0, outputLimit)
+            while let chunk = try reader.read(upToCount: 64 * 1024), !chunk.isEmpty {
+                tail.append(chunk)
+                if tail.count > limit { tail.removeFirst(tail.count - limit) }
+            }
+            return String(decoding: tail, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        defer {
+            stop(process)
+            try? reader.close()
+        }
+        while process.isRunning {
+            try Task.checkCancellation()
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        try Task.checkCancellation()
+        let output = try await outputTask.value
         guard process.terminationStatus == 0 else {
             throw ToolExecutionError.failed(tool: name, status: process.terminationStatus,
                                             output: String(output.prefix(2_000)))
