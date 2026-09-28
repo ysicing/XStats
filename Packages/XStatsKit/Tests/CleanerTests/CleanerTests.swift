@@ -149,12 +149,22 @@ struct DeveloperCacheRuleTests {
         #expect(scan.items.map(\.url) == [cellar])
         #expect(scan.totalSize == 1_200_000)
         #expect(scan.rule.usesToolCleaner)
+        let logURL = home.root.appendingPathComponent("cleanup.log")
         let report = await CleanEngine.clean(scans, selected: [scan.id], preferTrash: true,
-                                             environment: environment, log: nil)
+                                             environment: environment, log: CleanLog(url: logURL))
         #expect(report.freedBytes == 1_100_000)
         #expect(report.removedCount == 1)
         #expect(report.trashedBytes == 0)
         #expect(report.failures.isEmpty)
+        let logData = try Data(contentsOf: logURL)
+        let entries = try logData.split(separator: 0x0A).map {
+            try #require(JSONSerialization.jsonObject(with: Data($0)) as? [String: Any])
+        }
+        #expect(entries.count == 1)
+        #expect(entries.first?["action"] as? String == "tool")
+        #expect(entries.first?["bytes"] as? Int == 1_100_000)
+        #expect(entries.first?["removedCount"] as? Int == 1)
+        #expect(entries.first?["path"] == nil)
         #expect(FileManager.default.fileExists(atPath: cached.path))
         let generic = try RuleCatalog.userCaches.locate(environment)
         #expect(!generic.contains { $0.lastPathComponent == "Homebrew" })

@@ -672,6 +672,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 已连接	Connected
 已连接的键盘、鼠标、耳机等电量低于 15%，每 10 分钟检查一次	A connected keyboard, mouse, headphones or similar drops below 15%; checked every 10 minutes
 已选 {} 项 · {}	{} selected · {}
+释放量未确认	Space unconfirmed
+部分结果未确认	Some results are unconfirmed
 已释放	Freed
 已释放 {} 缓存内存	Freed {} of cached memory
 布局	Layout

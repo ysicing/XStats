@@ -555,6 +555,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 已连接	Connecté
 已连接的键盘、鼠标、耳机等电量低于 15%，每 10 分钟检查一次	La batterie d’un clavier, d’une souris, d’écouteurs ou d’un autre appareil connecté passe sous 15 % ; vérification toutes les 10 minutes
 已选 {} 项 · {}	{} sélectionnés · {}
+释放量未确认	Espace non confirmé
+部分结果未确认	Certains résultats ne sont pas confirmés
 已释放	Libéré
 已释放 {} 缓存内存	{} de mémoire cache libérés
 布局	Disposition

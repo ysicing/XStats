@@ -143,6 +143,8 @@ public struct ToolCleanupPreview: Sendable {
 public struct CleanReport: Sendable {
     /// 取消是用户操作，保留已完成部分的统计，但不作为工具失败。
     public var wasCancelled = false
+    /// 原生工具中途退出时，已释放空间可能未出现在报告中。
+    public var hasUncertainFreedBytes = false
     public var freedBytes: UInt64 = 0
     public var removedCount = 0
     public var skippedCount = 0

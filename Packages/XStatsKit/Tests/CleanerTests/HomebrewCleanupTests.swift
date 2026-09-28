@@ -47,6 +47,8 @@ import Testing
     }
 
     @Test func cleanupFailureKeepsNativeError() async throws {
+        let logURL = FileManager.default.temporaryDirectory.appendingPathComponent("xstats-brew-log-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: logURL) }
         let environment = CleanEnvironment(runningBundleIdentifiers: { [] }, isToolAvailable: { _ in true },
             runTool: { _, arguments in
                 if arguments.contains("--dry-run") {
@@ -56,10 +58,19 @@ import Testing
             })
         let scans = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
         let report = await CleanEngine.clean(scans, selected: [RuleCatalog.homebrewCache.id], preferTrash: false,
-                                             environment: environment, log: nil)
+                                             environment: environment, log: CleanLog(url: logURL))
         #expect(report.failures.count == 1)
         #expect(report.failures.first?.contains("cannot acquire lock") == true)
         #expect(report.freedBytes == 0)
+        #expect(report.hasUncertainFreedBytes)
+        let logData = try Data(contentsOf: logURL)
+        let entries = try logData.split(separator: 0x0A).map {
+            try #require(JSONSerialization.jsonObject(with: Data($0)) as? [String: Any])
+        }
+        #expect(entries.count == 1)
+        #expect(entries.first?["action"] as? String == "fail")
+        #expect(entries.first?["path"] == nil)
+        #expect(entries.first?["bytes"] == nil)
     }
 
     @Test func cancelledCleanupIsNotReportedAsAToolFailure() async {
@@ -76,6 +87,7 @@ import Testing
         #expect(report.failures.isEmpty)
         #expect(report.wasCancelled)
         #expect(report.removedCount == 0)
+        #expect(report.hasUncertainFreedBytes)
     }
 
     @Test func brewRunnerSetsSafetyEnvironmentAndKeepsArguments() async throws {
@@ -93,20 +105,71 @@ import Testing
         let home = try stubBrew("#!/bin/sh\nexec /bin/sleep 30\n")
         defer { try? FileManager.default.removeItem(at: home) }
         do {
-            _ = try await DeveloperToolRunner.run("brew", arguments: [], home: home.path, timeout: 0.1)
+            _ = try await DeveloperToolRunner.run("brew", arguments: ["--dry-run"], home: home.path, previewTimeout: 0.1)
             Issue.record("超时命令不应成功")
         } catch ToolExecutionError.timedOut { }
         try "#!/bin/sh\nprintf '1234567890'\n".write(to: home.appendingPathComponent(".local/bin/brew"), atomically: false, encoding: .utf8)
         do {
-            _ = try await DeveloperToolRunner.run("brew", arguments: [], home: home.path, outputLimit: 8)
+            _ = try await DeveloperToolRunner.run("brew", arguments: ["--dry-run"], home: home.path, outputLimit: 8)
             Issue.record("超出限制的输出不应成功")
         } catch ToolExecutionError.outputTooLarge { }
+    }
+
+    @Test func brewCleanupRunsToCompletionPastPreviewLimits() async throws {
+        let home = try stubBrew("""
+        #!/bin/sh
+        /bin/sleep 0.3
+        printf 'Removing: /tmp/old... (1MB)\\n'
+        i=0
+        while [ "$i" -lt 2500 ]; do
+            printf 'Warning: verbose output %d\\n' "$i"
+            i=$((i + 1))
+        done
+        printf 'Pruning 2 files from: /tmp/cache...\\n'
+        printf '==> This operation has freed approximately 2MB of disk space.\\n'
+        touch "$HOME/done"
+        """)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let environment = CleanEnvironment(home: home.path, runningBundleIdentifiers: { [] },
+            isToolAvailable: { _ in true },
+            runTool: { tool, arguments in
+                try await DeveloperToolRunner.run(tool, arguments: arguments, home: home.path,
+                                                  previewTimeout: 0.1, outputLimit: 64)
+            })
+        let report = try #require(try await HomebrewCleanup.clean(environment))
+        #expect(report.removedCount == 3)
+        #expect(report.freedBytes == 2_000_000)
+        #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("done").path), "真实清理不能因输出过大被中途结束")
+    }
+
+    @Test func cleanupCountsEveryPrunedFile() async throws {
+        let environment = CleanEnvironment(runningBundleIdentifiers: { [] }, isToolAvailable: { _ in true },
+            runTool: { _, arguments in
+                if arguments.contains("--dry-run") {
+                    return ToolRunResult(status: 0, output: """
+                    Would prune 57 files from: /opt/homebrew/cache/downloads
+                    ==> This operation would free approximately 2MB of disk space.
+                    """)
+                }
+                return ToolRunResult(status: 0, output: """
+                Removing: /opt/homebrew/Cellar/tool/1... (1MB)
+                Pruning 57 files from: /opt/homebrew/cache/downloads...
+                Pruning 1 file from: /opt/homebrew/cache/api...
+                ==> This operation has freed approximately 2MB of disk space.
+                """)
+            })
+        let scans = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
+        let report = await CleanEngine.clean(scans, selected: [RuleCatalog.homebrewCache.id], preferTrash: false,
+                                             environment: environment, log: nil)
+        #expect(report.failures.isEmpty)
+        #expect(report.removedCount == 59)
+        #expect(report.freedBytes == 2_000_000)
     }
 
     @Test func brewRunnerCancellationStopsTheStartedProcess() async throws {
         let home = try stubBrew("#!/bin/sh\necho $$ > \"$HOME/pid\"\nexec /bin/sleep 30\n")
         defer { try? FileManager.default.removeItem(at: home) }
-        let task = Task { try await DeveloperToolRunner.run("brew", arguments: [], home: home.path) }
+        let task = Task { try await DeveloperToolRunner.run("brew", arguments: ["cleanup"], home: home.path) }
         let deadline = ContinuousClock.now.advanced(by: .seconds(3))
         let pidFile = home.appendingPathComponent("pid")
         while !FileManager.default.fileExists(atPath: pidFile.path), ContinuousClock.now < deadline {

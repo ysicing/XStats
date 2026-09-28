@@ -8,6 +8,14 @@ import Localization
 public struct ToolRunResult: Sendable {
     public let status: Int32
     public let output: String
+    /// 真实 Homebrew 清理的完整输出统计，避免截断诊断文本后丢失汇总。
+    public let cleanupReport: CleanReport?
+
+    public init(status: Int32, output: String, cleanupReport: CleanReport? = nil) {
+        self.status = status
+        self.output = output
+        self.cleanupReport = cleanupReport
+    }
 }
 
 public enum ToolExecutionError: Error, LocalizedError, Sendable {
@@ -42,7 +50,7 @@ enum DeveloperToolRunner {
     /// 外部工具可能执行较久；放到并发执行器，避免阻塞调用它的主 Actor。
     @concurrent
     static func run(_ name: String, arguments: [String], home: String,
-                    timeout: TimeInterval = 60, outputLimit: Int = 2_000_000) async throws -> ToolRunResult {
+                    previewTimeout: TimeInterval = 60, outputLimit: Int = 2_000_000) async throws -> ToolRunResult {
         try Task.checkCancellation()
         guard let executable = executable(named: name, home: home) else {
             throw ToolExecutionError.unavailable(name)
@@ -69,7 +77,11 @@ enum DeveloperToolRunner {
         process.environment = environment
 
         if name == "brew" {
-            return try await runHomebrew(process, timeout: timeout, outputLimit: outputLimit)
+            if arguments.first == "cleanup", !arguments.contains("--dry-run") {
+                // 真实清理可能已删除部分文件，不因超时或输出量中断；仍响应用户取消。
+                return try await runHomebrewCleanup(process, outputLimit: outputLimit)
+            }
+            return try await runHomebrewPreview(process, timeout: previewTimeout, outputLimit: outputLimit)
         }
 
         let pipe = Pipe()
@@ -91,8 +103,8 @@ enum DeveloperToolRunner {
         return ToolRunResult(status: process.terminationStatus, output: output)
     }
 
-    /// 预览需要完整输出才能解析。写临时文件避免管道堵塞，同时限制大小、执行时间并响应取消。
-    private static func runHomebrew(_ process: Process, timeout: TimeInterval, outputLimit: Int) async throws -> ToolRunResult {
+    /// 预览需要完整输出才能解析；超过限制时终止只读命令。
+    private static func runHomebrewPreview(_ process: Process, timeout: TimeInterval, outputLimit: Int) async throws -> ToolRunResult {
         let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("xstats-brew-\(UUID())")
         guard FileManager.default.createFile(atPath: outputURL.path, contents: nil) else {
             throw CocoaError(.fileWriteUnknown)
@@ -129,6 +141,80 @@ enum DeveloperToolRunner {
                                             output: String(output.prefix(2_000)))
         }
         return ToolRunResult(status: process.terminationStatus, output: output)
+    }
+
+    /// 持续排空管道，让清理执行到底；只保留有限的末尾诊断文本和逐行汇总。
+    private static func runHomebrewCleanup(_ process: Process, outputLimit: Int) async throws -> ToolRunResult {
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        process.standardInput = FileHandle.nullDevice
+        try Task.checkCancellation()
+        do { try process.run() } catch {
+            throw ToolExecutionError.failed(tool: "brew", status: -1, output: error.localizedDescription)
+        }
+        try? pipe.fileHandleForWriting.close()
+        let reader = pipe.fileHandleForReading
+        let outputTask = Task.detached(priority: .utility) {
+            try readHomebrewCleanupOutput(reader, outputLimit: outputLimit)
+        }
+        defer {
+            stop(process)
+            try? reader.close()
+        }
+        while process.isRunning {
+            try Task.checkCancellation()
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        try Task.checkCancellation()
+        let result = try await outputTask.value
+        guard process.terminationStatus == 0 else {
+            throw ToolExecutionError.failed(tool: "brew", status: process.terminationStatus,
+                                            output: String(result.output.suffix(2_000)))
+        }
+        guard !result.hasInvalidSummary else { throw HomebrewCleanup.PreviewError.unsupportedOutput }
+        return ToolRunResult(status: process.terminationStatus, output: result.output, cleanupReport: result.report)
+    }
+
+    private struct CleanupOutput: Sendable {
+        let output: String
+        let report: CleanReport
+        let hasInvalidSummary: Bool
+    }
+
+    private static func readHomebrewCleanupOutput(_ reader: FileHandle, outputLimit: Int) throws -> CleanupOutput {
+        var tail = Data()
+        var line = [UInt8]()
+        var lineTooLong = false
+        var report = CleanReport()
+        var hasInvalidSummary = false
+        while let chunk = try reader.read(upToCount: 64 * 1024), !chunk.isEmpty {
+            tail.append(chunk)
+            if tail.count > outputLimit { tail.removeFirst(tail.count - max(0, outputLimit)) }
+            for byte in chunk {
+                if byte == 0x0A {
+                    if !lineTooLong { recordHomebrewLine(line, report: &report, hasInvalidSummary: &hasInvalidSummary) }
+                    line.removeAll(keepingCapacity: true)
+                    lineTooLong = false
+                } else if line.count < 64 * 1024 {
+                    line.append(byte)
+                } else {
+                    // 跳过异常长的单行诊断输出，继续读取后续的 Homebrew 汇总行。
+                    lineTooLong = true
+                }
+            }
+        }
+        if !line.isEmpty, !lineTooLong {
+            recordHomebrewLine(line, report: &report, hasInvalidSummary: &hasInvalidSummary)
+        }
+        return CleanupOutput(output: String(decoding: tail, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines),
+                             report: report, hasInvalidSummary: hasInvalidSummary)
+    }
+
+    private static func recordHomebrewLine(_ bytes: [UInt8], report: inout CleanReport, hasInvalidSummary: inout Bool) {
+        let line = String(decoding: bytes, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        do { try HomebrewCleanup.recordExecutionLine(line, report: &report) }
+        catch { hasInvalidSummary = true }
     }
 
     /// 只结束本次启动的进程；取消后仍给予短暂退出时间，防止清理子进程留在后台。

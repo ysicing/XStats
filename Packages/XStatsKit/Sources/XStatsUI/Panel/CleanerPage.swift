@@ -116,7 +116,10 @@ private struct SummaryCard: View {
     private var headline: String {
         let cleaner = model.cleaner
         if cleaner.phase == .idle { return tr("尚未扫描") }
-        if cleaner.phase == .finished { return Format.bytes(cleaner.report?.freedBytes ?? 0, base: .decimal) }
+        if cleaner.phase == .finished {
+            guard let report = cleaner.report else { return Format.bytes(UInt64(0), base: .decimal) }
+            return report.hasUncertainFreedBytes ? tr("释放量未确认") : Format.bytes(report.freedBytes, base: .decimal)
+        }
         return cleaner.scans.isEmpty ? tr("扫描中") : Format.bytes(cleaner.totalBytes, base: .decimal)
     }
 
@@ -129,7 +132,14 @@ private struct SummaryCard: View {
         case .ready: return tr("可清理 · 已选 \(cleaner.selectedScans.count) 项")
         case .finished:
             guard let report = cleaner.report else { return "" }
-            var parts = [report.wasCancelled ? tr("已取消") : tr("已释放")]
+            var parts: [String]
+            if report.wasCancelled {
+                parts = [tr("已取消")]
+            } else if report.hasUncertainFreedBytes {
+                parts = [tr("部分结果未确认")]
+            } else {
+                parts = [tr("已释放")]
+            }
             if report.trashedBytes > 0 { parts.append(tr("另有 \(Format.bytes(report.trashedBytes, base: .decimal)) 移到废纸篓")) }
             if report.skippedCount > 0 { parts.append(tr("跳过 \(report.skippedCount) 项")) }
             if !report.failures.isEmpty { parts.append(tr("\(report.failures.count) 项失败")) }

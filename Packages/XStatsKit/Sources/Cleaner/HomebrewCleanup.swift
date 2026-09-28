@@ -25,14 +25,25 @@ enum HomebrewCleanup {
         guard result.status == 0 else {
             throw ToolExecutionError.failed(tool: "brew", status: result.status, output: String(result.output.prefix(2_000)))
         }
+        if let report = result.cleanupReport { return report }
         var report = CleanReport()
         for line in result.output.components(separatedBy: .newlines) {
-            if line.hasPrefix("Removing: ") || line.hasPrefix("Pruning ") { report.removedCount += 1 }
-            if let bytes = try summarySize(line, prefix: "==> This operation has freed approximately ") {
-                report.freedBytes = bytes
-            }
+            try recordExecutionLine(line, report: &report)
         }
         return report
+    }
+
+    static func recordExecutionLine(_ line: String, report: inout CleanReport) throws {
+        if line.hasPrefix("Removing: ") {
+            report.removedCount += 1
+        } else if line.hasPrefix("Pruning ") {
+            // 格式为 "Pruning 57 files from: <path>..."，数量是 brew 实际删除的文件数。
+            let count = line.dropFirst("Pruning ".count).prefix { $0 != " " }
+            report.removedCount += Int(count) ?? 1
+        }
+        if let bytes = try summarySize(line, prefix: "==> This operation has freed approximately ") {
+            report.freedBytes = bytes
+        }
     }
 
     static func parsePreview(_ output: String) throws -> ToolCleanupPreview {

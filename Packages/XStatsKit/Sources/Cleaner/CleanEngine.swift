@@ -132,9 +132,8 @@ public enum CleanEngine {
                         report.failures += toolReport.failures
                         report.trashedBytes += toolReport.trashedBytes
                         report.wasCancelled = toolReport.wasCancelled
-                        for item in scan.items {
-                            log?.record(item: item, rule: scan.rule, action: "tool", detail: scan.rule.requiredTool)
-                        }
+                        report.hasUncertainFreedBytes = report.hasUncertainFreedBytes || toolReport.hasUncertainFreedBytes
+                        log?.recordTool(rule: scan.rule, report: toolReport)
                         if report.wasCancelled { return report }
                         continue
                     }
@@ -146,13 +145,20 @@ public enum CleanEngine {
                         report.removedCount += 1
                     }
                 } catch {
+                    if scan.rule.previewWithTool != nil {
+                        report.hasUncertainFreedBytes = true
+                        log?.recordToolInterruption(rule: scan.rule, error: error,
+                                                    cancelled: error is CancellationError || Task.isCancelled)
+                    }
                     if error is CancellationError || Task.isCancelled {
                         report.wasCancelled = true
                         return report
                     }
                     report.failures.append(tr("\(scan.rule.title)：\(error.localizedDescription)"))
-                    for item in scan.items {
-                        log?.record(item: item, rule: scan.rule, action: "fail", detail: error.localizedDescription)
+                    if scan.rule.previewWithTool == nil {
+                        for item in scan.items {
+                            log?.record(item: item, rule: scan.rule, action: "fail", detail: error.localizedDescription)
+                        }
                     }
                 }
                 continue
@@ -211,6 +217,34 @@ public struct CleanLog: Sendable {
             "bytes": bytes,
         ]
         if let detail { entry["detail"] = detail }
+        write(entry)
+    }
+
+    /// 原生命令只报告汇总结果；扫描候选不能作为实际删除记录。
+    func recordTool(rule: CleanRule, report: CleanReport) {
+        var entry: [String: Any] = [
+            "time": ISO8601DateFormatter().string(from: Date()),
+            "rule": rule.id,
+            "action": "tool",
+            "bytes": report.freedBytes,
+            "removedCount": report.removedCount,
+        ]
+        if let tool = rule.requiredTool { entry["detail"] = tool }
+        write(entry)
+    }
+
+    func recordToolInterruption(rule: CleanRule, error: Error, cancelled: Bool) {
+        var entry: [String: Any] = [
+            "time": ISO8601DateFormatter().string(from: Date()),
+            "rule": rule.id,
+            "action": cancelled ? "cancel" : "fail",
+        ]
+        if let tool = rule.requiredTool { entry["tool"] = tool }
+        if !cancelled { entry["detail"] = error.localizedDescription }
+        write(entry)
+    }
+
+    private func write(_ entry: [String: Any]) {
         guard var data = try? JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys]) else { return }
         data.append(0x0A)
 

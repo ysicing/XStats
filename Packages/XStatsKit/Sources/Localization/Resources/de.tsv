@@ -555,6 +555,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 已连接	Verbunden
 已连接的键盘、鼠标、耳机等电量低于 15%，每 10 分钟检查一次	Batteriestand einer verbundenen Tastatur, Maus, Kopfhörer o. Ä. unter 15 %; Prüfung alle 10 Minuten
 已选 {} 项 · {}	{} ausgewählt · {}
+释放量未确认	Speicher unbestätigt
+部分结果未确认	Einige Ergebnisse sind nicht bestätigt
 已释放	Freigegeben
 已释放 {} 缓存内存	{} Cache-Arbeitsspeicher freigegeben
 布局	Layout
