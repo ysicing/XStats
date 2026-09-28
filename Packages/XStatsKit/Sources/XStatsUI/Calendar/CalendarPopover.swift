@@ -74,10 +74,10 @@ struct CalendarPopover: View {
                 PageScroll {
                     VStack(spacing: sizing.sectionSpacing) {
                         if showsDayDetails, let selected, let almanac {
+                            CalendarAlmanacView(day: selected, almanac: almanac, features: model.settings.calendarFeatures)
                             if model.settings.calendarPreferences.showEvents || model.settings.calendarPreferences.showReminders {
                                 CalendarAgendaView(day: selected)
                             }
-                            CalendarAlmanacView(day: selected, almanac: almanac, features: model.settings.calendarFeatures)
                         } else {
                             calendarGrid(today: today)
                         }
