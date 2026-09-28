@@ -36,7 +36,7 @@ public final class CleanerController {
     var isBusy: Bool { phase == .scanning || phase == .cleaning }
 
     func scan(ifNeeded: Bool = false) {
-        guard !isBusy, !(ifNeeded && lastScan != nil) else { return }
+        guard settings.cleanerEnabled, !isBusy, !(ifNeeded && lastScan != nil) else { return }
         phase = .scanning
         isConfirming = false
         let environment = Self.environment()
@@ -51,7 +51,7 @@ public final class CleanerController {
     }
 
     func requestClean() {
-        guard phase == .ready || phase == .finished, !selectedScans.isEmpty else { return }
+        guard settings.cleanerEnabled, (phase == .ready || phase == .finished), !selectedScans.isEmpty else { return }
         isConfirming = true
     }
 
@@ -66,7 +66,7 @@ public final class CleanerController {
     }
 
     func confirmClean() {
-        guard isConfirming else { return }
+        guard settings.cleanerEnabled, isConfirming else { return }
         isConfirming = false
         report = nil
         cleanProgress = nil

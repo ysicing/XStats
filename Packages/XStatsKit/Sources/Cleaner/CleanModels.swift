@@ -111,6 +111,15 @@ public struct CleanRule: Sendable, Identifiable {
     }
 
     public var usesToolCleaner: Bool { cleanWithTool != nil }
+
+    /// 确认提示与清理执行共用的删除方式；工具清理和清空废纸篓始终不可恢复。
+    public func deletesPermanently(preferTrash: Bool) -> Bool {
+        if usesToolCleaner || id == RuleCatalog.trash.id { return true }
+        switch policy {
+        case .delete: return !preferTrash
+        case .trash: return false
+        }
+    }
 }
 
 public struct CleanItem: Sendable, Identifiable, Hashable {

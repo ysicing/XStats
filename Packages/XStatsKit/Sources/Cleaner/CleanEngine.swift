@@ -185,8 +185,7 @@ public enum CleanEngine {
                 await onProgress?(currentProgress())
                 continue
             }
-            // 废纸篓规则本身必须永久删除；其他可再生内容按用户偏好决定
-            let useTrash = scan.rule.id != RuleCatalog.trash.id && (scan.rule.policy == .trash || preferTrash)
+            let useTrash = !scan.rule.deletesPermanently(preferTrash: preferTrash)
 
             for item in scan.items {
                 if Task.isCancelled { report.wasCancelled = true; return report }

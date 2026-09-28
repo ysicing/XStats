@@ -28,6 +28,7 @@ enum SnapshotRenderer {
         settings.language = L10n.language
         settings.menuBarItems = [.cpu, .gpu, .memory, .network, .disk, .temperature, .battery, .aiUsage]
         settings.aiUsageEnabled = true
+        settings.cleanerEnabled = true
         // 历史页用示例数据：最近 24 小时每分钟一条，中间留一段“睡眠”空档
         let historyURL = FileManager.default.temporaryDirectory.appendingPathComponent("xstats-snapshot-history.sqlite")
         try? FileManager.default.removeItem(at: historyURL)

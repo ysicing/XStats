@@ -20,6 +20,8 @@ final class ProjectPurgeWindowController: NSObject, NSWindowDelegate {
 
     func refreshLanguage() { window?.title = tr("项目产物") }
 
+    func close() { window?.close() }
+
     func show() {
         let window = self.window ?? makeWindow()
         self.window = window

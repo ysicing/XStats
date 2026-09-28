@@ -272,6 +272,45 @@ private func isolatedDefaults() -> UserDefaults {
 }
 
 @MainActor
+@Suite struct CleanerFeatureTests {
+    @Test func defaultsOffAndHidesSavedPageWhenDisabled() {
+        let defaults = isolatedDefaults()
+        defaults.set("cleaner", forKey: "panelTab")
+        let settings = AppSettings(defaults: defaults)
+        #expect(!settings.cleanerEnabled)
+        #expect(settings.panelTab == .settingsGeneral)
+
+        let cleaner = CleanerController(settings: settings)
+        cleaner.scan()
+        #expect(cleaner.phase == .idle)
+
+        settings.cleanerEnabled = true
+        settings.panelTab = .cleaner
+        #expect(AppSettings(defaults: defaults).panelTab == .cleaner)
+
+        settings.cleanerEnabled = false
+        #expect(settings.panelTab == .settingsGeneral)
+        #expect(!AppSettings(defaults: defaults).cleanerEnabled)
+        defaults.set("cleaner", forKey: "panelTab")
+        #expect(AppSettings(defaults: defaults).panelTab == .settingsGeneral)
+    }
+
+    @Test func backupRestoresModulePreferenceAndOldBackupKeepsCurrentValue() throws {
+        let source = AppSettings(defaults: isolatedDefaults())
+        source.cleanerEnabled = true
+        let data = try JSONEncoder().encode(source.exportDocument())
+        let document = try JSONDecoder().decode(SettingsDocument.self, from: data)
+        #expect(document.cleanerEnabled == true)
+
+        let target = AppSettings(defaults: isolatedDefaults())
+        target.apply(document)
+        #expect(target.cleanerEnabled)
+        target.apply(SettingsDocument())
+        #expect(target.cleanerEnabled)
+    }
+}
+
+@MainActor
 @Suite struct CleanerSelectionTests {
     private let toolRuleIDs: Set<String> = [
         "developer.npm", "developer.yarn", "developer.pnpm", "developer.bun",

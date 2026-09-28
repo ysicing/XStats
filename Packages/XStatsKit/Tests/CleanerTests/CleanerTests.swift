@@ -49,6 +49,19 @@ private struct FakeHome {
     func remove() { try? FileManager.default.removeItem(at: root) }
 }
 
+@Suite("清理方式")
+struct CleanDeletionPolicyTests {
+    @Test func confirmationMatchesActualDeletionPolicy() {
+        for preferTrash in [false, true] {
+            #expect(RuleCatalog.trash.deletesPermanently(preferTrash: preferTrash))
+            #expect(RuleCatalog.uvCache.deletesPermanently(preferTrash: preferTrash))
+            #expect(!RuleCatalog.incompleteDownloads.deletesPermanently(preferTrash: preferTrash))
+            #expect(!RuleCatalog.xcodeArchives.deletesPermanently(preferTrash: preferTrash))
+            #expect(RuleCatalog.userCaches.deletesPermanently(preferTrash: preferTrash) == !preferTrash)
+        }
+    }
+}
+
 @Suite("安全守卫")
 struct SafetyGuardTests {
     let guardian = SafetyGuard(home: "/Users/tester")

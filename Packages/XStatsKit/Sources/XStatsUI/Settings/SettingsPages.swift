@@ -122,6 +122,13 @@ struct GeneralSettings: View {
                     DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 用量与额度"))
                 }
             }
+            GroupRow(showsDivider: false) {
+                SettingRow(title: tr("清理"),
+                           subtitle: tr("按需扫描缓存、日志与项目产物，清理前逐项确认。"),
+                           icon: "eraser") {
+                    DSToggle(isOn: $settings.cleanerEnabled, label: tr("清理"))
+                }
+            }
             GroupRow {
                 SettingRow(title: tr("菜单栏日历"),
                            subtitle: tr("独立显示日期，点击打开月历；不受指标合并布局影响"),

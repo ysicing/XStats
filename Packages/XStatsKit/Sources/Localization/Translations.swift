@@ -1149,7 +1149,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 继续运行	Keep running
 绿色正常、橙色偏高（60% 以上）、红色很高（85% 以上）	Green is normal, orange is high (above 60%), red is very high (above 85%)
 缓存	Caches
-缓存与日志直接删除，下载内容移到废纸篓。	Caches and logs are deleted; downloads go to the Trash.
+缓存与日志将直接删除且无法恢复，下载内容移到废纸篓。	Caches and logs will be permanently deleted and cannot be recovered; downloads go to the Trash.
 缓存也先移到废纸篓	Move caches to Trash too
 编辑	Edit
 网站	Site
@@ -1419,5 +1419,7 @@ Agent 工作树	Agent worktree
 Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依赖。	Homebrew will clean old versions and caches based on their state at execution time, without automatically removing dependencies.
 尚未扫描	Not scanned yet
 点击重新扫描以计算可清理空间	Click Rescan to calculate reclaimable space
+按需扫描缓存、日志与项目产物，清理前逐项确认。	Scan caches, logs, and project artifacts on demand. Review items before cleaning.
+“{}”只剩 {} 可用。请检查不再需要的文件。	“{}” has only {} available. Check files you no longer need.
 """#
 }

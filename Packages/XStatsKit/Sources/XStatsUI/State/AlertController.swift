@@ -199,8 +199,10 @@ public final class AlertController: NSObject {
         let enabled = settings.enabledAlerts
         if enabled.contains(.diskSpace), let disk = DiskSampler.sample() {
             let low = disk.total > 0 && (Double(disk.available) / Double(disk.total) < 0.1 || disk.available < 10_000_000_000)
-            fireIfNeeded(.diskSpace, isActive: low, now: now,
-                         body: tr("“\(disk.volumeName)”只剩 \(Format.bytes(disk.available, base: .decimal)) 可用。可以用 XStats 的清理功能释放缓存。"))
+            let body = settings.cleanerEnabled
+                ? tr("“\(disk.volumeName)”只剩 \(Format.bytes(disk.available, base: .decimal)) 可用。可以用 XStats 的清理功能释放缓存。")
+                : tr("“\(disk.volumeName)”只剩 \(Format.bytes(disk.available, base: .decimal)) 可用。请检查不再需要的文件。")
+            fireIfNeeded(.diskSpace, isActive: low, now: now, body: body)
         }
         if enabled.contains(.batteryHealth), let health = BatterySampler.sample()?.health {
             // 冷却时间跨越重启，记在偏好设置里

@@ -514,6 +514,13 @@ public final class AppSettings {
             if !aiUsageEnabled && panelTab == .aiUsage { panelTab = .settingsGeneral }
         }
     }
+    /// 清理工具默认关闭；扫描只在打开页面后按需执行。
+    public var cleanerEnabled: Bool {
+        didSet {
+            defaults.set(cleanerEnabled, forKey: Keys.cleanerEnabled)
+            if !cleanerEnabled && panelTab == .cleaner { panelTab = .settingsGeneral }
+        }
+    }
     /// 来源开关只保存在本机；关闭后不扫描，也不显示其历史缓存。
     public var aiUsageSources: Set<AIProviderID> {
         didSet { defaults.set(aiUsageSources.map(\.rawValue).sorted(), forKey: Keys.aiUsageSources) }
@@ -708,6 +715,8 @@ public final class AppSettings {
             ? defaults.integer(forKey: Keys.refreshSeconds) : 2
         let isAIUsageEnabled = defaults.bool(forKey: Keys.aiUsageEnabled)
         aiUsageEnabled = isAIUsageEnabled
+        let isCleanerEnabled = defaults.bool(forKey: Keys.cleanerEnabled)
+        cleanerEnabled = isCleanerEnabled
         aiUsageSources = defaults.stringArray(forKey: Keys.aiUsageSources)
             .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
         aiUsageShowsLocalUsage = defaults.object(forKey: Keys.aiUsageShowsLocalUsage) as? Bool ?? true
@@ -726,6 +735,7 @@ public final class AppSettings {
         panelTab = savedPanelTabValue == "settingsAI" || savedPanelTab == .settingsAccount
             || (savedPanelTab == .aiUsage && !isAIUsageEnabled)
             || (savedPanelTab == .rest && !isRestEnabled)
+            || (savedPanelTab == .cleaner && !isCleanerEnabled)
             ? .settingsGeneral : savedPanelTab
         appearance = defaults.string(forKey: Keys.appearance).flatMap(AppearanceMode.init(rawValue:)) ?? .system
         showDockIcon = defaults.bool(forKey: Keys.showDockIcon)
@@ -817,6 +827,7 @@ public final class AppSettings {
         static let styleOverrides = "styleOverrides"
         static let refreshSeconds = "refreshSeconds"
         static let aiUsageEnabled = "aiUsageEnabled"
+        static let cleanerEnabled = "cleanerEnabled"
         static let aiUsageSources = "aiUsageSources"
         static let aiUsageShowsLocalUsage = "aiUsageShowsLocalUsage"
         static let aiUsageRefreshMinutes = "aiUsageRefreshMinutes"

@@ -1026,7 +1026,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 继续运行	Continuer l’exécution
 绿色正常、橙色偏高（60% 以上）、红色很高（85% 以上）	Vert : normal, orange : élevé (au-dessus de 60 %), rouge : très élevé (au-dessus de 85 %)
 缓存	Caches
-缓存与日志直接删除，下载内容移到废纸篓。	Les caches et journaux sont supprimés ; les téléchargements sont déplacés vers la Corbeille.
+缓存与日志将直接删除且无法恢复，下载内容移到废纸篓。	Les caches et journaux seront supprimés définitivement, sans possibilité de récupération ; les téléchargements sont déplacés vers la Corbeille.
 缓存也先移到废纸篓	Déplacer aussi les caches vers la Corbeille
 编辑	Édition
 网站	Site
@@ -1568,3 +1568,5 @@ Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依�
 已停止，已清理部分不会恢复	Arrêté. Les éléments déjà supprimés ne peuvent pas être restaurés.
 扫描大小约 {}	Taille analysée : environ {}
 正在取消…	Annulation en cours…
+按需扫描缓存、日志与项目产物，清理前逐项确认。	Analysez les caches, journaux et artefacts de projet à la demande. Vérifiez les éléments avant le nettoyage.
+“{}”只剩 {} 可用。请检查不再需要的文件。	« {} » : il ne reste que {} disponibles. Vérifiez les fichiers dont vous n’avez plus besoin.

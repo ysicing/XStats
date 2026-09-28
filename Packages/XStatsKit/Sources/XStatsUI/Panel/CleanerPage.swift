@@ -81,12 +81,22 @@ private struct SummaryCard: View {
             }
 
             if cleaner.isConfirming {
-                InfoBanner(icon: "exclamationmark.triangle.fill", text: confirmationText, tone: .warning) {
+                let deletesPermanently = cleaner.selectedScans.contains {
+                    $0.rule.deletesPermanently(preferTrash: model.settings.cleanPrefersTrash)
+                }
+                InfoBanner(icon: "exclamationmark.triangle.fill", text: confirmationText,
+                           tone: deletesPermanently ? .error : .warning) {
                     HStack(spacing: DS.Space.s2) {
                         Button(tr("取消")) { cleaner.cancelClean() }
                             .buttonStyle(DSButtonStyle(kind: .secondary))
-                        Button(tr("确认清理")) { cleaner.confirmClean() }
-                            .buttonStyle(DSButtonStyle(kind: .primary))
+                        if deletesPermanently {
+                            Button(tr("确认清理"), role: .destructive) { cleaner.confirmClean() }
+                                .buttonStyle(.borderedProminent)
+                                .tint(DS.Palette.error)
+                        } else {
+                            Button(tr("确认清理")) { cleaner.confirmClean() }
+                                .buttonStyle(DSButtonStyle(kind: .primary))
+                        }
                     }
                 }
             } else {
@@ -152,7 +162,7 @@ private struct SummaryCard: View {
         let count = cleaner.selectedScans.reduce(0) { $0 + $1.items.count }
         let trashNote = model.settings.cleanPrefersTrash
             ? tr("支持的内容先移到废纸篓；工具缓存由对应命令直接清理。")
-            : tr("缓存与日志直接删除，下载内容移到废纸篓。")
+            : tr("缓存与日志将直接删除且无法恢复，下载内容移到废纸篓。")
         var text = tr("将清理 \(count) 个项目，共 \(Format.bytes(cleaner.selectedBytes, base: .decimal))。\(trashNote)")
         if cleaner.selectedScans.contains(where: { $0.id == "developer.homebrew" }) {
             text += " " + tr("Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依赖。")

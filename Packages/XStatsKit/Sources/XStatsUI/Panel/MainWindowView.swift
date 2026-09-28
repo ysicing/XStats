@@ -196,7 +196,13 @@ private struct MainSidebar: View {
     private var navigation: some View {
         VStack(alignment: .leading, spacing: DS.Space.s1) {
             group(tr("监控"), PanelTab.monitors.filter { $0 != .aiUsage || model.settings.aiUsageEnabled })
-            group(tr("工具"), PanelTab.tools.filter { $0 != .rest || model.settings.restEnabled })
+            group(tr("工具"), PanelTab.tools.filter { tab in
+                switch tab {
+                case .rest: model.settings.restEnabled
+                case .cleaner: model.settings.cleanerEnabled
+                default: true
+                }
+            })
             group(tr("设置"), PanelTab.settings)
         }
         .sidebarGlider()

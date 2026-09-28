@@ -101,9 +101,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
             self?.speedTestWindow.show()
         }
         model.openProjectPurgeWindow = { [weak self] in
-            self?.menuBar.dismissPopovers()
-            self?.calendarMenuBar.dismiss()
-            self?.projectPurgeWindow.show()
+            guard let self, self.model.settings.cleanerEnabled else { return }
+            self.menuBar.dismissPopovers()
+            self.calendarMenuBar.dismiss()
+            self.projectPurgeWindow.show()
         }
         model.quit = { NSApp.terminate(nil) }
         model.helper.refreshStatus()
@@ -119,6 +120,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.screenTime.start()
         observeScreenTimeHistorySetting()
         observeRestSettings()
+        observeCleanerSetting()
         observeRestMode()
         observeRestSound()
         rest.sync()
@@ -628,6 +630,26 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self.restMenuBar.sync()
                 if !self.model.settings.restEnabled { self.restWindows.hideHUD() }
                 self.observeRestSettings()
+            }
+        }
+    }
+
+    /// 关闭清理模块时停止尚未结束的扫描或清理，并关闭其独立窗口。
+    private func observeCleanerSetting() {
+        withObservationTracking {
+            _ = model.settings.cleanerEnabled
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if !self.model.settings.cleanerEnabled {
+                    self.model.cleaner.cancelClean()
+                    self.model.cleaner.cancelOperation()
+                    self.model.projectPurge.isConfirming = false
+                    self.model.projectPurge.cancelScan()
+                    self.model.projectPurge.cancelClean()
+                    self.projectPurgeWindow.close()
+                }
+                self.observeCleanerSetting()
             }
         }
     }
