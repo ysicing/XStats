@@ -6,7 +6,7 @@
 
 **무료 오픈소스 macOS 메뉴 막대 시스템 모니터.** CPU, 메모리, 네트워크, 온도를 한눈에 보고, 바로 정리·팬 제어·잠자기 방지까지 할 수 있습니다.
 
-[![Release](https://img.shields.io/badge/version-0.13.0-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/version-0.13.1-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
