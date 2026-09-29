@@ -101,6 +101,41 @@ import Testing
         #expect(try UpdateInstaller.sha256(of: file) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
     }
 
+    @Test func relaunchWaitsForExitAndRequestsANewInstance() async throws {
+        let dir = try scratch()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let opener = dir.appendingPathComponent("fake opener ' quoted")
+        try "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$0.args\"\n"
+            .write(to: opener, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: opener.path)
+        let recorded = URL(fileURLWithPath: opener.path + ".args")
+        let app = dir.appendingPathComponent("XStats $(touch injected) ' \" 空格.app")
+        let original = Process()
+        original.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        original.arguments = ["30"]
+        try original.run()
+        let relaunch = UpdateInstaller.makeRelaunchProcess(app, afterExitOf: original.processIdentifier, opener: opener)
+        relaunch.currentDirectoryURL = dir
+        defer {
+            if original.isRunning { original.terminate() }
+            if relaunch.isRunning { relaunch.terminate() }
+        }
+        try relaunch.run()
+        try await Task.sleep(for: .milliseconds(350))
+        try #require(original.isRunning && relaunch.isRunning)
+        #expect(!FileManager.default.fileExists(atPath: recorded.path), "旧进程退出前不能启动新版")
+        original.terminate()
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while relaunch.isRunning && ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        try #require(!relaunch.isRunning, "旧进程退出后应完成启动命令")
+        #expect(relaunch.terminationStatus == 0)
+        let arguments = try String(contentsOf: recorded, encoding: .utf8).split(separator: "\n").map(String.init)
+        #expect(arguments == ["-n", app.path], "不能让 LaunchServices 复用尚未清理的旧实例记录")
+        #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("injected").path))
+    }
+
     @Test func replacesAndKeepsOldOnFailure() throws {
         let dir = try scratch()
         defer { try? FileManager.default.removeItem(at: dir) }

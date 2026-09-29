@@ -169,13 +169,21 @@ public enum UpdateInstaller {
 
     /// 等当前进程退出后重新打开应用。路径与 PID 作为位置参数传入，不拼进脚本
     public static func relaunch(_ app: URL, afterExitOf pid: Int32 = ProcessInfo.processInfo.processIdentifier) throws {
+        try makeRelaunchProcess(app, afterExitOf: pid).run()
+    }
+
+    /// 构造独立的退出后启动进程；可替换 opener 以测试等待时序与参数传递。
+    static func makeRelaunchProcess(_ app: URL, afterExitOf pid: Int32,
+                                   opener: URL = URL(fileURLWithPath: "/usr/bin/open")) -> Process {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", "while /bin/kill -0 \"$1\" 2>/dev/null; do /bin/sleep 0.2; done; /usr/bin/open \"$2\"",
-                             "xstats-relaunch", String(pid), app.path]
+        // PID 消失后 LaunchServices 仍可能保留旧实例记录；-n 明确启动新版，避免激活已退出的旧进程。
+        process.arguments = ["-c", "while /bin/kill -0 \"$1\" 2>/dev/null; do /bin/sleep 0.2; done; exec \"$3\" -n \"$2\"",
+                             "xstats-relaunch", String(pid), app.path, opener.path]
+        process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        try process.run()
+        return process
     }
 
     // MARK: 工具

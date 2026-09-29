@@ -339,7 +339,9 @@ version match, `SecStaticCodeCheckValidity` passes with a requirement pinned to 
 team, and `spctl --assess` accepts it (notarized). The old bundle is renamed into a same-volume
 temporary folder, the new one moved into place (restored on failure; an administrator prompt is
 used when the folder is not writable), and a detached shell waits for the process to exit before
-reopening the app. After an update the old helper may still be running; the app unregisters an outdated
+reopening the app with `open -n`. LaunchServices can retain the old instance after its PID disappears;
+requesting a new instance prevents the relaunch from being routed to that terminated process.
+After an update the old helper may still be running; the app unregisters an outdated
 helper, re-registers the bundled version, and verifies the protocol before privileged calls resume.
 
 `server/api` is one Go program. Fiber exposes `POST /api/v1/update/check`, authenticated
