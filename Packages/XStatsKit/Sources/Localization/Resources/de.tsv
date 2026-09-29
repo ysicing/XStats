@@ -368,7 +368,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 占用高于	Auslastung über
 卷	Volume
 卸载	Deinstallieren
-卸载“{}”？	„{}“ deinstallieren?
+将“{}”移到废纸篓？	„{}“ in den Papierkorb bewegen?
+包含应用及所选残留，共 {} 项（{}）。	Enthält die App und ausgewählte zugehörige Objekte. Insgesamt: {} ({}).
 卸载失败：{}	Deinstallation fehlgeschlagen: {}
 卸载应用	Apps deinstallieren
 卸载辅助工具	Hilfsprogramm deinstallieren
@@ -417,7 +418,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 只显示菜单栏时的采样间隔；打开弹窗或主窗口时为 1 秒（进程页 2 秒）	Messintervall bei alleiniger Menüleistenanzeige; bei geöffnetem Fenster oder Popover 1 Sekunde (Prozesse: 2 Sekunden)
 只查找以该应用包名命名的文件，以及 Application Support、Logs 下与应用同名的目录；钥匙串与其他应用共享的数据不会动。程序坞里的图标会一并移除	Es werden nur nach der Bundle-ID benannte Dateien sowie Ordner mit dem App-Namen in Application Support und Logs erfasst. Schlüsselbunde und geteilte Daten anderer Apps bleiben unberührt. Das Dock-Symbol wird ebenfalls entfernt
 只设置了系统代理：浏览器等应用走代理，命令行工具、游戏等不读代理设置的程序仍在直连。要接管全部流量，可以开启增强模式或 TUN 模式。	Nur ein Systemproxy ist eingerichtet: Browser und viele Apps nutzen ihn, Befehlszeilenprogramme, Spiele und andere Apps ohne Proxy-Unterstützung verbinden sich direkt. Für den gesamten Verkehr den erweiterten Modus oder TUN-Modus aktivieren.
-可以恢复，但清空废纸篓前不会释放空间	Wiederherstellbar; Speicher wird erst nach dem Leeren des Papierkorbs frei
+可在废纸篓中恢复。清空废纸篓后才会释放空间。	Die Objekte lassen sich aus dem Papierkorb wiederherstellen. Speicher wird erst nach dem Leeren frei.
 可执行文件：{}	Programmdatei: {}
 可清理 · 已选 {} 项	Bereinigbar · {} ausgewählt
 可清除	Löschbar

@@ -494,7 +494,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 占用高于	Usage above
 卷	Volume
 卸载	Uninstall
-卸载“{}”？	Uninstall “{}”?
+将“{}”移到废纸篓？	Move “{}” to Trash?
+包含应用及所选残留，共 {} 项（{}）。	Includes the app and selected related items. Total: {} ({}).
 卸载失败：{}	Uninstall failed: {}
 卸载应用	Uninstaller
 卸载辅助工具	Uninstall Helper
@@ -542,7 +543,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 只显示菜单栏时的采样间隔；打开弹窗或主窗口时为 1 秒（进程页 2 秒）	Sampling interval when only the menu bar is shown; 1 second with a popover or window open (2 seconds on Processes)
 只查找以该应用包名命名的文件，以及 Application Support、Logs 下与应用同名的目录；钥匙串与其他应用共享的数据不会动。程序坞里的图标会一并移除	Only files named after the app's bundle ID, plus folders with the app's name in Application Support and Logs, are included. Keychains and data shared with other apps are never touched. The Dock icon is removed as well
 只设置了系统代理：浏览器等应用走代理，命令行工具、游戏等不读代理设置的程序仍在直连。要接管全部流量，可以开启增强模式或 TUN 模式。	Only a system proxy is set: browsers and most apps use it, but command-line tools, games, and other programs that ignore proxy settings still connect directly. To route all traffic, turn on enhanced mode or TUN mode.
-可以恢复，但清空废纸篓前不会释放空间	Recoverable, but space isn't freed until the Trash is emptied
+可在废纸篓中恢复。清空废纸篓后才会释放空间。	You can restore these items from the Trash. Space is freed after you empty the Trash.
 可执行文件：{}	Executable: {}
 可清理 · 已选 {} 项	Cleanable · {} selected
 可清除	Purgeable

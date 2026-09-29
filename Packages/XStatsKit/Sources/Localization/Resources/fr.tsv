@@ -368,7 +368,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 占用高于	Utilisation supérieure à
 卷	Volume
 卸载	Désinstaller
-卸载“{}”？	Désinstaller « {} » ?
+将“{}”移到废纸篓？	Placer « {} » dans la Corbeille ?
+包含应用及所选残留，共 {} 项（{}）。	Comprend l’app et les éléments associés sélectionnés. Total : {} ({}).
 卸载失败：{}	Échec de la désinstallation : {}
 卸载应用	Désinstallation
 卸载辅助工具	Désinstaller l’assistant
@@ -417,7 +418,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 只显示菜单栏时的采样间隔；打开弹窗或主窗口时为 1 秒（进程页 2 秒）	Intervalle des relevés lorsque seule la barre des menus est affichée ; 1 seconde si un panneau ou la fenêtre est ouvert (2 secondes pour Processus)
 只查找以该应用包名命名的文件，以及 Application Support、Logs 下与应用同名的目录；钥匙串与其他应用共享的数据不会动。程序坞里的图标会一并移除	Seuls les fichiers nommés d’après l’identifiant du bundle et les dossiers au nom de l’app dans Application Support et Logs sont inclus. Les trousseaux et les données partagées restent intacts. L’icône du Dock est aussi retirée
 只设置了系统代理：浏览器等应用走代理，命令行工具、游戏等不读代理设置的程序仍在直连。要接管全部流量，可以开启增强模式或 TUN 模式。	Seul un proxy système est configuré : les navigateurs l’utilisent, mais les outils en ligne de commande, jeux et programmes ignorant les réglages du proxy se connectent directement. Activez le mode amélioré ou TUN pour acheminer tout le trafic.
-可以恢复，但清空废纸篓前不会释放空间	Récupérable, mais l’espace n’est libéré qu’après avoir vidé la Corbeille
+可在废纸篓中恢复。清空废纸篓后才会释放空间。	Vous pouvez les restaurer depuis la Corbeille. L’espace sera libéré après l’avoir vidée.
 可执行文件：{}	Exécutable : {}
 可清理 · 已选 {} 项	Nettoyable · {} sélectionnés
 可清除	Purgeable

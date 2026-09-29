@@ -52,41 +52,44 @@ private struct UninstallConfirmationSheet: View {
     let uninstaller: UninstallerController
 
     var body: some View {
+        let selectedCount = uninstaller.chosen.count.formatted(.number.locale(L10n.locale))
         VStack(alignment: .leading, spacing: DS.Space.s4) {
-            HStack(spacing: DS.Space.s3) {
+            HStack(alignment: .top, spacing: DS.Space.s3) {
                 AppIconCache.shared.image(bundlePath: app.url.path)
                     .resizable()
                     .frame(width: DS.Space.s8, height: DS.Space.s8)
-                Text(tr("卸载“\(app.name)”？"))
+                Text(tr("将“\(app.name)”移到废纸篓？"))
                     .dsFont(.lg, weight: .semibold)
                     .foregroundStyle(DS.Palette.textPrimary)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            VStack(alignment: .leading, spacing: DS.Space.s1) {
-                Text(tr("将移到废纸篓"))
-                    .dsFont(.sm, weight: .medium)
+            VStack(alignment: .leading, spacing: DS.Space.s3) {
+                Text(tr("包含应用及所选残留，共 \(selectedCount) 项（\(Format.bytes(uninstaller.chosenSize, base: .decimal))）。"))
+                    .dsFont(.sm)
                     .foregroundStyle(DS.Palette.textPrimary)
-                Text(tr("已选 \(uninstaller.chosen.count) 项 · \(Format.bytes(uninstaller.chosenSize, base: .decimal))"))
+                Text(tr("可在废纸篓中恢复。清空废纸篓后才会释放空间。"))
                     .dsFont(.sm)
                     .foregroundStyle(DS.Palette.textSecondary)
-                Text(tr("可以恢复，但清空废纸篓前不会释放空间"))
-                    .dsFont(.xs)
-                    .foregroundStyle(DS.Palette.textSecondary)
             }
+            .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: DS.Space.s2) {
                 Spacer()
                 Button(tr("取消")) { uninstaller.cancelUninstall() }
-                    .buttonStyle(DSButtonStyle(kind: .secondary))
+                    .buttonStyle(.bordered)
                     .keyboardShortcut(.cancelAction)
                 Button(tr("移到废纸篓"), role: .destructive) { uninstaller.confirmUninstall() }
                     .buttonStyle(.borderedProminent)
                     .tint(DS.Palette.error)
             }
+            .controlSize(.large)
+            .buttonBorderShape(.capsule)
+            .dsFont(.sm, weight: .medium)
         }
         .padding(DS.Space.s6)
-        .frame(width: 420)
+        .frame(width: 440)
         .background(DS.Palette.background)
         .appLanguageEnvironment()
     }
