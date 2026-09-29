@@ -58,7 +58,7 @@ brew install --cask xstats
 - Processes: view all processes, search, sort, group by app, and end processes.
 - Menu bar calendar: Chinese lunar calendar, public holidays and make-up workdays, almanac, plus your calendar events and reminders.
 - Pomodoro and eye-rest breaks: a break screen on every display that you can skip, pause or shrink to a mini HUD at any time.
-- AI usage and quotas: local Codex / Claude Code token usage and subscription quota checks.
+- AI Usage: local Codex / Claude Code token usage and subscription quota checks.
 
 **Desktop widgets**: system overview, Pomodoro, AI quotas, calendar and month view, "Work tomorrow?", IP purity and public IP.
 
@@ -73,7 +73,7 @@ You can also download the DMG from [GitHub Releases](https://github.com/ysicing/
 No account is required. These features go online, and each can be turned off or used only on demand:
 
 - **Update checks**: send the app version and a hashed installation ID.
-- **AI Usage & Quotas** (off by default): checks subscription quotas through your local Codex / Claude CLI sign-in, with an optional Sub2API fallback.
+- **AI Usage** (off by default): checks subscription quotas through your local Codex / Claude CLI sign-in, with an optional Sub2API fallback.
 - **Public IP, speed tests and connection probes**: contact their services only when used.
 
 Read the [Privacy Policy](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.en.md) and [Terms of Service](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.en.md) for details.

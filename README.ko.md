@@ -58,7 +58,7 @@ brew install --cask xstats
 - 프로세스: 모든 프로세스를 보고 검색, 정렬, 앱별 그룹화 및 종료를 할 수 있습니다.
 - 메뉴 막대 달력: 음력, 중국 공휴일과 대체 근무일, 역서에 더해 캘린더 일정과 미리 알림도 표시합니다.
 - 뽀모도로와 눈 휴식: 모든 디스플레이에 휴식 화면을 띄우며 언제든 건너뛰거나 일시 정지하거나 미니 HUD로 줄일 수 있습니다.
-- AI 사용량 및 한도: Codex / Claude Code의 로컬 토큰 사용량과 구독 한도를 확인합니다.
+- AI 사용량: Codex / Claude Code의 로컬 토큰 사용량과 구독 한도를 확인합니다.
 
 **데스크톱 위젯**: 시스템 개요, 뽀모도로, AI 한도, 달력과 월 달력, "내일 출근?", IP 순도, 공인 IP.
 
@@ -73,7 +73,7 @@ brew install --cask xstats
 계정은 필요하지 않습니다. 다음 기능은 네트워크에 접속하며, 모두 설정에서 끄거나 필요할 때만 사용할 수 있습니다.
 
 - **업데이트 확인**: 앱 버전과 설치 ID의 해시를 보냅니다.
-- **AI 사용량 및 한도**(기본값 꺼짐): 로컬 Codex / Claude CLI 로그인으로 구독 한도를 확인하며, Sub2API를 예비 소스로 설정할 수 있습니다.
+- **AI 사용량**(기본값 꺼짐): 로컬 Codex / Claude CLI 로그인으로 구독 한도를 확인하며, Sub2API를 예비 소스로 설정할 수 있습니다.
 - **공인 IP, 속도 테스트, 연결 테스트**: 사용할 때만 해당 서비스에 접속합니다.
 
 자세한 내용은 [개인정보 처리방침(영어)](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.en.md)과 [서비스 약관(영어)](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.en.md)을 확인하세요.

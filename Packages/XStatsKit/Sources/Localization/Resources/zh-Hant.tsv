@@ -1262,7 +1262,7 @@ Apple 智能本机模型当前不可用。	Apple 智能本機模型目前無法�
 正在刷新	正在更新
 立即刷新	立即更新
 默认关闭	預設關閉
-AI 用量与额度	AI 用量與額度
+AI 用量	AI 用量
 Codex / Claude Code 本机 Token 用量与订阅额度	Codex / Claude Code 本機 Token 用量與訂閱額度
 今天	今天
 模型	模型
@@ -1273,7 +1273,7 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Codex / Claude Code 本�
 缓存命中率	快取命中率
 用量记录	用量記錄
 模型排行	模型排行
-启用使用统计	啟用使用統計
+启用 AI 用量	啟用 AI 用量
 订阅额度	訂閱額度
 服务端用量 · 与本机 Token 统计不同	服務端用量 · 與本機 Token 統計不同
 重置：	重置：
@@ -1281,7 +1281,7 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Codex / Claude Code 本�
 上次额度	上次額度
 显示本地用量	顯示本機用量
 读取本机会话日志；关闭后停止扫描并隐藏 Token 统计。	讀取本機工作階段記錄；關閉後停止掃描並隱藏 Token 統計。
-自动检测 Codex / Claude 订阅额度；本地 Token 统计可单独关闭。	自動偵測 Codex / Claude 訂閱額度；本機 Token 統計可單獨關閉。
+查看 Codex / Claude 的 Token 用量与订阅额度。	查看 Codex / Claude 的 Token 用量與訂閱額度。
 暂无额度数据	暫無額度資料
 未检测到登录凭据，请先登录对应 CLI	未偵測到登入憑證，請先登入對應的 CLI
 登录已失效，请在对应 CLI 重新登录	登入已失效，請在對應的 CLI 重新登入

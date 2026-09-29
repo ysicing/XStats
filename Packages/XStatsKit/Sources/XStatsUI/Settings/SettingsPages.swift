@@ -123,10 +123,10 @@ struct GeneralSettings: View {
                 }
             }
             GroupRow(showsDivider: false) {
-                SettingRow(title: tr("AI 用量与额度"),
-                           subtitle: tr("自动检测 Codex / Claude 订阅额度；本地 Token 统计可单独关闭。"),
+                SettingRow(title: tr("AI 用量"),
+                           subtitle: tr("查看 Codex / Claude 的 Token 用量与订阅额度。"),
                            icon: "sparkles") {
-                    DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 用量与额度"))
+                    DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 用量"))
                 }
             }
             GroupRow(showsDivider: false) {

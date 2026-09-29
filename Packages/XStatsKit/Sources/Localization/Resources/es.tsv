@@ -1261,7 +1261,7 @@ Apple 智能本机模型当前不可用。	El modelo de Apple Intelligence en el
 正在刷新	Actualizando
 立即刷新	Actualizar ahora
 默认关闭	Desactivado por defecto
-AI 用量与额度	Uso y cuotas de IA
+AI 用量	Uso de IA
 Codex / Claude Code 本机 Token 用量与订阅额度	Tokens locales de Codex / Claude Code y cuotas de suscripción
 今天	Hoy
 模型	Modelo
@@ -1272,7 +1272,7 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Tokens locales de Codex /
 缓存命中率	Tasa de aciertos de caché
 用量记录	Registros de uso
 模型排行	Clasificación de modelos
-启用使用统计	Activar estadísticas
+启用 AI 用量	Activar Uso de IA
 订阅额度	Subscription usage
 服务端用量 · 与本机 Token 统计不同	Server usage · separate from local token statistics
 重置：	Resets:
@@ -1280,7 +1280,7 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Tokens locales de Codex /
 上次额度	Cuota anterior
 显示本地用量	Mostrar uso local
 读取本机会话日志；关闭后停止扫描并隐藏 Token 统计。	Lee los registros de sesión locales; al desactivarlo, detiene el análisis y oculta las estadísticas de tokens.
-自动检测 Codex / Claude 订阅额度；本地 Token 统计可单独关闭。	Detecta automáticamente las cuotas de suscripción de Codex / Claude; las estadísticas locales de tokens pueden desactivarse por separado.
+查看 Codex / Claude 的 Token 用量与订阅额度。	Consulta el uso de tokens y las cuotas de suscripción de Codex / Claude.
 暂无额度数据	No quota data yet
 未检测到登录凭据，请先登录对应 CLI	No login credentials found; sign in with the corresponding CLI
 登录已失效，请在对应 CLI 重新登录	Login expired; sign in again with the corresponding CLI

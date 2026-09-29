@@ -24,7 +24,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: tr("CPU 温度")
         case .fan: tr("风扇转速")
         case .battery: tr("电池")
-        case .aiUsage: tr("AI 用量与额度")
+        case .aiUsage: tr("AI 用量")
         }
     }
 
@@ -68,7 +68,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: tr("温度")
         case .fan: tr("风扇")
         case .battery: tr("电池")
-        case .aiUsage: tr("AI 用量与额度")
+        case .aiUsage: tr("AI 用量")
         }
     }
 
@@ -322,7 +322,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .overview: tr("仪表盘")
         case .system: tr("本机信息")
         case .history: tr("历史")
-        case .aiUsage: tr("AI 用量与额度")
+        case .aiUsage: tr("AI 用量")
         case .cpu: "CPU"
         case .gpu: "GPU"
         case .memory: tr("内存")

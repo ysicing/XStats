@@ -58,7 +58,7 @@ brew install --cask xstats
 - 进程：查看全部进程，支持搜索、排序、按应用分组与结束进程。
 - 菜单栏日历：农历、节假日与调休、黄历，可显示系统日程和提醒事项。
 - 番茄钟与护眼休息：多屏休息幕布，可随时跳过、暂停或收起到迷你 HUD。
-- AI 用量与额度：统计 Codex / Claude Code 本机 Token 用量，查询订阅额度。
+- AI 用量：统计 Codex / Claude Code 本机 Token 用量，查询订阅额度。
 
 **桌面小组件**：系统概览、番茄钟、AI 额度、日历与整月日历、明天上班吗、IP 纯净度和公网 IP。
 
@@ -73,7 +73,7 @@ brew install --cask xstats
 无需账号。以下功能会联网，均可在设置中关闭或按需使用：
 
 - **检查更新**：发送版本号和安装标识的哈希。
-- **AI 用量与额度**（默认关闭）：通过本机 Codex / Claude CLI 的登录查询订阅额度，可选配置 Sub2API 作为备用来源。
+- **AI 用量**（默认关闭）：通过本机 Codex / Claude CLI 的登录查询订阅额度，可选配置 Sub2API 作为备用来源。
 - **公网 IP、测速与连接探测**：仅在使用时请求对应服务。
 
 完整说明见[隐私政策](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.zh-Hans.md)和[服务条款](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.zh-Hans.md)。

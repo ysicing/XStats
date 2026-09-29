@@ -50,11 +50,11 @@ private struct LocalUsageContent: View {
             }
             if !model.settings.aiUsageEnabled {
                 Card {
-                    Label(tr("AI 用量与额度"), systemImage: "chart.bar").dsFont(.base, weight: .semibold)
-                    Text(tr("自动检测 Codex / Claude 订阅额度；本地 Token 统计可单独关闭。"))
+                    Label(tr("AI 用量"), systemImage: "chart.bar").dsFont(.base, weight: .semibold)
+                    Text(tr("查看 Codex / Claude 的 Token 用量与订阅额度。"))
                         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Button(tr("启用使用统计")) { model.settings.aiUsageEnabled = true }
+                    Button(tr("启用 AI 用量")) { model.settings.aiUsageEnabled = true }
                         .buttonStyle(DSButtonStyle(kind: .primary))
                 }
             } else if model.settings.aiUsageSources.isEmpty {
@@ -671,7 +671,7 @@ struct AIUsageSettingsButton: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        MiniIconButton(systemName: "slider.horizontal.3", help: tr("AI 用量与额度") + " · " + tr("设置")) {
+        MiniIconButton(systemName: "slider.horizontal.3", help: tr("AI 用量") + " · " + tr("设置")) {
             model.openAIUsageSettings()
         }
     }
@@ -692,8 +692,8 @@ private struct UsageSettings: View {
         @Bindable var settings = model.settings
         VStack(alignment: .leading, spacing: DS.Space.s4) {
             Text(tr("设置")).dsFont(.base, weight: .semibold)
-            SettingRow(title: tr("AI 用量与额度"), subtitle: nil) {
-                DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 用量与额度"))
+            SettingRow(title: tr("AI 用量"), subtitle: nil) {
+                DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 用量"))
             }
             SettingRow(title: tr("显示本地用量"),
                        subtitle: tr("读取本机会话日志；关闭后停止扫描并隐藏 Token 统计。")) {
