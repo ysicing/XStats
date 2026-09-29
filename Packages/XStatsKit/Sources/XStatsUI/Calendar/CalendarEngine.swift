@@ -69,7 +69,8 @@ struct CalendarDay: Identifiable, Equatable {
     let plumRain: String?
     let nineDays: String?
     let seasonalBoundary: String?
-    var id: String { WidgetSnapshot.dayKey(year: year, month: month, day: day) }
+    /// 日期身份在创建时确定，避免 SwiftUI 比较列表时反复格式化字符串。
+    let id: String
     var isWeekend: Bool { weekday == 1 || weekday == 7 }
 
     /// 每格仅显示一条主注释，所有启用的信息在选中日期详情中保留。
@@ -186,7 +187,8 @@ enum CalendarEngine {
                            festivals: festivals, solarTerm: term.dayIndex == 0 ? term.solarTerm.getName() : nil,
                            holiday: solar.legalHoliday.map { .init(name: $0.name, isWork: $0.isWork) },
                            dogDays: dog?.description, plumRain: plumRain?.description,
-                           nineDays: nine?.description, seasonalBoundary: seasonalBoundary)
+                           nineDays: nine?.description, seasonalBoundary: seasonalBoundary,
+                           id: WidgetSnapshot.dayKey(year: year, month: month, day: day))
     }
 
     /// 年份覆盖来自固定版本的数据本身；未收录年份不能把 nil 解读为“无需调休”。

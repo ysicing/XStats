@@ -1,14 +1,46 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import AppKit
 import Foundation
 import Localization
+import SwiftUI
 import Testing
 @testable import XStatsUI
 
 @MainActor
 struct CalendarEnhancementTests {
     let zone = TimeZone(identifier: "Asia/Shanghai")!
+
+    @Test func calendarLayoutDoesNotFeedOverflowBackIntoWindowSize() async throws {
+        let name = "CalendarLayoutTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let model = AppModel(settings: AppSettings(defaults: defaults), historyURL: nil,
+                             aiUsageProviders: [], aiQuotaProviders: [])
+        let date = try #require(ISO8601DateFormatter().date(from: "2026-09-29T04:00:00Z"))
+        var overflowReports = 0
+        let reporter = PopoverOverflowReporter { _ in overflowReports += 1 }
+        let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: 460, height: 380),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        for details in [false, true] {
+            let hosting = NSHostingView(rootView: CalendarPopover(referenceDate: date, showsDayDetails: details)
+                .environment(model)
+                .environment(\.reportPopoverOverflow, reporter))
+            window.contentView = hosting
+            window.orderFrontRegardless()
+            for height in [380.0, 640.0, 400.0] {
+                window.setContentSize(NSSize(width: 460, height: height))
+                hosting.layoutSubtreeIfNeeded()
+                try await Task.sleep(for: .milliseconds(100))
+                #expect(abs(hosting.bounds.height - height) < 1)
+            }
+        }
+        // 内容溢出应留在滚动区域内，不能再反向驱动 StatusPanel.setFrame。
+        #expect(overflowReports == 0)
+    }
 
     @Test func menuBarPresetsShowWeekdayAndFullLunarDate() throws {
         var preferences = CalendarPreferences()

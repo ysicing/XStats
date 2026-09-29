@@ -30,7 +30,7 @@ struct CalendarPopoverSizing: Equatable {
     }
 }
 
-/// 月历与黄历详情在同一个面板内切换；返回时保留浏览月份和选中的日期。
+/// 月历与黄历详情在同一个面板内切换；返回月历时恢复今天。
 struct CalendarPopover: View {
     @Environment(AppModel.self) private var model
     @Environment(\.isSnapshot) private var isSnapshot
@@ -71,31 +71,16 @@ struct CalendarPopover: View {
                     else { header(today: today) }
                 }
                 .padding(sizing.headerPadding)
-                PageScroll {
-                    VStack(spacing: sizing.sectionSpacing) {
-                        if showsDayDetails, let selected, let almanac {
-                            CalendarAlmanacView(day: selected, almanac: almanac, features: model.settings.calendarFeatures)
-                            if model.settings.calendarPreferences.showEvents || model.settings.calendarPreferences.showReminders {
-                                CalendarAgendaView(day: selected)
-                            }
-                        } else {
-                            calendarGrid(today: today)
+                // 打开时由测量视图确定高度；内容变化只滚动，避免布局回调反向调整窗口。
+                Group {
+                    if isSnapshot {
+                        calendarContent(today: today)
+                    } else {
+                        ScrollView {
+                            calendarContent(today: today).overlayScrollers()
                         }
-                        if !showsDayDetails, let selected, model.settings.calendarPreferences.showEvents || model.settings.calendarPreferences.showReminders {
-                            CalendarAgendaView(day: selected)
-                        }
-                        if !showsDayDetails, model.settings.calendarFeatures.contains(.holidays),
-                           model.settings.calendarPreferences.showHolidayOverview, let holidayPlan {
-                            CalendarHolidayPlanView(plan: holidayPlan)
-                        }
-                        if model.settings.calendarFeatures.contains(.holidays), !CalendarEngine.hasHolidayData(year: month.year) {
-                            Text(tr("该年份暂无中国法定假日与调休数据"))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        .scrollBounceBehavior(.basedOnSize)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 8)
                 }
                 .environment(\.isPopover, true)
             }
@@ -148,6 +133,33 @@ struct CalendarPopover: View {
             if selected?.id == lastTodayID { goToToday(today) }
             lastTodayID = today.id
         }
+    }
+
+    private func calendarContent(today: CalendarDay?) -> some View {
+        VStack(spacing: sizing.sectionSpacing) {
+            if showsDayDetails, let selected, let almanac {
+                CalendarAlmanacView(day: selected, almanac: almanac, features: model.settings.calendarFeatures)
+                if model.settings.calendarPreferences.showEvents || model.settings.calendarPreferences.showReminders {
+                    CalendarAgendaView(day: selected)
+                }
+            } else {
+                calendarGrid(today: today)
+            }
+            if !showsDayDetails, let selected, model.settings.calendarPreferences.showEvents || model.settings.calendarPreferences.showReminders {
+                CalendarAgendaView(day: selected)
+            }
+            if !showsDayDetails, model.settings.calendarFeatures.contains(.holidays),
+               model.settings.calendarPreferences.showHolidayOverview, let holidayPlan {
+                CalendarHolidayPlanView(plan: holidayPlan)
+            }
+            if model.settings.calendarFeatures.contains(.holidays), !CalendarEngine.hasHolidayData(year: month.year) {
+                Text(tr("该年份暂无中国法定假日与调休数据"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 8 + DS.Space.s3)
+        .padding(.bottom, 8 + DS.Space.s1)
     }
 
     private var agendaQuery: CalendarAgendaQuery {
@@ -208,19 +220,23 @@ struct CalendarPopover: View {
                 }
                 .padding(.bottom, sizing.cellHeight < 50 ? 2 : 3)
             }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7),
-                      spacing: sizing.cellHeight < 50 ? 3 : 4) {
-                ForEach(days) { day in
-                    CalendarDayCell(day: day, features: features, isCurrentMonth: day.month == month.month,
-                                    isToday: day.id == today?.id, isSelected: day.id == selected?.id,
-                                    preferences: model.settings.calendarPreferences, sizing: sizing,
-                                    hasAgenda: model.calendarAgenda.markedDays.contains(CalendarEngine.gregorian().startOfDay(for: day.date))) {
-                        selected = day
-                        if day.month != month.month, CalendarMonth.years.contains(day.year) {
-                            month = CalendarMonth(year: day.year, month: day.month)
+            // 月历固定最多 42 格，无需懒布局的高度估算与反复放置。
+            VStack(spacing: sizing.cellHeight < 50 ? 3 : 4) {
+                ForEach(0..<6) { row in
+                    HStack(spacing: 4) {
+                        ForEach(days.dropFirst(row * 7).prefix(7)) { day in
+                            CalendarDayCell(day: day, features: features, isCurrentMonth: day.month == month.month,
+                                            isToday: day.id == today?.id, isSelected: day.id == selected?.id,
+                                            preferences: model.settings.calendarPreferences, sizing: sizing,
+                                            hasAgenda: model.calendarAgenda.markedDays.contains(CalendarEngine.gregorian().startOfDay(for: day.date))) {
+                                selected = day
+                                if day.month != month.month, CalendarMonth.years.contains(day.year) {
+                                    month = CalendarMonth(year: day.year, month: day.month)
+                                }
+                                showsDayDetails = true
+                                refreshAlmanac()
+                            }
                         }
-                        showsDayDetails = true
-                        refreshAlmanac()
                     }
                 }
             }
@@ -230,6 +246,8 @@ struct CalendarPopover: View {
     private func detailHeader(today: CalendarDay?) -> some View {
         HStack {
             Button {
+                // 单日详情是临时查看；返回默认月历时不留下历史日期的实心选中态。
+                if let today { goToToday(today) }
                 showsDayDetails = false
             } label: {
                 Label(tr("返回月历"), systemImage: "chevron.backward")
