@@ -43,6 +43,38 @@ struct CalendarAgendaQuery: Equatable, Sendable {
     let eventIDs: Set<String>?
     let reminderIDs: Set<String>?
     let revision: Int
+    var timeZone: TimeZone = .current
+}
+
+/// 只保存有日程的日期，不复制跨天事件列表；在工作 actor 内随查询结果生成一次。
+struct CalendarAgendaResult: Sendable {
+    let items: [CalendarAgendaItem]
+    let markedDays: Set<Date>
+
+    init(items: [CalendarAgendaItem], query: CalendarAgendaQuery) {
+        self.items = items
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = query.timeZone
+        var marks: Set<Date> = []
+        for item in items {
+            if item.isReminder || item.end <= item.start {
+                if item.start >= query.start && item.start < query.end {
+                    marks.insert(calendar.startOfDay(for: item.start))
+                }
+                continue
+            }
+            let end = min(item.end, query.end)
+            var day = calendar.startOfDay(for: max(item.start, query.start))
+            // 结束时间是开区间；按实际日界线推进。午夜切换夏令时当天可能从 01:00 开始，
+            // 不能直接加一天，否则之后每一天都会保留 01:00，无法匹配界面的 startOfDay。
+            while day < end {
+                marks.insert(day)
+                guard let next = calendar.dateInterval(of: .day, for: day)?.end, next > day else { break }
+                day = next
+            }
+        }
+        markedDays = marks
+    }
 }
 
 /// EventKit 对象留在工作 actor 内；界面只接收值类型，不在主线程同步查询日程。
@@ -70,7 +102,7 @@ private actor CalendarAgendaReader {
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
 
-    func load(_ query: CalendarAgendaQuery) async -> [CalendarAgendaItem]? {
+    func load(_ query: CalendarAgendaQuery) async -> CalendarAgendaResult? {
         guard !Task.isCancelled else { return nil }
         let store = self.store
         var result: [CalendarAgendaItem] = []
@@ -93,10 +125,12 @@ private actor CalendarAgendaReader {
                 result += reminders
             }
         }
-        return result.sorted {
+        guard !Task.isCancelled else { return nil }
+        let sorted = result.sorted {
             if $0.start != $1.start { return $0.start < $1.start }
             return $0.id < $1.id
         }
+        return CalendarAgendaResult(items: sorted, query: query)
     }
 
     private func reminders(_ query: CalendarAgendaQuery, calendars: [EKCalendar], store: EKEventStore) async -> [CalendarAgendaItem]? {
@@ -143,6 +177,7 @@ private actor CalendarAgendaReader {
 @Observable
 final class CalendarAgendaController {
     private(set) var items: [CalendarAgendaItem] = []
+    private(set) var markedDays: Set<Date> = []
     private(set) var eventSources: [CalendarAgendaSource] = []
     private(set) var reminderSources: [CalendarAgendaSource] = []
     private(set) var eventsAccess = EKEventStore.authorizationStatus(for: .event)
@@ -153,6 +188,7 @@ final class CalendarAgendaController {
     var revision = 0
     @ObservationIgnored private let reader = CalendarAgendaReader()
     @ObservationIgnored private var generation = UUID()
+    @ObservationIgnored private var storeChangeTask: Task<Void, Never>?
 
     /// 打开面板、应用激活时调用；授权确实变化才重新查询，避免每次打开都取消刚开始的查询再重来
     func refreshAuthorization() {
@@ -164,10 +200,18 @@ final class CalendarAgendaController {
         revision += 1
     }
 
-    /// 日历或提醒事项内容变化（EKEventStoreChanged）时重新查询
+    /// iCloud 同步可能连续发出通知；每个短窗口只刷新一次，不因持续通知无限延后。
     func storeChanged() {
-        refreshAuthorization()
-        revision += 1
+        guard storeChangeTask == nil else { return }
+        storeChangeTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .milliseconds(300)) }
+            catch { return }
+            guard let self else { return }
+            self.storeChangeTask = nil
+            let before = self.revision
+            self.refreshAuthorization()
+            if self.revision == before { self.revision += 1 }
+        }
     }
 
     /// 只能由明确的授权按钮调用；启用功能、导入偏好和打开日历均不自动弹出系统授权。
@@ -197,18 +241,22 @@ final class CalendarAgendaController {
         generation = current
         failed = false
         // 新结果返回前保留旧列表，刷新时日程和日期圆点不会先消失再出现；按日期过滤，跨月也不会显示错位
-        guard query.events || query.reminders else { items = []; isLoading = false; return }
+        guard query.events || query.reminders else { items = []; markedDays = []; isLoading = false; return }
         isLoading = true
         let result = await reader.load(query)
         guard generation == current, !Task.isCancelled else { return }
-        items = result ?? []
+        items = result?.items ?? []
+        markedDays = result?.markedDays ?? []
         failed = result == nil
         isLoading = false
     }
 
     func clear() {
+        storeChangeTask?.cancel()
+        storeChangeTask = nil
         generation = UUID()
         items = []
+        markedDays = []
         isLoading = false
         failed = false
     }

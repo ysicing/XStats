@@ -15,6 +15,7 @@ struct CalendarAgendaView: View {
 
     var body: some View {
         let agenda = model.calendarAgenda
+        let items = self.items
         let preferences = model.settings.calendarPreferences
         VStack(alignment: .leading, spacing: 10) {
             HStack {

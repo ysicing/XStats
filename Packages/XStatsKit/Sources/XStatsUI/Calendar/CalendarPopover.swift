@@ -47,7 +47,7 @@ struct CalendarPopover: View {
     private let sizing: CalendarPopoverSizing
 
     init(referenceDate: Date? = nil, showsDayDetails: Bool = false,
-         sizing: CalendarPopoverSizing = .standard) {
+         sizing: CalendarPopoverSizing = .standard, firstWeekday: Int = 2) {
         self.referenceDate = referenceDate
         self.sizing = sizing
         let today = CalendarEngine.today(at: referenceDate ?? Date())
@@ -58,7 +58,7 @@ struct CalendarPopover: View {
         _showsDayDetails = State(initialValue: showsDayDetails)
         _almanac = State(initialValue: showsDayDetails ? today.flatMap { CalendarEngine.almanac(for: $0) } : nil)
         _lastTodayID = State(initialValue: today?.id)
-        _days = State(initialValue: CalendarEngine.month(year: month.year, month: month.month, firstWeekday: 2))
+        _days = State(initialValue: CalendarEngine.month(year: month.year, month: month.month, firstWeekday: firstWeekday))
         _holidayPlan = State(initialValue: CalendarEngine.holidayPlan(from: referenceDate ?? Date()))
     }
 
@@ -126,7 +126,9 @@ struct CalendarPopover: View {
         }
         .onDisappear { if !isSnapshot { model.calendarAgenda.clear() } }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
-            if !isSnapshot { model.calendarAgenda.storeChanged() }
+            if !isSnapshot && (model.settings.calendarPreferences.showEvents || model.settings.calendarPreferences.showReminders) {
+                model.calendarAgenda.storeChanged()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             if !isSnapshot { model.calendarAgenda.refreshAuthorization() }
@@ -157,7 +159,7 @@ struct CalendarPopover: View {
         return .init(start: start, end: end,
                      events: settings.calendarPreferences.showEvents, reminders: settings.calendarPreferences.showReminders,
                      eventIDs: settings.calendarEventSourceIDs, reminderIDs: settings.calendarReminderSourceIDs,
-                     revision: model.calendarAgenda.revision)
+                     revision: model.calendarAgenda.revision, timeZone: .current)
     }
 
     private func header(today: CalendarDay?) -> some View {
@@ -212,7 +214,7 @@ struct CalendarPopover: View {
                     CalendarDayCell(day: day, features: features, isCurrentMonth: day.month == month.month,
                                     isToday: day.id == today?.id, isSelected: day.id == selected?.id,
                                     preferences: model.settings.calendarPreferences, sizing: sizing,
-                                    hasAgenda: model.calendarAgenda.items.contains { $0.occurs(on: day.date, calendar: CalendarEngine.gregorian()) }) {
+                                    hasAgenda: model.calendarAgenda.markedDays.contains(CalendarEngine.gregorian().startOfDay(for: day.date))) {
                         selected = day
                         if day.month != month.month, CalendarMonth.years.contains(day.year) {
                             month = CalendarMonth(year: day.year, month: day.month)

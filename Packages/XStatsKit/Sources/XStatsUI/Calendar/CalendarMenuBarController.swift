@@ -174,8 +174,8 @@ final class CalendarMenuBarController: NSObject {
         if panel == nil || (panel?.isVisible == false && panelSizing != sizing) {
             let model = self.model
             let panel = StatusPanel(width: sizing.width, minHeight: 380, maxHeight: sizing.maxHeight,
-                                    content: { CalendarPopover(sizing: sizing).environment(model) },
-                                    measuring: { CalendarPopover(sizing: sizing).environment(model).environment(\.isSnapshot, true) })
+                                    content: { CalendarPopover(sizing: sizing, firstWeekday: model.settings.calendarFirstWeekday).environment(model) },
+                                    measuring: { CalendarPopover(sizing: sizing, firstWeekday: model.settings.calendarFirstWeekday).environment(model).environment(\.isSnapshot, true) })
             panel.onVisibilityChange = { [weak self] visible in self?.item?.button?.highlight(visible) }
             self.panel = panel
             panelSizing = sizing

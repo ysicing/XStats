@@ -130,15 +130,92 @@ struct CalendarEnhancementTests {
         #expect(allDay.timeLabel(on: nextDay, calendar: calendar) == tr("全天"))
     }
 
-    @Test func refreshingUnchangedAuthorizationDoesNotRestartTheQuery() {
+    @Test func refreshingUnchangedAuthorizationDoesNotRestartTheQuery() async throws {
         let agenda = CalendarAgendaController()
         let before = agenda.revision
         // 打开面板、应用激活都会调用；授权没变时不能改动查询的 id，否则刚开始的查询会被取消重来
         agenda.refreshAuthorization()
         agenda.refreshAuthorization()
         #expect(agenda.revision == before)
-        agenda.storeChanged()
+        for _ in 0..<100 { agenda.storeChanged() }
+        #expect(agenda.revision == before, "a burst of store notifications should be coalesced")
+        for _ in 0..<30 {
+            if agenda.revision != before { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
         #expect(agenda.revision == before + 1, "calendar content changes must trigger a reload")
+        agenda.storeChanged()
+        agenda.clear()
+        try await Task.sleep(for: .milliseconds(500))
+        #expect(agenda.revision == before + 1, "closing the panel must cancel scheduled refreshes")
+    }
+
+    @Test func repeatedMonthCalculationReusesStorageAndInvalidatesForCalendarChanges() throws {
+        let first = CalendarEngine.month(year: 2026, month: 9, firstWeekday: 2, timeZone: zone)
+        let repeated = CalendarEngine.month(year: 2026, month: 9, firstWeekday: 2, timeZone: zone)
+        // 两份结果同时存活：共享 CoW 存储证明测量视图和实际视图没有再次生成 42 天数据。
+        first.withUnsafeBufferPointer { a in
+            repeated.withUnsafeBufferPointer { b in #expect(a.baseAddress == b.baseAddress) }
+        }
+        let sunday = CalendarEngine.month(year: 2026, month: 9, firstWeekday: 1, timeZone: zone)
+        #expect(sunday.first?.id == "2026-08-30")
+        let utc = CalendarEngine.month(year: 2026, month: 9, firstWeekday: 2, timeZone: TimeZone(secondsFromGMT: 0)!)
+        #expect(utc.map(\.id) == first.map(\.id))
+        #expect(utc.first?.date != first.first?.date)
+        #expect(CalendarEngine.month(year: 2026, month: 10, firstWeekday: 2, timeZone: zone).first?.id == "2026-09-28")
+        let evicted = CalendarEngine.month(year: 2026, month: 9, firstWeekday: 2, timeZone: zone)
+        #expect(evicted == first)
+        first.withUnsafeBufferPointer { a in
+            evicted.withUnsafeBufferPointer { b in #expect(a.baseAddress != b.baseAddress) }
+        }
+    }
+
+    @Test(arguments: [3, 11])
+    func agendaMarkersMatchEventSemanticsAcrossDST(month: Int) throws {
+        let zone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+        let calendar = CalendarEngine.gregorian(timeZone: zone)
+        let start = try #require(calendar.date(from: DateComponents(year: 2026, month: month, day: 1)))
+        let end = try #require(calendar.date(byAdding: .day, value: 42, to: start))
+        let query = CalendarAgendaQuery(start: start, end: end, events: true, reminders: true,
+                                       eventIDs: nil, reminderIDs: nil, revision: 0, timeZone: zone)
+        // 覆盖跨月、跨午夜、零时长、提醒、结束边界及窗口外数据，与旧逐日判断逐一对照。
+        for offset in [-10, -1, 0, 7, 8, 30, 41, 42, 50] {
+            let date = try #require(calendar.date(byAdding: .day, value: offset, to: start))
+            for duration in [-3600.0, 0, 3600, 86_400, 4_000_000] {
+                for reminder in [false, true] {
+                    let item = CalendarAgendaItem(id: "test", title: "", source: "", start: date,
+                                                 end: date.addingTimeInterval(duration), isAllDay: false, isReminder: reminder)
+                    let result = CalendarAgendaResult(items: [item], query: query)
+                    for dayIndex in 0..<42 {
+                        let day = try #require(calendar.date(byAdding: .day, value: dayIndex, to: start))
+                        #expect(result.markedDays.contains(day) == item.occurs(on: day, calendar: calendar))
+                    }
+                    #expect(result.markedDays.count <= 42)
+                    #expect(result.markedDays.allSatisfy { $0 >= start && $0 < end })
+                }
+            }
+        }
+    }
+
+    @Test(arguments: [("America/Havana", 2026, 3, 7), ("America/Sao_Paulo", 2018, 11, 3)])
+    func agendaMarkersRemainAtDayStartAfterMidnightDST(_ sample: (String, Int, Int, Int)) throws {
+        let zone = try #require(TimeZone(identifier: sample.0))
+        let calendar = CalendarEngine.gregorian(timeZone: zone)
+        // 每个日期独立求日界线，不能沿用待测算法按前一天的小时递增。
+        let days = try (0..<5).map { offset in
+            let noon = try #require(calendar.date(from: DateComponents(year: sample.1, month: sample.2,
+                                                                      day: sample.3 + offset, hour: 12)))
+            return calendar.startOfDay(for: noon)
+        }
+        #expect(calendar.component(.hour, from: days[1]) == 1)
+        #expect(calendar.component(.hour, from: days[2]) == 0)
+        let query = CalendarAgendaQuery(start: days[0], end: days[4], events: true, reminders: false,
+                                       eventIDs: nil, reminderIDs: nil, revision: 0, timeZone: zone)
+        let item = CalendarAgendaItem(id: "midnight-dst", title: "", source: "", start: days[0],
+                                     end: days[4], isAllDay: true, isReminder: false)
+        let result = CalendarAgendaResult(items: [item], query: query)
+        #expect(result.markedDays == Set(days.prefix(4)))
+        #expect(!result.markedDays.contains(days[4]), "event end remains exclusive")
     }
 
     @Test func holidayPlanCacheStillFollowsDayAndTimeZone() throws {

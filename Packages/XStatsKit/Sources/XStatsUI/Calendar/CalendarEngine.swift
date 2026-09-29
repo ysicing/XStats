@@ -92,6 +92,9 @@ struct CalendarDetail: Identifiable {
 /// Tyme 使用可变的静态表；统一在主线程读取，不把其引用类型暴露给界面或跨线程共享。
 @MainActor
 enum CalendarEngine {
+    // 实际面板、测量视图和 onAppear 共用一次计算；只保留最近一个月，翻月不会累积内存。
+    private static var monthCache: (month: CalendarMonth, firstWeekday: Int, timeZone: TimeZone, days: [CalendarDay])?
+
     static func gregorian(timeZone: TimeZone = .autoupdatingCurrent) -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
@@ -101,6 +104,10 @@ enum CalendarEngine {
     static func today(at date: Date = Date(), timeZone: TimeZone = .autoupdatingCurrent) -> CalendarDay? {
         let parts = gregorian(timeZone: timeZone).dateComponents([.year, .month, .day], from: date)
         guard let year = parts.year, let month = parts.month, let day = parts.day else { return nil }
+        if let cached = monthCache, cached.timeZone.identifier == timeZone.identifier,
+           let existing = cached.days.first(where: { $0.year == year && $0.month == month && $0.day == day }) {
+            return existing
+        }
         return self.day(year: year, month: month, day: day, timeZone: timeZone)
     }
 
@@ -133,16 +140,23 @@ enum CalendarEngine {
 
     static func month(year: Int, month: Int, firstWeekday: Int,
                       timeZone: TimeZone = .autoupdatingCurrent) -> [CalendarDay] {
-        guard CalendarMonth.years.contains(year), (1...12).contains(month),
-              let first = day(year: year, month: month, day: 1, timeZone: timeZone) else { return [] }
-        let calendar = gregorian(timeZone: timeZone)
+        let requested = CalendarMonth(year: year, month: month)
         let weekStart = firstWeekday == 1 ? 1 : 2
+        // 固定自动更新时区的当前值，避免缓存里的时区也跟着系统变化，误判为可复用。
+        let zone = TimeZone(identifier: timeZone.identifier) ?? timeZone
+        if let cached = monthCache, cached.month == requested,
+           cached.firstWeekday == weekStart, cached.timeZone == zone { return cached.days }
+        guard CalendarMonth.years.contains(year), (1...12).contains(month),
+              let first = day(year: year, month: month, day: 1, timeZone: zone) else { return [] }
+        let calendar = gregorian(timeZone: zone)
         let offset = (first.weekday - weekStart + 7) % 7
         // 用日历加天而非 86400 秒；夏令时切换不能导致重复日期或漏掉日期。
-        return (0..<42).compactMap { index in
+        let days: [CalendarDay] = (0..<42).compactMap { index in
             guard let date = calendar.date(byAdding: .day, value: index - offset, to: first.date) else { return nil }
-            return today(at: date, timeZone: timeZone)
+            return today(at: date, timeZone: zone)
         }
+        monthCache = (requested, weekStart, zone, days)
+        return days
     }
 
     static func day(year: Int, month: Int, day: Int,
