@@ -475,11 +475,13 @@ private struct TopProcessesCard: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(String(process.pid), forType: .string)
                 }
-                if ProcessExplainer.isSupported {
+                if model.settings.processesEnabled && ProcessExplainer.isSupported {
                     Button(tr("用 Apple 智能解释")) { model.explainProcess(.init(process)) }
                 }
-                Divider()
-                Button(tr("查看全部进程")) { model.settings.panelTab = .processes }
+                if model.settings.processesEnabled {
+                    Divider()
+                    Button(tr("查看全部进程")) { model.settings.panelTab = .processes }
+                }
             } label: {
                 icon
             }

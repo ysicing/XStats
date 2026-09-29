@@ -186,7 +186,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
             egressWindow.show()
         }
         // 开发调试：--explain-process <进程名> 打开进程页并用 Apple 智能解释该进程
-        if let index = arguments.firstIndex(of: "--explain-process"), let name = arguments.dropFirst(index + 1).first {
+        if model.settings.processesEnabled, let index = arguments.firstIndex(of: "--explain-process"),
+           let name = arguments.dropFirst(index + 1).first {
             mainWindow.show(tab: .processes)
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
                 guard let self else { return }
@@ -248,7 +249,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             if mainWindow.isVisible && NSApp.isActive { mainWindow.close() } else { mainWindow.show(tab: nil) }
         case .showProcesses:
             menuBar.dismissPopovers()
-            mainWindow.show(tab: .processes)
+            model.openProcessMonitor()
         case .toggleKeepAwake:
             Task { await model.keepAwake.setActive(!model.keepAwake.isActive) }
         case .purgeMemory:
@@ -308,6 +309,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             _ = model.settings.menuBarLayout
             _ = model.settings.menuBarStyle
             _ = model.settings.networkStyle
+            _ = model.settings.processesEnabled
             _ = model.settings.networkLocationStyle
             _ = model.settings.publicIPLookup
             _ = model.network.publicAddresses?.countryCode
@@ -328,6 +330,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             Task { @MainActor in
                 guard let self else { return }
                 self.applyLanguageIfChanged()
+                if !self.model.settings.processesEnabled { self.model.explainer.dismiss() }
                 self.model.alerts.applySettings()
                 await self.model.hub.update(self.model.demand)
                 self.model.bluetooth.setDemand(self.model.bluetoothDemand)

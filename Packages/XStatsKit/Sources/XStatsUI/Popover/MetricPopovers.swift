@@ -602,7 +602,7 @@ private struct ExplainableRow<Content: View>: View {
     var body: some View {
         content
             .contentShape(Rectangle())
-            .contextMenu(isSnapshot ? nil : ContextMenu {
+            .contextMenu(isSnapshot || !model.settings.processesEnabled ? nil : ContextMenu {
                 Button(tr("用 Apple 智能解释")) { model.explainProcess(subject) }
             })
     }

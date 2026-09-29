@@ -1424,5 +1424,9 @@ Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依�
 国旗	Flag
 地区文字	Region name
 与网络详情中的 IP 归属地共用查询结果和刷新，不额外联网。需开启公网 IP 查询。	Shares the location result and refresh with network details; no extra requests. Requires public IP lookup.
+查看全部进程、搜索排序与结束进程，按需开启。	View all processes, search, sort, and end processes. Enable when needed.
+活动监视器	Activity Monitor
+打开系统活动监视器	Open macOS Activity Monitor
+进程功能开启时打开 XStats 进程页，关闭时打开系统活动监视器。	Opens XStats Processes when enabled, or macOS Activity Monitor when the feature is off.
 """#
 }

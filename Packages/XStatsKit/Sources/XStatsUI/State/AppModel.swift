@@ -1,4 +1,5 @@
 import AIUsage
+import AppKit
 import Foundation
 import Metrics
 import Observation
@@ -63,6 +64,9 @@ public final class AppModel {
     public private(set) var launchAtLoginError: String?
 
     @ObservationIgnored var openSettings: () -> Void = {}
+    @ObservationIgnored var openActivityMonitor: () -> Void = {
+        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
+    }
     @ObservationIgnored var openCalendar: () -> Void = {}
     @ObservationIgnored var restoreCalendarEntry: () -> Void = {}
     @ObservationIgnored var openAIUsageSettings: () -> Void = {}
@@ -113,6 +117,7 @@ public final class AppModel {
         var demand = MetricsDemand()
         let tab = settings.panelTab
         let window = isMainWindowVisible
+        let processPage = settings.processesEnabled && window && tab == .processes
         let popover = openPopover
         let menu = settings.menuBarItems
         let thermalPopover = popover == .temperature || popover == .fan
@@ -121,7 +126,7 @@ public final class AppModel {
         let liveWindow = window && [.overview, .system, .cpu, .gpu, .memory, .disk,
                                     .network, .thermal, .battery].contains(tab)
         // 进程页要读全系统进程（启动 ps），每 2 秒刷新一次足够，也更省电
-        demand.interval = window && tab == .processes && popover == nil ? .seconds(2)
+        demand.interval = processPage && popover == nil ? .seconds(2)
             : liveWindow || popover != nil || isCombinedPopoverOpen ? .seconds(1) : .seconds(settings.refreshSeconds)
         demand.memory = true
         demand.network = true
@@ -131,9 +136,9 @@ public final class AppModel {
         demand.diskDetail = showing(.disk, .disk)
         demand.battery = (window && [.overview, .system, .keepAwake].contains(tab)) || keepAwake.lidClosedActive
             || menu.contains(.battery) || showing(.battery, .battery)
-        demand.processes = (window && [.processes, .overview, .disk].contains(tab)) || showing(.cpu, .cpu) || showing(.memory, .memory)
+        demand.processes = processPage || (window && [.overview, .disk].contains(tab)) || showing(.cpu, .cpu) || showing(.memory, .memory)
             || popover == .disk
-        demand.systemProcesses = window && tab == .processes
+        demand.systemProcesses = processPage
 
         var groups = Set<TemperatureGroup>()
         if window && tab == .overview { groups.formUnion([.cpu, .gpu]) }
@@ -206,8 +211,15 @@ public final class AppModel {
         }
     }
 
+    /// 进程快捷键始终可用；关闭内置模块时交给系统应用，不隐式开启模块。
+    func openProcessMonitor() {
+        if settings.processesEnabled { openMainWindow(.processes) }
+        else { openActivityMonitor() }
+    }
+
     /// 用 Apple 智能解释进程：结果显示在主窗口的进程页
     func explainProcess(_ subject: ProcessExplainer.Subject) {
+        guard settings.processesEnabled else { return }
         settings.panelTab = .processes
         if !isMainWindowVisible { openMainWindow(.processes) }
         explainer.explain(subject)

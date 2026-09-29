@@ -106,6 +106,13 @@ struct GeneralSettings: View {
 
         SettingsGroup(caption: tr("可选功能")) {
             GroupRow(showsDivider: false) {
+                SettingRow(title: tr("进程"),
+                           subtitle: tr("查看全部进程、搜索排序与结束进程，按需开启。"),
+                           icon: "list.bullet.rectangle") {
+                    DSToggle(isOn: $settings.processesEnabled, label: tr("进程"))
+                }
+            }
+            GroupRow(showsDivider: false) {
                 SettingRow(title: tr("番茄钟与护眼休息"),
                            subtitle: tr("专注计时、每日目标与多屏休息幕布。"),
                            icon: "eye") {
@@ -258,9 +265,16 @@ struct HotKeySettings: View {
         let settings = model.settings
         SettingsGroup(caption: tr("全局快捷键（在任何应用中都能使用，需要包含 ⌘、⌥ 或 ⌃）")) {
             ForEach(Array(HotKeyAction.allCases.enumerated()), id: \.element) { index, action in
+                let subtitle: String? = if model.hotKeyConflicts.contains(action) {
+                    tr("这个快捷键已被其他应用或系统占用，请换一个")
+                } else if action == .showProcesses {
+                    tr("进程功能开启时打开 XStats 进程页，关闭时打开系统活动监视器。")
+                } else {
+                    nil
+                }
                 GroupRow(showsDivider: index > 0) {
-                    SettingRow(title: action.title,
-                               subtitle: model.hotKeyConflicts.contains(action) ? tr("这个快捷键已被其他应用或系统占用，请换一个") : nil) {
+                    SettingRow(title: action.title(processesEnabled: settings.processesEnabled),
+                               subtitle: subtitle) {
                         ShortcutRecorder(hotKey: Binding(get: { settings.hotKeys[action] },
                                                          set: { settings.hotKeys[action] = $0 }))
                     }

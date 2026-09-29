@@ -451,6 +451,7 @@ private func isolatedDefaults() -> UserDefaults {
 
     @Test func processesPageRefreshesEveryTwoSeconds() {
         let model = model()
+        model.settings.processesEnabled = true
         model.isMainWindowVisible = true
         model.settings.panelTab = .processes
         #expect(model.demand.interval == .seconds(2))

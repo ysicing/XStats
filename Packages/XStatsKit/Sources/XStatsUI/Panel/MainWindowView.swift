@@ -206,6 +206,7 @@ private struct MainSidebar: View {
                 switch tab {
                 case .rest: model.settings.restEnabled
                 case .cleaner: model.settings.cleanerEnabled
+                case .processes: model.settings.processesEnabled
                 default: true
                 }
             })
@@ -341,6 +342,18 @@ private struct PageHeader: View {
                 }
             }
             if tab == .memory { PurgeMemoryButton() }
+            if tab == .processes {
+                Button {
+                    model.openActivityMonitor()
+                } label: {
+                    Label(tr("活动监视器"), systemImage: "arrow.up.forward.app")
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+                .buttonStyle(DSButtonStyle(kind: .secondary))
+                .help(tr("打开系统活动监视器"))
+                .accessibilityLabel(tr("打开系统活动监视器"))
+            }
             if tab == .cleaner {
                 Button { model.openProjectPurgeWindow() } label: {
                     HStack(spacing: DS.Space.s1) {

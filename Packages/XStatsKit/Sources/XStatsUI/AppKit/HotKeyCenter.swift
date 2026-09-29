@@ -18,6 +18,10 @@ public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable 
         }
     }
 
+    func title(processesEnabled: Bool) -> String {
+        self == .showProcesses && !processesEnabled ? tr("打开系统活动监视器") : title
+    }
+
     /// Carbon 热键编号，从 1 开始
     var carbonID: UInt32 { UInt32(Self.allCases.firstIndex(of: self)! + 1) }
 }

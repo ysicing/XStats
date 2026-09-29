@@ -55,6 +55,7 @@ brew install --cask xstats
 
 **Optional modules**, off by default:
 
+- Processes: view all processes, search, sort, group by app, and end processes.
 - Menu bar calendar: Chinese lunar calendar, public holidays and make-up workdays, almanac, plus your calendar events and reminders.
 - Pomodoro and eye-rest breaks: a break screen on every display that you can skip, pause or shrink to a mini HUD at any time.
 - AI usage and quotas: local Codex / Claude Code token usage and subscription quota checks.

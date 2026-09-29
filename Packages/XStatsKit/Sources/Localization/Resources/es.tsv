@@ -1615,3 +1615,7 @@ GitHub 项目	Proyecto en GitHub
 国旗	Bandera
 地区文字	Nombre de región
 与网络详情中的 IP 归属地共用查询结果和刷新，不额外联网。需开启公网 IP 查询。	Comparte el resultado de ubicación y la actualización con los detalles de red, sin solicitudes adicionales. Requiere consultar la IP pública.
+查看全部进程、搜索排序与结束进程，按需开启。	Consulta todos los procesos, busca, ordena y finaliza procesos. Actívalo cuando lo necesites.
+活动监视器	Monitor de Actividad
+打开系统活动监视器	Abrir el Monitor de Actividad de macOS
+进程功能开启时打开 XStats 进程页，关闭时打开系统活动监视器。	Abre Procesos de XStats si la función está activada; si está desactivada, abre el Monitor de Actividad de macOS.

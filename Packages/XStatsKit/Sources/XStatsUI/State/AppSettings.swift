@@ -541,6 +541,13 @@ public final class AppSettings {
             if !aiUsageEnabled && panelTab == .aiUsage { panelTab = .settingsGeneral }
         }
     }
+    /// 独立进程管理器默认关闭；其他监控页仍可按需读取应用用量。
+    public var processesEnabled: Bool {
+        didSet {
+            defaults.set(processesEnabled, forKey: Keys.processesEnabled)
+            if !processesEnabled && panelTab == .processes { panelTab = .settingsGeneral }
+        }
+    }
     /// 清理工具默认关闭；扫描只在打开页面后按需执行。
     public var cleanerEnabled: Bool {
         didSet {
@@ -578,7 +585,11 @@ public final class AppSettings {
         didSet { defaults.set(fanSafetyTemperature, forKey: Keys.fanSafetyTemperature) }
     }
     public var panelTab: PanelTab {
-        didSet { defaults.set(panelTab.rawValue, forKey: Keys.panelTab) }
+        didSet {
+            // 统一拦截旧路由与外部打开请求，关闭的进程模块不能被其他入口重新打开。
+            if panelTab == .processes && !processesEnabled { panelTab = .settingsGeneral }
+            defaults.set(panelTab.rawValue, forKey: Keys.panelTab)
+        }
     }
     public var appearance: AppearanceMode {
         didSet { defaults.set(appearance.rawValue, forKey: Keys.appearance) }
@@ -753,6 +764,8 @@ public final class AppSettings {
         aiUsageEnabled = isAIUsageEnabled
         let isCleanerEnabled = defaults.bool(forKey: Keys.cleanerEnabled)
         cleanerEnabled = isCleanerEnabled
+        let isProcessesEnabled = defaults.bool(forKey: Keys.processesEnabled)
+        processesEnabled = isProcessesEnabled
         aiUsageSources = defaults.stringArray(forKey: Keys.aiUsageSources)
             .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
         aiUsageShowsLocalUsage = defaults.object(forKey: Keys.aiUsageShowsLocalUsage) as? Bool ?? true
@@ -772,6 +785,7 @@ public final class AppSettings {
             || (savedPanelTab == .aiUsage && !isAIUsageEnabled)
             || (savedPanelTab == .rest && !isRestEnabled)
             || (savedPanelTab == .cleaner && !isCleanerEnabled)
+            || (savedPanelTab == .processes && !isProcessesEnabled)
             ? .settingsGeneral : savedPanelTab
         appearance = defaults.string(forKey: Keys.appearance).flatMap(AppearanceMode.init(rawValue:)) ?? .system
         showDockIcon = defaults.bool(forKey: Keys.showDockIcon)
@@ -867,6 +881,7 @@ public final class AppSettings {
         static let refreshSeconds = "refreshSeconds"
         static let aiUsageEnabled = "aiUsageEnabled"
         static let cleanerEnabled = "cleanerEnabled"
+        static let processesEnabled = "processesEnabled"
         static let aiUsageSources = "aiUsageSources"
         static let aiUsageShowsLocalUsage = "aiUsageShowsLocalUsage"
         static let aiUsageRefreshMinutes = "aiUsageRefreshMinutes"

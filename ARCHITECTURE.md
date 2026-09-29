@@ -13,6 +13,16 @@ samples only that: CPU always; memory and network cheaply; GPU, disk, processes,
 fans only when a visible surface needs them. Disk is read at most every 30 s, battery every
 10 s. The loop pauses on screen sleep, system sleep and session switch.
 
+The full process manager is an optional module, disabled by default through `processesEnabled`.
+Its sidebar entry and process-explanation shortcuts are available only when enabled. The process
+hotkey remains registered: it opens XStats's process page when enabled, or macOS Activity Monitor
+when disabled, without changing the module preference. Its settings label follows the destination;
+the process-page header also provides a direct Activity Monitor button.
+Disabling the module returns an open process page to General settings, cancels an explanation,
+and removes full-system process sampling demand. Existing CPU, memory, disk and overview app-usage
+lists retain their own visibility-based sampling. The preference is backed up; older documents without
+it preserve the current setting. Saved process-page routes fall back to General settings when disabled.
+
 The sandboxed WidgetKit extension samples CPU, memory, disk, and battery through `Metrics`
 independently, so it remains useful when the app is not running.
 AI, IP, and calendar widgets instead read a credential-free App Group snapshot. The main app

@@ -59,6 +59,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var autoCheckUpdates: Bool?
     public var updateCheckSchedule: String?
     public var cleanerEnabled: Bool?
+    public var processesEnabled: Bool?
     public var cleanPrefersTrash: Bool?
 
     public init() {}
@@ -111,6 +112,7 @@ extension AppSettings {
         doc.autoCheckUpdates = autoCheckUpdates
         doc.updateCheckSchedule = updateCheckSchedule.rawValue
         doc.cleanerEnabled = cleanerEnabled
+        doc.processesEnabled = processesEnabled
         doc.cleanPrefersTrash = cleanPrefersTrash
         return doc
     }
@@ -184,6 +186,7 @@ extension AppSettings {
             assign(\.autoCheckUpdates, doc.autoCheckUpdates)
         }
         assign(\.cleanerEnabled, doc.cleanerEnabled)
+        assign(\.processesEnabled, doc.processesEnabled)
         assign(\.cleanPrefersTrash, doc.cleanPrefersTrash)
     }
 
