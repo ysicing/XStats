@@ -20,7 +20,7 @@ struct CalendarEnhancementTests {
                              aiUsageProviders: [], aiQuotaProviders: [])
         let date = try #require(ISO8601DateFormatter().date(from: "2026-09-29T04:00:00Z"))
         var overflowReports = 0
-        let reporter = PopoverOverflowReporter { _ in overflowReports += 1 }
+        let reporter = PopoverHeightReporter { _ in overflowReports += 1 }
         let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: 460, height: 380),
                               styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
@@ -28,7 +28,7 @@ struct CalendarEnhancementTests {
         for details in [false, true] {
             let hosting = NSHostingView(rootView: CalendarPopover(referenceDate: date, showsDayDetails: details)
                 .environment(model)
-                .environment(\.reportPopoverOverflow, reporter))
+                .environment(\.reportPopoverHeight, reporter))
             window.contentView = hosting
             window.orderFrontRegardless()
             for height in [380.0, 640.0, 400.0] {

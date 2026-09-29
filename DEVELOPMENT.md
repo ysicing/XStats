@@ -186,7 +186,10 @@ git push
 - `Packages/XStatsKit/Sources/WebDAVSync`：WebDAV 同步和钥匙串密码存储。
 - `Packages/XStatsKit/Sources/WidgetData`：主应用与桌面小组件共享的无凭据展示摘要；AI 额度沿用模块总开关，本地用量开关单独传给 Widget，旧摘要缺少新字段时沿用原有总开关。
 - `Packages/XStatsKit/Sources/XStatsUI`：界面、设置、弹窗和菜单栏渲染。
+
 - `Packages/XStatsKit/Sources/XStatsUI/Rest`：本机休息计时、幕布、Mini HUD 与合成声音。
 - `Packages/XStatsKit/Tests`：Swift 单元测试。
+
+性能约束：本机 AI 用量扫描只在文件集合、文件元数据、统计日期或时区变化时重新聚合；进程内仅缓存上一轮元数据与汇总，解析检查点仍保存在 SQLite。扫描失败不复用该轮结果。清理扫描及工具清理后的大小核验必须在目录枚举中响应取消，不能发布部分计量结果。指标弹窗在同一布局轮次合并当前标题栏和滚动内容的绝对高度，下一轮更新窗口；不能同步累加内容与视口差值，也不能用新建视图的默认交互状态覆盖实际高度。定向回归见 `LocalUsageScanCacheTests`、`ScanCancellationTests` 和 `StatusPanelLayoutTests`。
 
 更深入的模块边界、采样策略和安全约束见 [ARCHITECTURE.md](ARCHITECTURE.md)。

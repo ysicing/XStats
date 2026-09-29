@@ -13,6 +13,7 @@ public actor ClaudeLocalUsageProvider: AIUsageProvider {
     private let databaseURL: URL
     private let now: @Sendable () -> Date
     private var store: UsageScanStore?
+    private var scanCache: LocalUsageScanCache?
 
     public nonisolated var unownedExecutor: UnownedSerialExecutor {
         ScanExecutor.shared.asUnownedSerialExecutor()
@@ -54,6 +55,15 @@ public actor ClaudeLocalUsageProvider: AIUsageProvider {
             }
             if enumerationFailed { unreadable += 1 }
         }
+        let revision = unreadable == 0
+            ? try? LocalUsageScanCache.Revision(files: files.sorted { $0.path < $1.path }, now: now, calendar: calendar) : nil
+        try Task.checkCancellation()
+        if let revision, let scanCache, scanCache.revision == revision {
+            var snapshot = AIUsageSnapshot(provider: .claude, fetchedAt: now)
+            snapshot.localUsage = scanCache.report
+            return snapshot
+        }
+        scanCache = nil
         if store == nil { store = try UsageScanStore(url: databaseURL) }
         guard let store else { throw AIUsageFailure.invalidResponse }
         var events: [String: ClaudeLocalLogParser.Event] = [:]
@@ -74,6 +84,9 @@ public actor ClaudeLocalUsageProvider: AIUsageProvider {
         let rows = events.values.lazy.map(\.row).filter { $0.day >= since }
         snapshot.localUsage = LocalUsageReport(rows: LocalUsageReport.aggregated(rows),
                                                fileCount: files.count, unreadableFiles: unreadable)
+        if unreadable == 0, let revision, let report = snapshot.localUsage {
+            scanCache = LocalUsageScanCache(revision: revision, report: report)
+        }
         return snapshot
     }
 }

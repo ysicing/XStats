@@ -4,7 +4,7 @@ import Metrics
 import SwiftUI
 
 /// 用独立身份包装不可比较的闭包，避免 SwiftUI 把无关环境刷新都视为回调变化。
-struct PopoverOverflowReporter: Equatable, Sendable {
+struct PopoverHeightReporter: Equatable, Sendable {
     private let id = UUID()
     private let action: @MainActor @Sendable (CGFloat) -> Void
 
@@ -13,8 +13,8 @@ struct PopoverOverflowReporter: Equatable, Sendable {
     }
 
     @MainActor
-    func callAsFunction(_ overflow: CGFloat) {
-        action(overflow)
+    func callAsFunction(_ height: CGFloat) {
+        action(height)
     }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
@@ -29,8 +29,8 @@ extension EnvironmentValues {
     @Entry var isDetailPage = false
     /// 菜单栏弹窗：区块去掉卡片底色，用细分隔线隔开，排得更紧凑
     @Entry var isPopover = false
-    /// 菜单栏弹窗：滚动内容的实际高度比可视区域高出（负数为矮出）多少，交给面板调整窗口高度
-    @Entry var reportPopoverOverflow: PopoverOverflowReporter?
+    /// 当前弹窗标题栏与完整滚动内容的总高度，不受视口高度或滚动位置影响
+    @Entry var reportPopoverHeight: PopoverHeightReporter?
 }
 
 // MARK: - 卡片
@@ -882,13 +882,26 @@ struct DSSlider: View {
 
 // MARK: - 滚动容器
 
+/// 同一布局轮次内合并标题栏与内容，避免把不同轮次的视口尺寸拼成高度差。
+struct PopoverHeightPreference: PreferenceKey {
+    struct Heights: Equatable {
+        var header: CGFloat?
+        var content: CGFloat?
+    }
+
+    static let defaultValue = Heights()
+
+    static func reduce(value: inout Heights, nextValue: () -> Heights) {
+        let next = nextValue()
+        if let header = next.header { value.header = header }
+        if let content = next.content { value.content = content }
+    }
+}
+
 struct PageScroll<Content: View>: View {
     @Environment(\.isSnapshot) private var isSnapshot
     @Environment(\.isPopover) private var isPopover
-    @Environment(\.reportPopoverOverflow) private var reportOverflow
     @ViewBuilder var content: Content
-    @State private var contentHeight: CGFloat = 0
-    @State private var viewportHeight: CGFloat = 0
 
     var body: some View {
         // 弹窗里区块之间靠分隔线隔开，不再额外留间距
@@ -898,27 +911,20 @@ struct PageScroll<Content: View>: View {
         if isSnapshot {
             stack
         } else {
-            // 内容放得下时不回弹，避免点击时整页轻微抖动
             ScrollView {
                 stack
                     .overlayScrollers()
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                        contentHeight = height
-                        report()
+                    .background {
+                        if isPopover {
+                            GeometryReader { proxy in
+                                Color.clear.preference(key: PopoverHeightPreference.self,
+                                                       value: .init(content: proxy.size.height))
+                            }
+                        }
                     }
             }
             .scrollBounceBehavior(.basedOnSize)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                viewportHeight = height
-                report()
-            }
         }
-    }
-
-    /// 弹窗里内容高度一变（数据刷新、展开收起），就让面板把窗口调到正好放下；屏幕放不下时才出现滚动
-    private func report() {
-        guard let reportOverflow, contentHeight > 0, viewportHeight > 0 else { return }
-        reportOverflow(contentHeight - viewportHeight)
     }
 }
 

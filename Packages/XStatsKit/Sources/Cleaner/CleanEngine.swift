@@ -56,7 +56,7 @@ public enum CleanEngine {
                 skipped += 1
                 continue
             }
-            let size = allocatedSize(of: url)
+            guard let size = try? scanAllocatedSize(of: url) else { break }
             if size > 0 { items.append(CleanItem(url: url, size: size)) }
         }
         items.sort { $0.size > $1.size }
@@ -87,6 +87,13 @@ public enum CleanEngine {
 
     /// 实际占用的磁盘空间；不跟随符号链接
     public static func allocatedSize(of url: URL) -> UInt64 {
+        // 保持同步调用方的完整计量语义；可取消操作使用 throwing 入口，不能把部分结果当完整大小。
+        (try? scanAllocatedSize(of: url, checkCancellation: {})) ?? 0
+    }
+
+    static func scanAllocatedSize(of url: URL,
+                                  checkCancellation: () throws -> Void = { try Task.checkCancellation() }) throws -> UInt64 {
+        try checkCancellation()
         let keys: [URLResourceKey] = [.isRegularFileKey, .isSymbolicLinkKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
         guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isSymbolicLink != true else { return 0 }
         if values.isRegularFile == true {
@@ -96,6 +103,7 @@ public enum CleanEngine {
                                                               errorHandler: { _, _ in true }) else { return 0 }
         var total: UInt64 = 0
         while let file = enumerator.nextObject() as? URL {
+            try checkCancellation()
             guard let fileValues = try? file.resourceValues(forKeys: Set(keys)),
                   fileValues.isRegularFile == true else { continue }
             total += UInt64(fileValues.totalFileAllocatedSize ?? fileValues.fileAllocatedSize ?? 0)
@@ -157,7 +165,7 @@ public enum CleanEngine {
                         if report.wasCancelled { return report }
                     } else {
                         for item in scan.items {
-                            let remaining = allocatedSize(of: item.url)
+                            let remaining = try scanAllocatedSize(of: item.url)
                             log?.record(item: item, rule: scan.rule, action: "tool", detail: scan.rule.requiredTool)
                             guard remaining < item.size else { continue }
                             report.freedBytes += item.size - remaining

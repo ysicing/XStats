@@ -26,12 +26,21 @@ struct PopoverFrame<Header: View, Content: View>: View {
     @ViewBuilder var header: Header
     @ViewBuilder var content: Content
     @Environment(\.isSnapshot) private var isSnapshot
+    @Environment(\.reportPopoverHeight) private var reportHeight
 
     var body: some View {
         VStack(spacing: 0) {
             header
                 .padding(.horizontal, DS.Space.s3)
                 .padding(.vertical, DS.Space.s2)
+                .background {
+                    if !isSnapshot {
+                        GeometryReader { proxy in
+                            Color.clear.preference(key: PopoverHeightPreference.self,
+                                                   value: .init(header: proxy.size.height))
+                        }
+                    }
+                }
 
             PageScroll { content }
                 .frame(maxWidth: .infinity, maxHeight: isSnapshot ? nil : .infinity, alignment: .top)
@@ -42,6 +51,10 @@ struct PopoverFrame<Header: View, Content: View>: View {
         .fixedSize(horizontal: false, vertical: isSnapshot)
         .background(DS.Palette.background, in: RoundedRectangle(cornerRadius: DS.Radius.xl))
         .appLanguageEnvironment()
+        .onPreferenceChange(PopoverHeightPreference.self) { heights in
+            guard let header = heights.header, let content = heights.content else { return }
+            reportHeight?(header + content)
+        }
         .overlay {
             RoundedRectangle(cornerRadius: DS.Radius.xl).strokeBorder(DS.Palette.border, lineWidth: DS.Size.stroke)
         }

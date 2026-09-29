@@ -12,6 +12,7 @@ public actor CodexLocalUsageProvider: AIUsageProvider {
     private let root: URL
     private let databaseURL: URL
     private var store: UsageScanStore?
+    private var scanCache: LocalUsageScanCache?
 
     public nonisolated var unownedExecutor: UnownedSerialExecutor {
         ScanExecutor.shared.asUnownedSerialExecutor()
@@ -44,6 +45,15 @@ public actor CodexLocalUsageProvider: AIUsageProvider {
             }
             if enumerationFailed { unreadable += 1 }
         }
+        let revision = unreadable == 0
+            ? try? LocalUsageScanCache.Revision(files: files.sorted { $0.path < $1.path }, now: now, calendar: calendar) : nil
+        try Task.checkCancellation()
+        if let revision, let scanCache, scanCache.revision == revision {
+            var snapshot = AIUsageSnapshot(provider: .codex, fetchedAt: now)
+            snapshot.localUsage = scanCache.report
+            return snapshot
+        }
+        scanCache = nil
         var seen: Set<String> = []
         var scanned: Set<String> = []
         var rows: [ModelTokenUsage] = []
@@ -66,6 +76,9 @@ public actor CodexLocalUsageProvider: AIUsageProvider {
         var snapshot = AIUsageSnapshot(provider: .codex, fetchedAt: now)
         snapshot.localUsage = LocalUsageReport(rows: LocalUsageReport.aggregated(rows),
                                                fileCount: files.count, unreadableFiles: unreadable)
+        if unreadable == 0, let revision, let report = snapshot.localUsage {
+            scanCache = LocalUsageScanCache(revision: revision, report: report)
+        }
         return snapshot
     }
 }

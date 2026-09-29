@@ -14,6 +14,8 @@ final class StatusPanel: NSPanel {
     private var anchor: NSRect = .zero
     private weak var anchorScreen: NSScreen?
     private var lastDismissal = Date.distantPast
+    private var heightRefreshPending = false
+    private var liveContentHeight: CGFloat?
 
     /// 面板隐藏时不保留 SwiftUI 视图，避免后台随数据刷新重绘
     private var makeContent: (() -> NSView)?
@@ -35,10 +37,10 @@ final class StatusPanel: NSPanel {
                    styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,
                    defer: true)
-        // 打开时按平铺布局测出的高度只是起点：真实内容会随数据刷新变高变矮，由滚动区域上报差值再校正
+        // 保留正在显示的视图状态；几何回调报告绝对高度，下一轮合并更新窗口。
         makeContent = { [weak self] in
-            NSHostingView(rootView: content().environment(\.reportPopoverOverflow, PopoverOverflowReporter { overflow in
-                self?.adjustHeight(by: overflow)
+            NSHostingView(rootView: content().environment(\.reportPopoverHeight, PopoverHeightReporter { height in
+                self?.updateContentHeight(height)
             }))
         }
         isFloatingPanel = true
@@ -67,6 +69,7 @@ final class StatusPanel: NSPanel {
     func present(below anchor: NSRect, on screen: NSScreen?) {
         self.anchor = anchor
         anchorScreen = screen
+        liveContentHeight = nil
 
         guard let content = makeContent?() else { return }
         setFrame(targetFrame(), display: false)
@@ -93,13 +96,19 @@ final class StatusPanel: NSPanel {
         invalidateShadow()
     }
 
-    /// 滚动内容比可视区域高出（或矮出）一截时调整窗口高度，顶边不动；屏幕放不下时停在最高处，由滚动条兜底
-    func adjustHeight(by overflow: CGFloat) {
-        guard contentView != nil, abs(overflow) > 1 else { return }
-        let height = min(max(frame.height + overflow, minHeight), availableHeight(), maxHeight ?? .greatestFiniteMagnitude)
-        guard abs(height - frame.height) > 1 else { return }
-        setFrame(NSRect(x: frame.minX, y: frame.maxY - height, width: frame.width, height: height), display: true)
-        invalidateShadow()
+    /// 保留最后一条绝对高度，不在 SwiftUI 布局回调内同步 setFrame。
+    /// 高度来自当前视图，不能用新建视图的默认 @State 覆盖用户正在编辑或筛选的内容。
+    func updateContentHeight(_ height: CGFloat) {
+        guard height.isFinite, height > 0 else { return }
+        guard liveContentHeight != height else { return }
+        liveContentHeight = height
+        guard !heightRefreshPending else { return }
+        heightRefreshPending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.heightRefreshPending = false
+            self.refreshHeight()
+        }
     }
 
     func dismiss() {
@@ -135,7 +144,7 @@ final class StatusPanel: NSPanel {
 
     private func targetFrame() -> NSRect {
         let visible = (anchorScreen ?? NSScreen.main)?.visibleFrame ?? .zero
-        let natural = makeMeasuringContent().fittingSize.height
+        let natural = liveContentHeight ?? makeMeasuringContent().fittingSize.height
         let preferredHeight = min(max(natural, minHeight), maxHeight ?? .greatestFiniteMagnitude)
         return Self.constrainedFrame(anchor: anchor, visible: visible,
                                      preferredSize: NSSize(width: width, height: preferredHeight))
@@ -150,13 +159,6 @@ final class StatusPanel: NSPanel {
         var x = anchor.midX - fittedWidth / 2
         x = min(max(x, visible.minX + margin), visible.maxX - fittedWidth - margin)
         return NSRect(x: x, y: top - height, width: fittedWidth, height: height)
-    }
-
-    /// 菜单栏下方到屏幕底边（留一点边距）能放下的最大高度
-    private func availableHeight() -> CGFloat {
-        let visible = (anchorScreen ?? NSScreen.main)?.visibleFrame ?? .zero
-        let top = min(anchor.minY - DS.Size.panelGap, visible.maxY)
-        return max(1, top - visible.minY - DS.Space.s2)
     }
 
     // MARK: 事件
