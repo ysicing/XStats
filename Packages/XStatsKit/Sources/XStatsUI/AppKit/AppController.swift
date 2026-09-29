@@ -494,7 +494,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = MainMenu.make(target: self, settingsAction: #selector(openSettingsFromMenu),
                                        updateAction: #selector(checkForUpdatesFromMenu))
         menuBar.dismissPopovers()
-        menuBar.refreshImages()
+        menuBar.refreshImages(force: true)
         speedTestWindow.refreshLanguage()
         projectPurgeWindow.refreshLanguage()
         egressWindow.refreshLanguage()

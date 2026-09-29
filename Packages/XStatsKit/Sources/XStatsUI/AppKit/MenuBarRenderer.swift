@@ -135,6 +135,36 @@ struct MenuBarReading {
         }
     }
 
+    /// 仅比较该项绘图实际使用的读数。历史曲线必须跟随历史更新，静态风格忽略历史变化。
+    /// 使用原始数值保守失效，避免颜色阈值、细小图形变化被错误复用。
+    func hasSameImage(as previous: Self, item: MenuBarItem, style: MenuBarStyle) -> Bool {
+        guard keepAwake == previous.keepAwake else { return false }
+        switch item {
+        case .cpu, .gpu, .memory, .disk:
+            let current = percent(item), old = previous.percent(item)
+            return current.value == old.value
+                && (style != .history && style != .line || current.history == old.history)
+        case .network:
+            return upload == previous.upload && download == previous.download
+        case .temperature:
+            return temperature == previous.temperature
+        case .fan:
+            return fanRPM == previous.fanRPM
+        case .battery:
+            return battery == previous.battery && batteryCharging == previous.batteryCharging
+                && bluetoothDevice?.symbol == previous.bluetoothDevice?.symbol
+                && bluetoothDevice?.percent == previous.bluetoothDevice?.percent
+                && (style != .history && style != .line || batteryHistory == previous.batteryHistory)
+        case .aiUsage:
+            guard aiQuotas.isEmpty == previous.aiQuotas.isEmpty else { return false }
+            if aiQuotas.isEmpty { return aiTokens == previous.aiTokens }
+            return aiQuotas.elementsEqual(previous.aiQuotas) {
+                $0.provider == $1.provider && $0.shortWindowName == $1.shortWindowName
+                    && $0.remainingPercent == $1.remainingPercent
+            }
+        }
+    }
+
     /// 鼠标悬停时的完整读数
     func tooltip(items: [MenuBarItem], fahrenheit: Bool) -> String {
         items.compactMap { item -> String? in

@@ -12,6 +12,8 @@ final class MenuBarController: NSObject {
     /// 合并模式的面板：状态总览与各项详情
     private var combinedPanel: StatusPanel?
     private var layoutSignature: [MenuBarItem?] = []
+    // 每个实际状态项只保留上一轮读数；布局、设置或外观变化时失效。
+    private var renderedReadings: [MenuBarItem?: (reading: MenuBarReading, appearance: NSAppearance.Name)] = [:]
 
     /// 开发调试：启动后展开并固定某个弹窗
     var pinsNextPopover = false
@@ -32,7 +34,7 @@ final class MenuBarController: NSObject {
         if signature != layoutSignature {
             rebuild(signature)
         }
-        refreshImages()
+        refreshImages(force: true)
     }
 
     private func rebuild(_ signature: [MenuBarItem?]) {
@@ -46,6 +48,7 @@ final class MenuBarController: NSObject {
         for entry in items { NSStatusBar.system.removeStatusItem(entry.statusItem) }
         for (key, value) in positions { defaults.set(value, forKey: key) }
         items = []
+        renderedReadings.removeAll()
         panels = panels.filter { key, _ in signature.contains(key) }
         layoutSignature = signature
 
@@ -72,7 +75,7 @@ final class MenuBarController: NSObject {
         "NSStatusItem Preferred Position \(autosaveName(key))"
     }
 
-    func refreshImages() {
+    func refreshImages(force: Bool = false) {
         let settings = model.settings
         let reading = MenuBarReading(model: model)
         for (index, entry) in items.enumerated() {
@@ -80,13 +83,26 @@ final class MenuBarController: NSObject {
             var entryReading = reading
             // 防休眠标记只画在最左侧的图标里
             entryReading.keepAwake = reading.keepAwake && index == 0
-            entry.statusItem.button?.image = MenuBarRenderer.image(reading: entryReading,
-                                                                  items: itemsToDraw,
-                                                                  style: { settings.style(for: $0) },
-                                                                  networkStyle: settings.networkStyle,
-                                                                  colorizeHighLoad: settings.colorizeHighLoad,
-                                                                  fahrenheit: settings.useFahrenheit)
-            entry.statusItem.button?.toolTip = reading.tooltip(items: itemsToDraw, fahrenheit: settings.useFahrenheit)
+            guard let button = entry.statusItem.button else { continue }
+            let appearance = button.effectiveAppearance.name
+            let previous = renderedReadings[entry.key]
+            let unchanged = previous.map { previous in
+                previous.appearance == appearance && entryReading.keepAwake == previous.reading.keepAwake
+                    && itemsToDraw.allSatisfy {
+                        entryReading.hasSameImage(as: previous.reading, item: $0, style: settings.style(for: $0))
+                    }
+            } ?? false
+            if force || !unchanged {
+                button.image = MenuBarRenderer.image(reading: entryReading, items: itemsToDraw,
+                                                     style: { settings.style(for: $0) },
+                                                     networkStyle: settings.networkStyle,
+                                                     colorizeHighLoad: settings.colorizeHighLoad,
+                                                     fahrenheit: settings.useFahrenheit)
+                renderedReadings[entry.key] = (entryReading, appearance)
+            }
+            // 额度的重置时间、过期状态等只影响提示，不必重画相同图像。
+            let tooltip = reading.tooltip(items: itemsToDraw, fahrenheit: settings.useFahrenheit)
+            if button.toolTip != tooltip { button.toolTip = tooltip }
         }
     }
 

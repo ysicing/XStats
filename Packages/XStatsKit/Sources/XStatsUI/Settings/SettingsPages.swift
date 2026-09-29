@@ -413,6 +413,7 @@ struct MenuBarSettings: View {
 /// 单个项目自己的菜单栏风格：网速有自己的三种样式；其他项目默认跟随整体，也可以单独选一种。
 /// 旁边用实时数据画出这一项现在在菜单栏里的样子，改了立刻能看到
 private struct ItemStyleRow: View {
+    @Environment(\.isSnapshot) private var isSnapshot
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
     let item: MenuBarItem
@@ -442,7 +443,8 @@ private struct ItemStyleRow: View {
                 .labelsHidden()
                 .fixedSize()
             }
-            preview
+            // 窗口关闭后不再读取实时模型，解除 SwiftUI 对采样数据的观察。
+            if model.isMainWindowVisible || isSnapshot { preview }
             Spacer(minLength: 0)
         }
         .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
@@ -580,11 +582,18 @@ private struct StyleCard: View {
 }
 
 private struct MenuBarPreview: View {
+    @Environment(\.isSnapshot) private var isSnapshot
     @Environment(AppModel.self) private var model
 
     var body: some View {
+        if model.isMainWindowVisible || isSnapshot {
+            visiblePreview
+        }
+    }
+
+    private var visiblePreview: some View {
         let image = MenuBarRenderer.image(for: model)
-        VStack(alignment: .leading, spacing: DS.Space.s2) {
+        return VStack(alignment: .leading, spacing: DS.Space.s2) {
             Text(tr("当前效果（实时数据）")).dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
             // 实时图标宽度会随启用的项目变化；并排时两张预览可能撑出设置页。
             VStack(spacing: DS.Space.s2) {
