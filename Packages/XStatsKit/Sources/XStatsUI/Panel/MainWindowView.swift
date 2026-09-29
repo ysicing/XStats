@@ -172,9 +172,15 @@ private struct MainSidebar: View {
                     .clipped()
             }
 
-            HStack(spacing: DS.Space.s1) {
+            HStack(spacing: 0) {
                 ThemeToggle()
                 FeedbackMenu()
+                IconButton(systemName: "chevron.left.forwardslash.chevron.right", logoName: "github", help: tr("GitHub 项目")) {
+                    NSWorkspace.shared.open(FeedbackLinks.githubRepository)
+                }
+                IconButton(systemName: "heart", help: tr("赞助 XStats")) {
+                    NSWorkspace.shared.open(FeedbackLinks.sponsor)
+                }
                 Spacer(minLength: 0)
                 IconButton(systemName: "power", help: tr("退出 XStats")) { model.quit() }
             }
@@ -276,6 +282,8 @@ private struct FeedbackMenu: View {
 }
 
 enum FeedbackLinks {
+    static let githubRepository = URL(string: "https://github.com/ysicing/XStats")!
+    static let sponsor = URL(string: "https://ysicing.me/sponsor")!
     static let githubBugReport = URL(string: "https://github.com/ysicing/XStats/issues/new?template=bug_report.md")!
 
     /// 主题带版本号便于归类；主题与正文随应用语言切换，版本信息本身不翻译

@@ -42,7 +42,7 @@ private func isolatedDefaults() -> UserDefaults {
         #expect(color !== template)
     }
 
-    @Test(arguments: ["tool-npm", "tool-yarn", "tool-pnpm", "tool-bun",
+    @Test(arguments: ["github", "tool-npm", "tool-yarn", "tool-pnpm", "tool-bun",
                       "tool-go", "tool-rust", "tool-uv"])
     func packagedSVGCanBeRenderedAsTemplate(_ name: String) throws {
         let image = try #require(LogoCache.shared.image(named: name, template: true))

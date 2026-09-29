@@ -436,6 +436,7 @@ private struct DSButtonBody: View {
 
 struct IconButton: View {
     let systemName: String
+    var logoName: String? = nil
     let help: String
     let action: () -> Void
     @State private var hovering = false
@@ -445,12 +446,20 @@ struct IconButton: View {
         // macOS 26 上是圆形玻璃按钮（与系统设置的前进后退一致）；已经在玻璃面板里时只有悬停底色
         let glass = DS.Glass.isAvailable && !isInsideGlass
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: DS.TextSize.sm.rawValue, weight: .medium))
-                .foregroundStyle(hovering ? DS.Palette.primary : glass ? DS.Palette.textPrimary : DS.Palette.textSecondary)
-                .frame(width: DS.Size.controlHeight, height: DS.Size.controlHeight)
-                .modifier(IconButtonSurface(hovering: hovering, glass: glass))
-                .contentShape(Circle())
+            Group {
+                if let logoName, let logo = LogoCache.shared.image(named: logoName, template: true) {
+                    Image(nsImage: logo)
+                        .resizable()
+                        .frame(width: DS.Size.iconInline, height: DS.Size.iconInline)
+                } else {
+                    Image(systemName: systemName)
+                        .font(.system(size: DS.TextSize.sm.rawValue, weight: .medium))
+                }
+            }
+            .foregroundStyle(hovering ? DS.Palette.primary : glass ? DS.Palette.textPrimary : DS.Palette.textSecondary)
+            .frame(width: DS.Size.controlHeight, height: DS.Size.controlHeight)
+            .modifier(IconButtonSurface(hovering: hovering, glass: glass))
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }

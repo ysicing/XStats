@@ -48,9 +48,9 @@ XStats 基于 [gentpan/OpenStats](https://github.com/gentpan/OpenStats) 开发�
 
 随二进制分发时需要保留的完整文本见 [LICENSES/XStats-API-Dependencies.txt](LICENSES/XStats-API-Dependencies.txt)。
 
-## 保留的登录品牌标志资源
+## 品牌标志资源
 
-账号登录入口已移除。以下为暂时保留的旧资源及原使用说明。
+GitHub 标志用于主窗口侧边栏的项目入口。账号登录入口已移除，其余登录品牌标志作为旧资源保留。
 
 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/github.svg` 来自
 [primer/octicons](https://github.com/primer/octicons) 的 mark-github，MIT License，Copyright (c) GitHub Inc.；

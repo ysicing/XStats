@@ -65,6 +65,8 @@ extension Translations {
 """#
 
     static let english = #"""
+GitHub 项目	GitHub Repository
+赞助 XStats	Support XStats
 Apple 智能	Apple Intelligence
 设备不支持	Device not supported
 需要 macOS 15.1 或更新版本	Requires macOS 15.1 or later
