@@ -387,6 +387,20 @@ struct MenuBarSettings: View {
                         }
                         if moduleEnabled, settings.isEnabled(item) {
                             ItemStyleRow(item: item)
+                            if item == .network {
+                                SettingRow(title: tr("IP 归属地"),
+                                           subtitle: tr("与网络详情中的 IP 归属地共用查询结果和刷新，不额外联网。需开启公网 IP 查询。")) {
+                                    Picker(tr("IP 归属地"), selection: $settings.networkLocationStyle) {
+                                        ForEach(NetworkLocationStyle.allCases) { style in
+                                            Text(style.title).tag(style)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .fixedSize()
+                                    .disabled(!settings.publicIPLookup)
+                                }
+                                .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
+                            }
                             if !item.popoverSections.isEmpty { PopoverSectionPicker(item: item) }
                         }
                     }

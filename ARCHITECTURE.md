@@ -298,6 +298,11 @@ the quota reader has no access to session-log content.
   `/etc/openstats/maxmind.env` on the server); the app no longer downloads those files, they are kept
   for other uses.
 - **Per-process traffic** — cumulative bytes from `/usr/bin/nettop`, diffed between samples.
+- **Menu bar IP location** — optional flag or localized region name after network speeds, disabled
+  by default. It reads the same `NetworkController.publicAddresses.countryCode` as network details,
+  including the selected IPv4 / IPv6 family and its fallback. It follows the existing cache and manual
+  refresh, adds no network requests or timers, and hides when public-IP lookup is disabled or no region
+  is available. Only the display preference is included in settings backups.
 - **DNS** — `networksetup -setdnsservers` through the helper (protocol 3), which re-validates the
   service name and every address; without the helper, a one-off administrator prompt runs the
   same fixed command.

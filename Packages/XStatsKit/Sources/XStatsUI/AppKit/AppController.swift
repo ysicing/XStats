@@ -308,6 +308,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
             _ = model.settings.menuBarLayout
             _ = model.settings.menuBarStyle
             _ = model.settings.networkStyle
+            _ = model.settings.networkLocationStyle
+            _ = model.settings.publicIPLookup
+            _ = model.network.publicAddresses?.countryCode
             _ = model.settings.styleOverrides
             _ = model.settings.colorizeHighLoad
             _ = model.settings.useFahrenheit

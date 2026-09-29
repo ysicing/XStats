@@ -32,6 +32,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var menuBarItems: [String]?
     public var menuBarStyle: String?
     public var networkStyle: String?
+    public var networkLocationStyle: String?
     public var styleOverrides: [String: String]?
     public var refreshSeconds: Int?
     public var colorizeHighLoad: Bool?
@@ -83,6 +84,7 @@ extension AppSettings {
         doc.menuBarItems = menuBarItems.map(\.rawValue).sorted()
         doc.menuBarStyle = menuBarStyle.rawValue
         doc.networkStyle = networkStyle.rawValue
+        doc.networkLocationStyle = networkLocationStyle.rawValue
         doc.styleOverrides = Dictionary(uniqueKeysWithValues: styleOverrides.map { ($0.key.rawValue, $0.value.rawValue) })
         doc.refreshSeconds = refreshSeconds
         doc.colorizeHighLoad = colorizeHighLoad
@@ -144,6 +146,7 @@ extension AppSettings {
         assign(\.menuBarItems, doc.menuBarItems.map { Set($0.compactMap(MenuBarItem.init(rawValue:))) })
         assign(\.menuBarStyle, doc.menuBarStyle.flatMap(MenuBarStyle.init(rawValue:)))
         assign(\.networkStyle, doc.networkStyle.flatMap(NetworkMenuStyle.init(rawValue:)))
+        assign(\.networkLocationStyle, doc.networkLocationStyle.flatMap(NetworkLocationStyle.init(rawValue:)))
         assign(\.styleOverrides, doc.styleOverrides.map { overrides in
             Dictionary(uniqueKeysWithValues: overrides.compactMap { key, value in
                 guard let item = MenuBarItem(rawValue: key), let style = MenuBarStyle(rawValue: value) else { return nil }

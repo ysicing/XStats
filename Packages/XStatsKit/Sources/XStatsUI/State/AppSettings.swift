@@ -152,6 +152,20 @@ public enum PopoverSection: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// 网络速度旁的可选出口地区显示。
+public enum NetworkLocationStyle: String, CaseIterable, Identifiable, Sendable {
+    case off, flag, text
+    public var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: tr("不显示")
+        case .flag: tr("国旗")
+        case .text: tr("地区文字")
+        }
+    }
+}
+
 /// 菜单栏布局
 public enum MenuBarLayout: String, CaseIterable, Identifiable, Sendable {
     /// 每个指标一个图标，点击弹出该项详情
@@ -507,6 +521,9 @@ public final class AppSettings {
     public var networkStyle: NetworkMenuStyle {
         didSet { defaults.set(networkStyle.rawValue, forKey: Keys.networkStyle) }
     }
+    public var networkLocationStyle: NetworkLocationStyle {
+        didSet { defaults.set(networkLocationStyle.rawValue, forKey: Keys.networkLocationStyle) }
+    }
     /// 个别指标单独指定的风格；未指定的跟随 menuBarStyle
     public var styleOverrides: [MenuBarItem: MenuBarStyle] {
         didSet {
@@ -724,6 +741,7 @@ public final class AppSettings {
         menuBarItems = Set(items ?? [.cpu, .memory, .network])
         menuBarStyle = defaults.string(forKey: Keys.menuBarStyle).flatMap(MenuBarStyle.init(rawValue:)) ?? .stacked
         networkStyle = defaults.string(forKey: Keys.networkStyle).flatMap(NetworkMenuStyle.init(rawValue:)) ?? .dots
+        networkLocationStyle = defaults.string(forKey: Keys.networkLocationStyle).flatMap(NetworkLocationStyle.init(rawValue:)) ?? .off
         let storedOverrides = defaults.dictionary(forKey: Keys.styleOverrides) as? [String: String] ?? [:]
         styleOverrides = Dictionary(uniqueKeysWithValues: storedOverrides.compactMap { key, value in
             guard let item = MenuBarItem(rawValue: key), let style = MenuBarStyle(rawValue: value) else { return nil }
@@ -844,6 +862,7 @@ public final class AppSettings {
         static let menuBarItems = "menuBarItems"
         static let menuBarStyle = "menuBarStyle"
         static let networkStyle = "networkStyle"
+        static let networkLocationStyle = "networkLocationStyle"
         static let styleOverrides = "styleOverrides"
         static let refreshSeconds = "refreshSeconds"
         static let aiUsageEnabled = "aiUsageEnabled"

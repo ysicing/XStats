@@ -1611,3 +1611,7 @@ GitHub 项目	GitHub-Projekt
 新版本更新	Neue Versionen
 后台发现新版本时通知，每个版本仅提醒一次	Bei im Hintergrund gefundenen Updates einmal pro Version benachrichtigen
 点击查看更新内容并安装。	Klicken, um Neuerungen anzusehen und das Update zu installieren.
+不显示	Aus
+国旗	Flagge
+地区文字	Regionsname
+与网络详情中的 IP 归属地共用查询结果和刷新，不额外联网。需开启公网 IP 查询。	Nutzt dasselbe Standortergebnis und dieselbe Aktualisierung wie die Netzwerkdetails, ohne zusätzliche Anfragen. Benötigt die öffentliche IP-Abfrage.

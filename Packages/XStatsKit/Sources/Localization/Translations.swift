@@ -1420,5 +1420,9 @@ Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依�
 点击重新扫描以计算可清理空间	Click Rescan to calculate reclaimable space
 按需扫描缓存、日志与项目产物，清理前逐项确认。	Scan caches, logs, and project artifacts on demand. Review items before cleaning.
 “{}”只剩 {} 可用。请检查不再需要的文件。	“{}” has only {} available. Check files you no longer need.
+不显示	Off
+国旗	Flag
+地区文字	Region name
+与网络详情中的 IP 归属地共用查询结果和刷新，不额外联网。需开启公网 IP 查询。	Shares the location result and refresh with network details; no extra requests. Requires public IP lookup.
 """#
 }

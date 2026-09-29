@@ -39,6 +39,8 @@ struct MenuBarReading {
     var diskHistory: [Double] = []
     var upload: Double?
     var download: Double?
+    var networkLocationStyle: NetworkLocationStyle = .off
+    var networkCountryCode: String?
     var temperature: Double?
     var fanRPM: Double?
     var battery: Double?
@@ -69,6 +71,8 @@ struct MenuBarReading {
         diskHistory = disk.map { Array(repeating: $0, count: 30) } ?? []
         upload = store.network?.uploadBytesPerSecond
         download = store.network?.downloadBytesPerSecond
+        networkLocationStyle = model.settings.publicIPLookup ? model.settings.networkLocationStyle : .off
+        networkCountryCode = model.network.publicAddresses?.countryCode
         temperature = store.sensors?.temperature(.cpu)?.maximum
         fanRPM = store.fastestFan?.current
         battery = store.battery?.level
@@ -146,6 +150,8 @@ struct MenuBarReading {
                 && (style != .history && style != .line || current.history == old.history)
         case .network:
             return upload == previous.upload && download == previous.download
+                && networkLocationStyle == previous.networkLocationStyle
+                && (networkLocationStyle == .off || networkCountryCode == previous.networkCountryCode)
         case .temperature:
             return temperature == previous.temperature
         case .fan:
@@ -174,7 +180,10 @@ struct MenuBarReading {
             case .memory: memory.map { tr("内存 \(Format.percent($0))") }
             case .disk: disk.map { tr("磁盘已用 \(Format.percent($0))") }
             case .network:
-                upload.flatMap { up in download.map { tr("上传 \(Format.menuBarRate(up)) · 下载 \(Format.menuBarRate($0))") } }
+                [upload.flatMap { up in download.map { tr("上传 \(Format.menuBarRate(up)) · 下载 \(Format.menuBarRate($0))") } },
+                 networkLocationStyle != .off ? networkCountryCode.map {
+                     tr("IP 归属地") + " · " + (L10n.locale.localizedString(forRegionCode: $0) ?? $0)
+                 } : nil].compactMap { $0 }.joined(separator: "\n")
             case .temperature: temperature.map { tr("CPU 温度 \(Format.temperature($0, fahrenheit: fahrenheit))") }
             case .fan: fanRPM.map { tr("风扇 \(Format.rpm($0))") }
             case .battery:
@@ -310,7 +319,9 @@ enum MenuBarRenderer {
             let (value, history) = reading.percent(item)
             return percentSegment(item: item, value: value, history: history, style: style, colorizeHighLoad: colorizeHighLoad)
         case .network:
-            return networkSegment(upload: reading.upload, download: reading.download, style: networkStyle)
+            let speed = networkSegment(upload: reading.upload, download: reading.download, style: networkStyle)
+            guard reading.networkLocationStyle != .off, let code = reading.networkCountryCode else { return speed }
+            return combine([speed, networkLocationSegment(code: code, style: reading.networkLocationStyle)], gap: Metrics.innerGap * 2)
         case .temperature:
             let text = reading.temperature.map { celsius -> String in
                 let degrees = fahrenheit ? celsius * 9 / 5 + 32 : celsius
@@ -725,6 +736,31 @@ enum MenuBarRenderer {
     }
 
     // MARK: 网速
+
+    private static func networkLocationSegment(code: String, style: NetworkLocationStyle) -> Segment {
+        if style == .flag, let flag = FlagCache.shared.image(for: code) {
+            return Segment(width: 16, colored: true) { rect in
+                let frame = NSRect(x: rect.minX, y: rect.midY - 6, width: 16, height: 12)
+                NSGraphicsContext.saveGraphicsState()
+                NSBezierPath(roundedRect: frame, xRadius: 2, yRadius: 2).addClip()
+                flag.draw(in: frame)
+                NSGraphicsContext.restoreGraphicsState()
+            }
+        }
+        let name = L10n.locale.localizedString(forRegionCode: code) ?? code
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        paragraph.baseWritingDirection = L10n.locale.language.languageCode?.identifier == "ar" ? .rightToLeft : .leftToRight
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+            .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph,
+        ]
+        let size = (name as NSString).size(withAttributes: attributes)
+        return Segment(width: min(100, ceil(size.width))) { rect in
+            (name as NSString).draw(in: NSRect(x: rect.minX, y: rect.midY - size.height / 2,
+                                              width: rect.width, height: size.height), withAttributes: attributes)
+        }
+    }
 
     private static func networkSegment(upload: Double?, download: Double?, style: NetworkMenuStyle) -> Segment {
         let up = upload.map { Format.menuBarRate($0) } ?? "— KB/s"
