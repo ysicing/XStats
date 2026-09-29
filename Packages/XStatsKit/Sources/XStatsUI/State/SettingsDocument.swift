@@ -49,6 +49,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var probeTarget: String?
     public var publicIPLookup: Bool?
     public var enabledAlerts: [String]?
+    public var notifyUpdates: Bool?
     public var alertCPUTemperature: Int?
     public var alertCPULoad: Int?
     public var language: String?
@@ -99,6 +100,7 @@ extension AppSettings {
         doc.probeTarget = probeTarget.rawValue
         doc.publicIPLookup = publicIPLookup
         doc.enabledAlerts = enabledAlerts.map(\.rawValue).sorted()
+        doc.notifyUpdates = notifyUpdates
         doc.alertCPUTemperature = alertCPUTemperature
         doc.alertCPULoad = alertCPULoad
         doc.language = language.rawValue
@@ -121,6 +123,7 @@ extension AppSettings {
             value.flatMap { options.contains($0) ? $0 : nil }
         }
 
+        assign(\.notifyUpdates, doc.notifyUpdates)
         assign(\.calendarEnabled, doc.calendarEnabled)
         assign(\.calendarPreferences, doc.calendarPreferences)
         assign(\.restEnabled, doc.restEnabled)

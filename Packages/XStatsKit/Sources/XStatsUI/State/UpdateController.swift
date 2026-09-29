@@ -28,8 +28,10 @@ public final class UpdateController {
         didSet { defaults.set(skippedVersion, forKey: Keys.skippedVersion) }
     }
 
-    /// 自动检查发现未跳过的新版本时调用，由 AppController 打开升级提示窗口
+    /// 手动检查发现新版本时调用，由 AppController 打开升级提示窗口
     @ObservationIgnored var onPrompt: () -> Void = {}
+    /// 后台发现新版本时请求系统通知；成功提交后才记录去重状态。
+    @ObservationIgnored var onUpdateAvailable: (String) async -> Bool = { _ in false }
     /// 安装完成后退出应用，等进程结束再打开新版
     @ObservationIgnored var terminate: () -> Void = { NSApp.terminate(nil) }
 
@@ -37,6 +39,7 @@ public final class UpdateController {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private let launchedAt: Date
+    @ObservationIgnored private var isNotifying = false
 
     init(settings: AppSettings, defaults: UserDefaults = .standard, launchedAt: Date = Date()) {
         self.settings = settings
@@ -93,14 +96,28 @@ public final class UpdateController {
                 release = latest
                 phase = .available
                 Log.update.notice("发现新版本 \(latest.version, privacy: .public)")
-                // 手动检查时总是提示；自动检查时跳过用户选择忽略的版本
-                if userInitiated || (!suppressPrompt && latest.version != skippedVersion) { onPrompt() }
+                await announceUpdate(version: latest.version, userInitiated: userInitiated, suppressPrompt: suppressPrompt)
             case .failure(let error):
                 Log.update.error("检查更新失败：\(error.localizedDescription, privacy: .public)")
                 // 自动检查失败不打扰用户，只在关于页里显示
                 phase = userInitiated ? .failed(error.localizedDescription) : (release == nil ? .idle : .available)
             }
         }
+    }
+
+    /// 手动检查始终展示结果；后台通知遵循静默策略、开关、跳过版本及跨重启去重。
+    func announceUpdate(version: String, userInitiated: Bool, suppressPrompt: Bool) async {
+        if userInitiated {
+            onPrompt()
+            return
+        }
+        guard !suppressPrompt, settings.notifyUpdates, version != skippedVersion,
+              !isNotifying else { return }
+        if let last = defaults.string(forKey: Keys.notifiedVersion), !UpdateFeed.isNewer(version, than: last) { return }
+        // 通知权限弹窗期间允许查看更新，但不能重复提交后台通知。
+        isNotifying = true
+        defer { isNotifying = false }
+        if await onUpdateAvailable(version) { defaults.set(version, forKey: Keys.notifiedVersion) }
     }
 
     private static func fetch(currentVersion: String) async -> Result<UpdateRelease, UpdateError> {
@@ -248,5 +265,6 @@ public final class UpdateController {
     private enum Keys {
         static let lastChecked = "updateLastChecked"
         static let skippedVersion = "updateSkippedVersion"
+        static let notifiedVersion = "updateNotifiedVersion"
     }
 }

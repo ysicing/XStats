@@ -162,8 +162,16 @@ struct NotificationSettings: View {
         }
 
         SettingsGroup(caption: tr("发生这些状况时发送系统通知，点通知打开对应页面")) {
-            ForEach(Array(AlertKind.allCases.enumerated()), id: \.element) { index, kind in
-                GroupRow(showsDivider: index > 0) {
+            GroupRow(showsDivider: false) {
+                SettingRow(title: tr("新版本更新"), subtitle: tr("后台发现新版本时通知，每个版本仅提醒一次"), icon: "arrow.down.circle") {
+                    DSToggle(isOn: Binding(get: { settings.notifyUpdates }, set: { enabled in
+                        settings.notifyUpdates = enabled
+                        if enabled, alerts.authorization == .unknown { alerts.requestAuthorization() }
+                    }), label: tr("新版本更新"))
+                }
+            }
+            ForEach(AlertKind.allCases) { kind in
+                GroupRow {
                     SettingRow(title: kind.title, subtitle: kind.detail, icon: kind.symbol) {
                         DSToggle(isOn: Binding(get: { settings.enabledAlerts.contains(kind) },
                                                set: { on in

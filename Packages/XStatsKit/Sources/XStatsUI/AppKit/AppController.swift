@@ -266,6 +266,18 @@ public final class AppController: NSObject, NSApplicationDelegate {
             self?.calendarMenuBar.dismiss()
             self?.updateWindow.show()
         }
+        model.updates.onUpdateAvailable = { [weak self] version in
+            await self?.model.alerts.notifyUpdate(version: version) ?? false
+        }
+        model.alerts.openUpdates = { [weak self] in
+            guard let self else { return }
+            if self.model.updates.release != nil {
+                self.model.updates.onPrompt()
+            } else {
+                // 通知可跨应用重启保留；重新检查后展示当前有效的更新信息。
+                self.checkForUpdatesFromMenu()
+            }
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
             self?.model.updates.checkIfNeeded()
         }

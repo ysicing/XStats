@@ -1608,3 +1608,6 @@ Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依�
 续	Forts.
 GitHub 项目	GitHub-Projekt
 赞助 XStats	XStats unterstützen
+新版本更新	Neue Versionen
+后台发现新版本时通知，每个版本仅提醒一次	Bei im Hintergrund gefundenen Updates einmal pro Version benachrichtigen
+点击查看更新内容并安装。	Klicken, um Neuerungen anzusehen und das Update zu installieren.

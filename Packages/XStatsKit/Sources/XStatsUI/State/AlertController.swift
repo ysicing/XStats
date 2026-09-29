@@ -114,6 +114,7 @@ public final class AlertController: NSObject {
     public private(set) var authorization: Authorization = .unknown
 
     @ObservationIgnored var openTab: (PanelTab) -> Void = { _ in }
+    @ObservationIgnored var openUpdates: () -> Void = {}
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var trackers: [AlertKind: AlertTracker] = [:]
@@ -271,6 +272,37 @@ public final class AlertController: NSObject {
 
     // MARK: 通知
 
+    /// 默认开启的更新提醒在真正发现版本时才请求权限，不新增轮询或启动时弹窗。
+    func notifyUpdate(version: String) async -> Bool {
+        guard settings.notifyUpdates, let center else { return false }
+        do {
+            let status = await center.notificationSettings().authorizationStatus
+            let granted: Bool
+            if status == .notDetermined {
+                granted = try await center.requestAuthorization(options: [.alert, .sound])
+            } else {
+                granted = status == .authorized || status == .provisional
+            }
+            authorization = granted ? .allowed : .denied
+            // 等待系统授权期间用户可能关闭开关。
+            guard granted, settings.notifyUpdates else { return false }
+            try await center.add(Self.updateNotification(version: version))
+            return true
+        } catch {
+            Log.update.error("更新通知发送失败：\(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    static func updateNotification(version: String) -> UNNotificationRequest {
+        let content = UNMutableNotificationContent()
+        content.title = tr("发现新版本 \(version)")
+        content.body = tr("点击查看更新内容并安装。")
+        content.sound = .default
+        content.userInfo = ["updates": true]
+        return UNNotificationRequest(identifier: "xstats.updateAvailable", content: content, trigger: nil)
+    }
+
     func refreshAuthorization() {
         guard let center else { return }
         center.getNotificationSettings { [weak self] settings in
@@ -337,7 +369,12 @@ extension AlertController: UNUserNotificationCenterDelegate {
     nonisolated public func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                                    withCompletionHandler completionHandler: @escaping () -> Void) {
         let tab = (response.notification.request.content.userInfo["tab"] as? String).flatMap(PanelTab.init(rawValue:))
+        let updates = response.notification.request.content.userInfo["updates"] as? Bool == true
         completionHandler()
+        if updates {
+            Task { @MainActor [weak self] in self?.openUpdates() }
+            return
+        }
         guard let tab else { return }
         Task { @MainActor [weak self] in self?.openTab(tab) }
     }

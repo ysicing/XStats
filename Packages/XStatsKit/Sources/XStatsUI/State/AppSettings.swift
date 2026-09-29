@@ -603,6 +603,10 @@ public final class AppSettings {
     public var publicIPLookup: Bool {
         didSet { defaults.set(publicIPLookup, forKey: Keys.publicIPLookup) }
     }
+    /// 自动检查发现新版本时发送系统通知，默认开启。
+    public var notifyUpdates: Bool {
+        didSet { defaults.set(notifyUpdates, forKey: Keys.notifyUpdates) }
+    }
     /// 打开了系统通知的状况
     public var enabledAlerts: Set<AlertKind> {
         didSet { defaults.set(enabledAlerts.map(\.rawValue).sorted(), forKey: Keys.enabledAlerts) }
@@ -775,6 +779,7 @@ public final class AppSettings {
         hotKeys = Dictionary(uniqueKeysWithValues: storedHotKeys.compactMap { key, value in
             HotKeyAction(rawValue: key).map { ($0, value) }
         })
+        notifyUpdates = defaults.object(forKey: Keys.notifyUpdates) as? Bool ?? true
         enabledAlerts = Set(defaults.stringArray(forKey: Keys.enabledAlerts)?.compactMap(AlertKind.init(rawValue:)) ?? [])
         alertCPUTemperature = Self.alertTemperatureOptions.contains(defaults.integer(forKey: Keys.alertCPUTemperature))
             ? defaults.integer(forKey: Keys.alertCPUTemperature) : 95
@@ -872,6 +877,7 @@ public final class AppSettings {
         static let hotKeys = "hotKeys"
         static let language = "language"
         static let enabledAlerts = "enabledAlerts"
+        static let notifyUpdates = "notifyUpdates"
         static let alertCPUTemperature = "alertCPUTemperature"
         static let alertCPULoad = "alertCPULoad"
         static let cpuChartSeconds = "cpuChartSeconds"

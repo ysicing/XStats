@@ -188,6 +188,9 @@ CPU 温度达到 {}，已恢复系统自动控制	CPU reached {}; fans returned 
 CPU 温度过高	CPU is too hot
 CPU 负载偏高	CPU load is high
 CPU 负载很高	CPU load is very high
+新版本更新	New version updates
+后台发现新版本时通知，每个版本仅提醒一次	Notify when a background check finds an update, once per version
+点击查看更新内容并安装。	Click to see what’s new and install.
 CPU 过热	CPU Overheating
 CPU：{}（以单核满载为 100%）	CPU: {} (100% = one full core)
 Cloudflare 接入节点（机场代码）	Cloudflare edge location (airport code)
