@@ -10,11 +10,11 @@ struct ThermalPage: View {
         PageScroll {
             HStack(alignment: .top, spacing: DS.Space.s3) {
                 TemperatureCard().frame(maxWidth: .infinity)
-                FanCard().frame(maxWidth: .infinity)
+                if model.store.supportsFans { FanCard().frame(maxWidth: .infinity) }
             }
             .fixedSize(horizontal: false, vertical: true)
             PowerCard()
-            FanSafetySettings()
+            if model.store.supportsFans { FanSafetySettings() }
         }
     }
 }

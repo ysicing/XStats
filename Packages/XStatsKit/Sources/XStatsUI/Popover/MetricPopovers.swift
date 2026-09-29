@@ -717,15 +717,17 @@ struct ThermalPopover: View {
                     HeroValue(value: cpu.map { Format.temperature($0.maximum, fahrenheit: settings.useFahrenheit) } ?? "—")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                VStack(alignment: .leading, spacing: DS.Space.s1) {
-                    Text(tr("风扇")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                    HeroValue(value: store.fastestFan.map { Int($0.current).formatted() } ?? "—", unit: fans.isEmpty ? nil : "RPM")
+                if model.store.supportsFans {
+                    VStack(alignment: .leading, spacing: DS.Space.s1) {
+                        Text(tr("风扇")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                        HeroValue(value: store.fastestFan.map { Int($0.current).formatted() } ?? "—", unit: fans.isEmpty ? nil : "RPM")
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
 
-        ForEach(item.popoverSections.filter { isDetailPage || settings.isVisible($0) }) { section in
+        ForEach(item.popoverSections.filter { ($0 != .thermalFans || model.store.supportsFans) && (isDetailPage || settings.isVisible($0)) }) { section in
             switch section {
             case .thermalSensors:
                 SectionCard(title: section.title, trailing: { Text(tr("最高 / 平均")) }) {

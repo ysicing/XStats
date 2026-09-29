@@ -18,7 +18,7 @@ struct OverviewPage: View {
             WeightedRow {
                 DiskTile()
                 NetworkTile()
-                FanTile()
+                if model.store.supportsFans { FanTile() }
             }
             // 窄卡片与上方单列同宽：宽卡占两列
             WeightedRow(weights: model.store.battery != nil ? [2, 1] : [1]) {
@@ -521,11 +521,13 @@ private struct QuickActionsCard: View {
                            detail: keepAwake.lidClosedActive ? tr("继续运行") : tr("合盖睡眠"),
                            isOn: Binding(get: { keepAwake.lidClosedRequested },
                                          set: { model.requestLidMode($0) }))
-            HairlineDivider()
-            QuickToggleRow(icon: "fan", title: tr("散热模式"),
-                           detail: fans.mode == .automatic ? tr("系统调节") : tr("\(fans.mode.title)中"),
-                           isOn: Binding(get: { fans.mode != .automatic },
-                                         set: { model.requestFanMode($0 ? .cooling : .automatic) }))
+            if model.store.supportsFans {
+                HairlineDivider()
+                QuickToggleRow(icon: "fan", title: tr("散热模式"),
+                               detail: fans.mode == .automatic ? tr("系统调节") : tr("\(fans.mode.title)中"),
+                               isOn: Binding(get: { fans.mode != .automatic },
+                                             set: { model.requestFanMode($0 ? .cooling : .automatic) }))
+            }
         }
     }
 }

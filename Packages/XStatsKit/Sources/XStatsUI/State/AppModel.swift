@@ -99,6 +99,15 @@ public final class AppModel {
         speedTest = SpeedTestController(settings: settings)
     }
 
+    /// 硬件能力只影响实际展示，不改写保存的菜单栏偏好。
+    var availableMenuBarItems: [MenuBarItem] {
+        MenuBarItem.allCases.filter { $0 != .fan || store.supportsFans }
+    }
+
+    var visibleMenuBarItems: [MenuBarItem] {
+        settings.orderedMenuBarItems.filter { $0 != .fan || store.supportsFans }
+    }
+
     /// 根据当前可见内容决定采集范围：主窗口看标签页，详情弹窗看是哪一项
     var demand: MetricsDemand {
         var demand = MetricsDemand()
@@ -136,8 +145,9 @@ public final class AppModel {
         demand.temperatures = groups
         demand.power = (window && tab == .thermal) || thermalPopover || showing(.battery, .battery)
         demand.cpuFrequency = showing(.cpu, .cpu)
-        demand.fans = (window && (tab == .thermal || tab == .overview)) || menu.contains(.fan)
-            || fans.mode != .automatic || thermalPopover
+        // 未知时隐藏入口，但保留按需探测；不能用界面可见性阻断首次识别或失败重试。
+        demand.fans = store.fanCount != 0 && ((window && (tab == .thermal || tab == .overview)) || menu.contains(.fan)
+            || fans.mode != .automatic || thermalPopover)
         return demand
     }
 
@@ -174,6 +184,7 @@ public final class AppModel {
 
     /// 快捷切换风扇：未安装辅助工具时打开散热页引导安装
     func requestFanMode(_ mode: FanController.Mode) {
+        guard store.supportsFans else { return }
         guard helper.isReady else {
             settings.panelTab = .thermal
             if !isMainWindowVisible { openMainWindow(.thermal) }

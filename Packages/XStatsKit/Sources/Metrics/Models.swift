@@ -173,10 +173,13 @@ public struct TemperatureSummary: Sendable, Equatable, Identifiable {
 public struct SensorReadings: Sendable, Equatable {
     public var temperatures: [TemperatureSummary]
     public var fans: [FanState]
+    /// nil 表示数量读取失败或未知，0 才表示确认无风扇。
+    public var fanCount: Int?
 
-    public init(temperatures: [TemperatureSummary], fans: [FanState]) {
+    public init(temperatures: [TemperatureSummary], fans: [FanState], fanCount: Int? = nil) {
         self.temperatures = temperatures
         self.fans = fans
+        self.fanCount = fanCount
     }
 
     public func temperature(_ group: TemperatureGroup) -> TemperatureSummary? {

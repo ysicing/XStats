@@ -361,7 +361,7 @@ struct MenuBarSettings: View {
                 InfoBanner(icon: "hand.draw",
                            text: tr("菜单栏里的图标可以调整顺序：按住 ⌘ 键拖动任意一个，松开后位置会一直保留。新开启的项目由系统安排位置，可能离其他图标较远，拖一下就能挪到一起。"))
             }
-            ForEach(Array(MenuBarItem.allCases.enumerated()), id: \.element) { index, item in
+            ForEach(Array(model.availableMenuBarItems.enumerated()), id: \.element) { index, item in
                 let moduleEnabled = item != .aiUsage || settings.aiUsageEnabled
                 GroupRow {
                     VStack(alignment: .leading, spacing: DS.Space.s3) {
@@ -475,7 +475,7 @@ private struct PopoverSectionPicker: View {
                 .foregroundStyle(DS.Palette.textSecondary)
                 .fixedSize()
             FlowLayout(spacing: DS.Space.s1) {
-                ForEach(item.popoverSections) { section in
+                ForEach(item.popoverSections.filter { $0 != .thermalFans || model.store.supportsFans }) { section in
                     let visible = settings.isVisible(section)
                     SectionToggleChip(title: section.title, isOn: visible) {
                         settings.setVisible(section, !visible)

@@ -26,7 +26,7 @@ final class MenuBarController: NSObject {
     /// 布局或显示项目变化时重建；否则只重绘图片
     func update() {
         let settings = model.settings
-        let enabled = settings.orderedMenuBarItems
+        let enabled = model.visibleMenuBarItems
         // 没有任何项目时保留一个图标，确保仍能打开面板与主窗口
         let signature: [MenuBarItem?] = settings.menuBarLayout == .separate && !enabled.isEmpty ? enabled : [nil]
         if signature != layoutSignature {
@@ -76,7 +76,7 @@ final class MenuBarController: NSObject {
         let settings = model.settings
         let reading = MenuBarReading(model: model)
         for (index, entry) in items.enumerated() {
-            let itemsToDraw = entry.key.map { [$0] } ?? settings.orderedMenuBarItems
+            let itemsToDraw = entry.key.map { [$0] } ?? model.visibleMenuBarItems
             var entryReading = reading
             // 防休眠标记只画在最左侧的图标里
             entryReading.keepAwake = reading.keepAwake && index == 0

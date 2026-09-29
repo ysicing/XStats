@@ -9,7 +9,7 @@ struct CombinedPopoverView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let items = model.settings.orderedMenuBarItems
+        let items = model.visibleMenuBarItems
         // 标签对应的项目在设置里被关掉后回到总览
         let tab = model.combinedPopoverTab.flatMap { items.contains($0) ? $0 : nil }
 

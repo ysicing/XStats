@@ -52,6 +52,9 @@ public final class MetricsStore {
     private(set) var diskRanking = ActivityRanking()
     public private(set) var systemCounts: SystemCounts?
     public private(set) var sensors: SensorReadings?
+    /// 独立观察硬件能力，避免每次传感器采样都触发菜单栏布局重建。
+    public private(set) var fanCount: Int?
+    var supportsFans: Bool { (fanCount ?? 0) > 0 }
     public private(set) var power: PowerReading?
     public private(set) var powerHistory = History<Double>(capacity: historyCapacity)
     public private(set) var diskActivity: DiskActivity?
@@ -117,6 +120,7 @@ public final class MetricsStore {
 
     /// 不同页面采集的温度分组不同，按组合并，避免切页时数据闪烁
     private func mergeSensors(_ new: SensorReadings) {
+        if let count = new.fanCount, count != fanCount { fanCount = count }
         guard let old = sensors else {
             sensors = new
             return
@@ -124,7 +128,7 @@ public final class MetricsStore {
         var byGroup = Dictionary(uniqueKeysWithValues: old.temperatures.map { ($0.group, $0) })
         for summary in new.temperatures { byGroup[summary.group] = summary }
         let ordered = TemperatureGroup.allCases.compactMap { byGroup[$0] }
-        sensors = SensorReadings(temperatures: ordered, fans: new.fans.isEmpty ? old.fans : new.fans)
+        sensors = SensorReadings(temperatures: ordered, fans: fanCount == 0 ? [] : (new.fans.isEmpty ? old.fans : new.fans), fanCount: fanCount)
     }
 
     var fastestFan: FanState? {

@@ -190,6 +190,8 @@ git push
 - `Packages/XStatsKit/Sources/XStatsUI/Rest`：本机休息计时、幕布、Mini HUD 与合成声音。
 - `Packages/XStatsKit/Tests`：Swift 单元测试。
 
+硬件能力：风扇相关入口仅在成功读取到大于 0 的风扇数量后显示；尚未采样、数量未知或明确为 0 时隐藏。未知不等同于无风扇，仍沿既有需求采样重试；已确认的数量保留至本次运行结束，短暂读取失败与转速为 0 不导致入口消失。能力过滤不改写用户保存的展示偏好。
+
 性能约束：本机 AI 用量扫描只在文件集合、文件元数据、统计日期或时区变化时重新聚合；进程内仅缓存上一轮元数据与汇总，解析检查点仍保存在 SQLite。扫描失败不复用该轮结果。清理扫描及工具清理后的大小核验必须在目录枚举中响应取消，不能发布部分计量结果。指标弹窗在同一布局轮次合并当前标题栏和滚动内容的绝对高度，下一轮更新窗口；不能同步累加内容与视口差值，也不能用新建视图的默认交互状态覆盖实际高度。定向回归见 `LocalUsageScanCacheTests`、`ScanCancellationTests` 和 `StatusPanelLayoutTests`。
 
 更深入的模块边界、采样策略和安全约束见 [ARCHITECTURE.md](ARCHITECTURE.md)。

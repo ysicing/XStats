@@ -220,7 +220,7 @@ enum MenuBarRenderer {
     static func image(for model: AppModel) -> NSImage {
         let settings = model.settings
         return image(reading: MenuBarReading(model: model),
-                     items: settings.orderedMenuBarItems,
+                     items: model.visibleMenuBarItems,
                      style: { settings.style(for: $0) },
                      networkStyle: settings.networkStyle,
                      colorizeHighLoad: settings.colorizeHighLoad,
