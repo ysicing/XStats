@@ -21,14 +21,13 @@ public final class UninstallerController {
     var chosen: Set<String> = []
     /// 有应用启动或退出时变化，让“正在运行”的提示跟着刷新
     private var runningRevision = 0
-    @ObservationIgnored private var observers: [NSObjectProtocol] = []
+    @ObservationIgnored private var runningApplicationsObservation: NSKeyValueObservation?
 
     public init() {
-        let center = NSWorkspace.shared.notificationCenter
-        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
-            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.runningRevision += 1 }
-            })
+        // LSUIElement 应用（如 MacTools）不会发送普通应用的启动／退出通知。
+        // 观察运行列表才能覆盖这些应用；异步回到主线程，等 AppKit 更新列表后再通知视图。
+        runningApplicationsObservation = NSWorkspace.shared.observe(\.runningApplications) { [weak self] _, _ in
+            Task { @MainActor [weak self] in self?.runningRevision += 1 }
         }
     }
 
@@ -95,7 +94,10 @@ public final class UninstallerController {
     }
 
     func quit(_ app: InstalledApp) {
-        NSRunningApplication.runningApplications(withBundleIdentifier: app.bundleIdentifier).forEach { $0.terminate() }
+        for running in NSRunningApplication.runningApplications(withBundleIdentifier: app.bundleIdentifier) {
+            let accepted = running.terminate()
+            Log.app.notice("卸载前请求退出应用 \(app.name, privacy: .public)，包名 \(app.bundleIdentifier, privacy: .public)，PID \(running.processIdentifier)，请求已发送：\(accepted)")
+        }
     }
 
     func requestUninstall() {

@@ -209,6 +209,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        Log.app.notice("XStats 自身即将退出，PID \(ProcessInfo.processInfo.processIdentifier)")
         rest.prepareForTermination()
         widgetTimer?.invalidate()
         calendarMenuBar.stop()
