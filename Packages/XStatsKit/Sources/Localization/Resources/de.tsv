@@ -1314,7 +1314,7 @@ Apple 智能	Apple Intelligence
 星期日	Sonntag
 农历	Chinesischer Mondkalender
 星期	Wochentage
-法定节假日与调休	Feiertage und Ausgleichsarbeitstage
+中国大陆节假日与调休	Feiertage und Ausgleichsarbeitstage in Festlandchina
 传统与公历节日	Traditionelle und gregorianische Feste
 二十四节气	24 Sonnenperioden
 干支	Sechzigjahreszyklus
@@ -1623,3 +1623,4 @@ GitHub 项目	GitHub-Projekt
 进程功能开启时打开 XStats 进程页，关闭时打开系统活动监视器。	Öffnet bei aktivierter Prozessfunktion die XStats-Prozessseite, andernfalls die macOS-Aktivitätsanzeige.
 不能在 XStats 内卸载或退出 XStats 自身	XStats kann sich mit diesem Werkzeug nicht selbst deinstallieren oder beenden
 应用本体未能移动；已将 {} 项残留移到废纸篓，约 {}。请解决错误后重试。	Die App konnte nicht verschoben werden. Zugehörige Objekte im Papierkorb: {} (ca. {}). Beheben Sie den Fehler und versuchen Sie es erneut.
+黄历	Chinesischer Almanach

@@ -402,6 +402,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             _ = model.settings.language
             _ = model.settings.calendarFirstWeekday
             _ = model.settings.calendarFeatures
+            _ = model.settings.calendarPreferences.showAlmanac
             _ = model.aiUsage.states
             _ = model.aiUsage.quotaStates
             _ = model.network.publicResults
@@ -422,19 +423,22 @@ public final class AppController: NSObject, NSApplicationDelegate {
         let todayKey = CalendarEngine.today(at: today)?.id
         let dataVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
         let reusesCalendar = previous.calendarDataVersion == dataVersion
+        let monthFeatures = settings.calendarFeatures.map(\.rawValue).sorted()
         // 多预备几天，Widget 午夜换日时无需唤醒主应用；主应用运行期间按小时补足窗口。
         let calendarDays: [WidgetSnapshot.CalendarSummary] = {
-            if reusesCalendar, previous.showsSeasonal != nil, previous.calendarDays?.count == 8,
+            if reusesCalendar, previous.showsSeasonal != nil,
+               previous.showsAlmanac == settings.calendarPreferences.showAlmanac,
+               previous.monthSummaries?.first?.featureKeys == monthFeatures, previous.calendarDays?.count == 8,
                previous.calendarDays?.first?.dateKey == todayKey {
                 return previous.calendarDays ?? []
             }
             return (0..<8).compactMap { offset in
                 guard let date = calendar.date(byAdding: .day, value: offset, to: today),
                       let day = CalendarEngine.today(at: date) else { return nil }
-                return CalendarEngine.widgetSummary(for: day)
+                return CalendarEngine.widgetSummary(for: day, features: settings.calendarFeatures,
+                                                    showsAlmanac: settings.calendarPreferences.showAlmanac)
             }
         }()
-        let monthFeatures = settings.calendarFeatures.map(\.rawValue).sorted()
         let monthSummaries: [WidgetSnapshot.MonthSummary] = (0...1).compactMap { offset in
             guard let date = calendar.date(byAdding: .month, value: offset, to: today) else { return nil }
             let parts = calendar.dateComponents([.year, .month], from: date)
@@ -488,7 +492,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                       showsLunar: settings.calendarFeatures.contains(.lunar),
                                       calendarDays: calendarDays, monthSummaries: monthSummaries,
                                       showsSeasonal: settings.calendarFeatures.contains(.seasonal),
-                                      calendarDataVersion: dataVersion)
+                                      calendarDataVersion: dataVersion, showsAlmanac: settings.calendarPreferences.showAlmanac)
         guard snapshot != previous, widgetStore.save(snapshot) else { return }
         for kind in snapshot.changedWidgetKinds(from: previous) {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)

@@ -61,6 +61,11 @@ struct CalendarOptionsPopover: View {
                         }
                     }
                     GroupRow {
+                        SettingRow(title: tr("黄历")) {
+                            DSToggle(isOn: $settings.calendarPreferences.showAlmanac, label: tr("黄历"))
+                        }
+                    }
+                    GroupRow {
                         Text(tr("公历始终显示。藏历与回历显示在日期详情中；梅雨天按传统历法推算，并非天气预报。"))
                             .dsFont(.xs)
                             .foregroundStyle(DS.Palette.textSecondary)
@@ -108,8 +113,11 @@ struct CalendarOptionsPopover: View {
         return SettingsGroup(caption: tr("菜单栏")) {
             GroupRow(showsDivider: false) {
                 SettingRow(title: tr("显示方式")) {
-                    Picker(tr("显示方式"), selection: $settings.calendarPreferences.display) {
-                        ForEach(CalendarPreferences.Display.allCases) { Text($0.title).tag($0) }
+                    Picker(tr("显示方式"), selection: Binding(
+                        get: { settings.calendarPreferences.display.effective(for: L10n.locale) },
+                        set: { settings.calendarPreferences.display = $0 }
+                    )) {
+                        ForEach(CalendarPreferences.Display.available(for: L10n.locale)) { Text($0.title).tag($0) }
                     }.labelsHidden().fixedSize()
                 }
             }

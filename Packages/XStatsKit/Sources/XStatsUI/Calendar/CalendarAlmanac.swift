@@ -46,9 +46,10 @@ extension CalendarEngine {
         "2026-05-04", "2026-05-05", "2026-10-05", "2026-10-06", "2026-10-07"
     ]
 
-    static func widgetSummary(for day: CalendarDay) -> WidgetSnapshot.CalendarSummary {
+    static func widgetSummary(for day: CalendarDay, features: Set<CalendarFeature> = Set(CalendarFeature.allCases),
+                              showsAlmanac: Bool = true) -> WidgetSnapshot.CalendarSummary {
         let schedule: WidgetSnapshot.CalendarSummary.Schedule
-        if !hasHolidayData(year: day.year) {
+        if !features.contains(.holidays) || !hasHolidayData(year: day.year) {
             schedule = .unknown
         } else if let holiday = day.holiday {
             if holiday.isWork {
@@ -67,10 +68,11 @@ extension CalendarEngine {
         } else {
             schedule = day.isWeekend ? .weekend : .work
         }
-        let almanac = almanac(for: day)
-        let seasons = [day.dogDays, day.plumRain, day.nineDays].compactMap { $0 }
-        return .init(dateKey: day.id, festivals: day.festivals,
-                     solarTerm: day.solarTerm, schedule: schedule, holidayName: day.holiday?.name,
+        let almanac = showsAlmanac ? almanac(for: day) : nil
+        let seasons = features.contains(.seasonal) ? [day.dogDays, day.plumRain, day.nineDays].compactMap { $0 } : []
+        return .init(dateKey: day.id, festivals: features.contains(.festivals) ? day.festivals : [],
+                     solarTerm: features.contains(.solarTerms) ? day.solarTerm : nil,
+                     schedule: schedule, holidayName: features.contains(.holidays) ? day.holiday?.name : nil,
                      twelveStar: almanac?.twelveStar, isEcliptic: almanac?.twelveStarIsLucky ?? false,
                      recommends: Array(almanac?.recommends.prefix(3) ?? []),
                      avoids: Array(almanac?.avoids.prefix(3) ?? []),

@@ -9,6 +9,18 @@ public struct CalendarPreferences: Codable, Equatable, Sendable {
     public enum Display: String, Codable, CaseIterable, Identifiable, Sendable {
         case standard, dateLunar, lunar, custom
         public var id: String { rawValue }
+
+        static func available(for locale: Locale) -> [Self] {
+            locale.language.languageCode?.identifier == "zh" ? allCases : [.standard, .custom]
+        }
+
+        /// 切换语言只改变呈现，不覆盖已保存的农历选择，切回中文后可恢复。
+        func effective(for locale: Locale) -> Self {
+            if (self == .dateLunar || self == .lunar), locale.language.languageCode?.identifier != "zh" {
+                return .standard
+            }
+            return self
+        }
         var title: String {
             switch self {
             case .standard: tr("日期与星期")
@@ -24,15 +36,20 @@ public struct CalendarPreferences: Codable, Equatable, Sendable {
     public var largeLunarText = false
     public var strongerLunarText = false
     public var openOnHover = false
-    public var showHolidayOverview = true
+    public var showHolidayOverview: Bool
+    public var showAlmanac: Bool
     public var showEvents = false
     public var showReminders = false
 
-    public init() {}
+    public init(locale: Locale = .current) {
+        let isMainlandChina = locale.region?.identifier == "CN"
+        showHolidayOverview = isMainlandChina
+        showAlmanac = isMainlandChina
+    }
 
     private enum CodingKeys: String, CodingKey {
         case display, dateFormat, largeLunarText, strongerLunarText, openOnHover
-        case showHolidayOverview, showEvents, showReminders
+        case showHolidayOverview, showAlmanac, showEvents, showReminders
     }
 
     public init(from decoder: any Decoder) throws {
@@ -45,6 +62,8 @@ public struct CalendarPreferences: Codable, Equatable, Sendable {
         strongerLunarText = try values.decodeIfPresent(Bool.self, forKey: .strongerLunarText) ?? false
         openOnHover = try values.decodeIfPresent(Bool.self, forKey: .openOnHover) ?? false
         showHolidayOverview = try values.decodeIfPresent(Bool.self, forKey: .showHolidayOverview) ?? true
+        // 旧偏好始终展示黄历，缺失新字段时保留已有行为；全新偏好使用地区默认值。
+        showAlmanac = try values.decodeIfPresent(Bool.self, forKey: .showAlmanac) ?? true
         showEvents = try values.decodeIfPresent(Bool.self, forKey: .showEvents) ?? false
         showReminders = try values.decodeIfPresent(Bool.self, forKey: .showReminders) ?? false
     }
@@ -73,7 +92,7 @@ public struct CalendarPreferences: Codable, Equatable, Sendable {
         calendar.timeZone = timeZone
         formatter.calendar = calendar
         formatter.timeZone = timeZone
-        switch display {
+        switch display.effective(for: locale) {
         case .standard: formatter.setLocalizedDateFormatFromTemplate("MdEEE")
         case .custom:
             // 用户明确选择顺序，不能再用本地化模板把日月重新排回月日。

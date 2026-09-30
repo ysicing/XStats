@@ -18,7 +18,7 @@ import WidgetData
         publicIPEnabled: true,
         addresses: [.init(family: "v4", ip: "203.0.113.1", countryCode: "CN", city: nil,
                           organization: nil, purityScore: 82, purityGrade: "A")],
-        language: "japanese", calendarFirstWeekday: 1, showsLunar: false)
+        language: "japanese", calendarFirstWeekday: 1, showsLunar: false, showsAlmanac: false)
     #expect(store.save(snapshot))
     #expect(store.load() == snapshot)
     #expect(snapshot.currentQuotas(at: now).count == 1)
@@ -169,7 +169,7 @@ import WidgetData
                                          organization: nil, purityScore: 82, purityGrade: "A")
     let base = WidgetSnapshot(aiEnabled: true, quotas: [quota(fetchedAt: now)],
                               dailyTokens: [.init(provider: "codex", day: now, tokens: 10)],
-                              publicIPEnabled: true, addresses: [address])
+                              publicIPEnabled: true, addresses: [address], showsLunar: true)
 
     // 重新抓取但额度未变：抓取时间不显示在 Widget 上，不应消耗重载预算
     var refetched = base

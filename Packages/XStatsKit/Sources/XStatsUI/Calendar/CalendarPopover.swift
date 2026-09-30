@@ -56,10 +56,10 @@ struct CalendarPopover: View {
         _yearInput = State(initialValue: String(month.year))
         _selected = State(initialValue: today)
         _showsDayDetails = State(initialValue: showsDayDetails)
-        _almanac = State(initialValue: showsDayDetails ? today.flatMap { CalendarEngine.almanac(for: $0) } : nil)
+        _almanac = State(initialValue: nil)
         _lastTodayID = State(initialValue: today?.id)
         _days = State(initialValue: CalendarEngine.month(year: month.year, month: month.month, firstWeekday: firstWeekday))
-        _holidayPlan = State(initialValue: CalendarEngine.holidayPlan(from: referenceDate ?? Date()))
+        _holidayPlan = State(initialValue: nil)
     }
 
     var body: some View {
@@ -91,7 +91,7 @@ struct CalendarPopover: View {
                     month = CalendarMonth(year: today.year, month: today.month)
                 }
                 lastTodayID = newID
-                holidayPlan = CalendarEngine.holidayPlan(from: referenceDate ?? context.date)
+                refreshHolidayPlan(at: referenceDate ?? context.date)
             }
         }
         .frame(width: isSnapshot ? sizing.width : nil)
@@ -103,6 +103,8 @@ struct CalendarPopover: View {
         .overlay { RoundedRectangle(cornerRadius: DS.Radius.xl).strokeBorder(DS.Palette.border) }
         .onAppear {
             reload()
+            refreshAlmanac()
+            refreshHolidayPlan(at: referenceDate ?? Date())
             if !isSnapshot { model.calendarAgenda.refreshAuthorization() }
         }
         .task(id: agendaQuery) {
@@ -123,10 +125,15 @@ struct CalendarPopover: View {
             reload()
         }
         .onChange(of: selected?.id) { _, _ in refreshAlmanac() }
+        .onChange(of: model.settings.calendarPreferences.showAlmanac) { _, _ in refreshAlmanac() }
+        .onChange(of: model.settings.calendarFeatures) { _, _ in refreshHolidayPlan(at: referenceDate ?? Date()) }
+        .onChange(of: model.settings.calendarPreferences.showHolidayOverview) { _, _ in
+            refreshHolidayPlan(at: referenceDate ?? Date())
+        }
         .onChange(of: model.settings.calendarFirstWeekday) { _, _ in reload() }
         .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
             reload()
-            holidayPlan = CalendarEngine.holidayPlan(from: referenceDate ?? Date())
+            refreshHolidayPlan(at: referenceDate ?? Date())
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
             guard referenceDate == nil, let today = CalendarEngine.today() else { return }
@@ -137,7 +144,7 @@ struct CalendarPopover: View {
 
     private func calendarContent(today: CalendarDay?) -> some View {
         VStack(spacing: sizing.sectionSpacing) {
-            if showsDayDetails, let selected, let almanac {
+            if showsDayDetails, let selected {
                 CalendarAlmanacView(day: selected, almanac: almanac, features: model.settings.calendarFeatures)
                 if model.settings.calendarPreferences.showEvents || model.settings.calendarPreferences.showReminders {
                     CalendarAgendaView(day: selected)
@@ -263,8 +270,20 @@ struct CalendarPopover: View {
     }
 
     private func refreshAlmanac() {
-        guard showsDayDetails, let selected, almanac?.id != selected.id else { return }
+        guard showsDayDetails, model.settings.calendarPreferences.showAlmanac, let selected else {
+            almanac = nil
+            return
+        }
+        guard almanac?.id != selected.id else { return }
         almanac = CalendarEngine.almanac(for: selected)
+    }
+
+    private func refreshHolidayPlan(at date: Date) {
+        guard model.settings.calendarFeatures.contains(.holidays), model.settings.calendarPreferences.showHolidayOverview else {
+            holidayPlan = nil
+            return
+        }
+        holidayPlan = CalendarEngine.holidayPlan(from: date)
     }
 
     private func reload() {

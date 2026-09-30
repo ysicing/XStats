@@ -63,6 +63,31 @@ struct CalendarEnhancementTests {
         #expect(CalendarEngine.lunarDateTitle(at: newYear, locale: Locale(identifier: "zh_Hans_CN"), timeZone: zone) == "正月初一")
     }
 
+    @Test(arguments: ["zh_Hans_CN", "zh_Hans_SG", "zh_Hant_TW", "zh_Hant_HK"])
+    func chineseLanguagesOfferLunarDisplayRegardlessOfRegion(localeID: String) throws {
+        let locale = Locale(identifier: localeID)
+        #expect(CalendarPreferences.Display.available(for: locale) == [.standard, .dateLunar, .lunar, .custom])
+        #expect(CalendarPreferences.Display.lunar.effective(for: locale) == .lunar)
+        #expect(CalendarPreferences.Display.dateLunar.effective(for: locale) == .dateLunar)
+    }
+
+    @Test(arguments: ["en_CN", "en_US", "ja_JP", "ko_KR", "de_DE", "es_ES", "fr_FR", "ar_SA"])
+    func nonChineseLanguagesTemporarilyUseStandardDisplay(localeID: String) throws {
+        let locale = Locale(identifier: localeID)
+        #expect(CalendarPreferences.Display.available(for: locale) == [.standard, .custom])
+        let date = try #require(ISO8601DateFormatter().date(from: "2026-09-28T04:00:00Z"))
+        let standard = CalendarPreferences().title(at: date, locale: locale, timeZone: zone)
+        for display in [CalendarPreferences.Display.lunar, .dateLunar] {
+            var preferences = CalendarPreferences()
+            preferences.display = display
+            #expect(preferences.title(at: date, locale: locale, timeZone: zone) == standard)
+            // 呈现回退不应被写入备份，切回繁体中文仍使用原选择。
+            let restored = try JSONDecoder().decode(CalendarPreferences.self, from: JSONEncoder().encode(preferences))
+            #expect(restored.display == display)
+            #expect(restored.display.effective(for: Locale(identifier: "zh_Hant_TW")) == display)
+        }
+    }
+
     @Test(arguments: ["en_US", "en_GB", "zh_Hans_CN"])
     func customDateKeepsUserOrderAndSeparators(localeID: String) throws {
         var preferences = CalendarPreferences()
@@ -104,10 +129,57 @@ struct CalendarEnhancementTests {
 
     @Test func calendarPreferencesKeepSafeDefaultsForOlderDocuments() throws {
         let old = try JSONDecoder().decode(CalendarPreferences.self, from: Data("{}".utf8))
-        #expect(old == CalendarPreferences())
+        #expect(old == CalendarPreferences(locale: Locale(identifier: "zh_CN")))
+        #expect(old.showAlmanac && old.showHolidayOverview)
         #expect(!old.showEvents && !old.showReminders && !old.openOnHover)
         let future = try JSONDecoder().decode(CalendarPreferences.self, from: Data(#"{"display":"future"}"#.utf8))
         #expect(future.display == .standard)
+    }
+
+    @Test(arguments: ["en_US", "en_CN", "zh_Hans_CN", "zh_Hant_CN", "zh_Hant_TW", "zh_Hant_HK", "zh_Hant_MO",
+                      "zh_Hans_SG", "ja_JP", "ko_KR", "ar_SA", "fr_FR"])
+    func freshCalendarDefaultsFollowRegionAndRemainStable(localeID: String) throws {
+        let name = "CalendarRegionTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let locale = Locale(identifier: localeID)
+        let mainland = locale.region?.identifier == "CN"
+        let expected: Set<CalendarFeature> = mainland ? [.lunar, .weekdays, .holidays, .festivals, .solarTerms] : [.weekdays]
+        let settings = AppSettings(defaults: defaults, calendarLocale: locale)
+        #expect(settings.calendarFeatures == expected)
+        #expect(settings.calendarPreferences.showHolidayOverview == mainland)
+        #expect(settings.calendarPreferences.showAlmanac == mainland)
+        #expect(!settings.calendarFeatures.contains(.seasonal))
+
+        // 更改地区不应重置首次保存的默认值，明确关闭的选项和空集合也须保留。
+        let otherRegion = Locale(identifier: mainland ? "zh_TW" : "en_CN")
+        let restored = AppSettings(defaults: defaults, calendarLocale: otherRegion)
+        #expect(restored.calendarFeatures == expected)
+        #expect(restored.calendarPreferences == settings.calendarPreferences)
+        settings.calendarFeatures = []
+        settings.calendarPreferences.showHolidayOverview = false
+        settings.calendarPreferences.showAlmanac = false
+        let disabled = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "zh_CN"))
+        #expect(disabled.calendarFeatures.isEmpty)
+        #expect(!disabled.calendarPreferences.showHolidayOverview && !disabled.calendarPreferences.showAlmanac)
+    }
+
+    @Test func existingCalendarChoicesAndBackupsSurviveRegionalDefaults() throws {
+        let name = "CalendarExistingRegionTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(["lunar", "holidays", "dogDays"], forKey: "calendarFeatures")
+        defaults.set(Data(#"{"display":"lunar","showHolidayOverview":true}"#.utf8), forKey: "calendarPreferences")
+        let settings = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "en_US"))
+        #expect(settings.calendarFeatures == [.lunar, .holidays, .seasonal])
+        #expect(settings.calendarPreferences.display == .lunar)
+        #expect(settings.calendarPreferences.showHolidayOverview && settings.calendarPreferences.showAlmanac)
+        let backup = try JSONDecoder().decode(SettingsDocument.self, from: JSONEncoder().encode(settings.exportDocument()))
+        settings.calendarFeatures = [.weekdays]
+        settings.calendarPreferences.showAlmanac = false
+        settings.apply(backup)
+        #expect(settings.calendarFeatures == [.lunar, .holidays, .seasonal])
+        #expect(settings.calendarPreferences.showAlmanac)
     }
 
     @Test func displayPreferencesRoundTripWithoutSyncingLocalCalendarIDs() throws {
