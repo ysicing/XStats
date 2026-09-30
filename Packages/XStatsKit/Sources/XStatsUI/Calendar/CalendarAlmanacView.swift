@@ -41,7 +41,7 @@ struct CalendarAlmanacView: View {
         let formatter = DateFormatter()
         formatter.locale = L10n.locale
         formatter.calendar = CalendarEngine.gregorian()
-        formatter.setLocalizedDateFormatFromTemplate(features.contains(.weekdays) ? "yMMMMdEEEE" : "yMMMMd")
+        formatter.setLocalizedDateFormatFromTemplate("yMMMMdEEEE")
         return formatter.string(from: day.date)
     }
 

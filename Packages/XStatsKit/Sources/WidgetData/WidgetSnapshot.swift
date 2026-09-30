@@ -166,7 +166,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public var showsLunar: Bool
     /// 可选以兼容旧版摘要；单日日历仅在用户开启时显示具体时令天数。
     public var showsSeasonal: Bool?
-    /// nil 表示旧快照尚未按黄历开关生成，主应用会按需更新一次。
+    /// 保留旧字段以识别黄历曾关闭的缓存；主应用固定写入 true，并重算旧的 nil / false 摘要。
     public var showsAlmanac: Bool?
     /// 可选以兼容旧版主应用写入的 App Group 摘要。
     public var calendarDays: [CalendarSummary]?

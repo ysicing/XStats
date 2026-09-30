@@ -9,19 +9,18 @@ import WidgetData
 
 /// 公历是月历的坐标；其余信息可独立隐藏，设置以稳定 rawValue 保存和同步。
 public enum CalendarFeature: String, CaseIterable, Identifiable, Sendable {
-    case lunar, weekdays, holidays, festivals, seasonalInfo, tibetan, hijri
+    case lunar, holidays, festivals, seasonalInfo, tibetan, hijri
     public var id: String { rawValue }
     public static var defaults: Set<Self> { defaults(for: .current) }
 
     /// 默认值依据使用地区，不依据应用语言或设备销售地；其他地区可自行启用。
     public static func defaults(for locale: Locale) -> Set<Self> {
-        locale.region?.identifier == "CN" ? [.lunar, .weekdays, .holidays, .festivals, .seasonalInfo] : [.weekdays]
+        locale.region?.identifier == "CN" ? [.lunar, .holidays, .festivals, .seasonalInfo] : []
     }
 
     var title: String {
         switch self {
         case .lunar: tr("农历")
-        case .weekdays: tr("星期")
         case .holidays: tr("中国大陆节假日与调休")
         case .festivals: tr("传统与公历节日")
         case .seasonalInfo: tr("节气与时令")
@@ -32,7 +31,7 @@ public enum CalendarFeature: String, CaseIterable, Identifiable, Sendable {
 
     /// 旧偏好与备份中的节气、时令开关合并；任一项曾开启就保留用户的显示意愿。
     static func restored(from rawValues: [String]) -> Set<Self> {
-        // 已移除的月历干支（ganzhi）与未知选项一起忽略，不影响其他已保存的选择。
+        // 星期固定显示；已移除的 weekdays、ganzhi 与未知选项一起忽略，不影响其他选择。
         var features = Set(rawValues.compactMap(Self.init(rawValue:)))
         // 使用新的设置键也使 Widget 的旧摘要失效，避免复用只包含节气或时令的旧缓存。
         if rawValues.contains(where: { ["solarTerms", "seasonal", "dogDays", "plumRain"].contains($0) }) {

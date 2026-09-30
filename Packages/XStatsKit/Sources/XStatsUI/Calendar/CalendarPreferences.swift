@@ -26,19 +26,17 @@ public struct CalendarPreferences: Codable, Equatable, Sendable {
     public var strongerLunarText = false
     public var openOnHover = false
     public var showHolidayOverview: Bool
-    public var showAlmanac: Bool
     public var showEvents = false
     public var showReminders = false
 
     public init(locale: Locale = .current) {
         let isMainlandChina = locale.region?.identifier == "CN"
         showHolidayOverview = isMainlandChina
-        showAlmanac = isMainlandChina
     }
 
     private enum CodingKeys: String, CodingKey {
         case display, dateFormat, largeLunarText, strongerLunarText, openOnHover
-        case showHolidayOverview, showAlmanac, showEvents, showReminders
+        case showHolidayOverview, showEvents, showReminders
     }
 
     public init(from decoder: any Decoder) throws {
@@ -51,8 +49,6 @@ public struct CalendarPreferences: Codable, Equatable, Sendable {
         strongerLunarText = try values.decodeIfPresent(Bool.self, forKey: .strongerLunarText) ?? false
         openOnHover = try values.decodeIfPresent(Bool.self, forKey: .openOnHover) ?? false
         showHolidayOverview = try values.decodeIfPresent(Bool.self, forKey: .showHolidayOverview) ?? true
-        // 旧偏好始终展示黄历，缺失新字段时保留已有行为；全新偏好使用地区默认值。
-        showAlmanac = try values.decodeIfPresent(Bool.self, forKey: .showAlmanac) ?? true
         showEvents = try values.decodeIfPresent(Bool.self, forKey: .showEvents) ?? false
         showReminders = try values.decodeIfPresent(Bool.self, forKey: .showReminders) ?? false
     }

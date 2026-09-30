@@ -183,7 +183,12 @@ lookups. Changing to an unsupported display year clears the holiday overview bef
 reuse or daily planning, so the current year's countdown cannot appear in the next year.
 Plum-rain dates describe traditional calendar rules, not observed or forecast weather.
 
-Calendar enablement, visible features and week start persist through `AppSettings` and the
+Weekday headers and weekday labels in selected-day dates are always visible, matching the
+month widget. Legacy `weekdays` settings are ignored without discarding other choices.
+Selected-day almanac is always enabled; legacy `showAlmanac` preferences are ignored.
+Details still calculate on demand, while widgets reuse the bounded eight-day summary.
+The snapshot keeps `showsAlmanac = true` to invalidate old disabled-almanac caches.
+Calendar enablement, optional features and week start persist through `AppSettings` and the
 optional fields in `SettingsDocument`. Week start initially uses `Calendar.current.firstWeekday`,
 then persists independently of later system changes; all seven weekdays are supported by the
 settings picker, backups, month grids and widgets. Menu-bar lunar modes remain available in

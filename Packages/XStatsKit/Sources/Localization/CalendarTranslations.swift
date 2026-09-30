@@ -14,7 +14,6 @@ extension Translations {
 星期日	Sunday
 农历	Lunar calendar
 黄历	Chinese almanac
-星期	Weekdays
 中国大陆节假日与调休	Mainland China holidays and makeup workdays
 传统与公历节日	Festivals
 节气与时令	Solar terms and seasons

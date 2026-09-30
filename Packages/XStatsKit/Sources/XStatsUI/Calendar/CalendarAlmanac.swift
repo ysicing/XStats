@@ -46,8 +46,7 @@ extension CalendarEngine {
         "2026-05-04", "2026-05-05", "2026-10-05", "2026-10-06", "2026-10-07"
     ]
 
-    static func widgetSummary(for day: CalendarDay, features: Set<CalendarFeature> = Set(CalendarFeature.allCases),
-                              showsAlmanac: Bool = true) -> WidgetSnapshot.CalendarSummary {
+    static func widgetSummary(for day: CalendarDay, features: Set<CalendarFeature> = Set(CalendarFeature.allCases)) -> WidgetSnapshot.CalendarSummary {
         let schedule: WidgetSnapshot.CalendarSummary.Schedule
         if !features.contains(.holidays) || !hasHolidayData(year: day.year) {
             schedule = .unknown
@@ -68,7 +67,7 @@ extension CalendarEngine {
         } else {
             schedule = day.isWeekend ? .weekend : .work
         }
-        let almanac = showsAlmanac ? almanac(for: day) : nil
+        let almanac = almanac(for: day)
         let seasons = features.contains(.seasonalInfo) ? [day.dogDays, day.plumRain, day.nineDays].compactMap { $0 } : []
         return .init(dateKey: day.id, festivals: features.contains(.festivals) ? day.festivals : [],
                      solarTerm: features.contains(.seasonalInfo) ? day.solarTerm : nil,
