@@ -18,7 +18,6 @@ extension Translations {
 中国大陆节假日与调休	Mainland China holidays and makeup workdays
 传统与公历节日	Festivals
 二十四节气	Solar terms
-干支	Sexagenary cycle
 三伏天	Dog days
 梅雨天	Plum-rain days
 三伏·梅雨·数九	Fu · Plum rain · Nines
@@ -108,7 +107,6 @@ extension Translations {
 小寒	Minor Cold
 大寒	Major Cold
 返回月历	Back to calendar
-控制月历格中的日干支；黄历详情始终显示年月日干支	Show the day cycle in month cells; almanac details always include year, month and day cycles
 宜	Favorable
 忌	Avoid
 纳音	Na Yin
