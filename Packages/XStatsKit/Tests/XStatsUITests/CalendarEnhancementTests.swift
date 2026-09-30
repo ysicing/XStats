@@ -63,29 +63,32 @@ struct CalendarEnhancementTests {
         #expect(CalendarEngine.lunarDateTitle(at: newYear, locale: Locale(identifier: "zh_Hans_CN"), timeZone: zone) == "正月初一")
     }
 
-    @Test(arguments: ["zh_Hans_CN", "zh_Hans_SG", "zh_Hant_TW", "zh_Hant_HK"])
-    func chineseLanguagesOfferLunarDisplayRegardlessOfRegion(localeID: String) throws {
+    @Test(arguments: ["en_CN", "en_US", "ja_JP", "ko_KR", "de_DE", "es_ES", "fr_FR", "ar_SA"])
+    func manualLunarDisplaySurvivesEveryLanguage(localeID: String) throws {
         let locale = Locale(identifier: localeID)
-        #expect(CalendarPreferences.Display.available(for: locale) == [.standard, .dateLunar, .lunar, .custom])
-        #expect(CalendarPreferences.Display.lunar.effective(for: locale) == .lunar)
-        #expect(CalendarPreferences.Display.dateLunar.effective(for: locale) == .dateLunar)
+        let date = try #require(ISO8601DateFormatter().date(from: "2026-09-28T04:00:00Z"))
+        let expected = try #require(CalendarEngine.lunarDateTitle(at: date, locale: locale, timeZone: zone))
+        let standard = CalendarPreferences().title(at: date, locale: locale, timeZone: zone)
+        var preferences = CalendarPreferences()
+        preferences.display = .lunar
+        #expect(preferences.title(at: date, locale: locale, timeZone: zone) == expected)
+        #expect(preferences.title(at: date, locale: locale, timeZone: zone) != standard)
+        preferences.display = .dateLunar
+        #expect(preferences.title(at: date, locale: locale, timeZone: zone).contains(expected))
+        let restored = try JSONDecoder().decode(CalendarPreferences.self, from: JSONEncoder().encode(preferences))
+        #expect(restored.display == .dateLunar)
+        #expect(restored.title(at: date, locale: locale, timeZone: zone) == preferences.title(at: date, locale: locale, timeZone: zone))
     }
 
-    @Test(arguments: ["en_CN", "en_US", "ja_JP", "ko_KR", "de_DE", "es_ES", "fr_FR", "ar_SA"])
-    func nonChineseLanguagesTemporarilyUseStandardDisplay(localeID: String) throws {
-        let locale = Locale(identifier: localeID)
-        #expect(CalendarPreferences.Display.available(for: locale) == [.standard, .custom])
-        let date = try #require(ISO8601DateFormatter().date(from: "2026-09-28T04:00:00Z"))
-        let standard = CalendarPreferences().title(at: date, locale: locale, timeZone: zone)
-        for display in [CalendarPreferences.Display.lunar, .dateLunar] {
-            var preferences = CalendarPreferences()
-            preferences.display = display
-            #expect(preferences.title(at: date, locale: locale, timeZone: zone) == standard)
-            // 呈现回退不应被写入备份，切回繁体中文仍使用原选择。
-            let restored = try JSONDecoder().decode(CalendarPreferences.self, from: JSONEncoder().encode(preferences))
-            #expect(restored.display == display)
-            #expect(restored.display.effective(for: Locale(identifier: "zh_Hant_TW")) == display)
-        }
+    @Test(arguments: Array(1...7))
+    func monthGridAndWidgetHonorEveryWeekStart(firstWeekday: Int) throws {
+        let days = CalendarEngine.month(year: 2026, month: 9, firstWeekday: firstWeekday, timeZone: zone)
+        let first = try #require(days.first)
+        #expect(days.count == 42 && first.weekday == firstWeekday)
+        let summary = CalendarEngine.widgetMonthSummary(year: 2026, month: 9, firstWeekday: firstWeekday,
+                                                        features: [], timeZone: zone)
+        #expect(summary.firstWeekday == firstWeekday)
+        #expect(summary.days.first?.dateKey == first.id)
     }
 
     @Test(arguments: ["en_US", "en_GB", "zh_Hans_CN"])
@@ -162,6 +165,49 @@ struct CalendarEnhancementTests {
         let disabled = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "zh_CN"))
         #expect(disabled.calendarFeatures.isEmpty)
         #expect(!disabled.calendarPreferences.showHolidayOverview && !disabled.calendarPreferences.showAlmanac)
+    }
+
+    @Test(arguments: Array(1...7))
+    func weekStartUsesSystemDefaultOnceAndPreservesManualChoice(firstWeekday: Int) throws {
+        let name = "CalendarWeekStartTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = firstWeekday
+        let settings = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "en_US"), calendar: calendar)
+        #expect(settings.calendarFirstWeekday == firstWeekday)
+        #expect(defaults.integer(forKey: "calendarFirstWeekday") == firstWeekday)
+
+        calendar.firstWeekday = firstWeekday % 7 + 1
+        let restored = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "zh_CN"), calendar: calendar)
+        #expect(restored.calendarFirstWeekday == firstWeekday)
+        settings.calendarFirstWeekday = 3
+        #expect(AppSettings(defaults: defaults, calendar: calendar).calendarFirstWeekday == 3)
+    }
+
+    @Test(arguments: Array(1...7))
+    func backupsRestoreEveryWeekStartAndRejectInvalidValues(firstWeekday: Int) throws {
+        let name = "CalendarWeekBackupTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 7
+        defaults.set(99, forKey: "calendarFirstWeekday")
+        let settings = AppSettings(defaults: defaults, calendar: calendar)
+        #expect(settings.calendarFirstWeekday == 7)
+        #expect(defaults.integer(forKey: "calendarFirstWeekday") == 7)
+
+        settings.calendarFirstWeekday = firstWeekday
+        let document = try JSONDecoder().decode(SettingsDocument.self, from: JSONEncoder().encode(settings.exportDocument()))
+        settings.calendarFirstWeekday = firstWeekday % 7 + 1
+        settings.apply(document)
+        #expect(settings.calendarFirstWeekday == firstWeekday)
+        var invalid = SettingsDocument()
+        invalid.calendarFirstWeekday = 99
+        settings.apply(invalid)
+        #expect(settings.calendarFirstWeekday == firstWeekday)
+        settings.apply(SettingsDocument())
+        #expect(settings.calendarFirstWeekday == firstWeekday)
     }
 
     @Test func existingCalendarChoicesAndBackupsSurviveRegionalDefaults() throws {

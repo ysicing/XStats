@@ -31,6 +31,15 @@ import WidgetData
     #expect(disabled.visibleAddresses.isEmpty)
 }
 
+@Test(arguments: Array(1...7))
+func snapshotPreservesEveryWeekStartAndReloadsCalendars(firstWeekday: Int) throws {
+    let previous = WidgetSnapshot(calendarFirstWeekday: firstWeekday % 7 + 1)
+    let snapshot = WidgetSnapshot(calendarFirstWeekday: firstWeekday)
+    let restored = try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot))
+    #expect(restored.calendarFirstWeekday == firstWeekday)
+    #expect(restored.changedWidgetKinds(from: previous) == [WidgetKind.calendar, WidgetKind.tomorrowWork, WidgetKind.calendarMonth])
+}
+
 @Test func calendarSummaryUsesLocalCivilDayAndOldCacheStillDecodes() throws {
     let legacy = Data(#"{"aiEnabled":false,"quotas":[],"publicIPEnabled":false,"addresses":[],"language":"system","calendarFirstWeekday":2,"showsLunar":true}"#.utf8)
     let oldSnapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: legacy)

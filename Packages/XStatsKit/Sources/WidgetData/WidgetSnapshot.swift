@@ -178,7 +178,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
                 localUsageEnabled: Bool? = nil,
                 publicIPEnabled: Bool = false,
                 addresses: [Address] = [], language: String = "system",
-                calendarFirstWeekday: Int = 2, showsLunar: Bool = Locale.current.region?.identifier == "CN",
+                calendarFirstWeekday: Int = Calendar.current.firstWeekday, showsLunar: Bool = Locale.current.region?.identifier == "CN",
                 calendarDays: [CalendarSummary]? = nil, monthSummaries: [MonthSummary]? = nil,
                 showsSeasonal: Bool? = nil, calendarDataVersion: String? = nil, showsAlmanac: Bool? = nil) {
         self.aiEnabled = aiEnabled

@@ -733,7 +733,7 @@ public final class AppSettings {
     public static let alertLoadOptions = [70, 80, 90]
     public static let cpuChartOptions = [60, 180, 300]
 
-    public init(defaults: UserDefaults = .standard, calendarLocale: Locale = .current) {
+    public init(defaults: UserDefaults = .standard, calendarLocale: Locale = .current, calendar: Calendar = .current) {
         self.defaults = defaults
         let isRestEnabled = defaults.bool(forKey: Keys.restEnabled)
         restEnabled = isRestEnabled
@@ -758,7 +758,9 @@ public final class AppSettings {
         let savedCalendarFeatures = defaults.stringArray(forKey: Keys.calendarFeatures)
         calendarFeatures = savedCalendarFeatures
             .map(CalendarFeature.restored(from:)) ?? CalendarFeature.defaults(for: calendarLocale)
-        calendarFirstWeekday = defaults.integer(forKey: Keys.calendarFirstWeekday) == 1 ? 1 : 2
+        let savedCalendarFirstWeekday = (defaults.object(forKey: Keys.calendarFirstWeekday) as? Int)
+            .flatMap { (1...7).contains($0) ? $0 : nil }
+        calendarFirstWeekday = savedCalendarFirstWeekday ?? calendar.firstWeekday
         let items = defaults.stringArray(forKey: Keys.menuBarItems)?.compactMap(MenuBarItem.init(rawValue:))
         menuBarItems = Set(items ?? [.cpu, .memory, .network])
         menuBarStyle = defaults.string(forKey: Keys.menuBarStyle).flatMap(MenuBarStyle.init(rawValue:)) ?? .stacked
@@ -836,6 +838,10 @@ public final class AppSettings {
         }
         if savedCalendarFeatures == nil {
             defaults.set(calendarFeatures.map(\.rawValue).sorted(), forKey: Keys.calendarFeatures)
+        }
+        // 首次采用系统的周起始日并保存，之后系统设置变化不覆盖用户选择。
+        if savedCalendarFirstWeekday == nil {
+            defaults.set(calendarFirstWeekday, forKey: Keys.calendarFirstWeekday)
         }
     }
 

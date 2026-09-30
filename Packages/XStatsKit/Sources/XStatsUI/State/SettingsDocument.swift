@@ -144,7 +144,7 @@ extension AppSettings {
         assign(\.restSound, doc.restSound.flatMap(RestSound.init(rawValue:)))
         assign(\.restHUDStyle, doc.restHUDStyle.flatMap(RestHUDStyle.init(rawValue:)))
         assign(\.calendarFeatures, doc.calendarFeatures.map(CalendarFeature.restored(from:)))
-        assign(\.calendarFirstWeekday, option(doc.calendarFirstWeekday, in: [1, 2]))
+        assign(\.calendarFirstWeekday, option(doc.calendarFirstWeekday, in: Array(1...7)))
         assign(\.menuBarItems, doc.menuBarItems.map { Set($0.compactMap(MenuBarItem.init(rawValue:))) })
         assign(\.menuBarStyle, doc.menuBarStyle.flatMap(MenuBarStyle.init(rawValue:)))
         assign(\.networkStyle, doc.networkStyle.flatMap(NetworkMenuStyle.init(rawValue:)))
