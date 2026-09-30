@@ -202,6 +202,7 @@ public final class UpdateController {
                         self.phase = .downloading(fraction)
                     }
                 }
+                try Task.checkCancellation()
                 phase = .verifying
                 let candidate = try await Task.detached {
                     guard try UpdateInstaller.sha256(of: archive) == release.sha256.lowercased() else {
@@ -212,6 +213,8 @@ public final class UpdateController {
                     return candidate
                 }.value
 
+                // 替换开始前兑现取消请求；一旦开始替换，必须完整执行或回滚。
+                try Task.checkCancellation()
                 phase = .installing
                 if UpdateInstaller.canReplaceInPlace(app) {
                     try await Task.detached { try UpdateInstaller.replace(app, with: candidate, backupDirectory: work) }.value

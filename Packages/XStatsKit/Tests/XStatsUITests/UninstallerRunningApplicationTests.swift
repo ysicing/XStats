@@ -27,8 +27,9 @@ struct UninstallerRunningApplicationTests {
                                   version: nil, teamIdentifier: nil)
         controller.select(target)
         // openApplication 返回与运行列表更新不是同一个时刻。
-        let launchDeadline = ContinuousClock.now + .seconds(5)
-        while ContinuousClock.now < launchDeadline, !controller.isRunning(target) {
+        // 全套 UI 测试可长时间占用主线程，不能把调度等待误判成启动失败。
+        let launchDeadline = ContinuousClock.now + .seconds(30)
+        while ContinuousClock.now < launchDeadline, !running.isFinishedLaunching || !controller.isRunning(target) {
             try await Task.sleep(for: .milliseconds(20))
         }
         try #require(controller.isRunning(target))
@@ -49,7 +50,7 @@ struct UninstallerRunningApplicationTests {
         }
 
         controller.quit(target)
-        let deadline = ContinuousClock.now + .seconds(5)
+        let deadline = ContinuousClock.now + .seconds(30)
         while ContinuousClock.now < deadline, !running.isTerminated || !change.received {
             try await Task.sleep(for: .milliseconds(20))
         }
@@ -87,6 +88,16 @@ struct UninstallerRunningApplicationTests {
         try compiler.run()
         compiler.waitUntilExit()
         try #require(compiler.terminationStatus == 0)
+        // 绑定完整 App 的 Bundle ID，避免仅签名 Mach-O 时 LaunchServices 使用临时可执行文件身份。
+        let signer = Process()
+        signer.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        signer.arguments = ["--force", "--sign", "-", app.path]
+        signer.standardInput = FileHandle.nullDevice
+        signer.standardOutput = FileHandle.nullDevice
+        signer.standardError = FileHandle.standardError
+        try signer.run()
+        signer.waitUntilExit()
+        try #require(signer.terminationStatus == 0)
         return app
     }
 }

@@ -101,6 +101,20 @@ right before deletion, because apps start in between.
 Regenerable caches are deleted outright; user files go to the Trash. Each action is appended
 to `~/Library/Logs/XStats/cleanup.log` as a JSON line.
 
+Application uninstallation uses a separate controller and scans only app-specific paths. The current
+bundle identifier is rejected in validation, drag-in selection and quit requests; the current process
+is never terminated by the uninstaller. App-list and selected-app scans each own one cancellable task
+and generation token. Background traversal is structured under those tasks and checks cancellation
+between files. Leaving the page, closing or minimizing the main window cancels scanning; completed
+results are kept, while incomplete work resumes on reopening. Re-selecting an app cannot let an older
+scan restore deselected files.
+
+Trash operations are confirmed separately. The completion dictionary, rather than the number of
+moved files, determines whether the app itself was removed. Only a moved app loses its list and Dock
+entries. When the app cannot be moved, successfully moved residue is removed from the selection and
+failed items remain available for retry. Reported sizes include only files actually moved. This flow
+currently does not unregister third-party background services or stop independently running helpers.
+
 ## Disk tools
 
 The disk page is also where users act on the disk. `DiskToolsController` (`XStatsUI/State`) fronts four
@@ -307,6 +321,10 @@ the quota reader has no access to session-log content.
   timer that syncs MaxMind GeoLite2 onto `getopenstats.com/geoip/` (account and key in
   `/etc/openstats/maxmind.env` on the server); the app no longer downloads those files, they are kept
   for other uses.
+  Each public-IP query owns a cancellable task and generation token. Disabling lookup clears the
+  cache and invalidates the query; sleep or lock pauses it. Every asynchronous stage and final cache
+  write checks both generation and current settings, so late callbacks cannot restore cleared data
+  or replace a newer lookup. An old completion cannot clear the newer query's loading state.
 - **Per-process traffic** — cumulative bytes from `/usr/bin/nettop`, diffed between samples.
 - **Menu bar IP location** — optional flag or localized region name after network speeds, disabled
   by default. It reads the same `NetworkController.publicAddresses.countryCode` as network details,
@@ -356,6 +374,10 @@ temporary folder, the new one moved into place (restored on failure; an administ
 used when the folder is not writable), and a detached shell waits for the process to exit before
 reopening the app with `open -n`. LaunchServices can retain the old instance after its PID disappears;
 requesting a new instance prevents the relaunch from being routed to that terminated process.
+Downloads use URLSession's asynchronous download API with a task-level progress delegate. The system
+coordinates task creation and cancellation, avoiding a task being created on an already invalidated
+session. Cancellation is checked before verification and before replacement starts; replacement itself
+must finish or roll back once begun.
 After an update the old helper may still be running; the app unregisters an outdated
 helper, re-registers the bundled version, and verifies the protocol before privileged calls resume.
 

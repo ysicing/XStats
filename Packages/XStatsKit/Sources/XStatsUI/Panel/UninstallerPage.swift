@@ -29,7 +29,14 @@ struct UninstallerPage: View {
             }
         }
         .padding(.leading, DS.Space.s3)
-        .onAppear { if uninstaller.apps.isEmpty { uninstaller.loadApps() } }
+        .onAppear { if model.isMainWindowVisible { uninstaller.resumeScanning() } }
+        .onDisappear { uninstaller.cancelScanning() }
+        .onChange(of: model.isMainWindowVisible) { _, visible in
+            if visible { uninstaller.resumeScanning() } else { uninstaller.cancelScanning() }
+        }
+        .onChange(of: uninstaller.isRemoving) { _, removing in
+            if !removing, model.isMainWindowVisible { uninstaller.resumeScanning() }
+        }
         .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
             guard let provider = providers.first else { return false }
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
@@ -250,7 +257,7 @@ private struct AppDetailCard: View {
                 Spacer()
                 Button(uninstaller.isRemoving ? tr("正在移除…") : tr("卸载")) { confirm() }
                     .buttonStyle(DSButtonStyle(kind: .primary))
-                    .disabled(running || uninstaller.isScanning || uninstaller.isRemoving)
+                    .disabled(running || !uninstaller.canUninstall)
             }
             // 程序坞里的图标始终一并移除，不单独做开关：留着一个空图标没有意义
             Text(tr("只查找以该应用包名命名的文件，以及 Application Support、Logs 下与应用同名的目录；钥匙串与其他应用共享的数据不会动。程序坞里的图标会一并移除"))

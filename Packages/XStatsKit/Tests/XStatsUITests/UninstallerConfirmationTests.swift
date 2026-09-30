@@ -1,7 +1,7 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import Cleaner
+@testable import Cleaner
 import Foundation
 import Testing
 @testable import XStatsUI
@@ -13,10 +13,15 @@ struct UninstallerConfirmationTests {
                      bundleIdentifier: "test.\(name)", version: nil, teamIdentifier: nil)
     }
 
-    @Test func cancelKeepsSelectedAppWithoutRemovingIt() {
-        let controller = UninstallerController()
+    @Test func cancelKeepsSelectedAppWithoutRemovingIt() async throws {
+        let controller = UninstallerController(currentBundleIdentifier: nil, findLeftovers: {
+            [AppLeftover(url: $0.url, kind: .application, size: 100)]
+        })
         let target = app("ConfirmationTestA")
         controller.select(target)
+        let deadline = ContinuousClock.now + .seconds(30)
+        while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        try #require(controller.canUninstall)
 
         controller.requestUninstall()
         #expect(controller.pendingUninstall == target)
@@ -28,11 +33,16 @@ struct UninstallerConfirmationTests {
         #expect(!controller.isRemoving)
     }
 
-    @Test func switchingAppInvalidatesOldConfirmation() {
-        let controller = UninstallerController()
+    @Test func switchingAppInvalidatesOldConfirmation() async throws {
+        let controller = UninstallerController(currentBundleIdentifier: nil, findLeftovers: {
+            [AppLeftover(url: $0.url, kind: .application, size: 100)]
+        })
         let first = app("ConfirmationTestA")
         let second = app("ConfirmationTestB")
         controller.select(first)
+        let deadline = ContinuousClock.now + .seconds(30)
+        while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        try #require(controller.canUninstall)
         controller.requestUninstall()
         controller.select(second)
         controller.confirmUninstall()

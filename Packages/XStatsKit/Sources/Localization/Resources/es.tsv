@@ -1620,3 +1620,5 @@ GitHub 项目	Proyecto en GitHub
 活动监视器	Monitor de Actividad
 打开系统活动监视器	Abrir el Monitor de Actividad de macOS
 进程功能开启时打开 XStats 进程页，关闭时打开系统活动监视器。	Abre Procesos de XStats si la función está activada; si está desactivada, abre el Monitor de Actividad de macOS.
+不能在 XStats 内卸载或退出 XStats 自身	XStats no puede desinstalarse ni cerrarse desde esta herramienta
+应用本体未能移动；已将 {} 项残留移到废纸篓，约 {}。请解决错误后重试。	No se pudo mover la app. Se movieron {} elementos relacionados a la Papelera (aprox. {}). Resuelve el error e inténtalo de nuevo.
