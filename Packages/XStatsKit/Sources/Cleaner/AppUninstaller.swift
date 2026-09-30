@@ -76,12 +76,8 @@ public enum AppUninstaller {
         [URL(fileURLWithPath: "/Applications"), URL(fileURLWithPath: home).appendingPathComponent("Applications")]
     }
 
-    /// /Applications 与 ~/Applications 下的应用（含一层子文件夹），按名称排序
-    public static func installedApps(home: String = NSHomeDirectory(), excluding excludedIdentifiers: Set<String> = []) -> [InstalledApp] {
-        (try? installedApps(in: applicationDirectories(home: home), excluding: excludedIdentifiers, checkCancellation: {})) ?? []
-    }
-
-    /// 可取消的应用列表扫描；遍历中止时抛错，不发布部分列表。
+    /// /Applications 与 ~/Applications 下的应用（含一层子文件夹），按名称排序。
+    /// 可取消；遍历中止时抛错，不发布部分列表。
     public static func scanInstalledApps(home: String = NSHomeDirectory(), excluding excludedIdentifiers: Set<String> = []) throws -> [InstalledApp] {
         try installedApps(in: applicationDirectories(home: home), excluding: excludedIdentifiers,
                           checkCancellation: { try Task.checkCancellation() })
