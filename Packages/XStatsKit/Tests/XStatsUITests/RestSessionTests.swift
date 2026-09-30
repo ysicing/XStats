@@ -7,6 +7,13 @@ import Foundation
 import Testing
 @testable import XStatsUI
 
+/// 墙上时间固定在某天正午，并随伪造的单调时钟前进。
+/// 按自然日统计会用真实时刻反推完成时间，不注入的话，午夜前后运行会把段落算到昨天。
+private func noonClock(_ now: @escaping () -> UInt64) -> () -> Date {
+    let noon = Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 15, hour: 12))!
+    return { noon.addingTimeInterval(TimeInterval(now()) / 1_000_000_000) }
+}
+
 @Suite struct RestSessionTests {
     @Test func deadlineDoesNotAccumulateTickError() {
         let start: UInt64 = 1_000_000_000
@@ -199,7 +206,7 @@ import Testing
         settings.restMode = .workday
         var now: UInt64 = 0
         let rest = RestController(settings: settings, localDefaults: defaults,
-                                  sharedDefaults: defaults, clock: { now })
+                                  sharedDefaults: defaults, clock: { now }, date: noonClock { now })
         rest.sync()
         #expect(!rest.isWorkdayActive && !rest.isRunning && rest.phase == .work)
 
@@ -226,7 +233,7 @@ import Testing
         settings.restMode = .workday
         var now: UInt64 = 0
         let rest = RestController(settings: settings, localDefaults: defaults,
-                                  sharedDefaults: defaults, clock: { now })
+                                  sharedDefaults: defaults, clock: { now }, date: noonClock { now })
         rest.sync()
         rest.startPause()
         now = 115 * 60_000_000_000
@@ -245,7 +252,7 @@ import Testing
         settings.restMode = .workday
         var now: UInt64 = 0
         let rest = RestController(settings: settings, localDefaults: defaults,
-                                  sharedDefaults: defaults, clock: { now })
+                                  sharedDefaults: defaults, clock: { now }, date: noonClock { now })
         rest.sync()
         rest.startPause()
         now = 95 * 60_000_000_000
@@ -274,7 +281,7 @@ import Testing
         settings.restMode = .workday
         var now: UInt64 = 0
         let rest = RestController(settings: settings, localDefaults: defaults,
-                                  sharedDefaults: defaults, clock: { now })
+                                  sharedDefaults: defaults, clock: { now }, date: noonClock { now })
         rest.sync()
         rest.startPause()
         now = 90 * 60_000_000_000
@@ -320,7 +327,7 @@ import Testing
         settings.restEnabled = true
         var now: UInt64 = 0
         let rest = RestController(settings: settings, localDefaults: defaults,
-                                  sharedDefaults: defaults, clock: { now })
+                                  sharedDefaults: defaults, clock: { now }, date: noonClock { now })
         rest.sync()
         rest.startPause()
 
@@ -339,7 +346,7 @@ import Testing
         settings.restEnabled = true
         var now: UInt64 = 0
         let rest = RestController(settings: settings, localDefaults: defaults,
-                                  sharedDefaults: defaults, clock: { now })
+                                  sharedDefaults: defaults, clock: { now }, date: noonClock { now })
         rest.sync()
         rest.startPause()
 
@@ -358,7 +365,7 @@ import Testing
         settings.restEnabled = true
         var now: UInt64 = 0
         let rest = RestController(settings: settings, localDefaults: defaults,
-                                  sharedDefaults: defaults, clock: { now })
+                                  sharedDefaults: defaults, clock: { now }, date: noonClock { now })
         rest.sync()
         rest.startPause()
         now = 5 * 60_000_000_000
@@ -433,7 +440,7 @@ import Testing
         settings.restEnabled = true
         var now: UInt64 = 0
         let rest = RestController(settings: settings, localDefaults: defaults,
-                                  sharedDefaults: defaults, clock: { now })
+                                  sharedDefaults: defaults, clock: { now }, date: noonClock { now })
         var curtainChanges: [Bool] = []
         rest.onRestChange = { curtainChanges.append($0) }
         rest.sync()
@@ -468,7 +475,7 @@ import Testing
         settings.restEnabled = true
         var now: UInt64 = 0
         let rest = RestController(settings: settings, localDefaults: defaults,
-                                  sharedDefaults: defaults, clock: { now })
+                                  sharedDefaults: defaults, clock: { now }, date: noonClock { now })
         rest.sync()
         rest.startPause()
         now = 10 * 60_000_000_000
@@ -527,7 +534,7 @@ import Testing
         let (defaults, suite, settings) = midnightFixture("RestDoubleSuspendTests")
         defer { defaults.removePersistentDomain(forName: suite) }
         var now: UInt64 = 0
-        let rest = RestController(settings: settings, localDefaults: defaults, sharedDefaults: defaults, clock: { now })
+        let rest = RestController(settings: settings, localDefaults: defaults, sharedDefaults: defaults, clock: { now }, date: noonClock { now })
         rest.sync()
         rest.startPause()
         now = 10 * 60_000_000_000
