@@ -294,20 +294,37 @@ enum MenuBarRenderer {
         return image
     }
 
-    /// 设置页预览：按指定外观绘制到不透明底色上
+    /// 设置页预览：按指定外观绘制到不透明底色上。
+    /// 绘制回调型图像每次布局或重绘都会重跑文字排版，因此栅格化一次，SwiftUI 之后只复用位图。
     static func preview(_ image: NSImage, dark: Bool) -> NSImage {
         let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-        return NSImage(size: image.size, flipped: false) { rect in
-            let draw = {
+        let draw = { (rect: NSRect) in
+            let content = {
                 image.draw(in: rect)
                 if image.isTemplate {
                     (dark ? NSColor.white : NSColor.black).set()
                     rect.fill(using: .sourceAtop)
                 }
             }
-            if let appearance { appearance.performAsCurrentDrawingAppearance(draw) } else { draw() }
-            return true
+            if let appearance { appearance.performAsCurrentDrawingAppearance(content) } else { content() }
         }
+        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil,
+                                         pixelsWide: Int(ceil(image.size.width * scale)),
+                                         pixelsHigh: Int(ceil(image.size.height * scale)),
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: rep) else {
+            return NSImage(size: image.size, flipped: false) { draw($0); return true }
+        }
+        rep.size = image.size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        draw(NSRect(origin: .zero, size: image.size))
+        NSGraphicsContext.restoreGraphicsState()
+        let result = NSImage(size: image.size)
+        result.addRepresentation(rep)
+        return result
     }
 
     // MARK: 各指标

@@ -202,6 +202,31 @@ private func isolatedDefaults() -> UserDefaults {
 
 @MainActor
 @Suite struct SettingsTests {
+    @Test(arguments: [false, true])
+    func settingsPreviewRasterizesOnceAndKeepsAppearanceColors(dark: Bool) throws {
+        var draws = 0
+        let source = NSImage(size: NSSize(width: 40, height: 18), flipped: false) { rect in
+            draws += 1
+            NSColor.black.setFill()
+            rect.fill()
+            return true
+        }
+        source.isTemplate = true
+        let preview = MenuBarRenderer.preview(source, dark: dark)
+        let drawsAfterRender = draws
+        #expect(drawsAfterRender >= 1)
+        // 反复读取预览（布局、重绘）不能再触发源图的绘制回调。
+        for _ in 0..<5 { _ = preview.tiffRepresentation }
+        #expect(draws == drawsAfterRender)
+        #expect(preview.size == source.size)
+        #expect(preview.representations.contains { $0 is NSBitmapImageRep })
+        // 模板图按外观着色：浅色外观为黑，深色外观为白。
+        let rep = try #require(preview.representations.compactMap { $0 as? NSBitmapImageRep }.first)
+        let center = try #require(rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2)?.usingColorSpace(.deviceRGB))
+        #expect(center.alphaComponent > 0.99)
+        #expect((center.redComponent > 0.5) == dark)
+    }
+
     @Test func stackedCenteredStyleRendersDifferentPlacementAtSameWidth() {
         #expect(MenuBarStyle.options(for: .fan).contains(.stackedCenter))
         var reading = MenuBarReading.sample
