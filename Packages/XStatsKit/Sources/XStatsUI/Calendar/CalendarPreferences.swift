@@ -10,6 +10,11 @@ public struct CalendarPreferences: Codable, Equatable, Sendable {
         case standard, dateLunar, lunar, custom
         public var id: String { rawValue }
 
+        /// 总开关只改变实际呈现，保留原模式，重新开启农历时即可恢复。
+        func effective(showsLunar: Bool) -> Self {
+            !showsLunar && (self == .lunar || self == .dateLunar) ? .standard : self
+        }
+
         var title: String {
             switch self {
             case .standard: tr("日期与星期")
@@ -70,14 +75,15 @@ public struct CalendarPreferences: Codable, Equatable, Sendable {
     }
 
     @MainActor
-    func title(at date: Date, locale: Locale, timeZone: TimeZone = .autoupdatingCurrent) -> String {
+    func title(at date: Date, locale: Locale, timeZone: TimeZone = .autoupdatingCurrent,
+               showsLunar: Bool = true) -> String {
         let formatter = DateFormatter()
         formatter.locale = locale
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         formatter.calendar = calendar
         formatter.timeZone = timeZone
-        switch display {
+        switch display.effective(showsLunar: showsLunar) {
         case .standard: formatter.setLocalizedDateFormatFromTemplate("MdEEE")
         case .custom:
             // 用户明确选择顺序，不能再用本地化模板把日月重新排回月日。

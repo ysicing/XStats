@@ -80,6 +80,23 @@ struct CalendarEnhancementTests {
         #expect(restored.title(at: date, locale: locale, timeZone: zone) == preferences.title(at: date, locale: locale, timeZone: zone))
     }
 
+    @Test(arguments: [CalendarPreferences.Display.lunar, .dateLunar])
+    func disablingLunarDisplayPreservesSavedPresentation(display: CalendarPreferences.Display) throws {
+        let date = try #require(ISO8601DateFormatter().date(from: "2026-09-28T04:00:00Z"))
+        let locale = Locale(identifier: "en_US")
+        let standard = CalendarPreferences().title(at: date, locale: locale, timeZone: zone)
+        var preferences = CalendarPreferences()
+        preferences.display = display
+        preferences.largeLunarText = true
+        preferences.strongerLunarText = true
+        let enabled = preferences.title(at: date, locale: locale, timeZone: zone)
+        #expect(preferences.title(at: date, locale: locale, timeZone: zone, showsLunar: false) == standard)
+        let restored = try JSONDecoder().decode(CalendarPreferences.self, from: JSONEncoder().encode(preferences))
+        #expect(restored.display == display)
+        #expect(restored.largeLunarText && restored.strongerLunarText)
+        #expect(restored.title(at: date, locale: locale, timeZone: zone, showsLunar: true) == enabled)
+    }
+
     @Test(arguments: Array(1...7))
     func monthGridAndWidgetHonorEveryWeekStart(firstWeekday: Int) throws {
         let days = CalendarEngine.month(year: 2026, month: 9, firstWeekday: firstWeekday, timeZone: zone)

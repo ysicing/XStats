@@ -192,7 +192,9 @@ Calendar enablement, optional features and week start persist through `AppSettin
 optional fields in `SettingsDocument`. Week start initially uses `Calendar.current.firstWeekday`,
 then persists independently of later system changes; all seven weekdays are supported by the
 settings picker, backups, month grids and widgets. Menu-bar lunar modes remain available in
-every app language and use localized lunar dates. Older backups preserve those settings. Additional
+every app language and use localized lunar dates when lunar display is enabled. Disabling
+lunar display hides its menu-bar presets and text-style controls, renders the saved lunar
+preset as date and weekday, and stops applying lunar text styles without overwriting them. Older backups preserve those settings. Additional
 calendars default off and appear only in selected-day details. There is no event access or
 network request at runtime. Use `--snapshot <directory> --calendar-only` for deterministic
 light/dark calendar screenshots without starting unrelated samplers or scans.

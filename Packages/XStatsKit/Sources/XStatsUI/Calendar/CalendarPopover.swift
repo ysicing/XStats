@@ -339,19 +339,22 @@ private struct CalendarDayCell: View {
     private var foreground: Color { isSelected ? .white : isRest ? .red : DS.Palette.textPrimary }
 
     var body: some View {
+        let showsLunar = features.contains(.lunar)
+        let largeLunarText = showsLunar && preferences.largeLunarText
+        let strongerLunarText = showsLunar && preferences.strongerLunarText
         Button(action: action) {
             VStack(spacing: sizing.cellHeight < 50 ? 2 : 3) {
                 Text(String(day.day)).font(.system(size: sizing.dayFontSize,
                                                    weight: isToday ? .semibold : .regular, design: .rounded))
                 Text(tr(day.subtitle(features: features)))
-                    .font(.system(size: preferences.largeLunarText ? sizing.subtitleFontSize + 2 : sizing.subtitleFontSize,
-                                  weight: preferences.strongerLunarText ? .semibold : .regular))
+                    .font(.system(size: largeLunarText ? sizing.subtitleFontSize + 2 : sizing.subtitleFontSize,
+                                  weight: strongerLunarText ? .semibold : .regular))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
             .foregroundStyle(foreground)
             .frame(maxWidth: .infinity)
-            .frame(height: sizing.cellHeight + (preferences.largeLunarText ? 8 : 0))
+            .frame(height: sizing.cellHeight + (largeLunarText ? 8 : 0))
             .background(isSelected ? Color.accentColor : holiday != nil ? foreground.opacity(0.05) : .clear,
                         in: RoundedRectangle(cornerRadius: 10))
             .overlay {

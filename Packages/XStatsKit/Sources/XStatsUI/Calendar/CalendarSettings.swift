@@ -63,28 +63,24 @@ struct CalendarOptionsPopover: View {
                                 }), label: feature.title)
                             }
                         }
+                        if feature == .lunar, settings.calendarFeatures.contains(.lunar) {
+                            GroupRow {
+                                SettingRow(title: tr("放大农历文字")) {
+                                    DSToggle(isOn: $settings.calendarPreferences.largeLunarText, label: tr("放大农历文字"))
+                                }
+                            }
+                            GroupRow {
+                                SettingRow(title: tr("增强农历对比度")) {
+                                    DSToggle(isOn: $settings.calendarPreferences.strongerLunarText, label: tr("增强农历对比度"))
+                                }
+                            }
+                        }
                         if feature == .holidays, settings.calendarFeatures.contains(.holidays) {
                             GroupRow {
                                 SettingRow(title: tr("假期倒计时与请假建议")) {
                                     DSToggle(isOn: $settings.calendarPreferences.showHolidayOverview, label: tr("假期倒计时与请假建议"))
                                 }
                             }
-                        }
-                    }
-                    GroupRow {
-                        Text(tr("公历始终显示。藏历与回历显示在日期详情中；梅雨天按传统历法推算，并非天气预报。"))
-                            .dsFont(.xs)
-                            .foregroundStyle(DS.Palette.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    GroupRow {
-                        SettingRow(title: tr("放大农历文字")) {
-                            DSToggle(isOn: $settings.calendarPreferences.largeLunarText, label: tr("放大农历文字"))
-                        }
-                    }
-                    GroupRow {
-                        SettingRow(title: tr("增强农历对比度")) {
-                            DSToggle(isOn: $settings.calendarPreferences.strongerLunarText, label: tr("增强农历对比度"))
                         }
                     }
                 }
@@ -111,11 +107,16 @@ struct CalendarOptionsPopover: View {
 
     private var presentationOptions: some View {
         @Bindable var settings = model.settings
+        let showsLunar = settings.calendarFeatures.contains(.lunar)
+        let displays: [CalendarPreferences.Display] = showsLunar ? CalendarPreferences.Display.allCases : [.standard, .custom]
         return SettingsGroup(caption: tr("菜单栏")) {
             GroupRow(showsDivider: false) {
                 SettingRow(title: tr("显示方式")) {
-                    Picker(tr("显示方式"), selection: $settings.calendarPreferences.display) {
-                        ForEach(CalendarPreferences.Display.allCases) { Text($0.title).tag($0) }
+                    Picker(tr("显示方式"), selection: Binding(
+                        get: { settings.calendarPreferences.display.effective(showsLunar: showsLunar) },
+                        set: { settings.calendarPreferences.display = $0 }
+                    )) {
+                        ForEach(displays) { Text($0.title).tag($0) }
                     }.labelsHidden().fixedSize()
                 }
             }
@@ -138,7 +139,7 @@ struct CalendarOptionsPopover: View {
                 }
             }
             GroupRow {
-                let preview = settings.calendarPreferences.title(at: Date(), locale: L10n.locale)
+                let preview = settings.calendarPreferences.title(at: Date(), locale: L10n.locale, showsLunar: showsLunar)
                 HStack {
                     Text(tr("预览")).foregroundStyle(.secondary)
                     Spacer()

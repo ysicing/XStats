@@ -36,7 +36,6 @@ extension Translations {
 {}第{}天	{1}, day {2}
 藏历	Tibetan calendar
 回历	Hijri calendar
-公历始终显示。藏历与回历显示在日期详情中；梅雨天按传统历法推算，并非天气预报。	Gregorian dates stay visible. Tibetan and Hijri dates appear in day details. Plum-rain days follow traditional calendar rules, not weather forecasts.
 该日期暂无藏历数据	Tibetan calendar data is unavailable for this date
 该年份暂无中国法定假日与调休数据	Chinese holiday and makeup workday data is unavailable for this year
 按传统历法推算，并非天气预报	Traditional calendar calculation, not a weather forecast
