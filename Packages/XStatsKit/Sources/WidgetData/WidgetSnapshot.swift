@@ -22,13 +22,15 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             case work, weekend, holiday, makeupWork, makeupDayOff, unknown
             /// 有放假数据但未细分法定假日与调休的年份。
             case dayOff
+            /// 用户未启用中国大陆节假日；与数据未覆盖的 unknown 分开提示。
+            case holidaysDisabled
 
             /// 数据未覆盖的年份不能按普通工作日推断，避免给出错误的二元答案。
             public var needsWork: Bool? {
                 switch self {
                 case .work, .makeupWork: true
                 case .weekend, .holiday, .makeupDayOff, .dayOff: false
-                case .unknown: nil
+                case .unknown, .holidaysDisabled: nil
                 }
             }
         }

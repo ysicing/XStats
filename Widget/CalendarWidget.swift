@@ -296,7 +296,7 @@ private struct TomorrowWorkWidgetView: View {
         case .makeupWork: tr("调休补班")
         case .makeupDayOff: tr("调休放假")
         case .dayOff: tr("放假")
-        case .unknown: nil
+        case .unknown, .holidaysDisabled: nil
         }
     }
 
@@ -323,7 +323,7 @@ private struct TomorrowWorkWidgetView: View {
                         .minimumScaleFactor(0.75)
                 }
             } else {
-                Text(tr("仅支持中国大陆节假日"))
+                Text(tr(entry.tomorrow?.schedule == .holidaysDisabled ? "仅支持中国大陆节假日" : "暂无法判断"))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
             }

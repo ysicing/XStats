@@ -189,8 +189,9 @@ Selected-day almanac is always enabled; legacy `showAlmanac` preferences are ign
 Details still calculate on demand, while widgets reuse the bounded eight-day summary.
 The snapshot keeps `showsAlmanac = true` to invalidate old disabled-almanac caches.
 Calendar enablement, optional features and week start persist through `AppSettings` and the
-optional fields in `SettingsDocument`. Week start initially uses `Calendar.current.firstWeekday`,
-then persists independently of later system changes; all seven weekdays are supported by the
+optional fields in `SettingsDocument`. Fresh installs take region defaults and `Calendar.current.firstWeekday`; existing installs
+(an existing `calendarEnabled` key) without saved calendar values keep the legacy defaults and
+Monday. Both then persist independently of later system changes; all seven weekdays are supported by the
 settings picker, backups, month grids and widgets. Menu-bar lunar modes remain available in
 every app language and use localized lunar dates when lunar display is enabled. Disabling
 lunar display hides its menu-bar presets and text-style controls, renders the saved lunar

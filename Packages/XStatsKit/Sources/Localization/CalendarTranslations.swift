@@ -51,6 +51,7 @@ extension Translations {
 不上班	Day off
 暂无安排	No schedule data
 仅支持中国大陆节假日	Only Mainland China holidays are supported
+暂无法判断	Cannot determine yet
 工作日	Weekday
 周末	Weekend
 节假日	Public holiday

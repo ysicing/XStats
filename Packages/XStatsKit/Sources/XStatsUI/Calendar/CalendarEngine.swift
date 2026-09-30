@@ -11,11 +11,12 @@ import WidgetData
 public enum CalendarFeature: String, CaseIterable, Identifiable, Sendable {
     case lunar, holidays, festivals, seasonalInfo, tibetan, hijri
     public var id: String { rawValue }
-    public static var defaults: Set<Self> { defaults(for: .current) }
+    /// 中国大陆默认值，也是按地区区分之前的旧版默认；已有安装缺少保存值时沿用，避免升级后日历内容消失。
+    static let mainlandChinaDefaults: Set<Self> = [.lunar, .holidays, .festivals, .seasonalInfo]
 
     /// 默认值依据使用地区，不依据应用语言或设备销售地；其他地区可自行启用。
     public static func defaults(for locale: Locale) -> Set<Self> {
-        locale.region?.identifier == "CN" ? [.lunar, .holidays, .festivals, .seasonalInfo] : []
+        locale.region?.identifier == "CN" ? mainlandChinaDefaults : []
     }
 
     var title: String {
