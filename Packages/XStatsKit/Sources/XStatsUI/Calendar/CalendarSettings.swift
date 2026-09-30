@@ -56,7 +56,7 @@ struct CalendarOptionsPopover: View {
                     }
                     ForEach(CalendarFeature.allCases) { feature in
                         GroupRow {
-                            SettingRow(title: feature.title, subtitle: feature == .ganzhi ? tr("控制月历格中的日干支；黄历详情始终显示年月日干支") : nil) {
+                            SettingRow(title: feature.title) {
                                 DSToggle(isOn: Binding(get: { settings.calendarFeatures.contains(feature) }, set: { enabled in
                                     if enabled { settings.calendarFeatures.insert(feature) }
                                     else { settings.calendarFeatures.remove(feature) }

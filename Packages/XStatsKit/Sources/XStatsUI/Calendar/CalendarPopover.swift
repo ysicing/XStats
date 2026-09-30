@@ -349,9 +349,6 @@ private struct CalendarDayCell: View {
                                   weight: preferences.strongerLunarText ? .semibold : .regular))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
-                if features.contains(.ganzhi) {
-                    Text(day.ganzhiDay).font(.system(size: sizing.cellHeight < 50 ? 8 : 9)).opacity(0.75)
-                }
             }
             .foregroundStyle(foreground)
             .frame(maxWidth: .infinity)

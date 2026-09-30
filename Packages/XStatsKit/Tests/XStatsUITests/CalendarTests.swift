@@ -183,6 +183,21 @@ struct CalendarTests {
         #expect(CalendarEngine.selection(old, in: CalendarMonth(year: 2024, month: 4), timeZone: newZone)?.id == "2024-04-01")
     }
 
+    @Test func retiredGanzhiSettingPreservesOtherCalendarChoices() throws {
+        let name = "CalendarRetiredGanzhiTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(["ganzhi", "lunar", "holidays"], forKey: "calendarFeatures")
+        let settings = AppSettings(defaults: defaults)
+        #expect(!CalendarFeature.allCases.map(\.rawValue).contains("ganzhi"))
+        #expect(settings.calendarFeatures == [.lunar, .holidays])
+        var backup = SettingsDocument()
+        backup.calendarFeatures = ["ganzhi", "hijri"]
+        settings.apply(backup)
+        #expect(settings.calendarFeatures == [.hijri])
+        #expect(settings.exportDocument().calendarFeatures == ["hijri"])
+    }
+
     @Test func preferencesPersistAndRoundTripWhileOldBackupsPreserveThem() throws {
         let name = "CalendarTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: name))
@@ -191,19 +206,19 @@ struct CalendarTests {
         #expect(settings.calendarEnabled == false)
         #expect(settings.calendarFeatures == CalendarFeature.defaults)
         settings.calendarEnabled = true
-        settings.calendarFeatures = [.hijri, .ganzhi]
+        settings.calendarFeatures = [.hijri, .lunar]
         settings.calendarFirstWeekday = 1
         let restored = AppSettings(defaults: defaults)
         #expect(restored.calendarEnabled)
-        #expect(restored.calendarFeatures == [.hijri, .ganzhi])
+        #expect(restored.calendarFeatures == [.hijri, .lunar])
         #expect(restored.calendarFirstWeekday == 1)
         let doc = try JSONDecoder().decode(SettingsDocument.self, from: JSONEncoder().encode(settings.exportDocument()))
         restored.calendarFeatures = []
         restored.apply(doc)
-        #expect(restored.calendarFeatures == [.hijri, .ganzhi])
+        #expect(restored.calendarFeatures == [.hijri, .lunar])
         restored.apply(SettingsDocument())
         #expect(restored.calendarEnabled)
-        #expect(restored.calendarFeatures == [.hijri, .ganzhi])
+        #expect(restored.calendarFeatures == [.hijri, .lunar])
         var invalid = SettingsDocument()
         invalid.calendarFeatures = ["hijri", "future-feature"]
         invalid.calendarFirstWeekday = 99

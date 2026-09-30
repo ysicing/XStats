@@ -22,8 +22,6 @@ struct CalendarAlmanacView: View {
                 }
                 if let almanac {
                     Text(almanac.ganzhiSummary).font(.system(size: 13)).foregroundStyle(.secondary)
-                } else if features.contains(.ganzhi) {
-                    Text(day.ganzhiSummary).font(.system(size: 13)).foregroundStyle(.secondary)
                 }
             }
             if let almanac {

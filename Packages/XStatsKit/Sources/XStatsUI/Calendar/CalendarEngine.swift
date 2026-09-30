@@ -9,7 +9,7 @@ import WidgetData
 
 /// 公历是月历的坐标；其余信息可独立隐藏，设置以稳定 rawValue 保存和同步。
 public enum CalendarFeature: String, CaseIterable, Identifiable, Sendable {
-    case lunar, weekdays, holidays, festivals, solarTerms, ganzhi, seasonal, tibetan, hijri
+    case lunar, weekdays, holidays, festivals, solarTerms, seasonal, tibetan, hijri
     public var id: String { rawValue }
     public static var defaults: Set<Self> { defaults(for: .current) }
 
@@ -25,7 +25,6 @@ public enum CalendarFeature: String, CaseIterable, Identifiable, Sendable {
         case .holidays: tr("中国大陆节假日与调休")
         case .festivals: tr("传统与公历节日")
         case .solarTerms: tr("二十四节气")
-        case .ganzhi: tr("干支")
         case .seasonal: tr("三伏·梅雨·数九")
         case .tibetan: tr("藏历")
         case .hijri: tr("回历")
@@ -34,6 +33,7 @@ public enum CalendarFeature: String, CaseIterable, Identifiable, Sendable {
 
     /// 旧偏好和备份里的两个独立开关合并为一个；任一项曾开启就保留用户的显示意愿。
     static func restored(from rawValues: [String]) -> Set<Self> {
+        // 已移除的月历干支（ganzhi）与未知选项一起忽略，不影响其他已保存的选择。
         var features = Set(rawValues.compactMap(Self.init(rawValue:)))
         if rawValues.contains("dogDays") || rawValues.contains("plumRain") { features.insert(.seasonal) }
         return features
@@ -65,8 +65,6 @@ struct CalendarDay: Identifiable, Equatable {
     let weekday: Int
     let lunarLabel: String
     let lunarSummary: String
-    let ganzhiDay: String
-    let ganzhiSummary: String
     let festivals: [String]
     let solarTerm: String?
     let holiday: Holiday?
@@ -173,7 +171,6 @@ enum CalendarEngine {
         let calendar = gregorian(timeZone: timeZone)
         guard let date = calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12)) else { return nil }
         let lunar = solar.getLunarDay()
-        let cycle = solar.getSixtyCycleDay()
         let term = solar.termDay
         let festivals = [lunar.festival?.getName(), solar.festival?.getName()].compactMap { $0 }
         let dog = solar.dogDay
@@ -187,8 +184,7 @@ enum CalendarEngine {
         return CalendarDay(date: date, year: year, month: month, day: day,
                            weekday: calendar.component(.weekday, from: date),
                            lunarLabel: lunar.day == 1 ? lunar.lunarMonth.getName() : lunar.getName(),
-                           lunarSummary: lunar.description, ganzhiDay: cycle.sixtyCycle.getName(),
-                           ganzhiSummary: "\(cycle.year.getName())年 \(cycle.month.getName())月 \(cycle.sixtyCycle.getName())日",
+                           lunarSummary: lunar.description,
                            festivals: festivals, solarTerm: term.dayIndex == 0 ? term.solarTerm.getName() : nil,
                            holiday: solar.legalHoliday.map { .init(name: $0.name, isWork: $0.isWork) },
                            dogDays: dog?.description, plumRain: plumRain?.description,
