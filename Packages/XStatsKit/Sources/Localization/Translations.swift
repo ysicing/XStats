@@ -1043,6 +1043,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 版本 {}{}	Version {}{}
 版本是 {}，清单写的是 {}	Version is {}, but the manifest says {}
 版本清单格式不正确	Invalid version manifest
+更新源已发布其他版本，请重新检查更新后再安装	A different version has been published. Check for updates again before installing.
 物理地址	Hardware address
 状态	Status
 状态圆点	Status Dot

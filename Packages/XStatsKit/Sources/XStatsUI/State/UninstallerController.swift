@@ -80,20 +80,14 @@ public final class UninstallerController {
                 }
             }
             do {
-                let apps = try await withThrowingTaskGroup(of: [InstalledApp].self) { group in
-                    group.addTask(priority: .utility) { try Task.checkCancellation(); return try list() }
-                    return try await group.next() ?? []
-                }
+                let apps = try await Self.scan(list)
                 guard let self, !Task.isCancelled, self.applicationGeneration == generation else { return }
                 self.apps = apps.filter { (try? AppUninstaller.validate($0, currentBundleIdentifier: self.currentBundleIdentifier)) != nil }
                 self.isLoading = false
                 // 列表先展示；完整计量结束前仍保持重入保护，显式刷新或关闭页面会取消当前子任务。
                 for app in self.apps where self.sizes[app.id] == nil {
                     try Task.checkCancellation()
-                    let size = try await withThrowingTaskGroup(of: UInt64.self) { group in
-                        group.addTask(priority: .utility) { try Task.checkCancellation(); return try measure(app.url) }
-                        return try await group.next() ?? 0
-                    }
+                    let size = try await Self.scan { try measure(app.url) }
                     guard !Task.isCancelled, self.applicationGeneration == generation else { return }
                     self.sizes[app.id] = size
                 }
@@ -101,6 +95,15 @@ public final class UninstallerController {
                 guard let self, self.applicationGeneration == generation, !Task.isCancelled else { return }
                 self.outcome = (error.localizedDescription, true)
             }
+        }
+    }
+
+    /// 同步文件遍历放到 utility 子任务执行；子任务继承父任务取消，遍历内部据此中止。
+    private static func scan<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask(priority: .utility) { try Task.checkCancellation(); return try work() }
+            guard let result = try await group.next() else { throw CancellationError() }
+            return result
         }
     }
 
@@ -140,10 +143,7 @@ public final class UninstallerController {
                 }
             }
             do {
-                let found = try await withThrowingTaskGroup(of: [AppLeftover].self) { group in
-                    group.addTask(priority: .utility) { try Task.checkCancellation(); return try find(app) }
-                    return try await group.next() ?? []
-                }
+                let found = try await Self.scan { try find(app) }
                 // 应用相同也可能是另一次扫描，不能用 selected == app 代替任务代次。
                 guard let self, !Task.isCancelled, self.selectionGeneration == generation, self.selected == app else { return }
                 self.leftovers = found
@@ -257,7 +257,10 @@ public final class UninstallerController {
     /// 回收可部分成功；只有本体确实移动后，才能移除列表和程序坞入口。
     func finishUninstall(_ app: InstalledApp, items: [AppLeftover], moved: [URL: URL], errorMessage: String?) {
         isRemoving = false
-        let movedItems = items.filter { moved[$0.url] != nil }
+        // 回收结果的键可能是规范化后的 URL（如目录末尾斜杠不同），按标准化路径比对。
+        let movedPaths = Set(moved.keys.map(\.standardizedFileURL.path))
+        let wasMoved = { (url: URL) in movedPaths.contains(url.standardizedFileURL.path) }
+        let movedItems = items.filter { wasMoved($0.url) }
         guard !movedItems.isEmpty else {
             outcome = (tr("没有移动任何文件\(errorMessage.map { tr("：\($0)") } ?? "")"), true)
             return
@@ -266,7 +269,8 @@ public final class UninstallerController {
         let remaining = items.count - movedItems.count
         let partial = remaining > 0 ? tr("，\(remaining.formatted(.number.locale(L10n.locale))) 项未能移动") : ""
         let detail = errorMessage.map { tr("：\($0)") } ?? ""
-        if moved[app.url] != nil {
+        let appMoved = wasMoved(app.url)
+        if appMoved {
             let dock = Self.removeDockTile(for: app.url)
             let residualCount = movedItems.filter { $0.kind != .application }.count.formatted(.number.locale(L10n.locale))
             outcome = (tr("已将 \(app.name) 与 \(residualCount) 项残留移到废纸篓，约 \(Format.bytes(bytes, base: .decimal))\(dock ? tr("，已从程序坞移除") : "")\(partial)。需要时可以在废纸篓里放回。") + detail,
@@ -277,11 +281,11 @@ public final class UninstallerController {
             let count = movedItems.count.formatted(.number.locale(L10n.locale))
             outcome = (tr("应用本体未能移动；已将 \(count) 项残留移到废纸篓，约 \(Format.bytes(bytes, base: .decimal))。请解决错误后重试。") + detail, true)
             if selected == app {
-                leftovers.removeAll { moved[$0.url] != nil }
+                leftovers.removeAll { wasMoved($0.url) }
                 chosen.subtract(movedItems.map(\.id))
             }
         }
-        Log.app.notice("卸载 \(app.bundleIdentifier, privacy: .public)，实际移到废纸篓 \(movedItems.count) 项，本体已移动：\(moved[app.url] != nil)")
+        Log.app.notice("卸载 \(app.bundleIdentifier, privacy: .public)，实际移到废纸篓 \(movedItems.count) 项，本体已移动：\(appMoved)")
     }
 
     /// 修改程序坞偏好里的 persistent-apps 并重启程序坞

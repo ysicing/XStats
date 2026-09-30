@@ -10,12 +10,15 @@ public enum UpdateError: Error, LocalizedError, Equatable {
     case download(String)
     case invalidBundle(String)
     case install(String)
+    /// 确认后到开始安装之间，更新源已换成另一个版本。
+    case releaseChanged
 
     public var errorDescription: String? {
         switch self {
         case .download(let reason): tr("下载失败：\(reason)")
         case .invalidBundle(let reason): tr("安装包内容不正确：\(reason)")
         case .install(let reason): tr("替换应用失败：\(reason)")
+        case .releaseChanged: tr("更新源已发布其他版本，请重新检查更新后再安装")
         }
     }
 }

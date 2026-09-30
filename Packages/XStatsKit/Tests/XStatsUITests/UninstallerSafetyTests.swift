@@ -25,8 +25,8 @@ struct UninstallerSafetyTests {
         controller.select(app)
         #expect(controller.selected == nil && !controller.isScanning)
         controller.quit(app)
+        // 只校验错误语义；文案随进程全局语言变化，并行用例切换语言时不能比较两次翻译。
         #expect(controller.outcome?.isError == true)
-        #expect(controller.outcome?.text == AppUninstallError.currentApp.description)
         #expect(controller.pendingUninstall == nil)
     }
 
@@ -63,6 +63,26 @@ struct UninstallerSafetyTests {
         #expect(controller.selected == app && controller.outcome?.isError == true)
         controller.finishUninstall(app, items: [body], moved: [app.url: URL(fileURLWithPath: "/tmp/trash-app")], errorMessage: nil)
         #expect(controller.selected == nil && controller.outcome?.isError == false)
+    }
+
+    @Test func recycleResultKeysAreMatchedByStandardizedPath() async throws {
+        let app = target()
+        let body = AppLeftover(url: app.url, kind: .application, size: 1000)
+        let cache = AppLeftover(url: URL(fileURLWithPath: "/tmp/normalized-cache"), kind: .caches, size: 10)
+        let controller = UninstallerController(currentBundleIdentifier: nil, findLeftovers: { _ in [body, cache] })
+        controller.select(app)
+        let deadline = ContinuousClock.now + .seconds(30)
+        while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        try #require(controller.canUninstall)
+        // 系统可能返回带目录斜杠或未折叠 ".." 的 URL，仍应认定为同一项已移动。
+        let bodyKey = URL(fileURLWithPath: app.url.path + "/", isDirectory: true)
+        let cacheKey = URL(fileURLWithPath: "/tmp/sub/../normalized-cache")
+        try #require(bodyKey != app.url && cacheKey != cache.url)
+        controller.finishUninstall(app, items: [body, cache],
+                                   moved: [bodyKey: URL(fileURLWithPath: "/tmp/trash-app"), cacheKey: URL(fileURLWithPath: "/tmp/trash-cache")],
+                                   errorMessage: nil)
+        #expect(controller.selected == nil && controller.outcome?.isError == false)
+        #expect(!controller.apps.contains(app))
     }
 
     @Test func removalFreezesSelectionAndBlocksNewScans() async throws {

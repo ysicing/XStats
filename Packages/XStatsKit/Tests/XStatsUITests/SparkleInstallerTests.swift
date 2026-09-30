@@ -63,7 +63,7 @@ struct SparkleInstallerTests {
         if build == release.build {
             try installer.updater(updater, shouldProceedWithUpdate: item, updateCheck: .updates)
         } else {
-            #expect(throws: UpdateError.self) {
+            #expect(throws: UpdateError.releaseChanged) {
                 try installer.updater(updater, shouldProceedWithUpdate: item, updateCheck: .updates)
             }
         }
@@ -179,6 +179,48 @@ struct SparkleInstallerTests {
         let offline = NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)
         driver.updater(updater, didFinishUpdateCycleFor: .updatesInBackground, error: offline)
         #expect(phases.last == (known ? .available : .idle))
+    }
+
+    @Test func failedPrimaryRegionRetriesFallbackOnceThenReportsFailure() {
+        let primary = URL(string: "https://primary.example.test/appcast.xml")!
+        let fallback = URL(string: "https://fallback.example.test/appcast.xml")!
+        var phases: [UpdateController.Phase] = []
+        var finished: [Bool] = []
+        let driver = SparkleInstaller(endpoints: [primary, fallback], onPhase: { phases.append($0) }, onRelaunch: {})
+        driver.onCycleFinished = { finished.append($0) }
+        let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: driver)
+        let offline = NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)
+        driver.check(userInitiated: false)
+        #expect(driver.feedURLString(for: updater) == primary.absoluteString)
+        // 主区域失败：切到备用区域重试，本轮尚未结束，不能触发失败重排。
+        driver.updater(updater, didFinishUpdateCycleFor: .updatesInBackground, error: offline)
+        #expect(finished.isEmpty)
+        #expect(driver.feedURLString(for: updater) == fallback.absoluteString)
+        try? driver.updater(updater, mayPerform: .updatesInBackground)
+        #expect(driver.feedURLString(for: updater) == fallback.absoluteString, "区域重试不能复位到主区域")
+        // 备用区域也失败：只结束一次并报告未取得 feed，由控制器按 1 小时重试间隔重排。
+        driver.updater(updater, didFinishUpdateCycleFor: .updatesInBackground, error: offline)
+        #expect(finished == [false])
+        #expect(phases.last == .idle)
+        #expect(driver.feedURLString(for: updater) == fallback.absoluteString, "结束后保留最后地址，避免 Sparkle 视为换源")
+        // 下一轮自动检查重新从主区域开始。
+        try? driver.updater(updater, mayPerform: .updatesInBackground)
+        #expect(driver.feedURLString(for: updater) == primary.absoluteString)
+    }
+
+    @Test func skippingWithdrawnReleaseDoesNotClaimAnUpdateIsAvailable() {
+        var phases: [UpdateController.Phase] = []
+        var known = true
+        let driver = SparkleInstaller(endpoints: [URL(string: "https://example.test/appcast.xml")!],
+                                      onPhase: { phases.append($0) }, onRelaunch: {})
+        driver.hasKnownRelease = { known }
+        driver.onNoUpdate = { known = false }
+        let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: driver)
+        driver.check(userInitiated: false, action: .skip(release()))
+        let noUpdate = NSError(domain: SUSparkleErrorDomain, code: Int(SUError.noUpdateError.rawValue))
+        driver.updaterDidNotFindUpdate(updater, error: noUpdate)
+        driver.updater(updater, didFinishUpdateCycleFor: .updates, error: noUpdate)
+        #expect(phases == [.upToDate], "版本已撤回：不能在清空版本信息后仍显示有更新")
     }
 
     @Test func calendarMonthLaunchOnlyAndFailureRetryIntervals() throws {

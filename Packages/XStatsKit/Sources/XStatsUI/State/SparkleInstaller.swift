@@ -147,7 +147,7 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
             guard candidate.build == expected.build, candidate.version == expected.version,
                   candidate.url == expected.url, candidate.size == expected.size,
                   candidate.minimumSystem == expected.minimumSystem else {
-                throw UpdateError.invalidBundle(tr("版本清单格式不正确"))
+                throw UpdateError.releaseChanged
             }
         }
     }
@@ -191,7 +191,8 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
         }
         if case .skip? = action {
             // 跳过点击已在本机排队；网络失败不能撤销选择或转为安装错误。
-            onPhase(.available)
+            // 版本已从更新源撤回时 release 已被清空，保留“未找到更新”给出的状态。
+            if hasKnownRelease() { onPhase(.available) }
         } else if let error, !cancelled {
             let failure = error as NSError
             if failure.domain != SUSparkleErrorDomain || failure.code != SUError.noUpdateError.rawValue {

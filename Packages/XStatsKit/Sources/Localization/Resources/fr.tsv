@@ -912,6 +912,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 版本 {}{}	Version {}{}
 版本是 {}，清单写的是 {}	La version est {}, mais le manifeste indique {}
 版本清单格式不正确	Manifeste de version incorrect
+更新源已发布其他版本，请重新检查更新后再安装	Une autre version a été publiée. Recherchez à nouveau les mises à jour avant l’installation.
 物理地址	Adresse matérielle
 状态	État
 状态圆点	Point d’état

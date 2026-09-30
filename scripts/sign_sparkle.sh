@@ -13,6 +13,10 @@ if [ -z "$IDENTITY" ] || [ "$IDENTITY" = "-" ]; then
   IDENTITY="-"
   STAMP=(--timestamp=none)
   OPTIONS=(--options 0)
+elif ! security find-identity -v -p codesigning 2>/dev/null | grep -qF "$IDENTITY"; then
+  # Xcode 只在取得团队 ID 时签名子组件；证书不可用时不能再按正式分支只重签外层。
+  echo "error: 签名证书 $IDENTITY 不在钥匙串有效证书中（过期、吊销或缺少中间证书）；本地构建可设置 SIGN_ID=- 使用临时签名" >&2
+  exit 1
 fi
 
 # 官方框架包含 Intel 切片；只修改嵌入副本，保持 Swift Package 原始制品完整。
