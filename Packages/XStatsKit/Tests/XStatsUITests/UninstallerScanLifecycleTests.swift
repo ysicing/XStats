@@ -63,7 +63,8 @@ struct UninstallerScanLifecycleTests {
         controller.loadApps()
         let started = try await measureCalls.waitUntilStarted()
         try #require(started)
-        #expect(controller.isLoading)
+        // 列表发布后即结束"正在扫描"，大小计量在后台继续。
+        #expect(!controller.isLoading && controller.apps == [target])
         controller.loadApps()
         #expect(listCalls.calls == 1)
         controller.cancelScanning()
@@ -73,10 +74,41 @@ struct UninstallerScanLifecycleTests {
         #expect(measureCalls.finished)
         #expect(controller.sizes[target.id] == nil)
         controller.resumeScanning()
-        while controller.isLoading, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        while controller.sizes[target.id] == nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         #expect(!controller.isLoading)
         #expect(controller.sizes[target.id] == 321)
         #expect(listCalls.calls == 2 && measureCalls.calls == 2)
+    }
+
+    @Test func explicitReloadRelistsDuringMeasurementAndKeepsKnownSizes() async throws {
+        let measured = app()
+        let slow = app()
+        let listCalls = ScanGate()
+        let slowCalls = ScanGate()
+        let measuredCalls = ScanGate()
+        let controller = UninstallerController(currentBundleIdentifier: nil,
+            listApplications: { _ = listCalls.increment(); return [measured, slow] },
+            measureSize: { url in
+                if url == measured.url { _ = measuredCalls.increment(); return 100 }
+                if slowCalls.increment() == 1 {
+                    slowCalls.markStarted()
+                    while !Task.isCancelled { Thread.sleep(forTimeInterval: 0.005) }
+                    slowCalls.markFinished()
+                    throw CancellationError()
+                }
+                return 200
+            })
+        defer { controller.cancelScanning() }
+        controller.loadApps()
+        let started = try await slowCalls.waitUntilStarted()
+        try #require(started)
+        controller.reloadApps()
+        let deadline = ContinuousClock.now + .seconds(30)
+        while controller.sizes[slow.id] == nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(listCalls.calls == 2, "计量未完成时显式刷新也必须重新列举")
+        #expect(slowCalls.finished, "被中断的计量必须响应取消")
+        #expect(controller.sizes[measured.id] == 100 && controller.sizes[slow.id] == 200)
+        #expect(measuredCalls.calls == 1, "已算出的大小不应重复计量")
     }
 
     @Test func clearingSelectionCancelsWorkAndResetsScanningState() async throws {

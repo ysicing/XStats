@@ -19,6 +19,7 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     var onNoUpdate: () -> Void = {}
     var onCycleFinished: (Bool) -> Void = { _ in }
     var legacySkippedVersion: () -> String? = { nil }
+    var hasKnownRelease: () -> Bool = { false }
     var onLegacySkipMigrated: () -> Void = {}
 
     // 控制器强持有 updater，Sparkle 强持有 userDriver；此处只能弱引用，避免循环持有。
@@ -194,7 +195,9 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
         } else if let error, !cancelled {
             let failure = error as NSError
             if failure.domain != SUSparkleErrorDomain || failure.code != SUError.noUpdateError.rawValue {
-                onPhase(userInitiated || action != nil ? .failed(error.localizedDescription) : .idle)
+                // 后台检查失败不撤销此前已发现的新版提示。
+                if userInitiated || action != nil { onPhase(.failed(error.localizedDescription)) }
+                else { onPhase(hasKnownRelease() ? .available : .idle) }
             }
         }
         // 结束后必须保留本轮最后检查的地址。Sparkle 的配置 reset 会把 URL 变化
