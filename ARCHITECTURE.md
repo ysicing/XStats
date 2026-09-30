@@ -178,7 +178,9 @@ history preserves the selection across midnight; a selection on today follows th
 All Tyme calls run on MainActor because upstream exposes mutable static tables; only value
 models leave the adapter. Civil dates use the system time zone and calendar day arithmetic,
 not 24-hour intervals. Tibetan conversion is guarded to the upstream Gregorian coverage
-1951-01-08 through 2051-02-11. Holiday data currently ends in 2026; unknown years show a notice.
+1951-01-08 through 2051-02-11. Holiday data currently ends in 2026; unknown years show a notice and skip legal-holiday
+lookups. Changing to an unsupported display year clears the holiday overview before cache
+reuse or daily planning, so the current year's countdown cannot appear in the next year.
 Plum-rain dates describe traditional calendar rules, not observed or forecast weather.
 
 Calendar enablement, visible features and week start persist through `AppSettings` and the

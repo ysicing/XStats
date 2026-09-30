@@ -63,6 +63,13 @@ struct CalendarOptionsPopover: View {
                                 }), label: feature.title)
                             }
                         }
+                        if feature == .holidays, settings.calendarFeatures.contains(.holidays) {
+                            GroupRow {
+                                SettingRow(title: tr("假期倒计时与请假建议")) {
+                                    DSToggle(isOn: $settings.calendarPreferences.showHolidayOverview, label: tr("假期倒计时与请假建议"))
+                                }
+                            }
+                        }
                     }
                     GroupRow {
                         SettingRow(title: tr("黄历")) {
@@ -83,11 +90,6 @@ struct CalendarOptionsPopover: View {
                     GroupRow {
                         SettingRow(title: tr("增强农历对比度")) {
                             DSToggle(isOn: $settings.calendarPreferences.strongerLunarText, label: tr("增强农历对比度"))
-                        }
-                    }
-                    GroupRow {
-                        SettingRow(title: tr("假期倒计时与请假建议")) {
-                            DSToggle(isOn: $settings.calendarPreferences.showHolidayOverview, label: tr("假期倒计时与请假建议"))
                         }
                     }
                 }
