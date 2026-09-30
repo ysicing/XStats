@@ -110,6 +110,7 @@ public final class UpdateController {
             }
         }
         driver.legacySkippedVersion = { [weak self] in self?.skippedVersion }
+        driver.hasKnownRelease = { [weak self] in self?.release != nil }
         driver.onLegacySkipMigrated = { [weak self] in self?.skippedVersion = nil }
         driver.onCycleFinished = { [weak self] success in self?.applySchedule(retry: !success) }
         sparkleInstaller = driver

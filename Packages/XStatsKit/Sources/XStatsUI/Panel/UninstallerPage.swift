@@ -120,7 +120,7 @@ private struct AppListColumn: View {
                 TextField(tr("搜索应用"), text: $search)
                     .textFieldStyle(.plain)
                     .dsFont(.sm)
-                IconButton(systemName: "arrow.clockwise", help: tr("重新扫描")) { uninstaller.loadApps() }
+                IconButton(systemName: "arrow.clockwise", help: tr("重新扫描")) { uninstaller.reloadApps() }
             }
             .padding(.leading, DS.Space.s2)
             .frame(height: DS.Size.controlHeight)
@@ -231,7 +231,7 @@ private struct AppDetailCard: View {
                         ForEach(items) { item in
                             HStack(spacing: DS.Space.s2) {
                                 DSCheckbox(isOn: uninstaller.chosen.contains(item.id)) { uninstaller.toggle(item) }
-                                    .disabled(item.kind == .application)
+                                    .disabled(item.kind == .application || uninstaller.isRemoving)
                                 Text(verbatim: item.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
                                     .dsFont(.xs)
                                     .foregroundStyle(DS.Palette.textPrimary)

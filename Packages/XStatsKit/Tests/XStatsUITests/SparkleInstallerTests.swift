@@ -168,6 +168,19 @@ struct SparkleInstallerTests {
         #expect(phases == [.idle])
     }
 
+    @Test(arguments: [true, false])
+    func backgroundFailureKeepsPreviouslyFoundRelease(known: Bool) {
+        var phases: [UpdateController.Phase] = []
+        let driver = SparkleInstaller(endpoints: [URL(string: "https://example.test/appcast.xml")!],
+                                      onPhase: { phases.append($0) }, onRelaunch: {})
+        driver.hasKnownRelease = { known }
+        let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: driver)
+        driver.check(userInitiated: false)
+        let offline = NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)
+        driver.updater(updater, didFinishUpdateCycleFor: .updatesInBackground, error: offline)
+        #expect(phases.last == (known ? .available : .idle))
+    }
+
     @Test func calendarMonthLaunchOnlyAndFailureRetryIntervals() throws {
         let calendar = Calendar.current
         let jan = try #require(calendar.date(from: DateComponents(year: 2026, month: 1, day: 31, hour: 12)))

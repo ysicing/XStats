@@ -86,7 +86,8 @@ public final class UninstallerController {
                 }
                 guard let self, !Task.isCancelled, self.applicationGeneration == generation else { return }
                 self.apps = apps.filter { (try? AppUninstaller.validate($0, currentBundleIdentifier: self.currentBundleIdentifier)) != nil }
-                // 列表先展示；完整计量结束前仍保持重入保护，关闭页面会取消当前子任务。
+                self.isLoading = false
+                // 列表先展示；完整计量结束前仍保持重入保护，显式刷新或关闭页面会取消当前子任务。
                 for app in self.apps where self.sizes[app.id] == nil {
                     try Task.checkCancellation()
                     let size = try await withThrowingTaskGroup(of: UInt64.self) { group in
@@ -101,6 +102,14 @@ public final class UninstallerController {
                 self.outcome = (error.localizedDescription, true)
             }
         }
+    }
+
+    /// 用户显式刷新：中断进行中的列举或计量后重新列举，已算出的大小保留。
+    func reloadApps() {
+        guard !isRemoving else { return }
+        applicationTask?.cancel()
+        applicationTask = nil
+        loadApps()
     }
 
     func select(_ app: InstalledApp?) {
@@ -180,8 +189,8 @@ public final class UninstallerController {
     }
 
     func toggle(_ leftover: AppLeftover) {
-        // 应用本体必须一起移除，否则没有意义
-        guard leftover.kind != .application else { return }
+        // 应用本体必须一起移除，否则没有意义；回收期间固定目标
+        guard !isRemoving, leftover.kind != .application else { return }
         if chosen.contains(leftover.id) { chosen.remove(leftover.id) } else { chosen.insert(leftover.id) }
     }
 
