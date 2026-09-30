@@ -1,23 +1,17 @@
 {
-  "version": "0.14.1",
+  "version": "0.14.2",
   "sourceNotes": [
-    "在线更新接入 Sparkle，保留检查策略、跳过版本和系统通知",
-    "更新摘要支持中英文，跟随应用语言显示",
-    "卸载列表就绪后即可操作，应用大小在后台计算",
-    "修复取消在线更新后仍可能继续安装的问题，并在安装前协调桌面小组件退出",
-    "修复卸载时可能退出 XStats 自身、删除期间改变选择",
-    "修复跳过版本时误提示“已是最新版本”，以及已发现的新版本被后续检查失败隐藏的问题",
-    "修复关闭公网 IP 查询或暂停监控后，旧请求仍可能回写结果与缓存的问题"
+    "统一菜单栏弹窗的标题图标与紧凑间距，网络改用与主窗口一致的图标",
+    "修复确认更新后更新源发生变化时提示不明确的问题，改为提示重新检查后再安装",
+    "修复跳过已撤回版本后，仍显示有更新的问题",
+    "修复部分应用卸载成功后仍显示失败、列表未更新或程序坞图标未移除的问题"
   ],
   "translations": {
     "en": [
-      "Use Sparkle for online updates while preserving check schedules, skipped versions, and system notifications. Downloads start only after clicking Install; older versions can upgrade through their existing update entry point",
-      "Show update summaries in Chinese for Chinese app languages and in English for all other app languages; GitHub Releases also include both languages",
-      "Make the uninstall list usable as soon as it is ready, measure app sizes in the background, and cancel previous scans when leaving the page or refreshing",
-      "Fix updates continuing to install after cancellation and coordinate desktop widget shutdown before installation",
-      "Prevent quitting XStats itself during uninstall, changing selections during removal, and removing Dock icons when only leftover files are cleaned",
-      "Fix skipped versions being reported as up to date and previously discovered updates disappearing after a later check fails",
-      "Prevent old public IP requests from overwriting results or cache after lookup is disabled or monitoring is paused"
+      "Tighten title icon spacing across menu bar popovers and use the same network icon as the main window",
+      "When the update source changes after confirmation, clearly prompt users to check for updates again before installing",
+      "Fix skipped releases that have been withdrawn still appearing as available updates",
+      "Fix successful app removals being reported as failures, leaving stale list entries, or failing to remove Dock icons"
     ]
   }
 }
