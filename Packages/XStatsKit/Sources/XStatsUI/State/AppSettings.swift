@@ -733,7 +733,7 @@ public final class AppSettings {
     public static let alertLoadOptions = [70, 80, 90]
     public static let cpuChartOptions = [60, 180, 300]
 
-    public init(defaults: UserDefaults = .standard) {
+    public init(defaults: UserDefaults = .standard, calendarLocale: Locale = .current) {
         self.defaults = defaults
         let isRestEnabled = defaults.bool(forKey: Keys.restEnabled)
         restEnabled = isRestEnabled
@@ -750,12 +750,14 @@ public final class AppSettings {
         restSound = defaults.string(forKey: Keys.restSound).flatMap(RestSound.init(rawValue:)) ?? .off
         restHUDStyle = defaults.string(forKey: Keys.restHUDStyle).flatMap(RestHUDStyle.init(rawValue:)) ?? .countdown
         calendarEnabled = defaults.bool(forKey: Keys.calendarEnabled)
-        calendarPreferences = defaults.data(forKey: Keys.calendarPreferences)
-            .flatMap { try? JSONDecoder().decode(CalendarPreferences.self, from: $0) } ?? CalendarPreferences()
+        let savedCalendarPreferences = defaults.data(forKey: Keys.calendarPreferences)
+        calendarPreferences = savedCalendarPreferences
+            .flatMap { try? JSONDecoder().decode(CalendarPreferences.self, from: $0) } ?? CalendarPreferences(locale: calendarLocale)
         calendarEventSourceIDs = defaults.stringArray(forKey: "calendarEventSourceIDs").map { Set($0) }
         calendarReminderSourceIDs = defaults.stringArray(forKey: "calendarReminderSourceIDs").map { Set($0) }
-        calendarFeatures = defaults.stringArray(forKey: Keys.calendarFeatures)
-            .map(CalendarFeature.restored(from:)) ?? CalendarFeature.defaults
+        let savedCalendarFeatures = defaults.stringArray(forKey: Keys.calendarFeatures)
+        calendarFeatures = savedCalendarFeatures
+            .map(CalendarFeature.restored(from:)) ?? CalendarFeature.defaults(for: calendarLocale)
         calendarFirstWeekday = defaults.integer(forKey: Keys.calendarFirstWeekday) == 1 ? 1 : 2
         let items = defaults.stringArray(forKey: Keys.menuBarItems)?.compactMap(MenuBarItem.init(rawValue:))
         menuBarItems = Set(items ?? [.cpu, .memory, .network])
@@ -828,6 +830,13 @@ public final class AppSettings {
             ? defaults.integer(forKey: Keys.alertCPULoad) : 80
         cpuChartSeconds = Self.cpuChartOptions.contains(defaults.integer(forKey: Keys.cpuChartSeconds))
             ? defaults.integer(forKey: Keys.cpuChartSeconds) : 60
+        // 仅在没有偏好时确定默认值；后续语言、地区变化及备份恢复不重置用户选择。
+        if savedCalendarPreferences == nil {
+            defaults.set(try? JSONEncoder().encode(calendarPreferences), forKey: Keys.calendarPreferences)
+        }
+        if savedCalendarFeatures == nil {
+            defaults.set(calendarFeatures.map(\.rawValue).sorted(), forKey: Keys.calendarFeatures)
+        }
     }
 
     /// 按固定顺序返回当前实际显示的菜单栏项目；可选模块关闭时保留展示偏好但不渲染。

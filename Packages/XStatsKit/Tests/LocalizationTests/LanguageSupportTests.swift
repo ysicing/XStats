@@ -86,7 +86,8 @@ struct LanguageSupportTests {
         let catalog = try #require(Translations.catalog(for: language))
         #expect(catalog.sourceKeys == Translations.shared.sourceKeys)
         for key in ["语言", "应用 UI 语言", "自动检测", "搜索语言", "没有匹配的语言",
-                    "设置", "内存", "下载并应用", "XStats 基于 OpenStats 开发，感谢原项目的开源贡献 · MIT License"] {
+                    "设置", "内存", "下载并应用", "中国大陆节假日与调休", "黄历",
+                    "XStats 基于 OpenStats 开发，感谢原项目的开源贡献 · MIT License"] {
             #expect(catalog.translate(key)?.isEmpty == false)
         }
     }

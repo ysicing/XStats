@@ -155,7 +155,8 @@ enum SnapshotRenderer {
             settings.calendarPreferences.display = .dateLunar
             write(CalendarOptionsPopover(), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("calendar-lunar-\(suffix).png"))
-            settings.calendarPreferences = CalendarPreferences()
+            // 黄历示例明确启用；普通日历与设置截图仍使用本机地区默认值。
+            settings.calendarPreferences = CalendarPreferences(locale: Locale(identifier: "zh_CN"))
             write(CalendarPopover(referenceDate: september, showsDayDetails: true), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("calendar-almanac-\(suffix).png"))
             settings.calendarFeatures = Set(CalendarFeature.allCases)

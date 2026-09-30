@@ -5,10 +5,10 @@ import Foundation
 import Localization
 import SwiftUI
 
-/// 传统黄历详情：以分格表呈现同一日期的数据，正文保留 Tyme 的传统名称。
+/// 日期详情保留已启用的历法信息；黄历开启时才展示传统宜忌表。
 struct CalendarAlmanacView: View {
     let day: CalendarDay
-    let almanac: CalendarAlmanac
+    let almanac: CalendarAlmanac?
     let features: Set<CalendarFeature>
     private let heading = Color.dynamic(light: 0xAE743F, dark: 0xDBAC79)
     private let lucky = Color.dynamic(light: 0x288B3B, dark: 0x63CC76)
@@ -20,13 +20,19 @@ struct CalendarAlmanacView: View {
                 if features.contains(.lunar) {
                     Text(day.lunarSummary).font(.system(size: 21)).foregroundStyle(.red)
                 }
-                Text(almanac.ganzhiSummary).font(.system(size: 13)).foregroundStyle(.secondary)
+                if let almanac {
+                    Text(almanac.ganzhiSummary).font(.system(size: 13)).foregroundStyle(.secondary)
+                } else if features.contains(.ganzhi) {
+                    Text(day.ganzhiSummary).font(.system(size: 13)).foregroundStyle(.secondary)
+                }
             }
-            VStack(alignment: .leading, spacing: 10) {
-                advice(tr("宜"), entries: almanac.recommends, color: lucky)
-                advice(tr("忌"), entries: almanac.avoids, color: .red)
+            if let almanac {
+                VStack(alignment: .leading, spacing: 10) {
+                    advice(tr("宜"), entries: almanac.recommends, color: lucky)
+                    advice(tr("忌"), entries: almanac.avoids, color: .red)
+                }
+                almanacTable(almanac)
             }
-            almanacTable
             supplementaryDetails
         }
         .padding(.bottom, 6)
@@ -53,7 +59,7 @@ struct CalendarAlmanacView: View {
         }
     }
 
-    private var almanacTable: some View {
+    private func almanacTable(_ almanac: CalendarAlmanac) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 tile(tr("纳音")) { Text(almanac.sound) }
@@ -69,7 +75,7 @@ struct CalendarAlmanacView: View {
             }
             .fixedSize(horizontal: false, vertical: true)
             Divider()
-            hourTable
+            hourTable(almanac)
             Divider()
             HStack(spacing: 0) {
                 sideTile(tr("建除十二神"), value: almanac.duty)
@@ -125,7 +131,7 @@ struct CalendarAlmanacView: View {
         .padding(.vertical, 10)
     }
 
-    private var hourTable: some View {
+    private func hourTable(_ almanac: CalendarAlmanac) -> some View {
         HStack(spacing: 0) {
             Text(tr("时辰吉凶"))
                 .font(.system(size: 15)).foregroundStyle(heading)

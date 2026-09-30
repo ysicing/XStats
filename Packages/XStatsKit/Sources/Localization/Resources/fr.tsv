@@ -1314,7 +1314,7 @@ Apple 智能	Apple Intelligence
 星期日	Dimanche
 农历	Calendrier lunaire chinois
 星期	Jours de la semaine
-法定节假日与调休	Jours fériés et jours de travail compensatoires
+中国大陆节假日与调休	Jours fériés et jours de travail compensatoires en Chine continentale
 传统与公历节日	Fêtes traditionnelles et grégoriennes
 二十四节气	24 périodes solaires
 干支	Cycle sexagésimal
@@ -1623,3 +1623,4 @@ GitHub 项目	Projet GitHub
 进程功能开启时打开 XStats 进程页，关闭时打开系统活动监视器。	Ouvre les processus XStats si la fonction est activée, sinon le Moniteur d’activité de macOS.
 不能在 XStats 内卸载或退出 XStats 自身	XStats ne peut pas se désinstaller ou se quitter depuis cet outil
 应用本体未能移动；已将 {} 项残留移到废纸篓，约 {}。请解决错误后重试。	L’app n’a pas pu être déplacée. Éléments associés placés dans la Corbeille : {} (environ {}). Corrigez l’erreur et réessayez.
+黄历	Almanach chinois

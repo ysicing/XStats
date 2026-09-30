@@ -166,6 +166,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public var showsLunar: Bool
     /// 可选以兼容旧版摘要；单日日历仅在用户开启时显示具体时令天数。
     public var showsSeasonal: Bool?
+    /// nil 表示旧快照尚未按黄历开关生成，主应用会按需更新一次。
+    public var showsAlmanac: Bool?
     /// 可选以兼容旧版主应用写入的 App Group 摘要。
     public var calendarDays: [CalendarSummary]?
     /// 当前与下个月的六周网格；旧版缓存缺失时 Widget 仍显示公历日期。
@@ -176,9 +178,9 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
                 localUsageEnabled: Bool? = nil,
                 publicIPEnabled: Bool = false,
                 addresses: [Address] = [], language: String = "system",
-                calendarFirstWeekday: Int = 2, showsLunar: Bool = true,
+                calendarFirstWeekday: Int = 2, showsLunar: Bool = Locale.current.region?.identifier == "CN",
                 calendarDays: [CalendarSummary]? = nil, monthSummaries: [MonthSummary]? = nil,
-                showsSeasonal: Bool? = nil, calendarDataVersion: String? = nil) {
+                showsSeasonal: Bool? = nil, calendarDataVersion: String? = nil, showsAlmanac: Bool? = nil) {
         self.aiEnabled = aiEnabled
         self.quotas = quotas
         self.dailyTokens = dailyTokens
@@ -189,6 +191,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         self.calendarFirstWeekday = calendarFirstWeekday
         self.showsLunar = showsLunar
         self.showsSeasonal = showsSeasonal
+        self.showsAlmanac = showsAlmanac
         self.calendarDays = calendarDays
         self.monthSummaries = monthSummaries
         self.calendarDataVersion = calendarDataVersion

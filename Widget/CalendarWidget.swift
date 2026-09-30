@@ -18,7 +18,7 @@ struct CalendarWidgetEntry: TimelineEntry {
 
 struct CalendarWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> CalendarWidgetEntry {
-        .init(date: .now, showsLunar: true, showsSeasonal: false, firstWeekday: 2,
+        .init(date: .now, showsLunar: WidgetSnapshot().showsLunar, showsSeasonal: false, firstWeekday: 2,
               today: nil, tomorrow: nil, month: nil)
     }
 
@@ -116,26 +116,22 @@ private struct CalendarWidgetView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Rectangle().fill(.quaternary).frame(width: 1)
-            VStack(alignment: .leading, spacing: 7) {
-                if let today = entry.today {
-                    if let star = today.twelveStar {
-                        HStack(spacing: 5) {
-                            Text(tr(today.isEcliptic ? "黄道日" : "黑道日"))
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(today.isEcliptic ? .green : .secondary)
-                            Text(star).font(.caption2).foregroundStyle(.secondary)
-                        }
-                        Divider()
+            if let today = entry.today, let star = today.twelveStar {
+                Rectangle().fill(.quaternary).frame(width: 1)
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(spacing: 5) {
+                        Text(tr(today.isEcliptic ? "黄道日" : "黑道日"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(today.isEcliptic ? .green : .secondary)
+                        Text(star).font(.caption2).foregroundStyle(.secondary)
                     }
+                    Divider()
                     advice(tr("宜"), values: today.recommends)
                     advice(tr("忌"), values: today.avoids)
-                } else {
-                    Text(tr("暂无安排")).font(.caption).foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(12)
     }

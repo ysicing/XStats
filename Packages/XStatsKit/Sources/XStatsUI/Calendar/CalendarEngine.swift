@@ -11,13 +11,18 @@ import WidgetData
 public enum CalendarFeature: String, CaseIterable, Identifiable, Sendable {
     case lunar, weekdays, holidays, festivals, solarTerms, ganzhi, seasonal, tibetan, hijri
     public var id: String { rawValue }
-    public static let defaults: Set<Self> = [.lunar, .weekdays, .holidays, .festivals, .solarTerms]
+    public static var defaults: Set<Self> { defaults(for: .current) }
+
+    /// 默认值依据使用地区，不依据应用语言或设备销售地；其他地区可自行启用。
+    public static func defaults(for locale: Locale) -> Set<Self> {
+        locale.region?.identifier == "CN" ? [.lunar, .weekdays, .holidays, .festivals, .solarTerms] : [.weekdays]
+    }
 
     var title: String {
         switch self {
         case .lunar: tr("农历")
         case .weekdays: tr("星期")
-        case .holidays: tr("法定节假日与调休")
+        case .holidays: tr("中国大陆节假日与调休")
         case .festivals: tr("传统与公历节日")
         case .solarTerms: tr("二十四节气")
         case .ganzhi: tr("干支")

@@ -61,7 +61,7 @@ struct CalendarTests {
 
     @Test func widgetMonthContainsSixWeeksAndOfficialHolidayNames() throws {
         let month = CalendarEngine.widgetMonthSummary(year: 2026, month: 9, firstWeekday: 2,
-                                                      features: CalendarFeature.defaults, timeZone: zone)
+                                                      features: CalendarFeature.defaults(for: Locale(identifier: "zh_CN")), timeZone: zone)
         #expect(month.days.count == 42)
         #expect(month.days.first?.dateKey == "2026-08-31")
         #expect(month.days.last?.dateKey == "2026-10-11")
@@ -71,7 +71,7 @@ struct CalendarTests {
         #expect(midAutumn.isWork == false)
 
         let sundayFirst = CalendarEngine.widgetMonthSummary(year: 2026, month: 9, firstWeekday: 1,
-                                                            features: CalendarFeature.defaults, timeZone: zone)
+                                                            features: CalendarFeature.defaults(for: Locale(identifier: "zh_CN")), timeZone: zone)
         #expect(sundayFirst.days.first?.dateKey == "2026-08-30")
 
         let plain = CalendarEngine.widgetMonthSummary(year: 2026, month: 9, firstWeekday: 2,

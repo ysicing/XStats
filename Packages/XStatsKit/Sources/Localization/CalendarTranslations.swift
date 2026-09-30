@@ -13,8 +13,9 @@ extension Translations {
 星期一	Monday
 星期日	Sunday
 农历	Lunar calendar
+黄历	Chinese almanac
 星期	Weekdays
-法定节假日与调休	Holidays and makeup workdays
+中国大陆节假日与调休	Mainland China holidays and makeup workdays
 传统与公历节日	Festivals
 二十四节气	Solar terms
 干支	Sexagenary cycle
