@@ -491,7 +491,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                       calendarFirstWeekday: settings.calendarFirstWeekday,
                                       showsLunar: settings.calendarFeatures.contains(.lunar),
                                       calendarDays: calendarDays, monthSummaries: monthSummaries,
-                                      showsSeasonal: settings.calendarFeatures.contains(.seasonal),
+                                      showsSeasonal: settings.calendarFeatures.contains(.seasonalInfo),
                                       calendarDataVersion: dataVersion, showsAlmanac: settings.calendarPreferences.showAlmanac)
         guard snapshot != previous, widgetStore.save(snapshot) else { return }
         for kind in snapshot.changedWidgetKinds(from: previous) {

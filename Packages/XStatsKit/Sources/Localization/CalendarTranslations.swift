@@ -17,10 +17,9 @@ extension Translations {
 星期	Weekdays
 中国大陆节假日与调休	Mainland China holidays and makeup workdays
 传统与公历节日	Festivals
-二十四节气	Solar terms
+节气与时令	Solar terms and seasons
 三伏天	Dog days
 梅雨天	Plum-rain days
-三伏·梅雨·数九	Fu · Plum rain · Nines
 初伏	Early Fu
 中伏	Middle Fu
 末伏	Late Fu

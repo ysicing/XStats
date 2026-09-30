@@ -147,12 +147,12 @@ struct CalendarEnhancementTests {
         defer { defaults.removePersistentDomain(forName: name) }
         let locale = Locale(identifier: localeID)
         let mainland = locale.region?.identifier == "CN"
-        let expected: Set<CalendarFeature> = mainland ? [.lunar, .weekdays, .holidays, .festivals, .solarTerms] : [.weekdays]
+        let expected: Set<CalendarFeature> = mainland ? [.lunar, .weekdays, .holidays, .festivals, .seasonalInfo] : [.weekdays]
         let settings = AppSettings(defaults: defaults, calendarLocale: locale)
         #expect(settings.calendarFeatures == expected)
         #expect(settings.calendarPreferences.showHolidayOverview == mainland)
         #expect(settings.calendarPreferences.showAlmanac == mainland)
-        #expect(!settings.calendarFeatures.contains(.seasonal))
+        #expect(settings.calendarFeatures.contains(.seasonalInfo) == mainland)
 
         // 更改地区不应重置首次保存的默认值，明确关闭的选项和空集合也须保留。
         let otherRegion = Locale(identifier: mainland ? "zh_TW" : "en_CN")
@@ -217,14 +217,14 @@ struct CalendarEnhancementTests {
         defaults.set(["lunar", "holidays", "dogDays"], forKey: "calendarFeatures")
         defaults.set(Data(#"{"display":"lunar","showHolidayOverview":true}"#.utf8), forKey: "calendarPreferences")
         let settings = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "en_US"))
-        #expect(settings.calendarFeatures == [.lunar, .holidays, .seasonal])
+        #expect(settings.calendarFeatures == [.lunar, .holidays, .seasonalInfo])
         #expect(settings.calendarPreferences.display == .lunar)
         #expect(settings.calendarPreferences.showHolidayOverview && settings.calendarPreferences.showAlmanac)
         let backup = try JSONDecoder().decode(SettingsDocument.self, from: JSONEncoder().encode(settings.exportDocument()))
         settings.calendarFeatures = [.weekdays]
         settings.calendarPreferences.showAlmanac = false
         settings.apply(backup)
-        #expect(settings.calendarFeatures == [.lunar, .holidays, .seasonal])
+        #expect(settings.calendarFeatures == [.lunar, .holidays, .seasonalInfo])
         #expect(settings.calendarPreferences.showAlmanac)
     }
 
