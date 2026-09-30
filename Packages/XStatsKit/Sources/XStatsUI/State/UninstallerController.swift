@@ -38,7 +38,7 @@ public final class UninstallerController {
     }
 
     init(currentBundleIdentifier: String?,
-         listApplications: @escaping @Sendable () throws -> [InstalledApp] = { AppUninstaller.installedApps() },
+         listApplications: @escaping @Sendable () throws -> [InstalledApp] = { try AppUninstaller.scanInstalledApps() },
          findLeftovers: @escaping @Sendable (InstalledApp) throws -> [AppLeftover] = { try AppUninstaller.scanLeftovers(for: $0) },
          measureSize: @escaping @Sendable (URL) throws -> UInt64 = { try CleanEngine.scanAllocatedSize(of: $0) },
          recycleFiles: @escaping ([URL], @escaping @Sendable ([URL: URL], String?) -> Void) -> Void = { urls, completion in

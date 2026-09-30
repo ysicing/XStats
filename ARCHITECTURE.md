@@ -411,7 +411,10 @@ helper, re-registers the bundled version, and verifies the protocol before privi
 
 `server/api` is one Go program. Fiber exposes `POST /api/v1/update/check`, authenticated
 `PUT /api/v1/releases/current`, the fixed signed `GET /api/v1/update/appcast.xml`, and the aggregate
-`GET /stats` dashboard. GORM uses
+`GET /stats` dashboard. The XML route verifies the original Ed25519 feed signature, RSS structure and
+release/archive metadata against the current JSON release before recording a successful check. Invalid
+feeds return 502 without changing telemetry; the legacy JSON endpoint remains independent. Both backends
+use the client public key and must be updated together if it rotates. Valid XML is returned byte for byte. GORM uses
 `github.com/libtnb/sqlite` with WAL and one database connection so concurrent checks cannot compete for
 SQLite's single writer. Each installation row stores only the SHA-256 installation ID, current version,
 first/last check times and check count; request IPs and monitoring data are not persisted. The release

@@ -198,7 +198,7 @@ func newApplicationWithFeedClient(databasePath string, releaseToken string, feed
 		}
 		return c.JSON(current)
 	})
-	// 固定入口选择当前发布对应的不可变 XML；保留签名字节，不解析重写或在服务端持有私钥。
+	// 固定入口选择当前发布对应的不可变 XML；校验后原样返回，不重写或持有私钥。
 	// 统计与本次 GET 合并，Sparkle 客户端无需再发一份 JSON POST。
 	app.Get("/api/v1/update/appcast.xml", checkLimiter, func(c fiber.Ctx) error {
 		c.Set(fiber.HeaderCacheControl, "no-store")
@@ -232,6 +232,9 @@ func newApplicationWithFeedClient(databasePath string, releaseToken string, feed
 		}
 		data, err := io.ReadAll(io.LimitReader(response.Body, maximumFeedBytes+1))
 		if err != nil || len(data) == 0 || len(data) > maximumFeedBytes {
+			return c.SendStatus(http.StatusBadGateway)
+		}
+		if err := validateSparkleFeed(data, current); err != nil {
 			return c.SendStatus(http.StatusBadGateway)
 		}
 		if err := recordUpdateCheck(database, check); err != nil {
