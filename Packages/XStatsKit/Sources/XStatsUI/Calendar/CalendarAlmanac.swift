@@ -69,9 +69,9 @@ extension CalendarEngine {
             schedule = day.isWeekend ? .weekend : .work
         }
         let almanac = showsAlmanac ? almanac(for: day) : nil
-        let seasons = features.contains(.seasonal) ? [day.dogDays, day.plumRain, day.nineDays].compactMap { $0 } : []
+        let seasons = features.contains(.seasonalInfo) ? [day.dogDays, day.plumRain, day.nineDays].compactMap { $0 } : []
         return .init(dateKey: day.id, festivals: features.contains(.festivals) ? day.festivals : [],
-                     solarTerm: features.contains(.solarTerms) ? day.solarTerm : nil,
+                     solarTerm: features.contains(.seasonalInfo) ? day.solarTerm : nil,
                      schedule: schedule, holidayName: features.contains(.holidays) ? day.holiday?.name : nil,
                      twelveStar: almanac?.twelveStar, isEcliptic: almanac?.twelveStarIsLucky ?? false,
                      recommends: Array(almanac?.recommends.prefix(3) ?? []),

@@ -36,11 +36,13 @@ its displayed count resets at local midnight even if the main app has not refres
 The tomorrow-work widget uses the official 2026 holiday schedule to distinguish statutory
 holidays, adjusted days off, ordinary weekends, and makeup workdays; later years need their
 own confirmed schedule before receiving those specific labels.
-The single seasonal-calendar setting covers dog days, traditional plum-rain days, and the
-nine cold periods. Month cells and the large month widget show only phase starts and the
+The combined solar-term and seasonal setting covers solar terms, dog days, traditional
+plum-rain days, and the nine cold periods. Month cells and the large month widget show solar
+terms on their dates, phase starts and the
 plum-rain exit; the small daily widget and selected-day details keep the exact day count.
-Existing dog-day or plum-rain
-preferences migrate to the combined setting.
+Existing solar-term, seasonal, dog-day or plum-rain preferences migrate to the combined
+`seasonalInfo` setting if any were enabled. The new key invalidates old widget summaries
+so both solar terms and seasonal annotations are regenerated.
 
 Things that are easy to get wrong and are handled on purpose:
 

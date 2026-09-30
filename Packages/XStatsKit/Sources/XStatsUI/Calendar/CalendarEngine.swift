@@ -9,13 +9,13 @@ import WidgetData
 
 /// 公历是月历的坐标；其余信息可独立隐藏，设置以稳定 rawValue 保存和同步。
 public enum CalendarFeature: String, CaseIterable, Identifiable, Sendable {
-    case lunar, weekdays, holidays, festivals, solarTerms, seasonal, tibetan, hijri
+    case lunar, weekdays, holidays, festivals, seasonalInfo, tibetan, hijri
     public var id: String { rawValue }
     public static var defaults: Set<Self> { defaults(for: .current) }
 
     /// 默认值依据使用地区，不依据应用语言或设备销售地；其他地区可自行启用。
     public static func defaults(for locale: Locale) -> Set<Self> {
-        locale.region?.identifier == "CN" ? [.lunar, .weekdays, .holidays, .festivals, .solarTerms] : [.weekdays]
+        locale.region?.identifier == "CN" ? [.lunar, .weekdays, .holidays, .festivals, .seasonalInfo] : [.weekdays]
     }
 
     var title: String {
@@ -24,18 +24,20 @@ public enum CalendarFeature: String, CaseIterable, Identifiable, Sendable {
         case .weekdays: tr("星期")
         case .holidays: tr("中国大陆节假日与调休")
         case .festivals: tr("传统与公历节日")
-        case .solarTerms: tr("二十四节气")
-        case .seasonal: tr("三伏·梅雨·数九")
+        case .seasonalInfo: tr("节气与时令")
         case .tibetan: tr("藏历")
         case .hijri: tr("回历")
         }
     }
 
-    /// 旧偏好和备份里的两个独立开关合并为一个；任一项曾开启就保留用户的显示意愿。
+    /// 旧偏好与备份中的节气、时令开关合并；任一项曾开启就保留用户的显示意愿。
     static func restored(from rawValues: [String]) -> Set<Self> {
         // 已移除的月历干支（ganzhi）与未知选项一起忽略，不影响其他已保存的选择。
         var features = Set(rawValues.compactMap(Self.init(rawValue:)))
-        if rawValues.contains("dogDays") || rawValues.contains("plumRain") { features.insert(.seasonal) }
+        // 使用新的设置键也使 Widget 的旧摘要失效，避免复用只包含节气或时令的旧缓存。
+        if rawValues.contains(where: { ["solarTerms", "seasonal", "dogDays", "plumRain"].contains($0) }) {
+            features.insert(.seasonalInfo)
+        }
         return features
     }
 }
@@ -79,9 +81,9 @@ struct CalendarDay: Identifiable, Equatable {
     /// 每格仅显示一条主注释，所有启用的信息在选中日期详情中保留。
     func subtitle(features: Set<CalendarFeature>) -> String {
         // 一九与冬至同日，阶段起点优先展示；节日和节气仍可在单日详情查看。
-        if features.contains(.seasonal), let seasonalBoundary { return seasonalBoundary }
+        if features.contains(.seasonalInfo), let seasonalBoundary { return seasonalBoundary }
         if features.contains(.festivals), let festival = festivals.first { return festival }
-        if features.contains(.solarTerms), let solarTerm { return solarTerm }
+        if features.contains(.seasonalInfo), let solarTerm { return solarTerm }
         return features.contains(.lunar) ? lunarLabel : ""
     }
 }

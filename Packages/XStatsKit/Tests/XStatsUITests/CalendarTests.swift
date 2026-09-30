@@ -120,15 +120,15 @@ struct CalendarTests {
         ]
         for (year, month, day, label) in examples {
             let date = try #require(CalendarEngine.day(year: year, month: month, day: day, timeZone: zone))
-            #expect(date.subtitle(features: [.seasonal]) == label)
-            #expect(date.subtitle(features: [.seasonal, .festivals, .solarTerms, .lunar]) == label)
+            #expect(date.subtitle(features: [.seasonalInfo]) == label)
+            #expect(date.subtitle(features: [.seasonalInfo, .festivals, .lunar]) == label)
         }
         for (year, month, day) in [(2012, 8, 8), (2024, 6, 12), (2020, 12, 22)] {
             let date = try #require(CalendarEngine.day(year: year, month: month, day: day, timeZone: zone))
-            #expect(date.subtitle(features: [.seasonal]).isEmpty)
+            #expect(date.subtitle(features: [.seasonalInfo]).isEmpty)
         }
         let june = CalendarEngine.widgetMonthSummary(year: 2024, month: 6, firstWeekday: 2,
-                                                     features: [.seasonal], timeZone: zone)
+                                                     features: [.seasonalInfo], timeZone: zone)
         #expect(june.days.first { $0.dateKey == "2024-06-11" }?.subtitle == "入梅")
         #expect(june.days.first { $0.dateKey == "2024-06-12" }?.subtitle == "")
     }
@@ -227,18 +227,52 @@ struct CalendarTests {
         #expect(restored.calendarFirstWeekday == 1)
     }
 
+    @Test(arguments: [[], ["solarTerms"], ["seasonal"], ["solarTerms", "seasonal"], ["dogDays"], ["plumRain"], ["seasonalInfo"]])
+    func mergedSeasonalSettingPreservesEitherLegacyChoice(legacy: [String]) throws {
+        let name = "CalendarMergedSeasonalTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(legacy + ["weekdays"], forKey: "calendarFeatures")
+        let settings = AppSettings(defaults: defaults)
+        let expected = Set(legacy.isEmpty ? ["weekdays"] : ["weekdays", "seasonalInfo"])
+        #expect(Set(settings.calendarFeatures.map(\.rawValue)) == expected)
+        #expect(!CalendarFeature.allCases.map(\.rawValue).contains("solarTerms"))
+        #expect(!CalendarFeature.allCases.map(\.rawValue).contains("seasonal"))
+        settings.calendarFeatures = []
+        var backup = SettingsDocument()
+        backup.calendarFeatures = legacy + ["weekdays"]
+        settings.apply(backup)
+        #expect(Set(settings.exportDocument().calendarFeatures ?? []) == expected)
+    }
+
+    @Test(arguments: ["solarTerms", "seasonal"])
+    func mergedSeasonalChoiceControlsTermsAndSeasonalSummaries(legacy: String) throws {
+        let enabled = CalendarFeature.restored(from: [legacy])
+        let term = try #require(CalendarEngine.day(year: 2026, month: 9, day: 23, timeZone: zone))
+        let season = try #require(CalendarEngine.day(year: 2024, month: 6, day: 11, timeZone: zone))
+        #expect(CalendarEngine.widgetSummary(for: term, features: enabled).solarTerm == term.solarTerm)
+        let seasonalDescription = try #require(season.plumRain)
+        #expect(CalendarEngine.widgetSummary(for: season, features: enabled).seasonalDescriptions == [seasonalDescription])
+        #expect(CalendarEngine.widgetSummary(for: term, features: []).solarTerm == nil)
+        #expect(CalendarEngine.widgetSummary(for: season, features: []).seasonalDescriptions == nil)
+        #expect(term.subtitle(features: enabled) == term.solarTerm)
+        #expect(season.subtitle(features: enabled) == season.seasonalBoundary)
+        let summary = CalendarEngine.widgetMonthSummary(year: 2026, month: 9, firstWeekday: 2, features: enabled, timeZone: zone)
+        #expect(summary.featureKeys == ["seasonalInfo"])
+    }
+
     @Test func oldSeasonalTogglesRestoreAsOneSetting() throws {
         let name = "CalendarSeasonalTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         defaults.set(["dogDays", "plumRain", "lunar"], forKey: "calendarFeatures")
         let settings = AppSettings(defaults: defaults)
-        #expect(settings.calendarFeatures == [.seasonal, .lunar])
+        #expect(settings.calendarFeatures == [.seasonalInfo, .lunar])
 
         var oldBackup = SettingsDocument()
         oldBackup.calendarFeatures = ["plumRain", "weekdays"]
         settings.apply(oldBackup)
-        #expect(settings.calendarFeatures == [.seasonal, .weekdays])
-        #expect(settings.exportDocument().calendarFeatures == ["seasonal", "weekdays"])
+        #expect(settings.calendarFeatures == [.seasonalInfo, .weekdays])
+        #expect(settings.exportDocument().calendarFeatures == ["seasonalInfo", "weekdays"])
     }
 }

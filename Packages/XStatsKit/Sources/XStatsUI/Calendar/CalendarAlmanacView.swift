@@ -193,7 +193,7 @@ struct CalendarAlmanacView: View {
                         Text(row.value).frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
-                if features.contains(.seasonal), day.plumRain != nil {
+                if features.contains(.seasonalInfo), day.plumRain != nil {
                     Text(tr("按传统历法推算，并非天气预报")).font(.caption2).foregroundStyle(.secondary)
                 }
             }
@@ -211,10 +211,11 @@ struct CalendarAlmanacView: View {
         if features.contains(.festivals), !day.festivals.isEmpty {
             rows.append(.init(feature: .festivals, value: day.festivals.map { tr($0) }.joined(separator: " · ")))
         }
-        if features.contains(.solarTerms), let value = day.solarTerm { rows.append(.init(feature: .solarTerms, value: tr(value))) }
-        if features.contains(.seasonal) {
-            let seasons = [day.dogDays, day.plumRain, day.nineDays].compactMap { $0 }
-            if !seasons.isEmpty { rows.append(.init(feature: .seasonal, value: seasons.map(tr).joined(separator: " · "))) }
+        if features.contains(.seasonalInfo) {
+            let values = [day.solarTerm, day.dogDays, day.plumRain, day.nineDays].compactMap { $0 }
+            if !values.isEmpty {
+                rows.append(.init(feature: .seasonalInfo, value: values.map(tr).joined(separator: " · ")))
+            }
         }
         return rows + CalendarEngine.additionalCalendars(for: day, features: features)
     }
