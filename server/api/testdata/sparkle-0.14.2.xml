@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+--><!-- SPDX-License-Identifier: AGPL-3.0-or-later; test metadata only, not an installable update. --><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:xstats="https://github.com/ysicing/xstats/appcast" version="2.0">
+  <channel>
+    <title>XStats</title>
+    <link>https://github.com/ysicing/xstats</link>
+    <description>XStats updates</description>
+    <item>
+      <title>XStats 0.14.2</title>
+      <sparkle:version>127</sparkle:version>
+      <sparkle:shortVersionString>0.14.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+      <description xml:lang="zh-Hans" sparkle:format="plain-text">test</description>
+      <xstats:notes-zh-Hans>test</xstats:notes-zh-Hans>
+      <xstats:date>2026-09-30</xstats:date>
+      <xstats:sha256>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</xstats:sha256>
+      <enclosure url="https://example.test/XStats-0.14.2.zip" length="1000" type="application/octet-stream" sparkle:edSignature="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==" sparkle:installationType="application"></enclosure>
+    </item>
+  </channel>
+</rss><!-- sparkle-signatures:
+edSignature: 9yHU+UlcaIppXEsdJkvWywed+IZUDhZiXCugaaBB0tGCIOU+Z5IKv43fYCv928oszMuNYGEao65RvojO8SO8Cw==
+length: 1565
+-->

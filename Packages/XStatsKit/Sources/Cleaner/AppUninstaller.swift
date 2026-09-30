@@ -78,19 +78,40 @@ public enum AppUninstaller {
 
     /// /Applications 与 ~/Applications 下的应用（含一层子文件夹），按名称排序
     public static func installedApps(home: String = NSHomeDirectory(), excluding excludedIdentifiers: Set<String> = []) -> [InstalledApp] {
+        (try? installedApps(in: applicationDirectories(home: home), excluding: excludedIdentifiers, checkCancellation: {})) ?? []
+    }
+
+    /// 可取消的应用列表扫描；遍历中止时抛错，不发布部分列表。
+    public static func scanInstalledApps(home: String = NSHomeDirectory(), excluding excludedIdentifiers: Set<String> = []) throws -> [InstalledApp] {
+        try installedApps(in: applicationDirectories(home: home), excluding: excludedIdentifiers,
+                          checkCancellation: { try Task.checkCancellation() })
+    }
+
+    static func installedApps(in directories: [URL], excluding excludedIdentifiers: Set<String>,
+                              checkCancellation: () throws -> Void) throws -> [InstalledApp] {
+        try checkCancellation()
         var apps: [InstalledApp] = []
         let manager = FileManager.default
-        for directory in applicationDirectories(home: home) {
+        for directory in directories {
+            try checkCancellation()
             let entries = (try? manager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
             for entry in entries {
+                try checkCancellation()
                 if entry.pathExtension == "app" {
                     if let app = app(at: entry) { apps.append(app) }
                 } else if (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                    try checkCancellation()
                     let nested = (try? manager.contentsOfDirectory(at: entry, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
-                    apps += nested.filter { $0.pathExtension == "app" }.compactMap(app(at:))
+                    for candidate in nested {
+                        try checkCancellation()
+                        guard candidate.pathExtension == "app" else { continue }
+                        if let app = app(at: candidate) { apps.append(app) }
+                    }
                 }
             }
         }
+        // 取消不得继续做筛选、排序，也不能把扫描到的一部分列表当成成功结果。
+        try checkCancellation()
         return apps
             .filter { !excludedIdentifiers.contains($0.bundleIdentifier) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
