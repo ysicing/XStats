@@ -36,15 +36,19 @@ struct CalendarOptionsPopover: View {
 
     var body: some View {
         @Bindable var settings = model.settings
-        PageScroll {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = L10n.locale
+        let weekdays = calendar.weekdaySymbols
+        return PageScroll {
             VStack(spacing: DS.Space.s4) {
                 presentationOptions
                 SettingsGroup(caption: tr("日历")) {
                     GroupRow(showsDivider: false) {
                         SettingRow(title: tr("每周开始于")) {
                             Picker(tr("每周开始于"), selection: $settings.calendarFirstWeekday) {
-                                Text(tr("星期一")).tag(2)
-                                Text(tr("星期日")).tag(1)
+                                ForEach(1...7, id: \.self) { weekday in
+                                    Text(weekdays[weekday - 1]).tag(weekday)
+                                }
                             }
                             .labelsHidden()
                             .fixedSize()
@@ -113,11 +117,8 @@ struct CalendarOptionsPopover: View {
         return SettingsGroup(caption: tr("菜单栏")) {
             GroupRow(showsDivider: false) {
                 SettingRow(title: tr("显示方式")) {
-                    Picker(tr("显示方式"), selection: Binding(
-                        get: { settings.calendarPreferences.display.effective(for: L10n.locale) },
-                        set: { settings.calendarPreferences.display = $0 }
-                    )) {
-                        ForEach(CalendarPreferences.Display.available(for: L10n.locale)) { Text($0.title).tag($0) }
+                    Picker(tr("显示方式"), selection: $settings.calendarPreferences.display) {
+                        ForEach(CalendarPreferences.Display.allCases) { Text($0.title).tag($0) }
                     }.labelsHidden().fixedSize()
                 }
             }

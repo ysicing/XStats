@@ -180,7 +180,10 @@ not 24-hour intervals. Tibetan conversion is guarded to the upstream Gregorian c
 Plum-rain dates describe traditional calendar rules, not observed or forecast weather.
 
 Calendar enablement, visible features and week start persist through `AppSettings` and the
-optional fields in `SettingsDocument`. Older backups preserve those settings. Additional
+optional fields in `SettingsDocument`. Week start initially uses `Calendar.current.firstWeekday`,
+then persists independently of later system changes; all seven weekdays are supported by the
+settings picker, backups, month grids and widgets. Menu-bar lunar modes remain available in
+every app language and use localized lunar dates. Older backups preserve those settings. Additional
 calendars default off and appear only in selected-day details. There is no event access or
 network request at runtime. Use `--snapshot <directory> --calendar-only` for deterministic
 light/dark calendar screenshots without starting unrelated samplers or scans.

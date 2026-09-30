@@ -18,7 +18,8 @@ struct CalendarWidgetEntry: TimelineEntry {
 
 struct CalendarWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> CalendarWidgetEntry {
-        .init(date: .now, showsLunar: WidgetSnapshot().showsLunar, showsSeasonal: false, firstWeekday: 2,
+        let snapshot = WidgetSnapshot()
+        return .init(date: .now, showsLunar: snapshot.showsLunar, showsSeasonal: false, firstWeekday: snapshot.calendarFirstWeekday,
               today: nil, tomorrow: nil, month: nil)
     }
 
@@ -175,7 +176,9 @@ struct CalendarWidget: Widget {
 private struct MonthCalendarWidgetView: View {
     let entry: CalendarWidgetEntry
 
-    private var firstWeekday: Int { entry.firstWeekday == 1 ? 1 : 2 }
+    private var firstWeekday: Int {
+        (1...7).contains(entry.firstWeekday) ? entry.firstWeekday : Calendar.current.firstWeekday
+    }
 
     private var calendar: Calendar { WidgetSnapshot.keyCalendar }
     private var monthKey: String { WidgetSnapshot.monthKey(for: entry.date) }
@@ -320,7 +323,7 @@ private struct TomorrowWorkWidgetView: View {
                         .minimumScaleFactor(0.75)
                 }
             } else {
-                Text(tr("暂无法判断"))
+                Text(tr("仅支持中国大陆节假日"))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
             }

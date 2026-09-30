@@ -10,17 +10,6 @@ public struct CalendarPreferences: Codable, Equatable, Sendable {
         case standard, dateLunar, lunar, custom
         public var id: String { rawValue }
 
-        static func available(for locale: Locale) -> [Self] {
-            locale.language.languageCode?.identifier == "zh" ? allCases : [.standard, .custom]
-        }
-
-        /// 切换语言只改变呈现，不覆盖已保存的农历选择，切回中文后可恢复。
-        func effective(for locale: Locale) -> Self {
-            if (self == .dateLunar || self == .lunar), locale.language.languageCode?.identifier != "zh" {
-                return .standard
-            }
-            return self
-        }
         var title: String {
             switch self {
             case .standard: tr("日期与星期")
@@ -92,7 +81,7 @@ public struct CalendarPreferences: Codable, Equatable, Sendable {
         calendar.timeZone = timeZone
         formatter.calendar = calendar
         formatter.timeZone = timeZone
-        switch display.effective(for: locale) {
+        switch display {
         case .standard: formatter.setLocalizedDateFormatFromTemplate("MdEEE")
         case .custom:
             // 用户明确选择顺序，不能再用本地化模板把日月重新排回月日。

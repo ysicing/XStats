@@ -147,7 +147,7 @@ enum CalendarEngine {
     static func month(year: Int, month: Int, firstWeekday: Int,
                       timeZone: TimeZone = .autoupdatingCurrent) -> [CalendarDay] {
         let requested = CalendarMonth(year: year, month: month)
-        let weekStart = firstWeekday == 1 ? 1 : 2
+        let weekStart = (1...7).contains(firstWeekday) ? firstWeekday : Calendar.current.firstWeekday
         // 固定自动更新时区的当前值，避免缓存里的时区也跟着系统变化，误判为可复用。
         let zone = TimeZone(identifier: timeZone.identifier) ?? timeZone
         if let cached = monthCache, cached.month == requested,
