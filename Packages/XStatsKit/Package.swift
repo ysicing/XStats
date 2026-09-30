@@ -19,6 +19,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/6tail/tyme4swift.git", exact: "1.5.0"),
+        .package(url: "https://github.com/sparkle-project/Sparkle.git", exact: "2.10.0"),
     ],
     targets: [
         .target(name: "Localization", resources: [.process("Resources")]),
@@ -31,7 +32,8 @@ let package = Package(
         .target(name: "WebDAVSync", dependencies: ["Localization"]),
         .target(name: "WidgetData"),
         .target(name: "XStatsUI", dependencies: ["AIUsage", "Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync", "WidgetData",
-                                                   .product(name: "Tyme4Swift", package: "tyme4swift")],
+                                                   .product(name: "Tyme4Swift", package: "tyme4swift"),
+                                                   .product(name: "Sparkle", package: "Sparkle")],
                 resources: [.copy("Resources/Flags"), .copy("Resources/Logos"), .copy("Resources/Legal")]),
         .testTarget(name: "MetricsTests", dependencies: ["Metrics", "SMC"]),
         .testTarget(name: "CleanerTests", dependencies: ["Cleaner"]),

@@ -52,11 +52,30 @@ import Testing
         let release = try #require(UpdateFeed.parse(Data(good.utf8)))
         #expect(release.version == "0.3.0")
         #expect(release.notes == ["新增在线升级"])
+        #expect(release.englishNotes == nil)
+        #expect(release.notes(for: "en") == release.notes)
         let insecure = good.replacingOccurrences(of: "https://getopenstats.com/download/OpenStats-0.3.0.zip", with: "http://example.com/x.zip")
         #expect(UpdateFeed.parse(Data(insecure.utf8)) == nil)
         let badHash = good.replacingOccurrences(of: String(repeating: "a", count: 64), with: "abc")
         #expect(UpdateFeed.parse(Data(badHash.utf8)) == nil)
     }
+
+    @Test func chineseLanguagesUseChineseAndOtherLanguagesUseEnglish() throws {
+        let json = #"{"version":"1.0.0","build":"200","date":"2026-09-30","minimumSystem":"14.0","url":"https://example.test/update.zip","sha256":"\#(String(repeating: "a", count: 64))","size":1000,"notes":["source"],"englishNotes":["English"]}"#
+        let release = try #require(UpdateFeed.parse(Data(json.utf8)))
+        for code in ["zh", "zh-Hans", "zh-Hant", "zh-CN", "zh-TW"] {
+            #expect(release.notes(for: code) == ["source"])
+        }
+        for code in ["en", "ja", "ko", "de", "es", "fr", "ar", "unsupported"] {
+            #expect(release.notes(for: code) == ["English"])
+        }
+        let withoutEnglish = json.replacingOccurrences(of: #","englishNotes":["English"]"#, with: "")
+        let chineseFallback = try #require(UpdateFeed.parse(Data(withoutEnglish.utf8)))
+        #expect(chineseFallback.notes(for: "de") == ["source"])
+        let emptyEnglish = json.replacingOccurrences(of: #""englishNotes":["English"]"#, with: #""englishNotes":[]"#)
+        #expect(try #require(UpdateFeed.parse(Data(emptyEnglish.utf8))).notes(for: "de") == ["source"])
+    }
+
 
     @Test func picksInstallerForChip() throws {
         let hash = String(repeating: "a", count: 64), intelHash = String(repeating: "b", count: 64)
@@ -81,80 +100,17 @@ import Testing
         return url
     }
 
-    private func expectInvalidBundle(_ operation: () throws -> Void) {
-        do {
-            try operation()
-            Issue.record("Expected UpdateError.invalidBundle")
-        } catch let error as UpdateError {
-            if case .invalidBundle = error { return }
-            Issue.record("Unexpected update error: \(error)")
-        } catch {
-            Issue.record("Unexpected error: \(error)")
-        }
-    }
-
-    @Test func hashesFiles() throws {
-        let dir = try scratch()
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let file = dir.appendingPathComponent("a.txt")
-        try Data("abc".utf8).write(to: file)
-        #expect(try UpdateInstaller.sha256(of: file) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
-    }
-
-    @Test func relaunchWaitsForExitAndRequestsANewInstance() async throws {
-        let dir = try scratch()
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let opener = dir.appendingPathComponent("fake opener ' quoted")
-        try "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$0.args\"\n"
-            .write(to: opener, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: opener.path)
-        let recorded = URL(fileURLWithPath: opener.path + ".args")
-        let app = dir.appendingPathComponent("XStats $(touch injected) ' \" 空格.app")
-        let original = Process()
-        original.executableURL = URL(fileURLWithPath: "/bin/sleep")
-        original.arguments = ["30"]
-        try original.run()
-        let relaunch = UpdateInstaller.makeRelaunchProcess(app, afterExitOf: original.processIdentifier, opener: opener)
-        relaunch.currentDirectoryURL = dir
-        defer {
-            if original.isRunning { original.terminate() }
-            if relaunch.isRunning { relaunch.terminate() }
-        }
-        try relaunch.run()
-        try await Task.sleep(for: .milliseconds(350))
-        try #require(original.isRunning && relaunch.isRunning)
-        #expect(!FileManager.default.fileExists(atPath: recorded.path), "旧进程退出前不能启动新版")
-        original.terminate()
-        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-        while relaunch.isRunning && ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        try #require(!relaunch.isRunning, "旧进程退出后应完成启动命令")
-        #expect(relaunch.terminationStatus == 0)
-        let arguments = try String(contentsOf: recorded, encoding: .utf8).split(separator: "\n").map(String.init)
-        #expect(arguments == ["-n", app.path], "不能让 LaunchServices 复用尚未清理的旧实例记录")
-        #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("injected").path))
-    }
-
-    @Test func replacesAndKeepsOldOnFailure() throws {
-        let dir = try scratch()
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let current = dir.appendingPathComponent("App.app")
-        let candidate = dir.appendingPathComponent("New.app")
-        try FileManager.default.createDirectory(at: current, withIntermediateDirectories: true)
-        try Data("old".utf8).write(to: current.appendingPathComponent("v"))
-        try FileManager.default.createDirectory(at: candidate, withIntermediateDirectories: true)
-        try Data("new".utf8).write(to: candidate.appendingPathComponent("v"))
-
-        try UpdateInstaller.replace(current, with: candidate, backupDirectory: dir)
-        #expect(String(decoding: try Data(contentsOf: current.appendingPathComponent("v")), as: UTF8.self) == "new")
-        #expect(!FileManager.default.fileExists(atPath: candidate.path))
-
-        // 新版不存在时移动失败，旧版应还原到原位置
-        #expect(throws: UpdateError.self) {
-            try UpdateInstaller.replace(current, with: dir.appendingPathComponent("Missing.app"), backupDirectory: dir)
-        }
-        #expect(String(decoding: try Data(contentsOf: current.appendingPathComponent("v")), as: UTF8.self) == "new")
+    private func run(_ executable: String, _ arguments: [String]) -> (status: Int32, output: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        do { try process.run() } catch { return (-1, error.localizedDescription) }
+        let output = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return (process.terminationStatus, String(decoding: output, as: UTF8.self))
     }
 
     /// CI 不能可靠运行改名后的 Apple 平台二进制；编译普通替身，保留真实的进程路径检查。
@@ -164,24 +120,22 @@ import Testing
         defer { try? FileManager.default.removeItem(at: source) }
         try "#include <unistd.h>\nint main(void) { sleep(30); return 0; }\n"
             .write(to: source, atomically: true, encoding: .utf8)
-        let compile = UpdateInstaller.run("/usr/bin/xcrun", ["clang", "-x", "c", source.path, "-o", url.path])
+        let compile = run("/usr/bin/xcrun", ["clang", "-x", "c", source.path, "-o", url.path])
         try #require(compile.status == 0, "测试替身编译失败：\(compile.output)")
-        let sign = UpdateInstaller.run("/usr/bin/codesign", ["--force", "--sign", "-", url.path])
+        let sign = run("/usr/bin/codesign", ["--force", "--sign", "-", url.path])
         try #require(sign.status == 0, "测试替身签名失败：\(sign.output)")
     }
 
-    @Test func replacingAppStopsItsOldWidgetExtension() throws {
+    @Test func stopsOnlyThisInstallationsWidgetExtension() throws {
         let dir = try scratch()
         defer { try? FileManager.default.removeItem(at: dir) }
         let current = dir.appendingPathComponent("XStats.app")
-        let candidate = dir.appendingPathComponent("New.app")
         let executable = current.appendingPathComponent("Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget")
         let otherExecutable = dir.appendingPathComponent("Other.app/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget")
         try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
         try makeSleepingExecutable(at: executable)
         try FileManager.default.createDirectory(at: otherExecutable.deletingLastPathComponent(), withIntermediateDirectories: true)
         try makeSleepingExecutable(at: otherExecutable)
-        try FileManager.default.createDirectory(at: candidate, withIntermediateDirectories: true)
 
         let process = Process()
         process.executableURL = executable
@@ -204,48 +158,9 @@ import Testing
         let pathLength = proc_pidpath(process.processIdentifier, &runningPath, UInt32(runningPath.count))
         #expect(pathLength > 0)
 
-        try UpdateInstaller.replace(current, with: candidate, backupDirectory: dir)
+        try UpdateInstaller.stopWidgetExtension(in: current)
         #expect(!process.isRunning, "替换应用前应退出旧版小组件扩展")
         #expect(otherProcess.isRunning, "不得退出其他应用的同名进程")
     }
 
-    @Test func extractsSingleApp() throws {
-        let dir = try scratch()
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let app = dir.appendingPathComponent("src/Demo.app/Contents")
-        try FileManager.default.createDirectory(at: app, withIntermediateDirectories: true)
-        let zip = dir.appendingPathComponent("Demo.zip")
-        #expect(UpdateInstaller.run("/usr/bin/ditto", ["-c", "-k", "--keepParent", dir.appendingPathComponent("src/Demo.app").path, zip.path]).status == 0)
-        let extracted = try UpdateInstaller.extractApp(from: zip, into: dir)
-        #expect(extracted.lastPathComponent == "Demo.app")
-    }
-
-    @Test func rejectsUnsignedBundle() throws {
-        let dir = try scratch()
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let app = dir.appendingPathComponent("Demo.app")
-        try FileManager.default.createDirectory(at: app.appendingPathComponent("Contents"), withIntermediateDirectories: true)
-        let plist: [String: Any] = ["CFBundleIdentifier": "work.12306.xstats.app", "CFBundleShortVersionString": "9.9.9", "CFBundlePackageType": "APPL"]
-        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
-            .write(to: app.appendingPathComponent("Contents/Info.plist"))
-        #expect(throws: UpdateError.self) {
-            try UpdateInstaller.verify(app, bundleIdentifier: "work.12306.xstats.app", version: "9.9.9", teamIdentifier: "ABCDE12345")
-        }
-        expectInvalidBundle {
-            try UpdateInstaller.verify(app, bundleIdentifier: "work.12306.xstats.app", version: "1.0.0", teamIdentifier: "ABCDE12345")
-        }
-    }
-
-    @Test func rejectsPreviousProductIdentity() throws {
-        let dir = try scratch()
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let app = dir.appendingPathComponent("OpenStats.app")
-        try FileManager.default.createDirectory(at: app.appendingPathComponent("Contents"), withIntermediateDirectories: true)
-        let plist = ["CFBundleIdentifier": "com.openstats.app", "CFBundlePackageType": "APPL"]
-        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
-            .write(to: app.appendingPathComponent("Contents/Info.plist"))
-        expectInvalidBundle {
-            try UpdateInstaller.verify(app, bundleIdentifier: "work.12306.xstats.app", version: "0.6.1", teamIdentifier: "ABCDE12345")
-        }
-    }
 }

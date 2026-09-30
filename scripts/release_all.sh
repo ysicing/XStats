@@ -65,6 +65,7 @@ python3 scripts/release_provenance.py prepare >/dev/null
 RELEASE_FILES=(
   project.yml
   CHANGELOG.md
+  ReleaseNotes.json
   README.md
   README.en.md
   README.ja.md

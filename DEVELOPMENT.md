@@ -52,7 +52,7 @@ GitHub Actions 只在分支 push 且 `server/**` 发生变化时构建并发布 
 镜像发布到 `ghcr.io/<owner>/xstats-server`，标签格式为清洗后的 `<分支>-<完整提交哈希>`。
 
 构建固定使用 `arm64`，仅支持 Apple Silicon Mac。
-有 Developer ID Application 证书时，Taskfile 会自动使用钥匙串中第一个证书的唯一指纹；否则使用项目默认的 ad-hoc 签名。
+有 Developer ID Application 证书时，Taskfile 会自动使用钥匙串中第一个证书的唯一指纹；否则由构建脚本逐层补齐 ad-hoc 签名与 entitlement。临时签名没有团队身份，不能加载启用团队验证的 Sparkle 动态库，因此仅此本地/CI 路径关闭 Hardened Runtime；正式 Developer ID 构建仍强制启用，且临时签名构建不能在线安装或操作特权辅助工具。
 桌面小组件与主应用通过 `group.work.12306.xstats` App Group 共享只读展示摘要。
 菜单栏日历提供“日期与星期”“日期与农历”“农历”“自定义”四种显示方式，自定义可自由组合 y/M/d 字段与分隔符，年份可省略，输入时显示预览并提示无效格式，独立于月历的星期开关；支持农历字号与对比度、可选悬停展开，按分钟刷新，休眠或关闭功能后停止。日程和到期提醒默认关闭，通过明确的授权按钮请求 EventKit 权限，只在日历面板可见时查询当前 42 格日期范围；只读展示，不修改日程，也不向 Widget、设置备份或服务端传递内容。列表 ID 仅保存在本机，显示偏好参与设置备份。节假日覆盖年份来自内置 Tyme 数据并随应用更新；假期倒计时与最多 3 天的请假建议只基于已公布的中国调休与双休安排，跨到未知年份时停止推算。
 月历使用固定六行布局，日期 ID 在生成日期时计算一次。面板打开时测量初始高度，后续翻月、详情与日程内容变化在内部滚动，不从内容几何回调反向调整窗口，避免窗口高度与懒布局估算形成反馈循环。
@@ -105,7 +105,8 @@ CI 不参与发版：它只在 push 到 `main` 和 PR 时跑测试与构建校�
 
 正式分发需要 Apple Developer Program 的 **Developer ID Application** 证书、对应私钥，
 以及 `notarytool` 公证凭据。发布脚本会构建 Apple Silicon 版本，检查签名团队、
-安全时间戳、Hardened Runtime、公证票据和 Gatekeeper，然后生成 DMG、在线升级包和 Homebrew cask。
+安全时间戳、Hardened Runtime、公证票据和 Gatekeeper，然后生成 DMG、在线升级包、Sparkle XML 和 Homebrew cask。
+Sparkle 框架及内置安装器/XPC 逐层裁剪为 arm64 并重签，不能只签框架外层。
 
 先将公证凭据保存到钥匙串：
 
@@ -114,6 +115,13 @@ xcrun notarytool store-credentials XStats \
   --apple-id you@example.com \
   --team-id YOUR_TEAM_ID
 ```
+
+在线更新使用 Sparkle 2.10.0。更新包和同名 `.xml` 清单由 Ed25519 私钥签名，公钥固定在
+`project.yml` 的 `SUPublicEDKey`。私钥存放在登录钥匙串账户 `work.12306.xstats.sparkle`，
+发布脚本只读取已有账户并比对公钥，不生成或轮换密钥。更换发布机器前通过安全方式迁移并备份
+该私钥；不要写入仓库、CI 日志或聊天。可用 `SPARKLE_KEY_ACCOUNT` 选择已存在的账户，
+`SPARKLE_TOOLS_DIR` 指向官方 `sign_update` / `generate_keys` 工具目录。
+客户端使用 Sparkle 官方签名信任链；同团队签名、公证和 Gatekeeper 在发布阶段强制检查。
 
 然后发布：
 
@@ -129,7 +137,7 @@ NOTARY_PROFILE=XStats task release
 生成的包不应公开分发。
 
 `release.sh` 开始时只允许版本元数据存在未提交改动，任何源码、脚本或新增文件都会中止构建；
-随后在 `dist/release-provenance.json` 记录构建前提交、版本、构建号及版本文件哈希。
+随后在 `dist/release-provenance.json` 记录构建前提交、版本、构建号及版本文件和更新摘要译文哈希。
 `publish_release.sh` 会验证最终提交只改了允许的版本元数据，且工作区、版本文件与构建记录一致，
 避免安装包与 Git tag 对应源码不一致。
 
@@ -150,7 +158,7 @@ task release-all
 打包完成后按顺序执行：
 
 ```bash
-# 1. 检查 dist/ 产物：dmg、zip、appcast.json、xstats.rb
+# 1. 检查 dist/ 产物：dmg、zip、同名 xml、appcast.json、xstats.rb
 ls dist/
 
 # 2. 提交并推送版本改动——publish_release.sh 会校验 HEAD 与 origin/main 一致，
@@ -164,7 +172,7 @@ git push
 ```
 
 发布需要本地装有 `mc`（MinIO 客户端，别名 `c-ip` 指向对象存储源站）和 `gh`（GitHub CLI）。
-安装包放在 `https://c.ysicing.net/oss/apps/macOS/XStats/`；GitHub Release 只挂 dmg，
+安装包与已签名的 XML 放在 `https://c.ysicing.net/oss/apps/macOS/XStats/`；上传并回读核验 DMG、ZIP、XML 后才发布原有 JSON API，API 字段和旧客户端协议保持不变。新客户端通过固定 `/api/v1/update/appcast.xml` 获取当前版本的签名 XML，服务端原样代理版本文件，合并统计并禁止缓存。必须先部署双区域 API；发布脚本通过无安装 ID 的只读探测确认入口已上线（400 + no-store），未就绪则阻止发布。GitHub Release 只挂 dmg，
 作为应用内「手动下载」和 README 的下载入口。版本徽章需在四个 README 的第 9 行手动更新，
 `scripts/sync_changelog.py` 不处理徽章。
 
@@ -181,7 +189,7 @@ git push
 - `Packages/XStatsKit/Sources/Metrics`：CPU、内存、网络、GPU、磁盘、电池、进程和传感器采集。
 - `Packages/XStatsKit/Sources/AIUsage`：本机 Codex / Claude Code 会话日志的只读扫描、Token 统计与增量检查点；订阅额度在 AI 模块启用后自动查询，“显示本地用量”只控制日志扫描与本地 Token 展示。
 - `Packages/XStatsKit/Sources/Cleaner`：清理规则、安全守卫、扫描和执行。
-- `Packages/XStatsKit/Sources/Updates`：版本清单、下载校验和应用替换。
+- `Packages/XStatsKit/Sources/Updates`：版本清单、安装能力与 Widget 升级协调；`XStatsUI/State/SparkleInstaller.swift` 将 Sparkle 检查、跳过和安装回调接入现有升级界面。
 - `Packages/XStatsKit/Sources/HelperShared`：应用与辅助工具共用的 XPC 协议和维护命令。
 - `Packages/XStatsKit/Sources/WebDAVSync`：WebDAV 同步和钥匙串密码存储。
 - `Packages/XStatsKit/Sources/WidgetData`：主应用与桌面小组件共享的无凭据展示摘要；AI 额度沿用模块总开关，本地用量开关单独传给 Widget，旧摘要缺少新字段时沿用原有总开关。
@@ -189,6 +197,22 @@ git push
 
 - `Packages/XStatsKit/Sources/XStatsUI/Rest`：本机休息计时、幕布、Mini HUD 与合成声音。
 - `Packages/XStatsKit/Tests`：Swift 单元测试。
+
+更新引擎：应用启动 10 秒后创建唯一的 Sparkle updater，由 Sparkle 调度检查、持久化跳过版本并负责下载、签名验证、安装与重启；XStats 不再设置每小时的独立检查 timer。薄策略层保留“启动时”成功后停止、失败每小时重试、“运行时静默”、每日/每周和自然月间隔；变更或恢复设置会更新 Sparkle 调度。自动下载、自动安装和系统分析保持关闭，只有点击安装才下载。新签名 XML 同步携带摘要、发布日期、DMG、完整更新日志及 ZIP 元数据；新客户端不再取未签名 JSON 作为检查结果。旧跳过记录与暂时离线的跳过操作在匹配签名版本时通过公开 skip 回调迁移（点击后立即静默，不要求网络成功）；手动检查始终可查看跳过的版本。统计 ID、通知设置及去重、手动下载与设置备份保留，检查失败只串行尝试一个备用区域。
+
+Sparkle 2.10 的配置 setter 即使值相同也会触发 KVO/reset，且 reset 会把更新源 URL 变化视为立即检查的理由（包括关闭自动检查时）。因此仅在配置实际变化时写入；区域回退结束后保留最后检查的 URL，下一轮在 `mayPerformUpdateCheck` 中复位到首选区域。修改此流程时必须验证双区域均失败后不连续请求，以及从不/启动策略不产生额外唤醒。
+
+更新摘要只提供中英文：以 `CHANGELOG.md` 当前版本为中文主稿，`ReleaseNotes.json` 保存该版本的 `version`、生成后的中文 `sourceNotes` 及英文译文（`translations.en`）。每次发版同步修改英文译文，条目数量须与中文摘要一致；脚本会拒绝版本错配、过期源文案、缺失或空译文。不会联网自动翻译或回填历史日志。`sourceNotes` 可用 `scripts/appcast.py` 生成的 `dist/appcast.json` 的 `notes` 核对。
+
+GitHub Release 正文同时包含 `中文` 与 `English` 两段：中文保留 `CHANGELOG.md` 对应版本的完整正文、分类、链接和升级提示，英文复用 `translations.en`，译文必须涵盖用户操作及兼容性注意事项。`scripts/github_release_notes.py <版本>` 可在发布前只读预览正文；发布脚本在上传前生成并校验内容，创建或重跑编辑 Release 时使用同一份双语正文，不自动修改历史 Release。
+
+签名 XML 同时包含带 `xml:lang` 的 Sparkle 中英文标准描述和 `xstats:notes-zh-Hans`、`xstats:notes-en` 文本字段。后者保留 Sparkle 按系统偏好筛选前的中英文原文，更新窗口按当前应用语言即时显示：简体中文和繁体中文均显示中文，其余语言统一显示英文。摘要内容使用从左到右布局，界面按钮和标题仍跟随应用语言。全部摘要随整份 XML 签名，语言切换不新增请求；旧清单没有英文摘要时保留原摘要。旧 JSON 的 `notes` 继续保留中文；完整历史日志链接仍指向中文 CHANGELOG。
+
+`ReleaseNotes.json` 属于允许的发布元数据；来源记录保存其构建时哈希，构建后任何译文变动都会阻止发布，必须重新执行构建和清单签名流程。
+
+旧客户端兼容约束：保留 `POST /api/v1/update/check` 及其 JSON 顶层字段和类型（`build` 为字符串、`size` 为整数），`url` 始终指向同一份完整 ZIP，`sha256` 与 `size` 必须匹配该 ZIP；不能把旧接口改成 XML 或改指向 XML。ZIP 继续使用 `ditto --keepParent` 保留唯一顶层 `XStats.app`，所有嵌套代码使用原 Developer ID 团队签名并完成公证、装订。XML 获取失败不得影响 JSON 返回；发布包和签名 XML 全部就绪后才切换现有 JSON 发布清单。后端回归测试覆盖 XML 缺失、异常、超大和 HTTPS 降级时的旧 JSON 返回，发布脚本测试核对双区域接收到的完整 JSON 清单。
+
+首个迁移版仍由旧 JSON 客户端安装，后续版本使用 Sparkle。发布验收需覆盖已签名且公证的旧版 → 迁移版 → 后续版、取消/失败重试、无写权限授权、Widget 与特权工具恢复；本地替身的连续升级测试不能代替公开版本的完整迁移验收。先部署双区域的固定 XML 入口，再发布首个 Sparkle 客户端；不要绕过 `publish_api.py --check-sparkle` 门禁。
 
 更新提醒：通知设置中的“新版本更新”默认开启，沿用自动更新检查调度；后台发现未跳过的新版本时发送系统通知，不主动打开升级窗口。“运行时静默”与“从不”继续保持静默，手动检查仍显示更新窗口。仅在通知成功提交后记录最近提醒版本，跨重启去重；权限拒绝或发送失败不消耗提醒机会。点击通知打开更新窗口，重启后尚无清单时重新检查。通知偏好参与设置备份，提醒记录仅留在本机。
 

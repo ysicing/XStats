@@ -5,6 +5,7 @@
 - macOS 客户端使用 Swift 6、AppKit 与 SwiftUI，包含 WidgetKit 扩展；目标为 macOS 14+、Apple Silicon（arm64）。
 - `project.yml` 由 XcodeGen 生成 Xcode 工程；可测试模块位于 Swift Package `Packages/XStatsKit`，构建任务定义在 `Taskfile.yml`。
 - 系统采集使用 IOKit / SMC；特权操作通过 `SMAppService` 注册的 XPC 辅助工具完成。本机历史和 AI 统计使用 SQLite，偏好设置使用 UserDefaults，凭据使用 Keychain。
+- 在线更新使用 Sparkle 2.10.0 统一管理检查调度、跳过版本与安装，沿用 XStats 更新界面及系统通知开关；不得并存独立检查定时器或自动下载/安装。固定 XML API 合并安装统计并原样返回已签名清单，旧 JSON 协议继续兼容。发布前必须先部署双区域 XML 入口，验证同团队签名、公证与 Gatekeeper，并先上传已签名的版本 XML 和安装包再发布 JSON 清单。
 - 日历使用 Tyme4Swift；更新检查服务位于 `server/api`，使用 Go、Fiber v3、GORM 和 SQLite。依赖版本以 `Packages/XStatsKit/Package.swift` 和 `server/api/go.mod` 为准，构建与发布步骤见 [DEVELOPMENT.md](DEVELOPMENT.md)。
 
 ## 架构与代码质量

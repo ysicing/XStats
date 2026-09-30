@@ -10,6 +10,7 @@ import Updates
 
 /// 新版本信息：版本号、日期、体积与更新摘要，升级提示窗口与“关于”页共用
 struct ReleaseSummary: View {
+    @Environment(AppModel.self) private var model
     let release: UpdateRelease
     let currentVersion: String
     /// 升级提示窗口里限制摘要区高度，超出时滚动；关于页里完整展开
@@ -23,6 +24,7 @@ struct ReleaseSummary: View {
             Text(tr("更新内容")).dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
             notes
         }
+        .environment(\.layoutDirection, model.settings.language.resolved.isRightToLeft ? .rightToLeft : .leftToRight)
     }
 
     private var header: some View {
@@ -43,13 +45,16 @@ struct ReleaseSummary: View {
     @ViewBuilder
     private var notes: some View {
         let list = VStack(alignment: .leading, spacing: DS.Space.s2) {
-            ForEach(Array(release.notes.enumerated()), id: \.offset) { _, note in
+            ForEach(Array(release.notes(for: model.settings.language.resolved.languageCode).enumerated()), id: \.offset) { _, note in
                 HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
                     Circle().fill(DS.Palette.primary).frame(width: DS.Space.s1 + DS.Space.s1 / 2, height: DS.Space.s1 + DS.Space.s1 / 2)
                         .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + DS.Space.s1 }
                     Text(note).dsFont(.sm).foregroundStyle(DS.Palette.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                // 更新摘要只使用中英文，在阿拉伯语界面中也沿用从左到右的阅读方向。
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .environment(\.layoutDirection, .leftToRight)
             }
             if let changelog = release.changelog {
                 Button { NSWorkspace.shared.open(changelog) } label: {
@@ -90,8 +95,10 @@ struct UpdateProgress: View {
                 }
                 ProgressTrack(fraction: fraction)
             }
+        case .checking:
+            InfoBanner(icon: "arrow.triangle.2.circlepath", text: tr("正在检查更新"))
         case .verifying:
-            InfoBanner(icon: "checkmark.shield", text: tr("正在核对校验值、开发者签名与 Apple 公证…"))
+            InfoBanner(icon: "checkmark.shield", text: tr("正在验证更新包与开发者签名…"))
         case .installing:
             InfoBanner(icon: "arrow.triangle.2.circlepath", text: tr("正在安装，完成后 XStats 会自动重启。"))
         case .failed(let message):
@@ -136,7 +143,7 @@ struct UpdatePromptView: View {
                         .keyboardShortcut(.defaultAction)
                 }
             }
-            .disabled(updates.phase == .verifying || updates.phase == .installing)
+            .disabled(updates.isBusy && !updates.isDownloading)
         }
         .padding(.horizontal, DS.Space.s6)
         .padding(.bottom, DS.Space.s6)

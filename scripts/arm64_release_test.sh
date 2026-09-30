@@ -16,6 +16,11 @@ if grep -q -- '^  -quiet' <<< "$compile"; then
   exit 1
 fi
 
+# 无证书的 CI 用临时签名：关闭团队验证所需的 runtime，正式签名路径仍必须保留。
+adhoc="$(task --dry compile SIGN_ID=- 2>&1)"
+grep -q 'CODE_SIGNING_ALLOWED=NO ENABLE_HARDENED_RUNTIME=NO' <<< "$adhoc"
+grep -q 'scripts/sign_sparkle.sh' <<< "$adhoc"
+
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 

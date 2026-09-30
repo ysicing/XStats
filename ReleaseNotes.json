@@ -1,0 +1,23 @@
+{
+  "version": "0.14.0",
+  "sourceNotes": [
+    "菜单栏网速旁可选显示公网 IP 归属地的国旗或地区文字，复用网络详情的查询结果，不增加网络请求",
+    "进程页新增系统活动监视器入口",
+    "进程管理改为默认关闭的可选功能，可在通用设置中按需开启",
+    "“AI 用量与额度”统一简化为“AI 用量”，同步多语言名称与说明",
+    "优化卸载确认弹窗的按钮、文案和长应用名排版，明确所选项目与废纸篓恢复方式",
+    "修复在线更新安装后可能无法自动启动的问题",
+    "修复卸载前退出菜单栏应用后，“正在运行”提示及卸载按钮未及时刷新的问题"
+  ],
+  "translations": {
+    "en": [
+      "Optionally show the public IP country flag or region beside menu bar network speeds, reusing existing results without extra requests",
+      "Add a shortcut to Activity Monitor on the Processes page; when the built-in process feature is disabled, the process keyboard shortcut opens Activity Monitor",
+      "Make process management optional and disabled by default; enable it in General settings. Per-app usage remains available on other monitoring pages",
+      "Rename “AI Usage and Quotas” to “AI Usage” across all languages",
+      "Improve uninstall confirmation buttons, wording, and long app names; clarify selected items and Trash recovery",
+      "Fix automatic relaunch after installing an update; if the app does not relaunch after the first upgrade from an older version, open it manually once",
+      "Fix delayed refresh of running status and the uninstall button after quitting menu bar apps"
+    ]
+  }
+}

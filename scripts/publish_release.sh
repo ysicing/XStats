@@ -44,10 +44,21 @@ assert feed["version"] == sys.argv[2] and feed["notes"], feed
 assert feed["sha256"] == digest(sys.argv[3]) and feed["url"].endswith("-AppleSilicon.zip"), feed
 assert "intel" not in feed, feed
 PY
+python3 scripts/sparkle_appcast.py "$APPCAST" "dist/XStats-${VERSION}-AppleSilicon.zip" --verify
+# 新客户端依赖固定 XML 入口；先部署两区域 API，再对外发布客户端。探测不产生安装统计。
+python3 scripts/publish_api.py --check-sparkle
 grep -q "version \"${VERSION}\"" "$CASK" || { echo "$CASK 的版本不是 ${VERSION}" >&2; exit 1; }
 dmg="dist/XStats-${VERSION}-AppleSilicon.dmg"
 xcrun stapler validate "$dmg" >/dev/null || { echo "$dmg 没有装订公证票据" >&2; exit 1; }
 grep -q "$(shasum -a 256 "$dmg" | cut -d' ' -f1)" "$CASK" || { echo "$CASK 里的 sha256 与 $dmg 不一致" >&2; exit 1; }
+
+# 在上传前确认中英文正文完整有效；创建和重跑编辑 Release 使用同一份内容。
+# 后面的 Homebrew 段会设置 EXIT trap，因此这里用完立即删除临时文件。
+NOTES="$(mktemp)"
+if ! python3 scripts/github_release_notes.py "$VERSION" > "$NOTES"; then
+  rm -f "$NOTES"
+  exit 1
+fi
 
 # 上传后从 CDN 回读比对：安装包文件名带版本号、内容不可变，长 TTL 缓存无副作用；
 # 若此前有人探测过同名 URL 留下 404 负缓存，刷新该路径后重跑即可。
@@ -62,19 +73,10 @@ upload() {
 }
 upload "dist/XStats-${VERSION}-AppleSilicon.dmg"
 upload "dist/XStats-${VERSION}-AppleSilicon.zip"
+upload "dist/XStats-${VERSION}-AppleSilicon.xml"
 
 # GitHub Release 是手动下载入口：应用内“手动下载”在没拿到清单时会跳到 releases/latest，
 # 那里必须挂着 dmg。整段必须可安全重跑。
-# 不能用 trap 清理：脚本后面的 Homebrew tap 段会再设一个 EXIT trap，把这个覆盖掉。
-# 用完立刻删；中途失败最多留下一个临时小文件。
-NOTES="$(mktemp)"
-# 取 CHANGELOG 里该版本段落的原文，而不是 appcast 里截断到 48 字的摘要
-awk -v v="## ${VERSION} · " '
-  index($0, v) == 1 { inside = 1; next }
-  inside && /^## / { exit }
-  inside { print }
-' CHANGELOG.md > "$NOTES"
-[ -s "$NOTES" ] || { rm -f "$NOTES"; echo "CHANGELOG.md 里没有 ${VERSION} 的正文" >&2; exit 1; }
 DMG="dist/XStats-${VERSION}-AppleSilicon.dmg"
 if gh release view "v${VERSION}" >/dev/null 2>&1; then
   # 重跑：远端 tag 必须还指向这次发布的提交，不擅自移动已有的 tag。

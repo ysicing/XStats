@@ -355,34 +355,63 @@ ambiguous matches remain unknown. Disconnected cached devices never retain a cha
 
 ## Online updates
 
-`UpdateController` posts the current version and a hashed installation ID according to the user's update-check schedule.
-China-region locales prefer `https://x-stats.china.12306.work/api/v1/update/check`; other locales prefer
-`https://xstats-apps.12306.work/api/v1/update/check`. Failures fall back serially to the other endpoint,
-and the first success stops further requests so one check is not reported twice. Requests use the stable
-`XStats/<app-version> (macOS <system-version>)` User-Agent format for regional routing and diagnostics.
+The current release's Chinese summaries come from `CHANGELOG.md`; `ReleaseNotes.json` stores the
+matching source summaries and one English translation. The XML publisher validates their version
+and content, emits Chinese/English `description` nodes and signed `xstats:notes-zh-Hans` and
+`xstats:notes-en` fields, and binds the translation file to release provenance. The custom UI shows
+Chinese summaries for both Simplified and Traditional Chinese app languages, and English for all
+other languages, without another request. Legacy feeds without English notes keep their original
+description. The legacy JSON protocol continues to expose Chinese `notes` and the same ZIP metadata.
+GitHub Release notes retain the full Chinese changelog section and append the same English release
+summaries, including user actions and compatibility notes. Publication validates both sections before
+uploading artifacts and uses the same bilingual body for release creation and edits.
+
+`UpdateController` owns one long-lived Sparkle 2.10.0 updater and custom user driver. Sparkle
+schedules checks, stores skipped builds, verifies signed feeds/archives and installs only after explicit
+confirmation. China-region locales prefer `https://x-stats.china.12306.work/api/v1/update/appcast.xml`;
+other locales prefer `https://xstats-apps.12306.work/api/v1/update/appcast.xml`. A failed feed check retries
+the other region once, serially; archive or installation failures never restart installation through a
+fallback. Each GET includes the current version and hashed installation ID, so no separate telemetry
+POST or second check timer is needed. System profiling and automatic download/install stay disabled.
 Existing installations retain the hash of their saved 32-byte random value, which remains in local
 `UserDefaults` and is excluded from WebDAV settings sync. New installations without a saved value hash
 the Mac serial number read through IOKit. If the serial is unavailable, they generate and save a random
 value with `SecRandomCopyBytes`. None of these paths invokes Keychain authorization, and the raw serial
 is never sent. Clearing preferences on an older installation can produce a new ID; historical rows are
-not merged. The response has the same release manifest fields previously read from the static appcast (version,
-date, notes taken from `CHANGELOG.md` by `scripts/appcast.py`, zip URL, sha256 and size). An
-update is installed only after: sha256 matches, the zip holds exactly one `.app`, its bundle ID and
-version match, `SecStaticCodeCheckValidity` passes with a requirement pinned to the running app's
-team, and `spctl --assess` accepts it (notarized). The old bundle is renamed into a same-volume
-temporary folder, the new one moved into place (restored on failure; an administrator prompt is
-used when the folder is not writable), and a detached shell waits for the process to exit before
-reopening the app with `open -n`. LaunchServices can retain the old instance after its PID disappears;
-requesting a new instance prevents the relaunch from being routed to that terminated process.
-Downloads use URLSession's asynchronous download API with a task-level progress delegate. The system
-coordinates task creation and cancellation, avoiding a task being created on an already invalidated
-session. Cancellation is checked before verification and before replacement starts; replacement itself
-must finish or roll back once begun.
+not merged. The API selects the versioned sibling XML of the current JSON manifest's ZIP, with
+`Cache-Control: no-store`, a ten-second upstream deadline and a 256 KiB read limit. It returns the
+original signed bytes without holding a signing key. Publishing the existing manifest switches the
+fixed feed immediately, while ZIP/XML CDN objects remain immutable. Old clients retain the JSON POST
+protocol and existing installer.
+
+`SURequireSignedFeed` and `SUVerifyUpdateBeforeExtraction` require signed feeds and archive verification
+before extraction. Inline notes, release date, manual DMG and full changelog links are part of the
+signed XML. The driver checks the build, display version, URL, size and minimum OS against the user's
+confirmed release before starting a new install or skip check. Sparkle owns the skip record through its
+public user-choice callback; legacy skips and newly requested offline skips are held locally only until
+the matching signed item can be passed through Sparkle's public skip reply.
+Manual checks can still reveal skipped versions. Notification Center preferences, permission handling
+and successful-submission deduplication remain in XStats; background discoveries never open a window.
+A thin policy layer preserves launch-only success/retry semantics, quiet mode and calendar-month
+intervals; Sparkle supplies the only check timer. Policy changes take effect through Observation.
+The client no longer downloads the package twice to run a separate same-Team/Gatekeeper preflight.
+Instead, release scripts enforce the expected Developer ID team, arm64, hardened runtime and secure
+timestamps for the app, Widget, helper and every Sparkle executable, then notarize, staple and require
+Gatekeeper acceptance before packaging. Public releases must keep these gates intact.
+
+Downloads expose progress in the existing update window with redraws coalesced to half-percent steps.
+Checks and downloads can be cancelled; extraction/replacement must finish once started. Widget
+processes belonging to this exact installation path are stopped before installation; other installations
+are untouched. The controller owns the updater; its user driver keeps only a weak updater reference,
+so failures, retries and controller teardown do not create a retain cycle.
+Versioned ZIP and XML objects are uploaded and read back before either regional JSON API is published;
+old clients continue using the unchanged JSON response and their existing installer for the transition.
 After an update the old helper may still be running; the app unregisters an outdated
 helper, re-registers the bundled version, and verifies the protocol before privileged calls resume.
 
 `server/api` is one Go program. Fiber exposes `POST /api/v1/update/check`, authenticated
-`PUT /api/v1/releases/current`, and the aggregate `GET /stats` dashboard. GORM uses
+`PUT /api/v1/releases/current`, the fixed signed `GET /api/v1/update/appcast.xml`, and the aggregate
+`GET /stats` dashboard. GORM uses
 `github.com/libtnb/sqlite` with WAL and one database connection so concurrent checks cannot compete for
 SQLite's single writer. Each installation row stores only the SHA-256 installation ID, current version,
 first/last check times and check count; request IPs and monitoring data are not persisted. The release

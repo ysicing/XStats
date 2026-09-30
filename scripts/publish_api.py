@@ -8,6 +8,8 @@ import json
 import os
 import sys
 import urllib.request
+import urllib.error
+from urllib.parse import urlsplit, urlunsplit
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -16,6 +18,25 @@ DEFAULT_ENDPOINTS = (
     "https://xstats-apps.12306.work/api/v1/releases/current",
     "https://x-stats.china.12306.work/api/v1/releases/current",
 )
+
+
+def check_sparkle_endpoints(endpoints: list[str]) -> None:
+    """不携带安装标识的探测必须返回 400，防止先发布客户端而服务端仍是旧版。"""
+    if not endpoints:
+        raise ValueError("至少需要一个版本发布接口")
+    for endpoint in endpoints:
+        parts = urlsplit(endpoint)
+        if not parts.path.endswith("/api/v1/releases/current"):
+            raise ValueError(f"无法推导 Sparkle 更新源：{endpoint}")
+        url = urlunsplit((parts.scheme, parts.netloc, parts.path.removesuffix("releases/current") + "update/appcast.xml", "", ""))
+        request = urllib.request.Request(url, headers={"User-Agent": "XStats-Release"})
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                raise RuntimeError(f"{url} 未拒绝缺少安装标识的请求：{response.status}")
+        except urllib.error.HTTPError as error:
+            with error:
+                if error.code != 400 or error.headers.get("Cache-Control") != "no-store":
+                    raise RuntimeError(f"请先部署支持 Sparkle 的 API：{url} 返回 {error.code}") from error
 
 
 def publish(appcast: Path, endpoints: list[str], token: str) -> None:
@@ -59,7 +80,10 @@ def main() -> None:
     endpoints = configured_endpoints(os.environ)
     token = os.environ.get("XSTATS_RELEASE_TOKEN", "")
     try:
-        publish(Path(sys.argv[1]), endpoints, token)
+        if sys.argv[1] == "--check-sparkle":
+            check_sparkle_endpoints(endpoints)
+        else:
+            publish(Path(sys.argv[1]), endpoints, token)
     except Exception as error:
         raise SystemExit(f"发布版本到 API 失败：{error}") from error
 
