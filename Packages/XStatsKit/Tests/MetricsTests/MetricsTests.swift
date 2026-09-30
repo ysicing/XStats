@@ -216,9 +216,9 @@ struct LiveSamplerTests {
             )
         }
 
-        let launchDeadline = clock.now + .seconds(1)
+        let launchDeadline = clock.now + .seconds(5)
         while !FileManager.default.fileExists(atPath: marker.path), clock.now < launchDeadline {
-            await Task.yield()
+            try await Task.sleep(for: .milliseconds(10))
         }
         try #require(FileManager.default.fileExists(atPath: marker.path))
         let cancelled = clock.now
@@ -226,7 +226,8 @@ struct LiveSamplerTests {
         let output = await task.value
 
         #expect(output == nil)
-        #expect(cancelled.duration(to: clock.now) < .seconds(1))
+        // TERM、KILL 和管道排空可各等待 0.5 秒；留出 CI 调度余量，仍须早于 5 秒命令完成。
+        #expect(cancelled.duration(to: clock.now) < .seconds(3))
     }
 
     @Test func parsesCloudflareTrace() {
