@@ -749,18 +749,22 @@ public final class AppSettings {
             ?? (defaults.bool(forKey: Keys.restCycleEnabled) ? .cycle : .single)
         restSound = defaults.string(forKey: Keys.restSound).flatMap(RestSound.init(rawValue:)) ?? .off
         restHUDStyle = defaults.string(forKey: Keys.restHUDStyle).flatMap(RestHUDStyle.init(rawValue:)) ?? .countdown
+        // 旧版只在用户开关日历后写入该键；已有安装缺少保存值时沿用旧版默认，不按地区重新初始化。
+        let isExistingCalendarInstall = defaults.object(forKey: Keys.calendarEnabled) != nil
         calendarEnabled = defaults.bool(forKey: Keys.calendarEnabled)
         let savedCalendarPreferences = defaults.data(forKey: Keys.calendarPreferences)
         calendarPreferences = savedCalendarPreferences
-            .flatMap { try? JSONDecoder().decode(CalendarPreferences.self, from: $0) } ?? CalendarPreferences(locale: calendarLocale)
+            .flatMap { try? JSONDecoder().decode(CalendarPreferences.self, from: $0) }
+            ?? CalendarPreferences(locale: isExistingCalendarInstall ? Locale(identifier: "zh_CN") : calendarLocale)
         calendarEventSourceIDs = defaults.stringArray(forKey: "calendarEventSourceIDs").map { Set($0) }
         calendarReminderSourceIDs = defaults.stringArray(forKey: "calendarReminderSourceIDs").map { Set($0) }
         let savedCalendarFeatures = defaults.stringArray(forKey: Keys.calendarFeatures)
         calendarFeatures = savedCalendarFeatures
-            .map(CalendarFeature.restored(from:)) ?? CalendarFeature.defaults(for: calendarLocale)
+            .map(CalendarFeature.restored(from:))
+            ?? (isExistingCalendarInstall ? CalendarFeature.mainlandChinaDefaults : CalendarFeature.defaults(for: calendarLocale))
         let savedCalendarFirstWeekday = (defaults.object(forKey: Keys.calendarFirstWeekday) as? Int)
             .flatMap { (1...7).contains($0) ? $0 : nil }
-        calendarFirstWeekday = savedCalendarFirstWeekday ?? calendar.firstWeekday
+        calendarFirstWeekday = savedCalendarFirstWeekday ?? (isExistingCalendarInstall ? 2 : calendar.firstWeekday)
         let items = defaults.stringArray(forKey: Keys.menuBarItems)?.compactMap(MenuBarItem.init(rawValue:))
         menuBarItems = Set(items ?? [.cpu, .memory, .network])
         menuBarStyle = defaults.string(forKey: Keys.menuBarStyle).flatMap(MenuBarStyle.init(rawValue:)) ?? .stacked

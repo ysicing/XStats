@@ -48,7 +48,9 @@ extension CalendarEngine {
 
     static func widgetSummary(for day: CalendarDay, features: Set<CalendarFeature> = Set(CalendarFeature.allCases)) -> WidgetSnapshot.CalendarSummary {
         let schedule: WidgetSnapshot.CalendarSummary.Schedule
-        if !features.contains(.holidays) || !hasHolidayData(year: day.year) {
+        if !features.contains(.holidays) {
+            schedule = .holidaysDisabled
+        } else if !hasHolidayData(year: day.year) {
             schedule = .unknown
         } else if let holiday = day.holiday {
             if holiday.isWork {

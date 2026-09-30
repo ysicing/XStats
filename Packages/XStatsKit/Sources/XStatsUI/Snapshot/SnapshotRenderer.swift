@@ -128,7 +128,10 @@ enum SnapshotRenderer {
         let name = "XStats.calendarSnapshot.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: name) else { return }
         defer { defaults.removePersistentDomain(forName: name) }
-        let settings = AppSettings(defaults: defaults)
+        // 固定地区与周起始日，截图不随运行机器的系统设置变化。
+        var weekCalendar = Calendar(identifier: .gregorian)
+        weekCalendar.firstWeekday = 2
+        let settings = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "zh_CN"), calendar: weekCalendar)
         settings.calendarEnabled = true
         settings.language = L10n.language
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [])
@@ -137,14 +140,14 @@ enum SnapshotRenderer {
         for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
             guard let appearance = NSAppearance(named: name) else { continue }
             NSApp.appearance = appearance
-            settings.calendarFeatures = CalendarFeature.defaults
-            write(CalendarPopover(referenceDate: september), model: model, appearance: appearance,
+            settings.calendarFeatures = CalendarFeature.mainlandChinaDefaults
+            write(CalendarPopover(referenceDate: september, firstWeekday: settings.calendarFirstWeekday), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("calendar-\(suffix).png"))
             settings.calendarPreferences.largeLunarText = true
             settings.calendarPreferences.strongerLunarText = true
             settings.calendarPreferences.showEvents = true
             settings.calendarPreferences.showReminders = true
-            write(CalendarPopover(referenceDate: september), model: model, appearance: appearance,
+            write(CalendarPopover(referenceDate: september, firstWeekday: settings.calendarFirstWeekday), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("calendar-agenda-\(suffix).png"))
             write(CalendarOptionsPopover(), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("calendar-options-\(suffix).png"))
@@ -155,12 +158,12 @@ enum SnapshotRenderer {
             settings.calendarPreferences.display = .dateLunar
             write(CalendarOptionsPopover(), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("calendar-lunar-\(suffix).png"))
-            // 重置呈现偏好；黄历在日期详情中固定显示，其他选项仍按本机地区初始化。
+            // 重置呈现偏好；黄历在日期详情中固定显示，其他选项沿用固定的中国大陆默认值。
             settings.calendarPreferences = CalendarPreferences(locale: Locale(identifier: "zh_CN"))
-            write(CalendarPopover(referenceDate: september, showsDayDetails: true), model: model, appearance: appearance,
+            write(CalendarPopover(referenceDate: september, showsDayDetails: true, firstWeekday: settings.calendarFirstWeekday), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("calendar-almanac-\(suffix).png"))
             settings.calendarFeatures = Set(CalendarFeature.allCases)
-            write(CalendarPopover(referenceDate: summer, showsDayDetails: true), model: model, appearance: appearance,
+            write(CalendarPopover(referenceDate: summer, showsDayDetails: true, firstWeekday: settings.calendarFirstWeekday), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("calendar-details-\(suffix).png"))
         }
     }

@@ -12,7 +12,7 @@ struct CalendarAlmanacTests {
         let day = try #require(CalendarEngine.day(year: date.0, month: date.1, day: date.2))
         let summary = CalendarEngine.widgetSummary(for: day, features: [])
         #expect(summary.festivals.isEmpty && summary.solarTerm == nil)
-        #expect(summary.holidayName == nil && summary.schedule.needsWork == nil)
+        #expect(summary.holidayName == nil && summary.schedule == .holidaysDisabled)
         #expect(summary.seasonalDescriptions == nil)
         #expect(summary.twelveStar != nil)
     }

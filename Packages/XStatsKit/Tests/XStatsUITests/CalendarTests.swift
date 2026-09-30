@@ -219,7 +219,7 @@ struct CalendarTests {
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = AppSettings(defaults: defaults)
         #expect(settings.calendarEnabled == false)
-        #expect(settings.calendarFeatures == CalendarFeature.defaults)
+        #expect(settings.calendarFeatures == CalendarFeature.defaults(for: .current))
         settings.calendarEnabled = true
         settings.calendarFeatures = [.hijri, .lunar]
         settings.calendarFirstWeekday = 1

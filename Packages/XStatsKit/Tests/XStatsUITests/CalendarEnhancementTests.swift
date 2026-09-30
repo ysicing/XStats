@@ -26,7 +26,7 @@ struct CalendarEnhancementTests {
         window.isReleasedWhenClosed = false
         defer { window.close() }
         for details in [false, true] {
-            let hosting = NSHostingView(rootView: CalendarPopover(referenceDate: date, showsDayDetails: details)
+            let hosting = NSHostingView(rootView: CalendarPopover(referenceDate: date, showsDayDetails: details, firstWeekday: model.settings.calendarFirstWeekday)
                 .environment(model)
                 .environment(\.reportPopoverHeight, reporter))
             window.contentView = hosting
@@ -191,6 +191,27 @@ struct CalendarEnhancementTests {
         let disabled = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "zh_CN"))
         #expect(disabled.calendarFeatures.isEmpty)
         #expect(!disabled.calendarPreferences.showHolidayOverview)
+    }
+
+    @Test(arguments: [true, false])
+    func existingInstallKeepsLegacyCalendarDefaultsInEveryRegion(calendarEnabled: Bool) throws {
+        let name = "CalendarUpgradeTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        // 旧版只写入过日历开关，未保存任何日历选项。
+        defaults.set(calendarEnabled, forKey: "calendarEnabled")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 1
+        let settings = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "en_US"), calendar: calendar)
+        #expect(settings.calendarEnabled == calendarEnabled)
+        #expect(settings.calendarFeatures == [.lunar, .holidays, .festivals, .seasonalInfo])
+        #expect(settings.calendarPreferences.showHolidayOverview)
+        #expect(settings.calendarFirstWeekday == 2)
+        // 沿用的默认值在首次启动时保存，之后地区或系统周起始日变化不再影响。
+        let reloaded = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "ja_JP"), calendar: calendar)
+        #expect(reloaded.calendarFeatures == settings.calendarFeatures)
+        #expect(reloaded.calendarPreferences == settings.calendarPreferences)
+        #expect(reloaded.calendarFirstWeekday == 2)
     }
 
     @Test(arguments: Array(1...7))

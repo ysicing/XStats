@@ -47,7 +47,7 @@ struct CalendarPopover: View {
     private let sizing: CalendarPopoverSizing
 
     init(referenceDate: Date? = nil, showsDayDetails: Bool = false,
-         sizing: CalendarPopoverSizing = .standard, firstWeekday: Int = 2) {
+         sizing: CalendarPopoverSizing = .standard, firstWeekday: Int) {
         self.referenceDate = referenceDate
         self.sizing = sizing
         let today = CalendarEngine.today(at: referenceDate ?? Date())
