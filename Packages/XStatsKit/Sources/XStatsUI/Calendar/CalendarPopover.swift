@@ -123,6 +123,7 @@ struct CalendarPopover: View {
         .onChange(of: month) { _, newMonth in
             yearInput = String(newMonth.year)
             reload()
+            refreshHolidayPlan(at: referenceDate ?? Date())
         }
         .onChange(of: selected?.id) { _, _ in refreshAlmanac() }
         .onChange(of: model.settings.calendarPreferences.showAlmanac) { _, _ in refreshAlmanac() }
@@ -156,7 +157,8 @@ struct CalendarPopover: View {
                 CalendarAgendaView(day: selected)
             }
             if !showsDayDetails, model.settings.calendarFeatures.contains(.holidays),
-               model.settings.calendarPreferences.showHolidayOverview, let holidayPlan {
+               model.settings.calendarPreferences.showHolidayOverview,
+               CalendarEngine.hasHolidayData(year: month.year), let holidayPlan {
                 CalendarHolidayPlanView(plan: holidayPlan)
             }
             if model.settings.calendarFeatures.contains(.holidays), !CalendarEngine.hasHolidayData(year: month.year) {
@@ -283,7 +285,7 @@ struct CalendarPopover: View {
             holidayPlan = nil
             return
         }
-        holidayPlan = CalendarEngine.holidayPlan(from: date)
+        holidayPlan = CalendarEngine.holidayPlan(from: date, displayedYear: month.year)
     }
 
     private func reload() {

@@ -69,8 +69,12 @@ extension CalendarEngine {
     /// 同一天、同一时区的结果不变；面板每次测量都会新建视图，缓存避免在主线程上反复逐日查询约 390 天
     private static var holidayPlanCache: (key: String, plan: CalendarHolidayPlan?)?
 
-    static func holidayPlan(from date: Date, timeZone: TimeZone = .autoupdatingCurrent) -> CalendarHolidayPlan? {
+    static func holidayPlan(from date: Date, timeZone: TimeZone = .autoupdatingCurrent,
+                            displayedYear: Int? = nil) -> CalendarHolidayPlan? {
         let calendar = gregorian(timeZone: timeZone)
+        let year = calendar.component(.year, from: date)
+        // 浏览未公布安排的年份时，在缓存命中和逐日查询前退出，避免沿用今年的概览。
+        guard hasHolidayData(year: year), hasHolidayData(year: displayedYear ?? year) else { return nil }
         let today = calendar.startOfDay(for: date)
         let key = "\(timeZone.identifier)|\(today.timeIntervalSince1970)"
         if let cached = holidayPlanCache, cached.key == key { return cached.plan }

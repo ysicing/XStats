@@ -188,7 +188,7 @@ enum CalendarEngine {
                            lunarLabel: lunar.day == 1 ? lunar.lunarMonth.getName() : lunar.getName(),
                            lunarSummary: lunar.description,
                            festivals: festivals, solarTerm: term.dayIndex == 0 ? term.solarTerm.getName() : nil,
-                           holiday: solar.legalHoliday.map { .init(name: $0.name, isWork: $0.isWork) },
+                           holiday: hasHolidayData(year: year) ? solar.legalHoliday.map { .init(name: $0.name, isWork: $0.isWork) } : nil,
                            dogDays: dog?.description, plumRain: plumRain?.description,
                            nineDays: nine?.description, seasonalBoundary: seasonalBoundary,
                            id: WidgetSnapshot.dayKey(year: year, month: month, day: day))

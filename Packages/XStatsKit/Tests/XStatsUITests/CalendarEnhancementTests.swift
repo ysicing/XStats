@@ -368,6 +368,19 @@ struct CalendarEnhancementTests {
         #expect(!result.markedDays.contains(days[4]), "event end remains exclusive")
     }
 
+    @Test func unsupportedDisplayedYearDoesNotReuseCurrentHolidayPlan() throws {
+        let today = try #require(CalendarEngine.day(year: 2026, month: 9, day: 23, timeZone: zone))
+        let current = try #require(CalendarEngine.holidayPlan(from: today.date, timeZone: zone))
+        #expect(!CalendarEngine.hasHolidayData(year: 2027))
+        #expect(CalendarEngine.holidayPlan(from: today.date, timeZone: zone, displayedYear: 2027) == nil)
+        // 返回已有数据的年份后，仍可复用当前日期的有效概览。
+        let restored = try #require(CalendarEngine.holidayPlan(from: today.date, timeZone: zone, displayedYear: 2026))
+        #expect(restored.start == current.start)
+        let month = CalendarEngine.widgetMonthSummary(year: 2027, month: 9, firstWeekday: 2,
+                                                      features: [.holidays], timeZone: zone)
+        #expect(month.days.allSatisfy { $0.holidayName == nil && $0.isWork == nil })
+    }
+
     @Test func holidayPlanCacheStillFollowsDayAndTimeZone() throws {
         let before = try #require(CalendarEngine.day(year: 2026, month: 9, day: 23, timeZone: zone))
         let first = try #require(CalendarEngine.holidayPlan(from: before.date, timeZone: zone))
