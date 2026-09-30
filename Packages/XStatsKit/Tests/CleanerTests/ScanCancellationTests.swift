@@ -18,14 +18,19 @@ struct ScanCancellationTests {
             try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
                 .write(to: app.appendingPathComponent("Info.plist"))
         }
+        // 先统计完整扫描的检查点，再在中途取消；不依赖检查点的具体位置。
+        var total = 0
+        _ = try AppUninstaller.installedApps(in: [root], excluding: []) { total += 1 }
+        #expect(total > 20, "每个嵌套候选都应检查取消，实际检查 \(total) 次")
+        let cancelAt = total / 2
         var checks = 0
         #expect(throws: CancellationError.self) {
             try AppUninstaller.installedApps(in: [root], excluding: []) {
                 checks += 1
-                if checks == 7 { throw CancellationError() }
+                if checks == cancelAt { throw CancellationError() }
             }
         }
-        #expect(checks == 7)
+        #expect(checks == cancelAt, "取消后不应继续遍历")
         let apps = try AppUninstaller.installedApps(in: [root], excluding: ["test.list.0"], checkCancellation: {})
         #expect(apps.count == 19 && !apps.contains { $0.bundleIdentifier == "test.list.0" })
     }
