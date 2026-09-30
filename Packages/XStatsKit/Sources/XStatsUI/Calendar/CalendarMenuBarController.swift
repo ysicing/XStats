@@ -100,7 +100,7 @@ final class CalendarMenuBarController: NSObject {
             item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
             item.button?.image = NSImage(systemSymbolName: "calendar", accessibilityDescription: tr("日历"))
             item.button?.imagePosition = .imageLeading
-            item.button?.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+            item.button?.font = .menuBarFont(ofSize: 0)
             self.item = item
         }
         if timer == nil {
@@ -130,7 +130,8 @@ final class CalendarMenuBarController: NSObject {
     private func refreshTitle() {
         guard let button = item?.button else { return }
         let preferences = model.settings.calendarPreferences
-        let title = preferences.title(at: Date(), locale: L10n.locale)
+        let title = preferences.title(at: Date(), locale: L10n.locale,
+                                      showsLunar: model.settings.calendarFeatures.contains(.lunar))
         button.title = title.isEmpty ? "" : " " + title
         button.image = NSImage(systemSymbolName: "calendar", accessibilityDescription: tr("日历"))
         let formatter = DateFormatter()
