@@ -64,12 +64,22 @@ rm -rf "$APP"
 task build CONFIG=Release INSTALL=0 BUMP=0 SIGN_ID="$SIGN_ID"
 
 for binary in "$APP/Contents/MacOS/XStats" "$APP/Contents/MacOS/XStatsHelper" \
-              "$APP/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget"; do
+              "$APP/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget" \
+              "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Sparkle" \
+              "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate" \
+              "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app/Contents/MacOS/Updater" \
+              "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc/Contents/MacOS/Installer" \
+              "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc/Contents/MacOS/Downloader"; do
   [ "$(lipo -archs "$binary")" = arm64 ] \
     || { echo "error: $binary 的架构是 $(lipo -archs "$binary")，应当只有 arm64" >&2; exit 1; }
 done
 codesign --verify --deep --strict --verbose=2 "$APP"
-for binary in "$APP" "$APP/Contents/MacOS/XStatsHelper" "$APP/Contents/PlugIns/XStatsWidget.appex"; do
+for binary in "$APP" "$APP/Contents/MacOS/XStatsHelper" "$APP/Contents/PlugIns/XStatsWidget.appex" \
+              "$APP/Contents/Frameworks/Sparkle.framework" \
+              "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate" \
+              "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app" \
+              "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc" \
+              "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc"; do
   details="$(codesign -dvv "$binary" 2>&1)"
   echo "$details" | grep -q "TeamIdentifier=${TEAM_ID}" \
     || { echo "error: $binary 未使用团队 ${TEAM_ID} 签名" >&2; exit 1; }
@@ -117,6 +127,7 @@ ditto -c -k --keepParent "$APP" "$DIST/$NAME.zip"
 # 版本清单只包含 Apple Silicon 安装包
 python3 scripts/appcast.py "$VERSION" "$BUILD" "$DOWNLOAD_BASE" \
   "$DIST/XStats-${VERSION}-AppleSilicon.zip" "$DIST/XStats-${VERSION}-AppleSilicon.dmg" > "$DIST/appcast.json"
+python3 scripts/sparkle_appcast.py "$DIST/appcast.json" "$DIST/$NAME.zip"
 
 # ---- Homebrew cask ------------------------------------------------------------
 
@@ -150,7 +161,7 @@ CASK
 
 echo
 echo "✅ ${DIST}/${NAME}.dmg  SHA-256 $(shasum -a 256 "$DIST/$NAME.dmg" | cut -d' ' -f1)"
-echo "   在线升级：${DIST}/*.zip · ${DIST}/appcast.json"
+echo "   在线升级：${DIST}/*.zip · ${DIST}/*.xml · ${DIST}/appcast.json"
 echo "   Homebrew cask：${DIST}/xstats.rb"
 echo "   本机已安装的 XStats 保持不变"
 if [ "${SKIP_NOTARIZE:-0}" = "1" ]; then

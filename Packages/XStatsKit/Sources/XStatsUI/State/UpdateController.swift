@@ -2,9 +2,10 @@ import AppKit
 import Foundation
 import Localization
 import Observation
+import Sparkle
 import Updates
 
-/// 在线升级：检查官网版本清单，发现新版时提示摘要，一键下载、校验、原地替换并重启
+/// 在线升级：Sparkle 管理检查、跳过和安装，XStats 提供现有界面与系统通知。
 @MainActor
 @Observable
 public final class UpdateController {
@@ -32,14 +33,14 @@ public final class UpdateController {
     @ObservationIgnored var onPrompt: () -> Void = {}
     /// 后台发现新版本时请求系统通知；成功提交后才记录去重状态。
     @ObservationIgnored var onUpdateAvailable: (String) async -> Bool = { _ in false }
-    /// 安装完成后退出应用，等进程结束再打开新版
-    @ObservationIgnored var terminate: () -> Void = { NSApp.terminate(nil) }
 
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private var task: Task<Void, Never>?
+    @ObservationIgnored private var updater: SPUUpdater?
+    @ObservationIgnored private var sparkleInstaller: SparkleInstaller?
     @ObservationIgnored private let launchedAt: Date
     @ObservationIgnored private var isNotifying = false
+    @ObservationIgnored private var started = false
 
     init(settings: AppSettings, defaults: UserDefaults = .standard, launchedAt: Date = Date()) {
         self.settings = settings
@@ -47,6 +48,11 @@ public final class UpdateController {
         self.launchedAt = launchedAt
         lastChecked = defaults.object(forKey: Keys.lastChecked) as? Date
         skippedVersion = defaults.string(forKey: Keys.skippedVersion)
+        // Sparkle 公开记录键：首轮迁移继承旧成功时间，避免“刚检查过”被当成首次检查。
+        // 只初始化一次，之后不覆盖 Sparkle 自己管理的检查时间。
+        if defaults.object(forKey: "SULastCheckTime") == nil, let lastChecked {
+            defaults.set(lastChecked, forKey: "SULastCheckTime")
+        }
     }
 
     var currentVersion: String {
@@ -60,9 +66,14 @@ public final class UpdateController {
         }
     }
 
-    /// 开发构建没有 Developer ID 签名，无法校验新版的签名团队，只能手动安装
+    var isDownloading: Bool {
+        if case .downloading = phase { return true }
+        return false
+    }
+
+    /// 未签名或临时签名的开发构建不执行在线安装，只提供手动下载
     var installBlockedReason: String? {
-        // 更新源暂不迁移，但安装包仍必须匹配 XStats 身份，不能放宽为接受旧产品。
+        // 仅为当前产品启用安装器，防止开发/旧产品构建误用发布更新源。
         guard let bundleID = Bundle.main.bundleIdentifier, bundleID == "work.12306.xstats.app" else { return tr("开发构建不支持在线升级") }
         guard UpdateInstaller.teamIdentifier(of: Bundle.main.bundleURL) != nil else { return tr("开发构建不支持在线升级，请下载安装包") }
         return nil
@@ -70,38 +81,83 @@ public final class UpdateController {
 
     // MARK: 检查
 
-    /// 启动时或运行期间按用户选择的策略检查；失败后由后续调度重试。
+    /// 启动后创建唯一的 Sparkle 调度器；不另设 XStats 轮询定时器。
+    func start() {
+        guard !started else { return }
+        do {
+            try ensureUpdater()
+            started = true
+            applySchedule(initial: true)
+            observeSchedule()
+            checkIfNeeded()
+        } catch {
+            phase = .failed(error.localizedDescription)
+        }
+    }
+
+    private func ensureUpdater() throws {
+        guard updater == nil else { return }
+        let driver = SparkleInstaller(onPhase: { [weak self] in self?.phase = $0 },
+                                      onRelaunch: { [weak self] in self?.skippedVersion = nil })
+        driver.onChecked = { [weak self] in self?.lastChecked = Date() }
+        driver.onNoUpdate = { [weak self] in self?.release = nil }
+        driver.onRelease = { [weak self] release, manual in
+            guard let self else { return }
+            self.release = release
+            Task { [weak self] in
+                await self?.announceUpdate(version: release.version, userInitiated: manual,
+                                           suppressPrompt: !(self?.settings.updateCheckSchedule.promptsForUpdates ?? false))
+            }
+        }
+        driver.legacySkippedVersion = { [weak self] in self?.skippedVersion }
+        driver.onLegacySkipMigrated = { [weak self] in self?.skippedVersion = nil }
+        driver.onCycleFinished = { [weak self] success in self?.applySchedule(retry: !success) }
+        sparkleInstaller = driver
+        updater = try driver.start()
+    }
+
+    private func observeSchedule() {
+        withObservationTracking {
+            _ = settings.updateCheckSchedule
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.applySchedule(initial: true)
+                self?.observeSchedule()
+                self?.checkIfNeeded()
+            }
+        }
+    }
+
+    /// Sparkle 的 timer 负责唤醒，薄策略层只保留启动检查、成功后间隔和自然月语义。
+    private func applySchedule(initial: Bool = false, retry: Bool = false) {
+        guard let updater else { return }
+        let now = Date()
+        guard let interval = settings.updateCheckSchedule.sparkleInterval(lastChecked: lastChecked, now: now,
+                                                                          launchedAt: launchedAt, retry: retry) else {
+            if updater.automaticallyChecksForUpdates { updater.automaticallyChecksForUpdates = false }
+            return
+        }
+        // 首次配置会按 Sparkle 的上次尝试时间减去 elapsed；补偿该值，保持旧成功记录的到期日。
+        let elapsed = initial ? max(0, now.timeIntervalSince(updater.lastUpdateCheckDate ?? now)) : 0
+        let nextInterval = max(60 * 60, interval + elapsed)
+        // Sparkle 的 setter 会触发 KVO/reset，即使值相同；无变化时不要重新安排周期。
+        if abs(updater.updateCheckInterval - nextInterval) >= 1 { updater.updateCheckInterval = nextInterval }
+        if !updater.automaticallyChecksForUpdates { updater.automaticallyChecksForUpdates = true }
+    }
+
     func checkIfNeeded() {
         let schedule = settings.updateCheckSchedule
         guard !isBusy, schedule.shouldCheck(lastChecked: lastChecked, now: Date(), launchedAt: launchedAt) else { return }
-        check(userInitiated: false, suppressPrompt: !schedule.promptsForUpdates)
+        check(userInitiated: false)
     }
 
-    func check(userInitiated: Bool, suppressPrompt: Bool = false) {
-        guard !isBusy else { return }
-        phase = .checking
-        task = Task {
-            let result = await Self.fetch(currentVersion: currentVersion)
-            switch result {
-            case .success(let feed):
-                // 只有拿到清单才算检查过：登录时网络常常还没连上，失败后由每小时的定时器重试，而不是等一整天
-                lastChecked = Date()
-                // 清单里没有这台 Mac 芯片的安装包时当作没有新版本
-                guard let latest = UpdateFeed.release(feed, for: .current),
-                      UpdateFeed.isNewer(latest.version, than: currentVersion) else {
-                    release = nil
-                    phase = .upToDate
-                    return
-                }
-                release = latest
-                phase = .available
-                Log.update.notice("发现新版本 \(latest.version, privacy: .public)")
-                await announceUpdate(version: latest.version, userInitiated: userInitiated, suppressPrompt: suppressPrompt)
-            case .failure(let error):
-                Log.update.error("检查更新失败：\(error.localizedDescription, privacy: .public)")
-                // 自动检查失败不打扰用户，只在关于页里显示
-                phase = userInitiated ? .failed(error.localizedDescription) : (release == nil ? .idle : .available)
-            }
+    func check(userInitiated: Bool) {
+        guard !isBusy, sparkleInstaller?.isRunning != true else { return }
+        do {
+            try ensureUpdater()
+            sparkleInstaller?.check(userInitiated: userInitiated)
+        } catch {
+            phase = userInitiated ? .failed(error.localizedDescription) : .idle
         }
     }
 
@@ -120,48 +176,6 @@ public final class UpdateController {
         if await onUpdateAvailable(version) { defaults.set(version, forKey: Keys.notifiedVersion) }
     }
 
-    private static func fetch(currentVersion: String) async -> Result<UpdateRelease, UpdateError> {
-        do {
-            let installationID = try InstallationIdentity().hashedID()
-            return await fetch(
-                currentVersion: currentVersion,
-                installationID: installationID,
-                prefersChina: UpdateFeed.prefersChinaEndpoint()
-            ) { try await URLSession.shared.data(for: $0) }
-        } catch {
-            return .failure(.download(error.localizedDescription))
-        }
-    }
-
-    static func fetch(
-        currentVersion: String,
-        installationID: String,
-        prefersChina: Bool,
-        send: (URLRequest) async throws -> (Data, URLResponse)
-    ) async -> Result<UpdateRelease, UpdateError> {
-        var lastError = UpdateError.download(tr("没有可用的更新服务"))
-        for endpoint in UpdateFeed.checkURLs(prefersChina: prefersChina) {
-            do {
-                let request = try UpdateFeed.checkRequest(
-                    url: endpoint, currentVersion: currentVersion, installationID: installationID
-                )
-                let (data, response) = try await send(request)
-                if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-                    lastError = .download(tr("服务器返回 \(http.statusCode)"))
-                    continue
-                }
-                guard let release = UpdateFeed.parse(data) else {
-                    lastError = .download(tr("版本清单格式不正确"))
-                    continue
-                }
-                return .success(release)
-            } catch {
-                lastError = .download(error.localizedDescription)
-            }
-        }
-        return .failure(lastError)
-    }
-
     /// 截图用：直接放入一个示例版本
     func showPreview(_ release: UpdateRelease) {
         self.release = release
@@ -169,13 +183,21 @@ public final class UpdateController {
     }
 
     func skipCurrentRelease() {
-        skippedVersion = release?.version
+        guard let release, !isBusy else { return }
+        // 点击后立即生效，即使此时离线；签名条目重新可达时再交给 Sparkle 持久化。
+        skippedVersion = release.version
+        do {
+            try ensureUpdater()
+            sparkleInstaller?.check(userInitiated: false, action: .skip(release))
+        } catch {
+            phase = .failed(error.localizedDescription)
+        }
     }
 
     // MARK: 安装
 
     func install() {
-        guard let release, !isBusy else { return }
+        guard let release, !isBusy, sparkleInstaller?.isRunning != true else { return }
         if let reason = installBlockedReason {
             phase = .failed(reason)
             return
@@ -184,61 +206,15 @@ public final class UpdateController {
             phase = .failed(tr("新版本需要 macOS \(release.minimumSystem) 或更高版本"))
             return
         }
-        let app = Bundle.main.bundleURL
-        guard let team = UpdateInstaller.teamIdentifier(of: app) else { return }
-        let bundleID = Bundle.main.bundleIdentifier ?? ""
-
-        phase = .downloading(0)
-        task = Task {
-            do {
-                // 临时目录与应用在同一卷上，替换时是原子改名
-                let work = try FileManager.default.url(for: .itemReplacementDirectory, in: .userDomainMask,
-                                                       appropriateFor: app, create: true)
-                defer { try? FileManager.default.removeItem(at: work) }
-
-                let archive = try await UpdateInstaller.download(release.url, into: work) { fraction in
-                    Task { @MainActor in
-                        guard case .downloading = self.phase else { return }
-                        self.phase = .downloading(fraction)
-                    }
-                }
-                try Task.checkCancellation()
-                phase = .verifying
-                let candidate = try await Task.detached {
-                    guard try UpdateInstaller.sha256(of: archive) == release.sha256.lowercased() else {
-                        throw UpdateError.checksumMismatch
-                    }
-                    let candidate = try UpdateInstaller.extractApp(from: archive, into: work)
-                    try UpdateInstaller.verify(candidate, bundleIdentifier: bundleID, version: release.version, teamIdentifier: team)
-                    return candidate
-                }.value
-
-                // 替换开始前兑现取消请求；一旦开始替换，必须完整执行或回滚。
-                try Task.checkCancellation()
-                phase = .installing
-                if UpdateInstaller.canReplaceInPlace(app) {
-                    try await Task.detached { try UpdateInstaller.replace(app, with: candidate, backupDirectory: work) }.value
-                } else {
-                    try await Task.detached { try UpdateInstaller.stopWidgetExtension(in: app) }.value
-                    try await replaceWithAdministratorPrompt(app, with: candidate)
-                }
-                skippedVersion = nil
-                Log.update.notice("已安装 \(release.version, privacy: .public)，重新启动")
-                try? FileManager.default.removeItem(at: work)
-                try UpdateInstaller.relaunch(app)
-                terminate()
-            } catch {
-                // 取消下载时 URLSession 抛出的是 URLError，按任务是否被取消判断
-                if !Task.isCancelled { Log.update.error("安装更新失败：\(error.localizedDescription, privacy: .public)") }
-                phase = Task.isCancelled ? .available
-                    : .failed((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
-            }
+        do {
+            try ensureUpdater()
+            sparkleInstaller?.check(userInitiated: false, action: .install(release))
+        } catch {
+            phase = .failed(error.localizedDescription)
         }
     }
 
-    func cancel() {
-        task?.cancel()
-    }
+    func cancel() { sparkleInstaller?.cancel() }
 
     /// 手动下载地址：拿到清单时用其中的 DMG，否则回到 GitHub Releases——那里始终挂着最新版 dmg
     var manualDownloadURL: URL {
@@ -247,22 +223,6 @@ public final class UpdateController {
 
     func openManualDownload() {
         NSWorkspace.shared.open(manualDownloadURL)
-    }
-
-    /// 当前账户不能改写应用目录时（非管理员或应用放在受保护的位置），请求一次管理员授权完成替换
-    private func replaceWithAdministratorPrompt(_ app: URL, with candidate: URL) async throws {
-        let quote = { (path: String) in "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'" }
-        let backup = candidate.deletingLastPathComponent().appendingPathComponent("previous-\(app.lastPathComponent)")
-        let (a, b, c) = (quote(app.path), quote(backup.path), quote(candidate.path))
-        // 旧版改名备份 → 新版移入；移入失败时还原旧版并以失败退出；成功后沿用旧版的属主
-        let shell = "/bin/mv -f \(a) \(b) && { /bin/mv -f \(c) \(a) || { /bin/mv -f \(b) \(a); exit 1; }; }"
-            + " && /usr/sbin/chown -R \"$(/usr/bin/stat -f %u:%g \(b))\" \(a)"
-        if let error = await MaintenanceController.runWithAdministratorPrompt(shell: shell, prompt: tr("XStats 需要授权以安装新版本。")) {
-            throw UpdateError.install(error)
-        }
-        guard FileManager.default.fileExists(atPath: app.appendingPathComponent("Contents/Info.plist").path) else {
-            throw UpdateError.install(tr("替换后未找到应用"))
-        }
     }
 
     private enum Keys {

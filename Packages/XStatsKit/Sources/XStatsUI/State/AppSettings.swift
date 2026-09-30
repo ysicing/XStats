@@ -429,22 +429,31 @@ public enum UpdateCheckSchedule: String, CaseIterable, Identifiable, Sendable {
 
     var promptsForUpdates: Bool { self != .quietRuntime && self != .never }
 
-    /// `launchedAt` 为本次运行的启动时刻。“启动时”策略在本次运行成功检查前一直待办，
-    /// 开机登录时网络常未就绪，首次失败后由每小时的定时器继续重试。
+    /// 返回交给 Sparkle 的下次检查间隔；从不和本次启动已检查过时不注册计时器。
+    func sparkleInterval(lastChecked: Date?, now: Date, launchedAt: Date, retry: Bool = false) -> TimeInterval? {
+        guard let next = nextCheckDate(lastChecked: lastChecked, launchedAt: launchedAt) else { return nil }
+        return retry ? 60 * 60 : max(60 * 60, next.timeIntervalSince(now))
+    }
+
+    /// 开机网络未就绪时，启动检查在本次成功之前始终待办，由 Sparkle 每小时重试。
     func shouldCheck(lastChecked: Date?, now: Date, launchedAt: Date) -> Bool {
+        guard let next = nextCheckDate(lastChecked: lastChecked, launchedAt: launchedAt) else { return false }
+        return now >= next
+    }
+
+    /// 到期判断和 Sparkle 调度共用同一日期规则，避免自然月与启动策略产生两套语义。
+    private func nextCheckDate(lastChecked: Date?, launchedAt: Date) -> Date? {
         switch self {
-        case .never: return false
-        case .atLaunch: return lastChecked.map { $0 < launchedAt } ?? true
+        case .never: return nil
+        case .atLaunch: return lastChecked.map { $0 >= launchedAt } == true ? nil : .distantPast
         case .quietRuntime, .daily, .weekly, .monthly:
-            guard let lastChecked else { return true }
-            let next: Date
+            guard let lastChecked else { return .distantPast }
             switch self {
-            case .quietRuntime, .daily: next = lastChecked.addingTimeInterval(24 * 60 * 60)
-            case .weekly: next = lastChecked.addingTimeInterval(7 * 24 * 60 * 60)
-            case .monthly: next = Calendar.current.date(byAdding: .month, value: 1, to: lastChecked) ?? lastChecked
-            case .atLaunch, .never: return false
+            case .quietRuntime, .daily: return lastChecked.addingTimeInterval(24 * 60 * 60)
+            case .weekly: return lastChecked.addingTimeInterval(7 * 24 * 60 * 60)
+            case .monthly: return Calendar.current.date(byAdding: .month, value: 1, to: lastChecked) ?? lastChecked
+            case .atLaunch, .never: return nil
             }
-            return now >= next
         }
     }
 }

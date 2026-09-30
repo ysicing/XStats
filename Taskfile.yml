@@ -61,8 +61,9 @@ tasks:
           -derivedDataPath "{{.DERIVED}}" \
           -destination 'generic/platform=macOS' ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
           XSTATS_APP_PROFILE="${XSTATS_APP_PROFILE:-}" XSTATS_WIDGET_PROFILE="${XSTATS_WIDGET_PROFILE:-}" \
-          {{if .TEAM_ID}}CODE_SIGN_IDENTITY="{{.SIGN_ID}}" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM={{.TEAM_ID}}{{if eq .CONFIG "Release"}} OTHER_CODE_SIGN_FLAGS=--timestamp CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO{{end}}{{end}} \
+          {{if .TEAM_ID}}CODE_SIGN_IDENTITY="{{.SIGN_ID}}" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM={{.TEAM_ID}}{{if eq .CONFIG "Release"}} OTHER_CODE_SIGN_FLAGS=--timestamp CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO{{end}}{{else}}CODE_SIGNING_ALLOWED=NO ENABLE_HARDENED_RUNTIME=NO{{end}} \
           build
+      - bash scripts/sign_sparkle.sh "{{.APP}}" "{{.SIGN_ID}}"
 
   run:
     desc: 编译、安装并启动 App
@@ -102,6 +103,8 @@ tasks:
       - python3 scripts/release_provenance_test.py
       - python3 scripts/publish_api_test.py
       - python3 scripts/sync_changelog_test.py
+      - python3 scripts/sparkle_appcast_test.py
+      - python3 scripts/github_release_notes_test.py
       - task: test-api
       - task: test-swift
 

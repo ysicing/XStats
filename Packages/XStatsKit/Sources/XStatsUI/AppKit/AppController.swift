@@ -26,7 +26,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private var rest: RestController { model.rest }
     private var restWindows: RestWindowController!
     private var restMenuBar: RestMenuBarController!
-    private var updateTimer: Timer?
     private var widgetTimer: Timer?
     private let hotKeys = HotKeyCenter()
     private var workspaceObservers: [NSObjectProtocol] = []
@@ -261,7 +260,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 启动 10 秒后按策略检查，运行中每小时判断周期是否到期。
+    /// 启动 10 秒后启动 Sparkle，由它统一安排后续检查。
     private func startUpdateChecks() {
         model.updates.onPrompt = { [weak self] in
             self?.menuBar.dismissPopovers()
@@ -281,12 +280,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
-            self?.model.updates.checkIfNeeded()
+            self?.model.updates.start()
         }
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.model.updates.checkIfNeeded() }
-        }
-        updateTimer?.tolerance = 5 * 60
     }
 
     /// 默认只在菜单栏运行、不占程序坞；打开了“在程序坞显示图标”时，有窗口开着才出现在程序坞与 ⌘Tab 里

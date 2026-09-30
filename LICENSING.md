@@ -27,3 +27,5 @@ XStats 本次确认的版权所有者署名为 **ysicing**，当前新增代码�
 4. 除明确标识的上游或第三方内容外，提交到本项目的新增代码和修改按 AGPL-3.0-or-later 提供；不要新增与此相冲突的默认 MIT 声明。
 
 对于含 MIT 上游代码及 AGPL 修改的混合文件，保留上游版权并追加 `XStats modifications Copyright (C) 2026 ysicing`，使用 `AGPL-3.0-or-later AND MIT` 标识并说明各部分的许可范围。具体文件头示例见 [AGENTS.md](AGENTS.md)。
+
+`ReleaseNotes.json` 中自行编写的更新摘要译文采用 AGPL-3.0-or-later。该 JSON 文件不支持注释，许可在本文件中记录。

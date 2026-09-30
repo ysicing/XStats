@@ -14,12 +14,15 @@ public struct UpdateRelease: Codable, Sendable, Equatable {
     public let dmg: URL?
     /// 最近更新的摘要，每条一句
     public let notes: [String]
+    /// 已签名 XML 中的英文摘要；旧清单没有该字段时继续使用 notes。
+    public let englishNotes: [String]?
     public let changelog: URL?
     /// Intel 版安装包。顶层的 url / sha256 / size / dmg 是 Apple 芯片版：0.3.0 只有 Apple 芯片版且只认顶层字段
     public let intel: UpdateAsset?
 
     public init(version: String, build: String, date: String, minimumSystem: String, url: URL, sha256: String,
-                size: Int64, dmg: URL?, notes: [String], changelog: URL?, intel: UpdateAsset? = nil) {
+                size: Int64, dmg: URL?, notes: [String], changelog: URL?, intel: UpdateAsset? = nil,
+                englishNotes: [String]? = nil) {
         self.version = version
         self.build = build
         self.date = date
@@ -29,8 +32,16 @@ public struct UpdateRelease: Codable, Sendable, Equatable {
         self.size = size
         self.dmg = dmg
         self.notes = notes
+        self.englishNotes = englishNotes
         self.changelog = changelog
         self.intel = intel
+    }
+
+    /// 中文语言统一显示中文，其余语言显示英文；旧清单没有英文时保留原摘要。
+    public func notes(for languageCode: String) -> [String] {
+        if languageCode == "zh" || languageCode.hasPrefix("zh-") { return notes }
+        guard let englishNotes, !englishNotes.isEmpty else { return notes }
+        return englishNotes
     }
 }
 
@@ -75,6 +86,13 @@ public enum UpdateArchitecture: Sendable, Equatable {
 }
 
 public enum UpdateFeed {
+    /// 固定 API 入口原样返回当前发布的签名 XML，同时记录检查；旧 JSON POST 协议保持可用。
+    public static func sparkleURLs(prefersChina: Bool) -> [URL] {
+        checkURLs(prefersChina: prefersChina).map {
+            $0.deletingLastPathComponent().appendingPathComponent("appcast.xml")
+        }
+    }
+
     private static let globalURL = URL(string: "https://xstats-apps.12306.work/api/v1/update/check")!
     private static let chinaURL = URL(string: "https://x-stats.china.12306.work/api/v1/update/check")!
 
@@ -85,6 +103,14 @@ public enum UpdateFeed {
     /// 只串行请求：首选成功后不再访问备用端点，避免同一次检查被两边同时统计。
     public static func checkURLs(prefersChina: Bool) -> [URL] {
         prefersChina ? [chinaURL, globalURL] : [globalURL, chinaURL]
+    }
+
+    /// 区域 API 沿用相同的应用与系统版本标识，不启用 Sparkle 系统分析。
+    public static func userAgent(currentVersion: String,
+                                 operatingSystemVersion: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion) -> String {
+        var components = [operatingSystemVersion.majorVersion, operatingSystemVersion.minorVersion]
+        if operatingSystemVersion.patchVersion > 0 { components.append(operatingSystemVersion.patchVersion) }
+        return "XStats/\(currentVersion) (macOS \(components.map(String.init).joined(separator: ".")))"
     }
 
     public static func checkRequest(
@@ -106,10 +132,7 @@ public enum UpdateFeed {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        var systemComponents = [operatingSystemVersion.majorVersion, operatingSystemVersion.minorVersion]
-        if operatingSystemVersion.patchVersion > 0 { systemComponents.append(operatingSystemVersion.patchVersion) }
-        let systemVersion = systemComponents.map(String.init).joined(separator: ".")
-        request.setValue("XStats/\(currentVersion) (macOS \(systemVersion))", forHTTPHeaderField: "User-Agent")
+        request.setValue(userAgent(currentVersion: currentVersion, operatingSystemVersion: operatingSystemVersion), forHTTPHeaderField: "User-Agent")
         request.httpBody = try JSONEncoder().encode(Body(currentVersion: currentVersion, installationID: installationID))
         return request
     }
@@ -131,7 +154,7 @@ public enum UpdateFeed {
             return UpdateRelease(version: release.version, build: release.build, date: release.date,
                                  minimumSystem: release.minimumSystem, url: intel.url, sha256: intel.sha256,
                                  size: intel.size, dmg: intel.dmg, notes: release.notes, changelog: release.changelog,
-                                 intel: intel)
+                                 intel: intel, englishNotes: release.englishNotes)
         }
     }
 

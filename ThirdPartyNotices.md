@@ -109,3 +109,9 @@ XStats 的 AI Provider 契约与状态设计参考了以下项目公开的 Provi
 1.5.0（MIT License，Copyright (c) 2026 6tail），提供公历、农历、藏历、回历、干支、
 节气、节日、调休、三伏与传统梅雨日期计算。未修改上游源码。
 完整许可见 [LICENSES/Tyme4Swift-MIT.txt](LICENSES/Tyme4Swift-MIT.txt)。
+
+## Sparkle
+
+应用内安装通过 Swift Package Manager 使用 [sparkle-project/Sparkle](https://github.com/sparkle-project/Sparkle)
+2.10.0。未修改上游源码；完整上游许可随应用资源中的 `Sparkle-License.txt` 分发。
+完整许可证及其内部组件声明见 [LICENSES/Sparkle-License.txt](LICENSES/Sparkle-License.txt)。

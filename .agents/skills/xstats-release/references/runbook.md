@@ -41,6 +41,8 @@ For the one-command path, `XSTATS_RELEASE_TOKEN` must already be available throu
 ## 2. Prepare version metadata
 
 - Use `xstats-changelog` to consolidate the release notes, then replace the first `## 未发布` heading with `## X.Y.Z · YYYY-MM-DD`.
+- Update `ReleaseNotes.json` for that version: match `sourceNotes` to the Chinese summaries and prepare `translations.en` in the same item order. Generation rejects stale or incomplete English notes; changing them after the build invalidates provenance.
+- Preview `python3 scripts/github_release_notes.py <version>`: GitHub Release includes the full Chinese section plus English summaries. Ensure English retains upgrade instructions and compatibility details. Publication generates the same bilingual text for both creation and reruns.
 - Update the release badge in all four README files.
 - Do not manually change `project.yml`; `scripts/version.sh release`, invoked by `task release`, writes the semver and increments the build number once.
 - Do not commit these metadata changes yet. They are allowed inputs to the provenance preflight.
@@ -71,6 +73,7 @@ Expected files:
 ```text
 dist/XStats-X.Y.Z-AppleSilicon.dmg
 dist/XStats-X.Y.Z-AppleSilicon.zip
+dist/XStats-X.Y.Z-AppleSilicon.xml
 dist/appcast.json
 dist/xstats.rb
 dist/release-provenance.json
@@ -88,7 +91,9 @@ xcrun stapler validate dist/XStats-X.Y.Z-AppleSilicon.dmg
 spctl -a -t open --context context:primary-signature -vv dist/XStats-X.Y.Z-AppleSilicon.dmg
 ```
 
-All architectures must be `arm64`; both app and DMG must report notarized Developer ID acceptance. Validate the appcast JSON, artifact sizes, and SHA-256 values.
+All architectures must be `arm64`; both app and DMG must report notarized Developer ID acceptance. Validate the appcast JSON, artifact sizes, and SHA-256 values. Include Sparkle framework, Autoupdate, Updater and both XPC services in the arm64, same-Team, timestamp and hardened-runtime audit. Verify the signed XML and ZIP using `python3 scripts/sparkle_appcast.py dist/appcast.json dist/XStats-X.Y.Z-AppleSilicon.zip --verify`. A missing Ed25519 keychain account is a release blocker, never a reason to generate a replacement key.
+
+For the Sparkle transition, additionally verify a signed/notarized old client upgrading to the first Sparkle client, followed by a second upgrade using Sparkle, including retry/cancel, write-permission authorization, Widget and Helper recovery. Fixture-only installation tests do not establish this public-version transition.
 
 ## 4. Commit release metadata
 
@@ -132,7 +137,9 @@ TAP=ysicing/homebrew-tap
 Its required order is:
 
 1. Verify provenance, clean worktree, and `HEAD == origin/main`.
-2. Upload DMG and ZIP to `c-ip`.
+Before uploading or publishing a Sparkle client, run `python3 scripts/publish_api.py --check-sparkle`. Both regional fixed XML endpoints must already be deployed and reject a missing installation ID with 400 + no-store. Old JSON POST clients and publication fields remain unchanged. The API serves the current manifest's immutable signed XML without rewriting its signature or forwarding the installation ID to the CDN.
+
+2. Verify Ed25519 signatures, then upload DMG, ZIP and versioned XML to `c-ip`.
 3. Download each public `c.ysicing.net` URL and compare SHA-256.
 4. Create or update `vX.Y.Z` GitHub Release, refusing to move an existing mismatched tag.
 5. Publish the appcast to both regional APIs.
@@ -147,7 +154,7 @@ Prove all of the following from live state:
 - `git status -sb` is clean and local `main` matches `origin/main`.
 - The release tag resolves to the intended release metadata commit.
 - GitHub Release is neither draft nor prerelease and contains the notarized DMG with the expected digest.
-- Both public object URLs return bytes matching the local DMG and ZIP SHA-256 values.
+- All three public object URLs return bytes matching local DMG, ZIP and signed XML SHA-256 values; the JSON ZIP URL maps to the corresponding immutable XML.
 - Both regional update-check endpoints return the released version/build and `c.ysicing.net` URLs. Reuse one fixed validation installation ID instead of creating many statistics rows.
 - The remote Homebrew cask matches `dist/xstats.rb`; `brew info --cask ysicing/tap/xstats` shows the released version and arm64/macOS requirements.
 - Check the release commit and any immediate release-workflow fix commits' GitHub Actions status once. Record each visible run's link and actual result; if queued, running, or not yet listed, report CI as pending or unobserved without waiting or polling. Investigate a run that has already completed with failure.

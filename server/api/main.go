@@ -8,6 +8,7 @@ import (
 	"embed"
 	"errors"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -108,6 +109,18 @@ func loadConfig(getenv func(string) string) (config, error) {
 }
 
 func newApplication(databasePath string, releaseToken string) (*fiber.App, error) {
+	return newApplicationWithFeedClient(databasePath, releaseToken, &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(request *http.Request, via []*http.Request) error {
+			if request.URL.Scheme != "https" || len(via) >= 5 {
+				return errors.New("invalid feed redirect")
+			}
+			return nil
+		},
+	})
+}
+
+func newApplicationWithFeedClient(databasePath string, releaseToken string, feedClient *http.Client) (*fiber.App, error) {
 	databaseLogger := gormlogger.New(log.Default(), gormlogger.Config{
 		SlowThreshold:             500 * time.Millisecond,
 		LogLevel:                  gormlogger.Warn,
@@ -175,23 +188,7 @@ func newApplication(databasePath string, releaseToken string) (*fiber.App, error
 			!installationIDPattern.MatchString(check.InstallationID) {
 			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
 		}
-		now := time.Now().UTC()
-		if err := database.Transaction(func(transaction *gorm.DB) error {
-			var item installation
-			result := transaction.First(&item, "id = ?", check.InstallationID)
-			if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
-				return result.Error
-			}
-			if result.Error == gorm.ErrRecordNotFound {
-				item = installation{ID: check.InstallationID, CurrentVersion: check.CurrentVersion, Checks: 1, FirstSeenAt: now, LastSeenAt: now}
-				return transaction.Create(&item).Error
-			}
-			return transaction.Model(&item).Updates(map[string]any{
-				"current_version": check.CurrentVersion,
-				"last_seen_at":    now,
-				"checks":          gorm.Expr("checks + 1"),
-			}).Error
-		}); err != nil {
+		if err := recordUpdateCheck(database, check); err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "could not record update check"})
 		}
 
@@ -200,6 +197,48 @@ func newApplication(databasePath string, releaseToken string) (*fiber.App, error
 			return c.Status(http.StatusServiceUnavailable).JSON(fiber.Map{"error": "no release published"})
 		}
 		return c.JSON(current)
+	})
+	// 固定入口选择当前发布对应的不可变 XML；保留签名字节，不解析重写或在服务端持有私钥。
+	// 统计与本次 GET 合并，Sparkle 客户端无需再发一份 JSON POST。
+	app.Get("/api/v1/update/appcast.xml", checkLimiter, func(c fiber.Ctx) error {
+		c.Set(fiber.HeaderCacheControl, "no-store")
+		check := updateCheck{CurrentVersion: c.Query("current_version"), InstallationID: c.Query("installation_id")}
+		if check.CurrentVersion == "" || len(check.CurrentVersion) > 64 || !installationIDPattern.MatchString(check.InstallationID) {
+			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
+		}
+		var current release
+		if err := database.Where("is_current = ?", true).First(&current).Error; err != nil {
+			return c.SendStatus(http.StatusServiceUnavailable)
+		}
+		asset, err := url.Parse(current.URL)
+		if err != nil || asset.Scheme != "https" || asset.Host == "" || !strings.HasSuffix(asset.Path, ".zip") {
+			return c.SendStatus(http.StatusServiceUnavailable)
+		}
+		asset.Path = strings.TrimSuffix(asset.Path, ".zip") + ".xml"
+		asset.RawPath, asset.RawQuery, asset.Fragment = "", "", ""
+		request, err := http.NewRequestWithContext(c.Context(), http.MethodGet, asset.String(), nil)
+		if err != nil {
+			return c.SendStatus(http.StatusBadGateway)
+		}
+		response, err := feedClient.Do(request)
+		if err != nil {
+			return c.SendStatus(http.StatusBadGateway)
+		}
+		defer response.Body.Close()
+		// 单版本清单有界读取；CDN 错误页、大响应和重定向降级不能成为更新源。
+		const maximumFeedBytes = 256 * 1024
+		if response.StatusCode != http.StatusOK || response.Request.URL.Scheme != "https" {
+			return c.SendStatus(http.StatusBadGateway)
+		}
+		data, err := io.ReadAll(io.LimitReader(response.Body, maximumFeedBytes+1))
+		if err != nil || len(data) == 0 || len(data) > maximumFeedBytes {
+			return c.SendStatus(http.StatusBadGateway)
+		}
+		if err := recordUpdateCheck(database, check); err != nil {
+			return c.SendStatus(http.StatusInternalServerError)
+		}
+		c.Type("xml", "utf-8")
+		return c.Send(data)
 	})
 	app.Get("/stats", func(c fiber.Ctx) error {
 		var data dashboardData
@@ -233,6 +272,26 @@ func newApplication(databasePath string, releaseToken string) (*fiber.App, error
 		return dashboardTemplate.ExecuteTemplate(c.Response().BodyWriter(), "dashboard.html", data)
 	})
 	return app, nil
+}
+
+func recordUpdateCheck(database *gorm.DB, check updateCheck) error {
+	now := time.Now().UTC()
+	return database.Transaction(func(transaction *gorm.DB) error {
+		var item installation
+		result := transaction.First(&item, "id = ?", check.InstallationID)
+		if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
+			return result.Error
+		}
+		if result.Error == gorm.ErrRecordNotFound {
+			item = installation{ID: check.InstallationID, CurrentVersion: check.CurrentVersion, Checks: 1, FirstSeenAt: now, LastSeenAt: now}
+			return transaction.Create(&item).Error
+		}
+		return transaction.Model(&item).Updates(map[string]any{
+			"current_version": check.CurrentVersion,
+			"last_seen_at":    now,
+			"checks":          gorm.Expr("checks + 1"),
+		}).Error
+	})
 }
 
 func main() {
