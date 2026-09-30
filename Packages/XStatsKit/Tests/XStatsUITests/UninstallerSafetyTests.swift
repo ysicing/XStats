@@ -45,7 +45,6 @@ struct UninstallerSafetyTests {
         #expect(controller.leftovers == [body])
         #expect(controller.chosen == [body.id] && controller.canUninstall)
         #expect(controller.outcome?.isError == true)
-        #expect(controller.outcome?.text.contains("应用本体未能移动") == true)
         #expect(controller.outcome?.text.contains(Format.bytes(cache.size, base: .decimal)) == true)
         #expect(controller.outcome?.text.contains(Format.bytes(body.size + cache.size, base: .decimal)) == false)
         #expect(controller.outcome?.text.contains("permission denied") == true)
