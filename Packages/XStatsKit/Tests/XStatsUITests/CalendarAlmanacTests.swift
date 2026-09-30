@@ -10,20 +10,20 @@ struct CalendarAlmanacTests {
     @Test(arguments: [(2026, 9, 25), (2026, 9, 23), (2026, 12, 23), (2026, 10, 10)])
     func widgetsDoNotExposeDisabledRegionalFeatures(_ date: (Int, Int, Int)) throws {
         let day = try #require(CalendarEngine.day(year: date.0, month: date.1, day: date.2))
-        let summary = CalendarEngine.widgetSummary(for: day, features: [.weekdays], showsAlmanac: false)
+        let summary = CalendarEngine.widgetSummary(for: day, features: [])
         #expect(summary.festivals.isEmpty && summary.solarTerm == nil)
         #expect(summary.holidayName == nil && summary.schedule.needsWork == nil)
         #expect(summary.seasonalDescriptions == nil)
-        #expect(summary.twelveStar == nil && summary.recommends.isEmpty && summary.avoids.isEmpty)
+        #expect(summary.twelveStar != nil)
     }
 
     @Test func manuallyEnabledFeaturesWorkOutsideDefaultRegions() throws {
         let day = try #require(CalendarEngine.day(year: 2026, month: 9, day: 25))
-        let summary = CalendarEngine.widgetSummary(for: day, features: [.festivals, .holidays], showsAlmanac: false)
+        let summary = CalendarEngine.widgetSummary(for: day, features: [.festivals, .holidays])
         #expect(!summary.festivals.isEmpty && summary.holidayName != nil)
         #expect(summary.schedule.needsWork == false)
-        #expect(summary.twelveStar == nil)
-        let almanacOnly = CalendarEngine.widgetSummary(for: day, features: [], showsAlmanac: true)
+        #expect(summary.twelveStar != nil)
+        let almanacOnly = CalendarEngine.widgetSummary(for: day, features: [])
         #expect(almanacOnly.twelveStar != nil && !almanacOnly.recommends.isEmpty)
         #expect(almanacOnly.schedule.needsWork == nil && almanacOnly.festivals.isEmpty)
     }

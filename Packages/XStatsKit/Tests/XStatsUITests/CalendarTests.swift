@@ -183,6 +183,21 @@ struct CalendarTests {
         #expect(CalendarEngine.selection(old, in: CalendarMonth(year: 2024, month: 4), timeZone: newZone)?.id == "2024-04-01")
     }
 
+    @Test func retiredWeekdayTogglePreservesOtherCalendarChoices() throws {
+        let name = "CalendarRetiredWeekdayTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(["weekdays", "lunar"], forKey: "calendarFeatures")
+        let settings = AppSettings(defaults: defaults)
+        #expect(!CalendarFeature.allCases.map(\.rawValue).contains("weekdays"))
+        #expect(settings.calendarFeatures == [.lunar])
+        var backup = SettingsDocument()
+        backup.calendarFeatures = ["weekdays", "hijri"]
+        settings.apply(backup)
+        #expect(settings.calendarFeatures == [.hijri])
+        #expect(settings.exportDocument().calendarFeatures == ["hijri"])
+    }
+
     @Test func retiredGanzhiSettingPreservesOtherCalendarChoices() throws {
         let name = "CalendarRetiredGanzhiTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
@@ -232,15 +247,15 @@ struct CalendarTests {
         let name = "CalendarMergedSeasonalTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        defaults.set(legacy + ["weekdays"], forKey: "calendarFeatures")
+        defaults.set(legacy + ["lunar"], forKey: "calendarFeatures")
         let settings = AppSettings(defaults: defaults)
-        let expected = Set(legacy.isEmpty ? ["weekdays"] : ["weekdays", "seasonalInfo"])
+        let expected = Set(legacy.isEmpty ? ["lunar"] : ["lunar", "seasonalInfo"])
         #expect(Set(settings.calendarFeatures.map(\.rawValue)) == expected)
         #expect(!CalendarFeature.allCases.map(\.rawValue).contains("solarTerms"))
         #expect(!CalendarFeature.allCases.map(\.rawValue).contains("seasonal"))
         settings.calendarFeatures = []
         var backup = SettingsDocument()
-        backup.calendarFeatures = legacy + ["weekdays"]
+        backup.calendarFeatures = legacy + ["lunar"]
         settings.apply(backup)
         #expect(Set(settings.exportDocument().calendarFeatures ?? []) == expected)
     }
@@ -272,7 +287,7 @@ struct CalendarTests {
         var oldBackup = SettingsDocument()
         oldBackup.calendarFeatures = ["plumRain", "weekdays"]
         settings.apply(oldBackup)
-        #expect(settings.calendarFeatures == [.seasonalInfo, .weekdays])
-        #expect(settings.exportDocument().calendarFeatures == ["seasonalInfo", "weekdays"])
+        #expect(settings.calendarFeatures == [.seasonalInfo])
+        #expect(settings.exportDocument().calendarFeatures == ["seasonalInfo"])
     }
 }

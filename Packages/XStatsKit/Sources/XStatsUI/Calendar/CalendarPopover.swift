@@ -126,7 +126,6 @@ struct CalendarPopover: View {
             refreshHolidayPlan(at: referenceDate ?? Date())
         }
         .onChange(of: selected?.id) { _, _ in refreshAlmanac() }
-        .onChange(of: model.settings.calendarPreferences.showAlmanac) { _, _ in refreshAlmanac() }
         .onChange(of: model.settings.calendarFeatures) { _, _ in refreshHolidayPlan(at: referenceDate ?? Date()) }
         .onChange(of: model.settings.calendarPreferences.showHolidayOverview) { _, _ in
             refreshHolidayPlan(at: referenceDate ?? Date())
@@ -217,18 +216,16 @@ struct CalendarPopover: View {
         let features = model.settings.calendarFeatures
         let firstWeekday = model.settings.calendarFirstWeekday
         return VStack(spacing: sizing.cellHeight < 50 ? 6 : 7) {
-            if features.contains(.weekdays) {
-                HStack(spacing: 4) {
-                    ForEach(0..<7) { offset in
-                        let weekday = (firstWeekday - 1 + offset) % 7 + 1
-                        Text(weekdayName(weekday))
-                            .font(.system(size: sizing.cellHeight < 50 ? 11 : 12, weight: .medium))
-                            .foregroundStyle(weekday == 1 || weekday == 7 ? Color.red : .secondary)
-                            .frame(maxWidth: .infinity)
-                    }
+            HStack(spacing: 4) {
+                ForEach(0..<7) { offset in
+                    let weekday = (firstWeekday - 1 + offset) % 7 + 1
+                    Text(weekdayName(weekday))
+                        .font(.system(size: sizing.cellHeight < 50 ? 11 : 12, weight: .medium))
+                        .foregroundStyle(weekday == 1 || weekday == 7 ? Color.red : .secondary)
+                        .frame(maxWidth: .infinity)
                 }
-                .padding(.bottom, sizing.cellHeight < 50 ? 2 : 3)
             }
+            .padding(.bottom, sizing.cellHeight < 50 ? 2 : 3)
             // 月历固定最多 42 格，无需懒布局的高度估算与反复放置。
             VStack(spacing: sizing.cellHeight < 50 ? 3 : 4) {
                 ForEach(0..<6) { row in
@@ -272,7 +269,7 @@ struct CalendarPopover: View {
     }
 
     private func refreshAlmanac() {
-        guard showsDayDetails, model.settings.calendarPreferences.showAlmanac, let selected else {
+        guard showsDayDetails, let selected else {
             almanac = nil
             return
         }

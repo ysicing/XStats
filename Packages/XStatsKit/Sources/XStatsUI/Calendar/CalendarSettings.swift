@@ -72,11 +72,6 @@ struct CalendarOptionsPopover: View {
                         }
                     }
                     GroupRow {
-                        SettingRow(title: tr("黄历")) {
-                            DSToggle(isOn: $settings.calendarPreferences.showAlmanac, label: tr("黄历"))
-                        }
-                    }
-                    GroupRow {
                         Text(tr("公历始终显示。藏历与回历显示在日期详情中；梅雨天按传统历法推算，并非天气预报。"))
                             .dsFont(.xs)
                             .foregroundStyle(DS.Palette.textSecondary)

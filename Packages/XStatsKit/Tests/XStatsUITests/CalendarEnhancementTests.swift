@@ -130,10 +130,19 @@ struct CalendarEnhancementTests {
         #expect(custom.largeLunarText)
     }
 
+    @Test(arguments: [true, false])
+    func retiredAlmanacTogglePreservesOtherPreferences(enabled: Bool) throws {
+        let data = try JSONSerialization.data(withJSONObject: ["showAlmanac": enabled, "display": "lunar", "showEvents": true])
+        let preferences = try JSONDecoder().decode(CalendarPreferences.self, from: data)
+        #expect(preferences.display == .lunar && preferences.showEvents)
+        let exported = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(preferences)) as? [String: Any])
+        #expect(exported["showAlmanac"] == nil)
+    }
+
     @Test func calendarPreferencesKeepSafeDefaultsForOlderDocuments() throws {
         let old = try JSONDecoder().decode(CalendarPreferences.self, from: Data("{}".utf8))
         #expect(old == CalendarPreferences(locale: Locale(identifier: "zh_CN")))
-        #expect(old.showAlmanac && old.showHolidayOverview)
+        #expect(old.showHolidayOverview)
         #expect(!old.showEvents && !old.showReminders && !old.openOnHover)
         let future = try JSONDecoder().decode(CalendarPreferences.self, from: Data(#"{"display":"future"}"#.utf8))
         #expect(future.display == .standard)
@@ -147,11 +156,12 @@ struct CalendarEnhancementTests {
         defer { defaults.removePersistentDomain(forName: name) }
         let locale = Locale(identifier: localeID)
         let mainland = locale.region?.identifier == "CN"
-        let expected: Set<CalendarFeature> = mainland ? [.lunar, .weekdays, .holidays, .festivals, .seasonalInfo] : [.weekdays]
+        let expected: Set<CalendarFeature> = mainland ? [.lunar, .holidays, .festivals, .seasonalInfo] : []
         let settings = AppSettings(defaults: defaults, calendarLocale: locale)
         #expect(settings.calendarFeatures == expected)
         #expect(settings.calendarPreferences.showHolidayOverview == mainland)
-        #expect(settings.calendarPreferences.showAlmanac == mainland)
+        let day = try #require(CalendarEngine.day(year: 2026, month: 9, day: 25, timeZone: zone))
+        #expect(CalendarEngine.widgetSummary(for: day, features: settings.calendarFeatures).twelveStar != nil)
         #expect(settings.calendarFeatures.contains(.seasonalInfo) == mainland)
 
         // 更改地区不应重置首次保存的默认值，明确关闭的选项和空集合也须保留。
@@ -161,10 +171,9 @@ struct CalendarEnhancementTests {
         #expect(restored.calendarPreferences == settings.calendarPreferences)
         settings.calendarFeatures = []
         settings.calendarPreferences.showHolidayOverview = false
-        settings.calendarPreferences.showAlmanac = false
         let disabled = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "zh_CN"))
         #expect(disabled.calendarFeatures.isEmpty)
-        #expect(!disabled.calendarPreferences.showHolidayOverview && !disabled.calendarPreferences.showAlmanac)
+        #expect(!disabled.calendarPreferences.showHolidayOverview)
     }
 
     @Test(arguments: Array(1...7))
@@ -219,13 +228,13 @@ struct CalendarEnhancementTests {
         let settings = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "en_US"))
         #expect(settings.calendarFeatures == [.lunar, .holidays, .seasonalInfo])
         #expect(settings.calendarPreferences.display == .lunar)
-        #expect(settings.calendarPreferences.showHolidayOverview && settings.calendarPreferences.showAlmanac)
+        #expect(settings.calendarPreferences.showHolidayOverview)
         let backup = try JSONDecoder().decode(SettingsDocument.self, from: JSONEncoder().encode(settings.exportDocument()))
-        settings.calendarFeatures = [.weekdays]
-        settings.calendarPreferences.showAlmanac = false
+        settings.calendarFeatures = []
+        settings.calendarPreferences.showHolidayOverview = false
         settings.apply(backup)
         #expect(settings.calendarFeatures == [.lunar, .holidays, .seasonalInfo])
-        #expect(settings.calendarPreferences.showAlmanac)
+        #expect(settings.calendarPreferences.showHolidayOverview)
     }
 
     @Test func displayPreferencesRoundTripWithoutSyncingLocalCalendarIDs() throws {
