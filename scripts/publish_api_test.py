@@ -39,6 +39,42 @@ class PublishAPITest(unittest.TestCase):
             self.assertIsNone(call.args[0].data)
             self.assertFalse(call.args[0].has_header("Authorization"))
 
+    def test_sparkle_gate_accepts_no_store_merged_by_proxy(self) -> None:
+        errors = [urllib.error.HTTPError(url, 400, "invalid request", {"Cache-Control": "private, No-Store"}, io.BytesIO(b""))
+                  for url in publish_api.DEFAULT_ENDPOINTS]
+        with patch("publish_api.urllib.request.urlopen", side_effect=errors):
+            publish_api.check_sparkle_endpoints(list(publish_api.DEFAULT_ENDPOINTS))
+
+    def test_verify_fetches_each_region_with_release_probe_and_compares_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            feed = Path(directory) / "XStats-1.0.0-AppleSilicon.xml"
+            feed.write_bytes(b"<rss>signed</rss>")
+            served = [b"<rss>signed</rss>", b"<rss>signed</rss>"]
+            responses = [contextlib.nullcontext(type("Response", (), {"status": 200, "read": lambda self, limit, body=body: body})())
+                         for body in served]
+            with patch("publish_api.urllib.request.urlopen", side_effect=responses) as send, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                publish_api.verify_sparkle_feeds(feed, list(publish_api.DEFAULT_ENDPOINTS))
+            urls = [call.args[0].full_url for call in send.call_args_list]
+            self.assertEqual(urls, [
+                "https://xstats-apps.12306.work/api/v1/update/appcast.xml?current_version=release-probe&installation_id=" + "0" * 64,
+                "https://x-stats.china.12306.work/api/v1/update/appcast.xml?current_version=release-probe&installation_id=" + "0" * 64,
+            ])
+            for call in send.call_args_list:
+                self.assertFalse(call.args[0].has_header("Authorization"))
+
+    def test_verify_rejects_region_serving_different_feed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            feed = Path(directory) / "XStats-1.0.0-AppleSilicon.xml"
+            feed.write_bytes(b"<rss>signed</rss>")
+            stale = type("Response", (), {"status": 200, "read": lambda self, limit: b"<rss>previous</rss>"})()
+            ok = type("Response", (), {"status": 200, "read": lambda self, limit: b"<rss>signed</rss>"})()
+            with patch("publish_api.urllib.request.urlopen",
+                       side_effect=[contextlib.nullcontext(ok), contextlib.nullcontext(stale)]), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaisesRegex(RuntimeError, "x-stats.china.12306.work"):
+                    publish_api.verify_sparkle_feeds(feed, list(publish_api.DEFAULT_ENDPOINTS))
+
     def test_sparkle_gate_rejects_old_server_or_cached_validation(self) -> None:
         for status, headers in ((404, {}), (400, {}), (503, {"Cache-Control": "no-store"})):
             error = urllib.error.HTTPError("https://example.test", status, "error", headers, io.BytesIO(b""))

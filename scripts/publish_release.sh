@@ -95,6 +95,8 @@ echo "✅ https://github.com/ysicing/xstats/releases/tag/v${VERSION}"
 # 清单最后提交：安装包已在对象存储就位并校验通过后，已安装的应用才会看到新版本。
 # Token 只从环境变量读取，不出现在命令参数里。
 python3 scripts/publish_api.py "$APPCAST"
+# JSON 生效后逐区域取回 Sparkle 清单，确认服务端验签通过且与本地 XML 一致；保留探测标识不计入统计。
+python3 scripts/publish_api.py --verify-sparkle "dist/XStats-${VERSION}-AppleSilicon.xml"
 
 # Homebrew tap
 WORK="$(mktemp -d)"

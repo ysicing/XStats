@@ -26,6 +26,9 @@ import (
 
 var installationIDPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
+// 发布脚本端到端核验更新源时使用的保留标识；清单照常校验返回，但不计入安装统计。
+var releaseProbeInstallationID = strings.Repeat("0", 64)
+
 func validHTTPS(raw string, optional bool) bool {
 	if raw == "" {
 		return optional
@@ -110,14 +113,17 @@ func loadConfig(getenv func(string) string) (config, error) {
 
 func newApplication(databasePath string, releaseToken string) (*fiber.App, error) {
 	return newApplicationWithFeedClient(databasePath, releaseToken, &http.Client{
-		Timeout: 10 * time.Second,
-		CheckRedirect: func(request *http.Request, via []*http.Request) error {
-			if request.URL.Scheme != "https" || len(via) >= 5 {
-				return errors.New("invalid feed redirect")
-			}
-			return nil
-		},
+		Timeout:       10 * time.Second,
+		CheckRedirect: feedRedirectPolicy,
 	})
+}
+
+// 更新清单只允许有限次 HTTPS 跳转，降级到 HTTP 或跳转过多都视为上游故障。
+func feedRedirectPolicy(request *http.Request, via []*http.Request) error {
+	if request.URL.Scheme != "https" || len(via) >= 5 {
+		return errors.New("invalid feed redirect")
+	}
+	return nil
 }
 
 func newApplicationWithFeedClient(databasePath string, releaseToken string, feedClient *http.Client) (*fiber.App, error) {
@@ -237,8 +243,10 @@ func newApplicationWithFeedClient(databasePath string, releaseToken string, feed
 		if err := validateSparkleFeed(data, current); err != nil {
 			return c.SendStatus(http.StatusBadGateway)
 		}
-		if err := recordUpdateCheck(database, check); err != nil {
-			return c.SendStatus(http.StatusInternalServerError)
+		if check.InstallationID != releaseProbeInstallationID {
+			if err := recordUpdateCheck(database, check); err != nil {
+				return c.SendStatus(http.StatusInternalServerError)
+			}
 		}
 		c.Type("xml", "utf-8")
 		return c.Send(data)

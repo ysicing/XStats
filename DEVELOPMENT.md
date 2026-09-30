@@ -172,7 +172,7 @@ git push
 ```
 
 发布需要本地装有 `mc`（MinIO 客户端，别名 `c-ip` 指向对象存储源站）和 `gh`（GitHub CLI）。
-安装包与已签名的 XML 放在 `https://c.ysicing.net/oss/apps/macOS/XStats/`；上传并回读核验 DMG、ZIP、XML 后才发布原有 JSON API，API 字段和旧客户端协议保持不变。新客户端通过固定 `/api/v1/update/appcast.xml` 获取当前版本的签名 XML，服务端在 256 KiB 上限内核验 Ed25519 签名、RSS 结构和与当前发布一致的版本、构建号、系统要求及安装包元数据，成功后原样代理版本文件，合并统计并禁止缓存。无效内容返回 502，不增加检查统计；旧 JSON 接口独立工作。后端公钥须与 `App/Info.plist` 的 `SUPublicEDKey` 一致，轮换发布密钥时同步更新两套后端。必须先部署双区域 API；发布脚本通过无安装 ID 的只读探测确认入口已上线（400 + no-store），未就绪则阻止发布。GitHub Release 只挂 dmg，
+安装包与已签名的 XML 放在 `https://c.ysicing.net/oss/apps/macOS/XStats/`；上传并回读核验 DMG、ZIP、XML 后才发布原有 JSON API，API 字段和旧客户端协议保持不变。新客户端通过固定 `/api/v1/update/appcast.xml` 获取当前版本的签名 XML，服务端在 256 KiB 上限内核验 Ed25519 签名、RSS 结构和与当前发布一致的版本、构建号、系统要求及安装包元数据，成功后原样代理版本文件，合并统计并禁止缓存。无效内容返回 502，不增加检查统计；旧 JSON 接口独立工作。后端公钥须与 `App/Info.plist` 的 `SUPublicEDKey` 一致（`go test` 会校验），轮换发布密钥时同步更新两套后端。JSON 发布后，`publish_api.py --verify-sparkle` 以保留探测标识（64 个 `0`，不计入统计）逐区域取回 XML，须与本地已签名文件逐字节一致。必须先部署双区域 API；发布脚本通过无安装 ID 的只读探测确认入口已上线（400 + no-store），未就绪则阻止发布。GitHub Release 只挂 dmg，
 作为应用内「手动下载」和 README 的下载入口。版本徽章需在四个 README 的第 9 行手动更新，
 `scripts/sync_changelog.py` 不处理徽章。
 
