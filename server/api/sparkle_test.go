@@ -4,11 +4,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -29,6 +31,24 @@ func signedSparkleFixture(t *testing.T, version string) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+func trackedInstallations(t *testing.T, databasePath string) int64 {
+	t.Helper()
+	database, err := gorm.Open(sqlite.Open(databasePath), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection, err := database.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+	var count int64
+	if err := database.Model(&installation{}).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	return count
 }
 
 func publishSparkleFixture(t *testing.T, app *fiber.App, version, build string) {
@@ -151,19 +171,8 @@ func TestSparkleFeedRejectsInvalidInputsAndBoundedUpstreamFailures(t *testing.T)
 		if res.StatusCode != 502 {
 			t.Fatal(res.StatusCode)
 		}
-		db, err := gorm.Open(sqlite.Open(databasePath), &gorm.Config{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		connection, err := db.DB()
-		if err != nil {
-			t.Fatal(err)
-		}
-		var count int64
-		err = db.Model(&installation{}).Count(&count).Error
-		connection.Close()
-		if err != nil || count != 0 {
-			t.Fatalf("invalid feed tracked %d: %v", count, err)
+		if count := trackedInstallations(t, databasePath); count != 0 {
+			t.Fatalf("invalid feed tracked %d", count)
 		}
 		legacy := httptest.NewRequest(http.MethodPost, "/api/v1/update/check", strings.NewReader(`{"current_version":"0.12.1","installation_id":"`+strings.Repeat("a", 64)+`"}`))
 		legacy.Header.Set("Content-Type", "application/json")
@@ -213,5 +222,120 @@ func TestSparkleFeedValidatesPublishedMetadataAndSignature(t *testing.T) {
 		if validateSparkleFeed([]byte(broken), published) == nil {
 			t.Fatal("invalid signature accepted")
 		}
+	}
+}
+
+// 生产客户端的跳转策略与上游故障都必须返回 502，且不计入检查统计。
+func TestSparkleFeedUpstreamFailuresUseProductionRedirectPolicy(t *testing.T) {
+	feed := signedSparkleFixture(t, "0.14.1")
+	respond := func(r *http.Request, status int, location, body string) *http.Response {
+		header := make(http.Header)
+		if location != "" {
+			header.Set("Location", location)
+		}
+		return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(body)), Header: header, Request: r}
+	}
+	cases := []struct {
+		name     string
+		status   int
+		tracked  int64
+		requests int
+		reply    func(*http.Request) (*http.Response, error)
+	}{
+		{"https redirect", 200, 1, 2, func(r *http.Request) (*http.Response, error) {
+			if r.URL.Path == "/final.xml" {
+				return respond(r, 200, "", feed), nil
+			}
+			return respond(r, 302, "https://cdn.example.test/final.xml", ""), nil
+		}},
+		{"http downgrade", 502, 0, 1, func(r *http.Request) (*http.Response, error) {
+			return respond(r, 302, "http://example.test/XStats-0.14.1.xml", ""), nil
+		}},
+		{"redirect loop", 502, 0, 5, func(r *http.Request) (*http.Response, error) {
+			return respond(r, 302, "https://example.test/loop", ""), nil
+		}},
+		{"not found", 502, 0, 1, func(r *http.Request) (*http.Response, error) {
+			return respond(r, 404, "", feed), nil
+		}},
+		{"transport error", 502, 0, 1, func(r *http.Request) (*http.Response, error) {
+			return nil, errors.New("connection reset")
+		}},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			var requests []string
+			transport := feedTransport(func(r *http.Request) (*http.Response, error) {
+				requests = append(requests, r.URL.String())
+				return test.reply(r)
+			})
+			client := &http.Client{Transport: transport, CheckRedirect: feedRedirectPolicy}
+			databasePath := t.TempDir() + "/xstats.sqlite"
+			app, err := newApplicationWithFeedClient(databasePath, "release-secret", client)
+			if err != nil {
+				t.Fatal(err)
+			}
+			publishSparkleFixture(t, app, "0.14.1", "126")
+			res, err := app.Test(httptest.NewRequest(http.MethodGet, "/api/v1/update/appcast.xml?current_version=0.14.0&installation_id="+strings.Repeat("c", 64), nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			res.Body.Close()
+			if res.StatusCode != test.status {
+				t.Fatalf("status %d, want %d", res.StatusCode, test.status)
+			}
+			if count := trackedInstallations(t, databasePath); count != test.tracked {
+				t.Fatalf("tracked %d, want %d", count, test.tracked)
+			}
+			// 策略必须在发出 HTTP 请求或超过 5 次跳转之前拦截，而不只依赖处理函数兜底。
+			if len(requests) != test.requests {
+				t.Fatalf("upstream requests %v, want %d", requests, test.requests)
+			}
+		})
+	}
+}
+
+// 服务端验签公钥必须与客户端内置公钥一致，轮换时漏改会让所有 Sparkle 检查返回 502。
+func TestSparklePublicKeyMatchesClient(t *testing.T) {
+	sources := map[string]*regexp.Regexp{
+		"../../App/Info.plist": regexp.MustCompile(`<key>SUPublicEDKey</key>\s*<string>([^<]+)</string>`),
+		"../../project.yml":    regexp.MustCompile(`SUPublicEDKey:\s*"([^"]+)"`),
+	}
+	for path, pattern := range sources {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		match := pattern.FindSubmatch(data)
+		if match == nil {
+			t.Fatalf("%s: SUPublicEDKey not found", path)
+		}
+		if string(match[1]) != sparklePublicKey {
+			t.Fatalf("%s: SUPublicEDKey %s != server %s", path, match[1], sparklePublicKey)
+		}
+	}
+}
+
+func TestSparkleReleaseProbeReturnsFeedWithoutTracking(t *testing.T) {
+	feed := signedSparkleFixture(t, "0.14.1")
+	client := &http.Client{Transport: feedTransport(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(feed)), Header: make(http.Header), Request: r}, nil
+	})}
+	databasePath := t.TempDir() + "/xstats.sqlite"
+	app, err := newApplicationWithFeedClient(databasePath, "release-secret", client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publishSparkleFixture(t, app, "0.14.1", "126")
+	res, err := app.Test(httptest.NewRequest(http.MethodGet, "/api/v1/update/appcast.xml?current_version=0.14.1&installation_id="+releaseProbeInstallationID, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	if res.StatusCode != 200 || string(data) != feed {
+		t.Fatalf("probe: %d", res.StatusCode)
+	}
+	if count := trackedInstallations(t, databasePath); count != 0 {
+		t.Fatalf("release probe tracked %d", count)
 	}
 }

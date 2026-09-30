@@ -137,7 +137,7 @@ TAP=ysicing/homebrew-tap
 Its required order is:
 
 1. Verify provenance, clean worktree, and `HEAD == origin/main`.
-Before uploading or publishing a Sparkle client, run `python3 scripts/publish_api.py --check-sparkle`. Both regional fixed XML endpoints must already be deployed and reject a missing installation ID with 400 + no-store. Old JSON POST clients and publication fields remain unchanged. The API serves the current manifest's immutable signed XML without rewriting its signature or forwarding the installation ID to the CDN.
+Before uploading or publishing a Sparkle client, run `python3 scripts/publish_api.py --check-sparkle`. After the JSON manifest is published, `python3 scripts/publish_api.py --verify-sparkle dist/XStats-<version>-AppleSilicon.xml` fetches each regional XML endpoint with the reserved probe installation ID (64 zeros, not counted in statistics) and requires the bytes to match the local signed XML; `publish_release.sh` runs it automatically. Both regional fixed XML endpoints must already be deployed and reject a missing installation ID with 400 + no-store. Old JSON POST clients and publication fields remain unchanged. The API serves the current manifest's immutable signed XML without rewriting its signature or forwarding the installation ID to the CDN.
 
 2. Verify Ed25519 signatures, then upload DMG, ZIP and versioned XML to `c-ip`.
 3. Download each public `c.ysicing.net` URL and compare SHA-256.
