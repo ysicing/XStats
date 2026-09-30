@@ -35,15 +35,18 @@ public final class NetworkController {
     }
     /// 仅用于界面转圈：有缓存可显示时不转圈，后台悄悄核对
     public private(set) var isLookingUpPublic = false
-    /// 仅用于重入保护，与转圈状态相反——有缓存时也必须挡住并发查询，
-    /// 否则两个 Task 会各发三次请求、并发写缓存，失败结果可能覆盖好结果
-    @ObservationIgnored private var isFetchingPublic = false
+    /// 有缓存时不转圈，但仍用任务句柄挡住同一代的并发查询。
+    @ObservationIgnored private var publicLookupTask: Task<Void, Never>?
+    @ObservationIgnored private var publicLookupGeneration = UUID()
     public private(set) var probes = History<ProbeSample>(capacity: probeCapacity)
     public private(set) var processes: [NetworkProcessUsage] = []
     /// 各进程流量的平滑排行，列表按它排序而不是按瞬时速率
     @ObservationIgnored private var processRanking = ActivityRanking()
 
     @ObservationIgnored private let settings: AppSettings
+    @ObservationIgnored private let cacheDefaults: UserDefaults
+    @ObservationIgnored private let fetchPublicAddresses: @Sendable () async -> PublicAddresses
+    @ObservationIgnored private let fetchGeo: @Sendable (String) async -> PublicAddressLookup.GeoInfo?
     @ObservationIgnored private var probeTask: Task<Void, Never>?
     @ObservationIgnored private var detailTask: Task<Void, Never>?
     @ObservationIgnored private var processSampler = NetworkProcessSampler()
@@ -84,9 +87,14 @@ public final class NetworkController {
         return sysctlbyname("kern.boottime", &boot, &size, nil, 0) == 0 ? TimeInterval(boot.tv_sec) : nil
     }()
 
-    init(settings: AppSettings) {
+    init(settings: AppSettings, cacheDefaults: UserDefaults = .standard,
+         fetchPublicAddresses: @escaping @Sendable () async -> PublicAddresses = { await PublicAddressLookup.fetch(includeGeo: false) },
+         fetchGeo: @escaping @Sendable (String) async -> PublicAddressLookup.GeoInfo? = { await PublicAddressLookup.geo(for: $0) }) {
         self.settings = settings
-        if let data = UserDefaults.standard.data(forKey: Self.cacheKey),
+        self.cacheDefaults = cacheDefaults
+        self.fetchPublicAddresses = fetchPublicAddresses
+        self.fetchGeo = fetchGeo
+        if let data = cacheDefaults.data(forKey: Self.cacheKey),
            let cache = try? JSONDecoder().decode(PublicCache.self, from: data), settings.publicIPLookup {
             publicResults = Dictionary(uniqueKeysWithValues: cache.results.compactMap { key, value in IPFamily(rawValue: key).map { ($0, value) } })
         }
@@ -161,6 +169,7 @@ public final class NetworkController {
 
     func setPaused(_ paused: Bool) {
         isPaused = paused
+        if paused { cancelPublicLookup() }
         applyProbeState()
         applyDetailState()
     }
@@ -219,20 +228,28 @@ public final class NetworkController {
     /// 因为它只查请求方自己）：地址没变、结果不满 7 天的那一族沿用缓存，否则重新查并写回缓存。
     /// `force` 为真时（用户点了刷新）两族都重查
     func lookUpPublicAddresses(force: Bool = false) {
-        guard settings.publicIPLookup, !isFetchingPublic else { return }
-        isFetchingPublic = true
+        guard settings.publicIPLookup, !isPaused, publicLookupTask == nil else { return }
+        let generation = UUID()
+        publicLookupGeneration = generation
         // 有缓存可显示时不转圈，后台悄悄核对
         isLookingUpPublic = publicResults.isEmpty || force
         let localIPv4 = details?.physical?.ipv4 ?? []
-        Task {
-            // 无论正常结束、抛出还是被取消都要放开重入锁，否则查询会永久卡死
-            defer { isFetchingPublic = false }
-            let base = await PublicAddressLookup.fetch(includeGeo: false)
-            let cached = Self.loadCache()
+        publicLookupTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                // 旧查询结束不能清掉新查询的句柄或加载状态。
+                if self.publicLookupGeneration == generation {
+                    self.publicLookupTask = nil
+                    self.isLookingUpPublic = false
+                }
+            }
+            let base = await self.fetchPublicAddresses()
+            guard self.isCurrentPublicLookup(generation) else { return }
+            let cached = self.loadCache()
             let now = Date()
 
             @MainActor func resolve(_ family: IPFamily, ip: String?) async -> PublicAddresses? {
-                guard let ip else { return nil }
+                guard self.isCurrentPublicLookup(generation), let ip else { return nil }
                 let previous = cached?.results[family.rawValue]
                 let sameAddress = previous.map { ($0.queriedAddress ?? (family == .v4 ? $0.ipv4 : $0.ipv6)) == ip } ?? false
                 // 上次什么都没查到的不算缓存，这次重查
@@ -242,7 +259,9 @@ public final class NetworkController {
                 }
                 var result = base
                 result.queriedAddress = ip
-                if let info = await PublicAddressLookup.geo(for: ip) {
+                let info = await self.fetchGeo(ip)
+                guard self.isCurrentPublicLookup(generation) else { return nil }
+                if let info {
                     result.apply(info)
                     // 分流代理下 cleanip.io 看到的出口可能与 Cloudflare 不同：纯净度是那个地址的，界面也显示那个地址
                     if let seen = info.ip, seen != ip {
@@ -259,6 +278,7 @@ public final class NetworkController {
             var results: [IPFamily: PublicAddresses] = [:]
             if let v4 = await v4 { results[.v4] = v4 }
             if let v6 = await v6 { results[.v6] = v6 }
+            guard self.isCurrentPublicLookup(generation) else { return }
             // 两份结果都带着两族地址，各族以自己那份结果为准；缓存里留下的另一族旧地址不算
             let ipv4 = results[.v4]?.ipv4 ?? base.ipv4
             let ipv6 = results[.v6]?.ipv6 ?? base.ipv6
@@ -279,7 +299,7 @@ public final class NetworkController {
                 let sameAsCached = previous?.asn == result.asn && previous?.purity == result.purity && previous?.city == result.city
                 if force || !sameAsCached || dates[family.rawValue] == nil { dates[family.rawValue] = now }
             }
-            Self.saveCache(PublicCache(results: Dictionary(uniqueKeysWithValues: results.map { ($0.key.rawValue, $0.value) }),
+            self.saveCache(PublicCache(results: Dictionary(uniqueKeysWithValues: results.map { ($0.key.rawValue, $0.value) }),
                                        geoDates: dates))
             publicResults = results
             if publicResults[publicFamily] == nil, let only = publicResults.keys.first { publicFamily = only }
@@ -288,12 +308,23 @@ public final class NetworkController {
         }
     }
 
-    private static func loadCache() -> PublicCache? {
-        UserDefaults.standard.data(forKey: cacheKey).flatMap { try? JSONDecoder().decode(PublicCache.self, from: $0) }
+    private func isCurrentPublicLookup(_ generation: UUID) -> Bool {
+        !Task.isCancelled && publicLookupGeneration == generation && settings.publicIPLookup && !isPaused
     }
 
-    private static func saveCache(_ cache: PublicCache) {
-        UserDefaults.standard.set(try? JSONEncoder().encode(cache), forKey: cacheKey)
+    private func cancelPublicLookup() {
+        publicLookupGeneration = UUID()
+        publicLookupTask?.cancel()
+        publicLookupTask = nil
+        isLookingUpPublic = false
+    }
+
+    private func loadCache() -> PublicCache? {
+        cacheDefaults.data(forKey: Self.cacheKey).flatMap { try? JSONDecoder().decode(PublicCache.self, from: $0) }
+    }
+
+    private func saveCache(_ cache: PublicCache) {
+        cacheDefaults.set(try? JSONEncoder().encode(cache), forKey: Self.cacheKey)
     }
 
     /// 10 分钟内且本地地址未变化时沿用上次结果
@@ -305,9 +336,10 @@ public final class NetworkController {
     }
 
     func clearPublicAddresses() {
+        cancelPublicLookup()
         publicResults = [:]
         lastPublicLookup = nil
-        UserDefaults.standard.removeObject(forKey: Self.cacheKey)
+        cacheDefaults.removeObject(forKey: Self.cacheKey)
     }
 
     // MARK: 探测

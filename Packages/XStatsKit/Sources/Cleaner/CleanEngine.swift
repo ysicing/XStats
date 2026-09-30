@@ -91,7 +91,8 @@ public enum CleanEngine {
         (try? scanAllocatedSize(of: url, checkCancellation: {})) ?? 0
     }
 
-    static func scanAllocatedSize(of url: URL,
+    /// 完整体积计量，遍历期间响应取消；取消时抛错，不返回部分大小。
+    public static func scanAllocatedSize(of url: URL,
                                   checkCancellation: () throws -> Void = { try Task.checkCancellation() }) throws -> UInt64 {
         try checkCancellation()
         let keys: [URLResourceKey] = [.isRegularFileKey, .isSymbolicLinkKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey]

@@ -207,32 +207,36 @@ public enum UpdateInstaller {
     }
 }
 
-/// 带进度的下载：系统把文件下载到临时位置，完成回调里立即移到目标位置
-private final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+/// 带进度的下载：交由系统异步 API 协调任务创建和取消，完成后移到目标位置。
+final class Downloader: NSObject, URLSessionDownloadDelegate, Sendable {
     private let destination: URL
     private let progress: @Sendable (Double) -> Void
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<Void, Error>?
-    private var moveError: Error?
 
     init(destination: URL, progress: @escaping @Sendable (Double) -> Void) {
         self.destination = destination
         self.progress = progress
     }
 
-    func run(_ url: URL) async throws {
-        let configuration = URLSessionConfiguration.ephemeral
+    func run(_ url: URL, configuration: URLSessionConfiguration = .ephemeral) async throws {
+        try Task.checkCancellation()
         configuration.timeoutIntervalForRequest = 60
         configuration.timeoutIntervalForResource = 15 * 60
-        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        let session = URLSession(configuration: configuration)
         defer { session.finishTasksAndInvalidate() }
-        try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                lock.withLock { self.continuation = continuation }
-                session.downloadTask(with: url).resume()
+        do {
+            // 原来的取消回调可能先 invalidate Session，再创建任务，触发无法捕获的原生异常。
+            // 系统 API 自行协调这个时序，任务级 delegate 仍负责进度反馈。
+            let (location, response) = try await session.download(from: url, delegate: self)
+            try Task.checkCancellation()
+            if let response = response as? HTTPURLResponse, !(200..<300).contains(response.statusCode) {
+                throw UpdateError.download(tr("服务器返回 \(response.statusCode)"))
             }
-        } onCancel: {
-            session.invalidateAndCancel()
+            try? FileManager.default.removeItem(at: destination)
+            try FileManager.default.moveItem(at: location, to: destination)
+            try Task.checkCancellation()
+        } catch {
+            if Task.isCancelled { throw CancellationError() }
+            throw error as? UpdateError ?? UpdateError.download(error.localizedDescription)
         }
     }
 
@@ -243,28 +247,6 @@ private final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        if let response = downloadTask.response as? HTTPURLResponse, !(200..<300).contains(response.statusCode) {
-            moveError = UpdateError.download(tr("服务器返回 \(response.statusCode)"))
-            return
-        }
-        do {
-            try? FileManager.default.removeItem(at: destination)
-            try FileManager.default.moveItem(at: location, to: destination)
-        } catch {
-            moveError = error
-        }
-    }
-
-    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        let continuation = lock.withLock { () -> CheckedContinuation<Void, Error>? in
-            defer { self.continuation = nil }
-            return self.continuation
-        }
-        if let error = error ?? moveError {
-            let message = (error as? UpdateError)?.errorDescription ?? error.localizedDescription
-            continuation?.resume(throwing: error as? UpdateError ?? UpdateError.download(message))
-        } else {
-            continuation?.resume()
-        }
+        // 协议要求实现此方法；临时文件由系统 async 返回值交给 run 统一移动。
     }
 }

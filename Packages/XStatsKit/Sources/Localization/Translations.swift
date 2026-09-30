@@ -1429,5 +1429,7 @@ Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依�
 活动监视器	Activity Monitor
 打开系统活动监视器	Open macOS Activity Monitor
 进程功能开启时打开 XStats 进程页，关闭时打开系统活动监视器。	Opens XStats Processes when enabled, or macOS Activity Monitor when the feature is off.
+不能在 XStats 内卸载或退出 XStats 自身	XStats cannot uninstall or quit itself from this tool
+应用本体未能移动；已将 {} 项残留移到废纸篓，约 {}。请解决错误后重试。	The app could not be moved. Related items moved to Trash: {} (about {}). Resolve the error and try again.
 """#
 }

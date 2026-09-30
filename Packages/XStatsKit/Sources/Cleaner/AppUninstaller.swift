@@ -53,6 +53,7 @@ public struct AppLeftover: Sendable, Identifiable, Hashable {
 
 public enum AppUninstallError: Error, Sendable, Equatable, CustomStringConvertible {
     case systemApp
+    case currentApp
     case running
     case notAnApp
     case unsafePath(String)
@@ -60,6 +61,7 @@ public enum AppUninstallError: Error, Sendable, Equatable, CustomStringConvertib
     public var description: String {
         switch self {
         case .systemApp: tr("系统自带的应用不能卸载")
+        case .currentApp: tr("不能在 XStats 内卸载或退出 XStats 自身")
         case .running: tr("应用正在运行，请先退出")
         case .notAnApp: tr("不是应用程序")
         case .unsafePath(let path): tr("不在可卸载的位置：\(path)")
@@ -104,57 +106,73 @@ public enum AppUninstaller {
                             teamIdentifier: nil)
     }
 
-    /// 系统自带与 Apple 的应用不允许卸载
-    public static func validate(_ app: InstalledApp, home: String = NSHomeDirectory()) throws {
+    /// 系统自带、Apple 的应用与当前应用自身不允许卸载；同 Bundle ID 的副本也视作自身。
+    public static func validate(_ app: InstalledApp, home: String = NSHomeDirectory(),
+                                currentBundleIdentifier: String? = Bundle.main.bundleIdentifier) throws {
         let path = app.url.resolvingSymlinksInPath().path
         guard app.url.pathExtension == "app" else { throw AppUninstallError.notAnApp }
         if path.hasPrefix("/System/") || app.bundleIdentifier.hasPrefix("com.apple.") { throw AppUninstallError.systemApp }
+        if currentBundleIdentifier?.caseInsensitiveCompare(app.bundleIdentifier) == .orderedSame { throw AppUninstallError.currentApp }
         let allowed = applicationDirectories(home: home).map { $0.path + "/" }
         guard allowed.contains(where: { path.hasPrefix($0) }) else { throw AppUninstallError.unsafePath(path) }
     }
 
     public static func leftovers(for app: InstalledApp, home: String = NSHomeDirectory()) -> [AppLeftover] {
+        (try? leftovers(for: app, home: home, checkCancellation: {})) ?? []
+    }
+
+    /// 可取消的残留扫描；扫描不完整时抛错，不发布部分候选。
+    public static func scanLeftovers(for app: InstalledApp, home: String = NSHomeDirectory()) throws -> [AppLeftover] {
+        try leftovers(for: app, home: home, checkCancellation: { try Task.checkCancellation() })
+    }
+
+    private static func leftovers(for app: InstalledApp, home: String,
+                                  checkCancellation: () throws -> Void) throws -> [AppLeftover] {
+        try checkCancellation()
         let library = URL(fileURLWithPath: home).appendingPathComponent("Library")
         let id = app.bundleIdentifier
         let manager = FileManager.default
         var results: [AppLeftover] = []
         var seen = Set<String>()
 
-        func add(_ url: URL, _ kind: AppLeftover.Kind) {
+        func add(_ url: URL, _ kind: AppLeftover.Kind) throws {
+            try checkCancellation()
             let path = url.standardizedFileURL.path
             guard !seen.contains(path), manager.fileExists(atPath: path) else { return }
             seen.insert(path)
-            results.append(AppLeftover(url: url, kind: kind, size: CleanEngine.allocatedSize(of: url)))
+            results.append(AppLeftover(url: url, kind: kind,
+                                       size: try CleanEngine.scanAllocatedSize(of: url, checkCancellation: checkCancellation)))
         }
 
         /// 目录下名字等于包名、以“包名.”开头或满足 extra 的条目
-        func scan(_ relative: String, _ kind: AppLeftover.Kind, extra: (String) -> Bool = { _ in false }) {
+        func scan(_ relative: String, _ kind: AppLeftover.Kind, extra: (String) -> Bool = { _ in false }) throws {
+            try checkCancellation()
             let directory = library.appendingPathComponent(relative)
             let names = (try? manager.contentsOfDirectory(atPath: directory.path)) ?? []
             for name in names where matchesIdentifier(name, id) || extra(name) {
-                add(directory.appendingPathComponent(name), kind)
+                try add(directory.appendingPathComponent(name), kind)
             }
         }
 
-        add(app.url, .application)
-        scan("Application Support", .support) { $0 == app.name }
-        scan("Caches", .caches)
-        scan("HTTPStorages", .caches)
-        scan("Preferences", .preferences)
-        scan("Preferences/ByHost", .preferences)
-        scan("Containers", .containers)
-        scan("Application Scripts", .containers)
-        scan("Group Containers", .containers) { name in
+        try add(app.url, .application)
+        try scan("Application Support", .support) { $0 == app.name }
+        try scan("Caches", .caches)
+        try scan("HTTPStorages", .caches)
+        try scan("Preferences", .preferences)
+        try scan("Preferences/ByHost", .preferences)
+        try scan("Containers", .containers)
+        try scan("Application Scripts", .containers)
+        try scan("Group Containers", .containers) { name in
             guard supportsDerivedNames(id) else { return false }
             // 形如 “TEAMID.com.example.app” 或 “group.com.example.app”
             return name.hasSuffix("." + id) || name == "group." + id || name.hasPrefix("group." + id + ".")
         }
-        scan("Saved Application State", .savedState)
-        scan("Logs", .logs) { $0 == app.name }
-        scan("Logs/DiagnosticReports", .logs) { $0.hasPrefix(app.url.deletingPathExtension().lastPathComponent + "-") }
-        scan("WebKit", .webData)
-        scan("Cookies", .webData)
-        scan("LaunchAgents", .launchAgents)
+        try scan("Saved Application State", .savedState)
+        try scan("Logs", .logs) { $0 == app.name }
+        try scan("Logs/DiagnosticReports", .logs) { $0.hasPrefix(app.url.deletingPathExtension().lastPathComponent + "-") }
+        try scan("WebKit", .webData)
+        try scan("Cookies", .webData)
+        try scan("LaunchAgents", .launchAgents)
         return results
     }
 
