@@ -1,23 +1,23 @@
 {
-  "version": "0.14.0",
+  "version": "0.14.1",
   "sourceNotes": [
-    "菜单栏网速旁可选显示公网 IP 归属地的国旗或地区文字，复用网络详情的查询结果，不增加网络请求",
-    "进程页新增系统活动监视器入口",
-    "进程管理改为默认关闭的可选功能，可在通用设置中按需开启",
-    "“AI 用量与额度”统一简化为“AI 用量”，同步多语言名称与说明",
-    "优化卸载确认弹窗的按钮、文案和长应用名排版，明确所选项目与废纸篓恢复方式",
-    "修复在线更新安装后可能无法自动启动的问题",
-    "修复卸载前退出菜单栏应用后，“正在运行”提示及卸载按钮未及时刷新的问题"
+    "在线更新接入 Sparkle，保留检查策略、跳过版本和系统通知",
+    "更新摘要支持中英文，跟随应用语言显示",
+    "卸载列表就绪后即可操作，应用大小在后台计算",
+    "修复取消在线更新后仍可能继续安装的问题，并在安装前协调桌面小组件退出",
+    "修复卸载时可能退出 XStats 自身、删除期间改变选择",
+    "修复跳过版本时误提示“已是最新版本”，以及已发现的新版本被后续检查失败隐藏的问题",
+    "修复关闭公网 IP 查询或暂停监控后，旧请求仍可能回写结果与缓存的问题"
   ],
   "translations": {
     "en": [
-      "Optionally show the public IP country flag or region beside menu bar network speeds, reusing existing results without extra requests",
-      "Add a shortcut to Activity Monitor on the Processes page; when the built-in process feature is disabled, the process keyboard shortcut opens Activity Monitor",
-      "Make process management optional and disabled by default; enable it in General settings. Per-app usage remains available on other monitoring pages",
-      "Rename “AI Usage and Quotas” to “AI Usage” across all languages",
-      "Improve uninstall confirmation buttons, wording, and long app names; clarify selected items and Trash recovery",
-      "Fix automatic relaunch after installing an update; if the app does not relaunch after the first upgrade from an older version, open it manually once",
-      "Fix delayed refresh of running status and the uninstall button after quitting menu bar apps"
+      "Use Sparkle for online updates while preserving check schedules, skipped versions, and system notifications. Downloads start only after clicking Install; older versions can upgrade through their existing update entry point",
+      "Show update summaries in Chinese for Chinese app languages and in English for all other app languages; GitHub Releases also include both languages",
+      "Make the uninstall list usable as soon as it is ready, measure app sizes in the background, and cancel previous scans when leaving the page or refreshing",
+      "Fix updates continuing to install after cancellation and coordinate desktop widget shutdown before installation",
+      "Prevent quitting XStats itself during uninstall, changing selections during removal, and removing Dock icons when only leftover files are cleaned",
+      "Fix skipped versions being reported as up to date and previously discovered updates disappearing after a later check fails",
+      "Prevent old public IP requests from overwriting results or cache after lookup is disabled or monitoring is paused"
     ]
   }
 }
