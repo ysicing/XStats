@@ -88,13 +88,15 @@ private struct OverviewPopoverHeader: View {
 
     var body: some View {
         HStack(spacing: DS.Space.s2) {
-            Image(systemName: overviewSymbol)
-                .font(.system(size: DS.TextSize.sm.rawValue, weight: .semibold))
-                .foregroundStyle(DS.Palette.textSecondary)
-                .frame(width: DS.Size.iconStandalone)
-            Text(tr("状态总览"))
-                .dsFont(.base, weight: .semibold)
-                .foregroundStyle(DS.Palette.textPrimary)
+            HStack(spacing: DS.Space.s1) {
+                Image(systemName: overviewSymbol)
+                    .font(.system(size: DS.TextSize.sm.rawValue, weight: .semibold))
+                    .foregroundStyle(DS.Palette.textSecondary)
+                    .frame(width: DS.Size.iconInline)
+                Text(tr("状态总览"))
+                    .dsFont(.base, weight: .semibold)
+                    .foregroundStyle(DS.Palette.textPrimary)
+            }
             Spacer(minLength: DS.Space.s2)
             let page = PanelTab.overview
             MiniIconButton(systemName: page.symbol, help: tr("在主窗口打开“\(page.title)”")) { model.openMainWindow(page) }

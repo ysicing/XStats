@@ -84,17 +84,19 @@ struct PopoverHeader: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
+        let page = PanelTab(item: item)
         HStack(spacing: DS.Space.s2) {
-            Image(systemName: item.symbol)
-                .font(.system(size: DS.TextSize.sm.rawValue, weight: .semibold))
-                .foregroundStyle(DS.Palette.textSecondary)
-                .frame(width: DS.Size.iconStandalone)
-            Text(item.popoverTitle)
-                .dsFont(.base, weight: .semibold)
-                .foregroundStyle(DS.Palette.textPrimary)
+            HStack(spacing: DS.Space.s1) {
+                Image(systemName: item == .network ? page.symbol : item.symbol)
+                    .font(.system(size: DS.TextSize.sm.rawValue, weight: .semibold))
+                    .foregroundStyle(DS.Palette.textSecondary)
+                    .frame(width: DS.Size.iconInline)
+                Text(item.popoverTitle)
+                    .dsFont(.base, weight: .semibold)
+                    .foregroundStyle(DS.Palette.textPrimary)
+            }
             Spacer(minLength: DS.Space.s2)
             if item == .memory { PurgeMemoryButton() }
-            let page = PanelTab(item: item)
             if item == .aiUsage {
                 // 当前数据的操作在前；来源配置用滑杆，最右侧齿轮进入 AI 主窗口。
                 AIUsageRefreshButton()
