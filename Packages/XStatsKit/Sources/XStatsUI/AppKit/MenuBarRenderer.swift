@@ -325,16 +325,14 @@ enum MenuBarRenderer {
             if let appearance { appearance.performAsCurrentDrawingAppearance(content) } else { content() }
         }
         let scale = backingScale ?? NSScreen.main?.backingScaleFactor ?? 2
-        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil,
-                                         pixelsWide: Int(ceil(image.size.width * scale)),
-                                         pixelsHigh: Int(ceil(image.size.height * scale)),
-                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
-            return NSImage(size: image.size, flipped: false) { draw($0); return true }
-        }
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil,
+                                   pixelsWide: Int(ceil(image.size.width * scale)),
+                                   pixelsHigh: Int(ceil(image.size.height * scale)),
+                                   bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                   colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)
         // 逻辑尺寸决定上下文的点到像素缩放，必须在创建上下文前设置。
-        rep.size = image.size
-        guard let context = NSGraphicsContext(bitmapImageRep: rep) else {
+        rep?.size = image.size
+        guard let rep, let context = NSGraphicsContext(bitmapImageRep: rep) else {
             return NSImage(size: image.size, flipped: false) { draw($0); return true }
         }
         NSGraphicsContext.saveGraphicsState()

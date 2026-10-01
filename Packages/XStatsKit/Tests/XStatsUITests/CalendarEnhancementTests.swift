@@ -12,32 +12,37 @@ import Testing
 struct CalendarEnhancementTests {
     let zone = TimeZone(identifier: "Asia/Shanghai")!
 
-    @Test(arguments: [false, true], [false, true])
-    func detachedCalendarMeasurementIncludesEnabledContent(showsDayDetails: Bool, showsHolidayOverview: Bool) async throws {
+    @Test(arguments: [false, true])
+    func detachedCalendarMeasurementIncludesEnabledContent(showsDayDetails: Bool) throws {
         let name = "CalendarMeasurementTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "zh_CN"))
         settings.calendarFeatures = [.lunar, .holidays, .festivals, .seasonalInfo]
-        settings.calendarPreferences.showHolidayOverview = showsHolidayOverview
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
         let date = try #require(ISO8601DateFormatter().date(from: "2026-09-23T04:00:00Z"))
-        let hosting = NSHostingView(rootView: CalendarPopover(referenceDate: date, showsDayDetails: showsDayDetails,
-                                                              firstWeekday: settings.calendarFirstWeekday)
-            .environment(model)
-            .environment(\.isSnapshot, true))
-        // StatusPanel 在挂载前测量；启用的卡片必须已计入高度，不能等 onAppear 后才补齐。
-        let measured = hosting.fittingSize
-        #expect(hosting.window == nil)
-        let window = NSWindow(contentRect: NSRect(origin: CGPoint(x: -10_000, y: -10_000), size: measured),
-                              styleMask: .borderless, backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        defer { window.close() }
-        window.contentView = hosting
-        window.orderFrontRegardless()
-        hosting.layoutSubtreeIfNeeded()
-        try await Task.sleep(for: .milliseconds(150))
-        #expect(abs(hosting.fittingSize.height - measured.height) < 1)
+        // StatusPanel 在挂载前测量，此时 onAppear 尚未运行；启用的卡片必须已计入这次测量的高度。
+        let measuredHeight = { (showsHolidayOverview: Bool) -> CGFloat in
+            settings.calendarPreferences.showHolidayOverview = showsHolidayOverview
+            let hosting = NSHostingView(rootView: CalendarPopover(referenceDate: date, showsDayDetails: showsDayDetails,
+                                                                  firstWeekday: settings.calendarFirstWeekday)
+                .environment(model)
+                .environment(\.isSnapshot, true))
+            return hosting.fittingSize.height
+        }
+        let withoutOverview = measuredHeight(false)
+        let withOverview = measuredHeight(true)
+        if showsDayDetails {
+            // 详情页不显示假期概览；黄历宜忌须已计入，弹窗不能比单独的黄历卡片还矮。
+            #expect(withOverview == withoutOverview)
+            let day = try #require(CalendarEngine.today(at: date))
+            let almanac = NSHostingView(rootView: CalendarAlmanacView(day: day, almanac: CalendarEngine.almanac(for: day),
+                                                                      features: settings.calendarFeatures)
+                .frame(width: CalendarPopoverSizing.standard.width))
+            #expect(withOverview > almanac.fittingSize.height)
+        } else {
+            #expect(withOverview > withoutOverview)
+        }
     }
 
     @Test func calendarLayoutDoesNotFeedOverflowBackIntoWindowSize() async throws {
