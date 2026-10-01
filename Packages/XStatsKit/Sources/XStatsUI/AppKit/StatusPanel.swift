@@ -14,6 +14,9 @@ final class StatusPanel: NSPanel {
     private var anchor: NSRect = .zero
     private weak var anchorScreen: NSScreen?
     private var lastDismissal = Date.distantPast
+    private var dismissedByAnchorMouseDown = false
+    /// 失焦回调可能晚于下一次打开；旧轮次不能关闭重新打开的窗口。
+    private var presentationGeneration: UInt = 0
     private var heightRefreshPending = false
     private var liveContentHeight: CGFloat?
 
@@ -60,9 +63,12 @@ final class StatusPanel: NSPanel {
     func toggle(below anchor: NSRect, on screen: NSScreen?) {
         if isVisible {
             dismiss()
-        } else if Date().timeIntervalSince(lastDismissal) > 0.3 {
+        } else if !dismissedByAnchorMouseDown || Date().timeIntervalSince(lastDismissal) > 0.3 {
             // 面板打开时点击菜单栏图标：按下时面板已因失焦关闭，松开时不应再次打开
             present(below: anchor, on: screen)
+        } else {
+            // 只消费这一次 mouse-up；下一次独立点击不必等满冷却时间。
+            dismissedByAnchorMouseDown = false
         }
     }
 
@@ -72,16 +78,16 @@ final class StatusPanel: NSPanel {
         liveContentHeight = nil
 
         guard let content = makeContent?() else { return }
+        presentationGeneration &+= 1
+        dismissedByAnchorMouseDown = false
         setFrame(targetFrame(), display: false)
         content.frame = NSRect(origin: .zero, size: frame.size)
         contentView = PanelContainer.make(containing: content, cornerRadius: DS.Radius.xl)
 
-        alphaValue = 0
+        // 可见性不能依赖透明度动画是否被调度；非激活面板始终以完整透明度显示。
+        // 窗口过渡沿用 animationBehavior，避免快速切换或繁忙布局留下透明窗口。
+        alphaValue = 1
         makeKeyAndOrderFront(nil)
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.12
-            animator().alphaValue = 1
-        }
         installMonitors()
         onVisibilityChange?(true)
     }
@@ -111,31 +117,34 @@ final class StatusPanel: NSPanel {
         }
     }
 
-    func dismiss() {
+    func dismiss(triggeredBy event: NSEvent? = nil) {
         guard isVisible, !isPinned else { return }
+        presentationGeneration &+= 1
         lastDismissal = Date()
+        // 图标 mouse-down 引起的关闭才短暂拦截 mouse-up，避免同一次点击立刻重开。
+        // 点击外部、Esc 和程序化关闭不阻挡下一次打开。
+        let point = event.map { $0.window?.convertPoint(toScreen: $0.locationInWindow) ?? $0.locationInWindow }
+        dismissedByAnchorMouseDown = event?.type == .leftMouseDown && point.map(anchor.contains) == true
         removeMonitors()
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.1
-            animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
-            MainActor.assumeIsolated {
-                self?.orderOut(nil)
-                self?.contentView = nil
-                self?.alphaValue = 1
-            }
-        })
+        // 关闭立即生效；异步淡出不仅会晚到清理内容，还可能把新窗口的透明度改回 0。
+        // 沿用窗口原生动画，不为短暂的关闭过渡维护额外状态与取消机制。
+        orderOut(nil)
+        contentView = nil
+        alphaValue = 1
         onVisibilityChange?(false)
     }
 
     override func resignKey() {
+        let generation = presentationGeneration
+        let event = NSApp.currentEvent
         super.resignKey()
         // 弹出菜单时面板也会失去 key，稍后确认没有其他 key 窗口再关闭
         DispatchQueue.main.async { [weak self] in
             MainActor.assumeIsolated {
-                guard let self, self.isVisible, !self.isKeyWindow, self.attachedSheet == nil else { return }
+                guard let self, self.presentationGeneration == generation,
+                      self.isVisible, !self.isKeyWindow, self.attachedSheet == nil else { return }
                 if NSApp.keyWindow?.level == .popUpMenu { return }
-                self.dismiss()
+                self.dismiss(triggeredBy: event)
             }
         }
     }
@@ -165,14 +174,20 @@ final class StatusPanel: NSPanel {
 
     private func installMonitors() {
         removeMonitors()
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            MainActor.assumeIsolated { self?.dismiss() }
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            MainActor.assumeIsolated { self?.dismiss(triggeredBy: event) }
         }
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown]) { [weak self] event in
             // Esc
-            if event.keyCode == 53, event.window === self {
-                MainActor.assumeIsolated { self?.dismiss() }
+            if event.type == .keyDown, event.keyCode == 53, event.window === self {
+                MainActor.assumeIsolated { self?.dismiss(triggeredBy: event) }
                 return nil
+            }
+            // 本应用的图标点击不会进入 global monitor；在按下时记录关闭原因，
+            // 不处理弹窗内的点击，避免影响下拉菜单、文本选择等原有交互。
+            if event.type == .leftMouseDown, let self, event.window !== self {
+                let point = event.window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
+                if self.anchor.contains(point) { self.dismiss(triggeredBy: event) }
             }
             return event
         }
