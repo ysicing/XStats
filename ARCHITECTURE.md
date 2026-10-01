@@ -332,10 +332,8 @@ the quota reader has no access to session-log content.
   If cleanip.io sees a different exit than Cloudflare (split-routing proxies), its address is shown.
   Results are cached per IP for an hour in memory and for a week on disk (failed lookups are not
   cached), and a 429 stops further calls until the next UTC day. Country
-  codes are validated before being used as flag file names. `server/geoip/` still holds the systemd
-  timer that syncs MaxMind GeoLite2 onto `getopenstats.com/geoip/` (account and key in
-  `/etc/openstats/maxmind.env` on the server); the app no longer downloads those files, they are kept
-  for other uses.
+  codes are validated before being used as flag file names. The app does not download or read local
+  GeoIP databases; the retired database synchronization and deployment scripts have been removed.
   Each public-IP query owns a cancellable task and generation token. Disabling lookup clears the
   cache and invalidates the query; sleep or lock pauses it. Every asynchronous stage and final cache
   write checks both generation and current settings, so late callbacks cannot restore cleared data
