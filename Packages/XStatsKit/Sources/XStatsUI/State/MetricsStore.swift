@@ -109,11 +109,11 @@ public final class MetricsStore {
         if let processes = snapshot.processes {
             self.processes = processes
             // 排行只需要磁盘计数，不必构建带名称、文案和其他指标的完整界面行。
-            // 分组键与 ProcessRowModel 保持一致；同组有读取计数时才采用写入合计，
-            // 保留混合权限进程和缺失计数的既有语义，并分别累加读写以保持浮点运算顺序。
+            // 同组有读取计数时才采用写入合计，保留混合权限进程和缺失计数的既有语义，
+            // 并分别累加读写以保持浮点运算顺序。
             var totals: [String: (read: Double?, write: Double)] = [:]
             for process in processes {
-                let id = process.appBundlePath.map { "app-\($0)" } ?? "pid-\(process.pid)"
+                let id = process.rowGroupID
                 var total = totals[id] ?? (nil, 0)
                 if let read = process.diskRead { total.read = (total.read ?? 0) + read }
                 total.write += process.diskWrite ?? 0

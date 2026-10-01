@@ -227,6 +227,7 @@ private func isolatedDefaults() -> UserDefaults {
         let center = try #require(rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2)?.usingColorSpace(.deviceRGB))
         #expect(center.alphaComponent > 0.99)
         #expect((center.redComponent > 0.5) == dark)
+        // 源图铺满整个画布，四角也应被着色；缩放错位时角落会留空或越界。
         for (x, y) in [(0, 0), (rep.pixelsWide - 1, 0), (0, rep.pixelsHigh - 1), (rep.pixelsWide - 1, rep.pixelsHigh - 1)] {
             let corner = try #require(rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB))
             #expect(corner.alphaComponent > 0.99)

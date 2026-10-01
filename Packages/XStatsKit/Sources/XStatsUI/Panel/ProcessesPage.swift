@@ -205,6 +205,11 @@ struct ProcessesPage: View {
 
 // MARK: - 行模型
 
+extension ProcessUsage {
+    /// 进程表的行标识：同一应用的进程合并为一行，其余按 PID 区分；磁盘排行沿用同一标识
+    var rowGroupID: String { appBundlePath.map { "app-\($0)" } ?? "pid-\(pid)" }
+}
+
 struct ProcessRowModel: Identifiable {
     let id: String
     let title: String
@@ -245,7 +250,7 @@ struct ProcessRowModel: Identifiable {
 
     private init(group: [ProcessUsage], key: String, title: String) {
         let representative = group.max { $0.memory < $1.memory } ?? group[0]
-        id = "app-\(key)"
+        id = key
         self.title = title
         subtitle = group.count > 1 ? tr("\(group.count) 个进程") : "PID \(representative.pid)"
         bundlePath = representative.appBundlePath
@@ -271,7 +276,7 @@ struct ProcessRowModel: Identifiable {
     static func grouped(_ processes: [ProcessUsage]) -> [ProcessRowModel] {
         var buckets: [String: [ProcessUsage]] = [:]
         for process in processes {
-            buckets[process.appBundlePath ?? "pid-\(process.pid)", default: []].append(process)
+            buckets[process.rowGroupID, default: []].append(process)
         }
         return buckets.map { key, group in
             if let bundle = group[0].appBundlePath {
