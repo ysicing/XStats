@@ -54,7 +54,7 @@ func TestPublishReleaseRejectsInsecureAssetURL(t *testing.T) {
 	}
 	body := `{
 		"version":"2026.09.21.03","build":"108","date":"2026-09-21","minimumSystem":"14.0",
-		"url":"https://getopenstats.com/download/XStats.zip",
+		"url":"https://updates.example.invalid/download/XStats.zip",
 		"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"size":123456,"dmg":"http://example.test/XStats.dmg","notes":["新增安装统计"]
 	}`
@@ -81,12 +81,12 @@ func TestPublishedReleaseIsReturnedByUpdateCheck(t *testing.T) {
 		"build":"108",
 		"date":"2026-09-21",
 		"minimumSystem":"14.0",
-		"url":"https://getopenstats.com/download/XStats-2026.09.21.03-AppleSilicon.zip",
+		"url":"https://updates.example.invalid/download/XStats-2026.09.21.03-AppleSilicon.zip",
 		"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"size":123456,
-		"dmg":"https://getopenstats.com/download/XStats-2026.09.21.03-AppleSilicon.dmg",
+		"dmg":"https://updates.example.invalid/download/XStats-2026.09.21.03-AppleSilicon.dmg",
 		"notes":["新增安装统计"],
-		"changelog":"https://getopenstats.com/#changelog"
+		"changelog":"https://updates.example.invalid/#changelog"
 	}`
 	publish := httptest.NewRequest(http.MethodPut, "/api/v1/releases/current", strings.NewReader(publishBody))
 	publish.Header.Set("Content-Type", "application/json")
@@ -172,7 +172,7 @@ func TestDashboardAggregatesInstallationsWithoutExposingIdentifiers(t *testing.T
 
 	publish := httptest.NewRequest(http.MethodPut, "/api/v1/releases/current", strings.NewReader(`{
 		"version":"2026.09.21.03","build":"108","date":"2026-09-21","minimumSystem":"14.0",
-		"url":"https://getopenstats.com/download/XStats.zip",
+		"url":"https://updates.example.invalid/download/XStats.zip",
 		"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"size":123456,"notes":["新增安装统计"]
 	}`))

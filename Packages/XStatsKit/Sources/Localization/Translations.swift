@@ -865,7 +865,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 最高	Max
 最高 / 平均	Max / Avg
 最高温度	Max temperature
-服务器在 getopenstats.com，不上传任何监控数据；随时可以删除。	The server is at getopenstats.com; no monitoring data is uploaded, and you can delete everything at any time.
 服务器返回 {}	Server returned {}
 服务器返回的数据格式不正确	The server returned malformed data
 未使用	Unused

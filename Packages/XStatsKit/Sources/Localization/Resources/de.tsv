@@ -746,7 +746,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 最高	Maximum
 最高 / 平均	Max. / Ø
 最高温度	Höchsttemperatur
-服务器在 getopenstats.com，不上传任何监控数据；随时可以删除。	Der Server befindet sich auf getopenstats.com. Überwachungsdaten werden nicht hochgeladen; Sie können alles jederzeit löschen.
 服务器返回 {}	Server meldet {}
 服务器返回的数据格式不正确	Der Server hat ungültig formatierte Daten geliefert
 未使用	Unbenutzt

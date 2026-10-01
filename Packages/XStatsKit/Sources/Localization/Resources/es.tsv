@@ -746,7 +746,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 最高	Máximo
 最高 / 平均	Máx. / Media
 最高温度	Temperatura máxima
-服务器在 getopenstats.com，不上传任何监控数据；随时可以删除。	El servidor está en getopenstats.com; no se suben datos de supervisión y puedes borrar todo cuando quieras.
 服务器返回 {}	El servidor devolvió {}
 服务器返回的数据格式不正确	El servidor devolvió datos con formato incorrecto
 未使用	Sin usar

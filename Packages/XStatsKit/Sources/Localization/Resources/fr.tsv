@@ -746,7 +746,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 最高	Maximum
 最高 / 平均	Max. / Moy.
 最高温度	Température maximale
-服务器在 getopenstats.com，不上传任何监控数据；随时可以删除。	Le serveur se trouve sur getopenstats.com. Aucune donnée de surveillance n’est envoyée ; vous pouvez tout supprimer à tout moment.
 服务器返回 {}	Le serveur a renvoyé {}
 服务器返回的数据格式不正确	Le serveur a renvoyé des données mal formées
 未使用	Inutilisé
