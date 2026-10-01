@@ -1,17 +1,27 @@
 {
-  "version": "0.14.2",
+  "version": "0.14.3",
   "sourceNotes": [
-    "统一菜单栏弹窗的标题图标与紧凑间距，网络改用与主窗口一致的图标",
-    "修复确认更新后更新源发生变化时提示不明确的问题，改为提示重新检查后再安装",
-    "修复跳过已撤回版本后，仍显示有更新的问题",
-    "修复部分应用卸载成功后仍显示失败、列表未更新或程序坞图标未移除的问题"
+    "日历日期与星期按应用语言显示，周起始日采用系统默认并支持手动选择",
+    "新安装按使用地区设置日历默认选项，保留已有日历用户的显示偏好",
+    "合并“节气与时令”设置，星期固定显示，简化农历与假期相关选项",
+    "减少菜单栏实时预览与磁盘应用排行的重复计算，保持原有数据和采样频率",
+    "修复关闭农历后菜单栏仍显示农历的问题，重新开启时恢复原显示方式",
+    "修复日历弹窗首次展开时详情和假期概览未完整计入高度的问题",
+    "修复菜单栏预览在 Retina 屏幕上的位图缩放问题",
+    "修复未覆盖年份沿用假期概览的问题，明日安排小组件区分功能关闭与数据缺失",
+    "移除月历中的日干支显示及独立开关，黄历详情仍保留干支信息"
   ],
   "translations": {
     "en": [
-      "Tighten title icon spacing across menu bar popovers and use the same network icon as the main window",
-      "When the update source changes after confirmation, clearly prompt users to check for updates again before installing",
-      "Fix skipped releases that have been withdrawn still appearing as available updates",
-      "Fix successful app removals being reported as failures, leaving stale list entries, or failing to remove Dock icons"
+      "Format calendar dates and weekdays in the app language; use the system week start by default and allow manual selection",
+      "Set calendar defaults by region for new installations while preserving existing calendar users' display preferences",
+      "Combine solar terms and seasonal information into one setting, always show weekdays, and simplify lunar and holiday options",
+      "Reduce repeated computation in live menu bar previews and per-app disk rankings while preserving displayed data and sampling rates",
+      "Fix lunar dates remaining in the menu bar after lunar display is disabled, and restore the previous display mode when it is enabled again",
+      "Fix day details and holiday overviews being omitted from the initial calendar popover height measurement",
+      "Fix menu bar preview bitmap scaling on Retina displays",
+      "Fix holiday overviews appearing for years without supported data; distinguish disabled holiday support from missing data in the tomorrow schedule widget",
+      "Remove day-cycle labels and their separate toggle from the month grid while retaining cycle information in almanac details"
     ]
   }
 }

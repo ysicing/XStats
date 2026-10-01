@@ -6,7 +6,7 @@
 
 **Free, open-source system monitoring in your Mac menu bar.** See CPU, memory, network and temperature at a glance, then clean up, control fans or keep your Mac awake.
 
-[![Release](https://img.shields.io/badge/release-0.14.2-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/release-0.14.3-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20silicon-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
@@ -94,7 +94,7 @@ Issues and pull requests are welcome. See [DEVELOPMENT.md](DEVELOPMENT.md) for s
 <!-- changelog:start -->
 <!-- Generated from CHANGELOG.md by scripts/sync_changelog.py. Do not edit by hand. -->
 
-Latest release **0.14.2** (2026-09-30) · [full changelog](CHANGELOG.md) (kept in Chinese)
+Latest release **0.14.3** (2026-10-01) · [full changelog](CHANGELOG.md) (kept in Chinese)
 
 <!-- changelog:end -->
 
