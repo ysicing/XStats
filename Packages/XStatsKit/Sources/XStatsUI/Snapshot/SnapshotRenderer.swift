@@ -79,12 +79,16 @@ enum SnapshotRenderer {
         model.startupItems.refresh()
         model.uninstaller.loadApps()
         try? await Task.sleep(for: .seconds(2))
+        // 固定的虚构更新仅用于离屏截图，不随正式发布版本推进，也不执行检查或安装。
+        // .invalid 是演示地址；中英文摘要沿用真实更新的语言选择规则。
         model.updates.showPreview(UpdateRelease(
-            version: "0.3.0", build: "3", date: "2026-09-20", minimumSystem: "14.0",
-            url: URL(string: "https://getopenstats.com/download/OpenStats-0.3.0.zip")!, sha256: String(repeating: "0", count: 64),
-            size: 9_600_000, dmg: nil,
-            notes: [tr("在线升级：发现新版本时显示更新摘要，一键安装并自动重启"), tr("连接探测只在需要时运行，更省电"), tr("进程页刷新频率调整为每 2 秒")],
-            changelog: URL(string: "https://getopenstats.com/#changelog")))
+            version: "9.9.9", build: "9999", date: "2026-10-01", minimumSystem: "14.0",
+            url: URL(string: "https://example.invalid/XStats-9.9.9-AppleSilicon.zip")!, sha256: String(repeating: "0", count: 64),
+            size: 9_600_000, dmg: URL(string: "https://example.invalid/XStats-9.9.9-AppleSilicon.dmg"),
+            notes: ["优化菜单栏弹窗的显示与交互", "改善日历布局与农历显示", "减少后台重复计算，保持原有采样频率"],
+            changelog: URL(string: "https://github.com/ysicing/XStats/blob/main/CHANGELOG.md"),
+            englishNotes: ["Improve menu bar popover display and interaction", "Improve calendar layout and lunar date display",
+                           "Reduce repeated background work while preserving sampling rates"]))
 
         for (appearanceName, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
             guard let appearance = NSAppearance(named: appearanceName) else { continue }
