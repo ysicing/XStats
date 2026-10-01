@@ -145,7 +145,9 @@ struct CalendarPopover: View {
     private func calendarContent(today: CalendarDay?) -> some View {
         VStack(spacing: sizing.sectionSpacing) {
             if showsDayDetails, let selected {
-                CalendarAlmanacView(day: selected, almanac: almanac, features: model.settings.calendarFeatures)
+                // 挂载前的测量尚未触发 onAppear，须同步准备详情，首次高度才能包含完整内容。
+                let displayedAlmanac = isSnapshot ? CalendarEngine.almanac(for: selected) : almanac
+                CalendarAlmanacView(day: selected, almanac: displayedAlmanac, features: model.settings.calendarFeatures)
                 if model.settings.calendarPreferences.showEvents || model.settings.calendarPreferences.showReminders {
                     CalendarAgendaView(day: selected)
                 }
@@ -157,8 +159,12 @@ struct CalendarPopover: View {
             }
             if !showsDayDetails, model.settings.calendarFeatures.contains(.holidays),
                model.settings.calendarPreferences.showHolidayOverview,
-               CalendarEngine.hasHolidayData(year: month.year), let holidayPlan {
-                CalendarHolidayPlanView(plan: holidayPlan)
+               CalendarEngine.hasHolidayData(year: month.year) {
+                // 与实际显示共用开关和年份边界；关闭概览时不为测量查询假期。
+                let displayedPlan = isSnapshot
+                    ? CalendarEngine.holidayPlan(from: referenceDate ?? Date(), displayedYear: month.year)
+                    : holidayPlan
+                if let displayedPlan { CalendarHolidayPlanView(plan: displayedPlan) }
             }
             if model.settings.calendarFeatures.contains(.holidays), !CalendarEngine.hasHolidayData(year: month.year) {
                 Text(tr("该年份暂无中国法定假日与调休数据"))
@@ -269,6 +275,7 @@ struct CalendarPopover: View {
     }
 
     private func refreshAlmanac() {
+        guard !isSnapshot else { return }
         guard showsDayDetails, let selected else {
             almanac = nil
             return
@@ -278,6 +285,7 @@ struct CalendarPopover: View {
     }
 
     private func refreshHolidayPlan(at date: Date) {
+        guard !isSnapshot else { return }
         guard model.settings.calendarFeatures.contains(.holidays), model.settings.calendarPreferences.showHolidayOverview else {
             holidayPlan = nil
             return
