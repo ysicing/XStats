@@ -1,27 +1,11 @@
 {
-  "version": "0.14.3",
+  "version": "0.14.4",
   "sourceNotes": [
-    "日历日期与星期按应用语言显示，周起始日采用系统默认并支持手动选择",
-    "新安装按使用地区设置日历默认选项，保留已有日历用户的显示偏好",
-    "合并“节气与时令”设置，星期固定显示，简化农历与假期相关选项",
-    "减少菜单栏实时预览与磁盘应用排行的重复计算，保持原有数据和采样频率",
-    "修复关闭农历后菜单栏仍显示农历的问题，重新开启时恢复原显示方式",
-    "修复日历弹窗首次展开时详情和假期概览未完整计入高度的问题",
-    "修复菜单栏预览在 Retina 屏幕上的位图缩放问题",
-    "修复未覆盖年份沿用假期概览的问题，明日安排小组件区分功能关闭与数据缺失",
-    "移除月历中的日干支显示及独立开关，黄历详情仍保留干支信息"
+    "修复点击菜单栏图标后弹窗偶发不显示或变为透明的问题，改善快速关闭、重开和连续点击的响应"
   ],
   "translations": {
     "en": [
-      "Format calendar dates and weekdays in the app language; use the system week start by default and allow manual selection",
-      "Set calendar defaults by region for new installations while preserving existing calendar users' display preferences",
-      "Combine solar terms and seasonal information into one setting, always show weekdays, and simplify lunar and holiday options",
-      "Reduce repeated computation in live menu bar previews and per-app disk rankings while preserving displayed data and sampling rates",
-      "Fix lunar dates remaining in the menu bar after lunar display is disabled, and restore the previous display mode when it is enabled again",
-      "Fix day details and holiday overviews being omitted from the initial calendar popover height measurement",
-      "Fix menu bar preview bitmap scaling on Retina displays",
-      "Fix holiday overviews appearing for years without supported data; distinguish disabled holiday support from missing data in the tomorrow schedule widget",
-      "Remove day-cycle labels and their separate toggle from the month grid while retaining cycle information in almanac details"
+      "Fix menu bar popovers occasionally failing to appear or remaining transparent, and improve responsiveness when closing, reopening, or clicking repeatedly"
     ]
   }
 }
