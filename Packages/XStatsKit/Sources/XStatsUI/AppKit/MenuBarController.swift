@@ -77,7 +77,7 @@ final class MenuBarController: NSObject {
 
     func refreshImages(force: Bool = false) {
         let settings = model.settings
-        let reading = MenuBarReading(model: model)
+        let reading = MenuBarReading(model: model, items: model.visibleMenuBarItems)
         for (index, entry) in items.enumerated() {
             let itemsToDraw = entry.key.map { [$0] } ?? model.visibleMenuBarItems
             var entryReading = reading

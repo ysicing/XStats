@@ -58,45 +58,60 @@ struct MenuBarReading {
     /// 蓝牙设备电量低于这个百分比才在菜单栏提示
     static let lowBluetoothPercent = 20
 
+    /// 只读取展示项目所需的指标，避免单项预览观察无关采样并重复栅格化。
+    /// 默认仍提供全部读数，供完整读数调用方使用；防休眠标记与项目无关，始终保留。
     @MainActor
-    init(model: AppModel) {
+    init(model: AppModel, items: [MenuBarItem] = MenuBarItem.allCases) {
         let store = model.store
-        cpu = store.cpu?.total
-        cpuHistory = store.cpuTotal.elements
-        gpu = store.gpu?.utilization
-        gpuHistory = store.gpuHistory.elements
-        memory = store.memory?.usedFraction
-        memoryHistory = store.memoryHistory.elements
-        disk = store.disk?.usedFraction
-        diskHistory = disk.map { Array(repeating: $0, count: 30) } ?? []
-        upload = store.network?.uploadBytesPerSecond
-        download = store.network?.downloadBytesPerSecond
-        networkLocationStyle = model.settings.publicIPLookup ? model.settings.networkLocationStyle : .off
-        networkCountryCode = model.network.publicAddresses?.countryCode
-        temperature = store.sensors?.temperature(.cpu)?.maximum
-        fanRPM = store.fastestFan?.current
-        battery = store.battery?.level
-        batteryHistory = battery.map { Array(repeating: $0, count: 30) } ?? []
-        aiTokens = model.aiUsage.todayTokens
-        aiUsageShowsLocalUsage = model.settings.aiUsageShowsLocalUsage
-        aiQuotas = model.aiUsage.visibleQuotaProviders(for: nil).compactMap { provider in
-            let state = model.aiUsage.visibleQuotaState(for: provider)
-            guard let snapshot = state.snapshot else { return nil }
-            // 已过重置时间的窗口不再代表当前额度（常见于重启后离线恢复的缓存），不显示过期额度。
-            let now = Date()
-            let windows = snapshot.windows.filter { $0.resetsAt.map { $0 > now } ?? true }
-            // 周额度比短时会话额度更适合作为常驻读数；模型专属周额度仅在通用周额度缺席时使用。
-            let window = windows.first(where: { $0.kind == .weekly })
-                ?? windows.first(where: { $0.kind == .fableWeekly })
-                ?? windows.first(where: { $0.kind == .opusWeekly || $0.kind == .sonnetWeekly })
-                ?? windows.first(where: { $0.kind == .session })
-            return window.map { MenuBarQuota(provider: provider, window: $0, source: snapshot.source,
-                                             fetchedAt: snapshot.fetchedAt, isStale: state.isStale) }
-        }
-        batteryCharging = store.battery?.isCharging ?? false
-        if let lowest = model.bluetooth.lowest,
-           battery == nil || (model.settings.bluetoothLowBatteryInMenuBar && lowest.percent <= Self.lowBluetoothPercent) {
-            bluetoothDevice = (lowest.device.kind.symbol, lowest.percent)
+        for item in items {
+            switch item {
+            case .cpu:
+                cpu = store.cpu?.total
+                cpuHistory = store.cpuTotal.elements
+            case .gpu:
+                gpu = store.gpu?.utilization
+                gpuHistory = store.gpuHistory.elements
+            case .memory:
+                memory = store.memory?.usedFraction
+                memoryHistory = store.memoryHistory.elements
+            case .disk:
+                disk = store.disk?.usedFraction
+                diskHistory = disk.map { Array(repeating: $0, count: 30) } ?? []
+            case .network:
+                upload = store.network?.uploadBytesPerSecond
+                download = store.network?.downloadBytesPerSecond
+                networkLocationStyle = model.settings.publicIPLookup ? model.settings.networkLocationStyle : .off
+                networkCountryCode = model.network.publicAddresses?.countryCode
+            case .temperature:
+                temperature = store.sensors?.temperature(.cpu)?.maximum
+            case .fan:
+                fanRPM = store.fastestFan?.current
+            case .battery:
+                battery = store.battery?.level
+                batteryHistory = battery.map { Array(repeating: $0, count: 30) } ?? []
+                batteryCharging = store.battery?.isCharging ?? false
+                if let lowest = model.bluetooth.lowest,
+                   battery == nil || (model.settings.bluetoothLowBatteryInMenuBar && lowest.percent <= Self.lowBluetoothPercent) {
+                    bluetoothDevice = (lowest.device.kind.symbol, lowest.percent)
+                }
+            case .aiUsage:
+                aiTokens = model.aiUsage.todayTokens
+                aiUsageShowsLocalUsage = model.settings.aiUsageShowsLocalUsage
+                aiQuotas = model.aiUsage.visibleQuotaProviders(for: nil).compactMap { provider in
+                    let state = model.aiUsage.visibleQuotaState(for: provider)
+                    guard let snapshot = state.snapshot else { return nil }
+                    // 已过重置时间的窗口不再代表当前额度（常见于重启后离线恢复的缓存），不显示过期额度。
+                    let now = Date()
+                    let windows = snapshot.windows.filter { $0.resetsAt.map { $0 > now } ?? true }
+                    // 周额度比短时会话额度更适合作为常驻读数；模型专属周额度仅在通用周额度缺席时使用。
+                    let window = windows.first(where: { $0.kind == .weekly })
+                        ?? windows.first(where: { $0.kind == .fableWeekly })
+                        ?? windows.first(where: { $0.kind == .opusWeekly || $0.kind == .sonnetWeekly })
+                        ?? windows.first(where: { $0.kind == .session })
+                    return window.map { MenuBarQuota(provider: provider, window: $0, source: snapshot.source,
+                                                     fetchedAt: snapshot.fetchedAt, isStale: state.isStale) }
+                }
+            }
         }
         keepAwake = model.keepAwake.isActive
     }
@@ -258,8 +273,9 @@ enum MenuBarRenderer {
 
     static func image(for model: AppModel) -> NSImage {
         let settings = model.settings
-        return image(reading: MenuBarReading(model: model),
-                     items: model.visibleMenuBarItems,
+        let items = model.visibleMenuBarItems
+        return image(reading: MenuBarReading(model: model, items: items),
+                     items: items,
                      style: { settings.style(for: $0) },
                      networkStyle: settings.networkStyle,
                      colorizeHighLoad: settings.colorizeHighLoad,

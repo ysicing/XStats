@@ -489,7 +489,7 @@ private struct ItemStyleRow: View {
     /// 这一项按当前风格、实时读数画出来的样子，底色跟随浅色 / 深色外观
     private var preview: some View {
         let settings = model.settings
-        let image = MenuBarRenderer.image(reading: MenuBarReading(model: model), items: [item],
+        let image = MenuBarRenderer.image(reading: MenuBarReading(model: model, items: [item]), items: [item],
                                           style: { settings.style(for: $0) }, networkStyle: settings.networkStyle,
                                           colorizeHighLoad: settings.colorizeHighLoad, fahrenheit: settings.useFahrenheit)
         return Image(nsImage: MenuBarRenderer.preview(image, dark: colorScheme == .dark))
