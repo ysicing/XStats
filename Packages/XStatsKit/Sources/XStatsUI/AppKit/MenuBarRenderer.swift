@@ -294,9 +294,9 @@ enum MenuBarRenderer {
         return image
     }
 
-    /// 设置页预览：按指定外观绘制到不透明底色上。
+    /// 设置页预览：按指定外观栅格化，透明区域由界面叠加底色。
     /// 绘制回调型图像每次布局或重绘都会重跑文字排版，因此栅格化一次，SwiftUI 之后只复用位图。
-    static func preview(_ image: NSImage, dark: Bool) -> NSImage {
+    static func preview(_ image: NSImage, dark: Bool, backingScale: CGFloat? = nil) -> NSImage {
         let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         let draw = { (rect: NSRect) in
             let content = {
@@ -308,16 +308,19 @@ enum MenuBarRenderer {
             }
             if let appearance { appearance.performAsCurrentDrawingAppearance(content) } else { content() }
         }
-        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let scale = backingScale ?? NSScreen.main?.backingScaleFactor ?? 2
         guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil,
                                          pixelsWide: Int(ceil(image.size.width * scale)),
                                          pixelsHigh: Int(ceil(image.size.height * scale)),
                                          bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
-              let context = NSGraphicsContext(bitmapImageRep: rep) else {
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
             return NSImage(size: image.size, flipped: false) { draw($0); return true }
         }
+        // 逻辑尺寸决定上下文的点到像素缩放，必须在创建上下文前设置。
         rep.size = image.size
+        guard let context = NSGraphicsContext(bitmapImageRep: rep) else {
+            return NSImage(size: image.size, flipped: false) { draw($0); return true }
+        }
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = context
         draw(NSRect(origin: .zero, size: image.size))
