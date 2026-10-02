@@ -1299,6 +1299,7 @@ Codex / Claude Code 本机 Token 用量与订阅额度	استخدام رموز C
 Token 活动	نشاط الرموز
 每日	يومي
 每周	أسبوعي
+累计	تراكمي
 {} 当周：{} Tokens	أسبوع {}: {} Tokens
 截至 {} 当周累计：{} Tokens	الإجمالي حتى أسبوع {}: {} Tokens
 Apple 智能	Apple Intelligence

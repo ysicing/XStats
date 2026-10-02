@@ -76,6 +76,7 @@ Apple 智能	Apple Intelligence
 Token 活动	Token activity
 每日	Daily
 每周	Weekly
+累计	Cumulative
 {} 当周：{} Tokens	Week of {}: {} Tokens
 截至 {} 当周累计：{} Tokens	Through the week of {}: {} Tokens cumulative
 缓存创建 Token	Cache creation tokens

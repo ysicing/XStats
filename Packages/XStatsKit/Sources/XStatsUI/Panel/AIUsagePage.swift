@@ -333,6 +333,8 @@ private struct UsageChoices<Value: Hashable>: View {
                     selection = value
                 } label: {
                     Text(title).dsFont(.xs, weight: selection == value ? .semibold : .medium)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                         .foregroundStyle(selection == value ? DS.Palette.textPrimary : DS.Palette.textSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, DS.Space.s2)
