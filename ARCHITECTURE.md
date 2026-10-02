@@ -176,6 +176,13 @@ Panel height updates coalesce absolute content measurements within a layout cycl
 next cycle; they never synchronously accumulate viewport deltas or replace actual interaction state.
 Regression coverage includes `StatusPanelLayoutTests`.
 
+Shared selection controls use `DS.Motion.select` to keep keyboard and eventless activation
+immediate; pointer selection retains each control's existing transition. `dsSelectionAnimation`
+removes self-drawn selection movement when Reduce Motion is enabled. Custom button press feedback
+is separate from hover and disabled state, while interactive system glass keeps native feedback.
+Supporting text colors are tested against window, card and elevated solid backgrounds in both
+appearances. These policies add no timers or retained per-interaction state.
+
 ## Rest timers
 
 `RestSession` uses absolute `mach_continuous_time` deadlines and recalculates after wake instead

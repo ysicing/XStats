@@ -297,7 +297,7 @@ struct PillSwitch<Value: Hashable>: View {
         HStack(spacing: 0) {
             ForEach(options, id: \.value) { option in
                 let selected = option.value == selection
-                Button { selection = option.value } label: {
+                Button { DS.Motion.select { selection = option.value } } label: {
                     Text(option.title)
                         .dsFont(.xs, weight: .semibold)
                         .foregroundStyle(selected ? DS.Palette.onPrimary : DS.Palette.textSecondary)
@@ -316,7 +316,7 @@ struct PillSwitch<Value: Hashable>: View {
         }
         .padding(DS.Space.s1 / 2)
         .background(DS.Palette.track, in: Capsule())
-        .animation(DS.Motion.quick, value: selection)
+        .dsSelectionAnimation(DS.Motion.quick, value: selection)
         .fixedSize()
     }
 }
@@ -392,9 +392,9 @@ private struct DSButtonBody: View {
             .frame(height: DS.Size.controlHeight)
             .contentShape(Capsule())
             .modifier(GlassButtonSurface(kind: kind, active: active, isInsideGlass: isInsideGlass))
-            .opacity(isEnabled ? 1 : 0.5)
             .onHover { hovering = $0 }
             .animation(DS.Motion.quick, value: hovering)
+            .opacity(buttonOpacity)
     }
 
     private var solidBody: some View {
@@ -409,13 +409,20 @@ private struct DSButtonBody: View {
                     RoundedRectangle(cornerRadius: DS.Radius.md).strokeBorder(DS.Palette.border, lineWidth: DS.Size.stroke)
                 }
             }
-            .opacity(isEnabled ? 1 : 0.5)
             .contentShape(Rectangle())
             .onHover { hovering = $0 }
             .animation(DS.Motion.quick, value: hovering)
+            .opacity(buttonOpacity)
     }
 
-    private var active: Bool { hovering || configuration.isPressed }
+    private var active: Bool { isEnabled && (hovering || configuration.isPressed) }
+
+    private var buttonOpacity: Double {
+        guard isEnabled else { return 0.5 }
+        // 原生 interactive glass 自带按压效果；自绘按钮需区别悬停和按下，且立即响应。
+        let systemFeedback = DS.Glass.isAvailable && (kind == .primary || (kind == .secondary && !isInsideGlass))
+        return configuration.isPressed && !systemFeedback ? 0.65 : 1
+    }
 
     private var foreground: Color {
         switch kind {
@@ -514,7 +521,7 @@ struct SidebarButton: View {
     @State private var hovering = false
 
     var body: some View {
-        Button(action: action) {
+        Button { DS.Motion.select(action) } label: {
             HStack(spacing: DS.Space.s2) {
                 Image(systemName: symbol)
                     .font(.system(size: DS.TextSize.sm.rawValue, weight: .medium))
@@ -565,7 +572,7 @@ extension View {
                             .fill(DS.Palette.sidebarSelected)
                             .frame(width: selected.width, height: selected.height)
                             .offset(x: selected.minX, y: selected.minY)
-                            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: selected)
+                            .dsSelectionAnimation(.spring(response: 0.35, dampingFraction: 0.8), value: selected)
                     }
                 }
                 .allowsHitTesting(false)
@@ -617,7 +624,7 @@ private struct SidebarGlider: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .animation(.spring(response: 0.45, dampingFraction: 0.6), value: selected)
+            .dsSelectionAnimation(.spring(response: 0.45, dampingFraction: 0.6), value: selected)
         }
     }
 }
@@ -638,7 +645,7 @@ struct SegmentedControl<Value: Hashable>: View {
             ForEach(options, id: \.value) { option in
                 let selected = option.value == selection
                 Button {
-                    selection = option.value
+                    DS.Motion.select { selection = option.value }
                 } label: {
                     Text(option.title)
                         .dsFont(.sm)
@@ -661,7 +668,7 @@ struct SegmentedControl<Value: Hashable>: View {
             }
         }
         .background(DS.Palette.track, in: RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: selection)
+        .dsSelectionAnimation(.spring(response: 0.3, dampingFraction: 0.85), value: selection)
     }
 }
 
@@ -687,7 +694,7 @@ struct DSToggle: View {
 
     private var solidBody: some View {
         Button {
-            isOn.toggle()
+            DS.Motion.select { isOn.toggle() }
         } label: {
             ZStack(alignment: isOn ? .trailing : .leading) {
                 Capsule().fill(isOn ? DS.Palette.primary : DS.Palette.neutral300)
@@ -701,7 +708,7 @@ struct DSToggle: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .animation(DS.Motion.quick, value: isOn)
+        .dsSelectionAnimation(DS.Motion.quick, value: isOn)
         .accessibilityLabel(label)
         .accessibilityValue(isOn ? tr("开") : tr("关"))
     }

@@ -21,8 +21,9 @@ extension DS {
 
         // 文字
         static let textPrimary = Color.dynamic(light: 0x111827, dark: 0xF3F4F6)
-        static let textSecondary = Color.dynamic(light: 0x6B7280, dark: 0x9CA3AF)
-        static let textTertiary = Color.dynamic(light: 0x9CA3AF, dark: 0x6B7280)
+        static let textSecondary = Color.dynamic(light: 0x4B5563, dark: 0xB6BDC7)
+        /// 小字号辅助说明在窗口与卡片底色上均保持可读对比度。
+        static let textTertiary = Color.dynamic(light: 0x626B78, dark: 0x9CA3AF)
         static let onPrimary = Color.dynamic(light: 0xFFFFFF, dark: 0xFFFFFF)
 
         // XStats 的统一配色：浅色为白底蓝色，深色为黑底蓝色。
@@ -206,6 +207,14 @@ extension DS {
         /// 使用统计的来源/时间筛选仅淡入选中底色，不移动正在阅读的数据。
         static let usageSelection = Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.18)
         static let quick = Animation.easeOut(duration: 0.15)
+
+        /// 键盘及无指针事件的选择即时生效；指针选择沿用控件自身的短过渡。
+        @MainActor
+        static func select(event: NSEvent.EventType? = NSApp?.currentEvent?.type, _ action: () -> Void) {
+            var transaction = Transaction()
+            transaction.disablesAnimations = event != .leftMouseDown && event != .leftMouseUp
+            withTransaction(transaction, action)
+        }
     }
 
     /// 温度阈值（°C），用于着色
@@ -234,5 +243,22 @@ extension Text {
 extension View {
     func dsShadow(_ level: DS.Shadow.Level) -> some View {
         shadow(color: level.color, radius: level.radius, x: 0, y: level.y)
+    }
+}
+
+/// 自绘选中块的位移服从系统偏好；颜色、按下态等即时反馈保持可见。
+private struct DSSelectionMotion<Value: Equatable>: ViewModifier {
+    let animation: Animation
+    let value: Value
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content.animation(reduceMotion ? nil : animation, value: value)
+    }
+}
+
+extension View {
+    func dsSelectionAnimation<Value: Equatable>(_ animation: Animation, value: Value) -> some View {
+        modifier(DSSelectionMotion(animation: animation, value: value))
     }
 }
