@@ -19,7 +19,7 @@ import Testing
     }
 
     @Test func buildsAnAnonymousInstallationCheckRequest() throws {
-        let endpoint = try #require(URL(string: "https://x-stats.china.12306.work/api/v1/update/check"))
+        let endpoint = try #require(URL(string: "https://apps.china.12306.work/api/v1/apps/xstats/update/check"))
         let request = try UpdateFeed.checkRequest(
             url: endpoint,
             currentVersion: "2026.09.21.02",
@@ -39,10 +39,11 @@ import Testing
     }
 
     @Test func ordersRegionalEndpointsWithoutDuplicatingRequests() {
-        let global = "https://xstats-apps.12306.work/api/v1/update/check"
-        let china = "https://x-stats.china.12306.work/api/v1/update/check"
-        #expect(UpdateFeed.checkURLs(prefersChina: true).map(\.absoluteString) == [china, global])
-        #expect(UpdateFeed.checkURLs(prefersChina: false).map(\.absoluteString) == [global, china])
+        let global = "https://apps.12306.work/api/v1/apps/xstats/update/check"
+        let backup = "https://apps-api.xiai.me/api/v1/apps/xstats/update/check"
+        let china = "https://apps.china.12306.work/api/v1/apps/xstats/update/check"
+        #expect(UpdateFeed.checkURLs(prefersChina: true).map(\.absoluteString) == [china, global, backup])
+        #expect(UpdateFeed.checkURLs(prefersChina: false).map(\.absoluteString) == [global, backup, china])
         #expect(UpdateFeed.prefersChinaEndpoint(locale: Locale(identifier: "zh_CN")))
         #expect(!UpdateFeed.prefersChinaEndpoint(locale: Locale(identifier: "en_US")))
     }

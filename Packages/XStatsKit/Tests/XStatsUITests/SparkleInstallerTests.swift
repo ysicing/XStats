@@ -94,8 +94,9 @@ struct SparkleInstallerTests {
 
     @Test func stableRegionalFeedURLsAndPublicDelegateSelectors() {
         #expect(UpdateFeed.sparkleURLs(prefersChina: true).map(\.absoluteString) == [
-            "https://x-stats.china.12306.work/api/v1/update/appcast.xml",
-            "https://xstats-apps.12306.work/api/v1/update/appcast.xml",
+            "https://apps.china.12306.work/api/v1/apps/xstats/update/appcast.xml",
+            "https://apps.12306.work/api/v1/apps/xstats/update/appcast.xml",
+            "https://apps-api.xiai.me/api/v1/apps/xstats/update/appcast.xml",
         ])
         let driver = SparkleInstaller(onPhase: { _ in }, onRelaunch: {})
         for selector in ["feedParametersForUpdater:sendingSystemProfile:", "updater:mayPerformUpdateCheck:error:",
@@ -181,31 +182,35 @@ struct SparkleInstallerTests {
         #expect(phases.last == (known ? .available : .idle))
     }
 
-    @Test func failedPrimaryRegionRetriesFallbackOnceThenReportsFailure() {
-        let primary = URL(string: "https://primary.example.test/appcast.xml")!
-        let fallback = URL(string: "https://fallback.example.test/appcast.xml")!
+    @Test(arguments: [2, 3])
+    func failedEndpointsRetryInOrderThenFinishOnce(endpointCount: Int) {
+        let endpoints = ["primary", "fallback", "last"].prefix(endpointCount).map {
+            URL(string: "https://\($0).example.test/appcast.xml")!
+        }
         var phases: [UpdateController.Phase] = []
         var finished: [Bool] = []
-        let driver = SparkleInstaller(endpoints: [primary, fallback], onPhase: { phases.append($0) }, onRelaunch: {})
+        let driver = SparkleInstaller(endpoints: endpoints, onPhase: { phases.append($0) }, onRelaunch: {})
         driver.onCycleFinished = { finished.append($0) }
         let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: driver)
         let offline = NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)
         driver.check(userInitiated: false)
-        #expect(driver.feedURLString(for: updater) == primary.absoluteString)
-        // 主区域失败：切到备用区域重试，本轮尚未结束，不能触发失败重排。
-        driver.updater(updater, didFinishUpdateCycleFor: .updatesInBackground, error: offline)
-        #expect(finished.isEmpty)
-        #expect(driver.feedURLString(for: updater) == fallback.absoluteString)
-        try? driver.updater(updater, mayPerform: .updatesInBackground)
-        #expect(driver.feedURLString(for: updater) == fallback.absoluteString, "区域重试不能复位到主区域")
-        // 备用区域也失败：只结束一次并报告未取得 feed，由控制器按 1 小时重试间隔重排。
+        #expect(driver.feedURLString(for: updater) == endpoints.first?.absoluteString)
+        // 每次失败只前进一个地址，重试途中不能结束本轮或复位到首选地址。
+        for endpoint in endpoints.dropFirst() {
+            driver.updater(updater, didFinishUpdateCycleFor: .updatesInBackground, error: offline)
+            #expect(finished.isEmpty)
+            #expect(driver.feedURLString(for: updater) == endpoint.absoluteString)
+            try? driver.updater(updater, mayPerform: .updatesInBackground)
+            #expect(driver.feedURLString(for: updater) == endpoint.absoluteString)
+        }
+        // 最后一个地址失败后只结束一次；保留最后地址，避免 Sparkle 因换源立即检查。
         driver.updater(updater, didFinishUpdateCycleFor: .updatesInBackground, error: offline)
         #expect(finished == [false])
         #expect(phases.last == .idle)
-        #expect(driver.feedURLString(for: updater) == fallback.absoluteString, "结束后保留最后地址，避免 Sparkle 视为换源")
-        // 下一轮自动检查重新从主区域开始。
+        #expect(driver.feedURLString(for: updater) == endpoints.last?.absoluteString)
+        // 下一轮自动检查重新从首选地址开始。
         try? driver.updater(updater, mayPerform: .updatesInBackground)
-        #expect(driver.feedURLString(for: updater) == primary.absoluteString)
+        #expect(driver.feedURLString(for: updater) == endpoints.first?.absoluteString)
     }
 
     @Test func skippingWithdrawnReleaseDoesNotClaimAnUpdateIsAvailable() {

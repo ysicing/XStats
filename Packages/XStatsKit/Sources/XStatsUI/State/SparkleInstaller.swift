@@ -181,9 +181,9 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     @objc(updater:didFinishUpdateCycleForUpdateCheck:error:)
     func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
         cancellation = nil
-        // 只在尚未收到有效签名 feed 时串行尝试备用区域；下载/安装失败绝不重启安装。
-        if error != nil, !loadedFeed, !cancelled, endpointIndex == 0, endpoints.count > 1 {
-            endpointIndex = 1
+        // 只在尚未收到有效签名 feed 时串行尝试后续入口，每个地址最多一次；下载/安装失败绝不重启安装。
+        if error != nil, !loadedFeed, !cancelled, endpointIndex + 1 < endpoints.count {
+            endpointIndex += 1
             retryingFeed = true
             if userInitiated || action != nil { updater.checkForUpdates() }
             else { updater.checkForUpdatesInBackground() }

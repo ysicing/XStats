@@ -1,6 +1,6 @@
 # XStats Privacy Policy
 
-Effective date: September 28, 2026
+Effective date: October 2, 2026
 
 This policy explains what XStats processes on your Mac and which features contact external services. XStats-operated services retain only the update-statistics aggregates described in section 2; the app's other persisted data stays on your Mac and is not uploaded to XStats-operated servers. Network tests send requests needed for the test to independent providers, as described in section 3. Contact: i@xiai.me.
 
@@ -17,7 +17,7 @@ You choose whether and where to export diagnostics; they are not uploaded automa
 
 ## 2. Update checks and installation statistics
 
-When automatic update checks are enabled, XStats sends its current version and the SHA-256 hash of an installation identifier to the XStats update service according to the schedule selected in Settings → About: quietly while running, at launch, daily, weekly, or monthly. Choosing Never limits these requests to manual checks. Quiet checks still contact the service but do not show an update prompt. China-region devices try `x-stats.china.12306.work` first; others try `xstats-apps.12306.work` first. The other endpoint is tried only if the preferred one fails. The identifier is derived locally from a random value or the Mac's serial number; the raw serial number is not sent.
+When automatic update checks are enabled, XStats sends its current version and the SHA-256 hash of an installation identifier to the XStats update service according to the schedule selected in Settings → About: quietly while running, at launch, daily, weekly, or monthly. Choosing Never limits these requests to manual checks. Quiet checks still contact the service but do not show an update prompt. China-region devices try `apps.china.12306.work`, `apps.12306.work`, then `apps-api.xiai.me`; other devices try `apps.12306.work`, `apps-api.xiai.me`, then `apps.china.12306.work`. Each subsequent endpoint is tried serially only if the previous one fails. Checks stop after the first success or the final failure. The identifier is derived locally from a random value or the Mac's serial number; the raw serial number is not sent.
 
 The update service's application database stores the hash, current version, first and most recent check times, and cumulative check count. These aggregate records support deduplicated installation counts, version distribution, and activity statistics. They have no automatic expiry. The update service does not create a separate record for every request or store request IP addresses in its application database. It uses IP addresses in memory for one-minute rate limiting. Network infrastructure may process connection metadata under its own rules.
 

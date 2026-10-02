@@ -15,8 +15,9 @@ from pathlib import Path
 
 
 DEFAULT_ENDPOINTS = (
-    "https://xstats-apps.12306.work/api/v1/releases/current",
-    "https://x-stats.china.12306.work/api/v1/releases/current",
+    "https://apps.12306.work/api/v1/apps/xstats/releases/current",
+    "https://apps-api.xiai.me/api/v1/apps/xstats/releases/current",
+    "https://apps.china.12306.work/api/v1/apps/xstats/releases/current",
 )
 
 
@@ -27,9 +28,9 @@ MAXIMUM_FEED_BYTES = 256 * 1024
 
 def sparkle_feed_url(endpoint: str, query: str = "") -> str:
     parts = urlsplit(endpoint)
-    if not parts.path.endswith("/api/v1/releases/current"):
+    if parts.path != "/api/v1/apps/xstats/releases/current":
         raise ValueError(f"无法推导 Sparkle 更新源：{endpoint}")
-    return urlunsplit((parts.scheme, parts.netloc, parts.path.removesuffix("releases/current") + "update/appcast.xml", query, ""))
+    return urlunsplit((parts.scheme, parts.netloc, "/api/v1/apps/xstats/update/appcast.xml", query, ""))
 
 
 def check_sparkle_endpoints(endpoints: list[str]) -> None:
@@ -70,6 +71,9 @@ def publish(appcast: Path, endpoints: list[str], token: str) -> None:
         raise ValueError("XSTATS_RELEASE_TOKEN 不能为空")
     if not endpoints:
         raise ValueError("至少需要一个版本发布接口")
+    # 先校验全部发布路径，避免后续地址配置错误时已切换部分区域的版本。
+    for endpoint in endpoints:
+        sparkle_feed_url(endpoint)
     body = appcast.read_bytes()
     manifest = json.loads(body)
     if not isinstance(manifest, dict) or not manifest.get("version"):

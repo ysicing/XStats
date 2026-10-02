@@ -86,23 +86,24 @@ public enum UpdateArchitecture: Sendable, Equatable {
 }
 
 public enum UpdateFeed {
-    /// 固定 API 入口原样返回当前发布的签名 XML，同时记录检查；旧 JSON POST 协议保持可用。
+    /// XStats 的多应用 API 入口原样返回签名 XML，同时记录检查；JSON POST 协议保持可用。
     public static func sparkleURLs(prefersChina: Bool) -> [URL] {
         checkURLs(prefersChina: prefersChina).map {
             $0.deletingLastPathComponent().appendingPathComponent("appcast.xml")
         }
     }
 
-    private static let globalURL = URL(string: "https://xstats-apps.12306.work/api/v1/update/check")!
-    private static let chinaURL = URL(string: "https://x-stats.china.12306.work/api/v1/update/check")!
+    private static let globalURL = URL(string: "https://apps.12306.work/api/v1/apps/xstats/update/check")!
+    private static let globalBackupURL = URL(string: "https://apps-api.xiai.me/api/v1/apps/xstats/update/check")!
+    private static let chinaURL = URL(string: "https://apps.china.12306.work/api/v1/apps/xstats/update/check")!
 
     public static func prefersChinaEndpoint(locale: Locale = .autoupdatingCurrent) -> Bool {
         locale.region?.identifier.uppercased() == "CN"
     }
 
-    /// 只串行请求：首选成功后不再访问备用端点，避免同一次检查被两边同时统计。
+    /// 只串行请求：成功后不再访问剩余入口，避免同一次检查跨区域或别名重复统计。
     public static func checkURLs(prefersChina: Bool) -> [URL] {
-        prefersChina ? [chinaURL, globalURL] : [globalURL, chinaURL]
+        prefersChina ? [chinaURL, globalURL, globalBackupURL] : [globalURL, globalBackupURL, chinaURL]
     }
 
     /// 区域 API 沿用相同的应用与系统版本标识，不启用 Sparkle 系统分析。

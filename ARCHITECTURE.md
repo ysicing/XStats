@@ -68,6 +68,10 @@ the mode key (`F0md`) accepts a direct write; M1–M4 first need `Ftst=1` and a 
 `thermalmonitord` lets go. The firmware records only manual or automatic, not who set it, so
 a fan in manual mode that XStats did not set is shown as controlled by another program.
 
+Fan controls appear only after a positive fan count has been sampled. Unknown capability keeps
+sampling demand active; a confirmed count survives transient read failures for the current run.
+Capability filtering never overwrites the user's saved display preferences.
+
 ## Helper
 
 Protocol 5 removes the identifier-only ad-hoc authentication fallback. Ad-hoc apps refuse helper
@@ -117,6 +121,17 @@ entries. When the app cannot be moved, successfully moved residue is removed fro
 failed items remain available for retry. Reported sizes include only files actually moved. This flow
 currently does not unregister third-party background services or stop independently running helpers.
 
+Homebrew cleanup uses `brew cleanup --prune=30 --dry-run` for candidates and the native cleanup
+command after confirmation. Previews have a 60-second timeout and a 2 MB output limit; execution
+keeps bounded diagnostics, supports cancellation, and reports only confirmed reclaimed space.
+Homebrew caches stay outside generic cleanup rules; automatic updates and dependency removal are disabled.
+
+Project-artifact scans run only on request, descend at most six levels, and flag recent seven-day
+activity. Scan roots persist locally outside settings backups. App bundles, tracked Git content,
+nested repositories, credentials and symlinks cannot become deletion candidates. Before moving a
+selected item to Trash, recheck Git tracking and path identity; warn for cloud-synced locations.
+Scanning and post-cleanup size checks respond to cancellation without publishing partial measurements.
+
 ## Disk tools
 
 The disk page is also where users act on the disk. `DiskToolsController` (`XStatsUI/State`) fronts four
@@ -153,6 +168,22 @@ next to the dashboard and tool pages. Windows use a transparent, full-size-conte
 an empty compact toolbar, so the traffic lights sit on the same ground colour as the sidebar and
 line up with the 40 pt page header; the app switches to a regular activation policy while a window
 is open and back to accessory when all are closed.
+
+Status-item drawing retains only the previous readings and image; unchanged readings reuse it,
+while history styles also compare their history. Settings, language, appearance and layout invalidate
+the image. Settings previews stop observing samples when the main window closes or minimizes.
+Panel height updates coalesce absolute content measurements within a layout cycle and apply on the
+next cycle; they never synchronously accumulate viewport deltas or replace actual interaction state.
+Regression coverage includes `StatusPanelLayoutTests`.
+
+## Rest timers
+
+`RestSession` uses absolute `mach_continuous_time` deadlines and recalculates after wake instead
+of accumulating timer ticks. Rest features default off and require a manual start. Phase changes
+preserve their remaining time; mode or duration changes pause the session. Daily completion counts
+and HUD placement stay local. Curtains, the menu-bar timer and Mini HUD belong to the main app;
+noise is synthesized through `AVAudioSourceNode` only during rest. The Widget reads shared phase
+and deadline values, so WidgetKit refresh timing cannot provide second-accurate reminders.
 
 ## AI process explanations
 
@@ -196,8 +227,13 @@ settings picker, backups, month grids and widgets. Menu-bar lunar modes remain a
 every app language and use localized lunar dates when lunar display is enabled. Disabling
 lunar display hides its menu-bar presets and text-style controls, renders the saved lunar
 preset as date and weekday, and stops applying lunar text styles without overwriting them. Older backups preserve those settings. Additional
-calendars default off and appear only in selected-day details. There is no event access or
-network request at runtime. Use `--snapshot <directory> --calendar-only` for deterministic
+calendars default off and appear only in selected-day details. EventKit schedules and due reminders
+are opt-in, request permission explicitly, and query only the visible panel's 42-day range. They are
+read-only and excluded from widgets, settings backups and server requests; list IDs stay local.
+Month data caches only the most recent month, keyed by week start and time zone. Event date markers
+are computed in the worker actor; notifications coalesce for 300 milliseconds, and closing the panel
+cancels pending refreshes. The panel measures its initial height once and scrolls subsequent changes.
+Use `--snapshot <directory> --calendar-only` for deterministic
 light/dark calendar screenshots without starting unrelated samplers or scans.
 
 ## AI usage and quotas
@@ -311,6 +347,10 @@ since that item is the most natural place to discover the feature.
 Refreshes are queued rather than dropped: a refresh arriving while another is in flight runs after it,
 so rebuilding the polling cadence cannot mistake a skipped call for a completed initial refresh and
 then sleep out the whole interval. Stopping cancels the in-flight scan. These settings are local and not synced through WebDAV.
+Local usage aggregates are reused only while the file set, metadata, local date and time zone remain
+unchanged. In-memory caching retains only the previous metadata and successful aggregate; failed
+scans do not populate it. Incremental parsing checkpoints stay in SQLite. Regression coverage includes
+`LocalUsageScanCacheTests` and `ScanCancellationTests`.
 Cache creation is shown separately but already included in the input total. Claude credentials,
 account data, Cowork containers and subscription limits remain outside the local scanner's scope;
 the quota reader has no access to session-log content.
@@ -381,10 +421,12 @@ uploading artifacts and uses the same bilingual body for release creation and ed
 
 `UpdateController` owns one long-lived Sparkle 2.10.0 updater and custom user driver. Sparkle
 schedules checks, stores skipped builds, verifies signed feeds/archives and installs only after explicit
-confirmation. China-region locales prefer `https://x-stats.china.12306.work/api/v1/update/appcast.xml`;
-other locales prefer `https://xstats-apps.12306.work/api/v1/update/appcast.xml`. A failed feed check retries
-the other region once, serially; archive or installation failures never restart installation through a
-fallback. Each GET includes the current version and hashed installation ID, so no separate telemetry
+confirmation. China-region locales prefer `https://apps.china.12306.work/api/v1/apps/xstats/update/appcast.xml`;
+other locales prefer `https://apps.12306.work/api/v1/apps/xstats/update/appcast.xml`, followed by the
+overseas backup `https://apps-api.xiai.me/api/v1/apps/xstats/update/appcast.xml`. China-region order is
+China, overseas primary, overseas backup; other locales try overseas primary, overseas backup, China.
+Failed feed checks try each remaining endpoint once, serially; the cycle ends after the final failure.
+Archive or installation failures never restart installation through a fallback. Each GET includes the current version and hashed installation ID, so no separate telemetry
 POST or second check timer is needed. System profiling and automatic download/install stay disabled.
 Existing installations retain the hash of their saved 32-byte random value, which remains in local
 `UserDefaults` and is excluded from WebDAV settings sync. New installations without a saved value hash
@@ -422,19 +464,20 @@ old clients continue using the unchanged JSON response and their existing instal
 After an update the old helper may still be running; the app unregisters an outdated
 helper, re-registers the bundled version, and verifies the protocol before privileged calls resume.
 
-`server/api` is one Go program. Fiber exposes `POST /api/v1/update/check`, authenticated
-`PUT /api/v1/releases/current`, the fixed signed `GET /api/v1/update/appcast.xml`, and the aggregate
-`GET /stats` dashboard. The XML route verifies the original Ed25519 feed signature, RSS structure and
-release/archive metadata against the current JSON release before recording a successful check. Invalid
-feeds return 502 without changing telemetry; the legacy JSON endpoint remains independent. Both backends
-use the client public key and must be updated together if it rotates. Valid XML is returned byte for byte. GORM uses
-`github.com/libtnb/sqlite` with WAL and one database connection so concurrent checks cannot compete for
-SQLite's single writer. Each installation row stores only the SHA-256 installation ID, current version,
-first/last check times and check count; request IPs and monitoring data are not persisted. The release
-endpoint requires `XSTATS_RELEASE_TOKEN`. `scripts/publish_release.sh` uploads the dmg and zip to
+Current XStats requests use `POST /api/v1/apps/xstats/update/check`, authenticated
+`PUT /api/v1/apps/xstats/releases/current`, and signed `GET /api/v1/apps/xstats/update/appcast.xml`.
+The service keeps the original paths for installed clients; both route sets share the same XStats
+release and installation records. The in-repository `server/api` retains the legacy implementation
+and compatibility tests. The XML route verifies the original Ed25519 feed signature, RSS structure
+and release/archive metadata before recording a successful check, then returns the signed bytes
+unchanged. Invalid feeds return 502 without changing statistics; JSON checks remain independent.
+Both regions use the client public key and must be updated together if it rotates. The service seeds
+XStats on first startup, so routine releases keep the existing JSON fields without supplying application
+metadata. New applications register their public key through their own publication path. Release and
+admin endpoints require `XSTATS_RELEASE_TOKEN`. `scripts/publish_release.sh` uploads the dmg and zip to
 object storage with `mc`, verifies each one by re-reading it from the CDN, creates the GitHub Release
 that carries the dmg for manual downloads, and only then submits the generated appcast through
-`scripts/publish_api.py` to both regional services. The manifest lands last, so an installed app never
+`scripts/publish_api.py` to all three configured endpoints across both regions. The manifest lands last, so an installed app never
 sees a version whose package is not yet in place.
 
 ## WebDAV settings sync

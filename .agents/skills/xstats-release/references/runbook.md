@@ -36,6 +36,16 @@ gh auth status
 
 The signing identity must be `Developer ID Application` with its private key. Merely having a valid `Apple Development` identity or a working notary profile is insufficient.
 
+Install separate Developer ID provisioning profiles for the app and Widget, both enabling
+`group.work.12306.xstats`, and select them with `XSTATS_APP_PROFILE` and `XSTATS_WIDGET_PROFILE`.
+Use `SIGN_ID` if the default identity does not match those profiles. Configuration is summarized in
+[DEVELOPMENT.md](../../../../DEVELOPMENT.md#本地签名与权限).
+
+Sparkle signing uses the existing keychain account `work.12306.xstats.sparkle`; its public key must
+match `SUPublicEDKey` in `project.yml`. Back up and securely transfer this private key before changing
+release machines. `SPARKLE_KEY_ACCOUNT` selects an existing account and `SPARKLE_TOOLS_DIR` selects
+the official signing tools. Missing keys are a blocker; do not generate or rotate them during a release.
+
 For the one-command path, `XSTATS_RELEASE_TOKEN` must already be available through an authorized environment or credential store. `task release-all` refuses to start when the token is absent, the branch is not `main`, `HEAD` differs from `origin/main`, or the release tag already exists.
 
 ## 2. Prepare version metadata
@@ -137,12 +147,12 @@ TAP=ysicing/homebrew-tap
 Its required order is:
 
 1. Verify provenance, clean worktree, and `HEAD == origin/main`.
-Before uploading or publishing a Sparkle client, run `python3 scripts/publish_api.py --check-sparkle`. After the JSON manifest is published, `python3 scripts/publish_api.py --verify-sparkle dist/XStats-<version>-AppleSilicon.xml` fetches each regional XML endpoint with the reserved probe installation ID (64 zeros, not counted in statistics) and requires the bytes to match the local signed XML; `publish_release.sh` runs it automatically. Both regional fixed XML endpoints must already be deployed and reject a missing installation ID with 400 + no-store. Old JSON POST clients and publication fields remain unchanged. The API serves the current manifest's immutable signed XML without rewriting its signature or forwarding the installation ID to the CDN.
+Before uploading or publishing a Sparkle client, run `python3 scripts/publish_api.py --check-sparkle`. After the JSON manifest is published, `python3 scripts/publish_api.py --verify-sparkle dist/XStats-<version>-AppleSilicon.xml` fetches each regional XML endpoint with the reserved probe installation ID (64 zeros, not counted in statistics) and requires the bytes to match the local signed XML; `publish_release.sh` runs it automatically. All configured fixed XML endpoints across both regions must already be deployed and reject a missing installation ID with 400 + no-store. Old JSON POST clients and publication fields remain unchanged. The API serves the current manifest's immutable signed XML without rewriting its signature or forwarding the installation ID to the CDN.
 
 2. Verify Ed25519 signatures, then upload DMG, ZIP and versioned XML to `c-ip`.
 3. Download each public `c.ysicing.net` URL and compare SHA-256.
 4. Create or update `vX.Y.Z` GitHub Release, refusing to move an existing mismatched tag.
-5. Publish the appcast to both regional APIs.
+5. Publish the appcast to all three API endpoints (`apps.12306.work`, `apps-api.xiai.me`, `apps.china.12306.work`).
 6. Update `Casks/xstats.rb` in `ysicing/homebrew-tap`.
 
 If manual recovery is unavoidable, preserve this order. Do not publish an appcast that references an unavailable object.
@@ -155,9 +165,9 @@ Prove all of the following from live state:
 - The release tag resolves to the intended release metadata commit.
 - GitHub Release is neither draft nor prerelease and contains the notarized DMG with the expected digest.
 - All three public object URLs return bytes matching local DMG, ZIP and signed XML SHA-256 values; the JSON ZIP URL maps to the corresponding immutable XML.
-- Both regional update-check endpoints return the released version/build and `c.ysicing.net` URLs. Reuse one fixed validation installation ID instead of creating many statistics rows.
+- All configured update-check endpoints return the released version/build and `c.ysicing.net` URLs. Reuse one fixed validation installation ID instead of creating many statistics rows.
 - The remote Homebrew cask matches `dist/xstats.rb`; `brew info --cask ysicing/tap/xstats` shows the released version and arm64/macOS requirements.
 - Check the release commit and any immediate release-workflow fix commits' GitHub Actions status once. Record each visible run's link and actual result; if queued, running, or not yet listed, report CI as pending or unobserved without waiting or polling. Investigate a run that has already completed with failure.
 - Temporary port forwards, credential aliases, debug pods, and staging directories created by this run are removed.
 
-Report separate evidence for signing/notarization, object storage, GitHub Release, both update APIs, Homebrew, current CI status, and Git cleanliness. Pending CI alone does not make an otherwise verified release partial; do not claim it passed. If a distribution check is missing or a completed CI failure affects the release, call the release partial rather than complete.
+Report separate evidence for signing/notarization, object storage, GitHub Release, all configured update API endpoints, Homebrew, current CI status, and Git cleanliness. Pending CI alone does not make an otherwise verified release partial; do not claim it passed. If a distribution check is missing or a completed CI failure affects the release, call the release partial rather than complete.
