@@ -5,6 +5,18 @@ import AIUsage
 import Localization
 import SwiftUI
 
+extension EnvironmentValues {
+    @Entry var aiUsageWesternUnits = false
+}
+
+private struct CostRefreshKey: Hashable {
+    let attempt: Date?
+    let currency: AIUsageCurrency
+    let enabled: Bool
+    let localUsage: Bool
+    let visible: Bool
+}
+
 struct AIUsagePage: View {
     var body: some View { PageScroll { LocalUsageContent(compact: false) } }
 }
@@ -13,6 +25,7 @@ struct AIUsagePopover: View {
 }
 
 private struct LocalUsageContent: View {
+    @Environment(\.isSnapshot) private var isSnapshot
     let compact: Bool
     @Environment(AppModel.self) private var model
     @State private var selectedModel = ""
@@ -35,6 +48,11 @@ private struct LocalUsageContent: View {
         if let provider { return provider == .codex ? "Codex" : "Claude Code" }
         return enabledProviders
             .map { $0 == .codex ? "Codex" : "Claude Code" }.joined(separator: " + ")
+    }
+
+    private var isVisible: Bool {
+        compact ? model.openPopover == .aiUsage
+            : model.isMainWindowVisible && model.settings.panelTab == .aiUsage
     }
 
     var body: some View {
@@ -69,7 +87,8 @@ private struct LocalUsageContent: View {
                     let activityRows = report.selected(days: 365, model: selectedModel.isEmpty ? nil : selectedModel)
                     let total = LocalUsageReport.total(rows)
                     UsageSummary(total: total, compact: compact,
-                                 title: selectedModel.isEmpty ? tr("本地用量") : selectedModel)
+                                 title: selectedModel.isEmpty ? tr("本地用量") : selectedModel,
+                                 costRows: rows)
                     UsageHeatmap(rows: activityRows, compact: compact, mode: $activityMode)
                     modelRanking(report: report, rows: rows, total: total)
                     status(report)
@@ -86,6 +105,13 @@ private struct LocalUsageContent: View {
             } else if model.aiUsage.visibleQuotaProviders(for: provider).isEmpty {
                 Card { Text(tr("暂无额度数据")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary) }
             }
+        }
+        .environment(\.aiUsageWesternUnits, model.settings.aiUsageWesternUnits)
+        .task(id: CostRefreshKey(attempt: model.aiUsage.lastAttemptAt, currency: model.settings.aiUsageCurrency,
+                                 enabled: model.settings.aiUsageEnabled, localUsage: model.settings.aiUsageShowsLocalUsage,
+                                 visible: isVisible)) {
+            guard !isSnapshot, isVisible else { return }
+            await model.aiUsage.refreshCostReferences()
         }
         .onChange(of: model.settings.aiUsageSources) { _, sources in
             if let id = AIProviderID(rawValue: source), !sources.contains(id) { source = "all" }
@@ -147,16 +173,22 @@ private struct LocalUsageContent: View {
                                     Text(quotaTitle(window.kind))
                                         .foregroundStyle(DS.Palette.textSecondary)
                                     Spacer()
-                                    Text(tr("剩余"))
+                                    Text(tr(model.settings.aiQuotaShowsRemaining ? "剩余" : "已用"))
                                         .foregroundStyle(DS.Palette.textSecondary)
-                                    Text("\(Int(window.remainingPercent.rounded()))%")
+                                    Text(AIUsageFormat.quotaPercent(remainingPercent: window.remainingPercent,
+                                                                  showsRemaining: model.settings.aiQuotaShowsRemaining,
+                                                                  locale: L10n.locale))
                                         .monospacedDigit()
                                         .foregroundStyle(DS.Palette.textPrimary)
                                 }
                                 .dsFont(.xs)
-                                ProgressTrack(fraction: window.remainingPercent / 100,
+                                ProgressTrack(fraction: (AIUsageFormat.quotaValue(remainingPercent: window.remainingPercent,
+                                                                               showsRemaining: model.settings.aiQuotaShowsRemaining) ?? 0) / 100,
                                               color: progressTint(for: window.remainingPercent))
-                                    .accessibilityLabel("\(quotaTitle(window.kind)) \(tr("剩余")) \(Int(window.remainingPercent.rounded()))%")
+                                    .accessibilityLabel(quotaTitle(window.kind) + " " + tr(model.settings.aiQuotaShowsRemaining ? "剩余" : "已用")
+                                        + " " + AIUsageFormat.quotaPercent(remainingPercent: window.remainingPercent,
+                                                                          showsRemaining: model.settings.aiQuotaShowsRemaining,
+                                                                          locale: L10n.locale))
                                 if let reset = window.resetsAt {
                                     let resetText = tr("重置：") + " " + reset.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale))
                                     if state.isStale {
@@ -384,25 +416,17 @@ enum UsageNumber {
         date.formatted(.dateTime.year().month().day().locale(locale))
     }
 
-    static func short(_ value: Int, locale: Locale = L10n.locale) -> String {
-        let chinese = locale.language.languageCode?.identifier == "zh"
-        let units: [(Int, String)] = chinese
-            ? [(100_000_000, "亿"), (1_000_000, "百万"), (10_000, "万"), (1_000, "千")]
-            : [(1_000_000_000, "B"), (1_000_000, "M"), (1_000, "K")]
-        guard let (divisor, rawUnit) = units.first(where: { value >= $0.0 }) else {
-            return value.formatted(.number.locale(locale))
-        }
-        let unit = locale.language.script?.identifier == "Hant"
-            ? rawUnit.replacingOccurrences(of: "亿", with: "億").replacingOccurrences(of: "万", with: "萬") : rawUnit
-        let number = (Double(value) / Double(divisor)).formatted(.number.precision(.fractionLength(0...1)).locale(locale))
-        return number + (chinese ? " " : "") + unit
+    static func short(_ value: Int, locale: Locale = L10n.locale, westernUnits: Bool = false) -> String {
+        AIUsageFormat.tokens(value, westernUnits: westernUnits, locale: locale)
     }
 }
 
 private struct UsageSummary: View {
+    @Environment(\.aiUsageWesternUnits) private var westernUnits
     let total: ModelTokenUsage
     let compact: Bool
     let title: String
+    let costRows: [ModelTokenUsage]
     @State private var expanded = false
 
     var body: some View {
@@ -412,7 +436,7 @@ private struct UsageSummary: View {
                 Spacer()
             }
             HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
-                Text(UsageNumber.short(total.total))
+                Text(UsageNumber.short(total.total, westernUnits: westernUnits))
                     .dsFont(.xxl, weight: .semibold)
                     .tracking(-0.6).monospacedDigit()
                     .help(UsageNumber.exact(total.total))
@@ -422,12 +446,13 @@ private struct UsageSummary: View {
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: compact ? 2 : 4),
                       alignment: .leading, spacing: DS.Space.s3) {
-                UsageMetric(title: tr("输入 Token"), value: UsageNumber.short(total.input), exact: UsageNumber.exact(total.input))
-                UsageMetric(title: tr("输出 Token"), value: UsageNumber.short(total.output), exact: UsageNumber.exact(total.output))
+                UsageMetric(title: tr("输入 Token"), value: UsageNumber.short(total.input, westernUnits: westernUnits), exact: UsageNumber.exact(total.input))
+                UsageMetric(title: tr("输出 Token"), value: UsageNumber.short(total.output, westernUnits: westernUnits), exact: UsageNumber.exact(total.output))
                 UsageMetric(title: tr("缓存命中率"), value: total.input > 0
                     ? (Double(total.cached) / Double(total.input)).formatted(.percent.precision(.fractionLength(1)).locale(L10n.locale)) : "—")
                 UsageMetric(title: tr("用量记录"), value: UsageNumber.exact(total.records))
             }
+            UsageCostSummary(rows: costRows)
             DisclosureGroup(isExpanded: $expanded) {
                 VStack(spacing: DS.Space.s2) {
                     InfoRow(label: tr("缓存 Token"), text: UsageNumber.exact(total.cached))
@@ -438,6 +463,54 @@ private struct UsageSummary: View {
                 }.padding(.top, DS.Space.s2)
             } label: {
                 Text(tr("缓存 Token")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            }
+        }
+    }
+}
+
+private struct UsageCostSummary: View {
+    let rows: [ModelTokenUsage]
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let estimate = model.aiUsage.estimatedCost(rows)
+        let references = model.aiUsage.costReferences
+        let currency = model.settings.aiUsageCurrency
+        VStack(alignment: .leading, spacing: DS.Space.s1) {
+            HStack {
+                Text(tr("估算费用")).foregroundStyle(DS.Palette.textSecondary)
+                Spacer()
+                if let usd = estimate.usd {
+                    if let amount = AIUsageFormat.money(usd: usd, currency: currency,
+                                                       usdToCNY: references.exchangeRate?.cnyPerUSD, locale: L10n.locale) {
+                        Text(amount + (estimate.unpricedModels.isEmpty ? "" : "+"))
+                            .monospacedDigit().foregroundStyle(DS.Palette.textPrimary)
+                    } else {
+                        Text(tr("暂无汇率")).foregroundStyle(DS.Palette.textTertiary)
+                    }
+                } else if model.aiUsage.isRefreshingCostReferences {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Text(tr("暂无价格")).foregroundStyle(DS.Palette.textTertiary)
+                }
+            }.dsFont(.sm, weight: .medium)
+            Text(tr("按模型基础 API 单价估算，不含阶梯加价，非订阅账单。"))
+                .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !estimate.unpricedModels.isEmpty {
+                Text(tr("部分模型暂无价格"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.warning)
+                    .help(estimate.unpricedModels.joined(separator: "\n"))
+            }
+            if let catalog = references.catalog {
+                Text(tr("价格更新：\(catalog.fetchedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+            }
+            if currency == .cny, let rate = references.exchangeRate {
+                let value = rate.cnyPerUSD.formatted(.number.precision(.fractionLength(0...4)).locale(L10n.locale))
+                Text(tr("参考汇率：1 USD ≈ \(value) CNY"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                    .help(tr("汇率更新：\(rate.fetchedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))
             }
         }
     }
@@ -458,6 +531,7 @@ private struct UsageMetric: View {
 }
 
 private struct UsageModelRow: View {
+    @Environment(\.aiUsageWesternUnits) private var westernUnits
     let item: ModelTokenUsage
     let total: Int
     let compact: Bool
@@ -470,7 +544,7 @@ private struct UsageModelRow: View {
                     Text(verbatim: item.model).dsFont(.xs, weight: .medium).lineLimit(1).help(item.model)
                 }
                 Spacer(minLength: DS.Space.s2)
-                Text(UsageNumber.short(item.total)).dsFont(.sm, weight: .semibold)
+                Text(UsageNumber.short(item.total, westernUnits: westernUnits)).dsFont(.sm, weight: .semibold)
                     .monospacedDigit().fixedSize().help(UsageNumber.exact(item.total))
                     .accessibilityLabel(UsageNumber.exact(item.total) + " Tokens")
                 Text((total > 0 ? Double(item.total) / Double(total) : 0).formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
@@ -482,8 +556,8 @@ private struct UsageModelRow: View {
                 .accessibilityHidden(true)
             if !compact {
                 HStack(spacing: DS.Space.s6) {
-                    Text(tr("输入 Token") + "  " + UsageNumber.short(item.input))
-                    Text(tr("输出 Token") + "  " + UsageNumber.short(item.output))
+                    Text(tr("输入 Token") + "  " + UsageNumber.short(item.input, westernUnits: westernUnits))
+                    Text(tr("输出 Token") + "  " + UsageNumber.short(item.output, westernUnits: westernUnits))
                     Spacer()
                     Text(tr("用量记录") + "  " + UsageNumber.exact(item.records))
                 }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary).monospacedDigit()
@@ -492,8 +566,9 @@ private struct UsageModelRow: View {
     }
 }
 
-/// 活动图始终展示全年；模式绑定到父视图，同时切换摘要和排行的本日/本周/本月口径。
+/// 活动图始终展示最近 365 天；模式同时切换摘要和排行的本日/本周/同窗口累计口径。
 private struct UsageHeatmap: View {
+    @Environment(\.aiUsageWesternUnits) private var westernUnits
     let rows: [ModelTokenUsage]
     let compact: Bool
     @Binding var mode: UsageActivityMode
@@ -547,7 +622,7 @@ private struct UsageHeatmap: View {
                                 .frame(width: DS.Space.s3, height: DS.Space.s3)
                         }
                 }.accessibilityHidden(true)
-                Text(UsageNumber.short(peak) + " Tokens").help(UsageNumber.exact(peak) + " Tokens")
+                Text(UsageNumber.short(peak, westernUnits: westernUnits) + " Tokens").help(UsageNumber.exact(peak) + " Tokens")
             }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
         }
         .onChange(of: mode) { _, _ in hovered = nil }
@@ -588,6 +663,7 @@ private struct ActivityGrid: View {
 }
 
 private struct ActivityWeek: View {
+    @Environment(\.aiUsageWesternUnits) private var westernUnits
     let week: UsageActivity.Week
     let activity: UsageActivity
     let mode: UsageActivityMode
@@ -597,8 +673,8 @@ private struct ActivityWeek: View {
     private var weekLabel: String {
         let date = UsageNumber.day(week.start)
         return mode == .weekly
-            ? tr("\(date) 当周：\(UsageNumber.short(week.total)) Tokens")
-            : tr("截至 \(date) 当周累计：\(UsageNumber.short(week.cumulative)) Tokens")
+            ? tr("\(date) 当周：\(UsageNumber.short(week.total, westernUnits: westernUnits)) Tokens")
+            : tr("截至 \(date) 当周累计：\(UsageNumber.short(week.cumulative, westernUnits: westernUnits)) Tokens")
     }
 
     var body: some View {
@@ -614,7 +690,7 @@ private struct ActivityWeek: View {
                         let level = min(4, max(1, Int(ceil(Double(count) / Double(max(1, peak)) * 4))))
                         ActivityCell(side: side,
                             color: count == 0 ? DS.Palette.track : DS.Palette.primary.opacity(Double(level) / 4),
-                            label: UsageNumber.day(date) + " · " + UsageNumber.short(count) + " Tokens",
+                            label: UsageNumber.day(date) + " · " + UsageNumber.short(count, westernUnits: westernUnits) + " Tokens",
                             hovered: $hovered)
                     } else {
                         Color.clear.frame(width: side, height: side).accessibilityHidden(true)
@@ -720,13 +796,36 @@ private struct UsageSettings: View {
                 }
             }
             HairlineDivider()
-            SettingRow(title: tr("刷新间隔"), subtitle: nil) {
+            SettingRow(title: tr("刷新间隔"), subtitle: tr("AI 用量与额度共用此间隔；新数据到达后更新菜单栏。")) {
                 Picker(tr("刷新间隔"), selection: $settings.aiUsageRefreshMinutes) {
                     ForEach(AppSettings.aiUsageRefreshOptions, id: \.self) { value in
                         Text(tr("\(value) 分钟")).tag(value)
                     }
                 }.labelsHidden()
             }
+            SettingRow(title: tr("额度显示"), subtitle: nil) {
+                Picker(tr("额度显示"), selection: $settings.aiQuotaShowsRemaining) {
+                    Text(tr("已用")).tag(false)
+                    Text(tr("剩余")).tag(true)
+                }.labelsHidden()
+            }
+            if settings.language.resolved.isChinese {
+                SettingRow(title: tr("数字单位"), subtitle: nil) {
+                    Picker(tr("数字单位"), selection: $settings.aiUsageWesternUnits) {
+                        Text(tr("万 / 亿")).tag(false)
+                        Text("K / M / B").tag(true)
+                    }.labelsHidden()
+                }
+            }
+            SettingRow(title: tr("货币"), subtitle: nil) {
+                Picker(tr("货币"), selection: $settings.aiUsageCurrency) {
+                    Text(tr("美元")).tag(AIUsageCurrency.usd)
+                    Text(tr("人民币")).tag(AIUsageCurrency.cny)
+                }.labelsHidden()
+            }
+            Text(tr("价格来源：models.dev；人民币按缓存汇率换算。"))
+                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
             Text(tr("本机 Token 统计不代表订阅账单或其他设备的用量"))
                 .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)

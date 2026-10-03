@@ -48,6 +48,8 @@ struct MenuBarReading {
     /// 本机日志今日 Token 总量；扫描未开启或还没有数据时为 nil
     var aiTokens: Int?
     var aiUsageShowsLocalUsage = true
+    var aiQuotaShowsRemaining = true
+    var aiUsageWesternUnits = false
     /// 只有可显示额度的来源才占用菜单栏读数；本机 Token 统计独立于订阅额度。
     var aiQuotas: [MenuBarQuota] = []
     var batteryCharging = false
@@ -97,6 +99,8 @@ struct MenuBarReading {
             case .aiUsage:
                 aiTokens = model.aiUsage.todayTokens
                 aiUsageShowsLocalUsage = model.settings.aiUsageShowsLocalUsage
+                aiQuotaShowsRemaining = model.settings.aiQuotaShowsRemaining
+                aiUsageWesternUnits = model.settings.aiUsageWesternUnits
                 aiQuotas = model.aiUsage.visibleQuotaProviders(for: nil).compactMap { provider in
                     let state = model.aiUsage.visibleQuotaState(for: provider)
                     guard let snapshot = state.snapshot else { return nil }
@@ -178,10 +182,11 @@ struct MenuBarReading {
                 && (style != .history && style != .line || batteryHistory == previous.batteryHistory)
         case .aiUsage:
             guard aiQuotas.isEmpty == previous.aiQuotas.isEmpty else { return false }
-            if aiQuotas.isEmpty { return aiTokens == previous.aiTokens }
+            if aiQuotas.isEmpty { return aiTokens == previous.aiTokens && aiUsageWesternUnits == previous.aiUsageWesternUnits }
+            guard aiQuotaShowsRemaining == previous.aiQuotaShowsRemaining else { return false }
             return aiQuotas.elementsEqual(previous.aiQuotas) {
                 $0.provider == $1.provider && $0.shortWindowName == $1.shortWindowName
-                    && $0.remainingPercent == $1.remainingPercent
+                    && $0.window.remainingPercent == $1.window.remainingPercent
             }
         }
     }
@@ -212,7 +217,7 @@ struct MenuBarReading {
                         let checked = quota.isStale
                             ? " · \(tr("上次成功：\(quota.fetchedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))"
                             : ""
-                        return "\(previous)\(quota.sourceName)\(quota.source == .sub2api ? " (Sub2API)" : "") · \(quota.shortWindowName) · \(tr("剩余")) \(quota.remainingPercent)% · \(tr("重置：")) \(quota.resetText)\(checked)"
+                        return "\(previous)\(quota.sourceName)\(quota.source == .sub2api ? " (Sub2API)" : "") · \(quota.shortWindowName) · \(tr(aiQuotaShowsRemaining ? "剩余" : "已用")) \(AIUsageFormat.quotaPercent(remainingPercent: quota.window.remainingPercent, showsRemaining: aiQuotaShowsRemaining, locale: L10n.locale)) · \(tr("重置：")) \(quota.resetText)\(checked)"
                     }.joined(separator: "\n")
                 } else {
                     aiTokens.map { "AI · \(UsageNumber.exact($0)) Tokens" }
@@ -227,8 +232,8 @@ struct MenuBarReading {
 /// 菜单栏图标自绘：每次刷新只生成一张小图，避免在菜单栏里重建 SwiftUI 视图
 @MainActor
 enum MenuBarRenderer {
-    private static func tokenText(_ value: Int) -> String {
-        UsageNumber.short(value)
+    private static func tokenText(_ value: Int, westernUnits: Bool) -> String {
+        AIUsageFormat.tokens(value, westernUnits: westernUnits, locale: L10n.locale)
     }
     /// 菜单栏只有 22pt 高。额度读数单独使用更清晰的字号，其余指标保持紧凑排版。
     private enum Metrics {
@@ -373,17 +378,17 @@ enum MenuBarRenderer {
 
     private static func aiUsageSegment(reading: MenuBarReading, style: MenuBarStyle) -> Segment {
         guard !reading.aiQuotas.isEmpty else {
-            return textSegment(item: .aiUsage, value: reading.aiTokens.map { tokenText($0) } ?? "—",
+            return textSegment(item: .aiUsage, value: reading.aiTokens.map { tokenText($0, westernUnits: reading.aiUsageWesternUnits) } ?? "—",
                                sample: "999.9M", style: style)
         }
         let status = combine(reading.aiQuotas.map { quota in
             let provider = quota.provider
             let name = provider == .codex ? "Codex" : "Claude"
             let label = "\(name) · \(quota.shortWindowName)"
-            let value = "\(quota.remainingPercent)%"
+            let value = AIUsageFormat.quotaPercent(remainingPercent: quota.window.remainingPercent, showsRemaining: reading.aiQuotaShowsRemaining, locale: L10n.locale, compact: true)
             let stacked = aiQuotaText(label: name, value: value, centered: style == .stackedCenter)
             let inline = aiQuotaInlineText(label: name, value: value)
-            let fraction = min(1, max(0, Double(quota.remainingPercent) / 100))
+            let fraction = (AIUsageFormat.quotaValue(remainingPercent: quota.window.remainingPercent, showsRemaining: reading.aiQuotaShowsRemaining) ?? 0) / 100
             let color = aiQuotaColor(quota.remainingPercent)
             switch style {
             case .stacked, .stackedCenter: return stacked

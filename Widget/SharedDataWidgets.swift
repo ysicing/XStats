@@ -114,14 +114,14 @@ private struct AIQuotaWidgetView: View {
             Text(quota.provider == "codex" ? "Codex" : "Claude")
                 .font(.subheadline.weight(.semibold))
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text("\(Int(quota.remainingPercent.rounded()))%")
+                Text(AIUsageFormat.quotaPercent(remainingPercent: quota.remainingPercent, showsRemaining: entry.snapshot.quotaShowsRemaining != false, locale: L10n.locale))
                     .font(.system(size: 27, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-                Text(tr("剩余"))
+                Text(tr(entry.snapshot.quotaShowsRemaining != false ? "剩余" : "已用"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            ProgressView(value: quota.remainingPercent, total: 100)
+            ProgressView(value: AIUsageFormat.quotaValue(remainingPercent: quota.remainingPercent, showsRemaining: entry.snapshot.quotaShowsRemaining != false) ?? 0, total: 100)
                 .tint(quota.remainingPercent < 20 ? .red : .blue)
             if let reset = quota.resetsAt {
                 Text(tr("重置：") + " " + reset.formatted(date: .abbreviated, time: .shortened))
@@ -168,7 +168,7 @@ private struct TodayTokensWidgetView: View {
                 WidgetEmptyState(enabled: entry.snapshot.showsLocalUsage)
             } else {
                 let total = sources.reduce(0) { $0 + $1.tokens }
-                Text(total.formatted(.number.notation(.compactName).locale(L10n.locale)))
+                Text(AIUsageFormat.tokens(total, westernUnits: entry.snapshot.westernUnits == true, locale: L10n.locale))
                     .font(.system(size: 36, weight: .semibold, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -178,7 +178,7 @@ private struct TodayTokensWidgetView: View {
                     HStack {
                         Text(source.name)
                         Spacer(minLength: 4)
-                        Text(source.tokens.formatted(.number.notation(.compactName).locale(L10n.locale)))
+                        Text(AIUsageFormat.tokens(source.tokens, westernUnits: entry.snapshot.westernUnits == true, locale: L10n.locale))
                             .monospacedDigit()
                     }
                     .font(.caption)

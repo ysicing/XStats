@@ -86,7 +86,7 @@ public final class AppModel {
         self.settings = settings
         rest = RestController(settings: settings)
         aiUsage = AIUsageController(settings: settings, providers: aiUsageProviders, quotaProviders: aiQuotaProviders,
-                                    quotaCacheURL: quotaCacheURL)
+                                    quotaCacheURL: quotaCacheURL, costReferenceStore: .shared)
         self.store = store
         self.helper = helper
         fans = FanController(helper: helper, store: store, settings: settings)

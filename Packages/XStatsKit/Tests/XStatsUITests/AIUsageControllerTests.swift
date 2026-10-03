@@ -724,3 +724,72 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(await provider.count() == 0)
     }
 }
+
+private actor CancellableCostFetch {
+    private var started = false
+    private var waiter: CheckedContinuation<Void, Never>?
+    private(set) var cancelled = false
+
+    func fetch() async throws -> Data {
+        started = true
+        waiter?.resume(); waiter = nil
+        do {
+            try await Task.sleep(for: .seconds(60))
+            return Data()
+        } catch {
+            cancelled = Task.isCancelled
+            throw error
+        }
+    }
+
+    func waitUntilStarted() async {
+        if started { return }
+        await withCheckedContinuation { waiter = $0 }
+    }
+}
+
+extension AIUsageControllerTests {
+    @Test(arguments: [true, false])
+    func costRequestCancelsWithSystemPauseOrViewTask(systemPause: Bool) async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let fetch = CancellableCostFetch()
+        let store = AICostReferenceStore(cacheDirectory: nil, fetch: { _, _ in try await fetch.fetch() })
+        let controller = AIUsageController(settings: settings,
+            providers: [StubUsageProvider([.success(usageSnapshot(tokens: 100))])], costReferenceStore: store)
+        await controller.refresh()
+        let task = Task { await controller.refreshCostReferences() }
+        await fetch.waitUntilStarted()
+        #expect(controller.isRefreshingCostReferences)
+        if systemPause { controller.setPaused(true) } else { task.cancel() }
+        await task.value
+        #expect(await fetch.cancelled)
+        #expect(!controller.isRefreshingCostReferences)
+        #expect(controller.costReferences.catalog == nil)
+        controller.stop()
+    }
+
+    @Test func displayPreferencesInvalidateOnlyRelevantMenuBarImages() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let snapshot = AIQuotaSnapshot(provider: .codex, windows: [
+            AIQuotaWindow(kind: .weekly, usedPercent: 73, resetsAt: nil),
+        ], fetchedAt: Date())
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [],
+                             aiQuotaProviders: [StubQuotaProvider(results: [.success(snapshot)])])
+        await model.aiUsage.refresh()
+        let remaining = MenuBarReading(model: model)
+        settings.aiQuotaShowsRemaining = false
+        let used = MenuBarReading(model: model)
+        #expect(!used.aiQuotaShowsRemaining)
+        #expect(!used.hasSameImage(as: remaining, item: .aiUsage, style: .stacked))
+        #expect(used.hasSameImage(as: remaining, item: .cpu, style: .stacked))
+        #expect(used.aiQuotas.first?.remainingPercent == 27)
+        var tokens = remaining
+        tokens.aiQuotas = []
+        tokens.aiTokens = 123_456
+        var western = tokens
+        western.aiUsageWesternUnits = true
+        #expect(!western.hasSameImage(as: tokens, item: .aiUsage, style: .stacked))
+    }
+}

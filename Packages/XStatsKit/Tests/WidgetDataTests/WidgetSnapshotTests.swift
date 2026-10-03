@@ -166,6 +166,8 @@ func snapshotPreservesEveryWeekStartAndReloadsCalendars(firstWeekday: Int) throw
     #expect(snapshot.todayTokens(for: "codex") == nil)
     #expect(snapshot.currentQuotas().count == 1)
     #expect(snapshot.localUsageEnabled == nil)
+    #expect(snapshot.quotaShowsRemaining == nil)
+    #expect(snapshot.westernUnits == nil)
 }
 
 @Test func onlyWidgetsWhoseDisplayedDataChangedAreReloaded() {
@@ -224,4 +226,20 @@ func snapshotPreservesEveryWeekStartAndReloadsCalendars(firstWeekday: Int) throw
                                                            WidgetKind.ipPurity, WidgetKind.publicIP,
                                                            WidgetKind.calendar, WidgetKind.tomorrowWork,
                                                            WidgetKind.calendarMonth])
+}
+
+@Test func displayPreferencesPreserveLegacyDefaultsAndReloadOnlyAffectedWidgets() throws {
+    let legacy = WidgetSnapshot()
+    var current = legacy
+    current.quotaShowsRemaining = true
+    current.westernUnits = false
+    #expect(current.changedWidgetKinds(from: legacy).isEmpty)
+    current.quotaShowsRemaining = false
+    #expect(current.changedWidgetKinds(from: legacy) == [WidgetKind.aiQuota])
+    current.quotaShowsRemaining = true
+    current.westernUnits = true
+    #expect(current.changedWidgetKinds(from: legacy) == [WidgetKind.todayTokens])
+    let restored = try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(current))
+    #expect(restored.westernUnits == true)
+    #expect(restored.quotaShowsRemaining == true)
 }

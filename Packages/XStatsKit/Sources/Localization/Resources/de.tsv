@@ -1620,3 +1620,19 @@ GitHub 项目	GitHub-Projekt
 不能在 XStats 内卸载或退出 XStats 自身	XStats kann sich mit diesem Werkzeug nicht selbst deinstallieren oder beenden
 应用本体未能移动；已将 {} 项残留移到废纸篓，约 {}。请解决错误后重试。	Die App konnte nicht verschoben werden. Zugehörige Objekte im Papierkorb: {} (ca. {}). Beheben Sie den Fehler und versuchen Sie es erneut.
 黄历	Chinesischer Almanach
+额度显示	Kontingentanzeige
+数字单位	Zahleneinheiten
+万 / 亿	10 Tsd. / 100 Mio.
+货币	Währung
+美元	US-Dollar
+人民币	Chinesischer Yuan
+估算费用	Geschätzte Kosten
+暂无汇率	Wechselkurs nicht verfügbar
+暂无价格	Preise nicht verfügbar
+按模型基础 API 单价估算，不含阶梯加价，非订阅账单。	Schätzung anhand der API-Basispreise je Modell, ohne gestaffelte Aufschläge. Keine Abonnementrechnung.
+部分模型暂无价格	Für einige Modelle sind keine Preise verfügbar
+价格更新：{}	Preisaktualisierung: {}
+参考汇率：1 USD ≈ {} CNY	Referenzkurs: 1 USD ≈ {} CNY
+汇率更新：{}	Wechselkursaktualisierung: {}
+价格来源：models.dev；人民币按缓存汇率换算。	Preisquelle: models.dev; Yuan-Beträge werden mit dem gespeicherten Wechselkurs umgerechnet.
+AI 用量与额度共用此间隔；新数据到达后更新菜单栏。	KI-Nutzung und Kontingent teilen dieses Intervall; Die Menüleiste wird aktualisiert, sobald neue Daten vorliegen.

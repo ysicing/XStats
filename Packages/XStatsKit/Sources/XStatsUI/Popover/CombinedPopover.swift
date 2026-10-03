@@ -313,15 +313,17 @@ private struct OverviewReading {
         case .aiUsage:
             if !model.settings.aiUsageShowsLocalUsage {
                 if let quota = MenuBarReading(model: model, items: [.aiUsage]).aiQuotas.min(by: { $0.remainingPercent < $1.remainingPercent }) {
-                    value = "\(quota.remainingPercent)"
-                    unit = "%"
-                    detail = quota.sourceName + " · " + tr("订阅额度")
+                    value = AIUsageFormat.quotaPercent(remainingPercent: quota.window.remainingPercent,
+                                                      showsRemaining: model.settings.aiQuotaShowsRemaining,
+                                                      locale: L10n.locale, compact: true)
+                    unit = ""
+                    detail = quota.sourceName + " · " + tr(model.settings.aiQuotaShowsRemaining ? "剩余" : "已用")
                 } else {
                     detail = tr("暂无额度数据")
                 }
             } else if let tokens = model.aiUsage.todayTokens {
                 // 与菜单栏、面板共用同一套缩写，同一个数字不能在三处显示成三种样子。
-                value = UsageNumber.short(tokens)
+                value = UsageNumber.short(tokens, westernUnits: model.settings.aiUsageWesternUnits)
                 unit = "Tokens"
                 detail = "AI · " + tr("今天")
             } else {

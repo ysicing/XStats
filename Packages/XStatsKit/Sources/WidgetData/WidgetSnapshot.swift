@@ -161,6 +161,9 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public var dailyTokens: [DailyTokenUsage]?
     /// 可选以兼容旧版摘要；缺失时沿用 AI 总开关的旧行为。
     public var localUsageEnabled: Bool?
+    /// 可选显示偏好；旧摘要沿用剩余额度和按语言缩写。
+    public var quotaShowsRemaining: Bool?
+    public var westernUnits: Bool?
     public var publicIPEnabled: Bool
     public var addresses: [Address]
     public var language: String
@@ -177,7 +180,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     /// 写入日历摘要的主应用构建号；新版可能内置新的放假数据，构建号不同时不复用缓存。
     public var calendarDataVersion: String?
     public init(aiEnabled: Bool = false, quotas: [Quota] = [], dailyTokens: [DailyTokenUsage]? = nil,
-                localUsageEnabled: Bool? = nil,
+                localUsageEnabled: Bool? = nil, quotaShowsRemaining: Bool? = nil, westernUnits: Bool? = nil,
                 publicIPEnabled: Bool = false,
                 addresses: [Address] = [], language: String = "system",
                 calendarFirstWeekday: Int = Calendar.current.firstWeekday, showsLunar: Bool = Locale.current.region?.identifier == "CN",
@@ -187,6 +190,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         self.quotas = quotas
         self.dailyTokens = dailyTokens
         self.localUsageEnabled = localUsageEnabled
+        self.quotaShowsRemaining = quotaShowsRemaining
+        self.westernUnits = westernUnits
         self.publicIPEnabled = publicIPEnabled
         self.addresses = addresses
         self.language = language
@@ -225,7 +230,9 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         }
         let relocalized = language != previous.language
         let quotaChanged = relocalized || aiEnabled != previous.aiEnabled
+            || (quotaShowsRemaining != false) != (previous.quotaShowsRemaining != false)
         let localUsageChanged = relocalized || showsLocalUsage != previous.showsLocalUsage
+            || (westernUnits == true) != (previous.westernUnits == true)
         var kinds: [String] = []
         if quotaChanged || displayed(quotas) != displayed(previous.quotas) { kinds.append(WidgetKind.aiQuota) }
         if localUsageChanged || dailyTokens != previous.dailyTokens { kinds.append(WidgetKind.todayTokens) }

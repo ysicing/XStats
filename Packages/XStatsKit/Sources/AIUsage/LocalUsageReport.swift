@@ -45,10 +45,12 @@ public struct LocalUsageReport: Equatable, Sendable {
         rows.reduce(into: ModelTokenUsage(day: .distantPast, model: "")) { $0.add($1) }
     }
 
-    /// 活动图模式同时控制摘要：每日取本日，每周取本周，累计取本月；热力图仍单独取全年。
+    /// 活动图模式同时控制摘要：每日取本日，每周取本周，累计与活动图共用最近 365 天。
     public func summary(mode: UsageActivityMode, model: String? = nil, now: Date = Date(),
                         calendar: Calendar = .current) -> [ModelTokenUsage] {
-        let component: Calendar.Component = mode == .daily ? .day : mode == .weekly ? .weekOfYear : .month
+        // 累计摘要、费用和排行必须覆盖图表同一窗口，不能仅从本月月初开始。
+        if mode == .cumulative { return selected(days: 365, model: model, now: now, calendar: calendar) }
+        let component: Calendar.Component = mode == .daily ? .day : .weekOfYear
         let start = calendar.dateInterval(of: component, for: now)?.start ?? calendar.startOfDay(for: now)
         return rows.filter { $0.day >= start && $0.day <= now && (model == nil || $0.model == model) }
     }

@@ -572,6 +572,15 @@ public final class AppSettings {
     public var aiUsageShowsLocalUsage: Bool {
         didSet { defaults.set(aiUsageShowsLocalUsage, forKey: Keys.aiUsageShowsLocalUsage) }
     }
+    public var aiQuotaShowsRemaining: Bool {
+        didSet { defaults.set(aiQuotaShowsRemaining, forKey: Keys.aiQuotaShowsRemaining) }
+    }
+    public var aiUsageWesternUnits: Bool {
+        didSet { defaults.set(aiUsageWesternUnits, forKey: Keys.aiUsageWesternUnits) }
+    }
+    public var aiUsageCurrency: AIUsageCurrency {
+        didSet { defaults.set(aiUsageCurrency.rawValue, forKey: Keys.aiUsageCurrency) }
+    }
     public var aiUsageRefreshMinutes: Int {
         didSet { defaults.set(aiUsageRefreshMinutes, forKey: Keys.aiUsageRefreshMinutes) }
     }
@@ -726,7 +735,7 @@ public final class AppSettings {
     public static let restBreakOptions = [3, 5, 10]
     public static let restLongBreakOptions = [10, 15, 20, 30]
     public static let restDailyGoalOptions = [4, 6, 8, 12]
-    public static let aiUsageRefreshOptions = [5, 15, 30, 60]
+    public static let aiUsageRefreshOptions = [1, 3, 5, 10, 15, 30, 60]
     public static let batteryFloorOptions = [10, 20, 30, 40]
     public static let fanSafetyOptions = [85, 90, 95, 100]
     public static let alertTemperatureOptions = [85, 90, 95, 100]
@@ -786,6 +795,9 @@ public final class AppSettings {
         aiUsageSources = defaults.stringArray(forKey: Keys.aiUsageSources)
             .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
         aiUsageShowsLocalUsage = defaults.object(forKey: Keys.aiUsageShowsLocalUsage) as? Bool ?? true
+        aiQuotaShowsRemaining = defaults.object(forKey: Keys.aiQuotaShowsRemaining) as? Bool ?? true
+        aiUsageWesternUnits = defaults.bool(forKey: Keys.aiUsageWesternUnits)
+        aiUsageCurrency = defaults.string(forKey: Keys.aiUsageCurrency).flatMap(AIUsageCurrency.init(rawValue:)) ?? .usd
         aiUsageRefreshMinutes = Self.aiUsageRefreshOptions.contains(defaults.integer(forKey: Keys.aiUsageRefreshMinutes))
             ? defaults.integer(forKey: Keys.aiUsageRefreshMinutes) : 30
         colorizeHighLoad = defaults.bool(forKey: Keys.colorizeHighLoad)
@@ -912,6 +924,9 @@ public final class AppSettings {
         static let processesEnabled = "processesEnabled"
         static let aiUsageSources = "aiUsageSources"
         static let aiUsageShowsLocalUsage = "aiUsageShowsLocalUsage"
+        static let aiQuotaShowsRemaining = "aiQuotaShowsRemaining"
+        static let aiUsageWesternUnits = "aiUsageWesternUnits"
+        static let aiUsageCurrency = "aiUsageCurrency"
         static let aiUsageRefreshMinutes = "aiUsageRefreshMinutes"
         static let colorizeHighLoad = "colorizeHighLoad"
         static let bluetoothLowBatteryInMenuBar = "bluetoothLowBatteryInMenuBar"

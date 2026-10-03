@@ -81,6 +81,22 @@ Token 活动	Token activity
 截至 {} 当周累计：{} Tokens	Through the week of {}: {} Tokens cumulative
 缓存创建 Token	Cache creation tokens
 AI 用量	AI Usage
+额度显示	Quota display
+数字单位	Number units
+万 / 亿	10K / 100M
+货币	Currency
+美元	US dollar
+人民币	Chinese yuan
+估算费用	Estimated cost
+暂无汇率	Exchange rate unavailable
+暂无价格	Pricing unavailable
+按模型基础 API 单价估算，不含阶梯加价，非订阅账单。	Estimated from base API prices per model, excluding tiered surcharges; this is not a subscription bill.
+部分模型暂无价格	Pricing unavailable for some models
+价格更新：{}	Prices updated: {}
+参考汇率：1 USD ≈ {} CNY	Reference rate: 1 USD ≈ {} CNY
+汇率更新：{}	Exchange rate updated: {}
+价格来源：models.dev；人民币按缓存汇率换算。	Pricing source: models.dev; Chinese yuan amounts use the cached exchange rate.
+AI 用量与额度共用此间隔；新数据到达后更新菜单栏。	AI usage and quota share this interval; The menu bar updates when new data arrives.
 显示本地用量	Show local usage
 读取本机会话日志；关闭后停止扫描并隐藏 Token 统计。	Reads local session logs; turning this off stops scanning and hides token statistics.
 查看 Codex / Claude 的 Token 用量与订阅额度。	View Codex / Claude token usage and subscription quotas.

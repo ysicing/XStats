@@ -1,6 +1,6 @@
 # XStats Privacy Policy
 
-Effective date: October 2, 2026
+Effective date: October 3, 2026
 
 This policy explains what XStats processes on your Mac and which features contact external services. XStats-operated services retain only the update-statistics aggregates described in section 2; the app's other persisted data stays on your Mac and is not uploaded to XStats-operated servers. Network tests send requests needed for the test to independent providers, as described in section 3. Contact: i@xiai.me.
 
@@ -26,6 +26,7 @@ You can set automatic checks to Never in Settings → About. You decide whether 
 ## 3. Other network features
 
 - When AI Usage is enabled, Codex quotas are read through the installed local Codex CLI App Server first; if unavailable, XStats uses cached Codex credentials to contact `chatgpt.com` directly. Claude Code uses its local credentials to contact `api.anthropic.com` directly. Those providers can observe the login token and connection metadata. The last successful quota snapshot for each source is stored in this Mac's `ai-usage.sqlite` database with percentages, reset times, source, and fetch time, but no login token. Failed queries may show that snapshot marked as old data. Authentication failure or removal of a manual configuration deletes that source's snapshot. Disabling the feature stops queries and hides quotas but retains the local snapshot for re-enabling. Quota results are not uploaded to XStats servers.
+- With local AI usage enabled and its view visible, cost estimates fetch public base model prices from `models.dev/api.json` on demand. Selecting CNY also fetches a reference exchange rate from `open.er-api.com/v6/latest/USD`. These requests send no session logs, token counts, model usage records, or login credentials; the providers can observe connection metadata. Prices and exchange rates are cached locally and refreshed on demand after 24 and 12 hours respectively. Failed refreshes may keep older cached values with their fetch times. Closing the view, disabling the feature, or system suspension cancels requests that are no longer needed. Estimates use local token statistics, exclude tiered surcharges, and are not subscription bills.
 - With a Codex or Claude Code Sub2API backup configured, a failed automatic lookup for that source causes a direct request to its chosen Sub2API server. That server receives the admin email, password, login token, and account ID being queried. XStats provides no preset Sub2API server and does not upload these values or quota results to XStats servers.
 - When you open network details with public-IP lookup enabled, XStats contacts Cloudflare `1.1.1.1`, falling back to ipify. It sends your public IP address to `cleanip.io` for location, ASN, network type, and cleanliness information. Results are cached locally.
 - Connection probing sends ICMP packets to your selected target when enabled. Speed tests, egress checks, and DNS lookups contact selected test nodes, websites, or DNS services only when you use those features. Those services can observe connection metadata and the data needed for the test.

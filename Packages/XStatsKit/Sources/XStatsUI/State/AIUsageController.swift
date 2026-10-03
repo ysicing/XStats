@@ -35,6 +35,11 @@ public final class AIUsageController {
     public private(set) var quotaStates: [AIProviderID: AIQuotaProviderState]
     /// 供 AppController 观察的刷新脉冲；各额度来源另有自己的 lastAttemptAt。
     public private(set) var lastAttemptAt: Date?
+    public private(set) var costReferences = AICostReferenceSnapshot(catalog: nil, exchangeRate: nil)
+    private var costRefreshCount = 0
+    public var isRefreshingCostReferences: Bool { costRefreshCount > 0 }
+    @ObservationIgnored private var costTasks: [UUID: Task<AICostReferenceSnapshot, Never>] = [:]
+    @ObservationIgnored private let costReferenceStore: AICostReferenceStore?
 
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let providers: [any AIUsageProvider]
@@ -48,9 +53,10 @@ public final class AIUsageController {
 
     public init(settings: AppSettings, providers: [any AIUsageProvider] = [CodexLocalUsageProvider(), ClaudeLocalUsageProvider()],
                 quotaProviders: [any AIQuotaProvider] = [],
-                quotaCacheURL: URL? = nil,
+                quotaCacheURL: URL? = nil, costReferenceStore: AICostReferenceStore? = nil,
                 now: @escaping @Sendable () -> Date = Date.init) {
         self.settings = settings
+        self.costReferenceStore = costReferenceStore
         self.providers = providers
         self.quotaProviders = quotaProviders
         quotaCache = quotaCacheURL.flatMap { try? AIQuotaCacheStore(url: $0) }
@@ -58,6 +64,38 @@ public final class AIUsageController {
         states = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, AIUsageProviderState(provider: $0.id)) })
         quotaStates = Dictionary(uniqueKeysWithValues: quotaProviders.map { ($0.id, AIQuotaProviderState(provider: $0.id)) })
         restoreCachedQuotas()
+    }
+
+    /// 由可见的用量页请求；复用价格/汇率缓存，取消随视图任务传播，不增加轮询。
+    public func refreshCostReferences() async {
+        guard let costReferenceStore, settings.aiUsageEnabled, settings.aiUsageShowsLocalUsage, !paused,
+              localReport(for: nil)?.rows.contains(where: { $0.input > 0 || $0.output > 0 }) == true else { return }
+        let epoch = generation
+        let id = UUID()
+        let needsExchangeRate = settings.aiUsageCurrency == .cny
+        let task = Task { await costReferenceStore.refresh(needsExchangeRate: needsExchangeRate) }
+        costTasks[id] = task
+        costRefreshCount += 1
+        defer { costTasks[id] = nil; costRefreshCount -= 1 }
+        // 视图消失与系统暂停都必须取消实际请求，不能只丢弃最终结果。
+        let incoming = await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+        guard !Task.isCancelled, generation == epoch, settings.aiUsageEnabled,
+              settings.aiUsageShowsLocalUsage, !paused else { return }
+        // 多个可见窗口可能并发读取；较早返回的美元请求不能清掉新汇率。
+        let catalog = [costReferences.catalog, incoming.catalog].compactMap { $0 }.max { $0.fetchedAt < $1.fetchedAt }
+        let rate = [costReferences.exchangeRate, incoming.exchangeRate].compactMap { $0 }.max { $0.fetchedAt < $1.fetchedAt }
+        let merged = AICostReferenceSnapshot(catalog: catalog, exchangeRate: rate)
+        if merged != costReferences { costReferences = merged }
+    }
+
+    public func estimatedCost(_ rows: [ModelTokenUsage]) -> AICostEstimate {
+        if rows.allSatisfy({ $0.input == 0 && $0.output == 0 && $0.cached == 0 && $0.cacheCreated == 0 }) { return AICostEstimate(usd: 0, unpricedModels: []) }
+        return costReferences.catalog?.estimate(rows)
+            ?? AICostEstimate(usd: nil, unpricedModels: Array(Set(rows.filter { $0.input != 0 || $0.output != 0 || $0.cached != 0 || $0.cacheCreated != 0 }.map(\.model))).sorted())
     }
 
     private func restoreCachedQuotas() {
@@ -140,6 +178,7 @@ public final class AIUsageController {
         cadenceTask?.cancel()
         cadenceTask = nil
         if !settings.aiUsageShowsLocalUsage {
+            for task in costTasks.values { task.cancel() }
             // 关闭日志读取时丢弃在途扫描；额度轮询会在下方重新启动。
             generation += 1
             refreshTask?.cancel()
@@ -152,6 +191,7 @@ public final class AIUsageController {
             quotaStates[provider.id] = AIQuotaProviderState(provider: provider.id)
         }
         guard settings.aiUsageEnabled, !settings.aiUsageSources.isEmpty, !paused else {
+            for task in costTasks.values { task.cancel() }
             generation += 1
             // 不再轮询时，在途的冷扫描也没有意义了
             refreshTask?.cancel(); refreshTask = nil
@@ -175,6 +215,7 @@ public final class AIUsageController {
     }
 
     public func stop() {
+        for task in costTasks.values { task.cancel() }
         generation += 1
         cadenceTask?.cancel()
         cadenceTask = nil

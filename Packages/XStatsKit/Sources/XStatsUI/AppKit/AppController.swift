@@ -382,6 +382,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         withObservationTracking {
             _ = model.aiUsage.states
             _ = model.aiUsage.lastAttemptAt
+            _ = model.settings.aiQuotaShowsRemaining
+            _ = model.settings.aiUsageWesternUnits
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -397,6 +399,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         withObservationTracking {
             _ = model.settings.aiUsageEnabled
             _ = model.settings.aiUsageSources
+            _ = model.settings.aiQuotaShowsRemaining
+            _ = model.settings.aiUsageWesternUnits
             _ = model.settings.aiUsageShowsLocalUsage
             _ = model.settings.publicIPLookup
             _ = model.settings.language
@@ -484,6 +488,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         let snapshot = WidgetSnapshot(aiEnabled: settings.aiUsageEnabled, quotas: quotas,
                                       dailyTokens: dailyTokens,
                                       localUsageEnabled: settings.aiUsageShowsLocalUsage,
+                                      quotaShowsRemaining: settings.aiQuotaShowsRemaining,
+                                      westernUnits: settings.aiUsageWesternUnits,
                                       publicIPEnabled: settings.publicIPLookup, addresses: addresses,
                                       language: settings.language.rawValue,
                                       calendarFirstWeekday: settings.calendarFirstWeekday,

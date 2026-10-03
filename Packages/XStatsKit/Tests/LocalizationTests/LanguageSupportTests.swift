@@ -86,6 +86,10 @@ struct LanguageSupportTests {
         let catalog = try #require(Translations.catalog(for: language))
         #expect(catalog.sourceKeys == Translations.shared.sourceKeys)
         for key in ["语言", "应用 UI 语言", "自动检测", "搜索语言", "没有匹配的语言",
+                    "额度显示", "数字单位", "货币", "估算费用",
+                    "AI 用量与额度共用此间隔；新数据到达后更新菜单栏。",
+                    "价格来源：models.dev；人民币按缓存汇率换算。",
+                    "按模型基础 API 单价估算，不含阶梯加价，非订阅账单。",
                     "设置", "内存", "下载并应用", "中国大陆节假日与调休", "黄历", "每日", "每周", "累计",
                     "XStats 基于 OpenStats 开发，感谢原项目的开源贡献 · MIT License"] {
             #expect(catalog.translate(key)?.isEmpty == false)

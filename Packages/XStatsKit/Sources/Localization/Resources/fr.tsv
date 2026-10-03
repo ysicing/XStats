@@ -1620,3 +1620,19 @@ GitHub 项目	Projet GitHub
 不能在 XStats 内卸载或退出 XStats 自身	XStats ne peut pas se désinstaller ou se quitter depuis cet outil
 应用本体未能移动；已将 {} 项残留移到废纸篓，约 {}。请解决错误后重试。	L’app n’a pas pu être déplacée. Éléments associés placés dans la Corbeille : {} (environ {}). Corrigez l’erreur et réessayez.
 黄历	Almanach chinois
+额度显示	Affichage du quota
+数字单位	Unités numériques
+万 / 亿	10 mille / 100 millions
+货币	Devise
+美元	Dollar américain
+人民币	Yuan chinois
+估算费用	Coût estimé
+暂无汇率	Taux de change indisponible
+暂无价格	Tarifs indisponibles
+按模型基础 API 单价估算，不含阶梯加价，非订阅账单。	Estimation selon les tarifs API de base de chaque modèle, hors majorations par palier. Il ne s’agit pas d’une facture d’abonnement.
+部分模型暂无价格	Tarifs indisponibles pour certains modèles
+价格更新：{}	Tarifs mis à jour : {}
+参考汇率：1 USD ≈ {} CNY	Taux de référence : 1 USD ≈ {} CNY
+汇率更新：{}	Taux de change mis à jour : {}
+价格来源：models.dev；人民币按缓存汇率换算。	Source des tarifs : models.dev; Les montants en yuans sont convertis au taux de change en cache.
+AI 用量与额度共用此间隔；新数据到达后更新菜单栏。	L’utilisation de l’IA et le quota partagent cet intervalle; La barre des menus est mise à jour à l’arrivée de nouvelles données.

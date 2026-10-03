@@ -6,7 +6,7 @@ import Testing
 @testable import AIUsage
 
 @Suite struct UsageActivityTests {
-    @Test func summaryFollowsTodayThisWeekAndThisMonthWhileActivityStaysAnnual() {
+    @Test func summaryFollowsTodayThisWeekAndAnnualCumulative() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         calendar.firstWeekday = 2
@@ -20,10 +20,34 @@ import Testing
             row("2026-09-23", 99999), row("2026-09-22", 2, model: "b")], fileCount: 1)
         #expect(LocalUsageReport.total(report.summary(mode: .daily, now: now, calendar: calendar)).total == 3)
         #expect(LocalUsageReport.total(report.summary(mode: .weekly, now: now, calendar: calendar)).total == 13)
-        #expect(LocalUsageReport.total(report.summary(mode: .cumulative, now: now, calendar: calendar)).total == 1113)
-        #expect(LocalUsageReport.total(report.summary(mode: .cumulative, model: "a", now: now, calendar: calendar)).total == 1111)
+        #expect(LocalUsageReport.total(report.summary(mode: .cumulative, now: now, calendar: calendar)).total == 11113)
+        #expect(LocalUsageReport.total(report.summary(mode: .cumulative, model: "a", now: now, calendar: calendar)).total == 11111)
         #expect(LocalUsageReport.total(report.selected(days: 365, now: now, calendar: calendar)).total == 11113)
     }
+    @Test(arguments: ["2026-01-01T12:00:00Z", "2026-03-01T12:00:00Z"])
+    func cumulativeSummaryMatchesChartAcrossYearAndMonthBoundaries(_ timestamp: String) throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
+        let now = try #require(ISO8601DateFormatter().date(from: timestamp))
+        let today = calendar.startOfDay(for: now)
+        let rows = [-1, 0, 31, 364, 365].flatMap { ago in
+            ["a", "b"].map { model in
+                ModelTokenUsage(day: calendar.date(byAdding: .day, value: -ago, to: today)!,
+                                model: model, input: model == "a" ? 100 : 200, output: 10)
+            }
+        }
+        let report = LocalUsageReport(rows: rows, fileCount: 1)
+        for model: String? in [nil, "a", "b"] {
+            let summary = report.summary(mode: .cumulative, model: model, now: now, calendar: calendar)
+            let activity = UsageActivity(rows: report.selected(days: 365, model: model, now: now, calendar: calendar),
+                                         now: now, calendar: calendar)
+            let total = LocalUsageReport.total(summary).total
+            #expect(total == activity.peak(for: .cumulative))
+            #expect(total == (model == nil ? 960 : model == "a" ? 330 : 630))
+            #expect(LocalUsageReport.models(summary).reduce(0) { $0 + $1.total } == total)
+        }
+    }
+
     @Test func weeklyAndCumulativeColorsDistinguishUsageWithoutLightingZero() {
         #expect(UsageActivity.colorIntensity(value: 0, peak: 100, mode: .weekly) == 0)
         #expect(UsageActivity.colorIntensity(value: 100, peak: 100, mode: .cumulative) == 1)

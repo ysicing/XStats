@@ -1620,3 +1620,19 @@ GitHub 项目	Proyecto en GitHub
 不能在 XStats 内卸载或退出 XStats 自身	XStats no puede desinstalarse ni cerrarse desde esta herramienta
 应用本体未能移动；已将 {} 项残留移到废纸篓，约 {}。请解决错误后重试。	No se pudo mover la app. Se movieron {} elementos relacionados a la Papelera (aprox. {}). Resuelve el error e inténtalo de nuevo.
 黄历	Almanaque chino
+额度显示	Visualización de cuota
+数字单位	Unidades numéricas
+万 / 亿	10 mil / 100 millones
+货币	Moneda
+美元	Dólar estadounidense
+人民币	Yuan chino
+估算费用	Coste estimado
+暂无汇率	Tipo de cambio no disponible
+暂无价格	Precios no disponibles
+按模型基础 API 单价估算，不含阶梯加价，非订阅账单。	Estimación basada en los precios base de la API de cada modelo, sin recargos por tramos. No es una factura de suscripción.
+部分模型暂无价格	Precios no disponibles para algunos modelos
+价格更新：{}	Precios actualizados: {}
+参考汇率：1 USD ≈ {} CNY	Tipo de referencia: 1 USD ≈ {} CNY
+汇率更新：{}	Tipo de cambio actualizado: {}
+价格来源：models.dev；人民币按缓存汇率换算。	Fuente de precios: models.dev; Los importes en yuanes se convierten con el tipo de cambio almacenado.
+AI 用量与额度共用此间隔；新数据到达后更新菜单栏。	El uso de IA y la cuota comparten este intervalo; La barra de menús se actualiza cuando llegan nuevos datos.
