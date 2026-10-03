@@ -77,10 +77,13 @@ Token 活动	Token activity
 每日	Daily
 每周	Weekly
 累计	Cumulative
-{} 当周：{} Tokens	Week of {}: {} Tokens
-截至 {} 当周累计：{} Tokens	Through the week of {}: {} Tokens cumulative
 缓存创建 Token	Cache creation tokens
 AI 用量	AI Usage
+30 天	30 days
+按小时统计	Hourly usage
+按天统计	Daily usage
+单日最高：{} Tokens	Daily peak: {} Tokens
+暂无小时明细，请刷新用量。	Hourly details unavailable. Refresh usage.
 额度显示	Quota display
 数字单位	Number units
 万 / 亿	10K / 100M

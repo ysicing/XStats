@@ -56,6 +56,7 @@ private struct LocalUsageContent: View {
     }
 
     var body: some View {
+        let now = Date()
         VStack(alignment: .leading, spacing: compact ? DS.Space.s3 : DS.Space.s4) {
             toolbar
             if model.settings.aiUsageEnabled && !enabledProviders.isEmpty {
@@ -83,13 +84,13 @@ private struct LocalUsageContent: View {
                 }
             } else if model.settings.aiUsageShowsLocalUsage {
                 if let report = model.aiUsage.localReport(for: provider) {
-                    let rows = report.summary(mode: activityMode, model: selectedModel.isEmpty ? nil : selectedModel)
-                    let activityRows = report.selected(days: 365, model: selectedModel.isEmpty ? nil : selectedModel)
+                    let rows = report.summary(mode: activityMode, model: selectedModel.isEmpty ? nil : selectedModel, now: now)
+                    let activityRows = report.selected(days: 365, model: selectedModel.isEmpty ? nil : selectedModel, now: now)
                     let total = LocalUsageReport.total(rows)
                     UsageSummary(total: total, compact: compact,
                                  title: selectedModel.isEmpty ? tr("本地用量") : selectedModel,
                                  costRows: rows)
-                    UsageHeatmap(rows: activityRows, compact: compact, mode: $activityMode)
+                    UsageActivityPanel(rows: activityRows, compact: compact, now: now, mode: $activityMode)
                     modelRanking(report: report, rows: rows, total: total)
                     status(report)
                 } else {
@@ -566,79 +567,137 @@ private struct UsageModelRow: View {
     }
 }
 
-/// 活动图始终展示最近 365 天；模式同时切换摘要和排行的本日/本周/同窗口累计口径。
-private struct UsageHeatmap: View {
+/// 摘要和图表共用筛选范围；短周期看柱状分布，累计看年度每日热力图。
+private struct UsageActivityPanel: View {
     @Environment(\.aiUsageWesternUnits) private var westernUnits
     let rows: [ModelTokenUsage]
     let compact: Bool
+    let now: Date
     @Binding var mode: UsageActivityMode
     @State private var hovered: String?
 
     var body: some View {
-        let activity = UsageActivity(rows: rows)
-        let peak = activity.peak(for: mode)
         Card(spacing: DS.Space.s2) {
             HStack(spacing: DS.Space.s2) {
                 Text(tr("Token 活动")).dsFont(.sm, weight: .semibold)
                 Spacer(minLength: DS.Space.s2)
-                UsageChoices(selection: $mode, options: [
-                    (.daily, tr("每日")), (.weekly, tr("每周")), (.cumulative, tr("累计"))
-                ], label: tr("Token 活动"))
-                .frame(width: compact ? 175 : 200)
+                if !compact { choices.frame(width: 280) }
             }
-            Text(hovered ?? " ")
+            if compact { choices }
+            Text(hovered ?? tr(mode == .daily ? "按小时统计" : "按天统计"))
                 .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                 .lineLimit(1).minimumScaleFactor(0.75)
-                .padding(.horizontal, DS.Space.s2)
-                .padding(.vertical, DS.Space.s1 / 2)
-                .background(hovered == nil ? Color.clear : DS.Palette.track, in: Capsule())
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .frame(height: DS.Space.s6)
-                .accessibilityHidden(hovered == nil)
-            if compact {
-                // 窄弹窗里格子按设计尺寸铺开、溢出视口再横向滚动；
-                // 若把网格宽度钉在面板宽度上，格子会被压到刚好塞满，滚动就永远不会发生。
-                ScrollView(.horizontal) {
-                    ActivityGrid(activity: activity, mode: mode, hovered: $hovered, side: DS.Space.s3)
-                        .frame(height: gridHeight)
+            if mode == .cumulative {
+                let activity = UsageActivity(rows: rows, now: now)
+                if compact {
+                    ScrollView(.horizontal) {
+                        ActivityGrid(activity: activity, hovered: $hovered, side: DS.Space.s3)
+                            .frame(height: gridHeight)
+                    }.defaultScrollAnchor(.trailing)
+                } else {
+                    ActivityGrid(activity: activity, hovered: $hovered).frame(height: gridHeight)
                 }
-                .defaultScrollAnchor(.trailing)
+                Text(UsageNumber.day(activity.start) + " – " + UsageNumber.day(activity.end))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                HStack {
+                    Text(tr("单日最高：\(UsageNumber.short(activity.peak, westernUnits: westernUnits)) Tokens"))
+                        .help(UsageNumber.exact(activity.peak) + " Tokens")
+                    Spacer(minLength: DS.Space.s1)
+                    ForEach(0..<5) { level in
+                        RoundedRectangle(cornerRadius: DS.Space.s1 / 2)
+                            .fill(level == 0 ? DS.Palette.track : DS.Palette.primary.opacity(Double(level) / 4))
+                            .frame(width: DS.Space.s3, height: DS.Space.s3)
+                    }
+                }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
             } else {
-                ActivityGrid(activity: activity, mode: mode, hovered: $hovered)
-                    .frame(height: gridHeight)
-            }
-            HStack {
-                if !compact {
-                    Text(UsageNumber.day(activity.start) + " – " +
-                         activity.end.formatted(.dateTime.month().day().locale(L10n.locale)))
-                    Spacer()
+                let series = UsageTimeSeries(rows: rows, mode: mode, now: now)
+                if series.hasMissingHourlyData {
+                    Text(tr("暂无小时明细，请刷新用量。"))
+                        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 140)
+                } else {
+                    UsageBarChart(buckets: series.buckets, hourly: mode == .daily, hovered: $hovered)
                 }
-                Text("0")
-                HStack(spacing: DS.Space.s1 / 2) {
-                        ForEach(0..<5) { level in
-                            RoundedRectangle(cornerRadius: DS.Space.s1 / 2)
-                                .fill(level == 0 ? DS.Palette.track : DS.Palette.primary.opacity(mode == .daily
-                                    ? Double(level) / 4 : UsageActivity.colorIntensity(value: level, peak: 4, mode: mode)))
-                                .frame(width: DS.Space.s3, height: DS.Space.s3)
-                        }
-                }.accessibilityHidden(true)
-                Text(UsageNumber.short(peak, westernUnits: westernUnits) + " Tokens").help(UsageNumber.exact(peak) + " Tokens")
-            }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            }
         }
         .onChange(of: mode) { _, _ in hovered = nil }
         .onChange(of: rows) { _, _ in hovered = nil }
     }
 
+    private var choices: some View {
+        UsageChoices(selection: $mode, options: [(.daily, tr("今天")), (.weekly, tr("7 天")),
+                                                (.monthly, tr("30 天")), (.cumulative, tr("累计"))],
+                     label: tr("Token 活动"))
+    }
     private var gridHeight: CGFloat { 7 * DS.Space.s3 + 6 * (DS.Space.s1 / 2) + DS.Space.s6 }
+}
+
+private struct UsageBarChart: View {
+    @Environment(\.aiUsageWesternUnits) private var westernUnits
+    let buckets: [UsageTimeSeries.Bucket]
+    let hourly: Bool
+    @Binding var hovered: String?
+
+    var body: some View {
+        let peak = max(1, buckets.map(\.total).max() ?? 0)
+        VStack(spacing: DS.Space.s1) {
+            HStack(spacing: DS.Space.s2) {
+                VStack(alignment: .trailing) {
+                    Text(UsageNumber.short(peak, westernUnits: westernUnits))
+                    Spacer()
+                    Text(UsageNumber.short(peak / 2, westernUnits: westernUnits))
+                    Spacer()
+                    Text("0")
+                }.dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                    .frame(width: 48, alignment: .trailing).accessibilityHidden(true)
+                GeometryReader { geometry in
+                    ZStack {
+                        VStack { HairlineDivider(); Spacer(); HairlineDivider(); Spacer(); HairlineDivider() }
+                            .accessibilityHidden(true)
+                        HStack(alignment: .bottom, spacing: DS.Space.s1 / 2) {
+                            ForEach(buckets) { bucket in
+                                let label = bucket.start.formatted(hourly
+                                    ? .dateTime.month().day().hour().minute().timeZone().locale(L10n.locale)
+                                    : .dateTime.month().day().locale(L10n.locale))
+                                    + " · " + UsageNumber.exact(bucket.total) + " Tokens"
+                                RoundedRectangle(cornerRadius: DS.Space.s1 / 2)
+                                    .fill(DS.Palette.primary.opacity(0.8))
+                                    .frame(maxWidth: 24)
+                                    .frame(height: bucket.total == 0 ? 0 : max(2, geometry.size.height * Double(bucket.total) / Double(peak)))
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                                    .contentShape(Rectangle())
+                                    .onHover { active in hovered = active ? label : nil }
+                                    .accessibilityElement(children: .ignore).accessibilityLabel(label)
+                            }
+                        }
+                    }
+                }
+            }.frame(height: 140)
+            GeometryReader { geometry in
+                let indices = buckets.count == 7 ? [0, 2, 4, 6]
+                    : Array(Set([0, buckets.count / 4, buckets.count / 2, buckets.count * 3 / 4, max(0, buckets.count - 1)])).sorted()
+                ForEach(indices, id: \.self) { index in
+                    if buckets.indices.contains(index) {
+                        Text(buckets[index].start.formatted(hourly
+                            ? .dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).locale(L10n.locale)
+                            : .dateTime.month(.twoDigits).day(.twoDigits).locale(L10n.locale)))
+                            .position(x: min(geometry.size.width - 20, max(20, geometry.size.width * (Double(index) + 0.5) / Double(buckets.count))), y: 9)
+                    }
+                }
+            }.frame(height: 20).padding(.leading, 48 + DS.Space.s2)
+                .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary).accessibilityHidden(true)
+        }
+        // 时间轴固定从左到右，阿拉伯语标签仍按其文字方向排版。
+        .environment(\.layoutDirection, .leftToRight)
+    }
 }
 
 private struct ActivityGrid: View {
     let activity: UsageActivity
-    let mode: UsageActivityMode
     @Binding var hovered: String?
-    /// 指定边长时按固有尺寸铺开（窄弹窗横向滚动）；为 nil 时收缩到可用宽度（宽面板整年铺满）。
     var side: CGFloat?
-
     private var gap: CGFloat { DS.Space.s1 / 2 }
 
     var body: some View {
@@ -646,67 +705,39 @@ private struct ActivityGrid: View {
             grid(side: side)
         } else {
             GeometryReader { geometry in
-                let columns = activity.weeks.count
                 grid(side: min(DS.Space.s3,
-                               max(1, (geometry.size.width - CGFloat(columns - 1) * gap) / CGFloat(max(1, columns)))))
+                               max(1, (geometry.size.width - CGFloat(activity.weeks.count - 1) * gap)
+                                   / CGFloat(max(1, activity.weeks.count)))))
             }
         }
     }
 
     private func grid(side: CGFloat) -> some View {
-        HStack(alignment: .top, spacing: gap) {
+        let peak = max(1, activity.peak)
+        return HStack(alignment: .top, spacing: gap) {
             ForEach(activity.weeks) { week in
-                ActivityWeek(week: week, activity: activity, mode: mode, side: side, hovered: $hovered)
-            }
-        }
-    }
-}
-
-private struct ActivityWeek: View {
-    @Environment(\.aiUsageWesternUnits) private var westernUnits
-    let week: UsageActivity.Week
-    let activity: UsageActivity
-    let mode: UsageActivityMode
-    let side: CGFloat
-    @Binding var hovered: String?
-
-    private var weekLabel: String {
-        let date = UsageNumber.day(week.start)
-        return mode == .weekly
-            ? tr("\(date) 当周：\(UsageNumber.short(week.total, westernUnits: westernUnits)) Tokens")
-            : tr("截至 \(date) 当周累计：\(UsageNumber.short(week.cumulative, westernUnits: westernUnits)) Tokens")
-    }
-
-    var body: some View {
-        let peak = activity.peak(for: mode)
-        let value = mode == .weekly ? week.total : week.cumulative
-        let filled = UsageActivity.filledCells(value: value, peak: peak)
-        let intensity = UsageActivity.colorIntensity(value: value, peak: peak, mode: mode)
-        VStack(spacing: DS.Space.s1 / 2) {
-            ForEach(0..<7, id: \.self) { row in
-                if mode == .daily {
-                    if let date = week.days[row] {
-                        let count = activity.daily[date] ?? 0
-                        let level = min(4, max(1, Int(ceil(Double(count) / Double(max(1, peak)) * 4))))
-                        ActivityCell(side: side,
-                            color: count == 0 ? DS.Palette.track : DS.Palette.primary.opacity(Double(level) / 4),
-                            label: UsageNumber.day(date) + " · " + UsageNumber.short(count, westernUnits: westernUnits) + " Tokens",
-                            hovered: $hovered)
-                    } else {
-                        Color.clear.frame(width: side, height: side).accessibilityHidden(true)
+                VStack(spacing: gap) {
+                    ForEach(0..<7, id: \.self) { row in
+                        if let date = week.days[row] {
+                            let count = activity.daily[date] ?? 0
+                            let level = min(4, max(1, Int(ceil(Double(count) / Double(peak) * 4))))
+                            ActivityCell(side: side,
+                                color: count == 0 ? DS.Palette.track : DS.Palette.primary.opacity(Double(level) / 4),
+                                label: UsageNumber.day(date) + " · " + UsageNumber.exact(count) + " Tokens",
+                                hovered: $hovered)
+                        } else {
+                            Color.clear.frame(width: side, height: side).accessibilityHidden(true)
+                        }
                     }
-                } else {
-                    ActivityCell(side: side, color: row >= 7 - filled ? DS.Palette.primary.opacity(intensity) : DS.Palette.track,
-                                 label: weekLabel, hovered: $hovered)
+                    Color.clear.frame(width: side, height: DS.Space.s4)
+                        .overlay(alignment: .leading) {
+                            if let month = week.days.compactMap({ $0 }).first(where: { Calendar.current.component(.day, from: $0) == 1 }) {
+                                Text(month.formatted(.dateTime.month(.abbreviated).locale(L10n.locale)))
+                                    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary).fixedSize()
+                            }
+                        }
                 }
             }
-            Color.clear.frame(width: side, height: DS.Space.s4)
-                .overlay(alignment: .leading) {
-                    if let month = week.days.compactMap({ $0 }).first(where: { Calendar.current.component(.day, from: $0) == 1 }) {
-                        Text(month.formatted(.dateTime.month(.abbreviated).locale(L10n.locale)))
-                            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary).fixedSize()
-                    }
-                }
         }
     }
 }

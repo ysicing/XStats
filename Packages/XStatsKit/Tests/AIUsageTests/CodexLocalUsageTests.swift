@@ -13,6 +13,25 @@ import Testing
         "{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":\(input),\"cached_input_tokens\":\(cached),\"output_tokens\":\(output)}}}"
     }
 
+    @Test func hourlyBucketsKeepDeltasDeduplicationAndCacheRestoration() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        var parser = CodexLocalLogParser(calendar: calendar)
+        parser.consume(line(usage(100, 20), time: "2026-09-22T10:15:00Z"))
+        parser.consume(line(usage(100, 20), time: "2026-09-22T11:00:00Z"))
+        parser = try JSONDecoder().decode(CodexLocalLogParser.self, from: JSONEncoder().encode(parser))
+        parser.consume(line(usage(150, 30), time: "2026-09-22T11:15:00Z"))
+        let row = try #require(parser.rows.values.first)
+        let hour10 = ISO8601DateFormatter().date(from: "2026-09-22T10:00:00Z")!
+        let hour11 = hour10.addingTimeInterval(3600)
+        #expect(row.hourlyTokens == [hour10: 120, hour11: 60])
+        #expect(row.total == 180)
+        let merged = LocalUsageReport.aggregated([row, row])
+        #expect(merged.count == 1)
+        #expect(merged.first?.hourlyTokens == [hour10: 240, hour11: 120])
+        #expect(LocalUsageReport.total(merged).hourlyTokens == nil)
+    }
+
     @Test func cumulativeDeltasDeduplicateAndFollowModels() {
         var parser = CodexLocalLogParser()
         parser.consume(line(#"{"model":"model-a"}"#, type: "turn_context"))
@@ -72,6 +91,61 @@ import Testing
         parser.consume(Data("broken".utf8))
         parser.consume(line(usage(10, 2)))
         #expect(LocalUsageReport.total(Array(parser.rows.values)).total == 12)
+    }
+
+    @Test func legacyCheckpointRebuildsHourlyDetailsOnce() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("sessions"), withIntermediateDirectories: true)
+        let url = root.appendingPathComponent("sessions/a.jsonl")
+        let time = ISO8601DateFormatter().string(from: Date())
+        var content = line(usage(100, 20), time: time)
+        var legacy = CodexLocalLogParser()
+        legacy.consume(content)
+        for key in legacy.rows.keys { legacy.rows[key]?.hourlyTokens = nil }
+        content.append(10)
+        try content.write(to: url)
+        let database = root.appendingPathComponent("usage-cache.sqlite")
+        let store = try UsageScanStore(url: database)
+        _ = try store.scan(url: url, source: "codex-v2", initial: legacy) { _, _ in }
+        let provider = CodexLocalUsageProvider(root: root)
+        let first = try #require(try await provider.fetch().localUsage)
+        #expect(first.rows.first?.hourlyTokens?.values.reduce(0, +) == 120)
+        #expect(try await CodexLocalUsageProvider(root: root).fetch().localUsage == first)
+        #expect(try await provider.fetch().localUsage == first)
+    }
+
+    @Test func repeatedClockHourKeepsTwoAbsoluteBuckets() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+        var parser = CodexLocalLogParser(calendar: calendar)
+        parser.consume(line(usage(100, 20), time: "2026-11-01T08:30:00Z"))
+        parser.consume(line(usage(150, 30), time: "2026-11-01T09:30:00Z"))
+        let hours = try #require(parser.rows.values.first?.hourlyTokens)
+        #expect(hours.count == 2)
+        #expect(hours.values.reduce(0, +) == 180)
+        #expect(hours.keys.allSatisfy { calendar.component(.hour, from: $0) == 1 })
+    }
+
+    @Test(arguments: ["2026-10-04T12:00:00Z", "2026-04-05T12:00:00Z"])
+    func halfHourDSTKeepsEveryParsedTokenInTheChart(_ timestamp: String) throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Australia/Lord_Howe"))
+        let now = try #require(ISO8601DateFormatter().date(from: timestamp))
+        let start = calendar.startOfDay(for: now)
+        var parser = CodexLocalLogParser(calendar: calendar)
+        var time = start
+        var input = 0
+        while time <= now {
+            input += 10
+            parser.consume(line(usage(input, 0), time: ISO8601DateFormatter().string(from: time)))
+            time = time.addingTimeInterval(1800)
+        }
+        let rows = LocalUsageReport.aggregated(parser.rows.values)
+        let series = UsageTimeSeries(rows: rows, mode: .daily, now: now, calendar: calendar)
+        #expect(series.buckets.reduce(0) { $0 + $1.total } == LocalUsageReport.total(rows).total)
+        let hours = Set(rows.flatMap { Array(($0.hourlyTokens ?? [:]).keys) })
+        #expect(hours.isSubset(of: Set(series.buckets.map(\.start))))
     }
 
     @Test func archiveDedupAndChangedFilesRefresh() async throws {

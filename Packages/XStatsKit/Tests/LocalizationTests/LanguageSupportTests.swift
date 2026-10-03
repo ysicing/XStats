@@ -87,6 +87,7 @@ struct LanguageSupportTests {
         #expect(catalog.sourceKeys == Translations.shared.sourceKeys)
         for key in ["语言", "应用 UI 语言", "自动检测", "搜索语言", "没有匹配的语言",
                     "额度显示", "数字单位", "货币", "估算费用",
+                    "30 天", "按小时统计", "按天统计", "暂无小时明细，请刷新用量。",
                     "AI 用量与额度共用此间隔；新数据到达后更新菜单栏。",
                     "价格来源：models.dev；人民币按缓存汇率换算。",
                     "按模型基础 API 单价估算，不含阶梯加价，非订阅账单。",

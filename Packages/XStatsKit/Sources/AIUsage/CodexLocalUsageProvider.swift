@@ -7,7 +7,7 @@ import CoreFoundation
 /// 只读取会话的模型和 Token 元数据，不读取 auth.json，不发送网络请求。
 public actor CodexLocalUsageProvider: AIUsageProvider {
     /// 解析口径变化时提升版本号；旧命名空间的缓存行会在下一次扫描时被清掉。
-    private static let source = "codex-v2"
+    private static let source = "codex-v3"
     public nonisolated let id = AIProviderID.codex
     private let root: URL
     private let databaseURL: URL
@@ -142,7 +142,11 @@ struct CodexLocalLogParser: Codable {
         let key = "\(day.timeIntervalSince1970):\(model)"
         var row = rows[key] ?? ModelTokenUsage(day: day, model: model)
         row.input += usage.input; row.cached += min(usage.cached, usage.input)
-        row.output += usage.output; row.records += 1; rows[key] = row
+        row.output += usage.output; row.records += 1
+        let hour = UsageTimeSeries.hourStart(for: timestamp, dayStart: day)
+        if row.hourlyTokens == nil { row.hourlyTokens = [:] }
+        row.hourlyTokens?[hour, default: 0] += usage.input + usage.output
+        rows[key] = row
     }
 
     private func modelName(_ object: [String: Any]) -> String? {

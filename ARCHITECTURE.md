@@ -261,18 +261,23 @@ only the suffix; truncation, replacement, parser namespace or time-zone changes 
 An unterminated final line is previewed separately from committed state, so completing it cannot
 double-count usage. No raw log lines, prompts or credentials are persisted. Directory metadata is
 still enumerated on each scheduled refresh; only currently discovered files contribute to totals.
-The dashboard defaults to the last 365 local-calendar days by model, and shows input/output tokens, cache hit
-rate, record count, daily totals and model ranking. The menu bar shows today's token total.
+The dashboard defaults to today and retains the last 365 local-calendar days by model. It shows
+input/output tokens, cache hit rate, record count, period totals and model ranking. The menu bar shows today's token total.
 Cached input is a subset of input; reasoning is a subset of output, so neither is added twice.
 Rows are aggregated by day and model before leaving the provider, and ordered by day then model, so
-`ModelTokenUsage.id` stays unique and an unchanged corpus produces an equal report.
+`ModelTokenUsage.id` stays unique and an unchanged corpus produces an equal report. Each daily row
+also retains a bounded histogram of hour-start timestamps to token counts (23–25 entries per local
+day). Only same-day/model aggregation merges these histograms; period totals and model rankings
+sum numeric fields without constructing a year-long hourly map. Parser namespace v3 rebuilds old
+checkpoints once to recover hours, then resumes normal unchanged-file and suffix-only reuse.
 Duplicate session IDs and unchanged cumulative snapshots are excluded. Child replayed history
 only seeds the cumulative baseline until the first `task_started`, which always follows that
 history; `started_at` is not compared against the session creation time, because a subagent's
 `started_at` is its parent turn's start and recent Codex builds omit the field entirely.
 Unknown models remain unknown.
-Local logs cannot reliably identify the paying account or usage on other devices. No cost,
-subscription limits or HTTP success rates are inferred from them. The separate quota
+Local logs cannot reliably identify the paying account or usage on other devices. Public base API
+prices may estimate token costs, explicitly excluding tiered surcharges and subscription billing.
+Subscription limits and HTTP success rates are not inferred from local logs. The separate quota
 snapshot prefers the installed Codex CLI's local app-server `account/rateLimits/read`; the CLI
 owns token refresh and XStats receives only rate-limit data. If that path is unavailable, XStats
 queries Codex `wham/usage` using its cached CLI OAuth token. Claude uses its CLI OAuth token for
@@ -322,17 +327,17 @@ are enabled. Token totals use compact notation with
 exact hover/VoiceOver values. Cache details are
 disclosed on demand. AI usage settings open in a separate window so users can copy account details
 from another app without closing the form. Unsaved Sub2API fields stay in memory for the current
-app session across page changes; passwords are not written to preferences. Since source data is aggregated
-by day, all three activity modes cover the same trailing 365 days: daily uses one cell per day;
-weekly uses a seven-cell-high bar per calendar week; cumulative sums usage from the window start
-through the selected week and uses the same bar grid. Zero weeks have no lit cells. Partial weeks
-include only days inside the window through today. The mode switch lives in the Token activity
-header, not in a date-range toolbar. Summary and model ranking follow the mode: daily means today,
-weekly means the current calendar week, and cumulative means the current calendar month (all through
-now, using the local calendar). The heatmap independently keeps its 365-day window. Pointer hover
-immediately shows exact daily/weekly/cumulative counts above the chart; the same label is available
-to accessibility. The narrow popover lays cells out at their design size and scrolls the year grid
-horizontally, initially at the recent end; the wide panel shrinks cells to fit instead.
+app session across page changes; passwords are not written to preferences.
+The activity selector offers Today, 7 days, 30 days and Cumulative. Today shows hourly bars;
+the trailing 7/30 local-calendar days (including today) show daily bars. Cumulative shows a daily
+heatmap over the retained 365-day window. Summary, cost estimate and model ranking use the same
+source/model filters and time window as the chart. Hour buckets span actual 60-minute intervals from local midnight, with a shorter final bucket on
+fractional DST days, so parser and chart agree even across half-hour daylight-saving transitions. Missing legacy hourly details
+are reported, never assigned to midnight. Empty buckets remain zero and do not add to the totals.
+The heatmap legend explicitly labels the daily peak, separately from the cumulative summary.
+Pointer hover and accessibility expose exact bucket counts. Compact popovers scroll the year grid
+horizontally, initially at the recent end; the wide panel shrinks cells to fit. Charts have no timers
+or continuous animation and use existing usage-refresh updates.
 Numbers and dates follow the app language rather than the system locale.
 Pointer selection fades only the selected control background (180 ms); keyboard selection and
 background data refresh do not animate the data layout. Reduced motion uses the existing quick fade.

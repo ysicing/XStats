@@ -12,6 +12,21 @@ import Testing
         """.utf8)
     }
 
+    @Test func hourlyBucketsUseFinalMessageTimestampWithoutDoubleCounting() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let partial = try #require(ClaudeLocalLogParser.parse(record(output: 1), calendar: calendar))
+        let data = Data(String(decoding: record(output: 20, final: true), as: UTF8.self)
+            .replacingOccurrences(of: "10:00:00Z", with: "11:15:00Z").utf8)
+        let final = try #require(ClaudeLocalLogParser.parse(data, calendar: calendar))
+        var events: [String: ClaudeLocalLogParser.Event] = [:]
+        for event in [partial, final, partial, final] { ClaudeLocalLogParser.merge(event, into: &events) }
+        let rows = LocalUsageReport.aggregated(events.values.map(\.row))
+        let hour = ISO8601DateFormatter().date(from: "2026-09-22T11:00:00Z")!
+        #expect(rows.first?.hourlyTokens == [hour: 130])
+        #expect(LocalUsageReport.total(rows).total == 130)
+    }
+
     @Test func cacheIsAddedToAnthropicInputExactlyOnce() throws {
         let event = try #require(ClaudeLocalLogParser.parse(record()))
         #expect(event.row.input == 110)

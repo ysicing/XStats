@@ -7,7 +7,7 @@ import CoreFoundation
 /// Claude Code 的输入不包含缓存字段；归一化后与 Codex 共用“含缓存输入”的统计口径。
 public actor ClaudeLocalUsageProvider: AIUsageProvider {
     /// 解析口径变化时提升版本号；旧命名空间的缓存行会在下一次扫描时被清掉。
-    private static let source = "claude-v2"
+    private static let source = "claude-v3"
     public nonisolated let id = AIProviderID.claude
     private let roots: [URL]
     private let databaseURL: URL
@@ -124,8 +124,10 @@ enum ClaudeLocalLogParser {
         let rawModel = (message["model"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard rawModel != "<synthetic>" else { return nil }
         let model = rawModel.flatMap { $0.isEmpty ? nil : $0 } ?? "unknown"
-        let row = ModelTokenUsage(day: calendar.startOfDay(for: time), model: model,
-                                  input: input + read + created, cached: read, output: output, records: 1, cacheCreated: created)
+        let day = calendar.startOfDay(for: time)
+        let row = ModelTokenUsage(day: day, model: model,
+                                  input: input + read + created, cached: read, output: output, records: 1, cacheCreated: created,
+                                  hourlyTokens: [UsageTimeSeries.hourStart(for: time, dayStart: day): input + read + created + output])
         return Event(id: id, row: row, final: message["stop_reason"] is String, timestamp: time)
     }
 

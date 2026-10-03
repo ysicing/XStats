@@ -1300,8 +1300,6 @@ Token 活动	Activité des tokens
 每日	Par jour
 每周	Par semaine
 累计	Cumulé
-{} 当周：{} Tokens	Semaine du {} : {} Tokens
-截至 {} 当周累计：{} Tokens	Cumul jusqu’à la semaine du {} : {} Tokens
 Apple 智能	Apple Intelligence
 日历	Calendrier
 月历	Calendrier mensuel
@@ -1636,3 +1634,8 @@ GitHub 项目	Projet GitHub
 汇率更新：{}	Taux de change mis à jour : {}
 价格来源：models.dev；人民币按缓存汇率换算。	Source des tarifs : models.dev; Les montants en yuans sont convertis au taux de change en cache.
 AI 用量与额度共用此间隔；新数据到达后更新菜单栏。	L’utilisation de l’IA et le quota partagent cet intervalle; La barre des menus est mise à jour à l’arrivée de nouvelles données.
+30 天	30 jours
+按小时统计	Utilisation horaire
+按天统计	Utilisation quotidienne
+单日最高：{} Tokens	Maximum quotidien : {} Tokens
+暂无小时明细，请刷新用量。	Détails horaires indisponibles. Actualisez l’utilisation.
