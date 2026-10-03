@@ -24,6 +24,21 @@ struct AIUsagePopover: View {
     var body: some View { LocalUsageContent(compact: true) }
 }
 
+/// 摘要、选项和图表共享的显示边界，首次测量时也必须使用同一模式。
+enum UsageChartPresentation {
+    static func mode(_ selected: UsageActivityMode, compact: Bool) -> UsageActivityMode {
+        compact && selected == .cumulative ? .monthly : selected
+    }
+
+    static func tickIndices(count: Int, narrow: Bool) -> [Int] {
+        guard count > 0 else { return [] }
+        let candidates = narrow ? [0, count / 2, count - 1]
+            : count == 7 ? [0, 2, 4, 6]
+            : [0, count / 4, count / 2, count * 3 / 4, count - 1]
+        return Array(Set(candidates)).sorted()
+    }
+}
+
 private struct LocalUsageContent: View {
     @Environment(\.isSnapshot) private var isSnapshot
     let compact: Bool
@@ -31,6 +46,11 @@ private struct LocalUsageContent: View {
     @State private var selectedModel = ""
     @State private var source = "all"
     @State private var activityMode = UsageActivityMode.daily
+
+    private var displayedActivityMode: Binding<UsageActivityMode> {
+        Binding(get: { UsageChartPresentation.mode(activityMode, compact: compact) },
+                set: { activityMode = UsageChartPresentation.mode($0, compact: compact) })
+    }
 
     private var enabledProviders: [AIProviderID] {
         AIProviderID.allCases.filter { model.settings.aiUsageSources.contains($0) }
@@ -87,13 +107,13 @@ private struct LocalUsageContent: View {
                 }
             } else if model.settings.aiUsageShowsLocalUsage {
                 if let report = model.aiUsage.localReport(for: provider) {
-                    let rows = report.summary(mode: activityMode, model: selectedModel.isEmpty ? nil : selectedModel, now: now)
+                    let rows = report.summary(mode: displayedActivityMode.wrappedValue, model: selectedModel.isEmpty ? nil : selectedModel, now: now)
                     let activityRows = report.selected(days: compact ? 30 : 365, model: selectedModel.isEmpty ? nil : selectedModel, now: now)
                     let total = LocalUsageReport.total(rows)
                     UsageSummary(total: total, compact: compact,
                                  title: selectedModel.isEmpty ? tr("本地用量") : selectedModel,
                                  costRows: rows)
-                    UsageActivityPanel(rows: activityRows, compact: compact, now: now, mode: $activityMode)
+                    UsageActivityPanel(rows: activityRows, compact: compact, now: now, mode: displayedActivityMode)
                     modelRanking(report: report, rows: rows, total: total)
                     status(report)
                 } else {
@@ -769,9 +789,7 @@ private struct UsageBarChart: View {
                 }
             }.frame(height: 140)
             GeometryReader { geometry in
-                let indices = geometry.size.width < 240 ? [0, buckets.count / 2, max(0, buckets.count - 1)]
-                    : buckets.count == 7 ? [0, 2, 4, 6]
-                    : Array(Set([0, buckets.count / 4, buckets.count / 2, buckets.count * 3 / 4, max(0, buckets.count - 1)])).sorted()
+                let indices = UsageChartPresentation.tickIndices(count: buckets.count, narrow: geometry.size.width < 240)
                 ForEach(indices, id: \.self) { index in
                     if buckets.indices.contains(index) {
                         Text(buckets[index].start.formatted(hourly
