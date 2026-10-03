@@ -279,7 +279,7 @@ Local logs cannot reliably identify the paying account or usage on other devices
 prices may estimate token costs, explicitly excluding tiered surcharges and subscription billing.
 Subscription limits and HTTP success rates are not inferred from local logs. The separate quota
 snapshot prefers the installed Codex CLI's local app-server `account/rateLimits/read`; the CLI
-owns token refresh and XStats receives only rate-limit data. If that path is unavailable, XStats
+owns token refresh and XStats receives quota and read-only subscription/reset-credit metadata. If that path is unavailable, XStats
 queries Codex `wham/usage` using its cached CLI OAuth token. Claude uses its CLI OAuth token for
 `api/oauth/usage`. It maps five-hour and seven-day windows, plus Claude's model-specific weekly
 windows, without combining them with local token totals. Direct credential discovery is repeated
@@ -291,6 +291,15 @@ The controller restores it before the first network request and labels it with i
 Requests use isolated URL sessions and reject redirects so bearer tokens cannot be forwarded.
 Codex app-server uses bounded stdio JSONL and falls back to direct HTTP if unavailable.
 An HTML 403 from an intermediary is a transient network failure, not proof of expired login.
+Codex quota snapshots retain optional plan type, subscription validity, reset-credit count and earliest
+available expiry. CLI camelCase and direct HTTP snake_case fields are normalized into the same summary.
+Local ID-token subscription dates are accepted only for matching account IDs, and never inferred from
+JWT expiry. Valid start/end claims supply a remaining-time progress bar; without a valid start only
+the expiry date is shown, never an assumed 30-day cycle. This bar uses existing page/usage refreshes
+and adds no timer. Reset-card count and earliest expiry sit next to the provider/plan heading. Old CLIs or missing claims leave the date absent. The direct fallback reads reset-credit
+details only when the known count is positive, with a four-second timeout and no retry; an auxiliary
+failure preserves the quota/count. No redeem/consume operation is implemented. Persisted metadata
+contains no account identifier, token or reset-credit IDs; legacy quota snapshots still decode.
 The existing per-provider Sub2API option is tried only after both automatic Codex paths fail.
 Missing or expired credentials clear that provider's quota display; transient errors keep the last
 successful result marked stale across restarts. Authentication failures or removal of a manual
@@ -328,15 +337,16 @@ exact hover/VoiceOver values. Cache details are
 disclosed on demand. AI usage settings open in a separate window so users can copy account details
 from another app without closing the form. Unsaved Sub2API fields stay in memory for the current
 app session across page changes; passwords are not written to preferences.
-The activity selector offers Today, 7 days, 30 days and Cumulative. Today shows hourly bars;
+The main-window activity selector offers Today, 7 days, 30 days and Cumulative; menu-bar popovers
+only offer the first three and select at most 30 days for charts. Today shows hourly bars;
 the trailing 7/30 local-calendar days (including today) show daily bars. Cumulative shows a daily
 heatmap over the retained 365-day window. Summary, cost estimate and model ranking use the same
 source/model filters and time window as the chart. Hour buckets span actual 60-minute intervals from local midnight, with a shorter final bucket on
 fractional DST days, so parser and chart agree even across half-hour daylight-saving transitions. Missing legacy hourly details
 are reported, never assigned to midnight. Empty buckets remain zero and do not add to the totals.
 The heatmap legend explicitly labels the daily peak, separately from the cumulative summary.
-Pointer hover and accessibility expose exact bucket counts. Compact popovers scroll the year grid
-horizontally, initially at the recent end; the wide panel shrinks cells to fit. Charts have no timers
+Pointer hover and accessibility expose exact bucket counts. The main-window year grid shrinks cells
+to fit the available width. Charts have no timers
 or continuous animation and use existing usage-refresh updates.
 Numbers and dates follow the app language rather than the system locale.
 Pointer selection fades only the selected control background (180 ms); keyboard selection and

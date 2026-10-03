@@ -22,10 +22,11 @@ enum CodexAppServerQuotaClient {
         } onCancel: {
             cancelled.set()
         }
-        return try parse(response, now: Date())
+        // CLI 返回的账号 ID 与本机 ID token 一致时才补套餐期限，不能混合不同账号的信息。
+        return try parse(response, now: Date(), credentials: try? CodexQuotaCredentials.load())
     }
 
-    static func parse(_ data: Data, now: Date) throws -> AIQuotaSnapshot {
+    static func parse(_ data: Data, now: Date, credentials: CodexQuotaCredentials? = nil) throws -> AIQuotaSnapshot {
         guard let message = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let result = message["result"] as? [String: Any] else { throw AIQuotaFailure.invalidResponse }
         let buckets = result["rateLimitsByLimitId"] as? [String: Any]
@@ -55,7 +56,14 @@ enum CodexAppServerQuotaClient {
         }
         let windows = [AIQuotaKind.session, .weekly].compactMap { selected[$0]?.window }
         guard !windows.isEmpty else { throw AIQuotaFailure.invalidResponse }
-        return AIQuotaSnapshot(provider: .codex, windows: windows, fetchedAt: now)
+        var details = AIQuotaDetails.parse(plan: limits["planType"],
+            resets: result["rateLimitResetCredits"] as? [String: Any], appServer: true, now: now)
+        if let accountID = result["accountId"] as? String, !accountID.isEmpty,
+           accountID == credentials?.accountID {
+            details.subscriptionValidUntil = credentials?.subscriptionValidUntil
+            details.subscriptionValidFrom = credentials?.subscriptionValidFrom
+        }
+        return AIQuotaSnapshot(provider: .codex, windows: windows, fetchedAt: now, details: details)
     }
 
     private static func executableURL() -> URL? {

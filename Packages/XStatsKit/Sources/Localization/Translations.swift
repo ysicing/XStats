@@ -79,6 +79,16 @@ Token 活动	Token activity
 累计	Cumulative
 缓存创建 Token	Cache creation tokens
 AI 用量	AI Usage
+Token 用量	Tokens
+重置卡：{}	Reset credits: {}
+套餐剩余时间	Plan time remaining
+套餐有效期	Plan validity
+最早到期：{}	Earliest expiry: {}
+套餐：{}	Plan: {}
+套餐有效期至：{}	Plan valid until: {}
+可用重置次数：{}	Available resets: {}
+重置次数最早到期：{}	Earliest reset credit expiry: {}
+可手动恢复额度的剩余次数，不是已重置次数。	Remaining credits for manually resetting usage limits, not the number of past resets.
 30 天	30 days
 按小时统计	Hourly usage
 按天统计	Daily usage

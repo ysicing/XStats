@@ -1639,3 +1639,13 @@ AI 用量与额度共用此间隔；新数据到达后更新菜单栏。	KI-Nutz
 按天统计	Tägliche Nutzung
 单日最高：{} Tokens	Tagesmaximum: {} Tokens
 暂无小时明细，请刷新用量。	Keine Stundendaten verfügbar. Nutzung aktualisieren.
+套餐：{}	Tarif: {}
+套餐有效期至：{}	Tarif gültig bis: {}
+可用重置次数：{}	Verfügbare Zurücksetzungen: {}
+重置次数最早到期：{}	Frühester Ablauf eines Reset-Guthabens: {}
+可手动恢复额度的剩余次数，不是已重置次数。	Verbleibende Guthaben zum manuellen Zurücksetzen der Nutzungslimits, nicht die Anzahl bisheriger Zurücksetzungen.
+套餐有效期	Tarifgültigkeit
+最早到期：{}	Frühester Ablauf: {}
+重置卡：{}	Reset-Guthaben: {}
+套餐剩余时间	Verbleibende Tariflaufzeit
+Token 用量	Tokens

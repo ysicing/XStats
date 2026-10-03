@@ -1639,3 +1639,13 @@ AI 用量与额度共用此间隔；新数据到达后更新菜单栏。	L’uti
 按天统计	Utilisation quotidienne
 单日最高：{} Tokens	Maximum quotidien : {} Tokens
 暂无小时明细，请刷新用量。	Détails horaires indisponibles. Actualisez l’utilisation.
+套餐：{}	Abonnement : {}
+套餐有效期至：{}	Abonnement valable jusqu’au : {}
+可用重置次数：{}	Réinitialisations disponibles : {}
+重置次数最早到期：{}	Première expiration d’un crédit de réinitialisation : {}
+可手动恢复额度的剩余次数，不是已重置次数。	Crédits restants pour réinitialiser manuellement les limites, et non le nombre de réinitialisations passées.
+套餐有效期	Validité du forfait
+最早到期：{}	Première expiration : {}
+重置卡：{}	Crédits de réinitialisation : {}
+套餐剩余时间	Durée restante du forfait
+Token 用量	Tokens

@@ -1639,3 +1639,13 @@ AI 用量与额度共用此间隔；新数据到达后更新菜单栏。	El uso 
 按天统计	Uso diario
 单日最高：{} Tokens	Máximo diario: {} Tokens
 暂无小时明细，请刷新用量。	No hay detalles por hora. Actualiza el uso.
+套餐：{}	Plan: {}
+套餐有效期至：{}	Plan válido hasta: {}
+可用重置次数：{}	Restablecimientos disponibles: {}
+重置次数最早到期：{}	Primer vencimiento de un crédito de restablecimiento: {}
+可手动恢复额度的剩余次数，不是已重置次数。	Créditos restantes para restablecer manualmente los límites de uso, no el número de restablecimientos anteriores.
+套餐有效期	Vigencia del plan
+最早到期：{}	Primer vencimiento: {}
+重置卡：{}	Créditos de restablecimiento: {}
+套餐剩余时间	Tiempo restante del plan
+Token 用量	Tokens

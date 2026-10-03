@@ -60,9 +60,12 @@ private struct LocalUsageContent: View {
         VStack(alignment: .leading, spacing: compact ? DS.Space.s3 : DS.Space.s4) {
             toolbar
             if model.settings.aiUsageEnabled && !enabledProviders.isEmpty {
-                Text(sourceTitle)
-                    .dsFont(.sm, weight: .semibold)
-                    .foregroundStyle(DS.Palette.textPrimary)
+                if let provider {
+                    QuotaProviderHeading(name: sourceTitle,
+                        details: model.aiUsage.visibleQuotaState(for: provider).snapshot?.details, titleSize: .sm)
+                } else {
+                    Text(sourceTitle).dsFont(.sm, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
+                }
             }
             if !model.aiUsage.visibleQuotaProviders(for: provider).isEmpty {
                 quotaSection
@@ -85,7 +88,7 @@ private struct LocalUsageContent: View {
             } else if model.settings.aiUsageShowsLocalUsage {
                 if let report = model.aiUsage.localReport(for: provider) {
                     let rows = report.summary(mode: activityMode, model: selectedModel.isEmpty ? nil : selectedModel, now: now)
-                    let activityRows = report.selected(days: 365, model: selectedModel.isEmpty ? nil : selectedModel, now: now)
+                    let activityRows = report.selected(days: compact ? 30 : 365, model: selectedModel.isEmpty ? nil : selectedModel, now: now)
                     let total = LocalUsageReport.total(rows)
                     UsageSummary(total: total, compact: compact,
                                  title: selectedModel.isEmpty ? tr("本地用量") : selectedModel,
@@ -159,7 +162,7 @@ private struct LocalUsageContent: View {
                 VStack(alignment: .leading, spacing: DS.Space.s3) {
                     if provider == nil {
                         HStack {
-                            Text(id == .codex ? "Codex" : "Claude Code").dsFont(.xs, weight: .semibold)
+                            QuotaProviderHeading(name: id == .codex ? "Codex" : "Claude Code", details: state.snapshot?.details)
                             Spacer()
                             if state.snapshot?.source == .sub2api {
                                 Text("Sub2API").dsFont(.xs, weight: .medium)
@@ -168,6 +171,9 @@ private struct LocalUsageContent: View {
                         }
                     }
                     if let snapshot = state.snapshot {
+                        if let details = snapshot.details, details.subscriptionValidUntil != nil {
+                            QuotaValidityView(details: details, now: Date())
+                        }
                         ForEach(snapshot.windows) { window in
                             VStack(alignment: .leading, spacing: DS.Space.s1) {
                                 HStack(alignment: .firstTextBaseline) {
@@ -350,11 +356,93 @@ private struct LocalUsageContent: View {
     }
 }
 
+/// 标题与重置卡属于同一账号；空间不足时分层换行，保留长译文。
+private struct QuotaProviderHeading: View {
+    let name: String
+    let details: AIQuotaDetails?
+    var titleSize: DS.TextSize = .xs
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: DS.Space.s2) { identity; resetCount; expiry }
+            VStack(alignment: .leading, spacing: DS.Space.s1) {
+                HStack(spacing: DS.Space.s2) { identity; resetCount }
+                expiry
+            }
+            VStack(alignment: .leading, spacing: DS.Space.s1) { identity; resetCount; expiry }
+        }
+    }
+
+    private var identity: some View {
+        HStack(spacing: DS.Space.s2) {
+            Text(name).dsFont(titleSize, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
+            if let plan = details?.plan {
+                TagBadge(text: plan, tone: .primary, compact: true).accessibilityLabel(tr("套餐：\(plan)"))
+            }
+        }.fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder private var resetCount: some View {
+        if let count = details?.resetCredits {
+            Label(tr("重置卡：\(count.formatted(.number.locale(L10n.locale)))"), systemImage: "arrow.counterclockwise")
+                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityElement(children: .ignore)
+                .help(tr("可手动恢复额度的剩余次数，不是已重置次数。"))
+                .accessibilityLabel(tr("可用重置次数：\(count.formatted(.number.locale(L10n.locale)))"))
+        }
+    }
+
+    @ViewBuilder private var expiry: some View {
+        if (details?.resetCredits ?? 0) > 0, let date = details?.resetCreditsExpireAt {
+            Text(tr("最早到期：\(UsageNumber.quotaDate(date, includesTime: true))"))
+                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .help(tr("重置次数最早到期：\(date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))
+                .accessibilityLabel(tr("重置次数最早到期：\(date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))
+        }
+    }
+}
+
+/// 有真实起止时间才显示剩余时间比例；沿用页面刷新，不额外注册计时器。
+private struct QuotaValidityView: View {
+    let details: AIQuotaDetails
+    let now: Date
+
+    var body: some View {
+        if let until = details.subscriptionValidUntil {
+            VStack(alignment: .leading, spacing: DS.Space.s1) {
+                HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
+                    Label(tr("套餐有效期"), systemImage: "calendar")
+                    Spacer(minLength: DS.Space.s1)
+                    Text(UsageNumber.quotaDate(until, includesTime: true, now: now))
+                        .multilineTextAlignment(.trailing)
+                }
+                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                .help(tr("套餐有效期至：\(date(until))"))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(tr("套餐有效期至：\(date(until))"))
+                if let fraction = details.subscriptionRemainingFraction(at: now), let start = details.subscriptionValidFrom {
+                    ProgressTrack(fraction: fraction, color: DS.Palette.secondary, height: DS.Space.s1)
+                        .help(date(start) + " – " + date(until))
+                        .accessibilityLabel(tr("套餐剩余时间"))
+                        .accessibilityValue(fraction.formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
+                }
+            }
+        }
+    }
+
+    private func date(_ value: Date) -> String {
+        value.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale))
+    }
+}
+
 /// 鼠标选择只对选中底色作短暂淡入；键盘选择即时响应，不动画数据、图表或布局。
 private struct UsageChoices<Value: Hashable>: View {
     @Binding var selection: Value
     let options: [(Value, String)]
     let label: String
+    var equalWidth = true
     @State private var pointerSelection = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -369,7 +457,8 @@ private struct UsageChoices<Value: Hashable>: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .foregroundStyle(selection == value ? DS.Palette.textPrimary : DS.Palette.textSecondary)
-                        .frame(maxWidth: .infinity)
+                        .frame(minWidth: equalWidth ? nil : 36, maxWidth: equalWidth ? .infinity : nil)
+                        .padding(.horizontal, equalWidth ? 0 : DS.Space.s1)
                         .padding(.vertical, DS.Space.s2)
                         .background {
                             RoundedRectangle(cornerRadius: DS.Radius.md)
@@ -415,6 +504,16 @@ enum UsageNumber {
 
     static func day(_ date: Date, locale: Locale = L10n.locale) -> String {
         date.formatted(.dateTime.year().month().day().locale(locale))
+    }
+
+    /// 同年省略年份，跨年保留；判断与显示使用同一个日历、时区，避免年末边界不一致。
+    static func quotaDate(_ date: Date, includesTime: Bool, now: Date = Date(),
+                          locale: Locale = L10n.locale, calendar: Calendar = .current) -> String {
+        var style = Date.FormatStyle(date: .omitted, time: .omitted, locale: locale,
+                                     calendar: calendar, timeZone: calendar.timeZone).month(.abbreviated).day()
+        if !calendar.isDate(date, equalTo: now, toGranularity: .year) { style = style.year() }
+        if includesTime { style = style.hour().minute() }
+        return date.formatted(style)
     }
 
     static func short(_ value: Int, locale: Locale = L10n.locale, westernUnits: Bool = false) -> String {
@@ -579,11 +678,12 @@ private struct UsageActivityPanel: View {
     var body: some View {
         Card(spacing: DS.Space.s2) {
             HStack(spacing: DS.Space.s2) {
-                Text(tr("Token 活动")).dsFont(.sm, weight: .semibold)
-                Spacer(minLength: DS.Space.s2)
-                if !compact { choices.frame(width: 280) }
+                Text(tr(compact ? "Token 用量" : "Token 活动")).dsFont(.sm, weight: .semibold)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: DS.Space.s1)
+                if compact { choices.fixedSize(horizontal: true, vertical: false) }
+                else { choices.frame(width: 280) }
             }
-            if compact { choices }
             Text(hovered ?? tr(mode == .daily ? "按小时统计" : "按天统计"))
                 .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                 .lineLimit(1).minimumScaleFactor(0.75)
@@ -591,14 +691,7 @@ private struct UsageActivityPanel: View {
                 .frame(height: DS.Space.s6)
             if mode == .cumulative {
                 let activity = UsageActivity(rows: rows, now: now)
-                if compact {
-                    ScrollView(.horizontal) {
-                        ActivityGrid(activity: activity, hovered: $hovered, side: DS.Space.s3)
-                            .frame(height: gridHeight)
-                    }.defaultScrollAnchor(.trailing)
-                } else {
-                    ActivityGrid(activity: activity, hovered: $hovered).frame(height: gridHeight)
-                }
+                ActivityGrid(activity: activity, hovered: $hovered).frame(height: gridHeight)
                 Text(UsageNumber.day(activity.start) + " – " + UsageNumber.day(activity.end))
                     .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                 HStack {
@@ -627,9 +720,9 @@ private struct UsageActivityPanel: View {
     }
 
     private var choices: some View {
-        UsageChoices(selection: $mode, options: [(.daily, tr("今天")), (.weekly, tr("7 天")),
-                                                (.monthly, tr("30 天")), (.cumulative, tr("累计"))],
-                     label: tr("Token 活动"))
+        let periods: [(UsageActivityMode, String)] = [(.daily, tr("今天")), (.weekly, tr("7 天")), (.monthly, tr("30 天"))]
+        return UsageChoices(selection: $mode, options: compact ? periods : periods + [(.cumulative, tr("累计"))],
+                            label: tr("Token 活动"), equalWidth: !compact)
     }
     private var gridHeight: CGFloat { 7 * DS.Space.s3 + 6 * (DS.Space.s1 / 2) + DS.Space.s6 }
 }
@@ -676,7 +769,8 @@ private struct UsageBarChart: View {
                 }
             }.frame(height: 140)
             GeometryReader { geometry in
-                let indices = buckets.count == 7 ? [0, 2, 4, 6]
+                let indices = geometry.size.width < 240 ? [0, buckets.count / 2, max(0, buckets.count - 1)]
+                    : buckets.count == 7 ? [0, 2, 4, 6]
                     : Array(Set([0, buckets.count / 4, buckets.count / 2, buckets.count * 3 / 4, max(0, buckets.count - 1)])).sorted()
                 ForEach(indices, id: \.self) { index in
                     if buckets.indices.contains(index) {

@@ -31,13 +31,15 @@ public struct AIQuotaSnapshot: Codable, Equatable, Sendable {
     public let windows: [AIQuotaWindow]
     public let fetchedAt: Date
     public let source: AIQuotaSource
+    public var details: AIQuotaDetails?
 
     public init(provider: AIProviderID, windows: [AIQuotaWindow], fetchedAt: Date,
-                source: AIQuotaSource = .direct) {
+                source: AIQuotaSource = .direct, details: AIQuotaDetails? = nil) {
         self.provider = provider
         self.windows = windows
         self.fetchedAt = fetchedAt
         self.source = source
+        self.details = details
     }
 
     public func window(_ kind: AIQuotaKind) -> AIQuotaWindow? { windows.first { $0.kind == kind } }
@@ -98,8 +100,15 @@ private final class RejectQuotaRedirects: NSObject, URLSessionTaskDelegate, Send
 struct CodexQuotaCredentials: Sendable {
     let token: String
     let accountID: String?
+    let subscriptionValidFrom: Date?
+    let subscriptionValidUntil: Date?
 
-    static func parse(_ data: Data) throws -> Self {
+    init(token: String, accountID: String?, subscriptionValidUntil: Date? = nil, subscriptionValidFrom: Date? = nil) {
+        self.token = token; self.accountID = accountID; self.subscriptionValidUntil = subscriptionValidUntil
+        self.subscriptionValidFrom = subscriptionValidFrom
+    }
+
+    static func parse(_ data: Data, now: Date = Date()) throws -> Self {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw AIQuotaFailure.notConfigured
         }
@@ -108,7 +117,28 @@ struct CodexQuotaCredentials: Sendable {
               let token = tokens["access_token"] as? String, !token.isEmpty else {
             throw AIQuotaFailure.notConfigured
         }
-        return Self(token: token, accountID: tokens["account_id"] as? String)
+        let accountID = tokens["account_id"] as? String
+        var until: Date?
+        var start: Date?
+        // ID token 仅用于显示已付款期限；不把 JWT 的 exp 当作订阅到期日，也不用于授权。
+        if let jwt = tokens["id_token"] as? String, jwt.utf8.count <= 131_072 {
+            let parts = jwt.split(separator: ".", omittingEmptySubsequences: false)
+            if parts.count == 3 {
+                var encoded = String(parts[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+                encoded += String(repeating: "=", count: (4 - encoded.count % 4) % 4)
+                if let payload = Data(base64Encoded: encoded),
+                   let claims = try? JSONSerialization.jsonObject(with: payload) as? [String: Any],
+                   let auth = claims["https://api.openai.com/auth"] as? [String: Any],
+                   let accountID, !accountID.isEmpty, auth["chatgpt_account_id"] as? String == accountID,
+                   let date = ISO8601Parser().date(auth["chatgpt_subscription_active_until"]), date > now {
+                    until = date
+                    if let begin = ISO8601Parser().date(auth["chatgpt_subscription_active_start"]), begin < date, begin <= now {
+                        start = begin
+                    }
+                }
+            }
+        }
+        return Self(token: token, accountID: accountID, subscriptionValidUntil: until, subscriptionValidFrom: start)
     }
 
     static func load(environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -121,7 +151,11 @@ struct CodexQuotaCredentials: Sendable {
                           home.appendingPathComponent(".config/codex/auth.json")]
         }
         for url in candidates where FileManager.default.fileExists(atPath: url.path) {
-            guard let data = try? Data(contentsOf: url) else { throw AIQuotaFailure.notConfigured }
+            guard let file = try? FileHandle(forReadingFrom: url) else { throw AIQuotaFailure.notConfigured }
+            defer { try? file.close() }
+            guard let data = try? file.read(upToCount: 1_048_577), data.count <= 1_048_576 else {
+                throw AIQuotaFailure.notConfigured
+            }
             return try parse(data)
         }
         throw AIQuotaFailure.notConfigured
@@ -223,7 +257,31 @@ public actor CodexQuotaProvider: AIQuotaProvider {
         request.setValue("XStats AIUsage", forHTTPHeaderField: "User-Agent")
         if let accountID = credential.accountID { request.setValue(accountID, forHTTPHeaderField: "ChatGPT-Account-Id") }
         let data = try await quotaResponse(for: request, using: http)
-        return try Self.parse(data, now: Date())
+        var snapshot = try Self.parse(data, now: Date())
+        snapshot.details?.subscriptionValidUntil = credential.subscriptionValidUntil
+        snapshot.details?.subscriptionValidFrom = credential.subscriptionValidFrom
+        if (snapshot.details?.resetCredits ?? 0) > 0 {
+            // 附加信息失败不能隐藏已取得的额度；只读查询有单独的短超时，不做重试。
+            request.url = URL(string: "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits")!
+            request.timeoutInterval = 4
+            do {
+                try Task.checkCancellation()
+                let response = try await quotaResponse(for: request, using: http)
+                try Task.checkCancellation()
+                if response.count <= 1_048_576,
+                   let object = try? JSONSerialization.jsonObject(with: response) as? [String: Any] {
+                    let details = AIQuotaDetails.parse(plan: nil, resets: object, appServer: false, now: Date())
+                    if let count = details.resetCredits {
+                        snapshot.details?.resetCredits = count
+                        snapshot.details?.resetCreditsExpireAt = details.resetCreditsExpireAt
+                    }
+                }
+            } catch {
+                try Task.checkCancellation()
+                if error is CancellationError { throw error }
+            }
+        }
+        return snapshot
     }
 
     static func parse(_ data: Data, now: Date) throws -> AIQuotaSnapshot {
@@ -251,7 +309,9 @@ public actor CodexQuotaProvider: AIQuotaProvider {
         }
         let windows = [AIQuotaKind.session, .weekly].compactMap { selected[$0]?.window }
         guard !windows.isEmpty else { throw AIQuotaFailure.invalidResponse }
-        return AIQuotaSnapshot(provider: .codex, windows: windows, fetchedAt: now)
+        return AIQuotaSnapshot(provider: .codex, windows: windows, fetchedAt: now,
+                               details: AIQuotaDetails.parse(plan: object["plan_type"],
+                                   resets: object["rate_limit_reset_credits"] as? [String: Any], appServer: false, now: now))
     }
 }
 
