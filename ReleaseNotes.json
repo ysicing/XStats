@@ -1,11 +1,27 @@
 {
-  "version": "0.14.4",
+  "version": "0.14.5",
   "sourceNotes": [
-    "修复点击菜单栏图标后弹窗偶发不显示或变为透明的问题，改善快速关闭、重开和连续点击的响应"
+    "AI 用量支持自选刷新间隔、已用或剩余额度，以及中文万/亿或 K/M/B 数字单位",
+    "新增美元/人民币费用估算，按公开 API 基础单价计算，不含阶梯加价，非订阅账单",
+    "Codex 额度新增套餐标签、有效期进度、可用重置卡和最早到期时间，仅作只读展示",
+    "AI 用量新增小时与每日柱状图，支持今天、最近 7 天、最近 30 天和累计",
+    "改善按钮与分段选项的按压、键盘反馈和文字对比度，优化紧凑布局并适配减少动态效果",
+    "在线更新改用新的区域入口，连接失败时自动切换备用线路",
+    "为支持小时图，升级后的首次刷新会重新统计本地日志，后续仍采用增量读取",
+    "修复累计摘要与图表统计范围不一致的问题，摘要、费用与模型排行统一跟随所选时间范围",
+    "修复英文界面的累计选项仍显示中文的问题，补齐 AI 用量译文并改善长文案和从右到左布局"
   ],
   "translations": {
     "en": [
-      "Fix menu bar popovers occasionally failing to appear or remaining transparent, and improve responsiveness when closing, reopening, or clicking repeatedly"
+      "Choose the AI usage refresh interval, used or remaining quota display, and Chinese or K/M/B number units",
+      "Estimate token costs in USD or CNY using public base API prices, excluding tiered surcharges; these estimates are not subscription bills",
+      "Show the Codex plan, validity progress, available reset credits and their earliest expiry as read-only information",
+      "View hourly usage for today and daily usage for the last 7 or 30 days; menu bar popovers offer these three periods, while the main window retains the annual activity heatmap",
+      "Improve button and segmented-control press and keyboard feedback, text contrast, compact layouts, and Reduce Motion support",
+      "Use the new regional update endpoints and automatically try fallback routes when a connection fails",
+      "The first refresh after upgrading rebuilds local hourly usage statistics and may take longer; subsequent refreshes continue to read changes incrementally",
+      "Keep cumulative summaries, cost estimates, model rankings and charts aligned with the selected time range",
+      "Fix the Cumulative option remaining in Chinese in the English interface, complete AI usage translations, and improve long text and right-to-left layouts"
     ]
   }
 }
