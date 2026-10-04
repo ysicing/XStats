@@ -21,13 +21,23 @@ private actor TestDisplayBackend: DisplayDDCBackend {
     var gates: [CheckedContinuation<[DisplayControl: DDCResult], Never>] = []
     var tickets: [DDCCancellation] = []
     var timingOutTargets: Set<UInt32> = []
+    var readOrder: [UInt32] = []
+    var slotHeld = false
+    var timeoutsHoldSlot = false
     nonisolated let resets = ResetCounter()
     func read(_ target: DisplayTarget, cancellation: DDCCancellation) async -> [DisplayControl: DDCResult] {
         reads += 1
         tickets.append(cancellation)
+        readOrder.append(target.id)
+        // 与 NativeDisplayDDC.execute 一致：超时的调用返回前占着执行槽，紧随其后的请求得到 busy
+        if slotHeld {
+            slotHeld = false
+            return [.brightness: .busy]
+        }
         // 与 NativeDisplayDDC.execute 一致：超时时取消传入的令牌
         if timingOutTargets.contains(target.id) {
             cancellation.cancel()
+            slotHeld = timeoutsHoldSlot
             return [.brightness: .timedOut]
         }
         if gateReads { return await withCheckedContinuation { gates.append($0) } }
@@ -39,10 +49,15 @@ private actor TestDisplayBackend: DisplayDDCBackend {
     }
     nonisolated func resetConnections() { resets.increment() }
     func block() { gateReads = true }
-    func timeOut(_ id: UInt32) { timingOutTargets.insert(id) }
+    func timeOut(_ id: UInt32, holdingSlot: Bool = false) {
+        timingOutTargets.insert(id)
+        timeoutsHoldSlot = holdingSlot
+    }
     func finish(_ value: UInt16) { gates.removeFirst().resume(returning: [.brightness: .value(DDCValue(current: value, maximum: 100))]) }
     func setWriteResult(_ value: DDCResult) { writeResult = value }
     func count() -> Int { reads }
+    func order() -> [UInt32] { readOrder }
+    func releaseSlot() { slotHeld = false }
     func writeCount() -> Int { writes }
     func wasCancelled(_ index: Int) -> Bool { tickets[index].isCancelled }
 }
@@ -78,6 +93,27 @@ struct DisplayControllerTests {
         #expect(!(await backend.wasCancelled(1)))
         #expect(controller.readings[7]?[.brightness] == .timedOut)
         #expect(controller.readings[8]?[.brightness] == .value(DDCValue(current: 75, maximum: 100)))
+    }
+
+    @Test func persistentlyTimedOutDisplayIsReadLastSoOthersGetTheSlot() async throws {
+        let backend = TestDisplayBackend()
+        await backend.timeOut(7, holdingSlot: true)
+        let second = DisplayInfo(target: DisplayTarget(id: 8, identity: "fixture-second"), name: "Second Display",
+                                 isBuiltIn: false, isMain: false, summary: "2560×1440 · 60Hz")
+        let controller = DisplayController(backend: backend, catalog: [display, second])
+        defer { controller.stop() }
+        controller.setVisible(true)
+        try await waitForReads(backend, 2)
+        try await settle(controller)
+        // 首轮按目录顺序：7 超时后占着执行槽，8 只得到 busy
+        #expect(await backend.order() == [7, 8])
+        #expect(controller.readings[8]?[.brightness] == .busy)
+        await backend.releaseSlot()
+        await controller.refresh()
+        // 下一轮 7 排到最后，8 先拿到执行槽；7 仍会重试，不被永久放弃
+        #expect(await backend.order() == [7, 8, 8, 7])
+        #expect(controller.readings[8]?[.brightness] == .value(DDCValue(current: 75, maximum: 100)))
+        #expect(controller.readings[7]?[.brightness] == .timedOut)
     }
 
     @Test func wakeDropsMatchedConnectionsButVisibilityChangesKeepThem() async throws {

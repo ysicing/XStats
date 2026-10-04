@@ -133,7 +133,11 @@ final class DisplayController {
         isRefreshing = true
         defer { if generation == epoch { isRefreshing = false; cancellation = nil } }
         var updated: [UInt32: [DisplayControl: DDCResult]] = [:]
-        for display in catalog where !display.isBuiltIn {
+        // 超时的内核调用返回前占着唯一的执行槽，紧随其后的读取只会得到 busy；
+        // 上一轮超时的显示器排到最后，响应正常的显示器不会被它持续挤掉。
+        let external = catalog.filter { !$0.isBuiltIn }
+        let timedOut = { (display: DisplayInfo) in self.readings[display.id]?.values.contains(.timedOut) == true }
+        for display in external.filter({ !timedOut($0) }) + external.filter(timedOut) {
             // 超时会取消本台的令牌；每台独立，避免一台无响应导致后面的显示器跳过读取。
             let ticket = DDCCancellation()
             cancellation = ticket

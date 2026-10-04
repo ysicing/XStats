@@ -631,7 +631,8 @@ that the display applied it. No software dimming or speculative compatibility wr
 Blocking native work uses one bounded serial execution slot with a two-second caller deadline.
 A timed-out kernel call retains the slot until it returns, so retries cannot accumulate stuck work.
 Each display read gets its own cancellation ticket, so one timed-out display does not skip the
-others in the same refresh. Cancellation is checked between bus operations; late results cannot repopulate a closed or replaced
+others in the same refresh; a display that timed out last time is read last, so while its stuck call
+still holds the execution slot, responsive displays are not starved by `.busy`. Cancellation is checked between bus operations; late results cannot repopulate a closed or replaced
 view. Protocol, timeout, cancellation and write-confirmation tests use simulated devices. To generate
 a repeatable, read-only report on actual hardware (no Set VCP):
 
