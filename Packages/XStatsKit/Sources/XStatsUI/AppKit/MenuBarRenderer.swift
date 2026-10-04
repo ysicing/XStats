@@ -478,10 +478,19 @@ enum MenuBarRenderer {
     /// 电池：按电量画图形，电量低时着色为警示；充电中在前面加一道闪电。
     /// 没有电池的 Mac 显示电量最低的蓝牙设备；开了提示且某个设备电量低时，附在电池后面
     private static func batterySegment(reading: MenuBarReading, style: MenuBarStyle, colorizeHighLoad: Bool) -> Segment {
-        let bluetooth = reading.bluetoothDevice.map { device in
-            combine([symbolSegment(device.symbol),
-                     inlineValue("\(device.percent)%", sample: "100%",
-                                 alert: colorizeHighLoad && device.percent <= MenuBarReading.lowBluetoothPercent)])
+        let bluetooth = reading.bluetoothDevice.map { device -> Segment in
+            let value = "\(device.percent)%"
+            let alert = colorizeHighLoad && device.percent <= MenuBarReading.lowBluetoothPercent
+            // 蓝牙回退与低电量提示也遵循文字排版；BT 区分外设电量与本机 BAT。
+            switch style {
+            case .stacked, .stackedCenter:
+                return stackedText(label: "BT", value: value, sample: "100%", alert: alert,
+                                   centered: style == .stackedCenter)
+            case .inline:
+                return inlineText(label: "BT", value: value, sample: "100%", alert: alert)
+            default:
+                return combine([symbolSegment(device.symbol), inlineValue(value, sample: "100%", alert: alert)])
+            }
         }
         guard let level = reading.battery else {
             return bluetooth ?? textSegment(item: .battery, value: "—", sample: "100%", style: style)
