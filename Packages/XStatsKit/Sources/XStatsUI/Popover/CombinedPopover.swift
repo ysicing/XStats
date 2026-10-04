@@ -76,6 +76,22 @@ private struct OverviewMetricRow: View {
                         HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
                             Text(reading.title).dsFont(.sm, weight: .semibold)
                                 .foregroundStyle(DS.Palette.textPrimary)
+                            if let location = reading.networkLocation {
+                                let name = L10n.locale.localizedString(forRegionCode: location.code) ?? location.code
+                                HStack(spacing: 0) {
+                                    if location.style == .flag, FlagCache.shared.image(for: location.code) != nil {
+                                        FlagImage(countryCode: location.code)
+                                    } else {
+                                        Text(verbatim: name)
+                                            .dsFont(.xs)
+                                            .foregroundStyle(DS.Palette.textSecondary)
+                                            .lineLimit(1)
+                                    }
+                                }
+                                .help(name)
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(tr("IP 归属地") + " · " + name)
+                            }
                             Spacer(minLength: DS.Space.s1)
                             if item != .network && !expanded {
                                 HStack(alignment: .firstTextBaseline, spacing: DS.Space.s1 / 2) {
@@ -204,6 +220,7 @@ struct OverviewReading {
     var detail = ""
     var tone = Tone.neutral
     var chart = Chart.none
+    var networkLocation: (style: NetworkLocationStyle, code: String)?
 
     var hasChart: Bool {
         if case .none = chart { return false }
@@ -238,6 +255,11 @@ struct OverviewReading {
                 detail = memory.pressure == .normal ? usage : tr("压力 \(memory.pressure.title)") + " · " + usage
             }
         case .network:
+            // 与菜单栏共用开关、地址族和缓存结果；总览只读，不触发额外公网查询。
+            let menuReading = MenuBarReading(model: model, items: [.network])
+            if menuReading.networkLocationStyle != .off, let code = menuReading.networkCountryCode {
+                networkLocation = (menuReading.networkLocationStyle, code)
+            }
             detail = "↑ —  ↓ —"
             if let rate = store.network {
                 detail = "↑ \(Format.menuBarRate(rate.uploadBytesPerSecond))  ↓ \(Format.menuBarRate(rate.downloadBytesPerSecond))"
