@@ -58,7 +58,13 @@ struct MenuBarLayoutTests {
                 #expect(visible.temperatures.contains(.cpu))
                 model.combinedPopoverTab = .disk
                 #expect(model.demand.diskDetail)
-                #expect(!model.demand.gpu)
+                // 展开磁盘详情后，其他总览行仍在屏幕中，必须继续更新摘要。
+                #expect(model.demand.gpu && model.demand.battery)
+                model.combinedPopoverTab = .gpu
+                #expect(!model.demand.diskDetail && !model.demand.cpuFrequency)
+                #expect(!model.demand.processes)
+                model.combinedPopoverTab = nil
+                #expect(model.demand.processes)
                 model.isCombinedPopoverOpen = false
                 #expect(model.openPopover == nil)
                 #expect(model.demand == idle)
@@ -75,6 +81,20 @@ struct MenuBarLayoutTests {
             model.isCombinedPopoverOpen = true
             #expect(!model.demand.processes && !model.demand.systemProcesses)
             #expect(!model.demand.gpu && !model.demand.disk && !model.demand.battery)
+        }
+    }
+
+    @Test func compactOverviewHasNoHalfEmptyRowsAndExpandsInline() throws {
+        try model { model, _ in
+            model.settings.menuBarItems = [.cpu, .memory, .network, .disk, .battery]
+            model.settings.processesEnabled = false
+            let host = NSHostingView(rootView: CombinedPopoverView().environment(model).environment(\.isSnapshot, true))
+            let collapsed = host.fittingSize
+            #expect(abs(collapsed.width - DS.Size.combinedPopoverWidth) < 1)
+            #expect(collapsed.height < 500)
+            model.combinedPopoverTab = .cpu
+            let expanded = NSHostingView(rootView: CombinedPopoverView().environment(model).environment(\.isSnapshot, true)).fittingSize
+            #expect(expanded.height > collapsed.height)
         }
     }
 
@@ -169,6 +189,12 @@ struct MenuBarLayoutTests {
                 #expect(abs(panel.frame.width - DS.Size.combinedPopoverWidth) < 1)
                 #expect(panel.frame.height <= 501)
                 #expect(model.openPopover == item)
+                if item == nil {
+                    // 底栏须同时进入离屏测高和真实布局，不能挂载后突然缩短一个底栏的高度。
+                    let natural = NSHostingView(rootView: CombinedPopoverView().environment(model)
+                        .environment(\.isSnapshot, true)).fittingSize.height
+                    #expect(abs(panel.frame.height - min(500, natural)) < 2)
+                }
             }
             panel.isPinned = false
             panel.dismiss()
