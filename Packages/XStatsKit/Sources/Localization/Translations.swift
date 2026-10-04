@@ -65,6 +65,14 @@ extension Translations {
 """#
 
     static let english = #"""
+热压力：正常	Thermal pressure: Normal
+热压力：偏高	Thermal pressure: Elevated
+热压力：严重	Thermal pressure: Serious
+热压力：临界	Thermal pressure: Critical
+热压力：未知	Thermal pressure: Unknown
+高效处理多线程任务	Efficiently handles multithreaded work
+由 macOS 报告的系统热状态，与 CPU 温度读数独立。	System thermal state reported by macOS, independent of CPU temperature readings.
+核心最高温度；余量以 100°C 为参考，不代表设备实际降频阈值。	Highest core temperature; headroom uses 100°C as a reference, not the device’s actual throttling threshold.
 GitHub 项目	GitHub Repository
 赞助 XStats	Support XStats
 Apple 智能	Apple Intelligence
@@ -947,7 +955,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 核心 {}（{}）· {}	Core {} ({}) · {}
 核心分工	Core Types
 核心数	Cores
-核心最高温度；余量是离 100°C 还差多少度，越接近 0 越可能因过热降频	Hottest core; headroom is how many degrees remain before 100°C — the closer to 0, the more likely thermal throttling
 核心热力图	Core Heatmap
 核心负载	Core Load
 检查	Check
@@ -1339,7 +1346,6 @@ Apple 智能本机模型当前不可用。	The on-device Apple Intelligence mode
 通知	Notifications
 通知可以正常显示。发生你打开的状况时，会像这样提醒你。	Notifications are working. You'll be alerted like this when something you turned on happens.
 通过 {} 登录	Signed in with {}
-速度与省电介于两者之间	In between on speed and efficiency
 部分网站直连、部分经代理，每个网站走哪个出口见下方。	Some sites connect directly and some go through a proxy. See below for the exit each site uses.
 部分项目需要“完全磁盘访问权限”才能扫描（Safari 缓存、废纸篓）。	Some items need Full Disk Access to scan (Safari caches, Trash).
 配置方式	Configuration

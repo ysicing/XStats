@@ -42,6 +42,8 @@ brew install --cask xstats
 
 **시스템 모니터링**: CPU, GPU, 메모리, 디스크, 네트워크, 배터리, 온도, 팬 중에서 메뉴 막대에 표시할 항목을 고릅니다. 항목을 열면 기록, 많이 사용하는 앱, 하드웨어 세부 정보를 볼 수 있습니다.
 
+**CPU**: 사용자 / 시스템 / 유휴 사용률, 코어별 부하 링, 코어 그룹 사용률과 macOS 열 상태를 표시합니다. 사용 가능한 센서가 있으면 온도도 표시하며, ‘이 Mac’에서 가동 시간을 확인할 수 있습니다. 그룹은 시스템이 보고한 슈퍼 / 성능 / 효율 코어 유형에 따라 표시하며, 두 그룹이나 세 그룹으로 고정하지 않습니다.
+
 <p align="center">
   <img src="Assets/readme/popover-cpu-light.png" width="24%" alt="CPU 세부 정보">
   <img src="Assets/readme/popover-memory-dark.png" width="24%" alt="메모리 세부 정보">

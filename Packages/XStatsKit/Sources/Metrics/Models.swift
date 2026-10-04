@@ -4,9 +4,31 @@ import Localization
 import SMC
 
 public struct CPUCluster: Sendable, Equatable, Identifiable {
+    /// 保留系统报告的核心类型，界面说明不依赖本地化名称或机型猜测。
+    public enum Kind: Sendable {
+        case superCore, performance, efficiency, unknown
+
+        init(systemName: String) {
+            switch systemName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "super": self = .superCore
+            case "performance": self = .performance
+            case "efficiency": self = .efficiency
+            default: self = .unknown
+            }
+        }
+    }
+
     public let id: Int              // perflevel 序号，0 为最高性能档
     public let name: String         // 超级核 / 性能核 / 能效核
     public let coreIndices: [Int]   // 对应 host_processor_info 的核心序号
+    public let kind: Kind
+
+    init(id: Int, name: String, coreIndices: [Int], kind: Kind = .unknown) {
+        self.id = id
+        self.name = name
+        self.coreIndices = coreIndices
+        self.kind = kind
+    }
 }
 
 public struct CPUTopology: Sendable, Equatable {
@@ -21,6 +43,8 @@ public struct CPULoad: Sendable, Equatable {
     public var system: Double
     public var perCore: [Double]
     public var loadAverage: [Double]
+    /// macOS 系统热状态，与传感器温度独立；没有采样时不假定为正常。
+    public var thermalState: ProcessInfo.ThermalState? = nil
 }
 
 public enum MemoryPressure: Int, Sendable {
