@@ -615,8 +615,12 @@ submits one target value. Wake and reconfiguration settling gates also block man
 build. The information view remains usable if these entry points are unavailable. These non-public
 control calls are not a Store-target compatibility claim; a future sandboxed target must exclude this
 backend. Services are matched by the CoreDisplay registry location, not by a guessed model name;
-ambiguous/missing matches disable controls. Device signatures and controller generations reject
-stale requests after reconnects. No brightness/volume/contrast values are automatically restored.
+ambiguous/missing matches disable controls. `DCPAVServiceProxy` is not a descendant of its
+framebuffer, so it is paired by registry order and then rejected if the service's own EDID
+(vendor, product, serial) disagrees with the CG display; an unreadable EDID keeps the location match.
+Match results, including misses, are cached per connection on the I/O queue and dropped on
+screen reconfiguration or wake, so polling does not rescan the registry. Device signatures and
+controller generations reject stale requests after reconnects. No brightness/volume/contrast values are automatically restored.
 
 Only standard brightness (0x10), contrast (0x12), and speaker volume (0x62) are supported. An intact
 Get VCP reply and nonzero range enable each control independently. Unsupported replies, invalid
@@ -626,7 +630,8 @@ that the display applied it. No software dimming or speculative compatibility wr
 
 Blocking native work uses one bounded serial execution slot with a two-second caller deadline.
 A timed-out kernel call retains the slot until it returns, so retries cannot accumulate stuck work.
-Cancellation is checked between bus operations; late results cannot repopulate a closed or replaced
+Each display read gets its own cancellation ticket, so one timed-out display does not skip the
+others in the same refresh. Cancellation is checked between bus operations; late results cannot repopulate a closed or replaced
 view. Protocol, timeout, cancellation and write-confirmation tests use simulated devices. To generate
 a repeatable, read-only report on actual hardware (no Set VCP):
 

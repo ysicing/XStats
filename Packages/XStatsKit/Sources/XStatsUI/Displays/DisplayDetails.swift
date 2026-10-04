@@ -10,7 +10,7 @@ struct DisplayDetails: View {
     var body: some View {
         SectionCard(title: tr("显示器"), trailing: {
             RefreshButton(loading: model.displays.isRefreshing, help: tr("重新检测显示器控制")) {
-                Task { await model.displays.refresh() }
+                Task { await model.displays.redetect() }
             }
         }) {
             if model.displays.catalog.isEmpty {

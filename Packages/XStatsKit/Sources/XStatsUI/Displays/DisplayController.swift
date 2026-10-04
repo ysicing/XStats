@@ -61,6 +61,7 @@ final class DisplayController {
 
     private func screenConfigurationChanged() {
         invalidate()
+        backend.resetConnections()
         readings = [:]
         refreshCatalog()
         deferCommunication(for: .seconds(1))
@@ -79,6 +80,7 @@ final class DisplayController {
         isPaused = value
         invalidate()
         if !value {
+            backend.resetConnections()
             refreshCatalog()
             // 唤醒后让显示链路先稳定，期间不发送 DDC 报文。
             deferCommunication(for: .seconds(3))
@@ -128,12 +130,13 @@ final class DisplayController {
     func refresh() async {
         guard visible, !isPaused, !isSettling, !Task.isCancelled, !isRefreshing, !isWriting, editingTokens.isEmpty else { return }
         let epoch = generation
-        let ticket = DDCCancellation()
-        cancellation = ticket
         isRefreshing = true
         defer { if generation == epoch { isRefreshing = false; cancellation = nil } }
         var updated: [UInt32: [DisplayControl: DDCResult]] = [:]
         for display in catalog where !display.isBuiltIn {
+            // 超时会取消本台的令牌；每台独立，避免一台无响应导致后面的显示器跳过读取。
+            let ticket = DDCCancellation()
+            cancellation = ticket
             let result = await withTaskCancellationHandler {
                 await backend.read(display.target, cancellation: ticket)
             } onCancel: { ticket.cancel() }
@@ -144,6 +147,12 @@ final class DisplayController {
         readings = updated
         isRefreshing = false
         cancellation = nil
+    }
+
+    /// 手动重新检测：丢弃已缓存的服务匹配（含未找到），再读取一次。
+    func redetect() async {
+        backend.resetConnections()
+        await refresh()
     }
 
     func write(_ percent: Double, control: DisplayControl, display: DisplayInfo) async {

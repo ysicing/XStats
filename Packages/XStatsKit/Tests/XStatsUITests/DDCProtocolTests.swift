@@ -28,6 +28,27 @@ struct DDCProtocolTests {
         #expect(DDCProtocol.parse(reply(current: 0, maximum: 0), control: .brightness) == .unavailable)
     }
 
+    @Test func readsEDIDSignatureInCoreGraphicsByteOrder() throws {
+        // 本机 DELL U2422H 的真实值：CGDisplayVendorNumber 4268、ModelNumber 41400、SerialNumber 810567746
+        var edid = [UInt8](repeating: 0, count: 128)
+        edid.replaceSubrange(0..<16, with: [0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00,
+                                            0x10, 0xac, 0xb8, 0xa1, 0x42, 0x48, 0x50, 0x30])
+        let signature = try #require(EDIDSignature(edid))
+        #expect(signature == EDIDSignature(vendor: 4268, product: 41400, serial: 810_567_746))
+        var badHeader = edid; badHeader[0] = 1
+        #expect(EDIDSignature(badHeader) == nil)
+        #expect(EDIDSignature(Array(edid.prefix(127))) == nil)
+    }
+
+    @Test func edidMatchRejectsOtherDisplaysAndToleratesMissingSerial() {
+        let target = EDIDSignature(vendor: 4268, product: 41400, serial: 810_567_746)
+        #expect(target.matches(target))
+        #expect(!target.matches(EDIDSignature(vendor: 4268, product: 41400, serial: 1)))
+        #expect(!target.matches(EDIDSignature(vendor: 4268, product: 41401, serial: 810_567_746)))
+        #expect(!target.matches(EDIDSignature(vendor: 1552, product: 41400, serial: 810_567_746)))
+        #expect(target.matches(EDIDSignature(vendor: 4268, product: 41400, serial: 0)))
+    }
+
     @Test func preservesFullRangeAndRejectsInvalidUserValues() {
         let value = DDCValue(current: 32768, maximum: 65535)
         #expect(DDCProtocol.parse(reply(current: 32768, maximum: 65535), control: .brightness) == .value(value))

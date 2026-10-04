@@ -5,6 +5,13 @@ import Foundation
 import Testing
 @testable import XStatsUI
 
+private final class ResetCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.withLock { count } }
+    func increment() { lock.withLock { count += 1 } }
+}
+
 private actor TestDisplayBackend: DisplayDDCBackend {
     var reads = 0
     var writes = 0
@@ -13,9 +20,16 @@ private actor TestDisplayBackend: DisplayDDCBackend {
     var gateReads = false
     var gates: [CheckedContinuation<[DisplayControl: DDCResult], Never>] = []
     var tickets: [DDCCancellation] = []
+    var timingOutTargets: Set<UInt32> = []
+    nonisolated let resets = ResetCounter()
     func read(_ target: DisplayTarget, cancellation: DDCCancellation) async -> [DisplayControl: DDCResult] {
         reads += 1
         tickets.append(cancellation)
+        // 与 NativeDisplayDDC.execute 一致：超时时取消传入的令牌
+        if timingOutTargets.contains(target.id) {
+            cancellation.cancel()
+            return [.brightness: .timedOut]
+        }
         if gateReads { return await withCheckedContinuation { gates.append($0) } }
         return readResult
     }
@@ -23,7 +37,9 @@ private actor TestDisplayBackend: DisplayDDCBackend {
         writes += 1
         return writeResult
     }
+    nonisolated func resetConnections() { resets.increment() }
     func block() { gateReads = true }
+    func timeOut(_ id: UInt32) { timingOutTargets.insert(id) }
     func finish(_ value: UInt16) { gates.removeFirst().resume(returning: [.brightness: .value(DDCValue(current: value, maximum: 100))]) }
     func setWriteResult(_ value: DDCResult) { writeResult = value }
     func count() -> Int { reads }
@@ -46,6 +62,38 @@ struct DisplayControllerTests {
         let deadline = ContinuousClock.now + .seconds(30)
         while controller.isRefreshing, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         #expect(!controller.isRefreshing)
+    }
+
+    @Test func timeoutOnOneDisplayDoesNotSkipTheNextDisplay() async throws {
+        let backend = TestDisplayBackend()
+        await backend.timeOut(7)
+        let second = DisplayInfo(target: DisplayTarget(id: 8, identity: "fixture-second"), name: "Second Display",
+                                 isBuiltIn: false, isMain: false, summary: "2560×1440 · 60Hz")
+        let controller = DisplayController(backend: backend, catalog: [display, second])
+        defer { controller.stop() }
+        controller.setVisible(true)
+        try await waitForReads(backend, 2)
+        try await settle(controller)
+        #expect(await backend.wasCancelled(0))
+        #expect(!(await backend.wasCancelled(1)))
+        #expect(controller.readings[7]?[.brightness] == .timedOut)
+        #expect(controller.readings[8]?[.brightness] == .value(DDCValue(current: 75, maximum: 100)))
+    }
+
+    @Test func wakeDropsMatchedConnectionsButVisibilityChangesKeepThem() async throws {
+        let backend = TestDisplayBackend()
+        let controller = DisplayController(backend: backend, catalog: [display])
+        defer { controller.stop() }
+        controller.setVisible(true)
+        controller.setVisible(false)
+        controller.setVisible(true)
+        #expect(backend.resets.value == 0)
+        controller.setPaused(true)
+        #expect(backend.resets.value == 0)
+        controller.setPaused(false)
+        #expect(backend.resets.value == 1)
+        await controller.redetect()
+        #expect(backend.resets.value == 2)
     }
 
     @Test func onlyVisibleControlsReadAndOnlyKnownSupportedControlsWrite() async throws {
