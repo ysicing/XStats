@@ -168,6 +168,7 @@ extension DS {
         static let panelWidth: CGFloat = 640
         /// 菜单栏单项详情弹窗的宽度
         static let popoverWidth: CGFloat = 320
+        static let combinedPopoverWidth: CGFloat = 360
         static let panelMinHeight: CGFloat = 320
         static let panelGap: CGFloat = 4
         /// 窗口顶栏高度：标准工具栏的标题栏（52pt），红绿灯、页面标题与右上角 32pt 的按钮在同一条水平线上，按钮上下各留 10pt

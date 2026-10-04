@@ -720,7 +720,8 @@ struct ThermalPopover: View {
                 if model.store.supportsFans {
                     VStack(alignment: .leading, spacing: DS.Space.s1) {
                         Text(tr("风扇")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                        HeroValue(value: store.fastestFan.map { Int($0.current).formatted() } ?? "—", unit: fans.isEmpty ? nil : "RPM")
+                        HeroValue(value: fans.contains(where: \.isStarting) ? tr("启动中…") : store.fastestFan.map { Int($0.current).formatted() } ?? "—",
+                                  unit: fans.isEmpty || fans.contains(where: \.isStarting) ? nil : "RPM")
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -753,7 +754,7 @@ struct ThermalPopover: View {
                     } else {
                         ForEach(fans) { fan in
                             VStack(spacing: DS.Space.s1) {
-                                InfoRow(label: tr("风扇 \(fan.id + 1)"), text: Format.rpm(fan.current))
+                                InfoRow(label: tr("风扇 \(fan.id + 1)"), text: fan.isStarting ? tr("启动中…") : Format.rpm(fan.current))
                                 ProgressTrack(fraction: fan.maximum > 0 ? fan.current / fan.maximum : 0, height: DS.Space.s1)
                             }
                         }
@@ -781,6 +782,7 @@ struct ThermalPopover: View {
 @MainActor
 func fanStatusText(fans: [FanState], mode: FanController.Mode) -> String {
     if fans.isEmpty { return tr("未检测到风扇") }
+    if fans.contains(where: \.isStarting) { return tr("正在启动风扇…") }
     guard fans.contains(where: \.isManual) else { return tr("由 macOS 调节") }
     return mode == .automatic ? tr("其他程序手动控制") : tr("XStats 控制中")
 }

@@ -172,13 +172,24 @@ public enum MenuBarLayout: String, CaseIterable, Identifiable, Sendable {
     case separate
     /// 所有指标合成一个图标，点击弹出状态总览，可切到各项详情
     case combined
+    /// 只显示应用标志；保存的项目选择用于弹出面板，不持续绘制读数。
+    case iconOnly
 
     public var id: String { rawValue }
 
     var title: String {
         switch self {
         case .separate: tr("每项独立")
-        case .combined: tr("合并为一个")
+        case .combined: tr("合并显示")
+        case .iconOnly: tr("仅图标")
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .separate: tr("每个指标一个图标，点击弹出该项详情")
+        case .combined: tr("所有指标合成一个图标，点击弹出状态总览，可切到各项详情")
+        case .iconOnly: tr("只显示 XStats 图标，点击查看已选项目的状态总览")
         }
     }
 }

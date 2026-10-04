@@ -23,6 +23,7 @@ struct PopoverRootView: View {
 
 /// 菜单栏弹窗的外框：顶部标题栏固定，下面的内容可滚动
 struct PopoverFrame<Header: View, Content: View>: View {
+    var width: CGFloat = DS.Size.popoverWidth
     @ViewBuilder var header: Header
     @ViewBuilder var content: Content
     @Environment(\.isSnapshot) private var isSnapshot
@@ -46,7 +47,7 @@ struct PopoverFrame<Header: View, Content: View>: View {
                 .frame(maxWidth: .infinity, maxHeight: isSnapshot ? nil : .infinity, alignment: .top)
                 .environment(\.isPopover, true)
         }
-        .frame(width: DS.Size.popoverWidth)
+        .frame(width: width)
         .frame(maxHeight: isSnapshot ? nil : .infinity, alignment: .top)
         .fixedSize(horizontal: false, vertical: isSnapshot)
         .background(DS.Palette.background, in: RoundedRectangle(cornerRadius: DS.Radius.xl))

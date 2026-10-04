@@ -29,6 +29,9 @@ final class MenuBarController: NSObject {
     func update() {
         let settings = model.settings
         let enabled = model.visibleMenuBarItems
+        if let tab = model.combinedPopoverTab, !enabled.contains(tab) {
+            model.combinedPopoverTab = nil
+        }
         // 没有任何项目时保留一个图标，确保仍能打开面板与主窗口
         let signature: [MenuBarItem?] = settings.menuBarLayout == .separate && !enabled.isEmpty ? enabled : [nil]
         if signature != layoutSignature {
@@ -77,9 +80,9 @@ final class MenuBarController: NSObject {
 
     func refreshImages(force: Bool = false) {
         let settings = model.settings
-        let reading = MenuBarReading(model: model, items: model.visibleMenuBarItems)
+        let reading = MenuBarReading(model: model, items: model.drawnMenuBarItems)
         for (index, entry) in items.enumerated() {
-            let itemsToDraw = entry.key.map { [$0] } ?? model.visibleMenuBarItems
+            let itemsToDraw = entry.key.map { [$0] } ?? model.drawnMenuBarItems
             var entryReading = reading
             // 防休眠标记只画在最左侧的图标里
             entryReading.keepAwake = reading.keepAwake && index == 0
@@ -101,7 +104,7 @@ final class MenuBarController: NSObject {
                 renderedReadings[entry.key] = (entryReading, appearance)
             }
             // 额度的重置时间、过期状态等只影响提示，不必重画相同图像。
-            let tooltip = reading.tooltip(items: itemsToDraw, fahrenheit: settings.useFahrenheit)
+            let tooltip = itemsToDraw.isEmpty ? "XStats" : reading.tooltip(items: itemsToDraw, fahrenheit: settings.useFahrenheit)
             if button.toolTip != tooltip { button.toolTip = tooltip }
         }
     }
@@ -159,7 +162,7 @@ final class MenuBarController: NSObject {
 
     private func makeCombinedPanel() -> StatusPanel {
         let model = self.model
-        let panel = StatusPanel(width: DS.Size.popoverWidth, minHeight: DS.Size.panelMinHeight / 2,
+        let panel = StatusPanel(width: DS.Size.combinedPopoverWidth, minHeight: DS.Size.panelMinHeight / 2,
                                 content: { CombinedPopoverView().environment(model) },
                                 measuring: { CombinedPopoverView().environment(model).environment(\.isSnapshot, true) })
         panel.onVisibilityChange = { [weak self] visible in

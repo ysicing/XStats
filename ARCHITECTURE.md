@@ -72,6 +72,11 @@ Fan controls appear only after a positive fan count has been sampled. Unknown ca
 sampling demand active; a confirmed count survives transient read failures for the current run.
 Capability filtering never overwrites the user's saved display preferences.
 
+Zero-RPM fans use the firmware startup state when present, falling back to a positive manual
+target only when that state is unavailable. A monotonic, per-fan 10-second window bounds the
+startup label; persistent zero RPM remains visible after that window. No extra timer or fan
+write is added, and existing thermal safety behavior is unchanged.
+
 ## Helper
 
 Protocol 5 removes the identifier-only ad-hoc authentication fallback. Ad-hoc apps refuse helper
@@ -153,9 +158,16 @@ pieces of read-mostly logic in `Cleaner/DiskTools.swift`, each testable without 
 `MenuBarController` owns the status items. In the *separate* layout every enabled metric gets
 its own `NSStatusItem` (created in reverse so they read left to right) and opens a 320 pt
 popover for that metric; in the *combined* layout a single item opens `CombinedPopoverView`: a status
-overview with one row per enabled metric, plus tabs that switch to each metric's full popover content
+overview with two-column metric cards and full-width network, battery and AI cards, plus tabs that switch to each metric's full popover content
 (`PopoverDetail`, shared with the separate layout). While a detail tab is showing, `AppModel.openPopover`
 is set to that metric so sampling matches the standalone popover.
+
+The *iconOnly* layout draws only the XStats symbol (plus the keep-awake indicator when active).
+It preserves selected metrics and styles; its 360 pt overview uses the same selection as combined
+mode. Additional GPU, disk, battery, temperature and fan demand exists only while corresponding
+cards or details are shown. The optional three-row process summary follows `processesEnabled`;
+it does not request full-system process enumeration. Closing the panel releases these demands,
+while baseline CPU, memory, network, history and safety requirements keep their existing behavior.
 
 Popovers are borderless, non-activating `NSPanel`s. The SwiftUI tree is created on open and
 destroyed on close, so a hidden popover costs nothing. Height comes from measuring a flat,

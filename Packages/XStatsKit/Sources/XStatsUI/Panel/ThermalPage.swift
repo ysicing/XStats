@@ -158,7 +158,7 @@ private struct FanRow: View {
             HStack {
                 Text(name).dsFont(.sm, weight: .medium).foregroundStyle(DS.Palette.textPrimary)
                 Spacer()
-                Text(Format.rpm(fan.current))
+                Text(fan.isStarting ? tr("启动中…") : Format.rpm(fan.current))
                     .dsFont(.sm, weight: .semibold)
                     .monospacedDigit()
                     .foregroundStyle(DS.Palette.textPrimary)

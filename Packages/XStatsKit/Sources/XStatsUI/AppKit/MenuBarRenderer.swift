@@ -278,7 +278,7 @@ enum MenuBarRenderer {
 
     static func image(for model: AppModel) -> NSImage {
         let settings = model.settings
-        let items = model.visibleMenuBarItems
+        let items = model.drawnMenuBarItems
         return image(reading: MenuBarReading(model: model, items: items),
                      items: items,
                      style: { settings.style(for: $0) },
@@ -299,7 +299,8 @@ enum MenuBarRenderer {
             segments.append(segment(for: item, reading: reading, style: style(item), networkStyle: networkStyle,
                                     colorizeHighLoad: colorizeHighLoad, fahrenheit: fahrenheit))
         }
-        if segments.isEmpty { segments.append(symbolSegment("waveform.path.ecg")) }
+        // 即使防休眠标记存在，空项目布局也保留 XStats 的主入口图标。
+        if items.isEmpty { segments.append(symbolSegment("waveform.path.ecg")) }
 
         let width = segments.reduce(0) { $0 + $1.width } + CGFloat(segments.count - 1) * Metrics.itemGap
         let image = NSImage(size: NSSize(width: ceil(width), height: Metrics.barHeight), flipped: false) { rect in
