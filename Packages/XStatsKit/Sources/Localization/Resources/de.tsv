@@ -1657,3 +1657,19 @@ Token 用量	Tokens
 正在启动风扇…	Lüfter starten…
 打开进程监控	Prozessmonitor öffnen
 IP 归属地	IP-Standort
+显示器信息与支持的亮度、音量、对比度控制	Displayinformationen und unterstützte Helligkeits-, Lautstärke- und Kontrastregler
+显示器 {} 台	{} Displays
+重新检测显示器控制	Displaysteuerung erneut erkennen
+内置显示器请在系统设置中调节	Das integrierte Display in den Systemeinstellungen anpassen
+松开滑杆后应用到显示器	Regler loslassen, um die Einstellung anzuwenden
+正在检测…	Wird erkannt…
+显示器不支持此控制	Von diesem Display nicht unterstützt
+暂时无法读取，请检查 DDC/CI 与连接	Derzeit nicht lesbar; DDC/CI und Verbindung prüfen
+显示器响应超时	Zeitüberschreitung der Displayantwort
+显示器通信繁忙	Displaykommunikation ist ausgelastet
+修改未确认，请重新检测	Änderung nicht bestätigt; erneut erkennen
+尚未检测	Noch nicht erkannt
+亮度	Helligkeit
+音量	Lautstärke
+显示链路正在恢复…	Displayverbindung wird wiederhergestellt…
+对比度	Kontrast

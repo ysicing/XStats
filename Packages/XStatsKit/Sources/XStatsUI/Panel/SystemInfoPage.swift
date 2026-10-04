@@ -109,27 +109,7 @@ struct SystemInfoPage: View {
 
             BluetoothCard()
 
-            InfoCard(icon: "display.2", title: tr("显示器")) {
-                let displays = DisplayInfo.all()
-                if displays.isEmpty {
-                    Text(tr("没有检测到显示器")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
-                }
-                ForEach(Array(displays.enumerated()), id: \.offset) { index, display in
-                    if index > 0 { HairlineDivider() }
-                    HStack(spacing: DS.Space.s3) {
-                        Image(systemName: display.isBuiltIn ? "laptopcomputer" : "display")
-                            .font(.system(size: DS.TextSize.base.rawValue))
-                            .foregroundStyle(DS.Palette.textSecondary)
-                            .frame(width: DS.Size.iconStandalone)
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(verbatim: display.name).dsFont(.sm, weight: .medium).foregroundStyle(DS.Palette.textPrimary)
-                            Text(verbatim: display.summary).dsFont(.xs).monospacedDigit().foregroundStyle(DS.Palette.textSecondary)
-                        }
-                        Spacer(minLength: 0)
-                        if display.isMain { Chip(text: tr("主显示器"), tone: .primary) }
-                    }
-                }
-            }
+            DisplayDetails()
 
             InfoCard(icon: "number", title: tr("标识")) {
                 InfoRow(label: tr("机型标识符")) { CopyableText(text: system.modelIdentifier.isEmpty ? "—" : system.modelIdentifier) }
@@ -257,8 +237,10 @@ private struct InfoCard<Content: View>: View {
     }
 }
 
-/// 显示器信息：名称、尺寸、原生分辨率与最高刷新率
-struct DisplayInfo {
+/// 显示器信息：名称、尺寸、原生分辨率与刷新率；当前模式未给出刷新率时标注上限。
+struct DisplayInfo: Identifiable, Equatable, Sendable {
+    let target: DisplayTarget
+    var id: UInt32 { target.id }
     let name: String
     let isBuiltIn: Bool
     let isMain: Bool
@@ -277,8 +259,11 @@ struct DisplayInfo {
             if let native = nativeResolution(id) { parts.append("\(native.width)×\(native.height)") }
             let points = screen.frame.size
             parts.append(tr("显示为 \(Int(points.width))×\(Int(points.height))"))
-            if screen.maximumFramesPerSecond > 0 { parts.append("\(screen.maximumFramesPerSecond)Hz") }
-            return DisplayInfo(name: screen.localizedName, isBuiltIn: CGDisplayIsBuiltin(id) != 0,
+            let refresh = CGDisplayCopyDisplayMode(id)?.refreshRate ?? 0
+            if refresh > 0 { parts.append("\(Int(refresh.rounded()))Hz") }
+            else if screen.maximumFramesPerSecond > 0 { parts.append("≤\(screen.maximumFramesPerSecond)Hz") }
+            return DisplayInfo(target: DisplayTarget(id: id, identity: NativeDisplayDDC.identity(for: id) ?? "unavailable-\(id)"),
+                               name: screen.localizedName, isBuiltIn: CGDisplayIsBuiltin(id) != 0,
                                isMain: CGDisplayIsMain(id) != 0, summary: parts.joined(separator: " · "))
         }
     }

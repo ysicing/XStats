@@ -1,0 +1,133 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import Foundation
+import Testing
+@testable import XStatsUI
+
+private actor TestDisplayBackend: DisplayDDCBackend {
+    var reads = 0
+    var writes = 0
+    var readResult: [DisplayControl: DDCResult] = [.brightness: .value(DDCValue(current: 75, maximum: 100)), .volume: .unsupported]
+    var writeResult = DDCResult.value(DDCValue(current: 60, maximum: 100))
+    var gateReads = false
+    var gates: [CheckedContinuation<[DisplayControl: DDCResult], Never>] = []
+    var tickets: [DDCCancellation] = []
+    func read(_ target: DisplayTarget, cancellation: DDCCancellation) async -> [DisplayControl: DDCResult] {
+        reads += 1
+        tickets.append(cancellation)
+        if gateReads { return await withCheckedContinuation { gates.append($0) } }
+        return readResult
+    }
+    func write(_ target: DisplayTarget, control: DisplayControl, percent: Double, cancellation: DDCCancellation) async -> DDCResult {
+        writes += 1
+        return writeResult
+    }
+    func block() { gateReads = true }
+    func finish(_ value: UInt16) { gates.removeFirst().resume(returning: [.brightness: .value(DDCValue(current: value, maximum: 100))]) }
+    func setWriteResult(_ value: DDCResult) { writeResult = value }
+    func count() -> Int { reads }
+    func writeCount() -> Int { writes }
+    func wasCancelled(_ index: Int) -> Bool { tickets[index].isCancelled }
+}
+
+@MainActor
+struct DisplayControllerTests {
+    private var display: DisplayInfo {
+        DisplayInfo(target: DisplayTarget(id: 7, identity: "fixture-connection"), name: "Fixture Display",
+                    isBuiltIn: false, isMain: true, summary: "1920×1080 · 60Hz")
+    }
+    private func waitForReads(_ backend: TestDisplayBackend, _ count: Int) async throws {
+        let deadline = ContinuousClock.now + .seconds(30)
+        while await backend.count() < count, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(await backend.count() == count)
+    }
+    private func settle(_ controller: DisplayController) async throws {
+        let deadline = ContinuousClock.now + .seconds(30)
+        while controller.isRefreshing, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(!controller.isRefreshing)
+    }
+
+    @Test func onlyVisibleControlsReadAndOnlyKnownSupportedControlsWrite() async throws {
+        let backend = TestDisplayBackend()
+        let controller = DisplayController(backend: backend, catalog: [display])
+        defer { controller.stop() }
+        await controller.refresh()
+        #expect(await backend.count() == 0)
+        controller.setVisible(true)
+        try await waitForReads(backend, 1)
+        try await settle(controller)
+        #expect(controller.readings[7]?[.volume] == .unsupported)
+        await controller.write(20, control: .volume, display: display)
+        await controller.write(.nan, control: .brightness, display: display)
+        #expect(await backend.writeCount() == 0)
+        await controller.write(60, control: .brightness, display: display)
+        #expect(await backend.writeCount() == 1)
+        #expect(controller.readings[7]?[.brightness] == .value(DDCValue(current: 60, maximum: 100)))
+        controller.setVisible(false)
+        await controller.refresh()
+        await controller.write(20, control: .brightness, display: display)
+        #expect(await backend.count() == 1)
+        #expect(await backend.writeCount() == 1)
+    }
+
+    @Test func oldReadCannotPublishAfterCloseOrClearNewRequest() async throws {
+        let backend = TestDisplayBackend()
+        await backend.block()
+        let controller = DisplayController(backend: backend, catalog: [display])
+        defer { controller.stop() }
+        controller.setVisible(true)
+        try await waitForReads(backend, 1)
+        controller.setVisible(false)
+        #expect(await backend.wasCancelled(0))
+        controller.setVisible(true)
+        try await waitForReads(backend, 2)
+        await backend.finish(10)
+        try await Task.sleep(for: .milliseconds(30))
+        #expect(controller.isRefreshing)
+        #expect(controller.readings.isEmpty)
+        await backend.finish(80)
+        try await settle(controller)
+        #expect(controller.readings[7]?[.brightness] == .value(DDCValue(current: 80, maximum: 100)))
+    }
+
+    @Test func pauseAndWakeSettlingCannotBeBypassedByManualRefreshOrReopen() async throws {
+        let backend = TestDisplayBackend()
+        let controller = DisplayController(backend: backend, catalog: [display])
+        defer { controller.stop() }
+        controller.setVisible(true)
+        try await waitForReads(backend, 1)
+        try await settle(controller)
+        controller.setPaused(true)
+        await controller.refresh()
+        await controller.write(20, control: .brightness, display: display)
+        #expect(await backend.writeCount() == 0)
+        controller.setPaused(false)
+        #expect(controller.isSettling)
+        controller.setVisible(false)
+        controller.setVisible(true)
+        await controller.refresh()
+        #expect(controller.isSettling)
+        #expect(await backend.count() == 1)
+    }
+
+    @Test func failedReadbackIsNotReportedAsSuccessfulAndEditingDefersPolling() async throws {
+        let backend = TestDisplayBackend()
+        let controller = DisplayController(backend: backend, catalog: [display])
+        defer { controller.stop() }
+        controller.setVisible(true)
+        try await waitForReads(backend, 1)
+        try await settle(controller)
+        let token = UUID()
+        controller.beginEditing(token)
+        await controller.refresh()
+        #expect(await backend.count() == 1)
+        await backend.setWriteResult(.unconfirmed(nil))
+        await controller.write(20, control: .brightness, display: display)
+        controller.endEditing(token)
+        #expect(controller.readings[7]?[.brightness] == .unconfirmed(nil))
+        #expect(!controller.isWriting)
+        await controller.write(40, control: .brightness, display: display)
+        #expect(await backend.writeCount() == 1)
+    }
+}

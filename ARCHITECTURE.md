@@ -594,3 +594,35 @@ placeholder checks accompany the localization tests.
 `--snapshot <dir>` renders every main-window page, popover, settings section and the menu bar in light and
 dark, through real `NSHostingView`s in off-screen windows — `ImageRenderer` washes out pages
 that contain bitmaps.
+
+## Display information and DDC/CI
+
+`DisplayController` caches the public NSScreen/CoreGraphics display inventory and refreshes it on
+screen-configuration events. The optional display menu item shows the count; the same information
+and control view is available in This Mac. DDC polling runs only while that control view is visible,
+at a five-second interval, and stops on close, lock or sleep. Dragging a slider defers polling; release
+submits one target value. Wake and reconfiguration settling gates also block manual reads and writes.
+
+`NativeDisplayDDC` resolves IOAVService and CoreDisplay entry points at runtime for the direct macOS
+build. The information view remains usable if these entry points are unavailable. These non-public
+control calls are not a Store-target compatibility claim; a future sandboxed target must exclude this
+backend. Services are matched by the CoreDisplay registry location, not by a guessed model name;
+ambiguous/missing matches disable controls. Device signatures and controller generations reject
+stale requests after reconnects. No brightness/volume/contrast values are automatically restored.
+
+Only standard brightness (0x10), contrast (0x12), and speaker volume (0x62) are supported. An intact
+Get VCP reply and nonzero range enable each control independently. Unsupported replies, invalid
+frames, timeouts, busy transport, and unconfirmed writes remain distinct. Every set rechecks the
+range and connection and reads the value back; a successful I2C send is never presented as proof
+that the display applied it. No software dimming or speculative compatibility writes are performed.
+
+Blocking native work uses one bounded serial execution slot with a two-second caller deadline.
+A timed-out kernel call retains the slot until it returns, so retries cannot accumulate stuck work.
+Cancellation is checked between bus operations; late results cannot repopulate a closed or replaced
+view. Protocol, timeout, cancellation and write-confirmation tests use simulated devices. To generate
+a repeatable, read-only report on actual hardware (no Set VCP):
+
+```bash
+XSTATS_DDC_READ_REPORT=/tmp/xstats-displays.json \
+  swift test --package-path Packages/XStatsKit --filter DisplayHardwareReadTests
+```

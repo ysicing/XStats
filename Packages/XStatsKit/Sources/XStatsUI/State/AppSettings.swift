@@ -10,7 +10,7 @@ import Metrics
 import Observation
 
 public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
-    case cpu, memory, network, gpu, disk, temperature, fan, battery, aiUsage
+    case cpu, memory, network, gpu, disk, temperature, fan, battery, aiUsage, display
 
     public var id: String { rawValue }
 
@@ -25,6 +25,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .fan: tr("风扇转速")
         case .battery: tr("电池")
         case .aiUsage: tr("AI 用量")
+        case .display: tr("显示器")
         }
     }
 
@@ -39,6 +40,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .fan: tr("转速最高的风扇")
         case .battery: tr("电量与充电状态；没有电池的 Mac 显示蓝牙设备电量")
         case .aiUsage: tr("Codex / Claude Code 本机 Token 用量与订阅额度")
+        case .display: tr("显示器信息与支持的亮度、音量、对比度控制")
         }
     }
 
@@ -54,6 +56,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .fan: "FAN"
         case .battery: "BAT"
         case .aiUsage: "AI"
+        case .display: "DSP"
         }
     }
 
@@ -69,6 +72,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .fan: tr("风扇")
         case .battery: tr("电池")
         case .aiUsage: tr("AI 用量")
+        case .display: tr("显示器")
         }
     }
 
@@ -83,7 +87,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: [.thermalSensors, .thermalFans, .thermalPower]
         case .fan: [.thermalFans, .thermalSensors, .thermalPower]
         case .battery: [.batteryHistory, .batteryPower, .batteryHealth, .batteryBluetooth]
-        case .aiUsage: []
+        case .aiUsage, .display: []
         }
     }
 
@@ -101,6 +105,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .fan: "fan"
         case .battery: "battery.75"
         case .aiUsage: "sparkles"
+        case .display: "display"
         }
     }
 }
@@ -236,7 +241,7 @@ public enum MenuBarStyle: String, CaseIterable, Identifiable, Sendable {
 
     static func options(for item: MenuBarItem) -> [MenuBarStyle] {
         switch item {
-        case .temperature, .fan: [.stacked, .stackedCenter, .inline, .icon]
+        case .temperature, .fan, .display: [.stacked, .stackedCenter, .inline, .icon]
         case .aiUsage: [.stacked, .stackedCenter, .inline, .icon, .ring, .pie, .meter, .dot]
         default: allCases
         }
@@ -387,6 +392,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     /// 页面对应的菜单栏项目，页面右上角可直接开关
     var menuBarItem: MenuBarItem? {
         switch self {
+        case .system: .display
         case .cpu: .cpu
         case .gpu: .gpu
         case .memory: .memory
@@ -417,6 +423,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .temperature, .fan: self = .thermal
         case .battery: self = .battery
         case .aiUsage: self = .aiUsage
+        case .display: self = .system
         }
     }
 }

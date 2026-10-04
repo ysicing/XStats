@@ -1657,3 +1657,19 @@ Token 用量	Tokens
 正在启动风扇…	Iniciando ventiladores…
 打开进程监控	Abrir monitor de procesos
 IP 归属地	Ubicación IP
+显示器信息与支持的亮度、音量、对比度控制	Información de pantalla y controles compatibles de brillo, volumen y contraste
+显示器 {} 台	{} pantallas
+重新检测显示器控制	Detectar de nuevo los controles de pantalla
+内置显示器请在系统设置中调节	Ajusta la pantalla integrada en Ajustes del Sistema
+松开滑杆后应用到显示器	Suelta el deslizador para aplicar el ajuste a la pantalla
+正在检测…	Detectando…
+显示器不支持此控制	Esta pantalla no admite este control
+暂时无法读取，请检查 DDC/CI 与连接	No se puede leer; comprueba DDC/CI y la conexión
+显示器响应超时	Se agotó el tiempo de respuesta de la pantalla
+显示器通信繁忙	La comunicación con la pantalla está ocupada
+修改未确认，请重新检测	Cambio sin confirmar; vuelve a detectar
+尚未检测	Aún no detectado
+亮度	Brillo
+音量	Volumen
+显示链路正在恢复…	Restableciendo la conexión de pantalla…
+对比度	Contraste

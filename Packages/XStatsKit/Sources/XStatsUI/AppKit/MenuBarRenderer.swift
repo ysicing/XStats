@@ -28,6 +28,7 @@ struct MenuBarQuota {
 
 /// 菜单栏上要画的读数，与数据来源解耦，设置页预览可以用示例数据绘制
 struct MenuBarReading {
+    var displayCount = 0
     var cpu: Double?
     var cpuHistory: [Double] = []
     var gpu: Double?
@@ -67,6 +68,7 @@ struct MenuBarReading {
         let store = model.store
         for item in items {
             switch item {
+            case .display: displayCount = model.displays.catalog.count
             case .cpu:
                 cpu = store.cpu?.total
                 cpuHistory = store.cpuTotal.elements
@@ -163,6 +165,7 @@ struct MenuBarReading {
     func hasSameImage(as previous: Self, item: MenuBarItem, style: MenuBarStyle) -> Bool {
         guard keepAwake == previous.keepAwake else { return false }
         switch item {
+        case .display: return displayCount == previous.displayCount
         case .cpu, .gpu, .memory, .disk:
             let current = percent(item), old = previous.percent(item)
             return current.value == old.value
@@ -195,6 +198,7 @@ struct MenuBarReading {
     func tooltip(items: [MenuBarItem], fahrenheit: Bool) -> String {
         items.compactMap { item -> String? in
             switch item {
+            case .display: tr("显示器 \(displayCount.formatted(.number.locale(L10n.locale))) 台")
             case .cpu: cpu.map { "CPU \(Format.percent($0))" }
             case .gpu: gpu.map { "GPU \(Format.percent($0))" }
             case .memory: memory.map { tr("内存 \(Format.percent($0))") }
@@ -368,6 +372,8 @@ enum MenuBarRenderer {
                 return "\(Int(degrees.rounded()))°"
             } ?? "—"
             return textSegment(item: item, value: text, sample: "100°", style: style)
+        case .display:
+            return textSegment(item: item, value: reading.displayCount.formatted(.number.locale(L10n.locale)), sample: "8", style: style)
         case .fan:
             return textSegment(item: item, value: reading.fanRPM.map { "\(Int($0))" } ?? "—", sample: "8888", style: style)
         case .battery:

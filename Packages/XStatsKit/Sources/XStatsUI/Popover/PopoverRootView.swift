@@ -77,6 +77,7 @@ struct PopoverDetail: View {
         case .temperature, .fan: ThermalPopover(item: item)
         case .battery: BatteryPopover()
         case .aiUsage: AIUsagePopover()
+        case .display: DisplayDetails()
         }
     }
 }

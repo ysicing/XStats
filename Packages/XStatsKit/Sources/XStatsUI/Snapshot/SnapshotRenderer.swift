@@ -22,6 +22,10 @@ enum SnapshotRenderer {
             renderCalendar(outputDirectory: outputDirectory)
             return
         }
+        if CommandLine.arguments.contains("--display-only") {
+            await renderDisplays(outputDirectory: outputDirectory)
+            return
+        }
         if CommandLine.arguments.contains("--menubar-only") {
             await renderMenuBar(outputDirectory: outputDirectory)
             return
@@ -53,6 +57,7 @@ enum SnapshotRenderer {
         let model = AppModel(settings: settings, historyURL: historyURL,
                              aiUsageProviders: [SnapshotAIUsageProvider()])
         await model.aiUsage.refresh()
+        model.displays.refreshCatalog()
         model.isMainWindowVisible = true
         model.network.setVisibility(inMenuBar: true, detailVisible: true)
 
@@ -132,6 +137,34 @@ enum SnapshotRenderer {
         print(tr("截图已输出到 \(outputDirectory.path)"))
     }
 
+    /// 显示器走查只读信息和 Get VCP 能力，不执行设置写入。
+    private static func renderDisplays(outputDirectory: URL) async {
+        let suite = "XStats.displaySnapshot.\(UUID())"
+        guard let defaults = UserDefaults(suiteName: suite) else { return }
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.language = L10n.language
+        settings.menuBarItems = [.display]
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        model.displays.start()
+        model.displays.setVisible(true)
+        await model.displays.refresh()
+        model.displays.setVisible(false)
+        model.displays.stop()
+        for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+            guard let appearance = NSAppearance(named: name) else { continue }
+            NSApp.appearance = appearance
+            write(PopoverRootView(item: .display), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("displays-\(suffix).png"))
+            model.combinedPopoverTab = nil
+            write(CombinedPopoverView(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("overview-\(suffix).png"))
+            model.combinedPopoverTab = .display
+            write(CombinedPopoverView(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("expanded-\(suffix).png"))
+        }
+    }
+
     /// 菜单栏走查只启动相关指标采样，不扫描清理目录、不读取 AI 日志或查询更新。
     private static func renderMenuBar(outputDirectory: URL) async {
         let suite = "XStats.menuBarSnapshot.\(UUID().uuidString)"
@@ -150,6 +183,7 @@ enum SnapshotRenderer {
         await model.hub.start(primeAllMetrics: false) { snapshot in model.store.apply(snapshot) }
         try? await Task.sleep(for: .seconds(3))
         await model.hub.stop()
+        model.displays.refreshCatalog()
         model.isMainWindowVisible = true
         // CPU 详情需要频率数据；显式按详情需求采一次，避免借用全量预采样的副作用。
         model.combinedPopoverTab = .cpu
