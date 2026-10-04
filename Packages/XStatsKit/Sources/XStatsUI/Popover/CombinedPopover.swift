@@ -238,6 +238,9 @@ struct OverviewReading {
         }
 
         switch item {
+        case .display:
+            value = model.displays.catalog.count.formatted(.number.locale(L10n.locale))
+            detail = model.displays.catalog.map(\.name).joined(separator: " · ")
         case .cpu:
             chart = .line(store.cpuTotal.elements, DS.Palette.primary)
             if let total = store.cpu?.total {

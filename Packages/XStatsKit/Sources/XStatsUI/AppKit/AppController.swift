@@ -68,6 +68,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             self?.restWindows.showHUD()
             self?.mainWindow.close()
         }
+        model.displays.start()
         menuBar.update()
         calendarMenuBar.start()
 
@@ -198,6 +199,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
         let appModel = model
         appModel.bluetooth.setDemand(appModel.bluetoothDemand)
+        appModel.displays.setVisible(appModel.displayControlsVisible)
         Task { [weak self] in
             await appModel.hub.update(appModel.demand)
             await appModel.hub.start { [weak self] snapshot in
@@ -212,6 +214,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         rest.prepareForTermination()
         widgetTimer?.invalidate()
         calendarMenuBar.stop()
+        model.displays.stop()
         model.aiUsage.stop()
         model.keepAwake.releaseForTermination()
         if model.fans.mode != .automatic || model.keepAwake.lidClosedActive {
@@ -301,6 +304,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         withObservationTracking {
             _ = model.demand
             _ = model.bluetoothDemand
+            _ = model.displayControlsVisible
+            _ = model.displays.catalog
             _ = model.settings.menuBarItems
             _ = model.settings.menuBarLayout
             _ = model.settings.menuBarStyle
@@ -330,6 +335,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self.model.alerts.applySettings()
                 await self.model.hub.update(self.model.demand)
                 self.model.bluetooth.setDemand(self.model.bluetoothDemand)
+                self.model.displays.setVisible(self.model.displayControlsVisible)
                 self.applyAppearance()
                 self.updateActivationPolicy()
                 self.menuBar.update()
@@ -513,6 +519,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             return
         }
         appliedLanguage = language
+        model.displays.refreshCatalog()
         NSApp.mainMenu = MainMenu.make(target: self, settingsAction: #selector(openSettingsFromMenu),
                                        updateAction: #selector(checkForUpdatesFromMenu))
         menuBar.dismissPopovers()
@@ -578,6 +585,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         menuBar.dismissPopovers()
         model.network.setPaused(true)
         model.aiUsage.setPaused(true)
+        model.displays.setPaused(true)
         model.history.flush()
         restWindows.hideRest()
         rest.suspend()
@@ -589,6 +597,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         guard !screenLocked else { return }
         model.network.setPaused(false)
         model.aiUsage.setPaused(false)
+        model.displays.setPaused(false)
         rest.sync()
         if rest.phase.isResting && rest.isRunning { restWindows.ensureRestVisible() }
         Task {

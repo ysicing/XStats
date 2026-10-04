@@ -11,6 +11,7 @@ import Updates
 @MainActor
 @Observable
 public final class AppModel {
+    let displays = DisplayController()
     public let settings: AppSettings
     let rest: RestController
     let calendarAgenda = CalendarAgendaController()
@@ -124,6 +125,10 @@ public final class AppModel {
     var showsOverviewProcesses: Bool {
         combinedPopoverTab == nil && settings.processesEnabled
             && visibleMenuBarItems.contains { $0 == .cpu || $0 == .memory }
+    }
+
+    var displayControlsVisible: Bool {
+        openPopover == .display || (isMainWindowVisible && settings.panelTab == .system)
     }
 
     /// 根据当前可见内容决定采集范围：主窗口看标签页，详情弹窗看是哪一项

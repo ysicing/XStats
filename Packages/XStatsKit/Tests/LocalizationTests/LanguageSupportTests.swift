@@ -86,6 +86,9 @@ struct LanguageSupportTests {
         let catalog = try #require(Translations.catalog(for: language))
         #expect(catalog.sourceKeys == Translations.shared.sourceKeys)
         for key in ["语言", "应用 UI 语言", "自动检测", "搜索语言", "没有匹配的语言",
+                    "亮度", "对比度", "音量", "显示器 {} 台", "重新检测显示器控制",
+                    "显示器不支持此控制", "暂时无法读取，请检查 DDC/CI 与连接",
+                    "显示链路正在恢复…", "修改未确认，请重新检测",
                     "合并显示", "仅图标", "面板项目", "启动中…", "正在启动风扇…",
                     "只显示 XStats 图标，点击查看已选项目的状态总览",
                     "所选项目显示在弹出面板中，原有图标风格会保留。", "打开进程监控",

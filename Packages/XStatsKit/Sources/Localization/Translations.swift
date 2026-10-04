@@ -1469,5 +1469,21 @@ Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依�
 正在启动风扇…	Starting fans…
 打开进程监控	Open process monitor
 IP 归属地	IP location
+显示器信息与支持的亮度、音量、对比度控制	Display information and supported brightness, volume and contrast controls
+显示器 {} 台	{} displays
+重新检测显示器控制	Detect display controls again
+内置显示器请在系统设置中调节	Adjust the built-in display in System Settings
+松开滑杆后应用到显示器	Release the slider to apply the setting to the display
+正在检测…	Detecting…
+显示器不支持此控制	Not supported by this display
+暂时无法读取，请检查 DDC/CI 与连接	Cannot read now; check DDC/CI and the connection
+显示器响应超时	Display response timed out
+显示器通信繁忙	Display communication is busy
+修改未确认，请重新检测	Change not confirmed; detect again
+尚未检测	Not yet detected
+亮度	Brightness
+对比度	Contrast
+音量	Volume
+显示链路正在恢复…	Display connection is recovering…
 """#
 }
