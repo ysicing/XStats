@@ -86,6 +86,9 @@ struct LanguageSupportTests {
         let catalog = try #require(Translations.catalog(for: language))
         #expect(catalog.sourceKeys == Translations.shared.sourceKeys)
         for key in ["语言", "应用 UI 语言", "自动检测", "搜索语言", "没有匹配的语言",
+                    "热压力：正常", "热压力：偏高", "热压力：严重", "热压力：临界", "热压力：未知",
+                    "高效处理多线程任务", "由 macOS 报告的系统热状态，与 CPU 温度读数独立。",
+                    "核心最高温度；余量以 100°C 为参考，不代表设备实际降频阈值。",
                     "亮度", "对比度", "音量", "显示器 {} 台", "重新检测显示器控制",
                     "显示器不支持此控制", "暂时无法读取，请检查 DDC/CI 与连接",
                     "显示链路正在恢复…", "修改未确认，请重新检测",

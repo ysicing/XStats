@@ -130,13 +130,43 @@ struct CPUPopover: View {
 }
 
 extension CPUCluster {
-    /// 这类核心的分工：最高档最快、最低档最省电、中间档介于两者之间；只有一类核心时没有分工可言
+    enum WorkloadRole {
+        case heavy, parallel, light
+
+        var title: String {
+            switch self {
+            case .heavy: tr("最快，重活优先交给它们")
+            case .parallel: tr("高效处理多线程任务")
+            case .light: tr("更省电，负责后台和轻量任务")
+            }
+        }
+    }
+
+    /// S/P 芯片的第二档仍是性能核，不能仅凭档位把它描述为能效核。
+    func workloadRole(in topology: CPUTopology) -> WorkloadRole? {
+        guard topology.clusters.count > 1 else { return nil }
+        switch kind {
+        case .superCore: return .heavy
+        case .performance: return id == 0 ? .heavy : .parallel
+        case .efficiency: return .light
+        case .unknown: return nil
+        }
+    }
+
     func role(in topology: CPUTopology) -> String? {
-        let levels = topology.clusters.count
-        guard levels > 1 else { return nil }
-        if id == 0 { return tr("最快，重活优先交给它们") }
-        if id == levels - 1 { return tr("更省电，负责后台和轻量任务") }
-        return tr("速度与省电介于两者之间")
+        workloadRole(in: topology)?.title
+    }
+}
+
+extension ProcessInfo.ThermalState {
+    var pressureLabel: String {
+        switch self {
+        case .nominal: tr("热压力：正常")
+        case .fair: tr("热压力：偏高")
+        case .serious: tr("热压力：严重")
+        case .critical: tr("热压力：临界")
+        @unknown default: tr("热压力：未知")
+        }
     }
 }
 
@@ -203,6 +233,7 @@ private struct CPUHero: View {
         let total = cpu?.total ?? 0
         let history = store.cpuTotal.elements
         let temperature = store.sensors?.temperature(.cpu)
+        let thermalState = cpu?.thermalState
         let fahrenheit = model.settings.useFahrenheit
         // 走势按真实时间定位：最新一次采样在右边缘，往左铺满所选时长
         let duration = TimeInterval(model.settings.cpuChartSeconds)
@@ -232,8 +263,15 @@ private struct CPUHero: View {
                             .dsFont(.xs)
                             .foregroundStyle(DS.Palette.textTertiary)
                     }
-                    .help(tr("核心最高温度；余量是离 100°C 还差多少度，越接近 0 越可能因过热降频"))
+                    .help(tr("核心最高温度；余量以 100°C 为参考，不代表设备实际降频阈值。"))
                 }
+            }
+            HStack {
+                // 首次 CPU 采样前也保留状态行，避免弹窗因标签出现而改变高度。
+                StatusBadge(text: thermalState?.pressureLabel ?? tr("热压力：未知"),
+                            tone: thermalState.map(Tone.forThermalState) ?? .neutral)
+                    .help(tr("由 macOS 报告的系统热状态，与 CPU 温度读数独立。"))
+                Spacer(minLength: 0)
             }
             if isDetailPage {
                 HStack(spacing: DS.Space.s2) {

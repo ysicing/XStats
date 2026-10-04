@@ -10,32 +10,42 @@ public struct CPUSampler {
     public static func topology() -> CPUTopology {
         let brand = Sysctl.string("machdep.cpu.brand_string") ?? "CPU"
         let logical = Sysctl.int("hw.logicalcpu") ?? ProcessInfo.processInfo.activeProcessorCount
-        let levels = Sysctl.int("hw.nperflevels") ?? 1
+        let count = Sysctl.int("hw.nperflevels") ?? 1
+        let levels = (1...max(1, logical)).contains(count) ? (0..<count).map { level in
+            (Sysctl.string("hw.perflevel\(level).name") ?? "",
+             Sysctl.int("hw.perflevel\(level).logicalcpu") ?? 0)
+        } : []
+        return topology(brand: brand, logicalCores: logical, levels: levels)
+    }
 
-        guard levels > 1 else {
-            return CPUTopology(brand: brand, logicalCores: logical,
-                               clusters: [CPUCluster(id: 0, name: tr("核心"), coreIndices: Array(0..<logical))])
-        }
+    /// 从系统性能档构建分组；不完整的档位不能用于猜测逐核编号。
+    static func topology(brand: String, logicalCores: Int, levels: [(name: String, count: Int)]) -> CPUTopology {
+        let logical = max(1, logicalCores)
+        let fallback = CPUTopology(brand: brand, logicalCores: logical,
+                                   clusters: [CPUCluster(id: 0, name: tr("核心"), coreIndices: Array(0..<logical))])
+        guard levels.count > 1 else { return fallback }
 
         // 核心序号从最低性能档开始排列：perflevel(n-1) 在前，perflevel0 在后
         var clusters: [CPUCluster] = []
         var offset = 0
-        for level in stride(from: levels - 1, through: 0, by: -1) {
-            let count = Sysctl.int("hw.perflevel\(level).logicalcpu") ?? 0
-            guard count > 0 else { continue }
-            let raw = Sysctl.string("hw.perflevel\(level).name") ?? ""
-            clusters.append(CPUCluster(id: level, name: localizedClusterName(raw), coreIndices: Array(offset..<offset + count)))
+        for level in levels.indices.reversed() {
+            let (raw, count) = levels[level]
+            guard count > 0, count <= logical - offset else { return fallback }
+            let kind = CPUCluster.Kind(systemName: raw)
+            clusters.append(CPUCluster(id: level, name: localizedClusterName(raw, kind: kind),
+                                       coreIndices: Array(offset..<offset + count), kind: kind))
             offset += count
         }
+        guard offset == logical else { return fallback }
         return CPUTopology(brand: brand, logicalCores: logical, clusters: clusters.sorted { $0.id < $1.id })
     }
 
-    private static func localizedClusterName(_ raw: String) -> String {
-        switch raw.lowercased() {
-        case "super": tr("超级核")
-        case "performance": tr("性能核")
-        case "efficiency": tr("能效核")
-        default: raw.isEmpty ? tr("核心") : raw
+    private static func localizedClusterName(_ raw: String, kind: CPUCluster.Kind) -> String {
+        switch kind {
+        case .superCore: tr("超级核")
+        case .performance: tr("性能核")
+        case .efficiency: tr("能效核")
+        case .unknown: raw.isEmpty ? tr("核心") : raw
         }
     }
 
@@ -80,6 +90,7 @@ public struct CPUSampler {
         let user = Double(sumUser) / Double(sumAll)
         let system = Double(sumSystem) / Double(sumAll)
         return CPULoad(total: min(1, user + system), user: user, system: system, perCore: perCore,
-                       loadAverage: loadCount > 0 ? Array(averages.prefix(Int(loadCount))) : [])
+                       loadAverage: loadCount > 0 ? Array(averages.prefix(Int(loadCount))) : [],
+                       thermalState: ProcessInfo.processInfo.thermalState)
     }
 }

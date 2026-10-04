@@ -42,6 +42,8 @@ brew install --cask xstats
 
 **系统监控**：在菜单栏选择 CPU、GPU、内存、磁盘、网络、电池、温度与风扇读数；点开任意指标查看历史趋势、占用最多的应用和硬件详情。
 
+**CPU**：显示用户 / 系统 / 空闲占用、逐核负载圆环、核心组占用与 macOS 热压力；有可用传感器时显示温度。“本机信息”显示运行时间。核心分组随系统报告的类型呈现，支持超级核、性能核和能效核，不固定为两组或三组。
+
 <p align="center">
   <img src="Assets/readme/popover-cpu-light.png" width="24%" alt="CPU 详情">
   <img src="Assets/readme/popover-memory-dark.png" width="24%" alt="内存详情">

@@ -705,13 +705,13 @@ private func isolatedDefaults() -> UserDefaults {
 
 @Suite struct CoreRoleTests {
     @Test func describesEachTierInPlainWords() {
-        let fast = CPUCluster(id: 0, name: "超级核", coreIndices: [12, 13])
-        let middle = CPUCluster(id: 1, name: "性能核", coreIndices: [4, 5])
-        let slow = CPUCluster(id: 2, name: "能效核", coreIndices: [0, 1])
+        let fast = CPUCluster(id: 0, name: "S", coreIndices: [4, 5], kind: .superCore)
+        let middle = CPUCluster(id: 1, name: "P", coreIndices: [2, 3], kind: .performance)
+        let slow = CPUCluster(id: 2, name: "E", coreIndices: [0, 1], kind: .efficiency)
         let three = CPUTopology(brand: "Apple", logicalCores: 6, clusters: [fast, middle, slow])
-        #expect(fast.role(in: three) == "最快，重活优先交给它们")
-        #expect(middle.role(in: three) == "速度与省电介于两者之间")
-        #expect(slow.role(in: three) == "更省电，负责后台和轻量任务")
+        #expect(fast.workloadRole(in: three) == .heavy)
+        #expect(middle.workloadRole(in: three) == .parallel)
+        #expect(slow.workloadRole(in: three) == .light)
         // 只有一类核心（Intel）时没有分工可言
         let single = CPUTopology(brand: "Intel", logicalCores: 8, clusters: [CPUCluster(id: 0, name: "核心", coreIndices: Array(0..<8))])
         #expect(single.clusters[0].role(in: single) == nil)

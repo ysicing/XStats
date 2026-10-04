@@ -42,6 +42,8 @@ brew install --cask xstats
 
 **System monitoring**: choose CPU, GPU, memory, disk, network, battery, temperature and fan readings for the menu bar; open any metric for history, the apps using it most and hardware details.
 
+**CPU**: shows user / system / idle utilization, per-core load rings, core-group utilization and macOS thermal pressure; temperature is shown when sensors are available. This Mac shows uptime. Groups follow the core types reported by the system, including super, performance and efficiency cores, rather than assuming two or three groups.
+
 <p align="center">
   <img src="Assets/readme/popover-cpu-light.png" width="24%" alt="CPU details">
   <img src="Assets/readme/popover-memory-dark.png" width="24%" alt="Memory details">

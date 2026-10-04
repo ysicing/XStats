@@ -799,7 +799,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 核心 {}（{}）· {}	Kern {} ({}) · {}
 核心分工	Kerntypen
 核心数	Kerne
-核心最高温度；余量是离 100°C 还差多少度，越接近 0 越可能因过热降频	Wärmster Kern; der Spielraum ist der Abstand zu 100 °C. Je näher an 0, desto wahrscheinlicher wird thermische Drosselung
 核心热力图	Kern-Heatmap
 核心负载	Kernauslastung
 检查	Prüfen
@@ -1195,7 +1194,6 @@ Apple 智能本机模型当前不可用。	Das lokale Apple Intelligence-Modell 
 通知	Mitteilungen
 通知可以正常显示。发生你打开的状况时，会像这样提醒你。	Mitteilungen funktionieren. Bei aktivierten Ereignissen werden Sie auf diese Weise benachrichtigt.
 通过 {} 登录	Mit {} angemeldet
-速度与省电介于两者之间	Bei Geschwindigkeit und Effizienz zwischen beiden
 部分网站直连、部分经代理，每个网站走哪个出口见下方。	Einige Websites verbinden sich direkt, andere über einen Proxy. Die Ausgänge der Websites stehen unten.
 部分项目需要“完全磁盘访问权限”才能扫描（Safari 缓存、废纸篓）。	Einige Objekte benötigen zum Scannen Festplattenvollzugriff (Safari-Caches, Papierkorb).
 配置已保存，上传或下载时将验证连接	Konfiguration gesichert. Die Verbindung wird beim Hoch- oder Herunterladen geprüft
@@ -1673,3 +1671,11 @@ IP 归属地	IP-Standort
 音量	Lautstärke
 显示链路正在恢复…	Displayverbindung wird wiederhergestellt…
 对比度	Kontrast
+热压力：正常	Thermische Belastung: Normal
+热压力：偏高	Thermische Belastung: Erhöht
+热压力：严重	Thermische Belastung: Hoch
+热压力：临界	Thermische Belastung: Kritisch
+热压力：未知	Thermische Belastung: Unbekannt
+高效处理多线程任务	Bearbeitet Multithread-Aufgaben effizient
+由 macOS 报告的系统热状态，与 CPU 温度读数独立。	Von macOS gemeldeter thermischer Systemzustand, unabhängig von CPU-Temperaturwerten.
+核心最高温度；余量以 100°C 为参考，不代表设备实际降频阈值。	Höchste Kerntemperatur; der Abstand zu 100°C dient nur als Referenz, nicht als tatsächliche Drosselungsschwelle des Geräts.

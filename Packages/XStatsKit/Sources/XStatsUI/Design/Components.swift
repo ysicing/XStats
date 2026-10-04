@@ -339,6 +339,15 @@ enum Tone {
     static func forTemperature(_ celsius: Double) -> Tone {
         celsius >= DS.Thermal.hot ? .error : celsius >= DS.Thermal.warm ? .warning : .primary
     }
+
+    static func forThermalState(_ state: ProcessInfo.ThermalState) -> Tone {
+        switch state {
+        case .nominal: .success
+        case .fair: .warning
+        case .serious, .critical: .error
+        @unknown default: .neutral
+        }
+    }
 }
 
 struct StatusBadge: View {

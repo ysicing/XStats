@@ -799,7 +799,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 核心 {}（{}）· {}	Núcleo {} ({}) · {}
 核心分工	Tipos de núcleo
 核心数	Núcleos
-核心最高温度；余量是离 100°C 还差多少度，越接近 0 越可能因过热降频	Núcleo más caliente; el margen indica los grados hasta 100 °C. Cuanto más cerca de 0, más probable es la limitación térmica
 核心热力图	Mapa térmico de núcleos
 核心负载	Carga de núcleos
 检查	Comprobar
@@ -1195,7 +1194,6 @@ Apple 智能本机模型当前不可用。	El modelo de Apple Intelligence en el
 通知	Notificaciones
 通知可以正常显示。发生你打开的状况时，会像这样提醒你。	Las notificaciones funcionan. Recibirás una alerta así cuando ocurra alguna condición activada.
 通过 {} 登录	Sesión iniciada con {}
-速度与省电介于两者之间	Velocidad y eficiencia intermedias
 部分网站直连、部分经代理，每个网站走哪个出口见下方。	Algunos sitios conectan directamente y otros por proxy. Consulta abajo la salida de cada uno.
 部分项目需要“完全磁盘访问权限”才能扫描（Safari 缓存、废纸篓）。	Algunos elementos requieren acceso total al disco para analizarse (cachés de Safari, Papelera).
 配置已保存，上传或下载时将验证连接	Configuración guardada. La conexión se verificará al subir o descargar
@@ -1673,3 +1671,11 @@ IP 归属地	Ubicación IP
 音量	Volumen
 显示链路正在恢复…	Restableciendo la conexión de pantalla…
 对比度	Contraste
+热压力：正常	Presión térmica: Normal
+热压力：偏高	Presión térmica: Elevada
+热压力：严重	Presión térmica: Grave
+热压力：临界	Presión térmica: Crítica
+热压力：未知	Presión térmica: Desconocida
+高效处理多线程任务	Procesa eficientemente tareas multihilo
+由 macOS 报告的系统热状态，与 CPU 温度读数独立。	Estado térmico del sistema informado por macOS, independiente de las lecturas de temperatura de la CPU.
+核心最高温度；余量以 100°C 为参考，不代表设备实际降频阈值。	Temperatura máxima de los núcleos; el margen usa 100°C como referencia, no como umbral real de limitación del dispositivo.

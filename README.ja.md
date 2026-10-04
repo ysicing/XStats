@@ -42,6 +42,8 @@ brew install --cask xstats
 
 **システム監視**：CPU、GPU、メモリ、ディスク、ネットワーク、バッテリー、温度、ファンから表示する項目を選べます。項目を開くと履歴、使用量の多いアプリ、ハードウェアの詳細を確認できます。
 
+**CPU**：ユーザー / システム / アイドルの使用率、コアごとの負荷リング、コアグループの使用率、macOS の熱負荷状態を表示します。対応するセンサーがあれば温度も表示し、「この Mac」で稼働時間を確認できます。グループはシステムが報告するスーパー / パフォーマンス / 高効率コアに従い、2 種類や 3 種類に固定しません。
+
 <p align="center">
   <img src="Assets/readme/popover-cpu-light.png" width="24%" alt="CPU の詳細">
   <img src="Assets/readme/popover-memory-dark.png" width="24%" alt="メモリの詳細">
