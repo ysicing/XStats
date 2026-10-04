@@ -231,9 +231,23 @@ private struct CPUHero: View {
         let store = model.store
         let cpu = store.cpu
         let total = cpu?.total ?? 0
+        let usageStatus = status(total)
         let history = store.cpuTotal.elements
+        let trendLabel = trend(history)
         let temperature = store.sensors?.temperature(.cpu)
         let thermalState = cpu?.thermalState
+        let pressureLabel = thermalState?.pressureLabel ?? tr("热压力：未知")
+        let pressureHelp = [pressureLabel, tr("由 macOS 报告的系统热状态，与 CPU 温度读数独立。")].joined(separator: "\n")
+        let pressureTone = thermalState.map(Tone.forThermalState) ?? .neutral
+        let warnsAboutHeat = pressureTone == .warning || pressureTone == .error
+        // 图标始终保留尺寸，只在异常时可见；状态切换不会增加行高或挤动温度数值。
+        let pressureIcon = Image(systemName: "exclamationmark.triangle.fill")
+            .dsFont(.xs)
+            .foregroundStyle(pressureTone.color)
+            .opacity(warnsAboutHeat ? 1 : 0)
+            .accessibilityLabel(pressureLabel)
+            .accessibilityHidden(!warnsAboutHeat)
+            .help(pressureHelp)
         let fahrenheit = model.settings.useFahrenheit
         // 走势按真实时间定位：最新一次采样在右边缘，往左铺满所选时长
         let duration = TimeInterval(model.settings.cpuChartSeconds)
@@ -244,17 +258,24 @@ private struct CPUHero: View {
             HStack(alignment: .center, spacing: DS.Space.s3) {
                 HeroValue(value: cpu.map { "\(Int(($0.total * 100).rounded()))" } ?? "—", unit: "%", size: .xxl)
                 VStack(alignment: .leading, spacing: DS.Space.s1) {
-                    StatusBadge(text: status(total), tone: total >= 0.85 ? .error : total >= 0.6 ? .warning : .success)
-                    Text(verbatim: trend(history))
+                    StatusBadge(text: usageStatus, tone: total >= 0.85 ? .error : total >= 0.6 ? .warning : .success)
+                        .help([usageStatus, pressureHelp].joined(separator: "\n"))
+                    Text(verbatim: trendLabel)
                         .dsFont(.xs)
                         .foregroundStyle(DS.Palette.textSecondary)
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .help(trendLabel)
                 }
                 Spacer(minLength: DS.Space.s2)
                 if let temperature {
                     let hottest = temperature.maximum
                     VStack(alignment: .trailing, spacing: 0) {
-                        Text(tr("CPU 温度")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                        HStack(spacing: DS.Space.s1) {
+                            pressureIcon
+                            Text(tr("CPU 温度")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
                         Text(verbatim: Format.temperature(hottest, fahrenheit: fahrenheit))
                             .dsFont(.base, weight: .semibold)
                             .monospacedDigit()
@@ -263,16 +284,14 @@ private struct CPUHero: View {
                             .dsFont(.xs)
                             .foregroundStyle(DS.Palette.textTertiary)
                     }
-                    .help(tr("核心最高温度；余量以 100°C 为参考，不代表设备实际降频阈值。"))
+                    .help([tr("核心最高温度；余量以 100°C 为参考，不代表设备实际降频阈值。"), pressureHelp].joined(separator: "\n"))
+                    .accessibilityHint(pressureHelp)
+                } else {
+                    // 没有温度传感器也保留系统热压力的异常提示。
+                    pressureIcon
                 }
             }
-            HStack {
-                // 首次 CPU 采样前也保留状态行，避免弹窗因标签出现而改变高度。
-                StatusBadge(text: thermalState?.pressureLabel ?? tr("热压力：未知"),
-                            tone: thermalState.map(Tone.forThermalState) ?? .neutral)
-                    .help(tr("由 macOS 报告的系统热状态，与 CPU 温度读数独立。"))
-                Spacer(minLength: 0)
-            }
+            .help(pressureHelp)
             if isDetailPage {
                 HStack(spacing: DS.Space.s2) {
                     PercentAxis(height: DS.Size.chartHeight * 2)

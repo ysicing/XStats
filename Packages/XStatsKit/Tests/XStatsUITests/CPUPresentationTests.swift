@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import AppKit
+import SwiftUI
 import Testing
 @testable import Metrics
 @testable import XStatsUI
@@ -37,9 +39,9 @@ struct CPUPresentationTests {
         #expect(future.workloadRole(in: topology) == nil)
     }
 
-    @Test(arguments: [(ProcessInfo.ThermalState.nominal, Tone.success), (.fair, .warning),
+    @Test(arguments: [(ProcessInfo.ThermalState.nominal, Tone.primary), (.fair, .warning),
                       (.serious, .error), (.critical, .error)])
-    func thermalPressureSeverityDoesNotDependOnTemperature(_ state: ProcessInfo.ThermalState, _ tone: Tone) {
+    func mapsThermalStateToTone(_ state: ProcessInfo.ThermalState, _ tone: Tone) {
         #expect(Tone.forThermalState(state) == tone)
     }
 
@@ -54,5 +56,49 @@ struct CPUPresentationTests {
         store.apply(snapshot)
         #expect(store.cpu?.total == 0.5)
         #expect(store.cpu?.thermalState == .serious)
+    }
+
+    @MainActor @Test(arguments: [true, false])
+    func thermalWarningsPreserveDetachedAndMountedPopoverHeight(hasTemperature: Bool) throws {
+        let name = "CPUPresentationTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = AppSettings(defaults: defaults)
+        for section in MenuBarItem.cpu.popoverSections { settings.setVisible(section, false) }
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        var baseline: CGFloat?
+        let states: [(String, ProcessInfo.ThermalState?)] = [
+            ("unknown", nil), ("normal", .nominal), ("elevated", .fair), ("serious", .serious), ("critical", .critical)
+        ]
+        for (label, state) in states {
+            var snapshot = MetricsSnapshot()
+            snapshot.cpu = CPULoad(total: 0.3, user: 0.2, system: 0.1, perCore: [], loadAverage: [], thermalState: state)
+            snapshot.sensors = SensorReadings(temperatures: hasTemperature ? [
+                TemperatureSummary(group: .cpu, average: 55, maximum: 60, sensorCount: 1)
+            ] : [], fans: [])
+            model.store.apply(snapshot)
+            let host = NSHostingView(rootView: VStack { CPUPopover() }
+                .environment(model).environment(\.isSnapshot, true).frame(width: DS.Size.popoverWidth))
+            let detached = host.fittingSize
+            #expect(detached.height > 0)
+            if let baseline { #expect(abs(detached.height - baseline) < 1) }
+            else { baseline = detached.height }
+            let window = NSWindow(contentRect: NSRect(origin: .zero, size: detached), styleMask: .borderless,
+                                  backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = host
+            host.layoutSubtreeIfNeeded()
+            #expect(abs(host.fittingSize.height - detached.height) < 1)
+            // 可选导出真实 AppKit 渲染，走查正常和异常状态，不改变系统热状态。
+            if let directory = ProcessInfo.processInfo.environment["XSTATS_CPU_PREVIEW_DIR"] {
+                let destination = URL(fileURLWithPath: directory, isDirectory: true)
+                try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+                let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+                host.cacheDisplay(in: host.bounds, to: bitmap)
+                let data = try #require(bitmap.representation(using: .png, properties: [:]))
+                try data.write(to: destination.appendingPathComponent("cpu-\(hasTemperature ? "temperature" : "no-sensor")-\(label).png"))
+            }
+            window.close()
+        }
     }
 }

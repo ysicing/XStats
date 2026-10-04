@@ -703,21 +703,6 @@ private func isolatedDefaults() -> UserDefaults {
     }
 }
 
-@Suite struct CoreRoleTests {
-    @Test func describesEachTierInPlainWords() {
-        let fast = CPUCluster(id: 0, name: "S", coreIndices: [4, 5], kind: .superCore)
-        let middle = CPUCluster(id: 1, name: "P", coreIndices: [2, 3], kind: .performance)
-        let slow = CPUCluster(id: 2, name: "E", coreIndices: [0, 1], kind: .efficiency)
-        let three = CPUTopology(brand: "Apple", logicalCores: 6, clusters: [fast, middle, slow])
-        #expect(fast.workloadRole(in: three) == .heavy)
-        #expect(middle.workloadRole(in: three) == .parallel)
-        #expect(slow.workloadRole(in: three) == .light)
-        // 只有一类核心（Intel）时没有分工可言
-        let single = CPUTopology(brand: "Intel", logicalCores: 8, clusters: [CPUCluster(id: 0, name: "核心", coreIndices: Array(0..<8))])
-        #expect(single.clusters[0].role(in: single) == nil)
-    }
-}
-
 @Suite struct TimedLineChartTests {
     @Test func positionsByTimeAndBreaksAtGaps() {
         let end = Date(timeIntervalSince1970: 1_000)

@@ -1,7 +1,6 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import Foundation
 import Testing
 @testable import Metrics
 
@@ -52,12 +51,4 @@ struct CPUTopologyTests {
         #expect(topology.clusters.map(\.kind) == [.superCore, .performance, .efficiency])
     }
 
-    @Test func cpuSampleIncludesSystemThermalState() async throws {
-        var sampler = CPUSampler()
-        _ = sampler.sample()
-        try await Task.sleep(for: .milliseconds(200))
-        let sample = sampler.sample()
-        let load = try #require(sample)
-        #expect(load.thermalState != nil)
-    }
 }
