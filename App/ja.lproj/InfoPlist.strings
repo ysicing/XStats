@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 "NSCalendarsFullAccessUsageDescription" = "選択したカレンダーの予定をこの Mac に表示します。内容の変更やアップロードは行いません。";
 "NSRemindersFullAccessUsageDescription" = "選択した期限付きリマインダーをこの Mac に表示します。内容の変更やアップロードは行いません。";
+"NSAudioCaptureUsageDescription" = "アプリ音量を本機でリアルタイムに調節します。音声の録音、保存、アップロードは行いません。";

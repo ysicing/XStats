@@ -1679,3 +1679,25 @@ IP 归属地	Localisation IP
 高效处理多线程任务	Traite efficacement les tâches multithreads
 由 macOS 报告的系统热状态，与 CPU 温度读数独立。	État thermique du système signalé par macOS, indépendant des mesures de température du CPU.
 核心最高温度；余量以 100°C 为参考，不代表设备实际降频阈值。	Température maximale des cœurs ; la marge utilise 100°C comme référence, pas comme seuil réel de limitation de l’appareil.
+
+音频	Audio
+系统音量、音频设备与应用音量	Volume système, appareils audio et volume par app
+应用音量	Volume par app
+应用音量需要 macOS 14.4 或更新版本	Le volume par app nécessite macOS 14.4 ou ultérieur
+仅在本机处理声音，不录制或上传音频。开启后可独立调节正在播放声音的应用。	Le son est traité localement, sans enregistrement ni envoi. Activez cette fonction pour régler chaque app qui émet du son.
+开启应用音量	Activer le volume par app
+暂无正在播放声音的应用	Aucune app ne lit de son
+请在系统设置的屏幕与系统音频录制中允许 XStats，然后重新开启应用音量。	Autorisez XStats dans Enregistrement de l’écran et de l’audio système dans Réglages Système, puis réactivez le volume par app.
+音频设备已变化，请重试。	L’appareil audio a changé. Réessayez.
+当前输出格式不支持应用音量，请切换音频设备。	Le format de sortie actuel ne prend pas en charge le volume par app. Changez d’appareil audio.
+此设备不支持该控制。	Cet appareil ne prend pas en charge ce réglage.
+音频操作未完成，请重试。	L’opération audio n’a pas pu être terminée. Réessayez.
+输出设备	Appareil de sortie
+输入设备	Appareil d’entrée
+没有可用音频设备	Aucun appareil audio disponible
+系统音量	Volume système
+输入音量	Volume d’entrée
+取消静音	Rétablir le son
+静音	Couper le son
+此设备的音量由设备自身控制	Le volume se règle sur cet appareil
+恢复原始音量	Rétablir le volume d’origine

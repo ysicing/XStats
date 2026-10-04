@@ -644,3 +644,29 @@ a repeatable, read-only report on actual hardware (no Set VCP):
 XSTATS_DDC_READ_REPORT=/tmp/xstats-displays.json \
   swift test --package-path Packages/XStatsKit --filter DisplayHardwareReadTests
 ```
+
+## Audio controls
+
+The optional audio module is disabled by default. `AudioHardwareClient` reads Core Audio HAL devices,
+volume and mute properties on a serial queue, checks the current device UID before writes, and
+confirms writes by reading them back. Unsupported hardware controls remain unavailable; this path
+is independent of display DDC/CI volume. Output and microphone selection use the system default
+routing properties.
+
+On macOS 14.4 and later, explicit user activation requests system audio capture permission.
+`AudioMixerClient` creates private process taps and a private aggregate output only for applications
+with attenuation or mute. Native output stream formats are preserved; unsupported formats fail
+visibly. Returning to unity removes processing. A C IOProc sums PCM with atomic gain changes and a
+short ramp, without allocating or locking in the audio callback. No audio is recorded or uploaded.
+Aggregate readiness has a bounded, cancellable wait. Duplex hardware input buffers are skipped
+and their IOProc streams are disabled; only application tap inputs are processed.
+Tap and aggregate lifecycles run on a dedicated serial queue; callback contexts are retained until
+IOProc shutdown succeeds. Device/stream format changes invalidate the graph. Explicit output
+switches mute the original signal during graph replacement.
+
+`AudioController` uses HAL property listeners instead of a polling timer. Closing audio controls
+releases application discovery unless saved attenuation needs it; closing the interface keeps those
+adjustments active. Disabling the module and sleeping release processing and listeners. Wake-up
+rebuilds only current demand. Application gains are stored locally by bundle ID; ephemeral process
+IDs and OS permission grants are not included in settings backups. The module-enabled preference
+can be backed up, but never grants audio permission.

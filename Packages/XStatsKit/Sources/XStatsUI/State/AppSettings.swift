@@ -10,7 +10,7 @@ import Metrics
 import Observation
 
 public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
-    case cpu, memory, network, gpu, disk, temperature, fan, battery, aiUsage, display
+    case cpu, memory, network, gpu, disk, temperature, fan, battery, aiUsage, display, audio
 
     public var id: String { rawValue }
 
@@ -26,6 +26,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .battery: tr("电池")
         case .aiUsage: tr("AI 用量")
         case .display: tr("显示器")
+        case .audio: tr("音频")
         }
     }
 
@@ -41,6 +42,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .battery: tr("电量与充电状态；没有电池的 Mac 显示蓝牙设备电量")
         case .aiUsage: tr("Codex / Claude Code 本机 Token 用量与订阅额度")
         case .display: tr("显示器信息与支持的亮度、音量、对比度控制")
+        case .audio: tr("系统音量、音频设备与应用音量")
         }
     }
 
@@ -57,6 +59,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .battery: "BAT"
         case .aiUsage: "AI"
         case .display: "DSP"
+        case .audio: "SND"
         }
     }
 
@@ -73,6 +76,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .battery: tr("电池")
         case .aiUsage: tr("AI 用量")
         case .display: tr("显示器")
+        case .audio: tr("音频")
         }
     }
 
@@ -87,7 +91,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .temperature: [.thermalSensors, .thermalFans, .thermalPower]
         case .fan: [.thermalFans, .thermalSensors, .thermalPower]
         case .battery: [.batteryHistory, .batteryPower, .batteryHealth, .batteryBluetooth]
-        case .aiUsage, .display: []
+        case .aiUsage, .display, .audio: []
         }
     }
 
@@ -106,6 +110,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .battery: "battery.75"
         case .aiUsage: "sparkles"
         case .display: "display"
+        case .audio: "speaker.wave.2"
         }
     }
 }
@@ -241,7 +246,7 @@ public enum MenuBarStyle: String, CaseIterable, Identifiable, Sendable {
 
     static func options(for item: MenuBarItem) -> [MenuBarStyle] {
         switch item {
-        case .temperature, .fan, .display: [.stacked, .stackedCenter, .inline, .icon]
+        case .temperature, .fan, .display, .audio: [.stacked, .stackedCenter, .inline, .icon]
         case .aiUsage: [.stacked, .stackedCenter, .inline, .icon, .ring, .pie, .meter, .dot]
         default: allCases
         }
@@ -317,13 +322,13 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
 
 /// 主窗口侧边栏的页面
 public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
-    case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery, processes, keepAwake, rest, cleaner, uninstaller, startupItems
+    case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery, processes, keepAwake, rest, cleaner, uninstaller, startupItems, audio
     case settingsGeneral, settingsMenuBar, settingsNotifications, settingsAccount, settingsHelper, settingsAbout
 
     public var id: String { rawValue }
 
     static let monitors: [PanelTab] = [.overview, .system, .history, .aiUsage, .cpu, .gpu, .memory, .disk, .network, .thermal, .battery]
-    static let tools: [PanelTab] = [.processes, .startupItems, .keepAwake, .rest, .cleaner, .uninstaller]
+    static let tools: [PanelTab] = [.audio, .processes, .startupItems, .keepAwake, .rest, .cleaner, .uninstaller]
     // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
     static let settings: [PanelTab] = [.settingsGeneral, .settingsMenuBar, .settingsNotifications,
                                      /* .settingsAccount, */ .settingsHelper, .settingsAbout]
@@ -352,6 +357,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .cleaner: tr("清理")
         case .uninstaller: tr("卸载应用")
         case .startupItems: tr("启动项")
+        case .audio: tr("音频")
         case .settingsGeneral: tr("通用")
         case .settingsMenuBar: tr("菜单栏")
         case .settingsNotifications: tr("通知")
@@ -380,6 +386,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .cleaner: "eraser"
         case .uninstaller: "trash"
         case .startupItems: "power"
+        case .audio: "speaker.wave.2"
         case .settingsGeneral: "gearshape"
         case .settingsMenuBar: "menubar.rectangle"
         case .settingsNotifications: "bell.badge"
@@ -393,6 +400,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     var menuBarItem: MenuBarItem? {
         switch self {
         case .system: .display
+        case .audio: .audio
         case .cpu: .cpu
         case .gpu: .gpu
         case .memory: .memory
@@ -424,6 +432,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .battery: self = .battery
         case .aiUsage: self = .aiUsage
         case .display: self = .system
+        case .audio: self = .audio
         }
     }
 }
@@ -481,6 +490,7 @@ public enum UpdateCheckSchedule: String, CaseIterable, Identifiable, Sendable {
 @Observable
 public final class AppSettings {
     @ObservationIgnored private let defaults: UserDefaults
+    var audioDefaults: UserDefaults { defaults }
 
     /// 日历独立于性能指标，即使指标合并也保留单独入口；旧用户默认关闭。
     public var calendarEnabled: Bool {
@@ -568,6 +578,13 @@ public final class AppSettings {
             if !aiUsageEnabled && panelTab == .aiUsage { panelTab = .settingsGeneral }
         }
     }
+    /// 音频功能默认关闭；只有明确开启应用音量后才请求捕获权限。
+    public var audioEnabled: Bool {
+        didSet {
+            defaults.set(audioEnabled, forKey: "audioEnabled")
+            if !audioEnabled && panelTab == .audio { panelTab = .settingsGeneral }
+        }
+    }
     /// 独立进程管理器默认关闭；其他监控页仍可按需读取应用用量。
     public var processesEnabled: Bool {
         didSet {
@@ -623,6 +640,7 @@ public final class AppSettings {
     public var panelTab: PanelTab {
         didSet {
             // 统一拦截旧路由与外部打开请求，关闭的进程模块不能被其他入口重新打开。
+            if panelTab == .audio && !audioEnabled { panelTab = .settingsGeneral }
             if panelTab == .processes && !processesEnabled { panelTab = .settingsGeneral }
             defaults.set(panelTab.rawValue, forKey: Keys.panelTab)
         }
@@ -806,6 +824,8 @@ public final class AppSettings {
             ? defaults.integer(forKey: Keys.refreshSeconds) : 2
         let isAIUsageEnabled = defaults.bool(forKey: Keys.aiUsageEnabled)
         aiUsageEnabled = isAIUsageEnabled
+        let isAudioEnabled = defaults.bool(forKey: "audioEnabled")
+        audioEnabled = isAudioEnabled
         let isCleanerEnabled = defaults.bool(forKey: Keys.cleanerEnabled)
         cleanerEnabled = isCleanerEnabled
         let isProcessesEnabled = defaults.bool(forKey: Keys.processesEnabled)
@@ -829,6 +849,7 @@ public final class AppSettings {
         let savedPanelTab = savedPanelTabValue.flatMap(PanelTab.init(rawValue:)) ?? .overview
         // 旧版 AI 助手设置页已移除，升级后仍留在设置分组。
         panelTab = savedPanelTabValue == "settingsAI" || savedPanelTab == .settingsAccount
+            || (savedPanelTab == .audio && !isAudioEnabled)
             || (savedPanelTab == .aiUsage && !isAIUsageEnabled)
             || (savedPanelTab == .rest && !isRestEnabled)
             || (savedPanelTab == .cleaner && !isCleanerEnabled)
@@ -882,7 +903,7 @@ public final class AppSettings {
     /// 按固定顺序返回当前实际显示的菜单栏项目；可选模块关闭时保留展示偏好但不渲染。
     var orderedMenuBarItems: [MenuBarItem] {
         MenuBarItem.allCases.filter { item in
-            menuBarItems.contains(item) && (item != .aiUsage || aiUsageEnabled)
+            menuBarItems.contains(item) && (item != .aiUsage || aiUsageEnabled) && (item != .audio || audioEnabled)
         }
     }
 

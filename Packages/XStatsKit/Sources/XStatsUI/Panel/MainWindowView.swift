@@ -91,6 +91,7 @@ public struct MainWindowView: View {
             case .system: SystemInfoPage()
             case .history: HistoryPage()
             case .aiUsage: AIUsagePage()
+            case .audio: DetailPage { AudioMixerContent() }
             case .cpu: DetailPage { CPUPopover() }
             case .gpu: DetailPage { GPUPopover() }
             case .memory: DetailPage { MemoryPopover() }
@@ -204,6 +205,7 @@ private struct MainSidebar: View {
             group(tr("监控"), PanelTab.monitors.filter { $0 != .aiUsage || model.settings.aiUsageEnabled })
             group(tr("工具"), PanelTab.tools.filter { tab in
                 switch tab {
+                case .audio: model.settings.audioEnabled
                 case .rest: model.settings.restEnabled
                 case .cleaner: model.settings.cleanerEnabled
                 case .processes: model.settings.processesEnabled
@@ -391,7 +393,7 @@ private struct PageHeader: View {
                 HStack(spacing: DS.Space.s3) {
                     Text(tr("在菜单栏显示")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                     ForEach(items) { item in
-                        let moduleEnabled = item != .aiUsage || settings.aiUsageEnabled
+                        let moduleEnabled = (item != .aiUsage || settings.aiUsageEnabled) && (item != .audio || settings.audioEnabled)
                         if items.count > 1 {
                             Text(item.popoverTitle).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                         }

@@ -69,6 +69,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             self?.mainWindow.close()
         }
         model.displays.start()
+        model.audio.setDemand(enabled: model.settings.audioEnabled, visible: model.audioControlsVisible, menuVisible: model.audioMenuVisible)
         menuBar.update()
         calendarMenuBar.start()
 
@@ -215,6 +216,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         widgetTimer?.invalidate()
         calendarMenuBar.stop()
         model.displays.stop()
+        model.audio.stop()
         model.aiUsage.stop()
         model.keepAwake.releaseForTermination()
         if model.fans.mode != .automatic || model.keepAwake.lidClosedActive {
@@ -305,6 +307,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
             _ = model.demand
             _ = model.bluetoothDemand
             _ = model.displayControlsVisible
+            _ = model.settings.audioEnabled
+            _ = model.audioControlsVisible
+            _ = model.audioMenuVisible
+            _ = model.audio.output
             _ = model.displays.catalog
             _ = model.settings.menuBarItems
             _ = model.settings.menuBarLayout
@@ -336,6 +342,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 await self.model.hub.update(self.model.demand)
                 self.model.bluetooth.setDemand(self.model.bluetoothDemand)
                 self.model.displays.setVisible(self.model.displayControlsVisible)
+                self.model.audio.setDemand(enabled: self.model.settings.audioEnabled, visible: self.model.audioControlsVisible, menuVisible: self.model.audioMenuVisible)
                 self.applyAppearance()
                 self.updateActivationPolicy()
                 self.menuBar.update()

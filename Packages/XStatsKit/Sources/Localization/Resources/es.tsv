@@ -1679,3 +1679,25 @@ IP 归属地	Ubicación IP
 高效处理多线程任务	Procesa eficientemente tareas multihilo
 由 macOS 报告的系统热状态，与 CPU 温度读数独立。	Estado térmico del sistema informado por macOS, independiente de las lecturas de temperatura de la CPU.
 核心最高温度；余量以 100°C 为参考，不代表设备实际降频阈值。	Temperatura máxima de los núcleos; el margen usa 100°C como referencia, no como umbral real de limitación del dispositivo.
+
+音频	Audio
+系统音量、音频设备与应用音量	Volumen del sistema, dispositivos de audio y volumen por app
+应用音量	Volumen por app
+应用音量需要 macOS 14.4 或更新版本	El volumen por app requiere macOS 14.4 o posterior
+仅在本机处理声音，不录制或上传音频。开启后可独立调节正在播放声音的应用。	El audio se procesa localmente, sin grabarlo ni subirlo. Activa la función para ajustar cada app que reproduce audio.
+开启应用音量	Activar volumen por app
+暂无正在播放声音的应用	Ninguna app reproduce audio
+请在系统设置的屏幕与系统音频录制中允许 XStats，然后重新开启应用音量。	Permite XStats en Grabación de pantalla y audio del sistema en Ajustes del Sistema y vuelve a activar el volumen por app.
+音频设备已变化，请重试。	El dispositivo de audio cambió. Inténtalo de nuevo.
+当前输出格式不支持应用音量，请切换音频设备。	El formato de salida actual no admite volumen por app. Cambia de dispositivo de audio.
+此设备不支持该控制。	Este dispositivo no admite este control.
+音频操作未完成，请重试。	No se pudo completar la operación de audio. Inténtalo de nuevo.
+输出设备	Dispositivo de salida
+输入设备	Dispositivo de entrada
+没有可用音频设备	No hay dispositivos de audio disponibles
+系统音量	Volumen del sistema
+输入音量	Volumen de entrada
+取消静音	Activar sonido
+静音	Silenciar
+此设备的音量由设备自身控制	El volumen se controla en este dispositivo
+恢复原始音量	Restaurar volumen original

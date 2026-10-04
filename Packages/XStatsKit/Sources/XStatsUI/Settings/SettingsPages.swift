@@ -130,6 +130,11 @@ struct GeneralSettings: View {
                 }
             }
             GroupRow(showsDivider: false) {
+                SettingRow(title: tr("音频"), subtitle: tr("系统音量、音频设备与应用音量"), icon: "speaker.wave.2") {
+                    DSToggle(isOn: $settings.audioEnabled, label: tr("音频"))
+                }
+            }
+            GroupRow(showsDivider: false) {
                 SettingRow(title: tr("清理"),
                            subtitle: tr("按需扫描缓存、日志与项目产物，清理前逐项确认。"),
                            icon: "eraser") {
@@ -384,7 +389,7 @@ struct MenuBarSettings: View {
                                : tr("菜单栏里的图标可以调整顺序：按住 ⌘ 键拖动任意一个，松开后位置会一直保留。新开启的项目由系统安排位置，可能离其他图标较远，拖一下就能挪到一起。"))
             }
             ForEach(Array(model.availableMenuBarItems.enumerated()), id: \.element) { index, item in
-                let moduleEnabled = item != .aiUsage || settings.aiUsageEnabled
+                let moduleEnabled = (item != .aiUsage || settings.aiUsageEnabled) && (item != .audio || settings.audioEnabled)
                 GroupRow {
                     VStack(alignment: .leading, spacing: DS.Space.s3) {
                         SettingRow(title: item.title,
