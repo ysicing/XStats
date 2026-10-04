@@ -45,7 +45,7 @@ public final class AppModel {
     /// 当前打开的菜单栏详情弹窗；合并模式的弹窗切到某一项时也是这一项
     public var openPopover: MenuBarItem?
     /// 合并模式下点击菜单栏图标弹出的面板正在显示。
-    /// 面板切到某一项的详情时 openPopover 就是这一项，按那一项的弹窗加采数据；总览只用菜单栏本来就在采的指标
+    /// 面板切到详情时按该项加采；总览仅采已选卡片所需的数据，关闭后释放面板需求。
     public var isCombinedPopoverOpen = false {
         didSet {
             guard isCombinedPopoverOpen != oldValue else { return }
@@ -112,6 +112,19 @@ public final class AppModel {
         settings.orderedMenuBarItems.filter { $0 != .fan || store.supportsFans }
     }
 
+    /// 实际绘制读数的项目与面板项目分开，切换为仅图标时不改写用户的项目选择。
+    var drawnMenuBarItems: [MenuBarItem] {
+        settings.menuBarLayout == .iconOnly ? [] : visibleMenuBarItems
+    }
+
+    var isCombinedOverviewVisible: Bool {
+        isCombinedPopoverOpen && combinedPopoverTab == nil
+    }
+
+    var showsOverviewProcesses: Bool {
+        settings.processesEnabled && visibleMenuBarItems.contains { $0 == .cpu || $0 == .memory }
+    }
+
     /// 根据当前可见内容决定采集范围：主窗口看标签页，详情弹窗看是哪一项
     var demand: MetricsDemand {
         var demand = MetricsDemand()
@@ -119,7 +132,9 @@ public final class AppModel {
         let window = isMainWindowVisible
         let processPage = settings.processesEnabled && window && tab == .processes
         let popover = openPopover
-        let menu = settings.menuBarItems
+        let menu = Set(drawnMenuBarItems)
+        let overview = isCombinedOverviewVisible ? Set(visibleMenuBarItems) : []
+        let summary = menu.union(overview)
         let thermalPopover = popover == .temperature || popover == .fan
 
         // 仅实时监控页需要每秒采样；历史、工具和设置页沿用用户设置的后台间隔。
@@ -131,17 +146,19 @@ public final class AppModel {
         demand.memory = true
         demand.network = true
         let showing = { (page: PanelTab, item: MenuBarItem) in (window && tab == page) || popover == item }
-        demand.gpu = (window && [.overview, .system].contains(tab)) || menu.contains(.gpu) || showing(.gpu, .gpu)
-        demand.disk = (window && [.overview, .system, .cleaner, .disk].contains(tab)) || menu.contains(.disk) || popover == .disk
+        demand.gpu = (window && [.overview, .system].contains(tab)) || summary.contains(.gpu) || showing(.gpu, .gpu)
+        demand.disk = (window && [.overview, .system, .cleaner, .disk].contains(tab)) || summary.contains(.disk) || popover == .disk
         demand.diskDetail = showing(.disk, .disk)
         demand.battery = (window && [.overview, .system, .keepAwake].contains(tab)) || keepAwake.lidClosedActive
-            || menu.contains(.battery) || showing(.battery, .battery)
+            || summary.contains(.battery) || showing(.battery, .battery)
         demand.processes = processPage || (window && [.overview, .disk].contains(tab)) || showing(.cpu, .cpu) || showing(.memory, .memory)
-            || popover == .disk
+            || popover == .disk || (isCombinedOverviewVisible && showsOverviewProcesses)
         demand.systemProcesses = processPage
 
         var groups = Set<TemperatureGroup>()
         if window && tab == .overview { groups.formUnion([.cpu, .gpu]) }
+        if overview.contains(.cpu) || overview.contains(.temperature) { groups.insert(.cpu) }
+        if overview.contains(.gpu) { groups.insert(.gpu) }
         if (window && tab == .thermal) || thermalPopover { groups.formUnion(TemperatureGroup.allCases) }
         if menu.contains(.temperature) || fans.mode != .automatic || showing(.cpu, .cpu) { groups.insert(.cpu) }
         if showing(.gpu, .gpu) { groups.insert(.gpu) }
@@ -151,8 +168,10 @@ public final class AppModel {
         demand.power = (window && tab == .thermal) || thermalPopover || showing(.battery, .battery)
         demand.cpuFrequency = showing(.cpu, .cpu)
         // 未知时隐藏入口，但保留按需探测；不能用界面可见性阻断首次识别或失败重试。
-        demand.fans = store.fanCount != 0 && ((window && (tab == .thermal || tab == .overview)) || menu.contains(.fan)
-            || fans.mode != .automatic || thermalPopover)
+        demand.fans = store.fanCount != 0 && ((window && (tab == .thermal || tab == .overview)) || summary.contains(.fan)
+            || fans.mode != .automatic || thermalPopover
+            || (store.fanCount == nil && settings.menuBarItems.contains(.fan)
+                && (settings.menuBarLayout != .iconOnly || isCombinedOverviewVisible)))
         return demand
     }
 
@@ -160,7 +179,8 @@ public final class AppModel {
     /// 菜单栏开着电池项且要做低电量提示、或这台 Mac 没有电池时每 5 分钟
     var bluetoothDemand: BluetoothController.Demand {
         if (isMainWindowVisible && [.battery, .system].contains(settings.panelTab)) || openPopover == .battery { return .foreground }
-        if settings.menuBarItems.contains(.battery) && (settings.bluetoothLowBatteryInMenuBar || store.battery == nil) { return .background }
+        if isCombinedOverviewVisible && visibleMenuBarItems.contains(.battery) && store.battery == nil { return .foreground }
+        if drawnMenuBarItems.contains(.battery) && (settings.bluetoothLowBatteryInMenuBar || store.battery == nil) { return .background }
         return .off
     }
 

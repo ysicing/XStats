@@ -15,14 +15,18 @@ public struct FanState: Sendable, Equatable, Identifiable {
     public var maximum: Double
     public var target: Double
     public var isManual: Bool
+    /// 固件报告起步、且尚未读到转速；展示窗口有上限，不掩盖持续停转。
+    public var isStarting: Bool
 
-    public init(id: Int, current: Double, minimum: Double, maximum: Double, target: Double, isManual: Bool) {
+    public init(id: Int, current: Double, minimum: Double, maximum: Double, target: Double, isManual: Bool,
+                isStarting: Bool = false) {
         self.id = id
         self.current = current
         self.minimum = minimum
         self.maximum = maximum
         self.target = target
         self.isManual = isManual
+        self.isStarting = isStarting
     }
 
     /// 当前转速在 min...max 区间的占比
@@ -32,9 +36,34 @@ public struct FanState: Sendable, Equatable, Identifiable {
     }
 }
 
+/// 部分机型没有起步状态键，只能以手动目标转速推断。两种来源均最多提示 10 秒，
+/// 超时后保留真实的 0 RPM，直到风扇转动或起步条件消失才允许开始新的窗口。
+struct FanStartupTracker {
+    private var startedAt: [Int: TimeInterval] = [:]
+
+    mutating func update(id: Int, current: Double, target: Double, isManual: Bool,
+                         status: Double?, now: TimeInterval) -> Bool {
+        let starting = status.map { $0 == 1 } ?? (isManual && target.isFinite && target > 0)
+        guard current == 0, starting else {
+            startedAt[id] = nil
+            return false
+        }
+        let start = startedAt[id] ?? now
+        startedAt[id] = start
+        return now - start < 10
+    }
+
+    mutating func retain(fanCount: Int?) {
+        // nil 是读取失败，不能当作确认无风扇，否则会重新开始已超时的提示。
+        guard let fanCount else { return }
+        startedAt = startedAt.filter { (0..<fanCount).contains($0.key) }
+    }
+}
+
 public final class FanControl {
     private let smc: SMCConnection
     private var lowercaseModeKey: Bool?
+    private var startup = FanStartupTracker()
 
     public init(smc: SMCConnection) {
         self.smc = smc
@@ -45,15 +74,24 @@ public final class FanControl {
     }
 
     public func read() -> [FanState] {
-        (0..<fanCount).compactMap { id in
+        let now = ProcessInfo.processInfo.systemUptime
+        let count = smc.double(SMCKey("FNum")).flatMap { UInt8(exactly: $0) }.map(Int.init)
+        startup.retain(fanCount: count)
+        guard let count else { return [] }
+        let fans = (0..<count).compactMap { id -> FanState? in
             guard let current = smc.double(SMCKey("F\(id)Ac")) else { return nil }
             let minimum = smc.double(SMCKey("F\(id)Mn")) ?? 0
             let maximum = smc.double(SMCKey("F\(id)Mx")) ?? 0
             let target = smc.double(SMCKey("F\(id)Tg")) ?? current
             let mode = smc.double(modeKey(id)) ?? 0
+            // 仅在读数为零时多读一个状态键，运行中的风扇沿用原采样开销。
+            let status = current == 0 ? smc.double(SMCKey("F\(id)St")) : nil
+            let isStarting = startup.update(id: id, current: current, target: target,
+                                            isManual: mode == 1, status: status, now: now)
             return FanState(id: id, current: current, minimum: minimum, maximum: maximum,
-                            target: target, isManual: mode == 1)
+                            target: target, isManual: mode == 1, isStarting: isStarting)
         }
+        return fans
     }
 
     // MARK: 写入（需要 root）

@@ -590,7 +590,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 各核心负载	Core Load
 各项指标正常	Everything looks good
 合上屏幕时 Mac 不进入睡眠，下载、渲染、远程连接不中断。	Your Mac stays awake with the lid closed, so downloads, renders and remote sessions continue.
-合并为一个	Combined
+合并显示	Combined
 合盖后继续运行	Keep Running with Lid Closed
 合盖电量下限	Lid Mode Battery Floor
 合盖睡眠	Lid sleep
@@ -1461,5 +1461,13 @@ Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依�
 进程功能开启时打开 XStats 进程页，关闭时打开系统活动监视器。	Opens XStats Processes when enabled, or macOS Activity Monitor when the feature is off.
 不能在 XStats 内卸载或退出 XStats 自身	XStats cannot uninstall or quit itself from this tool
 应用本体未能移动；已将 {} 项残留移到废纸篓，约 {}。请解决错误后重试。	The app could not be moved. Related items moved to Trash: {} (about {}). Resolve the error and try again.
+仅图标	Icon only
+只显示 XStats 图标，点击查看已选项目的状态总览	Show only the XStats icon; click to view an overview of selected metrics
+面板项目	Panel metrics
+所选项目显示在弹出面板中，原有图标风格会保留。	Selected metrics appear in the popover. Your icon styles are preserved.
+启动中…	Starting…
+正在启动风扇…	Starting fans…
+打开进程监控	Open process monitor
+IP 归属地	IP location
 """#
 }

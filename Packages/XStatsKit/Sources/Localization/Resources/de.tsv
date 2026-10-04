@@ -435,7 +435,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 各核心负载	Kernauslastung
 各项指标正常	Alle Werte sind normal
 合上屏幕时 Mac 不进入睡眠，下载、渲染、远程连接不中断。	Der Mac bleibt bei geschlossenem Deckel wach. Downloads, Renderaufgaben und Fernverbindungen laufen weiter.
-合并为一个	Zusammengefasst
+合并显示	Zusammengefasst
 合盖后继续运行	Bei geschlossenem Deckel weiterlaufen
 合盖电量下限	Mindestladung bei geschlossenem Deckel
 合盖睡眠	Ruhezustand beim Zuklappen
@@ -1649,3 +1649,11 @@ AI 用量与额度共用此间隔；新数据到达后更新菜单栏。	KI-Nutz
 重置卡：{}	Reset-Guthaben: {}
 套餐剩余时间	Verbleibende Tariflaufzeit
 Token 用量	Tokens
+仅图标	Nur Symbol
+只显示 XStats 图标，点击查看已选项目的状态总览	Nur das XStats-Symbol anzeigen; anklicken, um die ausgewählten Messwerte zu sehen
+面板项目	Panel-Messwerte
+所选项目显示在弹出面板中，原有图标风格会保留。	Die ausgewählten Messwerte erscheinen im Panel. Ihre Symbolstile bleiben erhalten.
+启动中…	Startet…
+正在启动风扇…	Lüfter starten…
+打开进程监控	Prozessmonitor öffnen
+IP 归属地	IP-Standort

@@ -297,11 +297,13 @@ private struct FanTile: View {
             .foregroundStyle(DS.Palette.textSecondary)
 
             HStack(alignment: .firstTextBaseline, spacing: DS.Space.s1 / 2) {
-                Text(verbatim: fastest.map { Int($0.current).formatted() } ?? "—")
+                Text(verbatim: fans.contains(where: \.isStarting) ? tr("启动中…") : fastest.map { Int($0.current).formatted() } ?? "—")
                     .dsFont(.xl, weight: .semibold)
                     .monospacedDigit()
                     .foregroundStyle(DS.Palette.textPrimary)
-                Text(verbatim: "RPM").dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
+                if !fans.contains(where: \.isStarting) {
+                    Text(verbatim: "RPM").dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
+                }
             }
 
             Text(fanStatusText(fans: fans, mode: model.fans.mode))

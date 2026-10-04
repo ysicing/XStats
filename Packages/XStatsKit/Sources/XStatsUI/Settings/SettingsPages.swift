@@ -348,13 +348,10 @@ struct MenuBarSettings: View {
 
         SettingsGroup(caption: tr("布局")) {
             GroupRow(showsDivider: false) {
-                SettingRow(title: tr("菜单栏图标"),
-                           subtitle: settings.menuBarLayout == .separate
-                               ? tr("每个指标一个图标，点击弹出该项详情")
-                               : tr("所有指标合成一个图标，点击弹出状态总览，可切到各项详情")) {
+                VStack(alignment: .leading, spacing: DS.Space.s3) {
+                    SettingRow(title: tr("菜单栏图标"), subtitle: settings.menuBarLayout.subtitle) { EmptyView() }
                     SegmentedControl(selection: $settings.menuBarLayout,
                                      options: MenuBarLayout.allCases.map { ($0, $0.title) })
-                        .frame(width: DS.Size.sidebarWidth + DS.Space.s6)
                 }
             }
         }
@@ -369,6 +366,7 @@ struct MenuBarSettings: View {
                 }
             }
             .padding(DS.Space.s3)
+            .disabled(settings.menuBarLayout == .iconOnly)
             HairlineDivider()
             Text(tr("整体风格套用到所有项目。想让某个项目不一样，在下面“显示项目”里给它单独选一种，比如 CPU 用圆环、风扇用数字。"))
                 .dsFont(.xs)
@@ -378,10 +376,12 @@ struct MenuBarSettings: View {
                 .padding(.vertical, DS.Space.s3)
         }
 
-        SettingsGroup(caption: tr("显示项目")) {
+        SettingsGroup(caption: settings.menuBarLayout == .iconOnly ? tr("面板项目") : tr("显示项目")) {
             GroupRow(showsDivider: false) {
-                InfoBanner(icon: "hand.draw",
-                           text: tr("菜单栏里的图标可以调整顺序：按住 ⌘ 键拖动任意一个，松开后位置会一直保留。新开启的项目由系统安排位置，可能离其他图标较远，拖一下就能挪到一起。"))
+                InfoBanner(icon: settings.menuBarLayout == .iconOnly ? "square.grid.2x2" : "hand.draw",
+                           text: settings.menuBarLayout == .iconOnly
+                               ? tr("所选项目显示在弹出面板中，原有图标风格会保留。")
+                               : tr("菜单栏里的图标可以调整顺序：按住 ⌘ 键拖动任意一个，松开后位置会一直保留。新开启的项目由系统安排位置，可能离其他图标较远，拖一下就能挪到一起。"))
             }
             ForEach(Array(model.availableMenuBarItems.enumerated()), id: \.element) { index, item in
                 let moduleEnabled = item != .aiUsage || settings.aiUsageEnabled
@@ -401,6 +401,7 @@ struct MenuBarSettings: View {
                         }
                         if moduleEnabled, settings.isEnabled(item) {
                             ItemStyleRow(item: item)
+                                .disabled(settings.menuBarLayout == .iconOnly)
                             if item == .network {
                                 SettingRow(title: tr("IP 归属地"),
                                            subtitle: tr("与网络详情中的 IP 归属地共用查询结果和刷新，不额外联网。需开启公网 IP 查询。")) {

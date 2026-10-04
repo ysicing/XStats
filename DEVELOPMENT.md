@@ -32,6 +32,9 @@ task version                        # 查看版本与构建号
 task clean                          # 删除 build/
 ```
 
+菜单栏布局走查可对当前构建运行 `XStats --snapshot <目录> --menubar-only --language en`；
+仅采集相关指标，输出三种布局、总览和详情的明暗截图，不扫描清理目录或 AI 日志。
+
 `project.yml` 是 Xcode 工程配置来源，调整 target、entitlement 或签名设置后重新生成工程。
 修改 `CHANGELOG.md` 后运行 `python3 scripts/sync_changelog.py`，同步 README 版本摘要与活跃度图。
 

@@ -22,6 +22,10 @@ enum SnapshotRenderer {
             renderCalendar(outputDirectory: outputDirectory)
             return
         }
+        if CommandLine.arguments.contains("--menubar-only") {
+            await renderMenuBar(outputDirectory: outputDirectory)
+            return
+        }
 
         let defaults = UserDefaults(suiteName: "XStats.snapshot") ?? .standard
         let settings = AppSettings(defaults: defaults)
@@ -126,6 +130,57 @@ enum SnapshotRenderer {
             writePNG(padded, scale: 2, to: outputDirectory.appendingPathComponent("menubar-\(dark ? "dark" : "light").png"))
         }
         print(tr("截图已输出到 \(outputDirectory.path)"))
+    }
+
+    /// 菜单栏走查只启动相关指标采样，不扫描清理目录、不读取 AI 日志或查询更新。
+    private static func renderMenuBar(outputDirectory: URL) async {
+        let suite = "XStats.menuBarSnapshot.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suite) else { return }
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.language = L10n.language
+        settings.menuBarItems = Set(MenuBarItem.allCases.filter { $0 != .aiUsage })
+        settings.processesEnabled = true
+        settings.cleanerEnabled = true
+        settings.menuBarLayout = .iconOnly
+        settings.panelTab = .settingsMenuBar
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        model.isCombinedPopoverOpen = true
+        await model.hub.update(model.demand)
+        await model.hub.start(primeAllMetrics: false) { snapshot in model.store.apply(snapshot) }
+        try? await Task.sleep(for: .seconds(3))
+        await model.hub.stop()
+        model.isMainWindowVisible = true
+        // CPU 详情需要频率数据；显式按详情需求采一次，避免借用全量预采样的副作用。
+        model.combinedPopoverTab = .cpu
+        await model.hub.update(model.demand)
+        await model.hub.start(primeAllMetrics: false) { snapshot in model.store.apply(snapshot) }
+        // 频率首次采样只建立计数器基线；等待有效差值，硬件不支持时最多等 4 秒。
+        for _ in 0..<16 {
+            try? await Task.sleep(for: .milliseconds(250))
+            if model.store.power?.clusterFrequency.isEmpty == false { break }
+        }
+        await model.hub.stop()
+        for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+            guard let appearance = NSAppearance(named: name) else { continue }
+            NSApp.appearance = appearance
+            model.combinedPopoverTab = nil
+            write(CombinedPopoverView(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("overview-\(suffix).png"))
+            for item: MenuBarItem in [.cpu, .network] {
+                model.combinedPopoverTab = item
+                write(CombinedPopoverView(), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("detail-\(item.rawValue)-\(suffix).png"))
+            }
+            model.combinedPopoverTab = nil
+            for layout in MenuBarLayout.allCases {
+                settings.menuBarLayout = layout
+                write(MainWindowView(), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("settings-\(layout.rawValue)-\(suffix).png"))
+                let image = MenuBarRenderer.preview(MenuBarRenderer.image(for: model), dark: suffix == "dark")
+                writePNG(image, scale: 2, to: outputDirectory.appendingPathComponent("menubar-\(layout.rawValue)-\(suffix).png"))
+            }
+        }
     }
 
     private static func renderCalendar(outputDirectory: URL) {

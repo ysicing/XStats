@@ -435,7 +435,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 各核心负载	Carga de núcleos
 各项指标正常	Todo parece correcto
 合上屏幕时 Mac 不进入睡眠，下载、渲染、远程连接不中断。	El Mac sigue activo con la tapa cerrada para continuar descargas, renderizados y sesiones remotas.
-合并为一个	Combinado
+合并显示	Combinado
 合盖后继续运行	Seguir funcionando con la tapa cerrada
 合盖电量下限	Batería mínima con tapa cerrada
 合盖睡眠	Reposo al cerrar la tapa
@@ -1649,3 +1649,11 @@ AI 用量与额度共用此间隔；新数据到达后更新菜单栏。	El uso 
 重置卡：{}	Créditos de restablecimiento: {}
 套餐剩余时间	Tiempo restante del plan
 Token 用量	Tokens
+仅图标	Solo icono
+只显示 XStats 图标，点击查看已选项目的状态总览	Mostrar solo el icono de XStats; haz clic para ver los indicadores seleccionados
+面板项目	Indicadores del panel
+所选项目显示在弹出面板中，原有图标风格会保留。	Los indicadores seleccionados aparecen en el panel. Se conservan los estilos de los iconos.
+启动中…	Iniciando…
+正在启动风扇…	Iniciando ventiladores…
+打开进程监控	Abrir monitor de procesos
+IP 归属地	Ubicación IP

@@ -48,7 +48,10 @@ public actor MetricsHub {
 
     public init() {}
 
-    public func start(handler: @escaping @MainActor @Sendable (MetricsSnapshot) -> Void) {
+    /// 正常启动预采全部指标以稳定首次布局；专用快照和资源验证可仅采当前需求。
+    public func start(primeAllMetrics: Bool = true,
+                      handler: @escaping @MainActor @Sendable (MetricsSnapshot) -> Void) {
+        if !primeAllMetrics { primed = true }
         self.handler = handler
         restart()
     }

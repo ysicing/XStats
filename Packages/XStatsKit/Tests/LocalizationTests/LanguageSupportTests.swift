@@ -86,6 +86,9 @@ struct LanguageSupportTests {
         let catalog = try #require(Translations.catalog(for: language))
         #expect(catalog.sourceKeys == Translations.shared.sourceKeys)
         for key in ["语言", "应用 UI 语言", "自动检测", "搜索语言", "没有匹配的语言",
+                    "合并显示", "仅图标", "面板项目", "启动中…", "正在启动风扇…",
+                    "只显示 XStats 图标，点击查看已选项目的状态总览",
+                    "所选项目显示在弹出面板中，原有图标风格会保留。", "打开进程监控",
                     "额度显示", "数字单位", "货币", "估算费用",
                     "30 天", "按小时统计", "按天统计", "暂无小时明细，请刷新用量。",
                     "套餐：Pro", "套餐有效期至：2026-10-20", "可用重置次数：3", "重置次数最早到期：2026-10-05",

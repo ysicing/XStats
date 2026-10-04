@@ -4,7 +4,7 @@ import SMC
 import SwiftUI
 
 /// 菜单栏合并为一个图标时点击弹出的面板：顶部一排标签切换“总览”与菜单栏里开启的各项。
-/// 总览每项一行（名称、状态、走势、主数值），点一行或点标签看该项的完整详情，与每项独立时的弹窗相同
+/// 总览以两列指标卡片显示读数，网络、电池与 AI 使用整行；点卡片或标签进入现有详情。
 struct CombinedPopoverView: View {
     @Environment(AppModel.self) private var model
 
@@ -13,7 +13,7 @@ struct CombinedPopoverView: View {
         // 标签对应的项目在设置里被关掉后回到总览
         let tab = model.combinedPopoverTab.flatMap { items.contains($0) ? $0 : nil }
 
-        PopoverFrame {
+        PopoverFrame(width: DS.Size.combinedPopoverWidth) {
             VStack(spacing: DS.Space.s2) {
                 if !items.isEmpty {
                     PopoverTabStrip(items: items, selection: tab) { model.combinedPopoverTab = $0 }
@@ -53,7 +53,7 @@ private struct PopoverTabStrip: View {
             }
         }
         .background(DS.Palette.track, in: RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: selection)
+        .dsSelectionAnimation(DS.Motion.quick, value: selection)
     }
 
     private func segment(_ item: MenuBarItem?, symbol: String, title: String) -> some View {
@@ -122,15 +122,41 @@ private struct OverviewPopover: View {
                     .buttonStyle(DSButtonStyle(kind: .secondary))
             }
         } else {
-            ForEach(items) { item in
-                OverviewRow(item: item) { open(item) }
+            let metrics = items.filter { $0 != .network && $0 != .battery && $0 != .aiUsage }
+            // 项目数量有上限；直接布局全部卡片，让离屏测高与真实面板得到同样的高度。
+            ForEach(Array(stride(from: 0, to: metrics.count, by: 2)), id: \.self) { index in
+                WeightedRow {
+                    OverviewMetricCard(item: metrics[index]) { open(metrics[index]) }
+                    if index + 1 < metrics.count {
+                        OverviewMetricCard(item: metrics[index + 1]) { open(metrics[index + 1]) }
+                    } else {
+                        Color.clear
+                    }
+                }
+            }
+            ForEach(items.filter { $0 == .network || $0 == .battery || $0 == .aiUsage }) { item in
+                OverviewMetricCard(item: item) { open(item) }
+            }
+        }
+        if model.showsOverviewProcesses { OverviewProcessesCard() }
+        HStack(spacing: DS.Space.s2) {
+            Button { model.openMainWindow(.keepAwake) } label: {
+                Label(tr("防休眠"), systemImage: model.keepAwake.isActive ? "cup.and.saucer.fill" : "cup.and.saucer")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(DSButtonStyle(kind: .secondary))
+            if model.settings.cleanerEnabled {
+                Button { model.openMainWindow(.cleaner) } label: {
+                    Label(tr("清理"), systemImage: "sparkles").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(DSButtonStyle(kind: .secondary))
             }
         }
     }
 }
 
-/// 总览里的一行：左边名称与一句状态，中间是走势，右边是主数值；点一下进入这一项的详情
-private struct OverviewRow: View {
+/// 数值、状态与走势保持固定层级，读数更新只重绘内容，不播放布局动画。
+private struct OverviewMetricCard: View {
     let item: MenuBarItem
     let open: () -> Void
     @Environment(AppModel.self) private var model
@@ -139,51 +165,78 @@ private struct OverviewRow: View {
     var body: some View {
         let reading = OverviewReading(item: item, model: model)
 
-        Card {
-            Button(action: open) {
-                HStack(spacing: DS.Space.s2) {
+        Button(action: open) {
+            Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
+                HStack(spacing: DS.Space.s1) {
                     Image(systemName: item.symbol)
-                        .font(.system(size: DS.TextSize.sm.rawValue, weight: .medium))
-                        .foregroundStyle(hovering ? DS.Palette.primary : DS.Palette.textSecondary)
-                        .frame(width: DS.Size.iconStandalone)
-                    VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
-                        Text(item.popoverTitle)
-                            .dsFont(.sm, weight: .semibold)
-                            .foregroundStyle(hovering ? DS.Palette.primary : DS.Palette.textPrimary)
-                        Text(verbatim: reading.detail)
-                            .dsFont(.xs)
-                            .foregroundStyle(DS.Palette.textSecondary)
-                            .monospacedDigit()
-                    }
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    OverviewChart(chart: reading.chart)
-                        .frame(width: DS.Space.s12, height: DS.Space.s6)
-
-                    HStack(alignment: .firstTextBaseline, spacing: DS.Space.s1 / 2) {
-                        Text(verbatim: reading.value)
-                            .dsFont(.base, weight: .semibold)
-                            .foregroundStyle(reading.tone == .neutral ? DS.Palette.textPrimary : reading.tone.color)
-                        if let unit = reading.unit {
-                            Text(verbatim: unit)
-                                .dsFont(.xs, weight: .medium)
-                                .foregroundStyle(DS.Palette.textSecondary)
-                        }
-                    }
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .frame(minWidth: DS.Space.s12, alignment: .trailing)
-
+                    Text(item.popoverTitle)
+                    Spacer(minLength: DS.Space.s1)
                     Image(systemName: "chevron.right")
-                        .font(.system(size: DS.TextSize.xs.rawValue, weight: .semibold))
-                        .foregroundStyle(hovering ? DS.Palette.primary : DS.Palette.textTertiary)
+                        .foregroundStyle(DS.Palette.textTertiary)
                 }
-                .contentShape(Rectangle())
+                .dsFont(.xs, weight: .semibold)
+                .foregroundStyle(hovering ? DS.Palette.primary : DS.Palette.textSecondary)
+                .lineLimit(2)
+                HStack(alignment: .firstTextBaseline, spacing: DS.Space.s1 / 2) {
+                    Text(verbatim: reading.value)
+                        .dsFont(.xl, weight: .semibold)
+                        .foregroundStyle(reading.tone == .neutral ? DS.Palette.textPrimary : reading.tone.color)
+                    if let unit = reading.unit {
+                        Text(verbatim: unit)
+                            .dsFont(.xs, weight: .medium)
+                            .foregroundStyle(DS.Palette.textSecondary)
+                    }
+                }
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Text(verbatim: reading.detail)
+                    .dsFont(.xs)
+                    .foregroundStyle(DS.Palette.textSecondary)
+                    .monospacedDigit()
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, minHeight: DS.Space.s6, alignment: .topLeading)
+                OverviewChart(chart: reading.chart)
+                    .frame(height: DS.Space.s6)
             }
-            .buttonStyle(.plain)
-            .onHover { hovering = $0 }
-            .help(tr("查看\(item.popoverTitle)详情"))
+            .environment(\.isPopover, false)
+            .contentShape(RoundedRectangle(cornerRadius: DS.Radius.lg))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(tr("查看\(item.popoverTitle)详情"))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct OverviewProcessesCard: View {
+    @Environment(AppModel.self) private var model
+    private static let rowCount = 3
+
+    var body: some View {
+        let processes = Array(model.store.processes.prefix(Self.rowCount))
+        Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
+            HStack {
+                Text(tr("高占用进程")).dsFont(.xs, weight: .semibold)
+                Spacer()
+                MiniIconButton(systemName: "arrow.up.right", help: tr("打开进程监控")) { model.openProcessMonitor() }
+            }
+            .foregroundStyle(DS.Palette.textSecondary)
+            ProcessList(count: processes.count, rowCount: Self.rowCount) { index in
+                let process = processes[index]
+                HStack(spacing: DS.Space.s2) {
+                    ProcessNameLabel(icon: AppIconCache.shared.image(for: process), name: process.displayName)
+                    Text(verbatim: Format.machineShare(process.cpu))
+                        .dsFont(.xs, weight: .medium)
+                        .frame(width: DS.Size.valueColumn, alignment: .trailing)
+                    Text(verbatim: Format.bytes(process.memory))
+                        .dsFont(.xs)
+                        .foregroundStyle(DS.Palette.textSecondary)
+                        .frame(width: DS.Size.valueColumn, alignment: .trailing)
+                }
+                .monospacedDigit()
+            }
         }
     }
 }
@@ -286,8 +339,8 @@ private struct OverviewReading {
         case .fan:
             let fans = store.sensors?.fans ?? []
             if let fastest = store.fastestFan {
-                value = Int(fastest.current).formatted()
-                unit = "RPM"
+                value = fans.contains(where: \.isStarting) ? tr("启动中…") : Int(fastest.current).formatted()
+                unit = fans.contains(where: \.isStarting) ? nil : "RPM"
                 let average = fans.map { $0.maximum > 0 ? $0.current / $0.maximum : 0 }.reduce(0, +) / Double(max(1, fans.count))
                 chart = .level(average, DS.Palette.primary)
             }
