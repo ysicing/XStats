@@ -342,7 +342,7 @@ enum Tone {
 
     static func forThermalState(_ state: ProcessInfo.ThermalState) -> Tone {
         switch state {
-        case .nominal: .success
+        case .nominal: .primary
         case .fair: .warning
         case .serious, .critical: .error
         @unknown default: .neutral

@@ -56,12 +56,11 @@ Things that are easy to get wrong and are handled on purpose:
 - Core types come from `hw.perflevelN`; logical CPUs are numbered from the lowest
   performance level up. The reported names distinguish super, performance and efficiency cores;
   groups are never inferred from the chip brand. Invalid or incomplete core counts fall back to
-  one generic group covering all logical CPUs. Two-group S/P and P/E fixtures and three-group
-  S/P/E fixtures verify the indices and workload descriptions; new-chip hardware still needs
-  its own runtime validation.
+  one generic group covering all logical CPUs.
 - CPU snapshots include macOS `ProcessInfo.thermalState` through the existing sampling loop,
-  without another timer or observer. The CPU detail shows nominal, fair, serious or critical
-  thermal pressure independently of SMC temperature. Temperature headroom uses 100°C only as
+  without another timer or observer. Thermal pressure stays in the CPU header tooltip;
+  elevated states add an inline warning beside temperature, also available without a sensor.
+  It remains independent of SMC temperature. Temperature headroom uses 100°C only as
   a reference, not as a device-specific throttling threshold.
 
 ## SMC
