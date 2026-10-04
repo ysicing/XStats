@@ -158,14 +158,21 @@ pieces of read-mostly logic in `Cleaner/DiskTools.swift`, each testable without 
 `MenuBarController` owns the status items. In the *separate* layout every enabled metric gets
 its own `NSStatusItem` (created in reverse so they read left to right) and opens a 320 pt
 popover for that metric; in the *combined* layout a single item opens `CombinedPopoverView`: a status
-overview with two-column metric cards and full-width network, battery and AI cards, plus tabs that switch to each metric's full popover content
-(`PopoverDetail`, shared with the separate layout). While a detail tab is showing, `AppModel.openPopover`
-is set to that metric so sampling matches the standalone popover.
+overview of compact metric rows. Clicking a row expands its existing `PopoverDetail` inline;
+only one row expands at a time. Summary rows remain visible, so their sampling demand is retained
+alongside the expanded detail demand. Header and footer stay outside the scroll area, and all three
+regions contribute to the same measured panel height. Collapsing or switching a row releases its
+detail-only demand without rebuilding the panel. No timer or continuous animation is added.
+The AI summary prioritizes the available subscription window with the least remaining quota,
+including its provider and period; local Token usage remains in the expanded detail and is the
+summary fallback when enabled and no subscription quota is available.
 
 The *iconOnly* layout draws only the XStats symbol (plus the keep-awake indicator when active).
 It preserves selected metrics and styles; its 360 pt overview uses the same selection as combined
 mode. Additional GPU, disk, battery, temperature and fan demand exists only while corresponding
-cards or details are shown. The optional three-row process summary follows `processesEnabled`;
+rows or details are shown. A Mac without a built-in battery labels the row as Bluetooth devices
+and shows the lowest connected accessory charge. The optional three-row process summary follows
+`processesEnabled` and appears when all rows are collapsed;
 it does not request full-system process enumeration. Closing the panel releases these demands,
 while baseline CPU, memory, network, history and safety requirements keep their existing behavior.
 

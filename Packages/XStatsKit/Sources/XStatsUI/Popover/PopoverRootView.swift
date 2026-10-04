@@ -21,11 +21,12 @@ struct PopoverRootView: View {
     }
 }
 
-/// 菜单栏弹窗的外框：顶部标题栏固定，下面的内容可滚动
-struct PopoverFrame<Header: View, Content: View>: View {
+/// 菜单栏弹窗的外框：标题与可选底栏固定，中间内容独立滚动
+struct PopoverFrame<Header: View, Content: View, Footer: View>: View {
     var width: CGFloat = DS.Size.popoverWidth
     @ViewBuilder var header: Header
     @ViewBuilder var content: Content
+    @ViewBuilder var footer: Footer
     @Environment(\.isSnapshot) private var isSnapshot
     @Environment(\.reportPopoverHeight) private var reportHeight
 
@@ -46,6 +47,22 @@ struct PopoverFrame<Header: View, Content: View>: View {
             PageScroll { content }
                 .frame(maxWidth: .infinity, maxHeight: isSnapshot ? nil : .infinity, alignment: .top)
                 .environment(\.isPopover, true)
+
+            if Footer.self != EmptyView.self {
+                footer
+                    .padding(.horizontal, DS.Space.s3)
+                    .padding(.vertical, DS.Space.s2)
+                    .background(DS.Palette.background)
+                    .overlay(alignment: .top) { HairlineDivider() }
+                    .background {
+                        if !isSnapshot {
+                            GeometryReader { proxy in
+                                Color.clear.preference(key: PopoverHeightPreference.self,
+                                                       value: .init(footer: proxy.size.height))
+                            }
+                        }
+                    }
+            }
         }
         .frame(width: width)
         .frame(maxHeight: isSnapshot ? nil : .infinity, alignment: .top)
@@ -54,11 +71,22 @@ struct PopoverFrame<Header: View, Content: View>: View {
         .appLanguageEnvironment()
         .onPreferenceChange(PopoverHeightPreference.self) { heights in
             guard let header = heights.header, let content = heights.content else { return }
-            reportHeight?(header + content)
+            guard let footer = Footer.self == EmptyView.self ? 0 : heights.footer else { return }
+            reportHeight?(header + content + footer)
         }
         .overlay {
             RoundedRectangle(cornerRadius: DS.Radius.xl).strokeBorder(DS.Palette.border, lineWidth: DS.Size.stroke)
         }
+    }
+}
+
+extension PopoverFrame where Footer == EmptyView {
+    init(width: CGFloat = DS.Size.popoverWidth, @ViewBuilder header: () -> Header,
+         @ViewBuilder content: () -> Content) {
+        self.width = width
+        self.header = header()
+        self.content = content()
+        footer = EmptyView()
     }
 }
 
@@ -82,19 +110,22 @@ struct PopoverDetail: View {
 
 struct PopoverHeader: View {
     let item: MenuBarItem
+    var showsTitle = true
     @Environment(AppModel.self) private var model
 
     var body: some View {
         let page = PanelTab(item: item)
         HStack(spacing: DS.Space.s2) {
-            HStack(spacing: DS.Space.s1) {
-                Image(systemName: item == .network ? page.symbol : item.symbol)
-                    .font(.system(size: DS.TextSize.sm.rawValue, weight: .semibold))
-                    .foregroundStyle(DS.Palette.textSecondary)
-                    .frame(width: DS.Size.iconInline)
-                Text(item.popoverTitle)
-                    .dsFont(.base, weight: .semibold)
-                    .foregroundStyle(DS.Palette.textPrimary)
+            if showsTitle {
+                HStack(spacing: DS.Space.s1) {
+                    Image(systemName: item == .network ? page.symbol : item.symbol)
+                        .font(.system(size: DS.TextSize.sm.rawValue, weight: .semibold))
+                        .foregroundStyle(DS.Palette.textSecondary)
+                        .frame(width: DS.Size.iconInline)
+                    Text(item.popoverTitle)
+                        .dsFont(.base, weight: .semibold)
+                        .foregroundStyle(DS.Palette.textPrimary)
+                }
             }
             Spacer(minLength: DS.Space.s2)
             if item == .memory { PurgeMemoryButton() }

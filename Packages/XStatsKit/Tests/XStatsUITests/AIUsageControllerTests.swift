@@ -3,6 +3,7 @@
 
 @testable import AIUsage
 import Foundation
+import Localization
 import Testing
 @testable import XStatsUI
 
@@ -194,6 +195,26 @@ private actor GatedUsageProvider: AIUsageProvider {
         let reading = MenuBarReading(model: model)
         #expect(reading.aiQuotas.first?.shortWindowName == "7d F")
         #expect(reading.tooltip(items: [.aiUsage], fahrenheit: false).contains("Claude (Sub2API)"))
+    }
+
+    @Test func overviewPrefersSubscriptionEvenWhenLocalUsageIsEnabled() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        settings.aiUsageShowsLocalUsage = true
+        let snapshot = AIQuotaSnapshot(provider: .codex, windows: [
+            AIQuotaWindow(kind: .weekly, usedPercent: 23, resetsAt: Date().addingTimeInterval(3600)),
+        ], fetchedAt: Date())
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [
+            StubQuotaProvider(results: [.success(snapshot)]),
+        ])
+        await model.aiUsage.refresh()
+        for remaining in [true, false] {
+            settings.aiQuotaShowsRemaining = remaining
+            let reading = OverviewReading(item: .aiUsage, model: model)
+            #expect(reading.value == AIUsageFormat.quotaPercent(remainingPercent: 77, showsRemaining: remaining,
+                                                              locale: L10n.locale, compact: true))
+            #expect(reading.detail.contains("Codex"))
+        }
     }
 
     @Test func menuBarSkipsQuotaWindowsPastTheirReset() async {

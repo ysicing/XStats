@@ -3,7 +3,7 @@ import Localization
 import SwiftUI
 
 /// 菜单栏图标：每项独立时一个指标一个图标，点击弹出该项详情；合并时只有一个图标，点击弹出状态总览，
-/// 总览顶部的标签可以切到各项的详情
+/// 总览中的指标行可以原地展开各项详情
 @MainActor
 final class MenuBarController: NSObject {
     private let model: AppModel
@@ -145,7 +145,7 @@ final class MenuBarController: NSObject {
         toggleCombinedPanel(tab: nil, button: nil)
     }
 
-    /// 合并模式：点图标打开时总是先看总览；从快捷入口打开某一项时直接切到那一项
+    /// 合并模式：点图标打开时总是先看收起的总览；从快捷入口打开某一项时直接展开该行
     private func toggleCombinedPanel(tab: MenuBarItem?, button: NSStatusBarButton?) {
         guard let button = button ?? items.first(where: { $0.key == nil })?.statusItem.button,
               let window = button.window else { return }

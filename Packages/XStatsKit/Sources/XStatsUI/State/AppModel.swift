@@ -45,7 +45,7 @@ public final class AppModel {
     /// 当前打开的菜单栏详情弹窗；合并模式的弹窗切到某一项时也是这一项
     public var openPopover: MenuBarItem?
     /// 合并模式下点击菜单栏图标弹出的面板正在显示。
-    /// 面板切到详情时按该项加采；总览仅采已选卡片所需的数据，关闭后释放面板需求。
+    /// 所有摘要行保持可见，展开项叠加详情需求；关闭后释放整个面板需求。
     public var isCombinedPopoverOpen = false {
         didSet {
             guard isCombinedPopoverOpen != oldValue else { return }
@@ -56,7 +56,7 @@ public final class AppModel {
             }
         }
     }
-    /// 合并模式面板当前的标签：nil 是状态总览，否则是某一项的详情
+    /// 合并面板当前展开的指标：nil 表示全部收起，同一时间只展开一项。
     public var combinedPopoverTab: MenuBarItem? {
         didSet { if isCombinedPopoverOpen { openPopover = combinedPopoverTab } }
     }
@@ -118,11 +118,12 @@ public final class AppModel {
     }
 
     var isCombinedOverviewVisible: Bool {
-        isCombinedPopoverOpen && combinedPopoverTab == nil
+        isCombinedPopoverOpen
     }
 
     var showsOverviewProcesses: Bool {
-        settings.processesEnabled && visibleMenuBarItems.contains { $0 == .cpu || $0 == .memory }
+        combinedPopoverTab == nil && settings.processesEnabled
+            && visibleMenuBarItems.contains { $0 == .cpu || $0 == .memory }
     }
 
     /// 根据当前可见内容决定采集范围：主窗口看标签页，详情弹窗看是哪一项
