@@ -136,7 +136,13 @@ public final class MetricsStore {
         var byGroup = Dictionary(uniqueKeysWithValues: old.temperatures.map { ($0.group, $0) })
         for summary in new.temperatures { byGroup[summary.group] = summary }
         let ordered = TemperatureGroup.allCases.compactMap { byGroup[$0] }
-        sensors = SensorReadings(temperatures: ordered, fans: fanCount == 0 ? [] : (new.fans.isEmpty ? old.fans : new.fans), fanCount: fanCount)
+        // 读取失败时沿用的旧风扇数据不再推进起步窗口，去掉“启动中”以免提示超出时限。
+        let fans = new.fans.isEmpty ? old.fans.map { fan in
+            var fan = fan
+            fan.isStarting = false
+            return fan
+        } : new.fans
+        sensors = SensorReadings(temperatures: ordered, fans: fanCount == 0 ? [] : fans, fanCount: fanCount)
     }
 
     var fastestFan: FanState? {

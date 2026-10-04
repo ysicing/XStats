@@ -146,9 +146,14 @@ public final class AppModel {
         // 仅实时监控页需要每秒采样；历史、工具和设置页沿用用户设置的后台间隔。
         let liveWindow = window && [.overview, .system, .cpu, .gpu, .memory, .disk,
                                     .network, .thermal, .battery].contains(tab)
+        // AI 用量与显示器有各自的刷新机制，不读取采样结果，不应提高全局采样频率。
+        let selfRefreshing: Set<MenuBarItem> = [.aiUsage, .display]
+        let livePopover = popover.map { !selfRefreshing.contains($0) } ?? false
+        // 合并面板的摘要始终可见；只有其中的系统指标需要提高全局采样频率。
+        let liveOverview = !overview.subtracting(selfRefreshing).isEmpty
         // 进程页要读全系统进程（启动 ps），每 2 秒刷新一次足够，也更省电
-        demand.interval = processPage && popover == nil ? .seconds(2)
-            : liveWindow || popover != nil || isCombinedPopoverOpen ? .seconds(1) : .seconds(settings.refreshSeconds)
+        demand.interval = processPage && !livePopover ? .seconds(2)
+            : liveWindow || livePopover || liveOverview ? .seconds(1) : .seconds(settings.refreshSeconds)
         demand.memory = true
         demand.network = true
         let showing = { (page: PanelTab, item: MenuBarItem) in (window && tab == page) || popover == item }
