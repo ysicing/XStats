@@ -208,12 +208,14 @@ struct LiveSamplerTests {
         let marker = FileManager.default.temporaryDirectory.appending(path: "xstats-process-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: marker) }
         let clock = ContinuousClock()
+        // 在采样线程内记录返回时刻，避免并发线程池繁忙时 await 恢复延迟计入取消耗时。
         let task = Task.detached {
-            NetworkProcessSampler.run(
+            let output = NetworkProcessSampler.run(
                 path: "/bin/sh",
                 arguments: ["-c", "touch \"$1\"; sleep 5", "xstats-test", marker.path],
                 timeout: 5
             )
+            return (output, clock.now)
         }
 
         let launchDeadline = clock.now + .seconds(5)
@@ -223,11 +225,11 @@ struct LiveSamplerTests {
         try #require(FileManager.default.fileExists(atPath: marker.path))
         let cancelled = clock.now
         task.cancel()
-        let output = await task.value
+        let (output, returned) = await task.value
 
         #expect(output == nil)
         // TERM、KILL 和管道排空可各等待 0.5 秒；留出 CI 调度余量，仍须早于 5 秒命令完成。
-        #expect(cancelled.duration(to: clock.now) < .seconds(3))
+        #expect(cancelled.duration(to: returned) < .seconds(3))
     }
 
     @Test func parsesCloudflareTrace() {

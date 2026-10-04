@@ -32,7 +32,7 @@ struct FanStartupTests {
         #expect(!result7)
         let result8 = tracker.update(id: 0, current: 0, target: 0, isManual: true, status: nil, now: 2)
         #expect(!result8)
-        let result9 = tracker.update(id: 0, current: 0, target: 2000, isManual: true, status: 3, now: 3)
+        let result9 = tracker.update(id: 1, current: 0, target: 2000, isManual: true, status: 3, now: 3)
         #expect(!result9)
         let result10 = tracker.update(id: 0, current: 0, target: 2000, isManual: true, status: nil, now: 4)
         #expect(result10)
@@ -56,6 +56,20 @@ struct FanStartupTests {
         tracker.retain(fanCount: 0)
         let result17 = tracker.update(id: 0, current: 0, target: 2000, isManual: true, status: nil, now: 21)
         #expect(result17)
+    }
+
+    @Test func transientStatusFailureKeepsTheFirmwareWindow() {
+        var tracker = FanStartupTracker()
+        let initiallyStarting = tracker.update(id: 0, current: 0, target: 0, isManual: false, status: 1, now: 0)
+        #expect(initiallyStarting)
+        let duringFailure = tracker.update(id: 0, current: 0, target: 0, isManual: false, status: nil, now: 5)
+        #expect(duringFailure)
+        let expiredDuringFailure = tracker.update(id: 0, current: 0, target: 0, isManual: false, status: nil, now: 11)
+        #expect(!expiredDuringFailure)
+        let afterRecovery = tracker.update(id: 0, current: 0, target: 0, isManual: false, status: 1, now: 12)
+        #expect(!afterRecovery)
+        let failureWithManualTarget = tracker.update(id: 0, current: 0, target: 2000, isManual: true, status: nil, now: 13)
+        #expect(!failureWithManualTarget)
     }
 
     @Test func failedFanCountDoesNotRestartAnExpiredWindow() {
