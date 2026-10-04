@@ -60,6 +60,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var updateCheckSchedule: String?
     public var cleanerEnabled: Bool?
     public var processesEnabled: Bool?
+    public var audioEnabled: Bool?
     public var cleanPrefersTrash: Bool?
 
     public init() {}
@@ -113,6 +114,7 @@ extension AppSettings {
         doc.updateCheckSchedule = updateCheckSchedule.rawValue
         doc.cleanerEnabled = cleanerEnabled
         doc.processesEnabled = processesEnabled
+        doc.audioEnabled = audioEnabled
         doc.cleanPrefersTrash = cleanPrefersTrash
         return doc
     }
@@ -187,6 +189,7 @@ extension AppSettings {
         }
         assign(\.cleanerEnabled, doc.cleanerEnabled)
         assign(\.processesEnabled, doc.processesEnabled)
+        assign(\.audioEnabled, doc.audioEnabled)
         assign(\.cleanPrefersTrash, doc.cleanPrefersTrash)
     }
 

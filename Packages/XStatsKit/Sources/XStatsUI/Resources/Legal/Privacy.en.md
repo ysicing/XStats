@@ -1,6 +1,6 @@
 # XStats Privacy Policy
 
-Effective date: October 3, 2026
+Effective date: October 4, 2026
 
 This policy explains what XStats processes on your Mac and which features contact external services. XStats-operated services retain only the update-statistics aggregates described in section 2; the app's other persisted data stays on your Mac and is not uploaded to XStats-operated servers. Network tests send requests needed for the test to independent providers, as described in section 3. Contact: i@xiai.me.
 
@@ -14,6 +14,8 @@ AI Usage is off by default. When enabled, it reads local Codex / Claude Code ses
 If you manually configure Sub2API as a backup quota source for Codex or Claude Code, the app contacts the HTTPS server specified for that source only when its automatic quota lookup fails. The two configurations are stored separately, and XStats verifies the queried account's platform. Your admin email and password are sent to the corresponding server to sign in. Passwords are stored separately in this Mac's Keychain; addresses, emails, and account IDs stay in local preferences. Background quota requests use `force=false` and do not trigger active probes. Removing one source's configuration deletes its locally stored Sub2API password and connection details.
 
 You choose whether and where to export diagnostics; they are not uploaded automatically. An exported archive may contain a settings summary, the last three days of system logs, cleanup records, and crash reports. Review it before sharing.
+
+Audio controls are disabled by default. System volume, mute and output/input device switching use local Core Audio interfaces; unsupported controls are unavailable. On macOS 14.4 or later, app volume requires explicit system audio capture authorization. Audio is processed locally in real time and is never recorded, saved or uploaded. App volume preferences are stored locally by app identifier. Adjustments remain active when the interface closes; disabling the feature or sleeping stops processing and releases audio objects. Authorization can be revoked in System Settings.
 
 ## 2. Update checks and installation statistics
 

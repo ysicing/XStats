@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 "NSCalendarsFullAccessUsageDescription" = "يعرض أحداث التقويم المحددة محليًا دون تعديلها أو رفعها.";
 "NSRemindersFullAccessUsageDescription" = "يعرض التذكيرات المستحقة المحددة محليًا دون تعديلها أو رفعها.";
+"NSAudioCaptureUsageDescription" = "ضبط مستوى صوت التطبيقات محليًا في الوقت الحقيقي دون تسجيل الصوت أو حفظه أو تحميله.";

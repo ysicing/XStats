@@ -78,6 +78,7 @@ struct PopoverDetail: View {
         case .battery: BatteryPopover()
         case .aiUsage: AIUsagePopover()
         case .display: DisplayDetails()
+        case .audio: AudioMixerContent()
         }
     }
 }

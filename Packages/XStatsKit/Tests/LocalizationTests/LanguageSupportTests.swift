@@ -85,7 +85,9 @@ struct LanguageSupportTests {
     func everyLanguageHasCompleteCatalog(_ language: AppLanguage) throws {
         let catalog = try #require(Translations.catalog(for: language))
         #expect(catalog.sourceKeys == Translations.shared.sourceKeys)
-        for key in ["语言", "应用 UI 语言", "自动检测", "搜索语言", "没有匹配的语言",
+        for key in ["音频", "系统音量、音频设备与应用音量", "应用音量", "开启应用音量",
+                    "没有可用音频设备", "输出设备", "输入设备", "输入音量", "取消静音", "恢复原始音量",
+                    "语言", "应用 UI 语言", "自动检测", "搜索语言", "没有匹配的语言",
                     "热压力：正常", "热压力：偏高", "热压力：严重", "热压力：临界", "热压力：未知",
                     "高效处理多线程任务", "由 macOS 报告的系统热状态，与 CPU 温度读数独立。",
                     "核心最高温度；余量以 100°C 为参考，不代表设备实际降频阈值。",

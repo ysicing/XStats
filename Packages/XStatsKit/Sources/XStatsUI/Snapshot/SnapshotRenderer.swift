@@ -22,6 +22,10 @@ enum SnapshotRenderer {
             renderCalendar(outputDirectory: outputDirectory)
             return
         }
+        if CommandLine.arguments.contains("--audio-only") {
+            await renderAudio(outputDirectory: outputDirectory)
+            return
+        }
         if CommandLine.arguments.contains("--display-only") {
             await renderDisplays(outputDirectory: outputDirectory)
             return
@@ -135,6 +139,31 @@ enum SnapshotRenderer {
             writePNG(padded, scale: 2, to: outputDirectory.appendingPathComponent("menubar-\(dark ? "dark" : "light").png"))
         }
         print(tr("截图已输出到 \(outputDirectory.path)"))
+    }
+
+    /// 使用隔离偏好只读取设备；不请求权限，不创建 tap，不修改系统音量或路由。
+    private static func renderAudio(outputDirectory: URL) async {
+        let suite = "XStats.audioSnapshot.\(UUID())"
+        guard let defaults = UserDefaults(suiteName: suite) else { return }
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.language = L10n.language
+        settings.audioEnabled = true
+        settings.menuBarItems = [.audio]
+        settings.panelTab = .audio
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        model.audio.setDemand(enabled: true, visible: true, menuVisible: true)
+        // HAL 串行队列事件发布到主线程后再离屏测量。
+        try? await Task.sleep(for: .milliseconds(300))
+        for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+            guard let appearance = NSAppearance(named: name) else { continue }
+            NSApp.appearance = appearance
+            write(PopoverRootView(item: .audio), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("audio-\(suffix).png"))
+            write(MainWindowView(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("audio-window-\(suffix).png"))
+        }
+        model.audio.stop()
     }
 
     /// 显示器走查只读信息和 Get VCP 能力，不执行设置写入。

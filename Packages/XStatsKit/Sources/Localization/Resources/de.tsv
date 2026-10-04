@@ -1679,3 +1679,25 @@ IP 归属地	IP-Standort
 高效处理多线程任务	Bearbeitet Multithread-Aufgaben effizient
 由 macOS 报告的系统热状态，与 CPU 温度读数独立。	Von macOS gemeldeter thermischer Systemzustand, unabhängig von CPU-Temperaturwerten.
 核心最高温度；余量以 100°C 为参考，不代表设备实际降频阈值。	Höchste Kerntemperatur; der Abstand zu 100°C dient nur als Referenz, nicht als tatsächliche Drosselungsschwelle des Geräts.
+
+音频	Audio
+系统音量、音频设备与应用音量	Systemlautstärke, Audiogeräte und App-Lautstärke
+应用音量	App-Lautstärke
+应用音量需要 macOS 14.4 或更新版本	App-Lautstärke erfordert macOS 14.4 oder neuer
+仅在本机处理声音，不录制或上传音频。开启后可独立调节正在播放声音的应用。	Audio wird lokal verarbeitet, ohne Aufnahme oder Upload. Aktiviere die Funktion, um die Lautstärke spielender Apps einzeln anzupassen.
+开启应用音量	App-Lautstärke aktivieren
+暂无正在播放声音的应用	Keine Apps spielen Audio ab
+请在系统设置的屏幕与系统音频录制中允许 XStats，然后重新开启应用音量。	Erlaube XStats unter Bildschirm- und Systemaudioaufnahme in den Systemeinstellungen und aktiviere die App-Lautstärke erneut.
+音频设备已变化，请重试。	Das Audiogerät hat sich geändert. Bitte erneut versuchen.
+当前输出格式不支持应用音量，请切换音频设备。	Das aktuelle Ausgabeformat unterstützt keine App-Lautstärke. Wähle ein anderes Audiogerät.
+此设备不支持该控制。	Dieses Gerät unterstützt diese Steuerung nicht.
+音频操作未完成，请重试。	Der Audiovorgang konnte nicht abgeschlossen werden. Bitte erneut versuchen.
+输出设备	Ausgabegerät
+输入设备	Eingabegerät
+没有可用音频设备	Keine Audiogeräte verfügbar
+系统音量	Systemlautstärke
+输入音量	Eingangslautstärke
+取消静音	Stummschaltung aufheben
+静音	Stummschalten
+此设备的音量由设备自身控制	Die Lautstärke wird am Gerät gesteuert
+恢复原始音量	Original-Lautstärke wiederherstellen

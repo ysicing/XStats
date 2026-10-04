@@ -238,6 +238,10 @@ struct OverviewReading {
         }
 
         switch item {
+        case .audio:
+            value = model.audio.output?.outputMuted == true ? tr("静音") : model.audio.output?.outputVolume.map { Format.percent($0) } ?? "—"
+            detail = model.audio.output?.name ?? tr("没有可用音频设备")
+            if let volume = model.audio.output?.outputVolume { chart = .level(volume, DS.Palette.primary) }
         case .display:
             value = model.displays.catalog.count.formatted(.number.locale(L10n.locale))
             detail = model.displays.catalog.map(\.name).joined(separator: " · ")

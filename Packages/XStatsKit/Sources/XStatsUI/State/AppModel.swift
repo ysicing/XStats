@@ -12,6 +12,7 @@ import Updates
 @Observable
 public final class AppModel {
     let displays = DisplayController()
+    let audio: AudioController
     public let settings: AppSettings
     let rest: RestController
     let calendarAgenda = CalendarAgendaController()
@@ -85,6 +86,7 @@ public final class AppModel {
         let store = MetricsStore()
         let helper = HelperClient()
         self.settings = settings
+        audio = AudioController(defaults: settings.audioDefaults)
         rest = RestController(settings: settings)
         aiUsage = AIUsageController(settings: settings, providers: aiUsageProviders, quotaProviders: aiQuotaProviders,
                                     quotaCacheURL: quotaCacheURL, costReferenceStore: .shared)
@@ -127,6 +129,14 @@ public final class AppModel {
             && visibleMenuBarItems.contains { $0 == .cpu || $0 == .memory }
     }
 
+    var audioControlsVisible: Bool {
+        openPopover == .audio || (isMainWindowVisible && settings.panelTab == .audio)
+    }
+
+    var audioMenuVisible: Bool {
+        drawnMenuBarItems.contains(.audio) || (isCombinedOverviewVisible && visibleMenuBarItems.contains(.audio))
+    }
+
     var displayControlsVisible: Bool {
         openPopover == .display || (isMainWindowVisible && settings.panelTab == .system)
     }
@@ -147,7 +157,7 @@ public final class AppModel {
         let liveWindow = window && [.overview, .system, .cpu, .gpu, .memory, .disk,
                                     .network, .thermal, .battery].contains(tab)
         // AI 用量与显示器有各自的刷新机制，不读取采样结果，不应提高全局采样频率。
-        let selfRefreshing: Set<MenuBarItem> = [.aiUsage, .display]
+        let selfRefreshing: Set<MenuBarItem> = [.aiUsage, .display, .audio]
         let livePopover = popover.map { !selfRefreshing.contains($0) } ?? false
         // 合并面板的摘要始终可见；只有其中的系统指标需要提高全局采样频率。
         let liveOverview = !overview.subtracting(selfRefreshing).isEmpty

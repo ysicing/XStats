@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 "NSCalendarsFullAccessUsageDescription" = "在本機日曆面板顯示您選擇的系統行程，不修改或上傳行程內容。";
 "NSRemindersFullAccessUsageDescription" = "在本機日曆面板顯示您選擇的到期提醒，不修改或上傳提醒內容。";
+"NSAudioCaptureUsageDescription" = "在本機即時調節應用程式音量，不錄製、儲存或上傳聲音。";

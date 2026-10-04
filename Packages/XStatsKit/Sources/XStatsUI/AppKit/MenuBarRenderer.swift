@@ -29,6 +29,9 @@ struct MenuBarQuota {
 /// 菜单栏上要画的读数，与数据来源解耦，设置页预览可以用示例数据绘制
 struct MenuBarReading {
     var displayCount = 0
+    var audioVolume: Double?
+    var audioMuted = false
+    var audioDeviceName: String?
     var cpu: Double?
     var cpuHistory: [Double] = []
     var gpu: Double?
@@ -69,6 +72,10 @@ struct MenuBarReading {
         for item in items {
             switch item {
             case .display: displayCount = model.displays.catalog.count
+            case .audio:
+                audioVolume = model.audio.output?.outputVolume
+                audioMuted = model.audio.output?.outputMuted == true
+                audioDeviceName = model.audio.output?.name
             case .cpu:
                 cpu = store.cpu?.total
                 cpuHistory = store.cpuTotal.elements
@@ -127,6 +134,7 @@ struct MenuBarReading {
     /// 设置页预览用的示例读数：历史给 30 个点，柱状风格取最后 10 个，折线风格用全部
     static let sample: MenuBarReading = {
         var reading = MenuBarReading()
+        reading.audioVolume = 0.6
         reading.cpu = 0.34
         reading.cpuHistory = [0.12, 0.15, 0.11, 0.20, 0.33, 0.27, 0.19, 0.24, 0.45, 0.38,
                               0.30, 0.26, 0.22, 0.35, 0.58, 0.49, 0.41, 0.37, 0.30, 0.25,
@@ -166,6 +174,7 @@ struct MenuBarReading {
         guard keepAwake == previous.keepAwake else { return false }
         switch item {
         case .display: return displayCount == previous.displayCount
+        case .audio: return audioVolume == previous.audioVolume && audioMuted == previous.audioMuted
         case .cpu, .gpu, .memory, .disk:
             let current = percent(item), old = previous.percent(item)
             return current.value == old.value
@@ -199,6 +208,7 @@ struct MenuBarReading {
         items.compactMap { item -> String? in
             switch item {
             case .display: tr("显示器 \(displayCount.formatted(.number.locale(L10n.locale))) 台")
+            case .audio: [audioDeviceName, audioMuted ? tr("静音") : audioVolume.map { Format.percent($0) }].compactMap { $0 }.joined(separator: " · ")
             case .cpu: cpu.map { "CPU \(Format.percent($0))" }
             case .gpu: gpu.map { "GPU \(Format.percent($0))" }
             case .memory: memory.map { tr("内存 \(Format.percent($0))") }
@@ -372,6 +382,8 @@ enum MenuBarRenderer {
                 return "\(Int(degrees.rounded()))°"
             } ?? "—"
             return textSegment(item: item, value: text, sample: "100°", style: style)
+        case .audio:
+            return textSegment(item: item, value: reading.audioMuted ? "—" : reading.audioVolume.map { Format.percent($0) } ?? "—", sample: "100%", style: style)
         case .display:
             return textSegment(item: item, value: reading.displayCount.formatted(.number.locale(L10n.locale)), sample: "8", style: style)
         case .fan:
