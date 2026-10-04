@@ -16,7 +16,8 @@ struct DisplayDetails: View {
             if model.displays.catalog.isEmpty {
                 Text(tr("没有检测到显示器")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
             }
-            ForEach(model.displays.catalog) { display in
+            // CG 编号会复用，按连接身份区分行，换屏后丢弃旧行的拖动草稿，避免写到新显示器。
+            ForEach(model.displays.catalog, id: \.target) { display in
                 VStack(alignment: .leading, spacing: DS.Space.s2) {
                     HStack {
                         Label(display.name, systemImage: display.isBuiltIn ? "laptopcomputer" : "display")
@@ -62,7 +63,7 @@ private struct DisplayControlRow: View {
                 Text(control.title).dsFont(.sm)
                 Spacer()
                 if let value {
-                    Text(verbatim: ((editing || submitting) ? (draft ?? value.percent) : value.percent).formatted(.number.precision(.fractionLength(0)).locale(L10n.locale)) + "%")
+                    Text(verbatim: (((editing || submitting) ? (draft ?? value.percent) : value.percent) / 100).formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
                         .dsFont(.sm, weight: .medium).monospacedDigit()
                 } else {
                     Text(status).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)

@@ -47,9 +47,15 @@ extension Array where Element == FanState {
 /// 超时后保留真实的 0 RPM，直到风扇转动或起步条件消失才允许开始新的窗口。
 struct FanStartupTracker {
     private var startedAt: [Int: TimeInterval] = [:]
+    /// 曾读到状态键的风扇；之后读不到视为偶发失败，沿用原窗口而不是改用手动目标推断。
+    private var reportsStatus: Set<Int> = []
 
     mutating func update(id: Int, current: Double, target: Double, isManual: Bool,
                          status: Double?, now: TimeInterval) -> Bool {
+        if status != nil { reportsStatus.insert(id) }
+        if current == 0, status == nil, reportsStatus.contains(id) {
+            return startedAt[id].map { now - $0 < 10 } ?? false
+        }
         let starting = status.map { $0 == 1 } ?? (isManual && target.isFinite && target > 0)
         guard current == 0, starting else {
             startedAt[id] = nil
@@ -64,6 +70,7 @@ struct FanStartupTracker {
         // nil 是读取失败，不能当作确认无风扇，否则会重新开始已超时的提示。
         guard let fanCount else { return }
         startedAt = startedAt.filter { (0..<fanCount).contains($0.key) }
+        reportsStatus = reportsStatus.filter { (0..<fanCount).contains($0) }
     }
 }
 
