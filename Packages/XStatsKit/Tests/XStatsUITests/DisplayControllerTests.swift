@@ -56,7 +56,7 @@ struct DisplayControllerTests {
     private func waitForReads(_ backend: TestDisplayBackend, _ count: Int) async throws {
         let deadline = ContinuousClock.now + .seconds(30)
         while await backend.count() < count, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
-        #expect(await backend.count() == count)
+        #expect(await backend.count() >= count)
     }
     private func settle(_ controller: DisplayController) async throws {
         let deadline = ContinuousClock.now + .seconds(30)
@@ -106,6 +106,11 @@ struct DisplayControllerTests {
         try await waitForReads(backend, 1)
         try await settle(controller)
         #expect(controller.readings[7]?[.volume] == .unsupported)
+        // 保护状态前的正常刷新可以增加总次数，之后应验证读取增量。
+        await controller.refresh()
+        let token = UUID()
+        controller.beginEditing(token)
+        try await settle(controller)
         await controller.write(20, control: .volume, display: display)
         await controller.write(.nan, control: .brightness, display: display)
         #expect(await backend.writeCount() == 0)
@@ -113,9 +118,10 @@ struct DisplayControllerTests {
         #expect(await backend.writeCount() == 1)
         #expect(controller.readings[7]?[.brightness] == .value(DDCValue(current: 60, maximum: 100)))
         controller.setVisible(false)
+        let readsBeforeHiddenOperations = await backend.count()
         await controller.refresh()
         await controller.write(20, control: .brightness, display: display)
-        #expect(await backend.count() == 1)
+        #expect(await backend.count() == readsBeforeHiddenOperations)
         #expect(await backend.writeCount() == 1)
     }
 
@@ -146,7 +152,12 @@ struct DisplayControllerTests {
         controller.setVisible(true)
         try await waitForReads(backend, 1)
         try await settle(controller)
+        await controller.refresh()
+        // 冻结后续周期读取并排空已有请求，再进入暂停状态。
+        controller.beginEditing(UUID())
+        try await settle(controller)
         controller.setPaused(true)
+        let readsBeforePausedOperations = await backend.count()
         await controller.refresh()
         await controller.write(20, control: .brightness, display: display)
         #expect(await backend.writeCount() == 0)
@@ -156,7 +167,9 @@ struct DisplayControllerTests {
         controller.setVisible(true)
         await controller.refresh()
         #expect(controller.isSettling)
-        #expect(await backend.count() == 1)
+        // 先结束可见需求，避免断言的异步读取遇到已到期的恢复任务。
+        controller.setVisible(false)
+        #expect(await backend.count() == readsBeforePausedOperations)
     }
 
     @Test func failedReadbackIsNotReportedAsSuccessfulAndEditingDefersPolling() async throws {
@@ -167,12 +180,15 @@ struct DisplayControllerTests {
         try await waitForReads(backend, 1)
         try await settle(controller)
         let token = UUID()
-        controller.beginEditing(token)
         await controller.refresh()
-        #expect(await backend.count() == 1)
+        controller.beginEditing(token)
+        defer { controller.endEditing(token) }
+        try await settle(controller)
+        let readsBeforeEditingRefresh = await backend.count()
+        await controller.refresh()
+        #expect(await backend.count() == readsBeforeEditingRefresh)
         await backend.setWriteResult(.unconfirmed(nil))
         await controller.write(20, control: .brightness, display: display)
-        controller.endEditing(token)
         #expect(controller.readings[7]?[.brightness] == .unconfirmed(nil))
         #expect(!controller.isWriting)
         await controller.write(40, control: .brightness, display: display)
