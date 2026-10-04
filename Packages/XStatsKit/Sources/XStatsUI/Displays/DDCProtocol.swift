@@ -101,6 +101,12 @@ struct EDIDSignature: Equatable, Sendable {
         serial = UInt32(bytes[12]) | UInt32(bytes[13]) << 8 | UInt32(bytes[14]) << 16 | UInt32(bytes[15]) << 24
     }
 
+    /// 读不到 EDID 时无法确认 proxy 归属：只有一台外接屏时不存在错写对象，多屏则拒绝。
+    static func verifies(_ observed: EDIDSignature?, expected: EDIDSignature, externalDisplays: Int) -> Bool {
+        guard let observed else { return externalDisplays == 1 }
+        return observed.matches(expected)
+    }
+
     /// 序列号为 0 表示 EDID 未提供，此时只比较厂商与产品。
     func matches(_ other: EDIDSignature) -> Bool {
         vendor == other.vendor && product == other.product
