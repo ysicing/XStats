@@ -36,6 +36,13 @@ public struct FanState: Sendable, Equatable, Identifiable {
     }
 }
 
+extension Array where Element == FanState {
+    /// 汇总值是否显示“启动中”：仅当没有任何风扇在转、且至少一个处于起步窗口
+    public var isStartingUp: Bool {
+        !contains { $0.current > 0 } && contains(where: \.isStarting)
+    }
+}
+
 /// 部分机型没有起步状态键，只能以手动目标转速推断。两种来源均最多提示 10 秒，
 /// 超时后保留真实的 0 RPM，直到风扇转动或起步条件消失才允许开始新的窗口。
 struct FanStartupTracker {

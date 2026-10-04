@@ -295,8 +295,8 @@ struct OverviewReading {
         case .fan:
             let fans = store.sensors?.fans ?? []
             if let fastest = store.fastestFan {
-                value = fans.contains(where: \.isStarting) ? tr("启动中…") : Int(fastest.current).formatted()
-                unit = fans.contains(where: \.isStarting) ? nil : "RPM"
+                value = fans.isStartingUp ? tr("启动中…") : Int(fastest.current).formatted()
+                unit = fans.isStartingUp ? nil : "RPM"
                 let average = fans.map { $0.maximum > 0 ? $0.current / $0.maximum : 0 }.reduce(0, +) / Double(max(1, fans.count))
                 chart = .level(average, DS.Palette.primary)
             }

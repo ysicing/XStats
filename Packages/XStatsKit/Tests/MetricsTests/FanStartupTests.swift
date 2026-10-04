@@ -71,3 +71,19 @@ struct FanStartupTests {
         #expect(!afterRepeatedFailure)
     }
 }
+
+struct FanStartupSummaryTests {
+    private func fan(_ id: Int, current: Double, starting: Bool = false) -> FanState {
+        FanState(id: id, current: current, minimum: 1000, maximum: 5000, target: 2000, isManual: true, isStarting: starting)
+    }
+
+    @Test func spinningFanKeepsSummaryWhileAnotherStarts() {
+        #expect(![fan(0, current: 2400), fan(1, current: 0, starting: true)].isStartingUp)
+    }
+
+    @Test func summaryStartsOnlyWhenNoFanSpins() {
+        #expect([fan(0, current: 0), fan(1, current: 0, starting: true)].isStartingUp)
+        #expect(![fan(0, current: 0), fan(1, current: 0)].isStartingUp)
+        #expect(![FanState]().isStartingUp)
+    }
+}
