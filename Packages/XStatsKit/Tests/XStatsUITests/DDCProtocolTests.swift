@@ -49,6 +49,16 @@ struct DDCProtocolTests {
         #expect(target.matches(EDIDSignature(vendor: 4268, product: 41400, serial: 0)))
     }
 
+    @Test func unverifiableProxyIsOnlyAcceptedWithASingleExternalDisplay() {
+        let target = EDIDSignature(vendor: 4268, product: 41400, serial: 810_567_746)
+        let other = EDIDSignature(vendor: 4268, product: 41400, serial: 1)
+        #expect(EDIDSignature.verifies(nil, expected: target, externalDisplays: 1))
+        #expect(!EDIDSignature.verifies(nil, expected: target, externalDisplays: 2))
+        #expect(!EDIDSignature.verifies(nil, expected: target, externalDisplays: 0))
+        #expect(EDIDSignature.verifies(target, expected: target, externalDisplays: 3))
+        #expect(!EDIDSignature.verifies(other, expected: target, externalDisplays: 1))
+    }
+
     @Test func preservesFullRangeAndRejectsInvalidUserValues() {
         let value = DDCValue(current: 32768, maximum: 65535)
         #expect(DDCProtocol.parse(reply(current: 32768, maximum: 65535), control: .brightness) == .value(value))

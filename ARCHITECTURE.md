@@ -616,7 +616,8 @@ control calls are not a Store-target compatibility claim; a future sandboxed tar
 backend. Services are matched by the CoreDisplay registry location, not by a guessed model name;
 ambiguous/missing matches disable controls. `DCPAVServiceProxy` is not a descendant of its
 framebuffer, so it is paired by registry order and then rejected if the service's own EDID
-(vendor, product, serial) disagrees with the CG display; an unreadable EDID keeps the location match.
+(vendor, product, serial) disagrees with the CG display. An unreadable EDID is accepted only when a
+single external display is online; with several, unverifiable proxies are rejected.
 Match results, including misses, are cached per connection on the I/O queue and dropped on
 screen reconfiguration or wake, so polling does not rescan the registry. Device signatures and
 controller generations reject stale requests after reconnects. No brightness/volume/contrast values are automatically restored.

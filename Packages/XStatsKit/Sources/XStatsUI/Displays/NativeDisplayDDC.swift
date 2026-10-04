@@ -128,6 +128,10 @@ final class NativeDisplayDDC: DisplayDDCBackend, @unchecked Sendable {
         defer { IOObjectRelease(iterator) }
         let expected = EDIDSignature(vendor: CGDisplayVendorNumber(target.id), product: CGDisplayModelNumber(target.id),
                                      serial: CGDisplaySerialNumber(target.id))
+        var online = [CGDirectDisplayID](repeating: 0, count: 16)
+        var onlineCount: UInt32 = 0
+        guard CGGetOnlineDisplayList(UInt32(online.count), &online, &onlineCount) == .success else { return nil }
+        let externalDisplays = online.prefix(Int(onlineCount)).filter { CGDisplayIsBuiltin($0) == 0 }.count
         var matchingFramebuffer = false
         var candidates: [Service] = []
         for _ in 0..<20_000 {
@@ -144,7 +148,8 @@ final class NativeDisplayDDC: DisplayDDCBackend, @unchecked Sendable {
             } else if matchingFramebuffer && label == "DCPAVServiceProxy" {
                 let kind = IORegistryEntryCreateCFProperty(entry, "Location" as CFString, nil, 0)?.takeRetainedValue() as? String
                 guard kind == "External", let service = api.create(nil, entry)?.takeRetainedValue(),
-                      edid(of: service, api: api)?.matches(expected) ?? true else { continue }
+                      EDIDSignature.verifies(edid(of: service, api: api), expected: expected,
+                                             externalDisplays: externalDisplays) else { continue }
                 let provider = IORegistryEntrySearchCFProperty(entry, kIOServicePlane, "EPICProviderClass" as CFString,
                     nil, IOOptionBits(kIORegistryIterateParents | kIORegistryIterateRecursively)) as? String
                 // 部分 M1/M2 HDMI 桥使用另一条路由地址；协议校验和仍使用标准 DDC 地址。
@@ -155,7 +160,7 @@ final class NativeDisplayDDC: DisplayDDCBackend, @unchecked Sendable {
         return candidates[0]
     }
 
-    /// 读不到 EDID（符号缺失或链路不提供）时返回 nil，由调用方保留位置匹配结果。
+    /// 读不到 EDID（符号缺失或链路不提供）时返回 nil，由 EDIDSignature.verifies 决定是否接受。
     private static func edid(of service: CFTypeRef, api: Functions) -> EDIDSignature? {
         guard let copyEDID = api.copyEDID else { return nil }
         var data: Unmanaged<CFData>?
