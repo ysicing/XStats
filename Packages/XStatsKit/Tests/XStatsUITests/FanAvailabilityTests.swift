@@ -55,4 +55,20 @@ struct FanAvailabilityTests {
         store.apply(snapshot)
         #expect(store.supportsFans)
     }
+
+    @Test func staleFansReusedAfterReadFailureDropStartingState() {
+        let store = MetricsStore()
+        var snapshot = MetricsSnapshot()
+        let starting = FanState(id: 0, current: 0, minimum: 0, maximum: 6000, target: 2000, isManual: true,
+                                isStarting: true)
+        snapshot.sensors = SensorReadings(temperatures: [], fans: [starting], fanCount: 1)
+        store.apply(snapshot)
+        #expect(store.sensors?.fans.isStartingUp == true)
+        // 读取失败返回空数组：沿用旧读数，但不再显示“启动中”。
+        snapshot.sensors = SensorReadings(temperatures: [], fans: [])
+        store.apply(snapshot)
+        #expect(store.sensors?.fans.count == 1)
+        #expect(store.sensors?.fans.first?.target == 2000)
+        #expect(store.sensors?.fans.isStartingUp == false)
+    }
 }

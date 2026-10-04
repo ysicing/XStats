@@ -84,6 +84,74 @@ struct MenuBarLayoutTests {
         }
     }
 
+    @Test(arguments: [MenuBarLayout.combined, .iconOnly])
+    func independentRefreshItemsPreserveBackgroundSampling(layout: MenuBarLayout) throws {
+        try model { model, _ in
+            model.settings.menuBarLayout = layout
+            model.settings.refreshSeconds = 5
+            model.settings.aiUsageEnabled = true
+            let selections: [Set<MenuBarItem>] = [[], [.display], [.aiUsage], [.display, .aiUsage]]
+            for items in selections {
+                model.settings.menuBarItems = items
+                let idle = model.demand
+                #expect(idle.interval == .seconds(5))
+                model.isCombinedPopoverOpen = true
+                #expect(model.demand == idle)
+                for item in items {
+                    model.combinedPopoverTab = item
+                    #expect(model.demand == idle)
+                    if item == .display { #expect(model.displayControlsVisible) }
+                }
+                model.combinedPopoverTab = nil
+                #expect(model.demand == idle)
+                model.isCombinedPopoverOpen = false
+                #expect(model.demand == idle)
+                #expect(!model.displayControlsVisible)
+            }
+        }
+    }
+
+    @Test(arguments: [MenuBarLayout.combined, .iconOnly])
+    func systemMetricsStillRefreshWhileDisplayDetailsAreExpanded(layout: MenuBarLayout) throws {
+        try model { model, _ in
+            model.settings.menuBarLayout = layout
+            model.settings.refreshSeconds = 5
+            var snapshot = MetricsSnapshot()
+            snapshot.sensors = SensorReadings(temperatures: [], fans: [], fanCount: 1)
+            model.store.apply(snapshot)
+            for item: MenuBarItem in [.cpu, .memory, .network, .gpu, .disk, .temperature, .fan, .battery] {
+                model.settings.menuBarItems = [.display, item]
+                let idle = model.demand
+                model.isCombinedPopoverOpen = true
+                #expect(model.demand.interval == .seconds(1))
+                model.combinedPopoverTab = .display
+                #expect(model.demand.interval == .seconds(1))
+                #expect(model.displayControlsVisible)
+                model.isCombinedPopoverOpen = false
+                model.combinedPopoverTab = nil
+                #expect(model.demand == idle)
+            }
+        }
+    }
+
+    @Test func mainWindowDemandStillOverridesIndependentPanelRefresh() throws {
+        try model { model, _ in
+            model.settings.menuBarLayout = .iconOnly
+            model.settings.menuBarItems = [.display]
+            model.settings.refreshSeconds = 5
+            model.isCombinedPopoverOpen = true
+            model.combinedPopoverTab = .display
+            model.isMainWindowVisible = true
+            model.settings.panelTab = .cpu
+            #expect(model.demand.interval == .seconds(1))
+            model.settings.panelTab = .settingsGeneral
+            #expect(model.demand.interval == .seconds(5))
+            model.settings.processesEnabled = true
+            model.settings.panelTab = .processes
+            #expect(model.demand.interval == .seconds(2))
+        }
+    }
+
     @Test func compactOverviewHasNoHalfEmptyRowsAndExpandsInline() throws {
         try model { model, _ in
             model.settings.menuBarItems = [.cpu, .memory, .network, .disk, .battery]

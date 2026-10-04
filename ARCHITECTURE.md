@@ -167,7 +167,11 @@ its own `NSStatusItem` (created in reverse so they read left to right) and opens
 popover for that metric; in the *combined* layout a single item opens `CombinedPopoverView`: a status
 overview of compact metric rows. Clicking a row expands its existing `PopoverDetail` inline;
 only one row expands at a time. Summary rows remain visible, so their sampling demand is retained
-alongside the expanded detail demand. The header keeps the main-window and settings
+alongside the expanded detail demand. Only visible system-metric rows raise the overview's
+sampling rate; an empty overview or one containing only AI usage and displays retains the
+configured background interval unless a live window or system-metric detail requires more.
+Standalone AI usage and display popovers likewise keep the background interval.
+The header keeps the main-window and settings
 actions outside the scroll area; no bottom action bar is shown. Header and content contribute to
 the same measured panel height. Collapsing or switching a row releases its
 detail-only demand without rebuilding the panel. No timer or continuous animation is added.

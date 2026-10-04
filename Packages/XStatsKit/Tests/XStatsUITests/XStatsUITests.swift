@@ -522,6 +522,20 @@ private func isolatedDefaults() -> UserDefaults {
         #expect(model.demand.interval == .seconds(1))
     }
 
+    @Test func popoversWithoutLiveMetricsKeepSamplingInterval() {
+        let model = model()
+        model.settings.refreshSeconds = 5
+        for item: MenuBarItem in [.aiUsage, .display] {
+            model.openPopover = item
+            #expect(model.demand.interval == .seconds(5), "\(item) popover should not boost sampling")
+        }
+
+        model.settings.processesEnabled = true
+        model.isMainWindowVisible = true
+        model.settings.panelTab = .processes
+        #expect(model.demand.interval == .seconds(2))
+    }
+
     @Test func networkDetailVisibility() {
         let model = model()
         #expect(!model.isNetworkDetailVisible)
