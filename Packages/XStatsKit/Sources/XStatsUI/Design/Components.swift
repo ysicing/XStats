@@ -894,7 +894,6 @@ struct PopoverHeightPreference: PreferenceKey {
     struct Heights: Equatable {
         var header: CGFloat?
         var content: CGFloat?
-        var footer: CGFloat?
     }
 
     static let defaultValue = Heights()
@@ -903,7 +902,6 @@ struct PopoverHeightPreference: PreferenceKey {
         let next = nextValue()
         if let header = next.header { value.header = header }
         if let content = next.content { value.content = content }
-        if let footer = next.footer { value.footer = footer }
     }
 }
 

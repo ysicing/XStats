@@ -22,6 +22,7 @@ struct CombinedPopoverView: View {
                     MiniIconButton(systemName: "arrow.up.right", help: tr("在主窗口打开“\(PanelTab.overview.title)”")) {
                         model.openMainWindow(.overview)
                     }
+                    MiniIconButton(systemName: "gearshape", help: tr("设置")) { model.openSettings() }
                 }
             } content: {
                 VStack(spacing: DS.Space.s2) {
@@ -39,8 +40,6 @@ struct CombinedPopoverView: View {
                     if model.showsOverviewProcesses { OverviewProcessesCard() }
                 }
                 .id("overview-top")
-            } footer: {
-                OverviewFooter()
             }
             .task(id: model.combinedPopoverTab) {
                 guard !isSnapshot else { return }
@@ -50,39 +49,6 @@ struct CombinedPopoverView: View {
                 if let item = model.combinedPopoverTab { scroll.scrollTo(item, anchor: .top) }
                 else { scroll.scrollTo("overview-top", anchor: .top) }
             }
-        }
-    }
-}
-
-/// 固定在滚动内容之外；长译文放不下时保留带提示的图标入口。
-private struct OverviewFooter: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            actions.fixedSize(horizontal: true, vertical: false)
-            actions.labelStyle(.iconOnly)
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("overview-footer")
-    }
-
-    private var actions: some View {
-        HStack(spacing: DS.Space.s2) {
-            Button { model.openMainWindow(.keepAwake) } label: {
-                Label(tr("防休眠"), systemImage: model.keepAwake.isActive ? "cup.and.saucer.fill" : "cup.and.saucer")
-            }
-            .buttonStyle(DSButtonStyle(kind: .secondary))
-            .help(tr("防休眠"))
-            if model.settings.cleanerEnabled {
-                Button { model.openMainWindow(.cleaner) } label: {
-                    Label(tr("清理"), systemImage: "sparkles")
-                }
-                .buttonStyle(DSButtonStyle(kind: .secondary))
-                .help(tr("清理"))
-            }
-            MiniIconButton(systemName: "gearshape", help: tr("设置")) { model.openSettings() }
         }
     }
 }
@@ -344,6 +310,10 @@ struct OverviewReading {
                                                   locale: L10n.locale, compact: true)
                 detail = quota.sourceName + " · " + quota.shortWindowName + " · "
                     + tr(model.settings.aiQuotaShowsRemaining ? "剩余" : "已用")
+                if let percent = AIUsageFormat.quotaValue(remainingPercent: quota.window.remainingPercent,
+                                                         showsRemaining: model.settings.aiQuotaShowsRemaining) {
+                    chart = .level(percent / 100, DS.Palette.primary)
+                }
             } else if !model.settings.aiUsageShowsLocalUsage {
                 detail = tr("暂无额度数据")
             } else if let tokens = model.aiUsage.todayTokens {

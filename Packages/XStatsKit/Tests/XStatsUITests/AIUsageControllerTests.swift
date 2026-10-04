@@ -197,12 +197,13 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(reading.tooltip(items: [.aiUsage], fahrenheit: false).contains("Claude (Sub2API)"))
     }
 
-    @Test func overviewPrefersSubscriptionEvenWhenLocalUsageIsEnabled() async {
+    @Test(arguments: [0, 23, 100])
+    func overviewPrefersSubscriptionEvenWhenLocalUsageIsEnabled(usedPercent: Double) async {
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.aiUsageEnabled = true
         settings.aiUsageShowsLocalUsage = true
         let snapshot = AIQuotaSnapshot(provider: .codex, windows: [
-            AIQuotaWindow(kind: .weekly, usedPercent: 23, resetsAt: Date().addingTimeInterval(3600)),
+            AIQuotaWindow(kind: .weekly, usedPercent: usedPercent, resetsAt: Date().addingTimeInterval(3600)),
         ], fetchedAt: Date())
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [
             StubQuotaProvider(results: [.success(snapshot)]),
@@ -211,9 +212,14 @@ private actor GatedUsageProvider: AIUsageProvider {
         for remaining in [true, false] {
             settings.aiQuotaShowsRemaining = remaining
             let reading = OverviewReading(item: .aiUsage, model: model)
-            #expect(reading.value == AIUsageFormat.quotaPercent(remainingPercent: 77, showsRemaining: remaining,
+            #expect(reading.value == AIUsageFormat.quotaPercent(remainingPercent: 100 - usedPercent, showsRemaining: remaining,
                                                               locale: L10n.locale, compact: true))
             #expect(reading.detail.contains("Codex"))
+            if case .level(let fraction, _) = reading.chart {
+                #expect(abs(fraction - (remaining ? 100 - usedPercent : usedPercent) / 100) < 0.0001)
+            } else {
+                Issue.record("Subscription quota must have a bounded progress indicator")
+            }
         }
     }
 
@@ -255,6 +261,7 @@ private actor GatedUsageProvider: AIUsageProvider {
 
         let reading = MenuBarReading(model: model)
         #expect(reading.aiQuotas.isEmpty)
+        #expect(!OverviewReading(item: .aiUsage, model: model).hasChart)
         let tooltip = reading.tooltip(items: [.aiUsage], fahrenheit: false)
         #expect(tooltip.contains("42 Tokens"))
         #expect(!tooltip.contains("剩余"))

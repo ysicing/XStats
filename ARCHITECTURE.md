@@ -160,12 +160,14 @@ its own `NSStatusItem` (created in reverse so they read left to right) and opens
 popover for that metric; in the *combined* layout a single item opens `CombinedPopoverView`: a status
 overview of compact metric rows. Clicking a row expands its existing `PopoverDetail` inline;
 only one row expands at a time. Summary rows remain visible, so their sampling demand is retained
-alongside the expanded detail demand. Header and footer stay outside the scroll area, and all three
-regions contribute to the same measured panel height. Collapsing or switching a row releases its
+alongside the expanded detail demand. The header keeps the main-window and settings
+actions outside the scroll area; no bottom action bar is shown. Header and content contribute to
+the same measured panel height. Collapsing or switching a row releases its
 detail-only demand without rebuilding the panel. No timer or continuous animation is added.
 The AI summary prioritizes the available subscription window with the least remaining quota,
 including its provider and period; local Token usage remains in the expanded detail and is the
-summary fallback when enabled and no subscription quota is available.
+summary fallback when enabled and no subscription quota is available. Subscription quota has a
+progress track matching the selected used/remaining percentage; unbounded Token counts do not.
 
 The *iconOnly* layout draws only the XStats symbol (plus the keep-awake indicator when active).
 It preserves selected metrics and styles; its 360 pt overview uses the same selection as combined

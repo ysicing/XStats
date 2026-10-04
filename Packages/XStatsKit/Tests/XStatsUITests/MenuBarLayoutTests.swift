@@ -190,9 +190,15 @@ struct MenuBarLayoutTests {
                 #expect(panel.frame.height <= 501)
                 #expect(model.openPopover == item)
                 if item == nil {
-                    // 底栏须同时进入离屏测高和真实布局，不能挂载后突然缩短一个底栏的高度。
+                    // 离屏测高与真实布局保持一致，挂载后不能突然改变面板高度。
                     let natural = NSHostingView(rootView: CombinedPopoverView().environment(model)
                         .environment(\.isSnapshot, true)).fittingSize.height
+                    // 高度回调会在下一轮主队列应用；等待该轮完成，避免并行测试负载下误读展开高度。
+                    for _ in 0..<40 {
+                        mounted.layoutSubtreeIfNeeded()
+                        if abs(panel.frame.height - min(500, natural)) < 2 { break }
+                        try await Task.sleep(for: .milliseconds(25))
+                    }
                     #expect(abs(panel.frame.height - min(500, natural)) < 2)
                 }
             }
