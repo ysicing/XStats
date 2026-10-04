@@ -72,6 +72,20 @@ struct FanStartupTests {
         #expect(!failureWithManualTarget)
     }
 
+    @Test func transientModeOrTargetFailureKeepsTheFallbackWindow() {
+        var tracker = FanStartupTracker()
+        let initiallyStarting = tracker.update(id: 0, current: 0, target: 2000, isManual: true, status: nil, now: 0)
+        #expect(initiallyStarting)
+        let modeFailure = tracker.update(id: 0, current: 0, target: 2000, isManual: nil, status: nil, now: 5)
+        #expect(modeFailure)
+        let targetFailure = tracker.update(id: 0, current: 0, target: nil, isManual: true, status: nil, now: 11)
+        #expect(!targetFailure)
+        let afterRecovery = tracker.update(id: 0, current: 0, target: 2000, isManual: true, status: nil, now: 12)
+        #expect(!afterRecovery)
+        let neverStarted = tracker.update(id: 1, current: 0, target: nil, isManual: nil, status: nil, now: 12)
+        #expect(!neverStarted)
+    }
+
     @Test func failedFanCountDoesNotRestartAnExpiredWindow() {
         var tracker = FanStartupTracker()
         let initiallyStarting = tracker.update(id: 0, current: 0, target: 2000, isManual: true, status: nil, now: 0)

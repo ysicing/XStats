@@ -50,13 +50,17 @@ struct FanStartupTracker {
     /// 曾读到状态键的风扇；之后读不到视为偶发失败，沿用原窗口而不是改用手动目标推断。
     private var reportsStatus: Set<Int> = []
 
-    mutating func update(id: Int, current: Double, target: Double, isManual: Bool,
+    /// target、isManual 为 nil 表示该键读取失败。
+    mutating func update(id: Int, current: Double, target: Double?, isManual: Bool?,
                          status: Double?, now: TimeInterval) -> Bool {
         if status != nil { reportsStatus.insert(id) }
-        if current == 0, status == nil, reportsStatus.contains(id) {
+        // 缺少判断依据时视为偶发失败，沿用原窗口，避免恢复读数后重新开始提示。
+        let unknown = status == nil && (reportsStatus.contains(id) || target == nil || isManual == nil)
+        if current == 0, unknown {
             return startedAt[id].map { now - $0 < 10 } ?? false
         }
-        let starting = status.map { $0 == 1 } ?? (isManual && target.isFinite && target > 0)
+        let manualTarget = isManual == true && target.map { $0.isFinite && $0 > 0 } == true
+        let starting = status.map { $0 == 1 } ?? manualTarget
         guard current == 0, starting else {
             startedAt[id] = nil
             return false
@@ -96,12 +100,14 @@ public final class FanControl {
             guard let current = smc.double(SMCKey("F\(id)Ac")) else { return nil }
             let minimum = smc.double(SMCKey("F\(id)Mn")) ?? 0
             let maximum = smc.double(SMCKey("F\(id)Mx")) ?? 0
-            let target = smc.double(SMCKey("F\(id)Tg")) ?? current
-            let mode = smc.double(modeKey(id)) ?? 0
+            let targetReading = smc.double(SMCKey("F\(id)Tg"))
+            let target = targetReading ?? current
+            let modeReading = smc.double(modeKey(id))
+            let mode = modeReading ?? 0
             // 仅在读数为零时多读一个状态键，运行中的风扇沿用原采样开销。
             let status = current == 0 ? smc.double(SMCKey("F\(id)St")) : nil
-            let isStarting = startup.update(id: id, current: current, target: target,
-                                            isManual: mode == 1, status: status, now: now)
+            let isStarting = startup.update(id: id, current: current, target: targetReading,
+                                            isManual: modeReading.map { $0 == 1 }, status: status, now: now)
             return FanState(id: id, current: current, minimum: minimum, maximum: maximum,
                             target: target, isManual: mode == 1, isStarting: isStarting)
         }
