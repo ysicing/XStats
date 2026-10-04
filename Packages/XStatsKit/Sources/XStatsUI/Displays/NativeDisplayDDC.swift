@@ -12,13 +12,20 @@ final class NativeDisplayDDC: DisplayDDCBackend, @unchecked Sendable {
     private let queue = DispatchQueue(label: "work.12306.xstats.display-ddc", qos: .userInitiated)
     private let lock = NSLock()
     private var running = false
+    /// 只在 queue 内读写：注册表遍历成本高，按连接缓存匹配结果（含未找到），
+    /// 由 resetConnections() 在链路变化时清空，条目数不超过当前连接的外接屏。
+    private var services: [DisplayTarget: Service?] = [:]
+
+    func resetConnections() {
+        queue.async { [self] in services.removeAll() }
+    }
 
     func read(_ target: DisplayTarget, cancellation: DDCCancellation) async -> [DisplayControl: DDCResult] {
         let failed = Dictionary(uniqueKeysWithValues: DisplayControl.allCases.map { ($0, DDCResult.unavailable) })
         return await execute(timeout: failed.mapValues { _ in .timedOut }, busy: failed.mapValues { _ in .busy },
                              cancellation: cancellation) {
             guard !cancellation.isCancelled, let api = Functions.shared,
-                  let service = Self.service(for: target, api: api) else { return failed }
+                  let service = self.service(for: target, api: api) else { return failed }
             var values: [DisplayControl: DDCResult] = [:]
             for control in DisplayControl.allCases {
                 guard !cancellation.isCancelled else { values[control] = .cancelled; continue }
@@ -33,7 +40,7 @@ final class NativeDisplayDDC: DisplayDDCBackend, @unchecked Sendable {
         guard percent.isFinite, (0...100).contains(percent) else { return .unavailable }
         return await execute(timeout: .timedOut, busy: .busy, cancellation: cancellation) {
             guard !cancellation.isCancelled, let api = Functions.shared,
-                  let service = Self.service(for: target, api: api) else { return .unavailable }
+                  let service = self.service(for: target, api: api) else { return .unavailable }
             return DDCWriteTransaction.apply(percent: percent, cancellation: cancellation,
                 isCurrent: { Self.identity(for: target.id) == target.identity },
                 read: { Self.read(service, control: control, api: api, cancellation: cancellation) },
@@ -97,9 +104,19 @@ final class NativeDisplayDDC: DisplayDDCBackend, @unchecked Sendable {
         let address: UInt32
     }
 
+    /// 在 queue 内调用；命中缓存时仍校验连接身份，显示器下线或编号复用时不使用旧服务。
+    private func service(for target: DisplayTarget, api: Functions) -> Service? {
+        guard Self.identity(for: target.id) == target.identity else { return nil }
+        if let cached = services[target] { return cached }
+        let found = Self.matchService(for: target, api: api)
+        services[target] = found
+        return found
+    }
+
     /// 通过 CoreDisplay 的注册表位置匹配 framebuffer；只接受一个明确对应的外接服务。
+    /// proxy 不在 framebuffer 子树下，只能按遍历顺序归属，因此再用服务自身的 EDID 排除其他显示器的 proxy。
     /// 不用型号名、枚举序号或相近 EDID 猜测目标，以免同型号多屏发生错写。
-    private static func service(for target: DisplayTarget, api: Functions) -> Service? {
+    private static func matchService(for target: DisplayTarget, api: Functions) -> Service? {
         guard identity(for: target.id) == target.identity, CGDisplayIsBuiltin(target.id) == 0,
               let info = api.info(target.id)?.takeRetainedValue() as? [String: Any],
               let location = info["IODisplayLocation"] as? String, !location.isEmpty else { return nil }
@@ -109,6 +126,8 @@ final class NativeDisplayDDC: DisplayDDCBackend, @unchecked Sendable {
         var iterator: io_iterator_t = 0
         guard IORegistryEntryCreateIterator(root, kIOServicePlane, IOOptionBits(kIORegistryIterateRecursively), &iterator) == KERN_SUCCESS else { return nil }
         defer { IOObjectRelease(iterator) }
+        let expected = EDIDSignature(vendor: CGDisplayVendorNumber(target.id), product: CGDisplayModelNumber(target.id),
+                                     serial: CGDisplaySerialNumber(target.id))
         var matchingFramebuffer = false
         var candidates: [Service] = []
         for _ in 0..<20_000 {
@@ -124,7 +143,8 @@ final class NativeDisplayDDC: DisplayDDCBackend, @unchecked Sendable {
                     && String(decoding: path.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self) == location
             } else if matchingFramebuffer && label == "DCPAVServiceProxy" {
                 let kind = IORegistryEntryCreateCFProperty(entry, "Location" as CFString, nil, 0)?.takeRetainedValue() as? String
-                guard kind == "External", let service = api.create(nil, entry)?.takeRetainedValue() else { continue }
+                guard kind == "External", let service = api.create(nil, entry)?.takeRetainedValue(),
+                      edid(of: service, api: api)?.matches(expected) ?? true else { continue }
                 let provider = IORegistryEntrySearchCFProperty(entry, kIOServicePlane, "EPICProviderClass" as CFString,
                     nil, IOOptionBits(kIORegistryIterateParents | kIORegistryIterateRecursively)) as? String
                 // 部分 M1/M2 HDMI 桥使用另一条路由地址；协议校验和仍使用标准 DDC 地址。
@@ -133,6 +153,14 @@ final class NativeDisplayDDC: DisplayDDCBackend, @unchecked Sendable {
         }
         guard candidates.count == 1, identity(for: target.id) == target.identity else { return nil }
         return candidates[0]
+    }
+
+    /// 读不到 EDID（符号缺失或链路不提供）时返回 nil，由调用方保留位置匹配结果。
+    private static func edid(of service: CFTypeRef, api: Functions) -> EDIDSignature? {
+        guard let copyEDID = api.copyEDID else { return nil }
+        var data: Unmanaged<CFData>?
+        guard copyEDID(service, &data) == KERN_SUCCESS, let bytes = data?.takeRetainedValue() as Data? else { return nil }
+        return EDIDSignature([UInt8](bytes))
     }
 
     private static func read(_ service: Service, control: DisplayControl, api: Functions,
@@ -162,10 +190,12 @@ final class NativeDisplayDDC: DisplayDDCBackend, @unchecked Sendable {
         typealias Create = @convention(c) (CFAllocator?, io_service_t) -> Unmanaged<CFTypeRef>?
         typealias Transfer = @convention(c) (CFTypeRef, UInt32, UInt32, UnsafeMutableRawPointer, UInt32) -> IOReturn
         typealias Info = @convention(c) (UInt32) -> Unmanaged<CFDictionary>?
+        typealias CopyEDID = @convention(c) (CFTypeRef, UnsafeMutablePointer<Unmanaged<CFData>?>) -> IOReturn
         let create: Create
         let read: Transfer
         let write: Transfer
         let info: Info
+        let copyEDID: CopyEDID?
         static let shared: Functions? = {
             guard let io = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_LAZY),
                   let cd = dlopen("/System/Library/Frameworks/CoreDisplay.framework/CoreDisplay", RTLD_LAZY),
@@ -174,7 +204,8 @@ final class NativeDisplayDDC: DisplayDDCBackend, @unchecked Sendable {
                   let write = dlsym(io, "IOAVServiceWriteI2C"),
                   let info = dlsym(cd, "CoreDisplay_DisplayCreateInfoDictionary") else { return nil }
             return Functions(create: unsafeBitCast(create, to: Create.self), read: unsafeBitCast(read, to: Transfer.self),
-                             write: unsafeBitCast(write, to: Transfer.self), info: unsafeBitCast(info, to: Info.self))
+                             write: unsafeBitCast(write, to: Transfer.self), info: unsafeBitCast(info, to: Info.self),
+                             copyEDID: dlsym(io, "IOAVServiceCopyEDID").map { unsafeBitCast($0, to: CopyEDID.self) })
         }()
     }
 }

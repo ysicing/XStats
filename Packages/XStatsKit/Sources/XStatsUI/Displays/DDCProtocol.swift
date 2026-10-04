@@ -78,6 +78,34 @@ protocol DisplayDDCBackend: Sendable {
     func read(_ target: DisplayTarget, cancellation: DDCCancellation) async -> [DisplayControl: DDCResult]
     func write(_ target: DisplayTarget, control: DisplayControl, percent: Double,
                cancellation: DDCCancellation) async -> DDCResult
+    /// 显示链路可能已变化（屏幕配置变更、唤醒），丢弃已匹配的服务，下次读写重新匹配。
+    func resetConnections()
+}
+
+/// EDID 基本块中的厂商、产品与序列号，与 CGDisplay*Number 同源，用于确认 DDC 服务属于目标显示器。
+struct EDIDSignature: Equatable, Sendable {
+    let vendor: UInt32
+    let product: UInt32
+    let serial: UInt32
+
+    init(vendor: UInt32, product: UInt32, serial: UInt32) {
+        self.vendor = vendor
+        self.product = product
+        self.serial = serial
+    }
+
+    init?(_ bytes: [UInt8]) {
+        guard bytes.count >= 128, bytes.prefix(8) == [0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00] else { return nil }
+        vendor = UInt32(bytes[8]) << 8 | UInt32(bytes[9])
+        product = UInt32(bytes[10]) | UInt32(bytes[11]) << 8
+        serial = UInt32(bytes[12]) | UInt32(bytes[13]) << 8 | UInt32(bytes[14]) << 16 | UInt32(bytes[15]) << 24
+    }
+
+    /// 序列号为 0 表示 EDID 未提供，此时只比较厂商与产品。
+    func matches(_ other: EDIDSignature) -> Bool {
+        vendor == other.vendor && product == other.product
+            && (serial == 0 || other.serial == 0 || serial == other.serial)
+    }
 }
 
 /// 写前重新确认范围，写后读取真实值；发送成功本身不等于显示器已应用。
