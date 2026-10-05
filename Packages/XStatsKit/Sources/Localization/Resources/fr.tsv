@@ -1723,3 +1723,9 @@ IP 归属地	Localisation IP
 {} 输出设备	Appareil de sortie de {}
 {} · 原始音量	{} · Volume d’origine
 已静音	Son coupé
+{} · 未连接	{} · Non connecté
+正在连接“{}”…	Connexion à {}…
+蓝牙未开启，请在系统设置中开启蓝牙。	Bluetooth est désactivé. Activez-le dans les Réglages Système.
+请在系统设置的隐私与安全性中允许 XStats 使用蓝牙。	Autorisez XStats à utiliser Bluetooth dans Confidentialité et sécurité des Réglages Système.
+无法连接蓝牙设备，请确认设备已开启且在附近，然后重试。	Impossible de connecter l’appareil Bluetooth. Vérifiez qu’il est allumé et à proximité, puis réessayez.
+蓝牙音频未就绪，请确认设备支持所选的输入或输出，然后重试。	L’audio Bluetooth n’est pas prêt. Vérifiez que l’appareil prend en charge l’entrée ou la sortie sélectionnée, puis réessayez.

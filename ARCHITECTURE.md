@@ -694,3 +694,13 @@ values use localized percentages. Device switching and pending app routes expose
 late or superseded completion cannot announce a stale successful switch. Only ongoing work displays
 an indeterminate indicator; Reduce Motion uses a static hourglass. App icons load when bundle identity
 changes, rather than on slider redraws. No decorative or idle animation is scheduled.
+
+The audio device picker also includes paired Bluetooth audio devices whose selected direction is
+not yet present in HAL. The paired catalog reads cached class/SDP information on page open and
+when validating a user selection;
+it does not run discovery, SDP queries, or background reconnects. A user selection opens the paired
+connection on a serial background queue with a 10-second Bluetooth page timeout, then waits up to
+8 seconds for the matching HAL address and direction. Names are not used as device identity. The
+existing guarded device-switch path runs only after audio readiness. Closing the audio interface,
+disabling it, or sleeping cancels pending selection; an already issued OS connection may still
+complete, but its late result cannot issue an app-side route switch or clear a newer operation.

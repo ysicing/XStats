@@ -3,3 +3,4 @@
 "NSCalendarsFullAccessUsageDescription" = "선택한 캘린더 일정을 이 Mac에 표시하며 수정하거나 업로드하지 않습니다.";
 "NSRemindersFullAccessUsageDescription" = "선택한 기한이 있는 미리 알림을 이 Mac에 표시하며 수정하거나 업로드하지 않습니다.";
 "NSAudioCaptureUsageDescription" = "녹음, 저장 또는 업로드 없이 기기에서 앱 음량을 실시간으로 조절합니다.";
+"NSBluetoothAlwaysUsageDescription" = "페어링된 Bluetooth 오디오 기기를 표시하고 선택하면 연결합니다.";

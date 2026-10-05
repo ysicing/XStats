@@ -3,3 +3,4 @@
 "NSCalendarsFullAccessUsageDescription" = "Affiche localement les événements sélectionnés sans les modifier ni les téléverser.";
 "NSRemindersFullAccessUsageDescription" = "Affiche localement les rappels sélectionnés sans les modifier ni les téléverser.";
 "NSAudioCaptureUsageDescription" = "Régler localement le volume par app en temps réel, sans enregistrer, conserver ni envoyer le son.";
+"NSBluetoothAlwaysUsageDescription" = "Afficher les appareils audio Bluetooth jumelés et les connecter lorsque vous les sélectionnez.";

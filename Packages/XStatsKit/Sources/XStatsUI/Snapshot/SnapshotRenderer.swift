@@ -160,7 +160,8 @@ enum SnapshotRenderer {
                         AudioApplication(id: "demo.paused", name: "Browser", bundleURL: URL(fileURLWithPath: "/Applications/Safari.app"), processObjectIDs: [2], isPlaying: false),
                         AudioApplication(id: "demo.default", name: "Video Player", bundleURL: URL(fileURLWithPath: "/System/Applications/QuickTime Player.app"), processObjectIDs: [3], isPlaying: true)]
             model.audio.showPreview(AudioHardwareSnapshot(devices: [builtIn, external], outputID: 1, inputID: 1, applications: apps),
-                                    volumes: ["demo.playing": AudioAppVolume(level: 1.6)!], outputs: ["demo.playing": "demo.usb", "demo.paused": "demo.missing"])
+                                    volumes: ["demo.playing": AudioAppVolume(level: 1.6)!], outputs: ["demo.playing": "demo.usb", "demo.paused": "demo.missing"],
+                                    bluetoothDevices: [BluetoothAudioDevice(address: "AA-BB-CC-DD-EE-FF", name: "Studio Headphones", hasInput: true, hasOutput: true)])
         } else {
             model.audio.setDemand(enabled: true, visible: true, menuVisible: true)
             // HAL 串行队列事件发布到主线程后再离屏测量。

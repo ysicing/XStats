@@ -47,5 +47,11 @@ extension Translations {
 {} 输出设备	{} output device
 {} · 原始音量	{} · Original volume
 已静音	Muted
+{} · 未连接	{} · Not connected
+正在连接“{}”…	Connecting to {}…
+蓝牙未开启，请在系统设置中开启蓝牙。	Bluetooth is off. Turn it on in System Settings.
+请在系统设置的隐私与安全性中允许 XStats 使用蓝牙。	Allow XStats to use Bluetooth under Privacy & Security in System Settings.
+无法连接蓝牙设备，请确认设备已开启且在附近，然后重试。	Could not connect to the Bluetooth device. Make sure it is on and nearby, then try again.
+蓝牙音频未就绪，请确认设备支持所选的输入或输出，然后重试。	Bluetooth audio is not ready. Make sure the device supports the selected input or output, then try again.
 """#
 }

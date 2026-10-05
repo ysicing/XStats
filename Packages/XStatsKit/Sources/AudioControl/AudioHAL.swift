@@ -131,13 +131,16 @@ enum AudioHAL {
             let input = !(ids(id, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeInput) ?? []).isEmpty
             let output = !(ids(id, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeOutput) ?? []).isEmpty
             guard input || output else { return nil }
+            let transport = uint(id, kAudioDevicePropertyTransportType)
+            let bluetooth = transport == kAudioDeviceTransportTypeBluetooth || transport == kAudioDeviceTransportTypeBluetoothLE
             return AudioDeviceInfo(id: id, uid: uid, name: string(id, kAudioObjectPropertyName) ?? uid,
                 hasInput: input, hasOutput: output, inputVolume: volume(id, direction: .input), outputVolume: volume(id, direction: .output),
                 inputMuted: muted(id, direction: .input), outputMuted: muted(id, direction: .output),
                 canSetInputVolume: !writableElements(id, direction: .input, selector: kAudioDevicePropertyVolumeScalar).isEmpty,
                 canSetOutputVolume: !writableElements(id, direction: .output, selector: kAudioDevicePropertyVolumeScalar).isEmpty,
                 canSetInputMute: !writableElements(id, direction: .input, selector: kAudioDevicePropertyMute).isEmpty,
-                canSetOutputMute: !writableElements(id, direction: .output, selector: kAudioDevicePropertyMute).isEmpty)
+                canSetOutputMute: !writableElements(id, direction: .output, selector: kAudioDevicePropertyMute).isEmpty,
+                bluetoothAddress: bluetooth ? BluetoothAudioDevice.address(in: uid) : nil)
         }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 

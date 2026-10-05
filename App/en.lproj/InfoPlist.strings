@@ -3,3 +3,4 @@
 "NSCalendarsFullAccessUsageDescription" = "Show your selected calendar events locally without modifying or uploading them.";
 "NSRemindersFullAccessUsageDescription" = "Show your selected due reminders locally without modifying or uploading them.";
 "NSAudioCaptureUsageDescription" = "Adjust app volume locally in real time without recording, saving or uploading audio.";
+"NSBluetoothAlwaysUsageDescription" = "Show paired Bluetooth audio devices and connect them when you select them.";
