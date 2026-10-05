@@ -138,7 +138,7 @@ final class AudioController {
                 let devices = try await bluetooth.pairedDevices()
                 guard !Task.isCancelled, enabled, visible, !sleeping else { return }
                 bluetoothDevices = devices
-                if operationError == .bluetoothPermissionRequired { operationError = nil }
+                if operationError == .bluetoothPermissionRequired || operationError == .bluetoothUnavailable { operationError = nil }
             } catch is CancellationError { }
             catch {
                 guard !Task.isCancelled, enabled, visible, !sleeping else { return }
