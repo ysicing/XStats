@@ -122,7 +122,11 @@ public final class AudioHardwareClient: @unchecked Sendable {
                     let status = AudioObjectSetPropertyData(device.id, &property, 0, nil, UInt32(MemoryLayout<UInt32>.size), &value)
                     if status != noErr { return .hardware(status) }
                 }
-                return AudioHAL.muted(device.id, direction: direction) == muted ? nil : .unavailable
+                // 逐个核对刚写入的元素：合并读数会把 [0, 1] 当作已取消静音，读取失败也不能视为成功。
+                let confirmed = properties.allSatisfy { property in
+                    AudioHAL.uint(device.id, property.mSelector, scope: property.mScope, element: property.mElement).map { $0 != 0 } == muted
+                }
+                return confirmed ? nil : .unavailable
             }
             try Task.checkCancellation()
             if let result { throw result }

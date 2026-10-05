@@ -74,8 +74,10 @@ final class CoreAudioAccessProbe: AudioAccessProbe {
             guard attempt < 29 else { throw AudioControlError.unavailable }
             Thread.sleep(forTimeInterval: 0.1)
         }
-        guard let inputs = AudioHAL.ids(aggregate, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeInput), !inputs.isEmpty else { throw AudioControlError.unavailable }
         let hardwareInputs = AudioHAL.ids(output, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeInput) ?? []
+        // 双工设备的物理输入在前；必须额外出现 tap 流，否则启用的流为空，回调不能证明授权。
+        guard let inputs = AudioHAL.ids(aggregate, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeInput),
+              inputs.count > hardwareInputs.count else { throw AudioControlError.unavailable }
         context = XSAccessProbeCreate()
         guard let context else { throw AudioControlError.unavailable }
         let createIO = AudioDeviceCreateIOProcID(aggregate, XSAccessProbeRead, UnsafeMutableRawPointer(context), &ioProc)
