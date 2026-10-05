@@ -143,7 +143,9 @@ enum AudioHAL {
                 canSetOutputVolume: !writableElements(id, direction: .output, selector: kAudioDevicePropertyVolumeScalar).isEmpty,
                 canSetInputMute: !writableElements(id, direction: .input, selector: kAudioDevicePropertyMute).isEmpty,
                 canSetOutputMute: !writableElements(id, direction: .output, selector: kAudioDevicePropertyMute).isEmpty,
-                bluetoothAddress: bluetooth ? BluetoothAudioDevice.address(in: uid) : nil)
+                bluetoothAddress: bluetooth ? BluetoothAudioDevice.address(in: uid) : nil,
+                canBeDefaultInput: input && uint(id, kAudioDevicePropertyDeviceCanBeDefaultDevice, scope: kAudioDevicePropertyScopeInput) == 1,
+                canBeDefaultOutput: output && uint(id, kAudioDevicePropertyDeviceCanBeDefaultDevice, scope: kAudioDevicePropertyScopeOutput) == 1)
         }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
@@ -152,7 +154,8 @@ enum AudioHAL {
         guard let output = (ids(system, kAudioHardwarePropertyDevices) ?? [])
             .first(where: { string($0, kAudioDevicePropertyDeviceUID) == outputUID }),
               uint(output, kAudioDevicePropertyDeviceIsAlive) == 1 else { return nil }
-        var result: [UInt64] = []
+        let preferred = ids(output, kAudioDevicePropertyPreferredChannelsForStereo, scope: kAudioDevicePropertyScopeOutput) ?? []
+        var result: [UInt64] = [UInt64(preferred.count)] + preferred.map(UInt64.init)
         // 双工设备的输入流也会改变 tap 的缓冲区偏移，必须一并使管线失效。
         for scope in [kAudioDevicePropertyScopeInput, kAudioDevicePropertyScopeOutput] {
             let streams: [UInt32]
@@ -162,7 +165,8 @@ enum AudioHAL {
             result.append(UInt64(scope))
             for stream in streams {
                 guard let format = streamFormat(stream) else { return nil }
-                result += [UInt64(stream), UInt64(uint(stream, kAudioStreamPropertyIsActive) ?? 0), format.mSampleRate.bitPattern,
+                result += [UInt64(stream), UInt64(uint(stream, kAudioStreamPropertyIsActive) ?? 0),
+                           UInt64(uint(stream, kAudioStreamPropertyStartingChannel) ?? 0), format.mSampleRate.bitPattern,
                            UInt64(format.mFormatID), UInt64(format.mFormatFlags), UInt64(format.mBytesPerFrame),
                            UInt64(format.mChannelsPerFrame), UInt64(format.mBitsPerChannel)]
             }

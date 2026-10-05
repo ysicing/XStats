@@ -79,8 +79,8 @@ private struct AudioSwitchingFeedback: View {
 private struct AudioDeviceSection: View {
     let direction: AudioDirection
     @Environment(AppModel.self) private var model
-    @State private var draft: Double?
-    @State private var editing = false
+    @State private var draft = AudioDeviceVolumeDraft()
+    @State private var finishTask: Task<Void, Never>?
     private var device: AudioDeviceInfo? { direction == .output ? model.audio.output : model.audio.input }
     private var title: String { direction == .output ? tr("输出设备") : tr("输入设备") }
     private var volumeTitle: String { direction == .output ? tr("系统音量") : tr("输入音量") }
@@ -94,12 +94,12 @@ private struct AudioDeviceSection: View {
     }
     var body: some View {
         SectionCard(title: title) {
-            let devices = model.audio.snapshot.devices.filter { direction == .output ? $0.hasOutput : $0.hasInput }
+            let devices = model.audio.snapshot.devices.filter { $0.canBeDefault(direction) }
             let paired = model.audio.bluetoothDevices.filter { candidate in
                 guard direction == .output ? candidate.hasOutput : candidate.hasInput else { return false }
                 // HAL 端点先出现、切换稍后完成；保留待处理选项，避免 Picker 的 selection 暂时失去标签。
                 if model.audio.switchingDevice == direction, model.audio.connectingBluetooth == candidate.id { return true }
-                return !devices.contains(where: { candidate.matches($0, direction: direction) })
+                return !model.audio.snapshot.devices.contains(where: { candidate.matches($0, direction: direction) })
             }
             if !devices.isEmpty || !paired.isEmpty {
                 Picker(title, selection: Binding(get: {
@@ -130,10 +130,10 @@ private struct AudioDeviceSection: View {
                         Text(volumeTitle).dsFont(.sm)
                         Spacer(minLength: DS.Space.s1)
                         if let level {
-                            Text(verbatim: (draft ?? level).formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
+                            Text(verbatim: (draft.value ?? level).formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
                                 .dsFont(.sm, weight: .medium).monospacedDigit().accessibilityHidden(canSetVolume)
                                 .accessibilityLabel(volumeTitle)
-                                .accessibilityValue((draft ?? level).formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
+                                .accessibilityValue((draft.value ?? level).formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
                         }
                         if canSetMute {
                             MiniIconButton(systemName: AudioControlPresentation.muteSymbol(direction, muted: muted), help: muteLabel) {
@@ -143,20 +143,36 @@ private struct AudioDeviceSection: View {
                     }
                     if muted { Text(tr("已静音")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary) }
                     if let level, canSetVolume {
-                        Slider(value: Binding(get: { draft ?? level }, set: { draft = $0; model.audio.setDeviceLevel($0, direction: direction) }),
-                               in: 0...1, onEditingChanged: { editing = $0 })
+                        Slider(value: Binding(get: { draft.value ?? level }, set: { draft.update($0); model.audio.setDeviceLevel($0, direction: direction) }),
+                               in: 0...1, onEditingChanged: editingChanged)
                             .controlSize(.small).tint(muted ? DS.Palette.textSecondary : DS.Palette.primary)
                             .disabled(model.audio.isWorking).accessibilityLabel(volumeTitle)
-                            .accessibilityValue((draft ?? level).formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
+                            .accessibilityValue((draft.value ?? level).formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
                     } else {
                         Text(tr("此设备的音量由设备自身控制")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                     }
                 }
             } else { Text(tr("没有可用音频设备")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary) }
         }
-        .onChange(of: level) { _, _ in if !editing { draft = nil } }
-        .onChange(of: device?.uid) { _, _ in draft = nil; editing = false }
-        .onChange(of: model.audio.error) { _, error in if error != nil { draft = nil; editing = false } }
+        .onChange(of: level) { _, _ in draft.readbackChanged() }
+        .onChange(of: device?.uid) { _, _ in resetDraft() }
+        .onChange(of: model.audio.error) { _, error in if error != nil { resetDraft() } }
+        .onDisappear { resetDraft() }
+    }
+
+    private func editingChanged(_ editing: Bool) {
+        finishTask?.cancel(); finishTask = nil
+        if editing { draft.beginEditing(); return }
+        let token = draft.endEditing()
+        finishTask = Task { @MainActor in
+            await model.audio.finishDeviceVolumeEditing()
+            guard !Task.isCancelled, draft.complete(token) else { return }
+            finishTask = nil
+        }
+    }
+
+    private func resetDraft() {
+        finishTask?.cancel(); finishTask = nil; draft.reset()
     }
 }
 

@@ -649,9 +649,15 @@ XSTATS_DDC_READ_REPORT=/tmp/xstats-displays.json \
 
 The optional audio module is disabled by default. `AudioHardwareClient` reads Core Audio HAL devices,
 volume and mute properties on a serial queue, checks the current device UID before writes, and
-confirms writes by reading them back. Unsupported hardware controls remain unavailable; this path
+confirms mute writes by reading them back. Volume readback is published by the following refresh
+rather than compared against a fixed tolerance, because devices may quantize to dB steps or accept
+only per-channel writes. Unsupported hardware controls remain unavailable; this path
 is independent of display DDC/CI volume. Output and microphone selection use the system default
 routing properties.
+The system pickers and HAL default-device writes check each direction's
+`kAudioDevicePropertyDeviceCanBeDefaultDevice` capability. Stream presence remains independent so
+valid per-app output endpoints are not removed from the shared catalog. Capability changes are
+observed without adding a polling timer.
 
 On macOS 14.4 and later, explicit user activation starts a short unmuted tap/aggregate input to
 trigger the system audio capture prompt. Its IOProc discards input, clears output and reports only
@@ -680,6 +686,13 @@ unmute it, retains the object and reports the error; the same bounded cleanup an
 also owns failed transition guards and activation probes. Disable/stop cleans guards even if the
 switching caller has not yet returned its handle.
 
+Stereo output follows the device's preferred left/right channel pair, translated through each
+stream's starting channel and IOProc buffer offset. Interleaved and planar mapping supports pairs
+within one output stream; ambiguous multichannel layouts or pairs across streams fail before taps
+are created. A sole mono output downmixes, and standard 1–2 stereo keeps the Float32 fast path.
+Preferred-channel and starting-channel changes invalidate the pipeline's format signature and use
+the existing device listeners to trigger rebuilding.
+
 The C callback allocates no memory and takes no locks. Gains use atomics, changes ramp over 40ms,
 and 0–200% gain uses a channel-linked peak limiter with immediate attenuation and an 80ms release.
 Callback frame progress uses a lock-free counter. A single health timer checks active pipelines at
@@ -694,8 +707,15 @@ Per-direction sequence numbers reject superseded completion; readback publicatio
 both device ID and UID. Closing the feature or sleeping drops queued requests and rejects late completion; a HAL write
 already executing cannot be assumed cancellable. Device/stream listeners drive discovery and
 format changes without a process polling timer. Closing the interface preserves requested app
-adjustments; pausing, disabling and sleeping release unnecessary processing. Wake-up rebuilds
-only current demand.
+adjustments; disabling and sleeping release unnecessary processing. A paused adjusted app keeps
+its pipeline for 60 seconds after last playback so resumed audio does not leak at the original
+volume; one tolerant wake-up then releases it. Wake-up rebuilds only current demand.
+Reconciliation that repeats the in-flight targets and output does not supersede it; the request is
+rechecked once on completion, so HAL events from the mixer's own aggregate devices cannot cancel a
+rebuild that is still waiting for its first frames.
+Ordinary device switches and queued mute operations also receive cancellation when controls close,
+the module is disabled or the Mac sleeps; cancellation is checked before HAL writes and after waits.
+Writes already executing may complete, but late results cannot publish over a newer operation.
 
 Audio presentation shares the same native controls across main window and popover. The window
 uses adjacent input/output cards; the popover keeps a vertical layout. Sliders and numeric feedback
@@ -705,6 +725,10 @@ values use localized percentages. Device switching and pending app routes expose
 late or superseded completion cannot announce a stale successful switch. Only ongoing work displays
 an indeterminate indicator; Reduce Motion uses a static hourglass. App icons load when bundle identity
 changes, rather than on slider redraws. No decorative or idle animation is scheduled.
+Device slider drafts distinguish dragging, waiting for the final write, and idle readback. Mouse-up
+waits for the existing write/readback tasks before discarding the draft; new drags, device changes,
+errors and disappearance invalidate old completion tokens without cancelling an in-flight volume
+write or adding a refresh timer.
 
 The audio device picker also includes paired Bluetooth audio devices whose selected direction is
 not yet present in HAL. The paired catalog reads cached class/SDP information on page open and

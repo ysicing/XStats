@@ -20,6 +20,8 @@ typedef struct {
 typedef struct {
     OutputPCM output;
     bool usedFastPath;
+    bool stereoMapping;
+    uint32_t leftChannel, rightChannel;
     double limiterVolume, limiterRelease;
     uint32_t source, destination, buffers, channels, sampleBytes, significantBits, highPadding;
     bool bigEndian;
@@ -94,6 +96,15 @@ static bool configureRoute(VolumeRouteState *state, XSVolumeRoute route) {
         outputWidth, output.mBitsPerChannel,
         (output.mFormatFlags & kAudioFormatFlagIsAlignedHigh) != 0 ? outputWidth * 8 - output.mBitsPerChannel : 0,
         outputBigEndian, outputFloat ? (output.mBitsPerChannel == 32 ? PCMFloat32 : PCMFloat64) : PCMInteger};
+    if (route.leftOutputChannel != 0 || route.rightOutputChannel != 0) {
+        const uint32_t destinationChannels = state->output.channels * state->output.buffers;
+        if (state->channels * state->buffers > 2 || route.leftOutputChannel == 0 || route.rightOutputChannel == 0
+            || route.leftOutputChannel == route.rightOutputChannel || route.leftOutputChannel > destinationChannels
+            || route.rightOutputChannel > destinationChannels) return false;
+        state->stereoMapping = true;
+        state->leftChannel = route.leftOutputChannel - 1;
+        state->rightChannel = route.rightOutputChannel - 1;
+    }
     state->limiterVolume = 1;
     state->limiterRelease = 1 - exp(-1 / (pcm.mSampleRate * 0.08));
     state->audibleVolume = boundedVolume(route.startingVolume);
@@ -195,6 +206,7 @@ static size_t mixRoute(const AudioBufferList *input, AudioBufferList *output, Vo
         if (available < frames) frames = available;
     }
     for (uint32_t index = 0; index < route->output.buffers; index++) {
+        if (route->stereoMapping && route->output.channels == 1 && index != route->leftChannel && index != route->rightChannel) continue;
         const uint64_t offset = (uint64_t)route->destination + index;
         if (offset >= output->mNumberBuffers) return 0;
         const AudioBuffer buffer = output->mBuffers[offset];
@@ -207,6 +219,7 @@ static size_t mixRoute(const AudioBufferList *input, AudioBufferList *output, Vo
     // 0–100% 的常见 Float32 同形状路径保持向量化，额外映射与限制仅在需要时执行。
     if (route->encoding == PCMFloat32 && route->output.encoding == PCMFloat32 && route->buffers == route->output.buffers
         && route->channels == route->output.channels && route->envelopeFrames == 0
+        && (!route->stereoMapping || (route->leftChannel == 0 && route->rightChannel == 1))
         && route->envelopeTarget <= 1 && route->limiterVolume == 1) {
         route->usedFastPath = true;
         for (uint32_t buffer = 0; buffer < route->buffers; buffer++) {
@@ -232,7 +245,10 @@ static size_t mixRoute(const AudioBufferList *input, AudioBufferList *output, Vo
         }
         double peak = 0;
         for (uint32_t channel = 0; channel < destinationChannels; channel++) {
-            if (destinationChannels == 1 && sourceChannels > 1) {
+            if (route->stereoMapping) {
+                if (channel == route->leftChannel) mapped[channel] = source[0];
+                else if (channel == route->rightChannel) mapped[channel] = source[sourceChannels == 1 ? 0 : 1];
+            } else if (destinationChannels == 1 && sourceChannels > 1) {
                 for (uint32_t index = 0; index < sourceChannels; index++) mapped[channel] += source[index] / sourceChannels;
             } else if (channel < sourceChannels) mapped[channel] = source[channel];
             else if (sourceChannels == 1 && channel == 1) mapped[channel] = source[0];
@@ -246,6 +262,7 @@ static size_t mixRoute(const AudioBufferList *input, AudioBufferList *output, Vo
         // 渐近释放不会自然达到精确的 1；峰值允许完全释放时，归一到 unity 以恢复快路径。
         if (allowed == 1 && route->limiterVolume >= 1 - 1e-6) route->limiterVolume = 1;
         for (uint32_t channel = 0; channel < destinationChannels; channel++) {
+            if (route->stereoMapping && channel != route->leftChannel && channel != route->rightChannel) continue;
             uint8_t *buffer = output->mBuffers[route->destination + channel / route->output.channels].mData;
             const size_t offset = (frame * route->output.channels + channel % route->output.channels) * route->output.sampleBytes;
             const double existing = readSample(buffer + offset, route->output.encoding, &outputFormat);

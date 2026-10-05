@@ -17,6 +17,9 @@ typedef struct {
     uint32_t destinationBufferIndex;
     float startingVolume;
     AudioStreamBasicDescription outputPCM;
+    // 当前输出流内从 1 开始的左右声道；均为 0 时沿用默认映射（包括单声道合并）。
+    uint32_t leftOutputChannel;
+    uint32_t rightOutputChannel;
 } XSVolumeRoute;
 
 typedef struct XSVolumeRenderer *XSVolumeRendererRef;

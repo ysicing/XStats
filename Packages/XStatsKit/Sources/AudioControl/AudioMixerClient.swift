@@ -374,20 +374,19 @@ private final class CoreAudioMixPipeline: AudioMixPipeline {
               let streams = AudioHAL.ids(output, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeOutput),
               !streams.isEmpty else { throw AudioControlError.unsupportedFormat }
         streamSignature = AudioHAL.streamSignature( outputUID) ?? []
-        var streamIndex: Int?
-        var selectedActive = false
-        var outputOffset: UInt32 = 0
+        var outputStreams: [AudioOutputStream] = []
         var cursor: UInt32 = 0
-        var selectedFormat: AudioStreamBasicDescription?
-        for (index, stream) in streams.enumerated() {
-            guard let format = Self.format(stream, selector: kAudioStreamPropertyVirtualFormat) else { throw AudioControlError.unsupportedFormat }
-            let active = AudioHAL.uint(stream, kAudioStreamPropertyIsActive) == 1
-            if streamIndex == nil || (active && !selectedActive) {
-                streamIndex = index; outputOffset = cursor; selectedFormat = format; selectedActive = active
-            }
+        for stream in streams {
+            guard let format = Self.format(stream, selector: kAudioStreamPropertyVirtualFormat),
+                  let startingChannel = AudioHAL.uint(stream, kAudioStreamPropertyStartingChannel), startingChannel > 0,
+                  (1...32).contains(format.mChannelsPerFrame) else { throw AudioControlError.unsupportedFormat }
+            outputStreams.append(AudioOutputStream(startingChannel: startingChannel, bufferIndex: cursor, format: format))
             cursor += format.mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0 ? format.mChannelsPerFrame : 1
         }
-        guard streamIndex != nil, let selectedFormat else { throw AudioControlError.unsupportedFormat }
+        let layout = try AudioOutputLayout.resolve(streams: outputStreams,
+            preferred: AudioHAL.ids(output, kAudioDevicePropertyPreferredChannelsForStereo, scope: kAudioDevicePropertyScopeOutput))
+        let selectedFormat = layout.format
+        guard Self.supportsPCM(selectedFormat) else { throw AudioControlError.unsupportedFormat }
         var configurations: [XSVolumeRoute] = []
         var inputOffset: UInt32 = 0
         var expectedTapChannels: [UInt32] = []
@@ -406,7 +405,8 @@ private final class CoreAudioMixPipeline: AudioMixPipeline {
                   Self.supportsPCM(format) else { throw AudioControlError.unsupportedFormat }
             let count = format.mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0 ? format.mChannelsPerFrame : 1
             configurations.append(XSVolumeRoute(pcm: format, sourceBufferIndex: inputOffset,
-                channelBufferCount: count, destinationBufferIndex: outputOffset, startingVolume: 0, outputPCM: selectedFormat))
+                channelBufferCount: count, destinationBufferIndex: layout.bufferIndex, startingVolume: 0, outputPCM: selectedFormat,
+                leftOutputChannel: layout.leftChannel, rightOutputChannel: layout.rightChannel))
             expectedTapChannels += Array(repeating: count == 1 ? format.mChannelsPerFrame : 1, count: Int(count))
             inputOffset += count
         }
