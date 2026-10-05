@@ -140,9 +140,31 @@ final class MenuBarController: NSObject {
         }
     }
 
+    /// 外部打开请求保持幂等；合并面板已打开时只切换展开项，不把再次打开解释为关闭。
+    @discardableResult func showPopover(_ item: MenuBarItem) -> Bool {
+        if model.isCombinedPopoverOpen {
+            model.combinedPopoverTab = item
+            combinedPanel?.refreshHeight()
+            return true
+        }
+        if model.openPopover == item { return true }
+        togglePopover(item)
+        return panels[item]?.isVisible == true || combinedPanel?.isVisible == true
+    }
+
     /// 合并模式的状态总览
     func toggleOverview() {
         toggleCombinedPanel(tab: nil, button: nil)
+    }
+
+    @discardableResult func showOverview() -> Bool {
+        if model.isCombinedPopoverOpen {
+            model.combinedPopoverTab = nil
+            combinedPanel?.refreshHeight()
+            return true
+        }
+        toggleOverview()
+        return combinedPanel?.isVisible == true
     }
 
     /// 合并模式：点图标打开时总是先看收起的总览；从快捷入口打开某一项时直接展开该行

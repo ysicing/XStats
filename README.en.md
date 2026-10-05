@@ -104,6 +104,20 @@ Cleanup, processes, calendar, Pomodoro and AI Usage are off by default. Enable t
 
 </details>
 
+### Launchers and deep links
+
+Use `xstats://` links from any launcher, Shortcut or terminal that opens URLs:
+
+```bash
+open 'xstats://open/audio'             # Open Audio
+open 'xstats://panel/cpu'              # Show the CPU popover
+open 'xstats://rest/start'             # Start or resume Pomodoro
+open 'xstats://keep-awake/start'       # Enable ordinary keep-awake
+```
+
+Repeated opens keep the window or popover visible. Disabled modules lead to Settings and are not enabled implicitly.
+See the [deep-link protocol](DEVELOPMENT.md#xstats-深链) for all routes and actions.
+
 ### Desktop widgets and languages
 
 Widgets include system overview, Pomodoro, AI quotas, calendar and month view, “Work tomorrow?”, IP purity and public IP.

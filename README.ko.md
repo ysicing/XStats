@@ -104,6 +104,20 @@ AI 사용량은 기본적으로 꺼져 있습니다. 로컬 통계는 Codex / Cl
 
 </details>
 
+### 런처와 딥 링크
+
+URL을 여는 런처, 단축어 또는 터미널에서 `xstats://` 링크를 사용할 수 있습니다.
+
+```bash
+open 'xstats://open/audio'             # 오디오 페이지 열기
+open 'xstats://panel/cpu'              # CPU 팝오버 표시
+open 'xstats://rest/start'             # 뽀모도로 시작 또는 계속
+open 'xstats://keep-awake/start'       # 일반 잠자기 방지 시작
+```
+
+반복해서 열어도 창이나 팝오버는 닫히지 않습니다. 꺼진 모듈은 설정 페이지로 이동하며 자동으로 켜지지 않습니다.
+전체 경로와 동작은 [딥 링크 프로토콜](DEVELOPMENT.md#xstats-深链)을 참고하세요.
+
 ### 데스크톱 위젯과 언어
 
 위젯에는 시스템 개요, 뽀모도로, AI 한도, 달력과 월 달력, ‘내일 출근?’, IP 순도, 공인 IP가 있습니다.

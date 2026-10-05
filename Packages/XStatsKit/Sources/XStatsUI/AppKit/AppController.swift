@@ -30,6 +30,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private let hotKeys = HotKeyCenter()
     private var workspaceObservers: [NSObjectProtocol] = []
     private var screenLocked = false
+    private var deepLinksReady = false
+    private var pendingDeepLinks: [AppDeepLink] = []
+    private var deepLinkTask: Task<Void, Never>?
 
     public override init() {
         super.init()
@@ -208,9 +211,13 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self?.menuBar.refreshImages()
             }
         }
+        deepLinksReady = true
+        drainDeepLinks()
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        deepLinksReady = false
+        deepLinkTask?.cancel(); pendingDeepLinks.removeAll()
         Log.app.notice("XStats 自身即将退出，PID \(ProcessInfo.processInfo.processIdentifier)")
         rest.prepareForTermination()
         widgetTimer?.invalidate()
@@ -228,6 +235,61 @@ public final class AppController: NSObject, NSApplicationDelegate {
     public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag { mainWindow.show(tab: nil) }
         return true
+    }
+
+    public func application(_ application: NSApplication, open urls: [URL]) {
+        // 冷启动可能先收到 URL；最多保留 16 条已解析命令，不常驻保存外部原始 URL。
+        for url in urls.prefix(16) {
+            guard pendingDeepLinks.count < 16 else { break }
+            if let link = AppDeepLink(url: url) { pendingDeepLinks.append(link) }
+        }
+        drainDeepLinks()
+    }
+
+    private func drainDeepLinks() {
+        guard deepLinksReady, deepLinkTask == nil, !pendingDeepLinks.isEmpty else { return }
+        deepLinkTask = Task { [weak self] in
+            guard let self else { return }
+            defer { deepLinkTask = nil }
+            while !Task.isCancelled, deepLinksReady, !pendingDeepLinks.isEmpty {
+                await performDeepLink(pendingDeepLinks.removeFirst())
+            }
+        }
+    }
+
+    private func performDeepLink(_ link: AppDeepLink) async {
+        switch link {
+        case .open(let requested):
+            model.openMainWindow(requested.map { AppDeepLink.page($0, settings: model.settings) })
+        case .panel(let item):
+            if let item {
+                guard model.visibleMenuBarItems.contains(item), menuBar.showPopover(item) else {
+                    model.openMainWindow(AppDeepLink.page(PanelTab(item: item), settings: model.settings)); return
+                }
+            } else if !menuBar.showOverview() { model.openMainWindow(.overview) }
+        case .calendar:
+            if model.settings.calendarEnabled, calendarMenuBar.present() { return }
+            else { model.openMainWindow(.settingsMenuBar) }
+        case .speedTest: model.openSpeedTestWindow()
+        case .egress: model.openEgressWindow()
+        case .rest(let action):
+            guard model.settings.restEnabled else { model.openMainWindow(.settingsGeneral); return }
+            switch action {
+            case .start: rest.setRunning(true)
+            case .pause: rest.setRunning(false)
+            case .toggle: rest.startPause()
+            case .reset: rest.resetCurrentPhase()
+            case .skip: rest.skip()
+            case .hud: model.collapseToRestHUD()
+            }
+        case .keepAwake(let action):
+            // URL 可来自网页或其他应用；普通防休眠入口不得顺带下发合盖模式的特权设置。
+            guard !model.keepAwake.lidClosedRequested, !model.keepAwake.lidClosedActive else {
+                model.openMainWindow(.keepAwake); return
+            }
+            let active = action == .start || (action == .toggle && !model.keepAwake.isActive)
+            if active != model.keepAwake.isActive { await model.keepAwake.setActive(active) }
+        }
     }
 
     @objc private func openSettingsFromMenu() { model.openSettings() }

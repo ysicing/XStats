@@ -50,6 +50,10 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDevelopmentRegion: zh-Hans
         CFBundleLocalizations: [zh-Hans, zh-Hant, ja, ko, en, de, es, fr, ar]
+        CFBundleURLTypes:
+          - CFBundleURLName: work.12306.xstats.app
+            CFBundleTypeRole: Viewer
+            CFBundleURLSchemes: [xstats]
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         LSUIElement: true
         SUPublicEDKey: "j/I8zd8BXz4oPldnhocEySXTMmXPxKMyBRwoA4ewLIk="

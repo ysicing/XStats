@@ -104,6 +104,20 @@ AI 用量默认关闭。本机统计读取 Codex / Claude Code 会话日志；�
 
 </details>
 
+### 启动器与深链
+
+支持 `xstats://` 链接，可从能打开 URL 的启动器、快捷指令或终端调用常用入口：
+
+```bash
+open 'xstats://open/audio'             # 打开音频页
+open 'xstats://panel/cpu'              # 显示 CPU 弹窗
+open 'xstats://rest/start'             # 开始或继续番茄钟
+open 'xstats://keep-awake/start'       # 开启普通防休眠
+```
+
+重复打开保持当前窗口或弹窗可见；已关闭的模块会转到设置，不会被链接隐式启用。
+完整路径与操作见 [深链协议](DEVELOPMENT.md#xstats-深链)。
+
 ### 桌面小组件与多语言
 
 小组件包括系统概览、番茄钟、AI 额度、日历与整月日历、明天上班吗、IP 纯净度和公网 IP。

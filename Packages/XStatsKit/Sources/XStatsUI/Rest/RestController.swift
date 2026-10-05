@@ -264,6 +264,19 @@ final class RestController {
         refresh()
     }
 
+    /// 外部明确的开始/暂停命令保持幂等，复用同一计时状态，不把重复开始解释为暂停。
+    func setRunning(_ running: Bool) {
+        guard settings.restEnabled else { return }
+        sync()
+        if running {
+            if !isRunning { startPause() }
+        } else if var session {
+            session.pause(at: clock())
+            self.session = session
+            refresh()
+        }
+    }
+
     /// 工作时段必须由用户开始；开始时从完整的第一轮专注计时。
     private func startWorkday() {
         let now = clock()
