@@ -141,12 +141,41 @@ enum AudioHAL {
         }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
+    /// 不只比较设备 UID：采样率或流布局变更后旧回调格式必须失效。
+    static func streamSignature(_ outputUID: String) -> [UInt64]? {
+        guard let output = (ids(system, kAudioHardwarePropertyDevices) ?? [])
+            .first(where: { string($0, kAudioDevicePropertyDeviceUID) == outputUID }),
+              uint(output, kAudioDevicePropertyDeviceIsAlive) == 1 else { return nil }
+        var result: [UInt64] = []
+        // 双工设备的输入流也会改变 tap 的缓冲区偏移，必须一并使管线失效。
+        for scope in [kAudioDevicePropertyScopeInput, kAudioDevicePropertyScopeOutput] {
+            let streams: [UInt32]
+            if let found = ids(output, kAudioDevicePropertyStreams, scope: scope) { streams = found }
+            else if scope == kAudioDevicePropertyScopeInput { streams = [] }
+            else { return nil }
+            result.append(UInt64(scope))
+            for stream in streams {
+                guard let format = streamFormat(stream) else { return nil }
+                result += [UInt64(stream), UInt64(uint(stream, kAudioStreamPropertyIsActive) ?? 0), format.mSampleRate.bitPattern,
+                           UInt64(format.mFormatID), UInt64(format.mFormatFlags), UInt64(format.mBytesPerFrame),
+                           UInt64(format.mChannelsPerFrame), UInt64(format.mBitsPerChannel)]
+            }
+        }
+        return result
+    }
+
+    private static func streamFormat(_ stream: AudioObjectID) -> AudioStreamBasicDescription? {
+        var property = address(kAudioStreamPropertyVirtualFormat)
+        var format = AudioStreamBasicDescription()
+        var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+        return AudioObjectGetPropertyData(stream, &property, 0, nil, &size, &format) == noErr ? format : nil
+    }
+
     static func applications() -> [AudioApplication] {
         guard #available(macOS 14.4, *) else { return [] }
-        var groups: [String: (name: String, url: URL?, ids: [AudioObjectID])] = [:]
+        var groups: [String: (name: String, url: URL?, ids: [AudioObjectID], playing: Bool)] = [:]
         for object in ids(system, kAudioHardwarePropertyProcessObjectList) ?? [] {
-            guard uint(object, kAudioProcessPropertyIsRunningOutput) == 1,
-                  let pid = uint(object, kAudioProcessPropertyPID), pid != UInt32(ProcessInfo.processInfo.processIdentifier),
+            guard let pid = uint(object, kAudioProcessPropertyPID), pid != UInt32(ProcessInfo.processInfo.processIdentifier),
                   let app = NSRunningApplication(processIdentifier: pid_t(pid)) else { continue }
             var url = app.bundleURL
             // 浏览器等辅助进程归到最外层应用包，避免给同一应用显示多个滑杆。
@@ -163,11 +192,12 @@ enum AudioHAL {
             let identifier = bundle?.bundleIdentifier ?? app.bundleIdentifier ?? "pid:\(pid):\(object)"
             let name = (bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
                 ?? (bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? app.localizedName ?? identifier
-            if var existing = groups[identifier] { existing.ids.append(object); groups[identifier] = existing }
-            else { groups[identifier] = (name, url, [object]) }
+            let playing = uint(object, kAudioProcessPropertyIsRunningOutput) == 1
+            if var existing = groups[identifier] { existing.ids.append(object); existing.playing = existing.playing || playing; groups[identifier] = existing }
+            else { groups[identifier] = (name, url, [object], playing) }
         }
         return groups.map { AudioApplication(id: $0.key, name: $0.value.name, bundleURL: $0.value.url,
-                                             processObjectIDs: $0.value.ids.sorted()) }
+                                             processObjectIDs: $0.value.ids.sorted(), isPlaying: $0.value.playing) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 }

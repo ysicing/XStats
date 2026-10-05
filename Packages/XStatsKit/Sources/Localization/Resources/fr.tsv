@@ -1686,7 +1686,6 @@ IP 归属地	Localisation IP
 应用音量需要 macOS 14.4 或更新版本	Le volume par app nécessite macOS 14.4 ou ultérieur
 仅在本机处理声音，不录制或上传音频。开启后可独立调节正在播放声音的应用。	Le son est traité localement, sans enregistrement ni envoi. Activez cette fonction pour régler chaque app qui émet du son.
 开启应用音量	Activer le volume par app
-暂无正在播放声音的应用	Aucune app ne lit de son
 请在系统设置的屏幕与系统音频录制中允许 XStats，然后重新开启应用音量。	Autorisez XStats dans Enregistrement de l’écran et de l’audio système dans Réglages Système, puis réactivez le volume par app.
 音频设备已变化，请重试。	L’appareil audio a changé. Réessayez.
 当前输出格式不支持应用音量，请切换音频设备。	Le format de sortie actuel ne prend pas en charge le volume par app. Changez d’appareil audio.
@@ -1701,3 +1700,11 @@ IP 归属地	Localisation IP
 静音	Couper le son
 此设备的音量由设备自身控制	Le volume se règle sur cet appareil
 恢复原始音量	Rétablir le volume d’origine
+暂无建立音频连接的应用	Aucune app n’a de connexion audio
+重试应用音频	Réessayer le son des apps
+应用音频未恢复，已停止自动重试。	Le son de l’app n’a pas pu être rétabli. Les tentatives automatiques ont cessé.
+应用输出设备	Sortie audio de l’app
+系统默认输出	Sortie système par défaut
+设备不可用，使用系统默认	Appareil indisponible ; sortie système utilisée
+恢复原始音量与默认输出	Rétablir le volume d’origine et la sortie par défaut
+应用音量支持 0–200%；高增益时自动限制峰值，不改变系统音量。	Le volume par app va de 0 à 200 %. Les pics amplifiés sont limités sans modifier le volume système.

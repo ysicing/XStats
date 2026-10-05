@@ -31,12 +31,14 @@ struct AudioDSPTests {
             storage.append(pointer)
             input[index] = AudioBuffer(mNumberChannels: channels, mDataByteSize: UInt32(samples.count * 4), mData: pointer)
         }
-        let count = sources[0].count
+        let outputFormat = configurations[0].outputPCM.mFormatID == 0 ? configurations[0].pcm : configurations[0].outputPCM
+        let outputChannels = outputFormat.mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0 ? 1 : outputFormat.mChannelsPerFrame
+        let count = sources[0].count / Int(channels) * Int(outputChannels)
         for index in 0..<destinationCount {
             let pointer = UnsafeMutablePointer<Float>.allocate(capacity: count)
             pointer.initialize(repeating: 99, count: count)
             storage.append(pointer)
-            output[index] = AudioBuffer(mNumberChannels: channels, mDataByteSize: UInt32(count * 4), mData: pointer)
+            output[index] = AudioBuffer(mNumberChannels: outputChannels, mDataByteSize: UInt32(count * 4), mData: pointer)
         }
         var timestamp = AudioTimeStamp()
         _ = XSVolumeRender(0, &timestamp, input.unsafeMutablePointer, &timestamp, output.unsafeMutablePointer, &timestamp, UnsafeMutableRawPointer(context))
@@ -45,11 +47,11 @@ struct AudioDSPTests {
 
     private func configuration(gain: Float, channels: UInt32 = 1, planar: Bool = false, input: UInt32 = 0, output: UInt32 = 0) -> XSVolumeRoute {
         XSVolumeRoute(pcm: format(channels: channels, planar: planar), sourceBufferIndex: input,
-            channelBufferCount: planar ? channels : 1, destinationBufferIndex: output, startingVolume: gain)
+            channelBufferCount: planar ? channels : 1, destinationBufferIndex: output, startingVolume: gain, outputPCM: AudioStreamBasicDescription())
     }
 
     private func renderedBytes(_ samples: [UInt8], pcm: AudioStreamBasicDescription, startingVolume: Float = 0.5) throws -> [UInt8] {
-        var route = XSVolumeRoute(pcm: pcm, sourceBufferIndex: 0, channelBufferCount: 1, destinationBufferIndex: 0, startingVolume: startingVolume)
+        var route = XSVolumeRoute(pcm: pcm, sourceBufferIndex: 0, channelBufferCount: 1, destinationBufferIndex: 0, startingVolume: startingVolume, outputPCM: AudioStreamBasicDescription())
         let context = try #require(XSVolumeRendererCreate(&route, 1))
         defer { XSVolumeRendererDestroy(context) }
         var source = samples
@@ -124,9 +126,73 @@ struct AudioDSPTests {
     }
 
     @Test func unityAndInvalidGainsCannotAmplify() throws {
-        for (gain, expected): (Float, [Float]) in [(1, [0.5, -0.25]), (2, [0.5, -0.25]), (.nan, [0, 0])] {
+        for (gain, expected): (Float, [Float]) in [(1, [0.5, -0.25]), (.nan, [0, 0])] {
             #expect(try rendered([[0.5, -0.25]], configurations: [configuration(gain: gain)]) == [expected])
         }
+    }
+
+    @Test func boostRaisesQuietSamplesAndLimitsLoudPeaks() throws {
+        #expect(try rendered([[0.1, -0.1, 0.2]], configurations: [configuration(gain: 2)]) == [[0.2, -0.2, 0.4]])
+        let loud = try rendered([[1, -1, 0.1]], configurations: [configuration(gain: 2)])[0]
+        #expect(loud.allSatisfy { abs($0) <= 0.98001 })
+        #expect(abs(loud[0] - 0.98) < 0.00001)
+        #expect(loud[2] > 0.09 && loud[2] < 0.11)
+    }
+
+    @Test func convertsStereoToMonoAndMonoToStereoWithoutChangingPlaybackSpeed() throws {
+        var stereo = configuration(gain: 1, channels: 2)
+        stereo.outputPCM = format(channels: 1)
+        #expect(try rendered([[0.5, -0.5, 0.2, 0.4]], configurations: [stereo]) == [[0, 0.3]])
+        var mono = configuration(gain: 1)
+        mono.outputPCM = format(channels: 2)
+        #expect(try rendered([[0.5, -0.5]], configurations: [mono]) == [[0.5, 0.5, -0.5, -0.5]])
+    }
+    @Test func boostLimiterPreservesStereoBalance() throws {
+        let result = try rendered([[0.6, 0.2]], configurations: [configuration(gain: 2, channels: 2)])[0]
+        #expect(abs(result[0] - 0.98) < 0.00001)
+        #expect(abs(result[0] / result[1] - 3) < 0.00001)
+    }
+    @Test func frameCounterIgnoresMissingInputButCountsMutedPlayback() throws {
+        var route = configuration(gain: 0)
+        let context = try #require(XSVolumeRendererCreate(&route, 1))
+        defer { XSVolumeRendererDestroy(context) }
+        var samples: [Float] = [1, 1], destination: [Float] = [99, 99]
+        samples.withUnsafeMutableBytes { source in
+            destination.withUnsafeMutableBytes { target in
+                var input = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 1, mDataByteSize: 8, mData: nil))
+                var output = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 1, mDataByteSize: 8, mData: target.baseAddress))
+                var timestamp = AudioTimeStamp()
+                _ = XSVolumeRender(0, &timestamp, &input, &timestamp, &output, &timestamp, UnsafeMutableRawPointer(context))
+                #expect(XSVolumeRendererFrameCount(context) == 0)
+                input.mBuffers.mData = source.baseAddress
+                _ = XSVolumeRender(0, &timestamp, &input, &timestamp, &output, &timestamp, UnsafeMutableRawPointer(context))
+                #expect(XSVolumeRendererFrameCount(context) == 2)
+            }
+        }
+        #expect(destination == [0, 0])
+    }
+
+    @Test func limitingReturnsToTheFastPathAfterBoostIsRemoved() throws {
+        var route = configuration(gain: 2)
+        let context = try #require(XSVolumeRendererCreate(&route, 1))
+        defer { XSVolumeRendererDestroy(context) }
+        var source = Array(repeating: Float(1), count: 512), destination = Array(repeating: Float(0), count: 512)
+        source.withUnsafeMutableBytes { inputBytes in
+            destination.withUnsafeMutableBytes { outputBytes in
+                var input = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 1, mDataByteSize: 2048, mData: inputBytes.baseAddress))
+                var output = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 1, mDataByteSize: 2048, mData: outputBytes.baseAddress))
+                var timestamp = AudioTimeStamp()
+                _ = XSVolumeRender(0, &timestamp, &input, &timestamp, &output, &timestamp, UnsafeMutableRawPointer(context))
+                #expect(XSVolumeRendererFastFrameCount(context) == 0)
+                XSVolumeRendererSetVolume(context, 0, 0.5)
+                // 超过 3 秒的持续音频；只检查执行路径计数，不依赖机器运行速度。
+                for _ in 0..<300 {
+                    _ = XSVolumeRender(0, &timestamp, &input, &timestamp, &output, &timestamp, UnsafeMutableRawPointer(context))
+                }
+                #expect(XSVolumeRendererFastFrameCount(context) > 0)
+            }
+        }
+        #expect(destination.allSatisfy { $0 == 0.5 })
     }
 
     @Test func independentAppGainsAreSummedIntoTheSameOutput() throws {
@@ -165,7 +231,7 @@ struct AudioDSPTests {
         let format = AudioStreamBasicDescription(mSampleRate: 48_000, mFormatID: kAudioFormatLinearPCM, mFormatFlags: flags,
             mBytesPerPacket: 4, mFramesPerPacket: 1, mBytesPerFrame: 4, mChannelsPerFrame: 1, mBitsPerChannel: 24, mReserved: 0)
         var configuration = XSVolumeRoute(pcm: format, sourceBufferIndex: 0, channelBufferCount: 1,
-            destinationBufferIndex: 0, startingVolume: 0.5)
+            destinationBufferIndex: 0, startingVolume: 0.5, outputPCM: AudioStreamBasicDescription())
         let context = try #require(XSVolumeRendererCreate(&configuration, 1))
         defer { XSVolumeRendererDestroy(context) }
         var samples: [UInt32] = [UInt32(0x80000000), UInt32(0x40000000)].map { bigEndian ? $0.bigEndian : $0.littleEndian }

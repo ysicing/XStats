@@ -84,7 +84,7 @@ AI Usage is off by default. Local statistics read Codex / Claude Code session lo
 - **Startup items**: view and manage login items and background startup entries.
 - **Network diagnostics**: run speed tests, DNS queries, egress checks, public IP location and purity checks, and connectivity probes on demand.
 - **Menu bar calendar**: Chinese lunar dates, holidays and make-up workdays, and almanac information; calendar events and reminders are available after permission is granted.
-- **Audio**: disabled by default; system volume, mute, and output/input device switching. On macOS 14.4 or later, authorization enables 0–100% volume, mute and reset for apps playing audio. Audio is processed locally without recording or uploading. Unsupported device volume controls are indicated.
+- **Audio**: disabled by default; system volume, mute, and output/input device switching. On macOS 14.4 or later, authorization enables 0–200% volume with peak protection, mute, independent outputs and reset for apps playing audio. Audio is processed locally without recording or uploading. Unsupported device volume controls are indicated.
 - **Pomodoro and eye-rest breaks**: focus and break timers, break screens across displays, and options to pause, skip or shrink to a mini HUD.
 - **Process manager**: when enabled, view all processes, search, sort, group by app and end processes.
 

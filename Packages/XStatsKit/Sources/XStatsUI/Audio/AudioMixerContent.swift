@@ -13,7 +13,7 @@ struct AudioMixerContent: View {
     var body: some View {
         AudioDeviceSection(direction: .output)
         AudioDeviceSection(direction: .input)
-        SectionCard(title: tr("应用音量")) {
+        SectionCard(title: tr("应用音量"), hint: tr("应用音量支持 0–200%；高增益时自动限制峰值，不改变系统音量。")) {
             if !model.audio.supportsMixing {
                 Text(tr("应用音量需要 macOS 14.4 或更新版本")).dsFont(.sm)
             } else if !model.audio.hasPermission {
@@ -24,7 +24,7 @@ struct AudioMixerContent: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(model.audio.isWorking)
             } else if model.audio.snapshot.applications.isEmpty {
-                Text(tr("暂无正在播放声音的应用")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
+                Text(tr("暂无建立音频连接的应用")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
             } else {
                 ForEach(model.audio.snapshot.applications) { app in
                     AudioApplicationRow(app: app)
@@ -32,6 +32,7 @@ struct AudioMixerContent: View {
             }
         }
         if let error = model.audio.error {
+            if model.audio.canRetryMixing { Button(tr("重试应用音频")) { model.audio.retryMixing() }.buttonStyle(.bordered).disabled(model.audio.isWorking) }
             Text(errorMessage(error)).dsFont(.sm).foregroundStyle(DS.Palette.error)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -40,6 +41,7 @@ struct AudioMixerContent: View {
     private func errorMessage(_ error: AudioControlError) -> String {
         switch error {
         case .permissionRequired: tr("请在系统设置的屏幕与系统音频录制中允许 XStats，然后重新开启应用音量。")
+        case .renderStalled: tr("应用音频未恢复，已停止自动重试。")
         case .routeChanged: tr("音频设备已变化，请重试。")
         case .unsupportedFormat: tr("当前输出格式不支持应用音量，请切换音频设备。")
         case .unsupported: tr("此设备不支持该控制。")
@@ -114,18 +116,27 @@ private struct AudioApplicationRow: View {
         VStack(spacing: DS.Space.s1) {
             HStack(spacing: DS.Space.s2) {
                 Text(verbatim: app.name).dsFont(.sm, weight: .medium).lineLimit(1)
+                if !app.isPlaying { Chip(text: tr("已暂停"), tone: .neutral) }
                 Spacer(minLength: DS.Space.s1)
                 Text(verbatim: volume.level.formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
                     .dsFont(.sm).monospacedDigit().foregroundStyle(DS.Palette.textSecondary)
                 MiniIconButton(systemName: volume.isMuted ? "speaker.slash" : "speaker.wave.2", help: volume.isMuted ? tr("取消静音") : tr("静音")) {
                     model.audio.toggleAppMute(app)
                 }
-                if volume.needsProcessing {
-                    MiniIconButton(systemName: "arrow.counterclockwise", help: tr("恢复原始音量")) { model.audio.resetApp(app) }
+                if volume.needsProcessing || model.audio.outputRoutes[app.id] != nil {
+                    MiniIconButton(systemName: "arrow.counterclockwise", help: tr("恢复原始音量与默认输出")) { model.audio.resetApp(app) }
                 }
             }
-            Slider(value: Binding(get: { volume.level }, set: { model.audio.setAppLevel($0, app: app) }), in: 0...1)
+            Slider(value: Binding(get: { volume.level }, set: { model.audio.setAppLevel($0, app: app) }), in: 0...2)
                 .controlSize(.small).tint(DS.Palette.primary).accessibilityLabel(app.name)
+            Picker(tr("应用输出设备"), selection: Binding(get: { model.audio.outputRoutes[app.id] ?? "" }, set: { model.audio.setAppOutput($0.isEmpty ? nil : $0, app: app) })) {
+                Text(tr("系统默认输出")).tag("")
+                if let selected = model.audio.outputRoutes[app.id], !model.audio.snapshot.devices.contains(where: { $0.uid == selected && $0.hasOutput }) {
+                    Text(tr("设备不可用，使用系统默认")).tag(selected)
+                }
+                ForEach(model.audio.snapshot.devices.filter(\.hasOutput)) { device in Text(verbatim: device.name).tag(device.uid) }
+            }
+            .labelsHidden().pickerStyle(.menu).controlSize(.small)
         }
         .padding(.vertical, DS.Space.s1)
         .disabled(model.audio.isWorking)

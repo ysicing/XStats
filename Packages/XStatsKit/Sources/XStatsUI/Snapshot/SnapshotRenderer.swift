@@ -4,6 +4,7 @@
 // See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
 
 import AIUsage
+import AudioControl
 import AppKit
 import Localization
 import Metrics
@@ -152,9 +153,18 @@ enum SnapshotRenderer {
         settings.menuBarItems = [.audio]
         settings.panelTab = .audio
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
-        model.audio.setDemand(enabled: true, visible: true, menuVisible: true)
-        // HAL 串行队列事件发布到主线程后再离屏测量。
-        try? await Task.sleep(for: .milliseconds(300))
+        if CommandLine.arguments.contains("--audio-demo") {
+            let builtIn = AudioDeviceInfo(id: 1, uid: "demo.builtin", name: tr("系统默认输出"), hasOutput: true, outputVolume: 0.5, outputMuted: false, canSetOutputVolume: true, canSetOutputMute: true)
+            let external = AudioDeviceInfo(id: 2, uid: "demo.usb", name: "USB Audio", hasOutput: true)
+            let apps = [AudioApplication(id: "demo.playing", name: "Music", processObjectIDs: [1], isPlaying: true),
+                        AudioApplication(id: "demo.paused", name: "Browser", processObjectIDs: [2], isPlaying: false)]
+            model.audio.showPreview(AudioHardwareSnapshot(devices: [builtIn, external], outputID: 1, inputID: nil, applications: apps),
+                                    volumes: ["demo.playing": AudioAppVolume(level: 1.6)!], outputs: ["demo.playing": "demo.usb", "demo.paused": "demo.missing"])
+        } else {
+            model.audio.setDemand(enabled: true, visible: true, menuVisible: true)
+            // HAL 串行队列事件发布到主线程后再离屏测量。
+            try? await Task.sleep(for: .milliseconds(300))
+        }
         for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
             guard let appearance = NSAppearance(named: name) else { continue }
             NSApp.appearance = appearance

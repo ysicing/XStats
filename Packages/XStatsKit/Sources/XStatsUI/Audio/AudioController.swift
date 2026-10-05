@@ -15,7 +15,9 @@ final class AudioController {
     private var operationError: AudioControlError?
     private var mixingError: AudioControlError?
     var error: AudioControlError? { operationError ?? mixingError }
+    var canRetryMixing: Bool { mixingError != nil }
     private(set) var volumes: [String: AudioAppVolume]
+    private(set) var outputRoutes: [String: String]
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let hardware = AudioHardwareClient()
     @ObservationIgnored private let mixer = AudioMixerClient()
@@ -26,13 +28,13 @@ final class AudioController {
     @ObservationIgnored private var revision: UInt64 = 0
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var mixTask: Task<Void, Never>?
-    @ObservationIgnored private var deviceVolumeTask: Task<Void, Never>?
+    @ObservationIgnored private var volumeWriter: AudioDeviceVolumeWriter!
     @ObservationIgnored private var sleepObservers: [NSObjectProtocol] = []
 
     var output: AudioDeviceInfo? { snapshot.devices.first { $0.id == snapshot.outputID } }
     var input: AudioDeviceInfo? { snapshot.devices.first { $0.id == snapshot.inputID } }
     var supportsMixing: Bool { AudioMixerClient.isSupported }
-    private var hasSavedAdjustments: Bool { volumes.values.contains(where: \.needsProcessing) }
+    private var hasSavedAdjustments: Bool { volumes.values.contains(where: \.needsProcessing) || !outputRoutes.isEmpty }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -46,6 +48,38 @@ final class AudioController {
             guard !key.hasPrefix("pid:"), key.count <= 512, let checked = AudioAppVolume(level: value.level, isMuted: value.isMuted), checked.needsProcessing else { return nil }
             return (key, checked)
         })
+        let routes = defaults.data(forKey: "audio.applicationOutputs").flatMap { data -> [String: String]? in
+            guard data.count <= 524_288 else { return nil }
+            return try? JSONDecoder().decode([String: String].self, from: data)
+        } ?? [:]
+        outputRoutes = Dictionary(uniqueKeysWithValues: routes.sorted { $0.key < $1.key }.prefix(256).filter {
+            !$0.key.hasPrefix("pid:") && !$0.key.isEmpty && $0.key.count <= 512 && !$0.value.isEmpty && $0.value.count <= 512
+        })
+        volumeWriter = AudioDeviceVolumeWriter(write: { [hardware] request in
+            try await hardware.setVolume(request.level, device: request.device, direction: request.direction)
+            if request.level > 0, (request.direction == .output ? request.device.outputMuted : request.device.inputMuted) == true {
+                try await hardware.setMuted(false, device: request.device, direction: request.direction)
+            }
+        }, finished: { [weak self] request, error in
+            guard let self, enabled, !sleeping else { return }
+            let currentDevice = request.direction == .output ? output : input
+            guard currentDevice?.id == request.device.id, currentDevice?.uid == request.device.uid else { return }
+            operationError = error
+            scheduleRefresh(immediate: true)
+        })
+        mixer.setFailureHandler { [weak self] error in
+            Task { @MainActor [weak self] in
+                guard let self, enabled, !sleeping else { return }
+                mixingError = error
+            }
+        }
+
+    }
+
+    /// 离屏走查夹具；已启用的真实控制器不能被演示状态覆盖，也不会请求权限或启动处理。
+    func showPreview(_ snapshot: AudioHardwareSnapshot, volumes: [String: AudioAppVolume], outputs: [String: String]) {
+        guard !enabled else { return }
+        self.snapshot = snapshot; self.volumes = volumes; outputRoutes = outputs; hasPermission = true
     }
 
     func volume(for app: AudioApplication) -> AudioAppVolume { volumes[app.id] ?? AudioAppVolume(level: 1)! }
@@ -56,7 +90,7 @@ final class AudioController {
         self.visible = visible
         self.menuVisible = menuVisible
         revision &+= 1
-        deviceVolumeTask?.cancel()
+        if !enabled || sleeping { volumeWriter.cancelPending() }
         updateWatchers()
     }
 
@@ -64,6 +98,7 @@ final class AudioController {
         refreshTask?.cancel()
         let epoch = revision
         if !enabled || sleeping {
+            volumeWriter.cancelPending()
             hardware.stopWatching()
             mixTask?.cancel()
             Task { [weak self] in
@@ -101,6 +136,7 @@ final class AudioController {
             snapshot = updated
             let currentIDs = Set(updated.applications.map(\.id))
             volumes = volumes.filter { !$0.key.hasPrefix("pid:") || currentIDs.contains($0.key) }
+            outputRoutes = outputRoutes.filter { !$0.key.hasPrefix("pid:") || currentIDs.contains($0.key) }
             if !isWorking { reconcile() }
         }
     }
@@ -148,11 +184,38 @@ final class AudioController {
         guard enabled, !sleeping, !isWorking else { return }
         operationError = nil
         volumes.removeValue(forKey: app.id)
+        outputRoutes.removeValue(forKey: app.id)
         persist()
         reconcile()
         updateWatchers()
     }
 
+    func setAppOutput(_ uid: String?, app: AudioApplication) {
+        guard enabled, !sleeping, !isWorking, hasPermission else { return }
+        if let uid {
+            guard snapshot.devices.contains(where: { $0.uid == uid && $0.hasOutput }), outputRoutes[app.id] != nil || outputRoutes.count < 256 else { return }
+            outputRoutes[app.id] = uid
+        } else { outputRoutes.removeValue(forKey: app.id) }
+        persist(); operationError = nil; reconcile(); updateWatchers()
+    }
+    func retryMixing() {
+        guard enabled, !sleeping, !isWorking else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            await mixer.retryFailed()
+            if enabled, !sleeping { reconcile() }
+        }
+    }
+    private var mixTargets: [AudioMixTarget] {
+        guard enabled, !sleeping, hasPermission else { return [] }
+        return snapshot.applications.compactMap { app in
+            guard app.isPlaying else { return nil }
+            let volume = volume(for: app)
+            let selected = outputRoutes[app.id].flatMap { uid in snapshot.devices.contains { $0.uid == uid && $0.hasOutput } ? uid : nil }
+            guard volume.needsProcessing || selected.map({ $0 != output?.uid }) == true else { return nil }
+            return AudioMixTarget(id: app.id, processObjectIDs: app.processObjectIDs, volume: volume, outputUID: selected)
+        }
+    }
     private func save(_ volume: AudioAppVolume, for id: String) {
         guard id.count <= 512, volumes[id] != nil || volumes.count < 256 else { return }
         if volume.needsProcessing { volumes[id] = volume } else { volumes.removeValue(forKey: id) }
@@ -161,15 +224,13 @@ final class AudioController {
 
     private func persist() {
         defaults.set(try? JSONEncoder().encode(volumes.filter { !$0.key.hasPrefix("pid:") }), forKey: "audio.applicationVolumes")
+        defaults.set(try? JSONEncoder().encode(outputRoutes.filter { !$0.key.hasPrefix("pid:") }), forKey: "audio.applicationOutputs")
     }
 
     private func reconcile() {
         mixTask?.cancel()
         let epoch = revision
-        let targets = enabled && !sleeping && hasPermission ? snapshot.applications.compactMap { app -> AudioMixTarget? in
-            let volume = volume(for: app)
-            return volume.needsProcessing ? AudioMixTarget(id: app.id, processObjectIDs: app.processObjectIDs, volume: volume) : nil
-        } : []
+        let targets = mixTargets
         let uid = output?.uid
         mixTask = Task { [weak self] in
             guard let self, !Task.isCancelled else { return }
@@ -190,24 +251,7 @@ final class AudioController {
 
     func setDeviceLevel(_ level: Double, direction: AudioDirection) {
         guard enabled, !sleeping, !isWorking, let device = direction == .output ? output : input else { return }
-        deviceVolumeTask?.cancel()
-        let epoch = revision
-        deviceVolumeTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(25))
-            guard let self, !Task.isCancelled, revision == epoch else { return }
-            do {
-                try await hardware.setVolume(level, device: device, direction: direction)
-                if level > 0, (direction == .output ? device.outputMuted : device.inputMuted) == true {
-                    try await hardware.setMuted(false, device: device, direction: direction)
-                }
-                guard !Task.isCancelled, revision == epoch else { return }
-                operationError = nil
-            } catch {
-                guard !Task.isCancelled, revision == epoch else { return }
-                self.operationError = error as? AudioControlError ?? .unavailable
-            }
-            scheduleRefresh(immediate: true)
-        }
+        volumeWriter.submit(AudioDeviceVolumeRequest(level: level, device: device, direction: direction))
     }
 
     func toggleDeviceMute(_ direction: AudioDirection) {
@@ -227,10 +271,7 @@ final class AudioController {
             do {
                 try await hardware.select(device, direction: direction)
                 snapshot = await hardware.snapshot(includeApplications: hasPermission && hasSavedAdjustments || visible)
-                let targets = hasPermission ? snapshot.applications.compactMap { app -> AudioMixTarget? in
-                    let volume = volume(for: app)
-                    return volume.needsProcessing ? AudioMixTarget(id: app.id, processObjectIDs: app.processObjectIDs, volume: volume) : nil
-                } : []
+                let targets = mixTargets
                 if direction == .output, supportsMixing, enabled, !sleeping { try await mixer.apply(targets, outputUID: output?.uid) }
                 guard enabled, !sleeping else { await mixer.stop(); await mixer.finishOutputSwitch(guardTap); return }
                 await mixer.finishOutputSwitch(guardTap)
@@ -238,10 +279,7 @@ final class AudioController {
                 // 写设备失败时，先尝试恢复当前输出上的音量，之后才释放过渡静音。
                 if enabled, !sleeping, supportsMixing {
                     snapshot = await hardware.snapshot(includeApplications: hasPermission)
-                    let targets = snapshot.applications.compactMap { app -> AudioMixTarget? in
-                        let volume = volume(for: app)
-                        return volume.needsProcessing ? AudioMixTarget(id: app.id, processObjectIDs: app.processObjectIDs, volume: volume) : nil
-                    }
+                    let targets = mixTargets
                     try? await mixer.apply(targets, outputUID: output?.uid)
                 }
                 await mixer.finishOutputSwitch(guardTap)
@@ -255,7 +293,7 @@ final class AudioController {
         isWorking = true
         operationError = nil
         let epoch = revision
-        deviceVolumeTask?.cancel()
+        volumeWriter.cancelPending()
         mixTask?.cancel()
         Task { [weak self] in
             guard let self, revision == epoch, enabled, !sleeping else { self?.isWorking = false; return }
@@ -291,7 +329,7 @@ final class AudioController {
         revision &+= 1
         refreshTask?.cancel()
         mixTask?.cancel()
-        deviceVolumeTask?.cancel()
+        volumeWriter.cancelPending()
         removeSleepObservers()
         hardware.stopWatching()
         Task { await mixer.stop() }
