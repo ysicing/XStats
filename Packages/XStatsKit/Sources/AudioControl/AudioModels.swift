@@ -36,6 +36,8 @@ public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
     public let name: String
     public let hasInput: Bool
     public let hasOutput: Bool
+    public let canBeDefaultInput: Bool
+    public let canBeDefaultOutput: Bool
     public let inputVolume: Double?
     public let outputVolume: Double?
     public let inputMuted: Bool?
@@ -48,12 +50,19 @@ public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
     public init(id: UInt32, uid: String, name: String, hasInput: Bool = false, hasOutput: Bool = false,
                 inputVolume: Double? = nil, outputVolume: Double? = nil, inputMuted: Bool? = nil, outputMuted: Bool? = nil,
                 canSetInputVolume: Bool = false, canSetOutputVolume: Bool = false, canSetInputMute: Bool = false, canSetOutputMute: Bool = false,
-                bluetoothAddress: String? = nil) {
+                bluetoothAddress: String? = nil, canBeDefaultInput: Bool? = nil, canBeDefaultOutput: Bool? = nil) {
         self.id = id; self.uid = uid; self.name = name; self.hasInput = hasInput; self.hasOutput = hasOutput
         self.inputVolume = inputVolume; self.outputVolume = outputVolume; self.inputMuted = inputMuted; self.outputMuted = outputMuted
         self.canSetInputVolume = canSetInputVolume; self.canSetOutputVolume = canSetOutputVolume
         self.canSetInputMute = canSetInputMute; self.canSetOutputMute = canSetOutputMute
         self.bluetoothAddress = bluetoothAddress
+        self.canBeDefaultInput = canBeDefaultInput ?? hasInput
+        self.canBeDefaultOutput = canBeDefaultOutput ?? hasOutput
+    }
+
+    /// 系统选择器要求流存在且可作为默认设备；独立输出仍按 hasOutput 使用完整设备目录。
+    public func canBeDefault(_ direction: AudioDirection) -> Bool {
+        direction == .input ? hasInput && canBeDefaultInput : hasOutput && canBeDefaultOutput
     }
 
 }

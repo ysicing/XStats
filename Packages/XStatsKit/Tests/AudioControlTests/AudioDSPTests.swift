@@ -6,6 +6,37 @@ import CoreAudio
 import Testing
 
 struct AudioDSPTests {
+    @Test func standardExplicitStereoMappingKeepsTheFloat32FastPath() throws {
+        var route = configuration(gain: 0.5, channels: 2)
+        route.leftOutputChannel = 1; route.rightOutputChannel = 2
+        #expect(try rendered([[0.25, -0.5]], configurations: [route], fastFrames: 1) == [[0.125, -0.25]])
+    }
+    @Test(arguments: [false, true])
+    func stereoUsesThePreferredPairAndLeavesOtherChannelsSilent(planar: Bool) throws {
+        var route = configuration(gain: 1, channels: 2)
+        route.outputPCM = format(channels: 8, planar: planar)
+        route.leftOutputChannel = 3; route.rightOutputChannel = 4
+        let actual = try rendered([[0.25, -0.5]], configurations: [route], destinationCount: planar ? 8 : 1)
+        let expected: [[Float]] = planar ? [[0], [0], [0.25], [-0.5], [0], [0], [0], [0]] : [[0, 0, 0.25, -0.5, 0, 0, 0, 0]]
+        #expect(actual == expected)
+    }
+
+    @Test func reversedStereoPairDoesNotUseThePositionalFastPath() throws {
+        var route = configuration(gain: 1, channels: 2)
+        route.leftOutputChannel = 2; route.rightOutputChannel = 1
+        #expect(try rendered([[0.25, -0.5]], configurations: [route]) == [[-0.5, 0.25]])
+    }
+
+    @Test func invalidStereoPairsFailBeforeAnIOProcCanStart() {
+        for (left, right): (UInt32, UInt32) in [(1,1), (0,2), (3,4)] {
+            var route = configuration(gain: 1, channels: 2)
+            route.leftOutputChannel = left; route.rightOutputChannel = right
+            let context = XSVolumeRendererCreate(&route, 1)
+            #expect(context == nil)
+            if let context { XSVolumeRendererDestroy(context) }
+        }
+    }
+
     @Test func accessProbeDiscardsInputAndNeverPlaysItBack() throws {
         let context = try #require(XSAccessProbeCreate())
         defer { XSAccessProbeDestroy(context) }
@@ -33,7 +64,7 @@ struct AudioDSPTests {
     }
 
     private func rendered(_ sources: [[Float]], configurations: [XSVolumeRoute],
-                          destinationCount: Int = 1, finalGain: Float? = nil) throws -> [[Float]] {
+                          destinationCount: Int = 1, finalGain: Float? = nil, fastFrames: UInt64? = nil) throws -> [[Float]] {
         let context = try #require(configurations.withUnsafeBufferPointer { XSVolumeRendererCreate($0.baseAddress!, $0.count) })
         defer { XSVolumeRendererDestroy(context) }
         if let finalGain { XSVolumeRendererSetVolume(context, 0, finalGain) }
@@ -61,16 +92,17 @@ struct AudioDSPTests {
         }
         var timestamp = AudioTimeStamp()
         _ = XSVolumeRender(0, &timestamp, input.unsafeMutablePointer, &timestamp, output.unsafeMutablePointer, &timestamp, UnsafeMutableRawPointer(context))
+        if let fastFrames { #expect(XSVolumeRendererFastFrameCount(context) == fastFrames) }
         return output.map { buffer in Array(UnsafeBufferPointer(start: buffer.mData!.assumingMemoryBound(to: Float.self), count: Int(buffer.mDataByteSize) / 4)) }
     }
 
     private func configuration(gain: Float, channels: UInt32 = 1, planar: Bool = false, input: UInt32 = 0, output: UInt32 = 0) -> XSVolumeRoute {
         XSVolumeRoute(pcm: format(channels: channels, planar: planar), sourceBufferIndex: input,
-            channelBufferCount: planar ? channels : 1, destinationBufferIndex: output, startingVolume: gain, outputPCM: AudioStreamBasicDescription())
+            channelBufferCount: planar ? channels : 1, destinationBufferIndex: output, startingVolume: gain, outputPCM: AudioStreamBasicDescription(), leftOutputChannel: 0, rightOutputChannel: 0)
     }
 
     private func renderedBytes(_ samples: [UInt8], pcm: AudioStreamBasicDescription, startingVolume: Float = 0.5) throws -> [UInt8] {
-        var route = XSVolumeRoute(pcm: pcm, sourceBufferIndex: 0, channelBufferCount: 1, destinationBufferIndex: 0, startingVolume: startingVolume, outputPCM: AudioStreamBasicDescription())
+        var route = XSVolumeRoute(pcm: pcm, sourceBufferIndex: 0, channelBufferCount: 1, destinationBufferIndex: 0, startingVolume: startingVolume, outputPCM: AudioStreamBasicDescription(), leftOutputChannel: 0, rightOutputChannel: 0)
         let context = try #require(XSVolumeRendererCreate(&route, 1))
         defer { XSVolumeRendererDestroy(context) }
         var source = samples
@@ -250,7 +282,7 @@ struct AudioDSPTests {
         let format = AudioStreamBasicDescription(mSampleRate: 48_000, mFormatID: kAudioFormatLinearPCM, mFormatFlags: flags,
             mBytesPerPacket: 4, mFramesPerPacket: 1, mBytesPerFrame: 4, mChannelsPerFrame: 1, mBitsPerChannel: 24, mReserved: 0)
         var configuration = XSVolumeRoute(pcm: format, sourceBufferIndex: 0, channelBufferCount: 1,
-            destinationBufferIndex: 0, startingVolume: 0.5, outputPCM: AudioStreamBasicDescription())
+            destinationBufferIndex: 0, startingVolume: 0.5, outputPCM: AudioStreamBasicDescription(), leftOutputChannel: 0, rightOutputChannel: 0)
         let context = try #require(XSVolumeRendererCreate(&configuration, 1))
         defer { XSVolumeRendererDestroy(context) }
         var samples: [UInt32] = [UInt32(0x80000000), UInt32(0x40000000)].map { bigEndian ? $0.bigEndian : $0.littleEndian }
