@@ -16,6 +16,7 @@ struct CombinedPopoverView: View {
                         .dsFont(.base, weight: .semibold)
                         .foregroundStyle(DS.Palette.textPrimary)
                     Spacer()
+                    UpdateAvailableButton()
                     if model.combinedPopoverTab != nil {
                         MiniIconButton(systemName: "chevron.up", help: tr("收起")) { model.combinedPopoverTab = nil }
                     }
@@ -143,7 +144,7 @@ private struct OverviewMetricRow: View {
             .accessibilityIdentifier("overview-row-\(item.rawValue)")
             if expanded {
                 VStack(spacing: 0) {
-                    PopoverHeader(item: item, showsTitle: false)
+                    PopoverHeader(item: item, showsTitle: false, showsUpdate: false)
                     PopoverDetail(item: item)
                 }
                 .padding(.horizontal, DS.Space.s3)

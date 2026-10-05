@@ -496,6 +496,14 @@ GitHub Release notes retain the full Chinese changelog section and append the sa
 summaries, including user actions and compatibility notes. Publication validates both sections before
 uploading artifacts and uses the same bilingual body for release creation and edits.
 
+The overview and standalone metric popover headers share a conditional update button; expanded
+rows inside the overview omit it so each panel has only one entry. It opens the existing
+update window from the cached release, without another check or an automatic install. Settings
+buttons keep their existing destinations. Skipped versions are hidden immediately; after Sparkle
+persists the skip, the matching cached release is cleared while a newer known release is retained.
+The About badge uses the same availability state. Only live availability changes fade for 150 ms;
+initial presentation is immediate, and Reduce Motion disables the fade.
+
 `UpdateController` owns one long-lived Sparkle 2.10.0 updater and custom user driver. Sparkle
 schedules checks, stores skipped builds, verifies signed feeds/archives and installs only after explicit
 confirmation. China-region locales prefer `https://apps.china.12306.work/api/v1/apps/xstats/update/appcast.xml`;

@@ -86,6 +86,7 @@ struct PopoverDetail: View {
 struct PopoverHeader: View {
     let item: MenuBarItem
     var showsTitle = true
+    var showsUpdate = true
     @Environment(AppModel.self) private var model
 
     var body: some View {
@@ -103,6 +104,7 @@ struct PopoverHeader: View {
                 }
             }
             Spacer(minLength: DS.Space.s2)
+            if showsUpdate { UpdateAvailableButton() }
             if item == .memory { PurgeMemoryButton() }
             if item == .aiUsage {
                 // 当前数据的操作在前；来源配置用滑杆，最右侧齿轮进入 AI 主窗口。
@@ -285,6 +287,7 @@ struct CopyableText: View {
 struct MiniIconButton: View {
     let systemName: String
     let help: String
+    var tint: Color?
     let action: () -> Void
     @State private var hovering = false
 
@@ -292,7 +295,7 @@ struct MiniIconButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: DS.TextSize.xs.rawValue, weight: .semibold))
-                .foregroundStyle(hovering ? DS.Palette.textPrimary : DS.Palette.textSecondary)
+                .foregroundStyle(tint ?? (hovering ? DS.Palette.textPrimary : DS.Palette.textSecondary))
                 .frame(width: DS.Size.segmentHeight, height: DS.Size.segmentHeight)
                 .modifier(MiniIconSurface(hovering: hovering))
                 .contentShape(Circle())

@@ -1341,6 +1341,7 @@ Apple 智能本机模型当前不可用。	The on-device Apple Intelligence mode
 选择显示项目	Choose Items
 通用	General
 功能	Features
+发现新版本，查看更新	New version available. View update.
 通电时间	Power-on hours
 通电次数	Power cycles
 通知	Notifications

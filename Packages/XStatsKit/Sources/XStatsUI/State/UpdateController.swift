@@ -59,6 +59,28 @@ public final class UpdateController {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
     }
 
+    /// 已知版本在“以后再说”后仍可查看；跳过版本立即隐藏，离线也不撤销选择。
+    var hasAvailableUpdate: Bool {
+        guard let release else { return false }
+        return release.version != skippedVersion
+    }
+
+    /// 只打开已发现版本的现有窗口，不重新联网检查或自动安装。
+    func presentAvailableUpdate() {
+        guard hasAvailableUpdate else { return }
+        onPrompt()
+    }
+
+    /// Sparkle 已持久化跳过条目后，清掉对应界面缓存，避免旧提醒随兼容记录清除而重现。
+    func finishSkipMigration() {
+        if release?.version == skippedVersion {
+            release = nil
+            // 清空缓存后，周期结束回调不再看到已知版本；这里同步结束跳过检查的忙碌态。
+            phase = .idle
+        }
+        skippedVersion = nil
+    }
+
     var isBusy: Bool {
         switch phase {
         case .checking, .downloading, .verifying, .installing: true
@@ -111,7 +133,7 @@ public final class UpdateController {
         }
         driver.legacySkippedVersion = { [weak self] in self?.skippedVersion }
         driver.hasKnownRelease = { [weak self] in self?.release != nil }
-        driver.onLegacySkipMigrated = { [weak self] in self?.skippedVersion = nil }
+        driver.onLegacySkipMigrated = { [weak self] in self?.finishSkipMigration() }
         driver.onCycleFinished = { [weak self] success in self?.applySchedule(retry: !success) }
         sparkleInstaller = driver
         updater = try driver.start()
