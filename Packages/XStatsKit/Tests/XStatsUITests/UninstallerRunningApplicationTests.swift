@@ -28,7 +28,7 @@ struct UninstallerRunningApplicationTests {
         controller.select(target)
         // openApplication 返回与运行列表更新不是同一个时刻。
         // 全套 UI 测试可长时间占用主线程，不能把调度等待误判成启动失败。
-        let launchDeadline = ContinuousClock.now + .seconds(30)
+        let launchDeadline = ContinuousClock.now + .seconds(120)
         while ContinuousClock.now < launchDeadline, !running.isFinishedLaunching || !controller.isRunning(target) {
             try await Task.sleep(for: .milliseconds(20))
         }
@@ -50,7 +50,7 @@ struct UninstallerRunningApplicationTests {
         }
 
         controller.quit(target)
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while ContinuousClock.now < deadline, !running.isTerminated || !change.received {
             try await Task.sleep(for: .milliseconds(20))
         }

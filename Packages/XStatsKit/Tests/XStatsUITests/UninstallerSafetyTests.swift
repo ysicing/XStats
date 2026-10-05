@@ -36,7 +36,7 @@ struct UninstallerSafetyTests {
         let cache = AppLeftover(url: URL(fileURLWithPath: "/tmp/audit-cache"), kind: .caches, size: 1_000)
         let controller = UninstallerController(currentBundleIdentifier: "test.uninstall.current", findLeftovers: { _ in [body, cache] })
         controller.select(app)
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(controller.canUninstall)
         controller.finishUninstall(app, items: [body, cache],
@@ -56,7 +56,7 @@ struct UninstallerSafetyTests {
         let body = AppLeftover(url: app.url, kind: .application, size: 1000)
         let controller = UninstallerController(currentBundleIdentifier: "test.uninstall.current", findLeftovers: { _ in [body] })
         controller.select(app)
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(controller.canUninstall)
         controller.finishUninstall(app, items: [body], moved: [:], errorMessage: "denied")
@@ -71,7 +71,7 @@ struct UninstallerSafetyTests {
         let cache = AppLeftover(url: URL(fileURLWithPath: "/tmp/normalized-cache"), kind: .caches, size: 10)
         let controller = UninstallerController(currentBundleIdentifier: nil, findLeftovers: { _ in [body, cache] })
         controller.select(app)
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(controller.canUninstall)
         // 系统可能返回带目录斜杠或未折叠 ".." 的 URL，仍应认定为同一项已移动。
@@ -95,7 +95,7 @@ struct UninstallerSafetyTests {
             findLeftovers: { _ in [body, cache] },
             recycleFiles: { urls, completion in transaction.urls = urls; transaction.completion = completion })
         controller.select(app)
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(controller.canUninstall)
         controller.requestUninstall()

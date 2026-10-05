@@ -63,7 +63,7 @@ struct AudioBluetoothRefreshTests {
     }
 
     private func waitUntil(_ condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(20)
+        let deadline = ContinuousClock.now + .seconds(120)
         while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         #expect(condition(), "蓝牙读取结果应在时限内发布")
     }

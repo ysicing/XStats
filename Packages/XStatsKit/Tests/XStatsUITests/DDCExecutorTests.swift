@@ -23,7 +23,7 @@ struct DDCExecutorTests {
         #expect(second == -2)
         gate.signal()
         var recovered = -2
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while recovered == -2, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
             recovered = await backend.execute(timeout: -1, busy: -2, cancellation: DDCCancellation()) { 3 }

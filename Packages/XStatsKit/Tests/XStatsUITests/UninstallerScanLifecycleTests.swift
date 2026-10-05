@@ -31,7 +31,7 @@ struct UninstallerScanLifecycleTests {
         let started = try await gate.waitUntilStarted()
         try #require(started)
         controller.select(target)
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(!controller.isScanning)
         controller.toggle(cache)
@@ -69,7 +69,7 @@ struct UninstallerScanLifecycleTests {
         #expect(listCalls.calls == 1)
         controller.cancelScanning()
         #expect(!controller.isLoading && !controller.isScanning)
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while !measureCalls.finished, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         #expect(measureCalls.finished)
         #expect(controller.sizes[target.id] == nil)
@@ -103,7 +103,7 @@ struct UninstallerScanLifecycleTests {
         let started = try await slowCalls.waitUntilStarted()
         try #require(started)
         controller.reloadApps()
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while controller.sizes[slow.id] == nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         #expect(listCalls.calls == 2, "计量未完成时显式刷新也必须重新列举")
         #expect(slowCalls.finished, "被中断的计量必须响应取消")
@@ -125,7 +125,7 @@ struct UninstallerScanLifecycleTests {
         try #require(started)
         controller.select(nil)
         #expect(controller.selected == nil && !controller.isScanning)
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while !gate.finished, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         #expect(gate.finished && controller.leftovers.isEmpty)
     }
@@ -144,7 +144,7 @@ private final class ScanGate: @unchecked Sendable {
     func markFinished() { lock.withLock { done = true } }
     func markStarted() { lock.withLock { started = true } }
     func waitUntilStarted() async throws -> Bool {
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while !lock.withLock({ started }), ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }

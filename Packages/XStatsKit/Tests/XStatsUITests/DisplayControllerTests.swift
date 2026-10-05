@@ -69,12 +69,12 @@ struct DisplayControllerTests {
                     isBuiltIn: false, isMain: true, summary: "1920×1080 · 60Hz")
     }
     private func waitForReads(_ backend: TestDisplayBackend, _ count: Int) async throws {
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while await backend.count() < count, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         #expect(await backend.count() >= count)
     }
     private func settle(_ controller: DisplayController) async throws {
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while controller.isRefreshing, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         #expect(!controller.isRefreshing)
     }

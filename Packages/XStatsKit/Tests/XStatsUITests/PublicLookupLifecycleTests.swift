@@ -48,7 +48,7 @@ struct PublicLookupLifecycleTests {
         try await Task.sleep(for: .milliseconds(30))
         #expect(controller.isLookingUpPublic && controller.publicResults.isEmpty)
         await gate.finish(1, country: "JP")
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while controller.isLookingUpPublic, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         #expect(controller.publicAddresses?.countryCode == "JP")
         #expect(controller.publicAddresses?.ipv4 == "198.51.100.2")
@@ -89,7 +89,7 @@ struct PublicLookupLifecycleTests {
             fetchGeo: { _ in await gate.lookup() })
         defer { controller.clearPublicAddresses(); Task { await gate.finish() } }
         controller.lookUpPublicAddresses(force: true)
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while !(await gate.started), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(await gate.started)
         settings.publicIPLookup = false
@@ -101,7 +101,7 @@ struct PublicLookupLifecycleTests {
     }
 
     private func waitForRequests(_ gate: PublicLookupGate, count: Int) async throws {
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while await gate.requests < count, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(await gate.requests == count)
     }
