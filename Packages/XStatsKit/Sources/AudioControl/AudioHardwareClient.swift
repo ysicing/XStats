@@ -95,8 +95,8 @@ public final class AudioHardwareClient: @unchecked Sendable {
                   AudioHAL.string(device.id, kAudioDevicePropertyDeviceUID) == device.uid else { return .routeChanged }
             let properties = AudioHAL.writableElements(device.id, direction: direction, selector: kAudioDevicePropertyVolumeScalar)
             guard !properties.isEmpty else { return .unsupported }
-            for var property in properties {
-                var value = Float32(level)
+            let levels = Self.balancedVolumes(properties.map { AudioHAL.scalar(device.id, $0) }, level: Float32(level))
+            for (var property, var value) in zip(properties, levels) {
                 let status = AudioObjectSetPropertyData(device.id, &property, 0, nil, UInt32(MemoryLayout<Float32>.size), &value)
                 if status != noErr { return .hardware(status) }
             }
@@ -104,6 +104,15 @@ public final class AudioHardwareClient: @unchecked Sendable {
             return nil
         }
         if let result { throw result }
+    }
+
+    /// 只能逐声道写入时按当前比例缩放，使平均值接近目标而保留左右平衡；读数缺失或全为 0 时写入同一值。
+    static func balancedVolumes(_ current: [Float32?], level: Float32) -> [Float32] {
+        let values = current.compactMap { $0 }
+        guard current.count > 1, values.count == current.count else { return Array(repeating: level, count: current.count) }
+        let average = values.reduce(0, +) / Float32(values.count)
+        guard average > 0 else { return Array(repeating: level, count: current.count) }
+        return values.map { min(1, max(0, $0 * level / average)) }
     }
 
     public func setMuted(_ muted: Bool, device: AudioDeviceInfo, direction: AudioDirection) async throws {
