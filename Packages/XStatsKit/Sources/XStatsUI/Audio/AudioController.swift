@@ -14,6 +14,8 @@ final class AudioController {
     private(set) var isWorking = false
     private(set) var isAuthorizing = false
     private(set) var switchingDevice: AudioDirection?
+    private(set) var bluetoothDevices: [BluetoothAudioDevice] = []
+    private(set) var connectingBluetooth: String?
     private(set) var pendingOutputApps: Set<String> = []
     private(set) var failedOutputApps: Set<String> = []
     private var operationError: AudioControlError?
@@ -25,6 +27,10 @@ final class AudioController {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let hardware = AudioHardwareClient()
     @ObservationIgnored private let mixer = AudioMixerClient()
+    @ObservationIgnored private let bluetooth = BluetoothAudioClient()
+    @ObservationIgnored private var bluetoothRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var operationTask: Task<Void, Never>?
+    @ObservationIgnored private var operationRevision: UInt64 = 0
     @ObservationIgnored private var enabled = false
     @ObservationIgnored private var visible = false
     @ObservationIgnored private var menuVisible = false
@@ -87,21 +93,53 @@ final class AudioController {
     }
 
     /// 离屏走查夹具；已启用的真实控制器不能被演示状态覆盖，也不会请求权限或启动处理。
-    func showPreview(_ snapshot: AudioHardwareSnapshot, volumes: [String: AudioAppVolume], outputs: [String: String]) {
+    func showPreview(_ snapshot: AudioHardwareSnapshot, volumes: [String: AudioAppVolume], outputs: [String: String], bluetoothDevices: [BluetoothAudioDevice] = []) {
         guard !enabled else { return }
         self.snapshot = snapshot; self.volumes = volumes; outputRoutes = outputs; hasPermission = true
+        self.bluetoothDevices = bluetoothDevices
     }
 
     func volume(for app: AudioApplication) -> AudioAppVolume { volumes[app.id] ?? AudioAppVolume(level: 1)! }
 
     func setDemand(enabled: Bool, visible: Bool, menuVisible: Bool) {
         guard self.enabled != enabled || self.visible != visible || self.menuVisible != menuVisible else { return }
+        let wasBluetoothVisible = self.enabled && self.visible && !sleeping
         self.enabled = enabled
         self.visible = visible
         self.menuVisible = menuVisible
         revision &+= 1
+        if enabled, visible, !sleeping {
+            if !wasBluetoothVisible { refreshBluetoothDevices() }
+        } else {
+            cancelBluetoothConnection()
+            bluetoothRefreshTask?.cancel(); bluetoothRefreshTask = nil
+            bluetoothDevices = []
+        }
         if !enabled || sleeping { volumeWriter.cancelPending() }
         updateWatchers()
+    }
+
+    private func refreshBluetoothDevices() {
+        bluetoothRefreshTask?.cancel()
+        bluetoothRefreshTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let devices = try await bluetooth.pairedDevices()
+                guard !Task.isCancelled, enabled, visible, !sleeping else { return }
+                bluetoothDevices = devices
+                if operationError == .bluetoothPermissionRequired { operationError = nil }
+            } catch is CancellationError { }
+            catch {
+                guard !Task.isCancelled, enabled, visible, !sleeping else { return }
+                operationError = error as? AudioControlError ?? .bluetoothUnavailable
+            }
+        }
+    }
+
+    private func cancelBluetoothConnection() {
+        guard connectingBluetooth != nil else { return }
+        operationTask?.cancel(); operationRevision &+= 1
+        connectingBluetooth = nil; switchingDevice = nil; isWorking = false
     }
 
     private func updateWatchers() {
@@ -294,43 +332,73 @@ final class AudioController {
     func selectDevice(_ id: UInt32, direction: AudioDirection) {
         guard !isWorking, let device = snapshot.devices.first(where: { $0.id == id }) else { return }
         guard device.id != (direction == .output ? snapshot.outputID : snapshot.inputID) else { return }
-        perform(switching: direction) { [weak self] in
-            guard let self else { return }
-            let guardTap = direction == .output ? try await mixer.prepareOutputSwitch() : nil
-            guard enabled, !sleeping else { await mixer.finishOutputSwitch(guardTap); return }
-            do {
-                try await hardware.select(device, direction: direction)
-                snapshot = await hardware.snapshot(includeApplications: hasPermission && hasSavedAdjustments || visible)
-                let targets = mixTargets
-                if direction == .output, supportsMixing, enabled, !sleeping { try await mixer.apply(targets, outputUID: output?.uid) }
-                guard enabled, !sleeping else { await mixer.stop(); await mixer.finishOutputSwitch(guardTap); return }
-                await mixer.finishOutputSwitch(guardTap)
-            } catch {
-                // 写设备失败时，先尝试恢复当前输出上的音量，之后才释放过渡静音。
-                if enabled, !sleeping, supportsMixing {
-                    snapshot = await hardware.snapshot(includeApplications: hasPermission)
-                    let targets = mixTargets
-                    try? await mixer.apply(targets, outputUID: output?.uid)
-                }
-                await mixer.finishOutputSwitch(guardTap)
-                throw error
-            }
+        perform(switching: direction) { [self] in try await switchDevice(device, direction: direction, command: operationRevision) }
+    }
+
+    func connectBluetooth(_ id: String, direction: AudioDirection) {
+        guard enabled, visible, !sleeping, !isWorking,
+              let device = bluetoothDevices.first(where: { $0.id == id }) else { return }
+        perform(switching: direction, bluetoothID: id) { [self] in
+            let command = operationRevision
+            let ready = try await bluetooth.connect(device, direction: direction)
+            guard operationIsCurrent(command) else { throw CancellationError() }
+            try await switchDevice(ready, direction: direction, command: command)
         }
     }
 
-    private func perform(switching direction: AudioDirection? = nil, _ operation: @escaping @MainActor () async throws -> Void) {
+    private func operationIsCurrent(_ command: UInt64) -> Bool {
+        enabled && !sleeping && !Task.isCancelled && operationRevision == command
+    }
+
+    private func switchDevice(_ device: AudioDeviceInfo, direction: AudioDirection, command: UInt64) async throws {
+        guard operationIsCurrent(command) else { throw CancellationError() }
+        let guardTap = direction == .output ? try await mixer.prepareOutputSwitch() : nil
+        guard operationIsCurrent(command) else { await mixer.finishOutputSwitch(guardTap); throw CancellationError() }
+        do {
+            try await hardware.select(device, direction: direction)
+            guard operationIsCurrent(command) else { throw CancellationError() }
+            let updated = await hardware.snapshot(includeApplications: hasPermission && hasSavedAdjustments || visible)
+            guard operationIsCurrent(command) else { throw CancellationError() }
+            snapshot = updated
+            let targets = mixTargets
+            if direction == .output, supportsMixing { try await mixer.apply(targets, outputUID: output?.uid) }
+            guard operationIsCurrent(command) else { throw CancellationError() }
+            await mixer.finishOutputSwitch(guardTap)
+        } catch {
+            // 写设备失败时，先尝试恢复当前输出上的音量，之后才释放过渡静音。
+            if operationIsCurrent(command), supportsMixing {
+                let updated = await hardware.snapshot(includeApplications: hasPermission)
+                if operationIsCurrent(command) {
+                    snapshot = updated
+                    try? await mixer.apply(mixTargets, outputUID: output?.uid)
+                }
+            }
+            await mixer.finishOutputSwitch(guardTap)
+            throw error
+        }
+    }
+
+    private func perform(switching direction: AudioDirection? = nil, bluetoothID: String? = nil, _ operation: @escaping @MainActor () async throws -> Void) {
         guard enabled, !sleeping else { return }
         isWorking = true
         switchingDevice = direction
+        connectingBluetooth = bluetoothID
         operationError = nil
         let epoch = revision
+        operationRevision &+= 1
+        let command = operationRevision
         volumeWriter.cancelPending()
         mixTask?.cancel()
-        Task { [weak self] in
-            guard let self, revision == epoch, enabled, !sleeping else { self?.isWorking = false; self?.switchingDevice = nil; return }
+        operationTask = Task { [weak self] in
+            guard let self, operationRevision == command else { return }
+            guard revision == epoch, enabled, !sleeping else {
+                isWorking = false; switchingDevice = nil; connectingBluetooth = nil; return
+            }
             do { try await operation() }
-            catch { if revision == epoch { self.operationError = error as? AudioControlError ?? .unavailable } }
-            isWorking = false; switchingDevice = nil
+            catch is CancellationError { /* 关闭界面或休眠属于正常取消，不显示失败提示。 */ }
+            catch { if operationRevision == command, revision == epoch { self.operationError = error as? AudioControlError ?? .unavailable } }
+            guard operationRevision == command else { return }
+            isWorking = false; switchingDevice = nil; connectingBluetooth = nil; operationTask = nil
             scheduleRefresh(immediate: true)
         }
     }
@@ -343,6 +411,10 @@ final class AudioController {
                     guard let self else { return }
                     self.sleeping = sleep
                     self.revision &+= 1
+                    if sleep {
+                        self.cancelBluetoothConnection()
+                        self.bluetoothRefreshTask?.cancel(); self.bluetoothDevices = []
+                    } else if self.enabled, self.visible { self.refreshBluetoothDevices() }
                     self.updateWatchers()
                 }
             }
@@ -357,6 +429,8 @@ final class AudioController {
 
     func stop() {
         enabled = false
+        cancelBluetoothConnection()
+        bluetoothRefreshTask?.cancel(); bluetoothRefreshTask = nil; bluetoothDevices = []
         pendingOutputApps.removeAll(); failedOutputApps.removeAll(); switchingDevice = nil; isAuthorizing = false
         revision &+= 1
         refreshTask?.cancel()

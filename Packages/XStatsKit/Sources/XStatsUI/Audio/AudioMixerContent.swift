@@ -55,6 +55,10 @@ struct AudioMixerContent: View {
         case .routeChanged: tr("音频设备已变化，请重试。")
         case .unsupportedFormat: tr("当前输出格式不支持应用音量，请切换音频设备。")
         case .unsupported: tr("此设备不支持该控制。")
+        case .bluetoothUnavailable: tr("蓝牙未开启，请在系统设置中开启蓝牙。")
+        case .bluetoothPermissionRequired: tr("请在系统设置的隐私与安全性中允许 XStats 使用蓝牙。")
+        case .bluetoothConnectionFailed: tr("无法连接蓝牙设备，请确认设备已开启且在附近，然后重试。")
+        case .bluetoothAudioUnavailable: tr("蓝牙音频未就绪，请确认设备支持所选的输入或输出，然后重试。")
         case .unavailable, .hardware: tr("音频操作未完成，请重试。")
         }
     }
@@ -91,12 +95,36 @@ private struct AudioDeviceSection: View {
     var body: some View {
         SectionCard(title: title) {
             let devices = model.audio.snapshot.devices.filter { direction == .output ? $0.hasOutput : $0.hasInput }
-            if !devices.isEmpty {
-                Picker(title, selection: Binding(get: { device?.id ?? 0 }, set: { model.audio.selectDevice($0, direction: direction) })) {
-                    if device == nil { Text(title).tag(UInt32(0)) }
-                    ForEach(devices) { Text(verbatim: $0.name).tag($0.id) }
+            let paired = model.audio.bluetoothDevices.filter { candidate in
+                guard direction == .output ? candidate.hasOutput : candidate.hasInput else { return false }
+                // HAL 端点先出现、切换稍后完成；保留待处理选项，避免 Picker 的 selection 暂时失去标签。
+                if model.audio.switchingDevice == direction, model.audio.connectingBluetooth == candidate.id { return true }
+                return !devices.contains(where: { candidate.matches($0, direction: direction) })
+            }
+            if !devices.isEmpty || !paired.isEmpty {
+                Picker(title, selection: Binding(get: {
+                    if model.audio.switchingDevice == direction, let id = model.audio.connectingBluetooth { return "bluetooth:\(id)" }
+                    return device.map { "audio:\($0.id)" } ?? ""
+                }, set: { selection in
+                    if selection.hasPrefix("bluetooth:") { model.audio.connectBluetooth(String(selection.dropFirst(10)), direction: direction) }
+                    else if let id = UInt32(selection.dropFirst(6)) { model.audio.selectDevice(id, direction: direction) }
+                })) {
+                    if device == nil { Text(title).tag("") }
+                    ForEach(devices) { Text(verbatim: $0.name).tag("audio:\($0.id)") }
+                    if !paired.isEmpty {
+                        Divider()
+                        ForEach(paired) { candidate in
+                            if model.audio.switchingDevice == direction, model.audio.connectingBluetooth == candidate.id {
+                                Text(verbatim: candidate.name).tag("bluetooth:\(candidate.id)")
+                            } else { Text(tr("\(candidate.name) · 未连接")).tag("bluetooth:\(candidate.id)") }
+                        }
+                    }
                 }.labelsHidden().pickerStyle(.menu).disabled(model.audio.isWorking)
-                if model.audio.switchingDevice == direction { AudioSwitchingFeedback(text: tr("正在切换设备…")) }
+                if model.audio.switchingDevice == direction {
+                    if let id = model.audio.connectingBluetooth, let paired = model.audio.bluetoothDevices.first(where: { $0.id == id }) {
+                        AudioSwitchingFeedback(text: tr("正在连接“\(paired.name)”…"))
+                    } else { AudioSwitchingFeedback(text: tr("正在切换设备…")) }
+                }
                 if device != nil {
                     HStack(spacing: DS.Space.s2) {
                         Text(volumeTitle).dsFont(.sm)

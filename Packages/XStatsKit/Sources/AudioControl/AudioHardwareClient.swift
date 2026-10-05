@@ -89,18 +89,26 @@ public final class AudioHardwareClient: @unchecked Sendable {
     }
 
     public func select(_ device: AudioDeviceInfo, direction: AudioDirection) async throws {
-        let result: AudioControlError? = await execute {
-            guard AudioHAL.string(device.id, kAudioDevicePropertyDeviceUID) == device.uid,
-                  let current = AudioHAL.devices().first(where: { $0.id == device.id }),
-                  direction == .output ? current.hasOutput : current.hasInput else { return .routeChanged }
-            var property = AudioHAL.address(direction == .output ? kAudioHardwarePropertyDefaultOutputDevice : kAudioHardwarePropertyDefaultInputDevice)
-            var id = device.id
-            let status = AudioObjectSetPropertyData(AudioHAL.system, &property, 0, nil, UInt32(MemoryLayout<AudioObjectID>.size), &id)
-            guard status == noErr else { return .hardware(status) }
-            guard AudioHAL.defaultDevice(direction) == device.id else { return .unavailable }
-            return nil
-        }
-        if let result { throw result }
+        let cancellation = AudioOperationCancellation()
+        try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            let result: AudioControlError? = await execute {
+                guard !cancellation.isCancelled,
+                      AudioHAL.string(device.id, kAudioDevicePropertyDeviceUID) == device.uid,
+                      let current = AudioHAL.devices().first(where: { $0.id == device.id }),
+                      direction == .output ? current.hasOutput : current.hasInput else { return .routeChanged }
+                var property = AudioHAL.address(direction == .output ? kAudioHardwarePropertyDefaultOutputDevice : kAudioHardwarePropertyDefaultInputDevice)
+                var id = device.id
+                // 排队期间用户可能关闭连接界面；已发出的系统写入无法撤销，尚未写入的必须跳过。
+                guard !cancellation.isCancelled else { return .routeChanged }
+                let status = AudioObjectSetPropertyData(AudioHAL.system, &property, 0, nil, UInt32(MemoryLayout<AudioObjectID>.size), &id)
+                guard status == noErr else { return .hardware(status) }
+                guard AudioHAL.defaultDevice(direction) == device.id else { return .unavailable }
+                return nil
+            }
+            try Task.checkCancellation()
+            if let result { throw result }
+        } onCancel: { cancellation.cancel() }
     }
 
     // 内部诊断供资源释放验证使用；读取也在同一 HAL 队列中完成。

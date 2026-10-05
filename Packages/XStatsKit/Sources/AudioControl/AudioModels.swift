@@ -44,13 +44,16 @@ public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
     public let canSetOutputVolume: Bool
     public let canSetInputMute: Bool
     public let canSetOutputMute: Bool
+    public let bluetoothAddress: String?
     public init(id: UInt32, uid: String, name: String, hasInput: Bool = false, hasOutput: Bool = false,
                 inputVolume: Double? = nil, outputVolume: Double? = nil, inputMuted: Bool? = nil, outputMuted: Bool? = nil,
-                canSetInputVolume: Bool = false, canSetOutputVolume: Bool = false, canSetInputMute: Bool = false, canSetOutputMute: Bool = false) {
+                canSetInputVolume: Bool = false, canSetOutputVolume: Bool = false, canSetInputMute: Bool = false, canSetOutputMute: Bool = false,
+                bluetoothAddress: String? = nil) {
         self.id = id; self.uid = uid; self.name = name; self.hasInput = hasInput; self.hasOutput = hasOutput
         self.inputVolume = inputVolume; self.outputVolume = outputVolume; self.inputMuted = inputMuted; self.outputMuted = outputMuted
         self.canSetInputVolume = canSetInputVolume; self.canSetOutputVolume = canSetOutputVolume
         self.canSetInputMute = canSetInputMute; self.canSetOutputMute = canSetOutputMute
+        self.bluetoothAddress = bluetoothAddress
     }
 
 }
@@ -80,5 +83,6 @@ public struct AudioHardwareSnapshot: Sendable, Equatable {
 
 public enum AudioControlError: Error, Sendable, Equatable {
     case unavailable, unsupported, routeChanged, permissionRequired, unsupportedFormat, renderStalled
+    case bluetoothUnavailable, bluetoothPermissionRequired, bluetoothConnectionFailed, bluetoothAudioUnavailable
     case hardware(Int32)
 }
