@@ -7,6 +7,9 @@ import Foundation
 
 /// 无状态 HAL 读取与地址工具；调用方在各自的串行生命周期队列中使用，不将原生对象送到主线程。
 enum AudioHAL {
+    static func resourceWasRemoved(_ status: OSStatus) -> Bool {
+        status == noErr || status == kAudioHardwareBadDeviceError || status == kAudioHardwareBadObjectError
+    }
     static let system = AudioObjectID(kAudioObjectSystemObject)
 
     static func address(_ selector: AudioObjectPropertySelector, scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal,

@@ -15,7 +15,7 @@ public struct AudioMixTarget: Sendable, Equatable {
 }
 
 /// 管线仅在生命周期队列访问；接口同时用于不触碰真实音频设备的故障注入测试。
-protocol AudioMixPipeline: AnyObject {
+protocol AudioMixPipeline: AudioResource {
     var processIDs: [UInt32] { get }
     var frameCount: UInt64 { get }
     var outputUID: String { get }
@@ -23,7 +23,6 @@ protocol AudioMixPipeline: AnyObject {
     func matches(_ target: AudioMixTarget, outputUID: String, sourceUID: String?) -> Bool
     func start(shouldContinue: () -> Bool) throws
     func setVolume(_ volume: Float)
-    func stop() throws
 }
 
 private struct AudioRenderConfiguration: Equatable {
@@ -41,7 +40,7 @@ public final class AudioMixerClient: @unchecked Sendable {
     private let lock = NSLock()
     private var revision: UInt64 = 0
     private var pipelines: [String: any AudioMixPipeline] = [:]
-    private var retired: [any AudioMixPipeline] = []
+    private var retired: [any AudioResource] = []
     private var cleanupAttempts = 0
     private var targets: [String: AudioMixTarget] = [:]
     private var sourceUID: String?
@@ -52,6 +51,9 @@ public final class AudioMixerClient: @unchecked Sendable {
     private var failureHandler: (@Sendable (AudioControlError?) -> Void)?
     private let factory: @Sendable (AudioMixTarget, String, String?) throws -> any AudioMixPipeline
     private let automaticHealthChecks: Bool
+    private let outputGuardFactory: @Sendable ([UInt32]) throws -> any AudioOutputSwitchGuard
+    private let accessProbeFactory: @Sendable () throws -> any AudioAccessProbe
+    private var outputGuards: [UInt32: any AudioOutputSwitchGuard] = [:]
 
     public convenience init() {
         self.init(automaticHealthChecks: true) { target, output, source in
@@ -59,8 +61,18 @@ public final class AudioMixerClient: @unchecked Sendable {
             return CoreAudioMixPipeline(target: target, outputUID: output, sourceUID: source)
         }
     }
-    init(automaticHealthChecks: Bool, factory: @escaping @Sendable (AudioMixTarget, String, String?) throws -> any AudioMixPipeline) {
+    init(automaticHealthChecks: Bool,
+         outputGuardFactory: @escaping @Sendable ([UInt32]) throws -> any AudioOutputSwitchGuard = { processes in
+             guard #available(macOS 14.4, *) else { throw AudioControlError.unsupported }
+             return try CoreAudioOutputSwitchGuard(processes: processes)
+         },
+         accessProbeFactory: @escaping @Sendable () throws -> any AudioAccessProbe = {
+             guard #available(macOS 14.4, *) else { throw AudioControlError.unsupported }
+             return CoreAudioAccessProbe()
+         },
+         factory: @escaping @Sendable (AudioMixTarget, String, String?) throws -> any AudioMixPipeline) {
         self.factory = factory; self.automaticHealthChecks = automaticHealthChecks
+        self.outputGuardFactory = outputGuardFactory; self.accessProbeFactory = accessProbeFactory
         queue.setSpecific(key: queueKey, value: 1)
     }
     deinit {
@@ -73,16 +85,34 @@ public final class AudioMixerClient: @unchecked Sendable {
     }
     public func requestAccess() async throws {
         guard #available(macOS 14.4, *) else { throw AudioControlError.unsupported }
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            queue.async {
-                let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
-                description.name = "XStats Audio Permission"; description.isPrivate = true; description.muteBehavior = .unmuted
-                var tap: AudioObjectID = 0
-                let status = AudioHardwareCreateProcessTap(description, &tap)
-                if status == noErr, tap != 0 { AudioHardwareDestroyProcessTap(tap); continuation.resume() }
-                else { continuation.resume(throwing: AudioControlError.permissionRequired) }
+        let command = lock.withLock { revision &+= 1; return revision }
+        let cancellation = AudioOperationCancellation()
+        try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                queue.async { [self] in
+                    guard isCurrent(command), !cancellation.isCancelled else { continuation.resume(throwing: CancellationError()); return }
+                    cleanRetired(resetBudget: true)
+                    guard retired.isEmpty else { continuation.resume(throwing: AudioControlError.unavailable); return }
+                    let probe: any AudioAccessProbe
+                    do { probe = try accessProbeFactory() }
+                    catch { continuation.resume(throwing: error); return }
+                    var failure: (any Error)?
+                    do {
+                        try probe.start { self.isCurrent(command) && !cancellation.isCancelled }
+                        if !isCurrent(command) || cancellation.isCancelled { throw CancellationError() }
+                    } catch { failure = error }
+                    if let cleanupFailure = releaseResource(probe) {
+                        failure = failure ?? cleanupFailure
+                        failureHandler?(.unavailable)
+                    }
+                    updateTimer()
+                    if let failure { continuation.resume(throwing: failure) }
+                    else { continuation.resume() }
+                }
             }
-        }
+            try Task.checkCancellation()
+        } onCancel: { cancellation.cancel() }
     }
 
     public func apply(_ requested: [AudioMixTarget], outputUID: String?) async throws {
@@ -104,10 +134,12 @@ public final class AudioMixerClient: @unchecked Sendable {
                     guard isCurrent(command) else { break }
                     guard let destination = target.outputUID ?? outputUID else { failure = AudioControlError.unavailable; continue }
                     let configuration = AudioRenderConfiguration(objects: target.processObjectIDs, outputUID: destination, sourceUID: outputUID, format: AudioHAL.streamSignature(destination) ?? [])
+                    // 失败缓存只限制重建；保留的旧路由仍须即时响应静音和音量，且不重置重试预算。
+                    pipelines[target.id]?.setVolume(target.volume.gain)
                     if let blocked = failed[target.id], blocked.configuration == configuration { continue }
                     failed.removeValue(forKey: target.id)
                     if let existing = pipelines[target.id], existing.matches(target, outputUID: destination, sourceUID: outputUID) {
-                        existing.setVolume(target.volume.gain); pendingReplacements.remove(target.id); continue
+                        pendingReplacements.remove(target.id); continue
                     }
                     if !retired.isEmpty { pendingReplacements.insert(target.id); failure = AudioControlError.unavailable; continue }
                     pendingReplacements.remove(target.id)
@@ -198,28 +230,46 @@ public final class AudioMixerClient: @unchecked Sendable {
                 guard retired.isEmpty else { continuation.resume(throwing: AudioControlError.unavailable); return }
                 let objects = pipelines.values.flatMap(\.processIDs)
                 guard !objects.isEmpty else { continuation.resume(returning: nil); return }
-                let description = CATapDescription(stereoMixdownOfProcesses: objects)
-                description.name = "XStats Output Transition"; description.isPrivate = true; description.muteBehavior = .muted
-                var tap: AudioObjectID = 0
-                let status = AudioHardwareCreateProcessTap(description, &tap)
-                guard status == noErr, tap != 0 else { continuation.resume(throwing: AudioControlError.hardware(status)); return }
-                releaseAll()
-                guard retired.isEmpty else { AudioHardwareDestroyProcessTap(tap); continuation.resume(throwing: AudioControlError.unavailable); return }
-                continuation.resume(returning: tap)
+                let resource: any AudioOutputSwitchGuard
+                do { resource = try outputGuardFactory(objects) }
+                catch { continuation.resume(throwing: error); return }
+                outputGuards[resource.id] = resource
+                releaseAll(preservingOutputGuard: resource.id)
+                guard retired.isEmpty else {
+                    try? releaseOutputGuard(resource.id)
+                    updateTimer()
+                    continuation.resume(throwing: AudioControlError.unavailable); return
+                }
+                continuation.resume(returning: resource.id)
             }
         }
     }
-    public func finishOutputSwitch(_ tap: UInt32?) async {
+    public func finishOutputSwitch(_ tap: UInt32?) async throws {
         guard #available(macOS 14.4, *), let tap else { return }
-        await withCheckedContinuation { continuation in queue.async { AudioHardwareDestroyProcessTap(tap); continuation.resume() } }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            queue.async { [self] in
+                do { try releaseOutputGuard(tap); updateTimer(); continuation.resume() }
+                catch { failureHandler?(.unavailable); updateTimer(); continuation.resume(throwing: error) }
+            }
+        }
+    }
+
+    /// 所有停止失败的资源转移到 retired，不能因为调用方丢弃句柄而遗失原生对象。
+    private func releaseResource(_ resource: any AudioResource) -> (any Error)? {
+        do { try resource.stop(); return nil }
+        catch { retired.append(resource); cleanupAttempts = 0; return error }
+    }
+
+    private func releaseOutputGuard(_ id: UInt32) throws {
+        guard let resource = outputGuards.removeValue(forKey: id) else { return }
+        if let failure = releaseResource(resource) { throw failure }
     }
     private static var now: Double { Double(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000 }
     private func isCurrent(_ command: UInt64) -> Bool { lock.withLock { revision == command } }
     @discardableResult
     private func retire(_ id: String) -> Bool {
         guard let old = pipelines.removeValue(forKey: id) else { return true }
-        do { try old.stop(); return true }
-        catch { retired.append(old); cleanupAttempts = 0; return false }
+        return releaseResource(old) == nil
     }
     private func cleanRetired(resetBudget: Bool = false) {
         if resetBudget { cleanupAttempts = 0 }
@@ -227,9 +277,10 @@ public final class AudioMixerClient: @unchecked Sendable {
         cleanupAttempts += 1
         retired.removeAll { (try? $0.stop()) != nil }
     }
-    private func releaseAll(scheduleCleanup: Bool = true) {
+    private func releaseAll(scheduleCleanup: Bool = true, preservingOutputGuard: UInt32? = nil) {
         timer?.cancel(); timer = nil
         for id in Array(pipelines.keys) { retire(id) }
+        for id in Array(outputGuards.keys) where id != preservingOutputGuard { try? releaseOutputGuard(id) }
         targets.removeAll(); health.removeAll(); failed.removeAll(); pendingReplacements.removeAll(); cleanRetired(resetBudget: true)
         if !retired.isEmpty { failureHandler?(.unavailable) }
         if scheduleCleanup { updateTimer() }

@@ -653,7 +653,13 @@ confirms writes by reading them back. Unsupported hardware controls remain unava
 is independent of display DDC/CI volume. Output and microphone selection use the system default
 routing properties.
 
-On macOS 14.4 and later, explicit user activation requests system audio capture permission.
+On macOS 14.4 and later, explicit user activation starts a short unmuted tap/aggregate input to
+trigger the system audio capture prompt. Its IOProc discards input, clears output and reports only
+initialization progress; physical microphone streams are disabled. The local activation preference
+is a user choice, not proof of a current macOS grant: Core Audio still enforces access when capture
+starts. The legacy flag migrates to `audio.appVolumeEnabled` and cannot override an explicit newer
+choice. Closing the controls, disabling or sleeping cancels pending activation without publishing
+a late enabled state. Probe objects use the same owned cleanup path as other audio resources.
 Applications keep stable rows while their audio connection is paused. Only playing applications with
 changed volume, mute or an independent output create private process taps and aggregate outputs.
 An unavailable selected device falls back to the system output while its preference is retained.
@@ -667,7 +673,12 @@ contexts are retained until IOProc shutdown succeeds. A failed stop blocks repla
 contexts receive at most two cleanup retries, then remain retained with a manual-retry error. Duplex hardware inputs are skipped and
 disabled for the IOProc. Core Audio drift compensation clocks taps to the selected output; the
 renderer supports compatible PCM formats and mono/stereo/channel mapping. Unsupported rates or
-formats fail visibly. System-output switches use a temporary mute tap during replacement.
+formats fail visibly. Failure caching blocks rebuilding the requested route, but still updates the
+gain of any retained pipeline so subsequent volume and mute controls remain effective. System-output
+switches use an owned temporary mute tap during replacement. A failed destroy first attempts to
+unmute it, retains the object and reports the error; the same bounded cleanup and manual retry path
+also owns failed transition guards and activation probes. Disable/stop cleans guards even if the
+switching caller has not yet returned its handle.
 
 The C callback allocates no memory and takes no locks. Gains use atomics, changes ramp over 40ms,
 and 0–200% gain uses a channel-linked peak limiter with immediate attenuation and an 80ms release.

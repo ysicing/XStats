@@ -24,7 +24,7 @@ struct AudioMixerContent: View {
         SectionCard(title: tr("应用音量"), hint: tr("应用音量支持 0–200%；高增益时自动限制峰值，不改变系统音量。")) {
             if !model.audio.supportsMixing {
                 Text(tr("应用音量需要 macOS 14.4 或更新版本")).dsFont(.sm)
-            } else if !model.audio.hasPermission {
+            } else if !model.audio.appVolumeEnabled {
                 Text(tr("仅在本机处理声音，不录制或上传音频。开启后可独立调节正在播放声音的应用。"))
                     .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary).fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: DS.Space.s2) {

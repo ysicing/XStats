@@ -10,7 +10,8 @@ import Observation
 @MainActor @Observable
 final class AudioController {
     private(set) var snapshot = AudioHardwareSnapshot.empty
-    private(set) var hasPermission: Bool
+    /// 用户启用偏好，不表示 macOS 已授权；系统权限始终由真实捕获操作执行时检查。
+    private(set) var appVolumeEnabled: Bool
     private(set) var isWorking = false
     private(set) var isAuthorizing = false
     private(set) var switchingDevice: AudioDirection?
@@ -26,7 +27,7 @@ final class AudioController {
     private(set) var outputRoutes: [String: String]
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let hardware = AudioHardwareClient()
-    @ObservationIgnored private let mixer = AudioMixerClient()
+    @ObservationIgnored private let mixer: AudioMixerClient
     @ObservationIgnored private let bluetooth = BluetoothAudioClient()
     @ObservationIgnored private var bluetoothRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var operationTask: Task<Void, Never>?
@@ -46,9 +47,15 @@ final class AudioController {
     var supportsMixing: Bool { AudioMixerClient.isSupported }
     private var hasSavedAdjustments: Bool { volumes.values.contains(where: \.needsProcessing) || !outputRoutes.isEmpty }
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, mixer: AudioMixerClient = AudioMixerClient()) {
         self.defaults = defaults
-        hasPermission = defaults.bool(forKey: "audio.captureAuthorized")
+        self.mixer = mixer
+        let activationKey = "audio.appVolumeEnabled"
+        let savedActivation = defaults.object(forKey: activationKey) == nil
+            ? defaults.bool(forKey: "audio.captureAuthorized") : defaults.bool(forKey: activationKey)
+        appVolumeEnabled = savedActivation
+        defaults.set(savedActivation, forKey: activationKey)
+        defaults.removeObject(forKey: "audio.captureAuthorized")
         let decoded = defaults.data(forKey: "audio.applicationVolumes")
             .flatMap { data -> [String: AudioAppVolume]? in
                 guard data.count <= 262_144 else { return nil }
@@ -95,7 +102,7 @@ final class AudioController {
     /// 离屏走查夹具；已启用的真实控制器不能被演示状态覆盖，也不会请求权限或启动处理。
     func showPreview(_ snapshot: AudioHardwareSnapshot, volumes: [String: AudioAppVolume], outputs: [String: String], bluetoothDevices: [BluetoothAudioDevice] = []) {
         guard !enabled else { return }
-        self.snapshot = snapshot; self.volumes = volumes; outputRoutes = outputs; hasPermission = true
+        self.snapshot = snapshot; self.volumes = volumes; outputRoutes = outputs; appVolumeEnabled = true
         self.bluetoothDevices = bluetoothDevices
     }
 
@@ -111,7 +118,7 @@ final class AudioController {
         if enabled, visible, !sleeping {
             if !wasBluetoothVisible { refreshBluetoothDevices() }
         } else {
-            cancelBluetoothConnection()
+            cancelPendingAudioOperation()
             bluetoothRefreshTask?.cancel(); bluetoothRefreshTask = nil
             bluetoothDevices = []
         }
@@ -136,10 +143,10 @@ final class AudioController {
         }
     }
 
-    private func cancelBluetoothConnection() {
-        guard connectingBluetooth != nil else { return }
-        operationTask?.cancel(); operationRevision &+= 1
-        connectingBluetooth = nil; switchingDevice = nil; isWorking = false
+    private func cancelPendingAudioOperation() {
+        guard connectingBluetooth != nil || isAuthorizing else { return }
+        operationTask?.cancel(); operationTask = nil; operationRevision &+= 1
+        connectingBluetooth = nil; switchingDevice = nil; isWorking = false; isAuthorizing = false
     }
 
     private func updateWatchers() {
@@ -159,7 +166,7 @@ final class AudioController {
             return
         }
         installSleepObservers()
-        let watchesApps = visible || (hasPermission && hasSavedAdjustments)
+        let watchesApps = visible || (appVolumeEnabled && hasSavedAdjustments)
         if visible || menuVisible || watchesApps {
             hardware.watch(applications: watchesApps) { [weak self] in
                 Task { @MainActor [weak self] in self?.scheduleRefresh() }
@@ -181,7 +188,7 @@ final class AudioController {
         refreshTask = Task { [weak self] in
             if !immediate { try? await Task.sleep(for: .milliseconds(80), tolerance: .milliseconds(20)) }
             guard let self, !Task.isCancelled, revision == epoch, enabled, !sleeping else { return }
-            let updated = await hardware.snapshot(includeApplications: visible || (hasPermission && hasSavedAdjustments))
+            let updated = await hardware.snapshot(includeApplications: visible || (appVolumeEnabled && hasSavedAdjustments))
             guard !Task.isCancelled, revision == epoch, enabled, !sleeping else { return }
             snapshot = updated
             let currentIDs = Set(updated.applications.map(\.id))
@@ -194,38 +201,28 @@ final class AudioController {
     }
 
     func authorizeMixing() {
-        guard enabled, supportsMixing, !isWorking else { return }
-        isWorking = true
-        isAuthorizing = true
-        operationError = nil
-        let epoch = revision
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                try await mixer.requestAccess()
-                guard revision == epoch, enabled else { isWorking = false; isAuthorizing = false; return }
-                mixingError = nil
-                hasPermission = true
-                defaults.set(true, forKey: "audio.captureAuthorized")
-                isWorking = false; isAuthorizing = false
-                updateWatchers()
-            } catch {
-                guard revision == epoch else { isWorking = false; isAuthorizing = false; return }
-                isWorking = false; isAuthorizing = false
-                self.operationError = error as? AudioControlError ?? .unavailable
-            }
+        guard enabled, !sleeping, supportsMixing, !isWorking else { return }
+        perform { [self] in
+            let command = operationRevision
+            try await mixer.requestAccess()
+            guard operationIsCurrent(command) else { throw CancellationError() }
+            mixingError = nil
+            appVolumeEnabled = true
+            defaults.set(true, forKey: "audio.appVolumeEnabled")
+            updateWatchers()
         }
+        isAuthorizing = true
     }
 
     func setAppLevel(_ level: Double, app: AudioApplication) {
-        guard enabled, !sleeping, !isWorking, hasPermission, supportsMixing, let volume = AudioAppVolume(level: level) else { return }
+        guard enabled, !sleeping, !isWorking, appVolumeEnabled, supportsMixing, let volume = AudioAppVolume(level: level) else { return }
         operationError = nil
         save(volume, for: app.id)
         reconcile()
     }
 
     func toggleAppMute(_ app: AudioApplication) {
-        guard enabled, !sleeping, !isWorking, hasPermission, supportsMixing else { return }
+        guard enabled, !sleeping, !isWorking, appVolumeEnabled, supportsMixing else { return }
         var volume = volume(for: app)
         volume.isMuted.toggle()
         operationError = nil
@@ -245,7 +242,7 @@ final class AudioController {
     }
 
     func setAppOutput(_ uid: String?, app: AudioApplication) {
-        guard enabled, !sleeping, !isWorking, hasPermission, outputRoutes[app.id] != uid else { return }
+        guard enabled, !sleeping, !isWorking, appVolumeEnabled, outputRoutes[app.id] != uid else { return }
         if let uid {
             guard snapshot.devices.contains(where: { $0.uid == uid && $0.hasOutput }), outputRoutes[app.id] != nil || outputRoutes.count < 256 else { return }
             outputRoutes[app.id] = uid
@@ -256,6 +253,7 @@ final class AudioController {
     }
     func retryMixing() {
         guard enabled, !sleeping, !isWorking else { return }
+        operationError = nil
         Task { [weak self] in
             guard let self else { return }
             await mixer.retryFailed()
@@ -263,7 +261,7 @@ final class AudioController {
         }
     }
     private var mixTargets: [AudioMixTarget] {
-        guard enabled, !sleeping, hasPermission else { return [] }
+        guard enabled, !sleeping, appVolumeEnabled else { return [] }
         return snapshot.applications.compactMap { app in
             guard app.isPlaying else { return nil }
             let volume = volume(for: app)
@@ -304,8 +302,8 @@ final class AudioController {
                 mixTask = nil
                 self.mixingError = error as? AudioControlError ?? .unavailable
                 if self.mixingError == .permissionRequired {
-                    hasPermission = false
-                    defaults.set(false, forKey: "audio.captureAuthorized")
+                    appVolumeEnabled = false
+                    defaults.set(false, forKey: "audio.appVolumeEnabled")
                 }
             }
         }
@@ -353,27 +351,27 @@ final class AudioController {
     private func switchDevice(_ device: AudioDeviceInfo, direction: AudioDirection, command: UInt64) async throws {
         guard operationIsCurrent(command) else { throw CancellationError() }
         let guardTap = direction == .output ? try await mixer.prepareOutputSwitch() : nil
-        guard operationIsCurrent(command) else { await mixer.finishOutputSwitch(guardTap); throw CancellationError() }
+        guard operationIsCurrent(command) else { try? await mixer.finishOutputSwitch(guardTap); throw CancellationError() }
         do {
             try await hardware.select(device, direction: direction)
             guard operationIsCurrent(command) else { throw CancellationError() }
-            let updated = await hardware.snapshot(includeApplications: hasPermission && hasSavedAdjustments || visible)
+            let updated = await hardware.snapshot(includeApplications: appVolumeEnabled && hasSavedAdjustments || visible)
             guard operationIsCurrent(command) else { throw CancellationError() }
             snapshot = updated
             let targets = mixTargets
             if direction == .output, supportsMixing { try await mixer.apply(targets, outputUID: output?.uid) }
             guard operationIsCurrent(command) else { throw CancellationError() }
-            await mixer.finishOutputSwitch(guardTap)
+            try await mixer.finishOutputSwitch(guardTap)
         } catch {
             // 写设备失败时，先尝试恢复当前输出上的音量，之后才释放过渡静音。
             if operationIsCurrent(command), supportsMixing {
-                let updated = await hardware.snapshot(includeApplications: hasPermission)
+                let updated = await hardware.snapshot(includeApplications: appVolumeEnabled)
                 if operationIsCurrent(command) {
                     snapshot = updated
                     try? await mixer.apply(mixTargets, outputUID: output?.uid)
                 }
             }
-            await mixer.finishOutputSwitch(guardTap)
+            try? await mixer.finishOutputSwitch(guardTap)
             throw error
         }
     }
@@ -381,6 +379,7 @@ final class AudioController {
     private func perform(switching direction: AudioDirection? = nil, bluetoothID: String? = nil, _ operation: @escaping @MainActor () async throws -> Void) {
         guard enabled, !sleeping else { return }
         isWorking = true
+        isAuthorizing = false
         switchingDevice = direction
         connectingBluetooth = bluetoothID
         operationError = nil
@@ -389,16 +388,17 @@ final class AudioController {
         let command = operationRevision
         volumeWriter.cancelPending()
         mixTask?.cancel()
+        mixTask = nil
         operationTask = Task { [weak self] in
             guard let self, operationRevision == command else { return }
             guard revision == epoch, enabled, !sleeping else {
-                isWorking = false; switchingDevice = nil; connectingBluetooth = nil; return
+                isWorking = false; isAuthorizing = false; switchingDevice = nil; connectingBluetooth = nil; operationTask = nil; return
             }
             do { try await operation() }
             catch is CancellationError { /* 关闭界面或休眠属于正常取消，不显示失败提示。 */ }
             catch { if operationRevision == command, revision == epoch { self.operationError = error as? AudioControlError ?? .unavailable } }
             guard operationRevision == command else { return }
-            isWorking = false; switchingDevice = nil; connectingBluetooth = nil; operationTask = nil
+            isWorking = false; isAuthorizing = false; switchingDevice = nil; connectingBluetooth = nil; operationTask = nil
             scheduleRefresh(immediate: true)
         }
     }
@@ -412,7 +412,7 @@ final class AudioController {
                     self.sleeping = sleep
                     self.revision &+= 1
                     if sleep {
-                        self.cancelBluetoothConnection()
+                        self.cancelPendingAudioOperation()
                         self.bluetoothRefreshTask?.cancel(); self.bluetoothDevices = []
                     } else if self.enabled, self.visible { self.refreshBluetoothDevices() }
                     self.updateWatchers()
@@ -429,7 +429,7 @@ final class AudioController {
 
     func stop() {
         enabled = false
-        cancelBluetoothConnection()
+        cancelPendingAudioOperation()
         bluetoothRefreshTask?.cancel(); bluetoothRefreshTask = nil; bluetoothDevices = []
         pendingOutputApps.removeAll(); failedOutputApps.removeAll(); switchingDevice = nil; isAuthorizing = false
         revision &+= 1
