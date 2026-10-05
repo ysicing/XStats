@@ -29,6 +29,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
             window.setFrame(initialFrame(for: window), display: false)
         }
         NSApp.activate()
+        if window.isMiniaturized { window.deminiaturize(nil) }
         window.makeKeyAndOrderFront(nil)
         model.isMainWindowVisible = true
         onVisibilityChange?(true)

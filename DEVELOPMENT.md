@@ -6,6 +6,34 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 本文用于本地开发、构建、测试和发布。应用使用说明见 [README.md](README.md)，
 模块边界与实现约束见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
+## xstats 深链
+
+安装 App 后，启动器或 `open 'xstats://open/audio'` 可通过系统 URL 事件调用现有入口。
+
+| 路径 | 行为 |
+| --- | --- |
+| `xstats://open` | 显示主窗口，保留当前页面 |
+| `xstats://open/<page>` | 打开页面 |
+| `xstats://panel/<item>` | 显示菜单栏详情；没有该入口时转到主窗口对应页面 |
+| `xstats://panel/overview` | 显示合并总览；分开显示模式转到主窗口总览 |
+| `xstats://open/calendar` | 日历；未开启时转到菜单栏设置 |
+| `xstats://open/speed-test`、`xstats://open/egress` | 测速、出口与分流窗口，不自动运行探测 |
+| `xstats://rest/<action>` | 番茄钟：`start`、`pause`、`toggle`、`reset`、`skip`、`hud` |
+| `xstats://keep-awake/<action>` | 普通防休眠：`start`、`stop`、`toggle` |
+
+`page`：`overview`、`system`、`history`、`ai-usage`、`cpu`、`gpu`、`memory`、`disk`、
+`network`、`thermal`、`battery`、`processes`、`audio`、`keep-awake`、`rest`、`cleaner`、
+`uninstaller`、`startup-items`，以及 `settings/general`、`settings/menu-bar`、
+`settings/notifications`、`settings/helper`、`settings/about`；`settings` 等同于 `settings/general`。
+
+`item`：`cpu`、`gpu`、`memory`、`network`、`disk`、`temperature`、`fan`、`battery`、
+`ai-usage`、`display`、`audio`。模块关闭时转到设置，不更改开关。
+
+链接不接受查询参数、片段、账户、端口或转义路径。普通防休眠链接遇到已请求的合盖模式时
+只打开防休眠页，由用户操作；链接不直接下发特权设置或执行清理、卸载。
+冷启动命令会在控制器初始化后顺序执行；单条链接最多 2048 字节，等待队列最多 16 条。
+显式 `start`、`pause`、`stop` 保持幂等，`toggle` 每次都会切换。
+
 ## 开发环境
 
 - macOS 14+，Apple Silicon Mac；构建固定使用 `arm64`。

@@ -5,6 +5,21 @@ hosting SwiftUI. The Xcode project is generated from `project.yml` by XcodeGen;
 the app's testable components live in the local Swift package. For directory layout, build, test,
 and release instructions, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
+## Deep links
+
+The app registers only the `xstats` URL scheme. `AppDeepLink` parses a fixed ASCII route allowlist
+independent of saved preference names; it rejects credentials, ports, queries, fragments, escaped
+paths, unknown commands and links over 2048 bytes. AppKit's URL delegate feeds a bounded queue of
+16 typed commands, drained serially on the main actor after application controllers are ready.
+No raw URLs are retained or logged. Termination cancels pending commands.
+
+Navigation reuses existing window and popover controllers. Repeated opens do not toggle a visible
+surface closed; missing menu items fall back to main-window pages. Disabled optional modules lead
+to settings without changing their preference. Pomodoro and ordinary keep-awake commands reuse
+the existing controllers; explicit start/pause/stop are idempotent. Keep-awake links never dispatch
+lid-closed privileged settings: a requested or active lid mode redirects to its page. Destructive
+tools remain UI entry points. The public route contract is listed in DEVELOPMENT.md.
+
 ## Sampling
 
 `MetricsHub` is an actor that runs one loop. `AppModel.demand` describes what is on screen —

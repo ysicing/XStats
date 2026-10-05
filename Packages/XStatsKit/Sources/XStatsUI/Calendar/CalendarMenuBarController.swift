@@ -192,6 +192,13 @@ final class CalendarMenuBarController: NSObject {
         }
     }
 
+    /// 启动器的打开命令不切换可见性；重复链接保持现有日历打开。
+    @discardableResult func present() -> Bool {
+        if panel?.isVisible == true { return true }
+        show()
+        return panel?.isVisible == true
+    }
+
     func dismiss() { panel?.dismiss() }
 
     @objc private func openSettings() {
