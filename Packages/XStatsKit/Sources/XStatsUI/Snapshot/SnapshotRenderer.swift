@@ -158,7 +158,11 @@ enum SnapshotRenderer {
             let external = AudioDeviceInfo(id: 2, uid: "demo.usb", name: "USB Audio", hasOutput: true)
             let apps = [AudioApplication(id: "demo.playing", name: "Music", bundleURL: URL(fileURLWithPath: "/System/Applications/Music.app"), processObjectIDs: [1], isPlaying: true),
                         AudioApplication(id: "demo.paused", name: "Browser", bundleURL: URL(fileURLWithPath: "/Applications/Safari.app"), processObjectIDs: [2], isPlaying: false),
-                        AudioApplication(id: "demo.default", name: "Video Player", bundleURL: URL(fileURLWithPath: "/System/Applications/QuickTime Player.app"), processObjectIDs: [3], isPlaying: true)]
+                        AudioApplication(id: "demo.default", name: "Video Player", bundleURL: URL(fileURLWithPath: "/System/Applications/QuickTime Player.app"), processObjectIDs: [3], isPlaying: true),
+                        // 注册了音频上下文但从未播放、也未调整的进程不应出现在控制列表。
+                        AudioApplication(id: "com.apple.dock", name: "Dock", processObjectIDs: [4], isPlaying: false),
+                        AudioApplication(id: "com.apple.controlcenter", name: "Control Center", processObjectIDs: [5], isPlaying: false),
+                        AudioApplication(id: "com.apple.AppStore", name: "App Store", processObjectIDs: [6], isPlaying: false)]
             model.audio.showPreview(AudioHardwareSnapshot(devices: [builtIn, external], outputID: 1, inputID: 1, applications: apps),
                                     volumes: ["demo.playing": AudioAppVolume(level: 1.6)!], outputs: ["demo.playing": "demo.usb", "demo.paused": "demo.missing"],
                                     bluetoothDevices: [BluetoothAudioDevice(address: "AA-BB-CC-DD-EE-FF", name: "Studio Headphones", hasInput: true, hasOutput: true)])

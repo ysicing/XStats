@@ -42,12 +42,14 @@ final class AudioController {
     @ObservationIgnored private var mixRequests = AudioMixRequestTracker()
     @ObservationIgnored private var playbackGrace = AudioPlaybackGrace()
     @ObservationIgnored private var playbackGraceTask: Task<Void, Never>?
+    @ObservationIgnored private var applicationList = AudioApplicationList()
     @ObservationIgnored private var volumeWriter: AudioDeviceVolumeWriter!
     @ObservationIgnored private var sleepObservers: [NSObjectProtocol] = []
 
     var output: AudioDeviceInfo? { snapshot.devices.first { $0.id == snapshot.outputID } }
     var input: AudioDeviceInfo? { snapshot.devices.first { $0.id == snapshot.inputID } }
     var supportsMixing: Bool { AudioMixerClient.isSupported }
+    var listedApplications: [AudioApplication] { applicationList.visible(snapshot.applications, volumes: volumes, outputs: outputRoutes) }
     private var hasSavedAdjustments: Bool { volumes.values.contains(where: \.needsProcessing) || !outputRoutes.isEmpty }
 
     init(defaults: UserDefaults = .standard, mixer: AudioMixerClient = AudioMixerClient(), hardware: AudioHardwareClient = AudioHardwareClient()) {
@@ -106,6 +108,7 @@ final class AudioController {
     /// 离屏走查夹具；已启用的真实控制器不能被演示状态覆盖，也不会请求权限或启动处理。
     func showPreview(_ snapshot: AudioHardwareSnapshot, volumes: [String: AudioAppVolume], outputs: [String: String], bluetoothDevices: [BluetoothAudioDevice] = []) {
         guard !enabled else { return }
+        applicationList.update(snapshot.applications)
         self.snapshot = snapshot; self.volumes = volumes; outputRoutes = outputs; appVolumeEnabled = true
         self.bluetoothDevices = bluetoothDevices
     }
@@ -167,7 +170,7 @@ final class AudioController {
                 guard let self, revision == epoch else { return }
                 await mixer.stop()
             }
-            if !enabled { snapshot = .empty; removeSleepObservers() }
+            if !enabled { applicationList.reset(); snapshot = .empty; removeSleepObservers() }
             return
         }
         installSleepObservers()
@@ -193,8 +196,11 @@ final class AudioController {
         refreshTask = Task { [weak self] in
             if !immediate { try? await Task.sleep(for: .milliseconds(80), tolerance: .milliseconds(20)) }
             guard let self, !Task.isCancelled, revision == epoch, enabled, !sleeping else { return }
-            let updated = await hardware.snapshot(includeApplications: visible || (appVolumeEnabled && hasSavedAdjustments))
+            let includeApplications = visible || (appVolumeEnabled && hasSavedAdjustments)
+            let updated = await hardware.snapshot(includeApplications: includeApplications)
             guard !Task.isCancelled, revision == epoch, enabled, !sleeping else { return }
+            // 未采集应用目录时不能把空数组解释成连接结束；重新打开后再核对实际音频对象。
+            if includeApplications { applicationList.update(updated.applications) }
             snapshot = updated
             updatePlaybackGrace()
             let currentIDs = Set(updated.applications.map(\.id))
@@ -388,8 +394,10 @@ final class AudioController {
         do {
             try await hardware.select(device, direction: direction)
             guard operationIsCurrent(command) else { throw CancellationError() }
-            let updated = await hardware.snapshot(includeApplications: appVolumeEnabled && hasSavedAdjustments || visible)
+            let includeApplications = appVolumeEnabled && hasSavedAdjustments || visible
+            let updated = await hardware.snapshot(includeApplications: includeApplications)
             guard operationIsCurrent(command) else { throw CancellationError() }
+            if includeApplications { applicationList.update(updated.applications) }
             snapshot = updated
             let targets = mixTargets
             if direction == .output, supportsMixing { try await mixer.apply(targets, outputUID: output?.uid) }
@@ -398,8 +406,10 @@ final class AudioController {
         } catch {
             // 写设备失败时，先尝试恢复当前输出上的音量，之后才释放过渡静音。
             if operationIsCurrent(command), supportsMixing {
-                let updated = await hardware.snapshot(includeApplications: appVolumeEnabled)
+                let includeApplications = appVolumeEnabled
+                let updated = await hardware.snapshot(includeApplications: includeApplications)
                 if operationIsCurrent(command) {
+                    if includeApplications { applicationList.update(updated.applications) }
                     snapshot = updated
                     try? await mixer.apply(mixTargets, outputUID: output?.uid)
                 }
@@ -462,6 +472,7 @@ final class AudioController {
 
     func stop() {
         enabled = false
+        applicationList.reset()
         cancelPendingAudioOperation()
         bluetoothRefreshTask?.cancel(); bluetoothRefreshTask = nil; bluetoothDevices = []
         pendingOutputApps.removeAll(); failedOutputApps.removeAll(); switchingDevice = nil; isAuthorizing = false

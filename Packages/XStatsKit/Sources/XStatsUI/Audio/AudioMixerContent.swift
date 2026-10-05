@@ -32,10 +32,10 @@ struct AudioMixerContent: View {
                         .buttonStyle(.borderedProminent).disabled(model.audio.isWorking)
                     if model.audio.isAuthorizing { AudioSwitchingFeedback(text: tr("正在请求音频权限…")) }
                 }
-            } else if model.audio.snapshot.applications.isEmpty {
-                Text(tr("暂无建立音频连接的应用")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
+            } else if model.audio.listedApplications.isEmpty {
+                Text(tr("暂无正在播放或已调整音量的应用")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
             } else {
-                ForEach(model.audio.snapshot.applications) { app in AudioApplicationRow(app: app) }
+                ForEach(model.audio.listedApplications) { app in AudioApplicationRow(app: app) }
             }
         }
         if let error = model.audio.error {

@@ -1700,7 +1700,7 @@ IP 归属地	IP-Standort
 静音	Stummschalten
 此设备的音量由设备自身控制	Die Lautstärke wird am Gerät gesteuert
 恢复原始音量	Original-Lautstärke wiederherstellen
-暂无建立音频连接的应用	Keine Apps mit Audioverbindung
+暂无正在播放或已调整音量的应用	Keine Apps mit laufender Audiowiedergabe oder angepasster Lautstärke
 重试应用音频	App-Audio erneut versuchen
 应用音频未恢复，已停止自动重试。	App-Audio konnte nicht wiederhergestellt werden. Automatische Versuche wurden beendet.
 应用输出设备	Ausgabegerät der App
