@@ -85,7 +85,7 @@ struct LanguageSupportTests {
     func everyLanguageHasCompleteCatalog(_ language: AppLanguage) throws {
         let catalog = try #require(Translations.catalog(for: language))
         #expect(catalog.sourceKeys == Translations.shared.sourceKeys)
-        for key in ["Studio Headphones · 未连接", "正在连接“Studio Headphones”…",
+        for key in ["暂无正在播放或已调整音量的应用", "Studio Headphones · 未连接", "正在连接“Studio Headphones”…",
                     "蓝牙未开启，请在系统设置中开启蓝牙。",
                     "请在系统设置的隐私与安全性中允许 XStats 使用蓝牙。",
                     "无法连接蓝牙设备，请确认设备已开启且在附近，然后重试。",

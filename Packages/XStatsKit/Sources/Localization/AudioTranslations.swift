@@ -23,7 +23,7 @@ extension Translations {
 静音	Mute
 此设备的音量由设备自身控制	Volume is controlled by this device
 恢复原始音量	Restore original volume
-暂无建立音频连接的应用	No apps have an audio connection
+暂无正在播放或已调整音量的应用	No apps are playing audio or have volume adjustments
 重试应用音频	Retry app audio
 应用音频未恢复，已停止自动重试。	App audio could not be restored. Automatic retries have stopped.
 已暂停	Paused

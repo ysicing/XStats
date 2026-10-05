@@ -1700,7 +1700,7 @@ IP 归属地	Ubicación IP
 静音	Silenciar
 此设备的音量由设备自身控制	El volumen se controla en este dispositivo
 恢复原始音量	Restaurar volumen original
-暂无建立音频连接的应用	Ninguna app tiene una conexión de audio
+暂无正在播放或已调整音量的应用	No hay apps reproduciendo audio ni con ajustes de volumen
 重试应用音频	Reintentar audio de las apps
 应用音频未恢复，已停止自动重试。	No se pudo restaurar el audio de la app. Se detuvieron los reintentos automáticos.
 应用输出设备	Dispositivo de salida de la app

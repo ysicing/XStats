@@ -1700,7 +1700,7 @@ IP 归属地	Localisation IP
 静音	Couper le son
 此设备的音量由设备自身控制	Le volume se règle sur cet appareil
 恢复原始音量	Rétablir le volume d’origine
-暂无建立音频连接的应用	Aucune app n’a de connexion audio
+暂无正在播放或已调整音量的应用	Aucune app ne lit de son ou n’a de réglage de volume personnalisé
 重试应用音频	Réessayer le son des apps
 应用音频未恢复，已停止自动重试。	Le son de l’app n’a pas pu être rétabli. Les tentatives automatiques ont cessé.
 应用输出设备	Sortie audio de l’app
