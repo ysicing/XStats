@@ -34,6 +34,8 @@ private struct AudioRenderConfiguration: Equatable {
 
 /// HAL 生命周期串行执行，实时回调通过无锁原子接收增益并汇报帧数。
 public final class AudioMixerClient: @unchecked Sendable {
+    /// 包含暂停宽限期中的应用；路由替换最多额外创建一条零增益的过渡管线。
+    public static let maximumProcessedApplications = 8
     public static var isSupported: Bool { if #available(macOS 14.4, *) { return true }; return false }
     private let queue = DispatchQueue(label: "work.12306.xstats.audio.mixer", qos: .userInitiated)
     private let queueKey = DispatchSpecificKey<UInt8>()
@@ -54,6 +56,7 @@ public final class AudioMixerClient: @unchecked Sendable {
     private let outputGuardFactory: @Sendable ([UInt32]) throws -> any AudioOutputSwitchGuard
     private let accessProbeFactory: @Sendable () throws -> any AudioAccessProbe
     private var outputGuards: [UInt32: any AudioOutputSwitchGuard] = [:]
+    private var outputSwitchSlots: (guardID: UInt32, applications: Set<String>)?
 
     public convenience init() {
         self.init(automaticHealthChecks: true) { target, output, source in
@@ -130,13 +133,20 @@ public final class AudioMixerClient: @unchecked Sendable {
                 failed = failed.filter { targets[$0.key] != nil }
                 pendingReplacements = pendingReplacements.filter { targets[$0] != nil }
                 var failure: (any Error)? = retired.isEmpty ? nil : AudioControlError.unavailable
-                for target in targets.values.sorted(by: { $0.id < $1.id }) {
+                // 系统输出切换会先拆掉管线；重建时仍优先恢复切换前已占用的名额。
+                let reserved = outputSwitchSlots?.applications ?? []
+                let ordered = targets.values.sorted {
+                    let first = reserved.contains($0.id), second = reserved.contains($1.id)
+                    return first == second ? $0.id < $1.id : first
+                }
+                for target in ordered {
                     guard isCurrent(command) else { break }
                     guard let destination = target.outputUID ?? outputUID else { failure = AudioControlError.unavailable; continue }
                     let configuration = AudioRenderConfiguration(objects: target.processObjectIDs, outputUID: destination, sourceUID: outputUID, format: AudioHAL.streamSignature(destination) ?? [])
                     // 失败缓存只限制重建；保留的旧路由仍须即时响应静音和音量，且不重置重试预算。
                     pipelines[target.id]?.setVolume(target.volume.gain)
-                    if let blocked = failed[target.id], blocked.configuration == configuration { continue }
+                    if let blocked = failed[target.id], blocked.configuration == configuration,
+                       blocked.error != .processingLimit(Self.maximumProcessedApplications) { continue }
                     failed.removeValue(forKey: target.id)
                     if let existing = pipelines[target.id], existing.matches(target, outputUID: destination, sourceUID: outputUID) {
                         pendingReplacements.remove(target.id); continue
@@ -173,6 +183,10 @@ public final class AudioMixerClient: @unchecked Sendable {
     /// 新管线先以零增益启动；首个有效回调到达后停旧管线，再渐变到用户音量，避免双重播放。
     private func replace(_ target: AudioMixTarget, destination: String, command: UInt64, now: Double) throws {
         guard retired.isEmpty else { throw AudioControlError.unavailable }
+        // 不挤掉已有控制；超限不创建 HAL 资源，名额释放后的下一次 apply 可重新尝试。
+        guard pipelines[target.id] != nil || pipelines.count < Self.maximumProcessedApplications else {
+            throw AudioControlError.processingLimit(Self.maximumProcessedApplications)
+        }
         let replacement = try factory(target, destination, sourceUID)
         do {
             try replacement.start(shouldContinue: { self.isCurrent(command) })
@@ -221,14 +235,15 @@ public final class AudioMixerClient: @unchecked Sendable {
         lock.withLock { revision &+= 1 }
         await withCheckedContinuation { continuation in queue.async { [self] in releaseAll(); continuation.resume() } }
     }
-    public func prepareOutputSwitch() async throws -> UInt32? {
+    /// 包含当前原声直通、但切换后必须继续留在固定输出上的应用。
+    public func prepareOutputSwitch(additionalProcessIDs: [UInt32] = []) async throws -> UInt32? {
         guard #available(macOS 14.4, *) else { return nil }
         lock.withLock { revision &+= 1 }
         return try await withCheckedThrowingContinuation { continuation in
             queue.async { [self] in
                 cleanRetired()
                 guard retired.isEmpty else { continuation.resume(throwing: AudioControlError.unavailable); return }
-                let objects = pipelines.values.flatMap(\.processIDs)
+                let objects = Set(pipelines.values.flatMap(\.processIDs) + additionalProcessIDs).sorted()
                 guard !objects.isEmpty else { continuation.resume(returning: nil); return }
                 let resource: any AudioOutputSwitchGuard
                 do { resource = try outputGuardFactory(objects) }
@@ -248,6 +263,8 @@ public final class AudioMixerClient: @unchecked Sendable {
         guard #available(macOS 14.4, *), let tap else { return }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
             queue.async { [self] in
+                // 已取消操作可能晚到；只有所属 guard 的收尾才撤销本次预留。
+                defer { if outputSwitchSlots?.guardID == tap { outputSwitchSlots = nil } }
                 do { try releaseOutputGuard(tap); updateTimer(); continuation.resume() }
                 catch { failureHandler?(.unavailable); updateTimer(); continuation.resume(throwing: error) }
             }
@@ -278,6 +295,7 @@ public final class AudioMixerClient: @unchecked Sendable {
         retired.removeAll { (try? $0.stop()) != nil }
     }
     private func releaseAll(scheduleCleanup: Bool = true, preservingOutputGuard: UInt32? = nil) {
+        outputSwitchSlots = preservingOutputGuard.map { ($0, Set(pipelines.keys)) }
         timer?.cancel(); timer = nil
         for id in Array(pipelines.keys) { retire(id) }
         for id in Array(outputGuards.keys) where id != preservingOutputGuard { try? releaseOutputGuard(id) }
@@ -345,7 +363,7 @@ public final class AudioMixerClient: @unchecked Sendable {
     }
 }
 
-/// 一条私有 aggregate 输出多个应用 tap；生命周期只在 mixer.queue 中执行。
+/// 每应用一条私有 aggregate 与 tap，支持独立输出；生命周期只在 mixer.queue 中执行。
 @available(macOS 14.4, *)
 private final class CoreAudioMixPipeline: AudioMixPipeline {
     let outputUID: String

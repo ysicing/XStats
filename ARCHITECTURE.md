@@ -678,7 +678,13 @@ An unavailable selected device falls back to the system output while its prefere
 100% on the default output stays native passthrough. Per-app gains and output UIDs stay local and
 are not included in setting backups; PID-based identities never persist.
 
-Each application owns its pipeline, so another app's route change leaves it intact. Replacement
+Each application owns its pipeline, so another app's route change leaves it intact. At most eight
+applications are processed concurrently, including paused applications in their grace window.
+Existing pipelines keep their slots; excess requests create no HAL resources and are shown as
+unapplied controls. System-output switches retain the prior slot identities until the transition
+guard is released, restoring those apps before admitting new fixed-route processing demand.
+A subsequent demand update retries capacity failures when a slot is freed.
+Route replacement may briefly use one additional silent pipeline. Replacement
 starts silently, waits for its first valid render frame, then stops the predecessor and ramps up.
 All lifecycle work runs on a serial queue and checks cancellation between setup stages. Callback
 contexts are retained until IOProc shutdown succeeds. A failed stop blocks replacement; retired
@@ -687,7 +693,8 @@ disabled for the IOProc. Core Audio drift compensation clocks taps to the select
 renderer supports compatible PCM formats and mono/stereo/channel mapping. Unsupported rates or
 formats fail visibly. Failure caching blocks rebuilding the requested route, but still updates the
 gain of any retained pipeline so subsequent volume and mute controls remain effective. System-output
-switches use an owned temporary mute tap during replacement. A failed destroy first attempts to
+switches use an owned temporary mute tap during replacement, including playing fixed-route apps
+that currently use native passthrough on the system output. A failed destroy first attempts to
 unmute it, retains the object and reports the error; the same bounded cleanup and manual retry path
 also owns failed transition guards and activation probes. Disable/stop cleans guards even if the
 switching caller has not yet returned its handle.
@@ -712,9 +719,15 @@ Each request captures its device identity, and HAL rechecks the current default 
 Per-direction sequence numbers reject superseded completion; readback publication also checks
 both device ID and UID. Closing the feature or sleeping drops queued requests and rejects late completion; a HAL write
 already executing cannot be assumed cancellable. Device/stream listeners drive discovery and
-format changes without a process polling timer. Closing the interface preserves requested app
+format changes. Some process playback flags change without delivering their registered HAL
+notification. While application demand exists, a tolerant checker reads only process IDs, PIDs
+and output-running flags every second for visible controls, or every two seconds for background
+app-volume demand. Unchanged flags do not trigger device or application catalog reads. The full
+snapshot acknowledges flags from the same reads used to construct application state, so a quick
+playback transition cannot be acknowledged before its data is published. Checking stops when
+application demand ends, on disable, and during sleep. Closing the interface preserves requested app
 adjustments; disabling and sleeping release unnecessary processing. A paused adjusted app keeps
-its pipeline for 60 seconds after last playback so resumed audio does not leak at the original
+its pipeline for 60 seconds after the observed playing-to-paused transition so resumed audio does not leak at the original
 volume; one tolerant wake-up then releases it. Wake-up rebuilds only current demand.
 Reconciliation that repeats the in-flight targets and output does not supersede it; the request is
 rechecked once on completion, so HAL events from the mixer's own aggregate devices cannot cancel a
@@ -725,8 +738,10 @@ Writes already executing may complete, but late results cannot publish over a ne
 
 Audio presentation shares the same native controls across main window and popover. The window
 uses adjacent input/output cards; the popover keeps a vertical layout. Sliders and numeric feedback
-are immediate, with a localized 100% landmark and a distinct boost tone. Reset actions reserve their
-space even when unavailable. Accessibility labels identify the affected app or audio direction, and
+are immediate, with localized percentages and a distinct boost tone. Application rows use two lines:
+an app/status header with percentage, mute and an options menu, followed by the 0–200% slider.
+Independent output and reset actions live in the menu; playback and failure statuses share one fixed
+caption line so controls do not move as state changes. Accessibility labels identify the affected app or audio direction, and
 values use localized percentages. Device switching and pending app routes expose explicit status;
 late or superseded completion cannot announce a stale successful switch. Only ongoing work displays
 an indeterminate indicator; Reduce Motion uses a static hourglass. App icons load when bundle identity
@@ -738,8 +753,10 @@ write or adding a refresh timer.
 
 The audio device picker also includes paired Bluetooth audio devices whose selected direction is
 not yet present in HAL. The paired catalog reads cached class/SDP information on page open and
-when validating a user selection;
-it does not run discovery, SDP queries, or background reconnects. A user selection opens the paired
+when validating a user selection. It rechecks a permission failure once when the visible audio controls return to the foreground.
+The activation observer is removed when controls close, the module is disabled, or the Mac sleeps;
+successful catalogs do not refresh on every activation. It does not run discovery, SDP queries,
+or background reconnects. A user selection opens the paired
 connection on a serial background queue with a 10-second Bluetooth page timeout, then waits up to
 8 seconds for the matching HAL address and direction. Names are not used as device identity. The
 existing guarded device-switch path runs only after audio readiness. Closing the audio interface,

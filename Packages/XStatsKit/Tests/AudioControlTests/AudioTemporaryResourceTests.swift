@@ -57,6 +57,19 @@ private final class GuardedTestPipeline: AudioMixPipeline {
 }
 
 struct AudioTemporaryResourceTests {
+    @Test func aFixedNativeRouteIsGuardedWithoutAnExistingPipeline() async throws {
+        let log = TemporaryAudioLog()
+        let client = AudioMixerClient(automaticHealthChecks: false, outputGuardFactory: { objects in
+            log.append("guard:\(objects)")
+            return TestOutputGuard(log: log, failures: 0)
+        }) { _, _, _ in GuardedTestPipeline(log: log) }
+        let guardID = try #require(try await client.prepareOutputSwitch(additionalProcessIDs: [7,7,8]))
+        #expect(log.entries.contains("guard:[7, 8]"))
+        try await client.finishOutputSwitch(guardID)
+        #expect(log.entries.contains("removed:guard"))
+        await client.stop()
+    }
+
     @Test func cancelledActivationRejectsTheLateResultAndStopsItsProbe() async throws {
         let log = TemporaryAudioLog()
         let (started, signal) = AsyncStream<Void>.makeStream()

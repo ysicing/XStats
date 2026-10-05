@@ -14,11 +14,17 @@ public final class AudioHardwareClient: @unchecked Sendable {
     private var systemListeners: [(AudioObjectID, AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
     private var detailListeners: [(AudioObjectID, AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
     private var detailKey: [UInt32] = []
+    private let applicationActivity: @Sendable () -> [UInt32]
+    private var activitySignature: [UInt32] = []
+    private var activityTimer: DispatchSourceTimer?
+    private var activityInterval: TimeInterval?
     private let selectDevice: @Sendable (AudioDeviceInfo, AudioDirection, AudioOperationCancellation) -> AudioControlError?
 
     public convenience init() { self.init(selectDevice: Self.selectDefaultDevice) }
-    init(selectDevice: @escaping @Sendable (AudioDeviceInfo, AudioDirection, AudioOperationCancellation) -> AudioControlError?) {
+    init(selectDevice: @escaping @Sendable (AudioDeviceInfo, AudioDirection, AudioOperationCancellation) -> AudioControlError?,
+         applicationActivity: @escaping @Sendable () -> [UInt32] = AudioHAL.applicationActivity) {
         self.selectDevice = selectDevice
+        self.applicationActivity = applicationActivity
         queue.setSpecific(key: queueKey, value: 1)
     }
 
@@ -29,20 +35,29 @@ public final class AudioHardwareClient: @unchecked Sendable {
 
     public func snapshot(includeApplications: Bool) async -> AudioHardwareSnapshot {
         await execute { [self] in
+            let catalog: (applications: [AudioApplication], activity: [UInt32]) = includeApplications ? AudioHAL.applicationSnapshot() : ([], [])
             let snapshot = AudioHardwareSnapshot(devices: AudioHAL.devices(), outputID: AudioHAL.defaultDevice(.output),
-                inputID: AudioHAL.defaultDevice(.input), applications: includeApplications ? AudioHAL.applications() : [])
+                inputID: AudioHAL.defaultDevice(.input), applications: catalog.applications)
+            // 签名与发布数据使用同一次播放标记读取；不能用轮询读数提前确认尚未发布的变化。
+            if includeApplications, watchingApplications { activitySignature = catalog.activity }
             if listening { bindDetails(snapshot) }
             return snapshot
         }
     }
 
-    public func watch(applications: Bool, onChange: @escaping @Sendable () -> Void) {
+    /// 通知后通过 snapshot 读取最新状态；应用校验只读轻量标记，未变化时不触发目录刷新。
+    public func watch(applications: Bool, applicationRefreshInterval: TimeInterval = 2, onChange: @escaping @Sendable () -> Void) {
+        let interval = applicationRefreshInterval.isFinite ? min(60, max(0.05, applicationRefreshInterval)) : 2
         queue.async { [self] in
             callback = onChange
-            guard !listening || watchingApplications != applications else { return }
+            if listening, watchingApplications == applications {
+                if applications { updateActivityTimer(interval: interval) }
+                return
+            }
             removeListeners()
             listening = true
             watchingApplications = applications
+            activitySignature = applications ? applicationActivity() : []
             for selector in [kAudioHardwarePropertyDevices, kAudioHardwarePropertyDefaultInputDevice, kAudioHardwarePropertyDefaultOutputDevice] {
                 addListener(AudioHAL.system, AudioHAL.address(selector), detail: false)
             }
@@ -52,7 +67,21 @@ public final class AudioHardwareClient: @unchecked Sendable {
             let snapshot = AudioHardwareSnapshot(devices: AudioHAL.devices(), outputID: AudioHAL.defaultDevice(.output),
                                                 inputID: AudioHAL.defaultDevice(.input), applications: [])
             bindDetails(snapshot)
+            if applications { updateActivityTimer(interval: interval) }
         }
+    }
+
+    private func updateActivityTimer(interval: TimeInterval) {
+        guard #available(macOS 14.4, *), activityTimer == nil || activityInterval != interval else { return }
+        activityTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + interval, repeating: interval, leeway: .milliseconds(Int(interval * 250)))
+        timer.setEventHandler { [weak self] in
+            guard let self, self.listening, self.watchingApplications,
+                  self.applicationActivity() != self.activitySignature else { return }
+            self.callback?()
+        }
+        activityInterval = interval; activityTimer = timer; timer.resume()
     }
 
     public func stopWatching() {
@@ -198,6 +227,7 @@ public final class AudioHardwareClient: @unchecked Sendable {
     }
 
     private func removeListeners() {
+        activityTimer?.cancel(); activityTimer = nil; activityInterval = nil; activitySignature.removeAll()
         for (object, var property, listener) in systemListeners + detailListeners {
             AudioObjectRemovePropertyListenerBlock(object, &property, queue, listener)
         }
@@ -205,5 +235,6 @@ public final class AudioHardwareClient: @unchecked Sendable {
         detailListeners.removeAll()
         detailKey.removeAll()
         listening = false
+        watchingApplications = false
     }
 }
