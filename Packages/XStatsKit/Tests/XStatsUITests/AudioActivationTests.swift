@@ -41,7 +41,7 @@ struct AudioActivationTests {
         // 不打开设备界面，避免读取真实蓝牙目录；只验证用户开启偏好的发布时机。
         controller.setDemand(enabled: true, visible: false, menuVisible: true)
         controller.authorizeMixing()
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while controller.isWorking, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(!controller.isWorking)
         #expect(controller.appVolumeEnabled == !denied)

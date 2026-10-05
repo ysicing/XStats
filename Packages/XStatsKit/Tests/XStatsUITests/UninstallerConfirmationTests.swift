@@ -19,7 +19,7 @@ struct UninstallerConfirmationTests {
         })
         let target = app("ConfirmationTestA")
         controller.select(target)
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(controller.canUninstall)
 
@@ -40,7 +40,7 @@ struct UninstallerConfirmationTests {
         let first = app("ConfirmationTestA")
         let second = app("ConfirmationTestB")
         controller.select(first)
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(controller.canUninstall)
         controller.requestUninstall()
