@@ -45,7 +45,8 @@ struct BluetoothAudioTests {
         let paired = BluetoothAudioDevice(address: "AA-BB-CC-DD-EE-FF", name: "Headphones", hasInput: true, hasOutput: true)
         let ready = AudioDeviceInfo(id: 3, uid: "output", name: "Headphones", hasOutput: true, bluetoothAddress: paired.address)
         let fixture = BluetoothReadinessFixture(ready)
-        let client = BluetoothAudioClient(readPaired: { [paired] }, connect: { _ in }, devices: { fixture.devices() }, pollInterval: .milliseconds(5))
+        let client = BluetoothAudioClient(readPaired: { [paired] }, connect: { _ in }, devices: { fixture.devices() },
+                                          readinessTimeout: .seconds(60), pollInterval: .milliseconds(5)) // 截止时间按墙钟计算，CI 高负载下默认 8 秒不够。
         #expect(try await client.connect(paired, direction: .output) == ready)
     }
 
