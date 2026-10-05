@@ -64,7 +64,7 @@ struct AudioTemporaryResourceTests {
         let client = AudioMixerClient(automaticHealthChecks: false, accessProbeFactory: {
             TestAccessProbe(log: log, onStart: {
                 signal.yield(()); signal.finish()
-                _ = release.wait(timeout: .now() + 2)
+                _ = release.wait(timeout: .now() + 60) // 取消后才放行；短超时会在高负载 CI 上抢在取消前返回。
             })
         }) { _, _, _ in GuardedTestPipeline(log: log) }
         let operation = Task { try await client.requestAccess() }
