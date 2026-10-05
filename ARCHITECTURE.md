@@ -685,3 +685,12 @@ already executing cannot be assumed cancellable. Device/stream listeners drive d
 format changes without a process polling timer. Closing the interface preserves requested app
 adjustments; pausing, disabling and sleeping release unnecessary processing. Wake-up rebuilds
 only current demand.
+
+Audio presentation shares the same native controls across main window and popover. The window
+uses adjacent input/output cards; the popover keeps a vertical layout. Sliders and numeric feedback
+are immediate, with a localized 100% landmark and a distinct boost tone. Reset actions reserve their
+space even when unavailable. Accessibility labels identify the affected app or audio direction, and
+values use localized percentages. Device switching and pending app routes expose explicit status;
+late or superseded completion cannot announce a stale successful switch. Only ongoing work displays
+an indeterminate indicator; Reduce Motion uses a static hourglass. App icons load when bundle identity
+changes, rather than on slider redraws. No decorative or idle animation is scheduled.

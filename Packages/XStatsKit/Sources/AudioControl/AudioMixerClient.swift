@@ -168,6 +168,23 @@ public final class AudioMixerClient: @unchecked Sendable {
             queue.async { [self] in failed.removeAll(); health.removeAll(); cleanRetired(resetBudget: true); updateTimer(); failureHandler?(retired.isEmpty ? nil : .unavailable); continuation.resume() }
         }
     }
+
+    /// 返回尚未落实到目标管线的应用，批量操作报错不能代替每个应用的实际结果。
+    /// 在生命周期队列读取，也包含等待旧管线回收的输出切换。
+    public func unresolvedApplicationIDs() async -> Set<String> {
+        await withCheckedContinuation { continuation in
+            queue.async { [self] in
+                let unresolved = Set(targets.values.compactMap { target -> String? in
+                    guard failed[target.id] == nil, !pendingReplacements.contains(target.id),
+                          let destination = target.outputUID ?? sourceUID,
+                          let pipeline = pipelines[target.id],
+                          pipeline.matches(target, outputUID: destination, sourceUID: sourceUID) else { return target.id }
+                    return nil
+                })
+                continuation.resume(returning: unresolved)
+            }
+        }
+    }
     public func stop() async {
         lock.withLock { revision &+= 1 }
         await withCheckedContinuation { continuation in queue.async { [self] in releaseAll(); continuation.resume() } }

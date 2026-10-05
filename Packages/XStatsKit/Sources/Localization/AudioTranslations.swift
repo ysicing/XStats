@@ -32,5 +32,20 @@ extension Translations {
 设备不可用，使用系统默认	Device unavailable; using system default
 恢复原始音量与默认输出	Restore original volume and default output
 应用音量支持 0–200%；高增益时自动限制峰值，不改变系统音量。	App volume supports 0–200%. Boosted peaks are limited automatically without changing system volume.
+正在请求音频权限…	Requesting audio permission…
+正在切换设备…	Switching device…
+正在切换输出…	Switching output…
+输出切换未完成，请重试。	Output switching did not complete. Try again.
+取消麦克风静音	Unmute microphone
+静音麦克风	Mute microphone
+取消输出静音	Unmute output
+静音输出	Mute output
+取消“{}”静音	Unmute {}
+静音“{}”	Mute {}
+恢复“{}”的原始音量与默认输出	Restore original volume and default output for {}
+{} 音量	{} volume
+{} 输出设备	{} output device
+{} · 原始音量	{} · Original volume
+已静音	Muted
 """#
 }

@@ -154,11 +154,12 @@ enum SnapshotRenderer {
         settings.panelTab = .audio
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
         if CommandLine.arguments.contains("--audio-demo") {
-            let builtIn = AudioDeviceInfo(id: 1, uid: "demo.builtin", name: tr("系统默认输出"), hasOutput: true, outputVolume: 0.5, outputMuted: false, canSetOutputVolume: true, canSetOutputMute: true)
+            let builtIn = AudioDeviceInfo(id: 1, uid: "demo.builtin", name: tr("系统默认输出"), hasInput: true, hasOutput: true, inputVolume: 0.4, outputVolume: 0.5, inputMuted: true, outputMuted: false, canSetInputVolume: true, canSetOutputVolume: true, canSetInputMute: true, canSetOutputMute: true)
             let external = AudioDeviceInfo(id: 2, uid: "demo.usb", name: "USB Audio", hasOutput: true)
-            let apps = [AudioApplication(id: "demo.playing", name: "Music", processObjectIDs: [1], isPlaying: true),
-                        AudioApplication(id: "demo.paused", name: "Browser", processObjectIDs: [2], isPlaying: false)]
-            model.audio.showPreview(AudioHardwareSnapshot(devices: [builtIn, external], outputID: 1, inputID: nil, applications: apps),
+            let apps = [AudioApplication(id: "demo.playing", name: "Music", bundleURL: URL(fileURLWithPath: "/System/Applications/Music.app"), processObjectIDs: [1], isPlaying: true),
+                        AudioApplication(id: "demo.paused", name: "Browser", bundleURL: URL(fileURLWithPath: "/Applications/Safari.app"), processObjectIDs: [2], isPlaying: false),
+                        AudioApplication(id: "demo.default", name: "Video Player", bundleURL: URL(fileURLWithPath: "/System/Applications/QuickTime Player.app"), processObjectIDs: [3], isPlaying: true)]
+            model.audio.showPreview(AudioHardwareSnapshot(devices: [builtIn, external], outputID: 1, inputID: 1, applications: apps),
                                     volumes: ["demo.playing": AudioAppVolume(level: 1.6)!], outputs: ["demo.playing": "demo.usb", "demo.paused": "demo.missing"])
         } else {
             model.audio.setDemand(enabled: true, visible: true, menuVisible: true)

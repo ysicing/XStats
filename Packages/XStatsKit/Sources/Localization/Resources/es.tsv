@@ -1708,3 +1708,18 @@ IP 归属地	Ubicación IP
 设备不可用，使用系统默认	Dispositivo no disponible; usando la salida del sistema
 恢复原始音量与默认输出	Restaurar volumen original y salida predeterminada
 应用音量支持 0–200%；高增益时自动限制峰值，不改变系统音量。	El volumen por app admite 0–200 %. Los picos amplificados se limitan sin cambiar el volumen del sistema.
+正在请求音频权限…	Solicitando permiso de audio…
+正在切换设备…	Cambiando de dispositivo…
+正在切换输出…	Cambiando de salida…
+输出切换未完成，请重试。	No se completó el cambio de salida. Inténtalo de nuevo.
+取消麦克风静音	Activar micrófono
+静音麦克风	Silenciar micrófono
+取消输出静音	Activar salida
+静音输出	Silenciar salida
+取消“{}”静音	Activar sonido de {}
+静音“{}”	Silenciar {}
+恢复“{}”的原始音量与默认输出	Restaurar volumen original y salida predeterminada de {}
+{} 音量	Volumen de {}
+{} 输出设备	Dispositivo de salida de {}
+{} · 原始音量	{} · Volumen original
+已静音	Silenciado

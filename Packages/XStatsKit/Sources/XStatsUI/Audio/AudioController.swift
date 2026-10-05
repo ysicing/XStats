@@ -12,6 +12,10 @@ final class AudioController {
     private(set) var snapshot = AudioHardwareSnapshot.empty
     private(set) var hasPermission: Bool
     private(set) var isWorking = false
+    private(set) var isAuthorizing = false
+    private(set) var switchingDevice: AudioDirection?
+    private(set) var pendingOutputApps: Set<String> = []
+    private(set) var failedOutputApps: Set<String> = []
     private var operationError: AudioControlError?
     private var mixingError: AudioControlError?
     var error: AudioControlError? { operationError ?? mixingError }
@@ -69,8 +73,14 @@ final class AudioController {
         })
         mixer.setFailureHandler { [weak self] error in
             Task { @MainActor [weak self] in
-                guard let self, enabled, !sleeping else { return }
+                guard let self, enabled, !sleeping, mixTask == nil,
+                      error != mixingError || !failedOutputApps.isEmpty else { return }
+                let epoch = revision
+                let unresolved = await mixer.unresolvedApplicationIDs()
+                guard revision == epoch, enabled, !sleeping, mixTask == nil else { return }
                 mixingError = error
+                // 操作期间由当前 mixTask 收尾；健康检查恢复后也要撤销旧的行内失败提示。
+                finishOutputSwitches(unresolved: unresolved)
             }
         }
 
@@ -98,6 +108,8 @@ final class AudioController {
         refreshTask?.cancel()
         let epoch = revision
         if !enabled || sleeping {
+            pendingOutputApps.removeAll(); failedOutputApps.removeAll()
+            switchingDevice = nil; isAuthorizing = false
             volumeWriter.cancelPending()
             hardware.stopWatching()
             mixTask?.cancel()
@@ -135,6 +147,8 @@ final class AudioController {
             guard !Task.isCancelled, revision == epoch, enabled, !sleeping else { return }
             snapshot = updated
             let currentIDs = Set(updated.applications.map(\.id))
+            pendingOutputApps.formIntersection(Set(updated.applications.filter(\.isPlaying).map(\.id)))
+            failedOutputApps.formIntersection(currentIDs)
             volumes = volumes.filter { !$0.key.hasPrefix("pid:") || currentIDs.contains($0.key) }
             outputRoutes = outputRoutes.filter { !$0.key.hasPrefix("pid:") || currentIDs.contains($0.key) }
             if !isWorking { reconcile() }
@@ -144,21 +158,22 @@ final class AudioController {
     func authorizeMixing() {
         guard enabled, supportsMixing, !isWorking else { return }
         isWorking = true
+        isAuthorizing = true
         operationError = nil
         let epoch = revision
         Task { [weak self] in
             guard let self else { return }
             do {
                 try await mixer.requestAccess()
-                guard revision == epoch, enabled else { isWorking = false; return }
+                guard revision == epoch, enabled else { isWorking = false; isAuthorizing = false; return }
                 mixingError = nil
                 hasPermission = true
                 defaults.set(true, forKey: "audio.captureAuthorized")
-                isWorking = false
+                isWorking = false; isAuthorizing = false
                 updateWatchers()
             } catch {
-                guard revision == epoch else { isWorking = false; return }
-                isWorking = false
+                guard revision == epoch else { isWorking = false; isAuthorizing = false; return }
+                isWorking = false; isAuthorizing = false
                 self.operationError = error as? AudioControlError ?? .unavailable
             }
         }
@@ -185,17 +200,20 @@ final class AudioController {
         operationError = nil
         volumes.removeValue(forKey: app.id)
         outputRoutes.removeValue(forKey: app.id)
+        pendingOutputApps.remove(app.id); failedOutputApps.remove(app.id)
         persist()
         reconcile()
         updateWatchers()
     }
 
     func setAppOutput(_ uid: String?, app: AudioApplication) {
-        guard enabled, !sleeping, !isWorking, hasPermission else { return }
+        guard enabled, !sleeping, !isWorking, hasPermission, outputRoutes[app.id] != uid else { return }
         if let uid {
             guard snapshot.devices.contains(where: { $0.uid == uid && $0.hasOutput }), outputRoutes[app.id] != nil || outputRoutes.count < 256 else { return }
             outputRoutes[app.id] = uid
         } else { outputRoutes.removeValue(forKey: app.id) }
+        if app.isPlaying { pendingOutputApps.insert(app.id) }
+        failedOutputApps.remove(app.id)
         persist(); operationError = nil; reconcile(); updateWatchers()
     }
     func retryMixing() {
@@ -236,10 +254,16 @@ final class AudioController {
             guard let self, !Task.isCancelled else { return }
             do {
                 if supportsMixing { try await mixer.apply(targets, outputUID: uid) }
+                let unresolved = await mixer.unresolvedApplicationIDs()
                 guard !Task.isCancelled, revision == epoch else { return }
                 mixingError = nil
+                finishOutputSwitches(unresolved: unresolved)
+                mixTask = nil
             } catch {
+                let unresolved = await mixer.unresolvedApplicationIDs()
                 guard !Task.isCancelled, revision == epoch else { return }
+                finishOutputSwitches(unresolved: unresolved)
+                mixTask = nil
                 self.mixingError = error as? AudioControlError ?? .unavailable
                 if self.mixingError == .permissionRequired {
                     hasPermission = false
@@ -247,6 +271,12 @@ final class AudioController {
                 }
             }
         }
+    }
+
+    private func finishOutputSwitches(unresolved: Set<String>) {
+        // 保留仍未落实的行；成功应用和成功重试都从实际结果清除，避免归咎整个批次。
+        failedOutputApps = pendingOutputApps.union(failedOutputApps).intersection(unresolved)
+        pendingOutputApps.removeAll()
     }
 
     func setDeviceLevel(_ level: Double, direction: AudioDirection) {
@@ -264,7 +294,7 @@ final class AudioController {
     func selectDevice(_ id: UInt32, direction: AudioDirection) {
         guard !isWorking, let device = snapshot.devices.first(where: { $0.id == id }) else { return }
         guard device.id != (direction == .output ? snapshot.outputID : snapshot.inputID) else { return }
-        perform { [weak self] in
+        perform(switching: direction) { [weak self] in
             guard let self else { return }
             let guardTap = direction == .output ? try await mixer.prepareOutputSwitch() : nil
             guard enabled, !sleeping else { await mixer.finishOutputSwitch(guardTap); return }
@@ -288,18 +318,19 @@ final class AudioController {
         }
     }
 
-    private func perform(_ operation: @escaping @MainActor () async throws -> Void) {
+    private func perform(switching direction: AudioDirection? = nil, _ operation: @escaping @MainActor () async throws -> Void) {
         guard enabled, !sleeping else { return }
         isWorking = true
+        switchingDevice = direction
         operationError = nil
         let epoch = revision
         volumeWriter.cancelPending()
         mixTask?.cancel()
         Task { [weak self] in
-            guard let self, revision == epoch, enabled, !sleeping else { self?.isWorking = false; return }
+            guard let self, revision == epoch, enabled, !sleeping else { self?.isWorking = false; self?.switchingDevice = nil; return }
             do { try await operation() }
             catch { if revision == epoch { self.operationError = error as? AudioControlError ?? .unavailable } }
-            isWorking = false
+            isWorking = false; switchingDevice = nil
             scheduleRefresh(immediate: true)
         }
     }
@@ -326,6 +357,7 @@ final class AudioController {
 
     func stop() {
         enabled = false
+        pendingOutputApps.removeAll(); failedOutputApps.removeAll(); switchingDevice = nil; isAuthorizing = false
         revision &+= 1
         refreshTask?.cancel()
         mixTask?.cancel()
