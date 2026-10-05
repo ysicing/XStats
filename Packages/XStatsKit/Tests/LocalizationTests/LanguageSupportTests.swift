@@ -85,7 +85,9 @@ struct LanguageSupportTests {
     func everyLanguageHasCompleteCatalog(_ language: AppLanguage) throws {
         let catalog = try #require(Translations.catalog(for: language))
         #expect(catalog.sourceKeys == Translations.shared.sourceKeys)
-        for key in ["应用输出设备", "系统默认输出", "重试应用音频", "已暂停", "恢复原始音量与默认输出",
+        for key in ["正在切换设备…", "正在切换输出…", "已静音", "静音麦克风",
+                    "Music 音量", "Music 输出设备", "静音“Music”", "100% · 原始音量",
+                    "应用输出设备", "系统默认输出", "重试应用音频", "已暂停", "恢复原始音量与默认输出",
                     "应用音量支持 0–200%；高增益时自动限制峰值，不改变系统音量。", "音频", "系统音量、音频设备与应用音量", "应用音量", "开启应用音量",
                     "没有可用音频设备", "输出设备", "输入设备", "输入音量", "取消静音", "恢复原始音量",
                     "语言", "应用 UI 语言", "自动检测", "搜索语言", "没有匹配的语言",

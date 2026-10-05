@@ -1708,3 +1708,18 @@ IP 归属地	IP-Standort
 设备不可用，使用系统默认	Gerät nicht verfügbar; Systemstandard wird verwendet
 恢复原始音量与默认输出	Original-Lautstärke und Standardausgabe wiederherstellen
 应用音量支持 0–200%；高增益时自动限制峰值，不改变系统音量。	App-Lautstärke unterstützt 0–200 %. Verstärkte Spitzen werden automatisch begrenzt, ohne die Systemlautstärke zu ändern.
+正在请求音频权限…	Audiozugriff wird angefordert…
+正在切换设备…	Gerät wird gewechselt…
+正在切换输出…	Ausgabe wird gewechselt…
+输出切换未完成，请重试。	Ausgabewechsel nicht abgeschlossen. Bitte erneut versuchen.
+取消麦克风静音	Mikrofon-Stummschaltung aufheben
+静音麦克风	Mikrofon stummschalten
+取消输出静音	Ausgabe-Stummschaltung aufheben
+静音输出	Ausgabe stummschalten
+取消“{}”静音	Stummschaltung von {} aufheben
+静音“{}”	{} stummschalten
+恢复“{}”的原始音量与默认输出	Original-Lautstärke und Standardausgabe für {} wiederherstellen
+{} 音量	Lautstärke von {}
+{} 输出设备	Ausgabegerät für {}
+{} · 原始音量	{} · Original-Lautstärke
+已静音	Stummgeschaltet

@@ -126,12 +126,25 @@ struct AudioMixerLifecycleTests {
         await client.checkHealth(now: now + 4)
         #expect(log.entries.filter { $0 == "start:a:default" }.count == 2)
         await #expect(throws: AudioControlError.renderStalled) { try await client.apply(desired, outputUID: "default") }
+        #expect(await client.unresolvedApplicationIDs() == ["a"])
         #expect(log.entries.filter { $0 == "start:a:default" }.count == 2)
         await client.retryFailed()
         try await client.apply(desired, outputUID: "default")
+        #expect(await client.unresolvedApplicationIDs().isEmpty)
         #expect(log.entries.filter { $0 == "start:a:default" }.count == 3)
         await client.stop()
         await client.checkHealth(now: now + 8)
         #expect(log.entries.filter { $0 == "start:a:default" }.count == 3)
+    }
+
+    @Test func aBatchFailureDoesNotMarkASuccessfulApplicationAsUnresolved() async throws {
+        let log = PipelineLog()
+        let client = AudioMixerClient(automaticHealthChecks: false) { TestPipeline($0, output: $1, source: $2, log: log, startFails: $0.id == "a") }
+        await #expect(throws: AudioControlError.renderStalled) {
+            try await client.apply([try target("a"), try target("b", output: "usb")], outputUID: "default")
+        }
+        #expect(await client.unresolvedApplicationIDs() == ["a"])
+        #expect(log.entries.contains("start:b:usb"))
+        await client.stop()
     }
 }

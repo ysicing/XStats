@@ -383,7 +383,11 @@ enum MenuBarRenderer {
             } ?? "—"
             return textSegment(item: item, value: text, sample: "100°", style: style)
         case .audio:
-            return textSegment(item: item, value: reading.audioMuted ? "—" : reading.audioVolume.map { Format.percent($0) } ?? "—", sample: "100%", style: style)
+            let value = reading.audioMuted ? tr("已静音") : reading.audioVolume.map { Format.percent($0) } ?? "—"
+            if style == .icon {
+                return combine([symbolSegment(reading.audioMuted ? "speaker.slash" : "speaker.wave.2"), inlineValue(value, sample: "100%", alert: false)])
+            }
+            return textSegment(item: item, value: value, sample: "100%", style: style)
         case .display:
             return textSegment(item: item, value: reading.displayCount.formatted(.number.locale(L10n.locale)), sample: "8", style: style)
         case .fan:
