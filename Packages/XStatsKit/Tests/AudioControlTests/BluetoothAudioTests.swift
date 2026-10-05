@@ -19,7 +19,7 @@ struct BluetoothAudioTests {
         let release = DispatchSemaphore(value: 0)
         let client = BluetoothAudioClient(readPaired: {
             signal.yield(()); signal.finish()
-            _ = release.wait(timeout: .now() + 2)
+            _ = release.wait(timeout: .now() + 60) // 取消后才放行；短超时会在高负载 CI 上抢在取消前返回。
             return [paired]
         }, connect: { _ in Issue.record("Cancellation must prevent starting the native connection") }, devices: { [] })
         let task = Task { try await client.connect(paired, direction: .output) }
@@ -61,7 +61,7 @@ struct BluetoothAudioTests {
         let release = DispatchSemaphore(value: 0)
         let client = BluetoothAudioClient(readPaired: { [paired] }, connect: { _ in
             signal.yield(()); signal.finish()
-            _ = release.wait(timeout: .now() + 2)
+            _ = release.wait(timeout: .now() + 60) // 取消后才放行；短超时会在高负载 CI 上抢在取消前返回。
         }, devices: { [] })
         let task = Task { try await client.connect(paired, direction: .output) }
         for await _ in started { break }
