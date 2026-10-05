@@ -87,6 +87,7 @@ struct PopoverHeader: View {
     let item: MenuBarItem
     var showsTitle = true
     var showsUpdate = true
+    var showsGeneralSettings = true
     @Environment(AppModel.self) private var model
 
     var body: some View {
@@ -116,7 +117,9 @@ struct PopoverHeader: View {
                 // 其他指标的齿轮统一打开应用通用设置。
                 MiniIconButton(systemName: page.symbol,
                                help: tr("在主窗口打开“\(page.title)”")) { model.openMainWindow(page) }
-                MiniIconButton(systemName: "gearshape", help: tr("设置")) { model.openSettings() }
+                if showsGeneralSettings {
+                    MiniIconButton(systemName: "gearshape", help: tr("设置")) { model.openSettings() }
+                }
             }
         }
     }

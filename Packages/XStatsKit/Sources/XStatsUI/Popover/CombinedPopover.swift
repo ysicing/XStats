@@ -144,7 +144,8 @@ private struct OverviewMetricRow: View {
             .accessibilityIdentifier("overview-row-\(item.rawValue)")
             if expanded {
                 VStack(spacing: 0) {
-                    PopoverHeader(item: item, showsTitle: false, showsUpdate: false)
+                    // 总览顶部已有通用设置入口，展开详情只保留指标自身的操作。
+                    PopoverHeader(item: item, showsTitle: false, showsUpdate: false, showsGeneralSettings: false)
                     PopoverDetail(item: item)
                 }
                 .padding(.horizontal, DS.Space.s3)
