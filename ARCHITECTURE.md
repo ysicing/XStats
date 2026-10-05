@@ -15,10 +15,17 @@ No raw URLs are retained or logged. Termination cancels pending commands.
 
 Navigation reuses existing window and popover controllers. Repeated opens do not toggle a visible
 surface closed; missing menu items fall back to main-window pages. Disabled optional modules lead
-to settings without changing their preference. Pomodoro and ordinary keep-awake commands reuse
+to Features settings without changing their preference. Pomodoro and ordinary keep-awake commands reuse
 the existing controllers; explicit start/pause/stop are idempotent. Keep-awake links never dispatch
 lid-closed privileged settings: a requested or active lid mode redirects to its page. Destructive
 tools remain UI entry points. The public route contract is listed in DEVELOPMENT.md.
+
+## Settings navigation
+
+General contains app-wide preferences and keyboard shortcuts. Features contains the existing
+process manager, Pomodoro and eye breaks, AI usage, audio, cleaner and menu-bar calendar switches.
+It reuses their persisted preferences and enablement behavior; disabled rows remain available.
+Disabled-module entry points lead to Features, including calendar and Pomodoro deep links.
 
 ## Sampling
 
@@ -33,10 +40,10 @@ Its sidebar entry and process-explanation shortcuts are available only when enab
 hotkey remains registered: it opens XStats's process page when enabled, or macOS Activity Monitor
 when disabled, without changing the module preference. Its settings label follows the destination;
 the process-page header also provides a direct Activity Monitor button.
-Disabling the module returns an open process page to General settings, cancels an explanation,
+Disabling the module returns an open process page to Features settings, cancels an explanation,
 and removes full-system process sampling demand. Existing CPU, memory, disk and overview app-usage
 lists retain their own visibility-based sampling. The preference is backed up; older documents without
-it preserve the current setting. Saved process-page routes fall back to General settings when disabled.
+it preserve the current setting. Saved process-page routes fall back to Features settings when disabled.
 
 The sandboxed WidgetKit extension samples CPU, memory, disk, and battery through `Metrics`
 independently, so it remains useful when the app is not running.

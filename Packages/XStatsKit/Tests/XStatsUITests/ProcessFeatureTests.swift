@@ -18,16 +18,16 @@ struct ProcessFeatureTests {
         defaults.set("processes", forKey: "panelTab")
         let settings = AppSettings(defaults: defaults)
         #expect(!settings.processesEnabled)
-        #expect(settings.panelTab == .settingsGeneral)
+        #expect(settings.panelTab == .settingsFeatures)
         settings.panelTab = .processes
-        #expect(settings.panelTab == .settingsGeneral)
-        #expect(defaults.string(forKey: "panelTab") == "settingsGeneral")
+        #expect(settings.panelTab == .settingsFeatures)
+        #expect(defaults.string(forKey: "panelTab") == "settingsFeatures")
         settings.processesEnabled = true
         settings.panelTab = .processes
         let restored = AppSettings(defaults: defaults)
         #expect(restored.processesEnabled && restored.panelTab == .processes)
         settings.processesEnabled = false
-        #expect(settings.panelTab == .settingsGeneral)
+        #expect(settings.panelTab == .settingsFeatures)
         #expect(!AppSettings(defaults: defaults).processesEnabled)
     }
 
@@ -98,6 +98,6 @@ struct ProcessFeatureTests {
         disabled.processesEnabled = false
         target.panelTab = .processes
         target.apply(disabled)
-        #expect(!target.processesEnabled && target.panelTab == .settingsGeneral)
+        #expect(!target.processesEnabled && target.panelTab == .settingsFeatures)
     }
 }

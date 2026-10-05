@@ -18,7 +18,7 @@ enum AppDeepLink: Equatable, Sendable {
         "thermal": .thermal, "battery": .battery, "processes": .processes, "audio": .audio,
         "keep-awake": .keepAwake, "rest": .rest, "cleaner": .cleaner, "uninstaller": .uninstaller,
         "startup-items": .startupItems, "settings": .settingsGeneral, "settings/general": .settingsGeneral,
-        "settings/menu-bar": .settingsMenuBar, "settings/notifications": .settingsNotifications,
+        "settings/features": .settingsFeatures, "settings/menu-bar": .settingsMenuBar, "settings/notifications": .settingsNotifications,
         "settings/helper": .settingsHelper, "settings/about": .settingsAbout
     ]
     static let panels: [String: MenuBarItem] = [
@@ -59,7 +59,7 @@ enum AppDeepLink: Equatable, Sendable {
         switch requested {
         case .audio where !settings.audioEnabled, .rest where !settings.restEnabled,
              .processes where !settings.processesEnabled, .cleaner where !settings.cleanerEnabled,
-             .aiUsage where !settings.aiUsageEnabled: .settingsGeneral
+             .aiUsage where !settings.aiUsageEnabled: .settingsFeatures
         default: requested
         }
     }

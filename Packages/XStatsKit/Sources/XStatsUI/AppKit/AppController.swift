@@ -269,11 +269,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
             } else if !menuBar.showOverview() { model.openMainWindow(.overview) }
         case .calendar:
             if model.settings.calendarEnabled, calendarMenuBar.present() { return }
-            else { model.openMainWindow(.settingsMenuBar) }
+            else { model.openMainWindow(.settingsFeatures) }
         case .speedTest: model.openSpeedTestWindow()
         case .egress: model.openEgressWindow()
         case .rest(let action):
-            guard model.settings.restEnabled else { model.openMainWindow(.settingsGeneral); return }
+            guard model.settings.restEnabled else { model.openMainWindow(.settingsFeatures); return }
             switch action {
             case .start: rest.setRunning(true)
             case .pause: rest.setRunning(false)

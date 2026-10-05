@@ -622,8 +622,8 @@ private actor GatedUsageProvider: AIUsageProvider {
         settings.panelTab = .aiUsage
         settings.aiUsageEnabled = false
 
-        #expect(settings.panelTab == .settingsGeneral)
-        #expect(AppSettings(defaults: defaults).panelTab == .settingsGeneral)
+        #expect(settings.panelTab == .settingsFeatures)
+        #expect(AppSettings(defaults: defaults).panelTab == .settingsFeatures)
 
         settings.aiUsageEnabled = true
         settings.panelTab = .aiUsage
@@ -634,7 +634,7 @@ private actor GatedUsageProvider: AIUsageProvider {
         let defaults = defaultsForAIUsage()
         defaults.set("aiUsage", forKey: "panelTab")
 
-        #expect(AppSettings(defaults: defaults).panelTab == .settingsGeneral)
+        #expect(AppSettings(defaults: defaults).panelTab == .settingsFeatures)
     }
 
     /// 菜单栏开关只保存展示偏好；模块关闭时不显示占位图标。

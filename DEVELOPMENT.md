@@ -16,18 +16,18 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 | `xstats://open/<page>` | 打开页面 |
 | `xstats://panel/<item>` | 显示菜单栏详情；没有该入口时转到主窗口对应页面 |
 | `xstats://panel/overview` | 显示合并总览；分开显示模式转到主窗口总览 |
-| `xstats://open/calendar` | 日历；未开启时转到菜单栏设置 |
+| `xstats://open/calendar` | 日历；未开启时转到功能设置 |
 | `xstats://open/speed-test`、`xstats://open/egress` | 测速、出口与分流窗口，不自动运行探测 |
 | `xstats://rest/<action>` | 番茄钟：`start`、`pause`、`toggle`、`reset`、`skip`、`hud` |
 | `xstats://keep-awake/<action>` | 普通防休眠：`start`、`stop`、`toggle` |
 
 `page`：`overview`、`system`、`history`、`ai-usage`、`cpu`、`gpu`、`memory`、`disk`、
 `network`、`thermal`、`battery`、`processes`、`audio`、`keep-awake`、`rest`、`cleaner`、
-`uninstaller`、`startup-items`，以及 `settings/general`、`settings/menu-bar`、
+`uninstaller`、`startup-items`，以及 `settings/general`、`settings/features`、`settings/menu-bar`、
 `settings/notifications`、`settings/helper`、`settings/about`；`settings` 等同于 `settings/general`。
 
 `item`：`cpu`、`gpu`、`memory`、`network`、`disk`、`temperature`、`fan`、`battery`、
-`ai-usage`、`display`、`audio`。模块关闭时转到设置，不更改开关。
+`ai-usage`、`display`、`audio`。模块关闭时转到功能设置，不更改开关。
 
 链接不接受查询参数、片段、账户、端口或转义路径。普通防休眠链接遇到已请求的合盖模式时
 只打开防休眠页，由用户操作；链接不直接下发特权设置或执行清理、卸载。

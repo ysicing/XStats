@@ -323,14 +323,14 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
 /// 主窗口侧边栏的页面
 public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery, processes, keepAwake, rest, cleaner, uninstaller, startupItems, audio
-    case settingsGeneral, settingsMenuBar, settingsNotifications, settingsAccount, settingsHelper, settingsAbout
+    case settingsGeneral, settingsFeatures, settingsMenuBar, settingsNotifications, settingsAccount, settingsHelper, settingsAbout
 
     public var id: String { rawValue }
 
     static let monitors: [PanelTab] = [.overview, .system, .history, .aiUsage, .cpu, .gpu, .memory, .disk, .network, .thermal, .battery]
     static let tools: [PanelTab] = [.audio, .processes, .startupItems, .keepAwake, .rest, .cleaner, .uninstaller]
     // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
-    static let settings: [PanelTab] = [.settingsGeneral, .settingsMenuBar, .settingsNotifications,
+    static let settings: [PanelTab] = [.settingsGeneral, .settingsFeatures, .settingsMenuBar, .settingsNotifications,
                                      /* .settingsAccount, */ .settingsHelper, .settingsAbout]
 
     var isSettings: Bool { Self.settings.contains(self) }
@@ -359,6 +359,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .startupItems: tr("启动项")
         case .audio: tr("音频")
         case .settingsGeneral: tr("通用")
+        case .settingsFeatures: tr("功能")
         case .settingsMenuBar: tr("菜单栏")
         case .settingsNotifications: tr("通知")
         case .settingsAccount: tr("设置同步")
@@ -388,6 +389,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .startupItems: "power"
         case .audio: "speaker.wave.2"
         case .settingsGeneral: "gearshape"
+        case .settingsFeatures: "switch.2"
         case .settingsMenuBar: "menubar.rectangle"
         case .settingsNotifications: "bell.badge"
         case .settingsAccount: "arrow.triangle.2.circlepath"
@@ -510,7 +512,7 @@ public final class AppSettings {
     public var restEnabled: Bool {
         didSet {
             defaults.set(restEnabled, forKey: Keys.restEnabled)
-            if !restEnabled && panelTab == .rest { panelTab = .settingsGeneral }
+            if !restEnabled && panelTab == .rest { panelTab = .settingsFeatures }
         }
     }
     public var restWorkMinutes: Int {
@@ -575,28 +577,28 @@ public final class AppSettings {
     public var aiUsageEnabled: Bool {
         didSet {
             defaults.set(aiUsageEnabled, forKey: Keys.aiUsageEnabled)
-            if !aiUsageEnabled && panelTab == .aiUsage { panelTab = .settingsGeneral }
+            if !aiUsageEnabled && panelTab == .aiUsage { panelTab = .settingsFeatures }
         }
     }
     /// 音频功能默认关闭；只有明确开启应用音量后才请求捕获权限。
     public var audioEnabled: Bool {
         didSet {
             defaults.set(audioEnabled, forKey: "audioEnabled")
-            if !audioEnabled && panelTab == .audio { panelTab = .settingsGeneral }
+            if !audioEnabled && panelTab == .audio { panelTab = .settingsFeatures }
         }
     }
     /// 独立进程管理器默认关闭；其他监控页仍可按需读取应用用量。
     public var processesEnabled: Bool {
         didSet {
             defaults.set(processesEnabled, forKey: Keys.processesEnabled)
-            if !processesEnabled && panelTab == .processes { panelTab = .settingsGeneral }
+            if !processesEnabled && panelTab == .processes { panelTab = .settingsFeatures }
         }
     }
     /// 清理工具默认关闭；扫描只在打开页面后按需执行。
     public var cleanerEnabled: Bool {
         didSet {
             defaults.set(cleanerEnabled, forKey: Keys.cleanerEnabled)
-            if !cleanerEnabled && panelTab == .cleaner { panelTab = .settingsGeneral }
+            if !cleanerEnabled && panelTab == .cleaner { panelTab = .settingsFeatures }
         }
     }
     /// 来源开关只保存在本机；关闭后不扫描，也不显示其历史缓存。
@@ -639,9 +641,9 @@ public final class AppSettings {
     }
     public var panelTab: PanelTab {
         didSet {
-            // 统一拦截旧路由与外部打开请求，关闭的进程模块不能被其他入口重新打开。
-            if panelTab == .audio && !audioEnabled { panelTab = .settingsGeneral }
-            if panelTab == .processes && !processesEnabled { panelTab = .settingsGeneral }
+            // 统一拦截旧路由与外部打开请求，关闭的音频与进程模块回到功能开关入口。
+            if panelTab == .audio && !audioEnabled { panelTab = .settingsFeatures }
+            if panelTab == .processes && !processesEnabled { panelTab = .settingsFeatures }
             defaults.set(panelTab.rawValue, forKey: Keys.panelTab)
         }
     }
@@ -848,13 +850,16 @@ public final class AppSettings {
         let savedPanelTabValue = defaults.string(forKey: Keys.panelTab)
         let savedPanelTab = savedPanelTabValue.flatMap(PanelTab.init(rawValue:)) ?? .overview
         // 旧版 AI 助手设置页已移除，升级后仍留在设置分组。
-        panelTab = savedPanelTabValue == "settingsAI" || savedPanelTab == .settingsAccount
-            || (savedPanelTab == .audio && !isAudioEnabled)
-            || (savedPanelTab == .aiUsage && !isAIUsageEnabled)
-            || (savedPanelTab == .rest && !isRestEnabled)
-            || (savedPanelTab == .cleaner && !isCleanerEnabled)
-            || (savedPanelTab == .processes && !isProcessesEnabled)
-            ? .settingsGeneral : savedPanelTab
+        if savedPanelTabValue == "settingsAI" || savedPanelTab == .settingsAccount {
+            panelTab = .settingsGeneral
+        } else {
+            panelTab = (savedPanelTab == .audio && !isAudioEnabled)
+                || (savedPanelTab == .aiUsage && !isAIUsageEnabled)
+                || (savedPanelTab == .rest && !isRestEnabled)
+                || (savedPanelTab == .cleaner && !isCleanerEnabled)
+                || (savedPanelTab == .processes && !isProcessesEnabled)
+                ? .settingsFeatures : savedPanelTab
+        }
         appearance = defaults.string(forKey: Keys.appearance).flatMap(AppearanceMode.init(rawValue:)) ?? .system
         showDockIcon = defaults.bool(forKey: Keys.showDockIcon)
         speedTestBudget = defaults.string(forKey: Keys.speedTestBudget).flatMap(SpeedTestBudget.init(rawValue:)) ?? .full

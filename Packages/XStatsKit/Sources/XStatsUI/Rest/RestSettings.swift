@@ -49,7 +49,7 @@ public enum RestHUDStyle: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// 与菜单栏日历一致：通用页只保留模块开关，详细选项由独立弹出层承载。
+/// 与菜单栏日历一致：功能页只保留模块开关，详细选项由独立弹出层承载。
 struct RestOptionsButton: View {
     @State private var isPresented = false
 

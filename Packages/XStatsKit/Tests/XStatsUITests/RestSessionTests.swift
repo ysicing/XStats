@@ -427,7 +427,7 @@ private func noonClock(_ now: @escaping () -> UInt64) -> () -> Date {
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set("rest", forKey: "panelTab")
-        #expect(AppSettings(defaults: defaults).panelTab == .settingsGeneral)
+        #expect(AppSettings(defaults: defaults).panelTab == .settingsFeatures)
         defaults.set(true, forKey: "restEnabled")
         #expect(AppSettings(defaults: defaults).panelTab == .rest)
     }

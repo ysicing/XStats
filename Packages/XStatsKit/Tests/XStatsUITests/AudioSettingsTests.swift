@@ -21,8 +21,8 @@ struct AudioSettingsTests {
         settings.audioEnabled = false
         #expect(settings.menuBarItems == [.audio])
         #expect(settings.orderedMenuBarItems.isEmpty)
-        #expect(settings.panelTab == .settingsGeneral)
-        #expect(AppSettings(defaults: defaults).panelTab == .settingsGeneral)
+        #expect(settings.panelTab == .settingsFeatures)
+        #expect(AppSettings(defaults: defaults).panelTab == .settingsFeatures)
     }
 
     @Test func audioPopoverAndSummaryDoNotRaiseMetricSamplingFrequency() throws {

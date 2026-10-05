@@ -311,7 +311,7 @@ private func isolatedDefaults() -> UserDefaults {
         defaults.set("cleaner", forKey: "panelTab")
         let settings = AppSettings(defaults: defaults)
         #expect(!settings.cleanerEnabled)
-        #expect(settings.panelTab == .settingsGeneral)
+        #expect(settings.panelTab == .settingsFeatures)
 
         let cleaner = CleanerController(settings: settings)
         cleaner.scan()
@@ -322,10 +322,10 @@ private func isolatedDefaults() -> UserDefaults {
         #expect(AppSettings(defaults: defaults).panelTab == .cleaner)
 
         settings.cleanerEnabled = false
-        #expect(settings.panelTab == .settingsGeneral)
+        #expect(settings.panelTab == .settingsFeatures)
         #expect(!AppSettings(defaults: defaults).cleanerEnabled)
         defaults.set("cleaner", forKey: "panelTab")
-        #expect(AppSettings(defaults: defaults).panelTab == .settingsGeneral)
+        #expect(AppSettings(defaults: defaults).panelTab == .settingsFeatures)
     }
 
     @Test func backupRestoresModulePreferenceAndOldBackupKeepsCurrentValue() throws {
@@ -439,6 +439,19 @@ private func isolatedDefaults() -> UserDefaults {
 }
 
 @Suite struct PanelTabTests {
+    @MainActor @Test func featuresPageRestoresWithoutChangingModulePreferences() {
+        let defaults = isolatedDefaults()
+        defaults.set("settingsFeatures", forKey: "panelTab")
+        defaults.set(true, forKey: "restEnabled")
+        defaults.set(true, forKey: "calendarEnabled")
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.panelTab == .settingsFeatures)
+        #expect(settings.restEnabled && settings.calendarEnabled)
+        #expect(!settings.audioEnabled && !settings.aiUsageEnabled)
+        #expect(!settings.processesEnabled && !settings.cleanerEnabled)
+        #expect(PanelTab.settings.prefix(2) == [.settingsGeneral, .settingsFeatures])
+    }
+
     @MainActor @Test func removedAssistantPageRestoresToGeneralSettings() {
         let defaults = isolatedDefaults()
         defaults.set("settingsAI", forKey: "panelTab")
@@ -505,7 +518,7 @@ private func isolatedDefaults() -> UserDefaults {
         model.isMainWindowVisible = true
 
         for tab: PanelTab in [.history, .aiUsage, .keepAwake, .cleaner, .uninstaller,
-                              .startupItems, .settingsGeneral, .settingsMenuBar,
+                              .startupItems, .settingsGeneral, .settingsFeatures, .settingsMenuBar,
                               .settingsNotifications, .settingsAccount, .settingsHelper, .settingsAbout] {
             model.settings.panelTab = tab
             #expect(model.demand.interval == .seconds(5), "\(tab) should use the configured interval")

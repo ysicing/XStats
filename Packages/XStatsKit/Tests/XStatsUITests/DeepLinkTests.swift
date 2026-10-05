@@ -61,6 +61,7 @@ struct DeepLinkTests {
         ("xstats://open/audio", .open(.audio)),
         ("xstats://open/ai-usage", .open(.aiUsage)),
         ("xstats://open/settings/menu-bar", .open(.settingsMenuBar)),
+        ("xstats://open/settings/features", .open(.settingsFeatures)),
         ("xstats://panel/cpu", .panel(.cpu)),
         ("xstats://panel/overview", .panel(nil)),
         ("xstats://open/calendar", .calendar),
@@ -89,9 +90,11 @@ struct DeepLinkTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         let settings = AppSettings(defaults: defaults)
         settings.audioEnabled = false; settings.restEnabled = false; settings.processesEnabled = false
-        #expect(AppDeepLink.page(.audio, settings: settings) == .settingsGeneral)
-        #expect(AppDeepLink.page(.rest, settings: settings) == .settingsGeneral)
-        #expect(AppDeepLink.page(.processes, settings: settings) == .settingsGeneral)
+        settings.aiUsageEnabled = false; settings.cleanerEnabled = false
+        for page: PanelTab in [.audio, .rest, .processes, .aiUsage, .cleaner] {
+            #expect(AppDeepLink.page(page, settings: settings) == .settingsFeatures)
+        }
         #expect(!settings.audioEnabled && !settings.restEnabled && !settings.processesEnabled)
+        #expect(!settings.aiUsageEnabled && !settings.cleanerEnabled)
     }
 }

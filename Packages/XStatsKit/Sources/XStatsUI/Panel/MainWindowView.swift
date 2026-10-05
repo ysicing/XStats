@@ -110,6 +110,7 @@ public struct MainWindowView: View {
             case .uninstaller: UninstallerPage()
             case .startupItems: StartupItemsPage()
             case .settingsGeneral: SettingsTabPage { GeneralSettings() }
+            case .settingsFeatures: SettingsTabPage { FeatureSettings() }
             case .settingsMenuBar: SettingsTabPage { MenuBarSettings() }
             case .settingsNotifications: SettingsTabPage { NotificationSettings() }
             // 设置同步暂时隐藏；旧路由进入通用设置，恢复时重新挂载 WebDAVSettings。
