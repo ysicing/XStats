@@ -668,8 +668,8 @@ choice. Closing the controls, disabling or sleeping cancels pending activation w
 a late enabled state. Probe objects use the same owned cleanup path as other audio resources.
 Applications keep stable rows while their audio connection is paused.
 The visible application list excludes idle registrations that have never played during this run.
-It retains playing apps, volume/mute or output-route adjustments, and previously playing apps while
-their Core Audio objects still overlap the current connection. Reconnection or module shutdown
+It retains playing apps, volume/mute or output-route adjustments, and previously playing or explicitly
+reset apps while their Core Audio objects still overlap the current connection. Reconnection or module shutdown
 discards this display history. The history is bounded by the sampled live objects, is not persisted,
 and adds no polling. The full application snapshot remains available to the mixing lifecycle.
 Applications with changed volume, mute or an independent output create private process taps and

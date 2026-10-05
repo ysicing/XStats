@@ -6,6 +6,24 @@ import Testing
 @testable import XStatsUI
 
 struct AudioApplicationListTests {
+    @MainActor @Test func resettingAnUnplayedPausedAppKeepsItsRowVisible() throws {
+        let suite = "XStats.AudioApplicationListTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let controller = AudioController(defaults: defaults)
+        defer { controller.stop() }
+        let paused = app("adjusted", object: 11)
+        controller.showPreview(AudioHardwareSnapshot(devices: [], outputID: nil, inputID: nil, applications: [paused]),
+                               volumes: [paused.id: try #require(AudioAppVolume(level: 0.59))], outputs: [paused.id: "old-output"])
+        // 同步检查重置结果，关闭展示需求，避免蓝牙读取或启动真实音频处理。
+        controller.setDemand(enabled: true, visible: false, menuVisible: false)
+        controller.resetApp(paused)
+        #expect(controller.volumes.isEmpty)
+        #expect(controller.outputRoutes.isEmpty)
+        #expect(controller.listedApplications.map(\.id) == [paused.id])
+        #expect(!controller.snapshot.applications[0].isPlaying)
+    }
+
     @MainActor @Test func controllerFiltersTheUIWithoutDroppingRawApplicationData() throws {
         let suite = "XStats.AudioApplicationListTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -49,6 +67,20 @@ struct AudioApplicationListTests {
         let relaunched = [app("player", object: 12)]
         list.update(relaunched)
         #expect(list.visible(relaunched, volumes: [:], outputs: [:]).isEmpty)
+    }
+
+    @Test func explicitlyRetainedRowsExpireWhenTheirConnectionEndsOrTheModuleResets() {
+        var list = AudioApplicationList()
+        let paused = app("adjusted", object: 11)
+        list.retain(paused)
+        list.update([paused])
+        #expect(list.visible([paused], volumes: [:], outputs: [:]).map(\.id) == [paused.id])
+        let reconnected = app("adjusted", object: 12)
+        list.update([reconnected])
+        #expect(list.visible([reconnected], volumes: [:], outputs: [:]).isEmpty)
+        list.retain(reconnected)
+        list.reset()
+        #expect(list.visible([reconnected], volumes: [:], outputs: [:]).isEmpty)
     }
 
     @Test func resettingTheModuleDiscardsPlaybackHistory() {

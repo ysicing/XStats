@@ -244,6 +244,7 @@ final class AudioController {
 
     func resetApp(_ app: AudioApplication) {
         guard enabled, !sleeping, !isWorking else { return }
+        applicationList.retain(app)
         operationError = nil
         volumes.removeValue(forKey: app.id)
         outputRoutes.removeValue(forKey: app.id)
