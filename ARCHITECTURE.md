@@ -654,19 +654,34 @@ is independent of display DDC/CI volume. Output and microphone selection use the
 routing properties.
 
 On macOS 14.4 and later, explicit user activation requests system audio capture permission.
-`AudioMixerClient` creates private process taps and a private aggregate output only for applications
-with attenuation or mute. Native output stream formats are preserved; unsupported formats fail
-visibly. Returning to unity removes processing. A C IOProc sums PCM with atomic gain changes and a
-short ramp, without allocating or locking in the audio callback. No audio is recorded or uploaded.
-Aggregate readiness has a bounded, cancellable wait. Duplex hardware input buffers are skipped
-and their IOProc streams are disabled; only application tap inputs are processed.
-Tap and aggregate lifecycles run on a dedicated serial queue; callback contexts are retained until
-IOProc shutdown succeeds. Device/stream format changes invalidate the graph. Explicit output
-switches mute the original signal during graph replacement.
+Applications keep stable rows while their audio connection is paused. Only playing applications with
+changed volume, mute or an independent output create private process taps and aggregate outputs.
+An unavailable selected device falls back to the system output while its preference is retained.
+100% on the default output stays native passthrough. Per-app gains and output UIDs stay local and
+are not included in setting backups; PID-based identities never persist.
 
-`AudioController` uses HAL property listeners instead of a polling timer. Closing audio controls
-releases application discovery unless saved attenuation needs it; closing the interface keeps those
-adjustments active. Disabling the module and sleeping release processing and listeners. Wake-up
-rebuilds only current demand. Application gains are stored locally by bundle ID; ephemeral process
-IDs and OS permission grants are not included in settings backups. The module-enabled preference
-can be backed up, but never grants audio permission.
+Each application owns its pipeline, so another app's route change leaves it intact. Replacement
+starts silently, waits for its first valid render frame, then stops the predecessor and ramps up.
+All lifecycle work runs on a serial queue and checks cancellation between setup stages. Callback
+contexts are retained until IOProc shutdown succeeds. A failed stop blocks replacement; retired
+contexts receive at most two cleanup retries, then remain retained with a manual-retry error. Duplex hardware inputs are skipped and
+disabled for the IOProc. Core Audio drift compensation clocks taps to the selected output; the
+renderer supports compatible PCM formats and mono/stereo/channel mapping. Unsupported rates or
+formats fail visibly. System-output switches use a temporary mute tap during replacement.
+
+The C callback allocates no memory and takes no locks. Gains use atomics, changes ramp over 40ms,
+and 0–200% gain uses a channel-linked peak limiter with immediate attenuation and an 80ms release.
+Callback frame progress uses a lock-free counter. A single health timer checks active pipelines at
+1.5-second intervals with tolerance; it disappears when processing stops. A frozen pipeline gets
+one automatic replacement, then returns control to native audio and exposes manual retry. A new
+process/output configuration gets its own recovery budget; a replacement's first frame alone does
+not replenish the old budget. No audio is recorded or uploaded.
+
+Device volume writes are serialized and retain only the newest pending level per direction.
+Each request captures its device identity, and HAL rechecks the current default before writing.
+Per-direction sequence numbers reject superseded completion; readback publication also checks
+both device ID and UID. Closing the feature or sleeping drops queued requests and rejects late completion; a HAL write
+already executing cannot be assumed cancellable. Device/stream listeners drive discovery and
+format changes without a process polling timer. Closing the interface preserves requested app
+adjustments; pausing, disabling and sleeping release unnecessary processing. Wake-up rebuilds
+only current demand.

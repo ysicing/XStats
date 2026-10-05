@@ -20,12 +20,12 @@ struct AudioVolumeTests {
         #expect(try #require(AudioAppVolume(level: 1, isMuted: true)).needsProcessing)
     }
 
-    @Test(arguments: [Double.nan, Double.infinity, -0.1, 1.01, 2])
-    func rejectsInvalidLevelsAndBoost(_ level: Double) {
+    @Test(arguments: [Double.nan, Double.infinity, -0.1, 2.01, 3])
+    func rejectsInvalidLevelsAndExcessiveBoost(_ level: Double) {
         #expect(AudioAppVolume(level: level) == nil)
     }
     @Test func decodingCannotBypassTheVolumeRange() throws {
-        let invalid = Data(#"{"level":2,"isMuted":false}"#.utf8)
+        let invalid = Data(#"{"level":2.01,"isMuted":false}"#.utf8)
         #expect(throws: DecodingError.self) { try JSONDecoder().decode(AudioAppVolume.self, from: invalid) }
         let volume = try #require(AudioAppVolume(level: 0.35, isMuted: true))
         #expect(try JSONDecoder().decode(AudioAppVolume.self, from: JSONEncoder().encode(volume)) == volume)

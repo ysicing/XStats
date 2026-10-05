@@ -118,11 +118,12 @@ public final class AudioHardwareClient: @unchecked Sendable {
         let processIDs: [AudioObjectID]
         if watchingApplications, #available(macOS 14.4, *) { processIDs = AudioHAL.ids(AudioHAL.system, kAudioHardwarePropertyProcessObjectList) ?? [] }
         else { processIDs = [] }
-        let streams = snapshot.outputID.map { id in
+        let outputIDs = watchingApplications ? snapshot.devices.filter(\.hasOutput).map(\.id).sorted() : [snapshot.outputID].compactMap { $0 }
+        let streams = outputIDs.flatMap { id in
             (AudioHAL.ids(id, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeOutput) ?? [])
                 + (AudioHAL.ids(id, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeInput) ?? [])
-        } ?? []
-        let key = [snapshot.outputID ?? 0, snapshot.inputID ?? 0] + processIDs.sorted() + [0] + streams
+        }
+        let key = [snapshot.outputID ?? 0, snapshot.inputID ?? 0] + processIDs.sorted() + [0] + outputIDs + [0] + streams
         guard key != detailKey else { return }
         for (object, var property, listener) in detailListeners { AudioObjectRemovePropertyListenerBlock(object, &property, queue, listener) }
         detailListeners.removeAll()
@@ -138,14 +139,14 @@ public final class AudioHardwareClient: @unchecked Sendable {
                 }
             }
         }
-        if let output = snapshot.outputID {
+        for output in outputIDs {
             addListener(output, AudioHAL.address(kAudioDevicePropertyNominalSampleRate), detail: true)
             addListener(output, AudioHAL.address(kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeOutput), detail: true)
             addListener(output, AudioHAL.address(kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeInput), detail: true)
-            for stream in streams {
-                addListener(stream, AudioHAL.address(kAudioStreamPropertyVirtualFormat), detail: true)
-                addListener(stream, AudioHAL.address(kAudioStreamPropertyIsActive), detail: true)
-            }
+        }
+        for stream in streams {
+            addListener(stream, AudioHAL.address(kAudioStreamPropertyVirtualFormat), detail: true)
+            addListener(stream, AudioHAL.address(kAudioStreamPropertyIsActive), detail: true)
         }
         if #available(macOS 14.4, *) {
             for id in processIDs { addListener(id, AudioHAL.address(kAudioProcessPropertyIsRunningOutput), detail: true) }

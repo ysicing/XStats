@@ -15,7 +15,7 @@ If you manually configure Sub2API as a backup quota source for Codex or Claude C
 
 You choose whether and where to export diagnostics; they are not uploaded automatically. An exported archive may contain a settings summary, the last three days of system logs, cleanup records, and crash reports. Review it before sharing.
 
-Audio controls are disabled by default. System volume, mute and output/input device switching use local Core Audio interfaces; unsupported controls are unavailable. On macOS 14.4 or later, app volume requires explicit system audio capture authorization. Audio is processed locally in real time and is never recorded, saved or uploaded. App volume preferences are stored locally by app identifier. Adjustments remain active when the interface closes; disabling the feature or sleeping stops processing and releases audio objects. Authorization can be revoked in System Settings.
+Audio controls are disabled by default. System volume, mute and output/input device switching use local Core Audio interfaces; unsupported controls are unavailable. On macOS 14.4 or later, app volume requires explicit system audio capture authorization. Audio is processed locally in real time and is never recorded, saved or uploaded. App volume and independent output preferences are stored locally by app identifier. Adjustments remain active when the interface closes; disabling the feature or sleeping stops processing and releases audio objects. Authorization can be revoked in System Settings.
 
 ## 2. Update checks and installation statistics
 

@@ -15,12 +15,16 @@ typedef struct {
     uint32_t channelBufferCount;
     uint32_t destinationBufferIndex;
     float startingVolume;
+    AudioStreamBasicDescription outputPCM;
 } XSVolumeRoute;
 
 typedef struct XSVolumeRenderer *XSVolumeRendererRef;
 
 // 在生命周期队列创建和销毁；销毁前必须停止并注销 IOProc。
 XSVolumeRendererRef _Nullable XSVolumeRendererCreate(const XSVolumeRoute * _Nonnull routes, size_t count);
+// 只读性能诊断：实际执行 Float32 直通快路径的帧数。
+uint64_t XSVolumeRendererFastFrameCount(XSVolumeRendererRef _Nonnull renderer);
+uint64_t XSVolumeRendererFrameCount(XSVolumeRendererRef _Nonnull renderer);
 void XSVolumeRendererDestroy(XSVolumeRendererRef _Nullable renderer);
 // 可与回调并发调用；只更新无锁原子目标音量。
 void XSVolumeRendererSetVolume(XSVolumeRendererRef _Nonnull renderer, size_t route, float volume);
