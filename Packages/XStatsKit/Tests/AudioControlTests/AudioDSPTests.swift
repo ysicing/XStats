@@ -56,6 +56,17 @@ struct AudioDSPTests {
         #expect(destination == [0, 0])
     }
 
+    @Test func accessProbeIgnoresDisabledInputStreams() throws {
+        let context = try #require(XSAccessProbeCreate())
+        defer { XSAccessProbeDestroy(context) }
+        // 双工设备的物理输入被 stream usage 关闭后仍占缓冲区槽位，但没有数据。
+        var input = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 1, mDataByteSize: 0, mData: nil))
+        var output = AudioBufferList(mNumberBuffers: 0, mBuffers: AudioBuffer())
+        var timestamp = AudioTimeStamp()
+        #expect(XSAccessProbeRead(0, &timestamp, &input, &timestamp, &output, &timestamp, UnsafeMutableRawPointer(context)) == noErr)
+        #expect(!XSAccessProbeDidRun(context), "没有已启用的 tap 缓冲时不能判定为已授权")
+    }
+
     private func format(channels: UInt32 = 1, planar: Bool = false) -> AudioStreamBasicDescription {
         AudioStreamBasicDescription(mSampleRate: 48_000, mFormatID: kAudioFormatLinearPCM,
             mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked | (planar ? kAudioFormatFlagIsNonInterleaved : 0),
