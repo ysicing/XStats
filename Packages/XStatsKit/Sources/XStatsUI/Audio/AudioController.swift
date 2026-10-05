@@ -40,6 +40,10 @@ final class AudioController {
     @ObservationIgnored private var visible = false
     @ObservationIgnored private var menuVisible = false
     @ObservationIgnored private var sleeping = false
+    /// 锁屏、显示器休眠或切换用户时降为后台需求；不打断已调整应用仍需要的处理。
+    @ObservationIgnored private var inactive = false
+    @ObservationIgnored private var requestedVisibility = (visible: false, menuVisible: false)
+    @ObservationIgnored private var persistTask: Task<Void, Never>?
     @ObservationIgnored private var revision: UInt64 = 0
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var mixTask: Task<Void, Never>?
@@ -55,6 +59,10 @@ final class AudioController {
     var supportsMixing: Bool { AudioMixerClient.isSupported }
     var listedApplications: [AudioApplication] { applicationList.visible(snapshot.applications, volumes: volumes, outputs: outputRoutes) }
     private var hasSavedAdjustments: Bool { volumes.values.contains(where: \.needsProcessing) || !outputRoutes.isEmpty }
+    /// 未开启应用音量时界面只显示授权入口，不需要应用目录或播放状态校验。
+    private var watchesApplications: Bool { appVolumeEnabled && (visible || hasSavedAdjustments) }
+    /// 权限失效后关闭应用音量，空需求的收尾不能清掉提示用户去系统设置授权的错误。
+    private var keepsPermissionPrompt: Bool { !appVolumeEnabled && mixingError == .permissionRequired }
 
     init(defaults: UserDefaults = .standard, mixer: AudioMixerClient = AudioMixerClient(), hardware: AudioHardwareClient = AudioHardwareClient(),
          bluetooth: BluetoothAudioClient = BluetoothAudioClient(), activationNotifications: NotificationCenter = .default) {
@@ -103,7 +111,7 @@ final class AudioController {
                 let epoch = revision
                 let unresolved = await mixer.unresolvedApplicationIDs()
                 guard revision == epoch, enabled, !sleeping, mixTask == nil else { return }
-                mixingError = error
+                if error != nil || !keepsPermissionPrompt { mixingError = error }
                 // 操作期间由当前 mixTask 收尾；健康检查恢复后也要撤销旧的行内失败提示。
                 finishOutputSwitches(unresolved: unresolved)
             }
@@ -122,6 +130,19 @@ final class AudioController {
     func volume(for app: AudioApplication) -> AudioAppVolume { volumes[app.id] ?? AudioAppVolume(level: 1)! }
 
     func setDemand(enabled: Bool, visible: Bool, menuVisible: Bool) {
+        requestedVisibility = (visible, menuVisible)
+        applyDemand(enabled: enabled)
+    }
+
+    func setPaused(_ paused: Bool) {
+        guard inactive != paused else { return }
+        inactive = paused
+        applyDemand(enabled: enabled)
+    }
+
+    private func applyDemand(enabled: Bool) {
+        let visible = requestedVisibility.visible && !inactive
+        let menuVisible = requestedVisibility.menuVisible && !inactive
         guard self.enabled != enabled || self.visible != visible || self.menuVisible != menuVisible else { return }
         let wasBluetoothVisible = self.enabled && self.visible && !sleeping
         self.enabled = enabled
@@ -185,7 +206,7 @@ final class AudioController {
             return
         }
         installSleepObservers()
-        let watchesApps = visible || (appVolumeEnabled && hasSavedAdjustments)
+        let watchesApps = watchesApplications
         if visible || menuVisible || watchesApps {
             hardware.watch(applications: watchesApps, applicationRefreshInterval: visible ? 1 : 2) { [weak self] in
                 Task { @MainActor [weak self] in self?.scheduleRefresh() }
@@ -222,7 +243,7 @@ final class AudioController {
         refreshTask = Task { [weak self] in
             if !immediate { try? await Task.sleep(for: .milliseconds(80), tolerance: .milliseconds(20)) }
             guard let self, !Task.isCancelled, revision == epoch, enabled, !sleeping else { return }
-            let includeApplications = visible || (appVolumeEnabled && hasSavedAdjustments)
+            let includeApplications = watchesApplications
             let updated = await hardware.snapshot(includeApplications: includeApplications)
             guard !Task.isCancelled, revision == epoch, enabled, !sleeping else { return }
             // 未采集应用目录时不能把空数组解释成连接结束；重新打开后再核对实际音频对象。
@@ -312,10 +333,17 @@ final class AudioController {
     private func save(_ volume: AudioAppVolume, for id: String) {
         guard id.count <= 512, volumes[id] != nil || volumes.count < 256 else { return }
         if volume.needsProcessing { volumes[id] = volume } else { volumes.removeValue(forKey: id) }
-        persist()
+        // 拖动滑块时增益立即生效，编码和写入偏好合并到停顿之后。
+        persistTask?.cancel()
+        persistTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500), tolerance: .milliseconds(100))
+            guard let self, !Task.isCancelled else { return }
+            persist()
+        }
     }
 
     private func persist() {
+        persistTask?.cancel(); persistTask = nil
         defaults.set(try? JSONEncoder().encode(volumes.filter { !$0.key.hasPrefix("pid:") }), forKey: "audio.applicationVolumes")
         defaults.set(try? JSONEncoder().encode(outputRoutes.filter { !$0.key.hasPrefix("pid:") }), forKey: "audio.applicationOutputs")
     }
@@ -346,7 +374,7 @@ final class AudioController {
                 if supportsMixing { try await mixer.apply(targets, outputUID: uid) }
                 let unresolved = await mixer.unresolvedApplicationIDs()
                 guard !Task.isCancelled, revision == epoch else { return }
-                mixingError = nil
+                if !keepsPermissionPrompt { mixingError = nil }
                 finishOutputSwitches(unresolved: unresolved)
                 mixTask = nil
             } catch {
@@ -358,6 +386,9 @@ final class AudioController {
                 if self.mixingError == .permissionRequired {
                     appVolumeEnabled = false
                     defaults.set(false, forKey: "audio.appVolumeEnabled")
+                    // apply 会保留其他应用已工作的管线；关闭后立即提交空需求拆除全部处理。
+                    updateWatchers()
+                    reconcile()
                 }
             }
         }
@@ -422,7 +453,7 @@ final class AudioController {
         do {
             try await hardware.select(device, direction: direction)
             guard operationIsCurrent(command) else { throw CancellationError() }
-            let includeApplications = appVolumeEnabled && hasSavedAdjustments || visible
+            let includeApplications = watchesApplications
             let updated = await hardware.snapshot(includeApplications: includeApplications)
             guard operationIsCurrent(command) else { throw CancellationError() }
             if includeApplications { applicationList.update(updated.applications) }
@@ -508,6 +539,7 @@ final class AudioController {
 
     func stop() {
         enabled = false
+        if persistTask != nil { persist() }
         updateBluetoothActivationObserver()
         unresolvedApps.removeAll()
         applicationList.reset()

@@ -593,6 +593,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.network.setPaused(true)
         model.aiUsage.setPaused(true)
         model.displays.setPaused(true)
+        model.audio.setPaused(true)
         model.history.flush()
         restWindows.hideRest()
         rest.suspend()
@@ -605,6 +606,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.network.setPaused(false)
         model.aiUsage.setPaused(false)
         model.displays.setPaused(false)
+        model.audio.setPaused(false)
         rest.sync()
         if rest.phase.isResting && rest.isRunning { restWindows.ensureRestVisible() }
         Task {

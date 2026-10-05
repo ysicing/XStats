@@ -651,7 +651,9 @@ The optional audio module is disabled by default. `AudioHardwareClient` reads Co
 volume and mute properties on a serial queue, checks the current device UID before writes, and
 confirms mute writes by reading them back. Volume readback is published by the following refresh
 rather than compared against a fixed tolerance, because devices may quantize to dB steps or accept
-only per-channel writes. Unsupported hardware controls remain unavailable; this path
+only per-channel writes. Mute readback checks every written element. Without a writable master
+volume, per-channel writes scale the current channel values together to preserve balance, falling
+back to one shared value when readings are incomplete or silent. Unsupported hardware controls remain unavailable; this path
 is independent of display DDC/CI volume. Output and microphone selection use the system default
 routing properties.
 The system pickers and HAL default-device writes check each direction's
@@ -720,13 +722,20 @@ Per-direction sequence numbers reject superseded completion; readback publicatio
 both device ID and UID. Closing the feature or sleeping drops queued requests and rejects late completion; a HAL write
 already executing cannot be assumed cancellable. Device/stream listeners drive discovery and
 format changes. Some process playback flags change without delivering their registered HAL
-notification. While application demand exists, a tolerant checker reads only process IDs, PIDs
+notification. Application demand requires app volume to be enabled: before activation the visible
+controls only show the authorization prompt and read neither the application catalog nor playback
+flags. While application demand exists, a tolerant checker reads only process IDs, PIDs
 and output-running flags every second for visible controls, or every two seconds for background
 app-volume demand. Unchanged flags do not trigger device or application catalog reads. The full
 snapshot acknowledges flags from the same reads used to construct application state, so a quick
 playback transition cannot be acknowledged before its data is published. Checking stops when
-application demand ends, on disable, and during sleep. Closing the interface preserves requested app
-adjustments; disabling and sleeping release unnecessary processing. A paused adjusted app keeps
+application demand ends, on disable, and during sleep. Screen lock, display sleep and fast user
+switching use the app's existing inactivity lifecycle to drop visible demand; only background
+processing for saved adjustments remains. Closing the interface preserves requested app
+adjustments; disabling and sleeping release unnecessary processing. App volume changes apply to the
+mixer immediately, while preference encoding is deferred until 500ms of idle input and flushed on
+stop. If a capture-permission failure disables app volume, empty demand is submitted immediately so
+pipelines retained for other apps are torn down, and the permission prompt is preserved. A paused adjusted app keeps
 its pipeline for 60 seconds after the observed playing-to-paused transition so resumed audio does not leak at the original
 volume; one tolerant wake-up then releases it. Wake-up rebuilds only current demand.
 Reconciliation that repeats the in-flight targets and output does not supersede it; the request is
