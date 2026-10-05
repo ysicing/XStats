@@ -150,7 +150,9 @@ public final class AudioHardwareClient: @unchecked Sendable {
                 + (AudioHAL.ids(id, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeInput) ?? [])
         }
         let deviceIDs = snapshot.devices.map(\.id).sorted()
-        let key = [snapshot.outputID ?? 0, snapshot.inputID ?? 0] + processIDs.sorted() + [0] + outputIDs + [0] + streams + [0] + deviceIDs
+        // 显式分段拼接：单个长表达式会让 CI 编译器类型检查超时。
+        var key: [UInt32] = [snapshot.outputID ?? 0, snapshot.inputID ?? 0]
+        for part in [processIDs.sorted(), outputIDs, streams, deviceIDs] { key += part; key.append(0) }
         guard key != detailKey else { return }
         for (object, var property, listener) in detailListeners { AudioObjectRemovePropertyListenerBlock(object, &property, queue, listener) }
         detailListeners.removeAll()
