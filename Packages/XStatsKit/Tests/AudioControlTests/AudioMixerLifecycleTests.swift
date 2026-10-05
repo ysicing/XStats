@@ -18,17 +18,17 @@ private final class TestPipeline: AudioMixPipeline, @unchecked Sendable {
     let log: PipelineLog
     private let lock = NSLock()
     private var stopFailures: Int
-    private let startFails: Bool
+    private let startError: AudioControlError?
     var isOutputPresent: Bool { true }
     var frameCount: UInt64 { 1 } // 只收到首帧，之后不再前进，验证重建预算不会因首帧而重置。
-    init(_ target: AudioMixTarget, output: String, source: String?, log: PipelineLog, stopFailures: Int = 0, startFails: Bool = false) {
-        id = target.id; processIDs = target.processObjectIDs; outputUID = output; sourceUID = source; self.log = log; self.stopFailures = stopFailures; self.startFails = startFails
+    init(_ target: AudioMixTarget, output: String, source: String?, log: PipelineLog, stopFailures: Int = 0, startFails: Bool = false, startError: AudioControlError? = nil) {
+        id = target.id; processIDs = target.processObjectIDs; outputUID = output; sourceUID = source; self.log = log; self.stopFailures = stopFailures; self.startError = startError ?? (startFails ? .renderStalled : nil)
     }
     func matches(_ target: AudioMixTarget, outputUID: String, sourceUID: String?) -> Bool {
         target.id == id && target.processObjectIDs == processIDs && self.outputUID == outputUID && self.sourceUID == sourceUID
     }
-    func start(shouldContinue: () -> Bool) throws { log.append("start:\(id):\(outputUID)"); if startFails { throw AudioControlError.renderStalled } }
-    func setVolume(_ volume: Float) { log.append("gain:\(id)") }
+    func start(shouldContinue: () -> Bool) throws { log.append("start:\(id):\(outputUID)"); if let startError { throw startError } }
+    func setVolume(_ volume: Float) { log.append("gain:\(id)"); log.append("volume:\(id):\(outputUID):\(volume)") }
     func stop() throws {
         log.append("stop:\(id):\(outputUID)")
         let fails = lock.withLock { if stopFailures > 0 { stopFailures -= 1; return true }; return false }
@@ -36,6 +36,27 @@ private final class TestPipeline: AudioMixPipeline, @unchecked Sendable {
     }
 }
 struct AudioMixerLifecycleTests {
+    @Test func aFailedRouteStillUpdatesTheRetainedPipelinesGainWithoutRetrying() async throws {
+        let log = PipelineLog()
+        let client = AudioMixerClient(automaticHealthChecks: false) {
+            TestPipeline($0, output: $1, source: $2, log: log, startError: $1 == "usb" ? .unsupportedFormat : nil)
+        }
+        let a = try target("a")
+        try await client.apply([a], outputUID: "default")
+        await #expect(throws: AudioControlError.unsupportedFormat) {
+            try await client.apply([try target("a", output: "usb")], outputUID: "default")
+        }
+        let muted = AudioMixTarget(id: "a", processObjectIDs: [1], volume: try #require(AudioAppVolume(level: 0.5, isMuted: true)), outputUID: "usb")
+        await #expect(throws: AudioControlError.unsupportedFormat) { try await client.apply([muted], outputUID: "default") }
+        #expect(log.entries.contains("volume:a:default:0.0"))
+        let boosted = AudioMixTarget(id: "a", processObjectIDs: [1], volume: try #require(AudioAppVolume(level: 1.6)), outputUID: "usb")
+        await #expect(throws: AudioControlError.unsupportedFormat) { try await client.apply([boosted], outputUID: "default") }
+        #expect(log.entries.contains("volume:a:default:1.6"))
+        #expect(log.entries.filter { $0 == "start:a:usb" }.count == 1)
+        #expect(!log.entries.contains("stop:a:default"))
+        await client.stop()
+    }
+
     private func target(_ id: String, output: String? = nil) throws -> AudioMixTarget {
         AudioMixTarget(id: id, processObjectIDs: [1], volume: try #require(AudioAppVolume(level: 0.5)), outputUID: output)
     }

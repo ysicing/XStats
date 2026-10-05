@@ -6,6 +6,25 @@ import CoreAudio
 import Testing
 
 struct AudioDSPTests {
+    @Test func accessProbeDiscardsInputAndNeverPlaysItBack() throws {
+        let context = try #require(XSAccessProbeCreate())
+        defer { XSAccessProbeDestroy(context) }
+        #expect(!XSAccessProbeDidRun(context))
+        var source: [Float] = [0.25, -0.5]
+        var destination: [Float] = [99, 99]
+        source.withUnsafeMutableBytes { inputBytes in
+            destination.withUnsafeMutableBytes { outputBytes in
+                var input = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(inputBytes.count), mData: inputBytes.baseAddress))
+                var output = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(outputBytes.count), mData: outputBytes.baseAddress))
+                var timestamp = AudioTimeStamp()
+                #expect(XSAccessProbeRead(0, &timestamp, &input, &timestamp, &output, &timestamp, UnsafeMutableRawPointer(context)) == noErr)
+            }
+        }
+        #expect(XSAccessProbeDidRun(context))
+        #expect(source == [0.25, -0.5])
+        #expect(destination == [0, 0])
+    }
+
     private func format(channels: UInt32 = 1, planar: Bool = false) -> AudioStreamBasicDescription {
         AudioStreamBasicDescription(mSampleRate: 48_000, mFormatID: kAudioFormatLinearPCM,
             mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked | (planar ? kAudioFormatFlagIsNonInterleaved : 0),

@@ -7,6 +7,7 @@
 #include <CoreAudio/CoreAudio.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 // 每个应用对应一条输入到输出的路由；非交错格式按声道分别映射缓冲区。
 typedef struct {
@@ -36,4 +37,14 @@ OSStatus XSVolumeRender(AudioObjectID device, const AudioTimeStamp * _Nonnull no
 
 OSStatus XStatsSetAudioInputUsage(AudioObjectID device, AudioDeviceIOProcID _Nonnull ioProc,
                                 uint32_t hardwareStreams, uint32_t totalStreams);
+
+// 只用于启动权限请求的短暂 IOProc；停止并注销回调后方可释放上下文。
+typedef struct XSAccessProbe *XSAccessProbeRef;
+XSAccessProbeRef _Nullable XSAccessProbeCreate(void);
+bool XSAccessProbeDidRun(XSAccessProbeRef _Nonnull probe);
+void XSAccessProbeDestroy(XSAccessProbeRef _Nullable probe);
+OSStatus XSAccessProbeRead(AudioObjectID device, const AudioTimeStamp * _Nonnull now,
+                         const AudioBufferList * _Nonnull input, const AudioTimeStamp * _Nonnull inputTime,
+                         AudioBufferList * _Nonnull output, const AudioTimeStamp * _Nonnull outputTime,
+                         void * _Nullable context);
 #endif
