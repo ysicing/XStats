@@ -9,7 +9,7 @@
 CPU、メモリ、ネットワーク、温度をひと目で確認し、詳細を開いて推移やアプリの使用状況を見られます。
 AI 使用量、カレンダー、ファン制御、クリーンアップは必要なときに有効にできます。
 
-[![Release](https://img.shields.io/badge/version-0.14.5-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/version-0.15.0-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)

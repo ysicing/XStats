@@ -9,7 +9,7 @@
 CPU, 메모리, 네트워크, 온도를 한눈에 보고, 세부 화면에서 추이와 앱 사용량을 확인하세요.
 AI 사용량, 달력, 팬 제어, 정리 도구는 필요할 때 켤 수 있습니다.
 
-[![Release](https://img.shields.io/badge/version-0.14.5-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/badge/version-0.15.0-6ee02b)](https://github.com/ysicing/xstats/releases)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)

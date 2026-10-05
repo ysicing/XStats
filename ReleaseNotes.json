@@ -1,27 +1,29 @@
 {
-  "version": "0.14.5",
+  "version": "0.15.0",
   "sourceNotes": [
-    "AI 用量支持自选刷新间隔、已用或剩余额度，以及中文万/亿或 K/M/B 数字单位",
-    "新增美元/人民币费用估算，按公开 API 基础单价计算，不含阶梯加价，非订阅账单",
-    "Codex 额度新增套餐标签、有效期进度、可用重置卡和最早到期时间，仅作只读展示",
-    "AI 用量新增小时与每日柱状图，支持今天、最近 7 天、最近 30 天和累计",
-    "改善按钮与分段选项的按压、键盘反馈和文字对比度，优化紧凑布局并适配减少动态效果",
-    "在线更新改用新的区域入口，连接失败时自动切换备用线路",
-    "为支持小时图，升级后的首次刷新会重新统计本地日志，后续仍采用增量读取",
-    "修复累计摘要与图表统计范围不一致的问题，摘要、费用与模型排行统一跟随所选时间范围",
-    "修复英文界面的累计选项仍显示中文的问题，补齐 AI 用量译文并改善长文案和从右到左布局"
+    "新增默认关闭的音频模块，支持系统音量、静音、输入输出设备切换及连接已配对蓝牙设备",
+    "新增显示器信息与外接屏 DDC/CI 控制",
+    "新增 xstats:// 深链，支持启动器调用页面、菜单栏详情、番茄钟与普通防休眠",
+    "菜单栏新增仅图标模式，只保留一个 XStats 入口，展开后查看所选指标",
+    "状态总览改为紧凑指标列表，点击原地展开详情，关闭后释放详情采样需求",
+    "AI 额度支持菜单栏进度条，蓝牙电量遵循文字显示样式，总览网络归属地遵循已有显示偏好",
+    "可选模块统一迁入功能设置页",
+    "菜单栏弹窗新增独立更新入口，发现新版本时可直接打开更新页面",
+    "修正 CPU 核心类型与分工描述，系统热压力仅在异常时突出提示，避免提示变化挤动温度和布局",
+    "修正风扇起步状态与零转速的展示，启动提示最多保留 10 秒，已有风扇转动时不再汇总显示启动中"
   ],
   "translations": {
     "en": [
-      "Choose the AI usage refresh interval, used or remaining quota display, and Chinese or K/M/B number units",
-      "Estimate token costs in USD or CNY using public base API prices, excluding tiered surcharges; these estimates are not subscription bills",
-      "Show the Codex plan, validity progress, available reset credits and their earliest expiry as read-only information",
-      "View hourly usage for today and daily usage for the last 7 or 30 days; menu bar popovers offer these three periods, while the main window retains the annual activity heatmap",
-      "Improve button and segmented-control press and keyboard feedback, text contrast, compact layouts, and Reduce Motion support",
-      "Use the new regional update endpoints and automatically try fallback routes when a connection fails",
-      "The first refresh after upgrading rebuilds local hourly usage statistics and may take longer; subsequent refreshes continue to read changes incrementally",
-      "Keep cumulative summaries, cost estimates, model rankings and charts aligned with the selected time range",
-      "Fix the Cumulative option remaining in Chinese in the English interface, complete AI usage translations, and improve long text and right-to-left layouts"
+      "Add an optional audio module, disabled by default, for system volume, mute, input/output switching and connecting paired Bluetooth devices; on macOS 14.4 or later, permission enables per-app volume (0–200%), mute and independent output, processed locally without recording or uploading audio",
+      "View display resolution, scaled resolution and refresh rate, and adjust external display brightness, contrast and volume when the hardware and connection support DDC/CI",
+      "Use xstats:// links from launchers to open pages and menu bar details, control the Pomodoro timer or start ordinary keep-awake; disabled modules lead to feature settings and are never enabled automatically",
+      "Choose the icon-only menu bar mode to keep a single XStats entry and view selected metrics when opened",
+      "Use a compact overview with details expanding inline; closing details releases their sampling demand, while network rates use a tighter layout and duplicate settings buttons are hidden",
+      "Show AI quota as a menu bar progress bar, apply the chosen text style to Bluetooth battery levels, and respect the existing network location preference in the overview",
+      "Manage processes, Pomodoro, AI usage, audio, cleanup and the menu bar calendar together in Feature Settings while preserving existing configuration",
+      "Open the update page directly from a dedicated menu bar popover button when a new version is available",
+      "Correct CPU core types and workload descriptions, and highlight abnormal system thermal pressure without shifting temperature values or the layout",
+      "Correct fan startup and zero-RPM display: startup hints last at most 10 seconds and the summary stops showing Starting once any fan is spinning"
     ]
   }
 }
