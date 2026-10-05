@@ -23,6 +23,24 @@ private final class PendingDefaultSelection: @unchecked Sendable {
 
 @MainActor
 struct AudioDeviceSwitchTests {
+    @Test func fixedRoutesAreGuardedEvenAtOriginalVolumeOnTheDefaultOutput() throws {
+        let suite = "XStats.AudioFixedRouteTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let controller = AudioController(defaults: defaults)
+        let apps = [
+            AudioApplication(id: "fixed", name: "Fixed", processObjectIDs: [11], isPlaying: true),
+            AudioApplication(id: "native", name: "Native", processObjectIDs: [12], isPlaying: true),
+            AudioApplication(id: "paused", name: "Paused", processObjectIDs: [13], isPlaying: false),
+            AudioApplication(id: "missing", name: "Missing", processObjectIDs: [14], isPlaying: true)
+        ]
+        let output = AudioDeviceInfo(id: 1, uid: "default", name: "Default", hasOutput: true)
+        controller.showPreview(AudioHardwareSnapshot(devices: [output], outputID: 1, inputID: nil, applications: apps),
+                               volumes: [:], outputs: ["fixed":"default", "paused":"default", "missing":"missing"])
+        #expect(controller.volume(for: apps[0]).level == 1)
+        #expect(controller.outputSwitchProcessIDs == [11])
+    }
+
     @Test(arguments: [AudioDirection.input, .output])
     func disablingCancelsAnOrdinaryDeviceSwitchBeforeItsQueuedWrite(direction: AudioDirection) async throws {
         let suite = "XStats.AudioDeviceSwitchTests.\(UUID())"

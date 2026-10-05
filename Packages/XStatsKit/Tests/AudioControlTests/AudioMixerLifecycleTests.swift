@@ -35,7 +35,85 @@ private final class TestPipeline: AudioMixPipeline, @unchecked Sendable {
         if fails { throw AudioControlError.hardware(-1) }
     }
 }
+private final class SlotTestOutputGuard: AudioOutputSwitchGuard {
+    let id: UInt32
+    init(id: UInt32 = 99) { self.id = id }
+    func stop() throws { }
+}
+private final class SlotGuardSequence: @unchecked Sendable {
+    private let lock = NSLock()
+    private var id: UInt32 = 100
+    func next() -> UInt32 { lock.withLock { id += 1; return id } }
+}
 struct AudioMixerLifecycleTests {
+    @Test func finishingAnOldGuardDoesNotClearANewSwitchsReservedSlots() async throws {
+        let log = PipelineLog(), guards = SlotGuardSequence()
+        let client = AudioMixerClient(automaticHealthChecks: false, outputGuardFactory: { _ in SlotTestOutputGuard(id: guards.next()) }) {
+            TestPipeline($0, output: $1, source: $2, log: log)
+        }
+        let existing = try (1...8).map { try target("b\($0)") }
+        try await client.apply(existing, outputUID: "default")
+        let oldGuard = try #require(try await client.prepareOutputSwitch())
+        try await client.apply(existing, outputUID: "usb")
+        let newGuard = try #require(try await client.prepareOutputSwitch(additionalProcessIDs: [2]))
+        try await client.finishOutputSwitch(oldGuard) // 旧操作的晚收尾不能改变新 guard 的预留。
+        let extra = try target("a", output: "default")
+        await #expect(throws: AudioControlError.processingLimit(8)) { try await client.apply(existing + [extra], outputUID: "hdmi") }
+        #expect(await client.unresolvedApplicationIDs() == ["a"])
+        #expect(log.entries.contains("start:b8:hdmi"))
+        try await client.finishOutputSwitch(newGuard)
+        await client.stop()
+    }
+
+    @Test func outputSwitchPreservesSlotsBeforeAdmittingANewFixedRoute() async throws {
+        let log = PipelineLog()
+        let client = AudioMixerClient(automaticHealthChecks: false, outputGuardFactory: { _ in SlotTestOutputGuard() }) {
+            TestPipeline($0, output: $1, source: $2, log: log)
+        }
+        let existing = try (1...8).map { try target("b\($0)") }
+        let fixed = AudioMixTarget(id: "a", processObjectIDs: [2], volume: try #require(AudioAppVolume(level: 1)), outputUID: "default")
+        try await client.apply(existing + [fixed], outputUID: "default")
+        let guardID = try #require(try await client.prepareOutputSwitch(additionalProcessIDs: [2]))
+        await #expect(throws: AudioControlError.processingLimit(8)) { try await client.apply(existing + [fixed], outputUID: "usb") }
+        #expect(await client.unresolvedApplicationIDs() == ["a"])
+        #expect(log.entries.contains("start:b8:usb"))
+        #expect(!log.entries.contains("start:a:default"))
+        try await client.finishOutputSwitch(guardID)
+        await client.stop()
+    }
+
+    @Test func excessiveDemandKeepsExistingPipelinesAndRecoversWhenASlotIsFreed() async throws {
+        let log = PipelineLog()
+        let client = AudioMixerClient(automaticHealthChecks: false) { TestPipeline($0, output: $1, source: $2, log: log) }
+        let existing = try (1...8).map { try target("b\($0)") }
+        try await client.apply(existing, outputUID: "default")
+        let extra = try target("a") // 排序靠前的新应用也不能挤掉已有管线。
+        await #expect(throws: AudioControlError.processingLimit(8)) { try await client.apply(existing + [extra], outputUID: "default") }
+        #expect(!log.entries.contains("start:a:default"))
+        #expect(await client.unresolvedApplicationIDs() == ["a"])
+        await #expect(throws: AudioControlError.processingLimit(8)) { try await client.apply(existing + [extra], outputUID: "default") }
+        #expect(!log.entries.contains("start:a:default"))
+        try await client.apply(Array(existing.dropLast()) + [extra], outputUID: "default")
+        #expect(log.entries.filter { $0 == "start:a:default" }.count == 1)
+        #expect(await client.unresolvedApplicationIDs().isEmpty)
+        #expect(!log.entries.contains("stop:b1:default"))
+        await client.stop()
+    }
+
+    @Test func aFullBatchHonorsTheBoundIncludingDuplicateIDsAndNativePassthrough() async throws {
+        let log = PipelineLog()
+        let client = AudioMixerClient(automaticHealthChecks: false) { TestPipeline($0, output: $1, source: $2, log: log) }
+        let apps = try (1...30).map { try target(String(format: "app%02d", $0)) }
+        let native = AudioMixTarget(id: "native", processObjectIDs: [2], volume: try #require(AudioAppVolume(level: 1)))
+        await #expect(throws: AudioControlError.processingLimit(8)) { try await client.apply(apps + [apps[0], native], outputUID: "default") }
+        #expect(log.entries.filter { $0.hasPrefix("start:") }.count == 8)
+        #expect(await client.unresolvedApplicationIDs().count == 22)
+        await client.stop()
+        try await client.apply([apps.last!], outputUID: "default")
+        #expect(await client.unresolvedApplicationIDs().isEmpty)
+        await client.stop()
+    }
+
     @Test func aFailedRouteStillUpdatesTheRetainedPipelinesGainWithoutRetrying() async throws {
         let log = PipelineLog()
         let client = AudioMixerClient(automaticHealthChecks: false) {

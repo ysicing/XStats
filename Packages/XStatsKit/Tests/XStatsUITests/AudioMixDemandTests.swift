@@ -15,9 +15,9 @@ struct AudioPlaybackGraceTests {
         let playingExpiry = grace.update([app("a", playing: true)], now: start)
         #expect(playingExpiry == nil, "播放中的应用不需要到期唤醒")
         let expiry = grace.update([app("a", playing: false)], now: start + .seconds(10))
-        #expect(expiry == start + AudioPlaybackGrace.duration, "到期时间从最后一次播放算起，而不是暂停被发现的时间")
+        #expect(expiry == start + .seconds(10) + AudioPlaybackGrace.duration)
         #expect(grace.contains("a"))
-        let expiredExpiry = grace.update([app("a", playing: false)], now: start + AudioPlaybackGrace.duration)
+        let expiredExpiry = grace.update([app("a", playing: false)], now: start + .seconds(10) + AudioPlaybackGrace.duration)
         #expect(expiredExpiry == nil)
         #expect(!grace.contains("a"), "宽限期结束后应释放空闲 tap")
     }
@@ -28,7 +28,7 @@ struct AudioPlaybackGraceTests {
         _ = grace.update([app("a", playing: true)], now: start)
         _ = grace.update([app("a", playing: true)], now: start + .seconds(50))
         let expiry = grace.update([app("a", playing: false)], now: start + .seconds(55))
-        #expect(expiry == start + .seconds(50) + AudioPlaybackGrace.duration)
+        #expect(expiry == start + .seconds(55) + AudioPlaybackGrace.duration)
         #expect(grace.contains("a"))
     }
 
@@ -50,9 +50,21 @@ struct AudioPlaybackGraceTests {
         _ = grace.update([app("a", playing: true)], now: start)
         _ = grace.update([app("a", playing: false), app("b", playing: true)], now: start + .seconds(20))
         let expiry = grace.update([app("a", playing: false), app("b", playing: false)], now: start + .seconds(30))
-        #expect(expiry == start + AudioPlaybackGrace.duration)
+        #expect(expiry == start + .seconds(20) + AudioPlaybackGrace.duration)
         grace.reset()
         #expect(!grace.contains("a") && !grace.contains("b"))
+    }
+
+    @Test func longPlaybackStartsAFreshGraceAtThePauseTransition() {
+        var grace = AudioPlaybackGrace()
+        let start = ContinuousClock.now
+        _ = grace.update([app("a", playing: true)], now: start)
+        let pause = start + .seconds(120)
+        #expect(grace.update([app("a", playing: false)], now: pause) == pause + AudioPlaybackGrace.duration)
+        #expect(grace.contains("a"))
+        #expect(grace.update([app("a", playing: false)], now: pause + .seconds(30)) == pause + AudioPlaybackGrace.duration)
+        #expect(grace.update([app("a", playing: false)], now: pause + AudioPlaybackGrace.duration) == nil)
+        #expect(!grace.contains("a"))
     }
 }
 

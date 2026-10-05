@@ -52,6 +52,7 @@ struct AudioMixerContent: View {
         switch error {
         case .permissionRequired: tr("请在系统设置的屏幕与系统音频录制中允许 XStats，然后重新开启应用音量。")
         case .renderStalled: tr("应用音频未恢复，已停止自动重试。")
+        case .processingLimit(let limit): tr("最多同时处理 \(limit) 个应用，请恢复部分应用的原始音量或默认输出。")
         case .routeChanged: tr("音频设备已变化，请重试。")
         case .unsupportedFormat: tr("当前输出格式不支持应用音量，请切换音频设备。")
         case .unsupported: tr("此设备不支持该控制。")
@@ -194,57 +195,66 @@ struct AudioApplicationRow: View {
                     else { Image(systemName: "app.fill").resizable().foregroundStyle(DS.Palette.textSecondary) }
                 }.frame(width: 20, height: 20).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: app.name).dsFont(.sm, weight: .medium).lineLimit(1)
-                    if volume.isMuted { Text(tr("已静音")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary) }
-                    else if !app.isPlaying { Text(tr("已暂停")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary) }
+                    Text(verbatim: app.name).dsFont(.sm, weight: .medium).lineLimit(1).help(app.name)
+                    // 状态共用同一行：播放、暂停及报错切换时不移动正在操作的滑块。
+                    Group {
+                        if model.audio.unresolvedApps.contains(app.id) {
+                            Text(tr("音量或输出控制未生效。")).foregroundStyle(DS.Palette.error)
+                                .help(tr("音量或输出控制未生效。"))
+                        } else if app.isPlaying && model.audio.pendingOutputApps.contains(app.id) {
+                            AudioSwitchingFeedback(text: tr("正在切换输出…"))
+                        } else if model.audio.failedOutputApps.contains(app.id) {
+                            Text(tr("输出切换未完成，请重试。")).foregroundStyle(DS.Palette.error)
+                                .help(tr("输出切换未完成，请重试。"))
+                        } else {
+                            HStack(spacing: DS.Space.s1) {
+                                if volume.isMuted { Text(tr("已静音")) }
+                                else if !app.isPlaying { Text(tr("当前未播放")) }
+                                if let uid = model.audio.outputRoutes[app.id] {
+                                    if volume.isMuted || !app.isPlaying { Text("·") }
+                                    let outputName = model.audio.snapshot.devices.first { $0.uid == uid && $0.hasOutput }?.name
+                                        ?? tr("设备不可用，使用系统默认")
+                                    Text(verbatim: outputName).help(outputName)
+                                } else if app.isPlaying && !volume.isMuted { Text(tr("系统默认输出")) }
+                            }.foregroundStyle(DS.Palette.textSecondary)
+                        }
+                    }.dsFont(.xs).lineLimit(1).frame(height: DS.Size.iconInline, alignment: .leading)
                 }
                 Spacer(minLength: DS.Space.s1)
                 Text(verbatim: volume.level.formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
                     .dsFont(.sm, weight: .medium).monospacedDigit()
                     .foregroundStyle(volume.isMuted ? DS.Palette.textSecondary : volume.level > 1 ? DS.Palette.warning : DS.Palette.textPrimary)
                     .fixedSize().accessibilityHidden(true)
-                HStack(spacing: DS.Space.s1) {
-                    MiniIconButton(systemName: volume.isMuted ? "speaker.slash" : "speaker.wave.2",
-                                   help: volume.isMuted ? tr("取消“\(app.name)”静音") : tr("静音“\(app.name)”")) { model.audio.toggleAppMute(app) }
-                    // 始终保留重置槽位；调整音量后静音按钮不改位置。
-                    MiniIconButton(systemName: "arrow.counterclockwise", help: tr("恢复“\(app.name)”的原始音量与默认输出")) {
+                MiniIconButton(systemName: volume.isMuted ? "speaker.slash" : "speaker.wave.2",
+                               help: volume.isMuted ? tr("取消“\(app.name)”静音") : tr("静音“\(app.name)”")) { model.audio.toggleAppMute(app) }
+                Menu {
+                    Picker(tr("\(app.name) 输出设备"), selection: Binding(get: { model.audio.outputRoutes[app.id] ?? "" }, set: {
+                        model.audio.setAppOutput($0.isEmpty ? nil : $0, app: app)
+                    })) {
+                        Text(tr("系统默认输出")).tag("")
+                        if let selected = model.audio.outputRoutes[app.id], !model.audio.snapshot.devices.contains(where: { $0.uid == selected && $0.hasOutput }) {
+                            Text(tr("设备不可用，使用系统默认")).tag(selected)
+                        }
+                        ForEach(model.audio.snapshot.devices.filter(\.hasOutput)) { Text(verbatim: $0.name).tag($0.uid) }
+                    }
+                    Divider()
+                    Button(tr("恢复“\(app.name)”的原始音量与默认输出"), systemImage: "arrow.counterclockwise") {
                         model.audio.resetApp(app)
-                    }.disabled(!resettable).opacity(resettable ? 1 : 0.4)
+                    }.disabled(!resettable)
+                } label: {
+                    Label(tr("\(app.name) 音频选项"), systemImage: "ellipsis")
+                        .labelStyle(.iconOnly).dsFont(.xs)
+                        .frame(width: DS.Size.segmentHeight, height: DS.Size.segmentHeight)
+                        .contentShape(Rectangle())
                 }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .help(tr("\(app.name) 音频选项"))
             }
             Slider(value: Binding(get: { volume.level }, set: { model.audio.setAppLevel($0, app: app) }), in: 0...2)
                 .controlSize(.small).tint(volume.isMuted ? DS.Palette.textSecondary : volume.level > 1 ? DS.Palette.warning : DS.Palette.primary)
                 .accessibilityLabel(tr("\(app.name) 音量"))
                 .accessibilityValue(volume.level.formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
-            ZStack {
-                HStack {
-                    Text(verbatim: Double(0).formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
-                    Spacer()
-                    Text(verbatim: Double(2).formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
-                }
-                Text(tr("\(Double(1).formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale))) · 原始音量"))
-                    .fontWeight(.medium)
-            }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary).accessibilityHidden(true)
-            HStack(spacing: DS.Space.s1) {
-                Image(systemName: "speaker.wave.2").foregroundStyle(DS.Palette.textSecondary).accessibilityHidden(true)
-                Picker(tr("\(app.name) 输出设备"), selection: Binding(get: { model.audio.outputRoutes[app.id] ?? "" }, set: {
-                    model.audio.setAppOutput($0.isEmpty ? nil : $0, app: app)
-                })) {
-                    Text(tr("系统默认输出")).tag("")
-                    if let selected = model.audio.outputRoutes[app.id], !model.audio.snapshot.devices.contains(where: { $0.uid == selected && $0.hasOutput }) {
-                        Text(tr("设备不可用，使用系统默认")).tag(selected)
-                    }
-                    ForEach(model.audio.snapshot.devices.filter(\.hasOutput)) { Text(verbatim: $0.name).tag($0.uid) }
-                }.labelsHidden().pickerStyle(.menu).controlSize(.small)
-            }.dsFont(.xs)
-            Group {
-                if app.isPlaying && model.audio.pendingOutputApps.contains(app.id) { AudioSwitchingFeedback(text: tr("正在切换输出…")) }
-                else if model.audio.failedOutputApps.contains(app.id) {
-                    Text(tr("输出切换未完成，请重试。")).dsFont(.xs).foregroundStyle(DS.Palette.error).lineLimit(1)
-                        .help(tr("输出切换未完成，请重试。"))
-                } else { Text(" ").dsFont(.xs).accessibilityHidden(true) }
-            }.frame(minHeight: DS.Size.iconInline)
-
+                .help(tr("应用音量支持 0–200%；高增益时自动限制峰值，不改变系统音量。"))
         }
         .padding(.vertical, isPopover ? DS.Space.s1 : DS.Space.s2).disabled(model.audio.isWorking)
         .task(id: app.bundleURL) {

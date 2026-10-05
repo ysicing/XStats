@@ -19,6 +19,7 @@ final class AudioController {
     private(set) var connectingBluetooth: String?
     private(set) var pendingOutputApps: Set<String> = []
     private(set) var failedOutputApps: Set<String> = []
+    private(set) var unresolvedApps: Set<String> = []
     private var operationError: AudioControlError?
     private var mixingError: AudioControlError?
     var error: AudioControlError? { operationError ?? mixingError }
@@ -28,7 +29,10 @@ final class AudioController {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let hardware: AudioHardwareClient
     @ObservationIgnored private let mixer: AudioMixerClient
-    @ObservationIgnored private let bluetooth = BluetoothAudioClient()
+    @ObservationIgnored private let bluetooth: BluetoothAudioClient
+    @ObservationIgnored private let activationNotifications: NotificationCenter
+    @ObservationIgnored private var activationObserver: NSObjectProtocol?
+    @ObservationIgnored private var bluetoothRefreshGeneration: UInt64 = 0
     @ObservationIgnored private var bluetoothRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var operationTask: Task<Void, Never>?
     @ObservationIgnored private var operationRevision: UInt64 = 0
@@ -52,10 +56,12 @@ final class AudioController {
     var listedApplications: [AudioApplication] { applicationList.visible(snapshot.applications, volumes: volumes, outputs: outputRoutes) }
     private var hasSavedAdjustments: Bool { volumes.values.contains(where: \.needsProcessing) || !outputRoutes.isEmpty }
 
-    init(defaults: UserDefaults = .standard, mixer: AudioMixerClient = AudioMixerClient(), hardware: AudioHardwareClient = AudioHardwareClient()) {
+    init(defaults: UserDefaults = .standard, mixer: AudioMixerClient = AudioMixerClient(), hardware: AudioHardwareClient = AudioHardwareClient(),
+         bluetooth: BluetoothAudioClient = BluetoothAudioClient(), activationNotifications: NotificationCenter = .default) {
         self.defaults = defaults
         self.mixer = mixer
         self.hardware = hardware
+        self.bluetooth = bluetooth; self.activationNotifications = activationNotifications
         let activationKey = "audio.appVolumeEnabled"
         let savedActivation = defaults.object(forKey: activationKey) == nil
             ? defaults.bool(forKey: "audio.captureAuthorized") : defaults.bool(forKey: activationKey)
@@ -135,8 +141,11 @@ final class AudioController {
 
     private func refreshBluetoothDevices() {
         bluetoothRefreshTask?.cancel()
+        bluetoothRefreshGeneration &+= 1
+        let generation = bluetoothRefreshGeneration
         bluetoothRefreshTask = Task { [weak self] in
             guard let self else { return }
+            defer { if bluetoothRefreshGeneration == generation { bluetoothRefreshTask = nil } }
             do {
                 let devices = try await bluetooth.pairedDevices()
                 guard !Task.isCancelled, enabled, visible, !sleeping else { return }
@@ -157,9 +166,11 @@ final class AudioController {
     }
 
     private func updateWatchers() {
+        updateBluetoothActivationObserver()
         refreshTask?.cancel()
         let epoch = revision
         if !enabled || sleeping {
+            unresolvedApps.removeAll()
             pendingOutputApps.removeAll(); failedOutputApps.removeAll()
             switchingDevice = nil; isAuthorizing = false
             volumeWriter.cancelPending()
@@ -176,7 +187,7 @@ final class AudioController {
         installSleepObservers()
         let watchesApps = visible || (appVolumeEnabled && hasSavedAdjustments)
         if visible || menuVisible || watchesApps {
-            hardware.watch(applications: watchesApps) { [weak self] in
+            hardware.watch(applications: watchesApps, applicationRefreshInterval: visible ? 1 : 2) { [weak self] in
                 Task { @MainActor [weak self] in self?.scheduleRefresh() }
             }
             scheduleRefresh(immediate: true)
@@ -185,6 +196,21 @@ final class AudioController {
             Task { [weak self] in
                 guard let self, revision == epoch else { return }
                 await mixer.stop()
+            }
+        }
+    }
+
+    private func updateBluetoothActivationObserver() {
+        guard enabled, visible, !sleeping else {
+            if let activationObserver { activationNotifications.removeObserver(activationObserver); self.activationObserver = nil }
+            return
+        }
+        guard activationObserver == nil else { return }
+        activationObserver = activationNotifications.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.enabled, self.visible, !self.sleeping, self.operationError == .bluetoothPermissionRequired,
+                      self.bluetoothRefreshTask == nil else { return }
+                self.refreshBluetoothDevices()
             }
         }
     }
@@ -343,6 +369,7 @@ final class AudioController {
     }
 
     private func finishOutputSwitches(unresolved: Set<String>) {
+        unresolvedApps = unresolved
         // 保留仍未落实的行；成功应用和成功重试都从实际结果清除，避免归咎整个批次。
         failedOutputApps = pendingOutputApps.union(failedOutputApps).intersection(unresolved)
         pendingOutputApps.removeAll()
@@ -390,7 +417,7 @@ final class AudioController {
 
     private func switchDevice(_ device: AudioDeviceInfo, direction: AudioDirection, command: UInt64) async throws {
         guard operationIsCurrent(command) else { throw CancellationError() }
-        let guardTap = direction == .output ? try await mixer.prepareOutputSwitch() : nil
+        let guardTap = direction == .output ? try await mixer.prepareOutputSwitch(additionalProcessIDs: outputSwitchProcessIDs) : nil
         guard operationIsCurrent(command) else { try? await mixer.finishOutputSwitch(guardTap); throw CancellationError() }
         do {
             try await hardware.select(device, direction: direction)
@@ -418,6 +445,14 @@ final class AudioController {
             try? await mixer.finishOutputSwitch(guardTap)
             throw error
         }
+    }
+
+    /// 100% 且指定了当前默认输出的应用无需常驻管线，但切换默认输出时同样需要保护。
+    var outputSwitchProcessIDs: [UInt32] {
+        guard appVolumeEnabled else { return [] }
+        return snapshot.applications.filter { app in
+            app.isPlaying && outputRoutes[app.id].map { uid in snapshot.devices.contains { $0.uid == uid && $0.hasOutput } } == true
+        }.flatMap(\.processObjectIDs)
     }
 
     private func perform(switching direction: AudioDirection? = nil, bluetoothID: String? = nil, _ operation: @escaping @MainActor () async throws -> Void) {
@@ -473,6 +508,8 @@ final class AudioController {
 
     func stop() {
         enabled = false
+        updateBluetoothActivationObserver()
+        unresolvedApps.removeAll()
         applicationList.reset()
         cancelPendingAudioOperation()
         bluetoothRefreshTask?.cancel(); bluetoothRefreshTask = nil; bluetoothDevices = []

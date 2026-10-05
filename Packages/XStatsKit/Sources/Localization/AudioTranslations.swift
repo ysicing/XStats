@@ -26,7 +26,7 @@ extension Translations {
 暂无正在播放或已调整音量的应用	No apps are playing audio or have volume adjustments
 重试应用音频	Retry app audio
 应用音频未恢复，已停止自动重试。	App audio could not be restored. Automatic retries have stopped.
-已暂停	Paused
+当前未播放	Not currently playing
 应用输出设备	App output device
 系统默认输出	System default output
 设备不可用，使用系统默认	Device unavailable; using system default
@@ -45,7 +45,6 @@ extension Translations {
 恢复“{}”的原始音量与默认输出	Restore original volume and default output for {}
 {} 音量	{} volume
 {} 输出设备	{} output device
-{} · 原始音量	{} · Original volume
 已静音	Muted
 {} · 未连接	{} · Not connected
 正在连接“{}”…	Connecting to {}…
@@ -53,5 +52,8 @@ extension Translations {
 请在系统设置的隐私与安全性中允许 XStats 使用蓝牙。	Allow XStats to use Bluetooth under Privacy & Security in System Settings.
 无法连接蓝牙设备，请确认设备已开启且在附近，然后重试。	Could not connect to the Bluetooth device. Make sure it is on and nearby, then try again.
 蓝牙音频未就绪，请确认设备支持所选的输入或输出，然后重试。	Bluetooth audio is not ready. Make sure the device supports the selected input or output, then try again.
+最多同时处理 {} 个应用，请恢复部分应用的原始音量或默认输出。	Up to {} apps can be processed at once. Restore original volume or default output for some apps.
+音量或输出控制未生效。	Volume or output control has not taken effect.
+{} 音频选项	{} audio options
 """#
 }

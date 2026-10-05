@@ -181,12 +181,16 @@ enum AudioHAL {
         return AudioObjectGetPropertyData(stream, &property, 0, nil, &size, &format) == noErr ? format : nil
     }
 
-    static func applications() -> [AudioApplication] {
-        guard #available(macOS 14.4, *) else { return [] }
+    static func applicationSnapshot() -> (applications: [AudioApplication], activity: [UInt32]) {
+        guard #available(macOS 14.4, *) else { return ([], []) }
         var groups: [String: (name: String, url: URL?, ids: [AudioObjectID], playing: Bool)] = [:]
-        for object in ids(system, kAudioHardwarePropertyProcessObjectList) ?? [] {
-            guard let pid = uint(object, kAudioProcessPropertyPID), pid != UInt32(ProcessInfo.processInfo.processIdentifier),
-                  let app = NSRunningApplication(processIdentifier: pid_t(pid)) else { continue }
+        var activity: [UInt32] = []
+        for object in (ids(system, kAudioHardwarePropertyProcessObjectList) ?? []).sorted() {
+            let pid = uint(object, kAudioProcessPropertyPID) ?? 0
+            guard pid != UInt32(ProcessInfo.processInfo.processIdentifier) else { continue }
+            let output = uint(object, kAudioProcessPropertyIsRunningOutput) ?? UInt32.max
+            activity += [object, pid, output]
+            guard pid != 0, let app = NSRunningApplication(processIdentifier: pid_t(pid)) else { continue }
             var url = app.bundleURL
             // 浏览器等辅助进程归到最外层应用包，避免给同一应用显示多个滑杆。
             if let child = url {
@@ -202,12 +206,23 @@ enum AudioHAL {
             let identifier = bundle?.bundleIdentifier ?? app.bundleIdentifier ?? "pid:\(pid):\(object)"
             let name = (bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
                 ?? (bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? app.localizedName ?? identifier
-            let playing = uint(object, kAudioProcessPropertyIsRunningOutput) == 1
+            let playing = output == 1
             if var existing = groups[identifier] { existing.ids.append(object); existing.playing = existing.playing || playing; groups[identifier] = existing }
             else { groups[identifier] = (name, url, [object], playing) }
         }
-        return groups.map { AudioApplication(id: $0.key, name: $0.value.name, bundleURL: $0.value.url,
+        let applications = groups.map { AudioApplication(id: $0.key, name: $0.value.name, bundleURL: $0.value.url,
                                              processObjectIDs: $0.value.ids.sorted(), isPlaying: $0.value.playing) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return (applications, activity)
+    }
+
+    /// 只读连接身份与播放标记，不加载应用包或枚举音频设备，供通知遗漏时做轻量校验。
+    static func applicationActivity() -> [UInt32] {
+        guard #available(macOS 14.4, *) else { return [] }
+        return (ids(system, kAudioHardwarePropertyProcessObjectList) ?? []).sorted().flatMap { object in
+            let pid = uint(object, kAudioProcessPropertyPID) ?? 0
+            guard pid != UInt32(ProcessInfo.processInfo.processIdentifier) else { return [UInt32]() }
+            return [object, pid, uint(object, kAudioProcessPropertyIsRunningOutput) ?? UInt32.max]
+        }
     }
 }
