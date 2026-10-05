@@ -106,12 +106,16 @@ private struct OverviewMetricRow: View {
                             }
                         }
                         if !expanded {
-                            Text(verbatim: reading.detail)
-                                .dsFont(item == .network ? .sm : .xs)
-                                .foregroundStyle(item == .network ? DS.Palette.textPrimary : DS.Palette.textSecondary)
-                                .monospacedDigit()
-                                .lineLimit(2)
-                                .fixedSize(horizontal: false, vertical: true)
+                            if let rates = reading.networkRates {
+                                OverviewNetworkRates(download: rates.download, upload: rates.upload)
+                            } else {
+                                Text(verbatim: reading.detail)
+                                    .dsFont(.xs)
+                                    .foregroundStyle(DS.Palette.textSecondary)
+                                    .monospacedDigit()
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -221,6 +225,7 @@ struct OverviewReading {
     var tone = Tone.neutral
     var chart = Chart.none
     var networkLocation: (style: NetworkLocationStyle, code: String)?
+    var networkRates: (download: String, upload: String)?
 
     var hasChart: Bool {
         if case .none = chart { return false }
@@ -262,15 +267,14 @@ struct OverviewReading {
                 detail = memory.pressure == .normal ? usage : tr("压力 \(memory.pressure.title)") + " · " + usage
             }
         case .network:
+            symbol = "network"
             // 与菜单栏共用开关、地址族和缓存结果；总览只读，不触发额外公网查询。
             let menuReading = MenuBarReading(model: model, items: [.network])
             if menuReading.networkLocationStyle != .off, let code = menuReading.networkCountryCode {
                 networkLocation = (menuReading.networkLocationStyle, code)
             }
-            detail = "↑ —  ↓ —"
-            if let rate = store.network {
-                detail = "↑ \(Format.menuBarRate(rate.uploadBytesPerSecond))  ↓ \(Format.menuBarRate(rate.downloadBytesPerSecond))"
-            }
+            networkRates = (store.network.map { Format.menuBarRate($0.downloadBytesPerSecond) } ?? "— KB/s",
+                            store.network.map { Format.menuBarRate($0.uploadBytesPerSecond) } ?? "— KB/s")
         case .gpu:
             chart = .line(store.gpuHistory.elements, DS.Palette.secondary)
             if let gpu = store.gpu {
