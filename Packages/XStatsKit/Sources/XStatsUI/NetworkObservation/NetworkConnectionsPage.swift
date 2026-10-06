@@ -72,7 +72,7 @@ struct NetworkConnectionsPage: View {
     private var visibleRecords: [ObservedConnection] {
         monitor.records.filter { !activeOnly || monitor.activeConnectionIDs.contains($0.id) }
     }
-    private var groups: [NetworkConnectionGroup] {
+    private var currentGroups: [NetworkConnectionGroup] {
         if grouping == .apps { return NetworkConnectionGroup.make(records: visibleRecords, query: search) }
         let matching = NetworkConnectionGroup.make(records: visibleRecords, query: search).flatMap(\.records)
         if grouping == .process {
@@ -92,18 +92,16 @@ struct NetworkConnectionsPage: View {
             return order == .orderedSame ? $0.id < $1.id : order == .orderedAscending
         }
     }
-    private var selectedGroup: NetworkConnectionGroup? {
-        NetworkConnectionGroup.selected(in: groups, id: selection)
-    }
-
     var body: some View {
+        // 分组需过滤、分组和本地化排序；每次渲染只计算一次，再传给子视图。
+        let groups = currentGroups
         VStack(spacing: 0) {
             toolbar
             if monitor.status != .running && monitor.status != .preview { setup }
             if monitor.status == .running || monitor.status == .preview || !monitor.records.isEmpty {
                 HSplitView {
-                    groupList.frame(minWidth: 190, idealWidth: 220, maxWidth: 280)
-                    connectionDetail.frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
+                    groupList(groups).frame(minWidth: 190, idealWidth: 220, maxWidth: 280)
+                    connectionDetail(NetworkConnectionGroup.selected(in: groups, id: selection)).frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else { Spacer(minLength: 0) }
         }
@@ -160,7 +158,7 @@ struct NetworkConnectionsPage: View {
         }.padding(.horizontal, DS.Space.s4).padding(.vertical, DS.Space.s2)
     }
 
-    private var groupList: some View {
+    private func groupList(_ groups: [NetworkConnectionGroup]) -> some View {
         VStack(alignment: .leading, spacing: DS.Space.s3) {
             HStack {
                 Picker(tr("汇总方式"), selection: Binding(get: { grouping }, set: { grouping = $0; selection = nil })) {
@@ -250,8 +248,7 @@ struct NetworkConnectionsPage: View {
         }.padding(.horizontal, DS.Space.s3).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s3)
     }
 
-    private var connectionDetail: some View {
-        let selected = selectedGroup
+    private func connectionDetail(_ selected: NetworkConnectionGroup?) -> some View {
         let records = selected?.records ?? []
         return VStack(alignment: .leading, spacing: DS.Space.s4) {
             HStack(spacing: DS.Space.s3) {
@@ -381,9 +378,13 @@ struct NetworkConnectionsPage: View {
             if monitor.status == .needsApproval {
                 Text(tr("请在系统设置中允许 XStats 网络扩展，然后返回此处。"))
                     .dsFont(.sm).fixedSize(horizontal: false, vertical: true)
-                Button(tr("打开系统设置")) {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.ExtensionsPreferences") { NSWorkspace.shared.open(url) }
-                }.buttonStyle(DSButtonStyle(kind: .primary))
+                HStack(spacing: DS.Space.s2) {
+                    Button(tr("打开系统设置")) {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.ExtensionsPreferences") { NSWorkspace.shared.open(url) }
+                    }.buttonStyle(DSButtonStyle(kind: .primary))
+                    Button(tr("启用连接查看")) { monitor.start() }
+                        .buttonStyle(DSButtonStyle(kind: .ghost)).disabled(monitor.isBusy)
+                }
             } else if monitor.status == .restartRequired {
                 Text(tr("需要重启系统")).foregroundStyle(DS.Palette.warning)
             } else {

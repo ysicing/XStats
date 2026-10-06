@@ -7,7 +7,6 @@ import Network
 import NetworkExtension
 import NetworkObservation
 import OSLog
-import Security
 
 /// filterData 设置仅请求新流元数据回调；任何状态/错误均给 allow verdict，不请求通信内容。
 final class ConnectionFilterProvider: NEFilterDataProvider, @unchecked Sendable {
@@ -15,13 +14,7 @@ final class ConnectionFilterProvider: NEFilterDataProvider, @unchecked Sendable 
     static let host: ObservationServiceHost = {
         let configuration = Bundle.main.object(forInfoDictionaryKey: "NetworkExtension") as? [String: Any]
         let listener = NSXPCListener(machServiceName: configuration?["NEMachServiceName"] as? String ?? "")
-        var ownCode: SecCode?
-        var staticCode: SecStaticCode?
-        var information: CFDictionary?
-        guard SecCodeCopySelf([], &ownCode) == errSecSuccess, let ownCode,
-              SecCodeCopyStaticCode(ownCode, [], &staticCode) == errSecSuccess, let staticCode,
-              SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
-              let team = (information as? [String: Any])?[kSecCodeInfoTeamIdentifier as String] as? String else {
+        guard let team = try? NetworkCodeIdentity.currentTeam() else {
             fatalError("Network observation requires a signed system extension")
         }
         return ObservationServiceHost(listener: listener,

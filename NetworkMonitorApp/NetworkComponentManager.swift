@@ -99,7 +99,10 @@ import Updates
         let deadline = clock.now.advanced(by: .seconds(10))
         repeat {
             try Task.checkCancellation()
-            if try await filterIsStopped(service: service) { return wasEnabled }
+            do { if try await filterIsStopped(service: service) { return wasEnabled } }
+            catch is CancellationError { throw CancellationError() }
+            // 停用过滤器可能让扩展进程退出或重启；丢弃失效连接，在 deadline 内重试。
+            catch { stopReading() }
             try await Task.sleep(for: .milliseconds(250), tolerance: .milliseconds(50))
         } while clock.now < deadline
         throw NetworkMonitorError.timeout
