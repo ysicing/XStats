@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>zh-Hans</string>
 	<key>CFBundleDisplayName</key>
-	<string>XStats</string>
+	<string>XStats Network Monitor</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -25,24 +25,11 @@
 		<string>ar</string>
 	</array>
 	<key>CFBundleName</key>
-	<string>XStats</string>
+	<string>XStats Network Monitor</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>CFBundleURLName</key>
-			<string>work.12306.xstats.app</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>xstats</string>
-			</array>
-		</dict>
-	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSApplicationCategoryType</key>
@@ -51,22 +38,24 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>NSAudioCaptureUsageDescription</key>
-	<string>在本机实时调节应用音量，不录制、保存或上传声音。</string>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>显示已配对的蓝牙音频设备，并在您选择时连接设备。</string>
-	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>在本机日历面板显示您选择的系统日程，不修改或上传日程内容。</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 XStats</string>
-	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>在本机日历面板显示您选择的到期提醒，不修改或上传提醒内容。</string>
+	<key>NSSystemExtensionUsageDescription</key>
+	<string>只在本机查看应用的网络连接，不阻断连接或读取通信内容。</string>
+	<key>NetworkObservationExtensionBuild</key>
+	<string>$(NETWORK_EXTENSION_BUILD)</string>
+	<key>NetworkObservationExtensionVersion</key>
+	<string>$(NETWORK_EXTENSION_VERSION)</string>
+	<key>NetworkObservationMachService</key>
+	<string>$(TeamIdentifierPrefix)work.12306.xstats.network-observation.ipc.$(NETWORK_EXTENSION_BUILD)</string>
 	<key>SUAutomaticallyUpdate</key>
 	<false/>
 	<key>SUEnableAutomaticChecks</key>
 	<false/>
 	<key>SUEnableSystemProfiling</key>
 	<false/>
+	<key>SUFeedURL</key>
+	<string>https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>j/I8zd8BXz4oPldnhocEySXTMmXPxKMyBRwoA4ewLIk=</string>
 	<key>SURequireSignedFeed</key>

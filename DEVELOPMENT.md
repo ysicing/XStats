@@ -78,7 +78,8 @@ task clean                          # 删除 build/
 |---|---|
 | 主应用 Bundle ID | `work.12306.xstats.app` |
 | Widget Bundle ID | `work.12306.xstats.app.widget` |
-| App Group | `group.work.12306.xstats` |
+| Widget App Group | `group.work.12306.xstats` |
+| 观察 IPC App Group | `$(TeamIdentifierPrefix)work.12306.xstats.network-observation` |
 | 主应用 profile 名称 | 环境变量 `XSTATS_APP_PROFILE` |
 | Widget profile 名称 | 环境变量 `XSTATS_WIDGET_PROFILE` |
 
@@ -95,28 +96,44 @@ task compile CONFIG=Debug
 
 “功能 → 网络监视器”仅在 macOS 15 及以上开放，默认关闭。macOS 14 不显示入口，
 保留原有功能；即使旧偏好或备份包含开启状态，也不会激活扩展。进入页面后
-点击“启用连接查看”，再按 macOS 提示批准
-系统扩展与网络过滤。首版统一放行，只记录新连接的元数据与结束状态，不读取通信内容。
+点击“启用连接查看”时，主应用按需从 c-ip 下载并验证独立组件，安装到
+`/Applications/XStats Network Monitor.app`。组件负责系统扩展激活和过滤器配置，
+再按 macOS 提示批准系统扩展与网络过滤。主 `XStats.app` 不嵌入网络扩展，
+不携带 System Extension 安装或 Network Extension 权限。首版统一放行，
+只记录新连接的元数据与结束状态，不读取通信内容。
 默认按应用查看，也可按进程、域名或国家切换连接数汇总；国家地图首次使用时从 c-ip 下载 DB-IP Lite 压缩国家表，校验后在本机离线查询，
 同国家聚合显示数量，不表示精确设备位置。仅包含观察期间的新连接，不枚举观察开始前
 已存在的连接；有界缓存满时不声称覆盖全部系统连接。
 暂停保留画面并停止读取，恢复时以新租约观察；关闭页面或锁屏停止观察；关闭模块保存过滤器关闭状态。移除前使用页面内的
 “更多 → 移除网络扩展”，系统若报告待重启则先重启，再删除应用包。
 
-签名配置需要与 Developer ID 团队匹配的新 profiles，现有仅带 App Group 的 profiles
-不能用于这个构建：
+主应用、独立组件和扩展必须使用同一 Developer ID 团队；组件与扩展需要匹配权限的新 profiles：
 
-- 主应用 `work.12306.xstats.app`：Network Extensions 与 System Extension 安装权限，
-  保留已有 App Group、日历权限；通过 `XSTATS_APP_PROFILE` 选择。
+- 主应用 `work.12306.xstats.app`：保留 Widget App Group、观察 IPC App Group 与日历权限；
+  不需要 Network Extensions 或 System Extension 安装权限，仍通过 `XSTATS_APP_PROFILE` 选择。
+- 独立组件 `work.12306.xstats.networkmonitor`：Network Extensions、System Extension 安装权限和
+  观察 IPC App Group，通过 `XSTATS_COMPONENT_PROFILE` 选择；最低 macOS 15。
 - 网络扩展 `work.12306.xstats.app.networkextension`：
-  `content-filter-provider-systemextension`；通过 `XSTATS_NETWORK_PROFILE` 选择。
-- Widget 继续使用 `XSTATS_WIDGET_PROFILE`。
+  `content-filter-provider-systemextension` 与观察 IPC App Group，通过 `XSTATS_NETWORK_PROFILE` 选择。
+- Widget 继续使用 `XSTATS_WIDGET_PROFILE` 和原 Widget App Group；组件不包含 Widget 或 helper。
 
 ```bash
-XSTATS_APP_PROFILE='主应用 profile 名称' \
-XSTATS_NETWORK_PROFILE='网络扩展 profile 名称' \
-XSTATS_WIDGET_PROFILE='Widget profile 名称' task build BUMP=0 INSTALL=0
+task build-network-component SIGN_ID=- CONFIG=Debug  # ad-hoc 编译/分层签名，不安装、不推进版本
+XSTATS_COMPONENT_PROFILE='xstats-network-monitor' \
+XSTATS_NETWORK_PROFILE='xstats-ne-filter' task compile-network-component CONFIG=Release
 ```
+
+独立 scheme 是 `XStatsNetworkMonitor`，产品位于
+`build/DerivedData-network-arm64/Build/Products/<配置>/XStats Network Monitor.app`。
+ad-hoc 构建仅用于 UI 与编译验证：去除组件根应用的受限网络权限，无法通过首次安装的
+同团队／Gatekeeper 验证，也不能作为真实系统扩展授权与升级验收依据。
+Profile 名称须与本机安装的描述文件一致；上例为当前团队的组件与扩展 profile 名称。
+创建组件 App ID 时启用 Network Extensions 与 System Extension，并选择本机已有私钥的
+Developer ID Application 证书生成 profile。现有扩展 ID 和 profile 可继续使用。
+观察 IPC Group 使用 `<Team ID>.work.12306.xstats.network-observation` 的 macOS 专用格式，
+无需在后台注册，也不要求 profile 列出该组；系统会验证签名团队前缀。
+参见 [Apple 的 App Groups 说明](https://developer.apple.com/documentation/BundleResources/Entitlements/com.apple.security.application-groups)。
+正式运行仍须验证公证、系统授权、实际连接读取和停止后的资源释放，不能以编译成功代替。
 
 地图轮廓仍内置；两个 IP 库不再打入应用包。只有监视页面可见且采集正在运行时才下载或
 检查更新；暂停、关闭页面、锁屏和休眠取消尚未完成的下载。成功数据保存在
@@ -136,25 +153,43 @@ python3 scripts/sync_network_geography.py            # 只准备到 dist/network
 python3 scripts/sync_network_geography.py --publish  # 从官方重新获取并同步 c-ip
 ```
 
-网络扩展独立使用 `NETWORK_EXTENSION_VERSION` 与 `NETWORK_EXTENSION_BUILD`。扩展代码、
-共享观察协议或影响扩展的依赖／编译器变化后，先用 `scripts/version.sh network` 推进扩展构建号。
-普通 `build`／`release` 只推进 App 构建号；纯 UI 改动复用已有扩展版本。
-本地脚本只有替换扩展时才需先在网络监视器“更多 → 停止查看”关闭过滤会话，再安装、重新启用。
-直接替换运行中的过滤器可能让新扩展先启动、旧扩展仍占用同名 Mach 端口；
-此时即使系统显示新版扩展已启用，观察接口仍可能连接失败。
-macOS 可能把相同版本／构建号的激活请求视为已安装，继续运行旧扩展。
-安装主应用不能单独证明扩展已升级：重新启用后检查 `systemextensionsctl list` 的版本，
-必要时对比系统运行副本与主应用内扩展的 CDHash。普通 UI 改动仍可保持 `BUMP=0`。
+独立组件与网络扩展共同使用 `NETWORK_EXTENSION_VERSION` 与 `NETWORK_EXTENSION_BUILD`。
+组件、扩展、共享观察协议或影响扩展的依赖／编译器变化后，用 `scripts/version.sh network`
+推进独立构建号。普通主应用 `build`／`release` 不改变组件版本，纯主 UI 改动复用现有组件。
+主应用的首次安装器只写入缺失的组件；已有组件由自己的 Sparkle 更新，主应用不替换它。
+首次安装 ZIP 固定为
+`https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor/XStats-Network-Monitor.zip`，
+安装前校验根包名、Bundle ID、同团队签名、公证及 Gatekeeper，且不覆盖正在运行的组件。
 
-应用内更新从已签名 XML 读取新包的独立扩展版本，与系统安装版本比较。相同版本只暂停
-App 读取、保存恢复意图，不关闭过滤器、不重新激活扩展。版本变化时才关闭过滤配置并
-有界查询实际停止状态；新版启动也先比较包内扩展与已安装扩展，同版本直接复用。
-查询服务与扩展进程同寿命，过滤器停用后仍可回答；配置已保存、XPC 断线和进程仍驻留
-都不能单独证明停止。确认失败会取消本次安装并恢复原监视意图。更新过程中主动退出也经过
-同一门禁；新版通过一次性的运行／暂停标记恢复，模块关闭或页面不可见时不会开始读取。
-Mach 服务后缀使用扩展构建号，App 独立加号不会改变连接地址；停用查询按系统报告的
-扩展构建定位服务。清单必须明确扩展版本，且发布时与 ZIP 内的扩展 Info.plist 一致，
-缺失或不一致均拒绝安装／发布，不迁移旧预览协议。App Group 与签名身份保持一致。
+组件 Sparkle 固定读取 `network-monitor/appcast.xml`，只响应组件界面的手动检查，
+不添加自动检查计时器或自动下载/安装。共享 `Updates` 产品提供安装驱动；主应用和组件
+各自持有自己的 updater、清单、构建号与更新选择。主应用更新不再按组件版本停用或替换扩展。
+组件更新前比较已安装扩展和签名 XML 中的扩展版本：相同版本只停止组件读取；
+版本变化时关闭过滤配置并有界确认实际停止。失败取消本次组件安装并恢复先前意图。
+查询服务与扩展进程同寿命，配置已保存、XPC 断线或进程驻留不能单独证明停止。
+Mach 服务后缀是扩展构建号，停用查询按系统报告的已安装构建定位服务。
+重新启用后检查 `systemextensionsctl list` 的版本，必要时比较运行副本与组件包内扩展的 CDHash。
+组件清单必须携带扩展版本，并与 ZIP 内的扩展 Info.plist 身份及版本一致；主应用清单无需该字段。
+
+组件发行完全独立，不推进主版本、不走主 JSON 版本 API、不生成 Homebrew cask。
+准备组件自己的摘要 JSON：`version` 等于组件公开版本，`sourceNotes` 为简体中文单行条目，
+`translations.en` 与中文条目一一对应；格式沿用 `ReleaseNotes.json`，但使用独立文件。
+
+```bash
+# 默认只构建、签名、公证、装订并生成 dist/network-monitor/ 的 ZIP、appcast.json、appcast.xml
+NETWORK_RELEASE_NOTES=/path/to/component-notes.json \
+XSTATS_COMPONENT_PROFILE='组件 profile 名称' XSTATS_NETWORK_PROFILE='扩展 profile 名称' \
+  task release-network-component
+
+# 只有显式 --publish 才上传；使用同一套前置条件并重新构建制品
+./scripts/release_network_component.sh --notes /path/to/component-notes.json --publish
+```
+
+发布到 `c-ip/oss/apps/macOS/XStats/network-monitor`：先上传并 CDN 回读唯一版本 ZIP
+`XStats-Network-Monitor-<version>-<build>-AppleSilicon.zip`，再用完全相同的已公证字节更新
+首次安装别名 `XStats-Network-Monitor.zip`，最后更新已签名 `appcast.xml`。ZIP 或别名失败时
+不更新 appcast；可变别名/XML 设置五分钟缓存，回读使用唯一查询避免旧缓存干扰。
+`SKIP_NOTARIZE=1` 只允许本地打包，不能与 `--publish` 并用。
 
 可对构建执行 `XStats --snapshot <目录> --connections-only --language en` 走查界面。
 此命令只使用虚构连接数据，不能替代签名安装、系统授权、真实连接观察和停止验证。
@@ -200,6 +235,7 @@ Sparkle 私钥使用已有钥匙串账户，构建后的源码或摘要译文变
 | 路径 | 用途 |
 |---|---|
 | `App/`、`Widget/`、`Helper/` | 主应用、桌面小组件、特权辅助工具 |
+| `NetworkMonitorApp/`、`NetworkExtension/` | 独立网络伴随应用与其系统扩展 |
 | `Packages/XStatsKit/Sources/` | 采集、AI 用量、清理、更新、同步与界面模块 |
 | `Packages/XStatsKit/Tests/` | Swift 测试 |
 | `server/api/` | 旧更新协议的兼容实现与测试 |

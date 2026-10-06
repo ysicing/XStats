@@ -9,16 +9,7 @@ import Updates
 @MainActor
 @Observable
 public final class UpdateController {
-    public enum Phase: Equatable {
-        case idle
-        case checking
-        case upToDate
-        case available
-        case downloading(Double)
-        case verifying
-        case installing
-        case failed(String)
-    }
+    public typealias Phase = UpdatePhase
 
     public private(set) var phase: Phase = .idle
     public private(set) var release: UpdateRelease?
@@ -33,7 +24,8 @@ public final class UpdateController {
     @ObservationIgnored var onPrompt: () -> Void = {}
     /// 后台发现新版本时请求系统通知；成功提交后才记录去重状态。
     @ObservationIgnored var onUpdateAvailable: (String) async -> Bool = { _ in false }
-    @ObservationIgnored var prepareForInstallation: (UpdateRelease.NetworkExtension) async throws -> Void = { _ in }
+
+    @ObservationIgnored var prepareForInstallation: () async throws -> Void = {}
     @ObservationIgnored var cancelInstallationPreparation: () -> Void = {}
 
     @ObservationIgnored private let settings: AppSettings
@@ -111,7 +103,6 @@ public final class UpdateController {
 
     func installationPreparationFailed(_ error: any Error) {
         sparkleInstaller?.dismissUpdateInstallation()
-        cancelInstallationPreparation()
         phase = .failed(error.localizedDescription)
     }
 
@@ -138,13 +129,9 @@ public final class UpdateController {
         guard updater == nil else { return }
         let driver = SparkleInstaller(onPhase: { [weak self] in self?.phase = $0 },
                                       onRelaunch: { [weak self] in self?.skippedVersion = nil })
-        driver.onChecked = { [weak self] in self?.lastChecked = Date() }
-        driver.prepareForInstallation = { [weak self, weak driver] in
-            guard let self else { throw CancellationError() }
-            guard let target = driver?.installationExtension else { throw UpdateError.invalidBundle(tr("版本清单格式不正确")) }
-            try await self.prepareForInstallation(target)
-        }
+        driver.prepareForInstallation = { [weak self] in try await self?.prepareForInstallation() }
         driver.cancelInstallationPreparation = { [weak self] in self?.cancelInstallationPreparation() }
+        driver.onChecked = { [weak self] in self?.lastChecked = Date() }
         driver.onNoUpdate = { [weak self] in self?.release = nil }
         driver.onRelease = { [weak self] release, manual in
             guard let self else { return }

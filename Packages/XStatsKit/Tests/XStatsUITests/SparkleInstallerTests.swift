@@ -28,6 +28,12 @@ struct SparkleInstallerTests {
         try await driver.waitForInstallationPreparation()
         #expect(prepared)
     }
+    @Test func mainApplicationFeedDoesNotRequireComponentVersionFields() throws {
+        var fields = try item(release()).propertiesDictionary
+        fields.removeValue(forKey: "xstats:network-extension-build")
+        fields.removeValue(forKey: "xstats:network-extension-version")
+        #expect(try SparkleInstaller.release(from: #require(SUAppcastItem(dictionary: fields))).networkExtension == nil)
+    }
     @Test func signedExtensionVersionIsRequiredAndIncludedInTheConfirmedRelease() throws {
         let original = release()
         let candidate = try SparkleInstaller.release(from: item(original))

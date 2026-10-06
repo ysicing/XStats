@@ -5,6 +5,24 @@ set -euo pipefail
 
 APP="$1"
 IDENTITY="${2:--}"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+MODE="${3:-}"
+APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")"
+case "$APP_ID" in
+  work.12306.xstats.app) EXPECTED_MODE=main ;;
+  work.12306.xstats.networkmonitor) EXPECTED_MODE=network-component ;;
+  *) echo "error: 未知应用 Bundle ID：$APP_ID" >&2; exit 1 ;;
+esac
+MODE="${MODE:-$EXPECTED_MODE}"
+[ "$MODE" = "$EXPECTED_MODE" ] || { echo "error: 签名模式与应用 Bundle ID 不一致" >&2; exit 1; }
+SYSTEM_EXTENSION="$APP/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension"
+if [ "$MODE" = network-component ]; then
+  [ -d "$SYSTEM_EXTENSION" ] || { echo "error: 网络组件未嵌入网络系统扩展" >&2; exit 1; }
+  APP_ENTITLEMENTS="$ROOT/NetworkMonitorApp/XStatsNetworkMonitor.entitlements"
+else
+  [ ! -d "$APP/Contents/Library/SystemExtensions" ] || { echo "error: 主应用不得嵌入系统扩展" >&2; exit 1; }
+  APP_ENTITLEMENTS="$ROOT/App/XStats.entitlements"
+fi
 FRAMEWORK="$APP/Contents/Frameworks/Sparkle.framework"
 [ -d "$FRAMEWORK" ] || { echo "error: 应用未嵌入 Sparkle.framework" >&2; exit 1; }
 STAMP=(--timestamp)
@@ -44,17 +62,17 @@ codesign --force --sign "$IDENTITY" "${STAMP[@]}" "${OPTIONS[@]}" "$FRAMEWORK"
 if [ "$IDENTITY" = "-" ]; then
   # 无团队的临时签名无法通过 Hardened Runtime 的动态库团队校验，仅本地/CI 关闭 runtime。
   # Xcode 的无证书路径不签名，由此处补齐自身二进制及 entitlement；线上安装仍禁止此构建。
-  ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-  SYSTEM_EXTENSION="$APP/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension"
-  [ -d "$SYSTEM_EXTENSION" ] || { echo "error: 应用未嵌入网络系统扩展" >&2; exit 1; }
-  codesign --force --sign - --timestamp=none --options 0 --entitlements "$ROOT/NetworkExtension/XStatsNetworkExtension.entitlements" "$SYSTEM_EXTENSION"
-  codesign --force --sign - --timestamp=none --options 0 "$APP/Contents/MacOS/XStatsHelper"
-  codesign --force --sign - --timestamp=none --options 0 --entitlements "$ROOT/Widget/XStatsWidget.entitlements" "$APP/Contents/PlugIns/XStatsWidget.appex"
+  if [ "$MODE" = network-component ]; then
+    codesign --force --sign - --timestamp=none --options 0 --entitlements "$ROOT/NetworkExtension/XStatsNetworkExtension.entitlements" "$SYSTEM_EXTENSION"
+  else
+    codesign --force --sign - --timestamp=none --options 0 "$APP/Contents/MacOS/XStatsHelper"
+    codesign --force --sign - --timestamp=none --options 0 --entitlements "$ROOT/Widget/XStatsWidget.entitlements" "$APP/Contents/PlugIns/XStatsWidget.appex"
+  fi
   # 临时签名不具备受 profile 约束的网络权限，仅用于 UI/CI；主 App 必须仍可启动。
   # 签名团队缺失时，启用查看的入口也会拒绝提交系统扩展激活请求。
   PREVIEW_ENTITLEMENTS="$(mktemp)"
   trap 'rm -f "$PREVIEW_ENTITLEMENTS"' EXIT
-  python3 - "$ROOT/App/XStats.entitlements" "$PREVIEW_ENTITLEMENTS" <<'PY'
+  python3 - "$APP_ENTITLEMENTS" "$PREVIEW_ENTITLEMENTS" <<'PY'
 import plistlib, sys
 with open(sys.argv[1], "rb") as source:
     entitlements = plistlib.load(source)
@@ -67,7 +85,11 @@ PY
 else
   # 增量构建更新共享 Localization.bundle 时，Xcode 可能保留 Widget 的旧资源封印。
   # 从内到外重签 Widget，保留 Xcode 已展开的 profile entitlement，再重签主应用。
-  codesign --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$APP/Contents/PlugIns/XStatsWidget.appex"
+  if [ "$MODE" = network-component ]; then
+    codesign --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$SYSTEM_EXTENSION"
+  else
+    codesign --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$APP/Contents/PlugIns/XStatsWidget.appex"
+  fi
   codesign --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$APP"
 fi
 codesign --verify --deep --strict "$APP"

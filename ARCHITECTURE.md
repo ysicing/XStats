@@ -544,20 +544,19 @@ Checks and downloads can be cancelled; extraction/replacement must finish once s
 processes belonging to this exact installation path are stopped before installation; other installations
 are untouched. The controller owns the updater; its user driver keeps only a weak updater reference,
 so failures, retries and controller teardown do not create a retain cycle.
-Before accepting installation, the driver compares the signed feed's extension version with the installed
-extension. An app-only update pauses client reads while leaving the filter enabled. A changed extension
-requires disabling the filter and querying its lifecycle status until shutdown is confirmed.
-The XPC listener lives with the extension process so status remains available after filtering stops;
-configuration values, generic disconnections and a resident process alone are insufficient evidence.
-Each extension build uses its own Mach service suffix; the installed build reported by SystemExtensions selects
-the old service for shutdown queries, while activation and observation use the bundled build's service.
-This prevents the old resident listener from reserving the new build's communication endpoint.
-Installation and user-requested termination share the same preparation task. Failures cancel installation
-and restore the previous intent. A one-time running/paused marker restores observation after relaunch,
-subject to the module setting and visible demand, without persisting connection history.
-The extension version/build are independent from app releases. Activation reuses an enabled extension
-with the same version instead of stopping or replacing it. The signed feed must specify the packaged
-extension version; publication validates it against the ZIP and does not migrate old preview protocols.
+The shared `Updates.SparkleInstaller` implements the driver contract for both applications, while each
+application owns its updater and release policy. Main-app feeds do not require network-extension
+metadata, and main-app updates never replace the independently installed network component.
+The component's manual-only updater uses its own build number and fixed signed CDN feed. Before a
+component update, its driver compares the signed extension version with the installed extension.
+Only a changed extension disables the filter and queries its lifecycle status until shutdown is confirmed;
+the same version reuses the existing extension. Component installation and user-requested termination
+share the same preparation task. Failures cancel installation and restore the previous filter intent.
+A one-time marker restores that intent after component relaunch. The XPC listener lives with the extension
+process so status remains available after filtering stops; configuration values, generic disconnections
+and a resident process alone are insufficient evidence. Each extension build uses its own Mach service
+suffix, and the installed build selects the old service for shutdown queries. Component ZIP validation
+checks the exact root bundle path, application Bundle ID, extension Bundle ID and signed version metadata.
 Versioned ZIP and XML objects are uploaded and read back before either regional JSON API is published;
 old clients continue using the unchanged JSON response and their existing installer for the transition.
 After an update the old helper may still be running; the app unregisters an outdated
@@ -823,8 +822,15 @@ app and other features continue to support macOS 14. The feature switch, sidebar
 on OS availability; saved preferences are retained, but cannot activate the module on older systems.
 The controller and native backend also reject unsupported use. The system extension itself has a
 macOS 15 deployment target. Enabling its feature switch only
-exposes the page; the explicit viewer button activates `work.12306.xstats.app.networkextension`
-and enables its socket content filter after macOS approval. The provider returns `allow` for every
+exposes the page; the explicit viewer button installs a missing, independently signed
+`/Applications/XStats Network Monitor.app` from the fixed c-ip ZIP alias, then asks this component to
+activate `work.12306.xstats.app.networkextension` and configure its socket content filter after macOS approval.
+The main `XStats.app` contains no system extension and has neither System Extension installation nor
+Network Extension entitlements. Its first-install path checks the exact bundle identity, same-Team
+signature, notarization and Gatekeeper before writing the missing component, and never replaces an
+existing or running component. The component owns its extension and lifecycle operations. Its anonymous
+control endpoint is registered with the extension and forwarded to the authenticated main-app peer;
+both directions require exact Bundle IDs and the same Developer ID Team. The provider returns `allow` for every
 flow, including errors and missing metadata. It never requests payload inspection, packet filtering,
 pausing or dropping. A socket allow verdict requests a flow-closed report while observation is active;
 the provider uses these metadata-only reports to remove closed IDs from a 512-slot active ring.
@@ -867,12 +873,31 @@ is hidden. Disabling the module serially saves `isEnabled=false`, including when
 already in flight. Explicit removal disables and removes the filter configuration before submitting
 system-extension deactivation; pending reboot is reported separately from completed removal.
 
-The system extension bundle filename must equal its Bundle ID. The app needs System Extension
-installation and Network Extension entitlements; the extension needs the content-filter-provider-
-systemextension entitlement and its own Developer ID provisioning profile. The mach service uses
-`TeamIdentifierPrefix` for a dedicated macOS-only IPC App Group shared by the app and extension.
-The Mach service is `<that group>.ipc`; NE category validation requires this exact group prefix.
-No files are stored in this group, and the extension is not granted the existing Widget group.
+The system extension bundle filename must equal its Bundle ID. Only the independent component
+`work.12306.xstats.networkmonitor` embeds the extension and needs System Extension installation and
+Network Extension entitlements. It uses `XSTATS_COMPONENT_PROFILE`; the extension keeps
+`work.12306.xstats.app.networkextension`, the content-filter-provider-systemextension entitlement and
+its own `XSTATS_NETWORK_PROFILE` Developer ID profile. The mach service uses
+`TeamIdentifierPrefix` for a dedicated macOS-only IPC App Group shared by the main app, component and extension.
+The Mach service is `<that group>.ipc.<extension build>`; NE category validation requires this exact group prefix.
+No files are stored in this group; neither the component nor extension is granted the existing Widget group.
+The main app retains its Widget and IPC groups, while the component embeds no Widget or privileged helper.
+Control connections use an anonymous listener endpoint passed through the existing authenticated
+extension XPC service; both peers verify the exact Bundle ID and Developer ID team on each message.
+Bootstrap (including reopening an already running component) activates the extension, temporarily
+starts the provider to register its endpoint, then restores the previous filter state before accepting
+main-app commands. Failure also restores that state. Only the authenticated enable command keeps
+the filter enabled. Invalidated control connections are discarded and reacquired on the next start.
+Main-app update preparation records only the viewer's running/paused intent; component updates own
+the filter shutdown acknowledgement and restore it on failed preparation or successful relaunch.
+The component and extension share `NETWORK_EXTENSION_VERSION/BUILD`, independently from main-app
+version metadata. `scripts/release_network_component.sh` signs, notarizes and packages only this product;
+publication requires explicit `--publish`, uploads/reads back its versioned ZIP and identical first-install
+alias before the signed `network-monitor/appcast.xml`, and never calls the main JSON release API.
+Profiles must authorize the restricted network/system-extension entitlements and the selected
+Developer ID certificate. The macOS-only Team ID prefixed IPC group needs no portal registration
+or profile authorization; macOS verifies its signing team prefix. Distribution acceptance includes
+notarization, real SDK authorization, data reads, stop/resume and independent updater handoff.
 Endpoint metadata uses the public `remoteFlowEndpoint` API directly; no
 legacy endpoint bridge is included.
 

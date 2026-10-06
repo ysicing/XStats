@@ -9,6 +9,8 @@ vars:
   CONFIG: '{{default "Release" .CONFIG}}'
   DERIVED: build/DerivedData-arm64
   APP: '{{.DERIVED}}/Build/Products/{{.CONFIG}}/XStats.app'
+  NETWORK_DERIVED: build/DerivedData-network-arm64
+  NETWORK_APP: '{{.NETWORK_DERIVED}}/Build/Products/{{.CONFIG}}/XStats Network Monitor.app'
   BUMP: '{{default "1" .BUMP}}'
   INSTALL: '{{default "1" .INSTALL}}'
   SIGN_ID:
@@ -57,13 +59,41 @@ tasks:
     deps: [generate]
     cmds:
       - |
+        # Xcode 增量构建不会自动移除旧目标留下的扩展目录；主包只保留 Widget。
+        rm -rf "{{.APP}}/Contents/Library/SystemExtensions"
         xcodebuild -project "{{.PROJECT}}" -scheme "{{.SCHEME}}" -configuration "{{.CONFIG}}" \
           -derivedDataPath "{{.DERIVED}}" \
           -destination 'generic/platform=macOS' ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
-          XSTATS_APP_PROFILE="${XSTATS_APP_PROFILE:-}" XSTATS_WIDGET_PROFILE="${XSTATS_WIDGET_PROFILE:-}" XSTATS_NETWORK_PROFILE="${XSTATS_NETWORK_PROFILE:-}" \
+          XSTATS_APP_PROFILE="${XSTATS_APP_PROFILE:-}" XSTATS_WIDGET_PROFILE="${XSTATS_WIDGET_PROFILE:-}" \
           {{if .TEAM_ID}}CODE_SIGN_IDENTITY="{{.SIGN_ID}}" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM={{.TEAM_ID}}{{if eq .CONFIG "Release"}} OTHER_CODE_SIGN_FLAGS=--timestamp CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO{{end}}{{else}}CODE_SIGNING_ALLOWED=NO ENABLE_HARDENED_RUNTIME=NO{{end}} \
           build
       - bash scripts/sign_sparkle.sh "{{.APP}}" "{{.SIGN_ID}}"
+
+  build-network-component:
+    desc: 编译并签名独立网络组件，不推进版本或安装
+    cmds:
+      - task: compile-network-component
+        vars:
+          CONFIG: '{{.CONFIG}}'
+          SIGN_ID: '{{.SIGN_ID}}'
+
+  compile-network-component:
+    desc: 只编译并签名 XStats Network Monitor（macOS 15+、arm64）
+    deps: [generate]
+    cmds:
+      - |
+        xcodebuild -project "{{.PROJECT}}" -scheme XStatsNetworkMonitor -configuration "{{.CONFIG}}" \
+          -derivedDataPath "{{.NETWORK_DERIVED}}" \
+          -destination 'generic/platform=macOS' ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+          XSTATS_COMPONENT_PROFILE="${XSTATS_COMPONENT_PROFILE:-}" XSTATS_NETWORK_PROFILE="${XSTATS_NETWORK_PROFILE:-}" \
+          {{if .TEAM_ID}}CODE_SIGN_IDENTITY="{{.SIGN_ID}}" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM={{.TEAM_ID}}{{if eq .CONFIG "Release"}} OTHER_CODE_SIGN_FLAGS=--timestamp CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO{{end}}{{else}}CODE_SIGNING_ALLOWED=NO ENABLE_HARDENED_RUNTIME=NO{{end}} \
+          build
+      - bash scripts/sign_sparkle.sh "{{.NETWORK_APP}}" "{{.SIGN_ID}}" network-component
+
+  release-network-component:
+    desc: 签名、公证并打包独立网络组件，不上传
+    cmds:
+      - ./scripts/release_network_component.sh {{.CLI_ARGS}}
 
   run:
     desc: 编译、安装并启动 App
@@ -106,6 +136,7 @@ tasks:
       - python3 scripts/sparkle_appcast_test.py
       - python3 scripts/github_release_notes_test.py
       - python3 scripts/network_geography_test.py
+      - bash scripts/release_network_component_test.sh
       - task: test-api
       - task: test-swift
 

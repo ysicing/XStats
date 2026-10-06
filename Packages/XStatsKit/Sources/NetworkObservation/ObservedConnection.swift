@@ -79,4 +79,25 @@ public struct ObservationBatch: Codable, Sendable, Equatable {
     func readEvents(after cursor: Int64, epoch: String, reply: @escaping (Data) -> Void)
     /// 只读生命周期查询；未运行或 stopFilter 已完成收尾时返回 true，停止过程中保持 false。
     func isFilterStopped(reply: @escaping @Sendable (Bool) -> Void)
+    func registerControlEndpoint(_ endpoint: NSXPCListenerEndpoint, reply: @escaping @Sendable () -> Void)
+    func controlEndpoint(reply: @escaping @Sendable (NSXPCListenerEndpoint?) -> Void)
+}
+
+/// 伴随应用仅管理过滤器生命周期，所有网络流量继续由扩展放行。
+@objc public protocol NetworkComponentService {
+    func perform(_ command: String, reply: @escaping @Sendable (Data) -> Void)
+}
+
+public struct NetworkComponentResponse: Codable, Sendable {
+    public let needsRestart: Bool
+    public let error: String?
+    public init(needsRestart: Bool = false, error: String? = nil) {
+        self.needsRestart = needsRestart; self.error = error
+    }
+}
+
+/// Endpoint 是不可变的 Mach 接收权引用；跨队列仅传递引用，连接始终由 MainActor 使用。
+public final class NetworkControlEndpoint: @unchecked Sendable {
+    public let value: NSXPCListenerEndpoint
+    public init(_ value: NSXPCListenerEndpoint) { self.value = value }
 }

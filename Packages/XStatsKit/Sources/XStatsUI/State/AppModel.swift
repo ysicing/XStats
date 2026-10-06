@@ -107,11 +107,9 @@ public final class AppModel {
         sync = SyncController(settings: settings)
         diskTools = DiskToolsController(helper: helper)
         speedTest = SpeedTestController(settings: settings)
-        updates.prepareForInstallation = { [weak self] target in
-            guard let self else { throw CancellationError() }
-            try await self.connectionMonitor.prepareForUpdate(target: target)
-        }
-        updates.cancelInstallationPreparation = { [weak self] in self?.connectionMonitor.cancelUpdatePreparation() }
+        updates.prepareForInstallation = { [weak self] in self?.connectionMonitor.prepareForAppUpdate() }
+        updates.cancelInstallationPreparation = { [weak self] in self?.connectionMonitor.cancelAppUpdate() }
+
     }
 
     /// 硬件能力只影响实际展示，不改写保存的菜单栏偏好。

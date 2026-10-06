@@ -14,6 +14,7 @@ import os
 import plistlib
 import re
 import sys
+from pathlib import Path
 
 MAX_NOTES = 10
 MAX_LENGTH = 48
@@ -67,6 +68,28 @@ def asset(base: str, zip_path: str, dmg_path: str) -> dict:
     }
 
 
+def component_manifest(version: str, build: str, base: str, archive: Path, app: Path, notes_path: Path) -> dict:
+    """生成组件自己的清单，不读取或推进主应用的版本及发布摘要。"""
+    with (app / "Contents/Info.plist").open("rb") as source:
+        info = plistlib.load(source)
+    if (info.get("CFBundleIdentifier") != "work.12306.xstats.networkmonitor"
+            or info.get("CFBundleShortVersionString") != version or info.get("CFBundleVersion") != build):
+        raise ValueError("网络组件包身份或版本与发行参数不一致")
+    extension_path = app / "Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist"
+    with extension_path.open("rb") as source:
+        extension = plistlib.load(source)
+    if extension.get("CFBundleIdentifier") != "work.12306.xstats.app.networkextension":
+        raise ValueError("网络扩展包身份不一致")
+    notes = json.loads(notes_path.read_text(encoding="utf-8"))
+    if notes.get("version") != version or not isinstance(notes.get("sourceNotes"), list) or not notes["sourceNotes"]:
+        raise ValueError("组件摘要文件的版本或内容无效")
+    return {"version": version, "build": build, "minimumSystem": "15.0",
+            "bundleIdentifier": "work.12306.xstats.networkmonitor", "appName": "XStats Network Monitor",
+            "url": f"{base}/{archive.name}", "sha256": sha256(str(archive)), "size": archive.stat().st_size,
+            "notes": notes["sourceNotes"],
+            "networkExtension": {"version": extension["CFBundleShortVersionString"], "build": extension["CFBundleVersion"]}}
+
+
 def main() -> None:
     version, build, base, arm_zip, arm_dmg, app = sys.argv[1:7]
     root = os.path.join(os.path.dirname(__file__), "..")
@@ -81,10 +104,6 @@ def main() -> None:
         "notes": notes,
         "changelog": "https://github.com/ysicing/xstats/blob/main/CHANGELOG.md",
     }
-    extension = os.path.join(app, "Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist")
-    with open(extension, "rb") as handle:
-        info = plistlib.load(handle)
-    feed["networkExtension"] = {"version": info["CFBundleShortVersionString"], "build": info["CFBundleVersion"]}
     json.dump(feed, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
 

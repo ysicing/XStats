@@ -17,6 +17,45 @@ from sparkle_appcast import NOTE_LANGUAGES, ROOT, SPARKLE, XML_LANG, XSTATS, loa
 
 
 class SparkleAppcastTests(unittest.TestCase):
+    def test_main_archive_does_not_require_network_extension(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "main.zip"
+            with zipfile.ZipFile(archive, "w") as bundle:
+                bundle.writestr("XStats.app/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": "work.12306.xstats.app"}))
+            data = archive.read_bytes()
+            feed = {"version": "1.0.0", "build": "200", "size": len(data), "notes": ["test"],
+                    "url": "https://example.test/main.zip", "sha256": hashlib.sha256(data).hexdigest()}
+            manifest = Path(directory) / "appcast.json"
+            manifest.write_text(json.dumps(feed))
+            self.assertEqual(load_manifest(manifest, archive), feed)
+
+    def test_component_archive_requires_its_own_bundle_and_matching_extension(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "component.zip"
+            manifest = Path(directory) / "appcast.json"
+            for identifier, root, extension_build in (
+                    ("work.12306.xstats.networkmonitor", "XStats Network Monitor.app", "136"),
+                    ("work.12306.xstats.app", "XStats Network Monitor.app", "136"),
+                    ("work.12306.xstats.networkmonitor", "XStats.app", "136"),
+                    ("work.12306.xstats.networkmonitor", "XStats Network Monitor.app", "137")):
+                with self.subTest(identifier=identifier, root=root, extension_build=extension_build):
+                    with zipfile.ZipFile(archive, "w") as bundle:
+                        bundle.writestr(root + "/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": identifier}))
+                        bundle.writestr(root + "/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist",
+                                        plistlib.dumps({"CFBundleIdentifier": "work.12306.xstats.app.networkextension",
+                                                        "CFBundleShortVersionString": "0.15.0", "CFBundleVersion": extension_build}))
+                    data = archive.read_bytes()
+                    feed = {"version": "0.15.0", "build": "136", "size": len(data), "notes": ["test"],
+                            "bundleIdentifier": "work.12306.xstats.networkmonitor",
+                            "appName": "XStats Network Monitor", "networkExtension": {"version": "0.15.0", "build": "136"},
+                            "url": "https://example.test/component.zip", "sha256": hashlib.sha256(data).hexdigest()}
+                    manifest.write_text(json.dumps(feed))
+                    if identifier == "work.12306.xstats.networkmonitor" and root == "XStats Network Monitor.app" and extension_build == "136":
+                        self.assertEqual(load_manifest(manifest, archive), feed)
+                    else:
+                        with self.assertRaises(ValueError):
+                            load_manifest(manifest, archive)
+
     def test_signed_extension_version_is_preserved_and_tampering_is_rejected(self):
         feed = {"version": "1.0.0", "build": "200", "minimumSystem": "14.0", "size": 3,
                 "url": "https://example.test/update.zip", "notes": ["test"],
@@ -146,7 +185,8 @@ class SparkleAppcastTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / "XStats-1.0.0-AppleSilicon.zip"
             with zipfile.ZipFile(archive, "w") as bundle:
-                bundle.writestr("XStats.app/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist", plistlib.dumps({"CFBundleShortVersionString": "0.15.0", "CFBundleVersion": "136"}))
+                bundle.writestr("XStats.app/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": "work.12306.xstats.app"}))
+                bundle.writestr("XStats.app/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": "work.12306.xstats.app.networkextension", "CFBundleShortVersionString": "0.15.0", "CFBundleVersion": "136"}))
             original = archive.read_bytes()
             manifest = Path(directory) / "appcast.json"
             feed = {"version": "1.0.0", "build": "200", "size": len(original), "notes": ["test"], "networkExtension": {"version": "0.15.0", "build": "136"},

@@ -20,7 +20,13 @@ fi
 adhoc="$(task --dry compile SIGN_ID=- 2>&1)"
 grep -q 'CODE_SIGNING_ALLOWED=NO ENABLE_HARDENED_RUNTIME=NO' <<< "$adhoc"
 grep -q 'scripts/sign_sparkle.sh' <<< "$adhoc"
-grep -q 'XSTATS_NETWORK_PROFILE=' <<< "$compile"
+[ "$(grep -c 'XSTATS_NETWORK_PROFILE=' <<< "$compile" || true)" = 0 ]
+network="$(task --dry compile-network-component SIGN_ID=- 2>&1)"
+grep -q -- '-scheme XStatsNetworkMonitor' <<< "$network"
+grep -q 'XSTATS_COMPONENT_PROFILE=' <<< "$network"
+grep -q 'XSTATS_NETWORK_PROFILE=' <<< "$network"
+grep -q 'DerivedData-network-arm64' <<< "$network"
+grep -q 'network-component' <<< "$network"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -32,13 +38,25 @@ import plistlib
 with open("App/XStats.entitlements", "rb") as source:
     entitlements = plistlib.load(source)
 assert entitlements.get("com.apple.security.personal-information.calendars") is True, "缺少 EventKit 日历访问 entitlement"
-assert entitlements.get("com.apple.developer.system-extension.install") is True
-assert "content-filter-provider-systemextension" in entitlements.get("com.apple.developer.networking.networkextension", [])
+assert "com.apple.developer.system-extension.install" not in entitlements
+assert "com.apple.developer.networking.networkextension" not in entitlements
 with open("App/Info.plist", "rb") as source:
     info = plistlib.load(source)
 for key in ("NSCalendarsFullAccessUsageDescription", "NSRemindersFullAccessUsageDescription"):
     assert info.get(key), f"缺少权限说明：{key}"
-assert info.get("NSSystemExtensionUsageDescription")
+assert "NetworkObservationExtensionVersion" not in info
+assert "NetworkObservationExtensionBuild" not in info
+with open("NetworkMonitorApp/Info.plist", "rb") as source:
+    component = plistlib.load(source)
+assert component["SUFeedURL"] == "https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor/appcast.xml"
+assert component["SURequireSignedFeed"] is True and component["SUVerifyUpdateBeforeExtraction"] is True
+assert component["SUEnableAutomaticChecks"] is False
+assert component["SUPublicEDKey"] == info["SUPublicEDKey"]
+assert component.get("NSSystemExtensionUsageDescription")
+with open("NetworkMonitorApp/XStatsNetworkMonitor.entitlements", "rb") as source:
+    component_entitlements = plistlib.load(source)
+assert component_entitlements["com.apple.developer.system-extension.install"] is True
+assert component_entitlements["com.apple.developer.networking.networkextension"] == ["content-filter-provider-systemextension"]
 with open("NetworkExtension/Info.plist", "rb") as source:
     extension = plistlib.load(source)
 assert extension["CFBundlePackageType"] == "SYSX"
@@ -50,10 +68,13 @@ assert entitlements["com.apple.developer.networking.networkextension"] == ["cont
 mach_service = extension["NetworkExtension"]["NEMachServiceName"]
 groups = entitlements.get("com.apple.security.application-groups", [])
 assert any(mach_service.startswith(group + ".") for group in groups), "NE Mach 服务必须位于扩展 App Group 命名空间中"
-assert info["NetworkObservationMachService"] == mach_service, "App 与扩展的 Mach 服务名不一致"
+assert "NetworkObservationMachService" not in info, "主应用从已验证的独立组件读取服务名"
+assert component["NetworkObservationMachService"] == mach_service
 with open("App/XStats.entitlements", "rb") as source:
     app_groups = plistlib.load(source).get("com.apple.security.application-groups", [])
 assert all(group in app_groups for group in groups), "主 App 与扩展必须属于同一 IPC App Group"
+assert all(group in component_entitlements["com.apple.security.application-groups"] for group in groups)
+assert "group.work.12306.xstats" not in component_entitlements["com.apple.security.application-groups"]
 PY
 
 # appcast.py 只读它自己上一级目录的 CHANGELOG.md，没有路径参数。所以把脚本复制到
@@ -74,13 +95,6 @@ cat > "$WORK/repo/CHANGELOG.md" <<'LOG'
 LOG
 printf 'zip' > "$WORK/XStats-9.9.9-AppleSilicon.zip"
 printf 'dmg' > "$WORK/XStats-9.9.9-AppleSilicon.dmg"
-mkdir -p "$WORK/XStats.app/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents"
-python3 - "$WORK/XStats.app" <<'PYEXT'
-import plistlib, sys
-from pathlib import Path
-p = Path(sys.argv[1]) / "Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist"
-p.write_bytes(plistlib.dumps({"CFBundleShortVersionString": "0.15.0", "CFBundleVersion": "136"}))
-PYEXT
 (cd "$WORK/repo" && python3 scripts/appcast.py 9.9.9 110 https://example.test \
   "$WORK/XStats-9.9.9-AppleSilicon.zip" "$WORK/XStats-9.9.9-AppleSilicon.dmg" "$WORK/XStats.app") > "$WORK/appcast.json"
 python3 - "$WORK/appcast.json" <<'PY'
@@ -89,6 +103,7 @@ import sys
 
 feed = json.load(open(sys.argv[1], encoding="utf-8"))
 assert "intel" not in feed, feed
+assert "networkExtension" not in feed, feed
 assert feed["url"].endswith("-AppleSilicon.zip"), feed
 assert feed["dmg"].endswith("-AppleSilicon.dmg"), feed
 assert feed["notes"], feed

@@ -24,7 +24,7 @@ final class ConnectionFilterProvider: NEFilterDataProvider, @unchecked Sendable 
             fatalError("Network observation requires a signed system extension")
         }
         return ObservationServiceHost(listener: listener,
-            requiredClientCode: "anchor apple generic and identifier \"work.12306.xstats.app\" and certificate leaf[subject.OU] = \"\(team)\"")
+            requiredClientCode: "anchor apple generic and (identifier \"work.12306.xstats.app\" or identifier \"work.12306.xstats.networkmonitor\") and certificate leaf[subject.OU] = \"\(team)\"")
     }()
     private let buffer = ConnectionFilterProvider.host.buffer
     private let lifecycleLock = NSLock()
