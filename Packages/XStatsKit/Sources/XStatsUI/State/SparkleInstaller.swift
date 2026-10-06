@@ -21,6 +21,8 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     var legacySkippedVersion: () -> String? = { nil }
     var hasKnownRelease: () -> Bool = { false }
     var onLegacySkipMigrated: () -> Void = {}
+    var prepareForInstallation: () async throws -> Void = {}
+    var cancelInstallationPreparation: () -> Void = {}
 
     // 控制器强持有 updater，Sparkle 强持有 userDriver；此处只能弱引用，避免循环持有。
     private weak var updater: SPUUpdater?
@@ -35,8 +37,28 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     private var expectedLength: UInt64 = 0
     private var receivedLength: UInt64 = 0
     private var lastProgress: Double = 0
+    private var installationTask: Task<Void, Never>?
+    private var installationPreparationError: (any Error)?
+    private var installationPrepared = false
+    private struct InstallationReply {
+        let callback: (SPUUserUpdateChoice) -> Void
+        let isReady: Bool
+    }
+    private var installationReplies: [InstallationReply] = []
+    private var cachedInstallationPending = false
+    private var cachedExtension: UpdateRelease.NetworkExtension?
+    var installationExtension: UpdateRelease.NetworkExtension? {
+        if case .install(let release)? = action { return release.networkExtension }
+        return cachedExtension
+    }
 
-    var isRunning: Bool { updater?.sessionInProgress == true }
+    var isRunning: Bool { updater?.sessionInProgress == true || installationTask != nil }
+    var hasInstallationRequest: Bool {
+        if cachedInstallationPending { return true }
+        guard !cancelled else { return false }
+        if case .install? = action { return true }
+        return false
+    }
 
     init(bundle: Bundle = .main,
          endpoints: [URL] = UpdateFeed.sparkleURLs(prefersChina: UpdateFeed.prefersChinaEndpoint()),
@@ -64,6 +86,8 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     func check(userInitiated: Bool, action: Action? = nil) {
         guard !isRunning else { return }
         self.action = action
+        installationPrepared = false
+        installationPreparationError = nil
         cancelled = false
         loadedFeed = false
         endpointIndex = 0
@@ -146,7 +170,7 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
             switch action { case .install(let release), .skip(let release): expected = release }
             guard candidate.build == expected.build, candidate.version == expected.version,
                   candidate.url == expected.url, candidate.size == expected.size,
-                  candidate.minimumSystem == expected.minimumSystem else {
+                  candidate.minimumSystem == expected.minimumSystem, candidate.networkExtension == expected.networkExtension else {
                 throw UpdateError.releaseChanged
             }
         }
@@ -161,6 +185,12 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
         }
         // 这些扩展字段和摘要都来自已验证签名的 XML，不能另从未签名 JSON 补入安装元数据。
         let properties = item.propertiesDictionary
+        guard let extensionVersion = properties["xstats:network-extension-version"] as? String, !extensionVersion.isEmpty,
+              let extensionBuild = properties["xstats:network-extension-build"] as? String,
+              let extensionNumber = UInt64(extensionBuild), extensionNumber > 0 else {
+            throw UpdateError.invalidBundle(tr("版本清单格式不正确"))
+        }
+        let networkExtension = UpdateRelease.NetworkExtension(version: extensionVersion, build: String(extensionNumber))
         let dmg = (properties["xstats:dmg"] as? String).flatMap(URL.init(string:)).flatMap { $0.scheme == "https" ? $0 : nil }
         // Sparkle 会按系统偏好筛选 description，应用语言所需的中英文保留在签名扩展字段中。
         let notes = ((properties["xstats:notes-zh-Hans"] as? String) ?? item.itemDescription)?
@@ -172,7 +202,7 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
                              minimumSystem: item.minimumSystemVersion ?? "14.0", url: url,
                              sha256: properties["xstats:sha256"] as? String ?? "", size: Int64(item.contentLength),
                              dmg: dmg, notes: notes, changelog: item.fullReleaseNotesURL,
-                             englishNotes: englishNotes)
+                             englishNotes: englishNotes, networkExtension: networkExtension)
     }
 
     @objc(updaterWillRelaunchApplication:)
@@ -180,6 +210,10 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
 
     @objc(updater:didFinishUpdateCycleForUpdateCheck:error:)
     func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
+        if error != nil {
+            if let installationTask { installationTask.cancel() }
+            else { cancelInstallationPreparation() }
+        }
         cancellation = nil
         // 只在尚未收到有效签名 feed 时串行尝试后续入口，每个地址最多一次；下载/安装失败绝不重启安装。
         if error != nil, !loadedFeed, !cancelled, endpointIndex + 1 < endpoints.count {
@@ -217,18 +251,28 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     func showUpdateFound(with appcastItem: SUAppcastItem, state: SPUUserUpdateState,
                          reply: @escaping (SPUUserUpdateChoice) -> Void) {
         cancellation = nil
-        guard !cancelled, let release = try? Self.release(from: appcastItem) else { reply(.dismiss); return }
+        let signedRelease = try? Self.release(from: appcastItem)
+        // 即使本轮检查已取消，SDK 报告的已安装缓存仍可能在退出时继续，不能丢掉退出门禁。
+        if state.stage == .installing {
+            cachedInstallationPending = true
+            cachedExtension = signedRelease?.networkExtension
+        }
+        guard !cancelled, let release = signedRelease else { reply(.dismiss); return }
         // Sparkle 也可能恢复已验证的缓存条目；后续安装失败不能作为更新源失败重试。
         loadedFeed = true
         if let action {
             switch action {
-            case .install: reply(.install)
+            case .install:
+                if state.stage == .installing { prepareCachedInstallation(reply: reply) }
+                else { reply(.install) }
             case .skip:
+                cachedInstallationPending = false
                 reply(.skip)
                 if release.version == legacySkippedVersion() { onLegacySkipMigrated() }
             }
         } else if !userInitiated, release.version == legacySkippedVersion() {
             // 兼容记录和离线排队只有展示版本号；遇到签名条目后通过公开 reply 交给 Sparkle。
+            cachedInstallationPending = false
             reply(.skip)
             onLegacySkipMigrated()
             // 跳过新版只结束提醒流程，当前安装仍是旧版。
@@ -237,6 +281,8 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
             onPhase(.available)
             onRelease(release, userInitiated)
             // 后台通知无需长时间悬挂一个更新会话；安装按钮会重新核验同一份签名元数据。
+            // 已进入安装阶段的缓存来自之前确认的安装；保留它，但退出仍必须经过准备门禁。
+            // showUpdateFound 的 skip 会持久跳过该版本，不能代替取消一次缓存安装。
             reply(.dismiss)
         }
     }
@@ -279,17 +325,39 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     func showExtractionReceivedProgress(_ progress: Double) {}
 
     func showReady(toInstallAndRelaunch reply: @escaping (SPUUserUpdateChoice) -> Void) {
-        guard !cancelled else { reply(.skip); return }
+        guard !cancelled || cachedInstallationPending else { reply(.skip); return }
+        if installationPrepared { reply(.install); return }
+        // 退出路径和 SDK 真实 Ready 回调可能先后到达，两者共享准备结果，不能互相取消。
+        installationReplies.append(InstallationReply(callback: reply, isReady: true))
+        beginInstallationPreparation()
+    }
+
+    private func prepareCachedInstallation(reply: @escaping (SPUUserUpdateChoice) -> Void) {
+        if installationPrepared { reply(.install); return }
+        installationReplies.append(InstallationReply(callback: reply, isReady: false))
+        beginInstallationPreparation()
+    }
+
+    private func beginInstallationPreparation() {
+        guard installationTask == nil, !installationPrepared else { return }
         onPhase(.installing)
+        installationPreparationError = nil
         let app = bundle.bundleURL
-        Task {
+        installationTask = Task {
+            defer { installationTask = nil }
             do {
+                try await prepareForInstallation()
+                try Task.checkCancellation()
                 // Widget 继续使用旧可执行文件会使升级后的组件刷新失败，仅停止本安装路径的进程。
                 try await Task.detached(priority: .utility) { try UpdateInstaller.stopWidgetExtension(in: app) }.value
-                reply(.install)
+                try Task.checkCancellation()
+                installationPrepared = true
+                finishInstallationReplies(.install)
             } catch {
+                installationPreparationError = error
+                cancelInstallationPreparation()
                 onPhase(.failed(error.localizedDescription))
-                reply(.skip)
+                finishInstallationReplies(.skip)
             }
         }
     }
@@ -299,9 +367,31 @@ final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate {
         if !cancelled { onPhase(.installing) }
     }
 
+    func waitForInstallationPreparation() async throws {
+        // 下载／解压途中退出时 Sparkle 可立即安装，未到 showReady 也必须准备网络和 Widget。
+        beginInstallationPreparation()
+        await installationTask?.value
+        if let installationPreparationError { throw installationPreparationError }
+    }
+
+    private func finishInstallationReplies(_ choice: SPUUserUpdateChoice) {
+        let replies = installationReplies
+        installationReplies.removeAll()
+        // 只有真实 SDK Ready 的 skip 会取消缓存；单独退出准备失败时缓存仍在，门禁也须保留。
+        if choice == .skip && replies.contains(where: { $0.isReady }) { cachedInstallationPending = false }
+        for reply in replies {
+            // Found 的 skip 会持久跳过版本；失败时只保留已确认的缓存，并继续保护退出。
+            reply.callback(choice == .skip && !reply.isReady ? .dismiss : choice)
+        }
+    }
+
     func showUpdateInstalledAndRelaunched(_ relaunched: Bool, acknowledgement: @escaping () -> Void) {
         acknowledgement()
     }
 
-    func dismissUpdateInstallation() { cancellation = nil }
+    func dismissUpdateInstallation() {
+        cancellation = nil
+        if let installationTask { installationTask.cancel() }
+        else { cancelInstallationPreparation() }
+    }
 }

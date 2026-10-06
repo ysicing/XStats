@@ -10,10 +10,172 @@ import Updates
 
 @MainActor
 struct SparkleInstallerTests {
+    @Test func cancelledCheckKeepsTheTargetOfALateCachedInstallation() async throws {
+        let archive = NSKeyedArchiver(requiringSecureCoding: true)
+        archive.encode(2, forKey: "SPUUserUpdateStateStage")
+        archive.encode(false, forKey: "SPUUserUpdateStateUserInitiated")
+        archive.finishEncoding()
+        let decoder = try NSKeyedUnarchiver(forReadingFrom: archive.encodedData)
+        defer { decoder.finishDecoding() }
+        let state = try #require(SPUUserUpdateState(coder: decoder))
+        let driver = SparkleInstaller(onPhase: { _ in }, onRelaunch: {})
+        driver.showUserInitiatedUpdateCheck(cancellation: {})
+        driver.cancel()
+        driver.showUpdateFound(with: try item(release()), state: state) { #expect($0 == .dismiss) }
+        #expect(driver.installationExtension == release().networkExtension)
+        var prepared = false
+        driver.prepareForInstallation = { prepared = true }
+        try await driver.waitForInstallationPreparation()
+        #expect(prepared)
+    }
+    @Test func signedExtensionVersionIsRequiredAndIncludedInTheConfirmedRelease() throws {
+        let original = release()
+        let candidate = try SparkleInstaller.release(from: item(original))
+        #expect(candidate.networkExtension == original.networkExtension)
+        var fields = try item(original).propertiesDictionary
+        fields.removeValue(forKey: "xstats:network-extension-build")
+        #expect(throws: (any Error).self) { try SparkleInstaller.release(from: #require(SUAppcastItem(dictionary: fields))) }
+        fields = try item(original).propertiesDictionary
+        fields["xstats:network-extension-build"] = "137"
+        let driver = SparkleInstaller(onPhase: { _ in }, onRelaunch: {})
+        driver.check(userInitiated: true, action: .install(original))
+        let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: driver)
+        #expect(throws: UpdateError.releaseChanged) {
+            try driver.updater(updater, shouldProceedWithUpdate: #require(SUAppcastItem(dictionary: fields)), updateCheck: .updates)
+        }
+    }
+    @Test func installationWaitsForNetworkShutdownBeforeAcceptingInstall() async throws {
+        var choice: SPUUserUpdateChoice?
+        var entered = false
+        var gate: CheckedContinuation<Void, Never>?
+        let driver = SparkleInstaller(onPhase: { _ in }, onRelaunch: {})
+        driver.prepareForInstallation = {
+            entered = true
+            await withCheckedContinuation { gate = $0 }
+        }
+        defer { gate?.resume() }
+        driver.showReady(toInstallAndRelaunch: { choice = $0 })
+        while !entered && choice == nil { try Task.checkCancellation(); await Task.yield() }
+        try #require(entered)
+        #expect(choice == nil)
+        gate?.resume(); gate = nil
+        while choice == nil { try Task.checkCancellation(); await Task.yield() }
+        #expect(choice == .install)
+    }
+
+    @Test func networkShutdownFailureCancelsInstallationAndRestoresOldSession() async throws {
+        var choice: SPUUserUpdateChoice?
+        var phases: [UpdateController.Phase] = []
+        var restored = false
+        let driver = SparkleInstaller(onPhase: { phases.append($0) }, onRelaunch: {})
+        driver.prepareForInstallation = { throw NetworkMonitorError.timeout }
+        driver.cancelInstallationPreparation = { restored = true }
+        driver.showReady(toInstallAndRelaunch: { choice = $0 })
+        while choice == nil { try Task.checkCancellation(); await Task.yield() }
+        #expect(choice == .skip)
+        #expect(restored)
+        guard case .failed = phases.last else { Issue.record("停止失败必须显示安装错误"); return }
+    }
+
+    @Test func dismissalDuringPreparationCannotAcceptALateInstallReply() async throws {
+        var choice: SPUUserUpdateChoice?
+        var entered = false
+        var gate: CheckedContinuation<Void, Never>?
+        var restored = false
+        let driver = SparkleInstaller(onPhase: { _ in }, onRelaunch: {})
+        driver.prepareForInstallation = {
+            entered = true
+            await withCheckedContinuation { gate = $0 }
+        }
+        driver.cancelInstallationPreparation = { restored = true }
+        defer { gate?.resume() }
+        driver.showReady(toInstallAndRelaunch: { choice = $0 })
+        while !entered { try Task.checkCancellation(); await Task.yield() }
+        driver.dismissUpdateInstallation()
+        gate?.resume(); gate = nil
+        while choice == nil { try Task.checkCancellation(); await Task.yield() }
+        #expect(choice == .skip && restored)
+    }
+
+    @Test func quittingDuringDownloadWaitsForPreparationEvenBeforeTheReadyCallback() async throws {
+        var gate: CheckedContinuation<Void, Never>?
+        var calls = 0
+        let driver = SparkleInstaller(onPhase: { _ in }, onRelaunch: {})
+        driver.prepareForInstallation = {
+            calls += 1
+            await withCheckedContinuation { gate = $0 }
+        }
+        defer { gate?.resume() }
+        driver.check(userInitiated: true, action: .install(release()))
+        #expect(driver.hasInstallationRequest)
+        var finished = false
+        let quitting = Task { try await driver.waitForInstallationPreparation(); finished = true }
+        while gate == nil { try Task.checkCancellation(); await Task.yield() }
+        #expect(!finished && calls == 1)
+        var actualReadyChoice: SPUUserUpdateChoice?
+        driver.showReady(toInstallAndRelaunch: { actualReadyChoice = $0 })
+        #expect(actualReadyChoice == nil)
+        gate?.resume(); gate = nil
+        try await quitting.value
+        try await driver.waitForInstallationPreparation()
+        #expect(finished && calls == 1 && actualReadyChoice == .install)
+    }
+
+    @Test func backgroundCachedInstallingStateKeepsConfirmationAndRequiresShutdownBeforeQuit() throws {
+        let archive = NSKeyedArchiver(requiringSecureCoding: true)
+        archive.encode(2, forKey: "SPUUserUpdateStateStage")
+        archive.encode(false, forKey: "SPUUserUpdateStateUserInitiated")
+        archive.finishEncoding()
+        let decoder = try NSKeyedUnarchiver(forReadingFrom: archive.encodedData)
+        defer { decoder.finishDecoding() }
+        let state = try #require(SPUUserUpdateState(coder: decoder))
+        #expect(state.stage == .installing)
+        var choice: SPUUserUpdateChoice?
+        let driver = SparkleInstaller(onPhase: { _ in }, onRelaunch: {})
+        driver.showUpdateFound(with: try item(release()), state: state) { choice = $0 }
+        #expect(choice == .dismiss && driver.hasInstallationRequest)
+    }
+
+    @Test func cachedFoundPreparationFailureDoesNotSilentlySkipTheVersion() async throws {
+        let archive = NSKeyedArchiver(requiringSecureCoding: true)
+        archive.encode(2, forKey: "SPUUserUpdateStateStage")
+        archive.encode(false, forKey: "SPUUserUpdateStateUserInitiated")
+        archive.finishEncoding()
+        let decoder = try NSKeyedUnarchiver(forReadingFrom: archive.encodedData)
+        defer { decoder.finishDecoding() }
+        let state = try #require(SPUUserUpdateState(coder: decoder))
+        var choice: SPUUserUpdateChoice?
+        let driver = SparkleInstaller(onPhase: { _ in }, onRelaunch: {})
+        driver.prepareForInstallation = { throw NetworkMonitorError.timeout }
+        driver.check(userInitiated: true, action: .install(release()))
+        driver.showUpdateFound(with: try item(release()), state: state) { choice = $0 }
+        while choice == nil { try Task.checkCancellation(); await Task.yield() }
+        #expect(choice == .dismiss)
+        let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: driver)
+        driver.updater(updater, didFinishUpdateCycleFor: .updates, error: nil)
+        #expect(driver.hasInstallationRequest, "SDK 保留缓存时退出门禁也必须保留")
+    }
+
+    @Test func realReadyCancellationClearsTheCachedQuitRequirement() async throws {
+        let archive = NSKeyedArchiver(requiringSecureCoding: true)
+        archive.encode(2, forKey: "SPUUserUpdateStateStage")
+        archive.encode(false, forKey: "SPUUserUpdateStateUserInitiated")
+        archive.finishEncoding()
+        let decoder = try NSKeyedUnarchiver(forReadingFrom: archive.encodedData)
+        defer { decoder.finishDecoding() }
+        let state = try #require(SPUUserUpdateState(coder: decoder))
+        let driver = SparkleInstaller(onPhase: { _ in }, onRelaunch: {})
+        driver.showUpdateFound(with: try item(release()), state: state) { #expect($0 == .dismiss) }
+        driver.prepareForInstallation = { throw NetworkMonitorError.timeout }
+        var choice: SPUUserUpdateChoice?
+        driver.showReady(toInstallAndRelaunch: { choice = $0 })
+        while choice == nil { try Task.checkCancellation(); await Task.yield() }
+        #expect(choice == .skip && !driver.hasInstallationRequest)
+    }
     private func release(build: String = "200") -> UpdateRelease {
         UpdateRelease(version: "1.0.0", build: build, date: "2026-09-30", minimumSystem: "14.0",
                       url: URL(string: "https://example.test/XStats-1.0.0-AppleSilicon.zip")!,
-                      sha256: String(repeating: "a", count: 64), size: 1000, dmg: nil, notes: ["test"], changelog: nil)
+                      sha256: String(repeating: "a", count: 64), size: 1000, dmg: nil, notes: ["test"], changelog: nil, networkExtension: .init(version: "0.15.0", build: "136"))
     }
 
     @Test func cancelRejectsLateDownloadVerificationAndErrorCallbacks() {
@@ -58,6 +220,7 @@ struct SparkleInstallerTests {
         let item = try #require(SUAppcastItem(dictionary: [
             "sparkle:version": build, "sparkle:shortVersionString": release.version,
             "sparkle:minimumSystemVersion": release.minimumSystem,
+            "xstats:network-extension-version": "0.15.0", "xstats:network-extension-build": "136",
             "enclosure": ["url": release.url.absoluteString, "length": "1000", "sparkle:installationType": "application"],
         ]))
         if build == release.build {
@@ -72,6 +235,7 @@ struct SparkleInstallerTests {
         try #require(SUAppcastItem(dictionary: [
             "sparkle:version": release.build, "sparkle:shortVersionString": release.version,
             "sparkle:minimumSystemVersion": release.minimumSystem,
+            "xstats:network-extension-version": "0.15.0", "xstats:network-extension-build": "136",
             "xstats:date": release.date, "xstats:sha256": release.sha256,
             "xstats:dmg": "https://example.test/update.dmg",
             "sparkle:fullReleaseNotesLink": "https://example.test/changelog",

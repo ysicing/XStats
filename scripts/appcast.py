@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """生成应用内在线升级读取的版本清单 appcast.json。
 
-    scripts/appcast.py <版本> <build> <下载地址前缀> <Apple 芯片 zip> <Apple 芯片 dmg> > dist/appcast.json
+    scripts/appcast.py <版本> <build> <下载地址前缀> <Apple 芯片 zip> <Apple 芯片 dmg> <App路径> > dist/appcast.json
 
 清单只发布 Apple Silicon 安装包。
 
@@ -11,6 +11,7 @@
 import hashlib
 import json
 import os
+import plistlib
 import re
 import sys
 
@@ -67,7 +68,7 @@ def asset(base: str, zip_path: str, dmg_path: str) -> dict:
 
 
 def main() -> None:
-    version, build, base, arm_zip, arm_dmg = sys.argv[1:6]
+    version, build, base, arm_zip, arm_dmg, app = sys.argv[1:7]
     root = os.path.join(os.path.dirname(__file__), "..")
     with open(os.path.join(root, "CHANGELOG.md"), encoding="utf-8") as handle:
         date, notes = release_notes(handle.read(), version)
@@ -80,6 +81,10 @@ def main() -> None:
         "notes": notes,
         "changelog": "https://github.com/ysicing/xstats/blob/main/CHANGELOG.md",
     }
+    extension = os.path.join(app, "Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist")
+    with open(extension, "rb") as handle:
+        info = plistlib.load(handle)
+    feed["networkExtension"] = {"version": info["CFBundleShortVersionString"], "build": info["CFBundleVersion"]}
     json.dump(feed, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
 

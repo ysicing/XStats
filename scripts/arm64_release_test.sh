@@ -74,8 +74,15 @@ cat > "$WORK/repo/CHANGELOG.md" <<'LOG'
 LOG
 printf 'zip' > "$WORK/XStats-9.9.9-AppleSilicon.zip"
 printf 'dmg' > "$WORK/XStats-9.9.9-AppleSilicon.dmg"
+mkdir -p "$WORK/XStats.app/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents"
+python3 - "$WORK/XStats.app" <<'PYEXT'
+import plistlib, sys
+from pathlib import Path
+p = Path(sys.argv[1]) / "Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist"
+p.write_bytes(plistlib.dumps({"CFBundleShortVersionString": "0.15.0", "CFBundleVersion": "136"}))
+PYEXT
 (cd "$WORK/repo" && python3 scripts/appcast.py 9.9.9 110 https://example.test \
-  "$WORK/XStats-9.9.9-AppleSilicon.zip" "$WORK/XStats-9.9.9-AppleSilicon.dmg") > "$WORK/appcast.json"
+  "$WORK/XStats-9.9.9-AppleSilicon.zip" "$WORK/XStats-9.9.9-AppleSilicon.dmg" "$WORK/XStats.app") > "$WORK/appcast.json"
 python3 - "$WORK/appcast.json" <<'PY'
 import json
 import sys

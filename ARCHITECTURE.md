@@ -544,6 +544,20 @@ Checks and downloads can be cancelled; extraction/replacement must finish once s
 processes belonging to this exact installation path are stopped before installation; other installations
 are untouched. The controller owns the updater; its user driver keeps only a weak updater reference,
 so failures, retries and controller teardown do not create a retain cycle.
+Before accepting installation, the driver compares the signed feed's extension version with the installed
+extension. An app-only update pauses client reads while leaving the filter enabled. A changed extension
+requires disabling the filter and querying its lifecycle status until shutdown is confirmed.
+The XPC listener lives with the extension process so status remains available after filtering stops;
+configuration values, generic disconnections and a resident process alone are insufficient evidence.
+Each extension build uses its own Mach service suffix; the installed build reported by SystemExtensions selects
+the old service for shutdown queries, while activation and observation use the bundled build's service.
+This prevents the old resident listener from reserving the new build's communication endpoint.
+Installation and user-requested termination share the same preparation task. Failures cancel installation
+and restore the previous intent. A one-time running/paused marker restores observation after relaunch,
+subject to the module setting and visible demand, without persisting connection history.
+The extension version/build are independent from app releases. Activation reuses an enabled extension
+with the same version instead of stopping or replacing it. The signed feed must specify the packaged
+extension version; publication validates it against the ZIP and does not migrate old preview protocols.
 Versioned ZIP and XML objects are uploaded and read back before either regional JSON API is published;
 old clients continue using the unchanged JSON response and their existing installer for the transition.
 After an update the old helper may still be running; the app unregisters an outdated

@@ -5,6 +5,8 @@
 import base64
 import hashlib
 import json
+import plistlib
+import zipfile
 from pathlib import Path
 import tempfile
 import unittest
@@ -15,6 +17,21 @@ from sparkle_appcast import NOTE_LANGUAGES, ROOT, SPARKLE, XML_LANG, XSTATS, loa
 
 
 class SparkleAppcastTests(unittest.TestCase):
+    def test_signed_extension_version_is_preserved_and_tampering_is_rejected(self):
+        feed = {"version": "1.0.0", "build": "200", "minimumSystem": "14.0", "size": 3,
+                "url": "https://example.test/update.zip", "notes": ["test"],
+                "networkExtension": {"version": "0.15.0", "build": "136"}}
+        signature = base64.b64encode(b"s" * 64).decode()
+        root = ET.fromstring(make_feed(feed, signature))
+        item = root.find("channel/item")
+        self.assertEqual(item.findtext(f"{{{XSTATS}}}network-extension-build"), "136")
+        with tempfile.TemporaryDirectory() as directory, patch("sparkle_appcast.run_tool") as tool:
+            item.find(f"{{{XSTATS}}}network-extension-build").text = "137"
+            xml = Path(directory) / "update.xml"
+            xml.write_bytes(ET.tostring(root))
+            with self.assertRaises(ValueError):
+                verify_feed(feed, xml, Path(directory) / "update.zip", Path(directory), "test")
+            tool.assert_not_called()
     def test_xml_preserves_release_and_escapes_notes(self):
         feed = {"version": "1.0.0", "build": "200", "minimumSystem": "14.0", "size": 3,
                 "url": "https://example.test/XStats-1.0.0-AppleSilicon.zip", "notes": ["<test> & 新版本", "line two"], "date": "2026-09-30",
@@ -128,16 +145,18 @@ class SparkleAppcastTests(unittest.TestCase):
     def test_stale_manifest_or_wrong_archive_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / "XStats-1.0.0-AppleSilicon.zip"
-            archive.write_bytes(b"zip")
+            with zipfile.ZipFile(archive, "w") as bundle:
+                bundle.writestr("XStats.app/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist", plistlib.dumps({"CFBundleShortVersionString": "0.15.0", "CFBundleVersion": "136"}))
+            original = archive.read_bytes()
             manifest = Path(directory) / "appcast.json"
-            feed = {"version": "1.0.0", "build": "200", "size": 3, "notes": ["test"],
-                    "url": f"https://example.test/{archive.name}", "sha256": hashlib.sha256(b"zip").hexdigest()}
+            feed = {"version": "1.0.0", "build": "200", "size": len(original), "notes": ["test"], "networkExtension": {"version": "0.15.0", "build": "136"},
+                    "url": f"https://example.test/{archive.name}", "sha256": hashlib.sha256(original).hexdigest()}
             manifest.write_text(json.dumps(feed))
             self.assertEqual(load_manifest(manifest, archive), feed)
             archive.write_bytes(b"modified archive")
             with self.assertRaises(ValueError):
                 load_manifest(manifest, archive)
-            archive.write_bytes(b"zip")
+            archive.write_bytes(original)
             feed["url"] = "https://example.test/Another.zip"
             manifest.write_text(json.dumps(feed))
             with self.assertRaises(ValueError):

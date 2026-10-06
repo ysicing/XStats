@@ -2,6 +2,13 @@ import Foundation
 
 /// 更新 API 返回的版本清单；发版时由 scripts/appcast.py 生成并由 scripts/publish_release.sh 提交
 public struct UpdateRelease: Codable, Sendable, Equatable {
+    /// 包内网络扩展独立版本；只从已签名更新清单读取。
+    public struct NetworkExtension: Codable, Sendable, Equatable {
+        public let version: String
+        public let build: String
+        public init(version: String, build: String) { self.version = version; self.build = build }
+    }
+    public let networkExtension: NetworkExtension?
     public let version: String
     public let build: String
     public let date: String
@@ -22,7 +29,7 @@ public struct UpdateRelease: Codable, Sendable, Equatable {
 
     public init(version: String, build: String, date: String, minimumSystem: String, url: URL, sha256: String,
                 size: Int64, dmg: URL?, notes: [String], changelog: URL?, intel: UpdateAsset? = nil,
-                englishNotes: [String]? = nil) {
+                englishNotes: [String]? = nil, networkExtension: NetworkExtension? = nil) {
         self.version = version
         self.build = build
         self.date = date
@@ -35,6 +42,7 @@ public struct UpdateRelease: Codable, Sendable, Equatable {
         self.englishNotes = englishNotes
         self.changelog = changelog
         self.intel = intel
+        self.networkExtension = networkExtension
     }
 
     /// 中文语言统一显示中文，其余语言显示英文；旧清单没有英文时保留原摘要。

@@ -9,59 +9,42 @@ import NetworkObservation
 import Security
 
 /// 观察模式从不请求数据过滤或暂停：任何状态、任何错误路径都返回 allow。
-final class ConnectionFilterProvider: NEFilterDataProvider, NSXPCListenerDelegate, @unchecked Sendable {
-    private let buffer = ObservationBuffer()
-    private let listener: NSXPCListener
-    private let listenerLock = NSLock()
-    private let connectionLock = NSLock()
-    private var connection: NSXPCConnection?
-    private var filterActive = false
-    private var listening = false
-
-    override init() {
+final class ConnectionFilterProvider: NEFilterDataProvider, @unchecked Sendable {
+    // 监听服务与扩展进程同寿命，停用过滤器后仍可确认 stopFilter 已完成。
+    static let host: ObservationServiceHost = {
         let configuration = Bundle.main.object(forInfoDictionaryKey: "NetworkExtension") as? [String: Any]
-        listener = NSXPCListener(machServiceName: configuration?["NEMachServiceName"] as? String ?? "")
-        super.init()
-        listener.delegate = self
-    }
+        let listener = NSXPCListener(machServiceName: configuration?["NEMachServiceName"] as? String ?? "")
+        var ownCode: SecCode?
+        var staticCode: SecStaticCode?
+        var information: CFDictionary?
+        guard SecCodeCopySelf([], &ownCode) == errSecSuccess, let ownCode,
+              SecCodeCopyStaticCode(ownCode, [], &staticCode) == errSecSuccess, let staticCode,
+              SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
+              let team = (information as? [String: Any])?[kSecCodeInfoTeamIdentifier as String] as? String else {
+            fatalError("Network observation requires a signed system extension")
+        }
+        return ObservationServiceHost(listener: listener,
+            requiredClientCode: "anchor apple generic and identifier \"work.12306.xstats.app\" and certificate leaf[subject.OU] = \"\(team)\"")
+    }()
+    private let buffer = ConnectionFilterProvider.host.buffer
+    private let lifecycleLock = NSLock()
+    private var generation = 0
 
     override func startFilter(completionHandler: @escaping @Sendable ((any Error)?) -> Void) {
-        connectionLock.lock()
-        filterActive = true
-        connectionLock.unlock()
-        setListening(true)
-        apply(NEFilterSettings(rules: [], defaultAction: .filterData)) { [weak self] error in
-            if error != nil, let self { self.deactivate() }
+        let current = Self.host.startFilter()
+        lifecycleLock.lock(); generation = current; lifecycleLock.unlock()
+        apply(NEFilterSettings(rules: [], defaultAction: .filterData)) { error in
+            if error != nil { Self.host.beginStoppingFilter(generation: current) }
             completionHandler(error)
+            if error != nil { Self.host.finishStoppingFilter(generation: current) }
         }
     }
 
     override func stopFilter(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-        deactivate()
+        lifecycleLock.lock(); let current = generation; lifecycleLock.unlock()
+        Self.host.beginStoppingFilter(generation: current)
         completionHandler()
-    }
-
-    /// 启动失败时系统不保证再调用 stopFilter，失败路径与停止路径共用同一收尾。
-    private func deactivate() {
-        connectionLock.lock()
-        filterActive = false
-        buffer.stop()
-        let previous = connection
-        connection = nil
-        connectionLock.unlock()
-        setListening(false)
-        previous?.invalidate()
-    }
-
-    /// NSXPCListener 的 resume/suspend 按次数配对；重复停止不能多挂起一次，否则下次启动后仍不接受连接。
-    private func setListening(_ value: Bool) {
-        listenerLock.lock()
-        defer { listenerLock.unlock() }
-        guard listening != value else { return }
-        // 状态和底层调用必须一起串行化；先解锁会让下一次 resume 越过尚未执行的 suspend。
-        // 独立于会话锁，避免 listener 操作与连接回调竞争同一把锁。
-        listening = value
-        if value { listener.resume() } else { listener.suspend() }
+        Self.host.finishStoppingFilter(generation: current)
     }
 
     override func handleNewFlow(_ flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
@@ -101,45 +84,4 @@ final class ConnectionFilterProvider: NEFilterDataProvider, NSXPCListenerDelegat
         buffer.close(flow.identifier)
     }
 
-    func listener(_ listener: NSXPCListener, shouldAcceptNewConnection candidate: NSXPCConnection) -> Bool {
-        var ownCode: SecCode?
-        var staticCode: SecStaticCode?
-        var information: CFDictionary?
-        guard SecCodeCopySelf([], &ownCode) == errSecSuccess, let ownCode,
-              SecCodeCopyStaticCode(ownCode, [], &staticCode) == errSecSuccess, let staticCode,
-              SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
-              let team = (information as? [String: Any])?[kSecCodeInfoTeamIdentifier as String] as? String else { return false }
-        // macOS 在每条 XPC 消息上校验代码要求，不以可复用的 PID 作为信任依据。
-        candidate.setCodeSigningRequirement("anchor apple generic and identifier \"work.12306.xstats.app\" and certificate leaf[subject.OU] = \"\(team)\"")
-        candidate.exportedInterface = NSXPCInterface(with: NetworkObservationService.self)
-        // 连接建立不等于认证通过。只有 macOS 校验签名后分发的首次读取才能替换观察者，
-        // 未认证客户端不能通过反复连接来关闭现有观察或夺走其租约。
-        candidate.exportedObject = ConnectionObservationSession { [weak self] candidate, firstRead, cursor, epoch in
-            guard let self else { return nil }
-            self.connectionLock.lock()
-            guard self.filterActive, firstRead || self.connection === candidate else {
-                self.connectionLock.unlock()
-                return nil
-            }
-            let previous = firstRead ? self.connection : nil
-            if firstRead { self.connection = candidate }
-            // 不能在检查当前会话后解锁再 read，否则失效的旧读取能在 stop 之后重新续租。
-            let batch = self.buffer.read(after: cursor, epoch: epoch)
-            self.connectionLock.unlock()
-            previous?.invalidate()
-            return batch
-        }
-        candidate.invalidationHandler = { [weak self, weak candidate] in
-            guard let self, let candidate else { return }
-            self.connectionLock.lock()
-            let isCurrent = self.connection === candidate
-            if isCurrent {
-                self.connection = nil
-                self.buffer.endLease()
-            }
-            self.connectionLock.unlock()
-        }
-        candidate.resume()
-        return true
-    }
 }

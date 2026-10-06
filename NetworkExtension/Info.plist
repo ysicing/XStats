@@ -25,7 +25,7 @@
 	<key>NetworkExtension</key>
 	<dict>
 		<key>NEMachServiceName</key>
-		<string>$(TeamIdentifierPrefix)work.12306.xstats.network-observation.ipc</string>
+		<string>$(TeamIdentifierPrefix)work.12306.xstats.network-observation.ipc.$(NETWORK_EXTENSION_BUILD)</string>
 		<key>NEProviderClasses</key>
 		<dict>
 			<key>com.apple.networkextension.filter-data</key>

@@ -128,7 +128,7 @@ ditto -c -k --keepParent "$APP" "$DIST/$NAME.zip"
 
 # 版本清单只包含 Apple Silicon 安装包
 python3 scripts/appcast.py "$VERSION" "$BUILD" "$DOWNLOAD_BASE" \
-  "$DIST/XStats-${VERSION}-AppleSilicon.zip" "$DIST/XStats-${VERSION}-AppleSilicon.dmg" > "$DIST/appcast.json"
+  "$DIST/XStats-${VERSION}-AppleSilicon.zip" "$DIST/XStats-${VERSION}-AppleSilicon.dmg" "$APP" > "$DIST/appcast.json"
 python3 scripts/sparkle_appcast.py "$DIST/appcast.json" "$DIST/$NAME.zip"
 
 # ---- Homebrew cask ------------------------------------------------------------

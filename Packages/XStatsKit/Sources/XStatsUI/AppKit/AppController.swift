@@ -33,6 +33,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private var deepLinksReady = false
     private var pendingDeepLinks: [AppDeepLink] = []
     private var deepLinkTask: Task<Void, Never>?
+    private var terminationTask: Task<Void, Never>?
 
     public override init() {
         super.init()
@@ -75,6 +76,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.audio.setDemand(enabled: model.settings.audioEnabled, visible: model.audioControlsVisible, menuVisible: model.audioMenuVisible)
         model.connectionMonitor.setDemand(enabled: model.settings.canViewNetworkConnections,
                                           visible: model.isMainWindowVisible && model.settings.panelTab == .connections)
+        model.connectionMonitor.resumeAfterUpdate()
         menuBar.update()
         calendarMenuBar.start()
 
@@ -216,6 +218,23 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
         deepLinksReady = true
         drainDeepLinks()
+    }
+
+    public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard model.updates.installationRequiresPreparation else { return .terminateNow }
+        guard terminationTask == nil else { return .terminateLater }
+        // Sparkle 在安装就绪后可能因用户主动退出而继续安装；退出也必须经过相同的停用门禁。
+        terminationTask = Task {
+            defer { terminationTask = nil }
+            do {
+                try await model.updates.prepareForTermination()
+                sender.reply(toApplicationShouldTerminate: true)
+            } catch {
+                model.updates.installationPreparationFailed(error)
+                sender.reply(toApplicationShouldTerminate: false)
+            }
+        }
+        return .terminateLater
     }
 
     public func applicationWillTerminate(_ notification: Notification) {

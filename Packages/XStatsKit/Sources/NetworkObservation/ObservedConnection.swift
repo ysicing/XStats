@@ -77,4 +77,6 @@ public struct ObservationBatch: Codable, Sendable, Equatable {
 /// 只读增量接口；协议没有规则、放行或阻断入口。断开连接会终止观察租约。
 @objc public protocol NetworkObservationService {
     func readEvents(after cursor: Int64, epoch: String, reply: @escaping (Data) -> Void)
+    /// 只读生命周期查询；未运行或 stopFilter 已完成收尾时返回 true，停止过程中保持 false。
+    func isFilterStopped(reply: @escaping @Sendable (Bool) -> Void)
 }

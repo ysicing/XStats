@@ -33,6 +33,8 @@ public final class UpdateController {
     @ObservationIgnored var onPrompt: () -> Void = {}
     /// 后台发现新版本时请求系统通知；成功提交后才记录去重状态。
     @ObservationIgnored var onUpdateAvailable: (String) async -> Bool = { _ in false }
+    @ObservationIgnored var prepareForInstallation: (UpdateRelease.NetworkExtension) async throws -> Void = { _ in }
+    @ObservationIgnored var cancelInstallationPreparation: () -> Void = {}
 
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let defaults: UserDefaults
@@ -93,6 +95,10 @@ public final class UpdateController {
         return false
     }
 
+    var installationRequiresPreparation: Bool {
+        phase == .installing || sparkleInstaller?.hasInstallationRequest == true
+    }
+
     /// 未签名或临时签名的开发构建不执行在线安装，只提供手动下载
     var installBlockedReason: String? {
         // 仅为当前产品启用安装器，防止开发/旧产品构建误用发布更新源。
@@ -102,6 +108,17 @@ public final class UpdateController {
     }
 
     // MARK: 检查
+
+    func installationPreparationFailed(_ error: any Error) {
+        sparkleInstaller?.dismissUpdateInstallation()
+        cancelInstallationPreparation()
+        phase = .failed(error.localizedDescription)
+    }
+
+    func prepareForTermination() async throws {
+        if let sparkleInstaller { try await sparkleInstaller.waitForInstallationPreparation() }
+        else { throw UpdateError.invalidBundle(tr("版本清单格式不正确")) }
+    }
 
     /// 启动后创建唯一的 Sparkle 调度器；不另设 XStats 轮询定时器。
     func start() {
@@ -122,6 +139,12 @@ public final class UpdateController {
         let driver = SparkleInstaller(onPhase: { [weak self] in self?.phase = $0 },
                                       onRelaunch: { [weak self] in self?.skippedVersion = nil })
         driver.onChecked = { [weak self] in self?.lastChecked = Date() }
+        driver.prepareForInstallation = { [weak self, weak driver] in
+            guard let self else { throw CancellationError() }
+            guard let target = driver?.installationExtension else { throw UpdateError.invalidBundle(tr("版本清单格式不正确")) }
+            try await self.prepareForInstallation(target)
+        }
+        driver.cancelInstallationPreparation = { [weak self] in self?.cancelInstallationPreparation() }
         driver.onNoUpdate = { [weak self] in self?.release = nil }
         driver.onRelease = { [weak self] release, manual in
             guard let self else { return }
