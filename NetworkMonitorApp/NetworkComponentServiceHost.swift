@@ -19,6 +19,7 @@ import Updates
     private var checkReplies: [CheckedContinuation<NetworkComponentResponse, Never>] = []
     private var sdkReplies: [CheckedContinuation<Void, Never>] = []
     private var mutation: Task<NetworkComponentResponse, Never>?
+    private var statusRefresh: Task<Void, any Error>?
     private var preparationTask: Task<Void, any Error>?
     private var stopTask: Task<Void, any Error>?
     private var rollbackTask: Task<Void, Never>?
@@ -128,6 +129,8 @@ import Updates
     }
 
     private func mutate(_ command: String) async -> NetworkComponentResponse {
+        // status 刷新不占用 mutation，但其 properties 请求会占用系统扩展请求槽；先等它结束再判定。
+        _ = await statusRefresh?.result
         guard command != "uninstall" || !preparedForHandoff else { return response(error: NetworkMonitorError.unavailable.localizedDescription) }
         let stopping = command == "disable" || command == "shutdown" || command == "uninstall"
         if stopping {
@@ -171,8 +174,14 @@ import Updates
     }
 
     private func refreshStatus() async throws {
-        enabled = try await manager.filterEnabled()
-        try await manager.refreshApprovalState()
+        if let statusRefresh { return try await statusRefresh.value }
+        let task = Task { @MainActor in
+            enabled = try await manager.filterEnabled()
+            try await manager.refreshApprovalState()
+        }
+        statusRefresh = task
+        defer { statusRefresh = nil }
+        try await task.value
     }
 
     private func ensureUpdater() throws {

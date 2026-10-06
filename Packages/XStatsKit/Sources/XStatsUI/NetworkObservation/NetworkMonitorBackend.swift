@@ -127,13 +127,15 @@ extension NetworkMonitorBackend {
                           data.count <= 256 * 1024, let status = try? JSONDecoder().decode(NetworkComponentStatus.self, from: data) else { return }
                     self.onComponentStatus?(status)
                 } })
-            let clear: @Sendable () -> Void = { [weak self] in
+            // agent 空闲退出只会中断连接；仅在服务失效（如登录项被移除）时重新注册，避免每条命令都启动注册子进程。
+            let clear: @Sendable (Bool) -> Void = { [weak self] invalidated in
                 Task { @MainActor in
                     guard let self, let current = self.control, ObjectIdentifier(current) == identifier else { return }
-                    self.control = nil; self.registeredIdentity = nil; current.invalidate()
+                    self.control = nil; current.invalidate()
+                    if invalidated { self.registeredIdentity = nil }
                 }
             }
-            candidate.invalidationHandler = clear; candidate.interruptionHandler = clear
+            candidate.invalidationHandler = { clear(true) }; candidate.interruptionHandler = { clear(false) }
             candidate.resume(); control = candidate
         }
     }

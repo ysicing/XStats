@@ -21,7 +21,11 @@ import Updates
     var holdShutdown = false
     var shutdownContinuation: CheckedContinuation<Void, Never>?
     var shutdownError: (any Error)?
-    func activate() async throws -> Bool { false }
+    var activationError: (any Error)?
+    func activate() async throws -> Bool {
+        if let activationError { onApproval?(); throw activationError }
+        return false
+    }
     func cancelActivation() {}
     func setFilterEnabled(_ enabled: Bool) async throws {
         filterWrites.append(enabled)
@@ -113,7 +117,7 @@ import Updates
         controller.shutdown()
     }
 
-    @Test func failedQuitStopKeepsTheNextQuitGateUntilConfirmation() async throws {
+    @Test func failedQuitStopBlocksOnlyOnceSoTheNextQuitCanExit() async throws {
         let backend = ObservationBackendFixture()
         let controller = NetworkMonitorController(backend: backend, isSupported: true)
         controller.setDemand(enabled: true, visible: false)
@@ -121,11 +125,27 @@ import Updates
         try await waitUntil { controller.status == .running }
         backend.disableError = NetworkMonitorError.timeout
         await #expect(throws: NetworkMonitorError.timeout) { try await controller.prepareForTermination() }
+        // 尚未上报失败前（例如主包更新路径）仍保留门禁，可以重试停用。
         #expect(controller.terminationRequiresPreparation)
-        backend.disableError = nil
-        try await controller.prepareForTermination()
-        #expect(!controller.terminationRequiresPreparation)
-        #expect(controller.status == .idle)
+        controller.noteTerminationFailure(NetworkMonitorError.timeout)
+        #expect(controller.status == .failed && controller.error != nil)
+        #expect(!controller.terminationRequiresPreparation, "上报失败后第二次退出必须直接放行")
+    }
+
+    @Test func approvalTimeoutKeepsApprovalPromptAndRetrySucceeds() async throws {
+        let backend = ObservationBackendFixture()
+        let controller = NetworkMonitorController(backend: backend, isSupported: true)
+        controller.setDemand(enabled: true, visible: false)
+        backend.activationError = NetworkMonitorError.timeout
+        controller.start()
+        try await waitUntil { !controller.isBusy }
+        #expect(controller.status == .needsApproval, "等待批准时超时不应显示为失败")
+        #expect(controller.error == nil)
+        backend.activationError = nil
+        controller.start()
+        try await waitUntil { controller.status == .running }
+        #expect(backend.filterWrites == [true])
+        controller.shutdown()
     }
     @Test func mainPackageUpdateOnlyReleasesReaderWithoutDisablingComponent() async throws {
         let backend = ObservationBackendFixture()

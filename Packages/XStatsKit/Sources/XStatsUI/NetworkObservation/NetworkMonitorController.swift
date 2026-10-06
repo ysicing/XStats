@@ -118,6 +118,8 @@ import Updates
                     break
                 } catch {
                     if enabling != self.wantsRunning { continue }
+                    // 组件仍在等待用户批准系统扩展时客户端会先超时；保留授权提示，批准后由用户返回重试。
+                    if self.status == .needsApproval, (error as? NetworkMonitorError) == .timeout { break }
                     self.status = .failed
                     self.error = error.localizedDescription
                     break
@@ -220,7 +222,8 @@ import Updates
         await configurationTask?.value
         if !preserveFilter { try await backend.setFilterEnabled(false); status = .idle; terminationStopPending = false }
     }
-    func noteTerminationFailure(_ error: any Error) { self.error = error.localizedDescription; status = .failed }
+    /// 停用失败只拦截这一次退出；再次退出不再等待，避免应用无法退出。扩展观察租约到期后停止记录。
+    func noteTerminationFailure(_ error: any Error) { self.error = error.localizedDescription; status = .failed; terminationStopPending = false }
     func beginComponentUpdate() { componentUpdating = true; stopReading() }
     func finishComponentUpdate() {
         componentUpdating = false
