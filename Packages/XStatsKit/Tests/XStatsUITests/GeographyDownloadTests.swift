@@ -74,6 +74,21 @@ struct GeographyDownloadTests {
         #expect(controller.state == .idle && !controller.hasData)
     }
 
+    @Test @MainActor func returningWithFreshCacheStaysReadyInsteadOfShowingDownload() async throws {
+        let fixture = try GeographyFixture(v4: v4, v6: v6)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let controller = NetworkGeographyController(service: OfflineGeography(cacheRoot: directory, download: fixture.download))
+        controller.setDemand(enabled: true)
+        #expect(controller.state.isDownloading, "首次没有数据时应显示下载进度")
+        while controller.state != .ready { try Task.checkCancellation(); await Task.yield() }
+        controller.setDemand(enabled: false)
+        controller.setDemand(enabled: true)
+        #expect(controller.state == .ready, "缓存仍新鲜时回到页面不应闪出更新提示")
+        for _ in 0..<20 { await Task.yield() }
+        #expect(controller.state == .ready && controller.hasData)
+    }
+
     @Test func rejectsOversizedDecompressedPayloadAndHashMismatch() throws {
         let fixture = try GeographyFixture(v4: v4, v6: v6)
         var asset = fixture.manifest.files[0]
@@ -82,6 +97,32 @@ struct GeographyDownloadTests {
         asset = fixture.manifest.files[0]
         asset.sha256 = String(repeating: "0", count: 64)
         #expect(throws: (any Error).self) { try asset.unpack(fixture.payloads[asset.file]!) }
+    }
+
+    @Test @MainActor func manualUpdateShowsProgressWhileManifestIsPendingAndKeepsCachedData() async throws {
+        let fixture = try GeographyFixture(v4: v4, v6: v6)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        _ = try await OfflineGeography(cacheRoot: directory, download: fixture.download).prepare()
+        let gate = GeographyDownloadGate(fixture: fixture, holdManifest: true)
+        let service = OfflineGeography(cacheRoot: directory, download: gate.download)
+        let controller = NetworkGeographyController(service: service)
+        controller.setDemand(enabled: true)
+        // 缓存发布和后台新鲜度检查各发布一次 revision，先等自动检查完成再手动更新。
+        while controller.revision < 2 { try Task.checkCancellation(); await Task.yield() }
+
+        controller.retry()
+        #expect(controller.state.isDownloading)
+        while await gate.requests == 0 { try Task.checkCancellation(); await Task.yield() }
+        #expect(controller.state.isDownloading && controller.hasData)
+        #expect(await service.resolve(["8.8.8.8"])["8.8.8.8"] == "US")
+        controller.retry()
+        #expect(await gate.requests == 1)
+        await gate.resumeFirst()
+        while controller.state.isDownloading { try Task.checkCancellation(); await Task.yield() }
+        #expect(controller.state == .ready && controller.hasData)
+        #expect(await gate.requests == 1, "相同清单无需重新下载数据库")
+        controller.setDemand(enabled: false)
     }
 }
 
@@ -115,12 +156,18 @@ private struct GeographyFixture: Sendable {
 
 private actor GeographyDownloadGate {
     private let fixture: GeographyFixture
+    private let holdManifest: Bool
     private(set) var requests = 0
     private var pending: [CheckedContinuation<Void, Never>] = []
-    init(fixture: GeographyFixture) { self.fixture = fixture }
+    init(fixture: GeographyFixture, holdManifest: Bool = false) {
+        self.fixture = fixture
+        self.holdManifest = holdManifest
+    }
     func download(_ url: URL, _ maximum: Int, _ progress: @escaping @Sendable (Double) -> Void) async throws -> Data {
         requests += 1
-        if url.lastPathComponent != "current.json" { await withCheckedContinuation { pending.append($0) } }
+        if (url.lastPathComponent == "current.json") == holdManifest {
+            await withCheckedContinuation { pending.append($0) }
+        }
         // 故意不响应取消，覆盖旧请求晚到时不能写缓存/覆盖新下载状态的边界。
         return try await fixture.download(url, maximum, progress)
     }

@@ -12,9 +12,11 @@ import Security
 final class ConnectionFilterProvider: NEFilterDataProvider, NSXPCListenerDelegate, @unchecked Sendable {
     private let buffer = ObservationBuffer()
     private let listener: NSXPCListener
+    private let listenerLock = NSLock()
     private let connectionLock = NSLock()
     private var connection: NSXPCConnection?
     private var filterActive = false
+    private var listening = false
 
     override init() {
         let configuration = Bundle.main.object(forInfoDictionaryKey: "NetworkExtension") as? [String: Any]
@@ -27,28 +29,39 @@ final class ConnectionFilterProvider: NEFilterDataProvider, NSXPCListenerDelegat
         connectionLock.lock()
         filterActive = true
         connectionLock.unlock()
-        listener.resume()
+        setListening(true)
         apply(NEFilterSettings(rules: [], defaultAction: .filterData)) { [weak self] error in
-            if error != nil, let self {
-                self.connectionLock.lock()
-                self.filterActive = false
-                self.buffer.stop()
-                self.connectionLock.unlock()
-            }
+            if error != nil, let self { self.deactivate() }
             completionHandler(error)
         }
     }
 
     override func stopFilter(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
+        deactivate()
+        completionHandler()
+    }
+
+    /// 启动失败时系统不保证再调用 stopFilter，失败路径与停止路径共用同一收尾。
+    private func deactivate() {
         connectionLock.lock()
         filterActive = false
         buffer.stop()
         let previous = connection
         connection = nil
         connectionLock.unlock()
-        listener.suspend()
+        setListening(false)
         previous?.invalidate()
-        completionHandler()
+    }
+
+    /// NSXPCListener 的 resume/suspend 按次数配对；重复停止不能多挂起一次，否则下次启动后仍不接受连接。
+    private func setListening(_ value: Bool) {
+        listenerLock.lock()
+        defer { listenerLock.unlock() }
+        guard listening != value else { return }
+        // 状态和底层调用必须一起串行化；先解锁会让下一次 resume 越过尚未执行的 suspend。
+        // 独立于会话锁，避免 listener 操作与连接回调竞争同一把锁。
+        listening = value
+        if value { listener.resume() } else { listener.suspend() }
     }
 
     override func handleNewFlow(_ flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
@@ -109,10 +122,7 @@ final class ConnectionFilterProvider: NEFilterDataProvider, NSXPCListenerDelegat
                 return nil
             }
             let previous = firstRead ? self.connection : nil
-            if firstRead {
-                self.connection = candidate
-                self.buffer.stop()
-            }
+            if firstRead { self.connection = candidate }
             // 不能在检查当前会话后解锁再 read，否则失效的旧读取能在 stop 之后重新续租。
             let batch = self.buffer.read(after: cursor, epoch: epoch)
             self.connectionLock.unlock()
@@ -125,7 +135,7 @@ final class ConnectionFilterProvider: NEFilterDataProvider, NSXPCListenerDelegat
             let isCurrent = self.connection === candidate
             if isCurrent {
                 self.connection = nil
-                self.buffer.stop()
+                self.buffer.endLease()
             }
             self.connectionLock.unlock()
         }

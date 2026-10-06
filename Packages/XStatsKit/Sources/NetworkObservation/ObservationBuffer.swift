@@ -49,6 +49,14 @@ public final class ObservationBuffer: @unchecked Sendable {
         return batch
     }
 
+    /// 读取端暂停或切换时只停止记录新连接；已观察的活动连接继续接收结束报告，
+    /// 恢复后同一游标接着读取，切换标签或锁屏不会让仍在进行的连接从列表中消失。
+    public func endLease() {
+        lock.lock(); defer { lock.unlock() }
+        leaseUntil = 0
+    }
+
+    /// 过滤器停止时清空全部状态。
     public func stop() {
         lock.lock(); defer { lock.unlock() }
         leaseUntil = 0

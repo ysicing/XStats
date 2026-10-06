@@ -293,6 +293,14 @@ struct NetworkConnectionsPage: View {
                      : tr("显示观察期间的新连接；重新开始前已建立的连接不在此列。"))
                     .fixedSize(horizontal: false, vertical: true)
             }.dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+            // 突发连接超出扩展缓冲时明确提示列表不完整，不把截断的观察当作完整结果。
+            if monitor.discarded > 0 {
+                HStack(alignment: .top, spacing: DS.Space.s2) {
+                    Image(systemName: "exclamationmark.triangle").accessibilityHidden(true)
+                    Text(tr("扩展缓冲区已有 \(monitor.discarded.formatted(.number.locale(L10n.locale))) 条旧记录被淘汰。"))
+                        .fixedSize(horizontal: false, vertical: true)
+                }.dsFont(.xs).foregroundStyle(DS.Palette.warning)
+            }
         }.padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s3)
     }
 

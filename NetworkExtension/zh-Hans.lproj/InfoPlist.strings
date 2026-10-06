@@ -1,3 +1,4 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 "NSSystemExtensionUsageDescription" = "只在本机查看应用的网络连接，不阻断连接或读取通信内容。";
+"CFBundleDisplayName" = "XStats 网络扩展";

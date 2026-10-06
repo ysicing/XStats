@@ -1,3 +1,4 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 "NSSystemExtensionUsageDescription" = "عرض اتصالات شبكة التطبيقات محليًا دون حظر الاتصالات أو قراءة محتوى الاتصالات.";
+"CFBundleDisplayName" = "امتداد الشبكة لـ XStats";

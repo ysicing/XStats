@@ -80,11 +80,14 @@ actor OfflineGeography {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         do {
             for (file, data) in zip(manifest.files, pair) {
+                try Task.checkCancellation()
                 try data.write(to: directory.appendingPathComponent(file.name), options: .atomic)
             }
             let record = CacheRecord(manifest: manifest, directory: directoryName, checkedAt: Date())
             // 两个文件均验证完成后才原子切换索引；更新失败不会把IPv4新库与IPv6旧库混用。
             let mapped = try manifest.files.map { try read($0, directory: directory) }
+            // 切换索引前最后一次响应取消；之后索引与内存必须一起提交。
+            try Task.checkCancellation()
             try JSONEncoder().encode(record).write(to: cacheRoot.appendingPathComponent("current.json"), options: .atomic)
             install(record, pair: mapped)
             removeOlderDirectories(except: directoryName)
