@@ -47,6 +47,8 @@ final class ConnectionFilterProvider: NEFilterDataProvider, @unchecked Sendable 
         }, onError: { generation, observing, error in
             let failure = error as NSError
             Self.logger.error("Settings failed generation=\(generation) filterData=\(observing) code=\(failure.code)")
+        }, onResult: { generation, requestID, observing, error in
+            Self.host.recordSettingsResult(generation: generation, requestID: requestID, observing: observing, error: error)
         })
         self.lifecycle = lifecycle
         return lifecycle

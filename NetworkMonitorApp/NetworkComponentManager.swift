@@ -177,7 +177,7 @@ import Updates
             configuration.filterPackets = false
             configuration.filterDataProviderBundleIdentifier = Self.extensionIdentifier
             manager.providerConfiguration = configuration
-            manager.localizedDescription = tr("XStats 网络连接查看")
+            manager.localizedDescription = L10n.translate("XStats 网络连接查看", language: NetworkComponentLocalization.applicationLanguage)
         } else if manager.providerConfiguration == nil {
             return
         }

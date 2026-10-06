@@ -107,7 +107,7 @@ extension NetworkMonitorBackend {
                 arguments: ["--register-service"], limit: 32 * 1024)
             let registration = try JSONDecoder().decode(RegistrationReply.self, from: result)
             guard registration.protocolVersion == NetworkObservationProtocol.version else { throw NetworkMonitorError.protocolMismatch }
-            if let error = registration.error { throw NSError(domain: "NetworkComponent", code: 1, userInfo: [NSLocalizedDescriptionKey: error]) }
+            if let error = registration.error { throw NSError(domain: "NetworkComponent", code: 1, userInfo: [NSLocalizedDescriptionKey: tr(error)]) }
             guard registration.registration == .enabled else { throw NetworkMonitorError.backgroundApproval }
             registeredIdentity = identity
         }
@@ -174,7 +174,7 @@ extension NetworkMonitorBackend {
         let response = try JSONDecoder().decode(NetworkComponentResponse.self, from: data)
         guard response.protocolVersion == NetworkObservationProtocol.version else { throw NetworkMonitorError.protocolMismatch }
         if response.status?.needsSystemApproval == true { onApproval?() }
-        if let error = response.error { throw NSError(domain: "NetworkComponent", code: 1, userInfo: [NSLocalizedDescriptionKey: error]) }
+        if let error = response.error { throw NSError(domain: "NetworkComponent", code: 1, userInfo: [NSLocalizedDescriptionKey: tr(error)]) }
         if let status = response.status { onComponentStatus?(status) }
         return response
     }
@@ -216,6 +216,7 @@ extension NetworkMonitorBackend {
         return candidate
     }
     static func decodeBatch(_ data: Data) throws -> ObservationBatch {
+        guard !data.isEmpty else { throw NetworkMonitorError.unavailable }
         let batch = try ObservationBatch.decode(data)
         // 相同构建号可能让 macOS 继续运行旧扩展；缺字段是协议不匹配，不能当作零条活动连接。
         guard batch.activeIDs != nil else { throw NetworkMonitorError.extensionNeedsUpdate }

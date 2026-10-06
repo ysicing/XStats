@@ -17,7 +17,7 @@ settings:
     CURRENT_PROJECT_VERSION: "137"
     # 独立网络组件及扩展共用版本；只在组件、扩展或共享协议变化时推进。
     NETWORK_EXTENSION_VERSION: "0.15.0"
-    NETWORK_EXTENSION_BUILD: "138"
+    NETWORK_EXTENSION_BUILD: "139"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     # 本地开发使用 ad-hoc 签名；正式发布使用 Developer ID（见 DEVELOPMENT.md）
     CODE_SIGN_STYLE: Manual

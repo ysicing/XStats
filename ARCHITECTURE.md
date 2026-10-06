@@ -874,7 +874,11 @@ expires even if the GUI crashes. The provider uses try-locks so observation cont
 on the flow verdict path. Without a reader the provider applies an all-network/protocol/direction
 allow rule with default allow; active leases switch serially to filterData. A single active-lease deadline
 and generation/revision checks prevent late callbacks or old-reader invalidation from revoking newer
-leases. Apply failure preserves the last successful state and is logged, never reported as idle bypass. Disabling the module serially saves `isEnabled=false`, including when an enable save was
+leases. Every authenticated renewal advances the demand revision; successful settings are not reapplied.
+Apply failure preserves the last successful state and is logged. A failed observation setting makes reads
+return an error until observation succeeds, including across idle periods and reader replacement. Existing
+reader polling drives recovery; after three consecutive read failures the UI stops and reports failure.
+There is no background retry timer, and generation/request IDs reject stale completion results. Disabling the module serially saves `isEnabled=false`, including when an enable save was
 already in flight. Explicit removal disables and removes the filter configuration before submitting
 system-extension deactivation; pending reboot is reported separately from completed removal.
 
@@ -894,7 +898,10 @@ Executable CDHash plus agent-plist SHA-256 determine whether an external unregis
 is needed after upgrade. Main-app uninstall completes the extension operation, unregisters through the
 still-present signed CLI, then deletes the companion bundle. A required reboot keeps the bundle intact.
 Authorization/update progress use authenticated XPC callbacks, not endpoint polling. Protocol version 2
-is explicit in control replies and data batches. Main metadata discovery reads bounded Info.plist bytes
+is explicit in control replies and data batches. Component GUI language follows the main application preference,
+falling back to the system language. Service/registration CLI custom errors retain Chinese source keys;
+GUI and main-app consumers translate them locally, so shared-service replies do not freeze a caller language.
+The macOS filter description uses explicit translation in the selected application language. Main metadata discovery reads bounded Info.plist bytes
 from disk rather than NSBundle's process cache. Install validation is shared by concurrent entry points;
 unchanged file identity avoids repeated codesign/spctl, and each XPC message still verifies its peer.
 Main-app update preparation records only viewer intent. Ordinary quit stops reading and serially

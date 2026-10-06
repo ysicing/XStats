@@ -26,6 +26,7 @@ public final class FilterSettingsLifecycle: @unchecked Sendable {
     private let lock = NSLock()
     private let apply: Apply
     private let onError: @Sendable (Int, Bool, any Error) -> Void
+    private let onResult: @Sendable (Int, UInt64, Bool, (any Error)?) -> Void
     private var generation = 0
     private var revision: UInt64 = 0
     private var requestID: UInt64 = 0
@@ -38,9 +39,11 @@ public final class FilterSettingsLifecycle: @unchecked Sendable {
     private var startCompletion: Completion?
     private var stopCompletions: [@Sendable () -> Void] = []
 
-    public init(apply: @escaping Apply, onError: @escaping @Sendable (Int, Bool, any Error) -> Void = { _, _, _ in }) {
+    public init(apply: @escaping Apply, onError: @escaping @Sendable (Int, Bool, any Error) -> Void = { _, _, _ in },
+                onResult: @escaping @Sendable (Int, UInt64, Bool, (any Error)?) -> Void = { _, _, _, _ in }) {
         self.apply = apply
         self.onError = onError
+        self.onResult = onResult
     }
 
     /// 最后成功应用的系统设置；apply 失败不能伪报 allow 已生效。
@@ -127,6 +130,7 @@ public final class FilterSettingsLifecycle: @unchecked Sendable {
         let next = nextRequestLocked()
         let stops = takeStopCompletionsLocked()
         lock.unlock()
+        if current { onResult(request.generation, request.id, request.observing, error) }
         starting?(error)
         if current, let error { onError(request.generation, request.observing, error) }
         stops.forEach { $0() }

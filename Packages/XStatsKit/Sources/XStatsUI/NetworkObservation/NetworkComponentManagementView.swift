@@ -40,7 +40,7 @@ struct NetworkComponentManagementView: View {
                     }
                     if status.update.phase == .verifying { Text(tr("正在验证更新包与开发者签名…")) }
                     if status.update.phase == .installing { Text(tr("正在更新网络组件…")) }
-                    if let error = status.update.error { Text(verbatim: error).foregroundStyle(DS.Palette.error).textSelection(.enabled) }
+                    if let error = status.update.error { Text(verbatim: tr(error)).foregroundStyle(DS.Palette.error).textSelection(.enabled) }
                 }
                 HStack {
                     Button(tr("检查更新")) { component.checkUpdates() }.disabled(component.busy)

@@ -45,7 +45,7 @@ import SwiftUI
             let response = try JSONDecoder().decode(NetworkComponentResponse.self, from: data)
             guard response.protocolVersion == NetworkObservationProtocol.version else { throw NetworkMonitorError.protocolMismatch }
             status = response.status
-            if let error = response.error { message = error }
+            if let error = response.error { message = tr(error) }
             else if response.needsRestart { message = tr("需要重启系统") }
             else { message = status?.filterEnabled == true ? tr("正在监视") : tr("尚未启用") }
         } catch { message = error.localizedDescription }
@@ -97,7 +97,7 @@ private struct ComponentView: View {
                     ProgressView(value: update.progress ?? 0)
                     Button(tr("取消")) { Task { await model.run("cancelUpdate") } }
                 }
-                if let error = update.error { Text(error).foregroundStyle(.red) }
+                if let error = update.error { Text(tr(error)).foregroundStyle(.red) }
             }
             Button(tr("移除网络扩展")) { Task { await model.run("uninstall") } }
         }.padding(24).frame(width: 400).fixedSize(horizontal: false, vertical: true)
@@ -143,7 +143,9 @@ private struct ComponentView: View {
         if window == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 448, height: 300), styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.title = tr("网络监视器")
-            window.contentView = NSHostingView(rootView: ComponentView(model: model))
+            window.contentView = NSHostingView(rootView: ComponentView(model: model)
+                .environment(\.locale, L10n.locale)
+                .environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight))
             window.isReleasedWhenClosed = false; window.center(); self.window = window
         }
         window?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
@@ -159,7 +161,11 @@ private struct ComponentView: View {
 }
 
 let arguments = CommandLine.arguments
-if arguments.contains("--register-service") || arguments.contains("--refresh-service") || arguments.contains("--unregister-service") {
+let registrationMode = arguments.contains("--register-service") || arguments.contains("--refresh-service") || arguments.contains("--unregister-service")
+// 服务/CLI 输出源文案键；只有独立 GUI 在此处决定显示语言，所有初始化文案都在配置之后创建。
+L10n.configure(arguments.contains("--service") || registrationMode
+    ? NetworkComponentLocalization.transportLanguage : NetworkComponentLocalization.applicationLanguage)
+if registrationMode {
     // 无 GUI、无监听器、无 NE/更新副作用；主应用在后台执行这条短命令并读取 JSON。
     Task {
         var failure: String?

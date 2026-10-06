@@ -110,6 +110,81 @@ struct ObservationServiceHostTests {
         #expect(host.currentDemand.isActive && host.currentDemand.generation == current)
     }
 
+    @Test func renewingLiveLeaseRetriesFailedFilterSettings() async throws {
+        let listener = NSXPCListener.anonymous()
+        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
+        let applies = HostApplyFixture()
+        let lifecycle = FilterSettingsLifecycle(apply: applies.apply)
+        let generation = host.startFilter(demandChanged: lifecycle.setDemand)
+        defer { host.beginStoppingFilter(generation: generation); listener.invalidate() }
+        lifecycle.start(generation: generation) { _ in }
+        applies.complete(0)
+        let reader = peer(listener)
+        defer { reader.invalidate() }
+        _ = try await read(reader)
+        applies.complete(1, error: CocoaError(.fileReadUnknown))
+        _ = try await read(reader)
+        #expect(applies.modes == [false, true, true])
+        try #require(applies.modes.count == 3)
+        applies.complete(2)
+        #expect(lifecycle.appliedObservation == true)
+        _ = try await read(reader)
+        #expect(applies.modes.count == 3, "正常续租不重复应用已成功的规则")
+    }
+
+    @Test func failedSettingsAreVisibleAcrossReadersUntilObservationReallyRecovers() async throws {
+        let listener = NSXPCListener.anonymous()
+        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
+        let applies = HostApplyFixture()
+        let lifecycle = FilterSettingsLifecycle(apply: applies.apply, onResult: host.recordSettingsResult)
+        let generation = host.startFilter(demandChanged: lifecycle.setDemand)
+        defer { host.beginStoppingFilter(generation: generation); listener.invalidate() }
+        lifecycle.start(generation: generation) { _ in }
+        applies.complete(0)
+        let first = peer(listener), second = peer(listener)
+        defer { first.invalidate(); second.invalidate() }
+        _ = try await read(first)
+        applies.complete(1, error: CocoaError(.fileReadUnknown))
+        await #expect(throws: (any Error).self) { _ = try await read(second) }
+        try #require(applies.modes.count == 3)
+        applies.complete(2, error: CocoaError(.fileReadUnknown))
+        await #expect(throws: (any Error).self) { _ = try await read(second) }
+        try #require(applies.modes.count == 4)
+        applies.complete(3)
+        _ = try await read(second)
+        #expect(lifecycle.appliedObservation == true)
+        #expect(applies.modes.count == 4)
+        // 乱序旧错误与旧 provider 的结果均不能让已恢复的读取再次失败。
+        host.recordSettingsResult(generation: generation, requestID: 2, observing: true, error: CocoaError(.fileReadUnknown))
+        host.recordSettingsResult(generation: generation - 1, requestID: 999, observing: true, error: CocoaError(.fileReadUnknown))
+        _ = try await read(second)
+    }
+
+    @Test func persistentApplyFailureRemainsAnErrorAcrossIdleAndReconnects() async throws {
+        let listener = NSXPCListener.anonymous()
+        let clock = LeaseClockFixture(), timers = LeaseTimerFactory()
+        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement(), now: clock.read, makeDeadline: timers.make)
+        let applies = HostApplyFixture()
+        let lifecycle = FilterSettingsLifecycle(apply: applies.apply, onResult: host.recordSettingsResult)
+        let generation = host.startFilter(demandChanged: lifecycle.setDemand)
+        defer { host.beginStoppingFilter(generation: generation); listener.invalidate() }
+        lifecycle.start(generation: generation) { _ in }
+        applies.complete(0)
+        let first = peer(listener)
+        _ = try await read(first)
+        applies.complete(1, error: CocoaError(.fileReadUnknown))
+        clock.set(107); timers.timer(0).fire(); first.invalidate()
+        #expect(!host.currentDemand.isActive)
+        #expect(applies.modes == [false, true], "无人读取时不进行后台重试")
+        for _ in 0..<3 {
+            let reader = peer(listener)
+            defer { reader.invalidate() }
+            await #expect(throws: (any Error).self) { _ = try await read(reader) }
+            applies.complete(applies.modes.count - 1, error: CocoaError(.fileReadUnknown))
+        }
+        #expect(applies.modes == [false, true, true, true, true])
+    }
+
     private func requirement() throws -> String {
         var code: SecCode?
         var staticCode: SecStaticCode?
@@ -195,4 +270,16 @@ private final class LeaseTimerFixture: ObservationLeaseDeadline, @unchecked Send
     func schedule(after seconds: TimeInterval) { lock.lock(); scheduleCount += 1; lock.unlock() }
     func cancel() { lock.lock(); isCancelled = true; lock.unlock() }
     func fire() { handler() }
+}
+
+private final class HostApplyFixture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var requests: [(Bool, FilterSettingsLifecycle.Completion)] = []
+    var modes: [Bool] { lock.lock(); defer { lock.unlock() }; return requests.map(\.0) }
+    func apply(_ observing: Bool, completion: @escaping FilterSettingsLifecycle.Completion) {
+        lock.lock(); requests.append((observing, completion)); lock.unlock()
+    }
+    func complete(_ index: Int, error: (any Error)? = nil) {
+        lock.lock(); let callback = requests[index].1; lock.unlock(); callback(error)
+    }
 }
