@@ -8,8 +8,68 @@
 
 extension Translations {
     static var tables: [String] {
-        [english, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish]
+        [english, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish, networkObservationEnglish]
     }
+
+
+    static let networkObservationEnglish = #"""
+更新地图数据库	Update map database
+正在更新地图数据库…	Updating map database…
+正在下载地图数据库…	Downloading map database…
+更新失败，继续使用已缓存的数据。	Update failed. Using the cached database.
+地图数据库未就绪，连接列表仍可使用。	Map database unavailable. The connection list is still available.
+下载地图数据库	Download map database
+网络扩展需要更新，请重新启用连接查看。	The network extension needs an update. Enable connection viewing again.
+网络监视器	Network Monitor
+域名	Domains
+国家	Countries
+目标	Destination
+更多	More
+继续监视	Resume monitoring
+暂停监视	Pause monitoring
+仅显示活动连接	Show active connections only
+汇总方式	Group by
+活动连接	Active connections
+国家级位置，非设备精确位置	Country-level location, not a precise device location
+暂停时保留当前画面；继续后更新观察到的连接。	Pausing keeps this view; resuming updates observed connections.
+显示观察期间的新连接；重新开始前已建立的连接不在此列。	Shows connections opened during observation; pre-existing connections are not included.
+查看应用连接、域名和国家分布，不读取通信内容。	View app connections, domains and countries without reading communication content.
+请在系统设置中允许 XStats 网络扩展，然后返回此处。	Allow the XStats network extension in System Settings, then return here.
+错误详情	Error details
+正在监视	Monitoring
+内网或位置未知	Local network or unknown location
+需要 macOS 15 或更新版本	Requires macOS 15 or later
+出站	Outbound
+入站	Inbound
+网络连接	Network Connections
+只读查看应用的新连接，所有连接均放行。	View new app connections; all connections are allowed.
+此构建未包含网络扩展。	This build does not include the network extension.
+需要包含网络扩展权限的签名构建。	A signed build with Network Extension entitlements is required.
+请先将 XStats 安装到应用程序文件夹。	Install XStats in the Applications folder first.
+无法连接网络扩展，请重试。	Could not connect to the network extension. Try again.
+网络扩展响应超时，请重试。	The network extension timed out. Try again.
+网络过滤配置与此扩展不匹配。	The network filter configuration does not match this extension.
+XStats 网络连接查看	XStats Network Connection Viewer
+只读观察 · 全部放行	Read-only observation · All allowed
+只在本机记录新连接的应用与目标信息，不读取通信内容。	Record app and destination metadata locally without reading communication content.
+停止查看	Stop viewing
+启用连接查看	Enable connection viewing
+移除网络扩展	Remove network extension
+搜索应用、地址或端口	Search apps, addresses or ports
+清空记录	Clear records
+最近连接记录	Recent connection records
+仅显示开启查看后观察到的连接，记录不代表连接当前仍在线。	Only connections observed after viewing starts are shown; records do not mean a connection is still active.
+扩展缓冲区已有 {} 条旧记录被淘汰。	The extension buffer has evicted {} older records.
+暂无连接记录	No connection records yet
+没有匹配的连接	No matching connections
+启用查看后，打开网页或使用联网应用，新的连接会显示在这里。	After enabling viewing, open a webpage or use an online app to see new connections here.
+等待系统授权	Waiting for system approval
+采集已暂停	Collection paused
+未能启用	Could not enable
+需要重启系统	System restart required
+示例数据	Sample data
+目标未知	Unknown destination
+"""#
 
     static let restEnglish = #"""
 工作时长（分钟）	Work interval (minutes)

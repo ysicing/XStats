@@ -61,6 +61,10 @@
 	<string>© 2026 XStats</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>在本机日历面板显示您选择的到期提醒，不修改或上传提醒内容。</string>
+	<key>NSSystemExtensionUsageDescription</key>
+	<string>只在本机查看应用的网络连接，不阻断连接或读取通信内容。</string>
+	<key>NetworkObservationMachService</key>
+	<string>$(TeamIdentifierPrefix)work.12306.xstats.network-observation.ipc</string>
 	<key>SUAutomaticallyUpdate</key>
 	<false/>
 	<key>SUEnableAutomaticChecks</key>

@@ -65,6 +65,7 @@ task build CONFIG=Release INSTALL=0 BUMP=0 SIGN_ID="$SIGN_ID"
 
 for binary in "$APP/Contents/MacOS/XStats" "$APP/Contents/MacOS/XStatsHelper" \
               "$APP/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget" \
+              "$APP/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/MacOS/work.12306.xstats.app.networkextension" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Sparkle" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app/Contents/MacOS/Updater" \
@@ -75,6 +76,7 @@ for binary in "$APP/Contents/MacOS/XStats" "$APP/Contents/MacOS/XStatsHelper" \
 done
 codesign --verify --deep --strict --verbose=2 "$APP"
 for binary in "$APP" "$APP/Contents/MacOS/XStatsHelper" "$APP/Contents/PlugIns/XStatsWidget.appex" \
+              "$APP/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension" \
               "$APP/Contents/Frameworks/Sparkle.framework" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app" \

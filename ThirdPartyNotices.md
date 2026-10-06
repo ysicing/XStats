@@ -115,3 +115,9 @@ XStats 的 AI Provider 契约与状态设计参考了以下项目公开的 Provi
 应用内安装通过 Swift Package Manager 使用 [sparkle-project/Sparkle](https://github.com/sparkle-project/Sparkle)
 2.10.0。未修改上游源码；完整上游许可随应用资源中的 `Sparkle-License.txt` 分发。
 完整许可证及其内部组件声明见 [LICENSES/Sparkle-License.txt](LICENSES/Sparkle-License.txt)。
+
+## 网络地图与国家级 IP 位置
+
+- 地图轮廓及国家代表坐标来自 [Natural Earth 1:110m](https://github.com/nvkelso/natural-earth-vector)，Public Domain。转换为精简 JSON，仅用于国家级示意，不代表远端设备精确位置。
+- 离线 IP 国家表来自 [DB-IP Lite](https://db-ip.com/db/download/ip-to-country-lite)，© DB-IP，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。每次发布从 DB-IP 官方本月 CSV 获取 IPv4／IPv6 数据；合并相邻同国家范围，转换为大端二进制只读表并经系统 LZFSE 压缩，发布到 c-ip 后由启用监视的客户端按需下载。查询结果可能不准确或随地址分配变化，应用不向 DB-IP 发送目标 IP。
+- 数据保留原许可；地图界面保留 DB-IP 链接。转换脚本见 `scripts/build_network_geography.py`，应用内资源 `Resources/NetworkGeography/ATTRIBUTION.md` 随安装包分发。

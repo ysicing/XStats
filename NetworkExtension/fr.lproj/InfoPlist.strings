@@ -1,0 +1,3 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+"NSSystemExtensionUsageDescription" = "Afficher localement les connexions réseau des apps sans les bloquer ni lire le contenu des communications.";

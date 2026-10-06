@@ -4,3 +4,4 @@
 "NSRemindersFullAccessUsageDescription" = "在本機日曆面板顯示您選擇的到期提醒，不修改或上傳提醒內容。";
 "NSAudioCaptureUsageDescription" = "在本機即時調節應用程式音量，不錄製、儲存或上傳聲音。";
 "NSBluetoothAlwaysUsageDescription" = "顯示已配對的藍牙音訊裝置，並在您選擇時連線裝置。";
+"NSSystemExtensionUsageDescription" = "僅在本機查看應用程式的網路連線，不阻擋連線或讀取通訊內容。";

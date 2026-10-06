@@ -29,3 +29,7 @@ XStats 本次确认的版权所有者署名为 **ysicing**，当前新增代码�
 对于含 MIT 上游代码及 AGPL 修改的混合文件，保留上游版权并追加 `XStats modifications Copyright (C) 2026 ysicing`，使用 `AGPL-3.0-or-later AND MIT` 标识并说明各部分的许可范围。具体文件头示例见 [AGENTS.md](AGENTS.md)。
 
 `ReleaseNotes.json` 中自行编写的更新摘要译文采用 AGPL-3.0-or-later。该 JSON 文件不支持注释，许可在本文件中记录。
+
+`NetworkExtension/Info.plist` 与 `NetworkExtension/XStatsNetworkExtension.entitlements` 为 XcodeGen 生成的项目配置，采用 AGPL-3.0-or-later，许可在本文记录。网络连接模块为 XStats 自行编写；FreeSnitch 仅用于架构调研，未复制其源码或素材。
+
+按需下载的 DB-IP Lite 数据保留 CC BY 4.0；`Resources/NetworkGeography` 中的 Natural Earth 数据为 Public Domain，不属于自编 AGPL 代码。来源、转换方式与声明见 [ThirdPartyNotices.md](ThirdPartyNotices.md)，资源中的 `ATTRIBUTION.md` 随安装包分发。

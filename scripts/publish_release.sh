@@ -60,6 +60,11 @@ if ! python3 scripts/github_release_notes.py "$VERSION" > "$NOTES"; then
   exit 1
 fi
 
+# 首次启用地理解析的客户端依赖在线 IP 数据；每次发版重新获取官方源并先同步。
+# 不可变压缩文件及 current.json 均须 CDN 回读通过，失败时阻止后续应用发布。
+python3 scripts/sync_network_geography.py --publish \
+  || { status=$?; rm -f "$NOTES"; exit "$status"; }
+
 # 上传后从 CDN 回读比对：安装包文件名带版本号、内容不可变，长 TTL 缓存无副作用；
 # 若此前有人探测过同名 URL 留下 404 负缓存，刷新该路径后重跑即可。
 upload() {

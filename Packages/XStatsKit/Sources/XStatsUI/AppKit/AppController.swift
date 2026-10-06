@@ -73,6 +73,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
         model.displays.start()
         model.audio.setDemand(enabled: model.settings.audioEnabled, visible: model.audioControlsVisible, menuVisible: model.audioMenuVisible)
+        model.connectionMonitor.setDemand(enabled: model.settings.canViewNetworkConnections,
+                                          visible: model.isMainWindowVisible && model.settings.panelTab == .connections)
         menuBar.update()
         calendarMenuBar.start()
 
@@ -126,6 +128,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         rest.sync()
         restMenuBar.sync()
         observeModel()
+        observeNetworkObservationDemand()
         observeProbeSettings()
         observeAIUsageSchedule()
         observeAIUsageState()
@@ -224,6 +227,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         calendarMenuBar.stop()
         model.displays.stop()
         model.audio.stop()
+        model.connectionMonitor.shutdown()
+        model.networkGeography.setDemand(enabled: false)
         model.aiUsage.stop()
         model.keepAwake.releaseForTermination()
         if model.fans.mode != .automatic || model.keepAwake.lidClosedActive {
@@ -413,6 +418,23 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self.observeModel()
             }
         }
+    }
+
+    /// 网络观察的订阅单独闭环，不跨其它采样模块的 await，避免漏掉等待期间的关闭/暂停。
+    private func observeNetworkObservationDemand() {
+        withObservationTracking {
+            _ = model.settings.canViewNetworkConnections
+            _ = model.settings.panelTab
+            _ = model.isMainWindowVisible
+            _ = model.connectionMonitor.isReading
+        } onChange: { [weak self] in
+            // Observation 在 willSet 阶段通知；下一次主 actor 调度再读取最终状态。
+            Task { @MainActor [weak self] in self?.observeNetworkObservationDemand() }
+        }
+        // 先恢复一次性订阅，再同步应用需求；中间不 await。
+        model.connectionMonitor.setDemand(enabled: model.settings.canViewNetworkConnections,
+                                          visible: model.isMainWindowVisible && model.settings.panelTab == .connections)
+        model.networkGeography.setDemand(enabled: model.connectionMonitor.isReading)
     }
 
     /// 探测目标变化时清空历史重新探测；关闭公网 IP 查询时清除已显示的结果
@@ -656,6 +678,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.aiUsage.setPaused(true)
         model.displays.setPaused(true)
         model.audio.setPaused(true)
+        model.connectionMonitor.setPaused(true)
         model.history.flush()
         restWindows.hideRest()
         rest.suspend()
@@ -669,6 +692,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.aiUsage.setPaused(false)
         model.displays.setPaused(false)
         model.audio.setPaused(false)
+        model.connectionMonitor.setPaused(false)
         rest.sync()
         if rest.phase.isResting && rest.isRunning { restWindows.ensureRestVisible() }
         Task {

@@ -20,6 +20,7 @@ fi
 adhoc="$(task --dry compile SIGN_ID=- 2>&1)"
 grep -q 'CODE_SIGNING_ALLOWED=NO ENABLE_HARDENED_RUNTIME=NO' <<< "$adhoc"
 grep -q 'scripts/sign_sparkle.sh' <<< "$adhoc"
+grep -q 'XSTATS_NETWORK_PROFILE=' <<< "$compile"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -31,10 +32,28 @@ import plistlib
 with open("App/XStats.entitlements", "rb") as source:
     entitlements = plistlib.load(source)
 assert entitlements.get("com.apple.security.personal-information.calendars") is True, "缺少 EventKit 日历访问 entitlement"
+assert entitlements.get("com.apple.developer.system-extension.install") is True
+assert "content-filter-provider-systemextension" in entitlements.get("com.apple.developer.networking.networkextension", [])
 with open("App/Info.plist", "rb") as source:
     info = plistlib.load(source)
 for key in ("NSCalendarsFullAccessUsageDescription", "NSRemindersFullAccessUsageDescription"):
     assert info.get(key), f"缺少权限说明：{key}"
+assert info.get("NSSystemExtensionUsageDescription")
+with open("NetworkExtension/Info.plist", "rb") as source:
+    extension = plistlib.load(source)
+assert extension["CFBundlePackageType"] == "SYSX"
+assert extension["NetworkExtension"]["NEProviderClasses"]["com.apple.networkextension.filter-data"].endswith(".ConnectionFilterProvider")
+with open("NetworkExtension/XStatsNetworkExtension.entitlements", "rb") as source:
+    entitlements = plistlib.load(source)
+assert entitlements.get("com.apple.security.app-sandbox") is True
+assert entitlements["com.apple.developer.networking.networkextension"] == ["content-filter-provider-systemextension"]
+mach_service = extension["NetworkExtension"]["NEMachServiceName"]
+groups = entitlements.get("com.apple.security.application-groups", [])
+assert any(mach_service.startswith(group + ".") for group in groups), "NE Mach 服务必须位于扩展 App Group 命名空间中"
+assert info["NetworkObservationMachService"] == mach_service, "App 与扩展的 Mach 服务名不一致"
+with open("App/XStats.entitlements", "rb") as source:
+    app_groups = plistlib.load(source).get("com.apple.security.application-groups", [])
+assert all(group in app_groups for group in groups), "主 App 与扩展必须属于同一 IPC App Group"
 PY
 
 # appcast.py 只读它自己上一级目录的 CHANGELOG.md，没有路径参数。所以把脚本复制到

@@ -91,6 +91,60 @@ task compile CONFIG=Debug
 日程权限还需要最终 App 签名包含 `com.apple.security.personal-information.calendars`；
 仅有 Info.plist 说明不足以触发授权。授权由用户在应用中主动请求。
 
+## 网络连接试验模块
+
+“功能 → 网络监视器”仅在 macOS 15 及以上开放，默认关闭。macOS 14 不显示入口，
+保留原有功能；即使旧偏好或备份包含开启状态，也不会激活扩展。进入页面后
+点击“启用连接查看”，再按 macOS 提示批准
+系统扩展与网络过滤。首版统一放行，只记录新连接的元数据与结束状态，不读取通信内容。
+默认按应用查看，也可按进程、域名或国家切换连接数汇总；国家地图首次使用时从 c-ip 下载 DB-IP Lite 压缩国家表，校验后在本机离线查询，
+同国家聚合显示数量，不表示精确设备位置。仅包含观察期间的新连接，不枚举观察开始前
+已存在的连接；有界缓存满时不声称覆盖全部系统连接。
+暂停保留画面并停止读取，恢复时以新租约观察；关闭页面或锁屏停止观察；关闭模块保存过滤器关闭状态。移除前使用页面内的
+“更多 → 移除网络扩展”，系统若报告待重启则先重启，再删除应用包。
+
+签名配置需要与 Developer ID 团队匹配的新 profiles，现有仅带 App Group 的 profiles
+不能用于这个构建：
+
+- 主应用 `work.12306.xstats.app`：Network Extensions 与 System Extension 安装权限，
+  保留已有 App Group、日历权限；通过 `XSTATS_APP_PROFILE` 选择。
+- 网络扩展 `work.12306.xstats.app.networkextension`：
+  `content-filter-provider-systemextension`；通过 `XSTATS_NETWORK_PROFILE` 选择。
+- Widget 继续使用 `XSTATS_WIDGET_PROFILE`。
+
+```bash
+XSTATS_APP_PROFILE='主应用 profile 名称' \
+XSTATS_NETWORK_PROFILE='网络扩展 profile 名称' \
+XSTATS_WIDGET_PROFILE='Widget profile 名称' task build BUMP=0 INSTALL=0
+```
+
+地图轮廓仍内置；两个 IP 库不再打入应用包。只有监视页面可见且采集正在运行时才下载或
+检查更新；暂停、关闭页面、锁屏和休眠取消尚未完成的下载。成功数据保存在
+`~/Library/Application Support/XStats/NetworkGeography`，不进入设置备份；30天内复用，
+没有后台更新计时器。“更多 → 更新地图数据库”可手动刷新。下载失败不影响连接列表，
+已有库保持可用；IPv4／IPv6 一起校验并原子切换本机索引。
+
+发布流程在应用制品上传前自动执行 `scripts/sync_network_geography.py --publish`：
+从 DB-IP 官方本月 gzip CSV 下载、严格校验并转换，使用系统 LZFSE 压缩；上传至
+`c-ip/oss/apps/macOS/XStats/network-geography`。文件名包含压缩内容 SHA-256，先上传
+并回读校验两个不可变文件，最后更新 `current.json`（CDN max-age=300）。同步失败会中止
+后续应用制品和版本清单发布。客户端入口固定为
+`https://c.ysicing.net/oss/apps/macOS/XStats/network-geography/current.json`。
+
+```bash
+python3 scripts/sync_network_geography.py            # 只准备到 dist/network-geography
+python3 scripts/sync_network_geography.py --publish  # 从官方重新获取并同步 c-ip
+```
+
+网络扩展代码或观察协议变更后，本地试装必须用 `scripts/version.sh build` 推进一次
+内部构建号，再执行 `task build BUMP=0`；或直接使用默认 `task build`。
+macOS 可能把相同版本／构建号的激活请求视为已安装，继续运行旧扩展。
+安装主应用不能单独证明扩展已升级：重新启用后检查 `systemextensionsctl list` 的版本，
+必要时对比系统运行副本与主应用内扩展的 CDHash。普通 UI 改动仍可保持 `BUMP=0`。
+
+可对构建执行 `XStats --snapshot <目录> --connections-only --language en` 走查界面。
+此命令只使用虚构连接数据，不能替代签名安装、系统授权、真实连接观察和停止验证。
+
 ## 发布
 
 正式分发需要 Developer ID 证书及私钥、公证凭据、`mc`（对象存储别名 `c-ip`）、

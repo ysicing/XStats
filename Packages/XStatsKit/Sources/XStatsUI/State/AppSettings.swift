@@ -322,13 +322,13 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
 
 /// 主窗口侧边栏的页面
 public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
-    case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery, processes, keepAwake, rest, cleaner, uninstaller, startupItems, audio
+    case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery, processes, keepAwake, rest, cleaner, uninstaller, startupItems, audio, connections
     case settingsGeneral, settingsFeatures, settingsMenuBar, settingsNotifications, settingsAccount, settingsHelper, settingsAbout
 
     public var id: String { rawValue }
 
     static let monitors: [PanelTab] = [.overview, .system, .history, .aiUsage, .cpu, .gpu, .memory, .disk, .network, .thermal, .battery]
-    static let tools: [PanelTab] = [.audio, .processes, .startupItems, .keepAwake, .rest, .cleaner, .uninstaller]
+    static let tools: [PanelTab] = [.connections, .audio, .processes, .startupItems, .keepAwake, .rest, .cleaner, .uninstaller]
     // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
     static let settings: [PanelTab] = [.settingsGeneral, .settingsFeatures, .settingsMenuBar, .settingsNotifications,
                                      /* .settingsAccount, */ .settingsHelper, .settingsAbout]
@@ -358,6 +358,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .uninstaller: tr("卸载应用")
         case .startupItems: tr("启动项")
         case .audio: tr("音频")
+        case .connections: tr("网络监视器")
         case .settingsGeneral: tr("通用")
         case .settingsFeatures: tr("功能")
         case .settingsMenuBar: tr("菜单栏")
@@ -388,6 +389,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .uninstaller: "trash"
         case .startupItems: "power"
         case .audio: "speaker.wave.2"
+        case .connections: "network.badge.shield.half.filled"
         case .settingsGeneral: "gearshape"
         case .settingsFeatures: "switch.2"
         case .settingsMenuBar: "menubar.rectangle"
@@ -580,6 +582,15 @@ public final class AppSettings {
             if !aiUsageEnabled && panelTab == .aiUsage { panelTab = .settingsFeatures }
         }
     }
+    /// 网络连接仅在 macOS 15+ 开放；低版本保留偏好，但不展示或启动此模块。
+    public var networkConnectionsEnabled: Bool {
+        didSet {
+            defaults.set(networkConnectionsEnabled, forKey: "networkConnectionsEnabled")
+            if !canViewNetworkConnections && panelTab == .connections { panelTab = .settingsFeatures }
+        }
+    }
+    var canViewNetworkConnections: Bool { NetworkMonitorSupport.isAvailable && networkConnectionsEnabled }
+
     /// 音频功能默认关闭；只有明确开启应用音量后才请求捕获权限。
     public var audioEnabled: Bool {
         didSet {
@@ -643,6 +654,7 @@ public final class AppSettings {
         didSet {
             // 统一拦截旧路由与外部打开请求，关闭的音频与进程模块回到功能开关入口。
             if panelTab == .audio && !audioEnabled { panelTab = .settingsFeatures }
+            if panelTab == .connections && !canViewNetworkConnections { panelTab = .settingsFeatures }
             if panelTab == .processes && !processesEnabled { panelTab = .settingsFeatures }
             defaults.set(panelTab.rawValue, forKey: Keys.panelTab)
         }
@@ -828,6 +840,8 @@ public final class AppSettings {
         aiUsageEnabled = isAIUsageEnabled
         let isAudioEnabled = defaults.bool(forKey: "audioEnabled")
         audioEnabled = isAudioEnabled
+        let isNetworkConnectionsEnabled = defaults.bool(forKey: "networkConnectionsEnabled")
+        networkConnectionsEnabled = isNetworkConnectionsEnabled
         let isCleanerEnabled = defaults.bool(forKey: Keys.cleanerEnabled)
         cleanerEnabled = isCleanerEnabled
         let isProcessesEnabled = defaults.bool(forKey: Keys.processesEnabled)
@@ -854,6 +868,7 @@ public final class AppSettings {
             panelTab = .settingsGeneral
         } else {
             panelTab = (savedPanelTab == .audio && !isAudioEnabled)
+                || (savedPanelTab == .connections && (!isNetworkConnectionsEnabled || !NetworkMonitorSupport.isAvailable))
                 || (savedPanelTab == .aiUsage && !isAIUsageEnabled)
                 || (savedPanelTab == .rest && !isRestEnabled)
                 || (savedPanelTab == .cleaner && !isCleanerEnabled)
