@@ -30,6 +30,8 @@ import Updates
     @ObservationIgnored private var wantsRunning = false
     @ObservationIgnored private var readGeneration = 0
     @ObservationIgnored private var preparingAppUpdate = false
+    @ObservationIgnored private var componentUpdating = false
+    @ObservationIgnored private var terminationStopPending = false
     @ObservationIgnored private var epoch = ""
     @ObservationIgnored private var cursor: Int64 = 0
 
@@ -69,7 +71,7 @@ import Updates
     }
 
     func start() {
-        guard moduleEnabled, !isBusy else { return }
+        guard moduleEnabled, !isBusy, !componentUpdating else { return }
         wantsRunning = true
         isManuallyPaused = false
         persistAppUpdateIntent()
@@ -125,7 +127,7 @@ import Updates
     }
 
     private func updateReading() {
-        let shouldRead = moduleEnabled && visible && !paused && !isManuallyPaused && wantsRunning && status == .running && !isBusy
+        let shouldRead = !componentUpdating && moduleEnabled && visible && !paused && !isManuallyPaused && wantsRunning && status == .running && !isBusy
         guard shouldRead else { stopReading(); return }
         guard readTask == nil else { return }
         readGeneration += 1
@@ -207,6 +209,22 @@ import Updates
         self.records = Array(records.suffix(ObservationLimits.displayCount))
         activeConnectionIDs = Set(self.records.map(\.id))
         status = .preview
+    }
+
+    var terminationRequiresPreparation: Bool { isSupported && (wantsRunning || isBusy || isReading || terminationStopPending) }
+    func prepareForTermination(preserveFilter: Bool = false) async throws {
+        guard isSupported, status != .preview else { return }
+        if !preserveFilter { wantsRunning = false; terminationStopPending = true }
+        backend.cancelActivation()
+        stopReading()
+        await configurationTask?.value
+        if !preserveFilter { try await backend.setFilterEnabled(false); status = .idle; terminationStopPending = false }
+    }
+    func noteTerminationFailure(_ error: any Error) { self.error = error.localizedDescription; status = .failed }
+    func beginComponentUpdate() { componentUpdating = true; stopReading() }
+    func finishComponentUpdate() {
+        componentUpdating = false
+        if wantsRunning { reconcileConfiguration() } else { updateReading() }
     }
 
     func shutdown() {

@@ -17,7 +17,7 @@ settings:
     CURRENT_PROJECT_VERSION: "137"
     # 独立网络组件及扩展共用版本；只在组件、扩展或共享协议变化时推进。
     NETWORK_EXTENSION_VERSION: "0.15.0"
-    NETWORK_EXTENSION_BUILD: "137"
+    NETWORK_EXTENSION_BUILD: "138"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     # 本地开发使用 ad-hoc 签名；正式发布使用 Developer ID（见 DEVELOPMENT.md）
     CODE_SIGN_STYLE: Manual
@@ -128,6 +128,8 @@ targets:
         NetworkObservationExtensionVersion: $(NETWORK_EXTENSION_VERSION)
         NetworkObservationExtensionBuild: $(NETWORK_EXTENSION_BUILD)
         NetworkObservationMachService: $(TeamIdentifierPrefix)work.12306.xstats.network-observation.ipc.$(NETWORK_EXTENSION_BUILD)
+        NetworkObservationProtocolVersion: 2
+        NetworkObservationControlMachService: $(TeamIdentifierPrefix)work.12306.xstats.network-observation.control
     entitlements:
       path: NetworkMonitorApp/XStatsNetworkMonitor.entitlements
       properties:
@@ -144,6 +146,14 @@ targets:
         PRODUCT_MODULE_NAME: XStatsNetworkMonitor
         PRODUCT_BUNDLE_IDENTIFIER: work.12306.xstats.networkmonitor
         PROVISIONING_PROFILE_SPECIFIER: $(XSTATS_COMPONENT_PROFILE)
+    postBuildScripts:
+      - name: Embed on-demand network LaunchAgent
+        script: bash "$SRCROOT/scripts/embed_network_agent.sh" "$TARGET_BUILD_DIR/$WRAPPER_NAME"
+        inputFiles:
+          - $(SRCROOT)/scripts/embed_network_agent.sh
+          - $(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Info.plist
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Library/LaunchAgents/work.12306.xstats.networkmonitor.agent.plist
     dependencies:
       - package: XStatsKit
         product: NetworkObservation

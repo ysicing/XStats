@@ -13,6 +13,27 @@ extension Translations {
 
 
     static let networkObservationEnglish = #"""
+网络组件协议不兼容，请更新 XStats 和网络组件。	Network component protocol mismatch. Update XStats and the network component.
+请在系统设置中允许 XStats 网络组件的后台项目。	Allow the XStats network component in System Settings → Login Items.
+网络组件正在运行，请先停止查看。	The network component is running. Stop viewing first.
+网络组件压缩包无效。	The network component archive is invalid.
+网络组件签名或公证校验失败。	Network component signature or notarization verification failed.
+网络组件正在安装，请稍候。	The network component is being installed. Please wait.
+管理组件	Manage component
+网络组件	Network component
+组件按需运行，负责扩展授权和独立更新；所有连接均放行。	The component runs on demand to manage extension permissions and independent updates. All connections are allowed.
+组件版本	Component version
+包内扩展	Bundled extension
+系统过滤配置	System filter configuration
+可用更新	Available update
+正在更新网络组件…	Updating network component…
+打开组件	Open component
+卸载组件	Uninstall component
+尚未安装网络组件	Network component not installed
+安装组件	Install component
+卸载网络组件？	Uninstall the network component?
+将停止查看、移除系统扩展和后台项目，并删除伴随应用。	Stops viewing, removes the system extension and background service, and deletes the companion app.
+网络组件有更新	Network component update available
 全部连接	All connections
 国家或地域	Countries or regions
 国家或地域分布	Country or region distribution

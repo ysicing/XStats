@@ -1799,3 +1799,24 @@ XStats 网络连接查看	XStats Netzwerkverbindungsanzeige
 中国澳门	Macau, China
 中国台湾	Taiwan, China
 全部连接	Alle Verbindungen
+网络组件协议不兼容，请更新 XStats 和网络组件。	Netzwerkkomponenten-Protokoll inkompatibel. XStats und Komponente aktualisieren.
+请在系统设置中允许 XStats 网络组件的后台项目。	XStats-Netzwerkkomponente in Systemeinstellungen → Anmeldeobjekte erlauben.
+网络组件正在运行，请先停止查看。	Netzwerkkomponente läuft. Anzeige zuerst beenden.
+网络组件压缩包无效。	Archiv der Netzwerkkomponente ist ungültig.
+网络组件签名或公证校验失败。	Signatur- oder Beglaubigungsprüfung der Netzwerkkomponente fehlgeschlagen.
+网络组件正在安装，请稍候。	Netzwerkkomponente wird installiert. Bitte warten.
+管理组件	Komponente verwalten
+网络组件	Netzwerkkomponente
+组件按需运行，负责扩展授权和独立更新；所有连接均放行。	Die Komponente startet bei Bedarf für Erweiterungsrechte und eigene Updates. Alle Verbindungen werden erlaubt.
+组件版本	Komponentenversion
+包内扩展	Enthaltene Erweiterung
+系统过滤配置	Systemfilter-Konfiguration
+可用更新	Verfügbares Update
+正在更新网络组件…	Netzwerkkomponente wird aktualisiert…
+打开组件	Komponente öffnen
+卸载组件	Komponente deinstallieren
+尚未安装网络组件	Netzwerkkomponente nicht installiert
+安装组件	Komponente installieren
+卸载网络组件？	Netzwerkkomponente deinstallieren?
+将停止查看、移除系统扩展和后台项目，并删除伴随应用。	Beendet die Anzeige, entfernt Erweiterung und Hintergrunddienst und löscht die Begleit-App.
+网络组件有更新	Update für Netzwerkkomponente verfügbar

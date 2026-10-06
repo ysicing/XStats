@@ -15,8 +15,10 @@ public enum NetworkComponentInstallError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .runningComponent: tr("应用正在运行，请先退出")
-        case .invalidArchive, .untrustedComponent, .installationInProgress: tr("版本清单格式不正确")
+        case .runningComponent: tr("网络组件正在运行，请先停止查看。")
+        case .invalidArchive: tr("网络组件压缩包无效。")
+        case .untrustedComponent: tr("网络组件签名或公证校验失败。")
+        case .installationInProgress: tr("网络组件正在安装，请稍候。")
         }
     }
 }

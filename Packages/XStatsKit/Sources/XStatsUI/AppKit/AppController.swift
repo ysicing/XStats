@@ -221,16 +221,21 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard model.updates.installationRequiresPreparation else { return .terminateNow }
+        guard model.updates.installationRequiresPreparation || model.connectionMonitor.terminationRequiresPreparation || model.networkComponent.terminationRequiresPreparation else { return .terminateNow }
         guard terminationTask == nil else { return .terminateLater }
         // Sparkle 在安装就绪后可能因用户主动退出而继续安装；退出也必须经过相同的停用门禁。
         terminationTask = Task {
             defer { terminationTask = nil }
             do {
-                try await model.updates.prepareForTermination()
+                let updatingApp = model.updates.installationRequiresPreparation
+                if updatingApp { try await model.updates.prepareForTermination() }
+                await model.networkComponent.prepareForTermination()
+                try await model.connectionMonitor.prepareForTermination(preserveFilter: updatingApp)
                 sender.reply(toApplicationShouldTerminate: true)
             } catch {
-                model.updates.installationPreparationFailed(error)
+                model.networkComponent.cancelTermination()
+                if model.updates.installationRequiresPreparation { model.updates.installationPreparationFailed(error) }
+                else { model.connectionMonitor.noteTerminationFailure(error) }
                 sender.reply(toApplicationShouldTerminate: false)
             }
         }

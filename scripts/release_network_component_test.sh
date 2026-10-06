@@ -29,11 +29,15 @@ cat > "$WORK/bin/task" <<'STUB'
 set -euo pipefail
 printf 'task %s\n' "$*" >> "$COMPONENT_TEST_LOG"
 python3 - <<'PY'
-import pathlib, plistlib
+import os, pathlib, plistlib
 app=pathlib.Path('build/DerivedData-network-arm64/Build/Products/Release/XStats Network Monitor.app')
 (app/'Contents/MacOS').mkdir(parents=True,exist_ok=True)
 (app/'Contents/MacOS/XStats Network Monitor').write_text('fixture')
-(app/'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier':'work.12306.xstats.networkmonitor','CFBundleShortVersionString':'2.3.4','CFBundleVersion':'137','SUPublicEDKey':'j/I8zd8BXz4oPldnhocEySXTMmXPxKMyBRwoA4ewLIk='}))
+(app/'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier':'work.12306.xstats.networkmonitor','CFBundleShortVersionString':'2.3.4','CFBundleVersion':'137','SUPublicEDKey':'j/I8zd8BXz4oPldnhocEySXTMmXPxKMyBRwoA4ewLIk=', 'NetworkObservationProtocolVersion':2, 'NetworkObservationControlMachService':'TESTTEAM01.work.12306.xstats.network-observation.control'}))
+a=app/'Contents/Library/LaunchAgents'; a.mkdir(parents=True,exist_ok=True)
+agent={'Label':'work.12306.xstats.networkmonitor.agent','BundleProgram':'Contents/MacOS/XStats Network Monitor','ProgramArguments':['XStats Network Monitor','--service'],'MachServices':{'TESTTEAM01.work.12306.xstats.network-observation.control':True}}
+if os.getenv('COMPONENT_AGENT_INVALID')=='1': agent['KeepAlive']=True
+(a/'work.12306.xstats.networkmonitor.agent.plist').write_bytes(plistlib.dumps(agent))
 e=app/'Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents'
 (e/'MacOS').mkdir(parents=True,exist_ok=True)
 (e/'MacOS/work.12306.xstats.app.networkextension').write_text('fixture')
@@ -104,6 +108,10 @@ expect_failure 'Developer ID' env SIGN_ID=- bash "$WORK/repo/scripts/release_net
 expect_failure XSTATS_COMPONENT_PROFILE env -u XSTATS_COMPONENT_PROFILE bash "$WORK/repo/scripts/release_network_component.sh"
 expect_failure '公证' env SKIP_NOTARIZE=1 bash "$WORK/repo/scripts/release_network_component.sh" --publish
 [ ! -e "$WORK/events" ] || { echo '前置条件失败不应构建或上传' >&2; exit 1; }
+
+expect_failure 'LaunchAgent' env COMPONENT_AGENT_INVALID=1 bash "$WORK/repo/scripts/release_network_component.sh"
+! grep -q '^xcrun ' "$WORK/events"
+: > "$WORK/events"
 
 bash "$WORK/repo/scripts/release_network_component.sh" > "$WORK/stdout"
 [ ! -e "$WORK/objects/appcast.xml" ]

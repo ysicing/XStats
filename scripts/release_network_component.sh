@@ -63,6 +63,23 @@ FRAMEWORK="$APP/Contents/Frameworks/Sparkle.framework/Versions/Current"
 [ -d "$EXTENSION" ] || { echo 'error: 独立组件缺少网络扩展' >&2; exit 1; }
 [ ! -e "$APP/Contents/PlugIns/XStatsWidget.appex" ] && [ ! -e "$APP/Contents/MacOS/XStatsHelper" ] \
   || { echo 'error: 独立组件不得携带主应用 Widget 或 helper' >&2; exit 1; }
+python3 - "$APP" "$TEAM_ID" <<'PY'
+import pathlib, plistlib, sys
+app=pathlib.Path(sys.argv[1]); info=plistlib.loads((app/'Contents/Info.plist').read_bytes())
+service=sys.argv[2]+'.work.12306.xstats.network-observation.control'
+if info.get('NetworkObservationProtocolVersion')!=2 or info.get('NetworkObservationControlMachService')!=service:
+    raise SystemExit('error: 独立组件协议 2/control Mach service 不正确')
+file=app/'Contents/Library/LaunchAgents/work.12306.xstats.networkmonitor.agent.plist'
+if not file.is_file():
+    raise SystemExit('error: 独立组件缺少按需 LaunchAgent')
+agent=plistlib.loads(file.read_bytes())
+if (agent.get('Label')!='work.12306.xstats.networkmonitor.agent'
+    or agent.get('BundleProgram')!='Contents/MacOS/XStats Network Monitor'
+    or agent.get('ProgramArguments')!=['XStats Network Monitor','--service']
+    or agent.get('MachServices')!={service:True}
+    or 'RunAtLoad' in agent or 'KeepAlive' in agent):
+    raise SystemExit('error: 独立组件 LaunchAgent 不是按需控制服务')
+PY
 for binary in "$APP/Contents/MacOS/XStats Network Monitor" \
               "$EXTENSION/Contents/MacOS/work.12306.xstats.app.networkextension" \
               "$FRAMEWORK/Sparkle" "$FRAMEWORK/Autoupdate" \
@@ -90,7 +107,7 @@ if "content-filter-provider-systemextension" not in entitlements.get("com.apple.
 '
 
 if [ "${SKIP_NOTARIZE:-0}" != 1 ]; then
-  ditto -c -k --keepParent "$APP" "$WORK/notarize.zip"
+  ditto -c -k --norsrc --keepParent "$APP" "$WORK/notarize.zip"
   xcrun notarytool submit "$WORK/notarize.zip" --keychain-profile "$NOTARY_PROFILE" --wait
   xcrun stapler staple "$APP"
   xcrun stapler validate "$APP"
@@ -98,7 +115,16 @@ if [ "${SKIP_NOTARIZE:-0}" != 1 ]; then
     || { echo 'error: Gatekeeper 拒绝独立组件' >&2; exit 1; }
 fi
 
-ditto -c -k --keepParent "$APP" "$DIST/$NAME.zip"
+ditto -c -k --norsrc --keepParent "$APP" "$DIST/$NAME.zip"
+# 首次安装器只接受单根 app；直接验证最终 ZIP 展开后的签名与普通文件里的公证 ticket。
+PROBE="$WORK/archive-probe"
+mkdir -p "$PROBE"
+ditto -x -k "$DIST/$NAME.zip" "$PROBE"
+PROBE_APP="$PROBE/XStats Network Monitor.app"
+[ -d "$PROBE_APP" ] && [ ! -e "$PROBE/__MACOSX" ] \
+  || { echo 'error: 最终 ZIP 不符合单根应用安装契约' >&2; exit 1; }
+codesign --verify --deep --strict "$PROBE_APP"
+if [ "${SKIP_NOTARIZE:-0}" != 1 ]; then xcrun stapler validate "$PROBE_APP"; fi
 python3 - "$VERSION" "$BUILD" "$BASE" "$DIST/$NAME.zip" "$APP" "$NOTES" > "$DIST/appcast.json" <<'PY'
 import json, sys
 from pathlib import Path

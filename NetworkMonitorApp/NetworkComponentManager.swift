@@ -5,61 +5,17 @@ import Foundation
 import Localization
 import NetworkExtension
 import NetworkObservation
-import Security
 import SystemExtensions
 import Updates
 
-enum NetworkMonitorError: Error, LocalizedError {
-    case unsupportedVersion, missingExtension, unsigned, installLocation, unavailable, timeout, wrongConfiguration, extensionNeedsUpdate, restartRequired
-
-    var errorDescription: String? {
-        switch self {
-        case .unsupportedVersion: tr("需要 macOS 15 或更新版本")
-        case .missingExtension: tr("此构建未包含网络扩展。")
-        case .unsigned: tr("需要包含网络扩展权限的签名构建。")
-        case .installLocation: tr("请先将 XStats 安装到应用程序文件夹。")
-        case .unavailable: tr("无法连接网络扩展，请重试。")
-        case .timeout: tr("网络扩展响应超时，请重试。")
-        case .wrongConfiguration: tr("网络过滤配置与此扩展不匹配。")
-        case .extensionNeedsUpdate: tr("网络扩展需要更新，请重新启用连接查看。")
-        case .restartRequired: tr("需要重启系统")
-        }
-    }
-}
-
-/// XPC 的回复、错误、取消与超时只能完成同一次读取一次；不在主线程阻塞等待。
-final class NetworkMonitorReply: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<Data, any Error>?
-    private var result: Result<Data, any Error>?
-
-    func install(_ continuation: CheckedContinuation<Data, any Error>) {
-        lock.lock()
-        if let result {
-            lock.unlock()
-            continuation.resume(with: result)
-        } else {
-            self.continuation = continuation
-            lock.unlock()
-        }
-    }
-
-    func finish(_ result: Result<Data, any Error>) {
-        lock.lock()
-        guard self.result == nil else { lock.unlock(); return }
-        self.result = result
-        let continuation = continuation
-        self.continuation = nil
-        lock.unlock()
-        continuation?.resume(with: result)
-    }
-}
-
 @MainActor final class NetworkComponentManager: NSObject, @preconcurrency OSSystemExtensionRequestDelegate {
-    static let extensionIdentifier = "work.12306.xstats.app.networkextension"
+    static let extensionIdentifier = NetworkObservationProtocol.extensionIdentifier
     static func requiresReplacement(installed: UpdateRelease.NetworkExtension?, target: UpdateRelease.NetworkExtension) -> Bool { installed != target }
     var onApproval: (() -> Void)?
+    private(set) var needsSystemApproval = false
+    var hasPendingSystemRequest: Bool { request != nil }
     private var request: OSSystemExtensionRequest?
+    private var requestToken: UUID?
     private var requestContinuation: CheckedContinuation<Bool, any Error>?
     private var propertiesContinuation: CheckedContinuation<[InstalledExtension], any Error>?
     private var connection: NSXPCConnection?
@@ -79,14 +35,16 @@ final class NetworkMonitorReply: @unchecked Sendable {
     }
 
     func activate() async throws -> Bool {
+        try Task.checkCancellation()
         let generation = activationGeneration
         guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 15 else { throw NetworkMonitorError.unsupportedVersion }
         let extensionURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/SystemExtensions/\(Self.extensionIdentifier).systemextension")
         guard FileManager.default.fileExists(atPath: extensionURL.path) else { throw NetworkMonitorError.missingExtension }
         guard Bundle.main.bundleURL.path.hasPrefix("/Applications/") else { throw NetworkMonitorError.installLocation }
-        _ = try signingTeam()
+        _ = try NetworkCodeIdentity.currentTeam()
         let target = try bundledExtension()
         let installed = try await installedProperties().first(where: { $0.enabled && !$0.uninstalling })
+        try Task.checkCancellation()
         guard activationGeneration == generation else { throw CancellationError() }
         // App 构建号不参与扩展替换判定；同一扩展不提交激活，也不关闭已有过滤会话。
         if !Self.requiresReplacement(installed: installed?.release, target: target) { return false }
@@ -105,6 +63,7 @@ final class NetworkMonitorReply: @unchecked Sendable {
     func cancelActivation() {
         activationGeneration += 1
         request = nil
+        requestToken = nil
         let continuation = requestContinuation
         requestContinuation = nil
         continuation?.resume(throwing: CancellationError())
@@ -114,13 +73,16 @@ final class NetworkMonitorReply: @unchecked Sendable {
 
     /// 相同扩展返回原启用状态；确需替换时停用并确认生命周期收尾。
     func prepareForUpdate(target: UpdateRelease.NetworkExtension) async throws -> Bool {
+        try Task.checkCancellation()
         guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 15 else { return false }
         let manager = NEFilterManager.shared()
         try await manager.loadFromPreferences()
+        try Task.checkCancellation()
         guard let identifier = manager.providerConfiguration?.filterDataProviderBundleIdentifier else { stopReading(); return false }
         guard identifier == Self.extensionIdentifier else { throw NetworkMonitorError.wrongConfiguration }
         let wasEnabled = manager.isEnabled
         let properties = try await installedProperties()
+        try Task.checkCancellation()
         let installed = properties.first(where: { $0.enabled })
         if installed == nil {
             guard !properties.contains(where: { $0.uninstalling }) else { throw NetworkMonitorError.restartRequired }
@@ -164,14 +126,30 @@ final class NetworkMonitorReply: @unchecked Sendable {
     }
 
     private func installedProperties() async throws -> [InstalledExtension] {
+        try Task.checkCancellation()
         guard request == nil else { throw NetworkMonitorError.unavailable }
-        return try await withCheckedThrowingContinuation { continuation in
-            let request = OSSystemExtensionRequest.propertiesRequest(forExtensionWithIdentifier: Self.extensionIdentifier, queue: .main)
-            self.request = request
-            propertiesContinuation = continuation
-            request.delegate = self
-            OSSystemExtensionManager.shared.submitRequest(request)
+        let token = UUID()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
+                let request = OSSystemExtensionRequest.propertiesRequest(forExtensionWithIdentifier: Self.extensionIdentifier, queue: .main)
+                self.request = request; requestToken = token
+                propertiesContinuation = continuation
+                request.delegate = self
+                OSSystemExtensionManager.shared.submitRequest(request)
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                guard let self, self.requestToken == token else { return }
+                self.cancelActivation()
+            }
         }
+    }
+
+    /// 只查询 OS 报告的状态，不激活扩展或启动过滤器。
+    func refreshApprovalState() async throws {
+        guard request == nil else { return }
+        _ = try await installedProperties()
     }
 
     func filterEnabled() async throws -> Bool {
@@ -210,7 +188,7 @@ final class NetworkMonitorReply: @unchecked Sendable {
         if let connection, service == nil || connectionServiceName == service { return connection }
         guard let name = service ?? Bundle.main.object(forInfoDictionaryKey: "NetworkObservationMachService") as? String,
               !name.isEmpty else { throw NetworkMonitorError.missingExtension }
-        let team = try signingTeam()
+        let team = try NetworkCodeIdentity.currentTeam()
         stopReading()
         let candidate = NSXPCConnection(machServiceName: name, options: .privileged)
         candidate.setCodeSigningRequirement("anchor apple generic and identifier \"\(Self.extensionIdentifier)\" and certificate leaf[subject.OU] = \"\(team)\"")
@@ -250,28 +228,28 @@ final class NetworkMonitorReply: @unchecked Sendable {
     }
 
     private func submit(_ request: OSSystemExtensionRequest) async throws -> Bool {
+        try Task.checkCancellation()
         guard requestContinuation == nil else { throw NetworkMonitorError.unavailable }
-        return try await withCheckedThrowingContinuation { continuation in
-            self.request = request
-            requestContinuation = continuation
-            request.delegate = self
-            OSSystemExtensionManager.shared.submitRequest(request)
+        let token = UUID()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
+                self.request = request; requestToken = token
+                requestContinuation = continuation
+                request.delegate = self
+                OSSystemExtensionManager.shared.submitRequest(request)
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                guard let self, self.requestToken == token else { return }
+                self.cancelActivation()
+            }
         }
-    }
-
-    private func signingTeam() throws -> String {
-        var code: SecCode?
-        var staticCode: SecStaticCode?
-        var information: CFDictionary?
-        guard SecCodeCopySelf([], &code) == errSecSuccess, let code,
-              SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
-              SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
-              let team = (information as? [String: Any])?[kSecCodeInfoTeamIdentifier as String] as? String else { throw NetworkMonitorError.unsigned }
-        return team
     }
 
     func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
         guard self.request === request else { return }
+        needsSystemApproval = true
         onApproval?()
     }
 
@@ -281,41 +259,31 @@ final class NetworkMonitorReply: @unchecked Sendable {
     func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
         guard self.request === request else { return }
         self.request = nil
+        requestToken = nil
         let continuation = requestContinuation
         requestContinuation = nil
+        needsSystemApproval = false
         continuation?.resume(returning: result == .willCompleteAfterReboot)
     }
 
     func request(_ request: OSSystemExtensionRequest, foundProperties properties: [OSSystemExtensionProperties]) {
         guard self.request === request else { return }
         self.request = nil
+        requestToken = nil
         let continuation = propertiesContinuation
         propertiesContinuation = nil
+        needsSystemApproval = properties.contains(where: \.isAwaitingUserApproval)
         continuation?.resume(returning: properties.map { InstalledExtension(version: UInt64($0.bundleVersion), displayVersion: $0.bundleShortVersion, enabled: $0.isEnabled, uninstalling: $0.isUninstalling) })
     }
 
     func request(_ request: OSSystemExtensionRequest, didFailWithError error: any Error) {
         guard self.request === request else { return }
         self.request = nil
+        requestToken = nil
         let continuation = requestContinuation
         requestContinuation = nil
         continuation?.resume(throwing: error)
         propertiesContinuation?.resume(throwing: error)
         propertiesContinuation = nil
-    }
-}
-
-extension NetworkComponentManager {
-    func register(endpoint: NSXPCListenerEndpoint) async throws {
-        let peer = try ensureConnection()
-        let reply = NetworkMonitorReply()
-        _ = try await withCheckedThrowingContinuation { continuation in
-            reply.install(continuation)
-            guard let proxy = peer.remoteObjectProxyWithErrorHandler({ @Sendable error in reply.finish(.failure(error)) }) as? NetworkObservationService else {
-                reply.finish(.failure(NetworkMonitorError.unavailable)); return
-            }
-            proxy.registerControlEndpoint(endpoint) { @Sendable in reply.finish(.success(Data())) }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 2) { reply.finish(.failure(NetworkMonitorError.timeout)) }
-        }
     }
 }

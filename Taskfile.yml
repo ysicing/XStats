@@ -70,7 +70,7 @@ tasks:
       - bash scripts/sign_sparkle.sh "{{.APP}}" "{{.SIGN_ID}}"
 
   build-network-component:
-    desc: 编译并签名独立网络组件，不推进版本或安装
+    desc: 编译并签名独立网络组件与按需 LaunchAgent，不推进版本或安装
     cmds:
       - task: compile-network-component
         vars:
@@ -89,6 +89,12 @@ tasks:
           {{if .TEAM_ID}}CODE_SIGN_IDENTITY="{{.SIGN_ID}}" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM={{.TEAM_ID}}{{if eq .CONFIG "Release"}} OTHER_CODE_SIGN_FLAGS=--timestamp CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO{{end}}{{else}}CODE_SIGNING_ALLOWED=NO ENABLE_HARDENED_RUNTIME=NO{{end}} \
           build
       - bash scripts/sign_sparkle.sh "{{.NETWORK_APP}}" "{{.SIGN_ID}}" network-component
+
+  test-network-component:
+    desc: 定向验证网络组件 LaunchAgent 与服务生命周期，不注册或安装
+    cmds:
+      - bash scripts/embed_network_agent_test.sh
+      - bash scripts/network_component_lifetime_test.sh
 
   release-network-component:
     desc: 签名、公证并打包独立网络组件，不上传
@@ -137,6 +143,7 @@ tasks:
       - python3 scripts/github_release_notes_test.py
       - python3 scripts/network_geography_test.py
       - bash scripts/release_network_component_test.sh
+      - task: test-network-component
       - task: test-api
       - task: test-swift
 

@@ -14,6 +14,7 @@ public final class AppModel {
     let displays = DisplayController()
     let audio: AudioController
     let connectionMonitor: NetworkMonitorController
+    let networkComponent: NetworkComponentController
     let networkGeography = NetworkGeographyController()
     public let settings: AppSettings
     let rest: RestController
@@ -88,7 +89,9 @@ public final class AppModel {
         let store = MetricsStore()
         let helper = HelperClient()
         self.settings = settings
-        connectionMonitor = NetworkMonitorController(defaults: settings.networkObservationDefaults)
+        let observationBackend = NativeNetworkMonitorBackend()
+        connectionMonitor = NetworkMonitorController(backend: observationBackend, defaults: settings.networkObservationDefaults)
+        networkComponent = NetworkComponentController(backend: observationBackend)
         audio = AudioController(defaults: settings.audioDefaults)
         rest = RestController(settings: settings)
         aiUsage = AIUsageController(settings: settings, providers: aiUsageProviders, quotaProviders: aiQuotaProviders,
@@ -108,6 +111,10 @@ public final class AppModel {
         diskTools = DiskToolsController(helper: helper)
         speedTest = SpeedTestController(settings: settings)
         updates.prepareForInstallation = { [weak self] in self?.connectionMonitor.prepareForAppUpdate() }
+        networkComponent.onPreparingUpdate = { [weak self] in self?.connectionMonitor.beginComponentUpdate() }
+        networkComponent.onUpdateFinished = { [weak self] in self?.connectionMonitor.finishComponentUpdate() }
+        networkComponent.onUninstalled = { [weak self] in self?.settings.networkConnectionsEnabled = false }
+        updates.onCheckCompleted = { [weak self] in self?.networkComponent.checkUpdates(background: true) }
         updates.cancelInstallationPreparation = { [weak self] in self?.connectionMonitor.cancelAppUpdate() }
 
     }

@@ -19,6 +19,8 @@ SYSTEM_EXTENSION="$APP/Contents/Library/SystemExtensions/work.12306.xstats.app.n
 if [ "$MODE" = network-component ]; then
   [ -d "$SYSTEM_EXTENSION" ] || { echo "error: 网络组件未嵌入网络系统扩展" >&2; exit 1; }
   APP_ENTITLEMENTS="$ROOT/NetworkMonitorApp/XStatsNetworkMonitor.entitlements"
+  # Xcode post-build 已生成 plist；签名包装也重新核对，防止增量产物缺失或保留旧 Mach key。
+  bash "$ROOT/scripts/embed_network_agent.sh" "$APP"
 else
   [ ! -d "$APP/Contents/Library/SystemExtensions" ] || { echo "error: 主应用不得嵌入系统扩展" >&2; exit 1; }
   APP_ENTITLEMENTS="$ROOT/App/XStats.entitlements"

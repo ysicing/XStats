@@ -50,6 +50,17 @@ struct SparkleInstallerTests {
             try driver.updater(updater, shouldProceedWithUpdate: #require(SUAppcastItem(dictionary: fields)), updateCheck: .updates)
         }
     }
+    @Test func cachedInstallRejectsChangedSignedDigest() throws {
+        let original = release()
+        var fields = try item(original).propertiesDictionary
+        fields["xstats:sha256"] = String(repeating: "b", count: 64)
+        let driver = SparkleInstaller(onPhase: { _ in }, onRelaunch: {})
+        driver.check(userInitiated: true, action: .install(original))
+        let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: driver)
+        #expect(throws: UpdateError.releaseChanged) {
+            try driver.updater(updater, shouldProceedWithUpdate: #require(SUAppcastItem(dictionary: fields)), updateCheck: .updates)
+        }
+    }
     @Test func installationWaitsForNetworkShutdownBeforeAcceptingInstall() async throws {
         var choice: SPUUserUpdateChoice?
         var entered = false
@@ -226,6 +237,7 @@ struct SparkleInstallerTests {
         let item = try #require(SUAppcastItem(dictionary: [
             "sparkle:version": build, "sparkle:shortVersionString": release.version,
             "sparkle:minimumSystemVersion": release.minimumSystem,
+            "xstats:sha256": release.sha256,
             "xstats:network-extension-version": "0.15.0", "xstats:network-extension-build": "136",
             "enclosure": ["url": release.url.absoluteString, "length": "1000", "sparkle:installationType": "application"],
         ]))

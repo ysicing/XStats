@@ -1799,3 +1799,24 @@ XStats 网络连接查看	Visor de conexiones de red de XStats
 中国澳门	Macao, China
 中国台湾	Taiwán, China
 全部连接	Todas las conexiones
+网络组件协议不兼容，请更新 XStats 和网络组件。	Protocolo del componente incompatible. Actualiza XStats y el componente.
+请在系统设置中允许 XStats 网络组件的后台项目。	Permite el componente de XStats en Ajustes del Sistema → Ítems de inicio.
+网络组件正在运行，请先停止查看。	El componente está en ejecución. Detén la visualización primero.
+网络组件压缩包无效。	El archivo del componente de red no es válido.
+网络组件签名或公证校验失败。	Falló la verificación de firma o notarización del componente.
+网络组件正在安装，请稍候。	El componente se está instalando. Espera un momento.
+管理组件	Gestionar componente
+网络组件	Componente de red
+组件按需运行，负责扩展授权和独立更新；所有连接均放行。	El componente se ejecuta bajo demanda para gestionar permisos y actualizaciones independientes. Se permiten todas las conexiones.
+组件版本	Versión del componente
+包内扩展	Extensión incluida
+系统过滤配置	Configuración del filtro del sistema
+可用更新	Actualización disponible
+正在更新网络组件…	Actualizando el componente de red…
+打开组件	Abrir componente
+卸载组件	Desinstalar componente
+尚未安装网络组件	Componente de red sin instalar
+安装组件	Instalar componente
+卸载网络组件？	¿Desinstalar el componente de red?
+将停止查看、移除系统扩展和后台项目，并删除伴随应用。	Detiene la visualización, elimina la extensión y el servicio en segundo plano y borra la app auxiliar.
+网络组件有更新	Hay una actualización del componente de red

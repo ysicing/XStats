@@ -5,83 +5,76 @@ import Foundation
 import Localization
 import AppKit
 import NetworkObservation
-import Security
-import Updates
+
+typealias NetworkMonitorError = NetworkObservation.NetworkMonitorError
+typealias NetworkMonitorReply = NetworkObservation.NetworkMonitorReply
 
 @MainActor protocol NetworkMonitorBackend: AnyObject {
     var onApproval: (() -> Void)? { get set }
     var onInstallationProgress: ((Double?) -> Void)? { get set }
+    var onComponentStatus: ((NetworkComponentStatus) -> Void)? { get set }
     func activate() async throws -> Bool
     func cancelActivation()
     func setFilterEnabled(_ enabled: Bool) async throws
     func read(after cursor: Int64, epoch: String) async throws -> ObservationBatch
     func stopReading()
     func uninstall() async throws -> Bool
+    func componentCommand(_ command: String) async throws -> NetworkComponentResponse
 }
 
-enum NetworkMonitorError: Error, LocalizedError {
-    case unsupportedVersion, missingExtension, unsigned, installLocation, unavailable, timeout, wrongConfiguration, extensionNeedsUpdate, restartRequired
-
-    var errorDescription: String? {
-        switch self {
-        case .unsupportedVersion: tr("需要 macOS 15 或更新版本")
-        case .missingExtension: tr("此构建未包含网络扩展。")
-        case .unsigned: tr("需要包含网络扩展权限的签名构建。")
-        case .installLocation: tr("请先将 XStats 安装到应用程序文件夹。")
-        case .unavailable: tr("无法连接网络扩展，请重试。")
-        case .timeout: tr("网络扩展响应超时，请重试。")
-        case .wrongConfiguration: tr("网络过滤配置与此扩展不匹配。")
-        case .extensionNeedsUpdate: tr("网络扩展需要更新，请重新启用连接查看。")
-        case .restartRequired: tr("需要重启系统")
-        }
-    }
-}
-
-/// XPC 的回复、错误、取消与超时只能完成同一次读取一次；不在主线程阻塞等待。
-final class NetworkMonitorReply: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<Data, any Error>?
-    private var result: Result<Data, any Error>?
-
-    func install(_ continuation: CheckedContinuation<Data, any Error>) {
-        lock.lock()
-        if let result {
-            lock.unlock()
-            continuation.resume(with: result)
-        } else {
-            self.continuation = continuation
-            lock.unlock()
-        }
-    }
-
-    func finish(_ result: Result<Data, any Error>) {
-        lock.lock()
-        guard self.result == nil else { lock.unlock(); return }
-        self.result = result
-        let continuation = continuation
-        self.continuation = nil
-        lock.unlock()
-        continuation?.resume(with: result)
-    }
+extension NetworkMonitorBackend {
+    var onComponentStatus: ((NetworkComponentStatus) -> Void)? { get { nil } set {} }
+    func componentCommand(_ command: String) async throws -> NetworkComponentResponse { throw NetworkMonitorError.unavailable }
 }
 
 @MainActor final class NativeNetworkMonitorBackend: NSObject, NetworkMonitorBackend {
-    static let extensionIdentifier = "work.12306.xstats.app.networkextension"
+    static let extensionIdentifier = NetworkObservationProtocol.extensionIdentifier
     var onApproval: (() -> Void)?
     var onInstallationProgress: ((Double?) -> Void)?
+    var onComponentStatus: ((NetworkComponentStatus) -> Void)?
     private var connection: NSXPCConnection?
     private var control: NSXPCConnection?
     private var activationGeneration = 0
+    private var componentPreparation: Task<Void, any Error>?
     private var installationTask: Task<Void, any Error>?
+    private var validatedIdentity: String?
+    private var registeredIdentity: String?
     init(connection: NSXPCConnection? = nil) { self.connection = connection; super.init() }
 
     func activate() async throws -> Bool {
         guard NetworkMonitorSupport.isAvailable else { throw NetworkMonitorError.unsupportedVersion }
         let generation = activationGeneration
-        _ = try signingTeam()
-        if !(await NetworkComponentInstaller.isInstalled()) {
+        try await prepareComponent()
+        guard generation == activationGeneration else { throw CancellationError() }
+        let result = try await command("activate")
+        if result.status?.needsSystemApproval == true { onApproval?() }
+        return result.needsRestart
+    }
+    func cancelActivation() { activationGeneration += 1; installationTask?.cancel() }
+    func setFilterEnabled(_ enabled: Bool) async throws {
+        if !enabled, !FileManager.default.fileExists(atPath: NetworkComponentInstaller.componentURL.path) { return }
+        _ = try await componentCommand(enabled ? "enable" : "disable")
+    }
+    func uninstall() async throws -> Bool { try await componentCommand("uninstall").needsRestart }
+
+    func componentCommand(_ action: String) async throws -> NetworkComponentResponse {
+        try await prepareComponent()
+        return try await command(action)
+    }
+    private func prepareComponent() async throws {
+        if let preparation = componentPreparation { try await preparation.value; try Task.checkCancellation(); return }
+        let preparation = Task { try await prepareComponentImpl() }
+        componentPreparation = preparation
+        defer { componentPreparation = nil }
+        try await preparation.value
+        try Task.checkCancellation()
+    }
+    private func prepareComponentImpl() async throws {
+        let team = try NetworkCodeIdentity.currentTeam()
+        if !FileManager.default.fileExists(atPath: NetworkComponentInstaller.componentURL.path) {
             onInstallationProgress?(0)
             defer { onInstallationProgress?(nil) }
+            let generation = activationGeneration
             let task = Task {
                 try await NetworkComponentInstaller().install { [weak self] progress in
                     Task { @MainActor in
@@ -93,89 +86,99 @@ final class NetworkMonitorReply: @unchecked Sendable {
             installationTask = task
             do { try await task.value; installationTask = nil }
             catch { installationTask = nil; throw error }
+            validatedIdentity = nil
+        }
+        let metadata = try await NetworkComponentMetadata.load(at: NetworkComponentInstaller.componentURL)
+        guard metadata.protocolVersion == NetworkObservationProtocol.version,
+              metadata.controlMachService == NetworkObservationProtocol.controlServiceName(team: team) else {
+            throw NetworkMonitorError.protocolMismatch
+        }
+        let identity = try await Self.installationIdentity()
+        if identity != validatedIdentity {
+            try await NetworkComponentInstaller.validateInstalled()
+            validatedIdentity = identity
+            // 替换整个包后必须放弃旧匿名/launchd连接，避免失效回调清掉新会话。
+            control?.invalidate(); control = nil
+            stopReading()
+        }
+        if identity != registeredIdentity {
+            let result = try await NetworkComponentInstaller.runCommand(
+                NetworkComponentInstaller.componentURL.appendingPathComponent("Contents/MacOS/XStats Network Monitor").path,
+                arguments: ["--register-service"], limit: 32 * 1024)
+            let registration = try JSONDecoder().decode(RegistrationReply.self, from: result)
+            guard registration.protocolVersion == NetworkObservationProtocol.version else { throw NetworkMonitorError.protocolMismatch }
+            if let error = registration.error { throw NSError(domain: "NetworkComponent", code: 1, userInfo: [NSLocalizedDescriptionKey: error]) }
+            guard registration.registration == .enabled else { throw NetworkMonitorError.backgroundApproval }
+            registeredIdentity = identity
         }
         try Task.checkCancellation()
-        guard generation == activationGeneration else { throw CancellationError() }
-        try await NetworkComponentInstaller.validateInstalled()
         if control == nil {
-            let configuration = NSWorkspace.OpenConfiguration()
-            configuration.activates = false
-            configuration.arguments = ["--activate"]
-            _ = try await NSWorkspace.shared.openApplication(at: NetworkComponentInstaller.componentURL, configuration: configuration)
-            onApproval?()
-            let clock = ContinuousClock()
-            let deadline = clock.now.advanced(by: .seconds(60))
-            repeat {
-                do { try await connectControl(); _ = try await command("status"); break }
-                catch { stopReading() }
-                try await Task.sleep(for: .milliseconds(500))
-            } while clock.now < deadline
-        }
-        guard generation == activationGeneration else { throw CancellationError() }
-        return try await command("activate").needsRestart
-    }
-    func cancelActivation() { activationGeneration += 1; installationTask?.cancel() }
-    func setFilterEnabled(_ enabled: Bool) async throws {
-        if !enabled, control == nil {
-            guard await NetworkComponentInstaller.isInstalled() else { return }
-            try await connectControl()
-        }
-        _ = try await command(enabled ? "enable" : "disable")
-    }
-    func uninstall() async throws -> Bool { try await connectControl(); return try await command("uninstall").needsRestart }
-
-    private func connectControl() async throws {
-        if control != nil { return }
-        let peer = try ensureConnection()
-        let reply = EndpointReply()
-        let endpoint = try await withCheckedThrowingContinuation { continuation in
-            reply.install(continuation)
-            guard let proxy = peer.remoteObjectProxyWithErrorHandler({ @Sendable error in reply.finish(.failure(error)) }) as? NetworkObservationService else {
-                reply.finish(.failure(NetworkMonitorError.unavailable)); return
+            let candidate = NSXPCConnection(machServiceName: NetworkObservationProtocol.controlServiceName(team: team), options: [])
+            candidate.setCodeSigningRequirement("anchor apple generic and identifier \"work.12306.xstats.networkmonitor\" and certificate leaf[subject.OU] = \"\(team)\"")
+            candidate.remoteObjectInterface = NSXPCInterface(with: NetworkComponentService.self)
+            candidate.exportedInterface = NSXPCInterface(with: NetworkComponentClientService.self)
+            let identifier = ObjectIdentifier(candidate)
+            candidate.exportedObject = NetworkComponentClientReceiver(
+                approval: { [weak self] in Task { @MainActor in
+                    guard let self, let current = self.control, ObjectIdentifier(current) == identifier else { return }
+                    self.onApproval?()
+                } }, status: { [weak self] data in Task { @MainActor in
+                    guard let self, let current = self.control, ObjectIdentifier(current) == identifier,
+                          data.count <= 256 * 1024, let status = try? JSONDecoder().decode(NetworkComponentStatus.self, from: data) else { return }
+                    self.onComponentStatus?(status)
+                } })
+            let clear: @Sendable () -> Void = { [weak self] in
+                Task { @MainActor in
+                    guard let self, let current = self.control, ObjectIdentifier(current) == identifier else { return }
+                    self.control = nil; self.registeredIdentity = nil; current.invalidate()
+                }
             }
-            proxy.controlEndpoint { @Sendable endpoint in
-                if let endpoint { reply.finish(.success(NetworkControlEndpoint(endpoint))) }
-                else { reply.finish(.failure(NetworkMonitorError.unavailable)) }
-            }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 2) { reply.finish(.failure(NetworkMonitorError.timeout)) }
+            candidate.invalidationHandler = clear; candidate.interruptionHandler = clear
+            candidate.resume(); control = candidate
         }
-        let candidate = NSXPCConnection(listenerEndpoint: endpoint.value)
-        let team = try signingTeam()
-        candidate.setCodeSigningRequirement("anchor apple generic and identifier \"work.12306.xstats.networkmonitor\" and certificate leaf[subject.OU] = \"\(team)\"")
-        candidate.remoteObjectInterface = NSXPCInterface(with: NetworkComponentService.self)
-        let identity = ObjectIdentifier(candidate)
-        let clear: @Sendable () -> Void = { [weak self] in
-            Task { @MainActor in
-                guard let self, let candidate = self.control, ObjectIdentifier(candidate) == identity else { return }
-                candidate.invalidate(); self.control = nil
-            }
-        }
-        candidate.invalidationHandler = clear
-        candidate.interruptionHandler = clear
-        candidate.resume()
-        control = candidate
     }
-    private func command(_ command: String) async throws -> NetworkComponentResponse {
+    private struct RegistrationReply: Decodable {
+        let protocolVersion: Int
+        let registration: NetworkComponentRegistration
+        let error: String?
+    }
+    // 此缓存只省去重复文件验签；Mach对端每条消息仍由系统校验精确ID与团队。
+    // 安装/升级替换包、签名资源、plist或执行文件时，身份立即失效并重新严格验证。
+    @concurrent private static func installationIdentity() async throws -> String {
+        let app = NetworkComponentInstaller.componentURL
+        let paths = ["", "Contents/Info.plist", "Contents/MacOS/XStats Network Monitor", "Contents/_CodeSignature/CodeResources", "Contents/Library/LaunchAgents/" + NetworkObservationProtocol.agentPlistName]
+        return try paths.map { path in
+            let attributes = try FileManager.default.attributesOfItem(atPath: app.appendingPathComponent(path).path)
+            let modified = (attributes[.modificationDate] as? Date)?.timeIntervalSinceReferenceDate ?? 0
+            return "\(attributes[.systemFileNumber] ?? ""):\(attributes[.size] ?? ""):\(modified)"
+        }.joined(separator: "|")
+    }
+    private func command(_ action: String) async throws -> NetworkComponentResponse {
         guard let control else { throw NetworkMonitorError.unavailable }
         let reply = NetworkMonitorReply()
         let data = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 reply.install(continuation)
+                guard !Task.isCancelled else { reply.finish(.failure(CancellationError())); return }
                 guard let proxy = control.remoteObjectProxyWithErrorHandler({ @Sendable error in reply.finish(.failure(error)) }) as? NetworkComponentService else {
                     reply.finish(.failure(NetworkMonitorError.unavailable)); return
                 }
-                proxy.perform(command) { @Sendable data in reply.finish(.success(data)) }
+                proxy.perform(action) { @Sendable data in reply.finish(.success(data)) }
                 DispatchQueue.global().asyncAfter(deadline: .now() + 65) { reply.finish(.failure(NetworkMonitorError.timeout)) }
             }
         } onCancel: { reply.finish(.failure(CancellationError())) }
+        try Task.checkCancellation()
+        guard data.count <= 256 * 1024 else { throw NetworkMonitorError.unavailable }
         let response = try JSONDecoder().decode(NetworkComponentResponse.self, from: data)
+        guard response.protocolVersion == NetworkObservationProtocol.version else { throw NetworkMonitorError.protocolMismatch }
+        if response.status?.needsSystemApproval == true { onApproval?() }
         if let error = response.error { throw NSError(domain: "NetworkComponent", code: 1, userInfo: [NSLocalizedDescriptionKey: error]) }
+        if let status = response.status { onComponentStatus?(status) }
         return response
     }
-
     func read(after cursor: Int64, epoch: String) async throws -> ObservationBatch {
         guard NetworkMonitorSupport.isAvailable else { throw NetworkMonitorError.unsupportedVersion }
-        let connection = try ensureConnection()
+        let connection = try await ensureConnection()
         let reply = NetworkMonitorReply()
         let data = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
@@ -196,20 +199,20 @@ final class NetworkMonitorReply: @unchecked Sendable {
     }
 
 
-    private func ensureConnection() throws -> NSXPCConnection {
+
+    private func ensureConnection() async throws -> NSXPCConnection {
         if let connection { return connection }
-        guard let component = Bundle(url: NetworkComponentInstaller.componentURL),
-              component.bundleIdentifier == NetworkComponentInstaller.bundleIdentifier,
-              let name = component.object(forInfoDictionaryKey: "NetworkObservationMachService") as? String,
-              !name.isEmpty else { throw NetworkMonitorError.missingExtension }
-        let team = try signingTeam()
-        let candidate = NSXPCConnection(machServiceName: name, options: .privileged)
+        let metadata = try await NetworkComponentMetadata.load(at: NetworkComponentInstaller.componentURL)
+        try Task.checkCancellation()
+        if let connection { return connection }
+        guard metadata.protocolVersion == NetworkObservationProtocol.version else { throw NetworkMonitorError.protocolMismatch }
+        let team = try NetworkCodeIdentity.currentTeam()
+        let candidate = NSXPCConnection(machServiceName: metadata.observationMachService, options: .privileged)
         candidate.setCodeSigningRequirement("anchor apple generic and identifier \"\(Self.extensionIdentifier)\" and certificate leaf[subject.OU] = \"\(team)\"")
         candidate.remoteObjectInterface = NSXPCInterface(with: NetworkObservationService.self)
         candidate.resume(); connection = candidate
         return candidate
     }
-
     static func decodeBatch(_ data: Data) throws -> ObservationBatch {
         let batch = try ObservationBatch.decode(data)
         // 相同构建号可能让 macOS 继续运行旧扩展；缺字段是协议不匹配，不能当作零条活动连接。
@@ -218,33 +221,13 @@ final class NetworkMonitorReply: @unchecked Sendable {
     }
 
     func stopReading() { connection?.invalidate(); connection = nil }
-    private func signingTeam() throws -> String {
-        var code: SecCode?
-        var staticCode: SecStaticCode?
-        var information: CFDictionary?
-        guard SecCodeCopySelf([], &code) == errSecSuccess, let code,
-              SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
-              SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
-              let team = (information as? [String: Any])?[kSecCodeInfoTeamIdentifier as String] as? String else { throw NetworkMonitorError.unsigned }
-        return team
-    }
-
 }
 
-/// 回调可能来自任意 XPC 队列；锁只保护一次性 continuation，不在锁内执行外部代码。
-private final class EndpointReply: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<NetworkControlEndpoint, any Error>?
-    private var result: Result<NetworkControlEndpoint, any Error>?
-    func install(_ value: CheckedContinuation<NetworkControlEndpoint, any Error>) {
-        lock.lock()
-        if let result { lock.unlock(); value.resume(with: result) }
-        else { continuation = value; lock.unlock() }
-    }
-    func finish(_ value: Result<NetworkControlEndpoint, any Error>) {
-        lock.lock()
-        guard result == nil else { lock.unlock(); return }
-        result = value; let callback = continuation; continuation = nil; lock.unlock()
-        callback?.resume(with: value)
-    }
+/// XPC 在任意队列调用；这些不可变 Sendable 回调只把事件转交 MainActor。
+private final class NetworkComponentClientReceiver: NSObject, NetworkComponentClientService, Sendable {
+    private let approval: @Sendable () -> Void
+    private let status: @Sendable (Data) -> Void
+    init(approval: @escaping @Sendable () -> Void, status: @escaping @Sendable (Data) -> Void) { self.approval = approval; self.status = status }
+    func needsSystemApproval() { approval() }
+    func componentStatusChanged(_ data: Data) { status(data) }
 }

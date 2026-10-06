@@ -169,7 +169,7 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
             switch action { case .install(let release), .skip(let release): expected = release }
             guard candidate.build == expected.build, candidate.version == expected.version,
                   candidate.url == expected.url, candidate.size == expected.size,
-                  candidate.minimumSystem == expected.minimumSystem, candidate.networkExtension == expected.networkExtension else {
+                  candidate.minimumSystem == expected.minimumSystem, candidate.sha256 == expected.sha256, candidate.networkExtension == expected.networkExtension else {
                 throw UpdateError.releaseChanged
             }
         }

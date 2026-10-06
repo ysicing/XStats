@@ -4,7 +4,7 @@
 import Darwin
 import Foundation
 import Localization
-import Security
+import NetworkObservation
 
 public enum UpdateError: Error, LocalizedError, Equatable {
     case download(String)
@@ -27,12 +27,7 @@ public enum UpdateError: Error, LocalizedError, Equatable {
 public enum UpdateInstaller {
     /// 应用自身的签名团队；开发构建（未签名或临时签名）返回 nil
     public static func teamIdentifier(of app: URL) -> String? {
-        var staticCode: SecStaticCode?
-        guard SecStaticCodeCreateWithPath(app as CFURL, [], &staticCode) == errSecSuccess, let code = staticCode else { return nil }
-        var info: CFDictionary?
-        guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
-              let dictionary = info as? [String: Any] else { return nil }
-        return dictionary[kSecCodeInfoTeamIdentifier as String] as? String
+        NetworkCodeIdentity.teamIdentifier(of: app)
     }
 
     /// 仅结束属于这份应用的旧小组件进程，避免替换后 WidgetKit 继续向旧进程索取组件清单。

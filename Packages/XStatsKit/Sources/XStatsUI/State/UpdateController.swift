@@ -21,6 +21,7 @@ public final class UpdateController {
     }
 
     /// 手动检查发现新版本时调用，由 AppController 打开升级提示窗口
+    @ObservationIgnored var onCheckCompleted: () -> Void = {}
     @ObservationIgnored var onPrompt: () -> Void = {}
     /// 后台发现新版本时请求系统通知；成功提交后才记录去重状态。
     @ObservationIgnored var onUpdateAvailable: (String) async -> Bool = { _ in false }
@@ -131,7 +132,7 @@ public final class UpdateController {
                                       onRelaunch: { [weak self] in self?.skippedVersion = nil })
         driver.prepareForInstallation = { [weak self] in try await self?.prepareForInstallation() }
         driver.cancelInstallationPreparation = { [weak self] in self?.cancelInstallationPreparation() }
-        driver.onChecked = { [weak self] in self?.lastChecked = Date() }
+        driver.onChecked = { [weak self] in self?.lastChecked = Date(); self?.onCheckCompleted() }
         driver.onNoUpdate = { [weak self] in self?.release = nil }
         driver.onRelease = { [weak self] release, manual in
             guard let self else { return }
