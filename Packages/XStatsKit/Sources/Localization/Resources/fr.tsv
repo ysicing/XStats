@@ -1733,3 +1733,59 @@ IP 归属地	Localisation IP
 音量或输出控制未生效。	Le réglage du volume ou de la sortie n’a pas été appliqué.
 {} 音频选项	Options audio de {}
 已暂停	En pause
+网络连接	Connexions réseau
+只读查看应用的新连接，所有连接均放行。	Consultez les nouvelles connexions des apps ; elles sont toutes autorisées.
+此构建未包含网络扩展。	Cette version ne contient pas l’extension réseau.
+需要包含网络扩展权限的签名构建。	Une version signée avec les droits Network Extension est requise.
+请先将 XStats 安装到应用程序文件夹。	Installez d’abord XStats dans le dossier Applications.
+无法连接网络扩展，请重试。	Connexion à l’extension réseau impossible. Réessayez.
+网络扩展响应超时，请重试。	L’extension réseau ne répond pas à temps. Réessayez.
+网络过滤配置与此扩展不匹配。	La configuration du filtre réseau ne correspond pas à cette extension.
+XStats 网络连接查看	Visionneuse de connexions réseau XStats
+只读观察 · 全部放行	Observation seule · Tout autorisé
+只在本机记录新连接的应用与目标信息，不读取通信内容。	Enregistre localement l’app et la destination sans lire le contenu des communications.
+停止查看	Arrêter l’affichage
+启用连接查看	Activer l’affichage des connexions
+移除网络扩展	Supprimer l’extension réseau
+搜索应用、地址或端口	Rechercher apps, adresses ou ports
+清空记录	Effacer les entrées
+最近连接记录	Connexions récentes
+仅显示开启查看后观察到的连接，记录不代表连接当前仍在线。	Seules les connexions observées depuis le début sont affichées ; une entrée ne signifie pas que la connexion est encore active.
+扩展缓冲区已有 {} 条旧记录被淘汰。	Le tampon de l’extension a supprimé {} anciennes entrées.
+暂无连接记录	Aucune connexion enregistrée
+没有匹配的连接	Aucune connexion correspondante
+启用查看后，打开网页或使用联网应用，新的连接会显示在这里。	Après activation, ouvrez une page web ou une app en ligne pour voir les nouvelles connexions ici.
+等待系统授权	En attente de l’autorisation système
+采集已暂停	Collecte en pause
+未能启用	Activation impossible
+需要重启系统	Redémarrage du système requis
+示例数据	Données d’exemple
+目标未知	Destination inconnue
+出站	Sortant
+入站	Entrant
+需要 macOS 15 或更新版本	Nécessite macOS 15 ou une version ultérieure
+网络监视器	Moniteur réseau
+域名	Domaines
+国家	Pays
+目标	Destination
+更多	Plus
+继续监视	Reprendre la surveillance
+暂停监视	Suspendre la surveillance
+仅显示活动连接	Afficher seulement les connexions actives
+汇总方式	Regrouper par
+活动连接	Connexions actives
+国家级位置，非设备精确位置	Localisation par pays, sans position précise de l’appareil
+暂停时保留当前画面；继续后更新观察到的连接。	La pause conserve cette vue ; la reprise actualise les connexions observées.
+显示观察期间的新连接；重新开始前已建立的连接不在此列。	Affiche les connexions ouvertes pendant l’observation ; les connexions préexistantes sont exclues.
+查看应用连接、域名和国家分布，不读取通信内容。	Consultez les connexions, domaines et pays sans lire le contenu des communications.
+请在系统设置中允许 XStats 网络扩展，然后返回此处。	Autorisez l’extension réseau XStats dans les Réglages Système, puis revenez ici.
+错误详情	Détails de l’erreur
+正在监视	Surveillance active
+内网或位置未知	Réseau local ou localisation inconnue
+网络扩展需要更新，请重新启用连接查看。	L’extension réseau doit être mise à jour. Réactivez l’affichage des connexions.
+更新地图数据库	Mettre à jour la base cartographique
+正在更新地图数据库…	Mise à jour de la base cartographique…
+正在下载地图数据库…	Téléchargement de la base cartographique…
+更新失败，继续使用已缓存的数据。	Échec de la mise à jour. Les données en cache restent disponibles.
+地图数据库未就绪，连接列表仍可使用。	Base cartographique indisponible. La liste des connexions reste accessible.
+下载地图数据库	Télécharger la base cartographique

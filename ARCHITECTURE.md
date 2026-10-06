@@ -801,3 +801,66 @@ connection on a serial background queue with a 10-second Bluetooth page timeout,
 existing guarded device-switch path runs only after audio readiness. Closing the audio interface,
 disabling it, or sleeping cancels pending selection; an already issued OS connection may still
 complete, but its late result cannot issue an app-side route switch or clear a newer operation.
+
+## Read-only network connection observation
+
+The optional Network Monitor module requires macOS 15+ and is disabled by default. The main
+app and other features continue to support macOS 14. The feature switch, sidebar and routes are gated
+on OS availability; saved preferences are retained, but cannot activate the module on older systems.
+The controller and native backend also reject unsupported use. The system extension itself has a
+macOS 15 deployment target. Enabling its feature switch only
+exposes the page; the explicit viewer button activates `work.12306.xstats.app.networkextension`
+and enables its socket content filter after macOS approval. The provider returns `allow` for every
+flow, including errors and missing metadata. It never requests payload inspection, packet filtering,
+pausing or dropping. A socket allow verdict requests a flow-closed report while observation is active;
+the provider uses these metadata-only reports to remove closed IDs from a 512-slot active ring.
+Batches include bounded active IDs so journal eviction cannot leave false active rows.
+The host rejects replies without an active-ID snapshot with an explicit extension-update error.
+Extension code or protocol changes require a new CFBundleVersion: macOS can retain an older
+installed extension when activation requests have the same version and build number. Only connections
+opened during observation are covered; pre-existing sessions are not enumerated.
+
+A same-Team, exact-identifier XPC channel carries metadata only. The extension uses a 256-entry
+ring and batches at most 64 events, bounded below 256 KiB including JSON escaping. Reads use an
+epoch and cursor; replacement or restart resets the epoch. The UI retains at most 512 entries in
+memory. Its native split view defaults to grouping by app and also groups counts by process, domain or country, with a linked country map
+and connection table. Group order remains alphabetical to preserve selection during refresh.
+Pausing cancels reads and freezes the display; resumed sessions replace the active-ID snapshot.
+Hostnames and destinations may be absent;
+no reverse DNS or geolocation service is called, and no connection history is written to disk.
+Only Natural Earth outlines and representative coordinates are bundled. While the viewer is visible
+and reading, a separate demand-driven controller downloads DB-IP Lite tables from the fixed c-ip CDN
+index. It reuses a validated local cache for 30 days and has no background update timer. Hiding, pausing,
+locking or sleeping cancels outstanding downloads; generation guards reject late progress/completions.
+Connections remain available before geography is ready and after a download failure. The main actor
+only owns UI state; bounded HTTP buffers, LZFSE decoding, hashes, disk writes and lookups run off it.
+The index permits exactly the two known IPv4/IPv6 filenames, raw sizes up to 32 MiB each and compressed
+sizes up to 8 MiB each. HTTPS downloads are bounded while receiving, then both compressed and raw
+SHA-256/lengths are checked. Two tables are staged in one cache generation and its pointer is atomically
+switched only after both succeed. Failed updates preserve old data; older owned cache generations are
+removed after success. The files live in Application Support/XStats/NetworkGeography, outside backups.
+Country pins aggregate counts, not precise device positions. Private/unknown locations stay in the list.
+No per-IP network queries occur. Publishing fetches the official monthly CSV anew, validates ranges,
+compresses using system LZFSE and uploads content-addressed objects to c-ip. Public hash readback
+precedes the mutable current.json pointer and all application artifact publication. Data licensing and
+attribution are in ThirdPartyNotices.md.
+
+Only a visible, unlocked viewer renews the six-second observation lease with a read every two
+seconds. Hidden/minimized windows, lock, sleep, cancellation and disconnect stop reads; the lease
+expires even if the GUI crashes. The provider uses try-locks so observation contention never waits
+on the flow verdict path. The filter's passive allow callback may remain installed while the viewer
+is hidden. Disabling the module serially saves `isEnabled=false`, including when an enable save was
+already in flight. Explicit removal disables and removes the filter configuration before submitting
+system-extension deactivation; pending reboot is reported separately from completed removal.
+
+The system extension bundle filename must equal its Bundle ID. The app needs System Extension
+installation and Network Extension entitlements; the extension needs the content-filter-provider-
+systemextension entitlement and its own Developer ID provisioning profile. The mach service uses
+`TeamIdentifierPrefix` for a dedicated macOS-only IPC App Group shared by the app and extension.
+The Mach service is `<that group>.ipc`; NE category validation requires this exact group prefix.
+No files are stored in this group, and the extension is not granted the existing Widget group.
+Endpoint metadata uses the public `remoteFlowEndpoint` API directly; no
+legacy endpoint bridge is included.
+
+`--snapshot <directory> --connections-only --language <language>` renders fixed synthetic metadata
+without activating an extension, collecting live connections or modifying system preferences.

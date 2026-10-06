@@ -92,6 +92,7 @@ public struct MainWindowView: View {
             case .history: HistoryPage()
             case .aiUsage: AIUsagePage()
             case .audio: DetailPage { AudioMixerContent() }
+            case .connections: NetworkConnectionsPage()
             case .cpu: DetailPage { CPUPopover() }
             case .gpu: DetailPage { GPUPopover() }
             case .memory: DetailPage { MemoryPopover() }
@@ -207,6 +208,7 @@ private struct MainSidebar: View {
             group(tr("工具"), PanelTab.tools.filter { tab in
                 switch tab {
                 case .audio: model.settings.audioEnabled
+                case .connections: model.settings.canViewNetworkConnections
                 case .rest: model.settings.restEnabled
                 case .cleaner: model.settings.cleanerEnabled
                 case .processes: model.settings.processesEnabled

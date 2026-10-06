@@ -4,3 +4,4 @@
 "NSRemindersFullAccessUsageDescription" = "Zeigt ausgewählte fällige Erinnerungen lokal an, ohne sie zu ändern oder hochzuladen.";
 "NSAudioCaptureUsageDescription" = "App-Lautstärke lokal in Echtzeit anpassen, ohne Audio aufzunehmen, zu speichern oder hochzuladen.";
 "NSBluetoothAlwaysUsageDescription" = "Gekoppelte Bluetooth-Audiogeräte anzeigen und bei Ihrer Auswahl verbinden.";
+"NSSystemExtensionUsageDescription" = "App-Netzwerkverbindungen lokal anzeigen, ohne Verbindungen zu blockieren oder Kommunikationsinhalte zu lesen.";

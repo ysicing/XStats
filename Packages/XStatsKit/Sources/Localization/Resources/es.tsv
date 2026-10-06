@@ -1733,3 +1733,59 @@ IP 归属地	Ubicación IP
 音量或输出控制未生效。	El control de volumen o de salida no se ha aplicado.
 {} 音频选项	Opciones de audio de {}
 已暂停	En pausa
+网络连接	Conexiones de red
+只读查看应用的新连接，所有连接均放行。	Consulta las nuevas conexiones de las apps; todas se permiten.
+此构建未包含网络扩展。	Esta compilación no incluye la extensión de red.
+需要包含网络扩展权限的签名构建。	Se requiere una compilación firmada con permisos de Network Extension.
+请先将 XStats 安装到应用程序文件夹。	Instala primero XStats en la carpeta Aplicaciones.
+无法连接网络扩展，请重试。	No se pudo conectar con la extensión de red. Inténtalo de nuevo.
+网络扩展响应超时，请重试。	La extensión de red agotó el tiempo de respuesta. Inténtalo de nuevo.
+网络过滤配置与此扩展不匹配。	La configuración del filtro de red no corresponde a esta extensión.
+XStats 网络连接查看	Visor de conexiones de red de XStats
+只读观察 · 全部放行	Observación de solo lectura · Todo permitido
+只在本机记录新连接的应用与目标信息，不读取通信内容。	Registra localmente la app y el destino sin leer el contenido de las comunicaciones.
+停止查看	Detener visualización
+启用连接查看	Activar visualización de conexiones
+移除网络扩展	Eliminar extensión de red
+搜索应用、地址或端口	Buscar apps, direcciones o puertos
+清空记录	Borrar registros
+最近连接记录	Registros de conexiones recientes
+仅显示开启查看后观察到的连接，记录不代表连接当前仍在线。	Solo se muestran conexiones observadas desde el inicio; un registro no indica que la conexión siga activa.
+扩展缓冲区已有 {} 条旧记录被淘汰。	El búfer de la extensión ha descartado {} registros antiguos.
+暂无连接记录	Aún no hay registros de conexiones
+没有匹配的连接	No hay conexiones coincidentes
+启用查看后，打开网页或使用联网应用，新的连接会显示在这里。	Tras activar la vista, abre una página web o usa una app en línea para ver nuevas conexiones aquí.
+等待系统授权	Esperando autorización del sistema
+采集已暂停	Recopilación pausada
+未能启用	No se pudo activar
+需要重启系统	Se requiere reiniciar el sistema
+示例数据	Datos de ejemplo
+目标未知	Destino desconocido
+出站	Saliente
+入站	Entrante
+需要 macOS 15 或更新版本	Requiere macOS 15 o posterior
+网络监视器	Monitor de red
+域名	Dominios
+国家	Países
+目标	Destino
+更多	Más
+继续监视	Reanudar monitorización
+暂停监视	Pausar monitorización
+仅显示活动连接	Mostrar solo conexiones activas
+汇总方式	Agrupar por
+活动连接	Conexiones activas
+国家级位置，非设备精确位置	Ubicación por país, no la ubicación exacta del dispositivo
+暂停时保留当前画面；继续后更新观察到的连接。	Al pausar se conserva la vista; al reanudar se actualizan las conexiones observadas.
+显示观察期间的新连接；重新开始前已建立的连接不在此列。	Muestra conexiones abiertas durante la observación; no incluye las conexiones anteriores.
+查看应用连接、域名和国家分布，不读取通信内容。	Ver conexiones, dominios y países sin leer el contenido de las comunicaciones.
+请在系统设置中允许 XStats 网络扩展，然后返回此处。	Permite la extensión de red de XStats en Ajustes del Sistema y vuelve aquí.
+错误详情	Detalles del error
+正在监视	Monitorizando
+内网或位置未知	Red local o ubicación desconocida
+网络扩展需要更新，请重新启用连接查看。	La extensión de red necesita actualizarse. Vuelve a activar la vista de conexiones.
+更新地图数据库	Actualizar base de datos del mapa
+正在更新地图数据库…	Actualizando la base de datos del mapa…
+正在下载地图数据库…	Descargando la base de datos del mapa…
+更新失败，继续使用已缓存的数据。	La actualización falló. Se usarán los datos guardados.
+地图数据库未就绪，连接列表仍可使用。	La base del mapa no está disponible. La lista de conexiones sigue disponible.
+下载地图数据库	Descargar base de datos del mapa

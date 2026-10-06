@@ -13,6 +13,16 @@ struct FeatureSettings: View {
         @Bindable var settings = model.settings
 
         SettingsGroup {
+            if #available(macOS 15, *) {
+                GroupRow(showsDivider: false) {
+                    SettingRow(title: tr("网络监视器"), subtitle: tr("只读查看应用的新连接，所有连接均放行。"), icon: "network") {
+                        DSToggle(isOn: $settings.networkConnectionsEnabled, label: tr("网络监视器"))
+                    }
+                    if let error = model.connectionMonitor.error {
+                        Text(verbatim: error).dsFont(.xs).foregroundStyle(DS.Palette.error)
+                    }
+                }
+            }
             GroupRow(showsDivider: false) {
                 SettingRow(title: tr("进程"),
                            subtitle: tr("查看全部进程、搜索排序与结束进程，按需开启。"),

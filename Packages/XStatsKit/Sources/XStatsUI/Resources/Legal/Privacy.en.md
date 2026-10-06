@@ -1,6 +1,6 @@
 # XStats Privacy Policy
 
-Effective date: October 4, 2026
+Effective date: October 6, 2026
 
 This policy explains what XStats processes on your Mac and which features contact external services. XStats-operated services retain only the update-statistics aggregates described in section 2; the app's other persisted data stays on your Mac and is not uploaded to XStats-operated servers. Network tests send requests needed for the test to independent providers, as described in section 3. Contact: i@xiai.me.
 
@@ -16,6 +16,8 @@ If you manually configure Sub2API as a backup quota source for Codex or Claude C
 You choose whether and where to export diagnostics; they are not uploaded automatically. An exported archive may contain a settings summary, the last three days of system logs, cleanup records, and crash reports. Review it before sharing.
 
 Audio controls are disabled by default. System volume, mute and output/input device switching use local Core Audio interfaces; unsupported controls are unavailable. On macOS 14.4 or later, app volume requires explicit system audio capture authorization. Audio is processed locally in real time and is never recorded, saved or uploaded. App volume and independent output preferences are stored locally by app identifier. Adjustments remain active when the interface closes; disabling the feature or sleeping stops processing and releases audio objects. Authorization can be revoked in System Settings.
+
+Network Monitor requires macOS 15 or later and is disabled by default. After you explicitly enable the viewer and approve its system extension, it records app, destination, port, protocol time and closure metadata for new connections only while the viewer is visible. All connections are allowed; communication content is not read. Up to 512 display records are held in memory, never written to history, backups or widgets and never uploaded. On first use and updates, the country map downloads a public IP-to-country database from `c.ysicing.net` and caches it locally for offline lookup. Downloads include no installation identifier, destination IPs or observed records, and positions do not represent precise device locations. Pausing freezes the view and stops reading. Hiding the viewer, locking or sleeping stops observation; disabling the module clears display records and disables its filter configuration.
 
 ## 2. Update checks and installation statistics
 

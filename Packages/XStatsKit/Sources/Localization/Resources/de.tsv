@@ -1733,3 +1733,59 @@ IP 归属地	IP-Standort
 音量或输出控制未生效。	Die Lautstärke- oder Ausgabesteuerung wurde nicht angewendet.
 {} 音频选项	Audiooptionen für {}
 已暂停	Pausiert
+网络连接	Netzwerkverbindungen
+只读查看应用的新连接，所有连接均放行。	Neue App-Verbindungen nur ansehen; alle Verbindungen werden erlaubt.
+此构建未包含网络扩展。	Dieser Build enthält keine Netzwerkerweiterung.
+需要包含网络扩展权限的签名构建。	Ein signierter Build mit Network-Extension-Berechtigungen ist erforderlich.
+请先将 XStats 安装到应用程序文件夹。	Installiere XStats zuerst im Programme-Ordner.
+无法连接网络扩展，请重试。	Verbindung zur Netzwerkerweiterung fehlgeschlagen. Erneut versuchen.
+网络扩展响应超时，请重试。	Zeitüberschreitung der Netzwerkerweiterung. Erneut versuchen.
+网络过滤配置与此扩展不匹配。	Die Netzwerkfilterkonfiguration passt nicht zu dieser Erweiterung.
+XStats 网络连接查看	XStats Netzwerkverbindungsanzeige
+只读观察 · 全部放行	Nur Beobachtung · Alles erlaubt
+只在本机记录新连接的应用与目标信息，不读取通信内容。	App- und Zielmetadaten lokal erfassen, ohne Kommunikationsinhalte zu lesen.
+停止查看	Anzeige stoppen
+启用连接查看	Verbindungsanzeige aktivieren
+移除网络扩展	Netzwerkerweiterung entfernen
+搜索应用、地址或端口	Apps, Adressen oder Ports suchen
+清空记录	Einträge löschen
+最近连接记录	Letzte Verbindungsereignisse
+仅显示开启查看后观察到的连接，记录不代表连接当前仍在线。	Nur seit Beginn der Anzeige beobachtete Verbindungen. Ein Eintrag bedeutet nicht, dass die Verbindung noch aktiv ist.
+扩展缓冲区已有 {} 条旧记录被淘汰。	Der Erweiterungspuffer hat {} ältere Einträge verworfen.
+暂无连接记录	Noch keine Verbindungseinträge
+没有匹配的连接	Keine passenden Verbindungen
+启用查看后，打开网页或使用联网应用，新的连接会显示在这里。	Nach dem Aktivieren eine Webseite oder Online-App öffnen, um hier neue Verbindungen zu sehen.
+等待系统授权	Systemfreigabe ausstehend
+采集已暂停	Erfassung pausiert
+未能启用	Aktivierung fehlgeschlagen
+需要重启系统	Systemneustart erforderlich
+示例数据	Beispieldaten
+目标未知	Unbekanntes Ziel
+出站	Ausgehend
+入站	Eingehend
+需要 macOS 15 或更新版本	Erfordert macOS 15 oder neuer
+网络监视器	Netzmonitor
+域名	Domains
+国家	Länder
+目标	Ziel
+更多	Mehr
+继续监视	Überwachung fortsetzen
+暂停监视	Überwachung pausieren
+仅显示活动连接	Nur aktive Verbindungen anzeigen
+汇总方式	Gruppieren nach
+活动连接	Aktive Verbindungen
+国家级位置，非设备精确位置	Standort auf Länderebene, kein genauer Gerätestandort
+暂停时保留当前画面；继续后更新观察到的连接。	Beim Pausieren bleibt die Ansicht erhalten; beim Fortsetzen werden beobachtete Verbindungen aktualisiert.
+显示观察期间的新连接；重新开始前已建立的连接不在此列。	Zeigt während der Beobachtung geöffnete Verbindungen; bereits bestehende sind nicht enthalten.
+查看应用连接、域名和国家分布，不读取通信内容。	App-Verbindungen, Domains und Länder ansehen, ohne Kommunikationsinhalte zu lesen.
+请在系统设置中允许 XStats 网络扩展，然后返回此处。	Erlauben Sie die XStats-Netzwerkerweiterung in den Systemeinstellungen und kehren Sie dann zurück.
+错误详情	Fehlerdetails
+正在监视	Überwachung aktiv
+内网或位置未知	Lokales Netzwerk oder unbekannter Standort
+网络扩展需要更新，请重新启用连接查看。	Die Netzwerkerweiterung muss aktualisiert werden. Aktivieren Sie die Verbindungsansicht erneut.
+更新地图数据库	Kartendatenbank aktualisieren
+正在更新地图数据库…	Kartendatenbank wird aktualisiert…
+正在下载地图数据库…	Kartendatenbank wird geladen…
+更新失败，继续使用已缓存的数据。	Aktualisierung fehlgeschlagen. Die gespeicherten Daten werden weiter verwendet.
+地图数据库未就绪，连接列表仍可使用。	Kartendatenbank nicht verfügbar. Die Verbindungsliste bleibt verfügbar.
+下载地图数据库	Kartendatenbank laden

@@ -17,6 +17,7 @@ let package = Package(
         .library(name: "WidgetData", targets: ["WidgetData"]),
         .library(name: "XStatsUI", targets: ["XStatsUI"]),
         .library(name: "AudioControl", targets: ["AudioControl"]),
+        .library(name: "NetworkObservation", targets: ["NetworkObservation"]),
     ],
     dependencies: [
         .package(url: "https://github.com/6tail/tyme4swift.git", exact: "1.5.0"),
@@ -34,10 +35,11 @@ let package = Package(
         .target(name: "WidgetData"),
         .target(name: "AudioDSP", publicHeadersPath: "include", linkerSettings: [.linkedFramework("CoreAudio")]),
         .target(name: "AudioControl", dependencies: ["AudioDSP"]),
-        .target(name: "XStatsUI", dependencies: ["AudioControl", "AIUsage", "Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync", "WidgetData",
+        .target(name: "NetworkObservation"),
+        .target(name: "XStatsUI", dependencies: ["NetworkObservation", "AudioControl", "AIUsage", "Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync", "WidgetData",
                                                    .product(name: "Tyme4Swift", package: "tyme4swift"),
                                                    .product(name: "Sparkle", package: "Sparkle")],
-                resources: [.copy("Resources/Flags"), .copy("Resources/Logos"), .copy("Resources/Legal")]),
+                resources: [.copy("Resources/Flags"), .copy("Resources/Logos"), .copy("Resources/Legal"), .copy("Resources/NetworkGeography")]),
         .testTarget(name: "MetricsTests", dependencies: ["Metrics", "SMC"]),
         .testTarget(name: "CleanerTests", dependencies: ["Cleaner"]),
         .testTarget(name: "HelperSharedTests", dependencies: ["HelperShared"]),
@@ -48,6 +50,7 @@ let package = Package(
         .testTarget(name: "AIUsageTests", dependencies: ["AIUsage"]),
         .testTarget(name: "WidgetDataTests", dependencies: ["WidgetData"]),
         .testTarget(name: "AudioControlTests", dependencies: ["AudioControl", "AudioDSP"]),
+        .testTarget(name: "NetworkObservationTests", dependencies: ["NetworkObservation"]),
     ],
     swiftLanguageModes: [.v6]
 )

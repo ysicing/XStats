@@ -8,6 +8,7 @@ import AudioControl
 import AppKit
 import Localization
 import Metrics
+import NetworkObservation
 import SMC
 import SwiftUI
 import Updates
@@ -25,6 +26,10 @@ enum SnapshotRenderer {
         }
         if CommandLine.arguments.contains("--audio-only") {
             await renderAudio(outputDirectory: outputDirectory)
+            return
+        }
+        if CommandLine.arguments.contains("--connections-only") {
+            await renderConnections(outputDirectory: outputDirectory)
             return
         }
         if CommandLine.arguments.contains("--display-only") {
@@ -140,6 +145,38 @@ enum SnapshotRenderer {
             writePNG(padded, scale: 2, to: outputDirectory.appendingPathComponent("menubar-\(dark ? "dark" : "light").png"))
         }
         print(tr("截图已输出到 \(outputDirectory.path)"))
+    }
+
+    /// 固定的虚构连接只用于布局走查；不激活系统扩展，不读取本机连接。
+    private static func renderConnections(outputDirectory: URL) async {
+        guard NetworkMonitorSupport.isAvailable else { return }
+        let suite = "XStats.connectionsSnapshot.\(UUID())"
+        guard let defaults = UserDefaults(suiteName: suite) else { return }
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.language = L10n.language
+        settings.networkConnectionsEnabled = true
+        settings.panelTab = .connections
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        let demo: [(String, String?, String?, UInt16, ConnectionTransport)] = [
+            ("/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app/Contents/MacOS/Safari", "1.1.1.1", "example.invalid", 443, .tcp),
+            ("/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app/Contents/MacOS/Safari", "2001:4860:4860::8888", "static.example.invalid", 443, .udp),
+            ("/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal", "8.8.8.8", nil, 22, .tcp),
+            ("/usr/bin/z-demo-process", nil, nil, 443, .tcp)
+        ]
+        model.connectionMonitor.showPreview(demo.enumerated().map { index, value in
+            ObservedConnection(id: UUID(), timestamp: Date(timeIntervalSince1970: 1_791_244_800 - Double(index * 5)),
+                               processID: Int32(100 + index), executablePath: value.0,
+                               address: value.1, hostname: value.2, port: value.3, transport: value.4, direction: .outbound)
+        })
+        model.connectionMonitor.previewWorld = await OfflineGeography.shared.world()
+        model.connectionMonitor.previewCountries = ["1.1.1.1": "AU", "2001:4860:4860::8888": "US", "8.8.8.8": "US"]
+        for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+            guard let appearance = NSAppearance(named: name) else { continue }
+            NSApp.appearance = appearance
+            write(MainWindowView(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("connections-window-\(suffix).png"))
+        }
     }
 
     /// 使用隔离偏好只读取设备；不请求权限，不创建 tap，不修改系统音量或路由。

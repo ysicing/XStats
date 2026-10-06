@@ -1,0 +1,3 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+"NSSystemExtensionUsageDescription" = "通信を遮断せず、通信内容を読まずに、アプリのネットワーク接続をローカルで表示します。";

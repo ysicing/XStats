@@ -13,6 +13,8 @@ import Updates
 public final class AppModel {
     let displays = DisplayController()
     let audio: AudioController
+    let connectionMonitor = NetworkMonitorController()
+    let networkGeography = NetworkGeographyController()
     public let settings: AppSettings
     let rest: RestController
     let calendarAgenda = CalendarAgendaController()
