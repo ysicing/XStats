@@ -176,6 +176,8 @@ enum SnapshotRenderer {
             NSApp.appearance = appearance
             write(MainWindowView(), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("connections-window-\(suffix).png"))
+            write(NetworkConnectionsPage().frame(width: 900).background(DS.Palette.background).appLanguageEnvironment(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("connections-page-wide-\(suffix).png"))
         }
     }
 

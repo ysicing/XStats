@@ -1789,3 +1789,13 @@ XStats 网络连接查看	Visor de conexiones de red de XStats
 更新失败，继续使用已缓存的数据。	La actualización falló. Se usarán los datos guardados.
 地图数据库未就绪，连接列表仍可使用。	La base del mapa no está disponible. La lista de conexiones sigue disponible.
 下载地图数据库	Descargar base de datos del mapa
+国家分布	Distribución por país
+连接详情	Detalles de conexión
+国家或地域	Países o regiones
+国家或地域分布	Distribución por país o región
+按国家或地域定位，非设备精确位置	Ubicación por país o región, no la ubicación exacta del dispositivo
+查看应用连接、域名和国家或地域分布，不读取通信内容。	Ver conexiones, dominios y países o regiones sin leer el contenido de las comunicaciones.
+中国香港	Hong Kong, China
+中国澳门	Macao, China
+中国台湾	Taiwán, China
+全部连接	Todas las conexiones
