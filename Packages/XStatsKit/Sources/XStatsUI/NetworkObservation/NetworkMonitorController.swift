@@ -37,10 +37,12 @@ import Observation
 
     func setDemand(enabled: Bool, visible: Bool) {
         let enabled = enabled && isSupported
+        // 系统过滤配置跨进程保留；重启后控制器为 idle，关闭模块时仍须写入停用。
+        let disabling = moduleEnabled && !enabled
         moduleEnabled = enabled
         self.visible = visible
         if !enabled && !records.isEmpty { records = [] }
-        if !enabled && (wantsRunning || status != .idle) { stop() }
+        if !enabled && (disabling || wantsRunning || status != .idle) { stop() }
         else { updateReading() }
     }
 
@@ -123,6 +125,8 @@ import Observation
                     guard !Task.isCancelled, self.readGeneration == generation else { return }
                     self.accept(batch)
                     failures = 0
+                    // 批次读满说明还有积压；立即续读，避免突发连接在环形缓冲中被覆盖。
+                    if batch.events.count == ObservationLimits.batchCount { continue }
                 } catch {
                     guard !Task.isCancelled, self.readGeneration == generation else { return }
                     self.backend.stopReading()

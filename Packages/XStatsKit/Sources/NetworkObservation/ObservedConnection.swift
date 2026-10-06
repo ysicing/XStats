@@ -46,10 +46,11 @@ public struct ObservedConnection: Codable, Sendable, Equatable, Identifiable {
         return String(executablePath[..<range.upperBound].dropLast())
     }
 
+    /// 只去掉 .app 后缀；裸可执行文件名中的点属于名称本身（python3.12、node-v18.2）。
     public var applicationName: String {
-        let path = applicationPath ?? executablePath
-        guard !path.isEmpty else { return "PID \(processID)" }
-        return URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+        if let applicationPath { return URL(fileURLWithPath: applicationPath).deletingPathExtension().lastPathComponent }
+        guard !executablePath.isEmpty else { return "PID \(processID)" }
+        return URL(fileURLWithPath: executablePath).lastPathComponent
     }
 }
 

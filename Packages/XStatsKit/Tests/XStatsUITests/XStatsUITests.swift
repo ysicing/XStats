@@ -487,6 +487,20 @@ private func isolatedDefaults() -> UserDefaults {
         AppModel(settings: AppSettings(defaults: isolatedDefaults()), historyURL: nil)
     }
 
+    @Test func hidingApplicationDropsWindowDemandAndUnhideDoesNotInventAWindow() {
+        let model = model()
+        let controller = MainWindowController(model: model)
+        model.isMainWindowVisible = true
+        model.settings.panelTab = .processes
+        // ⌘H 不关闭也不最小化窗口；只有应用隐藏通知能让页面需求停止。
+        NotificationCenter.default.post(name: NSApplication.didHideNotification, object: nil)
+        #expect(!model.isMainWindowVisible)
+        // 窗口从未显示时，取消隐藏不能把可见性误报为 true。
+        NotificationCenter.default.post(name: NSApplication.didUnhideNotification, object: nil)
+        #expect(!model.isMainWindowVisible)
+        withExtendedLifetime(controller) {}
+    }
+
     @Test func menuBarOnlySamplesAtUserInterval() {
         let model = model()
         model.settings.refreshSeconds = 5

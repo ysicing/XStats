@@ -11,6 +11,18 @@ final class MainWindowController: NSObject, NSWindowDelegate {
     init(model: AppModel) {
         self.model = model
         super.init()
+        // ⌘H 隐藏应用时窗口既未关闭也未最小化；不更新可见性会让按需采样与观察在后台继续。
+        // selector 形式的观察者随对象释放自动移除。
+        NotificationCenter.default.addObserver(self, selector: #selector(applicationVisibilityChanged),
+                                               name: NSApplication.didHideNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(applicationVisibilityChanged),
+                                               name: NSApplication.didUnhideNotification, object: nil)
+    }
+
+    @objc private func applicationVisibilityChanged(_ notification: Notification) {
+        let visible = notification.name == NSApplication.didUnhideNotification
+            && window?.isVisible == true && window?.isMiniaturized == false
+        if model.isMainWindowVisible != visible { model.isMainWindowVisible = visible }
     }
 
     var isVisible: Bool { window?.isVisible == true }

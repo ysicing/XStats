@@ -1,3 +1,4 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 "NSSystemExtensionUsageDescription" = "View app network connections locally without blocking connections or reading communication content.";
+"CFBundleDisplayName" = "XStats Network Extension";

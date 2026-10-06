@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """每次重新获取 DB-IP Lite 并准备动态地图库；只有 --publish 才上传对象存储。"""
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import gzip
 import hashlib
 import io
@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import urllib.error
 import urllib.request
 import uuid
 
@@ -93,6 +94,24 @@ def prepare(output: Path, source_url: str) -> dict:
     return manifest
 
 
+def monthly_source_urls(now: datetime) -> list[str]:
+    """DB-IP 月初可能尚未发布当月文件；当月优先，上月作为唯一回退。"""
+    previous = now.replace(day=1) - timedelta(days=1)
+    return [f"https://download.db-ip.com/free/dbip-country-lite-{month:%Y-%m}.csv.gz" for month in (now, previous)]
+
+
+def prepare_latest(output: Path, source_urls: list[str]) -> dict:
+    """仅在 404 时尝试下一个源；其他网络或校验错误照常中止，不掩盖真实故障。"""
+    for index, source_url in enumerate(source_urls):
+        try:
+            return prepare(output, source_url)
+        except urllib.error.HTTPError as error:
+            if error.code != 404 or index == len(source_urls) - 1:
+                raise
+            print(f"源尚未发布，改用上月数据：{source_url}", file=sys.stderr)
+    raise ValueError("没有可用的数据源")
+
+
 def publish(output: Path, manifest: dict) -> None:
     """只有已验证的不可变对象全部就位后，才发布可变入口清单。"""
     manifest_data = (output / "current.json").read_bytes()
@@ -119,11 +138,12 @@ def publish(output: Path, manifest: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "dist/network-geography")
-    parser.add_argument("--source-url", default=f"https://download.db-ip.com/free/dbip-country-lite-{datetime.now(timezone.utc):%Y-%m}.csv.gz")
+    parser.add_argument("--source-url", help="默认使用 DB-IP 当月文件，未发布时回退上月")
     parser.add_argument("--publish", action="store_true", help="上传 c-ip 对象存储并验证 CDN；默认仅准备本地数据")
     args = parser.parse_args()
+    source_urls = [args.source_url] if args.source_url else monthly_source_urls(datetime.now(timezone.utc))
     try:
-        manifest = prepare(args.output, args.source_url)
+        manifest = prepare_latest(args.output, source_urls)
         for item in manifest["files"]:
             print(f"IPv{4 if item['name'] == 'country-ipv4.bin' else 6}: {item['bytes']} bytes -> {item['compressedBytes']} bytes")
         if args.publish:

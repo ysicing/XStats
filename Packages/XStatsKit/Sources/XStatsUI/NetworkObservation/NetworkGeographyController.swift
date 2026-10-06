@@ -38,12 +38,18 @@ import Observation
         guard task == nil else { return }
         generation += 1
         let current = generation
-        state = .downloading(0)
+        // 缓存仍新鲜时 prepare 不联网；已有数据先保持就绪，真正下载时由进度回调切换状态，避免每次回到页面都闪更新提示。
+        // 手动更新从等待清单开始就显示忙碌状态，即使清单未变化、不需要下载文件。
+        if force || !hasData || state == .failed { state = .downloading(0) }
         task = Task { [weak self] in
             guard let self else { return }
             let cached = await service.loadCached()
             guard !Task.isCancelled, generation == current else { return }
-            if cached && !hasData { hasData = true; revision += 1 }
+            if cached && !hasData {
+                hasData = true
+                revision += 1
+                if !force { state = .ready }
+            }
             do {
                 _ = try await service.prepare(force: force) { [weak self] progress in
                     Task { @MainActor [weak self] in

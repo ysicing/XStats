@@ -103,6 +103,41 @@ import Testing
         #expect(!controller.isReading)
     }
 
+    @Test func disablingAfterRelaunchTurnsOffPersistedFilterOnce() async throws {
+        let backend = ObservationBackendFixture()
+        // 重启后控制器为 idle，但上次会话启用的系统过滤配置仍然存在。
+        let controller = NetworkMonitorController(backend: backend, isSupported: true)
+        controller.setDemand(enabled: true, visible: false)
+        #expect(controller.status == .idle && backend.filterWrites.isEmpty)
+        controller.setDemand(enabled: false, visible: false)
+        try await waitUntil { !controller.isBusy }
+        #expect(backend.filterWrites == [false])
+        // 模块保持关闭时的后续可见性变化不再重复写系统配置。
+        controller.setDemand(enabled: false, visible: true)
+        try await waitUntil { !controller.isBusy }
+        #expect(backend.filterWrites == [false])
+        #expect(controller.status == .idle)
+    }
+
+    @Test func fullBatchIsDrainedWithoutWaitingForNextPoll() async throws {
+        let backend = ObservationBackendFixture()
+        let controller = NetworkMonitorController(backend: backend, isSupported: true)
+        controller.setDemand(enabled: true, visible: true)
+        controller.start()
+        try await waitUntil { backend.readContinuation != nil }
+        let started = ContinuousClock.now
+        backend.readContinuation?.resume(returning: batch(ObservationLimits.batchCount))
+        backend.readContinuation = nil
+        try await waitUntil { backend.readRequests == 2 }
+        // 常规轮询间隔为 2 秒；读满后应立即续读积压事件。
+        #expect(ContinuousClock.now - started < .milliseconds(1500))
+        #expect(controller.records.count == ObservationLimits.batchCount)
+        backend.readContinuation?.resume(throwing: CancellationError())
+        backend.readContinuation = nil
+        controller.stop()
+        try await waitUntil { !controller.isBusy }
+    }
+
     @Test func closingPageCancelsReadAndRejectsLateRecords() async throws {
         let backend = ObservationBackendFixture()
         let controller = NetworkMonitorController(backend: backend, isSupported: true)

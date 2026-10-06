@@ -92,6 +92,38 @@ struct ConnectionJournalTests {
         #expect(try ObservationBatch.decode(JSONEncoder().encode(closed)) == closed)
     }
 
+    @Test func pausedReaderKeepsActiveFlowsAndDeliversClosesAfterResume() {
+        let buffer = ObservationBuffer()
+        _ = buffer.read(after: 0, epoch: "", now: 1)
+        let longLived = event(0), shortLived = event(1)
+        buffer.record(longLived, now: 2)
+        buffer.record(shortLived, now: 2)
+        let before = buffer.read(after: 0, epoch: "", now: 3)
+        // 切换标签、锁屏或断开读取端：停止记录新连接，但已观察的连接仍在进行。
+        buffer.endLease()
+        #expect(!buffer.isObserving(now: 3))
+        buffer.record(event(2), now: 3)
+        buffer.close(shortLived.id, at: Date(timeIntervalSince1970: 4))
+        let resumed = buffer.read(after: before.cursor, epoch: before.epoch, now: 5)
+        #expect(resumed.epoch == before.epoch, "暂停不应换代，否则读取端会把旧连接当作未知")
+        #expect(resumed.activeIDs == [longLived.id], "暂停前建立且仍在进行的连接必须保留在活动快照中")
+        #expect(resumed.events.map(\.id) == [shortLived.id], "暂停期间只投递已知连接的结束事件，不记录新连接")
+        #expect(resumed.events.first?.closedAt != nil)
+    }
+
+    @Test func applicationNameOnlyStripsAppBundleSuffix() {
+        let cases = [("/Applications/Safari.app/Contents/MacOS/Safari", "Safari"),
+                     ("/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper.app/Contents/MacOS/Code Helper", "Visual Studio Code"),
+                     ("/opt/homebrew/bin/python3.12", "python3.12"),
+                     ("/usr/local/bin/node-v18.2", "node-v18.2"),
+                     ("", "PID 42")]
+        for (path, expected) in cases {
+            var record = event(0)
+            record.executablePath = path
+            #expect(record.applicationName == expected, "路径：\(path)")
+        }
+    }
+
     @Test func wirePayloadIsBoundedAndRejectsOversizedReplies() throws {
         var journal = ConnectionJournal(capacity: 256)
         for index in 0..<256 {

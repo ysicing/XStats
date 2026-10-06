@@ -147,6 +147,31 @@ class PublishingTests(unittest.TestCase):
         expected_sha = hashlib.sha256(b"new-lzfse" + bytes.fromhex("0100000001000003") + b"AU").hexdigest()
         self.assertEqual(second["files"][0]["file"], "country-ipv4-" + expected_sha + ".lzfse")
 
+    def test_monthly_source_falls_back_to_previous_month_across_year(self):
+        urls = sync.monthly_source_urls(sync.datetime(2027, 1, 1, tzinfo=sync.timezone.utc))
+        self.assertEqual(urls, ["https://download.db-ip.com/free/dbip-country-lite-2027-01.csv.gz",
+                                "https://download.db-ip.com/free/dbip-country-lite-2026-12.csv.gz"])
+
+    def test_unpublished_month_uses_previous_and_other_errors_abort(self):
+        urls = ["https://example.test/current", "https://example.test/previous"]
+        def source(code):
+            def download(url, limit):
+                if url == urls[0]:
+                    raise sync.urllib.error.HTTPError(url, code, "error", {}, None)
+                return gzip.compress(CSV)
+            return download
+        lzfse = lambda raw, compressed: compressed.write_bytes(b"lzfse" + raw.read_bytes())
+        with patch.object(sync, "download_bytes", side_effect=source(404)), \
+                patch.object(sync, "compress_lzfse", side_effect=lzfse):
+            self.assertEqual(sync.prepare_latest(self.output, urls)["sourceURL"], urls[1])
+        with patch.object(sync, "download_bytes", side_effect=source(500)), \
+                patch.object(sync, "compress_lzfse", side_effect=lzfse):
+            with self.assertRaises(sync.urllib.error.HTTPError):
+                sync.prepare_latest(self.output, urls)
+        with patch.object(sync, "download_bytes", side_effect=source(404)):
+            with self.assertRaises(sync.urllib.error.HTTPError):
+                sync.prepare_latest(self.output, urls[:1])
+
     def test_system_lzfse_prepares_both_families_without_uploading(self):
         with patch.object(sync, "download_bytes", return_value=gzip.compress(CSV)):
             manifest = sync.prepare(self.output, "https://example.test/source")
