@@ -36,6 +36,14 @@ public enum L10n {
         }
     }
 
+    /// 按显式语言翻译，不修改进程语言或共享缓存，适用于跨进程配置及并发调用。
+    public static func translate(_ text: String, language: AppLanguage) -> String {
+        let language = language.resolved
+        guard language != .chinese, containsChinese(text) else { return text }
+        return Translations.catalog(for: language)?.translate(text, fallback: Translations.shared)
+            ?? Translations.shared.translate(text) ?? text
+    }
+
     static func translate(_ text: String) -> String {
         lock.withLock {
             guard selectedLanguage != .chinese, containsChinese(text) else { return text }

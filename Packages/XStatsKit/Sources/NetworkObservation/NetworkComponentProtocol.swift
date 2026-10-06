@@ -21,6 +21,7 @@ public struct NetworkComponentUpdateStatus: Codable, Sendable, Equatable {
     public var phase: NetworkComponentUpdatePhase
     public var version: String?
     public var progress: Double?
+    /// 应用自定义错误为中文源文案键，接收界面使用 tr；系统原始错误保留系统文本。
     public var error: String?
     public init(phase: NetworkComponentUpdatePhase = .idle, version: String? = nil, progress: Double? = nil, error: String? = nil) {
         self.phase = phase; self.version = version; self.progress = progress; self.error = error
@@ -48,6 +49,7 @@ public struct NetworkComponentStatus: Codable, Sendable, Equatable {
 public struct NetworkComponentResponse: Codable, Sendable {
     public let protocolVersion: Int
     public let needsRestart: Bool
+    /// 同 update.error 的源文案传输约定，服务不替调用方选择显示语言。
     public let error: String?
     public let status: NetworkComponentStatus?
     public init(needsRestart: Bool = false, error: String? = nil, status: NetworkComponentStatus? = nil) {

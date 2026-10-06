@@ -16,6 +16,8 @@ public final class ObservationServiceHost: NSObject, NSXPCListenerDelegate, @unc
     private var generation = 0
     private var revision: UInt64 = 0
     private var demandActive = false
+    private var settingsFailed = false
+    private var settingsResultID: UInt64 = 0
     private var demandChanged: @Sendable (ObservationDemand) -> Void = { _ in }
     private var leaseUntil: TimeInterval = 0
     private var deadline: (any ObservationLeaseDeadline)?
@@ -47,9 +49,18 @@ public final class ObservationServiceHost: NSObject, NSXPCListenerDelegate, @unc
         return ObservationDemand(generation: generation, revision: revision, isActive: demandActive)
     }
 
+    /// 失败跨读取连接保留，只有成功启用观察或新 provider 代次才能清除；旧完成不能覆盖新结果。
+    public func recordSettingsResult(generation expected: Int, requestID: UInt64, observing: Bool, error: (any Error)?) {
+        lock.lock(); defer { lock.unlock() }
+        guard generation == expected, requestID > settingsResultID else { return }
+        settingsResultID = requestID
+        if observing { settingsFailed = error != nil }
+    }
+
     @discardableResult public func startFilter(demandChanged: @escaping @Sendable (ObservationDemand) -> Void = { _ in }) -> Int {
         lock.lock()
         generation += 1; revision = 0; stopped = false; filterActive = true; demandActive = false
+        settingsFailed = false; settingsResultID = 0
         self.demandChanged = demandChanged
         leaseUntil = 0; deadline?.cancel(); deadline = nil
         let previous = connection; connection = nil
@@ -113,15 +124,15 @@ public final class ObservationServiceHost: NSObject, NSXPCListenerDelegate, @unc
                     self.deadline = self.makeDeadline { [weak self] in self?.expireLease(generation: current) }
                 }
                 self.deadline?.schedule(after: ObservationLimits.leaseSeconds)
-                let event: ObservationDemand?
-                if !self.demandActive {
-                    self.demandActive = true; self.revision &+= 1
-                    event = .init(generation: current, revision: self.revision, isActive: true)
-                } else { event = nil }
+                // 正常续租只更新需求序号，成功规则不会重复 apply；失败只能借下一次读取重试。
+                self.demandActive = true; self.revision &+= 1
+                let event = ObservationDemand(generation: current, revision: self.revision, isActive: true)
                 let callback = self.demandChanged
                 self.lock.unlock()
                 previous?.invalidate()
-                if let event { callback(event) }
+                callback(event)
+                self.lock.lock(); defer { self.lock.unlock() }
+                guard self.generation == current, !self.settingsFailed else { return nil }
                 return batch
             },
             diagnostics: { [weak self] window in self?.buffer.flowDiagnostics(windowSeconds: window) },
