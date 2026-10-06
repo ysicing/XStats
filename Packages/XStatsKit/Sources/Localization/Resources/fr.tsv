@@ -1789,3 +1789,13 @@ XStats 网络连接查看	Visionneuse de connexions réseau XStats
 更新失败，继续使用已缓存的数据。	Échec de la mise à jour. Les données en cache restent disponibles.
 地图数据库未就绪，连接列表仍可使用。	Base cartographique indisponible. La liste des connexions reste accessible.
 下载地图数据库	Télécharger la base cartographique
+国家分布	Répartition par pays
+连接详情	Détails des connexions
+国家或地域	Pays ou régions
+国家或地域分布	Répartition par pays ou région
+按国家或地域定位，非设备精确位置	Localisation par pays ou région, sans position précise de l’appareil
+查看应用连接、域名和国家或地域分布，不读取通信内容。	Consultez les connexions, domaines et pays ou régions sans lire le contenu des communications.
+中国香港	Hong Kong, Chine
+中国澳门	Macao, Chine
+中国台湾	Taïwan, Chine
+全部连接	Toutes les connexions

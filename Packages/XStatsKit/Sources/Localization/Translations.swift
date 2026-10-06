@@ -13,6 +13,16 @@ extension Translations {
 
 
     static let networkObservationEnglish = #"""
+全部连接	All connections
+国家或地域	Countries or regions
+国家或地域分布	Country or region distribution
+按国家或地域定位，非设备精确位置	Country or region location, not a precise device location
+查看应用连接、域名和国家或地域分布，不读取通信内容。	View app connections, domains and countries or regions without reading communication content.
+中国香港	Hong Kong, China
+中国澳门	Macao, China
+中国台湾	Taiwan, China
+国家分布	Countries
+连接详情	Connection details
 更新地图数据库	Update map database
 正在更新地图数据库…	Updating map database…
 正在下载地图数据库…	Downloading map database…

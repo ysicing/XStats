@@ -1789,3 +1789,13 @@ XStats 网络连接查看	XStats Netzwerkverbindungsanzeige
 更新失败，继续使用已缓存的数据。	Aktualisierung fehlgeschlagen. Die gespeicherten Daten werden weiter verwendet.
 地图数据库未就绪，连接列表仍可使用。	Kartendatenbank nicht verfügbar. Die Verbindungsliste bleibt verfügbar.
 下载地图数据库	Kartendatenbank laden
+国家分布	Länderverteilung
+连接详情	Verbindungsdetails
+国家或地域	Länder oder Regionen
+国家或地域分布	Verteilung nach Land oder Region
+按国家或地域定位，非设备精确位置	Standort auf Länder- oder Regionsebene, kein genauer Gerätestandort
+查看应用连接、域名和国家或地域分布，不读取通信内容。	App-Verbindungen, Domains sowie Länder und Regionen ansehen, ohne Kommunikationsinhalte zu lesen.
+中国香港	Hongkong, China
+中国澳门	Macau, China
+中国台湾	Taiwan, China
+全部连接	Alle Verbindungen

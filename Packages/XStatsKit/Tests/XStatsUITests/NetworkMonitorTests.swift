@@ -200,6 +200,34 @@ import Testing
         #expect(controller.status == .restartRequired)
     }
 
+    @Test func overviewIncludesEveryMatchingGroupAndSingleSelectionStillFilters() throws {
+        var first = batch().events[0]
+        first.executablePath = "/Applications/First.app/Contents/MacOS/First"
+        var second = first
+        second.id = UUID(); second.executablePath = "/Applications/Second.app/Contents/MacOS/Second"
+        let groups = NetworkConnectionGroup.make(records: [first, second], query: "")
+        let overview = try #require(NetworkConnectionGroup.selected(in: groups, id: nil))
+        #expect(overview.id == NetworkConnectionGroup.allIdentifier)
+        #expect(Set(overview.records.map(\.id)) == [first.id, second.id])
+        let single = try #require(NetworkConnectionGroup.selected(in: groups, id: groups[0].id))
+        #expect(single.records.count == 1)
+        let filtered = NetworkConnectionGroup.make(records: [first, second], query: "Second")
+        #expect(NetworkConnectionGroup.selected(in: filtered, id: nil)?.records.map(\.id) == [second.id])
+        #expect(NetworkConnectionGroup.selected(in: filtered, id: "missing")?.id == NetworkConnectionGroup.allIdentifier)
+    }
+
+    @Test func sameNamedApplicationCopiesKeepStableOrderingAcrossRefreshes() {
+        let original = batch().events[0]
+        let paths = ["/Applications/Z/Browser.app/Contents/MacOS/Browser", "/Applications/A/Browser.app/Contents/MacOS/Browser", "/Applications/M/Browser.app/Contents/MacOS/Browser"]
+        let records = paths.map { path in
+            var record = original; record.id = UUID(); record.executablePath = path; return record
+        }
+        for _ in 0..<20 {
+            let groups = NetworkConnectionGroup.make(records: records, query: "")
+            #expect(groups.map(\.id) == groups.map(\.id).sorted())
+        }
+    }
+
     @Test func displayRemainsBoundedAndGroupsProcessesByApp() {
         let controller = NetworkMonitorController(backend: ObservationBackendFixture(), isSupported: true)
         var events = batch().events
