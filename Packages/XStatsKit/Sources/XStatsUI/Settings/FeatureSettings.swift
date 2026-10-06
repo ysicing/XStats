@@ -10,6 +10,7 @@ import SwiftUI
 struct FeatureSettings: View {
     @Environment(AppModel.self) private var model
     @State private var managesNetworkComponent = false
+    @State private var enablesAfterComponentInstall = false
 
     var body: some View {
         @Bindable var settings = model.settings
@@ -40,7 +41,15 @@ struct FeatureSettings: View {
                                     .help(tr("管理组件"))
                                 }
                                 .buttonStyle(DSButtonStyle(kind: .secondary))
-                                DSToggle(isOn: $settings.networkConnectionsEnabled, label: tr("网络监视器"))
+                                DSToggle(isOn: Binding(get: { settings.networkConnectionsEnabled }, set: { enabled in
+                                    if !enabled {
+                                        enablesAfterComponentInstall = false
+                                        settings.networkConnectionsEnabled = false
+                                    } else if model.networkComponent.requiresInstallation {
+                                        enablesAfterComponentInstall = true
+                                        managesNetworkComponent = true
+                                    } else { model.enableNetworkObservation() }
+                                }), label: tr("网络监视器"))
                             }
                         }
                         if let error = model.connectionMonitor.error {
@@ -96,6 +105,14 @@ struct FeatureSettings: View {
                     }
                 }
             }
-        }.sheet(isPresented: $managesNetworkComponent) { NetworkComponentManagementView().environment(model) }
+        }.sheet(isPresented: $managesNetworkComponent, onDismiss: { enablesAfterComponentInstall = false }) {
+            NetworkComponentManagementView(onInstalled: {
+                guard enablesAfterComponentInstall else { return }
+                enablesAfterComponentInstall = false
+                managesNetworkComponent = false
+                model.enableNetworkObservation()
+            }, onClose: { enablesAfterComponentInstall = false }).environment(model)
+        }
+        .onDisappear { enablesAfterComponentInstall = false }
     }
 }

@@ -8,6 +8,8 @@
 	<string>XStats Network Monitor</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -42,6 +44,8 @@
 	<string>© 2026 XStats</string>
 	<key>NSSystemExtensionUsageDescription</key>
 	<string>只在本机查看应用的网络连接，不阻断连接或读取通信内容。</string>
+	<key>NetworkObservationControlMachService</key>
+	<string>$(TeamIdentifierPrefix)work.12306.xstats.network-observation.control</string>
 	<key>NetworkObservationExtensionBuild</key>
 	<string>$(NETWORK_EXTENSION_BUILD)</string>
 	<key>NetworkObservationExtensionVersion</key>
@@ -50,8 +54,6 @@
 	<string>$(TeamIdentifierPrefix)work.12306.xstats.network-observation.ipc.$(NETWORK_EXTENSION_BUILD)</string>
 	<key>NetworkObservationProtocolVersion</key>
 	<integer>2</integer>
-	<key>NetworkObservationControlMachService</key>
-	<string>$(TeamIdentifierPrefix)work.12306.xstats.network-observation.control</string>
 	<key>SUAutomaticallyUpdate</key>
 	<false/>
 	<key>SUEnableAutomaticChecks</key>

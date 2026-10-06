@@ -20,6 +20,7 @@ extension Translations {
 网络组件签名或公证校验失败。	Network component signature or notarization verification failed.
 网络组件正在安装，请稍候。	The network component is being installed. Please wait.
 管理组件	Manage component
+关闭面板	Close panel
 网络组件	Network component
 组件按需运行，负责扩展授权和独立更新；所有连接均放行。	The component runs on demand to manage extension permissions and independent updates. All connections are allowed.
 组件版本	Component version

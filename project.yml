@@ -102,6 +102,8 @@ targets:
     sources:
       - path: NetworkMonitorApp
         excludes: ["*.plist", "*.entitlements"]
+      - path: App/Assets.xcassets
+        buildPhase: resources
       - path: LICENSES/Sparkle-License.txt
         buildPhase: resources
     info:
@@ -109,6 +111,7 @@ targets:
       properties:
         CFBundleName: XStats Network Monitor
         CFBundleDisplayName: XStats Network Monitor
+        CFBundleIconName: AppIcon
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDevelopmentRegion: zh-Hans
@@ -144,6 +147,7 @@ targets:
         CURRENT_PROJECT_VERSION: $(NETWORK_EXTENSION_BUILD)
         PRODUCT_NAME: XStats Network Monitor
         PRODUCT_MODULE_NAME: XStatsNetworkMonitor
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_BUNDLE_IDENTIFIER: work.12306.xstats.networkmonitor
         PROVISIONING_PROFILE_SPECIFIER: $(XSTATS_COMPONENT_PROFILE)
     postBuildScripts:

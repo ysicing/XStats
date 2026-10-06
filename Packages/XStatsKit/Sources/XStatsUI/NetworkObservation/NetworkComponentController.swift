@@ -32,7 +32,8 @@ import Observation
         guard installed else { status = nil; error = nil; return }
         run("status")
     }
-    func install() { run("status") }
+    var requiresInstallation: Bool { !FileManager.default.fileExists(atPath: NetworkComponentInstaller.componentURL.path) }
+    func install(onInstalled: @escaping () -> Void = {}) { run("status", onSuccess: onInstalled) }
     func checkUpdates(background: Bool = false) {
         guard FileManager.default.fileExists(atPath: NetworkComponentInstaller.componentURL.path) else { return }
         run(background ? "checkUpdatesBackground" : "checkUpdates", reportsError: !background)
@@ -81,7 +82,7 @@ import Observation
         if let status, status.update.phase == .installing { accept(status) }
         else { viewerSuspendedForUpdate = false; onUpdateFinished() }
     }
-    private func run(_ command: String, reportsError: Bool = true) {
+    private func run(_ command: String, reportsError: Bool = true, onSuccess: (() -> Void)? = nil) {
         guard operation == nil else { return }
         busy = true; activeCommand = command
         if reportsError { error = nil; needsBackgroundApproval = false }
@@ -89,9 +90,11 @@ import Observation
             defer { operation = nil; busy = false; activeCommand = nil }
             do {
                 let response = try await backend.componentCommand(command)
+                try Task.checkCancellation()
                 installed = true
                 if let status = response.status { accept(status) }
                 if response.needsRestart { throw NetworkMonitorError.restartRequired }
+                onSuccess?()
             } catch {
                 // SDK接受安装后退出服务是正常handoff；进度推送已启动有界重连验收。
                 if handoff == nil, reportsError {

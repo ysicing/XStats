@@ -119,6 +119,14 @@ public final class AppModel {
 
     }
 
+    /// 安装面板回调与设置开关共用启用入口；先同步需求，避免偏好观察尚未调度时 start 被拒绝。
+    func enableNetworkObservation() {
+        settings.networkConnectionsEnabled = true
+        connectionMonitor.setDemand(enabled: settings.canViewNetworkConnections,
+                                    visible: isMainWindowVisible && settings.panelTab == .connections)
+        connectionMonitor.start()
+    }
+
     /// 硬件能力只影响实际展示，不改写保存的菜单栏偏好。
     var availableMenuBarItems: [MenuBarItem] {
         MenuBarItem.allCases.filter { $0 != .fan || store.supportsFans }
