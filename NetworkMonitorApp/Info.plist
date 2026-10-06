@@ -48,6 +48,10 @@
 	<string>$(NETWORK_EXTENSION_VERSION)</string>
 	<key>NetworkObservationMachService</key>
 	<string>$(TeamIdentifierPrefix)work.12306.xstats.network-observation.ipc.$(NETWORK_EXTENSION_BUILD)</string>
+	<key>NetworkObservationProtocolVersion</key>
+	<integer>2</integer>
+	<key>NetworkObservationControlMachService</key>
+	<string>$(TeamIdentifierPrefix)work.12306.xstats.network-observation.control</string>
 	<key>SUAutomaticallyUpdate</key>
 	<false/>
 	<key>SUEnableAutomaticChecks</key>

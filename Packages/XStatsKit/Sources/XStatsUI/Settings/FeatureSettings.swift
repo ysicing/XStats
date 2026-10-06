@@ -2,12 +2,14 @@
 // XStats modifications Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
 // See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+import NetworkObservation
 import Localization
 import SwiftUI
 
 /// 可选模块的统一入口；沿用原有偏好绑定，关闭后保留配置与重新启用入口。
 struct FeatureSettings: View {
     @Environment(AppModel.self) private var model
+    @State private var managesNetworkComponent = false
 
     var body: some View {
         @Bindable var settings = model.settings
@@ -15,11 +17,36 @@ struct FeatureSettings: View {
         SettingsGroup {
             if #available(macOS 15, *) {
                 GroupRow(showsDivider: false) {
-                    SettingRow(title: tr("网络监视器"), subtitle: tr("只读查看应用的新连接，所有连接均放行。"), icon: "network") {
-                        DSToggle(isOn: $settings.networkConnectionsEnabled, label: tr("网络监视器"))
-                    }
-                    if let error = model.connectionMonitor.error {
-                        Text(verbatim: error).dsFont(.xs).foregroundStyle(DS.Palette.error)
+                    VStack(alignment: .leading, spacing: DS.Space.s2) {
+                        SettingRow(title: tr("网络监视器"), subtitle: tr("只读查看应用的新连接，所有连接均放行。"), icon: "network") {
+                            HStack(spacing: DS.Space.s3) {
+                                ViewThatFits(in: .horizontal) {
+                                    Button { managesNetworkComponent = true } label: {
+                                        HStack(spacing: DS.Space.s1) {
+                                            Text(tr("管理组件"))
+                                            if model.networkComponent.status?.update.phase == .available {
+                                                Image(systemName: "arrow.down.circle")
+                                                    .foregroundStyle(DS.Palette.primary)
+                                                    .accessibilityLabel(tr("网络组件有更新"))
+                                            }
+                                        }
+                                    }
+                                    .fixedSize()
+                                    Button { managesNetworkComponent = true } label: {
+                                        Image(systemName: model.networkComponent.status?.update.phase == .available ? "arrow.down.circle" : "gearshape")
+                                    }
+                                    .fixedSize()
+                                    .accessibilityLabel(tr("管理组件"))
+                                    .help(tr("管理组件"))
+                                }
+                                .buttonStyle(DSButtonStyle(kind: .secondary))
+                                DSToggle(isOn: $settings.networkConnectionsEnabled, label: tr("网络监视器"))
+                            }
+                        }
+                        if let error = model.connectionMonitor.error {
+                            Text(verbatim: error).dsFont(.xs).foregroundStyle(DS.Palette.error)
+                                .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
+                        }
                     }
                 }
             }
@@ -69,6 +96,6 @@ struct FeatureSettings: View {
                     }
                 }
             }
-        }
+        }.sheet(isPresented: $managesNetworkComponent) { NetworkComponentManagementView().environment(model) }
     }
 }

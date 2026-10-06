@@ -56,6 +56,7 @@ private enum ConnectionGrouping: String, CaseIterable, Identifiable {
 struct NetworkConnectionsPage: View {
     @Environment(AppModel.self) private var model
     @Environment(\.isSnapshot) private var isSnapshot
+    @State private var managesNetworkComponent = false
     @State private var search = ""
     @State private var grouping = ConnectionGrouping.apps
     @State private var selection: String?
@@ -105,6 +106,7 @@ struct NetworkConnectionsPage: View {
                 }
             } else { Spacer(minLength: 0) }
         }
+        .sheet(isPresented: $managesNetworkComponent) { NetworkComponentManagementView().environment(model) }
         .frame(height: isSnapshot ? 580 : nil)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
@@ -135,6 +137,8 @@ struct NetworkConnectionsPage: View {
                 }.buttonStyle(DSButtonStyle(kind: .ghost))
             }
             Menu {
+                Button(tr("管理组件")) { managesNetworkComponent = true }
+                Divider()
                 Toggle(tr("仅显示活动连接"), isOn: $activeOnly)
                 Button(tr("更新地图数据库")) { model.networkGeography.retry() }
                     .disabled(!monitor.isReading || model.networkGeography.state.isDownloading)

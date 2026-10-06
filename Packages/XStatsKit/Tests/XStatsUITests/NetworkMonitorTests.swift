@@ -10,10 +10,12 @@ import Updates
 @MainActor private final class ObservationBackendFixture: NetworkMonitorBackend {
     var onApproval: (() -> Void)?
     var onInstallationProgress: ((Double?) -> Void)?
+    var onComponentStatus: ((NetworkComponentStatus) -> Void)?
     var filterWrites: [Bool] = []
     var stops = 0
     var readRequests = 0
     var holdEnable = false
+    var disableError: (any Error)?
     var enableContinuation: CheckedContinuation<Void, Never>?
     var readContinuation: CheckedContinuation<ObservationBatch, any Error>?
     var holdShutdown = false
@@ -23,6 +25,7 @@ import Updates
     func cancelActivation() {}
     func setFilterEnabled(_ enabled: Bool) async throws {
         filterWrites.append(enabled)
+        if !enabled, let disableError { throw disableError }
         if enabled && holdEnable { await withCheckedContinuation { enableContinuation = $0 } }
     }
     func read(after cursor: Int64, epoch: String) async throws -> ObservationBatch {
@@ -35,6 +38,33 @@ import Updates
 
 @Suite(.timeLimit(.minutes(1)))
 @MainActor struct NetworkMonitorTests {
+    @Test func rejectedQuitRestoresViewerAfterComponentHandoffWasCancelled() async throws {
+        let backend = ObservationBackendFixture()
+        let monitor = NetworkMonitorController(backend: backend, isSupported: true)
+        let component = NetworkComponentController(backend: backend)
+        component.onPreparingUpdate = { monitor.beginComponentUpdate() }
+        component.onUpdateFinished = { monitor.finishComponentUpdate() }
+        monitor.setDemand(enabled: true, visible: false)
+        monitor.start()
+        try await waitUntil { monitor.status == .running }
+        var status = NetworkComponentStatus(componentVersion: "0.15.0", componentBuild: "138",
+            extensionVersion: "0.15.0", extensionBuild: "138", observationMachService: "test",
+            registration: .enabled, filterEnabled: true, update: .init(phase: .installing))
+        backend.onComponentStatus?(status)
+        await component.prepareForTermination()
+        backend.disableError = NetworkMonitorError.timeout
+        await #expect(throws: NetworkMonitorError.timeout) { try await monitor.prepareForTermination() }
+        // 更新状态已收尾时必须解除暂停；仍在安装时则恢复有界验收。
+        component.cancelTermination()
+        #expect(component.terminationRequiresPreparation)
+        status.update = .init(phase: .available)
+        backend.onComponentStatus?(status)
+        try await waitUntil { !component.terminationRequiresPreparation }
+        backend.disableError = nil
+        monitor.start()
+        try await waitUntil { monitor.status == .running }
+        monitor.shutdown()
+    }
     @Test func mainUpdateOnlyStoresViewerIntentAndLeavesComponentRunning() async throws {
         let suite = UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -80,6 +110,31 @@ import Updates
         #expect(defaults.string(forKey: "networkMonitorResumeAfterUpdate") == "running")
         controller.cancelAppUpdate()
         #expect(defaults.object(forKey: "networkMonitorResumeAfterUpdate") == nil)
+        controller.shutdown()
+    }
+
+    @Test func failedQuitStopKeepsTheNextQuitGateUntilConfirmation() async throws {
+        let backend = ObservationBackendFixture()
+        let controller = NetworkMonitorController(backend: backend, isSupported: true)
+        controller.setDemand(enabled: true, visible: false)
+        controller.start()
+        try await waitUntil { controller.status == .running }
+        backend.disableError = NetworkMonitorError.timeout
+        await #expect(throws: NetworkMonitorError.timeout) { try await controller.prepareForTermination() }
+        #expect(controller.terminationRequiresPreparation)
+        backend.disableError = nil
+        try await controller.prepareForTermination()
+        #expect(!controller.terminationRequiresPreparation)
+        #expect(controller.status == .idle)
+    }
+    @Test func mainPackageUpdateOnlyReleasesReaderWithoutDisablingComponent() async throws {
+        let backend = ObservationBackendFixture()
+        let controller = NetworkMonitorController(backend: backend, isSupported: true)
+        controller.setDemand(enabled: true, visible: false)
+        controller.start()
+        try await waitUntil { controller.status == .running }
+        try await controller.prepareForTermination(preserveFilter: true)
+        #expect(backend.filterWrites == [true])
         controller.shutdown()
     }
 

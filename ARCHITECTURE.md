@@ -547,12 +547,15 @@ so failures, retries and controller teardown do not create a retain cycle.
 The shared `Updates.SparkleInstaller` implements the driver contract for both applications, while each
 application owns its updater and release policy. Main-app feeds do not require network-extension
 metadata, and main-app updates never replace the independently installed network component.
-The component's manual-only updater uses its own build number and fixed signed CDN feed. Before a
+The component's updater uses its own build number and fixed signed CDN feed. The main app's existing
+Sparkle check completion also requests one component check; there is no second scheduler or automatic
+download/install. The main Settings and monitor menu expose component management, updates and removal. Before a
 component update, its driver compares the signed extension version with the installed extension.
 Only a changed extension disables the filter and queries its lifecycle status until shutdown is confirmed;
 the same version reuses the existing extension. Component installation and user-requested termination
 share the same preparation task. Failures cancel installation and restore the previous filter intent.
-A one-time marker restores that intent after component relaunch. The XPC listener lives with the extension
+The main viewer restores its latest demand after component relaunch; explicit stop/cancel wins over an
+earlier resume intent. The observation XPC listener lives with the extension
 process so status remains available after filtering stops; configuration values, generic disconnections
 and a resident process alone are insufficient evidence. Each extension build uses its own Mach service
 suffix, and the installed build selects the old service for shutdown queries. Component ZIP validation
@@ -828,9 +831,9 @@ activate `work.12306.xstats.app.networkextension` and configure its socket conte
 The main `XStats.app` contains no system extension and has neither System Extension installation nor
 Network Extension entitlements. Its first-install path checks the exact bundle identity, same-Team
 signature, notarization and Gatekeeper before writing the missing component, and never replaces an
-existing or running component. The component owns its extension and lifecycle operations. Its anonymous
-control endpoint is registered with the extension and forwarded to the authenticated main-app peer;
-both directions require exact Bundle IDs and the same Developer ID Team. The provider returns `allow` for every
+existing or running component. The component owns its extension and lifecycle operations through a
+SMAppService LaunchAgent. Its stable user-domain Mach service is independent of the extension's
+versioned data service. Both directions require exact Bundle IDs and the same Developer ID Team. The provider returns `allow` for every
 flow, including errors and missing metadata. It never requests payload inspection, packet filtering,
 pausing or dropping. A socket allow verdict requests a flow-closed report while observation is active;
 the provider uses these metadata-only reports to remove closed IDs from a 512-slot active ring.
@@ -868,8 +871,10 @@ attribution are in ThirdPartyNotices.md.
 Only a visible, unlocked viewer renews the six-second observation lease with a read every two
 seconds. Hidden/minimized windows, lock, sleep, cancellation and disconnect stop reads; the lease
 expires even if the GUI crashes. The provider uses try-locks so observation contention never waits
-on the flow verdict path. The filter's passive allow callback may remain installed while the viewer
-is hidden. Disabling the module serially saves `isEnabled=false`, including when an enable save was
+on the flow verdict path. Without a reader the provider applies an all-network/protocol/direction
+allow rule with default allow; active leases switch serially to filterData. A single active-lease deadline
+and generation/revision checks prevent late callbacks or old-reader invalidation from revoking newer
+leases. Apply failure preserves the last successful state and is logged, never reported as idle bypass. Disabling the module serially saves `isEnabled=false`, including when an enable save was
 already in flight. Explicit removal disables and removes the filter configuration before submitting
 system-extension deactivation; pending reboot is reported separately from completed removal.
 
@@ -882,14 +887,19 @@ its own `XSTATS_NETWORK_PROFILE` Developer ID profile. The mach service uses
 The Mach service is `<that group>.ipc.<extension build>`; NE category validation requires this exact group prefix.
 No files are stored in this group; neither the component nor extension is granted the existing Widget group.
 The main app retains its Widget and IPC groups, while the component embeds no Widget or privileged helper.
-Control connections use an anonymous listener endpoint passed through the existing authenticated
-extension XPC service; both peers verify the exact Bundle ID and Developer ID team on each message.
-Bootstrap (including reopening an already running component) activates the extension, temporarily
-starts the provider to register its endpoint, then restores the previous filter state before accepting
-main-app commands. Failure also restores that state. Only the authenticated enable command keeps
-the filter enabled. Invalidated control connections are discarded and reacquired on the next start.
-Main-app update preparation records only the viewer's running/paused intent; component updates own
-the filter shutdown acknowledgement and restore it on failed preparation or successful relaunch.
+The bundled LaunchAgent declares only its stable Mach service, without RunAtLoad or KeepAlive.
+launchd starts the signed component executable on demand; idle RPC/SDK-free service instances exit.
+Registration CLI/GUI runs outside that service, because SMAppService.unregister terminates it.
+Executable CDHash plus agent-plist SHA-256 determine whether an external unregister/register refresh
+is needed after upgrade. Main-app uninstall completes the extension operation, unregisters through the
+still-present signed CLI, then deletes the companion bundle. A required reboot keeps the bundle intact.
+Authorization/update progress use authenticated XPC callbacks, not endpoint polling. Protocol version 2
+is explicit in control replies and data batches. Main metadata discovery reads bounded Info.plist bytes
+from disk rather than NSBundle's process cache. Install validation is shared by concurrent entry points;
+unchanged file identity avoids repeated codesign/spctl, and each XPC message still verifies its peer.
+Main-app update preparation records only viewer intent. Ordinary quit stops reading and serially
+saves filter disabled before termination. Component updates own the SDK shutdown acknowledgement;
+the main viewer pauses reads during handoff and resumes only its latest user demand afterward.
 The component and extension share `NETWORK_EXTENSION_VERSION/BUILD`, independently from main-app
 version metadata. `scripts/release_network_component.sh` signs, notarizes and packages only this product;
 publication requires explicit `--publish`, uploads/reads back its versioned ZIP and identical first-install

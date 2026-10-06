@@ -1,0 +1,15 @@
+{
+  "version": "0.15.0",
+  "sourceNotes": [
+    "新增 macOS 15 及以上可选网络监视组件，仅查看新连接并放行全部连接，不读取通信内容",
+    "后台控制服务按需启动、空闲退出，暂停或隐藏监视页面后停止读取连接",
+    "支持在 XStats 的组件管理面板检查更新和卸载组件，更新与主程序独立管理"
+  ],
+  "translations": {
+    "en": [
+      "Add an optional network monitoring component for macOS 15 or later that observes new connections, allows all traffic and never inspects communication content",
+      "Start the background control service on demand and exit when idle; pausing or hiding the monitor stops reading connections",
+      "Check for updates and uninstall from XStats component management, with component updates managed independently of the main app"
+    ]
+  }
+}

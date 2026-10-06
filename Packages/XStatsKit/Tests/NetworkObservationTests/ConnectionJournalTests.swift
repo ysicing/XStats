@@ -6,6 +6,34 @@ import Testing
 @testable import NetworkObservation
 
 struct ConnectionJournalTests {
+    @Test func diagnosticWindowIsBoundedAndDoesNotStartObservation() {
+        let buffer = ObservationBuffer()
+        let baseline = buffer.flowDiagnostics(windowSeconds: 60, now: 1)
+        #expect(!buffer.isObserving(now: 2))
+        #expect(!buffer.isObserving(now: 20, countNewFlow: true))
+        #expect(!buffer.isObserving(now: 31, countNewFlow: true), "30 秒边界后不能继续计数")
+        let snapshot = buffer.flowDiagnostics(windowSeconds: 0, now: 32)
+        #expect(snapshot.token == baseline.token)
+        #expect(snapshot.newFlowCallbacks == 1)
+        _ = buffer.isObserving(now: 33, countNewFlow: true)
+        #expect(buffer.flowDiagnostics(windowSeconds: 0, now: 34) == snapshot)
+        let restarted = buffer.flowDiagnostics(windowSeconds: 5, now: 35)
+        #expect(restarted.token != snapshot.token)
+        #expect(restarted.newFlowCallbacks == 0)
+    }
+
+    @Test func diagnosticsAreDisabledByDefaultAndDoNotAlterLeaseOrHistory() {
+        let buffer = ObservationBuffer()
+        _ = buffer.isObserving(now: 1, countNewFlow: true)
+        #expect(buffer.flowDiagnostics(windowSeconds: 0, now: 2).newFlowCallbacks == 0)
+        _ = buffer.read(after: 0, epoch: "", now: 3)
+        buffer.record(event(0), now: 4)
+        _ = buffer.flowDiagnostics(windowSeconds: 30, now: 5)
+        #expect(buffer.isObserving(now: 8))
+        #expect(!buffer.isObserving(now: 9), "诊断不能延长原始 6 秒租约")
+        #expect(buffer.read(after: 0, epoch: "", now: 10).events.count == 1)
+    }
+
     private func event(_ index: Int) -> ObservedConnection {
         ObservedConnection(id: UUID(), timestamp: Date(timeIntervalSince1970: Double(index)),
                            processID: 42, executablePath: "/Applications/Browser.app/Contents/MacOS/Browser",

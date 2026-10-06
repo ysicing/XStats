@@ -161,9 +161,16 @@ python3 scripts/sync_network_geography.py --publish  # 从官方重新获取并�
 `https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor/XStats-Network-Monitor.zip`，
 安装前校验根包名、Bundle ID、同团队签名、公证及 Gatekeeper，且不覆盖正在运行的组件。
 
-组件 Sparkle 固定读取 `network-monitor/appcast.xml`，只响应组件界面的手动检查，
-不添加自动检查计时器或自动下载/安装。共享 `Updates` 产品提供安装驱动；主应用和组件
-各自持有自己的 updater、清单、构建号与更新选择。主应用更新不再按组件版本停用或替换扩展。
+主程序“设置 → 功能 → 网络监视器 → 管理组件”和监视页面“更多 → 管理组件”统一展示
+安装、后台授权、组件/包内扩展版本、更新进度和完整卸载。组件 Sparkle 固定读取
+`network-monitor/appcast.xml`，主程序已有更新检查完成时复用同一调度检查组件；
+也可从管理界面手动检查，不添加第二个检查计时器或自动下载/安装。共享 `Updates` 产品提供安装驱动；主应用和组件
+各自持有自己的 updater、清单、构建号与更新选择。
+组件控制使用 `SMAppService.agent` 注册的按需 LaunchAgent，其稳定 Mach 服务不经过扩展中转。
+注册可能需要用户允许后台项目；界面仅按真实状态提示。服务不在登录时启动，也无 KeepAlive；
+RPC/SDK结束后空闲退出。升级后由外部注册CLI按代码/agent plist指纹刷新注册，避免服务注销自己。
+主程序普通退出会停用过滤配置；无人读取时扩展按租约串行应用全部放行规则，减少新流回调。
+协议使用明确的版本号，配置从磁盘读取而非 Bundle 缓存。完整卸载先注销后台项，再删除组件包。主应用更新不再按组件版本停用或替换扩展。
 组件更新前比较已安装扩展和签名 XML 中的扩展版本：相同版本只停止组件读取；
 版本变化时关闭过滤配置并有界确认实际停止。失败取消本次组件安装并恢复先前意图。
 查询服务与扩展进程同寿命，配置已保存、XPC 断线或进程驻留不能单独证明停止。
@@ -172,17 +179,17 @@ Mach 服务后缀是扩展构建号，停用查询按系统报告的已安装构
 组件清单必须携带扩展版本，并与 ZIP 内的扩展 Info.plist 身份及版本一致；主应用清单无需该字段。
 
 组件发行完全独立，不推进主版本、不走主 JSON 版本 API、不生成 Homebrew cask。
-准备组件自己的摘要 JSON：`version` 等于组件公开版本，`sourceNotes` 为简体中文单行条目，
-`translations.en` 与中文条目一一对应；格式沿用 `ReleaseNotes.json`，但使用独立文件。
+组件摘要维护在 `NetworkComponentReleaseNotes.json`：`version` 等于组件公开版本，`sourceNotes` 为简体中文单行条目，
+`translations.en` 与中文条目一一对应；格式沿用 `ReleaseNotes.json`，与主程序摘要分别维护。
 
 ```bash
 # 默认只构建、签名、公证、装订并生成 dist/network-monitor/ 的 ZIP、appcast.json、appcast.xml
-NETWORK_RELEASE_NOTES=/path/to/component-notes.json \
+NETWORK_RELEASE_NOTES=NetworkComponentReleaseNotes.json \
 XSTATS_COMPONENT_PROFILE='组件 profile 名称' XSTATS_NETWORK_PROFILE='扩展 profile 名称' \
   task release-network-component
 
 # 只有显式 --publish 才上传；使用同一套前置条件并重新构建制品
-./scripts/release_network_component.sh --notes /path/to/component-notes.json --publish
+./scripts/release_network_component.sh --notes NetworkComponentReleaseNotes.json --publish
 ```
 
 发布到 `c-ip/oss/apps/macOS/XStats/network-monitor`：先上传并 CDN 回读唯一版本 ZIP

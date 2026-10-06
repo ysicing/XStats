@@ -8,6 +8,108 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct ObservationServiceHostTests {
+    private func peer(_ listener: NSXPCListener) -> NSXPCConnection {
+        let peer = NSXPCConnection(listenerEndpoint: listener.endpoint)
+        peer.remoteObjectInterface = NSXPCInterface(with: NetworkObservationService.self)
+        peer.resume()
+        return peer
+    }
+
+    private func read(_ peer: NSXPCConnection, cursor: Int64 = 0, epoch: String = "") async throws -> ObservationBatch {
+        let reply = NetworkMonitorReply()
+        let data: Data = try await withCheckedThrowingContinuation { continuation in
+            reply.install(continuation)
+            let proxy = peer.remoteObjectProxyWithErrorHandler { @Sendable error in reply.finish(.failure(error)) } as! NetworkObservationService
+            proxy.readEvents(after: cursor, epoch: epoch) { data in reply.finish(.success(data)) }
+        }
+        return try ObservationBatch.decode(data)
+    }
+
+    private func diagnostics(_ peer: NSXPCConnection, window: Double) async throws -> FlowDiagnosticsDTO {
+        let reply = NetworkMonitorReply()
+        let data: Data = try await withCheckedThrowingContinuation { continuation in
+            reply.install(continuation)
+            let proxy = peer.remoteObjectProxyWithErrorHandler { @Sendable error in reply.finish(.failure(error)) } as! NetworkObservationService
+            proxy.flowDiagnostics(windowSeconds: window) { @Sendable data in reply.finish(.success(data)) }
+        }
+        return try JSONDecoder().decode(FlowDiagnosticsDTO.self, from: data)
+    }
+
+    @Test func leaseIsAReusedOneShotAndOldDeadlineCannotRevokeRenewal() async throws {
+        let listener = NSXPCListener.anonymous()
+        let clock = LeaseClockFixture(), timers = LeaseTimerFactory()
+        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement(),
+                                          now: clock.read, makeDeadline: timers.make)
+        let generation = host.startFilter()
+        defer { host.beginStoppingFilter(generation: generation); listener.invalidate() }
+        let reader = peer(listener)
+        defer { reader.invalidate() }
+        #expect(timers.count == 0, "没有 reader 时不能创建截止源")
+        let before = try await read(reader)
+        #expect(host.currentDemand.isActive)
+        #expect(timers.count == 1)
+        clock.set(104)
+        _ = try await read(reader)
+        #expect(timers.count == 1 && timers.timer(0).schedules == 2)
+        clock.set(106)
+        timers.timer(0).fire()
+        #expect(host.currentDemand.isActive, "旧截止已排队也不得撤销104秒续期后的租约")
+        let event = ObservedConnection(id: UUID(), timestamp: Date(), processID: 1, executablePath: "fixture",
+                                       address: nil, hostname: nil, port: nil, transport: .tcp, direction: .outbound)
+        host.buffer.record(event, now: 107)
+        clock.set(110)
+        timers.timer(0).fire()
+        #expect(!host.currentDemand.isActive && timers.timer(0).cancelled)
+        host.buffer.close(event.id)
+        clock.set(112)
+        let resumed = try await read(reader)
+        #expect(resumed.epoch == before.epoch, "到期只停止新流观察，不清历史")
+        #expect(resumed.events.count == 2 && resumed.events.last?.closedAt != nil)
+        #expect(resumed.activeIDs?.isEmpty == true)
+        #expect(timers.count == 2, "到期源已销毁，恢复才创建新的一次性源")
+    }
+
+    @Test func diagnosticClientDoesNotBecomeReaderAndReplacedReaderCannotEndNewLease() async throws {
+        let listener = NSXPCListener.anonymous()
+        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
+        let generation = host.startFilter()
+        defer { host.beginStoppingFilter(generation: generation); listener.invalidate() }
+        let first = peer(listener), second = peer(listener), diagnostic = peer(listener)
+        defer { first.invalidate(); second.invalidate(); diagnostic.invalidate() }
+        let baseline = try await diagnostics(diagnostic, window: 30)
+        #expect(!host.currentDemand.isActive && !host.buffer.isObserving())
+        _ = try await read(first)
+        _ = try await diagnostics(diagnostic, window: 0)
+        _ = try await read(first)
+        _ = try await read(second)
+        first.invalidate()
+        _ = try await read(second)
+        #expect(host.currentDemand.isActive)
+        #expect(try await diagnostics(diagnostic, window: 0).token == baseline.token)
+    }
+
+    @Test func invalidReadDoesNotTakeLeaseAndLateOldGenerationDeadlineIsIgnored() async throws {
+        let listener = NSXPCListener.anonymous()
+        let clock = LeaseClockFixture(), timers = LeaseTimerFactory()
+        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement(),
+                                          now: clock.read, makeDeadline: timers.make)
+        let old = host.startFilter()
+        let first = peer(listener)
+        defer { first.invalidate(); listener.invalidate() }
+        await #expect(throws: (any Error).self) { _ = try await read(first, cursor: -1) }
+        #expect(!host.currentDemand.isActive && timers.count == 0)
+        _ = try await read(first)
+        host.beginStoppingFilter(generation: old)
+        let current = host.startFilter()
+        let second = peer(listener)
+        defer { second.invalidate(); host.beginStoppingFilter(generation: current) }
+        clock.set(200)
+        _ = try await read(second)
+        clock.set(205)
+        timers.timer(0).fire()
+        #expect(host.currentDemand.isActive && host.currentDemand.generation == current)
+    }
+
     private func requirement() throws -> String {
         var code: SecCode?
         var staticCode: SecStaticCode?
@@ -50,37 +152,6 @@ struct ObservationServiceHostTests {
         #expect(try await stopped(second) == true)
     }
 
-    @Test func controlEndpointTravelsThroughRealXPCAndRemainsUsable() async throws {
-        let broker = NSXPCListener.anonymous()
-        let host = ObservationServiceHost(listener: broker, requiredClientCode: try requirement())
-        defer { broker.invalidate(); _ = host }
-        let control = NSXPCListener.anonymous()
-        let delegate = EndpointFixture()
-        control.delegate = delegate
-        control.resume()
-        defer { control.invalidate(); _ = delegate }
-        let peer = NSXPCConnection(listenerEndpoint: broker.endpoint)
-        peer.remoteObjectInterface = NSXPCInterface(with: NetworkObservationService.self)
-        peer.resume()
-        defer { peer.invalidate() }
-        let proxy = peer.remoteObjectProxy as! NetworkObservationService
-        await withCheckedContinuation { continuation in
-            proxy.registerControlEndpoint(control.endpoint) { @Sendable in continuation.resume() }
-        }
-        let endpoint: NetworkControlEndpoint? = await withCheckedContinuation { continuation in
-            proxy.controlEndpoint { @Sendable endpoint in continuation.resume(returning: endpoint.map(NetworkControlEndpoint.init)) }
-        }
-        let connection = NSXPCConnection(listenerEndpoint: try #require(endpoint).value)
-        connection.remoteObjectInterface = NSXPCInterface(with: NetworkComponentService.self)
-        connection.resume()
-        defer { connection.invalidate() }
-        let data: Data = try await withCheckedThrowingContinuation { continuation in
-            let service = connection.remoteObjectProxyWithErrorHandler { @Sendable error in continuation.resume(throwing: error) } as! NetworkComponentService
-            service.perform("enable") { @Sendable data in continuation.resume(returning: data) }
-        }
-        #expect(String(data: data, encoding: .utf8) == "enable")
-    }
-
     @Test func lateStopCompletionCannotConfirmANewerFilterGeneration() throws {
         let listener = NSXPCListener.anonymous()
         let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
@@ -96,12 +167,32 @@ struct ObservationServiceHostTests {
     }
 }
 
-private final class EndpointFixture: NSObject, NSXPCListenerDelegate, NetworkComponentService {
-    func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
-        connection.exportedInterface = NSXPCInterface(with: NetworkComponentService.self)
-        connection.exportedObject = self
-        connection.resume()
-        return true
+private final class LeaseClockFixture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var now: TimeInterval = 100
+    func read() -> TimeInterval { lock.lock(); defer { lock.unlock() }; return now }
+    func set(_ value: TimeInterval) { lock.lock(); now = value; lock.unlock() }
+}
+private final class LeaseTimerFactory: @unchecked Sendable {
+    private let lock = NSLock()
+    private var timers: [LeaseTimerFixture] = []
+    var count: Int { lock.lock(); defer { lock.unlock() }; return timers.count }
+    func timer(_ index: Int) -> LeaseTimerFixture { lock.lock(); defer { lock.unlock() }; return timers[index] }
+    func make(handler: @escaping @Sendable () -> Void) -> any ObservationLeaseDeadline {
+        let timer = LeaseTimerFixture(handler: handler)
+        lock.lock(); timers.append(timer); lock.unlock()
+        return timer
     }
-    func perform(_ command: String, reply: @escaping @Sendable (Data) -> Void) { reply(Data(command.utf8)) }
+}
+private final class LeaseTimerFixture: ObservationLeaseDeadline, @unchecked Sendable {
+    private let lock = NSLock()
+    private let handler: @Sendable () -> Void
+    private var scheduleCount = 0
+    private var isCancelled = false
+    var schedules: Int { lock.lock(); defer { lock.unlock() }; return scheduleCount }
+    var cancelled: Bool { lock.lock(); defer { lock.unlock() }; return isCancelled }
+    init(handler: @escaping @Sendable () -> Void) { self.handler = handler }
+    func schedule(after seconds: TimeInterval) { lock.lock(); scheduleCount += 1; lock.unlock() }
+    func cancel() { lock.lock(); isCancelled = true; lock.unlock() }
+    func fire() { handler() }
 }
