@@ -361,6 +361,10 @@ struct NetworkConnectionsPage: View {
             Label(tr("网络监视器"), systemImage: "network").dsFont(.lg, weight: .semibold)
             Text(tr("查看应用连接、域名和国家或地域分布，不读取通信内容。"))
                 .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
+            if let progress = monitor.installationProgress {
+                Text(tr("正在下载")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
+                ProgressView(value: progress)
+            }
             if monitor.status == .needsApproval {
                 Text(tr("请在系统设置中允许 XStats 网络扩展，然后返回此处。"))
                     .dsFont(.sm).fixedSize(horizontal: false, vertical: true)

@@ -65,7 +65,6 @@ task build CONFIG=Release INSTALL=0 BUMP=0 SIGN_ID="$SIGN_ID"
 
 for binary in "$APP/Contents/MacOS/XStats" "$APP/Contents/MacOS/XStatsHelper" \
               "$APP/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget" \
-              "$APP/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/MacOS/work.12306.xstats.app.networkextension" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Sparkle" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app/Contents/MacOS/Updater" \
@@ -76,7 +75,6 @@ for binary in "$APP/Contents/MacOS/XStats" "$APP/Contents/MacOS/XStatsHelper" \
 done
 codesign --verify --deep --strict --verbose=2 "$APP"
 for binary in "$APP" "$APP/Contents/MacOS/XStatsHelper" "$APP/Contents/PlugIns/XStatsWidget.appex" \
-              "$APP/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension" \
               "$APP/Contents/Frameworks/Sparkle.framework" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app" \
@@ -90,6 +88,16 @@ for binary in "$APP" "$APP/Contents/MacOS/XStatsHelper" "$APP/Contents/PlugIns/X
   echo "$details" | grep -Eq "flags=.*runtime" \
     || { echo "error: $binary 未启用 Hardened Runtime" >&2; exit 1; }
 done
+
+[ ! -d "$APP/Contents/Library/SystemExtensions" ] \
+  || { echo "error: 主应用发行包不得包含网络系统扩展" >&2; exit 1; }
+codesign -d --entitlements :- "$APP" 2>/dev/null | python3 -c '
+import plistlib, sys
+entitlements = plistlib.loads(sys.stdin.buffer.read())
+for key in ("com.apple.developer.system-extension.install", "com.apple.developer.networking.networkextension"):
+    if key in entitlements:
+        raise SystemExit("error: 主应用发行签名不得包含 " + key)
+'
 
 # ---- 公证 App --------------------------------------------------------------
 

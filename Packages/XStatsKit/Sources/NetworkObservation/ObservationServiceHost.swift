@@ -9,6 +9,7 @@ public final class ObservationServiceHost: NSObject, NSXPCListenerDelegate, @unc
     private let lock = NSLock()
     private let listener: NSXPCListener
     private let requiredClientCode: String
+    private var controlEndpoint: NSXPCListenerEndpoint?
     private var connection: NSXPCConnection?
     private var filterActive = false
     private var stopped = true
@@ -66,14 +67,21 @@ public final class ObservationServiceHost: NSObject, NSXPCListenerDelegate, @unc
                 previous?.invalidate()
                 return batch
             },
+            register: { [weak self] endpoint in
+                guard let self else { return }
+                self.lock.lock(); defer { self.lock.unlock() }
+                self.controlEndpoint = endpoint
+            },
+            endpoint: { [weak self] in
+                guard let self else { return nil }
+                self.lock.lock(); defer { self.lock.unlock() }
+                return self.controlEndpoint
+            },
             stopped: { [weak self] peer in
                 guard let self else { return false }
                 self.lock.lock()
-                let previous = self.connection !== peer ? self.connection : nil
-                self.connection = peer
                 let stopped = self.stopped
                 self.lock.unlock()
-                previous?.invalidate()
                 return stopped
             })
         candidate.invalidationHandler = { [weak self, weak candidate] in
@@ -93,11 +101,17 @@ private final class ObservationServiceSession: NSObject, NetworkObservationServi
     private let lock = NSLock()
     private var hasRead = false
     private let read: (NSXPCConnection, Bool, Int64, String) -> ObservationBatch?
+    private let register: (NSXPCListenerEndpoint) -> Void
+    private let endpoint: () -> NSXPCListenerEndpoint?
     private let stopped: (NSXPCConnection) -> Bool
 
     init(read: @escaping (NSXPCConnection, Bool, Int64, String) -> ObservationBatch?,
+         register: @escaping (NSXPCListenerEndpoint) -> Void,
+         endpoint: @escaping () -> NSXPCListenerEndpoint?,
          stopped: @escaping (NSXPCConnection) -> Bool) {
         self.read = read
+        self.register = register
+        self.endpoint = endpoint
         self.stopped = stopped
     }
 
@@ -107,6 +121,12 @@ private final class ObservationServiceSession: NSObject, NetworkObservationServi
         guard let batch = read(peer, first, cursor, epoch) else { reply(Data()); return }
         reply((try? JSONEncoder().encode(batch)) ?? Data())
     }
+
+    func registerControlEndpoint(_ endpoint: NSXPCListenerEndpoint, reply: @escaping @Sendable () -> Void) {
+        register(endpoint); reply()
+    }
+
+    func controlEndpoint(reply: @escaping @Sendable (NSXPCListenerEndpoint?) -> Void) { reply(endpoint()) }
 
     func isFilterStopped(reply: @escaping @Sendable (Bool) -> Void) {
         guard let peer = NSXPCConnection.current() else { reply(false); return }

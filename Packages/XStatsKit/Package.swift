@@ -30,7 +30,7 @@ let package = Package(
         .target(name: "Metrics", dependencies: ["SMC", "Localization"], linkerSettings: [.linkedLibrary("IOReport")]),
         .target(name: "HelperShared", dependencies: ["Localization"]),
         .target(name: "Cleaner", dependencies: ["Localization"]),
-        .target(name: "Updates", dependencies: ["Localization"]),
+        .target(name: "Updates", dependencies: ["Localization", .product(name: "Sparkle", package: "Sparkle")]),
         .target(name: "WebDAVSync", dependencies: ["Localization"]),
         .target(name: "WidgetData"),
         .target(name: "AudioDSP", publicHeadersPath: "include", linkerSettings: [.linkedFramework("CoreAudio")]),

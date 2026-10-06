@@ -10,6 +10,7 @@ import Updates
     enum Status: Equatable { case idle, starting, needsApproval, running, failed, restartRequired, preview }
     private(set) var status = Status.idle
     private(set) var error: String?
+    private(set) var installationProgress: Double?
     private(set) var records: [ObservedConnection] = []
     var previewCountries: [String: String] = [:]
     var previewWorld: [NetworkCountry] = []
@@ -28,20 +29,20 @@ import Updates
     @ObservationIgnored private var paused = false
     @ObservationIgnored private var wantsRunning = false
     @ObservationIgnored private var readGeneration = 0
+    @ObservationIgnored private var preparingAppUpdate = false
     @ObservationIgnored private var epoch = ""
     @ObservationIgnored private var cursor: Int64 = 0
-    @ObservationIgnored private var preparingUpdate = false
-    @ObservationIgnored private var updatePreparationTask: Task<Void, any Error>?
-    @ObservationIgnored private var resumeRunningAfterUpdate = false
-    @ObservationIgnored private var resumePausedAfterUpdate = false
-    @ObservationIgnored private var suppressUpdateResume = false
-    private static let resumeKey = "networkMonitorResumeAfterUpdate"
 
     init(backend: any NetworkMonitorBackend = NativeNetworkMonitorBackend(), isSupported: Bool = NetworkMonitorSupport.isAvailable,
          defaults: UserDefaults = .standard) {
         self.backend = backend
         self.isSupported = isSupported
         self.defaults = defaults
+        backend.onInstallationProgress = { [weak self] progress in
+            guard let self else { return }
+            if let progress, let previous = self.installationProgress, progress < 1, progress - previous < 0.01 { return }
+            self.installationProgress = progress
+        }
         backend.onApproval = { [weak self] in self?.status = .needsApproval }
     }
 
@@ -63,25 +64,24 @@ import Updates
 
     func setObservationPaused(_ value: Bool) {
         isManuallyPaused = value
+        persistAppUpdateIntent()
         updateReading()
     }
 
     func start() {
-        guard moduleEnabled, !isBusy, !preparingUpdate else { return }
+        guard moduleEnabled, !isBusy else { return }
         wantsRunning = true
         isManuallyPaused = false
+        persistAppUpdateIntent()
         error = nil
         reconcileConfiguration()
     }
 
     func stop() {
         guard isSupported else { return }
-        if preparingUpdate {
-            suppressUpdateResume = true
-            defaults.removeObject(forKey: Self.resumeKey)
-            return
-        }
         wantsRunning = false
+        persistAppUpdateIntent()
+        installationProgress = nil
         backend.cancelActivation()
         stopReading()
         records = []
@@ -95,7 +95,7 @@ import Updates
         isBusy = true
         configurationTask = Task { [weak self] in
             guard let self else { return }
-            defer { self.configurationTask = nil; self.isBusy = self.preparingUpdate; self.updateReading() }
+            defer { self.configurationTask = nil; self.isBusy = false; self.updateReading() }
             while true {
                 let enabling = self.wantsRunning
                 do {
@@ -125,7 +125,7 @@ import Updates
     }
 
     private func updateReading() {
-        let shouldRead = moduleEnabled && visible && !paused && !isManuallyPaused && wantsRunning && status == .running && !isBusy && !preparingUpdate
+        let shouldRead = moduleEnabled && visible && !paused && !isManuallyPaused && wantsRunning && status == .running && !isBusy
         guard shouldRead else { stopReading(); return }
         guard readTask == nil else { return }
         readGeneration += 1
@@ -186,8 +186,9 @@ import Updates
     func clearRecords() { records = []; activeConnectionIDs = [] }
 
     func uninstall() {
-        guard isSupported, !isBusy, !preparingUpdate else { return }
+        guard isSupported, !isBusy else { return }
         wantsRunning = false
+        persistAppUpdateIntent()
         stopReading()
         isBusy = true
         configurationTask = Task { [weak self] in
@@ -214,58 +215,17 @@ import Updates
         stopReading()
     }
 
-    /// 安装前串行等待已有配置写入，再停用过滤器；成功后保持门禁到退出或取消安装。
-    func prepareForUpdate(target: UpdateRelease.NetworkExtension) async throws {
-        if let updatePreparationTask {
-            try await updatePreparationTask.value
-            try Task.checkCancellation()
-            return
-        }
-        guard isSupported, status != .preview else { return }
-        preparingUpdate = true
-        suppressUpdateResume = false
-        resumeRunningAfterUpdate = wantsRunning
-        resumePausedAfterUpdate = isManuallyPaused
-        isBusy = true
-        backend.cancelActivation()
-        stopReading(closeConnection: false)
-        let task = Task {
-            await configurationTask?.value
-            wantsRunning = false
-            let wasEnabled = try await backend.prepareForUpdate(target: target)
-            resumeRunningAfterUpdate = moduleEnabled && !suppressUpdateResume && (resumeRunningAfterUpdate || wasEnabled)
-            // 只有确实停用后才保存重启标记，取消或崩溃前的准备不能伪装成停止完成。
-            if resumeRunningAfterUpdate {
-                defaults.set(resumePausedAfterUpdate ? "paused" : "running", forKey: Self.resumeKey)
-            } else { defaults.removeObject(forKey: Self.resumeKey) }
-            status = .idle
-            error = nil
-        }
-        updatePreparationTask = task
-        do {
-            try await task.value
-            try Task.checkCancellation()
-        } catch {
-            cancelUpdatePreparation()
-            throw error
-        }
+    /// 主包更新只保存界面观察意图，不调用组件的过滤器管理接口。
+    func prepareForAppUpdate() { preparingAppUpdate = true; persistAppUpdateIntent() }
+    private func persistAppUpdateIntent() {
+        guard preparingAppUpdate else { return }
+        if wantsRunning { defaults.set(isManuallyPaused ? "paused" : "running", forKey: "networkMonitorResumeAfterUpdate") }
+        else { defaults.removeObject(forKey: "networkMonitorResumeAfterUpdate") }
     }
-
-    func cancelUpdatePreparation() {
-        guard preparingUpdate else { return }
-        preparingUpdate = false
-        updatePreparationTask = nil
-        isBusy = false
-        defaults.removeObject(forKey: Self.resumeKey)
-        wantsRunning = resumeRunningAfterUpdate && moduleEnabled && !suppressUpdateResume
-        isManuallyPaused = resumePausedAfterUpdate
-        reconcileConfiguration()
-    }
-
-    /// 一次性更新意图不进入设置备份或连接历史；只有已启用模块才能恢复。
+    func cancelAppUpdate() { preparingAppUpdate = false; defaults.removeObject(forKey: "networkMonitorResumeAfterUpdate") }
     func resumeAfterUpdate() {
-        let intent = defaults.string(forKey: Self.resumeKey)
-        defaults.removeObject(forKey: Self.resumeKey)
+        let intent = defaults.string(forKey: "networkMonitorResumeAfterUpdate")
+        defaults.removeObject(forKey: "networkMonitorResumeAfterUpdate")
         guard moduleEnabled, isSupported, intent == "running" || intent == "paused" else { return }
         wantsRunning = true
         isManuallyPaused = intent == "paused"

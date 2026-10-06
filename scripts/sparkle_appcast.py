@@ -30,6 +30,7 @@ def tools_directory() -> Path:
     candidates = [Path(override)] if override else [
         ROOT / "Packages/XStatsKit/.build/artifacts/sparkle/Sparkle/bin",
         ROOT / "build/DerivedData-arm64/SourcePackages/artifacts/sparkle/Sparkle/bin",
+        ROOT / "build/DerivedData-network-arm64/SourcePackages/artifacts/sparkle/Sparkle/bin",
     ]
     for directory in candidates:
         if all((directory / name).is_file() for name in ("sign_update", "generate_keys")):
@@ -62,19 +63,36 @@ def load_manifest(manifest: Path, archive: Path) -> dict:
     if not str(feed["build"]).isdigit() or int(feed["build"]) <= 0 or not feed["notes"]:
         raise ValueError("清单构建号或更新摘要无效")
     extension = feed.get("networkExtension")
-    if extension is None:
-        raise ValueError("清单缺少网络扩展版本")
-    if (not isinstance(extension, dict) or not isinstance(extension.get("version"), str) or not extension["version"]
+    identifier = feed.get("bundleIdentifier", "work.12306.xstats.app")
+    roots = {"work.12306.xstats.app": "XStats.app", "work.12306.xstats.networkmonitor": "XStats Network Monitor.app"}
+    if identifier not in roots:
+        raise ValueError("清单应用身份无效")
+    if identifier == "work.12306.xstats.networkmonitor" and extension is None:
+        raise ValueError("组件清单缺少网络扩展版本")
+    if extension is not None and (not isinstance(extension, dict) or not isinstance(extension.get("version"), str) or not extension["version"]
             or not isinstance(extension.get("build"), str) or not extension["build"].isdigit() or int(extension["build"]) <= 0):
         raise ValueError("网络扩展版本无效")
     with zipfile.ZipFile(archive) as bundle:
-        path = "XStats.app/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist"
-        entry = bundle.getinfo(path)
-        if entry.file_size > 256 * 1024:
-            raise ValueError("网络扩展 Info.plist 过大")
-        info = plistlib.loads(bundle.read(entry))
-    if extension != {"version": info["CFBundleShortVersionString"], "build": info["CFBundleVersion"]}:
-        raise ValueError("清单网络扩展版本与升级 ZIP 不一致")
+        root = roots[identifier]
+        app_roots = {name.split("/")[0] for name in bundle.namelist() if name.split("/")[0].endswith(".app")}
+        if app_roots != {root}:
+            raise ValueError("升级 ZIP 的根应用路径与清单身份不一致")
+        paths = [root + "/Contents/Info.plist"]
+        if extension is not None:
+            paths.append(root + "/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist")
+        infos = []
+        for path in paths:
+            matches = [entry for entry in bundle.infolist() if entry.filename == path]
+            if len(matches) != 1 or matches[0].file_size > 256 * 1024:
+                raise ValueError("升级 ZIP 的 Info.plist 缺失、重复或过大")
+            infos.append(plistlib.loads(bundle.read(matches[0])))
+        if infos[0].get("CFBundleIdentifier") != identifier:
+            raise ValueError("升级 ZIP 的应用 Bundle ID 与清单不一致")
+        if extension is not None:
+            info = infos[1]
+            if (info.get("CFBundleIdentifier") != "work.12306.xstats.app.networkextension"
+                    or extension != {"version": info.get("CFBundleShortVersionString"), "build": info.get("CFBundleVersion")}):
+                raise ValueError("清单网络扩展身份或版本与升级 ZIP 不一致")
     return feed
 
 
@@ -98,11 +116,12 @@ def make_feed(feed: dict, signature: str, localized_notes: dict[str, list[str]] 
         raise ValueError("无效的 Ed25519 更新包签名")
     rss = ET.Element("rss", {"version": "2.0"})
     channel = ET.SubElement(rss, "channel")
-    ET.SubElement(channel, "title").text = "XStats"
+    name = feed.get("appName", "XStats")
+    ET.SubElement(channel, "title").text = name
     ET.SubElement(channel, "link").text = "https://github.com/ysicing/xstats"
-    ET.SubElement(channel, "description").text = "XStats updates"
+    ET.SubElement(channel, "description").text = f"{name} updates"
     item = ET.SubElement(channel, "item")
-    ET.SubElement(item, "title").text = f"XStats {feed['version']}"
+    ET.SubElement(item, "title").text = f"{name} {feed['version']}"
     ET.SubElement(item, f"{{{SPARKLE}}}version").text = feed["build"]
     ET.SubElement(item, f"{{{SPARKLE}}}shortVersionString").text = feed["version"]
     ET.SubElement(item, f"{{{SPARKLE}}}minimumSystemVersion").text = feed["minimumSystem"]
@@ -180,18 +199,21 @@ def main() -> None:
     parser.add_argument("manifest", type=Path)
     parser.add_argument("archive", type=Path)
     parser.add_argument("--verify", action="store_true")
+    parser.add_argument("--notes-file", type=Path, default=ROOT / "ReleaseNotes.json")
+    parser.add_argument("--app-info", type=Path, default=ROOT / "App/Info.plist")
+    parser.add_argument("--output", type=Path, help="组件可使用独立固定 appcast.xml 名称")
     arguments = parser.parse_args()
     tools = tools_directory()
     account = os.environ.get("SPARKLE_KEY_ACCOUNT", "work.12306.xstats.sparkle")
     # 防止在新机器上误用其他项目的私钥，生成一个客户端无法验证的更新源。
     public_key = run_tool(tools / "generate_keys", "--account", account, "-p")
-    with (ROOT / "App/Info.plist").open("rb") as source:
+    with arguments.app_info.open("rb") as source:
         expected = plistlib.load(source).get("SUPublicEDKey")
     if public_key != expected:
         raise ValueError("签名账户的公钥与应用 SUPublicEDKey 不一致")
     feed = load_manifest(arguments.manifest, arguments.archive)
-    localized_notes = load_localized_notes(feed)
-    xml = arguments.archive.with_suffix(".xml")
+    localized_notes = load_localized_notes(feed, arguments.notes_file)
+    xml = arguments.output or arguments.archive.with_suffix(".xml")
     if not arguments.verify:
         signature = run_tool(tools / "sign_update", "--account", account, "-p", str(arguments.archive))
         xml.write_bytes(make_feed(feed, signature, localized_notes))

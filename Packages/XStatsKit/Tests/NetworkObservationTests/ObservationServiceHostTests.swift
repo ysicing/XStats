@@ -50,6 +50,37 @@ struct ObservationServiceHostTests {
         #expect(try await stopped(second) == true)
     }
 
+    @Test func controlEndpointTravelsThroughRealXPCAndRemainsUsable() async throws {
+        let broker = NSXPCListener.anonymous()
+        let host = ObservationServiceHost(listener: broker, requiredClientCode: try requirement())
+        defer { broker.invalidate(); _ = host }
+        let control = NSXPCListener.anonymous()
+        let delegate = EndpointFixture()
+        control.delegate = delegate
+        control.resume()
+        defer { control.invalidate(); _ = delegate }
+        let peer = NSXPCConnection(listenerEndpoint: broker.endpoint)
+        peer.remoteObjectInterface = NSXPCInterface(with: NetworkObservationService.self)
+        peer.resume()
+        defer { peer.invalidate() }
+        let proxy = peer.remoteObjectProxy as! NetworkObservationService
+        await withCheckedContinuation { continuation in
+            proxy.registerControlEndpoint(control.endpoint) { @Sendable in continuation.resume() }
+        }
+        let endpoint: NetworkControlEndpoint? = await withCheckedContinuation { continuation in
+            proxy.controlEndpoint { @Sendable endpoint in continuation.resume(returning: endpoint.map(NetworkControlEndpoint.init)) }
+        }
+        let connection = NSXPCConnection(listenerEndpoint: try #require(endpoint).value)
+        connection.remoteObjectInterface = NSXPCInterface(with: NetworkComponentService.self)
+        connection.resume()
+        defer { connection.invalidate() }
+        let data: Data = try await withCheckedThrowingContinuation { continuation in
+            let service = connection.remoteObjectProxyWithErrorHandler { @Sendable error in continuation.resume(throwing: error) } as! NetworkComponentService
+            service.perform("enable") { @Sendable data in continuation.resume(returning: data) }
+        }
+        #expect(String(data: data, encoding: .utf8) == "enable")
+    }
+
     @Test func lateStopCompletionCannotConfirmANewerFilterGeneration() throws {
         let listener = NSXPCListener.anonymous()
         let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
@@ -63,4 +94,14 @@ struct ObservationServiceHostTests {
         host.finishStoppingFilter(generation: current)
         #expect(host.isFilterStopped == true)
     }
+}
+
+private final class EndpointFixture: NSObject, NSXPCListenerDelegate, NetworkComponentService {
+    func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
+        connection.exportedInterface = NSXPCInterface(with: NetworkComponentService.self)
+        connection.exportedObject = self
+        connection.resume()
+        return true
+    }
+    func perform(_ command: String, reply: @escaping @Sendable (Data) -> Void) { reply(Data(command.utf8)) }
 }
