@@ -57,6 +57,7 @@ struct NetworkConnectionsPage: View {
     @Environment(AppModel.self) private var model
     @Environment(\.isSnapshot) private var isSnapshot
     @State private var managesNetworkComponent = false
+    @State private var enablesAfterComponentInstall = false
     @State private var search = ""
     @State private var grouping = ConnectionGrouping.apps
     @State private var selection: String?
@@ -106,7 +107,15 @@ struct NetworkConnectionsPage: View {
                 }
             } else { Spacer(minLength: 0) }
         }
-        .sheet(isPresented: $managesNetworkComponent) { NetworkComponentManagementView().environment(model) }
+        .sheet(isPresented: $managesNetworkComponent, onDismiss: { enablesAfterComponentInstall = false }) {
+            NetworkComponentManagementView(onInstalled: {
+                guard enablesAfterComponentInstall else { return }
+                enablesAfterComponentInstall = false
+                managesNetworkComponent = false
+                model.enableNetworkObservation()
+            }, onClose: { enablesAfterComponentInstall = false }).environment(model)
+        }
+        .onDisappear { enablesAfterComponentInstall = false }
         .frame(height: isSnapshot ? 580 : nil)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
@@ -378,7 +387,12 @@ struct NetworkConnectionsPage: View {
             } else if monitor.status == .restartRequired {
                 Text(tr("需要重启系统")).foregroundStyle(DS.Palette.warning)
             } else {
-                Button(tr("启用连接查看")) { monitor.start() }
+                Button(tr("启用连接查看")) {
+                    if model.networkComponent.requiresInstallation {
+                        enablesAfterComponentInstall = true
+                        managesNetworkComponent = true
+                    } else { monitor.start() }
+                }
                     .buttonStyle(DSButtonStyle(kind: .primary)).disabled(monitor.isBusy)
             }
             if let error = monitor.error {

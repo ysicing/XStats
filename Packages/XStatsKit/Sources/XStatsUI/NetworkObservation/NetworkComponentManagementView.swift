@@ -5,6 +5,8 @@ import NetworkObservation
 import SwiftUI
 
 struct NetworkComponentManagementView: View {
+    var onInstalled: () -> Void = {}
+    var onClose: () -> Void = {}
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var confirmsRemoval = false
@@ -14,7 +16,7 @@ struct NetworkComponentManagementView: View {
             HStack {
                 Label(tr("网络组件"), systemImage: "network").dsFont(.lg, weight: .semibold)
                 Spacer()
-                Button(tr("完成")) { dismiss() }
+                Button(tr("关闭面板")) { onClose(); dismiss() }.keyboardShortcut(.cancelAction)
             }
             Text(tr("组件按需运行，负责扩展授权和独立更新；所有连接均放行。"))
                 .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary).fixedSize(horizontal: false, vertical: true)
@@ -48,9 +50,11 @@ struct NetworkComponentManagementView: View {
                 }
             } else {
                 Text(tr("尚未安装网络组件")).foregroundStyle(DS.Palette.textSecondary)
-                Button(tr("安装组件")) { component.install() }.disabled(component.busy)
+                Button(tr("安装组件")) { component.install(onInstalled: onInstalled) }.disabled(component.busy)
             }
-            if let progress = model.connectionMonitor.installationProgress { ProgressView(value: progress) }
+            if let progress = model.connectionMonitor.installationProgress {
+                ProgressView(value: progress) { Text(tr("正在下载")) }
+            }
             if let error = component.error {
                 Text(verbatim: error).dsFont(.sm).foregroundStyle(DS.Palette.error).textSelection(.enabled)
                 if component.needsBackgroundApproval {
