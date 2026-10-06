@@ -9,6 +9,7 @@
 #
 #   scripts/version.sh          # 显示当前版本和构建号
 #   scripts/version.sh build    # 只推进构建号（task build 会自动调用）
+#   scripts/version.sh network  # 仅扩展代码／协议／必要依赖变化时推进独立扩展构建号
 #   scripts/version.sh release  # 按 CHANGELOG 写入公开版本号并推进构建号，只输出版本号
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -17,6 +18,8 @@ FILE=project.yml
 CHANGELOG=CHANGELOG.md
 version="$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' "$FILE" | head -1)"
 build="$(sed -nE 's/^ *CURRENT_PROJECT_VERSION: *"?([0-9]+)"?.*/\1/p' "$FILE" | head -1)"
+network_version="$(sed -nE 's/^ *NETWORK_EXTENSION_VERSION: *"?([0-9.]+)"?.*/\1/p' "$FILE" | head -1)"
+network_build="$(sed -nE 's/^ *NETWORK_EXTENSION_BUILD: *"?([0-9]+)"?.*/\1/p' "$FILE" | head -1)"
 
 set_value() {
   sed -i '' -E "s/^( *$1: *)\"?[0-9.]+\"?/\1\"$2\"/" "$FILE"
@@ -24,8 +27,9 @@ set_value() {
 
 # 旧值可能带前导零（如 0109），用 10# 强制按十进制读，避免被当成八进制
 next_build() {
-  [[ "$build" =~ ^[0-9]+$ ]] || { echo "无法从 $FILE 读出数字构建号：${build:-（空）}" >&2; return 1; }
-  printf '%d\n' "$((10#$build + 1))"
+  local value="${1:-$build}"
+  [[ "$value" =~ ^[0-9]+$ ]] || { echo "无法从 $FILE 读出数字构建号：${value:-（空）}" >&2; return 1; }
+  printf '%d\n' "$((10#$value + 1))"
 }
 
 # 只认 CHANGELOG 的第一个二级标题：顶部还是“未发布”时必须失败，
@@ -56,6 +60,12 @@ case "${1:-show}" in
     set_value CURRENT_PROJECT_VERSION "$build"
     echo "$version ($build)"
     ;;
+  network)
+    [[ -n "$network_version" && -n "$network_build" ]] || { echo "缺少独立扩展版本配置" >&2; exit 1; }
+    network_build="$(next_build "$network_build")"
+    set_value NETWORK_EXTENSION_BUILD "$network_build"
+    echo "$network_version ($network_build)"
+    ;;
   release)
     # 先把两项都算出来再落盘：中途失败不留下半修改的 project.yml
     version="$(changelog_version)"
@@ -66,7 +76,7 @@ case "${1:-show}" in
     echo "$version"
     ;;
   *)
-    echo "用法：scripts/version.sh [show|build|release]" >&2
+    echo "用法：scripts/version.sh [show|build|network|release]" >&2
     exit 1
     ;;
 esac

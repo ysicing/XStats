@@ -4,6 +4,7 @@
 import Foundation
 import NetworkObservation
 import Testing
+import Updates
 @testable import XStatsUI
 
 @MainActor private final class ObservationBackendFixture: NetworkMonitorBackend {
@@ -14,6 +15,9 @@ import Testing
     var holdEnable = false
     var enableContinuation: CheckedContinuation<Void, Never>?
     var readContinuation: CheckedContinuation<ObservationBatch, any Error>?
+    var holdShutdown = false
+    var shutdownContinuation: CheckedContinuation<Void, Never>?
+    var shutdownError: (any Error)?
     func activate() async throws -> Bool { false }
     func cancelActivation() {}
     func setFilterEnabled(_ enabled: Bool) async throws {
@@ -25,11 +29,140 @@ import Testing
         return try await withCheckedThrowingContinuation { readContinuation = $0 }
     }
     func stopReading() { stops += 1 }
+    func prepareForUpdate(target: UpdateRelease.NetworkExtension) async throws -> Bool {
+        if !NativeNetworkMonitorBackend.requiresReplacement(installed: .init(version: "0.15.0", build: "136"), target: target) { return true }
+        filterWrites.append(false)
+        readContinuation?.resume(throwing: CancellationError()); readContinuation = nil
+        if holdShutdown { await withCheckedContinuation { shutdownContinuation = $0 } }
+        if let shutdownError { throw shutdownError }
+        return true
+    }
     func uninstall() async throws -> Bool { true }
 }
 
 @Suite(.timeLimit(.minutes(1)))
 @MainActor struct NetworkMonitorTests {
+    @Test func appUpdateDoesNotRequireReplacingTheSameExtension() {
+        let current = UpdateRelease.NetworkExtension(version: "0.15.0", build: "136")
+        #expect(!NativeNetworkMonitorBackend.requiresReplacement(installed: current, target: current))
+        #expect(NativeNetworkMonitorBackend.requiresReplacement(installed: current,
+            target: .init(version: "0.15.0", build: "137")))
+        #expect(NativeNetworkMonitorBackend.requiresReplacement(installed: nil, target: current))
+    }
+
+    @Test func appOnlyPreparationKeepsTheFilterEnabledAndPreservesResumeIntent() async throws {
+        let suite = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let backend = ObservationBackendFixture()
+        let controller = NetworkMonitorController(backend: backend, isSupported: true, defaults: defaults)
+        controller.setDemand(enabled: true, visible: true)
+        controller.start()
+        try await waitUntil { controller.isReading }
+        try await controller.prepareForUpdate(target: .init(version: "0.15.0", build: "136"))
+        #expect(backend.filterWrites == [true], "普通 App 更新不能停用现有过滤器")
+        #expect(!controller.isReading && controller.isBusy)
+        #expect(defaults.string(forKey: "networkMonitorResumeAfterUpdate") == "running")
+        controller.cancelUpdatePreparation()
+        try await waitUntil { controller.isReading }
+        #expect(!backend.filterWrites.contains(false))
+        controller.shutdown()
+    }
+    @Test func updatePreparationWaitsForShutdownAndPreservesPausedIntentAcrossRelaunch() async throws {
+        let suite = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let backend = ObservationBackendFixture()
+        let controller = NetworkMonitorController(backend: backend, isSupported: true, defaults: defaults)
+        controller.setDemand(enabled: true, visible: true)
+        controller.start()
+        try await waitUntil { controller.isReading }
+        controller.setObservationPaused(true)
+        backend.holdShutdown = true
+        var completed = false
+        let preparation = Task { defer { completed = true }; try await controller.prepareForUpdate(target: .init(version: "0.15.0", build: "137")) }
+        while backend.shutdownContinuation == nil && !completed { try Task.checkCancellation(); await Task.yield() }
+        try #require(backend.shutdownContinuation != nil)
+        #expect(controller.isBusy && !controller.isReading)
+        let writes = backend.filterWrites
+        controller.start()
+        #expect(backend.filterWrites == writes)
+        backend.shutdownContinuation?.resume(); backend.shutdownContinuation = nil
+        try await preparation.value
+        #expect(defaults.string(forKey: "networkMonitorResumeAfterUpdate") == "paused")
+        let restartedBackend = ObservationBackendFixture()
+        let restarted = NetworkMonitorController(backend: restartedBackend, isSupported: true, defaults: defaults)
+        restarted.setDemand(enabled: true, visible: false)
+        restarted.resumeAfterUpdate()
+        try await waitUntil { restarted.status == .running }
+        #expect(restarted.isManuallyPaused && !restarted.isReading)
+        #expect(defaults.object(forKey: "networkMonitorResumeAfterUpdate") == nil)
+        restarted.shutdown()
+    }
+
+    @Test func failedUpdatePreparationRestoresReadingAndRemovesRelaunchMarker() async throws {
+        let suite = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let backend = ObservationBackendFixture()
+        backend.shutdownError = NetworkMonitorError.timeout
+        let controller = NetworkMonitorController(backend: backend, isSupported: true, defaults: defaults)
+        controller.setDemand(enabled: true, visible: true)
+        controller.start()
+        try await waitUntil { controller.isReading }
+        await #expect(throws: NetworkMonitorError.timeout) { try await controller.prepareForUpdate(target: .init(version: "0.15.0", build: "137")) }
+        try await waitUntil { controller.isReading && !controller.isBusy }
+        #expect(defaults.object(forKey: "networkMonitorResumeAfterUpdate") == nil)
+        controller.shutdown()
+    }
+
+    @Test func preparationWaitsForAnInFlightEnableBeforeDisablingAndExplicitStopSuppressesResume() async throws {
+        let suite = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let backend = ObservationBackendFixture()
+        backend.holdEnable = true
+        backend.holdShutdown = true
+        let controller = NetworkMonitorController(backend: backend, isSupported: true, defaults: defaults)
+        controller.setDemand(enabled: true, visible: true)
+        controller.start()
+        try await waitUntil { backend.enableContinuation != nil }
+        let preparation = Task { try await controller.prepareForUpdate(target: .init(version: "0.15.0", build: "137")) }
+        await Task.yield()
+        #expect(backend.shutdownContinuation == nil)
+        backend.enableContinuation?.resume(); backend.enableContinuation = nil
+        try await waitUntil { backend.shutdownContinuation != nil }
+        controller.stop()
+        backend.shutdownContinuation?.resume(); backend.shutdownContinuation = nil
+        try await preparation.value
+        #expect(backend.filterWrites == [true, false])
+        #expect(defaults.object(forKey: "networkMonitorResumeAfterUpdate") == nil)
+        controller.cancelUpdatePreparation()
+        try await waitUntil { !controller.isBusy }
+        #expect(controller.status == .idle && !controller.isReading)
+    }
+
+    @Test func disabledModuleDoesNotResumeAnUpdateIntent() throws {
+        let suite = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("running", forKey: "networkMonitorResumeAfterUpdate")
+        let backend = ObservationBackendFixture()
+        let controller = NetworkMonitorController(backend: backend, isSupported: true, defaults: defaults)
+        controller.setDemand(enabled: false, visible: true)
+        controller.resumeAfterUpdate()
+        #expect(backend.filterWrites.isEmpty && !controller.isReading)
+        #expect(defaults.object(forKey: "networkMonitorResumeAfterUpdate") == nil)
+    }
+
+    @Test func installedBuildUsesItsOwnMachServiceInsteadOfTheNewAppsEndpoint() throws {
+        let stem = "TEAM.work.12306.xstats.network-observation.ipc"
+        #expect(try NativeNetworkMonitorBackend.serviceName(current: stem + ".140", currentBuild: "140", installedBuild: 136) == stem + ".136")
+        #expect(try NativeNetworkMonitorBackend.serviceName(current: stem + ".140", currentBuild: "140", installedBuild: 140) == stem + ".140")
+        #expect(throws: NetworkMonitorError.extensionNeedsUpdate) {
+            try NativeNetworkMonitorBackend.serviceName(current: stem, currentBuild: "140", installedBuild: 136)
+        }
+    }
     @Test func onlyMacOS15AndLaterSupportConnectionViewing() {
         #expect(!NetworkMonitorSupport.supports(on: .init(majorVersion: 14, minorVersion: 0, patchVersion: 0)))
         #expect(!NetworkMonitorSupport.supports(on: .init(majorVersion: 14, minorVersion: 9, patchVersion: 9)))
@@ -289,5 +422,15 @@ import Testing
                 reply.finish(.success(Data([1])))
             }
         }
+    }
+
+    @Test(.enabled(if: NetworkMonitorSupport.isAvailable))
+    func unavailableXPCServiceReturnsErrorInsteadOfCrashingOffMainActor() async {
+        let connection = NSXPCConnection(machServiceName: "work.12306.xstats.tests.missing.\(UUID().uuidString)")
+        connection.remoteObjectInterface = NSXPCInterface(with: NetworkObservationService.self)
+        connection.resume()
+        let backend = NativeNetworkMonitorBackend(connection: connection)
+        defer { backend.stopReading() }
+        await #expect(throws: (any Error).self) { try await backend.read(after: 0, epoch: "") }
     }
 }

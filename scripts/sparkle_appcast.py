@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import zipfile
 import subprocess
 from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
@@ -60,6 +61,20 @@ def load_manifest(manifest: Path, archive: Path) -> dict:
         raise ValueError("清单摘要或大小与升级 ZIP 不一致")
     if not str(feed["build"]).isdigit() or int(feed["build"]) <= 0 or not feed["notes"]:
         raise ValueError("清单构建号或更新摘要无效")
+    extension = feed.get("networkExtension")
+    if extension is None:
+        raise ValueError("清单缺少网络扩展版本")
+    if (not isinstance(extension, dict) or not isinstance(extension.get("version"), str) or not extension["version"]
+            or not isinstance(extension.get("build"), str) or not extension["build"].isdigit() or int(extension["build"]) <= 0):
+        raise ValueError("网络扩展版本无效")
+    with zipfile.ZipFile(archive) as bundle:
+        path = "XStats.app/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist"
+        entry = bundle.getinfo(path)
+        if entry.file_size > 256 * 1024:
+            raise ValueError("网络扩展 Info.plist 过大")
+        info = plistlib.loads(bundle.read(entry))
+    if extension != {"version": info["CFBundleShortVersionString"], "build": info["CFBundleVersion"]}:
+        raise ValueError("清单网络扩展版本与升级 ZIP 不一致")
     return feed
 
 
@@ -103,6 +118,9 @@ def make_feed(feed: dict, signature: str, localized_notes: dict[str, list[str]] 
     for field in ("date", "dmg", "sha256"):
         if feed.get(field):
             ET.SubElement(item, f"{{{XSTATS}}}{field}").text = feed[field]
+    if feed.get("networkExtension"):
+        for field in ("version", "build"):
+            ET.SubElement(item, f"{{{XSTATS}}}network-extension-{field}").text = feed["networkExtension"][field]
     if feed.get("changelog"):
         ET.SubElement(item, f"{{{SPARKLE}}}fullReleaseNotesLink").text = feed["changelog"]
     ET.SubElement(item, "enclosure", {
@@ -150,6 +168,9 @@ def verify_feed(feed: dict, xml: Path, archive: Path, tools: Path, account: str,
             raise ValueError(f"Sparkle XML 与 JSON 的 {field} 不一致")
     if item.findtext(f"{{{SPARKLE}}}fullReleaseNotesLink") != feed.get("changelog"):
         raise ValueError("Sparkle XML 与 JSON 的更新日志链接不一致")
+    for field in ("version", "build"):
+        if item.findtext(f"{{{XSTATS}}}network-extension-{field}") != (feed.get("networkExtension") or {}).get(field):
+            raise ValueError("Sparkle XML 网络扩展版本与 JSON 不一致")
     run_tool(tools / "sign_update", "--account", account, "--verify", str(archive), enclosure.get(f"{{{SPARKLE}}}edSignature", ""))
     run_tool(tools / "sign_update", "--account", account, "--verify", str(xml))
 
@@ -182,5 +203,5 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except (ValueError, OSError, KeyError, ET.ParseError) as error:
+    except (ValueError, OSError, KeyError, ET.ParseError, zipfile.BadZipFile, plistlib.InvalidFileException) as error:
         raise SystemExit(f"error: {error}") from error

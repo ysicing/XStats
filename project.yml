@@ -14,7 +14,10 @@ settings:
     # 公开版本号是标准 semver，真源是 CHANGELOG.md 顶部的 “## X.Y.Z · YYYY-MM-DD”
     MARKETING_VERSION: "0.15.0"
     # Apple 内部构建号每次 task build 加一，独立于公开版本号且不重置
-    CURRENT_PROJECT_VERSION: "133"
+    CURRENT_PROJECT_VERSION: "137"
+    # 仅扩展代码、共享协议或影响扩展的依赖变化时独立推进。
+    NETWORK_EXTENSION_VERSION: "0.15.0"
+    NETWORK_EXTENSION_BUILD: "136"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     # 本地开发使用 ad-hoc 签名；正式发布使用 Developer ID（见 DEVELOPMENT.md）
     CODE_SIGN_STYLE: Manual
@@ -67,7 +70,9 @@ targets:
         NSAudioCaptureUsageDescription: 在本机实时调节应用音量，不录制、保存或上传声音。
         NSBluetoothAlwaysUsageDescription: 显示已配对的蓝牙音频设备，并在您选择时连接设备。
         NSSystemExtensionUsageDescription: 只在本机查看应用的网络连接，不阻断连接或读取通信内容。
-        NetworkObservationMachService: $(TeamIdentifierPrefix)work.12306.xstats.network-observation.ipc
+        NetworkObservationExtensionVersion: $(NETWORK_EXTENSION_VERSION)
+        NetworkObservationExtensionBuild: $(NETWORK_EXTENSION_BUILD)
+        NetworkObservationMachService: $(TeamIdentifierPrefix)work.12306.xstats.network-observation.ipc.$(NETWORK_EXTENSION_BUILD)
         NSCalendarsFullAccessUsageDescription: 在本机日历面板显示您选择的系统日程，不修改或上传日程内容。
         NSRemindersFullAccessUsageDescription: 在本机日历面板显示您选择的到期提醒，不修改或上传提醒内容。
     entitlements:
@@ -115,7 +120,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSSystemExtensionUsageDescription: 只在本机查看应用的网络连接，不阻断连接或读取通信内容。
         NetworkExtension:
-          NEMachServiceName: $(TeamIdentifierPrefix)work.12306.xstats.network-observation.ipc
+          NEMachServiceName: $(TeamIdentifierPrefix)work.12306.xstats.network-observation.ipc.$(NETWORK_EXTENSION_BUILD)
           NEProviderClasses:
             com.apple.networkextension.filter-data: $(PRODUCT_MODULE_NAME).ConnectionFilterProvider
     entitlements:
@@ -129,6 +134,8 @@ targets:
     settings:
       base:
         # sysextd 按 Bundle ID 对应的文件名查找嵌入的系统扩展。
+        MARKETING_VERSION: $(NETWORK_EXTENSION_VERSION)
+        CURRENT_PROJECT_VERSION: $(NETWORK_EXTENSION_BUILD)
         PRODUCT_NAME: work.12306.xstats.app.networkextension
         PRODUCT_MODULE_NAME: XStatsNetworkExtension
         PRODUCT_BUNDLE_IDENTIFIER: work.12306.xstats.app.networkextension

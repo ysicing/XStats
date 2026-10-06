@@ -13,7 +13,7 @@ import Updates
 public final class AppModel {
     let displays = DisplayController()
     let audio: AudioController
-    let connectionMonitor = NetworkMonitorController()
+    let connectionMonitor: NetworkMonitorController
     let networkGeography = NetworkGeographyController()
     public let settings: AppSettings
     let rest: RestController
@@ -88,6 +88,7 @@ public final class AppModel {
         let store = MetricsStore()
         let helper = HelperClient()
         self.settings = settings
+        connectionMonitor = NetworkMonitorController(defaults: settings.networkObservationDefaults)
         audio = AudioController(defaults: settings.audioDefaults)
         rest = RestController(settings: settings)
         aiUsage = AIUsageController(settings: settings, providers: aiUsageProviders, quotaProviders: aiQuotaProviders,
@@ -106,6 +107,11 @@ public final class AppModel {
         sync = SyncController(settings: settings)
         diskTools = DiskToolsController(helper: helper)
         speedTest = SpeedTestController(settings: settings)
+        updates.prepareForInstallation = { [weak self] target in
+            guard let self else { throw CancellationError() }
+            try await self.connectionMonitor.prepareForUpdate(target: target)
+        }
+        updates.cancelInstallationPreparation = { [weak self] in self?.connectionMonitor.cancelUpdatePreparation() }
     }
 
     /// 硬件能力只影响实际展示，不改写保存的菜单栏偏好。

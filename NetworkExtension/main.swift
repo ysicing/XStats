@@ -5,6 +5,7 @@ import Foundation
 import NetworkExtension
 
 autoreleasepool {
+    _ = ConnectionFilterProvider.host
     NEProvider.startSystemExtensionMode()
 }
 dispatchMain()

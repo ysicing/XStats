@@ -118,6 +118,15 @@ expect_failure build "非数字构建号"
 expect_failure release "非数字构建号"
 
 # 已删除的子命令不能静默成功
+# 独立扩展构建号只由 network 子命令推进，普通 build/release 保持扩展版本。
+setup 1.0.0 109 "$VALID_LOG"
+printf '\n    NETWORK_EXTENSION_VERSION: "0.15.0"\n    NETWORK_EXTENSION_BUILD: "136"\n' >> "$WORK/case/project.yml"
+expect_output "$(cd "$WORK/case" && scripts/version.sh build)" "1.0.0 (110)"
+grep -q 'NETWORK_EXTENSION_BUILD: "136"' "$WORK/case/project.yml"
+expect_output "$(cd "$WORK/case" && scripts/version.sh network)" "0.15.0 (137)"
+expect_project 1.0.0 110
+grep -q 'NETWORK_EXTENSION_BUILD: "137"' "$WORK/case/project.yml"
+
 setup 1.0.0 109 "$VALID_LOG"
 expect_failure next "next 子命令已删除"
 expect_failure tag "tag 子命令已删除"
