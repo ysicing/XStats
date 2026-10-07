@@ -35,7 +35,7 @@ XStats is a free, open-source native app built with Swift, AppKit and SwiftUI. N
 
 Show metrics **separately**, **combined in one group**, or behind **a single icon**. Items, order and styles (text, icons, rings, progress bars, history charts) are all configurable.
 
-**In development: feature activation is separate from menu bar visibility.** Turning off a basic monitoring module in Settings → Features stops its monitoring, alerts and new history records, and removes its menu bar items. Existing history is kept. Adding an item to the menu bar enables its feature; removing it leaves the feature enabled. Collection still follows display, history and alert demand. System widgets refresh independently. The display switch only gates parameter reads and adjustments such as brightness, contrast and volume; display information and its menu bar entry remain available when controls are off.
+**Feature activation is separate from menu bar visibility.** Turning off a basic monitoring module in Settings → Features stops its monitoring, alerts and new history records, and removes its menu bar items. Existing history is kept. Adding an item to the menu bar enables its feature; removing it leaves the feature enabled. Collection still follows display, history and alert demand. System widgets refresh independently. The display switch only gates parameter reads and adjustments such as brightness, contrast and volume; display information and its menu bar entry remain available when controls are off.
 
 ### System monitoring
 
@@ -181,7 +181,7 @@ Issues and pull requests are welcome. See [DEVELOPMENT.md](docs/DEVELOPMENT.md) 
 <!-- changelog:start -->
 <!-- Generated from CHANGELOG.md by scripts/sync_changelog.py. Do not edit by hand. -->
 
-Latest release **0.15.0** (2026-10-05) · **14** changes in development · [full changelog](CHANGELOG.md) (kept in Chinese)
+Latest release **1.0.0** (2026-10-07) · [full changelog](CHANGELOG.md) (kept in Chinese)
 
 <!-- changelog:end -->
 

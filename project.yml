@@ -12,9 +12,9 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     # 公开版本号是标准 semver，真源是 CHANGELOG.md 顶部的 “## X.Y.Z · YYYY-MM-DD”
-    MARKETING_VERSION: "0.15.0"
+    MARKETING_VERSION: "1.0.0"
     # Apple 内部构建号每次 task build 加一，独立于公开版本号且不重置
-    CURRENT_PROJECT_VERSION: "137"
+    CURRENT_PROJECT_VERSION: "139"
     # 独立网络组件及扩展共用版本；只在组件、扩展或共享协议变化时推进。
     NETWORK_EXTENSION_VERSION: "1.0.1"
     NETWORK_EXTENSION_BUILD: "141"

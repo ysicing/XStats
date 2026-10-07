@@ -1,29 +1,27 @@
 {
-  "version": "0.15.0",
+  "version": "1.0.0",
   "sourceNotes": [
-    "新增默认关闭的音频模块，支持系统音量、静音、输入输出设备切换及连接已配对蓝牙设备",
-    "新增显示器信息与外接屏 DDC/CI 控制",
-    "新增 xstats:// 深链，支持启动器调用页面、菜单栏详情、番茄钟与普通防休眠",
-    "菜单栏新增仅图标模式，只保留一个 XStats 入口，展开后查看所选指标",
-    "状态总览改为紧凑指标列表，点击原地展开详情，关闭后释放详情采样需求",
-    "AI 额度支持菜单栏进度条，蓝牙电量遵循文字显示样式，总览网络归属地遵循已有显示偏好",
-    "可选模块统一迁入功能设置页",
-    "菜单栏弹窗新增独立更新入口，发现新版本时可直接打开更新页面",
-    "修正 CPU 核心类型与分工描述，系统热压力仅在异常时突出提示，避免提示变化挤动温度和布局",
-    "修正风扇起步状态与零转速的展示，启动提示最多保留 10 秒，已有风扇转动时不再汇总显示启动中"
+    "新增 macOS 15 及以上可选网络监视器",
+    "新增连接世界地图，首次使用时按需下载公共 IP 地理数据库，之后离线查询",
+    "网络监视器通过独立组件按需启用，首次使用需安装组件并按系统提示授权，安装需要管理员账户",
+    "功能设置分为基础功能与可选功能，基础监控可分别关闭",
+    "功能启用与菜单栏展示分开管理，加入菜单栏时自动启用对应功能，移出菜单栏不会关闭功能",
+    "显示器亮度、对比度与音量控制改为单独开关，关闭后仍可查看显示器信息，并保留独立的菜单栏信息入口",
+    "卸载应用改为可选功能，新安装默认关闭，从旧版本升级时保持开启",
+    "修复网络组件替换后连接旧服务、过滤设置失败后持续显示空数据",
+    "修复 Homebrew 清理预览在系统繁忙时可能超过时限仍未停止的问题"
   ],
   "translations": {
     "en": [
-      "Add an optional audio module, disabled by default, for system volume, mute, input/output switching and connecting paired Bluetooth devices; on macOS 14.4 or later, permission enables per-app volume (0–200%), mute and independent output, processed locally without recording or uploading audio",
-      "View display resolution, scaled resolution and refresh rate, and adjust external display brightness, contrast and volume when the hardware and connection support DDC/CI",
-      "Use xstats:// links from launchers to open pages and menu bar details, control the Pomodoro timer or start ordinary keep-awake; disabled modules lead to feature settings and are never enabled automatically",
-      "Choose the icon-only menu bar mode to keep a single XStats entry and view selected metrics when opened",
-      "Use a compact overview with details expanding inline; closing details releases their sampling demand, while network rates use a tighter layout and duplicate settings buttons are hidden",
-      "Show AI quota as a menu bar progress bar, apply the chosen text style to Bluetooth battery levels, and respect the existing network location preference in the overview",
-      "Manage processes, Pomodoro, AI usage, audio, cleanup and the menu bar calendar together in Feature Settings while preserving existing configuration",
-      "Open the update page directly from a dedicated menu bar popover button when a new version is available",
-      "Correct CPU core types and workload descriptions, and highlight abnormal system thermal pressure without shifting temperature values or the layout",
-      "Correct fan startup and zero-RPM display: startup hints last at most 10 seconds and the summary stops showing Starting once any fan is spinning"
+      "Add an optional Network Monitor for macOS 15 or later, with an overview of observed new connections and grouping by app, process, domain, country or region, search, active-connection filtering, pause and resume; all traffic is allowed, communication content is never inspected, and connection records remain in memory only",
+      "Add a world map of connections; download the public IP geolocation database only when first enabled, then look up locations offline, using representative country-level locations rather than precise device locations",
+      "Enable network monitoring through an independent on-demand component; first use requires an administrator account to install it and approval in macOS, with component management, independent update checks and complete removal available in XStats; its background service starts on demand and exits when idle If you used a preview network component, uninstall it from component management and enable it again following macOS prompts to move to the regional API update source.",
+      "Separate Basic and Optional Features and allow individual monitoring modules to be disabled, stopping collection, related alerts and new history records while preserving existing history; system widgets refresh independently, and disabling thermals first returns manual fan control to macOS, retaining monitoring and an error message if that fails",
+      "Manage feature activation separately from menu bar visibility: adding an entry enables its feature, while removing it leaves the feature enabled; AI Usage, Audio and Displays also offer direct menu bar display options, and optional features are grouped by purpose",
+      "Control display brightness, contrast and volume through a separate feature switch; disabling parameter controls keeps display information available and preserves its independent information-only menu bar entry",
+      "Make Uninstaller optional and disabled by default for new installations, while keeping it enabled when upgrading from older versions; disabling it cancels scans and pending confirmations and releases observers, while already-started removal operations finish normally",
+      "Fix connections to an old service after component replacement, empty data after filter configuration failures and component window messages not refreshing after approval timeout; check protocol compatibility before installation and order domain and country or region groups by time",
+      "Fix Homebrew cleanup previews that could continue beyond their timeout while the system was busy"
     ]
   }
 }
