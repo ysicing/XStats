@@ -10,7 +10,7 @@ description: Execute, resume, or verify the XStats macOS client release workflow
 
 Release the XStats macOS client without letting its binary, Git tag, object-storage artifacts, update manifests, or Homebrew cask drift apart.
 
-Before acting, read the repository `AGENTS.md`, the release section of `DEVELOPMENT.md`, `Taskfile.yml`, and `scripts/release.sh` / `scripts/publish_release.sh`. Treat the repository scripts as the current implementation; use [references/runbook.md](references/runbook.md) for the operational sequence and recovery checks. For every new release, invoke [xstats-changelog](../xstats-changelog/SKILL.md) to prepare or review its notes before the build; do not regenerate notes when only resuming publication of an already built release.
+Before acting, read the repository `AGENTS.md`, the release section of `docs/DEVELOPMENT.md`, `Taskfile.yml`, and `scripts/release.sh` / `scripts/publish_release.sh`. Treat the repository scripts as the current implementation; use [references/runbook.md](references/runbook.md) for the operational sequence and recovery checks. For every new release, invoke [xstats-changelog](../xstats-changelog/SKILL.md) to prepare or review its notes before the build; do not regenerate notes when only resuming publication of an already built release.
 
 ## Boundaries
 

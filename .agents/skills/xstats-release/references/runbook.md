@@ -39,7 +39,7 @@ The signing identity must be `Developer ID Application` with its private key. Me
 Install separate Developer ID provisioning profiles for the app and Widget, both enabling
 `group.work.12306.xstats`, and select them with `XSTATS_APP_PROFILE` and `XSTATS_WIDGET_PROFILE`.
 Use `SIGN_ID` if the default identity does not match those profiles. Configuration is summarized in
-[DEVELOPMENT.md](../../../../DEVELOPMENT.md#本地签名与权限).
+[DEVELOPMENT.md](../../../../docs/DEVELOPMENT.md#本地签名与权限).
 
 Sparkle signing uses the existing keychain account `work.12306.xstats.sparkle`; its public key must
 match `SUPublicEDKey` in `project.yml`. Back up and securely transfer this private key before changing

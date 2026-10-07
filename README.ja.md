@@ -153,7 +153,7 @@ open 'xstats://keep-awake/start'       # 通常のスリープ防止を開始
 ```
 
 繰り返し開いてもウィンドウやポップオーバーは閉じません。無効なモジュールは設定画面に移動し、自動では有効になりません。
-全ルートと操作は [ディープリンク仕様](DEVELOPMENT.md#xstats-深链)を参照してください。
+全ルートと操作は [ディープリンク仕様](docs/DEVELOPMENT.md#xstats-深链)を参照してください。
 
 ### デスクトップウィジェットと表示言語
 
@@ -177,7 +177,7 @@ brew install --cask xstats
 
 **直接ダウンロード**：[GitHub Releases](https://github.com/ysicing/xstats/releases) から DMG を入手し、開いて XStats を「アプリケーション」にドラッグして起動します。
 
-アプリ自身がアップデートを確認し、ダウンロードとインストールの実行はユーザーが選べます。ソースからのビルドは[開発ガイド（中国語）](DEVELOPMENT.md)を参照してください。
+アプリ自身がアップデートを確認し、ダウンロードとインストールの実行はユーザーが選べます。ソースからのビルドは[開発ガイド（中国語）](docs/DEVELOPMENT.md)を参照してください。
 
 ## データとプライバシー
 
@@ -199,7 +199,7 @@ task test
 task build BUMP=0 INSTALL=0
 ```
 
-Issue と Pull Request を歓迎します。環境構築とリリース手順は [DEVELOPMENT.md（中国語）](DEVELOPMENT.md)、モジュールの境界と実装上の制約は [ARCHITECTURE.md（英語）](ARCHITECTURE.md)を参照してください。
+Issue と Pull Request を歓迎します。環境構築とリリース手順は [DEVELOPMENT.md（中国語）](docs/DEVELOPMENT.md)、モジュールの境界と実装上の制約は [ARCHITECTURE.md（英語）](docs/ARCHITECTURE.md)を参照してください。
 
 ## 変更履歴
 

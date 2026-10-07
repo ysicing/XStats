@@ -3,7 +3,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 # XStats 开发指南
 
-本文用于本地开发、构建、测试和发布。应用使用说明见 [README.md](README.md)，
+本文用于本地开发、构建、测试和发布。应用使用说明见 [README.md](../README.md)，
 模块边界与实现约束见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 ## xstats 深链
@@ -270,8 +270,8 @@ Sparkle 私钥使用已有钥匙串账户，构建后的源码或摘要译文变
 - 海外主入口：`https://apps.12306.work`。
 - 海外备用入口：`https://apps-api.xiai.me`。
 
-默认发布和校验覆盖三个入口，固定路径及环境变量覆盖方式见 [发布脚本](scripts/publish_api.py)。
-详细签名配置、制品核验、分步发布与失败恢复见 [发布 runbook](.agents/skills/xstats-release/references/runbook.md)。
+默认发布和校验覆盖三个入口，固定路径及环境变量覆盖方式见 [发布脚本](../scripts/publish_api.py)。
+详细签名配置、制品核验、分步发布与失败恢复见 [发布 runbook](../.agents/skills/xstats-release/references/runbook.md)。
 
 ## 项目目录
 
@@ -282,5 +282,6 @@ Sparkle 私钥使用已有钥匙串账户，构建后的源码或摘要译文变
 | `Packages/XStatsKit/Sources/` | 采集、AI 用量、清理、更新、同步与界面模块 |
 | `Packages/XStatsKit/Tests/` | Swift 测试 |
 | `server/api/` | 旧更新协议的兼容实现与测试 |
+| `docs/` | 开发指南、架构说明与文档导航 |
 | `scripts/` | 版本、构建、发布与文档同步脚本 |
 | `Taskfile.yml`、`project.yml` | 任务入口与 Xcode 工程配置 |
