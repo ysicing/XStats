@@ -72,6 +72,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             self?.restWindows.showHUD()
             self?.mainWindow.close()
         }
+        model.displays.setEnabled(model.settings.isModuleEnabled(.display))
         model.displays.start()
         model.audio.setDemand(enabled: model.settings.audioEnabled, visible: model.audioControlsVisible, menuVisible: model.audioMenuVisible)
         model.connectionMonitor.setDemand(enabled: model.settings.canViewNetworkConnections,
@@ -211,7 +212,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         appModel.displays.setVisible(appModel.displayControlsVisible)
         Task { [weak self] in
             await appModel.hub.update(appModel.demand)
-            await appModel.hub.start { [weak self] snapshot in
+            await appModel.hub.start(primeAllMetrics: false) { [weak self] snapshot in
                 appModel.handle(snapshot)
                 self?.menuBar.refreshImages()
             }
@@ -408,6 +409,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             _ = model.settings.menuBarStyle
             _ = model.settings.networkStyle
             _ = model.settings.processesEnabled
+            _ = model.settings.uninstallerEnabled
             _ = model.settings.networkLocationStyle
             _ = model.settings.publicIPLookup
             _ = model.network.publicAddresses?.countryCode
@@ -423,11 +425,17 @@ public final class AppController: NSObject, NSApplicationDelegate {
             _ = model.settings.probeEnabled
             _ = model.settings.probeInBackground
             _ = model.settings.enabledAlerts
+            _ = model.settings.historyEnabled
+            _ = model.settings.enabledMonitoringModules
+            _ = model.fans.isApplying
             _ = model.settings.language
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
+                // 一次性订阅先恢复，再做任何修改或 await，避免漏掉关闭或特权复位的完成/失败。
+                self.observeModel()
                 self.applyLanguageIfChanged()
+                self.model.applyMonitoringSettings()
                 if !self.model.settings.processesEnabled { self.model.explainer.dismiss() }
                 self.model.alerts.applySettings()
                 await self.model.hub.update(self.model.demand)
@@ -439,7 +447,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self.menuBar.update()
                 self.menuBar.refreshPopoverHeight()
                 self.updateNetworkVisibility()
-                self.observeModel()
             }
         }
     }
@@ -490,7 +497,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             Task { @MainActor in
                 guard let self else { return }
                 self.model.aiUsage.start()
-                // 模块关闭时菜单栏保留展示偏好但隐藏实际项目，切换主开关需要重算布局。
+                // 模块关闭时移除菜单栏入口，切换主开关需要重算布局。
                 self.menuBar.update()
                 self.menuBar.refreshPopoverHeight()
                 self.observeAIUsageSchedule()

@@ -61,6 +61,7 @@ enum AppDeepLink: Equatable, Sendable {
         case .audio where !settings.audioEnabled, .rest where !settings.restEnabled,
              .connections where !settings.canViewNetworkConnections,
              .processes where !settings.processesEnabled, .cleaner where !settings.cleanerEnabled,
+             .uninstaller where !settings.uninstallerEnabled,
              .aiUsage where !settings.aiUsageEnabled: .settingsFeatures
         default: requested
         }

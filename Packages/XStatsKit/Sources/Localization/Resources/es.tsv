@@ -1822,3 +1822,25 @@ XStats 网络连接查看	Visor de conexiones de red de XStats
 将停止查看、移除系统扩展和后台项目，并删除伴随应用。	Detiene la visualización, elimina la extensión y el servicio en segundo plano y borra la app auxiliar.
 网络组件有更新	Hay una actualización del componente de red
 关闭面板	Cerrar panel
+关闭功能会停止采集并移除菜单栏入口，已有历史保留。	Desactivar una función detiene la recopilación y elimina sus elementos de la barra de menús. Se conserva el historial existente.
+基础监控	Monitorización básica
+移出菜单栏不会关闭功能；系统小组件仍独立刷新。	Quitar un elemento de la barra de menús no desactiva la función. Los widgets del sistema se actualizan de forma independiente.
+可选工具	Herramientas opcionales
+已关闭，不再采集	Desactivado, sin recopilación
+已启用，并在菜单栏显示	Activado y visible en la barra de menús
+已启用，按需采集	Activado, recopilación bajo demanda
+此功能已关闭，不再采集数据。启用后仅按展示、历史和提醒需求采集。	Esta función está desactivada y no recopila datos. Al activarla, solo se recopilan cuando son necesarios para la vista, el historial o las alertas.
+启用监控功能	Activar monitorización
+没有启用监控功能	No hay funciones de monitorización activadas
+加入菜单栏时会同时启用功能	Añadir este elemento a la barra de menús también activa su función
+基础功能	Funciones básicas
+可选功能	Funciones opcionales
+按需启用工具，关闭后保留配置。	Activa las herramientas cuando las necesites. Sus ajustes se conservan al desactivarlas.
+显示器参数控制	Control de parámetros de pantalla
+允许调节亮度、对比度和音量	Ajustar brillo, contraste y volumen
+仅查看显示器信息，不读取或设置参数	Solo información de la pantalla; no se leen ni cambian parámetros
+监控关闭会停止采集；显示器开关只控制参数设置。	Desactivar la monitorización detiene la recopilación. El interruptor de pantalla solo controla los ajustes de parámetros.
+只显示信息，参数控制在功能设置中启用	Solo muestra información. Activa el control de parámetros en Funciones.
+菜单栏设置…	Ajustes de la barra de menús…
+{}菜单栏设置	Ajustes de la barra de menús de {}
+查看应用与残留文件，确认后移到废纸篓。	Revisa las apps y los archivos residuales y muévelos a la papelera tras confirmar.

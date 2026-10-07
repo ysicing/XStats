@@ -38,11 +38,15 @@ public final class PowerSampler: @unchecked Sendable {
     public init() {}
 
     /// SMC 读数几乎没有开销；IOReport 每次采样约 5 毫秒 CPU，GPU 功耗与 CPU 频率只在界面需要时读
-    public func sample(gpu includeGPU: Bool = true, frequency includeFrequency: Bool = true, now: Date = Date()) -> PowerReading {
+    public func sample(system includeSystem: Bool = true, gpu includeGPU: Bool = true,
+                       frequency includeFrequency: Bool = true, now: Date = Date()) -> PowerReading {
         var reading = PowerReading()
-        reading.system = positive(smc?.double(SMCKey("PSTR")))
-        reading.adapter = positive(smc?.double(SMCKey("PDTR")))
-        reading.battery = smc?.double(SMCKey("PPBR")).flatMap { $0.isFinite && abs($0) >= 0.01 ? $0 : nil }
+        // CPU 详情可能只请求频率；温度/功耗功能关闭时不能顺带读取 SMC 功耗。
+        if includeSystem {
+            reading.system = positive(smc?.double(SMCKey("PSTR")))
+            reading.adapter = positive(smc?.double(SMCKey("PDTR")))
+            reading.battery = smc?.double(SMCKey("PPBR")).flatMap { $0.isFinite && abs($0) >= 0.01 ? $0 : nil }
+        }
         if includeGPU { reading.gpu = sampleGPU(now: now) }
         if includeFrequency { reading.clusterFrequency = sampleFrequencies(now: now) }
         return reading

@@ -8,6 +8,29 @@ import Testing
 
 @MainActor
 struct UninstallerScanLifecycleTests {
+    @Test func featureDisableCancelsScanAndRejectsItsLateResult() async throws {
+        let gate = ScanGate()
+        let controller = UninstallerController(currentBundleIdentifier: nil, findLeftovers: { app in
+            gate.markStarted()
+            _ = gate.release.wait(timeout: .now() + 30)
+            gate.markFinished()
+            return [AppLeftover(url: app.url, kind: .application, size: 1)]
+        })
+        defer { gate.release.signal(); controller.cancelScanning() }
+        controller.select(app())
+        let started = try await gate.waitUntilStarted()
+        try #require(started)
+        controller.setEnabled(false)
+        controller.setEnabled(true)
+        gate.release.signal()
+        let deadline = ContinuousClock.now + .seconds(120)
+        while !gate.finished, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        try #require(gate.finished)
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(controller.leftovers.isEmpty && controller.selected == nil)
+        #expect(!controller.isScanning && !controller.canUninstall)
+    }
+
     private func app() -> InstalledApp {
         InstalledApp(url: URL(fileURLWithPath: "/Applications/Scan-\(UUID()).app"), name: "ScanFixture",
                      bundleIdentifier: "test.scan.fixture", version: nil, teamIdentifier: nil)

@@ -637,16 +637,19 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(AppSettings(defaults: defaults).panelTab == .settingsFeatures)
     }
 
-    /// 菜单栏开关只保存展示偏好；模块关闭时不显示占位图标。
-    @Test func menuBarPreferenceDoesNotEnableScanningAndIsRestoredWithTheModule() {
+    /// 加入菜单栏自动开启模块；移出只停止展示，关闭模块同时移除入口。
+    @Test func menuBarSelectionEnablesTheModuleAndDisablingItRemovesTheEntry() {
         let settings = AppSettings(defaults: defaultsForAIUsage())
         #expect(!settings.aiUsageEnabled)
 
         settings.setEnabled(.aiUsage, true)
 
-        #expect(!settings.aiUsageEnabled)
+        #expect(settings.aiUsageEnabled)
         #expect(settings.isEnabled(.aiUsage))
-        #expect(!settings.orderedMenuBarItems.contains(.aiUsage))
+        #expect(settings.orderedMenuBarItems.contains(.aiUsage))
+        settings.setEnabled(.aiUsage, false)
+        #expect(settings.aiUsageEnabled)
+        settings.setEnabled(.aiUsage, true)
 
         settings.aiUsageEnabled = true
         #expect(settings.orderedMenuBarItems.contains(.aiUsage))
@@ -655,7 +658,8 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(settings.orderedMenuBarItems.contains(.aiUsage))
 
         settings.aiUsageEnabled = false
-        #expect(settings.isEnabled(.aiUsage))
+        #expect(!settings.menuBarItems.contains(.aiUsage))
+        #expect(!settings.isEnabled(.aiUsage))
         #expect(!settings.orderedMenuBarItems.contains(.aiUsage))
     }
 

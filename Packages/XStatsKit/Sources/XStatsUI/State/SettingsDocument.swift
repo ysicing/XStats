@@ -30,6 +30,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var calendarFeatures: [String]?
     public var calendarFirstWeekday: Int?
     public var menuBarItems: [String]?
+    public var enabledMonitoringModules: [String]?
     public var menuBarStyle: String?
     public var networkStyle: String?
     public var networkLocationStyle: String?
@@ -59,6 +60,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var autoCheckUpdates: Bool?
     public var updateCheckSchedule: String?
     public var cleanerEnabled: Bool?
+    public var uninstallerEnabled: Bool?
     public var processesEnabled: Bool?
     public var audioEnabled: Bool?
     public var networkConnectionsEnabled: Bool?
@@ -85,6 +87,7 @@ extension AppSettings {
         doc.calendarFeatures = calendarFeatures.map(\.rawValue).sorted()
         doc.calendarFirstWeekday = calendarFirstWeekday
         doc.menuBarItems = menuBarItems.map(\.rawValue).sorted()
+        doc.enabledMonitoringModules = enabledMonitoringModules.map(\.rawValue).sorted()
         doc.menuBarStyle = menuBarStyle.rawValue
         doc.networkStyle = networkStyle.rawValue
         doc.networkLocationStyle = networkLocationStyle.rawValue
@@ -114,6 +117,7 @@ extension AppSettings {
         doc.autoCheckUpdates = autoCheckUpdates
         doc.updateCheckSchedule = updateCheckSchedule.rawValue
         doc.cleanerEnabled = cleanerEnabled
+        doc.uninstallerEnabled = uninstallerEnabled
         doc.processesEnabled = processesEnabled
         doc.audioEnabled = audioEnabled
         doc.networkConnectionsEnabled = networkConnectionsEnabled
@@ -190,8 +194,13 @@ extension AppSettings {
             assign(\.autoCheckUpdates, doc.autoCheckUpdates)
         }
         assign(\.cleanerEnabled, doc.cleanerEnabled)
+        assign(\.uninstallerEnabled, doc.uninstallerEnabled)
         assign(\.processesEnabled, doc.processesEnabled)
         assign(\.audioEnabled, doc.audioEnabled)
+        // 文档里的明确关闭优先于菜单栏选择，避免恢复时由菜单栏联动重新开启。
+        assign(\.enabledMonitoringModules, doc.enabledMonitoringModules.map {
+            Set($0.compactMap(MonitoringModule.init(rawValue:)))
+        })
         assign(\.networkConnectionsEnabled, doc.networkConnectionsEnabled)
         assign(\.cleanPrefersTrash, doc.cleanPrefersTrash)
     }

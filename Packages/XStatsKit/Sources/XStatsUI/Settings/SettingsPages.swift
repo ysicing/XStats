@@ -340,20 +340,15 @@ struct MenuBarSettings: View {
                                : tr("菜单栏里的图标可以调整顺序：按住 ⌘ 键拖动任意一个，松开后位置会一直保留。新开启的项目由系统安排位置，可能离其他图标较远，拖一下就能挪到一起。"))
             }
             ForEach(Array(model.availableMenuBarItems.enumerated()), id: \.element) { index, item in
-                let moduleEnabled = (item != .aiUsage || settings.aiUsageEnabled) && (item != .audio || settings.audioEnabled)
+                let moduleEnabled = settings.isModuleEnabled(for: item)
                 GroupRow {
                     VStack(alignment: .leading, spacing: DS.Space.s3) {
                         SettingRow(title: item.title,
                                    subtitle: moduleEnabled ? itemSubtitle(item) : tr("尚未启用"),
                                    icon: item.symbol) {
-                            if moduleEnabled {
-                                DSToggle(isOn: Binding(get: { settings.isEnabled(item) },
-                                                       set: { settings.setEnabled(item, $0) }),
-                                         label: item.title)
-                            } else {
-                                Button(tr("设置")) { settings.panelTab = .settingsFeatures }
-                                    .buttonStyle(DSButtonStyle(kind: .secondary))
-                            }
+                            DSToggle(isOn: Binding(get: { settings.isEnabled(item) },
+                                                   set: { settings.setEnabled(item, $0) }), label: item.title)
+                                .help(item == .display ? tr("只显示信息，参数控制在功能设置中启用") : tr("加入菜单栏时会同时启用功能"))
                         }
                         if moduleEnabled, settings.isEnabled(item) {
                             ItemStyleRow(item: item)

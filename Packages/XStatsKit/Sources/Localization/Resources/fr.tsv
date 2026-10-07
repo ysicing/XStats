@@ -1822,3 +1822,25 @@ XStats 网络连接查看	Visionneuse de connexions réseau XStats
 将停止查看、移除系统扩展和后台项目，并删除伴随应用。	Arrête la visualisation, supprime l’extension et le service en arrière-plan, puis l’app compagnon.
 网络组件有更新	Mise à jour du composant réseau disponible
 关闭面板	Fermer le panneau
+关闭功能会停止采集并移除菜单栏入口，已有历史保留。	Désactiver une fonction arrête la collecte et retire ses éléments de la barre des menus. L’historique existant est conservé.
+基础监控	Surveillance de base
+移出菜单栏不会关闭功能；系统小组件仍独立刷新。	Retirer un élément de la barre des menus ne désactive pas sa fonction. Les widgets système se mettent à jour indépendamment.
+可选工具	Outils facultatifs
+已关闭，不再采集	Désactivé, aucune collecte
+已启用，并在菜单栏显示	Activé et affiché dans la barre des menus
+已启用，按需采集	Activé, collecte à la demande
+此功能已关闭，不再采集数据。启用后仅按展示、历史和提醒需求采集。	Cette fonction est désactivée et ne collecte plus de données. Activez-la pour collecter uniquement ce qui est nécessaire à l’affichage, à l’historique ou aux alertes.
+启用监控功能	Activer la surveillance
+没有启用监控功能	Aucune fonction de surveillance activée
+加入菜单栏时会同时启用功能	L’ajout à la barre des menus active aussi la fonction
+基础功能	Fonctions de base
+可选功能	Fonctions facultatives
+按需启用工具，关闭后保留配置。	Activez les outils selon vos besoins. Leurs réglages sont conservés à la désactivation.
+显示器参数控制	Contrôle des paramètres d’écran
+允许调节亮度、对比度和音量	Régler la luminosité, le contraste et le volume
+仅查看显示器信息，不读取或设置参数	Informations uniquement, sans lecture ni modification des paramètres
+监控关闭会停止采集；显示器开关只控制参数设置。	Désactiver la surveillance arrête la collecte. L’interrupteur d’écran contrôle uniquement les réglages des paramètres.
+只显示信息，参数控制在功能设置中启用	Affiche uniquement les informations. Activez le contrôle des paramètres dans Fonctions.
+菜单栏设置…	Réglages de la barre des menus…
+{}菜单栏设置	Réglages de la barre des menus pour {}
+查看应用与残留文件，确认后移到废纸篓。	Consultez les apps et les fichiers résiduels, puis placez-les dans la corbeille après confirmation.

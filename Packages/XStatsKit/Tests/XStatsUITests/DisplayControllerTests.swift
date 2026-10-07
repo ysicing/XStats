@@ -64,6 +64,49 @@ private actor TestDisplayBackend: DisplayDDCBackend {
 
 @MainActor
 struct DisplayControllerTests {
+    @Test func disabledParameterControlsKeepDisplayInfoAndBlockDDCReadsAndWrites() async {
+        let backend = TestDisplayBackend()
+        let controller = DisplayController(backend: backend)
+        controller.showPreview(catalog: [display], readings: [display.id: [.brightness: .value(.init(current: 65, maximum: 100))]])
+        controller.setEnabled(false)
+        controller.setVisible(true)
+        await controller.refresh()
+        await controller.redetect()
+        await controller.write(50, control: .brightness, display: display)
+        #expect(controller.catalog == [display])
+        #expect(controller.readings.isEmpty)
+        #expect(await backend.count() == 0)
+        #expect(await backend.writeCount() == 0)
+    }
+
+    @Test func disablingParameterControlsRejectsLateReadWithoutRemovingDisplayInfo() async throws {
+        let backend = TestDisplayBackend()
+        await backend.block()
+        let controller = DisplayController(backend: backend, catalog: [display])
+        defer { controller.stop() }
+        controller.setVisible(true)
+        try await waitForReads(backend, 1)
+        controller.setEnabled(false)
+        await backend.finish(90)
+        await Task.yield()
+        #expect(await backend.wasCancelled(0))
+        #expect(controller.catalog == [display])
+        #expect(controller.readings.isEmpty)
+        #expect(!controller.isRefreshing)
+    }
+
+    @Test func enablingParameterControlsStartsReadingWhenDisplayInfoIsAlreadyVisible() async throws {
+        let backend = TestDisplayBackend()
+        let controller = DisplayController(backend: backend, catalog: [display])
+        defer { controller.stop() }
+        controller.setEnabled(false)
+        controller.setVisible(true)
+        #expect(await backend.count() == 0)
+        controller.setEnabled(true)
+        try await waitForReads(backend, 1)
+        #expect(controller.catalog == [display])
+    }
+
     private var display: DisplayInfo {
         DisplayInfo(target: DisplayTarget(id: 7, identity: "fixture-connection"), name: "Fixture Display",
                     isBuiltIn: false, isMain: true, summary: "1920×1080 · 60Hz")

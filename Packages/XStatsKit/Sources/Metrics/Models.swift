@@ -224,6 +224,8 @@ public struct SystemInfo: Sendable, Equatable {
 
 public struct MetricsSnapshot: Sendable {
     public var date = Date()
+    /// Hub 的采样代次；手工快照与演示数据不设置。用于拒绝开关变化前已排队的结果。
+    public var samplingGeneration: Int?
     public var cpu: CPULoad?
     public var memory: MemoryUsage?
     public var network: NetworkRate?

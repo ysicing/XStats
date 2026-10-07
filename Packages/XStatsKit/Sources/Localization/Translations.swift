@@ -8,9 +8,34 @@
 
 extension Translations {
     static var tables: [String] {
-        [english, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish, networkObservationEnglish]
+        [english, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish, networkObservationEnglish, monitoringEnglish]
     }
 
+
+    static let monitoringEnglish = #"""
+查看应用与残留文件，确认后移到废纸篓。	View apps and leftover files, then move them to the Trash after confirmation.
+菜单栏设置…	Menu Bar Settings…
+{}菜单栏设置	{} menu bar settings
+显示器参数控制	Display Parameter Controls
+允许调节亮度、对比度和音量	Adjust brightness, contrast and volume
+仅查看显示器信息，不读取或设置参数	Display information only; no parameter reads or changes
+监控关闭会停止采集；显示器开关只控制参数设置。	Turning off monitoring stops collection. The display switch only controls parameter adjustments.
+只显示信息，参数控制在功能设置中启用	Shows information only. Enable parameter controls in Features.
+按需启用工具，关闭后保留配置。	Enable tools when needed. Turning them off keeps their configuration.
+基础功能	Basic Features
+可选功能	Optional Features
+关闭功能会停止采集并移除菜单栏入口，已有历史保留。	Turning off a feature stops collection and removes its menu bar items. Existing history is kept.
+基础监控	Basic monitoring
+移出菜单栏不会关闭功能；系统小组件仍独立刷新。	Removing an item from the menu bar keeps its feature enabled. System widgets refresh independently.
+可选工具	Optional tools
+已关闭，不再采集	Off, no collection
+已启用，并在菜单栏显示	Enabled and shown in the menu bar
+已启用，按需采集	Enabled, collected on demand
+此功能已关闭，不再采集数据。启用后仅按展示、历史和提醒需求采集。	This feature is off and no longer collects data. Enable it to collect only when needed for display, history or alerts.
+启用监控功能	Enable monitoring
+没有启用监控功能	No monitoring features enabled
+加入菜单栏时会同时启用功能	Adding this item to the menu bar also enables its feature
+"""#
 
     static let networkObservationEnglish = #"""
 网络组件协议不兼容，请更新 XStats 和网络组件。	Network component protocol mismatch. Update XStats and the network component.

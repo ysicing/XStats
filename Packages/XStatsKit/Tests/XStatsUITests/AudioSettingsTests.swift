@@ -7,19 +7,22 @@ import Testing
 
 @MainActor
 struct AudioSettingsTests {
-    @Test func disabledModuleRetainsMenuPreferencesAndRedirectsItsPage() throws {
+    @Test func menuSelectionEnablesAudioAndDisablingRemovesItsEntryAndRedirectsItsPage() throws {
         let name = "XStats.AudioSettingsTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = AppSettings(defaults: defaults)
         #expect(!settings.audioEnabled)
         settings.menuBarItems = [.audio]
-        #expect(settings.orderedMenuBarItems.isEmpty)
-        settings.audioEnabled = true
+        #expect(settings.audioEnabled)
+        #expect(settings.orderedMenuBarItems == [.audio])
+        settings.setEnabled(.audio, false)
+        #expect(settings.audioEnabled)
+        settings.setEnabled(.audio, true)
         settings.panelTab = .audio
         #expect(settings.orderedMenuBarItems == [.audio])
         settings.audioEnabled = false
-        #expect(settings.menuBarItems == [.audio])
+        #expect(settings.menuBarItems.isEmpty)
         #expect(settings.orderedMenuBarItems.isEmpty)
         #expect(settings.panelTab == .settingsFeatures)
         #expect(AppSettings(defaults: defaults).panelTab == .settingsFeatures)

@@ -4,6 +4,9 @@ import SMC
 /// 描述当前界面需要哪些指标。面板关闭时只采菜单栏用到的项目。
 public struct MetricsDemand: Sendable, Equatable {
     public var interval: Duration = .seconds(2)
+    /// 所有者单调递增的代次；快速开关最终需求相同时仍须取消已排队的旧快照。
+    public var generation: Int = 0
+    public var cpu = false
     public var memory = false
     public var network = false
     public var gpu = false
@@ -22,6 +25,12 @@ public struct MetricsDemand: Sendable, Equatable {
     public var diskDetail = false
 
     public init() {}
+
+    /// 没有读取方时连采样循环也停止，不能只跳过某几个采集器后继续定时唤醒。
+    public var hasSamples: Bool {
+        cpu || memory || network || gpu || disk || battery || processes || systemProcesses
+            || !temperatures.isEmpty || fans || power || cpuFrequency || diskDetail
+    }
 }
 
 public actor MetricsHub {
@@ -57,14 +66,27 @@ public actor MetricsHub {
     }
 
     public func update(_ newDemand: MetricsDemand) {
+        // actor 请求不保证 FIFO，晚到的旧开关需求不能重启已关闭的采样。
+        guard newDemand.generation >= demand.generation else { return }
         guard newDemand != demand else { return }
         let needsImmediateRefresh = newDemand.interval < demand.interval
+            || (newDemand.cpu && !demand.cpu)
+            || (newDemand.memory && !demand.memory)
+            || (newDemand.network && !demand.network)
+            || (newDemand.gpu && !demand.gpu)
+            || (newDemand.battery && !demand.battery)
+            || !newDemand.temperatures.isSubset(of: demand.temperatures)
+            || (newDemand.fans && !demand.fans)
             || (newDemand.processes && !demand.processes)
             || (newDemand.disk && !demand.disk)
             || (newDemand.diskDetail && !demand.diskDetail)
         if (newDemand.power && !demand.power) || (newDemand.cpuFrequency && !demand.cpuFrequency) {
             lastPower = .distantPast
         }
+        // 关闭期间的累计计数不属于重新启用后的实时速率。
+        if newDemand.cpu && !demand.cpu { cpu = CPUSampler() }
+        if newDemand.network && !demand.network { network = NetworkSampler() }
+        if newDemand.diskDetail && !demand.diskDetail { diskActivity = DiskActivitySampler() }
         demand = newDemand
         if needsImmediateRefresh {
             lastDisk = .distantPast
@@ -92,6 +114,7 @@ public actor MetricsHub {
     private static func everything(interval: Duration) -> MetricsDemand {
         var demand = MetricsDemand()
         demand.interval = interval
+        demand.cpu = true
         demand.memory = true
         demand.network = true
         demand.gpu = true
@@ -108,7 +131,7 @@ public actor MetricsHub {
 
     private func restart() {
         loop?.cancel()
-        guard !paused, handler != nil else {
+        guard !paused, handler != nil, demand.hasSamples else {
             loop = nil
             return
         }
@@ -118,7 +141,12 @@ public actor MetricsHub {
     private func run() async {
         while !Task.isCancelled {
             let snapshot = collect()
-            if let handler { await handler(snapshot) }
+            if let handler {
+                await MainActor.run {
+                    // 等待主线程期间需求可能已关闭；取消的旧轮次不能发布快照。
+                    if !Task.isCancelled { handler(snapshot) }
+                }
+            }
             // 容差让系统合并定时器唤醒，降低功耗
             try? await Task.sleep(for: demand.interval, tolerance: demand.interval / 4)
         }
@@ -127,9 +155,10 @@ public actor MetricsHub {
     private func collect() -> MetricsSnapshot {
         let now = Date()
         var snapshot = MetricsSnapshot()
+        snapshot.samplingGeneration = self.demand.generation
         let demand = primed ? self.demand : Self.everything(interval: self.demand.interval)
         primed = true
-        snapshot.cpu = cpu.sample()
+        if demand.cpu { snapshot.cpu = cpu.sample() }
 
         if demand.memory { snapshot.memory = memory.sample() }
         if demand.network {
@@ -164,7 +193,7 @@ public actor MetricsHub {
         }
         // IOReport 采样有一定开销，至少间隔 2 秒
         if demand.power || demand.cpuFrequency, now.timeIntervalSince(lastPower) >= 1.9 {
-            snapshot.power = power.sample(gpu: demand.power, frequency: demand.cpuFrequency, now: now)
+            snapshot.power = power.sample(system: demand.power, gpu: demand.power, frequency: demand.cpuFrequency, now: now)
             lastPower = now
         }
         return snapshot

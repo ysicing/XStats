@@ -9,6 +9,7 @@ import Observation
 @MainActor
 @Observable
 public final class UninstallerController {
+    public private(set) var enabled: Bool
     public private(set) var apps: [InstalledApp] = []
     public private(set) var sizes: [String: UInt64] = [:]
     public private(set) var isLoading = false
@@ -33,26 +34,53 @@ public final class UninstallerController {
     @ObservationIgnored private var selectionGeneration = UUID()
     @ObservationIgnored private var hasScannedSelection = false
 
-    public convenience init() {
-        self.init(currentBundleIdentifier: Bundle.main.bundleIdentifier)
+    public convenience init(enabled: Bool = true) {
+        self.init(currentBundleIdentifier: Bundle.main.bundleIdentifier, enabled: enabled)
     }
 
     init(currentBundleIdentifier: String?,
+         enabled: Bool = true,
          listApplications: @escaping @Sendable () throws -> [InstalledApp] = { try AppUninstaller.scanInstalledApps() },
          findLeftovers: @escaping @Sendable (InstalledApp) throws -> [AppLeftover] = { try AppUninstaller.scanLeftovers(for: $0) },
          measureSize: @escaping @Sendable (URL) throws -> UInt64 = { try CleanEngine.scanAllocatedSize(of: $0) },
          recycleFiles: @escaping ([URL], @escaping @Sendable ([URL: URL], String?) -> Void) -> Void = { urls, completion in
              NSWorkspace.shared.recycle(urls) { moved, error in completion(moved, error?.localizedDescription) }
          }) {
+        self.enabled = enabled
         self.currentBundleIdentifier = currentBundleIdentifier
         self.listApplications = listApplications
         self.findLeftovers = findLeftovers
         self.measureSize = measureSize
         self.recycleFiles = recycleFiles
+        if enabled { observeRunningApplications() }
+    }
+
+    /// 关闭功能只取消查看任务；已交给系统的废纸篓操作必须正常收尾。
+    public func setEnabled(_ enabled: Bool) {
+        guard self.enabled != enabled else { return }
+        self.enabled = enabled
+        if enabled {
+            observeRunningApplications()
+        } else {
+            cancelScanning()
+            runningApplicationsObservation = nil
+            if !isRemoving {
+                apps = []; sizes = [:]; selected = nil; leftovers = []; chosen = []
+                hasScannedSelection = false
+                outcome = nil
+            }
+        }
+    }
+
+    private func observeRunningApplications() {
+        guard runningApplicationsObservation == nil else { return }
         // LSUIElement 应用（如 MacTools）不会发送普通应用的启动／退出通知。
         // 观察运行列表才能覆盖这些应用；异步回到主线程，等 AppKit 更新列表后再通知视图。
         runningApplicationsObservation = NSWorkspace.shared.observe(\.runningApplications) { [weak self] _, _ in
-            Task { @MainActor [weak self] in self?.runningRevision += 1 }
+            Task { @MainActor [weak self] in
+                guard let self, self.enabled else { return }
+                self.runningRevision += 1
+            }
         }
     }
 
@@ -61,12 +89,12 @@ public final class UninstallerController {
     }
 
     var canUninstall: Bool {
-        selected != nil && hasScannedSelection && !isScanning && !isRemoving
+        enabled && selected != nil && hasScannedSelection && !isScanning && !isRemoving
             && leftovers.contains { $0.kind == .application && chosen.contains($0.id) }
     }
 
     func loadApps() {
-        guard !isRemoving, applicationTask == nil else { return }
+        guard enabled, !isRemoving, applicationTask == nil else { return }
         let generation = UUID()
         applicationGeneration = generation
         isLoading = true
@@ -109,14 +137,14 @@ public final class UninstallerController {
 
     /// 用户显式刷新：中断进行中的列举或计量后重新列举，已算出的大小保留。
     func reloadApps() {
-        guard !isRemoving else { return }
+        guard enabled, !isRemoving else { return }
         applicationTask?.cancel()
         applicationTask = nil
         loadApps()
     }
 
     func select(_ app: InstalledApp?) {
-        guard !isRemoving else { return }
+        guard enabled, !isRemoving else { return }
         if let app, currentBundleIdentifier?.caseInsensitiveCompare(app.bundleIdentifier) == .orderedSame {
             outcome = (AppUninstallError.currentApp.description, true)
             return
@@ -170,12 +198,14 @@ public final class UninstallerController {
     }
 
     func resumeScanning() {
+        guard enabled else { return }
         if apps.isEmpty || apps.contains(where: { sizes[$0.id] == nil }) { loadApps() }
         if let selected, !hasScannedSelection, !isScanning { select(selected) }
     }
 
     /// 拖进来的 .app
     func select(url: URL) {
+        guard enabled, !isRemoving else { return }
         guard let app = AppUninstaller.app(at: url) else {
             outcome = (tr("不是应用程序"), true)
             return
@@ -190,7 +220,7 @@ public final class UninstallerController {
 
     func toggle(_ leftover: AppLeftover) {
         // 应用本体必须一起移除，否则没有意义；回收期间固定目标
-        guard !isRemoving, leftover.kind != .application else { return }
+        guard enabled, !isRemoving, leftover.kind != .application else { return }
         if chosen.contains(leftover.id) { chosen.remove(leftover.id) } else { chosen.insert(leftover.id) }
     }
 
@@ -200,6 +230,7 @@ public final class UninstallerController {
     }
 
     func quit(_ app: InstalledApp) {
+        guard enabled, !isRemoving else { return }
         guard currentBundleIdentifier?.caseInsensitiveCompare(app.bundleIdentifier) != .orderedSame else {
             outcome = (AppUninstallError.currentApp.description, true)
             return

@@ -55,9 +55,11 @@ enum SnapshotRenderer {
         let defaults = UserDefaults(suiteName: "XStats.snapshot") ?? .standard
         let settings = AppSettings(defaults: defaults)
         settings.language = L10n.language
+        settings.enabledMonitoringModules = Set(MonitoringModule.allCases)
         settings.menuBarItems = [.cpu, .gpu, .memory, .network, .disk, .temperature, .battery, .aiUsage]
         settings.aiUsageEnabled = true
         settings.cleanerEnabled = true
+        settings.uninstallerEnabled = true
         settings.processesEnabled = true
         // 历史页用示例数据：最近 24 小时每分钟一条，中间留一段“睡眠”空档
         let historyURL = FileManager.default.temporaryDirectory.appendingPathComponent("xstats-snapshot-history.sqlite")
@@ -84,6 +86,8 @@ enum SnapshotRenderer {
 
         // 采集约 12 秒的真实数据，让历史曲线有内容
         var demand = MetricsDemand()
+        demand.cpu = true
+        demand.generation = settings.monitoringGeneration
         demand.interval = .milliseconds(250)
         demand.memory = true
         demand.network = true
@@ -196,6 +200,7 @@ enum SnapshotRenderer {
             model.connectionMonitor.setObservationPaused(true)
             write(NetworkConnectionsPage().frame(width: 900).background(DS.Palette.background).appLanguageEnvironment(), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("connections-paused-\(suffix).png"))
+            model.featureSettingsTab = .optional
             write(FeatureSettings().frame(width: 680).appLanguageEnvironment(), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("connections-settings-\(suffix).png"))
             model.networkComponent.showPreview(nil)
@@ -311,8 +316,22 @@ enum SnapshotRenderer {
                       to: outputDirectory.appendingPathComponent("history-\(suffix).png"))
                 write(RestPage().frame(width: 900).appLanguageEnvironment(), model: model, appearance: appearance,
                       to: outputDirectory.appendingPathComponent("rest-\(suffix).png"))
+                settings.setModuleEnabled(.gpu, false)
+                model.featureSettingsTab = .basic
+                write(FeatureSettings().frame(width: 900).appLanguageEnvironment(), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("monitoring-features-\(suffix).png"))
+                model.featureSettingsTab = .optional
+                write(FeatureSettings().frame(width: 900).appLanguageEnvironment(), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("optional-features-\(suffix).png"))
+                write(DisabledMonitoringPage(module: .gpu).frame(width: 900).appLanguageEnvironment(), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("monitoring-disabled-\(suffix).png"))
+                settings.setModuleEnabled(.gpu, true)
                 write(PopoverRootView(item: .display).appLanguageEnvironment(), model: model, appearance: appearance,
                       to: outputDirectory.appendingPathComponent("displays-\(suffix).png"))
+                settings.setModuleEnabled(.display, false)
+                write(PopoverRootView(item: .display).appLanguageEnvironment(), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("displays-information-only-\(suffix).png"))
+                settings.setModuleEnabled(.display, true)
             }
         } catch { reportFailure(outputDirectory, error: error) }
     }

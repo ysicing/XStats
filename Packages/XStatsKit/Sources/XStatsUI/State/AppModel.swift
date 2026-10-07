@@ -36,13 +36,17 @@ public final class AppModel {
     public let updates: UpdateController
     let diagnostics = DiagnosticsExporter()
     public let alerts: AlertController
-    public let uninstaller = UninstallerController()
+    public let uninstaller: UninstallerController
     public let bluetooth = BluetoothController()
     let startupItems = StartupItemsController()
     public let history: HistoryRecorder
     public let sync: SyncController
     let diskTools: DiskToolsController
     @ObservationIgnored public let hub = MetricsHub()
+    @ObservationIgnored private var restoringFans: Task<Void, Never>?
+
+    /// 功能页分类仅用于当前窗口，不持久化、不影响采样需求。
+    var featureSettingsTab: FeatureSettingsTab = .basic
 
     public var isMainWindowVisible = false
     /// 被其他应用占用、没能注册的快捷键
@@ -86,9 +90,10 @@ public final class AppModel {
                 aiUsageProviders: [any AIUsageProvider] = [CodexLocalUsageProvider(), ClaudeLocalUsageProvider()],
                 aiQuotaProviders: [any AIQuotaProvider] = [CodexQuotaProvider(), ClaudeQuotaProvider()],
                 quotaCacheURL: URL? = nil) {
-        let store = MetricsStore()
+        let store = MetricsStore(readBattery: settings.isModuleEnabled(.battery))
         let helper = HelperClient()
         self.settings = settings
+        uninstaller = UninstallerController(enabled: settings.uninstallerEnabled)
         let observationBackend = NativeNetworkMonitorBackend()
         connectionMonitor = NetworkMonitorController(backend: observationBackend, defaults: settings.networkObservationDefaults)
         networkComponent = NetworkComponentController(backend: observationBackend)
@@ -159,16 +164,18 @@ public final class AppModel {
     }
 
     var displayControlsVisible: Bool {
-        openPopover == .display || (isMainWindowVisible && settings.panelTab == .system)
+        settings.isModuleEnabled(.display)
+            && (openPopover == .display || (isMainWindowVisible && settings.panelTab == .system))
     }
 
     /// 根据当前可见内容决定采集范围：主窗口看标签页，详情弹窗看是哪一项
     var demand: MetricsDemand {
         var demand = MetricsDemand()
+        demand.generation = settings.monitoringGeneration
         let tab = settings.panelTab
-        let window = isMainWindowVisible
+        let window = isMainWindowVisible && (tab.monitoringModule.map(settings.isModuleEnabled) ?? true)
         let processPage = settings.processesEnabled && window && tab == .processes
-        let popover = openPopover
+        let popover = openPopover.flatMap { settings.isModuleEnabled(for: $0) ? $0 : nil }
         let menu = Set(drawnMenuBarItems)
         let overview = isCombinedOverviewVisible ? Set(visibleMenuBarItems) : []
         let summary = menu.union(overview)
@@ -185,9 +192,16 @@ public final class AppModel {
         // 进程页要读全系统进程（启动 ps），每 2 秒刷新一次足够，也更省电
         demand.interval = processPage && !livePopover ? .seconds(2)
             : liveWindow || livePopover || liveOverview ? .seconds(1) : .seconds(settings.refreshSeconds)
-        demand.memory = true
-        demand.network = true
+        let dashboard = window && tab == .overview
+        let recording = settings.historyEnabled
+        let alerts = settings.activeAlerts
         let showing = { (page: PanelTab, item: MenuBarItem) in (window && tab == page) || popover == item }
+        demand.cpu = settings.isModuleEnabled(.cpu)
+            && (recording || dashboard || processPage || summary.contains(.cpu) || showing(.cpu, .cpu) || alerts.contains(.cpuLoad))
+        demand.memory = settings.isModuleEnabled(.memory)
+            && (recording || dashboard || summary.contains(.memory) || showing(.memory, .memory) || alerts.contains(.memoryPressure))
+        demand.network = settings.isModuleEnabled(.network)
+            && (recording || dashboard || summary.contains(.network) || showing(.network, .network))
         demand.gpu = (window && [.overview, .system].contains(tab)) || summary.contains(.gpu) || showing(.gpu, .gpu)
         demand.disk = (window && [.overview, .system, .cleaner, .disk].contains(tab)) || summary.contains(.disk) || popover == .disk
         demand.diskDetail = showing(.disk, .disk)
@@ -205,7 +219,7 @@ public final class AppModel {
         if menu.contains(.temperature) || fans.mode != .automatic || showing(.cpu, .cpu) { groups.insert(.cpu) }
         if showing(.gpu, .gpu) { groups.insert(.gpu) }
         if showing(.battery, .battery) { groups.insert(.battery) }
-        if settings.enabledAlerts.contains(.cpuTemperature) { groups.insert(.cpu) }
+        if alerts.contains(.cpuTemperature) { groups.insert(.cpu) }
         demand.temperatures = groups
         demand.power = (window && tab == .thermal) || thermalPopover || showing(.battery, .battery)
         demand.cpuFrequency = showing(.cpu, .cpu)
@@ -214,12 +228,33 @@ public final class AppModel {
             || fans.mode != .automatic || thermalPopover
             || (store.fanCount == nil && settings.menuBarItems.contains(.fan)
                 && (settings.menuBarLayout != .iconOnly || isCombinedOverviewVisible)))
+        demand.gpu = demand.gpu && settings.isModuleEnabled(.gpu)
+        demand.disk = demand.disk && settings.isModuleEnabled(.disk)
+        demand.diskDetail = demand.diskDetail && settings.isModuleEnabled(.disk)
+        demand.battery = demand.battery && (settings.isModuleEnabled(.battery) || keepAwake.lidClosedActive)
+        demand.cpuFrequency = demand.cpuFrequency && settings.isModuleEnabled(.cpu)
+        if !settings.isModuleEnabled(.thermal) {
+            demand.temperatures = []
+            demand.fans = false
+            demand.power = false
+        }
+        // 风扇交还系统和合盖电量保护仍须完成，不能由隐藏监控界面切断安全需求。
+        if fans.mode != .automatic || fans.isApplying || restoringFans != nil {
+            demand.temperatures.insert(.cpu)
+            demand.fans = true
+        }
+        if keepAwake.lidClosedActive { demand.battery = true }
+        demand.processes = processPage || (demand.processes && (
+            dashboard && (settings.isModuleEnabled(.cpu) || settings.isModuleEnabled(.memory))
+            || showing(.cpu, .cpu) || showing(.memory, .memory)
+            || demand.diskDetail || isCombinedOverviewVisible && showsOverviewProcesses))
         return demand
     }
 
     /// 蓝牙电量读取很慢，只在需要时轮询：电池弹窗 / 页面、本机信息页打开时每分钟；
     /// 菜单栏开着电池项且要做低电量提示、或这台 Mac 没有电池时每 5 分钟
     var bluetoothDemand: BluetoothController.Demand {
+        guard settings.isModuleEnabled(.battery) else { return .off }
         if (isMainWindowVisible && [.battery, .system].contains(settings.panelTab)) || openPopover == .battery { return .foreground }
         if isCombinedOverviewVisible && visibleMenuBarItems.contains(.battery) && store.battery == nil { return .foreground }
         if drawnMenuBarItems.contains(.battery) && (settings.bluetoothLowBatteryInMenuBar || store.battery == nil) { return .background }
@@ -228,7 +263,8 @@ public final class AppModel {
 
     /// 网络详情（接口、公网 IP、进程流量）正在显示
     var isNetworkDetailVisible: Bool {
-        openPopover == .network || (isMainWindowVisible && settings.panelTab == .network)
+        settings.isModuleEnabled(.network)
+            && (openPopover == .network || (isMainWindowVisible && settings.panelTab == .network))
     }
 
     func refreshLaunchAtLogin() {
@@ -251,6 +287,11 @@ public final class AppModel {
 
     /// 快捷切换风扇：未安装辅助工具时打开散热页引导安装
     func requestFanMode(_ mode: FanController.Mode) {
+        guard mode == .automatic || settings.isModuleEnabled(.thermal) else {
+            settings.panelTab = .thermal
+            if !isMainWindowVisible { openMainWindow(.thermal) }
+            return
+        }
         guard store.supportsFans else { return }
         guard helper.isReady else {
             settings.panelTab = .thermal
@@ -288,10 +329,48 @@ public final class AppModel {
     }
 
     func handle(_ snapshot: MetricsSnapshot) {
-        store.apply(snapshot)
-        fans.evaluateSafety()
-        keepAwake.evaluateBattery(store.battery)
+        guard snapshot.samplingGeneration.map({ $0 == settings.monitoringGeneration }) ?? true else { return }
+        // actor 已采完的快照可能晚于开关关闭到达；在主线程再次按最终开关裁剪。
+        let filtered = snapshotForEnabledModules(snapshot)
+        store.clearDisabledModules(settings.enabledMonitoringModules)
+        store.apply(filtered)
+        fans.evaluateSafety(temperature: snapshot.sensors?.temperature(.cpu)?.maximum)
+        keepAwake.evaluateBattery(snapshot.battery)
         alerts.evaluate(store)
-        history.record(snapshot)
+        history.record(filtered)
+    }
+
+    func snapshotForEnabledModules(_ snapshot: MetricsSnapshot) -> MetricsSnapshot {
+        var result = snapshot
+        if !settings.isModuleEnabled(.cpu) { result.cpu = nil; result.power?.clusterFrequency = [:] }
+        if !settings.isModuleEnabled(.memory) { result.memory = nil }
+        if !settings.isModuleEnabled(.network) { result.network = nil; result.networkInterface = nil }
+        if !settings.isModuleEnabled(.gpu) { result.gpu = nil }
+        if !settings.isModuleEnabled(.disk) { result.disk = nil; result.diskActivity = nil; result.diskHealth = nil }
+        if !settings.isModuleEnabled(.battery) { result.battery = nil }
+        if !settings.isModuleEnabled(.thermal) {
+            result.sensors = nil
+            result.power = settings.isModuleEnabled(.cpu) && result.power?.clusterFrequency.isEmpty == false
+                ? PowerReading(clusterFrequency: result.power?.clusterFrequency ?? [:]) : nil
+        }
+        return result
+    }
+
+    /// 开关变化后同步清理已停止更新的实时值；旧历史数据库不受影响。
+    func applyMonitoringSettings() {
+        uninstaller.setEnabled(settings.uninstallerEnabled)
+        displays.setEnabled(settings.isModuleEnabled(.display))
+        store.clearDisabledModules(settings.enabledMonitoringModules)
+        if let popover = openPopover, !settings.isModuleEnabled(for: popover) { openPopover = nil }
+        if !settings.isModuleEnabled(.thermal), fans.mode != .automatic, !fans.isApplying, restoringFans == nil {
+            restoringFans = Task { [weak self] in
+                guard let self else { return }
+                defer { self.restoringFans = nil }
+                guard !self.settings.isModuleEnabled(.thermal) else { return }
+                await self.fans.select(.automatic)
+                // 交还系统失败时保留安全监控和控制入口，让用户能够处理错误。
+                if self.fans.mode != .automatic { self.settings.setModuleEnabled(.thermal, true) }
+            }
+        }
     }
 }

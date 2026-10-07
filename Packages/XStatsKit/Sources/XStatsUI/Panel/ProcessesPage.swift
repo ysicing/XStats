@@ -136,7 +136,7 @@ struct ProcessesPage: View {
         let cpu = model.store.cpu
         let counts = model.store.systemCounts
         return HStack(spacing: DS.Space.s4) {
-            if let cpu {
+            if model.settings.isModuleEnabled(.cpu), let cpu {
                 LegendItem(color: DS.Palette.primary, label: tr("用户"), value: Format.percent(cpu.user))
                 LegendItem(color: DS.Palette.secondary, label: tr("系统"), value: Format.percent(cpu.system))
                 LegendItem(color: DS.Palette.track, label: tr("空闲"), value: Format.percent(max(0, 1 - cpu.total)))

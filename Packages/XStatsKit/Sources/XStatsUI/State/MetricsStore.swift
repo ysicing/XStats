@@ -46,7 +46,7 @@ public final class MetricsStore {
     public private(set) var gpuHistory = History<Double>(capacity: historyCapacity)
     public private(set) var disk: DiskUsage?
     /// 启动时读取一次，确保面板首次打开时布局（是否有电池卡片）就已确定
-    public private(set) var battery: BatteryStatus? = BatterySampler.sample()
+    public private(set) var battery: BatteryStatus?
     public private(set) var processes: [ProcessUsage] = []
     /// 按应用汇总的磁盘读写排行，分数是最近十几秒的平均速率
     private(set) var diskRanking = ActivityRanking()
@@ -63,7 +63,46 @@ public final class MetricsStore {
     public private(set) var diskHealth: DiskHealth?
     public private(set) var lastUpdate: Date?
 
-    public init() {}
+    public init(readBattery: Bool = true) { battery = readBattery ? BatterySampler.sample() : nil }
+
+    /// 关闭功能后移除实时缓存，避免重新打开页面把旧值当作当前值。
+    /// 持久化历史由 HistoryRecorder 管理，不在这里删除。
+    func clearDisabledModules(_ enabled: Set<MonitoringModule>) {
+        if !enabled.contains(.cpu), cpu != nil || !cpuTotal.elements.isEmpty {
+            cpu = nil
+            cpuTotal = History(capacity: Self.historyCapacity)
+            cpuTimeline = History(capacity: Self.timelineCapacity)
+            coreHistory = History(capacity: Self.historyCapacity)
+        }
+        if !enabled.contains(.memory), memory != nil {
+            memory = nil
+            memoryHistory = History(capacity: Self.historyCapacity)
+            pressureHistory = History(capacity: Self.historyCapacity)
+            swapRate = nil; lastSwap = nil
+        }
+        if !enabled.contains(.network), network != nil || networkInterface != nil {
+            network = nil; networkInterface = nil
+            downloadHistory = History(capacity: Self.historyCapacity)
+            uploadHistory = History(capacity: Self.historyCapacity)
+        }
+        if !enabled.contains(.gpu), gpu != nil {
+            gpu = nil
+            gpuHistory = History(capacity: Self.historyCapacity)
+        }
+        if !enabled.contains(.disk), disk != nil || diskActivity != nil || diskHealth != nil {
+            disk = nil; diskActivity = nil; diskHealth = nil
+            diskReadHistory = History(capacity: Self.historyCapacity)
+            diskWriteHistory = History(capacity: Self.historyCapacity)
+        }
+        if !enabled.contains(.battery), battery != nil { battery = nil }
+        if !enabled.contains(.thermal), sensors != nil || power?.system != nil || power?.gpu != nil || power?.battery != nil || power?.adapter != nil {
+            sensors = nil
+            power = enabled.contains(.cpu) && power?.clusterFrequency.isEmpty == false
+                ? PowerReading(clusterFrequency: power?.clusterFrequency ?? [:]) : nil
+            powerHistory = History(capacity: Self.historyCapacity)
+        }
+        if !enabled.contains(.cpu), power?.clusterFrequency.isEmpty == false { power?.clusterFrequency = [:] }
+    }
 
     public func apply(_ snapshot: MetricsSnapshot) {
         lastUpdate = snapshot.date

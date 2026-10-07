@@ -38,6 +38,8 @@ public final class NetworkController {
     /// 有缓存时不转圈，但仍用任务句柄挡住同一代的并发查询。
     @ObservationIgnored private var publicLookupTask: Task<Void, Never>?
     @ObservationIgnored private var publicLookupGeneration = UUID()
+    @ObservationIgnored private var publicLookupModuleGeneration = 0
+    @ObservationIgnored private var visibilityGeneration = 0
     public private(set) var probes = History<ProbeSample>(capacity: probeCapacity)
     public private(set) var processes: [NetworkProcessUsage] = []
     /// 各进程流量的平滑排行，列表按它排序而不是按瞬时速率
@@ -137,8 +139,17 @@ public final class NetworkController {
 
     /// 网络详情打开时按设置的间隔探测；只在菜单栏显示网络项时按 10 秒低频探测（可在设置里关闭），其余时间停止
     func setVisibility(inMenuBar: Bool, detailVisible: Bool) {
-        self.inMenuBar = inMenuBar
-        wantsDetail = detailVisible
+        let generation = settings.moduleGeneration(.network)
+        if generation != visibilityGeneration {
+            visibilityGeneration = generation
+            cancelPublicLookup()
+            detailTask?.cancel(); detailTask = nil
+            probeTask?.cancel(); probeTask = nil
+            probingForeground = nil
+        }
+        self.inMenuBar = inMenuBar && settings.isModuleEnabled(.network)
+        wantsDetail = detailVisible && settings.isModuleEnabled(.network)
+        if !settings.isModuleEnabled(.network) { cancelPublicLookup() }
         applyDetailState()
         applyProbeState()
     }
@@ -182,15 +193,16 @@ public final class NetworkController {
         detailTask = nil
         // 关闭时保留上次的进程列表，再次打开时不会先闪一下空白
         guard shouldRun else { return }
+        let generation = settings.moduleGeneration(.network)
         detailTask = Task { [weak self] in
             var tick = 0
             let clock = ContinuousClock()
             while !Task.isCancelled {
-                guard let self else { return }
+                guard let self, self.settings.isModuleEnabled(.network), self.settings.moduleGeneration(.network) == generation else { return }
                 let started = clock.now
                 if tick % 4 == 0 {
                     let details = await Task.detached { NetworkDetailsReader.read() }.value
-                    guard !Task.isCancelled else { return }
+                    guard !Task.isCancelled, self.settings.isModuleEnabled(.network), self.settings.moduleGeneration(.network) == generation else { return }
                     if details != self.details { self.details = details }
                     if tick == 0 { self.lookUpPublicAddressesIfStale() }
                 }
@@ -205,7 +217,7 @@ public final class NetworkController {
                 } onCancel: {
                     samplingTask.cancel()
                 }
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, self.settings.isModuleEnabled(.network), self.settings.moduleGeneration(.network) == generation else { return }
                 self.processSampler = next
                 self.processes = self.rankedProcesses(usage)
                 tick += 1
@@ -219,7 +231,11 @@ public final class NetworkController {
     }
 
     func refreshDetails() async {
-        details = await Task.detached { NetworkDetailsReader.read() }.value
+        guard settings.isModuleEnabled(.network), !isPaused, !Task.isCancelled else { return }
+        let generation = settings.moduleGeneration(.network)
+        let refreshed = await Task.detached { NetworkDetailsReader.read() }.value
+        guard settings.isModuleEnabled(.network), settings.moduleGeneration(.network) == generation, !isPaused, !Task.isCancelled else { return }
+        details = refreshed
     }
 
     // MARK: 公网 IP
@@ -228,9 +244,10 @@ public final class NetworkController {
     /// 因为它只查请求方自己）：地址没变、结果不满 7 天的那一族沿用缓存，否则重新查并写回缓存。
     /// `force` 为真时（用户点了刷新）两族都重查
     func lookUpPublicAddresses(force: Bool = false) {
-        guard settings.publicIPLookup, !isPaused, publicLookupTask == nil else { return }
+        guard settings.isModuleEnabled(.network), settings.publicIPLookup, !isPaused, publicLookupTask == nil else { return }
         let generation = UUID()
         publicLookupGeneration = generation
+        publicLookupModuleGeneration = settings.moduleGeneration(.network)
         // 有缓存可显示时不转圈，后台悄悄核对
         isLookingUpPublic = publicResults.isEmpty || force
         let localIPv4 = details?.physical?.ipv4 ?? []
@@ -309,7 +326,8 @@ public final class NetworkController {
     }
 
     private func isCurrentPublicLookup(_ generation: UUID) -> Bool {
-        !Task.isCancelled && publicLookupGeneration == generation && settings.publicIPLookup && !isPaused
+        !Task.isCancelled && publicLookupGeneration == generation && settings.isModuleEnabled(.network)
+            && settings.moduleGeneration(.network) == publicLookupModuleGeneration && settings.publicIPLookup && !isPaused
     }
 
     private func cancelPublicLookup() {
@@ -346,13 +364,15 @@ public final class NetworkController {
 
     private func startProbing() {
         let foreground = probingForeground ?? true
+        let generation = settings.moduleGeneration(.network)
         probeTask = Task { [weak self] in
             var sequence: UInt16 = 0
             let clock = ContinuousClock()
             while !Task.isCancelled {
-                guard let self else { return }
+                guard let self, self.settings.isModuleEnabled(.network), self.settings.moduleGeneration(.network) == generation else { return }
                 let interval = Double(foreground ? Self.foregroundProbeSeconds : Self.backgroundProbeSeconds)
                 if self.details == nil { await self.refreshDetails() }
+                guard !Task.isCancelled, self.settings.moduleGeneration(.network) == generation else { return }
                 let started = clock.now
                 guard let address = self.probeAddress else {
                     try? await Task.sleep(for: .seconds(interval))
@@ -363,7 +383,7 @@ public final class NetworkController {
                 let latency = await Task.detached {
                     ConnectivityProbe.ping(address, sequence: current, timeout: min(interval, 1.5))
                 }.value
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, self.settings.isModuleEnabled(.network), self.settings.moduleGeneration(.network) == generation else { return }
                 self.probes.append(ProbeSample(latency: latency))
                 // 后台探测允许系统合并唤醒，更省电
                 try? await Task.sleep(until: started + .seconds(interval),

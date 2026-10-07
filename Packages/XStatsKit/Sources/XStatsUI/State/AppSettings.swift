@@ -555,8 +555,36 @@ public final class AppSettings {
         didSet { defaults.set(calendarFirstWeekday, forKey: Keys.calendarFirstWeekday) }
     }
 
+    /// 功能开关控制采集，菜单栏偏好只控制展示；关闭模块不删除样式、历史或告警偏好。
+    public var enabledMonitoringModules: Set<MonitoringModule> {
+        didSet {
+            guard enabledMonitoringModules != oldValue else { return }
+            monitoringGeneration &+= 1
+            for module in enabledMonitoringModules.symmetricDifference(oldValue) {
+                moduleGenerations[module, default: 0] &+= 1
+            }
+            defaults.set(enabledMonitoringModules.map(\.rawValue).sorted(), forKey: "enabledMonitoringModules")
+            menuBarItems = menuBarItems.filter { item in
+                item.monitoringModule.map { enabledMonitoringModules.contains($0) } ?? true
+            }
+            historyRecordingGeneration += 1
+        }
+    }
+    /// 快速关闭再开启也必须使关闭前的采样和网络查询失效，不能只比较最终布尔值。
+    @ObservationIgnored private(set) var monitoringGeneration = 0
+    @ObservationIgnored private var moduleGenerations: [MonitoringModule: Int] = [:]
+
+    func moduleGeneration(_ module: MonitoringModule) -> Int { moduleGenerations[module, default: 0] }
     public var menuBarItems: Set<MenuBarItem> {
-        didSet { defaults.set(menuBarItems.map(\.rawValue).sorted(), forKey: Keys.menuBarItems) }
+        didSet {
+            defaults.set(menuBarItems.map(\.rawValue).sorted(), forKey: Keys.menuBarItems)
+            // 新加入菜单栏的项目必须可用；移除项目只停止展示，不关闭功能。
+            let added = menuBarItems.subtracting(oldValue)
+            // 一次合并全部新增模块，避免逐项启用时过滤掉同一次新增的其它菜单项。
+            enabledMonitoringModules.formUnion(added.compactMap(\.monitoringModule))
+            if added.contains(.aiUsage) { aiUsageEnabled = true }
+            if added.contains(.audio) { audioEnabled = true }
+        }
     }
     public var menuBarStyle: MenuBarStyle {
         didSet { defaults.set(menuBarStyle.rawValue, forKey: Keys.menuBarStyle) }
@@ -581,6 +609,7 @@ public final class AppSettings {
     public var aiUsageEnabled: Bool {
         didSet {
             defaults.set(aiUsageEnabled, forKey: Keys.aiUsageEnabled)
+            if !aiUsageEnabled { menuBarItems.remove(.aiUsage) }
             if !aiUsageEnabled && panelTab == .aiUsage { panelTab = .settingsFeatures }
         }
     }
@@ -597,6 +626,7 @@ public final class AppSettings {
     public var audioEnabled: Bool {
         didSet {
             defaults.set(audioEnabled, forKey: "audioEnabled")
+            if !audioEnabled { menuBarItems.remove(.audio) }
             if !audioEnabled && panelTab == .audio { panelTab = .settingsFeatures }
         }
     }
@@ -612,6 +642,13 @@ public final class AppSettings {
         didSet {
             defaults.set(cleanerEnabled, forKey: Keys.cleanerEnabled)
             if !cleanerEnabled && panelTab == .cleaner { panelTab = .settingsFeatures }
+        }
+    }
+    /// 卸载工具按需启用；关闭只停扫描和隐藏入口，不执行删除。
+    public var uninstallerEnabled: Bool {
+        didSet {
+            defaults.set(uninstallerEnabled, forKey: "uninstallerEnabled")
+            if !uninstallerEnabled && panelTab == .uninstaller { panelTab = .settingsFeatures }
         }
     }
     /// 来源开关只保存在本机；关闭后不扫描，也不显示其历史缓存。
@@ -658,6 +695,7 @@ public final class AppSettings {
             if panelTab == .audio && !audioEnabled { panelTab = .settingsFeatures }
             if panelTab == .connections && !canViewNetworkConnections { panelTab = .settingsFeatures }
             if panelTab == .processes && !processesEnabled { panelTab = .settingsFeatures }
+            if panelTab == .uninstaller && !uninstallerEnabled { panelTab = .settingsFeatures }
             defaults.set(panelTab.rawValue, forKey: Keys.panelTab)
         }
     }
@@ -827,7 +865,13 @@ public final class AppSettings {
             .flatMap { (1...7).contains($0) ? $0 : nil }
         calendarFirstWeekday = savedCalendarFirstWeekday ?? (isExistingCalendarInstall ? 2 : calendar.firstWeekday)
         let items = defaults.stringArray(forKey: Keys.menuBarItems)?.compactMap(MenuBarItem.init(rawValue:))
-        menuBarItems = Set(items ?? [.cpu, .memory, .network])
+        let modules = defaults.stringArray(forKey: "enabledMonitoringModules")
+        let enabledModules = modules.map { Set($0.compactMap(MonitoringModule.init(rawValue:))) }
+            ?? Set(MonitoringModule.allCases)
+        enabledMonitoringModules = enabledModules
+        menuBarItems = Set(items ?? [.cpu, .memory, .network]).filter { item in
+            item.monitoringModule.map { enabledModules.contains($0) } ?? true
+        }
         menuBarStyle = defaults.string(forKey: Keys.menuBarStyle).flatMap(MenuBarStyle.init(rawValue:)) ?? .stacked
         networkStyle = defaults.string(forKey: Keys.networkStyle).flatMap(NetworkMenuStyle.init(rawValue:)) ?? .dots
         networkLocationStyle = defaults.string(forKey: Keys.networkLocationStyle).flatMap(NetworkLocationStyle.init(rawValue:)) ?? .off
@@ -846,6 +890,8 @@ public final class AppSettings {
         networkConnectionsEnabled = isNetworkConnectionsEnabled
         let isCleanerEnabled = defaults.bool(forKey: Keys.cleanerEnabled)
         cleanerEnabled = isCleanerEnabled
+        let isUninstallerEnabled = defaults.bool(forKey: "uninstallerEnabled")
+        uninstallerEnabled = isUninstallerEnabled
         let isProcessesEnabled = defaults.bool(forKey: Keys.processesEnabled)
         processesEnabled = isProcessesEnabled
         aiUsageSources = defaults.stringArray(forKey: Keys.aiUsageSources)
@@ -874,6 +920,7 @@ public final class AppSettings {
                 || (savedPanelTab == .aiUsage && !isAIUsageEnabled)
                 || (savedPanelTab == .rest && !isRestEnabled)
                 || (savedPanelTab == .cleaner && !isCleanerEnabled)
+                || (savedPanelTab == .uninstaller && !isUninstallerEnabled)
                 || (savedPanelTab == .processes && !isProcessesEnabled)
                 ? .settingsFeatures : savedPanelTab
         }
@@ -922,14 +969,30 @@ public final class AppSettings {
         }
     }
 
-    /// 按固定顺序返回当前实际显示的菜单栏项目；可选模块关闭时保留展示偏好但不渲染。
+    /// 按固定顺序返回已启用功能的菜单栏项目。
     var orderedMenuBarItems: [MenuBarItem] {
         MenuBarItem.allCases.filter { item in
-            menuBarItems.contains(item) && (item != .aiUsage || aiUsageEnabled) && (item != .audio || audioEnabled)
+            menuBarItems.contains(item) && isModuleEnabled(for: item)
         }
     }
 
-    func isEnabled(_ item: MenuBarItem) -> Bool { menuBarItems.contains(item) }
+    func isModuleEnabled(_ module: MonitoringModule) -> Bool { enabledMonitoringModules.contains(module) }
+
+    func isModuleEnabled(for item: MenuBarItem) -> Bool {
+        if item == .display { return true }
+        if let module = item.monitoringModule { return isModuleEnabled(module) }
+        return item == .aiUsage ? aiUsageEnabled : audioEnabled
+    }
+
+    func setModuleEnabled(_ module: MonitoringModule, _ enabled: Bool) {
+        if enabled { enabledMonitoringModules.insert(module) }
+        else { enabledMonitoringModules.remove(module) }
+    }
+
+    /// 功能关闭时保留用户选择，但不运行提醒的监听、轮询或通知。
+    var activeAlerts: Set<AlertKind> { enabledAlerts.filter { isModuleEnabled($0.monitoringModule) } }
+
+    func isEnabled(_ item: MenuBarItem) -> Bool { menuBarItems.contains(item) && isModuleEnabled(for: item) }
 
     func style(for item: MenuBarItem) -> MenuBarStyle {
         (styleOverrides[item] ?? menuBarStyle).resolved(for: item)
@@ -954,6 +1017,9 @@ public final class AppSettings {
 
     func setEnabled(_ item: MenuBarItem, _ enabled: Bool) {
         if enabled {
+            if let module = item.monitoringModule { setModuleEnabled(module, true) }
+            if item == .aiUsage { aiUsageEnabled = true }
+            if item == .audio { audioEnabled = true }
             menuBarItems.insert(item)
         } else {
             menuBarItems.remove(item)

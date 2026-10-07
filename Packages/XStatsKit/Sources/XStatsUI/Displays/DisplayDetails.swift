@@ -9,10 +9,19 @@ struct DisplayDetails: View {
 
     var body: some View {
         SectionCard(title: tr("显示器"), trailing: {
-            RefreshButton(loading: model.displays.isRefreshing, help: tr("重新检测显示器控制")) {
-                Task { await model.displays.redetect() }
+            if model.settings.isModuleEnabled(.display) {
+                RefreshButton(loading: model.displays.isRefreshing, help: tr("重新检测显示器控制")) {
+                    Task { await model.displays.redetect() }
+                }
+            } else {
+                Button(tr("启用 \(MonitoringModule.display.title)")) { model.settings.setModuleEnabled(.display, true) }
+                    .buttonStyle(DSButtonStyle(kind: .secondary))
             }
         }) {
+            if !model.settings.isModuleEnabled(.display) {
+                Text(tr("仅查看显示器信息，不读取或设置参数"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            }
             if model.displays.catalog.isEmpty {
                 Text(tr("没有检测到显示器")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
             }
@@ -29,7 +38,7 @@ struct DisplayDetails: View {
                         .fixedSize(horizontal: false, vertical: true)
                     if display.isBuiltIn {
                         Text(tr("内置显示器请在系统设置中调节")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                    } else {
+                    } else if model.settings.isModuleEnabled(.display) {
                         ForEach(DisplayControl.allCases, id: \.self) { control in
                             DisplayControlRow(display: display, control: control,
                                               result: model.displays.readings[display.id]?[control])

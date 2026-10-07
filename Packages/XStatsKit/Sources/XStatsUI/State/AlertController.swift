@@ -144,7 +144,8 @@ public final class AlertController: NSObject {
 
     /// 开关变化后启动或停止网络监听与定期检查；首次打开任一提醒时请求通知权限
     func applySettings() {
-        let enabled = settings.enabledAlerts
+        let enabled = settings.activeAlerts
+        trackers = trackers.filter { enabled.contains($0.key) }
         if !enabled.isEmpty, authorization == .unknown { requestAuthorization() }
 
         if enabled.contains(.networkDown) {
@@ -176,7 +177,7 @@ public final class AlertController: NSObject {
 
     /// 每次采样后调用
     func evaluate(_ store: MetricsStore, now: Date = Date()) {
-        let enabled = settings.enabledAlerts
+        let enabled = settings.activeAlerts
         guard !enabled.isEmpty else { return }
         if enabled.contains(.cpuTemperature),
            let cpu = store.sensors?.temperatures.first(where: { $0.group == .cpu })?.maximum {
@@ -197,7 +198,7 @@ public final class AlertController: NSObject {
     }
 
     private func checkPeriodic(now: Date = Date()) {
-        let enabled = settings.enabledAlerts
+        let enabled = settings.activeAlerts
         if enabled.contains(.diskSpace), let disk = DiskSampler.sample() {
             let low = disk.total > 0 && (Double(disk.available) / Double(disk.total) < 0.1 || disk.available < 10_000_000_000)
             let body = settings.cleanerEnabled
@@ -216,8 +217,9 @@ public final class AlertController: NSObject {
     }
 
     private func checkBluetooth(now: Date = Date()) async {
-        guard settings.enabledAlerts.contains(.bluetoothBattery) else { return }
+        guard settings.activeAlerts.contains(.bluetoothBattery) else { return }
         let devices = await Task.detached { BluetoothBatteryReader.read() }.value
+        guard !Task.isCancelled, settings.activeAlerts.contains(.bluetoothBattery) else { return }
         for device in Self.connectedBluetoothDevices(devices) {
             guard let lowest = device.batteries.min(by: { $0.percent < $1.percent }), lowest.percent <= 15 else {
                 bluetoothNotified[device.id] = nil
@@ -252,6 +254,7 @@ public final class AlertController: NSObject {
     }
 
     private func networkChanged(satisfied: Bool) {
+        guard settings.activeAlerts.contains(.networkDown) else { return }
         networkDownTask?.cancel()
         if satisfied {
             if networkNotified {
@@ -343,7 +346,7 @@ public final class AlertController: NSObject {
     }
 
     private func send(_ kind: AlertKind, title: String? = nil, body: String) {
-        guard let center else { return }
+        guard settings.activeAlerts.contains(kind), let center else { return }
         Log.app.notice("发送通知：\(kind.rawValue, privacy: .public)")
         let content = UNMutableNotificationContent()
         content.title = title ?? kind.title

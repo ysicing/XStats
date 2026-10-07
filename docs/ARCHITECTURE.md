@@ -29,11 +29,52 @@ Disabled-module entry points lead to Features, including calendar and Pomodoro d
 
 ## Sampling
 
-`MetricsHub` is an actor that runs one loop. `AppModel.demand` describes what is on screen —
-which menu-bar items are enabled, whether the panel is open and on which tab — and the hub
-samples only that: CPU always; memory and network cheaply; GPU, disk, processes, sensors and
-fans only when a visible surface needs them. Disk is read at most every 30 s, battery every
-10 s. The loop pauses on screen sleep, system sleep and session switch.
+`MetricsHub` owns one demand-driven loop. Basic monitoring has separate feature and menu-bar
+preferences: `enabledMonitoringModules` gates CPU, GPU, memory, disk, network, thermals/fans,
+battery/Bluetooth, and display parameter controls. Enabling a monitoring menu-bar item enables its module; removing the item
+keeps the module enabled. Disabling a module removes its menu-bar items, clears live caches,
+suspends its alerts, and excludes its values from new history records. Saved styles, alert
+preferences, and existing database history remain intact. Settings backups include the feature set.
+
+Enabled is permission to collect, not a continuous sampling request. `AppModel.demand` combines
+visible pages/popovers, drawn menu-bar readings, history recording, and active alerts. History
+continues to request enabled CPU, memory, and network readings at the configured background
+interval; other metrics retain their visibility-driven recording. Hidden, disabled pages cannot
+create demand. The normal app no longer primes every metric at launch; newly requested collectors
+refresh immediately. When no samples are requested the loop stops, and cancelled generations do
+not deliver queued snapshots. Late snapshots are also filtered against current feature preferences
+before entering the store or history. Disk is read at most every 30 s, battery every 10 s;
+IOReport remains limited to roughly every 2 s. Sleep and inactivity continue to pause the loop.
+
+Safety consumers are explicit exceptions: lid-closed keep-awake retains battery protection, and
+manual fan control retains thermal/fan demand until it has been handed back to macOS. A failed
+handoff re-enables the thermal controls and reports the helper error. Display control and network
+lookup/probe tasks follow their feature gates; stale network completions cannot publish after
+disable. WidgetKit system widgets keep their independent sampling lifecycle, separate from the
+main app's monitoring switches. Displays are an explicit exception: their switch gates only DDC
+parameter reads/writes (brightness, contrast and volume). Device names, resolution and refresh rate
+remain visible and refresh on system display events. The information-only menu-bar item is retained
+when controls are off; showing it does not enable parameter control. Disabled control generations
+cancel queued DDC work and discard late replies without clearing the display catalog.
+
+The Features page uses two native segmented tabs, Basic Features and Optional Features.
+Basic Features contains seven monitoring groups. Each row has a feature enable switch and
+a directly visible Show in Menu Bar checkbox below its status, distinguishing collection from
+display. Thermals exposes temperature and fan checkboxes separately, respecting detected hardware
+support. Detailed appearance settings remain in the existing Menu Bar settings page. Display Parameter Controls is in
+Optional Features; its information-only menu-bar toggle stays independent of DDC enablement.
+Uninstaller is also optional and off by default. Its preference persists in settings backups;
+disabling it hides the sidebar entry, redirects its page/deep link to feature settings, cancels
+scans and pending confirmations, and releases the running-application observer. Already-started
+Trash operations finish normally; the feature switch is unavailable during removal.
+The selector shares the fixed page header with its title; both tab lists start under a short
+explanation at the same position. Pointer changes crossfade content using the existing 180 ms
+opacity token, with no slide, bounce or animated row geometry. Keyboard and Reduce Motion changes
+are immediate. Each tab starts at the top and changes no feature preferences. Tab selection is
+transient window navigation state and does not enter backups or add sampling demand. Disabled metric pages show an
+inline enable action rather than mounting stale detail views; the dashboard omits disabled cards.
+Only feature-state text uses the existing 180 ms opacity transition, with keyboard and Reduce
+Motion handling. Switches, sampling, menu-bar layout, and displayed metrics change immediately.
 
 The full process manager is an optional module, disabled by default through `processesEnabled`.
 Its sidebar entry and process-explanation shortcuts are available only when enabled. The process

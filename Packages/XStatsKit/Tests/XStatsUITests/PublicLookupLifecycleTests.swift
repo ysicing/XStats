@@ -8,6 +8,25 @@ import Testing
 
 @MainActor
 struct PublicLookupLifecycleTests {
+    @Test func closingAndReenablingNetworkRejectsTheOldLookupWithoutDependingOnVisibilityDelivery() async throws {
+        let domain = "PublicLookupLifecycle.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: domain))
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let settings = AppSettings(defaults: defaults)
+        let gate = PublicLookupGate()
+        let controller = NetworkController(settings: settings, cacheDefaults: defaults,
+            fetchPublicAddresses: { await gate.fetch() }, fetchGeo: { _ in await gate.countGeo(); return nil })
+        controller.lookUpPublicAddresses()
+        try await waitForRequests(gate, count: 1)
+        settings.setModuleEnabled(.network, false)
+        settings.setModuleEnabled(.network, true)
+        await gate.finish(0, country: "US")
+        while controller.isLookingUpPublic { try Task.checkCancellation(); await Task.yield() }
+        #expect(await gate.geoCalls == 0)
+        #expect(controller.publicResults.isEmpty)
+        #expect(defaults.data(forKey: "publicAddressCache4") == nil)
+    }
+
     @Test func disablingLookupPreventsFollowUpRequestsAndCacheWrite() async throws {
         let domain = "PublicLookupLifecycle.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: domain))

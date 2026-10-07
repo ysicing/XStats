@@ -75,7 +75,7 @@ struct SystemInfoPage: View {
                         ProgressTrack(fraction: disk.usedFraction,
                                       color: disk.usedFraction > 0.9 ? DS.Palette.warning : DS.Palette.primary)
                     } else {
-                        Text(tr("正在读取…")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                        Text(model.settings.isModuleEnabled(.disk) ? tr("正在读取…") : tr("已关闭，不再采集")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                     }
                 }
                 InfoCard(icon: "battery.75", title: tr("电池")) {
@@ -102,12 +102,12 @@ struct SystemInfoPage: View {
                             }
                         }
                     } else {
-                        Text(tr("这台 Mac 没有电池")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                        Text(model.settings.isModuleEnabled(.battery) ? tr("这台 Mac 没有电池") : tr("已关闭，不再采集")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                     }
                 }
             }
 
-            BluetoothCard()
+            if model.settings.isModuleEnabled(.battery) { BluetoothCard() }
 
             DisplayDetails()
 

@@ -38,6 +38,17 @@ final class DisplayController {
             }
     }
 
+    /// 此开关只控制 DDC 参数读写；显示器目录继续由系统事件更新。
+    private var enabled = true
+    func setEnabled(_ value: Bool) {
+        guard enabled != value else { return }
+        enabled = value
+        invalidate()
+        readings = [:]
+        if value { restart() }
+        else { backend.resetConnections() }
+    }
+
     /// 截图只注入虚构设备与读数，不打开 DDC 连接。
     func showPreview(catalog: [DisplayInfo], readings: [UInt32: [DisplayControl: DDCResult]]) {
         stop()
@@ -114,7 +125,7 @@ final class DisplayController {
     private func restart() {
         loop?.cancel()
         loop = nil
-        guard visible, !isPaused else { return }
+        guard enabled, visible, !isPaused else { return }
         let epoch = generation
         let deadline = settlingUntil
         loop = Task { [weak self] in
@@ -135,7 +146,7 @@ final class DisplayController {
     func endEditing(_ token: UUID) { editingTokens.remove(token) }
 
     func refresh() async {
-        guard visible, !isPaused, !isSettling, !Task.isCancelled, !isRefreshing, !isWriting, editingTokens.isEmpty else { return }
+        guard enabled, visible, !isPaused, !isSettling, !Task.isCancelled, !isRefreshing, !isWriting, editingTokens.isEmpty else { return }
         let epoch = generation
         isRefreshing = true
         defer { if generation == epoch { isRefreshing = false; cancellation = nil } }
@@ -162,12 +173,13 @@ final class DisplayController {
 
     /// 手动重新检测：丢弃已缓存的服务匹配（含未找到），再读取一次。
     func redetect() async {
+        guard enabled else { return }
         backend.resetConnections()
         await refresh()
     }
 
     func write(_ percent: Double, control: DisplayControl, display: DisplayInfo) async {
-        guard visible, !isPaused, !isSettling, !Task.isCancelled, !isRefreshing, !isWriting,
+        guard enabled, visible, !isPaused, !isSettling, !Task.isCancelled, !isRefreshing, !isWriting,
               catalog.contains(where: { $0.target == display.target }),
               case .value = readings[display.id]?[control], percent.isFinite, (0...100).contains(percent) else { return }
         let epoch = generation

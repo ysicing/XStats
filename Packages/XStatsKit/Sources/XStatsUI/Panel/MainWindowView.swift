@@ -86,38 +86,42 @@ public struct MainWindowView: View {
 
     private var page: some View {
         Group {
-            switch model.settings.panelTab {
-            case .overview: OverviewPage()
-            case .system: SystemInfoPage()
-            case .history: HistoryPage()
-            case .aiUsage: AIUsagePage()
-            case .audio: DetailPage { AudioMixerContent() }
-            case .connections: NetworkConnectionsPage()
-            case .cpu: DetailPage { CPUPopover() }
-            case .gpu: DetailPage { GPUPopover() }
-            case .memory: DetailPage { MemoryPopover() }
-            case .disk: DiskPage()
-            case .network:
-                DetailPage {
-                    NetworkPopover()
-                    NetworkSettings()
+            if let module = model.settings.panelTab.monitoringModule, !model.settings.isModuleEnabled(module) {
+                DisabledMonitoringPage(module: module)
+            } else {
+                switch model.settings.panelTab {
+                case .overview: OverviewPage()
+                case .system: SystemInfoPage()
+                case .history: HistoryPage()
+                case .aiUsage: AIUsagePage()
+                case .audio: DetailPage { AudioMixerContent() }
+                case .connections: NetworkConnectionsPage()
+                case .cpu: DetailPage { CPUPopover() }
+                case .gpu: DetailPage { GPUPopover() }
+                case .memory: DetailPage { MemoryPopover() }
+                case .disk: DiskPage()
+                case .network:
+                    DetailPage {
+                        NetworkPopover()
+                        NetworkSettings()
+                    }
+                case .thermal: ThermalPage()
+                case .battery: DetailPage { BatteryPopover() }
+                case .processes: ProcessesPage()
+                case .keepAwake: KeepAwakePage()
+                case .rest: RestPage()
+                case .cleaner: CleanerPage()
+                case .uninstaller: UninstallerPage()
+                case .startupItems: StartupItemsPage()
+                case .settingsGeneral: SettingsTabPage { GeneralSettings() }
+                case .settingsFeatures: FeatureSettings()
+                case .settingsMenuBar: SettingsTabPage { MenuBarSettings() }
+                case .settingsNotifications: SettingsTabPage { NotificationSettings() }
+                // 设置同步暂时隐藏；旧路由进入通用设置，恢复时重新挂载 WebDAVSettings。
+                case .settingsAccount: SettingsTabPage { GeneralSettings() }
+                case .settingsHelper: SettingsTabPage { HelperSettings() }
+                case .settingsAbout: SettingsTabPage { AboutSettings() }
                 }
-            case .thermal: ThermalPage()
-            case .battery: DetailPage { BatteryPopover() }
-            case .processes: ProcessesPage()
-            case .keepAwake: KeepAwakePage()
-            case .rest: RestPage()
-            case .cleaner: CleanerPage()
-            case .uninstaller: UninstallerPage()
-            case .startupItems: StartupItemsPage()
-            case .settingsGeneral: SettingsTabPage { GeneralSettings() }
-            case .settingsFeatures: SettingsTabPage { FeatureSettings() }
-            case .settingsMenuBar: SettingsTabPage { MenuBarSettings() }
-            case .settingsNotifications: SettingsTabPage { NotificationSettings() }
-            // 设置同步暂时隐藏；旧路由进入通用设置，恢复时重新挂载 WebDAVSettings。
-            case .settingsAccount: SettingsTabPage { GeneralSettings() }
-            case .settingsHelper: SettingsTabPage { HelperSettings() }
-            case .settingsAbout: SettingsTabPage { AboutSettings() }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: isSnapshot ? nil : .infinity, alignment: .top)
@@ -211,6 +215,7 @@ private struct MainSidebar: View {
                 case .connections: model.settings.canViewNetworkConnections
                 case .rest: model.settings.restEnabled
                 case .cleaner: model.settings.cleanerEnabled
+                case .uninstaller: model.settings.uninstallerEnabled
                 case .processes: model.settings.processesEnabled
                 default: true
                 }
@@ -329,6 +334,7 @@ private struct PageHeader: View {
             .frame(maxHeight: .infinity)
             .background(WindowDragArea())
 
+            if tab == .settingsFeatures { FeatureSettingsTabPicker() }
             if model.keepAwake.isActive {
                 // 与右边的按钮同高，顶栏里的控件高度一致
                 HStack(spacing: DS.Space.s1) {
@@ -396,14 +402,13 @@ private struct PageHeader: View {
                 HStack(spacing: DS.Space.s3) {
                     Text(tr("在菜单栏显示")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                     ForEach(items) { item in
-                        let moduleEnabled = (item != .aiUsage || settings.aiUsageEnabled) && (item != .audio || settings.audioEnabled)
+                        let moduleEnabled = settings.isModuleEnabled(for: item)
                         if items.count > 1 {
                             Text(item.popoverTitle).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                         }
                         DSToggle(isOn: Binding(get: { settings.isEnabled(item) }, set: { settings.setEnabled(item, $0) }),
                                  label: tr("在菜单栏显示\(item.title)"))
-                            .disabled(!moduleEnabled)
-                            .help(moduleEnabled ? tr("开启后图标出现在菜单栏；按住 ⌘ 键拖动图标可以调整位置") : tr("尚未启用"))
+                            .help(moduleEnabled ? tr("开启后图标出现在菜单栏；按住 ⌘ 键拖动图标可以调整位置") : tr("加入菜单栏时会同时启用功能"))
                     }
                 }
                 .modifier(HeaderControlGroup())

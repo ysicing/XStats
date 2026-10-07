@@ -11,23 +11,28 @@ struct OverviewPage: View {
         PageScroll {
             HealthHeader()
             WeightedRow {
-                CPUTile()
-                GPUTile()
-                MemoryTile()
+                if model.settings.isModuleEnabled(.cpu) { CPUTile() }
+                if model.settings.isModuleEnabled(.gpu) { GPUTile() }
+                if model.settings.isModuleEnabled(.memory) { MemoryTile() }
             }
             WeightedRow {
-                DiskTile()
-                NetworkTile()
-                if model.store.supportsFans { FanTile() }
+                if model.settings.isModuleEnabled(.disk) { DiskTile() }
+                if model.settings.isModuleEnabled(.network) { NetworkTile() }
+                if model.settings.isModuleEnabled(.thermal), model.store.supportsFans { FanTile() }
             }
             // 窄卡片与上方单列同宽：宽卡占两列
-            WeightedRow(weights: model.store.battery != nil ? [2, 1] : [1]) {
-                CoreLoadCard()
-                if model.store.battery != nil { BatteryCard() }
+            WeightedRow(weights: [model.settings.isModuleEnabled(.cpu) ? 2 : nil,
+                                  model.settings.isModuleEnabled(.battery) && model.store.battery != nil ? 1 : nil].compactMap { $0 }) {
+                if model.settings.isModuleEnabled(.cpu) { CoreLoadCard() }
+                if model.settings.isModuleEnabled(.battery), model.store.battery != nil { BatteryCard() }
             }
-            WeightedRow(weights: [2, 1]) {
-                TopProcessesCard()
+            WeightedRow(weights: model.settings.isModuleEnabled(.cpu) || model.settings.isModuleEnabled(.memory) ? [2, 1] : [1]) {
+                if model.settings.isModuleEnabled(.cpu) || model.settings.isModuleEnabled(.memory) { TopProcessesCard() }
                 QuickActionsCard()
+            }
+            if model.settings.enabledMonitoringModules.isEmpty {
+                Button(tr("启用监控功能")) { model.settings.panelTab = .settingsFeatures }
+                    .buttonStyle(DSButtonStyle(kind: .secondary))
             }
         }
     }
@@ -77,23 +82,23 @@ struct HealthReport {
     let tone: Tone
 
     @MainActor
-    init(store: MetricsStore) {
+    init(store: MetricsStore, modules: Set<MonitoringModule> = Set(MonitoringModule.allCases)) {
         var issues: [(penalty: Int, text: String)] = []
-        if let cpu = store.cpu {
+        if modules.contains(.cpu), let cpu = store.cpu {
             if cpu.total >= 0.9 { issues.append((20, tr("CPU 负载很高"))) } else if cpu.total >= 0.75 { issues.append((10, tr("CPU 负载偏高"))) }
         }
-        switch store.memory?.pressure {
+        switch modules.contains(.memory) ? store.memory?.pressure : nil {
         case .critical: issues.append((30, tr("内存压力严重")))
         case .warning: issues.append((15, tr("内存压力偏高")))
         default: break
         }
-        if let hottest = store.sensors?.temperature(.cpu)?.maximum {
+        if modules.contains(.thermal), let hottest = store.sensors?.temperature(.cpu)?.maximum {
             if hottest >= DS.Thermal.hot { issues.append((20, tr("CPU 温度过高"))) } else if hottest >= 85 { issues.append((10, tr("CPU 温度偏高"))) }
         }
-        if let disk = store.disk {
+        if modules.contains(.disk), let disk = store.disk {
             if disk.usedFraction >= 0.95 { issues.append((15, tr("磁盘空间不足"))) } else if disk.usedFraction >= 0.9 { issues.append((8, tr("磁盘空间偏紧"))) }
         }
-        if let health = store.battery?.health, health < 0.8 { issues.append((5, tr("电池健康度下降"))) }
+        if modules.contains(.battery), let health = store.battery?.health, health < 0.8 { issues.append((5, tr("电池健康度下降"))) }
 
         score = max(0, 100 - issues.reduce(0) { $0 + $1.penalty })
         summary = issues.max { $0.penalty < $1.penalty }?.text ?? tr("各项指标正常")
@@ -106,21 +111,29 @@ private struct HealthHeader: View {
 
     var body: some View {
         let store = model.store
-        let report = HealthReport(store: store)
+        let report = HealthReport(store: store, modules: model.settings.enabledMonitoringModules)
 
         VStack(alignment: .leading, spacing: DS.Space.s3) {
-            HStack(alignment: .center, spacing: DS.Space.s3) {
-                Image(systemName: report.tone == .success ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                    .font(.system(size: DS.TextSize.xl.rawValue, weight: .semibold))
-                    .foregroundStyle(report.tone.color)
-                Text(verbatim: "\(report.score)")
-                    .dsFont(.xxl, weight: .semibold)
-                    .monospacedDigit()
-                    .foregroundStyle(DS.Palette.textPrimary)
-                Text(report.summary)
-                    .dsFont(.base, weight: .medium)
+            if model.settings.enabledMonitoringModules.isEmpty {
+                Text(tr("没有启用监控功能")).dsFont(.base, weight: .medium)
                     .foregroundStyle(DS.Palette.textSecondary)
-                Spacer()
+            } else if model.settings.enabledMonitoringModules.isDisjoint(with: [.cpu, .memory, .disk, .thermal, .battery]) {
+                Text(tr("已启用，按需采集")).dsFont(.base, weight: .medium)
+                    .foregroundStyle(DS.Palette.textSecondary)
+            } else {
+                HStack(alignment: .center, spacing: DS.Space.s3) {
+                    Image(systemName: report.tone == .success ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                        .font(.system(size: DS.TextSize.xl.rawValue, weight: .semibold))
+                        .foregroundStyle(report.tone.color)
+                    Text(verbatim: "\(report.score)")
+                        .dsFont(.xxl, weight: .semibold)
+                        .monospacedDigit()
+                        .foregroundStyle(DS.Palette.textPrimary)
+                    Text(report.summary)
+                        .dsFont(.base, weight: .medium)
+                        .foregroundStyle(DS.Palette.textSecondary)
+                    Spacer()
+                }
             }
             FlowLayout(spacing: DS.Space.s2) {
                 Chip(text: chipName(store.topology.brand), icon: "apple.logo")
@@ -525,7 +538,7 @@ private struct QuickActionsCard: View {
                            detail: keepAwake.lidClosedActive ? tr("继续运行") : tr("合盖睡眠"),
                            isOn: Binding(get: { keepAwake.lidClosedRequested },
                                          set: { model.requestLidMode($0) }))
-            if model.store.supportsFans {
+            if model.settings.isModuleEnabled(.thermal), model.store.supportsFans {
                 HairlineDivider()
                 QuickToggleRow(icon: "fan", title: tr("散热模式"),
                                detail: fans.mode == .automatic ? tr("系统调节") : tr("\(fans.mode.title)中"),

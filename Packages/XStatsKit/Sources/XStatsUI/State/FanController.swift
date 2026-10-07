@@ -4,6 +4,15 @@ import Metrics
 import Observation
 import SMC
 
+/// 风扇控制的两种特权操作；实现仍由已认证的 HelperClient 提供。
+@MainActor
+protocol FanControlClient {
+    func setFanTarget(fan: Int, rpm: Double) async -> String?
+    func resetAllFans() async -> String?
+}
+
+extension HelperClient: FanControlClient {}
+
 @MainActor
 @Observable
 public final class FanController {
@@ -32,11 +41,11 @@ public final class FanController {
     public private(set) var notice: String?
     public private(set) var noticeIsError = false
 
-    @ObservationIgnored private let helper: HelperClient
+    @ObservationIgnored private let helper: any FanControlClient
     @ObservationIgnored private let store: MetricsStore
     @ObservationIgnored private let settings: AppSettings
 
-    init(helper: HelperClient, store: MetricsStore, settings: AppSettings) {
+    init(helper: any FanControlClient, store: MetricsStore, settings: AppSettings) {
         self.helper = helper
         self.store = store
         self.settings = settings
@@ -66,13 +75,14 @@ public final class FanController {
     }
 
     /// 每次收到新指标时检查温度，自定义档位过低且 CPU 过热时交还系统控制
-    func evaluateSafety() {
-        guard mode == .custom, customLevel < 1,
-              let hottest = store.sensors?.temperature(.cpu)?.maximum,
+    func evaluateSafety(temperature: Double? = nil) {
+        guard settings.isModuleEnabled(.thermal), !isApplying, mode == .custom, customLevel < 1,
+              let hottest = temperature ?? store.sensors?.temperature(.cpu)?.maximum,
               hottest >= Double(settings.fanSafetyTemperature) else { return }
         Task {
-            mode = .automatic
-            _ = await apply()
+            await select(.automatic)
+            // 复位失败保留手动状态和错误，关闭功能流程才能继续保护并恢复入口。
+            guard mode == .automatic, !noticeIsError else { return }
             show(tr("CPU 温度达到 \(Format.temperature(hottest, fahrenheit: settings.useFahrenheit))，已恢复系统自动控制"), isError: false)
         }
     }
@@ -87,14 +97,14 @@ public final class FanController {
     }
 
     private func apply() async -> String? {
-        let fans = store.sensors?.fans ?? []
-        guard !fans.isEmpty else { return tr("未检测到可调节的风扇") }
         isApplying = true
         defer { isApplying = false }
 
         if mode == .automatic {
             return await helper.resetAllFans()
         }
+        let fans = store.sensors?.fans ?? []
+        guard !fans.isEmpty else { return tr("未检测到可调节的风扇") }
         for fan in fans {
             if let error = await helper.setFanTarget(fan: fan.id, rpm: targetRPM(for: fan)) {
                 _ = await helper.resetAllFans()
