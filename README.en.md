@@ -207,7 +207,7 @@ Issues and pull requests are welcome. See [DEVELOPMENT.md](docs/DEVELOPMENT.md) 
 <!-- changelog:start -->
 <!-- Generated from CHANGELOG.md by scripts/sync_changelog.py. Do not edit by hand. -->
 
-Latest release **1.0.0** (2026-10-07) · [full changelog](CHANGELOG.md) (kept in Chinese)
+Latest release **1.0.1** (2026-10-08) · [full changelog](CHANGELOG.md) (kept in Chinese)
 
 <!-- changelog:end -->
 

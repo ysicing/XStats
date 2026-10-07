@@ -1,27 +1,19 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sourceNotes": [
-    "新增 macOS 15 及以上可选网络监视器",
-    "新增连接世界地图，首次使用时按需下载公共 IP 地理数据库，之后离线查询",
-    "网络监视器通过独立组件按需启用，首次使用需安装组件并按系统提示授权，安装需要管理员账户",
-    "功能设置分为基础功能与可选功能，基础监控可分别关闭",
-    "功能启用与菜单栏展示分开管理，加入菜单栏时自动启用对应功能，移出菜单栏不会关闭功能",
-    "显示器亮度、对比度与音量控制改为单独开关，关闭后仍可查看显示器信息，并保留独立的菜单栏信息入口",
-    "卸载应用改为可选功能，新安装默认关闭，从旧版本升级时保持开启",
-    "修复网络组件替换后连接旧服务、过滤设置失败后持续显示空数据",
-    "修复 Homebrew 清理预览在系统繁忙时可能超过时限仍未停止的问题"
+    "新增 Apple 智能只读诊断",
+    "聚合模式仅展示所选菜单栏指标，开启进程功能不再自动追加高占用进程排行或额外采样",
+    "进程功能设置新增资源开销说明，开启前即可了解刷新列表带来的 CPU 等资源消耗",
+    "统一使用“聚合模式”名称，更新功能介绍与截图，方便了解菜单栏布局和可选组件的使用方式",
+    "修复 Apple 智能诊断在超时或取消后可能卡住、以及空或损坏报告被解析为异常的问题"
   ],
   "translations": {
     "en": [
-      "Add an optional Network Monitor for macOS 15 or later, with an overview of observed new connections and grouping by app, process, domain, country or region, search, active-connection filtering, pause and resume; all traffic is allowed, communication content is never inspected, and connection records remain in memory only",
-      "Add a world map of connections; download the public IP geolocation database only when first enabled, then look up locations offline, using representative country-level locations rather than precise device locations",
-      "Enable network monitoring through an independent on-demand component; first use requires an administrator account to install it and approval in macOS, with component management, independent update checks and complete removal available in XStats; its background service starts on demand and exits when idle If you used a preview network component, uninstall it from component management and enable it again following macOS prompts to move to the regional API update source.",
-      "Separate Basic and Optional Features and allow individual monitoring modules to be disabled, stopping collection, related alerts and new history records while preserving existing history; system widgets refresh independently, and disabling thermals first returns manual fan control to macOS, retaining monitoring and an error message if that fails",
-      "Manage feature activation separately from menu bar visibility: adding an entry enables its feature, while removing it leaves the feature enabled; AI Usage, Audio and Displays also offer direct menu bar display options, and optional features are grouped by purpose",
-      "Control display brightness, contrast and volume through a separate feature switch; disabling parameter controls keeps display information available and preserves its independent information-only menu bar entry",
-      "Make Uninstaller optional and disabled by default for new installations, while keeping it enabled when upgrading from older versions; disabling it cancels scans and pending confirmations and releases observers, while already-started removal operations finish normally",
-      "Fix connections to an old service after component replacement, empty data after filter configuration failures and component window messages not refreshing after approval timeout; check protocol compatibility before installation and order domain and country or region groups by time",
-      "Fix Homebrew cleanup previews that could continue beyond their timeout while the system was busy"
+      "Add read-only Apple Intelligence diagnostics in System Information and process explanations, separating feature configuration from on-device model availability and disk usage; full feature and model-usage detection requires macOS 27 or later, and no settings are changed or models downloaded or deleted",
+      "Show only selected menu bar metrics in Aggregate Mode; enabling Processes no longer adds a top-process card or process sampling to the collapsed overview, while CPU, memory and disk details retain their on-demand process data",
+      "Explain the CPU and other resource cost of refreshing the process list in Features settings, before enabling it",
+      "Use the Aggregate Mode name consistently and refresh feature documentation and screenshots to explain menu bar layouts and optional components",
+      "Fix Apple Intelligence diagnostics that could stall after timeout or cancellation or treat empty and malformed reports as errors; stop reads and reclaim the diagnostic child process when dismissed"
     ]
   }
 }
