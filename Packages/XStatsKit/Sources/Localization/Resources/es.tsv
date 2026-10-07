@@ -1805,6 +1805,7 @@ XStats 网络连接查看	Visor de conexiones de red de XStats
 网络组件压缩包无效。	El archivo del componente de red no es válido.
 网络组件签名或公证校验失败。	Falló la verificación de firma o notarización del componente.
 网络组件正在安装，请稍候。	El componente se está instalando. Espera un momento.
+安装网络组件需要管理员账户。	Instalar el componente de red requiere una cuenta de administrador.
 管理组件	Gestionar componente
 网络组件	Componente de red
 组件按需运行，负责扩展授权和独立更新；所有连接均放行。	El componente se ejecuta bajo demanda para gestionar permisos y actualizaciones independientes. Se permiten todas las conexiones.

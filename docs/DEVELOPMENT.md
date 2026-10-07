@@ -189,7 +189,8 @@ python3 scripts/sync_network_geography.py --publish  # 从官方重新获取并�
 主应用的首次安装器只写入缺失的组件；已有组件由自己的 Sparkle 更新，主应用不替换它。
 首次安装 ZIP 固定为
 `https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor/XStats-Network-Monitor.zip`，
-安装前校验根包名、Bundle ID、同团队签名、公证及 Gatekeeper，且不覆盖正在运行的组件。
+安装前校验根包名、Bundle ID、同团队签名、公证、Gatekeeper 及协议版本与控制服务，且不覆盖正在运行的组件。
+系统扩展要求组件位于 `/Applications`，标准账户无写权限时提示需要管理员账户，不通过辅助工具提权写入。
 
 主程序“设置 → 功能 → 网络监视器 → 管理组件”和监视页面“更多 → 管理组件”统一展示
 安装、后台授权、组件/包内扩展版本、更新进度和完整卸载。未安装组件时，设置开关与监视页的启用操作
@@ -213,6 +214,10 @@ RPC/SDK结束后空闲退出。升级后由外部注册CLI按代码/agent plist�
 Mach 服务后缀是扩展构建号，停用查询按系统报告的已安装构建定位服务。
 重新启用后检查 `systemextensionsctl list` 的版本，必要时比较运行副本与组件包内扩展的 CDHash。
 组件清单必须携带扩展版本，并与 ZIP 内的扩展 Info.plist 身份及版本一致；主应用清单无需该字段。
+
+推进 `NetworkObservationProtocol.version` 前必须先补齐兼容路径，否则任一侧先升级都会让组件无法使用或卸载：
+组件签名清单需携带协议版本，组件自更新在调用 Sparkle 安装前拒绝与当前主程序不兼容的版本；
+主程序遇到已安装组件 `protocolMismatch` 时需提供卸载后重新安装的入口，而不是只校验不替换。
 
 组件发行完全独立，不推进主版本、不走主 JSON 版本 API、不生成 Homebrew cask。
 组件摘要维护在 `NetworkComponentReleaseNotes.json`：`version` 等于组件公开版本，`sourceNotes` 为简体中文单行条目，

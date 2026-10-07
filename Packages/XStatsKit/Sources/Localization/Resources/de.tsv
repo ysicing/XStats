@@ -1805,6 +1805,7 @@ XStats 网络连接查看	XStats Netzwerkverbindungsanzeige
 网络组件压缩包无效。	Archiv der Netzwerkkomponente ist ungültig.
 网络组件签名或公证校验失败。	Signatur- oder Beglaubigungsprüfung der Netzwerkkomponente fehlgeschlagen.
 网络组件正在安装，请稍候。	Netzwerkkomponente wird installiert. Bitte warten.
+安装网络组件需要管理员账户。	Für die Installation der Netzwerkkomponente ist ein Administratorkonto erforderlich.
 管理组件	Komponente verwalten
 网络组件	Netzwerkkomponente
 组件按需运行，负责扩展授权和独立更新；所有连接均放行。	Die Komponente startet bei Bedarf für Erweiterungsrechte und eigene Updates. Alle Verbindungen werden erlaubt.
