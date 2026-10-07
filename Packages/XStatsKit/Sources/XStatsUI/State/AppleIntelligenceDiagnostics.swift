@@ -3,7 +3,9 @@
 
 import Foundation
 import Darwin
+import Dispatch
 import ObjectiveC
+import os
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
@@ -160,9 +162,32 @@ enum AppleIntelligenceDiagnostics {
     }
 
     /// 每次打开仅启动一次当前构建的只读入口；取消或超时只终止本次子进程。
-    @concurrent static func load(executableURL: URL? = Bundle.main.executableURL, timeout: Duration = .seconds(5)) async throws -> Report {
+    static func load(executableURL: URL? = Bundle.main.executableURL, timeout: Duration = .seconds(5)) async throws -> Report {
         try Task.checkCancellation()
         guard let executable = executableURL else { return .unreadable }
+        let cancelled = OSAllocatedUnfairLock(initialState: false)
+        // Process 启动和回收会同步等待；沿用额度读取器的 GCD 桥接，不能占住协作线程池。
+        let report: Report = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                DispatchQueue.global(qos: .utility).async {
+                    continuation.resume(with: Result {
+                        try readReport(executableURL: executable, timeout: timeout,
+                                       isCancelled: { cancelled.withLock { $0 } })
+                    })
+                }
+            }
+        } onCancel: {
+            cancelled.withLock { $0 = true }
+        }
+        try Task.checkCancellation()
+        return report
+    }
+
+    /// 只在 GCD 线程运行，取消标记由调用方持锁读写；结果与清理都必须有界。
+    private static func readReport(executableURL: URL, timeout: Duration, isCancelled: () -> Bool) throws -> Report {
+        if isCancelled() { throw CancellationError() }
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
                                                attributes: [.posixPermissions: 0o700])
@@ -171,31 +196,42 @@ enum AppleIntelligenceDiagnostics {
         guard FileManager.default.createFile(atPath: output.path, contents: nil) else { return .unreadable }
         let writer = try FileHandle(forWritingTo: output)
         let process = Process()
-        process.executableURL = executable
+        process.executableURL = executableURL
         process.arguments = [argument]
+        process.standardInput = FileHandle.nullDevice
         process.standardOutput = writer
         process.standardError = FileHandle.nullDevice
         defer {
             if process.isRunning, process.processIdentifier > 0 {
                 kill(process.processIdentifier, SIGKILL)
-                process.waitUntilExit()
+                // 非 RunLoop 线程可能错过 waitUntilExit() 的退出通知；最多等待两秒。
+                // ESRCH 表示内核已回收，即使 Foundation 的 isRunning 尚未更新也应结束。
+                let reapDeadline = clock.now.advanced(by: .seconds(2))
+                while process.isRunning && clock.now < reapDeadline {
+                    if kill(process.processIdentifier, 0) == -1 && errno == ESRCH { break }
+                    Thread.sleep(forTimeInterval: 0.01)
+                }
             }
             try? writer.close()
         }
+        if isCancelled() { throw CancellationError() }
+        guard clock.now < deadline else { return .unreadable }
         try process.run()
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: timeout)
         while process.isRunning {
-            try Task.checkCancellation()
+            if isCancelled() { throw CancellationError() }
             guard clock.now < deadline else { return .unreadable }
-            try await Task.sleep(for: .milliseconds(250))
+            let remaining = (deadline - clock.now).components
+            let seconds = Double(remaining.seconds) + Double(remaining.attoseconds) / 1e18
+            Thread.sleep(forTimeInterval: max(0, min(0.25, seconds)))
         }
-        guard process.terminationStatus == 0 else { return .unreadable }
+        // 退出可能发生在调用方等待期间；先检查取消和截止时间，不能用空输出覆盖超时结果。
+        if isCancelled() { throw CancellationError() }
+        guard clock.now < deadline, process.terminationStatus == 0 else { return .unreadable }
         let reader = try FileHandle(forReadingFrom: output)
         defer { try? reader.close() }
         let data = try reader.read(upToCount: 65_537) ?? Data()
         guard data.count <= 65_536 else { return .unreadable }
-        let report = try JSONDecoder().decode(Report.self, from: data)
+        guard let report = try? JSONDecoder().decode(Report.self, from: data) else { return .unreadable }
         guard report.features.map(\.id) == catalog.map(\.id), report.models.map(\.id) == modelCatalog.map(\.id),
               report.models.allSatisfy({ $0.bytes.map { $0 >= 0 } ?? true }) else { return .unreadable }
         return report

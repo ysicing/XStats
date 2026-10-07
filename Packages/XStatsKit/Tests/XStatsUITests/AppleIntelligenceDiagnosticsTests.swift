@@ -7,6 +7,31 @@ import Testing
 @testable import XStatsUI
 
 struct AppleIntelligenceDiagnosticsTests {
+    @Test(arguments: ["", "not-json", "{", "{}"])
+    func emptyOrMalformedReaderOutputReturnsUnreadable(output: String) async throws {
+        let script = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: script) }
+        let escapedOutput = output.replacingOccurrences(of: "'", with: "'\\''")
+        try "#!/bin/sh\nprintf '%s' '\(escapedOutput)'\n".write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
+        #expect(try await AppleIntelligenceDiagnostics.load(executableURL: script) == .unreadable)
+    }
+
+    @Test func readerFinishingAfterDeadlineCannotPublishValidReport() async throws {
+        let script = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: script) }
+        let encoded = try JSONEncoder().encode(AppleIntelligenceDiagnostics.Report.example).base64EncodedString()
+        let command = """
+        #!/bin/sh
+        /bin/sleep 0.05
+        printf '%s' '\(encoded)' | /usr/bin/base64 --decode
+        """
+        try command.write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
+        // 子进程在读取器的旧轮询间隔内退出，也不能绕过截止时间发布结果。
+        #expect(try await AppleIntelligenceDiagnostics.load(executableURL: script, timeout: .milliseconds(1)) == .unreadable)
+    }
+
     @Test func missingOrMalformedInventoryDoesNotMeanZeroBytes() {
         #expect(AppleIntelligenceDiagnostics.parseInventory([:]) == nil)
         #expect(AppleIntelligenceDiagnostics.parseInventory(["SystemAssets": "unexpected"]) == nil)
@@ -101,13 +126,20 @@ struct AppleIntelligenceDiagnosticsTests {
         try FileManager.default.removeItem(at: pidFile)
 
         let task = Task { try await AppleIntelligenceDiagnostics.load(executableURL: script) }
-        for _ in 0..<200 where !FileManager.default.fileExists(atPath: pidFile.path) {
+        defer { task.cancel() }
+        var cancelledPID: Int32?
+        // 文件可能已创建但尚未写入 PID；必须等到完整启动标记再取消，避免误判回收失败。
+        for _ in 0..<200 {
+            if let text = try? String(contentsOf: pidFile, encoding: .utf8), let pid = Int32(text) {
+                cancelledPID = pid
+                break
+            }
             try await Task.sleep(for: .milliseconds(10))
         }
+        let pid = try #require(cancelledPID)
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
-        let cancelledPID = try #require(Int32(String(contentsOf: pidFile, encoding: .utf8)))
-        #expect(kill(cancelledPID, 0) == -1)
+        #expect(kill(pid, 0) == -1)
     }
 
     @Test func validReaderRoundTripsAndOversizedOutputIsRejected() async throws {

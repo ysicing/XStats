@@ -311,7 +311,10 @@ systems. Unknown inventory entries never contribute a fabricated zero to the tot
 `AppleIntelligenceDiagnostics` isolates optional UnifiedAssetFramework inventory reads in a short-lived
 copy of the current executable (`--apple-intelligence-report`), before UI, samplers or preference writes
 are initialized. The caller bounds execution to five seconds and output to 64 KiB; dismissal cancels
-and reaps that child. No model reset, deletion, download override, settings write, timer or retained
+and reaps that child. Blocking process work runs on a GCD utility thread, with a locked cancellation
+flag and a bounded reap after SIGKILL; it never calls `waitUntilExit()` from a non-RunLoop thread or
+blocks Swift's cooperative executor. Cancellation and the deadline are checked again after exit,
+before decoding; empty or malformed output stays unreadable. No model reset, deletion, download override, settings write, timer or retained
 inventory is added. A complete asset inventory takes precedence; if it cannot be read, each set's
 read-only asset status is queried instead. Failed queries stay unknown rather than becoming zero.
 The feature/asset identifiers were researched from RemoveMacAI and pared; the
