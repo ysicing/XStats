@@ -47,8 +47,12 @@ import SwiftUI
             status = response.status
             if let error = response.error { message = tr(error) }
             else if response.needsRestart { message = tr("需要重启系统") }
-            else { message = status?.filterEnabled == true ? tr("正在监视") : tr("尚未启用") }
+            else { message = statusMessage }
         } catch { message = error.localizedDescription }
+    }
+    private var statusMessage: String {
+        if status?.needsSystemApproval == true, status?.filterEnabled != true { return tr("等待系统授权") }
+        return status?.filterEnabled == true ? tr("正在监视") : tr("尚未启用")
     }
     private func ensureConnection() throws -> NSXPCConnection {
         if let connection { return connection }
@@ -72,7 +76,11 @@ import SwiftUI
     nonisolated func needsSystemApproval() { Task { @MainActor in message = tr("等待系统授权") } }
     nonisolated func componentStatusChanged(_ data: Data) {
         guard data.count <= 256 * 1024, let value = try? JSONDecoder().decode(NetworkComponentStatus.self, from: data) else { return }
-        Task { @MainActor in status = value }
+        Task { @MainActor in
+            status = value
+            // 请求超时后服务仍可能完成授权与启用；空闲时按推送状态刷新文字，进行中的请求由其回复决定提示。
+            if calls == 0 { message = statusMessage }
+        }
     }
 }
 
