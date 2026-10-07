@@ -53,7 +53,7 @@ For the one-command path, `XSTATS_RELEASE_TOKEN` must already be available throu
 - Use `xstats-changelog` to consolidate the release notes, then replace the first `## 未发布` heading with `## X.Y.Z · YYYY-MM-DD`.
 - Update `ReleaseNotes.json` for that version: match `sourceNotes` to the Chinese summaries and prepare `translations.en` in the same item order. Generation rejects stale or incomplete English notes; changing them after the build invalidates provenance.
 - Preview `python3 scripts/github_release_notes.py <version>`: GitHub Release includes the full Chinese section plus English summaries. Ensure English retains upgrade instructions and compatibility details. Publication generates the same bilingual text for both creation and reruns.
-- Update the release badge in all four README files.
+- In all four README files, replace pre-release wording ("开发中", "即将随 X.Y 发布" and their translations) with released wording; the README files no longer carry a version badge.
 - Do not manually change `project.yml`; `scripts/version.sh release`, invoked by `task release`, writes the semver and increments the build number once.
 - Do not commit these metadata changes yet. They are allowed inputs to the provenance preflight.
 

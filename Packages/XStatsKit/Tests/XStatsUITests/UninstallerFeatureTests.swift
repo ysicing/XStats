@@ -12,10 +12,8 @@ struct UninstallerFeatureTests {
         let suite = "UninstallerFeatureTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        defaults.set(PanelTab.uninstaller.rawValue, forKey: "panelTab")
         let settings = AppSettings(defaults: defaults)
         #expect(!settings.uninstallerEnabled)
-        #expect(settings.panelTab == .settingsFeatures)
         settings.panelTab = .uninstaller
         #expect(settings.panelTab == .settingsFeatures)
         #expect(AppDeepLink.page(.uninstaller, settings: settings) == .settingsFeatures)
@@ -32,6 +30,26 @@ struct UninstallerFeatureTests {
         settings.apply(try JSONDecoder().decode(SettingsDocument.self, from: Data("{}".utf8)))
         #expect(settings.uninstallerEnabled)
         #expect(AppSettings(defaults: defaults).uninstallerEnabled)
+    }
+
+    @Test func upgradedInstallKeepsUninstallerAndFreshInstallStaysOffAcrossLaunches() throws {
+        let upgraded = "UninstallerFeatureTests.upgraded.\(UUID())"
+        let previous = try #require(UserDefaults(suiteName: upgraded))
+        defer { previous.removePersistentDomain(forName: upgraded) }
+        // 模拟 0.15.0 的已有偏好：卸载页曾经可用且没有开关键。
+        previous.set(PanelTab.uninstaller.rawValue, forKey: "panelTab")
+        let migrated = AppSettings(defaults: previous)
+        #expect(migrated.uninstallerEnabled, "升级不能让已在使用的卸载入口消失")
+        #expect(migrated.panelTab == .uninstaller)
+
+        let fresh = "UninstallerFeatureTests.fresh.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: fresh))
+        defer { defaults.removePersistentDomain(forName: fresh) }
+        #expect(!AppSettings(defaults: defaults).uninstallerEnabled)
+        // 新安装首次启动后写入其它偏好，第二次启动仍不能被当作旧安装。
+        defaults.set(PanelTab.overview.rawValue, forKey: "panelTab")
+        defaults.set(true, forKey: "SUHasLaunchedBefore")
+        #expect(!AppSettings(defaults: defaults).uninstallerEnabled)
     }
 
     @Test func disabledControllerDoesNotScanOrRemove() async {

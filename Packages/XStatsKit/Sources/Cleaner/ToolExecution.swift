@@ -141,19 +141,24 @@ enum DeveloperToolRunner {
         process.standardOutput = handle
         process.standardError = handle
         process.standardInput = FileHandle.nullDevice
+        // 超时由 Dispatch 计时，不依赖协作线程池及时调度轮询；线程被其他阻塞任务占满时仍按时终止。
+        let watchdog = PreviewWatchdog()
+        process.terminationHandler = { _ in watchdog.markExited() }
         try Task.checkCancellation()
         do { try process.run() } catch {
             throw ToolExecutionError.failed(tool: "brew", status: -1, output: error.localizedDescription)
         }
-        let deadline = ContinuousClock.now.advanced(by: .seconds(timeout))
+        let pid = process.processIdentifier
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) { watchdog.expire(pid: pid) }
         while process.isRunning {
             try Task.checkCancellation()
-            guard ContinuousClock.now < deadline else { throw ToolExecutionError.timedOut("brew") }
+            guard !watchdog.didTimeOut else { throw ToolExecutionError.timedOut("brew") }
             let size = (try FileManager.default.attributesOfItem(atPath: outputURL.path)[.size] as? NSNumber)?.intValue ?? 0
             guard size <= outputLimit else { throw ToolExecutionError.outputTooLarge("brew") }
             try await Task.sleep(for: .milliseconds(25))
         }
         try Task.checkCancellation()
+        guard !watchdog.didTimeOut else { throw ToolExecutionError.timedOut("brew") }
         let reader = try FileHandle(forReadingFrom: outputURL)
         defer { try? reader.close() }
         let data = try reader.read(upToCount: outputLimit + 1) ?? Data()
@@ -312,5 +317,24 @@ private extension Sequence where Element: Hashable {
     func uniqued() -> [Element] {
         var seen = Set<Element>()
         return filter { seen.insert($0).inserted }
+    }
+}
+
+/// 预览超时的跨线程状态。只在进程尚未被回收时发送 SIGTERM，避免误杀复用了同一 PID 的其他进程。
+private final class PreviewWatchdog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var exited = false
+    private var timedOut = false
+
+    var didTimeOut: Bool { lock.withLock { timedOut } }
+
+    func markExited() { lock.withLock { exited = true } }
+
+    func expire(pid: pid_t) {
+        lock.withLock {
+            guard !exited else { return }
+            timedOut = true
+            _ = Darwin.kill(pid, SIGTERM)
+        }
     }
 }

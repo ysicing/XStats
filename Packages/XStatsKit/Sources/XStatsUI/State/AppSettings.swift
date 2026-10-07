@@ -890,7 +890,12 @@ public final class AppSettings {
         networkConnectionsEnabled = isNetworkConnectionsEnabled
         let isCleanerEnabled = defaults.bool(forKey: Keys.cleanerEnabled)
         cleanerEnabled = isCleanerEnabled
-        let isUninstallerEnabled = defaults.bool(forKey: "uninstallerEnabled")
+        // 0.15.0 及更早版本中卸载应用始终可用；升级的已有安装保持开启，只有新安装默认关闭。
+        // 首次判定后立即写回，避免新安装下次启动因已有其它偏好被误判为旧安装。
+        let savedUninstallerEnabled = defaults.object(forKey: "uninstallerEnabled") as? Bool
+        let isUninstallerEnabled = savedUninstallerEnabled
+            ?? [Keys.panelTab, Keys.menuBarItems, "SUHasLaunchedBefore"].contains { defaults.object(forKey: $0) != nil }
+        if savedUninstallerEnabled == nil { defaults.set(isUninstallerEnabled, forKey: "uninstallerEnabled") }
         uninstallerEnabled = isUninstallerEnabled
         let isProcessesEnabled = defaults.bool(forKey: Keys.processesEnabled)
         processesEnabled = isProcessesEnabled
