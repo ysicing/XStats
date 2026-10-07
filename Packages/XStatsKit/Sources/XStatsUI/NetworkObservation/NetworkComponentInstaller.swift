@@ -5,6 +5,7 @@ import AppKit
 import Darwin
 import Foundation
 import Localization
+import NetworkObservation
 import Updates
 
 public enum NetworkComponentInstallError: Error, LocalizedError, Equatable {
@@ -125,6 +126,12 @@ public final class NetworkComponentInstaller {
         let candidate = expanded.appendingPathComponent(componentURL.lastPathComponent, isDirectory: true)
         progress(0.8)
         try await validateBundle(at: candidate, hostApp: hostApp, dependencies: dependencies)
+        // 固定下载地址可能已指向更新协议的组件；写入前拒绝，避免装上后无法使用也无法通过组件卸载。
+        let metadata = try await NetworkComponentMetadata.load(at: candidate)
+        guard let team = dependencies.teamIdentifier(hostApp), metadata.protocolVersion == NetworkObservationProtocol.version,
+              metadata.controlMachService == NetworkObservationProtocol.controlServiceName(team: team) else {
+            throw NetworkMonitorError.protocolMismatch
+        }
         try Task.checkCancellation()
         guard await !dependencies.isRunning() else { throw NetworkComponentInstallError.runningComponent }
         // 在目标文件系统暂存，最后使用排他 rename；目标即使在检查后出现也不会被覆盖。
