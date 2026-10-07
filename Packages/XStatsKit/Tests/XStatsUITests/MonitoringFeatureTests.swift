@@ -6,8 +6,15 @@ import Foundation
 import Testing
 @testable import XStatsUI
 
+/// 每个用例使用独立偏好域，实例释放时删除，避免在本机留下测试 plist。
 @MainActor
-struct MonitoringFeatureTests {
+final class MonitoringFeatureTests {
+    private var suites: [String] = []
+
+    deinit {
+        for suite in suites { UserDefaults.standard.removePersistentDomain(forName: suite) }
+    }
+
     @Test func changingFeatureCategoryKeepsPreferencesAndSamplingDemandUnchanged() {
         let settings = settings()
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
@@ -26,7 +33,9 @@ struct MonitoringFeatureTests {
     }
 
     private func settings() -> AppSettings {
-        let defaults = UserDefaults(suiteName: "MonitoringFeatureTests.\(UUID())")!
+        let suite = "MonitoringFeatureTests.\(UUID())"
+        suites.append(suite)
+        let defaults = UserDefaults(suiteName: suite)!
         return AppSettings(defaults: defaults)
     }
 
@@ -120,6 +129,21 @@ struct MonitoringFeatureTests {
         model.handle(snapshot)
         #expect(model.store.cpu == nil)
         #expect(model.store.cpuTotal.elements.isEmpty)
+    }
+
+    @Test func disablingModulesClearsTheirLiveHistories() {
+        let store = MetricsStore(readBattery: false)
+        var snapshot = MetricsSnapshot()
+        snapshot.network = NetworkRate(downloadBytesPerSecond: 1_000, uploadBytesPerSecond: 500, totalDownloaded: 0, totalUploaded: 0)
+        snapshot.gpu = GPUUsage(name: "Fixture GPU", utilization: 0.4)
+        snapshot.power = PowerReading(system: 30)
+        store.apply(snapshot)
+        #expect(!store.downloadHistory.elements.isEmpty && !store.gpuHistory.elements.isEmpty && !store.powerHistory.elements.isEmpty)
+        store.clearDisabledModules([.cpu, .memory, .disk, .battery])
+        #expect(store.network == nil && store.downloadHistory.elements.isEmpty && store.uploadHistory.elements.isEmpty,
+                "网络关闭后不能保留旧速率曲线")
+        #expect(store.gpu == nil && store.gpuHistory.elements.isEmpty, "GPU 关闭后不能保留旧占用曲线")
+        #expect(store.power == nil && store.powerHistory.elements.isEmpty, "温度与风扇关闭后不能保留旧功耗曲线")
     }
 
     @Test func closingAndReenablingRejectsSnapshotsAlreadyQueuedBeforeDemandDelivery() {

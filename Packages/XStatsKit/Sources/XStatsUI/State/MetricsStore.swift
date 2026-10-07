@@ -74,28 +74,29 @@ public final class MetricsStore {
             cpuTimeline = History(capacity: Self.timelineCapacity)
             coreHistory = History(capacity: Self.historyCapacity)
         }
-        if !enabled.contains(.memory), memory != nil {
+        if !enabled.contains(.memory), memory != nil || !memoryHistory.elements.isEmpty {
             memory = nil
             memoryHistory = History(capacity: Self.historyCapacity)
             pressureHistory = History(capacity: Self.historyCapacity)
             swapRate = nil; lastSwap = nil
         }
-        if !enabled.contains(.network), network != nil || networkInterface != nil {
+        if !enabled.contains(.network), network != nil || networkInterface != nil || !downloadHistory.elements.isEmpty {
             network = nil; networkInterface = nil
             downloadHistory = History(capacity: Self.historyCapacity)
             uploadHistory = History(capacity: Self.historyCapacity)
         }
-        if !enabled.contains(.gpu), gpu != nil {
+        if !enabled.contains(.gpu), gpu != nil || !gpuHistory.elements.isEmpty {
             gpu = nil
             gpuHistory = History(capacity: Self.historyCapacity)
         }
-        if !enabled.contains(.disk), disk != nil || diskActivity != nil || diskHealth != nil {
+        if !enabled.contains(.disk), disk != nil || diskActivity != nil || diskHealth != nil || !diskReadHistory.elements.isEmpty {
             disk = nil; diskActivity = nil; diskHealth = nil
             diskReadHistory = History(capacity: Self.historyCapacity)
             diskWriteHistory = History(capacity: Self.historyCapacity)
         }
         if !enabled.contains(.battery), battery != nil { battery = nil }
-        if !enabled.contains(.thermal), sensors != nil || power?.system != nil || power?.gpu != nil || power?.battery != nil || power?.adapter != nil {
+        if !enabled.contains(.thermal), sensors != nil || power?.system != nil || power?.gpu != nil || power?.battery != nil || power?.adapter != nil
+            || !powerHistory.elements.isEmpty {
             sensors = nil
             power = enabled.contains(.cpu) && power?.clusterFrequency.isEmpty == false
                 ? PowerReading(clusterFrequency: power?.clusterFrequency ?? [:]) : nil

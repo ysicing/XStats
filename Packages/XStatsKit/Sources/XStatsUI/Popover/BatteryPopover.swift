@@ -25,7 +25,12 @@ struct BatteryPopover: View {
             case .batteryPower:
                 if battery != nil {
                     SectionCard(title: section.title, trailing: { Text(tr("最近 60 秒")) }) {
-                        PowerRows(power: store.power, history: store.powerHistory.elements, compact: !isDetailPage)
+                        // 功耗随温度与风扇模块采集；关闭时说明原因，不误报为硬件不支持。
+                        if settings.isModuleEnabled(.thermal) {
+                            PowerRows(power: store.power, history: store.powerHistory.elements, compact: !isDetailPage)
+                        } else {
+                            Text(tr("已关闭，不再采集")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                        }
                     }
                 }
             case .batteryHealth:

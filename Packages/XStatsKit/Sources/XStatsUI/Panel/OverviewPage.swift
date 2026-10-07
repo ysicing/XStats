@@ -9,22 +9,31 @@ struct OverviewPage: View {
 
     var body: some View {
         PageScroll {
+            let settings = model.settings
+            let showsFan = settings.isModuleEnabled(.thermal) && model.store.supportsFans
+            let showsBattery = settings.isModuleEnabled(.battery) && model.store.battery != nil
             HealthHeader()
-            WeightedRow {
-                if model.settings.isModuleEnabled(.cpu) { CPUTile() }
-                if model.settings.isModuleEnabled(.gpu) { GPUTile() }
-                if model.settings.isModuleEnabled(.memory) { MemoryTile() }
+            // 整行模块都关闭时不保留空行，避免 PageScroll 的行间距留下空白。
+            if !settings.enabledMonitoringModules.isDisjoint(with: [.cpu, .gpu, .memory]) {
+                WeightedRow {
+                    if settings.isModuleEnabled(.cpu) { CPUTile() }
+                    if settings.isModuleEnabled(.gpu) { GPUTile() }
+                    if settings.isModuleEnabled(.memory) { MemoryTile() }
+                }
             }
-            WeightedRow {
-                if model.settings.isModuleEnabled(.disk) { DiskTile() }
-                if model.settings.isModuleEnabled(.network) { NetworkTile() }
-                if model.settings.isModuleEnabled(.thermal), model.store.supportsFans { FanTile() }
+            if settings.isModuleEnabled(.disk) || settings.isModuleEnabled(.network) || showsFan {
+                WeightedRow {
+                    if settings.isModuleEnabled(.disk) { DiskTile() }
+                    if settings.isModuleEnabled(.network) { NetworkTile() }
+                    if showsFan { FanTile() }
+                }
             }
             // 窄卡片与上方单列同宽：宽卡占两列
-            WeightedRow(weights: [model.settings.isModuleEnabled(.cpu) ? 2 : nil,
-                                  model.settings.isModuleEnabled(.battery) && model.store.battery != nil ? 1 : nil].compactMap { $0 }) {
-                if model.settings.isModuleEnabled(.cpu) { CoreLoadCard() }
-                if model.settings.isModuleEnabled(.battery), model.store.battery != nil { BatteryCard() }
+            if settings.isModuleEnabled(.cpu) || showsBattery {
+                WeightedRow(weights: [settings.isModuleEnabled(.cpu) ? 2 : nil, showsBattery ? 1 : nil].compactMap { $0 }) {
+                    if settings.isModuleEnabled(.cpu) { CoreLoadCard() }
+                    if showsBattery { BatteryCard() }
+                }
             }
             WeightedRow(weights: model.settings.isModuleEnabled(.cpu) || model.settings.isModuleEnabled(.memory) ? [2, 1] : [1]) {
                 if model.settings.isModuleEnabled(.cpu) || model.settings.isModuleEnabled(.memory) { TopProcessesCard() }

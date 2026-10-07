@@ -1823,11 +1823,8 @@ XStats 网络连接查看	XStats Netzwerkverbindungsanzeige
 网络组件有更新	Update für Netzwerkkomponente verfügbar
 关闭面板	Panel schließen
 关闭功能会停止采集并移除菜单栏入口，已有历史保留。	Das Ausschalten stoppt die Erfassung und entfernt die Menüleisteneinträge. Vorhandene Verlaufsdaten bleiben erhalten.
-基础监控	Grundlegende Überwachung
 移出菜单栏不会关闭功能；系统小组件仍独立刷新。	Ein Eintrag kann aus der Menüleiste entfernt werden, ohne die Funktion auszuschalten. Systemwidgets aktualisieren sich unabhängig.
-可选工具	Optionale Werkzeuge
 已关闭，不再采集	Aus, keine Erfassung
-已启用，并在菜单栏显示	Aktiviert und in der Menüleiste angezeigt
 已启用，按需采集	Aktiviert, Erfassung bei Bedarf
 此功能已关闭，不再采集数据。启用后仅按展示、历史和提醒需求采集。	Diese Funktion ist ausgeschaltet und erfasst keine Daten. Nach dem Aktivieren erfolgt die Erfassung nur für Anzeige, Verlauf oder Warnungen.
 启用监控功能	Überwachung aktivieren
@@ -1839,8 +1836,5 @@ XStats 网络连接查看	XStats Netzwerkverbindungsanzeige
 显示器参数控制	Display-Parametersteuerung
 允许调节亮度、对比度和音量	Helligkeit, Kontrast und Lautstärke anpassen
 仅查看显示器信息，不读取或设置参数	Nur Displayinformationen, kein Lesen oder Ändern von Parametern
-监控关闭会停止采集；显示器开关只控制参数设置。	Das Ausschalten der Überwachung stoppt die Erfassung. Der Displayschalter steuert nur Parameteranpassungen.
 只显示信息，参数控制在功能设置中启用	Zeigt nur Informationen. Die Parametersteuerung unter Funktionen aktivieren.
-菜单栏设置…	Menüleisteneinstellungen…
-{}菜单栏设置	Menüleisteneinstellungen für {}
 查看应用与残留文件，确认后移到废纸篓。	Apps und Restdateien ansehen und nach Bestätigung in den Papierkorb verschieben.

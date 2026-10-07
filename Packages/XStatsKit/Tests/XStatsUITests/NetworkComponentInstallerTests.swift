@@ -136,7 +136,8 @@ struct NetworkComponentInstallerTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.destination.deletingLastPathComponent().path).isEmpty)
     }
 
-    @Test @MainActor func readOnlyApplicationsReportsAdministratorRequirement() async throws {
+    // root 会忽略目录权限位，无法模拟标准账户。
+    @Test(.enabled(if: getuid() != 0)) @MainActor func readOnlyApplicationsReportsAdministratorRequirement() async throws {
         let fixture = try ComponentInstallFixture()
         defer { fixture.remove() }
         let applications = fixture.destination.deletingLastPathComponent()
