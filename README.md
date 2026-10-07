@@ -152,7 +152,7 @@ open 'xstats://keep-awake/start'       # 开启普通防休眠
 ```
 
 重复打开保持当前窗口或弹窗可见；已关闭的模块会转到设置，不会被链接隐式启用。
-完整路径与操作见 [深链协议](DEVELOPMENT.md#xstats-深链)。
+完整路径与操作见 [深链协议](docs/DEVELOPMENT.md#xstats-深链)。
 
 ### 桌面小组件与多语言
 
@@ -176,7 +176,7 @@ brew install --cask xstats
 
 **直接下载**：从 [GitHub Releases](https://github.com/ysicing/xstats/releases) 下载 DMG，打开后将 XStats 拖入“应用程序”并启动。
 
-应用内置更新检查，发现新版本后，由你决定是否下载安装。源码构建方式见[开发指南](DEVELOPMENT.md)。
+应用内置更新检查，发现新版本后，由你决定是否下载安装。源码构建方式见[开发指南](docs/DEVELOPMENT.md)。
 
 ## 数据与隐私
 
@@ -199,7 +199,7 @@ task test
 task build BUMP=0 INSTALL=0
 ```
 
-欢迎提交 Issue 和 Pull Request。开发环境与发布流程见 [DEVELOPMENT.md](DEVELOPMENT.md)，模块边界与实现约束见 [ARCHITECTURE.md](ARCHITECTURE.md)。
+欢迎提交 Issue 和 Pull Request。开发环境与发布流程见 [DEVELOPMENT.md](docs/DEVELOPMENT.md)，模块边界与实现约束见 [ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
 ## 版本记录
 

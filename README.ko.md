@@ -153,7 +153,7 @@ open 'xstats://keep-awake/start'       # 일반 잠자기 방지 시작
 ```
 
 반복해서 열어도 창이나 팝오버는 닫히지 않습니다. 꺼진 모듈은 설정 페이지로 이동하며 자동으로 켜지지 않습니다.
-전체 경로와 동작은 [딥 링크 프로토콜](DEVELOPMENT.md#xstats-深链)을 참고하세요.
+전체 경로와 동작은 [딥 링크 프로토콜](docs/DEVELOPMENT.md#xstats-深链)을 참고하세요.
 
 ### 데스크톱 위젯과 언어
 
@@ -177,7 +177,7 @@ brew install --cask xstats
 
 **직접 다운로드**: [GitHub Releases](https://github.com/ysicing/xstats/releases)에서 DMG를 받은 뒤, 열어서 XStats를 ‘응용 프로그램’으로 드래그하고 실행하세요.
 
-앱이 업데이트를 확인하며, 새 버전의 다운로드와 설치 여부는 사용자가 선택합니다. 소스 빌드 방법은 [개발 안내(중국어)](DEVELOPMENT.md)를 참고하세요.
+앱이 업데이트를 확인하며, 새 버전의 다운로드와 설치 여부는 사용자가 선택합니다. 소스 빌드 방법은 [개발 안내(중국어)](docs/DEVELOPMENT.md)를 참고하세요.
 
 ## 데이터와 개인정보
 
@@ -199,7 +199,7 @@ task test
 task build BUMP=0 INSTALL=0
 ```
 
-Issue와 Pull Request를 환영합니다. 환경 설정과 릴리스 과정은 [DEVELOPMENT.md(중국어)](DEVELOPMENT.md), 모듈 경계와 구현 제약은 [ARCHITECTURE.md(영어)](ARCHITECTURE.md)을 참고하세요.
+Issue와 Pull Request를 환영합니다. 환경 설정과 릴리스 과정은 [DEVELOPMENT.md(중국어)](docs/DEVELOPMENT.md), 모듈 경계와 구현 제약은 [ARCHITECTURE.md(영어)](docs/ARCHITECTURE.md)을 참고하세요.
 
 ## 변경 기록
 

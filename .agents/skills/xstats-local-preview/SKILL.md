@@ -18,7 +18,7 @@ description: Build, sign, install, and inspect the current XStats macOS app loca
 
 ## 构建与安装
 
-1. 使用 `security find-identity -v -p codesigning` 核对本机 Developer ID 身份；主 App 与 Widget 的 provisioning profile 名称按本机实际安装情况及 `DEVELOPMENT.md` 配置为 `XSTATS_APP_PROFILE`、`XSTATS_WIDGET_PROFILE`。有多张证书时用 `SIGN_ID` 选择与两个 profile 匹配的一张。不要硬编码身份、索要私钥或修改 Apple 账户。缺少可用签名时明确报告；ad-hoc 构建无法预览特权辅助工具功能。
+1. 使用 `security find-identity -v -p codesigning` 核对本机 Developer ID 身份；主 App 与 Widget 的 provisioning profile 名称按本机实际安装情况及 `docs/DEVELOPMENT.md` 配置为 `XSTATS_APP_PROFILE`、`XSTATS_WIDGET_PROFILE`。有多张证书时用 `SIGN_ID` 选择与两个 profile 匹配的一张。不要硬编码身份、索要私钥或修改 Apple 账户。缺少可用签名时明确报告；ad-hoc 构建无法预览特权辅助工具功能。
 2. 先编译，不安装：`task build BUMP=0 INSTALL=0 CONFIG=Release`。若上一步确认需要刷新 Widget 目录，仅这次改为 `BUMP=1`。命令继承已经核实的签名环境变量。
 3. 确认构建成功，并对 `build/DerivedData-arm64/Build/Products/Release/XStats.app` 运行 `codesign --verify --deep --strict`、`lipo -archs`。用 `plutil -extract CFBundleShortVersionString raw -o - <App>/Contents/Info.plist` 和对应的 `CFBundleVersion` 读取版本；相对路径不要交给 `defaults read` 当域名解析。
 4. 运行 `./scripts/install_local.sh build/DerivedData-arm64/Build/Products/Release/XStats.app`。它会退出旧 App 和扩展、替换 `/Applications/XStats.app` 并启动新版，保留用户偏好与历史。若仅因 `XStatsWidget 尚未退出` 而失败，可先结束 **XStatsWidget** 进程、等待退出后重试一次；不要终止 Notification Center 或清理用户数据。

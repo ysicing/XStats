@@ -153,7 +153,7 @@ open 'xstats://keep-awake/start'       # Enable ordinary keep-awake
 ```
 
 Repeated opens keep the window or popover visible. Disabled modules lead to Settings and are not enabled implicitly.
-See the [deep-link protocol](DEVELOPMENT.md#xstats-深链) for all routes and actions.
+See the [deep-link protocol](docs/DEVELOPMENT.md#xstats-深链) for all routes and actions.
 
 ### Desktop widgets and languages
 
@@ -177,7 +177,7 @@ Update later with `brew upgrade --cask xstats`.
 
 **Direct download**: get the DMG from [GitHub Releases](https://github.com/ysicing/xstats/releases), open it, drag XStats into Applications and launch it.
 
-XStats checks for updates, and you decide whether to download and install a new version. See the [development guide](DEVELOPMENT.md) to build from source.
+XStats checks for updates, and you decide whether to download and install a new version. See the [development guide](docs/DEVELOPMENT.md) to build from source.
 
 ## Data and privacy
 
@@ -199,7 +199,7 @@ task test
 task build BUMP=0 INSTALL=0
 ```
 
-Issues and pull requests are welcome. See [DEVELOPMENT.md](DEVELOPMENT.md) for setup and releases, and [ARCHITECTURE.md](ARCHITECTURE.md) for module boundaries and implementation constraints.
+Issues and pull requests are welcome. See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for setup and releases, and [ARCHITECTURE.md](docs/ARCHITECTURE.md) for module boundaries and implementation constraints.
 
 ## Releases
 
