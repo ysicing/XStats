@@ -69,7 +69,7 @@ class GitHubReleaseNotesTests(unittest.TestCase):
                 render("1.0.0", changelog, Path("missing.json"))
 
     def test_cli_generates_current_release_and_unknown_version_has_no_output(self):
-        metadata = json.loads((ROOT / "ReleaseNotes.json").read_text(encoding="utf-8"))
+        metadata = json.loads((ROOT / "docs/ReleaseNotes.json").read_text(encoding="utf-8"))
         command = [sys.executable, str(ROOT / "scripts/github_release_notes.py")]
         valid = subprocess.run([*command, metadata["version"]], capture_output=True, text=True)
         self.assertEqual(valid.returncode, 0, valid.stderr)

@@ -96,7 +96,7 @@ def load_manifest(manifest: Path, archive: Path) -> dict:
     return feed
 
 
-def load_localized_notes(feed: dict, path: Path = ROOT / "ReleaseNotes.json") -> dict[str, list[str]]:
+def load_localized_notes(feed: dict, path: Path = ROOT / "docs/ReleaseNotes.json") -> dict[str, list[str]]:
     source = json.loads(path.read_text(encoding="utf-8"))
     if source.get("version") != feed["version"] or source.get("sourceNotes") != feed["notes"]:
         raise ValueError("ReleaseNotes.json 的版本或中文摘要已过期，请同步当前版本译文")
@@ -199,7 +199,7 @@ def main() -> None:
     parser.add_argument("manifest", type=Path)
     parser.add_argument("archive", type=Path)
     parser.add_argument("--verify", action="store_true")
-    parser.add_argument("--notes-file", type=Path, default=ROOT / "ReleaseNotes.json")
+    parser.add_argument("--notes-file", type=Path, default=ROOT / "docs/ReleaseNotes.json")
     parser.add_argument("--app-info", type=Path, default=ROOT / "App/Info.plist")
     parser.add_argument("--output", type=Path, help="组件可使用独立固定 appcast.xml 名称")
     arguments = parser.parse_args()

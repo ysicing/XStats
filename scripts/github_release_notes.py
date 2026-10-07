@@ -29,7 +29,7 @@ def main() -> None:
     parser.add_argument("version")
     args = parser.parse_args()
     print(render(args.version, (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"),
-                 ROOT / "ReleaseNotes.json"), end="")
+                 ROOT / "docs/ReleaseNotes.json"), end="")
 
 
 if __name__ == "__main__":

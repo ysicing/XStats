@@ -62,17 +62,17 @@ class ReleaseProvenanceTest(unittest.TestCase):
             release_provenance.verify(self.repo, provenance, "1.0.0", "110")
 
     def test_localized_notes_are_release_metadata_bound_to_build(self) -> None:
-        self.write("ReleaseNotes.json", '{"version":"1.0.0","translations":{"en":["first"]}}')
+        self.write("docs/ReleaseNotes.json", '{"version":"1.0.0","translations":{"en":["first"]}}')
         base = release_provenance.prepare(self.repo)
         provenance = self.repo / "dist/release-provenance.json"
         release_provenance.record(self.repo, provenance, base, "1.0.0", "109")
-        self.git("add", "ReleaseNotes.json")
+        self.git("add", "docs/ReleaseNotes.json")
         self.git("commit", "-m", "release notes")
         release_provenance.verify(self.repo, provenance, "1.0.0", "109")
-        self.write("ReleaseNotes.json", '{"version":"1.0.0","translations":{"en":["changed"]}}')
-        self.git("add", "ReleaseNotes.json")
+        self.write("docs/ReleaseNotes.json", '{"version":"1.0.0","translations":{"en":["changed"]}}')
+        self.git("add", "docs/ReleaseNotes.json")
         self.git("commit", "-m", "edit translation after build")
-        with self.assertRaisesRegex(release_provenance.ProvenanceError, "ReleaseNotes.json"):
+        with self.assertRaisesRegex(release_provenance.ProvenanceError, "docs/ReleaseNotes.json"):
             release_provenance.verify(self.repo, provenance, "1.0.0", "109")
 
 

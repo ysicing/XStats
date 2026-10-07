@@ -530,7 +530,7 @@ ambiguous matches remain unknown. Disconnected cached devices never retain a cha
 
 ## Online updates
 
-The current release's Chinese summaries come from `CHANGELOG.md`; `ReleaseNotes.json` stores the
+The current release's Chinese summaries come from `CHANGELOG.md`; `docs/ReleaseNotes.json` stores the
 matching source summaries and one English translation. The XML publisher validates their version
 and content, emits Chinese/English `description` nodes and signed `xstats:notes-zh-Hans` and
 `xstats:notes-en` fields, and binds the translation file to release provenance. The custom UI shows

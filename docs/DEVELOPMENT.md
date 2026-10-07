@@ -256,17 +256,17 @@ Mach 服务后缀是扩展构建号，停用查询按系统报告的已安装构
 主程序遇到已安装组件 `protocolMismatch` 时需提供卸载后重新安装的入口，而不是只校验不替换。
 
 组件发行完全独立，不推进主版本、不走主 JSON 版本 API、不生成 Homebrew cask。
-组件摘要维护在 `NetworkComponentReleaseNotes.json`：`version` 等于组件公开版本，`sourceNotes` 为简体中文单行条目，
-`translations.en` 与中文条目一一对应；格式沿用 `ReleaseNotes.json`，与主程序摘要分别维护。
+组件摘要维护在 `docs/NetworkComponentReleaseNotes.json`：`version` 等于组件公开版本，`sourceNotes` 为简体中文单行条目，
+`translations.en` 与中文条目一一对应；格式沿用 `docs/ReleaseNotes.json`，与主程序摘要分别维护。
 
 ```bash
 # 默认只构建、签名、公证、装订并生成 dist/network-monitor/ 的 ZIP、appcast.json、appcast.xml
-NETWORK_RELEASE_NOTES=NetworkComponentReleaseNotes.json \
+NETWORK_RELEASE_NOTES=docs/NetworkComponentReleaseNotes.json \
 XSTATS_COMPONENT_PROFILE='组件 profile 名称' XSTATS_NETWORK_PROFILE='扩展 profile 名称' \
   task release-network-component
 
 # 只有显式 --publish 才上传；使用同一套前置条件并重新构建制品
-./scripts/release_network_component.sh --notes NetworkComponentReleaseNotes.json --publish
+./scripts/release_network_component.sh --notes docs/NetworkComponentReleaseNotes.json --publish
 ```
 
 发布到 `c-ip/oss/apps/macOS/XStats/network-monitor`：每个公开版本只有
@@ -275,7 +275,7 @@ XSTATS_COMPONENT_PROFILE='组件 profile 名称' XSTATS_NETWORK_PROFILE='扩展 
 先上传并 CDN 回读版本 ZIP 和同名版本 XML，再通过 `/api/v1/apps/xstats-network-monitor/releases/current`
 发布到三个区域 API，使用现有公钥登记组件应用；不再写跨版本 ZIP 别名或可变对象存储 XML。
 已存在的公开版本禁止重新构建覆盖；中断后以原始公证 ZIP/XML 执行
-`./scripts/release_network_component.sh --notes NetworkComponentReleaseNotes.json --publish-only`。
+`./scripts/release_network_component.sh --notes docs/NetworkComponentReleaseNotes.json --publish-only`。
 源站已有同名 ZIP 时必须与本地原制品哈希相同，否则停止；组件更新与主程序一样走区域 API，API 原样返回不可变 XML，发布后逐入口回读核验。
 
 可对构建执行 `XStats --snapshot <目录> --connections-only --language en` 走查界面。
@@ -291,7 +291,7 @@ xcrun notarytool store-credentials XStats --apple-id you@example.com --team-id Y
 ```
 
 发版前将 `CHANGELOG.md` 顶部的 `## 未发布` 替换为 `## X.Y.Z · YYYY-MM-DD`，
-同步 `ReleaseNotes.json` 的中英文摘要，并把四个 README 中“开发中”“即将随 X.Y 发布”等预发布说明改为已发布状态。
+同步 `docs/ReleaseNotes.json` 的中英文摘要，并把四个 README 中“开发中”“即将随 X.Y 发布”等预发布说明改为已发布状态。
 公开版本取自 CHANGELOG，构建号由脚本递增；`project.yml` 的版本字段由脚本更新。
 
 源码改动先提交并推送；构建前只保留允许的版本元数据改动。完整发布命令：

@@ -14,7 +14,7 @@ from pathlib import Path
 ALLOWED_RELEASE_FILES = {
     "project.yml",
     "CHANGELOG.md",
-    "ReleaseNotes.json",
+    "docs/ReleaseNotes.json",
     "README.md",
     "README.en.md",
     "README.ja.md",
@@ -71,7 +71,7 @@ def record(repo: Path, output: Path, base_commit: str, version: str, build: str)
         "project_sha256": sha256(repo / "project.yml"),
         "changelog_sha256": sha256(repo / "CHANGELOG.md"),
     }
-    notes = repo / "ReleaseNotes.json"
+    notes = repo / "docs/ReleaseNotes.json"
     if notes.is_file():
         payload["release_notes_sha256"] = sha256(notes)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -94,10 +94,10 @@ def verify(repo: Path, provenance: Path, version: str, build: str) -> None:
         raise ProvenanceError("project.yml 与构建时不一致")
     if sha256(repo / "CHANGELOG.md") != payload.get("changelog_sha256"):
         raise ProvenanceError("CHANGELOG.md 与构建时不一致")
-    notes = repo / "ReleaseNotes.json"
+    notes = repo / "docs/ReleaseNotes.json"
     if notes.exists() or "release_notes_sha256" in payload:
         if not notes.is_file() or sha256(notes) != payload.get("release_notes_sha256"):
-            raise ProvenanceError("ReleaseNotes.json 与构建时不一致")
+            raise ProvenanceError("docs/ReleaseNotes.json 与构建时不一致")
     if git(repo, "status", "--porcelain", "--untracked-files=all").stdout:
         raise ProvenanceError("发布前工作区或暂存区不干净")
 

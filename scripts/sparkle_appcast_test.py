@@ -116,7 +116,7 @@ class SparkleAppcastTests(unittest.TestCase):
 
     def test_english_translation_matches_the_current_changelog(self):
         from appcast import release_notes
-        source = json.loads((ROOT / "ReleaseNotes.json").read_text())
+        source = json.loads((ROOT / "docs/ReleaseNotes.json").read_text())
         _, notes = release_notes((ROOT / "CHANGELOG.md").read_text(), source["version"])
         localized = load_localized_notes({"version": source["version"], "notes": notes})
         self.assertEqual(set(localized), {"en", "zh-Hans"})

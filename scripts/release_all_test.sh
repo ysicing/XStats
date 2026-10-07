@@ -13,7 +13,7 @@ trap 'rm -rf "$WORK"' EXIT
 
 setup() {
   rm -rf "${WORK:?}/repo" "${WORK:?}/bin"
-  mkdir -p "$WORK/repo/scripts" "$WORK/repo/Assets/readme" "$WORK/bin"
+  mkdir -p "$WORK/repo/scripts" "$WORK/repo/Assets/readme" "$WORK/repo/docs" "$WORK/bin"
   cp "$ROOT/scripts/release_all.sh" "$WORK/repo/scripts/release_all.sh"
   chmod +x "$WORK/repo/scripts/release_all.sh"
   cat > "$WORK/repo/project.yml" <<'YAML'
@@ -32,7 +32,7 @@ LOG
   for file in README.md README.en.md README.ja.md README.ko.md; do
     printf '# XStats\n' > "$WORK/repo/$file"
   done
-  printf '{"version":"0.8.0"}\n' > "$WORK/repo/ReleaseNotes.json"
+  printf '{"version":"0.8.0"}\n' > "$WORK/repo/docs/ReleaseNotes.json"
   : > "$WORK/repo/Assets/readme/activity.svg"
   : > "$WORK/repo/Assets/readme/activity.zh.svg"
   : > "$WORK/log"
@@ -109,7 +109,7 @@ python3 scripts/release_provenance.py prepare
 task test
 task release
 python3 scripts/release_provenance.py prepare
-git add -- project.yml CHANGELOG.md ReleaseNotes.json README.md README.en.md README.ja.md README.ko.md Assets/readme/activity.svg Assets/readme/activity.zh.svg
+git add -- project.yml CHANGELOG.md docs/ReleaseNotes.json README.md README.en.md README.ja.md README.ko.md Assets/readme/activity.svg Assets/readme/activity.zh.svg
 git diff --cached --quiet
 git commit -m chore(release): 发布 0.8.0
 git push origin main
