@@ -18,6 +18,13 @@ XStats 使用独立编写的 Swift 扫描与废纸篓流程，未引入 Mole 的
 番茄钟的粉红噪音使用 [Paul Kellett 的滤波系数](https://www.musicdsp.org/en/latest/Filters/76-pink-noise-filter.html)
 近似 1/f 频谱；Swift 音频生成器由 XStats 独立编写，未引入音频素材或第三方音频依赖。
 
+## Apple 智能诊断参考
+
+Apple 智能功能对应的偏好键、模型集合和资产清单字段参考
+[RemoveMacAI](https://github.com/omlahore/RemoveMacAI/tree/b20c58aec41f5555e2978c9184e10ee0589354cb)（MIT）及其注明的
+[pared](https://github.com/4evy/pared)（MIT）研究。XStats 的 Swift 状态判定、只读资产查询、限时子进程与浮层为独立实现，
+未引入上游源码或运行时依赖，不执行其模型重置、删除、下载阻断或配置描述文件操作。
+
 ## gentpan/OpenStats
 
 XStats 基于 [gentpan/OpenStats](https://github.com/gentpan/OpenStats) 开发，感谢原项目的开源贡献。

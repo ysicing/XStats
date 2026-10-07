@@ -67,6 +67,7 @@ Manage Basic and Optional Features separately in Settings → Features.
 | **Battery and Bluetooth** | Charge, power source, health, cycle count and Bluetooth device battery levels |
 | **Temperature and fans** | Temperature sensors, fan speeds and power |
 | **Displays** | Resolution, scaling and refresh rate; brightness, contrast and volume on DDC/CI-capable external displays |
+| **System information** | Mac and system identifiers; click the detail icon beside Apple Intelligence to view feature configuration, on-device model availability and storage |
 
 Frequency, temperature and power readings depend on what the Mac model and macOS expose.
 

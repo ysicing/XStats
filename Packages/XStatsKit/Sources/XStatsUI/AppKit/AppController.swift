@@ -796,6 +796,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
 public enum XStatsApplication {
     @MainActor
     public static func main() {
+        // 只读诊断子进程不启动 UI、采样或更新服务，也不写入应用偏好。
+        if CommandLine.arguments.contains(AppleIntelligenceDiagnostics.argument) {
+            AppleIntelligenceDiagnostics.writeReport()
+            return
+        }
         // 滚动条一律用浮层样式：接了鼠标时系统默认是常驻滚动条，SwiftUI 的 ScrollView 会给它预留一条宽度，
         // 弹窗里的内容就会整体偏左。这是本应用自己的偏好域，只影响 XStats
         if CommandLine.arguments.contains("--snapshot") {

@@ -23,6 +23,33 @@ enum SnapshotRenderer {
         do { try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true) }
         catch { reportFailure(outputDirectory, error: error); return }
 
+        // 定向诊断不启动指标采样或 AI 日志扫描；demo 仅用于布局走查。
+        if CommandLine.arguments.contains("--apple-intelligence-only") {
+            let demo = CommandLine.arguments.contains("--demo")
+            let report = demo ? AppleIntelligenceDiagnostics.Report.example : ((try? await AppleIntelligenceDiagnostics.load()) ?? .unreadable)
+            if !demo {
+                let path = outputDirectory.appendingPathComponent("report.json")
+                do { try JSONEncoder().encode(report).write(to: path) }
+                catch { reportFailure(path, error: error); return }
+            }
+            let suite = "XStats.appleIntelligenceSnapshot.\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: suite)!
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let settings = AppSettings(defaults: defaults)
+            settings.language = L10n.language
+            let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+            for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+                guard let appearance = NSAppearance(named: name) else { continue }
+                NSApp.appearance = appearance
+                write(AppleIntelligenceDetailsPopover(report: report), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("apple-intelligence-\(suffix).png"))
+                write(AppleIntelligenceStatusRow(status: .unavailable).padding(DS.Space.s3).frame(width: 600),
+                      model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("apple-intelligence-row-\(suffix).png"))
+            }
+            return
+        }
+
         if CommandLine.arguments.contains("--features-only") {
             await renderFeatures(outputDirectory: outputDirectory)
             await renderAudio(outputDirectory: outputDirectory, demo: true)

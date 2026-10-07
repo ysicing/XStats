@@ -101,6 +101,21 @@ README 的聚合状态总览使用该模式的 `overview-light.png` / `overview-
 保存为 `Assets/readme/combined-overview-zh-Hans-<light|dark>.png`，与主窗口仪表盘截图区分。
 显示器控制页面可改用 `--display-only`，只读本机信息和 DDC 能力，不修改硬件设置。
 
+系统信息中的 Apple 智能详情可单独走查：
+
+```bash
+task snapshot SNAPSHOT_DIR=build/apple-intelligence -- --apple-intelligence-only --language zh-Hans
+# 使用 --demo 只验证界面，不读取本机 Apple 智能偏好或模型占用
+task snapshot SNAPSHOT_DIR=build/apple-intelligence-demo -- --apple-intelligence-only --demo --language en
+```
+
+实际模式输出只读 `report.json`，以及详情浮层、入口行的明暗 PNG；详细功能与模型占用检测仅在 macOS 27+
+执行，其他版本保留已有本机模型可用性摘要，明细标注无法检测。读取资产服务失败不视为零占用，
+功能配置状态与 `removemacai status` 的判定顺序一致：受管理关闭、明确关闭、仅模型型功能按占用判断，
+其他情况默认开启（包括未保存显式值）。没有独立开关的照片清理与 Xcode 补全按模型占用判断开启或关闭；
+模型清单读取失败后改查单个模型集合，仍失败时保持未知。顶部本机模型可用性单独使用 Foundation Models
+API 检测；配置开启不代表模型可用。此模式不生成回答、修改设置、下载或删除模型。
+
 `project.yml` 是 Xcode 工程配置来源，调整 target、entitlement 或签名设置后重新生成工程。
 修改 `CHANGELOG.md` 后运行 `python3 scripts/sync_changelog.py`，同步 README 版本摘要与活跃度图。
 

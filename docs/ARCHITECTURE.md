@@ -293,6 +293,26 @@ and deadline values, so WidgetKit refresh timing cannot provide second-accurate 
 
 ## AI process explanations
 
+The Apple Intelligence row in System Information and the process explanation card share a native
+detail button and popover. It reads fourteen
+feature settings and five model sets only when opened or manually refreshed. The feature configuration
+section follows RemoveMacAI's `status` rules: managed-off, explicit-off, model-only state, then default
+on, including absent and partially disabled preferences. All Siri and external integration keys are
+read. Model-only features also honor the installed RemoveMacAI profile's restriction markers.
+Configuration on does not establish Foundation Models readiness; the separate availability row uses
+the public Foundation Models API. Detailed preference/model detection is gated to macOS
+27, while the existing public Foundation Models availability summary remains available on supported
+systems. Unknown inventory entries never contribute a fabricated zero to the total.
+
+`AppleIntelligenceDiagnostics` isolates optional UnifiedAssetFramework inventory reads in a short-lived
+copy of the current executable (`--apple-intelligence-report`), before UI, samplers or preference writes
+are initialized. The caller bounds execution to five seconds and output to 64 KiB; dismissal cancels
+and reaps that child. No model reset, deletion, download override, settings write, timer or retained
+inventory is added. A complete asset inventory takes precedence; if it cannot be read, each set's
+read-only asset status is queried instead. Failed queries stay unknown rather than becoming zero.
+The feature/asset identifiers were researched from RemoveMacAI and pared; the
+read-only implementation is independent.
+
 `ProcessExplainer` uses only the on-device Apple Intelligence model. It checks framework and
 macOS support before exposing the action, then checks model availability at request time. If
 the device, system setting or model is unavailable, the explanation card shows the reason and

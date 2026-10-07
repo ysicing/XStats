@@ -554,7 +554,11 @@ private struct ProcessExplanationCard: View {
                     Image(systemName: "sparkles")
                         .font(.system(size: DS.TextSize.sm.rawValue, weight: .semibold))
                         .foregroundStyle(DS.Palette.primary)
-                    Text(tr("Apple 智能解释")).dsFont(.sm, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
+                    HStack(spacing: DS.Space.s1) {
+                        Text(tr("Apple 智能解释")).dsFont(.sm, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
+                        AppleIntelligenceDetailsButton()
+                    }
+                    .fixedSize()
                     Text(verbatim: "\(subject.displayName) · PID \(subject.pid)")
                         .dsFont(.xs)
                         .foregroundStyle(DS.Palette.textSecondary)

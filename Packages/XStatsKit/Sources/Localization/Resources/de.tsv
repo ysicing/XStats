@@ -1838,3 +1838,38 @@ XStats 网络连接查看	XStats Netzwerkverbindungsanzeige
 仅查看显示器信息，不读取或设置参数	Nur Displayinformationen, kein Lesen oder Ändern von Parametern
 只显示信息，参数控制在功能设置中启用	Zeigt nur Informationen. Die Parametersteuerung unter Funktionen aktivieren.
 查看应用与残留文件，确认后移到废纸篓。	Apps und Restdateien ansehen und nach Bestätigung in den Papierkorb verschieben.
+Apple 智能详情	Apple Intelligence – Details
+查看 Apple 智能功能与模型占用	Funktionen und Modellspeicher anzeigen
+本机模型已就绪	Lokales Modell ist bereit
+磁盘上的模型	Modelle auf dem Datenträger
+模型总计	Gesamter Modellspeicher
+无法读取诊断信息，请稍后刷新。	Diagnose nicht lesbar. Später aktualisieren.
+部分模型占用无法检测，无法确认总计。	Einige Modellgrößen sind unbekannt; keine bestätigte Gesamtsumme.
+已开启	Ein
+已关闭	Aus
+Siri 与 Siri AI	Siri und Siri AI
+ChatGPT 与其他 AI 扩展	ChatGPT und andere KI-Erweiterungen
+写作工具	Schreibtools
+Genmoji	Genmoji
+Image Playground	Image Playground
+邮件摘要与智能回复	Mail-Zusammenfassungen und intelligente Antworten
+通知摘要	Mitteilungszusammenfassungen
+信息摘要	Nachrichtenzusammenfassungen
+Safari 摘要	Safari-Zusammenfassungen
+备忘录转录摘要	Transkriptzusammenfassungen in Notizen
+行内文本预测	Inline-Textvorhersagen
+空间照片	Räumliche Fotos
+照片清理	Bereinigen in Fotos
+Xcode 预测代码补全	Prädiktive Codevervollständigung in Xcode
+Apple 智能基础模型	Apple Intelligence – Basismodelle
+图像与 Genmoji 模型	Bild- und Genmoji-Modelle
+空间照片模型	Modelle für räumliche Fotos
+照片清理模型	Modelle zum Bereinigen von Fotos
+Xcode 代码补全模型	Xcode-Codevervollständigungsmodelle
+详细功能与模型占用检测需要 macOS 27 或更新版本。	Detaillierte Funktions- und Modellspeichererkennung erfordert macOS 27 oder neuer.
+功能配置状态	Funktionskonfiguration
+本机模型可用性	Verfügbarkeit des lokalen Modells
+按设置和限制判断，开启不代表本机模型已就绪	Basiert auf Einstellungen und Einschränkungen. Ein bedeutet nicht, dass das lokale Modell bereit ist.
+已关闭（受管理）	Aus (verwaltet)
+未开启	Nicht aktiviert
+模型未就绪	Modell nicht bereit

@@ -113,10 +113,8 @@ struct SystemInfoPage: View {
 
             InfoCard(icon: "number", title: tr("标识")) {
                 InfoRow(label: tr("机型标识符")) { CopyableText(text: system.modelIdentifier.isEmpty ? "—" : system.modelIdentifier) }
-                InfoRow(label: tr("Apple 智能"), text: AppleIntelligenceCompatibility
-                    .evaluate(chip: topology.brand, osVersion: ProcessInfo.processInfo.operatingSystemVersion)
-                    .localizedDescription)
-                    .help(tr("仅显示本机模型当前是否可用；设备兼容不代表当前可用。"))
+                AppleIntelligenceStatusRow(status: AppleIntelligenceCompatibility
+                    .evaluate(chip: topology.brand, osVersion: ProcessInfo.processInfo.operatingSystemVersion))
                 InfoRow(label: tr("系统版号")) { CopyableText(text: system.osBuild.isEmpty ? "—" : system.osBuild) }
                 InfoRow(label: tr("序列号")) {
                     HStack(spacing: DS.Space.s1) {
