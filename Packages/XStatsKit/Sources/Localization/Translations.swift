@@ -19,6 +19,7 @@ extension Translations {
 网络组件压缩包无效。	The network component archive is invalid.
 网络组件签名或公证校验失败。	Network component signature or notarization verification failed.
 网络组件正在安装，请稍候。	The network component is being installed. Please wait.
+安装网络组件需要管理员账户。	Installing the network component requires an administrator account.
 管理组件	Manage component
 关闭面板	Close panel
 网络组件	Network component

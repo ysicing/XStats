@@ -136,6 +136,20 @@ struct NetworkComponentInstallerTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.destination.deletingLastPathComponent().path).isEmpty)
     }
 
+    @Test @MainActor func readOnlyApplicationsReportsAdministratorRequirement() async throws {
+        let fixture = try ComponentInstallFixture()
+        defer { fixture.remove() }
+        let applications = fixture.destination.deletingLastPathComponent()
+        // 模拟标准账户对 /Applications 没有写权限。
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: applications.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: applications.path) }
+        await #expect(throws: NetworkComponentInstallError.requiresAdministrator) {
+            try await fixture.installer().install(progress: { _ in })
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: applications.path).isEmpty)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.temporary.path).isEmpty)
+    }
+
     @Test @MainActor func neverReplacesExistingComponentOrItsFiles() async throws {
         let fixture = try ComponentInstallFixture()
         defer { fixture.remove() }

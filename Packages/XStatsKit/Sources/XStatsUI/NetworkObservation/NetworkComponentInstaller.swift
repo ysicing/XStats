@@ -13,6 +13,7 @@ public enum NetworkComponentInstallError: Error, LocalizedError, Equatable {
     case untrustedComponent
     case runningComponent
     case installationInProgress
+    case requiresAdministrator
 
     public var errorDescription: String? {
         switch self {
@@ -20,6 +21,7 @@ public enum NetworkComponentInstallError: Error, LocalizedError, Equatable {
         case .invalidArchive: tr("网络组件压缩包无效。")
         case .untrustedComponent: tr("网络组件签名或公证校验失败。")
         case .installationInProgress: tr("网络组件正在安装，请稍候。")
+        case .requiresAdministrator: tr("安装网络组件需要管理员账户。")
         }
     }
 }
@@ -137,7 +139,9 @@ public final class NetworkComponentInstaller {
         // 在目标文件系统暂存，最后使用排他 rename；目标即使在检查后出现也不会被覆盖。
         let staged = destination.deletingLastPathComponent().appendingPathComponent(".xstats-network-\(UUID().uuidString).app")
         defer { try? manager.removeItem(at: staged) }
-        try manager.copyItem(at: candidate, to: staged)
+        // 系统扩展要求组件位于 /Applications；标准账户无写权限时明确提示，不引入提权写入。
+        do { try manager.copyItem(at: candidate, to: staged) }
+        catch let error as CocoaError where error.code == .fileWriteNoPermission { throw NetworkComponentInstallError.requiresAdministrator }
         try Task.checkCancellation()
         try await validateBundle(at: staged, hostApp: hostApp, dependencies: dependencies)
         guard await !dependencies.isRunning() else { throw NetworkComponentInstallError.runningComponent }

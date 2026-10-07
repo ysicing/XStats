@@ -1805,6 +1805,7 @@ XStats 网络连接查看	Visionneuse de connexions réseau XStats
 网络组件压缩包无效。	L’archive du composant réseau est invalide.
 网络组件签名或公证校验失败。	Échec de vérification de la signature ou de la notarisation du composant.
 网络组件正在安装，请稍候。	Installation du composant en cours. Veuillez patienter.
+安装网络组件需要管理员账户。	L’installation du composant réseau nécessite un compte administrateur.
 管理组件	Gérer le composant
 网络组件	Composant réseau
 组件按需运行，负责扩展授权和独立更新；所有连接均放行。	Le composant fonctionne à la demande pour gérer les autorisations et ses mises à jour. Toutes les connexions sont autorisées.
