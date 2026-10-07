@@ -59,10 +59,14 @@ cancel queued DDC work and discard late replies without clearing the display cat
 
 The Features page uses two native segmented tabs, Basic Features and Optional Features.
 Basic Features contains seven monitoring groups. Each row has a feature enable switch and
-a directly visible Show in Menu Bar checkbox below its status, distinguishing collection from
-display. Thermals exposes temperature and fan checkboxes separately, respecting detected hardware
+a directly visible Show in Menu Bar checkbox below its title, distinguishing collection from
+display without repeating the switch state in text. AI Usage and Audio have the same display
+checkboxes in Optional Features. Thermals exposes temperature and fan checkboxes separately, respecting detected hardware
 support. Detailed appearance settings remain in the existing Menu Bar settings page. Display Parameter Controls is in
 Optional Features; its information-only menu-bar toggle stays independent of DDC enablement.
+Optional Features uses separate cards: Network Monitor, Processes, Uninstaller and Cleanup;
+AI Usage, Audio and Display Parameter Controls; Pomodoro and Eye Breaks; and Menu Bar Calendar.
+Each card has consistent separators between rows, with no divider above its first row.
 Uninstaller is also optional and off by default. Its preference persists in settings backups;
 disabling it hides the sidebar entry, redirects its page/deep link to feature settings, cancels
 scans and pending confirmations, and releases the running-application observer. Already-started
@@ -73,8 +77,8 @@ opacity token, with no slide, bounce or animated row geometry. Keyboard and Redu
 are immediate. Each tab starts at the top and changes no feature preferences. Tab selection is
 transient window navigation state and does not enter backups or add sampling demand. Disabled metric pages show an
 inline enable action rather than mounting stale detail views; the dashboard omits disabled cards.
-Only feature-state text uses the existing 180 ms opacity transition, with keyboard and Reduce
-Motion handling. Switches, sampling, menu-bar layout, and displayed metrics change immediately.
+Feature rows use immediate native control feedback with no additional state-text or layout
+animation. Switches, sampling, menu-bar layout, and displayed metrics change immediately.
 
 The full process manager is an optional module, disabled by default through `processesEnabled`.
 Its sidebar entry and process-explanation shortcuts are available only when enabled. The process

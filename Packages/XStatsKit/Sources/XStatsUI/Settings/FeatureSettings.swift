@@ -135,13 +135,53 @@ struct FeatureSettings: View {
                         }
                     }
                 }
-                GroupRow(showsDivider: false) {
+                GroupRow(showsDivider: NetworkMonitorSupport.isAvailable) {
                     SettingRow(title: tr("进程"),
                                subtitle: tr("查看全部进程、搜索排序与结束进程，按需开启。"),
                                icon: "list.bullet.rectangle") {
                         DSToggle(isOn: $settings.processesEnabled, label: tr("进程"))
                     }
                 }
+                GroupRow {
+                    SettingRow(title: tr("卸载应用"), subtitle: tr("查看应用与残留文件，确认后移到废纸篓。"), icon: "trash") {
+                        DSToggle(isOn: $settings.uninstallerEnabled, label: tr("卸载应用"))
+                            .disabled(model.uninstaller.isRemoving)
+                    }
+                }
+                GroupRow {
+                    SettingRow(title: tr("清理"),
+                               subtitle: tr("按需扫描缓存、日志与项目产物，清理前逐项确认。"),
+                               icon: "eraser") {
+                        DSToggle(isOn: $settings.cleanerEnabled, label: tr("清理"))
+                    }
+                }
+            }
+            SettingsGroup {
+                GroupRow(showsDivider: false) {
+                    VStack(alignment: .leading, spacing: DS.Space.s2) {
+                        SettingRow(title: tr("AI 用量"),
+                                   subtitle: tr("查看 Codex / Claude 的 Token 用量与订阅额度。"),
+                                   icon: "sparkles") {
+                            DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 用量"))
+                        }
+                        FeatureMenuBarToggle(item: .aiUsage)
+                            .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
+                    }
+                }
+                GroupRow {
+                    VStack(alignment: .leading, spacing: DS.Space.s2) {
+                        SettingRow(title: tr("音频"), subtitle: tr("系统音量、音频设备与应用音量"), icon: "speaker.wave.2") {
+                            DSToggle(isOn: $settings.audioEnabled, label: tr("音频"))
+                        }
+                        FeatureMenuBarToggle(item: .audio)
+                            .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
+                    }
+                }
+                GroupRow {
+                    MonitoringFeatureRow(module: .display)
+                }
+            }
+            SettingsGroup {
                 GroupRow(showsDivider: false) {
                     SettingRow(title: tr("番茄钟与护眼休息"),
                                subtitle: tr("专注计时、每日目标与多屏休息幕布。"),
@@ -152,35 +192,9 @@ struct FeatureSettings: View {
                         }
                     }
                 }
+            }
+            SettingsGroup {
                 GroupRow(showsDivider: false) {
-                    SettingRow(title: tr("AI 用量"),
-                               subtitle: tr("查看 Codex / Claude 的 Token 用量与订阅额度。"),
-                               icon: "sparkles") {
-                        DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 用量"))
-                    }
-                }
-                GroupRow(showsDivider: false) {
-                    SettingRow(title: tr("音频"), subtitle: tr("系统音量、音频设备与应用音量"), icon: "speaker.wave.2") {
-                        DSToggle(isOn: $settings.audioEnabled, label: tr("音频"))
-                    }
-                }
-                GroupRow(showsDivider: false) {
-                    SettingRow(title: tr("清理"),
-                               subtitle: tr("按需扫描缓存、日志与项目产物，清理前逐项确认。"),
-                               icon: "eraser") {
-                        DSToggle(isOn: $settings.cleanerEnabled, label: tr("清理"))
-                    }
-                }
-                GroupRow {
-                    MonitoringFeatureRow(module: .display)
-                }
-                GroupRow {
-                    SettingRow(title: tr("卸载应用"), subtitle: tr("查看应用与残留文件，确认后移到废纸篓。"), icon: "trash") {
-                        DSToggle(isOn: $settings.uninstallerEnabled, label: tr("卸载应用"))
-                            .disabled(model.uninstaller.isRemoving)
-                    }
-                }
-                GroupRow {
                     SettingRow(title: tr("菜单栏日历"),
                                subtitle: tr("独立显示日期，点击打开月历；不受指标合并布局影响"),
                                icon: "calendar") {
@@ -196,34 +210,21 @@ struct FeatureSettings: View {
 
 }
 
-/// 功能状态使用短淡入淡出，不移动开关和列表；键盘操作与减少动态效果即时更新。
+/// 功能启用与菜单栏展示分开控制，不再用文字重复陈述开关状态。
 private struct MonitoringFeatureRow: View {
     @Environment(AppModel.self) private var model
     let module: MonitoringModule
 
-    private var status: String {
-        if module == .display {
-            return model.settings.isModuleEnabled(.display)
-                ? tr("允许调节亮度、对比度和音量") : tr("仅查看显示器信息，不读取或设置参数")
-        }
-        if !model.settings.isModuleEnabled(module) { return tr("已关闭，不再采集") }
-        return module.menuBarItems.contains(where: model.settings.isEnabled)
-            ? tr("已启用，并在菜单栏显示") : tr("已启用，按需采集")
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s2) {
-            SettingRow(title: module.title, icon: module.symbol) {
+            SettingRow(title: module.title,
+                       subtitle: module == .display ? tr("允许调节亮度、对比度和音量") : nil,
+                       icon: module.symbol) {
                 DSToggle(isOn: Binding(get: { model.settings.isModuleEnabled(module) }, set: { enabled in
-                    DS.Motion.select { model.settings.setModuleEnabled(module, enabled) }
+                    model.settings.setModuleEnabled(module, enabled)
                 }), label: tr("启用 \(module.title)"))
                 .disabled(module == .thermal && model.fans.isApplying)
             }
-            Text(status)
-                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                .contentTransition(.opacity)
-                .dsSelectionAnimation(DS.Motion.usageSelection, value: status)
-                .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
             // 展示选项直接可见，使用复选框区别于右侧的功能启用开关。
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: DS.Space.s4) { menuBarToggles }
@@ -238,14 +239,25 @@ private struct MonitoringFeatureRow: View {
 
     private var menuBarToggles: some View {
         ForEach(module.menuBarItems.filter { model.availableMenuBarItems.contains($0) }) { item in
-            Toggle(module == .thermal ? tr("在菜单栏显示\(item.popoverTitle)") : tr("在菜单栏显示"), isOn: Binding(
-                get: { model.settings.isEnabled(item) },
-                set: { model.settings.setEnabled(item, $0) }))
-                .toggleStyle(.checkbox)
-                .dsFont(.xs)
-                .accessibilityLabel(tr("在菜单栏显示\(item.popoverTitle)"))
-                .help(module == .display ? tr("只显示信息，参数控制在功能设置中启用") : tr("加入菜单栏时会同时启用功能"))
+            FeatureMenuBarToggle(item: item, showsItemName: module == .thermal)
         }
+    }
+}
+
+/// 各功能共用的展示开关，移出菜单栏仍保留功能启用状态。
+private struct FeatureMenuBarToggle: View {
+    @Environment(AppModel.self) private var model
+    let item: MenuBarItem
+    var showsItemName = false
+
+    var body: some View {
+        Toggle(showsItemName ? tr("在菜单栏显示\(item.popoverTitle)") : tr("在菜单栏显示"), isOn: Binding(
+            get: { model.settings.isEnabled(item) },
+            set: { model.settings.setEnabled(item, $0) }))
+            .toggleStyle(.checkbox)
+            .dsFont(.xs)
+            .accessibilityLabel(tr("在菜单栏显示\(item.popoverTitle)"))
+            .help(item == .display ? tr("只显示信息，参数控制在功能设置中启用") : tr("加入菜单栏时会同时启用功能"))
     }
 }
 
