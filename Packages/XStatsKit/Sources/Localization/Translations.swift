@@ -710,7 +710,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 各核心负载	Core Load
 各项指标正常	Everything looks good
 合上屏幕时 Mac 不进入睡眠，下载、渲染、远程连接不中断。	Your Mac stays awake with the lid closed, so downloads, renders and remote sessions continue.
-合并显示	Combined
+聚合模式	Aggregated Mode
 合盖后继续运行	Keep Running with Lid Closed
 合盖电量下限	Lid Mode Battery Floor
 合盖睡眠	Lid sleep

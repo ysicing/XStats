@@ -15,7 +15,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 | `xstats://open` | 显示主窗口，保留当前页面 |
 | `xstats://open/<page>` | 打开页面 |
 | `xstats://panel/<item>` | 显示菜单栏详情；没有该入口时转到主窗口对应页面 |
-| `xstats://panel/overview` | 显示合并总览；分开显示模式转到主窗口总览 |
+| `xstats://panel/overview` | 显示聚合模式的状态总览；分开显示模式转到主窗口总览 |
 | `xstats://open/calendar` | 日历；未开启时转到功能设置 |
 | `xstats://open/speed-test`、`xstats://open/egress` | 测速、出口与分流窗口，不自动运行探测 |
 | `xstats://rest/<action>` | 番茄钟：`start`、`pause`、`toggle`、`reset`、`skip`、`hud` |
@@ -66,7 +66,6 @@ task clean                          # 删除 build/
 ```bash
 task build BUMP=0 INSTALL=0
 task snapshot SNAPSHOT_DIR=build/readme-1.0/zh-Hans -- --connections-only --language zh-Hans
-task snapshot SNAPSHOT_DIR=build/readme-1.0/en -- --connections-only --language en
 # 自选已有构建与输出目录；Debug 构建也可直接指定 CONFIG=Debug
 task snapshot SNAPSHOT_APP=/path/to/XStats.app SNAPSHOT_DIR=build/screens -- --connections-only --language ja
 ```
@@ -75,9 +74,9 @@ task snapshot SNAPSHOT_APP=/path/to/XStats.app SNAPSHOT_DIR=build/screens -- --c
 输出连接窗口、宽版连接页、暂停页、功能设置，以及组件未安装、已安装、待后台授权、可更新状态的明暗 PNG。
 连接地址采用文档示例网段，地图分布为演示值；组件版本 `9.9.9 (9999)` 明确为虚构。
 完整截图模式也会追加这些网络截图，但完整模式仍会读取本机指标、AI 用量及执行只读清理扫描；公开展示优先选定向模式。
-截图目录或 PNG 写入失败时进程返回非零退出码。四语言 README 的网络图片来自各语言的
+截图目录或 PNG 写入失败时进程返回非零退出码。四语言 README 共用一套中文界面截图，说明文字与图片替代文本分别翻译；不必为每种文档语言重新生成截图。网络图片来自
 `connections-page-wide-light.png` / `connections-page-wide-dark.png`，分别保存为
-`Assets/readme/connections-<zh-Hans|en|ja|ko>-<light|dark>.png`。
+`Assets/readme/connections-zh-Hans-<light|dark>.png`。
 
 已有功能的 README 演示图库使用 `--features-only`：
 
@@ -88,10 +87,18 @@ task snapshot SNAPSHOT_DIR=build/feature-gallery/zh-Hans -- --features-only --la
 该模式输出 AI 用量、历史趋势、显示器控制、番茄钟、音频混音和日历的明暗截图。
 AI 由虚构 provider 提供；历史使用本次运行创建并清理的临时数据库；显示器、音频和番茄钟只注入展示状态，
 不读取个人 AI 日志、不连接真实 DDC、不修改音量、不启动计时或写入 Widget 共享状态。
-日历使用固定演示日期，中文展示农历与节假日，其他语言展示通用月历，不读取系统日程。README 每种语言选取六张代表图，存入 `Assets/readme/`。
+日历使用固定演示日期，中文展示农历与节假日，其他语言展示通用月历，不读取系统日程。
+README 共用图库选取 AI、历史、显示器、番茄钟、音频与日历六张中文代表图，并加入
+`monitoring-features-zh-Hans-light.png` 和 `optional-features-zh-Hans-light.png`。
+网络定向模式另选连接总览明暗两张，以及 `component-install-light.png`、`component-installed-light.png`，
+分别保存为 `component-install-zh-Hans-light.png` 和 `component-management-zh-Hans-light.png`。
+截图统一使用当前发布构建；核心监控和工具页可来自完整模式的只读采样，公开使用前检查用户路径、设备标识和真实地址。
+保留演示数据说明，不把模拟组件版本当成实际发布版本。
 
-菜单栏布局走查可对当前构建运行 `XStats --snapshot <目录> --menubar-only --language en`；
+菜单栏布局走查可对当前构建运行 `XStats --snapshot <目录> --menubar-only --language zh-Hans`；
 仅采集相关指标，输出三种布局、总览和详情的明暗截图，不扫描清理目录或 AI 日志。
+README 的聚合状态总览使用该模式的 `overview-light.png` / `overview-dark.png`，
+保存为 `Assets/readme/combined-overview-zh-Hans-<light|dark>.png`，与主窗口仪表盘截图区分。
 显示器控制页面可改用 `--display-only`，只读本机信息和 DDC 能力，不修改硬件设置。
 
 `project.yml` 是 Xcode 工程配置来源，调整 target、entitlement 或签名设置后重新生成工程。

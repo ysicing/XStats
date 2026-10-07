@@ -33,9 +33,27 @@ XStats is a free, open-source native app built with Swift, AppKit and SwiftUI. N
 
 ### Menu bar layout
 
-Show metrics **separately**, **combined in one group**, or behind **a single icon**. Items, order and styles (text, icons, rings, progress bars, history charts) are all configurable.
+Show metrics **separately**, in **Aggregated Mode**, or behind **a single icon**. Items, order and styles (text, icons, rings, progress bars, history charts) are all configurable.
 
-**Feature activation is separate from menu bar visibility.** Turning off a basic monitoring module in Settings → Features stops its monitoring, alerts and new history records, and removes its menu bar items. Existing history is kept. Adding an item to the menu bar enables its feature; removing it leaves the feature enabled. Collection still follows display, history and alert demand. System widgets refresh independently. The display switch only gates parameter reads and adjustments such as brightness, contrast and volume; display information and its menu bar entry remain available when controls are off.
+The aggregated overview brings metrics together and opens individual details.
+
+<p align="center">
+  <img src="Assets/readme/combined-overview-zh-Hans-light.png" width="360" alt="Aggregated menu bar overview, light mode">
+  <img src="Assets/readme/combined-overview-zh-Hans-dark.png" width="360" alt="Aggregated menu bar overview, dark mode">
+</p>
+
+### Feature activation and menu bar visibility
+
+Manage Basic and Optional Features separately in Settings → Features.
+
+- **Basic monitoring**: turn CPU, GPU, memory, disk, network, thermals and battery monitoring on or off individually. Disabling a module stops collection, related alerts and new history records while keeping existing history. System widgets refresh independently.
+- **Menu bar visibility**: selecting Show in Menu Bar for basic monitoring, AI Usage or Audio also enables that feature. Clearing it removes the entry while leaving the feature enabled. AI Usage and Audio have their own display options.
+- **Display parameter controls**: enable or disable brightness, contrast and volume reads and adjustments. Display information remains available, with a separate information-only menu bar option.
+
+<p align="center">
+  <img src="Assets/readme/monitoring-features-zh-Hans-light.png" width="49%" alt="Basic Features: separate activation and menu bar display controls">
+  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="Optional Features: grouped tools, modules, Pomodoro and calendar">
+</p>
 
 ### System monitoring
 
@@ -59,20 +77,27 @@ Frequency, temperature and power readings depend on what the Mac model and macOS
 
 ### Network Monitor
 
-> Coming in **1.0**. The features and screenshots below reflect the development branch.
+**Optional on macOS 15 or later, disabled by default.** View new connections observed while monitoring, grouped by app, process, domain, country or region, with search, active-connection filtering, pause and resume.
 
-View network connections by application, process, domain or country/region, with search, an active-connection filter and a world map.
+- **Read-only**: all traffic is allowed, communication content is never inspected, and no connection history is stored.
+- **On demand**: reads only while the page is visible and not paused, retaining at most 512 records in memory. It does not enumerate every connection that existed before observation began.
+- **World map**: download the public IP geography database only when first used, then look up locations offline. Positions represent countries or regions, not precise device locations.
 
-- **Read-only**: all connections are allowed; communication content is never inspected and no connection history is stored.
-- **On demand**: reads only while the page is visible and not paused, keeping at most 512 records in memory.
-- **Separate component**: optional on macOS 15+. Enabling it for the first time installs the XStats Network Monitor component and requests network extension permission; the component updates independently.
+First use: enable Network Monitor in Settings → Features → Optional Features, follow the component installation guide, and approve the system extension and network filter in macOS. Installation requires an administrator account. Use Manage Component to check independent updates or remove the component.
+
+If you used a preview network component, upgrade the main app first, uninstall the old component through Manage Component, complete any restart requested by macOS, and enable it again to move to the current update source.
 
 <p align="center">
-  <img src="Assets/readme/connections-en-light.png" width="49%" alt="Network Monitor connection overview in light mode, demo data">
-  <img src="Assets/readme/connections-en-dark.png" width="49%" alt="Network Monitor connection overview in dark mode, demo data">
+  <img src="Assets/readme/connections-zh-Hans-light.png" width="49%" alt="Network Monitor connection overview, light mode, demo data">
+  <img src="Assets/readme/connections-zh-Hans-dark.png" width="49%" alt="Network Monitor connection overview, dark mode, demo data">
 </p>
 
-Screenshots use demo data. The map uses an offline IP geography database and locates countries or regions, not precise device locations.
+<p align="center">
+  <img src="Assets/readme/component-install-zh-Hans-light.png" width="49%" alt="First-time network component installation panel, demo state">
+  <img src="Assets/readme/component-management-zh-Hans-light.png" width="49%" alt="Network component management panel, demo version information">
+</p>
+
+Connections, addresses, countries or regions and component version information are demo data.
 
 ### AI Usage
 
@@ -98,12 +123,12 @@ Local statistics read CLI session logs; quota queries require the corresponding 
 | **Pomodoro and eye breaks** | Focus and break timers, multi-display break screens, mini HUD |
 | **Process manager** | Search, sort, group by app and end processes |
 
-Optional modules are off by default and can be enabled in Settings. Privileged actions such as fan control and lid-closed keep-awake require installing and authorizing the helper from the app.
+Enable optional tools as needed in Settings → Features → Optional Features; existing configuration is kept. Uninstaller is off by default on a new installation and stays enabled when upgrading from older versions. Privileged actions such as fan control and lid-closed keep-awake require installing and authorizing the helper from the app.
 
 <details>
 <summary>More screenshots</summary>
 
-Usage, quotas, prices, device states and calendar events in these screenshots are demo data.
+Network connections, AI usage and quotas, history, audio, displays and calendar screenshots use demo data. Core system monitoring screenshots include read-only measurements from this Mac. Hardware capabilities vary by model.
 
 <p align="center">
   <img src="Assets/readme/thermal-dark.png" width="49%" alt="Temperature and fan control">
@@ -114,16 +139,16 @@ Usage, quotas, prices, device states and calendar events in these screenshots ar
   <img src="Assets/readme/ip-purity-light.png" width="49%" alt="Public IP and purity checks">
 </p>
 <p align="center">
-  <img src="Assets/readme/ai-usage-en-light.png" width="49%" alt="AI usage and statistics">
-  <img src="Assets/readme/history-en-dark.png" width="49%" alt="History trends">
+  <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="49%" alt="AI usage and statistics">
+  <img src="Assets/readme/history-zh-Hans-dark.png" width="49%" alt="History trends">
 </p>
 <p align="center">
-  <img src="Assets/readme/audio-en-light.png" width="49%" alt="Audio and app mixing">
-  <img src="Assets/readme/displays-en-dark.png" width="49%" alt="External display controls">
+  <img src="Assets/readme/audio-zh-Hans-light.png" width="49%" alt="Audio and app mixing">
+  <img src="Assets/readme/displays-zh-Hans-dark.png" width="49%" alt="External display controls">
 </p>
 <p align="center">
-  <img src="Assets/readme/calendar-en-light.png" width="49%" alt="Menu bar calendar">
-  <img src="Assets/readme/rest-en-dark.png" width="49%" alt="Pomodoro and eye breaks">
+  <img src="Assets/readme/calendar-zh-Hans-light.png" width="49%" alt="Menu bar calendar">
+  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="Pomodoro and eye breaks">
 </p>
 
 </details>
@@ -157,7 +182,7 @@ Or download the DMG from [GitHub Releases](https://github.com/ysicing/xstats/rel
 
 Monitoring data, local history and AI token statistics are processed locally and are not uploaded to the XStats update service. These features connect to external services and can be disabled or used on demand:
 
-- **Update checks**: send the current version and a hashed installation ID to retrieve the update feed.
+- **Update checks**: the main app and independent network component send their version and a hashed installation ID to retrieve their update feed.
 - **AI quota queries**: use your local CLI sign-in to query the provider; a configured fallback queries the server you specify.
 - **Cost estimates**: fetch public model prices and reference exchange rates on demand, without sending session logs or token statistics.
 - **Network Monitor**: downloads the component and a public geography database; connection records and destination IPs are not uploaded.

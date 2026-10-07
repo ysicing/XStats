@@ -435,7 +435,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 各核心负载	Charge des cœurs
 各项指标正常	Tous les indicateurs sont normaux
 合上屏幕时 Mac 不进入睡眠，下载、渲染、远程连接不中断。	Votre Mac reste éveillé lorsque l’écran est fermé ; les téléchargements, rendus et sessions à distance se poursuivent.
-合并显示	Combinés
+聚合模式	Mode agrégé
 合盖后继续运行	Continuer avec l’écran fermé
 合盖电量下限	Seuil de batterie écran fermé
 合盖睡眠	Veille à la fermeture

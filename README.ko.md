@@ -33,9 +33,27 @@ XStats는 Swift, AppKit, SwiftUI로 만든 무료 오픈소스 네이티브 앱�
 
 ### 메뉴 막대 표시
 
-지표를 **개별 표시**, **한 그룹으로 통합**, **아이콘 하나만** 중에서 선택할 수 있습니다. 항목, 순서, 스타일(텍스트, 아이콘, 링, 진행 막대, 기록 그래프)을 모두 바꿀 수 있습니다.
+지표를 **개별 표시**, **통합 모드**, **아이콘 하나만** 중에서 선택할 수 있습니다. 항목, 순서, 스타일(텍스트, 아이콘, 링, 진행 막대, 기록 그래프)을 모두 바꿀 수 있습니다.
 
-**기능 활성화와 메뉴 막대 표시를 별도로 관리합니다.** 설정 → 기능에서 기본 모니터링 모듈을 끄면 해당 모니터링, 알림, 새 기록 저장을 중단하고 메뉴 막대 항목을 제거합니다. 기존 기록은 유지됩니다. 메뉴 막대에 추가하면 기능도 켜지며, 항목을 제거해도 기능은 켜진 상태로 유지됩니다. 데이터는 표시, 기록, 알림에 필요한 경우에만 수집하고 시스템 위젯은 별도로 갱신됩니다. 디스플레이 스위치는 밝기, 대비, 음량 등 매개변수 읽기와 조절만 제어합니다. 꺼도 디스플레이 정보와 메뉴 막대 항목은 유지됩니다.
+통합 모드의 개요에서 여러 지표를 한눈에 확인하고 개별 상세 정보를 열 수 있습니다.
+
+<p align="center">
+  <img src="Assets/readme/combined-overview-zh-Hans-light.png" width="360" alt="통합 메뉴 막대 개요, 밝은 화면">
+  <img src="Assets/readme/combined-overview-zh-Hans-dark.png" width="360" alt="통합 메뉴 막대 개요, 어두운 화면">
+</p>
+
+### 기능 활성화와 메뉴 막대 표시
+
+설정 → 기능에서 기본 기능과 선택 기능을 별도로 관리합니다.
+
+- **기본 모니터링**: CPU, GPU, 메모리, 디스크, 네트워크, 온도와 팬, 배터리를 각각 켜거나 끌 수 있습니다. 끄면 수집, 관련 알림, 새 기록 저장을 중단하고 기존 기록은 유지합니다. 시스템 위젯은 독립적으로 갱신됩니다.
+- **메뉴 막대 표시**: 기본 모니터링, AI 사용량, 오디오에서 메뉴 막대에 표시를 선택하면 해당 기능도 켜집니다. 선택을 해제해도 기능은 켜진 상태로 유지됩니다. AI 사용량과 오디오에도 별도 표시 옵션이 있습니다.
+- **디스플레이 매개변수 제어**: 밝기, 대비, 음량의 읽기와 조절을 제어합니다. 꺼도 디스플레이 정보는 확인할 수 있으며 정보만 표시하는 메뉴 막대 항목도 별도로 설정할 수 있습니다.
+
+<p align="center">
+  <img src="Assets/readme/monitoring-features-zh-Hans-light.png" width="49%" alt="기본 기능: 활성화와 메뉴 막대 표시를 별도로 설정">
+  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="선택 기능: 도구, 모듈, 뽀모도로, 달력을 분류">
+</p>
 
 ### 시스템 모니터링
 
@@ -59,20 +77,27 @@ XStats는 Swift, AppKit, SwiftUI로 만든 무료 오픈소스 네이티브 앱�
 
 ### 네트워크 모니터
 
-> **1.0**에서 제공될 예정입니다. 아래 기능과 스크린샷은 개발 브랜치를 기준으로 합니다.
+**macOS 15 이상에서 선택적으로 사용하며 기본적으로 꺼져 있습니다.** 관찰 중 새로 발생한 연결을 앱, 프로세스, 도메인, 국가 또는 지역별로 표시하고 검색, 활성 연결 필터, 일시 정지와 재개를 지원합니다.
 
-앱, 프로세스, 도메인, 국가 또는 지역별로 네트워크 연결을 확인할 수 있으며 검색, 활성 연결 필터, 세계 지도 분포를 지원합니다.
+- **읽기 전용**: 모든 통신을 허용하고 통신 내용을 읽지 않으며 연결 이력도 저장하지 않습니다.
+- **필요할 때만 동작**: 페이지가 보이고 일시 정지하지 않은 동안만 읽으며 메모리에 최대 512개 기록을 유지합니다. 관찰을 시작하기 전부터 존재하던 모든 연결을 나열하지는 않습니다.
+- **세계 지도**: 처음 사용할 때 공개 IP 지리 데이터베이스를 내려받고 이후에는 오프라인으로 조회합니다. 위치는 국가나 지역의 대표 지점이며 기기의 정확한 위치가 아닙니다.
 
-- **읽기 전용**: 모든 연결을 허용하며 통신 내용을 읽지 않고 연결 이력도 저장하지 않습니다.
-- **필요할 때만 동작**: 페이지가 표시되어 있고 일시 정지하지 않았을 때만 읽으며, 메모리에 최대 512개 기록을 유지합니다.
-- **독립 구성요소**: macOS 15 이상에서 선택적으로 사용할 수 있습니다. 처음 켜면 XStats Network Monitor 구성요소를 설치하고 네트워크 확장 권한을 허용하며, 구성요소는 독립적으로 업데이트됩니다.
+처음 사용할 때 설정 → 기능 → 선택 기능에서 네트워크 모니터를 켜고 구성요소 설치 안내를 따른 뒤 macOS에서 시스템 확장과 네트워크 필터를 허용하세요. 설치에는 관리자 계정이 필요합니다. 구성요소 관리에서 독립 업데이트를 확인하거나 구성요소를 제거할 수 있습니다.
+
+미리 보기 구성요소를 사용했다면 먼저 본체 앱을 업데이트하고 구성요소 관리에서 이전 구성요소를 제거하세요. macOS가 재시동을 요구하면 완료한 뒤 다시 켜서 현재 업데이트 소스로 전환합니다.
 
 <p align="center">
-  <img src="Assets/readme/connections-ko-light.png" width="49%" alt="네트워크 모니터의 밝은 화면, 데모 데이터">
-  <img src="Assets/readme/connections-ko-dark.png" width="49%" alt="네트워크 모니터의 어두운 화면, 데모 데이터">
+  <img src="Assets/readme/connections-zh-Hans-light.png" width="49%" alt="네트워크 모니터 연결 개요, 밝은 화면, 데모 데이터">
+  <img src="Assets/readme/connections-zh-Hans-dark.png" width="49%" alt="네트워크 모니터 연결 개요, 어두운 화면, 데모 데이터">
 </p>
 
-스크린샷은 데모 데이터입니다. 지도는 오프라인 IP 지리 데이터베이스로 국가·지역을 표시하며 기기의 정확한 위치가 아닙니다.
+<p align="center">
+  <img src="Assets/readme/component-install-zh-Hans-light.png" width="49%" alt="네트워크 구성요소 최초 설치 화면, 데모 상태">
+  <img src="Assets/readme/component-management-zh-Hans-light.png" width="49%" alt="네트워크 구성요소 관리 화면, 데모 버전 정보">
+</p>
+
+연결, 주소, 국가 또는 지역, 구성요소 버전 정보는 데모 데이터입니다.
 
 ### AI 사용량
 
@@ -98,12 +123,12 @@ XStats는 Swift, AppKit, SwiftUI로 만든 무료 오픈소스 네이티브 앱�
 | **뽀모도로와 눈 휴식** | 집중 및 휴식 타이머, 여러 디스플레이의 휴식 화면, 미니 HUD |
 | **프로세스 관리** | 검색, 정렬, 앱별 그룹화, 프로세스 종료 |
 
-선택 모듈은 기본적으로 꺼져 있으며 설정에서 켤 수 있습니다. 팬 제어와 덮개를 닫은 상태의 잠자기 방지 같은 권한이 필요한 작업에는 앱에서 보조 도구를 설치하고 권한을 허용해야 합니다.
+설정 → 기능 → 선택 기능에서 필요한 도구를 켤 수 있으며 기존 설정은 유지됩니다. 앱 제거 기능은 새로 설치하면 기본적으로 꺼지고 이전 버전에서 업데이트하면 켜진 상태로 유지됩니다. 팬 제어와 덮개를 닫은 상태의 잠자기 방지 같은 권한이 필요한 작업은 앱에서 보조 도구를 설치하고 허용해야 합니다.
 
 <details>
 <summary>더 많은 스크린샷</summary>
 
-스크린샷의 사용량, 한도, 단가, 기기 상태, 일정은 데모 데이터입니다.
+네트워크 연결, AI 사용량과 한도, 기록, 오디오, 디스플레이, 일정 화면은 데모 데이터입니다. 기본 시스템 모니터링 화면에는 이 Mac의 읽기 전용 측정값이 포함됩니다. 하드웨어 기능은 기종에 따라 다릅니다.
 
 <p align="center">
   <img src="Assets/readme/thermal-dark.png" width="49%" alt="온도 및 팬 제어">
@@ -114,16 +139,16 @@ XStats는 Swift, AppKit, SwiftUI로 만든 무료 오픈소스 네이티브 앱�
   <img src="Assets/readme/ip-purity-light.png" width="49%" alt="공인 IP 및 순도 확인">
 </p>
 <p align="center">
-  <img src="Assets/readme/ai-usage-ko-light.png" width="49%" alt="AI 사용량과 통계">
-  <img src="Assets/readme/history-ko-dark.png" width="49%" alt="기록 추이">
+  <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="49%" alt="AI 사용량과 통계">
+  <img src="Assets/readme/history-zh-Hans-dark.png" width="49%" alt="기록 추이">
 </p>
 <p align="center">
-  <img src="Assets/readme/audio-ko-light.png" width="49%" alt="오디오와 앱 믹서">
-  <img src="Assets/readme/displays-ko-dark.png" width="49%" alt="외부 디스플레이 제어">
+  <img src="Assets/readme/audio-zh-Hans-light.png" width="49%" alt="오디오와 앱 믹서">
+  <img src="Assets/readme/displays-zh-Hans-dark.png" width="49%" alt="외부 디스플레이 제어">
 </p>
 <p align="center">
-  <img src="Assets/readme/calendar-ko-light.png" width="49%" alt="메뉴 막대 달력">
-  <img src="Assets/readme/rest-ko-dark.png" width="49%" alt="뽀모도로와 눈 휴식">
+  <img src="Assets/readme/calendar-zh-Hans-light.png" width="49%" alt="메뉴 막대 달력">
+  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="뽀모도로와 눈 휴식">
 </p>
 
 </details>
@@ -157,7 +182,7 @@ brew install --cask xstats
 
 모니터링 데이터, 로컬 기록, AI 토큰 통계는 기기에서 처리하며 XStats 업데이트 서비스에 업로드하지 않습니다. 다음 기능은 외부 서비스에 연결하며, 끄거나 필요할 때 사용할 수 있습니다.
 
-- **업데이트 확인**: 현재 버전과 설치 ID의 해시를 보내 업데이트 정보를 가져옵니다.
+- **업데이트 확인**: 본체 앱과 독립 네트워크 구성요소가 각각의 버전과 설치 ID의 해시를 보내 업데이트 정보를 가져옵니다.
 - **AI 한도 조회**: 로컬 CLI 로그인으로 제공자에 조회하며, 예비 소스를 설정하면 지정한 서버에 연결합니다.
 - **비용 추정**: 공개 모델 단가와 참고 환율을 필요할 때 가져오며, 세션 로그나 토큰 통계는 보내지 않습니다.
 - **네트워크 모니터**: 구성요소와 공개 지리 데이터베이스를 다운로드할 때 네트워크에 연결하며 연결 기록과 대상 IP는 업로드하지 않습니다.

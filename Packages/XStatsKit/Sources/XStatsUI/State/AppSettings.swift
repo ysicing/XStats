@@ -190,7 +190,7 @@ public enum MenuBarLayout: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .separate: tr("每项独立")
-        case .combined: tr("合并显示")
+        case .combined: tr("聚合模式")
         case .iconOnly: tr("仅图标")
         }
     }
