@@ -217,7 +217,7 @@ python3 scripts/sync_network_geography.py --publish  # 从官方重新获取并�
 推进独立构建号。普通主应用 `build`／`release` 不改变组件版本，纯主 UI 改动复用现有组件。
 主应用的首次安装器只写入缺失的组件；已有组件由自己的 Sparkle 更新，主应用不替换它。
 首次安装 ZIP 固定为
-`https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor/XStats-Network-Monitor.zip`，
+`https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor/XStats-Network-Monitor-<version>-AppleSilicon.zip`，
 安装前校验根包名、Bundle ID、同团队签名、公证、Gatekeeper 及协议版本与控制服务，且不覆盖正在运行的组件。
 系统扩展要求组件位于 `/Applications`，标准账户无写权限时提示需要管理员账户，不通过辅助工具提权写入。
 
@@ -262,11 +262,13 @@ XSTATS_COMPONENT_PROFILE='组件 profile 名称' XSTATS_NETWORK_PROFILE='扩展 
 ./scripts/release_network_component.sh --notes NetworkComponentReleaseNotes.json --publish
 ```
 
-发布到 `c-ip/oss/apps/macOS/XStats/network-monitor`：先上传并 CDN 回读唯一版本 ZIP
-`XStats-Network-Monitor-<version>-<build>-AppleSilicon.zip`，再用完全相同的已公证字节更新
-首次安装别名 `XStats-Network-Monitor.zip`，最后更新已签名 `appcast.xml`。ZIP 或别名失败时
-不更新 appcast；可变别名/XML 设置五分钟缓存，回读使用唯一查询避免旧缓存干扰。
-`SKIP_NOTARIZE=1` 只允许本地打包，不能与 `--publish` 并用。
+发布到 `c-ip/oss/apps/macOS/XStats/network-monitor`：每个公开版本只有
+`XStats-Network-Monitor-<version>-AppleSilicon.zip`，构建号只保存在包内与 XML 中。
+首次安装按主程序 Info.plist 的 `NetworkComponentVersion` 下载指定兼容版本；已有组件仍由 Sparkle 独立更新。
+先上传并 CDN 回读版本 ZIP，最后更新 `appcast.xml`，不再写跨版本 ZIP 别名。
+已存在的公开版本禁止重新构建覆盖；中断后以原始公证 ZIP/XML 执行
+`./scripts/release_network_component.sh --notes NetworkComponentReleaseNotes.json --publish-only`。
+源站已有同名 ZIP 时必须与本地原制品哈希相同，否则停止；可变 XML 仍需五分钟缓存和实际 CDN 回读核验。
 
 可对构建执行 `XStats --snapshot <目录> --connections-only --language en` 走查界面。
 此命令只使用虚构连接数据，不能替代签名安装、系统授权、真实连接观察和停止验证。

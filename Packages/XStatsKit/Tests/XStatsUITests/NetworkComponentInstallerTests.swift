@@ -8,6 +8,30 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct NetworkComponentInstallerTests {
+    @Test func firstInstallUsesVersionedReleaseArchive() throws {
+        let url = try #require(NetworkComponentInstaller.releaseURL(version: "1.0.0"))
+        #expect(url.absoluteString == "https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor/XStats-Network-Monitor-1.0.0-AppleSilicon.zip")
+    }
+
+    @Test(arguments: [nil, "", "1.0", "01.0.0", "1.0.0/other", "../1.0.0", "1.0.0?x=1"] as [String?])
+    func rejectsInvalidComponentReleaseVersions(_ version: String?) {
+        #expect(NetworkComponentInstaller.releaseURL(version: version) == nil)
+    }
+
+    @Test @MainActor func missingVersionedURLCannotDownloadOrInstall() async throws {
+        let fixture = try ComponentInstallFixture()
+        defer { fixture.remove() }
+        let installer = fixture.installer(download: { _, _, _ in
+            Issue.record("缺少发行版本时不能下载")
+            return Data()
+        }, archiveURL: nil)
+        await #expect(throws: NetworkComponentInstallError.untrustedComponent) {
+            try await installer.install(progress: { _ in })
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.temporary.path).isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: fixture.destination.path))
+    }
+
     @Test(arguments: ["../escape", "/absolute", "XStats Network Monitor.app/../escape", "Other.app/Contents/Info.plist", "XStats Network Monitor.app/a\\b", "XStats Network Monitor.app/a\nb"])
     func rejectsUnsafeArchivePaths(_ path: String) {
         #expect(throws: NetworkComponentInstallError.invalidArchive) {
@@ -227,7 +251,8 @@ private struct ComponentInstallFixture: Sendable {
         try Data(marker.utf8).write(to: url.appendingPathComponent("marker"))
     }
     @MainActor func installer(failure: String = "", running: Bool = false, archivePayload: Data? = nil, realArchiveCommands: Bool = false,
-                             download: NetworkComponentInstaller.Dependencies.Download? = nil) -> NetworkComponentInstaller {
+                             download: NetworkComponentInstaller.Dependencies.Download? = nil,
+                             archiveURL: URL? = NetworkComponentInstaller.releaseURL(version: "1.0.0")) -> NetworkComponentInstaller {
         let dependencies = NetworkComponentInstaller.Dependencies(
             download: download ?? { _, _, _ in
                 if failure == "download" { throw URLError(.notConnectedToInternet) }
@@ -255,7 +280,8 @@ private struct ComponentInstallFixture: Sendable {
                 if url.path == "/host.app" { return failure == "unsigned-host" ? nil : "TEAM123" }
                 return failure == "wrong-team" ? "OTHER456" : "TEAM123"
             },
-            isRunning: { running }
+            isRunning: { running },
+            archiveURL: archiveURL
         )
         return NetworkComponentInstaller(destination: destination, temporaryRoot: temporary, hostApp: URL(fileURLWithPath: "/host.app"), dependencies: dependencies)
     }

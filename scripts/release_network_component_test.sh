@@ -71,9 +71,21 @@ cat > "$WORK/bin/mc" <<'STUB'
 set -euo pipefail
 name="${@: -1}"
 name="${name##*/}"
-printf 'upload %s\n' "$name" >> "$COMPONENT_TEST_LOG"
-if [ "${COMPONENT_FAIL_ALIAS:-0}" = 1 ] && [ "$name" = XStats-Network-Monitor.zip ]; then exit 55; fi
-cp "${@: -2:1}" "$COMPONENT_TEST_OBJECTS/$name"
+case "$1" in
+  stat)
+    if [ "${COMPONENT_STAT_ERROR:-0}" = 1 ]; then
+      echo '{"status":"error","error":{"cause":{"message":"Access Denied"}}}'; exit 1
+    fi
+    if [ -f "$COMPONENT_TEST_OBJECTS/$name" ]; then echo '{"status":"success"}'; else
+      echo '{"status":"error","error":{"cause":{"message":"Object does not exist"}}}'; exit 1
+    fi ;;
+  cat) cat "$COMPONENT_TEST_OBJECTS/$name" ;;
+  cp)
+    printf 'upload %s\n' "$name" >> "$COMPONENT_TEST_LOG"
+    if [ "${COMPONENT_FAIL_ZIP:-0}" = 1 ] && [[ "$name" == *.zip ]]; then exit 55; fi
+    cp "${@: -2:1}" "$COMPONENT_TEST_OBJECTS/$name" ;;
+  *) exit 1 ;;
+esac
 STUB
 cat > "$WORK/bin/curl" <<'STUB'
 #!/bin/bash
@@ -126,22 +138,38 @@ assert feed['networkExtension']=={'version':'2.3.4','build':'137'}
 assert 'dmg' not in feed
 PY
 
-# 正常发布与失败重跑只操作独立前缀；alias 失败后不能更新 appcast。
+# 断网/权限错误必须在任何重新构建或覆盖前失败。
+: > "$WORK/events"
+expect_failure '无法确认源站' env COMPONENT_STAT_ERROR=1 bash "$WORK/repo/scripts/release_network_component.sh" --publish
+! grep -q '^task\|^upload ' "$WORK/events"
+
+# 正常发布、恢复和防覆盖只操作独立前缀，ZIP 失败后不能切换 appcast。
 : > "$WORK/events"
 bash "$WORK/repo/scripts/release_network_component.sh" --publish > "$WORK/stdout"
 grep -E '^(upload|verify) ' "$WORK/events" > "$WORK/order"
 cat > "$WORK/expected" <<'ORDER'
-upload XStats-Network-Monitor-2.3.4-137-AppleSilicon.zip
-verify XStats-Network-Monitor-2.3.4-137-AppleSilicon.zip
-upload XStats-Network-Monitor.zip
-verify XStats-Network-Monitor.zip
+upload XStats-Network-Monitor-2.3.4-AppleSilicon.zip
+verify XStats-Network-Monitor-2.3.4-AppleSilicon.zip
 upload appcast.xml
 verify appcast.xml
 ORDER
 diff -u "$WORK/expected" "$WORK/order"
 : > "$WORK/events"
-if COMPONENT_FAIL_ALIAS=1 bash "$WORK/repo/scripts/release_network_component.sh" --publish > "$WORK/stdout" 2> "$WORK/stderr"; then
-  echo 'alias 上传失败应中止发布' >&2; exit 1
+expect_failure '公开版本已经存在' bash "$WORK/repo/scripts/release_network_component.sh" --publish
+! grep -q '^task ' "$WORK/events"
+: > "$WORK/events"
+bash "$WORK/repo/scripts/release_network_component.sh" --publish-only > "$WORK/stdout"
+! grep -q '^task\|^xcrun ' "$WORK/events"
+! grep -q '^upload .*zip' "$WORK/events"
+grep -q '^upload appcast.xml' "$WORK/events"
+: > "$WORK/events"
+printf 'conflicting bytes' > "$WORK/objects/XStats-Network-Monitor-2.3.4-AppleSilicon.zip"
+expect_failure '禁止覆盖' bash "$WORK/repo/scripts/release_network_component.sh" --publish-only
+! grep -q '^upload appcast.xml' "$WORK/events"
+rm "$WORK/objects/XStats-Network-Monitor-2.3.4-AppleSilicon.zip"
+: > "$WORK/events"
+if COMPONENT_FAIL_ZIP=1 bash "$WORK/repo/scripts/release_network_component.sh" --publish-only > "$WORK/stdout" 2> "$WORK/stderr"; then
+  echo 'ZIP 上传失败应中止发布' >&2; exit 1
 fi
 ! grep -q '^upload appcast.xml' "$WORK/events"
 [ ! -e "$WORK/repo/dist/appcast.json" ]

@@ -5,12 +5,14 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PUBLISH=0
+PUBLISH_ONLY=0
 NOTES="${NETWORK_RELEASE_NOTES:-}"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --publish) PUBLISH=1; shift ;;
+    --publish-only) PUBLISH=1; PUBLISH_ONLY=1; shift ;;
     --notes) [ "$#" -ge 2 ] || { echo 'error: --notes 缺少 JSON 路径' >&2; exit 1; }; NOTES="$2"; shift 2 ;;
-    --help) echo '用法：release_network_component.sh --notes <组件摘要JSON> [--publish]'; exit 0 ;;
+    --help) echo '用法：release_network_component.sh --notes <组件摘要JSON> [--publish | --publish-only]'; exit 0 ;;
     *) echo "error: 未知参数：$1" >&2; exit 1 ;;
   esac
 done
@@ -51,11 +53,34 @@ DIST="${NETWORK_DIST:-dist/network-monitor}"
 BASE="https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor"
 TARGET="c-ip/oss/apps/macOS/XStats/network-monitor"
 NOTARY_PROFILE="${NOTARY_PROFILE:-XStats}"
-NAME="XStats-Network-Monitor-${VERSION}-${BUILD}-AppleSilicon"
+NAME="XStats-Network-Monitor-${VERSION}-AppleSilicon"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$DIST"
 
+# 存储查询失败不能当成“版本不存在”，否则断网或权限错误可能导致覆盖。
+object_exists() {
+  if mc stat --json "$1" > "$WORK/object-stat.json" 2>/dev/null; then return 0; fi
+  if python3 - "$WORK/object-stat.json" <<'PYSTAT'
+import json,sys
+try:
+    data=json.load(open(sys.argv[1]))
+    missing=data.get('status')=='error' and data.get('error',{}).get('cause',{}).get('message')=='Object does not exist'
+except (ValueError,OSError):
+    missing=False
+raise SystemExit(0 if missing else 1)
+PYSTAT
+  then return 1; fi
+  echo 'error: 无法确认源站版本包状态，停止发布' >&2
+  exit 1
+}
+
+# 已发布公开版本不可重新构建覆盖；恢复只使用已公证的原始制品。
+if [ "$PUBLISH" = 1 ] && [ "$PUBLISH_ONLY" = 0 ] && object_exists "$TARGET/$NAME.zip"; then
+  echo 'error: 该组件公开版本已经存在，请用 --publish-only 复用原制品；代码变化须推进公开版本' >&2
+  exit 1
+fi
+if [ "$PUBLISH_ONLY" = 0 ]; then
 # 独立构建不会执行主版本 bump，也不安装或替换正在运行的应用。
 task compile-network-component CONFIG=Release SIGN_ID="$SIGN_ID"
 EXTENSION="$APP/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension"
@@ -137,17 +162,35 @@ PY
 python3 scripts/sparkle_appcast.py "$DIST/appcast.json" "$DIST/$NAME.zip" \
   --notes-file "$NOTES" --app-info "$APP/Contents/Info.plist" --output "$DIST/appcast.xml"
 
+else
+  for file in "$DIST/$NAME.zip" "$DIST/appcast.json" "$DIST/appcast.xml"; do
+    [ -f "$file" ] || { echo "error: 缺少已有发行制品 $file" >&2; exit 1; }
+  done
+  python3 - "$DIST/appcast.json" "$VERSION" "$BUILD" "$BASE/$NAME.zip" <<'PYVERIFY'
+import json, sys
+feed=json.load(open(sys.argv[1]))
+if (feed.get('version'),feed.get('build'),feed.get('url')) != tuple(sys.argv[2:]):
+    raise SystemExit('error: 既有制品的版本、构建号或地址与当前声明不一致')
+PYVERIFY
+  python3 scripts/sparkle_appcast.py "$DIST/appcast.json" "$DIST/$NAME.zip" --verify \
+    --notes-file "$NOTES" --app-info "$APP/Contents/Info.plist" --output "$DIST/appcast.xml"
+fi
+
 if [ "$PUBLISH" = 1 ]; then
-  # 所有 ZIP 同一份已公证字节；别名供首次安装，唯一版本路径供 Sparkle 更新。
+  # 首次安装与 Sparkle 共用一份版本包；先验证 ZIP，再切换更新清单。
   upload() {
     local file="$1" name="$2" cache="$3" actual expected
-    mc cp --quiet --attr "Cache-Control=$cache" "$file" "$TARGET/$name"
     expected="$(shasum -a 256 "$file" | cut -d' ' -f1)"
+    if [[ "$cache" == *immutable* ]] && object_exists "$TARGET/$name"; then
+      actual="$(mc cat "$TARGET/$name" | shasum -a 256 | cut -d' ' -f1)"
+      [ "$actual" = "$expected" ] || { echo "error: 禁止覆盖组件版本包 $name" >&2; exit 1; }
+    else
+      mc cp --quiet --attr "Cache-Control=$cache" "$file" "$TARGET/$name"
+    fi
     actual="$(curl -fsSL --max-time 300 "$BASE/$name?verify=$(date +%s)-$$" | shasum -a 256 | cut -d' ' -f1)"
     [ "$expected" = "$actual" ] || { echo "error: CDN $name 内容不一致" >&2; exit 1; }
   }
   upload "$DIST/$NAME.zip" "$NAME.zip" 'public,max-age=31536000,immutable'
-  upload "$DIST/$NAME.zip" XStats-Network-Monitor.zip 'max-age=300'
   upload "$DIST/appcast.xml" appcast.xml 'max-age=300'
   echo "已发布并验证：$BASE/appcast.xml"
 else

@@ -31,7 +31,6 @@ public enum NetworkComponentInstallError: Error, LocalizedError, Equatable {
 public final class NetworkComponentInstaller {
     public nonisolated static let componentURL = URL(fileURLWithPath: "/Applications/XStats Network Monitor.app", isDirectory: true)
     public nonisolated static let bundleIdentifier = "work.12306.xstats.networkmonitor"
-    nonisolated private static let downloadURL = URL(string: "https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor/XStats-Network-Monitor.zip")!
     nonisolated private static let maximumDownload = 64 * 1024 * 1024
     private let destination: URL
     private let temporaryRoot: URL
@@ -45,12 +44,25 @@ public final class NetworkComponentInstaller {
         var command: @Sendable (String, [String], Int) async throws -> Data
         var teamIdentifier: @Sendable (URL) -> String?
         var isRunning: @MainActor @Sendable () -> Bool
+        var archiveURL: URL?
 
         static var live: Self {
             Self(download: downloadGeography, command: NetworkComponentInstaller.runCommand,
                  teamIdentifier: UpdateInstaller.teamIdentifier,
-                 isRunning: { !NSRunningApplication.runningApplications(withBundleIdentifier: NetworkComponentInstaller.bundleIdentifier).isEmpty })
+                 isRunning: { !NSRunningApplication.runningApplications(withBundleIdentifier: NetworkComponentInstaller.bundleIdentifier).isEmpty },
+                 archiveURL: NetworkComponentInstaller.releaseURL(version: Bundle.main.object(forInfoDictionaryKey: "NetworkComponentVersion") as? String))
         }
+    }
+
+    /// 首次安装固定到主程序声明的兼容版本；已有组件仍由 Sparkle 独立更新。
+    nonisolated static func releaseURL(version: String?) -> URL? {
+        guard let version else { return nil }
+        let parts = version.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 3, parts.allSatisfy({ part in
+            !part.isEmpty && part.utf8.allSatisfy { (48...57).contains($0) }
+                && (part.count == 1 || part.first != "0")
+        }) else { return nil }
+        return URL(string: "https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor/XStats-Network-Monitor-\(version)-AppleSilicon.zip")
     }
 
     public convenience init() {
@@ -103,6 +115,7 @@ public final class NetworkComponentInstaller {
         defer { try? manager.removeItem(at: workspace) }
         let archive = workspace.appendingPathComponent("component.zip")
         let expanded = workspace.appendingPathComponent("expanded", isDirectory: true)
+        guard let downloadURL = dependencies.archiveURL else { throw NetworkComponentInstallError.untrustedComponent }
         let payload = try await dependencies.download(downloadURL, maximumDownload) { fraction in
             progress(min(0.7, max(0, fraction * 0.7)))
         }
