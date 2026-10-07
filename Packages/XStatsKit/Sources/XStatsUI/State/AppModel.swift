@@ -150,11 +150,6 @@ public final class AppModel {
         isCombinedPopoverOpen
     }
 
-    var showsOverviewProcesses: Bool {
-        combinedPopoverTab == nil && settings.processesEnabled
-            && visibleMenuBarItems.contains { $0 == .cpu || $0 == .memory }
-    }
-
     var audioControlsVisible: Bool {
         openPopover == .audio || (isMainWindowVisible && settings.panelTab == .audio)
     }
@@ -208,7 +203,7 @@ public final class AppModel {
         demand.battery = (window && [.overview, .system, .keepAwake].contains(tab)) || keepAwake.lidClosedActive
             || summary.contains(.battery) || showing(.battery, .battery)
         demand.processes = processPage || (window && [.overview, .disk].contains(tab)) || showing(.cpu, .cpu) || showing(.memory, .memory)
-            || popover == .disk || (isCombinedOverviewVisible && showsOverviewProcesses)
+            || popover == .disk
         demand.systemProcesses = processPage
 
         var groups = Set<TemperatureGroup>()
@@ -247,7 +242,7 @@ public final class AppModel {
         demand.processes = processPage || (demand.processes && (
             dashboard && (settings.isModuleEnabled(.cpu) || settings.isModuleEnabled(.memory))
             || showing(.cpu, .cpu) || showing(.memory, .memory)
-            || demand.diskDetail || isCombinedOverviewVisible && showsOverviewProcesses))
+            || demand.diskDetail))
         return demand
     }
 

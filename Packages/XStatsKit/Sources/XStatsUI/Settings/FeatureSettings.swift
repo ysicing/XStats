@@ -137,7 +137,8 @@ struct FeatureSettings: View {
                 }
                 GroupRow(showsDivider: NetworkMonitorSupport.isAvailable) {
                     SettingRow(title: tr("进程"),
-                               subtitle: tr("查看全部进程、搜索排序与结束进程，按需开启。"),
+                               subtitle: tr("查看全部进程、搜索排序与结束进程。") + "\n"
+                                   + tr("刷新进程列表会增加 CPU 等资源消耗。"),
                                icon: "list.bullet.rectangle") {
                         DSToggle(isOn: $settings.processesEnabled, label: tr("进程"))
                     }

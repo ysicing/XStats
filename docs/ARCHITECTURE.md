@@ -86,8 +86,12 @@ hotkey remains registered: it opens XStats's process page when enabled, or macOS
 when disabled, without changing the module preference. Its settings label follows the destination;
 the process-page header also provides a direct Activity Monitor button.
 Disabling the module returns an open process page to Features settings, cancels an explanation,
-and removes full-system process sampling demand. Existing CPU, memory, disk and overview app-usage
-lists retain their own visibility-based sampling. The preference is backed up; older documents without
+and removes full-system process sampling demand. Existing CPU, memory and disk detail lists and
+main-window overview app-usage lists retain their own visibility-based sampling. The compact aggregate menu-bar
+overview only shows selected menu-bar metrics; enabling Processes adds neither a ranking card nor
+process sampling to the collapsed overview. Expanding CPU, memory or disk details still requests
+their process data. The feature row explains the resource cost of refreshing the process list
+inline, before enabling, without a confirmation dialog. The preference is backed up; older documents without
 it preserve the current setting. Saved process-page routes fall back to Features settings when disabled.
 
 The sandboxed WidgetKit extension samples CPU, memory, disk, and battery through `Metrics`

@@ -1610,7 +1610,8 @@ GitHub 项目	GitHub-Projekt
 国旗	Flagge
 地区文字	Regionsname
 与网络详情中的 IP 归属地共用查询结果和刷新，不额外联网。需开启公网 IP 查询。	Nutzt dasselbe Standortergebnis und dieselbe Aktualisierung wie die Netzwerkdetails, ohne zusätzliche Anfragen. Benötigt die öffentliche IP-Abfrage.
-查看全部进程、搜索排序与结束进程，按需开启。	Alle Prozesse anzeigen, suchen, sortieren und beenden. Bei Bedarf aktivieren.
+查看全部进程、搜索排序与结束进程。	Alle Prozesse anzeigen, suchen, sortieren und beenden.
+刷新进程列表会增加 CPU 等资源消耗。	Das Aktualisieren der Prozessliste erhöht die CPU-Auslastung und den Verbrauch weiterer Ressourcen.
 活动监视器	Aktivitätsanzeige
 打开系统活动监视器	macOS-Aktivitätsanzeige öffnen
 进程功能开启时打开 XStats 进程页，关闭时打开系统活动监视器。	Öffnet bei aktivierter Prozessfunktion die XStats-Prozessseite, andernfalls die macOS-Aktivitätsanzeige.

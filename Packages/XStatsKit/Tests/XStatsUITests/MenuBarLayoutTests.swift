@@ -53,18 +53,19 @@ struct MenuBarLayoutTests {
                 model.isCombinedPopoverOpen = true
                 let visible = model.demand
                 #expect(visible.interval == .seconds(1))
-                #expect(visible.gpu && visible.disk && visible.battery && visible.processes)
+                #expect(visible.gpu && visible.disk && visible.battery && !visible.processes)
                 #expect(!visible.systemProcesses && !visible.diskDetail && !visible.power && !visible.cpuFrequency)
                 #expect(visible.temperatures.contains(.cpu))
                 model.combinedPopoverTab = .disk
                 #expect(model.demand.diskDetail)
+                #expect(model.demand.processes && !model.demand.systemProcesses)
                 // 展开磁盘详情后，其他总览行仍在屏幕中，必须继续更新摘要。
                 #expect(model.demand.gpu && model.demand.battery)
                 model.combinedPopoverTab = .gpu
                 #expect(!model.demand.diskDetail && !model.demand.cpuFrequency)
                 #expect(!model.demand.processes)
                 model.combinedPopoverTab = nil
-                #expect(model.demand.processes)
+                #expect(!model.demand.processes)
                 model.isCombinedPopoverOpen = false
                 #expect(model.openPopover == nil)
                 #expect(model.demand == idle)
@@ -81,6 +82,30 @@ struct MenuBarLayoutTests {
             model.isCombinedPopoverOpen = true
             #expect(!model.demand.processes && !model.demand.systemProcesses)
             #expect(!model.demand.gpu && !model.demand.disk && !model.demand.battery)
+        }
+    }
+
+    @Test(arguments: [MenuBarLayout.combined, .iconOnly])
+    func enablingProcessesDoesNotAddOverviewSampling(layout: MenuBarLayout) throws {
+        try model { model, _ in
+            model.settings.menuBarLayout = layout
+            for item: MenuBarItem in [.cpu, .memory] {
+                model.settings.menuBarItems = [item]
+                model.settings.processesEnabled = false
+                let idle = model.demand
+                model.isCombinedPopoverOpen = true
+                let overview = model.demand
+                model.settings.processesEnabled = true
+                #expect(model.demand == overview)
+                #expect(!model.demand.processes && !model.demand.systemProcesses)
+                // 只有展开 CPU / 内存详情才需要进程排行，收起后立即释放该需求。
+                model.combinedPopoverTab = item
+                #expect(model.demand.processes && !model.demand.systemProcesses)
+                model.combinedPopoverTab = nil
+                #expect(model.demand == overview)
+                model.isCombinedPopoverOpen = false
+                #expect(model.demand == idle)
+            }
         }
     }
 
@@ -160,6 +185,10 @@ struct MenuBarLayoutTests {
             let collapsed = host.fittingSize
             #expect(abs(collapsed.width - DS.Size.combinedPopoverWidth) < 1)
             #expect(collapsed.height < 500)
+            model.settings.processesEnabled = true
+            let enabled = NSHostingView(rootView: CombinedPopoverView().environment(model)
+                .environment(\.isSnapshot, true)).fittingSize
+            #expect(abs(enabled.height - collapsed.height) < 1)
             model.combinedPopoverTab = .cpu
             let expanded = NSHostingView(rootView: CombinedPopoverView().environment(model).environment(\.isSnapshot, true)).fittingSize
             #expect(expanded.height > collapsed.height)

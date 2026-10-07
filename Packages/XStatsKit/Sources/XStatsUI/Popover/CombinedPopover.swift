@@ -38,7 +38,6 @@ struct CombinedPopoverView: View {
                     ForEach(model.visibleMenuBarItems) { item in
                         OverviewMetricRow(item: item).id(item)
                     }
-                    if model.showsOverviewProcesses { OverviewProcessesCard() }
                 }
                 .id("overview-top")
             }
@@ -161,37 +160,6 @@ private struct OverviewMetricRow: View {
 private struct OverviewRowButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.background(configuration.isPressed ? DS.Palette.surfaceHover : .clear)
-    }
-}
-
-private struct OverviewProcessesCard: View {
-    @Environment(AppModel.self) private var model
-    private static let rowCount = 3
-
-    var body: some View {
-        let processes = Array(model.store.processes.prefix(Self.rowCount))
-        Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
-            HStack {
-                Text(tr("高占用进程")).dsFont(.xs, weight: .semibold)
-                Spacer()
-                MiniIconButton(systemName: "arrow.up.right", help: tr("打开进程监控")) { model.openProcessMonitor() }
-            }
-            .foregroundStyle(DS.Palette.textSecondary)
-            ProcessList(count: processes.count, rowCount: Self.rowCount) { index in
-                let process = processes[index]
-                HStack(spacing: DS.Space.s2) {
-                    ProcessNameLabel(icon: AppIconCache.shared.image(for: process), name: process.displayName)
-                    Text(verbatim: Format.machineShare(process.cpu))
-                        .dsFont(.xs, weight: .medium)
-                        .frame(width: DS.Size.valueColumn, alignment: .trailing)
-                    Text(verbatim: Format.bytes(process.memory))
-                        .dsFont(.xs)
-                        .foregroundStyle(DS.Palette.textSecondary)
-                        .frame(width: DS.Size.valueColumn, alignment: .trailing)
-                }
-                .monospacedDigit()
-            }
-        }
     }
 }
 
