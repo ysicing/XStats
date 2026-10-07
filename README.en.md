@@ -4,27 +4,23 @@
 
 # XStats
 
-**System status and everyday tools, right in your Mac menu bar.**
+**System monitoring and everyday tools for the Mac menu bar.**
 
-Check CPU, memory, network and temperature at a glance, then open the details for trends and app usage.
-Enable AI Usage, calendar, fan control and cleanup tools when you need them.
+See CPU, memory, network and temperature at a glance, and open the details for trends and app usage. Enable tools such as AI Usage, calendar and fan control when you need them.
 
-[![Release](https://img.shields.io/badge/release-0.15.0-6ee02b)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/github/v/tag/ysicing/xstats?label=version&style=flat-square)](https://github.com/ysicing/xstats/releases)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20silicon-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
+[![Twitter](https://img.shields.io/badge/follow-YsiCing-red?style=flat-square&logo=Twitter)](https://twitter.com/YsiCing)
 
-[Download the latest release](https://github.com/ysicing/xstats/releases) · [Screenshots](#screenshots) · [Features](#features) · [Install](#install) · [Changelog](CHANGELOG.md)
+[Download the latest release](https://github.com/ysicing/xstats/releases) · [Features](#features) · [Install](#install) · [Data and privacy](#data-and-privacy) · [Changelog](CHANGELOG.md)
 
 [简体中文](README.md) · **English** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 <img src="Assets/readme/menubar-dark.png" width="626" alt="XStats menu bar readings">
 
 </div>
-
-## Screenshots
-
-The main window brings system readings together, with light and dark appearances to match your preference.
 
 <p align="center">
   <img src="Assets/readme/overview-dark.png" width="49%" alt="XStats dashboard, dark">
@@ -33,83 +29,79 @@ The main window brings system readings together, with light and dark appearances
 
 ## Features
 
-XStats is a free, open-source native app built with Swift, AppKit and SwiftUI. No XStats account is required. You choose which readings and tools to use.
+XStats is a free, open-source native app built with Swift, AppKit and SwiftUI. No account is required.
 
-### Choose your menu bar layout
+### Menu bar layout
 
-- **Separate**: keep a dedicated menu bar item for each metric you check often.
-- **Combined**: put several readings in one group and open a status overview.
-- **Icon only**: keep one XStats icon and expand it to see your selected items.
+Show metrics **separately**, **combined in one group**, or behind **a single icon**. Items, order and styles (text, icons, rings, progress bars, history charts) are all configurable.
 
-Choose the items, their order and their styles. Depending on the metric, styles include text, icons, rings, progress bars and history charts. Turn off the items you do not need.
+### System monitoring
 
-### System monitoring, with details on demand
-
-| Module | What you can see |
+| Module | Details |
 |---|---|
-| **CPU** | User / system / idle utilization, per-core load rings, core-group utilization, load averages, and available frequency and temperature readings; macOS thermal pressure is highlighted when elevated |
-| **GPU** | Graphics utilization, hardware information such as core count, and available temperature and power readings |
-| **Memory** | Memory pressure, app and compressed memory, caches, swap space, and swap-in / swap-out rates |
-| **Disk** | Capacity, read/write rates, app I/O rankings, and available SMART health information |
-| **Network** | Upload/download rates, network interfaces and connection summaries |
-| **Battery and Bluetooth** | Battery charge, power source, health and cycle count; supported Bluetooth device battery levels, also available in the menu bar on Macs without a battery |
-| **Temperature and fans** | Sensor groups, fan speeds and available power readings |
-| **Displays** | Model, resolution, scaled resolution and refresh rate; brightness, contrast and volume controls on supported external displays |
+| **CPU** | User / system / idle utilization, per-core and core-group load, load averages, frequency and temperature, thermal pressure alerts |
+| **GPU** | Graphics utilization, core count, temperature and power |
+| **Memory** | Memory pressure, app / compressed / cached composition, swap space and swap rates |
+| **Disk** | Capacity, read/write rates, per-app I/O ranking, SMART health |
+| **Network** | Upload/download rates, network interfaces and connection summary |
+| **Battery and Bluetooth** | Charge, power source, health, cycle count and Bluetooth device battery levels |
+| **Temperature and fans** | Temperature sensors, fan speeds and power |
+| **Displays** | Resolution, scaling and refresh rate; brightness, contrast and volume on DDC/CI-capable external displays |
 
-Core types come from the system. XStats groups the reported super, performance and efficiency cores rather than assuming two or three groups for a chip model. This Mac also shows the model, OS version and uptime.
+Frequency, temperature and power readings depend on what the Mac model and macOS expose.
 
 <p align="center">
   <img src="Assets/readme/popover-cpu-light.png" width="49%" alt="CPU utilization and core details">
   <img src="Assets/readme/popover-memory-dark.png" width="49%" alt="Memory composition and pressure">
 </p>
 
-**External display controls** depend on DDC/CI support from the monitor, cable and connection. Each control is detected independently. Unsupported or temporarily unreadable controls show their status; sliders are offered only for supported controls.
+### Network Monitor
 
-### Network Monitor: connections by application
+> Coming in **1.0**. The features and screenshots below reflect the development branch.
 
-> This feature and these screenshots reflect the development branch being prepared for **1.0.0 stable**. The release badge at the top still identifies the current public release.
+View network connections by application, process, domain or country/region, with search, an active-connection filter and a world map.
 
-- **Disabled by default; optional on macOS 15+**: enabling the feature prompts you to install the separate XStats Network Monitor component. After installation, setup continues with the network extension permissions requested by macOS.
-- **Connection overview**: view all connections or group by application, process, domain, or country/region; search, filter active connections, and pause or resume observation.
-- **World map**: see country/region distributions for newly observed connections. Pins represent countries or regions, not precise device locations.
-- **Read-only, on demand**: all connections are allowed and communication content is never inspected. Reads stop when the page is hidden or paused. Up to 512 records are kept in memory, with no connection history stored on disk.
-- **Component management**: use Settings → Features → Network Monitor → Manage component to inspect status, check updates, or uninstall. The component updates independently and the main app does not bundle the network extension.
+- **Read-only**: all connections are allowed; communication content is never inspected and no connection history is stored.
+- **On demand**: reads only while the page is visible and not paused, keeping at most 512 records in memory.
+- **Separate component**: optional on macOS 15+. Enabling it for the first time installs the XStats Network Monitor component and requests network extension permission; the component updates independently.
 
 <p align="center">
   <img src="Assets/readme/connections-en-light.png" width="49%" alt="Network Monitor connection overview in light mode, demo data">
   <img src="Assets/readme/connections-en-dark.png" width="49%" alt="Network Monitor connection overview in dark mode, demo data">
 </p>
 
-Screenshots use fictional connections and documentation addresses. The map downloads a public IP geography database on first use, then resolves locations offline without sending connection destination IPs to a lookup service. Connections established before observation starts are not backfilled.
+Screenshots use demo data. The map uses an offline IP geography database and locates countries or regions, not precise device locations.
 
-### AI Usage and subscription quotas
+### AI Usage
 
-Check Codex / Claude Code usage in the menu bar, then open the statistics and quota details:
+Track Codex / Claude Code usage from the menu bar:
 
-- **Token statistics**: hourly for today and daily for the last 7 / 30 days; the main window also provides a yearly activity heatmap.
-- **Subscription quotas**: switch between used / remaining percentages and view reset times, plus plan, expiry and available reset-credit information when supplied by the source.
-- **Estimated costs**: based on public base API prices, with USD / CNY display; excludes tiered pricing and does not represent a subscription bill.
-- **Display preferences**: choose the refresh interval and Chinese 万 / 亿 or K / M / B number units.
+- **Token statistics**: hourly for today, daily for the last 7 / 30 days, plus a yearly activity heatmap.
+- **Subscription quotas**: used / remaining percentages, reset times and plan details; Sub2API can be configured as a fallback source.
+- **Estimated costs**: based on public base API prices in USD / CNY; not a subscription bill.
 
-AI Usage is off by default. Local statistics read Codex / Claude Code session logs; subscription quota queries require the corresponding CLI to be signed in. You can also configure Sub2API as a fallback source.
+Local statistics read CLI session logs; quota queries require the corresponding CLI to be signed in.
 
-### Everyday tools, enabled as needed
+### Tools
 
-- **Fan control**: inspect operating status and switch between automatic and manual control on supported devices.
-- **Keep awake**: keep the system or display awake, with lid-closed operation available when configured.
-- **Cleanup and uninstalling**: remove caches, project build artifacts and app-related files; preview and confirm first, with an option to move items to the Trash.
-- **Startup items**: view and manage login items and background startup entries.
-- **Network Monitor**: component and public geography database downloads use the network; connection records and destination IPs are not uploaded.
-- **Network diagnostics**: run speed tests, DNS queries, egress checks, public IP location and purity checks, and connectivity probes on demand.
-- **Menu bar calendar**: Chinese lunar dates, holidays and make-up workdays, and almanac information; calendar events and reminders are available after permission is granted.
-- **Audio**: disabled by default; system volume, mute, and output/input device switching. Selecting a paired Bluetooth audio device attempts a connection and switches once audio is ready. On macOS 14.4 or later, authorization enables 0–200% volume with peak protection, mute, independent outputs and reset for apps playing audio. Audio is processed locally without recording or uploading. Unsupported device volume controls are indicated.
-- **Pomodoro and eye-rest breaks**: focus and break timers, break screens across displays, and options to pause, skip or shrink to a mini HUD.
-- **Process manager**: when enabled, view all processes, search, sort, group by app and end processes.
+| Tool | Description |
+|---|---|
+| **Fan control** | Switch between automatic and manual control on supported Macs |
+| **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
+| **Cleanup and uninstall** | Remove caches, build artifacts and app leftovers after a preview |
+| **Startup items** | Manage login items and background startup entries |
+| **Network diagnostics** | Speed tests, DNS queries, egress checks, public IP location and purity, connectivity probes |
+| **Menu bar calendar** | Chinese lunar calendar, holidays and make-up workdays, almanac, calendar events and reminders |
+| **Audio** | System volume and input/output switching; per-app volume and output on macOS 14.4+, processed locally |
+| **Pomodoro and eye breaks** | Focus and break timers, multi-display break screens, mini HUD |
+| **Process manager** | Search, sort, group by app and end processes |
 
-Cleanup, processes, calendar, Pomodoro and AI Usage are off by default. Enable them when needed. Privileged actions such as fan control and lid-closed keep-awake require installing and authorizing the helper from the app.
+Optional modules are off by default and can be enabled in Settings. Privileged actions such as fan control and lid-closed keep-awake require installing and authorizing the helper from the app.
 
 <details>
-<summary>More tool screenshots</summary>
+<summary>More screenshots</summary>
+
+Usage, quotas, prices, device states and calendar events in these screenshots are demo data.
 
 <p align="center">
   <img src="Assets/readme/thermal-dark.png" width="49%" alt="Temperature and fan control">
@@ -119,20 +111,14 @@ Cleanup, processes, calendar, Pomodoro and AI Usage are off by default. Enable t
   <img src="Assets/readme/cleaner-light.png" width="49%" alt="Cleanup preview">
   <img src="Assets/readme/ip-purity-light.png" width="49%" alt="Public IP and purity checks">
 </p>
-
-
-Usage, quotas, prices, device states, and calendar events in the following new screenshots are demonstration data, not personal data or current pricing.
-
 <p align="center">
   <img src="Assets/readme/ai-usage-en-light.png" width="49%" alt="AI usage and statistics">
   <img src="Assets/readme/history-en-dark.png" width="49%" alt="History trends">
 </p>
-
 <p align="center">
   <img src="Assets/readme/audio-en-light.png" width="49%" alt="Audio and app mixing">
   <img src="Assets/readme/displays-en-dark.png" width="49%" alt="External display controls">
 </p>
-
 <p align="center">
   <img src="Assets/readme/calendar-en-light.png" width="49%" alt="Menu bar calendar">
   <img src="Assets/readme/rest-en-dark.png" width="49%" alt="Pomodoro and eye breaks">
@@ -140,32 +126,22 @@ Usage, quotas, prices, device states, and calendar events in the following new s
 
 </details>
 
-### Launchers and deep links
+### Integrations
 
-Use `xstats://` links from any launcher, Shortcut or terminal that opens URLs:
+- **Desktop widgets**: system overview, Pomodoro, AI quotas, calendar and month view, “Work tomorrow?”, IP purity and public IP.
+- **Languages**: 简体中文, 繁體中文, English, 日本語, 한국어, Deutsch, Español, Français, العربية.
+- **Deep links**: open common views via `xstats://` from launchers, Shortcuts or the terminal. Disabled modules lead to Settings and are never enabled implicitly.
 
 ```bash
-open 'xstats://open/connections'       # Open Network Monitor
-open 'xstats://open/audio'             # Open Audio
-open 'xstats://panel/cpu'              # Show the CPU popover
-open 'xstats://rest/start'             # Start or resume Pomodoro
-open 'xstats://keep-awake/start'       # Enable ordinary keep-awake
+open 'xstats://open/connections'   # Open Network Monitor
+open 'xstats://panel/cpu'          # Show the CPU popover
 ```
 
-Repeated opens keep the window or popover visible. Disabled modules lead to Settings and are not enabled implicitly.
 See the [deep-link protocol](docs/DEVELOPMENT.md#xstats-深链) for all routes and actions.
-
-### Desktop widgets and languages
-
-Widgets include system overview, Pomodoro, AI quotas, calendar and month view, “Work tomorrow?”, IP purity and public IP.
-
-The interface supports **9 languages**: 简体中文, 繁體中文, English, 日本語, 한국어, Deutsch, Español, Français, العربية.
 
 ## Install
 
 Requires an **Apple silicon Mac with macOS 14 or later**.
-
-**Homebrew**:
 
 ```bash
 brew tap ysicing/tap
@@ -173,11 +149,7 @@ brew trust ysicing/tap
 brew install --cask xstats
 ```
 
-Update later with `brew upgrade --cask xstats`.
-
-**Direct download**: get the DMG from [GitHub Releases](https://github.com/ysicing/xstats/releases), open it, drag XStats into Applications and launch it.
-
-XStats checks for updates, and you decide whether to download and install a new version. See the [development guide](docs/DEVELOPMENT.md) to build from source.
+Or download the DMG from [GitHub Releases](https://github.com/ysicing/xstats/releases) and drag XStats into Applications. XStats checks for updates, and you decide whether to install them.
 
 ## Data and privacy
 
@@ -186,13 +158,14 @@ Monitoring data, local history and AI token statistics are processed locally and
 - **Update checks**: send the current version and a hashed installation ID to retrieve the update feed.
 - **AI quota queries**: use your local CLI sign-in to query the provider; a configured fallback queries the server you specify.
 - **Cost estimates**: fetch public model prices and reference exchange rates on demand, without sending session logs or token statistics.
+- **Network Monitor**: downloads the component and a public geography database; connection records and destination IPs are not uploaded.
 - **Network diagnostics**: public IP, location, speed tests, DNS, connectivity probes and global probes contact their services; global-probe targets and results may be queried by others.
 
 See the [Privacy Policy](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.en.md) and [Terms of Service](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.en.md) for details.
 
 ## Build and contribute
 
-You need Xcode 26+, Go 1.25+, [Go Task](https://taskfile.dev/) and [XcodeGen](https://github.com/yonaskolb/XcodeGen). Common commands:
+Requires Xcode 26+, Go 1.25+, [Go Task](https://taskfile.dev/) and [XcodeGen](https://github.com/yonaskolb/XcodeGen):
 
 ```bash
 task test
