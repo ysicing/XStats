@@ -5,6 +5,7 @@ import SwiftUI
 /// 历史：回看最近 1 小时、24 小时、7 天的 CPU、内存、网络、GPU、温度与功耗。鼠标移到图上查看某一时刻
 struct HistoryPage: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.isSnapshot) private var isSnapshot
     @State private var hoverDate: Date?
     @State private var confirmingClear = false
 
@@ -89,6 +90,7 @@ struct HistoryPage: View {
             }
         }
         .task {
+            guard !isSnapshot else { return }
             // 页面打开期间每分钟补上新记录的一点
             history.load()
             while !Task.isCancelled {

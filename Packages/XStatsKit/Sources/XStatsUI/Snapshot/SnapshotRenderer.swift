@@ -16,8 +16,19 @@ import Updates
 /// `XStats --snapshot <目录>`：用本机实时数据渲染各页面 PNG，用于设计走查
 @MainActor
 enum SnapshotRenderer {
+    private(set) static var didFail = false
+
     static func run(outputDirectory: URL) async {
-        try? FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+        didFail = false
+        do { try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true) }
+        catch { reportFailure(outputDirectory, error: error); return }
+
+        if CommandLine.arguments.contains("--features-only") {
+            await renderFeatures(outputDirectory: outputDirectory)
+            await renderAudio(outputDirectory: outputDirectory, demo: true)
+            renderCalendar(outputDirectory: outputDirectory, gallery: true)
+            return
+        }
 
         // 日历快照只渲染固定日期，不启动系统采样、AI 扫描或磁盘扫描。
         if CommandLine.arguments.contains("--calendar-only") {
@@ -144,6 +155,7 @@ enum SnapshotRenderer {
             }
             writePNG(padded, scale: 2, to: outputDirectory.appendingPathComponent("menubar-\(dark ? "dark" : "light").png"))
         }
+        await renderConnections(outputDirectory: outputDirectory)
         print(tr("截图已输出到 \(outputDirectory.path)"))
     }
 
@@ -159,30 +171,57 @@ enum SnapshotRenderer {
         settings.panelTab = .connections
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
         let demo: [(String, String?, String?, UInt16, ConnectionTransport)] = [
-            ("/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app/Contents/MacOS/Safari", "1.1.1.1", "example.invalid", 443, .tcp),
-            ("/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app/Contents/MacOS/Safari", "2001:4860:4860::8888", "static.example.invalid", 443, .udp),
-            ("/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal", "8.8.8.8", nil, 22, .tcp),
+            ("/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app/Contents/MacOS/Safari", "192.0.2.10", "example.invalid", 443, .tcp),
+            ("/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app/Contents/MacOS/Safari", "2001:db8::10", "static.example.invalid", 443, .udp),
+            ("/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal", "198.51.100.20", "server.example.invalid", 22, .tcp),
+            ("/System/Applications/Mail.app/Contents/MacOS/Mail", "203.0.113.30", "mail.example.invalid", 993, .tcp),
             ("/usr/bin/z-demo-process", nil, nil, 443, .tcp)
         ]
         model.connectionMonitor.showPreview(demo.enumerated().map { index, value in
-            ObservedConnection(id: UUID(), timestamp: Date(timeIntervalSince1970: 1_791_244_800 - Double(index * 5)),
+            ObservedConnection(id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", index + 1))!, timestamp: Date(timeIntervalSince1970: 1_791_244_800 - Double(index * 5)),
                                processID: Int32(100 + index), executablePath: value.0,
                                address: value.1, hostname: value.2, port: value.3, transport: value.4, direction: .outbound)
         })
         model.connectionMonitor.previewWorld = await OfflineGeography.shared.world()
-        model.connectionMonitor.previewCountries = ["1.1.1.1": "AU", "2001:4860:4860::8888": "US", "8.8.8.8": "US"]
+        // 文档地址及归属地均为演示值；截图不发送连接数据，也不访问地理数据库下载入口。
+        model.connectionMonitor.previewCountries = ["192.0.2.10": "AU", "2001:db8::10": "US", "198.51.100.20": "JP", "203.0.113.30": "HK"]
         for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
             guard let appearance = NSAppearance(named: name) else { continue }
             NSApp.appearance = appearance
+            model.connectionMonitor.setObservationPaused(false)
             write(MainWindowView(), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("connections-window-\(suffix).png"))
             write(NetworkConnectionsPage().frame(width: 900).background(DS.Palette.background).appLanguageEnvironment(), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("connections-page-wide-\(suffix).png"))
+            model.connectionMonitor.setObservationPaused(true)
+            write(NetworkConnectionsPage().frame(width: 900).background(DS.Palette.background).appLanguageEnvironment(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("connections-paused-\(suffix).png"))
+            write(FeatureSettings().frame(width: 680).appLanguageEnvironment(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("connections-settings-\(suffix).png"))
+            model.networkComponent.showPreview(nil)
+            write(NetworkComponentManagementView().appLanguageEnvironment(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("component-install-\(suffix).png"))
+            // 9.9.9/9999 明确标记为虚构版本，避免截图冒充实际已安装或已发布的组件。
+            var component = NetworkComponentStatus(componentVersion: "9.9.9", componentBuild: "9999",
+                extensionVersion: "9.9.9", extensionBuild: "9999", observationMachService: "example.invalid",
+                registration: .enabled, filterEnabled: true)
+            model.networkComponent.showPreview(component)
+            write(NetworkComponentManagementView().appLanguageEnvironment(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("component-installed-\(suffix).png"))
+            component.registration = .requiresApproval
+            model.networkComponent.showPreview(component)
+            write(NetworkComponentManagementView().appLanguageEnvironment(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("component-approval-\(suffix).png"))
+            component.registration = .enabled
+            component.update = .init(phase: .available, version: "9.9.10")
+            model.networkComponent.showPreview(component)
+            write(NetworkComponentManagementView().appLanguageEnvironment(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("component-update-\(suffix).png"))
         }
     }
 
     /// 使用隔离偏好只读取设备；不请求权限，不创建 tap，不修改系统音量或路由。
-    private static func renderAudio(outputDirectory: URL) async {
+    private static func renderAudio(outputDirectory: URL, demo: Bool = false) async {
         let suite = "XStats.audioSnapshot.\(UUID())"
         guard let defaults = UserDefaults(suiteName: suite) else { return }
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -192,7 +231,7 @@ enum SnapshotRenderer {
         settings.menuBarItems = [.audio]
         settings.panelTab = .audio
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
-        if CommandLine.arguments.contains("--audio-demo") {
+        if demo || CommandLine.arguments.contains("--audio-demo") {
             let builtIn = AudioDeviceInfo(id: 1, uid: "demo.builtin", name: tr("系统默认输出"), hasInput: true, hasOutput: true, inputVolume: 0.4, outputVolume: 0.5, inputMuted: true, outputMuted: false, canSetInputVolume: true, canSetOutputVolume: true, canSetInputMute: true, canSetOutputMute: true)
             let external = AudioDeviceInfo(id: 2, uid: "demo.usb", name: "USB Audio", hasOutput: true)
             let apps = [AudioApplication(id: "demo.playing", name: "Music", bundleURL: URL(fileURLWithPath: "/System/Applications/Music.app"), processObjectIDs: [1], isPlaying: true),
@@ -219,6 +258,63 @@ enum SnapshotRenderer {
                   to: outputDirectory.appendingPathComponent("audio-window-\(suffix).png"))
         }
         model.audio.stop()
+    }
+
+    /// README 已有功能使用临时历史库、虚构 AI 数据和设备状态，不调用真实采样/控制后端。
+    private static func renderFeatures(outputDirectory: URL) async {
+        let suite = "XStats.featuresSnapshot.\(UUID())"
+        guard let defaults = UserDefaults(suiteName: suite) else { return }
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(suite, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        do {
+            try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
+            let historyURL = temporary.appendingPathComponent("history.sqlite")
+            let database = try HistoryDatabase(url: historyURL)
+            let now = Int(Date().timeIntervalSince1970) / 60 * 60
+            for index in 0..<1440 where !(600..<720).contains(index) {
+                let wave = (sin(Double(index) / 75) + 1) / 2
+                await database.insert(HistoryRecord(minute: now - (1440 - index) * 60,
+                    cpu: 0.1 + wave * 0.35, cpuMax: 0.3 + wave * 0.5, memory: 0.5 + wave * 0.15,
+                    pressure: 1, download: 500_000 + wave * 5_000_000, upload: 100_000 + wave * 500_000,
+                    gpu: wave * 0.3, temperature: 40 + wave * 25, power: 12 + wave * 20))
+            }
+            let settings = AppSettings(defaults: defaults)
+            settings.language = L10n.language
+            settings.aiUsageEnabled = true
+            settings.aiUsageSources = [.codex]
+            settings.restEnabled = true
+            settings.historyEnabled = true
+            let model = AppModel(settings: settings, historyURL: historyURL,
+                                 aiUsageProviders: [SnapshotAIUsageProvider()], aiQuotaProviders: [SnapshotAIQuotaProvider()])
+            await model.aiUsage.refresh()
+            // 单价仅用于演示费用估算，不代表模型的当前公开价格或用户账单。
+            model.aiUsage.showPreview(costReferences: .init(catalog: .init(prices: [
+                "gpt-5.4": .init(input: 2, output: 10, cacheRead: 0.2),
+                "gpt-5.4-mini": .init(input: 0.5, output: 2, cacheRead: 0.05)
+            ], fetchedAt: Date()), exchangeRate: nil))
+            model.history.load(.day)
+            while model.history.isQuerying { try await Task.sleep(for: .milliseconds(10)) }
+            model.rest.showPreview()
+            model.displays.showPreview(catalog: [
+                DisplayInfo(target: .init(id: 1, identity: "demo.display"), name: "Demo Display", isBuiltIn: false, isMain: true,
+                            summary: "27″ · 5120×2880 · 60 Hz")
+            ], readings: [1: [.brightness: .value(.init(current: 65, maximum: 100)),
+                              .contrast: .value(.init(current: 75, maximum: 100)),
+                              .volume: .value(.init(current: 30, maximum: 100))]])
+            for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+                guard let appearance = NSAppearance(named: name) else { continue }
+                NSApp.appearance = appearance
+                write(AIUsagePage(initialActivityMode: .monthly).frame(width: 900).appLanguageEnvironment(), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("ai-usage-\(suffix).png"))
+                write(HistoryPage().frame(width: 900).appLanguageEnvironment(), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("history-\(suffix).png"))
+                write(RestPage().frame(width: 900).appLanguageEnvironment(), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("rest-\(suffix).png"))
+                write(PopoverRootView(item: .display).appLanguageEnvironment(), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("displays-\(suffix).png"))
+            }
+        } catch { reportFailure(outputDirectory, error: error) }
     }
 
     /// 显示器走查只读信息和 Get VCP 能力，不执行设置写入。
@@ -301,7 +397,7 @@ enum SnapshotRenderer {
         }
     }
 
-    private static func renderCalendar(outputDirectory: URL) {
+    private static func renderCalendar(outputDirectory: URL, gallery: Bool = false) {
         let name = "XStats.calendarSnapshot.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: name) else { return }
         defer { defaults.removePersistentDomain(forName: name) }
@@ -317,6 +413,16 @@ enum SnapshotRenderer {
         for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
             guard let appearance = NSAppearance(named: name) else { continue }
             NSApp.appearance = appearance
+            if gallery, !L10n.language.isChinese {
+                // 公共外语图库展示通用日历；农历/中国节假日的专项走查仍由 --calendar-only 覆盖。
+                settings.calendarFeatures = []
+                settings.calendarPreferences.showHolidayOverview = false
+                settings.calendarPreferences.showEvents = false
+                settings.calendarPreferences.showReminders = false
+                write(CalendarPopover(referenceDate: september, firstWeekday: settings.calendarFirstWeekday), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("calendar-\(suffix).png"))
+                continue
+            }
             settings.calendarFeatures = CalendarFeature.mainlandChinaDefaults
             write(CalendarPopover(referenceDate: september, firstWeekday: settings.calendarFirstWeekday), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("calendar-\(suffix).png"))
@@ -349,7 +455,8 @@ enum SnapshotRenderer {
     private static func write<V: View>(_ view: V, model: AppModel, appearance: NSAppearance, to url: URL) {
         let hosting = NSHostingView(rootView: view
             .environment(model)
-            .environment(\.isSnapshot, true))
+            .environment(\.isSnapshot, true)
+            .background(DS.Palette.background))
         hosting.appearance = appearance
         let size = hosting.fittingSize
         hosting.frame = CGRect(origin: .zero, size: size)
@@ -365,22 +472,37 @@ enum SnapshotRenderer {
         RunLoop.main.run(until: Date().addingTimeInterval(0.3))
 
         defer { window.orderOut(nil) }
-        guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else { return }
+        guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else {
+            reportFailure(url, error: CocoaError(.coderInvalidValue)); return
+        }
         hosting.cacheDisplay(in: hosting.bounds, to: rep)
-        try? rep.representation(using: .png, properties: [:])?.write(to: url)
+        do {
+            guard let data = rep.representation(using: .png, properties: [:]) else { throw CocoaError(.coderInvalidValue) }
+            try data.write(to: url)
+        } catch { reportFailure(url, error: error) }
     }
 
     private static func writePNG(_ image: NSImage, scale: CGFloat, to url: URL) {
         let size = NSSize(width: image.size.width * scale, height: image.size.height * scale)
         guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width), pixelsHigh: Int(size.height),
                                             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-                                            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { return }
+                                            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
+            reportFailure(url, error: CocoaError(.coderInvalidValue)); return
+        }
         bitmap.size = image.size
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
         image.draw(in: NSRect(origin: .zero, size: image.size))
         NSGraphicsContext.restoreGraphicsState()
-        try? bitmap.representation(using: .png, properties: [:])?.write(to: url)
+        do {
+            guard let data = bitmap.representation(using: .png, properties: [:]) else { throw CocoaError(.coderInvalidValue) }
+            try data.write(to: url)
+        } catch { reportFailure(url, error: error) }
+    }
+
+    private static func reportFailure(_ url: URL, error: any Error) {
+        didFail = true
+        FileHandle.standardError.write(Data("Snapshot failed: \(url.path): \(error.localizedDescription)\n".utf8))
     }
 }
 
@@ -397,6 +519,19 @@ private struct SnapshotAIUsageProvider: AIUsageProvider {
                     ModelTokenUsage(day: date, model: "gpt-5.4-mini", input: 80_000,
                                     cached: 40_000, output: 12_000, records: 10)]
         }, fileCount: 42)
+        return snapshot
+    }
+}
+
+private struct SnapshotAIQuotaProvider: AIQuotaProvider {
+    let id = AIProviderID.codex
+    func fetch() async throws -> AIQuotaSnapshot {
+        let now = Date()
+        let fields: [String: Any] = ["provider": "codex", "source": "direct", "fetchedAt": now.timeIntervalSinceReferenceDate,
+            "windows": [["kind": "session", "usedPercent": 32, "resetsAt": now.addingTimeInterval(7200).timeIntervalSinceReferenceDate],
+                        ["kind": "weekly", "usedPercent": 41, "resetsAt": now.addingTimeInterval(4 * 86400).timeIntervalSinceReferenceDate]]]
+        var snapshot = try JSONDecoder().decode(AIQuotaSnapshot.self, from: JSONSerialization.data(withJSONObject: fields))
+        snapshot.details = .init(plan: "Pro")
         return snapshot
     }
 }

@@ -160,9 +160,15 @@ tasks:
       - swift test
 
   snapshot:
-    desc: 用本机实时数据渲染页面截图
+    desc: 使用当前构建截图；-- 后可传截图模式与语言
+    vars:
+      SNAPSHOT_APP: '{{default .APP .SNAPSHOT_APP}}'
+      SNAPSHOT_DIR: '{{default "build/snapshots" .SNAPSHOT_DIR}}'
+    preconditions:
+      - sh: 'test -x "{{.SNAPSHOT_APP}}/Contents/MacOS/XStats"'
+        msg: '先运行 task build BUMP=0 INSTALL=0，或用 SNAPSHOT_APP 指定已有构建'
     cmds:
-      - /Applications/XStats.app/Contents/MacOS/XStats --snapshot build/snapshots
+      - '"{{.SNAPSHOT_APP}}/Contents/MacOS/XStats" --snapshot "{{.SNAPSHOT_DIR}}" {{.CLI_ARGS}}'
 
   open:
     desc: 生成工程并用 Xcode 打开

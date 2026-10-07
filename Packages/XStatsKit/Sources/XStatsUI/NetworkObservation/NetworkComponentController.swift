@@ -27,6 +27,14 @@ import Observation
         self.backend = backend
         backend.onComponentStatus = { [weak self] in self?.accept($0) }
     }
+
+    /// 离屏截图仅注入展示状态，不调用后端、不登记服务，也不触发更新交接。
+    func showPreview(_ status: NetworkComponentStatus?) {
+        self.status = status
+        installed = status != nil
+        error = nil
+        needsBackgroundApproval = status?.registration == .requiresApproval
+    }
     func refresh() {
         installed = FileManager.default.fileExists(atPath: NetworkComponentInstaller.componentURL.path)
         guard installed else { status = nil; error = nil; return }

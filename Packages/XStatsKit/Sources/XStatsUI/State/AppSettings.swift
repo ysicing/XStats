@@ -496,6 +496,7 @@ public final class AppSettings {
     @ObservationIgnored private let defaults: UserDefaults
     var audioDefaults: UserDefaults { defaults }
     var networkObservationDefaults: UserDefaults { defaults }
+    var updateDefaults: UserDefaults { defaults }
 
     /// 日历独立于性能指标，即使指标合并也保留单独入口；旧用户默认关闭。
     public var calendarEnabled: Bool {

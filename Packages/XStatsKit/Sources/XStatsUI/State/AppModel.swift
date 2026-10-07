@@ -104,7 +104,7 @@ public final class AppModel {
         projectPurge = ProjectPurgeController(settings: settings)
         maintenance = MaintenanceController(helper: helper)
         network = NetworkController(settings: settings)
-        updates = UpdateController(settings: settings)
+        updates = UpdateController(settings: settings, defaults: settings.updateDefaults)
         alerts = AlertController(settings: settings)
         history = HistoryRecorder(settings: settings, databaseURL: historyURL)
         sync = SyncController(settings: settings)

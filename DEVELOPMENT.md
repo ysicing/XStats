@@ -55,10 +55,40 @@ task build BUMP=0 INSTALL=0          # 只构建，不改构建号或安装
 task compile CONFIG=Debug           # 只编译 Debug，不安装
 task test                           # 脚本、Go API 和 Swift 测试
 task open                           # 生成工程并用 Xcode 打开
-task snapshot                       # 使用已安装的 App 渲染实时截图
+task snapshot                       # 使用当前 Release 构建渲染截图
 task version                        # 查看版本与构建号
 task clean                          # 删除 build/
 ```
+
+截图默认使用 `build/DerivedData-arm64/Build/Products/Release/XStats.app`，不会悄悄使用 `/Applications` 中的旧版本。
+先构建再生成网络演示截图：
+
+```bash
+task build BUMP=0 INSTALL=0
+task snapshot SNAPSHOT_DIR=build/readme-1.0/zh-Hans -- --connections-only --language zh-Hans
+task snapshot SNAPSHOT_DIR=build/readme-1.0/en -- --connections-only --language en
+# 自选已有构建与输出目录；Debug 构建也可直接指定 CONFIG=Debug
+task snapshot SNAPSHOT_APP=/path/to/XStats.app SNAPSHOT_DIR=build/screens -- --connections-only --language ja
+```
+
+`--connections-only` 使用隔离偏好与虚构连接，不采集本机连接、不安装或注册组件、不触发更新检查。
+输出连接窗口、宽版连接页、暂停页、功能设置，以及组件未安装、已安装、待后台授权、可更新状态的明暗 PNG。
+连接地址采用文档示例网段，地图分布为演示值；组件版本 `9.9.9 (9999)` 明确为虚构。
+完整截图模式也会追加这些网络截图，但完整模式仍会读取本机指标、AI 用量及执行只读清理扫描；公开展示优先选定向模式。
+截图目录或 PNG 写入失败时进程返回非零退出码。四语言 README 的网络图片来自各语言的
+`connections-page-wide-light.png` / `connections-page-wide-dark.png`，分别保存为
+`Assets/readme/connections-<zh-Hans|en|ja|ko>-<light|dark>.png`。
+
+已有功能的 README 演示图库使用 `--features-only`：
+
+```bash
+task snapshot SNAPSHOT_DIR=build/feature-gallery/zh-Hans -- --features-only --language zh-Hans
+```
+
+该模式输出 AI 用量、历史趋势、显示器控制、番茄钟、音频混音和日历的明暗截图。
+AI 由虚构 provider 提供；历史使用本次运行创建并清理的临时数据库；显示器、音频和番茄钟只注入展示状态，
+不读取个人 AI 日志、不连接真实 DDC、不修改音量、不启动计时或写入 Widget 共享状态。
+日历使用固定演示日期，中文展示农历与节假日，其他语言展示通用月历，不读取系统日程。README 每种语言选取六张代表图，存入 `Assets/readme/`。
 
 菜单栏布局走查可对当前构建运行 `XStats --snapshot <目录> --menubar-only --language en`；
 仅采集相关指标，输出三种布局、总览和详情的明暗截图，不扫描清理目录或 AI 日志。

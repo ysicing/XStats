@@ -218,6 +218,16 @@ final class RestController {
             ? localDefaults.integer(forKey: "rest.completedToday") : 0
     }
 
+    /// 离屏截图只改变展示值，不创建 session、计时器或写入 Widget 共享偏好。
+    func showPreview() {
+        guard session == nil else { return }
+        phase = .work
+        isRunning = true
+        secondsRemaining = 18 * 60 + 42
+        phaseDuration = 25 * 60
+        completedToday = 3
+    }
+
     func sync() {
         guard settings.restEnabled else { stop(); return }
         refreshDay()

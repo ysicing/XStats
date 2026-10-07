@@ -8,6 +8,7 @@ struct NetworkComponentManagementView: View {
     var onInstalled: () -> Void = {}
     var onClose: () -> Void = {}
     @Environment(AppModel.self) private var model
+    @Environment(\.isSnapshot) private var isSnapshot
     @Environment(\.dismiss) private var dismiss
     @State private var confirmsRemoval = false
     private var component: NetworkComponentController { model.networkComponent }
@@ -63,7 +64,10 @@ struct NetworkComponentManagementView: View {
             }
             if component.busy { ProgressView().controlSize(.small) }
         }.padding(DS.Space.s6).frame(minWidth: 460, idealWidth: 520, maxWidth: 640)
-            .fixedSize(horizontal: false, vertical: true).task { component.refresh() }
+            .fixedSize(horizontal: false, vertical: true).task {
+                guard !isSnapshot else { return }
+                component.refresh()
+            }
             .confirmationDialog(tr("卸载网络组件？"), isPresented: $confirmsRemoval, titleVisibility: .visible) {
                 Button(tr("卸载组件"), role: .destructive) { component.uninstall() }
                 Button(tr("取消"), role: .cancel) {}

@@ -7,6 +7,7 @@ import SwiftUI
 /// 可选的番茄钟主页面：计时、阶段与今日目标在同一处操作。
 struct RestPage: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.isSnapshot) private var isSnapshot
 
     var body: some View {
         @Bindable var settings = model.settings
@@ -94,10 +95,11 @@ struct RestPage: View {
             }
         }
         .onAppear {
+            guard !isSnapshot else { return }
             rest.sync()
             rest.setPageVisible(true)
         }
-        .onDisappear { rest.setPageVisible(false) }
+        .onDisappear { if !isSnapshot { rest.setPageVisible(false) } }
     }
 
     private static func clock(_ seconds: TimeInterval) -> String {

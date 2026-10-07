@@ -18,7 +18,8 @@ private struct CostRefreshKey: Hashable {
 }
 
 struct AIUsagePage: View {
-    var body: some View { PageScroll { LocalUsageContent(compact: false) } }
+    var initialActivityMode = UsageActivityMode.daily
+    var body: some View { PageScroll { LocalUsageContent(compact: false, initialActivityMode: initialActivityMode) } }
 }
 struct AIUsagePopover: View {
     var body: some View { LocalUsageContent(compact: true) }
@@ -46,6 +47,11 @@ private struct LocalUsageContent: View {
     @State private var selectedModel = ""
     @State private var source = "all"
     @State private var activityMode = UsageActivityMode.daily
+
+    init(compact: Bool, initialActivityMode: UsageActivityMode = .daily) {
+        self.compact = compact
+        _activityMode = State(initialValue: initialActivityMode)
+    }
 
     private var displayedActivityMode: Binding<UsageActivityMode> {
         Binding(get: { UsageChartPresentation.mode(activityMode, compact: compact) },
