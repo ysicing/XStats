@@ -120,6 +120,15 @@ import Testing
         } catch ToolExecutionError.outputTooLarge { }
     }
 
+    @Test func previewTimeoutStopsProcessEvenWhenItIgnoresTermination() async throws {
+        let home = try stubBrew("#!/bin/sh\ntrap '' TERM\nexec /bin/sleep 30\n")
+        defer { try? FileManager.default.removeItem(at: home) }
+        do {
+            _ = try await DeveloperToolRunner.run("brew", arguments: ["--dry-run"], home: home.path, previewTimeout: 0.1)
+            Issue.record("忽略 SIGTERM 的预览也必须超时终止")
+        } catch ToolExecutionError.timedOut { }
+    }
+
     @Test func brewCleanupRunsToCompletionPastPreviewLimits() async throws {
         let home = try stubBrew("""
         #!/bin/sh

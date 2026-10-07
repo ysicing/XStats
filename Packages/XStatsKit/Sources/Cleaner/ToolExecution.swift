@@ -134,22 +134,22 @@ enum DeveloperToolRunner {
         }
         defer { try? FileManager.default.removeItem(at: outputURL) }
         let handle = try FileHandle(forWritingTo: outputURL)
+        let watchdog = PreviewWatchdog()
         defer {
-            stop(process)
+            watchdog.stop(process)
             try? handle.close()
         }
         process.standardOutput = handle
         process.standardError = handle
         process.standardInput = FileHandle.nullDevice
-        // 超时由 Dispatch 计时，不依赖协作线程池及时调度轮询；线程被其他阻塞任务占满时仍按时终止。
-        let watchdog = PreviewWatchdog()
+        // 预览的截止时间不能依赖协作线程池或共享 Dispatch 队列；退出时立即唤醒等待线程。
+        defer { watchdog.markExited() }
         process.terminationHandler = { _ in watchdog.markExited() }
         try Task.checkCancellation()
         do { try process.run() } catch {
             throw ToolExecutionError.failed(tool: "brew", status: -1, output: error.localizedDescription)
         }
-        let pid = process.processIdentifier
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) { watchdog.expire(pid: pid) }
+        watchdog.start(process: process, timeout: timeout)
         while process.isRunning {
             try Task.checkCancellation()
             guard !watchdog.didTimeOut else { throw ToolExecutionError.timedOut("brew") }
@@ -269,7 +269,7 @@ enum DeveloperToolRunner {
     /// 只结束本次启动的进程；取消后仍给予短暂退出时间，防止清理子进程留在后台。
     /// 不调用 `waitUntilExit()`：它靠当前线程的 RunLoop 接收退出通知，而这里跑在不驱动 RunLoop 的
     /// 并发线程上，错过通知就会永久等待（停止清理卡在“正在停止”）。改为有上限的轮询。
-    private static func stop(_ process: Process) {
+    fileprivate static func stop(_ process: Process) {
         guard process.isRunning else { return }
         process.terminate()
         guard !waitForExit(process, seconds: 1) else { return }
@@ -323,18 +323,41 @@ private extension Sequence where Element: Hashable {
 /// 预览超时的跨线程状态。只在进程尚未被回收时发送 SIGTERM，避免误杀复用了同一 PID 的其他进程。
 private final class PreviewWatchdog: @unchecked Sendable {
     private let lock = NSLock()
+    private let stopping = NSLock()
+    private let finished = DispatchSemaphore(value: 0)
     private var exited = false
     private var timedOut = false
 
     var didTimeOut: Bool { lock.withLock { timedOut } }
 
-    func markExited() { lock.withLock { exited = true } }
-
-    func expire(pid: pid_t) {
+    func markExited() {
         lock.withLock {
             guard !exited else { return }
-            timedOut = true
-            _ = Darwin.kill(pid, SIGTERM)
+            exited = true
+            finished.signal()
         }
+    }
+
+    func start(process: Process, timeout: TimeInterval) {
+        let deadline = DispatchTime.now() + timeout
+        Thread.detachNewThread { [self] in
+            if finished.wait(timeout: deadline) == .timedOut { expire(process: process) }
+        }
+    }
+
+    private func expire(process: Process) {
+        guard process.isRunning else { return }
+        let shouldStop = lock.withLock {
+            // 终止回调可能排队；以 Process 状态确认拥有的子进程仍在运行，不对旧 PID 发信号。
+            guard !exited else { return false }
+            timedOut = true
+            return true
+        }
+        if shouldStop { stop(process) }
+    }
+
+    /// 取消、超时和收尾可能并发，停止操作串行；终止回调不与这里共用锁。
+    func stop(_ process: Process) {
+        stopping.withLock { DeveloperToolRunner.stop(process) }
     }
 }
