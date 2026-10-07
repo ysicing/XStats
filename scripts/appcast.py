@@ -9,6 +9,7 @@
 过长时优先收短到逗号处、否则保留原文，最多 10 条。
 """
 import hashlib
+import datetime
 import json
 import os
 import plistlib
@@ -83,7 +84,8 @@ def component_manifest(version: str, build: str, base: str, archive: Path, app: 
     notes = json.loads(notes_path.read_text(encoding="utf-8"))
     if notes.get("version") != version or not isinstance(notes.get("sourceNotes"), list) or not notes["sourceNotes"]:
         raise ValueError("组件摘要文件的版本或内容无效")
-    return {"version": version, "build": build, "minimumSystem": "15.0",
+    return {"version": version, "build": build, "date": datetime.date.today().isoformat(),
+            "app_name": "XStats Network Monitor", "sparkle_public_key": info["SUPublicEDKey"], "minimumSystem": "15.0",
             "bundleIdentifier": "work.12306.xstats.networkmonitor", "appName": "XStats Network Monitor",
             "url": f"{base}/{archive.name}", "sha256": sha256(str(archive)), "size": archive.stat().st_size,
             "notes": notes["sourceNotes"],

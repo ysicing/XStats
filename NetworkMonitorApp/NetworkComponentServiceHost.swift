@@ -186,10 +186,8 @@ import Updates
 
     private func ensureUpdater() throws {
         guard driver == nil else { return }
-        guard let feed = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String, let url = URL(string: feed) else {
-            throw NetworkMonitorError.missingExtension
-        }
-        let driver = SparkleInstaller(endpoints: [url], onPhase: { [weak self] phase in
+        let driver = SparkleInstaller(endpoints: UpdateFeed.sparkleURLs(
+            prefersChina: UpdateFeed.prefersChinaEndpoint(), applicationID: "xstats-network-monitor"), onPhase: { [weak self] phase in
             guard let self else { return }
             self.phase = self.installationCancelled && phase != .installing ? (self.release == nil ? .idle : .available) : phase
             self.publishStatus()

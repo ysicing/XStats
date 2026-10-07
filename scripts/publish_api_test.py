@@ -80,6 +80,25 @@ class PublishAPITest(unittest.TestCase):
             for call in send.call_args_list:
                 self.assertFalse(call.args[0].has_header("Authorization"))
 
+    def test_component_endpoints_preserve_regions_and_application(self) -> None:
+        endpoints = publish_api.configured_endpoints({"XSTATS_APP_ID": "xstats-network-monitor"})
+        self.assertEqual(len(endpoints), 3)
+        self.assertTrue(all("/apps/xstats-network-monitor/releases/current" in url for url in endpoints))
+        self.assertEqual(publish_api.sparkle_feed_url(endpoints[0]),
+                         "https://apps.12306.work/api/v1/apps/xstats-network-monitor/update/appcast.xml")
+        with self.assertRaises(ValueError):
+            publish_api.configured_endpoints({"XSTATS_APP_ID": "xstats-network-monitor", "XSTATS_API_URL": publish_api.DEFAULT_ENDPOINTS[0]})
+
+    def test_unregistered_component_is_allowed_only_with_expected_response(self) -> None:
+        endpoint = publish_api.configured_endpoints({"XSTATS_APP_ID": "xstats-network-monitor"})[0]
+        url = publish_api.sparkle_feed_url(endpoint)
+        error = urllib.error.HTTPError(url, 404, "Not Found", {"Cache-Control": "no-store"}, io.BytesIO(b'{"error":"unknown application"}'))
+        with patch("urllib.request.urlopen", side_effect=error):
+            publish_api.check_sparkle_endpoints([endpoint])
+        error = urllib.error.HTTPError(url, 404, "Not Found", {"Cache-Control": "no-store"}, io.BytesIO(b'{"error":"route not found"}'))
+        with patch("urllib.request.urlopen", side_effect=error), self.assertRaises(RuntimeError):
+            publish_api.check_sparkle_endpoints([endpoint])
+
     def test_verify_rejects_region_serving_different_feed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             feed = Path(directory) / "XStats-1.0.0-AppleSilicon.xml"

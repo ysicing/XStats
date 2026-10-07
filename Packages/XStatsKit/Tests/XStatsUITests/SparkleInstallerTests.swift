@@ -275,6 +275,11 @@ struct SparkleInstallerTests {
     }
 
     @Test func stableRegionalFeedURLsAndPublicDelegateSelectors() {
+        #expect(UpdateFeed.sparkleURLs(prefersChina: true, applicationID: "xstats-network-monitor").map(\.absoluteString) == [
+            "https://apps.china.12306.work/api/v1/apps/xstats-network-monitor/update/appcast.xml",
+            "https://apps.12306.work/api/v1/apps/xstats-network-monitor/update/appcast.xml",
+            "https://apps-api.xiai.me/api/v1/apps/xstats-network-monitor/update/appcast.xml",
+        ])
         #expect(UpdateFeed.sparkleURLs(prefersChina: true).map(\.absoluteString) == [
             "https://apps.china.12306.work/api/v1/apps/xstats/update/appcast.xml",
             "https://apps.12306.work/api/v1/apps/xstats/update/appcast.xml",

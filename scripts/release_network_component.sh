@@ -75,6 +75,10 @@ PYSTAT
   exit 1
 }
 
+if [ "$PUBLISH" = 1 ]; then
+  XSTATS_APP_ID=xstats-network-monitor python3 scripts/publish_api.py --check-sparkle
+fi
+
 # 已发布公开版本不可重新构建覆盖；恢复只使用已公证的原始制品。
 if [ "$PUBLISH" = 1 ] && [ "$PUBLISH_ONLY" = 0 ] && object_exists "$TARGET/$NAME.zip"; then
   echo 'error: 该组件公开版本已经存在，请用 --publish-only 复用原制品；代码变化须推进公开版本' >&2
@@ -191,8 +195,11 @@ if [ "$PUBLISH" = 1 ]; then
     [ "$expected" = "$actual" ] || { echo "error: CDN $name 内容不一致" >&2; exit 1; }
   }
   upload "$DIST/$NAME.zip" "$NAME.zip" 'public,max-age=31536000,immutable'
-  upload "$DIST/appcast.xml" appcast.xml 'max-age=300'
-  echo "已发布并验证：$BASE/appcast.xml"
+  upload "$DIST/appcast.xml" "$NAME.xml" 'public,max-age=31536000,immutable'
+  XSTATS_APP_ID=xstats-network-monitor python3 scripts/publish_api.py "$DIST/appcast.json"
+  XSTATS_APP_ID=xstats-network-monitor python3 scripts/publish_api.py --check-sparkle
+  XSTATS_APP_ID=xstats-network-monitor python3 scripts/publish_api.py --verify-sparkle "$DIST/appcast.xml"
+  echo "已发布并验证：网络组件版本包与三个区域 API"
 else
   echo "已生成：$DIST/$NAME.zip 和 $DIST/appcast.xml（未上传）"
 fi

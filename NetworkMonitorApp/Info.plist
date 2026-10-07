@@ -61,7 +61,7 @@
 	<key>SUEnableSystemProfiling</key>
 	<false/>
 	<key>SUFeedURL</key>
-	<string>https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor/appcast.xml</string>
+	<string>https://apps.12306.work/api/v1/apps/xstats-network-monitor/update/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>j/I8zd8BXz4oPldnhocEySXTMmXPxKMyBRwoA4ewLIk=</string>
 	<key>SURequireSignedFeed</key>

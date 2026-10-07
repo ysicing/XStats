@@ -157,6 +157,12 @@ Before uploading or publishing a Sparkle client, run `python3 scripts/publish_ap
 
 If manual recovery is unavoidable, preserve this order. Do not publish an appcast that references an unavailable object.
 
+The optional Network Monitor component uses the same API contract with application ID
+`xstats-network-monitor`. Publish one ZIP and matching XML per public component version,
+then register/publish its manifest to all three regional APIs. Do not publish a mutable ZIP
+alias or object-storage appcast endpoint. The component release script supports
+`--publish-only` for retries without rebuilding already notarized artifacts.
+
 ## 6. Final verification
 
 Prove all of the following from live state:

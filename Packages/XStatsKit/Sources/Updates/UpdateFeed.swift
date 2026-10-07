@@ -95,9 +95,11 @@ public enum UpdateArchitecture: Sendable, Equatable {
 
 public enum UpdateFeed {
     /// XStats 的多应用 API 入口原样返回签名 XML，同时记录检查；JSON POST 协议保持可用。
-    public static func sparkleURLs(prefersChina: Bool) -> [URL] {
+    public static func sparkleURLs(prefersChina: Bool, applicationID: String = "xstats") -> [URL] {
         checkURLs(prefersChina: prefersChina).map {
-            $0.deletingLastPathComponent().appendingPathComponent("appcast.xml")
+            var parts = URLComponents(url: $0, resolvingAgainstBaseURL: false)!
+            parts.path = "/api/v1/apps/\(applicationID)/update/appcast.xml"
+            return parts.url!
         }
     }
 

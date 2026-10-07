@@ -5,6 +5,7 @@
 """把发布清单提交给 XStats API。"""
 
 import json
+import re
 import os
 import sys
 import urllib.request
@@ -28,9 +29,10 @@ MAXIMUM_FEED_BYTES = 256 * 1024
 
 def sparkle_feed_url(endpoint: str, query: str = "") -> str:
     parts = urlsplit(endpoint)
-    if parts.path != "/api/v1/apps/xstats/releases/current":
+    match = re.fullmatch(r"/api/v1/apps/(xstats|xstats-network-monitor)/releases/current", parts.path)
+    if not match:
         raise ValueError(f"无法推导 Sparkle 更新源：{endpoint}")
-    return urlunsplit((parts.scheme, parts.netloc, "/api/v1/apps/xstats/update/appcast.xml", query, ""))
+    return urlunsplit((parts.scheme, parts.netloc, f"/api/v1/apps/{match.group(1)}/update/appcast.xml", query, ""))
 
 
 def check_sparkle_endpoints(endpoints: list[str]) -> None:
@@ -47,7 +49,14 @@ def check_sparkle_endpoints(endpoints: list[str]) -> None:
             with error:
                 # 代理可能合并缓存指令，按 token 判断而不是整串比较。
                 directives = {item.strip().lower() for item in (error.headers.get("Cache-Control") or "").split(",")}
-                if error.code != 400 or "no-store" not in directives:
+                # 新组件在首次 PUT 后才登记；只接受服务端明确的 unknown application。
+                new_component = False
+                if error.code == 404 and "/apps/xstats-network-monitor/" in url:
+                    try:
+                        new_component = json.loads(error.read(4096)).get("error") == "unknown application"
+                    except (ValueError, AttributeError):
+                        pass
+                if "no-store" not in directives or (error.code != 400 and not new_component):
                     raise RuntimeError(f"请先部署支持 Sparkle 的 API：{url} 返回 {error.code}") from error
 
 
@@ -71,9 +80,10 @@ def publish(appcast: Path, endpoints: list[str], token: str) -> None:
         raise ValueError("XSTATS_RELEASE_TOKEN 不能为空")
     if not endpoints:
         raise ValueError("至少需要一个版本发布接口")
-    # 先校验全部发布路径，避免后续地址配置错误时已切换部分区域的版本。
-    for endpoint in endpoints:
-        sparkle_feed_url(endpoint)
+    # 先校验全部发布路径，不能把一份组件清单误写到主应用入口。
+    targets = {urlsplit(sparkle_feed_url(endpoint)).path for endpoint in endpoints}
+    if len(targets) != 1:
+        raise ValueError("同次发布必须属于同一个应用")
     body = appcast.read_bytes()
     manifest = json.loads(body)
     if not isinstance(manifest, dict) or not manifest.get("version"):
@@ -96,12 +106,20 @@ def publish(appcast: Path, endpoints: list[str], token: str) -> None:
 
 
 def configured_endpoints(environment: Mapping[str, str]) -> list[str]:
+    application = environment.get("XSTATS_APP_ID", "xstats")
+    if application not in ("xstats", "xstats-network-monitor"):
+        raise ValueError("不支持的应用标识")
     configured = environment.get("XSTATS_API_URLS", "")
     if configured:
-        return [item.strip() for item in configured.split(",") if item.strip()]
-    if endpoint := environment.get("XSTATS_API_URL"):
-        return [endpoint]
-    return list(DEFAULT_ENDPOINTS)
+        endpoints = [item.strip() for item in configured.split(",") if item.strip()]
+    elif endpoint := environment.get("XSTATS_API_URL"):
+        endpoints = [endpoint]
+    else:
+        endpoints = [endpoint.replace("/apps/xstats/", f"/apps/{application}/") for endpoint in DEFAULT_ENDPOINTS]
+    for endpoint in endpoints:
+        if urlsplit(endpoint).path != f"/api/v1/apps/{application}/releases/current":
+            raise ValueError("发布路径与应用标识不一致")
+    return endpoints
 
 
 def main() -> None:

@@ -48,7 +48,7 @@ assert "NetworkObservationExtensionVersion" not in info
 assert "NetworkObservationExtensionBuild" not in info
 with open("NetworkMonitorApp/Info.plist", "rb") as source:
     component = plistlib.load(source)
-assert component["SUFeedURL"] == "https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor/appcast.xml"
+assert component["SUFeedURL"] == "https://apps.12306.work/api/v1/apps/xstats-network-monitor/update/appcast.xml"
 assert component["SURequireSignedFeed"] is True and component["SUVerifyUpdateBeforeExtraction"] is True
 assert component["SUEnableAutomaticChecks"] is False
 assert component["SUPublicEDKey"] == info["SUPublicEDKey"]

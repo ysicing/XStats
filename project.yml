@@ -16,8 +16,8 @@ settings:
     # Apple 内部构建号每次 task build 加一，独立于公开版本号且不重置
     CURRENT_PROJECT_VERSION: "137"
     # 独立网络组件及扩展共用版本；只在组件、扩展或共享协议变化时推进。
-    NETWORK_EXTENSION_VERSION: "1.0.0"
-    NETWORK_EXTENSION_BUILD: "140"
+    NETWORK_EXTENSION_VERSION: "1.0.1"
+    NETWORK_EXTENSION_BUILD: "141"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     # 本地开发使用 ad-hoc 签名；正式发布使用 Developer ID（见 docs/DEVELOPMENT.md）
     CODE_SIGN_STYLE: Manual
@@ -120,7 +120,7 @@ targets:
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         LSUIElement: true
         SUPublicEDKey: "j/I8zd8BXz4oPldnhocEySXTMmXPxKMyBRwoA4ewLIk="
-        SUFeedURL: https://c.ysicing.net/oss/apps/macOS/XStats/network-monitor/appcast.xml
+        SUFeedURL: https://apps.12306.work/api/v1/apps/xstats-network-monitor/update/appcast.xml
         SUEnableAutomaticChecks: false
         SUAutomaticallyUpdate: false
         SUEnableSystemProfiling: false

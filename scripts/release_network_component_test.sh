@@ -11,6 +11,13 @@ mkdir -p "$WORK/repo/scripts" "$WORK/bin" "$WORK/objects" "$WORK/sparkle"
 for file in release_network_component.sh appcast.py sparkle_appcast.py; do
   cp "scripts/$file" "$WORK/repo/scripts/$file"
 done
+cat > "$WORK/repo/scripts/publish_api.py" <<'PYAPI'
+import os,sys,json
+assert os.environ.get('XSTATS_APP_ID')=='xstats-network-monitor'
+with open(os.environ['COMPONENT_TEST_LOG'],'a') as f: f.write('api '+' '.join(sys.argv[1:])+'\n')
+if len(sys.argv)==2 and not sys.argv[1].startswith('--'):
+    feed=json.load(open(sys.argv[1]));assert feed['app_name']=='XStats Network Monitor' and feed['sparkle_public_key'] and feed['date']
+PYAPI
 cat > "$WORK/repo/project.yml" <<'YAML'
 NETWORK_EXTENSION_VERSION: "2.3.4"
 NETWORK_EXTENSION_BUILD: "137"
@@ -143,15 +150,15 @@ PY
 expect_failure '无法确认源站' env COMPONENT_STAT_ERROR=1 bash "$WORK/repo/scripts/release_network_component.sh" --publish
 ! grep -q '^task\|^upload ' "$WORK/events"
 
-# 正常发布、恢复和防覆盖只操作独立前缀，ZIP 失败后不能切换 appcast。
+# 正常发布、恢复和防覆盖只操作独立前缀，ZIP 失败后不能切换 API 清单。
 : > "$WORK/events"
 bash "$WORK/repo/scripts/release_network_component.sh" --publish > "$WORK/stdout"
 grep -E '^(upload|verify) ' "$WORK/events" > "$WORK/order"
 cat > "$WORK/expected" <<'ORDER'
 upload XStats-Network-Monitor-2.3.4-AppleSilicon.zip
 verify XStats-Network-Monitor-2.3.4-AppleSilicon.zip
-upload appcast.xml
-verify appcast.xml
+upload XStats-Network-Monitor-2.3.4-AppleSilicon.xml
+verify XStats-Network-Monitor-2.3.4-AppleSilicon.xml
 ORDER
 diff -u "$WORK/expected" "$WORK/order"
 : > "$WORK/events"
@@ -161,17 +168,17 @@ expect_failure '公开版本已经存在' bash "$WORK/repo/scripts/release_netwo
 bash "$WORK/repo/scripts/release_network_component.sh" --publish-only > "$WORK/stdout"
 ! grep -q '^task\|^xcrun ' "$WORK/events"
 ! grep -q '^upload .*zip' "$WORK/events"
-grep -q '^upload appcast.xml' "$WORK/events"
+grep -q '^api dist/network-monitor/appcast.json' "$WORK/events"
 : > "$WORK/events"
 printf 'conflicting bytes' > "$WORK/objects/XStats-Network-Monitor-2.3.4-AppleSilicon.zip"
 expect_failure '禁止覆盖' bash "$WORK/repo/scripts/release_network_component.sh" --publish-only
-! grep -q '^upload appcast.xml' "$WORK/events"
+! grep -q '^upload XStats-Network-Monitor-2.3.4-AppleSilicon.xml' "$WORK/events"
 rm "$WORK/objects/XStats-Network-Monitor-2.3.4-AppleSilicon.zip"
 : > "$WORK/events"
 if COMPONENT_FAIL_ZIP=1 bash "$WORK/repo/scripts/release_network_component.sh" --publish-only > "$WORK/stdout" 2> "$WORK/stderr"; then
   echo 'ZIP 上传失败应中止发布' >&2; exit 1
 fi
-! grep -q '^upload appcast.xml' "$WORK/events"
+! grep -q '^upload XStats-Network-Monitor-2.3.4-AppleSilicon.xml' "$WORK/events"
 [ ! -e "$WORK/repo/dist/appcast.json" ]
 grep -q 'MARKETING_VERSION: "9.9.9"' "$WORK/repo/project.yml"
 grep -q 'CURRENT_PROJECT_VERSION: "999"' "$WORK/repo/project.yml"
