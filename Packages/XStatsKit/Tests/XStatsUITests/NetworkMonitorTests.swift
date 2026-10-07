@@ -379,6 +379,21 @@ import Updates
         #expect(NetworkConnectionGroup.selected(in: filtered, id: "missing")?.id == NetworkConnectionGroup.allIdentifier)
     }
 
+    @Test func crossApplicationRecordsAreNewestFirstInsteadOfAppNameOrder() {
+        let original = batch().events[0]
+        let start = Date(timeIntervalSince1970: 1_000)
+        // 应用名 A 的连接更早、B 的更晚；按域名分组时不能先列出 A 的全部连接。
+        let records = [("Alpha", 0.0), ("Beta", 1), ("Alpha", 2), ("Beta", 3)].map { name, offset in
+            var record = original
+            record.id = UUID(); record.timestamp = start.addingTimeInterval(offset)
+            record.executablePath = "/Applications/\(name).app/Contents/MacOS/\(name)"
+            return record
+        }
+        let matching = NetworkConnectionGroup.matching(records: records, query: "")
+        #expect(matching.map(\.timestamp) == records.map(\.timestamp).reversed(), "跨应用记录应整体按时间倒序")
+        #expect(NetworkConnectionGroup.matching(records: records, query: "Beta").map(\.id) == [records[3].id, records[1].id])
+    }
+
     @Test func sameNamedApplicationCopiesKeepStableOrderingAcrossRefreshes() {
         let original = batch().events[0]
         let paths = ["/Applications/Z/Browser.app/Contents/MacOS/Browser", "/Applications/A/Browser.app/Contents/MacOS/Browser", "/Applications/M/Browser.app/Contents/MacOS/Browser"]

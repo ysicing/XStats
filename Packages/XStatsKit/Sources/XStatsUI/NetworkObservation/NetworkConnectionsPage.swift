@@ -17,9 +17,16 @@ struct NetworkConnectionGroup: Identifiable {
     static func selected(in groups: [Self], id: String?) -> Self? {
         if let id, let group = groups.first(where: { $0.id == id }) { return group }
         return Self(id: allIdentifier, name: tr("全部连接"), applicationPath: nil,
-                    records: groups.flatMap(\.records).sorted {
-                        $0.timestamp == $1.timestamp ? $0.id.uuidString < $1.id.uuidString : $0.timestamp > $1.timestamp
-                    })
+                    records: groups.flatMap(\.records).sorted(by: newestFirst))
+    }
+
+    /// 跨应用分组沿用 Dictionary(grouping:) 的元素顺序；整体按时间排序，避免同一域名或地域按应用名分段。
+    static func matching(records: [ObservedConnection], query: String) -> [ObservedConnection] {
+        make(records: records, query: query).flatMap(\.records).sorted(by: newestFirst)
+    }
+
+    private static func newestFirst(_ lhs: ObservedConnection, _ rhs: ObservedConnection) -> Bool {
+        lhs.timestamp == rhs.timestamp ? lhs.id.uuidString < rhs.id.uuidString : lhs.timestamp > rhs.timestamp
     }
 
     static func make(records: [ObservedConnection], query: String) -> [Self] {
@@ -32,7 +39,7 @@ struct NetworkConnectionGroup: Identifiable {
             record.applicationPath ?? (record.executablePath.isEmpty ? "pid:\(record.processID)" : record.executablePath)
         }.map { key, events in
             Self(id: key, name: events[0].applicationName, applicationPath: events[0].applicationPath,
-                 records: events.sorted { $0.timestamp > $1.timestamp })
+                 records: events.sorted(by: newestFirst))
         }.sorted {
             let order = $0.name.localizedStandardCompare($1.name)
             return order == .orderedSame ? $0.id < $1.id : order == .orderedAscending
@@ -74,7 +81,7 @@ struct NetworkConnectionsPage: View {
     }
     private var currentGroups: [NetworkConnectionGroup] {
         if grouping == .apps { return NetworkConnectionGroup.make(records: visibleRecords, query: search) }
-        let matching = NetworkConnectionGroup.make(records: visibleRecords, query: search).flatMap(\.records)
+        let matching = NetworkConnectionGroup.matching(records: visibleRecords, query: search)
         if grouping == .process {
             return Dictionary(grouping: matching) { "\($0.executablePath)#\($0.processID)" }.map { key, records in
                 NetworkConnectionGroup(id: key, name: records[0].applicationName,
