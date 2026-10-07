@@ -67,6 +67,11 @@ public final class AIUsageController {
     }
 
     /// 由可见的用量页请求；复用价格/汇率缓存，取消随视图任务传播，不增加轮询。
+    /// 离屏演示的虚构单价，不读取缓存或请求价格服务。
+    func showPreview(costReferences: AICostReferenceSnapshot) {
+        self.costReferences = costReferences
+    }
+
     public func refreshCostReferences() async {
         guard let costReferenceStore, settings.aiUsageEnabled, settings.aiUsageShowsLocalUsage, !paused,
               localReport(for: nil)?.rows.contains(where: { $0.input > 0 || $0.output > 0 }) == true else { return }

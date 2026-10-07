@@ -38,6 +38,33 @@ import Testing
             await Task.yield()
         }
     }
+    @Test func isolatedModelsKeepUpdatePreferenceMigrationInTheirOwnSuite() throws {
+        let suite = "XStats.snapshotUpdates.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        defaults.set(date, forKey: "updateLastChecked")
+        let model = AppModel(settings: AppSettings(defaults: defaults), historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        #expect(model.updates.lastChecked == date)
+        #expect(defaults.object(forKey: "SULastCheckTime") as? Date == date)
+    }
+
+    @Test func snapshotStatesDoNotCallTheServiceOrPrepareAnUpdate() {
+        let backend = InstallFlowBackend()
+        let component = NetworkComponentController(backend: backend)
+        var updateStarted = false
+        component.onPreparingUpdate = { updateStarted = true }
+        var snapshot = ready.status!
+        snapshot.update = .init(phase: .installing, version: "9.9.9")
+        component.showPreview(snapshot)
+        #expect(component.installed && component.status?.update.phase == .installing)
+        #expect(!component.busy && !component.terminationRequiresPreparation)
+        #expect(!updateStarted && backend.commands.isEmpty)
+        component.showPreview(nil)
+        #expect(!component.installed && component.status == nil)
+        #expect(backend.commands.isEmpty)
+    }
+
     @Test func successfulInstallContinuesEnableOnlyAfterReadyReply() async throws {
         let backend = InstallFlowBackend()
         let installed = NetworkComponentController(backend: backend)

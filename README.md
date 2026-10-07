@@ -65,6 +65,23 @@ CPU 核心类型由系统报告，按实际的超级核、性能核和能效核�
 
 **外接显示器控制**依赖显示器、线材和连接方式的 DDC/CI 支持，各控制项独立检测。不支持或暂时无法读取时会显示状态，支持的项目才提供滑杆。
 
+### 网络监视器：按应用查看连接
+
+> 以下网络监视器功能与截图来自当前开发分支，正在为 **1.0.0 稳定版**做准备；当前公开版本仍见页面顶部的版本标识。
+
+- **默认关闭，macOS 15+ 可选启用**：首次启用时提示安装独立的 XStats Network Monitor 组件，安装成功后继续启用，并按 macOS 提示授权网络扩展。
+- **连接总览**：查看全部连接，或按应用、进程、域名、国家或地域汇总；支持搜索、活动连接筛选与暂停／恢复。
+- **世界地图**：展示观察到的新连接的国家或地域分布，位置为国家级代表位置，不是设备精确位置。
+- **只读与按需运行**：全部连接放行，不读取通信内容；仅在页面可见且未暂停时读取，最多保留 512 条内存记录，不保存连接历史。
+- **组件管理**：在“设置 → 功能 → 网络监视器 → 管理组件”中查看状态、检查更新或卸载；组件独立更新，主程序无需内置网络扩展。
+
+<p align="center">
+  <img src="Assets/readme/connections-zh-Hans-light.png" width="49%" alt="网络监视器浅色连接总览，演示数据">
+  <img src="Assets/readme/connections-zh-Hans-dark.png" width="49%" alt="网络监视器深色连接总览，演示数据">
+</p>
+
+截图使用虚构连接与文档示例地址。首次使用地图时下载公共 IP 地理数据库，随后离线查询；不会把连接目标 IP 发送给地理查询服务。重新开始观察之前已建立的连接不会被补录。
+
 ### AI 用量与订阅额度
 
 在菜单栏看 Codex / Claude Code 用量，展开后查看统计与额度：
@@ -102,6 +119,24 @@ AI 用量默认关闭。本机统计读取 Codex / Claude Code 会话日志；�
   <img src="Assets/readme/ip-purity-light.png" width="49%" alt="公网 IP 与纯净度检测">
 </p>
 
+
+下列新增截图中的用量、额度、单价、设备状态和日程均为演示数据，不代表个人数据或当前价格。
+
+<p align="center">
+  <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="49%" alt="AI 用量与统计">
+  <img src="Assets/readme/history-zh-Hans-dark.png" width="49%" alt="历史趋势">
+</p>
+
+<p align="center">
+  <img src="Assets/readme/audio-zh-Hans-light.png" width="49%" alt="音频与应用混音">
+  <img src="Assets/readme/displays-zh-Hans-dark.png" width="49%" alt="外接显示器控制">
+</p>
+
+<p align="center">
+  <img src="Assets/readme/calendar-zh-Hans-light.png" width="49%" alt="菜单栏日历">
+  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="番茄钟与护眼休息">
+</p>
+
 </details>
 
 ### 启动器与深链
@@ -109,6 +144,7 @@ AI 用量默认关闭。本机统计读取 Codex / Claude Code 会话日志；�
 支持 `xstats://` 链接，可从能打开 URL 的启动器、快捷指令或终端调用常用入口：
 
 ```bash
+open 'xstats://open/connections'       # 打开网络监视器
 open 'xstats://open/audio'             # 打开音频页
 open 'xstats://panel/cpu'              # 显示 CPU 弹窗
 open 'xstats://rest/start'             # 开始或继续番茄钟
@@ -149,6 +185,7 @@ brew install --cask xstats
 - **检查更新**：发送当前版本与安装标识的哈希，获取更新清单。
 - **查询 AI 额度**：使用本机 CLI 登录查询对应服务；手动配置备用来源后，查询你指定的服务器。
 - **费用估算**：按需获取公开模型单价与参考汇率，不发送会话日志或 Token 统计。
+- **网络监视器**：下载组件及公共地理数据库时会联网；连接记录和目标 IP 不上传。
 - **网络诊断**：公网 IP、归属地、测速、DNS、连接探测与全球探针会请求相应服务；全球探针的测量目标与结果可能被他人查询。
 
 完整说明见[隐私政策](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.zh-Hans.md)和[服务条款](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.zh-Hans.md)。
@@ -169,7 +206,7 @@ task build BUMP=0 INSTALL=0
 <!-- changelog:start -->
 <!-- 由 scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->
 
-最新版本 **0.15.0**（2026-10-05） · [完整更新日志](CHANGELOG.md)
+最新版本 **0.15.0**（2026-10-05） · 开发中 **6** 项改动尚未发布 · [完整更新日志](CHANGELOG.md)
 
 <!-- changelog:end -->
 

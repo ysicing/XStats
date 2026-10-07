@@ -197,6 +197,22 @@ private func noonClock(_ now: @escaping () -> UInt64) -> () -> Date {
 
 @MainActor
 @Suite struct RestSettingsTests {
+    @Test func previewDoesNotPersistOrTriggerARestSession() {
+        let suite = "RestPreview.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.restEnabled = true
+        let rest = RestController(settings: settings, localDefaults: defaults, sharedDefaults: defaults)
+        let before = defaults.persistentDomain(forName: suite) ?? [:]
+        var started = false
+        rest.onRestChange = { _ in started = true }
+        rest.showPreview()
+        #expect(!started)
+        #expect(NSDictionary(dictionary: before).isEqual(to: defaults.persistentDomain(forName: suite) ?? [:]))
+        #expect(rest.secondsRemaining == 18 * 60 + 42)
+    }
+
     @Test func workdayStartsExplicitlyAndEndsWithoutLosingTodaysCount() {
         let suite = "RestWorkdayTests.\(UUID())"
         let defaults = UserDefaults(suiteName: suite)!

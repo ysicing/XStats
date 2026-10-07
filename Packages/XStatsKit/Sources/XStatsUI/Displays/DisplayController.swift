@@ -38,6 +38,13 @@ final class DisplayController {
             }
     }
 
+    /// 截图只注入虚构设备与读数，不打开 DDC 连接。
+    func showPreview(catalog: [DisplayInfo], readings: [UInt32: [DisplayControl: DDCResult]]) {
+        stop()
+        self.catalog = catalog
+        self.readings = readings
+    }
+
     func stop() {
         visible = false
         invalidate()

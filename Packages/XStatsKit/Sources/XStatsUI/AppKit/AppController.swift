@@ -791,7 +791,11 @@ public enum XStatsApplication {
     public static func main() {
         // 滚动条一律用浮层样式：接了鼠标时系统默认是常驻滚动条，SwiftUI 的 ScrollView 会给它预留一条宽度，
         // 弹窗里的内容就会整体偏左。这是本应用自己的偏好域，只影响 XStats
-        UserDefaults.standard.set("WhenScrolling", forKey: "AppleShowScrollBars")
+        if CommandLine.arguments.contains("--snapshot") {
+            UserDefaults.standard.register(defaults: ["AppleShowScrollBars": "WhenScrolling"])
+        } else {
+            UserDefaults.standard.set("WhenScrolling", forKey: "AppleShowScrollBars")
+        }
         let app = NSApplication.shared
         // 界面语言在创建任何界面之前确定，切换后重启生效
         let stored = UserDefaults.standard.string(forKey: AppSettings.languageKey).flatMap(AppLanguage.init(rawValue:)) ?? .system
@@ -811,7 +815,7 @@ public enum XStatsApplication {
             app.setActivationPolicy(.prohibited)
             Task {
                 await SnapshotRenderer.run(outputDirectory: URL(fileURLWithPath: path))
-                exit(0)
+                exit(SnapshotRenderer.didFail ? 1 : 0)
             }
             app.run()
             return

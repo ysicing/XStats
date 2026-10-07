@@ -65,6 +65,23 @@ Core types come from the system. XStats groups the reported super, performance a
 
 **External display controls** depend on DDC/CI support from the monitor, cable and connection. Each control is detected independently. Unsupported or temporarily unreadable controls show their status; sliders are offered only for supported controls.
 
+### Network Monitor: connections by application
+
+> This feature and these screenshots reflect the development branch being prepared for **1.0.0 stable**. The release badge at the top still identifies the current public release.
+
+- **Disabled by default; optional on macOS 15+**: enabling the feature prompts you to install the separate XStats Network Monitor component. After installation, setup continues with the network extension permissions requested by macOS.
+- **Connection overview**: view all connections or group by application, process, domain, or country/region; search, filter active connections, and pause or resume observation.
+- **World map**: see country/region distributions for newly observed connections. Pins represent countries or regions, not precise device locations.
+- **Read-only, on demand**: all connections are allowed and communication content is never inspected. Reads stop when the page is hidden or paused. Up to 512 records are kept in memory, with no connection history stored on disk.
+- **Component management**: use Settings → Features → Network Monitor → Manage component to inspect status, check updates, or uninstall. The component updates independently and the main app does not bundle the network extension.
+
+<p align="center">
+  <img src="Assets/readme/connections-en-light.png" width="49%" alt="Network Monitor connection overview in light mode, demo data">
+  <img src="Assets/readme/connections-en-dark.png" width="49%" alt="Network Monitor connection overview in dark mode, demo data">
+</p>
+
+Screenshots use fictional connections and documentation addresses. The map downloads a public IP geography database on first use, then resolves locations offline without sending connection destination IPs to a lookup service. Connections established before observation starts are not backfilled.
+
 ### AI Usage and subscription quotas
 
 Check Codex / Claude Code usage in the menu bar, then open the statistics and quota details:
@@ -82,6 +99,7 @@ AI Usage is off by default. Local statistics read Codex / Claude Code session lo
 - **Keep awake**: keep the system or display awake, with lid-closed operation available when configured.
 - **Cleanup and uninstalling**: remove caches, project build artifacts and app-related files; preview and confirm first, with an option to move items to the Trash.
 - **Startup items**: view and manage login items and background startup entries.
+- **Network Monitor**: component and public geography database downloads use the network; connection records and destination IPs are not uploaded.
 - **Network diagnostics**: run speed tests, DNS queries, egress checks, public IP location and purity checks, and connectivity probes on demand.
 - **Menu bar calendar**: Chinese lunar dates, holidays and make-up workdays, and almanac information; calendar events and reminders are available after permission is granted.
 - **Audio**: disabled by default; system volume, mute, and output/input device switching. Selecting a paired Bluetooth audio device attempts a connection and switches once audio is ready. On macOS 14.4 or later, authorization enables 0–200% volume with peak protection, mute, independent outputs and reset for apps playing audio. Audio is processed locally without recording or uploading. Unsupported device volume controls are indicated.
@@ -102,6 +120,24 @@ Cleanup, processes, calendar, Pomodoro and AI Usage are off by default. Enable t
   <img src="Assets/readme/ip-purity-light.png" width="49%" alt="Public IP and purity checks">
 </p>
 
+
+Usage, quotas, prices, device states, and calendar events in the following new screenshots are demonstration data, not personal data or current pricing.
+
+<p align="center">
+  <img src="Assets/readme/ai-usage-en-light.png" width="49%" alt="AI usage and statistics">
+  <img src="Assets/readme/history-en-dark.png" width="49%" alt="History trends">
+</p>
+
+<p align="center">
+  <img src="Assets/readme/audio-en-light.png" width="49%" alt="Audio and app mixing">
+  <img src="Assets/readme/displays-en-dark.png" width="49%" alt="External display controls">
+</p>
+
+<p align="center">
+  <img src="Assets/readme/calendar-en-light.png" width="49%" alt="Menu bar calendar">
+  <img src="Assets/readme/rest-en-dark.png" width="49%" alt="Pomodoro and eye breaks">
+</p>
+
 </details>
 
 ### Launchers and deep links
@@ -109,6 +145,7 @@ Cleanup, processes, calendar, Pomodoro and AI Usage are off by default. Enable t
 Use `xstats://` links from any launcher, Shortcut or terminal that opens URLs:
 
 ```bash
+open 'xstats://open/connections'       # Open Network Monitor
 open 'xstats://open/audio'             # Open Audio
 open 'xstats://panel/cpu'              # Show the CPU popover
 open 'xstats://rest/start'             # Start or resume Pomodoro
@@ -169,7 +206,7 @@ Issues and pull requests are welcome. See [DEVELOPMENT.md](DEVELOPMENT.md) for s
 <!-- changelog:start -->
 <!-- Generated from CHANGELOG.md by scripts/sync_changelog.py. Do not edit by hand. -->
 
-Latest release **0.15.0** (2026-10-05) · [full changelog](CHANGELOG.md) (kept in Chinese)
+Latest release **0.15.0** (2026-10-05) · **6** changes in development · [full changelog](CHANGELOG.md) (kept in Chinese)
 
 <!-- changelog:end -->
 

@@ -79,6 +79,16 @@ struct DisplayControllerTests {
         #expect(!controller.isRefreshing)
     }
 
+    @Test func previewDoesNotReadOrWriteDisplayHardware() async {
+        let backend = TestDisplayBackend()
+        let controller = DisplayController(backend: backend)
+        controller.showPreview(catalog: [display], readings: [display.id: [.brightness: .value(.init(current: 65, maximum: 100))]])
+        #expect(controller.catalog == [display])
+        #expect(await backend.count() == 0)
+        #expect(await backend.writeCount() == 0)
+        #expect(backend.resets.value == 0)
+    }
+
     @Test func timeoutOnOneDisplayDoesNotSkipTheNextDisplay() async throws {
         let backend = TestDisplayBackend()
         await backend.timeOut(7)
