@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import NetworkObservation
 import Testing
 @testable import XStatsUI
 
@@ -122,6 +123,19 @@ struct NetworkComponentInstallerTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.temporary.path).isEmpty)
     }
 
+    @Test(arguments: ["newer-protocol", "wrong-control-service"])
+    @MainActor func rejectsIncompatibleComponentBeforeInstalling(_ failure: String) async throws {
+        let fixture = try ComponentInstallFixture()
+        defer { fixture.remove() }
+        await #expect(throws: NetworkMonitorError.protocolMismatch) {
+            try await fixture.installer(failure: failure).install(progress: { _ in })
+        }
+        // 不兼容组件不能落盘，否则后续安装只校验不替换，组件也无法通过控制服务卸载。
+        #expect(!FileManager.default.fileExists(atPath: fixture.destination.path))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.temporary.path).isEmpty)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.destination.deletingLastPathComponent().path).isEmpty)
+    }
+
     @Test @MainActor func neverReplacesExistingComponentOrItsFiles() async throws {
         let fixture = try ComponentInstallFixture()
         defer { fixture.remove() }
@@ -185,9 +199,15 @@ private struct ComponentInstallFixture: Sendable {
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
     }
     func remove() { try? FileManager.default.removeItem(at: root) }
-    func makeBundle(at url: URL, id: String = "work.12306.xstats.networkmonitor", marker: String = "new") throws {
+    func makeBundle(at url: URL, id: String = "work.12306.xstats.networkmonitor", marker: String = "new",
+                    protocolVersion: Int = NetworkObservationProtocol.version, controlTeam: String = "TEAM123") throws {
         try FileManager.default.createDirectory(at: url.appendingPathComponent("Contents"), withIntermediateDirectories: true)
-        let info = try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": id, "CFBundlePackageType": "APPL"], format: .xml, options: 0)
+        let info = try PropertyListSerialization.data(fromPropertyList: [
+            "CFBundleIdentifier": id, "CFBundlePackageType": "APPL",
+            "NetworkObservationMachService": "TEAM123.work.12306.xstats.network-observation.ipc.1",
+            "NetworkObservationControlMachService": NetworkObservationProtocol.controlServiceName(team: controlTeam),
+            "NetworkObservationProtocolVersion": protocolVersion,
+        ], format: .xml, options: 0)
         try info.write(to: url.appendingPathComponent("Contents/Info.plist"))
         try Data(marker.utf8).write(to: url.appendingPathComponent("marker"))
     }
@@ -204,7 +224,9 @@ private struct ComponentInstallFixture: Sendable {
                 }
                 if executable == "/usr/bin/ditto" {
                     let directory = URL(fileURLWithPath: arguments.last!)
-                    try makeBundle(at: directory.appendingPathComponent("XStats Network Monitor.app"), id: failure == "wrong-id" ? "other.bundle" : "work.12306.xstats.networkmonitor")
+                    try makeBundle(at: directory.appendingPathComponent("XStats Network Monitor.app"), id: failure == "wrong-id" ? "other.bundle" : "work.12306.xstats.networkmonitor",
+                                   protocolVersion: failure == "newer-protocol" ? NetworkObservationProtocol.version + 1 : NetworkObservationProtocol.version,
+                                   controlTeam: failure == "wrong-control-service" ? "OTHER456" : "TEAM123")
                 }
                 if (executable == "/usr/bin/codesign" && failure == "codesign") || (executable == "/usr/sbin/spctl" && failure == "gatekeeper") {
                     throw NetworkComponentInstallError.untrustedComponent
