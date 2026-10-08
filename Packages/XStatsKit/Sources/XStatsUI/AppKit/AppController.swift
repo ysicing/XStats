@@ -796,6 +796,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 public enum XStatsApplication {
     @MainActor
     public static func main() {
+        ClaudeKeychainReader.runIfRequested()
         // 只读诊断子进程不启动 UI、采样或更新服务，也不写入应用偏好。
         if CommandLine.arguments.contains(AppleIntelligenceDiagnostics.argument) {
             AppleIntelligenceDiagnostics.writeReport()

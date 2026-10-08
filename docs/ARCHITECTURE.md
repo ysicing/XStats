@@ -410,8 +410,16 @@ queries Codex `wham/usage` using its cached CLI OAuth token. Claude uses its CLI
 `api/oauth/usage`. It maps five-hour and seven-day windows, plus Claude's model-specific weekly
 windows, without combining them with local token totals. Direct credential discovery is repeated
 on each refresh; Codex reads `auth.json` under CODEX_HOME or the standard locations, while Claude
-reads its CLI credential file or a non-interactive Keychain item. Tokens are not persisted by
-XStats. Each provider's last
+reads its CLI credential file first, then a non-interactive Keychain item. The legacy login
+Keychain does not honor `LAContext.interactionNotAllowed`: its interaction switch is process-wide.
+XStats therefore reads that item in a short-lived mode of the same signed executable, before UI
+or background services initialize, with `SecKeychainSetUserInteractionAllowed(false)`. This mode
+requires its parent's code identity to satisfy XStats' own designated requirement, preventing
+external callers from using XStats' Keychain authorization to extract a token. The parent
+receives the token only through an anonymous pipe, with a 64 KiB limit, a five-second deadline,
+and cancellation that terminates the child. Denied or locked items return unavailable without an
+authorization prompt; neither credentials nor Keychain access controls are modified. Tokens are
+not persisted by XStats. Each provider's last
 successful quota snapshot is stored in a separate table of `ai-usage.sqlite`, without credentials.
 The controller restores it before the first network request and labels it with its fetch time.
 Requests use isolated URL sessions and reject redirects so bearer tokens cannot be forwarded.

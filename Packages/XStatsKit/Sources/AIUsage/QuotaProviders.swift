@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
-import Security
-import LocalAuthentication
 
 public enum AIQuotaKind: String, Codable, Sendable, Identifiable {
     case session, weekly, fableWeekly, opusWeekly, sonnetWeekly
@@ -177,7 +175,8 @@ struct ClaudeQuotaCredentials: Sendable {
     }
 
     static func load(environment: [String: String] = ProcessInfo.processInfo.environment,
-                     home: URL = FileManager.default.homeDirectoryForCurrentUser) throws -> String {
+                     home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                     keychain: @Sendable () async throws -> String = { try await ClaudeKeychainReader.read() }) async throws -> String {
         let root = environment["CLAUDE_CONFIG_DIR"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
             ?? home.appendingPathComponent(".claude")
         let url = root.appendingPathComponent(".credentials.json")
@@ -187,21 +186,8 @@ struct ClaudeQuotaCredentials: Sendable {
             catch let failure as AIQuotaFailure { fileFailure = failure }
         }
 
-        // Claude CLI 部分版本只把 OAuth 保存到钥匙串。后台读取不允许弹出授权框。
-        let context = LAContext()
-        context.interactionNotAllowed = true
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: "Claude Code-credentials",
-            kSecAttrAccount: NSUserName(),
-            kSecReturnData: true,
-            kSecMatchLimit: kSecMatchLimitOne,
-            kSecUseAuthenticationContext: context,
-        ]
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data else { throw fileFailure ?? AIQuotaFailure.notConfigured }
-        return try parse(data).token
+        do { return try await keychain() }
+        catch AIQuotaFailure.notConfigured { throw fileFailure ?? AIQuotaFailure.notConfigured }
     }
 }
 
@@ -317,19 +303,19 @@ public actor CodexQuotaProvider: AIQuotaProvider {
 
 public actor ClaudeQuotaProvider: AIQuotaProvider {
     public nonisolated let id = AIProviderID.claude
-    private let credentials: @Sendable () throws -> String
+    private let credentials: @Sendable () async throws -> String
     private let http: any QuotaHTTPClient
     private let sub2api: (any Sub2APIQuotaFetching)?
     private let sub2apiConfiguration: @Sendable () async throws -> Sub2APIConfiguration?
 
     public init() {
-        credentials = { try ClaudeQuotaCredentials.load() }
+        credentials = { try await ClaudeQuotaCredentials.load() }
         http = URLSessionQuotaHTTPClient()
         sub2api = Sub2APIQuotaClient.shared
         sub2apiConfiguration = { try await Sub2APISettingsStore(provider: .claude).load() }
     }
 
-    init(credentials: @escaping @Sendable () throws -> String, http: any QuotaHTTPClient,
+    init(credentials: @escaping @Sendable () async throws -> String, http: any QuotaHTTPClient,
          sub2api: (any Sub2APIQuotaFetching)? = nil,
          sub2apiConfiguration: @escaping @Sendable () async throws -> Sub2APIConfiguration? = { nil }) {
         self.credentials = credentials
@@ -352,7 +338,7 @@ public actor ClaudeQuotaProvider: AIQuotaProvider {
     }
 
     private func fetchDirect() async throws -> AIQuotaSnapshot {
-        let token = try credentials()
+        let token = try await credentials()
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
