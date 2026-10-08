@@ -86,7 +86,8 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
             guard (0..<fans.fanCount).contains(fan), rpm.isFinite, rpm > 0 else { return reply("无效的风扇参数") }
             do {
                 try fans.setManual(fan: fan, rpm: rpm)
-                manualFans.insert(fan)
+                // 落盘接管记录，辅助工具异常退出后重启时才能把风扇交还系统
+                if manualFans.insert(fan).inserted { persist() }
                 reply(nil)
             } catch {
                 log.error("设置风扇 \(fan) 失败：\(String(describing: error), privacy: .public)")
@@ -101,7 +102,7 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
             guard (0..<fans.fanCount).contains(fan) else { return reply("无效的风扇编号") }
             do {
                 try fans.setAutomatic(fan: fan)
-                manualFans.remove(fan)
+                if manualFans.remove(fan) != nil { persist() }
                 reply(nil)
             } catch {
                 log.error("恢复风扇 \(fan) 失败：\(String(describing: error), privacy: .public)")

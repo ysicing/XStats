@@ -52,6 +52,18 @@ dmg="dist/XStats-${VERSION}-AppleSilicon.dmg"
 xcrun stapler validate "$dmg" >/dev/null || { echo "$dmg 没有装订公证票据" >&2; exit 1; }
 grep -q "$(shasum -a 256 "$dmg" | cut -d' ' -f1)" "$CASK" || { echo "$CASK 里的 sha256 与 $dmg 不一致" >&2; exit 1; }
 
+# 版本安装包不可变：源站已有同名对象时只允许内容一致的重跑，禁止重新构建后覆盖。
+# 三个文件先全部核对再上传，避免只替换其中一部分。
+source scripts/object_storage.sh
+PUBLISHED=" "
+for ext in dmg zip xml; do
+  name="XStats-${VERSION}-AppleSilicon.${ext}"
+  object_exists "$MC_TARGET/$name" || continue
+  [ "$(mc cat "$MC_TARGET/$name" | shasum -a 256 | cut -d' ' -f1)" = "$(shasum -a 256 "dist/$name" | cut -d' ' -f1)" ] \
+    || { echo "禁止覆盖已发布的 ${name}；构建变化须推进版本号" >&2; exit 1; }
+  PUBLISHED+="$name "
+done
+
 # 在上传前确认中英文正文完整有效；创建和重跑编辑 Release 使用同一份内容。
 # 后面的 Homebrew 段会设置 EXIT trap，因此这里用完立即删除临时文件。
 NOTES="$(mktemp)"
@@ -70,7 +82,7 @@ python3 scripts/sync_network_geography.py --publish \
 upload() {
   local name online
   name="$(basename "$1")"
-  mc cp --quiet "$1" "$MC_TARGET/${name}"
+  if [[ "$PUBLISHED" != *" $name "* ]]; then mc cp --quiet "$1" "$MC_TARGET/${name}"; fi
   online="$(curl -fsSL --max-time 300 "${DOWNLOAD_BASE}/${name}" | shasum -a 256 | cut -d' ' -f1)"
   [ "$online" = "$(shasum -a 256 "$1" | cut -d' ' -f1)" ] \
     || { echo "线上 ${name} 校验不一致：$online" >&2; exit 1; }

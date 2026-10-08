@@ -188,7 +188,8 @@ class ReleaseHookTests(unittest.TestCase):
             scripts, dist, tools = root / "scripts", root / "dist", root / "bin"
             for path in (scripts, dist, tools):
                 path.mkdir()
-            (scripts / "publish_release.sh").write_bytes((sync.ROOT / "scripts/publish_release.sh").read_bytes())
+            for name in ("publish_release.sh", "object_storage.sh"):
+                (scripts / name).write_bytes((sync.ROOT / "scripts" / name).read_bytes())
             (root / "project.yml").write_text('MARKETING_VERSION: "9.9.9"\nCURRENT_PROJECT_VERSION: "1"\n')
             (root / "CHANGELOG.md").write_text("## 9.9.9 · fixture\n")
             for ext in ("dmg", "zip", "xml"):
@@ -201,7 +202,10 @@ class ReleaseHookTests(unittest.TestCase):
             commands = {
                 "git": '#!/bin/sh\n[ "$1" != rev-parse ] || echo head\n',
                 "xcrun": '#!/bin/sh\nexit 0\n',
-                "mc": '#!/bin/sh\necho app-upload >> "$GEOGRAPHY_TEST_LOG"\nexit 73\n',
+                # 发布前只读查询源站：版本包尚不存在；其余操作都视为上传
+                "mc": '#!/bin/sh\nif [ "$1" = stat ]; then\n'
+                      '  echo \'{"status":"error","error":{"cause":{"message":"Object does not exist"}}}\'; exit 1\nfi\n'
+                      'echo app-upload >> "$GEOGRAPHY_TEST_LOG"\nexit 73\n',
                 "python3": '#!/bin/sh\nif [ "$1" = - ]; then exec "$GEOGRAPHY_TEST_PYTHON" "$@"; fi\n'
                            'case "$1" in *sync_network_geography.py) echo "geography $*" >> "$GEOGRAPHY_TEST_LOG"; exit 42;; esac\n'
                            'echo fixture\n',

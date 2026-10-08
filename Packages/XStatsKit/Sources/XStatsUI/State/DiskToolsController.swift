@@ -61,10 +61,15 @@ final class DiskToolsController {
     @ObservationIgnored private let helper: HelperClient
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var volumeObservers: [NSObjectProtocol] = []
+    @ObservationIgnored private let scanSpace: @Sendable (@Sendable (SpaceScanProgress) -> Void) throws -> SpaceScanResult
 
-    init(helper: HelperClient, defaults: UserDefaults = .standard) {
+    init(helper: HelperClient, defaults: UserDefaults = .standard,
+         scanSpace: @escaping @Sendable (@Sendable (SpaceScanProgress) -> Void) throws -> SpaceScanResult = {
+             try SpaceScanner.scan(progress: $0)
+         }) {
         self.helper = helper
         self.defaults = defaults
+        self.scanSpace = scanSpace
         lastVerified = defaults.object(forKey: Keys.lastVerified) as? Date
         lastVerifiedOK = defaults.object(forKey: Keys.lastVerifiedOK) as? Bool ?? true
     }
@@ -171,15 +176,22 @@ final class DiskToolsController {
         guard scanTask == nil else { return }
         scanPhase = .scanning(SpaceScanProgress(items: 0, bytes: 0, current: ""))
         trashOutcome = nil
+        let scanSpace = scanSpace
         scanTask = Task {
             defer { scanTask = nil }
             do {
                 // 用户点了按钮在等结果，不用 utility：那一档的磁盘读取会被系统限速
-                let result = try await Task.detached(priority: .userInitiated) {
-                    try SpaceScanner.scan { progress in
+                let scan = Task.detached(priority: .userInitiated) {
+                    try scanSpace { progress in
                         Task { @MainActor in self.report(progress) }
                     }
-                }.value
+                }
+                // 分离任务不继承取消，需显式转发，遍历才能在检查点提前结束
+                let result = try await withTaskCancellationHandler {
+                    try await scan.value
+                } onCancel: {
+                    scan.cancel()
+                }
                 scanPhase = .finished(result)
                 Log.app.notice("空间分析完成：\(result.scannedItems) 个条目")
             } catch is CancellationError {

@@ -58,22 +58,7 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$DIST"
 
-# 存储查询失败不能当成“版本不存在”，否则断网或权限错误可能导致覆盖。
-object_exists() {
-  if mc stat --json "$1" > "$WORK/object-stat.json" 2>/dev/null; then return 0; fi
-  if python3 - "$WORK/object-stat.json" <<'PYSTAT'
-import json,sys
-try:
-    data=json.load(open(sys.argv[1]))
-    missing=data.get('status')=='error' and data.get('error',{}).get('cause',{}).get('message')=='Object does not exist'
-except (ValueError,OSError):
-    missing=False
-raise SystemExit(0 if missing else 1)
-PYSTAT
-  then return 1; fi
-  echo 'error: 无法确认源站版本包状态，停止发布' >&2
-  exit 1
-}
+source scripts/object_storage.sh
 
 if [ "$PUBLISH" = 1 ]; then
   XSTATS_APP_ID=xstats-network-monitor python3 scripts/publish_api.py --check-sparkle

@@ -8,7 +8,7 @@ trap 'rm -rf "$WORK"' EXIT
 [ -f scripts/release_network_component.sh ] || { echo '缺少独立组件发布脚本' >&2; exit 1; }
 
 mkdir -p "$WORK/repo/scripts" "$WORK/bin" "$WORK/objects" "$WORK/sparkle"
-for file in release_network_component.sh appcast.py sparkle_appcast.py; do
+for file in release_network_component.sh object_storage.sh appcast.py sparkle_appcast.py; do
   cp "scripts/$file" "$WORK/repo/scripts/$file"
 done
 cat > "$WORK/repo/scripts/publish_api.py" <<'PYAPI'
