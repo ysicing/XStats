@@ -178,6 +178,7 @@ final class RestController {
     private(set) var canContinue = false
     private(set) var secondsRemaining: TimeInterval = 0
     private(set) var phaseDuration: TimeInterval = 0
+    private(set) var isPreviewingSound = false
     private(set) var completedToday: Int
 
     private var session: RestSession?
@@ -196,7 +197,8 @@ final class RestController {
     private var lastSharedLanguage: AppLanguage?
     private var activityTracker = RestActivityTracker()
     private var previewAction: RestPrimaryAction?
-    private let audio = RestSoundPlayer()
+    private let audio: RestSoundPlayer
+    @ObservationIgnored private var soundPreviewTask: Task<Void, Never>?
     private let localDefaults: UserDefaults
     private let defaults: UserDefaults?
     private let clock: () -> UInt64
@@ -224,8 +226,10 @@ final class RestController {
     init(settings: AppSettings, localDefaults: UserDefaults = .standard,
          sharedDefaults: UserDefaults? = UserDefaults(suiteName: "group.work.12306.xstats"),
          clock: @escaping () -> UInt64 = { RestClock.now() },
-         date: @escaping () -> Date = Date.init) {
+         date: @escaping () -> Date = Date.init,
+         audio: RestSoundPlayer = RestSoundPlayer()) {
         self.settings = settings
+        self.audio = audio
         self.localDefaults = localDefaults
         defaults = sharedDefaults
         self.clock = clock
@@ -527,6 +531,7 @@ final class RestController {
         deadlineTimer?.invalidate()
         deadlineTimer = nil
         scheduledDeadline = nil
+        cancelSoundPreview()
         audio.stop()
     }
 
@@ -540,10 +545,48 @@ final class RestController {
 
     func syncSound() {
         if settings.restEnabled && isRunning && phase.isResting {
+            // 真正的休息接管同一个引擎，试听截止任务不能停止后续休息声音。
+            cancelSoundPreview()
             audio.play(settings.restSound)
+        } else if isPreviewingSound {
+            if !settings.restEnabled || audio.playing != settings.restSound { stopSoundPreview() }
         } else {
             audio.stop()
         }
+    }
+
+    var canPreviewSound: Bool {
+        settings.restEnabled && settings.restSound != .off && !(isRunning && phase.isResting)
+    }
+
+    @discardableResult
+    func startSoundPreview() -> Bool {
+        guard canPreviewSound else { return false }
+        cancelSoundPreview()
+        audio.play(settings.restSound)
+        guard audio.playing == settings.restSound else { return false }
+        isPreviewingSound = true
+        // 仅用户点击后创建一次截止任务，停止、关闭或休眠时立即取消。
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        soundPreviewTask = Task { [weak self] in
+            do { try await Task.sleep(until: deadline, clock: .continuous) }
+            catch { return }
+            self?.stopSoundPreview()
+        }
+        return true
+    }
+
+    func stopSoundPreview() {
+        guard isPreviewingSound else { return }
+        cancelSoundPreview()
+        syncSound()
+    }
+
+    private func cancelSoundPreview() {
+        guard isPreviewingSound || soundPreviewTask != nil else { return }
+        soundPreviewTask?.cancel()
+        soundPreviewTask = nil
+        isPreviewingSound = false
     }
 
     private func refreshDay() {

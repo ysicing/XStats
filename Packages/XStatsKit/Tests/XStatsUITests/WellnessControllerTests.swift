@@ -111,12 +111,35 @@ import Testing
             clock.seconds = 1680
             wellness.startBreathing()
             #expect(wellness.exerciseSecondsRemaining == 120)
+            #expect(wellness.exerciseDuration == 120)
             clock.seconds = 1800
             rest.sync()
             await wellness.flush()
             #expect(wellness.activeExercise == nil)
             #expect(wellness.summary.today?.breathingSeconds == 120)
             #expect(wellness.summary.today?.restSeconds == 300)
+        }
+    }
+
+    @Test func eyeRestProgressUsesActualDurationAndSurvivesPreferenceAndHistoryChanges() async throws {
+        try await fixture { settings, rest, wellness, clock in
+            rest.setRunning(true)
+            clock.seconds = 1500
+            rest.sync()
+            clock.seconds = 1780
+            wellness.startShortRest()
+            #expect(wellness.exerciseDuration == 20)
+            #expect(wellness.exerciseSecondsRemaining == 20)
+            clock.seconds = 1790
+            settings.wellnessPreferences.breakSeconds = 180
+            wellness.clearHistory()
+            wellness.refresh()
+            #expect(wellness.exerciseDuration == 20)
+            #expect(wellness.exerciseSecondsRemaining == 10)
+            wellness.finishExercise(completed: false)
+            #expect(wellness.exerciseDuration == 0)
+            wellness.startShortRest()
+            #expect(wellness.exerciseDuration == 10)
         }
     }
 

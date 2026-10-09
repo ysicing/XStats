@@ -389,6 +389,9 @@ enum SnapshotRenderer {
                   to: outputDirectory.appendingPathComponent("wellness-settings-\(suffix).png"))
             write(WellnessStatisticsView(wellness: model.wellness), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("wellness-statistics-\(suffix).png"))
+            model.wellness.showPreview(activities: activities, at: now, exercise: .rest)
+            write(WellnessExerciseView(wellness: model.wellness).frame(width: 680), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("wellness-eye-rest-\(suffix).png"))
             model.wellness.showPreview(activities: activities, at: now, exercise: .breathing)
             write(WellnessExerciseView(wellness: model.wellness).frame(width: 560).appLanguageEnvironment(), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("wellness-breathing-\(suffix).png"))

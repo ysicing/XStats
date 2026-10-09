@@ -12,6 +12,8 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
     private(set) var pending: Set<HealthReminderKind> = []
     private(set) var activeExercise: WellnessExerciseKind?
     private(set) var exerciseSecondsRemaining: TimeInterval = 0
+    /// 开始练习时的实际时长；番茄休息中可能缩短，不随偏好或历史清空改变。
+    private(set) var exerciseDuration: TimeInterval = 0
     private(set) var isExerciseRunning = false
     private(set) var canContinueFocus = false
     private(set) var summary = WellnessSummary.make(activities: [], at: Date())
@@ -146,7 +148,8 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
         pauseFocusForExercise()
         embeddedInRest = rest.phase.isResting && rest.isRunning
         let duration = Double(settings.wellnessPreferences.normalized.breakSeconds)
-        restDeadline = clock() + (embeddedInRest ? min(duration, pomodoroRestRemaining) : duration)
+        exerciseDuration = embeddedInRest ? min(duration, pomodoroRestRemaining) : duration
+        restDeadline = clock() + exerciseDuration
         exerciseSegmentStart = clock(); exerciseSegmentDate = date()
         activeExercise = .rest
         refresh()
@@ -160,6 +163,7 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
         let preferences = settings.wellnessPreferences.normalized
         let duration = Double(preferences.breathingMinutes) * 60
         let actualDuration = embeddedInRest ? min(duration, pomodoroRestRemaining) : duration
+        exerciseDuration = actualDuration
         breathing = BreathingSession(now: clock(), duration: actualDuration,
                                      pattern: preferences.breathingPattern)
         exerciseSegmentLimit = actualDuration
@@ -187,7 +191,7 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
         recordExerciseSegment(completed: completed)
         if completed { schedule.acknowledge(.rest, at: clock()) }
         breathing = nil; restDeadline = nil
-        activeExercise = nil; exerciseSecondsRemaining = 0; isExerciseRunning = false
+        activeExercise = nil; exerciseSecondsRemaining = 0; exerciseDuration = 0; isExerciseRunning = false
         embeddedInRest = false
         publishSchedule()
     }
@@ -360,7 +364,8 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
         lastWaterID = activities.last(where: { $0.kind == .water })?.id
         activeExercise = exercise
         isExerciseRunning = exercise != nil
-        exerciseSecondsRemaining = 178
+        exerciseDuration = exercise == .rest ? 60 : 180
+        exerciseSecondsRemaining = exercise == .rest ? 42 : 178
         previewReading = exercise == .breathing ? BreathingSession(now: 0, duration: 180, pattern: .gentle).reading(at: 1.8) : nil
         summary = WellnessSummary.make(activities: activities, at: now)
         nextRestAt = now.addingTimeInterval(5 * 60)

@@ -68,6 +68,7 @@ struct RestOptionsButton: View {
 
 struct RestOptionsPopover: View {
     @Environment(AppModel.self) private var model
+    @State private var soundPreviewFailed = false
 
     var body: some View {
         @Bindable var settings = model.settings
@@ -87,8 +88,8 @@ struct RestOptionsPopover: View {
                     }
                 }
                 GroupRow {
-                    SettingRow(title: tr("休息时长（分钟）")) {
-                        Picker(tr("休息时长（分钟）"), selection: $settings.restBreakMinutes) {
+                    SettingRow(title: tr("轮间休息"), subtitle: tr("每轮专注结束后的休息。")) {
+                        Picker(tr("轮间休息"), selection: $settings.restBreakMinutes) {
                             ForEach(AppSettings.restBreakOptions, id: \.self) { minutes in
                                 Text(tr("\(minutes) 分钟")).tag(minutes)
                             }
@@ -99,8 +100,8 @@ struct RestOptionsPopover: View {
                     }
                 }
                 GroupRow {
-                    SettingRow(title: tr("长休时长（分钟）"), subtitle: tr("每完成 4 轮专注后进入长休")) {
-                        Picker(tr("长休时长（分钟）"), selection: $settings.restLongBreakMinutes) {
+                    SettingRow(title: tr("长休息"), subtitle: tr("每完成 4 轮专注后进入长休")) {
+                        Picker(tr("长休息"), selection: $settings.restLongBreakMinutes) {
                             ForEach(AppSettings.restLongBreakOptions, id: \.self) { minutes in
                                 Text(tr("\(minutes) 分钟")).tag(minutes)
                             }
@@ -128,15 +129,33 @@ struct RestOptionsPopover: View {
                     }
                 }
                 GroupRow {
-                    SettingRow(title: tr("休息声音"), subtitle: tr("仅在休息时本地实时合成")) {
-                        Picker(tr("休息声音"), selection: $settings.restSound) {
-                            ForEach(RestSound.allCases) { sound in
-                                Text(sound.title).tag(sound)
+                    SettingRow(title: tr("休息声音"), subtitle: tr("试听 5 秒后自动停止")) {
+                        HStack(spacing: DS.Space.s2) {
+                            Picker(tr("休息声音"), selection: $settings.restSound) {
+                                ForEach(RestSound.allCases) { sound in
+                                    Text(sound.title).tag(sound)
+                                }
                             }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .controlSize(.small)
+                            .fixedSize()
+                            .frame(width: 128, alignment: .trailing)
+                            Button {
+                                if model.rest.isPreviewingSound { model.rest.stopSoundPreview() }
+                                else { soundPreviewFailed = !model.rest.startSoundPreview() }
+                            } label: {
+                                Image(systemName: model.rest.isPreviewingSound ? "stop.fill" : "play.fill")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .frame(width: 24, height: 24)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.borderless)
+                            .controlSize(.small)
+                            .accessibilityLabel(tr(model.rest.isPreviewingSound ? "停止试听" : "试听"))
+                            .help(tr(model.rest.isPreviewingSound ? "停止试听" : "试听"))
+                            .disabled(!model.rest.canPreviewSound)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(width: 160)
                     }
                 }
                 GroupRow {
@@ -157,5 +176,12 @@ struct RestOptionsPopover: View {
         }
         .frame(width: 480, height: 560)
         .appLanguageEnvironment()
+        .onChange(of: model.settings.restSound) { model.rest.stopSoundPreview() }
+        .onDisappear { model.rest.stopSoundPreview() }
+        .alert(tr("无法播放声音"), isPresented: $soundPreviewFailed) {
+            Button(tr("完成"), role: .cancel) {}
+        } message: {
+            Text(tr("请检查音频输出设备后重试。"))
+        }
     }
 }

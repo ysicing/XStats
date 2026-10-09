@@ -126,7 +126,7 @@ Local statistics read CLI session logs; quota queries require the corresponding 
 
 Start, pause or end focus directly. After a break, start the next round when ready, or enable automatic continuation in settings. A long break follows every four focus rounds.
 
-Wellness reminders are off by default; enable them in Focus & Wellness settings. They work without Pomodoro and merge with nearby breaks without interrupting focus. Starting a short break or breathing exercise pauses focus; you choose when to resume. Water records count manual confirmations, not estimated volume. Activities stay on this Mac for 90 days and can be cleared in Statistics; settings backups exclude activity records.
+Wellness reminders are off by default; enable them in Focus & Wellness settings. They work without Pomodoro and merge with nearby breaks without interrupting focus. Between-round breaks follow each focus round; eye breaks are brief rests you can start anytime. Their durations are configured separately. Starting an eye break or breathing exercise pauses focus; you choose when to resume. Water records count manual confirmations, not estimated volume. Activities stay on this Mac for 90 days and can be cleared in Statistics; settings backups exclude activity records. Break sounds can be previewed for 5 seconds in settings; switching sounds or closing settings stops the preview.
 
 Enable optional tools as needed in Settings → Features → Optional Features; existing configuration is kept. Uninstaller is off by default on a new installation and stays enabled when upgrading from older versions. Privileged actions such as fan control and lid-closed keep-awake require installing and authorizing the helper from the app.
 

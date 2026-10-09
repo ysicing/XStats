@@ -297,13 +297,19 @@ The stored `single`, `cycle` and `workday` preference values remain readable, wi
 represented by the same switch. End resets the session to its focus start without deleting today’s
 completed count or activities. Phase selectors and mode selectors are absent from the main page. Daily completion counts
 and HUD placement stay local. Curtains, the menu-bar timer and Mini HUD belong to the main app;
-noise is synthesized through `AVAudioSourceNode` only during rest. The Widget reads shared phase
+noise is synthesized through `AVAudioSourceNode` during rest or an explicit five-second preview. The Widget reads shared phase
 and deadline values, so WidgetKit refresh timing cannot provide second-accurate reminders.
 
-`WellnessController` adds opt-in independent break/water reminders, voluntary short breaks and
+`WellnessController` adds opt-in independent eye-break/water reminders, voluntary eye breaks and
 breathing exercises. One monotonic next-event timer serves both reminders; only a visible running
 exercise uses a 1 Hz countdown. The breathing circle uses Core Animation interpolation, updated only at phase changes;
-Reduce Motion keeps it static. Short breaks have no continuous animation. Lock/sleep suspends health
+Reduce Motion keeps it static. Eye breaks have no continuous animation.
+Break sound previews reuse the rest audio engine, end after five seconds, and stop on sound changes,
+popover dismissal or suspension. A real break cancels the preview deadline and takes ownership of playback.
+The settings separate between-round and long Pomodoro breaks from eye breaks, water reminders
+and breathing exercises. Eye breaks retain their own seconds-based duration and reminder interval;
+they remain available manually when reminders are off. Existing preference keys and timer behavior
+are unchanged, including reminder merging and limiting an embedded exercise to the current break. Lock/sleep suspends health
 intervals and discards outstanding reminders without a catch-up burst. Existing Pomodoro wake semantics
 remain unchanged; activity tracking closes its awake segment before suspension.
 

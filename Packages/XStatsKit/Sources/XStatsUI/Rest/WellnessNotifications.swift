@@ -45,12 +45,12 @@ import UserNotifications
                     UNNotificationAction(identifier: "later", title: tr("稍后 10 分钟"))
                 ], intentIdentifiers: [])
                 let rest = UNNotificationCategory(identifier: "XStats.wellness.rest", actions: [
-                    UNNotificationAction(identifier: "rest", title: tr("开始短休"), options: [.foreground]),
+                    UNNotificationAction(identifier: "rest", title: tr("开始护眼休息"), options: [.foreground]),
                     UNNotificationAction(identifier: "later", title: tr("稍后 10 分钟"))
                 ], intentIdentifiers: [])
                 let combined = UNNotificationCategory(identifier: "XStats.wellness.combined", actions: [
                     UNNotificationAction(identifier: "water", title: tr("已喝水")),
-                    UNNotificationAction(identifier: "rest", title: tr("开始短休"), options: [.foreground]),
+                    UNNotificationAction(identifier: "rest", title: tr("开始护眼休息"), options: [.foreground]),
                     UNNotificationAction(identifier: "later", title: tr("稍后 10 分钟"))
                 ], intentIdentifiers: [])
                 self.center.setNotificationCategories(Set(categories.filter { !$0.identifier.hasPrefix("XStats.wellness.") }).union([water, rest, combined]))

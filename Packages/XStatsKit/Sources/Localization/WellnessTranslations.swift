@@ -3,6 +3,20 @@
 
 extension Translations {
     static let wellnessEnglish = #"""
+试听	Preview
+停止试听	Stop preview
+试听 5 秒后自动停止	Preview stops after 5 seconds
+无法播放声音	Unable to play sound
+请检查音频输出设备后重试。	Check your audio output device and try again.
+轮间休息	Between-round break
+每轮专注结束后的休息。	Rest after each focus round.
+护眼休息	Eye break
+护眼提醒	Eye-break reminder
+护眼休息时长	Eye-break duration
+看看远处，放松肩颈；与轮间休息分别设置。	Look into the distance and relax your shoulders. Set separately from between-round breaks.
+定时提醒	Scheduled reminders
+临近轮间休息时合并提醒，避免重复打扰。	Merge reminders with nearby between-round breaks to avoid interruptions.
+开始护眼休息	Start an eye break
 专注与健康	Focus & Wellness
 专注计时、休息与喝水提醒、呼吸练习。	Focus timer, break and water reminders, and breathing exercises.
 健康提醒	Wellness reminders

@@ -65,7 +65,7 @@ private struct RestOverlayContent: View {
     var body: some View {
         ZStack {
             if let wellness, wellness.activeExercise != nil {
-                if reduceTransparency { Color(nsColor: .windowBackgroundColor) } else { Color.black.opacity(0.15) }
+                if reduceTransparency { Color(nsColor: .windowBackgroundColor) } else { Color.black.opacity(0.25) }
                 WellnessExerciseView(wellness: wellness)
             } else {
                 VStack(spacing: DS.Space.s4) {
@@ -96,7 +96,6 @@ private struct RestOverlayView: View {
 
     var body: some View {
         let language = rest.settings.language.resolved
-        let accent = Color(red: 0.32, green: 0.89, blue: 0.53)
         ZStack {
             if reduceTransparency {
                 Color(nsColor: .windowBackgroundColor)
@@ -104,26 +103,9 @@ private struct RestOverlayView: View {
                 Color.black.opacity(0.25)
             }
             VStack(spacing: 22) {
-                ZStack {
-                    Circle().fill(accent.opacity(0.20))
-                        .frame(width: 195, height: 195)
-                        .blur(radius: 28)
-                        .scaleEffect(breathing && !reduceMotion ? 1.12 : 0.9)
-                    Circle().stroke(accent.opacity(0.22), lineWidth: 2)
-                    Circle()
-                        .trim(from: 0, to: rest.phaseDuration > 0
-                              ? min(1, max(0, 1 - rest.secondsRemaining / rest.phaseDuration)) : 0)
-                        .stroke(accent, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    VStack(spacing: 8) {
-                        Text(rest.phase.title).font(.system(size: 14, weight: .semibold))
-                        Text(formatted(rest.secondsRemaining))
-                            .font(.system(size: 52, weight: .light, design: .rounded))
-                            .monospacedDigit()
-                    }
-                    .foregroundStyle(accent)
-                }
-                .frame(width: 250, height: 250)
+                RestCountdownRing(title: rest.phase.title, secondsRemaining: rest.secondsRemaining,
+                                  duration: rest.phaseDuration,
+                                  haloScale: breathing && !reduceMotion ? 1.12 : 0.9)
                 Text(tr(rest.settings.restMode == .workday ? "起身活动一下" : "让眼睛休息一下"))
                     .font(.system(size: 34, weight: .medium, design: .rounded))
                     .tracking(-1)
@@ -160,10 +142,35 @@ private struct RestOverlayView: View {
             withAnimation(.easeInOut(duration: 3.5).repeatForever(autoreverses: true)) { breathing = true }
         }
     }
+}
 
-    private func formatted(_ seconds: TimeInterval) -> String {
-        let total = max(0, Int(seconds.rounded(.up)))
-        return String(format: "%02d:%02d", total / 60, total % 60)
+/// 专注短休与护眼休息共用倒计时层级；进度沿用控制器刷新，不新增动画时钟。
+struct RestCountdownRing: View {
+    let title: String
+    let secondsRemaining: TimeInterval
+    let duration: TimeInterval
+    var haloScale: CGFloat = 1
+
+    var body: some View {
+        let accent = Color(red: 0.32, green: 0.89, blue: 0.53)
+        ZStack {
+            Circle().fill(accent.opacity(0.20))
+                .frame(width: 195, height: 195)
+                .blur(radius: 28)
+                .scaleEffect(haloScale)
+            Circle().stroke(accent.opacity(0.22), lineWidth: 2)
+            Circle()
+                .trim(from: 0, to: duration > 0 ? min(1, max(0, 1 - secondsRemaining / duration)) : 0)
+                .stroke(accent, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: DS.Space.s2) {
+                Text(title).font(.system(size: 14, weight: .semibold))
+                Text(WellnessFormat.timer(secondsRemaining))
+                    .font(.system(size: 52, weight: .light, design: .rounded)).monospacedDigit()
+            }
+            .foregroundStyle(accent)
+        }
+        .frame(width: 250, height: 250)
     }
 }
 
