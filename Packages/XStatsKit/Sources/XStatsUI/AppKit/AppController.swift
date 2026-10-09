@@ -26,6 +26,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private var rest: RestController { model.rest }
     private var restWindows: RestWindowController!
     private var restMenuBar: RestMenuBarController!
+    private var wellnessNotifications: WellnessNotifications!
     private var widgetTimer: Timer?
     private let hotKeys = HotKeyCenter()
     private var workspaceObservers: [NSObjectProtocol] = []
@@ -58,16 +59,21 @@ public final class AppController: NSObject, NSApplicationDelegate {
         projectPurgeWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
         egressWindow = EgressWindowController(model: model)
         egressWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
-        restWindows = RestWindowController(rest: rest)
-        restMenuBar = RestMenuBarController(rest: rest, open: { [weak self] in
+        restWindows = RestWindowController(rest: rest, wellness: model.wellness)
+        restMenuBar = RestMenuBarController(rest: rest, wellness: model.wellness, open: { [weak self] in
             self?.model.openMainWindow(.rest)
         }, toggleHUD: { [weak self] in
             self?.restWindows.toggleHUD()
         })
-        rest.onRestChange = { [weak self] active in
-            if active { self?.restWindows.showRest() } else { self?.restWindows.hideRest() }
-        }
+        rest.onRestChange = { [weak self] _ in self?.reconcileRestPresentation() }
         rest.onStateChange = { [weak self] in self?.restMenuBar.update() }
+        model.wellness.onPresentationChange = { [weak self] _ in self?.reconcileRestPresentation() }
+        model.wellness.onStateChange = { [weak self] in self?.restMenuBar.update() }
+        wellnessNotifications = WellnessNotifications(wellness: model.wellness) { [weak self] in self?.model.openMainWindow(.rest) }
+        model.alerts.onWellnessAction = { [weak self] action, kinds, nonce in
+            self?.wellnessNotifications.handle(action: action, kinds: kinds, nonce: nonce)
+        }
+        observeWellnessSettings()
         model.collapseToRestHUD = { [weak self] in
             self?.restWindows.showHUD()
             self?.mainWindow.close()
@@ -222,16 +228,21 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard model.updates.installationRequiresPreparation || model.connectionMonitor.terminationRequiresPreparation || model.networkComponent.terminationRequiresPreparation else { return .terminateNow }
+        let needsNetwork = model.updates.installationRequiresPreparation || model.connectionMonitor.terminationRequiresPreparation || model.networkComponent.terminationRequiresPreparation
+        guard needsNetwork || model.wellness.requiresTerminationPreparation else { return .terminateNow }
         guard terminationTask == nil else { return .terminateLater }
         // Sparkle 在安装就绪后可能因用户主动退出而继续安装；退出也必须经过相同的停用门禁。
         terminationTask = Task {
             defer { terminationTask = nil }
             do {
-                let updatingApp = model.updates.installationRequiresPreparation
-                if updatingApp { try await model.updates.prepareForTermination() }
-                await model.networkComponent.prepareForTermination()
-                try await model.connectionMonitor.prepareForTermination(preserveFilter: updatingApp)
+                if needsNetwork {
+                    let updatingApp = model.updates.installationRequiresPreparation
+                    if updatingApp { try await model.updates.prepareForTermination() }
+                    await model.networkComponent.prepareForTermination()
+                    try await model.connectionMonitor.prepareForTermination(preserveFilter: updatingApp)
+                }
+                rest.prepareForTermination()
+                await model.wellness.prepareForTermination()
                 sender.reply(toApplicationShouldTerminate: true)
             } catch {
                 model.networkComponent.cancelTermination()
@@ -244,6 +255,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        wellnessNotifications?.dismiss()
         deepLinksReady = false
         deepLinkTask?.cancel(); pendingDeepLinks.removeAll()
         Log.app.notice("XStats 自身即将退出，PID \(ProcessInfo.processInfo.processIdentifier)")
@@ -711,6 +723,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.audio.setPaused(true)
         model.connectionMonitor.setPaused(true)
         model.history.flush()
+        model.wellness.suspend()
+        wellnessNotifications.dismiss()
         restWindows.hideRest()
         rest.suspend()
         Task { await model.hub.setPaused(true) }
@@ -725,6 +739,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.audio.setPaused(false)
         model.connectionMonitor.setPaused(false)
         rest.sync()
+        model.wellness.resume()
         if rest.phase.isResting && rest.isRunning { restWindows.ensureRestVisible() }
         Task {
             await model.hub.setPaused(false)
@@ -747,6 +762,25 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self.observeRestSettings()
             }
         }
+    }
+
+    private func observeWellnessSettings() {
+        withObservationTracking {
+            _ = model.settings.restEnabled
+            _ = model.settings.wellnessPreferences
+            _ = model.settings.language
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in self?.observeWellnessSettings() }
+        }
+        model.wellness.sync()
+        wellnessNotifications.sync()
+    }
+
+    private func reconcileRestPresentation() {
+        guard !model.wellness.isSystemPaused else { restWindows.hideRest(); return }
+        if rest.phase.isResting && rest.isRunning || model.wellness.activeExercise != nil {
+            restWindows.ensureRestVisible()
+        } else { restWindows.hideRest() }
     }
 
     /// 关闭清理模块时停止尚未结束的扫描或清理，并关闭其独立窗口。

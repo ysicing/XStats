@@ -57,6 +57,36 @@ final class RestPanel: NSPanel {
     }
 }
 
+private struct RestOverlayContent: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    let rest: RestController
+    let wellness: WellnessController?
+
+    var body: some View {
+        ZStack {
+            if let wellness, wellness.activeExercise != nil {
+                if reduceTransparency { Color(nsColor: .windowBackgroundColor) } else { Color.black.opacity(0.15) }
+                WellnessExerciseView(wellness: wellness)
+            } else {
+                VStack(spacing: DS.Space.s4) {
+                    RestOverlayView(rest: rest)
+                    if let wellness, !wellness.pending.isEmpty {
+                        HStack(spacing: DS.Space.s3) {
+                            if wellness.pending.contains(.water) {
+                                Button(tr("已喝水")) { wellness.recordWater() }
+                                    .buttonStyle(DSButtonStyle(kind: .secondary))
+                            }
+                            Button(tr("呼吸练习")) { wellness.startBreathing() }
+                                .buttonStyle(DSButtonStyle(kind: .secondary))
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
 private struct RestOverlayView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -141,12 +171,14 @@ private struct RestHUDView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let rest: RestController
     let close: () -> Void
+    var wellness: WellnessController? = nil
 
     var body: some View {
         let language = rest.settings.language.resolved
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                Label(rest.phase.title, systemImage: rest.phase.isResting ? "eye" : "timer")
+                Label(wellness?.activeExercise == .breathing ? tr("呼吸练习") : wellness?.activeExercise == .rest ? tr("休息") : rest.phase.title,
+                      systemImage: wellness?.activeExercise == .breathing ? "wind" : rest.phase.isResting ? "eye" : "timer")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(rest.phase.isResting ? .green : .orange)
                 Spacer(minLength: 0)
@@ -171,21 +203,21 @@ private struct RestHUDView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 76)
             HStack(spacing: 20) {
-                Button { rest.startPause() } label: {
-                    Image(systemName: rest.isRunning ? "pause.fill" : "play.fill")
-                }
-                .help(tr(rest.isRunning ? "暂停"
-                         : rest.settings.restMode == .workday && !rest.isWorkdayActive ? "开始工作"
-                         : rest.canContinue || rest.isWorkdayActive ? "继续" : "开始"))
-                Button { rest.resetCurrentPhase() } label: { Image(systemName: "arrow.counterclockwise") }
-                    .help(tr("重置"))
-                    .disabled(rest.settings.restMode == .workday && !rest.isWorkdayActive)
-                Button { rest.skip() } label: { Image(systemName: "forward.end.fill") }
-                    .help(tr("跳过"))
-                    .disabled(rest.settings.restMode == .workday && !rest.isWorkdayActive)
-                if rest.settings.restMode == .workday && rest.isWorkdayActive {
-                    Button { rest.endWorkday() } label: { Image(systemName: "stop.fill") }
-                        .help(tr("结束工作"))
+                if let wellness, wellness.activeExercise != nil {
+                    if wellness.activeExercise == .breathing {
+                        Button { wellness.toggleBreathingPause() } label: {
+                            Image(systemName: wellness.isExerciseRunning ? "pause.fill" : "play.fill")
+                        }.help(tr(wellness.isExerciseRunning ? "暂停" : "继续"))
+                    }
+                    Button { wellness.finishExercise(completed: false) } label: { Image(systemName: "stop.fill") }
+                        .help(tr("结束练习"))
+                } else {
+                    Button { rest.startPause() } label: {
+                        Image(systemName: rest.isRunning ? "pause.fill" : "play.fill").frame(width: 16)
+                    }
+                    .help(rest.primaryAction.title)
+                    Button { rest.endSession() } label: { Image(systemName: "stop.fill").frame(width: 16) }
+                        .help(tr("结束")).disabled(!rest.canEndSession)
                 }
             }
             .buttonStyle(.plain)
@@ -211,40 +243,45 @@ private struct RestHUDView: View {
         let clock = String(format: "%02d:%02d", max(0, Int(rest.secondsRemaining.rounded(.up))) / 60,
                            max(0, Int(rest.secondsRemaining.rounded(.up))) % 60)
 
-        switch rest.settings.restHUDStyle {
-        case .countdown:
-            Text(clock)
-                .font(.system(size: 30, weight: .medium, design: .rounded))
-                .monospacedDigit()
-        case .ring:
-            ZStack {
-                Circle().stroke(tint.opacity(0.18), lineWidth: 5)
-                Circle().trim(from: 0, to: progress)
-                    .stroke(tint, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                Text(clock).font(.system(size: 14, weight: .semibold, design: .rounded)).monospacedDigit()
-            }
-            .frame(width: 72, height: 72)
-        case .hourglass:
-            VStack(spacing: 8) {
-                HStack(spacing: 12) {
-                    Image(systemName: "hourglass")
-                        .font(.system(size: 42, weight: .ultraLight))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(tint)
-                        .accessibilityHidden(true)
-                    Text(clock)
-                        .font(.system(size: 19, weight: .medium, design: .rounded))
-                        .monospacedDigit()
+        if let wellness, wellness.activeExercise != nil {
+            Text(WellnessFormat.timer(wellness.exerciseSecondsRemaining))
+                .font(.system(size: 30, weight: .medium, design: .rounded)).monospacedDigit()
+        } else {
+            switch rest.settings.restHUDStyle {
+            case .countdown:
+                Text(clock)
+                    .font(.system(size: 30, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+            case .ring:
+                ZStack {
+                    Circle().stroke(tint.opacity(0.18), lineWidth: 5)
+                    Circle().trim(from: 0, to: progress)
+                        .stroke(tint, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Text(clock).font(.system(size: 14, weight: .semibold, design: .rounded)).monospacedDigit()
                 }
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(tint.opacity(0.14))
-                        Capsule().fill(tint)
-                            .frame(width: geometry.size.width * (1 - progress))
+                .frame(width: 72, height: 72)
+            case .hourglass:
+                VStack(spacing: 8) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "hourglass")
+                            .font(.system(size: 42, weight: .ultraLight))
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(tint)
+                            .accessibilityHidden(true)
+                        Text(clock)
+                            .font(.system(size: 19, weight: .medium, design: .rounded))
+                            .monospacedDigit()
                     }
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(tint.opacity(0.14))
+                            Capsule().fill(tint)
+                                .frame(width: geometry.size.width * (1 - progress))
+                        }
+                    }
+                    .frame(width: 142, height: 4)
                 }
-                .frame(width: 142, height: 4)
             }
         }
     }
@@ -253,12 +290,14 @@ private struct RestHUDView: View {
 @MainActor
 final class RestWindowController {
     private let rest: RestController
+    private let wellness: WellnessController?
     private var overlays: [RestPanel] = []
     private var hud: RestPanel?
     private var screenObserver: NSObjectProtocol?
 
-    init(rest: RestController) {
+    init(rest: RestController, wellness: WellnessController? = nil) {
         self.rest = rest
+        self.wellness = wellness
         screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                                  object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshScreens() }
@@ -278,12 +317,15 @@ final class RestWindowController {
             panel.backgroundColor = .clear
             panel.appearance = NSAppearance(named: .darkAqua)
             panel.hasShadow = false
-            panel.onEscape = { [weak rest] in rest?.skip() }
+            panel.onEscape = { [weak rest, weak wellness] in
+                if wellness?.activeExercise != nil { wellness?.finishExercise(completed: false) }
+                else { rest?.skip() }
+            }
             let blur = NSVisualEffectView(frame: NSRect(origin: .zero, size: screen.frame.size))
             blur.blendingMode = .behindWindow
             blur.material = .underWindowBackground
             blur.state = .active
-            let hosting = NSHostingView(rootView: RestOverlayView(rest: rest))
+            let hosting = NSHostingView(rootView: RestOverlayContent(rest: rest, wellness: wellness))
             hosting.frame = blur.bounds
             hosting.autoresizingMask = [.width, .height]
             blur.addSubview(hosting)
@@ -322,10 +364,10 @@ final class RestWindowController {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.hudDragEnabled = true
-        panel.contentView = NSHostingView(rootView: RestHUDView(rest: rest) { [weak panel, weak rest] in
+        panel.contentView = NSHostingView(rootView: RestHUDView(rest: rest, close: { [weak panel, weak rest] in
             panel?.close()
             rest?.setHUDVisible(false)
-        })
+        }, wellness: wellness))
         let visible = NSScreen.main?.visibleFrame ?? .zero
         let defaultOrigin = NSPoint(x: visible.maxX - 266, y: visible.midY - 80)
         if isNew {
@@ -345,7 +387,7 @@ final class RestWindowController {
     }
 
     private func refreshScreens() {
-        if rest.phase.isResting && rest.isRunning { showRest() }
+        if rest.phase.isResting && rest.isRunning || wellness?.activeExercise != nil { showRest() }
         if let hud, hud.isVisible {
             if !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(hud.frame) }) {
                 let visible = NSScreen.main?.visibleFrame ?? .zero

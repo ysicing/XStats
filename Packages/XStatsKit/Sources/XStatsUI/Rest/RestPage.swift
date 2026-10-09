@@ -4,36 +4,23 @@
 import Localization
 import SwiftUI
 
-/// 可选的番茄钟主页面：计时、阶段与今日目标在同一处操作。
+/// 统一专注流程：页面只呈现当前阶段，自动衔接在设置中管理。
 struct RestPage: View {
     @Environment(AppModel.self) private var model
     @Environment(\.isSnapshot) private var isSnapshot
 
     var body: some View {
-        @Bindable var settings = model.settings
+        let settings = model.settings
         let rest = model.rest
         let isBreak = rest.phase.isResting
         let accent: Color = isBreak ? .green : .orange
 
         PageScroll {
             Card {
-                HStack(spacing: DS.Space.s2) {
-                    ForEach(RestPhase.allCases) { phase in
-                        Button(phase.title) { rest.selectPhase(phase) }
-                            .buttonStyle(DSButtonStyle(kind: rest.phase == phase ? .primary : .secondary))
-                            .disabled(settings.restMode == .workday && !rest.isWorkdayActive)
-                    }
+                HStack {
+                    Label(tr("专注"), systemImage: "timer").dsFont(.sm, weight: .semibold)
                     Spacer()
                     RestOptionsButton()
-                    SegmentedControl(selection: $settings.restMode,
-                                     options: RestRunMode.allCases.map { ($0, $0.title) })
-                        .frame(width: 240)
-                }
-
-                if settings.restMode == .workday {
-                    Text(tr("手动开始工作，专注与休息自动交替；每 4 轮进入长休。"))
-                        .dsFont(.xs)
-                        .foregroundStyle(DS.Palette.textSecondary)
                 }
 
                 VStack(spacing: DS.Space.s4) {
@@ -48,12 +35,11 @@ struct RestPage: View {
                             Text(rest.phase.title)
                                 .dsFont(.sm, weight: .medium)
                                 .foregroundStyle(DS.Palette.textSecondary)
-                            Text(Self.clock(rest.secondsRemaining))
+                            Text(WellnessFormat.timer(rest.secondsRemaining))
                                 .font(.system(size: 48, weight: .light, design: .rounded))
                                 .monospacedDigit()
                                 .foregroundStyle(DS.Palette.textPrimary)
-                            Text(rest.isRunning ? tr("计时中")
-                                 : settings.restMode == .workday && !rest.isWorkdayActive ? tr("待开始") : tr("已暂停"))
+                            Text(rest.isRunning ? tr("计时中") : rest.primaryAction == .resume ? tr("已暂停") : tr("待开始"))
                                 .dsFont(.xs)
                                 .foregroundStyle(DS.Palette.textSecondary)
                         }
@@ -61,18 +47,19 @@ struct RestPage: View {
                     .frame(width: 214, height: 214)
 
                     HStack(spacing: DS.Space.s2) {
-                        Button(primaryTitle(rest: rest, mode: settings.restMode)) { rest.startPause() }
-                            .buttonStyle(DSButtonStyle(kind: .primary))
-                        Button(tr("重置")) { rest.resetCurrentPhase() }
-                            .buttonStyle(DSButtonStyle(kind: .secondary))
-                            .disabled(settings.restMode == .workday && !rest.isWorkdayActive)
-                        Button(tr("跳过")) { rest.skip() }
-                            .buttonStyle(DSButtonStyle(kind: .secondary))
-                            .disabled(settings.restMode == .workday && !rest.isWorkdayActive)
-                        if settings.restMode == .workday && rest.isWorkdayActive {
-                            Button(tr("结束工作")) { rest.endWorkday() }
-                                .buttonStyle(DSButtonStyle(kind: .secondary))
+                        Button { rest.startPause() } label: {
+                            // 以所有操作文案的自然宽度预留空间，开始/暂停切换时按钮位置不变。
+                            ZStack {
+                                ForEach(RestPrimaryAction.allCases, id: \.self) { action in
+                                    Text(action.title).hidden().accessibilityHidden(true)
+                                }
+                                Text(rest.primaryAction.title)
+                            }
                         }
+                        .buttonStyle(DSButtonStyle(kind: .primary))
+                        Button(tr("结束")) { rest.endSession() }
+                            .buttonStyle(DSButtonStyle(kind: .secondary))
+                            .disabled(!rest.canEndSession)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -93,24 +80,22 @@ struct RestPage: View {
                              total: Double(settings.restDailyGoal))
                     .tint(.green)
             }
+            WellnessHealthCard()
+            WellnessTodayCard()
         }
         .onAppear {
             guard !isSnapshot else { return }
             rest.sync()
             rest.setPageVisible(true)
+            model.wellness.sync()
+            model.wellness.setPageVisible(true)
         }
-        .onDisappear { if !isSnapshot { rest.setPageVisible(false) } }
-    }
-
-    private static func clock(_ seconds: TimeInterval) -> String {
-        let whole = max(0, Int(seconds.rounded(.up)))
-        return String(format: "%02d:%02d", whole / 60, whole % 60)
-    }
-
-    private func primaryTitle(rest: RestController, mode: RestRunMode) -> String {
-        if rest.isRunning { return tr("暂停") }
-        if mode == .workday { return rest.isWorkdayActive ? tr("继续") : tr("开始工作") }
-        return rest.canContinue ? tr("继续") : tr("开始")
+        .onDisappear {
+            if !isSnapshot {
+                rest.setPageVisible(false)
+                model.wellness.setPageVisible(false)
+            }
+        }
     }
 }
 
@@ -118,8 +103,8 @@ extension RestPhase {
     var title: String {
         switch self {
         case .work: tr("专注")
-        case .rest: tr("短休")
-        case .longRest: tr("长休")
+        case .rest: tr("休息")
+        case .longRest: tr("长休息")
         }
     }
 }

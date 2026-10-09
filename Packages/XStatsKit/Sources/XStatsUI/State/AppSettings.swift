@@ -353,7 +353,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .battery: tr("电池")
         case .processes: tr("进程")
         case .keepAwake: tr("防休眠")
-        case .rest: tr("番茄钟")
+        case .rest: tr("专注与健康")
         case .cleaner: tr("清理")
         case .uninstaller: tr("卸载应用")
         case .startupItems: tr("启动项")
@@ -536,6 +536,14 @@ public final class AppSettings {
         get { restMode == .cycle }
         set { restMode = newValue ? .cycle : .single }
     }
+    /// 界面只区分是否自动开始下一轮；已保存的工作时段模式仍按原有配置运行。
+    public var restAutomaticallyStartsNextRound: Bool {
+        get { restMode != .single }
+        set {
+            guard newValue != restAutomaticallyStartsNextRound else { return }
+            restMode = newValue ? .cycle : .single
+        }
+    }
     public var restMode: RestRunMode {
         didSet {
             defaults.set(restMode.rawValue, forKey: Keys.restMode)
@@ -548,6 +556,11 @@ public final class AppSettings {
     public var restHUDStyle: RestHUDStyle {
         didSet { defaults.set(restHUDStyle.rawValue, forKey: Keys.restHUDStyle) }
     }
+    public var wellnessPreferences: WellnessPreferences {
+        didSet { defaults.set(try? JSONEncoder().encode(wellnessPreferences.normalized), forKey: Keys.wellnessPreferences) }
+    }
+    /// 隔离偏好（测试、截图）只使用内存活动库，不能污染用户的健康记录。
+    var wellnessStorageURL: URL? { defaults === UserDefaults.standard ? WellnessActivityStore.defaultURL : nil }
     public var calendarFeatures: Set<CalendarFeature> {
         didSet { defaults.set(calendarFeatures.map(\.rawValue).sorted(), forKey: Keys.calendarFeatures) }
     }
@@ -848,6 +861,8 @@ public final class AppSettings {
             ?? (defaults.bool(forKey: Keys.restCycleEnabled) ? .cycle : .single)
         restSound = defaults.string(forKey: Keys.restSound).flatMap(RestSound.init(rawValue:)) ?? .off
         restHUDStyle = defaults.string(forKey: Keys.restHUDStyle).flatMap(RestHUDStyle.init(rawValue:)) ?? .countdown
+        wellnessPreferences = defaults.data(forKey: Keys.wellnessPreferences)
+            .flatMap { try? JSONDecoder().decode(WellnessPreferences.self, from: $0) }?.normalized ?? WellnessPreferences()
         // 旧版只在用户开关日历后写入该键；已有安装缺少保存值时沿用旧版默认，不按地区重新初始化。
         let isExistingCalendarInstall = defaults.object(forKey: Keys.calendarEnabled) != nil
         calendarEnabled = defaults.bool(forKey: Keys.calendarEnabled)
@@ -1033,6 +1048,7 @@ public final class AppSettings {
 
     private enum Keys {
         static let restEnabled = "restEnabled"
+        static let wellnessPreferences = "wellnessPreferences"
         static let restWorkMinutes = "restWorkMinutes"
         static let restBreakMinutes = "restBreakMinutes"
         static let restLongBreakMinutes = "restLongBreakMinutes"

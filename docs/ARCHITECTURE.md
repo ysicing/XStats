@@ -65,7 +65,7 @@ checkboxes in Optional Features. Thermals exposes temperature and fan checkboxes
 support. Detailed appearance settings remain in the existing Menu Bar settings page. Display Parameter Controls is in
 Optional Features; its information-only menu-bar toggle stays independent of DDC enablement.
 Optional Features uses separate cards: Network Monitor, Processes, Uninstaller and Cleanup;
-AI Usage, Audio and Display Parameter Controls; Pomodoro and Eye Breaks; and Menu Bar Calendar.
+AI Usage, Audio and Display Parameter Controls; Focus & Wellness; and Menu Bar Calendar.
 Each card has consistent separators between rows, with no divider above its first row.
 Uninstaller is also optional and off by default. Its preference persists in settings backups;
 disabling it hides the sidebar entry, redirects its page/deep link to feature settings, cancels
@@ -286,14 +286,41 @@ is separate from hover and disabled state, while interactive system glass keeps 
 Supporting text colors are tested against window, card and elevated solid backgrounds in both
 appearances. These policies add no timers or retained per-interaction state.
 
-## Rest timers
+## Focus and wellness
 
 `RestSession` uses absolute `mach_continuous_time` deadlines and recalculates after wake instead
 of accumulating timer ticks. Rest features default off and require a manual start. Phase changes
-preserve their remaining time; mode or duration changes pause the session. Daily completion counts
+preserve their remaining time; duration changes pause the session. The UI has one focus flow, with
+Start / Pause / Resume / End actions shared by the page and HUD. An opt-in setting starts the next
+round automatically after a break; changing it preserves the current deadline and running state.
+The stored `single`, `cycle` and `workday` preference values remain readable, with the latter two
+represented by the same switch. End resets the session to its focus start without deleting today’s
+completed count or activities. Phase selectors and mode selectors are absent from the main page. Daily completion counts
 and HUD placement stay local. Curtains, the menu-bar timer and Mini HUD belong to the main app;
 noise is synthesized through `AVAudioSourceNode` only during rest. The Widget reads shared phase
 and deadline values, so WidgetKit refresh timing cannot provide second-accurate reminders.
+
+`WellnessController` adds opt-in independent break/water reminders, voluntary short breaks and
+breathing exercises. One monotonic next-event timer serves both reminders; only a visible running
+exercise uses a 1 Hz countdown. The breathing circle uses Core Animation interpolation, updated only at phase changes;
+Reduce Motion keeps it static. Short breaks have no continuous animation. Lock/sleep suspends health
+intervals and discards outstanding reminders without a catch-up burst. Existing Pomodoro wake semantics
+remain unchanged; activity tracking closes its awake segment before suspension.
+
+Reminders within five minutes of a Pomodoro break merge into the existing curtain. A completed break
+satisfies a rest reminder; water is recorded only after an explicit confirmation. Starting a voluntary
+exercise during focus pauses the focus timer and offers an explicit resume after the exercise. An
+exercise inside an existing break is limited by that break's deadline. Breathing duration is a subset
+of total rest, never a second copy. Notifications use the existing notification delegate, respect
+system permission/Focus settings, and leave pending actions visible when permission is denied.
+
+`WellnessActivityStore` serializes SQLite operations off the main actor. It lazily opens
+`Application Support/XStats/wellness.sqlite`, keeps at most 20,000 activities and prunes records older
+than 90 days during writes and summary reads. Only activity transitions and manual confirmations write
+records; no per-second database writes occur. The UI queries seven days on entry or an activity event.
+Clearing history starts a new segment for any active timer and preserves old Pomodoro completion counts.
+`WellnessPreferences` is included in settings backups; activities are local-only and excluded. Existing
+rest preference keys and completion counts remain valid; no historical durations are synthesized.
 
 ## AI process explanations
 

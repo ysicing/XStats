@@ -18,6 +18,7 @@ public final class AppModel {
     let networkGeography = NetworkGeographyController()
     public let settings: AppSettings
     let rest: RestController
+    let wellness: WellnessController
     let calendarAgenda = CalendarAgendaController()
     public let aiUsage: AIUsageController
     @ObservationIgnored let sub2apiDrafts = Dictionary(uniqueKeysWithValues:
@@ -99,6 +100,7 @@ public final class AppModel {
         networkComponent = NetworkComponentController(backend: observationBackend)
         audio = AudioController(defaults: settings.audioDefaults)
         rest = RestController(settings: settings)
+        wellness = WellnessController(rest: rest, settings: settings, store: WellnessActivityStore(url: settings.wellnessStorageURL))
         aiUsage = AIUsageController(settings: settings, providers: aiUsageProviders, quotaProviders: aiQuotaProviders,
                                     quotaCacheURL: quotaCacheURL, costReferenceStore: .shared)
         self.store = store

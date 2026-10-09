@@ -4,17 +4,21 @@
 import Localization
 import SwiftUI
 
-/// 专注与休息的运行方式；工作番茄由用户明确开始和结束一个工作时段。
+/// 保留现有偏好与备份值；界面统一呈现为“休息后自动开始下一轮”。
 public enum RestRunMode: String, CaseIterable, Identifiable, Sendable {
     case single, cycle, workday
-
     public var id: String { rawValue }
+}
+
+enum RestPrimaryAction: CaseIterable, Hashable {
+    case startFocus, startNextRound, pause, resume
 
     var title: String {
         switch self {
-        case .single: tr("单次")
-        case .cycle: tr("循环")
-        case .workday: tr("工作番茄")
+        case .startFocus: tr("开始专注")
+        case .startNextRound: tr("开始下一轮")
+        case .pause: tr("暂停")
+        case .resume: tr("继续")
         }
     }
 }
@@ -62,17 +66,17 @@ struct RestOptionsButton: View {
     }
 }
 
-private struct RestOptionsPopover: View {
+struct RestOptionsPopover: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         @Bindable var settings = model.settings
 
         ScrollView {
-            SettingsGroup(caption: tr("番茄钟")) {
+            SettingsGroup(caption: tr("专注")) {
                 GroupRow(showsDivider: false) {
-                    SettingRow(title: tr("工作时长（分钟）")) {
-                        Picker(tr("工作时长（分钟）"), selection: $settings.restWorkMinutes) {
+                    SettingRow(title: tr("专注时长")) {
+                        Picker(tr("专注时长"), selection: $settings.restWorkMinutes) {
                             ForEach(AppSettings.restWorkOptions, id: \.self) { minutes in
                                 Text(tr("\(minutes) 分钟")).tag(minutes)
                             }
@@ -104,6 +108,11 @@ private struct RestOptionsPopover: View {
                         .labelsHidden()
                         .pickerStyle(.menu)
                         .frame(width: 160)
+                    }
+                }
+                GroupRow {
+                    SettingRow(title: tr("休息后自动开始下一轮"), subtitle: tr("关闭时，休息结束后由你开始下一轮。")) {
+                        DSToggle(isOn: $settings.restAutomaticallyStartsNextRound, label: tr("休息后自动开始下一轮"))
                     }
                 }
                 GroupRow {
@@ -144,8 +153,9 @@ private struct RestOptionsPopover: View {
                 }
             }
             .padding(DS.Space.s4)
+            WellnessPreferencesSettings().padding(DS.Space.s4)
         }
-        .frame(width: 480, height: 410)
+        .frame(width: 480, height: 560)
         .appLanguageEnvironment()
     }
 }

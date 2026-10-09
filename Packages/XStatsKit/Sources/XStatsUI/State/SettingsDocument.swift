@@ -19,6 +19,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var calendarEnabled: Bool?
     public var calendarPreferences: CalendarPreferences?
     public var restEnabled: Bool?
+    public var wellnessPreferences: WellnessPreferences?
     public var restWorkMinutes: Int?
     public var restBreakMinutes: Int?
     public var restLongBreakMinutes: Int?
@@ -76,6 +77,7 @@ extension AppSettings {
         doc.calendarEnabled = calendarEnabled
         doc.calendarPreferences = calendarPreferences
         doc.restEnabled = restEnabled
+        doc.wellnessPreferences = wellnessPreferences.normalized
         doc.restWorkMinutes = restWorkMinutes
         doc.restBreakMinutes = restBreakMinutes
         doc.restLongBreakMinutes = restLongBreakMinutes
@@ -139,6 +141,7 @@ extension AppSettings {
         assign(\.calendarEnabled, doc.calendarEnabled)
         assign(\.calendarPreferences, doc.calendarPreferences)
         assign(\.restEnabled, doc.restEnabled)
+        assign(\.wellnessPreferences, doc.wellnessPreferences?.normalized)
         assign(\.restWorkMinutes, option(doc.restWorkMinutes, in: Self.restWorkOptions))
         assign(\.restBreakMinutes, option(doc.restBreakMinutes, in: Self.restBreakOptions))
         assign(\.restLongBreakMinutes, option(doc.restLongBreakMinutes, in: Self.restLongBreakOptions))

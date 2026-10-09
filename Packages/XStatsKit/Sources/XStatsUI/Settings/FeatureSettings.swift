@@ -184,12 +184,12 @@ struct FeatureSettings: View {
             }
             SettingsGroup {
                 GroupRow(showsDivider: false) {
-                    SettingRow(title: tr("番茄钟与护眼休息"),
-                               subtitle: tr("专注计时、每日目标与多屏休息幕布。"),
+                    SettingRow(title: tr("专注与健康"),
+                               subtitle: tr("专注计时、休息与喝水提醒、呼吸练习。"),
                                icon: "eye") {
                         HStack(spacing: DS.Space.s2) {
                             if settings.restEnabled { RestOptionsButton() }
-                            DSToggle(isOn: $settings.restEnabled, label: tr("番茄钟与护眼休息"))
+                            DSToggle(isOn: $settings.restEnabled, label: tr("专注与健康"))
                         }
                     }
                 }

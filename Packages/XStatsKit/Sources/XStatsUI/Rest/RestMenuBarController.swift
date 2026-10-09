@@ -8,12 +8,14 @@ import Localization
 @MainActor
 final class RestMenuBarController: NSObject {
     private let rest: RestController
+    private let wellness: WellnessController?
     private let open: () -> Void
     private let toggleHUD: () -> Void
     private var item: NSStatusItem?
 
-    init(rest: RestController, open: @escaping () -> Void, toggleHUD: @escaping () -> Void) {
+    init(rest: RestController, wellness: WellnessController? = nil, open: @escaping () -> Void, toggleHUD: @escaping () -> Void) {
         self.rest = rest
+        self.wellness = wellness
         self.open = open
         self.toggleHUD = toggleHUD
         super.init()
@@ -33,7 +35,7 @@ final class RestMenuBarController: NSObject {
                 button.target = self
                 button.action = #selector(clicked(_:))
                 button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-                button.image = NSImage(systemSymbolName: "timer", accessibilityDescription: tr("番茄钟"))
+                button.image = NSImage(systemSymbolName: "timer", accessibilityDescription: tr("专注与健康"))
                 button.image?.isTemplate = true
             }
             self.item = item
@@ -44,13 +46,18 @@ final class RestMenuBarController: NSObject {
 
     func update() {
         guard let button = item?.button else { return }
-        if rest.isRunning {
-            let seconds = max(0, Int(rest.secondsRemaining.rounded(.up)))
-            button.title = String(format: " %02d:%02d", seconds / 60, seconds % 60)
+        if let wellness, wellness.activeExercise != nil {
+            button.title = " " + WellnessFormat.timer(wellness.exerciseSecondsRemaining)
+        } else if rest.isRunning {
+            button.title = " " + WellnessFormat.timer(rest.secondsRemaining)
         } else {
             button.title = ""
         }
-        button.toolTip = tr("番茄钟") + " · " + tr(rest.isRunning ? "计时中" : "已暂停")
+        let pending = wellness?.pending ?? []
+        let symbol = pending.contains(.water) ? "drop.fill" : pending.contains(.rest) ? "eye" : "timer"
+        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: tr("专注与健康"))
+        button.image?.isTemplate = true
+        button.toolTip = tr("专注与健康") + " · " + tr(!pending.isEmpty ? "待处理" : rest.isRunning ? "计时中" : "未开始专注")
     }
 
     @objc private func clicked(_ sender: NSStatusBarButton) {

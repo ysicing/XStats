@@ -194,6 +194,8 @@ final class RestController {
     private var lastSharedRunning: Bool?
     private var lastSharedPhase: RestPhase?
     private var lastSharedLanguage: AppLanguage?
+    private var activityTracker = RestActivityTracker()
+    private var previewAction: RestPrimaryAction?
     private let audio = RestSoundPlayer()
     private let localDefaults: UserDefaults
     private let defaults: UserDefaults?
@@ -202,7 +204,22 @@ final class RestController {
     private let date: () -> Date
     var onRestChange: ((Bool) -> Void)?
     var onStateChange: (() -> Void)?
+    var onSessionChange: (() -> Void)?
+    var onActivity: ((WellnessActivity) -> Void)?
+    var onFocusCompletionUndo: (() -> Void)?
     let settings: AppSettings
+    var deadline: UInt64? { session?.isRunning == true ? session?.deadline : nil }
+    var canEndSession: Bool {
+        isRunning || canContinue || isWorkdayActive || phase.isResting || (session?.completedFocus ?? 0) > 0
+            || previewAction == .resume || previewAction == .startNextRound
+    }
+    var primaryAction: RestPrimaryAction {
+        if let previewAction { return previewAction }
+        if isRunning { return .pause }
+        if settings.restMode == .workday && !isWorkdayActive { return .startFocus }
+        if canContinue || (settings.restMode == .workday && isWorkdayActive) { return .resume }
+        return phase == .work && (session?.completedFocus ?? 0) > 0 ? .startNextRound : .startFocus
+    }
 
     init(settings: AppSettings, localDefaults: UserDefaults = .standard,
          sharedDefaults: UserDefaults? = UserDefaults(suiteName: "group.work.12306.xstats"),
@@ -219,16 +236,20 @@ final class RestController {
     }
 
     /// 离屏截图只改变展示值，不创建 session、计时器或写入 Widget 共享偏好。
-    func showPreview() {
+    func showPreview(phase: RestPhase = .work, action: RestPrimaryAction = .pause) {
         guard session == nil else { return }
-        phase = .work
-        isRunning = true
-        secondsRemaining = 18 * 60 + 42
-        phaseDuration = 25 * 60
+        self.phase = phase
+        previewAction = action
+        isRunning = action == .pause
+        canContinue = action == .resume
+        phaseDuration = Double(phase == .work ? 25 * 60 : phase == .rest ? 5 * 60 : 15 * 60)
+        secondsRemaining = action == .startFocus || action == .startNextRound ? phaseDuration
+            : phase == .work ? 18 * 60 + 42 : phaseDuration - 60
         completedToday = 3
     }
 
     func sync() {
+        previewAction = nil
         guard settings.restEnabled else { stop(); return }
         refreshDay()
         if session == nil {
@@ -303,6 +324,11 @@ final class RestController {
 
     func endWorkday() {
         guard settings.restMode == .workday, isWorkdayActive else { return }
+        endSession()
+    }
+
+    /// 结束本次专注流程并回到起点，保留今日完成轮数和已记录的实际时长。
+    func endSession() {
         settleExpiredSession()
         isWorkdayActive = false
         suspendedAt = nil
@@ -313,13 +339,9 @@ final class RestController {
         refresh()
     }
 
-    /// 改运行方式只暂停当前阶段并保留剩余时间；工作时段只能显式结束。
+    /// 自动衔接只影响下次阶段转换，不暂停当前计时，也不主动恢复已暂停的计时。
     func modeDidChange() {
         settleExpiredSession()
-        if var session {
-            session.pause(at: clock())
-            self.session = session
-        }
         refresh()
     }
 
@@ -365,7 +387,10 @@ final class RestController {
         guard var session else { return }
         let previousCount = session.completedFocus
         session.postponeFocus(at: clock())
-        if session.completedFocus < previousCount && lastFocusCredited { updateCompletedToday(by: -1) }
+        if session.completedFocus < previousCount && lastFocusCredited {
+            updateCompletedToday(by: -1)
+            onFocusCompletionUndo?()
+        }
         lastFocusCredited = false
         self.session = session
         refresh()
@@ -400,6 +425,11 @@ final class RestController {
         canContinue = session.canContinue
         secondsRemaining = session.remaining(at: now)
         phaseDuration = TimeInterval(session.phaseDuration) / 1_000_000_000
+        if let activity = activityTracker.update(phase: session.phase, running: session.isRunning,
+                                                deadline: session.deadline, now: now, date: nowDate) {
+            onActivity?(activity)
+        }
+        onSessionChange?()
 
         if session.isRunning && scheduledDeadline != session.deadline {
             deadlineTimer?.invalidate()
@@ -460,7 +490,16 @@ final class RestController {
         }
     }
 
+    /// 清空记录后从当前时刻重新分段，保留计时和旧版完成轮数。
+    func restartActivityTracking() {
+        activityTracker = RestActivityTracker()
+        if let session {
+            _ = activityTracker.update(phase: phase, running: isRunning, deadline: session.deadline, now: clock(), date: date())
+        }
+    }
+
     func stop() {
+        previewAction = nil
         suspend()
         session = nil
         isWorkdayActive = false
@@ -473,12 +512,14 @@ final class RestController {
         if restVisible { onRestChange?(false) }
         restVisible = false
         phase = .work
+        onSessionChange?()
         onStateChange?()
         defaults?.set(false, forKey: "rest.enabled")
         WidgetCenter.shared.reloadTimelines(ofKind: "rest")
     }
 
     func suspend() {
+        if let activity = activityTracker.finish(at: clock()) { onActivity?(activity) }
         // 屏幕休眠与系统睡眠会先后到达，保留最早的暂停时刻，之后完成的专注都不计入。
         if session?.isRunning == true { suspendedAt = suspendedAt ?? clock() }
         displayTimer?.invalidate()

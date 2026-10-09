@@ -13,6 +13,13 @@ XStats 新增代码与修改采用 AGPL-3.0-or-later，范围见 [LICENSING.md](
 项目产物的候选目录、默认搜索位置及安全检查参考 [tw93/Mole 的 `mo purge`](https://github.com/tw93/Mole)（GPL-3.0）。
 XStats 使用独立编写的 Swift 扫描与废纸篓流程，未引入 Mole 的 Shell 源码或运行时依赖。
 
+## 健康提醒设计参考
+
+专注与健康参考 [MeowOut](https://github.com/huangy7/MeowOut/tree/1085b5a3e6b902610701bf1d1f4a17b51084edd6)
+（MIT，Copyright (c) 2026 huangy）的独立饮水提醒、手动确认、呼吸节奏和今日/七日回顾交互。
+XStats 的 Swift 状态机、提醒合并、SQLite 记录与原生界面为独立实现，未引入上游源码、像素宠物素材或运行时依赖。
+默认舒缓呼吸不屏息，不作诊断、饮水量计算或医疗效果承诺。
+
 ## 粉红噪音滤波参考
 
 番茄钟的粉红噪音使用 [Paul Kellett 的滤波系数](https://www.musicdsp.org/en/latest/Filters/76-pink-noise-filter.html)

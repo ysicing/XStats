@@ -6,6 +6,7 @@
 import AIUsage
 import AudioControl
 import AppKit
+import Darwin
 import Localization
 import Metrics
 import NetworkObservation
@@ -46,6 +47,15 @@ enum SnapshotRenderer {
                 write(AppleIntelligenceStatusRow(status: .unavailable).padding(DS.Space.s3).frame(width: 600),
                       model: model, appearance: appearance,
                       to: outputDirectory.appendingPathComponent("apple-intelligence-row-\(suffix).png"))
+            }
+            return
+        }
+
+        if CommandLine.arguments.contains("--wellness-only") {
+            renderWellness(outputDirectory: outputDirectory)
+            if CommandLine.arguments.contains("--verify-runtime") {
+                do { try await verifyWellnessRuntime(outputDirectory: outputDirectory) }
+                catch { reportFailure(outputDirectory.appendingPathComponent("runtime.json"), error: error) }
             }
             return
         }
@@ -290,6 +300,102 @@ enum SnapshotRenderer {
                   to: outputDirectory.appendingPathComponent("audio-window-\(suffix).png"))
         }
         model.audio.stop()
+    }
+
+    /// 在独立原生窗口中采样短时进程成本；不创建通知管理器，也不访问用户数据库。
+    private static func verifyWellnessRuntime(outputDirectory: URL) async throws {
+        let suite = "XStats.wellnessRuntime.\(UUID())"
+        guard let defaults = UserDefaults(suiteName: suite) else { throw CocoaError(.coderInvalidValue) }
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.restEnabled = true
+        settings.language = L10n.language
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        model.rest.sync(); model.wellness.sync()
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 580),
+                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.title = "XStats · " + tr("呼吸练习")
+        window.contentView = NSHostingView(rootView: WellnessExerciseView(wellness: model.wellness).environment(model))
+        defer { window.orderOut(nil); model.rest.stop() }
+        var observations: [[String: Any]] = []
+        for (phase, seconds) in [("idle", 3.0), ("breathing_visible", 6.0), ("breathing_paused", 3.0), ("closed", 3.0)] {
+            switch phase {
+            case "breathing_visible": model.wellness.startBreathing(); window.center(); window.orderFrontRegardless()
+            case "breathing_paused": model.wellness.toggleBreathingPause()
+            case "closed": model.wellness.finishExercise(completed: false); window.orderOut(nil)
+            default: break
+            }
+            try await Task.sleep(for: .milliseconds(500)) // 先让首次布局与状态切换完成。
+            var before = rusage(); getrusage(RUSAGE_SELF, &before)
+            let started = ProcessInfo.processInfo.systemUptime
+            try await Task.sleep(for: .seconds(seconds))
+            var after = rusage(); getrusage(RUSAGE_SELF, &after)
+            let cpu = Double(after.ru_utime.tv_sec - before.ru_utime.tv_sec + after.ru_stime.tv_sec - before.ru_stime.tv_sec)
+                + Double(after.ru_utime.tv_usec - before.ru_utime.tv_usec + after.ru_stime.tv_usec - before.ru_stime.tv_usec) / 1e6
+            let elapsed = ProcessInfo.processInfo.systemUptime - started
+            observations.append(["phase": phase, "seconds": elapsed, "cpuPercent": cpu / elapsed * 100,
+                                 "peakResidentBytes": after.ru_maxrss,
+                                 "deadlineTimer": model.wellness.hasDeadlineTimer,
+                                 "displayTimer": model.wellness.hasDisplayTimer])
+        }
+        await model.wellness.prepareForTermination()
+        let report: [String: Any] = ["demo": true, "pid": ProcessInfo.processInfo.processIdentifier,
+                                    "observations": observations,
+                                    "timersReleased": !model.wellness.hasDisplayTimer && !model.wellness.hasDeadlineTimer]
+        try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
+            .write(to: outputDirectory.appendingPathComponent("runtime.json"))
+    }
+
+    /// 健康截图只用虚构活动与独立偏好，不请求通知授权、不启动采样、不访问用户活动库。
+    private static func renderWellness(outputDirectory: URL) {
+        let suite = "XStats.wellnessSnapshot.\(UUID())"
+        guard let defaults = UserDefaults(suiteName: suite) else { return }
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.language = L10n.language
+        settings.restEnabled = true
+        settings.wellnessPreferences.breakEnabled = true
+        settings.wellnessPreferences.waterEnabled = true
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        model.rest.showPreview()
+        let now = Calendar.current.startOfDay(for: Date()).addingTimeInterval(14 * 3600)
+        let activities = (0..<7).flatMap { index -> [WellnessActivity] in
+            let day = now.addingTimeInterval(-Double(index) * 86400)
+            return [.init(kind: .focus, startedAt: day.addingTimeInterval(-1500), endedAt: day, completed: true),
+                    .init(kind: .rest, startedAt: day, endedAt: day.addingTimeInterval(300), completed: true),
+                    .init(kind: .breathing, startedAt: day, endedAt: day.addingTimeInterval(180), completed: true, isPartOfRest: true),
+                    .init(kind: .water, startedAt: day, endedAt: day, completed: true)]
+        }
+        for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+            guard let appearance = NSAppearance(named: name) else { continue }
+            NSApp.appearance = appearance
+            model.wellness.showPreview(activities: activities, at: now)
+            write(RestPage().frame(width: 900).appLanguageEnvironment(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("wellness-page-\(suffix).png"))
+            for (state, phase, action) in [("idle", RestPhase.work, RestPrimaryAction.startFocus),
+                                            ("paused", .work, .resume), ("break", .rest, .pause),
+                                            ("next-round", .work, .startNextRound)] {
+                model.rest.showPreview(phase: phase, action: action)
+                write(RestPage().frame(width: 900).appLanguageEnvironment(), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("wellness-\(state)-\(suffix).png"))
+            }
+            model.rest.showPreview()
+            write(RestOptionsPopover(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("focus-settings-\(suffix).png"))
+            write(WellnessHealthCard().padding(16).frame(width: 560).appLanguageEnvironment(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("wellness-card-\(suffix).png"))
+            write(WellnessPreferencesSettings().padding(16).frame(width: 480).appLanguageEnvironment(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("wellness-settings-\(suffix).png"))
+            write(WellnessStatisticsView(wellness: model.wellness), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("wellness-statistics-\(suffix).png"))
+            model.wellness.showPreview(activities: activities, at: now, exercise: .breathing)
+            write(WellnessExerciseView(wellness: model.wellness).frame(width: 560).appLanguageEnvironment(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("wellness-breathing-\(suffix).png"))
+            write(WellnessExerciseView(wellness: model.wellness, reducedMotionPreview: true).frame(width: 560)
+                  .appLanguageEnvironment(), model: model, appearance: appearance,
+                  to: outputDirectory.appendingPathComponent("wellness-reduced-motion-\(suffix).png"))
+        }
     }
 
     /// README 已有功能使用临时历史库、虚构 AI 数据和设备状态，不调用真实采样/控制后端。

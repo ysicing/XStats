@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import QuartzCore
 
 /// 设计 token。界面里的颜色、字号、间距、圆角一律从这里取值。
 public enum DS {}
@@ -205,6 +206,20 @@ extension DS {
     }
 
     enum Motion {
+        /// 呼吸引导按相位时间采样，使用同一 ease-in-out 曲线，暂停不会跳到动画目标值。
+        static var breathingTimingFunction: CAMediaTimingFunction { CAMediaTimingFunction(controlPoints: 0.77, 0, 0.175, 1) }
+
+        static func breathingProgress(_ progress: Double) -> Double {
+            let progress = min(1, max(0, progress))
+            var low = 0.0, high = 1.0
+            for _ in 0..<12 {
+                let t = (low + high) / 2
+                let x = 3 * (1 - t) * (1 - t) * t * 0.77 + 3 * (1 - t) * t * t * 0.175 + t * t * t
+                if x < progress { low = t } else { high = t }
+            }
+            let t = (low + high) / 2
+            return 3 * (1 - t) * t * t + t * t * t
+        }
         /// 使用统计的来源/时间筛选仅淡入选中底色，不移动正在阅读的数据。
         static let usageSelection = Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.18)
         static let quick = Animation.easeOut(duration: 0.15)

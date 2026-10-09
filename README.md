@@ -52,7 +52,7 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
 
 <p align="center">
   <img src="Assets/readme/monitoring-features-zh-Hans-light.png" width="49%" alt="基础功能：启用开关与菜单栏展示分别设置">
-  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="可选功能：工具、常用模块、番茄钟和日历分组管理">
+  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="可选功能：工具、常用模块、专注与健康和日历分组管理">
 </p>
 
 ### 系统监控
@@ -121,8 +121,12 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
 | **网络诊断** | 测速、DNS 查询、出口检测、公网 IP 归属地与纯净度、连通性探测 |
 | **菜单栏日历** | 农历、节假日与调休、黄历，以及系统日程和提醒事项 |
 | **音频** | 系统音量与输入 / 输出设备切换；macOS 14.4+ 可按应用调节音量与输出，仅在本机处理 |
-| **番茄钟与护眼休息** | 专注与休息计时、多屏休息幕布、迷你 HUD |
+| **专注与健康** | 番茄计时、多屏休息幕布与迷你 HUD；独立休息/喝水提醒、呼吸练习与本机活动统计 |
 | **进程管理** | 搜索、排序、按应用分组与结束进程 |
+
+专注页直接开始、暂停或结束；休息后默认由你开始下一轮，也可在设置中开启自动衔接。每完成四轮专注安排一次长休。
+
+健康提醒默认关闭，在“专注与健康”的设置中按需开启；不开番茄钟也能提醒。临近番茄休息的提醒会合并，不强制中断专注。主动短休或呼吸会暂停专注，结束后由你选择继续；喝水只记录手动确认次数，不估算饮水量。活动记录仅保存在本机，保留 90 天，可在统计页清除；设置备份不包含活动记录。
 
 可选工具集中在“设置 → 功能 → 可选功能”中按需启用，并保留已有配置。卸载应用在新安装时默认关闭，从旧版本升级时保持开启。风扇控制、合盖防休眠等特权操作需要在应用内安装并授权辅助工具。
 
@@ -149,7 +153,7 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
 </p>
 <p align="center">
   <img src="Assets/readme/calendar-zh-Hans-light.png" width="49%" alt="菜单栏日历">
-  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="番茄钟与护眼休息">
+  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="专注与健康：番茄计时、健康提醒与今日概览">
 </p>
 
 </details>

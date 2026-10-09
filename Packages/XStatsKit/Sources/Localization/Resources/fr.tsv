@@ -1874,3 +1874,68 @@ Xcode 代码补全模型	Modèles de complétion de code Xcode
 已关闭（受管理）	Désactivé (géré)
 未开启	Non activé
 模型未就绪	Modèle non prêt
+专注与健康	Concentration et bien-être
+专注计时、休息与喝水提醒、呼吸练习。	Minuteur, rappels de pause et d’hydratation, exercices de respiration.
+健康提醒	Rappels de bien-être
+休息提醒	Rappel de pause
+喝水提醒	Rappel d’hydratation
+到期后轻量提示，临近番茄休息时合并。	Des rappels discrets regroupés avec la prochaine pause Pomodoro.
+提醒间隔	Intervalle des rappels
+短休时长	Durée de la courte pause
+只在主动确认后记录，不自动计算饮水量。	Enregistrement après confirmation, sans estimation automatique du volume.
+每日记录目标	Objectif quotidien
+按次数记录，目标可留空。	Comptez les confirmations ; l’objectif est facultatif.
+不设目标	Sans objectif
+呼吸节奏	Rythme respiratoire
+舒缓模式不屏息，按舒适的节奏练习。	Le mode doux ne retient pas le souffle. Suivez un rythme confortable.
+练习时长	Durée de l’exercice
+舒缓呼吸	Respiration douce
+箱式呼吸	Respiration carrée
+吸气	Inspirez
+屏息	Retenez
+呼气	Expirez
+饮水记录	Hydratation
+已喝水	J’ai bu
+稍后 10 分钟	Dans 10 minutes
+开始短休	Faire une courte pause
+稍后	Plus tard
+下次提醒	Prochain rappel
+待处理	En attente
+在设置中开启提醒，未开始番茄钟时也能使用。	Activez les rappels dans les réglages, même sans session Pomodoro.
+撤销记录	Annuler l’enregistrement
+继续专注	Reprendre la concentration
+未开始专注	Concentration non démarrée
+无法保存健康记录，请稍后重试。	Impossible d’enregistrer les données. Réessayez plus tard.
+今日概览	Aujourd’hui en bref
+查看统计	Voir les statistiques
+其中呼吸练习	Dont respiration
+活动统计	Statistiques d’activité
+最近 7 天	7 derniers jours
+今日时间线	Chronologie du jour
+今天还没有活动记录。	Aucune activité enregistrée aujourd’hui.
+仅保存在这台 Mac，保留 90 天。	Conservé uniquement sur ce Mac pendant 90 jours.
+清除记录	Effacer les enregistrements
+清除健康记录？	Effacer les données de bien-être ?
+将删除本机健康活动记录，番茄配置和已有完成轮数保留。	Supprime les activités locales ; les réglages Pomodoro et les cycles terminés sont conservés.
+按舒适的节奏呼吸，无需用力。	Respirez confortablement, sans forcer.
+结束练习	Terminer l’exercice
+按 Esc 随时返回	Échap pour revenir à tout moment
+休息一下，也别忘了喝水。	Faites une pause et pensez à boire.
+喝点水，按自己的需要记录。	Buvez un peu d’eau et notez-le selon vos besoins.
+看看远处，活动一下肩颈。	Regardez au loin et bougez les épaules et le cou.
+尚未开启	Non activé
+日期	Date
+{} 次	{} enregistrements
+已记录 {} 轮	{} cycles enregistrés
+呼吸练习	Exercice de respiration
+休息	Repos
+分钟	Minutes
+活动	Activité
+1 次	1 enregistrement
+开始专注	Commencer à se concentrer
+开始下一轮	Commencer le cycle suivant
+休息后自动开始下一轮	Commencer automatiquement le cycle suivant après la pause
+关闭时，休息结束后由你开始下一轮。	Si désactivé, vous choisissez quand commencer le cycle suivant après la pause.
+专注时长	Durée de concentration
+长休息	Longue pause
+结束	Terminer

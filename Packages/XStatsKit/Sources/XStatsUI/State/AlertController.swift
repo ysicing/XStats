@@ -115,6 +115,7 @@ public final class AlertController: NSObject {
 
     @ObservationIgnored var openTab: (PanelTab) -> Void = { _ in }
     @ObservationIgnored var openUpdates: () -> Void = {}
+    @ObservationIgnored var onWellnessAction: ((String, [String], String) -> Void)?
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var trackers: [AlertKind: AlertTracker] = [:]
@@ -373,7 +374,15 @@ extension AlertController: UNUserNotificationCenterDelegate {
                                                    withCompletionHandler completionHandler: @escaping () -> Void) {
         let tab = (response.notification.request.content.userInfo["tab"] as? String).flatMap(PanelTab.init(rawValue:))
         let updates = response.notification.request.content.userInfo["updates"] as? Bool == true
+        let wellness = response.notification.request.content.userInfo["wellness"] as? Bool == true
+        let kinds = response.notification.request.content.userInfo["wellness_kinds"] as? [String] ?? []
+        let nonce = response.notification.request.content.userInfo["wellness_id"] as? String ?? ""
+        let action = response.actionIdentifier
         completionHandler()
+        if wellness {
+            Task { @MainActor [weak self] in self?.onWellnessAction?(action, kinds, nonce) }
+            return
+        }
         if updates {
             Task { @MainActor [weak self] in self?.openUpdates() }
             return

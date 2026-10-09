@@ -1874,3 +1874,68 @@ Xcode 代码补全模型	Xcode-Codevervollständigungsmodelle
 已关闭（受管理）	Aus (verwaltet)
 未开启	Nicht aktiviert
 模型未就绪	Modell nicht bereit
+专注与健康	Fokus & Wohlbefinden
+专注计时、休息与喝水提醒、呼吸练习。	Fokus-Timer, Pausen- und Trinkerinnerungen sowie Atemübungen.
+健康提醒	Wohlbefinden
+休息提醒	Pausenerinnerung
+喝水提醒	Trinkerinnerung
+到期后轻量提示，临近番茄休息时合并。	Sanfte Hinweise werden mit einer bevorstehenden Pomodoro-Pause verbunden.
+提醒间隔	Erinnerungsintervall
+短休时长	Kurze Pausendauer
+只在主动确认后记录，不自动计算饮水量。	Nur nach Bestätigung erfassen; keine automatische Schätzung der Trinkmenge.
+每日记录目标	Tägliches Erfassungsziel
+按次数记录，目标可留空。	Bestätigungen zählen; ein Ziel ist optional.
+不设目标	Kein Ziel
+呼吸节奏	Atemrhythmus
+舒缓模式不屏息，按舒适的节奏练习。	Sanfter Modus ohne Anhalten. In angenehmem Tempo üben.
+练习时长	Übungsdauer
+舒缓呼吸	Sanftes Atmen
+箱式呼吸	Box-Atmung
+吸气	Einatmen
+屏息	Anhalten
+呼气	Ausatmen
+饮水记录	Trinkprotokoll
+已喝水	Getrunken
+稍后 10 分钟	In 10 Minuten
+开始短休	Kurz pausieren
+稍后	Später
+下次提醒	Nächste Erinnerung
+待处理	Ausstehend
+在设置中开启提醒，未开始番茄钟时也能使用。	Erinnerungen in den Einstellungen aktivieren. Sie funktionieren auch ohne Pomodoro.
+撤销记录	Eintrag rückgängig
+继续专注	Fokus fortsetzen
+未开始专注	Fokus nicht gestartet
+无法保存健康记录，请稍后重试。	Aufzeichnungen konnten nicht gespeichert werden. Später erneut versuchen.
+今日概览	Heute im Überblick
+查看统计	Statistik ansehen
+其中呼吸练习	Davon Atemübungen
+活动统计	Aktivitätsstatistik
+最近 7 天	Letzte 7 Tage
+今日时间线	Heutiger Verlauf
+今天还没有活动记录。	Heute noch keine Aktivitäten erfasst.
+仅保存在这台 Mac，保留 90 天。	Nur auf diesem Mac gespeichert, für 90 Tage.
+清除记录	Einträge löschen
+清除健康记录？	Aufzeichnungen löschen?
+将删除本机健康活动记录，番茄配置和已有完成轮数保留。	Lokale Aktivitäten löschen; Pomodoro-Einstellungen und bisherige abgeschlossene Runden bleiben erhalten.
+按舒适的节奏呼吸，无需用力。	Bequem atmen, ohne Anstrengung.
+结束练习	Übung beenden
+按 Esc 随时返回	Mit Esc jederzeit zurück
+休息一下，也别忘了喝水。	Eine Pause machen und ans Trinken denken.
+喝点水，按自己的需要记录。	Etwas trinken und nach Bedarf erfassen.
+看看远处，活动一下肩颈。	In die Ferne schauen und Schultern und Nacken bewegen.
+尚未开启	Nicht aktiviert
+日期	Datum
+{} 次	{} Einträge
+已记录 {} 轮	{} Runden erfasst
+呼吸练习	Atemübung
+休息	Pause
+分钟	Minuten
+活动	Aktivität
+1 次	1 Eintrag
+开始专注	Fokus starten
+开始下一轮	Nächste Runde starten
+休息后自动开始下一轮	Nächste Runde nach der Pause automatisch starten
+关闭时，休息结束后由你开始下一轮。	Wenn deaktiviert, starten Sie die nächste Runde nach der Pause selbst.
+专注时长	Fokusdauer
+长休息	Lange Pause
+结束	Beenden

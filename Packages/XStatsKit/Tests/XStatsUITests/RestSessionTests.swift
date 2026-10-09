@@ -197,6 +197,100 @@ private func noonClock(_ now: @escaping () -> UInt64) -> () -> Date {
 
 @MainActor
 @Suite struct RestSettingsTests {
+    @Test func automaticNextRoundKeepsSavedModesAndDefaultsOff() throws {
+        let suite = "RestAutomaticRoundTests.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        #expect(!settings.restAutomaticallyStartsNextRound)
+        settings.restMode = .workday
+        #expect(settings.restAutomaticallyStartsNextRound)
+        settings.restAutomaticallyStartsNextRound = true
+        #expect(settings.restMode == .workday)
+        settings.restAutomaticallyStartsNextRound = false
+        #expect(settings.restMode == .single)
+        settings.restAutomaticallyStartsNextRound = true
+        #expect(settings.restMode == .cycle)
+        let document = try JSONDecoder().decode(SettingsDocument.self, from: JSONEncoder().encode(settings.exportDocument()))
+        #expect(document.restMode == RestRunMode.cycle.rawValue)
+    }
+
+    @Test(arguments: RestRunMode.allCases)
+    func commonEndActionPreservesCompletedRoundsAndReturnsToIdle(mode: RestRunMode) {
+        let suite = "RestEndActionTests.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.restEnabled = true; settings.restMode = mode
+        var now: UInt64 = 0
+        let rest = RestController(settings: settings, localDefaults: defaults, sharedDefaults: nil, clock: { now })
+        rest.sync()
+        #expect(rest.primaryAction == .startFocus && !rest.canEndSession)
+        rest.setRunning(true)
+        #expect(rest.primaryAction == .pause && rest.canEndSession)
+        now = 10_000_000_000
+        rest.setRunning(false)
+        #expect(rest.primaryAction == .resume)
+        rest.setRunning(true)
+        now = 1500_000_000_000
+        rest.sync()
+        #expect(rest.phase == .rest && rest.completedToday == 1)
+        rest.endSession()
+        #expect(!rest.isRunning && !rest.isWorkdayActive && !rest.canEndSession)
+        #expect(rest.phase == .work && rest.secondsRemaining == 1500)
+        #expect(rest.completedToday == 1 && rest.primaryAction == .startFocus)
+        rest.stop()
+    }
+
+    @Test func changingAutomaticNextRoundDoesNotPauseCurrentFocusOrBreak() {
+        let suite = "RestNextRoundToggleTests.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.restEnabled = true
+        var now: UInt64 = 0
+        let rest = RestController(settings: settings, localDefaults: defaults, sharedDefaults: nil, clock: { now })
+        rest.setRunning(true)
+        let focusDeadline = rest.deadline
+        now = 10_000_000_000
+        settings.restAutomaticallyStartsNextRound = true
+        rest.modeDidChange()
+        #expect(rest.isRunning && rest.deadline == focusDeadline)
+        #expect(rest.secondsRemaining == 1490)
+        now = 1500_000_000_000; rest.sync()
+        let breakDeadline = rest.deadline
+        settings.restAutomaticallyStartsNextRound = false
+        rest.modeDidChange()
+        #expect(rest.phase == .rest && rest.isRunning && rest.deadline == breakDeadline)
+        now = 1800_000_000_000; rest.sync()
+        #expect(!rest.isRunning && rest.primaryAction == .startNextRound)
+        settings.restAutomaticallyStartsNextRound = true
+        rest.modeDidChange()
+        #expect(!rest.isRunning)
+        rest.stop()
+    }
+
+    @Test func manualNextRoundIsReadyOnlyAfterRestAndAutomaticRoundKeepsRunning() {
+        let suite = "RestNextRoundTests.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.restEnabled = true
+        var now: UInt64 = 0
+        let rest = RestController(settings: settings, localDefaults: defaults, sharedDefaults: nil, clock: { now })
+        rest.setRunning(true)
+        now = 1800_000_000_000; rest.sync()
+        #expect(!rest.isRunning && rest.primaryAction == .startNextRound)
+        rest.startPause()
+        #expect(rest.isRunning)
+        rest.endSession()
+        settings.restAutomaticallyStartsNextRound = true
+        rest.setRunning(true)
+        now += 1800_000_000_000; rest.sync()
+        #expect(rest.isRunning && rest.phase == .work && rest.primaryAction == .pause)
+        rest.stop()
+    }
+
     @Test func previewDoesNotPersistOrTriggerARestSession() {
         let suite = "RestPreview.\(UUID())"
         let defaults = UserDefaults(suiteName: suite)!
@@ -276,12 +370,11 @@ private func noonClock(_ now: @escaping () -> UInt64) -> () -> Date {
         #expect(rest.completedToday == 3 && rest.phase == .work)
         settings.restMode = .single
         rest.modeDidChange()
-        #expect(rest.isWorkdayActive && !rest.isRunning)
-        #expect(rest.secondsRemaining == 20 * 60 && rest.canContinue)
+        #expect(rest.isWorkdayActive && rest.isRunning)
+        #expect(rest.secondsRemaining == 20 * 60)
         settings.restMode = .workday
         rest.modeDidChange()
         #expect(rest.isWorkdayActive && rest.secondsRemaining == 20 * 60)
-        rest.startPause()
         now = 115 * 60_000_000_000
         rest.sync()
         #expect(rest.phase == .longRest && rest.completedToday == 4)
