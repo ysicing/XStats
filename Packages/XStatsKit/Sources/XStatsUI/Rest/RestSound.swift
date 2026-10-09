@@ -2,17 +2,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import AVFoundation
+import Foundation
 import Localization
 
 public enum RestSound: String, CaseIterable, Identifiable, Sendable {
-    case off, white, pink, rain
+    case off, rain, stream, wind, pink, white
     public var id: String { rawValue }
     var title: String {
         switch self {
         case .off: tr("关闭")
         case .white: tr("白噪音")
         case .pink: tr("粉红噪音")
-        case .rain: tr("雨声")
+        case .rain: tr("轻雨")
+        case .stream: tr("溪流")
+        case .wind: tr("风声")
         }
     }
 }
@@ -79,8 +82,8 @@ final class RestSoundPlayer {
 }
 
 /// AVAudioSourceNode 在音频线程调用此闭包；在非隔离函数中创建，避免继承播放器的 MainActor。
-nonisolated private func makeNoiseSourceNode(format: AVAudioFormat, mode: RestSound) -> AVAudioSourceNode {
-    let generator = NoiseGenerator(mode: mode)
+nonisolated func makeNoiseSourceNode(format: AVAudioFormat, mode: RestSound) -> AVAudioSourceNode {
+    let generator = RestSoundGenerator(mode: mode, sampleRate: format.sampleRate)
     return AVAudioSourceNode(format: format) { _, _, frameCount, audioBufferList in
         let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
         for frame in 0..<Int(frameCount) {
@@ -94,7 +97,7 @@ nonisolated private func makeNoiseSourceNode(format: AVAudioFormat, mode: RestSo
 }
 
 /// 单个 source node 的渲染回调独占采样状态，不向其他线程暴露。
-nonisolated private final class NoiseGenerator {
+nonisolated final class RestSoundGenerator {
     let mode: RestSound
     private var seed: UInt64 = 0x9E3779B97F4A7C15
     private var lowA: Float = 0
@@ -105,18 +108,50 @@ nonisolated private final class NoiseGenerator {
     private var pink4: Float = 0
     private var pink5: Float = 0
     private var pink6: Float = 0
-    private var drops: Float = 0
+    private var ambientBody: Float = 0
+    private var ambientGain: Float = 1
+    private var targetGain: Float = 1
+    private var framesUntilVariation = 0
+    private var fade: Float = 0
+    private var bubbleA = StreamBubbleVoice()
+    private var bubbleB = StreamBubbleVoice()
+    private var bubbleFramesRemaining = 0
+    private let sampleRate: Double
+    private let broadCoefficient: Float
+    private let bodyCoefficient: Float
+    private let gainCoefficient: Float
+    private let variationFrames: Int
+    private let fadeStep: Float
 
-    init(mode: RestSound) { self.mode = mode }
+    init(mode: RestSound, sampleRate: Double = 44_100) {
+        precondition(sampleRate.isFinite && sampleRate > 0)
+        self.mode = mode
+        self.sampleRate = sampleRate
+        // 底层水流/雨幕/风声使用低通噪声；溪流另外叠加有界水泡共振，避免仅靠换频带区分。
+        let frequencies: (Double, Double)
+        let variation: (interval: Double, smoothing: Double)
+        switch mode {
+        case .rain: frequencies = (1400, 150); variation = (3, 0.7)
+        case .stream: frequencies = (1200, 240); variation = (0.45, 0.28)
+        case .wind: frequencies = (500, 70); variation = (4, 1.5)
+        default: frequencies = (1400, 150); variation = (3, 0.7)
+        }
+        broadCoefficient = Float(1 - exp(-2 * Double.pi * frequencies.0 / sampleRate))
+        bodyCoefficient = Float(1 - exp(-2 * Double.pi * frequencies.1 / sampleRate))
+        gainCoefficient = Float(1 - exp(-1 / (sampleRate * variation.smoothing)))
+        variationFrames = max(1, Int(sampleRate * variation.interval))
+        fadeStep = Float(1 / (sampleRate * 0.2))
+    }
 
     func next() -> Float {
         seed ^= seed << 13
         seed ^= seed >> 7
         seed ^= seed << 17
         let white = Float(seed & 0xFFFF) / 32767.5 - 1
+        let sample: Float
         switch mode {
         case .off: return 0
-        case .white: return white * 0.35
+        case .white: sample = white * 0.35
         case .pink:
             // Paul Kellett 的 pink-noise 滤波系数；多极点近似 1/f 频谱。
             // https://www.musicdsp.org/en/latest/Filters/76-pink-noise-filter.html
@@ -126,14 +161,90 @@ nonisolated private final class NoiseGenerator {
             pink3 = 0.86650 * pink3 + white * 0.3104856
             pink4 = 0.55000 * pink4 + white * 0.5329522
             pink5 = -0.7616 * pink5 - white * 0.0168980
-            let sample = pink0 + pink1 + pink2 + pink3 + pink4 + pink5 + pink6 + white * 0.5362
+            sample = (pink0 + pink1 + pink2 + pink3 + pink4 + pink5 + pink6 + white * 0.5362) * 0.11
             pink6 = white * 0.115926
-            return sample * 0.11
-        case .rain:
-            lowA += 0.035 * (white - lowA)
-            if seed & 0x1FFF == 0 { drops = 0.75 }
-            drops *= 0.998
-            return lowA * 0.7 + white * drops * 0.25
+        case .rain, .stream, .wind:
+            lowA += broadCoefficient * (white - lowA)
+            ambientBody += bodyCoefficient * (white - ambientBody)
+            if framesUntilVariation == 0 {
+                let variation = Float((seed >> 32) & 0xFFFF) / 65535
+                switch mode {
+                case .rain: targetGain = 0.85 + variation * 0.2
+                case .stream: targetGain = 0.75 + variation * 0.4
+                case .wind: targetGain = 0.65 + variation * 0.35
+                default: break
+                }
+                framesUntilVariation = variationFrames
+            }
+            framesUntilVariation -= 1
+            ambientGain += gainCoefficient * (targetGain - ambientGain)
+            switch mode {
+            case .rain: sample = (lowA * 0.5 + ambientBody * 0.28) * ambientGain
+            case .stream:
+                if bubbleFramesRemaining == 0 {
+                    let pitch = Double((seed >> 16) & 0xFFFF) / 65535
+                    let size = Double((seed >> 32) & 0xFFFF) / 65535
+                    let frequency = 240 + pitch * 550
+                    let duration = 0.10 + size * 0.08
+                    let amplitude = Float(0.13 + size * 0.10)
+                    // 只使用空闲声部，不能覆盖尚未淡出的水泡而产生突兀截断。
+                    if !bubbleA.isActive {
+                        bubbleA.start(frequency: frequency, duration: duration, amplitude: amplitude, sampleRate: sampleRate)
+                        bubbleFramesRemaining = max(1, Int(sampleRate * (0.065 + pitch * 0.085)))
+                    } else if !bubbleB.isActive {
+                        bubbleB.start(frequency: frequency, duration: duration, amplitude: amplitude, sampleRate: sampleRate)
+                        bubbleFramesRemaining = max(1, Int(sampleRate * (0.065 + pitch * 0.085)))
+                    } else {
+                        bubbleFramesRemaining = max(1, Int(sampleRate * 0.01))
+                    }
+                }
+                bubbleFramesRemaining -= 1
+                sample = ((lowA * 0.12 + ambientBody * 0.16) + bubbleA.next() + bubbleB.next()) * ambientGain
+            case .wind: sample = (lowA * 0.38 + ambientBody * 0.58) * ambientGain
+            default: sample = 0
+            }
         }
+        // 前 200ms 平滑渐入，切换与试听的第一帧不突然跳到完整音量。
+        fade = min(1, fade + fadeStep)
+        return sample * fade * fade * (3 - 2 * fade)
+    }
+}
+
+/// 两个短暂水泡交替发声；缓慢升高共振频率并衰减，形成流动水声中的细小咕噜质感。
+/// 振荡状态属于同一个音频回调，无线程共享；三角系数只在每次水泡开始时计算。
+nonisolated private struct StreamBubbleVoice {
+    private var current = 0.0
+    private var previous = 0.0
+    private var coefficient = 0.0
+    private var coefficientStep = 0.0
+    private var age = 0
+    private var length = 0
+    private var amplitude: Float = 0
+
+    var isActive: Bool { age < length }
+
+    mutating func start(frequency: Double, duration: Double, amplitude: Float, sampleRate: Double) {
+        length = max(1, Int(duration * sampleRate))
+        age = 0
+        current = 0
+        let omega = 2 * Double.pi * frequency / sampleRate
+        previous = -sin(omega)
+        coefficient = 2 * cos(omega)
+        coefficientStep = (2 * cos(omega * 1.45) - coefficient) / Double(length)
+        self.amplitude = amplitude
+    }
+
+    mutating func next() -> Float {
+        guard age < length else { return 0 }
+        let progress = Double(age) / Double(length)
+        let attack = min(1, progress / 0.12)
+        let envelope = attack * attack * (3 - 2 * attack) * (1 - progress) * (1 - progress)
+        let sample = Float(current * envelope) * amplitude
+        let following = coefficient * current - previous
+        previous = current
+        current = following
+        coefficient += coefficientStep
+        age += 1
+        return sample
     }
 }

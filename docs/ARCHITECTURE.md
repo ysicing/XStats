@@ -328,6 +328,17 @@ Clearing history starts a new segment for any active timer and preserves old Pom
 `WellnessPreferences` is included in settings backups; activities are local-only and excluded. Existing
 rest preference keys and completion counts remain valid; no historical durations are synthesized.
 
+Rest sound choices include light rain, stream and wind, synthesized locally alongside white and
+pink noise. The persisted `rain` identifier now displays as Light Rain; older preferences and
+backups remain valid. Natural soundscapes use sample-rate-aware low-pass bands with different slow gain envelopes.
+Stream adds two short, overlapping bubble resonances with rising pitch and smooth attack/decay,
+against a quieter flowing-water bed. Occupied voices are allowed to finish rather than cut off.
+Coefficients are computed at creation or bubble onset; the audio callback owns its generator
+and performs no allocation, UI access, locks or per-sample trigonometry. A 200 ms onset ramp avoids
+an abrupt full-level first frame. The existing five-second preview and rest playback lifecycle
+continue to stop the engine and release its configuration observer. No recordings, downloads,
+microphone access or new dependencies are introduced.
+
 ## AI process explanations
 
 The Apple Intelligence row in System Information and the process explanation card share a native

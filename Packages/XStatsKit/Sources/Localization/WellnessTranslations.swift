@@ -82,5 +82,8 @@ extension Translations {
 专注时长	Focus duration
 长休息	Long break
 结束	End
+溪流	Stream
+轻雨	Light rain
+风声	Wind
 """#
 }

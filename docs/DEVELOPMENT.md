@@ -354,3 +354,5 @@ Sparkle 私钥使用已有钥匙串账户，构建后的源码或摘要译文变
 在该定向模式后加 `--verify-runtime` 会短暂显示独立呼吸预览窗口，测量空闲、可见呼吸、暂停和关闭四个阶段，将 CPU 时间、峰值驻留内存与计时器状态写入 `runtime.json`。不创建通知管理器、不请求权限，也不改已安装应用。该结果为短时独立进程测量，不能代替多屏、系统专注模式或长期能耗验收。
 
 专注页统一为开始专注、暂停/继续、结束；休息后默认等待“开始下一轮”，设置中的“休息后自动开始下一轮”只影响后续衔接，不暂停当前计时。现有 `restMode` 偏好与备份继续读取，不新增持久化字段。`RestSettingsTests` 覆盖默认值、旧配置映射、切换开关保留截止点、三种已保存配置下的统一结束操作，以及完成轮数保留。
+
+休息环境音定向验证：`swift test --package-path Packages/XStatsKit --filter 'RestAmbientSoundTests|RestSoundPreviewTests'`。覆盖采样幅度/DC/起始渐入、44.1/48 kHz 生成、旧 `rain` 标识与设置备份、AVAudioEngine 离线渲染及连续切换后的引擎释放。可用 `XSTATS_SOUND_ARTIFACTS="$PWD/build/relaxing-sounds-validation"` 运行测试，生成轻雨、溪流、风声各八秒的 WAV；测试采用离线引擎，不向扬声器播放。试听文件结尾单独淡出，便于对比；实时播放器保持原有停止方式。交付前运行完整 `task test`。
