@@ -51,6 +51,11 @@ enum SnapshotRenderer {
             return
         }
 
+        if CommandLine.arguments.contains("--rest-hud-only") {
+            renderRestHUD(outputDirectory: outputDirectory)
+            return
+        }
+
         if CommandLine.arguments.contains("--wellness-only") {
             renderWellness(outputDirectory: outputDirectory)
             if CommandLine.arguments.contains("--verify-runtime") {
@@ -300,6 +305,65 @@ enum SnapshotRenderer {
                   to: outputDirectory.appendingPathComponent("audio-window-\(suffix).png"))
         }
         model.audio.stop()
+    }
+
+    /// HUD 样式与状态用独立偏好和演示时钟渲染，不启动计时或写入用户统计。
+    private static func renderRestHUD(outputDirectory: URL) {
+        let suite = "XStats.restHUDSnapshot.\(UUID())"
+        guard let defaults = UserDefaults(suiteName: suite) else { return }
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.language = L10n.language
+        settings.restEnabled = true
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        if CommandLine.arguments.contains("--native-preview") {
+            settings.restHUDStyle = .hourglass
+            model.rest.showPreview(phase: .work, action: .pause)
+            model.wellness.showPreview(activities: [], at: Date(), eyeRest: false)
+            let visible = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
+            var panels: [RestPanel] = []
+            for (index, name) in [NSAppearance.Name.aqua, .darkAqua].enumerated() {
+                let panel = RestPanel(contentRect: NSRect(x: visible.midX - 290 + CGFloat(index) * 304,
+                                                         y: visible.midY - 92, width: 276, height: 184),
+                                      styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+                panel.isReleasedWhenClosed = false
+                panel.isOpaque = false; panel.backgroundColor = .clear
+                panel.hasShadow = true; panel.hidesOnDeactivate = false; panel.level = .floating
+                panel.appearance = NSAppearance(named: name)
+                panel.hudDragEnabled = true
+                panel.onEscape = { [weak panel] in panel?.orderOut(nil) }
+                panel.contentView = NSHostingView(rootView: RestHUDView(rest: model.rest, close: { [weak panel] in panel?.orderOut(nil) },
+                                                                       wellness: model.wellness)
+                    .environment(model).environment(\.colorScheme, index == 0 ? .light : .dark))
+                panel.orderFrontRegardless()
+                panels.append(panel)
+            }
+            defer { for panel in panels { panel.close() } }
+            let path = outputDirectory.appendingPathComponent("native-windows.json")
+            do {
+                let records = panels.enumerated().map { ["appearance": $0.offset == 0 ? "light" : "dark", "windowNumber": $0.element.windowNumber] as [String: Any] }
+                try JSONSerialization.data(withJSONObject: records, options: [.prettyPrinted]).write(to: path)
+            } catch { reportFailure(path, error: error); return }
+            // 真正的玻璃由 WindowServer 合成，离屏 cacheDisplay 无法验证；限时展示且不启动真实计时。
+            RunLoop.main.run(until: Date().addingTimeInterval(45))
+            return
+        }
+        for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+            guard let appearance = NSAppearance(named: name) else { continue }
+            NSApp.appearance = appearance
+            for style in RestHUDStyle.allCases {
+                settings.restHUDStyle = style
+                for (state, phase, action, eyeRest) in [("focus", RestPhase.work, RestPrimaryAction.pause, false),
+                                                       ("paused", .work, .resume, false),
+                                                       ("break", .rest, .pause, false),
+                                                       ("eye-rest", .work, .pause, true)] {
+                    model.rest.showPreview(phase: phase, action: action)
+                    model.wellness.showPreview(activities: [], at: Date(), eyeRest: eyeRest)
+                    write(RestHUDView(rest: model.rest, close: {}, wellness: model.wellness), model: model, appearance: appearance,
+                          to: outputDirectory.appendingPathComponent("hud-\(style.rawValue)-\(state)-\(suffix).png"))
+                }
+            }
+        }
     }
 
     /// 在独立原生窗口中采样短时进程成本；不创建通知管理器，也不访问用户数据库。

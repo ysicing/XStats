@@ -130,6 +130,7 @@ XStats 网络连接查看	XStats Network Connection Viewer
 数字倒计时	Digital countdown
 进度圆环	Progress ring
 沙漏	Hourglass
+进度条	Progress bar
 切换迷你 HUD 样式	Switch Mini HUD style
 拖动迷你 HUD	Drag Mini HUD
 休息声音	Break sounds

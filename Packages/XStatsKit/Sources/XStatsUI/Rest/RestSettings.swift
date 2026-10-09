@@ -26,6 +26,7 @@ enum RestPrimaryAction: CaseIterable, Hashable {
 }
 
 public enum RestHUDStyle: String, CaseIterable, Identifiable, Sendable {
+    // hourglass 保留为已保存偏好的标识，界面改为更清晰的时间与进度条。
     case countdown, ring, hourglass
 
     public var id: String { rawValue }
@@ -34,7 +35,7 @@ public enum RestHUDStyle: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .countdown: tr("数字倒计时")
         case .ring: tr("进度圆环")
-        case .hourglass: tr("沙漏")
+        case .hourglass: tr("进度条")
         }
     }
 
@@ -42,7 +43,7 @@ public enum RestHUDStyle: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .countdown: "numbersign"
         case .ring: "circle.dotted.circle"
-        case .hourglass: "hourglass"
+        case .hourglass: "rectangle.bottomthird.inset.filled"
         }
     }
 

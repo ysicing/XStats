@@ -296,7 +296,15 @@ round automatically after a break; changing it preserves the current deadline an
 The stored `single`, `cycle` and `workday` preference values remain readable, with the latter two
 represented by the same switch. End resets the session to its focus start without deleting today’s
 completed count or activities. Phase selectors and mode selectors are absent from the main page. Daily completion counts
-and HUD placement stay local. Curtains, the menu-bar timer and Mini HUD belong to the main app;
+and HUD placement stay local. The Mini HUD uses a 276×184 panel with a stable time display, a
+left close action, right style selector, and 32-point footer controls. Only non-control regions drag;
+old restored window sizes are resized and clamped to the screen without discarding the saved origin.
+The three presentations are digits, a progress ring and a progress bar; the historical `hourglass`
+preference value now selects the bar. macOS 26 uses native Liquid Glass; macOS 14–15 uses
+native frosted material without an opaque tint. Reduce Transparency and offscreen snapshots
+use a solid fallback. Hover/press
+feedback does not animate layout; progress updates reuse the existing demand-driven timer.
+Curtains, the menu-bar timer and Mini HUD belong to the main app;
 noise is synthesized through `AVAudioSourceNode` during rest or an explicit five-second preview. The Widget reads shared phase
 and deadline values, so WidgetKit refresh timing cannot provide second-accurate reminders.
 

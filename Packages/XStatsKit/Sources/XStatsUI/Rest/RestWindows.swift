@@ -50,9 +50,9 @@ final class RestPanel: NSPanel {
 
     /// 下方控制按钮与顶部两个操作按钮保留正常点击，其余区域都能直接拖动。
     private func isHUDDragRegion(_ point: NSPoint) -> Bool {
-        guard point.y > 44 else { return false }
+        guard point.y > 52 else { return false }
         let inHeader = point.y >= frame.height - 42
-        let overActionButtons = L10n.language.isRightToLeft ? point.x < 60 : point.x > frame.width - 60
+        let overActionButtons = point.x < 44 || point.x > frame.width - 44
         return !inHeader || !overActionButtons
     }
 }
@@ -162,120 +162,6 @@ struct RestCountdownRing: View {
     }
 }
 
-private struct RestHUDView: View {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    let rest: RestController
-    let close: () -> Void
-    var wellness: WellnessController? = nil
-
-    var body: some View {
-        let language = rest.settings.language.resolved
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Label(wellness?.isEyeRestActive == true ? tr("护眼休息") : rest.phase.title,
-                      systemImage: wellness?.isEyeRestActive == true || rest.phase.isResting ? "eye" : "timer")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(rest.phase.isResting ? .green : .orange)
-                Spacer(minLength: 0)
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 36, height: 20)
-                    .help(tr("拖动迷你 HUD"))
-                Button {
-                    rest.settings.restHUDStyle = rest.settings.restHUDStyle.next
-                } label: {
-                    Image(systemName: rest.settings.restHUDStyle.symbol)
-                }
-                .buttonStyle(.plain)
-                .help(tr("切换迷你 HUD 样式"))
-                .accessibilityLabel(tr("切换迷你 HUD 样式"))
-                Button(action: close) { Image(systemName: "xmark") }
-                    .buttonStyle(.plain)
-                    .help(tr("收起迷你 HUD"))
-            }
-            display
-                .frame(maxWidth: .infinity)
-                .frame(height: 76)
-            HStack(spacing: 20) {
-                if let wellness, wellness.isEyeRestActive {
-                    Button { wellness.finishEyeRest(completed: false) } label: { Image(systemName: "stop.fill") }
-                        .help(tr("结束练习"))
-                } else {
-                    Button { rest.startPause() } label: {
-                        Image(systemName: rest.isRunning ? "pause.fill" : "play.fill").frame(width: 16)
-                    }
-                    .help(rest.primaryAction.title)
-                    Button { rest.endSession() } label: { Image(systemName: "stop.fill").frame(width: 16) }
-                        .help(tr("结束")).disabled(!rest.canEndSession)
-                }
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(14)
-        .frame(width: 250, height: 160)
-        .background {
-            if reduceTransparency {
-                RoundedRectangle(cornerRadius: 18).fill(Color(nsColor: .windowBackgroundColor))
-            } else {
-                RoundedRectangle(cornerRadius: 18).fill(.regularMaterial)
-            }
-        }
-        .environment(\.locale, L10n.locale(for: language))
-        .environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight)
-    }
-
-    @ViewBuilder
-    private var display: some View {
-        let progress = rest.phaseDuration > 0
-            ? min(1, max(0, 1 - rest.secondsRemaining / rest.phaseDuration)) : 0
-        let tint: Color = rest.phase.isResting ? .green : .orange
-        let clock = String(format: "%02d:%02d", max(0, Int(rest.secondsRemaining.rounded(.up))) / 60,
-                           max(0, Int(rest.secondsRemaining.rounded(.up))) % 60)
-
-        if let wellness, wellness.isEyeRestActive {
-            Text(WellnessFormat.timer(wellness.eyeRestSecondsRemaining))
-                .font(.system(size: 30, weight: .medium, design: .rounded)).monospacedDigit()
-        } else {
-            switch rest.settings.restHUDStyle {
-            case .countdown:
-                Text(clock)
-                    .font(.system(size: 30, weight: .medium, design: .rounded))
-                    .monospacedDigit()
-            case .ring:
-                ZStack {
-                    Circle().stroke(tint.opacity(0.18), lineWidth: 5)
-                    Circle().trim(from: 0, to: progress)
-                        .stroke(tint, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    Text(clock).font(.system(size: 14, weight: .semibold, design: .rounded)).monospacedDigit()
-                }
-                .frame(width: 72, height: 72)
-            case .hourglass:
-                VStack(spacing: 8) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "hourglass")
-                            .font(.system(size: 42, weight: .ultraLight))
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(tint)
-                            .accessibilityHidden(true)
-                        Text(clock)
-                            .font(.system(size: 19, weight: .medium, design: .rounded))
-                            .monospacedDigit()
-                    }
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(tint.opacity(0.14))
-                            Capsule().fill(tint)
-                                .frame(width: geometry.size.width * (1 - progress))
-                        }
-                    }
-                    .frame(width: 142, height: 4)
-                }
-            }
-        }
-    }
-}
 
 @MainActor
 final class RestWindowController {
@@ -343,7 +229,7 @@ final class RestWindowController {
     func showHUD() {
         guard hud?.isVisible != true else { return }
         let isNew = hud == nil
-        let panel = hud ?? RestPanel(contentRect: NSRect(x: 0, y: 0, width: 250, height: 160),
+        let panel = hud ?? RestPanel(contentRect: NSRect(x: 0, y: 0, width: 276, height: 184),
                                      styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         hud = panel
         panel.isReleasedWhenClosed = false
@@ -359,10 +245,17 @@ final class RestWindowController {
             rest?.setHUDVisible(false)
         }, wellness: wellness))
         let visible = NSScreen.main?.visibleFrame ?? .zero
-        let defaultOrigin = NSPoint(x: visible.maxX - 266, y: visible.midY - 80)
+        let defaultOrigin = NSPoint(x: visible.maxX - 292, y: visible.midY - 92)
         if isNew {
             panel.setFrameAutosaveName("XStatsRestHUD")
             if !panel.setFrameUsingName("XStatsRestHUD") { panel.setFrameOrigin(defaultOrigin) }
+        }
+        // 旧版保存的窗口尺寸也要更新，保留用户位置，再限制到当前显示器可用范围。
+        panel.setContentSize(NSSize(width: 276, height: 184))
+        if let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(panel.frame) }) {
+            let area = screen.visibleFrame
+            panel.setFrameOrigin(NSPoint(x: min(max(panel.frame.minX, area.minX), area.maxX - panel.frame.width),
+                                         y: min(max(panel.frame.minY, area.minY), area.maxY - panel.frame.height)))
         }
         if !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(panel.frame) }) {
             panel.setFrameOrigin(defaultOrigin)
@@ -381,7 +274,7 @@ final class RestWindowController {
         if let hud, hud.isVisible {
             if !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(hud.frame) }) {
                 let visible = NSScreen.main?.visibleFrame ?? .zero
-                hud.setFrameOrigin(NSPoint(x: visible.maxX - 266, y: visible.midY - 80))
+                hud.setFrameOrigin(NSPoint(x: visible.maxX - 292, y: visible.midY - 92))
             }
         }
     }

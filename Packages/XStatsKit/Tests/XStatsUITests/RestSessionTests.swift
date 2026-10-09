@@ -489,7 +489,7 @@ private func noonClock(_ now: @escaping () -> UInt64) -> () -> Date {
     }
 
     @Test func hudWindowDragsFromTheTimerArea() throws {
-        let window = RestPanel(contentRect: NSRect(x: 500, y: 500, width: 250, height: 160),
+        let window = RestPanel(contentRect: NSRect(x: 500, y: 500, width: 276, height: 184),
                                styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.hudDragEnabled = true
@@ -508,12 +508,12 @@ private func noonClock(_ now: @escaping () -> UInt64) -> () -> Date {
     }
 
     @Test func hudActionButtonsDoNotStartAWindowDrag() throws {
-        let window = RestPanel(contentRect: NSRect(x: 500, y: 500, width: 250, height: 160),
+        let window = RestPanel(contentRect: NSRect(x: 500, y: 500, width: 276, height: 184),
                                styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.hudDragEnabled = true
         let start = window.frame.origin
-        let down = try #require(NSEvent.mouseEvent(with: .leftMouseDown, location: NSPoint(x: 220, y: 135),
+        let down = try #require(NSEvent.mouseEvent(with: .leftMouseDown, location: NSPoint(x: 250, y: 158),
                                                    modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber,
                                                    context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
         let dragged = try #require(NSEvent.mouseEvent(with: .leftMouseDragged, location: NSPoint(x: 150, y: 100),
@@ -523,6 +523,21 @@ private func noonClock(_ now: @escaping () -> UInt64) -> () -> Date {
         window.sendEvent(dragged)
         #expect(window.frame.origin == start)
         window.close()
+    }
+
+    @Test(arguments: [NSPoint(x: 28, y: 156), NSPoint(x: 216, y: 30)])
+    func hudCloseAndFooterButtonsDoNotDragWindow(point: NSPoint) throws {
+        let window = RestPanel(contentRect: NSRect(x: 500, y: 500, width: 276, height: 184),
+                               styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.hudDragEnabled = true
+        defer { window.close() }
+        let origin = window.frame.origin
+        let down = try #require(NSEvent.mouseEvent(with: .leftMouseDown, location: point, modifierFlags: [], timestamp: 0,
+                                                   windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+        let dragged = try #require(NSEvent.mouseEvent(with: .leftMouseDragged, location: NSPoint(x: 130, y: 90), modifierFlags: [], timestamp: 1,
+                                                      windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+        window.sendEvent(down); window.sendEvent(dragged)
+        #expect(window.frame.origin == origin)
     }
 
     @Test func hudStylesCycleInAStableOrder() {
