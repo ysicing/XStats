@@ -35,7 +35,7 @@ final class RestMenuBarController: NSObject {
                 button.target = self
                 button.action = #selector(clicked(_:))
                 button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-                button.image = NSImage(systemSymbolName: "timer", accessibilityDescription: tr("专注与健康"))
+                button.image = NSImage(systemSymbolName: "timer", accessibilityDescription: tr("专注与护眼"))
                 button.image?.isTemplate = true
             }
             self.item = item
@@ -46,18 +46,18 @@ final class RestMenuBarController: NSObject {
 
     func update() {
         guard let button = item?.button else { return }
-        if let wellness, wellness.activeExercise != nil {
-            button.title = " " + WellnessFormat.timer(wellness.exerciseSecondsRemaining)
+        if let wellness, wellness.isEyeRestActive {
+            button.title = " " + WellnessFormat.timer(wellness.eyeRestSecondsRemaining)
         } else if rest.isRunning {
             button.title = " " + WellnessFormat.timer(rest.secondsRemaining)
         } else {
             button.title = ""
         }
         let pending = wellness?.pending ?? []
-        let symbol = pending.contains(.water) ? "drop.fill" : pending.contains(.rest) ? "eye" : "timer"
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: tr("专注与健康"))
+        let symbol = pending.contains(.rest) ? "eye" : "timer"
+        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: tr("专注与护眼"))
         button.image?.isTemplate = true
-        button.toolTip = tr("专注与健康") + " · " + tr(!pending.isEmpty ? "待处理" : rest.isRunning ? "计时中" : "未开始专注")
+        button.toolTip = tr("专注与护眼") + " · " + tr(!pending.isEmpty ? "待处理" : rest.isRunning ? "计时中" : "未开始专注")
     }
 
     @objc private func clicked(_ sender: NSStatusBarButton) {

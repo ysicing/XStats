@@ -547,7 +547,7 @@ final class RestController {
         if settings.restEnabled && isRunning && phase.isResting {
             // 真正的休息接管同一个引擎，试听截止任务不能停止后续休息声音。
             cancelSoundPreview()
-            audio.play(settings.restSound)
+            audio.play(settings.restSound, customURL: settings.restCustomAudioURL)
         } else if isPreviewingSound {
             if !settings.restEnabled || audio.playing != settings.restSound { stopSoundPreview() }
         } else {
@@ -556,14 +556,16 @@ final class RestController {
     }
 
     var canPreviewSound: Bool {
-        settings.restEnabled && settings.restSound != .off && !(isRunning && phase.isResting)
+        settings.restEnabled && settings.restSound != .off
+            && (settings.restSound != .custom || settings.restCustomAudioURL != nil)
+            && !(isRunning && phase.isResting)
     }
 
     @discardableResult
     func startSoundPreview() -> Bool {
         guard canPreviewSound else { return false }
         cancelSoundPreview()
-        audio.play(settings.restSound)
+        audio.play(settings.restSound, customURL: settings.restCustomAudioURL)
         guard audio.playing == settings.restSound else { return false }
         isPreviewingSound = true
         // 仅用户点击后创建一次截止任务，停止、关闭或休眠时立即取消。

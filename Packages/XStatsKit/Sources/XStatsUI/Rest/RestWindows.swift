@@ -64,23 +64,11 @@ private struct RestOverlayContent: View {
 
     var body: some View {
         ZStack {
-            if let wellness, wellness.activeExercise != nil {
+            if let wellness, wellness.isEyeRestActive {
                 if reduceTransparency { Color(nsColor: .windowBackgroundColor) } else { Color.black.opacity(0.25) }
-                WellnessExerciseView(wellness: wellness)
+                WellnessEyeRestView(wellness: wellness)
             } else {
-                VStack(spacing: DS.Space.s4) {
-                    RestOverlayView(rest: rest)
-                    if let wellness, !wellness.pending.isEmpty {
-                        HStack(spacing: DS.Space.s3) {
-                            if wellness.pending.contains(.water) {
-                                Button(tr("已喝水")) { wellness.recordWater() }
-                                    .buttonStyle(DSButtonStyle(kind: .secondary))
-                            }
-                            Button(tr("呼吸练习")) { wellness.startBreathing() }
-                                .buttonStyle(DSButtonStyle(kind: .secondary))
-                        }
-                    }
-                }
+                RestOverlayView(rest: rest)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -91,7 +79,7 @@ private struct RestOverlayView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let rest: RestController
-    @State private var breathing = false
+    @State private var haloPulse = false
     @State private var holding = false
 
     var body: some View {
@@ -105,7 +93,7 @@ private struct RestOverlayView: View {
             VStack(spacing: 22) {
                 RestCountdownRing(title: rest.phase.title, secondsRemaining: rest.secondsRemaining,
                                   duration: rest.phaseDuration,
-                                  haloScale: breathing && !reduceMotion ? 1.12 : 0.9)
+                                  haloScale: haloPulse && !reduceMotion ? 1.12 : 0.9)
                 Text(tr(rest.settings.restMode == .workday ? "起身活动一下" : "让眼睛休息一下"))
                     .font(.system(size: 34, weight: .medium, design: .rounded))
                     .tracking(-1)
@@ -139,7 +127,7 @@ private struct RestOverlayView: View {
         .environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight)
         .onAppear {
             guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 3.5).repeatForever(autoreverses: true)) { breathing = true }
+            withAnimation(.easeInOut(duration: 3.5).repeatForever(autoreverses: true)) { haloPulse = true }
         }
     }
 }
@@ -184,8 +172,8 @@ private struct RestHUDView: View {
         let language = rest.settings.language.resolved
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                Label(wellness?.activeExercise == .breathing ? tr("呼吸练习") : wellness?.activeExercise == .rest ? tr("休息") : rest.phase.title,
-                      systemImage: wellness?.activeExercise == .breathing ? "wind" : rest.phase.isResting ? "eye" : "timer")
+                Label(wellness?.isEyeRestActive == true ? tr("护眼休息") : rest.phase.title,
+                      systemImage: wellness?.isEyeRestActive == true || rest.phase.isResting ? "eye" : "timer")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(rest.phase.isResting ? .green : .orange)
                 Spacer(minLength: 0)
@@ -210,13 +198,8 @@ private struct RestHUDView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 76)
             HStack(spacing: 20) {
-                if let wellness, wellness.activeExercise != nil {
-                    if wellness.activeExercise == .breathing {
-                        Button { wellness.toggleBreathingPause() } label: {
-                            Image(systemName: wellness.isExerciseRunning ? "pause.fill" : "play.fill")
-                        }.help(tr(wellness.isExerciseRunning ? "暂停" : "继续"))
-                    }
-                    Button { wellness.finishExercise(completed: false) } label: { Image(systemName: "stop.fill") }
+                if let wellness, wellness.isEyeRestActive {
+                    Button { wellness.finishEyeRest(completed: false) } label: { Image(systemName: "stop.fill") }
                         .help(tr("结束练习"))
                 } else {
                     Button { rest.startPause() } label: {
@@ -250,8 +233,8 @@ private struct RestHUDView: View {
         let clock = String(format: "%02d:%02d", max(0, Int(rest.secondsRemaining.rounded(.up))) / 60,
                            max(0, Int(rest.secondsRemaining.rounded(.up))) % 60)
 
-        if let wellness, wellness.activeExercise != nil {
-            Text(WellnessFormat.timer(wellness.exerciseSecondsRemaining))
+        if let wellness, wellness.isEyeRestActive {
+            Text(WellnessFormat.timer(wellness.eyeRestSecondsRemaining))
                 .font(.system(size: 30, weight: .medium, design: .rounded)).monospacedDigit()
         } else {
             switch rest.settings.restHUDStyle {
@@ -325,7 +308,7 @@ final class RestWindowController {
             panel.appearance = NSAppearance(named: .darkAqua)
             panel.hasShadow = false
             panel.onEscape = { [weak rest, weak wellness] in
-                if wellness?.activeExercise != nil { wellness?.finishExercise(completed: false) }
+                if wellness?.isEyeRestActive == true { wellness?.finishEyeRest(completed: false) }
                 else { rest?.skip() }
             }
             let blur = NSVisualEffectView(frame: NSRect(origin: .zero, size: screen.frame.size))
@@ -394,7 +377,7 @@ final class RestWindowController {
     }
 
     private func refreshScreens() {
-        if rest.phase.isResting && rest.isRunning || wellness?.activeExercise != nil { showRest() }
+        if rest.phase.isResting && rest.isRunning || wellness?.isEyeRestActive == true { showRest() }
         if let hud, hud.isVisible {
             if !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(hud.frame) }) {
                 let visible = NSScreen.main?.visibleFrame ?? .zero

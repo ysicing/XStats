@@ -52,7 +52,7 @@ Manage Basic and Optional Features separately in Settings → Features.
 
 <p align="center">
   <img src="Assets/readme/monitoring-features-zh-Hans-light.png" width="49%" alt="Basic Features: separate activation and menu bar display controls">
-  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="Optional Features: grouped tools, modules, Focus & Wellness and calendar">
+  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="Optional Features: grouped tools, modules, Focus & Eye Care and calendar">
 </p>
 
 ### System monitoring
@@ -121,14 +121,16 @@ Local statistics read CLI session logs; quota queries require the corresponding 
 | **Network diagnostics** | Speed tests, DNS queries, egress checks, public IP location and purity, connectivity probes |
 | **Menu bar calendar** | Chinese lunar calendar, holidays and make-up workdays, almanac, calendar events and reminders |
 | **Audio** | System volume and input/output switching; per-app volume and output on macOS 14.4+, processed locally |
-| **Focus & Wellness** | Pomodoro timer, multi-display break screens and mini HUD; independent break/water reminders, breathing exercises and local activity statistics |
+| **Focus & Eye Care** | Pomodoro timer, multi-display break screens and mini HUD; independent eye-break reminders and local activity statistics |
 | **Process manager** | Search, sort, group by app and end processes |
 
 Start, pause or end focus directly. After a break, start the next round when ready, or enable automatic continuation in settings. A long break follows every four focus rounds.
 
 Break sounds include light rain, stream, wind, pink noise and white noise, all synthesized locally with a five-second preview. No sound downloads or microphone access.
 
-Wellness reminders are off by default; enable them in Focus & Wellness settings. They work without Pomodoro and merge with nearby breaks without interrupting focus. Between-round breaks follow each focus round; eye breaks are brief rests you can start anytime. Their durations are configured separately. Starting an eye break or breathing exercise pauses focus; you choose when to resume. Water records count manual confirmations, not estimated volume. Activities stay on this Mac for 90 days and can be cleared in Statistics; settings backups exclude activity records. Break sounds can be previewed for 5 seconds in settings; switching sounds or closing settings stops the preview.
+Choose Custom Audio to import a local audio file (up to 50 MB) and loop it during breaks. The app keeps a local copy that works after moving the original; audio and file metadata are excluded from settings backups. The preview button is hidden when sounds are off.
+
+Eye-break reminders are off by default; enable them in Focus & Eye Care settings. They work without Pomodoro and merge with nearby between-round breaks. Between-round breaks follow focus rounds; eye breaks are short rests you can start anytime, with separate durations. Starting an eye break pauses focus; you choose when to resume. Focus and break records stay on this Mac for 90 days and can be cleared in Statistics; backups contain settings only. Preview break sounds for five seconds; changing sounds or closing settings stops playback.
 
 Enable optional tools as needed in Settings → Features → Optional Features; existing configuration is kept. Uninstaller is off by default on a new installation and stays enabled when upgrading from older versions. Privileged actions such as fan control and lid-closed keep-awake require installing and authorizing the helper from the app.
 
@@ -155,7 +157,7 @@ Network connections, AI usage and quotas, history, audio, displays and calendar 
 </p>
 <p align="center">
   <img src="Assets/readme/calendar-zh-Hans-light.png" width="49%" alt="Menu bar calendar">
-  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="Focus & Wellness: Pomodoro, reminders and today’s activity">
+  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="Focus & Eye Care: Pomodoro, reminders and today’s activity">
 </p>
 
 </details>

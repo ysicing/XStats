@@ -6,33 +6,22 @@ import Testing
 @testable import XStatsUI
 
 @MainActor struct WellnessSettingsTests {
-    @Test func oldSettingsDoNotEnableRemindersAndNewPreferencesSurviveBackup() throws {
+    @Test func legacyPreferencesKeepEyeRestAndDropRemovedFeaturesFromBackups() throws {
         let name = "WellnessSettingsTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        // 已开启的番茄功能不能自动增加任何新提醒。
-        defaults.set(true, forKey: "restEnabled")
+        defaults.set(Data(#"{"breakEnabled":true,"breakIntervalMinutes":45,"breakSeconds":120,"waterEnabled":true,"waterIntervalMinutes":60,"breathingMinutes":3,"breathingPattern":"gentle","waterGoal":8}"#.utf8), forKey: "wellnessPreferences")
         let settings = AppSettings(defaults: defaults)
-        #expect(settings.restEnabled)
-        #expect(!settings.wellnessPreferences.breakEnabled && !settings.wellnessPreferences.waterEnabled)
-        settings.wellnessPreferences.waterEnabled = true
-        settings.wellnessPreferences.waterIntervalMinutes = 90
-        settings.wellnessPreferences.breathingPattern = .box
+        #expect(settings.wellnessPreferences.breakEnabled)
+        #expect(settings.wellnessPreferences.breakIntervalMinutes == 45 && settings.wellnessPreferences.breakSeconds == 120)
         let data = try JSONEncoder().encode(settings.exportDocument())
         let document = try JSONDecoder().decode(SettingsDocument.self, from: data)
         #expect(document.wellnessPreferences == settings.wellnessPreferences)
-        #expect(String(decoding: data, as: UTF8.self).contains("activities") == false)
-        let reloaded = AppSettings(defaults: defaults)
-        #expect(reloaded.wellnessPreferences == settings.wellnessPreferences)
+        #expect(!String(decoding: data, as: UTF8.self).contains("waterEnabled"))
         settings.apply(try JSONDecoder().decode(SettingsDocument.self, from: Data("{}".utf8)))
-        #expect(settings.wellnessPreferences.waterEnabled)
-        var invalid = SettingsDocument()
-        var preferences = WellnessPreferences()
-        preferences.breakSeconds = -1
-        preferences.waterGoal = 999
-        invalid.wellnessPreferences = preferences
-        settings.apply(invalid)
+        #expect(settings.wellnessPreferences.breakEnabled)
+        var invalid = SettingsDocument(); var preferences = WellnessPreferences(); preferences.breakSeconds = -1
+        invalid.wellnessPreferences = preferences; settings.apply(invalid)
         #expect(settings.wellnessPreferences.breakSeconds == 60)
-        #expect(settings.wellnessPreferences.waterGoal == nil)
     }
 }

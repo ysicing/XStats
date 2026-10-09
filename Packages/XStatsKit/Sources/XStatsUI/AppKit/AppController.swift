@@ -778,7 +778,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
     private func reconcileRestPresentation() {
         guard !model.wellness.isSystemPaused else { restWindows.hideRest(); return }
-        if rest.phase.isResting && rest.isRunning || model.wellness.activeExercise != nil {
+        if rest.phase.isResting && rest.isRunning || model.wellness.isEyeRestActive {
             restWindows.ensureRestVisible()
         } else { restWindows.hideRest() }
     }
@@ -818,6 +818,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private func observeRestSound() {
         withObservationTracking {
             _ = model.settings.restSound
+            _ = model.settings.restCustomAudio
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 self?.rest.syncSound()

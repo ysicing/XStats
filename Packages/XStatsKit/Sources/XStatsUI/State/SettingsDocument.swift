@@ -84,7 +84,8 @@ extension AppSettings {
         doc.restDailyGoal = restDailyGoal
         doc.restCycleEnabled = restCycleEnabled
         doc.restMode = restMode.rawValue
-        doc.restSound = restSound.rawValue
+        // 自定义音频属于本机文件，其他 Mac 恢复备份时从关闭开始。
+        doc.restSound = (restSound == .custom ? RestSound.off : restSound).rawValue
         doc.restHUDStyle = restHUDStyle.rawValue
         doc.calendarFeatures = calendarFeatures.map(\.rawValue).sorted()
         doc.calendarFirstWeekday = calendarFirstWeekday

@@ -27,7 +27,7 @@ import UserNotifications
 
     func sync() {
         let preferences = wellness.settings.wellnessPreferences
-        let newlyEnabled = wellness.settings.restEnabled && (preferences.breakEnabled || preferences.waterEnabled)
+        let newlyEnabled = wellness.settings.restEnabled && preferences.breakEnabled
         if !newlyEnabled {
             permissionTask?.cancel()
             permissionTask = nil
@@ -40,20 +40,11 @@ import UserNotifications
                 guard let self else { return }
                 let categories = await self.center.notificationCategories()
                 guard !Task.isCancelled, self.enabled else { return }
-                let water = UNNotificationCategory(identifier: "XStats.wellness.water", actions: [
-                    UNNotificationAction(identifier: "water", title: tr("已喝水")),
-                    UNNotificationAction(identifier: "later", title: tr("稍后 10 分钟"))
-                ], intentIdentifiers: [])
                 let rest = UNNotificationCategory(identifier: "XStats.wellness.rest", actions: [
                     UNNotificationAction(identifier: "rest", title: tr("开始护眼休息"), options: [.foreground]),
                     UNNotificationAction(identifier: "later", title: tr("稍后 10 分钟"))
                 ], intentIdentifiers: [])
-                let combined = UNNotificationCategory(identifier: "XStats.wellness.combined", actions: [
-                    UNNotificationAction(identifier: "water", title: tr("已喝水")),
-                    UNNotificationAction(identifier: "rest", title: tr("开始护眼休息"), options: [.foreground]),
-                    UNNotificationAction(identifier: "later", title: tr("稍后 10 分钟"))
-                ], intentIdentifiers: [])
-                self.center.setNotificationCategories(Set(categories.filter { !$0.identifier.hasPrefix("XStats.wellness.") }).union([water, rest, combined]))
+                self.center.setNotificationCategories(Set(categories.filter { !$0.identifier.hasPrefix("XStats.wellness.") }).union([rest]))
                 let settings = await self.center.notificationSettings()
                 guard !Task.isCancelled, self.enabled else { return }
                 if shouldRequestPermission && settings.authorizationStatus == .notDetermined {
@@ -65,13 +56,12 @@ import UserNotifications
     }
 
     func handle(action: String, kinds: [String], nonce: String) {
-        guard enabled, !handled.contains(nonce) else { return }
+        guard enabled, !handled.contains(nonce), kinds.contains(HealthReminderKind.rest.rawValue) else { return }
         handled.append(nonce)
         if handled.count > 32 { handled.removeFirst(handled.count - 32) }
         let requested = Set(kinds.compactMap(HealthReminderKind.init(rawValue:)))
         let current = requested.intersection(wellness.pending)
         switch action {
-        case "water": if current.contains(.water) { wellness.recordWater() }
         case "rest": if current.contains(.rest) { wellness.startShortRest() }
         case "later": for kind in current { wellness.postpone(kind) }
         default: open()
@@ -90,13 +80,9 @@ import UserNotifications
         generation += 1
         let postedGeneration = generation
         let content = UNMutableNotificationContent()
-        content.title = tr("专注与健康")
-        if kinds == [.rest, .water] {
-            content.body = tr("休息一下，也别忘了喝水。")
-        } else {
-            content.body = tr(kinds.contains(.water) ? "喝点水，按自己的需要记录。" : "看看远处，活动一下肩颈。")
-        }
-        content.categoryIdentifier = kinds.count > 1 ? "XStats.wellness.combined" : kinds.contains(.water) ? "XStats.wellness.water" : "XStats.wellness.rest"
+        content.title = tr("专注与护眼")
+        content.body = tr("看看远处，活动一下肩颈。")
+        content.categoryIdentifier = "XStats.wellness.rest"
         content.userInfo = ["wellness": true, "wellness_kinds": kinds.map(\.rawValue).sorted(), "wellness_id": UUID().uuidString]
         // 提醒是建议而非告警，不使用 critical/time-sensitive 级别绕过勿扰。
         let previous = deliveryTask

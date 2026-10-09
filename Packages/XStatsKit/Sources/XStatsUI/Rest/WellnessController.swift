@@ -5,23 +5,18 @@ import Foundation
 import Localization
 import Observation
 
-enum WellnessExerciseKind: Sendable { case rest, breathing }
-
-/// 协调独立健康提醒、番茄阶段和手动练习；提醒不改番茄计时，主动休息才暂停专注。
+/// 协调独立护眼提醒、番茄阶段和手动护眼休息；提醒不改番茄计时，主动休息才暂停专注。
 @MainActor @Observable final class WellnessController {
     private(set) var pending: Set<HealthReminderKind> = []
-    private(set) var activeExercise: WellnessExerciseKind?
-    private(set) var exerciseSecondsRemaining: TimeInterval = 0
-    /// 开始练习时的实际时长；番茄休息中可能缩短，不随偏好或历史清空改变。
-    private(set) var exerciseDuration: TimeInterval = 0
-    private(set) var isExerciseRunning = false
+    private(set) var isEyeRestActive = false
+    private(set) var eyeRestSecondsRemaining: TimeInterval = 0
+    /// 开始护眼休息时的实际时长；番茄休息中可能缩短，不随偏好或历史清空改变。
+    private(set) var eyeRestDuration: TimeInterval = 0
     private(set) var canContinueFocus = false
     private(set) var summary = WellnessSummary.make(activities: [], at: Date())
     private(set) var storageError: String?
     private(set) var nextRestAt: Date?
-    private(set) var nextWaterAt: Date?
     private(set) var nextWake: TimeInterval?
-    private(set) var lastWaterID: UUID?
     var onReminder: ((Set<HealthReminderKind>) -> Void)?
     var onDismissReminder: (() -> Void)?
     var onPresentationChange: ((Bool) -> Void)?
@@ -45,14 +40,11 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
     @ObservationIgnored private var isReconciling = false
     @ObservationIgnored private var wasPomodoroRest = false
     @ObservationIgnored private var lastPresentation = false
-    @ObservationIgnored private var breathing: BreathingSession?
     @ObservationIgnored private var restDeadline: TimeInterval?
-    @ObservationIgnored private var exerciseSegmentStart: TimeInterval?
-    @ObservationIgnored private var exerciseSegmentDate: Date?
-    @ObservationIgnored private var exerciseSegmentLimit: TimeInterval = 0
+    @ObservationIgnored private var eyeRestSegmentStart: TimeInterval?
+    @ObservationIgnored private var eyeRestSegmentDate: Date?
     @ObservationIgnored private var embeddedInRest = false
     @ObservationIgnored private var preview = false
-    @ObservationIgnored private var previewReading: BreathingReading?
 
     init(rest: RestController, settings: AppSettings, store: WellnessActivityStore,
          clock: @escaping () -> TimeInterval = { Double(RestClock.now()) / 1e9 },
@@ -68,11 +60,10 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
         }
     }
 
-    var requiresTerminationPreparation: Bool { activeExercise != nil || rest.isRunning || pendingStorage > 0 }
+    var requiresTerminationPreparation: Bool { isEyeRestActive || rest.isRunning || pendingStorage > 0 }
     var hasDisplayTimer: Bool { displayTimer != nil }
     var hasDeadlineTimer: Bool { deadlineTimer != nil }
     var isSystemPaused: Bool { systemPaused }
-    var breathingReading: BreathingReading? { previewReading ?? breathing?.reading(at: clock()) }
 
     private var focusBreakAt: TimeInterval? {
         rest.isRunning && rest.phase == .work ? rest.deadline.map { Double($0) / 1e9 } : nil
@@ -86,7 +77,7 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
         schedule.configure(preferences: settings.wellnessPreferences, enabled: settings.restEnabled, at: clock())
         if !settings.restEnabled {
             onDismissReminder?()
-            finishExercise(completed: false)
+            finishEyeRest(completed: false)
             canContinueFocus = false
         }
         refresh()
@@ -107,33 +98,13 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
         // 健康和番茄截止点可能同一轮到达，先让原计时器结算，避免发出重复通知。
         if let deadline = rest.deadline, Double(deadline) / 1e9 <= clock() { rest.sync() }
         let now = clock()
-        if let breathing, breathing.reading(at: now).isFinished { finishExercise(completed: true) }
-        if let restDeadline, now >= restDeadline { finishExercise(completed: true) }
+        if let restDeadline, now >= restDeadline { finishEyeRest(completed: true) }
         let due = schedule.due(at: now, focusBreakAt: focusBreakAt)
-        if !due.isEmpty && !(rest.phase.isResting && rest.isRunning) && activeExercise == nil {
+        if !due.isEmpty && !(rest.phase.isResting && rest.isRunning) && !isEyeRestActive {
             onReminder?(schedule.pending)
         }
-        exerciseSecondsRemaining = breathing?.reading(at: now).secondsRemaining
-            ?? restDeadline.map { max(0, $0 - now) } ?? 0
-        isExerciseRunning = breathing?.isRunning ?? (restDeadline != nil)
+        eyeRestSecondsRemaining = restDeadline.map { max(0, $0 - now) } ?? 0
         publishSchedule()
-    }
-
-    func recordWater() {
-        guard settings.restEnabled && !preview else { return }
-        let now = date()
-        let activity = WellnessActivity(kind: .water, startedAt: now, endedAt: now, completed: true)
-        lastWaterID = activity.id
-        record(activity)
-        schedule.acknowledge(.water, at: clock())
-        onDismissReminder?()
-        refresh()
-    }
-
-    func undoWater() {
-        guard let id = lastWaterID else { return }
-        lastWaterID = nil
-        mutateStore { try await $0.remove(id) }
     }
 
     func postpone(_ kind: HealthReminderKind) {
@@ -143,61 +114,30 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
     }
 
     func startShortRest() {
-        guard settings.restEnabled, activeExercise == nil, !systemPaused, !preview else { return }
+        guard settings.restEnabled, !isEyeRestActive, !systemPaused, !preview else { return }
         onDismissReminder?()
         pauseFocusForExercise()
         embeddedInRest = rest.phase.isResting && rest.isRunning
         let duration = Double(settings.wellnessPreferences.normalized.breakSeconds)
-        exerciseDuration = embeddedInRest ? min(duration, pomodoroRestRemaining) : duration
-        restDeadline = clock() + exerciseDuration
-        exerciseSegmentStart = clock(); exerciseSegmentDate = date()
-        activeExercise = .rest
+        eyeRestDuration = embeddedInRest ? min(duration, pomodoroRestRemaining) : duration
+        restDeadline = clock() + eyeRestDuration
+        eyeRestSegmentStart = clock(); eyeRestSegmentDate = date()
+        isEyeRestActive = true
         refresh()
     }
 
-    func startBreathing() {
-        guard settings.restEnabled, activeExercise == nil, !systemPaused, !preview else { return }
-        onDismissReminder?()
-        pauseFocusForExercise()
-        embeddedInRest = rest.phase.isResting && rest.isRunning
-        let preferences = settings.wellnessPreferences.normalized
-        let duration = Double(preferences.breathingMinutes) * 60
-        let actualDuration = embeddedInRest ? min(duration, pomodoroRestRemaining) : duration
-        exerciseDuration = actualDuration
-        breathing = BreathingSession(now: clock(), duration: actualDuration,
-                                     pattern: preferences.breathingPattern)
-        exerciseSegmentLimit = actualDuration
-        exerciseSegmentStart = clock(); exerciseSegmentDate = date()
-        activeExercise = .breathing
-        refresh()
-    }
-
-    func toggleBreathingPause() {
-        guard var breathing else { return }
-        if breathing.isRunning {
-            recordExerciseSegment(completed: false)
-            breathing.pause(at: clock())
-        } else {
-            breathing.resume(at: clock())
-            exerciseSegmentStart = clock(); exerciseSegmentDate = date()
-            exerciseSegmentLimit = breathing.reading(at: clock()).secondsRemaining
-        }
-        self.breathing = breathing
-        refresh()
-    }
-
-    func finishExercise(completed: Bool) {
-        guard activeExercise != nil else { return }
-        recordExerciseSegment(completed: completed)
+    func finishEyeRest(completed: Bool) {
+        guard isEyeRestActive else { return }
+        recordEyeRestSegment(completed: completed)
         if completed { schedule.acknowledge(.rest, at: clock()) }
-        breathing = nil; restDeadline = nil
-        activeExercise = nil; exerciseSecondsRemaining = 0; exerciseDuration = 0; isExerciseRunning = false
+        restDeadline = nil
+        isEyeRestActive = false; eyeRestSecondsRemaining = 0; eyeRestDuration = 0
         embeddedInRest = false
         publishSchedule()
     }
 
     func continueFocus() {
-        guard canContinueFocus, activeExercise == nil, settings.restEnabled else { return }
+        guard canContinueFocus, !isEyeRestActive, settings.restEnabled else { return }
         canContinueFocus = false
         rest.setRunning(true)
     }
@@ -206,7 +146,7 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
         guard !systemPaused else { return }
         systemPaused = true
         onDismissReminder?()
-        finishExercise(completed: false)
+        finishEyeRest(completed: false)
         schedule.suspend(at: clock())
         publishSchedule()
     }
@@ -220,11 +160,9 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
 
     func clearHistory() {
         rest.restartActivityTracking()
-        if exerciseSegmentStart != nil {
-            exerciseSegmentStart = clock(); exerciseSegmentDate = date()
-            exerciseSegmentLimit = breathingReading?.secondsRemaining ?? 0
+        if eyeRestSegmentStart != nil {
+            eyeRestSegmentStart = clock(); eyeRestSegmentDate = date()
         }
-        lastWaterID = nil
         mutateStore { try await $0.clear() }
     }
 
@@ -256,9 +194,9 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
             _ = schedule.mergeForBreak(at: clock())
             onDismissReminder?()
         }
-        if activeExercise != nil && ((embeddedInRest && !resting) || (!embeddedInRest && rest.isRunning && rest.phase == .work)) {
-            let completed = breathing?.reading(at: clock()).isFinished ?? restDeadline.map { clock() >= $0 } ?? false
-            finishExercise(completed: completed)
+        if isEyeRestActive && ((embeddedInRest && !resting) || (!embeddedInRest && rest.isRunning && rest.phase == .work)) {
+            let completed = restDeadline.map { clock() >= $0 } ?? false
+            finishEyeRest(completed: completed)
         }
         if wasPomodoroRest && !resting && schedule.pending.contains(.rest) { schedule.postpone(.rest, at: clock()) }
         wasPomodoroRest = resting
@@ -274,17 +212,14 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
         }
     }
 
-    private func recordExerciseSegment(completed: Bool) {
-        guard let started = exerciseSegmentStart, let date = exerciseSegmentDate, let kind = activeExercise else { return }
-        let end = kind == .rest ? min(clock(), restDeadline ?? clock()) : clock()
-        let duration = max(0, kind == .breathing ? min(end - started, exerciseSegmentLimit) : end - started)
-        exerciseSegmentStart = nil; exerciseSegmentDate = nil
-        guard duration > 0 else { return }
-        var activity = WellnessActivity(kind: kind == .rest ? .rest : .breathing, startedAt: date,
-                                        endedAt: date.addingTimeInterval(duration), completed: completed)
-        if embeddedInRest { activity.isPartOfRest = true }
-        // 番茄幕布已记录同一段休息，短休子视图不能再写一条重复休息。
-        if kind != .rest || !embeddedInRest { record(activity) }
+    private func recordEyeRestSegment(completed: Bool) {
+        guard let started = eyeRestSegmentStart, let date = eyeRestSegmentDate, isEyeRestActive else { return }
+        let duration = max(0, min(clock(), restDeadline ?? clock()) - started)
+        eyeRestSegmentStart = nil; eyeRestSegmentDate = nil
+        // 同一段番茄休息已经由原计时器记录，护眼子视图不能再次计入。
+        guard duration > 0, !embeddedInRest else { return }
+        record(WellnessActivity(kind: .rest, startedAt: date,
+                                endedAt: date.addingTimeInterval(duration), completed: completed))
     }
 
     private func record(_ activity: WellnessActivity) {
@@ -311,7 +246,7 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
                 self.summaryDay = Calendar.current.startOfDay(for: now)
                 self.storageError = nil
             } catch {
-                self.storageError = tr("无法保存健康记录，请稍后重试。")
+                self.storageError = tr("无法保存活动记录，请稍后重试。")
             }
         }
     }
@@ -320,14 +255,13 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
         let now = clock()
         pending = schedule.pending
         nextRestAt = schedule.deadline(for: .rest, focusBreakAt: focusBreakAt).map { date().addingTimeInterval(max(0, $0 - now)) }
-        nextWaterAt = schedule.deadline(for: .water, focusBreakAt: focusBreakAt).map { date().addingTimeInterval(max(0, $0 - now)) }
-        let exerciseDeadline = breathing?.nextPhaseDeadline(at: now) ?? restDeadline
+        let eyeRestDeadline = restDeadline
         // 只在页面可见时维护跨日统计；隐藏时不为日期切换唤醒应用。
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: date()))
         let midnight = pageVisible ? tomorrow.map { now + $0.timeIntervalSince(date()) } : nil
         if pageVisible && !Calendar.current.isDate(summaryDay, inSameDayAs: date()) { reloadSummary() }
         nextWake = settings.restEnabled && !systemPaused
-            ? [schedule.nextWake(focusBreakAt: focusBreakAt), exerciseDeadline, midnight].compactMap { $0 }.min() : nil
+            ? [schedule.nextWake(focusBreakAt: focusBreakAt), eyeRestDeadline, midnight].compactMap { $0 }.min() : nil
         if schedulesTimers {
             if let nextWake {
                 if scheduledWake.map({ abs($0 - nextWake) > 0.01 }) ?? true {
@@ -336,13 +270,13 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
                     deadlineTimer = Timer.scheduledTimer(withTimeInterval: max(0.01, nextWake - now), repeats: false) { [weak self] _ in
                         MainActor.assumeIsolated { self?.scheduledWake = nil; self?.refresh() }
                     }
-                    deadlineTimer?.tolerance = activeExercise == nil ? 1 : 0.01
+                    deadlineTimer?.tolerance = !isEyeRestActive ? 1 : 0.01
                 }
             } else {
                 deadlineTimer?.invalidate(); deadlineTimer = nil; scheduledWake = nil
             }
             // 番茄休息已有显示刷新，通过 onSessionChange 共用，不再叠加一个秒级定时器。
-            let visibleCountdown = !systemPaused && activeExercise != nil && isExerciseRunning && !embeddedInRest
+            let visibleCountdown = !systemPaused && isEyeRestActive && !embeddedInRest
             if visibleCountdown && displayTimer == nil {
                 displayTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                     MainActor.assumeIsolated { self?.refresh() }
@@ -350,7 +284,7 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
                 displayTimer?.tolerance = 0.1
             } else if !visibleCountdown { displayTimer?.invalidate(); displayTimer = nil }
         }
-        let present = activeExercise != nil && !systemPaused
+        let present = isEyeRestActive && !systemPaused
         if present != lastPresentation {
             lastPresentation = present
             onPresentationChange?(present)
@@ -359,16 +293,12 @@ enum WellnessExerciseKind: Sendable { case rest, breathing }
     }
 
     /// 只注入演示值，不启用提醒、计时器或写入本机活动库。
-    func showPreview(activities: [WellnessActivity], at now: Date, exercise: WellnessExerciseKind? = nil) {
+    func showPreview(activities: [WellnessActivity], at now: Date, eyeRest: Bool = false) {
         preview = true
-        lastWaterID = activities.last(where: { $0.kind == .water })?.id
-        activeExercise = exercise
-        isExerciseRunning = exercise != nil
-        exerciseDuration = exercise == .rest ? 60 : 180
-        exerciseSecondsRemaining = exercise == .rest ? 42 : 178
-        previewReading = exercise == .breathing ? BreathingSession(now: 0, duration: 180, pattern: .gentle).reading(at: 1.8) : nil
+        isEyeRestActive = eyeRest
+        eyeRestDuration = eyeRest ? 60 : 0
+        eyeRestSecondsRemaining = eyeRest ? 42 : 0
         summary = WellnessSummary.make(activities: activities, at: now)
         nextRestAt = now.addingTimeInterval(5 * 60)
-        nextWaterAt = now.addingTimeInterval(35 * 60)
     }
 }

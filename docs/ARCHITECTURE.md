@@ -65,7 +65,7 @@ checkboxes in Optional Features. Thermals exposes temperature and fan checkboxes
 support. Detailed appearance settings remain in the existing Menu Bar settings page. Display Parameter Controls is in
 Optional Features; its information-only menu-bar toggle stays independent of DDC enablement.
 Optional Features uses separate cards: Network Monitor, Processes, Uninstaller and Cleanup;
-AI Usage, Audio and Display Parameter Controls; Focus & Wellness; and Menu Bar Calendar.
+AI Usage, Audio and Display Parameter Controls; Focus & Eye Care; and Menu Bar Calendar.
 Each card has consistent separators between rows, with no divider above its first row.
 Uninstaller is also optional and off by default. Its preference persists in settings backups;
 disabling it hides the sidebar entry, redirects its page/deep link to feature settings, cancels
@@ -300,33 +300,27 @@ and HUD placement stay local. Curtains, the menu-bar timer and Mini HUD belong t
 noise is synthesized through `AVAudioSourceNode` during rest or an explicit five-second preview. The Widget reads shared phase
 and deadline values, so WidgetKit refresh timing cannot provide second-accurate reminders.
 
-`WellnessController` adds opt-in independent eye-break/water reminders, voluntary eye breaks and
-breathing exercises. One monotonic next-event timer serves both reminders; only a visible running
-exercise uses a 1 Hz countdown. The breathing circle uses Core Animation interpolation, updated only at phase changes;
-Reduce Motion keeps it static. Eye breaks have no continuous animation.
-Break sound previews reuse the rest audio engine, end after five seconds, and stop on sound changes,
-popover dismissal or suspension. A real break cancels the preview deadline and takes ownership of playback.
-The settings separate between-round and long Pomodoro breaks from eye breaks, water reminders
-and breathing exercises. Eye breaks retain their own seconds-based duration and reminder interval;
-they remain available manually when reminders are off. Existing preference keys and timer behavior
-are unchanged, including reminder merging and limiting an embedded exercise to the current break. Lock/sleep suspends health
-intervals and discards outstanding reminders without a catch-up burst. Existing Pomodoro wake semantics
-remain unchanged; activity tracking closes its awake segment before suspension.
+`WellnessController` coordinates opt-in eye-break reminders with Pomodoro and voluntary eye breaks.
+One monotonic next-event timer schedules reminders; only an independent visible eye break needs its
+own 1 Hz countdown. Embedded eye breaks reuse Pomodoro updates. Settings separate between-round and
+long breaks from the eye-break duration and reminder interval. Lock/sleep cancels active eye breaks,
+pauses reminder intervals and discards pending reminders without a catch-up burst.
 
 Reminders within five minutes of a Pomodoro break merge into the existing curtain. A completed break
-satisfies a rest reminder; water is recorded only after an explicit confirmation. Starting a voluntary
-exercise during focus pauses the focus timer and offers an explicit resume after the exercise. An
-exercise inside an existing break is limited by that break's deadline. Breathing duration is a subset
-of total rest, never a second copy. Notifications use the existing notification delegate, respect
-system permission/Focus settings, and leave pending actions visible when permission is denied.
+satisfies the reminder. A voluntary eye break pauses focus and offers an explicit resume afterward;
+an eye break during a Pomodoro break is bounded by that break’s deadline and does not double-count
+rest time. Notifications use the existing delegate and respect permission/Focus settings.
 
-`WellnessActivityStore` serializes SQLite operations off the main actor. It lazily opens
-`Application Support/XStats/wellness.sqlite`, keeps at most 20,000 activities and prunes records older
-than 90 days during writes and summary reads. Only activity transitions and manual confirmations write
-records; no per-second database writes occur. The UI queries seven days on entry or an activity event.
-Clearing history starts a new segment for any active timer and preserves old Pomodoro completion counts.
-`WellnessPreferences` is included in settings backups; activities are local-only and excluded. Existing
-rest preference keys and completion counts remain valid; no historical durations are synthesized.
+`WellnessActivityStore` performs bounded SQLite operations off the main actor, recording only focus
+and rest transitions in `Application Support/XStats/wellness.sqlite`. It retains at most 20,000 rows
+for 90 days. The UI queries seven days on entry or activity events. Removed water/breathing rows are
+ignored while their existing data and database schema remain intact; no destructive migration runs.
+`WellnessPreferences` decodes remaining eye-break settings from older backups, ignores removed keys
+and exports only the current fields. Clearing activity history starts a fresh active segment and
+preserves legacy Pomodoro completion counts.
+
+Break sound previews reuse the rest audio engine, end after five seconds, and stop on sound changes,
+popover dismissal or suspension. A real break cancels the preview deadline and takes playback ownership.
 
 Rest sound choices include light rain, stream and wind, synthesized locally alongside white and
 pink noise. The persisted `rain` identifier now displays as Light Rain; older preferences and
@@ -338,6 +332,16 @@ and performs no allocation, UI access, locks or per-sample trigonometry. A 200 m
 an abrupt full-level first frame. The existing five-second preview and rest playback lifecycle
 continue to stop the engine and release its configuration observer. No recordings, downloads,
 microphone access or new dependencies are introduced.
+
+Custom break audio is selected through the native file picker. `RestCustomAudioStore` validates a
+regular file of at most 50 MiB, copies it to `Application Support/XStats/RestAudio` and validates the
+copy before publishing metadata. Failed/cancelled imports keep the prior selection. Replacement
+removes only the previously selected app-owned copy after the new one is published. Relative UUID
+filenames prevent metadata from escaping the audio directory. Local metadata and audio are excluded
+from settings backups; a custom selection exports as Off. No source-path bookmarks are required.
+`AVAudioPlayer` loops the local file at the same low volume as built-in audio, and is released on
+stop or switching back to a built-in sound. The existing five-second preview deadline still applies.
+The preview button is hidden when sound is Off or no custom file has been selected.
 
 ## AI process explanations
 

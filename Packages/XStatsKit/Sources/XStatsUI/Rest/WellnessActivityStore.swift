@@ -4,7 +4,7 @@
 import Foundation
 import SQLite3
 
-/// 只记录用户启动的计时和主动饮水确认；actor 上执行有界 SQLite I/O，不写入设置备份。
+/// 只记录用户启动的专注与休息计时；actor 上执行有界 SQLite I/O，不写入设置备份。
 actor WellnessActivityStore {
     enum Failure: Error { case database, invalidActivity }
     static let retention: TimeInterval = 90 * 86400
@@ -30,7 +30,8 @@ actor WellnessActivityStore {
             sqlite3_bind_double(query, 3, activity.startedAt.timeIntervalSince1970)
             sqlite3_bind_double(query, 4, activity.endedAt.timeIntervalSince1970)
             sqlite3_bind_int(query, 5, activity.completed ? 1 : 0)
-            sqlite3_bind_int(query, 6, activity.isPartOfRest ? 1 : 0)
+            // 保留旧数据库列，避免迁移或删除用户数据；新的休息记录不重复分段。
+            sqlite3_bind_int(query, 6, 0)
             guard sqlite3_step(query) == SQLITE_DONE else { throw Failure.database }
         }
         try prune(at: now)
@@ -61,21 +62,13 @@ actor WellnessActivityStore {
                     let activity = WellnessActivity(id: id, kind: kind,
                         startedAt: Date(timeIntervalSince1970: sqlite3_column_double(query, 2)),
                         endedAt: Date(timeIntervalSince1970: sqlite3_column_double(query, 3)),
-                        completed: sqlite3_column_int(query, 4) != 0,
-                        isPartOfRest: sqlite3_column_int(query, 5) != 0)
+                        completed: sqlite3_column_int(query, 4) != 0)
                     result.append(activity)
                 }
                 status = sqlite3_step(query)
             }
             guard status == SQLITE_DONE else { throw Failure.database }
             return result
-        }
-    }
-
-    func remove(_ id: UUID) throws {
-        try statement("DELETE FROM activity WHERE id = ?") { query in
-            bind(id.uuidString, at: 1, in: query)
-            guard sqlite3_step(query) == SQLITE_DONE else { throw Failure.database }
         }
     }
 

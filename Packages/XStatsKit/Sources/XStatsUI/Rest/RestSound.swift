@@ -6,7 +6,7 @@ import Foundation
 import Localization
 
 public enum RestSound: String, CaseIterable, Identifiable, Sendable {
-    case off, rain, stream, wind, pink, white
+    case off, rain, stream, wind, pink, white, custom
     public var id: String { rawValue }
     var title: String {
         switch self {
@@ -16,6 +16,7 @@ public enum RestSound: String, CaseIterable, Identifiable, Sendable {
         case .rain: tr("轻雨")
         case .stream: tr("溪流")
         case .wind: tr("风声")
+        case .custom: tr("自定义音频")
         }
     }
 }
@@ -24,6 +25,8 @@ public enum RestSound: String, CaseIterable, Identifiable, Sendable {
 @MainActor
 final class RestSoundPlayer {
     private var engine: AVAudioEngine?
+    private var customPlayer: AVAudioPlayer?
+    private var customURL: URL?
     private(set) var playing: RestSound = .off
     /// 启动失败后短暂冷却；调用方每秒同步一次，不能每秒重建引擎。
     private var failed: RestSound?
@@ -31,18 +34,37 @@ final class RestSoundPlayer {
     private var configurationObserver: NSObjectProtocol?
     private let startEngine: (AVAudioEngine) throws -> Void
     private let clock: () -> UInt64
+    private let startCustomPlayer: (AVAudioPlayer) -> Bool
 
     init(startEngine: @escaping (AVAudioEngine) throws -> Void = { try $0.start() },
-         clock: @escaping () -> UInt64 = { RestClock.now() }) {
+         clock: @escaping () -> UInt64 = { RestClock.now() },
+         startCustomPlayer: @escaping (AVAudioPlayer) -> Bool = { $0.play() }) {
         self.startEngine = startEngine
         self.clock = clock
+        self.startCustomPlayer = startCustomPlayer
     }
 
-    func play(_ sound: RestSound) {
-        guard sound != playing else { return }
+    func play(_ sound: RestSound, customURL: URL? = nil) {
+        guard sound != playing || (sound == .custom && self.customURL != customURL) else { return }
         if sound == failed, let retryAfter, clock() < retryAfter { return }
         stop()
         guard sound != .off else { return }
+        if sound == .custom {
+            do {
+                guard let customURL else { throw RestCustomAudioStore.Failure.unreadable }
+                let player = try AVAudioPlayer(contentsOf: customURL)
+                player.numberOfLoops = -1
+                player.volume = 0.16
+                guard startCustomPlayer(player) else { throw RestCustomAudioStore.Failure.unreadable }
+                customPlayer = player
+                self.customURL = customURL
+                playing = .custom
+            } catch {
+                failed = sound
+                retryAfter = clock() + 10_000_000_000
+            }
+            return
+        }
         let engine = AVAudioEngine()
         let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
         let node = makeNoiseSourceNode(format: format, mode: sound)
@@ -75,6 +97,9 @@ final class RestSoundPlayer {
         configurationObserver = nil
         engine?.stop()
         engine = nil
+        customPlayer?.stop()
+        customPlayer = nil
+        customURL = nil
         playing = .off
         failed = nil
         retryAfter = nil
@@ -150,7 +175,7 @@ nonisolated final class RestSoundGenerator {
         let white = Float(seed & 0xFFFF) / 32767.5 - 1
         let sample: Float
         switch mode {
-        case .off: return 0
+        case .off, .custom: return 0
         case .white: sample = white * 0.35
         case .pink:
             // Paul Kellett 的 pink-noise 滤波系数；多极点近似 1/f 频谱。

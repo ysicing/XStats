@@ -353,7 +353,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .battery: tr("电池")
         case .processes: tr("进程")
         case .keepAwake: tr("防休眠")
-        case .rest: tr("专注与健康")
+        case .rest: tr("专注与护眼")
         case .cleaner: tr("清理")
         case .uninstaller: tr("卸载应用")
         case .startupItems: tr("启动项")
@@ -553,6 +553,11 @@ public final class AppSettings {
     public var restSound: RestSound {
         didSet { defaults.set(restSound.rawValue, forKey: Keys.restSound) }
     }
+    /// 音频副本的本机元数据，不参与 WebDAV 同步或 JSON 设置备份。
+    var restCustomAudio: RestCustomAudio? {
+        didSet { defaults.set(try? JSONEncoder().encode(restCustomAudio), forKey: Keys.restCustomAudio) }
+    }
+    var restCustomAudioURL: URL? { restCustomAudio?.url(in: RestCustomAudioStore.defaultDirectory) }
     public var restHUDStyle: RestHUDStyle {
         didSet { defaults.set(restHUDStyle.rawValue, forKey: Keys.restHUDStyle) }
     }
@@ -860,6 +865,7 @@ public final class AppSettings {
         restMode = defaults.string(forKey: Keys.restMode).flatMap(RestRunMode.init(rawValue:))
             ?? (defaults.bool(forKey: Keys.restCycleEnabled) ? .cycle : .single)
         restSound = defaults.string(forKey: Keys.restSound).flatMap(RestSound.init(rawValue:)) ?? .off
+        restCustomAudio = defaults.data(forKey: Keys.restCustomAudio).flatMap { try? JSONDecoder().decode(RestCustomAudio.self, from: $0) }
         restHUDStyle = defaults.string(forKey: Keys.restHUDStyle).flatMap(RestHUDStyle.init(rawValue:)) ?? .countdown
         wellnessPreferences = defaults.data(forKey: Keys.wellnessPreferences)
             .flatMap { try? JSONDecoder().decode(WellnessPreferences.self, from: $0) }?.normalized ?? WellnessPreferences()
@@ -1056,6 +1062,7 @@ public final class AppSettings {
         static let restCycleEnabled = "restCycleEnabled"
         static let restMode = "restMode"
         static let restSound = "restSound"
+        static let restCustomAudio = "restCustomAudio"
         static let restHUDStyle = "restHUDStyle"
         static let calendarEnabled = "calendarEnabled"
         static let calendarPreferences = "calendarPreferences"

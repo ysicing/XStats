@@ -3,37 +3,34 @@
 
 import Foundation
 
-/// 健康提醒偏好；默认不为旧用户增加提醒，不把饮水次数换算为健康指标。
+/// 护眼提醒偏好；旧设置中的其他键会被忽略，不触发已移除的功能。
 public struct WellnessPreferences: Codable, Equatable, Sendable {
     public var breakEnabled = false
-    public var waterEnabled = false
     public var breakIntervalMinutes = 30
-    public var waterIntervalMinutes = 60
     public var breakSeconds = 60
-    public var breathingMinutes = 3
-    public var breathingPattern: BreathingPattern = .gentle
-    public var waterGoal: Int?
 
     public init() {}
-
     static let breakIntervals = [15, 20, 30, 45, 60, 90]
-    static let waterIntervals = [30, 45, 60, 90, 120]
     static let breakDurations = [20, 30, 60, 120, 180]
-    static let breathingDurations = [1, 3, 5]
+
+    private enum CodingKeys: String, CodingKey { case breakEnabled, breakIntervalMinutes, breakSeconds }
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        breakEnabled = try values.decodeIfPresent(Bool.self, forKey: .breakEnabled) ?? false
+        breakIntervalMinutes = try values.decodeIfPresent(Int.self, forKey: .breakIntervalMinutes) ?? 30
+        breakSeconds = try values.decodeIfPresent(Int.self, forKey: .breakSeconds) ?? 60
+    }
 
     var normalized: Self {
         var value = self
         if !Self.breakIntervals.contains(value.breakIntervalMinutes) { value.breakIntervalMinutes = 30 }
-        if !Self.waterIntervals.contains(value.waterIntervalMinutes) { value.waterIntervalMinutes = 60 }
         if !Self.breakDurations.contains(value.breakSeconds) { value.breakSeconds = 60 }
-        if !Self.breathingDurations.contains(value.breathingMinutes) { value.breathingMinutes = 3 }
-        if let goal = value.waterGoal, !(1...32).contains(goal) { value.waterGoal = nil }
         return value
     }
 }
 
 enum HealthReminderKind: String, CaseIterable, Identifiable, Sendable {
-    case rest, water
+    case rest
     var id: Self { self }
 }
 
@@ -48,8 +45,7 @@ struct HealthReminderSchedule {
     mutating func configure(preferences: WellnessPreferences, enabled: Bool, at now: TimeInterval) {
         let preferences = preferences.normalized
         let updated: [HealthReminderKind: TimeInterval] = enabled ? Dictionary(uniqueKeysWithValues:
-            [(HealthReminderKind.rest, preferences.breakEnabled, preferences.breakIntervalMinutes),
-             (.water, preferences.waterEnabled, preferences.waterIntervalMinutes)]
+            [(HealthReminderKind.rest, preferences.breakEnabled, preferences.breakIntervalMinutes)]
                 .filter { $0.1 }.map { ($0.0, Double($0.2) * 60) }) : [:]
         for kind in HealthReminderKind.allCases where intervals[kind] != updated[kind] {
             pending.remove(kind)
@@ -119,93 +115,7 @@ struct HealthReminderSchedule {
     }
 }
 
-public enum BreathingPattern: String, Codable, CaseIterable, Identifiable, Sendable {
-    case gentle, box, relax
-    public var id: Self { self }
-
-    var stages: [(BreathingPhase, TimeInterval, Bool)] {
-        switch self {
-        case .gentle: [(.inhale, 4, true), (.exhale, 6, false)]
-        case .box: [(.inhale, 4, true), (.hold, 4, true), (.exhale, 4, false), (.hold, 4, false)]
-        case .relax: [(.inhale, 4, true), (.hold, 7, true), (.exhale, 8, false)]
-        }
-    }
-}
-
-enum BreathingPhase: Sendable { case inhale, hold, exhale }
-
-struct BreathingReading: Equatable, Sendable {
-    let phase: BreathingPhase
-    let phaseDuration: TimeInterval
-    let phaseProgress: Double
-    let expanded: Bool
-    let secondsRemaining: TimeInterval
-    let isFinished: Bool
-
-    /// 按源时钟计算形变，暂停/恢复保留当前位置，避免重启动画造成跳变。
-    var expansion: Double {
-        switch phase {
-        case .inhale: phaseProgress
-        case .exhale: 1 - phaseProgress
-        case .hold: expanded ? 1 : 0
-        }
-    }
-}
-
-struct BreathingSession: Sendable {
-    let duration: TimeInterval
-    let pattern: BreathingPattern
-    private var resumedAt: TimeInterval
-    private var accumulated: TimeInterval = 0
-    private(set) var isRunning = true
-
-    init(now: TimeInterval, duration: TimeInterval, pattern: BreathingPattern) {
-        resumedAt = now
-        self.duration = max(1, duration)
-        self.pattern = pattern
-    }
-
-    func elapsed(at now: TimeInterval) -> TimeInterval {
-        min(duration, accumulated + (isRunning ? max(0, now - resumedAt) : 0))
-    }
-
-    func reading(at now: TimeInterval) -> BreathingReading {
-        let elapsed = elapsed(at: now)
-        let stages = pattern.stages
-        let cycle = stages.reduce(0) { $0 + $1.1 }
-        var offset = elapsed.truncatingRemainder(dividingBy: cycle)
-        var stage = stages[0]
-        for candidate in stages {
-            stage = candidate
-            if offset < candidate.1 { break }
-            offset -= candidate.1
-        }
-        return BreathingReading(phase: stage.0, phaseDuration: stage.1, phaseProgress: offset / stage.1,
-                                expanded: stage.2, secondsRemaining: max(0, duration - elapsed),
-                                isFinished: elapsed >= duration)
-    }
-
-    mutating func pause(at now: TimeInterval) {
-        guard isRunning else { return }
-        accumulated = elapsed(at: now)
-        isRunning = false
-    }
-
-    mutating func resume(at now: TimeInterval) {
-        guard !isRunning, accumulated < duration else { return }
-        resumedAt = now
-        isRunning = true
-    }
-
-    func nextPhaseDeadline(at now: TimeInterval) -> TimeInterval? {
-        guard isRunning else { return nil }
-        let reading = reading(at: now)
-        guard !reading.isFinished else { return nil }
-        return now + min(reading.secondsRemaining, reading.phaseDuration * (1 - reading.phaseProgress))
-    }
-}
-
-enum WellnessActivityKind: String, Codable, Sendable { case focus, rest, breathing, water }
+enum WellnessActivityKind: String, Codable, Sendable { case focus, rest }
 
 struct WellnessActivity: Equatable, Sendable, Identifiable {
     var id: UUID = UUID()
@@ -213,7 +123,6 @@ struct WellnessActivity: Equatable, Sendable, Identifiable {
     let startedAt: Date
     let endedAt: Date
     var completed: Bool
-    var isPartOfRest = false
     var duration: TimeInterval { max(0, endedAt.timeIntervalSince(startedAt)) }
 }
 
@@ -221,8 +130,6 @@ struct WellnessDaySummary: Equatable, Sendable, Identifiable {
     let date: Date
     var focusSeconds: TimeInterval = 0
     var restSeconds: TimeInterval = 0
-    var breathingSeconds: TimeInterval = 0
-    var waterCount = 0
     var focusCount = 0
     var id: Date { date }
 }
@@ -247,11 +154,7 @@ struct WellnessSummary: Equatable, Sendable {
                         days[index].focusCount += 1
                     }
                 case .rest: days[index].restSeconds += seconds
-                case .breathing:
-                    days[index].breathingSeconds += seconds
-                    if !activity.isPartOfRest { days[index].restSeconds += seconds }
-                case .water:
-                    if activity.startedAt >= days[index].date && activity.startedAt < end { days[index].waterCount += 1 }
+
                 }
             }
         }

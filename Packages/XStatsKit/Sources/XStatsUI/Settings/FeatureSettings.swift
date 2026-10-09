@@ -184,12 +184,12 @@ struct FeatureSettings: View {
             }
             SettingsGroup {
                 GroupRow(showsDivider: false) {
-                    SettingRow(title: tr("专注与健康"),
-                               subtitle: tr("专注计时、休息与喝水提醒、呼吸练习。"),
+                    SettingRow(title: tr("专注与护眼"),
+                               subtitle: tr("专注计时、护眼休息与本机活动统计。"),
                                icon: "eye") {
                         HStack(spacing: DS.Space.s2) {
                             if settings.restEnabled { RestOptionsButton() }
-                            DSToggle(isOn: $settings.restEnabled, label: tr("专注与健康"))
+                            DSToggle(isOn: $settings.restEnabled, label: tr("专注与护眼"))
                         }
                     }
                 }

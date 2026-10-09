@@ -315,15 +315,14 @@ enum SnapshotRenderer {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 580),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
-        window.title = "XStats · " + tr("呼吸练习")
-        window.contentView = NSHostingView(rootView: WellnessExerciseView(wellness: model.wellness).environment(model))
+        window.title = "XStats · " + tr("护眼休息")
+        window.contentView = NSHostingView(rootView: WellnessEyeRestView(wellness: model.wellness).environment(model))
         defer { window.orderOut(nil); model.rest.stop() }
         var observations: [[String: Any]] = []
-        for (phase, seconds) in [("idle", 3.0), ("breathing_visible", 6.0), ("breathing_paused", 3.0), ("closed", 3.0)] {
+        for (phase, seconds) in [("idle", 3.0), ("eye_rest_visible", 6.0), ("closed", 3.0)] {
             switch phase {
-            case "breathing_visible": model.wellness.startBreathing(); window.center(); window.orderFrontRegardless()
-            case "breathing_paused": model.wellness.toggleBreathingPause()
-            case "closed": model.wellness.finishExercise(completed: false); window.orderOut(nil)
+            case "eye_rest_visible": model.wellness.startShortRest(); window.center(); window.orderFrontRegardless()
+            case "closed": model.wellness.finishEyeRest(completed: false); window.orderOut(nil)
             default: break
             }
             try await Task.sleep(for: .milliseconds(500)) // 先让首次布局与状态切换完成。
@@ -356,16 +355,13 @@ enum SnapshotRenderer {
         settings.language = L10n.language
         settings.restEnabled = true
         settings.wellnessPreferences.breakEnabled = true
-        settings.wellnessPreferences.waterEnabled = true
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
         model.rest.showPreview()
         let now = Calendar.current.startOfDay(for: Date()).addingTimeInterval(14 * 3600)
         let activities = (0..<7).flatMap { index -> [WellnessActivity] in
             let day = now.addingTimeInterval(-Double(index) * 86400)
             return [.init(kind: .focus, startedAt: day.addingTimeInterval(-1500), endedAt: day, completed: true),
-                    .init(kind: .rest, startedAt: day, endedAt: day.addingTimeInterval(300), completed: true),
-                    .init(kind: .breathing, startedAt: day, endedAt: day.addingTimeInterval(180), completed: true, isPartOfRest: true),
-                    .init(kind: .water, startedAt: day, endedAt: day, completed: true)]
+                    .init(kind: .rest, startedAt: day, endedAt: day.addingTimeInterval(300), completed: true)]
         }
         for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
             guard let appearance = NSAppearance(named: name) else { continue }
@@ -389,15 +385,10 @@ enum SnapshotRenderer {
                   to: outputDirectory.appendingPathComponent("wellness-settings-\(suffix).png"))
             write(WellnessStatisticsView(wellness: model.wellness), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("wellness-statistics-\(suffix).png"))
-            model.wellness.showPreview(activities: activities, at: now, exercise: .rest)
-            write(WellnessExerciseView(wellness: model.wellness).frame(width: 680), model: model, appearance: appearance,
+            model.wellness.showPreview(activities: activities, at: now, eyeRest: true)
+            write(WellnessEyeRestView(wellness: model.wellness).frame(width: 680), model: model, appearance: appearance,
                   to: outputDirectory.appendingPathComponent("wellness-eye-rest-\(suffix).png"))
-            model.wellness.showPreview(activities: activities, at: now, exercise: .breathing)
-            write(WellnessExerciseView(wellness: model.wellness).frame(width: 560).appLanguageEnvironment(), model: model, appearance: appearance,
-                  to: outputDirectory.appendingPathComponent("wellness-breathing-\(suffix).png"))
-            write(WellnessExerciseView(wellness: model.wellness, reducedMotionPreview: true).frame(width: 560)
-                  .appLanguageEnvironment(), model: model, appearance: appearance,
-                  to: outputDirectory.appendingPathComponent("wellness-reduced-motion-\(suffix).png"))
+
         }
     }
 
