@@ -6,6 +6,7 @@
 - `project.yml` 由 XcodeGen 生成 Xcode 工程；可测试模块位于 Swift Package `Packages/XStatsKit`，构建任务定义在 `Taskfile.yml`。
 - 系统采集使用 IOKit / SMC；特权操作通过 `SMAppService` 注册的 XPC 辅助工具完成。本机历史和 AI 统计使用 SQLite，偏好设置使用 UserDefaults，凭据使用 Keychain。
 - 在线更新使用 Sparkle 统一管理检查调度、跳过版本与安装，沿用 XStats 更新界面及系统通知开关；不得并存独立检查定时器或自动下载/安装。固定 XML API 合并安装统计并原样返回已签名清单，旧 JSON 协议继续兼容。对象存储保留不可变的版本安装包与已签名 XML，客户端更新走区域 API；不引入跨版本覆盖的固定 ZIP 或对象存储更新源。发布前验证各区域入口、同团队签名、公证与 Gatekeeper，并先上传已签名的版本 XML 和安装包再发布 JSON 清单。
+- GitHub Actions 是异步验证，不作为发布门禁。流水线等待、运行或失败均不阻塞正在进行的发布；发布后读取一次状态，如实报告并记录失败供后续排查，不应仅因 CI 失败修改源码、重新构建公证或推进构建号。发布仍须通过本地测试、构建来源、签名、公证、Gatekeeper、公开制品哈希和更新入口校验；这些独立发布校验失败时中止。
 - 网络监视器仅在 macOS 15+ 开放，默认关闭，只读观察新连接、全部放行、不读取通信内容，连接记录仅在有界内存中保留。网络扩展由按需安装的独立组件提供，主程序不内嵌扩展或携带其安装权限；组件控制服务按需启动、空闲退出。
 - 日历使用 Tyme4Swift；更新检查服务位于 `server/api`，使用 Go、Fiber v3、GORM 和 SQLite。依赖版本以 `Packages/XStatsKit/Package.swift` 和 `server/api/go.mod` 为准，构建与发布步骤见 [DEVELOPMENT.md](docs/DEVELOPMENT.md)。
 

@@ -38,13 +38,13 @@ Before acting, read the repository `AGENTS.md`, the release section of `docs/DEV
 
 ## Execution shape
 
-1. Establish a clean, current source baseline. Use `xstats-changelog` to prepare and review the user-facing release summary, then pass repository tests. Inspect any already completed source CI result, but do not wait for a running GitHub Actions workflow.
+1. Establish a clean, current source baseline. Use `xstats-changelog` to prepare and review the user-facing release summary, then pass repository tests. Known GitHub Actions failures are follow-up items and do not delay the release workflow.
 2. Prepare only release metadata, then let `task release` advance `project.yml`, build, sign, notarize, staple, and generate `dist/`.
 3. Verify the built app in `build/DerivedData-arm64/Build/Products/Release/XStats.app` and generated artifacts before committing release metadata; leave `/Applications/XStats.app` untouched.
 4. Commit and push only the allowed metadata, then run the provenance verifier.
 5. Run the idempotent publish script and verify every external destination independently.
 
-GitHub Actions is asynchronous verification, not a release gate that requires waiting. After publication, check the release commit's current CI status once and report its link and status. Do not run `gh run watch` or poll until completion unless the user explicitly asks. Report a queued, running, or not-yet-listed workflow as pending or unobserved, never as passed; a completed failure still needs investigation.
+GitHub Actions is asynchronous verification and never gates the ongoing release. Queued, running, failed or unobserved CI does not pause publication or make an otherwise verified release partial. After publication, check the release commit's current CI status once and report its link and actual status; record failures for separate follow-up. Do not run `gh run watch` or poll until completion unless the user explicitly asks. Do not modify source, rebuild, re-notarize or increment the build number solely because CI failed. Local tests and all independent signing, provenance and distribution checks remain required; a failure in those checks still stops publication.
 
 When the user explicitly authorizes the complete release, `task release-all` is the canonical one-command entry and includes commit, push, and every external publication. Use `task release` for build-only work and `task publish` to resume an already built and pushed release.
 
