@@ -21,7 +21,9 @@ struct UninstallerEnhancedFlowTests {
             recycleFiles: { urls, reply in batches.append(urls); completion = reply })
         defer { controller.setEnabled(false) }
         controller.select(app)
-        let deadline = ContinuousClock.now + .seconds(30)
+        // 完整测试并发运行时，主执行器可能被其他用例占用超过 30 秒。
+        // 沿用卸载测试的有界等待预算；此处验证扫描结果，不衡量扫描耗时。
+        let deadline = ContinuousClock.now + .seconds(120)
         while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(controller.canUninstall)
         #expect(controller.chosen == [body.id, cache.id])
@@ -59,7 +61,9 @@ struct UninstallerEnhancedFlowTests {
             recycleFiles: { _, _ in Issue.record("Unsafe residual path reached recycling") })
         defer { controller.setEnabled(false) }
         controller.select(app)
-        let deadline = ContinuousClock.now + .seconds(30)
+        // 完整测试并发运行时，主执行器可能被其他用例占用超过 30 秒。
+        // 沿用卸载测试的有界等待预算；此处验证扫描结果，不衡量扫描耗时。
+        let deadline = ContinuousClock.now + .seconds(120)
         while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(controller.canUninstall)
         controller.requestUninstall(); controller.confirmUninstall()

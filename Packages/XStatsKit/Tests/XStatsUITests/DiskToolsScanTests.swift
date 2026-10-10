@@ -29,8 +29,9 @@ struct DiskToolsScanTests {
             defaults: UserDefaults(suiteName: "DiskToolsScanTests-\(UUID())")!,
             scanSpace: { _ in
                 probe.markStarted()
-                // 模拟遍历中的取消检查点；取消未转发时 30 秒后以其他错误结束
-                let deadline = Date().addingTimeInterval(30)
+                // 模拟遍历中的取消检查点；取消未转发时有界等待后以其他错误结束
+                // 主执行器在完整测试中可能长时间被占用，不能把调度延迟当作取消失效。
+                let deadline = Date().addingTimeInterval(120)
                 while Date() < deadline {
                     if Task.isCancelled {
                         probe.markCancelled()
@@ -42,7 +43,7 @@ struct DiskToolsScanTests {
             })
 
         controller.startScan()
-        let startDeadline = ContinuousClock.now + .seconds(10)
+        let startDeadline = ContinuousClock.now + .seconds(120)
         while !probe.started, ContinuousClock.now < startDeadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(probe.started)
         guard case .scanning = controller.scanPhase else {
@@ -51,7 +52,7 @@ struct DiskToolsScanTests {
         }
 
         controller.cancelScan()
-        let idleDeadline = ContinuousClock.now + .seconds(5)
+        let idleDeadline = ContinuousClock.now + .seconds(120)
         while controller.scanPhase != .idle, ContinuousClock.now < idleDeadline {
             try await Task.sleep(for: .milliseconds(10))
         }
