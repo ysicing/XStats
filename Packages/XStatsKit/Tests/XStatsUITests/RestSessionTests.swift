@@ -741,7 +741,6 @@ private func noonClock(_ now: @escaping () -> UInt64) -> () -> Date {
         source.restWorkMinutes = 45
         source.restBreakMinutes = 5
         source.restLongBreakMinutes = 20
-        source.restDailyGoal = 12
         source.restCycleEnabled = true
         source.restSound = .rain
         source.restHUDStyle = .hourglass
@@ -753,7 +752,6 @@ private func noonClock(_ now: @escaping () -> UInt64) -> () -> Date {
         #expect(target.restWorkMinutes == 45)
         #expect(target.restBreakMinutes == 5)
         #expect(target.restLongBreakMinutes == 20)
-        #expect(target.restDailyGoal == 12)
         #expect(target.restCycleEnabled)
         #expect(target.restSound == .rain)
         #expect(target.restHUDStyle == .hourglass)
@@ -761,13 +759,11 @@ private func noonClock(_ now: @escaping () -> UInt64) -> () -> Date {
         var invalid = SettingsDocument()
         invalid.restWorkMinutes = 999
         invalid.restLongBreakMinutes = -1
-        invalid.restDailyGoal = 0
         invalid.restSound = "unknown"
         invalid.restHUDStyle = "unknown"
         target.apply(invalid)
         #expect(target.restWorkMinutes == 45)
         #expect(target.restLongBreakMinutes == 20)
-        #expect(target.restDailyGoal == 12)
         #expect(target.restSound == .rain)
         #expect(target.restHUDStyle == .hourglass)
     }

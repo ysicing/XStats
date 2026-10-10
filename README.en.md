@@ -124,17 +124,9 @@ Local statistics read CLI session logs; quota queries require the corresponding 
 | **Focus & Eye Care** | Pomodoro timer, multi-display break screens and mini HUD; independent eye-break reminders and local activity statistics |
 | **Process manager** | Search, sort, group by app and end processes |
 
-Start, pause or end focus directly. After a break, start the next round when ready, or enable automatic continuation in settings. A long break follows every four focus rounds.
+Focus & Eye Care combines Pomodoro with independent eye breaks, offering break sounds, local audio, global shortcuts and on-device activity statistics.
 
-Break sounds include light rain, stream, wind, pink noise and white noise, all synthesized locally with a five-second preview. No sound downloads or microphone access.
-
-Choose Custom Audio to import a local audio file (up to 50 MB) and loop it during breaks. The app keeps a local copy that works after moving the original; audio and file metadata are excluded from settings backups. The preview button is hidden when sounds are off.
-
-Eye-break reminders are off by default; enable them in Focus & Eye Care settings. They work without Pomodoro and merge with nearby between-round breaks. Between-round breaks follow focus rounds; eye breaks are short rests you can start anytime, with separate durations. Starting an eye break pauses focus; you choose when to resume. Focus and break records stay on this Mac for 90 days and can be cleared in Statistics; backups contain settings only. Preview break sounds for five seconds; changing sounds or closing settings stops playback.
-
-Enable optional tools as needed in Settings → Features → Optional Features; existing configuration is kept. Uninstaller is off by default on a new installation and stays enabled when upgrading from older versions. Privileged actions such as fan control and lid-closed keep-awake require installing and authorizing the helper from the app.
-
-Uninstaller identifies app and helper leftovers, sandbox containers and data folders for common apps. Potentially shared data is not selected by default, and shared vendor folders are preserved. Confirmed items move to Trash; failed items remain available for retry, including after the app itself has been removed.
+Optional tools can be enabled as needed. Privileged actions such as fan control and lid-closed keep-awake require an authorized helper. Cleanup and uninstall show a preview before moving selected items to Trash after confirmation.
 
 <details>
 <summary>More screenshots</summary>

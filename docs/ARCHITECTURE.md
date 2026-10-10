@@ -323,6 +323,10 @@ own 1 Hz countdown. Embedded eye breaks reuse Pomodoro updates. Settings separat
 long breaks from the eye-break duration and reminder interval. Lock/sleep cancels active eye breaks,
 pauses reminder intervals and discards pending reminders without a catch-up burst.
 
+The eye-break global shortcut uses the existing Carbon hotkey registration and wellness start path.
+It is unbound by default, survives settings backup and restore, and opens Features when Focus & Eye Care
+is disabled. Repeated activation during an eye break does not reset its deadline.
+
 Reminders within five minutes of a Pomodoro break merge into the existing curtain. A completed break
 satisfies the reminder. A voluntary eye break pauses focus and offers an explicit resume afterward;
 an eye break during a Pomodoro break is bounded by that break’s deadline and does not double-count

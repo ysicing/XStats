@@ -803,9 +803,10 @@ private func isolatedDefaults() -> UserDefaults {
 }
 
 @Suite struct HotKeyTests {
-    @Test func calendarActionKeepsExistingCarbonIDs() throws {
+    @Test func eyeRestActionKeepsExistingCarbonIDs() throws {
         let calendar = try #require(HotKeyAction(rawValue: "openCalendar"))
-        #expect(HotKeyAction.allCases.last == calendar)
+        #expect(HotKeyAction.allCases.last == .startEyeRest)
+        #expect(HotKeyAction.startEyeRest.carbonID == 6)
         #expect(calendar.carbonID == 5)
         #expect(HotKeyAction.toggleMainWindow.carbonID == 1)
         #expect(HotKeyAction.showProcesses.carbonID == 2)
@@ -827,7 +828,15 @@ private func isolatedDefaults() -> UserDefaults {
         let settings = AppSettings(defaults: defaults)
         settings.hotKeys[.toggleKeepAwake] = HotKey(keyCode: 40, modifiers: [.command, .shift], key: "k")
         settings.hotKeys[.openCalendar] = HotKey(keyCode: 37, modifiers: [.command, .option], key: "l")
+        #expect(settings.hotKeys[.startEyeRest] == nil)
+        let eyeRestKey = HotKey(keyCode: 14, modifiers: [.command, .option], key: "e")
+        settings.hotKeys[.startEyeRest] = eyeRestKey
         let reloaded = AppSettings(defaults: defaults)
+        #expect(reloaded.hotKeys[.startEyeRest] == eyeRestKey)
+        let document = settings.exportDocument()
+        settings.hotKeys = [:]
+        settings.apply(document)
+        #expect(settings.hotKeys[.startEyeRest] == eyeRestKey)
         #expect(reloaded.hotKeys[.toggleKeepAwake]?.display == "⇧⌘K")
         #expect(reloaded.hotKeys[.openCalendar]?.display == "⌥⌘L")
     }

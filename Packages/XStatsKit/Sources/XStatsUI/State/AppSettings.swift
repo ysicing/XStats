@@ -528,9 +528,6 @@ public final class AppSettings {
     public var restLongBreakMinutes: Int {
         didSet { defaults.set(restLongBreakMinutes, forKey: Keys.restLongBreakMinutes) }
     }
-    public var restDailyGoal: Int {
-        didSet { defaults.set(restDailyGoal, forKey: Keys.restDailyGoal) }
-    }
     /// 兼容旧版布尔偏好与备份；新界面以 restMode 为准。
     public var restCycleEnabled: Bool {
         get { restMode == .cycle }
@@ -842,7 +839,6 @@ public final class AppSettings {
     public static let restWorkOptions = [20, 25, 30, 45, 60]
     public static let restBreakOptions = [3, 5, 10]
     public static let restLongBreakOptions = [10, 15, 20, 30]
-    public static let restDailyGoalOptions = [4, 6, 8, 12]
     public static let aiUsageRefreshOptions = [1, 3, 5, 10, 15, 30, 60]
     public static let batteryFloorOptions = [10, 20, 30, 40]
     public static let fanSafetyOptions = [85, 90, 95, 100]
@@ -860,8 +856,6 @@ public final class AppSettings {
             ? defaults.integer(forKey: Keys.restBreakMinutes) : 5
         restLongBreakMinutes = Self.restLongBreakOptions.contains(defaults.integer(forKey: Keys.restLongBreakMinutes))
             ? defaults.integer(forKey: Keys.restLongBreakMinutes) : 15
-        restDailyGoal = Self.restDailyGoalOptions.contains(defaults.integer(forKey: Keys.restDailyGoal))
-            ? defaults.integer(forKey: Keys.restDailyGoal) : 8
         restMode = defaults.string(forKey: Keys.restMode).flatMap(RestRunMode.init(rawValue:))
             ?? (defaults.bool(forKey: Keys.restCycleEnabled) ? .cycle : .single)
         restSound = defaults.string(forKey: Keys.restSound).flatMap(RestSound.init(rawValue:)) ?? .off
@@ -1058,7 +1052,6 @@ public final class AppSettings {
         static let restWorkMinutes = "restWorkMinutes"
         static let restBreakMinutes = "restBreakMinutes"
         static let restLongBreakMinutes = "restLongBreakMinutes"
-        static let restDailyGoal = "restDailyGoal"
         static let restCycleEnabled = "restCycleEnabled"
         static let restMode = "restMode"
         static let restSound = "restSound"

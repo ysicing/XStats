@@ -133,20 +133,6 @@ struct RestOptionsPopover: View {
                         }
                     }
                     GroupRow {
-                        SettingRow(title: tr("每日目标")) {
-                            Picker(tr("每日目标"), selection: $settings.restDailyGoal) {
-                                ForEach(AppSettings.restDailyGoalOptions, id: \.self) { count in
-                                    Text(tr("\(count) 轮")).tag(count)
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .controlSize(.small)
-                            .fixedSize()
-                            .frame(width: 160, alignment: .trailing)
-                        }
-                    }
-                    GroupRow {
                         SettingRow(title: tr("休息声音"), subtitle: tr("试听 5 秒后自动停止")) {
                             HStack(spacing: DS.Space.s2) {
                                 if settings.restSound != .off && (settings.restSound != .custom || settings.restCustomAudio != nil) {

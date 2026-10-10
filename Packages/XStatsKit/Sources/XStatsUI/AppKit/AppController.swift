@@ -367,6 +367,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
         case .openCalendar:
             menuBar.dismissPopovers()
             model.openCalendar()
+        case .startEyeRest:
+            guard model.settings.restEnabled else { model.openMainWindow(.settingsFeatures); return }
+            menuBar.dismissPopovers()
+            calendarMenuBar.dismiss()
+            model.wellness.startShortRest()
         }
     }
 

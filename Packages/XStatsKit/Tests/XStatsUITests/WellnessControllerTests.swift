@@ -38,6 +38,24 @@ import Testing
         }
     }
 
+    @Test func repeatedEyeRestRequestsKeepDeadlineAndRespectDisabledFeature() async throws {
+        try await fixture { settings, _, wellness, clock in
+            wellness.startShortRest()
+            #expect(wellness.isEyeRestActive)
+            clock.seconds = 30
+            wellness.startShortRest()
+            wellness.refresh()
+            #expect(wellness.eyeRestSecondsRemaining == 30)
+            clock.seconds = 60
+            wellness.refresh()
+            #expect(!wellness.isEyeRestActive)
+            settings.restEnabled = false
+            wellness.sync()
+            wellness.startShortRest()
+            #expect(!wellness.isEyeRestActive)
+        }
+    }
+
     @Test func pomodoroBreakMergesAndSatisfiesReminderWithoutDuplicateTime() async throws {
         try await fixture { _, rest, wellness, clock in
             var notifications = 0

@@ -10,7 +10,6 @@ struct RestPage: View {
     @Environment(\.isSnapshot) private var isSnapshot
 
     var body: some View {
-        let settings = model.settings
         let rest = model.rest
         let isBreak = rest.phase.isResting
         let accent: Color = isBreak ? .green : .orange
@@ -66,20 +65,6 @@ struct RestPage: View {
                 .padding(.vertical, DS.Space.s4)
             }
 
-            Card {
-                HStack {
-                    Label(tr("今日目标"), systemImage: "checkmark.circle")
-                        .dsFont(.sm, weight: .semibold)
-                    Spacer()
-                    Text("\(rest.completedToday) / \(settings.restDailyGoal)")
-                        .monospacedDigit()
-                        .dsFont(.sm)
-                        .foregroundStyle(DS.Palette.textSecondary)
-                }
-                ProgressView(value: Double(min(rest.completedToday, settings.restDailyGoal)),
-                             total: Double(settings.restDailyGoal))
-                    .tint(.green)
-            }
             WellnessHealthCard()
             WellnessTodayCard()
         }

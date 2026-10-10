@@ -23,7 +23,6 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var restWorkMinutes: Int?
     public var restBreakMinutes: Int?
     public var restLongBreakMinutes: Int?
-    public var restDailyGoal: Int?
     public var restCycleEnabled: Bool?
     public var restMode: String?
     public var restSound: String?
@@ -81,7 +80,6 @@ extension AppSettings {
         doc.restWorkMinutes = restWorkMinutes
         doc.restBreakMinutes = restBreakMinutes
         doc.restLongBreakMinutes = restLongBreakMinutes
-        doc.restDailyGoal = restDailyGoal
         doc.restCycleEnabled = restCycleEnabled
         doc.restMode = restMode.rawValue
         // 自定义音频属于本机文件，其他 Mac 恢复备份时从关闭开始。
@@ -146,7 +144,6 @@ extension AppSettings {
         assign(\.restWorkMinutes, option(doc.restWorkMinutes, in: Self.restWorkOptions))
         assign(\.restBreakMinutes, option(doc.restBreakMinutes, in: Self.restBreakOptions))
         assign(\.restLongBreakMinutes, option(doc.restLongBreakMinutes, in: Self.restLongBreakOptions))
-        assign(\.restDailyGoal, option(doc.restDailyGoal, in: Self.restDailyGoalOptions))
         if let mode = doc.restMode.flatMap(RestRunMode.init(rawValue:)) {
             assign(\.restMode, mode)
         } else if let cycle = doc.restCycleEnabled {

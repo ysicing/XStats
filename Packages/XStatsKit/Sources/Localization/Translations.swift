@@ -153,7 +153,6 @@ XStats 网络连接查看	XStats Network Connection Viewer
 收起到迷你 HUD	Collapse to Mini HUD
 番茄钟	Pomodoro Timer
 番茄钟与护眼休息	Pomodoro & Eye Breaks
-专注计时、每日目标与多屏休息幕布。	Focus timer, daily goals and a break screen on every display.
 专注	Focus
 短休	Short break
 长休	Long break
@@ -173,10 +172,8 @@ XStats 网络连接查看	XStats Network Connection Viewer
 继续	Continue
 重置	Reset
 跳过	Skip
-今日目标	Today's goal
 长休时长（分钟）	Long break duration (minutes)
 每完成 4 轮专注后进入长休	Take a long break after four focus sessions
-每日目标	Daily goal
 {} 轮	{} sessions
 再专注 5 分钟	Focus 5 more minutes
 专注中	Focusing

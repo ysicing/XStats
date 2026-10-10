@@ -1458,7 +1458,6 @@ Sub2API 账号平台与所选来源不匹配	La plateforme du compte Sub2API ne 
 收起到迷你 HUD	Réduire en Mini HUD
 番茄钟	Minuteur Pomodoro
 番茄钟与护眼休息	Pomodoro et pauses visuelles
-专注计时、每日目标与多屏休息幕布。	Minuteur de concentration, objectifs quotidiens et écran de pause sur tous les moniteurs.
 专注	Concentration
 短休	Pause courte
 长休	Pause longue
@@ -1470,9 +1469,7 @@ Sub2API 账号平台与所选来源不匹配	La plateforme du compte Sub2API ne 
 开始	Démarrer
 重置	Réinitialiser
 跳过	Passer
-今日目标	Objectif du jour
 每完成 4 轮专注后进入长休	Une pause longue suit quatre sessions de concentration
-每日目标	Objectif quotidien
 {} 轮	{} sessions
 再专注 5 分钟	Se concentrer 5 minutes de plus
 专注中	Concentration en cours
