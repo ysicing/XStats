@@ -158,7 +158,16 @@ tasks:
     internal: true
     dir: Packages/XStatsKit
     cmds:
-      - swift test
+      - swift build --build-tests
+      # 较旧 Swift 工具链把全部模块放在一个测试进程，阻塞型夹具会拖延其他模块的取消与超时。
+      # 按 Package.swift 中的测试目标隔离运行，保留模块内并发及全部断言，与新工具链行为一致。
+      - |
+        set -euo pipefail
+        modules="$(swift package describe --type json | python3 -c 'import json, sys; print("\n".join(t["name"] for t in json.load(sys.stdin)["targets"] if t["type"] == "test"))')"
+        test -n "$modules"
+        while IFS= read -r module; do
+          swift test --skip-build --filter "^${module}\."
+        done <<< "$modules"
 
   snapshot:
     desc: 使用当前构建截图；-- 后可传截图模式与语言
