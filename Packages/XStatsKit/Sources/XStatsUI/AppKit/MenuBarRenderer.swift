@@ -855,7 +855,7 @@ enum MenuBarRenderer {
                         NSBezierPath(ovalIn: NSRect(x: rect.minX, y: center - Metrics.dotSize / 2,
                                                     width: Metrics.dotSize, height: Metrics.dotSize)).fill()
                     } else {
-                        drawText(arrow, [.font: Metrics.networkFont, .foregroundColor: NSColor.secondaryLabelColor],
+                        drawText(arrow, [.font: Metrics.networkFont, .foregroundColor: NSColor.labelColor],
                                  rightEdge: rect.minX + markerWidth, baseline: baseline)
                     }
                     drawText(text, attributes, rightEdge: rect.maxX, baseline: baseline)

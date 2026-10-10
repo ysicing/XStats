@@ -37,6 +37,8 @@ final class RestMenuBarController: NSObject {
                 button.sendAction(on: [.leftMouseUp, .rightMouseUp])
                 button.image = NSImage(systemSymbolName: "timer", accessibilityDescription: tr("专注与护眼"))
                 button.image?.isTemplate = true
+                button.imagePosition = .imageLeading
+                button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
             }
             self.item = item
         }
@@ -47,17 +49,21 @@ final class RestMenuBarController: NSObject {
     func update() {
         guard let button = item?.button else { return }
         if let wellness, wellness.isEyeRestActive {
-            button.title = " " + WellnessFormat.timer(wellness.eyeRestSecondsRemaining)
+            button.title = WellnessFormat.timer(wellness.eyeRestSecondsRemaining)
         } else if rest.isRunning {
-            button.title = " " + WellnessFormat.timer(rest.secondsRemaining)
+            button.title = WellnessFormat.timer(rest.secondsRemaining)
         } else {
             button.title = ""
         }
-        let pending = wellness?.pending ?? []
-        let symbol = pending.contains(.rest) ? "eye" : "timer"
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: tr("专注与护眼"))
-        button.image?.isTemplate = true
-        button.toolTip = tr("专注与护眼") + " · " + tr(!pending.isEmpty ? "待处理" : rest.isRunning ? "计时中" : "未开始专注")
+        // 菜单栏入口始终用计时图标；待处理提醒不能把正在计时的入口变成隐私指示。
+        // 当前阶段及护眼提醒放在悬停提示中，图标和文字均由系统适配菜单栏外观。
+        let state = wellness?.isEyeRestActive == true ? tr("护眼休息")
+            : rest.isRunning ? rest.phase.title
+            : rest.primaryAction == .resume ? tr("已暂停") : tr("未开始专注")
+        let reminder = wellness?.pending.isEmpty == false ? " · " + tr("待处理") : ""
+        let description = tr("专注与护眼") + " · " + state + reminder
+        button.toolTip = description
+        button.setAccessibilityLabel(description)
     }
 
     @objc private func clicked(_ sender: NSStatusBarButton) {
