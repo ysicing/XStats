@@ -87,4 +87,23 @@ struct RestCustomAudioTests {
         #expect(settings.exportDocument().restSound == RestSound.off.rawValue)
         #expect(!String(decoding: exported, as: UTF8.self).contains("gentle.wav"))
     }
+
+    @MainActor @Test func customAudioRestartsAfterOutputDeviceChange() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = try audioFile(in: root)
+        var starts = 0
+        let player = RestSoundPlayer(startEngine: { _ in }, startCustomPlayer: { _ in
+            starts += 1
+            return true
+        })
+        player.play(.custom, customURL: source)
+        #expect(starts == 1 && player.playing == .custom)
+        player.handleConfigurationChange()
+        #expect(starts == 2 && player.playing == .custom)
+        player.play(.custom, customURL: source)
+        #expect(starts == 2)
+        player.stop()
+        #expect(player.playing == .off)
+    }
 }

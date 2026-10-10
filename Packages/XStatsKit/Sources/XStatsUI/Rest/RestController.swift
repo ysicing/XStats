@@ -36,9 +36,9 @@ struct RestSession {
     private var remainingByPhase: [RestPhase: UInt64]
     private var activeDurationByPhase: [RestPhase: UInt64]
     private var canUndoFocus = false
-    let workNanoseconds: UInt64
-    let restNanoseconds: UInt64
-    let longRestNanoseconds: UInt64
+    private var workNanoseconds: UInt64
+    private var restNanoseconds: UInt64
+    private var longRestNanoseconds: UInt64
 
     init(now: UInt64, workMinutes: Int, restMinutes: Int, longBreakMinutes: Int = 15,
          completedFocus: Int = 0) {
@@ -100,6 +100,25 @@ struct RestSession {
         deadline = now + phaseDuration
         isRunning = false
         canUndoFocus = false
+    }
+
+    /// 已经开始的阶段保留剩余时间和截止点；新时长等到该阶段下一次开始再生效。
+    /// 尚未开始的阶段立即采用新时长，避免设置和倒计时显示不一致。
+    mutating func updateDurations(workMinutes: Int, restMinutes: Int, longBreakMinutes: Int) {
+        workNanoseconds = UInt64(max(1, workMinutes)) * 60_000_000_000
+        restNanoseconds = UInt64(max(1, restMinutes)) * 60_000_000_000
+        longRestNanoseconds = UInt64(max(1, longBreakMinutes)) * 60_000_000_000
+        let currentHasStarted = isRunning || pausedRemaining < phaseDuration
+        for selected in RestPhase.allCases {
+            if selected == phase && currentHasStarted { continue }
+            let duration = duration(for: selected)
+            remainingByPhase[selected] = duration
+            activeDurationByPhase[selected] = duration
+            if selected == phase {
+                phaseDuration = duration
+                pausedRemaining = duration
+            }
+        }
     }
 
     /// 睡眠后可跨越多个阶段；单次模式在一次休息结束后停在下一轮专注起点。
@@ -195,6 +214,7 @@ final class RestController {
     private var lastSharedRunning: Bool?
     private var lastSharedPhase: RestPhase?
     private var lastSharedLanguage: AppLanguage?
+    private var lastSharedDuration: TimeInterval?
     private var activityTracker = RestActivityTracker()
     private var previewAction: RestPrimaryAction?
     private let audio: RestSoundPlayer
@@ -377,6 +397,18 @@ final class RestController {
         sync()
     }
 
+    /// 时长设置只影响尚未开始的阶段，不暂停也不重置当前倒计时。
+    func applyDurationChange() {
+        guard settings.restEnabled else { return }
+        settleExpiredSession()
+        guard var session else { return }
+        session.updateDurations(workMinutes: settings.restWorkMinutes,
+                                restMinutes: settings.restBreakMinutes,
+                                longBreakMinutes: settings.restLongBreakMinutes)
+        self.session = session
+        refresh()
+    }
+
     func skip() {
         guard settings.restMode != .workday || isWorkdayActive else { return }
         settleExpiredSession()
@@ -465,7 +497,8 @@ final class RestController {
 
         // 截止点或状态变化时才更新 Widget 共享值，避免每秒磁盘写入。
         if lastSharedDeadline != session.deadline || lastSharedRunning != session.isRunning
-            || lastSharedPhase != session.phase || lastSharedLanguage != settings.language {
+            || lastSharedPhase != session.phase || lastSharedLanguage != settings.language
+            || lastSharedDuration != phaseDuration {
             defaults?.set(settings.restEnabled, forKey: "rest.enabled")
             defaults?.set(session.phase.rawValue, forKey: "rest.phase")
             defaults?.set(session.isRunning, forKey: "rest.running")
@@ -477,6 +510,7 @@ final class RestController {
             lastSharedRunning = session.isRunning
             lastSharedPhase = session.phase
             lastSharedLanguage = settings.language
+            lastSharedDuration = phaseDuration
             WidgetCenter.shared.reloadTimelines(ofKind: "rest")
         }
     }
@@ -510,6 +544,7 @@ final class RestController {
         suspendedAt = nil
         lastFocusCredited = false
         lastSharedDeadline = nil
+        lastSharedDuration = nil
         secondsRemaining = 0
         isRunning = false
         canContinue = false

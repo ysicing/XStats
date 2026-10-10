@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import AVFoundation
+import CoreAudio
 import Foundation
 import Localization
 
@@ -32,6 +33,11 @@ final class RestSoundPlayer {
     private var failed: RestSound?
     private var retryAfter: UInt64?
     private var configurationObserver: NSObjectProtocol?
+    private var outputDeviceListener: AudioObjectPropertyListenerBlock?
+    private let outputDeviceAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
     private let startEngine: (AVAudioEngine) throws -> Void
     private let clock: () -> UInt64
     private let startCustomPlayer: (AVAudioPlayer) -> Bool
@@ -59,6 +65,8 @@ final class RestSoundPlayer {
                 customPlayer = player
                 self.customURL = customURL
                 playing = .custom
+                // AVAudioPlayer 没有引擎配置通知；默认输出设备变化后按原文件重新播放。
+                startWatchingOutputDevice()
             } catch {
                 failed = sound
                 retryAfter = clock() + 10_000_000_000
@@ -78,12 +86,7 @@ final class RestSoundPlayer {
             // 切换耳机等输出设备时系统会停止引擎；按新配置重建，否则本次休息剩余时间都没有声音。
             configurationObserver = NotificationCenter.default.addObserver(
                 forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    guard let self else { return }
-                    let current = self.playing
-                    self.stop()
-                    self.play(current)
-                }
+                MainActor.assumeIsolated { self?.handleConfigurationChange() }
             }
         } catch {
             engine.stop()
@@ -95,6 +98,7 @@ final class RestSoundPlayer {
     func stop() {
         if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
         configurationObserver = nil
+        stopWatchingOutputDevice()
         engine?.stop()
         engine = nil
         customPlayer?.stop()
@@ -103,6 +107,32 @@ final class RestSoundPlayer {
         playing = .off
         failed = nil
         retryAfter = nil
+    }
+
+    /// 输出设备变化会停掉当前播放。保留声音和自定义文件，按新设备重新开始。
+    func handleConfigurationChange() {
+        let current = playing
+        let url = customURL
+        guard current != .off else { return }
+        stop()
+        play(current, customURL: url)
+    }
+
+    private func startWatchingOutputDevice() {
+        guard outputDeviceListener == nil else { return }
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.handleConfigurationChange() }
+        }
+        var address = outputDeviceAddress
+        guard AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main, listener) == noErr else { return }
+        outputDeviceListener = listener
+    }
+
+    private func stopWatchingOutputDevice() {
+        guard let listener = outputDeviceListener else { return }
+        var address = outputDeviceAddress
+        AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main, listener)
+        outputDeviceListener = nil
     }
 }
 

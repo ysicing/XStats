@@ -406,6 +406,63 @@ private func noonClock(_ now: @escaping () -> UInt64) -> () -> Date {
         rest.stop()
     }
 
+    @Test func durationChangesKeepTheCurrentPhaseAndApplyOnTheNextOne() {
+        let suite = "RestDurationChangeTests.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.restEnabled = true
+        settings.restMode = .cycle
+        var now: UInt64 = 0
+        let rest = RestController(settings: settings, localDefaults: defaults,
+                                  sharedDefaults: defaults, clock: { now }, date: noonClock { now })
+        rest.sync()
+        #expect(rest.secondsRemaining == 25 * 60)
+        settings.restWorkMinutes = 45
+        rest.applyDurationChange()
+        #expect(!rest.isRunning && rest.phase == .work && rest.secondsRemaining == 45 * 60)
+
+        settings.restWorkMinutes = 25
+        rest.applyDurationChange()
+        rest.startPause()
+        now = 10 * 60_000_000_000
+        rest.sync()
+        settings.restWorkMinutes = 45
+        settings.restBreakMinutes = 10
+        settings.restLongBreakMinutes = 20
+        rest.applyDurationChange()
+        #expect(rest.isRunning && rest.phase == .work)
+        #expect(rest.secondsRemaining == 15 * 60 && rest.phaseDuration == 25 * 60)
+
+        now = 25 * 60_000_000_000
+        rest.sync()
+        #expect(rest.phase == .rest && rest.isRunning && rest.phaseDuration == 10 * 60)
+        now = 35 * 60_000_000_000
+        rest.sync()
+        #expect(rest.phase == .work && rest.isRunning && rest.phaseDuration == 45 * 60)
+
+        now = 80 * 60_000_000_000
+        rest.sync()
+        #expect(rest.phase == .rest && rest.completedToday == 2 && rest.phaseDuration == 10 * 60)
+        now = 90 * 60_000_000_000
+        rest.sync()
+        now = 135 * 60_000_000_000
+        rest.sync()
+        now = 145 * 60_000_000_000
+        rest.sync()
+        now = 190 * 60_000_000_000
+        rest.sync()
+        #expect(rest.phase == .longRest && rest.completedToday == 4 && rest.phaseDuration == 20 * 60)
+        now = 195 * 60_000_000_000
+        rest.sync()
+        rest.startPause()
+        settings.restLongBreakMinutes = 30
+        rest.applyDurationChange()
+        #expect(!rest.isRunning && rest.phase == .longRest)
+        #expect(rest.secondsRemaining == 15 * 60 && rest.phaseDuration == 20 * 60)
+        rest.stop()
+    }
+
     @Test func failedBreakSoundRetriesAfterCooldown() {
         enum StartupFailure: Error { case unavailable }
         var now: UInt64 = 0

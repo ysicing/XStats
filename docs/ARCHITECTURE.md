@@ -290,7 +290,7 @@ appearances. These policies add no timers or retained per-interaction state.
 
 `RestSession` uses absolute `mach_continuous_time` deadlines and recalculates after wake instead
 of accumulating timer ticks. Rest features default off and require a manual start. Phase changes
-preserve their remaining time; duration changes pause the session. The UI has one focus flow, with
+preserve their remaining time. Duration changes do not pause or reset the current phase; a new length applies the next time that phase starts, while a phase that has not started uses it immediately. The UI has one focus flow, with
 Start / Pause / Resume / End actions shared by the page and HUD. An opt-in setting starts the next
 round automatically after a break; changing it preserves the current deadline and running state.
 The stored `single`, `cycle` and `workday` preference values remain readable, with the latter two

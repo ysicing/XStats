@@ -130,7 +130,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
 
         observeWorkspace()
-        observeRestSettings()
+        observeRestEnabled()
+        observeRestDurations()
         observeCleanerSetting()
         observeRestMode()
         observeRestSound()
@@ -747,19 +748,30 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func observeRestSettings() {
+    private func observeRestEnabled() {
         withObservationTracking {
             _ = model.settings.restEnabled
-            _ = model.settings.restWorkMinutes
-            _ = model.settings.restBreakMinutes
-            _ = model.settings.restLongBreakMinutes
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.rest.restart()
                 self.restMenuBar.sync()
                 if !self.model.settings.restEnabled { self.restWindows.hideHUD() }
-                self.observeRestSettings()
+                self.observeRestEnabled()
+            }
+        }
+    }
+
+    private func observeRestDurations() {
+        withObservationTracking {
+            _ = model.settings.restWorkMinutes
+            _ = model.settings.restBreakMinutes
+            _ = model.settings.restLongBreakMinutes
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.rest.applyDurationChange()
+                self.observeRestDurations()
             }
         }
     }
