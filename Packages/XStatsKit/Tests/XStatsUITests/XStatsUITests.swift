@@ -675,6 +675,32 @@ private func isolatedDefaults() -> UserDefaults {
 }
 
 @Suite struct DiagnosticsTests {
+    @Test func logCollectionPreservesOutputAndStopsAtSizeLimit() {
+        let text = DiagnosticsExporter.run("/usr/bin/printf", ["abcdef"], timeout: 2, maximumBytes: 3)
+        #expect(text.hasPrefix("abc\n"))
+        #expect(!text.contains("def"))
+        #expect(text.contains("time or size limit"))
+        #expect(DiagnosticsExporter.run("/usr/bin/printf", ["abcdef"], timeout: 2, maximumBytes: 10) == "abcdef")
+    }
+
+    @Test func logCollectionTimeoutTerminatesOnlyItsChild() {
+        let started = ContinuousClock.now
+        let text = DiagnosticsExporter.run("/bin/sleep", ["30"], timeout: 0.2, maximumBytes: 1024)
+        #expect(ContinuousClock.now - started < .seconds(5))
+        #expect(text.contains("time or size limit"))
+    }
+
+    @Test func unifiedLogExportIncludesAllServicesAndExcludesUnrelatedSubsystems() {
+        let predicate = NSPredicate(format: DiagnosticsExporter.unifiedLogPredicate)
+        for subsystem in ["work.12306.xstats.app", "work.12306.xstats.helper",
+                          "work.12306.xstats.networkmonitor", "work.12306.xstats.app.networkextension"] {
+            #expect(predicate.evaluate(with: ["subsystem": subsystem]))
+        }
+        for subsystem in ["com.apple.network", "com.example.app", "work.12306.xstats.other"] {
+            #expect(!predicate.evaluate(with: ["subsystem": subsystem]))
+        }
+    }
+
     @Test func redactsAddressesAndHome() {
         let text = "\(NSHomeDirectory())/Library/x 192.168.1.20 fe80::1c2b:3aff:fe4d:5e6f 2001:db8:0:0:1:2:3:4 ::1 a4:83:e7:12:34:56 12:30:45 版本 0.2.0"
         let redacted = DiagnosticsExporter.redact(text)

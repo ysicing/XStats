@@ -969,6 +969,15 @@ complete, but its late result cannot issue an app-side route switch or clear a n
 
 ## Read-only network connection observation
 
+The component logs lifecycle, registration, filter changes and update milestones through Apple's
+unified logging subsystem `work.12306.xstats.networkmonitor`, with `service`, `registration`,
+`filter` and `update` categories. Error descriptions are bounded to 1024 characters and private.
+Routine status polling, download progress and observed connection payloads are not logged.
+The system extension records only filter lifecycle and observation settings outcomes.
+Diagnostic exports include the exact app, helper, component and extension subsystems and retain
+address/home-path redaction. Unified-log collection stops after 15 seconds or 8 MiB and preserves
+partial output with a truncation note. CLI registration continues to write only protocol JSON to stdout.
+
 The optional Network Monitor module requires macOS 15+ and is disabled by default. The main
 app and other features continue to support macOS 14. The feature switch, sidebar and routes are gated
 on OS availability; saved preferences are retained, but cannot activate the module on older systems.

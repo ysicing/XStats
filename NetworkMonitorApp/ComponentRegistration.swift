@@ -40,6 +40,7 @@ enum ComponentRegistration {
         let previous = UserDefaults.standard.string(forKey: fingerprintKey)
         let registered = agent.status == .enabled || agent.status == .requiresApproval
         if registered, !forceRefresh, previous == fingerprint { return }
+        ComponentLog.registration.notice("Refreshing agent registration force=\(forceRefresh)")
         if registered { try await agent.unregister() }
         do { try agent.register() }
         catch {
@@ -48,6 +49,7 @@ enum ComponentRegistration {
         guard agent.status == .enabled || agent.status == .requiresApproval else { throw NetworkMonitorError.unavailable }
         UserDefaults.standard.set(fingerprint, forKey: fingerprintKey)
         UserDefaults.standard.synchronize()
+        ComponentLog.registration.notice("Agent registration completed approvalRequired=\(agent.status == .requiresApproval)")
     }
 
     @concurrent static func unregister() async throws {
@@ -55,6 +57,7 @@ enum ComponentRegistration {
         if agent.status == .enabled || agent.status == .requiresApproval { try await agent.unregister() }
         UserDefaults.standard.removeObject(forKey: fingerprintKey)
         UserDefaults.standard.synchronize()
+        ComponentLog.registration.notice("Agent unregistered")
     }
 
     private static func registrationFingerprint(app: URL) throws -> String {

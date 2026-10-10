@@ -182,9 +182,11 @@ import Updates
             return
         }
         manager.isEnabled = enabled
+        ComponentLog.filter.notice("Saving filter enabled=\(enabled)")
         try await manager.saveToPreferences()
         try await manager.loadFromPreferences()
         guard manager.isEnabled == enabled else { throw NetworkMonitorError.wrongConfiguration }
+        ComponentLog.filter.notice("Filter confirmed enabled=\(enabled)")
     }
 
     private func ensureConnection(service: String? = nil) throws -> NSXPCConnection {
@@ -253,6 +255,7 @@ import Updates
     func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
         guard self.request === request else { return }
         needsSystemApproval = true
+        ComponentLog.filter.notice("System extension requires user approval")
         onApproval?()
     }
 
@@ -266,6 +269,7 @@ import Updates
         let continuation = requestContinuation
         requestContinuation = nil
         needsSystemApproval = false
+        ComponentLog.filter.notice("System extension request completed restartRequired=\(result == .willCompleteAfterReboot)")
         continuation?.resume(returning: result == .willCompleteAfterReboot)
     }
 

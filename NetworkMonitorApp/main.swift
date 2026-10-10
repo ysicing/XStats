@@ -21,7 +21,10 @@ import SwiftUI
             guard ComponentRegistration.status != .requiresApproval else { throw NetworkMonitorError.backgroundApproval }
             await run("status")
         }
-        catch { message = error.localizedDescription }
+        catch {
+            ComponentLog.failure(error, operation: "initialize")
+            message = error.localizedDescription
+        }
     }
     func run(_ command: String) async {
         calls += 1
@@ -48,7 +51,11 @@ import SwiftUI
             if let error = response.error { message = tr(error) }
             else if response.needsRestart { message = tr("需要重启系统") }
             else { message = statusMessage }
-        } catch { message = error.localizedDescription }
+        } catch {
+            // 不把来自调用方的 command 原文写入日志。
+            ComponentLog.failure(error, operation: "guiCommand")
+            message = error.localizedDescription
+        }
     }
     private var statusMessage: String {
         if status?.needsSystemApproval == true, status?.filterEnabled != true { return tr("等待系统授权") }
@@ -122,14 +129,14 @@ private struct ComponentView: View {
         if serviceMode {
             let host = NetworkComponentServiceHost()
             do { try host.start(); self.host = host }
-            catch { FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8)); NSApp.terminate(nil) }
+            catch { ComponentLog.failure(error, operation: "startService"); NSApp.terminate(nil) }
         } else {
             UserDefaults.standard.synchronize()
             if let previous = UserDefaults.standard.string(forKey: NetworkComponentServiceHost.relaunchKey),
                previous != Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String {
                 Task {
                     do { try await ComponentRegistration.ensureRegistered() }
-                    catch { FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8)) }
+                    catch { ComponentLog.failure(error, operation: "refreshAfterUpdate", logger: ComponentLog.registration) }
                     UserDefaults.standard.removeObject(forKey: NetworkComponentServiceHost.relaunchKey)
                     UserDefaults.standard.synchronize()
                     NSApp.terminate(nil)
@@ -180,7 +187,10 @@ if registrationMode {
         do {
             if arguments.contains("--unregister-service") { try await ComponentRegistration.unregister() }
             else { try await ComponentRegistration.ensureRegistered(forceRefresh: arguments.contains("--refresh-service")) }
-        } catch { failure = error.localizedDescription }
+        } catch {
+            ComponentLog.failure(error, operation: "registerCLI", logger: ComponentLog.registration)
+            failure = error.localizedDescription
+        }
         let result = ComponentRegistrationResult(error: failure)
         if let data = try? JSONEncoder().encode(result) { FileHandle.standardOutput.write(data + Data([10])) }
         exit(failure == nil ? 0 : 1)

@@ -55,6 +55,7 @@ final class ConnectionFilterProvider: NEFilterDataProvider, @unchecked Sendable 
     }
 
     override func startFilter(completionHandler: @escaping @Sendable ((any Error)?) -> Void) {
+        Self.logger.notice("Filter starting")
         let settings = settingsLifecycle
         let current = Self.host.startFilter(demandChanged: { settings.setDemand($0) })
         lifecycleLock.lock(); generation = current; lifecycleLock.unlock()
@@ -67,6 +68,7 @@ final class ConnectionFilterProvider: NEFilterDataProvider, @unchecked Sendable 
     }
 
     override func stopFilter(with reason: NEProviderStopReason, completionHandler: @escaping @Sendable () -> Void) {
+        Self.logger.notice("Filter stopping reason=\(reason.rawValue)")
         lifecycleLock.lock(); let current = generation; lifecycleLock.unlock()
         Self.host.beginStoppingFilter(generation: current)
         settingsLifecycle.stop(generation: current) {

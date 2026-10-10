@@ -66,6 +66,7 @@ import Updates
         listener.resume()
         self.listener = listener; listenerDelegate = delegate
         lifetime.start()
+        ComponentLog.service.notice("Control service started protocol=\(NetworkObservationProtocol.version)")
     }
 
     nonisolated func perform(_ command: String, reply: @escaping @Sendable (Data) -> Void) {
@@ -80,10 +81,12 @@ import Updates
     func addClient(_ client: ComponentClientSession) -> Bool {
         guard clients.count < 32, !client.isEnded else { client.invalidate(); return false }
         clients[client.id] = client
+        ComponentLog.service.info("Control client connected count=\(self.clients.count)")
         return true
     }
     func removeClient(_ id: UUID) {
         clients.removeValue(forKey: id)
+        ComponentLog.service.info("Control client disconnected count=\(self.clients.count)")
         cancelUnobservedRequest()
     }
     private func cancelUnobservedRequest(sdkCycleFinished: Bool = false) {
@@ -103,6 +106,7 @@ import Updates
                 try ensureUpdater()
                 guard driver?.isRunning != true else { return response() }
                 installationCancelled = false
+                ComponentLog.update.notice("Update check started userInitiated=\(command == "checkUpdates")")
                 return await withCheckedContinuation { continuation in
                     checkReplies.append(continuation)
                     lifetime.setSDKActive(true)
@@ -115,6 +119,7 @@ import Updates
                 guard driver?.isRunning != true else { throw NetworkMonitorError.unavailable }
                 installationCancelled = false
                 preparedForHandoff = false
+                ComponentLog.update.notice("Update installation requested")
                 lifetime.setSDKActive(true)
                 driver?.check(userInitiated: true, action: .install(release))
                 return response()
@@ -123,12 +128,19 @@ import Updates
                 return response()
             case "activate", "enable", "disable", "shutdown", "uninstall":
                 return await mutate(command)
-            default: throw NetworkMonitorError.unavailable
+            default:
+                ComponentLog.service.error("Rejected unknown control command")
+                throw NetworkMonitorError.unavailable
             }
-        } catch { return response(error: error.localizedDescription) }
+        } catch {
+            ComponentLog.failure(error, operation: "controlRequest")
+            return response(error: error.localizedDescription)
+        }
     }
 
     private func mutate(_ command: String) async -> NetworkComponentResponse {
+        // 这里只接收 run 中白名单允许的命令；status 查询不写逐次日志。
+        ComponentLog.service.notice("Control action started action=\(command, privacy: .public)")
         // status 刷新不占用 mutation，但其 properties 请求会占用系统扩展请求槽；先等它结束再判定。
         _ = await statusRefresh?.result
         guard command != "uninstall" || !preparedForHandoff else { return response(error: NetworkMonitorError.unavailable.localizedDescription) }
@@ -138,11 +150,18 @@ import Updates
             manager.cancelActivation()
             if command != "disable" { shutdownRequested = true; cancelUpdate() }
             if updatePreparing {
-                do { try await stopDuringUpdate() } catch { return response(error: error.localizedDescription) }
+                do { try await stopDuringUpdate() }
+                catch {
+                    ComponentLog.failure(error, operation: "stopDuringUpdate", logger: ComponentLog.update)
+                    return response(error: error.localizedDescription)
+                }
             }
             if command == "uninstall" {
                 do { try await abandonUpdateForUninstall() }
-                catch { return response(error: error.localizedDescription) }
+                catch {
+                    ComponentLog.failure(error, operation: "abandonUpdate", logger: ComponentLog.update)
+                    return response(error: error.localizedDescription)
+                }
             }
             while let previous = mutation { _ = await previous.value }
         } else if shutdownRequested || mutation != nil || updatePreparing {
@@ -166,8 +185,12 @@ import Updates
                 }
                 enabled = try await manager.filterEnabled()
                 if command == "shutdown" || command == "uninstall" { lifetime.requestShutdown() }
+                ComponentLog.service.notice("Control action completed action=\(command, privacy: .public) filterEnabled=\(self.enabled) restartRequired=\(restart)")
                 return response(needsRestart: restart)
-            } catch { return response(error: error.localizedDescription) }
+            } catch {
+                ComponentLog.failure(error, operation: command)
+                return response(error: error.localizedDescription)
+            }
         }
         mutation = task
         return await task.value
@@ -189,6 +212,15 @@ import Updates
         let driver = SparkleInstaller(endpoints: UpdateFeed.sparkleURLs(
             prefersChina: UpdateFeed.prefersChinaEndpoint(), applicationID: "xstats-network-monitor"), onPhase: { [weak self] phase in
             guard let self else { return }
+            // 下载进度频繁回调，不逐次写日志；只记录关键阶段及失败。
+            if phase != self.phase {
+                switch phase {
+                case .verifying: ComponentLog.update.notice("Verifying component update")
+                case .installing: ComponentLog.update.notice("Installing component update")
+                case .failed(let error): ComponentLog.update.error("Update failed detail=\(String(error.prefix(1024)), privacy: .private)")
+                default: break
+                }
+            }
             self.phase = self.installationCancelled && phase != .installing ? (self.release == nil ? .idle : .available) : phase
             self.publishStatus()
         }, onRelaunch: {
@@ -210,6 +242,7 @@ import Updates
         }
         driver.onCycleFinished = { [weak self] success in
             guard let self else { return }
+            ComponentLog.update.notice("Update cycle completed success=\(success)")
             self.lifetime.setSDKActive(false)
             let sdkReplies = self.sdkReplies; self.sdkReplies.removeAll()
             for reply in sdkReplies { reply.resume() }
@@ -247,6 +280,7 @@ import Updates
         try await stopTask?.value
         guard !installationCancelled, !shutdownRequested else { throw CancellationError() }
         preparedForHandoff = true
+        ComponentLog.update.notice("Update handoff prepared")
     }
 
     private func stopDuringUpdate() async throws {
@@ -277,13 +311,15 @@ import Updates
             _ = await preparation?.result
             // 回退只恢复本次准备停用的旧过滤会话；后来的 disable/shutdown 意图优先。
             if originalFilterEnabled, filterRevision == preparationRevision, desiredFilterEnabled != false, !shutdownRequested {
-                try? await manager.setFilterEnabled(true)
+                do { try await manager.setFilterEnabled(true) }
+                catch { ComponentLog.failure(error, operation: "restoreFilter", logger: ComponentLog.update) }
                 enabled = (try? await manager.filterEnabled()) ?? false
             }
         }
     }
 
     private func cancelUpdate() {
+        if driver?.isRunning == true || updatePreparing { ComponentLog.update.notice("Update cancellation requested") }
         installationCancelled = true
         driver?.cancel()
         if updatePreparing { driver?.dismissUpdateInstallation() }
@@ -336,6 +372,7 @@ import Updates
         guard mutation == nil, !updatePreparing, manager.hasPendingSystemRequest == false,
               driver?.isRunning != true, driver?.hasInstallationRequest != true else { return }
         // 包删除与注销由外部主应用串行处理；服务不在延迟退出时再访问可能已删除的自身可执行文件。
+        ComponentLog.service.notice("Control service exiting when idle")
         NSApp.terminate(nil)
     }
     var installationPending: Bool { driver?.hasInstallationRequest == true }

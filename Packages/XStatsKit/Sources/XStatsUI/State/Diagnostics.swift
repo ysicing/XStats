@@ -23,6 +23,9 @@ enum Log {
 @MainActor
 @Observable
 final class DiagnosticsExporter {
+    /// 仅收集本产品的四个子系统，避免扩大到其他应用或系统网络日志。
+    nonisolated static let unifiedLogPredicate =
+        "subsystem IN {\"work.12306.xstats.app\", \"work.12306.xstats.helper\", \"work.12306.xstats.networkmonitor\", \"work.12306.xstats.app.networkextension\"}"
     enum Phase: Equatable {
         case idle
         case collecting
@@ -126,9 +129,9 @@ final class DiagnosticsExporter {
 
         try summary.write(to: folder.appendingPathComponent("summary.txt"), atomically: true, encoding: .utf8)
 
-        // 统一日志：应用与辅助工具最近 3 天的记录
+        // 统一日志：主程序、辅助工具、网络组件与系统扩展最近 3 天的记录。
         let log = run("/usr/bin/log", ["show", "--style", "compact", "--last", "3d", "--info",
-                                       "--predicate", "subsystem == \"\(Log.subsystem)\" OR subsystem == \"work.12306.xstats.helper\""])
+                                       "--predicate", unifiedLogPredicate], timeout: 15, maximumBytes: 8 * 1024 * 1024)
         try redact(log).write(to: folder.appendingPathComponent("xstats.log"), atomically: true, encoding: .utf8)
 
         let home = URL(fileURLWithPath: NSHomeDirectory())
@@ -189,7 +192,9 @@ final class DiagnosticsExporter {
         return formatter.string(from: Date())
     }
 
-    nonisolated private static func run(_ executable: String, _ arguments: [String]) -> String {
+    /// 日志采集限定时长和大小，超限时保留部分文本；仅终止本次启动的子进程。
+    nonisolated static func run(_ executable: String, _ arguments: [String],
+                               timeout: TimeInterval? = nil, maximumBytes: Int? = nil) -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
@@ -197,9 +202,27 @@ final class DiagnosticsExporter {
         process.standardOutput = pipe
         process.standardError = pipe
         do { try process.run() } catch { return error.localizedDescription }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        try? pipe.fileHandleForWriting.close()
+        let deadline = DispatchWorkItem { if process.isRunning { process.terminate() } }
+        if let timeout { DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout, execute: deadline) }
+        defer { deadline.cancel(); try? pipe.fileHandleForReading.close() }
+        var data = Data()
+        var truncated = false
+        while let chunk = try? pipe.fileHandleForReading.read(upToCount: 64 * 1024), !chunk.isEmpty {
+            if let maximumBytes, chunk.count > maximumBytes - data.count {
+                data.append(chunk.prefix(max(0, maximumBytes - data.count)))
+                truncated = true
+                if process.isRunning { process.terminate() }
+                // 输出上限达到后关闭读端，避免子进程仍向满管道写入。
+                try? pipe.fileHandleForReading.close()
+                break
+            }
+            data.append(chunk)
+        }
         process.waitUntilExit()
-        return String(decoding: data, as: UTF8.self)
+        if timeout != nil && process.terminationReason == .uncaughtSignal { truncated = true }
+        let text = String(decoding: data, as: UTF8.self)
+        return truncated ? text + "\n[XStats: log collection stopped at time or size limit]\n" : text
     }
 
     /// AppController 启动时读取一次，记下应用启动时间

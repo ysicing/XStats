@@ -177,6 +177,25 @@ task compile CONFIG=Debug
 
 ## 网络连接试验模块
 
+主程序、特权辅助工具、独立网络组件及网络扩展均使用 Apple 统一日志（`Logger`）。
+网络组件子系统为 `work.12306.xstats.networkmonitor`，类别为 `service`、`registration`、
+`filter`、`update`；扩展为 `work.12306.xstats.app.networkextension`。
+只记录关键动作、授权、过滤器切换、更新与错误，不逐次记录状态查询、下载进度或连接。
+错误描述最多 1024 字符并标记为 private；不写入目标地址、域名、凭据或原始 IPC 参数。
+注册 CLI 的标准输出仍为协议 JSON，日志不混入其输出。
+
+```bash
+# 实时查看主程序与所有服务；默认遮蔽私有字段。
+/usr/bin/log stream --style compact --level info \
+  --predicate 'subsystem IN {"work.12306.xstats.app", "work.12306.xstats.helper", "work.12306.xstats.networkmonitor", "work.12306.xstats.app.networkextension"}'
+```
+
+“导出诊断信息”收集以上四个子系统最近三天可用的日志，并沿用地址和用户路径脱敏；
+系统日志保留策略决定实际可获取的时间范围。日志采集最多 15 秒、8 MiB，超限保留已取得的
+内容并注明截断；不会为导出一直扫描系统日志。定向验证用
+`swift test --package-path Packages/XStatsKit --filter 'DiagnosticsTests|DiagnosticsArchiveTests|NetworkMonitorTests|NetworkComponent'`。
+日志改动可编译组件验证，无需安装或重新激活过滤器。
+
 “功能 → 网络监视器”仅在 macOS 15 及以上开放，默认关闭。macOS 14 不显示入口，
 保留原有功能；即使旧偏好或备份包含开启状态，也不会激活扩展。进入页面后
 点击“启用连接查看”时，主应用按需从 c-ip 下载并验证独立组件，安装到
