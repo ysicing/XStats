@@ -190,7 +190,14 @@ right before deletion, because apps start in between.
 Regenerable caches are deleted outright; user files go to the Trash. Each action is appended
 to `~/Library/Logs/XStats/cleanup.log` as a JSON line.
 
-Application uninstallation uses a separate controller and scans only app-specific paths. The current
+Application uninstallation uses a separate controller and scans only app-specific paths.
+Identity comes from the app's names and bounded embedded bundles (512 entries, 64 bundles,
+depth 8); application groups come only from validated signatures. Container metadata identifies
+UUID-named containers. Recent documents, CrashReporter, Sparkle and Sentry caches, vendor
+subdirectories and explicit VS Code/Insiders/Arc/Chrome locations are covered. Shared groups,
+helper data and name-only matches require review and start unselected. Shared parent directories
+are retained. Scans and recycling reject redirected paths and validate each target again before
+handing it to the system recycler. The current
 bundle identifier is rejected in validation, drag-in selection and quit requests; the current process
 is never terminated by the uninstaller. App-list and selected-app scans each own one cancellable task
 and generation token. Background traversal is structured under those tasks and checks cancellation
@@ -200,8 +207,8 @@ scan restore deselected files.
 
 Trash operations are confirmed separately. The completion dictionary, rather than the number of
 moved files, determines whether the app itself was removed. Only a moved app loses its list and Dock
-entries. When the app cannot be moved, successfully moved residue is removed from the selection and
-failed items remain available for retry. Reported sizes include only files actually moved. This flow
+entries. Successfully moved residue is removed from the selection; failed and unselected items
+remain available for confirmed cleanup even after the app itself has been removed. Reported sizes include only files actually moved. This flow
 currently does not unregister third-party background services or stop independently running helpers.
 
 Homebrew cleanup uses `brew cleanup --prune=30 --dry-run` for candidates and the native cleanup
@@ -304,6 +311,8 @@ preference value now selects the bar. macOS 26 uses native Liquid Glass; macOS 1
 native frosted material without an opaque tint. Reduce Transparency and offscreen snapshots
 use a solid fallback. Hover/press
 feedback does not animate layout; progress updates reuse the existing demand-driven timer.
+The menu-bar entry keeps a stable timer symbol and uses 12-point monospaced digits.
+Current phase and pending eye-rest reminders are conveyed in its tooltip and accessibility label.
 Curtains, the menu-bar timer and Mini HUD belong to the main app;
 noise is synthesized through `AVAudioSourceNode` during rest or an explicit five-second preview. The Widget reads shared phase
 and deadline values, so WidgetKit refresh timing cannot provide second-accurate reminders.

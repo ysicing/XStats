@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import AppKit
 import Cleaner
 import Foundation
@@ -33,6 +38,7 @@ public final class UninstallerController {
     @ObservationIgnored private var applicationGeneration = UUID()
     @ObservationIgnored private var selectionGeneration = UUID()
     @ObservationIgnored private var hasScannedSelection = false
+    @ObservationIgnored private var applicationRemoved = false
 
     public convenience init(enabled: Bool = true) {
         self.init(currentBundleIdentifier: Bundle.main.bundleIdentifier, enabled: enabled)
@@ -90,7 +96,11 @@ public final class UninstallerController {
 
     var canUninstall: Bool {
         enabled && selected != nil && hasScannedSelection && !isScanning && !isRemoving
-            && leftovers.contains { $0.kind == .application && chosen.contains($0.id) }
+            && !chosen.isEmpty && (includesApplication || applicationRemoved)
+    }
+
+    var includesApplication: Bool {
+        leftovers.contains { $0.kind == .application && chosen.contains($0.id) }
     }
 
     func loadApps() {
@@ -157,6 +167,7 @@ public final class UninstallerController {
         hasScannedSelection = false
         pendingUninstall = nil
         selected = app
+        applicationRemoved = false
         leftovers = []
         chosen = []
         outcome = nil
@@ -175,7 +186,7 @@ public final class UninstallerController {
                 // 应用相同也可能是另一次扫描，不能用 selected == app 代替任务代次。
                 guard let self, !Task.isCancelled, self.selectionGeneration == generation, self.selected == app else { return }
                 self.leftovers = found
-                self.chosen = Set(found.map(\.id))
+                self.chosen = Set(found.filter { !$0.requiresReview }.map(\.id))
                 self.hasScannedSelection = true
             } catch {
                 guard let self, self.selectionGeneration == generation, !Task.isCancelled else { return }
@@ -255,6 +266,19 @@ public final class UninstallerController {
         pendingUninstall = nil
     }
 
+    /// 原生截图仅注入演示候选；不扫描真实应用，也不调用废纸篓或程序坞操作。
+    func showPreview(app: InstalledApp, items: [AppLeftover], applicationRemoved: Bool) {
+        cancelScanning()
+        enabled = true
+        apps = applicationRemoved ? [] : [app]
+        sizes = [app.id: 20_000_000]
+        selected = app
+        leftovers = items
+        chosen = Set(items.filter { !$0.requiresReview }.map(\.id))
+        hasScannedSelection = true
+        self.applicationRemoved = applicationRemoved
+    }
+
     func confirmUninstall() {
         guard let pendingUninstall, pendingUninstall == selected else { return }
         self.pendingUninstall = nil
@@ -266,6 +290,10 @@ public final class UninstallerController {
         do {
             try AppUninstaller.validate(app, currentBundleIdentifier: currentBundleIdentifier)
             guard !isRunning(app) else { throw AppUninstallError.running }
+            // 用户确认与回收之间目录可能已被替换，所有选中路径必须再次通过安全检查。
+            for item in leftovers where chosen.contains(item.id) {
+                try AppUninstaller.validateLeftover(item.url, for: app)
+            }
         } catch {
             outcome = ("\(error)", true)
             return
@@ -306,15 +334,22 @@ public final class UninstallerController {
             let residualCount = movedItems.filter { $0.kind != .application }.count.formatted(.number.locale(L10n.locale))
             outcome = (tr("已将 \(app.name) 与 \(residualCount) 项残留移到废纸篓，约 \(Format.bytes(bytes, base: .decimal))\(dock ? tr("，已从程序坞移除") : "")\(partial)。需要时可以在废纸篓里放回。") + detail,
                        remaining > 0 || errorMessage != nil)
-            if selected == app { selected = nil; leftovers = []; chosen = [] }
             apps.removeAll { $0 == app }
-        } else {
+            sizes.removeValue(forKey: app.id)
+        } else if items.contains(where: { $0.kind == .application }) {
             let count = movedItems.count.formatted(.number.locale(L10n.locale))
             outcome = (tr("应用本体未能移动；已将 \(count) 项残留移到废纸篓，约 \(Format.bytes(bytes, base: .decimal))。请解决错误后重试。") + detail, true)
-            if selected == app {
-                leftovers.removeAll { wasMoved($0.url) }
-                chosen.subtract(movedItems.map(\.id))
-            }
+        } else {
+            let count = movedItems.count.formatted(.number.locale(L10n.locale))
+            outcome = (tr("已将 \(app.name) 的 \(count) 项残留移到废纸篓，约 \(Format.bytes(bytes, base: .decimal))\(partial)。需要时可以在废纸篓里放回。") + detail,
+                       remaining > 0 || errorMessage != nil)
+        }
+        if selected == app {
+            applicationRemoved = applicationRemoved || appMoved
+            leftovers.removeAll { wasMoved($0.url) }
+            chosen.subtract(movedItems.map(\.id))
+            // 本体已移动也保留失败及未勾选的残留，允许逐项确认后重试。
+            if leftovers.isEmpty { selected = nil; chosen = []; applicationRemoved = false }
         }
         Log.app.notice("卸载 \(app.bundleIdentifier, privacy: .public)，实际移到废纸篓 \(movedItems.count) 项，本体已移动：\(appMoved)")
     }

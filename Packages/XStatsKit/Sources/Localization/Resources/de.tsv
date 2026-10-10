@@ -1938,3 +1938,10 @@ Xcode 代码补全模型	Xcode-Codevervollständigungsmodelle
 请选择不超过 50 MB 的音频文件。	Wählen Sie eine Audiodatei mit höchstens 50 MB.
 无法读取该音频，请选择 MP3、M4A、WAV 或 AIFF 文件。	Audio nicht lesbar. Wählen Sie MP3, M4A, WAV oder AIFF.
 无法导入音频	Audioimport fehlgeschlagen
+清理“{}”的残留？	Überreste von „{}“ bereinigen?
+所选残留共 {} 项（{}）。	Ausgewählte Überreste: {} Elemente ({}).
+可能与其他应用共用，默认保留	Möglicherweise gemeinsam genutzt; standardmäßig behalten
+清理残留	Überreste bereinigen
+查找应用数据、辅助组件和沙盒容器；可能共用的数据默认不勾选。所选项目移到废纸篓，应用移除后才清除程序坞图标。	Findet App-Daten, Hilfskomponenten und Sandbox-Container. Möglicherweise geteilte Daten bleiben standardmäßig abgewählt. Ausgewählte Elemente kommen in den Papierkorb; das Dock-Symbol wird erst nach Entfernen der App gelöscht.
+找出应用留下的数据、缓存、容器与登录启动项，勾选后移到废纸篓，可以放回	Findet App-Daten, Caches, Container und Startobjekte. Ausgewählte Elemente kommen in den Papierkorb und können wiederhergestellt werden.
+已将 {} 的 {} 项残留移到废纸篓，约 {}{}。需要时可以在废纸篓里放回。	{}: {} Überreste in den Papierkorb verschoben, etwa {}{}. Sie können aus dem Papierkorb wiederhergestellt werden.

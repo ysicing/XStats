@@ -40,6 +40,13 @@ XStats 基于 [gentpan/OpenStats](https://github.com/gentpan/OpenStats) 开发�
 [b98c670](https://github.com/gentpan/OpenStats/commit/b98c670c160512385284fc953f6727ddd747f4d9)，
 按 XStats 的模块与标识适配。
 
+本次卸载器的应用身份、容器识别、残留目录与路径校验，以及菜单栏网速箭头前景色适配自
+上游 [PR #6](https://github.com/gentpan/OpenStats/pull/6) 的合并提交
+[ffd3ae0](https://github.com/gentpan/OpenStats/commit/ffd3ae06780b8542bf8f4dcc67d88f202d93dd2f)。
+移植保留上游 MIT 版权与许可，并沿用 XStats 的取消、确认、多语言和自身保护流程。
+上游声明残留目录、容器元数据和应用组查找思路参考
+[alienator88/Pearcleaner](https://github.com/alienator88/Pearcleaner)；本次未复制 Pearcleaner 源码或引入其运行时依赖。
+
 ## 运营商标志
 
 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/carrier-*.svg` 来自上述 OpenStats 提交，

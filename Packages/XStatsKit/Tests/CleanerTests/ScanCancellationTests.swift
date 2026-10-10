@@ -6,6 +6,31 @@ import Testing
 @testable import Cleaner
 
 struct ScanCancellationTests {
+    @Test func cancellationInterruptsEnhancedResidualScanWithoutPublishingPartialCandidates() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let appURL = home.appendingPathComponent("Applications/Fixture.app")
+        try FileManager.default.createDirectory(at: appURL, withIntermediateDirectories: true)
+        for index in 0..<40 {
+            let path = home.appendingPathComponent("Library/Caches/Vendor/com.example.fixture.\(index)")
+            try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
+        }
+        let app = InstalledApp(url: appURL, name: "Fixture", bundleIdentifier: "com.example.fixture", version: nil, teamIdentifier: nil)
+        let identity = AppUninstallIdentity(identifiers: [app.bundleIdentifier], names: [])
+        var total = 0
+        let complete = try AppUninstaller.leftovers(for: app, home: home.path, identity: identity, checkCancellation: { total += 1 })
+        #expect(complete.count == 41 && total > 40)
+        let cancelAt = total / 2
+        var checks = 0
+        #expect(throws: CancellationError.self) {
+            try AppUninstaller.leftovers(for: app, home: home.path, identity: identity) {
+                checks += 1
+                if checks == cancelAt { throw CancellationError() }
+            }
+        }
+        #expect(checks == cancelAt)
+    }
+
     @Test func cancellationInterruptsNestedApplicationListingWithoutPartialResults() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let nested = root.appendingPathComponent("Utilities")

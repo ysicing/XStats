@@ -134,6 +134,8 @@ Eye-break reminders are off by default; enable them in Focus & Eye Care settings
 
 Enable optional tools as needed in Settings → Features → Optional Features; existing configuration is kept. Uninstaller is off by default on a new installation and stays enabled when upgrading from older versions. Privileged actions such as fan control and lid-closed keep-awake require installing and authorizing the helper from the app.
 
+Uninstaller identifies app and helper leftovers, sandbox containers and data folders for common apps. Potentially shared data is not selected by default, and shared vendor folders are preserved. Confirmed items move to Trash; failed items remain available for retry, including after the app itself has been removed.
+
 <details>
 <summary>More screenshots</summary>
 

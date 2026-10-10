@@ -88,7 +88,7 @@ struct UninstallerSafetyTests {
     @Test func removalFreezesSelectionAndBlocksNewScans() async throws {
         let app = target()
         let body = AppLeftover(url: app.url, kind: .application, size: 1000)
-        let cache = AppLeftover(url: URL(fileURLWithPath: "/tmp/frozen-cache"), kind: .caches, size: 10)
+        let cache = AppLeftover(url: URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Caches/test.frozen-cache"), kind: .caches, size: 10)
         let transaction = RecycleTransaction()
         let controller = UninstallerController(currentBundleIdentifier: nil,
             listApplications: { Issue.record("回收期间不能启动列表扫描"); return [] },
@@ -110,7 +110,8 @@ struct UninstallerSafetyTests {
         #expect(controller.chosen == [body.id, cache.id], "回收期间勾选必须固定")
         transaction.completion?([app.url: URL(fileURLWithPath: "/tmp/trash-app")], nil)
         while controller.isRemoving, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
-        #expect(!controller.isRemoving && controller.selected == nil)
+        #expect(!controller.isRemoving && controller.selected == app)
+        #expect(controller.leftovers == [cache] && controller.chosen == [cache.id] && controller.canUninstall)
     }
 }
 

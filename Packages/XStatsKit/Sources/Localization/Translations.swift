@@ -13,6 +13,13 @@ extension Translations {
 
 
     static let monitoringEnglish = #"""
+清理“{}”的残留？	Clean up leftovers for “{}”?
+所选残留共 {} 项（{}）。	Selected leftovers: {} items ({}).
+可能与其他应用共用，默认保留	May be shared with other apps; kept by default
+清理残留	Clean Up Leftovers
+查找应用数据、辅助组件和沙盒容器；可能共用的数据默认不勾选。所选项目移到废纸篓，应用移除后才清除程序坞图标。	Find app data, helper components and sandbox containers. Potentially shared data is not selected by default. Selected items move to Trash; the Dock icon is removed only after the app is removed.
+找出应用留下的数据、缓存、容器与登录启动项，勾选后移到废纸篓，可以放回	Find app data, caches, containers and launch agents. Select items to move to Trash, where they can be restored.
+已将 {} 的 {} 项残留移到废纸篓，约 {}{}。需要时可以在废纸篓里放回。	Moved {2} leftovers for {1} to Trash, about {3}{4}. You can restore them from Trash.
 查看应用与残留文件，确认后移到废纸篓。	View apps and leftover files, then move them to the Trash after confirmation.
 显示器参数控制	Display Parameter Controls
 允许调节亮度、对比度和音量	Adjust brightness, contrast and volume

@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Cleaner
 import Localization
 import Metrics
@@ -54,7 +59,7 @@ struct UninstallerPage: View {
     }
 }
 
-private struct UninstallConfirmationSheet: View {
+struct UninstallConfirmationSheet: View {
     let app: InstalledApp
     let uninstaller: UninstallerController
 
@@ -65,7 +70,7 @@ private struct UninstallConfirmationSheet: View {
                 AppIconCache.shared.image(bundlePath: app.url.path)
                     .resizable()
                     .frame(width: DS.Space.s8, height: DS.Space.s8)
-                Text(tr("将“\(app.name)”移到废纸篓？"))
+                Text(uninstaller.includesApplication ? tr("将“\(app.name)”移到废纸篓？") : tr("清理“\(app.name)”的残留？"))
                     .dsFont(.lg, weight: .semibold)
                     .foregroundStyle(DS.Palette.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -73,7 +78,9 @@ private struct UninstallConfirmationSheet: View {
             }
 
             VStack(alignment: .leading, spacing: DS.Space.s3) {
-                Text(tr("包含应用及所选残留，共 \(selectedCount) 项（\(Format.bytes(uninstaller.chosenSize, base: .decimal))）。"))
+                Text(uninstaller.includesApplication
+                     ? tr("包含应用及所选残留，共 \(selectedCount) 项（\(Format.bytes(uninstaller.chosenSize, base: .decimal))）。")
+                     : tr("所选残留共 \(selectedCount) 项（\(Format.bytes(uninstaller.chosenSize, base: .decimal))）。"))
                     .dsFont(.sm)
                     .foregroundStyle(DS.Palette.textPrimary)
                 Text(tr("可在废纸篓中恢复。清空废纸篓后才会释放空间。"))
@@ -232,12 +239,20 @@ private struct AppDetailCard: View {
                             HStack(spacing: DS.Space.s2) {
                                 DSCheckbox(isOn: uninstaller.chosen.contains(item.id)) { uninstaller.toggle(item) }
                                     .disabled(item.kind == .application || uninstaller.isRemoving)
-                                Text(verbatim: item.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
-                                    .dsFont(.xs)
-                                    .foregroundStyle(DS.Palette.textPrimary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .help(item.url.path)
+                                VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
+                                    Text(verbatim: item.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                                        .dsFont(.xs)
+                                        .foregroundStyle(DS.Palette.textPrimary)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                        .help(item.url.path)
+                                    if item.requiresReview {
+                                        Text(tr("可能与其他应用共用，默认保留"))
+                                            .dsFont(.xs)
+                                            .foregroundStyle(DS.Palette.textSecondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                }
                                 Spacer(minLength: DS.Space.s2)
                                 Text(verbatim: Format.bytes(item.size, base: .decimal))
                                     .dsFont(.xs)
@@ -255,12 +270,11 @@ private struct AppDetailCard: View {
             HairlineDivider()
             HStack(spacing: DS.Space.s3) {
                 Spacer()
-                Button(uninstaller.isRemoving ? tr("正在移除…") : tr("卸载")) { confirm() }
+                Button(uninstaller.isRemoving ? tr("正在移除…") : uninstaller.includesApplication ? tr("卸载") : tr("清理残留")) { confirm() }
                     .buttonStyle(DSButtonStyle(kind: .primary))
                     .disabled(running || !uninstaller.canUninstall)
             }
-            // 程序坞里的图标始终一并移除，不单独做开关：留着一个空图标没有意义
-            Text(tr("只查找以该应用包名命名的文件，以及 Application Support、Logs 下与应用同名的目录；钥匙串与其他应用共享的数据不会动。程序坞里的图标会一并移除"))
+            Text(tr("查找应用数据、辅助组件和沙盒容器；可能共用的数据默认不勾选。所选项目移到废纸篓，应用移除后才清除程序坞图标。"))
                 .dsFont(.xs)
                 .foregroundStyle(DS.Palette.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -279,7 +293,7 @@ private struct DropHint: View {
             Text(tr("从左侧选择应用，或把应用拖到这里"))
                 .dsFont(.sm, weight: .medium)
                 .foregroundStyle(DS.Palette.textPrimary)
-            Text(tr("会一并找出它留在资源库里的缓存、偏好设置、容器与登录启动项，全部移到废纸篓，可以放回"))
+            Text(tr("找出应用留下的数据、缓存、容器与登录启动项，勾选后移到废纸篓，可以放回"))
                 .dsFont(.xs)
                 .foregroundStyle(DS.Palette.textSecondary)
                 .multilineTextAlignment(.center)

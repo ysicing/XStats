@@ -1938,3 +1938,10 @@ Xcode 代码补全模型	Modèles de complétion de code Xcode
 请选择不超过 50 MB 的音频文件。	Choisissez un fichier audio de 50 Mo maximum.
 无法读取该音频，请选择 MP3、M4A、WAV 或 AIFF 文件。	Audio illisible. Choisissez un fichier MP3, M4A, WAV ou AIFF.
 无法导入音频	Importation audio impossible
+清理“{}”的残留？	Nettoyer les résidus de « {} » ?
+所选残留共 {} 项（{}）。	Résidus sélectionnés : {} éléments ({}).
+可能与其他应用共用，默认保留	Peut être partagé avec d’autres apps ; conservé par défaut
+清理残留	Nettoyer les résidus
+查找应用数据、辅助组件和沙盒容器；可能共用的数据默认不勾选。所选项目移到废纸篓，应用移除后才清除程序坞图标。	Recherche les données, composants auxiliaires et conteneurs sandbox. Les données potentiellement partagées ne sont pas sélectionnées par défaut. Les éléments sélectionnés vont à la corbeille ; l’icône du Dock est retirée uniquement après la suppression de l’app.
+找出应用留下的数据、缓存、容器与登录启动项，勾选后移到废纸篓，可以放回	Recherche les données, caches, conteneurs et agents de lancement de l’app. Sélectionnez les éléments à mettre à la corbeille ; ils peuvent être restaurés.
+已将 {} 的 {} 项残留移到废纸篓，约 {}{}。需要时可以在废纸篓里放回。	{} : {} résidus placés dans la corbeille, environ {}{}. Vous pouvez les restaurer depuis la corbeille.

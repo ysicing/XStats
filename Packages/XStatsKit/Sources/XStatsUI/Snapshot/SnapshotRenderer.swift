@@ -6,6 +6,7 @@
 import AIUsage
 import AudioControl
 import AppKit
+import Cleaner
 import Darwin
 import Localization
 import Metrics
@@ -47,6 +48,34 @@ enum SnapshotRenderer {
                 write(AppleIntelligenceStatusRow(status: .unavailable).padding(DS.Space.s3).frame(width: 600),
                       model: model, appearance: appearance,
                       to: outputDirectory.appendingPathComponent("apple-intelligence-row-\(suffix).png"))
+            }
+            return
+        }
+
+        if CommandLine.arguments.contains("--uninstaller-only") {
+            let suite = "XStats.uninstallerSnapshot.\(UUID())"
+            guard let defaults = UserDefaults(suiteName: suite) else { return }
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let settings = AppSettings(defaults: defaults)
+            settings.language = L10n.language
+            let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+            let app = InstalledApp(url: URL(fileURLWithPath: "/Applications/Demo.app"), name: "Demo",
+                                   bundleIdentifier: "com.example.demo", version: "1.0", teamIdentifier: nil)
+            let items = [AppLeftover(url: app.url, kind: .application, size: 20_000_000),
+                         AppLeftover(url: URL(fileURLWithPath: "/Users/demo/Library/Caches/com.example.demo"), kind: .caches, size: 2_000_000),
+                         AppLeftover(url: URL(fileURLWithPath: "/Users/demo/Library/Group Containers/group.com.example.shared"),
+                                     kind: .containers, size: 1_000_000, requiresReview: true)]
+            for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+                guard let appearance = NSAppearance(named: name) else { continue }
+                NSApp.appearance = appearance
+                for removed in [false, true] {
+                    model.uninstaller.showPreview(app: app, items: removed ? Array(items.dropFirst()) : items, applicationRemoved: removed)
+                    let state = removed ? "retry" : "selected"
+                    write(UninstallerPage().appLanguageEnvironment().frame(width: 900, height: 660), model: model, appearance: appearance,
+                          to: outputDirectory.appendingPathComponent("uninstaller-\(state)-\(suffix).png"))
+                    write(UninstallConfirmationSheet(app: app, uninstaller: model.uninstaller), model: model, appearance: appearance,
+                          to: outputDirectory.appendingPathComponent("uninstaller-confirm-\(state)-\(suffix).png"))
+                }
             }
             return
         }
