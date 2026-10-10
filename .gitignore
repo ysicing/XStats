@@ -11,5 +11,8 @@ docs/superpowers
 server/api/*.sqlite*
 server/api/api
 
+# Local Claude Code configuration and helpers.
+/.claude/
+
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
