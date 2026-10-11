@@ -20,7 +20,8 @@ extension Translations {
 将{}向前移动	Move {} earlier
 将{}向后移动	Move {} later
 可清理	Available to clean
-其他项目（{}）	Other items ({})
+无需清理（{}）	No cleanup needed ({})
+清理空间	Free up space
 已选 {}/{} 项	{1} of {2} selected
 类型	Type
 所有类型	All types

@@ -1967,7 +1967,8 @@ VS Code 缓存	Cache VS Code
 Cursor 缓存	Cache Cursor
 仅清理网页、脚本与 GPU 缓存，保留设置、扩展和会话	Efface uniquement les caches web, de scripts et GPU ; conserve les réglages, extensions et sessions
 可清理	À nettoyer
-其他项目（{}）	Autres éléments ({})
+无需清理（{}）	Aucun nettoyage nécessaire ({})
+清理空间	Libérer de l’espace
 已选 {}/{} 项	{1} sur {2} sélectionnés
 类型	Type
 所有类型	Tous les types

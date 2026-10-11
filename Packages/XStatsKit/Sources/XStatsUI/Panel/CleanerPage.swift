@@ -264,7 +264,7 @@ private struct MaintenanceButton: View {
 private struct CategoryCard: View {
     @Environment(AppModel.self) private var model
     let category: CleanCategory
-    @State private var showsUnavailable = false
+    @State private var showsEmpty = false
 
     var body: some View {
         let registeredScans = model.cleaner.scans(in: category)
@@ -298,17 +298,22 @@ private struct CategoryCard: View {
                     PlaceholderLine().frame(height: DS.Size.controlHeight)
                 }
             }
-            let visibleScans = scans.filter { $0.isCleanable || showsUnavailable }
+            // 只折叠确定无需清理的项目；运行中、权限不足及扫描失败等状态仍需直接展示。
+            let visibleScans = scans.filter {
+                showsEmpty || !$0.items.isEmpty || $0.blocked != nil || $0.unreadableCount > 0 || $0.skippedCount > 0
+            }
             ForEach(Array(visibleScans.enumerated()), id: \.element.id) { index, scan in
                 if index > 0 { HairlineDivider() }
                 RuleRow(scan: scan)
             }
-            let unavailableCount = scans.filter { !$0.isCleanable }.count
-            if unavailableCount > 0 {
+            let emptyCount = scans.filter {
+                $0.items.isEmpty && $0.blocked == nil && $0.unreadableCount == 0 && $0.skippedCount == 0
+            }.count
+            if emptyCount > 0 {
                 Button {
-                    showsUnavailable.toggle()
+                    showsEmpty.toggle()
                 } label: {
-                    Label(tr("其他项目（\(unavailableCount)）"), systemImage: showsUnavailable ? "chevron.up" : "chevron.down")
+                    Label(tr("无需清理（\(emptyCount.formatted(.number.locale(L10n.locale)))）"), systemImage: showsEmpty ? "chevron.up" : "chevron.down")
                 }
                 .buttonStyle(.plain).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
             }

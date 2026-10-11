@@ -306,9 +306,20 @@ private func isolatedDefaults() -> UserDefaults {
 
 @MainActor
 @Suite struct CleanerFeatureTests {
-    @Test func defaultsOffAndHidesSavedPageWhenDisabled() {
+    @Test func defaultsOnWithoutStartingScanAndRestoresSavedPage() {
         let defaults = isolatedDefaults()
         defaults.set("cleaner", forKey: "panelTab")
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.cleanerEnabled)
+        #expect(settings.panelTab == .cleaner)
+        let cleaner = CleanerController(settings: settings)
+        #expect(cleaner.phase == .idle && cleaner.scans.isEmpty && cleaner.lastScan == nil)
+    }
+
+    @Test func explicitOptOutPersistsAndHidesSavedPageWhenDisabled() {
+        let defaults = isolatedDefaults()
+        defaults.set("cleaner", forKey: "panelTab")
+        defaults.set(false, forKey: "cleanerEnabled")
         let settings = AppSettings(defaults: defaults)
         #expect(!settings.cleanerEnabled)
         #expect(settings.panelTab == .settingsFeatures)
@@ -448,7 +459,7 @@ private func isolatedDefaults() -> UserDefaults {
         #expect(settings.panelTab == .settingsFeatures)
         #expect(settings.restEnabled && settings.calendarEnabled)
         #expect(!settings.audioEnabled && !settings.aiUsageEnabled)
-        #expect(!settings.processesEnabled && !settings.cleanerEnabled)
+        #expect(!settings.processesEnabled && settings.cleanerEnabled)
         #expect(PanelTab.settings.prefix(2) == [.settingsGeneral, .settingsFeatures])
     }
 

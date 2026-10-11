@@ -353,6 +353,14 @@ private struct PageHeader: View {
                 }
             }
             if tab == .memory { PurgeMemoryButton() }
+            if tab == .disk && settings.cleanerEnabled {
+                Button { settings.panelTab = .cleaner } label: {
+                    Label(tr("清理空间"), systemImage: PanelTab.cleaner.symbol)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+                .buttonStyle(DSButtonStyle(kind: .secondary))
+            }
             if tab == .processes {
                 Button {
                     model.openActivityMonitor()
