@@ -103,6 +103,27 @@ struct UninstallerEnhancedFlowTests {
         #expect(FileManager.default.fileExists(atPath: data.url.path))
     }
 
+    @Test func residualOnlyRetryWithNewCopyReportsPreservedDataInsteadOfSilentlyReturning() async throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("UninstallResidualCopy-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let app = InstalledApp(url: URL(fileURLWithPath: "/Applications/Fixture-\(UUID()).app"), name: "Fixture",
+                               bundleIdentifier: "com.example.fixture", version: nil, teamIdentifier: nil)
+        let data = AppLeftover(url: home.appendingPathComponent("Library/Caches/com.example.fixture"), kind: .caches, size: 200)
+        let controller = UninstallerController(currentBundleIdentifier: nil, home: home.path,
+            findLeftovers: { _ in [data] },
+            checkInstallations: { _ in AppInstallationCheck(otherInstalledCopies: [home.appendingPathComponent("Applications/Other.app")]) },
+            recycleFiles: { _, _ in Issue.record("Residual data shared with another copy must not be recycled") })
+        defer { controller.setEnabled(false) }
+        // 本体已移到废纸篓，只剩残留重试；确认时才发现另一个副本。
+        controller.showPreview(app: app, items: [data], applicationRemoved: true)
+        try #require(controller.canUninstall)
+        controller.requestUninstall()
+        await controller.confirmUninstall()?.value
+        #expect(!controller.isRemoving)
+        #expect(controller.outcome?.isError == true, "清空选择后必须给出保留数据的结果，而不是无反馈返回")
+        #expect(controller.otherInstalledCopies.count == 1)
+    }
+
     @Test func disablingBeforePreflightCompletesCancelsRecyclingAndReleasesSelection() async throws {
         let app = InstalledApp(url: URL(fileURLWithPath: "/Applications/Fixture-\(UUID()).app"), name: "Fixture",
                                bundleIdentifier: "com.example.fixture", version: nil, teamIdentifier: nil)

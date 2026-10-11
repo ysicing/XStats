@@ -31,8 +31,7 @@ struct AppUninstallIdentity: Sendable {
         var teamIdentifier: String?
 
         // 父目录的系统别名（例如 /var）可以规范化，应用本身与内部路径不接受符号链接。
-        if !Task.isCancelled, let values = try? app.url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
-           values.isDirectory == true, values.isSymbolicLink != true {
+        if !Task.isCancelled, AppUninstaller.isDirectoryWithoutSymlink(app.url) {
             let root = app.url.resolvingSymlinksInPath().standardizedFileURL
             if let metadata = Self.metadata(at: root, inside: root) {
                 if let identifier = metadata["CFBundleIdentifier"] as? String { identifiers.insert(identifier) }

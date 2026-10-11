@@ -356,7 +356,12 @@ public final class UninstallerController {
                     chosen = Set(leftovers.filter { !$0.requiresReview }.map(\.id))
                     Log.app.notice("Uninstall preserving shared data copies=\(installations.otherInstalledCopies.count) incomplete=\(self.installationCheckIncomplete)")
                 }
-                guard !items.isEmpty else { return }
+                guard !items.isEmpty else {
+                    outcome = (installations.otherInstalledCopies.isEmpty
+                        ? tr("无法完整检查应用安装位置；为避免影响其他副本，本次保留共用数据。")
+                        : tr("检测到相同应用的其他安装副本；共用的数据已保留，未移动任何文件。"), true)
+                    return
+                }
                 if items.contains(where: { $0.kind == .application }) {
                     try AppUninstaller.validate(app, home: home, currentBundleIdentifier: currentBundleIdentifier)
                 }

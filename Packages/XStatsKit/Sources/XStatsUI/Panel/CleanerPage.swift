@@ -78,7 +78,7 @@ private struct SummaryCard: View {
                 Text(subline)
                     .dsFont(.sm)
                     .foregroundStyle(DS.Palette.textSecondary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let disk = model.store.disk {

@@ -133,8 +133,11 @@ public enum AppUninstaller {
                                  checkCancellation: checkCancellation)
     }
 
+    /// 安装目录无法枚举时不能排除其他副本；目录可遍历但不可列出时，其中的应用仍可能正常使用。
+    /// 副本检查只读元数据，会跟随条目的符号链接（如 Nix 链接安装）；可卸载列表不展示链接条目。
     private static func installedApps(in directories: [URL], excluding excludedIdentifiers: Set<String>,
-                                      unreadable: inout [URL], checkCancellation: () throws -> Void) throws -> [InstalledApp] {
+                                      unreadable: inout [URL], followsSymlinks: Bool = false,
+                                      checkCancellation: () throws -> Void) throws -> [InstalledApp] {
         try checkCancellation()
         var apps: [InstalledApp] = []
         let manager = FileManager.default
@@ -153,19 +156,22 @@ public enum AppUninstaller {
             }
             for entry in entries {
                 try checkCancellation()
+                let target = followsSymlinks ? entry.resolvingSymlinksInPath() : entry
                 if entry.pathExtension == "app" {
-                    if let app = app(at: entry) { apps.append(app) }
-                    else { unreadable.append(entry) }
-                } else if (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-                    guard isDirectoryWithoutSymlink(entry) else { unreadable.append(entry); continue }
+                    if let app = listedApp(at: entry, followsSymlinks: followsSymlinks, unreadable: &unreadable) { apps.append(app) }
+                } else if isDirectoryWithoutSymlink(target) {
                     let nested: [URL]
-                    do { nested = try manager.contentsOfDirectory(at: entry, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) }
-                    catch { unreadable.append(entry); continue }
+                    do {
+                        nested = try manager.contentsOfDirectory(at: target, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+                    } catch {
+                        if followsSymlinks { unreadable.append(entry) }
+                        continue
+                    }
                     for candidate in nested {
                         try checkCancellation()
-                        guard candidate.pathExtension == "app" else { continue }
-                        if let app = app(at: candidate) { apps.append(app) }
-                        else { unreadable.append(candidate) }
+                        guard candidate.pathExtension == "app",
+                              let app = listedApp(at: entry.appendingPathComponent(candidate.lastPathComponent), followsSymlinks: followsSymlinks, unreadable: &unreadable) else { continue }
+                        apps.append(app)
                     }
                 }
             }
@@ -175,11 +181,38 @@ public enum AppUninstaller {
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
+    /// 副本检查保留安装目录中的原始条目路径，提示中不出现链接目标。
+    /// 严格读取失败时，只有确定不是可运行应用的条目可以跳过；其余情况无法排除副本，记为不可读。
+    private static func listedApp(at entry: URL, followsSymlinks: Bool, unreadable: inout [URL]) -> InstalledApp? {
+        guard followsSymlinks else { return app(at: entry) }
+        let target = entry.resolvingSymlinksInPath()
+        guard let app = app(at: target) else {
+            if !isDefinitelyInvalidBundle(target) { unreadable.append(entry) }
+            return nil
+        }
+        return InstalledApp(url: entry, name: app.name, bundleIdentifier: app.bundleIdentifier,
+                            version: app.version, teamIdentifier: app.teamIdentifier)
+    }
+
+    /// 确定无效：Info.plist 不存在，或是 bundle 内的普通文件且能读取，但内容损坏或没有可用标识。
+    /// 链接、内部路径重定向、非普通文件、超大或不可读的 Info.plist 都可能属于可启动的副本，不算无效。
+    static func isDefinitelyInvalidBundle(_ bundle: URL) -> Bool {
+        let url = bundle.appendingPathComponent("Contents/Info.plist")
+        var information = stat()
+        guard url.path.withCString({ lstat($0, &information) }) == 0 else { return errno == ENOENT || errno == ENOTDIR }
+        guard information.st_mode & S_IFMT == S_IFREG, information.st_size <= 1_048_576,
+              AppUninstallIdentity.isSafeURL(url, inside: bundle),
+              let data = try? Data(contentsOf: url) else { return false }
+        guard let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) else { return true }
+        let identifier = (plist as? [String: Any])?["CFBundleIdentifier"] as? String
+        return identifier.flatMap(AppUninstallIdentity.validName) == nil
+    }
+
     public static func app(at url: URL) -> InstalledApp? {
         // 副本检查必须读取当前标识，不能沿用 Bundle 的旧 Info.plist 缓存。
         guard url.pathExtension == "app", let info = AppUninstallIdentity.metadata(at: url, inside: url),
               let rawIdentifier = info["CFBundleIdentifier"] as? String,
-              let identifier = AppUninstallIdentity.validIdentifier(rawIdentifier) else { return nil }
+              let identifier = AppUninstallIdentity.validName(rawIdentifier) else { return nil }
         let name = (Bundle(url: url)?.localizedInfoDictionary?["CFBundleDisplayName"] as? String)
             ?? (info["CFBundleDisplayName"] as? String) ?? url.deletingPathExtension().lastPathComponent
         return InstalledApp(url: url, name: name, bundleIdentifier: identifier,
@@ -243,11 +276,10 @@ public enum AppUninstaller {
     public static func checkOtherInstallations(of app: InstalledApp, home: String = NSHomeDirectory()) throws -> AppInstallationCheck {
         let directories = applicationDirectories(home: home)
         var unreadable: [URL] = []
-        let installed = try installedApps(in: directories, excluding: [], unreadable: &unreadable,
+        let installed = try installedApps(in: directories, excluding: [], unreadable: &unreadable, followsSymlinks: true,
                                          checkCancellation: { try Task.checkCancellation() })
         let copies = installed.filter {
-            $0.bundleIdentifier.caseInsensitiveCompare(app.bundleIdentifier) == .orderedSame
-                && $0.url.resolvingSymlinksInPath().path != app.url.resolvingSymlinksInPath().path
+            $0.bundleIdentifier.caseInsensitiveCompare(app.bundleIdentifier) == .orderedSame && !isSameItem($0.url, app.url)
         }.map(\.url)
         return AppInstallationCheck(otherInstalledCopies: copies, unreadableDirectories: unreadable)
     }
@@ -275,8 +307,10 @@ public enum AppUninstaller {
             matchesIdentifier(name, app.bundleIdentifier) || identity.identifiers.contains { matchesIdentifier(name, $0) }
         }
 
+        // Code、Caches 这类单段标识可能就是共用目录名，同名条目只列出待确认，不默认勾选。
+        let trustedIdentifier = AppUninstallIdentity.validIdentifier(app.bundleIdentifier) != nil
         func auxiliaryMatch(_ name: String) -> Bool {
-            matches(name) && !matchesIdentifier(name, app.bundleIdentifier)
+            matches(name) && !(trustedIdentifier && matchesIdentifier(name, app.bundleIdentifier))
         }
 
         func add(_ url: URL, _ kind: AppLeftover.Kind, review: Bool = false) throws {
@@ -543,6 +577,15 @@ public enum AppUninstaller {
                   information.st_mode & S_IFMT != S_IFLNK else { return false }
         }
         return true
+    }
+
+    /// APFS 默认不区分大小写，路径字符串不同不能证明是另一副本；按设备与 inode 判断。
+    static func isSameItem(_ lhs: URL, _ rhs: URL) -> Bool {
+        var left = stat(), right = stat()
+        guard lhs.path.withCString({ stat($0, &left) }) == 0, rhs.path.withCString({ stat($0, &right) }) == 0 else {
+            return lhs.resolvingSymlinksInPath().path == rhs.resolvingSymlinksInPath().path
+        }
+        return left.st_dev == right.st_dev && left.st_ino == right.st_ino
     }
 
     /// URL 的资源属性可能缓存旧值；路径重查直接读取当前目录项。
