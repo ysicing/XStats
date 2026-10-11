@@ -178,10 +178,6 @@ private struct LocalUsageContent: View {
                     .help(tr("服务端用量 · 与本机 Token 统计不同"))
                     .accessibilityLabel(tr("服务端用量 · 与本机 Token 统计不同"))
                 Spacer()
-                if let provider, model.aiUsage.visibleQuotaState(for: provider).snapshot?.source == .sub2api {
-                    Text("Sub2API").dsFont(.xs, weight: .medium)
-                        .foregroundStyle(DS.Palette.textTertiary)
-                }
             }
             ForEach(visibleProviders) { id in
                 let state = model.aiUsage.visibleQuotaState(for: id)
@@ -190,10 +186,6 @@ private struct LocalUsageContent: View {
                         HStack {
                             QuotaProviderHeading(name: id == .codex ? "Codex" : "Claude Code", details: state.snapshot?.details)
                             Spacer()
-                            if state.snapshot?.source == .sub2api {
-                                Text("Sub2API").dsFont(.xs, weight: .medium)
-                                    .foregroundStyle(DS.Palette.textTertiary)
-                            }
                         }
                     }
                     if let snapshot = state.snapshot {
@@ -254,17 +246,6 @@ private struct LocalUsageContent: View {
                                 }
                             }
                         }
-                        // Sub2API 的 Fable 窗口可能为 null；显示缺失状态，不推断为 0% 已用。
-                        if id == .claude, snapshot.source == .sub2api,
-                           snapshot.window(.fableWeekly) == nil {
-                            HStack {
-                                Text(quotaTitle(.fableWeekly))
-                                Spacer()
-                                Text(tr("暂无额度数据"))
-                            }
-                            .dsFont(.xs)
-                            .foregroundStyle(DS.Palette.textTertiary)
-                        }
                         if state.isStale {
                             VStack(alignment: .leading, spacing: DS.Space.s1) {
                                 Label(tr("上次额度"), systemImage: "clock")
@@ -304,7 +285,6 @@ private struct LocalUsageContent: View {
         switch kind {
         case .session: tr("5 小时")
         case .weekly: tr("7 天")
-        case .fableWeekly: "Fable · " + tr("7 天")
         case .opusWeekly: "Opus · " + tr("7 天")
         case .sonnetWeekly: "Sonnet · " + tr("7 天")
         }
@@ -326,11 +306,6 @@ private struct LocalUsageContent: View {
         case .rateLimited: tr("服务暂时限流，稍后会自动重试")
         case .network: tr("暂时无法连接额度服务")
         case .invalidResponse: tr("额度接口返回了无法识别的数据")
-        case .sub2apiConfiguration: tr("Sub2API 配置无法读取，请检查设置")
-        case .sub2apiUnauthorized: tr("Sub2API 登录失败，请检查管理员邮箱和密码")
-        case .sub2apiNetwork: tr("暂时无法连接 Sub2API")
-        case .sub2apiInvalidResponse: tr("Sub2API 返回了无法识别的额度数据")
-        case .sub2apiAccountMismatch: tr("Sub2API 账号平台与所选来源不匹配")
         }
     }
 
@@ -935,13 +910,6 @@ private struct UsageSettings: View {
                         if enabled { settings.aiUsageSources.insert(provider) }
                         else { settings.aiUsageSources.remove(provider) }
                     }), label: name)
-                }
-                if settings.aiUsageEnabled && settings.aiUsageSources.contains(provider) {
-                    let quota = model.aiUsage.visibleQuotaState(for: provider)
-                    Sub2APISettingsView(provider: provider,
-                                        directAvailable: quota.snapshot?.source == .direct,
-                                        needsFallback: quota.snapshot?.source != .direct
-                                            && (quota.failure != nil || quota.snapshot?.source == .sub2api))
                 }
             }
             HairlineDivider()

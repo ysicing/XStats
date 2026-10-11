@@ -105,7 +105,7 @@ Connections, addresses, countries or regions and component version information a
 Track Codex / Claude Code usage from the menu bar:
 
 - **Token statistics**: hourly for today, daily for the last 7 / 30 days, plus a yearly activity heatmap.
-- **Subscription quotas**: used / remaining percentages, reset times and plan details; Sub2API can be configured as a fallback source.
+- **Subscription quotas**: used / remaining percentages, reset times and plan details.
 - **Estimated costs**: based on public base API prices in USD / CNY; not a subscription bill.
 
 Local statistics read CLI session logs; quota queries require the corresponding CLI to be signed in.

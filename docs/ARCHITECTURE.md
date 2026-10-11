@@ -551,19 +551,12 @@ and adds no timer. Reset-card count and earliest expiry sit next to the provider
 details only when the known count is positive, with a four-second timeout and no retry; an auxiliary
 failure preserves the quota/count. No redeem/consume operation is implemented. Persisted metadata
 contains no account identifier, token or reset-credit IDs; legacy quota snapshots still decode.
-The existing per-provider Sub2API option is tried only after both automatic Codex paths fail.
 Missing or expired credentials clear that provider's quota display; transient errors keep the last
-successful result marked stale across restarts. Authentication failures or removal of a manual
-account delete that provider's cached snapshot. Both quota readers stop when AI Usage is disabled;
-disabled providers are hidden while their cached snapshot remains available on re-enable.
-Codex and Claude Code each have an optional, independently configured Sub2API source, tried only
-when that provider's direct quota fetch fails. Each HTTPS base URL, admin email and account ID remain
-in local preferences outside settings backups; passwords use separate Keychain items. The fallback
-signs in to its configured server, reads the account record to verify its platform (`openai` or
-`anthropic`), then reads `/api/v1/admin/accounts/{id}/usage` with `source=active&force=false`.
-If the detailed endpoint is unavailable, the account's `extra` fields provide coarser five-hour and
-weekly windows. Claude may also expose Sonnet and Fable weekly windows. Credentials and quota results
-are never sent to XStats servers; the UI marks fallback results as Sub2API.
+successful result marked stale across restarts. Authentication failures delete that provider's cached
+snapshot. Both quota readers stop when AI Usage is disabled; disabled providers are hidden while
+their cached snapshot remains available on re-enable.
+Only official Codex and Claude Code account quota readers are supported. Cached snapshots from
+retired third-party sources are ignored without discarding valid official-account snapshots.
 When one provider has a subscription snapshot, the menu bar AI reading shows its name and remaining
 percentage. It prefers the weekly window (or five-hour window if weekly is unavailable); the tooltip
 shows the chosen window and reset time without crowding the 22-point menu bar.
@@ -585,9 +578,8 @@ The desktop toolbar groups source controls and actions. In the compact menu-bar 
 owns refresh and AI Usage settings; the content shows a source switch only when multiple sources
 are enabled. Token totals use compact notation with
 exact hover/VoiceOver values. Cache details are
-disclosed on demand. AI usage settings open in a separate window so users can copy account details
-from another app without closing the form. Unsaved Sub2API fields stay in memory for the current
-app session across page changes; passwords are not written to preferences.
+disclosed on demand. AI usage settings open in a separate window. No manual server or account
+configuration is required; subscription quotas use the corresponding CLI's local login credentials.
 The main-window activity selector offers Today, 7 days, 30 days and Cumulative; menu-bar popovers
 only offer the first three and select at most 30 days for charts. Today shows hourly bars;
 the trailing 7/30 local-calendar days (including today) show daily bars. Cumulative shows a daily

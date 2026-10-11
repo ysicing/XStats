@@ -4,6 +4,7 @@
 @testable import AIUsage
 import Darwin
 import Foundation
+import SQLite3
 import Testing
 
 private actor StubQuotaHTTPClient: QuotaHTTPClient {
@@ -25,6 +26,57 @@ private actor StubQuotaHTTPClient: QuotaHTTPClient {
 }
 
 @Suite struct QuotaProviderTests {
+    @Test(arguments: [AIProviderID.codex, .claude])
+    func missingLocalCredentialsDoNotStartHTTPRequests(providerID: AIProviderID) async {
+        let http = StubQuotaHTTPClient(body: "{}")
+        let provider: any AIQuotaProvider = switch providerID {
+        case .codex: CodexQuotaProvider(credentials: { throw AIQuotaFailure.notConfigured }, http: http)
+        case .claude: ClaudeQuotaProvider(credentials: { throw AIQuotaFailure.notConfigured }, http: http)
+        }
+        do {
+            _ = try await provider.fetch()
+            Issue.record("Expected missing local credentials")
+        } catch let error as AIQuotaFailure {
+            #expect(error == .notConfigured)
+        } catch {
+            Issue.record("Unexpected failure: \(error)")
+        }
+        #expect(await http.lastRequest() == nil)
+    }
+
+    @Test func quotaCacheRejectsRetiredSourceWithoutLosingDirectQuota() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xstats-retired-quota-\(UUID().uuidString).sqlite")
+        defer {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(atPath: url.path + suffix)
+            }
+        }
+        let store = try AIQuotaCacheStore(url: url)
+        let direct = AIQuotaSnapshot(provider: .claude,
+            windows: [AIQuotaWindow(kind: .weekly, usedPercent: 30, resetsAt: nil)], fetchedAt: Date())
+        try store.save(direct)
+        let legacy = AIQuotaSnapshot(provider: .codex, windows: direct.windows, fetchedAt: Date())
+        var payload = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(legacy)) as? [String: Any])
+        // 写入旧版本的真实格式，验证升级后不会把已移除来源当作本机额度。
+        payload["source"] = "sub2api"
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        var connection: OpaquePointer?
+        #expect(sqlite3_open(url.path, &connection) == SQLITE_OK)
+        let db = try #require(connection)
+        defer { sqlite3_close(db) }
+        var statement: OpaquePointer?
+        #expect(sqlite3_prepare_v2(db, "INSERT INTO ai_quota_cache_v1(provider,payload) VALUES ('codex',?)", -1, &statement, nil) == SQLITE_OK)
+        let query = try #require(statement)
+        defer { sqlite3_finalize(query) }
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        #expect(data.withUnsafeBytes { sqlite3_bind_blob(query, 1, $0.baseAddress, Int32($0.count), transient) } == SQLITE_OK)
+        #expect(sqlite3_step(query) == SQLITE_DONE)
+
+        #expect(try store.load() == [.claude: direct])
+        #expect(try AIQuotaCacheStore(url: url).load() == [.claude: direct])
+    }
+
     @Test func quotaCacheKeepsOnlyTheLatestSnapshotPerProvider() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("xstats-quota-store-\(UUID().uuidString).sqlite")
@@ -40,8 +92,8 @@ private actor StubQuotaHTTPClient: QuotaHTTPClient {
         let updatedCodex = AIQuotaSnapshot(provider: .codex,
             windows: [AIQuotaWindow(kind: .weekly, usedPercent: 40, resetsAt: date)], fetchedAt: date)
         let claude = AIQuotaSnapshot(provider: .claude,
-            windows: [AIQuotaWindow(kind: .fableWeekly, usedPercent: 70, resetsAt: nil)],
-            fetchedAt: date, source: .sub2api)
+            windows: [AIQuotaWindow(kind: .sonnetWeekly, usedPercent: 70, resetsAt: nil)],
+            fetchedAt: date)
         try store.save(codex)
         try store.save(claude)
         try store.save(updatedCodex)

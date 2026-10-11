@@ -6,7 +6,6 @@ import Metrics
 struct MenuBarQuota {
     let provider: AIProviderID
     let window: AIQuotaWindow
-    let source: AIQuotaSource
     let fetchedAt: Date
     let isStale: Bool
 
@@ -15,7 +14,6 @@ struct MenuBarQuota {
     var shortWindowName: String {
         switch window.kind {
         case .session: "5h"
-        case .fableWeekly: "7d F"
         default: "7d"
         }
     }
@@ -118,10 +116,9 @@ struct MenuBarReading {
                     let windows = snapshot.windows.filter { $0.resetsAt.map { $0 > now } ?? true }
                     // 周额度比短时会话额度更适合作为常驻读数；模型专属周额度仅在通用周额度缺席时使用。
                     let window = windows.first(where: { $0.kind == .weekly })
-                        ?? windows.first(where: { $0.kind == .fableWeekly })
                         ?? windows.first(where: { $0.kind == .opusWeekly || $0.kind == .sonnetWeekly })
                         ?? windows.first(where: { $0.kind == .session })
-                    return window.map { MenuBarQuota(provider: provider, window: $0, source: snapshot.source,
+                    return window.map { MenuBarQuota(provider: provider, window: $0,
                                                      fetchedAt: snapshot.fetchedAt, isStale: state.isStale) }
                 }
             }
@@ -231,7 +228,7 @@ struct MenuBarReading {
                         let checked = quota.isStale
                             ? " · \(tr("上次成功：\(quota.fetchedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))"
                             : ""
-                        return "\(previous)\(quota.sourceName)\(quota.source == .sub2api ? " (Sub2API)" : "") · \(quota.shortWindowName) · \(tr(aiQuotaShowsRemaining ? "剩余" : "已用")) \(AIUsageFormat.quotaPercent(remainingPercent: quota.window.remainingPercent, showsRemaining: aiQuotaShowsRemaining, locale: L10n.locale)) · \(tr("重置：")) \(quota.resetText)\(checked)"
+                        return "\(previous)\(quota.sourceName) · \(quota.shortWindowName) · \(tr(aiQuotaShowsRemaining ? "剩余" : "已用")) \(AIUsageFormat.quotaPercent(remainingPercent: quota.window.remainingPercent, showsRemaining: aiQuotaShowsRemaining, locale: L10n.locale)) · \(tr("重置：")) \(quota.resetText)\(checked)"
                     }.joined(separator: "\n")
                 } else {
                     aiTokens.map { "AI · \(UsageNumber.exact($0)) Tokens" }

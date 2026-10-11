@@ -4,7 +4,7 @@
 import Foundation
 
 public enum AIQuotaKind: String, Codable, Sendable, Identifiable {
-    case session, weekly, fableWeekly, opusWeekly, sonnetWeekly
+    case session, weekly, opusWeekly, sonnetWeekly
     public var id: Self { self }
 }
 
@@ -44,17 +44,17 @@ public struct AIQuotaSnapshot: Codable, Equatable, Sendable {
 }
 
 public enum AIQuotaSource: String, Codable, Equatable, Sendable {
-    case direct, sub2api
+    // 保留持久化来源字段；已移除来源解码失败时，仅跳过该缓存行。
+    case direct
 }
 
 public enum AIQuotaFailure: Error, Equatable, Sendable {
     case notConfigured, unauthorized, rateLimited, network, invalidResponse
-    case sub2apiConfiguration, sub2apiUnauthorized, sub2apiNetwork, sub2apiInvalidResponse, sub2apiAccountMismatch
 
     public var preservesLastGood: Bool {
         switch self {
-        case .notConfigured, .unauthorized, .sub2apiConfiguration, .sub2apiUnauthorized, .sub2apiAccountMismatch: false
-        case .rateLimited, .network, .invalidResponse, .sub2apiNetwork, .sub2apiInvalidResponse: true
+        case .notConfigured, .unauthorized: false
+        case .rateLimited, .network, .invalidResponse: true
         }
     }
 }
@@ -196,26 +196,18 @@ public actor CodexQuotaProvider: AIQuotaProvider {
     private let credentials: @Sendable () throws -> CodexQuotaCredentials
     private let http: any QuotaHTTPClient
     private let appServer: @Sendable () async throws -> AIQuotaSnapshot
-    private let sub2api: (any Sub2APIQuotaFetching)?
-    private let sub2apiConfiguration: @Sendable () async throws -> Sub2APIConfiguration?
 
     public init() {
         credentials = { try CodexQuotaCredentials.load() }
         http = URLSessionQuotaHTTPClient()
         appServer = { try await CodexAppServerQuotaClient.fetch() }
-        sub2api = Sub2APIQuotaClient.shared
-        sub2apiConfiguration = { try await Sub2APISettingsStore().load() }
     }
 
     init(credentials: @escaping @Sendable () throws -> CodexQuotaCredentials, http: any QuotaHTTPClient,
-         sub2api: (any Sub2APIQuotaFetching)? = nil,
-         sub2apiConfiguration: @escaping @Sendable () async throws -> Sub2APIConfiguration? = { nil },
          appServer: @escaping @Sendable () async throws -> AIQuotaSnapshot = { throw AIQuotaFailure.notConfigured }) {
         self.credentials = credentials
         self.http = http
         self.appServer = appServer
-        self.sub2api = sub2api
-        self.sub2apiConfiguration = sub2apiConfiguration
     }
 
     public func fetch() async throws -> AIQuotaSnapshot {
@@ -223,16 +215,7 @@ public actor CodexQuotaProvider: AIQuotaProvider {
         do { return try await appServer() }
         catch is CancellationError { throw CancellationError() }
         catch { try Task.checkCancellation() }
-        do { return try await fetchDirect() }
-        catch let directFailure as AIQuotaFailure {
-            guard let sub2api else { throw directFailure }
-            let configuration: Sub2APIConfiguration?
-            do { configuration = try await sub2apiConfiguration() }
-            catch { throw AIQuotaFailure.sub2apiConfiguration }
-            guard let configuration else { throw directFailure }
-            guard configuration.provider == .codex else { throw AIQuotaFailure.sub2apiConfiguration }
-            return try await sub2api.fetch(configuration: configuration)
-        }
+        return try await fetchDirect()
     }
 
     private func fetchDirect() async throws -> AIQuotaSnapshot {
@@ -305,36 +288,19 @@ public actor ClaudeQuotaProvider: AIQuotaProvider {
     public nonisolated let id = AIProviderID.claude
     private let credentials: @Sendable () async throws -> String
     private let http: any QuotaHTTPClient
-    private let sub2api: (any Sub2APIQuotaFetching)?
-    private let sub2apiConfiguration: @Sendable () async throws -> Sub2APIConfiguration?
 
     public init() {
         credentials = { try await ClaudeQuotaCredentials.load() }
         http = URLSessionQuotaHTTPClient()
-        sub2api = Sub2APIQuotaClient.shared
-        sub2apiConfiguration = { try await Sub2APISettingsStore(provider: .claude).load() }
     }
 
-    init(credentials: @escaping @Sendable () async throws -> String, http: any QuotaHTTPClient,
-         sub2api: (any Sub2APIQuotaFetching)? = nil,
-         sub2apiConfiguration: @escaping @Sendable () async throws -> Sub2APIConfiguration? = { nil }) {
+    init(credentials: @escaping @Sendable () async throws -> String, http: any QuotaHTTPClient) {
         self.credentials = credentials
         self.http = http
-        self.sub2api = sub2api
-        self.sub2apiConfiguration = sub2apiConfiguration
     }
 
     public func fetch() async throws -> AIQuotaSnapshot {
-        do { return try await fetchDirect() }
-        catch let directFailure as AIQuotaFailure {
-            guard let sub2api else { throw directFailure }
-            let configuration: Sub2APIConfiguration?
-            do { configuration = try await sub2apiConfiguration() }
-            catch { throw AIQuotaFailure.sub2apiConfiguration }
-            guard let configuration else { throw directFailure }
-            guard configuration.provider == .claude else { throw AIQuotaFailure.sub2apiConfiguration }
-            return try await sub2api.fetch(configuration: configuration)
-        }
+        try await fetchDirect()
     }
 
     private func fetchDirect() async throws -> AIQuotaSnapshot {

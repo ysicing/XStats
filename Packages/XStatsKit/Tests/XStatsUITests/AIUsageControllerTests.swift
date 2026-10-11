@@ -25,31 +25,6 @@ private actor StubUsageProvider: AIUsageProvider {
     func count() -> Int { fetchCount }
 }
 
-/// 在请求中途挂起，用来复现“刷新在途时用户移除配置”的竞态。
-private actor GatedQuotaProvider: AIQuotaProvider {
-    nonisolated let id = AIProviderID.codex
-    private let snapshot: AIQuotaSnapshot
-    private var gate: CheckedContinuation<Void, Never>?
-    private var started: CheckedContinuation<Void, Never>?
-    private var hasStarted = false
-
-    init(snapshot: AIQuotaSnapshot) { self.snapshot = snapshot }
-
-    func fetch() async throws -> AIQuotaSnapshot {
-        hasStarted = true
-        started?.resume(); started = nil
-        await withCheckedContinuation { gate = $0 }
-        return snapshot
-    }
-
-    func waitUntilStarted() async {
-        if hasStarted { return }
-        await withCheckedContinuation { started = $0 }
-    }
-
-    func release() { gate?.resume(); gate = nil }
-}
-
 private actor StubQuotaProvider: AIQuotaProvider {
     nonisolated let id: AIProviderID
     private var results: [Result<AIQuotaSnapshot, AIQuotaFailure>]
@@ -182,19 +157,19 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(image.size.width > 0)
     }
 
-    @Test func menuBarLabelsManualQuotaAndOptionalFastWindow() async {
+    @Test func menuBarUsesModelSpecificWeeklyQuotaWhenGeneralWindowIsMissing() async {
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.aiUsageEnabled = true
         let snapshot = AIQuotaSnapshot(provider: .claude, windows: [
-            AIQuotaWindow(kind: .fableWeekly, usedPercent: 40, resetsAt: nil),
-        ], fetchedAt: Date(), source: .sub2api)
+            AIQuotaWindow(kind: .sonnetWeekly, usedPercent: 40, resetsAt: nil),
+        ], fetchedAt: Date())
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [],
                              aiQuotaProviders: [StubQuotaProvider(id: .claude, results: [.success(snapshot)])])
         await model.aiUsage.refresh()
 
         let reading = MenuBarReading(model: model)
-        #expect(reading.aiQuotas.first?.shortWindowName == "7d F")
-        #expect(reading.tooltip(items: [.aiUsage], fahrenheit: false).contains("Claude (Sub2API)"))
+        #expect(reading.aiQuotas.first?.shortWindowName == "7d")
+        #expect(reading.tooltip(items: [.aiUsage], fahrenheit: false).contains("Claude · 7d"))
     }
 
     @Test(arguments: [0, 23, 100])
@@ -321,7 +296,7 @@ private actor GatedUsageProvider: AIUsageProvider {
         settings.aiUsageEnabled = true
         let previous = AIQuotaSnapshot(provider: .codex, windows: [
             AIQuotaWindow(kind: .weekly, usedPercent: 76, resetsAt: Date(timeIntervalSince1970: 1_800_000_000)),
-        ], fetchedAt: Date(timeIntervalSince1970: 1_799_000_000), source: .sub2api)
+        ], fetchedAt: Date(timeIntervalSince1970: 1_799_000_000))
         let first = AIUsageController(settings: settings, providers: [],
             quotaProviders: [StubQuotaProvider(results: [.success(previous)])], quotaCacheURL: cacheURL)
         await first.refresh()
@@ -350,87 +325,6 @@ private actor GatedUsageProvider: AIUsageProvider {
         let afterLogout = AIUsageController(settings: settings, providers: [],
             quotaProviders: [StubQuotaProvider(results: [.failure(.network)])], quotaCacheURL: cacheURL)
         #expect(afterLogout.visibleQuotaState(for: .codex).snapshot == nil)
-    }
-
-    @Test func removingSub2APIDiscardsAnInFlightRefresh() async throws {
-        let cacheURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("xstats-quota-\(UUID().uuidString).sqlite")
-        defer {
-            for suffix in ["", "-wal", "-shm"] {
-                try? FileManager.default.removeItem(atPath: cacheURL.path + suffix)
-            }
-        }
-        let settings = AppSettings(defaults: defaultsForAIUsage())
-        settings.aiUsageEnabled = true
-        settings.aiUsageSources = [.codex]
-        let manual = AIQuotaSnapshot(provider: .codex, windows: [
-            AIQuotaWindow(kind: .weekly, usedPercent: 60, resetsAt: Date().addingTimeInterval(3600)),
-        ], fetchedAt: Date(), source: .sub2api)
-        let provider = GatedQuotaProvider(snapshot: manual)
-        let controller = AIUsageController(settings: settings, providers: [], quotaProviders: [provider],
-                                           quotaCacheURL: cacheURL)
-        let refresh = Task { await controller.refresh() }
-        await provider.waitUntilStarted()
-        controller.clearSub2APIQuota(for: .codex)
-        await provider.release()
-        await refresh.value
-
-        #expect(controller.quotaState(for: .codex).snapshot == nil, "in-flight Sub2API result was written back")
-        let reopened = AIUsageController(settings: settings, providers: [],
-            quotaProviders: [StubQuotaProvider(results: [])], quotaCacheURL: cacheURL)
-        #expect(reopened.quotaState(for: .codex).snapshot == nil, "in-flight Sub2API result reached the disk cache")
-    }
-
-    @Test func removingSub2APIClearsItsPersistedQuotaButKeepsDirectOne() async throws {
-        let cacheURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("xstats-quota-\(UUID().uuidString).sqlite")
-        defer {
-            for suffix in ["", "-wal", "-shm"] {
-                try? FileManager.default.removeItem(atPath: cacheURL.path + suffix)
-            }
-        }
-        let settings = AppSettings(defaults: defaultsForAIUsage())
-        settings.aiUsageEnabled = true
-        let reset = Date(timeIntervalSince1970: 1_800_000_000)
-        let manual = AIQuotaSnapshot(provider: .codex, windows: [
-            AIQuotaWindow(kind: .weekly, usedPercent: 60, resetsAt: reset),
-        ], fetchedAt: Date(), source: .sub2api)
-        let direct = AIQuotaSnapshot(provider: .claude, windows: [
-            AIQuotaWindow(kind: .weekly, usedPercent: 30, resetsAt: reset),
-        ], fetchedAt: Date())
-        func offline() -> AIUsageController {
-            AIUsageController(settings: settings, providers: [], quotaProviders: [
-                StubQuotaProvider(results: [.failure(.network)]),
-                StubQuotaProvider(id: .claude, results: [.failure(.network)]),
-            ], quotaCacheURL: cacheURL)
-        }
-
-        let online = AIUsageController(settings: settings, providers: [], quotaProviders: [
-            StubQuotaProvider(results: [.success(manual)]),
-            StubQuotaProvider(id: .claude, results: [.success(direct)]),
-        ], quotaCacheURL: cacheURL)
-        await online.refresh()
-        // 关闭模块：内存清空、磁盘仍保留 Sub2API 快照，此时移除配置必须按磁盘来源清理。
-        settings.aiUsageEnabled = false
-        online.start()
-        online.stop()
-        #expect(online.quotaState(for: .codex).snapshot == nil)
-        online.clearSub2APIQuota(for: .codex)
-        online.clearSub2APIQuota(for: .claude)
-        settings.aiUsageEnabled = true
-        let restarted = offline()
-        #expect(restarted.quotaState(for: .codex).snapshot == nil, "removed Sub2API quota reappeared from disk")
-        #expect(restarted.quotaState(for: .claude).snapshot == direct, "direct quota must survive Sub2API removal")
-
-        // 内存是 Sub2API、磁盘是直连（例如上次写缓存失败）：只清内存，保留磁盘上的直连快照。
-        let directCodex = AIQuotaSnapshot(provider: .codex, windows: manual.windows, fetchedAt: Date())
-        let mixed = AIUsageController(settings: settings, providers: [],
-            quotaProviders: [StubQuotaProvider(results: [.success(manual)])], quotaCacheURL: cacheURL)
-        await mixed.refresh()
-        try AIQuotaCacheStore(url: cacheURL).save(directCodex)
-        mixed.clearSub2APIQuota(for: .codex)
-        #expect(mixed.quotaState(for: .codex).snapshot == nil)
-        #expect(offline().quotaState(for: .codex).snapshot == directCodex)
     }
 
     @Test func disabledSourceIsNotQueriedForQuota() async {
@@ -521,7 +415,7 @@ private actor GatedUsageProvider: AIUsageProvider {
         empty.localUsage = LocalUsageReport(rows: [], fileCount: 0)
         let quota = AIQuotaSnapshot(provider: .codex,
             windows: [AIQuotaWindow(kind: .weekly, usedPercent: 30, resetsAt: nil)],
-            fetchedAt: Date(), source: .sub2api)
+            fetchedAt: Date())
         let controller = AIUsageController(settings: settings,
             providers: [StubUsageProvider([.success(empty)])],
             quotaProviders: [StubQuotaProvider(results: [.success(quota)])])

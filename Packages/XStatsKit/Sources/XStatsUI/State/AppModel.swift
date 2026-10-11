@@ -21,8 +21,6 @@ public final class AppModel {
     let wellness: WellnessController
     let calendarAgenda = CalendarAgendaController()
     public let aiUsage: AIUsageController
-    @ObservationIgnored let sub2apiDrafts = Dictionary(uniqueKeysWithValues:
-        AIProviderID.allCases.map { ($0, Sub2APIDraft()) })
     public let store: MetricsStore
     public let helper: HelperClient
     public let fans: FanController
