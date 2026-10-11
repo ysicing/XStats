@@ -70,6 +70,22 @@ enum SnapshotRenderer {
             let emptyScans = RuleCatalog.rules().filter { $0.id != rule.id }.map {
                 RuleScan(rule: $0, items: [], skippedCount: 0, blocked: nil)
             }
+            // 产物演示只扫描临时夹具；使用真实扫描结果保证选择契约与生产一致。
+            let fixture = FileManager.default.temporaryDirectory.appendingPathComponent("XStats-cleaner-demo-\(UUID())")
+            defer { try? FileManager.default.removeItem(at: fixture) }
+            do {
+                for project in ["Atlas", "Boreal", "Studio"] {
+                    for path in ["package.json", "node_modules/example/index.js", "build/output.bin"] {
+                        let url = fixture.appendingPathComponent("Projects/\(project)/\(path)")
+                        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        try Data(repeating: 65, count: path == "package.json" ? 2 : 256_000).write(to: url)
+                    }
+                }
+            } catch { reportFailure(fixture, error: error); return }
+            settings.projectPurgeConfiguredPaths = [fixture.appendingPathComponent("Projects").path]
+            let projectScan = await ProjectPurge.scan(home: fixture.path)
+            model.projectPurge.showPreview(projectScan)
+            if let first = projectScan.items.first { model.projectPurge.toggle(first) }
             model.cleaner.showPreview([scan] + emptyScans)
             model.cleaner.toggle(items[0], in: scan)
             for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
@@ -77,6 +93,8 @@ enum SnapshotRenderer {
                 NSApp.appearance = appearance
                 write(CleanerPage().appLanguageEnvironment().frame(width: 900, height: 700), model: model, appearance: appearance,
                       to: outputDirectory.appendingPathComponent("cleaner-partial-\(suffix).png"))
+                write(ProjectPurgeWindowView().frame(width: 720, height: 680), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("project-purge-\(suffix).png"))
                 write(CleanerReviewSheet(scan: scan, cleaner: model.cleaner), model: model, appearance: appearance,
                       to: outputDirectory.appendingPathComponent("cleaner-review-\(suffix).png"))
                 write(CleanerExclusionsSheet(cleaner: model.cleaner), model: model, appearance: appearance,
@@ -88,6 +106,20 @@ enum SnapshotRenderer {
                 write(CleanerExclusionsSheet(cleaner: model.cleaner), model: model, appearance: appearance,
                       to: outputDirectory.appendingPathComponent("cleaner-exclusions-limit-\(suffix).png"))
                 settings.cleanExcludedPaths = originalExclusions
+            }
+            if CommandLine.arguments.contains("--native-preview") {
+                NSApp.setActivationPolicy(.regular)
+                NSApp.appearance = NSAppearance(named: .aqua)
+                let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 720, height: 680),
+                                      styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+                window.title = "XStats · UI Preview"
+                window.isReleasedWhenClosed = false
+                WindowChrome.apply(to: window)
+                window.contentView = NSHostingView(rootView: ProjectPurgeWindowView().environment(model))
+                window.makeKeyAndOrderFront(nil)
+                NSApp.activate()
+                try? await Task.sleep(for: .seconds(120))
+                window.orderOut(nil)
             }
             // 清单截图使用演示候选，覆盖新增开发者项目与长译文，不查询本机工具。
             model.cleaner.showPreview(RuleCatalog.rules().enumerated().map { index, rule in

@@ -179,7 +179,7 @@ task compile CONFIG=Debug
 使用临时目录与模拟 CLI 验证自定义缓存路径查询、路径锁定、版本子目录、保留项保护及不完整卸载扫描；不执行真实工具清理。验证工具缓存不重复覆盖、运行应用状态刷新、排除路径的父子与别名保护、逐项选择、错误语义及本机偏好不进入备份。
 开发者清单及原生工具的执行边界见 [CLEANUP.md](CLEANUP.md)。
 修改工具查询或路径校验后，另跑 `swift test --package-path Packages/XStatsKit -c release --filter 'ToolCachePlanTests|DeveloperCleanupCatalogTests'`。当前 Swift 6.4 工具链中，直接传入 `CharacterSet.controlCharacters.contains` 的实例方法引用曾在 Release 下误拒正常路径；保持显式闭包，并用正常路径、控制字符及目录边界用例验证优化构建。
-`XStats --snapshot <目录> --cleaner-review-only --language zh-Hans` 使用隔离偏好与演示候选渲染扫描不完整、完整列表与保留目录的明暗截图；`en`、`ar` 可检查长文案与 RTL。不会扫描个人目录或执行清理。
+`XStats --snapshot <目录> --cleaner-review-only --language zh-Hans` 使用隔离偏好与演示候选渲染扫描不完整、完整列表与保留目录的明暗截图；`en`、`ar` 可检查长文案与 RTL。项目产物截图使用临时演示项目，追加 `--native-preview` 可打开 120 秒的隔离交互窗口，验证分组、三态勾选与筛选后的选择保留；不会扫描个人目录。定向运行 `ProjectPurgeReviewTests|CleanerReviewFlowTests` 验证选择边界和原生复选框无障碍语义。
 
 ## 网络连接试验模块
 

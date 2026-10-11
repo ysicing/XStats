@@ -1966,3 +1966,18 @@ pip3 下载与 wheel 缓存，不涉及虚拟环境或已安装的包	Download- 
 VS Code 缓存	VS-Code-Cache
 Cursor 缓存	Cursor-Cache
 仅清理网页、脚本与 GPU 缓存，保留设置、扩展和会话	Löscht nur Web-, Skript- und GPU-Caches; behält Einstellungen, Erweiterungen und Sitzungen
+可清理	Bereinigbar
+其他项目（{}）	Weitere Einträge ({})
+已选 {}/{} 项	{1} von {2} ausgewählt
+类型	Typ
+所有类型	Alle Typen
+排序	Sortierung
+按大小排序	Nach Größe
+按名称排序	Nach Name
+没有匹配的项目	Keine passenden Einträge
+清除选择	Auswahl aufheben
+移到废纸篓…	In den Papierkorb…
+展开	Einblenden
+最近 7 天有修改	In den letzten 7 Tagen geändert
+最近 7 天未修改	Seit 7 Tagen unverändert
+所选内容包含最近 7 天有修改的项目，清理后需要重新构建。	Die Auswahl enthält in den letzten 7 Tagen geänderte Einträge. Nach der Bereinigung müssen sie neu erstellt werden.

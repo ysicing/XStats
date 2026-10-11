@@ -114,7 +114,7 @@ public final class CleanerController {
 
     func toggle(_ scan: RuleScan) {
         guard scan.isCleanable, !isBusy else { return }
-        if selectedItems(in: scan).isEmpty {
+        if selectedItems(in: scan).count < scan.items.count {
             deselectedItems.subtract(scan.items.map(\.id))
             selection.insert(scan.id)
         } else { selection.remove(scan.id) }

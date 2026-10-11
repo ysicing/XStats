@@ -35,7 +35,7 @@ struct ProjectPurgeWindowView: View {
                 ProjectPurgeEmptyState()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                PageScroll { ProjectPurgeCard() }
+                ProjectPurgeCard()
             }
         }
         .background(DS.Palette.background)
@@ -159,52 +159,106 @@ private struct ProjectPurgeEmptyState: View {
 
 private struct ProjectPurgeCard: View {
     @Environment(AppModel.self) private var model
+    @State private var query = ""
+    @State private var kind = ""
+    @State private var byName = false
+
+    var body: some View {
+        @Bindable var purge = model.projectPurge
+        let items = purge.result?.items ?? []
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: DS.Space.s3) {
+                HStack {
+                    VStack(alignment: .leading, spacing: DS.Space.s1) {
+                        Text(tr("\(items.count) 项 · \(Format.bytes(items.reduce(0) { $0 + $1.bytes }, base: .decimal))"))
+                            .dsFont(.lg, weight: .semibold).monospacedDigit()
+                        Text(tr("按需扫描项目构建产物，逐项选择后移到废纸篓。"))
+                            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                    }
+                    Spacer()
+                    if purge.isBusy {
+                        ProgressView().controlSize(.small)
+                        Text(purge.phase == .scanning ? tr("正在扫描项目…") : tr("正在清理…"))
+                            .dsFont(.sm)
+                        Button(tr("取消")) {
+                            if purge.phase == .scanning { purge.cancelScan() } else { purge.cancelClean() }
+                        }.buttonStyle(DSButtonStyle(kind: .secondary))
+                    } else {
+                        Button(tr("重新扫描")) { purge.scan() }.buttonStyle(DSButtonStyle(kind: .secondary))
+                    }
+                }
+                HStack(spacing: DS.Space.s3) {
+                    TextField(tr("搜索名称或路径"), text: $query).textFieldStyle(.roundedBorder)
+                    Picker(tr("类型"), selection: $kind) {
+                        Text(tr("所有类型")).tag("")
+                        ForEach(Array(Set(items.map { $0.url.lastPathComponent })).sorted(), id: \.self) { name in
+                            Text(verbatim: name).tag(name)
+                        }
+                    }.labelsHidden().fixedSize().accessibilityLabel(tr("类型"))
+                    Picker(tr("排序"), selection: $byName) {
+                        Text(tr("按大小排序")).tag(false)
+                        Text(tr("按名称排序")).tag(true)
+                    }.labelsHidden().fixedSize().accessibilityLabel(tr("排序"))
+                }
+                .disabled(purge.isBusy)
+            }
+            .padding(DS.Space.s4)
+            HairlineDivider()
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: DS.Space.s3) {
+                    ProjectPurgeStatus()
+                    let groups = ProjectPurgeGroup.filtered(items, query: query, kind: kind, byName: byName)
+                    if groups.isEmpty && !items.isEmpty {
+                        Text(tr("没有匹配的项目")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
+                    }
+                    ForEach(groups) { group in
+                        ProjectPurgeGroupRow(group: group)
+                    }
+                }.padding(DS.Space.s4)
+            }
+            HairlineDivider()
+            VStack(alignment: .leading, spacing: DS.Space.s3) {
+                HStack(spacing: DS.Space.s3) {
+                    Text(tr("已选 \(purge.selectedItems.count) 项") + " · " + Format.bytes(purge.selectedBytes, base: .decimal))
+                        .dsFont(.sm, weight: .medium).monospacedDigit()
+                    Spacer()
+                    Button(tr("清除选择")) { purge.clearSelection() }
+                        .buttonStyle(DSButtonStyle(kind: .ghost)).disabled(purge.selection.isEmpty || purge.isBusy)
+                    Button(tr("移到废纸篓…")) { purge.requestClean() }
+                        .buttonStyle(DSButtonStyle(kind: .primary)).disabled(purge.selectedItems.isEmpty || purge.isBusy)
+                        .confirmationDialog(tr("移到废纸篓…"), isPresented: $purge.isConfirming, titleVisibility: .visible) {
+                            Button(tr("确认清理"), role: .destructive) {
+                                // 系统弹层可能先清除展示绑定，执行前重新验证选择并进入确认保护。
+                                purge.requestClean()
+                                purge.confirmClean()
+                            }
+                            Button(tr("取消"), role: .cancel) { purge.isConfirming = false }
+                        } message: {
+                            Text(confirmationText)
+                        }
+                }
+            }.padding(DS.Space.s4).background(DS.Palette.background)
+        }
+        .onChange(of: items.map(\.id)) {
+            if !items.contains(where: { $0.url.lastPathComponent == kind }) { kind = "" }
+        }
+    }
+
+    private var confirmationText: String {
+        let selected = model.projectPurge.selectedItems
+        let warnings = [selected.contains(where: \.isRecent) ? tr("所选内容包含最近 7 天有修改的项目，清理后需要重新构建。") : nil,
+                        selected.contains(where: \.isCloud) ? tr("云盘项目可能同步删除。") : nil].compactMap { $0 }
+        return ([tr("将 \(selected.count) 项移到废纸篓，清空前可以恢复。")] + warnings).joined(separator: " ")
+    }
+
+}
+
+private struct ProjectPurgeStatus: View {
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         let purge = model.projectPurge
-        Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
-            HStack(spacing: DS.Space.s2) {
-                Text(tr("按需扫描项目构建产物，逐项选择后移到废纸篓。"))
-                    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                Spacer(minLength: DS.Space.s2)
-                if let result = purge.result {
-                    Text(verbatim: tr("\(result.items.count) 项 · \(Format.bytes(result.items.reduce(0) { $0 + $1.bytes }, base: .decimal))"))
-                        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                }
-            }
-
-            HStack(spacing: DS.Space.s2) {
-                if purge.phase == .scanning {
-                    ProgressView().controlSize(.small)
-                    Text(tr("正在扫描项目…")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                    Button(tr("取消")) { purge.cancelScan() }.buttonStyle(DSButtonStyle(kind: .secondary))
-                } else if purge.phase == .cleaning {
-                    ProgressView().controlSize(.small)
-                    Text(tr("正在清理…")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                    Button(tr("取消")) { purge.cancelClean() }.buttonStyle(DSButtonStyle(kind: .secondary))
-                } else {
-                    Button(purge.result == nil ? tr("扫描项目") : tr("重新扫描")) { purge.scan() }
-                        .buttonStyle(DSButtonStyle(kind: .secondary))
-                    if purge.result != nil {
-                        Button(tr("移到废纸篓 \(Format.bytes(purge.selectedBytes, base: .decimal))")) { purge.requestClean() }
-                            .buttonStyle(DSButtonStyle(kind: .primary))
-                            .disabled(purge.selectedItems.isEmpty)
-                    }
-                }
-                Spacer()
-            }
-
-            if purge.isConfirming {
-                let selected = purge.selectedItems
-                let warnings = [selected.contains(where: \.isRecent) ? tr("所选内容包含最近 7 天有活动的项目，清理后需要重新构建。") : nil,
-                                selected.contains(where: \.isCloud) ? tr("云盘项目可能同步删除。") : nil].compactMap { $0 }
-                let text = ([tr("将 \(selected.count) 项移到废纸篓，清空前可以恢复。")] + warnings).joined(separator: " ")
-                InfoBanner(icon: "exclamationmark.triangle.fill", text: text, tone: .warning) {
-                    Button(tr("取消")) { purge.isConfirming = false }.buttonStyle(DSButtonStyle(kind: .secondary))
-                    Button(tr("确认清理")) { purge.confirmClean() }.buttonStyle(DSButtonStyle(kind: .primary))
-                }
-            }
-
+        VStack(alignment: .leading, spacing: DS.Space.s2) {
             if let report = purge.report, purge.phase == .finished {
                 Text(tr("已移到废纸篓 \(report.trashedCount) 项 · \(Format.bytes(report.trashedBytes, base: .decimal))"))
                     .dsFont(.xs).foregroundStyle(DS.Palette.success)
@@ -238,44 +292,76 @@ private struct ProjectPurgeCard: View {
                     Text(tr("没有发现可清理的项目产物"))
                         .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                 }
-                LazyVStack(alignment: .leading, spacing: DS.Space.s2) {
-                    ForEach(groups) { group in
-                        VStack(alignment: .leading, spacing: DS.Space.s1) {
-                            HStack {
-                                Text(group.project.path).dsFont(.xs, weight: .semibold)
-                                    .lineLimit(1).truncationMode(.middle).help(group.project.path)
-                                Spacer()
-                                Text(verbatim: Format.bytes(group.bytes, base: .decimal))
-                                    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                            }
-                            ForEach(group.items) { item in
-                                ProjectPurgeRow(item: item)
-                            }
-                        }
-                        .padding(.top, DS.Space.s1)
-                    }
-                }
             }
-        }
-    }
-
-    private var groups: [ProjectPurgeGroup] {
-        let items = model.projectPurge.result?.items ?? []
-        // 扫描结果已按项目总大小排好，这里保持首次出现的顺序
-        let grouped = Dictionary(grouping: items, by: \.project.path)
-        var seen = Set<String>()
-        return items.compactMap { item in
-            guard seen.insert(item.project.path).inserted, let members = grouped[item.project.path] else { return nil }
-            return ProjectPurgeGroup(project: item.project, items: members)
         }
     }
 }
 
-private struct ProjectPurgeGroup: Identifiable {
+/// 筛选只作用于展示和组内批量勾选，不修改窗口中已选的其他项目。
+struct ProjectPurgeGroup: Identifiable {
     var id: String { project.path }
     let project: URL
     let items: [ProjectPurgeItem]
     var bytes: UInt64 { items.reduce(0) { $0 + $1.bytes } }
+
+    static func filtered(_ items: [ProjectPurgeItem], query: String, kind: String, byName: Bool) -> [Self] {
+        let matching = items.filter {
+            (kind.isEmpty || $0.url.lastPathComponent == kind) &&
+            (query.isEmpty || $0.url.path.localizedCaseInsensitiveContains(query))
+        }
+        return Dictionary(grouping: matching, by: \.project).map { Self(project: $0.key, items: $0.value) }
+            .sorted {
+                if !byName && $0.bytes != $1.bytes { return $0.bytes > $1.bytes }
+                let order = $0.project.lastPathComponent.localizedStandardCompare($1.project.lastPathComponent)
+                return order == .orderedSame ? $0.id < $1.id : order == .orderedAscending
+            }
+    }
+}
+
+private struct ProjectPurgeGroupRow: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let group: ProjectPurgeGroup
+    @State private var expanded = false
+
+    var body: some View {
+        let purge = model.projectPurge
+        let count = group.items.filter { purge.selection.contains($0.id) }.count
+        VStack(alignment: .leading, spacing: DS.Space.s2) {
+            HStack(spacing: DS.Space.s2) {
+                CleanupCheckbox(title: group.project.path, selected: count, total: group.items.count) {
+                    purge.toggle(group.items)
+                }.frame(width: 24, height: 24).disabled(purge.isBusy)
+                Button {
+                    // 仅展开改变空间关系，选择、搜索、排序保持即时响应。
+                    DS.Motion.select {
+                        withAnimation(reduceMotion ? nil : DS.Motion.quick) { expanded.toggle() }
+                    }
+                } label: {
+                    HStack(spacing: DS.Space.s2) {
+                        VStack(alignment: .leading, spacing: DS.Space.s1) {
+                            Text(verbatim: group.project.lastPathComponent).dsFont(.sm, weight: .semibold)
+                            Text(verbatim: group.project.path.replacingOccurrences(of: NSHomeDirectory() + "/", with: "~/"))
+                                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                                .lineLimit(1).truncationMode(.middle)
+                        }
+                        Spacer()
+                        Text(tr("已选 \(count)/\(group.items.count) 项")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                        Text(verbatim: Format.bytes(group.bytes, base: .decimal)).dsFont(.sm).monospacedDigit()
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down").dsFont(.xs)
+                    }.contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).help(group.project.path)
+                .accessibilityValue(expanded ? tr("收起") : tr("展开"))
+            }
+            if expanded {
+                HairlineDivider()
+                ForEach(group.items) { item in ProjectPurgeRow(item: item) }
+            }
+        }
+        .padding(DS.Space.s3)
+        .background(DS.Palette.surface, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
+    }
 }
 
 private struct ProjectPurgeRow: View {
@@ -285,24 +371,21 @@ private struct ProjectPurgeRow: View {
     var body: some View {
         let purge = model.projectPurge
         HStack(spacing: DS.Space.s2) {
-            DSCheckbox(isOn: purge.selection.contains(item.id)) { purge.toggle(item) }
-                .disabled(purge.isBusy)
-            Image(systemName: "folder").foregroundStyle(DS.Palette.textSecondary)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(item.url.lastPathComponent).dsFont(.sm, weight: .medium)
-                HStack(spacing: DS.Space.s1) {
-                    Text(item.isRecent ? tr("最近 7 天有活动") : tr("超过 7 天未使用"))
-                    if item.isCloud { Text(tr("云盘")) }
-                    if item.isWorktree { Text(tr("Agent 工作树")) }
-                }
-                .dsFont(.xs).foregroundStyle(item.isRecent || item.isCloud ? DS.Palette.warning : DS.Palette.textTertiary)
+            CleanupCheckbox(title: item.url.path, selected: purge.selection.contains(item.id) ? 1 : 0) { purge.toggle(item) }
+                .frame(width: 24, height: 24).disabled(purge.isBusy)
+            Image(systemName: "folder").foregroundStyle(DS.Palette.textSecondary).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: DS.Space.s1) {
+                Text(verbatim: item.url.lastPathComponent).dsFont(.sm, weight: .medium)
+                Text([item.isRecent ? tr("最近 7 天有修改") : tr("最近 7 天未修改"),
+                      item.isCloud ? tr("云盘") : nil, item.isWorktree ? tr("Agent 工作树") : nil]
+                    .compactMap { $0 }.joined(separator: " · "))
+                    .dsFont(.xs).foregroundStyle(item.isRecent || item.isCloud ? DS.Palette.warning : DS.Palette.textSecondary)
             }
             Spacer()
             Text(verbatim: Format.bytes(item.bytes, base: .decimal)).dsFont(.sm).monospacedDigit()
-            Button { NSWorkspace.shared.activateFileViewerSelecting([item.url]) } label: {
-                Image(systemName: "arrow.up.forward.square")
-            }
-            .buttonStyle(.plain).help(tr("在访达中显示"))
+            Button(tr("在访达中显示"), systemImage: "arrow.up.forward.square") {
+                NSWorkspace.shared.activateFileViewerSelecting([item.url])
+            }.labelStyle(.iconOnly).buttonStyle(.plain).help(tr("在访达中显示"))
         }
     }
 }

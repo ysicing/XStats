@@ -124,6 +124,31 @@ final class ProjectPurgeController {
         isConfirming = false
     }
 
+    /// 只接受当前扫描仍存在的候选；部分选择点击后补齐当前组，而非清空。
+    func toggle(_ items: [ProjectPurgeItem]) {
+        guard !isBusy, let result else { return }
+        let ids = Set(items.map(\.id)).intersection(result.items.map(\.id))
+        guard !ids.isEmpty else { return }
+        if ids.isSubset(of: selection) { selection.subtract(ids) } else { selection.formUnion(ids) }
+        isConfirming = false
+    }
+
+    func clearSelection() {
+        guard !isBusy else { return }
+        selection.removeAll()
+        isConfirming = false
+    }
+
+    /// 隔离演示和测试候选，不启动扫描或执行删除。
+    func showPreview(_ scan: ProjectPurgeScan) {
+        guard !isBusy else { return }
+        result = scan
+        report = nil
+        selection.removeAll()
+        isConfirming = false
+        phase = .ready
+    }
+
     func requestClean() {
         guard !isBusy, !selectedItems.isEmpty else { return }
         isConfirming = true

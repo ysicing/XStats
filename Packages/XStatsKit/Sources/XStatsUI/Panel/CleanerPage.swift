@@ -9,35 +9,30 @@ struct CleanerPage: View {
     @Environment(\.isSnapshot) private var isSnapshot
 
     var body: some View {
-        PageScroll {
-            WeightedRow(weights: [2, 1]) {
-                SummaryCard()
-                MaintenanceCard()
-            }
-            if model.cleaner.needsFullDiskAccess {
-                InfoBanner(icon: "lock.shield", text: tr("部分项目需要“完全磁盘访问权限”才能扫描（Safari 缓存、废纸篓）。"), tone: .warning) {
-                    Button(tr("去授权")) { model.cleaner.openFullDiskAccessSettings() }
-                        .buttonStyle(DSButtonStyle(kind: .secondary))
+        VStack(spacing: 0) {
+            PageScroll {
+                SummaryCard().fixedSize(horizontal: false, vertical: true)
+                if model.cleaner.needsFullDiskAccess {
+                    InfoBanner(icon: "lock.shield", text: tr("部分项目需要“完全磁盘访问权限”才能扫描（Safari 缓存、废纸篓）。"), tone: .warning) {
+                        Button(tr("去授权")) { model.cleaner.openFullDiskAccessSettings() }
+                            .buttonStyle(DSButtonStyle(kind: .secondary))
+                    }
                 }
-            }
-            if model.cleaner.hasIncompleteScan {
-                InfoBanner(icon: "exclamationmark.triangle", text: tr("部分项目未能读取，大小仅包含已完整扫描的项目。请检查权限后重新扫描。"), tone: .warning)
-            }
-            HStack(alignment: .top, spacing: DS.Space.s3) {
-                VStack(spacing: DS.Space.s3) {
-                    CategoryCard(category: .system)
-                    CategoryCard(category: .browser)
+                if model.cleaner.hasIncompleteScan {
+                    InfoBanner(icon: "exclamationmark.triangle", text: tr("部分项目未能读取，大小仅包含已完整扫描的项目。请检查权限后重新扫描。"), tone: .warning)
                 }
-                .frame(maxWidth: .infinity)
-                VStack(spacing: DS.Space.s3) {
-                    CategoryCard(category: .developer)
-                    CategoryCard(category: .downloads)
-                    CategoryCard(category: .trash)
+                ForEach([CleanCategory.system, .browser, .developer, .downloads, .trash], id: \.self) { category in
+                    CategoryCard(category: category).fixedSize(horizontal: false, vertical: true)
                 }
-                .frame(maxWidth: .infinity)
+                CleanerFooter()
+                DisclosureGroup(tr("系统维护")) {
+                    MaintenanceCard().fixedSize(horizontal: false, vertical: true)
+                }
+                .dsFont(.sm).padding(.horizontal, DS.Space.s1)
             }
-            .fixedSize(horizontal: false, vertical: true)
-            CleanerFooter()
+            .environment(\.isSnapshot, false) // 截图也保留真实滚动视口与固定操作栏。
+            HairlineDivider()
+            CleanerActions().padding(DS.Space.s3).background(DS.Palette.background)
         }
         .onAppear { if !isSnapshot { model.cleaner.scan(ifNeeded: true) } }
     }
@@ -72,7 +67,7 @@ private struct SummaryCard: View {
                 Text(subline)
                     .dsFont(.sm)
                     .foregroundStyle(DS.Palette.textSecondary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let disk = model.store.disk {
@@ -84,46 +79,6 @@ private struct SummaryCard: View {
                 }
             }
 
-            if cleaner.isConfirming {
-                let deletesPermanently = cleaner.selectedScans.contains {
-                    $0.rule.deletesPermanently(preferTrash: model.settings.cleanPrefersTrash)
-                }
-                InfoBanner(icon: "exclamationmark.triangle.fill", text: confirmationText,
-                           tone: deletesPermanently ? .error : .warning) {
-                    HStack(spacing: DS.Space.s2) {
-                        Button(tr("取消")) { cleaner.cancelClean() }
-                            .buttonStyle(DSButtonStyle(kind: .secondary))
-                        if deletesPermanently {
-                            Button(tr("确认清理"), role: .destructive) { cleaner.confirmClean() }
-                                .buttonStyle(.borderedProminent)
-                                .tint(DS.Palette.error)
-                        } else {
-                            Button(tr("确认清理")) { cleaner.confirmClean() }
-                                .buttonStyle(DSButtonStyle(kind: .primary))
-                        }
-                    }
-                }
-            } else {
-                HStack(spacing: DS.Space.s2) {
-                    Button { cleaner.scan() } label: {
-                        Label(cleaner.phase == .scanning ? tr("扫描中…") : tr("重新扫描"), systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(DSButtonStyle(kind: .secondary))
-                    .disabled(cleaner.isBusy)
-
-                    Button { cleaner.requestClean() } label: {
-                        Label(cleaner.phase == .cleaning ? tr("清理中…") : tr("清理所选 \(Format.bytes(cleaner.selectedBytes, base: .decimal))"),
-                              systemImage: "trash")
-                    }
-                    .buttonStyle(DSButtonStyle(kind: .primary))
-                    .disabled(cleaner.isBusy || cleaner.selectedScans.isEmpty)
-                    if cleaner.phase == .scanning {
-                        Button(tr("取消")) { cleaner.cancelOperation() }
-                            .buttonStyle(DSButtonStyle(kind: .secondary))
-                    }
-                    Spacer()
-                }
-            }
         }
     }
 
@@ -143,7 +98,7 @@ private struct SummaryCard: View {
         case .idle: return tr("点击重新扫描以计算可清理空间")
         case .scanning: return tr("正在计算可清理空间")
         case .cleaning: return tr("正在清理…")
-        case .ready: return tr("可清理 · 已选 \(cleaner.selectedScans.count) 项")
+        case .ready: return tr("可清理")
         case .finished:
             guard let report = cleaner.report else { return "" }
             var parts: [String]
@@ -161,6 +116,52 @@ private struct SummaryCard: View {
         }
     }
 
+    private static func relative(_ date: Date, now: Date) -> String {
+        let minutes = Int(now.timeIntervalSince(date) / 60)
+        return minutes < 1 ? tr("刚刚") : tr("\(Format.duration(minutes: minutes))前")
+    }
+}
+
+private struct CleanerActions: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        @Bindable var cleaner = model.cleaner
+        VStack(alignment: .leading, spacing: DS.Space.s2) {
+            Text(tr("已选 \(cleaner.selectedScans.reduce(0) { $0 + $1.items.count }) 项"))
+                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            HStack(spacing: DS.Space.s2) {
+                Button { cleaner.scan() } label: {
+                    Label(cleaner.phase == .scanning ? tr("扫描中…") : tr("重新扫描"), systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(DSButtonStyle(kind: .secondary))
+                .disabled(cleaner.isBusy)
+
+                Button { cleaner.requestClean() } label: {
+                    Label(cleaner.phase == .cleaning ? tr("清理中…") : tr("清理所选 \(Format.bytes(cleaner.selectedBytes, base: .decimal))"),
+                          systemImage: "trash")
+                }
+                .buttonStyle(DSButtonStyle(kind: .primary))
+                .disabled(cleaner.isBusy || cleaner.selectedScans.isEmpty)
+                .confirmationDialog(tr("确认清理"), isPresented: $cleaner.isConfirming, titleVisibility: .visible) {
+                    Button(tr("确认清理"), role: .destructive) {
+                                // 系统弹层可能先清除展示绑定，执行前重新验证选择并进入确认保护。
+                                cleaner.requestClean()
+                                cleaner.confirmClean()
+                            }
+                    Button(tr("取消"), role: .cancel) { cleaner.cancelClean() }
+                } message: {
+                    Text(confirmationText)
+                }
+                if cleaner.phase == .scanning {
+                    Button(tr("取消")) { cleaner.cancelOperation() }
+                        .buttonStyle(DSButtonStyle(kind: .secondary))
+                }
+                Spacer()
+            }
+        }
+    }
+
     private var confirmationText: String {
         let cleaner = model.cleaner
         let count = cleaner.selectedScans.reduce(0) { $0 + $1.items.count }
@@ -174,10 +175,6 @@ private struct SummaryCard: View {
         return text
     }
 
-    private static func relative(_ date: Date, now: Date) -> String {
-        let minutes = Int(now.timeIntervalSince(date) / 60)
-        return minutes < 1 ? tr("刚刚") : tr("\(Format.duration(minutes: minutes))前")
-    }
 }
 
 // MARK: - 系统维护
@@ -255,6 +252,7 @@ private struct MaintenanceButton: View {
 private struct CategoryCard: View {
     @Environment(AppModel.self) private var model
     let category: CleanCategory
+    @State private var showsUnavailable = false
 
     var body: some View {
         let scans = model.cleaner.scans(in: category)
@@ -276,9 +274,19 @@ private struct CategoryCard: View {
                     PlaceholderLine().frame(height: DS.Size.controlHeight)
                 }
             }
-            ForEach(Array(scans.enumerated()), id: \.element.id) { index, scan in
+            let visibleScans = scans.filter { $0.isCleanable || showsUnavailable }
+            ForEach(Array(visibleScans.enumerated()), id: \.element.id) { index, scan in
                 if index > 0 { HairlineDivider() }
                 RuleRow(scan: scan)
+            }
+            let unavailableCount = scans.filter { !$0.isCleanable }.count
+            if unavailableCount > 0 {
+                Button {
+                    showsUnavailable.toggle()
+                } label: {
+                    Label(tr("其他项目（\(unavailableCount)）"), systemImage: showsUnavailable ? "chevron.up" : "chevron.down")
+                }
+                .buttonStyle(.plain).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
             }
         }
     }
@@ -294,27 +302,29 @@ private struct RuleRow: View {
     let scan: RuleScan
     @State private var expanded = false
     @State private var showsReview = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let cleaner = model.cleaner
         let selectedIDs = Set(cleaner.selectedItems(in: scan).map(\.id))
-        let selected = !selectedIDs.isEmpty
+        let status = statusText(selectedCount: selectedIDs.count)
 
         VStack(alignment: .leading, spacing: DS.Space.s2) {
             HStack(spacing: DS.Space.s2) {
-                DSCheckbox(isOn: selected) { cleaner.toggle(scan) }
+                CleanupCheckbox(title: scan.rule.title, selected: selectedIDs.count, total: scan.items.count) { cleaner.toggle(scan) }
+                    .frame(width: 24, height: 24)
                     .disabled(!scan.isCleanable || cleaner.isBusy)
                 RuleIcon(name: scan.rule.symbol)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(scan.rule.title)
                         .dsFont(.sm, weight: .medium)
                         .foregroundStyle(scan.blocked == nil ? DS.Palette.textPrimary : DS.Palette.textTertiary)
-                    Text(statusText)
+                    Text(status)
                         .dsFont(.xs)
                         .foregroundStyle(scan.blocked == nil ? DS.Palette.textTertiary : DS.Palette.warning)
-                        .lineLimit(scan.blocked == nil ? 1 : nil)
+                        .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
-                        .help(scan.blocked?.title ?? scan.rule.detail)
+                        .help(status)
                 }
                 Spacer(minLength: DS.Space.s1)
                 if scan.isCleanable {
@@ -322,7 +332,11 @@ private struct RuleRow: View {
                         .dsFont(.sm, weight: .medium)
                         .monospacedDigit()
                         .foregroundStyle(DS.Palette.textPrimary)
-                    Button { expanded.toggle() } label: {
+                    Button {
+                        DS.Motion.select {
+                            withAnimation(reduceMotion ? nil : DS.Motion.quick) { expanded.toggle() }
+                        }
+                    } label: {
                         Image(systemName: expanded ? "chevron.up" : "chevron.down")
                             .font(.system(size: DS.TextSize.xs.rawValue, weight: .semibold))
                             .foregroundStyle(DS.Palette.textTertiary)
@@ -335,10 +349,15 @@ private struct RuleRow: View {
             }
 
             if expanded && scan.isCleanable {
+                if scan.rule.usesToolCleaner {
+                    Text(tr("由对应工具整体清理，不支持逐项勾选；保留其中任一项目会跳过整条规则。"))
+                        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                }
                 VStack(alignment: .leading, spacing: DS.Space.s1) {
                     ForEach(scan.items.prefix(Self.previewLimit)) { item in
                         HStack {
-                            DSCheckbox(isOn: selectedIDs.contains(item.id)) { cleaner.toggle(item, in: scan) }
+                            CleanupCheckbox(title: item.url.path, selected: selectedIDs.contains(item.id) ? 1 : 0) { cleaner.toggle(item, in: scan) }
+                                .frame(width: 24, height: 24)
                                 .disabled(cleaner.isBusy || scan.rule.usesToolCleaner)
                             Text(verbatim: scan.toolPreview == nil ? item.url.lastPathComponent : item.url.pathComponents.suffix(2).joined(separator: "/")).dsFont(.xs).lineLimit(1).truncationMode(.middle)
                             Spacer(minLength: DS.Space.s2)
@@ -363,12 +382,16 @@ private struct RuleRow: View {
 
     private static let previewLimit = 6
 
-    private var statusText: String {
+    private func statusText(selectedCount: Int) -> String {
         if let blocked = scan.blocked { return blocked.title }
-        if scan.unreadableCount > 0 { return tr("扫描不完整 · \(scan.unreadableCount) 项未能读取") }
+        if scan.items.isEmpty && scan.unreadableCount > 0 { return tr("扫描不完整 · \(scan.unreadableCount) 项未能读取") }
         if scan.items.isEmpty && scan.skippedCount > 0 { return tr("已跳过 \(scan.skippedCount) 项") }
         if scan.items.isEmpty { return tr("无需清理") }
-        var text = tr("\(scan.items.count) 项")
+        var text = selectedCount > 0 && selectedCount < scan.items.count
+            ? tr("已选 \(selectedCount)/\(scan.items.count) 项") : tr("\(scan.items.count) 项")
+        if scan.unreadableCount > 0 {
+            text += " · " + tr("扫描不完整 · \(scan.unreadableCount) 项未能读取")
+        }
         if !scan.skippedReasons.isEmpty {
             text += " · " + scan.skippedReasons.keys.map(\.title).sorted().joined(separator: " · ")
         } else if scan.skippedCount > 0 { text += tr(" · 已跳过 \(scan.skippedCount) 项") }
@@ -407,18 +430,21 @@ private struct CleanerFooter: View {
     var body: some View {
         @Bindable var settings = model.settings
 
-        HStack(spacing: DS.Space.s3) {
-            DSToggle(isOn: $settings.cleanPrefersTrash, label: tr("缓存也先移到废纸篓"))
-            VStack(alignment: .leading, spacing: 0) {
-                Text(tr("缓存也先移到废纸篓")).dsFont(.sm, weight: .medium).foregroundStyle(DS.Palette.textPrimary)
-                Text(tr("支持的缓存可以恢复；工具缓存始终由对应命令直接清理"))
-                    .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+        VStack(alignment: .leading, spacing: DS.Space.s3) {
+            HStack(spacing: DS.Space.s3) {
+                DSToggle(isOn: $settings.cleanPrefersTrash, label: tr("缓存也先移到废纸篓"))
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(tr("缓存也先移到废纸篓")).dsFont(.sm, weight: .medium).foregroundStyle(DS.Palette.textPrimary)
+                    Text(tr("支持的缓存可以恢复；工具缓存始终由对应命令直接清理"))
+                        .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                }
             }
-            Spacer()
-            Button(tr("保留项目")) { showsExclusions = true }
-                .buttonStyle(DSButtonStyle(kind: .ghost))
-            Button(tr("查看清理日志")) { model.cleaner.revealLog() }
-                .buttonStyle(DSButtonStyle(kind: .ghost))
+            HStack(spacing: DS.Space.s3) {
+                Button(tr("保留项目")) { showsExclusions = true }
+                    .buttonStyle(DSButtonStyle(kind: .ghost))
+                Button(tr("查看清理日志")) { model.cleaner.revealLog() }
+                    .buttonStyle(DSButtonStyle(kind: .ghost))
+            }
         }
         .padding(.horizontal, DS.Space.s1)
         .sheet(isPresented: $showsExclusions) { CleanerExclusionsSheet(cleaner: model.cleaner) }

@@ -13,6 +13,21 @@ extension Translations {
 
 
     static let monitoringEnglish = #"""
+可清理	Available to clean
+其他项目（{}）	Other items ({})
+已选 {}/{} 项	{1} of {2} selected
+类型	Type
+所有类型	All types
+排序	Sort
+按大小排序	By size
+按名称排序	By name
+没有匹配的项目	No matching items
+清除选择	Clear selection
+移到废纸篓…	Move to Trash…
+展开	Expand
+最近 7 天有修改	Modified in the last 7 days
+最近 7 天未修改	No changes in the last 7 days
+所选内容包含最近 7 天有修改的项目，清理后需要重新构建。	The selection includes items modified in the last 7 days. They will need to be rebuilt after cleanup.
 pip 缓存	pip Cache
 pip3 下载与 wheel 缓存，不涉及虚拟环境或已安装的包	pip3 download and wheel caches; leaves virtual environments and installed packages intact
 VS Code 缓存	VS Code Cache

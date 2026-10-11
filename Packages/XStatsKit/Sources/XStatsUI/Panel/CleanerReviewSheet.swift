@@ -31,7 +31,8 @@ struct CleanerReviewSheet: View {
                 LazyVStack(alignment: .leading, spacing: DS.Space.s3) {
                     ForEach(scan.items.filter { query.isEmpty || $0.url.path.localizedCaseInsensitiveContains(query) }) { item in
                         HStack(alignment: .top, spacing: DS.Space.s2) {
-                            DSCheckbox(isOn: selected.contains(item.id)) { cleaner.toggle(item, in: scan) }
+                            CleanupCheckbox(title: item.url.path, selected: selected.contains(item.id) ? 1 : 0) { cleaner.toggle(item, in: scan) }
+                                .frame(width: 24, height: 24)
                                 .disabled(cleaner.isBusy || scan.rule.usesToolCleaner)
                             VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
                                 Text(verbatim: item.url.lastPathComponent).dsFont(.sm)
