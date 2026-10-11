@@ -19,10 +19,189 @@ private struct CostRefreshKey: Hashable {
 
 struct AIUsagePage: View {
     var initialActivityMode = UsageActivityMode.daily
-    var body: some View { PageScroll { LocalUsageContent(compact: false, initialActivityMode: initialActivityMode) } }
+    @Environment(AppModel.self) private var model
+    var body: some View {
+        PageScroll {
+            if model.aiUsage.usesMagpie { MagpieUsageContent(compact: false, initialActivityMode: initialActivityMode) }
+            else { LocalUsageContent(compact: false, initialActivityMode: initialActivityMode) }
+        }
+    }
 }
 struct AIUsagePopover: View {
-    var body: some View { LocalUsageContent(compact: true) }
+    @Environment(AppModel.self) private var model
+    var body: some View {
+        if model.aiUsage.usesMagpie { MagpieUsageContent(compact: true) }
+        else { LocalUsageContent(compact: true) }
+    }
+}
+
+private struct MagpieUsageContent: View {
+    @Environment(\.isSnapshot) private var isSnapshot
+    let compact: Bool
+    @Environment(AppModel.self) private var model
+    @State private var activityMode: UsageActivityMode
+
+    init(compact: Bool, initialActivityMode: UsageActivityMode = .daily) {
+        self.compact = compact
+        _activityMode = State(initialValue: UsageChartPresentation.mode(initialActivityMode, compact: compact))
+    }
+
+    private var period: MagpiePeriod {
+        switch activityMode {
+        case .daily: .daily
+        case .weekly: .weekly
+        case .monthly: .monthly
+        case .cumulative: .cumulative
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s4) {
+            HStack {
+                Text(tr("数据来源") + " · Magpie").dsFont(.sm, weight: .semibold)
+                Spacer()
+                AIUsageRefreshButton()
+                if !compact { AIUsageSettingsButton() }
+            }
+            if !model.settings.aiUsageEnabled {
+                Card {
+                    Text(tr("尚未启用")).dsFont(.xs)
+                    Button(tr("启用 AI 用量")) { model.settings.aiUsageEnabled = true }
+                        .buttonStyle(DSButtonStyle(kind: .primary))
+                }
+            } else {
+                quotas
+                if model.settings.aiUsageShowsLocalUsage {
+                    if let summary = model.aiUsage.magpieSummary(for: period) {
+                        usageSummary(summary)
+                        if !summary.models.isEmpty {
+                            Card(spacing: DS.Space.s2) {
+                                Text(tr("模型用量")).dsFont(.sm, weight: .semibold)
+                                ForEach(summary.models.sorted { $0.total > $1.total }) { item in
+                                    HStack(alignment: .firstTextBaseline) {
+                                        Text(item.provider + " · " + item.model)
+                                            .lineLimit(1).help(item.provider + " · " + item.model)
+                                        Spacer(minLength: DS.Space.s2)
+                                        Text(UsageNumber.short(item.total, westernUnits: model.settings.aiUsageWesternUnits))
+                                            .monospacedDigit().help(UsageNumber.exact(item.total) + " Tokens")
+                                    }.dsFont(.xs)
+                                }
+                            }
+                        }
+                    } else if model.aiUsage.magpieRefreshing {
+                        ProgressView().frame(maxWidth: .infinity).padding()
+                    } else if model.aiUsage.magpieUsageFailures[period] == nil {
+                        Text(tr("暂无数据")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                    }
+                    MagpieActivityPanel(summary: model.aiUsage.magpieSummary(for: period), compact: compact, mode: $activityMode)
+                    if let failure = model.aiUsage.magpieUsageFailures[period] {
+                        connectionStatus(failure, stale: model.aiUsage.magpieSummary(for: period) != nil)
+                    }
+                }
+            }
+        }
+        .environment(\.aiUsageWesternUnits, model.settings.aiUsageWesternUnits)
+        .task(id: period) {
+            guard !isSnapshot else { return }
+            await model.aiUsage.selectMagpiePeriod(period)
+        }
+    }
+
+    private var quotas: some View {
+        Card(spacing: DS.Space.s3) {
+            Text(tr("订阅额度")).dsFont(.sm, weight: .semibold)
+            if model.aiUsage.magpieQuotas.isEmpty && model.aiUsage.magpieQuotaFailure == nil {
+                Text(tr("暂无额度数据")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            }
+            Text(tr("额度按账户分别显示；菜单栏优先显示最近使用的账户。"))
+                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !model.aiUsage.magpieQuotas.isEmpty {
+                MagpieQuotaAccounts(accounts: model.aiUsage.magpieQuotas)
+            }
+            if let failure = model.aiUsage.magpieQuotaFailure {
+                connectionStatus(failure, stale: !model.aiUsage.magpieQuotas.isEmpty)
+            }
+        }
+    }
+
+    private func usageSummary(_ summary: MagpieUsageSummary) -> some View {
+        Card(spacing: DS.Space.s3) {
+            Text(tr("Token 用量")).dsFont(.sm, weight: .semibold)
+            Text(UsageNumber.short(summary.total, westernUnits: model.settings.aiUsageWesternUnits))
+                .dsFont(.xl, weight: .semibold).monospacedDigit()
+                .help(UsageNumber.exact(summary.total) + " Tokens")
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: DS.Space.s2) {
+                metric(tr("输入"), summary.input)
+                metric(tr("输出"), summary.output)
+                metric(tr("缓存读取"), summary.cacheRead)
+                metric(tr("缓存写入"), summary.cacheWrite)
+            }
+            HStack {
+                Text(tr("请求数"))
+                Spacer()
+                Text(UsageNumber.exact(summary.calls)).monospacedDigit()
+            }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            HStack {
+                Text(tr("估算费用"))
+                Spacer()
+                Text(summary.cost.formatted(.currency(code: "USD").precision(.fractionLength(2...4)).locale(L10n.locale))).monospacedDigit()
+            }.dsFont(.sm)
+            if summary.unpriced > 0 {
+                Text(tr("部分请求缺少价格，费用估算不完整。"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            }
+            Text(tr("Magpie 的 Token 总量不包含缓存读写；仅统计经过 Magpie 的请求。"))
+                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func metric(_ title: String, _ value: Int) -> some View {
+        VStack(alignment: .leading, spacing: DS.Space.s1) {
+            Text(title).foregroundStyle(DS.Palette.textSecondary)
+            Text(UsageNumber.short(value, westernUnits: model.settings.aiUsageWesternUnits))
+                .monospacedDigit().help(UsageNumber.exact(value))
+        }.dsFont(.xs)
+    }
+
+    private func connectionStatus(_ failure: MagpieFailure, stale: Bool) -> some View {
+        VStack(alignment: .leading, spacing: DS.Space.s1) {
+            Text(tr(failure == .unavailable ? "无法连接 Magpie，请确认它已运行。" : "Magpie 数据无法读取，请检查版本或数据大小。"))
+            if stale { Text(tr("显示上次成功读取的数据。")) }
+        }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct MagpieActivityPanel: View {
+    let summary: MagpieUsageSummary?
+    let compact: Bool
+    @Binding var mode: UsageActivityMode
+    @State private var hovered: String?
+
+    var body: some View {
+        Card(spacing: DS.Space.s2) {
+            HStack {
+                Text(tr("Token 活动")).dsFont(.sm, weight: .semibold)
+                Spacer(minLength: DS.Space.s1)
+                let periods: [(UsageActivityMode, String)] = [(.daily, tr("今天")), (.weekly, tr("7 天")), (.monthly, tr("30 天"))]
+                UsageChoices(selection: $mode, options: compact ? periods : periods + [(.cumulative, tr("累计"))],
+                             label: tr("Token 活动"), equalWidth: !compact)
+            }
+            if let summary {
+                Text(hovered ?? tr(summary.bucket == "week" ? "按周统计" : summary.bucket == "hour" ? "按小时统计" : "按天统计"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                UsageBarChart(buckets: summary.chartBuckets, hourly: summary.bucket == "hour", hovered: $hovered)
+            } else {
+                Text(tr("暂无数据")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 140)
+            }
+        }
+        .onChange(of: mode) { _, _ in hovered = nil }
+        .onChange(of: summary) { _, _ in hovered = nil }
+    }
 }
 
 /// 摘要、选项和图表共享的显示边界，首次测量时也必须使用同一模式。
@@ -897,19 +1076,23 @@ private struct UsageSettings: View {
             SettingRow(title: tr("AI 用量"), subtitle: nil) {
                 DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 用量"))
             }
-            SettingRow(title: tr("显示本地用量"),
-                       subtitle: tr("读取本机会话日志；关闭后停止扫描并隐藏 Token 统计。")) {
-                DSToggle(isOn: $settings.aiUsageShowsLocalUsage, label: tr("显示本地用量"))
+            SettingRow(title: tr(model.aiUsage.usesMagpie ? "显示 Token 用量" : "显示本地用量"),
+                       subtitle: tr(model.aiUsage.usesMagpie ? "从 Magpie 读取 Token 与费用；关闭后只读取额度。" : "读取本机会话日志；关闭后停止扫描并隐藏 Token 统计。")) {
+                DSToggle(isOn: $settings.aiUsageShowsLocalUsage, label: tr(model.aiUsage.usesMagpie ? "显示 Token 用量" : "显示本地用量"))
             }
             HairlineDivider()
             Text(tr("数据来源")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-            ForEach(AIProviderID.allCases) { provider in
-                let name = provider == .codex ? "Codex" : "Claude Code"
-                SettingRow(title: name, subtitle: nil) {
-                    DSToggle(isOn: Binding(get: { settings.aiUsageSources.contains(provider) }, set: { enabled in
-                        if enabled { settings.aiUsageSources.insert(provider) }
-                        else { settings.aiUsageSources.remove(provider) }
-                    }), label: name)
+            if model.aiUsage.usesMagpie {
+                SettingRow(title: "Magpie", subtitle: tr("检测到已安装 Magpie，自动使用其本地数据。")) { EmptyView() }
+            } else {
+                ForEach(AIProviderID.allCases) { provider in
+                    let name = provider == .codex ? "Codex" : "Claude Code"
+                    SettingRow(title: name, subtitle: nil) {
+                        DSToggle(isOn: Binding(get: { settings.aiUsageSources.contains(provider) }, set: { enabled in
+                            if enabled { settings.aiUsageSources.insert(provider) }
+                            else { settings.aiUsageSources.remove(provider) }
+                        }), label: name)
+                    }
                 }
             }
             HairlineDivider()
@@ -934,18 +1117,24 @@ private struct UsageSettings: View {
                     }.labelsHidden()
                 }
             }
-            SettingRow(title: tr("货币"), subtitle: nil) {
-                Picker(tr("货币"), selection: $settings.aiUsageCurrency) {
-                    Text(tr("美元")).tag(AIUsageCurrency.usd)
-                    Text(tr("人民币")).tag(AIUsageCurrency.cny)
-                }.labelsHidden()
+            if model.aiUsage.usesMagpie {
+                Text(tr("费用由 Magpie 估算，以美元显示；不代表订阅账单。"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                SettingRow(title: tr("货币"), subtitle: nil) {
+                    Picker(tr("货币"), selection: $settings.aiUsageCurrency) {
+                        Text(tr("美元")).tag(AIUsageCurrency.usd)
+                        Text(tr("人民币")).tag(AIUsageCurrency.cny)
+                    }.labelsHidden()
+                }
+                Text(tr("价格来源：models.dev；人民币按缓存汇率换算。"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(tr("本机 Token 统计不代表订阅账单或其他设备的用量"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Text(tr("价格来源：models.dev；人民币按缓存汇率换算。"))
-                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(tr("本机 Token 统计不代表订阅账单或其他设备的用量"))
-                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

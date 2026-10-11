@@ -4,15 +4,18 @@ import Localization
 import Metrics
 
 struct MenuBarQuota {
-    let provider: AIProviderID
+    let provider: AIProviderID?
     let window: AIQuotaWindow
     let fetchedAt: Date
     let isStale: Bool
+    var magpieName: String? = nil
+    var magpieWindow: String? = nil
 
     var remainingPercent: Int { Int(window.remainingPercent.rounded()) }
-    var sourceName: String { provider == .codex ? "Codex" : "Claude" }
+    var sourceName: String { magpieName ?? (provider == .codex ? "Codex" : "Claude") }
     var shortWindowName: String {
-        switch window.kind {
+        if let magpieWindow { return magpieWindow }
+        return switch window.kind {
         case .session: "5h"
         default: "7d"
         }
@@ -108,6 +111,10 @@ struct MenuBarReading {
                 aiUsageShowsLocalUsage = model.settings.aiUsageShowsLocalUsage
                 aiQuotaShowsRemaining = model.settings.aiQuotaShowsRemaining
                 aiUsageWesternUnits = model.settings.aiUsageWesternUnits
+                if model.aiUsage.usesMagpie {
+                    aiQuotas = model.aiUsage.menuBarMagpieQuotas()
+                    continue
+                }
                 aiQuotas = model.aiUsage.visibleQuotaProviders(for: nil).compactMap { provider in
                     let state = model.aiUsage.visibleQuotaState(for: provider)
                     guard let snapshot = state.snapshot else { return nil }
@@ -194,7 +201,7 @@ struct MenuBarReading {
             if aiQuotas.isEmpty { return aiTokens == previous.aiTokens && aiUsageWesternUnits == previous.aiUsageWesternUnits }
             guard aiQuotaShowsRemaining == previous.aiQuotaShowsRemaining else { return false }
             return aiQuotas.elementsEqual(previous.aiQuotas) {
-                $0.provider == $1.provider && $0.shortWindowName == $1.shortWindowName
+                $0.sourceName == $1.sourceName && $0.shortWindowName == $1.shortWindowName
                     && $0.window.remainingPercent == $1.window.remainingPercent
             }
         }
@@ -403,7 +410,7 @@ enum MenuBarRenderer {
         }
         let status = combine(reading.aiQuotas.map { quota in
             let provider = quota.provider
-            let name = provider == .codex ? "Codex" : "Claude"
+            let name = quota.sourceName
             let label = "\(name) · \(quota.shortWindowName)"
             let value = AIUsageFormat.quotaPercent(remainingPercent: quota.window.remainingPercent, showsRemaining: reading.aiQuotaShowsRemaining, locale: L10n.locale, compact: true)
             let stacked = aiQuotaText(label: name, value: value, centered: style == .stackedCenter)
@@ -414,7 +421,7 @@ enum MenuBarRenderer {
             case .stacked, .stackedCenter: return stacked
             case .inline: return inlineText(label: label, value: value, sample: "100%", alert: false)
             case .icon:
-                return combine([aiProviderLogo(provider), inlineValue(value, sample: "100%", alert: false)])
+                return combine([provider.map(aiProviderLogo) ?? symbolSegment(MenuBarItem.aiUsage.symbol), inlineValue(value, sample: "100%", alert: false)])
             case .ring, .history, .line:
                 return combine([ring(fraction: fraction, alert: false, color: color, diameter: 15, lineWidth: 2.5), inline])
             case .pie: return combine([pie(fraction: fraction, alert: false, color: color), inline])

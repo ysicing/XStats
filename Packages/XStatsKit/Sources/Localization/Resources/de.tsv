@@ -1962,3 +1962,23 @@ Cursor 缓存	Cursor-Cache
 聚合模式下，用右侧按钮调整顺序；关闭再开启项目会保留位置。	Im kombinierten Modus ändern die danebenliegenden Tasten die Reihenfolge. Einträge behalten beim Aus- und Einschalten ihre Position.
 将{}向前移动	{} nach vorne verschieben
 将{}向后移动	{} nach hinten verschieben
+显示 Token 用量	Token-Nutzung anzeigen
+从 Magpie 读取 Token 与费用；关闭后只读取额度。	Liest Tokens und Kosten aus Magpie; ausgeschaltet werden nur Kontingente gelesen.
+检测到已安装 Magpie，自动使用其本地数据。	Magpie ist installiert; seine lokalen Daten werden automatisch verwendet.
+费用由 Magpie 估算，以美元显示；不代表订阅账单。	Kosten werden von Magpie in USD geschätzt; sie sind keine Abonnementrechnung.
+模型用量	Modellnutzung
+Magpie 未能读取此账户的额度。	Magpie konnte das Kontingent dieses Kontos nicht lesen.
+不限额	Unbegrenzt
+缓存读取	Cache-Lesezugriffe
+缓存写入	Cache-Schreibzugriffe
+请求数	Anfragen
+部分请求缺少价格，费用估算不完整。	Für einige Anfragen fehlen Preise; die Kostenschätzung ist unvollständig.
+Magpie 的 Token 总量不包含缓存读写；仅统计经过 Magpie 的请求。	Magpies Token-Summe enthält keine Cache-Zugriffe; nur über Magpie geleitete Anfragen werden gezählt.
+无法连接 Magpie，请确认它已运行。	Keine Verbindung zu Magpie. Prüfen Sie, ob es läuft.
+Magpie 数据无法读取，请检查版本或数据大小。	Magpie-Daten können nicht gelesen werden. Prüfen Sie Version oder Datenmenge.
+显示上次成功读取的数据。	Die zuletzt erfolgreich gelesenen Daten werden angezeigt.
+按周统计	Nach Woche
+额度按账户分别显示；菜单栏优先显示最近使用的账户。	Kontingente werden pro Konto angezeigt; die Menüleiste bevorzugt das zuletzt verwendete Konto.
+查看 AI 服务的 Token 用量与账户额度。	Token-Nutzung und Kontokontingente für KI-Dienste anzeigen.
+查看账户剩余额度与重置时间	Verbleibende Kontokontingente und Rücksetzzeiten anzeigen
+查看今天的 Token 用量	Heutige Token-Nutzung anzeigen

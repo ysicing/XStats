@@ -77,11 +77,14 @@ private struct AIQuotaWidgetView: View {
     let entry: SharedDataEntry
 
     private var featured: [WidgetSnapshot.Quota] {
-        ["codex", "claude"].compactMap { provider in
-            let windows = entry.snapshot.currentQuotas(at: entry.date).filter { $0.provider == provider }
+        let quotas = entry.snapshot.currentQuotas(at: entry.date)
+        let otherProviders = Set(quotas.map(\.provider)).subtracting(["codex", "claude"]).sorted()
+        return (["codex", "claude"] + otherProviders).compactMap { provider in
+            let windows = quotas.filter { $0.provider == provider }
             return windows.first(where: { $0.kind == "weekly" })
                 ?? windows.first(where: { $0.kind.hasSuffix("Weekly") })
                 ?? windows.first(where: { $0.kind == "session" })
+                ?? windows.first
         }
     }
 
@@ -111,7 +114,7 @@ private struct AIQuotaWidgetView: View {
 
     private func quotaColumn(_ quota: WidgetSnapshot.Quota) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(quota.provider == "codex" ? "Codex" : "Claude")
+            Text(quota.provider == "codex" ? "Codex" : quota.provider == "claude" ? "Claude" : quota.provider)
                 .font(.subheadline.weight(.semibold))
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(AIUsageFormat.quotaPercent(remainingPercent: quota.remainingPercent, showsRemaining: entry.snapshot.quotaShowsRemaining != false, locale: L10n.locale))
@@ -146,7 +149,7 @@ struct AIQuotaWidget: Widget {
             AIQuotaWidgetView(entry: entry)
         }
         .configurationDisplayName(tr("订阅额度"))
-        .description(tr("查看 Codex 和 Claude 的剩余额度与重置时间"))
+        .description(tr("查看账户剩余额度与重置时间"))
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -155,9 +158,10 @@ private struct TodayTokensWidgetView: View {
     let entry: SharedDataEntry
 
     private var sources: [(name: String, tokens: Int)] {
-        ["codex", "claude"].compactMap { provider in
+        let otherProviders = Set((entry.snapshot.dailyTokens ?? []).map(\.provider)).subtracting(["codex", "claude"]).sorted()
+        return (["codex", "claude"] + otherProviders).compactMap { provider in
             guard let tokens = entry.snapshot.todayTokens(for: provider, at: entry.date) else { return nil }
-            return (provider == "codex" ? "Codex" : "Claude", tokens)
+            return (provider == "codex" ? "Codex" : provider == "claude" ? "Claude" : provider, tokens)
         }
     }
 
@@ -198,7 +202,7 @@ struct TodayTokensWidget: Widget {
             TodayTokensWidgetView(entry: entry)
         }
         .configurationDisplayName(tr("今日消耗的 Token"))
-        .description(tr("查看今天 Codex 和 Claude 的 Token 用量"))
+        .description(tr("查看今天的 Token 用量"))
         .supportedFamilies([.systemSmall])
     }
 }

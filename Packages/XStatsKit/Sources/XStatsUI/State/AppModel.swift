@@ -86,9 +86,9 @@ public final class AppModel {
     @ObservationIgnored var quit: () -> Void = {}
 
     public init(settings: AppSettings = AppSettings(), historyURL: URL? = HistoryDatabase.defaultURL,
-                aiUsageProviders: [any AIUsageProvider] = [CodexLocalUsageProvider(), ClaudeLocalUsageProvider()],
-                aiQuotaProviders: [any AIQuotaProvider] = [CodexQuotaProvider(), ClaudeQuotaProvider()],
-                quotaCacheURL: URL? = nil) {
+                aiUsageProviders: [any AIUsageProvider]? = nil,
+                aiQuotaProviders: [any AIQuotaProvider]? = nil,
+                quotaCacheURL: URL? = nil, magpieClient: (any MagpieFetching)? = nil) {
         let store = MetricsStore(readBattery: settings.isModuleEnabled(.battery))
         let helper = HelperClient()
         self.settings = settings
@@ -99,8 +99,12 @@ public final class AppModel {
         audio = AudioController(defaults: settings.audioDefaults)
         rest = RestController(settings: settings)
         wellness = WellnessController(rest: rest, settings: settings, store: WellnessActivityStore(url: settings.wellnessStorageURL))
-        aiUsage = AIUsageController(settings: settings, providers: aiUsageProviders, quotaProviders: aiQuotaProviders,
-                                    quotaCacheURL: quotaCacheURL, costReferenceStore: .shared)
+        // 显式注入的测试或截图来源不受开发机已安装应用影响。
+        let magpie = magpieClient ?? (aiUsageProviders == nil && aiQuotaProviders == nil ? MagpieInstallation.client() : nil)
+        aiUsage = AIUsageController(settings: settings,
+            providers: aiUsageProviders ?? (magpie == nil ? [CodexLocalUsageProvider(), ClaudeLocalUsageProvider()] : []),
+            quotaProviders: aiQuotaProviders ?? (magpie == nil ? [CodexQuotaProvider(), ClaudeQuotaProvider()] : []),
+            quotaCacheURL: quotaCacheURL, costReferenceStore: .shared, magpieClient: magpie)
         self.store = store
         self.helper = helper
         fans = FanController(helper: helper, store: store, settings: settings)

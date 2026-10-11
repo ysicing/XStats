@@ -4,6 +4,7 @@
 import AIUsage
 import Foundation
 import Observation
+import os
 
 public struct AIUsageProviderState: Equatable, Sendable {
     public let provider: AIProviderID
@@ -35,6 +36,18 @@ public final class AIUsageController {
     public private(set) var quotaStates: [AIProviderID: AIQuotaProviderState]
     /// 供 AppController 观察的刷新脉冲；各额度来源另有自己的 lastAttemptAt。
     public private(set) var lastAttemptAt: Date?
+    public var usesMagpie: Bool { magpieClient != nil }
+    public private(set) var magpieQuotas: [MagpieQuota] = []
+    public private(set) var magpieQuotaFailure: MagpieFailure?
+    public private(set) var magpieQuotaUpdatedAt: Date?
+    public private(set) var magpieUsage: [MagpiePeriod: MagpieUsageSummary] = [:]
+    public private(set) var magpieUsageFailures: [MagpiePeriod: MagpieFailure] = [:]
+    public private(set) var magpieUsageUpdatedAt: [MagpiePeriod: Date] = [:]
+    public private(set) var magpieRefreshing = false
+    @ObservationIgnored private let magpieClient: (any MagpieFetching)?
+    @ObservationIgnored private var magpiePeriod = MagpiePeriod.daily
+    private static let logger = Logger(subsystem: Log.subsystem, category: "ai-usage")
+
     public private(set) var costReferences = AICostReferenceSnapshot(catalog: nil, exchangeRate: nil)
     private var costRefreshCount = 0
     public var isRefreshingCostReferences: Bool { costRefreshCount > 0 }
@@ -48,14 +61,17 @@ public final class AIUsageController {
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private var cadenceTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var refreshTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var paused = false
 
     public init(settings: AppSettings, providers: [any AIUsageProvider] = [CodexLocalUsageProvider(), ClaudeLocalUsageProvider()],
                 quotaProviders: [any AIQuotaProvider] = [],
                 quotaCacheURL: URL? = nil, costReferenceStore: AICostReferenceStore? = nil,
+                magpieClient: (any MagpieFetching)? = nil,
                 now: @escaping @Sendable () -> Date = Date.init) {
         self.settings = settings
+        self.magpieClient = magpieClient
         self.costReferenceStore = costReferenceStore
         self.providers = providers
         self.quotaProviders = quotaProviders
@@ -73,7 +89,7 @@ public final class AIUsageController {
     }
 
     public func refreshCostReferences() async {
-        guard let costReferenceStore, settings.aiUsageEnabled, settings.aiUsageShowsLocalUsage, !paused,
+        guard !usesMagpie, let costReferenceStore, settings.aiUsageEnabled, settings.aiUsageShowsLocalUsage, !paused,
               localReport(for: nil)?.rows.contains(where: { $0.input > 0 || $0.output > 0 }) == true else { return }
         let epoch = generation
         let id = UUID()
@@ -104,7 +120,7 @@ public final class AIUsageController {
     }
 
     private func restoreCachedQuotas() {
-        guard let cached = try? quotaCache?.load() else { return }
+        guard !usesMagpie, let cached = try? quotaCache?.load() else { return }
         for provider in quotaProviders where settings.aiUsageSources.contains(provider.id) {
             guard var state = quotaStates[provider.id], state.snapshot == nil,
                   let snapshot = cached[provider.id] else { continue }
@@ -123,14 +139,14 @@ public final class AIUsageController {
     }
 
     public func visibleQuotaState(for provider: AIProviderID) -> AIQuotaProviderState {
-        guard settings.aiUsageEnabled, settings.aiUsageSources.contains(provider) else {
+        guard !usesMagpie, settings.aiUsageEnabled, settings.aiUsageSources.contains(provider) else {
             return AIQuotaProviderState(provider: provider)
         }
         return quotaState(for: provider)
     }
 
     public func visibleQuotaProviders(for selection: AIProviderID?) -> [AIProviderID] {
-        guard settings.aiUsageEnabled else { return [] }
+        guard !usesMagpie, settings.aiUsageEnabled else { return [] }
         return AIProviderID.allCases.filter { id in
             guard settings.aiUsageSources.contains(id), selection == nil || selection == id,
                   let state = quotaStates[id] else { return false }
@@ -139,17 +155,20 @@ public final class AIUsageController {
     }
 
     public var isRefreshing: Bool {
-        states.values.contains(where: \.isRefreshing) || quotaStates.values.contains(where: \.isRefreshing)
+        magpieRefreshing || states.values.contains(where: \.isRefreshing) || quotaStates.values.contains(where: \.isRefreshing)
     }
 
     public var todayTokens: Int? {
+        if usesMagpie {
+            return settings.aiUsageEnabled && settings.aiUsageShowsLocalUsage ? magpieSummary(for: .daily)?.total : nil
+        }
         guard settings.aiUsageEnabled, settings.aiUsageShowsLocalUsage,
               let report = localReport(for: nil) else { return nil }
         return LocalUsageReport.total(report.selected(days: 1, now: now())).total
     }
 
     public func localReport(for provider: AIProviderID?) -> LocalUsageReport? {
-        guard settings.aiUsageShowsLocalUsage else { return nil }
+        guard !usesMagpie, settings.aiUsageShowsLocalUsage else { return nil }
         let reports = states.values.filter { settings.aiUsageSources.contains($0.provider) && (provider == nil || $0.provider == provider) }
             .compactMap { $0.snapshot?.localUsage }
             .filter { !$0.rows.isEmpty || $0.fileCount > 0 }
@@ -159,7 +178,7 @@ public final class AIUsageController {
     }
 
     public func localState(for provider: AIProviderID?) -> (stale: Bool, updated: Date?) {
-        guard settings.aiUsageShowsLocalUsage else { return (false, nil) }
+        guard !usesMagpie, settings.aiUsageShowsLocalUsage else { return (false, nil) }
         let selected = states.values.filter { settings.aiUsageSources.contains($0.provider) && (provider == nil || $0.provider == provider) }
         return (selected.contains { $0.failure != nil }, selected.compactMap { $0.snapshot?.fetchedAt }.min())
     }
@@ -168,9 +187,13 @@ public final class AIUsageController {
         cadenceTask?.cancel()
         cadenceTask = nil
         if !settings.aiUsageShowsLocalUsage {
+            magpieUsage.removeAll()
+            magpieUsageFailures.removeAll()
+            magpieUsageUpdatedAt.removeAll()
             for task in costTasks.values { task.cancel() }
             // 关闭日志读取时丢弃在途扫描；额度轮询会在下方重新启动。
             generation += 1
+            for task in refreshTasks.values { task.cancel() }
             refreshTask?.cancel()
             refreshTask = nil
         }
@@ -180,12 +203,16 @@ public final class AIUsageController {
         for provider in quotaProviders where !settings.aiUsageSources.contains(provider.id) {
             quotaStates[provider.id] = AIQuotaProviderState(provider: provider.id)
         }
-        guard settings.aiUsageEnabled, !settings.aiUsageSources.isEmpty, !paused else {
+        guard settings.aiUsageEnabled, (usesMagpie || !settings.aiUsageSources.isEmpty), !paused else {
             for task in costTasks.values { task.cancel() }
             generation += 1
             // 不再轮询时，在途的冷扫描也没有意义了
+            for task in refreshTasks.values { task.cancel() }
             refreshTask?.cancel(); refreshTask = nil
             if !settings.aiUsageEnabled {
+                magpieQuotas = []; magpieQuotaFailure = nil; magpieQuotaUpdatedAt = nil
+                magpieUsage = [:]; magpieUsageFailures = [:]; magpieUsageUpdatedAt = [:]
+                magpieRefreshing = false
                 states = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, AIUsageProviderState(provider: $0.id)) })
                 quotaStates = Dictionary(uniqueKeysWithValues: quotaProviders.map { ($0.id, AIQuotaProviderState(provider: $0.id)) })
             }
@@ -205,10 +232,12 @@ public final class AIUsageController {
     }
 
     public func stop() {
+        magpieRefreshing = false
         for task in costTasks.values { task.cancel() }
         generation += 1
         cadenceTask?.cancel()
         cadenceTask = nil
+        for task in refreshTasks.values { task.cancel() }
         refreshTask?.cancel()
         refreshTask = nil
     }
@@ -225,17 +254,24 @@ public final class AIUsageController {
     /// 于是关掉再打开统计后页面会一直空着。链上的任务是非结构化的，stop() 必须显式取消它。
     public func refresh() async {
         let previous = refreshTask
+        let id = UUID()
         let task = Task { @MainActor [weak self] in
             await previous?.value
             guard !Task.isCancelled else { return }
             await self?.performRefresh()
         }
         refreshTask = task
+        refreshTasks[id] = task
         await task.value
+        refreshTasks[id] = nil
     }
 
     private func performRefresh() async {
         guard settings.aiUsageEnabled, !paused, !Task.isCancelled else { return }
+        if let magpieClient {
+            await refreshMagpie(magpieClient)
+            return
+        }
         let currentGeneration = generation
         defer {
             for id in states.keys { states[id]?.isRefreshing = false }
@@ -312,6 +348,105 @@ public final class AIUsageController {
             quotaStates[id] = state
         }
         lastAttemptAt = attempt
+    }
+
+    public func magpieSummary(for period: MagpiePeriod) -> MagpieUsageSummary? {
+        guard settings.aiUsageEnabled, settings.aiUsageShowsLocalUsage else { return nil }
+        // 午夜后不能把离线保存的昨日总量重新写进“今日”菜单栏或 Widget。
+        if period == .daily {
+            guard let updated = magpieUsageUpdatedAt[period], Calendar.current.isDate(updated, inSameDayAs: now()) else { return nil }
+        }
+        return magpieUsage[period]
+    }
+
+    /// 菜单栏按来源展示一个账户，优先 Magpie 标记的最近账户；全部账户仍在用量页独立展示。
+    func menuBarMagpieQuotas(at date: Date = Date()) -> [MenuBarQuota] {
+        guard usesMagpie, settings.aiUsageEnabled else { return [] }
+        var selected: [String: MenuBarQuota] = [:]
+        let accounts = magpieQuotas.enumerated().sorted {
+            let leftIsLast = $0.element.last == true
+            let rightIsLast = $1.element.last == true
+            return leftIsLast == rightIsLast ? $0.offset < $1.offset : leftIsLast
+        }.map(\.element)
+        for account in accounts where selected[account.provider] == nil && account.error == nil {
+            let windows = account.windows.filter {
+                $0.unlimited != true && $0.remaining != nil && ($0.resetsAt.map { $0 > date } ?? true)
+            }
+            guard let window = windows.first(where: { $0.name == "7 days" }) ?? windows.first,
+                  let remaining = window.remaining else { continue }
+            selected[account.provider] = MenuBarQuota(provider: AIProviderID(rawValue: account.provider),
+                window: AIQuotaWindow(kind: .weekly, usedPercent: 100 - remaining, resetsAt: window.resetsAt),
+                fetchedAt: account.readAt ?? magpieQuotaUpdatedAt ?? date, isStale: magpieQuotaFailure != nil,
+                magpieName: account.provider, magpieWindow: window.name)
+        }
+        return selected.keys.sorted().prefix(3).compactMap { selected[$0] }
+    }
+
+    /// 可见页只请求所选周期；今日摘要供菜单栏使用，最多保留四个周期，不读取请求明细。
+    public func selectMagpiePeriod(_ period: MagpiePeriod) async {
+        guard usesMagpie else { return }
+        magpiePeriod = period
+        let epoch = generation
+        await refreshTask?.value
+        guard generation == epoch, !Task.isCancelled, magpiePeriod == period, settings.aiUsageEnabled, !paused else { return }
+        // 切换周期复用最近的摘要；快速连续切换时不为已离开的周期排队查询。
+        if let updated = magpieUsageUpdatedAt[period], magpieUsageFailures[period] == nil,
+           now().timeIntervalSince(updated) < Double(settings.aiUsageRefreshMinutes * 60),
+           magpieSummary(for: period) != nil { return }
+        await refresh()
+    }
+
+    private func refreshMagpie(_ client: any MagpieFetching) async {
+        let epoch = generation
+        let attempt = now()
+        let period = magpiePeriod
+        magpieRefreshing = true
+        defer { if generation == epoch { magpieRefreshing = false } }
+        // 端点失败独立处理：额度不可用不应抹去仍可读取的 Token 统计，反之亦然。
+        async let quotas: Result<[MagpieQuota], MagpieFailure> = Self.readMagpieQuotas(client)
+        let periods: [MagpiePeriod] = settings.aiUsageShowsLocalUsage ? (period == .daily ? [.daily] : [.daily, period]) : []
+        let usage = await withTaskGroup(of: (MagpiePeriod, Result<MagpieUsageSummary, MagpieFailure>).self) { group in
+            for period in periods {
+                group.addTask {
+                    do { return (period, .success(try await client.usage(period: period))) }
+                    catch let failure as MagpieFailure { return (period, .failure(failure)) }
+                    catch { return (period, .failure(.unavailable)) }
+                }
+            }
+            var results: [(MagpiePeriod, Result<MagpieUsageSummary, MagpieFailure>)] = []
+            for await result in group { results.append(result) }
+            return results
+        }
+        let quotaResult = await quotas
+        guard generation == epoch, settings.aiUsageEnabled, !paused, !Task.isCancelled else { return }
+        let wasUnavailable = magpieQuotaFailure != nil || !magpieUsageFailures.isEmpty
+        switch quotaResult {
+        case .success(let value): magpieQuotas = value; magpieQuotaFailure = nil; magpieQuotaUpdatedAt = attempt
+        case .failure(let failure): magpieQuotaFailure = failure
+        }
+        if settings.aiUsageShowsLocalUsage {
+            for (period, result) in usage {
+                switch result {
+                case .success(let value):
+                    magpieUsage[period] = value
+                    magpieUsageFailures[period] = nil
+                    magpieUsageUpdatedAt[period] = attempt
+                case .failure(let failure): magpieUsageFailures[period] = failure
+                }
+            }
+        }
+        let unavailable = magpieQuotaFailure != nil || !magpieUsageFailures.isEmpty
+        if unavailable != wasUnavailable {
+            if unavailable { Self.logger.error("Magpie read failed; retaining last successful values") }
+            else { Self.logger.info("Magpie connection recovered") }
+        }
+        lastAttemptAt = attempt
+    }
+
+    private static func readMagpieQuotas(_ client: any MagpieFetching) async -> Result<[MagpieQuota], MagpieFailure> {
+        do { return .success(try await client.quotas()) }
+        catch let failure as MagpieFailure { return .failure(failure) }
+        catch { return .failure(.unavailable) }
     }
 
     private static func fetchQuotas(_ providers: [any AIQuotaProvider]) async -> [(AIProviderID, Result<AIQuotaSnapshot, AIQuotaFailure>)] {

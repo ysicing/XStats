@@ -488,6 +488,34 @@ light/dark calendar screenshots without starting unrelated samplers or scans.
 
 ## AI usage and quotas
 
+At production startup, `MagpieInstallation` detects the installed Magpie app (bundle ID
+`com.yetone.magpie`) or a standard CLI installation. If found, **all AI usage data** comes from
+Magpie's public loopback API: `/v1/magpie/quotas` and `/v1/magpie/usage?period=today|7d|30d|all`.
+The gateway defaults to `127.0.0.1:3425`; only the port is decoded from the bounded local
+`~/.config/magpie/settings.json`. No Magpie credentials, request bodies or private database files
+are read. Explicitly injected test/screenshot providers bypass automatic detection. Installing or
+removing Magpie takes effect after restarting XStats.
+
+Magpie mode disables the direct quota readers, local session-log scans and models.dev price requests.
+It shares the existing AI refresh cadence and pause/cancellation lifecycle; token statistics can be
+disabled independently of quotas. The visible period and today's menu-bar total are fetched, with
+at most four summaries retained in memory and an 8 MiB response limit. Redirects are rejected and
+requests have bounded timeouts. Magpie is never started automatically, and an unavailable or unsupported
+API is shown explicitly without falling back to a different statistical source. Endpoint failures are
+independent; last good values are marked stale, and yesterday's summary is never republished as today's
+usage. There is no persisted Magpie account cache.
+
+Quotas remain separate per account and preserve Magpie's window names. The menu bar shows one account
+per provider (prefer the last active account), capped at three providers; the page shows all accounts.
+The widget receives the same selected quotas and today's aggregate through its existing snapshot schema,
+without extra requests. Token totals follow Magpie's `input + output` convention, excluding cache traffic;
+cache reads/writes are shown separately. Only traffic routed through Magpie is counted. Its own USD cost
+estimate is displayed directly and incomplete pricing is disclosed. All-time totals use Magpie's full
+recorded history; its timeline preserves the server's hourly, daily or weekly buckets rather than
+turning weekly aggregates into fictitious daily heatmap entries.
+
+The following describes the direct mode used when Magpie is not installed.
+
 The local Codex provider reads JSONL rollouts from CODEX_HOME (default ~/.codex),
 including sessions and archived_sessions. It never reads credentials or calls quota APIs;
 independent quota providers do that only while the master AI Usage switch is enabled.
@@ -555,8 +583,8 @@ Missing or expired credentials clear that provider's quota display; transient er
 successful result marked stale across restarts. Authentication failures delete that provider's cached
 snapshot. Both quota readers stop when AI Usage is disabled; disabled providers are hidden while
 their cached snapshot remains available on re-enable.
-Only official Codex and Claude Code account quota readers are supported. Cached snapshots from
-retired third-party sources are ignored without discarding valid official-account snapshots.
+In direct mode, only official Codex and Claude Code account quota readers are supported. Cached snapshots
+from retired third-party sources are ignored without discarding valid official-account snapshots.
 When one provider has a subscription snapshot, the menu bar AI reading shows its name and remaining
 percentage. It prefers the weekly window (or five-hour window if weekly is unavailable); the tooltip
 shows the chosen window and reset time without crowding the 22-point menu bar.

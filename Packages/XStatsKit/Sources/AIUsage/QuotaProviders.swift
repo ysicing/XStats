@@ -14,6 +14,10 @@ public struct AIQuotaWindow: Codable, Equatable, Sendable, Identifiable {
     public let resetsAt: Date?
     public var id: AIQuotaKind { kind }
 
+    public init(kind: AIQuotaKind, usedPercent: Double, resetsAt: Date?) {
+        self.kind = kind; self.usedPercent = usedPercent; self.resetsAt = resetsAt
+    }
+
     public var remainingPercent: Double { 100 - usedPercent }
 
     /// 以服务端给出的重置时间为终点；没有重置时间时不能推断窗口进度。

@@ -603,7 +603,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                                      firstWeekday: settings.calendarFirstWeekday,
                                                      features: settings.calendarFeatures)
         }
-        let quotas: [WidgetSnapshot.Quota] = settings.aiUsageEnabled
+        var quotas: [WidgetSnapshot.Quota] = settings.aiUsageEnabled
             ? AIProviderID.allCases.filter { settings.aiUsageSources.contains($0) }.flatMap { provider -> [WidgetSnapshot.Quota] in
                 let state = model.aiUsage.quotaState(for: provider)
                 guard let quota = state.snapshot else { return [] }
@@ -613,12 +613,22 @@ public final class AppController: NSObject, NSApplicationDelegate {
                                          fetchedAt: quota.fetchedAt, isStale: state.isStale)
                 }
             } : []
-        let dailyTokens: [WidgetSnapshot.DailyTokenUsage]? = settings.aiUsageEnabled && settings.aiUsageShowsLocalUsage
+        var dailyTokens: [WidgetSnapshot.DailyTokenUsage]? = settings.aiUsageEnabled && settings.aiUsageShowsLocalUsage
             ? AIProviderID.allCases.filter { settings.aiUsageSources.contains($0) }.compactMap { provider in
                 guard let report = model.aiUsage.localReport(for: provider) else { return nil }
                 let tokens = LocalUsageReport.total(report.selected(days: 1, now: today, calendar: calendar)).total
                 return WidgetSnapshot.DailyTokenUsage(provider: provider.rawValue, day: today, tokens: tokens)
             } : nil
+        if model.aiUsage.usesMagpie {
+            quotas = model.aiUsage.menuBarMagpieQuotas(at: today).map { quota in
+                WidgetSnapshot.Quota(provider: quota.sourceName, kind: quota.shortWindowName,
+                    remainingPercent: quota.window.remainingPercent, resetsAt: quota.window.resetsAt,
+                    fetchedAt: quota.fetchedAt, isStale: quota.isStale)
+            }
+            dailyTokens = model.aiUsage.todayTokens.map { tokens in
+                [WidgetSnapshot.DailyTokenUsage(provider: "Magpie", day: today, tokens: tokens)]
+            }
+        }
         let addresses: [WidgetSnapshot.Address] = settings.publicIPLookup
             ? IPFamily.allCases.compactMap { family in
                 guard let result = model.network.publicResults[family],

@@ -102,13 +102,13 @@ Connections, addresses, countries or regions and component version information a
 
 ### AI Usage
 
-Track Codex / Claude Code usage from the menu bar:
+Track AI service usage from the menu bar:
 
-- **Token statistics**: hourly for today, daily for the last 7 / 30 days, plus a yearly activity heatmap.
+- **Token statistics**: hourly for today, daily for the last 7 / 30 days, plus a yearly activity heatmap in local-log mode.
 - **Subscription quotas**: used / remaining percentages, reset times and plan details.
 - **Estimated costs**: based on public base API prices in USD / CNY; not a subscription bill.
 
-Local statistics read CLI session logs; quota queries require the corresponding CLI to be signed in.
+When Magpie is installed, account quotas, tokens and costs come from its local API, including Grok and other supported services. Only requests routed through Magpie count toward token usage; costs are shown in USD. Without Magpie, statistics read Codex / Claude Code session logs and quota queries require the corresponding CLI to be signed in.
 
 ### Tools
 

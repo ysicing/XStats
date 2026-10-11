@@ -1962,3 +1962,23 @@ Cursor 缓存	Cache Cursor
 聚合模式下，用右侧按钮调整顺序；关闭再开启项目会保留位置。	En mode combiné, utilisez les boutons adjacents pour changer l’ordre. Les éléments conservent leur place après désactivation et réactivation.
 将{}向前移动	Déplacer {} avant
 将{}向后移动	Déplacer {} après
+显示 Token 用量	Afficher l’utilisation des tokens
+从 Magpie 读取 Token 与费用；关闭后只读取额度。	Lit les tokens et les coûts depuis Magpie ; désactivé, seuls les quotas sont lus.
+检测到已安装 Magpie，自动使用其本地数据。	Magpie est installé ; ses données locales sont utilisées automatiquement.
+费用由 Magpie 估算，以美元显示；不代表订阅账单。	Les coûts sont estimés par Magpie en USD ; ce n’est pas une facture d’abonnement.
+模型用量	Utilisation par modèle
+Magpie 未能读取此账户的额度。	Magpie n’a pas pu lire le quota de ce compte.
+不限额	Illimité
+缓存读取	Lectures du cache
+缓存写入	Écritures du cache
+请求数	Requêtes
+部分请求缺少价格，费用估算不完整。	Certaines requêtes n’ont pas de tarif ; l’estimation est incomplète.
+Magpie 的 Token 总量不包含缓存读写；仅统计经过 Magpie 的请求。	Le total de tokens exclut le cache ; seules les requêtes passant par Magpie sont comptées.
+无法连接 Magpie，请确认它已运行。	Connexion à Magpie impossible. Vérifiez qu’il est lancé.
+Magpie 数据无法读取，请检查版本或数据大小。	Lecture des données Magpie impossible. Vérifiez la version ou la taille des données.
+显示上次成功读取的数据。	Affichage des dernières données lues avec succès.
+按周统计	Par semaine
+额度按账户分别显示；菜单栏优先显示最近使用的账户。	Les quotas sont affichés par compte ; la barre de menus privilégie le compte utilisé le plus récemment.
+查看 AI 服务的 Token 用量与账户额度。	Consultez l’utilisation des tokens et les quotas des comptes des services d’IA.
+查看账户剩余额度与重置时间	Afficher les quotas restants et les dates de réinitialisation
+查看今天的 Token 用量	Afficher l’utilisation des tokens d’aujourd’hui
