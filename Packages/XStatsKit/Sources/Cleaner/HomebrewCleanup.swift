@@ -12,16 +12,7 @@ enum HomebrewCleanup {
         var errorDescription: String? { tr("无法识别 Homebrew 清理预览，请在终端检查命令输出") }
     }
 
-    static func preview(_ environment: CleanEnvironment) async throws -> ToolCleanupPreview {
-        let result = try await environment.runTool("brew", ["cleanup", "--prune=30", "--dry-run"])
-        guard result.status == 0 else {
-            throw ToolExecutionError.failed(tool: "brew", status: result.status, output: String(result.output.prefix(2_000)))
-        }
-        return try parsePreview(result.output)
-    }
-
-    static func clean(_ environment: CleanEnvironment) async throws -> CleanReport? {
-        let result = try await environment.runTool("brew", ["cleanup", "--prune=30"])
+    static func report(from result: ToolRunResult) throws -> CleanReport {
         guard result.status == 0 else {
             throw ToolExecutionError.failed(tool: "brew", status: result.status, output: String(result.output.prefix(2_000)))
         }
@@ -100,7 +91,14 @@ enum HomebrewCleanup {
             guard !overflow else { throw PreviewError.unsupportedOutput }
             itemTotal = sum
         }
-        return ToolCleanupPreview(items: items, totalSize: total ?? itemTotal, details: details.joined(separator: "\n"))
+        let totalSize = total ?? itemTotal
+        // 空目录、断链等原生维护操作不提供可回收空间，不作为磁盘清理候选。
+        // 混合预览仍保留完整操作范围，避免隐藏实际会被处理的附带项目。
+        if totalSize == 0 {
+            guard itemTotal == 0 else { throw PreviewError.unsupportedOutput }
+            return ToolCleanupPreview(items: [], totalSize: 0, details: "")
+        }
+        return ToolCleanupPreview(items: items, totalSize: totalSize, details: details.joined(separator: "\n"))
     }
 
     private static func summarySize(_ line: String, prefix: String) throws -> UInt64? {

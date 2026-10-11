@@ -312,7 +312,8 @@ private struct RuleRow: View {
                     Text(statusText)
                         .dsFont(.xs)
                         .foregroundStyle(scan.blocked == nil ? DS.Palette.textTertiary : DS.Palette.warning)
-                        .lineLimit(1)
+                        .lineLimit(scan.blocked == nil ? 1 : nil)
+                        .fixedSize(horizontal: false, vertical: true)
                         .help(scan.blocked?.title ?? scan.rule.detail)
                 }
                 Spacer(minLength: DS.Space.s1)
@@ -333,29 +334,22 @@ private struct RuleRow: View {
                 }
             }
 
-            if expanded {
+            if expanded && scan.isCleanable {
                 VStack(alignment: .leading, spacing: DS.Space.s1) {
-                    if let preview = scan.toolPreview {
-                        Text(preview.details.components(separatedBy: .newlines).prefix(Self.previewLimit).joined(separator: "\n"))
-                            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        ForEach(scan.items.prefix(Self.previewLimit)) { item in
-                            HStack {
-                                DSCheckbox(isOn: selectedIDs.contains(item.id)) { cleaner.toggle(item, in: scan) }
-                                    .disabled(cleaner.isBusy || scan.rule.usesToolCleaner)
-                                Text(item.url.lastPathComponent).dsFont(.xs).lineLimit(1).truncationMode(.middle)
-                                Spacer(minLength: DS.Space.s2)
-                                Text(verbatim: Format.bytes(item.size, base: .decimal)).dsFont(.xs).monospacedDigit()
-                                MiniIconButton(systemName: "magnifyingglass", help: tr("在访达中显示")) { cleaner.reveal(item) }
-                            }
-                            .foregroundStyle(DS.Palette.textSecondary)
-                            .contextMenu {
-                                Button(tr("始终保留此项目")) { cleaner.exclude(item.url) }
-                                    .disabled(cleaner.isBusy || cleaner.exclusionLimitReached)
-                                if cleaner.exclusionLimitReached { Text(tr("保留项目已达 50 项上限，请先移除不再需要的保留项。")) }
-                            }
+                    ForEach(scan.items.prefix(Self.previewLimit)) { item in
+                        HStack {
+                            DSCheckbox(isOn: selectedIDs.contains(item.id)) { cleaner.toggle(item, in: scan) }
+                                .disabled(cleaner.isBusy || scan.rule.usesToolCleaner)
+                            Text(verbatim: scan.toolPreview == nil ? item.url.lastPathComponent : item.url.pathComponents.suffix(2).joined(separator: "/")).dsFont(.xs).lineLimit(1).truncationMode(.middle)
+                            Spacer(minLength: DS.Space.s2)
+                            Text(verbatim: scan.toolPreview != nil && item.size == 0 ? "—" : Format.bytes(item.size, base: .decimal)).dsFont(.xs).monospacedDigit()
+                            MiniIconButton(systemName: "magnifyingglass", help: tr("在访达中显示")) { cleaner.reveal(item) }
+                        }
+                        .foregroundStyle(DS.Palette.textSecondary)
+                        .contextMenu {
+                            Button(tr("始终保留此项目")) { cleaner.exclude(item.url) }
+                                .disabled(cleaner.isBusy || cleaner.exclusionLimitReached)
+                            if cleaner.exclusionLimitReached { Text(tr("保留项目已达 50 项上限，请先移除不再需要的保留项。")) }
                         }
                     }
                     Button(tr("查看全部项目")) { showsReview = true }

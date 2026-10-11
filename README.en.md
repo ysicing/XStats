@@ -116,7 +116,7 @@ Local statistics read CLI session logs; quota queries require the corresponding 
 |---|---|
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
-| **Cleanup and uninstall** | Review caches, build artifacts and app leftovers; select items and keep chosen folders before cleaning |
+| **Cleanup and uninstall** | Review caches, build artifacts and app leftovers; select items and keep chosen folders before cleaning · [Cleanup scope](docs/CLEANUP.md) |
 | **Startup items** | Manage login items and background startup entries |
 | **Network diagnostics** | Speed tests, DNS queries, egress checks, public IP location and purity, connectivity probes |
 | **Menu bar calendar** | Chinese lunar calendar, holidays and make-up workdays, almanac, calendar events and reminders |

@@ -13,6 +13,11 @@ extension Translations {
 
 
     static let monitoringEnglish = #"""
+pip 缓存	pip Cache
+pip3 下载与 wheel 缓存，不涉及虚拟环境或已安装的包	pip3 download and wheel caches; leaves virtual environments and installed packages intact
+VS Code 缓存	VS Code Cache
+Cursor 缓存	Cursor Cache
+仅清理网页、脚本与 GPU 缓存，保留设置、扩展和会话	Clears web, script and GPU caches only; keeps settings, extensions and sessions
 保留项目已达 50 项上限，请先移除不再需要的保留项。	The limit of 50 kept items has been reached. Remove items you no longer need to keep first.
 无法确认工具的清理范围，已停止清理	The tool’s cleanup scope could not be confirmed. Cleanup was stopped.
 部分位置未能读取，可能仍有残留。仅移除已确认的项目。	Some locations could not be read and leftovers may remain. Only confirmed items will be removed.

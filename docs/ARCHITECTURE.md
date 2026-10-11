@@ -187,14 +187,20 @@ right before deletion, because apps start in between.
 - Reverse-DNS cache folders whose app is running are skipped; browser rules are blocked while
   the browser runs; items modified in the last two minutes count as in use.
 
+Developer cleanup definitions live in `DeveloperCleanupCatalog`: each native rule has one
+`prepareTool` entry point that produces the reviewed `ToolCachePlan`. The engine executes that
+plan or rejects the operation; there is no fallback command/locator table. The plan also carries
+native preview/report handling and whether its full scope is bounded. Current supported rules
+and their safeguards are listed in [CLEANUP.md](CLEANUP.md).
+
 Cleanup review supports individual candidate selection, a searchable full list and up to 50
 local exclusion paths. Exclusions protect the selected path, descendants and parent candidates,
 including resolved aliases. Reaching the 50-path limit disables all keep entry points with an
 explanation; a rejected keep action invalidates confirmation and deselects affected candidates.
 Paths remain local and are omitted from settings backups. Native-tool
 rules remain whole-operation selections; an exclusion overlapping their actual cache roots blocks
-the rule at scan and execution. npm, Yarn Classic, pnpm, Bun, Go and uv query their configured
-locations; cargo-cache uses the process CARGO_HOME. The reviewed plan pins command options or
+the rule at scan and execution. npm, Yarn Classic, pnpm, Bun, Go, uv and pip query their configured
+locations; cargo-cache uses the process CARGO_HOME. Bounded plans pin command options or
 environment variables at execution, so later configuration changes cannot redirect cleanup.
 Go uses the same canonical GOCACHE path for sizing and execution (except the literal `off`).
 pnpm measures its reported versioned store; the parent directory is only a command option.

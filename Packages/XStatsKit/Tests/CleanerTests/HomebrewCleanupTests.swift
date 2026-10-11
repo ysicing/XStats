@@ -21,15 +21,27 @@ import Testing
         #expect(!preview.details.contains("Skipping"))
     }
 
-    @Test func emptyPreviewAndZeroByteActionsAreDifferent() throws {
+    @Test(arguments: ["Would remove (empty directory): /opt/homebrew/empty",
+                      "Would remove (broken link): /opt/homebrew/bin/old",
+                      "Would prune 2 files from: /opt/homebrew/cache\n==> This operation would free approximately 0B of disk space."])
+    func zeroByteMaintenanceIsNotOfferedAsDiskCleanup(_ output: String) async throws {
         #expect(try HomebrewCleanup.parsePreview("Warning: Skipping tool").items.isEmpty)
-        let preview = try HomebrewCleanup.parsePreview("Would remove (empty directory): /opt/homebrew/empty")
-        #expect(preview.items.count == 1)
+        let preview = try HomebrewCleanup.parsePreview(output)
+        #expect(preview.items.isEmpty && preview.details.isEmpty)
         #expect(preview.totalSize == 0)
+        let environment = CleanEnvironment(runningBundleIdentifiers: { [] }, isToolAvailable: { _ in true }, runTool: { _, args in
+            #expect(args.contains("--dry-run"), "Zero-byte maintenance must not run a cleanup command")
+            return ToolRunResult(status: 0, output: output)
+        })
+        let scans = await CleanEngine.scan([DeveloperCleanupCatalog.homebrewCache], environment: environment)
+        #expect(scans[0].items.isEmpty && !scans[0].isCleanable)
+        let report = await CleanEngine.clean(scans, selected: [scans[0].id], preferTrash: false, environment: environment, log: nil)
+        #expect(report.removedCount == 0 && report.failures.isEmpty)
     }
 
     @Test(arguments: ["Would remove: /tmp/cache (unknown)", "Would remove: relative (1MB)",
                       "Would prune 3 files from: /tmp/cache", "Would delete: /tmp/cache",
+                      "Would remove: /tmp/cache (1MB)\n==> This operation would free approximately 0B of disk space.",
                       "==> This operation would free approximately 1MB of disk space."])
     func unknownPlanDoesNotBecomeAnEmptySuccessfulPreview(_ output: String) {
         #expect(throws: HomebrewCleanup.PreviewError.self) { try HomebrewCleanup.parsePreview(output) }
@@ -38,7 +50,7 @@ import Testing
     @Test func previewFailureBlocksCleaningAndDoesNotRequestDiskAccess() async {
         let environment = CleanEnvironment(runningBundleIdentifiers: { [] }, isToolAvailable: { _ in true },
                                            runTool: { _, _ in ToolRunResult(status: 7, output: "permission denied by brew") })
-        let scan = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
+        let scan = await CleanEngine.scan([DeveloperCleanupCatalog.homebrewCache], environment: environment)
         #expect(scan.first?.isCleanable == false)
         guard case .previewFailed(let message) = scan.first?.blocked else {
             Issue.record("brew 预览失败必须明确报告"); return
@@ -56,9 +68,9 @@ import Testing
                 }
                 throw ToolExecutionError.failed(tool: "brew", status: 1, output: "cannot acquire lock")
             })
-        let scans = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
+        let scans = await CleanEngine.scan([DeveloperCleanupCatalog.homebrewCache], environment: environment)
         let capture = CleanProgressCapture()
-        let report = await CleanEngine.clean(scans, selected: [RuleCatalog.homebrewCache.id], preferTrash: false,
+        let report = await CleanEngine.clean(scans, selected: [DeveloperCleanupCatalog.homebrewCache.id], preferTrash: false,
                                              environment: environment, log: CleanLog(url: logURL),
                                              onProgress: { await capture.record($0) })
         #expect(report.failures.count == 1)
@@ -86,8 +98,8 @@ import Testing
                 }
                 throw CancellationError()
             })
-        let scans = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
-        let report = await CleanEngine.clean(scans, selected: [RuleCatalog.homebrewCache.id], preferTrash: false,
+        let scans = await CleanEngine.scan([DeveloperCleanupCatalog.homebrewCache], environment: environment)
+        let report = await CleanEngine.clean(scans, selected: [DeveloperCleanupCatalog.homebrewCache.id], preferTrash: false,
                                              environment: environment, log: nil)
         #expect(report.failures.isEmpty)
         #expect(report.wasCancelled)
@@ -150,7 +162,9 @@ import Testing
                 try await DeveloperToolRunner.run(tool, arguments: arguments, home: home.path,
                                                   previewTimeout: 0.1, outputLimit: 64)
             })
-        let report = try #require(try await HomebrewCleanup.clean(environment))
+        let plan = ToolCachePlan(roots: [], tool: "brew", arguments: ["cleanup", "--prune=30"],
+                                 hasBoundedScope: false, parseReport: HomebrewCleanup.report)
+        let report = try #require(try await plan.execute(in: environment))
         #expect(report.removedCount == 3)
         #expect(report.freedBytes == 2_000_000)
         #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("done").path), "真实清理不能因输出过大被中途结束")
@@ -172,8 +186,8 @@ import Testing
                 ==> This operation has freed approximately 2MB of disk space.
                 """)
             })
-        let scans = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
-        let report = await CleanEngine.clean(scans, selected: [RuleCatalog.homebrewCache.id], preferTrash: false,
+        let scans = await CleanEngine.scan([DeveloperCleanupCatalog.homebrewCache], environment: environment)
+        let report = await CleanEngine.clean(scans, selected: [DeveloperCleanupCatalog.homebrewCache.id], preferTrash: false,
                                              environment: environment, log: nil)
         #expect(report.failures.isEmpty)
         #expect(report.removedCount == 59)

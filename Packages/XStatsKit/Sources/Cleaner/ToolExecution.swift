@@ -86,6 +86,7 @@ enum DeveloperToolRunner {
             .map(\.path).uniqued().joined(separator: ":")
         environment["NO_COLOR"] = "1"
         environment["TERM"] = "dumb"
+        if name == "pip3" { environment["PIP_DISABLE_PIP_VERSION_CHECK"] = "1" }
         if name == "brew" {
             for key in ["HOMEBREW_NO_AUTO_UPDATE", "HOMEBREW_NO_AUTOREMOVE", "HOMEBREW_NO_ANALYTICS",
                         "HOMEBREW_NO_ENV_HINTS", "HOMEBREW_NO_COLOR", "NONINTERACTIVE"] {

@@ -141,3 +141,10 @@ XStats 的 AI Provider 契约与状态设计参考了以下项目公开的 Provi
 - 地图轮廓及国家代表坐标来自 [Natural Earth 1:110m](https://github.com/nvkelso/natural-earth-vector)，Public Domain。转换为精简 JSON，仅用于国家级示意，不代表远端设备精确位置。
 - 离线 IP 国家表来自 [DB-IP Lite](https://db-ip.com/db/download/ip-to-country-lite)，© DB-IP，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。每次发布从 DB-IP 官方本月 CSV 获取 IPv4／IPv6 数据；合并相邻同国家范围，转换为大端二进制只读表并经系统 LZFSE 压缩，发布到 c-ip 后由启用监视的客户端按需下载。查询结果可能不准确或随地址分配变化，应用不向 DB-IP 发送目标 IP。
 - 数据保留原许可；地图界面保留 DB-IP 链接。转换脚本见 `scripts/build_network_geography.py`，应用内资源 `Resources/NetworkGeography/ATTRIBUTION.md` 随安装包分发。
+
+## 开发者清理清单参考
+
+清理范围和审阅方式参考 [dusty](https://github.com/yagcioglutoprak/dusty/tree/91dbef751cfb24ad82c6842565f82772fe0bc2b7)
+（MIT）、[MacSai](https://github.com/iliyami/MacSai/tree/06271a8fc31b0ae439cf4cc4eb4aa378284033b0)
+（BSD-3-Clause）和 [PureMac](https://github.com/momenbasel/PureMac/tree/0eca648d48986b7ea91f56ffe816f817a719c421)
+（MIT）。XStats 的清单、执行计划和保护逻辑为独立编写的 Swift 实现，未引入上游源码或运行时依赖。

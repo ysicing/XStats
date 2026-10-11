@@ -100,10 +100,8 @@ public struct CleanRule: Sendable, Identifiable {
     /// 最近修改过的条目视为正在使用
     public let minimumAge: TimeInterval
     public let requiredTool: String?
-    /// 原生工具预览；候选路径只用于展示和日志，不能进入直接删除流程。
-    let previewWithTool: (@Sendable (CleanEnvironment) async throws -> ToolCleanupPreview)?
-    /// 返回 nil 时沿用文件大小差值统计；工具有原生报告时直接使用其实际结果。
-    let cleanWithTool: (@Sendable (CleanEnvironment) async throws -> CleanReport?)?
+    /// 原生规则唯一入口：解析范围并生成本次计划；执行阶段不得重新拼接默认命令。
+    let prepareTool: (@Sendable (CleanEnvironment) async throws -> ToolCachePlan)?
     /// 列出候选条目（顶层文件或目录）
     let locate: @Sendable (CleanEnvironment) throws -> [URL]
 
@@ -111,8 +109,7 @@ public struct CleanRule: Sendable, Identifiable {
          selectedByDefault: Bool = true, policy: DeletionPolicy = .delete,
          blockingApps: [(bundleID: String, name: String)] = [], checksOwnerApp: Bool = false,
          minimumAge: TimeInterval = 120, requiredTool: String? = nil,
-         previewWithTool: (@Sendable (CleanEnvironment) async throws -> ToolCleanupPreview)? = nil,
-         cleanWithTool: (@Sendable (CleanEnvironment) async throws -> CleanReport?)? = nil,
+         prepareTool: (@Sendable (CleanEnvironment) async throws -> ToolCachePlan)? = nil,
          locate: @escaping @Sendable (CleanEnvironment) throws -> [URL]) {
         self.id = id
         self.category = category
@@ -125,12 +122,20 @@ public struct CleanRule: Sendable, Identifiable {
         self.checksOwnerApp = checksOwnerApp
         self.minimumAge = minimumAge
         self.requiredTool = requiredTool
-        self.previewWithTool = previewWithTool
-        self.cleanWithTool = cleanWithTool
+        self.prepareTool = prepareTool
         self.locate = locate
     }
 
-    public var usesToolCleaner: Bool { cleanWithTool != nil }
+    /// 原生规则不提供目录扫描回退；所有候选都必须来自 prepareTool 的本次计划。
+    init(id: String, category: CleanCategory, title: String, detail: String, symbol: String,
+         selectedByDefault: Bool = false, minimumAge: TimeInterval = 0, requiredTool: String,
+         prepareTool: @escaping @Sendable (CleanEnvironment) async throws -> ToolCachePlan) {
+        self.init(id: id, category: category, title: title, detail: detail, symbol: symbol,
+                  selectedByDefault: selectedByDefault, minimumAge: minimumAge,
+                  requiredTool: requiredTool, prepareTool: prepareTool, locate: { _ in [] })
+    }
+
+    public var usesToolCleaner: Bool { prepareTool != nil }
 
     /// 确认提示与清理执行共用的删除方式；工具清理和清空废纸篓始终不可恢复。
     public func deletesPermanently(preferTrash: Bool) -> Bool {

@@ -1961,3 +1961,8 @@ Xcode 代码补全模型	Xcode-Codevervollständigungsmodelle
 无法确认工具的清理范围，已停止清理	Der Bereinigungsumfang des Werkzeugs konnte nicht bestätigt werden. Die Bereinigung wurde gestoppt.
 部分位置未能读取，可能仍有残留。仅移除已确认的项目。	Einige Orte konnten nicht gelesen werden; es können Reste verbleiben. Nur bestätigte Elemente werden entfernt.
 保留项目已达 50 项上限，请先移除不再需要的保留项。	Das Limit von 50 behaltenen Elementen ist erreicht. Entfernen Sie zuerst nicht mehr benötigte Einträge.
+pip 缓存	pip-Cache
+pip3 下载与 wheel 缓存，不涉及虚拟环境或已安装的包	Download- und Wheel-Caches von pip3; virtuelle Umgebungen und installierte Pakete bleiben erhalten
+VS Code 缓存	VS-Code-Cache
+Cursor 缓存	Cursor-Cache
+仅清理网页、脚本与 GPU 缓存，保留设置、扩展和会话	Löscht nur Web-, Skript- und GPU-Caches; behält Einstellungen, Erweiterungen und Sitzungen

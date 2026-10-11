@@ -39,7 +39,7 @@ struct CleanerReviewSheet: View {
                                     .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary).lineLimit(2).truncationMode(.middle)
                             }
                             Spacer(minLength: DS.Space.s2)
-                            Text(verbatim: Format.bytes(item.size, base: .decimal)).dsFont(.xs).monospacedDigit()
+                            Text(verbatim: scan.toolPreview != nil && item.size == 0 ? "—" : Format.bytes(item.size, base: .decimal)).dsFont(.xs).monospacedDigit()
                             Menu {
                                 Button(tr("在访达中显示")) { cleaner.reveal(item) }
                                 Button(tr("始终保留此项目")) { if cleaner.exclude(item.url) { dismiss() } }
@@ -48,9 +48,6 @@ struct CleanerReviewSheet: View {
                             } label: { Image(systemName: "ellipsis") }
                             .menuStyle(.borderlessButton).fixedSize().accessibilityLabel(tr("更多操作"))
                         }
-                    }
-                    if let preview = scan.toolPreview {
-                        Text(verbatim: preview.details).dsFont(.xs).textSelection(.enabled)
                     }
                 }
             }

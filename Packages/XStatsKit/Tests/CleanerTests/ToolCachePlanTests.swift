@@ -7,6 +7,18 @@ import Testing
 @testable import Cleaner
 
 struct ToolCachePlanTests {
+    @Test func cachePathValidationWorksInOptimizedBuilds() throws {
+        // 必须同时在 Debug / Release 下运行；保护校验不能把所有正常路径都拒绝。
+        let home = "/Users/cleanup-fixture"
+        for path in [home + "/.npm", home + "/Library/Caches/go-build", "/tmp/cache with spaces"] {
+            let validated = try ToolCachePlan.validatedPath(path, home: home)
+            #expect(validated.path == URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path)
+        }
+        for path in ["/", home, "/Users", "relative", home + "/bad\npath", home + "/bad\0path"] {
+            #expect(throws: ToolCachePlanError.self) { try ToolCachePlan.validatedPath(path, home: home) }
+        }
+    }
+
     @Test(arguments: [false, true])
     func goBuildCacheUsesCanonicalPathOrOff(_ disabled: Bool) async throws {
         let fm = FileManager.default
@@ -23,7 +35,8 @@ struct ToolCachePlanTests {
             #expect(overrides["GOCACHE"] == (disabled ? "off" : original.path))
             return ToolRunResult(status: 0, output: "")
         }, excludedPaths: [protected.path])
-        let plan = try #require(try await ToolCachePlan.resolve(for: RuleCatalog.goCache, environment: env))
+        let prepare = try #require(DeveloperCleanupCatalog.goCache.prepareTool)
+        let plan = try await prepare(env)
         try fm.removeItem(at: alias)
         try fm.createSymbolicLink(at: alias, withDestinationURL: protected)
         #expect(!plan.roots.contains { CleanupExclusions.overlaps($0, paths: env.excludedPaths) })
@@ -72,7 +85,7 @@ struct ToolCachePlanTests {
                 #expect(args == ["cache", "dir"])
                 return ToolRunResult(status: 0, output: cache.path)
             })
-        let scans = await CleanEngine.scan([RuleCatalog.userCaches, RuleCatalog.uvCache], environment: environment)
+        let scans = await CleanEngine.scan([RuleCatalog.userCaches, DeveloperCleanupCatalog.uvCache], environment: environment)
         #expect(scans[0].items.isEmpty && scans[0].skippedCount == 1)
         #expect(scans[1].items.count == 1 && scans[1].isCleanable)
     }
@@ -90,7 +103,7 @@ struct ToolCachePlanTests {
                 let paths = ["GOCACHE": build.path, "GOMODCACHE": modules.path]
                 return ToolRunResult(status: 0, output: String(decoding: try JSONEncoder().encode(paths), as: UTF8.self))
             })
-        let scans = await CleanEngine.scan([RuleCatalog.goCache], environment: environment)
+        let scans = await CleanEngine.scan([DeveloperCleanupCatalog.goCache], environment: environment)
         #expect(scans[0].items.count == 1)
         #expect(scans[0].totalSize == CleanEngine.allocatedSize(of: modules))
     }
@@ -211,7 +224,7 @@ struct ToolCachePlanTests {
                 #expect(args == ["config", "get", "cache"])
                 return ToolRunResult(status: 0, output: output)
             })
-        let scan = await CleanEngine.scan([RuleCatalog.npmCache], environment: environment)
+        let scan = await CleanEngine.scan([DeveloperCleanupCatalog.npmCache], environment: environment)
         #expect(scan.first?.blocked != nil && scan.first?.isCleanable == false)
     }
 

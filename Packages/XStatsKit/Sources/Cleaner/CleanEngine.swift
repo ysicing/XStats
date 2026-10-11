@@ -43,15 +43,16 @@ public enum CleanEngine {
             return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .appRunning(app.name))
         }
         var toolCachePlan: ToolCachePlan?
-        if rule.usesToolCleaner {
+        if let prepareTool = rule.prepareTool {
             if let tool = rule.requiredTool, !environment.isToolAvailable(tool) {
                 return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .toolUnavailable(tool))
             }
             do {
-                toolCachePlan = try await ToolCachePlan.resolve(for: rule, environment: environment)
+                let plan = try await prepareTool(environment)
+                toolCachePlan = plan
                 if !environment.excludedPaths.isEmpty {
                     // Homebrew 等全局操作无法锁定全部删除路径；有保留要求时不能凭默认目录放行。
-                    guard let plan = toolCachePlan else { throw ToolCachePlanError.unknownScope }
+                    guard plan.hasBoundedScope else { throw ToolCachePlanError.unknownScope }
                     if plan.roots.contains(where: { CleanupExclusions.overlaps($0, paths: environment.excludedPaths) }) {
                         return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .excluded)
                     }
@@ -61,17 +62,9 @@ public enum CleanEngine {
                                 blocked: .previewFailed(String(error.localizedDescription.prefix(1024))))
             }
         }
-        if let previewWithTool = rule.previewWithTool {
-            if let tool = rule.requiredTool, !environment.isToolAvailable(tool) {
-                return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .toolUnavailable(tool))
-            }
-            do {
-                let preview = try await previewWithTool(environment)
-                return RuleScan(rule: rule, items: preview.items, skippedCount: 0, blocked: nil, toolPreview: preview)
-            } catch {
-                return RuleScan(rule: rule, items: [], skippedCount: 0,
-                                blocked: .previewFailed(error.localizedDescription))
-            }
+        if let preview = toolCachePlan?.preview {
+            return RuleScan(rule: rule, items: preview.items, skippedCount: 0, blocked: nil,
+                            toolPreview: preview, toolCachePlan: toolCachePlan)
         }
 
         let candidates: [URL]
@@ -196,7 +189,7 @@ public enum CleanEngine {
             }
             await onProgress?(currentProgress())
             var running = await refreshRunningApps?() ?? environment.runningBundleIdentifiers()
-            if scan.rule.usesToolCleaner, !environment.excludedPaths.isEmpty, scan.toolCachePlan == nil {
+            if scan.rule.usesToolCleaner, !environment.excludedPaths.isEmpty, scan.toolCachePlan?.hasBoundedScope != true {
                 report.failures.append(ToolCachePlanError.unknownScope.localizedDescription)
                 completedSteps += currentRuleTotal
                 await onProgress?(currentProgress())
@@ -216,7 +209,13 @@ public enum CleanEngine {
                 await onProgress?(currentProgress())
                 continue
             }
-            if let cleanWithTool = scan.rule.cleanWithTool {
+            if scan.rule.usesToolCleaner {
+                guard let plan = scan.toolCachePlan else {
+                    report.failures.append(ToolCachePlanError.unknownScope.localizedDescription)
+                    completedSteps += currentRuleTotal
+                    await onProgress?(currentProgress())
+                    continue
+                }
                 if let tool = scan.rule.requiredTool, !environment.isToolAvailable(tool) {
                     report.failures.append(tr("\(scan.rule.title)：未找到 \(tool)，无法安全清理"))
                     completedSteps += 1
@@ -224,13 +223,7 @@ public enum CleanEngine {
                     continue
                 }
                 do {
-                    let toolReport: CleanReport?
-                    if let plan = scan.toolCachePlan {
-                        _ = try await plan.execute(in: environment)
-                        toolReport = nil
-                    } else {
-                        toolReport = try await cleanWithTool(environment)
-                    }
+                    let toolReport = try await plan.execute(in: environment)
                     if let toolReport {
                         report.freedBytes += toolReport.freedBytes
                         report.removedCount += toolReport.removedCount
@@ -269,7 +262,7 @@ public enum CleanEngine {
                 continue
             }
             // 工具预览中的路径不受文件规则白名单约束，因此绝不能回退到手动删除。
-            guard scan.rule.previewWithTool == nil else {
+            guard scan.toolCachePlan == nil && scan.toolPreview == nil else {
                 completedSteps += scan.items.count
                 await onProgress?(currentProgress())
                 continue

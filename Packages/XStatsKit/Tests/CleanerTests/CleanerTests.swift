@@ -54,9 +54,9 @@ struct CleanDeletionPolicyTests {
     @Test func confirmationMatchesActualDeletionPolicy() {
         for preferTrash in [false, true] {
             #expect(RuleCatalog.trash.deletesPermanently(preferTrash: preferTrash))
-            #expect(RuleCatalog.uvCache.deletesPermanently(preferTrash: preferTrash))
+            #expect(DeveloperCleanupCatalog.uvCache.deletesPermanently(preferTrash: preferTrash))
             #expect(!RuleCatalog.incompleteDownloads.deletesPermanently(preferTrash: preferTrash))
-            #expect(!RuleCatalog.xcodeArchives.deletesPermanently(preferTrash: preferTrash))
+            #expect(!DeveloperCleanupCatalog.xcodeArchives.deletesPermanently(preferTrash: preferTrash))
             #expect(RuleCatalog.userCaches.deletesPermanently(preferTrash: preferTrash) == !preferTrash)
         }
     }
@@ -164,7 +164,7 @@ struct DeveloperCacheRuleTests {
                 #expect(arguments == ["cleanup", "--prune=30"])
                 return ToolRunResult(status: 0, output: "Removing: \(cellar.path)... (12 files, 1.1MB)\n==> This operation has freed approximately 1.1MB of disk space.")
             })
-        let scans = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
+        let scans = await CleanEngine.scan([DeveloperCleanupCatalog.homebrewCache], environment: environment)
         let scan = try #require(scans.first)
         #expect(scan.items.map(\.url) == [cellar])
         #expect(scan.totalSize == 1_200_000)
@@ -198,7 +198,7 @@ struct DeveloperCacheRuleTests {
         let environment = CleanEnvironment(home: home.path, runningBundleIdentifiers: { [] },
                                            isToolAvailable: { _ in false },
                                            runTool: { _, _ in throw TestError.unexpectedToolRun })
-        let scan = await CleanEngine.scan([RuleCatalog.homebrewCache], environment: environment)
+        let scan = await CleanEngine.scan([DeveloperCleanupCatalog.homebrewCache], environment: environment)
         #expect(scan.first?.blocked == .toolUnavailable("brew"))
     }
 
@@ -219,52 +219,16 @@ struct DeveloperCacheRuleTests {
         }
     }
 
-    @Test func rulesOnlyLocateRegenerableCacheDirectories() throws {
+    @Test func nativeRulesHaveNoFallbackDirectoryScanner() throws {
         let home = try FakeHome()
         defer { home.remove() }
-        try home.file("Library/Caches/go-build/compile-cache/action")
-        try home.file("go/pkg/mod/cache/download/example.zip")
-        try home.file("go/pkg/mod/github.com/example/module@v1.0.0/source.go")
-        try home.file("go/src/project/main.go")
-        try home.file(".cargo/registry/cache/index.crates.io/package.crate")
-        try home.file(".cargo/registry/src/index.crates.io/package/src/lib.rs")
-        try home.file(".cargo/git/db/example/objects/pack/data")
-        try home.file(".cargo/git/checkouts/example/revision/src/lib.rs")
-        try home.file(".cargo/bin/cargo")
-        try home.file(".cache/uv/archive-v0/package/module.py")
-        try home.file(".cache/pip/http-v2/response")
-        try home.file("Library/Caches/Yarn/v6/npm-example/package.tgz")
-        try home.file(".yarn/berry/cache/example.zip")
-        try home.file("Library/pnpm/store/v11/files/example")
-        try home.file(".pnpm-store/v3/files/example")
-        try home.file(".bun/install/cache/example/package.tgz")
-
-        let rules = Dictionary(uniqueKeysWithValues: RuleCatalog.rules().map { ($0.id, $0) })
-        let goRule = try #require(rules["developer.go"])
-        let rustRule = try #require(rules["developer.rust"])
-        let uvRule = try #require(rules["developer.uv"])
-        let yarnRule = try #require(rules["developer.yarn"])
-        let pnpmRule = try #require(rules["developer.pnpm"])
-        let bunRule = try #require(rules["developer.bun"])
-
-        #expect(try relativePaths(goRule.locate(home.environment()), home: home) == [
-            "Library/Caches/go-build", "go/pkg/mod/cache", "go/pkg/mod/github.com",
-        ])
-        #expect(try relativePaths(rustRule.locate(home.environment()), home: home) == [
-            ".cargo/git/checkouts", ".cargo/git/db", ".cargo/registry/cache", ".cargo/registry/src",
-        ])
-        #expect(try relativePaths(uvRule.locate(home.environment()), home: home) == [
-            ".cache/uv/archive-v0",
-        ])
-        #expect(try relativePaths(yarnRule.locate(home.environment()), home: home) == [
-            ".yarn/berry/cache/example.zip", "Library/Caches/Yarn/v6",
-        ])
-        #expect(try relativePaths(pnpmRule.locate(home.environment()), home: home) == [
-            ".pnpm-store/v3", "Library/pnpm/store/v11",
-        ])
-        #expect(try relativePaths(bunRule.locate(home.environment()), home: home) == [
-            ".bun/install/cache/example",
-        ])
+        try home.file(".npm/_cacache/old-data")
+        try home.file("go/pkg/mod/old-module")
+        try home.file(".cargo/registry/old-package")
+        for rule in DeveloperCleanupCatalog.rules where rule.usesToolCleaner {
+            #expect(rule.prepareTool != nil && rule.requiredTool != nil)
+            #expect(try rule.locate(home.environment()).isEmpty)
+        }
     }
 
     @Test func packageManagerCachesUseToolsInsteadOfDirectDeletion() async throws {
@@ -338,7 +302,7 @@ struct DeveloperCacheRuleTests {
             runTool: { _, _ in throw TestError.unexpectedToolRun }
         )
 
-        let scans = await CleanEngine.scan([RuleCatalog.npmCache], environment: environment)
+        let scans = await CleanEngine.scan([DeveloperCleanupCatalog.npmCache], environment: environment)
 
         #expect(scans.first?.blocked == .toolUnavailable("npm"))
         #expect(FileManager.default.fileExists(atPath: cache.path))
@@ -350,9 +314,9 @@ struct DeveloperCacheRuleTests {
         try home.executable("npm", script: "#!/bin/sh\nif [ \"$1\" = config ]; then echo \"$HOME/.npm\"; exit 0; fi\necho 'simulated failure' >&2\nexit 7\n")
         let cache = try home.file(".npm/_cacache/content/data")
         let environment = home.environment(now: Date().addingTimeInterval(86_400))
-        let scans = await CleanEngine.scan([RuleCatalog.npmCache], environment: environment)
+        let scans = await CleanEngine.scan([DeveloperCleanupCatalog.npmCache], environment: environment)
 
-        let report = await CleanEngine.clean(scans, selected: [RuleCatalog.npmCache.id], preferTrash: false,
+        let report = await CleanEngine.clean(scans, selected: [DeveloperCleanupCatalog.npmCache.id], preferTrash: false,
                                              environment: environment, log: nil)
 
         #expect(report.failures.count == 1)
@@ -368,7 +332,7 @@ struct DeveloperCacheRuleTests {
         try home.executable("bun", script: "#!/bin/sh\necho \"$HOME/.bun/install/cache\"\n")
         try home.file(".bun/install/cache/xstats-package/data")
 
-        let scans = await CleanEngine.scan([RuleCatalog.bunCache], environment: home.environment())
+        let scans = await CleanEngine.scan([DeveloperCleanupCatalog.bunCache], environment: home.environment())
 
         #expect(scans.first?.skippedCount == 0)
         #expect(scans.first?.items.count == 1 && scans.first?.isCleanable == true)
@@ -476,10 +440,10 @@ struct CleanEngineTests {
         try home.file(".cache/uv/archive-v0/package/data")
         try home.executable("uv", script: "#!/bin/sh\nif [ \"$2\" = dir ]; then echo \"$HOME/.cache/uv\"; fi\n")
         let environment = home.environment()
-        let scans = await CleanEngine.scan([RuleCatalog.userCaches, RuleCatalog.uvCache], environment: environment)
+        let scans = await CleanEngine.scan([RuleCatalog.userCaches, DeveloperCleanupCatalog.uvCache], environment: environment)
         let capture = CleanProgressCapture()
 
-        _ = await CleanEngine.clean(scans, selected: [RuleCatalog.userCaches.id, RuleCatalog.uvCache.id], preferTrash: false,
+        _ = await CleanEngine.clean(scans, selected: [RuleCatalog.userCaches.id, DeveloperCleanupCatalog.uvCache.id], preferTrash: false,
                                     environment: environment, log: nil,
                                     onProgress: { await capture.record($0) })
 

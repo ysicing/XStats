@@ -89,6 +89,19 @@ enum SnapshotRenderer {
                       to: outputDirectory.appendingPathComponent("cleaner-exclusions-limit-\(suffix).png"))
                 settings.cleanExcludedPaths = originalExclusions
             }
+            // 清单截图使用演示候选，覆盖新增开发者项目与长译文，不查询本机工具。
+            model.cleaner.showPreview(RuleCatalog.rules().enumerated().map { index, rule in
+                let items = rule.category == .developer
+                    ? [CleanItem(url: URL(fileURLWithPath: "/Users/demo/Library/Caches/" + rule.id), size: UInt64(index + 1) * 1_000_000)]
+                    : []
+                return RuleScan(rule: rule, items: items, skippedCount: 0, blocked: nil)
+            })
+            for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+                guard let appearance = NSAppearance(named: name) else { continue }
+                NSApp.appearance = appearance
+                write(CleanerPage().appLanguageEnvironment().frame(width: 1000, height: 1650), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("developer-cleanup-catalog-\(suffix).png"))
+            }
             return
         }
 
