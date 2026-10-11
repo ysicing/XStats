@@ -4,6 +4,7 @@
 // See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
 
 import AIUsage
+import Cleaner
 import Foundation
 import Localization
 import Metrics
@@ -814,6 +815,10 @@ public final class AppSettings {
     public var cleanPrefersTrash: Bool {
         didSet { defaults.set(cleanPrefersTrash, forKey: Keys.cleanPrefersTrash) }
     }
+    /// 本机目录保护，不随设置备份同步到其他 Mac。
+    public var cleanExcludedPaths: [String] {
+        didSet { defaults.set(CleanupExclusions.normalized(cleanExcludedPaths), forKey: Keys.cleanExcludedPaths) }
+    }
     /// 清理页的规则选择；nil 表示用户从未调整过，使用规则默认值。空集合表示用户明确全部取消。
     public var cleanSelectedRuleIDs: Set<String>? {
         didSet {
@@ -949,6 +954,7 @@ public final class AppSettings {
         speedTestBudget = defaults.string(forKey: Keys.speedTestBudget).flatMap(SpeedTestBudget.init(rawValue:)) ?? .full
         speedTestRoute = defaults.string(forKey: Keys.speedTestRoute).flatMap(SpeedRoute.init(rawValue:)) ?? .direct
         cleanPrefersTrash = defaults.bool(forKey: Keys.cleanPrefersTrash)
+        cleanExcludedPaths = CleanupExclusions.normalized(defaults.stringArray(forKey: Keys.cleanExcludedPaths) ?? [])
         cleanSelectedRuleIDs = defaults.stringArray(forKey: Keys.cleanSelectedRuleIDs).map(Set.init)
         projectPurgeConfiguredPaths = defaults.stringArray(forKey: Keys.projectPurgeConfiguredPaths)
         menuBarLayout = defaults.string(forKey: Keys.menuBarLayout).flatMap(MenuBarLayout.init(rawValue:)) ?? .separate
@@ -1087,6 +1093,7 @@ public final class AppSettings {
         static let speedTestBudget = "speedTestBudget"
         static let speedTestRoute = "speedTestRoute"
         static let cleanPrefersTrash = "cleanPrefersTrash"
+        static let cleanExcludedPaths = "cleanExcludedPaths"
         static let cleanSelectedRuleIDs = "cleanSelectedRuleIDs"
         static let projectPurgeConfiguredPaths = "projectPurgeConfiguredPaths"
         static let menuBarLayout = "menuBarLayout"

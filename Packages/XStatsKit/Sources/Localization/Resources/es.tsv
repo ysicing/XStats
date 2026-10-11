@@ -1942,3 +1942,22 @@ Xcode 代码补全模型	Modelos de completado de código de Xcode
 查找应用数据、辅助组件和沙盒容器；可能共用的数据默认不勾选。所选项目移到废纸篓，应用移除后才清除程序坞图标。	Busca datos, componentes auxiliares y contenedores sandbox. Los datos posiblemente compartidos no se seleccionan por defecto. Los elementos seleccionados van a la papelera; el icono del Dock solo se elimina tras quitar la app.
 找出应用留下的数据、缓存、容器与登录启动项，勾选后移到废纸篓，可以放回	Busca datos, cachés, contenedores y agentes de inicio de la app. Selecciona elementos para moverlos a la papelera, desde donde se pueden restaurar.
 已将 {} 的 {} 项残留移到废纸篓，约 {}{}。需要时可以在废纸篓里放回。	{}: {} restos movidos a la papelera, aproximadamente {}{}. Puedes restaurarlos desde la papelera.
+已排除	Excluido
+部分项目未能读取，大小仅包含已完整扫描的项目。请检查权限后重新扫描。	No se pudieron leer algunos elementos. Los tamaños solo incluyen elementos analizados por completo. Revisa los permisos y vuelve a analizar.
+扫描不完整 · {} 项未能读取	Análisis incompleto · {} elementos ilegibles
+已跳过 {} 项	{} elementos omitidos
+ · 已跳过 {} 项	 · {} elementos omitidos
+始终保留此项目	Conservar siempre este elemento
+查看全部项目	Ver todos los elementos
+保留项目	Elementos conservados
+由对应工具整体清理，不支持逐项勾选；保留其中任一项目会跳过整条规则。	La herramienta limpia toda la caché. No permite seleccionar elementos individuales; conservar uno omite toda la regla.
+搜索名称或路径	Buscar nombres o rutas
+已选 {} 项	{} seleccionados
+更多操作	Más acciones
+这些项目及其父目录不会被清理；仅保存在这台 Mac。	Estos elementos y sus carpetas superiores no se limpiarán. Se guarda solo en este Mac.
+暂无保留项目	No hay elementos conservados
+取消保留	Dejar de conservar
+添加保留目录	Añadir carpeta para conservar
+无法确认工具的清理范围，已停止清理	No se pudo confirmar el alcance de limpieza de la herramienta. Se detuvo la limpieza.
+部分位置未能读取，可能仍有残留。仅移除已确认的项目。	No se pudieron leer algunas ubicaciones y pueden quedar restos. Solo se eliminarán los elementos confirmados.
+保留项目已达 50 项上限，请先移除不再需要的保留项。	Se alcanzó el límite de 50 elementos conservados. Quita primero los que ya no necesites conservar.

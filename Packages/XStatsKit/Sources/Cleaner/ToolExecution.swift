@@ -50,6 +50,7 @@ enum DeveloperToolRunner {
     /// 外部工具可能执行较久；放到并发执行器，避免阻塞调用它的主 Actor。
     @concurrent
     static func run(_ name: String, arguments: [String], home: String,
+                    environmentOverrides: [String: String] = [:], timeout: TimeInterval? = nil,
                     previewTimeout: TimeInterval = 60, outputLimit: Int = 2_000_000) async throws -> ToolRunResult {
         try Task.checkCancellation()
         guard let executable = executable(named: name, home: home) else {
@@ -60,6 +61,24 @@ enum DeveloperToolRunner {
         process.executableURL = executable
         process.arguments = arguments
         process.currentDirectoryURL = FileManager.default.temporaryDirectory
+
+        var bunWorkingDirectory: URL?
+        if name == "bun", arguments.starts(with: ["pm", "cache"]) {
+            // Bun 的全局缓存命令也要求工作目录有 package.json。使用隔离的临时项目，
+            // 避免依赖用户项目；仍读取其全局配置，执行时再用环境变量锁定缓存位置。
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("xstats-bun-\(UUID())")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+            bunWorkingDirectory = directory
+            do {
+                try Data(#"{"name":"xstats-cache-operation","private":true}"#.utf8)
+                    .write(to: directory.appendingPathComponent("package.json"))
+            } catch {
+                try? FileManager.default.removeItem(at: directory)
+                throw error
+            }
+            process.currentDirectoryURL = directory
+        }
+        defer { if let bunWorkingDirectory { try? FileManager.default.removeItem(at: bunWorkingDirectory) } }
 
         var environment = ProcessInfo.processInfo.environment
         environment["HOME"] = home
@@ -74,6 +93,7 @@ enum DeveloperToolRunner {
             }
             environment["LC_ALL"] = "en_US.UTF-8"
         }
+        environment.merge(environmentOverrides) { _, override in override }
         process.environment = environment
 
         if name == "brew" {
@@ -108,17 +128,32 @@ enum DeveloperToolRunner {
             }
             return String(decoding: tail, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        // 包装脚本退出后，其后台子进程可能仍持有输出管道；查询超时也必须中止读取任务。
+        let outputTimeout = timeout.map { seconds in
+            Task {
+                do { try await Task.sleep(for: .seconds(seconds)); outputTask.cancel() }
+                catch { /* 正常完成或用户取消会取消此一次性任务。 */ }
+            }
+        }
         // 正常退出时读到 EOF；取消时通知读取任务自行退出并关闭句柄
         defer {
+            outputTimeout?.cancel()
             outputTask.cancel()
             stop(process)
         }
+        let deadline = timeout.map { ContinuousClock.now.advanced(by: .seconds($0)) }
         while process.isRunning {
             try Task.checkCancellation()
+            if let deadline, ContinuousClock.now >= deadline { throw ToolExecutionError.timedOut(name) }
             try await Task.sleep(for: .milliseconds(25))
         }
         try Task.checkCancellation()
-        let output = try await outputTask.value
+        let output: String
+        do { output = try await outputTask.value }
+        catch {
+            if !Task.isCancelled, let deadline, ContinuousClock.now >= deadline { throw ToolExecutionError.timedOut(name) }
+            throw error
+        }
         guard process.terminationStatus == 0 else {
             throw ToolExecutionError.failed(tool: name, status: process.terminationStatus,
                                             output: String(output.prefix(2_000)))

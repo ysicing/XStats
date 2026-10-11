@@ -1942,3 +1942,22 @@ Xcode 代码补全模型	Modèles de complétion de code Xcode
 查找应用数据、辅助组件和沙盒容器；可能共用的数据默认不勾选。所选项目移到废纸篓，应用移除后才清除程序坞图标。	Recherche les données, composants auxiliaires et conteneurs sandbox. Les données potentiellement partagées ne sont pas sélectionnées par défaut. Les éléments sélectionnés vont à la corbeille ; l’icône du Dock est retirée uniquement après la suppression de l’app.
 找出应用留下的数据、缓存、容器与登录启动项，勾选后移到废纸篓，可以放回	Recherche les données, caches, conteneurs et agents de lancement de l’app. Sélectionnez les éléments à mettre à la corbeille ; ils peuvent être restaurés.
 已将 {} 的 {} 项残留移到废纸篓，约 {}{}。需要时可以在废纸篓里放回。	{} : {} résidus placés dans la corbeille, environ {}{}. Vous pouvez les restaurer depuis la corbeille.
+已排除	Exclu
+部分项目未能读取，大小仅包含已完整扫描的项目。请检查权限后重新扫描。	Certains éléments n’ont pas pu être lus. Les tailles ne comprennent que les éléments entièrement analysés. Vérifiez les autorisations et relancez l’analyse.
+扫描不完整 · {} 项未能读取	Analyse incomplète · {} éléments illisibles
+已跳过 {} 项	{} éléments ignorés
+ · 已跳过 {} 项	 · {} éléments ignorés
+始终保留此项目	Toujours conserver cet élément
+查看全部项目	Voir tous les éléments
+保留项目	Éléments conservés
+由对应工具整体清理，不支持逐项勾选；保留其中任一项目会跳过整条规则。	L’outil nettoie le cache entier. La sélection individuelle est indisponible ; conserver un élément ignore toute la règle.
+搜索名称或路径	Rechercher un nom ou un chemin
+已选 {} 项	{} sélectionnés
+更多操作	Autres actions
+这些项目及其父目录不会被清理；仅保存在这台 Mac。	Ces éléments et leurs dossiers parents ne seront pas nettoyés. Enregistré uniquement sur ce Mac.
+暂无保留项目	Aucun élément conservé
+取消保留	Ne plus conserver
+添加保留目录	Ajouter un dossier à conserver
+无法确认工具的清理范围，已停止清理	La portée du nettoyage de l’outil n’a pas pu être confirmée. Le nettoyage a été arrêté.
+部分位置未能读取，可能仍有残留。仅移除已确认的项目。	Certains emplacements sont illisibles et des fichiers peuvent rester. Seuls les éléments confirmés seront supprimés.
+保留项目已达 50 项上限，请先移除不再需要的保留项。	La limite de 50 éléments conservés est atteinte. Retirez d’abord ceux que vous n’avez plus besoin de conserver.

@@ -175,6 +175,10 @@ task compile CONFIG=Debug
 日程权限还需要最终 App 签名包含 `com.apple.security.personal-information.calendars`；
 仅有 Info.plist 说明不足以触发授权。授权由用户在应用中主动请求。
 
+清理审阅的定向验证：`swift test --package-path Packages/XStatsKit --filter 'CleanupReviewTests|CleanupReviewRegressionTests|ToolCachePlanTests|CleanerReviewFlowTests|CleanerTests|CleanerSelectionTests|ScanCancellationTests|AppUninstall|LanguageSupportTests'`。
+使用临时目录与模拟 CLI 验证自定义缓存路径查询、路径锁定、版本子目录、保留项保护及不完整卸载扫描；不执行真实工具清理。验证工具缓存不重复覆盖、运行应用状态刷新、排除路径的父子与别名保护、逐项选择、错误语义及本机偏好不进入备份。
+`XStats --snapshot <目录> --cleaner-review-only --language zh-Hans` 使用隔离偏好与演示候选渲染扫描不完整、完整列表与保留目录的明暗截图；`en`、`ar` 可检查长文案与 RTL。不会扫描个人目录或执行清理。
+
 ## 网络连接试验模块
 
 主程序、特权辅助工具、独立网络组件及网络扩展均使用 Apple 统一日志（`Logger`）。

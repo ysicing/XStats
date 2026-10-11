@@ -43,7 +43,7 @@ private struct FakeHome {
     }
 
     func environment(running: Set<String> = [], now: Date = Date()) -> CleanEnvironment {
-        CleanEnvironment(home: path, runningBundleIdentifiers: { running }, now: { now })
+        CleanEnvironment(home: path, runningBundleIdentifiers: { running }, now: { now }, toolEnvironment: [:])
     }
 
     func remove() { try? FileManager.default.removeItem(at: root) }
@@ -277,6 +277,16 @@ struct DeveloperCacheRuleTests {
           echo "1.22.22"
           exit 0
         fi
+        tool="$(basename "$0")"
+        case "$tool|$1 $2 $3" in
+          'npm|config get cache') echo "$HOME/.npm"; exit 0 ;;
+          yarn'|cache dir '*) echo "${4:-$HOME/Library/Caches/Yarn}/v6"; exit 0 ;;
+          pnpm'|store path '*) echo "${4:-$HOME/Library/pnpm/store}/v11"; exit 0 ;;
+          'bun|pm cache ') echo "$HOME/.bun/install/cache"; exit 0 ;;
+          bun'|pm cache --cache-dir') echo "$4"; exit 0 ;;
+          'uv|cache dir ') echo "$HOME/.cache/uv"; exit 0 ;;
+          'go|env -json GOCACHE') printf '{"GOCACHE":"%s/Library/Caches/go-build","GOMODCACHE":"%s/go/pkg/mod"}\\n' "$HOME" "$HOME"; exit 0 ;;
+        esac
         printf '%s|%s\\n' "$(basename "$0")" "$*" >> "\(marker.path)"
         """
         for tool in ["npm", "yarn", "pnpm", "bun", "go", "cargo-cache", "uv"] {
@@ -310,10 +320,10 @@ struct DeveloperCacheRuleTests {
             "bun|pm cache rm",
             "cargo-cache|-r all",
             "go|clean -cache -modcache",
-            "npm|cache clean --force",
-            "pnpm|store prune",
-            "uv|cache clean",
-            "yarn|cache clean",
+            "npm|cache clean --force --cache \(home.path)/.npm",
+            "pnpm|store prune --store-dir \(home.path)/Library/pnpm/store",
+            "uv|cache clean --cache-dir \(home.path)/.cache/uv",
+            "yarn|cache clean --cache-folder \(home.path)/Library/Caches/Yarn",
         ])
     }
 
@@ -337,7 +347,7 @@ struct DeveloperCacheRuleTests {
     @Test func failedToolCommandReportsFailureWithoutDeletingCache() async throws {
         let home = try FakeHome()
         defer { home.remove() }
-        try home.executable("npm", script: "#!/bin/sh\necho 'simulated failure' >&2\nexit 7\n")
+        try home.executable("npm", script: "#!/bin/sh\nif [ \"$1\" = config ]; then echo \"$HOME/.npm\"; exit 0; fi\necho 'simulated failure' >&2\nexit 7\n")
         let cache = try home.file(".npm/_cacache/content/data")
         let environment = home.environment(now: Date().addingTimeInterval(86_400))
         let scans = await CleanEngine.scan([RuleCatalog.npmCache], environment: environment)
@@ -355,13 +365,13 @@ struct DeveloperCacheRuleTests {
     @Test func toolManagedCacheDoesNotTreatPackageNamesAsProtectedAppData() async throws {
         let home = try FakeHome()
         defer { home.remove() }
-        try home.executable("bun", script: "#!/bin/sh\nexit 0\n")
+        try home.executable("bun", script: "#!/bin/sh\necho \"$HOME/.bun/install/cache\"\n")
         try home.file(".bun/install/cache/xstats-package/data")
 
         let scans = await CleanEngine.scan([RuleCatalog.bunCache], environment: home.environment())
 
         #expect(scans.first?.skippedCount == 0)
-        #expect(scans.first?.items.map(\.url.lastPathComponent) == ["xstats-package"])
+        #expect(scans.first?.items.count == 1 && scans.first?.isCleanable == true)
     }
 
     private func relativePaths(_ urls: [URL], home: FakeHome) throws -> [String] {
@@ -464,7 +474,7 @@ struct CleanEngineTests {
         defer { home.remove() }
         try home.file("Library/Caches/com.example.first/data.bin")
         try home.file(".cache/uv/archive-v0/package/data")
-        try home.executable("uv", script: "#!/bin/sh\nexit 0\n")
+        try home.executable("uv", script: "#!/bin/sh\nif [ \"$2\" = dir ]; then echo \"$HOME/.cache/uv\"; fi\n")
         let environment = home.environment()
         let scans = await CleanEngine.scan([RuleCatalog.userCaches, RuleCatalog.uvCache], environment: environment)
         let capture = CleanProgressCapture()

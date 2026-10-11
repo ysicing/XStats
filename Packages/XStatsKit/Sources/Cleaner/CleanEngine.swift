@@ -8,12 +8,32 @@ public enum CleanEngine {
     public static func scan(_ rules: [CleanRule], environment: CleanEnvironment) async -> [RuleScan] {
         let safety = SafetyGuard(home: environment.home)
         return await withTaskGroup(of: (Int, RuleScan).self) { group in
-            for (index, rule) in rules.enumerated() {
+            // 同时最多四个目录遍历，避免多条规则一起占满磁盘；取消后不继续启动新规则。
+            var next = 0
+            for (index, rule) in rules.prefix(4).enumerated() {
                 group.addTask { (index, await scanRule(rule, environment: environment, safety: safety)) }
+                next += 1
             }
             var results = [(Int, RuleScan)]()
-            for await result in group { results.append(result) }
-            return results.sorted { $0.0 < $1.0 }.map(\.1)
+            for await result in group {
+                results.append(result)
+                if !Task.isCancelled, next < rules.count {
+                    let index = next, rule = rules[next]
+                    group.addTask { (index, await scanRule(rule, environment: environment, safety: safety)) }
+                    next += 1
+                }
+            }
+            let ordered = results.sorted { $0.0 < $1.0 }.map(\.1)
+            let toolRoots = ordered.compactMap(\.toolCachePlan).flatMap(\.roots)
+            // 工具的自定义缓存可能也位于通用 Caches/Logs 下，不能重复计量或先被直接删除。
+            return ordered.map { scan in
+                guard ["system.caches", "system.logs"].contains(scan.id) else { return scan }
+                let items = scan.items.filter { item in
+                    !toolRoots.contains { CleanupExclusions.overlaps(item.url, paths: [$0.path]) }
+                }
+                return RuleScan(rule: scan.rule, items: items, skippedCount: scan.skippedCount + scan.items.count - items.count,
+                                blocked: scan.blocked, skippedReasons: scan.skippedReasons, unreadableCount: scan.unreadableCount)
+            }
         }
     }
 
@@ -21,6 +41,25 @@ public enum CleanEngine {
         let running = environment.runningBundleIdentifiers()
         if let app = rule.blockingApps.first(where: { running.contains($0.bundleID) }) {
             return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .appRunning(app.name))
+        }
+        var toolCachePlan: ToolCachePlan?
+        if rule.usesToolCleaner {
+            if let tool = rule.requiredTool, !environment.isToolAvailable(tool) {
+                return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .toolUnavailable(tool))
+            }
+            do {
+                toolCachePlan = try await ToolCachePlan.resolve(for: rule, environment: environment)
+                if !environment.excludedPaths.isEmpty {
+                    // Homebrew 等全局操作无法锁定全部删除路径；有保留要求时不能凭默认目录放行。
+                    guard let plan = toolCachePlan else { throw ToolCachePlanError.unknownScope }
+                    if plan.roots.contains(where: { CleanupExclusions.overlaps($0, paths: environment.excludedPaths) }) {
+                        return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .excluded)
+                    }
+                }
+            } catch {
+                return RuleScan(rule: rule, items: [], skippedCount: 0,
+                                blocked: .previewFailed(String(error.localizedDescription.prefix(1024))))
+            }
         }
         if let previewWithTool = rule.previewWithTool {
             if let tool = rule.requiredTool, !environment.isToolAvailable(tool) {
@@ -37,9 +76,13 @@ public enum CleanEngine {
 
         let candidates: [URL]
         do {
-            candidates = try rule.locate(environment)
+            candidates = try toolCachePlan?.roots.filter { FileManager.default.fileExists(atPath: $0.path) } ?? rule.locate(environment)
         } catch {
-            return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .needsFullDiskAccess)
+            let failure = error as NSError
+            let permission = error is CleanerAccessError || (failure.domain == NSCocoaErrorDomain && failure.code == NSFileReadNoPermissionError)
+                || (failure.domain == NSPOSIXErrorDomain && [Int(EPERM), Int(EACCES)].contains(failure.code))
+            return RuleScan(rule: rule, items: [], skippedCount: 0,
+                            blocked: permission ? .needsFullDiskAccess : .previewFailed(String(error.localizedDescription.prefix(1024))))
         }
         if !candidates.isEmpty, let tool = rule.requiredTool, !environment.isToolAvailable(tool) {
             return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .toolUnavailable(tool))
@@ -47,24 +90,32 @@ public enum CleanEngine {
 
         var items: [CleanItem] = []
         var skipped = 0
+        var reasons: [SkipReason: Int] = [:]
+        var unreadable = 0
         for url in candidates {
             if Task.isCancelled { break }
             // 工具托管的缓存由工具自身处理锁与内部目录；这里的路径只用于只读计量，不能套用
             // “应用数据保护词”过滤，否则名为 xstats 等普通包会被误报为正在使用。
             if !rule.usesToolCleaner,
-               skipReason(for: url, rule: rule, running: running, environment: environment, safety: safety) != nil {
+               let reason = skipReason(for: url, rule: rule, running: running, environment: environment, safety: safety) {
                 skipped += 1
+                reasons[reason, default: 0] += 1
                 continue
             }
-            guard let size = try? scanAllocatedSize(of: url) else { break }
-            if size > 0 { items.append(CleanItem(url: url, size: size)) }
+            do {
+                let size = try scanAllocatedSize(of: url)
+                if size > 0 { items.append(CleanItem(url: url, size: size)) }
+            } catch is CancellationError { break }
+            catch { unreadable += 1 }
         }
         items.sort { $0.size > $1.size }
-        return RuleScan(rule: rule, items: items, skippedCount: skipped, blocked: nil)
+        return RuleScan(rule: rule, items: items, skippedCount: skipped, blocked: nil,
+                        skippedReasons: reasons, unreadableCount: unreadable, toolCachePlan: toolCachePlan)
     }
 
     static func skipReason(for url: URL, rule: CleanRule, running: Set<String>,
                            environment: CleanEnvironment, safety: SafetyGuard) -> SkipReason? {
+        if CleanupExclusions.overlaps(url, paths: environment.excludedPaths) { return .excluded }
         guard (try? safety.validate(url)) != nil else { return .protected }
 
         if rule.checksOwnerApp, let owner = owningApp(of: url, running: running) {
@@ -96,19 +147,24 @@ public enum CleanEngine {
                                   checkCancellation: () throws -> Void = { try Task.checkCancellation() }) throws -> UInt64 {
         try checkCancellation()
         let keys: [URLResourceKey] = [.isRegularFileKey, .isSymbolicLinkKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
-        guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isSymbolicLink != true else { return 0 }
+        let values = try url.resourceValues(forKeys: Set(keys))
+        guard values.isSymbolicLink != true else { return 0 }
         if values.isRegularFile == true {
             return UInt64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
         }
+        var traversalError: (any Error)?
         guard let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: keys, options: [],
-                                                              errorHandler: { _, _ in true }) else { return 0 }
+                                                              errorHandler: { _, error in traversalError = error; return false }) else {
+            throw CocoaError(.fileReadUnknown)
+        }
         var total: UInt64 = 0
         while let file = enumerator.nextObject() as? URL {
             try checkCancellation()
-            guard let fileValues = try? file.resourceValues(forKeys: Set(keys)),
-                  fileValues.isRegularFile == true else { continue }
+            let fileValues = try file.resourceValues(forKeys: Set(keys))
+            guard fileValues.isRegularFile == true else { continue }
             total += UInt64(fileValues.totalFileAllocatedSize ?? fileValues.fileAllocatedSize ?? 0)
         }
+        if let traversalError { throw traversalError }
         return total
     }
 
@@ -117,6 +173,7 @@ public enum CleanEngine {
     /// 清理选中规则的扫描结果。执行前逐项重新校验：扫描到执行之间应用可能已经启动
     public static func clean(_ scans: [RuleScan], selected: Set<String>, preferTrash: Bool,
                              environment: CleanEnvironment, log: CleanLog? = CleanLog(),
+                             refreshRunningApps: (@Sendable () async -> Set<String>)? = nil,
                              onProgress: (@Sendable (CleanProgress) async -> Void)? = nil) async -> CleanReport {
         let safety = SafetyGuard(home: environment.home)
         var report = CleanReport()
@@ -138,7 +195,21 @@ public enum CleanEngine {
                               toolScannedBytes: scan.rule.usesToolCleaner ? scan.totalSize : nil)
             }
             await onProgress?(currentProgress())
-            let running = environment.runningBundleIdentifiers()
+            var running = await refreshRunningApps?() ?? environment.runningBundleIdentifiers()
+            if scan.rule.usesToolCleaner, !environment.excludedPaths.isEmpty, scan.toolCachePlan == nil {
+                report.failures.append(ToolCachePlanError.unknownScope.localizedDescription)
+                completedSteps += currentRuleTotal
+                await onProgress?(currentProgress())
+                continue
+            }
+            if scan.rule.usesToolCleaner, ((scan.toolCachePlan?.roots ?? []) + scan.items.map(\.url)).contains(where: {
+                CleanupExclusions.overlaps($0, paths: environment.excludedPaths)
+            }) {
+                report.skippedCount += scan.items.count
+                completedSteps += currentRuleTotal
+                await onProgress?(currentProgress())
+                continue
+            }
             if scan.rule.blockingApps.contains(where: { running.contains($0.bundleID) }) {
                 report.skippedCount += scan.items.count
                 completedSteps += currentRuleTotal
@@ -153,7 +224,13 @@ public enum CleanEngine {
                     continue
                 }
                 do {
-                    let toolReport = try await cleanWithTool(environment)
+                    let toolReport: CleanReport?
+                    if let plan = scan.toolCachePlan {
+                        _ = try await plan.execute(in: environment)
+                        toolReport = nil
+                    } else {
+                        toolReport = try await cleanWithTool(environment)
+                    }
                     if let toolReport {
                         report.freedBytes += toolReport.freedBytes
                         report.removedCount += toolReport.removedCount
@@ -166,7 +243,10 @@ public enum CleanEngine {
                         if report.wasCancelled { return report }
                     } else {
                         for item in scan.items {
-                            let remaining = try scanAllocatedSize(of: item.url)
+                            let remaining: UInt64
+                            do { remaining = try scanAllocatedSize(of: item.url) }
+                            catch let error as CocoaError where error.code == .fileReadNoSuchFile { remaining = 0 }
+                            catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == Int(ENOENT) { remaining = 0 }
                             log?.record(item: item, rule: scan.rule, action: "tool", detail: scan.rule.requiredTool)
                             guard remaining < item.size else { continue }
                             report.freedBytes += item.size - remaining
@@ -197,8 +277,11 @@ public enum CleanEngine {
             let useTrash = !scan.rule.deletesPermanently(preferTrash: preferTrash)
 
             for item in scan.items {
+                // 每个目录候选操作前刷新；不是逐个缓存文件刷新，避免大目录清理期间沿用旧快照。
+                running = await refreshRunningApps?() ?? environment.runningBundleIdentifiers()
                 if Task.isCancelled { report.wasCancelled = true; return report }
-                if let reason = skipReason(for: item.url, rule: scan.rule, running: running,
+                let blockingApp = scan.rule.blockingApps.first { running.contains($0.bundleID) }
+                if let reason = blockingApp.map({ SkipReason.appRunning($0.name) }) ?? skipReason(for: item.url, rule: scan.rule, running: running,
                                            environment: environment, safety: safety) {
                     report.skippedCount += 1
                     log?.record(item: item, rule: scan.rule, action: "skip", detail: reason.title)

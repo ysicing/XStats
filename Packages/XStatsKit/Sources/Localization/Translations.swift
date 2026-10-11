@@ -13,6 +13,25 @@ extension Translations {
 
 
     static let monitoringEnglish = #"""
+保留项目已达 50 项上限，请先移除不再需要的保留项。	The limit of 50 kept items has been reached. Remove items you no longer need to keep first.
+无法确认工具的清理范围，已停止清理	The tool’s cleanup scope could not be confirmed. Cleanup was stopped.
+部分位置未能读取，可能仍有残留。仅移除已确认的项目。	Some locations could not be read and leftovers may remain. Only confirmed items will be removed.
+已排除	Excluded
+部分项目未能读取，大小仅包含已完整扫描的项目。请检查权限后重新扫描。	Some items could not be read. Sizes include fully scanned items only. Check permissions and scan again.
+扫描不完整 · {} 项未能读取	Incomplete scan · {} unreadable items
+已跳过 {} 项	Skipped {} items
+ · 已跳过 {} 项	 · Skipped {} items
+始终保留此项目	Always Keep This Item
+查看全部项目	View All Items
+保留项目	Kept Items
+由对应工具整体清理，不支持逐项勾选；保留其中任一项目会跳过整条规则。	This cache is cleaned as a whole by its tool. Individual selection is unavailable; keeping any item skips the entire rule.
+搜索名称或路径	Search names or paths
+已选 {} 项	{} selected
+更多操作	More Actions
+这些项目及其父目录不会被清理；仅保存在这台 Mac。	These items and their parent folders will not be cleaned. Saved on this Mac only.
+暂无保留项目	No kept items
+取消保留	Stop Keeping
+添加保留目录	Add Folder to Keep
 清理“{}”的残留？	Clean up leftovers for “{}”?
 所选残留共 {} 项（{}）。	Selected leftovers: {} items ({}).
 可能与其他应用共用，默认保留	May be shared with other apps; kept by default

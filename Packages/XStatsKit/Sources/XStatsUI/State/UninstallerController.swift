@@ -22,6 +22,7 @@ public final class UninstallerController {
     public private(set) var pendingUninstall: InstalledApp?
     public private(set) var leftovers: [AppLeftover] = []
     public private(set) var isScanning = false
+    public private(set) var scanIncomplete = false
     public private(set) var isRemoving = false
     public private(set) var outcome: (text: String, isError: Bool)?
     var chosen: Set<String> = []
@@ -30,7 +31,7 @@ public final class UninstallerController {
     @ObservationIgnored private var runningApplicationsObservation: NSKeyValueObservation?
     @ObservationIgnored private let currentBundleIdentifier: String?
     @ObservationIgnored private let listApplications: @Sendable () throws -> [InstalledApp]
-    @ObservationIgnored private let findLeftovers: @Sendable (InstalledApp) throws -> [AppLeftover]
+    @ObservationIgnored private let findLeftovers: @Sendable (InstalledApp) throws -> AppLeftoverScan
     @ObservationIgnored private let measureSize: @Sendable (URL) throws -> UInt64
     @ObservationIgnored private let recycleFiles: ([URL], @escaping @Sendable ([URL: URL], String?) -> Void) -> Void
     @ObservationIgnored private var applicationTask: Task<Void, Never>?
@@ -47,7 +48,8 @@ public final class UninstallerController {
     init(currentBundleIdentifier: String?,
          enabled: Bool = true,
          listApplications: @escaping @Sendable () throws -> [InstalledApp] = { try AppUninstaller.scanInstalledApps() },
-         findLeftovers: @escaping @Sendable (InstalledApp) throws -> [AppLeftover] = { try AppUninstaller.scanLeftovers(for: $0) },
+         findLeftovers: (@Sendable (InstalledApp) throws -> [AppLeftover])? = nil,
+         findLeftoversReport: (@Sendable (InstalledApp) throws -> AppLeftoverScan)? = nil,
          measureSize: @escaping @Sendable (URL) throws -> UInt64 = { try CleanEngine.scanAllocatedSize(of: $0) },
          recycleFiles: @escaping ([URL], @escaping @Sendable ([URL: URL], String?) -> Void) -> Void = { urls, completion in
              NSWorkspace.shared.recycle(urls) { moved, error in completion(moved, error?.localizedDescription) }
@@ -55,7 +57,13 @@ public final class UninstallerController {
         self.enabled = enabled
         self.currentBundleIdentifier = currentBundleIdentifier
         self.listApplications = listApplications
-        self.findLeftovers = findLeftovers
+        if let findLeftoversReport {
+            self.findLeftovers = findLeftoversReport
+        } else if let findLeftovers {
+            self.findLeftovers = { AppLeftoverScan(items: try findLeftovers($0)) }
+        } else {
+            self.findLeftovers = { try AppUninstaller.scanLeftoversReport(for: $0) }
+        }
         self.measureSize = measureSize
         self.recycleFiles = recycleFiles
         if enabled { observeRunningApplications() }
@@ -73,6 +81,7 @@ public final class UninstallerController {
             if !isRemoving {
                 apps = []; sizes = [:]; selected = nil; leftovers = []; chosen = []
                 hasScannedSelection = false
+                scanIncomplete = false
                 outcome = nil
             }
         }
@@ -153,11 +162,13 @@ public final class UninstallerController {
         loadApps()
     }
 
-    func select(_ app: InstalledApp?) {
-        guard enabled, !isRemoving else { return }
+    /// 返回本次扫描任务，调用方可以等待结果与状态发布完成。
+    @discardableResult
+    func select(_ app: InstalledApp?) -> Task<Void, Never>? {
+        guard enabled, !isRemoving else { return nil }
         if let app, currentBundleIdentifier?.caseInsensitiveCompare(app.bundleIdentifier) == .orderedSame {
             outcome = (AppUninstallError.currentApp.description, true)
-            return
+            return nil
         }
         selectionTask?.cancel()
         let generation = UUID()
@@ -165,13 +176,14 @@ public final class UninstallerController {
         selectionTask = nil
         isScanning = false
         hasScannedSelection = false
+        scanIncomplete = false
         pendingUninstall = nil
         selected = app
         applicationRemoved = false
         leftovers = []
         chosen = []
         outcome = nil
-        guard let app else { return }
+        guard let app else { return nil }
         isScanning = true
         let find = findLeftovers
         selectionTask = Task { [weak self] in
@@ -185,14 +197,17 @@ public final class UninstallerController {
                 let found = try await Self.scan { try find(app) }
                 // 应用相同也可能是另一次扫描，不能用 selected == app 代替任务代次。
                 guard let self, !Task.isCancelled, self.selectionGeneration == generation, self.selected == app else { return }
-                self.leftovers = found
-                self.chosen = Set(found.filter { !$0.requiresReview }.map(\.id))
+                self.leftovers = found.items
+                self.chosen = Set(found.items.filter { !$0.requiresReview }.map(\.id))
+                self.scanIncomplete = !found.unreadablePaths.isEmpty
+                if self.scanIncomplete { Log.app.warning("Uninstall scan incomplete unreadable=\(found.unreadablePaths.count)") }
                 self.hasScannedSelection = true
             } catch {
                 guard let self, self.selectionGeneration == generation, !Task.isCancelled else { return }
                 self.outcome = (error.localizedDescription, true)
             }
         }
+        return selectionTask
     }
 
     /// 离开页面、关闭或最小化窗口时中断遍历；已完成结果保留，未完成结果稍后重扫。
@@ -267,7 +282,7 @@ public final class UninstallerController {
     }
 
     /// 原生截图仅注入演示候选；不扫描真实应用，也不调用废纸篓或程序坞操作。
-    func showPreview(app: InstalledApp, items: [AppLeftover], applicationRemoved: Bool) {
+    func showPreview(app: InstalledApp, items: [AppLeftover], applicationRemoved: Bool, scanIncomplete: Bool = false) {
         cancelScanning()
         enabled = true
         apps = applicationRemoved ? [] : [app]
@@ -276,6 +291,7 @@ public final class UninstallerController {
         leftovers = items
         chosen = Set(items.filter { !$0.requiresReview }.map(\.id))
         hasScannedSelection = true
+        self.scanIncomplete = scanIncomplete
         self.applicationRemoved = applicationRemoved
     }
 

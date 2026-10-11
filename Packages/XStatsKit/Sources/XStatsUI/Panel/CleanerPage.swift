@@ -6,6 +6,7 @@ import SwiftUI
 
 struct CleanerPage: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.isSnapshot) private var isSnapshot
 
     var body: some View {
         PageScroll {
@@ -18,6 +19,9 @@ struct CleanerPage: View {
                     Button(tr("去授权")) { model.cleaner.openFullDiskAccessSettings() }
                         .buttonStyle(DSButtonStyle(kind: .secondary))
                 }
+            }
+            if model.cleaner.hasIncompleteScan {
+                InfoBanner(icon: "exclamationmark.triangle", text: tr("部分项目未能读取，大小仅包含已完整扫描的项目。请检查权限后重新扫描。"), tone: .warning)
             }
             HStack(alignment: .top, spacing: DS.Space.s3) {
                 VStack(spacing: DS.Space.s3) {
@@ -35,7 +39,7 @@ struct CleanerPage: View {
             .fixedSize(horizontal: false, vertical: true)
             CleanerFooter()
         }
-        .onAppear { model.cleaner.scan(ifNeeded: true) }
+        .onAppear { if !isSnapshot { model.cleaner.scan(ifNeeded: true) } }
     }
 }
 
@@ -289,10 +293,12 @@ private struct RuleRow: View {
     @Environment(AppModel.self) private var model
     let scan: RuleScan
     @State private var expanded = false
+    @State private var showsReview = false
 
     var body: some View {
         let cleaner = model.cleaner
-        let selected = cleaner.selection.contains(scan.id) && scan.isCleanable
+        let selectedIDs = Set(cleaner.selectedItems(in: scan).map(\.id))
+        let selected = !selectedIDs.isEmpty
 
         VStack(alignment: .leading, spacing: DS.Space.s2) {
             HStack(spacing: DS.Space.s2) {
@@ -336,37 +342,42 @@ private struct RuleRow: View {
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
                         ForEach(scan.items.prefix(Self.previewLimit)) { item in
-                            Button { cleaner.reveal(item) } label: {
-                                HStack {
-                                    Text(item.url.lastPathComponent).dsFont(.xs).lineLimit(1).truncationMode(.middle)
-                                    Spacer(minLength: DS.Space.s2)
-                                    Text(verbatim: Format.bytes(item.size, base: .decimal)).dsFont(.xs).monospacedDigit()
-                                }
-                                .foregroundStyle(DS.Palette.textSecondary)
-                                .contentShape(Rectangle())
+                            HStack {
+                                DSCheckbox(isOn: selectedIDs.contains(item.id)) { cleaner.toggle(item, in: scan) }
+                                    .disabled(cleaner.isBusy || scan.rule.usesToolCleaner)
+                                Text(item.url.lastPathComponent).dsFont(.xs).lineLimit(1).truncationMode(.middle)
+                                Spacer(minLength: DS.Space.s2)
+                                Text(verbatim: Format.bytes(item.size, base: .decimal)).dsFont(.xs).monospacedDigit()
+                                MiniIconButton(systemName: "magnifyingglass", help: tr("在访达中显示")) { cleaner.reveal(item) }
                             }
-                            .buttonStyle(.plain)
-                            .help(tr("在访达中显示"))
+                            .foregroundStyle(DS.Palette.textSecondary)
+                            .contextMenu {
+                                Button(tr("始终保留此项目")) { cleaner.exclude(item.url) }
+                                    .disabled(cleaner.isBusy || cleaner.exclusionLimitReached)
+                                if cleaner.exclusionLimitReached { Text(tr("保留项目已达 50 项上限，请先移除不再需要的保留项。")) }
+                            }
                         }
                     }
-                    if scan.items.count > Self.previewLimit {
-                        Text(verbatim: tr("另有 \(scan.items.count - Self.previewLimit) 项"))
-                            .dsFont(.xs)
-                            .foregroundStyle(DS.Palette.textTertiary)
-                    }
+                    Button(tr("查看全部项目")) { showsReview = true }
+                        .buttonStyle(.plain).dsFont(.xs).foregroundStyle(DS.Palette.primary)
                 }
                 .padding(.leading, DS.Size.iconInline + DS.Size.iconStandalone + DS.Space.s2 * 2)
             }
         }
+        .sheet(isPresented: $showsReview) { CleanerReviewSheet(scan: scan, cleaner: cleaner) }
     }
 
     private static let previewLimit = 6
 
     private var statusText: String {
         if let blocked = scan.blocked { return blocked.title }
+        if scan.unreadableCount > 0 { return tr("扫描不完整 · \(scan.unreadableCount) 项未能读取") }
+        if scan.items.isEmpty && scan.skippedCount > 0 { return tr("已跳过 \(scan.skippedCount) 项") }
         if scan.items.isEmpty { return tr("无需清理") }
         var text = tr("\(scan.items.count) 项")
-        if scan.skippedCount > 0 { text += tr(" · \(scan.skippedCount) 项使用中") }
+        if !scan.skippedReasons.isEmpty {
+            text += " · " + scan.skippedReasons.keys.map(\.title).sorted().joined(separator: " · ")
+        } else if scan.skippedCount > 0 { text += tr(" · 已跳过 \(scan.skippedCount) 项") }
         if scan.rule.policy == .trash { text += tr(" · 移到废纸篓") }
         return text
     }
@@ -397,6 +408,7 @@ private struct RuleIcon: View {
 
 private struct CleanerFooter: View {
     @Environment(AppModel.self) private var model
+    @State private var showsExclusions = false
 
     var body: some View {
         @Bindable var settings = model.settings
@@ -409,9 +421,12 @@ private struct CleanerFooter: View {
                     .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
             }
             Spacer()
+            Button(tr("保留项目")) { showsExclusions = true }
+                .buttonStyle(DSButtonStyle(kind: .ghost))
             Button(tr("查看清理日志")) { model.cleaner.revealLog() }
                 .buttonStyle(DSButtonStyle(kind: .ghost))
         }
         .padding(.horizontal, DS.Space.s1)
+        .sheet(isPresented: $showsExclusions) { CleanerExclusionsSheet(cleaner: model.cleaner) }
     }
 }

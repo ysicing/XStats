@@ -16,7 +16,7 @@ public enum RuleCatalog {
     static let excludedCacheNames: Set<String> = [
         "Google", "Firefox", "Microsoft Edge", "BraveSoftware", "Arc",
         "com.google.Chrome", "com.microsoft.edgemac", "com.brave.Browser", "company.thebrowser.Browser",
-        "org.mozilla.firefox", "com.apple.Safari", "Homebrew",
+        "org.mozilla.firefox", "com.apple.Safari", "Homebrew", "Yarn", "go-build",
     ]
 
     static let userCaches = CleanRule(

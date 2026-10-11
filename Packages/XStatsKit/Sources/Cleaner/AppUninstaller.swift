@@ -57,6 +57,16 @@ public struct AppLeftover: Sendable, Identifiable, Hashable {
     }
 }
 
+/// 已验证的卸载候选与未能读取的位置分开返回，部分失败不会伪装成“没有残留”。
+public struct AppLeftoverScan: Sendable {
+    public let items: [AppLeftover]
+    public let unreadablePaths: [URL]
+
+    public init(items: [AppLeftover], unreadablePaths: [URL] = []) {
+        self.items = items; self.unreadablePaths = unreadablePaths
+    }
+}
+
 public enum AppUninstallError: Error, Sendable, Equatable, CustomStringConvertible {
     case systemApp
     case currentApp
@@ -150,10 +160,18 @@ public enum AppUninstaller {
 
     /// 可取消；身份和大小计量均在调用方的后台任务内执行，取消后不发布部分结果。
     public static func scanLeftovers(for app: InstalledApp, home: String = NSHomeDirectory()) throws -> [AppLeftover] {
+        try scanLeftoversReport(for: app, home: home).items
+    }
+
+    /// 无关位置不可读时保留完整计量的候选；应用本体无法验证或取消时仍抛错。
+    public static func scanLeftoversReport(for app: InstalledApp, home: String = NSHomeDirectory()) throws -> AppLeftoverScan {
         try Task.checkCancellation()
         let identity = AppUninstallIdentity(app: app)
         try Task.checkCancellation()
-        return try leftovers(for: app, home: home, identity: identity, checkCancellation: { try Task.checkCancellation() })
+        var unreadablePaths = Set<URL>()
+        let items = try leftovers(for: app, home: home, identity: identity, unreadablePaths: &unreadablePaths,
+                                 checkCancellation: { try Task.checkCancellation() })
+        return AppLeftoverScan(items: items, unreadablePaths: unreadablePaths.sorted { $0.path < $1.path })
     }
 
     static func leftovers(for app: InstalledApp, home: String, identity: AppUninstallIdentity) -> [AppLeftover] {
@@ -162,6 +180,13 @@ public enum AppUninstaller {
 
     static func leftovers(for app: InstalledApp, home: String, identity: AppUninstallIdentity,
                                   checkCancellation: () throws -> Void) throws -> [AppLeftover] {
+        var unreadablePaths = Set<URL>()
+        return try leftovers(for: app, home: home, identity: identity, unreadablePaths: &unreadablePaths,
+                             checkCancellation: checkCancellation)
+    }
+
+    private static func leftovers(for app: InstalledApp, home: String, identity: AppUninstallIdentity,
+                                  unreadablePaths: inout Set<URL>, checkCancellation: () throws -> Void) throws -> [AppLeftover] {
         try checkCancellation()
         let library = URL(fileURLWithPath: home).appendingPathComponent("Library")
         let manager = FileManager.default
@@ -194,12 +219,21 @@ public enum AppUninstaller {
                 }
                 return
             }
+            let size: UInt64
+            do {
+                size = try CleanEngine.scanAllocatedSize(of: url, checkCancellation: checkCancellation)
+            } catch is CancellationError { throw CancellationError() }
+            catch {
+                if kind == .application { throw error }
+                unreadablePaths.insert(url)
+                return
+            }
             var requiresReview = review
             results.removeAll { item in
                 if item.url.standardizedFileURL.path.hasPrefix(path + "/") { requiresReview = requiresReview || item.requiresReview; return true }
                 return false
             }
-            results.append(AppLeftover(url: url, kind: kind, size: try CleanEngine.scanAllocatedSize(of: url, checkCancellation: checkCancellation), requiresReview: requiresReview))
+            results.append(AppLeftover(url: url, kind: kind, size: size, requiresReview: requiresReview))
         }
 
         func entries(_ relative: String) throws -> [URL] {
@@ -207,8 +241,14 @@ public enum AppUninstaller {
             let directory = library.appendingPathComponent(relative)
             guard isUnredirected(directory, home: home) else { return [] }
             // 保留调用方的 home 路径写法；FileManager 的 URL 形式可能把 /var 转成 /private/var。
-            return ((try? manager.contentsOfDirectory(atPath: directory.path)) ?? [])
-                .sorted().map { directory.appendingPathComponent($0) }
+            guard manager.fileExists(atPath: directory.path) else { return [] }
+            do {
+                return try manager.contentsOfDirectory(atPath: directory.path)
+                    .sorted().map { directory.appendingPathComponent($0) }
+            } catch {
+                unreadablePaths.insert(directory)
+                return []
+            }
         }
 
         func scan(_ relative: String, _ kind: AppLeftover.Kind, names: Bool = false, review: Bool = false) throws {
@@ -227,8 +267,13 @@ public enum AppUninstaller {
                 try checkCancellation()
                 guard (try? parent.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true,
                       !results.contains(where: { $0.url == parent }), isUnredirected(parent, home: home) else { continue }
-                let children = ((try? manager.contentsOfDirectory(atPath: parent.path)) ?? [])
-                    .map { parent.appendingPathComponent($0) }
+                let children: [URL]
+                do {
+                    children = try manager.contentsOfDirectory(atPath: parent.path).map { parent.appendingPathComponent($0) }
+                } catch {
+                    unreadablePaths.insert(parent)
+                    continue
+                }
                 for child in children {
                     try checkCancellation()
                     if matches(child.lastPathComponent) { try add(child, kind, review: auxiliaryMatch(child.lastPathComponent)) }

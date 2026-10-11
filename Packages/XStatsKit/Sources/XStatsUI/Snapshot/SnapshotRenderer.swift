@@ -52,6 +52,46 @@ enum SnapshotRenderer {
             return
         }
 
+        if CommandLine.arguments.contains("--cleaner-review-only") {
+            let suite = "XStats.cleanerReviewSnapshot.\(UUID())"
+            guard let defaults = UserDefaults(suiteName: suite) else { return }
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let settings = AppSettings(defaults: defaults)
+            settings.language = L10n.language
+            settings.cleanerEnabled = true
+            settings.cleanExcludedPaths = ["/Users/demo/Library/Caches/com.example.kept"]
+            let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+            guard let rule = RuleCatalog.rules().first(where: { $0.id == "system.caches" }) else { return }
+            let items = (1...12).map { index in
+                CleanItem(url: URL(fileURLWithPath: "/Users/demo/Library/Caches/com.example.application\(index)"), size: UInt64(index * 1_000_000))
+            }
+            let scan = RuleScan(rule: rule, items: items, skippedCount: 2, blocked: nil,
+                                skippedReasons: [.recentlyModified: 1, .excluded: 1], unreadableCount: 1)
+            let emptyScans = RuleCatalog.rules().filter { $0.id != rule.id }.map {
+                RuleScan(rule: $0, items: [], skippedCount: 0, blocked: nil)
+            }
+            model.cleaner.showPreview([scan] + emptyScans)
+            model.cleaner.toggle(items[0], in: scan)
+            for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+                guard let appearance = NSAppearance(named: name) else { continue }
+                NSApp.appearance = appearance
+                write(CleanerPage().appLanguageEnvironment().frame(width: 900, height: 700), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("cleaner-partial-\(suffix).png"))
+                write(CleanerReviewSheet(scan: scan, cleaner: model.cleaner), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("cleaner-review-\(suffix).png"))
+                write(CleanerExclusionsSheet(cleaner: model.cleaner), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("cleaner-exclusions-\(suffix).png"))
+                let originalExclusions = settings.cleanExcludedPaths
+                settings.cleanExcludedPaths = (0..<50).map { "/Users/demo/kept/\($0)" }
+                write(CleanerReviewSheet(scan: scan, cleaner: model.cleaner), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("cleaner-review-limit-\(suffix).png"))
+                write(CleanerExclusionsSheet(cleaner: model.cleaner), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("cleaner-exclusions-limit-\(suffix).png"))
+                settings.cleanExcludedPaths = originalExclusions
+            }
+            return
+        }
+
         if CommandLine.arguments.contains("--uninstaller-only") {
             let suite = "XStats.uninstallerSnapshot.\(UUID())"
             guard let defaults = UserDefaults(suiteName: suite) else { return }
@@ -76,6 +116,11 @@ enum SnapshotRenderer {
                     write(UninstallConfirmationSheet(app: app, uninstaller: model.uninstaller), model: model, appearance: appearance,
                           to: outputDirectory.appendingPathComponent("uninstaller-confirm-\(state)-\(suffix).png"))
                 }
+                model.uninstaller.showPreview(app: app, items: items, applicationRemoved: false, scanIncomplete: true)
+                write(UninstallerPage().appLanguageEnvironment().frame(width: 900, height: 660), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("uninstaller-incomplete-\(suffix).png"))
+                write(UninstallConfirmationSheet(app: app, uninstaller: model.uninstaller), model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("uninstaller-confirm-incomplete-\(suffix).png"))
             }
             return
         }

@@ -24,6 +24,9 @@ struct UninstallerPage: View {
             PageScroll {
                 if let app = uninstaller.selected {
                     AppDetailCard(app: app, confirm: { uninstaller.requestUninstall() })
+                    if uninstaller.scanIncomplete {
+                        InfoBanner(icon: "exclamationmark.triangle", text: tr("部分位置未能读取，可能仍有残留。仅移除已确认的项目。"), tone: .warning)
+                    }
                 } else {
                     DropHint(isTargeted: isDropTargeted)
                 }
@@ -86,6 +89,10 @@ struct UninstallConfirmationSheet: View {
                 Text(tr("可在废纸篓中恢复。清空废纸篓后才会释放空间。"))
                     .dsFont(.sm)
                     .foregroundStyle(DS.Palette.textSecondary)
+                if uninstaller.scanIncomplete {
+                    Text(tr("部分位置未能读取，可能仍有残留。仅移除已确认的项目。"))
+                        .dsFont(.sm).foregroundStyle(DS.Palette.warning)
+                }
             }
             .fixedSize(horizontal: false, vertical: true)
 

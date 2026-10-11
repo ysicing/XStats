@@ -187,6 +187,34 @@ right before deletion, because apps start in between.
 - Reverse-DNS cache folders whose app is running are skipped; browser rules are blocked while
   the browser runs; items modified in the last two minutes count as in use.
 
+Cleanup review supports individual candidate selection, a searchable full list and up to 50
+local exclusion paths. Exclusions protect the selected path, descendants and parent candidates,
+including resolved aliases. Reaching the 50-path limit disables all keep entry points with an
+explanation; a rejected keep action invalidates confirmation and deselects affected candidates.
+Paths remain local and are omitted from settings backups. Native-tool
+rules remain whole-operation selections; an exclusion overlapping their actual cache roots blocks
+the rule at scan and execution. npm, Yarn Classic, pnpm, Bun, Go and uv query their configured
+locations; cargo-cache uses the process CARGO_HOME. The reviewed plan pins command options or
+environment variables at execution, so later configuration changes cannot redirect cleanup.
+Go uses the same canonical GOCACHE path for sizing and execution (except the literal `off`).
+pnpm measures its reported versioned store; the parent directory is only a command option.
+Yarn Classic cleans the entire configured root, so its preview and exclusions cover that root.
+Invalid/failed queries do not fall back to default paths. Query processes have a 30-second timeout
+and bounded output. Yarn Berry and Homebrew cannot constrain their full native operation to a
+reviewed path list; they are unavailable while any local exclusion exists. Tool-resolved cache
+roots are removed from generic cache/log previews to avoid double-counting and direct deletion.
+The default Go/Yarn roots remain excluded from generic caches even when their tool is missing. An incomplete native-tool preview cannot authorize a whole-tool cleanup.
+Directory walks are limited to four concurrent rule tasks.
+
+Deletion refreshes running applications on the main actor at each rule and before each candidate operation;
+no extra observer or background polling survives the operation. Skip reasons remain separate from
+read failures. Incomplete directory sizing never becomes an apparently complete candidate size;
+readable candidates remain reviewable and the UI marks the scan incomplete. Uninstaller directory
+read failures are returned separately from verified candidates. Unreadable residual candidates
+are omitted; an unreadable app bundle or cancellation still fails the operation. The page and
+confirmation both warn that leftovers may remain, without blocking unrelated readable items.
+Cleanup start/completion and incomplete uninstall scan counts go to unified logs, without file paths.
+
 Regenerable caches are deleted outright; user files go to the Trash. Each action is appended
 to `~/Library/Logs/XStats/cleanup.log` as a JSON line.
 

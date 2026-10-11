@@ -31,6 +31,7 @@ public enum SkipReason: Sendable, Equatable, Hashable {
     case previewFailed(String)
     case recentlyModified
     case protected
+    case excluded
 
     public var title: String {
         switch self {
@@ -40,6 +41,7 @@ public enum SkipReason: Sendable, Equatable, Hashable {
         case .previewFailed(let detail): tr("预览失败：\(detail)")
         case .recentlyModified: tr("刚刚被使用")
         case .protected: tr("受保护")
+        case .excluded: tr("已排除")
         }
     }
 }
@@ -51,17 +53,35 @@ public struct CleanEnvironment: Sendable {
     public var now: @Sendable () -> Date
     public var isToolAvailable: @Sendable (String) -> Bool
     public var runTool: @Sendable (String, [String]) async throws -> ToolRunResult
+    /// 固定工具缓存的环境变量；自定义执行器必须显式支持，不能静默丢弃路径约束。
+    public var runToolWithEnvironment: @Sendable (String, [String], [String: String]) async throws -> ToolRunResult
+    var inspectTool: @Sendable (String, [String]) async throws -> ToolRunResult
+    let toolEnvironment: [String: String]
+    public var excludedPaths: [String]
 
     public init(home: String = NSHomeDirectory(),
                 runningBundleIdentifiers: @escaping @Sendable () -> Set<String>,
                 now: @escaping @Sendable () -> Date = Date.init,
                 isToolAvailable: (@Sendable (String) -> Bool)? = nil,
-                runTool: (@Sendable (String, [String]) async throws -> ToolRunResult)? = nil) {
+                runTool: (@Sendable (String, [String]) async throws -> ToolRunResult)? = nil,
+                runToolWithEnvironment: (@Sendable (String, [String], [String: String]) async throws -> ToolRunResult)? = nil,
+                toolEnvironment: [String: String] = ProcessInfo.processInfo.environment,
+                excludedPaths: [String] = []) {
         self.home = home
         self.runningBundleIdentifiers = runningBundleIdentifiers
         self.now = now
         self.isToolAvailable = isToolAvailable ?? { DeveloperToolRunner.executable(named: $0, home: home) != nil }
         self.runTool = runTool ?? { try await DeveloperToolRunner.run($0, arguments: $1, home: home) }
+        self.runToolWithEnvironment = runToolWithEnvironment ?? { tool, arguments, overrides in
+            if let runTool {
+                guard overrides.isEmpty else { throw ToolCachePlanError.unknownScope }
+                return try await runTool(tool, arguments)
+            }
+            return try await DeveloperToolRunner.run(tool, arguments: arguments, home: home, environmentOverrides: overrides)
+        }
+        self.inspectTool = runTool ?? { try await DeveloperToolRunner.run($0, arguments: $1, home: home, timeout: 30, outputLimit: 8192) }
+        self.toolEnvironment = toolEnvironment
+        self.excludedPaths = CleanupExclusions.normalized(excludedPaths)
     }
 }
 
@@ -126,6 +146,10 @@ public struct CleanItem: Sendable, Identifiable, Hashable {
     public var id: String { url.path }
     public let url: URL
     public let size: UInt64
+
+    public init(url: URL, size: UInt64) {
+        self.url = url; self.size = size
+    }
 }
 
 public struct RuleScan: Sendable, Identifiable {
@@ -137,9 +161,23 @@ public struct RuleScan: Sendable, Identifiable {
     /// 整条规则被阻止的原因（浏览器运行中、缺少权限或对应工具不可用）
     public let blocked: SkipReason?
     public var toolPreview: ToolCleanupPreview? = nil
+    /// 跳过原因与读取失败分开记录，避免把保护/权限不足一律说成“使用中”。
+    public var skippedReasons: [SkipReason: Int] = [:]
+    public var unreadableCount: Int = 0
+    /// 扫描时锁定的原生工具清理范围，随逐项选择一起传到执行阶段。
+    public var toolCachePlan: ToolCachePlan? = nil
+
+    public init(rule: CleanRule, items: [CleanItem], skippedCount: Int, blocked: SkipReason?,
+                toolPreview: ToolCleanupPreview? = nil, skippedReasons: [SkipReason: Int] = [:], unreadableCount: Int = 0,
+                toolCachePlan: ToolCachePlan? = nil) {
+        self.rule = rule; self.items = items; self.skippedCount = skippedCount; self.blocked = blocked
+        self.toolPreview = toolPreview; self.skippedReasons = skippedReasons; self.unreadableCount = unreadableCount
+        self.toolCachePlan = toolCachePlan
+    }
 
     public var totalSize: UInt64 { toolPreview?.totalSize ?? items.reduce(0) { $0 + $1.size } }
-    public var isCleanable: Bool { blocked == nil && !items.isEmpty }
+    /// 工具会整体清理其存储，预览不完整时不能按部分候选批准整个操作。
+    public var isCleanable: Bool { blocked == nil && !items.isEmpty && (!rule.usesToolCleaner || unreadableCount == 0) }
 }
 
 /// 原生命令提供的清理计划；大小可能包括只按目录汇总、没有逐文件列出的内容。
