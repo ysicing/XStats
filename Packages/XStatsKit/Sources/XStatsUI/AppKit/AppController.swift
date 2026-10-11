@@ -423,6 +423,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             _ = model.audio.output
             _ = model.displays.catalog
             _ = model.settings.menuBarItems
+            _ = model.settings.menuBarOrder
             _ = model.settings.menuBarLayout
             _ = model.settings.menuBarStyle
             _ = model.settings.networkStyle

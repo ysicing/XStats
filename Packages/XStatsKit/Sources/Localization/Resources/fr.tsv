@@ -1981,3 +1981,8 @@ Cursor 缓存	Cache Cursor
 最近 7 天有修改	Modifié au cours des 7 derniers jours
 最近 7 天未修改	Aucune modification depuis 7 jours
 所选内容包含最近 7 天有修改的项目，清理后需要重新构建。	La sélection contient des éléments modifiés au cours des 7 derniers jours. Ils devront être reconstruits après le nettoyage.
+检测到相同应用的其他安装副本；本次只移除所选应用，共用的数据会保留。	Une autre copie de cette app est installée. Seule la copie sélectionnée sera supprimée ; les données partagées seront conservées.
+无法完整检查应用安装位置；为避免影响其他副本，本次保留共用数据。	Les emplacements d’installation n’ont pas pu être entièrement vérifiés. Les données partagées seront conservées pour protéger les autres copies.
+聚合模式下，用右侧按钮调整顺序；关闭再开启项目会保留位置。	En mode combiné, utilisez les boutons adjacents pour changer l’ordre. Les éléments conservent leur place après désactivation et réactivation.
+将{}向前移动	Déplacer {} avant
+将{}向后移动	Déplacer {} après

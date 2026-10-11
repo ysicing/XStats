@@ -326,4 +326,54 @@ import Testing
         }
         #expect(FileManager.default.fileExists(atPath: preserved.path))
     }
+    @Test func caseNormalizationDoesNotHideOpenCodeLibraryLeftovers() throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let app = try fixture.app(name: "OpenCode", identifier: "ai.opencode.desktop")
+        let support = try fixture.directory("library/Application Support/ai.opencode.desktop")
+        let storage = try fixture.directory("library/HTTPStorages/ai.opencode.desktop")
+        let preference = try fixture.file("library/Preferences/ai.opencode.desktop.plist")
+        let hostPreference = try fixture.file("library/Preferences/ByHost/ai.opencode.desktop.Shift.ABCD.plist")
+        let webData = try fixture.directory("library/WebKit/ai.opencode.desktop")
+        let recent = try fixture.file("library/Application Support/com.apple.sharedfilelist/com.apple.LSSharedFileList.ApplicationRecentDocuments/ai.opencode.desktop.sfl4")
+        let libraryAlias = fixture.home.appendingPathComponent("Library")
+        // 大小写敏感卷上没有这个别名；此回归针对正常可读取的大小写不敏感 macOS 卷。
+        guard FileManager.default.fileExists(atPath: libraryAlias.path) else { return }
+        #expect((try? FileManager.default.contentsOfDirectory(atPath: libraryAlias.path)) != nil)
+        #expect((try? libraryAlias.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true)
+        let identity = AppUninstallIdentity(identifiers: [app.bundleIdentifier], names: [app.name])
+
+        let found = AppUninstaller.leftovers(for: app, home: fixture.home.path, identity: identity)
+
+        let expectedPaths = Set([app.url, support, storage, preference, hostPreference, webData, recent]
+            .map { $0.resolvingSymlinksInPath().standardizedFileURL.path })
+        #expect(Set(found.map { $0.url.resolvingSymlinksInPath().standardizedFileURL.path }) == expectedPaths)
+        #expect(found.count == 7)
+        for item in found {
+            #expect(throws: Never.self) { try AppUninstaller.validateLeftover(item.url, for: app, home: fixture.home.path) }
+        }
+    }
+
+    @Test func aRealLibrarySymlinkCannotAuthorizeExternalOpenCodeData() throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let app = try fixture.app(name: "OpenCode", identifier: "ai.opencode.desktop")
+        let externalLibrary = fixture.outside.appendingPathComponent("Library")
+        let support = externalLibrary.appendingPathComponent("Application Support/ai.opencode.desktop")
+        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        let preserved = support.appendingPathComponent("keep")
+        try Data("external data must remain".utf8).write(to: preserved)
+        let link = try fixture.symlink("Library", to: externalLibrary)
+        let redirectedCandidate = link.appendingPathComponent("Application Support/ai.opencode.desktop")
+        let identity = AppUninstallIdentity(identifiers: [app.bundleIdentifier], names: [app.name])
+
+        let found = AppUninstaller.leftovers(for: app, home: fixture.home.path, identity: identity)
+
+        #expect(Set(found.map { $0.url.path }) == [app.url.path])
+        #expect(throws: AppUninstallError.self) {
+            try AppUninstaller.validateLeftover(redirectedCandidate, for: app, home: fixture.home.path)
+        }
+        #expect(FileManager.default.fileExists(atPath: preserved.path))
+    }
+
 }

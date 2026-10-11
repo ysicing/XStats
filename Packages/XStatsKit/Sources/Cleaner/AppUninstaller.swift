@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
 // See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
 
+import Darwin
 import Foundation
 import Localization
 
@@ -61,9 +62,36 @@ public struct AppLeftover: Sendable, Identifiable, Hashable {
 public struct AppLeftoverScan: Sendable {
     public let items: [AppLeftover]
     public let unreadablePaths: [URL]
+    public let otherInstalledCopies: [URL]
+    /// 应用列表无法完整读取时，不确定是否存在其他副本，保留共用数据。
+    public let installationCheckIncomplete: Bool
+    let identity: AppUninstallIdentity?
+    let applicationURL: URL?
 
-    public init(items: [AppLeftover], unreadablePaths: [URL] = []) {
+    public init(items: [AppLeftover], unreadablePaths: [URL] = [], otherInstalledCopies: [URL] = [],
+                installationCheckIncomplete: Bool = false) {
         self.items = items; self.unreadablePaths = unreadablePaths
+        self.otherInstalledCopies = otherInstalledCopies; self.installationCheckIncomplete = installationCheckIncomplete
+        identity = nil; applicationURL = nil
+    }
+
+    init(items: [AppLeftover], unreadablePaths: [URL], installations: AppInstallationCheck,
+         identity: AppUninstallIdentity, applicationURL: URL) {
+        self.items = items; self.unreadablePaths = unreadablePaths
+        otherInstalledCopies = installations.otherInstalledCopies
+        installationCheckIncomplete = !installations.unreadableDirectories.isEmpty
+        self.identity = identity; self.applicationURL = applicationURL
+    }
+}
+
+/// 副本检查不确定时保留数据；取消仍抛错，不把取消当成完整检查。
+public struct AppInstallationCheck: Sendable {
+    public let otherInstalledCopies: [URL]
+    public let unreadableDirectories: [URL]
+    public var preservesSharedData: Bool { !otherInstalledCopies.isEmpty || !unreadableDirectories.isEmpty }
+
+    public init(otherInstalledCopies: [URL] = [], unreadableDirectories: [URL] = []) {
+        self.otherInstalledCopies = otherInstalledCopies; self.unreadableDirectories = unreadableDirectories
     }
 }
 
@@ -100,42 +128,62 @@ public enum AppUninstaller {
 
     static func installedApps(in directories: [URL], excluding excludedIdentifiers: Set<String>,
                               checkCancellation: () throws -> Void) throws -> [InstalledApp] {
+        var unreadable: [URL] = []
+        return try installedApps(in: directories, excluding: excludedIdentifiers, unreadable: &unreadable,
+                                 checkCancellation: checkCancellation)
+    }
+
+    private static func installedApps(in directories: [URL], excluding excludedIdentifiers: Set<String>,
+                                      unreadable: inout [URL], checkCancellation: () throws -> Void) throws -> [InstalledApp] {
         try checkCancellation()
         var apps: [InstalledApp] = []
         let manager = FileManager.default
         for directory in directories {
             try checkCancellation()
-            let entries = (try? manager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
+            if manager.fileExists(atPath: directory.path), !isDirectoryWithoutSymlink(directory) {
+                unreadable.append(directory)
+                continue
+            }
+            let entries: [URL]
+            do { entries = try manager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) }
+            catch {
+                let error = error as NSError
+                if error.domain != NSCocoaErrorDomain || error.code != NSFileReadNoSuchFileError { unreadable.append(directory) }
+                continue
+            }
             for entry in entries {
                 try checkCancellation()
                 if entry.pathExtension == "app" {
                     if let app = app(at: entry) { apps.append(app) }
+                    else { unreadable.append(entry) }
                 } else if (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-                    try checkCancellation()
-                    let nested = (try? manager.contentsOfDirectory(at: entry, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
+                    guard isDirectoryWithoutSymlink(entry) else { unreadable.append(entry); continue }
+                    let nested: [URL]
+                    do { nested = try manager.contentsOfDirectory(at: entry, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) }
+                    catch { unreadable.append(entry); continue }
                     for candidate in nested {
                         try checkCancellation()
                         guard candidate.pathExtension == "app" else { continue }
                         if let app = app(at: candidate) { apps.append(app) }
+                        else { unreadable.append(candidate) }
                     }
                 }
             }
         }
-        // 取消不得继续做筛选、排序，也不能把扫描到的一部分列表当成成功结果。
         try checkCancellation()
-        return apps
-            .filter { !excludedIdentifiers.contains($0.bundleIdentifier) }
+        return apps.filter { !excludedIdentifiers.contains($0.bundleIdentifier) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
     public static func app(at url: URL) -> InstalledApp? {
-        guard url.pathExtension == "app", let bundle = Bundle(url: url), let identifier = bundle.bundleIdentifier else { return nil }
-        let name = (bundle.localizedInfoDictionary?["CFBundleDisplayName"] as? String)
-            ?? (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
-            ?? url.deletingPathExtension().lastPathComponent
+        // 副本检查必须读取当前标识，不能沿用 Bundle 的旧 Info.plist 缓存。
+        guard url.pathExtension == "app", let info = AppUninstallIdentity.metadata(at: url, inside: url),
+              let rawIdentifier = info["CFBundleIdentifier"] as? String,
+              let identifier = AppUninstallIdentity.validIdentifier(rawIdentifier) else { return nil }
+        let name = (Bundle(url: url)?.localizedInfoDictionary?["CFBundleDisplayName"] as? String)
+            ?? (info["CFBundleDisplayName"] as? String) ?? url.deletingPathExtension().lastPathComponent
         return InstalledApp(url: url, name: name, bundleIdentifier: identifier,
-                            version: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
-                            teamIdentifier: nil)
+                            version: info["CFBundleShortVersionString"] as? String, teamIdentifier: nil)
     }
 
     /// 系统、Apple 应用与当前应用的副本均不可卸载；不允许应用路径被符号链接重定向。
@@ -143,13 +191,21 @@ public enum AppUninstaller {
                                 currentBundleIdentifier: String? = Bundle.main.bundleIdentifier) throws {
         let path = app.url.resolvingSymlinksInPath().path
         guard app.url.pathExtension == "app" else { throw AppUninstallError.notAnApp }
-        if (try? app.url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true { throw AppUninstallError.unsafePath(path) }
+        var information = stat()
+        if app.url.path.withCString({ lstat($0, &information) }) == 0 && information.st_mode & S_IFMT == S_IFLNK {
+            throw AppUninstallError.unsafePath(path)
+        }
         if path.hasPrefix("/System/") || app.bundleIdentifier.hasPrefix("com.apple.") { throw AppUninstallError.systemApp }
         if currentBundleIdentifier?.caseInsensitiveCompare(app.bundleIdentifier) == .orderedSame { throw AppUninstallError.currentApp }
         let original = app.url.standardizedFileURL.path
-        let homeApplications = URL(fileURLWithPath: home).resolvingSymlinksInPath().appendingPathComponent("Applications").path + "/"
+        let homeApplications = URL(fileURLWithPath: home).resolvingSymlinksInPath()
+            .appendingPathComponent("Applications").resolvingSymlinksInPath().path + "/"
         // /Applications 和 home 以下的 Applications 不能通过解析可替换的根目录来扩大白名单。
-        let inSystemApplications = original.hasPrefix("/Applications/") && path == original
+        let applications = URL(fileURLWithPath: "/Applications")
+        let inSystemApplications = original.hasPrefix("/Applications/")
+            && isDirectoryWithoutSymlink(applications)
+            && path.caseInsensitiveCompare(original) == .orderedSame
+            && isUnredirected(app.url.deletingLastPathComponent(), home: applications.path)
         let inHomeApplications = path.hasPrefix(homeApplications) && isUnredirected(app.url, home: home)
         guard inSystemApplications || inHomeApplications else { throw AppUninstallError.unsafePath(path) }
     }
@@ -168,10 +224,32 @@ public enum AppUninstaller {
         try Task.checkCancellation()
         let identity = AppUninstallIdentity(app: app)
         try Task.checkCancellation()
-        var unreadablePaths = Set<URL>()
+        return try scanLeftoversReport(for: app, home: home, identity: identity,
+                                      installations: checkOtherInstallations(of: app, home: home),
+                                      userCache: userCacheDirectory(home: home))
+    }
+
+    static func scanLeftoversReport(for app: InstalledApp, home: String, identity: AppUninstallIdentity,
+                                   installations: AppInstallationCheck, userCache: URL?) throws -> AppLeftoverScan {
+        var unreadablePaths = Set(installations.unreadableDirectories)
         let items = try leftovers(for: app, home: home, identity: identity, unreadablePaths: &unreadablePaths,
-                                 checkCancellation: { try Task.checkCancellation() })
-        return AppLeftoverScan(items: items, unreadablePaths: unreadablePaths.sorted { $0.path < $1.path })
+                                  preserveSharedData: installations.preservesSharedData, userCache: userCache,
+                                  checkCancellation: { try Task.checkCancellation() })
+        return AppLeftoverScan(items: items, unreadablePaths: unreadablePaths.sorted { $0.path < $1.path },
+                              installations: installations, identity: identity, applicationURL: app.url)
+    }
+
+    /// 在调用方的后台任务中检查固定安装目录；读取失败时不能确认没有其他副本。
+    public static func checkOtherInstallations(of app: InstalledApp, home: String = NSHomeDirectory()) throws -> AppInstallationCheck {
+        let directories = applicationDirectories(home: home)
+        var unreadable: [URL] = []
+        let installed = try installedApps(in: directories, excluding: [], unreadable: &unreadable,
+                                         checkCancellation: { try Task.checkCancellation() })
+        let copies = installed.filter {
+            $0.bundleIdentifier.caseInsensitiveCompare(app.bundleIdentifier) == .orderedSame
+                && $0.url.resolvingSymlinksInPath().path != app.url.resolvingSymlinksInPath().path
+        }.map(\.url)
+        return AppInstallationCheck(otherInstalledCopies: copies, unreadableDirectories: unreadable)
     }
 
     static func leftovers(for app: InstalledApp, home: String, identity: AppUninstallIdentity) -> [AppLeftover] {
@@ -186,7 +264,8 @@ public enum AppUninstaller {
     }
 
     private static func leftovers(for app: InstalledApp, home: String, identity: AppUninstallIdentity,
-                                  unreadablePaths: inout Set<URL>, checkCancellation: () throws -> Void) throws -> [AppLeftover] {
+                                  unreadablePaths: inout Set<URL>, preserveSharedData: Bool = false, userCache: URL? = nil,
+                                  checkCancellation: () throws -> Void) throws -> [AppLeftover] {
         try checkCancellation()
         let library = URL(fileURLWithPath: home).appendingPathComponent("Library")
         let manager = FileManager.default
@@ -204,7 +283,7 @@ public enum AppUninstaller {
             try checkCancellation()
             let path = url.standardizedFileURL.path
             guard manager.fileExists(atPath: path),
-                  (try? validateLeftover(url, for: app, home: home)) != nil else { return }
+                  (try? validateLeftover(url, for: app, home: home, userCache: userCache, identity: identity)) != nil else { return }
             if let ancestor = results.firstIndex(where: { path.hasPrefix($0.url.standardizedFileURL.path + "/") }) {
                 if review && !results[ancestor].requiresReview {
                     let item = results[ancestor]
@@ -239,7 +318,10 @@ public enum AppUninstaller {
         func entries(_ relative: String) throws -> [URL] {
             try checkCancellation()
             let directory = library.appendingPathComponent(relative)
-            guard isUnredirected(directory, home: home) else { return [] }
+            guard isUnredirected(directory, home: home) else {
+                if manager.fileExists(atPath: directory.path) { unreadablePaths.insert(directory) }
+                return []
+            }
             // 保留调用方的 home 路径写法；FileManager 的 URL 形式可能把 /var 转成 /private/var。
             guard manager.fileExists(atPath: directory.path) else { return [] }
             do {
@@ -254,7 +336,7 @@ public enum AppUninstaller {
         func scan(_ relative: String, _ kind: AppLeftover.Kind, names: Bool = false, review: Bool = false) throws {
             for entry in try entries(relative) {
                 try checkCancellation()
-                let named = names && identity.names.contains(entry.lastPathComponent)
+                let named = names && identity.matchesName(entry.lastPathComponent)
                 if matches(entry.lastPathComponent) || named {
                     try add(entry, kind, review: review || auxiliaryMatch(entry.lastPathComponent) || (named && !matches(entry.lastPathComponent)))
                 }
@@ -282,14 +364,15 @@ public enum AppUninstaller {
         }
 
         try add(app.url, .application)
+        guard !preserveSharedData else { return results }
         try scan("Application Support", .support, names: true)
         try scan("Application Support/com.apple.sharedfilelist/com.apple.LSSharedFileList.ApplicationRecentDocuments", .support)
         try scan("Application Support/CrashReporter", .logs)
-        try scan("Caches", .caches)
+        try scan("Caches", .caches, names: true)
         try scan("Caches/org.sparkle-project.Sparkle", .caches)
         try scan("Caches/SentryCrash", .caches)
         // Sentry 的目录使用 CFBundleName 而非包名；同名数据可能共用，默认不选。
-        for entry in try entries("Caches/SentryCrash") where identity.names.contains(entry.lastPathComponent) {
+        for entry in try entries("Caches/SentryCrash") where identity.matchesName(entry.lastPathComponent) {
             try add(entry, .caches, review: true)
         }
         try scanNested("Application Support", .support)
@@ -297,12 +380,18 @@ public enum AppUninstaller {
         try scanNested("Logs", .logs)
         try scan("HTTPStorages", .caches)
         try scan("Preferences", .preferences)
+        for entry in try entries("Preferences") where entry.pathExtension.lowercased() == "plist"
+            && identity.matchesName(entry.deletingPathExtension().lastPathComponent) {
+            try add(entry, .preferences, review: !matches(entry.lastPathComponent))
+        }
         try scan("Preferences/ByHost", .preferences)
         for entry in try entries("Containers") {
             try checkCancellation()
             let owner = containerIdentifier(at: entry, home: home)
             if let owner {
-                if identity.identifiers.contains(owner) { try add(entry, .containers, review: owner != app.bundleIdentifier && !owner.hasPrefix(app.bundleIdentifier + ".")) }
+                if identity.identifiers.contains(where: { $0.caseInsensitiveCompare(owner) == .orderedSame }) {
+                    try add(entry, .containers, review: owner.caseInsensitiveCompare(app.bundleIdentifier) != .orderedSame)
+                }
             } else if matches(entry.lastPathComponent) { try add(entry, .containers, review: auxiliaryMatch(entry.lastPathComponent)) }
         }
         try scan("Application Scripts", .containers)
@@ -320,16 +409,38 @@ public enum AppUninstaller {
             }
         }
         try scan("Saved Application State", .savedState)
+        for entry in try entries("Saved Application State") where entry.pathExtension.lowercased() == "savedstate"
+            && identity.matchesName(entry.deletingPathExtension().lastPathComponent) {
+            try add(entry, .savedState, review: !matches(entry.lastPathComponent))
+        }
         try scan("Logs", .logs, names: true)
-        for entry in try entries("Logs/DiagnosticReports") where identity.names.contains(where: {
-            entry.lastPathComponent.hasPrefix($0 + "-") || entry.lastPathComponent.hasPrefix($0 + "_")
-        }) { try add(entry, .logs, review: !matches(entry.lastPathComponent)) }
+        for (relative, extensions) in [("Application Support/CrashReporter", Set(["plist"])),
+                                       ("Logs/DiagnosticReports", Set(["ips", "crash", "spin", "diag"]))] {
+            for entry in try entries(relative) where extensions.contains(entry.pathExtension.lowercased())
+                && identity.matchesReportName(entry.deletingPathExtension().lastPathComponent) {
+                try add(entry, .logs, review: !matches(entry.lastPathComponent))
+            }
+        }
         try scan("WebKit", .webData)
+        try scan("WebKit/com.apple.WebKit.WebContent", .webData)
+        try scan("Caches/com.apple.nsurlsessiond/Downloads", .caches)
         try scan("Cookies", .webData)
         try scan("LaunchAgents", .launchAgents)
 
         for path in knownPaths(for: app.bundleIdentifier) {
             try add(URL(fileURLWithPath: home).appendingPathComponent(path.relative), path.kind, review: path.review)
+        }
+        if let userCache {
+            try checkCancellation()
+            if isDirectoryWithoutSymlink(userCache) {
+                do {
+                    for name in try manager.contentsOfDirectory(atPath: userCache.path).sorted() {
+                        try checkCancellation()
+                        if matches(name) { try add(userCache.appendingPathComponent(name), .caches, review: auxiliaryMatch(name)) }
+                    }
+                } catch is CancellationError { throw CancellationError() }
+                catch { unreadablePaths.insert(userCache) }
+            } else { unreadablePaths.insert(userCache) }
         }
         try checkCancellation()
         return results
@@ -355,6 +466,8 @@ public enum AppUninstaller {
             [("Library/Application Support/Arc", .support, false), ("Library/Caches/Arc", .caches, false)]
         case "com.google.chrome":
             [("Library/Application Support/Google/Chrome", .support, false), ("Library/Caches/Google/Chrome", .caches, false)]
+        case "ai.opencode.desktop":
+            [(".config/opencode", .support, true), (".cache/opencode", .caches, true)]
         default: []
         }
     }
@@ -362,34 +475,109 @@ public enum AppUninstaller {
     private static let libraryRoots = ["Application Support", "Caches", "HTTPStorages", "Preferences", "Containers",
                                        "Application Scripts", "Group Containers", "Saved Application State", "Logs", "WebKit", "Cookies", "LaunchAgents"]
     private static let sharedNames: Set<String> = ["google", "microsoft", "mozilla", "jetbrains", "adobe", "bravesoftware", "opera software",
-                                                   "steam", "objective-see", "apple", "crashreporter", "sentrycrash", "org.sparkle-project.sparkle", "com.apple.sharedfilelist"]
+                                                   "steam", "objective-see", "apple", "crashreporter", "sentrycrash", "org.sparkle-project.sparkle", "com.apple.sharedfilelist", "com.apple.webkit.webcontent", "com.apple.nsurlsessiond"]
 
     /// 在扫描和回收前重查：只允许固定目录内的应用条目，拒绝共享根及 home 以下的符号链接重定向。
     public static func validateLeftover(_ url: URL, for app: InstalledApp, home: String = NSHomeDirectory()) throws {
+        try validateLeftover(url, for: app, home: home, userCache: userCacheDirectory(home: home))
+    }
+
+    /// 保留扫描时从真实 bundle 收集的组件身份；本体已移入废纸篓后仍可重试这些候选。
+    public static func validateLeftover(_ url: URL, for app: InstalledApp, scan: AppLeftoverScan, home: String = NSHomeDirectory()) throws {
+        if scan.applicationURL == nil {
+            try validateLeftover(url, for: app, home: home)
+            return
+        }
+        try validateLeftover(url, for: app, scan: scan, home: home, userCache: userCacheDirectory(home: home))
+    }
+
+    static func validateLeftover(_ url: URL, for app: InstalledApp, scan: AppLeftoverScan, home: String, userCache: URL?) throws {
+        guard scan.applicationURL?.standardizedFileURL.path == app.url.standardizedFileURL.path,
+              scan.items.contains(where: { $0.url.standardizedFileURL.path == url.standardizedFileURL.path }) else {
+            throw AppUninstallError.unsafePath(url.path)
+        }
+        try validateLeftover(url, for: app, home: home, userCache: userCache, identity: scan.identity)
+    }
+
+    static func validateLeftover(_ url: URL, for app: InstalledApp, home: String, userCache: URL?, identity: AppUninstallIdentity? = nil) throws {
+        let path = url.standardizedFileURL.path
+        guard !url.pathComponents.contains(".."), !path.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) else {
+            throw AppUninstallError.unsafePath(path)
+        }
         if url.standardizedFileURL == app.url.standardizedFileURL {
             try validate(app, home: home)
             return
         }
         let base = URL(fileURLWithPath: home).standardizedFileURL.path
-        let path = url.standardizedFileURL.path
-        guard !url.pathComponents.contains(".."), !path.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }),
-              path.hasPrefix(base + "/"), isUnredirected(url, home: home) else { throw AppUninstallError.unsafePath(path) }
+        if let userCache, url.deletingLastPathComponent().standardizedFileURL.path == userCache.standardizedFileURL.path,
+           isDirectoryWithoutSymlink(userCache),
+           isUnredirected(url, home: userCache.path),
+           (identity ?? AppUninstallIdentity(app: app)).identifiers.contains(where: { matchesIdentifier(url.lastPathComponent, $0) }) {
+            return
+        }
+        guard path.hasPrefix(base + "/"), isUnredirected(url, home: home) else { throw AppUninstallError.unsafePath(path) }
         let relative = String(path.dropFirst(base.count + 1))
         if knownPaths(for: app.bundleIdentifier).contains(where: { $0.relative == relative }) { return }
         guard let root = libraryRoots.first(where: { relative.hasPrefix("Library/" + $0 + "/") }) else { throw AppUninstallError.unsafePath(path) }
         let inside = String(relative.dropFirst(("Library/" + root + "/").count))
         if !inside.contains("/"), sharedNames.contains(inside.lowercased()) { throw AppUninstallError.unsafePath(path) }
         if relative == "Library/Application Support/com.apple.sharedfilelist/com.apple.LSSharedFileList.ApplicationRecentDocuments"
-            || relative == "Library/Preferences/ByHost" || relative == "Library/Logs/DiagnosticReports" { throw AppUninstallError.unsafePath(path) }
+            || relative == "Library/Preferences/ByHost" || relative == "Library/Logs/DiagnosticReports"
+            || relative == "Library/Caches/com.apple.nsurlsessiond/Downloads"
+            || relative == "Library/WebKit/com.apple.WebKit.WebContent" { throw AppUninstallError.unsafePath(path) }
     }
 
-    private static func isUnredirected(_ url: URL, home: String) -> Bool {
-        let originalHome = URL(fileURLWithPath: home).standardizedFileURL
+    static func isUnredirected(_ url: URL, home: String) -> Bool {
+        let suppliedHome = URL(fileURLWithPath: home).standardizedFileURL
         let path = url.standardizedFileURL.path
-        guard path.hasPrefix(originalHome.path + "/") else { return false }
-        let relative = String(path.dropFirst(originalHome.path.count + 1))
-        let expected = originalHome.resolvingSymlinksInPath().appendingPathComponent(relative).standardizedFileURL.path
-        return url.resolvingSymlinksInPath().standardizedFileURL.path == expected
+        let roots = [suppliedHome, suppliedHome.resolvingSymlinksInPath().standardizedFileURL]
+        guard let originalHome = roots.first(where: { path.hasPrefix($0.path + "/") || path == $0.path }) else { return false }
+        let relative = path == originalHome.path ? "" : String(path.dropFirst(originalHome.path.count + 1))
+        var current = originalHome
+        // APFS 解析路径会规范实际大小写，不能用字符串相等判定符号链接。
+        // 从可信 home 向下逐级 lstat，允许大小写规范化，拒绝任何层级的真实链接。
+        for component in relative.split(separator: "/") {
+            current.appendPathComponent(String(component))
+            var information = stat()
+            guard current.path.withCString({ lstat($0, &information) }) == 0,
+                  information.st_mode & S_IFMT != S_IFLNK else { return false }
+        }
+        return true
+    }
+
+    /// URL 的资源属性可能缓存旧值；路径重查直接读取当前目录项。
+    static func isDirectoryWithoutSymlink(_ url: URL) -> Bool {
+        var information = stat()
+        return url.path.withCString({ lstat($0, &information) }) == 0 && information.st_mode & S_IFMT == S_IFDIR
+    }
+
+    /// 由系统提供当前用户的 /var/folders/.../C 路径；不扫描其他用户或整个临时根。
+    private static func userCacheDirectory(home: String) -> URL? {
+        guard URL(fileURLWithPath: home).resolvingSymlinksInPath().path
+            == URL(fileURLWithPath: NSHomeDirectory()).resolvingSymlinksInPath().path else { return nil }
+        let length = confstr(_CS_DARWIN_USER_CACHE_DIR, nil, 0)
+        guard length > 1, length < 4096 else { return nil }
+        var buffer = [CChar](repeating: 0, count: length)
+        guard confstr(_CS_DARWIN_USER_CACHE_DIR, &buffer, length) == length else { return nil }
+        let directory = buffer.withUnsafeBufferPointer { pointer in
+            pointer.baseAddress.map { URL(fileURLWithPath: String(cString: $0)).standardizedFileURL }
+        }
+        guard let directory else { return nil }
+        let path = directory.path
+        let canonical: URL
+        if path.hasPrefix("/var/folders/") {
+            canonical = URL(fileURLWithPath: "/private" + path)
+        } else {
+            canonical = directory
+        }
+        let anchor = URL(fileURLWithPath: "/private/var/folders")
+        guard canonical.lastPathComponent == "C", canonical.path.hasPrefix(anchor.path + "/"),
+              isDirectoryWithoutSymlink(anchor),
+              isUnredirected(canonical, home: anchor.path) else { return nil }
+        var information = stat()
+        guard canonical.path.withCString({ lstat($0, &information) }) == 0,
+              information.st_mode & S_IFMT == S_IFDIR, information.st_uid == geteuid() else { return nil }
+        return canonical
     }
 
     /// 名字等于包名，或是包名后接“.”的派生名（com.example.app.plist、com.example.app.savedState、com.example.app.helper）

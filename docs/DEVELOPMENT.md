@@ -129,6 +129,8 @@ API 检测；配置开启不代表模型可用。此模式不生成回答、修�
 
 卸载应用也放在可选功能中，默认关闭。启用后显示侧栏入口，关闭后停止扫描并释放运行应用监听；深链转到功能设置。待确认操作会取消，已经开始的废纸篓操作正常收尾，移除期间禁用功能开关。偏好支持导出与恢复。
 
+聚合排序定向验证：`swift test --package-path Packages/XStatsKit --filter 'MenuBarOrderTests|MenuBarLayoutTests|MenuBarResourceTests|WebDAVSettingsTests|MonitoringResourceTests'`。覆盖顺序保存、关闭再开启、硬件不可用项目、功能启用过滤、设置同步与重绘观察。使用现有 `--menubar-only` 截图入口检查中文、英文和 RTL；独立图标仍由系统拖动排序。
+
 卸载增强的定向验证：`swift test --package-path Packages/XStatsKit --filter 'AppUninstall|Uninstaller|ScanCancellationTests'`。测试只使用临时应用、目录和模拟回收器，覆盖容器元数据、签名应用组、共享候选默认保留、路径重定向、取消与残留重试；不会卸载真实应用。`XStats --snapshot <目录> --uninstaller-only --language zh-Hans` 使用独立偏好与演示候选生成卸载/重试及确认弹窗的明暗截图；可用 `en` 和 `ar` 验证长译文与 RTL，不扫描本机应用或调用废纸篓。
 
 显示器是单独的参数控制开关：关闭后仍显示型号、分辨率、刷新率与菜单栏信息入口，停止 DDC 参数读写；加入显示器菜单栏不会自动开启参数控制。显示器信息由系统事件更新，不添加轮询。
@@ -178,7 +180,7 @@ task compile CONFIG=Debug
 清理审阅的定向验证：`swift test --package-path Packages/XStatsKit --filter 'DeveloperCleanupCatalogTests|CleanupReviewTests|CleanupReviewRegressionTests|ToolCachePlanTests|CleanerReviewFlowTests|CleanerTests|CleanerSelectionTests|ScanCancellationTests|AppUninstall|LanguageSupportTests'`。
 使用临时目录与模拟 CLI 验证自定义缓存路径查询、路径锁定、版本子目录、保留项保护及不完整卸载扫描；不执行真实工具清理。验证工具缓存不重复覆盖、运行应用状态刷新、排除路径的父子与别名保护、逐项选择、错误语义及本机偏好不进入备份。
 开发者清单及原生工具的执行边界见 [CLEANUP.md](CLEANUP.md)。
-修改工具查询或路径校验后，另跑 `swift test --package-path Packages/XStatsKit -c release --filter 'ToolCachePlanTests|DeveloperCleanupCatalogTests'`。当前 Swift 6.4 工具链中，直接传入 `CharacterSet.controlCharacters.contains` 的实例方法引用曾在 Release 下误拒正常路径；保持显式闭包，并用正常路径、控制字符及目录边界用例验证优化构建。
+修改工具查询或路径校验后，另跑 `swift test --package-path Packages/XStatsKit -c release --filter 'ToolCachePlanTests|DeveloperCleanupCatalogTests|AppUninstallIdentityTests|AppUninstallerMoleTests'`。当前 Swift 6.4 工具链中，直接传入 `CharacterSet.controlCharacters.contains` 的实例方法引用曾在 Release 下误拒正常路径；应用标识的字符集成员检查也曾在 Release 下误拒正常标识；两处均保持显式闭包，并用正常路径、控制字符、目录边界和有效/无效应用标识验证优化构建。
 `XStats --snapshot <目录> --cleaner-review-only --language zh-Hans` 使用隔离偏好与演示候选渲染扫描不完整、完整列表与保留目录的明暗截图；`en`、`ar` 可检查长文案与 RTL。项目产物截图使用临时演示项目，追加 `--native-preview` 可打开 120 秒的隔离交互窗口，验证分组、三态勾选与筛选后的选择保留；不会扫描个人目录。定向运行 `ProjectPurgeReviewTests|CleanerReviewFlowTests` 验证选择边界和原生复选框无障碍语义。
 
 ## 网络连接试验模块

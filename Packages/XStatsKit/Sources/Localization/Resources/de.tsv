@@ -1981,3 +1981,8 @@ Cursor 缓存	Cursor-Cache
 最近 7 天有修改	In den letzten 7 Tagen geändert
 最近 7 天未修改	Seit 7 Tagen unverändert
 所选内容包含最近 7 天有修改的项目，清理后需要重新构建。	Die Auswahl enthält in den letzten 7 Tagen geänderte Einträge. Nach der Bereinigung müssen sie neu erstellt werden.
+检测到相同应用的其他安装副本；本次只移除所选应用，共用的数据会保留。	Eine weitere Kopie dieser App ist installiert. Nur die ausgewählte App wird entfernt; gemeinsame Daten bleiben erhalten.
+无法完整检查应用安装位置；为避免影响其他副本，本次保留共用数据。	Die Installationsorte konnten nicht vollständig geprüft werden. Gemeinsame Daten bleiben zum Schutz anderer Kopien erhalten.
+聚合模式下，用右侧按钮调整顺序；关闭再开启项目会保留位置。	Im kombinierten Modus ändern die danebenliegenden Tasten die Reihenfolge. Einträge behalten beim Aus- und Einschalten ihre Position.
+将{}向前移动	{} nach vorne verschieben
+将{}向后移动	{} nach hinten verschieben

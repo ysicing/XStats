@@ -13,6 +13,11 @@ extension Translations {
 
 
     static let monitoringEnglish = #"""
+检测到相同应用的其他安装副本；本次只移除所选应用，共用的数据会保留。	Another copy of this app is installed. Only the selected app will be removed; shared data will be kept.
+无法完整检查应用安装位置；为避免影响其他副本，本次保留共用数据。	App installation locations could not be fully checked. Shared data will be kept to protect other copies.
+聚合模式下，用右侧按钮调整顺序；关闭再开启项目会保留位置。	In combined mode, use the adjacent buttons to change the order. Items keep their position when turned off and back on.
+将{}向前移动	Move {} earlier
+将{}向后移动	Move {} later
 可清理	Available to clean
 其他项目（{}）	Other items ({})
 已选 {}/{} 项	{1} of {2} selected

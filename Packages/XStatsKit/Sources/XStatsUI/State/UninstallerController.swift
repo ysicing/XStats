@@ -23,17 +23,23 @@ public final class UninstallerController {
     public private(set) var leftovers: [AppLeftover] = []
     public private(set) var isScanning = false
     public private(set) var scanIncomplete = false
+    public private(set) var otherInstalledCopies: [URL] = []
+    public private(set) var installationCheckIncomplete = false
+    @ObservationIgnored private var selectedScan: AppLeftoverScan?
     public private(set) var isRemoving = false
     public private(set) var outcome: (text: String, isError: Bool)?
     var chosen: Set<String> = []
     /// 有应用启动或退出时变化，让“正在运行”的提示跟着刷新
     private var runningRevision = 0
     @ObservationIgnored private var runningApplicationsObservation: NSKeyValueObservation?
+    @ObservationIgnored private let home: String
     @ObservationIgnored private let currentBundleIdentifier: String?
     @ObservationIgnored private let listApplications: @Sendable () throws -> [InstalledApp]
     @ObservationIgnored private let findLeftovers: @Sendable (InstalledApp) throws -> AppLeftoverScan
+    @ObservationIgnored private let checkInstallations: @Sendable (InstalledApp) throws -> AppInstallationCheck
     @ObservationIgnored private let measureSize: @Sendable (URL) throws -> UInt64
     @ObservationIgnored private let recycleFiles: ([URL], @escaping @Sendable ([URL: URL], String?) -> Void) -> Void
+    @ObservationIgnored private var preflightTask: Task<Void, Never>?
     @ObservationIgnored private var applicationTask: Task<Void, Never>?
     @ObservationIgnored private var selectionTask: Task<Void, Never>?
     @ObservationIgnored private var applicationGeneration = UUID()
@@ -47,13 +53,16 @@ public final class UninstallerController {
 
     init(currentBundleIdentifier: String?,
          enabled: Bool = true,
+         home: String = NSHomeDirectory(),
          listApplications: @escaping @Sendable () throws -> [InstalledApp] = { try AppUninstaller.scanInstalledApps() },
          findLeftovers: (@Sendable (InstalledApp) throws -> [AppLeftover])? = nil,
          findLeftoversReport: (@Sendable (InstalledApp) throws -> AppLeftoverScan)? = nil,
+         checkInstallations: (@Sendable (InstalledApp) throws -> AppInstallationCheck)? = nil,
          measureSize: @escaping @Sendable (URL) throws -> UInt64 = { try CleanEngine.scanAllocatedSize(of: $0) },
          recycleFiles: @escaping ([URL], @escaping @Sendable ([URL: URL], String?) -> Void) -> Void = { urls, completion in
              NSWorkspace.shared.recycle(urls) { moved, error in completion(moved, error?.localizedDescription) }
          }) {
+        self.home = home
         self.enabled = enabled
         self.currentBundleIdentifier = currentBundleIdentifier
         self.listApplications = listApplications
@@ -62,8 +71,9 @@ public final class UninstallerController {
         } else if let findLeftovers {
             self.findLeftovers = { AppLeftoverScan(items: try findLeftovers($0)) }
         } else {
-            self.findLeftovers = { try AppUninstaller.scanLeftoversReport(for: $0) }
+            self.findLeftovers = { try AppUninstaller.scanLeftoversReport(for: $0, home: home) }
         }
+        self.checkInstallations = checkInstallations ?? { try AppUninstaller.checkOtherInstallations(of: $0, home: home) }
         self.measureSize = measureSize
         self.recycleFiles = recycleFiles
         if enabled { observeRunningApplications() }
@@ -76,12 +86,14 @@ public final class UninstallerController {
         if enabled {
             observeRunningApplications()
         } else {
+            preflightTask?.cancel()
             cancelScanning()
             runningApplicationsObservation = nil
             if !isRemoving {
                 apps = []; sizes = [:]; selected = nil; leftovers = []; chosen = []
                 hasScannedSelection = false
                 scanIncomplete = false
+                selectedScan = nil; otherInstalledCopies = []; installationCheckIncomplete = false
                 outcome = nil
             }
         }
@@ -177,6 +189,9 @@ public final class UninstallerController {
         isScanning = false
         hasScannedSelection = false
         scanIncomplete = false
+        selectedScan = nil
+        otherInstalledCopies = []
+        installationCheckIncomplete = false
         pendingUninstall = nil
         selected = app
         applicationRemoved = false
@@ -197,6 +212,9 @@ public final class UninstallerController {
                 let found = try await Self.scan { try find(app) }
                 // 应用相同也可能是另一次扫描，不能用 selected == app 代替任务代次。
                 guard let self, !Task.isCancelled, self.selectionGeneration == generation, self.selected == app else { return }
+                self.selectedScan = found
+                self.otherInstalledCopies = found.otherInstalledCopies
+                self.installationCheckIncomplete = found.installationCheckIncomplete
                 self.leftovers = found.items
                 self.chosen = Set(found.items.filter { !$0.requiresReview }.map(\.id))
                 self.scanIncomplete = !found.unreadablePaths.isEmpty
@@ -237,7 +255,7 @@ public final class UninstallerController {
             return
         }
         do {
-            try AppUninstaller.validate(app, currentBundleIdentifier: currentBundleIdentifier)
+            try AppUninstaller.validate(app, home: home, currentBundleIdentifier: currentBundleIdentifier)
             select(app)
         } catch {
             outcome = ("\(error)", true)
@@ -282,7 +300,8 @@ public final class UninstallerController {
     }
 
     /// 原生截图仅注入演示候选；不扫描真实应用，也不调用废纸篓或程序坞操作。
-    func showPreview(app: InstalledApp, items: [AppLeftover], applicationRemoved: Bool, scanIncomplete: Bool = false) {
+    func showPreview(app: InstalledApp, items: [AppLeftover], applicationRemoved: Bool, scanIncomplete: Bool = false,
+                     copies: [URL] = [], installationCheckIncomplete: Bool = false) {
         cancelScanning()
         enabled = true
         apps = applicationRemoved ? [] : [app]
@@ -292,41 +311,78 @@ public final class UninstallerController {
         chosen = Set(items.filter { !$0.requiresReview }.map(\.id))
         hasScannedSelection = true
         self.scanIncomplete = scanIncomplete
+        selectedScan = nil; otherInstalledCopies = copies
+        self.installationCheckIncomplete = installationCheckIncomplete
         self.applicationRemoved = applicationRemoved
     }
 
-    func confirmUninstall() {
-        guard let pendingUninstall, pendingUninstall == selected else { return }
+    @discardableResult
+    func confirmUninstall() -> Task<Void, Never>? {
+        guard let pendingUninstall, pendingUninstall == selected else { return nil }
         self.pendingUninstall = nil
-        uninstall()
+        return uninstall()
     }
 
-    private func uninstall() {
-        guard let app = selected, canUninstall else { return }
-        do {
-            try AppUninstaller.validate(app, currentBundleIdentifier: currentBundleIdentifier)
-            guard !isRunning(app) else { throw AppUninstallError.running }
-            // 用户确认与回收之间目录可能已被替换，所有选中路径必须再次通过安全检查。
-            for item in leftovers where chosen.contains(item.id) {
-                try AppUninstaller.validateLeftover(item.url, for: app)
-            }
-        } catch {
-            outcome = ("\(error)", true)
-            return
-        }
-        let items = leftovers.filter { chosen.contains($0.id) }
-        let urls = items.map(\.url)
-        // 回收开始后不能让仍在运行的列表扫描重新发布已经移除的应用。
+    private func uninstall() -> Task<Void, Never>? {
+        guard let app = selected, canUninstall else { return nil }
+        let requested = leftovers.filter { chosen.contains($0.id) }
+        let scan = selectedScan
+        let check = checkInstallations
+        // 在副本检查期间也固定目标和选择，检查通过后再交给系统回收。
         cancelScanning()
         isRemoving = true
         outcome = nil
-        // NSWorkspace 负责需要管理员权限的情况（例如 root 拥有的应用），并能在废纸篓中“放回原处”
-        recycleFiles(urls) { [weak self] moved, message in
-            Task { @MainActor in
-                guard let self else { return }
-                self.finishUninstall(app, items: items, moved: moved, errorMessage: message)
+        let task = Task {
+            var recyclingStarted = false
+            defer {
+                preflightTask = nil
+                if !recyclingStarted {
+                    isRemoving = false
+                    if !enabled {
+                        selected = nil; leftovers = []; chosen = []; selectedScan = nil
+                        otherInstalledCopies = []; installationCheckIncomplete = false
+                        hasScannedSelection = false; scanIncomplete = false; applicationRemoved = false
+                    }
+                }
+            }
+            do {
+                let installations = try await Self.scan { try check(app) }
+                guard enabled, !Task.isCancelled else { return }
+                otherInstalledCopies = installations.otherInstalledCopies
+                installationCheckIncomplete = !installations.unreadableDirectories.isEmpty
+                let items = installations.preservesSharedData ? requested.filter { $0.kind == .application } : requested
+                if installations.preservesSharedData {
+                    leftovers.removeAll { $0.kind != .application }
+                    chosen = Set(leftovers.filter { !$0.requiresReview }.map(\.id))
+                    Log.app.notice("Uninstall preserving shared data copies=\(installations.otherInstalledCopies.count) incomplete=\(self.installationCheckIncomplete)")
+                }
+                guard !items.isEmpty else { return }
+                if items.contains(where: { $0.kind == .application }) {
+                    try AppUninstaller.validate(app, home: home, currentBundleIdentifier: currentBundleIdentifier)
+                }
+                guard !isRunning(app) else { throw AppUninstallError.running }
+                for item in items {
+                    if let scan {
+                        try AppUninstaller.validateLeftover(item.url, for: app, scan: scan, home: home)
+                    } else {
+                        try AppUninstaller.validateLeftover(item.url, for: app, home: home)
+                    }
+                }
+                recyclingStarted = true
+                recycleFiles(items.map(\.url)) { [weak self] moved, message in
+                    Task { @MainActor in
+                        self?.finishUninstall(app, items: items, moved: moved, errorMessage: message)
+                    }
+                }
+            } catch {
+                if enabled, !Task.isCancelled {
+                    outcome = ((error as? AppUninstallError)?.description ?? error.localizedDescription, true)
+                    Log.app.error("Uninstall preflight failed: \(error.localizedDescription.prefix(512), privacy: .private)")
+                }
             }
         }
+        preflightTask = task
+        return task
     }
 
     /// 回收可部分成功；只有本体确实移动后，才能移除列表和程序坞入口。

@@ -30,6 +30,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var calendarFeatures: [String]?
     public var calendarFirstWeekday: Int?
     public var menuBarItems: [String]?
+    public var menuBarOrder: [String]?
     public var enabledMonitoringModules: [String]?
     public var menuBarStyle: String?
     public var networkStyle: String?
@@ -88,6 +89,7 @@ extension AppSettings {
         doc.calendarFeatures = calendarFeatures.map(\.rawValue).sorted()
         doc.calendarFirstWeekday = calendarFirstWeekday
         doc.menuBarItems = menuBarItems.map(\.rawValue).sorted()
+        doc.menuBarOrder = menuBarOrder.map(\.rawValue)
         doc.enabledMonitoringModules = enabledMonitoringModules.map(\.rawValue).sorted()
         doc.menuBarStyle = menuBarStyle.rawValue
         doc.networkStyle = networkStyle.rawValue
@@ -155,6 +157,7 @@ extension AppSettings {
         assign(\.calendarFeatures, doc.calendarFeatures.map(CalendarFeature.restored(from:)))
         assign(\.calendarFirstWeekday, option(doc.calendarFirstWeekday, in: Array(1...7)))
         assign(\.menuBarItems, doc.menuBarItems.map { Set($0.compactMap(MenuBarItem.init(rawValue:))) })
+        if let order = doc.menuBarOrder { setMenuBarOrder(order.compactMap(MenuBarItem.init(rawValue:))) }
         assign(\.menuBarStyle, doc.menuBarStyle.flatMap(MenuBarStyle.init(rawValue:)))
         assign(\.networkStyle, doc.networkStyle.flatMap(NetworkMenuStyle.init(rawValue:)))
         assign(\.networkLocationStyle, doc.networkLocationStyle.flatMap(NetworkLocationStyle.init(rawValue:)))

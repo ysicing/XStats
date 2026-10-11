@@ -88,18 +88,22 @@ struct UninstallerSafetyTests {
     @Test func removalFreezesSelectionAndBlocksNewScans() async throws {
         let app = target()
         let body = AppLeftover(url: app.url, kind: .application, size: 1000)
-        let cache = AppLeftover(url: URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Caches/test.frozen-cache"), kind: .caches, size: 10)
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("UninstallFrozen-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let cache = AppLeftover(url: home.appendingPathComponent("Library/Caches/test.frozen-cache"), kind: .caches, size: 10)
+        try FileManager.default.createDirectory(at: cache.url, withIntermediateDirectories: true)
         let transaction = RecycleTransaction()
-        let controller = UninstallerController(currentBundleIdentifier: nil,
+        let controller = UninstallerController(currentBundleIdentifier: nil, home: home.path,
             listApplications: { Issue.record("回收期间不能启动列表扫描"); return [] },
             findLeftovers: { _ in [body, cache] },
+            checkInstallations: { _ in AppInstallationCheck() },
             recycleFiles: { urls, completion in transaction.urls = urls; transaction.completion = completion })
         controller.select(app)
         let deadline = ContinuousClock.now + .seconds(120)
         while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(controller.canUninstall)
         controller.requestUninstall()
-        controller.confirmUninstall()
+        await controller.confirmUninstall()?.value
         try #require(controller.isRemoving)
         #expect(Set(transaction.urls) == [app.url, cache.url])
         controller.select(target())

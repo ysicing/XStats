@@ -239,6 +239,14 @@ between files. Leaving the page, closing or minimizing the main window cancels s
 results are kept, while incomplete work resumes on reopening. Re-selecting an app cannot let an older
 scan restore deselected files.
 
+`AppLeftoverScan` retains bounded bundle-identity evidence for retry. Path checks use per-component
+`lstat` so case normalization is accepted while real links are rejected. Scanning and preflight
+check the standard application directories for duplicate identifiers; another copy or an unreadable
+installation location keeps all shared residue. The utility preflight task freezes the selection,
+is cancelled when the feature is disabled, and revalidates paths before submitting system recycling.
+Name-only and potentially CLI-shared matches start unchecked. Current-user temporary caches are
+limited to identifier children of the system-provided cache directory.
+
 Trash operations are confirmed separately. The completion dictionary, rather than the number of
 moved files, determines whether the app itself was removed. Only a moved app loses its list and Dock
 entries. Successfully moved residue is removed from the selection; failed and unselected items
@@ -273,6 +281,12 @@ pieces of read-mostly logic in `Cleaner/DiskTools.swift`, each testable without 
 - `MountedVolumes` lists browsable non-root volumes; ejecting uses `NSWorkspace`.
 
 ## Menu bar, popovers and main window
+
+`menuBarOrder` stores the complete metric order independently of enabled items. Combined mode
+uses this order for indicators and overview rows; separate status items retain macOS ordering.
+Settings arrows skip hardware-unavailable items while preserving their saved position. Moving an
+item does not enable its monitoring module. The optional settings-document field syncs the order;
+older documents preserve the current order. `AppController` observes order changes to redraw once.
 
 `MenuBarController` owns the status items. In the *separate* layout every enabled metric gets
 its own `NSStatusItem` (created in reverse so they read left to right) and opens a 320 pt

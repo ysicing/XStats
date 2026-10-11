@@ -602,6 +602,10 @@ public final class AppSettings {
             if added.contains(.audio) { audioEnabled = true }
         }
     }
+    /// 聚合模式顺序独立保存，暂未开启或硬件不可用的项目也保留位置。
+    public private(set) var menuBarOrder: [MenuBarItem] {
+        didSet { defaults.set(menuBarOrder.map(\.rawValue), forKey: Keys.menuBarOrder) }
+    }
     public var menuBarStyle: MenuBarStyle {
         didSet { defaults.set(menuBarStyle.rawValue, forKey: Keys.menuBarStyle) }
     }
@@ -892,6 +896,7 @@ public final class AppSettings {
         menuBarItems = Set(items ?? [.cpu, .memory, .network]).filter { item in
             item.monitoringModule.map { enabledModules.contains($0) } ?? true
         }
+        menuBarOrder = Self.normalizedMenuBarOrder(defaults.stringArray(forKey: Keys.menuBarOrder)?.compactMap(MenuBarItem.init(rawValue:)) ?? [])
         menuBarStyle = defaults.string(forKey: Keys.menuBarStyle).flatMap(MenuBarStyle.init(rawValue:)) ?? .stacked
         networkStyle = defaults.string(forKey: Keys.networkStyle).flatMap(NetworkMenuStyle.init(rawValue:)) ?? .dots
         networkLocationStyle = defaults.string(forKey: Keys.networkLocationStyle).flatMap(NetworkLocationStyle.init(rawValue:)) ?? .off
@@ -995,11 +1000,34 @@ public final class AppSettings {
         }
     }
 
-    /// 按固定顺序返回已启用功能的菜单栏项目。
+    /// 聚合采用自定义顺序；独立图标仍由 macOS 的 ⌘ 拖动排序。
     var orderedMenuBarItems: [MenuBarItem] {
-        MenuBarItem.allCases.filter { item in
+        let order = menuBarLayout == .combined ? menuBarOrder : MenuBarItem.allCases
+        return order.filter { item in
             menuBarItems.contains(item) && isModuleEnabled(for: item)
         }
+    }
+
+    private static func normalizedMenuBarOrder(_ order: [MenuBarItem]) -> [MenuBarItem] {
+        var seen: Set<MenuBarItem> = []
+        return (order + MenuBarItem.allCases).filter { seen.insert($0).inserted }
+    }
+
+    func setMenuBarOrder(_ order: [MenuBarItem]) {
+        let normalized = Self.normalizedMenuBarOrder(order)
+        if menuBarOrder != normalized { menuBarOrder = normalized }
+    }
+
+    /// 跳过当前硬件不可用的项目，避免点一次移动却没有可见变化。
+    func moveMenuBarItem(_ item: MenuBarItem, by offset: Int, among available: [MenuBarItem] = MenuBarItem.allCases) {
+        guard offset == -1 || offset == 1 else { return }
+        let visible = menuBarOrder.filter { available.contains($0) }
+        guard let index = visible.firstIndex(of: item), visible.indices.contains(index + offset),
+              let source = menuBarOrder.firstIndex(of: item),
+              let destination = menuBarOrder.firstIndex(of: visible[index + offset]) else { return }
+        var order = menuBarOrder
+        order.swapAt(source, destination)
+        setMenuBarOrder(order)
     }
 
     func isModuleEnabled(_ module: MonitoringModule) -> Bool { enabledMonitoringModules.contains(module) }
@@ -1068,6 +1096,7 @@ public final class AppSettings {
         static let calendarFeatures = "calendarFeatures"
         static let calendarFirstWeekday = "calendarFirstWeekday"
         static let menuBarItems = "menuBarItems"
+        static let menuBarOrder = "menuBarOrder"
         static let menuBarStyle = "menuBarStyle"
         static let networkStyle = "networkStyle"
         static let networkLocationStyle = "networkLocationStyle"

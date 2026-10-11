@@ -334,21 +334,37 @@ struct MenuBarSettings: View {
 
         SettingsGroup(caption: settings.menuBarLayout == .iconOnly ? tr("面板项目") : tr("显示项目")) {
             GroupRow(showsDivider: false) {
-                InfoBanner(icon: settings.menuBarLayout == .iconOnly ? "square.grid.2x2" : "hand.draw",
-                           text: settings.menuBarLayout == .iconOnly
-                               ? tr("所选项目显示在弹出面板中，原有图标风格会保留。")
-                               : tr("菜单栏里的图标可以调整顺序：按住 ⌘ 键拖动任意一个，松开后位置会一直保留。新开启的项目由系统安排位置，可能离其他图标较远，拖一下就能挪到一起。"))
+                if settings.menuBarLayout == .combined {
+                    InfoBanner(icon: "arrow.up.arrow.down", text: tr("聚合模式下，用右侧按钮调整顺序；关闭再开启项目会保留位置。"))
+                } else {
+                    InfoBanner(icon: settings.menuBarLayout == .iconOnly ? "square.grid.2x2" : "hand.draw",
+                               text: settings.menuBarLayout == .iconOnly
+                                   ? tr("所选项目显示在弹出面板中，原有图标风格会保留。")
+                                   : tr("菜单栏里的图标可以调整顺序：按住 ⌘ 键拖动任意一个，松开后位置会一直保留。新开启的项目由系统安排位置，可能离其他图标较远，拖一下就能挪到一起。"))
+                }
             }
-            ForEach(Array(model.availableMenuBarItems.enumerated()), id: \.element) { index, item in
+            let order = (settings.menuBarLayout == .combined ? settings.menuBarOrder : MenuBarItem.allCases)
+                .filter { model.availableMenuBarItems.contains($0) }
+            ForEach(Array(order.enumerated()), id: \.element) { index, item in
                 let moduleEnabled = settings.isModuleEnabled(for: item)
                 GroupRow {
                     VStack(alignment: .leading, spacing: DS.Space.s3) {
                         SettingRow(title: item.title,
                                    subtitle: moduleEnabled ? itemSubtitle(item) : tr("尚未启用"),
                                    icon: item.symbol) {
-                            DSToggle(isOn: Binding(get: { settings.isEnabled(item) },
-                                                   set: { settings.setEnabled(item, $0) }), label: item.title)
-                                .help(item == .display ? tr("只显示信息，参数控制在功能设置中启用") : tr("加入菜单栏时会同时启用功能"))
+                            HStack(spacing: DS.Space.s2) {
+                                if settings.menuBarLayout == .combined {
+                                    MiniIconButton(systemName: "arrow.up", help: tr("将\(item.title)向前移动")) {
+                                        settings.moveMenuBarItem(item, by: -1, among: model.availableMenuBarItems)
+                                    }.disabled(index == 0)
+                                    MiniIconButton(systemName: "arrow.down", help: tr("将\(item.title)向后移动")) {
+                                        settings.moveMenuBarItem(item, by: 1, among: model.availableMenuBarItems)
+                                    }.disabled(index == order.count - 1)
+                                }
+                                DSToggle(isOn: Binding(get: { settings.isEnabled(item) },
+                                                       set: { settings.setEnabled(item, $0) }), label: item.title)
+                                    .help(item == .display ? tr("只显示信息，参数控制在功能设置中启用") : tr("加入菜单栏时会同时启用功能"))
+                            }
                         }
                         if moduleEnabled, settings.isEnabled(item) {
                             ItemStyleRow(item: item)

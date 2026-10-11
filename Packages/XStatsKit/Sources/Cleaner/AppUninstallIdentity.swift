@@ -10,12 +10,16 @@ import Security
 struct AppUninstallIdentity: Sendable {
     let identifiers: Set<String>
     let names: Set<String>
+    /// 小写的完整名称候选；只用于受限目录中的精确匹配，名称本身不能证明独占归属。
+    let nameVariants: Set<String>
     let applicationGroups: Set<String>
     let teamIdentifier: String?
 
     init(identifiers: Set<String>, names: Set<String>, applicationGroups: Set<String> = [], teamIdentifier: String? = nil) {
+        let validNames = Set(names.compactMap(Self.validName))
         self.identifiers = Set(identifiers.compactMap(Self.validIdentifier))
-        self.names = Set(names.compactMap(Self.validName))
+        self.names = validNames
+        self.nameVariants = Set(validNames.flatMap { Self.safeNameVariants(for: $0) })
         self.applicationGroups = Set(applicationGroups.compactMap(Self.validIdentifier))
         self.teamIdentifier = teamIdentifier.flatMap(Self.validTeamIdentifier)
     }
@@ -32,7 +36,7 @@ struct AppUninstallIdentity: Sendable {
             let root = app.url.resolvingSymlinksInPath().standardizedFileURL
             if let metadata = Self.metadata(at: root, inside: root) {
                 if let identifier = metadata["CFBundleIdentifier"] as? String { identifiers.insert(identifier) }
-                for key in ["CFBundleName", "CFBundleDisplayName"] {
+                for key in ["CFBundleName", "CFBundleDisplayName", "CFBundleExecutable"] {
                     if let name = metadata[key] as? String { names.insert(name) }
                 }
             }
@@ -54,13 +58,14 @@ struct AppUninstallIdentity: Sendable {
     }
 
     static func validIdentifier(_ value: String) -> String? {
+        // 当前工具链的 Release 构建会误判 CharacterSet 方法引用，成员检查使用显式闭包。
         guard !value.isEmpty, value.utf8.count <= 255 else { return nil }
         let parts = value.split(separator: ".", omittingEmptySubsequences: false)
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
         let alphanumeric = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
         guard parts.count >= 2, parts.allSatisfy({ part in
-            !part.isEmpty && part.unicodeScalars.allSatisfy(allowed.contains)
-                && part.unicodeScalars.contains(where: alphanumeric.contains)
+            !part.isEmpty && part.unicodeScalars.allSatisfy({ allowed.contains($0) })
+                && part.unicodeScalars.contains(where: { alphanumeric.contains($0) })
         }) else { return nil }
         return value
     }
@@ -73,9 +78,49 @@ struct AppUninstallIdentity: Sendable {
         return name
     }
 
+    /// 保留产品的版本和渠道，只转换名称里的空格；不从包名、厂商名或通用 helper 名推测产品。
+    static func safeNameVariants(for value: String) -> Set<String> {
+        guard let name = validName(value), name.count >= 2,
+              !genericCompactNames.contains(compactName(name)) else { return [] }
+        let words = name.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        let variants = [name, words.joined(separator: " "), words.joined(),
+                        words.joined(separator: "-"), words.joined(separator: "_")]
+        return Set(variants.compactMap { variant in
+            let lower = variant.lowercased()
+            guard lower.count >= 2, !genericCompactNames.contains(compactName(lower)) else { return nil }
+            return lower
+        })
+    }
+
+    /// 调用方先按目录规则去掉允许的文件后缀，再进行完整名称比较。
+    func matchesName(_ candidate: String) -> Bool {
+        guard let name = Self.validName(candidate) else { return false }
+        return nameVariants.contains(name.lowercased())
+    }
+
+    /// 报告文件的产品名后必须有独立分隔符，FooBar 不能成为 Foo 的报告。
+    func matchesReportName(_ stem: String) -> Bool {
+        guard let name = Self.validName(stem) else { return false }
+        let lower = name.lowercased()
+        return nameVariants.contains { lower == $0 || lower.hasPrefix($0 + "-") || lower.hasPrefix($0 + "_") }
+    }
+
+    private static func compactName(_ value: String) -> String {
+        value.lowercased().filter { !$0.isWhitespace && $0 != "-" && $0 != "_" }
+    }
+
+    /// 这些词常作为共享状态目录或多个产品的运行进程名，不能单独用来推断残留归属。
+    private static let genericNames: Set<String> = [
+        "app", "application", "applications", "application support", "cache", "caches", "code", "config", "configuration",
+        "container", "containers", "crashhandler", "crash handler", "data", "electron", "electron helper", "extension",
+        "framework", "group containers", "helper", "library", "log", "logs", "plugin", "preferences", "runner", "service",
+        "shared", "system", "updater", "widget",
+    ]
+    private static let genericCompactNames = Set(genericNames.map(compactName))
+
     static func validTeamIdentifier(_ value: String) -> String? {
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-        guard !value.isEmpty, value.utf8.count <= 64, value.unicodeScalars.allSatisfy(allowed.contains) else { return nil }
+        guard !value.isEmpty, value.utf8.count <= 64, value.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return nil }
         return value
     }
 
@@ -89,7 +134,8 @@ struct AppUninstallIdentity: Sendable {
         let path = url.standardizedFileURL.path
         let rootPath = root.standardizedFileURL.path
         guard path == rootPath || path.hasPrefix(rootPath + "/"),
-              url.resolvingSymlinksInPath().standardizedFileURL.path == path,
+              AppUninstaller.isDirectoryWithoutSymlink(root),
+              AppUninstaller.isUnredirected(url, home: rootPath),
               let values = try? url.resourceValues(forKeys: [.isSymbolicLinkKey]),
               values.isSymbolicLink != true else { return false }
         return true
@@ -106,7 +152,7 @@ struct AppUninstallIdentity: Sendable {
     }
 
     static func embeddedBundles(in root: URL) -> [URL] {
-        let locations = ["Contents/Frameworks", "Contents/XPCServices", "Contents/PlugIns"]
+        let locations = ["Contents/Frameworks", "Contents/XPCServices", "Contents/PlugIns", "Contents/Library/LoginItems"]
         let ignoredDirectories: Set<String> = ["Resources", "_CodeSignature", "MacOS", "Headers", "Modules"]
         var pending = locations.map { (url: root.appendingPathComponent($0), depth: 0) }
         var visited = Set<String>()

@@ -11,7 +11,10 @@ struct CleanerPage: View {
     var body: some View {
         VStack(spacing: 0) {
             PageScroll {
-                SummaryCard().fixedSize(horizontal: false, vertical: true)
+                WeightedRow(weights: [2, 1]) {
+                    SummaryCard()
+                    MaintenanceCard()
+                }
                 if model.cleaner.needsFullDiskAccess {
                     InfoBanner(icon: "lock.shield", text: tr("部分项目需要“完全磁盘访问权限”才能扫描（Safari 缓存、废纸篓）。"), tone: .warning) {
                         Button(tr("去授权")) { model.cleaner.openFullDiskAccessSettings() }
@@ -21,18 +24,26 @@ struct CleanerPage: View {
                 if model.cleaner.hasIncompleteScan {
                     InfoBanner(icon: "exclamationmark.triangle", text: tr("部分项目未能读取，大小仅包含已完整扫描的项目。请检查权限后重新扫描。"), tone: .warning)
                 }
-                ForEach([CleanCategory.system, .browser, .developer, .downloads, .trash], id: \.self) { category in
-                    CategoryCard(category: category).fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top, spacing: DS.Space.s3) {
+                    VStack(spacing: DS.Space.s3) {
+                        CategoryCard(category: .system).fixedSize(horizontal: false, vertical: true)
+                        CategoryCard(category: .browser).fixedSize(horizontal: false, vertical: true)
+                        CategoryCard(category: .downloads).fixedSize(horizontal: false, vertical: true)
+                        CategoryCard(category: .trash).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity)
+                    VStack(spacing: DS.Space.s3) {
+                        CategoryCard(category: .developer).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                CleanerFooter()
-                DisclosureGroup(tr("系统维护")) {
-                    MaintenanceCard().fixedSize(horizontal: false, vertical: true)
-                }
-                .dsFont(.sm).padding(.horizontal, DS.Space.s1)
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .environment(\.isSnapshot, false) // 截图也保留真实滚动视口与固定操作栏。
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             HairlineDivider()
-            CleanerActions().padding(DS.Space.s3).background(DS.Palette.background)
+            CleanerFooter()
+                .padding(DS.Space.s3)
+                .background(DS.Palette.background)
         }
         .onAppear { if !isSnapshot { model.cleaner.scan(ifNeeded: true) } }
     }
@@ -67,7 +78,7 @@ private struct SummaryCard: View {
                 Text(subline)
                     .dsFont(.sm)
                     .foregroundStyle(DS.Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
             }
 
             if let disk = model.store.disk {
@@ -79,6 +90,7 @@ private struct SummaryCard: View {
                 }
             }
 
+            CleanerActions()
         }
     }
 
@@ -255,7 +267,19 @@ private struct CategoryCard: View {
     @State private var showsUnavailable = false
 
     var body: some View {
-        let scans = model.cleaner.scans(in: category)
+        let registeredScans = model.cleaner.scans(in: category)
+        let scans: [RuleScan] = if category == .developer {
+            // 可清理容量降序；不可清理项及容量相同的项目保持清单顺序，避免无意义跳动。
+            registeredScans.enumerated().sorted { left, right in
+                if left.element.isCleanable != right.element.isCleanable { return left.element.isCleanable }
+                if left.element.isCleanable, left.element.totalSize != right.element.totalSize {
+                    return left.element.totalSize > right.element.totalSize
+                }
+                return left.offset < right.offset
+            }.map(\.element)
+        } else {
+            registeredScans
+        }
         let total = scans.filter(\.isCleanable).reduce(0) { $0 + $1.totalSize }
 
         Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
@@ -322,9 +346,9 @@ private struct RuleRow: View {
                     Text(status)
                         .dsFont(.xs)
                         .foregroundStyle(scan.blocked == nil ? DS.Palette.textTertiary : DS.Palette.warning)
-                        .lineLimit(nil)
+                        .lineLimit(scan.blocked == nil ? 1 : nil)
                         .fixedSize(horizontal: false, vertical: true)
-                        .help(status)
+                        .help(statusText(selectedCount: selectedIDs.count, detailed: true))
                 }
                 Spacer(minLength: DS.Space.s1)
                 if scan.isCleanable {
@@ -382,7 +406,7 @@ private struct RuleRow: View {
 
     private static let previewLimit = 6
 
-    private func statusText(selectedCount: Int) -> String {
+    private func statusText(selectedCount: Int, detailed: Bool = false) -> String {
         if let blocked = scan.blocked { return blocked.title }
         if scan.items.isEmpty && scan.unreadableCount > 0 { return tr("扫描不完整 · \(scan.unreadableCount) 项未能读取") }
         if scan.items.isEmpty && scan.skippedCount > 0 { return tr("已跳过 \(scan.skippedCount) 项") }
@@ -392,9 +416,12 @@ private struct RuleRow: View {
         if scan.unreadableCount > 0 {
             text += " · " + tr("扫描不完整 · \(scan.unreadableCount) 项未能读取")
         }
-        if !scan.skippedReasons.isEmpty {
-            text += " · " + scan.skippedReasons.keys.map(\.title).sorted().joined(separator: " · ")
-        } else if scan.skippedCount > 0 { text += tr(" · 已跳过 \(scan.skippedCount) 项") }
+        // 卡片只显示计数；完整原因可悬停查看，避免一串 Bundle ID 抢占摘要。
+        if detailed, !scan.skippedReasons.isEmpty {
+            text += "\n" + scan.skippedReasons.keys.map(\.title).sorted().joined(separator: "\n")
+        } else if scan.skippedCount > 0 {
+            text += tr(" · 已跳过 \(scan.skippedCount) 项")
+        }
         if scan.rule.policy == .trash { text += tr(" · 移到废纸篓") }
         return text
     }
@@ -430,21 +457,18 @@ private struct CleanerFooter: View {
     var body: some View {
         @Bindable var settings = model.settings
 
-        VStack(alignment: .leading, spacing: DS.Space.s3) {
-            HStack(spacing: DS.Space.s3) {
-                DSToggle(isOn: $settings.cleanPrefersTrash, label: tr("缓存也先移到废纸篓"))
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(tr("缓存也先移到废纸篓")).dsFont(.sm, weight: .medium).foregroundStyle(DS.Palette.textPrimary)
-                    Text(tr("支持的缓存可以恢复；工具缓存始终由对应命令直接清理"))
-                        .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
-                }
+        HStack(spacing: DS.Space.s3) {
+            DSToggle(isOn: $settings.cleanPrefersTrash, label: tr("缓存也先移到废纸篓"))
+            VStack(alignment: .leading, spacing: 0) {
+                Text(tr("缓存也先移到废纸篓")).dsFont(.sm, weight: .medium).foregroundStyle(DS.Palette.textPrimary)
+                Text(tr("支持的缓存可以恢复；工具缓存始终由对应命令直接清理"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
             }
-            HStack(spacing: DS.Space.s3) {
-                Button(tr("保留项目")) { showsExclusions = true }
-                    .buttonStyle(DSButtonStyle(kind: .ghost))
-                Button(tr("查看清理日志")) { model.cleaner.revealLog() }
-                    .buttonStyle(DSButtonStyle(kind: .ghost))
-            }
+            Spacer()
+            Button(tr("保留项目")) { showsExclusions = true }
+                .buttonStyle(DSButtonStyle(kind: .ghost))
+            Button(tr("查看清理日志")) { model.cleaner.revealLog() }
+                .buttonStyle(DSButtonStyle(kind: .ghost))
         }
         .padding(.horizontal, DS.Space.s1)
         .sheet(isPresented: $showsExclusions) { CleanerExclusionsSheet(cleaner: model.cleaner) }

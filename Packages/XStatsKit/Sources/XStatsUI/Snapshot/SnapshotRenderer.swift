@@ -166,6 +166,14 @@ enum SnapshotRenderer {
                       to: outputDirectory.appendingPathComponent("uninstaller-incomplete-\(suffix).png"))
                 write(UninstallConfirmationSheet(app: app, uninstaller: model.uninstaller), model: model, appearance: appearance,
                       to: outputDirectory.appendingPathComponent("uninstaller-confirm-incomplete-\(suffix).png"))
+                for uncertain in [false, true] {
+                    model.uninstaller.showPreview(app: app, items: [items[0]], applicationRemoved: false,
+                        copies: uncertain ? [] : [URL(fileURLWithPath: "/Applications/Other Copy/Demo.app")],
+                        installationCheckIncomplete: uncertain)
+                    write(UninstallerPage().appLanguageEnvironment().frame(width: 900, height: 660), model: model, appearance: appearance,
+                          to: outputDirectory.appendingPathComponent("uninstaller-\(uncertain ? "unknown-copies" : "copies")-\(suffix).png"))
+                }
+
             }
             return
         }
@@ -682,6 +690,7 @@ enum SnapshotRenderer {
         let settings = AppSettings(defaults: defaults)
         settings.language = L10n.language
         settings.menuBarItems = Set(MenuBarItem.allCases.filter { $0 != .aiUsage })
+        settings.setMenuBarOrder([.network, .cpu, .memory, .gpu, .disk])
         settings.processesEnabled = true
         settings.cleanerEnabled = true
         settings.menuBarLayout = .iconOnly
