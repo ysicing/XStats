@@ -1983,3 +1983,9 @@ Magpie 数据无法读取，请检查版本或数据大小。	Magpie-Daten könn
 查看账户剩余额度与重置时间	Verbleibende Kontokontingente und Rücksetzzeiten anzeigen
 查看今天的 Token 用量	Heutige Token-Nutzung anzeigen
 到期：{}	Läuft ab: {}
+关闭功能会停止相关采集，已有历史保留。电池基础信息仍可查看。	Das Ausschalten einer Funktion stoppt die zugehörige Erfassung und behält den Verlauf. Grundlegende Batterieinformationen bleiben sichtbar.
+采集功耗和电量历史；关闭后仍显示电量、健康度和蓝牙设备	Leistung und Batterieverlauf erfassen; Ladestand, Zustand und Bluetooth-Geräte bleiben auch ausgeschaltet sichtbar
+仅显示电池信息，采集在功能设置中启用	Nur Batterieinformationen anzeigen; Erfassung unter Funktionen aktivieren
+电量记录已暂停，已有历史保留	Die Batterieaufzeichnung ist pausiert; der bisherige Verlauf bleibt erhalten
+关闭功能会停止实时监控，保留基础信息、页面入口和已有历史。	Beim Ausschalten werden die Echtzeitüberwachung beendet und Basisinformationen, Seitenzugriff und bisheriger Verlauf beibehalten.
+监控已关闭，基础信息仍可查看。实时指标、曲线与告警已暂停。	Die Überwachung ist ausgeschaltet. Basisinformationen bleiben verfügbar; Echtzeitwerte, Diagramme und Warnungen sind pausiert.

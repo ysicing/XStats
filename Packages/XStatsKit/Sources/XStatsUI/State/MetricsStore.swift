@@ -67,7 +67,7 @@ public final class MetricsStore {
 
     /// 关闭功能后移除实时缓存，避免重新打开页面把旧值当作当前值。
     /// 持久化历史由 HistoryRecorder 管理，不在这里删除。
-    func clearDisabledModules(_ enabled: Set<MonitoringModule>) {
+    func clearDisabledModules(_ enabled: Set<MonitoringModule>, powerRequested: Bool = false) {
         if !enabled.contains(.cpu), cpu != nil || !cpuTotal.elements.isEmpty {
             cpu = nil
             cpuTotal = History(capacity: Self.historyCapacity)
@@ -89,20 +89,27 @@ public final class MetricsStore {
             gpu = nil
             gpuHistory = History(capacity: Self.historyCapacity)
         }
-        if !enabled.contains(.disk), disk != nil || diskActivity != nil || diskHealth != nil || !diskReadHistory.elements.isEmpty {
-            disk = nil; diskActivity = nil; diskHealth = nil
+        if !enabled.contains(.disk), diskActivity != nil || diskHealth != nil || !diskReadHistory.elements.isEmpty {
+            diskActivity = nil; diskHealth = nil
             diskReadHistory = History(capacity: Self.historyCapacity)
             diskWriteHistory = History(capacity: Self.historyCapacity)
         }
-        if !enabled.contains(.battery), battery != nil { battery = nil }
-        if !enabled.contains(.thermal), sensors != nil || power?.system != nil || power?.gpu != nil || power?.battery != nil || power?.adapter != nil
+        if !enabled.contains(.thermal), sensors != nil { sensors = nil }
+        // 温度关闭后，电池页仍可按需使用共享功耗；最后一个读取方退出后清除实时曲线。
+        if !enabled.contains(.thermal), !powerRequested, power?.system != nil || power?.gpu != nil || power?.battery != nil || power?.adapter != nil
             || !powerHistory.elements.isEmpty {
-            sensors = nil
             power = enabled.contains(.cpu) && power?.clusterFrequency.isEmpty == false
                 ? PowerReading(clusterFrequency: power?.clusterFrequency ?? [:]) : nil
             powerHistory = History(capacity: Self.historyCapacity)
         }
         if !enabled.contains(.cpu), power?.clusterFrequency.isEmpty == false { power?.clusterFrequency = [:] }
+    }
+
+    /// 基础容量只在页面打开时读取一次，不启动磁盘活动或 SMART 监控。
+    func refreshDiskCapacity() async {
+        let capacity = await Task.detached { DiskSampler.sample() }.value
+        guard !Task.isCancelled else { return }
+        if disk != capacity { disk = capacity }
     }
 
     public func apply(_ snapshot: MetricsSnapshot) {

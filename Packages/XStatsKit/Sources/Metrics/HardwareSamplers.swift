@@ -121,6 +121,14 @@ public enum SystemInfoReader {
                 .takeRetainedValue() as? String
             IOObjectRelease(platform)
         }
+        // 静态硬件属性不依赖 PerformanceStatistics，关闭 GPU 监控时也能显示。
+        let accelerator = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOAccelerator"))
+        if accelerator != 0 {
+            let model = IORegistry.property(accelerator, "model")
+            info.gpuName = (model as? String) ?? IORegistry.string(fromData: model)
+            info.gpuCoreCount = IORegistry.property(accelerator, "gpu-core-count") as? Int
+            IOObjectRelease(accelerator)
+        }
         return info
     }
 }

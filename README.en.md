@@ -46,8 +46,8 @@ The aggregated overview brings metrics together and opens individual details.
 
 Manage Basic and Optional Features separately in Settings → Features.
 
-- **Basic monitoring**: turn CPU, GPU, memory, disk, network, thermals and battery monitoring on or off individually. Disabling a module stops collection, related alerts and new history records while keeping existing history. System widgets refresh independently.
-- **Menu bar visibility**: selecting Show in Menu Bar for basic monitoring, AI Usage or Audio also enables that feature. Clearing it removes the entry while leaving the feature enabled. AI Usage and Audio have their own display options.
+- **Basic monitoring**: turn CPU, GPU, memory, disk, network, thermals and battery monitoring on or off individually. Disabling a module stops live collection, related alerts and new history records while keeping basic information, page access and existing history. System widgets refresh independently.
+- **Menu bar visibility**: selecting Show in Menu Bar for basic monitoring, AI Usage or Audio also enables that feature, except for the battery information entry. Clearing it removes the entry while leaving the feature enabled. AI Usage and Audio have their own display options.
 - **Display parameter controls**: enable or disable brightness, contrast and volume reads and adjustments. Display information remains available, with a separate information-only menu bar option.
 
 <p align="center">

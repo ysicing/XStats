@@ -581,7 +581,7 @@ public final class AppSettings {
             }
             defaults.set(enabledMonitoringModules.map(\.rawValue).sorted(), forKey: "enabledMonitoringModules")
             menuBarItems = menuBarItems.filter { item in
-                item.monitoringModule.map { enabledMonitoringModules.contains($0) } ?? true
+                item == .battery || (item.monitoringModule.map { enabledMonitoringModules.contains($0) } ?? true)
             }
             historyRecordingGeneration += 1
         }
@@ -597,7 +597,7 @@ public final class AppSettings {
             // 新加入菜单栏的项目必须可用；移除项目只停止展示，不关闭功能。
             let added = menuBarItems.subtracting(oldValue)
             // 一次合并全部新增模块，避免逐项启用时过滤掉同一次新增的其它菜单项。
-            enabledMonitoringModules.formUnion(added.compactMap(\.monitoringModule))
+            enabledMonitoringModules.formUnion(added.filter { $0 != .battery }.compactMap(\.monitoringModule))
             if added.contains(.aiUsage) { aiUsageEnabled = true }
             if added.contains(.audio) { audioEnabled = true }
         }
@@ -894,7 +894,7 @@ public final class AppSettings {
             ?? Set(MonitoringModule.allCases)
         enabledMonitoringModules = enabledModules
         menuBarItems = Set(items ?? [.cpu, .memory, .network]).filter { item in
-            item.monitoringModule.map { enabledModules.contains($0) } ?? true
+            item == .battery || (item.monitoringModule.map { enabledModules.contains($0) } ?? true)
         }
         menuBarOrder = Self.normalizedMenuBarOrder(defaults.stringArray(forKey: Keys.menuBarOrder)?.compactMap(MenuBarItem.init(rawValue:)) ?? [])
         menuBarStyle = defaults.string(forKey: Keys.menuBarStyle).flatMap(MenuBarStyle.init(rawValue:)) ?? .stacked
@@ -1033,7 +1033,8 @@ public final class AppSettings {
     func isModuleEnabled(_ module: MonitoringModule) -> Bool { enabledMonitoringModules.contains(module) }
 
     func isModuleEnabled(for item: MenuBarItem) -> Bool {
-        if item == .display { return true }
+        // 电池基础信息与显示器信息始终可展示，功能开关仅控制额外采集或参数控制。
+        if item == .display || item == .battery { return true }
         if let module = item.monitoringModule { return isModuleEnabled(module) }
         return item == .aiUsage ? aiUsageEnabled : audioEnabled
     }
@@ -1071,7 +1072,7 @@ public final class AppSettings {
 
     func setEnabled(_ item: MenuBarItem, _ enabled: Bool) {
         if enabled {
-            if let module = item.monitoringModule { setModuleEnabled(module, true) }
+            if item != .battery, let module = item.monitoringModule { setModuleEnabled(module, true) }
             if item == .aiUsage { aiUsageEnabled = true }
             if item == .audio { audioEnabled = true }
             menuBarItems.insert(item)

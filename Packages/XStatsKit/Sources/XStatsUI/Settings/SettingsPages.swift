@@ -363,7 +363,8 @@ struct MenuBarSettings: View {
                                 }
                                 DSToggle(isOn: Binding(get: { settings.isEnabled(item) },
                                                        set: { settings.setEnabled(item, $0) }), label: item.title)
-                                    .help(item == .display ? tr("只显示信息，参数控制在功能设置中启用") : tr("加入菜单栏时会同时启用功能"))
+                                    .help(item == .display ? tr("只显示信息，参数控制在功能设置中启用")
+                                          : item == .battery ? tr("仅显示电池信息，采集在功能设置中启用") : tr("加入菜单栏时会同时启用功能"))
                             }
                         }
                         if moduleEnabled, settings.isEnabled(item) {

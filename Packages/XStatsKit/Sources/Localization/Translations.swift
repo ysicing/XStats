@@ -13,6 +13,12 @@ extension Translations {
 
 
     static let monitoringEnglish = #"""
+关闭功能会停止实时监控，保留基础信息、页面入口和已有历史。	Turning off a feature stops live monitoring and keeps basic information, page access and existing history.
+监控已关闭，基础信息仍可查看。实时指标、曲线与告警已暂停。	Monitoring is off. Basic information remains available; live metrics, charts and alerts are paused.
+关闭功能会停止相关采集，已有历史保留。电池基础信息仍可查看。	Turning off a feature stops its monitoring and keeps existing history. Basic battery information remains available.
+采集功耗和电量历史；关闭后仍显示电量、健康度和蓝牙设备	Collect power usage and battery history; battery level, health and Bluetooth devices remain visible when off
+仅显示电池信息，采集在功能设置中启用	Show battery information only; enable monitoring in Features
+电量记录已暂停，已有历史保留	Battery recording is paused; existing history is kept
 检测到相同应用的其他安装副本；本次只移除所选应用，共用的数据会保留。	Another copy of this app is installed. Only the selected app will be removed; shared data will be kept.
 检测到相同应用的其他安装副本；共用的数据已保留，未移动任何文件。	Another copy of this app is installed. Shared data was kept and no files were moved.
 无法完整检查应用安装位置；为避免影响其他副本，本次保留共用数据。	App installation locations could not be fully checked. Shared data will be kept to protect other copies.

@@ -230,11 +230,13 @@ public final class NetworkController {
         }
     }
 
-    func refreshDetails() async {
-        guard settings.isModuleEnabled(.network), !isPaused, !Task.isCancelled else { return }
+    /// 关闭监控的页面可单次读取本地接口信息，不启动探测、公网查询或进程流量采样。
+    func refreshDetails(basicOnly: Bool = false) async {
+        guard (basicOnly || settings.isModuleEnabled(.network)), !isPaused, !Task.isCancelled else { return }
         let generation = settings.moduleGeneration(.network)
         let refreshed = await Task.detached { NetworkDetailsReader.read() }.value
-        guard settings.isModuleEnabled(.network), settings.moduleGeneration(.network) == generation, !isPaused, !Task.isCancelled else { return }
+        guard (basicOnly || settings.isModuleEnabled(.network)), settings.moduleGeneration(.network) == generation,
+              !isPaused, !Task.isCancelled else { return }
         details = refreshed
     }
 

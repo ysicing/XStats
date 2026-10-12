@@ -1983,3 +1983,9 @@ Magpie 数据无法读取，请检查版本或数据大小。	Lecture des donné
 查看账户剩余额度与重置时间	Afficher les quotas restants et les dates de réinitialisation
 查看今天的 Token 用量	Afficher l’utilisation des tokens d’aujourd’hui
 到期：{}	Expiration : {}
+关闭功能会停止相关采集，已有历史保留。电池基础信息仍可查看。	Désactiver une fonction arrête la collecte associée et conserve l’historique. Les informations de base de la batterie restent disponibles.
+采集功耗和电量历史；关闭后仍显示电量、健康度和蓝牙设备	Collecter la consommation et l’historique ; le niveau, l’état de santé et les appareils Bluetooth restent visibles après désactivation
+仅显示电池信息，采集在功能设置中启用	Afficher uniquement les informations de batterie ; activer la collecte dans Fonctionnalités
+电量记录已暂停，已有历史保留	L’enregistrement de la batterie est en pause ; l’historique existant est conservé
+关闭功能会停止实时监控，保留基础信息、页面入口和已有历史。	Désactiver une fonction arrête la surveillance en temps réel et conserve les informations de base, l’accès à la page et l’historique existant.
+监控已关闭，基础信息仍可查看。实时指标、曲线与告警已暂停。	La surveillance est désactivée. Les informations de base restent disponibles ; les mesures en temps réel, les graphiques et les alertes sont en pause.

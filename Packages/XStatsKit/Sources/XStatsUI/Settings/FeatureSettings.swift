@@ -4,6 +4,7 @@
 // See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
 import NetworkObservation
 import Localization
+import Metrics
 import SwiftUI
 
 /// 功能页的本地导航状态，不写入偏好或设置备份。
@@ -72,7 +73,7 @@ struct FeatureSettings: View {
 
     private var basicFeatures: some View {
         VStack(alignment: .leading, spacing: DS.Space.s4) {
-            Text(tr("关闭功能会停止采集并移除菜单栏入口，已有历史保留。"))
+            Text(tr("关闭功能会停止实时监控，保留基础信息、页面入口和已有历史。"))
                 .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
                 .frame(minHeight: DS.Size.controlHeight, alignment: .topLeading)
             SettingsGroup {
@@ -219,7 +220,8 @@ private struct MonitoringFeatureRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s2) {
             SettingRow(title: module.title,
-                       subtitle: module == .display ? tr("允许调节亮度、对比度和音量") : nil,
+                       subtitle: module == .display ? tr("允许调节亮度、对比度和音量")
+                           : module == .battery ? tr("采集功耗和电量历史；关闭后仍显示电量、健康度和蓝牙设备") : nil,
                        icon: module.symbol) {
                 DSToggle(isOn: Binding(get: { model.settings.isModuleEnabled(module) }, set: { enabled in
                     model.settings.setModuleEnabled(module, enabled)
@@ -262,21 +264,75 @@ private struct FeatureMenuBarToggle: View {
     }
 }
 
-/// 保留关闭模块的导航入口，以明确说明状态和提供就地启用；不挂载旧数据视图。
+/// 监控关闭时保留基础信息，不挂载实时图表、排行或控制视图。
 struct DisabledMonitoringPage: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.isSnapshot) private var isSnapshot
     let module: MonitoringModule
 
     var body: some View {
         PageScroll {
             Card(padding: DS.Space.s4, spacing: DS.Space.s3) {
                 Label(module.title, systemImage: module.symbol).dsFont(.lg, weight: .semibold)
-                Text(tr("此功能已关闭，不再采集数据。启用后仅按展示、历史和提醒需求采集。"))
+                Text(tr("监控已关闭，基础信息仍可查看。实时指标、曲线与告警已暂停。"))
                     .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
                 Button(tr("启用 \(module.title)")) { model.settings.setModuleEnabled(module, true) }
                     .buttonStyle(DSButtonStyle(kind: .primary))
                     .fixedSize()
             }
+            SectionCard(title: module.title) { information }
+        }
+        .task {
+            guard !isSnapshot else { return }
+            if module == .disk { await model.store.refreshDiskCapacity() }
+            if module == .network { await model.network.refreshDetails(basicOnly: true) }
+        }
+    }
+
+    @ViewBuilder private var information: some View {
+        let store = model.store
+        switch module {
+        case .cpu:
+            InfoRow(label: tr("芯片"), text: store.topology.brand)
+            InfoRow(label: tr("核心"), text: tr("\(store.topology.logicalCores) 核"))
+            ForEach(store.topology.clusters) { cluster in
+                InfoRow(label: cluster.name, text: tr("\(cluster.coreIndices.count) 核"))
+            }
+        case .gpu:
+            InfoRow(label: tr("型号"), text: store.system.gpuName ?? store.topology.brand)
+            InfoRow(label: tr("图形核心"), text: store.system.gpuCoreCount.map { tr("\($0) 核") } ?? "—")
+        case .memory:
+            InfoRow(label: tr("内存"), text: Format.bytes(ProcessInfo.processInfo.physicalMemory))
+            InfoRow(label: tr("内存类型"), text: tr("统一内存（CPU 与 GPU 共享）"))
+        case .disk:
+            if let disk = store.disk {
+                InfoRow(label: tr("卷"), text: disk.volumeName)
+                InfoRow(label: tr("容量"), text: Format.bytes(disk.total, base: .decimal))
+                InfoRow(label: tr("可用"), text: Format.bytes(disk.available, base: .decimal))
+            } else {
+                Text(tr("正在读取…")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+            }
+        case .network:
+            if let details = model.network.details {
+                if let physical = details.physical {
+                    InfoRow(label: tr("接口"), text: tr("\(physical.displayName)（\(physical.bsdName)）"))
+                    InfoRow(label: tr("物理地址")) { CopyableText(text: physical.hardwareAddress ?? "—") }
+                    InfoRow(label: "IPv4") { CopyableText(text: physical.ipv4.joined(separator: ", ")) }
+                    InfoRow(label: "IPv6") { CopyableText(text: physical.ipv6.joined(separator: ", ")) }
+                } else {
+                    Text(tr("未连接网络")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                }
+                InfoRow(label: "DNS") { CopyableText(text: details.dnsServers.joined(separator: ", ")) }
+            } else {
+                Text(tr("正在读取…")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+            }
+        case .thermal:
+            InfoRow(label: tr("芯片"), text: store.topology.brand)
+            if let count = store.fanCount {
+                InfoRow(label: tr("风扇"), text: count.formatted(.number.locale(L10n.locale)))
+            }
+        case .battery: BatteryPopover()
+        case .display: DisplayDetails()
         }
     }
 }

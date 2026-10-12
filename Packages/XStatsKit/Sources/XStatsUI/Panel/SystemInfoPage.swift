@@ -60,8 +60,8 @@ struct SystemInfoPage: View {
                 }
                 InfoCard(icon: "memorychip", title: tr("内存与图形")) {
                     InfoRow(label: tr("内存"), text: Format.bytes(ProcessInfo.processInfo.physicalMemory))
-                    InfoRow(label: tr("图形"), text: store.gpu?.name ?? topology.brand)
-                    InfoRow(label: tr("图形核心"), text: store.gpu?.coreCount.map { tr("\($0) 核") } ?? "—")
+                    InfoRow(label: tr("图形"), text: system.gpuName ?? store.gpu?.name ?? topology.brand)
+                    InfoRow(label: tr("图形核心"), text: (system.gpuCoreCount ?? store.gpu?.coreCount).map { tr("\($0) 核") } ?? "—")
                     InfoRow(label: tr("内存类型"), text: tr("统一内存（CPU 与 GPU 共享）"))
                 }
             }
@@ -75,7 +75,7 @@ struct SystemInfoPage: View {
                         ProgressTrack(fraction: disk.usedFraction,
                                       color: disk.usedFraction > 0.9 ? DS.Palette.warning : DS.Palette.primary)
                     } else {
-                        Text(model.settings.isModuleEnabled(.disk) ? tr("正在读取…") : tr("已关闭，不再采集")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                        Text(tr("正在读取…")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                     }
                 }
                 InfoCard(icon: "battery.75", title: tr("电池")) {
@@ -102,12 +102,12 @@ struct SystemInfoPage: View {
                             }
                         }
                     } else {
-                        Text(model.settings.isModuleEnabled(.battery) ? tr("这台 Mac 没有电池") : tr("已关闭，不再采集")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                        Text(tr("这台 Mac 没有电池")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                     }
                 }
             }
 
-            if model.settings.isModuleEnabled(.battery) { BluetoothCard() }
+            BluetoothCard()
 
             DisplayDetails()
 
@@ -158,6 +158,7 @@ struct SystemInfoPage: View {
         .task {
             guard !isSnapshot else { return }
             installationID = try? InstallationIdentity().hashedID()
+            if !model.settings.isModuleEnabled(.disk) { await store.refreshDiskCapacity() }
         }
     }
 

@@ -220,6 +220,9 @@ public struct SystemInfo: Sendable, Equatable {
     /// 系统版号，例如 “26A428”
     public var osBuild: String = ""
     public var serialNumber: String?
+    /// 启动时读取的图形硬件信息，独立于 GPU 实时占用采样。
+    public var gpuName: String?
+    public var gpuCoreCount: Int?
 }
 
 public struct MetricsSnapshot: Sendable {

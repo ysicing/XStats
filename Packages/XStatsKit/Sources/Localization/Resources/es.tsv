@@ -1983,3 +1983,9 @@ Magpie 数据无法读取，请检查版本或数据大小。	No se pueden leer 
 查看账户剩余额度与重置时间	Ver cuotas restantes y tiempos de restablecimiento
 查看今天的 Token 用量	Ver el uso de tokens de hoy
 到期：{}	Vence: {}
+关闭功能会停止相关采集，已有历史保留。电池基础信息仍可查看。	Al desactivar una función se detiene su recopilación y se conserva el historial. La información básica de la batería sigue disponible.
+采集功耗和电量历史；关闭后仍显示电量、健康度和蓝牙设备	Recopilar consumo e historial de batería; el nivel, la salud y los dispositivos Bluetooth siguen visibles al desactivar
+仅显示电池信息，采集在功能设置中启用	Mostrar solo información de la batería; activar la recopilación en Funciones
+电量记录已暂停，已有历史保留	El registro de batería está en pausa; se conserva el historial existente
+关闭功能会停止实时监控，保留基础信息、页面入口和已有历史。	Al desactivar una función se detiene la supervisión en tiempo real y se conservan la información básica, el acceso a la página y el historial existente.
+监控已关闭，基础信息仍可查看。实时指标、曲线与告警已暂停。	La supervisión está desactivada. La información básica sigue disponible; las métricas en tiempo real, los gráficos y las alertas están en pausa.

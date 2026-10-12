@@ -97,8 +97,12 @@ final class MonitoringFeatureTests {
         model.isMainWindowVisible = true
         for tab in [PanelTab.overview, .cpu, .gpu, .memory, .network, .disk, .thermal, .battery, .system] {
             settings.panelTab = tab
-            #expect(!model.demand.hasSamples)
-            #expect(model.bluetoothDemand == .off)
+            let showsBatteryInfo = [.overview, .battery, .system].contains(tab)
+            #expect(model.demand.battery == showsBatteryInfo)
+            var otherDemand = model.demand
+            otherDemand.battery = false
+            #expect(!otherDemand.hasSamples)
+            #expect(model.bluetoothDemand == ([.battery, .system].contains(tab) ? .foreground : .off))
             #expect(!model.displayControlsVisible)
         }
         #expect(settings.activeAlerts.isEmpty)
@@ -171,6 +175,154 @@ final class MonitoringFeatureTests {
         #expect(model.store.power?.clusterFrequency == [0: 3_000])
         #expect(model.store.power?.system == nil && model.store.power?.gpu == nil)
         #expect(model.store.powerHistory.elements.isEmpty)
+    }
+
+    @Test func batteryPowerIsIndependentOfThermalsAndStopsWhenThePageCloses() {
+        let settings = settings()
+        settings.enabledMonitoringModules = [.battery]
+        settings.menuBarItems = []
+        settings.historyEnabled = false
+        settings.enabledAlerts = []
+        settings.panelTab = .battery
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        var basic = MetricsSnapshot()
+        basic.battery = BatteryStatus(level: 0.8, isCharging: false, isPluggedIn: true,
+                                      isFullyCharged: false, minutesRemaining: nil, cycleCount: 100, health: 0.9)
+        model.store.apply(basic)
+        model.isMainWindowVisible = true
+        #expect(model.demand.battery && model.demand.power)
+        #expect(model.demand.temperatures.isEmpty && !model.demand.fans && !model.demand.cpuFrequency)
+        var snapshot = MetricsSnapshot()
+        snapshot.power = PowerReading(system: 30, adapter: 40, battery: -10, gpu: 5)
+        model.handle(snapshot)
+        #expect(model.store.power?.system == 30 && model.store.powerHistory.elements == [30])
+        #expect(!settings.isModuleEnabled(.thermal))
+        model.isMainWindowVisible = false
+        #expect(!model.demand.hasSamples)
+        model.handle(snapshot)
+        #expect(model.store.power == nil && model.store.powerHistory.elements.isEmpty)
+    }
+
+    @Test func batteryPopoverRequestsPowerOnlyWhenItsSectionIsVisible() {
+        let settings = settings()
+        settings.enabledMonitoringModules = [.battery]
+        settings.menuBarItems = []
+        settings.historyEnabled = false
+        settings.enabledAlerts = []
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        model.openPopover = .battery
+        #expect(model.demand.power == (model.store.battery != nil))
+        var basic = MetricsSnapshot()
+        basic.battery = BatteryStatus(level: 0.8, isCharging: false, isPluggedIn: true,
+                                      isFullyCharged: false, minutesRemaining: nil, cycleCount: 100, health: 0.9)
+        model.store.apply(basic)
+        #expect(model.demand.power)
+        settings.hiddenPopoverSections.insert(.batteryPower)
+        #expect(model.demand.battery && !model.demand.power)
+        // 详情页始终展示所有分区，不受弹窗分区偏好影响。
+        settings.panelTab = .battery
+        model.isMainWindowVisible = true
+        #expect(model.demand.power)
+        settings.setModuleEnabled(.battery, false)
+        #expect(!model.demand.power && model.demand.battery)
+    }
+
+    @Test func disabledBatteryMonitoringKeepsBasicInformationAndMenuChoice() {
+        let settings = settings()
+        settings.enabledMonitoringModules = []
+        settings.historyEnabled = false
+        settings.enabledAlerts = [.batteryHealth]
+        settings.menuBarItems = [.battery]
+        #expect(!settings.isModuleEnabled(.battery), "添加电池入口不能开启耗电采集")
+        settings.panelTab = .battery
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        model.isMainWindowVisible = true
+        #expect(settings.isEnabled(.battery) && settings.orderedMenuBarItems.contains(.battery))
+        #expect(model.demand.battery && !model.demand.power && !model.demand.processes)
+        #expect(model.demand.interval == .seconds(10))
+        #expect(model.bluetoothDemand == .foreground && settings.activeAlerts.isEmpty)
+        var snapshot = MetricsSnapshot()
+        snapshot.battery = BatteryStatus(level: 0.8, isCharging: false, isPluggedIn: true,
+                                        isFullyCharged: false, minutesRemaining: nil, cycleCount: 100,
+                                        health: 0.9, adapterWatts: 68)
+        snapshot.power = PowerReading(system: 30)
+        model.handle(snapshot)
+        #expect(model.store.battery?.level == 0.8)
+        #expect(model.store.power == nil && model.store.powerHistory.elements.isEmpty)
+        settings.setModuleEnabled(.battery, true)
+        #expect(model.demand.power)
+        settings.setModuleEnabled(.battery, false)
+        model.applyMonitoringSettings()
+        #expect(model.store.battery?.level == 0.8 && settings.isEnabled(.battery))
+        settings.setEnabled(.battery, false)
+        settings.setEnabled(.battery, true)
+        #expect(!settings.isModuleEnabled(.battery))
+        model.isMainWindowVisible = false
+        settings.setEnabled(.battery, false)
+        #expect(!model.demand.hasSamples && model.bluetoothDemand == .off)
+    }
+
+    @Test func disabledMonitoringKeepsHardwareWithoutLiveReadings() async {
+        let settings = settings()
+        settings.enabledMonitoringModules = []
+        settings.historyEnabled = false
+        settings.menuBarItems = []
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        let hardware = model.store.system
+        var snapshot = MetricsSnapshot()
+        snapshot.gpu = GPUUsage(name: "Fixture GPU", utilization: 0.9, coreCount: 16)
+        snapshot.disk = DiskUsage(volumeName: "Fixture", total: 1_000, available: 300)
+        model.store.apply(snapshot)
+        model.applyMonitoringSettings()
+        #expect(model.store.gpu == nil && model.store.gpuHistory.elements.isEmpty)
+        #expect(model.store.system == hardware && !model.store.topology.brand.isEmpty)
+        #expect(model.store.disk?.total == 1_000)
+        // 打开基础容量信息只做一次读取，不能开启磁盘活动、进程或健康监控。
+        settings.panelTab = .disk
+        model.isMainWindowVisible = true
+        await model.store.refreshDiskCapacity()
+        #expect(model.store.disk?.total ?? 0 > 0)
+        #expect(!model.demand.hasSamples && model.store.diskActivity == nil && model.store.diskHealth == nil)
+        #expect(model.store.diskReadHistory.elements.isEmpty && model.store.processes.isEmpty)
+        settings.panelTab = .network
+        await model.network.refreshDetails(basicOnly: true)
+        #expect(model.network.details != nil)
+        #expect(!model.isNetworkDetailVisible && !model.demand.hasSamples)
+        #expect(model.network.processes.isEmpty && model.network.probes.elements.isEmpty)
+        #expect(model.network.publicResults.isEmpty && !model.network.isLookingUpPublic)
+        model.isMainWindowVisible = false
+        #expect(!model.demand.hasSamples)
+    }
+
+    @Test func disabledBatteryMonitoringDoesNotWriteEmptyHistory() async throws {
+        let settings = settings()
+        settings.enabledMonitoringModules = []
+        settings.historyEnabled = true
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("battery-history-\(UUID()).sqlite")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let recorder = HistoryRecorder(settings: settings, databaseURL: url)
+        let database = try #require(recorder.database)
+        let base = Date().addingTimeInterval(-600)
+        var snapshot = MetricsSnapshot()
+        snapshot.battery = BatteryStatus(level: 0.8, isCharging: false, isPluggedIn: true,
+                                        isFullyCharged: false, minutesRemaining: nil, cycleCount: 100,
+                                        health: 0.9, adapterWatts: 68)
+        for minute in 0..<3 {
+            snapshot.date = base.addingTimeInterval(Double(minute) * 60)
+            recorder.record(snapshot)
+        }
+        settings.setModuleEnabled(.battery, true)
+        snapshot.date = base.addingTimeInterval(180)
+        recorder.record(snapshot)
+        recorder.flush()
+        // 等待异步写入完成，同时确认重新启用后仍能正常记录。
+        for _ in 0..<100 {
+            if await database.count() > 0 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(await database.count() == 1)
+        let points = await database.query(from: base.addingTimeInterval(-60), to: Date(), bucket: 60)
+        #expect(points.count == 1 && points.first?.battery == 0.8)
     }
 
     @Test func disabledThermalShortcutOpensItsEnablePageWithoutStartingControl() {

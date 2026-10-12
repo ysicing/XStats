@@ -86,7 +86,7 @@ public struct MainWindowView: View {
 
     private var page: some View {
         Group {
-            if let module = model.settings.panelTab.monitoringModule, !model.settings.isModuleEnabled(module) {
+            if let module = model.settings.panelTab.monitoringModule, module != .battery, !model.settings.isModuleEnabled(module) {
                 DisabledMonitoringPage(module: module)
             } else {
                 switch model.settings.panelTab {

@@ -11,7 +11,7 @@ struct OverviewPage: View {
         PageScroll {
             let settings = model.settings
             let showsFan = settings.isModuleEnabled(.thermal) && model.store.supportsFans
-            let showsBattery = settings.isModuleEnabled(.battery) && model.store.battery != nil
+            let showsBattery = model.store.battery != nil
             HealthHeader()
             // 整行模块都关闭时不保留空行，避免 PageScroll 的行间距留下空白。
             if !settings.enabledMonitoringModules.isDisjoint(with: [.cpu, .gpu, .memory]) {

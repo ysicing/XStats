@@ -61,6 +61,11 @@ public final class HistoryRecorder {
     /// 每次采样后调用；只记录这次快照里真实采到的指标
     func record(_ snapshot: MetricsSnapshot) {
         guard settings.historyEnabled, let database else { return }
+        let battery = settings.isModuleEnabled(.battery) ? snapshot.battery?.level : nil
+        // 关闭电池监测后仍读取基础电量，但不能因此每分钟写入一条空历史。
+        guard snapshot.cpu != nil || snapshot.memory != nil || snapshot.network != nil
+            || snapshot.gpu != nil || snapshot.sensors?.temperature(.cpu) != nil
+            || snapshot.power?.system != nil || battery != nil else { return }
         let finished = accumulator.add(date: snapshot.date,
                                        cpu: snapshot.cpu?.total,
                                        memory: snapshot.memory?.usedFraction,
@@ -70,7 +75,7 @@ public final class HistoryRecorder {
                                        gpu: snapshot.gpu?.utilization,
                                        temperature: snapshot.sensors?.temperature(.cpu)?.maximum,
                                        power: snapshot.power?.system,
-                                       battery: snapshot.battery?.level)
+                                       battery: battery)
         guard let finished else { return }
         let now = Date()
         let prune = now.timeIntervalSince(lastPrune) > 60 * 60

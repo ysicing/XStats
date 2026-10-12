@@ -25,32 +25,41 @@ tools remain UI entry points. The public route contract is listed in DEVELOPMENT
 General contains app-wide preferences and keyboard shortcuts. Features contains the existing
 process manager, Pomodoro and eye breaks, AI usage, audio, cleaner and menu-bar calendar switches.
 It reuses their persisted preferences and enablement behavior; disabled rows remain available.
-Disabled-module entry points lead to Features, including calendar and Pomodoro deep links.
+Disabled optional-feature entry points lead to Features, including calendar and Pomodoro deep links.
+Disabled monitoring pages retain hardware/basic information and an enable action, without mounting
+live metrics, charts, rankings or controls.
 
 ## Sampling
 
 `MetricsHub` owns one demand-driven loop. Basic monitoring has separate feature and menu-bar
 preferences: `enabledMonitoringModules` gates CPU, GPU, memory, disk, network, thermals/fans,
-battery/Bluetooth, and display parameter controls. Enabling a monitoring menu-bar item enables its module; removing the item
-keeps the module enabled. Disabling a module removes its menu-bar items, clears live caches,
+battery power/history, and display parameter controls. Enabling a monitoring menu-bar item enables its module, except for
+information-only battery and display entries; removing the item
+keeps the module enabled. Disabling other monitoring modules removes their menu-bar items, clears live caches,
 suspends its alerts, and excludes its values from new history records. Saved styles, alert
 preferences, and existing database history remain intact. Settings backups include the feature set.
 
 Enabled is permission to collect, not a continuous sampling request. `AppModel.demand` combines
 visible pages/popovers, drawn menu-bar readings, history recording, and active alerts. History
 continues to request enabled CPU, memory, and network readings at the configured background
-interval; other metrics retain their visibility-driven recording. Hidden, disabled pages cannot
-create demand. The normal app no longer primes every metric at launch; newly requested collectors
+interval; other metrics retain their visibility-driven recording. Hidden pages and disabled live metrics cannot
+create demand. Disabled disk pages and System Information read capacity once on appearance;
+disabled network pages read local interfaces, addresses and DNS once, without public lookups,
+probes or process sampling. GPU identity is read at startup independently of utilization.
+These basic information reads do not create continuous sampling demand or history records. The normal app no longer primes every metric at launch; newly requested collectors
 refresh immediately. When no samples are requested the loop stops, and cancelled generations do
 not deliver queued snapshots. Late snapshots are also filtered against current feature preferences
 before entering the store or history. Disk is read at most every 30 s, battery every 10 s;
 IOReport remains limited to roughly every 2 s. Sleep and inactivity continue to pause the loop.
+The battery detail page and its visible power popover section request the shared power collector
+independently of the thermal module when battery monitoring is enabled. This does not enable temperatures or fans, and closing the
+battery view (or hiding its popover power section) releases that power demand.
 
 Safety consumers are explicit exceptions: lid-closed keep-awake retains battery protection, and
 manual fan control retains thermal/fan demand until it has been handed back to macOS. A failed
 handoff re-enables the thermal controls and reports the helper error. Display control and network
-lookup/probe tasks follow their feature gates; stale network completions cannot publish after
-disable. WidgetKit system widgets keep their independent sampling lifecycle, separate from the
+lookup/probe tasks follow their feature gates; stale monitoring completions cannot publish after
+disable. Explicit basic network reads validate cancellation and the module generation before publishing. WidgetKit system widgets keep their independent sampling lifecycle, separate from the
 main app's monitoring switches. Displays are an explicit exception: their switch gates only DDC
 parameter reads/writes (brightness, contrast and volume). Device names, resolution and refresh rate
 remain visible and refresh on system display events. The information-only menu-bar item is retained
@@ -690,7 +699,11 @@ the quota reader has no access to session-log content.
 
 The battery item reuses `BatterySampler` (IOKit power sources, sampled every 10 s while the item is in the
 menu bar or its popover / page is open). `BatteryPopover` is both the popover and the main-window page
-(`DetailPage`). The 24-hour charge curve comes from the history database, which gained a `battery` column
+(`DetailPage`). Its feature switch controls power sampling, new battery history and battery alerts;
+turning it off retains the page, selected menu entry, charge status, health and Bluetooth information.
+Adding the battery menu entry does not enable monitoring. With only basic battery demand, the shared
+loop runs every 10 s. Existing history remains readable and the power section is hidden when disabled.
+The 24-hour charge curve comes from the history database, which gained a `battery` column
 (migrated with `ALTER TABLE` on first open); `HistoryRecorder.loadBattery()` queries it independently of
 the History page's range. Macs without a battery show only Bluetooth devices, and the menu-bar segment
 falls back to the Bluetooth device with the lowest battery.

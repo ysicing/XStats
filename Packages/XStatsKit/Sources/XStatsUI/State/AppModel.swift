@@ -89,7 +89,7 @@ public final class AppModel {
                 aiUsageProviders: [any AIUsageProvider]? = nil,
                 aiQuotaProviders: [any AIQuotaProvider]? = nil,
                 quotaCacheURL: URL? = nil, magpieClient: (any MagpieFetching)? = nil) {
-        let store = MetricsStore(readBattery: settings.isModuleEnabled(.battery))
+        let store = MetricsStore()
         let helper = HelperClient()
         self.settings = settings
         uninstaller = UninstallerController(enabled: settings.uninstallerEnabled)
@@ -172,7 +172,7 @@ public final class AppModel {
         var demand = MetricsDemand()
         demand.generation = settings.monitoringGeneration
         let tab = settings.panelTab
-        let window = isMainWindowVisible && (tab.monitoringModule.map(settings.isModuleEnabled) ?? true)
+        let window = isMainWindowVisible && (tab == .battery || (tab.monitoringModule.map(settings.isModuleEnabled) ?? true))
         let processPage = settings.processesEnabled && window && tab == .processes
         let popover = openPopover.flatMap { settings.isModuleEnabled(for: $0) ? $0 : nil }
         let menu = Set(drawnMenuBarItems)
@@ -217,10 +217,10 @@ public final class AppModel {
         if (window && tab == .thermal) || thermalPopover { groups.formUnion(TemperatureGroup.allCases) }
         if menu.contains(.temperature) || fans.mode != .automatic || showing(.cpu, .cpu) { groups.insert(.cpu) }
         if showing(.gpu, .gpu) { groups.insert(.gpu) }
-        if showing(.battery, .battery) { groups.insert(.battery) }
+        if settings.isModuleEnabled(.battery), showing(.battery, .battery) { groups.insert(.battery) }
         if alerts.contains(.cpuTemperature) { groups.insert(.cpu) }
         demand.temperatures = groups
-        demand.power = (window && tab == .thermal) || thermalPopover || showing(.battery, .battery)
+        demand.power = (window && tab == .thermal) || thermalPopover
         demand.cpuFrequency = showing(.cpu, .cpu)
         // 未知时隐藏入口，但保留按需探测；不能用界面可见性阻断首次识别或失败重试。
         demand.fans = store.fanCount != 0 && ((window && (tab == .thermal || tab == .overview)) || summary.contains(.fan)
@@ -230,13 +230,15 @@ public final class AppModel {
         demand.gpu = demand.gpu && settings.isModuleEnabled(.gpu)
         demand.disk = demand.disk && settings.isModuleEnabled(.disk)
         demand.diskDetail = demand.diskDetail && settings.isModuleEnabled(.disk)
-        demand.battery = demand.battery && (settings.isModuleEnabled(.battery) || keepAwake.lidClosedActive)
         demand.cpuFrequency = demand.cpuFrequency && settings.isModuleEnabled(.cpu)
         if !settings.isModuleEnabled(.thermal) {
             demand.temperatures = []
             demand.fans = false
             demand.power = false
         }
+        // 电池页共享功耗采集器，但不依赖温度开关；隐藏的弹窗分区不产生采集需求。
+        demand.power = demand.power || (store.battery != nil && settings.isModuleEnabled(.battery)
+            && ((window && tab == .battery) || (popover == .battery && settings.isVisible(.batteryPower))))
         // 风扇交还系统和合盖电量保护仍须完成，不能由隐藏监控界面切断安全需求。
         if fans.mode != .automatic || fans.isApplying || restoringFans != nil {
             demand.temperatures.insert(.cpu)
@@ -247,13 +249,18 @@ public final class AppModel {
             dashboard && (settings.isModuleEnabled(.cpu) || settings.isModuleEnabled(.memory))
             || showing(.cpu, .cpu) || showing(.memory, .memory)
             || demand.diskDetail))
+        // 基础电量每 10 秒读取一次；只有这个读取方时无需维持秒级唤醒。
+        if !settings.isModuleEnabled(.battery), demand.battery {
+            var otherDemand = demand
+            otherDemand.battery = false
+            if !otherDemand.hasSamples { demand.interval = .seconds(10) }
+        }
         return demand
     }
 
     /// 蓝牙电量读取很慢，只在需要时轮询：电池弹窗 / 页面、本机信息页打开时每分钟；
     /// 菜单栏开着电池项且要做低电量提示、或这台 Mac 没有电池时每 5 分钟
     var bluetoothDemand: BluetoothController.Demand {
-        guard settings.isModuleEnabled(.battery) else { return .off }
         if (isMainWindowVisible && [.battery, .system].contains(settings.panelTab)) || openPopover == .battery { return .foreground }
         if isCombinedOverviewVisible && visibleMenuBarItems.contains(.battery) && store.battery == nil { return .foreground }
         if drawnMenuBarItems.contains(.battery) && (settings.bluetoothLowBatteryInMenuBar || store.battery == nil) { return .background }
@@ -331,7 +338,7 @@ public final class AppModel {
         guard snapshot.samplingGeneration.map({ $0 == settings.monitoringGeneration }) ?? true else { return }
         // actor 已采完的快照可能晚于开关关闭到达；在主线程再次按最终开关裁剪。
         let filtered = snapshotForEnabledModules(snapshot)
-        store.clearDisabledModules(settings.enabledMonitoringModules)
+        store.clearDisabledModules(settings.enabledMonitoringModules, powerRequested: demand.power)
         store.apply(filtered)
         fans.evaluateSafety(temperature: snapshot.sensors?.temperature(.cpu)?.maximum)
         keepAwake.evaluateBattery(snapshot.battery)
@@ -346,9 +353,11 @@ public final class AppModel {
         if !settings.isModuleEnabled(.network) { result.network = nil; result.networkInterface = nil }
         if !settings.isModuleEnabled(.gpu) { result.gpu = nil }
         if !settings.isModuleEnabled(.disk) { result.disk = nil; result.diskActivity = nil; result.diskHealth = nil }
-        if !settings.isModuleEnabled(.battery) { result.battery = nil }
         if !settings.isModuleEnabled(.thermal) {
             result.sensors = nil
+        }
+        // 功耗有温度与电池两个读取方，不能随温度关闭丢弃电池页正在使用的读数。
+        if !settings.isModuleEnabled(.thermal), !demand.power {
             result.power = settings.isModuleEnabled(.cpu) && result.power?.clusterFrequency.isEmpty == false
                 ? PowerReading(clusterFrequency: result.power?.clusterFrequency ?? [:]) : nil
         }
@@ -359,7 +368,7 @@ public final class AppModel {
     func applyMonitoringSettings() {
         uninstaller.setEnabled(settings.uninstallerEnabled)
         displays.setEnabled(settings.isModuleEnabled(.display))
-        store.clearDisabledModules(settings.enabledMonitoringModules)
+        store.clearDisabledModules(settings.enabledMonitoringModules, powerRequested: demand.power)
         if let popover = openPopover, !settings.isModuleEnabled(for: popover) { openPopover = nil }
         if !settings.isModuleEnabled(.thermal), fans.mode != .automatic, !fans.isApplying, restoringFans == nil {
             restoringFans = Task { [weak self] in

@@ -23,14 +23,9 @@ struct BatteryPopover: View {
                     BatteryHistorySection()
                 }
             case .batteryPower:
-                if battery != nil {
+                if battery != nil, settings.isModuleEnabled(.battery) {
                     SectionCard(title: section.title, trailing: { Text(tr("最近 60 秒")) }) {
-                        // 功耗随温度与风扇模块采集；关闭时说明原因，不误报为硬件不支持。
-                        if settings.isModuleEnabled(.thermal) {
-                            PowerRows(power: store.power, history: store.powerHistory.elements, compact: !isDetailPage)
-                        } else {
-                            Text(tr("已关闭，不再采集")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
-                        }
+                        PowerRows(power: store.power, history: store.powerHistory.elements, compact: !isDetailPage)
                     }
                 }
             case .batteryHealth:
@@ -123,10 +118,15 @@ private struct BatteryHistorySection: View {
             if values.count > 1 {
                 LineHistoryChart(values: values, capacity: values.count, maxValue: 1, color: DS.Palette.success,
                                  grid: isDetailPage, height: detailChartHeight(isDetailPage))
-            } else {
+            } else if model.settings.isModuleEnabled(.battery) {
                 Text(tr("还没有足够的记录。菜单栏显示电池或打开这个页面时，每分钟记录一次电量"))
                     .dsFont(.xs)
                     .foregroundStyle(DS.Palette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !model.settings.isModuleEnabled(.battery) {
+                Text(tr("电量记录已暂停，已有历史保留"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
