@@ -6,18 +6,6 @@ import EventKit
 import Localization
 import SwiftUI
 
-struct CalendarSettings: View {
-    var body: some View {
-        SettingsGroup(caption: tr("日历")) {
-            GroupRow(showsDivider: false) {
-                SettingRow(title: tr("菜单栏日历"), subtitle: tr("独立显示日期，点击打开月历；不受指标合并布局影响"), icon: "calendar") {
-                    CalendarOptionsButton()
-                }
-            }
-        }
-    }
-}
-
 struct CalendarOptionsButton: View {
     @State private var isPresented = false
 

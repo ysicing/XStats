@@ -127,6 +127,7 @@ struct AppManagementPage: View {
                     Picker(tr("筛选"), selection: $filter) {
                         ForEach(BrewFilter.allCases) { Text($0.title).tag($0) }
                     }
+                    .pickerStyle(.inline)
                 } label: {
                     Label(filter.title, systemImage: "line.3.horizontal.decrease")
                         .lineLimit(1).fixedSize()
@@ -135,59 +136,39 @@ struct AppManagementPage: View {
                 .fixedSize()
                 .help(tr("筛选"))
                 .accessibilityLabel(tr("筛选"))
+                .accessibilityValue(filter.title)
                 Button(tr("检查更新")) { controller.checkBrewUpdates() }
                     .buttonStyle(DSButtonStyle(kind: .secondary))
                     .fixedSize()
                     .disabled(!controller.brewAvailable || controller.isLoadingBrew || controller.operation != nil)
             }
-            IconButton(systemName: "arrow.clockwise", help: tr("重新扫描")) { controller.refresh() }
+            IconButton(systemName: "arrow.clockwise", help: tr("刷新")) { controller.refresh() }
                 .opacity(showsRefreshProgress ? 0 : 1)
                 .overlay {
                     if showsRefreshProgress { ProgressView().controlSize(.small).transition(.opacity) }
                 }
                 .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: showsRefreshProgress)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(showsRefreshProgress ? tr("正在读取…") : tr("重新扫描"))
+                .accessibilityLabel(showsRefreshProgress ? tr("正在读取…") : tr("刷新"))
                 .disabled(showsRefreshProgress || (tab == .apps && controller.isRestoringAppCache) || controller.operation != nil || controller.isCheckingUpdates)
         }
     }
 
     private func applicationTable(_ rows: [ManagedApplicationRow]) -> some View {
-        Table(rows, selection: $selection, sortOrder: $sortOrder) {
-            TableColumn(tr("名称"), value: \.name) { row in
-                HStack(spacing: DS.Space.s2) {
-                    if let path = row.app?.url.path ?? row.package?.applicationURLs.first?.path {
-                        AppIconCache.shared.image(bundlePath: path).resizable().frame(width: 18, height: 18)
-                    } else { Image(systemName: "shippingbox").foregroundStyle(DS.Palette.textSecondary).frame(width: 18) }
-                    Text(verbatim: row.name).lineLimit(1)
-                    if row.isRunning {
-                        Circle().fill(DS.Palette.success).frame(width: 5, height: 5).accessibilityLabel(tr("正在运行"))
-                    }
-                    if row.package?.outdated == true {
-                        Image(systemName: "arrow.up.circle.fill").foregroundStyle(DS.Palette.primary).help(tr("有可用更新"))
-                    }
-                    if row.package?.pinned == true {
-                        Image(systemName: "pin.fill").foregroundStyle(DS.Palette.textTertiary).help(tr("已固定版本"))
-                    }
-                }.help(row.app?.url.path ?? row.package?.name ?? row.name)
-            }.width(min: 170, ideal: 240)
-            TableColumn(tr("版本"), value: \.version) { row in
-                Text(verbatim: row.version).lineLimit(1).help(row.version)
-            }.width(min: 70, ideal: 110, max: 160)
-            TableColumn(tr("大小"), value: \.sizeSort) { row in
-                Text(verbatim: row.size.map { Format.bytes($0, base: .decimal) } ?? "—")
-                    .monospacedDigit().frame(maxWidth: .infinity, alignment: .trailing)
-            }.width(85)
-            TableColumn(tr("类型"), value: \.kind) { row in Text(verbatim: row.kind).lineLimit(1) }.width(min: 85, ideal: 105, max: 150)
-            TableColumn(tab == .apps ? tr("上次打开") : tr("最新版本"), value: \.dateSort) { row in
-                if tab == .homebrew { Text(verbatim: row.package?.latestVersion ?? "—").lineLimit(1) }
-                else if let date = row.lastOpened {
-                    Text(date, format: .dateTime.year().month().day().locale(L10n.locale))
-                        .help(date.formatted(.dateTime.year().month().day().hour().minute().locale(L10n.locale)))
-                } else { Text("—") }
-            }.width(min: 100, ideal: 130, max: 170)
-            TableColumn(tr("来源"), value: \.source) { row in Text(verbatim: row.source).lineLimit(1).help(row.source) }
-                .width(min: 85, ideal: 110, max: 180)
+        Group {
+            // 两个页面使用固定列组合，避免条件列在宽窗口留下空白占位；兼容 macOS 14.0。
+            if tab == .apps {
+                Table(rows, selection: $selection, sortOrder: $sortOrder) {
+                    applicationColumns
+                    lastOpenedColumn
+                    sourceColumn
+                }
+            } else {
+                Table(rows, selection: $selection, sortOrder: $sortOrder) {
+                    applicationColumns
+                    sourceColumn
+                }
+            }
         }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
         .dsFont(.sm)
@@ -205,6 +186,76 @@ struct AppManagementPage: View {
         } primaryAction: { ids in
             if let id = ids.first, let app = rows.first(where: { $0.id == id })?.app { NSWorkspace.shared.open(app.url) }
         }
+    }
+
+    @TableColumnBuilder<ManagedApplicationRow, KeyPathComparator<ManagedApplicationRow>>
+    private var applicationColumns: some TableColumnContent<ManagedApplicationRow, KeyPathComparator<ManagedApplicationRow>> {
+        TableColumn(tr("名称"), value: \.name) { row in
+            HStack(spacing: DS.Space.s2) {
+                if let path = row.app?.url.path ?? row.package?.applicationURLs.first?.path {
+                    AppIconCache.shared.image(bundlePath: path).resizable().frame(width: 18, height: 18)
+                } else { Image(systemName: "shippingbox").foregroundStyle(DS.Palette.textSecondary).frame(width: 18) }
+                Text(verbatim: row.name).lineLimit(1)
+                if row.isRunning {
+                    Circle().fill(DS.Palette.success).frame(width: 5, height: 5).accessibilityLabel(tr("正在运行"))
+                }
+                if row.package?.pinned == true {
+                    Image(systemName: "pin.fill").foregroundStyle(DS.Palette.textTertiary).help(tr("已固定版本"))
+                }
+            }.help(row.app?.url.path ?? row.package?.name ?? row.name)
+        }.width(min: 170, ideal: 240)
+        TableColumn(tr("版本"), value: \.version) { row in
+            HStack(spacing: DS.Space.s2) {
+                HStack(spacing: DS.Space.s1) {
+                    Text(verbatim: row.version)
+                        .foregroundStyle(row.availableVersion == nil ? DS.Palette.textPrimary : DS.Palette.textSecondary)
+                    if let latest = row.availableVersion {
+                        Text(verbatim: "→").foregroundStyle(DS.Palette.textTertiary).accessibilityHidden(true)
+                        Text(verbatim: latest)
+                    }
+                }
+                .lineLimit(1).help(row.versionDisplay)
+                .environment(\.layoutDirection, .leftToRight)
+                if let package = row.package, package.outdated {
+                    let updating = controller.operation == .upgrade && controller.operationPackage?.id == package.id
+                    Button {
+                        pendingBrew = BrewConfirmation(package: package, action: .upgrade)
+                    } label: {
+                        ZStack {
+                            Text(tr("更新")).hidden()
+                            Text(tr("更新中…")).hidden()
+                            Text(updating ? tr("更新中…") : tr("更新"))
+                                .contentTransition(.opacity)
+                                .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: updating)
+                        }
+                        .dsFont(.sm)
+                    }
+                    .buttonStyle(.bordered).tint(DS.Palette.primary).controlSize(.small).fixedSize()
+                    .help(tr("更新软件包…"))
+                    .accessibilityLabel(updating ? tr("更新中…") : tr("更新软件包…"))
+                    .disabled(upgradeIsDisabled(for: row))
+                }
+            }
+        }.width(min: tab == .homebrew ? 230 : 70, ideal: tab == .homebrew ? 280 : 110, max: tab == .homebrew ? 420 : 160)
+        TableColumn(tr("大小"), value: \.sizeSort) { row in
+            Text(verbatim: row.size.map { Format.bytes($0, base: .decimal) } ?? "—")
+                .monospacedDigit().frame(maxWidth: .infinity, alignment: .trailing)
+        }.width(85)
+        TableColumn(tr("类型"), value: \.kind) { row in Text(verbatim: row.kind).lineLimit(1) }.width(min: 85, ideal: 105, max: 150)
+    }
+
+    private var sourceColumn: some TableColumnContent<ManagedApplicationRow, KeyPathComparator<ManagedApplicationRow>> {
+        TableColumn(tr("来源"), value: \.source) { row in Text(verbatim: row.source).lineLimit(1).help(row.source) }
+            .width(min: 85, ideal: 110, max: 180)
+    }
+
+    private var lastOpenedColumn: some TableColumnContent<ManagedApplicationRow, KeyPathComparator<ManagedApplicationRow>> {
+        TableColumn(tr("上次打开"), value: \.dateSort) { row in
+            if let date = row.lastOpened {
+                Text(date, format: .dateTime.year().month().day().locale(L10n.locale))
+                    .help(date.formatted(.dateTime.year().month().day().hour().minute().locale(L10n.locale)))
+            } else { Text("—") }
+        }.width(min: 100, ideal: 130, max: 170)
     }
 
     private func footer(rows: [ManagedApplicationRow], selected: ManagedApplicationRow?) -> some View {
@@ -244,7 +295,7 @@ struct AppManagementPage: View {
             }
             if package.outdated {
                 Button(tr("更新软件包…")) { pendingBrew = BrewConfirmation(package: package, action: .upgrade) }
-                    .disabled(package.pinned || row.isRunning || controller.isCurrentApp(package) || controller.operation != nil || controller.isCheckingUpdates)
+                    .disabled(upgradeIsDisabled(for: row))
             }
             if let url = package.installationURLs.first {
                 Button(tr("在 Finder 中显示")) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
@@ -252,6 +303,12 @@ struct AppManagementPage: View {
             Button(tr("卸载…"), role: .destructive) { pendingBrew = BrewConfirmation(package: package, action: .uninstall) }
                 .disabled(row.isRunning || controller.isCurrentApp(package) || controller.operation != nil || controller.isCheckingUpdates)
         }
+    }
+
+    private func upgradeIsDisabled(for row: ManagedApplicationRow) -> Bool {
+        guard let package = row.package else { return true }
+        return package.pinned || row.isRunning || controller.isCurrentApp(package)
+            || controller.operation != nil || controller.isCheckingUpdates || model.uninstaller.isRemoving
     }
 
     private func uninstall(url: URL) {
@@ -299,11 +356,20 @@ private struct ManagedApplicationRow: Identifiable {
     let id: String
     let name: String
     let version: String
+    var availableVersion: String? {
+        guard let package, package.outdated, let latest = package.latestVersion,
+              !latest.isEmpty, latest != version else { return nil }
+        return latest
+    }
+    var versionDisplay: String {
+        guard let latest = availableVersion else { return version }
+        return "\(version) → \(latest)"
+    }
     let size: UInt64?
     var sizeSort: UInt64 { size ?? 0 }
     let kind: String
     let lastOpened: Date?
-    var dateSort: String { package?.latestVersion ?? lastOpened.map { String(format: "%020.3f", $0.timeIntervalSince1970) } ?? "" }
+    var dateSort: String { lastOpened.map { String(format: "%020.3f", $0.timeIntervalSince1970) } ?? "" }
     let source: String
     let isRunning: Bool
     let app: InstalledApp?

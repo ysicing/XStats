@@ -49,8 +49,12 @@ enum SnapshotRenderer {
                 guard let appearance = NSAppearance(named: name) else { continue }
                 NSApp.appearance = appearance
                 for tab in AppManagementController.Tab.allCases {
-                    write(AppManagementPage(tab: tab).appLanguageEnvironment().frame(width: 1050, height: 560),
-                          model: model, appearance: appearance, to: outputDirectory.appendingPathComponent("apps-\(tab.rawValue)-\(suffix).png"))
+                    // 覆盖宽窗口的列分配和窄窗口的工具栏换行；保持原有截图文件名。
+                    for (width, sizeSuffix) in [(CGFloat(1050), ""), (1240, "-wide"), (760, "-compact")] {
+                        write(AppManagementPage(tab: tab).appLanguageEnvironment().frame(width: width, height: 560),
+                              model: model, appearance: appearance,
+                              to: outputDirectory.appendingPathComponent("apps-\(tab.rawValue)-\(suffix)\(sizeSuffix).png"))
+                    }
                 }
             }
             return
