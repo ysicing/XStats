@@ -3,7 +3,7 @@ import Localization
 import Metrics
 import SwiftUI
 
-/// 电池详情：电量与充电状态、最近 24 小时电量曲线、功耗、健康度，以及蓝牙设备的当前或最近电量。
+/// 电池详情：电量与充电状态、最近 24 小时电量曲线、功耗、应用 CPU 能耗、健康度，以及蓝牙设备的当前或最近电量。
 /// 没有电池的 Mac（mini、Studio、iMac）只显示蓝牙设备
 struct BatteryPopover: View {
     @Environment(AppModel.self) private var model
@@ -28,6 +28,10 @@ struct BatteryPopover: View {
                         PowerRows(power: store.power, history: store.powerHistory.elements, compact: !isDetailPage)
                     }
                 }
+            case .batteryApps:
+                if battery != nil, settings.isModuleEnabled(.battery) {
+                    BatteryAppEnergySection(reading: store.appEnergy)
+                }
             case .batteryHealth:
                 if let battery {
                     BatteryHealthSection(battery: battery)
@@ -38,6 +42,56 @@ struct BatteryPopover: View {
                 EmptyView()
             }
         }
+    }
+}
+
+private struct BatteryAppEnergySection: View {
+    let reading: AppEnergyReading?
+
+    var body: some View {
+        SectionCard(title: tr("App 能耗"), trailing: {
+            Text(tr("CPU 能耗"))
+        }) {
+            if let reading, !reading.isAvailable {
+                Text(tr("暂时无法读取 App 能耗"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+            } else if let reading, reading.interval != nil {
+                InfoRow(label: tr("合计"), text: energyText(reading.totalWatts))
+                if reading.apps.isEmpty {
+                    Text(tr("当前没有明显的 CPU 耗电活动"))
+                        .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                }
+                ForEach(reading.apps) { app in
+                    VStack(spacing: DS.Space.s1) {
+                        HStack(spacing: DS.Space.s2) {
+                            AppIconCache.shared.image(bundlePath: app.bundlePath)
+                                .resizable().frame(width: DS.Size.iconInline, height: DS.Size.iconInline)
+                            Text(verbatim: app.bundlePath.map { AppNameCache.shared.name(forBundle: $0) } ?? app.name)
+                                .dsFont(.xs, weight: .medium).lineLimit(1)
+                            Spacer(minLength: DS.Space.s2)
+                            Text(verbatim: energyText(app.watts))
+                                .dsFont(.xs).monospacedDigit().foregroundStyle(DS.Palette.textSecondary)
+                        }
+                        ProgressTrack(fraction: app.watts / max(reading.apps.first?.watts ?? 0, 0.000001),
+                                      color: DS.Palette.warning, height: DS.Space.s1, showsTrack: false)
+                            .padding(.leading, DS.Size.iconInline + DS.Space.s2)
+                    }
+                }
+            } else {
+                Text(tr("正在统计…"))
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+            }
+            Text(tr("每 5 秒更新，合并应用及辅助进程。仅含可读取的 CPU 能耗，不含 GPU、屏幕等耗电。"))
+                .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func energyText(_ watts: Double) -> String {
+        if watts < 1 {
+            return "\((watts * 1000).formatted(.number.precision(.fractionLength(1)).locale(L10n.locale))) mW"
+        }
+        return "\(watts.formatted(.number.precision(.fractionLength(2)).locale(L10n.locale))) W"
     }
 }
 

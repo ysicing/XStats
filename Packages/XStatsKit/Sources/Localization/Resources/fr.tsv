@@ -1989,3 +1989,8 @@ Magpie 数据无法读取，请检查版本或数据大小。	Lecture des donné
 电量记录已暂停，已有历史保留	L’enregistrement de la batterie est en pause ; l’historique existant est conservé
 关闭功能会停止实时监控，保留基础信息、页面入口和已有历史。	Désactiver une fonction arrête la surveillance en temps réel et conserve les informations de base, l’accès à la page et l’historique existant.
 监控已关闭，基础信息仍可查看。实时指标、曲线与告警已暂停。	La surveillance est désactivée. Les informations de base restent disponibles ; les mesures en temps réel, les graphiques et les alertes sont en pause.
+App 能耗	Consommation des apps
+CPU 能耗	Consommation du CPU
+暂时无法读取 App 能耗	Les données de consommation des apps sont temporairement indisponibles
+当前没有明显的 CPU 耗电活动	Aucune activité CPU énergivore notable actuellement
+每 5 秒更新，合并应用及辅助进程。仅含可读取的 CPU 能耗，不含 GPU、屏幕等耗电。	Mise à jour toutes les 5 secondes, avec regroupement des apps et de leurs processus auxiliaires. Consommation CPU accessible uniquement, hors GPU, écran et autres usages.

@@ -36,6 +36,15 @@ import Testing
         #expect(Translations.shared.translate("WebDAV 返回错误：503") == "WebDAV returned an error: 503")
     }
 
+    @Test func appEnergyTextExistsInEverySupportedCatalog() throws {
+        let sources = ["App 能耗", "CPU 能耗", "暂时无法读取 App 能耗", "当前没有明显的 CPU 耗电活动",
+                       "每 5 秒更新，合并应用及辅助进程。仅含可读取的 CPU 能耗，不含 GPU、屏幕等耗电。"]
+        for language in AppLanguage.allCases where language != .system && language != .chinese {
+            let table = try #require(Translations.catalog(for: language))
+            for source in sources { #expect(table.translate(source) != nil) }
+        }
+    }
+
     @Test func translatesCardExpiryInEverySupportedCatalog() throws {
         for language in AppLanguage.allCases where language != .system && language != .chinese {
             let table = try #require(Translations.catalog(for: language))

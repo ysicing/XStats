@@ -237,6 +237,7 @@ public struct MetricsSnapshot: Sendable {
     public var battery: BatteryStatus?
     public var gpu: GPUUsage?
     public var processes: [ProcessUsage]?
+    public var appEnergy: AppEnergyReading?
     public var systemCounts: SystemCounts?
     public var sensors: SensorReadings?
     public var power: PowerReading?

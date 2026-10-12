@@ -12,6 +12,8 @@ public struct MetricsDemand: Sendable, Equatable {
     public var gpu = false
     public var disk = false
     public var battery = false
+    /// 电池页的按应用 CPU 能耗，每 5 秒读取一次。
+    public var appEnergy = false
     public var processes = false
     /// 进程管理器打开时：连同其他用户与系统的进程一起采集
     public var systemProcesses = false
@@ -29,7 +31,7 @@ public struct MetricsDemand: Sendable, Equatable {
     /// 没有读取方时连采样循环也停止，不能只跳过某几个采集器后继续定时唤醒。
     public var hasSamples: Bool {
         cpu || memory || network || gpu || disk || battery || processes || systemProcesses
-            || !temperatures.isEmpty || fans || power || cpuFrequency || diskDetail
+            || appEnergy || !temperatures.isEmpty || fans || power || cpuFrequency || diskDetail
     }
 }
 
@@ -38,6 +40,8 @@ public actor MetricsHub {
     private let memory = MemorySampler()
     private var network = NetworkSampler()
     private var processes = ProcessSampler()
+    private var appEnergy = AppEnergySampler()
+    private var lastAppEnergyUptime: TimeInterval?
     private let sensors = SensorSampler()
     private let power = PowerSampler()
     private var diskActivity = DiskActivitySampler()
@@ -78,6 +82,7 @@ public actor MetricsHub {
             || !newDemand.temperatures.isSubset(of: demand.temperatures)
             || (newDemand.fans && !demand.fans)
             || (newDemand.processes && !demand.processes)
+            || (newDemand.appEnergy && !demand.appEnergy)
             || (newDemand.disk && !demand.disk)
             || (newDemand.diskDetail && !demand.diskDetail)
         if (newDemand.power && !demand.power) || (newDemand.cpuFrequency && !demand.cpuFrequency) {
@@ -87,6 +92,10 @@ public actor MetricsHub {
         if newDemand.cpu && !demand.cpu { cpu = CPUSampler() }
         if newDemand.network && !demand.network { network = NetworkSampler() }
         if newDemand.diskDetail && !demand.diskDetail { diskActivity = DiskActivitySampler() }
+        if newDemand.appEnergy != demand.appEnergy {
+            appEnergy = AppEnergySampler()
+            lastAppEnergyUptime = nil
+        }
         demand = newDemand
         if needsImmediateRefresh {
             lastDisk = .distantPast
@@ -102,6 +111,8 @@ public actor MetricsHub {
     public func setPaused(_ value: Bool) {
         guard value != paused else { return }
         paused = value
+        appEnergy = AppEnergySampler()
+        lastAppEnergyUptime = nil
         restart()
     }
 
@@ -109,6 +120,8 @@ public actor MetricsHub {
         loop?.cancel()
         loop = nil
         handler = nil
+        appEnergy = AppEnergySampler()
+        lastAppEnergyUptime = nil
     }
 
     private static func everything(interval: Duration) -> MetricsDemand {
@@ -176,6 +189,11 @@ public actor MetricsHub {
         if demand.battery, now.timeIntervalSince(lastBattery) > 10 {
             snapshot.battery = BatterySampler.sample()
             lastBattery = now
+        }
+        let uptime = ProcessInfo.processInfo.systemUptime
+        if demand.appEnergy, lastAppEnergyUptime.map({ uptime - $0 >= 5 }) ?? true {
+            snapshot.appEnergy = appEnergy.sample()
+            lastAppEnergyUptime = uptime
         }
         if demand.processes || demand.systemProcesses {
             snapshot.processes = processes.sample(includeSystem: demand.systemProcesses)

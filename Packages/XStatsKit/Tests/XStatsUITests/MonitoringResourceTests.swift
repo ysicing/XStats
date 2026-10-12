@@ -90,23 +90,36 @@ struct MonitoringResourceTests {
             model.handle(snapshot)
             samples.append(snapshot)
         }
-        for (name, visible, monitoring) in [("idle", false, true), ("battery-page", true, true),
-                                           ("closed", false, true), ("battery-page-again", true, true),
-                                           ("closed-again", false, true), ("battery-monitoring-off", true, false),
-                                           ("closed-with-monitoring-off", false, false)] {
+        for (name, visible, monitoring, energy) in [("idle", false, true, false),
+            ("power-only-before", true, true, false), ("battery-page", true, true, true),
+            ("closed", false, true, false), ("battery-page-again", true, true, true),
+            ("power-only-after", true, true, false), ("closed-again", false, true, false),
+            ("battery-monitoring-off", true, false, true), ("closed-with-monitoring-off", false, false, false)] {
+            let startedCPU = Self.cpuTime()
+            let started = ProcessInfo.processInfo.systemUptime
             settings.setModuleEnabled(.battery, monitoring)
-            model.isMainWindowVisible = visible
+            // 功耗基线使用隐藏 App 能耗分区的弹窗；同样的功耗与电量需求、同样的采样频率。
+            model.isMainWindowVisible = visible && energy
+            model.openPopover = visible && !energy ? .battery : nil
+            settings.hiddenPopoverSections = energy ? [] : [.batteryApps]
             model.applyMonitoringSettings()
             await model.hub.update(model.demand)
+            // 需求交付完成后才统计，排除切换过程中已在主线程排队的上一阶段快照。
             samples.removeAll(keepingCapacity: true)
-            let startedCPU = Self.cpuTime()
-            try await Task.sleep(for: .seconds(3))
+            // Hub 的一秒睡眠有 25% 容差，五秒采集点可能落在第六秒之后。
+            try await Task.sleep(for: .seconds(visible && monitoring ? 7 : 3))
             if visible {
                 if monitoring {
                     #expect(samples.contains { $0.power != nil })
+                    if energy {
+                        #expect((1...2).contains(samples.filter { $0.appEnergy != nil }.count))
+                        #expect(samples.contains { $0.appEnergy?.interval != nil && $0.appEnergy?.isAvailable == true })
+                    } else {
+                        #expect(samples.allSatisfy { $0.appEnergy == nil } && model.store.appEnergy == nil)
+                    }
                 } else {
                     #expect(samples.contains { $0.battery != nil })
-                    #expect(samples.allSatisfy { $0.power == nil })
+                    #expect(samples.allSatisfy { $0.power == nil && $0.appEnergy == nil })
                     #expect(model.store.battery != nil && model.store.power == nil)
                     #expect(model.store.powerHistory.elements.isEmpty)
                     #expect(model.demand.interval == .seconds(10))
@@ -114,12 +127,14 @@ struct MonitoringResourceTests {
                 #expect(samples.allSatisfy { $0.sensors == nil && $0.cpu == nil && $0.processes == nil })
             } else {
                 #expect(samples.isEmpty)
-                #expect(model.store.power == nil && model.store.powerHistory.elements.isEmpty)
+                #expect(model.store.power == nil && model.store.powerHistory.elements.isEmpty && model.store.appEnergy == nil)
             }
             phases[name] = ["cpuSeconds": Self.cpuTime() - startedCPU,
+                            "wallSeconds": ProcessInfo.processInfo.systemUptime - started,
                             "snapshots": Double(samples.count),
                             "batterySamples": Double(samples.filter { $0.battery != nil }.count),
-                            "powerSamples": Double(samples.filter { $0.power != nil }.count)]
+                            "powerSamples": Double(samples.filter { $0.power != nil }.count),
+                            "appEnergySamples": Double(samples.filter { $0.appEnergy != nil }.count)]
         }
         await model.hub.stop()
         let encoder = JSONEncoder()

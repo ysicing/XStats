@@ -203,6 +203,41 @@ final class MonitoringFeatureTests {
         #expect(model.store.power == nil && model.store.powerHistory.elements.isEmpty)
     }
 
+    @Test func batteryAppEnergyOnlyCollectsWhileItsSectionIsVisible() {
+        let settings = settings()
+        settings.enabledMonitoringModules = [.battery]
+        settings.menuBarItems = [.battery]
+        settings.historyEnabled = false
+        settings.enabledAlerts = []
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        var basic = MetricsSnapshot()
+        basic.battery = BatteryStatus(level: 0.8, isCharging: false, isPluggedIn: true,
+                                      isFullyCharged: false, minutesRemaining: nil, cycleCount: 100, health: 0.9)
+        model.store.apply(basic)
+        #expect(!model.demand.appEnergy)
+        model.openPopover = .battery
+        #expect(model.demand.appEnergy && !model.demand.processes && !model.demand.systemProcesses)
+        settings.hiddenPopoverSections.insert(.batteryApps)
+        #expect(!model.demand.appEnergy && model.demand.power)
+        settings.panelTab = .battery
+        model.isMainWindowVisible = true
+        #expect(model.demand.appEnergy)
+        var snapshot = MetricsSnapshot()
+        snapshot.appEnergy = AppEnergyReading(apps: [], totalWatts: 0.5, interval: 5, isAvailable: true)
+        model.handle(snapshot)
+        #expect(model.store.appEnergy?.totalWatts == 0.5)
+        settings.setModuleEnabled(.battery, false)
+        model.applyMonitoringSettings()
+        model.handle(snapshot)
+        #expect(!model.demand.appEnergy && model.store.appEnergy == nil)
+        settings.setModuleEnabled(.battery, true)
+        model.handle(snapshot)
+        model.isMainWindowVisible = false
+        model.applyMonitoringSettings()
+        model.handle(snapshot)
+        #expect(model.store.appEnergy == nil && !model.demand.appEnergy)
+    }
+
     @Test func batteryPopoverRequestsPowerOnlyWhenItsSectionIsVisible() {
         let settings = settings()
         settings.enabledMonitoringModules = [.battery]

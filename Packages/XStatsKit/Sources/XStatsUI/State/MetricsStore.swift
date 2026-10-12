@@ -48,6 +48,7 @@ public final class MetricsStore {
     /// 启动时读取一次，确保面板首次打开时布局（是否有电池卡片）就已确定
     public private(set) var battery: BatteryStatus?
     public private(set) var processes: [ProcessUsage] = []
+    public private(set) var appEnergy: AppEnergyReading?
     /// 按应用汇总的磁盘读写排行，分数是最近十几秒的平均速率
     private(set) var diskRanking = ActivityRanking()
     public private(set) var systemCounts: SystemCounts?
@@ -67,7 +68,8 @@ public final class MetricsStore {
 
     /// 关闭功能后移除实时缓存，避免重新打开页面把旧值当作当前值。
     /// 持久化历史由 HistoryRecorder 管理，不在这里删除。
-    func clearDisabledModules(_ enabled: Set<MonitoringModule>, powerRequested: Bool = false) {
+    func clearDisabledModules(_ enabled: Set<MonitoringModule>, powerRequested: Bool = false, appEnergyRequested: Bool = false) {
+        if !appEnergyRequested, appEnergy != nil { appEnergy = nil }
         if !enabled.contains(.cpu), cpu != nil || !cpuTotal.elements.isEmpty {
             cpu = nil
             cpuTotal = History(capacity: Self.historyCapacity)
@@ -114,6 +116,7 @@ public final class MetricsStore {
 
     public func apply(_ snapshot: MetricsSnapshot) {
         lastUpdate = snapshot.date
+        if let appEnergy = snapshot.appEnergy { self.appEnergy = appEnergy }
         if let activity = snapshot.diskActivity {
             diskActivity = activity
             diskReadHistory.append(activity.readRate)

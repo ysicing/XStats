@@ -64,7 +64,7 @@ Manage Basic and Optional Features separately in Settings → Features.
 | **Memory** | Memory pressure, app / compressed / cached composition, swap space and swap rates |
 | **Disk** | Capacity, read/write rates, per-app I/O ranking, SMART health |
 | **Network** | Upload/download rates, network interfaces and connection summary |
-| **Battery and Bluetooth** | Charge, power source, health, cycle count and Bluetooth device battery levels |
+| **Battery and Bluetooth** | Charge, power source, health, cycle count, system power, app CPU energy and Bluetooth device battery levels |
 | **Temperature and fans** | Temperature sensors, fan speeds and power |
 | **Displays** | Resolution, scaling and refresh rate; brightness, contrast and volume on DDC/CI-capable external displays |
 | **System information** | Mac and system identifiers; click the detail icon beside Apple Intelligence to view feature configuration, on-device model availability and storage |

@@ -13,6 +13,11 @@ extension Translations {
 
 
     static let monitoringEnglish = #"""
+App 能耗	App Energy
+CPU 能耗	CPU Energy
+暂时无法读取 App 能耗	App energy data is temporarily unavailable
+当前没有明显的 CPU 耗电活动	No noticeable CPU energy activity right now
+每 5 秒更新，合并应用及辅助进程。仅含可读取的 CPU 能耗，不含 GPU、屏幕等耗电。	Updates every 5 seconds and groups apps with their helpers. Includes readable CPU energy only, excluding GPU, display and other power use.
 关闭功能会停止实时监控，保留基础信息、页面入口和已有历史。	Turning off a feature stops live monitoring and keeps basic information, page access and existing history.
 监控已关闭，基础信息仍可查看。实时指标、曲线与告警已暂停。	Monitoring is off. Basic information remains available; live metrics, charts and alerts are paused.
 关闭功能会停止相关采集，已有历史保留。电池基础信息仍可查看。	Turning off a feature stops its monitoring and keeps existing history. Basic battery information remains available.

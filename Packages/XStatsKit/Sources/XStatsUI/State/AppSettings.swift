@@ -91,7 +91,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .disk: [.diskActivity, .diskHealth, .diskProcesses]
         case .temperature: [.thermalSensors, .thermalFans, .thermalPower]
         case .fan: [.thermalFans, .thermalSensors, .thermalPower]
-        case .battery: [.batteryHistory, .batteryPower, .batteryHealth, .batteryBluetooth]
+        case .battery: [.batteryHistory, .batteryPower, .batteryApps, .batteryHealth, .batteryBluetooth]
         case .aiUsage, .display, .audio: []
         }
     }
@@ -124,7 +124,7 @@ public enum PopoverSection: String, CaseIterable, Identifiable, Sendable {
     case gpuHistory, gpuDetails
     case diskActivity, diskHealth, diskProcesses
     case thermalSensors, thermalFans, thermalPower
-    case batteryHistory, batteryPower, batteryHealth, batteryBluetooth
+    case batteryHistory, batteryPower, batteryApps, batteryHealth, batteryBluetooth
 
     public var id: String { rawValue }
 
@@ -156,6 +156,7 @@ public enum PopoverSection: String, CaseIterable, Identifiable, Sendable {
         case .thermalSensors: tr("温度")
         case .thermalFans: tr("风扇")
         case .thermalPower, .batteryPower: tr("功耗")
+        case .batteryApps: tr("App 能耗")
         case .batteryHistory: tr("电量历史")
         case .batteryHealth: tr("电池健康")
         case .batteryBluetooth: tr("蓝牙设备")

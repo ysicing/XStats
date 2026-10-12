@@ -239,6 +239,8 @@ public final class AppModel {
         // 电池页共享功耗采集器，但不依赖温度开关；隐藏的弹窗分区不产生采集需求。
         demand.power = demand.power || (store.battery != nil && settings.isModuleEnabled(.battery)
             && ((window && tab == .battery) || (popover == .battery && settings.isVisible(.batteryPower))))
+        demand.appEnergy = store.battery != nil && settings.isModuleEnabled(.battery)
+            && ((window && tab == .battery) || (popover == .battery && settings.isVisible(.batteryApps)))
         // 风扇交还系统和合盖电量保护仍须完成，不能由隐藏监控界面切断安全需求。
         if fans.mode != .automatic || fans.isApplying || restoringFans != nil {
             demand.temperatures.insert(.cpu)
@@ -338,7 +340,7 @@ public final class AppModel {
         guard snapshot.samplingGeneration.map({ $0 == settings.monitoringGeneration }) ?? true else { return }
         // actor 已采完的快照可能晚于开关关闭到达；在主线程再次按最终开关裁剪。
         let filtered = snapshotForEnabledModules(snapshot)
-        store.clearDisabledModules(settings.enabledMonitoringModules, powerRequested: demand.power)
+        store.clearDisabledModules(settings.enabledMonitoringModules, powerRequested: demand.power, appEnergyRequested: demand.appEnergy)
         store.apply(filtered)
         fans.evaluateSafety(temperature: snapshot.sensors?.temperature(.cpu)?.maximum)
         keepAwake.evaluateBattery(snapshot.battery)
@@ -348,6 +350,7 @@ public final class AppModel {
 
     func snapshotForEnabledModules(_ snapshot: MetricsSnapshot) -> MetricsSnapshot {
         var result = snapshot
+        if !demand.appEnergy { result.appEnergy = nil }
         if !settings.isModuleEnabled(.cpu) { result.cpu = nil; result.power?.clusterFrequency = [:] }
         if !settings.isModuleEnabled(.memory) { result.memory = nil }
         if !settings.isModuleEnabled(.network) { result.network = nil; result.networkInterface = nil }
@@ -368,7 +371,7 @@ public final class AppModel {
     func applyMonitoringSettings() {
         uninstaller.setEnabled(settings.uninstallerEnabled)
         displays.setEnabled(settings.isModuleEnabled(.display))
-        store.clearDisabledModules(settings.enabledMonitoringModules, powerRequested: demand.power)
+        store.clearDisabledModules(settings.enabledMonitoringModules, powerRequested: demand.power, appEnergyRequested: demand.appEnergy)
         if let popover = openPopover, !settings.isModuleEnabled(for: popover) { openPopover = nil }
         if !settings.isModuleEnabled(.thermal), fans.mode != .automatic, !fans.isApplying, restoringFans == nil {
             restoringFans = Task { [weak self] in
