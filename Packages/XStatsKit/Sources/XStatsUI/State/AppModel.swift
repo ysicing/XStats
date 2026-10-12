@@ -90,7 +90,8 @@ public final class AppModel {
     public init(settings: AppSettings = AppSettings(), historyURL: URL? = HistoryDatabase.defaultURL,
                 aiUsageProviders: [any AIUsageProvider]? = nil,
                 aiQuotaProviders: [any AIQuotaProvider]? = nil,
-                quotaCacheURL: URL? = nil, magpieClient: (any MagpieFetching)? = nil) {
+                quotaCacheURL: URL? = nil, magpieClient: (any MagpieFetching)? = nil,
+                networkCacheDefaults: UserDefaults = .standard) {
         let store = MetricsStore()
         let helper = HelperClient()
         self.settings = settings
@@ -114,7 +115,7 @@ public final class AppModel {
         cleaner = CleanerController(settings: settings)
         projectPurge = ProjectPurgeController(settings: settings)
         maintenance = MaintenanceController(helper: helper)
-        network = NetworkController(settings: settings)
+        network = NetworkController(settings: settings, cacheDefaults: networkCacheDefaults)
         updates = UpdateController(settings: settings, defaults: settings.updateDefaults)
         alerts = AlertController(settings: settings)
         history = HistoryRecorder(settings: settings, databaseURL: historyURL)

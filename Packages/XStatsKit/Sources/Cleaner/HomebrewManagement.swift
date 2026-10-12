@@ -48,7 +48,7 @@ public enum HomebrewManagement {
         let arguments = try arguments(for: action, package: package)
         // 不使用 --force / --ignore-dependencies / --zap，保留 Homebrew 的依赖与数据保护。
         _ = try await DeveloperToolRunner.run("brew", arguments: arguments, home: home,
-            environmentOverrides: ["HOMEBREW_NO_INSTALL_CLEANUP": "1"], previewTimeout: 1_800)
+            environmentOverrides: ["HOMEBREW_NO_INSTALL_CLEANUP": "1"])
     }
 
     static func arguments(for action: Action, package: HomebrewPackage) throws -> [String] {

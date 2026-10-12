@@ -3,6 +3,7 @@
 
 import Darwin
 import Foundation
+import IOKit.ps
 import Metrics
 import Testing
 @testable import XStatsUI
@@ -77,6 +78,17 @@ struct MonitoringResourceTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let settings = AppSettings(defaults: defaults)
+        // 独立识别硬件，避免把采样失败误当作“没有电池”而跳过检查。
+        let hasInternalBattery: Bool
+        if let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+           let sources = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef] {
+            hasInternalBattery = sources.contains { source in
+                let description = IOPSGetPowerSourceDescription(info, source)?.takeUnretainedValue() as? [String: Any]
+                return description?[kIOPSTypeKey] as? String == kIOPSInternalBatteryType
+            }
+        } else {
+            hasInternalBattery = false
+        }
         settings.enabledMonitoringModules = [.battery]
         settings.menuBarItems = []
         settings.historyEnabled = false
@@ -125,9 +137,10 @@ struct MonitoringResourceTests {
                         #expect(samples.allSatisfy { $0.appEnergy == nil } && model.store.appEnergy == nil)
                     }
                 } else {
-                    #expect(samples.contains { $0.battery != nil })
+                    #expect(samples.contains { $0.battery != nil } == hasInternalBattery)
                     #expect(samples.allSatisfy { $0.power == nil && $0.appEnergy == nil })
-                    #expect(model.store.battery != nil && model.store.power == nil)
+                    #expect((model.store.battery != nil) == hasInternalBattery)
+                    #expect(model.store.power == nil)
                     #expect(model.store.powerHistory.elements.isEmpty)
                     #expect(model.demand.interval == .seconds(10))
                 }

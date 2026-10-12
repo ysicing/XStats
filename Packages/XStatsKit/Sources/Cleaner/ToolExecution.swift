@@ -102,7 +102,10 @@ enum DeveloperToolRunner {
                 // 真实清理可能已删除部分文件，不因超时或输出量中断；仍响应用户取消。
                 return try await runHomebrewCleanup(process, outputLimit: outputLimit)
             }
-            return try await runHomebrewPreview(process, timeout: previewTimeout, outputLimit: outputLimit)
+            if !["upgrade", "uninstall"].contains(arguments.first ?? "") {
+                return try await runHomebrewPreview(process, timeout: previewTimeout, outputLimit: outputLimit)
+            }
+            // 已确认的安装修改使用下方的持续排空管道；不能因预览限额中断部分完成的操作。
         }
 
         let pipe = Pipe()
@@ -150,7 +153,13 @@ enum DeveloperToolRunner {
         }
         try Task.checkCancellation()
         let output: String
-        do { output = try await outputTask.value }
+        do {
+            output = try await withTaskCancellationHandler {
+                try await outputTask.value
+            } onCancel: {
+                outputTask.cancel()
+            }
+        }
         catch {
             if !Task.isCancelled, let deadline, ContinuousClock.now >= deadline { throw ToolExecutionError.timedOut(name) }
             throw error

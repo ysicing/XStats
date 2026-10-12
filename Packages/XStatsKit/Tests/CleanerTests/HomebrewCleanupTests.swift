@@ -194,10 +194,32 @@ import Testing
         #expect(report.freedBytes == 2_000_000)
     }
 
-    @Test func brewRunnerCancellationStopsTheStartedProcess() async throws {
+    @Test(arguments: [HomebrewManagement.Action.upgrade, .uninstall])
+    func packageOperationDrainsLargeOutputAndFinishes(_ action: HomebrewManagement.Action) async throws {
+        let home = try stubBrew("#!/bin/sh\n/usr/bin/head -c 2100000 /dev/zero\n/bin/sleep 0.1\necho done > \"$HOME/completed\"\n")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let package = HomebrewPackage(name: "fixture", displayName: "Fixture", kind: .formula,
+            installedVersions: ["1"], latestVersion: "2", outdated: true, pinned: false,
+            installationURLs: [], applicationURLs: [])
+        try await HomebrewManagement.perform(action, package: package, home: home.path)
+        #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("completed").path))
+    }
+
+    @Test(arguments: ["upgrade", "uninstall"])
+    func packageOperationIgnoresPreviewLimits(_ command: String) async throws {
+        let home = try stubBrew("#!/bin/sh\nprintf 'long diagnostic output'\n/bin/sleep 0.2\nprintf 'finished'\n")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let result = try await DeveloperToolRunner.run("brew", arguments: [command, "--formula", "fixture"],
+            home: home.path, previewTimeout: 0.05, outputLimit: 8)
+        #expect(result.output == "finished" && result.status == 0)
+        #expect(result.cleanupReport == nil)
+    }
+
+    @Test(arguments: ["cleanup", "upgrade", "uninstall"])
+    func brewRunnerCancellationStopsTheStartedProcess(_ command: String) async throws {
         let home = try stubBrew("#!/bin/sh\necho $$ > \"$HOME/pid\"\nexec /bin/sleep 30\n")
         defer { try? FileManager.default.removeItem(at: home) }
-        let task = Task { try await DeveloperToolRunner.run("brew", arguments: ["cleanup"], home: home.path) }
+        let task = Task { try await DeveloperToolRunner.run("brew", arguments: [command], home: home.path) }
         let deadline = ContinuousClock.now.advanced(by: .seconds(3))
         let pidFile = home.appendingPathComponent("pid")
         while !FileManager.default.fileExists(atPath: pidFile.path), ContinuousClock.now < deadline {
@@ -211,6 +233,35 @@ import Testing
         let pidText = try String(contentsOf: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
         let pid = try #require(Int32(pidText))
         #expect(kill(pid, 0) != 0)
+    }
+
+    @Test(arguments: ["upgrade", "uninstall"])
+    func cancellationStopsReadingAfterMainProcessExits(_ command: String) async throws {
+        let home = try stubBrew("#!/bin/sh\n/bin/sleep 5 &\necho $! > \"$HOME/child-pid\"\necho $$ > \"$HOME/pid\"\nexit 0\n")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let task = Task { try await DeveloperToolRunner.run("brew", arguments: [command], home: home.path) }
+        defer { task.cancel() }
+        let deadline = ContinuousClock.now + .seconds(3)
+        let pidFile = home.appendingPathComponent("pid")
+        while !FileManager.default.fileExists(atPath: pidFile.path), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let childText = try String(contentsOf: home.appendingPathComponent("child-pid"), encoding: .utf8)
+        let child = try #require(Int32(childText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        defer { _ = kill(child, SIGKILL) }
+        let pidText = try String(contentsOf: pidFile, encoding: .utf8)
+        let pid = try #require(Int32(pidText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        while kill(pid, 0) == 0, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(kill(pid, 0) != 0)
+        let started = ContinuousClock.now
+        task.cancel()
+        do {
+            _ = try await task.value
+            Issue.record("Cancelled output reading must not succeed")
+        } catch is CancellationError { }
+        #expect(ContinuousClock.now - started < .seconds(1))
     }
 
     private func stubBrew(_ script: String) throws -> URL {

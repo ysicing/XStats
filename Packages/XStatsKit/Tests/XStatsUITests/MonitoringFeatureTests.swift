@@ -339,12 +339,24 @@ final class MonitoringFeatureTests {
         #expect(!model.demand.hasSamples && model.bluetoothDemand == .off)
     }
 
-    @Test func disabledMonitoringKeepsHardwareWithoutLiveReadings() async {
+    @Test(arguments: [false, true])
+    func disabledMonitoringKeepsHardwareWithoutLiveReadings(_ hasCachedPublicAddress: Bool) async throws {
         let settings = settings()
         settings.enabledMonitoringModules = []
         settings.historyEnabled = false
         settings.menuBarItems = []
-        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        let defaults = settings.networkObservationDefaults
+        if hasCachedPublicAddress {
+            settings.publicIPLookup = true
+            let data = try JSONSerialization.data(withJSONObject: [
+                "results": [IPFamily.v4.rawValue: ["ipv4": "198.51.100.1"]], "geoDates": [:]
+            ])
+            defaults.set(data, forKey: "publicAddressCache4")
+        }
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+            networkCacheDefaults: defaults)
+        let initialPublicResults = model.network.publicResults
+        #expect(initialPublicResults.isEmpty == !hasCachedPublicAddress)
         let hardware = model.store.system
         var snapshot = MetricsSnapshot()
         snapshot.gpu = GPUUsage(name: "Fixture GPU", utilization: 0.9, coreCount: 16)
@@ -366,7 +378,7 @@ final class MonitoringFeatureTests {
         #expect(model.network.details != nil)
         #expect(!model.isNetworkDetailVisible && !model.demand.hasSamples)
         #expect(model.network.processes.isEmpty && model.network.probes.elements.isEmpty)
-        #expect(model.network.publicResults.isEmpty && !model.network.isLookingUpPublic)
+        #expect(model.network.publicResults == initialPublicResults && !model.network.isLookingUpPublic)
         model.isMainWindowVisible = false
         #expect(!model.demand.hasSamples)
     }
