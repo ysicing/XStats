@@ -32,8 +32,7 @@ live metrics, charts, rankings or controls.
 ## Sampling
 
 `MetricsHub` owns one demand-driven loop. Basic monitoring has separate feature and menu-bar
-preferences: `enabledMonitoringModules` gates CPU, GPU, memory, disk, network, thermals/fans,
-battery power/app energy/history, and display parameter controls. Enabling a monitoring menu-bar item enables its module, except for
+preferences: `enabledMonitoringModules` gates CPU, GPU, memory, disk, network, energy (temperature/power/app energy/battery history), fans, and display parameter controls. Enabling a monitoring menu-bar item enables its module, except for
 information-only battery and display entries; removing the item
 keeps the module enabled. Disabling other monitoring modules removes their menu-bar items, clears live caches,
 suspends its alerts, and excludes its values from new history records. Saved styles, alert
@@ -51,17 +50,24 @@ refresh immediately. When no samples are requested the loop stops, and cancelled
 not deliver queued snapshots. Late snapshots are also filtered against current feature preferences
 before entering the store or history. Disk is read at most every 30 s, battery every 10 s;
 IOReport remains limited to roughly every 2 s. Sleep and inactivity continue to pause the loop.
-The battery detail page and its visible power popover section request the shared power collector
-independently of the thermal module when battery monitoring is enabled. This does not enable temperatures or fans, and closing the
-battery view (or hiding its popover power section) releases that power demand. The App Energy section
-also requests a lightweight process-energy collector every 5 s, only while visible and battery
+The Energy page (persisted `battery` tab/module) combines battery information, power, App Energy
+and temperatures, including on Macs without an internal battery. Fan detection, controls and
+safety settings remain independent in the Fans page (persisted `thermal` tab/module). The battery
+and temperature menu-bar items belong to Energy; the fan item belongs to Fans. Existing preference
+identifiers remain unchanged. Temperature sampling preserves hardware fan-count discovery even
+when fan readings are disabled; unknown or absent fans stay hidden without rewriting preferences.
+Closing the Energy page or hiding the corresponding popover section releases power/App Energy
+demand; visible temperature readings and enabled overheating alerts can still request temperatures.
+Disabling Energy stops those readings and alerts while keeping battery basics and Bluetooth
+information available. The App Energy section
+also requests a lightweight process-energy collector every 5 s, only while visible and Energy
 monitoring is enabled. It reads `proc_pid_rusage(RUSAGE_INFO_V6).ri_energy_nj`, divides counter
 deltas by a monotonic time interval, and groups app helpers by their outer app bundle. These
 CPU-only watts are not an estimate of whole-app or whole-system consumption. The UI shows
 five highest consumers and reports unavailable data without inventing values. No `ps` or
-privileged `powermetrics` subprocess is started. Closing/hiding the section, disabling battery
+privileged `powermetrics` subprocess is started. Closing/hiding the section, disabling Energy
 monitoring, or pausing clears the collector baseline and bounds cached metadata to live processes;
-reopening establishes a fresh baseline before publishing power values.
+reopening establishes a fresh baseline and publishes the first interval after roughly 1 s, then every 5 s.
 
 Safety consumers are explicit exceptions: lid-closed keep-awake retains battery protection, and
 manual fan control retains thermal/fan demand until it has been handed back to macOS. A failed

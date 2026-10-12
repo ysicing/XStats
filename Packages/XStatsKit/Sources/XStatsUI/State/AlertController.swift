@@ -51,7 +51,7 @@ public enum AlertKind: String, CaseIterable, Identifiable, Sendable {
     /// 点通知打开的页面
     var tab: PanelTab {
         switch self {
-        case .cpuTemperature: .thermal
+        case .cpuTemperature: .battery
         case .cpuLoad: .cpu
         case .memoryPressure: .memory
         case .diskSpace: .disk
@@ -184,7 +184,7 @@ public final class AlertController: NSObject {
            let cpu = store.sensors?.temperatures.first(where: { $0.group == .cpu })?.maximum {
             let limit = Double(settings.alertCPUTemperature)
             fireIfNeeded(.cpuTemperature, isActive: cpu >= limit, now: now,
-                         body: tr("CPU 温度 \(Format.temperature(cpu, fahrenheit: settings.useFahrenheit))，已持续超过 1 分钟。可以检查高占用进程，或在“温度与风扇”里提高风扇转速。"))
+                         body: tr("CPU 温度 \(Format.temperature(cpu, fahrenheit: settings.useFahrenheit))，已持续超过 1 分钟。可以检查高占用进程，或在“风扇”里提高风扇转速。"))
         }
         if enabled.contains(.cpuLoad), let cpu = store.cpu {
             // 只在菜单栏显示时进程列表可能是很久以前采的，不在通知里点名应用，让用户打开详情看实时的

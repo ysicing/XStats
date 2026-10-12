@@ -61,16 +61,16 @@ struct HistoryPage: View {
                 HistoryChartCard(icon: "thermometer.medium", title: tr("CPU 温度"), points: points, start: start, end: end, hoverDate: $hoverDate,
                                  series: [.init(label: tr("最高"), color: DS.Palette.warning, value: \.temperature)],
                                  maxValue: nil, format: { Format.temperature($0, fahrenheit: settings.useFahrenheit) },
-                                 emptyNote: tr("只在菜单栏显示温度、开启过热通知或打开温度页面时记录"))
+                                 emptyNote: tr("只在显示温度或开启过热通知时记录"))
                 HistoryChartCard(icon: "bolt", title: tr("整机功耗"), points: points, start: start, end: end, hoverDate: $hoverDate,
                                  series: [.init(label: tr("平均"), color: DS.Palette.warning, value: \.power)],
                                  maxValue: nil, format: { Format.watts($0) },
-                                 emptyNote: tr("只在打开温度与风扇页面时记录"))
+                                 emptyNote: tr("只在显示功耗时记录"))
                 if model.store.battery != nil {
                     HistoryChartCard(icon: "battery.75", title: tr("电池电量"), points: points, start: start, end: end, hoverDate: $hoverDate,
                                      series: [.init(label: tr("电量"), color: DS.Palette.success, value: \.battery)],
                                      maxValue: 1, format: { Format.percent($0) },
-                                     emptyNote: tr("只在菜单栏显示电池或打开电池页面时记录"))
+                                     emptyNote: tr("只在显示电池信息时记录"))
                 }
             }
 

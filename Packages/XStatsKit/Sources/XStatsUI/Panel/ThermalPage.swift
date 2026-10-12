@@ -3,23 +3,26 @@ import Metrics
 import SMC
 import SwiftUI
 
+/// 能耗详情复用电池弹窗分区；没有内置电池也能查看功耗、App 能耗与温度。
+struct EnergyPage: View {
+    var body: some View {
+        PageScroll { BatteryPopover() }
+            .environment(\.isDetailPage, true)
+    }
+}
+
 struct ThermalPage: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         PageScroll {
-            HStack(alignment: .top, spacing: DS.Space.s3) {
-                TemperatureCard().frame(maxWidth: .infinity)
-                if model.store.supportsFans { FanCard().frame(maxWidth: .infinity) }
-            }
-            .fixedSize(horizontal: false, vertical: true)
-            PowerCard()
+            if model.store.supportsFans { FanCard() }
             if model.store.supportsFans { FanSafetySettings() }
         }
     }
 }
 
-private struct TemperatureCard: View {
+struct TemperatureCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
@@ -65,18 +68,6 @@ private struct TemperatureRow: View {
                     .foregroundStyle(DS.Palette.textTertiary)
                     .padding(.leading, DS.Size.labelColumn + DS.Space.s3)
             }
-        }
-    }
-}
-
-private struct PowerCard: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        let power = model.store.power
-        Card {
-            CardHeader(icon: "bolt", title: tr("功耗"), detail: power?.system.map { tr("整机 \(Format.watts($0))") } ?? tr("读取中"))
-            PowerRows(power: power, history: model.store.powerHistory.elements)
         }
     }
 }

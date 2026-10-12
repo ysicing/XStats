@@ -487,7 +487,7 @@ private func isolatedDefaults() -> UserDefaults {
     @Test func menuBarItemsMapToPages() {
         for item in MenuBarItem.allCases {
             let tab = PanelTab(item: item)
-            #expect(tab.menuBarItem == item || (item == .fan && tab == .thermal))
+            #expect(tab.menuBarItems.contains(item))
         }
     }
 }

@@ -178,7 +178,8 @@ public final class AppModel {
         let menu = Set(drawnMenuBarItems)
         let overview = isCombinedOverviewVisible ? Set(visibleMenuBarItems) : []
         let summary = menu.union(overview)
-        let thermalPopover = popover == .temperature || popover == .fan
+        let temperaturePopover = popover == .temperature
+        let fanPopover = popover == .fan
 
         // 仅实时监控页需要每秒采样；历史、工具和设置页沿用用户设置的后台间隔。
         let liveWindow = window && [.overview, .system, .cpu, .gpu, .memory, .disk,
@@ -214,32 +215,31 @@ public final class AppModel {
         if window && tab == .overview { groups.formUnion([.cpu, .gpu]) }
         if overview.contains(.cpu) || overview.contains(.temperature) { groups.insert(.cpu) }
         if overview.contains(.gpu) { groups.insert(.gpu) }
-        if (window && tab == .thermal) || thermalPopover { groups.formUnion(TemperatureGroup.allCases) }
-        if menu.contains(.temperature) || fans.mode != .automatic || showing(.cpu, .cpu) { groups.insert(.cpu) }
+        if (window && tab == .battery) || (temperaturePopover && settings.isVisible(.thermalSensors))
+            || (popover == .battery && settings.isVisible(.thermalSensors)) { groups.formUnion(TemperatureGroup.allCases) }
+        if menu.contains(.temperature) || temperaturePopover || fans.mode != .automatic || showing(.cpu, .cpu) { groups.insert(.cpu) }
         if showing(.gpu, .gpu) { groups.insert(.gpu) }
         if settings.isModuleEnabled(.battery), showing(.battery, .battery) { groups.insert(.battery) }
         if alerts.contains(.cpuTemperature) { groups.insert(.cpu) }
         demand.temperatures = groups
-        demand.power = (window && tab == .thermal) || thermalPopover
+        demand.power = settings.isModuleEnabled(.battery)
+            && ((window && tab == .battery)
+                || (temperaturePopover && settings.isVisible(.thermalPower))
+                || (popover == .battery && settings.isVisible(.batteryPower)))
         demand.cpuFrequency = showing(.cpu, .cpu)
         // 未知时隐藏入口，但保留按需探测；不能用界面可见性阻断首次识别或失败重试。
         demand.fans = store.fanCount != 0 && ((window && (tab == .thermal || tab == .overview)) || summary.contains(.fan)
-            || fans.mode != .automatic || thermalPopover
+            || fans.mode != .automatic || fanPopover
             || (store.fanCount == nil && settings.menuBarItems.contains(.fan)
                 && (settings.menuBarLayout != .iconOnly || isCombinedOverviewVisible)))
         demand.gpu = demand.gpu && settings.isModuleEnabled(.gpu)
         demand.disk = demand.disk && settings.isModuleEnabled(.disk)
         demand.diskDetail = demand.diskDetail && settings.isModuleEnabled(.disk)
         demand.cpuFrequency = demand.cpuFrequency && settings.isModuleEnabled(.cpu)
-        if !settings.isModuleEnabled(.thermal) {
-            demand.temperatures = []
-            demand.fans = false
-            demand.power = false
-        }
-        // 电池页共享功耗采集器，但不依赖温度开关；隐藏的弹窗分区不产生采集需求。
-        demand.power = demand.power || (store.battery != nil && settings.isModuleEnabled(.battery)
-            && ((window && tab == .battery) || (popover == .battery && settings.isVisible(.batteryPower))))
-        demand.appEnergy = store.battery != nil && settings.isModuleEnabled(.battery)
+        if !settings.isModuleEnabled(.battery) { demand.temperatures = [] }
+        if !settings.isModuleEnabled(.thermal) { demand.fans = false }
+        // 能耗与温度不依赖内置电池；只有可见的 App 能耗分区才读取进程计数。
+        demand.appEnergy = settings.isModuleEnabled(.battery)
             && ((window && tab == .battery) || (popover == .battery && settings.isVisible(.batteryApps)))
         // 风扇交还系统和合盖电量保护仍须完成，不能由隐藏监控界面切断安全需求。
         if fans.mode != .automatic || fans.isApplying || restoringFans != nil {
@@ -356,11 +356,17 @@ public final class AppModel {
         if !settings.isModuleEnabled(.network) { result.network = nil; result.networkInterface = nil }
         if !settings.isModuleEnabled(.gpu) { result.gpu = nil }
         if !settings.isModuleEnabled(.disk) { result.disk = nil; result.diskActivity = nil; result.diskHealth = nil }
-        if !settings.isModuleEnabled(.thermal) {
-            result.sensors = nil
+        if let sensors = result.sensors {
+            let energyEnabled = settings.isModuleEnabled(.battery)
+            let fansEnabled = settings.isModuleEnabled(.thermal)
+            // 硬件数量随既有传感器采样识别，关闭风扇采集仍保留能力判断。
+            result.sensors = energyEnabled || fansEnabled
+                ? SensorReadings(temperatures: energyEnabled ? sensors.temperatures : [],
+                                 fans: fansEnabled ? sensors.fans : [],
+                                 fanCount: sensors.fanCount) : nil
         }
-        // 功耗有温度与电池两个读取方，不能随温度关闭丢弃电池页正在使用的读数。
-        if !settings.isModuleEnabled(.thermal), !demand.power {
+        // 功耗由可见能耗内容请求，关闭最后一个读取方后仅保留 CPU 页需要的频率。
+        if !demand.power {
             result.power = settings.isModuleEnabled(.cpu) && result.power?.clusterFrequency.isEmpty == false
                 ? PowerReading(clusterFrequency: result.power?.clusterFrequency ?? [:]) : nil
         }

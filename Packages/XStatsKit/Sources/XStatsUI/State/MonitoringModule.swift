@@ -3,30 +3,32 @@
 
 import Localization
 
-/// 基础监控的功能开关。温度与风扇共享传感器和控制生命周期，使用同一个开关。
+/// 基础监控的功能开关；battery 管理能耗与温度，thermal 保留独立风扇生命周期。
+/// 沿用持久化标识，避免页面调整丢失已有开关和菜单栏偏好。
 public enum MonitoringModule: String, CaseIterable, Identifiable, Sendable {
-    case cpu, gpu, memory, disk, network, thermal, battery, display
+    case cpu, gpu, memory, disk, network, battery, thermal, display
 
     public var id: String { rawValue }
 
     var menuBarItems: [MenuBarItem] {
         switch self {
-        case .thermal: [.temperature, .fan]
+        case .thermal: [.fan]
         case .cpu: [.cpu]
         case .gpu: [.gpu]
         case .memory: [.memory]
         case .disk: [.disk]
         case .network: [.network]
-        case .battery: [.battery]
+        case .battery: [.battery, .temperature]
         case .display: [.display]
         }
     }
 
     var title: String {
         if self == .display { return tr("显示器参数控制") }
-        return self == .thermal ? tr("温度与风扇") : menuBarItems[0].title
+        if self == .battery { return tr("能耗") }
+        return self == .thermal ? tr("风扇") : menuBarItems[0].title
     }
-    var symbol: String { menuBarItems[0].symbol }
+    var symbol: String { self == .battery ? "bolt" : menuBarItems[0].symbol }
 }
 
 extension MenuBarItem {
@@ -37,7 +39,8 @@ extension MenuBarItem {
         case .memory: .memory
         case .disk: .disk
         case .network: .network
-        case .temperature, .fan: .thermal
+        case .temperature: .battery
+        case .fan: .thermal
         case .battery: .battery
         // 显示器入口只展示信息，不隐式开启 DDC 参数控制。
         case .display, .aiUsage, .audio: nil
@@ -65,7 +68,7 @@ extension AlertKind {
     var monitoringModule: MonitoringModule {
         switch self {
         case .cpuLoad: .cpu
-        case .cpuTemperature: .thermal
+        case .cpuTemperature: .battery
         case .memoryPressure: .memory
         case .diskSpace: .disk
         case .networkDown: .network

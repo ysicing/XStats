@@ -96,9 +96,17 @@ public final class MetricsStore {
             diskReadHistory = History(capacity: Self.historyCapacity)
             diskWriteHistory = History(capacity: Self.historyCapacity)
         }
-        if !enabled.contains(.thermal), sensors != nil { sensors = nil }
-        // 温度关闭后，电池页仍可按需使用共享功耗；最后一个读取方退出后清除实时曲线。
-        if !enabled.contains(.thermal), !powerRequested, power?.system != nil || power?.gpu != nil || power?.battery != nil || power?.adapter != nil
+        if let readings = sensors {
+            let energyEnabled = enabled.contains(.battery)
+            let fansEnabled = enabled.contains(.thermal)
+            if !energyEnabled && !fansEnabled { sensors = nil }
+            else if (!energyEnabled && !readings.temperatures.isEmpty) || (!fansEnabled && !readings.fans.isEmpty) {
+                sensors = SensorReadings(temperatures: energyEnabled ? readings.temperatures : [],
+                                        fans: fansEnabled ? readings.fans : [], fanCount: fanCount)
+            }
+        }
+        // 关闭最后一个功耗读取方后清除实时曲线，CPU 频率需求仍独立保留。
+        if !powerRequested, power?.system != nil || power?.gpu != nil || power?.battery != nil || power?.adapter != nil
             || !powerHistory.elements.isEmpty {
             power = enabled.contains(.cpu) && power?.clusterFrequency.isEmpty == false
                 ? PowerReading(clusterFrequency: power?.clusterFrequency ?? [:]) : nil

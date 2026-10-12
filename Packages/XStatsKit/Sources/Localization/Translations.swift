@@ -13,6 +13,8 @@ extension Translations {
 
 
     static let monitoringEnglish = #"""
+能耗	Energy
+采集温度、功耗、App 能耗和电量历史；关闭后仍显示电池基础信息	Collect temperature, power, app energy and battery history; basic battery information remains visible when off
 App 能耗	App Energy
 CPU 能耗	CPU Energy
 暂时无法读取 App 能耗	App energy data is temporarily unavailable
@@ -367,7 +369,7 @@ CPU 最高	CPU max
 CPU 核心最高温度	Hottest CPU core
 CPU 温度	CPU Temperature
 CPU 温度 {}	CPU temperature {}
-CPU 温度 {}，已持续超过 1 分钟。可以检查高占用进程，或在“温度与风扇”里提高风扇转速。	CPU temperature has been {} for over a minute. Check busy processes, or raise the fan speed in Temperature & Fans.
+CPU 温度 {}，已持续超过 1 分钟。可以检查高占用进程，或在“风扇”里提高风扇转速。	CPU temperature has been {} for over a minute. Check busy processes, or raise the fan speed in Fans.
 CPU 温度偏高	CPU is warm
 CPU 温度持续 1 分钟高于设定值	CPU stays above the set temperature for 1 minute
 CPU 温度达到 {}，已恢复系统自动控制	CPU reached {}; fans returned to system control
@@ -722,10 +724,10 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 另有 {} 移到废纸篓	Plus {} moved to Trash
 另有 {} 项	{} more
 只含当前用户的进程	Your processes only
-只在打开温度与风扇页面时记录	Recorded only while Temperature & Fans is open
+只在显示功耗时记录	Recorded only while power is displayed
 只在菜单栏显示 GPU 或打开 GPU 相关页面时记录	Recorded only when GPU is in the menu bar or a GPU page is open
-只在菜单栏显示温度、开启过热通知或打开温度页面时记录	Recorded only when temperature is in the menu bar, overheating alerts are on, or a temperature page is open
-只在菜单栏显示电池或打开电池页面时记录	Recorded only while Battery is in the menu bar or the Battery page is open
+只在显示温度或开启过热通知时记录	Recorded only while temperature is displayed or overheating alerts are enabled
+只在显示电池信息时记录	Recorded only while battery information is displayed
 只显示菜单栏时的采样间隔；打开弹窗或主窗口时为 1 秒（进程页 2 秒）	Sampling interval when only the menu bar is shown; 1 second with a popover or window open (2 seconds on Processes)
 只查找以该应用包名命名的文件，以及 Application Support、Logs 下与应用同名的目录；钥匙串与其他应用共享的数据不会动。程序坞里的图标会一并移除	Only files named after the app's bundle ID, plus folders with the app's name in Application Support and Logs, are included. Keychains and data shared with other apps are never touched. The Dock icon is removed as well
 只设置了系统代理：浏览器等应用走代理，命令行工具、游戏等不读代理设置的程序仍在直连。要接管全部流量，可以开启增强模式或 TUN 模式。	Only a system proxy is set: browsers and most apps use it, but command-line tools, games, and other programs that ignore proxy settings still connect directly. To route all traffic, turn on enhanced mode or TUN mode.

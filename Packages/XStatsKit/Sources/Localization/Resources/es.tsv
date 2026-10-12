@@ -48,7 +48,7 @@ CPU 最高	CPU máxima
 CPU 核心最高温度	Núcleo de CPU más caliente
 CPU 温度	Temperatura de CPU
 CPU 温度 {}	Temperatura de CPU {}
-CPU 温度 {}，已持续超过 1 分钟。可以检查高占用进程，或在“温度与风扇”里提高风扇转速。	La temperatura de CPU lleva más de un minuto en {}. Revisa los procesos activos o aumenta la velocidad en Temperatura y ventiladores.
+CPU 温度 {}，已持续超过 1 分钟。可以检查高占用进程，或在“风扇”里提高风扇转速。	La temperatura de CPU lleva más de un minuto en {}. Revisa los procesos activos o aumenta la velocidad en Ventiladores.
 CPU 温度偏高	CPU caliente
 CPU 温度持续 1 分钟高于设定值	La CPU supera la temperatura establecida durante 1 minuto
 CPU 温度达到 {}，已恢复系统自动控制	La CPU alcanzó {}; los ventiladores vuelven al control del sistema
@@ -411,10 +411,10 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 另有 {} 项	{} más
 只同步偏好设置，不上传监控数据、历史记录或 WebDAV 连接信息。每台 Mac 需单独配置 WebDAV。	Solo se sincronizan preferencias. No se suben datos de supervisión, historial ni conexiones WebDAV. Configura WebDAV en cada Mac por separado.
 只含当前用户的进程	Solo tus procesos
-只在打开温度与风扇页面时记录	Solo se registra con Temperatura y ventiladores abierto
+只在显示功耗时记录	Solo se registra mientras se muestra el consumo de energía
 只在菜单栏显示 GPU 或打开 GPU 相关页面时记录	Solo se registra si GPU aparece en la barra de menús o hay una página de GPU abierta
-只在菜单栏显示温度、开启过热通知或打开温度页面时记录	Solo se registra si la temperatura aparece en la barra de menús, hay alertas de sobrecalentamiento activadas o una página de temperatura abierta
-只在菜单栏显示电池或打开电池页面时记录	Solo se registra si Batería aparece en la barra de menús o su página está abierta
+只在显示温度或开启过热通知时记录	Solo se registra al mostrar la temperatura o activar las alertas de sobrecalentamiento
+只在显示电池信息时记录	Solo se registra mientras se muestra la información de la batería
 只显示菜单栏时的采样间隔；打开弹窗或主窗口时为 1 秒（进程页 2 秒）	Intervalo de muestreo cuando solo se muestra la barra de menús; 1 segundo con una ventana abierta (2 en Procesos)
 只查找以该应用包名命名的文件，以及 Application Support、Logs 下与应用同名的目录；钥匙串与其他应用共享的数据不会动。程序坞里的图标会一并移除	Solo incluye archivos con el identificador de la app y carpetas con su nombre en Application Support y Logs. No afecta al llavero ni a datos compartidos con otras apps. También elimina el icono del Dock
 只设置了系统代理：浏览器等应用走代理，命令行工具、游戏等不读代理设置的程序仍在直连。要接管全部流量，可以开启增强模式或 TUN 模式。	Solo hay un proxy del sistema: los navegadores lo usan, pero las herramientas de consola, juegos y apps que ignoran estos ajustes siguen conectándose directamente. Activa el modo mejorado o TUN para enrutar todo el tráfico.
@@ -1994,3 +1994,5 @@ CPU 能耗	Consumo de CPU
 暂时无法读取 App 能耗	Los datos de consumo de las apps no están disponibles temporalmente
 当前没有明显的 CPU 耗电活动	No hay actividad de CPU con consumo notable en este momento
 每 5 秒更新，合并应用及辅助进程。仅含可读取的 CPU 能耗，不含 GPU、屏幕等耗电。	Se actualiza cada 5 segundos y agrupa las apps con sus procesos auxiliares. Solo incluye el consumo de CPU accesible, sin GPU, pantalla ni otros consumos.
+能耗	Energía
+采集温度、功耗、App 能耗和电量历史；关闭后仍显示电池基础信息	Recopila temperatura, potencia, energía de apps e historial de batería; la información básica de batería sigue visible al desactivarlo

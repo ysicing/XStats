@@ -769,12 +769,14 @@ struct ThermalPopover: View {
 
         Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
             HStack(alignment: .center, spacing: DS.Space.s3) {
-                VStack(alignment: .leading, spacing: DS.Space.s1) {
-                    Text(tr("CPU 最高")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                    HeroValue(value: cpu.map { Format.temperature($0.maximum, fahrenheit: settings.useFahrenheit) } ?? "—")
+                if item == .temperature {
+                    VStack(alignment: .leading, spacing: DS.Space.s1) {
+                        Text(tr("CPU 最高")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                        HeroValue(value: cpu.map { Format.temperature($0.maximum, fahrenheit: settings.useFahrenheit) } ?? "—")
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if model.store.supportsFans {
+                if item == .fan && model.store.supportsFans {
                     VStack(alignment: .leading, spacing: DS.Space.s1) {
                         Text(tr("风扇")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                         HeroValue(value: fans.isStartingUp ? tr("启动中…") : store.fastestFan.map { Int($0.current).formatted() } ?? "—",

@@ -679,7 +679,7 @@ struct NetworkSettings: View {
 
 // MARK: - 散热与防休眠
 
-/// 放在“温度与风扇”页底部
+/// 放在“风扇”页底部
 struct FanSafetySettings: View {
     @Environment(AppModel.self) private var model
 

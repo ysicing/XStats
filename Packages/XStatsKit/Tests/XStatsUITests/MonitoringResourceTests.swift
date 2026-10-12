@@ -105,7 +105,7 @@ struct MonitoringResourceTests {
             // 功耗基线使用隐藏 App 能耗分区的弹窗；同样的功耗与电量需求、同样的采样频率。
             model.isMainWindowVisible = visible && energy
             model.openPopover = visible && !energy ? .battery : nil
-            settings.hiddenPopoverSections = energy ? [] : [.batteryApps]
+            settings.hiddenPopoverSections = energy ? [] : [.batteryApps, .thermalSensors]
             model.applyMonitoringSettings()
             await model.hub.update(model.demand)
             // 需求交付完成后才统计，排除切换过程中已在主线程排队的上一阶段快照。
@@ -131,7 +131,9 @@ struct MonitoringResourceTests {
                     #expect(model.store.powerHistory.elements.isEmpty)
                     #expect(model.demand.interval == .seconds(10))
                 }
-                #expect(samples.allSatisfy { $0.sensors == nil && $0.cpu == nil && $0.processes == nil })
+                #expect(samples.allSatisfy { $0.cpu == nil && $0.processes == nil && $0.sensors?.fans.isEmpty != false })
+                if energy && monitoring { #expect(samples.contains { $0.sensors != nil }) }
+                else { #expect(samples.allSatisfy { $0.sensors?.temperatures.contains { $0.group != .battery } != true }) }
             } else {
                 #expect(samples.isEmpty)
                 #expect(model.store.power == nil && model.store.powerHistory.elements.isEmpty && model.store.appEnergy == nil)

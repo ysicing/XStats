@@ -43,6 +43,12 @@ public struct MainWindowView: View {
         .ignoresSafeArea()
         // 文案在各视图计算时翻译好，切换语言后整棵视图重建
         .appLanguageEnvironment()
+        .onAppear {
+            // 旧版记住的散热页可能尚未确认有风扇，先展示移入能耗的温度内容。
+            if model.settings.panelTab == .thermal, !model.store.supportsFans {
+                model.settings.panelTab = .battery
+            }
+        }
     }
 
     /// 顶栏在上、页面在下。没有用 macOS 26 的 safeAreaBar 让页面从顶栏下面滚过：
@@ -106,7 +112,7 @@ public struct MainWindowView: View {
                         NetworkSettings()
                     }
                 case .thermal: ThermalPage()
-                case .battery: DetailPage { BatteryPopover() }
+                case .battery: EnergyPage()
                 case .processes: ProcessesPage()
                 case .keepAwake: KeepAwakePage()
                 case .rest: RestPage()
@@ -208,7 +214,7 @@ private struct MainSidebar: View {
 
     private var navigation: some View {
         VStack(alignment: .leading, spacing: DS.Space.s1) {
-            group(tr("监控"), PanelTab.monitors.filter { $0 != .aiUsage || model.settings.aiUsageEnabled })
+            group(tr("监控"), PanelTab.monitors.filter { ($0 != .aiUsage || model.settings.aiUsageEnabled) && ($0 != .thermal || model.store.supportsFans) })
             group(tr("工具"), PanelTab.tools.filter { tab in
                 switch tab {
                 case .audio: model.settings.audioEnabled
@@ -246,9 +252,7 @@ private struct MainSidebar: View {
             .padding(.horizontal, DS.Space.s2)
             .padding(.top, DS.Space.s2)
         ForEach(tabs) { tab in
-            let temperatureOnly = tab == .thermal && !model.store.supportsFans
-            SidebarButton(title: temperatureOnly ? tr("温度") : tab.title,
-                          symbol: temperatureOnly ? "thermometer.medium" : tab.symbol,
+            SidebarButton(title: tab.title, symbol: tab.symbol,
                           isSelected: model.settings.panelTab == tab, badge: badge(for: tab)) {
                 model.settings.panelTab = tab
             }
@@ -326,7 +330,7 @@ private struct PageHeader: View {
         HStack(spacing: DS.Space.s3) {
             // 拖动窗口的区域只覆盖标题和空白，按钮与开关不在拖动层上
             HStack(spacing: 0) {
-                Text(tab == .thermal && !model.store.supportsFans ? tr("温度") : tab.headerTitle)
+                Text(tab.headerTitle)
                     .dsFont(.base, weight: .semibold)
                     .foregroundStyle(DS.Palette.textPrimary)
                 Spacer(minLength: DS.Space.s3)
@@ -403,7 +407,7 @@ private struct PageHeader: View {
                 .buttonStyle(DSButtonStyle(kind: .secondary))
                 .help(tr("检查 VPN 与代理是否生效、各网站从哪个出口出去"))
             }
-            // 每个监控页都能在这里开关自己的菜单栏项目；温度与风扇页有两项，各带一个小标签
+            // 每个监控页都能在这里开关自己的菜单栏项目；能耗页有两项，各带一个小标签
             let items = tab.menuBarItems.filter { model.availableMenuBarItems.contains($0) }
             if !items.isEmpty {
                 // macOS 26 上这一组是一颗玻璃胶囊，与访达工具栏的分组一致

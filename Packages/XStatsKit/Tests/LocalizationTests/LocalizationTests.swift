@@ -45,6 +45,15 @@ import Testing
         }
     }
 
+    @Test func energyAndFanGroupingTextExistsInEverySupportedCatalog() throws {
+        let sources = ["能耗", "风扇", "采集温度、功耗、App 能耗和电量历史；关闭后仍显示电池基础信息",
+                       "只在显示功耗时记录", "只在显示温度或开启过热通知时记录", "只在显示电池信息时记录"]
+        for language in AppLanguage.allCases where language != .system && language != .chinese {
+            let table = try #require(Translations.catalog(for: language))
+            for source in sources { #expect(table.translate(source) != nil) }
+        }
+    }
+
     @Test func translatesCardExpiryInEverySupportedCatalog() throws {
         for language in AppLanguage.allCases where language != .system && language != .chinese {
             let table = try #require(Translations.catalog(for: language))

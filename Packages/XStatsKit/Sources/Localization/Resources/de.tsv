@@ -48,7 +48,7 @@ CPU 最高	CPU-Maximum
 CPU 核心最高温度	Wärmster CPU-Kern
 CPU 温度	CPU-Temperatur
 CPU 温度 {}	CPU-Temperatur {}
-CPU 温度 {}，已持续超过 1 分钟。可以检查高占用进程，或在“温度与风扇”里提高风扇转速。	Die CPU-Temperatur liegt seit über einer Minute bei {}. Prüfen Sie stark ausgelastete Prozesse oder erhöhen Sie unter „Temperatur und Lüfter“ die Lüfterdrehzahl.
+CPU 温度 {}，已持续超过 1 分钟。可以检查高占用进程，或在“风扇”里提高风扇转速。	Die CPU-Temperatur liegt seit über einer Minute bei {}. Prüfen Sie stark ausgelastete Prozesse oder erhöhen Sie unter „Lüfter“ die Lüfterdrehzahl.
 CPU 温度偏高	CPU ist warm
 CPU 温度持续 1 分钟高于设定值	Die CPU überschreitet die eingestellte Temperatur für 1 Minute
 CPU 温度达到 {}，已恢复系统自动控制	CPU hat {} erreicht; Lüfter wieder vom System gesteuert
@@ -411,10 +411,10 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 另有 {} 项	{} weitere
 只同步偏好设置，不上传监控数据、历史记录或 WebDAV 连接信息。每台 Mac 需单独配置 WebDAV。	Nur Einstellungen werden synchronisiert. Überwachungsdaten, Verlauf und WebDAV-Verbindungsdaten werden nicht hochgeladen. WebDAV muss auf jedem Mac separat eingerichtet werden.
 只含当前用户的进程	Nur eigene Prozesse
-只在打开温度与风扇页面时记录	Aufzeichnung nur bei geöffneter Seite „Temperatur und Lüfter“
+只在显示功耗时记录	Aufzeichnung nur bei angezeigtem Stromverbrauch
 只在菜单栏显示 GPU 或打开 GPU 相关页面时记录	Aufzeichnung nur bei GPU in der Menüleiste oder geöffneter GPU-Seite
-只在菜单栏显示温度、开启过热通知或打开温度页面时记录	Aufzeichnung nur bei Temperatur in der Menüleiste, aktivierten Überhitzungswarnungen oder geöffneter Temperaturseite
-只在菜单栏显示电池或打开电池页面时记录	Aufzeichnung nur bei Batterie in der Menüleiste oder geöffneter Batterieseite
+只在显示温度或开启过热通知时记录	Aufzeichnung nur bei angezeigter Temperatur oder aktivierten Überhitzungswarnungen
+只在显示电池信息时记录	Aufzeichnung nur bei angezeigten Batterieinformationen
 只显示菜单栏时的采样间隔；打开弹窗或主窗口时为 1 秒（进程页 2 秒）	Messintervall bei alleiniger Menüleistenanzeige; bei geöffnetem Fenster oder Popover 1 Sekunde (Prozesse: 2 Sekunden)
 只查找以该应用包名命名的文件，以及 Application Support、Logs 下与应用同名的目录；钥匙串与其他应用共享的数据不会动。程序坞里的图标会一并移除	Es werden nur nach der Bundle-ID benannte Dateien sowie Ordner mit dem App-Namen in Application Support und Logs erfasst. Schlüsselbunde und geteilte Daten anderer Apps bleiben unberührt. Das Dock-Symbol wird ebenfalls entfernt
 只设置了系统代理：浏览器等应用走代理，命令行工具、游戏等不读代理设置的程序仍在直连。要接管全部流量，可以开启增强模式或 TUN 模式。	Nur ein Systemproxy ist eingerichtet: Browser und viele Apps nutzen ihn, Befehlszeilenprogramme, Spiele und andere Apps ohne Proxy-Unterstützung verbinden sich direkt. Für den gesamten Verkehr den erweiterten Modus oder TUN-Modus aktivieren.
@@ -1994,3 +1994,5 @@ CPU 能耗	CPU-Energieverbrauch
 暂时无法读取 App 能耗	App-Energiedaten sind vorübergehend nicht verfügbar
 当前没有明显的 CPU 耗电活动	Derzeit keine nennenswerte CPU-Energieaktivität
 每 5 秒更新，合并应用及辅助进程。仅含可读取的 CPU 能耗，不含 GPU、屏幕等耗电。	Aktualisierung alle 5 Sekunden; Apps und Hilfsprozesse werden zusammengefasst. Nur lesbarer CPU-Energieverbrauch, ohne GPU, Bildschirm und andere Verbraucher.
+能耗	Energie
+采集温度、功耗、App 能耗和电量历史；关闭后仍显示电池基础信息	Erfasst Temperatur, Leistung, App-Energie und Akkuverlauf; grundlegende Akkuinformationen bleiben auch ausgeschaltet sichtbar

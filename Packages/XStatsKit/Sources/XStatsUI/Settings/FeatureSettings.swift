@@ -77,7 +77,7 @@ struct FeatureSettings: View {
                 .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
                 .frame(minHeight: DS.Size.controlHeight, alignment: .topLeading)
             SettingsGroup {
-                ForEach(MonitoringModule.allCases.filter { $0 != .display }) { module in
+                ForEach(MonitoringModule.allCases.filter { $0 != .display && ($0 != .thermal || model.store.supportsFans) }) { module in
                     GroupRow(showsDivider: module != .cpu) { MonitoringFeatureRow(module: module) }
                 }
             }
@@ -221,7 +221,7 @@ private struct MonitoringFeatureRow: View {
         VStack(alignment: .leading, spacing: DS.Space.s2) {
             SettingRow(title: module.title,
                        subtitle: module == .display ? tr("允许调节亮度、对比度和音量")
-                           : module == .battery ? tr("采集功耗和电量历史；关闭后仍显示电量、健康度和蓝牙设备") : nil,
+                           : module == .battery ? tr("采集温度、功耗、App 能耗和电量历史；关闭后仍显示电池基础信息") : nil,
                        icon: module.symbol) {
                 DSToggle(isOn: Binding(get: { model.settings.isModuleEnabled(module) }, set: { enabled in
                     model.settings.setModuleEnabled(module, enabled)
@@ -242,7 +242,7 @@ private struct MonitoringFeatureRow: View {
 
     private var menuBarToggles: some View {
         ForEach(module.menuBarItems.filter { model.availableMenuBarItems.contains($0) }) { item in
-            FeatureMenuBarToggle(item: item, showsItemName: module == .thermal)
+            FeatureMenuBarToggle(item: item, showsItemName: module.menuBarItems.count > 1)
         }
     }
 }

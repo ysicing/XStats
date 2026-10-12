@@ -101,7 +101,7 @@ struct HealthReport {
         case .warning: issues.append((15, tr("内存压力偏高")))
         default: break
         }
-        if modules.contains(.thermal), let hottest = store.sensors?.temperature(.cpu)?.maximum {
+        if modules.contains(.battery), let hottest = store.sensors?.temperature(.cpu)?.maximum {
             if hottest >= DS.Thermal.hot { issues.append((20, tr("CPU 温度过高"))) } else if hottest >= 85 { issues.append((10, tr("CPU 温度偏高"))) }
         }
         if modules.contains(.disk), let disk = store.disk {

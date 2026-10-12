@@ -46,7 +46,7 @@ The aggregated overview brings metrics together and opens individual details.
 
 Manage Basic and Optional Features separately in Settings → Features.
 
-- **Basic monitoring**: turn CPU, GPU, memory, disk, network, thermals and battery monitoring on or off individually. Disabling a module stops live collection, related alerts and new history records while keeping basic information, page access and existing history. System widgets refresh independently.
+- **Basic monitoring**: turn CPU, GPU, memory, disk, network, energy and fan monitoring on or off individually. Disabling a module stops live collection, related alerts and new history records while keeping basic information, page access and existing history. System widgets refresh independently.
 - **Menu bar visibility**: selecting Show in Menu Bar for basic monitoring, AI Usage or Audio also enables that feature, except for the battery information entry. Clearing it removes the entry while leaving the feature enabled. AI Usage and Audio have their own display options.
 - **Display parameter controls**: enable or disable brightness, contrast and volume reads and adjustments. Display information remains available, with a separate information-only menu bar option.
 
@@ -64,8 +64,8 @@ Manage Basic and Optional Features separately in Settings → Features.
 | **Memory** | Memory pressure, app / compressed / cached composition, swap space and swap rates |
 | **Disk** | Capacity, read/write rates, per-app I/O ranking, SMART health |
 | **Network** | Upload/download rates, network interfaces and connection summary |
-| **Battery and Bluetooth** | Charge, power source, health, cycle count, system power, app CPU energy and Bluetooth device battery levels |
-| **Temperature and fans** | Temperature sensors, fan speeds and power |
+| **Energy** | Temperatures, system power, app CPU energy, battery status and Bluetooth device battery levels |
+| **Fans** | Fan speeds and controls on supported Macs |
 | **Displays** | Resolution, scaling and refresh rate; brightness, contrast and volume on DDC/CI-capable external displays |
 | **System information** | Mac and system identifiers; click the detail icon beside Apple Intelligence to view feature configuration, on-device model availability and storage |
 

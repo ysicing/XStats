@@ -89,9 +89,9 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
         case .network: [.networkHistory, .networkProbe, .networkInterface, .networkAddresses, .networkPurity, .networkDNS, .networkProcesses]
         case .gpu: [.gpuHistory, .gpuDetails]
         case .disk: [.diskActivity, .diskHealth, .diskProcesses]
-        case .temperature: [.thermalSensors, .thermalFans, .thermalPower]
-        case .fan: [.thermalFans, .thermalSensors, .thermalPower]
-        case .battery: [.batteryHistory, .batteryPower, .batteryApps, .batteryHealth, .batteryBluetooth]
+        case .temperature: [.thermalSensors, .thermalPower]
+        case .fan: [.thermalFans]
+        case .battery: [.batteryPower, .batteryApps, .thermalSensors, .batteryHistory, .batteryHealth, .batteryBluetooth]
         case .aiUsage, .display, .audio: []
         }
     }
@@ -329,7 +329,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
 
     public var id: String { rawValue }
 
-    static let monitors: [PanelTab] = [.overview, .system, .history, .aiUsage, .cpu, .gpu, .memory, .disk, .network, .thermal, .battery]
+    static let monitors: [PanelTab] = [.overview, .system, .history, .aiUsage, .cpu, .gpu, .memory, .disk, .network, .battery, .thermal]
     static let tools: [PanelTab] = [.connections, .audio, .processes, .startupItems, .keepAwake, .rest, .cleaner, .uninstaller]
     // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
     static let settings: [PanelTab] = [.settingsGeneral, .settingsFeatures, .settingsMenuBar, .settingsNotifications,
@@ -351,8 +351,8 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .memory: tr("内存")
         case .disk: tr("磁盘")
         case .network: tr("网络")
-        case .thermal: tr("温度与风扇")
-        case .battery: tr("电池")
+        case .thermal: tr("风扇")
+        case .battery: tr("能耗")
         case .processes: tr("进程")
         case .keepAwake: tr("防休眠")
         case .rest: tr("专注与护眼")
@@ -383,7 +383,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .disk: "internaldrive"
         case .network: "network"
         case .thermal: "fan"
-        case .battery: "battery.75"
+        case .battery: "bolt"
         case .processes: "list.bullet.rectangle"
         case .keepAwake: "cup.and.saucer"
         case .rest: "timer"
@@ -412,17 +412,17 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .memory: .memory
         case .network: .network
         case .disk: .disk
-        case .thermal: .temperature
+        case .thermal: .fan
         case .battery: .battery
         case .aiUsage: .aiUsage
         default: nil
         }
     }
 
-    /// 页面右上角可以直接开关的菜单栏项目：温度与风扇页有温度、风扇两项
+    /// 能耗页提供电池与温度两项，风扇页仅管理风扇入口。
     var menuBarItems: [MenuBarItem] {
         switch self {
-        case .thermal: [.temperature, .fan]
+        case .battery: [.battery, .temperature]
         default: menuBarItem.map { [$0] } ?? []
         }
     }
@@ -434,7 +434,8 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .memory: self = .memory
         case .network: self = .network
         case .disk: self = .disk
-        case .temperature, .fan: self = .thermal
+        case .temperature: self = .battery
+        case .fan: self = .thermal
         case .battery: self = .battery
         case .aiUsage: self = .aiUsage
         case .display: self = .system

@@ -66,4 +66,24 @@ struct FanSafetyLifecycleTests {
         #expect(helper.resetRequests == 1)
         #expect(fans.mode == .automatic && !fans.noticeIsError)
     }
+
+    @Test func disabledEnergyMonitoringDoesNotDisableFanOverheatProtection() async throws {
+        let suite = "FanSafetyTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.setModuleEnabled(.battery, false)
+        let helper = FanControlFixture()
+        let store = store()
+        let fans = FanController(helper: helper, store: store, settings: settings)
+        await fans.select(.custom)
+        store.clearDisabledModules([.thermal])
+        fans.evaluateSafety(temperature: 110)
+        while fans.mode != .automatic || fans.isApplying {
+            try Task.checkCancellation()
+            await Task.yield()
+        }
+        #expect(helper.resetRequests == 1 && !fans.noticeIsError)
+        #expect(!settings.isModuleEnabled(.battery))
+    }
 }

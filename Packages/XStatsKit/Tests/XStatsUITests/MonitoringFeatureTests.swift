@@ -3,6 +3,7 @@
 
 import Foundation
 @testable import Metrics
+import SMC
 import Testing
 @testable import XStatsUI
 
@@ -50,8 +51,10 @@ final class MonitoringFeatureTests {
         settings.setModuleEnabled(.thermal, false)
         settings.menuBarItems.insert(.fan)
         #expect(settings.isModuleEnabled(.thermal))
+        settings.setEnabled(.temperature, true)
         settings.setModuleEnabled(.thermal, false)
-        #expect(!settings.menuBarItems.contains(.fan) && !settings.menuBarItems.contains(.temperature))
+        #expect(!settings.menuBarItems.contains(.fan) && settings.menuBarItems.contains(.temperature))
+        #expect(settings.isModuleEnabled(.battery))
         settings.enabledMonitoringModules = []
         settings.menuBarItems = [.cpu, .gpu, .memory]
         #expect(settings.orderedMenuBarItems == [.cpu, .memory, .gpu])
@@ -147,7 +150,7 @@ final class MonitoringFeatureTests {
         #expect(store.network == nil && store.downloadHistory.elements.isEmpty && store.uploadHistory.elements.isEmpty,
                 "网络关闭后不能保留旧速率曲线")
         #expect(store.gpu == nil && store.gpuHistory.elements.isEmpty, "GPU 关闭后不能保留旧占用曲线")
-        #expect(store.power == nil && store.powerHistory.elements.isEmpty, "温度与风扇关闭后不能保留旧功耗曲线")
+        #expect(store.power == nil && store.powerHistory.elements.isEmpty, "没有功耗需求时不能保留旧功耗曲线")
     }
 
     @Test func closingAndReenablingRejectsSnapshotsAlreadyQueuedBeforeDemandDelivery() {
@@ -177,7 +180,7 @@ final class MonitoringFeatureTests {
         #expect(model.store.powerHistory.elements.isEmpty)
     }
 
-    @Test func batteryPowerIsIndependentOfThermalsAndStopsWhenThePageCloses() {
+    @Test func energyIncludesTemperaturesWithoutFansAndStopsWhenThePageCloses() {
         let settings = settings()
         settings.enabledMonitoringModules = [.battery]
         settings.menuBarItems = []
@@ -191,7 +194,8 @@ final class MonitoringFeatureTests {
         model.store.apply(basic)
         model.isMainWindowVisible = true
         #expect(model.demand.battery && model.demand.power)
-        #expect(model.demand.temperatures.isEmpty && !model.demand.fans && !model.demand.cpuFrequency)
+        #expect(model.demand.temperatures == Set(TemperatureGroup.allCases))
+        #expect(!model.demand.fans && !model.demand.cpuFrequency)
         var snapshot = MetricsSnapshot()
         snapshot.power = PowerReading(system: 30, adapter: 40, battery: -10, gpu: 5)
         model.handle(snapshot)
@@ -238,6 +242,44 @@ final class MonitoringFeatureTests {
         #expect(model.store.appEnergy == nil && !model.demand.appEnergy)
     }
 
+    @Test func energyAndFanReadingsRespectIndependentSwitchesAndKeepHardwareDetection() {
+        let settings = settings()
+        settings.enabledMonitoringModules = [.battery]
+        settings.menuBarItems = []
+        settings.historyEnabled = false
+        settings.enabledAlerts = [.cpuTemperature]
+        settings.panelTab = .battery
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        model.isMainWindowVisible = true
+        var snapshot = MetricsSnapshot()
+        snapshot.sensors = SensorReadings(temperatures: [
+            TemperatureSummary(group: .cpu, average: 50, maximum: 60, sensorCount: 4)
+        ], fans: [FanState(id: 0, current: 2_000, minimum: 1_000, maximum: 5_000,
+                          target: 2_000, isManual: false)], fanCount: 1)
+        model.handle(snapshot)
+        #expect(model.store.supportsFans, "温度采样仍应识别风扇硬件，不开启风扇采集")
+        #expect(model.store.sensors?.temperature(.cpu)?.maximum == 60)
+        #expect(model.store.sensors?.fans.isEmpty == true && !model.demand.fans)
+        #expect(model.demand.power && model.demand.appEnergy)
+        #expect(settings.activeAlerts.contains(.cpuTemperature))
+
+        settings.setModuleEnabled(.battery, false)
+        settings.setModuleEnabled(.thermal, true)
+        settings.panelTab = .thermal
+        model.applyMonitoringSettings()
+        model.handle(snapshot)
+        #expect(model.demand.fans && model.demand.temperatures.isEmpty)
+        #expect(!model.demand.power && !model.demand.appEnergy)
+        #expect(model.store.sensors?.temperatures.isEmpty == true)
+        #expect(model.store.sensors?.fans.count == 1)
+        #expect(!settings.activeAlerts.contains(.cpuTemperature))
+        #expect(PanelTab(item: .temperature) == .battery && PanelTab(item: .fan) == .thermal)
+        #expect(MenuBarItem.temperature.monitoringModule == .battery)
+        #expect(MenuBarItem.fan.monitoringModule == .thermal)
+        model.isMainWindowVisible = false
+        #expect(!model.demand.hasSamples)
+    }
+
     @Test func batteryPopoverRequestsPowerOnlyWhenItsSectionIsVisible() {
         let settings = settings()
         settings.enabledMonitoringModules = [.battery]
@@ -246,7 +288,7 @@ final class MonitoringFeatureTests {
         settings.enabledAlerts = []
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
         model.openPopover = .battery
-        #expect(model.demand.power == (model.store.battery != nil))
+        #expect(model.demand.power && model.demand.appEnergy, "能耗不依赖内置电池")
         var basic = MetricsSnapshot()
         basic.battery = BatteryStatus(level: 0.8, isCharging: false, isPluggedIn: true,
                                       isFullyCharged: false, minutesRemaining: nil, cycleCount: 100, health: 0.9)

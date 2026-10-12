@@ -4,7 +4,7 @@ import Metrics
 import SwiftUI
 
 /// 电池详情：电量与充电状态、最近 24 小时电量曲线、功耗、应用 CPU 能耗、健康度，以及蓝牙设备的当前或最近电量。
-/// 没有电池的 Mac（mini、Studio、iMac）只显示蓝牙设备
+/// 没有内置电池的 Mac 仍显示功耗、应用能耗、温度与蓝牙设备。
 struct BatteryPopover: View {
     @Environment(AppModel.self) private var model
     @Environment(\.isDetailPage) private var isDetailPage
@@ -14,32 +14,72 @@ struct BatteryPopover: View {
         let store = model.store
         let battery = store.battery
 
-        BatteryHero(battery: battery)
+        if battery != nil || !isDetailPage { BatteryHero(battery: battery) }
 
         ForEach(MenuBarItem.battery.popoverSections.filter { isDetailPage || settings.isVisible($0) }) { section in
             switch section {
             case .batteryHistory:
-                if battery != nil {
+                if battery != nil && !isDetailPage {
                     BatteryHistorySection()
                 }
             case .batteryPower:
-                if battery != nil, settings.isModuleEnabled(.battery) {
-                    SectionCard(title: section.title, trailing: { Text(tr("最近 60 秒")) }) {
-                        PowerRows(power: store.power, history: store.powerHistory.elements, compact: !isDetailPage)
+                let power = SectionCard(title: section.title, trailing: { Text(tr("最近 60 秒")) }) {
+                    PowerRows(power: store.power, history: store.powerHistory.elements, compact: !isDetailPage)
+                }
+                if isDetailPage && battery != nil {
+                    if settings.isModuleEnabled(.battery) {
+                        EnergyCardRow {
+                            power
+                        } trailing: {
+                            BatteryHistorySection()
+                        }
+                    } else {
+                        BatteryHistorySection()
                     }
+                } else if settings.isModuleEnabled(.battery) {
+                    power
                 }
             case .batteryApps:
-                if battery != nil, settings.isModuleEnabled(.battery) {
-                    BatteryAppEnergySection(reading: store.appEnergy)
+                if settings.isModuleEnabled(.battery) {
+                    if isDetailPage {
+                        EnergyCardRow {
+                            BatteryAppEnergySection(reading: store.appEnergy)
+                        } trailing: {
+                            TemperatureCard()
+                        }
+                    } else {
+                        BatteryAppEnergySection(reading: store.appEnergy)
+                    }
                 }
+            case .thermalSensors:
+                if settings.isModuleEnabled(.battery) && !isDetailPage { TemperatureCard() }
             case .batteryHealth:
-                if let battery {
+                if let battery, !isDetailPage {
                     BatteryHealthSection(battery: battery)
                 }
             case .batteryBluetooth:
                 BluetoothSection()
             default:
                 EmptyView()
+            }
+        }
+    }
+}
+
+/// 能耗页的成对卡片共用宽度边界，避免测量回写尺寸；窄窗口自然退回单列。
+private struct EnergyCardRow<Leading: View, Trailing: View>: View {
+    @ViewBuilder var leading: Leading
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: DS.Space.s3) {
+                leading.frame(minWidth: DS.Size.popoverWidth, idealWidth: DS.Size.popoverWidth, maxWidth: .infinity)
+                trailing.frame(minWidth: DS.Size.popoverWidth, idealWidth: DS.Size.popoverWidth, maxWidth: .infinity)
+            }
+            VStack(alignment: .leading, spacing: DS.Space.s3) {
+                leading
+                trailing
             }
         }
     }
@@ -97,38 +137,25 @@ private struct BatteryAppEnergySection: View {
 private struct BatteryHero: View {
     let battery: BatteryStatus?
     @Environment(AppModel.self) private var model
+    @Environment(\.isDetailPage) private var isDetailPage
 
     var body: some View {
         Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
             if let battery {
-                let tone: Tone = battery.level <= 0.2 ? .error : battery.isCharging ? .primary : .success
-                HStack(spacing: DS.Space.s3) {
-                    RingGauge(fraction: battery.level, color: tone.color, size: DS.Space.s12 + DS.Space.s2) {
-                        Image(systemName: battery.isCharging ? "bolt.fill" : "laptopcomputer")
-                            .font(.system(size: DS.TextSize.sm.rawValue, weight: .medium))
-                            .foregroundStyle(battery.isCharging ? DS.Palette.primary : DS.Palette.textSecondary)
-                    }
-                    VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
-                        HeroValue(value: Format.percent(battery.level))
-                        Text(battery.stateText)
-                            .dsFont(.xs, weight: .medium)
-                            .foregroundStyle(DS.Palette.textSecondary)
-                        if let minutes = battery.minutesRemaining {
-                            Text(battery.isCharging ? tr("\(Format.duration(minutes: minutes))后充满") : tr("还能用 \(Format.duration(minutes: minutes))"))
-                                .dsFont(.xs)
-                                .foregroundStyle(DS.Palette.textTertiary)
+                if isDetailPage {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: DS.Space.s6) {
+                            chargeSummary(battery).frame(minWidth: DS.Size.popoverWidth, maxWidth: .infinity)
+                            healthSummary(battery).frame(minWidth: DS.Size.popoverWidth, maxWidth: .infinity)
+                        }
+                        VStack(alignment: .leading, spacing: DS.Space.s3) {
+                            chargeSummary(battery)
+                            HairlineDivider()
+                            healthSummary(battery)
                         }
                     }
-                    Spacer(minLength: 0)
-                    VStack(alignment: .trailing, spacing: DS.Space.s1) {
-                        if let watts = battery.adapterWatts, battery.isPluggedIn {
-                            Chip(text: "\(watts) W", icon: "bolt.fill", tone: .warning)
-                        }
-                        if let temperature = model.store.sensors?.temperature(.battery) {
-                            Chip(text: Format.temperature(temperature.maximum, fahrenheit: model.settings.useFahrenheit),
-                                 icon: "thermometer.medium", tone: Tone.forTemperature(temperature.maximum))
-                        }
-                    }
+                } else {
+                    chargeSummary(battery)
                 }
             } else {
                 HStack(spacing: DS.Space.s3) {
@@ -137,11 +164,69 @@ private struct BatteryHero: View {
                         .foregroundStyle(DS.Palette.textSecondary)
                     VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
                         Text(tr("这台 Mac 没有电池")).dsFont(.sm, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
-                        Text(tr("这里显示已配对蓝牙配件，以及最近 30 分钟内读到的电量"))
-                            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                     }
                     Spacer(minLength: 0)
                 }
+            }
+        }
+    }
+
+    private func chargeSummary(_ battery: BatteryStatus) -> some View {
+        let tone: Tone = battery.level <= 0.2 ? .error : battery.isCharging ? .primary : .success
+        return HStack(spacing: DS.Space.s3) {
+            RingGauge(fraction: battery.level, color: tone.color, size: DS.Space.s12 + DS.Space.s2) {
+                Image(systemName: battery.isCharging ? "bolt.fill" : "laptopcomputer")
+                    .font(.system(size: DS.TextSize.sm.rawValue, weight: .medium))
+                    .foregroundStyle(battery.isCharging ? DS.Palette.primary : DS.Palette.textSecondary)
+            }
+            VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
+                HeroValue(value: Format.percent(battery.level))
+                Text(battery.stateText)
+                    .dsFont(.xs, weight: .medium)
+                    .foregroundStyle(DS.Palette.textSecondary)
+                if let minutes = battery.minutesRemaining {
+                    Text(battery.isCharging ? tr("\(Format.duration(minutes: minutes))后充满") : tr("还能用 \(Format.duration(minutes: minutes))"))
+                        .dsFont(.xs)
+                        .foregroundStyle(DS.Palette.textTertiary)
+                }
+            }
+            Spacer(minLength: 0)
+            VStack(alignment: .trailing, spacing: DS.Space.s1) {
+                if let watts = battery.adapterWatts, battery.isPluggedIn {
+                    Chip(text: "\(watts) W", icon: "bolt.fill", tone: .warning)
+                }
+                if let temperature = model.store.sensors?.temperature(.battery) {
+                    Chip(text: Format.temperature(temperature.maximum, fahrenheit: model.settings.useFahrenheit),
+                         icon: "thermometer.medium", tone: Tone.forTemperature(temperature.maximum))
+                }
+            }
+        }
+    }
+
+    private func healthSummary(_ battery: BatteryStatus) -> some View {
+        VStack(alignment: .leading, spacing: DS.Space.s2) {
+            HStack {
+                Text(PopoverSection.batteryHealth.title)
+                    .dsFont(.xs, weight: .semibold).foregroundStyle(DS.Palette.textSecondary)
+                Spacer(minLength: DS.Space.s2)
+                BatterySettingsButton()
+            }
+            HStack(spacing: DS.Space.s6) {
+                VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
+                    Text(tr("健康度")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                    Text(verbatim: battery.health.map { Format.percent($0) } ?? "—")
+                        .dsFont(.sm, weight: .semibold).monospacedDigit()
+                        .foregroundStyle(battery.health.map { $0 < 0.8 ? DS.Palette.warning : DS.Palette.textPrimary } ?? DS.Palette.textPrimary)
+                }
+                .help(tr("健康度是现在充满时的容量与出厂容量之比，低于 80% 时苹果建议更换电池"))
+                .accessibilityElement(children: .combine)
+                .accessibilityHint(tr("健康度是现在充满时的容量与出厂容量之比，低于 80% 时苹果建议更换电池"))
+                VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
+                    Text(tr("循环次数")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                    Text(verbatim: battery.cycleCount.map { $0.formatted(.number.locale(L10n.locale)) } ?? "—")
+                        .dsFont(.sm, weight: .semibold).monospacedDigit()
+                }
+                .accessibilityElement(children: .combine)
             }
         }
     }
@@ -215,14 +300,20 @@ private struct BatteryHealthSection: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Spacer()
-                Button(tr("系统电池设置…")) {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.Battery-Settings.extension") {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-                .buttonStyle(DSButtonStyle(kind: .ghost))
+                BatterySettingsButton()
             }
         }
+    }
+}
+
+private struct BatterySettingsButton: View {
+    var body: some View {
+        Button(tr("系统电池设置…")) {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Battery-Settings.extension") {
+                NSWorkspace.shared.open(url)
+            }
+        }
+        .buttonStyle(DSButtonStyle(kind: .ghost))
     }
 }
 
