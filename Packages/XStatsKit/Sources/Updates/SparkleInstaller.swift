@@ -3,6 +3,7 @@
 
 import AppKit
 import Localization
+import os
 import Sparkle
 
 /// Sparkle 的单一更新流程；复用 XStats 界面和系统通知，不自动下载或安装。
@@ -11,6 +12,7 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
     public enum Action { case install(UpdateRelease), skip(UpdateRelease) }
 
     private let bundle: Bundle
+    private let logger: Logger
     private let onPhase: (UpdatePhase) -> Void
     private let onRelaunch: () -> Void
     public var onRelease: (UpdateRelease, Bool) -> Void = { _, _ in }
@@ -63,6 +65,7 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
          endpoints: [URL] = UpdateFeed.sparkleURLs(prefersChina: UpdateFeed.prefersChinaEndpoint()),
          onPhase: @escaping (UpdatePhase) -> Void, onRelaunch: @escaping () -> Void) {
         self.bundle = bundle
+        logger = Logger(subsystem: bundle.bundleIdentifier ?? "work.12306.xstats.app", category: "update")
         self.endpoints = endpoints
         self.onPhase = onPhase
         self.onRelaunch = onRelaunch
@@ -78,7 +81,13 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
         updater.sendsSystemProfile = false
         let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
         updater.userAgentString = UpdateFeed.userAgent(currentVersion: version)
-        try updater.start()
+        do {
+            try updater.start()
+        } catch {
+            let failure = error as NSError
+            logger.error("更新器启动失败 code=\(failure.code) detail=\(String(failure.localizedDescription.prefix(1024)), privacy: .private)")
+            throw error
+        }
         return updater
     }
 
@@ -125,6 +134,13 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
             if updateCheck == .updatesInBackground { userInitiated = false; action = nil }
         }
         retryingFeed = false
+        let intent = switch action {
+        case .install?: "install"
+        case .skip?: "skip"
+        case nil: userInitiated ? "manual" : "automatic"
+        }
+        // 由 SDK 的实际检查回调记录，覆盖自动 timer；仅记录入口序号，不输出带安装标识的 URL。
+        logger.notice("开始检查更新 intent=\(intent, privacy: .public) endpoint=\(self.endpointIndex + 1)/\(self.endpoints.count)")
         onPhase(.checking)
     }
 
@@ -137,6 +153,7 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
     @objc(updater:didFinishLoadingAppcast:)
     public func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) {
         loadedFeed = true
+        logger.info("已加载更新清单 endpoint=\(self.endpointIndex + 1)")
         onChecked()
     }
 
@@ -148,6 +165,7 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
            reason.int32Value == SPUNoUpdateFoundReason.systemIsTooOld.rawValue,
            let item = info[SPULatestAppcastItemFoundKey] as? SUAppcastItem,
            let release = try? Self.release(from: item) {
+            logger.notice("发现更新但系统版本不满足 version=\(String(release.version.prefix(128)), privacy: .public) build=\(String(release.build.prefix(32)), privacy: .public)")
             onRelease(release, userInitiated)
             onPhase(.available)
         } else {
@@ -155,7 +173,10 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
             let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
             let latest = info[SPULatestAppcastItemFoundKey] as? SUAppcastItem
             // “没有可提醒的更新”还可能是用户跳过了新版，不能误显示“已是最新版本”。
-            onPhase(latest.map { UpdateFeed.isNewer($0.versionString, than: build) } == true ? .idle : .upToDate)
+            let newerBuildExists = latest.map { UpdateFeed.isNewer($0.versionString, than: build) } == true
+            let reason = (info[SPUNoUpdateFoundReasonKey] as? NSNumber)?.int32Value ?? -1
+            logger.notice("没有可提醒的更新 newerBuildExists=\(newerBuildExists) reason=\(reason)")
+            onPhase(newerBuildExists ? .idle : .upToDate)
         }
     }
 
@@ -218,12 +239,27 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
         }
         cancellation = nil
         // 只在尚未收到有效签名 feed 时串行尝试后续入口，每个地址最多一次；下载/安装失败绝不重启安装。
-        if error != nil, !loadedFeed, !cancelled, endpointIndex + 1 < endpoints.count {
+        if let error, !loadedFeed, !cancelled, endpointIndex + 1 < endpoints.count {
+            let failure = error as NSError
+            logger.warning("更新清单请求失败，切换入口 endpoint=\(self.endpointIndex + 1) next=\(self.endpointIndex + 2) code=\(failure.code) detail=\(String(failure.localizedDescription.prefix(1024)), privacy: .private)")
             endpointIndex += 1
             retryingFeed = true
             if userInitiated || action != nil { updater.checkForUpdates() }
             else { updater.checkForUpdatesInBackground() }
             return
+        }
+        // Sparkle 将“没有更新”作为特殊 error 返回，它是正常检查结果，不能记为失败。
+        if cancelled {
+            logger.notice("更新流程已取消")
+        } else if let error {
+            let failure = error as NSError
+            if failure.domain == SUSparkleErrorDomain && failure.code == SUError.noUpdateError.rawValue {
+                logger.notice("更新检查完成 feedLoaded=\(self.loadedFeed)")
+            } else {
+                logger.error("更新流程失败 endpoint=\(self.endpointIndex + 1) feedLoaded=\(self.loadedFeed) code=\(failure.code) detail=\(String(failure.localizedDescription.prefix(1024)), privacy: .private)")
+            }
+        } else {
+            logger.notice("更新检查完成 feedLoaded=\(self.loadedFeed)")
         }
         if case .skip? = action {
             // 跳过点击已在本机排队；网络失败不能撤销选择或转为安装错误。
@@ -260,6 +296,7 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
             cachedExtension = signedRelease?.networkExtension
         }
         guard !cancelled, let release = signedRelease else { reply(.dismiss); return }
+        logger.notice("发现更新 version=\(String(release.version.prefix(128)), privacy: .public) build=\(String(release.build.prefix(32)), privacy: .public) manual=\(self.userInitiated)")
         // Sparkle 也可能恢复已验证的缓存条目；后续安装失败不能作为更新源失败重试。
         loadedFeed = true
         if let action {

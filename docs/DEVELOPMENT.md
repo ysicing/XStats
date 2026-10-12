@@ -204,6 +204,19 @@ task compile CONFIG=Debug
 `swift test --package-path Packages/XStatsKit --filter 'DiagnosticsTests|DiagnosticsArchiveTests|NetworkMonitorTests|NetworkComponent'`。
 日志改动可编译组件验证，无需安装或重新激活过滤器。
 
+主程序与独立组件的共享 Sparkle 驱动在各自子系统的 `update` 类别记录实际检查开始、
+发现版本、没有可提醒的更新、区域入口重试、取消和最终结果。正常周期使用 notice，
+清单加载使用 info，入口重试使用 warning，启动或最终失败使用 error。
+“没有更新”是正常结果；有较新构建但不提醒时会记录 `newerBuildExists` 和 Sparkle 的原因码，
+不直接认定为已是最新版本。仅输出入口序号和版本，不记录安装标识、完整请求 URL 或清单正文；
+错误详情最多 1024 字符且标记为 private。不逐次记录下载进度，也不添加日志采集任务或计时器。
+
+```bash
+# 查看主程序及独立组件最近一小时的更新检查日志。
+/usr/bin/log show --last 1h --style compact --info \
+  --predicate 'category == "update" AND subsystem IN {"work.12306.xstats.app", "work.12306.xstats.networkmonitor"}'
+```
+
 “功能 → 网络监视器”仅在 macOS 15 及以上开放，默认关闭。macOS 14 不显示入口，
 保留原有功能；即使旧偏好或备份包含开启状态，也不会激活扩展。进入页面后
 点击“启用连接查看”时，主应用按需从 c-ip 下载并验证独立组件，安装到
