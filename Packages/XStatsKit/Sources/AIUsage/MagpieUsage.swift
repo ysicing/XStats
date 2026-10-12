@@ -13,14 +13,29 @@ public struct MagpieQuota: Decodable, Equatable, Sendable, Identifiable {
     public let name: String
     public let kind: String
     public let plan: String?
+    public let user: String?
+    public let until: Date?
+    public let resets: MagpieResetCredits?
     public let windows: [MagpieQuotaWindow]
     public let balance: String?
     public let error: String?
     public let readAt: Date?
     public let last: Bool?
     var ordinal = 0
-    public var id: String { "\(provider):\(name):\(kind):\(ordinal)" }
-    private enum CodingKeys: String, CodingKey { case provider, name, kind, plan, windows, balance, error, readAt, last }
+    // 同名账户有身份信息时按身份区分，刷新顺序变化不能把展开状态移交给另一个账户。
+    public var id: String { "\(provider):\(name):\(kind):\(user ?? ""):\(ordinal)" }
+    private enum CodingKeys: String, CodingKey { case provider, name, kind, plan, user, until, resets, windows, balance, error, readAt, last }
+}
+
+/// Magpie 返回的剩余重置卡；缺少数量表示未知，不能当作零张。
+public struct MagpieResetCredits: Decodable, Equatable, Sendable {
+    public let count: Int?
+    public let until: Date?
+    public let each: [Credit]?
+
+    public struct Credit: Decodable, Equatable, Sendable {
+        public let until: Date?
+    }
 }
 
 public struct MagpieQuotaWindow: Decodable, Equatable, Sendable {
@@ -179,7 +194,9 @@ public struct MagpieClient: MagpieFetching, Sendable {
         return try envelope.data.map { item in
             guard item.windows.count <= 100, item.provider.count <= 256, item.name.count <= 256 else { throw MagpieFailure.invalidResponse }
             guard (item.plan?.count ?? 0) <= 512, (item.balance?.count ?? 0) <= 2048,
-                  (item.error?.count ?? 0) <= 4096 else { throw MagpieFailure.invalidResponse }
+                  (item.error?.count ?? 0) <= 4096, (item.user?.count ?? 0) <= 512,
+                  (item.resets?.each?.count ?? 0) <= 1000 else { throw MagpieFailure.invalidResponse }
+            if let count = item.resets?.count, !(0...1_000_000).contains(count) { throw MagpieFailure.invalidResponse }
             for window in item.windows {
                 guard window.name.count <= 256, (window.display?.count ?? 0) <= 2048 else { throw MagpieFailure.invalidResponse }
                 // 服务端可能报告超过 100% 的已用额度，但剩余额度仍应在 0–100% 之间。

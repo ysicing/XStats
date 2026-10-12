@@ -3,6 +3,7 @@
 
 extension Translations {
     static let magpieEnglish = #"""
+到期：{}	Expires: {}
 显示 Token 用量	Show token usage
 从 Magpie 读取 Token 与费用；关闭后只读取额度。	Reads tokens and costs from Magpie; when off, only quotas are read.
 检测到已安装 Magpie，自动使用其本地数据。	Magpie is installed; its local data is used automatically.

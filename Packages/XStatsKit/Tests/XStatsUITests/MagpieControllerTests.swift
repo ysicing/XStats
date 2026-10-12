@@ -236,7 +236,13 @@ struct MagpieControllerTests {
             ["provider": $0, "name": "Demo account", "kind": "subscription",
              "windows": [["name": "7 days", "used": 28, "remaining": 72]]]
         }
-        records.append(["provider": "claude", "name": "Second demo account", "kind": "subscription", "windows": []])
+        records[0]["user"] = "long.demo.account.for.layout@example.invalid"
+        records[0]["plan"] = "self_serve_business_prolite"
+        records[0]["until"] = "2099-11-01T00:00:00Z"
+        records[0]["resets"] = ["count": 2, "until": "2099-10-20T12:00:00Z",
+                                "each": [["until": "2099-10-20T12:00:00Z"], ["until": "2099-11-20T12:00:00Z"]]]
+        records.append(["provider": "claude", "name": "Second demo account", "kind": "subscription",
+                        "user": "second.demo@example.invalid", "resets": ["count": 0], "windows": []])
         let accounts = try MagpieClient.decodeQuotas(JSONSerialization.data(withJSONObject: ["object": "list", "data": records]))
         let model = AppModel(settings: settings(), historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
         let host = NSHostingView(rootView: Card { MagpieQuotaAccounts(accounts: accounts) }

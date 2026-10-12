@@ -1982,3 +1982,4 @@ Magpie 数据无法读取，请检查版本或数据大小。	Lecture des donné
 查看 AI 服务的 Token 用量与账户额度。	Consultez l’utilisation des tokens et les quotas des comptes des services d’IA.
 查看账户剩余额度与重置时间	Afficher les quotas restants et les dates de réinitialisation
 查看今天的 Token 用量	Afficher l’utilisation des tokens d’aujourd’hui
+到期：{}	Expiration : {}

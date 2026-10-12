@@ -507,6 +507,10 @@ usage. There is no persisted Magpie account cache.
 
 Quotas remain separate per account and preserve Magpie's window names. The menu bar shows one account
 per provider (prefer the last active account), capped at three providers; the page shows all accounts.
+Account rows also preserve Magpie's optional `user`, subscription `until`, and `resets` metadata.
+Reset credit counts remain distinct from the balance and quota-window reset times; missing counts
+are unknown, not zero. Individual credit expiry dates are disclosed on demand, with bounded lists
+and no additional requests, timers, or persistent account storage.
 The widget receives the same selected quotas and today's aggregate through its existing snapshot schema,
 without extra requests. Token totals follow Magpie's `input + output` convention, excluding cache traffic;
 cache reads/writes are shown separately. Only traffic routed through Magpie is counted. Its own USD cost

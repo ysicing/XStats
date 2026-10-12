@@ -35,4 +35,12 @@ import Testing
         #expect(Translations.shared.translate("下载并应用") == "Download and Apply")
         #expect(Translations.shared.translate("WebDAV 返回错误：503") == "WebDAV returned an error: 503")
     }
+
+    @Test func translatesCardExpiryInEverySupportedCatalog() throws {
+        for language in AppLanguage.allCases where language != .system && language != .chinese {
+            let table = try #require(Translations.catalog(for: language))
+            let translated = try #require(table.translate("到期：Demo"))
+            #expect(translated.contains("Demo"))
+        }
+    }
 }

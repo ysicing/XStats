@@ -78,7 +78,14 @@ struct MagpieQuotaAccounts: View {
                         Text(account.name).dsFont(.sm, weight: .semibold)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: DS.Space.s2)
-                        if let plan = account.plan { Text(plan).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary) }
+                        if let plan = account.plan {
+                            Text(plan).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                    if let user = account.user, !user.isEmpty {
+                        Text(user).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                            .lineLimit(1).truncationMode(.middle).help(user).textSelection(.enabled)
                     }
                     if account.error != nil {
                         Text(tr("Magpie 未能读取此账户的额度。"))
@@ -114,6 +121,7 @@ struct MagpieQuotaAccounts: View {
                         }
                         if let balance = account.balance { Text(balance).dsFont(.xs) }
                     }
+                    MagpieAccountDetails(account: account)
                 }
             }
         }
@@ -139,5 +147,55 @@ struct MagpieQuotaAccounts: View {
             }
         }
         .labelStyle(.titleAndIcon)
+    }
+}
+
+/// 低频账户信息放在额度下方；逐张有效期由原生披露控件按需展开，不增加刷新任务。
+private struct MagpieAccountDetails: View {
+    let account: MagpieQuota
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s2) {
+            if let until = account.until {
+                HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
+                    Label(tr("套餐有效期"), systemImage: "calendar")
+                    Spacer(minLength: DS.Space.s1)
+                    Text(UsageNumber.quotaDate(until, includesTime: true))
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+            if let resets = account.resets, let count = resets.count {
+                let dates = (resets.each ?? []).compactMap(\.until).sorted()
+                if count > 0, !dates.isEmpty {
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: DS.Space.s1) {
+                            ForEach(Array(dates.enumerated()), id: \.offset) { _, date in
+                                Text(tr("到期：\(UsageNumber.quotaDate(date, includesTime: true))"))
+                            }
+                        }
+                        // macOS 的披露内容默认靠尾端放置，铺满可用宽度使详情跟随摘要对齐。
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, DS.Space.s1)
+                        .foregroundStyle(DS.Palette.textTertiary)
+                    } label: {
+                        resetSummary(count: count, until: dates.first ?? resets.until)
+                    }
+                } else {
+                    resetSummary(count: count, until: count > 0 ? resets.until : nil)
+                }
+            }
+        }
+        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+    }
+
+    private func resetSummary(count: Int, until: Date?) -> some View {
+        VStack(alignment: .leading, spacing: DS.Space.s1) {
+            Label(tr("重置卡：\(count.formatted(.number.locale(L10n.locale)))"), systemImage: "arrow.counterclockwise.circle")
+            if let until {
+                Text(tr("最早到期：\(UsageNumber.quotaDate(until, includesTime: true))"))
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+        }
+        .help(tr("可手动恢复额度的剩余次数，不是已重置次数。"))
     }
 }

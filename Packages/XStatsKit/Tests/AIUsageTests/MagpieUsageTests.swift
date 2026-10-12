@@ -6,6 +6,40 @@ import Foundation
 import Testing
 
 struct MagpieUsageTests {
+    @Test func preservesAccountSubscriptionAndResetCards() throws {
+        let data = Data(#"{"object":"list","data":[{"provider":"codex","name":"Codex","kind":"subscription","user":"demo@example.com","plan":"pro","until":"2099-11-01T00:00:00Z","resets":{"count":2,"until":"2099-10-20T12:00:00Z","each":[{"until":"2099-10-21T12:00:00.000Z"},{"until":"2099-10-20T12:00:00Z"}]},"balance":"100 credits","windows":[{"name":"7 days","remaining":87,"resetsAt":"2099-10-18T12:00:00Z"}]}]}"#.utf8)
+        let quota = try #require(MagpieClient.decodeQuotas(data).first)
+        let iso = ISO8601DateFormatter()
+        #expect(quota.user == "demo@example.com")
+        #expect(quota.until == iso.date(from: "2099-11-01T00:00:00Z"))
+        #expect(quota.resets?.count == 2)
+        #expect(quota.resets?.until == iso.date(from: "2099-10-20T12:00:00Z"))
+        #expect(quota.resets?.each?.compactMap(\.until).count == 2)
+        #expect(quota.balance == "100 credits")
+        #expect(quota.windows.first?.resetsAt == iso.date(from: "2099-10-18T12:00:00Z"))
+    }
+
+    @Test func missingCardInformationIsUnknownAndZeroRemainsZero() throws {
+        let data = Data(#"{"object":"list","data":[{"provider":"codex","name":"legacy","kind":"subscription","windows":[]},{"provider":"codex","name":"zero","kind":"subscription","user":null,"until":null,"resets":{"count":0},"windows":[]},{"provider":"codex","name":"unknown","kind":"subscription","resets":{},"windows":[]}]}"#.utf8)
+        let quotas = try MagpieClient.decodeQuotas(data)
+        #expect(quotas[0].user == nil && quotas[0].until == nil && quotas[0].resets == nil)
+        #expect(quotas[1].resets?.count == 0 && quotas[1].resets?.each == nil)
+        #expect(quotas[2].resets?.count == nil)
+    }
+
+    @Test func boundsAccountInformationAndCardLists() throws {
+        let base: [String: Any] = ["provider": "codex", "name": "demo", "kind": "subscription", "windows": []]
+        for fields: [String: Any] in [
+            ["user": String(repeating: "a", count: 513)],
+            ["resets": ["count": -1]], ["resets": ["count": 1_000_001]],
+            ["resets": ["count": 2, "each": Array(repeating: ["until": NSNull()], count: 1001)]],
+        ] {
+            let record = base.merging(fields) { _, new in new }
+            let data = try JSONSerialization.data(withJSONObject: ["object": "list", "data": [record]])
+            #expect(throws: MagpieFailure.invalidResponse) { try MagpieClient.decodeQuotas(data) }
+        }
+    }
+
     @Test func preservesAccountsAndUnknownProviderWindows() throws {
         let data = Data(#"{"object":"list","data":[{"provider":"grok","name":"one","kind":"subscription","windows":[{"name":"7 days","used":32,"remaining":68}]},{"provider":"codex","name":"two","kind":"subscription","last":true,"windows":[]},{"provider":"codex","name":"three","kind":"subscription","error":"failed","windows":[]}]}"#.utf8)
         let quotas = try MagpieClient.decodeQuotas(data)
@@ -28,6 +62,15 @@ struct MagpieUsageTests {
         let a = try MagpieClient.decodeQuotas(Data("{\"object\":\"list\",\"data\":[\(first),\(second)]}".utf8))
         let b = try MagpieClient.decodeQuotas(Data("{\"object\":\"list\",\"data\":[\(second),\(first)]}".utf8))
         #expect(a[0].id == b[1].id)
+    }
+
+    @Test func sameNameAccountsKeepIdentityWhenReordered() throws {
+        let first = #"{"provider":"codex","name":"Codex","kind":"subscription","user":"first@example.invalid","windows":[]}"#
+        let second = #"{"provider":"codex","name":"Codex","kind":"subscription","user":"second@example.invalid","windows":[]}"#
+        let a = try MagpieClient.decodeQuotas(Data("{\"object\":\"list\",\"data\":[\(first),\(second)]}".utf8))
+        let b = try MagpieClient.decodeQuotas(Data("{\"object\":\"list\",\"data\":[\(second),\(first)]}".utf8))
+        #expect(a[0].id != a[1].id)
+        #expect(a[0].id == b[1].id && a[1].id == b[0].id)
     }
 
     @Test func usesMagpieTotalsWithoutIncludingCacheTraffic() throws {
