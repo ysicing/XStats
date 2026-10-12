@@ -247,6 +247,19 @@ Cleanup start/completion and incomplete uninstall scan counts go to unified logs
 Regenerable caches are deleted outright; user files go to the Trash. Each action is appended
 to `~/Library/Logs/XStats/cleanup.log` as a JSON line.
 
+Application management uses a native sortable table for App and Homebrew inventories, retaining the
+existing uninstaller feature preference and deep link. `AppManagementController` reads local inventories
+on visibility and measures sizes sequentially on utility tasks, guarded by cancellation and generations.
+Completed measurements survive reopening; explicit refresh, a five-minute stale inventory on re-entry,
+or a brew mutation invalidates results. There is no background update timer. NSWorkspace observation
+updates running state only while visible. Architecture reads at most 4 KiB of Mach-O headers; last-opened
+dates come from Spotlight and missing metadata stays unknown. Cask source matching uses exact artifact
+paths, and Cask uninstallation uses brew to preserve its installation database. JSON inventory, package
+identifiers and output are bounded. Explicit index refresh and per-package operations use the existing
+bounded tool runner with auto-update, analytics, cleanup and autoremove disabled. Mutations retain
+Homebrew dependency protection, disallow pinned upgrades and running/self Cask changes, and finish
+independently of page visibility. App uninstall still uses the existing preview/recycler safety path.
+
 Application uninstallation uses a separate controller and scans only app-specific paths.
 Identity comes from the app's names and bounded embedded bundles (512 entries, 64 bundles,
 depth 8); application groups come only from validated signatures. Container metadata identifies

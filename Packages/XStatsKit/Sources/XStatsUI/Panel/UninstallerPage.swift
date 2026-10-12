@@ -203,7 +203,7 @@ private struct AppListRow: View {
     }
 }
 
-private struct AppDetailCard: View {
+struct AppDetailCard: View {
     @Environment(AppModel.self) private var model
     let app: InstalledApp
     let confirm: () -> Void

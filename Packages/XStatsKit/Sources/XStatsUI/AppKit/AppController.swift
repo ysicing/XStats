@@ -230,6 +230,15 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // 退出会终止工具进程，不能中断已经确认的 Homebrew 写操作。
+        if model.appManagement.operation != nil {
+            let alert = NSAlert()
+            alert.messageText = tr("软件包操作尚未完成")
+            alert.informativeText = tr("请等待当前操作完成后再退出 XStats。")
+            alert.addButton(withTitle: tr("确定"))
+            alert.runModal()
+            return .terminateCancel
+        }
         let needsNetwork = model.updates.installationRequiresPreparation || model.connectionMonitor.terminationRequiresPreparation || model.networkComponent.terminationRequiresPreparation
         guard needsNetwork || model.wellness.requiresTerminationPreparation else { return .terminateNow }
         guard terminationTask == nil else { return .terminateLater }
@@ -270,6 +279,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.networkGeography.setDemand(enabled: false)
         model.aiUsage.stop()
         model.sleepAssertions.setVisible(false)
+        model.appManagement.setVisible(false)
         model.keepAwake.releaseForTermination()
         if model.fans.mode != .automatic || model.keepAwake.lidClosedActive {
             model.helper.restoreDefaultsSynchronously()
@@ -743,6 +753,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.displays.setPaused(true)
         model.audio.setPaused(true)
         model.sleepAssertions.setPaused(true)
+        model.appManagement.setPaused(true)
         model.connectionMonitor.setPaused(true)
         model.history.flush()
         model.wellness.suspend()
@@ -760,6 +771,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.displays.setPaused(false)
         model.audio.setPaused(false)
         model.sleepAssertions.setPaused(false)
+        model.appManagement.setPaused(false)
         model.connectionMonitor.setPaused(false)
         rest.sync()
         model.wellness.resume()

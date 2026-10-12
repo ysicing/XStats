@@ -357,7 +357,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .keepAwake: tr("防休眠")
         case .rest: tr("专注与护眼")
         case .cleaner: tr("清理")
-        case .uninstaller: tr("卸载应用")
+        case .uninstaller: tr("应用")
         case .startupItems: tr("启动项")
         case .audio: tr("音频")
         case .connections: tr("网络监视器")
@@ -388,7 +388,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
         case .keepAwake: "cup.and.saucer"
         case .rest: "timer"
         case .cleaner: "eraser"
-        case .uninstaller: "trash"
+        case .uninstaller: "square.grid.2x2"
         case .startupItems: "power"
         case .audio: "speaker.wave.2"
         case .connections: "network.badge.shield.half.filled"

@@ -36,6 +36,7 @@ public final class AppModel {
     let diagnostics = DiagnosticsExporter()
     public let alerts: AlertController
     public let uninstaller: UninstallerController
+    let appManagement = AppManagementController()
     public let bluetooth = BluetoothController()
     let sleepAssertions = SleepAssertionController()
     let startupItems = StartupItemsController()
@@ -381,6 +382,7 @@ public final class AppModel {
     /// 开关变化后同步清理已停止更新的实时值；旧历史数据库不受影响。
     func applyMonitoringSettings() {
         uninstaller.setEnabled(settings.uninstallerEnabled)
+        appManagement.setEnabled(settings.uninstallerEnabled)
         displays.setEnabled(settings.isModuleEnabled(.display))
         store.clearDisabledModules(settings.enabledMonitoringModules, powerRequested: demand.power, appEnergyRequested: demand.appEnergy)
         if let popover = openPopover, !settings.isModuleEnabled(for: popover) { openPopover = nil }

@@ -127,11 +127,17 @@ API 检测；配置开启不代表模型可用。此模式不生成回答、修�
 
 能耗页集中显示电池信息、功耗、App 能耗和温度，无内置电池也可查看可用读数。阻止睡眠与蓝牙设备在详情页并排显示，窄窗口转为单列。睡眠阻止信息仅在能耗启用且页面可见时每 10 秒读取一次，切页、关闭、最小化、锁屏与休眠时停止并丢弃旧结果；不读取历史、不持久化。能耗关闭后保留电池基础信息和电池菜单栏入口，温度入口移除；加入电池入口不隐式开启额外采集，加入温度入口则启用能耗。风扇仅在确认硬件存在后展示；其调速、交还系统及过热保护不依赖能耗开关。沿用 `battery`／`thermal` 偏好标识，不重置用户设置。
 
-可选功能按用途拆为独立卡片：网络监视器、进程、卸载应用与清理一组；AI 用量、音频与显示器参数控制一组；专注与护眼、菜单栏日历各自单独一组。每组首项不画线，其余条目使用相同细分隔线，组间留白，不新增动画。
+可选功能按用途拆为独立卡片：网络监视器、进程、应用与清理一组；AI 用量、音频与显示器参数控制一组；专注与护眼、菜单栏日历各自单独一组。每组首项不画线，其余条目使用相同细分隔线，组间留白，不新增动画。
 
-卸载应用也放在可选功能中，默认关闭。启用后显示侧栏入口，关闭后停止扫描并释放运行应用监听；深链转到功能设置。待确认操作会取消，已经开始的废纸篓操作正常收尾，移除期间禁用功能开关。偏好支持导出与恢复。
+应用管理放在可选功能中，默认关闭，沿用 `uninstallerEnabled` 与 `uninstaller` 路由。启用后显示侧栏入口，关闭后停止扫描并释放运行应用监听；深链转到功能设置。待确认操作会取消，已经开始的废纸篓操作正常收尾，移除期间禁用功能开关。偏好支持导出与恢复。
 
 聚合排序定向验证：`swift test --package-path Packages/XStatsKit --filter 'MenuBarOrderTests|MenuBarLayoutTests|MenuBarResourceTests|WebDAVSettingsTests|MonitoringResourceTests'`。覆盖顺序保存、关闭再开启、硬件不可用项目、功能启用过滤、设置同步与重绘观察。使用现有 `--menubar-only` 截图入口检查中文、英文和 RTL；独立图标仍由系统拖动排序。
+
+应用页使用原生表格浏览 App 与 Homebrew 清单，可搜索、按列排序、查看运行状态、版本、大小、架构、上次打开与来源。App 清单复用固定应用目录扫描，保护 XStats 自身和 Apple 应用；普通应用卸载打开原有残留预览与确认。Homebrew 来源按 Cask 的真实 app 产物路径匹配，卸载走 Cask 命令而不是直接回收本体。Spotlight 没有上次打开记录或无法识别架构时显示空值，不以文件修改时间代替使用记录。
+
+应用管理没有检查定时器。进入页面时读取本地清单，列表先显示，后台串行计量；完成结果在页面重开时复用，手动刷新或超过 5 分钟再次进入会重读。窗口不可见、锁屏、休眠、离开页面时取消只读遍历，拒绝旧任务结果，关闭功能释放结果。运行状态通过 NSWorkspace 事件更新。Homebrew 自动更新、分析、自动清理与依赖自动移除均关闭；只有点击“检查更新”才执行 `brew update`。Formula / Cask 更新、卸载逐项确认，保留原生依赖保护，不使用 force / zap；运行中的 Cask、XStats 本身和固定版本更新有保护。已经确认的 brew 写操作不因切页或关闭窗口中断，操作中退出应用会提示等待；结束后两个列表失效，失败时提示终端检查。
+
+定向验证：`swift test --package-path Packages/XStatsKit --filter 'ApplicationManagementTests|AppManagementControllerTests'`。可选实机只读检查：设置 `XSTATS_APP_MANAGEMENT_RESOURCE_REPORT=<输出路径>`，筛选 `AppManagementControllerTests/nativeInventoryStopsWhenClosed`，验证关闭后的遍历退出与 5 秒内无新增读取；不执行软件包更新或卸载。原生布局截图：`XStats --snapshot <目录> --app-management-only --language zh-Hans`，可切换 `en` 与 `ar`，只使用演示数据，不读取真实应用或执行 brew 写操作。
 
 卸载增强的定向验证：`swift test --package-path Packages/XStatsKit --filter 'AppUninstall|Uninstaller|ScanCancellationTests'`。测试只使用临时应用、目录和模拟回收器，覆盖容器元数据、签名应用组、共享候选默认保留、路径重定向、取消与残留重试；不会卸载真实应用。`XStats --snapshot <目录> --uninstaller-only --language zh-Hans` 使用独立偏好与演示候选生成卸载/重试及确认弹窗的明暗截图；可用 `en` 和 `ar` 验证长译文与 RTL，不扫描本机应用或调用废纸篓。
 

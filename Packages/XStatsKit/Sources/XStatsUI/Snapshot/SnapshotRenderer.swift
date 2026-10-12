@@ -25,6 +25,37 @@ enum SnapshotRenderer {
         do { try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true) }
         catch { reportFailure(outputDirectory, error: error); return }
 
+        if CommandLine.arguments.contains("--app-management-only") {
+            let suite = "XStats.appManagementSnapshot.\(UUID())"
+            guard let defaults = UserDefaults(suiteName: suite) else { return }
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let settings = AppSettings(defaults: defaults)
+            settings.language = L10n.language; settings.uninstallerEnabled = true
+            let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+            let apps = ["Atlas", "Boreal", "Editor", "Studio", "Terminal", "Weather"].map {
+                InstalledApp(url: URL(fileURLWithPath: "/Applications/\($0).app"), name: $0,
+                             bundleIdentifier: "demo.\($0.lowercased())", version: "2.4.1", teamIdentifier: nil)
+            }
+            let metadata = Dictionary(uniqueKeysWithValues: apps.enumerated().map { index, app in
+                (app.id, ApplicationMetadata(architecture: index.isMultiple(of: 2) ? .appleSilicon : .universal,
+                    lastOpened: index < 4 ? Date(timeIntervalSince1970: 1_790_000_000) : nil, isAppStore: index == 1))
+            })
+            let json = #"{"formulae":[{"name":"tool","full_name":"vendor/tap/tool","installed":[{"version":"1.1"}],"versions":{"stable":"2.0"},"outdated":true},{"name":"runtime","full_name":"runtime","installed":[{"version":"24.0"}],"versions":{"stable":"24.0"},"pinned":true}],"casks":[{"full_token":"editor","name":["Editor"],"installed":"2.4.1","version":"2.5.0","outdated":true,"artifacts":[{"app":["Editor.app"],"target":"/Applications/Editor.app"}]}]}"#
+            // 演示包同样走生产解析器，不构造可能绕过身份检查的操作对象。
+            let packages = (try? HomebrewManagement.parse(json, prefix: URL(fileURLWithPath: "/opt/homebrew"))) ?? []
+            model.appManagement.showPreview(apps: apps, metadata: metadata,
+                sizes: Dictionary(uniqueKeysWithValues: apps.enumerated().map { ($0.element.id, UInt64(($0.offset + 1) * 128_000_000)) }), packages: packages)
+            for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+                guard let appearance = NSAppearance(named: name) else { continue }
+                NSApp.appearance = appearance
+                for tab in AppManagementController.Tab.allCases {
+                    write(AppManagementPage(tab: tab).appLanguageEnvironment().frame(width: 1050, height: 560),
+                          model: model, appearance: appearance, to: outputDirectory.appendingPathComponent("apps-\(tab.rawValue)-\(suffix).png"))
+                }
+            }
+            return
+        }
+
         // 定向诊断不启动指标采样或 AI 日志扫描；demo 仅用于布局走查。
         if CommandLine.arguments.contains("--apple-intelligence-only") {
             let demo = CommandLine.arguments.contains("--demo")

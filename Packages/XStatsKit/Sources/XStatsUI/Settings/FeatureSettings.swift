@@ -145,9 +145,9 @@ struct FeatureSettings: View {
                     }
                 }
                 GroupRow {
-                    SettingRow(title: tr("卸载应用"), subtitle: tr("查看应用与残留文件，确认后移到废纸篓。"), icon: "trash") {
-                        DSToggle(isOn: $settings.uninstallerEnabled, label: tr("卸载应用"))
-                            .disabled(model.uninstaller.isRemoving)
+                    SettingRow(title: tr("应用"), subtitle: tr("浏览应用信息，管理 Homebrew，并预览卸载残留。"), icon: "square.grid.2x2") {
+                        DSToggle(isOn: $settings.uninstallerEnabled, label: tr("应用"))
+                            .disabled(model.uninstaller.isRemoving || model.appManagement.operation != nil)
                     }
                 }
                 GroupRow {

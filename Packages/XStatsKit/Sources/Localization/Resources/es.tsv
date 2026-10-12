@@ -2003,3 +2003,39 @@ CPU 能耗	Consumo de CPU
 阻止系统闲置睡眠	Impide el reposo del sistema por inactividad
 阻止屏幕闲置关闭	Impide que la pantalla se apague por inactividad
 屏幕	Pantalla
+Apple 芯片	Apple Silicon
+iPhone 与 iPad	iPhone y iPad
+上次打开	Última apertura
+了解 Homebrew	Acerca de Homebrew
+卸载“{}”？	¿Desinstalar «{}»?
+卸载…	Desinstalar…
+在 Finder 中显示	Mostrar en Finder
+大小	Tamaño
+尚未安装 Homebrew	Homebrew no está instalado
+安装 Homebrew 后，可在这里管理 Formula 与 Cask。	Instala Homebrew para gestionar fórmulas y casks aquí.
+已固定版本	Versión fijada
+已计量	Medido
+应用类型	Tipo de aplicación
+搜索应用或软件包	Buscar apps o paquetes
+无法读取应用列表，请重新扫描	No se pudo leer la lista de aplicaciones. Vuelve a escanear.
+更新“{}”？	¿Actualizar «{}»?
+更新软件包	Actualizar paquete
+更新软件包…	Actualizar paquete…
+有可用更新	Actualización disponible
+正在卸载软件包…	Desinstalando paquete…
+正在更新软件包…	Actualizando paquete…
+正在读取应用清单…	Leyendo lista de aplicaciones…
+浏览应用信息，管理 Homebrew，并预览卸载残留。	Consulta apps, gestiona Homebrew y revisa los archivos residuales antes de desinstalar.
+由 Homebrew 卸载所选项目，依赖保护仍然生效。	Homebrew desinstalará el elemento seleccionado manteniendo la protección de dependencias.
+Homebrew 会更新所选项目及必要的依赖。	Homebrew actualizará el elemento seleccionado y las dependencias necesarias.
+Homebrew 操作失败，请在终端检查后重试	La operación de Homebrew falló. Comprueba en Terminal y reinténtalo.
+Homebrew 操作已完成	Operación de Homebrew completada
+筛选	Filtrar
+通用架构	Universal
+软件包操作尚未完成	La operación del paquete sigue en curso
+请等待当前操作完成后再退出 XStats。	Espera a que finalice la operación actual antes de salir de XStats.
+名称	Nombre
+来源	Origen
+最新版本	Última versión
+正在运行	En ejecución
+打开	Abrir

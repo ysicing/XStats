@@ -8,7 +8,7 @@
 
 extension Translations {
     static var tables: [String] {
-        [english, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish, networkObservationEnglish, monitoringEnglish, appleIntelligenceEnglish, wellnessEnglish, magpieEnglish]
+        [english, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish, appleIntelligenceEnglish, wellnessEnglish, magpieEnglish]
     }
 
 
@@ -1650,5 +1650,46 @@ IP 归属地	IP location
 对比度	Contrast
 音量	Volume
 显示链路正在恢复…	Display connection is recovering…
+"""#
+}
+
+extension Translations {
+    static let applicationManagementEnglish = #"""
+名称	Name
+来源	Source
+最新版本	Latest Version
+正在运行	Running
+打开	Open
+软件包操作尚未完成	Package Operation Is Still in Progress
+请等待当前操作完成后再退出 XStats。	Wait for the current operation to finish before quitting XStats.
+Apple 芯片	Apple Silicon
+iPhone 与 iPad	iPhone and iPad
+上次打开	Last Opened
+了解 Homebrew	About Homebrew
+卸载“{}”？	Uninstall “{}”?
+卸载…	Uninstall…
+在 Finder 中显示	Show in Finder
+大小	Size
+尚未安装 Homebrew	Homebrew Is Not Installed
+安装 Homebrew 后，可在这里管理 Formula 与 Cask。	Manage formulae and casks here after installing Homebrew.
+已固定版本	Pinned
+已计量	Measured
+应用类型	Application Type
+搜索应用或软件包	Search apps or packages
+无法读取应用列表，请重新扫描	Could not read the application list. Scan again.
+更新“{}”？	Update “{}”?
+更新软件包	Update Package
+更新软件包…	Update Package…
+有可用更新	Update Available
+正在卸载软件包…	Uninstalling package…
+正在更新软件包…	Updating package…
+正在读取应用清单…	Reading application inventory…
+浏览应用信息，管理 Homebrew，并预览卸载残留。	Browse app information, manage Homebrew, and review uninstall leftovers.
+由 Homebrew 卸载所选项目，依赖保护仍然生效。	Homebrew will uninstall the selected item with dependency protections enabled.
+Homebrew 会更新所选项目及必要的依赖。	Homebrew will update the selected item and any required dependencies.
+Homebrew 操作失败，请在终端检查后重试	Homebrew operation failed. Check in Terminal and try again.
+Homebrew 操作已完成	Homebrew Operation Completed
+筛选	Filter
+通用架构	Universal
 """#
 }
