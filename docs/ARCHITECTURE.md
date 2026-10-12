@@ -543,9 +543,12 @@ usage. There is no persisted Magpie account cache.
 
 Quotas remain separate per account and preserve Magpie's window names. The menu bar shows one valid
 account per selected provider (prefer the last active account), with no provider-count cap. The default
-selection is OpenAI (Codex), Claude, Grok and Gemini; other known or Magpie-provided services can be
-selected in menu-bar settings. Selected services without a current finite quota remain hidden. This
-display preference applies to both Magpie and direct mode, without changing queries or page contents.
+selection is OpenAI (Codex), Claude, Grok and Gemini. Menu-bar settings list only providers actually
+returned by Magpie, deduplicated across accounts; unavailable quotas keep their selection option but
+remain hidden in the menu bar. A failed refresh preserves the last successful provider list. Saved
+choices remain intact when a provider disappears. Direct mode hides this selection control and uses
+the existing Codex/Claude source settings, independent of saved Magpie choices. Neither mode changes
+queries, page contents or the independent Widget summary when a menu-bar choice changes.
 Account rows also preserve Magpie's optional `user`, subscription `until`, and `resets` metadata.
 Reset credit counts remain distinct from the balance and quota-window reset times; missing counts
 are unknown, not zero. Individual credit expiry dates are disclosed on demand, with bounded lists

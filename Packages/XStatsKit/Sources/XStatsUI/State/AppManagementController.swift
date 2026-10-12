@@ -18,8 +18,11 @@ final class AppManagementController {
     private(set) var packageSizes: [String: UInt64] = [:]
     private(set) var runningPaths: Set<String> = []
     private(set) var casksByPath: [String: HomebrewPackage] = [:]
+    /// 展示来源可从快照恢复；卸载路由始终依赖本次实际读取的 casksByPath。
+    private(set) var homebrewAppPaths: Set<String> = []
     private(set) var isLoadingApps = false
     private(set) var isMeasuringApps = false
+    private(set) var isRefreshingApps = false
     private(set) var isLoadingBrew = false
     private(set) var isCheckingUpdates = false
     private(set) var operation: HomebrewManagement.Action?
@@ -38,6 +41,12 @@ final class AppManagementController {
     @ObservationIgnored private var measuredApps: Set<String> = []
     @ObservationIgnored private var measuredPackages: Set<String> = []
     @ObservationIgnored private var appReadDate: Date?
+    @ObservationIgnored private var appFingerprints: [String: AppInventoryCache.Fingerprint] = [:]
+    @ObservationIgnored private var measuredAppDates: [String: Date] = [:]
+    private var didLoadCache = false
+    @ObservationIgnored private var hasCachedAppInventory = false
+    @ObservationIgnored private let cacheURL: URL?
+    @ObservationIgnored private var cacheWriteFailed = false
     @ObservationIgnored private var brewReadDate: Date?
     @ObservationIgnored private var runningObservation: NSKeyValueObservation?
     @ObservationIgnored private let listApps: @Sendable () throws -> [InstalledApp]
@@ -49,7 +58,8 @@ final class AppManagementController {
     let brewAvailable: Bool
     var isReading: Bool { appTask != nil || brewTask != nil }
     var hasBrewInventory: Bool { !brewAvailable || brewReadDate != nil }
-    var hasAppInventory: Bool { appReadDate != nil }
+    var hasAppInventory: Bool { appReadDate != nil || hasCachedAppInventory }
+    var isRestoringAppCache: Bool { cacheURL != nil && !didLoadCache }
 
     func isCurrentApp(_ package: HomebrewPackage) -> Bool {
         let current = Bundle.main.bundleURL.resolvingSymlinksInPath().path
@@ -76,10 +86,12 @@ final class AppManagementController {
          brewAvailable: Bool = HomebrewManagement.isAvailable,
          listPackages: @escaping @Sendable () async throws -> [HomebrewPackage] = { try await HomebrewManagement.inventory() },
          updateIndex: @escaping @Sendable () async throws -> Void = { try await HomebrewManagement.checkUpdates() },
-         performAction: @escaping @Sendable (HomebrewManagement.Action, HomebrewPackage) async throws -> Void = { try await HomebrewManagement.perform($0, package: $1) }) {
+         performAction: @escaping @Sendable (HomebrewManagement.Action, HomebrewPackage) async throws -> Void = { try await HomebrewManagement.perform($0, package: $1) },
+         cacheURL: URL? = nil) {
         self.listApps = listApps; self.inspectApp = inspectApp; self.measureSize = measureSize
         self.brewAvailable = brewAvailable; self.listPackages = listPackages
         self.updateIndex = updateIndex; self.performAction = performAction
+        self.cacheURL = cacheURL
     }
 
     func setEnabled(_ value: Bool) {
@@ -88,7 +100,11 @@ final class AppManagementController {
             setVisible(false)
             apps = []; metadata = [:]; sizes = [:]; measuredApps = []
             packages = []; packageSizes = [:]; measuredPackages = []; casksByPath = [:]
+            homebrewAppPaths = []
             appReadDate = nil; brewReadDate = nil
+            appFingerprints = [:]; measuredAppDates = [:]
+            didLoadCache = false
+            hasCachedAppInventory = false
         }
     }
 
@@ -122,7 +138,7 @@ final class AppManagementController {
             }
         }
         if tab == .apps {
-            readApps(force: appReadDate.map { Date().timeIntervalSince($0) > 300 } ?? false)
+            readApps(force: false, refreshInventory: true)
         }
         readBrew(force: brewReadDate.map { Date().timeIntervalSince($0) > 300 } ?? false)
     }
@@ -145,36 +161,85 @@ final class AppManagementController {
         appGeneration = UUID(); brewGeneration = UUID()
         appTask?.cancel(); brewTask?.cancel()
         appTask = nil; brewTask = nil
-        isLoadingApps = false; isMeasuringApps = false; isLoadingBrew = false; isCheckingUpdates = false
+        isLoadingApps = false; isMeasuringApps = false; isRefreshingApps = false; isLoadingBrew = false; isCheckingUpdates = false
         runningObservation = nil
     }
 
-    private func readApps(force: Bool) {
+    private func readApps(force: Bool, refreshInventory: Bool = false) {
         guard visible, !paused, enabled, appTask == nil else { return }
-        if !force, appReadDate != nil, apps.allSatisfy({ measuredApps.contains($0.id) }) { return }
+        if !force, !refreshInventory, appReadDate != nil, apps.allSatisfy({ measuredApps.contains($0.id) }) { return }
         let generation = UUID(); appGeneration = generation
         let list = listApps; let inspect = inspectApp; let measure = measureSize
-        isLoadingApps = appReadDate == nil || force
+        let needsInventory = force || refreshInventory || appReadDate == nil
+        isLoadingApps = !hasAppInventory || force
+        isRefreshingApps = force
         appTask = Task { [weak self] in
             defer { if let self, self.appGeneration == generation {
-                self.appTask = nil; self.isLoadingApps = false; self.isMeasuringApps = false
+                self.appTask = nil; self.isLoadingApps = false; self.isMeasuringApps = false; self.isRefreshingApps = false
             } }
             do {
-                if force || self?.appReadDate == nil {
-                    let apps = try await Self.read { try list() }
+                if let self, !self.didLoadCache, let url = self.cacheURL {
+                    let cached: AppInventoryCache?
+                    do { cached = try await Self.read { try AppInventoryCache.load(from: url) } }
+                    catch is CancellationError { throw CancellationError() }
+                    catch {
+                        cached = nil
+                        Log.app.info("Application display cache ignored: \(String(describing: error).prefix(500), privacy: .private)")
+                    }
+                    try Task.checkCancellation()
+                    guard self.appGeneration == generation else { return }
+                    self.didLoadCache = true
+                    if let cached {
+                        self.apps = cached.entries.map(\.app)
+                        if self.brewReadDate == nil {
+                            self.homebrewAppPaths = Set(cached.entries.filter { $0.isHomebrew == true }.map(\.path))
+                        }
+                        for entry in cached.entries {
+                            self.metadata[entry.path] = entry.metadata
+                            self.sizes[entry.path] = entry.size
+                            self.appFingerprints[entry.path] = entry.fingerprint
+                            self.measuredAppDates[entry.path] = entry.measuredAt
+                        }
+                        self.measuredApps = Set(cached.entries.filter {
+                            guard let date = $0.measuredAt else { return false }
+                            return (0...AppInventoryCache.measurementLifetime).contains(Date().timeIntervalSince(date))
+                        }.map(\.path))
+                        // 展示快照不能充当本次进程已核对清单的标记；中途离开后仍需重新核对。
+                        self.hasCachedAppInventory = true
+                        if !force { self.isLoadingApps = false }
+                    }
+                }
+                if needsInventory {
+                    let inventory = try await Self.read {
+                        let apps = try list()
+                        guard apps.count <= AppInventoryCache.maximumEntries else { throw HomebrewManagement.InventoryError.invalidOutput }
+                        var fingerprints: [String: AppInventoryCache.Fingerprint] = [:]
+                        for app in apps {
+                            try Task.checkCancellation()
+                            fingerprints[app.id] = AppInventoryCache.Fingerprint.read(app)
+                        }
+                        return (apps, fingerprints)
+                    }
                     try Task.checkCancellation()
                     guard let self, self.appGeneration == generation else { return }
-                    guard apps.count <= 10_000 else { throw HomebrewManagement.InventoryError.invalidOutput }
+                    let (apps, fingerprints) = inventory
+                    let previous = Dictionary(self.apps.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+                    let unchanged = Set(apps.filter {
+                        guard !force, previous[$0.id] == $0, self.appFingerprints[$0.id] == fingerprints[$0.id],
+                              let date = self.measuredAppDates[$0.id] else { return false }
+                        return (0...AppInventoryCache.measurementLifetime).contains(Date().timeIntervalSince(date))
+                    }.map(\.id))
                     self.apps = apps; self.appReadDate = Date()
-                    let ids = Set(self.apps.map(\.id))
+                    let ids = Set(apps.map(\.id))
                     self.metadata = self.metadata.filter { ids.contains($0.key) }
-                    // 刷新时保留仍在清单中的数值，逐项用新结果替换，避免表格闪回占位符。
+                    // 保留旧显示值，实际测量只重做新增、变化或超过一天的应用；手动扫描重新计量全部。
                     self.sizes = self.sizes.filter { ids.contains($0.key) }
-                    self.measuredApps = force ? [] : self.measuredApps.intersection(ids)
+                    self.measuredApps.formIntersection(unchanged)
+                    self.measuredAppDates = self.measuredAppDates.filter { unchanged.contains($0.key) }
+                    self.appFingerprints = fingerprints
                 }
                 guard let self else { return }
-                // 轻量信息先批量读取；大型应用的目录计量不能拖住后续行的架构与日期。
-                let pendingMetadata = self.apps.filter { force || self.metadata[$0.id] == nil }
+                let pendingMetadata = self.apps.filter { needsInventory || self.metadata[$0.id] == nil }
                 if !pendingMetadata.isEmpty {
                     let details = try await Self.read {
                         var result: [String: ApplicationMetadata] = [:]
@@ -190,6 +255,11 @@ final class AppManagementController {
                 }
                 self.isLoadingApps = false
                 self.isMeasuringApps = self.apps.contains { !self.measuredApps.contains($0.id) }
+                if self.isMeasuringApps {
+                    await self.saveAppCache()
+                    try Task.checkCancellation()
+                    guard self.appGeneration == generation else { return }
+                }
                 for app in self.apps where !self.measuredApps.contains(app.id) {
                     do {
                         let size = try await Self.read { try measure(app.url) }
@@ -198,7 +268,6 @@ final class AppManagementController {
                         self.sizes[app.id] = size
                     } catch is CancellationError { throw CancellationError() }
                     catch {
-                        // 新计量失败时清掉旧大小；单个包不可读不影响其余列表行。
                         try Task.checkCancellation()
                         guard self.appGeneration == generation else { return }
                         self.sizes.removeValue(forKey: app.id)
@@ -206,12 +275,35 @@ final class AppManagementController {
                     try Task.checkCancellation()
                     guard self.appGeneration == generation else { return }
                     self.measuredApps.insert(app.id)
+                    self.measuredAppDates[app.id] = Date()
                 }
+                await self.saveAppCache()
             } catch {
                 guard let self, !Task.isCancelled, self.appGeneration == generation else { return }
                 self.error = tr("无法读取应用列表，请重新扫描")
                 Log.app.error("Application inventory failed: \(String(describing: error).prefix(500), privacy: .private)")
             }
+        }
+    }
+
+    private func saveAppCache() async {
+        guard let url = cacheURL else { return }
+        let snapshot = AppInventoryCache(entries: apps.map {
+            AppInventoryCache.Entry(app: $0, metadata: metadata[$0.id], size: sizes[$0.id],
+                                    measuredAt: measuredAppDates[$0.id], fingerprint: appFingerprints[$0.id],
+                                    isHomebrew: homebrewAppPaths.contains($0.id))
+        })
+        do {
+            try await Self.read { try snapshot.save(to: url) }
+            if cacheWriteFailed { Log.app.notice("Application display cache writes recovered") }
+            cacheWriteFailed = false
+        }
+        catch is CancellationError { /* 页面关闭时不再写入快照。 */ }
+        catch {
+            if !cacheWriteFailed {
+                Log.app.error("Application display cache write failed: \(String(describing: error).prefix(500), privacy: .private)")
+            }
+            cacheWriteFailed = true
         }
     }
 
@@ -240,6 +332,10 @@ final class AppManagementController {
                     for package in packages where package.kind == .cask {
                         for url in package.applicationURLs { self.casksByPath[url.standardizedFileURL.path] = package }
                     }
+                    self.homebrewAppPaths = Set(self.casksByPath.keys)
+                    if self.appTask == nil, self.appReadDate != nil { await self.saveAppCache() }
+                    try Task.checkCancellation()
+                    guard self.brewGeneration == generation else { return }
                 }
                 guard let self, self.tab == .homebrew else { return }
                 for package in self.packages where !self.measuredPackages.contains(package.id) {
@@ -280,12 +376,14 @@ final class AppManagementController {
     /// 原生截图使用演示清单，不扫描本机或调用 Homebrew。
     func showPreview(apps: [InstalledApp], metadata: [String: ApplicationMetadata], sizes: [String: UInt64], packages: [HomebrewPackage]) {
         cancelReading()
+        didLoadCache = true
         self.apps = apps; self.metadata = metadata; self.sizes = sizes; self.packages = packages
         packageSizes = Dictionary(uniqueKeysWithValues: packages.enumerated().map { ($0.element.id, UInt64(($0.offset + 1) * 45_000_000)) })
         casksByPath = [:]
         for package in packages {
             for url in package.applicationURLs { casksByPath[url.path] = package }
         }
+        homebrewAppPaths = Set(casksByPath.keys)
         runningPaths = Set(apps.prefix(2).map(\.id))
         measuredApps = Set(apps.map(\.id)); measuredPackages = Set(packages.map(\.id))
         appReadDate = Date(); brewReadDate = Date()
@@ -313,6 +411,7 @@ final class AppManagementController {
             self.appReadDate = nil; self.brewReadDate = nil
             self.measuredApps = []; self.measuredPackages = []; self.sizes = [:]; self.packageSizes = [:]
             self.metadata = [:]; self.casksByPath = [:]
+            self.homebrewAppPaths = []
             if self.visible, !self.paused, self.enabled { self.resume() }
         }
     }

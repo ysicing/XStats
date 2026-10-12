@@ -36,7 +36,7 @@ public final class AppModel {
     let diagnostics = DiagnosticsExporter()
     public let alerts: AlertController
     public let uninstaller: UninstallerController
-    let appManagement = AppManagementController()
+    let appManagement = AppManagementController(cacheURL: AppInventoryCache.defaultURL)
     public let bluetooth = BluetoothController()
     let sleepAssertions = SleepAssertionController()
     let startupItems = StartupItemsController()

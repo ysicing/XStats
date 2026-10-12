@@ -19,6 +19,189 @@ import Testing
         try #require(condition())
     }
 
+    @Test func restartingShowsCachedRowsBeforeTheLiveReadAndReusesUnchangedSizes() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("inventory.json")
+        let fixture = app("Editor")
+        let first = AppManagementController(listApps: { [fixture] }, inspectApp: { _ in ApplicationMetadata(architecture: .universal) },
+            measureSize: { _ in 42 }, brewAvailable: false, cacheURL: url)
+        first.setVisible(true)
+        try await waitFor { !first.isReading && first.sizes[fixture.id] == 42 }
+        first.setVisible(false)
+        let entered = AppManagementTestValue(false)
+        let release = AppManagementTestValue(false)
+        let measurements = AppManagementTestValue(0)
+        let restarted = AppManagementController(listApps: {
+            entered.withLock { $0 = true }
+            while !release.withLock({ $0 }), !Task.isCancelled { Thread.sleep(forTimeInterval: 0.005) }
+            return [fixture]
+        }, inspectApp: { _ in ApplicationMetadata(architecture: .universal) }, measureSize: { _ in
+            measurements.withLock { $0 += 1 }; return 99
+        }, brewAvailable: false, cacheURL: url)
+        defer { release.withLock { $0 = true }; restarted.setVisible(false) }
+        #expect(restarted.apps.isEmpty && !entered.withLock { $0 })
+        restarted.setVisible(true)
+        try await waitFor { entered.withLock { $0 } }
+        #expect(restarted.apps == [fixture] && restarted.sizes[fixture.id] == 42)
+        #expect(restarted.metadata[fixture.id]?.architecture == .universal)
+        #expect(!restarted.isLoadingApps && !restarted.isRefreshingApps)
+        release.withLock { $0 = true }
+        try await waitFor { !restarted.isReading }
+        #expect(measurements.withLock { $0 } == 0)
+        restarted.setVisible(false)
+        restarted.setVisible(true)
+        #expect(restarted.apps == [fixture] && !restarted.isLoadingApps && !restarted.isRefreshingApps)
+        try await waitFor { !restarted.isReading }
+        #expect(measurements.withLock { $0 } == 0)
+    }
+
+    @Test func liveInventoryRemovesDeletedRowsAndRemeasuresUpdatedAndAddedApps() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("inventory.json")
+        let old = app("Editor"); let removed = app("Removed"); let added = app("New")
+        let updated = InstalledApp(url: old.url, name: old.name, bundleIdentifier: old.bundleIdentifier, version: "2", teamIdentifier: nil)
+        try AppInventoryCache(entries: [old, removed].map {
+            AppInventoryCache.Entry(app: $0, metadata: ApplicationMetadata(), size: 42, measuredAt: Date(), fingerprint: .read($0))
+        }).save(to: url)
+        let measured = AppManagementTestValue(Set<String>())
+        let controller = AppManagementController(listApps: { [updated, added] }, inspectApp: { _ in ApplicationMetadata() },
+            measureSize: { url in measured.withLock { $0.insert(url.path) }; return 99 }, brewAvailable: false, cacheURL: url)
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading }
+        #expect(controller.apps == [updated, added])
+        #expect(controller.sizes[removed.id] == nil && controller.metadata[removed.id] == nil)
+        #expect(measured.withLock { $0 } == Set([updated.id, added.id]))
+        #expect(controller.sizes[updated.id] == 99 && controller.sizes[added.id] == 99)
+        #expect(try AppInventoryCache.load(from: url)?.entries.map(\.app) == [updated, added])
+    }
+
+    @Test func changedFingerprintsAndExpiredMeasurementsAreNotReused() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("inventory.json")
+        let changed = app("Changed"); let expired = app("Expired")
+        try AppInventoryCache(entries: [
+            .init(app: changed, metadata: ApplicationMetadata(), size: 42, measuredAt: Date(),
+                  fingerprint: .init(bundleModified: .distantPast, infoModified: nil)),
+            .init(app: expired, metadata: ApplicationMetadata(), size: 42, measuredAt: Date().addingTimeInterval(-172_800),
+                  fingerprint: .read(expired))
+        ]).save(to: url)
+        let measured = AppManagementTestValue(Set<String>())
+        let controller = AppManagementController(listApps: { [changed, expired] }, inspectApp: { _ in ApplicationMetadata() },
+            measureSize: { url in measured.withLock { $0.insert(url.path) }; return 99 }, brewAvailable: false, cacheURL: url)
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading }
+        #expect(measured.withLock { $0 } == Set([changed.id, expired.id]))
+    }
+
+    @Test func corruptCacheFallsBackToLiveInventory() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("inventory.json")
+        try Data("invalid json".utf8).write(to: url)
+        let fixture = app("Editor")
+        let controller = AppManagementController(listApps: { [fixture] }, inspectApp: { _ in ApplicationMetadata() },
+            measureSize: { _ in 42 }, brewAvailable: false, cacheURL: url)
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading }
+        #expect(controller.apps == [fixture] && controller.sizes[fixture.id] == 42 && controller.error == nil)
+        #expect(try AppInventoryCache.load(from: url)?.entries.count == 1)
+    }
+
+    @Test func cacheWriteFailureDoesNotBlockBrowsingAndCanRecover() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let parent = directory.appendingPathComponent("blocked")
+        try Data([1]).write(to: parent)
+        let url = parent.appendingPathComponent("inventory.json")
+        let fixture = app("Editor")
+        let controller = AppManagementController(listApps: { [fixture] }, inspectApp: { _ in ApplicationMetadata() },
+            measureSize: { _ in 42 }, brewAvailable: false, cacheURL: url)
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading }
+        controller.refresh()
+        try await waitFor { !controller.isReading }
+        #expect(controller.apps == [fixture] && controller.sizes[fixture.id] == 42 && controller.error == nil)
+        try FileManager.default.removeItem(at: parent)
+        controller.refresh()
+        try await waitFor { !controller.isReading }
+        #expect(try AppInventoryCache.load(from: url)?.entries.first?.size == 42)
+        #expect(controller.error == nil)
+    }
+
+    @Test func closingACachedPageCancelsRefreshAndKeepsOnlyTheDisplayedSnapshot() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("inventory.json")
+        let fixture = app("Editor")
+        try AppInventoryCache(entries: [.init(app: fixture, metadata: ApplicationMetadata(), size: 42, measuredAt: Date(), fingerprint: .read(fixture))]).save(to: url)
+        let entered = AppManagementTestValue(false); let finished = AppManagementTestValue(false)
+        let controller = AppManagementController(listApps: {
+            entered.withLock { $0 = true }
+            defer { finished.withLock { $0 = true } }
+            while !Task.isCancelled { Thread.sleep(forTimeInterval: 0.005) }
+            return []
+        }, brewAvailable: false, cacheURL: url)
+        controller.setVisible(true)
+        try await waitFor { entered.withLock { $0 } }
+        controller.setVisible(false)
+        try await waitFor { finished.withLock { $0 } }
+        #expect(!controller.isReading && !controller.isRefreshingApps && controller.apps == [fixture])
+        #expect(try AppInventoryCache.load(from: url)?.entries.map(\.app) == [fixture])
+    }
+
+    @Test func cacheRejectsExpiredDuplicateAndOversizedSnapshots() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("inventory.json")
+        let entry = AppInventoryCache.Entry(app: app("Editor"), metadata: nil, size: nil, measuredAt: nil, fingerprint: nil)
+        try AppInventoryCache(entries: [entry], savedAt: Date().addingTimeInterval(-AppInventoryCache.lifetime - 60)).save(to: url)
+        #expect(try AppInventoryCache.load(from: url) == nil)
+        try AppInventoryCache(entries: [entry, entry]).save(to: url)
+        #expect(try AppInventoryCache.load(from: url) == nil)
+        try Data(repeating: 0, count: AppInventoryCache.maximumBytes + 1).write(to: url)
+        #expect(try AppInventoryCache.load(from: url) == nil)
+    }
+
+    @Test func cachedHomebrewSourceNeverAuthorizesAnUninstallBeforeTheLiveInventory() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("inventory.json")
+        let fixture = app("Editor")
+        try AppInventoryCache(entries: [.init(app: fixture, metadata: ApplicationMetadata(), size: 42, measuredAt: Date(),
+            fingerprint: .read(fixture), isHomebrew: true)]).save(to: url)
+        let package = HomebrewPackage(name: "editor", displayName: "Editor", kind: .cask, installedVersions: ["1"], latestVersion: nil,
+            outdated: false, pinned: false, installationURLs: [fixture.url], applicationURLs: [fixture.url])
+        let entered = AppManagementTestValue(false)
+        let release = AppManagementTestValue(false)
+        let writes = AppManagementTestValue(0)
+        let controller = AppManagementController(listApps: { [fixture] }, inspectApp: { _ in ApplicationMetadata() }, brewAvailable: true,
+            listPackages: {
+                entered.withLock { $0 = true }
+                while !release.withLock({ $0 }) { try await Task.sleep(for: .milliseconds(10)) }
+                return []
+            }, performAction: { _, _ in writes.withLock { $0 += 1 } }, cacheURL: url)
+        defer { release.withLock { $0 = true }; controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { controller.apps.count == 1 && entered.withLock { $0 } }
+        #expect(controller.homebrewAppPaths.contains(fixture.id))
+        #expect(!controller.hasBrewInventory && controller.casksByPath.isEmpty)
+        controller.perform(.uninstall, package: package)
+        #expect(controller.operation == nil && writes.withLock { $0 } == 0)
+        release.withLock { $0 = true }
+        try await waitFor { !controller.isReading }
+        #expect(controller.hasBrewInventory && controller.homebrewAppPaths.isEmpty)
+        #expect(try AppInventoryCache.load(from: url)?.entries.first?.isHomebrew == false)
+    }
+
     @Test func closedAndDisabledPagesNeverReadAndReopeningUsesCompletedSizes() async throws {
         let calls = AppManagementTestValue((list: 0, sizes: 0))
         let fixture = app("Editor")
@@ -35,7 +218,7 @@ import Testing
         controller.setVisible(false)
         controller.setVisible(true)
         try await Task.sleep(for: .milliseconds(50))
-        #expect(calls.withLock { $0.list == 1 && $0.sizes == 1 })
+        #expect(calls.withLock { $0.list == 2 && $0.sizes == 1 })
         controller.setEnabled(false)
         controller.setVisible(true)
         #expect(!controller.visible && controller.apps.isEmpty)
@@ -156,6 +339,7 @@ import Testing
         controller.setVisible(false); controller.setVisible(true)
         #expect(controller.apps == [fixture] && controller.metadata[fixture.id]?.architecture == .intel)
         #expect(controller.error == nil && controller.sizes.isEmpty)
+        try await waitFor { !controller.isReading }
         #expect(attempts.withLock { $0 } == 1)
         controller.setVisible(false)
     }
@@ -199,6 +383,50 @@ import Testing
         controller.perform(.upgrade, package: pinned)
         controller.perform(.upgrade, package: stale)
         #expect(controller.operation == nil && writes.withLock { $0 } == 0)
+    }
+
+    /// 可选实机检查：只读真实清单，关闭页面后等待目录遍历退出，确认不再发起后台读取。
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["XSTATS_APP_CACHE_RESOURCE_REPORT"] != nil))
+    func nativeCacheRestoresWithoutRepeatingSizeTraversal() async throws {
+        let report = try #require(ProcessInfo.processInfo.environment["XSTATS_APP_CACHE_RESOURCE_REPORT"])
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cacheURL = directory.appendingPathComponent("inventory.json")
+        let first = AppManagementController(brewAvailable: false, cacheURL: cacheURL)
+        first.setVisible(true)
+        try await waitFor { !first.isReading && !first.apps.isEmpty }
+        let count = first.apps.count
+        let sizeCount = first.sizes.count
+        first.setVisible(false)
+        let reads = AppManagementTestValue((list: 0, sizes: 0))
+        let restarted = AppManagementController(listApps: {
+            reads.withLock { $0.list += 1 }
+            return try AppUninstaller.scanInstalledApps()
+        }, measureSize: { url in
+            reads.withLock { $0.sizes += 1 }
+            return try CleanEngine.scanAllocatedSize(of: url)
+        }, brewAvailable: false, cacheURL: cacheURL)
+        defer { restarted.setVisible(false) }
+        let start = ContinuousClock.now
+        restarted.setVisible(true)
+        try await waitFor { !restarted.apps.isEmpty }
+        let restored = start.duration(to: .now)
+        #expect(restarted.apps.count == count && restarted.sizes.count == sizeCount)
+        try await waitFor { !restarted.isReading }
+        #expect(reads.withLock { $0.sizes } == 0)
+        for _ in 0..<3 {
+            restarted.setVisible(false)
+            restarted.setVisible(true)
+            #expect(!restarted.isLoadingApps && !restarted.isRefreshingApps)
+            try await waitFor { !restarted.isReading }
+        }
+        #expect(reads.withLock { $0.list == 4 && $0.sizes == 0 })
+        restarted.setVisible(false)
+        let before = reads.withLock { $0 }
+        try await Task.sleep(for: .seconds(5))
+        #expect(reads.withLock { $0.list == before.list && $0.sizes == before.sizes })
+        try "apps=\(count) cached_sizes=\(sizeCount) restored_in=\(restored) live_inventory_reads=\(before.list) repeated_size_reads=\(before.sizes) closed_new_reads=0 observed_seconds=5\n"
+            .write(toFile: report, atomically: true, encoding: .utf8)
     }
 
     /// 可选实机检查：只读真实清单，关闭页面后等待目录遍历退出，确认不再发起后台读取。

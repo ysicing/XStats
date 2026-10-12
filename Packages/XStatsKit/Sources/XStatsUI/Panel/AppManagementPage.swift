@@ -24,6 +24,9 @@ struct AppManagementPage: View {
     private var isScanning: Bool {
         tab == .apps ? controller.isLoadingApps || controller.isMeasuringApps : controller.isLoadingBrew
     }
+    private var showsRefreshProgress: Bool {
+        tab == .apps ? !controller.isRestoringAppCache && (controller.isRefreshingApps || (!controller.hasAppInventory && isScanning)) : isScanning
+    }
 
     init(tab: AppManagementController.Tab = .apps) { _tab = State(initialValue: tab) }
 
@@ -138,14 +141,14 @@ struct AppManagementPage: View {
                     .disabled(!controller.brewAvailable || controller.isLoadingBrew || controller.operation != nil)
             }
             IconButton(systemName: "arrow.clockwise", help: tr("重新扫描")) { controller.refresh() }
-                .opacity(isScanning ? 0 : 1)
+                .opacity(showsRefreshProgress ? 0 : 1)
                 .overlay {
-                    if isScanning { ProgressView().controlSize(.small).transition(.opacity) }
+                    if showsRefreshProgress { ProgressView().controlSize(.small).transition(.opacity) }
                 }
-                .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: isScanning)
+                .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: showsRefreshProgress)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(isScanning ? tr("正在读取…") : tr("重新扫描"))
-                .disabled(isScanning || controller.operation != nil || controller.isCheckingUpdates)
+                .accessibilityLabel(showsRefreshProgress ? tr("正在读取…") : tr("重新扫描"))
+                .disabled(showsRefreshProgress || (tab == .apps && controller.isRestoringAppCache) || controller.operation != nil || controller.isCheckingUpdates)
         }
     }
 
@@ -191,7 +194,7 @@ struct AppManagementPage: View {
         .overlay {
             if rows.isEmpty {
                 if controller.error == nil && (isScanning || (tab == .apps && !controller.hasAppInventory)) {
-                    ProgressView(tr("正在读取…"))
+                    if tab != .apps || !controller.isRestoringAppCache { ProgressView(tr("正在读取…")) }
                 } else { ContentUnavailableView.search(text: search) }
             }
         }
@@ -275,7 +278,7 @@ struct AppManagementPage: View {
                 let metadata = controller.metadata[app.id]
                 return ManagedApplicationRow(id: app.id, name: app.name, version: app.version ?? "—",
                     size: controller.sizes[app.id], kind: metadata?.architecture.title ?? "—", lastOpened: metadata?.lastOpened,
-                    source: controller.casksByPath[app.id] != nil ? "Homebrew" : metadata?.isAppStore == true ? "App Store" : "—",
+                    source: controller.homebrewAppPaths.contains(app.id) ? "Homebrew" : metadata?.isAppStore == true ? "App Store" : "—",
                     isRunning: controller.runningPaths.contains(app.id), app: app, package: nil)
             }
         } else {

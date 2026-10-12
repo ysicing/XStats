@@ -61,6 +61,24 @@ struct MagpieControllerTests {
         return settings
     }
 
+    @Test func menuBarChoicesOnlyIncludeReturnedServicesAndSurviveARefreshFailure() async throws {
+        let payload = Data(#"{"object":"list","data":[{"provider":"codex","name":"first","kind":"subscription","windows":[]},{"provider":"codex","name":"second","kind":"subscription","windows":[]},{"provider":"claude","name":"account","kind":"subscription","error":"unavailable","windows":[]},{"provider":"grok","name":"account","kind":"subscription","windows":[]},{"provider":"workbuddy-ai","name":"account","kind":"subscription","windows":[]}]}"#.utf8)
+        let settings = settings()
+        settings.aiMenuBarProviders.insert("saved-provider")
+        let selection = settings.aiMenuBarProviders
+        let magpie = MagpieStub(quotaPayload: payload)
+        let controller = AIUsageController(settings: settings, providers: [], magpieClient: magpie)
+        defer { controller.stop() }
+        #expect(controller.availableMenuBarQuotaProviders.isEmpty)
+        await controller.refresh()
+        #expect(controller.availableMenuBarQuotaProviders == ["codex", "claude", "grok", "workbuddy-ai"])
+        await magpie.fail(true)
+        await controller.refresh()
+        #expect(controller.magpieQuotaFailure == .unavailable)
+        #expect(controller.availableMenuBarQuotaProviders == ["codex", "claude", "grok", "workbuddy-ai"])
+        #expect(settings.aiMenuBarProviders == selection)
+    }
+
     @Test func menuBarShowsEverySelectedAvailableServiceWithoutLimitingWidgetOrRequestingAgain() async throws {
         let providers = ["copilot", "gemini", "grok", "claude", "codex", "perplexity", "future-provider"]
         let accounts = providers.map { ["provider": $0, "name": "account", "kind": "subscription",
@@ -110,8 +128,15 @@ struct MagpieControllerTests {
 
     @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft])
     func menuBarServiceSelectionFitsANarrowSettingsPage(direction: LayoutDirection) async throws {
-        let model = AppModel(settings: settings(), historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        let providers = AIServiceBrand.menuBarOrder + ["future-provider-with-a-long-service-name"]
+        let payload = try JSONSerialization.data(withJSONObject: ["object": "list", "data": providers.map {
+            ["provider": $0, "name": "account", "kind": "subscription", "windows": []] as [String: Any]
+        }])
+        let model = AppModel(settings: settings(), historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+                             magpieClient: MagpieStub(quotaPayload: payload))
+        defer { model.aiUsage.stop() }
         model.settings.aiMenuBarProviders.insert("future-provider-with-a-long-service-name")
+        await model.aiUsage.refresh()
         let host = NSHostingView(rootView: AIQuotaMenuBarSelection().environment(model)
             .environment(\.layoutDirection, direction).environment(\.colorScheme, .light)
             .padding(16).frame(width: 320).background(Color(nsColor: .windowBackgroundColor)))

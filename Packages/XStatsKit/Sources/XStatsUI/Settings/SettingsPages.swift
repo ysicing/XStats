@@ -370,7 +370,8 @@ struct MenuBarSettings: View {
                         if moduleEnabled, settings.isEnabled(item) {
                             ItemStyleRow(item: item)
                                 .disabled(settings.menuBarLayout == .iconOnly)
-                            if item == .aiUsage {
+                            if item == .aiUsage, model.aiUsage.usesMagpie,
+                               !model.aiUsage.availableMenuBarQuotaProviders.isEmpty {
                                 AIQuotaMenuBarSelection()
                                     .disabled(settings.menuBarLayout == .iconOnly)
                             }

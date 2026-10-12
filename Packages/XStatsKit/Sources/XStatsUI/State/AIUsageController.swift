@@ -359,11 +359,12 @@ public final class AIUsageController {
         return magpieUsage[period]
     }
 
-    /// 已知品牌保持稳定顺序；其他服务随 Magpie 数据或已保存的选择补充。
+    /// 只列出 Magpie 实际返回的服务，已知品牌保持稳定顺序，同服务多账户合并成一个选项。
     var availableMenuBarQuotaProviders: [String] {
-        let additional = Set(magpieQuotas.map(\.provider)).union(settings.aiMenuBarProviders)
-            .subtracting(AIServiceBrand.menuBarOrder)
-        return AIServiceBrand.menuBarOrder + additional.sorted()
+        guard usesMagpie else { return [] }
+        let available = Set(magpieQuotas.map(\.provider))
+        return AIServiceBrand.menuBarOrder.filter { available.contains($0) }
+            + available.subtracting(AIServiceBrand.menuBarOrder).sorted()
     }
 
     func menuBarMagpieQuotas(at date: Date = Date()) -> [MenuBarQuota] {

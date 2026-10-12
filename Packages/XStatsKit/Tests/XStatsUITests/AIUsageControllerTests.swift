@@ -157,7 +157,7 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(image.size.width > 0)
     }
 
-    @Test func directMenuBarSelectionDoesNotHideSubscriptionDetailsOrChangeReaders() async {
+    @Test func directMenuBarUsesSourceSettingsInsteadOfTheSavedMagpieSelection() async {
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.aiUsageEnabled = true
         settings.aiMenuBarProviders = ["claude", "gemini"]
@@ -167,10 +167,13 @@ private actor GatedUsageProvider: AIUsageProvider {
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [provider])
         defer { model.aiUsage.stop() }
         await model.aiUsage.refresh()
-        #expect(MenuBarReading(model: model, items: [.aiUsage]).aiQuotas.isEmpty)
-        #expect(model.aiUsage.visibleQuotaState(for: .codex).snapshot == snapshot)
-        settings.aiMenuBarProviders.insert("codex")
+        #expect(model.aiUsage.availableMenuBarQuotaProviders.isEmpty)
         #expect(MenuBarReading(model: model, items: [.aiUsage]).aiQuotas.map(\.provider) == [.codex])
+        #expect(model.aiUsage.visibleQuotaState(for: .codex).snapshot == snapshot)
+        settings.aiMenuBarProviders = []
+        #expect(MenuBarReading(model: model, items: [.aiUsage]).aiQuotas.map(\.provider) == [.codex])
+        settings.aiUsageSources.remove(.codex)
+        #expect(MenuBarReading(model: model, items: [.aiUsage]).aiQuotas.isEmpty)
         #expect(await provider.fetchCount() == 1)
     }
 
