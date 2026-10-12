@@ -1,29 +1,27 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "sourceNotes": [
-    "新增独立护眼休息与定时提醒，可暂停专注并与轮间休息合并，提供仅保存在本机的专注与休息统计",
-    "新增休息声音试听与自定义音频，支持轻雨、溪流、风声和噪音，在休息时播放",
-    "新增“开始护眼休息”全局快捷键，可自行设置组合键，默认不绑定",
-    "简化专注操作与时长设置，优化迷你计时浮窗、多屏休息界面和菜单栏计时入口，并适配系统玻璃材质",
-    "增强应用卸载残留识别",
-    "修复 Claude Code 额度读取频繁弹出钥匙串授权的问题",
-    "修复开始护眼休息时应用崩溃的问题",
-    "修复修改专注设置打断当前计时，以及切换音频输出设备后休息声音中断的问题",
-    "修复空间分析取消后扫描仍继续的问题，并改善辅助工具异常退出后的风扇自动控制恢复",
-    "移除专注每日目标设置与进度展示，保留专注和休息活动统计"
+    "新增 Magpie 本机数据接入，检测到安装后默认读取其账户额度、Token 与费用",
+    "清理新增逐项审阅与保留项目",
+    "开发者清理新增 pip、VS Code、Cursor 缓存与 Xcode 归档，默认不勾选",
+    "清理功能默认开启，保留已有的关闭设置，磁盘页新增“清理空间”入口",
+    "优化清理双列卡片与项目产物审阅，开发者缓存按容量排序，保留运行中与异常提示，仅折叠无需清理的项目",
+    "增强卸载残留识别与共用数据保护",
+    "AI 额度标签与菜单栏统一使用服务图标，优化账户切换和额度间距，移除弹窗内重复的刷新按钮",
+    "修复开发工具缓存预览失败、预览与执行路径不一致及重复计量的问题",
+    "移除 Sub2API 额度接入与相关设置，升级时清除旧接入凭据"
   ],
   "translations": {
     "en": [
-      "Add independent eye breaks and optional reminders that pause focus and merge with nearby between-round breaks, with focus and break statistics stored only on this Mac",
-      "Add break-sound previews and custom local audio, including light rain, stream, wind and noise for breaks",
-      "Add a customizable global shortcut to start an eye break, with no key assigned by default",
-      "Simplify focus controls and duration settings; improve the mini timer HUD, multi-display break screens and menu bar timer, with native glass where supported",
-      "Improve app-leftover detection; leave potentially shared data unselected and preserve shared folders, retry failed items and continue cleanup after the app itself is removed",
-      "Fix repeated Keychain permission prompts when reading Claude Code quotas",
-      "Fix a crash when starting an eye break",
-      "Keep the current timer running when focus settings change and restore break-sound playback after switching audio output devices",
-      "Fix space analysis continuing after cancellation and improve restoration of automatic fan control after the helper exits unexpectedly",
-      "Remove daily focus targets and their progress display while retaining focus and break activity statistics"
+      "Add local Magpie integration: when installed, use its account quotas, tokens and costs by default, including Grok and other supported services; switch between providers and view each account separately with quota progress bars. Token usage includes only requests routed through Magpie and costs are shown in USD; without Magpie, continue using local Codex / Claude Code data",
+      "Add item-by-item cleanup review and retained paths; deselect individual folders and recheck retained directories, running apps and path safety before cleaning",
+      "Add pip, VS Code and Cursor caches and Xcode archives to developer cleanup, unselected by default; preserve editor settings and sessions and move confirmed Xcode archives to Trash",
+      "Enable cleanup by default while preserving existing disabled settings and add a Clean Up Space entry on the disk page; scan only when opening cleanup and require confirmation before cleaning",
+      "Improve cleanup cards and project-artifact review, sort developer caches by size, keep running-app and error warnings visible, collapse only items needing no cleanup and keep Trash preferences, retained paths and logs at the bottom",
+      "Improve app-leftover detection and shared-data protection; preserve shared data when other installed copies exist or installation locations cannot be fully checked, and retry only remaining items from the original list",
+      "Use consistent provider icons in quota tabs and the menu bar, improve account transitions and quota spacing and remove the duplicate refresh button in the popover",
+      "Fix developer-cache preview failures, inconsistent preview and execution paths and double counting; show no cleanup needed for Homebrew zero-byte maintenance items and prevent requested retained items from being cleaned when the retained-path limit is reached",
+      "Remove Sub2API quota integration and settings and clear its old credentials on upgrade; use Magpie or the corresponding CLI local accounts for subscription quotas"
     ]
   }
 }
