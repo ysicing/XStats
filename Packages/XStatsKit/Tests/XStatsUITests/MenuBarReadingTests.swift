@@ -6,11 +6,96 @@ import Foundation
 import Observation
 import SMC
 import Testing
+import AIUsage
 @testable import Metrics
 @testable import XStatsUI
 
 @MainActor
 struct MenuBarReadingTests {
+    @Test(arguments: [false, true])
+    func quotaIconsMatchServicesAndDirectAccounts(dark: Bool) throws {
+        let providers = ["grok", "codex", "copilot", "claude", "gemini", "perplexity"]
+        let fallback = try #require(quotaIconImage(providers: ["unknown"], dark: dark).tiffRepresentation)
+        var rendered: Set<Data> = []
+        for provider in providers {
+            let data = try #require(quotaIconImage(providers: [provider], dark: dark).tiffRepresentation)
+            // 同一百分比下各服务必须有独立标志，不能全部退回通用星形图标。
+            #expect(data != fallback)
+            #expect(rendered.insert(data).inserted)
+            let bitmap = try #require(NSBitmapImageRep(data: data))
+            var monochrome = true
+            for y in 0..<bitmap.pixelsHigh {
+                for x in 0..<min(28, bitmap.pixelsWide) {
+                    let color = try #require(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB))
+                    if color.alphaComponent > 0.05 {
+                        monochrome = monochrome && abs(color.redComponent - color.greenComponent) < 0.01
+                            && abs(color.greenComponent - color.blueComponent) < 0.01
+                    }
+                }
+            }
+            #expect(monochrome, "菜单栏标志不应残留 SVG 原色")
+            if AIProviderID(rawValue: provider) != nil {
+                let direct = try #require(quotaIconImage(providers: [provider], dark: dark, magpie: false).tiffRepresentation)
+                #expect(direct == data)
+            }
+            let otherAppearance = try #require(quotaIconImage(providers: [provider], dark: !dark).tiffRepresentation)
+            #expect(otherAppearance != data)
+        }
+        if let directory = ProcessInfo.processInfo.environment["XSTATS_MAGPIE_PREVIEW_DIR"] {
+            // 使用截图中的短百分比验证实际观感，均为演示数据。
+            let image = quotaIconImage(providers: ["codex", "claude"], dark: dark, remainingPercents: [4, 32])
+            let size = NSSize(width: image.size.width + 20, height: image.size.height + 20)
+            let canvas = NSImage(size: size, flipped: false) { _ in
+                NSColor(calibratedWhite: dark ? 0.12 : 0.96, alpha: 1).setFill()
+                NSRect(origin: .zero, size: size).fill()
+                image.draw(at: NSPoint(x: 10, y: 10), from: .zero, operation: .sourceOver, fraction: 1)
+                return true
+            }
+            let tiff = try #require(canvas.tiffRepresentation)
+            let bitmap = try #require(NSBitmapImageRep(data: tiff))
+            let png = try #require(bitmap.representation(using: .png, properties: [:]))
+            try png.write(to: URL(fileURLWithPath: directory)
+                .appendingPathComponent(dark ? "magpie-menubar-spacing-dark.png" : "magpie-menubar-spacing-light.png"))
+        }
+    }
+
+    @Test func shortQuotaValuesStayNearIconsWithoutResizing() throws {
+        var widths: Set<CGFloat> = []
+        for remaining in [4.0, 32.0, 100.0] {
+            let image = quotaIconImage(providers: ["codex"], dark: false, remainingPercents: [remaining])
+            widths.insert(image.size.width)
+            let tiff = try #require(image.tiffRepresentation)
+            let bitmap = try #require(NSBitmapImageRep(data: tiff))
+            // 图标为 14pt，间隙为 4pt；数值首个可见像素应在 18–20pt 附近。
+            var firstTextPixel: Int?
+            for x in 28..<bitmap.pixelsWide {
+                if (0..<bitmap.pixelsHigh).contains(where: { (bitmap.colorAt(x: x, y: $0)?.alphaComponent ?? 0) > 0.1 }) {
+                    firstTextPixel = x
+                    break
+                }
+            }
+            let start = try #require(firstTextPixel)
+            #expect((36...40).contains(start))
+        }
+        #expect(widths.count == 1)
+    }
+
+    private func quotaIconImage(providers: [String], dark: Bool, magpie: Bool = true,
+                                remainingPercents: [Double] = []) -> NSImage {
+        var reading = MenuBarReading.sample
+        reading.keepAwake = false
+        reading.aiQuotas = providers.enumerated().map { index, provider in
+            let remaining = remainingPercents.indices.contains(index) ? remainingPercents[index] : 68
+            return MenuBarQuota(provider: AIProviderID(rawValue: provider),
+                         window: AIQuotaWindow(kind: .weekly, usedPercent: 100 - remaining, resetsAt: nil),
+                         fetchedAt: Date(timeIntervalSince1970: 1_800_000_000), isStale: false,
+                         magpieName: magpie ? provider : nil)
+        }
+        let image = MenuBarRenderer.image(reading: reading, items: [.aiUsage], style: { _ in .icon },
+                                          networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
+        return MenuBarRenderer.preview(image, dark: dark, backingScale: 2)
+    }
+
     @Test func batteryPreviewIgnoresCPUAndStillObservesBattery() async throws {
         let suite = "MenuBarReadingTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))

@@ -409,7 +409,6 @@ enum MenuBarRenderer {
                                sample: "999.9M", style: style)
         }
         let status = combine(reading.aiQuotas.map { quota in
-            let provider = quota.provider
             let name = quota.sourceName
             let label = "\(name) · \(quota.shortWindowName)"
             let value = AIUsageFormat.quotaPercent(remainingPercent: quota.window.remainingPercent, showsRemaining: reading.aiQuotaShowsRemaining, locale: L10n.locale, compact: true)
@@ -421,7 +420,8 @@ enum MenuBarRenderer {
             case .stacked, .stackedCenter: return stacked
             case .inline: return inlineText(label: label, value: value, sample: "100%", alert: false)
             case .icon:
-                return combine([provider.map(aiProviderLogo) ?? symbolSegment(MenuBarItem.aiUsage.symbol), inlineValue(value, sample: "100%", alert: false)])
+                return combine([aiProviderLogo(quota.magpieName ?? quota.provider?.rawValue ?? ""),
+                                inlineValue(value, sample: "100%", alert: false, leadingAligned: true)])
             case .ring, .history, .line:
                 return combine([ring(fraction: fraction, alert: false, color: color, diameter: 15, lineWidth: 2.5), inline])
             case .pie: return combine([pie(fraction: fraction, alert: false, color: color), inline])
@@ -432,20 +432,18 @@ enum MenuBarRenderer {
         return status
     }
 
-    private static func aiProviderLogo(_ provider: AIProviderID) -> Segment {
-        let isOpenAI = provider == .codex
-        let name = isOpenAI ? "site-openai" : "site-claude"
-        guard let logo = LogoCache.shared.image(named: name, template: isOpenAI) else {
+    private static func aiProviderLogo(_ provider: String) -> Segment {
+        guard let name = AIServiceBrand.logoName(provider),
+              let logo = LogoCache.shared.image(named: name, template: true) else {
             return symbolSegment(MenuBarItem.aiUsage.symbol)
         }
         let size: CGFloat = 14
         return Segment(width: size, colored: true) { rect in
             let frame = NSRect(x: rect.minX, y: rect.midY - size / 2, width: size, height: size)
             logo.draw(in: frame)
-            if isOpenAI {
-                NSColor.labelColor.setFill()
-                frame.fill(using: .sourceAtop)
-            }
+            // 使用不透明填色覆盖 SVG 原色；图标自身的透明度由 sourceAtop 保留。
+            NSColor.labelColor.withAlphaComponent(1).setFill()
+            frame.fill(using: .sourceAtop)
         }
     }
 
@@ -638,11 +636,14 @@ enum MenuBarRenderer {
         }
     }
 
-    private static func inlineValue(_ value: String, sample: String, alert: Bool) -> Segment {
+    private static func inlineValue(_ value: String, sample: String, alert: Bool, leadingAligned: Bool = false) -> Segment {
         let attributes: [NSAttributedString.Key: Any] = [.font: Metrics.inlineValueFont, .foregroundColor: foreground(alert)]
-        let width = ceil(max(textWidth(value, attributes), textWidth(sample, attributes)))
+        let valueWidth = textWidth(value, attributes)
+        let width = ceil(max(valueWidth, textWidth(sample, attributes)))
         return Segment(width: width) { rect in
-            drawText(value, attributes, rightEdge: rect.maxX, baseline: rect.midY - Metrics.inlineValueFont.capHeight / 2)
+            // 额度图标与数值相邻；预留宽度留在数值之后，避免短百分比在图标旁留下空白。
+            let rightEdge = leadingAligned ? rect.minX + valueWidth : rect.maxX
+            drawText(value, attributes, rightEdge: rightEdge, baseline: rect.midY - Metrics.inlineValueFont.capHeight / 2)
         }
     }
 

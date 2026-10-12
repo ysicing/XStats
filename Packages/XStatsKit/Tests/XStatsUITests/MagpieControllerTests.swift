@@ -145,17 +145,22 @@ struct MagpieControllerTests {
     }
     @Test func nativePopoverRendersInBothLayoutDirections() async throws {
         let settings = settings()
+        settings.aiUsageSources = [] // Magpie 独立于本地数据源开关，顶部刷新仍须可用。
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [], magpieClient: MagpieStub())
         await model.aiUsage.refresh()
         for direction in [LayoutDirection.leftToRight, .rightToLeft] {
-            let host = NSHostingView(rootView: AIUsagePopover().environment(model)
-                .environment(\.layoutDirection, direction).environment(\.isSnapshot, true)
-                .padding(16).frame(width: 380))
+            let host = NSHostingView(rootView: PopoverFrame(width: 380) {
+                PopoverHeader(item: .aiUsage).environment(\.layoutDirection, direction)
+            } content: {
+                AIUsagePopover().environment(\.layoutDirection, direction)
+            }.environment(model)
+                .environment(\.isSnapshot, true))
             let size = host.fittingSize
             #expect(size.width == 380 && size.height > 100)
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: size.width, height: size.height),
                                   styleMask: .borderless, backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
+            window.appearance = NSAppearance(named: .aqua)
             window.contentView = host
             host.layoutSubtreeIfNeeded()
             let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
@@ -169,6 +174,89 @@ struct MagpieControllerTests {
             window.close()
         }
         model.aiUsage.stop()
+    }
+
+    @Test(arguments: [
+        ["grok", "codex", "copilot"],
+        ["claude", "gemini", "perplexity"],
+        ["claude", "gemini", "perplexity", "grok", "codex", "copilot", "future-provider"],
+    ])
+    func nativeProviderPickerKeepsIconsAndMapsRapidSelections(providers: [String]) throws {
+        let originalLogoSize = LogoCache.shared.image(named: "site-openai", template: true)?.size
+        var selected = try #require(providers.first)
+        let binding = Binding(get: { selected }, set: { selected = $0 })
+        let host = NSHostingView(rootView: MagpieProviderPicker(providers: providers, selection: binding)
+            .padding(10).background(Color(nsColor: .windowBackgroundColor)))
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: host.fittingSize),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = host
+        defer { window.close() }
+        host.layoutSubtreeIfNeeded()
+        var views: [NSView] = [host]
+        var control: NSSegmentedControl?
+        while let view = views.popLast() {
+            if let segmented = view as? NSSegmentedControl { control = segmented; break }
+            views.append(contentsOf: view.subviews)
+        }
+        let picker = try #require(control)
+        // 三个服务在 380pt 弹出页的卡片内能同时容纳图标和完整名称。
+        if providers.count == 3 { #expect(picker.intrinsicContentSize.width <= 316) }
+        #expect(picker.segmentCount == providers.count)
+        for index in providers.indices {
+            if let name = AIServiceBrand.logoName(providers[index]) {
+                #expect(LogoCache.shared.image(named: name, template: true) != nil)
+            }
+            #expect(picker.image(forSegment: index) != nil)
+            #expect(picker.label(forSegment: index) == AIServiceBrand.title(providers[index]))
+        }
+        if let directory = ProcessInfo.processInfo.environment["XSTATS_MAGPIE_PREVIEW_DIR"],
+           let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            if let png = bitmap.representation(using: .png, properties: [:]) {
+                let filename = "magpie-provider-tabs-\(providers.joined(separator: "-")).png"
+                try png.write(to: URL(fileURLWithPath: directory).appendingPathComponent(filename))
+            }
+        }
+        for index in Array(providers.indices) + Array(providers.indices.reversed()) {
+            picker.selectedSegment = index
+            #expect(picker.sendAction(picker.action, to: picker.target))
+            #expect(selected == providers[index])
+        }
+        // 桥接控件必须使用图标副本，不能缩小页面/菜单栏共用的缓存资源。
+        #expect(LogoCache.shared.image(named: "site-openai", template: true)?.size == originalLogoSize)
+    }
+
+    @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft])
+    func manyQuotaProvidersRenderAtPopoverWidth(direction: LayoutDirection) throws {
+        let providers = ["claude", "gemini", "perplexity", "grok", "codex", "copilot",
+                         "unknown-provider-with-a-long-name"]
+        var records: [[String: Any]] = providers.map {
+            ["provider": $0, "name": "Demo account", "kind": "subscription",
+             "windows": [["name": "7 days", "used": 28, "remaining": 72]]]
+        }
+        records.append(["provider": "claude", "name": "Second demo account", "kind": "subscription", "windows": []])
+        let accounts = try MagpieClient.decodeQuotas(JSONSerialization.data(withJSONObject: ["object": "list", "data": records]))
+        let model = AppModel(settings: settings(), historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        let host = NSHostingView(rootView: Card { MagpieQuotaAccounts(accounts: accounts) }
+            .environment(model).environment(\.layoutDirection, direction)
+            .environment(\.isSnapshot, true)
+            .padding(16).frame(width: 380))
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: host.fittingSize),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        defer { window.close(); model.aiUsage.stop() }
+        host.layoutSubtreeIfNeeded()
+        #expect(host.fittingSize.width == 380)
+        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        if let directory = ProcessInfo.processInfo.environment["XSTATS_MAGPIE_PREVIEW_DIR"],
+           let png = bitmap.representation(using: .png, properties: [:]) {
+            let filename = direction == .leftToRight ? "magpie-many-providers-ltr.png" : "magpie-many-providers-rtl.png"
+            try png.write(to: URL(fileURLWithPath: directory).appendingPathComponent(filename))
+        }
     }
 
     @Test func revisitingFreshPeriodDoesNotRepeatRequests() async {

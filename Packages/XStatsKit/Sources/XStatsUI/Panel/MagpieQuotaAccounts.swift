@@ -27,13 +27,15 @@ struct MagpieQuotaAccounts: View {
 
     // 刷新可能移除已选服务；同一帧使用有效选项，避免 Picker 暂时持有不存在的标签。
     private var selection: Binding<String> {
-        Binding(get: { currentProvider }, set: { selectedProvider = $0 })
+        Binding(get: { currentProvider }, set: { provider in
+            DS.Motion.select { selectedProvider = provider }
+        })
     }
 
     private var providerPicker: some View {
         Picker(tr("订阅额度"), selection: selection) {
             ForEach(providers, id: \.self) { provider in
-                Text(Self.title(provider)).tag(provider)
+                providerLabel(provider).tag(provider)
             }
         }
         .labelsHidden()
@@ -44,13 +46,30 @@ struct MagpieQuotaAccounts: View {
             if providers.count > 1 {
                 // 服务较多或名称较长时使用原生菜单，避免压缩或截断 Tab。
                 ViewThatFits(in: .horizontal) {
-                    providerPicker.pickerStyle(.segmented).fixedSize(horizontal: true, vertical: false)
+                    MagpieProviderPicker(providers: providers, selection: selection)
+                        .fixedSize(horizontal: true, vertical: false)
                     providerPicker.pickerStyle(.menu)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Text(Self.title(currentProvider)).dsFont(.sm, weight: .semibold)
+                providerLabel(currentProvider).dsFont(.sm, weight: .semibold)
             }
+            // 只淡入新的账户组；旧组即时移除，快速切换时不叠加过期额度。
+            // 内层取消隐式动画，避免进度条和数字在服务之间插值。
+            ZStack(alignment: .topLeading) {
+                accountContent.transaction { $0.animation = nil }
+                    .id(currentProvider)
+                    .transition(.asymmetric(insertion: .opacity, removal: .identity))
+            }
+            .dsSelectionAnimation(DS.Motion.usageSelection, value: currentProvider)
+        }
+        .onChange(of: providers) { _, updated in
+            if !updated.contains(selectedProvider) { selectedProvider = updated.first ?? "" }
+        }
+    }
+
+    private var accountContent: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s3) {
             let visibleAccounts = accounts.filter { $0.provider == currentProvider }
             ForEach(Array(visibleAccounts.enumerated()), id: \.element.id) { index, account in
                 if index > 0 { Divider() }
@@ -98,9 +117,6 @@ struct MagpieQuotaAccounts: View {
                 }
             }
         }
-        .onChange(of: providers) { _, updated in
-            if !updated.contains(selectedProvider) { selectedProvider = updated.first ?? "" }
-        }
     }
 
     private func progressTint(for remaining: Double) -> Color {
@@ -111,15 +127,17 @@ struct MagpieQuotaAccounts: View {
         return DS.Palette.success
     }
 
-    private static func title(_ provider: String) -> String {
-        switch provider {
-        case "codex": "Codex"
-        case "claude": "Claude"
-        case "grok": "Grok"
-        case "copilot": "GitHub Copilot"
-        case "gemini": "Gemini"
-        case "perplexity": "Perplexity"
-        default: provider
+    private func providerLabel(_ provider: String) -> some View {
+        Label {
+            Text(AIServiceBrand.title(provider))
+        } icon: {
+            if let name = AIServiceBrand.logoName(provider),
+               let logo = LogoCache.shared.image(named: name, template: true) {
+                Image(nsImage: logo).resizable().scaledToFit().frame(width: 14, height: 14)
+            } else {
+                Image(systemName: "sparkles")
+            }
         }
+        .labelStyle(.titleAndIcon)
     }
 }

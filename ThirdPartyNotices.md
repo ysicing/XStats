@@ -71,8 +71,9 @@ GitHub 标志用于主窗口侧边栏的项目入口。账号登录入口已移�
 
 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/github.svg` 来自
 [primer/octicons](https://github.com/primer/octicons) 的 mark-github，MIT License，Copyright (c) GitHub Inc.；
+`site-copilot.svg` 来自同项目的 copilot-16，用于订阅额度服务选择与菜单栏，MIT License，Copyright (c) 2026 GitHub Inc.，完整许可保留在 SVG 文件中。
 `google.svg` 是 Google 的品牌标志，仅按其品牌规范用于“使用 Google 登录”按钮。Apple 标志使用系统 SF Symbols 的 `apple.logo`。
-GitHub、Google 与 Apple 的名称和标志均为各自公司的商标。
+GitHub、GitHub Copilot、Google 与 Apple 的名称和标志均为各自公司的商标。
 
 ## 开发工具品牌图标
 

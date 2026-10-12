@@ -60,8 +60,10 @@ private struct MagpieUsageContent: View {
             HStack {
                 Text(tr("数据来源") + " · Magpie").dsFont(.sm, weight: .semibold)
                 Spacer()
-                AIUsageRefreshButton()
-                if !compact { AIUsageSettingsButton() }
+                if !compact {
+                    AIUsageRefreshButton()
+                    AIUsageSettingsButton()
+                }
             }
             if !model.settings.aiUsageEnabled {
                 Card {
@@ -1041,7 +1043,9 @@ struct AIUsageRefreshButton: View {
                 Task { await model.aiUsage.refresh() }
             }
             .opacity(model.aiUsage.isRefreshing ? 0 : 1)
-            .disabled(!model.settings.aiUsageEnabled || model.settings.aiUsageSources.isEmpty || model.aiUsage.isRefreshing)
+            .disabled(!model.settings.aiUsageEnabled
+                || (!model.aiUsage.usesMagpie && model.settings.aiUsageSources.isEmpty)
+                || model.aiUsage.isRefreshing)
             if model.aiUsage.isRefreshing { ProgressView().controlSize(.small).accessibilityLabel(tr("正在刷新")) }
         }
         .frame(width: DS.Size.controlHeight, height: DS.Size.controlHeight)
