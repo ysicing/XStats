@@ -330,7 +330,8 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     public var id: String { rawValue }
 
     static let monitors: [PanelTab] = [.overview, .system, .history, .aiUsage, .cpu, .gpu, .memory, .disk, .network, .battery, .thermal]
-    static let tools: [PanelTab] = [.connections, .audio, .processes, .startupItems, .keepAwake, .rest, .cleaner, .uninstaller]
+    // 按中文名称由短到长排列，所有语言沿用固定顺序，保持导航位置一致。
+    static let tools: [PanelTab] = [.audio, .processes, .cleaner, .uninstaller, .startupItems, .keepAwake, .connections, .rest]
     // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
     static let settings: [PanelTab] = [.settingsGeneral, .settingsFeatures, .settingsMenuBar, .settingsNotifications,
                                      /* .settingsAccount, */ .settingsHelper, .settingsAbout]
@@ -684,6 +685,10 @@ public final class AppSettings {
     public var aiQuotaShowsRemaining: Bool {
         didSet { defaults.set(aiQuotaShowsRemaining, forKey: Keys.aiQuotaShowsRemaining) }
     }
+    /// 只控制菜单栏展示，不改变额度查询、本地用量来源或系统小组件。
+    public var aiMenuBarProviders: Set<String> {
+        didSet { defaults.set(aiMenuBarProviders.sorted(), forKey: Keys.aiMenuBarProviders) }
+    }
     public var aiUsageWesternUnits: Bool {
         didSet { defaults.set(aiUsageWesternUnits, forKey: Keys.aiUsageWesternUnits) }
     }
@@ -930,6 +935,8 @@ public final class AppSettings {
             .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
         aiUsageShowsLocalUsage = defaults.object(forKey: Keys.aiUsageShowsLocalUsage) as? Bool ?? true
         aiQuotaShowsRemaining = defaults.object(forKey: Keys.aiQuotaShowsRemaining) as? Bool ?? true
+        aiMenuBarProviders = defaults.stringArray(forKey: Keys.aiMenuBarProviders).map(Set.init)
+            ?? Set(["codex", "claude", "grok", "gemini"])
         aiUsageWesternUnits = defaults.bool(forKey: Keys.aiUsageWesternUnits)
         aiUsageCurrency = defaults.string(forKey: Keys.aiUsageCurrency).flatMap(AIUsageCurrency.init(rawValue:)) ?? .usd
         aiUsageRefreshMinutes = Self.aiUsageRefreshOptions.contains(defaults.integer(forKey: Keys.aiUsageRefreshMinutes))
@@ -1111,6 +1118,7 @@ public final class AppSettings {
         static let aiUsageSources = "aiUsageSources"
         static let aiUsageShowsLocalUsage = "aiUsageShowsLocalUsage"
         static let aiQuotaShowsRemaining = "aiQuotaShowsRemaining"
+        static let aiMenuBarProviders = "aiMenuBarProviders"
         static let aiUsageWesternUnits = "aiUsageWesternUnits"
         static let aiUsageCurrency = "aiUsageCurrency"
         static let aiUsageRefreshMinutes = "aiUsageRefreshMinutes"

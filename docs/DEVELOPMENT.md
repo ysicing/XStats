@@ -129,6 +129,8 @@ API 检测；配置开启不代表模型可用。此模式不生成回答、修�
 
 可选功能按用途拆为独立卡片：网络监视器、进程、应用与清理一组；AI 用量、音频与显示器参数控制一组；专注与护眼、菜单栏日历各自单独一组。每组首项不画线，其余条目使用相同细分隔线，组间留白，不新增动画。
 
+“设置 → 菜单栏 → AI 用量”提供额度服务多选，默认勾选 OpenAI（Codex）、Claude、Grok、Gemini。菜单栏显示所有已勾选且有当前有效额度的服务，不限制为前三个；没有可用额度时暂时隐藏。其他已知服务及 Magpie 返回的服务也可勾选；此偏好仅控制菜单栏展示，不改变数据查询、详情页或 Widget。选择使用原生复选框，即时响应，不添加过渡动画。
+
 应用管理放在可选功能中，默认关闭，沿用 `uninstallerEnabled` 与 `uninstaller` 路由。启用后显示侧栏入口，关闭后停止扫描并释放运行应用监听；深链转到功能设置。待确认操作会取消，已经开始的废纸篓操作正常收尾，移除期间禁用功能开关。偏好支持导出与恢复。
 
 聚合排序定向验证：`swift test --package-path Packages/XStatsKit --filter 'MenuBarOrderTests|MenuBarLayoutTests|MenuBarResourceTests|WebDAVSettingsTests|MonitoringResourceTests'`。覆盖顺序保存、关闭再开启、硬件不可用项目、功能启用过滤、设置同步与重绘观察。使用现有 `--menubar-only` 截图入口检查中文、英文和 RTL；独立图标仍由系统拖动排序。

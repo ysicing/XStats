@@ -157,6 +157,23 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(image.size.width > 0)
     }
 
+    @Test func directMenuBarSelectionDoesNotHideSubscriptionDetailsOrChangeReaders() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        settings.aiMenuBarProviders = ["claude", "gemini"]
+        let snapshot = AIQuotaSnapshot(provider: .codex,
+            windows: [AIQuotaWindow(kind: .weekly, usedPercent: 50, resetsAt: nil)], fetchedAt: Date())
+        let provider = StubQuotaProvider(results: [.success(snapshot)])
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [provider])
+        defer { model.aiUsage.stop() }
+        await model.aiUsage.refresh()
+        #expect(MenuBarReading(model: model, items: [.aiUsage]).aiQuotas.isEmpty)
+        #expect(model.aiUsage.visibleQuotaState(for: .codex).snapshot == snapshot)
+        settings.aiMenuBarProviders.insert("codex")
+        #expect(MenuBarReading(model: model, items: [.aiUsage]).aiQuotas.map(\.provider) == [.codex])
+        #expect(await provider.fetchCount() == 1)
+    }
+
     @Test func menuBarUsesModelSpecificWeeklyQuotaWhenGeneralWindowIsMissing() async {
         let settings = AppSettings(defaults: defaultsForAIUsage())
         settings.aiUsageEnabled = true

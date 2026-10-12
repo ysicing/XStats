@@ -12,6 +12,7 @@ import UniformTypeIdentifiers
 struct AppManagementPage: View {
     @Environment(AppModel.self) private var model
     @Environment(\.isSnapshot) private var isSnapshot
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tab: AppManagementController.Tab = .apps
     @State private var search = ""
     @State private var selection: String?
@@ -20,6 +21,9 @@ struct AppManagementPage: View {
     @State private var showsUninstall = false
     @State private var pendingBrew: BrewConfirmation?
     private var controller: AppManagementController { model.appManagement }
+    private var isScanning: Bool {
+        tab == .apps ? controller.isLoadingApps || controller.isMeasuringApps : controller.isLoadingBrew
+    }
 
     init(tab: AppManagementController.Tab = .apps) { _tab = State(initialValue: tab) }
 
@@ -134,7 +138,14 @@ struct AppManagementPage: View {
                     .disabled(!controller.brewAvailable || controller.isLoadingBrew || controller.operation != nil)
             }
             IconButton(systemName: "arrow.clockwise", help: tr("重新扫描")) { controller.refresh() }
-                .disabled(controller.operation != nil || controller.isCheckingUpdates)
+                .opacity(isScanning ? 0 : 1)
+                .overlay {
+                    if isScanning { ProgressView().controlSize(.small).transition(.opacity) }
+                }
+                .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: isScanning)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(isScanning ? tr("正在读取…") : tr("重新扫描"))
+                .disabled(isScanning || controller.operation != nil || controller.isCheckingUpdates)
         }
     }
 
@@ -179,8 +190,8 @@ struct AppManagementPage: View {
         .dsFont(.sm)
         .overlay {
             if rows.isEmpty {
-                if controller.isLoadingApps && tab == .apps || controller.isLoadingBrew && tab == .homebrew {
-                    ProgressView(tr("正在读取应用清单…"))
+                if controller.error == nil && (isScanning || (tab == .apps && !controller.hasAppInventory)) {
+                    ProgressView(tr("正在读取…"))
                 } else { ContentUnavailableView.search(text: search) }
             }
         }

@@ -7,6 +7,19 @@ import Testing
 
 @MainActor
 struct AIUsageSettingsTests {
+    @Test func menuBarProviderChoicesPersistIncludingAnEmptySelection() throws {
+        let name = "AIUsageSettingsTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.aiMenuBarProviders == ["codex", "claude", "grok", "gemini"])
+        settings.aiMenuBarProviders = ["copilot", "future-provider"]
+        #expect(AppSettings(defaults: defaults).aiMenuBarProviders == settings.aiMenuBarProviders)
+        settings.aiMenuBarProviders = []
+        #expect(AppSettings(defaults: defaults).aiMenuBarProviders.isEmpty)
+        #expect(settings.aiUsageSources.count == 2)
+    }
+
     @Test func oldPreferencesKeepDefaultsAndNewChoicesPersist() throws {
         let name = "AIUsageSettingsTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))

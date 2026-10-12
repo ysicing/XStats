@@ -359,8 +359,19 @@ public final class AIUsageController {
         return magpieUsage[period]
     }
 
-    /// 菜单栏按来源展示一个账户，优先 Magpie 标记的最近账户；全部账户仍在用量页独立展示。
+    /// 已知品牌保持稳定顺序；其他服务随 Magpie 数据或已保存的选择补充。
+    var availableMenuBarQuotaProviders: [String] {
+        let additional = Set(magpieQuotas.map(\.provider)).union(settings.aiMenuBarProviders)
+            .subtracting(AIServiceBrand.menuBarOrder)
+        return AIServiceBrand.menuBarOrder + additional.sorted()
+    }
+
     func menuBarMagpieQuotas(at date: Date = Date()) -> [MenuBarQuota] {
+        magpieQuotaReadings(at: date).filter { settings.aiMenuBarProviders.contains($0.sourceName) }
+    }
+
+    /// 每个服务取一个有效账户，优先最近账户；Widget 使用完整摘要，不受菜单栏选择影响。
+    func magpieQuotaReadings(at date: Date = Date()) -> [MenuBarQuota] {
         guard usesMagpie, settings.aiUsageEnabled else { return [] }
         var selected: [String: MenuBarQuota] = [:]
         let accounts = magpieQuotas.enumerated().sorted {
@@ -379,7 +390,7 @@ public final class AIUsageController {
                 fetchedAt: account.readAt ?? magpieQuotaUpdatedAt ?? date, isStale: magpieQuotaFailure != nil,
                 magpieName: account.provider, magpieWindow: window.name)
         }
-        return selected.keys.sorted().prefix(3).compactMap { selected[$0] }
+        return availableMenuBarQuotaProviders.compactMap { selected[$0] }
     }
 
     /// 可见页只请求所选周期；今日摘要供菜单栏使用，最多保留四个周期，不读取请求明细。

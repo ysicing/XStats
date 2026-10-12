@@ -544,6 +544,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             _ = model.aiUsage.states
             _ = model.aiUsage.lastAttemptAt
             _ = model.settings.aiQuotaShowsRemaining
+            _ = model.settings.aiMenuBarProviders
             _ = model.settings.aiUsageWesternUnits
         } onChange: { [weak self] in
             Task { @MainActor in
@@ -634,7 +635,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 return WidgetSnapshot.DailyTokenUsage(provider: provider.rawValue, day: today, tokens: tokens)
             } : nil
         if model.aiUsage.usesMagpie {
-            quotas = model.aiUsage.menuBarMagpieQuotas(at: today).map { quota in
+            // Widget 保留原来的三服务摘要；菜单栏选择与宽度不影响小组件。
+            quotas = model.aiUsage.magpieQuotaReadings(at: today)
+                .sorted { $0.sourceName < $1.sourceName }.prefix(3).map { quota in
                 WidgetSnapshot.Quota(provider: quota.sourceName, kind: quota.shortWindowName,
                     remainingPercent: quota.window.remainingPercent, resetsAt: quota.window.resetsAt,
                     fetchedAt: quota.fetchedAt, isStale: quota.isStale)

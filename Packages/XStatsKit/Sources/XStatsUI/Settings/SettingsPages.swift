@@ -370,6 +370,10 @@ struct MenuBarSettings: View {
                         if moduleEnabled, settings.isEnabled(item) {
                             ItemStyleRow(item: item)
                                 .disabled(settings.menuBarLayout == .iconOnly)
+                            if item == .aiUsage {
+                                AIQuotaMenuBarSelection()
+                                    .disabled(settings.menuBarLayout == .iconOnly)
+                            }
                             if item == .network {
                                 SettingRow(title: tr("IP 归属地"),
                                            subtitle: tr("与网络详情中的 IP 归属地共用查询结果和刷新，不额外联网。需开启公网 IP 查询。")) {
@@ -413,6 +417,44 @@ struct MenuBarSettings: View {
             : item.subtitle
     }
 
+}
+
+/// 菜单栏服务多选与数据来源开关独立，未知服务也能保留选择。
+struct AIQuotaMenuBarSelection: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s2) {
+            Text(tr("在菜单栏显示")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            // 最多四列，避免服务选项随窗口变宽而分散；窄窗口由系统网格自然换行。
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: DS.Space.s4, alignment: .leading)],
+                      alignment: .leading, spacing: DS.Space.s3) {
+                ForEach(model.aiUsage.availableMenuBarQuotaProviders, id: \.self) { provider in
+                    Toggle(isOn: Binding(get: { model.settings.aiMenuBarProviders.contains(provider) }, set: { enabled in
+                        if enabled { model.settings.aiMenuBarProviders.insert(provider) }
+                        else { model.settings.aiMenuBarProviders.remove(provider) }
+                    })) {
+                        Label {
+                            Text(AIServiceBrand.menuBarTitle(provider))
+                                .fixedSize(horizontal: false, vertical: true)
+                        } icon: {
+                            if let name = AIServiceBrand.logoName(provider),
+                               let logo = LogoCache.shared.image(named: name, template: true) {
+                                Image(nsImage: logo).resizable().scaledToFit().frame(width: 14, height: 14)
+                            } else {
+                                Image(systemName: "sparkles")
+                            }
+                        }
+                    }
+                    .toggleStyle(.checkbox)
+                    .dsFont(.sm)
+                    .accessibilityLabel(AIServiceBrand.menuBarTitle(provider))
+                }
+            }
+            .frame(maxWidth: 4 * 160 + 3 * DS.Space.s4, alignment: .leading)
+        }
+        .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
+    }
 }
 
 /// 单个项目自己的菜单栏风格：网速有自己的三种样式；其他项目默认跟随整体，也可以单独选一种。

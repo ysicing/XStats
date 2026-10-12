@@ -116,6 +116,7 @@ struct MenuBarReading {
                     continue
                 }
                 aiQuotas = model.aiUsage.visibleQuotaProviders(for: nil).compactMap { provider in
+                    guard model.settings.aiMenuBarProviders.contains(provider.rawValue) else { return nil }
                     let state = model.aiUsage.visibleQuotaState(for: provider)
                     guard let snapshot = state.snapshot else { return nil }
                     // 已过重置时间的窗口不再代表当前额度（常见于重启后离线恢复的缓存），不显示过期额度。

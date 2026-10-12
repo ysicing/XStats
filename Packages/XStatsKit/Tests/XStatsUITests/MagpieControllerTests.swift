@@ -9,11 +9,14 @@ import Testing
 @testable import XStatsUI
 
 private actor MagpieStub: MagpieFetching {
+    private let quotaPayload: Data?
     private var failing = false
     private var gate: CheckedContinuation<Void, Never>?
     private var gated = false
     private(set) var quotaCalls = 0
     private(set) var periods: [MagpiePeriod] = []
+
+    init(quotaPayload: Data? = nil) { self.quotaPayload = quotaPayload }
 
     func fail(_ value: Bool) { failing = value }
     func hold() { gated = true }
@@ -24,6 +27,7 @@ private actor MagpieStub: MagpieFetching {
         quotaCalls += 1
         if gated { await withCheckedContinuation { gate = $0 } }
         if failing { throw MagpieFailure.unavailable }
+        if let quotaPayload { return try MagpieClient.decodeQuotas(quotaPayload) }
         return try MagpieClient.decodeQuotas(Data(#"{"object":"list","data":[{"provider":"grok","name":"first","kind":"subscription","windows":[{"name":"7 days","used":32,"remaining":68}]},{"provider":"codex","name":"other","kind":"subscription","windows":[{"name":"7 days","used":90,"remaining":10}]},{"provider":"codex","name":"active","kind":"subscription","last":true,"windows":[{"name":"7 days","used":4,"remaining":96}]}]}"#.utf8))
     }
 
@@ -55,6 +59,81 @@ struct MagpieControllerTests {
         let settings = AppSettings(defaults: UserDefaults(suiteName: "MagpieControllerTests.\(UUID().uuidString)")!)
         settings.aiUsageEnabled = true
         return settings
+    }
+
+    @Test func menuBarShowsEverySelectedAvailableServiceWithoutLimitingWidgetOrRequestingAgain() async throws {
+        let providers = ["copilot", "gemini", "grok", "claude", "codex", "perplexity", "future-provider"]
+        let accounts = providers.map { ["provider": $0, "name": "account", "kind": "subscription",
+                                        "windows": [["name": "7 days", "remaining": 42]]] as [String: Any] }
+        let payload = try JSONSerialization.data(withJSONObject: ["object": "list", "data": accounts])
+        let settings = settings()
+        settings.aiUsageShowsLocalUsage = false
+        let magpie = MagpieStub(quotaPayload: payload)
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [], magpieClient: magpie)
+        defer { model.aiUsage.stop() }
+        await model.aiUsage.refresh()
+        #expect(model.aiUsage.menuBarMagpieQuotas().map(\.sourceName) == ["codex", "claude", "grok", "gemini"])
+        settings.aiMenuBarProviders = Set(providers)
+        let all = MenuBarReading(model: model, items: [.aiUsage])
+        #expect(all.aiQuotas.count == 7)
+        #expect(all.aiQuotas.map(\.sourceName) == AIServiceBrand.menuBarOrder + ["future-provider"])
+        settings.aiMenuBarProviders = ["copilot", "future-provider"]
+        let selected = MenuBarReading(model: model, items: [.aiUsage])
+        #expect(selected.aiQuotas.map(\.sourceName) == ["copilot", "future-provider"])
+        #expect(model.aiUsage.magpieQuotaReadings().count == 7)
+        #expect(model.aiUsage.magpieQuotas.count == 7)
+        #expect(await magpie.counts().0 == 1)
+        for style in MenuBarStyle.allCases {
+            let full = MenuBarRenderer.image(reading: all, items: [.aiUsage], style: { _ in style },
+                networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
+            let partial = MenuBarRenderer.image(reading: selected, items: [.aiUsage], style: { _ in style },
+                networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
+            #expect(full.size.width > partial.size.width)
+        }
+        settings.aiMenuBarProviders = []
+        #expect(model.aiUsage.menuBarMagpieQuotas().isEmpty)
+        #expect(model.aiUsage.magpieQuotaReadings().count == 7)
+    }
+
+    @Test func selectedUnavailableQuotasStayHiddenAndAnInvalidRecentAccountCanFallBack() async throws {
+        let payload = Data(#"{"object":"list","data":[{"provider":"codex","name":"recent","kind":"subscription","last":true,"error":"unavailable","windows":[]},{"provider":"codex","name":"other","kind":"subscription","windows":[{"name":"7 days","remaining":73}]},{"provider":"claude","name":"expired","kind":"subscription","windows":[{"name":"7 days","remaining":80,"resetsAt":"2000-01-01T00:00:00Z"}]},{"provider":"grok","name":"unlimited","kind":"subscription","windows":[{"name":"7 days","unlimited":true}]},{"provider":"gemini","name":"missing","kind":"subscription","windows":[{"name":"7 days"}]}]}"#.utf8)
+        let settings = settings()
+        settings.aiUsageShowsLocalUsage = false
+        let controller = AIUsageController(settings: settings, providers: [], magpieClient: MagpieStub(quotaPayload: payload))
+        defer { controller.stop() }
+        await controller.refresh()
+        let quotas = controller.menuBarMagpieQuotas()
+        #expect(quotas.map(\.sourceName) == ["codex"])
+        #expect(quotas.first?.remainingPercent == 73)
+        #expect(settings.aiMenuBarProviders.count == 4)
+    }
+
+    @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft])
+    func menuBarServiceSelectionFitsANarrowSettingsPage(direction: LayoutDirection) async throws {
+        let model = AppModel(settings: settings(), historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        model.settings.aiMenuBarProviders.insert("future-provider-with-a-long-service-name")
+        let host = NSHostingView(rootView: AIQuotaMenuBarSelection().environment(model)
+            .environment(\.layoutDirection, direction).environment(\.colorScheme, .light)
+            .padding(16).frame(width: 320).background(Color(nsColor: .windowBackgroundColor)))
+        let size = host.fittingSize
+        #expect(size.width == 320 && size.height > 100 && size.height < 500)
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = host
+        window.orderFrontRegardless()
+        // 系统懒网格在挂载窗口后创建实际控件，截图需等这一轮布局完成。
+        try await Task.sleep(for: .milliseconds(100))
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        if let directory = ProcessInfo.processInfo.environment["XSTATS_AI_MENU_SELECTION_PREVIEW_DIR"],
+           let png = bitmap.representation(using: .png, properties: [:]) {
+            let path = URL(fileURLWithPath: directory).appendingPathComponent(direction == .leftToRight ? "selection-ltr.png" : "selection-rtl.png")
+            try png.write(to: path)
+        }
     }
 
     @Test func magpieReplacesAllDirectReadersAndSupportsGrok() async throws {

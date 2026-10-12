@@ -60,6 +60,90 @@ import Testing
         #expect(!controller.isLoadingApps)
     }
 
+    @Test func slowSizeTraversalDoesNotDelayOtherApplicationMetadata() async throws {
+        let fixtures = [app("Large"), app("Small")]
+        let entered = AppManagementTestValue(false)
+        let release = AppManagementTestValue(false)
+        let controller = AppManagementController(listApps: { fixtures }, inspectApp: { _ in
+            ApplicationMetadata(architecture: .appleSilicon)
+        }, measureSize: { _ in
+            entered.withLock { $0 = true }
+            while !release.withLock({ $0 }), !Task.isCancelled { Thread.sleep(forTimeInterval: 0.005) }
+            return 42
+        }, brewAvailable: false)
+        defer { release.withLock { $0 = true }; controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { entered.withLock { $0 } }
+        #expect(controller.apps == fixtures)
+        #expect(fixtures.allSatisfy { controller.metadata[$0.id]?.architecture == .appleSilicon })
+        #expect(!controller.isLoadingApps)
+    }
+
+    @Test func refreshingKeepsMeasuredSizesUntilTheirReplacementsArrive() async throws {
+        let fixture = app("Editor")
+        let calls = AppManagementTestValue(0)
+        let entered = AppManagementTestValue(false)
+        let release = AppManagementTestValue(false)
+        let controller = AppManagementController(listApps: { [fixture] }, inspectApp: { _ in
+            ApplicationMetadata(architecture: .appleSilicon)
+        }, measureSize: { _ in
+            let attempt = calls.withLock { $0 += 1; return $0 }
+            if attempt == 1 { return 42 }
+            entered.withLock { $0 = true }
+            while !release.withLock({ $0 }), !Task.isCancelled { Thread.sleep(forTimeInterval: 0.005) }
+            return 99
+        }, brewAvailable: false)
+        defer { release.withLock { $0 = true }; controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading && controller.sizes[fixture.id] == 42 }
+        controller.refresh()
+        try await waitFor { entered.withLock { $0 } }
+        #expect(controller.apps == [fixture])
+        #expect(controller.sizes[fixture.id] == 42)
+        release.withLock { $0 = true }
+        try await waitFor { !controller.isReading }
+        #expect(controller.sizes[fixture.id] == 99)
+    }
+
+    @Test func failedRefreshDoesNotLeaveAnOldSizeAsACurrentMeasurement() async throws {
+        let fixture = app("Editor")
+        let calls = AppManagementTestValue(0)
+        let controller = AppManagementController(listApps: { [fixture] }, inspectApp: { _ in ApplicationMetadata() }, measureSize: { _ in
+            let attempt = calls.withLock { $0 += 1; return $0 }
+            if attempt == 1 { return 42 }
+            throw CocoaError(.fileReadNoPermission)
+        }, brewAvailable: false)
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading && controller.sizes[fixture.id] == 42 }
+        controller.refresh()
+        try await waitFor { !controller.isReading }
+        #expect(controller.apps == [fixture])
+        #expect(controller.sizes[fixture.id] == nil)
+        #expect(controller.error == nil && !controller.isMeasuringApps)
+    }
+
+    @Test func closingDuringMetadataReadRejectsResultsAndNeverStartsMeasuring() async throws {
+        let fixture = app("Editor")
+        let entered = AppManagementTestValue(false)
+        let finished = AppManagementTestValue(false)
+        let measured = AppManagementTestValue(0)
+        let controller = AppManagementController(listApps: { [fixture] }, inspectApp: { _ in
+            entered.withLock { $0 = true }
+            defer { finished.withLock { $0 = true } }
+            while !Task.isCancelled { Thread.sleep(forTimeInterval: 0.005) }
+            return ApplicationMetadata(architecture: .appleSilicon)
+        }, measureSize: { _ in measured.withLock { $0 += 1 }; return 42 }, brewAvailable: false)
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { entered.withLock { $0 } }
+        controller.setVisible(false)
+        try await waitFor { finished.withLock { $0 } }
+        #expect(controller.metadata.isEmpty && controller.sizes.isEmpty)
+        #expect(measured.withLock { $0 } == 0)
+        #expect(!controller.isLoadingApps && !controller.isMeasuringApps)
+    }
+
     @Test func partialSizesDoNotDiscardOtherPackagesOrTriggerRepeatedWork() async throws {
         let fixture = app("Unreadable")
         let attempts = AppManagementTestValue(0)

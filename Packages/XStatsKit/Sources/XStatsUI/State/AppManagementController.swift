@@ -19,6 +19,7 @@ final class AppManagementController {
     private(set) var runningPaths: Set<String> = []
     private(set) var casksByPath: [String: HomebrewPackage] = [:]
     private(set) var isLoadingApps = false
+    private(set) var isMeasuringApps = false
     private(set) var isLoadingBrew = false
     private(set) var isCheckingUpdates = false
     private(set) var operation: HomebrewManagement.Action?
@@ -48,6 +49,7 @@ final class AppManagementController {
     let brewAvailable: Bool
     var isReading: Bool { appTask != nil || brewTask != nil }
     var hasBrewInventory: Bool { !brewAvailable || brewReadDate != nil }
+    var hasAppInventory: Bool { appReadDate != nil }
 
     func isCurrentApp(_ package: HomebrewPackage) -> Bool {
         let current = Bundle.main.bundleURL.resolvingSymlinksInPath().path
@@ -143,7 +145,7 @@ final class AppManagementController {
         appGeneration = UUID(); brewGeneration = UUID()
         appTask?.cancel(); brewTask?.cancel()
         appTask = nil; brewTask = nil
-        isLoadingApps = false; isLoadingBrew = false; isCheckingUpdates = false
+        isLoadingApps = false; isMeasuringApps = false; isLoadingBrew = false; isCheckingUpdates = false
         runningObservation = nil
     }
 
@@ -154,7 +156,9 @@ final class AppManagementController {
         let list = listApps; let inspect = inspectApp; let measure = measureSize
         isLoadingApps = appReadDate == nil || force
         appTask = Task { [weak self] in
-            defer { if let self, self.appGeneration == generation { self.appTask = nil; self.isLoadingApps = false } }
+            defer { if let self, self.appGeneration == generation {
+                self.appTask = nil; self.isLoadingApps = false; self.isMeasuringApps = false
+            } }
             do {
                 if force || self?.appReadDate == nil {
                     let apps = try await Self.read { try list() }
@@ -164,23 +168,41 @@ final class AppManagementController {
                     self.apps = apps; self.appReadDate = Date()
                     let ids = Set(self.apps.map(\.id))
                     self.metadata = self.metadata.filter { ids.contains($0.key) }
-                    self.sizes = force ? [:] : self.sizes.filter { ids.contains($0.key) }
+                    // 刷新时保留仍在清单中的数值，逐项用新结果替换，避免表格闪回占位符。
+                    self.sizes = self.sizes.filter { ids.contains($0.key) }
                     self.measuredApps = force ? [] : self.measuredApps.intersection(ids)
-                    self.isLoadingApps = false
                 }
                 guard let self else { return }
-                for app in self.apps where !self.measuredApps.contains(app.id) {
-                    let details = try await Self.read { inspect(app) }
+                // 轻量信息先批量读取；大型应用的目录计量不能拖住后续行的架构与日期。
+                let pendingMetadata = self.apps.filter { force || self.metadata[$0.id] == nil }
+                if !pendingMetadata.isEmpty {
+                    let details = try await Self.read {
+                        var result: [String: ApplicationMetadata] = [:]
+                        for app in pendingMetadata {
+                            try Task.checkCancellation()
+                            result[app.id] = inspect(app)
+                        }
+                        return result
+                    }
                     try Task.checkCancellation()
                     guard self.appGeneration == generation else { return }
-                    self.metadata[app.id] = details
+                    self.metadata.merge(details) { _, new in new }
+                }
+                self.isLoadingApps = false
+                self.isMeasuringApps = self.apps.contains { !self.measuredApps.contains($0.id) }
+                for app in self.apps where !self.measuredApps.contains(app.id) {
                     do {
                         let size = try await Self.read { try measure(app.url) }
                         try Task.checkCancellation()
                         guard self.appGeneration == generation else { return }
                         self.sizes[app.id] = size
                     } catch is CancellationError { throw CancellationError() }
-                    catch { /* 单个包不可读仍保留其列表行；显式刷新可以重试计量。 */ }
+                    catch {
+                        // 新计量失败时清掉旧大小；单个包不可读不影响其余列表行。
+                        try Task.checkCancellation()
+                        guard self.appGeneration == generation else { return }
+                        self.sizes.removeValue(forKey: app.id)
+                    }
                     try Task.checkCancellation()
                     guard self.appGeneration == generation else { return }
                     self.measuredApps.insert(app.id)
