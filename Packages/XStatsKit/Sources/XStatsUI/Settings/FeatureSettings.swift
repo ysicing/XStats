@@ -274,8 +274,6 @@ struct DisabledMonitoringPage: View {
         PageScroll {
             Card(padding: DS.Space.s4, spacing: DS.Space.s3) {
                 Label(module.title, systemImage: module.symbol).dsFont(.lg, weight: .semibold)
-                Text(tr("监控已关闭，基础信息仍可查看。实时指标、曲线与告警已暂停。"))
-                    .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
                 Button(tr("启用 \(module.title)")) { model.settings.setModuleEnabled(module, true) }
                     .buttonStyle(DSButtonStyle(kind: .primary))
                     .fixedSize()
