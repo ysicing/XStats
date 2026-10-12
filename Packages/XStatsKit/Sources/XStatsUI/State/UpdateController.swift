@@ -201,13 +201,35 @@ public final class UpdateController {
             onPrompt()
             return
         }
-        guard !suppressPrompt, settings.notifyUpdates, version != skippedVersion,
-              !isNotifying else { return }
-        if let last = defaults.string(forKey: Keys.notifiedVersion), !UpdateFeed.isNewer(version, than: last) { return }
+        if suppressPrompt {
+            Log.update.notice("更新通知未发送 reason=quietSchedule")
+            return
+        }
+        guard settings.notifyUpdates else {
+            Log.update.notice("更新通知未发送 reason=preferenceDisabled")
+            return
+        }
+        guard version != skippedVersion else {
+            Log.update.notice("更新通知未发送 reason=skippedVersion")
+            return
+        }
+        guard !isNotifying else {
+            Log.update.info("更新通知未发送 reason=submissionInProgress")
+            return
+        }
+        if let last = defaults.string(forKey: Keys.notifiedVersion), !UpdateFeed.isNewer(version, than: last) {
+            Log.update.notice("更新通知未发送 reason=alreadySubmitted")
+            return
+        }
         // 通知权限弹窗期间允许查看更新，但不能重复提交后台通知。
         isNotifying = true
         defer { isNotifying = false }
-        if await onUpdateAvailable(version) { defaults.set(version, forKey: Keys.notifiedVersion) }
+        if await onUpdateAvailable(version) {
+            defaults.set(version, forKey: Keys.notifiedVersion)
+            Log.update.notice("更新通知已提交并记录去重状态")
+        } else {
+            Log.update.warning("更新通知未提交，后续检查可重试")
+        }
     }
 
     /// 截图用：直接放入一个示例版本

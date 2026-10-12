@@ -278,22 +278,33 @@ public final class AlertController: NSObject {
 
     /// 默认开启的更新提醒在真正发现版本时才请求权限，不新增轮询或启动时弹窗。
     func notifyUpdate(version: String) async -> Bool {
-        guard settings.notifyUpdates, let center else { return false }
+        guard settings.notifyUpdates, let center else {
+            Log.update.notice("更新通知不可用：通知开关关闭或通知中心不可用")
+            return false
+        }
         do {
-            let status = await center.notificationSettings().authorizationStatus
+            let notificationSettings = await center.notificationSettings()
+            let status = notificationSettings.authorizationStatus
+            // 授权并不代表开启了横幅；系统专注模式等投递限制也不能由 add 的结果判定。
+            Log.update.notice("更新通知系统设置 authorization=\(status.rawValue) alert=\(notificationSettings.alertSetting.rawValue) center=\(notificationSettings.notificationCenterSetting.rawValue) style=\(notificationSettings.alertStyle.rawValue)")
             let granted: Bool
             if status == .notDetermined {
                 granted = try await center.requestAuthorization(options: [.alert, .sound])
+                Log.update.notice("更新通知授权请求结果 granted=\(granted)")
             } else {
                 granted = status == .authorized || status == .provisional
             }
             authorization = granted ? .allowed : .denied
             // 等待系统授权期间用户可能关闭开关。
-            guard granted, settings.notifyUpdates else { return false }
+            guard granted, settings.notifyUpdates else {
+                Log.update.notice("更新通知未发送：系统未授权或等待期间关闭了通知")
+                return false
+            }
             try await center.add(Self.updateNotification(version: version))
             return true
         } catch {
-            Log.update.error("更新通知发送失败：\(error.localizedDescription, privacy: .public)")
+            let failure = error as NSError
+            Log.update.error("更新通知提交失败 code=\(failure.code) detail=\(String(failure.localizedDescription.prefix(1024)), privacy: .private)")
             return false
         }
     }

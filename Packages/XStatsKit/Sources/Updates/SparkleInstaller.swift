@@ -117,6 +117,15 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
         endpoints.indices.contains(endpointIndex) ? endpoints[endpointIndex].absoluteString : nil
     }
 
+    public func updater(_ updater: SPUUpdater, willScheduleUpdateCheckAfterDelay delay: TimeInterval) {
+        // 使用 Sparkle 实际安排的时间，不能把策略计算值当成定时器已经启动。
+        logger.notice("自动更新已安排 delaySeconds=\(delay)")
+    }
+
+    public func updaterWillNotScheduleUpdateCheck(_ updater: SPUUpdater) {
+        logger.notice("自动更新未安排后续检查")
+    }
+
     @objc(feedParametersForUpdater:sendingSystemProfile:)
     public func feedParameters(for updater: SPUUpdater, sendingSystemProfile: Bool) -> [[String: String]] {
         guard let identifier = try? InstallationIdentity().hashedID() else { return [] }
