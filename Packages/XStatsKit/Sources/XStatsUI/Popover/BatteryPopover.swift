@@ -81,9 +81,6 @@ private struct BatteryAppEnergySection: View {
                 Text(tr("正在统计…"))
                     .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
             }
-            Text(tr("每 5 秒更新，合并应用及辅助进程。仅含可读取的 CPU 能耗，不含 GPU、屏幕等耗电。"))
-                .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

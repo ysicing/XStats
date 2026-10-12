@@ -5,6 +5,34 @@ import Testing
 @testable import Metrics
 
 struct AppEnergyTests {
+    @MainActor
+    @Test func reopeningProducesFreshEnergyWithinTwoSecondsAndStopsWhenClosed() async throws {
+        let hub = MetricsHub()
+        var readings: [AppEnergyReading] = []
+        await hub.start(primeAllMetrics: false) { snapshot in
+            if let reading = snapshot.appEnergy { readings.append(reading) }
+        }
+        var demand = MetricsDemand()
+        demand.interval = .seconds(1)
+        for _ in 0..<2 {
+            readings.removeAll()
+            demand.generation += 1
+            demand.appEnergy = true
+            await hub.update(demand)
+            // 给一秒采样循环留出调度容差，但不能等待完整的五秒刷新周期。
+            try await Task.sleep(for: .seconds(2.5))
+            #expect(readings.first?.interval == nil)
+            #expect(readings.contains { $0.interval.map { $0 < 2 } ?? false })
+            demand.generation += 1
+            demand.appEnergy = false
+            await hub.update(demand)
+            readings.removeAll()
+            try await Task.sleep(for: .milliseconds(400))
+            #expect(readings.isEmpty)
+        }
+        await hub.stop()
+    }
+
     private func counter(_ pid: Int32, start: UInt64 = 10, energy: UInt64,
                          bundle: String? = nil) -> AppEnergySampler.Counter {
         .init(identity: .init(pid: pid, startTime: start), nanojoules: energy,

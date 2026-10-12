@@ -12,7 +12,7 @@ public struct MetricsDemand: Sendable, Equatable {
     public var gpu = false
     public var disk = false
     public var battery = false
-    /// 电池页的按应用 CPU 能耗，每 5 秒读取一次。
+    /// 电池页的按应用 CPU 能耗，首次约一秒建立读数，之后每 5 秒读取一次。
     public var appEnergy = false
     public var processes = false
     /// 进程管理器打开时：连同其他用户与系统的进程一起采集
@@ -41,7 +41,7 @@ public actor MetricsHub {
     private var network = NetworkSampler()
     private var processes = ProcessSampler()
     private var appEnergy = AppEnergySampler()
-    private var lastAppEnergyUptime: TimeInterval?
+    private var nextAppEnergyUptime: TimeInterval?
     private let sensors = SensorSampler()
     private let power = PowerSampler()
     private var diskActivity = DiskActivitySampler()
@@ -94,7 +94,7 @@ public actor MetricsHub {
         if newDemand.diskDetail && !demand.diskDetail { diskActivity = DiskActivitySampler() }
         if newDemand.appEnergy != demand.appEnergy {
             appEnergy = AppEnergySampler()
-            lastAppEnergyUptime = nil
+            nextAppEnergyUptime = nil
         }
         demand = newDemand
         if needsImmediateRefresh {
@@ -112,7 +112,7 @@ public actor MetricsHub {
         guard value != paused else { return }
         paused = value
         appEnergy = AppEnergySampler()
-        lastAppEnergyUptime = nil
+        nextAppEnergyUptime = nil
         restart()
     }
 
@@ -121,7 +121,7 @@ public actor MetricsHub {
         loop = nil
         handler = nil
         appEnergy = AppEnergySampler()
-        lastAppEnergyUptime = nil
+        nextAppEnergyUptime = nil
     }
 
     private static func everything(interval: Duration) -> MetricsDemand {
@@ -191,9 +191,12 @@ public actor MetricsHub {
             lastBattery = now
         }
         let uptime = ProcessInfo.processInfo.systemUptime
-        if demand.appEnergy, lastAppEnergyUptime.map({ uptime - $0 >= 5 }) ?? true {
-            snapshot.appEnergy = appEnergy.sample()
-            lastAppEnergyUptime = uptime
+        if demand.appEnergy, nextAppEnergyUptime.map({ uptime >= $0 }) ?? true {
+            let reading = appEnergy.sample()
+            snapshot.appEnergy = reading
+            // 基线之后借用现有循环尽快计算首个区间；有读数后恢复五秒频率，
+            // 不为缩短首次等待增加后台定时器，也不跨页面关闭保留累计计数。
+            nextAppEnergyUptime = uptime + (reading.interval == nil ? 1 : 5)
         }
         if demand.processes || demand.systemProcesses {
             snapshot.processes = processes.sample(includeSystem: demand.systemProcesses)

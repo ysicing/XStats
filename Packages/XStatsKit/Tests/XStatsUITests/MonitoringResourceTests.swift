@@ -85,10 +85,14 @@ struct MonitoringResourceTests {
         let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
         var samples: [MetricsSnapshot] = []
         var phases: [String: [String: Double]] = [:]
+        var energyArrivalTimes: [Double] = []
         await model.hub.update(model.demand)
         await model.hub.start(primeAllMetrics: false) { snapshot in
             model.handle(snapshot)
             samples.append(snapshot)
+            if snapshot.appEnergy?.interval != nil {
+                energyArrivalTimes.append(ProcessInfo.processInfo.systemUptime)
+            }
         }
         for (name, visible, monitoring, energy) in [("idle", false, true, false),
             ("power-only-before", true, true, false), ("battery-page", true, true, true),
@@ -106,13 +110,16 @@ struct MonitoringResourceTests {
             await model.hub.update(model.demand)
             // 需求交付完成后才统计，排除切换过程中已在主线程排队的上一阶段快照。
             samples.removeAll(keepingCapacity: true)
-            // Hub 的一秒睡眠有 25% 容差，五秒采集点可能落在第六秒之后。
+            energyArrivalTimes.removeAll(keepingCapacity: true)
+            // 首个能耗区间约一秒，后续每五秒；Hub 的睡眠包含 25% 调度容差。
             try await Task.sleep(for: .seconds(visible && monitoring ? 7 : 3))
+            let firstEnergyDelay = energyArrivalTimes.first.map { $0 - started }
             if visible {
                 if monitoring {
                     #expect(samples.contains { $0.power != nil })
                     if energy {
-                        #expect((1...2).contains(samples.filter { $0.appEnergy != nil }.count))
+                        #expect((2...3).contains(samples.filter { $0.appEnergy != nil }.count))
+                        #expect(firstEnergyDelay.map { $0 < 3 } ?? false)
                         #expect(samples.contains { $0.appEnergy?.interval != nil && $0.appEnergy?.isAvailable == true })
                     } else {
                         #expect(samples.allSatisfy { $0.appEnergy == nil } && model.store.appEnergy == nil)
@@ -135,6 +142,7 @@ struct MonitoringResourceTests {
                             "batterySamples": Double(samples.filter { $0.battery != nil }.count),
                             "powerSamples": Double(samples.filter { $0.power != nil }.count),
                             "appEnergySamples": Double(samples.filter { $0.appEnergy != nil }.count)]
+            if let firstEnergyDelay { phases[name]?["firstEnergySeconds"] = firstEnergyDelay }
         }
         await model.hub.stop()
         let encoder = JSONEncoder()
