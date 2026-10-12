@@ -351,7 +351,7 @@ private struct PageHeader: View {
                 .frame(height: DS.Size.controlHeight)
                 .dsGlass(in: Capsule(), fallback: DS.Palette.primary.opacity(0.12))
             }
-            if settings.restEnabled && tab != .uninstaller {
+            if settings.restEnabled && tab == .rest {
                 IconButton(systemName: "rectangle.inset.filled", help: tr("收起到迷你 HUD")) {
                     model.collapseToRestHUD()
                 }

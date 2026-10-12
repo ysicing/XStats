@@ -8,12 +8,13 @@ import Testing
 
 @MainActor
 struct UninstallerFeatureTests {
-    @Test func defaultOffRoutesAndBackupRestore() throws {
+    @Test func defaultOnRoutesAndBackupRestore() throws {
         let suite = "UninstallerFeatureTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let settings = AppSettings(defaults: defaults)
-        #expect(!settings.uninstallerEnabled)
+        #expect(settings.uninstallerEnabled)
+        settings.uninstallerEnabled = false
         settings.panelTab = .uninstaller
         #expect(settings.panelTab == .settingsFeatures)
         #expect(AppDeepLink.page(.uninstaller, settings: settings) == .settingsFeatures)
@@ -32,7 +33,7 @@ struct UninstallerFeatureTests {
         #expect(AppSettings(defaults: defaults).uninstallerEnabled)
     }
 
-    @Test func upgradedInstallKeepsUninstallerAndFreshInstallStaysOffAcrossLaunches() throws {
+    @Test func freshAndUpgradedInstallsDefaultOnAndExplicitOptOutPersists() throws {
         let upgraded = "UninstallerFeatureTests.upgraded.\(UUID())"
         let previous = try #require(UserDefaults(suiteName: upgraded))
         defer { previous.removePersistentDomain(forName: upgraded) }
@@ -45,10 +46,12 @@ struct UninstallerFeatureTests {
         let fresh = "UninstallerFeatureTests.fresh.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: fresh))
         defer { defaults.removePersistentDomain(forName: fresh) }
-        #expect(!AppSettings(defaults: defaults).uninstallerEnabled)
-        // 新安装首次启动后写入其它偏好，第二次启动仍不能被当作旧安装。
+        #expect(AppSettings(defaults: defaults).uninstallerEnabled)
         defaults.set(PanelTab.overview.rawValue, forKey: "panelTab")
         defaults.set(true, forKey: "SUHasLaunchedBefore")
+        let reloaded = AppSettings(defaults: defaults)
+        #expect(reloaded.uninstallerEnabled)
+        reloaded.uninstallerEnabled = false
         #expect(!AppSettings(defaults: defaults).uninstallerEnabled)
     }
 
