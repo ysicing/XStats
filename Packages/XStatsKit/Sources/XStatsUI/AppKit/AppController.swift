@@ -216,6 +216,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
         let appModel = model
         appModel.bluetooth.setDemand(appModel.bluetoothDemand)
+        appModel.sleepAssertions.setVisible(appModel.sleepAssertionsVisible)
         appModel.displays.setVisible(appModel.displayControlsVisible)
         Task { [weak self] in
             await appModel.hub.update(appModel.demand)
@@ -268,6 +269,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.connectionMonitor.shutdown()
         model.networkGeography.setDemand(enabled: false)
         model.aiUsage.stop()
+        model.sleepAssertions.setVisible(false)
         model.keepAwake.releaseForTermination()
         if model.fans.mode != .automatic || model.keepAwake.lidClosedActive {
             model.helper.restoreDefaultsSynchronously()
@@ -416,6 +418,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         withObservationTracking {
             _ = model.demand
             _ = model.bluetoothDemand
+            _ = model.sleepAssertionsVisible
             _ = model.displayControlsVisible
             _ = model.settings.audioEnabled
             _ = model.audioControlsVisible
@@ -457,6 +460,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self.model.applyMonitoringSettings()
                 if !self.model.settings.processesEnabled { self.model.explainer.dismiss() }
                 self.model.alerts.applySettings()
+                self.model.sleepAssertions.setVisible(self.model.sleepAssertionsVisible)
                 await self.model.hub.update(self.model.demand)
                 self.model.bluetooth.setDemand(self.model.bluetoothDemand)
                 self.model.displays.setVisible(self.model.displayControlsVisible)
@@ -738,6 +742,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.aiUsage.setPaused(true)
         model.displays.setPaused(true)
         model.audio.setPaused(true)
+        model.sleepAssertions.setPaused(true)
         model.connectionMonitor.setPaused(true)
         model.history.flush()
         model.wellness.suspend()
@@ -754,6 +759,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.aiUsage.setPaused(false)
         model.displays.setPaused(false)
         model.audio.setPaused(false)
+        model.sleepAssertions.setPaused(false)
         model.connectionMonitor.setPaused(false)
         rest.sync()
         model.wellness.resume()

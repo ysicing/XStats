@@ -709,17 +709,27 @@ the quota reader has no access to session-log content.
   service name and every address; without the helper, a one-off administrator prompt runs the
   same fixed command.
 
-## Battery and Bluetooth
+## Energy, Battery and Bluetooth
+
+The Energy detail page pairs Preventing Sleep on the left with Bluetooth devices on the right;
+narrow windows stack the cards. `SleepAssertionReader` uses public `IOPMCopyAssertionsByProcess`
+on a utility task and groups active system/display sleep assertions by PID. User activity and
+inactive assertions are excluded; system daemons are shown in a collapsed disclosure. Command-line
+utilities such as caffeinate remain in the main list. Native reason text is bounded and never logged.
+`SleepAssertionController` reads immediately, then every 10 s with 2 s tolerance, only while Energy
+is enabled and its main-window page is visible. Leaving the page, closing/minimizing the window,
+locking, sleeping or disabling Energy cancels polling and clears the result; cancelled reads cannot
+publish. No sleep-history storage or process termination is introduced.
 
 The battery item reuses `BatterySampler` (IOKit power sources, sampled every 10 s while the item is in the
 menu bar or its popover / page is open). `BatteryPopover` is both the popover and the main-window page
-(`DetailPage`). Its feature switch controls power sampling, new battery history and battery alerts;
+(`EnergyPage`). Its feature switch controls temperature, power, App Energy, sleep assertions, new battery history and battery alerts;
 turning it off retains the page, selected menu entry, charge status, health and Bluetooth information.
 Adding the battery menu entry does not enable monitoring. With only basic battery demand, the shared
 loop runs every 10 s. Existing history remains readable and the power section is hidden when disabled.
 The 24-hour charge curve comes from the history database, which gained a `battery` column
 (migrated with `ALTER TABLE` on first open); `HistoryRecorder.loadBattery()` queries it independently of
-the History page's range. Macs without a battery show only Bluetooth devices, and the menu-bar segment
+the History page's range. Macs without a battery still show available power, App Energy, temperature and Bluetooth devices; the menu-bar segment
 falls back to the Bluetooth device with the lowest battery.
 
 `BluetoothController` (`XStatsUI/State`) wraps `BluetoothBatteryReader`, which shells out to

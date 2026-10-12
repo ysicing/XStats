@@ -1996,3 +1996,10 @@ CPU 能耗	CPU-Energieverbrauch
 每 5 秒更新，合并应用及辅助进程。仅含可读取的 CPU 能耗，不含 GPU、屏幕等耗电。	Aktualisierung alle 5 Sekunden; Apps und Hilfsprozesse werden zusammengefasst. Nur lesbarer CPU-Energieverbrauch, ohne GPU, Bildschirm und andere Verbraucher.
 能耗	Energie
 采集温度、功耗、App 能耗和电量历史；关闭后仍显示电池基础信息	Erfasst Temperatur, Leistung, App-Energie und Akkuverlauf; grundlegende Akkuinformationen bleiben auch ausgeschaltet sichtbar
+阻止睡眠	Ruhezustand verhindern
+没有 App 阻止 Mac 进入睡眠	Keine Apps verhindern den Ruhezustand des Mac
+{} 个系统服务正在阻止睡眠	{} Systemdienste verhindern den Ruhezustand
+暂时无法读取睡眠阻止信息	Informationen zur Verhinderung des Ruhezustands sind vorübergehend nicht verfügbar
+阻止系统闲置睡眠	Verhindert den Systemruhezustand bei Inaktivität
+阻止屏幕闲置关闭	Verhindert das Ausschalten des Displays bei Inaktivität
+屏幕	Display

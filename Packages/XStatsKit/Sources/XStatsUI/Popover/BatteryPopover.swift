@@ -58,7 +58,15 @@ struct BatteryPopover: View {
                     BatteryHealthSection(battery: battery)
                 }
             case .batteryBluetooth:
-                BluetoothSection()
+                if isDetailPage && settings.isModuleEnabled(.battery) {
+                    EnergyCardRow {
+                        SleepAssertionsSection(processes: model.sleepAssertions.processes, isUnavailable: model.sleepAssertions.isUnavailable)
+                    } trailing: {
+                        BluetoothSection()
+                    }
+                } else {
+                    BluetoothSection()
+                }
             default:
                 EmptyView()
             }
@@ -314,6 +322,76 @@ private struct BatterySettingsButton: View {
             }
         }
         .buttonStyle(DSButtonStyle(kind: .ghost))
+    }
+}
+
+/// 系统服务单独展开，避免把屏幕、音频和接力的正常请求混入应用主列表。
+struct SleepAssertionsSection: View {
+    let processes: [SleepBlockingProcess]?
+    var isUnavailable = false
+
+    var body: some View {
+        Card {
+            HStack(spacing: DS.Space.s2) {
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.system(size: DS.TextSize.sm.rawValue))
+                    .frame(width: DS.Space.s6, height: DS.Space.s6)
+                    .background(DS.Palette.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: DS.Radius.sm))
+                    .accessibilityHidden(true)
+                Text(tr("阻止睡眠")).dsFont(.sm, weight: .semibold)
+            }
+            .foregroundStyle(DS.Palette.warning)
+            if isUnavailable {
+                Text(tr("暂时无法读取睡眠阻止信息")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+            } else if let processes {
+                let apps = processes.filter { !$0.isSystemService }
+                let services = processes.filter { $0.isSystemService }
+                if apps.isEmpty {
+                    Text(tr("没有 App 阻止 Mac 进入睡眠"))
+                        .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                }
+                ForEach(apps.prefix(8)) { process in SleepAssertionRow(process: process) }
+                if apps.count > 8 {
+                    Text(tr("另有 \(apps.count - 8) 项")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                }
+                if !services.isEmpty {
+                    DisclosureGroup {
+                        ForEach(services.prefix(8)) { process in SleepAssertionRow(process: process) }
+                        if services.count > 8 {
+                            Text(tr("另有 \(services.count - 8) 项")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                        }
+                    } label: {
+                        Text(tr("\(services.count.formatted(.number.locale(L10n.locale))) 个系统服务正在阻止睡眠"))
+                            .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                    }
+                }
+            } else {
+                Text(tr("正在读取…")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+            }
+        }
+    }
+}
+
+private struct SleepAssertionRow: View {
+    let process: SleepBlockingProcess
+
+    var body: some View {
+        HStack(spacing: DS.Space.s2) {
+            AppIconCache.shared.image(bundlePath: process.bundlePath)
+                .resizable().frame(width: DS.Size.iconInline, height: DS.Size.iconInline)
+            VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
+                Text(verbatim: process.bundlePath.map { AppNameCache.shared.name(forBundle: $0) } ?? process.name)
+                    .dsFont(.xs, weight: .medium).lineLimit(1)
+                if !process.reason.isEmpty {
+                    Text(verbatim: process.reason).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                        .lineLimit(2).help(process.reason)
+                }
+            }
+            Spacer(minLength: DS.Space.s2)
+            Chip(text: process.preventsSystemSleep ? tr("系统") : tr("屏幕"), tone: .warning)
+                .help(process.preventsSystemSleep ? tr("阻止系统闲置睡眠") : tr("阻止屏幕闲置关闭"))
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

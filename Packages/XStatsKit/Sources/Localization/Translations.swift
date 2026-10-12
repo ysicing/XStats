@@ -13,6 +13,13 @@ extension Translations {
 
 
     static let monitoringEnglish = #"""
+阻止睡眠	Preventing Sleep
+没有 App 阻止 Mac 进入睡眠	No apps are preventing Mac from sleeping
+{} 个系统服务正在阻止睡眠	{} system services are preventing sleep
+暂时无法读取睡眠阻止信息	Sleep prevention information is temporarily unavailable
+阻止系统闲置睡眠	Prevents idle system sleep
+阻止屏幕闲置关闭	Prevents the display from turning off while idle
+屏幕	Display
 能耗	Energy
 采集温度、功耗、App 能耗和电量历史；关闭后仍显示电池基础信息	Collect temperature, power, app energy and battery history; basic battery information remains visible when off
 App 能耗	App Energy

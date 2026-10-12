@@ -1996,3 +1996,10 @@ CPU 能耗	Consommation du CPU
 每 5 秒更新，合并应用及辅助进程。仅含可读取的 CPU 能耗，不含 GPU、屏幕等耗电。	Mise à jour toutes les 5 secondes, avec regroupement des apps et de leurs processus auxiliaires. Consommation CPU accessible uniquement, hors GPU, écran et autres usages.
 能耗	Énergie
 采集温度、功耗、App 能耗和电量历史；关闭后仍显示电池基础信息	Collecte la température, la puissance, l’énergie des apps et l’historique de batterie ; les informations de base restent visibles après désactivation
+阻止睡眠	Empêcher la veille
+没有 App 阻止 Mac 进入睡眠	Aucune app n’empêche le Mac de se mettre en veille
+{} 个系统服务正在阻止睡眠	{} services système empêchent la veille
+暂时无法读取睡眠阻止信息	Les informations sur le blocage de la veille sont temporairement indisponibles
+阻止系统闲置睡眠	Empêche la veille du système en cas d’inactivité
+阻止屏幕闲置关闭	Empêche l’extinction de l’écran en cas d’inactivité
+屏幕	Écran

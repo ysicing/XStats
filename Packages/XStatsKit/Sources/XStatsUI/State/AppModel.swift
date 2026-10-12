@@ -37,6 +37,7 @@ public final class AppModel {
     public let alerts: AlertController
     public let uninstaller: UninstallerController
     public let bluetooth = BluetoothController()
+    let sleepAssertions = SleepAssertionController()
     let startupItems = StartupItemsController()
     public let history: HistoryRecorder
     public let sync: SyncController
@@ -267,6 +268,10 @@ public final class AppModel {
         if isCombinedOverviewVisible && visibleMenuBarItems.contains(.battery) && store.battery == nil { return .foreground }
         if drawnMenuBarItems.contains(.battery) && (settings.bluetoothLowBatteryInMenuBar || store.battery == nil) { return .background }
         return .off
+    }
+
+    var sleepAssertionsVisible: Bool {
+        settings.isModuleEnabled(.battery) && isMainWindowVisible && settings.panelTab == .battery
     }
 
     /// 网络详情（接口、公网 IP、进程流量）正在显示

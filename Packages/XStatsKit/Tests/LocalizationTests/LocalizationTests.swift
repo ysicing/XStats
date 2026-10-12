@@ -46,7 +46,8 @@ import Testing
     }
 
     @Test func energyAndFanGroupingTextExistsInEverySupportedCatalog() throws {
-        let sources = ["能耗", "风扇", "采集温度、功耗、App 能耗和电量历史；关闭后仍显示电池基础信息",
+        let sources = ["阻止睡眠", "没有 App 阻止 Mac 进入睡眠", "{} 个系统服务正在阻止睡眠",
+                       "暂时无法读取睡眠阻止信息", "阻止系统闲置睡眠", "阻止屏幕闲置关闭", "屏幕", "能耗", "风扇", "采集温度、功耗、App 能耗和电量历史；关闭后仍显示电池基础信息",
                        "只在显示功耗时记录", "只在显示温度或开启过热通知时记录", "只在显示电池信息时记录"]
         for language in AppLanguage.allCases where language != .system && language != .chinese {
             let table = try #require(Translations.catalog(for: language))
