@@ -129,6 +129,20 @@ public enum CleanEngine {
         return running.first { name == $0 || name.hasPrefix($0 + ".") }
     }
 
+    /// 展示应用体积。只解析根上的符号链接，且目标本身必须仍是 .app；内部链接不跟随。
+    /// 清理和卸载继续使用 `scanAllocatedSize`，不能把链接目标当成可删除内容。
+    public static func bundleAllocatedSize(of url: URL,
+                                           checkCancellation: () throws -> Void = { try Task.checkCancellation() }) throws -> UInt64 {
+        try checkCancellation()
+        let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey])
+        guard values.isSymbolicLink == true else {
+            return try scanAllocatedSize(of: url, checkCancellation: checkCancellation)
+        }
+        let target = url.resolvingSymlinksInPath()
+        guard target.pathExtension.caseInsensitiveCompare("app") == .orderedSame else { return 0 }
+        return try scanAllocatedSize(of: target, checkCancellation: checkCancellation)
+    }
+
     /// 实际占用的磁盘空间；不跟随符号链接
     public static func allocatedSize(of url: URL) -> UInt64 {
         // 保持同步调用方的完整计量语义；可取消操作使用 throwing 入口，不能把部分结果当完整大小。

@@ -12,7 +12,8 @@ struct AppInventoryCache: Codable, Sendable {
     static let measurementLifetime: TimeInterval = 24 * 60 * 60
     static var defaultURL: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("XStats/AppInventory-v1.json")
+            // v1 会把符号链接应用的体积记成 0，并在一天内重复使用。换文件名后重新计量。
+            .appendingPathComponent("XStats/AppInventory-v2.json")
     }
 
     struct Fingerprint: Codable, Sendable, Equatable {

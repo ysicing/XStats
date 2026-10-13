@@ -1,6 +1,7 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import AppKit
 import Foundation
 import Darwin
 import Testing
@@ -383,6 +384,73 @@ import Testing
         controller.perform(.upgrade, package: pinned)
         controller.perform(.upgrade, package: stale)
         #expect(controller.operation == nil && writes.withLock { $0 } == 0)
+    }
+
+    @Test func symlinkApplicationMatchesTheResolvedRunningBundle() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let realURL = root.appendingPathComponent("Real.app")
+        try FileManager.default.createDirectory(at: realURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let link = root.appendingPathComponent("Link.app")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: realURL)
+        let real = InstalledApp(url: realURL, name: "Real", bundleIdentifier: "test.real", version: "1", teamIdentifier: nil)
+        let package = HomebrewPackage(name: "link", displayName: "Link", kind: .cask, installedVersions: ["1"], latestVersion: nil,
+            outdated: false, pinned: false, installationURLs: [link], applicationURLs: [link])
+        let controller = AppManagementController(brewAvailable: false)
+        controller.showPreview(apps: [real], metadata: [:], sizes: [:], packages: [package])
+        #expect(controller.isRunning(link))
+        #expect(controller.isRunning(package))
+        #expect(!controller.isRunning(root.appendingPathComponent("Missing.app")))
+    }
+
+    @Test func runningCaskSymlinkDoesNotStartAndReportsTheBlock() async throws {
+        let current = Bundle.main.bundleURL.resolvingSymlinksInPath().path
+        let currentIdentifier = Bundle.main.bundleIdentifier
+        let running = try #require(NSWorkspace.shared.runningApplications.compactMap(\.bundleURL).first { url in
+            guard url.resolvingSymlinksInPath().path != current else { return false }
+            guard let currentIdentifier, let identifier = Bundle(url: url)?.bundleIdentifier else { return true }
+            return identifier.caseInsensitiveCompare(currentIdentifier) != .orderedSame
+        })
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let link = root.appendingPathComponent("Link.app")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: running)
+        let package = HomebrewPackage(name: "link", displayName: "Link", kind: .cask, installedVersions: ["1"], latestVersion: "2",
+            outdated: true, pinned: false, installationURLs: [link], applicationURLs: [link])
+        let writes = AppManagementTestValue(0)
+        let controller = AppManagementController(listApps: { [] }, measureSize: { _ in 1 }, brewAvailable: true,
+            listPackages: { [package] }, performAction: { _, _ in writes.withLock { $0 += 1 } })
+        defer { controller.setVisible(false) }
+        controller.setVisible(true, tab: .homebrew)
+        try await waitFor { controller.packages == [package] && !controller.isLoadingBrew }
+        #expect(controller.isRunning(link))
+        controller.perform(.uninstall, package: package)
+        controller.perform(.upgrade, package: package)
+        #expect(controller.operation == nil && controller.error != nil && writes.withLock { $0 } == 0)
+    }
+
+    @Test func applicationSymlinkSizeUsesTheBundleRatherThanTheLink() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let target = root.appendingPathComponent("Real.app")
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data(repeating: 1, count: 64 * 1024).write(to: target.appendingPathComponent("Payload"))
+        let link = root.appendingPathComponent("Link.app")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+        let fixture = InstalledApp(url: link, name: "Link", bundleIdentifier: "test.link", version: "1", teamIdentifier: nil)
+        let package = HomebrewPackage(name: "link", displayName: "Link", kind: .cask, installedVersions: ["1"], latestVersion: nil,
+            outdated: false, pinned: false, installationURLs: [link], applicationURLs: [link])
+        let expected = try CleanEngine.bundleAllocatedSize(of: link)
+        let controller = AppManagementController(listApps: { [fixture] }, inspectApp: { _ in ApplicationMetadata() },
+            brewAvailable: true, listPackages: { [package] })
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { controller.sizes[fixture.id] == expected && !controller.isReading }
+        #expect(expected > 0)
+        #expect(try CleanEngine.scanAllocatedSize(of: link) == 0)
+        controller.selectTab(.homebrew)
+        try await waitFor { controller.packageSizes[package.id] == expected && !controller.isReading }
     }
 
     /// 可选实机检查：只读真实清单，关闭页面后等待目录遍历退出，确认不再发起后台读取。

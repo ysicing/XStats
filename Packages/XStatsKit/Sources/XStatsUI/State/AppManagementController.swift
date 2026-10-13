@@ -71,18 +71,29 @@ final class AppManagementController {
         }
     }
 
+    /// 列表里的路径可能是 /Applications 下的符号链接，系统报告的则常是 Caskroom 真实目录。
+    func isRunning(_ url: URL) -> Bool {
+        if runningPaths.contains(url.path) || runningPaths.contains(url.standardizedFileURL.path) { return true }
+        return runningPaths.contains(url.resolvingSymlinksInPath().path)
+    }
+
     /// 操作前读取真实运行状态，避免清单刷新与确认之间应用刚好启动。
     func isRunning(_ package: HomebrewPackage) -> Bool {
-        let targets = Set(package.applicationURLs.map { $0.resolvingSymlinksInPath().path })
-        return NSWorkspace.shared.runningApplications.contains {
-            guard let url = $0.bundleURL else { return false }
-            return targets.contains(url.resolvingSymlinksInPath().path)
+        if package.applicationURLs.contains(where: { isRunning($0) }) { return true }
+        let targets = Set(package.applicationURLs.flatMap { Self.bundlePathIdentities($0) })
+        return NSWorkspace.shared.runningApplications.contains { application in
+            guard let url = application.bundleURL else { return false }
+            return !targets.isDisjoint(with: Self.bundlePathIdentities(url))
         }
+    }
+
+    private static func bundlePathIdentities(_ url: URL) -> Set<String> {
+        [url.path, url.standardizedFileURL.path, url.resolvingSymlinksInPath().path]
     }
 
     init(listApps: @escaping @Sendable () throws -> [InstalledApp] = { try AppUninstaller.scanInstalledApps() },
          inspectApp: @escaping @Sendable (InstalledApp) -> ApplicationMetadata = { ApplicationMetadata.read($0) },
-         measureSize: @escaping @Sendable (URL) throws -> UInt64 = { try CleanEngine.scanAllocatedSize(of: $0) },
+         measureSize: @escaping @Sendable (URL) throws -> UInt64 = { try CleanEngine.bundleAllocatedSize(of: $0) },
          brewAvailable: Bool = HomebrewManagement.isAvailable,
          listPackages: @escaping @Sendable () async throws -> [HomebrewPackage] = { try await HomebrewManagement.inventory() },
          updateIndex: @escaping @Sendable () async throws -> Void = { try await HomebrewManagement.checkUpdates() },
@@ -144,7 +155,11 @@ final class AppManagementController {
     }
 
     private func updateRunningPaths() {
-        let paths = Set(NSWorkspace.shared.runningApplications.compactMap { $0.bundleURL?.resolvingSymlinksInPath().path })
+        var paths = Set<String>()
+        for application in NSWorkspace.shared.runningApplications {
+            guard let url = application.bundleURL else { continue }
+            paths.formUnion(Self.bundlePathIdentities(url))
+        }
         if runningPaths != paths { runningPaths = paths }
     }
 
@@ -384,7 +399,7 @@ final class AppManagementController {
             for url in package.applicationURLs { casksByPath[url.path] = package }
         }
         homebrewAppPaths = Set(casksByPath.keys)
-        runningPaths = Set(apps.prefix(2).map(\.id))
+        runningPaths = Set(apps.prefix(2).flatMap { Self.bundlePathIdentities($0.url) })
         measuredApps = Set(apps.map(\.id)); measuredPackages = Set(packages.map(\.id))
         appReadDate = Date(); brewReadDate = Date()
     }
@@ -392,7 +407,11 @@ final class AppManagementController {
     func perform(_ action: HomebrewManagement.Action, package: HomebrewPackage) {
         guard enabled, visible, !paused, operation == nil, !isCheckingUpdates,
               packages.contains(package), !isCurrentApp(package),
-              !isRunning(package), !(action == .upgrade && (!package.outdated || package.pinned)) else { return }
+              !(action == .upgrade && (!package.outdated || package.pinned)) else { return }
+        guard !isRunning(package) else {
+            error = tr("应用正在运行，请先退出")
+            return
+        }
         cancelReading()
         operation = action; operationPackage = package; error = nil; message = nil
         let perform = performAction

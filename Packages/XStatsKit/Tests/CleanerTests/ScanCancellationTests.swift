@@ -92,4 +92,30 @@ struct ScanCancellationTests {
         #expect(checks == 4)
         #expect(try CleanEngine.scanAllocatedSize(of: root) == CleanEngine.allocatedSize(of: root))
     }
+
+    @Test func displaySizeFollowsOnlyTheRootApplicationSymlink() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let target = root.appendingPathComponent("Real.app")
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data(repeating: 1, count: 64 * 1024).write(to: target.appendingPathComponent("Payload"))
+        let targetSize = try CleanEngine.scanAllocatedSize(of: target)
+        let outside = root.appendingPathComponent("outside.bin")
+        try Data(repeating: 2, count: 128 * 1024).write(to: outside)
+        try FileManager.default.createSymbolicLink(at: target.appendingPathComponent("escape"), withDestinationURL: outside)
+        let link = root.appendingPathComponent("Link.app")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+        let directory = root.appendingPathComponent("Payload")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data(repeating: 3, count: 64 * 1024).write(to: directory.appendingPathComponent("Big"))
+        let wide = root.appendingPathComponent("Wide.app")
+        try FileManager.default.createSymbolicLink(at: wide, withDestinationURL: directory)
+        #expect(targetSize > 0)
+        #expect(try CleanEngine.scanAllocatedSize(of: link) == 0)
+        #expect(try CleanEngine.scanAllocatedSize(of: target) == targetSize)
+        #expect(try CleanEngine.bundleAllocatedSize(of: link) == targetSize)
+        #expect(try CleanEngine.bundleAllocatedSize(of: target) == targetSize)
+        #expect(try CleanEngine.bundleAllocatedSize(of: wide) == 0)
+        #expect(try CleanEngine.scanAllocatedSize(of: wide) == 0)
+    }
 }

@@ -336,14 +336,14 @@ struct AppManagementPage: View {
                 return ManagedApplicationRow(id: app.id, name: app.name, version: app.version ?? "—",
                     size: controller.sizes[app.id], kind: metadata?.architecture.title ?? "—", lastOpened: metadata?.lastOpened,
                     source: controller.homebrewAppPaths.contains(app.id) ? "Homebrew" : metadata?.isAppStore == true ? "App Store" : "—",
-                    isRunning: controller.runningPaths.contains(app.id), app: app, package: nil)
+                    isRunning: controller.isRunning(app.url), app: app, package: nil)
             }
         } else {
             rows = controller.packages.filter { filter.matches($0) }.map { package in
                 ManagedApplicationRow(id: package.id, name: package.displayName, version: package.version,
                     size: controller.packageSizes[package.id], kind: package.kind == .formula ? "Formula" : "Cask",
                     lastOpened: nil, source: package.name.contains("/") ? package.name.split(separator: "/").dropLast().joined(separator: "/") : (package.kind == .formula ? "homebrew/core" : "homebrew/cask"),
-                    isRunning: package.applicationURLs.contains { controller.runningPaths.contains($0.path) }, app: nil, package: package)
+                    isRunning: package.applicationURLs.contains { controller.isRunning($0) }, app: nil, package: package)
             }
         }
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
