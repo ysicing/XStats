@@ -67,6 +67,8 @@ task build CONFIG=Release INSTALL=0 BUMP=0 SIGN_ID="$SIGN_ID"
 # UUID 或调试信息缺失时必须在公证与打包之前停止，不发布无法符号化的制品。
 SYMBOL_ARCHIVE="$(python3 scripts/archive_debug_symbols.py "$APP" "$(dirname "$APP")" \
   "${DEBUG_SYMBOLS_DIR:-release-symbols}")"
+# 每次正式打包都先完成私有备份与回读校验；失败保留本地归档并停止后续流程。
+SYMBOL_BACKUP="$(python3 scripts/backup_debug_symbols.py "$SYMBOL_ARCHIVE")"
 
 for binary in "$APP/Contents/MacOS/XStats" "$APP/Contents/MacOS/XStatsHelper" \
               "$APP/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget" \
@@ -178,7 +180,8 @@ echo
 echo "✅ ${DIST}/${NAME}.dmg  SHA-256 $(shasum -a 256 "$DIST/$NAME.dmg" | cut -d' ' -f1)"
 echo "   在线升级：${DIST}/*.zip · ${DIST}/*.xml · ${DIST}/appcast.json"
 echo "   Homebrew cask：${DIST}/xstats.rb"
-echo "   故障排查符号：${SYMBOL_ARCHIVE}（请另行备份，不随安装包分发）"
+echo "   故障排查符号：${SYMBOL_ARCHIVE}（不随安装包分发）"
+echo "   私有符号备份：${SYMBOL_BACKUP}（SHA-256 回读校验通过）"
 echo "   本机已安装的 XStats 保持不变"
 if [ "${SKIP_NOTARIZE:-0}" = "1" ]; then
   echo "⚠️  未公证，仅供本机测试。"

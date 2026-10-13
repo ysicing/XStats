@@ -370,7 +370,16 @@ XSTATS_COMPONENT_PROFILE='组件 profile 名称' XSTATS_NETWORK_PROFILE='扩展 
 `release-symbols/XStats-<版本>-<构建号>-AppleSilicon.dSYMs.zip`，
 包括 dSYM 和记录版本、UUID、二进制 SHA-256 的 `manifest.json`；不进入 DMG、升级 ZIP 或公开上传列表。
 `DEBUG_SYMBOLS_DIR` 可指定其他保存目录。默认目录不受 `task clean` 或下次发布清理 `dist/` 影响，
-同版本与构建号的不同二进制禁止覆盖已有归档；应将每次归档另行备份到持久的私有存储。
+同版本与构建号的不同二进制禁止覆盖已有本地归档。
+每次 `task release` 自动将符号 ZIP 和独立清单备份到内网对象存储
+`home/oss/apps/macOS/XStats/dSYMs/<版本>-<构建号>/<归档 SHA-256>/`，
+上传前后确认目标禁止匿名访问，分别回读 ZIP 和清单比对 SHA-256。
+对象通过条件写入禁止覆盖；两台机器生成不同归档时按哈希分开保存，相同内容可安全重跑。
+备份失败会在公证与打包前停止，本地归档保留；修复连接或权限后执行
+`python3 scripts/backup_debug_symbols.py <符号归档 ZIP>` 重试，不需要重新构建。
+两台打包机均需配置 `mc` 的 `home` 别名和目标读写／私有权限查询权限；
+`DEBUG_SYMBOLS_TARGET` 可覆盖私有备份根目录，与公开安装包的 `MC_TARGET` 独立。
+正式发布仍须串行，切换机器前拉取最新代码；跨机器续发使用原始制品和对应符号，不能以重新构建代替。
 不可在签名或公证后再次裁剪二进制。
 
 崩溃排查时用报告中的 Binary Images UUID 匹配归档；解压后将 dSYM 导入 Xcode，
@@ -378,7 +387,7 @@ XSTATS_COMPONENT_PROFILE='组件 profile 名称' XSTATS_NETWORK_PROFILE='扩展 
 `python3 scripts/archive_debug_symbols_test.py` 使用真实 Mach-O 与 dSYM 验证匹配、缺失、
 错误 UUID、归档覆盖保护，以及裁剪后的运行与文件行号符号化。
 
-正式分发需要 Developer ID 证书及私钥、公证凭据、`mc`（对象存储别名 `c-ip`）、
+正式分发需要 Developer ID 证书及私钥、公证凭据、`mc`（对象存储别名 `c-ip` 和私有备份别名 `home`）、
 已登录的 `gh`，以及环境变量 `XSTATS_RELEASE_TOKEN`。公证凭据首次保存：
 
 ```bash

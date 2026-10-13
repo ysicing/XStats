@@ -31,6 +31,7 @@ Check external prerequisites without exposing credentials:
 security find-identity -v -p codesigning
 xcrun notarytool history --keychain-profile XStats --output-format json
 mc stat c-ip/oss
+mc anonymous --json get home/oss/apps/macOS/XStats/
 gh auth status
 ```
 
@@ -92,9 +93,17 @@ release-symbols/XStats-X.Y.Z-BUILD-AppleSilicon.dSYMs.zip
 
 Release stripping runs before signing. The separate symbol ZIP contains UUID-matched dSYMs for
 the app, Widget, Helper and Sparkle binaries, plus a version/UUID/binary-hash manifest.
-Missing or mismatched symbols stop packaging. Back up this archive privately after every release;
-it is excluded from Git, public uploads, `dist/` replacement and `task clean`.
-`DEBUG_SYMBOLS_DIR` overrides the default retention directory. Never strip a signed/notarized artifact.
+Missing or mismatched symbols stop packaging. Every `task release` automatically backs up the archive
+and a UUID/hash manifest to `home/oss/apps/macOS/XStats/dSYMs/VERSION-BUILD/ARCHIVE-SHA256/`.
+The target must report private anonymous permissions before and after backup. Both objects are read
+back and SHA-256 verified; conditional writes prohibit replacement even across build machines.
+Backup failures stop before notarization/packaging and retain the local archive. Retry without rebuilding:
+`python3 scripts/backup_debug_symbols.py <symbol ZIP>`.
+Both build machines need the `home` alias and private-policy/read/write permissions. Releases remain serial;
+resume on another machine using the original artifacts, not a rebuild of the same version.
+The archive is excluded from Git, public uploads, `dist/` replacement and `task clean`.
+`DEBUG_SYMBOLS_DIR` overrides local retention; `DEBUG_SYMBOLS_TARGET` overrides the private storage root,
+independently of public `MC_TARGET`. Never strip a signed/notarized artifact.
 
 The finished app remains in DerivedData. Verify that artifact directly; do not replace or launch `/Applications/XStats.app` during a release:
 
