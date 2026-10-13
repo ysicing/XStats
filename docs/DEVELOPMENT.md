@@ -60,6 +60,10 @@ task version                        # 查看版本与构建号
 task clean                          # 删除 build/
 ```
 
+`task test` 按 Swift 测试模块隔离运行，其中 `XStatsUITests` 显式使用 `--no-parallel`。
+UI 用例共享主 actor，同步布局、日历计算和阻塞夹具并发时会拖延取消与超时处理；串行执行保留全部断言与原有时限。
+单独运行整个 UI 模块时同样加上 `--no-parallel`，其他模块保留默认调度。
+
 截图默认使用 `build/DerivedData-arm64/Build/Products/Release/XStats.app`，不会悄悄使用 `/Applications` 中的旧版本。
 先构建再生成网络演示截图：
 
