@@ -2046,3 +2046,10 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Der Hom
 最新版本	Neueste Version
 正在运行	Wird ausgeführt
 打开	Öffnen
+暂时无法读取清单	Bestandsliste vorübergehend nicht verfügbar
+尚未安装软件包	Keine Pakete installiert
+没有可用更新	Keine Updates verfügbar
+当前清单中没有需要更新的软件包，可点击“检查更新”刷新。	In der aktuellen Liste benötigt kein Paket ein Update. Klicke zum Aktualisieren auf „Nach Updates suchen“.
+没有匹配的软件包	Keine passenden Pakete
+尝试选择其他筛选条件。	Wähle einen anderen Filter.
+没有找到应用	Keine Apps gefunden

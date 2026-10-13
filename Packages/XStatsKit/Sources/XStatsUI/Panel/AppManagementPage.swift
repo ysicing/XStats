@@ -181,7 +181,24 @@ struct AppManagementPage: View {
             if rows.isEmpty {
                 if controller.error == nil && (isScanning || (tab == .apps && !controller.hasAppInventory)) {
                     if tab != .apps || !controller.isRestoringAppCache { ProgressView(tr("正在读取…")) }
-                } else { ContentUnavailableView.search(text: search) }
+                } else if controller.error != nil && (tab == .apps ? !controller.hasAppInventory : !controller.hasBrewInventory) {
+                    ContentUnavailableView(tr("暂时无法读取清单"), systemImage: "exclamationmark.triangle")
+                } else if !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    ContentUnavailableView.search(text: search)
+                } else if tab == .homebrew {
+                    if controller.packages.isEmpty {
+                        ContentUnavailableView(tr("尚未安装软件包"), systemImage: "shippingbox")
+                    } else if filter == .updates {
+                        // outdated 来自本地索引，不把尚未刷新远端的清单描述为“已是最新”。
+                        ContentUnavailableView(tr("没有可用更新"), systemImage: "checkmark.circle",
+                            description: Text(tr("当前清单中没有需要更新的软件包，可点击“检查更新”刷新。")))
+                    } else {
+                        ContentUnavailableView(tr("没有匹配的软件包"), systemImage: "line.3.horizontal.decrease",
+                            description: Text(tr("尝试选择其他筛选条件。")))
+                    }
+                } else {
+                    ContentUnavailableView(tr("没有找到应用"), systemImage: "app.dashed")
+                }
             }
         }
         .contextMenu(forSelectionType: String.self) { ids in

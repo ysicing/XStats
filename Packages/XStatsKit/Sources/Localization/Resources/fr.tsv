@@ -2046,3 +2046,10 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 最新版本	Dernière version
 正在运行	En cours d’exécution
 打开	Ouvrir
+暂时无法读取清单	Liste temporairement indisponible
+尚未安装软件包	Aucun paquet installé
+没有可用更新	Aucune mise à jour disponible
+当前清单中没有需要更新的软件包，可点击“检查更新”刷新。	Aucun paquet de la liste actuelle ne nécessite de mise à jour. Cliquez sur « Rechercher des mises à jour » pour actualiser.
+没有匹配的软件包	Aucun paquet correspondant
+尝试选择其他筛选条件。	Essayez de sélectionner un autre filtre.
+没有找到应用	Aucune app trouvée

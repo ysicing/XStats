@@ -1696,6 +1696,13 @@ iPhone 与 iPad	iPhone and iPad
 Homebrew 会更新所选项目及必要的依赖。	Homebrew will update the selected item and any required dependencies.
 Homebrew 操作失败，请在终端检查后重试	Homebrew operation failed. Check in Terminal and try again.
 Homebrew 操作已完成	Homebrew Operation Completed
+暂时无法读取清单	Inventory temporarily unavailable
+尚未安装软件包	No packages installed
+没有可用更新	No updates available
+当前清单中没有需要更新的软件包，可点击“检查更新”刷新。	No packages in the current inventory need updating. Click “Check for Updates” to refresh.
+没有匹配的软件包	No matching packages
+尝试选择其他筛选条件。	Try selecting a different filter.
+没有找到应用	No apps found
 筛选	Filter
 通用架构	Universal
 """#

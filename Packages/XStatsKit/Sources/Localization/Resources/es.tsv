@@ -2046,3 +2046,10 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 最新版本	Última versión
 正在运行	En ejecución
 打开	Abrir
+暂时无法读取清单	Lista temporalmente no disponible
+尚未安装软件包	No hay paquetes instalados
+没有可用更新	No hay actualizaciones disponibles
+当前清单中没有需要更新的软件包，可点击“检查更新”刷新。	Ningún paquete de la lista actual necesita actualizarse. Haz clic en «Buscar actualizaciones» para actualizar la lista.
+没有匹配的软件包	No hay paquetes coincidentes
+尝试选择其他筛选条件。	Prueba a seleccionar otro filtro.
+没有找到应用	No se encontraron apps
