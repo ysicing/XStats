@@ -20,6 +20,86 @@ import Testing
         try #require(condition())
     }
 
+    @Test func storeChecksReuseResultsAndManualFailuresStaySilent() async throws {
+        let fixture = app("Store")
+        let calls = AppManagementTestValue(0)
+        let date = AppManagementTestValue(Date())
+        let controller = AppManagementController(listApps: { [fixture] }, inspectApp: { _ in
+            ApplicationMetadata(isAppStore: true, appStoreID: "123")
+        }, measureSize: { _ in 1 }, brewAvailable: false, checkStore: { _, _ in
+            let count = calls.withLock { $0 += 1; return $0 }
+            if count > 1 { throw URLError(.notConnectedToInternet) }
+            return .init(entries: [fixture.bundleIdentifier: .init(bundleIdentifier: fixture.bundleIdentifier,
+                version: "2", minimumSystemVersion: "14", storeID: "123")])
+        }, now: { date.withLock { $0 } })
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading && !controller.isCheckingAppStore }
+        #expect(controller.appStoreUpdates[fixture.id]?.version == "2")
+        for _ in 0..<5 {
+            controller.setVisible(false); controller.setVisible(true)
+            try await waitFor { !controller.isReading && !controller.isCheckingAppStore }
+        }
+        #expect(calls.withLock { $0 } == 1)
+        controller.checkAppStoreUpdates(force: true)
+        try await waitFor { !controller.isCheckingAppStore }
+        #expect(controller.error == nil && controller.appStoreUpdates.isEmpty)
+        controller.setVisible(false); controller.setVisible(true)
+        try await waitFor { !controller.isReading && !controller.isCheckingAppStore }
+        #expect(calls.withLock { $0 } == 2)
+        date.withLock { $0 += AppManagementController.storeMissingRetryDelay + 1 }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading && !controller.isCheckingAppStore }
+        #expect(calls.withLock { $0 } == 3)
+    }
+
+    @Test func storeHandoffOpensOnlyTheStoreAndRechecksInstalledVersion() async throws {
+        let fixture = app("Store")
+        let updated = InstalledApp(url: fixture.url, name: fixture.name, bundleIdentifier: fixture.bundleIdentifier,
+                                   version: "2", teamIdentifier: nil)
+        let inventory = AppManagementTestValue([fixture])
+        let urls = AppManagementTestValue([URL]())
+        let controller = AppManagementController(listApps: { inventory.withLock { $0 } }, inspectApp: { _ in
+            ApplicationMetadata(isAppStore: true, appStoreID: "123")
+        }, measureSize: { _ in 1 }, brewAvailable: false, checkStore: { _, _ in
+            .init(entries: [fixture.bundleIdentifier: .init(bundleIdentifier: fixture.bundleIdentifier,
+                version: "2", minimumSystemVersion: "14", storeID: "123")])
+        }, openStore: { url in urls.withLock { $0.append(url) }; return true })
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading && !controller.isCheckingAppStore }
+        controller.openAppStoreUpdate(for: fixture)
+        #expect(urls.withLock { $0.map(\.absoluteString) } == ["macappstore://itunes.apple.com/app/id123"])
+        controller.setVisible(false)
+        inventory.withLock { $0 = [updated] }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading && !controller.isCheckingAppStore }
+        #expect(controller.apps.first?.version == "2" && controller.appStoreUpdates.isEmpty)
+        controller.openAppStoreUpdate(for: fixture)
+        #expect(urls.withLock { $0.count } == 1)
+    }
+
+    @Test func storeLookupRejectsLateResultsAfterClosing() async throws {
+        let fixture = app("Store")
+        let gate = StoreLookupGate()
+        let controller = AppManagementController(listApps: { [fixture] }, inspectApp: { _ in
+            ApplicationMetadata(isAppStore: true)
+        }, measureSize: { _ in 1 }, brewAvailable: false, checkStore: { _, _ in
+            await gate.wait()
+            return .init(entries: [fixture.bundleIdentifier: .init(bundleIdentifier: fixture.bundleIdentifier,
+                version: "2", minimumSystemVersion: "14", storeID: "123")])
+        })
+        controller.setVisible(true)
+        try await waitFor { controller.isCheckingAppStore }
+        controller.setVisible(false)
+        #expect(controller.isCheckingAppStore == false)
+        await gate.release()
+        await Task.yield()
+        #expect(controller.appStoreUpdates.isEmpty && controller.error == nil)
+        controller.setEnabled(false)
+        #expect(controller.appStoreUpdates.isEmpty)
+    }
+
     @Test func rapidReopeningReusesInventoryAndMetadataButExpiryRefreshesLastOpened() async throws {
         let fixture = app("Editor")
         let date = AppManagementTestValue(Date())
@@ -833,6 +913,19 @@ import Testing
             + Double(cpuAfter.ru_utime.tv_usec + cpuAfter.ru_stime.tv_usec - cpuBefore.ru_utime.tv_usec - cpuBefore.ru_stime.tv_usec) / 1_000_000
         try "apps=\(appCount) packages=\(packageCount) closed_new_reads=0 closed_cpu_seconds=\(cpu) observed_seconds=5\n"
             .write(toFile: path, atomically: true, encoding: .utf8)
+    }
+}
+
+private actor StoreLookupGate {
+    private var released = false
+    private var continuation: CheckedContinuation<Void, Never>?
+    func wait() async {
+        if released { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+    func release() {
+        released = true
+        continuation?.resume(); continuation = nil
     }
 }
 

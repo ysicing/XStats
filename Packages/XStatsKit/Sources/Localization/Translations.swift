@@ -1655,6 +1655,9 @@ IP 归属地	IP location
 
 extension Translations {
     static let applicationManagementEnglish = #"""
+检查 App Store 更新	Check for App Store updates
+在 App Store 更新	Update in App Store
+无法打开 App Store，请手动打开后更新	Could not open the App Store. Open it manually to update.
 刷新本地清单	Refresh local inventory
 检查 Homebrew 更新	Check for Homebrew updates
 安装日期	Installed

@@ -9,9 +9,11 @@ public struct ApplicationMetadata: Sendable, Equatable {
     public let architecture: Architecture
     public let lastOpened: Date?
     public let isAppStore: Bool
+    public let appStoreID: String?
 
-    public init(architecture: Architecture = .unknown, lastOpened: Date? = nil, isAppStore: Bool = false) {
+    public init(architecture: Architecture = .unknown, lastOpened: Date? = nil, isAppStore: Bool = false, appStoreID: String? = nil) {
         self.architecture = architecture; self.lastOpened = lastOpened; self.isAppStore = isAppStore
+        self.appStoreID = appStoreID
     }
 
     public static func read(_ app: InstalledApp) -> Self {
@@ -26,9 +28,12 @@ public struct ApplicationMetadata: Sendable, Equatable {
             // Mach-O / fat 头有界读取，不为每个应用启动 lipo 或映射整个可执行文件。
             architecture = (try? handle.read(upToCount: 4096)).map(Self.architecture(in:)) ?? .unknown
         } else { architecture = .unknown }
-        let lastOpened = NSMetadataItem(url: app.url)?.value(forAttribute: NSMetadataItemLastUsedDateKey) as? Date
+        let item = NSMetadataItem(url: app.url)
+        let lastOpened = item?.value(forAttribute: NSMetadataItemLastUsedDateKey) as? Date
+        let isAppStore = FileManager.default.fileExists(atPath: app.url.appendingPathComponent("Contents/_MASReceipt/receipt").path)
+        let storeID = isAppStore ? (item?.value(forAttribute: "kMDItemAppStoreAdamID") as? NSNumber)?.stringValue : nil
         return Self(architecture: architecture, lastOpened: lastOpened,
-                    isAppStore: FileManager.default.fileExists(atPath: app.url.appendingPathComponent("Contents/_MASReceipt/receipt").path))
+                    isAppStore: isAppStore, appStoreID: storeID)
     }
 
     static func architecture(in data: Data) -> Architecture {

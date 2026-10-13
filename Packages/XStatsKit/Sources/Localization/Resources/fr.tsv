@@ -2061,3 +2061,6 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 未知	Inconnu
 刷新本地清单	Actualiser la liste locale
 检查 Homebrew 更新	Rechercher les mises à jour Homebrew
+检查 App Store 更新	Rechercher les mises à jour App Store
+在 App Store 更新	Mettre à jour dans l’App Store
+无法打开 App Store，请手动打开后更新	Impossible d’ouvrir l’App Store. Ouvrez-le manuellement pour effectuer la mise à jour.

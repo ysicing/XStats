@@ -2061,3 +2061,6 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 未知	Desconocido
 刷新本地清单	Actualizar la lista local
 检查 Homebrew 更新	Buscar actualizaciones de Homebrew
+检查 App Store 更新	Buscar actualizaciones de App Store
+在 App Store 更新	Actualizar en App Store
+无法打开 App Store，请手动打开后更新	No se pudo abrir App Store. Ábrelo manualmente para actualizar.

@@ -36,6 +36,7 @@ struct AppInventoryCache: Codable, Sendable {
         let architecture: String?
         let lastOpened: Date?
         let isAppStore: Bool?
+        let appStoreID: String?
         let isHomebrew: Bool?
         let size: UInt64?
         let measuredAt: Date?
@@ -45,6 +46,7 @@ struct AppInventoryCache: Codable, Sendable {
             path = app.id; name = app.name; bundleIdentifier = app.bundleIdentifier
             version = app.version; teamIdentifier = app.teamIdentifier
             architecture = metadata?.architecture.rawValue; lastOpened = metadata?.lastOpened; isAppStore = metadata?.isAppStore
+            appStoreID = metadata?.appStoreID
             self.size = size; self.measuredAt = measuredAt; self.fingerprint = fingerprint
             self.isHomebrew = isHomebrew
         }
@@ -55,7 +57,7 @@ struct AppInventoryCache: Codable, Sendable {
         }
         var metadata: ApplicationMetadata? {
             guard let architecture, let kind = ApplicationMetadata.Architecture(rawValue: architecture) else { return nil }
-            return ApplicationMetadata(architecture: kind, lastOpened: lastOpened, isAppStore: isAppStore ?? false)
+            return ApplicationMetadata(architecture: kind, lastOpened: lastOpened, isAppStore: isAppStore ?? false, appStoreID: appStoreID)
         }
     }
 

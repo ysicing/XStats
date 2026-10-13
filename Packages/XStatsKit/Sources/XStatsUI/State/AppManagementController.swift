@@ -29,6 +29,23 @@ final class AppManagementController {
     private(set) var isRefreshingApps = false
     private(set) var isLoadingBrew = false
     private(set) var isCheckingUpdates = false
+    private(set) var isCheckingAppStore = false
+    private(set) var appStoreUpdates: [String: AppStoreUpdates.Entry] = [:]
+    @ObservationIgnored private var storeTask: Task<Void, Never>?
+    @ObservationIgnored private var storeGeneration = UUID()
+    @ObservationIgnored private var storeCache: [String: StoreCheck] = [:]
+    @ObservationIgnored private var storeHandoffPending = false
+    @ObservationIgnored private var activationObserver: NSObjectProtocol?
+    @ObservationIgnored private let checkStore: @Sendable ([AppStoreUpdates.Candidate], String) async throws -> AppStoreUpdates.Report
+    @ObservationIgnored private let openStore: @MainActor (URL) -> Bool
+    private struct StoreCheck {
+        let candidate: AppStoreUpdates.Candidate
+        let entry: AppStoreUpdates.Entry?
+        let checkedAt: Date
+        let region: String
+    }
+    static let storeResultLifetime: TimeInterval = 3600
+    static let storeMissingRetryDelay: TimeInterval = 600
     /// 尚无可用清单且最近一次读取失败：普通卸载降级可用，页面提示无法识别 Homebrew 来源。
     private(set) var brewInventoryFailed = false
     private(set) var operation: HomebrewManagement.Action?
@@ -124,10 +141,13 @@ final class AppManagementController {
          listPackages: @escaping @Sendable () async throws -> [HomebrewPackage] = { try await HomebrewManagement.inventory() },
          updateIndex: @escaping @Sendable () async throws -> Void = { try await HomebrewManagement.checkUpdates() },
          performAction: @escaping @Sendable (HomebrewManagement.Action, HomebrewPackage) async throws -> Void = { try await HomebrewManagement.perform($0, package: $1) },
+         checkStore: @escaping @Sendable ([AppStoreUpdates.Candidate], String) async throws -> AppStoreUpdates.Report = { try await AppStoreUpdates.check($0, country: $1) },
+         openStore: @escaping @MainActor (URL) -> Bool = { NSWorkspace.shared.open($0) },
          cacheURL: URL? = nil, now: @escaping @Sendable () -> Date = { Date() }) {
         self.listApps = listApps; self.inspectApp = inspectApp; self.measureSize = measureSize
         self.brewAvailable = brewAvailable; self.listPackages = listPackages
         self.updateIndex = updateIndex; self.performAction = performAction
+        self.checkStore = checkStore; self.openStore = openStore
         self.cacheURL = cacheURL
         self.now = now
     }
@@ -139,6 +159,7 @@ final class AppManagementController {
             apps = []; metadata = [:]; sizes = [:]; measuredApps = []
             packages = []; packageSizes = [:]; measuredPackages = []; casksByPath = [:]
             homebrewAppPaths = []
+            storeCache = [:]; appStoreUpdates = [:]; storeHandoffPending = false
             appReadDate = nil; brewReadDate = nil; brewFailureDate = nil; brewInventoryFailed = false
             updatePackageIdentities()
             appFingerprints = [:]; measuredAppDates = [:]; metadataReadDates = [:]
@@ -169,7 +190,21 @@ final class AppManagementController {
 
     private func resume() {
         guard operation == nil else { return }
+        refreshAfterStoreHandoff()
         updateRunningPaths()
+        if activationObserver == nil {
+            activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+            ) { [weak self] notification in
+                guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                      application.processIdentifier == ProcessInfo.processInfo.processIdentifier else { return }
+                Task { @MainActor [weak self] in
+                    guard let self, self.visible, !self.paused, self.storeHandoffPending else { return }
+                    self.refreshAfterStoreHandoff()
+                    self.resume()
+                }
+            }
+        }
         if runningObservation == nil {
             runningObservation = NSWorkspace.shared.observe(\.runningApplications) { [weak self] _, _ in
                 Task { @MainActor [weak self] in
@@ -180,6 +215,7 @@ final class AppManagementController {
         }
         if tab == .apps {
             readApps(force: false)
+            checkAppStoreUpdates()
         }
         readBrew(force: false)
     }
@@ -232,6 +268,9 @@ final class AppManagementController {
         appTask = nil; brewTask = nil
         isLoadingApps = false; isMeasuringApps = false; isRefreshingApps = false; isLoadingBrew = false
         runningObservation = nil
+        storeGeneration = UUID(); storeTask?.cancel(); storeTask = nil; isCheckingAppStore = false
+        if let activationObserver { NSWorkspace.shared.notificationCenter.removeObserver(activationObserver) }
+        activationObserver = nil
     }
 
     private func readApps(force: Bool) {
@@ -341,6 +380,7 @@ final class AppManagementController {
                     for app in pendingMetadata { self.metadataReadDates[app.id] = self.now() }
                 }
                 self.isLoadingApps = false
+                self.checkAppStoreUpdates()
                 self.isMeasuringApps = self.apps.contains { !self.measuredApps.contains($0.id) }
                 if self.isMeasuringApps {
                     await self.saveAppCache()
@@ -406,6 +446,92 @@ final class AppManagementController {
             }
             cacheWriteFailed = true
         }
+    }
+
+    /// 商店结果只用于展示和外部跳转；不参与卸载路由或安装授权。
+    private func storeCandidate(for app: InstalledApp) -> AppStoreUpdates.Candidate? {
+        guard metadata[app.id]?.isAppStore == true, metadata[app.id]?.architecture != .iOS, let version = app.version, !version.isEmpty,
+              !app.bundleIdentifier.isEmpty, !homebrewAppPaths.contains(app.id) else { return nil }
+        return .init(bundleIdentifier: app.bundleIdentifier, version: version, storeID: metadata[app.id]?.appStoreID)
+    }
+
+    func checkAppStoreUpdates(force: Bool = false) {
+        guard enabled, visible, !paused, tab == .apps, appReadDate != nil, !isLoadingApps, operation == nil else { return }
+        let candidates = Dictionary(uniqueKeysWithValues: apps.compactMap { app in
+            storeCandidate(for: app).map { (app.id, $0) }
+        })
+        let region = Locale.current.region?.identifier ?? "US"
+        storeCache = storeCache.filter { candidates[$0.key] == $0.value.candidate && $0.value.region == region }
+        let system = ProcessInfo.processInfo.operatingSystemVersion
+        let systemVersion = "\(system.majorVersion).\(system.minorVersion).\(system.patchVersion)"
+        let date = now()
+        appStoreUpdates = storeCache.compactMapValues { check in
+            let age = date.timeIntervalSince(check.checkedAt)
+            guard (0..<Self.storeResultLifetime).contains(age) else { return nil }
+            return check.entry?.update(for: check.candidate, systemVersion: systemVersion)
+        }
+        guard storeTask == nil else { return }
+        let pending = candidates.filter { id, candidate in
+            guard !force, let check = storeCache[id], check.candidate == candidate else { return true }
+            let lifetime = check.entry == nil ? Self.storeMissingRetryDelay : Self.storeResultLifetime
+            return !(0..<lifetime).contains(date.timeIntervalSince(check.checkedAt))
+        }
+        guard !pending.isEmpty else { return }
+        let generation = UUID(); storeGeneration = generation
+        let query = checkStore
+        isCheckingAppStore = true
+        storeTask = Task { [weak self] in
+            defer { if let self, self.storeGeneration == generation {
+                self.storeTask = nil; self.isCheckingAppStore = false
+            } }
+            do {
+                let report = try await query(Array(pending.values), region)
+                try Task.checkCancellation()
+                guard let self, self.storeGeneration == generation else { return }
+                let current = Dictionary(uniqueKeysWithValues: self.apps.map { ($0.id, $0) })
+                for (id, candidate) in pending {
+                    guard let app = current[id], self.storeCandidate(for: app) == candidate else { continue }
+                    let entry = report.entries[candidate.bundleIdentifier]
+                    self.storeCache[id] = StoreCheck(candidate: candidate, entry: entry, checkedAt: self.now(), region: region)
+                    self.appStoreUpdates[id] = entry?.update(for: candidate, systemVersion: systemVersion)
+                }
+                if report.failedRequests > 0 {
+                    Log.app.error("App Store version lookup incomplete: \(report.failedRequests) failed requests")
+                } else {
+                    Log.app.info("App Store version lookup completed: \(report.entries.count) catalog entries")
+                }
+            } catch {
+                guard let self, !Task.isCancelled, self.storeGeneration == generation else { return }
+                for (id, candidate) in pending {
+                    self.storeCache[id] = StoreCheck(candidate: candidate, entry: nil, checkedAt: self.now(), region: region)
+                    self.appStoreUpdates[id] = nil
+                }
+                Log.app.error("App Store version lookup failed: \(String(describing: error).prefix(500), privacy: .private)")
+            }
+        }
+    }
+
+    func openAppStoreUpdate(for app: InstalledApp) {
+        let system = ProcessInfo.processInfo.operatingSystemVersion
+        let systemVersion = "\(system.majorVersion).\(system.minorVersion).\(system.patchVersion)"
+        guard visible, enabled, !paused, operation == nil,
+              let current = apps.first(where: { $0.id == app.id }), current == app,
+              let candidate = storeCandidate(for: current), let entry = appStoreUpdates[app.id],
+              entry.update(for: candidate, systemVersion: systemVersion) != nil else { return }
+        if openStore(entry.storeURL) {
+            storeHandoffPending = true
+            Log.app.notice("App Store update handed off")
+        } else {
+            error = tr("无法打开 App Store，请手动打开后更新")
+            Log.app.error("App Store update handoff failed")
+        }
+    }
+
+    private func refreshAfterStoreHandoff() {
+        guard storeHandoffPending, tab == .apps else { return }
+        storeHandoffPending = false
+        cancelReading()
+        appReadDate = nil; storeCache = [:]; appStoreUpdates = [:]
     }
 
     /// `force` 仅用于用户手动刷新：重新读取清单并重新计量全部软件包。
@@ -526,10 +652,11 @@ final class AppManagementController {
     }
 
     /// 原生截图使用演示清单，不扫描本机或调用 Homebrew。
-    func showPreview(apps: [InstalledApp], metadata: [String: ApplicationMetadata], sizes: [String: UInt64], packages: [HomebrewPackage]) {
+    func showPreview(apps: [InstalledApp], metadata: [String: ApplicationMetadata], sizes: [String: UInt64], packages: [HomebrewPackage], storeUpdates: [String: AppStoreUpdates.Entry] = [:]) {
         cancelReading()
         didLoadCache = true
         self.apps = apps; self.metadata = metadata; self.sizes = sizes; self.packages = packages
+        appStoreUpdates = storeUpdates
         packageSizes = Dictionary(uniqueKeysWithValues: packages.enumerated().map { ($0.element.id, UInt64(($0.offset + 1) * 45_000_000)) })
         casksByPath = [:]
         for package in packages {

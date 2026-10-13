@@ -44,7 +44,9 @@ enum SnapshotRenderer {
             // 演示包同样走生产解析器，不构造可能绕过身份检查的操作对象。
             let packages = (try? HomebrewManagement.parse(json, prefix: URL(fileURLWithPath: "/opt/homebrew"))) ?? []
             model.appManagement.showPreview(apps: apps, metadata: metadata,
-                sizes: Dictionary(uniqueKeysWithValues: apps.enumerated().map { ($0.element.id, UInt64(($0.offset + 1) * 128_000_000)) }), packages: packages)
+                sizes: Dictionary(uniqueKeysWithValues: apps.enumerated().map { ($0.element.id, UInt64(($0.offset + 1) * 128_000_000)) }), packages: packages,
+                storeUpdates: [apps[1].id: .init(bundleIdentifier: apps[1].bundleIdentifier, version: "2.5.0",
+                    minimumSystemVersion: "14.0", storeID: "123")])
             for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
                 guard let appearance = NSAppearance(named: name) else { continue }
                 NSApp.appearance = appearance

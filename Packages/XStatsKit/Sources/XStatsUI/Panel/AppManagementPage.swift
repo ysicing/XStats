@@ -22,6 +22,7 @@ struct AppManagementPage: View {
     @State private var showsUninstall = false
     @State private var pendingBrew: BrewConfirmation?
     private var controller: AppManagementController { model.appManagement }
+    private var checkingUpdates: Bool { tab == .apps ? controller.isCheckingAppStore : controller.isCheckingUpdates }
     private var isScanning: Bool {
         tab == .apps ? controller.isLoadingApps || controller.isMeasuringApps : controller.isLoadingBrew
     }
@@ -156,20 +157,24 @@ struct AppManagementPage: View {
                 .help(tr("筛选"))
                 .accessibilityLabel(tr("筛选"))
                 .accessibilityValue(filter.title)
-                Button { controller.checkBrewUpdates() } label: {
-                    Text(tr("检查更新"))
-                        .opacity(controller.isCheckingUpdates ? 0 : 1)
-                        .overlay {
-                            if controller.isCheckingUpdates { ProgressView().controlSize(.small).transition(.opacity) }
-                        }
-                }
-                    .buttonStyle(DSButtonStyle(kind: .secondary))
-                    .fixedSize()
-                    .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: controller.isCheckingUpdates)
-                    .help(tr("检查 Homebrew 更新"))
-                    .accessibilityLabel(controller.isCheckingUpdates ? tr("正在检查更新") : tr("检查 Homebrew 更新"))
-                    .disabled(!controller.brewAvailable || controller.isLoadingBrew || controller.operation != nil || controller.isCheckingUpdates)
             }
+            Button {
+                if tab == .apps { controller.checkAppStoreUpdates(force: true) }
+                else { controller.checkBrewUpdates() }
+            } label: {
+                Text(tr("检查更新"))
+                    .opacity(checkingUpdates ? 0 : 1)
+                    .overlay {
+                        if checkingUpdates { ProgressView().controlSize(.small).transition(.opacity) }
+                    }
+            }
+            .buttonStyle(DSButtonStyle(kind: .secondary))
+            .fixedSize()
+            .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: checkingUpdates)
+            .help(tab == .apps ? tr("检查 App Store 更新") : tr("检查 Homebrew 更新"))
+            .accessibilityLabel(checkingUpdates ? tr("正在检查更新") : (tab == .apps ? tr("检查 App Store 更新") : tr("检查 Homebrew 更新")))
+            .disabled(checkingUpdates || controller.operation != nil || model.uninstaller.isRemoving
+                || (tab == .apps ? controller.isLoadingApps || !controller.hasAppInventory : !controller.brewAvailable || controller.isLoadingBrew))
             IconButton(systemName: "arrow.clockwise", help: tr("刷新本地清单")) { controller.refresh() }
                 .opacity(showsRefreshProgress ? 0 : 1)
                 .overlay {
@@ -178,7 +183,7 @@ struct AppManagementPage: View {
                 .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: showsRefreshProgress)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(showsRefreshProgress ? tr("正在读取…") : tr("刷新本地清单"))
-                .disabled(showsRefreshProgress || (tab == .apps && controller.isRestoringAppCache) || controller.operation != nil || controller.isCheckingUpdates)
+                .disabled(showsRefreshProgress || (tab == .apps && controller.isRestoringAppCache) || controller.operation != nil || checkingUpdates)
         }
     }
 
@@ -286,8 +291,15 @@ struct AppManagementPage: View {
                     .accessibilityLabel(updating ? tr("更新中…") : tr("更新软件包…"))
                     .disabled(upgradeIsDisabled(for: row))
                 }
+                if let app = row.app, row.storeUpdate != nil {
+                    Button(tr("更新")) { controller.openAppStoreUpdate(for: app) }
+                        .buttonStyle(.bordered).tint(DS.Palette.primary).controlSize(.small).fixedSize()
+                        .help(tr("在 App Store 更新"))
+                        .accessibilityLabel(tr("在 App Store 更新"))
+                        .disabled(controller.operation != nil || model.uninstaller.isRemoving)
+                }
             }
-        }.width(min: tab == .homebrew ? 150 : 70, ideal: tab == .homebrew ? 200 : 110, max: tab == .homebrew ? 360 : 160)
+        }.width(min: 150, ideal: 200, max: 360)
     }
 
     private var sizeColumn: some TableColumnContent<ManagedApplicationRow, KeyPathComparator<ManagedApplicationRow>> {
@@ -344,7 +356,7 @@ struct AppManagementPage: View {
                 let bytes = Format.bytes(known.reduce(0, +), base: .decimal)
                 Text(verbatim: known.count == rows.count ? bytes : tr("已计量 \(bytes)"))
             }
-            if controller.isCheckingUpdates { ProgressView().controlSize(.small); Text(tr("正在检查更新")) }
+            if checkingUpdates { ProgressView().controlSize(.small); Text(tr("正在检查更新")) }
             if let action = controller.operation {
                 ProgressView().controlSize(.small)
                 Text(action == .upgrade ? tr("正在更新软件包…") : tr("正在卸载软件包…"))
@@ -369,6 +381,10 @@ struct AppManagementPage: View {
 
     @ViewBuilder private func actions(for row: ManagedApplicationRow) -> some View {
         if let app = row.app {
+            if row.storeUpdate != nil {
+                Button(tr("在 App Store 更新")) { controller.openAppStoreUpdate(for: app) }
+                    .disabled(controller.operation != nil)
+            }
             Button(tr("打开")) { NSWorkspace.shared.open(app.url) }
             Button(tr("在 Finder 中显示")) { NSWorkspace.shared.activateFileViewerSelecting([app.url]) }
             if row.isRunning, let cask = controller.casksByPath[app.id], !controller.isCurrentApp(cask) {
@@ -427,7 +443,8 @@ struct AppManagementPage: View {
                 return ManagedApplicationRow(id: app.id, name: app.name, version: app.version ?? "—",
                     size: controller.sizes[app.id], kind: metadata?.architecture.title ?? "—", lastOpened: metadata?.lastOpened,
                     source: controller.homebrewAppPaths.contains(app.id) ? "Homebrew" : metadata?.isAppStore == true ? "App Store" : "—",
-                    isRunning: controller.runningAppIDs.contains(app.id), app: app, package: nil)
+                    isRunning: controller.runningAppIDs.contains(app.id), app: app, package: nil,
+                    storeUpdate: controller.homebrewAppPaths.contains(app.id) ? nil : controller.appStoreUpdates[app.id])
             }
         } else {
             rows = controller.packages.filter { filter.matches($0) }.map { package in
@@ -458,6 +475,7 @@ private struct ManagedApplicationRow: Identifiable {
     let name: String
     let version: String
     var availableVersion: String? {
+        if let storeUpdate { return storeUpdate.version }
         guard let package, package.outdated, let latest = package.latestVersion,
               !latest.isEmpty, latest != version else { return nil }
         return latest
@@ -475,6 +493,7 @@ private struct ManagedApplicationRow: Identifiable {
     let isRunning: Bool
     let app: InstalledApp?
     let package: HomebrewPackage?
+    var storeUpdate: AppStoreUpdates.Entry? = nil
     var installationDateSort: Date { package?.installedAt ?? .distantPast }
     var summary: String { package?.summary ?? "—" }
 }

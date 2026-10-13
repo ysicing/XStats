@@ -2061,3 +2061,6 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Homebre
 未知	알 수 없음
 刷新本地清单	로컬 목록 새로 고침
 检查 Homebrew 更新	Homebrew 업데이트 확인
+检查 App Store 更新	App Store 업데이트 확인
+在 App Store 更新	App Store에서 업데이트
+无法打开 App Store，请手动打开后更新	App Store를 열 수 없습니다. 직접 열어 업데이트해 주세요.
