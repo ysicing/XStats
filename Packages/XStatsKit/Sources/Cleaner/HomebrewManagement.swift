@@ -114,7 +114,7 @@ public enum HomebrewManagement {
               let installed = cask["installed"] as? String else { return nil }
         let applications = (cask["artifacts"] as? [[String: Any]] ?? []).compactMap { artifact -> URL? in
             guard let entries = artifact["app"] as? [Any] else { return nil }
-            return applicationURL(entries, home: home)
+            return applicationURL(entries, home: home, resolvedTarget: artifact["target"] as? String)
         }
         return HomebrewPackage(name: name, displayName: (cask["name"] as? [String])?.first ?? name, kind: .cask,
             installedVersions: [installed], latestVersion: cask["version"] as? String,
@@ -122,11 +122,12 @@ public enum HomebrewManagement {
             installationURLs: applications, applicationURLs: applications)
     }
 
-    /// brew v2 JSON 的 app 产物形如 `["Foo.app", {"target": "Bar.app"}]`。target 与 Homebrew 语义一致：
-    /// 绝对路径直接使用，`~` 展开为用户目录，相对路径落在默认的 /Applications；无 target 时取源文件名。
-    static func applicationURL(_ entries: [Any], home: String) -> URL? {
+    /// 优先使用 brew v2 JSON 产物外层已解析的 target，保留自定义 appdir。
+    /// 缺失时才解析 app 数组中的 target：绝对路径直接使用，`~` 展开，相对路径落在 /Applications；
+    /// 两者均缺失时取源文件名。
+    static func applicationURL(_ entries: [Any], home: String, resolvedTarget: String? = nil) -> URL? {
         let applications = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        if let target = entries.lazy.compactMap({ ($0 as? [String: Any])?["target"] as? String }).first {
+        if let target = resolvedTarget ?? entries.lazy.compactMap({ ($0 as? [String: Any])?["target"] as? String }).first {
             guard target.hasSuffix(".app") else { return nil }
             if target.hasPrefix("/") { return URL(fileURLWithPath: target).standardizedFileURL }
             if target.hasPrefix("~/") {

@@ -195,7 +195,7 @@ import Testing
     }
 
     @Test(arguments: [HomebrewManagement.Action.upgrade, .uninstall])
-    func packageOperationDrainsLargeOutputAndFinishes(_ action: HomebrewManagement.Action) async throws {
+    func packageOperationDiscardsLargeOutputAndFinishes(_ action: HomebrewManagement.Action) async throws {
         let home = try stubBrew("#!/bin/sh\n/usr/bin/head -c 2100000 /dev/zero\n/bin/sleep 0.1\necho done > \"$HOME/completed\"\n")
         defer { try? FileManager.default.removeItem(at: home) }
         let package = HomebrewPackage(name: "fixture", displayName: "Fixture", kind: .formula,
@@ -211,7 +211,7 @@ import Testing
         defer { try? FileManager.default.removeItem(at: home) }
         let result = try await DeveloperToolRunner.run("brew", arguments: [command, "--formula", "fixture"],
             home: home.path, previewTimeout: 0.05, outputLimit: 8)
-        #expect(result.output == "finished" && result.status == 0)
+        #expect(result.output.isEmpty && result.status == 0)
         #expect(result.cleanupReport == nil)
     }
 
@@ -238,7 +238,19 @@ import Testing
     /// Cask postflight 拉起的后台进程继承输出时，写操作仍应在主进程退出后返回，且不结束该后台进程。
     @Test(arguments: ["upgrade", "uninstall"])
     func operationReturnsWhenBackgroundChildKeepsOutputOpen(_ command: String) async throws {
-        let home = try stubBrew("#!/bin/sh\n/bin/sleep 30 &\necho $! > \"$HOME/child-pid\"\necho installed\nexit 0\n")
+        let home = try stubBrew("""
+        #!/bin/sh
+        (
+            /bin/sleep 0.2
+            printf 'background stdout'
+            printf 'background stderr' >&2
+            echo done > "$HOME/child-completed"
+            exec /bin/sleep 30
+        ) &
+        echo $! > "$HOME/child-pid"
+        echo installed
+        exit 0
+        """)
         defer { try? FileManager.default.removeItem(at: home) }
         let started = ContinuousClock.now
         let result = try await DeveloperToolRunner.run("brew", arguments: [command], home: home.path)
@@ -246,7 +258,13 @@ import Testing
         let child = try #require(Int32(childText.trimmingCharacters(in: .whitespacesAndNewlines)))
         defer { _ = kill(child, SIGKILL) }
         #expect(ContinuousClock.now - started < .seconds(5))
-        #expect(result.output == "installed")
+        #expect(result.output.isEmpty && result.status == 0)
+        let completed = home.appendingPathComponent("child-completed")
+        let deadline = ContinuousClock.now + .seconds(3)
+        while !FileManager.default.fileExists(atPath: completed.path), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(FileManager.default.fileExists(atPath: completed.path))
         #expect(kill(child, 0) == 0)
     }
 
@@ -268,6 +286,27 @@ import Testing
         let pid = try #require(Int32(pidText.trimmingCharacters(in: .whitespacesAndNewlines)))
         defer { _ = kill(pid, SIGKILL) }
         #expect(kill(pid, 0) == 0)
+    }
+
+    @Test(arguments: ["upgrade", "uninstall"])
+    func noisyOperationDoesNotSpoolOutputAndPreservesFailureStatus(_ command: String) async throws {
+        let home = try stubBrew("""
+        #!/bin/sh
+        # 不能把原始输出重定向到不断增长的普通文件。
+        if [ -f /dev/fd/1 ] || [ -f /dev/fd/2 ]; then exit 91; fi
+        /bin/dd if=/dev/zero bs=1048576 count=4
+        /bin/dd if=/dev/zero bs=1048576 count=4 >&2
+        echo completed > "$HOME/completed"
+        exit 23
+        """)
+        defer { try? FileManager.default.removeItem(at: home) }
+        do {
+            _ = try await DeveloperToolRunner.run("brew", arguments: [command], home: home.path, outputLimit: 64)
+            Issue.record("失败退出码必须保留")
+        } catch ToolExecutionError.failed(let tool, let status, let output) {
+            #expect(tool == "brew" && status == 23 && output.isEmpty)
+        }
+        #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("completed").path))
     }
 
     @Test func inventoryParsesStdoutAndIgnoresStderrWarnings() async throws {

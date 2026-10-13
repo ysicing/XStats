@@ -20,6 +20,136 @@ import Testing
         try #require(condition())
     }
 
+    @Test func rapidReopeningReusesInventoryAndMetadataButExpiryRefreshesLastOpened() async throws {
+        let fixture = app("Editor")
+        let date = AppManagementTestValue(Date())
+        let calls = AppManagementTestValue((lists: 0, metadata: 0, sizes: 0))
+        let controller = AppManagementController(listApps: {
+            calls.withLock { $0.lists += 1 }; return [fixture]
+        }, inspectApp: { _ in
+            calls.withLock { $0.metadata += 1 }
+            return ApplicationMetadata(lastOpened: date.withLock { $0 })
+        }, measureSize: { _ in calls.withLock { $0.sizes += 1 }; return 42 }, brewAvailable: false,
+            now: { date.withLock { $0 } })
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading }
+        let originalDate = controller.metadata[fixture.id]?.lastOpened
+        for _ in 0..<10 {
+            controller.setVisible(false); controller.setVisible(true)
+            controller.selectTab(.homebrew); controller.selectTab(.apps)
+            try await waitFor { !controller.isReading }
+        }
+        #expect(calls.withLock { $0.lists == 1 && $0.metadata == 1 && $0.sizes == 1 })
+        date.withLock { $0 += AppManagementController.appInventoryLifetime + 1 }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading }
+        #expect(calls.withLock { $0.lists == 2 && $0.metadata == 1 && $0.sizes == 1 })
+        date.withLock { $0 += AppManagementController.appMetadataLifetime }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading }
+        #expect(calls.withLock { $0.lists == 3 && $0.metadata == 2 && $0.sizes == 1 })
+        #expect(controller.metadata[fixture.id]?.lastOpened != originalDate)
+        controller.refresh()
+        try await waitFor { !controller.isReading }
+        #expect(calls.withLock { $0.lists == 4 && $0.metadata == 3 && $0.sizes == 2 })
+    }
+
+    @Test func knownInventoryChangesBypassLifetimeAndOnlyInvalidateChangedMetadata() async throws {
+        let old = app("Editor"); let other = app("Other")
+        let updated = InstalledApp(url: old.url, name: old.name, bundleIdentifier: old.bundleIdentifier, version: "2", teamIdentifier: nil)
+        let entries = AppManagementTestValue([old, other])
+        let inspected = AppManagementTestValue([String]())
+        let controller = AppManagementController(listApps: { entries.withLock { $0 } }, inspectApp: { app in
+            inspected.withLock { $0.append(app.id) }
+            return ApplicationMetadata(architecture: app.version == "2" ? .appleSilicon : .intel)
+        }, measureSize: { _ in 42 }, brewAvailable: false)
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading }
+        inspected.withLock { $0 = [] }
+        entries.withLock { $0 = [updated, other] }
+        controller.reloadInventory()
+        try await waitFor { !controller.isReading }
+        #expect(inspected.withLock { $0 } == [old.id])
+        #expect(controller.metadata[old.id]?.architecture == .appleSilicon)
+        entries.withLock { $0 = [other] }
+        controller.reloadInventory()
+        try await waitFor { !controller.isReading }
+        #expect(controller.apps == [other] && controller.metadata[old.id] == nil && controller.sizes[old.id] == nil)
+    }
+
+    @Test(arguments: [false, true])
+    func knownInventoryChangesWhileHiddenOrPausedRefreshOnResume(_ paused: Bool) async throws {
+        let removed = app("Removed"); let retained = app("Retained")
+        let entries = AppManagementTestValue([removed, retained])
+        let calls = AppManagementTestValue((lists: 0, metadata: 0, sizes: 0))
+        let date = Date()
+        let controller = AppManagementController(listApps: {
+            calls.withLock { $0.lists += 1 }
+            return entries.withLock { $0 }
+        }, inspectApp: { _ in
+            calls.withLock { $0.metadata += 1 }
+            return ApplicationMetadata()
+        }, measureSize: { _ in calls.withLock { $0.sizes += 1 }; return 42 },
+            brewAvailable: false, now: { date })
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading }
+
+        if paused { controller.setPaused(true) } else { controller.setVisible(false) }
+        entries.withLock { $0 = [retained] }
+        controller.reloadInventory()
+        #expect(!controller.isReading)
+        #expect(calls.withLock { $0.lists == 1 && $0.metadata == 2 && $0.sizes == 2 })
+
+        if paused { controller.setPaused(false) } else { controller.setVisible(true) }
+        try await waitFor { !controller.isReading }
+        #expect(controller.apps == [retained])
+        #expect(controller.metadata[removed.id] == nil && controller.sizes[removed.id] == nil)
+        #expect(calls.withLock { $0.lists == 2 && $0.metadata == 2 && $0.sizes == 2 })
+    }
+
+    @Test func iconCacheEvictsOneColdEntryAndKeepsRecentlyUsedIcons() throws {
+        var loads = 0
+        let icon = try #require(NSImage(systemSymbolName: "app", accessibilityDescription: nil))
+        let cache = AppIconCache(loadIcon: { _ in loads += 1; return icon })
+        for index in 0..<128 { _ = cache.image(bundlePath: "/test/\(index).app") }
+        #expect(loads == 128)
+        _ = cache.image(bundlePath: "/test/0.app")
+        _ = cache.image(bundlePath: "/test/128.app")
+        _ = cache.image(bundlePath: "/test/0.app")
+        _ = cache.image(bundlePath: "/test/127.app")
+        #expect(loads == 129)
+        _ = cache.image(bundlePath: "/test/1.app")
+        #expect(loads == 130)
+    }
+
+    @Test func sizeBatchesPublishProgressAndRejectCancelledBatch() async throws {
+        let fixtures = (0..<45).map { app("App\($0)") }
+        let calls = AppManagementTestValue(0)
+        let blocked = AppManagementTestValue(false)
+        let controller = AppManagementController(listApps: { fixtures }, inspectApp: { _ in ApplicationMetadata() },
+            measureSize: { _ in
+                let number = calls.withLock { $0 += 1; return $0 }
+                if number == 21 {
+                    blocked.withLock { $0 = true }
+                    while !Task.isCancelled { Thread.sleep(forTimeInterval: 0.005) }
+                    throw CancellationError()
+                }
+                return 42
+            }, brewAvailable: false)
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { blocked.withLock { $0 } }
+        #expect(controller.sizes.count == 20)
+        controller.setVisible(false)
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading }
+        #expect(controller.sizes.count == 45)
+        #expect(calls.withLock { $0 } == 46)
+    }
+
     @Test func restartingShowsCachedRowsBeforeTheLiveReadAndReusesUnchangedSizes() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -218,8 +348,8 @@ import Testing
         try await waitFor { controller.sizes[fixture.id] == 42 }
         controller.setVisible(false)
         controller.setVisible(true)
-        try await waitFor { calls.withLock { $0.list } == 2 && !controller.isReading }
-        #expect(calls.withLock { $0.list == 2 && $0.sizes == 1 })
+        try await waitFor { !controller.isReading }
+        #expect(calls.withLock { $0.list == 1 && $0.sizes == 1 })
         controller.setEnabled(false)
         controller.setVisible(true)
         #expect(!controller.visible && controller.apps.isEmpty)
@@ -551,10 +681,13 @@ import Testing
         let count = first.apps.count
         let sizeCount = first.sizes.count
         first.setVisible(false)
-        let reads = AppManagementTestValue((list: 0, sizes: 0))
+        let reads = AppManagementTestValue((list: 0, metadata: 0, sizes: 0))
         let restarted = AppManagementController(listApps: {
             reads.withLock { $0.list += 1 }
             return try AppUninstaller.scanInstalledApps()
+        }, inspectApp: { app in
+            reads.withLock { $0.metadata += 1 }
+            return ApplicationMetadata.read(app)
         }, measureSize: { url in
             reads.withLock { $0.sizes += 1 }
             return try CleanEngine.scanAllocatedSize(of: url)
@@ -567,18 +700,27 @@ import Testing
         #expect(restarted.apps.count == count && restarted.sizes.count == sizeCount)
         try await waitFor { !restarted.isReading }
         #expect(reads.withLock { $0.sizes } == 0)
-        for _ in 0..<3 {
+        let beforeReopen = reads.withLock { $0 }
+        var cpuBefore = rusage()
+        getrusage(RUSAGE_SELF, &cpuBefore)
+        let reopenStart = ContinuousClock.now
+        for _ in 0..<10 {
             restarted.setVisible(false)
             restarted.setVisible(true)
             #expect(!restarted.isLoadingApps && !restarted.isRefreshingApps)
             try await waitFor { !restarted.isReading }
         }
-        #expect(reads.withLock { $0.list == 4 && $0.sizes == 0 })
+        let reopenDuration = reopenStart.duration(to: .now)
+        var cpuAfter = rusage()
+        getrusage(RUSAGE_SELF, &cpuAfter)
+        let reopenCPU = Double(cpuAfter.ru_utime.tv_sec + cpuAfter.ru_stime.tv_sec - cpuBefore.ru_utime.tv_sec - cpuBefore.ru_stime.tv_sec)
+            + Double(cpuAfter.ru_utime.tv_usec + cpuAfter.ru_stime.tv_usec - cpuBefore.ru_utime.tv_usec - cpuBefore.ru_stime.tv_usec) / 1_000_000
+        #expect(reads.withLock { $0.list == 1 && $0.metadata == beforeReopen.metadata && $0.sizes == 0 })
         restarted.setVisible(false)
         let before = reads.withLock { $0 }
         try await Task.sleep(for: .seconds(5))
-        #expect(reads.withLock { $0.list == before.list && $0.sizes == before.sizes })
-        try "apps=\(count) cached_sizes=\(sizeCount) restored_in=\(restored) live_inventory_reads=\(before.list) repeated_size_reads=\(before.sizes) closed_new_reads=0 observed_seconds=5\n"
+        #expect(reads.withLock { $0.list == before.list && $0.metadata == before.metadata && $0.sizes == before.sizes })
+        try "apps=\(count) cached_sizes=\(sizeCount) restored_in=\(restored) live_inventory_reads=\(before.list) metadata_reads=\(before.metadata) repeated_size_reads=\(before.sizes) reopen_count=10 reopen_new_reads=0 reopen_wall=\(reopenDuration) reopen_cpu_seconds=\(reopenCPU) closed_new_reads=0 observed_seconds=5\n"
             .write(toFile: report, atomically: true, encoding: .utf8)
     }
 

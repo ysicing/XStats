@@ -230,7 +230,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        // brew 写操作的输出指向临时文件，XStats 退出不会让它因 SIGPIPE 中断；默认等待，
+        // brew 写操作的输出指向空设备，XStats 退出不会让它因 SIGPIPE 中断；默认等待，
         // 但不能无条件拒绝退出，否则 brew 卡住时会阻塞注销与关机。
         if model.appManagement.operation != nil {
             NSApp.activate()

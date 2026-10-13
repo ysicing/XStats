@@ -19,9 +19,9 @@ struct ApplicationManagementTests {
     }
 
     @Test func packageIdentityUsesFullTapAndInstalledVersions() throws {
-        // brew info --json=v2 的真实结构：target 位于 app 数组内的字典中。
+        // brew info --json=v2 在产物外层提供解析后的安装路径，保留自定义 appdir。
         let output = #"""
-        {"formulae":[{"name":"tool","full_name":"vendor/tap/tool","installed":[{"version":"1.0"},{"version":"1.1"}],"versions":{"stable":"2.0"},"revision":1,"outdated":true,"pinned":false}],"casks":[{"full_token":"vendor/apps/editor","name":["Editor"],"installed":"3.0","version":"4.0","outdated":true,"artifacts":[{"app":["Editor.app",{"target":"/Users/demo/Applications/Editor.app"}]}]}]}
+        {"formulae":[{"name":"tool","full_name":"vendor/tap/tool","installed":[{"version":"1.0"},{"version":"1.1"}],"versions":{"stable":"2.0"},"revision":1,"outdated":true,"pinned":false}],"casks":[{"full_token":"vendor/apps/editor","name":["Editor"],"installed":"3.0","version":"4.0","outdated":true,"artifacts":[{"app":["Editor.app",{"target":"Renamed.app"}],"target":"/Users/demo/Applications/Renamed.app"}]}]}
         """#
         let packages = try HomebrewManagement.parse(output, prefix: URL(fileURLWithPath: "/opt/homebrew"))
         let formula = try #require(packages.first { $0.kind == .formula })
@@ -31,8 +31,15 @@ struct ApplicationManagementTests {
         #expect(formula.installationURLs.map(\.path) == ["/opt/homebrew/Cellar/tool/1.0", "/opt/homebrew/Cellar/tool/1.1"])
         #expect(try HomebrewManagement.arguments(for: .uninstall, package: formula) == ["uninstall", "--formula", "vendor/tap/tool"])
         let cask = try #require(packages.first { $0.kind == .cask })
-        #expect(cask.applicationURLs.map(\.path) == ["/Users/demo/Applications/Editor.app"])
+        #expect(cask.applicationURLs.map(\.path) == ["/Users/demo/Applications/Renamed.app"])
         #expect(try HomebrewManagement.arguments(for: .upgrade, package: cask) == ["upgrade", "--cask", "vendor/apps/editor"])
+    }
+
+    @Test func caskResolvedTargetWithoutRenameIsPreserved() throws {
+        let output = #"{"formulae":[],"casks":[{"full_token":"editor","installed":"1","artifacts":[{"app":["Editor.app"],"target":"/Users/demo/Applications/Editor.app"}]}]}"#
+        let package = try #require(HomebrewManagement.parse(output, prefix: URL(fileURLWithPath: "/opt/homebrew")).first)
+        #expect(package.applicationURLs.map(\.path) == ["/Users/demo/Applications/Editor.app"])
+        #expect(package.installationURLs == package.applicationURLs)
     }
 
     @Test func caskTargetsFollowHomebrewPathRules() {

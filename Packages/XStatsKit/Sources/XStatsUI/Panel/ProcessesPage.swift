@@ -604,6 +604,14 @@ final class AppIconCache {
     private static let pixelSize: CGFloat = DS.Size.iconStandalone * 2
     private static let limit = 128
     private var cache: [String: CGImage] = [:]
+    private var recency: [String] = []
+    private let loadIcon: (String?) -> NSImage
+
+    init(loadIcon: @escaping (String?) -> NSImage = { path in
+        path.map { NSWorkspace.shared.icon(forFile: $0) } ?? NSWorkspace.shared.icon(for: .unixExecutable)
+    }) {
+        self.loadIcon = loadIcon
+    }
 
     func image(for process: ProcessUsage) -> Image {
         image(bundlePath: process.appBundlePath)
@@ -611,16 +619,21 @@ final class AppIconCache {
 
     func image(bundlePath: String?) -> Image {
         let key = bundlePath ?? "unix-executable"
-        if let cached = cache[key] { return Image(decorative: cached, scale: 2) }
+        if let cached = cache[key] {
+            if let index = recency.firstIndex(of: key) { recency.remove(at: index) }
+            recency.append(key)
+            return Image(decorative: cached, scale: 2)
+        }
 
-        let icon = bundlePath.map { NSWorkspace.shared.icon(forFile: $0) }
-            ?? NSWorkspace.shared.icon(for: .unixExecutable)
+        let icon = loadIcon(bundlePath)
         var rect = NSRect(x: 0, y: 0, width: Self.pixelSize, height: Self.pixelSize)
         guard let cgImage = icon.cgImage(forProposedRect: &rect, context: nil, hints: nil) else {
             return Image(systemName: "app")
         }
-        if cache.count >= Self.limit { cache.removeAll() }
+        // 有界 LRU：溢出只淘汰最久未使用的一项，避免清空后重新解码全部可见图标。
+        if cache.count >= Self.limit { cache.removeValue(forKey: recency.removeFirst()) }
         cache[key] = cgImage
+        recency.append(key)
         return Image(decorative: cgImage, scale: 2)
     }
 }

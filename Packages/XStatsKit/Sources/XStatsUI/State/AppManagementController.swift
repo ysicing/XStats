@@ -48,6 +48,10 @@ final class AppManagementController {
     @ObservationIgnored private var measuredApps: Set<String> = []
     @ObservationIgnored private var measuredPackages: Set<String> = []
     @ObservationIgnored private var appReadDate: Date?
+    @ObservationIgnored private var metadataReadDates: [String: Date] = [:]
+    static let appInventoryLifetime: TimeInterval = 30
+    static let appMetadataLifetime: TimeInterval = 60
+    @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private var appFingerprints: [String: AppInventoryCache.Fingerprint] = [:]
     @ObservationIgnored private var measuredAppDates: [String: Date] = [:]
     private var didLoadCache = false
@@ -112,11 +116,12 @@ final class AppManagementController {
          listPackages: @escaping @Sendable () async throws -> [HomebrewPackage] = { try await HomebrewManagement.inventory() },
          updateIndex: @escaping @Sendable () async throws -> Void = { try await HomebrewManagement.checkUpdates() },
          performAction: @escaping @Sendable (HomebrewManagement.Action, HomebrewPackage) async throws -> Void = { try await HomebrewManagement.perform($0, package: $1) },
-         cacheURL: URL? = nil) {
+         cacheURL: URL? = nil, now: @escaping @Sendable () -> Date = { Date() }) {
         self.listApps = listApps; self.inspectApp = inspectApp; self.measureSize = measureSize
         self.brewAvailable = brewAvailable; self.listPackages = listPackages
         self.updateIndex = updateIndex; self.performAction = performAction
         self.cacheURL = cacheURL
+        self.now = now
     }
 
     func setEnabled(_ value: Bool) {
@@ -128,7 +133,7 @@ final class AppManagementController {
             homebrewAppPaths = []
             appReadDate = nil; brewReadDate = nil; brewFailureDate = nil; brewInventoryFailed = false
             updatePackageIdentities()
-            appFingerprints = [:]; measuredAppDates = [:]
+            appFingerprints = [:]; measuredAppDates = [:]; metadataReadDates = [:]
             didLoadCache = false
             hasCachedAppInventory = false
         }
@@ -164,7 +169,7 @@ final class AppManagementController {
             }
         }
         if tab == .apps {
-            readApps(force: false, refreshInventory: true)
+            readApps(force: false)
         }
         readBrew(force: false)
     }
@@ -204,6 +209,8 @@ final class AppManagementController {
 
     /// 卸载等已知变更后重新核对清单；与手动刷新不同，未变化的应用沿用指纹与 24 小时体积缓存。
     func reloadInventory() {
+        // 隐藏或暂停期间也必须记住已知变更，恢复时绕过清单缓存；只读扫描仍按可见性启动。
+        appReadDate = nil
         guard visible, !paused, operation == nil else { return }
         cancelReading()
         resume()
@@ -217,12 +224,20 @@ final class AppManagementController {
         runningObservation = nil
     }
 
-    private func readApps(force: Bool, refreshInventory: Bool = false) {
+    private func readApps(force: Bool) {
         guard visible, !paused, enabled, appTask == nil else { return }
-        if !force, !refreshInventory, appReadDate != nil, apps.allSatisfy({ measuredApps.contains($0.id) }) { return }
+        let date = now()
+        // 短时间切页复用清单；已知安装变化清空 appReadDate，手动刷新始终绕过缓存。
+        let needsInventory = force || (appReadDate.map {
+            !(0..<Self.appInventoryLifetime).contains(date.timeIntervalSince($0))
+        } ?? true)
+        let metadataExpired = apps.contains { app in
+            guard metadata[app.id] != nil, let readAt = metadataReadDates[app.id] else { return true }
+            return !(0..<Self.appMetadataLifetime).contains(date.timeIntervalSince(readAt))
+        }
+        if !needsInventory, !metadataExpired, apps.allSatisfy({ measuredApps.contains($0.id) }) { return }
         let generation = UUID(); appGeneration = generation
         let list = listApps; let inspect = inspectApp; let measure = measureSize
-        let needsInventory = force || refreshInventory || appReadDate == nil
         isLoadingApps = !hasAppInventory || force
         isRefreshingApps = force
         appTask = Task { [weak self] in
@@ -277,15 +292,18 @@ final class AppManagementController {
                     guard let self, self.appGeneration == generation else { return }
                     let (apps, fingerprints) = inventory
                     let previous = Dictionary(self.apps.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
-                    let unchanged = Set(apps.filter {
-                        guard !force, previous[$0.id] == $0, self.appFingerprints[$0.id] == fingerprints[$0.id],
-                              let date = self.measuredAppDates[$0.id] else { return false }
-                        return (0...AppInventoryCache.measurementLifetime).contains(Date().timeIntervalSince(date))
+                    let unchangedContents = Set(apps.filter {
+                        !force && previous[$0.id] == $0 && self.appFingerprints[$0.id] == fingerprints[$0.id]
                     }.map(\.id))
-                    self.apps = apps; self.appReadDate = Date()
+                    let unchanged = Set(apps.filter {
+                        guard unchangedContents.contains($0.id), let date = self.measuredAppDates[$0.id] else { return false }
+                        return (0...AppInventoryCache.measurementLifetime).contains(self.now().timeIntervalSince(date))
+                    }.map(\.id))
+                    self.apps = apps; self.appReadDate = self.now()
                     self.updateRunningIDs()
                     let ids = Set(apps.map(\.id))
-                    self.metadata = self.metadata.filter { ids.contains($0.key) }
+                    self.metadata = self.metadata.filter { unchangedContents.contains($0.key) }
+                    self.metadataReadDates = self.metadataReadDates.filter { unchangedContents.contains($0.key) }
                     // 保留旧显示值，实际测量只重做新增、变化或超过一天的应用；手动扫描重新计量全部。
                     self.sizes = self.sizes.filter { ids.contains($0.key) }
                     self.measuredApps.formIntersection(unchanged)
@@ -293,7 +311,11 @@ final class AppManagementController {
                     self.appFingerprints = fingerprints
                 }
                 guard let self else { return }
-                let pendingMetadata = self.apps.filter { needsInventory || self.metadata[$0.id] == nil }
+                // lastOpened 不受文件指纹约束，独立按期限刷新；仅在页面被访问时检查，不增加定时器。
+                let pendingMetadata = self.apps.filter { app in
+                    guard self.metadata[app.id] != nil, let date = self.metadataReadDates[app.id] else { return true }
+                    return !(0..<Self.appMetadataLifetime).contains(self.now().timeIntervalSince(date))
+                }
                 if !pendingMetadata.isEmpty {
                     let details = try await Self.read {
                         var result: [String: ApplicationMetadata] = [:]
@@ -306,6 +328,7 @@ final class AppManagementController {
                     try Task.checkCancellation()
                     guard self.appGeneration == generation else { return }
                     self.metadata.merge(details) { _, new in new }
+                    for app in pendingMetadata { self.metadataReadDates[app.id] = self.now() }
                 }
                 self.isLoadingApps = false
                 self.isMeasuringApps = self.apps.contains { !self.measuredApps.contains($0.id) }
@@ -314,22 +337,36 @@ final class AppManagementController {
                     try Task.checkCancellation()
                     guard self.appGeneration == generation else { return }
                 }
-                for app in self.apps where !self.measuredApps.contains(app.id) {
-                    do {
-                        let size = try await Self.read { try measure(app.url) }
-                        try Task.checkCancellation()
-                        guard self.appGeneration == generation else { return }
-                        self.sizes[app.id] = size
-                    } catch is CancellationError { throw CancellationError() }
-                    catch {
-                        try Task.checkCancellation()
-                        guard self.appGeneration == generation else { return }
-                        self.sizes.removeValue(forKey: app.id)
+                let pendingSizes = self.apps.filter { !self.measuredApps.contains($0.id) }
+                var next = 0
+                while next < pendingSizes.count {
+                    let start = next
+                    // 在后台按项数和时间分批，避免每项体积都唤醒主线程并重排表格。
+                    let batch = try await Self.read {
+                        var results: [(String, UInt64?)] = []
+                        let deadline = ContinuousClock.now + .milliseconds(100)
+                        for app in pendingSizes[start..<min(start + 20, pendingSizes.count)] {
+                            try Task.checkCancellation()
+                            let size: UInt64?
+                            do { size = try measure(app.url) }
+                            catch is CancellationError { throw CancellationError() }
+                            catch { size = nil }
+                            try Task.checkCancellation()
+                            results.append((app.id, size))
+                            if ContinuousClock.now >= deadline { break }
+                        }
+                        return results
                     }
                     try Task.checkCancellation()
                     guard self.appGeneration == generation else { return }
-                    self.measuredApps.insert(app.id)
-                    self.measuredAppDates[app.id] = Date()
+                    var sizes = self.sizes
+                    for (id, size) in batch {
+                        sizes[id] = size
+                        self.measuredApps.insert(id)
+                        self.measuredAppDates[id] = self.now()
+                    }
+                    if self.sizes != sizes { self.sizes = sizes }
+                    next += batch.count
                 }
                 await self.saveAppCache()
             } catch {
@@ -520,10 +557,12 @@ final class AppManagementController {
             // 该 Cask 的应用丢弃计量时间以便重测，其余应用沿用指纹与体积缓存。
             // 已知安装状态改变，必须立即重读清单，不受此前读取失败的退避限制。
             self.brewReadDate = nil; self.brewFailureDate = nil; self.casksByPath = [:]
+            self.appReadDate = nil
             self.measuredPackages.remove(package.id)
             for url in package.applicationURLs {
                 let id = url.standardizedFileURL.path
                 self.measuredApps.remove(id); self.measuredAppDates.removeValue(forKey: id)
+                self.metadataReadDates.removeValue(forKey: id)
             }
             if self.visible, !self.paused, self.enabled { self.resume() }
         }
