@@ -1655,6 +1655,13 @@ IP 归属地	IP location
 
 extension Translations {
     static let applicationManagementEnglish = #"""
+刷新本地清单	Refresh local inventory
+检查 Homebrew 更新	Check for Homebrew updates
+安装日期	Installed
+描述	Description
+手动安装	Manually installed
+依赖	Dependency
+未知	Unknown
 名称	Name
 来源	Source
 最新版本	Latest Version
@@ -1695,7 +1702,8 @@ iPhone 与 iPad	iPhone and iPad
 由 Homebrew 卸载所选项目，依赖保护仍然生效。	Homebrew will uninstall the selected item with dependency protections enabled.
 Homebrew 会更新所选项目及必要的依赖。	Homebrew will update the selected item and any required dependencies.
 Homebrew 操作失败，请在终端检查后重试	Homebrew operation failed. Check in Terminal and try again.
-Homebrew 操作已完成	Homebrew Operation Completed
+已更新“{}”	Updated “{}”
+已卸载“{}”	Uninstalled “{}”
 暂时无法读取清单	Inventory temporarily unavailable
 尚未安装软件包	No packages installed
 没有可用更新	No updates available

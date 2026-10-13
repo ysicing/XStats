@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import CoreFoundation
 import os
 
 public struct HomebrewPackage: Sendable, Identifiable, Equatable {
     public enum Kind: String, Sendable { case formula, cask }
+    public enum InstallReason: Sendable { case requested, dependency, unknown }
     public var id: String { kind.rawValue + ":" + name }
     /// Formula 的 full_name / Cask 的 full_token，保留自定义 tap，不能只按短名称执行。
     public let name: String
@@ -17,7 +19,20 @@ public struct HomebrewPackage: Sendable, Identifiable, Equatable {
     public let pinned: Bool
     public let installationURLs: [URL]
     public let applicationURLs: [URL]
+    public let installedAt: Date?
+    public let summary: String?
+    public let installReason: InstallReason
     public var version: String { installedVersions.joined(separator: ", ") }
+
+    init(name: String, displayName: String, kind: Kind, installedVersions: [String], latestVersion: String?,
+         outdated: Bool, pinned: Bool, installationURLs: [URL], applicationURLs: [URL],
+         installedAt: Date? = nil, summary: String? = nil, installReason: InstallReason = .unknown) {
+        self.name = name; self.displayName = displayName; self.kind = kind
+        self.installedVersions = installedVersions; self.latestVersion = latestVersion
+        self.outdated = outdated; self.pinned = pinned
+        self.installationURLs = installationURLs; self.applicationURLs = applicationURLs
+        self.installedAt = installedAt; self.summary = summary; self.installReason = installReason
+    }
 }
 
 public enum HomebrewManagement {
@@ -104,9 +119,19 @@ public enum HomebrewManagement {
         let stable = (formula["versions"] as? [String: Any])?["stable"] as? String
         let revision = formula["revision"] as? Int ?? 0
         let latest = stable.map { revision > 0 ? "\($0)_\(revision)" : $0 }
+        // 现代 brew 不再返回 installed_as_dependency；缺失标记不能当成依赖。
+        let reasons = installed.map { receipt -> Bool? in
+            guard let flag = receipt["installed_on_request"] as? NSNumber,
+                  CFGetTypeID(flag) == CFBooleanGetTypeID() else { return nil }
+            return flag.boolValue
+        }
+        let reason: HomebrewPackage.InstallReason = reasons.contains(true) ? .requested
+            : reasons.allSatisfy({ $0 == false }) ? .dependency : .unknown
         return HomebrewPackage(name: name, displayName: short, kind: .formula, installedVersions: versions,
             latestVersion: latest, outdated: formula["outdated"] as? Bool ?? false, pinned: formula["pinned"] as? Bool ?? false,
-            installationURLs: versions.map { prefix.appendingPathComponent("Cellar/\(short)/\($0)") }, applicationURLs: [])
+            installationURLs: versions.map { prefix.appendingPathComponent("Cellar/\(short)/\($0)") }, applicationURLs: [],
+            installedAt: installed.compactMap { installationDate($0["time"]) }.max(),
+            summary: packageSummary(formula["desc"]), installReason: reason)
     }
 
     private static func caskPackage(_ cask: [String: Any], home: String) -> HomebrewPackage? {
@@ -119,7 +144,21 @@ public enum HomebrewManagement {
         return HomebrewPackage(name: name, displayName: (cask["name"] as? [String])?.first ?? name, kind: .cask,
             installedVersions: [installed], latestVersion: cask["version"] as? String,
             outdated: cask["outdated"] as? Bool ?? false, pinned: cask["pinned"] as? Bool ?? false,
-            installationURLs: applications, applicationURLs: applications)
+            installationURLs: applications, applicationURLs: applications,
+            installedAt: installationDate(cask["installed_time"]), summary: packageSummary(cask["desc"]))
+    }
+
+    private static func installationDate(_ value: Any?) -> Date? {
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+        let seconds = number.doubleValue
+        guard seconds.isFinite, seconds > 0, seconds < 253_402_300_800 else { return nil }
+        return Date(timeIntervalSince1970: seconds)
+    }
+
+    private static func packageSummary(_ value: Any?) -> String? {
+        guard let text = value as? String else { return nil }
+        let summary = String(text.prefix(2_048)).trimmingCharacters(in: .whitespacesAndNewlines)
+        return summary.isEmpty ? nil : summary
     }
 
     /// 优先使用 brew v2 JSON 产物外层已解析的 target，保留自定义 appdir。

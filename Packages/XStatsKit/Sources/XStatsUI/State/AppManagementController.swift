@@ -34,7 +34,15 @@ final class AppManagementController {
     private(set) var operation: HomebrewManagement.Action?
     private(set) var operationPackage: HomebrewPackage?
     var error: String?
-    var message: String?
+    struct Completion: Identifiable {
+        let id = UUID()
+        let action: HomebrewManagement.Action
+        let packageName: String
+        var text: String {
+            action == .upgrade ? tr("已更新“\(packageName)”") : tr("已卸载“\(packageName)”")
+        }
+    }
+    private(set) var completion: Completion?
     private(set) var visible = false
     private var enabled = true
     private var paused = false
@@ -141,18 +149,20 @@ final class AppManagementController {
 
     func setPaused(_ value: Bool) {
         paused = value
-        if value { cancelReading() } else if visible { resume() }
+        if value { completion = nil; cancelReading() } else if visible { resume() }
     }
 
     func setVisible(_ value: Bool, tab: Tab? = nil) {
         if let tab { self.tab = tab }
         visible = value && enabled
+        if !visible { completion = nil }
         if visible && !paused { resume() } else { cancelReading() }
     }
 
     func selectTab(_ value: Tab) {
         guard tab != value else { return }
         tab = value
+        completion = nil
         cancelReading()
         if visible && !paused { resume() }
     }
@@ -201,7 +211,7 @@ final class AppManagementController {
     func refresh() {
         guard visible, !paused, operation == nil else { return }
         cancelReading()
-        error = nil; message = nil
+        error = nil; completion = nil
         if tab == .apps { readApps(force: true) }
         readBrew(force: true)
         resume()
@@ -424,7 +434,13 @@ final class AppManagementController {
                     self.brewFailureDate = nil; self.brewInventoryFailed = false
                     let ids = Set(packages.map(\.id))
                     // 手动刷新重新计量全部；其余情况只重测新增或内容变化（版本、产物等）的包。
-                    let unchanged = Set(packages.filter { !force && previous[$0.id] == $0 }.map(\.id))
+                    // 描述、安装原因与可用更新等元数据变化不触发目录重新计量。
+                    let unchanged = Set(packages.filter { package in
+                        guard !force, let old = previous[package.id] else { return false }
+                        return old.installedVersions == package.installedVersions
+                            && old.installationURLs == package.installationURLs
+                            && old.installedAt == package.installedAt
+                    }.map(\.id))
                     self.packageSizes = force ? [:] : self.packageSizes.filter { ids.contains($0.key) }
                     self.measuredPackages.formIntersection(unchanged)
                     self.casksByPath = [:]
@@ -481,7 +497,7 @@ final class AppManagementController {
     func checkBrewUpdates() {
         guard visible, !paused, enabled, brewAvailable, operation == nil, updateTask == nil else { return }
         brewGeneration = UUID(); brewTask?.cancel(); brewTask = nil; isLoadingBrew = false
-        error = nil; message = nil
+        error = nil; completion = nil
         isCheckingUpdates = true
         let update = updateIndex
         updateTask = Task { [weak self] in
@@ -535,13 +551,16 @@ final class AppManagementController {
             return
         }
         cancelReading()
-        operation = action; operationPackage = package; error = nil; message = nil
+        operation = action; operationPackage = package; error = nil; completion = nil
         let perform = performAction
         // 已确认的安装／卸载不能因为切换标签或关闭窗口被中途打断。
         operationTask = Task { [weak self] in
             do {
                 try await perform(action, package)
-                self?.message = tr("Homebrew 操作已完成")
+                // 离开页面后不补播过时的成功反馈；写操作本身仍然正常收尾。
+                if let self, self.visible, !self.paused {
+                    self.completion = Completion(action: action, packageName: package.displayName)
+                }
                 Log.app.notice("Homebrew operation completed action=\(action.rawValue, privacy: .public)")
             } catch ToolExecutionError.timedOut {
                 // 超时只停止等待，brew 可能仍在后台执行，不能报告为失败或成功。
@@ -570,6 +589,12 @@ final class AppManagementController {
             }
             if self.visible, !self.paused, self.enabled { self.resume() }
         }
+    }
+
+    func dismissCompletion(_ id: UUID) {
+        // 上一条提示的延迟任务不能清除后来完成的新操作。
+        guard completion?.id == id else { return }
+        completion = nil
     }
 
     /// 带取消传播的 utility 遍历，避免为每个包创建常驻任务。

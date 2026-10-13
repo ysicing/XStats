@@ -15,6 +15,7 @@ struct AppManagementPage: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tab: AppManagementController.Tab = .apps
     @State private var search = ""
+    @FocusState private var isSearchFocused: Bool
     @State private var selection: String?
     @State private var sortOrder = [KeyPathComparator<ManagedApplicationRow>(\.name)]
     @State private var filter: BrewFilter = .all
@@ -37,8 +38,6 @@ struct AppManagementPage: View {
             toolbar
             if let error = controller.error {
                 InfoBanner(icon: "exclamationmark.triangle", text: error, tone: .error)
-            } else if let message = controller.message {
-                InfoBanner(icon: "checkmark.circle", text: message, tone: .success)
             }
             if tab == .apps, controller.brewInventoryFailed {
                 // 清单失败时普通卸载降级可用；如实提示 Cask 安装的应用此时不会走 Homebrew 卸载。
@@ -55,6 +54,11 @@ struct AppManagementPage: View {
             }
         }
         .padding([.horizontal, .bottom], DS.Space.s3)
+        .task(id: controller.completion?.id) {
+            guard let id = controller.completion?.id else { return }
+            do { try await Task.sleep(for: .seconds(3)) } catch { return }
+            controller.dismissCompletion(id)
+        }
         .onAppear { controller.setVisible(model.isMainWindowVisible, tab: tab) }
         .onDisappear { controller.setVisible(false); pendingBrew = nil; model.uninstaller.cancelScanning() }
         .onChange(of: model.isMainWindowVisible) { _, visible in
@@ -86,12 +90,12 @@ struct AppManagementPage: View {
     }
 
     private var toolbar: some View {
-        // 宽窗口把查找与操作聚在一起；窄窗口仅让搜索换行，避免挤压分类和操作标签。
+        // 分类与搜索之间留出分组间距，切换标签时位置稳定；窄窗口让搜索换行。
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: DS.Space.s3) {
+            HStack(spacing: DS.Space.s6) {
                 categoryPicker
+                searchField.frame(width: 280)
                 Spacer(minLength: DS.Space.s4)
-                searchField.frame(minWidth: 180, idealWidth: 240, maxWidth: 280)
                 toolbarActions
             }
             VStack(spacing: DS.Space.s2) {
@@ -102,7 +106,10 @@ struct AppManagementPage: View {
                 }
                 searchField
             }
-        }.dsFont(.sm)
+        }
+        .dsFont(.sm)
+        // 顶栏位于页面上方，给玻璃按钮的上缘和阴影留出空间，避免被顶栏遮住。
+        .padding(.top, DS.Space.s2)
     }
 
     private var categoryPicker: some View {
@@ -117,12 +124,19 @@ struct AppManagementPage: View {
     private var searchField: some View {
         HStack(spacing: DS.Space.s2) {
             Image(systemName: "magnifyingglass").foregroundStyle(DS.Palette.textTertiary)
-            TextField(tr("搜索应用或软件包"), text: $search).textFieldStyle(.plain)
+            TextField(tr("搜索应用或软件包"), text: $search)
+                .textFieldStyle(.plain)
+                .focused($isSearchFocused)
             if !search.isEmpty { MiniIconButton(systemName: "xmark.circle.fill", help: tr("清除搜索")) { search = "" } }
         }
-        .padding(.horizontal, DS.Space.s3)
+        .padding(.horizontal, DS.Space.s4)
         .frame(height: DS.Size.controlHeight)
-        .background(DS.Palette.elevated, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+        .background(DS.Palette.surface, in: Capsule())
+        .overlay {
+            Capsule()
+                .strokeBorder(isSearchFocused ? DS.Palette.primary : DS.Palette.border, lineWidth: DS.Size.stroke)
+                .allowsHitTesting(false)
+        }
     }
 
     private var toolbarActions: some View {
@@ -142,19 +156,28 @@ struct AppManagementPage: View {
                 .help(tr("筛选"))
                 .accessibilityLabel(tr("筛选"))
                 .accessibilityValue(filter.title)
-                Button(tr("检查更新")) { controller.checkBrewUpdates() }
+                Button { controller.checkBrewUpdates() } label: {
+                    Text(tr("检查更新"))
+                        .opacity(controller.isCheckingUpdates ? 0 : 1)
+                        .overlay {
+                            if controller.isCheckingUpdates { ProgressView().controlSize(.small).transition(.opacity) }
+                        }
+                }
                     .buttonStyle(DSButtonStyle(kind: .secondary))
                     .fixedSize()
-                    .disabled(!controller.brewAvailable || controller.isLoadingBrew || controller.operation != nil)
+                    .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: controller.isCheckingUpdates)
+                    .help(tr("检查 Homebrew 更新"))
+                    .accessibilityLabel(controller.isCheckingUpdates ? tr("正在检查更新") : tr("检查 Homebrew 更新"))
+                    .disabled(!controller.brewAvailable || controller.isLoadingBrew || controller.operation != nil || controller.isCheckingUpdates)
             }
-            IconButton(systemName: "arrow.clockwise", help: tr("刷新")) { controller.refresh() }
+            IconButton(systemName: "arrow.clockwise", help: tr("刷新本地清单")) { controller.refresh() }
                 .opacity(showsRefreshProgress ? 0 : 1)
                 .overlay {
                     if showsRefreshProgress { ProgressView().controlSize(.small).transition(.opacity) }
                 }
                 .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: showsRefreshProgress)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(showsRefreshProgress ? tr("正在读取…") : tr("刷新"))
+                .accessibilityLabel(showsRefreshProgress ? tr("正在读取…") : tr("刷新本地清单"))
                 .disabled(showsRefreshProgress || (tab == .apps && controller.isRestoringAppCache) || controller.operation != nil || controller.isCheckingUpdates)
         }
     }
@@ -165,13 +188,19 @@ struct AppManagementPage: View {
             if tab == .apps {
                 Table(rows, selection: $selection, sortOrder: $sortOrder) {
                     applicationColumns
+                    sizeColumn
+                    kindColumn
                     lastOpenedColumn
                     sourceColumn
                 }
             } else {
                 Table(rows, selection: $selection, sortOrder: $sortOrder) {
                     applicationColumns
+                    kindColumn
+                    sizeColumn
+                    installedAtColumn
                     sourceColumn
+                    descriptionColumn
                 }
             }
         }
@@ -258,12 +287,38 @@ struct AppManagementPage: View {
                     .disabled(upgradeIsDisabled(for: row))
                 }
             }
-        }.width(min: tab == .homebrew ? 230 : 70, ideal: tab == .homebrew ? 280 : 110, max: tab == .homebrew ? 420 : 160)
+        }.width(min: tab == .homebrew ? 150 : 70, ideal: tab == .homebrew ? 200 : 110, max: tab == .homebrew ? 360 : 160)
+    }
+
+    private var sizeColumn: some TableColumnContent<ManagedApplicationRow, KeyPathComparator<ManagedApplicationRow>> {
         TableColumn(tr("大小"), value: \.sizeSort) { row in
             Text(verbatim: row.size.map { Format.bytes($0, base: .decimal) } ?? "—")
                 .monospacedDigit().frame(maxWidth: .infinity, alignment: .trailing)
         }.width(85)
-        TableColumn(tr("类型"), value: \.kind) { row in Text(verbatim: row.kind).lineLimit(1) }.width(min: 85, ideal: 105, max: 150)
+    }
+
+    private var kindColumn: some TableColumnContent<ManagedApplicationRow, KeyPathComparator<ManagedApplicationRow>> {
+        TableColumn(tr("类型"), value: \.kind) { row in
+            Text(verbatim: row.kind).lineLimit(1)
+                .help(row.package?.kind == .formula ? "Formula · " + row.kind : row.kind)
+        }.width(min: 85, ideal: 105, max: 160)
+    }
+
+    private var installedAtColumn: some TableColumnContent<ManagedApplicationRow, KeyPathComparator<ManagedApplicationRow>> {
+        TableColumn(tr("安装日期"), value: \.installationDateSort) { row in
+            if let date = row.package?.installedAt {
+                Text(date, format: .dateTime.year().month().day().locale(L10n.locale))
+                    .lineLimit(1)
+                    .help(date.formatted(.dateTime.year().month().day().hour().minute().locale(L10n.locale)))
+            } else { Text("—") }
+        }.width(min: 100, ideal: 130, max: 180)
+    }
+
+    private var descriptionColumn: some TableColumnContent<ManagedApplicationRow, KeyPathComparator<ManagedApplicationRow>> {
+        TableColumn(tr("描述"), value: \.summary) { row in
+            Text(verbatim: row.summary).lineLimit(1).help(row.summary)
+                .foregroundStyle(DS.Palette.textSecondary)
+        }.width(min: 150, ideal: 240)
     }
 
     private var sourceColumn: some TableColumnContent<ManagedApplicationRow, KeyPathComparator<ManagedApplicationRow>> {
@@ -294,7 +349,20 @@ struct AppManagementPage: View {
                 ProgressView().controlSize(.small)
                 Text(action == .upgrade ? tr("正在更新软件包…") : tr("正在卸载软件包…"))
             }
-            Spacer(minLength: 0)
+            // 在既有底栏内反馈，固定高度避免完成／消失时推动表格。
+            ZStack(alignment: .leading) {
+                if let completion = controller.completion {
+                    Label(completion.text, systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(DS.Badge.successText)
+                        .lineLimit(1)
+                        .help(completion.text)
+                        .id(completion.id)
+                        .transition(.opacity)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 20)
+            .animation(reduceMotion ? nil : DS.Motion.quick, value: controller.completion?.id)
             if let selected { actions(for: selected).disabled(model.uninstaller.isRemoving) }
         }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
     }
@@ -363,14 +431,24 @@ struct AppManagementPage: View {
             }
         } else {
             rows = controller.packages.filter { filter.matches($0) }.map { package in
-                ManagedApplicationRow(id: package.id, name: package.displayName, version: package.version,
-                    size: controller.packageSizes[package.id], kind: package.kind == .formula ? "Formula" : "Cask",
+                let kind: String
+                if package.kind == .cask { kind = "Cask" } else {
+                    kind = switch package.installReason {
+                        case .requested: tr("手动安装")
+                        case .dependency: tr("依赖")
+                        case .unknown: tr("未知")
+                    }
+                }
+                return ManagedApplicationRow(id: package.id, name: package.displayName, version: package.version,
+                    size: controller.packageSizes[package.id], kind: kind,
                     lastOpened: nil, source: package.name.contains("/") ? package.name.split(separator: "/").dropLast().joined(separator: "/") : (package.kind == .formula ? "homebrew/core" : "homebrew/cask"),
                     isRunning: controller.runningPackageIDs.contains(package.id), app: nil, package: package)
             }
         }
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        return rows.filter { query.isEmpty || $0.name.localizedStandardContains(query) || ($0.app?.bundleIdentifier ?? $0.package?.name ?? "").localizedStandardContains(query) }
+        return rows.filter { query.isEmpty || $0.name.localizedStandardContains(query)
+            || ($0.app?.bundleIdentifier ?? $0.package?.name ?? "").localizedStandardContains(query)
+            || ($0.package?.summary?.localizedStandardContains(query) == true) }
             .sorted(using: sortOrder)
     }
 }
@@ -397,6 +475,8 @@ private struct ManagedApplicationRow: Identifiable {
     let isRunning: Bool
     let app: InstalledApp?
     let package: HomebrewPackage?
+    var installationDateSort: Date { package?.installedAt ?? .distantPast }
+    var summary: String { package?.summary ?? "—" }
 }
 
 private enum BrewFilter: String, CaseIterable, Identifiable {

@@ -40,7 +40,7 @@ enum SnapshotRenderer {
                 (app.id, ApplicationMetadata(architecture: index.isMultiple(of: 2) ? .appleSilicon : .universal,
                     lastOpened: index < 4 ? Date(timeIntervalSince1970: 1_790_000_000) : nil, isAppStore: index == 1))
             })
-            let json = #"{"formulae":[{"name":"tool","full_name":"vendor/tap/tool","installed":[{"version":"1.1"}],"versions":{"stable":"2.0"},"outdated":true},{"name":"runtime","full_name":"runtime","installed":[{"version":"24.0"}],"versions":{"stable":"24.0"},"pinned":true}],"casks":[{"full_token":"editor","name":["Editor"],"installed":"2.4.1","version":"2.5.0","outdated":true,"artifacts":[{"app":["Editor.app"],"target":"/Applications/Editor.app"}]}]}"#
+            let json = #"{"formulae":[{"name":"tool","full_name":"vendor/tap/tool","desc":"Command-line development tool with a detailed description for layout review","installed":[{"version":"1.1","time":1790000000,"installed_on_request":true}],"versions":{"stable":"2.0"},"outdated":true},{"name":"runtime","full_name":"runtime","desc":"Runtime dependency for command-line tools","installed":[{"version":"24.0","time":1790000000,"installed_on_request":false}],"versions":{"stable":"24.0"},"pinned":true}],"casks":[{"full_token":"editor","name":["Editor"],"installed":"2.4.1","installed_time":1790000000,"desc":"Native code editor","version":"2.5.0","outdated":true,"artifacts":[{"app":["Editor.app"],"target":"/Applications/Editor.app"}]}]}"#
             // 演示包同样走生产解析器，不构造可能绕过身份检查的操作对象。
             let packages = (try? HomebrewManagement.parse(json, prefix: URL(fileURLWithPath: "/opt/homebrew"))) ?? []
             model.appManagement.showPreview(apps: apps, metadata: metadata,

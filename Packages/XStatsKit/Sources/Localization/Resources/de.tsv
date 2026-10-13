@@ -2030,7 +2030,8 @@ iPhone 与 iPad	iPhone und iPad
 由 Homebrew 卸载所选项目，依赖保护仍然生效。	Homebrew deinstalliert das ausgewählte Element mit aktiviertem Abhängigkeitsschutz.
 Homebrew 会更新所选项目及必要的依赖。	Homebrew aktualisiert das ausgewählte Element und erforderliche Abhängigkeiten.
 Homebrew 操作失败，请在终端检查后重试	Homebrew-Vorgang fehlgeschlagen. Im Terminal prüfen und erneut versuchen.
-Homebrew 操作已完成	Homebrew-Vorgang abgeschlossen
+已更新“{}”	„{}“ aktualisiert
+已卸载“{}”	„{}“ deinstalliert
 筛选	Filtern
 通用架构	Universal
 软件包操作尚未完成	Paketvorgang läuft noch
@@ -2053,3 +2054,10 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Der Hom
 没有匹配的软件包	Keine passenden Pakete
 尝试选择其他筛选条件。	Wähle einen anderen Filter.
 没有找到应用	Keine Apps gefunden
+安装日期	Installiert am
+描述	Beschreibung
+手动安装	Manuell installiert
+依赖	Abhängigkeit
+未知	Unbekannt
+刷新本地清单	Lokale Liste aktualisieren
+检查 Homebrew 更新	Nach Homebrew-Updates suchen

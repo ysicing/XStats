@@ -20,6 +20,17 @@ import Testing
         #expect(table.translate("不存在的文案") == nil)
     }
 
+    @Test func homebrewCompletionPreservesPackageNamesInEveryCatalog() throws {
+        for language in AppLanguage.allCases where language != .system && language != .chinese {
+            let table = try #require(Translations.catalog(for: language))
+            for source in ["已更新“Example Tool”", "已卸载“Example Tool”"] {
+                let translated = try #require(table.translate(source))
+                #expect(translated.contains("Example Tool"))
+                #expect(translated != source)
+            }
+        }
+    }
+
     @Test func translatesCapturedChinese() {
         // 插进来的中文也会再翻一次
         #expect(Translations.shared.translate("设置 · 关于") == "Settings · About")

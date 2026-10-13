@@ -494,7 +494,38 @@ import Testing
         #expect(controller.operation == .upgrade)
         release.withLock { $0 = true }
         try await waitFor { controller.operation == nil }
-        #expect(controller.message != nil)
+        #expect(controller.completion == nil)
+    }
+
+    @Test(arguments: [HomebrewManagement.Action.upgrade, .uninstall])
+    func completedBrewFeedbackIdentifiesTheActionAndDoesNotReplay(_ action: HomebrewManagement.Action) async throws {
+        let package = HomebrewPackage(name: "tool", displayName: "Example Tool", kind: .formula, installedVersions: ["1"], latestVersion: "2",
+            outdated: true, pinned: false, installationURLs: [], applicationURLs: [])
+        let controller = AppManagementController(listApps: { [] }, brewAvailable: true, listPackages: { [package] }, performAction: { _, _ in })
+        defer { controller.setVisible(false) }
+        controller.setVisible(true, tab: .homebrew)
+        try await waitFor { !controller.isReading && controller.hasBrewInventory }
+        controller.perform(action, package: package)
+        try await waitFor { controller.operation == nil && !controller.isReading }
+        let first = try #require(controller.completion)
+        #expect(first.action == action && first.packageName == package.displayName)
+        controller.perform(action, package: package)
+        try await waitFor { controller.operation == nil && !controller.isReading }
+        let second = try #require(controller.completion)
+        #expect(first.id != second.id)
+        controller.dismissCompletion(first.id)
+        #expect(controller.completion?.id == second.id)
+        controller.dismissCompletion(second.id)
+        #expect(controller.completion == nil)
+        controller.perform(action, package: package)
+        try await waitFor { controller.operation == nil && !controller.isReading }
+        #expect(controller.completion != nil)
+        controller.selectTab(.apps)
+        #expect(controller.completion == nil)
+        controller.selectTab(.homebrew)
+        controller.setVisible(false)
+        controller.setVisible(true)
+        #expect(controller.completion == nil)
     }
 
     @Test func failedBrewOperationWithoutOutputFinishesAndReloadsInventory() async throws {
@@ -511,8 +542,34 @@ import Testing
         try await waitFor { !controller.isReading && controller.hasBrewInventory }
         controller.perform(.upgrade, package: package)
         try await waitFor { controller.operation == nil && !controller.isReading }
-        #expect(controller.error != nil && controller.message == nil && controller.operationPackage == nil)
+        #expect(controller.error != nil && controller.completion == nil && controller.operationPackage == nil)
         #expect(reads.withLock { $0 } == 2)
+    }
+
+    @Test(arguments: [false, true])
+    func brewMetadataRefreshOnlyRemeasuresWhenTheInstallationChanges(_ reinstalled: Bool) async throws {
+        let date = Date(timeIntervalSince1970: 1790000000)
+        let original = HomebrewPackage(name: "tool", displayName: "tool", kind: .formula, installedVersions: ["1"], latestVersion: "1",
+            outdated: false, pinned: false, installationURLs: [URL(fileURLWithPath: "/opt/homebrew/Cellar/tool/1")], applicationURLs: [],
+            installedAt: date, summary: "Original description", installReason: .dependency)
+        let updated = HomebrewPackage(name: "tool", displayName: "tool", kind: .formula, installedVersions: ["1"], latestVersion: "2",
+            outdated: true, pinned: false, installationURLs: original.installationURLs, applicationURLs: [],
+            installedAt: reinstalled ? date.addingTimeInterval(100) : date,
+            summary: "Updated description", installReason: .requested)
+        let entries = AppManagementTestValue([original])
+        let measurements = AppManagementTestValue(0)
+        let controller = AppManagementController(listApps: { [] }, measureSize: { _ in
+            measurements.withLock { $0 += 1 }; return 42
+        }, brewAvailable: true, listPackages: { entries.withLock { $0 } }, updateIndex: {})
+        defer { controller.setVisible(false) }
+        controller.setVisible(true, tab: .homebrew)
+        try await waitFor { !controller.isReading && controller.hasBrewInventory }
+        #expect(measurements.withLock { $0 } == 1)
+        entries.withLock { $0 = [updated] }
+        controller.checkBrewUpdates()
+        try await waitFor { !controller.isCheckingUpdates && !controller.isReading && controller.packages == [updated] }
+        #expect(measurements.withLock { $0 } == (reinstalled ? 2 : 1))
+        #expect(controller.packageSizes[original.id] == 42)
     }
 
     @Test func failedInventoryBacksOffAndKeepsPlainUninstallAvailable() async throws {

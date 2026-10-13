@@ -6,6 +6,46 @@ import Testing
 @testable import Cleaner
 
 struct ApplicationManagementTests {
+    @Test func packageMetadataUsesHomebrewReceiptsAndPreservesUnknownValues() throws {
+        let output = #"""
+        {"formulae":[
+          {"name":"tool","full_name":"tool","desc":" Development tool ","installed":[{"version":"1","time":1780000000,"installed_on_request":false},{"version":"2","time":1790000000,"installed_on_request":true}]},
+          {"name":"library","full_name":"library","installed":[{"version":"1","installed_on_request":false}]},
+          {"name":"legacy","full_name":"legacy","installed":[{"version":"1","installed_on_request":false},{"version":"2"}]}
+        ],"casks":[{"full_token":"editor","name":["Editor"],"desc":"Native editor","installed":"3","installed_time":1791000000}]}
+        """#
+        let packages = try HomebrewManagement.parse(output, prefix: URL(fileURLWithPath: "/opt/homebrew"))
+        let tool = try #require(packages.first { $0.name == "tool" })
+        #expect(tool.installReason == .requested)
+        #expect(tool.installedAt == Date(timeIntervalSince1970: 1790000000))
+        #expect(tool.summary == "Development tool")
+        let library = try #require(packages.first { $0.name == "library" })
+        #expect(library.installReason == .dependency && library.installedAt == nil && library.summary == nil)
+        #expect(packages.first { $0.name == "legacy" }?.installReason == .unknown)
+        let editor = try #require(packages.first { $0.kind == .cask })
+        #expect(editor.installedAt == Date(timeIntervalSince1970: 1791000000))
+        #expect(editor.summary == "Native editor" && editor.installReason == .unknown)
+    }
+
+    @Test func invalidOptionalMetadataDoesNotDiscardAnInstalledPackage() throws {
+        for invalid: Any in [true, false, -1, 0, 253_402_300_800.0, "1790000000", NSNull()] {
+            let object: [String: Any] = [
+                "formulae": [["name": "tool", "full_name": "tool", "desc": 42,
+                    "installed": [["version": "1", "time": invalid, "installed_on_request": 1]]]],
+                "casks": [["full_token": "editor", "installed": "1", "desc": NSNull(), "installed_time": invalid]],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: object)
+            let packages = try HomebrewManagement.parse(String(decoding: data, as: UTF8.self), prefix: URL(fileURLWithPath: "/opt/homebrew"))
+            #expect(packages.count == 2)
+            #expect(packages.allSatisfy { $0.installedAt == nil && $0.summary == nil && $0.installReason == .unknown })
+        }
+        let object: [String: Any] = ["formulae": [["name": "tool", "full_name": "tool",
+            "desc": String(repeating: "x", count: 10_000), "installed": [["version": "1"]]]], "casks": []]
+        let data = try JSONSerialization.data(withJSONObject: object)
+        let package = try #require(HomebrewManagement.parse(String(decoding: data, as: UTF8.self), prefix: URL(fileURLWithPath: "/opt/homebrew")).first)
+        #expect(package.summary?.count == 2_048)
+    }
+
     @Test func thinAndFatMachOArchitecturesAreBounded() {
         #expect(ApplicationMetadata.architecture(in: Data([0xcf, 0xfa, 0xed, 0xfe, 12, 0, 0, 1])) == .appleSilicon)
         #expect(ApplicationMetadata.architecture(in: Data([0xfe, 0xed, 0xfa, 0xcf, 1, 0, 0, 7])) == .intel)
