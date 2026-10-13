@@ -70,6 +70,7 @@ public struct EgressTarget: Sendable, Hashable, Identifiable {
         trace("claude.ai", "Claude", .ai, "claude"),
         reach("gemini.google.com", "Gemini", .ai, "gemini"),
         trace("grok.com", "Grok", .ai, "grok"),
+        trace("x.ai", "xAI", .ai, "grok"),
         trace("www.perplexity.ai", "Perplexity", .ai, "perplexity"),
         trace("www.midjourney.com", "Midjourney", .ai, "midjourney"),
         reach("www.youtube.com", "YouTube", .media, "youtube", path: "/generate_204", head: false),
