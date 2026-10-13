@@ -497,6 +497,24 @@ import Testing
         #expect(controller.message != nil)
     }
 
+    @Test func failedBrewOperationWithoutOutputFinishesAndReloadsInventory() async throws {
+        let reads = AppManagementTestValue(0)
+        let package = HomebrewPackage(name: "tool", displayName: "tool", kind: .formula, installedVersions: ["1"], latestVersion: "2",
+            outdated: true, pinned: false, installationURLs: [], applicationURLs: [])
+        let controller = AppManagementController(listApps: { [] }, brewAvailable: true, listPackages: {
+            reads.withLock { $0 += 1 }; return [package]
+        }, performAction: { _, _ in
+            throw ToolExecutionError.failed(tool: "brew", status: 23, output: "")
+        })
+        defer { controller.setVisible(false) }
+        controller.setVisible(true, tab: .homebrew)
+        try await waitFor { !controller.isReading && controller.hasBrewInventory }
+        controller.perform(.upgrade, package: package)
+        try await waitFor { controller.operation == nil && !controller.isReading }
+        #expect(controller.error != nil && controller.message == nil && controller.operationPackage == nil)
+        #expect(reads.withLock { $0 } == 2)
+    }
+
     @Test func failedInventoryBacksOffAndKeepsPlainUninstallAvailable() async throws {
         let calls = AppManagementTestValue(0)
         let controller = AppManagementController(listApps: { [] }, brewAvailable: true, listPackages: {
