@@ -41,7 +41,8 @@ struct ToolCachePlanTests {
         try fm.createSymbolicLink(at: alias, withDestinationURL: protected)
         #expect(!plan.roots.contains { CleanupExclusions.overlaps($0, paths: env.excludedPaths) })
         _ = try await plan.execute(in: env)
-        #expect(plan.roots.contains(original) == !disabled)
+        // 比较清理路径，避免不同 Foundation 版本对目录 URL 的末尾斜杠处理影响断言。
+        #expect(plan.roots.contains { $0.path == original.path } == !disabled)
     }
 
     @Test(arguments: ["pnpm", "yarn"])

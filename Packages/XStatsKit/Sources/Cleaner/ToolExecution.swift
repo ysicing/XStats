@@ -120,32 +120,24 @@ enum DeveloperToolRunner {
         }
         try? pipe.fileHandleForWriting.close()
         let reader = pipe.fileHandleForReading
+        let deadline = timeout.map { ContinuousClock.now.advanced(by: .seconds($0)) }
         // 读取任务自己在读完后关闭句柄：取消时外面不能在它还在 read 时关掉同一个 fd，
         // 否则读取会报错，或读到 fd 编号被系统复用后的其他文件。
         let outputTask = Task.detached(priority: .utility) {
             defer { try? reader.close() }
             var tail = Data()
             let limit = max(0, outputLimit)
-            while let chunk = try readChunk(reader) {
+            while let chunk = try readChunk(reader, deadline: deadline) {
                 tail.append(chunk)
                 if tail.count > limit { tail.removeFirst(tail.count - limit) }
             }
             return String(decoding: tail, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        // 包装脚本退出后，其后台子进程可能仍持有输出管道；查询超时也必须中止读取任务。
-        let outputTimeout = timeout.map { seconds in
-            Task {
-                do { try await Task.sleep(for: .seconds(seconds)); outputTask.cancel() }
-                catch { /* 正常完成或用户取消会取消此一次性任务。 */ }
-            }
-        }
         // 正常退出时读到 EOF；取消时通知读取任务自行退出并关闭句柄
         defer {
-            outputTimeout?.cancel()
             outputTask.cancel()
             stop(process)
         }
-        let deadline = timeout.map { ContinuousClock.now.advanced(by: .seconds($0)) }
         while process.isRunning {
             try Task.checkCancellation()
             if let deadline, ContinuousClock.now >= deadline { throw ToolExecutionError.timedOut(name) }
@@ -287,11 +279,14 @@ enum DeveloperToolRunner {
     }
 
     /// 限时轮询让取消能中断读取；孙进程继承管道写端时，阻塞式 read 可能一直等不到 EOF。
-    private static func readChunk(_ reader: FileHandle) throws -> Data? {
+    private static func readChunk(_ reader: FileHandle, deadline: ContinuousClock.Instant? = nil) throws -> Data? {
         var descriptor = pollfd(fd: reader.fileDescriptor, events: Int16(POLLIN | POLLHUP), revents: 0)
         var bytes = [UInt8](repeating: 0, count: 64 * 1024)
         while true {
             try Task.checkCancellation()
+            // 孙进程持有写端时也要按时退出；不能等待同一协作线程池上的超时任务取消读取。
+            // 调用方按截止时间将此取消转换为工具超时，真实清理不传截止时间。
+            if let deadline, ContinuousClock.now >= deadline { throw CancellationError() }
             let ready = Darwin.poll(&descriptor, 1, 100)
             if ready == 0 || (ready < 0 && errno == EINTR) { continue }
             guard ready > 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
