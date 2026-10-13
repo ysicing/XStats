@@ -7,6 +7,27 @@ import Testing
 @testable import Cleaner
 
 struct CleanupReviewTests {
+    @Test func scanDoesNotEnterUnrelatedApplicationData() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).resolvingSymlinksInPath()
+        let appURL = home.appendingPathComponent("Applications/Pulse.app")
+        let unrelated = ["Application Support/Music", "Caches/com.apple.Safari", "Logs/OtherApp"]
+            .map { home.appendingPathComponent("Library/" + $0) }
+        try FileManager.default.createDirectory(at: appURL, withIntermediateDirectories: true)
+        for directory in unrelated {
+            // 即使其他 App 的目录里出现同名子项，也不能为了查找它进入该 App 的数据。
+            try FileManager.default.createDirectory(at: directory.appendingPathComponent("com.egoist.pulse"), withIntermediateDirectories: true)
+        }
+        defer { try? FileManager.default.removeItem(at: home) }
+        let app = InstalledApp(url: appURL, name: "Pulse", bundleIdentifier: "com.egoist.pulse", version: nil, teamIdentifier: nil)
+
+        let report = try AppUninstaller.scanLeftoversReport(for: app, home: home.path,
+            identity: AppUninstallIdentity(identifiers: [app.bundleIdentifier], names: [app.name]),
+            installations: AppInstallationCheck(), userCache: nil)
+
+        #expect(report.items.map(\.url) == [appURL])
+        #expect(report.unreadablePaths.isEmpty)
+    }
+
     @Test(.enabled(if: geteuid() != 0))
     func unreadableUninstallDirectoryIsReportedInsteadOfAnEmptyList() async throws {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).resolvingSymlinksInPath()
@@ -150,7 +171,7 @@ struct CleanupReviewRegressionTests {
         #expect(found.contains { $0.kind == .application })
         #expect(found.contains { $0.kind == .caches && $0.url.lastPathComponent == cache.lastPathComponent })
         let report = try AppUninstaller.scanLeftoversReport(for: app, home: home.path)
-        #expect(report.unreadablePaths.contains { $0.lastPathComponent == unrelated.lastPathComponent })
+        #expect(!report.unreadablePaths.contains { $0.lastPathComponent == unrelated.lastPathComponent })
     }
 
     @Test func customNpmCacheExclusionPreventsGlobalCleanup() async throws {

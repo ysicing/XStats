@@ -12,7 +12,7 @@ struct ScanCancellationTests {
         let appURL = home.appendingPathComponent("Applications/Fixture.app")
         try FileManager.default.createDirectory(at: appURL, withIntermediateDirectories: true)
         for index in 0..<40 {
-            let path = home.appendingPathComponent("Library/Caches/Vendor/com.example.fixture.\(index)")
+            let path = home.appendingPathComponent("Library/Caches/Example/com.example.fixture.\(index)")
             try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
         }
         let app = InstalledApp(url: appURL, name: "Fixture", bundleIdentifier: "com.example.fixture", version: nil, teamIdentifier: nil)

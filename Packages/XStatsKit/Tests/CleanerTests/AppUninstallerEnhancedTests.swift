@@ -60,12 +60,14 @@ import Testing
         }
     }
 
-    @Test func containerMetadataDeterminesOwnershipEvenForUUIDDirectories() throws {
+    @Test func onlyIdentifiedContainersAreInspectedAndMetadataStillChecksOwnership() throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
         let app = try fixture.app()
-        let owned = try fixture.directory("Library/Containers/12345678-ABCD-4567-ABCD-123456789ABC")
+        let owned = try fixture.directory("Library/Containers/com.example.foo.helper")
         try fixture.metadata(app.bundleIdentifier, in: owned)
+        let unidentified = try fixture.directory("Library/Containers/12345678-ABCD-4567-ABCD-123456789ABC")
+        try fixture.metadata(app.bundleIdentifier, in: unidentified)
         let unrelated = try fixture.directory("Library/Containers/ABCDEF12-3456-4567-ABCD-123456789ABC")
         try fixture.metadata("com.other.app", in: unrelated)
         let misleadingName = try fixture.directory("Library/Containers/com.example.foo")
@@ -78,6 +80,7 @@ import Testing
         #expect(found.first { $0.url.path == owned.path }?.requiresReview == false)
         #expect(FileManager.default.fileExists(atPath: unrelated.path))
         #expect(FileManager.default.fileExists(atPath: misleadingName.path))
+        #expect(!found.contains { $0.url.path == unidentified.path })
     }
 
     @Test func verifiedEmbeddedIdentifiersFindTheirOwnResidualData() throws {
@@ -177,11 +180,12 @@ import Testing
 
         let found = AppUninstaller.leftovers(for: app, home: fixture.home.path, identity: identity)
 
-        #expect(Set(found.map { $0.url.path }) == Set([app.url.path, group.path, uuidGroup.path, scripts.path]))
-        for candidate in [group, uuidGroup, scripts] {
+        #expect(Set(found.map { $0.url.path }) == Set([app.url.path, group.path, scripts.path]))
+        for candidate in [group, scripts] {
             #expect(found.first { $0.url.path == candidate.path }?.requiresReview == true)
         }
         #expect(!found.contains { $0.url.path == unrelated.path })
+        #expect(!found.contains { $0.url.path == uuidGroup.path })
     }
 
     @Test(arguments: ["scanRoot", "vendorParent", "leaf"])
@@ -218,7 +222,7 @@ import Testing
         let fixture = try Fixture()
         defer { fixture.remove() }
         let app = try fixture.app()
-        let candidate = try fixture.directory("Library/Caches/Vendor/com.example.foo")
+        let candidate = try fixture.directory("Library/Caches/Example/com.example.foo")
         let identity = AppUninstallIdentity(identifiers: [app.bundleIdentifier], names: [])
         let found = AppUninstaller.leftovers(for: app, home: fixture.home.path, identity: identity)
         #expect(found.contains { $0.url.path == candidate.path })
@@ -227,7 +231,7 @@ import Testing
         try FileManager.default.removeItem(at: candidate.deletingLastPathComponent())
         let externalTarget = fixture.outside.appendingPathComponent(app.bundleIdentifier)
         try FileManager.default.createDirectory(at: externalTarget, withIntermediateDirectories: true)
-        _ = try fixture.symlink("Library/Caches/Vendor", to: fixture.outside)
+        _ = try fixture.symlink("Library/Caches/Example", to: fixture.outside)
 
         #expect(throws: AppUninstallError.self) {
             try AppUninstaller.validateLeftover(candidate, for: app, home: fixture.home.path)

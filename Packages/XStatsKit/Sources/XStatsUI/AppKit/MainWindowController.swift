@@ -57,6 +57,8 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         window.title = "XStats"
         WindowChrome.apply(to: window)
         window.isReleasedWhenClosed = false
+        // 切换应用或系统授权只转移焦点；主窗口由关闭、隐藏或最小化等明确操作收起。
+        window.hidesOnDeactivate = false
         window.delegate = self
         window.contentMinSize = NSSize(width: width, height: DS.Size.panelMinHeight * 1.5)
         // 默认尺寸调大后换一个保存名，旧的小窗口尺寸不再沿用

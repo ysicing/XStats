@@ -63,7 +63,7 @@ struct AppManagementPage: View {
         .onDisappear { controller.setVisible(false); pendingBrew = nil; model.uninstaller.cancelScanning() }
         .onChange(of: model.isMainWindowVisible) { _, visible in
             controller.setVisible(visible, tab: tab)
-            if !visible { pendingBrew = nil; model.uninstaller.cancelScanning() }
+            if !visible { pendingBrew = nil; model.uninstaller.cancelScanning(preservingConfirmation: true) }
         }
         .onChange(of: tab) { _, value in selection = nil; search = ""; controller.selectTab(value) }
         .onChange(of: model.uninstaller.isRemoving) { old, new in
@@ -549,7 +549,7 @@ private struct AppUninstallInspector: View {
             }
         }.padding(DS.Space.s4).frame(width: 560, height: 560)
         .onChange(of: model.isMainWindowVisible) { _, visible in
-            if visible, let app = model.uninstaller.selected { model.uninstaller.select(app) }
+            if visible { model.uninstaller.resumeSelectionScan() }
         }
         .sheet(item: Binding(get: { model.uninstaller.pendingUninstall }, set: { if $0 == nil { model.uninstaller.cancelUninstall() } })) { app in
             UninstallConfirmationSheet(app: app, uninstaller: model.uninstaller)

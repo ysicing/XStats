@@ -312,6 +312,11 @@ public enum AppUninstaller {
         func auxiliaryMatch(_ name: String) -> Bool {
             matches(name) && !(trustedIdentifier && matchesIdentifier(name, app.bundleIdentifier))
         }
+        let vendorNames = Set(identity.identifiers.flatMap { identifier -> [String] in
+            let parts = identifier.lowercased().split(separator: ".")
+            guard parts.count >= 3 else { return [] }
+            return [String(parts[1]), parts.prefix(2).joined(separator: ".")]
+        })
 
         func add(_ url: URL, _ kind: AppLeftover.Kind, review: Bool = false) throws {
             try checkCancellation()
@@ -377,11 +382,15 @@ public enum AppUninstaller {
             }
         }
 
-        /// 只深入厂商目录一层，选择匹配的应用子项，保留厂商目录本身。
+        /// 只深入目标应用对应的厂商目录一层；遍历其他 App 的目录也可能触发隐私授权。
         func scanNested(_ relative: String, _ kind: AppLeftover.Kind) throws {
             for parent in try entries(relative) {
                 try checkCancellation()
-                guard (try? parent.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true,
+                let knownDirectory = knownPaths(for: app.bundleIdentifier).contains {
+                    $0.relative == "Library/" + relative + "/" + parent.lastPathComponent
+                }
+                guard knownDirectory || identity.matchesName(parent.lastPathComponent) || vendorNames.contains(parent.lastPathComponent.lowercased()),
+                      (try? parent.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true,
                       !results.contains(where: { $0.url == parent }), isUnredirected(parent, home: home) else { continue }
                 let children: [URL]
                 do {
@@ -421,6 +430,9 @@ public enum AppUninstaller {
         try scan("Preferences/ByHost", .preferences)
         for entry in try entries("Containers") {
             try checkCancellation()
+            // 先按已知身份筛选，再读取容器内部元数据。不能为了判断归属访问所有 App 的容器；
+            // 仅有 UUID 的未知容器保留，不通过逐个申请权限来猜测其拥有者。
+            guard matches(entry.lastPathComponent) else { continue }
             let owner = containerIdentifier(at: entry, home: home)
             if let owner {
                 if identity.identifiers.contains(where: { $0.caseInsensitiveCompare(owner) == .orderedSame }) {
@@ -433,12 +445,14 @@ public enum AppUninstaller {
             for entry in try entries(relative) {
                 try checkCancellation()
                 let name = entry.lastPathComponent
-                let owner = containerIdentifier(at: entry, home: home)
-                let group = identity.applicationGroups.contains(name)
-                    || owner.map { identity.applicationGroups.contains($0) } == true
+                let namedGroup = identity.applicationGroups.contains(name)
                     || (relative == "Group Containers" && identity.identifiers.contains { id in
                         supportsDerivedNames(id) && (name.hasSuffix("." + id) || name == "group." + id || name.hasPrefix("group." + id + "."))
                     })
+                guard namedGroup || matches(name) else { continue }
+                let owner = containerIdentifier(at: entry, home: home)
+                let group = namedGroup
+                    || owner.map { identity.applicationGroups.contains($0) } == true
                 if group || matches(name) { try add(entry, .containers, review: true) }
             }
         }

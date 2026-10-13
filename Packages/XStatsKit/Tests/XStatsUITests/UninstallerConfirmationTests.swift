@@ -51,4 +51,23 @@ struct UninstallerConfirmationTests {
         #expect(controller.selected == second)
         #expect(!controller.isRemoving)
     }
+
+    @Test func pausingForSystemAuthorizationKeepsConfirmationAndChoices() async throws {
+        let controller = UninstallerController(currentBundleIdentifier: nil, findLeftovers: {
+            [AppLeftover(url: $0.url, kind: .application, size: 100)]
+        }, recycleFiles: { _, _ in Issue.record("Pausing must not uninstall an application") })
+        let target = app("AuthorizationTest")
+        await controller.select(target)?.value
+        try #require(controller.canUninstall)
+        controller.requestUninstall()
+        let choices = controller.chosen
+
+        controller.cancelScanning(preservingConfirmation: true)
+        controller.resumeSelectionScan()
+
+        #expect(controller.pendingUninstall == target)
+        #expect(controller.selected == target && controller.chosen == choices)
+        #expect(!controller.isRemoving)
+        controller.cancelUninstall()
+    }
 }

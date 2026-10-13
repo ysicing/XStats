@@ -181,7 +181,7 @@ import Testing
         let helperIdentifier = app.bundleIdentifier + ".helper"
         try fixture.embeddedHelper(in: app, identifier: helperIdentifier)
         #expect(AppUninstallIdentity(app: app).identifiers.contains(helperIdentifier))
-        let helper = try fixture.directory("Library/Containers/12345678-ABCD-4567-ABCD-123456789ABC")
+        let helper = try fixture.directory("Library/Containers/" + helperIdentifier)
         let unrelated = try fixture.directory("Library/Containers/ABCDEF12-ABCD-4567-ABCD-123456789ABC")
         let prefixProduct = try fixture.directory("Library/Containers/98765432-ABCD-4567-ABCD-123456789ABC")
         for (directory, identifier) in [(helper, helperIdentifier), (unrelated, "ai.opencode.desktopplus.helper"),

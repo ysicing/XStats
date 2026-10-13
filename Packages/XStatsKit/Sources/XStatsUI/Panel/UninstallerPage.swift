@@ -40,7 +40,7 @@ struct UninstallerPage: View {
         .onAppear { if model.isMainWindowVisible { uninstaller.resumeScanning() } }
         .onDisappear { uninstaller.cancelScanning() }
         .onChange(of: model.isMainWindowVisible) { _, visible in
-            if visible { uninstaller.resumeScanning() } else { uninstaller.cancelScanning() }
+            if visible { uninstaller.resumeScanning() } else { uninstaller.cancelScanning(preservingConfirmation: true) }
         }
         .onChange(of: uninstaller.isRemoving) { _, removing in
             if !removing, model.isMainWindowVisible { uninstaller.resumeScanning() }

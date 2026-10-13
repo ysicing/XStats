@@ -229,7 +229,7 @@ public final class UninstallerController {
     }
 
     /// 离开页面、关闭或最小化窗口时中断遍历；已完成结果保留，未完成结果稍后重扫。
-    func cancelScanning() {
+    func cancelScanning(preservingConfirmation: Bool = false) {
         applicationGeneration = UUID()
         selectionGeneration = UUID()
         applicationTask?.cancel()
@@ -238,12 +238,18 @@ public final class UninstallerController {
         selectionTask = nil
         isLoading = false
         isScanning = false
-        pendingUninstall = nil
+        // 系统授权或隐藏窗口只暂停遍历；显式退出页面、关闭功能仍作废确认。
+        if !preservingConfirmation { pendingUninstall = nil }
     }
 
     func resumeScanning() {
         guard enabled else { return }
         if apps.isEmpty || apps.contains(where: { sizes[$0.id] == nil }) { loadApps() }
+        resumeSelectionScan()
+    }
+
+    func resumeSelectionScan() {
+        guard enabled else { return }
         if let selected, !hasScannedSelection, !isScanning { select(selected) }
     }
 
