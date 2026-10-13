@@ -135,6 +135,7 @@ tasks:
     cmds:
       - bash scripts/version_test.sh
       - bash scripts/arm64_release_test.sh
+      - python3 scripts/archive_debug_symbols_test.py
       - bash scripts/release_all_test.sh
       - bash scripts/publish_release_test.sh
       - python3 scripts/release_provenance_test.py

@@ -6,6 +6,7 @@ xcuserdata/
 .swiftpm/
 Packages/XStatsKit/Package.resolved
 dist/
+release-symbols/
 __pycache__/
 docs/superpowers
 server/api/*.sqlite*

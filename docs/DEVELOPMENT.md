@@ -363,6 +363,21 @@ XSTATS_COMPONENT_PROFILE='组件 profile 名称' XSTATS_NETWORK_PROFILE='扩展 
 
 ## 发布
 
+主应用、Widget 与 Helper 的 Release 构建在 Xcode 签名前裁剪调试符号和非外部符号，
+保留外部符号、Swift 运行时元数据以及独立的 `dwarf-with-dsym` 调试信息；Debug 不裁剪。
+`task release` 在公证与打包前核对三者以及 Sparkle 各二进制的 arm64 UUID 与 dSYM，
+缺失或不匹配即停止。符号独立保存为
+`release-symbols/XStats-<版本>-<构建号>-AppleSilicon.dSYMs.zip`，
+包括 dSYM 和记录版本、UUID、二进制 SHA-256 的 `manifest.json`；不进入 DMG、升级 ZIP 或公开上传列表。
+`DEBUG_SYMBOLS_DIR` 可指定其他保存目录。默认目录不受 `task clean` 或下次发布清理 `dist/` 影响，
+同版本与构建号的不同二进制禁止覆盖已有归档；应将每次归档另行备份到持久的私有存储。
+不可在签名或公证后再次裁剪二进制。
+
+崩溃排查时用报告中的 Binary Images UUID 匹配归档；解压后将 dSYM 导入 Xcode，
+或执行 `xcrun atos -arch arm64 -o <dSYM>/Contents/Resources/DWARF/<二进制名> -l <加载地址> <崩溃地址>`。
+`python3 scripts/archive_debug_symbols_test.py` 使用真实 Mach-O 与 dSYM 验证匹配、缺失、
+错误 UUID、归档覆盖保护，以及裁剪后的运行与文件行号符号化。
+
 正式分发需要 Developer ID 证书及私钥、公证凭据、`mc`（对象存储别名 `c-ip`）、
 已登录的 `gh`，以及环境变量 `XSTATS_RELEASE_TOKEN`。公证凭据首次保存：
 

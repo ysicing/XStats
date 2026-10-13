@@ -31,6 +31,19 @@ packages:
   XStatsKit:
     path: Packages/XStatsKit
 
+settingGroups:
+  # 仅应用于主程序、Widget 与 Helper；Xcode 先生成 dSYM，再裁剪，最后签名。
+  releaseSymbols:
+    configs:
+      Release:
+        DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+        DEPLOYMENT_POSTPROCESSING: YES
+        STRIP_INSTALLED_PRODUCT: YES
+        STRIP_STYLE: non-global
+        STRIPFLAGS: -S
+        STRIP_SWIFT_SYMBOLS: NO
+        COPY_PHASE_STRIP: NO
+
 targets:
   XStats:
     type: application
@@ -86,6 +99,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: work.12306.xstats.app
         PROVISIONING_PROFILE_SPECIFIER: $(XSTATS_APP_PROFILE)
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      groups: [releaseSymbols]
     dependencies:
       - package: XStatsKit
         product: XStatsUI
@@ -239,6 +253,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: work.12306.xstats.app.widget
         PROVISIONING_PROFILE_SPECIFIER: $(XSTATS_WIDGET_PROFILE)
         SKIP_INSTALL: YES
+      groups: [releaseSymbols]
     dependencies:
       - package: XStatsKit
         product: Metrics
@@ -261,6 +276,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         CREATE_INFOPLIST_SECTION_IN_BINARY: YES
         SKIP_INSTALL: YES
+      groups: [releaseSymbols]
     dependencies:
       - package: XStatsKit
         product: SMC

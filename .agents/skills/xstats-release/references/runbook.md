@@ -87,7 +87,14 @@ dist/XStats-X.Y.Z-AppleSilicon.xml
 dist/appcast.json
 dist/xstats.rb
 dist/release-provenance.json
+release-symbols/XStats-X.Y.Z-BUILD-AppleSilicon.dSYMs.zip
 ```
+
+Release stripping runs before signing. The separate symbol ZIP contains UUID-matched dSYMs for
+the app, Widget, Helper and Sparkle binaries, plus a version/UUID/binary-hash manifest.
+Missing or mismatched symbols stop packaging. Back up this archive privately after every release;
+it is excluded from Git, public uploads, `dist/` replacement and `task clean`.
+`DEBUG_SYMBOLS_DIR` overrides the default retention directory. Never strip a signed/notarized artifact.
 
 The finished app remains in DerivedData. Verify that artifact directly; do not replace or launch `/Applications/XStats.app` during a release:
 

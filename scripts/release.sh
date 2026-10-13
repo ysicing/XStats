@@ -63,6 +63,11 @@ echo "==== Apple Silicon（arm64）===="
 rm -rf "$APP"
 task build CONFIG=Release INSTALL=0 BUMP=0 SIGN_ID="$SIGN_ID"
 
+# Xcode 在签名前裁剪 Release 符号并生成 dSYM；归档保留在 dist/build 清理范围之外。
+# UUID 或调试信息缺失时必须在公证与打包之前停止，不发布无法符号化的制品。
+SYMBOL_ARCHIVE="$(python3 scripts/archive_debug_symbols.py "$APP" "$(dirname "$APP")" \
+  "${DEBUG_SYMBOLS_DIR:-release-symbols}")"
+
 for binary in "$APP/Contents/MacOS/XStats" "$APP/Contents/MacOS/XStatsHelper" \
               "$APP/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Sparkle" \
@@ -173,6 +178,7 @@ echo
 echo "✅ ${DIST}/${NAME}.dmg  SHA-256 $(shasum -a 256 "$DIST/$NAME.dmg" | cut -d' ' -f1)"
 echo "   在线升级：${DIST}/*.zip · ${DIST}/*.xml · ${DIST}/appcast.json"
 echo "   Homebrew cask：${DIST}/xstats.rb"
+echo "   故障排查符号：${SYMBOL_ARCHIVE}（请另行备份，不随安装包分发）"
 echo "   本机已安装的 XStats 保持不变"
 if [ "${SKIP_NOTARIZE:-0}" = "1" ]; then
   echo "⚠️  未公证，仅供本机测试。"
