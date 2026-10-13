@@ -53,6 +53,7 @@ SH
 set -euo pipefail
 echo "task $*" >> "$RELEASE_ALL_TEST_LOG"
 if [ "${1:-}" = release ]; then
+  [ "${FAKE_RELEASE_FAIL:-0}" != 1 ] || exit 73
   sed -i '' -E 's/(MARKETING_VERSION: *)"[^"]+"/\1"0.8.0"/' project.yml
   sed -i '' -E 's/(CURRENT_PROJECT_VERSION: *)"[^"]+"/\1"111"/' project.yml
 fi
@@ -116,5 +117,16 @@ git push origin main
 publish
 LOG
 diff -u "$WORK/expected" "$WORK/log"
+
+setup
+expect_failure "构建失败后停止提交发布" env XSTATS_RELEASE_TOKEN=test FAKE_RELEASE_FAIL=1 \
+  PATH="$WORK/bin:$PATH" RELEASE_ALL_TEST_LOG="$WORK/log" \
+  "$WORK/repo/scripts/release_all.sh"
+grep -q '不要再次执行 release-all' "$WORK/stderr" \
+  || { cat "$WORK/stderr" >&2; exit 1; }
+if grep -Eq '^git (add|commit|push)|^publish$' "$WORK/log"; then
+  echo "构建失败后不应提交、推送或发布" >&2
+  exit 1
+fi
 
 echo "一键发布脚本测试通过"

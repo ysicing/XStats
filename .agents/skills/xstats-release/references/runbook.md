@@ -67,6 +67,40 @@ task release
 ```
 
 `task release` defaults to the `XStats` notary profile. Capture both Apple submission IDs and require `Accepted` for the app and DMG.
+
+Formal packaging requests `CLEAN=1`: Xcode performs `clean build` for all scheme targets,
+including Widget and Helper, while retaining SourcePackages downloads. Local preview remains
+incremental. This prevents a previously stripped Widget executable from being reused to produce
+an empty dSYM. The existing UUID and DWARF gates still run before notarization.
+
+Explicit Sparkle/app re-signing and DMG signing retry only the exact Apple error
+`The timestamp service is not available.`: three total attempts, with 2-second and 5-second delays.
+Certificate, permission and other signing errors stop immediately. Retry arguments remain identical;
+never disable secure timestamps, hardened runtime, or entitlements. Xcode's own signing and Apple
+notarization are not covered by this retry policy.
+
+### Recover an interrupted build without advancing the build number
+
+Do not rerun `task release-all` or `task release` blindly: both enter the version-incrementing path.
+Keep the full log, source HEAD, marketing/build versions, `dist/release-provenance.json`, original
+artifacts and any completed symbol archive. The release script has no automatic build-resume mode.
+
+- Before a valid symbol archive exists, a failed compile/re-sign or empty dSYM can be repaired with
+  `task build CONFIG=Release INSTALL=0 BUMP=0 CLEAN=1 SIGN_ID=<same identity>` using the same
+  provisioning profiles and unchanged source HEAD. Verify the rebuilt DWARF and UUIDs before
+  continuing the remaining release stages. Do not invoke the version increment again.
+- Once a valid symbol archive exists, reuse its matching original binaries for backup, notarization
+  and packaging. If private backup alone failed, rerun
+  `python3 scripts/backup_debug_symbols.py <original symbol ZIP>`. A rebuild creates different UUIDs
+  and must not overwrite the existing archive or be substituted into its original provenance.
+- After app or DMG notarization, retain the submission ID and exact submitted artifact; inspect its
+  result and finish stapling/validation before continuing. Do not re-sign or strip a notarized artifact.
+- If the release commit exists but push failed, verify the remote state and retry `git push origin main`.
+  After the commit is pushed, resume external publication with `task publish`, retaining the built
+  artifacts and symbols. Never replace an already published tag or version artifact.
+
+Use one release machine at a time. Cross-machine recovery requires transferring the original
+artifacts, provenance and matching symbols; a second build is not a substitute for those files.
 It builds and packages without installing or launching the release on the current machine.
 
 When the user explicitly authorizes commit, push, and all external publication, the canonical automated path is instead:

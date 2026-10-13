@@ -168,6 +168,7 @@ class SymbolBackupTests(unittest.TestCase):
         scripts = repo / "scripts"
         scripts.mkdir(parents=True)
         shutil.copy2(SCRIPT.with_name("release.sh"), scripts / "release.sh")
+        shutil.copy2(SCRIPT.with_name("codesign_retry.sh"), scripts / "codesign_retry.sh")
         shutil.copy2(SCRIPT, scripts / SCRIPT.name)
         # The archive generator already has real Mach-O coverage; reuse this test archive here.
         (scripts / "archive_debug_symbols.py").write_text(

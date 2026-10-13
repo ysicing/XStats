@@ -375,6 +375,9 @@ XSTATS_COMPONENT_PROFILE='组件 profile 名称' XSTATS_NETWORK_PROFILE='扩展 
 
 主应用、Widget 与 Helper 的 Release 构建在 Xcode 签名前裁剪调试符号和非外部符号，
 保留外部符号、Swift 运行时元数据以及独立的 `dwarf-with-dsym` 调试信息；Debug 不裁剪。
+正式打包通过 `task build CONFIG=Release INSTALL=0 BUMP=0 CLEAN=1` 执行 Xcode `clean build`，
+清理全部目标的旧产物与中间文件，避免已裁剪的 Widget 被增量复用后生成空 dSYM；
+保留 SourcePackages 下载缓存。本地预览默认仍为增量构建。
 `task release` 在公证与打包前核对三者以及 Sparkle 各二进制的 arm64 UUID 与 dSYM，
 缺失或不匹配即停止。符号独立保存为
 `release-symbols/XStats-<版本>-<构建号>-AppleSilicon.dSYMs.zip`，
@@ -417,6 +420,17 @@ NOTARY_PROFILE=XStats task release-all
 此命令执行测试、签名、公证、打包、提交推送版本元数据，并发布制品、API 清单和 Homebrew cask。
 `task release` 只构建制品；已推送 release commit 后若外部发布失败，用 `task publish` 续跑。
 重新执行 `task release-all` 会再次推进构建号。
+
+显式 Sparkle／应用重签名与 DMG 签名遇到 Apple 的
+`The timestamp service is not available.` 时最多尝试 3 次，间隔为 2 秒、5 秒；
+每次使用相同证书、时间戳、runtime 和 entitlement 参数。其他签名错误立即停止，
+不会降级为无时间戳或临时签名。Xcode 内部签名、公证等步骤仍按自身结果停止。
+
+中断后先按日志确认阶段：构建、符号备份或公证失败时保留日志、版本与构建号、
+`dist/release-provenance.json` 及已有符号归档，不直接重跑完整发布；
+在同一源码和构建号下按 [runbook](../.agents/skills/xstats-release/references/runbook.md) 恢复。
+若 release commit 已创建但推送失败，先确认远端后重试 `git push origin main`；
+若 commit 已推送、外部发布失败，仅用 `task publish` 续发既有制品。
 
 发布构建保存在 `build/DerivedData-arm64/Build/Products/Release/XStats.app`，不安装到本机。
 脚本校验架构、同团队签名、公证、Gatekeeper、构建来源和公开制品哈希。

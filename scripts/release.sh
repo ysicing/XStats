@@ -12,6 +12,7 @@
 # SKIP_NOTARIZE=1 只生成未公证的 DMG 供本机测试——不要分发，别的 Mac 上 Gatekeeper 会拒绝打开。
 set -euo pipefail
 cd "$(dirname "$0")/.."
+source scripts/codesign_retry.sh
 
 # 安装包放在对象存储，由 scripts/publish_release.sh 用 mc 上传
 DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://c.ysicing.net/oss/apps/macOS/XStats}"
@@ -60,8 +61,8 @@ echo "==== Apple Silicon（arm64）===="
 
 # ---- 构建 ------------------------------------------------------------------
 
-rm -rf "$APP"
-task build CONFIG=Release INSTALL=0 BUMP=0 SIGN_ID="$SIGN_ID"
+# Rebuild every target from unstripped objects; preserve dependency downloads.
+task build CONFIG=Release INSTALL=0 BUMP=0 CLEAN=1 SIGN_ID="$SIGN_ID"
 
 # Xcode 在签名前裁剪 Release 符号并生成 dSYM；归档保留在 dist/build 清理范围之外。
 # UUID 或调试信息缺失时必须在公证与打包之前停止，不发布无法符号化的制品。
@@ -128,7 +129,7 @@ mkdir -p "$WORK/dmg"
 ditto "$APP" "$WORK/dmg/XStats.app"
 ln -s /Applications "$WORK/dmg/Applications"
 hdiutil create -volname "XStats ${VERSION}" -srcfolder "$WORK/dmg" -ov -format UDZO "$DIST/$NAME.dmg" >/dev/null
-codesign --force --timestamp --sign "$SIGN_ID" "$DIST/$NAME.dmg"
+codesign_with_timestamp_retry --force --timestamp --sign "$SIGN_ID" "$DIST/$NAME.dmg"
 
 if [ "${SKIP_NOTARIZE:-0}" != "1" ]; then
   notarize "$DIST/$NAME.dmg"

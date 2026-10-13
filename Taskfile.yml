@@ -13,6 +13,7 @@ vars:
   NETWORK_APP: '{{.NETWORK_DERIVED}}/Build/Products/{{.CONFIG}}/XStats Network Monitor.app'
   BUMP: '{{default "1" .BUMP}}'
   INSTALL: '{{default "1" .INSTALL}}'
+  CLEAN: '{{default "0" .CLEAN}}'
   SIGN_ID:
     sh: |
       if [ -n "${SIGN_ID:-}" ]; then
@@ -51,6 +52,7 @@ tasks:
         vars:
           CONFIG: '{{.CONFIG}}'
           SIGN_ID: '{{.SIGN_ID}}'
+          CLEAN: '{{.CLEAN}}'
       - |
         if [ "{{.INSTALL}}" != "0" ]; then ./scripts/install_local.sh "{{.APP}}"; fi
 
@@ -66,7 +68,7 @@ tasks:
           -destination 'generic/platform=macOS' ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
           XSTATS_APP_PROFILE="${XSTATS_APP_PROFILE:-}" XSTATS_WIDGET_PROFILE="${XSTATS_WIDGET_PROFILE:-}" \
           {{if .TEAM_ID}}CODE_SIGN_IDENTITY="{{.SIGN_ID}}" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM={{.TEAM_ID}}{{if eq .CONFIG "Release"}} OTHER_CODE_SIGN_FLAGS=--timestamp CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO{{end}}{{else}}CODE_SIGNING_ALLOWED=NO ENABLE_HARDENED_RUNTIME=NO{{end}} \
-          build
+          {{if eq .CLEAN "1"}}clean {{end}}build
       - bash scripts/sign_sparkle.sh "{{.APP}}" "{{.SIGN_ID}}"
 
   build-network-component:
@@ -135,6 +137,8 @@ tasks:
     cmds:
       - bash scripts/version_test.sh
       - bash scripts/arm64_release_test.sh
+      - python3 scripts/release_build_test.py
+      - python3 scripts/codesign_retry_test.py
       - python3 scripts/archive_debug_symbols_test.py
       - python3 scripts/backup_debug_symbols_test.py
       - bash scripts/release_all_test.sh

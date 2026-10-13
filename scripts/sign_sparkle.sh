@@ -6,6 +6,7 @@ set -euo pipefail
 APP="$1"
 IDENTITY="${2:--}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+source "$ROOT/scripts/codesign_retry.sh"
 MODE="${3:-}"
 APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")"
 case "$APP_ID" in
@@ -58,9 +59,9 @@ for component in "$FRAMEWORK/Versions/Current/XPCServices/Downloader.xpc" \
                  "$FRAMEWORK/Versions/Current/Updater.app" \
                  "$FRAMEWORK/Versions/Current/Autoupdate"; do
   [ -e "$component" ] || { echo "error: 缺少 Sparkle 辅助程序 $component" >&2; exit 1; }
-  codesign --force --sign "$IDENTITY" "${STAMP[@]}" "${OPTIONS[@]}" "$component"
+  codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" "${OPTIONS[@]}" "$component"
 done
-codesign --force --sign "$IDENTITY" "${STAMP[@]}" "${OPTIONS[@]}" "$FRAMEWORK"
+codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" "${OPTIONS[@]}" "$FRAMEWORK"
 if [ "$IDENTITY" = "-" ]; then
   # 无团队的临时签名无法通过 Hardened Runtime 的动态库团队校验，仅本地/CI 关闭 runtime。
   # Xcode 的无证书路径不签名，由此处补齐自身二进制及 entitlement；线上安装仍禁止此构建。
@@ -88,10 +89,10 @@ else
   # 增量构建更新共享 Localization.bundle 时，Xcode 可能保留 Widget 的旧资源封印。
   # 从内到外重签 Widget，保留 Xcode 已展开的 profile entitlement，再重签主应用。
   if [ "$MODE" = network-component ]; then
-    codesign --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$SYSTEM_EXTENSION"
+    codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$SYSTEM_EXTENSION"
   else
-    codesign --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$APP/Contents/PlugIns/XStatsWidget.appex"
+    codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$APP/Contents/PlugIns/XStatsWidget.appex"
   fi
-  codesign --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$APP"
+  codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$APP"
 fi
 codesign --verify --deep --strict "$APP"

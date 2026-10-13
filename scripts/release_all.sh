@@ -40,6 +40,9 @@ RECOVERY=""
 on_error() {
   local status=$?
   case "$RECOVERY" in
+    build)
+      echo "error: 构建、符号备份或公证打包阶段失败；保留日志与原始制品，按发布 runbook 确认恢复阶段，不要再次执行 release-all 或 release 推进构建号。" >&2
+      ;;
     push)
       echo "error: release commit 已创建但尚未确认推送成功；请先运行 git push origin main。" >&2
       ;;
@@ -54,6 +57,7 @@ trap on_error ERR
 # 在投入签名和公证时间前拒绝任何未提交源码；版本元数据仍可按发布流程保持未提交。
 python3 scripts/release_provenance.py prepare >/dev/null
 task test
+RECOVERY=build
 task release
 
 BUILT_VERSION="$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' project.yml | head -1)"
