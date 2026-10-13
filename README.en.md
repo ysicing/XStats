@@ -4,7 +4,7 @@
 
 # XStats
 
-**System monitoring and everyday tools for the Mac menu bar.**
+**System monitoring and everyday Mac tools, with a full app window and menu bar access.**
 
 See CPU, memory, network and temperature at a glance, and open the details for trends and app usage. Enable tools such as AI Usage, calendar and fan control when you need them.
 

@@ -41,11 +41,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        let launchEvent = NSAppleEventManager.shared().currentAppleEvent
         _ = DiagnosticsExporter.launchDate
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? tr("开发版")
         Log.app.notice("XStats \(version, privacy: .public) 启动，macOS \(ProcessInfo.processInfo.operatingSystemVersionString, privacy: .public)")
-        NSApp.mainMenu = MainMenu.make(target: self, settingsAction: #selector(openSettingsFromMenu),
-                                       updateAction: #selector(checkForUpdatesFromMenu))
+        installMainMenu()
         menuBar = MenuBarController(model: model)
         calendarMenuBar = CalendarMenuBarController(model: model)
         mainWindow = MainWindowController(model: model)
@@ -53,6 +53,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         aiUsageSettingsWindow = AIUsageSettingsWindowController(model: model)
         aiUsageSettingsWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
         updateWindow = UpdateWindowController(model: model)
+        updateWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
         speedTestWindow = SpeedTestWindowController(model: model)
         speedTestWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
         projectPurgeWindow = ProjectPurgeWindowController(model: model)
@@ -226,6 +227,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
             }
         }
         deepLinksReady = true
+        if ApplicationLaunch.showsMainWindow(event: launchEvent, arguments: arguments, hasPendingDeepLink: !pendingDeepLinks.isEmpty) {
+            mainWindow.show(tab: nil)
+        }
+        updateActivationPolicy()
         drainDeepLinks()
     }
 
@@ -292,7 +297,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
     /// 再次打开应用（访达或启动台）时显示主窗口
     public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { mainWindow.show(tab: nil) }
+        mainWindow.show(tab: nil)
         return true
     }
 
@@ -352,6 +357,21 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openSettingsFromMenu() { model.openSettings() }
+
+    @objc private func openAboutFromMenu() { model.openMainWindow(.settingsAbout) }
+
+    @objc private func openMainWindowFromMenu() { model.openMainWindow(nil) }
+
+    @objc private func openUserGuideFromMenu() { NSWorkspace.shared.open(FeedbackLinks.githubRepository) }
+
+    @objc private func openFeedbackFromMenu() { NSWorkspace.shared.open(FeedbackLinks.githubBugReport) }
+
+    private func installMainMenu() {
+        NSApp.mainMenu = MainMenu.make(target: self, aboutAction: #selector(openAboutFromMenu),
+            settingsAction: #selector(openSettingsFromMenu), updateAction: #selector(checkForUpdatesFromMenu),
+            openWindowAction: #selector(openMainWindowFromMenu), guideAction: #selector(openUserGuideFromMenu),
+            feedbackAction: #selector(openFeedbackFromMenu))
+    }
 
     @objc private func checkForUpdatesFromMenu() {
         model.updates.check(userInitiated: true)
@@ -415,14 +435,17 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 默认只在菜单栏运行、不占程序坞；打开了“在程序坞显示图标”时，有窗口开着才出现在程序坞与 ⌘Tab 里
+    /// 窗口仍打开（包括最小化或隐藏）时显示程序坞；关窗后按偏好回到菜单栏。
     private func updateActivationPolicy() {
-        let hasWindow = mainWindow.isVisible || aiUsageSettingsWindow.isVisible
-            || egressWindow.isVisible || speedTestWindow.isVisible || projectPurgeWindow.isVisible
-        let policy: NSApplication.ActivationPolicy = hasWindow && model.settings.showDockIcon ? .regular : .accessory
+        let hasWindow = mainWindow.isOpen || aiUsageSettingsWindow.isVisible || updateWindow.isOpen
+            || egressWindow.isVisible || speedTestWindow.isVisible || projectPurgeWindow.isOpen
+        let policy: NSApplication.ActivationPolicy = hasWindow || model.settings.showDockIcon ? .regular : .accessory
         guard NSApp.activationPolicy() != policy else { return }
-        NSApp.setActivationPolicy(policy)
-        if hasWindow { NSApp.activate() }
+        guard NSApp.setActivationPolicy(policy) else {
+            Log.app.error("Unable to change application activation policy: \(policy.rawValue)")
+            return
+        }
+        if hasWindow && !NSApp.isHidden { NSApp.activate() }
     }
 
     // MARK: 观察
@@ -692,8 +715,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
         appliedLanguage = language
         model.displays.refreshCatalog()
-        NSApp.mainMenu = MainMenu.make(target: self, settingsAction: #selector(openSettingsFromMenu),
-                                       updateAction: #selector(checkForUpdatesFromMenu))
+        installMainMenu()
         menuBar.dismissPopovers()
         menuBar.refreshImages(force: true)
         speedTestWindow.refreshLanguage()

@@ -8,8 +8,17 @@
 
 extension Translations {
     static var tables: [String] {
-        [english, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish, appleIntelligenceEnglish, wellnessEnglish, magpieEnglish]
+        [english, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish, appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish]
     }
+
+    static let applicationPresentationEnglish = #"""
+隐藏其他	Hide Others
+全部显示	Show All
+帮助	Help
+使用文档	User Guide
+关窗后保留程序坞图标	Keep Dock Icon After Closing Windows
+打开窗口时自动显示图标；关闭后仍可从程序坞与 ⌘Tab 找到 XStats	The icon appears automatically while a window is open. Keep it after closing windows to find XStats in the Dock and ⌘Tab.
+"""#
 
 
     static let monitoringEnglish = #"""

@@ -12,6 +12,8 @@ import SwiftUI
 final class UpdateWindowController: NSObject, NSWindowDelegate {
     private let model: AppModel
     private var window: NSWindow?
+    private(set) var isOpen = false
+    var onVisibilityChange: ((Bool) -> Void)?
     func refreshLanguage() { window?.title = tr("软件更新") }
 
     init(model: AppModel) {
@@ -22,6 +24,10 @@ final class UpdateWindowController: NSObject, NSWindowDelegate {
     func show() {
         let window = self.window ?? makeWindow()
         self.window = window
+        if !isOpen {
+            isOpen = true
+            onVisibilityChange?(true)
+        }
         if !window.isVisible { window.center() }
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
@@ -43,5 +49,10 @@ final class UpdateWindowController: NSObject, NSWindowDelegate {
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         // 正在替换应用时不允许关闭，避免用户以为已取消
         ![.verifying, .installing].contains(model.updates.phase)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        isOpen = false
+        onVisibilityChange?(false)
     }
 }

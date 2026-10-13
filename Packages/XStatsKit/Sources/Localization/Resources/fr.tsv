@@ -2064,3 +2064,9 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 检查 App Store 更新	Rechercher les mises à jour App Store
 在 App Store 更新	Mettre à jour dans l’App Store
 无法打开 App Store，请手动打开后更新	Impossible d’ouvrir l’App Store. Ouvrez-le manuellement pour effectuer la mise à jour.
+隐藏其他	Masquer les autres
+全部显示	Tout afficher
+帮助	Aide
+使用文档	Guide d’utilisation
+关窗后保留程序坞图标	Garder l’icône du Dock après fermeture
+打开窗口时自动显示图标；关闭后仍可从程序坞与 ⌘Tab 找到 XStats	L’icône apparaît automatiquement lorsqu’une fenêtre est ouverte. Après fermeture, XStats reste accessible dans le Dock et avec ⌘Tab.

@@ -11,6 +11,7 @@ final class ProjectPurgeWindowController: NSObject, NSWindowDelegate {
     private let model: AppModel
     private var window: NSWindow?
     private(set) var isVisible = false
+    private(set) var isOpen = false
     var onVisibilityChange: ((Bool) -> Void)?
 
     init(model: AppModel) {
@@ -25,6 +26,7 @@ final class ProjectPurgeWindowController: NSObject, NSWindowDelegate {
     func show() {
         let window = self.window ?? makeWindow()
         self.window = window
+        isOpen = true
         if window.isMiniaturized { window.deminiaturize(nil) }
         if !isVisible {
             isVisible = true
@@ -52,6 +54,7 @@ final class ProjectPurgeWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        isOpen = false
         isVisible = false
         model.projectPurge.cancelScan()
         onVisibilityChange?(false)

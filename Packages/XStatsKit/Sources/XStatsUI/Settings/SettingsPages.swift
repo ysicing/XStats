@@ -79,8 +79,8 @@ struct GeneralSettings: View {
                 }
             }
             GroupRow {
-                SettingRow(title: tr("在程序坞显示图标"), subtitle: tr("默认只在菜单栏运行；打开后，主窗口开着时图标出现在程序坞与 ⌘Tab 中")) {
-                    DSToggle(isOn: $settings.showDockIcon, label: tr("在程序坞显示图标"))
+                SettingRow(title: tr("关窗后保留程序坞图标"), subtitle: tr("打开窗口时自动显示图标；关闭后仍可从程序坞与 ⌘Tab 找到 XStats")) {
+                    DSToggle(isOn: $settings.showDockIcon, label: tr("关窗后保留程序坞图标"))
                 }
             }
             GroupRow {

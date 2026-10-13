@@ -1,11 +1,16 @@
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import AppKit
 import SwiftUI
 
-/// 主窗口。应用默认只在菜单栏运行，窗口开着也不占程序坞；设置里打开“在程序坞显示图标”后才出现在程序坞与 ⌘Tab 中
+/// 主窗口打开时提供标准应用体验；关闭、最小化与隐藏分别管理窗口与采集需求。
 @MainActor
 final class MainWindowController: NSObject, NSWindowDelegate {
     private let model: AppModel
     private var window: NSWindow?
+    private(set) var isOpen = false
     var onVisibilityChange: ((Bool) -> Void)?
 
     init(model: AppModel) {
@@ -37,14 +42,18 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         if let tab { model.settings.panelTab = tab }
         let window = self.window ?? makeWindow()
         self.window = window
+        if !isOpen {
+            isOpen = true
+            onVisibilityChange?(true)
+        }
         if !window.isVisible {
             window.setFrame(initialFrame(for: window), display: false)
         }
+        if NSApp.isHidden { NSApp.unhide(nil) }
         NSApp.activate()
         if window.isMiniaturized { window.deminiaturize(nil) }
         window.makeKeyAndOrderFront(nil)
         model.isMainWindowVisible = true
-        onVisibilityChange?(true)
     }
 
     private func makeWindow() -> NSWindow {
@@ -83,6 +92,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        isOpen = false
         model.isMainWindowVisible = false
         onVisibilityChange?(false)
     }
