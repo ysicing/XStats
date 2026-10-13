@@ -272,15 +272,11 @@ struct DisabledMonitoringPage: View {
 
     var body: some View {
         PageScroll {
-            Card(padding: DS.Space.s4, spacing: DS.Space.s3) {
-                Label(module.title, systemImage: module.symbol).dsFont(.lg, weight: .semibold)
-                Button(tr("启用 \(module.title)")) { model.settings.setModuleEnabled(module, true) }
-                    .buttonStyle(DSButtonStyle(kind: .primary))
-                    .fixedSize()
-            }
+            MonitoringEnableCard(module: module)
             SectionCard(title: module.title) { information }
         }
-        .task {
+        // 两个已关闭模块页之间切换时视图会被复用，需按模块重新读取基础信息。
+        .task(id: module) {
             guard !isSnapshot else { return }
             if module == .disk { await model.store.refreshDiskCapacity() }
             if module == .network { await model.network.refreshDetails(basicOnly: true) }
@@ -329,8 +325,42 @@ struct DisabledMonitoringPage: View {
             if let count = store.fanCount {
                 InfoRow(label: tr("风扇"), text: count.formatted(.number.locale(L10n.locale)))
             }
-        case .battery: BatteryPopover()
+        // 能耗页关闭时仍由 EnergyPage 展示基础电池信息和启用入口，不经过此页。
+        case .battery: EmptyView()
         case .display: DisplayDetails()
         }
+    }
+}
+
+/// 已关闭监控模块的启用入口；紧凑样式用于在保留基础信息的页面顶部提示。
+struct MonitoringEnableCard: View {
+    @Environment(AppModel.self) private var model
+    let module: MonitoringModule
+    var compact = false
+
+    var body: some View {
+        Card(padding: DS.Space.s4, spacing: compact ? DS.Space.s2 : DS.Space.s3) {
+            if compact {
+                HStack(spacing: DS.Space.s3) {
+                    Label(module.title, systemImage: module.symbol).dsFont(.sm, weight: .semibold)
+                    Spacer(minLength: DS.Space.s2)
+                    enableButton
+                }
+                if module == .battery {
+                    Text(tr("采集温度、功耗、App 能耗和电量历史；关闭后仍显示电池基础信息"))
+                        .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                Label(module.title, systemImage: module.symbol).dsFont(.lg, weight: .semibold)
+                enableButton
+            }
+        }
+    }
+
+    private var enableButton: some View {
+        Button(tr("启用 \(module.title)")) { model.settings.setModuleEnabled(module, true) }
+            .buttonStyle(DSButtonStyle(kind: .primary))
+            .fixedSize()
     }
 }

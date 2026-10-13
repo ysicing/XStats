@@ -126,8 +126,8 @@ Go 编译与完整模块缓存，由 go clean 清理	Caches de compilation et de
 Cargo 注册表与 Git 依赖缓存，需要 cargo-cache	Caches du registre Cargo et des dépendances Git ; nécessite cargo-cache
 uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets Python et de compilation téléchargés par uv, nettoyés par uv
 未找到 {}，无法安全清理	{} est introuvable et ne peut pas être nettoyé en toute sécurité
-{} 清理失败（退出码 {}）	Échec du nettoyage de {} (code de sortie {})
-{} 清理失败（退出码 {}）：{}	Échec du nettoyage de {} (code de sortie {}) : {}
+{} 命令执行失败（退出码 {}）	La commande {} a échoué (code de sortie {})
+{} 命令执行失败（退出码 {}）：{}	La commande {} a échoué (code de sortie {}) : {}
 {}：未找到 {}，无法安全清理	{} : {} est introuvable et ne peut pas être nettoyé en toute sécurité
 支持的内容先移到废纸篓；工具缓存由对应命令直接清理。	Les éléments pris en charge sont d’abord placés dans la corbeille ; les caches d’outils sont nettoyés directement par leurs commandes.
 支持的缓存可以恢复；工具缓存始终由对应命令直接清理	Les caches pris en charge peuvent être restaurés ; les caches d’outils sont toujours nettoyés directement par leurs commandes
@@ -2014,7 +2014,6 @@ iPhone 与 iPad	iPhone et iPad
 尚未安装 Homebrew	Homebrew n’est pas installé
 安装 Homebrew 后，可在这里管理 Formula 与 Cask。	Installez Homebrew pour gérer vos formulae et casks ici.
 已固定版本	Version épinglée
-已计量	Mesuré
 应用类型	Type d’application
 搜索应用或软件包	Rechercher des apps ou des paquets
 无法读取应用列表，请重新扫描	Impossible de lire la liste des applications. Relancez l’analyse.
@@ -2035,7 +2034,13 @@ Homebrew 操作已完成	Opération Homebrew terminée
 筛选	Filtrer
 通用架构	Universel
 软件包操作尚未完成	L’opération sur le paquet est en cours
-请等待当前操作完成后再退出 XStats。	Attendez la fin de l’opération en cours avant de quitter XStats.
+已计量 {}	Mesuré : {}
+无法识别 Homebrew 来源，由 Homebrew 安装的应用请在终端卸载	Impossible d’identifier les sources Homebrew. Désinstallez dans le Terminal les apps installées avec Homebrew.
+Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’opération Homebrew dure depuis plus d’une heure. Vérifiez son état dans le Terminal.
+等待完成	Attendre
+仍然退出	Quitter quand même
+合计	Total
+仍然退出时，Homebrew 会在后台继续完成当前操作，XStats 不再显示其结果，可稍后在终端核对。	Si vous quittez quand même, Homebrew terminera l’opération en arrière-plan. XStats n’affichera pas le résultat ; vous pourrez le vérifier plus tard dans le Terminal.
 名称	Nom
 来源	Source
 最新版本	Dernière version

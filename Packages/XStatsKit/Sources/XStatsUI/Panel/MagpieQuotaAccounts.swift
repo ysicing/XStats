@@ -165,7 +165,8 @@ private struct MagpieAccountDetails: View {
                 }
             }
             if let resets = account.resets, let count = resets.count {
-                let dates = (resets.each ?? []).compactMap(\.until).sorted()
+                // 数量以 count 为准；逐张列表多于数量时只展示最早到期的 count 张，避免标题与明细不一致。
+                let dates = Array((resets.each ?? []).compactMap(\.until).sorted().prefix(count))
                 if count > 0, !dates.isEmpty {
                     DisclosureGroup {
                         VStack(alignment: .leading, spacing: DS.Space.s1) {

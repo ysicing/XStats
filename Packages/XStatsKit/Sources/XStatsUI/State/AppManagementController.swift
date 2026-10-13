@@ -7,7 +7,7 @@ import Localization
 import Metrics
 import Observation
 
-/// 应用管理仅在可见时读取清单与计量。浏览任务可以取消，已确认的 brew 写操作独立收尾。
+/// 应用管理仅在可见时读取清单与计量。浏览任务可以取消，已确认的 brew 写操作与用户主动的检查更新独立收尾。
 @MainActor @Observable
 final class AppManagementController {
     enum Tab: String, CaseIterable { case apps, homebrew }
@@ -17,6 +17,10 @@ final class AppManagementController {
     private(set) var packages: [HomebrewPackage] = []
     private(set) var packageSizes: [String: UInt64] = [:]
     private(set) var runningPaths: Set<String> = []
+    /// 视图逐行只做集合查找；运行列表或清单变化时预先计算，避免计量期间反复解析符号链接和读取 Bundle。
+    private(set) var runningAppIDs: Set<String> = []
+    private(set) var runningPackageIDs: Set<String> = []
+    private(set) var currentAppPackageIDs: Set<String> = []
     private(set) var casksByPath: [String: HomebrewPackage] = [:]
     /// 展示来源可从快照恢复；卸载路由始终依赖本次实际读取的 casksByPath。
     private(set) var homebrewAppPaths: Set<String> = []
@@ -25,6 +29,8 @@ final class AppManagementController {
     private(set) var isRefreshingApps = false
     private(set) var isLoadingBrew = false
     private(set) var isCheckingUpdates = false
+    /// 尚无可用清单且最近一次读取失败：普通卸载降级可用，页面提示无法识别 Homebrew 来源。
+    private(set) var brewInventoryFailed = false
     private(set) var operation: HomebrewManagement.Action?
     private(set) var operationPackage: HomebrewPackage?
     var error: String?
@@ -36,6 +42,7 @@ final class AppManagementController {
     @ObservationIgnored private var appTask: Task<Void, Never>?
     @ObservationIgnored private var brewTask: Task<Void, Never>?
     @ObservationIgnored private var operationTask: Task<Void, Never>?
+    @ObservationIgnored private var updateTask: Task<Void, Never>?
     @ObservationIgnored private var appGeneration = UUID()
     @ObservationIgnored private var brewGeneration = UUID()
     @ObservationIgnored private var measuredApps: Set<String> = []
@@ -48,6 +55,10 @@ final class AppManagementController {
     @ObservationIgnored private let cacheURL: URL?
     @ObservationIgnored private var cacheWriteFailed = false
     @ObservationIgnored private var brewReadDate: Date?
+    /// 清单读取失败的时间；退避期内自动读取不再重跑 brew，用户显式刷新可绕过。
+    @ObservationIgnored private var brewFailureDate: Date?
+    static let brewInventoryLifetime: TimeInterval = 300
+    static let brewRetryDelay: TimeInterval = 600
     @ObservationIgnored private var runningObservation: NSKeyValueObservation?
     @ObservationIgnored private let listApps: @Sendable () throws -> [InstalledApp]
     @ObservationIgnored private let inspectApp: @Sendable (InstalledApp) -> ApplicationMetadata
@@ -57,11 +68,14 @@ final class AppManagementController {
     @ObservationIgnored private let performAction: @Sendable (HomebrewManagement.Action, HomebrewPackage) async throws -> Void
     let brewAvailable: Bool
     var isReading: Bool { appTask != nil || brewTask != nil }
-    var hasBrewInventory: Bool { !brewAvailable || brewReadDate != nil }
+    /// Homebrew 来源已确定：读取成功，或读取失败后降级为普通卸载（不因 brew 故障禁用全部卸载）。
+    var hasBrewInventory: Bool { !brewAvailable || brewReadDate != nil || brewInventoryFailed }
     var hasAppInventory: Bool { appReadDate != nil || hasCachedAppInventory }
     var isRestoringAppCache: Bool { cacheURL != nil && !didLoadCache }
 
-    func isCurrentApp(_ package: HomebrewPackage) -> Bool {
+    func isCurrentApp(_ package: HomebrewPackage) -> Bool { currentAppPackageIDs.contains(package.id) }
+
+    private static func containsCurrentApp(_ package: HomebrewPackage) -> Bool {
         let current = Bundle.main.bundleURL.resolvingSymlinksInPath().path
         let identifier = Bundle.main.bundleIdentifier
         return package.applicationURLs.contains { url in
@@ -112,7 +126,8 @@ final class AppManagementController {
             apps = []; metadata = [:]; sizes = [:]; measuredApps = []
             packages = []; packageSizes = [:]; measuredPackages = []; casksByPath = [:]
             homebrewAppPaths = []
-            appReadDate = nil; brewReadDate = nil
+            appReadDate = nil; brewReadDate = nil; brewFailureDate = nil; brewInventoryFailed = false
+            updatePackageIdentities()
             appFingerprints = [:]; measuredAppDates = [:]
             didLoadCache = false
             hasCachedAppInventory = false
@@ -151,7 +166,7 @@ final class AppManagementController {
         if tab == .apps {
             readApps(force: false, refreshInventory: true)
         }
-        readBrew(force: brewReadDate.map { Date().timeIntervalSince($0) > 300 } ?? false)
+        readBrew(force: false)
     }
 
     private func updateRunningPaths() {
@@ -160,7 +175,22 @@ final class AppManagementController {
             guard let url = application.bundleURL else { continue }
             paths.formUnion(Self.bundlePathIdentities(url))
         }
-        if runningPaths != paths { runningPaths = paths }
+        guard runningPaths != paths else { return }
+        runningPaths = paths
+        updateRunningIDs()
+    }
+
+    private func updateRunningIDs() {
+        let apps = Set(apps.filter { isRunning($0.url) }.map(\.id))
+        let packages = Set(packages.filter { $0.applicationURLs.contains { isRunning($0) } }.map(\.id))
+        if runningAppIDs != apps { runningAppIDs = apps }
+        if runningPackageIDs != packages { runningPackageIDs = packages }
+    }
+
+    private func updatePackageIdentities() {
+        let current = Set(packages.filter(Self.containsCurrentApp).map(\.id))
+        if currentAppPackageIDs != current { currentAppPackageIDs = current }
+        updateRunningIDs()
     }
 
     func refresh() {
@@ -172,11 +202,18 @@ final class AppManagementController {
         resume()
     }
 
+    /// 卸载等已知变更后重新核对清单；与手动刷新不同，未变化的应用沿用指纹与 24 小时体积缓存。
+    func reloadInventory() {
+        guard visible, !paused, operation == nil else { return }
+        cancelReading()
+        resume()
+    }
+
     private func cancelReading() {
         appGeneration = UUID(); brewGeneration = UUID()
         appTask?.cancel(); brewTask?.cancel()
         appTask = nil; brewTask = nil
-        isLoadingApps = false; isMeasuringApps = false; isRefreshingApps = false; isLoadingBrew = false; isCheckingUpdates = false
+        isLoadingApps = false; isMeasuringApps = false; isRefreshingApps = false; isLoadingBrew = false
         runningObservation = nil
     }
 
@@ -206,6 +243,7 @@ final class AppManagementController {
                     self.didLoadCache = true
                     if let cached {
                         self.apps = cached.entries.map(\.app)
+                        self.updateRunningIDs()
                         if self.brewReadDate == nil {
                             self.homebrewAppPaths = Set(cached.entries.filter { $0.isHomebrew == true }.map(\.path))
                         }
@@ -245,6 +283,7 @@ final class AppManagementController {
                         return (0...AppInventoryCache.measurementLifetime).contains(Date().timeIntervalSince(date))
                     }.map(\.id))
                     self.apps = apps; self.appReadDate = Date()
+                    self.updateRunningIDs()
                     let ids = Set(apps.map(\.id))
                     self.metadata = self.metadata.filter { ids.contains($0.key) }
                     // 保留旧显示值，实际测量只重做新增、变化或超过一天的应用；手动扫描重新计量全部。
@@ -322,32 +361,41 @@ final class AppManagementController {
         }
     }
 
-    private func readBrew(force: Bool, checkUpdates: Bool = false) {
-        guard visible, !paused, enabled, brewAvailable, brewTask == nil, operation == nil else { return }
-        if !force, brewReadDate != nil, tab == .apps || packages.allSatisfy({ measuredPackages.contains($0.id) }) { return }
+    /// `force` 仅用于用户手动刷新：重新读取清单并重新计量全部软件包。
+    /// 自动读取在清单过期时重新读取，只重测内容有变化的包；失败后按退避间隔重试。
+    private func readBrew(force: Bool) {
+        guard visible, !paused, enabled, brewAvailable, brewTask == nil, updateTask == nil, operation == nil else { return }
+        let stale = brewReadDate.map { Date().timeIntervalSince($0) > Self.brewInventoryLifetime } ?? true
+        let retryBlocked = brewFailureDate.map { Date().timeIntervalSince($0) < Self.brewRetryDelay } ?? false
+        let needsInventory = force || (stale && !retryBlocked)
+        if !needsInventory, brewReadDate == nil || tab == .apps || packages.allSatisfy({ measuredPackages.contains($0.id) }) { return }
         let generation = UUID(); brewGeneration = generation
-        let list = listPackages; let update = updateIndex; let measure = measureSize
-        isLoadingBrew = brewReadDate == nil || force; isCheckingUpdates = checkUpdates
+        let list = listPackages; let measure = measureSize
+        isLoadingBrew = needsInventory
         brewTask = Task { [weak self] in
             defer { if let self, self.brewGeneration == generation {
-                self.brewTask = nil; self.isLoadingBrew = false; self.isCheckingUpdates = false
+                self.brewTask = nil; self.isLoadingBrew = false
             } }
             do {
-                if checkUpdates { try await update() }
-                if force || self?.brewReadDate == nil {
+                if needsInventory {
                     let packages = try await list()
                     try Task.checkCancellation()
                     guard let self, self.brewGeneration == generation else { return }
+                    let previous = Dictionary(self.packages.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
                     self.packages = packages; self.brewReadDate = Date(); self.isLoadingBrew = false
-                    self.isCheckingUpdates = false
+                    if self.brewFailureDate != nil { Log.app.notice("Homebrew inventory recovered") }
+                    self.brewFailureDate = nil; self.brewInventoryFailed = false
                     let ids = Set(packages.map(\.id))
+                    // 手动刷新重新计量全部；其余情况只重测新增或内容变化（版本、产物等）的包。
+                    let unchanged = Set(packages.filter { !force && previous[$0.id] == $0 }.map(\.id))
                     self.packageSizes = force ? [:] : self.packageSizes.filter { ids.contains($0.key) }
-                    self.measuredPackages = force ? [] : self.measuredPackages.intersection(ids)
+                    self.measuredPackages.formIntersection(unchanged)
                     self.casksByPath = [:]
                     for package in packages where package.kind == .cask {
                         for url in package.applicationURLs { self.casksByPath[url.standardizedFileURL.path] = package }
                     }
                     self.homebrewAppPaths = Set(self.casksByPath.keys)
+                    self.updatePackageIdentities()
                     if self.appTask == nil, self.appReadDate != nil { await self.saveAppCache() }
                     try Task.checkCancellation()
                     guard self.brewGeneration == generation else { return }
@@ -372,20 +420,56 @@ final class AppManagementController {
                     guard self.brewGeneration == generation else { return }
                     self.measuredPackages.insert(package.id)
                 }
-                if checkUpdates { Log.app.notice("Homebrew update index refreshed") }
             } catch {
                 guard let self, !Task.isCancelled, self.brewGeneration == generation else { return }
+                // 只有清单读取会走到这里（计量失败逐包吞掉）。记录失败时间用于退避，
+                // 尚无清单时降级：清空路由表，普通卸载可用并提示无法识别 Homebrew 来源。
+                let firstFailure = self.brewFailureDate == nil
+                self.brewFailureDate = Date()
+                if self.brewReadDate == nil {
+                    // 来源未知时不保留旧包列表与来源标记，避免界面显示 Homebrew 却走普通卸载。
+                    self.brewInventoryFailed = true
+                    self.casksByPath = [:]; self.homebrewAppPaths = []; self.packages = []
+                    self.updatePackageIdentities()
+                }
                 self.error = tr("Homebrew 操作失败，请在终端检查后重试")
-                Log.app.error("Homebrew inventory failed: \(String(describing: error).prefix(500), privacy: .private)")
+                if firstFailure {
+                    Log.app.error("Homebrew inventory failed: \(String(describing: error).prefix(500), privacy: .private)")
+                }
             }
         }
     }
 
+    /// 用户主动发起的 brew update 与写操作一样独立收尾，不随切换标签、关闭窗口或锁屏取消；App 退出时允许终止。
     func checkBrewUpdates() {
-        guard visible, !paused, operation == nil, !isCheckingUpdates else { return }
-        brewTask?.cancel(); brewTask = nil
+        guard visible, !paused, enabled, brewAvailable, operation == nil, updateTask == nil else { return }
+        brewGeneration = UUID(); brewTask?.cancel(); brewTask = nil; isLoadingBrew = false
         error = nil; message = nil
-        readBrew(force: true, checkUpdates: true)
+        isCheckingUpdates = true
+        let update = updateIndex
+        updateTask = Task { [weak self] in
+            var succeeded = false
+            do {
+                try await update()
+                succeeded = true
+                Log.app.notice("Homebrew update index refreshed")
+            } catch {
+                self?.error = tr("Homebrew 操作失败，请在终端检查后重试")
+                Log.app.error("Homebrew update failed: \(String(describing: error).prefix(500), privacy: .private)")
+            }
+            guard let self else { return }
+            self.updateTask = nil; self.isCheckingUpdates = false
+            guard self.enabled else { return }
+            guard succeeded else {
+                // 检查更新期间可能取消了清单读取；失败后仍需补读，避免卸载入口停留在不可用状态。
+                if self.visible, !self.paused { self.readBrew(force: false) }
+                return
+            }
+            // 远端索引已更新：标记清单过期，由 Homebrew 重新判定 outdated；保留路由表直至新清单到达。
+            if self.brewReadDate != nil { self.brewReadDate = .distantPast }
+            self.brewFailureDate = nil
+            if self.visible, !self.paused { self.readBrew(force: false) }
+        }
     }
 
     /// 原生截图使用演示清单，不扫描本机或调用 Homebrew。
@@ -400,6 +484,7 @@ final class AppManagementController {
         }
         homebrewAppPaths = Set(casksByPath.keys)
         runningPaths = Set(apps.prefix(2).flatMap { Self.bundlePathIdentities($0.url) })
+        updatePackageIdentities()
         measuredApps = Set(apps.map(\.id)); measuredPackages = Set(packages.map(\.id))
         appReadDate = Date(); brewReadDate = Date()
     }
@@ -415,22 +500,31 @@ final class AppManagementController {
         cancelReading()
         operation = action; operationPackage = package; error = nil; message = nil
         let perform = performAction
-        // 已确认的安装／卸载不能因为切换标签或关闭窗口被中途打断。完成后使两个列表失效。
+        // 已确认的安装／卸载不能因为切换标签或关闭窗口被中途打断。
         operationTask = Task { [weak self] in
             do {
                 try await perform(action, package)
                 self?.message = tr("Homebrew 操作已完成")
                 Log.app.notice("Homebrew operation completed action=\(action.rawValue, privacy: .public)")
+            } catch ToolExecutionError.timedOut {
+                // 超时只停止等待，brew 可能仍在后台执行，不能报告为失败或成功。
+                self?.error = tr("Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态")
+                Log.app.error("Homebrew operation timed out action=\(action.rawValue, privacy: .public)")
             } catch {
                 self?.error = tr("Homebrew 操作失败，请在终端检查后重试")
                 Log.app.error("Homebrew operation failed action=\(action.rawValue, privacy: .public) error=\(String(describing: error).prefix(500), privacy: .private)")
             }
             guard let self else { return }
             self.operation = nil; self.operationPackage = nil; self.operationTask = nil
-            self.appReadDate = nil; self.brewReadDate = nil
-            self.measuredApps = []; self.measuredPackages = []; self.sizes = [:]; self.packageSizes = [:]
-            self.metadata = [:]; self.casksByPath = [:]
-            self.homebrewAppPaths = []
+            // 只让相关数据失效：清单重新读取后，依赖等内容变化的包按差异重测；
+            // 该 Cask 的应用丢弃计量时间以便重测，其余应用沿用指纹与体积缓存。
+            // 已知安装状态改变，必须立即重读清单，不受此前读取失败的退避限制。
+            self.brewReadDate = nil; self.brewFailureDate = nil; self.casksByPath = [:]
+            self.measuredPackages.remove(package.id)
+            for url in package.applicationURLs {
+                let id = url.standardizedFileURL.path
+                self.measuredApps.remove(id); self.measuredAppDates.removeValue(forKey: id)
+            }
             if self.visible, !self.paused, self.enabled { self.resume() }
         }
     }

@@ -27,16 +27,23 @@ struct MagpieUsageTests {
         #expect(quotas[2].resets?.count == nil)
     }
 
-    @Test func boundsAccountInformationAndCardLists() throws {
-        let base: [String: Any] = ["provider": "codex", "name": "demo", "kind": "subscription", "windows": []]
+    @Test func invalidAccountInformationIsTreatedAsUnknown() throws {
+        let base: [String: Any] = ["provider": "codex", "name": "demo", "kind": "subscription",
+                                   "windows": [["name": "5 hours", "remaining": 40]]]
         for fields: [String: Any] in [
-            ["user": String(repeating: "a", count: 513)],
+            ["user": String(repeating: "a", count: 513)], ["user": ["id": 1]],
+            ["until": "2026-11-01"], ["until": ""],
+            ["resets": 2], ["resets": ["count": "2"]],
             ["resets": ["count": -1]], ["resets": ["count": 1_000_001]],
             ["resets": ["count": 2, "each": Array(repeating: ["until": NSNull()], count: 1001)]],
         ] {
             let record = base.merging(fields) { _, new in new }
-            let data = try JSONSerialization.data(withJSONObject: ["object": "list", "data": [record]])
-            #expect(throws: MagpieFailure.invalidResponse) { try MagpieClient.decodeQuotas(data) }
+            let other: [String: Any] = ["provider": "grok", "name": "other", "kind": "subscription", "windows": []]
+            let data = try JSONSerialization.data(withJSONObject: ["object": "list", "data": [record, other]])
+            let quotas = try MagpieClient.decodeQuotas(data)
+            #expect(quotas.count == 2)
+            #expect(quotas[0].windows.first?.remaining == 40)
+            #expect(quotas[0].user == nil && quotas[0].until == nil && quotas[0].resets == nil)
         }
     }
 

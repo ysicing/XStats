@@ -43,11 +43,15 @@ public struct MainWindowView: View {
         .ignoresSafeArea()
         // 文案在各视图计算时翻译好，切换语言后整棵视图重建
         .appLanguageEnvironment()
-        .onAppear {
-            // 旧版记住的散热页可能尚未确认有风扇，先展示移入能耗的温度内容。
-            if model.settings.panelTab == .thermal, !model.store.supportsFans {
-                model.settings.panelTab = .battery
-            }
+        .onAppear { leaveThermalPageWithoutFans() }
+        .onChange(of: model.store.fanCount) { leaveThermalPageWithoutFans() }
+    }
+
+    /// 旧版记住的散热页在确认无风扇时改为展示移入能耗的温度内容；
+    /// 风扇数量未知时保留选择，避免启动探测完成前改写偏好。
+    private func leaveThermalPageWithoutFans() {
+        if model.settings.panelTab == .thermal, model.store.fanCount == 0 {
+            model.settings.panelTab = .battery
         }
     }
 

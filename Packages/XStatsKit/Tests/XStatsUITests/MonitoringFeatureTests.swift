@@ -112,6 +112,73 @@ final class MonitoringFeatureTests {
         #expect(settings.enabledAlerts == Set(AlertKind.allCases), "关闭功能保留告警偏好")
     }
 
+    /// 旧版偏好域：只写入模块集合、菜单栏项和告警，按升级后首次启动读取。
+    private func legacyDefaults(modules: [MonitoringModule]?, items: [MenuBarItem] = [.temperature],
+                                alerts: [AlertKind] = [.cpuTemperature]) -> UserDefaults {
+        let suite = "MonitoringFeatureTests.\(UUID())"
+        suites.append(suite)
+        let defaults = UserDefaults(suiteName: suite)!
+        if let modules { defaults.set(modules.map(\.rawValue), forKey: "enabledMonitoringModules") }
+        defaults.set(items.map(\.rawValue), forKey: "menuBarItems")
+        defaults.set(alerts.map(\.rawValue), forKey: "enabledAlerts")
+        return defaults
+    }
+
+    @Test func upgradeWithThermalOnlyEnablesEnergyAndKeepsTemperatureFeatures() {
+        let defaults = legacyDefaults(modules: [.cpu, .thermal])
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.isModuleEnabled(.battery) && settings.isModuleEnabled(.thermal))
+        #expect(settings.isEnabled(.temperature))
+        #expect(settings.activeAlerts == [.cpuTemperature])
+        // 再次启动不重复迁移：用户随后关闭能耗应被保留。
+        settings.setModuleEnabled(.battery, false)
+        let reloaded = AppSettings(defaults: defaults)
+        #expect(!reloaded.isModuleEnabled(.battery) && reloaded.isModuleEnabled(.thermal))
+    }
+
+    @Test func upgradeWithBatteryOnlyKeepsCPUTemperatureAlertOff() {
+        let defaults = legacyDefaults(modules: [.cpu, .battery], alerts: [.cpuTemperature, .batteryHealth])
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.enabledMonitoringModules == [.cpu, .battery])
+        #expect(settings.enabledAlerts == [.batteryHealth])
+        // 迁移后用户重新开启告警，再次启动不能被重复关闭。
+        settings.enabledAlerts.insert(.cpuTemperature)
+        let reloaded = AppSettings(defaults: defaults)
+        #expect(reloaded.enabledAlerts == [.cpuTemperature, .batteryHealth])
+    }
+
+    @Test func freshInstallAndOtherCombinationsOnlyRecordTheMigration() {
+        let fresh = legacyDefaults(modules: nil, items: [.cpu], alerts: [])
+        let freshSettings = AppSettings(defaults: fresh)
+        #expect(freshSettings.enabledMonitoringModules == Set(MonitoringModule.allCases))
+        #expect(fresh.bool(forKey: "energyModulesMigrated"))
+        // 标记已写入后，即使之后出现旧组合也不再改写。
+        freshSettings.enabledMonitoringModules = [.thermal]
+        #expect(!AppSettings(defaults: fresh).isModuleEnabled(.battery))
+        for modules: [MonitoringModule] in [[.battery, .thermal], [.cpu]] {
+            let defaults = legacyDefaults(modules: modules)
+            let settings = AppSettings(defaults: defaults)
+            #expect(settings.enabledMonitoringModules == Set(modules))
+            #expect(settings.enabledAlerts == [.cpuTemperature])
+            #expect(defaults.bool(forKey: "energyModulesMigrated"))
+        }
+    }
+
+    @Test func disabledEnergyPageDoesNotKeepOneSecondSampling() {
+        let settings = settings()
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        settings.menuBarItems = []
+        settings.panelTab = .battery
+        model.isMainWindowVisible = true
+        #expect(settings.historyEnabled)
+        #expect(model.demand.interval == .seconds(1))
+        settings.setModuleEnabled(.battery, false)
+        // 历史记录仍需其他模块采样，回到后台间隔而不是实时页的每秒采样。
+        #expect(model.demand.interval == .seconds(settings.refreshSeconds))
+        settings.enabledMonitoringModules = []
+        #expect(model.demand.interval == .seconds(10))
+    }
+
     @Test func processSummaryRequestsEnabledCPUWithoutHistoryOrMenu() {
         let settings = settings()
         settings.historyEnabled = false

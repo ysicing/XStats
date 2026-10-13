@@ -107,6 +107,9 @@ public actor MetricsHub {
         restart()
     }
 
+    /// 启动时识别风扇硬件，不依赖采样循环是否运行；与传感器采样共用连接与缓存。
+    public func detectFanCount() -> Int? { sensors.detectFanCount() }
+
     /// 锁屏、屏幕休眠或系统睡眠时暂停采样
     public func setPaused(_ value: Bool) {
         guard value != paused else { return }

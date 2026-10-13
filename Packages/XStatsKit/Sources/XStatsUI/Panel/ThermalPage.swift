@@ -5,9 +5,15 @@ import SwiftUI
 
 /// 能耗详情复用电池弹窗分区；没有内置电池也能查看功耗、App 能耗与温度。
 struct EnergyPage: View {
+    @Environment(AppModel.self) private var model
+
     var body: some View {
-        PageScroll { BatteryPopover() }
-            .environment(\.isDetailPage, true)
+        PageScroll {
+            // 能耗关闭时保留基础电池信息，顶部给出启用入口；其余实时内容由各分区按开关隐藏。
+            if !model.settings.isModuleEnabled(.battery) { MonitoringEnableCard(module: .battery, compact: true) }
+            BatteryPopover()
+        }
+        .environment(\.isDetailPage, true)
     }
 }
 

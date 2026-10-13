@@ -687,8 +687,13 @@ public final class AppSettings {
     }
     /// 只控制菜单栏展示，不改变额度查询、本地用量来源或系统小组件。
     public var aiMenuBarProviders: Set<String> {
-        didSet { defaults.set(aiMenuBarProviders.sorted(), forKey: Keys.aiMenuBarProviders) }
+        didSet {
+            defaults.set(aiMenuBarProviders.sorted(), forKey: Keys.aiMenuBarProviders)
+            aiMenuBarProvidersFollowLegacyOrder = false
+        }
     }
+    /// 1.2.0 及更早版本按服务名排序取前三个有效服务；升级用户首次读到额度时据此生成选择，保持显示的服务集合不变（顺序沿用当前品牌顺序）。
+    public internal(set) var aiMenuBarProvidersFollowLegacyOrder: Bool
     public var aiUsageWesternUnits: Bool {
         didSet { defaults.set(aiUsageWesternUnits, forKey: Keys.aiUsageWesternUnits) }
     }
@@ -895,6 +900,8 @@ public final class AppSettings {
         let savedCalendarFirstWeekday = (defaults.object(forKey: Keys.calendarFirstWeekday) as? Int)
             .flatMap { (1...7).contains($0) ? $0 : nil }
         calendarFirstWeekday = savedCalendarFirstWeekday ?? (isExistingCalendarInstall ? 2 : calendar.firstWeekday)
+        // 须在读取模块和过滤菜单栏项之前迁移，否则旧版温度菜单项会因能耗关闭被过滤并在下次写回时丢失。
+        Self.migrateEnergyModules(defaults)
         let items = defaults.stringArray(forKey: Keys.menuBarItems)?.compactMap(MenuBarItem.init(rawValue:))
         let modules = defaults.stringArray(forKey: "enabledMonitoringModules")
         let enabledModules = modules.map { Set($0.compactMap(MonitoringModule.init(rawValue:))) }
@@ -930,8 +937,16 @@ public final class AppSettings {
             .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
         aiUsageShowsLocalUsage = defaults.object(forKey: Keys.aiUsageShowsLocalUsage) as? Bool ?? true
         aiQuotaShowsRemaining = defaults.object(forKey: Keys.aiQuotaShowsRemaining) as? Bool ?? true
-        aiMenuBarProviders = defaults.stringArray(forKey: Keys.aiMenuBarProviders).map(Set.init)
-            ?? Set(["codex", "claude", "grok", "gemini"])
+        let savedAIMenuBarProviders = defaults.stringArray(forKey: Keys.aiMenuBarProviders).map(Set.init)
+        let defaultAIMenuBarProviders: Set<String> = ["codex", "claude", "grok", "gemini"]
+        aiMenuBarProviders = savedAIMenuBarProviders ?? defaultAIMenuBarProviders
+        // 已有安装（保存过菜单栏项）缺少该键时沿用旧版规则；全新安装使用默认服务集合。
+        let followsLegacyAIMenuBarOrder = savedAIMenuBarProviders == nil && items != nil
+        aiMenuBarProvidersFollowLegacyOrder = followsLegacyAIMenuBarOrder
+        // 全新安装立即保存默认集合，之后保存菜单栏项也不会被误判为旧版升级。
+        if savedAIMenuBarProviders == nil, !followsLegacyAIMenuBarOrder {
+            defaults.set(defaultAIMenuBarProviders.sorted(), forKey: Keys.aiMenuBarProviders)
+        }
         aiUsageWesternUnits = defaults.bool(forKey: Keys.aiUsageWesternUnits)
         aiUsageCurrency = defaults.string(forKey: Keys.aiUsageCurrency).flatMap(AIUsageCurrency.init(rawValue:)) ?? .usd
         aiUsageRefreshMinutes = Self.aiUsageRefreshOptions.contains(defaults.integer(forKey: Keys.aiUsageRefreshMinutes))
@@ -1035,6 +1050,27 @@ public final class AppSettings {
     }
 
     func isModuleEnabled(_ module: MonitoringModule) -> Bool { enabledMonitoringModules.contains(module) }
+
+    /// v1.2.0 之后温度、功耗、温度菜单项和 CPU 温度告警从 thermal 移到 battery（能耗），thermal 只管风扇；
+    /// 偏好沿用原标识，因此一次性按旧语义修正：
+    /// - 旧版散热开、电池关：开启能耗，让温度相关功能延续；
+    /// - 旧版散热关、电池开：旧版不生效的 CPU 温度告警保持关闭，不因迁移突然开始提醒。
+    /// 没有保存模块集合时为默认全开，无需迁移；新安装同样只写标记。
+    static func migrateEnergyModules(_ defaults: UserDefaults) {
+        guard !defaults.bool(forKey: Keys.energyModulesMigrated) else { return }
+        defer { defaults.set(true, forKey: Keys.energyModulesMigrated) }
+        guard var modules = defaults.stringArray(forKey: "enabledMonitoringModules") else { return }
+        let thermal = modules.contains(MonitoringModule.thermal.rawValue)
+        let battery = modules.contains(MonitoringModule.battery.rawValue)
+        if thermal && !battery {
+            modules.append(MonitoringModule.battery.rawValue)
+            defaults.set(modules.sorted(), forKey: "enabledMonitoringModules")
+        } else if !thermal && battery, var alerts = defaults.stringArray(forKey: Keys.enabledAlerts),
+                  alerts.contains(AlertKind.cpuTemperature.rawValue) {
+            alerts.removeAll { $0 == AlertKind.cpuTemperature.rawValue }
+            defaults.set(alerts, forKey: Keys.enabledAlerts)
+        }
+    }
 
     func isModuleEnabled(for item: MenuBarItem) -> Bool {
         // 电池基础信息与显示器信息始终可展示，功能开关仅控制额外采集或参数控制。
@@ -1144,6 +1180,7 @@ public final class AppSettings {
         static let hotKeys = "hotKeys"
         static let language = "language"
         static let enabledAlerts = "enabledAlerts"
+        static let energyModulesMigrated = "energyModulesMigrated"
         static let notifyUpdates = "notifyUpdates"
         static let alertCPUTemperature = "alertCPUTemperature"
         static let alertCPULoad = "alertCPULoad"

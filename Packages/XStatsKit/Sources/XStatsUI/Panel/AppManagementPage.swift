@@ -40,6 +40,11 @@ struct AppManagementPage: View {
             } else if let message = controller.message {
                 InfoBanner(icon: "checkmark.circle", text: message, tone: .success)
             }
+            if tab == .apps, controller.brewInventoryFailed {
+                // 清单失败时普通卸载降级可用；如实提示 Cask 安装的应用此时不会走 Homebrew 卸载。
+                Label(tr("无法识别 Homebrew 来源，由 Homebrew 安装的应用请在终端卸载"), systemImage: "info.circle")
+                    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            }
             if tab == .homebrew, !controller.brewAvailable, !isSnapshot {
                 ContentUnavailableView(tr("尚未安装 Homebrew"), systemImage: "shippingbox", description: Text(tr("安装 Homebrew 后，可在这里管理 Formula 与 Cask。")))
                     .frame(maxHeight: .infinity)
@@ -58,7 +63,7 @@ struct AppManagementPage: View {
         }
         .onChange(of: tab) { _, value in selection = nil; search = ""; controller.selectTab(value) }
         .onChange(of: model.uninstaller.isRemoving) { old, new in
-            if old && !new { controller.refresh() }
+            if old && !new { controller.reloadInventory() }
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             guard controller.operation == nil, let provider = providers.first else { return false }
@@ -264,7 +269,8 @@ struct AppManagementPage: View {
             Text(tr("\(count) 项"))
             let known = rows.compactMap(\.size)
             if !known.isEmpty {
-                Text(verbatim: (known.count == rows.count ? "" : tr("已计量") + " ") + Format.bytes(known.reduce(0, +), base: .decimal))
+                let bytes = Format.bytes(known.reduce(0, +), base: .decimal)
+                Text(verbatim: known.count == rows.count ? bytes : tr("已计量 \(bytes)"))
             }
             if controller.isCheckingUpdates { ProgressView().controlSize(.small); Text(tr("正在检查更新")) }
             if let action = controller.operation {
@@ -336,14 +342,14 @@ struct AppManagementPage: View {
                 return ManagedApplicationRow(id: app.id, name: app.name, version: app.version ?? "—",
                     size: controller.sizes[app.id], kind: metadata?.architecture.title ?? "—", lastOpened: metadata?.lastOpened,
                     source: controller.homebrewAppPaths.contains(app.id) ? "Homebrew" : metadata?.isAppStore == true ? "App Store" : "—",
-                    isRunning: controller.isRunning(app.url), app: app, package: nil)
+                    isRunning: controller.runningAppIDs.contains(app.id), app: app, package: nil)
             }
         } else {
             rows = controller.packages.filter { filter.matches($0) }.map { package in
                 ManagedApplicationRow(id: package.id, name: package.displayName, version: package.version,
                     size: controller.packageSizes[package.id], kind: package.kind == .formula ? "Formula" : "Cask",
                     lastOpened: nil, source: package.name.contains("/") ? package.name.split(separator: "/").dropLast().joined(separator: "/") : (package.kind == .formula ? "homebrew/core" : "homebrew/cask"),
-                    isRunning: package.applicationURLs.contains { controller.isRunning($0) }, app: nil, package: package)
+                    isRunning: controller.runningPackageIDs.contains(package.id), app: nil, package: package)
             }
         }
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)

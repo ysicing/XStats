@@ -87,11 +87,20 @@ public final class AppModel {
     @ObservationIgnored var collapseToRestHUD: () -> Void = {}
     @ObservationIgnored var quit: () -> Void = {}
 
-    public init(settings: AppSettings = AppSettings(), historyURL: URL? = HistoryDatabase.defaultURL,
-                aiUsageProviders: [any AIUsageProvider]? = nil,
-                aiQuotaProviders: [any AIQuotaProvider]? = nil,
-                quotaCacheURL: URL? = nil, magpieClient: (any MagpieFetching)? = nil,
-                networkCacheDefaults: UserDefaults = .standard) {
+    public convenience init(settings: AppSettings = AppSettings(), historyURL: URL? = HistoryDatabase.defaultURL,
+                            aiUsageProviders: [any AIUsageProvider]? = nil,
+                            aiQuotaProviders: [any AIQuotaProvider]? = nil,
+                            quotaCacheURL: URL? = nil, magpieClient: (any MagpieFetching)? = nil,
+                            networkCacheDefaults: UserDefaults = .standard) {
+        self.init(settings: settings, historyURL: historyURL, aiUsageProviders: aiUsageProviders,
+                  aiQuotaProviders: aiQuotaProviders, quotaCacheURL: quotaCacheURL, magpieClient: magpieClient,
+                  networkCacheDefaults: networkCacheDefaults, fanControl: nil)
+    }
+
+    /// 测试可替换风扇特权调用，验证手动档位下的安全采样需求；nil 使用辅助工具。
+    init(settings: AppSettings, historyURL: URL?, aiUsageProviders: [any AIUsageProvider]?,
+         aiQuotaProviders: [any AIQuotaProvider]?, quotaCacheURL: URL?, magpieClient: (any MagpieFetching)?,
+         networkCacheDefaults: UserDefaults, fanControl: (any FanControlClient)?) {
         let store = MetricsStore()
         let helper = HelperClient()
         self.settings = settings
@@ -110,7 +119,7 @@ public final class AppModel {
             quotaCacheURL: quotaCacheURL, costReferenceStore: .shared, magpieClient: magpie)
         self.store = store
         self.helper = helper
-        fans = FanController(helper: helper, store: store, settings: settings)
+        fans = FanController(helper: fanControl ?? helper, store: store, settings: settings)
         keepAwake = KeepAwakeController(helper: helper, settings: settings)
         cleaner = CleanerController(settings: settings)
         projectPurge = ProjectPurgeController(settings: settings)
@@ -128,7 +137,18 @@ public final class AppModel {
         networkComponent.onUninstalled = { [weak self] in self?.settings.networkConnectionsEnabled = false }
         updates.onCheckCompleted = { [weak self] in self?.networkComponent.checkUpdates(background: true) }
         updates.cancelInstallationPreparation = { [weak self] in self?.connectionMonitor.cancelAppUpdate() }
+        detectFanHardware()
+    }
 
+    /// 风扇数量原本只随传感器采样识别；能耗与风扇都关闭时不再采样，未知数量会隐藏风扇开关和入口，
+    /// 用户无法重新开启。启动时在 Hub actor 上只读一次 FNum，不新增轮询，结果由传感器采样器复用。
+    private func detectFanHardware() {
+        guard store.fanCount == nil else { return }
+        let hub = hub
+        Task { [weak self] in
+            let count = await hub.detectFanCount()
+            self?.store.recordFanCount(count)
+        }
     }
 
     /// 安装面板回调与设置开关共用启用入口；先同步需求，避免偏好观察尚未调度时 start 被拒绝。
@@ -176,6 +196,7 @@ public final class AppModel {
         demand.generation = settings.monitoringGeneration
         let tab = settings.panelTab
         let window = isMainWindowVisible && (tab == .battery || (tab.monitoringModule.map(settings.isModuleEnabled) ?? true))
+        let energyEnabled = settings.isModuleEnabled(.battery)
         let processPage = settings.processesEnabled && window && tab == .processes
         let popover = openPopover.flatMap { settings.isModuleEnabled(for: $0) ? $0 : nil }
         let menu = Set(drawnMenuBarItems)
@@ -185,8 +206,9 @@ public final class AppModel {
         let fanPopover = popover == .fan
 
         // 仅实时监控页需要每秒采样；历史、工具和设置页沿用用户设置的后台间隔。
-        let liveWindow = window && [.overview, .system, .cpu, .gpu, .memory, .disk,
-                                    .network, .thermal, .battery].contains(tab)
+        // 能耗关闭时能耗页只展示基础电量，不算实时页，交给下方 10 秒基础电量分支。
+        let liveWindow = window && ([.overview, .system, .cpu, .gpu, .memory, .disk,
+                                     .network, .thermal].contains(tab) || (tab == .battery && energyEnabled))
         // AI 用量与显示器有各自的刷新机制，不读取采样结果，不应提高全局采样频率。
         let selfRefreshing: Set<MenuBarItem> = [.aiUsage, .display, .audio]
         let livePopover = popover.map { !selfRefreshing.contains($0) } ?? false
@@ -345,8 +367,10 @@ public final class AppModel {
 
     func handle(_ snapshot: MetricsSnapshot) {
         guard snapshot.samplingGeneration.map({ $0 == settings.monitoringGeneration }) ?? true else { return }
+        // 每个快照只计算一次需求；裁剪与清理期间不改变功耗和 App 能耗的读取方。
+        let demand = demand
         // actor 已采完的快照可能晚于开关关闭到达；在主线程再次按最终开关裁剪。
-        let filtered = snapshotForEnabledModules(snapshot)
+        let filtered = snapshotForEnabledModules(snapshot, demand: demand)
         store.clearDisabledModules(settings.enabledMonitoringModules, powerRequested: demand.power, appEnergyRequested: demand.appEnergy)
         store.apply(filtered)
         fans.evaluateSafety(temperature: snapshot.sensors?.temperature(.cpu)?.maximum)
@@ -355,7 +379,8 @@ public final class AppModel {
         history.record(filtered)
     }
 
-    func snapshotForEnabledModules(_ snapshot: MetricsSnapshot) -> MetricsSnapshot {
+    func snapshotForEnabledModules(_ snapshot: MetricsSnapshot, demand: MetricsDemand? = nil) -> MetricsSnapshot {
+        let demand = demand ?? self.demand
         var result = snapshot
         if !demand.appEnergy { result.appEnergy = nil }
         if !settings.isModuleEnabled(.cpu) { result.cpu = nil; result.power?.clusterFrequency = [:] }

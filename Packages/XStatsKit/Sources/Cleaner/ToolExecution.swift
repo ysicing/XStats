@@ -31,9 +31,10 @@ public enum ToolExecutionError: Error, LocalizedError, Sendable {
         case .timedOut(let tool): tr("\(tool) 执行超时，请稍后重试")
         case .outputTooLarge(let tool): tr("\(tool) 输出过大，请在终端检查")
         case .failed(let tool, let status, let output):
+            // 清理、软件包管理和检查更新共用此错误，文案不限定具体操作。
             output.isEmpty
-                ? tr("\(tool) 清理失败（退出码 \(status)）")
-                : tr("\(tool) 清理失败（退出码 \(status)）：\(output)")
+                ? tr("\(tool) 命令执行失败（退出码 \(status)）")
+                : tr("\(tool) 命令执行失败（退出码 \(status)）：\(output)")
         }
     }
 }
@@ -51,7 +52,8 @@ enum DeveloperToolRunner {
     @concurrent
     static func run(_ name: String, arguments: [String], home: String,
                     environmentOverrides: [String: String] = [:], timeout: TimeInterval? = nil,
-                    previewTimeout: TimeInterval = 60, outputLimit: Int = 2_000_000) async throws -> ToolRunResult {
+                    previewTimeout: TimeInterval = 60, outputLimit: Int = 2_000_000,
+                    includesStandardError: Bool = true) async throws -> ToolRunResult {
         try Task.checkCancellation()
         guard let executable = executable(named: name, home: home) else {
             throw ToolExecutionError.unavailable(name)
@@ -102,10 +104,13 @@ enum DeveloperToolRunner {
                 // 真实清理可能已删除部分文件，不因超时或输出量中断；仍响应用户取消。
                 return try await runHomebrewCleanup(process, outputLimit: outputLimit)
             }
-            if !["upgrade", "uninstall"].contains(arguments.first ?? "") {
-                return try await runHomebrewPreview(process, timeout: previewTimeout, outputLimit: outputLimit)
+            if ["upgrade", "uninstall"].contains(arguments.first ?? "") {
+                // 已确认的安装修改不受预览时限与输出限额约束，避免中断部分完成的操作。
+                return try await runHomebrewOperation(process, timeout: timeout ?? homebrewOperationTimeout,
+                                                      outputLimit: outputLimit)
             }
-            // 已确认的安装修改使用下方的持续排空管道；不能因预览限额中断部分完成的操作。
+            return try await runHomebrewPreview(process, timeout: previewTimeout, outputLimit: outputLimit,
+                                                includesStandardError: includesStandardError)
         }
 
         let pipe = Pipe()
@@ -164,7 +169,9 @@ enum DeveloperToolRunner {
     }
 
     /// 预览需要完整输出才能解析；超过限制时终止只读命令。
-    private static func runHomebrewPreview(_ process: Process, timeout: TimeInterval, outputLimit: Int) async throws -> ToolRunResult {
+    /// `includesStandardError` 为 false 时丢弃 stderr，供只解析 stdout 的 JSON 清单使用。
+    private static func runHomebrewPreview(_ process: Process, timeout: TimeInterval, outputLimit: Int,
+                                           includesStandardError: Bool) async throws -> ToolRunResult {
         let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("xstats-brew-\(UUID())")
         guard FileManager.default.createFile(atPath: outputURL.path, contents: nil) else {
             throw CocoaError(.fileWriteUnknown)
@@ -177,7 +184,7 @@ enum DeveloperToolRunner {
             try? handle.close()
         }
         process.standardOutput = handle
-        process.standardError = handle
+        process.standardError = includesStandardError ? handle : FileHandle.nullDevice
         process.standardInput = FileHandle.nullDevice
         // 预览的截止时间不能依赖协作线程池或共享 Dispatch 队列；退出时立即唤醒等待线程。
         defer { watchdog.markExited() }
@@ -206,6 +213,63 @@ enum DeveloperToolRunner {
                                             output: String(output.prefix(2_000)))
         }
         return ToolRunResult(status: process.terminationStatus, output: output)
+    }
+
+    /// 已确认的 brew 写操作的总时限。超时只停止等待、不结束 brew，避免打断部分完成的安装。
+    static let homebrewOperationTimeout: TimeInterval = 3_600
+
+    /// 已确认的 brew 写操作：输出写入临时文件，只等待主进程退出，不等待输出 EOF。
+    /// Cask postflight / post_install 可能拉起继承 stdout 的后台进程，若等管道 EOF 操作会永不结束；
+    /// 输出指向文件也保证 XStats 退出后 brew 不会因 SIGPIPE 中断，可在后台继续完成。
+    /// 用户取消时结束本次启动的进程（与其他工具一致）；超时不结束，由调用方提示用户在终端核对。
+    private static func runHomebrewOperation(_ process: Process, timeout: TimeInterval, outputLimit: Int) async throws -> ToolRunResult {
+        let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("xstats-brew-\(UUID())")
+        guard FileManager.default.createFile(atPath: outputURL.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        // 超时后 brew 可能仍在写入；删除目录项不影响它继续写，文件在其退出后由系统回收。
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+        let handle = try FileHandle(forWritingTo: outputURL)
+        process.standardOutput = handle
+        process.standardError = handle
+        process.standardInput = FileHandle.nullDevice
+        try Task.checkCancellation()
+        do { try process.run() } catch {
+            try? handle.close()
+            throw ToolExecutionError.failed(tool: "brew", status: -1, output: error.localizedDescription)
+        }
+        // 子进程已持有自己的副本，父进程不再需要写端。
+        try? handle.close()
+        let deadline = ContinuousClock.now.advanced(by: .seconds(timeout))
+        do {
+            // 写操作通常持续数秒到数分钟，较低的轮询频率足以及时感知退出与取消，避免长时间高频唤醒。
+            while process.isRunning {
+                try Task.checkCancellation()
+                guard ContinuousClock.now < deadline else { throw ToolExecutionError.timedOut("brew") }
+                try await Task.sleep(for: .milliseconds(100), tolerance: .milliseconds(50))
+            }
+            try Task.checkCancellation()
+        } catch is CancellationError {
+            stop(process)
+            throw CancellationError()
+        }
+        let output = String(decoding: try readTail(of: outputURL, limit: outputLimit), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard process.terminationStatus == 0 else {
+            throw ToolExecutionError.failed(tool: "brew", status: process.terminationStatus,
+                                            output: String(output.suffix(2_000)))
+        }
+        return ToolRunResult(status: process.terminationStatus, output: output)
+    }
+
+    /// 只读取文件末尾 `limit` 字节，诊断文本保持有界。
+    private static func readTail(of url: URL, limit: Int) throws -> Data {
+        let reader = try FileHandle(forReadingFrom: url)
+        defer { try? reader.close() }
+        let size = try reader.seekToEnd()
+        let limit = UInt64(max(0, limit))
+        try reader.seek(toOffset: size > limit ? size - limit : 0)
+        return try reader.read(upToCount: Int(min(size, limit))) ?? Data()
     }
 
     /// 持续排空管道，让清理执行到底；只保留有限的末尾诊断文本和逐行汇总。

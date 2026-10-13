@@ -27,6 +27,27 @@ public struct MagpieQuota: Decodable, Equatable, Sendable, Identifiable {
     private enum CodingKeys: String, CodingKey { case provider, name, kind, plan, user, until, resets, windows, balance, error, readAt, last }
 }
 
+extension MagpieQuota {
+    /// 账号、有效期和重置卡只用于展示：格式不符或超出上限时按未知处理，不能让整份额度列表读取失败。
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        provider = try c.decode(String.self, forKey: .provider)
+        name = try c.decode(String.self, forKey: .name)
+        kind = try c.decode(String.self, forKey: .kind)
+        plan = try c.decodeIfPresent(String.self, forKey: .plan)
+        let user = (try? c.decodeIfPresent(String.self, forKey: .user)) ?? nil
+        self.user = user.flatMap { $0.count <= 512 ? $0 : nil }
+        until = (try? c.decodeIfPresent(Date.self, forKey: .until)) ?? nil
+        let resets = (try? c.decodeIfPresent(MagpieResetCredits.self, forKey: .resets)) ?? nil
+        self.resets = resets.flatMap { $0.isWithinBounds ? $0 : nil }
+        windows = try c.decode([MagpieQuotaWindow].self, forKey: .windows)
+        balance = try c.decodeIfPresent(String.self, forKey: .balance)
+        error = try c.decodeIfPresent(String.self, forKey: .error)
+        readAt = try c.decodeIfPresent(Date.self, forKey: .readAt)
+        last = try c.decodeIfPresent(Bool.self, forKey: .last)
+    }
+}
+
 /// Magpie 返回的剩余重置卡；缺少数量表示未知，不能当作零张。
 public struct MagpieResetCredits: Decodable, Equatable, Sendable {
     public let count: Int?
@@ -35,6 +56,10 @@ public struct MagpieResetCredits: Decodable, Equatable, Sendable {
 
     public struct Credit: Decodable, Equatable, Sendable {
         public let until: Date?
+    }
+
+    var isWithinBounds: Bool {
+        (count.map { (0...1_000_000).contains($0) } ?? true) && (each?.count ?? 0) <= 1000
     }
 }
 
@@ -194,9 +219,7 @@ public struct MagpieClient: MagpieFetching, Sendable {
         return try envelope.data.map { item in
             guard item.windows.count <= 100, item.provider.count <= 256, item.name.count <= 256 else { throw MagpieFailure.invalidResponse }
             guard (item.plan?.count ?? 0) <= 512, (item.balance?.count ?? 0) <= 2048,
-                  (item.error?.count ?? 0) <= 4096, (item.user?.count ?? 0) <= 512,
-                  (item.resets?.each?.count ?? 0) <= 1000 else { throw MagpieFailure.invalidResponse }
-            if let count = item.resets?.count, !(0...1_000_000).contains(count) { throw MagpieFailure.invalidResponse }
+                  (item.error?.count ?? 0) <= 4096 else { throw MagpieFailure.invalidResponse }
             for window in item.windows {
                 guard window.name.count <= 256, (window.display?.count ?? 0) <= 2048 else { throw MagpieFailure.invalidResponse }
                 // 服务端可能报告超过 100% 的已用额度，但剩余额度仍应在 0–100% 之间。

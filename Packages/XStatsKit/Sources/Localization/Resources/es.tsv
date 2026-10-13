@@ -126,8 +126,8 @@ Go 编译与完整模块缓存，由 go clean 清理	Cachés de compilación y m
 Cargo 注册表与 Git 依赖缓存，需要 cargo-cache	Cachés del registro de Cargo y dependencias Git; requiere cargo-cache
 uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes de Python y compilación descargadas por uv, limpiadas por uv
 未找到 {}，无法安全清理	No se encontró {} y no se puede limpiar de forma segura
-{} 清理失败（退出码 {}）	Falló la limpieza de {} (código de salida {})
-{} 清理失败（退出码 {}）：{}	Falló la limpieza de {} (código de salida {}): {}
+{} 命令执行失败（退出码 {}）	Falló el comando {} (código de salida {})
+{} 命令执行失败（退出码 {}）：{}	Falló el comando {} (código de salida {}): {}
 {}：未找到 {}，无法安全清理	{}: no se encontró {} y no se puede limpiar de forma segura
 支持的内容先移到废纸篓；工具缓存由对应命令直接清理。	Los elementos compatibles se mueven primero a la papelera; las cachés de herramientas se limpian directamente con sus comandos.
 支持的缓存可以恢复；工具缓存始终由对应命令直接清理	Las cachés compatibles se pueden restaurar; las cachés de herramientas siempre se limpian directamente con sus comandos
@@ -2014,7 +2014,6 @@ iPhone 与 iPad	iPhone y iPad
 尚未安装 Homebrew	Homebrew no está instalado
 安装 Homebrew 后，可在这里管理 Formula 与 Cask。	Instala Homebrew para gestionar fórmulas y casks aquí.
 已固定版本	Versión fijada
-已计量	Medido
 应用类型	Tipo de aplicación
 搜索应用或软件包	Buscar apps o paquetes
 无法读取应用列表，请重新扫描	No se pudo leer la lista de aplicaciones. Vuelve a escanear.
@@ -2035,7 +2034,13 @@ Homebrew 操作已完成	Operación de Homebrew completada
 筛选	Filtrar
 通用架构	Universal
 软件包操作尚未完成	La operación del paquete sigue en curso
-请等待当前操作完成后再退出 XStats。	Espera a que finalice la operación actual antes de salir de XStats.
+已计量 {}	Medido: {}
+无法识别 Homebrew 来源，由 Homebrew 安装的应用请在终端卸载	No se pudo identificar el origen de Homebrew. Desinstala en Terminal las apps instaladas con Homebrew.
+Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La operación de Homebrew lleva más de una hora sin terminar. Comprueba su estado en Terminal.
+等待完成	Esperar
+仍然退出	Salir de todos modos
+合计	Total
+仍然退出时，Homebrew 会在后台继续完成当前操作，XStats 不再显示其结果，可稍后在终端核对。	Si sales de todos modos, Homebrew terminará la operación actual en segundo plano. XStats no mostrará el resultado; puedes comprobarlo más tarde en Terminal.
 名称	Nombre
 来源	Origen
 最新版本	Última versión

@@ -79,6 +79,28 @@ struct MagpieControllerTests {
         #expect(settings.aiMenuBarProviders == selection)
     }
 
+    @Test func upgradedInstallKeepsTheLegacyMenuBarServicesOnFirstQuotaRead() async throws {
+        let providers = ["perplexity", "copilot", "codex", "claude"]
+        let accounts = providers.map { ["provider": $0, "name": "account", "kind": "subscription",
+                                        "windows": [["name": "7 days", "remaining": 42]]] as [String: Any] }
+        let payload = try JSONSerialization.data(withJSONObject: ["object": "list", "data": accounts])
+        let name = "MagpieControllerTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        // 旧版保存过菜单栏项但没有服务选择。
+        defaults.set(["cpu", "aiUsage"], forKey: "menuBarItems")
+        defaults.set(true, forKey: "aiUsageEnabled")
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.aiMenuBarProvidersFollowLegacyOrder)
+        let controller = AIUsageController(settings: settings, providers: [], magpieClient: MagpieStub(quotaPayload: payload))
+        defer { controller.stop() }
+        await controller.refresh()
+        #expect(settings.aiMenuBarProviders == ["claude", "codex", "copilot"])
+        #expect(!settings.aiMenuBarProvidersFollowLegacyOrder)
+        #expect(Set(controller.menuBarMagpieQuotas().map(\.sourceName)) == ["claude", "codex", "copilot"])
+        #expect(AppSettings(defaults: defaults).aiMenuBarProviders == ["claude", "codex", "copilot"])
+    }
+
     @Test func menuBarShowsEverySelectedAvailableServiceWithoutLimitingWidgetOrRequestingAgain() async throws {
         let providers = ["copilot", "gemini", "grok", "claude", "codex", "perplexity", "future-provider"]
         let accounts = providers.map { ["provider": $0, "name": "account", "kind": "subscription",
@@ -142,6 +164,8 @@ struct MagpieControllerTests {
             .padding(16).frame(width: 320).background(Color(nsColor: .windowBackgroundColor)))
         let size = host.fittingSize
         #expect(size.width == 320 && size.height > 100 && size.height < 500)
+        // 截图仅用于人工核对布局；未指定目录时不挂载窗口，也不依赖固定等待。
+        guard let directory = ProcessInfo.processInfo.environment["XSTATS_AI_MENU_SELECTION_PREVIEW_DIR"] else { return }
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
@@ -154,8 +178,7 @@ struct MagpieControllerTests {
         host.layoutSubtreeIfNeeded()
         let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
         host.cacheDisplay(in: host.bounds, to: bitmap)
-        if let directory = ProcessInfo.processInfo.environment["XSTATS_AI_MENU_SELECTION_PREVIEW_DIR"],
-           let png = bitmap.representation(using: .png, properties: [:]) {
+        if let png = bitmap.representation(using: .png, properties: [:]) {
             let path = URL(fileURLWithPath: directory).appendingPathComponent(direction == .leftToRight ? "selection-ltr.png" : "selection-rtl.png")
             try png.write(to: path)
         }

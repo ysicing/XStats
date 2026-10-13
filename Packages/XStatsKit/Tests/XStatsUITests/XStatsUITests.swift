@@ -928,14 +928,15 @@ private func isolatedDefaults() -> UserDefaults {
         document.menuBarStyle = "neon"
         document.refreshSeconds = 7
         document.probeTarget = "mars"
-        document.language = "english"
+        // 无效语言被忽略，同时避免修改进程全局的 L10n 而干扰其他并行用例。
+        let language = settings.language
+        document.language = "klingon"
         settings.apply(document)
         #expect(settings.menuBarItems == [.cpu])
         #expect(settings.menuBarStyle == .stacked)
         #expect(settings.refreshSeconds == 2)
         #expect(settings.probeTarget == .cloudflare)
-        #expect(settings.language == .english)
-        settings.language = .system
+        #expect(settings.language == language)
     }
 
     @Test func documentSurvivesJSONWithMissingFields() throws {

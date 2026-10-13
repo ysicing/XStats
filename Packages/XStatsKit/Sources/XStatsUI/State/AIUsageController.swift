@@ -368,7 +368,12 @@ public final class AIUsageController {
     }
 
     func menuBarMagpieQuotas(at date: Date = Date()) -> [MenuBarQuota] {
-        magpieQuotaReadings(at: date).filter { settings.aiMenuBarProviders.contains($0.sourceName) }
+        let readings = magpieQuotaReadings(at: date)
+        if settings.aiMenuBarProvidersFollowLegacyOrder {
+            let legacy = Set(readings.map(\.sourceName).sorted().prefix(3))
+            return readings.filter { legacy.contains($0.sourceName) }
+        }
+        return readings.filter { settings.aiMenuBarProviders.contains($0.sourceName) }
     }
 
     /// 每个服务取一个有效账户，优先最近账户；Widget 使用完整摘要，不受菜单栏选择影响。
@@ -435,6 +440,11 @@ public final class AIUsageController {
         switch quotaResult {
         case .success(let value): magpieQuotas = value; magpieQuotaFailure = nil; magpieQuotaUpdatedAt = attempt
         case .failure(let failure): magpieQuotaFailure = failure
+        }
+        // 升级后首次读到有效额度时，把旧版实际显示的服务保存为选择，之后由用户自行调整。
+        if settings.aiMenuBarProvidersFollowLegacyOrder {
+            let legacy = magpieQuotaReadings(at: attempt).map(\.sourceName).sorted().prefix(3)
+            if !legacy.isEmpty { settings.aiMenuBarProviders = Set(legacy) }
         }
         if settings.aiUsageShowsLocalUsage {
             for (period, result) in usage {

@@ -126,8 +126,8 @@ Go 编译与完整模块缓存，由 go clean 清理	Go-Build- und vollständige
 Cargo 注册表与 Git 依赖缓存，需要 cargo-cache	Cargo-Registry- und Git-Abhängigkeits-Cache; benötigt cargo-cache
 uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Python-Paket- und Build-Cache; wird von uv selbst bereinigt
 未找到 {}，无法安全清理	{} wurde nicht gefunden und kann daher nicht sicher bereinigt werden
-{} 清理失败（退出码 {}）	Bereinigung von {} fehlgeschlagen (Exit-Code {})
-{} 清理失败（退出码 {}）：{}	Bereinigung von {} fehlgeschlagen (Exit-Code {}): {}
+{} 命令执行失败（退出码 {}）	Befehl {} fehlgeschlagen (Exit-Code {})
+{} 命令执行失败（退出码 {}）：{}	Befehl {} fehlgeschlagen (Exit-Code {}): {}
 {}：未找到 {}，无法安全清理	{}: {} wurde nicht gefunden und kann daher nicht sicher bereinigt werden
 支持的内容先移到废纸篓；工具缓存由对应命令直接清理。	Unterstützte Inhalte werden zuerst in den Papierkorb verschoben; Tool-Caches werden direkt durch ihre Befehle bereinigt.
 支持的缓存可以恢复；工具缓存始终由对应命令直接清理	Unterstützte Caches können wiederhergestellt werden; Tool-Caches werden immer direkt durch ihre Befehle bereinigt
@@ -2014,7 +2014,6 @@ iPhone 与 iPad	iPhone und iPad
 尚未安装 Homebrew	Homebrew ist nicht installiert
 安装 Homebrew 后，可在这里管理 Formula 与 Cask。	Nach der Installation von Homebrew können Sie hier Formulae und Casks verwalten.
 已固定版本	Version fixiert
-已计量	Gemessen
 应用类型	Anwendungstyp
 搜索应用或软件包	Apps oder Pakete suchen
 无法读取应用列表，请重新扫描	Die Anwendungsliste konnte nicht gelesen werden. Erneut scannen.
@@ -2035,7 +2034,13 @@ Homebrew 操作已完成	Homebrew-Vorgang abgeschlossen
 筛选	Filtern
 通用架构	Universal
 软件包操作尚未完成	Paketvorgang läuft noch
-请等待当前操作完成后再退出 XStats。	Warte, bis der aktuelle Vorgang abgeschlossen ist, bevor du XStats beendest.
+已计量 {}	Gemessen: {}
+无法识别 Homebrew 来源，由 Homebrew 安装的应用请在终端卸载	Homebrew-Quellen konnten nicht erkannt werden. Mit Homebrew installierte Apps bitte im Terminal deinstallieren.
+Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Der Homebrew-Vorgang läuft seit über einer Stunde. Prüfe den Status im Terminal.
+等待完成	Warten
+仍然退出	Trotzdem beenden
+合计	Gesamt
+仍然退出时，Homebrew 会在后台继续完成当前操作，XStats 不再显示其结果，可稍后在终端核对。	Wenn du trotzdem beendest, schließt Homebrew den aktuellen Vorgang im Hintergrund ab. XStats zeigt das Ergebnis nicht an; du kannst es später im Terminal prüfen.
 名称	Name
 来源	Quelle
 最新版本	Neueste Version

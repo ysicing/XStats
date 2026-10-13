@@ -13,6 +13,11 @@ struct AIUsageSettingsTests {
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = AppSettings(defaults: defaults)
         #expect(settings.aiMenuBarProviders == ["codex", "claude", "grok", "gemini"])
+        #expect(!settings.aiMenuBarProvidersFollowLegacyOrder)
+        // 新装后保存了菜单栏项，再次启动也不能被当作旧版升级。
+        settings.menuBarItems.insert(.aiUsage)
+        #expect(defaults.stringArray(forKey: "menuBarItems") != nil)
+        #expect(!AppSettings(defaults: defaults).aiMenuBarProvidersFollowLegacyOrder)
         settings.aiMenuBarProviders = ["copilot", "future-provider"]
         #expect(AppSettings(defaults: defaults).aiMenuBarProviders == settings.aiMenuBarProviders)
         settings.aiMenuBarProviders = []

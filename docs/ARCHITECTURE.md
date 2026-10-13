@@ -54,8 +54,12 @@ The Energy page (persisted `battery` tab/module) combines battery information, p
 and temperatures, including on Macs without an internal battery. Fan detection, controls and
 safety settings remain independent in the Fans page (persisted `thermal` tab/module). The battery
 and temperature menu-bar items belong to Energy; the fan item belongs to Fans. Existing preference
-identifiers remain unchanged. Temperature sampling preserves hardware fan-count discovery even
-when fan readings are disabled; unknown or absent fans stay hidden without rewriting preferences.
+identifiers remain unchanged; a one-time migration (`energyModulesMigrated`) enables Energy for
+upgrades that had only Fans enabled and keeps the previously ineffective CPU temperature alert off
+for upgrades that had only Battery enabled. Fan count is read once from SMC `FNum` on the hub actor
+at launch and reused by temperature sampling, so Fans stays discoverable even when Energy and Fans
+are both off; unknown or absent fans stay hidden without rewriting preferences. With Energy off the
+Energy page shows an enable card above battery basics and is not treated as a live (1 s) page.
 Closing the Energy page or hiding the corresponding popover section releases power/App Energy
 demand; visible temperature readings and enabled overheating alerts can still request temperatures.
 Disabling Energy stops those readings and alerts while keeping battery basics and Bluetooth

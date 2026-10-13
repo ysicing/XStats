@@ -86,4 +86,26 @@ struct FanSafetyLifecycleTests {
         #expect(helper.resetRequests == 1 && !fans.noticeIsError)
         #expect(!settings.isModuleEnabled(.battery))
     }
+
+    @Test func manualFansKeepCPUTemperatureDemandWhenEnergyIsDisabled() async throws {
+        let suite = "FanSafetyTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.menuBarItems = []
+        settings.setModuleEnabled(.battery, false)
+        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+                             quotaCacheURL: nil, magpieClient: nil, networkCacheDefaults: defaults,
+                             fanControl: FanControlFixture())
+        var snapshot = MetricsSnapshot()
+        snapshot.sensors = SensorReadings(temperatures: [], fans: [
+            FanState(id: 0, current: 2_000, minimum: 1_000, maximum: 5_000, target: 2_000, isManual: false)
+        ], fanCount: 1)
+        model.store.apply(snapshot)
+        #expect(model.demand.temperatures.isEmpty)
+        await model.fans.select(.custom)
+        #expect(model.fans.mode == .custom)
+        // 能耗关闭只停止温度展示，手动风扇的过热保护仍需 CPU 温度。
+        #expect(model.demand.temperatures.contains(.cpu) && model.demand.fans)
+    }
 }

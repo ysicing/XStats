@@ -6,29 +6,33 @@ import Testing
 
 struct AppEnergyTests {
     @MainActor
-    @Test func reopeningProducesFreshEnergyWithinTwoSecondsAndStopsWhenClosed() async throws {
+    @Test func reopeningMeasuresTheNextLoopAfterBaselineAndStopsWhenClosed() async throws {
         let hub = MetricsHub()
-        var readings: [AppEnergyReading] = []
-        await hub.start(primeAllMetrics: false) { snapshot in
-            if let reading = snapshot.appEnergy { readings.append(reading) }
-        }
+        // 记录每个快照是否带能耗读数，按采样轮次而非墙钟判断首个区间的时机，负载下也稳定。
+        var snapshots: [AppEnergyReading?] = []
+        await hub.start(primeAllMetrics: false) { snapshot in snapshots.append(snapshot.appEnergy) }
         var demand = MetricsDemand()
         demand.interval = .seconds(1)
         for _ in 0..<2 {
-            readings.removeAll()
+            snapshots.removeAll()
             demand.generation += 1
             demand.appEnergy = true
             await hub.update(demand)
-            // 给一秒采样循环留出调度容差，但不能等待完整的五秒刷新周期。
-            try await Task.sleep(for: .seconds(2.5))
+            let deadline = ContinuousClock.now + .seconds(30)
+            while !snapshots.contains(where: { $0?.interval != nil }), ContinuousClock.now < deadline {
+                try await Task.sleep(for: .milliseconds(50))
+            }
+            let readings = snapshots.compactMap { $0 }
             #expect(readings.first?.interval == nil)
-            #expect(readings.contains { $0.interval.map { $0 < 2 } ?? false })
+            // 基线之后的下一轮就给出区间，而不是等完整的五秒刷新周期。
+            let baseline = try #require(snapshots.firstIndex { $0 != nil })
+            #expect(snapshots.indices.contains(baseline + 1) && snapshots[baseline + 1]?.interval != nil)
             demand.generation += 1
             demand.appEnergy = false
             await hub.update(demand)
-            readings.removeAll()
+            snapshots.removeAll()
             try await Task.sleep(for: .milliseconds(400))
-            #expect(readings.isEmpty)
+            #expect(snapshots.isEmpty)
         }
         await hub.stop()
     }

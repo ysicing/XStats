@@ -19,9 +19,9 @@ struct ApplicationManagementTests {
     }
 
     @Test func packageIdentityUsesFullTapAndInstalledVersions() throws {
+        // brew info --json=v2 的真实结构：target 位于 app 数组内的字典中。
         let output = #"""
-        Warning: local index
-        {"formulae":[{"name":"tool","full_name":"vendor/tap/tool","installed":[{"version":"1.0"},{"version":"1.1"}],"versions":{"stable":"2.0"},"revision":1,"outdated":true,"pinned":false}],"casks":[{"full_token":"vendor/apps/editor","name":["Editor"],"installed":"3.0","version":"4.0","outdated":true,"artifacts":[{"app":["Editor.app"],"target":"/Users/demo/Applications/Editor.app"}]}]}
+        {"formulae":[{"name":"tool","full_name":"vendor/tap/tool","installed":[{"version":"1.0"},{"version":"1.1"}],"versions":{"stable":"2.0"},"revision":1,"outdated":true,"pinned":false}],"casks":[{"full_token":"vendor/apps/editor","name":["Editor"],"installed":"3.0","version":"4.0","outdated":true,"artifacts":[{"app":["Editor.app",{"target":"/Users/demo/Applications/Editor.app"}]}]}]}
         """#
         let packages = try HomebrewManagement.parse(output, prefix: URL(fileURLWithPath: "/opt/homebrew"))
         let formula = try #require(packages.first { $0.kind == .formula })
@@ -35,15 +35,56 @@ struct ApplicationManagementTests {
         #expect(try HomebrewManagement.arguments(for: .upgrade, package: cask) == ["upgrade", "--cask", "vendor/apps/editor"])
     }
 
-    @Test func dangerousTokensAndTruncatedJSONAreRejected() {
-        for token in ["--help", "../tool", "vendor//tool", "tool;rm", "tool\nother"] {
-            let object: [String: Any] = ["formulae": [], "casks": [["full_token": token, "installed": "1"]]]
-            let data = try! JSONSerialization.data(withJSONObject: object)
+    @Test func caskTargetsFollowHomebrewPathRules() {
+        let home = "/Users/demo"
+        #expect(HomebrewManagement.applicationURL(["Foo.app", ["target": "Bar.app"]], home: home)?.path == "/Applications/Bar.app")
+        #expect(HomebrewManagement.applicationURL(["Foo.app", ["target": "Tools/Bar.app"]], home: home)?.path == "/Applications/Tools/Bar.app")
+        #expect(HomebrewManagement.applicationURL(["Foo.app", ["target": "~/Applications/Bar.app"]], home: home)?.path == "/Users/demo/Applications/Bar.app")
+        #expect(HomebrewManagement.applicationURL(["Foo.app", ["target": "/Opt/Bar.app"]], home: home)?.path == "/Opt/Bar.app")
+        #expect(HomebrewManagement.applicationURL(["Nested/Foo.app"], home: home)?.path == "/Applications/Foo.app")
+        // 相对 target 不能跳出 /Applications；非 .app 目标不视为应用。
+        #expect(HomebrewManagement.applicationURL(["Foo.app", ["target": "../Bar.app"]], home: home) == nil)
+        #expect(HomebrewManagement.applicationURL(["Foo.app", ["target": "Bar"]], home: home) == nil)
+    }
+
+    @Test func malformedPackagesAreSkippedWithoutDroppingTheInventory() throws {
+        let object: [String: Any] = [
+            "formulae": [["name": "tool", "full_name": "tool", "installed": [["version": "1"]]],
+                         ["name": "broken", "full_name": "broken", "installed": NSNull()], "not an object"],
+            "casks": [["full_token": "viewer", "installed": "2", "artifacts": [["app": ["Viewer.app"]]]],
+                      ["full_token": "viewer", "installed": "3"]],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: object)
+        let packages = try HomebrewManagement.parse(String(decoding: data, as: UTF8.self), prefix: URL(fileURLWithPath: "/opt/homebrew"))
+        #expect(packages.map(\.id) == ["formula:tool", "cask:viewer"])
+        #expect(packages.last?.applicationURLs.map(\.path) == ["/Applications/Viewer.app"])
+    }
+
+    @Test func unrecognizedCaskRejectsTheInventorySoItsAppIsNotUninstalledDirectly() throws {
+        for cask: Any in [["full_token": "editor", "installed": NSNull(), "artifacts": [["app": ["Editor.app"]]]],
+                          ["full_token": "--help", "installed": "1"], "not an object"] {
+            let object: [String: Any] = ["formulae": [], "casks": [cask, ["full_token": "viewer", "installed": "2"]]]
+            let data = try JSONSerialization.data(withJSONObject: object)
             #expect(throws: HomebrewManagement.InventoryError.self) {
                 try HomebrewManagement.parse(String(decoding: data, as: UTF8.self), prefix: URL(fileURLWithPath: "/opt/homebrew"))
             }
         }
+    }
+
+    @Test func dangerousTokensAreSkippedAndInvalidStructureIsRejected() throws {
+        for token in ["--help", "../tool", "vendor//tool", "tool;rm", "tool\nother"] {
+            let object: [String: Any] = ["formulae": [["name": token, "full_name": token, "installed": [["version": "1"]]]], "casks": []]
+            let data = try JSONSerialization.data(withJSONObject: object)
+            #expect(try HomebrewManagement.parse(String(decoding: data, as: UTF8.self), prefix: URL(fileURLWithPath: "/opt/homebrew")).isEmpty)
+        }
         #expect(throws: (any Error).self) { try HomebrewManagement.parse("{\"formulae\":[]", prefix: URL(fileURLWithPath: "/opt/homebrew")) }
+        #expect(throws: HomebrewManagement.InventoryError.self) {
+            try HomebrewManagement.parse(#"{"formulae":[]}"#, prefix: URL(fileURLWithPath: "/opt/homebrew"))
+        }
+        // 清单只解析 stdout，前置的诊断文本说明输出被污染，整体拒绝。
+        #expect(throws: (any Error).self) {
+            try HomebrewManagement.parse("Warning: x\n{\"formulae\":[],\"casks\":[]}", prefix: URL(fileURLWithPath: "/opt/homebrew"))
+        }
     }
 
     @Test func pinnedPackagesCannotBeUpgradedAndUninstallNeverForces() throws {

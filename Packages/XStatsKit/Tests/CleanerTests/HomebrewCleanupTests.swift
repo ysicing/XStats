@@ -235,33 +235,52 @@ import Testing
         #expect(kill(pid, 0) != 0)
     }
 
+    /// Cask postflight 拉起的后台进程继承输出时，写操作仍应在主进程退出后返回，且不结束该后台进程。
     @Test(arguments: ["upgrade", "uninstall"])
-    func cancellationStopsReadingAfterMainProcessExits(_ command: String) async throws {
-        let home = try stubBrew("#!/bin/sh\n/bin/sleep 5 &\necho $! > \"$HOME/child-pid\"\necho $$ > \"$HOME/pid\"\nexit 0\n")
+    func operationReturnsWhenBackgroundChildKeepsOutputOpen(_ command: String) async throws {
+        let home = try stubBrew("#!/bin/sh\n/bin/sleep 30 &\necho $! > \"$HOME/child-pid\"\necho installed\nexit 0\n")
         defer { try? FileManager.default.removeItem(at: home) }
-        let task = Task { try await DeveloperToolRunner.run("brew", arguments: [command], home: home.path) }
-        defer { task.cancel() }
-        let deadline = ContinuousClock.now + .seconds(3)
-        let pidFile = home.appendingPathComponent("pid")
-        while !FileManager.default.fileExists(atPath: pidFile.path), ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        let started = ContinuousClock.now
+        let result = try await DeveloperToolRunner.run("brew", arguments: [command], home: home.path)
         let childText = try String(contentsOf: home.appendingPathComponent("child-pid"), encoding: .utf8)
         let child = try #require(Int32(childText.trimmingCharacters(in: .whitespacesAndNewlines)))
         defer { _ = kill(child, SIGKILL) }
-        let pidText = try String(contentsOf: pidFile, encoding: .utf8)
-        let pid = try #require(Int32(pidText.trimmingCharacters(in: .whitespacesAndNewlines)))
-        while kill(pid, 0) == 0, ContinuousClock.now < deadline {
+        #expect(ContinuousClock.now - started < .seconds(5))
+        #expect(result.output == "installed")
+        #expect(kill(child, 0) == 0)
+    }
+
+    /// 超时只停止等待并报告，不结束仍在执行的 brew，避免打断部分完成的安装。
+    @Test func operationTimeoutStopsWaitingWithoutKillingBrew() async throws {
+        let home = try stubBrew("#!/bin/sh\necho $$ > \"$HOME/pid\"\nexec /bin/sleep 30\n")
+        defer { try? FileManager.default.removeItem(at: home) }
+        do {
+            _ = try await DeveloperToolRunner.run("brew", arguments: ["upgrade"], home: home.path, timeout: 0.3)
+            Issue.record("超时必须报告")
+        } catch ToolExecutionError.timedOut { }
+        // 负载较高时 stub 可能晚于时限才写出 PID，按截止时间等待而非固定间隔。
+        let pidFile = home.appendingPathComponent("pid")
+        let deadline = ContinuousClock.now + .seconds(5)
+        while (try? String(contentsOf: pidFile, encoding: .utf8))?.hasSuffix("\n") != true, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
-        #expect(kill(pid, 0) != 0)
-        let started = ContinuousClock.now
-        task.cancel()
-        do {
-            _ = try await task.value
-            Issue.record("Cancelled output reading must not succeed")
-        } catch is CancellationError { }
-        #expect(ContinuousClock.now - started < .seconds(1))
+        let pidText = try String(contentsOf: pidFile, encoding: .utf8)
+        let pid = try #require(Int32(pidText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        defer { _ = kill(pid, SIGKILL) }
+        #expect(kill(pid, 0) == 0)
+    }
+
+    @Test func inventoryParsesStdoutAndIgnoresStderrWarnings() async throws {
+        let home = try stubBrew("""
+        #!/bin/sh
+        echo 'Warning: {"formulae":"noise"}' >&2
+        if [ "$1" = "--prefix" ]; then echo /opt/homebrew; exit 0; fi
+        echo '{"formulae":[{"name":"tool","full_name":"tool","installed":[{"version":"1"}]}],"casks":[]}'
+        echo 'Warning: trailing } noise' >&2
+        """)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let packages = try await HomebrewManagement.inventory(home: home.path)
+        #expect(packages.map(\.id) == ["formula:tool"])
     }
 
     private func stubBrew(_ script: String) throws -> URL {

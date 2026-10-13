@@ -71,4 +71,18 @@ struct FanAvailabilityTests {
         #expect(store.sensors?.fans.first?.target == 2000)
         #expect(store.sensors?.fans.isStartingUp == false)
     }
+
+    @Test func startupProbeOnlyFillsUnknownFanCount() {
+        let store = MetricsStore(readBattery: false)
+        store.recordFanCount(nil)
+        #expect(store.fanCount == nil)
+        store.recordFanCount(0)
+        #expect(store.fanCount == 0)
+        var snapshot = MetricsSnapshot()
+        snapshot.sensors = SensorReadings(temperatures: [], fans: [], fanCount: 2)
+        store.apply(snapshot)
+        // 晚到的启动探测不能覆盖采样确认的数量。
+        store.recordFanCount(0)
+        #expect(store.fanCount == 2 && store.supportsFans)
+    }
 }

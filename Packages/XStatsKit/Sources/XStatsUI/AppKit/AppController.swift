@@ -230,14 +230,18 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        // 退出会终止工具进程，不能中断已经确认的 Homebrew 写操作。
+        // brew 写操作的输出指向临时文件，XStats 退出不会让它因 SIGPIPE 中断；默认等待，
+        // 但不能无条件拒绝退出，否则 brew 卡住时会阻塞注销与关机。
         if model.appManagement.operation != nil {
+            NSApp.activate()
             let alert = NSAlert()
             alert.messageText = tr("软件包操作尚未完成")
-            alert.informativeText = tr("请等待当前操作完成后再退出 XStats。")
-            alert.addButton(withTitle: tr("确定"))
-            alert.runModal()
-            return .terminateCancel
+            alert.informativeText = tr("仍然退出时，Homebrew 会在后台继续完成当前操作，XStats 不再显示其结果，可稍后在终端核对。")
+            alert.addButton(withTitle: tr("等待完成"))
+            alert.addButton(withTitle: tr("仍然退出"))
+            guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
+            Log.app.notice("Quitting while a Homebrew operation is still running")
+            // 继续走下方的网络组件与健康提醒退出准备，不跳过其他退出门禁。
         }
         let needsNetwork = model.updates.installationRequiresPreparation || model.connectionMonitor.terminationRequiresPreparation || model.networkComponent.terminationRequiresPreparation
         guard needsNetwork || model.wellness.requiresTerminationPreparation else { return .terminateNow }

@@ -451,8 +451,8 @@ Go 编译与完整模块缓存，由 go clean 清理	Go build and complete modul
 Cargo 注册表与 Git 依赖缓存，需要 cargo-cache	Cargo registry and Git dependency caches; requires cargo-cache
 uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and build caches downloaded by uv; cleaned by uv
 未找到 {}，无法安全清理	{} was not found, so it cannot be cleaned safely
-{} 清理失败（退出码 {}）	{} cleanup failed (exit code {})
-{} 清理失败（退出码 {}）：{}	{} cleanup failed (exit code {}): {}
+{} 命令执行失败（退出码 {}）	{} command failed (exit code {})
+{} 命令执行失败（退出码 {}）：{}	{} command failed (exit code {}): {}
 {}：未找到 {}，无法安全清理	{}: {} was not found, so it cannot be cleaned safely
 支持的内容先移到废纸篓；工具缓存由对应命令直接清理。	Supported items are moved to Trash first; tool caches are cleaned directly by their commands.
 支持的缓存可以恢复；工具缓存始终由对应命令直接清理	Supported caches can be restored; tool caches are always cleaned directly by their commands
@@ -1661,7 +1661,13 @@ extension Translations {
 正在运行	Running
 打开	Open
 软件包操作尚未完成	Package Operation Is Still in Progress
-请等待当前操作完成后再退出 XStats。	Wait for the current operation to finish before quitting XStats.
+已计量 {}	Measured {}
+无法识别 Homebrew 来源，由 Homebrew 安装的应用请在终端卸载	Couldn't identify Homebrew sources. Uninstall apps installed by Homebrew in Terminal.
+Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	The Homebrew operation has been running for over an hour. Check its status in Terminal.
+等待完成	Wait
+仍然退出	Quit Anyway
+合计	Total
+仍然退出时，Homebrew 会在后台继续完成当前操作，XStats 不再显示其结果，可稍后在终端核对。	If you quit anyway, Homebrew will finish the current operation in the background. XStats won't show the result; you can check it later in Terminal.
 Apple 芯片	Apple Silicon
 iPhone 与 iPad	iPhone and iPad
 上次打开	Last Opened
@@ -1673,7 +1679,6 @@ iPhone 与 iPad	iPhone and iPad
 尚未安装 Homebrew	Homebrew Is Not Installed
 安装 Homebrew 后，可在这里管理 Formula 与 Cask。	Manage formulae and casks here after installing Homebrew.
 已固定版本	Pinned
-已计量	Measured
 应用类型	Application Type
 搜索应用或软件包	Search apps or packages
 无法读取应用列表，请重新扫描	Could not read the application list. Scan again.

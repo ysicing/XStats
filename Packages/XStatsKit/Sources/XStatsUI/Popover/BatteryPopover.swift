@@ -352,13 +352,13 @@ struct SleepAssertionsSection: View {
                 }
                 ForEach(apps.prefix(8)) { process in SleepAssertionRow(process: process) }
                 if apps.count > 8 {
-                    Text(tr("另有 \(apps.count - 8) 项")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                    Text(tr("另有 \((apps.count - 8).formatted(.number.locale(L10n.locale))) 项")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                 }
                 if !services.isEmpty {
                     DisclosureGroup {
                         ForEach(services.prefix(8)) { process in SleepAssertionRow(process: process) }
                         if services.count > 8 {
-                            Text(tr("另有 \(services.count - 8) 项")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                            Text(tr("另有 \((services.count - 8).formatted(.number.locale(L10n.locale))) 项")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                         }
                     } label: {
                         Text(tr("\(services.count.formatted(.number.locale(L10n.locale))) 个系统服务正在阻止睡眠"))

@@ -13,13 +13,19 @@ public final class SensorSampler {
         fans = smc.map(FanControl.init)
     }
 
+    /// 只读一次风扇数量并缓存；读取失败返回 nil，由后续采样或下次启动重试。
+    public func detectFanCount() -> Int? {
+        guard detectedFanCount == nil, let smc else { return detectedFanCount }
+        if let raw = smc.double(SMCKey("FNum")), let count = Int(exactly: raw), count >= 0 {
+            detectedFanCount = count
+        }
+        return detectedFanCount
+    }
+
     public func sample(groups: Set<TemperatureGroup> = Set(TemperatureGroup.allCases), includeFans: Bool = true) -> SensorReadings? {
         guard let smc else { return nil }
         // 硬件数量成功读到后复用；未知时随既有采样重试，不新增轮询。
-        if detectedFanCount == nil, let raw = smc.double(SMCKey("FNum")),
-           let count = Int(exactly: raw), count >= 0 {
-            detectedFanCount = count
-        }
+        _ = detectFanCount()
         var summaries: [TemperatureSummary] = []
         for group in TemperatureGroup.allCases where groups.contains(group) {
             let values = (catalog[group] ?? []).compactMap(smc.double).filter(TemperatureCatalog.plausibleRange.contains)

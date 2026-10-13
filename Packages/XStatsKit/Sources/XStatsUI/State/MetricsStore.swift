@@ -184,6 +184,12 @@ public final class MetricsStore {
         if let sensors = snapshot.sensors { mergeSensors(sensors) }
     }
 
+    /// 启动探测得到的硬件能力；采样已识别时以采样结果为准，失败保持未知。
+    func recordFanCount(_ count: Int?) {
+        guard fanCount == nil, let count else { return }
+        fanCount = count
+    }
+
     /// 不同页面采集的温度分组不同，按组合并，避免切页时数据闪烁
     private func mergeSensors(_ new: SensorReadings) {
         if let count = new.fanCount, count != fanCount { fanCount = count }

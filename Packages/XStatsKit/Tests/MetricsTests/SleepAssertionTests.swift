@@ -44,6 +44,37 @@ struct SleepAssertionTests {
         }
     }
 
+    @Test func bundleReasonUsesLocalizationAndFallsBackToAssertionName() throws {
+        let caffeinate: [String: Any] = ["AssertType": "PreventUserIdleSystemSleep", "AssertLevel": kIOPMAssertionLevelOn,
+                                         "AssertName": "caffeinate command-line tool",
+                                         "HumanReadableReason": "THE CAFFEINATE TOOL IS PREVENTING SLEEP.",
+                                         "BundlePath": "/System/Library/CoreServices/powerd.bundle"]
+        var lookups: [String] = []
+        let translated = try #require(SleepAssertionReader.parse(pid: 1, name: "caffeinate", path: "/usr/bin/caffeinate",
+                                                               bundlePath: nil, assertions: [caffeinate]) { key, bundle in
+            lookups.append(bundle)
+            return key == "THE CAFFEINATE TOOL IS PREVENTING SLEEP." ? "caffeinate is preventing sleep" : nil
+        })
+        #expect(translated.reason == "caffeinate is preventing sleep")
+        #expect(lookups == ["/System/Library/CoreServices/powerd.bundle"])
+        // 没有译文时不能展示全大写的本地化键。
+        let fallback = try #require(SleepAssertionReader.parse(pid: 1, name: "caffeinate", path: "/usr/bin/caffeinate",
+                                                             bundlePath: nil, assertions: [caffeinate]) { _, _ in nil })
+        #expect(fallback.reason == "caffeinate command-line tool")
+        // 不带 BundlePath 的原因是应用自行提供的原文，不做查找。
+        var plain = caffeinate
+        plain["BundlePath"] = nil
+        plain["HumanReadableReason"] = "Playing audio"
+        let original = try #require(SleepAssertionReader.parse(pid: 1, name: "Player", path: nil, bundlePath: nil,
+                                                             assertions: [plain]) { _, _ in Issue.record("不应查找"); return nil })
+        #expect(original.reason == "Playing audio")
+    }
+
+    @Test func defaultLocalizerTreatsUntranslatedKeysAsMissing() {
+        #expect(SleepAssertionReader.localizedReason(key: "XSTATS UNTRANSLATED KEY", bundlePath: "/System/Library/CoreServices/powerd.bundle") == nil)
+        #expect(SleepAssertionReader.localizedReason(key: "OK", bundlePath: "/nonexistent/XStats.bundle") == nil)
+    }
+
     @Test func nativeReaderReturnsUniqueProcesses() throws {
         var assertion: IOPMAssertionID = 0
         let status = IOPMAssertionCreateWithName("PreventUserIdleSystemSleep" as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn),

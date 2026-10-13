@@ -218,7 +218,7 @@ import Testing
         try await waitFor { controller.sizes[fixture.id] == 42 }
         controller.setVisible(false)
         controller.setVisible(true)
-        try await Task.sleep(for: .milliseconds(50))
+        try await waitFor { calls.withLock { $0.list } == 2 && !controller.isReading }
         #expect(calls.withLock { $0.list == 2 && $0.sizes == 1 })
         controller.setEnabled(false)
         controller.setVisible(true)
@@ -365,6 +365,91 @@ import Testing
         release.withLock { $0 = true }
         try await waitFor { controller.operation == nil }
         #expect(controller.message != nil)
+    }
+
+    @Test func failedInventoryBacksOffAndKeepsPlainUninstallAvailable() async throws {
+        let calls = AppManagementTestValue(0)
+        let controller = AppManagementController(listApps: { [] }, brewAvailable: true, listPackages: {
+            calls.withLock { $0 += 1 }
+            throw ToolExecutionError.failed(tool: "brew", status: 1, output: "")
+        })
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { calls.withLock { $0 } == 1 && !controller.isReading }
+        #expect(controller.brewInventoryFailed && controller.hasBrewInventory && controller.casksByPath.isEmpty)
+        // 自动恢复与切换标签在退避期内不重跑 brew；用户显式刷新可以绕过。
+        controller.setVisible(false); controller.setVisible(true)
+        controller.selectTab(.homebrew); controller.selectTab(.apps)
+        try await waitFor { !controller.isReading }
+        #expect(calls.withLock { $0 } == 1)
+        controller.refresh()
+        try await waitFor { calls.withLock { $0 } == 2 && !controller.isReading }
+        #expect(controller.brewInventoryFailed)
+    }
+
+    @Test func userUpdateCheckSurvivesClosingThePageAndReloadsTheInventory() async throws {
+        let release = AppManagementTestValue(false)
+        let entered = AppManagementTestValue(false)
+        let lists = AppManagementTestValue(0)
+        let controller = AppManagementController(listApps: { [] }, brewAvailable: true, listPackages: {
+            lists.withLock { $0 += 1 }; return []
+        }, updateIndex: {
+            entered.withLock { $0 = true }
+            while !release.withLock({ $0 }) { try await Task.sleep(for: .milliseconds(10)) }
+        })
+        defer { release.withLock { $0 = true }; controller.setVisible(false) }
+        controller.setVisible(true, tab: .homebrew)
+        try await waitFor { lists.withLock { $0 } == 1 && !controller.isReading }
+        controller.checkBrewUpdates()
+        try await waitFor { entered.withLock { $0 } }
+        controller.selectTab(.apps)
+        controller.setVisible(false)
+        #expect(controller.isCheckingUpdates)
+        release.withLock { $0 = true }
+        try await waitFor { !controller.isCheckingUpdates }
+        #expect(controller.error == nil && lists.withLock { $0 } == 1)
+        controller.setVisible(true, tab: .homebrew)
+        try await waitFor { lists.withLock { $0 } == 2 && !controller.isReading }
+    }
+
+    @Test func finishedBrewOperationOnlyRemeasuresTheAffectedApplication() async throws {
+        let cask = app("Editor"); let other = app("Other")
+        let package = HomebrewPackage(name: "editor", displayName: "Editor", kind: .cask, installedVersions: ["1"], latestVersion: "2",
+            outdated: true, pinned: false, installationURLs: [cask.url], applicationURLs: [cask.url])
+        let measured = AppManagementTestValue([String]())
+        let controller = AppManagementController(listApps: { [cask, other] }, inspectApp: { _ in ApplicationMetadata() },
+            measureSize: { url in measured.withLock { $0.append(url.path) }; return 42 },
+            brewAvailable: true, listPackages: { [package] }, performAction: { _, _ in })
+        defer { controller.setVisible(false) }
+        controller.setVisible(true)
+        try await waitFor { !controller.isReading && controller.sizes.count == 2 && controller.hasBrewInventory }
+        measured.withLock { $0.removeAll() }
+        controller.perform(.upgrade, package: package)
+        try await waitFor { controller.operation == nil && !controller.isReading && controller.hasBrewInventory }
+        #expect(measured.withLock { $0 } == [cask.id])
+        #expect(controller.sizes[other.id] == 42)
+    }
+
+    @Test func finishedOperationRereadsTheInventoryDuringFailureBackoff() async throws {
+        let package = HomebrewPackage(name: "tool", displayName: "tool", kind: .formula, installedVersions: ["1"], latestVersion: "2",
+            outdated: true, pinned: false, installationURLs: [], applicationURLs: [])
+        let calls = AppManagementTestValue(0)
+        let controller = AppManagementController(listApps: { [] }, brewAvailable: true, listPackages: {
+            let call = calls.withLock { $0 += 1; return $0 }
+            if call == 2 { throw ToolExecutionError.failed(tool: "brew", status: 1, output: "") }
+            return [package]
+        }, performAction: { _, _ in })
+        defer { controller.setVisible(false) }
+        controller.setVisible(true, tab: .homebrew)
+        try await waitFor { calls.withLock { $0 } == 1 && !controller.isReading }
+        // 手动刷新失败后进入退避，但已有清单仍可用。
+        controller.refresh()
+        try await waitFor { calls.withLock { $0 } == 2 && !controller.isReading }
+        #expect(!controller.brewInventoryFailed && controller.hasBrewInventory)
+        // 操作完成后安装状态已变化，必须立即重读，不能停在没有清单、卸载被禁用的状态。
+        controller.perform(.upgrade, package: package)
+        try await waitFor { controller.operation == nil && calls.withLock { $0 } == 3 && !controller.isReading }
+        #expect(controller.hasBrewInventory && controller.packages == [package])
     }
 
     @Test func selfPinnedAndStalePackagesCannotStartAnUpdate() async throws {
