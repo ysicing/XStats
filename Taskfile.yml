@@ -29,6 +29,22 @@ vars:
       fi
 
 tasks:
+  compile-capture:
+    desc: 只编译独立 XStats Capture，不安装或推进版本
+    deps: [generate]
+    cmds:
+      - |
+        xcodebuild -project "{{.PROJECT}}" -scheme XStatsCapture -configuration "{{.CONFIG}}" \
+          -derivedDataPath build/DerivedData-capture-arm64 -destination 'generic/platform=macOS' \
+          ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+          {{if .TEAM_ID}}CODE_SIGN_IDENTITY="{{.SIGN_ID}}" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM={{.TEAM_ID}}{{else}}CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=""{{end}} build
+
+  run-capture:
+    desc: 构建并打开独立 Capture App，不安装或推进版本
+    deps: [compile-capture]
+    cmds:
+      - open "build/DerivedData-capture-arm64/Build/Products/{{.CONFIG}}/XStats Capture.app"
+
   generate:
     desc: 由 project.yml 生成 Xcode 工程
     cmds:

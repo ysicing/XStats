@@ -2070,3 +2070,64 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 使用文档	Guide d’utilisation
 关窗后保留程序坞图标	Garder l’icône du Dock après fermeture
 打开窗口时自动显示图标；关闭后仍可从程序坞与 ⌘Tab 找到 XStats	L’icône apparaît automatiquement lorsqu’une fenêtre est ouverte. Après fermeture, XStats reste accessible dans le Dock et avec ⌘Tab.
+截图	Capture d’écran
+录屏	Enregistrer l’écran
+区域	Zone
+整个屏幕	Écran entier
+截图标注与屏幕录制，内容仅保存在本机。	Annotez vos captures et enregistrez l’écran. Le contenu reste sur ce Mac.
+捕获范围	Cible de capture
+系统声音	Audio système
+麦克风	Microphone
+常驻菜单栏	Rester dans la barre des menus
+关闭后按需退出；常驻时可使用全局快捷键。	Quitter après fermeture. Les raccourcis globaux nécessitent de rester actif.
+截图快捷键	Raccourci de capture
+录屏快捷键	Raccourci d’enregistrement
+设置快捷键	Définir un raccourci
+按下快捷键，Esc 取消	Appuyez sur un raccourci ; Échap annule
+快捷键已被占用，请更换。	Ce raccourci est utilisé. Choisissez-en un autre.
+打开 XStats Capture	Ouvrir XStats Capture
+打开隐私设置	Ouvrir les réglages de confidentialité
+拖动选择区域，按 Esc 取消	Faites glisser pour sélectionner ; Échap annule
+点击窗口，按 Esc 取消	Cliquez sur une fenêtre ; Échap annule
+点击要捕获的屏幕，按 Esc 取消	Cliquez sur l’écran ; Échap annule
+截图编辑	Éditeur de capture
+标注工具	Outil d’annotation
+标注文字	Texte d’annotation
+裁剪	Recadrer
+箭头	Flèche
+矩形	Rectangle
+画笔	Stylo
+文字	Texte
+遮挡	Masquer
+复制	Copier
+保存	Enregistrer
+置顶	Épingler
+置顶截图	Capture épinglée
+最多置顶 5 张截图，请先关闭已有截图。	Vous pouvez épingler 5 captures. Fermez-en une d’abord.
+正在录制	Enregistrement en cours
+录制已暂停	Enregistrement en pause
+录屏预览	Aperçu de l’enregistrement
+开始时间	Heure de début
+结束时间	Heure de fin
+导出 MP4	Exporter en MP4
+取消导出	Annuler l’exportation
+在访达中显示原始片段	Afficher les segments originaux dans le Finder
+丢弃	Abandonner
+丢弃并退出	Abandonner et quitter
+丢弃未保存的截图？	Abandonner la capture non enregistrée ?
+丢弃未保存的录屏？	Abandonner l’enregistrement non sauvegardé ?
+退出并丢弃未保存的内容？	Quitter et abandonner le contenu non enregistré ?
+确认捕获范围和声音设置后，点击录屏。	Vérifiez la cible et l’audio, puis cliquez sur Enregistrer l’écran.
+请选择有效的屏幕区域。	Sélectionnez une zone valide.
+请选择有效的裁剪时间范围。	Sélectionnez une plage temporelle valide.
+当前操作尚未结束。	L’opération en cours n’est pas terminée.
+屏幕捕获未完成，请重试。	La capture a échoué. Réessayez.
+录制写入失败，请检查可用磁盘空间。	Impossible d’écrire l’enregistrement. Vérifiez l’espace libre.
+导出未完成，原始录制仍保留，可重试。	L’exportation a échoué. L’original est conservé pour réessayer.
+捕获目标已不可用，录制已结束。	La cible est indisponible. L’enregistrement s’est arrêté.
+无法识别此截图请求，请更新 XStats Capture。	Requête inconnue. Mettez à jour XStats Capture.
+请在系统设置中允许 XStats Capture 录制屏幕，然后重试。	Autorisez l’enregistrement de l’écran pour XStats Capture dans Réglages Système, puis réessayez.
+请在系统设置中允许 XStats Capture 使用麦克风，然后重试。	Autorisez le microphone pour XStats Capture dans Réglages Système, puis réessayez.
+独立截图与录屏工具，使用时启动。	Outil de capture indépendant, lancé à la demande.
+请选择已安装的 XStats Capture.app。	Sélectionnez XStats Capture.app installé.
+无法打开 XStats Capture，请检查所选应用。	Impossible d’ouvrir XStats Capture. Vérifiez l’app.

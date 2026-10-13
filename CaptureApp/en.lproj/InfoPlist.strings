@@ -1,0 +1,4 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+"NSMicrophoneUsageDescription" = "When you enable the microphone, record audio in a local video without uploading content.";
+"NSAudioCaptureUsageDescription" = "When you enable system audio, record it in a local video without uploading content.";

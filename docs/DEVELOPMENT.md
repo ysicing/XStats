@@ -61,6 +61,8 @@ task generate                       # 从 project.yml 生成 Xcode 工程
 task build                          # 构建、安装并启动；构建号递增
 task build BUMP=0 INSTALL=0          # 只构建，不改构建号或安装
 task compile CONFIG=Debug           # 只编译 Debug，不安装
+task compile-capture                # 独立 Capture 验证构建，不安装、不推进版本
+task run-capture                    # 构建并启动 Capture
 task test                           # 脚本、Go API 和 Swift 测试
 task open                           # 生成工程并用 Xcode 打开
 task snapshot                       # 使用当前 Release 构建渲染截图
@@ -478,3 +480,7 @@ GitHub Actions 作为异步验证，等待、运行或失败均不阻塞正在�
 自定义休息音频使用本地文件选择器，导入副本最大 50 MiB，不下载或上传。`RestCustomAudioTests` 验证原文件移走后副本可用、替换仅保留当前副本、无效/超限/取消导入不影响原文件、播放器释放，以及本机元数据不进入设置备份。该功能使用独立临时文件夹验证，不读取用户音频；本地 UI 验收应使用测试音频，不能自动选择用户私人文件。
 
 迷你 HUD 的定向截图：`XStats --snapshot <目录> --rest-hud-only --language zh-Hans`，使用独立偏好与演示时钟输出数字、圆环、进度条三种样式的专注/暂停/轮间休息/护眼休息明暗 PNG，不启动计时、播放音频或写入用户记录。可使用 `en`、`ar` 验证长文案与 RTL。离屏截图使用实色回退，不能作为 Liquid Glass 或桌面透视的验证依据；追加 `--native-preview` 可打开限时原生预览窗口，检查真实材质。实际面板需检查关闭/样式/底部操作不会触发拖动，旧窗口位置恢复后新尺寸仍在屏幕内。
+
+## 独立截图与录屏 App
+
+XStats Capture 使用独立 target、Bundle ID、版本和偏好设置。构建、权限、URL 协议、媒体管线及运行验收见 [CAPTURE.md](CAPTURE.md)。Capture 的本地构建不安装、不更新 XStats 或网络组件，也不推进任何版本。

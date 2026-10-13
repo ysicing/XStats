@@ -1,0 +1,49 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import AppKit
+import ScreenCaptureKit
+
+/// The stored SCContentFilter has a read-only API; geometry and identity are immutable values.
+public struct ScreenCaptureSource: @unchecked Sendable {
+    public let filter: SCContentFilter
+    public let sourceRect: CGRect?
+    public let pixelSize: CGSize
+    public let displayID: CGDirectDisplayID
+    public let windowID: CGWindowID?
+    public init(display: SCDisplay, excludedApps: [SCRunningApplication], region: CaptureGeometry.Region? = nil) {
+        filter = SCContentFilter(display: display, excludingApplications: excludedApps, exceptingWindows: [])
+        sourceRect = region?.sourceRect
+        let scale = CGFloat(filter.pointPixelScale)
+        pixelSize = region?.pixelSize ?? CGSize(width: filter.contentRect.width * scale, height: filter.contentRect.height * scale)
+        displayID = display.displayID; windowID = nil
+    }
+    public init(window: SCWindow, displayID: CGDirectDisplayID) {
+        filter = SCContentFilter(desktopIndependentWindow: window)
+        sourceRect = nil
+        let scale = CGFloat(filter.pointPixelScale)
+        pixelSize = CGSize(width: filter.contentRect.width * scale, height: filter.contentRect.height * scale)
+        self.displayID = displayID; windowID = window.windowID
+    }
+    public func configuration(recording: Bool, systemAudio: Bool = false) -> SCStreamConfiguration {
+        let configuration = SCStreamConfiguration()
+        let size = recording ? CaptureGeometry.recordingSize(pixelSize) : pixelSize
+        configuration.width = Int(size.width); configuration.height = Int(size.height)
+        if let sourceRect { configuration.sourceRect = sourceRect }
+        configuration.showsCursor = recording
+        configuration.capturesAudio = systemAudio
+        configuration.excludesCurrentProcessAudio = true
+        configuration.sampleRate = 48000; configuration.channelCount = 2
+        configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
+        configuration.queueDepth = 3
+        configuration.pixelFormat = kCVPixelFormatType_32BGRA
+        configuration.colorSpaceName = CGColorSpace.sRGB
+        return configuration
+    }
+    public func screenshot() async throws -> CGImage {
+        try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration(recording: false))
+    }
+    public static func content() async throws -> SCShareableContent {
+        guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else { throw CaptureError.screenPermission }
+        return try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+    }
+}

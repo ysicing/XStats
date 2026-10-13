@@ -1,0 +1,4 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+"NSMicrophoneUsageDescription" = "Bei aktiviertem Mikrofon wird Audio lokal im Video gespeichert und nicht hochgeladen.";
+"NSAudioCaptureUsageDescription" = "Bei aktiviertem Systemaudio wird es lokal im Video gespeichert und nicht hochgeladen.";

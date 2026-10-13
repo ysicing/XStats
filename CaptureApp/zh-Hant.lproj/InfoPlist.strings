@@ -1,0 +1,4 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+"NSMicrophoneUsageDescription" = "在您開啟麥克風時，將聲音錄製到本機影片中，不上傳內容。";
+"NSAudioCaptureUsageDescription" = "在您開啟系統聲音時，將聲音錄製到本機影片中，不上傳內容。";

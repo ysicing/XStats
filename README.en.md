@@ -114,6 +114,7 @@ When Magpie is installed, account quotas, tokens and costs come from its local A
 
 | Tool | Description |
 |---|---|
+| **XStats Capture** | Independent screenshot annotation and screen recording with audio, available from Optional Features; see [local builds and permissions](docs/CAPTURE.md) |
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
 | **Apps and cleanup** | Browse app information, check App Store updates, manage Homebrew, and review app leftovers, caches and build artifacts · [Cleanup scope](docs/CLEANUP.md) |
