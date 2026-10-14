@@ -565,9 +565,10 @@ private struct AppUsageList: View {
     let rowCount: Int
     let metric: Metric
     var total: UInt64?
+    @State private var previous: [String] = []
 
     var body: some View {
-        let visible = Array(apps.prefix(rowCount))
+        let visible = StableOrder.arrange(apps, previous: previous, limit: rowCount, id: \.id)
         // 横条以列表里最大的一项为满格，比较谁占得多
         let peak = visible.map { metric == .cpu ? $0.cpu : Double($0.memory) }.max() ?? 1
         if visible.isEmpty {
@@ -601,6 +602,7 @@ private struct AppUsageList: View {
             }
             .explainable(.init(app.representative))
         }
+        .onChange(of: visible.map(\.id), initial: true) { _, ids in previous = ids }
     }
 
     private func valueText(_ app: AppUsage) -> String {

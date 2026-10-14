@@ -31,6 +31,9 @@ struct ActivityRanking: Equatable {
         scores = next
     }
 
+    /// 分项读写均值只保留总排行仍在跟踪的条目，退出后不会无限积累。
+    mutating func retain(_ ids: Set<String>) { scores = scores.filter { ids.contains($0.key) } }
+
     func ranked(limit: Int) -> [Entry] {
         let entries: [Entry] = scores.map { Entry(id: $0.key, score: $0.value) }
         let sorted = entries.sorted { left, right in

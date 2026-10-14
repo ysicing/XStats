@@ -44,6 +44,7 @@ public final class NetworkController {
     public private(set) var processes: [NetworkProcessUsage] = []
     /// 各进程流量的平滑排行，列表按它排序而不是按瞬时速率
     @ObservationIgnored private var processRanking = ActivityRanking()
+    @ObservationIgnored private var processOrder: [Int32] = []
 
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let cacheDefaults: UserDefaults
@@ -430,7 +431,10 @@ extension NetworkController {
             byID[key] = process
         }
         processRanking.update(current)
-        return processRanking.ranked(limit: 5).compactMap { byID[$0.id] }
+        let ranked = processRanking.ranked(limit: 5).compactMap { byID[$0.id] }
+        let shown = StableOrder.arrange(ranked, previous: processOrder, limit: 5, id: \.pid)
+        processOrder = shown.map(\.pid)
+        return shown
     }
 }
 

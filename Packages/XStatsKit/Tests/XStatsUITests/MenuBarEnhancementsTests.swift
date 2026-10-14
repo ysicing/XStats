@@ -66,5 +66,48 @@ struct MenuBarEnhancementsTests {
         #expect(try image(12, items: [.cpu]).size == image(4, items: [.cpu]).size)
     }
 
+    @Test func stableRanksRetainSurvivorsAndReplaceDeparturesWithFreshValues() {
+        struct Entry: Identifiable, Equatable { let id: Int; let value: Int }
+        let ranked = [Entry(id: 2, value: 90), Entry(id: 4, value: 80), Entry(id: 1, value: 70)]
+        let shown = StableOrder.arrange(ranked, previous: [1, 3, 2], limit: 3, id: \.id)
+        #expect(shown.map(\.id) == [1, 4, 2])
+        #expect(shown.map(\.value) == [70, 80, 90])
+        #expect(StableOrder.arrange(ranked, previous: [], limit: 2, id: \.id).map(\.id) == [2, 4])
+        #expect(StableOrder.arrange(ranked, previous: [1, 2, 4], limit: 0, id: \.id).isEmpty)
+    }
 
+    @Test func stableRanksBoundHistoryAcrossManyReplacements() {
+        var previous: [Int] = []
+        for start in 0..<1_000 {
+            let ranked = Array(start..<(start + 100))
+            previous = StableOrder.arrange(ranked, previous: previous, limit: 5, id: { $0 })
+            #expect(previous.count == 5 && Set(previous).count == 5)
+            #expect(Set(previous) == Set(ranked.prefix(5)))
+        }
+    }
+
+    @Test func diskReadWriteAveragesMatchRankingAndDecayTogether() {
+        let store = MetricsStore(readBattery: false)
+        var process = ProcessUsage(pid: 1, name: "Fixture", executablePath: nil,
+                                   appBundlePath: "/Applications/Fixture.app", cpu: 0, memory: 0)
+        process.diskRead = 4000
+        process.diskWrite = 8000
+        var snapshot = MetricsSnapshot()
+        snapshot.processes = [process]
+        store.apply(snapshot)
+        let key = process.rowGroupID
+        #expect(store.diskReadAverage.scores[key] == 1000)
+        #expect(store.diskWriteAverage.scores[key] == 2000)
+        process.diskRead = 0
+        process.diskWrite = 0
+        snapshot.processes = [process]
+        store.apply(snapshot)
+        #expect(store.diskReadAverage.scores[key] == 750)
+        #expect(store.diskWriteAverage.scores[key] == 1500)
+        #expect(store.diskRanking.scores[key] == 2250)
+        snapshot.processes = []
+        for _ in 0..<40 { store.apply(snapshot) }
+        #expect(store.diskRanking.scores.isEmpty)
+        #expect(store.diskReadAverage.scores.isEmpty && store.diskWriteAverage.scores.isEmpty)
+    }
 }

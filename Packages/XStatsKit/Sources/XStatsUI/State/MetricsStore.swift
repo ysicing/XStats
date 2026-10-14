@@ -51,6 +51,8 @@ public final class MetricsStore {
     public private(set) var appEnergy: AppEnergyReading?
     /// 按应用汇总的磁盘读写排行，分数是最近十几秒的平均速率
     private(set) var diskRanking = ActivityRanking()
+    private(set) var diskReadAverage = ActivityRanking(floor: 0)
+    private(set) var diskWriteAverage = ActivityRanking(floor: 0)
     public private(set) var systemCounts: SystemCounts?
     public private(set) var sensors: SensorReadings?
     /// 独立观察硬件能力，避免每次传感器采样都触发菜单栏布局重建。
@@ -179,6 +181,11 @@ public final class MetricsStore {
             }
             let activity = totals.mapValues { total in total.read.map { $0 + total.write } ?? 0 }
             diskRanking.update(activity)
+            diskReadAverage.update(totals.mapValues { $0.read ?? 0 })
+            diskWriteAverage.update(totals.mapValues { $0.read == nil ? 0 : $0.write })
+            let rankedIDs = Set(diskRanking.scores.keys)
+            diskReadAverage.retain(rankedIDs)
+            diskWriteAverage.retain(rankedIDs)
         }
         if let counts = snapshot.systemCounts { systemCounts = counts }
         if let sensors = snapshot.sensors { mergeSensors(sensors) }

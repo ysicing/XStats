@@ -454,7 +454,7 @@ private struct DiskProcessRows: View {
     let rowCount: Int
 
     var body: some View {
-        // 顺序和条形长度按最近十几秒的平均速率，数字显示当前速率：列表不会随每秒的波动跳动
+        // 排名、条形与数字统一使用最近十几秒的平滑速率。
         let grouped = Dictionary(uniqueKeysWithValues: ProcessRowModel.grouped(model.store.processes).map { ($0.id, $0) })
         let rows = model.store.diskRanking.ranked(limit: rowCount)
             .compactMap { entry in grouped[entry.id].map { ($0, entry.score) } }
@@ -474,7 +474,7 @@ private struct DiskProcessRows: View {
                         .foregroundStyle(DS.Palette.textPrimary)
                         .lineLimit(1)
                     Spacer(minLength: DS.Space.s2)
-                    Text(verbatim: tr("读 \(Format.menuBarRate(row.disk?.read ?? 0)) · 写 \(Format.menuBarRate(row.disk?.write ?? 0))"))
+                    Text(verbatim: tr("读 \(Format.menuBarRate(model.store.diskReadAverage.scores[row.id] ?? 0)) · 写 \(Format.menuBarRate(model.store.diskWriteAverage.scores[row.id] ?? 0))"))
                         .dsFont(.xs, weight: .medium)
                         .foregroundStyle(DS.Palette.textPrimary)
                         .monospacedDigit()

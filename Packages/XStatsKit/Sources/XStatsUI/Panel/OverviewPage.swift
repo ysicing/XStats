@@ -433,9 +433,10 @@ private struct TopProcessesCard: View {
     @Environment(AppModel.self) private var model
     @Environment(\.isSnapshot) private var isSnapshot
     private static let rowCount = 5
+    @State private var previous: [Int32] = []
 
     var body: some View {
-        let processes = Array(model.store.processes.prefix(Self.rowCount))
+        let processes = StableOrder.arrange(model.store.processes, previous: previous, limit: Self.rowCount, id: \.pid)
 
         Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
             HStack(spacing: DS.Space.s1) {
@@ -477,6 +478,7 @@ private struct TopProcessesCard: View {
                 }
                 .monospacedDigit()
             }
+            .onChange(of: processes.map(\.pid), initial: true) { _, ids in previous = ids }
         }
     }
 
