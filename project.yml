@@ -49,12 +49,12 @@ targets:
     type: application
     platform: macOS
     sources:
-      - path: CaptureApp
+      - path: Apps/Capture/App
         excludes: ["*.plist", "*.entitlements"]
-      - path: App/Assets.xcassets
+      - path: Apps/XStats/App/Assets.xcassets
         buildPhase: resources
     info:
-      path: CaptureApp/Info.plist
+      path: Apps/Capture/App/Info.plist
       properties:
         CFBundleName: XStats Capture
         CFBundleDisplayName: XStats Capture
@@ -73,7 +73,7 @@ targets:
         NSMicrophoneUsageDescription: 在您开启麦克风时，将声音录制到本机视频中，不上传内容。
         NSAudioCaptureUsageDescription: 在您开启系统声音时，将声音录制到本机视频中，不上传内容。
     entitlements:
-      path: CaptureApp/XStatsCapture.entitlements
+      path: Apps/Capture/App/XStatsCapture.entitlements
       properties:
         com.apple.security.device.audio-input: true
     settings:
@@ -92,16 +92,16 @@ targets:
     type: application
     platform: macOS
     sources:
-      - path: App
+      - path: Apps/XStats/App
       - path: LICENSES/Sparkle-License.txt
         buildPhase: resources
-      - path: Helper/work.12306.xstats.helper.plist
+      - path: Apps/XStats/Helper/work.12306.xstats.helper.plist
         buildPhase:
           copyFiles:
             destination: wrapper
             subpath: Contents/Library/LaunchDaemons
     info:
-      path: App/Info.plist
+      path: Apps/XStats/App/Info.plist
       properties:
         CFBundleName: XStats
         CFBundleDisplayName: XStats
@@ -129,7 +129,7 @@ targets:
         NSCalendarsFullAccessUsageDescription: 在本机日历面板显示您选择的系统日程，不修改或上传日程内容。
         NSRemindersFullAccessUsageDescription: 在本机日历面板显示您选择的到期提醒，不修改或上传提醒内容。
     entitlements:
-      path: App/XStats.entitlements
+      path: Apps/XStats/App/XStats.entitlements
       properties:
         # EventKit 在 Hardened Runtime 下请求日历与提醒事项访问所需；仍由用户单独授权。
         com.apple.security.personal-information.calendars: true
@@ -158,14 +158,14 @@ targets:
     platform: macOS
     deploymentTarget: "15.0"
     sources:
-      - path: NetworkMonitorApp
+      - path: Apps/NetworkMonitor/App
         excludes: ["*.plist", "*.entitlements"]
-      - path: App/Assets.xcassets
+      - path: Apps/XStats/App/Assets.xcassets
         buildPhase: resources
       - path: LICENSES/Sparkle-License.txt
         buildPhase: resources
     info:
-      path: NetworkMonitorApp/Info.plist
+      path: Apps/NetworkMonitor/App/Info.plist
       properties:
         CFBundleName: XStats Network Monitor
         CFBundleDisplayName: XStats Network Monitor
@@ -192,7 +192,7 @@ targets:
         NetworkObservationProtocolVersion: 2
         NetworkObservationControlMachService: $(TeamIdentifierPrefix)work.12306.xstats.network-observation.control
     entitlements:
-      path: NetworkMonitorApp/XStatsNetworkMonitor.entitlements
+      path: Apps/NetworkMonitor/App/XStatsNetworkMonitor.entitlements
       properties:
         com.apple.developer.system-extension.install: true
         com.apple.developer.networking.networkextension:
@@ -231,10 +231,10 @@ targets:
     platform: macOS
     deploymentTarget: "15.0"
     sources:
-      - path: NetworkExtension
+      - path: Apps/NetworkMonitor/Extension
         excludes: ["*.plist", "*.entitlements"]
     info:
-      path: NetworkExtension/Info.plist
+      path: Apps/NetworkMonitor/Extension/Info.plist
       properties:
         CFBundleDisplayName: XStats Network Extension
         CFBundlePackageType: SYSX
@@ -246,7 +246,7 @@ targets:
           NEProviderClasses:
             com.apple.networkextension.filter-data: $(PRODUCT_MODULE_NAME).ConnectionFilterProvider
     entitlements:
-      path: NetworkExtension/XStatsNetworkExtension.entitlements
+      path: Apps/NetworkMonitor/Extension/XStatsNetworkExtension.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.application-groups:
@@ -272,11 +272,11 @@ targets:
     type: app-extension
     platform: macOS
     sources:
-      - path: Widget
+      - path: Apps/XStats/Widget
         excludes:
           - "*.entitlements"
     info:
-      path: Widget/Info.plist
+      path: Apps/XStats/Widget/Info.plist
       properties:
         CFBundleDisplayName: XStats
         CFBundleShortVersionString: $(MARKETING_VERSION)
@@ -285,7 +285,7 @@ targets:
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
-      path: Widget/XStatsWidget.entitlements
+      path: Apps/XStats/Widget/XStatsWidget.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.application-groups:
@@ -309,7 +309,7 @@ targets:
     type: tool
     platform: macOS
     sources:
-      - path: Helper
+      - path: Apps/XStats/Helper
         excludes:
           - "*.plist"
     settings:

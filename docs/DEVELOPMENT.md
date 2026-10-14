@@ -456,8 +456,9 @@ GitHub Actions 作为异步验证，等待、运行或失败均不阻塞正在�
 
 | 路径 | 用途 |
 |---|---|
-| `App/`、`Widget/`、`Helper/` | 主应用、桌面小组件、特权辅助工具 |
-| `NetworkMonitorApp/`、`NetworkExtension/` | 独立网络伴随应用与其系统扩展 |
+| `Apps/XStats/App/`、`Apps/XStats/Widget/`、`Apps/XStats/Helper/` | 主应用、桌面小组件、特权辅助工具 |
+| `Apps/Capture/App/` | 独立截图与录屏应用 |
+| `Apps/NetworkMonitor/App/`、`Apps/NetworkMonitor/Extension/` | 独立网络伴随应用与其系统扩展 |
 | `Packages/XStatsKit/Sources/` | 采集、AI 用量、清理、更新、同步与界面模块 |
 | `Packages/XStatsKit/Tests/` | Swift 测试 |
 | `server/api/` | 旧更新协议的兼容实现与测试 |
