@@ -261,7 +261,7 @@ XStats 网络连接查看	XStats Network Connection Viewer
 8 小时	8 hours
 12 小时	12 hours
 项目间距	Item spacing
-调整菜单栏项目和 AI 服务之间的距离	Adjust the space between menu bar items and AI services
+调整合并菜单栏中各项目之间的距离	Adjust the space between items in the combined menu bar
 丢包	Packet loss
 结束时间：{}	Ends at {}
 最近 {} 次探测	Last {} probes

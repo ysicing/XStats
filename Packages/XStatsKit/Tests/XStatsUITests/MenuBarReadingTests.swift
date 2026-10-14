@@ -43,7 +43,7 @@ struct MenuBarReadingTests {
         }
         if let directory = ProcessInfo.processInfo.environment["XSTATS_MAGPIE_PREVIEW_DIR"] {
             // 使用截图中的短百分比验证实际观感，均为演示数据。
-            let image = quotaIconImage(providers: ["codex", "claude"], dark: dark, remainingPercents: [4, 32])
+            let image = quotaIconImage(providers: ["codex", "grok", "claude"], dark: dark, remainingPercents: [16, 0, 0.5])
             let size = NSSize(width: image.size.width + 20, height: image.size.height + 20)
             let canvas = NSImage(size: size, flipped: false) { _ in
                 NSColor(calibratedWhite: dark ? 0.12 : 0.96, alpha: 1).setFill()
@@ -61,12 +61,12 @@ struct MenuBarReadingTests {
 
     @Test func shortQuotaValuesStayNearIconsWithoutResizing() throws {
         var widths: Set<CGFloat> = []
-        for remaining in [4.0, 32.0, 100.0] {
+        for remaining in [0.0, 0.5, 4.0, 32.0, 99.0] {
             let image = quotaIconImage(providers: ["codex"], dark: false, remainingPercents: [remaining])
             widths.insert(image.size.width)
             let tiff = try #require(image.tiffRepresentation)
             let bitmap = try #require(NSBitmapImageRep(data: tiff))
-            // 图标为 14pt，间隙为 4pt；数值首个可见像素应在 18–20pt 附近。
+            // 图标为 14pt，间隙为 3pt；短数值紧跟图标，不能靠右对齐到占位末端。
             var firstTextPixel: Int?
             for x in 28..<bitmap.pixelsWide {
                 if (0..<bitmap.pixelsHigh).contains(where: { (bitmap.colorAt(x: x, y: $0)?.alphaComponent ?? 0) > 0.1 }) {
@@ -75,18 +75,28 @@ struct MenuBarReadingTests {
                 }
             }
             let start = try #require(firstTextPixel)
-            #expect((36...40).contains(start))
+            #expect((34...38).contains(start))
         }
         #expect(widths.count == 1)
+        let ordinaryWidth = try #require(widths.first)
+        let full = quotaIconImage(providers: ["codex"], dark: false, remainingPercents: [100])
+        // 三位数及接近满额的 >99% 增加一位的空间，不能裁掉边界值。
+        #expect(full.size.width > ordinaryWidth)
+        #expect(full.size.width - ordinaryWidth <= 8)
+        let nearlyFull = quotaIconImage(providers: ["codex"], dark: false, remainingPercents: [99.5])
+        #expect(nearlyFull.size.width == full.size.width)
+        let compact = quotaIconImage(providers: ["codex", "grok", "claude"], dark: false,
+                                     remainingPercents: [16, 0, 0.5])
+        #expect(compact.size.width <= 145)
     }
 
     @Test(arguments: MenuBarStyle.options(for: .aiUsage))
-    func quotaServiceGapsFollowItemSpacingWithoutChangingSingleService(style: MenuBarStyle) {
+    func quotaServiceGroupsIgnoreOuterItemSpacing(style: MenuBarStyle) {
         for providers in [["codex"], ["codex", "claude"], ["codex", "claude", "grok", "gemini"]] {
             let compact = quotaIconImage(providers: providers, dark: false, style: style, itemGap: 4)
             for gap: CGFloat in [6, 8, 12] {
                 let expanded = quotaIconImage(providers: providers, dark: false, style: style, itemGap: gap)
-                #expect(expanded.size.width - compact.size.width == CGFloat(providers.count - 1) * (gap - 4))
+                #expect(expanded.size.width == compact.size.width)
             }
         }
     }

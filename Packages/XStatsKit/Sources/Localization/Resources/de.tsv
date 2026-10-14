@@ -2074,7 +2074,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Der Hom
 8 小时	8 Stunden
 12 小时	12 Stunden
 项目间距	Abstand zwischen Einträgen
-调整菜单栏项目和 AI 服务之间的距离	Abstand zwischen Menüleistenelementen und KI-Diensten anpassen
+调整合并菜单栏中各项目之间的距离	Abstand zwischen Einträgen in der kombinierten Menüleiste anpassen
 丢包	Paketverlust
 结束时间：{}	Endet um {}
 最近 {} 次探测	Letzte {} Prüfungen

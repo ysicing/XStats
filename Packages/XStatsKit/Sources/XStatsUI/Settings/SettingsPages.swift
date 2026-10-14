@@ -397,7 +397,7 @@ struct MenuBarSettings: View {
 
         SettingsGroup(caption: tr("其他")) {
             GroupRow(showsDivider: false) {
-                SettingRow(title: tr("项目间距"), subtitle: tr("调整菜单栏项目和 AI 服务之间的距离")) {
+                SettingRow(title: tr("项目间距"), subtitle: tr("调整合并菜单栏中各项目之间的距离")) {
                     Picker(tr("项目间距"), selection: $settings.menuBarItemSpacing) {
                         ForEach(AppSettings.menuBarSpacingOptions, id: \.self) { value in
                             Text(verbatim: value.formatted(.number.locale(L10n.locale)) + " pt").tag(value)
@@ -405,8 +405,7 @@ struct MenuBarSettings: View {
                     }
                     .labelsHidden()
                     .fixedSize()
-                    .disabled(settings.menuBarLayout == .iconOnly
-                              || (settings.menuBarLayout == .separate && !settings.menuBarItems.contains(.aiUsage)))
+                    .disabled(settings.menuBarLayout != .combined)
                 }
             }
             GroupRow {
