@@ -6,10 +6,14 @@ import AppKit
 import OSLog
 
 /// AVCaptureSession's blocking lifecycle stays on a dedicated serial queue.
-private final class MicrophoneCapture: @unchecked Sendable {
+final class MicrophoneCapture: @unchecked Sendable {
     private let queue = DispatchQueue(label: "work.12306.xstats.capture.microphone")
     private let session = AVCaptureSession()
     private var observers: [NSObjectProtocol] = []
+    private let device: @Sendable () -> AVCaptureDevice?
+    init(device: @escaping @Sendable () -> AVCaptureDevice? = { AVCaptureDevice.default(for: .audio) }) {
+        self.device = device
+    }
     func start(writer: RecordingWriter) async throws {
         let clock: CMClock = try await CaptureCallback<CMClock>().wait(onCancel: { self.requestStop() }) { completion in
             queue.async {
@@ -18,10 +22,10 @@ private final class MicrophoneCapture: @unchecked Sendable {
                     self.session.beginConfiguration()
                     do {
                         defer { self.session.commitConfiguration() }
-                        guard let device = AVCaptureDevice.default(for: .audio) else { throw CaptureError.microphonePermission }
+                        guard let device = self.device() else { throw CaptureError.microphoneFailed }
                         let input = try AVCaptureDeviceInput(device: device)
                         let output = AVCaptureAudioDataOutput()
-                        guard self.session.canAddInput(input), self.session.canAddOutput(output) else { throw CaptureError.captureFailed }
+                        guard self.session.canAddInput(input), self.session.canAddOutput(output) else { throw CaptureError.microphoneFailed }
                         self.session.addInput(input); self.session.addOutput(output)
                         for name in [AVCaptureSession.runtimeErrorNotification, AVCaptureSession.wasInterruptedNotification] {
                             let token = NotificationCenter.default.addObserver(forName: name, object: self.session, queue: nil) { notification in
@@ -34,12 +38,12 @@ private final class MicrophoneCapture: @unchecked Sendable {
                     }
                     guard !completion.isCancelled else { self.stopOnQueue(); return }
                     self.session.startRunning()
-                    guard self.session.isRunning, let clock = self.session.synchronizationClock else { throw CaptureError.captureFailed }
+                    guard self.session.isRunning, let clock = self.session.synchronizationClock else { throw CaptureError.microphoneFailed }
                     // startRunning 无法强制打断。取消先释放等待者，迟到的启动在原队列停止。
                     if !completion.finish(.success(clock)) { self.stopOnQueue() }
                 } catch {
                     self.stopOnQueue()
-                    completion.finish(.failure(error))
+                    completion.finish(.failure((error as? CaptureError) ?? CaptureError.microphoneFailure(error as NSError)))
                 }
             }
         }

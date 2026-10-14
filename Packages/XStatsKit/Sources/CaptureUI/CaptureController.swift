@@ -63,13 +63,20 @@ import Localization
         observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, let source = self.selectedSource else { return }
-                if !NSScreen.screens.contains(where: { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32) == source.displayID }) { self.interruptRecording() }
+                let displays = Set(NSScreen.screens.compactMap { $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32 })
+                if Self.shouldInterruptForDisplayChange(displayID: source.displayID, windowID: source.windowID, availableDisplays: displays) {
+                    self.interruptRecording()
+                }
             }
         })
         distributedObserver = DistributedNotificationCenter.default().addObserver(forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.interruptRecording() }
         }
         applyResidentMode()
+    }
+    static func shouldInterruptForDisplayChange(displayID: CGDirectDisplayID, windowID: CGWindowID?, availableDisplays: Set<CGDirectDisplayID>) -> Bool {
+        // 独立窗口过滤器跟随窗口移动，由窗口 ID 检查决定结束，不能绑定最初点击的显示器。
+        windowID == nil && !availableDisplays.contains(displayID)
     }
     func cleanUp() {
         operation?.cancel(); selector.cancel(); hotKeys.clear(); player?.pause()

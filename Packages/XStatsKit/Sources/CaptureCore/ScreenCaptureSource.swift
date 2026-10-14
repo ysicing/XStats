@@ -41,9 +41,18 @@ public struct ScreenCaptureSource: @unchecked Sendable {
     }
     public func screenshot() async throws -> CGImage {
         let configuration = configuration(recording: false)
+        return try await Self.screenshot { completion in
+            SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration, completionHandler: completion)
+        }
+    }
+    static func screenshot(capture: @Sendable (@escaping @Sendable (CGImage?, (any Error)?) -> Void) -> Void) async throws -> CGImage {
         return try await CaptureCallback<CGImage>().wait { completion in
-            SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration) { image, error in
-                if let error { completion.finish(.failure(error)) }
+            capture { image, error in
+                if let error {
+                    // 选择期间权限也可能被撤销；只有系统捕获错误按对应恢复语义转换。
+                    let failure: any Error = (error as NSError).domain == SCStreamErrorDomain ? CaptureError.recordingFailure(error) : error
+                    completion.finish(.failure(failure))
+                }
                 else if let image { completion.finish(.success(image)) }
                 else { completion.finish(.failure(CaptureError.captureFailed)) }
             }
