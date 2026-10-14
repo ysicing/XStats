@@ -12,11 +12,8 @@ struct CaptureHomeView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("XStats Capture").font(.title2.weight(.semibold))
-                    Text(tr("截图标注与屏幕录制"))
-                        .font(.callout).foregroundStyle(.secondary)
-                }
+                Text(tr("截图标注与屏幕录制"))
+                    .font(.callout).foregroundStyle(.secondary)
                 Spacer()
                 if controller.host == .standalone {
                     Button { showingSettings.toggle() } label: {

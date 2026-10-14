@@ -18,12 +18,21 @@ struct CaptureHotKey: Codable, Equatable {
         (flags.contains(.command) ? UInt32(cmdKey) : 0) | (flags.contains(.option) ? UInt32(optionKey) : 0) |
         (flags.contains(.control) ? UInt32(controlKey) : 0) | (flags.contains(.shift) ? UInt32(shiftKey) : 0)
     }
+    var isUsable: Bool {
+        guard !flags.intersection([.control, .option, .command]).isEmpty,
+              modifiers == flags.intersection([.control, .option, .shift, .command]).rawValue,
+              ![51, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63].contains(code) else { return false }
+        // Preserve macOS's default screenshot/recording shortcuts even if Carbon allows overriding them.
+        let screenshotModifiers: [NSEvent.ModifierFlags] = [[.command, .shift], [.command, .shift, .control]]
+        return !(screenshotModifiers.contains(flags) && [20, 21, 22, 23].contains(code))
+    }
 }
 
 @MainActor final class CaptureHotKeys {
     private var keys: [EventHotKeyRef] = []
     private var handler: EventHandlerRef?
-    private static weak var current: CaptureHotKeys?
+    private static var nextID: UInt32 = 0
+    private var actions: [UInt32: CaptureRequest.Action] = [:]
     var onAction: (CaptureRequest.Action) -> Void = { _ in }
     func apply(_ bindings: [CaptureRequest.Action: CaptureHotKey]) -> Bool {
         clear()
@@ -31,21 +40,26 @@ struct CaptureHotKey: Codable, Equatable {
         // Carbon 注册是逐项执行的；重复组合提前拒绝，任何失败都回滚整组。
         let combinations = Set(bindings.values.map { UInt64($0.code) << 32 | UInt64($0.carbon) })
         guard combinations.count == bindings.count else { return false }
-        Self.current = self
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        let status = InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in
+        let status = InstallEventHandler(GetApplicationEventTarget(), { _, event, context in
             var id = EventHotKeyID()
-            guard GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil,
+            guard let context, GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil,
                                     MemoryLayout<EventHotKeyID>.size, nil, &id) == noErr, id.signature == 0x58434150 else { return OSStatus(eventNotHandledErr) }
-            MainActor.assumeIsolated { CaptureHotKeys.current?.onAction(id.id == 1 ? .screenshot : .record) }
-            return noErr
-        }, 1, &spec, nil, &handler)
+            return MainActor.assumeIsolated {
+                let owner = Unmanaged<CaptureHotKeys>.fromOpaque(context).takeUnretainedValue()
+                guard let action = owner.actions[id.id] else { return OSStatus(eventNotHandledErr) }
+                owner.onAction(action)
+                return noErr
+            }
+        }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &handler)
         guard status == noErr else { clear(); return false }
         for action in CaptureRequest.Action.allCases {
             guard let binding = bindings[action] else { continue }
             var reference: EventHotKeyRef?
-            let id = EventHotKeyID(signature: 0x58434150, id: action == .screenshot ? 1 : 2)
-            if RegisterEventHotKey(UInt32(binding.code), binding.carbon, id, GetApplicationEventTarget(), 0, &reference) == noErr, let reference { keys.append(reference) }
+            Self.nextID &+= 1
+            let id = EventHotKeyID(signature: 0x58434150, id: Self.nextID)
+            actions[id.id] = action
+            if RegisterEventHotKey(UInt32(binding.code), binding.carbon, id, GetApplicationEventTarget(), UInt32(kEventHotKeyExclusive), &reference) == noErr, let reference { keys.append(reference) }
             else { clear(); return false }
         }
         return true
@@ -53,8 +67,9 @@ struct CaptureHotKey: Codable, Equatable {
     func clear() {
         for key in keys { UnregisterEventHotKey(key) }; keys.removeAll()
         if let handler { RemoveEventHandler(handler) }; handler = nil
-        if Self.current === self { Self.current = nil }
+        actions.removeAll()
     }
+    isolated deinit { clear() }
 }
 
 struct CaptureShortcutRecorder: NSViewRepresentable {
@@ -79,14 +94,19 @@ struct CaptureShortcutRecorder: NSViewRepresentable {
     required init?(coder: NSCoder) { fatalError() }
     override var acceptsFirstResponder: Bool { true }
     @objc private func record() { recording = true; title = tr("按下快捷键，Esc 取消"); window?.makeFirstResponder(self) }
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard recording, window?.firstResponder === self else { return super.performKeyEquivalent(with: event) }
+        keyDown(with: event)
+        return true
+    }
     override func keyDown(with event: NSEvent) {
         guard recording else { super.keyDown(with: event); return }
         if event.keyCode == 53 { recording = false; title = binding?.display ?? tr("设置快捷键"); return }
-        if event.keyCode == 51 { onChange(nil); recording = false; return }
+        if event.keyCode == 51 { recording = false; onChange(nil); title = binding?.display ?? tr("设置快捷键"); return }
         let flags = event.modifierFlags.intersection([.control, .option, .shift, .command])
         guard !flags.intersection([.control, .option, .command]).isEmpty else { return }
         let key = CaptureHotKey(code: event.keyCode, modifiers: flags.rawValue, characters: event.charactersIgnoringModifiers ?? "")
-        recording = false; title = key.display; onChange(key)
+        recording = false; onChange(key); title = binding?.display ?? tr("设置快捷键")
     }
     override func resignFirstResponder() -> Bool {
         recording = false; title = binding?.display ?? tr("设置快捷键")

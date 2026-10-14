@@ -154,6 +154,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         model.aiUsage.start()
         applyAppearance()
         updateNetworkVisibility()
+        XStatsCapture.workspace.startShortcuts()
         XStatsCapture.workspace.onWindowsChanged = { [weak self] in self?.updateActivationPolicy() }
         appliedLanguage = model.settings.language
         startUpdateChecks()
@@ -278,6 +279,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        XStatsCapture.workspace.shortcuts.stop()
         XStatsCapture.workspace.cleanUp()
         wellnessNotifications?.dismiss()
         deepLinksReady = false

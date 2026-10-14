@@ -15,9 +15,10 @@ import Localization
     @Published var microphone = false
     @Published var resident: Bool
     @Published var language: AppLanguage
-    @Published var screenshotKey: CaptureHotKey?
-    @Published var recordingKey: CaptureHotKey?
-    @Published var shortcutConflict = false
+    let shortcuts: CaptureShortcuts
+    var screenshotKey: CaptureHotKey? { shortcuts.screenshotKey }
+    var recordingKey: CaptureHotKey? { shortcuts.recordingKey }
+    var shortcutConflict: Bool { shortcuts.conflict }
     @Published var error: String?
     @Published var permissionError: CaptureError?
     @Published var busy = false {
@@ -46,7 +47,6 @@ import Localization
     private var editors: [ImageEditorWindow] = []
     private var pins: [(window: NSWindow, image: CGImage)] = []
     private let selector = CaptureSelection()
-    private let hotKeys = CaptureHotKeys()
     private let exporter = RecordingExporter()
     private var recorder: ScreenRecorder?
     private var operation: Task<Void, Never>?
@@ -58,16 +58,14 @@ import Localization
     private var selectedSource: ScreenCaptureSource?
     private static let logger = Logger(subsystem: CaptureRequest.bundleIdentifier, category: "lifecycle")
 
-    init(host: CaptureHost, defaults: UserDefaults = .standard) {
+    init(host: CaptureHost, defaults: UserDefaults = .standard, shortcuts: CaptureShortcuts? = nil) {
         self.host = host; self.defaults = defaults
+        self.shortcuts = shortcuts ?? CaptureShortcuts(defaults: defaults)
         resident = host == .standalone && defaults.bool(forKey: "capture.resident")
         language = host == .standalone
             ? AppLanguage(rawValue: defaults.string(forKey: "capture.language") ?? "") ?? .system
             : L10n.language
         super.init()
-        screenshotKey = readKey("capture.screenshotKey")
-        recordingKey = readKey("capture.recordingKey")
-        hotKeys.onAction = { [weak self] in self?.begin($0, external: $0 == .record) }
     }
     func installObservers() {
         guard !observersInstalled else { return }
@@ -97,7 +95,8 @@ import Localization
         windowID == nil && !availableDisplays.contains(displayID)
     }
     func cleanUp() {
-        operation?.cancel(); selector.cancel(); hotKeys.clear(); player?.pause()
+        operation?.cancel(); selector.cancel(); player?.pause()
+        if host == .standalone { shortcuts.stop() }
         for observer in observers {
             NotificationCenter.default.removeObserver(observer)
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
@@ -108,16 +107,8 @@ import Localization
         observersInstalled = false
         removeStatusItem()
     }
-    private func readKey(_ name: String) -> CaptureHotKey? {
-        guard let data = defaults.data(forKey: name) else { return nil }
-        return try? JSONDecoder().decode(CaptureHotKey.self, from: data)
-    }
     func setShortcut(_ key: CaptureHotKey?, for action: CaptureRequest.Action) {
-        guard host == .standalone else { return }
-        let name = action == .screenshot ? "capture.screenshotKey" : "capture.recordingKey"
-        if action == .screenshot { screenshotKey = key } else { recordingKey = key }
-        defaults.set(key.flatMap { try? JSONEncoder().encode($0) }, forKey: name)
-        applyResidentMode()
+        shortcuts.setShortcut(key, for: action)
     }
     func applyLanguage() {
         if host == .standalone {
@@ -141,9 +132,7 @@ import Localization
     func applyResidentMode() {
         guard host == .standalone else { return }
         defaults.set(resident, forKey: "capture.resident")
-        var bindings: [CaptureRequest.Action: CaptureHotKey] = [:]
-        if resident { bindings[.screenshot] = screenshotKey; bindings[.record] = recordingKey }
-        shortcutConflict = !hotKeys.apply(bindings)
+        shortcuts.setEnabled(resident)
         if resident {
             if statusItem == nil {
                 statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)

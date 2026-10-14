@@ -110,5 +110,9 @@ extension Translations {
 点击图片输入文字，Return 完成，Esc 取消。	Click the image to type; Return finishes, Esc cancels.
 点击标注选中，拖动移动；Esc 取消选择。	Click an annotation to select, drag to move; Esc deselects.
 在图片上拖动绘制，Esc 取消。	Drag on the image to draw; Esc cancels.
+点击设置快捷键；Delete 清除，Esc 取消。	Click to set a shortcut; Delete clears, Esc cancels.
+快捷键无效或已被占用，原设置已保留。	This shortcut is invalid or in use. Previous settings were kept.
+快捷键在常驻菜单栏时生效。	Shortcuts work while staying in the menu bar.
+快捷键在 XStats 运行时生效。	Shortcuts work while XStats is running.
 """#
 }

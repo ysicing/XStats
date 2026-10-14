@@ -24,21 +24,11 @@ struct CaptureSettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if controller.resident {
-                VStack(spacing: 12) {
-                    HStack {
-                        Text(tr("截图快捷键")); Spacer()
-                        CaptureShortcutRecorder(value: controller.screenshotKey) { controller.setShortcut($0, for: .screenshot) }
-                    }
-                    HStack {
-                        Text(tr("录屏快捷键")); Spacer()
-                        CaptureShortcutRecorder(value: controller.recordingKey) { controller.setShortcut($0, for: .record) }
-                    }
-                }
-                if controller.shortcutConflict {
-                    Text(tr("快捷键已被占用，请更换。"))
-                        .font(.caption).foregroundStyle(.red)
-                }
+            CaptureShortcutSettingsView(shortcuts: controller.shortcuts)
+            if !controller.resident {
+                Text(tr("快捷键在常驻菜单栏时生效。"))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Divider()
             Picker(tr("语言"), selection: Binding(get: { controller.language }, set: {

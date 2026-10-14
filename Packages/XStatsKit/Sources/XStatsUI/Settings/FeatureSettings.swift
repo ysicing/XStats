@@ -7,6 +7,7 @@ import Localization
 import Metrics
 import SwiftUI
 import CaptureCore
+import CaptureUI
 
 /// 功能页的本地导航状态，不写入偏好或设置备份。
 enum FeatureSettingsTab: String, CaseIterable, Identifiable {
@@ -107,6 +108,11 @@ struct FeatureSettings: View {
                                 Button(tr("打开 XStats Capture")) { launchCapture(.open) }
                             }
                         }
+                        Divider()
+                        CaptureShortcutSettingsView(shortcuts: XStatsCapture.workspace.shortcuts)
+                        Text(tr("快捷键在 XStats 运行时生效。"))
+                            .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }

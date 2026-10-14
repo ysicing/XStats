@@ -10,6 +10,7 @@ public enum CaptureHost: Sendable { case embedded, standalone }
 @MainActor public final class CaptureWorkspace {
     private let host: CaptureHost
     private let defaults: UserDefaults
+    public let shortcuts: CaptureShortcuts
     private(set) var controller: CaptureController?
     public var onWindowsChanged: () -> Void = {}
     public var hasOpenWindows: Bool { controller?.hasOpenWindows ?? false }
@@ -18,6 +19,12 @@ public enum CaptureHost: Sendable { case embedded, standalone }
 
     public init(host: CaptureHost = .embedded, defaults: UserDefaults = .standard) {
         self.host = host; self.defaults = defaults
+        shortcuts = CaptureShortcuts(defaults: defaults)
+        shortcuts.onAction = { [weak self] in self?.open($0) }
+    }
+    /// Call at embedded host startup; registrations survive closing the capture workspace.
+    public func startShortcuts() {
+        if host == .embedded { shortcuts.setEnabled(true) }
     }
     public func open(_ action: CaptureRequest.Action = .open) {
         let controller = activeController()
@@ -29,7 +36,7 @@ public enum CaptureHost: Sendable { case embedded, standalone }
 
     private func activeController() -> CaptureController {
         if let controller { return controller }
-        let controller = CaptureController(host: host, defaults: defaults)
+        let controller = CaptureController(host: host, defaults: defaults, shortcuts: shortcuts)
         self.controller = controller
         controller.onWindowsChanged = { [weak self] in self?.onWindowsChanged() }
         controller.onIdle = { [weak self] in

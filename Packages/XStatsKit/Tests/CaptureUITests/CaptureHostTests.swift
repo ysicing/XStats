@@ -1,12 +1,42 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import AppKit
+import Carbon
 import Testing
 import CaptureCore
 import Localization
 @testable import CaptureUI
 
 @Suite @MainActor struct CaptureHostTests {
+    @Test func embeddedShortcutsStayRegisteredAfterClosingAndLazilyReopen() async throws {
+        _ = NSApplication.shared
+        let name = "capture-host-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let workspace = CaptureWorkspace(host: .embedded, defaults: defaults)
+        defer { workspace.shortcuts.stop(); workspace.cleanUp() }
+        let key = CaptureHotKey(code: 91, modifiers: NSEvent.ModifierFlags([.control, .option, .command]).rawValue, characters: "8")
+        workspace.shortcuts.setShortcut(key, for: .record)
+        workspace.startShortcuts()
+        #expect(workspace.controller == nil)
+        #expect(!workspace.shortcuts.conflict)
+        workspace.shortcuts.onAction(.record)
+        let controller = try #require(workspace.controller)
+        #expect(controller.captureAction == .record)
+        #expect(!controller.busy) // Audio choices are confirmed before recording starts.
+        let home = try #require(NSApp.windows.first { $0.delegate === controller && $0.isVisible })
+        home.close()
+        for _ in 0..<20 { await Task.yield() }
+        #expect(workspace.controller == nil)
+        var competitor: EventHotKeyRef?
+        #expect(RegisterEventHotKey(UInt32(key.code), key.carbon, EventHotKeyID(signature: 0x58545432, id: 1),
+            GetApplicationEventTarget(), 0, &competitor) != noErr)
+        if let competitor { UnregisterEventHotKey(competitor) }
+        workspace.shortcuts.onAction(.record)
+        #expect(workspace.controller != nil)
+        #expect(workspace.controller !== controller)
+        await workspace.prepareForTermination()
+    }
     @Test func embeddedIgnoresStandaloneSettingsAndPreservesHostIdentity() async {
         _ = NSApplication.shared
         let name = "capture-host-" + UUID().uuidString
