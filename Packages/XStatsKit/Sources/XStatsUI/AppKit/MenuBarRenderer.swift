@@ -316,7 +316,7 @@ enum MenuBarRenderer {
         if reading.keepAwake { segments.append(symbolSegment("cup.and.saucer.fill")) }
         for item in items {
             segments.append(segment(for: item, reading: reading, style: style(item), networkStyle: networkStyle,
-                                    colorizeHighLoad: colorizeHighLoad, fahrenheit: fahrenheit))
+                                    colorizeHighLoad: colorizeHighLoad, fahrenheit: fahrenheit, itemGap: itemGap))
         }
         // 即使防休眠标记存在，空项目布局也保留 XStats 的主入口图标。
         if items.isEmpty { segments.append(symbolSegment("waveform.path.ecg")) }
@@ -372,7 +372,7 @@ enum MenuBarRenderer {
     // MARK: 各指标
 
     private static func segment(for item: MenuBarItem, reading: MenuBarReading, style: MenuBarStyle,
-                                networkStyle: NetworkMenuStyle, colorizeHighLoad: Bool, fahrenheit: Bool) -> Segment {
+                                networkStyle: NetworkMenuStyle, colorizeHighLoad: Bool, fahrenheit: Bool, itemGap: CGFloat) -> Segment {
         switch item {
         case .cpu, .gpu, .memory, .disk:
             let (value, history) = reading.percent(item)
@@ -400,11 +400,11 @@ enum MenuBarRenderer {
         case .battery:
             return batterySegment(reading: reading, style: style, colorizeHighLoad: colorizeHighLoad)
         case .aiUsage:
-            return aiUsageSegment(reading: reading, style: style)
+            return aiUsageSegment(reading: reading, style: style, itemGap: itemGap)
         }
     }
 
-    private static func aiUsageSegment(reading: MenuBarReading, style: MenuBarStyle) -> Segment {
+    private static func aiUsageSegment(reading: MenuBarReading, style: MenuBarStyle, itemGap: CGFloat) -> Segment {
         guard !reading.aiQuotas.isEmpty else {
             return textSegment(item: .aiUsage, value: reading.aiTokens.map { tokenText($0, westernUnits: reading.aiUsageWesternUnits) } ?? "—",
                                sample: "999.9M", style: style)
@@ -429,7 +429,7 @@ enum MenuBarRenderer {
             case .meter: return combine([meter(fraction: fraction, alert: false, color: color), inline])
             case .dot: return combine([quotaDot(color: color), stacked])
             }
-        }, gap: DS.Space.s2)
+        }, gap: itemGap)
         return status
     }
 

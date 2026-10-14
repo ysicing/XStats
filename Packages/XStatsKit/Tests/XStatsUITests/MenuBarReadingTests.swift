@@ -80,8 +80,19 @@ struct MenuBarReadingTests {
         #expect(widths.count == 1)
     }
 
+    @Test(arguments: MenuBarStyle.options(for: .aiUsage))
+    func quotaServiceGapsFollowItemSpacingWithoutChangingSingleService(style: MenuBarStyle) {
+        for providers in [["codex"], ["codex", "claude"], ["codex", "claude", "grok", "gemini"]] {
+            let compact = quotaIconImage(providers: providers, dark: false, style: style, itemGap: 4)
+            for gap: CGFloat in [6, 8, 12] {
+                let expanded = quotaIconImage(providers: providers, dark: false, style: style, itemGap: gap)
+                #expect(expanded.size.width - compact.size.width == CGFloat(providers.count - 1) * (gap - 4))
+            }
+        }
+    }
+
     private func quotaIconImage(providers: [String], dark: Bool, magpie: Bool = true,
-                                remainingPercents: [Double] = []) -> NSImage {
+                                remainingPercents: [Double] = [], style: MenuBarStyle = .icon, itemGap: CGFloat = 8) -> NSImage {
         var reading = MenuBarReading.sample
         reading.keepAwake = false
         reading.aiQuotas = providers.enumerated().map { index, provider in
@@ -91,8 +102,8 @@ struct MenuBarReadingTests {
                          fetchedAt: Date(timeIntervalSince1970: 1_800_000_000), isStale: false,
                          magpieName: magpie ? provider : nil)
         }
-        let image = MenuBarRenderer.image(reading: reading, items: [.aiUsage], style: { _ in .icon },
-                                          networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false)
+        let image = MenuBarRenderer.image(reading: reading, items: [.aiUsage], style: { _ in style },
+                                          networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false, itemGap: itemGap)
         return MenuBarRenderer.preview(image, dark: dark, backingScale: 2)
     }
 
