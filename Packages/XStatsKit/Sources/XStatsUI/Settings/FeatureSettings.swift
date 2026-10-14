@@ -37,7 +37,6 @@ struct FeatureSettings: View {
     @Environment(AppModel.self) private var model
     @State private var managesNetworkComponent = false
     @State private var enablesAfterComponentInstall = false
-    @State private var captureError: String?
 
     @Environment(\.isSnapshot) private var isSnapshot
 
@@ -89,11 +88,7 @@ struct FeatureSettings: View {
     }
 
     private func launchCapture(_ action: CaptureRequest.Action) {
-        Task { @MainActor in
-            captureError = nil
-            do { try await CaptureAppLauncher.open(action) }
-            catch { captureError = tr("无法打开 XStats Capture，请检查所选应用。") }
-        }
+        XStatsCapture.workspace.open(action)
     }
 
     private var optionalFeatures: some View {
@@ -105,14 +100,13 @@ struct FeatureSettings: View {
             SettingsGroup {
                 GroupRow(showsDivider: false) {
                     VStack(alignment: .leading, spacing: DS.Space.s2) {
-                        SettingRow(title: "XStats Capture", subtitle: tr("独立截图与录屏工具，使用时启动。"), icon: "camera.viewfinder") {
+                        SettingRow(title: "XStats Capture", subtitle: tr("内置截图与录屏工具，按需使用。"), icon: "camera.viewfinder") {
                             Menu(tr("打开 XStats Capture")) {
                                 Button(tr("截图")) { launchCapture(.screenshot) }
                                 Button(tr("录屏")) { launchCapture(.record) }
                                 Button(tr("打开 XStats Capture")) { launchCapture(.open) }
                             }
                         }
-                        if let captureError { Text(captureError).dsFont(.xs).foregroundStyle(DS.Palette.error) }
                     }
                 }
             }

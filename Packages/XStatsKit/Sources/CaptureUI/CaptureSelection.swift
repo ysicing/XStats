@@ -11,14 +11,14 @@ import Localization
     private var eventMonitor: Any?
     private var screenObserver: NSObjectProtocol?
     private weak var activeView: SelectionView?
-    func select(mode: CaptureMode, action: CaptureRequest.Action, content: SCShareableContent) async throws -> ScreenCaptureSource? {
+    func select(mode: CaptureMode, action: CaptureRequest.Action, content: SCShareableContent, exclusion: CaptureWindowExclusion = .init(excludesApplication: true, windowIDs: [])) async throws -> ScreenCaptureSource? {
         try Task.checkCancellation()
         let excluded = content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
-        guard !excluded.isEmpty else { throw CaptureError.captureFailed }
+        guard !exclusion.excludesApplication || !excluded.isEmpty else { throw CaptureError.captureFailed }
         let windowsByID = Dictionary(uniqueKeysWithValues: content.windows.map { ($0.windowID, $0) })
         let orderedIDs = (CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? [])
             .compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }
-        let windows = orderedIDs.compactMap { windowsByID[$0] }.filter { $0.windowLayer == 0 && $0.owningApplication?.processID != ProcessInfo.processInfo.processIdentifier }
+        let windows = orderedIDs.compactMap { windowsByID[$0] }.filter { $0.windowLayer == 0 && !exclusion.excludes(windowID: $0.windowID, processID: $0.owningApplication?.processID, currentProcessID: ProcessInfo.processInfo.processIdentifier) }
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 self.continuation = continuation
@@ -41,9 +41,9 @@ import Localization
                         else if let region {
                             do {
                                 let converted = try CaptureGeometry.region(region, in: screen.frame, scale: screen.backingScaleFactor)
-                                self.finish(ScreenCaptureSource(display: display, excludedApps: excluded, region: converted))
+                                self.finish(ScreenCaptureSource(display: display, excludedApps: exclusion.excludesApplication ? excluded : [], excludedWindows: content.windows.filter { exclusion.windowIDs.contains($0.windowID) }, region: converted))
                             } catch { self.finish(nil) }
-                        } else { self.finish(ScreenCaptureSource(display: display, excludedApps: excluded)) }
+                        } else { self.finish(ScreenCaptureSource(display: display, excludedApps: exclusion.excludesApplication ? excluded : [], excludedWindows: content.windows.filter { exclusion.windowIDs.contains($0.windowID) })) }
                     }
                     panel.contentView = view
                     panel.makeFirstResponder(view)

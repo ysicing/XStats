@@ -18,14 +18,16 @@ struct CaptureHomeView: View {
                         .font(.callout).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button { showingSettings.toggle() } label: {
-                    Image(systemName: "gearshape").font(.title3)
-                }
-                .buttonStyle(.borderless)
-                .help(tr("设置"))
-                .accessibilityLabel(tr("设置"))
-                .popover(isPresented: $showingSettings, arrowEdge: .top) {
-                    CaptureSettingsView(controller: controller)
+                if controller.host == .standalone {
+                    Button { showingSettings.toggle() } label: {
+                        Image(systemName: "gearshape").font(.title3)
+                    }
+                    .buttonStyle(.borderless)
+                    .help(tr("设置"))
+                    .accessibilityLabel(tr("设置"))
+                    .popover(isPresented: $showingSettings, arrowEdge: .top) {
+                        CaptureSettingsView(controller: controller)
+                    }
                 }
             }
 

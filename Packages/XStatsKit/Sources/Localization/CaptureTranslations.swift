@@ -60,9 +60,9 @@ extension Translations {
 导出未完成，原始录制仍保留，可重试。	Export failed. The original recording is kept for retry.
 捕获目标已不可用，录制已结束。	The capture target is unavailable. Recording stopped.
 无法识别此截图请求，请更新 XStats Capture。	Unknown capture request. Update XStats Capture.
-请在系统设置中允许 XStats Capture 录制屏幕，然后重试。	Allow XStats Capture to record the screen in System Settings, then retry.
-请在系统设置中允许 XStats Capture 使用麦克风，然后重试。	Allow XStats Capture to use the microphone in System Settings, then retry.
-独立截图与录屏工具，使用时启动。	Independent screenshot and recording tool, launched when needed.
+请在系统设置中允许 {} 录制屏幕，然后重试。	Allow {} to record the screen in System Settings, then retry.
+请在系统设置中允许 {} 使用麦克风，然后重试。	Allow {} to use the microphone in System Settings, then retry.
+内置截图与录屏工具，按需使用。	Built-in screenshot and recording tools, available on demand.
 请选择已安装的 XStats Capture.app。	Select the installed XStats Capture.app.
 无法打开 XStats Capture，请检查所选应用。	Could not open XStats Capture. Check the selected app.
 麦克风录制中断，请检查设备连接后重试。	Microphone recording was interrupted. Check the device connection and try again.

@@ -5,30 +5,33 @@ import CaptureCore
 import Localization
 
 @MainActor private final class CaptureAppDelegate: NSObject, NSApplicationDelegate {
-    let controller = CaptureController()
+    private let workspace = CaptureWorkspace(host: .standalone)
     private var urls: [URL] = []
     private var launched = false
+    private var terminationTask: Task<Void, Never>?
     func applicationDidFinishLaunching(_ notification: Notification) {
-        CaptureApplication.updateMenu()
         launched = true
-        controller.showHome(); controller.installObservers()
-        for url in urls { controller.handle(url) }; urls.removeAll()
+        workspace.open(.open)
+        CaptureApplication.updateMenu()
+        for url in urls { workspace.handle(url) }; urls.removeAll()
     }
     func application(_ application: NSApplication, open urls: [URL]) {
-        if launched { for url in urls { controller.handle(url) } }
+        if launched { for url in urls { workspace.handle(url) } }
         else { self.urls.append(contentsOf: urls.filter { $0.absoluteString.utf8.count <= 2048 }.prefix(max(0, 8 - self.urls.count))) }
     }
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { controller.showHome(); return true }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { workspace.open(.open); return true }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard controller.hasUnsavedWork else { return .terminateNow }
-        let alert = NSAlert()
-        alert.messageText = tr("退出并丢弃未保存的内容？")
-        alert.addButton(withTitle: tr("丢弃并退出")); alert.addButton(withTitle: tr("取消"))
-        guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
-        Task { await controller.discardAndStop(); sender.reply(toApplicationShouldTerminate: true) }
+        guard terminationTask == nil else { return .terminateLater }
+        guard workspace.confirmTermination() else { return .terminateCancel }
+        guard workspace.hasActiveWorkspace else { return .terminateNow }
+        terminationTask = Task {
+            await workspace.prepareForTermination()
+            sender.reply(toApplicationShouldTerminate: true)
+            terminationTask = nil
+        }
         return .terminateLater
     }
-    func applicationWillTerminate(_ notification: Notification) { controller.cleanUp() }
+    func applicationWillTerminate(_ notification: Notification) { workspace.cleanUp() }
 }
 
 public enum CaptureApplication {

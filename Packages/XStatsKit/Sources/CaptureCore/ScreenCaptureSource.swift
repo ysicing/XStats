@@ -5,24 +5,37 @@ import AppKit
 
 /// The stored SCContentFilter has a read-only API; geometry and identity are immutable values.
 public struct ScreenCaptureSource: @unchecked Sendable {
-    public let filter: SCContentFilter
+    public private(set) var filter: SCContentFilter
+    private let display: SCDisplay?
     public let sourceRect: CGRect?
     public let pixelSize: CGSize
     public let displayID: CGDirectDisplayID
     public let windowID: CGWindowID?
-    public init(display: SCDisplay, excludedApps: [SCRunningApplication], region: CaptureGeometry.Region? = nil) {
-        filter = SCContentFilter(display: display, excludingApplications: excludedApps, exceptingWindows: [])
+    public init(display: SCDisplay, excludedApps: [SCRunningApplication] = [], excludedWindows: [SCWindow] = [], region: CaptureGeometry.Region? = nil) {
+        self.display = display
+        filter = excludedApps.isEmpty
+            ? SCContentFilter(display: display, excludingWindows: excludedWindows)
+            : SCContentFilter(display: display, excludingApplications: excludedApps, exceptingWindows: [])
         sourceRect = region?.sourceRect
         let scale = CGFloat(filter.pointPixelScale)
         pixelSize = region?.pixelSize ?? CGSize(width: filter.contentRect.width * scale, height: filter.contentRect.height * scale)
         displayID = display.displayID; windowID = nil
     }
     public init(window: SCWindow, displayID: CGDirectDisplayID) {
+        display = nil
         filter = SCContentFilter(desktopIndependentWindow: window)
         sourceRect = nil
         let scale = CGFloat(filter.pointPixelScale)
         pixelSize = CGSize(width: filter.contentRect.width * scale, height: filter.contentRect.height * scale)
         self.displayID = displayID; windowID = window.windowID
+    }
+    /// Only display/region filters need window exclusions; an independent window
+    /// filter already limits capture to the selected target.
+    public func excludingWindows(_ windows: [SCWindow]) -> ScreenCaptureSource {
+        guard let display else { return self }
+        var source = self
+        source.filter = SCContentFilter(display: display, excludingWindows: windows)
+        return source
     }
     public func configuration(recording: Bool, systemAudio: Bool = false) -> SCStreamConfiguration {
         let configuration = SCStreamConfiguration()
@@ -58,12 +71,12 @@ public struct ScreenCaptureSource: @unchecked Sendable {
             }
         }
     }
-    public static func content() async throws -> SCShareableContent {
+    public static func content(onScreenWindowsOnly: Bool = true) async throws -> SCShareableContent {
         // Let ScreenCaptureKit request authorization. A false CoreGraphics preflight
         // result must not prevent the framework from presenting its first-use prompt.
         do {
             return try await CaptureCallback<SCShareableContent>().wait { completion in
-                SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: true) { content, error in
+                SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: onScreenWindowsOnly) { content, error in
                     if let error { completion.finish(.failure(error)) }
                     else if let content { completion.finish(.success(content)) }
                     else { completion.finish(.failure(CaptureError.captureFailed)) }

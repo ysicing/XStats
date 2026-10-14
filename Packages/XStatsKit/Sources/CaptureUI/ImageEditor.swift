@@ -28,6 +28,7 @@ extension ImageTool {
     var dirty = true
     var rendering = false
     var imageIsCurrent = true
+    var canPin = true
     var error: String?
     var onPin: (CGImage) -> Void = { _ in }
     private(set) var terminating = false
@@ -155,10 +156,11 @@ extension ImageTool {
         renderTask = task; pendingTasks[id] = task
     }
     func pin() {
+        guard canPin else { return }
         finishEditing()
         Task {
             await waitForPendingWork()
-            guard !terminating, imageIsCurrent, !rendering,
+            guard canPin, !terminating, imageIsCurrent, !rendering,
                   let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
             onPin(cgImage)
         }
@@ -269,7 +271,7 @@ private struct ImageEditorView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 if model.rendering { ProgressView().controlSize(.small) }
-                Button(tr("置顶"), systemImage: "pin") { model.pin() }.disabled(!model.imageIsCurrent)
+                Button(tr("置顶"), systemImage: "pin") { model.pin() }.disabled(!model.imageIsCurrent || !model.canPin)
                 Button(tr("复制"), systemImage: "doc.on.doc") { model.copy() }
                     .keyboardShortcut("c", modifiers: .command).disabled(!model.imageIsCurrent)
                 Button(tr("保存"), systemImage: "square.and.arrow.down") { model.save(jpeg: false) }

@@ -482,6 +482,6 @@ GitHub Actions 作为异步验证，等待、运行或失败均不阻塞正在�
 
 迷你 HUD 的定向截图：`XStats --snapshot <目录> --rest-hud-only --language zh-Hans`，使用独立偏好与演示时钟输出数字、圆环、进度条三种样式的专注/暂停/轮间休息/护眼休息明暗 PNG，不启动计时、播放音频或写入用户记录。可使用 `en`、`ar` 验证长文案与 RTL。离屏截图使用实色回退，不能作为 Liquid Glass 或桌面透视的验证依据；追加 `--native-preview` 可打开限时原生预览窗口，检查真实材质。实际面板需检查关闭/样式/底部操作不会触发拖动，旧窗口位置恢复后新尺寸仍在屏幕内。
 
-## 独立截图与录屏 App
+## 内置与独立截图录屏
 
-XStats Capture 使用独立 target、Bundle ID、版本和偏好设置。构建、权限、URL 协议、媒体管线及运行验收见 [CAPTURE.md](CAPTURE.md)。Capture 的本地构建不安装、不更新 XStats 或网络组件，也不推进任何版本。
+XStats 默认使用内置 Capture，与独立 XStats Capture 共用 CaptureCore/CaptureUI。独立版保留独立 target、Bundle ID、版本和偏好设置，两种 App 分别授权屏幕录制与麦克风。构建、宿主生命周期、URL 协议、媒体管线及运行验收见 [CAPTURE.md](CAPTURE.md)。Capture 的本地构建不安装、不更新 XStats 或网络组件，也不推进任何版本。

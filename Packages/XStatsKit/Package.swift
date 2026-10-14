@@ -42,7 +42,7 @@ let package = Package(
         .target(name: "AudioDSP", publicHeadersPath: "include", linkerSettings: [.linkedFramework("CoreAudio")]),
         .target(name: "AudioControl", dependencies: ["AudioDSP"]),
         .target(name: "NetworkObservation", dependencies: ["Localization"]),
-        .target(name: "XStatsUI", dependencies: ["CaptureCore", "NetworkObservation", "AudioControl", "AIUsage", "Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync", "WidgetData",
+        .target(name: "XStatsUI", dependencies: ["CaptureUI", "CaptureCore", "NetworkObservation", "AudioControl", "AIUsage", "Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync", "WidgetData",
                                                    .product(name: "Tyme4Swift", package: "tyme4swift"),
                                                    .product(name: "Sparkle", package: "Sparkle")],
                 resources: [.copy("Resources/Flags"), .copy("Resources/Logos"), .copy("Resources/Legal"), .copy("Resources/NetworkGeography")]),

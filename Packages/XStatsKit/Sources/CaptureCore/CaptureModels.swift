@@ -29,6 +29,9 @@ public enum CaptureError: Error, LocalizedError, Equatable {
         default: return .captureFailed
         }
     }
+    private static var applicationName: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "XStats Capture"
+    }
     public var errorDescription: String? {
         switch self {
         case .invalidRequest: tr("无法识别此截图请求，请更新 XStats Capture。")
@@ -36,8 +39,8 @@ public enum CaptureError: Error, LocalizedError, Equatable {
         case .invalidTransition: tr("当前操作尚未结束。")
         case .invalidTrim: tr("请选择有效的裁剪时间范围。")
         case .invalidExportDestination: tr("请选择录制临时目录之外的保存位置。")
-        case .screenPermission: tr("请在系统设置中允许 XStats Capture 录制屏幕，然后重试。")
-        case .microphonePermission: tr("请在系统设置中允许 XStats Capture 使用麦克风，然后重试。")
+        case .screenPermission: tr("请在系统设置中允许 \(Self.applicationName) 录制屏幕，然后重试。")
+        case .microphonePermission: tr("请在系统设置中允许 \(Self.applicationName) 使用麦克风，然后重试。")
         case .microphoneFailed: tr("麦克风录制中断，请检查设备连接后重试。")
         case .unavailableTarget: tr("捕获目标已不可用，录制已结束。")
         case .captureFailed: tr("屏幕捕获未完成，请重试。")

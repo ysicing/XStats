@@ -52,15 +52,19 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>在本机实时调节应用音量，不录制、保存或上传声音。</string>
+	<string>在本机调节应用音量；仅在您开启录屏系统声音时录制声音，内容保存在本机，不上传。</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>显示已配对的蓝牙音频设备，并在您选择时连接设备。</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>在本机日历面板显示您选择的系统日程，不修改或上传日程内容。</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 XStats</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>在您开启麦克风录屏时，将声音录制到本机视频中，不上传内容。</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>在本机日历面板显示您选择的到期提醒，不修改或上传提醒内容。</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>在您截图或录屏时，捕获所选区域、窗口或屏幕，内容仅保存在本机，不上传。</string>
 	<key>NetworkComponentVersion</key>
 	<string>$(NETWORK_EXTENSION_VERSION)</string>
 	<key>SUAutomaticallyUpdate</key>

@@ -2126,9 +2126,9 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 导出未完成，原始录制仍保留，可重试。	Falló la exportación. Se conserva el original para reintentar.
 捕获目标已不可用，录制已结束。	El destino no está disponible. La grabación se detuvo.
 无法识别此截图请求，请更新 XStats Capture。	Solicitud desconocida. Actualiza XStats Capture.
-请在系统设置中允许 XStats Capture 录制屏幕，然后重试。	Permite grabar la pantalla a XStats Capture en Ajustes del Sistema y reintenta.
-请在系统设置中允许 XStats Capture 使用麦克风，然后重试。	Permite usar el micrófono a XStats Capture en Ajustes del Sistema y reintenta.
-独立截图与录屏工具，使用时启动。	Herramienta independiente de captura, se inicia cuando se necesita.
+请在系统设置中允许 {} 录制屏幕，然后重试。	Permite grabar la pantalla a {} en Ajustes del Sistema y reintenta.
+请在系统设置中允许 {} 使用麦克风，然后重试。	Permite usar el micrófono a {} en Ajustes del Sistema y reintenta.
+内置截图与录屏工具，按需使用。	Herramientas integradas de captura y grabación de pantalla, disponibles cuando las necesites.
 请选择已安装的 XStats Capture.app。	Selecciona XStats Capture.app instalado.
 无法打开 XStats Capture，请检查所选应用。	No se pudo abrir XStats Capture. Comprueba la app.
 请选择录制临时目录之外的保存位置。	Elige una ubicación fuera de la carpeta temporal de la grabación.

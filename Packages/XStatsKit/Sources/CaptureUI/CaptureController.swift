@@ -13,14 +13,19 @@ import Localization
     @Published var captureAction: CaptureRequest.Action = .screenshot
     @Published var systemAudio = true
     @Published var microphone = false
-    @Published var resident = UserDefaults.standard.bool(forKey: "capture.resident")
-    @Published var language = AppLanguage(rawValue: UserDefaults.standard.string(forKey: "capture.language") ?? "") ?? .system
+    @Published var resident: Bool
+    @Published var language: AppLanguage
     @Published var screenshotKey: CaptureHotKey?
     @Published var recordingKey: CaptureHotKey?
     @Published var shortcutConflict = false
     @Published var error: String?
     @Published var permissionError: CaptureError?
-    @Published var busy = false
+    @Published var busy = false {
+        didSet {
+            guard host == .embedded else { return }
+            for editor in editors { editor.model.canPin = !busy }
+        }
+    }
     @Published var paused = false
     @Published var countdown = 0
     @Published var transitioning = false
@@ -29,6 +34,11 @@ import Localization
     @Published var trimStart = 0.0
     @Published var trimEnd = 0.0
     @Published var duration = 0.0
+    let host: CaptureHost
+    private let defaults: UserDefaults
+    var onIdle: () -> Void = {}
+    var onWindowsChanged: () -> Void = {}
+    private var observersInstalled = false
     private var state = CaptureSessionState()
     private var home: NSWindow?
     private var control: NSWindow?
@@ -48,14 +58,21 @@ import Localization
     private var selectedSource: ScreenCaptureSource?
     private static let logger = Logger(subsystem: CaptureRequest.bundleIdentifier, category: "lifecycle")
 
-    override init() {
+    init(host: CaptureHost, defaults: UserDefaults = .standard) {
+        self.host = host; self.defaults = defaults
+        resident = host == .standalone && defaults.bool(forKey: "capture.resident")
+        language = host == .standalone
+            ? AppLanguage(rawValue: defaults.string(forKey: "capture.language") ?? "") ?? .system
+            : L10n.language
         super.init()
-        screenshotKey = Self.readKey("capture.screenshotKey")
-        recordingKey = Self.readKey("capture.recordingKey")
+        screenshotKey = readKey("capture.screenshotKey")
+        recordingKey = readKey("capture.recordingKey")
         hotKeys.onAction = { [weak self] in self?.begin($0, external: $0 == .record) }
-        L10n.configure(language)
     }
     func installObservers() {
+        guard !observersInstalled else { return }
+        observersInstalled = true
+        if host == .standalone { L10n.configure(language) }
         for name in [NSWorkspace.willSleepNotification, NSWorkspace.screensDidSleepNotification] {
             observers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.interruptRecording() }
@@ -88,21 +105,26 @@ import Localization
         observers.removeAll()
         if let distributedObserver { DistributedNotificationCenter.default().removeObserver(distributedObserver) }
         distributedObserver = nil
+        observersInstalled = false
         removeStatusItem()
     }
-    private static func readKey(_ name: String) -> CaptureHotKey? {
-        guard let data = UserDefaults.standard.data(forKey: name) else { return nil }
+    private func readKey(_ name: String) -> CaptureHotKey? {
+        guard let data = defaults.data(forKey: name) else { return nil }
         return try? JSONDecoder().decode(CaptureHotKey.self, from: data)
     }
     func setShortcut(_ key: CaptureHotKey?, for action: CaptureRequest.Action) {
+        guard host == .standalone else { return }
         let name = action == .screenshot ? "capture.screenshotKey" : "capture.recordingKey"
         if action == .screenshot { screenshotKey = key } else { recordingKey = key }
-        UserDefaults.standard.set(key.flatMap { try? JSONEncoder().encode($0) }, forKey: name)
+        defaults.set(key.flatMap { try? JSONEncoder().encode($0) }, forKey: name)
         applyResidentMode()
     }
     func applyLanguage() {
-        UserDefaults.standard.set(language.rawValue, forKey: "capture.language")
-        L10n.configure(language)
+        if host == .standalone {
+            defaults.set(language.rawValue, forKey: "capture.language")
+            L10n.configure(language)
+        } else { language = L10n.language }
+        home?.contentView = NSHostingView(rootView: CaptureHomeView(controller: self))
         home?.title = "XStats Capture"
         control?.title = tr("录屏")
         control?.contentView = NSHostingView(rootView: RecordingControlView(controller: self).environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight).environment(\.locale, L10n.locale))
@@ -113,12 +135,12 @@ import Localization
             pin.window.title = tr("置顶截图")
             pin.window.contentView = NSHostingView(rootView: Image(nsImage: NSImage(cgImage: pin.image, size: CGSize(width: pin.image.width, height: pin.image.height))).resizable().scaledToFit().environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight).environment(\.locale, L10n.locale))
         }
-        CaptureApplication.updateMenu()
-        applyResidentMode()
+        if host == .standalone { CaptureApplication.updateMenu(); applyResidentMode() }
     }
     private var statusItem: NSStatusItem?
     func applyResidentMode() {
-        UserDefaults.standard.set(resident, forKey: "capture.resident")
+        guard host == .standalone else { return }
+        defaults.set(resident, forKey: "capture.resident")
         var bindings: [CaptureRequest.Action: CaptureHotKey] = [:]
         if resident { bindings[.screenshot] = screenshotKey; bindings[.record] = recordingKey }
         shortcutConflict = !hotKeys.apply(bindings)
@@ -149,7 +171,7 @@ import Localization
             home = makeWindow(title: "XStats Capture", size: CGSize(width: 520, height: 430), content: CaptureHomeView(controller: self), resizable: false)
         }
         systemAudio = true; microphone = false
-        home?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        home?.makeKeyAndOrderFront(nil); onWindowsChanged(); NSApp.activate(ignoringOtherApps: true)
     }
     /// Measure only after a content change; fixed width makes wrapping deterministic.
     /// Comparing the result avoids a window/layout feedback loop.
@@ -195,10 +217,11 @@ import Localization
         operation = Task {
             do {
                 if action == .record, options.microphone { try await ScreenRecorder.requestMicrophone() }
-                let content = try await ScreenCaptureSource.content()
+                let content = try await ScreenCaptureSource.content(onScreenWindowsOnly: host == .standalone)
                 try Task.checkCancellation()
                 home?.orderOut(nil)
-                guard let source = try await selector.select(mode: mode, action: action, content: content) else { resetOperation(); showHome(); return }
+                let exclusion = CaptureWindowExclusion(excludesApplication: host == .standalone, windowIDs: captureWindowIDs)
+                guard var source = try await selector.select(mode: mode, action: action, content: content, exclusion: exclusion) else { resetOperation(); showHome(); return }
                 try Task.checkCancellation()
                 selectedSource = source
                 if action == .screenshot {
@@ -213,12 +236,19 @@ import Localization
                 } else {
                     try state.transition(to: .countdown)
                     control = makeWindow(title: tr("录屏"), size: CGSize(width: 260, height: 130), content: RecordingControlView(controller: self), resizable: false)
-                    control?.level = .floating; control?.makeKeyAndOrderFront(nil)
+                    control?.level = .floating; control?.makeKeyAndOrderFront(nil); onWindowsChanged()
                     for count in stride(from: 3, through: 1, by: -1) {
                         countdown = count
                         try await Task.sleep(for: .seconds(1))
                     }
                     try Task.checkCancellation()
+                    if host == .embedded {
+                        // The control window was created after target selection. Refresh the
+                        // display filter before starting so it never enters the recording.
+                        let currentContent = try await ScreenCaptureSource.content(onScreenWindowsOnly: false)
+                        try Task.checkCancellation()
+                        source = source.excludingWindows(currentContent.windows.filter { captureWindowIDs.contains($0.windowID) })
+                    }
                     countdown = 0; transitioning = true
                     try state.transition(to: .starting)
                     let recorder = ScreenRecorder(media: try RecordingMedia())
@@ -329,7 +359,7 @@ import Localization
         player = AVPlayer(playerItem: AVPlayerItem(asset: composition))
         try state.transition(to: .preview)
         preview = makeWindow(title: tr("录屏预览"), size: CGSize(width: 800, height: 570), content: RecordingPreviewView(controller: self), resizable: true)
-        preview?.makeKeyAndOrderFront(nil)
+        preview?.makeKeyAndOrderFront(nil); onWindowsChanged()
         busy = false; home?.close()
     }
     func recoverRecordingPreview() {
@@ -407,22 +437,24 @@ import Localization
     func revealMedia() { if let recorder { NSWorkspace.shared.open(recorder.media.directory) } }
     private func openEditor(_ image: CGImage) {
         let editor = ImageEditorWindow(image: image)
+        editor.model.canPin = host == .standalone || !busy
         editor.model.onPin = { [weak self] in self?.pin($0) }
         editor.onClose = { [weak self, weak editor] in
             guard let self else { return }
-            self.editors.removeAll { $0 === editor }; self.considerExit()
+            self.editors.removeAll { $0 === editor }; self.onWindowsChanged(); self.considerExit()
         }
         editors.append(editor); editor.showWindow(nil); editor.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        onWindowsChanged(); NSApp.activate(ignoringOtherApps: true)
     }
     private func pin(_ image: CGImage) {
+        guard host == .standalone || !busy else { return }
         guard pins.count < 5 else {
             let alert = NSAlert(); alert.messageText = tr("最多置顶 5 张截图，请先关闭已有截图。"); alert.runModal(); return
         }
         let scale = min(1, 600 / CGFloat(image.width), 450 / CGFloat(image.height))
         let window = makeWindow(title: tr("置顶截图"), size: CGSize(width: CGFloat(image.width) * scale, height: CGFloat(image.height) * scale),
                                 content: Image(nsImage: NSImage(cgImage: image, size: CGSize(width: image.width, height: image.height))).resizable().scaledToFit(), resizable: true)
-        window.level = .floating; pins.append((window, image)); window.makeKeyAndOrderFront(nil)
+        window.level = .floating; pins.append((window, image)); window.makeKeyAndOrderFront(nil); onWindowsChanged()
     }
     private func makeWindow<Content: View>(title: String, size: CGSize, content: Content, resizable: Bool) -> NSWindow {
         var style: NSWindow.StyleMask = [.titled, .closable, .miniaturizable]
@@ -446,7 +478,7 @@ import Localization
     }
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
-        if window === home { home = nil }
+        if window === home { home = nil; window.contentView = nil }
         if window === preview {
             player?.pause(); player?.replaceCurrentItem(with: nil); player = nil
             if !exporting, let recorder {
@@ -462,17 +494,22 @@ import Localization
                     }
                 }
             }
-            preview = nil
+            preview = nil; window.contentView = nil
         }
         pins.removeAll { $0.window === window }
-        considerExit()
+        onWindowsChanged(); considerExit()
+    }
+    var hasOpenWindows: Bool { windowCount > 0 }
+    private var windowCount: Int { [home, control, preview].compactMap { $0 }.count + editors.count + pins.count }
+    private var captureWindowIDs: Set<CGWindowID> {
+        Set(([home, control, preview].compactMap { $0 } + editors.compactMap(\.window) + pins.map(\.window))
+            .map { CGWindowID($0.windowNumber) })
     }
     func considerExit() {
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
             await Task.yield()
-            guard !terminating else { return }
-            let windows = [home, control, preview].compactMap { $0 }.count + editors.count + pins.count
-            if CaptureLifetime.shouldExit(resident: resident, windows: windows, busy: busy || finishing) { NSApp.terminate(nil) }
+            guard let self, !terminating else { return }
+            if CaptureLifetime.shouldExit(resident: resident, windows: windowCount, busy: busy || finishing || (host == .embedded && hasUnsavedWork)) { onIdle() }
         }
     }
     var hasUnsavedWork: Bool { busy || (recorder != nil && !recordingSaved) || editors.contains(where: { $0.model.dirty || $0.model.rendering }) }
@@ -486,7 +523,11 @@ import Localization
         await operation?.value
         do { try await recorder?.discard() }
         catch { Self.logger.error("Failed to discard recording media before termination") }
-        recorder = nil; player?.pause()
+        recorder = nil; player?.pause(); player?.replaceCurrentItem(with: nil); player = nil
+        let windows = [home, control, preview].compactMap { $0 } + editors.compactMap(\.window) + pins.map(\.window)
+        for window in windows { window.close() }
+        home = nil; control = nil; preview = nil; editors.removeAll(); pins.removeAll()
+        onWindowsChanged()
     }
     func openPrivacySettings() {
         let pane = permissionError == .microphonePermission ? "Privacy_Microphone" : "Privacy_ScreenCapture"
