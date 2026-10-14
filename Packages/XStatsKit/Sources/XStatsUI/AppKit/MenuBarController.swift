@@ -15,6 +15,8 @@ final class MenuBarController: NSObject {
     // 每个实际状态项只保留上一轮读数；布局、设置或外观变化时失效。
     private var renderedReadings: [MenuBarItem?: (reading: MenuBarReading, appearance: NSAppearance.Name)] = [:]
 
+    private var renderedItemSpacing: Int?
+
     /// 开发调试：启动后展开并固定某个弹窗
     var pinsNextPopover = false
 
@@ -80,6 +82,10 @@ final class MenuBarController: NSObject {
 
     func refreshImages(force: Bool = false) {
         let settings = model.settings
+        if renderedItemSpacing != settings.menuBarItemSpacing {
+            renderedReadings.removeAll()
+            renderedItemSpacing = settings.menuBarItemSpacing
+        }
         let reading = MenuBarReading(model: model, items: model.drawnMenuBarItems)
         for (index, entry) in items.enumerated() {
             let itemsToDraw = entry.key.map { [$0] } ?? model.drawnMenuBarItems
@@ -100,7 +106,8 @@ final class MenuBarController: NSObject {
                                                      style: { settings.style(for: $0) },
                                                      networkStyle: settings.networkStyle,
                                                      colorizeHighLoad: settings.colorizeHighLoad,
-                                                     fahrenheit: settings.useFahrenheit)
+                                                     fahrenheit: settings.useFahrenheit,
+                                                     itemGap: CGFloat(settings.menuBarItemSpacing))
                 renderedReadings[entry.key] = (entryReading, appearance)
             }
             // 额度的重置时间、过期状态等只影响提示，不必重画相同图像。

@@ -746,6 +746,9 @@ public final class AppSettings {
     public var showDockIcon: Bool {
         didSet { defaults.set(showDockIcon, forKey: Keys.showDockIcon) }
     }
+    public var menuBarItemSpacing: Int {
+        didSet { defaults.set(menuBarItemSpacing, forKey: Keys.menuBarItemSpacing) }
+    }
     public var menuBarLayout: MenuBarLayout {
         didSet { defaults.set(menuBarLayout.rawValue, forKey: Keys.menuBarLayout) }
     }
@@ -856,6 +859,7 @@ public final class AppSettings {
         }
     }
 
+    public static let menuBarSpacingOptions = [4, 6, 8, 12]
     public static let refreshOptions = [1, 2, 3, 5]
     public static let restWorkOptions = [20, 25, 30, 45, 60]
     public static let restBreakOptions = [3, 5, 10]
@@ -981,6 +985,8 @@ public final class AppSettings {
         cleanExcludedPaths = CleanupExclusions.normalized(defaults.stringArray(forKey: Keys.cleanExcludedPaths) ?? [])
         cleanSelectedRuleIDs = defaults.stringArray(forKey: Keys.cleanSelectedRuleIDs).map(Set.init)
         projectPurgeConfiguredPaths = defaults.stringArray(forKey: Keys.projectPurgeConfiguredPaths)
+        let spacing = defaults.integer(forKey: Keys.menuBarItemSpacing)
+        menuBarItemSpacing = Self.menuBarSpacingOptions.contains(spacing) ? spacing : 8
         menuBarLayout = defaults.string(forKey: Keys.menuBarLayout).flatMap(MenuBarLayout.init(rawValue:)) ?? .separate
         expandedPopoverSections = Set((defaults.stringArray(forKey: Keys.expandedPopoverSections) ?? []).compactMap(PopoverSection.init(rawValue:)))
         hiddenPopoverSections = defaults.stringArray(forKey: Keys.hiddenPopoverSections)
@@ -1167,6 +1173,7 @@ public final class AppSettings {
         static let cleanExcludedPaths = "cleanExcludedPaths"
         static let cleanSelectedRuleIDs = "cleanSelectedRuleIDs"
         static let projectPurgeConfiguredPaths = "projectPurgeConfiguredPaths"
+        static let menuBarItemSpacing = "menuBarItemSpacing"
         static let menuBarLayout = "menuBarLayout"
         static let hiddenPopoverSections = "hiddenPopoverSections"
         static let expandedPopoverSections = "expandedPopoverSections"

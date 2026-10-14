@@ -260,6 +260,8 @@ XStats 网络连接查看	XStats Network Connection Viewer
 4 小时	4 hours
 8 小时	8 hours
 12 小时	12 hours
+项目间距	Item spacing
+调整合并菜单栏中各项目之间的距离	Adjust the space between items in the combined menu bar
 结束时间：{}	Ends at {}
 
 热压力：正常	Thermal pressure: Normal
