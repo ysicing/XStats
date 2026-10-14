@@ -86,6 +86,16 @@ struct MenuBarEnhancementsTests {
         }
     }
 
+    @Test func probeSummaryDistinguishesNoSamplesTimeoutAndLoss() {
+        let empty = NetworkProbeSummary(samples: [])
+        #expect(empty.count == 0 && empty.lossFraction == nil)
+        let summary = NetworkProbeSummary(samples: [.init(latency: nil), .init(latency: 20), .init(latency: nil)])
+        #expect(summary.count == 3 && summary.latestLatency == nil)
+        #expect(summary.lossFraction == 2.0 / 3)
+        let recovered = NetworkProbeSummary(samples: [.init(latency: nil), .init(latency: 30)])
+        #expect(recovered.latestLatency == 30 && recovered.lossFraction == 0.5)
+    }
+
     @Test func diskReadWriteAveragesMatchRankingAndDecayTogether() {
         let store = MetricsStore(readBattery: false)
         var process = ProcessUsage(pid: 1, name: "Fixture", executablePath: nil,

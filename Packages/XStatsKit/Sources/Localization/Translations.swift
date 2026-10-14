@@ -262,7 +262,9 @@ XStats 网络连接查看	XStats Network Connection Viewer
 12 小时	12 hours
 项目间距	Item spacing
 调整合并菜单栏中各项目之间的距离	Adjust the space between items in the combined menu bar
+丢包	Packet loss
 结束时间：{}	Ends at {}
+最近 {} 次探测	Last {} probes
 
 热压力：正常	Thermal pressure: Normal
 热压力：偏高	Thermal pressure: Elevated

@@ -24,6 +24,15 @@ struct NetworkPopover: View {
                 Rectangle().fill(DS.Palette.border).frame(width: DS.Size.stroke, height: DS.Space.s8)
                 RateHero(title: tr("上传"), bytesPerSecond: rate?.uploadBytesPerSecond, color: DS.NetworkPalette.upload)
             }
+            if settings.probeEnabled {
+                let summary = NetworkProbeSummary(samples: model.network.probes.elements)
+                HStack(spacing: DS.Space.s3) {
+                    InfoRow(label: tr("延迟"), text: summary.count == 0 ? "—"
+                            : summary.latestLatency.map { $0.formatted(.number.locale(L10n.locale).precision(.fractionLength(0))) + " ms" } ?? tr("超时"))
+                    InfoRow(label: tr("丢包"), text: summary.lossFraction.map(Format.percent) ?? "—")
+                        .help(tr("最近 \(summary.count) 次探测"))
+                }
+            }
         }
 
         MainActorForEach(MenuBarItem.network.popoverSections.filter { isDetailPage || settings.isVisible($0) }) { section in
