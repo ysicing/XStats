@@ -229,14 +229,55 @@ final class MenuBarController: NSObject {
 
     private func showContextMenu(for statusItem: NSStatusItem) {
         dismissPopovers()
+        let menu = contextMenu()
+        statusItem.menu = menu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
+    }
+
+    func contextMenu() -> NSMenu {
         let menu = NSMenu()
         menu.addItem(withTitle: tr("打开 XStats"), action: #selector(openMainWindow), keyEquivalent: "").target = self
         menu.addItem(withTitle: tr("设置…"), action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(.separator())
+        let awake = menu.addItem(withTitle: tr("防休眠"), action: #selector(toggleKeepAwake), keyEquivalent: "")
+        awake.target = self
+        awake.state = model.keepAwake.isActive ? .on : .off
+        let durations = NSMenu()
+        for duration in KeepAwakeController.Duration.allCases {
+            let item = durations.addItem(withTitle: duration.title, action: #selector(selectKeepAwakeDuration(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = duration.rawValue
+            item.state = model.keepAwake.duration == duration ? .on : .off
+        }
+        menu.addItem(withTitle: tr("持续时间"), action: nil, keyEquivalent: "").submenu = durations
+        if model.settings.isModuleEnabled(.thermal), model.store.supportsFans {
+            let modes = NSMenu()
+            for mode in FanController.Mode.allCases where mode != .custom {
+                let item = modes.addItem(withTitle: mode.title, action: #selector(selectFanMode(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = mode.rawValue
+                item.state = model.fans.mode == mode ? .on : .off
+                item.isEnabled = !model.fans.isApplying
+            }
+            modes.autoenablesItems = false
+            menu.addItem(withTitle: tr("散热模式"), action: nil, keyEquivalent: "").submenu = modes
+        }
+        menu.addItem(.separator())
         menu.addItem(withTitle: tr("退出 XStats"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        statusItem.menu = menu
-        statusItem.button?.performClick(nil)
-        statusItem.menu = nil
+        return menu
+    }
+
+    @objc private func toggleKeepAwake() { model.requestKeepAwake(!model.keepAwake.isActive) }
+
+    @objc private func selectKeepAwakeDuration(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? Int, let duration = KeepAwakeController.Duration(rawValue: value) else { return }
+        model.requestKeepAwake(true, duration: duration)
+    }
+
+    @objc private func selectFanMode(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? String, let mode = FanController.Mode(rawValue: value) else { return }
+        model.requestFanMode(mode)
     }
 
     @objc private func openMainWindow() { model.openMainWindow(nil) }

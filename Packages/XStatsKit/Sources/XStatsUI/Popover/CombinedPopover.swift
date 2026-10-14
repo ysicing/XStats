@@ -17,6 +17,8 @@ struct CombinedPopoverView: View {
                         .foregroundStyle(DS.Palette.textPrimary)
                     Spacer()
                     UpdateAvailableButton()
+                    KeepAwakeMenu()
+                    FanModeMenu()
                     if model.combinedPopoverTab != nil {
                         MiniIconButton(systemName: "chevron.up", help: tr("收起")) { model.combinedPopoverTab = nil }
                     }
@@ -144,7 +146,7 @@ private struct OverviewMetricRow: View {
             if expanded {
                 VStack(spacing: 0) {
                     // 总览顶部已有通用设置入口，展开详情只保留指标自身的操作。
-                    PopoverHeader(item: item, showsTitle: false, showsUpdate: false, showsGeneralSettings: false)
+                    PopoverHeader(item: item, showsTitle: false, showsUpdate: false, showsGeneralSettings: false, showsQuickControls: false)
                     PopoverDetail(item: item)
                 }
                 .padding(.horizontal, DS.Space.s3)

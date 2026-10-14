@@ -135,9 +135,13 @@ private struct DurationCard: View {
     var body: some View {
         Card {
             Text(tr("持续时间")).dsFont(.sm, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
-            SegmentedControl(selection: Binding(get: { model.keepAwake.duration },
-                                                set: { model.keepAwake.setDuration($0) }),
-                             options: KeepAwakeController.Duration.allCases.map { ($0, $0.title) })
+            Picker(tr("持续时间"), selection: Binding(get: { model.keepAwake.duration },
+                                                   set: { model.keepAwake.setDuration($0) })) {
+                ForEach(KeepAwakeController.Duration.allCases) { duration in
+                    Text(duration.title).tag(duration)
+                }
+            }
+            .labelsHidden()
             Text(tr("到时后自动恢复系统默认的睡眠行为。"))
                 .dsFont(.xs)
                 .foregroundStyle(DS.Palette.textTertiary)

@@ -2070,3 +2070,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 使用文档	Guía de uso
 关窗后保留程序坞图标	Mantener el icono del Dock al cerrar
 打开窗口时自动显示图标；关闭后仍可从程序坞与 ⌘Tab 找到 XStats	El icono aparece automáticamente mientras hay una ventana abierta. Después de cerrarla, XStats sigue disponible en el Dock y con ⌘Tab.
+4 小时	4 horas
+8 小时	8 horas
+12 小时	12 horas
+结束时间：{}	Finaliza a las {}

@@ -257,6 +257,11 @@ XStats 网络连接查看	XStats Network Connection Viewer
 """#
 
     static let english = #"""
+4 小时	4 hours
+8 小时	8 hours
+12 小时	12 hours
+结束时间：{}	Ends at {}
+
 热压力：正常	Thermal pressure: Normal
 热压力：偏高	Thermal pressure: Elevated
 热压力：严重	Thermal pressure: Serious

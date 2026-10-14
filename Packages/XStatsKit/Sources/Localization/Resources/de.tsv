@@ -2070,3 +2070,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Der Hom
 使用文档	Benutzerhandbuch
 关窗后保留程序坞图标	Dock-Symbol nach dem Schließen behalten
 打开窗口时自动显示图标；关闭后仍可从程序坞与 ⌘Tab 找到 XStats	Das Symbol erscheint automatisch, solange ein Fenster geöffnet ist. Nach dem Schließen bleibt XStats im Dock und über ⌘Tab erreichbar.
+4 小时	4 Stunden
+8 小时	8 Stunden
+12 小时	12 Stunden
+结束时间：{}	Endet um {}

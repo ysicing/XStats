@@ -322,7 +322,17 @@ public final class AppModel {
         refreshLaunchAtLogin()
     }
 
-    /// 快捷切换风扇：未安装辅助工具时打开散热页引导安装
+    /// 普通防休眠快捷入口不隐式开启已保存的合盖运行请求。
+    func requestKeepAwake(_ active: Bool, duration: KeepAwakeController.Duration? = nil) {
+        if active, keepAwake.lidClosedRequested || keepAwake.lidClosedActive {
+            openMainWindow(.keepAwake)
+            return
+        }
+        if let duration { keepAwake.setDuration(duration) }
+        Task { await keepAwake.setActive(active) }
+    }
+
+    /// 快捷切换风扇：缺少参数或辅助工具时打开散热页，按需采样并引导操作。
     func requestFanMode(_ mode: FanController.Mode) {
         guard mode == .automatic || settings.isModuleEnabled(.thermal) else {
             settings.panelTab = .thermal
@@ -330,6 +340,11 @@ public final class AppModel {
             return
         }
         guard store.supportsFans else { return }
+        if mode != .automatic, store.sensors?.fans.isEmpty != false {
+            settings.panelTab = .thermal
+            if !isMainWindowVisible { openMainWindow(.thermal) }
+            return
+        }
         guard helper.isReady else {
             settings.panelTab = .thermal
             if !isMainWindowVisible { openMainWindow(.thermal) }
