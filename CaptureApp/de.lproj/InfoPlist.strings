@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 "NSMicrophoneUsageDescription" = "Bei aktiviertem Mikrofon wird Audio lokal im Video gespeichert und nicht hochgeladen.";
 "NSAudioCaptureUsageDescription" = "Bei aktiviertem Systemaudio wird es lokal im Video gespeichert und nicht hochgeladen.";
+"NSScreenCaptureUsageDescription" = "Bei Screenshots oder Aufnahmen wird der ausgewählte Bereich, das Fenster oder der Bildschirm erfasst. Inhalte bleiben auf diesem Mac und werden nicht hochgeladen.";

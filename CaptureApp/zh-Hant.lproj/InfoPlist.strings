@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 "NSMicrophoneUsageDescription" = "在您開啟麥克風時，將聲音錄製到本機影片中，不上傳內容。";
 "NSAudioCaptureUsageDescription" = "在您開啟系統聲音時，將聲音錄製到本機影片中，不上傳內容。";
+"NSScreenCaptureUsageDescription" = "在您截圖或錄影時，擷取所選區域、視窗或螢幕，內容僅儲存在本機，不上傳。";

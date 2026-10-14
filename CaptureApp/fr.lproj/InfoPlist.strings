@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 "NSMicrophoneUsageDescription" = "Quand vous activez le microphone, le son est enregistré dans une vidéo locale, sans envoi.";
 "NSAudioCaptureUsageDescription" = "Quand vous activez l’audio système, il est enregistré dans une vidéo locale, sans envoi.";
+"NSScreenCaptureUsageDescription" = "Capture la zone, la fenêtre ou l’écran sélectionné lors des captures ou des enregistrements. Le contenu reste sur ce Mac et n’est pas envoyé en ligne.";

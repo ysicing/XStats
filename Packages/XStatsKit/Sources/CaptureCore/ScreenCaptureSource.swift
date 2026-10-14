@@ -1,7 +1,7 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import AppKit
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 
 /// The stored SCContentFilter has a read-only API; geometry and identity are immutable values.
 public struct ScreenCaptureSource: @unchecked Sendable {
@@ -40,13 +40,26 @@ public struct ScreenCaptureSource: @unchecked Sendable {
         return configuration
     }
     public func screenshot() async throws -> CGImage {
-        try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration(recording: false))
+        let configuration = configuration(recording: false)
+        return try await CaptureCallback<CGImage>().wait { completion in
+            SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration) { image, error in
+                if let error { completion.finish(.failure(error)) }
+                else if let image { completion.finish(.success(image)) }
+                else { completion.finish(.failure(CaptureError.captureFailed)) }
+            }
+        }
     }
     public static func content() async throws -> SCShareableContent {
         // Let ScreenCaptureKit request authorization. A false CoreGraphics preflight
         // result must not prevent the framework from presenting its first-use prompt.
         do {
-            return try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+            return try await CaptureCallback<SCShareableContent>().wait { completion in
+                SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: true) { content, error in
+                    if let error { completion.finish(.failure(error)) }
+                    else if let content { completion.finish(.success(content)) }
+                    else { completion.finish(.failure(CaptureError.captureFailed)) }
+                }
+            }
         } catch {
             let failure = error as NSError
             if failure.domain == SCStreamErrorDomain, failure.code == SCStreamError.Code.userDeclined.rawValue {

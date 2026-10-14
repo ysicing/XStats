@@ -59,6 +59,56 @@ import os
         #expect(try await writer.finish())
         return url
     }
+    @Test @MainActor func audioBackpressureDropsSamplesAndRecordingContinues() async throws {
+        let media = try RecordingMedia()
+        defer { try? media.discard() }
+        let blocked = OSAllocatedUnfairLock(initialState: true)
+        let failures = OSAllocatedUnfairLock(initialState: 0)
+        let writer = RecordingWriter(isReady: { input in
+            if input.mediaType == .audio, blocked.withLock({ $0 }) { return false }
+            return input.isReadyForMoreMediaData
+        }) { _ in failures.withLock { $0 += 1 } }
+        let url = media.newSegmentURL()
+        var options = RecordingOptions(); options.microphone = true
+        try await writer.prepare(url: url, size: CGSize(width: 64, height: 48), options: options)
+        for frame in 0..<30 {
+            let time = 100 + Double(frame) / 30
+            let video = try video(time: time)
+            let system = try audio(time: time, channels: 2, frequency: 440)
+            let microphone = try audio(time: time, channels: 1, frequency: 880)
+            writer.queue.sync {
+                writer.consumeVideo(video)
+                writer.consumeAudio(system, microphone: false)
+                writer.consumeAudio(microphone, microphone: true)
+            }
+            if frame == 5 { blocked.withLock { $0 = false } }
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        #expect(try await writer.finish())
+        #expect(failures.withLock { $0 } == 0)
+        #expect(try await AVURLAsset(url: url).loadTracks(withMediaType: .audio).count == 2)
+        #expect(try await AVURLAsset(url: url).loadTracks(withMediaType: .video).count == 1)
+    }
+    @Test func cancelledFinishStopsWriterWithoutReportingMediaFailure() async throws {
+        let media = try RecordingMedia()
+        defer { try? media.discard() }
+        let failures = OSAllocatedUnfairLock(initialState: 0)
+        let writer = RecordingWriter { _ in failures.withLock { $0 += 1 } }
+        var options = RecordingOptions(); options.systemAudio = false
+        try await writer.prepare(url: media.newSegmentURL(), size: CGSize(width: 64, height: 48), options: options)
+        let sample = try video(time: 100)
+        writer.queue.sync { writer.consumeVideo(sample) }
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await writer.finish()
+        }
+        await #expect(throws: CancellationError.self) { try await task.value }
+        await writer.abort()
+        writer.reportAudioFailure()
+        writer.queue.sync { writer.consumeVideo(sample) }
+        #expect(failures.withLock { $0 } == 0)
+        #expect(try await !writer.finish())
+    }
     @Test func mediaFailureReportsOnceAndStopsAfterFinish() async throws {
         let media = try RecordingMedia()
         defer { try? media.discard() }

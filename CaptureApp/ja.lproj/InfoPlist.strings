@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 "NSMicrophoneUsageDescription" = "マイクを有効にすると音声をこの Mac の動画に録音します。内容はアップロードしません。";
 "NSAudioCaptureUsageDescription" = "システム音声を有効にすると音声をこの Mac の動画に録音します。内容はアップロードしません。";
+"NSScreenCaptureUsageDescription" = "スクリーンショットや画面収録時に、選択した領域、ウインドウ、画面をキャプチャします。内容はこのMacにのみ保存され、アップロードされません。";

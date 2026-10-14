@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 "NSMicrophoneUsageDescription" = "마이크를 켜면 오디오를 이 Mac의 동영상에 녹음하며 업로드하지 않습니다.";
 "NSAudioCaptureUsageDescription" = "시스템 오디오를 켜면 이 Mac의 동영상에 녹음하며 업로드하지 않습니다.";
+"NSScreenCaptureUsageDescription" = "스크린샷이나 화면 녹화 시 선택한 영역, 윈도우 또는 화면을 캡처합니다. 콘텐츠는 이 Mac에만 저장되며 업로드되지 않습니다.";

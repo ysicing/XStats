@@ -43,6 +43,7 @@ import Localization
     private var distributedObserver: NSObjectProtocol?
     private var recordingSaved = false
     private var finishing = false
+    private var terminating = false
     private var selectedSource: ScreenCaptureSource?
     private static let logger = Logger(subsystem: CaptureRequest.bundleIdentifier, category: "lifecycle")
 
@@ -125,6 +126,7 @@ import Localization
     @objc private func openFromMenu() { showHome() }
 
     func showHome() {
+        guard !terminating else { return }
         if busy { showActiveWindow(); return }
         if home == nil {
             home = makeWindow(title: "XStats Capture", size: CGSize(width: 540, height: 620), content: CaptureHomeView(controller: self), resizable: true)
@@ -142,6 +144,7 @@ import Localization
         } catch { self.error = error.localizedDescription; showHome() }
     }
     func begin(_ action: CaptureRequest.Action, external: Bool = false) {
+        guard !terminating else { return }
         guard action != .open else { showHome(); return }
         guard !busy, preview == nil, recorder == nil else { showActiveWindow(); return }
         if external, action == .record {
@@ -158,6 +161,7 @@ import Localization
             do {
                 if action == .record, options.microphone { try await ScreenRecorder.requestMicrophone() }
                 let content = try await ScreenCaptureSource.content()
+                try Task.checkCancellation()
                 home?.orderOut(nil)
                 guard let source = try await selector.select(mode: mode, content: content) else { resetOperation(); showHome(); return }
                 try Task.checkCancellation()
@@ -184,11 +188,21 @@ import Localization
                     try state.transition(to: .starting)
                     let recorder = ScreenRecorder(media: try RecordingMedia())
                     self.recorder = recorder; recordingSaved = false
-                    recorder.onFailure = { [weak self = self] error in
-                        guard let self, self.busy, !self.finishing else { return }
+                    recorder.onFailure = { [weak self, weak recorder] error in
+                        guard let self, let recorder, self.recorder === recorder,
+                              self.busy, !self.finishing, !self.terminating else { return }
                         self.error = error.localizedDescription; self.stopRecording()
                     }
-                    try await recorder.start(source: source, options: options)
+                    do {
+                        try await recorder.start(source: source, options: options)
+                        try Task.checkCancellation()
+                    } catch {
+                        // 初次启动失败没有可恢复的片段，释放占位状态以允许再次录制。
+                        self.recorder = nil
+                        do { try await recorder.discard() }
+                        catch { Self.logger.error("Failed to discard media after recording startup failure") }
+                        throw error
+                    }
                     try state.transition(to: .recording)
                     transitioning = false; paused = false
                 }
@@ -208,7 +222,7 @@ import Localization
     }
     func cancelCountdown() { operation?.cancel(); selector.cancel() }
     func togglePause() {
-        guard !transitioning, let recorder else { return }
+        guard !terminating, !transitioning, let recorder else { return }
         transitioning = true
         operation = Task {
             do {
@@ -218,14 +232,15 @@ import Localization
                     try state.transition(to: .pausing); try await recorder.pause(); try state.transition(to: .paused)
                 }
                 paused.toggle(); transitioning = false
-            } catch {
+            } catch is CancellationError { transitioning = false }
+            catch {
                 self.error = CaptureError.writerFailed.localizedDescription
                 transitioning = false; stopRecording()
             }
         }
     }
     private func interruptRecording() {
-        guard state.shouldInterruptCapture else { return }
+        guard !terminating, state.shouldInterruptCapture else { return }
         if recorder == nil { cancelCountdown() }
         else if transitioning {
             let task = operation
@@ -233,7 +248,7 @@ import Localization
         } else { stopRecording() }
     }
     func stopRecording() {
-        guard !finishing, state.shouldInterruptCapture, let recorder else { return }
+        guard !terminating, !finishing, state.shouldInterruptCapture, let recorder else { return }
         if transitioning {
             let task = operation
             Task { await task?.value; stopRecording() }
@@ -247,6 +262,7 @@ import Localization
                 self.error = CaptureError.writerFailed.localizedDescription
                 Self.logger.error("Recording stop failed; keeping completed media")
             }
+            guard !terminating, !Task.isCancelled else { return }
             control?.close(); control = nil; selectedSource = nil
             do {
                 try await showRecordingPreview(recorder)
@@ -259,6 +275,7 @@ import Localization
     private func showRecordingPreview(_ recorder: ScreenRecorder) async throws {
         let composition = try await exporter.composition(segments: recorder.segments)
         duration = try await composition.load(.duration).seconds
+        try Task.checkCancellation()
         trimStart = 0; trimEnd = duration; recordingSaved = false
         player = AVPlayer(playerItem: AVPlayerItem(asset: composition))
         try state.transition(to: .preview)
@@ -267,7 +284,7 @@ import Localization
         busy = false; home?.close()
     }
     func recoverRecordingPreview() {
-        guard state.phase == .idle, !busy, let recorder else { return }
+        guard !terminating, state.phase == .idle, !busy, let recorder else { return }
         busy = true; finishing = true
         operation = Task {
             defer { finishing = false }
@@ -291,7 +308,7 @@ import Localization
         player?.currentItem?.forwardPlaybackEndTime = CMTime(seconds: trimEnd, preferredTimescale: 600)
     }
     func exportRecording() {
-        guard !exporting, let recorder else { return }
+        guard !terminating, !exporting, let recorder else { return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [.mpeg4Movie]; panel.nameFieldStringValue = "Recording.mp4"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         exporting = true; busy = true; error = nil; permissionError = nil
@@ -371,18 +388,20 @@ import Localization
     func considerExit() {
         Task { @MainActor in
             await Task.yield()
+            guard !terminating else { return }
             let windows = [home, control, preview].compactMap { $0 }.count + editors.count + pins.count
             if CaptureLifetime.shouldExit(resident: resident, windows: windows, busy: busy || finishing) { NSApp.terminate(nil) }
         }
     }
     var hasUnsavedWork: Bool { busy || (recorder != nil && !recordingSaved) || editors.contains(where: { $0.model.dirty || $0.model.rendering }) }
     func discardAndStop() async {
-        if exporting { cancelExport() }
-        if countdown > 0 || state.phase == .selecting { operation?.cancel(); selector.cancel() }
+        terminating = true
+        operation?.cancel(); selector.cancel(); exporter.cancel()
+        Self.logger.notice("Cancelling capture operations before termination")
         await operation?.value
         for editor in editors { await editor.model.finishPendingWork() }
-        try? await recorder?.stop()
-        try? recorder?.media.discard()
+        do { try await recorder?.discard() }
+        catch { Self.logger.error("Failed to discard recording media before termination") }
         recorder = nil; player?.pause()
     }
     func openPrivacySettings() {

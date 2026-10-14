@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import AppKit
 @preconcurrency import AVFoundation
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 import OSLog
 
 /// AVCaptureSession's blocking lifecycle stays on a dedicated serial queue.
@@ -11,47 +11,50 @@ private final class MicrophoneCapture: @unchecked Sendable {
     private let session = AVCaptureSession()
     private var observers: [NSObjectProtocol] = []
     func start(writer: RecordingWriter) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+        let clock: CMClock = try await CaptureCallback<CMClock>().wait(onCancel: { self.requestStop() }) { completion in
             queue.async {
+                guard !completion.isCancelled else { return }
                 do {
                     self.session.beginConfiguration()
-                    defer { self.session.commitConfiguration() }
-                    guard let device = AVCaptureDevice.default(for: .audio) else { throw CaptureError.microphonePermission }
-                    let input = try AVCaptureDeviceInput(device: device)
-                    let output = AVCaptureAudioDataOutput()
-                    guard self.session.canAddInput(input), self.session.canAddOutput(output) else { throw CaptureError.captureFailed }
-                    self.session.addInput(input); self.session.addOutput(output)
-                    for name in [AVCaptureSession.runtimeErrorNotification, AVCaptureSession.wasInterruptedNotification] {
-                        let token = NotificationCenter.default.addObserver(forName: name, object: self.session, queue: nil) { _ in writer.reportAudioFailure() }
-                        self.observers.append(token)
+                    do {
+                        defer { self.session.commitConfiguration() }
+                        guard let device = AVCaptureDevice.default(for: .audio) else { throw CaptureError.microphonePermission }
+                        let input = try AVCaptureDeviceInput(device: device)
+                        let output = AVCaptureAudioDataOutput()
+                        guard self.session.canAddInput(input), self.session.canAddOutput(output) else { throw CaptureError.captureFailed }
+                        self.session.addInput(input); self.session.addOutput(output)
+                        for name in [AVCaptureSession.runtimeErrorNotification, AVCaptureSession.wasInterruptedNotification] {
+                            let token = NotificationCenter.default.addObserver(forName: name, object: self.session, queue: nil) { _ in writer.reportAudioFailure() }
+                            self.observers.append(token)
+                        }
+                        output.setSampleBufferDelegate(writer, queue: writer.queue)
                     }
-                    output.setSampleBufferDelegate(writer, queue: writer.queue)
-                    continuation.resume()
-                } catch { continuation.resume(throwing: error) }
-            }
-        }
-        let clock: CMClock = try await withCheckedThrowingContinuation { continuation in
-            queue.async {
-                self.session.startRunning()
-                guard self.session.isRunning, let clock = self.session.synchronizationClock else {
-                    self.session.stopRunning()
-                    continuation.resume(throwing: CaptureError.captureFailed)
-                    return
+                    guard !completion.isCancelled else { self.stopOnQueue(); return }
+                    self.session.startRunning()
+                    guard self.session.isRunning, let clock = self.session.synchronizationClock else { throw CaptureError.captureFailed }
+                    // startRunning 无法强制打断。取消先释放等待者，迟到的启动在原队列停止。
+                    if !completion.finish(.success(clock)) { self.stopOnQueue() }
+                } catch {
+                    self.stopOnQueue()
+                    completion.finish(.failure(error))
                 }
-                continuation.resume(returning: clock)
             }
         }
+        try Task.checkCancellation()
         await writer.setMicrophoneClock(clock)
     }
-    func stop() async {
-        await withCheckedContinuation { continuation in
-            queue.async {
-                for token in self.observers { NotificationCenter.default.removeObserver(token) }; self.observers.removeAll()
-                self.session.stopRunning()
-                for output in self.session.outputs { (output as? AVCaptureAudioDataOutput)?.setSampleBufferDelegate(nil, queue: nil) }
-                continuation.resume()
-            }
+    func requestStop() { queue.async { self.stopOnQueue() } }
+    func stop() async throws {
+        try await CaptureCallback<Void>().wait(onCancel: { self.requestStop() }) { completion in
+            queue.async { self.stopOnQueue(); completion.finish(.success(())) }
         }
+    }
+    private func stopOnQueue() {
+        dispatchPrecondition(condition: .onQueue(queue))
+        for token in observers { NotificationCenter.default.removeObserver(token) }
+        observers.removeAll()
+        for output in session.outputs { (output as? AVCaptureAudioDataOutput)?.setSampleBufferDelegate(nil, queue: nil) }
+        if session.isRunning { session.stopRunning() }
     }
 }
 
@@ -70,7 +73,10 @@ private final class MicrophoneCapture: @unchecked Sendable {
     private static let logger = Logger(subsystem: CaptureRequest.bundleIdentifier, category: "recording")
     public init(media: RecordingMedia) { self.media = media; super.init() }
     public static func requestMicrophone() async throws {
-        let granted = await AVCaptureDevice.requestAccess(for: .audio)
+        let granted = try await CaptureCallback<Bool>().wait { completion in
+            AVCaptureDevice.requestAccess(for: .audio) { completion.finish(.success($0)) }
+        }
+        try Task.checkCancellation()
         guard granted else { throw CaptureError.microphonePermission }
     }
     public func start(source: ScreenCaptureSource, options: RecordingOptions) async throws {
@@ -102,6 +108,7 @@ private final class MicrophoneCapture: @unchecked Sendable {
         self.writer = writer; activeURL = url
         do {
             try await writer.prepare(url: url, size: CaptureGeometry.recordingSize(source.pixelSize), options: options)
+            try Task.checkCancellation()
             let configuration = source.configuration(recording: true, systemAudio: options.systemAudio)
             let stream = SCStream(filter: source.filter, configuration: configuration, delegate: self)
             try stream.addStreamOutput(writer, type: .screen, sampleHandlerQueue: writer.queue)
@@ -111,12 +118,20 @@ private final class MicrophoneCapture: @unchecked Sendable {
                 let microphone = MicrophoneCapture(); self.microphone = microphone
                 try await microphone.start(writer: writer)
             }
-            try await stream.startCapture()
+            try await CaptureCallback<Void>().wait(onCancel: { stream.stopCapture { _ in } }) { completion in
+                stream.startCapture { error in
+                    if let error { completion.finish(.failure(error)) }
+                    else if !completion.finish(.success(())), completion.isCancelled { stream.stopCapture { _ in } }
+                }
+            }
+            try Task.checkCancellation()
             Self.logger.notice("Recording producer started")
         } catch {
-            try? await stream?.stopCapture(); await microphone?.stop()
-            _ = try? await writer.finish()
-            self.stream = nil; self.writer = nil; microphone = nil; activeURL = nil
+            // 启动失败不等待可能卡住的生产者；先解除写入，再异步停止系统资源。
+            let stream = self.stream; let microphone = self.microphone
+            self.stream = nil; self.writer = nil; self.microphone = nil; activeURL = nil
+            stream?.stopCapture { _ in }; microphone?.requestStop()
+            await writer.abort()
             try? FileManager.default.removeItem(at: url)
             throw error
         }
@@ -127,16 +142,32 @@ private final class MicrophoneCapture: @unchecked Sendable {
         defer { transitioning = false }
         let endTime = CMClockGetTime(CMClockGetHostTimeClock())
         var captureError: (any Error)?
-        do { try await stream?.stopCapture() } catch { captureError = error }
-        await microphone?.stop()
+        if let stream {
+            do {
+                try await CaptureCallback<Void>().wait(onCancel: { stream.stopCapture { _ in } }) { completion in
+                    stream.stopCapture { error in
+                        if let error { completion.finish(.failure(error)) }
+                        else { completion.finish(.success(())) }
+                    }
+                }
+            } catch { captureError = error }
+        }
+        do { try await microphone?.stop() } catch { captureError = error }
         stream = nil; microphone = nil
         let writer = self.writer; self.writer = nil
         let url = activeURL; activeURL = nil
         if let writer {
             do {
+                try Task.checkCancellation()
                 if try await writer.finish(endTime: endTime), let url { segments.append(url) }
                 else if let url { try? FileManager.default.removeItem(at: url) }
-            } catch { captureError = error }
+            } catch {
+                if error is CancellationError {
+                    await writer.abort()
+                    if let url { try? FileManager.default.removeItem(at: url) }
+                }
+                captureError = error
+            }
         }
         Self.logger.notice("Recording producer stopped")
         if let captureError { throw captureError }
@@ -146,7 +177,19 @@ private final class MicrophoneCapture: @unchecked Sendable {
         defer { source = nil }
         if stream != nil { try await pause() }
     }
+    /// 丢弃时无需产出可播放片段，也不等待系统设备的阻塞生命周期。
+    public func discard() async throws {
+        targetTimer?.invalidate(); targetTimer = nil
+        let stream = stream; let microphone = microphone; let writer = writer
+        self.stream = nil; self.microphone = nil; self.writer = nil; activeURL = nil; source = nil
+        stream?.stopCapture { _ in }; microphone?.requestStop()
+        await writer?.abort()
+        try media.discard()
+    }
     nonisolated public func stream(_ stream: SCStream, didStopWithError error: any Error) {
-        Task { @MainActor [weak self] in self?.onFailure(.unavailableTarget) }
+        Task { @MainActor [weak self] in
+            guard let self, self.stream === stream else { return }
+            self.onFailure(.unavailableTarget)
+        }
     }
 }

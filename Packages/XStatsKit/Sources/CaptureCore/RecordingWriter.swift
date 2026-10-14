@@ -18,7 +18,11 @@ final class RecordingWriter: NSObject, SCStreamOutput, AVCaptureAudioDataOutputS
     private var microphoneClock: CMClock?
     private static let logger = Logger(subsystem: CaptureRequest.bundleIdentifier, category: "writer")
     private let onFailure: @Sendable (CaptureError) -> Void
-    init(onFailure: @escaping @Sendable (CaptureError) -> Void) { self.onFailure = onFailure }
+    private let isReady: @Sendable (AVAssetWriterInput) -> Bool
+    init(isReady: @escaping @Sendable (AVAssetWriterInput) -> Bool = { $0.isReadyForMoreMediaData },
+         onFailure: @escaping @Sendable (CaptureError) -> Void) {
+        self.isReady = isReady; self.onFailure = onFailure
+    }
 
     func prepare(url: URL, size: CGSize, options: RecordingOptions) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
@@ -79,10 +83,8 @@ final class RecordingWriter: NSObject, SCStreamOutput, AVCaptureAudioDataOutputS
             origin = timestamp; writer.startSession(atSourceTime: .zero)
         }
         guard let origin, RecordingSampleTime.relative(sample: timestamp.seconds, origin: origin.seconds) != nil else { return }
-        guard input.isReadyForMoreMediaData else {
-            if !isVideo { fail() }
-            return
-        }
+        // 实时编码背压不是编码失败；丢弃当前样本，避免无限缓冲或停止整段录制。
+        guard isReady(input) else { return }
         var count = 0
         guard CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: 0, arrayToFill: nil, entriesNeededOut: &count) == noErr else { fail(); return }
         var timings = [CMSampleTimingInfo](repeating: CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: .invalid, decodeTimeStamp: .invalid), count: count)
@@ -105,11 +107,12 @@ final class RecordingWriter: NSObject, SCStreamOutput, AVCaptureAudioDataOutputS
         onFailure(.writerFailed)
     }
     func finish(endTime: CMTime? = nil) async throws -> Bool {
-        try await withCheckedThrowingContinuation { continuation in
+        try await CaptureCallback<Bool>().wait(onCancel: { self.cancel() }) { completion in
             queue.async {
+                guard !completion.isCancelled else { return }
                 self.finishing = true
                 guard let writer = self.writer, self.origin != nil else {
-                    self.writer?.cancelWriting(); self.clear(); continuation.resume(returning: false); return
+                    self.writer?.cancelWriting(); self.clear(); completion.finish(.success(false)); return
                 }
                 if let endTime, let origin = self.origin, endTime > origin, writer.status == .writing {
                     writer.endSession(atSourceTime: endTime - origin)
@@ -119,12 +122,23 @@ final class RecordingWriter: NSObject, SCStreamOutput, AVCaptureAudioDataOutputS
                     self.queue.async {
                         let completed = self.writer?.status == .completed
                         self.clear()
-                        if completed { continuation.resume(returning: true) }
-                        else { continuation.resume(throwing: CaptureError.writerFailed) }
+                        if completed { completion.finish(.success(true)) }
+                        else { completion.finish(.failure(CaptureError.writerFailed)) }
                     }
                 }
             }
         }
+    }
+    func cancel() {
+        queue.async {
+            self.finishing = true
+            self.writer?.cancelWriting()
+            self.clear()
+        }
+    }
+    func abort() async {
+        cancel()
+        await withCheckedContinuation { continuation in queue.async { continuation.resume() } }
     }
     private func clear() { writer = nil; video = nil; systemAudio = nil; microphone = nil; origin = nil }
 }
