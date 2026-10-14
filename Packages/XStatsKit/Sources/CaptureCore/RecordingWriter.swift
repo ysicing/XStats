@@ -13,6 +13,7 @@ final class RecordingWriter: NSObject, SCStreamOutput, AVCaptureAudioDataOutputS
     private var systemAudio: AVAssetWriterInput?
     private var microphone: AVAssetWriterInput?
     private var origin: CMTime?
+    private var wroteVideo = false
     private var failed = false
     private var finishing = false
     private var microphoneClock: CMClock?
@@ -46,7 +47,7 @@ final class RecordingWriter: NSObject, SCStreamOutput, AVCaptureAudioDataOutputS
                         if isMic { mic = input } else { system = input }
                     }
                     self.writer = writer; self.video = video; self.systemAudio = system; self.microphone = mic
-                    self.origin = nil; self.failed = false; self.finishing = false
+                    self.origin = nil; self.wroteVideo = false; self.failed = false; self.finishing = false
                     continuation.resume()
                 } catch { continuation.resume(throwing: error) }
             }
@@ -98,6 +99,7 @@ final class RecordingWriter: NSObject, SCStreamOutput, AVCaptureAudioDataOutputS
         guard CMSampleBufferCreateCopyWithNewTiming(allocator: kCFAllocatorDefault, sampleBuffer: sample, sampleTimingEntryCount: timings.count,
                                                   sampleTimingArray: &timings, sampleBufferOut: &adjusted) == noErr,
               let adjusted, input.append(adjusted) else { fail(); return }
+        if isVideo { wroteVideo = true }
     }
     func reportAudioFailure(_ failure: CaptureError = .microphoneFailed) { queue.async { if !self.finishing { self.fail(failure) } } }
     private func fail(_ failure: CaptureError = .writerFailed) {
@@ -111,7 +113,7 @@ final class RecordingWriter: NSObject, SCStreamOutput, AVCaptureAudioDataOutputS
             queue.async {
                 guard !completion.isCancelled else { return }
                 self.finishing = true
-                guard let writer = self.writer, self.origin != nil else {
+                guard let writer = self.writer, self.origin != nil, self.wroteVideo else {
                     self.writer?.cancelWriting(); self.clear(); completion.finish(.success(false)); return
                 }
                 if let endTime, let origin = self.origin, endTime > origin, writer.status == .writing {
@@ -140,5 +142,5 @@ final class RecordingWriter: NSObject, SCStreamOutput, AVCaptureAudioDataOutputS
         cancel()
         await withCheckedContinuation { continuation in queue.async { continuation.resume() } }
     }
-    private func clear() { writer = nil; video = nil; systemAudio = nil; microphone = nil; origin = nil }
+    private func clear() { wroteVideo = false; writer = nil; video = nil; systemAudio = nil; microphone = nil; origin = nil }
 }

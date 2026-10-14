@@ -57,10 +57,16 @@ public enum CaptureHost: Sendable { case embedded, standalone }
     public func confirmTermination() -> Bool {
         guard hasUnsavedWork else { return true }
         NSApp.activate(ignoringOtherApps: true)
+        return Self.terminationAlert().runModal() == .alertFirstButtonReturn
+    }
+    static func terminationAlert() -> NSAlert {
         let alert = NSAlert()
         alert.messageText = tr("退出并丢弃未保存的内容？")
         alert.addButton(withTitle: tr("丢弃并退出")); alert.addButton(withTitle: tr("取消"))
-        return alert.runModal() == .alertFirstButtonReturn
+        // Selection panels cover every screen at screenSaver level. Keep the
+        // confirmation interactive while preserving selection when Quit is canceled.
+        alert.window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
+        return alert
     }
     public func prepareForTermination() async { await controller?.discardAndStop() }
     public func cleanUp() {

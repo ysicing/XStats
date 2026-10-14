@@ -50,8 +50,11 @@ import Localization
     private let exporter = RecordingExporter()
     private var recorder: ScreenRecorder?
     private var operation: Task<Void, Never>?
+    private var cacheCleanup: Task<Void, Never>?
     private var observers: [NSObjectProtocol] = []
     private var distributedObserver: NSObjectProtocol?
+    private var terminalRecordingError: CaptureError?
+    private var stopRetryError = false
     private var recordingSaved = false
     private var finishing = false
     private var terminating = false
@@ -88,6 +91,11 @@ import Localization
         distributedObserver = DistributedNotificationCenter.default().addObserver(forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.interruptRecording() }
         }
+        cacheCleanup = Task {
+            do { try await RecordingMedia.cleanStaleSessions() }
+            catch is CancellationError { }
+            catch { Self.logger.error("Failed to clean stale recording sessions") }
+        }
         applyResidentMode()
     }
     static func shouldInterruptForDisplayChange(displayID: CGDirectDisplayID, windowID: CGWindowID?, availableDisplays: Set<CGDirectDisplayID>) -> Bool {
@@ -95,7 +103,7 @@ import Localization
         windowID == nil && !availableDisplays.contains(displayID)
     }
     func cleanUp() {
-        operation?.cancel(); selector.cancel(); player?.pause()
+        operation?.cancel(); cacheCleanup?.cancel(); selector.cancel(); player?.pause()
         if host == .standalone { shortcuts.stop() }
         for observer in observers {
             NotificationCenter.default.removeObserver(observer)
@@ -115,7 +123,10 @@ import Localization
             defaults.set(language.rawValue, forKey: "capture.language")
             L10n.configure(language)
         } else { language = L10n.language }
-        home?.contentView = NSHostingView(rootView: CaptureHomeView(controller: self))
+        if let scroll = home?.contentView as? NSScrollView {
+            scroll.documentView = NSHostingView(rootView: CaptureHomeView(controller: self))
+            fitHomeWindow()
+        }
         home?.title = "XStats Capture"
         control?.title = tr("录屏")
         control?.contentView = NSHostingView(rootView: RecordingControlView(controller: self).environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight).environment(\.locale, L10n.locale))
@@ -158,6 +169,12 @@ import Localization
         if busy { showActiveWindow(); return }
         if home == nil {
             home = makeWindow(title: "XStats Capture", size: CGSize(width: 520, height: 430), content: CaptureHomeView(controller: self), resizable: false)
+            if let home, let content = home.contentView {
+                let scroll = NSScrollView(frame: content.frame)
+                scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true; scroll.drawsBackground = false
+                scroll.documentView = content
+                home.contentView = scroll
+            }
         }
         systemAudio = true; microphone = false
         home?.makeKeyAndOrderFront(nil); onWindowsChanged(); NSApp.activate(ignoringOtherApps: true)
@@ -167,16 +184,21 @@ import Localization
     func fitHomeWindow() {
         Task { @MainActor [weak self] in
             await Task.yield()
-            guard let home = self?.home, let content = home.contentView else { return }
+            guard let home = self?.home, let scroll = home.contentView as? NSScrollView,
+                  let content = scroll.documentView else { return }
             content.layoutSubtreeIfNeeded()
             let size = content.fittingSize
             guard size.width.isFinite, size.height.isFinite, size.width > 0, size.height > 0 else { return }
+            content.setFrameSize(size)
+            let visible = (home.screen ?? NSScreen.main)?.visibleFrame ?? home.frame
+            let chrome = home.frame.height - home.contentRect(forFrameRect: home.frame).height
+            let fitted = CGSize(width: min(size.width, visible.width), height: min(size.height, max(1, visible.height - chrome)))
             let current = home.contentRect(forFrameRect: home.frame).size
-            guard abs(current.height - size.height) > 1 || abs(current.width - size.width) > 1 else { return }
-            // Keep the title bar in place as the recording controls appear or disappear.
+            guard abs(current.height - fitted.height) > 1 || abs(current.width - fitted.width) > 1 else { return }
             let top = home.frame.maxY
-            home.setContentSize(size)
-            home.setFrameOrigin(CGPoint(x: home.frame.minX, y: top - home.frame.height))
+            home.setContentSize(fitted)
+            home.setFrameOrigin(CGPoint(x: min(max(home.frame.minX, visible.minX), visible.maxX - home.frame.width),
+                                        y: min(max(top - home.frame.height, visible.minY), visible.maxY - home.frame.height)))
         }
     }
     private func showActiveWindow() {
@@ -201,6 +223,7 @@ import Localization
         if home == nil { showHome() }
         do { try state.transition(to: .selecting) } catch { return }
         busy = true; error = nil; permissionError = nil
+        terminalRecordingError = nil; stopRetryError = false
         let mode = mode
         var options = RecordingOptions(); options.systemAudio = systemAudio; options.microphone = microphone
         operation = Task {
@@ -245,8 +268,7 @@ import Localization
                     recorder.onFailure = { [weak self, weak recorder] error in
                         guard let self, let recorder, self.recorder === recorder,
                               self.busy, !self.finishing, !self.terminating else { return }
-                        self.error = error.localizedDescription
-                        self.permissionError = error == .screenPermission || error == .microphonePermission ? error : nil
+                        self.recordingFailed(error)
                         self.stopRecording()
                     }
                     do {
@@ -292,12 +314,16 @@ import Localization
             } catch is CancellationError { transitioning = false }
             catch {
                 let failure = CaptureError.recordingFailure(error)
-                self.error = failure.localizedDescription
-                permissionError = failure == .screenPermission || failure == .microphonePermission ? failure : nil
+                recordingFailed(failure)
                 Self.logger.error("Recording pause or resume failed")
                 transitioning = false; stopRecording()
             }
         }
+    }
+    func recordingFailed(_ failure: CaptureError) {
+        terminalRecordingError = failure
+        error = failure.localizedDescription
+        permissionError = failure == .screenPermission || failure == .microphonePermission ? failure : nil
     }
     var canPauseRecording: Bool { state.phase == .recording || state.phase == .paused }
     var needsStopRetry: Bool { state.phase == .finishing && !transitioning }
@@ -317,27 +343,47 @@ import Localization
             return
         }
         finishing = true; transitioning = true
-        operation = Task {
-            defer { finishing = false; transitioning = false }
-            try? state.transition(to: .finishing)
-            do { try await recorder.stop() } catch {
-                let failure = CaptureError.recordingFailure(error)
-                self.error = failure.localizedDescription
-                permissionError = failure == .screenPermission || failure == .microphonePermission ? failure : nil
-                Self.logger.error("Recording stop failed; keeping completed media")
-                if recorder.isCapturing {
-                    control?.setContentSize(CGSize(width: 360, height: 260))
-                    return
-                }
+        operation = Task { await finalizeRecording(recorder) }
+    }
+    /// Own finalization as one operation, preserving recoverable media and stop retries.
+    func finalizeRecording(_ recorder: ScreenRecorder) async {
+        self.recorder = recorder
+        busy = true; finishing = true; transitioning = true
+        defer { finishing = false; transitioning = false }
+        if state.phase != .finishing { try? state.transition(to: .finishing) }
+        do {
+            try await recorder.stop()
+            if stopRetryError {
+                error = terminalRecordingError?.localizedDescription
+                permissionError = terminalRecordingError.flatMap { $0 == .screenPermission || $0 == .microphonePermission ? $0 : nil }
+                stopRetryError = false
             }
-            guard !terminating, !Task.isCancelled else { return }
-            control?.close(); control = nil; selectedSource = nil
-            do {
-                try await showRecordingPreview(recorder)
-            } catch {
-                self.error = CaptureError.captureFailed.localizedDescription
-                resetOperation(); showHome()
+        } catch {
+            let failure = CaptureError.recordingFailure(error)
+            self.error = failure.localizedDescription
+            permissionError = failure == .screenPermission || failure == .microphonePermission ? failure : nil
+            Self.logger.error("Recording stop failed; keeping completed media")
+            // A producer may still need stopping even though sealing the current
+            // segment already failed. Retrying cannot recover that lost segment.
+            if failure == .writerFailed { terminalRecordingError = terminalRecordingError ?? failure }
+            if recorder.isCapturing {
+                stopRetryError = true
+                control?.setContentSize(CGSize(width: 360, height: 260))
+                return
             }
+            terminalRecordingError = terminalRecordingError ?? failure
+        }
+        guard !terminating, !Task.isCancelled else { return }
+        control?.close(); control = nil; selectedSource = nil
+        do { try await showRecordingPreview(recorder) }
+        catch {
+            self.error = terminalRecordingError?.localizedDescription ?? CaptureError.captureFailed.localizedDescription
+            if recorder.segments.isEmpty {
+                self.recorder = nil
+                do { try await recorder.discard() }
+                catch { Self.logger.error("Failed to discard unrecoverable recording media") }
+            }
+            resetOperation(); showHome()
         }
     }
     private func showRecordingPreview(_ recorder: ScreenRecorder) async throws {
@@ -504,12 +550,13 @@ import Localization
     var hasUnsavedWork: Bool { busy || (recorder != nil && !recordingSaved) || editors.contains(where: { $0.model.dirty || $0.model.rendering }) }
     func discardAndStop() async {
         terminating = true
-        operation?.cancel(); selector.cancel(); exporter.cancel()
+        operation?.cancel(); cacheCleanup?.cancel(); selector.cancel(); exporter.cancel()
         let models = editors.map(\.model)
         for model in models { model.cancelPendingWork(terminating: true) }
         Self.logger.notice("Cancelling capture operations before termination")
         for model in models { await model.waitForPendingWork() }
         await operation?.value
+        await cacheCleanup?.value; cacheCleanup = nil
         do { try await recorder?.discard() }
         catch { Self.logger.error("Failed to discard recording media before termination") }
         recorder = nil; player?.pause(); player?.replaceCurrentItem(with: nil); player = nil

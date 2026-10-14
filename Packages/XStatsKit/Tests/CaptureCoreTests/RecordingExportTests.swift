@@ -60,6 +60,16 @@ import ScreenCaptureKit
         #expect(try await writer.finish())
         return url
     }
+    @Test func noCommittedVideoDoesNotProduceARecoverableSegment() async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let writer = RecordingWriter(isReady: { _ in false }) { _ in }
+        let url = media.newSegmentURL()
+        try await writer.prepare(url: url, size: CGSize(width: 64, height: 48), options: RecordingOptions())
+        let frame = try video(time: 100)
+        writer.queue.sync { writer.consumeVideo(frame) }
+        #expect(try await !writer.finish())
+    }
     @Test @MainActor func audioBackpressureDropsSamplesAndRecordingContinues() async throws {
         let media = try RecordingMedia()
         defer { try? FileManager.default.removeItem(at: media.directory) }
@@ -201,8 +211,10 @@ import ScreenCaptureKit
         let media = try RecordingMedia()
         defer { try? FileManager.default.removeItem(at: media.directory) }
         let source = try await segment(media, origin: 100, system: true, microphone: false)
-        let output = media.directory.appendingPathExtension("mp4")
-        defer { try? FileManager.default.removeItem(at: output) }
+        let destinationDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: destinationDirectory) }
+        let output = destinationDirectory.appendingPathComponent("output.mp4")
         let sentinel = Data("existing destination".utf8)
         try sentinel.write(to: output)
         let exporter = RecordingExporter()
@@ -212,7 +224,7 @@ import ScreenCaptureKit
         await #expect(throws: (any Error).self) { try await task.value }
         #expect(try Data(contentsOf: output) == sentinel)
         #expect(FileManager.default.fileExists(atPath: source.path))
-        #expect(try FileManager.default.contentsOfDirectory(atPath: media.directory.path).filter { $0.hasPrefix(".") }.isEmpty)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: destinationDirectory.path) == ["output.mp4"])
     }
     @Test @MainActor func exportInsideMediaDirectoryCannotOverwriteSourceAndCanRetry() async throws {
         let media = try RecordingMedia()
@@ -232,6 +244,23 @@ import ScreenCaptureKit
         try await exporter.export(segments: [source], trim: nil, to: output)
         try await media.discard()
         #expect(FileManager.default.fileExists(atPath: output.path))
+    }
+    @Test @MainActor func finalCommitRunsOffMainThreadAndReplacesExistingDestination() async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let source = try await segment(media, origin: 100, system: false, microphone: false)
+        let output = media.directory.appendingPathExtension("mp4")
+        defer { try? FileManager.default.removeItem(at: output) }
+        try Data("old movie".utf8).write(to: output)
+        let onMain = OSAllocatedUnfairLock(initialState: false)
+        let exporter = RecordingExporter(commit: { staging, destination in
+            onMain.withLock { $0 = Thread.isMainThread }
+            _ = try FileManager.default.replaceItemAt(destination, withItemAt: staging)
+        })
+        try await exporter.export(segments: [source], trim: nil, to: output)
+        #expect(!onMain.withLock { $0 })
+        #expect(try await AVURLAsset(url: output).loadTracks(withMediaType: .video).count == 1)
+        #expect(FileManager.default.fileExists(atPath: source.path))
     }
     @Test @MainActor func failedSaveAllowsRetryAndLeavesSource() async throws {
         let media = try RecordingMedia()
