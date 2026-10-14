@@ -300,8 +300,14 @@ import Localization
         let alert = NSAlert(); alert.messageText = tr("丢弃未保存的录屏？")
         alert.addButton(withTitle: tr("丢弃")); alert.addButton(withTitle: tr("取消"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        do { try recorder.media.discard(); self.recorder = nil; recordingSaved = false; resetOperation() }
-        catch { self.error = CaptureError.exportFailed.localizedDescription }
+        busy = true
+        operation = Task {
+            do { try await recorder.media.discard(); self.recorder = nil; recordingSaved = false; resetOperation() }
+            catch {
+                self.error = CaptureError.exportFailed.localizedDescription; busy = false
+                Self.logger.error("Failed to discard recording media")
+            }
+        }
     }
     func seekTrim() {
         player?.seek(to: CMTime(seconds: trimStart, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
@@ -320,7 +326,7 @@ import Localization
                 try await exporter.export(segments: recorder.segments, trim: trim, to: url)
                 recordingSaved = true
                 player?.pause(); player?.replaceCurrentItem(with: nil); player = nil
-                try recorder.media.discard()
+                try await recorder.media.discard()
                 Self.logger.notice("Recording export completed")
                 preview?.close()
                 self.recorder = nil
@@ -328,7 +334,7 @@ import Localization
                 considerExit()
             } catch is CancellationError { Self.logger.notice("Recording export cancelled") }
             catch {
-                self.error = CaptureError.exportFailed.localizedDescription
+                self.error = (error as? CaptureError)?.localizedDescription ?? CaptureError.exportFailed.localizedDescription
                 Self.logger.error("Recording export failed; keeping original media")
             }
         }
@@ -379,7 +385,19 @@ import Localization
         if window === home { home = nil }
         if window === preview {
             player?.pause(); player?.replaceCurrentItem(with: nil); player = nil
-            if !exporting { try? recorder?.media.discard(); recorder = nil; try? state.transition(to: .idle) }
+            if !exporting, let recorder {
+                busy = true
+                operation = Task {
+                    do {
+                        try await recorder.media.discard()
+                        self.recorder = nil; resetOperation(); considerExit()
+                    } catch {
+                        self.error = CaptureError.exportFailed.localizedDescription
+                        resetOperation(); showHome()
+                        Self.logger.error("Failed to discard media after preview closed")
+                    }
+                }
+            }
             preview = nil
         }
         pins.removeAll { $0 === window }
@@ -397,9 +415,9 @@ import Localization
     func discardAndStop() async {
         terminating = true
         operation?.cancel(); selector.cancel(); exporter.cancel()
+        for editor in editors { editor.model.cancelPendingWork() }
         Self.logger.notice("Cancelling capture operations before termination")
         await operation?.value
-        for editor in editors { await editor.model.finishPendingWork() }
         do { try await recorder?.discard() }
         catch { Self.logger.error("Failed to discard recording media before termination") }
         recorder = nil; player?.pause()

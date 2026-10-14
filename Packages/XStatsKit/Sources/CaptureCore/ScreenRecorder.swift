@@ -184,7 +184,7 @@ private final class MicrophoneCapture: @unchecked Sendable {
         self.stream = nil; self.microphone = nil; self.writer = nil; activeURL = nil; source = nil
         stream?.stopCapture { _ in }; microphone?.requestStop()
         await writer?.abort()
-        try media.discard()
+        try await media.discard()
     }
     nonisolated public func stream(_ stream: SCStream, didStopWithError error: any Error) {
         Task { @MainActor [weak self] in

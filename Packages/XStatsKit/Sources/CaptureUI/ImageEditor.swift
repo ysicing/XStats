@@ -26,6 +26,7 @@ extension ImageTool {
     var error: String?
     var onPin: (CGImage) -> Void = { _ in }
     private var renderTask: Task<Void, Never>?
+    private var cancelWorker: (() -> Void)?
     init(image: CGImage) {
         document = ImageEditDocument(image: image)
         self.image = NSImage(cgImage: image, size: CGSize(width: image.width, height: image.height))
@@ -44,17 +45,22 @@ extension ImageTool {
     func undo() { document.undo(); refresh() }
     func redo() { document.redo(); refresh() }
     private func refresh() {
-        renderTask?.cancel()
+        cancelPendingWork()
         rendering = true; dirty = true; imageIsCurrent = false; error = nil
         let document = document
+        let worker = Task.detached(priority: .userInitiated) { try document.render() }
+        cancelWorker = { worker.cancel() }
         renderTask = Task {
             do {
-                let result = try await Task.detached(priority: .userInitiated) { try document.render() }.value
+                let result = try await withTaskCancellationHandler { try await worker.value } onCancel: { worker.cancel() }
                 guard !Task.isCancelled else { return }
                 image = NSImage(cgImage: result, size: CGSize(width: result.width, height: result.height))
                 imageIsCurrent = true
-            } catch { self.error = error.localizedDescription }
-            rendering = false
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.error = error.localizedDescription
+            }
+            rendering = false; cancelWorker = nil
         }
     }
     func copy() {
@@ -69,25 +75,34 @@ extension ImageTool {
         panel.allowedContentTypes = jpeg ? [.jpeg] : [.png]
         panel.nameFieldStringValue = "Screenshot.\(jpeg ? "jpg" : "png")"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        save(to: url, jpeg: jpeg)
+    }
+    func save(to url: URL, jpeg: Bool) {
+        guard !rendering else { return }
         let document = document
         rendering = true; error = nil
+        let worker = Task.detached(priority: .userInitiated) { try document.save(to: url, jpeg: jpeg) }
+        cancelWorker = { worker.cancel() }
         renderTask = Task {
             do {
-                try await Task.detached(priority: .userInitiated) {
-                    let bytes = try document.encoded(jpeg: jpeg)
-                    try Task.checkCancellation()
-                    try bytes.write(to: url, options: .atomic)
-                }.value
+                try await withTaskCancellationHandler { try await worker.value } onCancel: { worker.cancel() }
+                guard !Task.isCancelled else { return }
                 dirty = false
-            } catch { self.error = error.localizedDescription }
-            rendering = false
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.error = CaptureError.exportFailed.localizedDescription
+            }
+            rendering = false; cancelWorker = nil
         }
     }
     func pin() {
         guard imageIsCurrent, !rendering, let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
         onPin(cgImage)
     }
-    func finishPendingWork() async { await renderTask?.value }
+    func cancelPendingWork() {
+        renderTask?.cancel(); cancelWorker?()
+        renderTask = nil; cancelWorker = nil; rendering = false
+    }
 }
 
 @MainActor final class ImageEditorWindow: NSWindowController, NSWindowDelegate {

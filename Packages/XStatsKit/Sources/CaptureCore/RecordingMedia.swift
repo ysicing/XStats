@@ -11,7 +11,31 @@ public struct RecordingMedia: Sendable {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
     public func newSegmentURL() -> URL { directory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov") }
-    public func discard() throws { if FileManager.default.fileExists(atPath: directory.path) { try FileManager.default.removeItem(at: directory) } }
+    public func discard() async throws {
+        let directory = directory
+        // 丢弃必须完成清理，即使调用任务因退出而已取消；递归 I/O 不在主线程执行。
+        try await Task.detached(priority: .utility) {
+            do { try FileManager.default.removeItem(at: directory) }
+            catch let error as CocoaError where error.code == .fileNoSuchFile { }
+        }.value
+    }
+    static func validateExportDestination(_ destination: URL, outside directory: URL) throws {
+        let directory = directory.resolvingSymlinksInPath().standardizedFileURL
+        // 尚不存在的目标文件不会解析父目录中的符号链接，先解析已存在的祖先。
+        var ancestor = destination.standardizedFileURL
+        var suffix: [String] = []
+        while !FileManager.default.fileExists(atPath: ancestor.path), ancestor.path != "/" {
+            suffix.append(ancestor.lastPathComponent)
+            ancestor.deleteLastPathComponent()
+        }
+        var destination = ancestor.resolvingSymlinksInPath().standardizedFileURL
+        for component in suffix.reversed() { destination.appendPathComponent(component) }
+        let sensitive = try directory.resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey]).volumeSupportsCaseSensitiveNames ?? true
+        let root = directory.pathComponents, target = destination.pathComponents
+        let options: String.CompareOptions = sensitive ? [] : [.caseInsensitive]
+        let inside = target.count >= root.count && zip(root, target).allSatisfy { $0.compare($1, options: options) == .orderedSame }
+        guard !inside else { throw CaptureError.invalidExportDestination }
+    }
 }
 
 public enum RecordingSampleTime {
@@ -63,6 +87,12 @@ public enum RecordingSampleTime {
         guard !exporting else { throw CaptureError.invalidTransition }
         exporting = true
         defer { exporting = false }
+        try await Task.detached(priority: .utility) {
+            for directory in Set(segments.map { $0.deletingLastPathComponent() }) {
+                try RecordingMedia.validateExportDestination(destination, outside: directory)
+            }
+        }.value
+        try Task.checkCancellation()
         let composed = try await buildComposition(segments: segments)
         let composition = composed.composition
         let tracks = composed.audio

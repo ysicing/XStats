@@ -5,7 +5,7 @@ import CoreGraphics
 import Localization
 
 public enum CaptureError: Error, LocalizedError, Equatable {
-    case invalidRequest, invalidRegion, invalidTransition, invalidTrim
+    case invalidRequest, invalidRegion, invalidTransition, invalidTrim, invalidExportDestination
     case screenPermission, microphonePermission, unavailableTarget, captureFailed, writerFailed, exportFailed
     public var errorDescription: String? {
         switch self {
@@ -13,6 +13,7 @@ public enum CaptureError: Error, LocalizedError, Equatable {
         case .invalidRegion: tr("请选择有效的屏幕区域。")
         case .invalidTransition: tr("当前操作尚未结束。")
         case .invalidTrim: tr("请选择有效的裁剪时间范围。")
+        case .invalidExportDestination: tr("请选择录制临时目录之外的保存位置。")
         case .screenPermission: tr("请在系统设置中允许 XStats Capture 录制屏幕，然后重试。")
         case .microphonePermission: tr("请在系统设置中允许 XStats Capture 使用麦克风，然后重试。")
         case .unavailableTarget: tr("捕获目标已不可用，录制已结束。")

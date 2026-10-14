@@ -59,6 +59,7 @@ public struct ImageEditDocument: Sendable {
         annotations.append(contentsOf: additions); cropRect = revision.crop
     }
     public func render() throws -> CGImage {
+        try Task.checkCancellation()
         guard let context = CGContext(data: nil, width: Int(cropRect.width), height: Int(cropRect.height), bitsPerComponent: 8, bytesPerRow: 0,
                                       space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { throw CaptureError.captureFailed }
         context.translateBy(x: -cropRect.minX, y: cropRect.height + cropRect.minY)
@@ -67,7 +68,8 @@ public struct ImageEditDocument: Sendable {
         context.translateBy(x: 0, y: CGFloat(original.height)); context.scaleBy(x: 1, y: -1)
         context.draw(original, in: CGRect(x: 0, y: 0, width: original.width, height: original.height))
         context.restoreGState()
-        for item in annotations { Self.draw(item, in: context) }
+        for item in annotations { try Task.checkCancellation(); Self.draw(item, in: context) }
+        try Task.checkCancellation()
         guard let result = context.makeImage() else { throw CaptureError.captureFailed }
         return result
     }
@@ -104,10 +106,32 @@ public struct ImageEditDocument: Sendable {
         }
     }
     public func encoded(jpeg: Bool = false) throws -> Data {
+        try Task.checkCancellation()
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(data, (jpeg ? UTType.jpeg : UTType.png).identifier as CFString, 1, nil) else { throw CaptureError.exportFailed }
         CGImageDestinationAddImage(destination, try render(), jpeg ? [kCGImageDestinationLossyCompressionQuality: 0.9] as CFDictionary : nil)
+        try Task.checkCancellation()
         guard CGImageDestinationFinalize(destination) else { throw CaptureError.exportFailed }
+        try Task.checkCancellation()
         return data as Data
+    }
+    /// 只向相邻临时文件分块写入，取消后不提交到用户选择的位置。
+    public func save(to url: URL, jpeg: Bool = false) throws {
+        let bytes = try encoded(jpeg: jpeg)
+        try Task.checkCancellation()
+        let staging = url.deletingLastPathComponent().appendingPathComponent(".\(UUID().uuidString).capture-image")
+        defer { try? FileManager.default.removeItem(at: staging) }
+        guard FileManager.default.createFile(atPath: staging.path, contents: nil) else { throw CaptureError.exportFailed }
+        let handle = try FileHandle(forWritingTo: staging)
+        defer { try? handle.close() }
+        for offset in stride(from: 0, to: bytes.count, by: 512 * 1024) {
+            try Task.checkCancellation()
+            try handle.write(contentsOf: bytes[offset..<min(offset + 512 * 1024, bytes.count)])
+        }
+        try handle.close()
+        try Task.checkCancellation()
+        if FileManager.default.fileExists(atPath: url.path) {
+            _ = try FileManager.default.replaceItemAt(url, withItemAt: staging)
+        } else { try FileManager.default.moveItem(at: staging, to: url) }
     }
 }

@@ -43,4 +43,22 @@ import CoreGraphics
         while document.canUndo { document.undo(); undoCount += 1 }
         #expect(undoCount == 100)
     }
+    @Test func cancelledImageSavePreservesExistingDestination() async throws {
+        let document = ImageEditDocument(image: try image())
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let output = directory.appendingPathComponent("image.png")
+        let sentinel = Data("keep existing image".utf8)
+        try sentinel.write(to: output)
+        let task = Task.detached {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try document.save(to: output)
+        }
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(try Data(contentsOf: output) == sentinel)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path) == ["image.png"])
+        try document.save(to: output)
+        #expect(try Data(contentsOf: output).prefix(8) == Data([137, 80, 78, 71, 13, 10, 26, 10]))
+    }
 }

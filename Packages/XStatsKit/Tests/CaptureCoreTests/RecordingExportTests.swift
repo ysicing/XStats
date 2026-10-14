@@ -61,7 +61,7 @@ import os
     }
     @Test @MainActor func audioBackpressureDropsSamplesAndRecordingContinues() async throws {
         let media = try RecordingMedia()
-        defer { try? media.discard() }
+        defer { try? FileManager.default.removeItem(at: media.directory) }
         let blocked = OSAllocatedUnfairLock(initialState: true)
         let failures = OSAllocatedUnfairLock(initialState: 0)
         let writer = RecordingWriter(isReady: { input in
@@ -91,7 +91,7 @@ import os
     }
     @Test func cancelledFinishStopsWriterWithoutReportingMediaFailure() async throws {
         let media = try RecordingMedia()
-        defer { try? media.discard() }
+        defer { try? FileManager.default.removeItem(at: media.directory) }
         let failures = OSAllocatedUnfairLock(initialState: 0)
         let writer = RecordingWriter { _ in failures.withLock { $0 += 1 } }
         var options = RecordingOptions(); options.systemAudio = false
@@ -111,7 +111,7 @@ import os
     }
     @Test func mediaFailureReportsOnceAndStopsAfterFinish() async throws {
         let media = try RecordingMedia()
-        defer { try? media.discard() }
+        defer { try? FileManager.default.removeItem(at: media.directory) }
         let failures = OSAllocatedUnfairLock(initialState: 0)
         let writer = RecordingWriter { _ in failures.withLock { $0 += 1 } }
         var options = RecordingOptions(); options.systemAudio = false
@@ -124,7 +124,7 @@ import os
     }
     @Test @MainActor func staticFrameKeepsProducerDuration() async throws {
         let media = try RecordingMedia()
-        defer { try? media.discard() }
+        defer { try? FileManager.default.removeItem(at: media.directory) }
         let url = media.newSegmentURL()
         let writer = RecordingWriter { _ in }
         var options = RecordingOptions(); options.systemAudio = false
@@ -138,10 +138,11 @@ import os
     }
     @Test @MainActor func pauseSegmentsTrimAndMixToSingleAudioTrack() async throws {
         let media = try RecordingMedia()
-        defer { try? media.discard() }
+        defer { try? FileManager.default.removeItem(at: media.directory) }
         let first = try await segment(media, origin: 100, system: true, microphone: true)
         let second = try await segment(media, origin: 120, system: true, microphone: true)
-        let output = media.directory.appendingPathComponent("output.mp4")
+        let output = media.directory.appendingPathExtension("mp4")
+        defer { try? FileManager.default.removeItem(at: output) }
         let exporter = RecordingExporter()
         let composition = try await exporter.composition(segments: [first, second])
         let duration = try await composition.load(.duration).seconds
@@ -158,9 +159,10 @@ import os
     }
     @Test @MainActor func cancelledExportPreservesOriginalAndExistingDestination() async throws {
         let media = try RecordingMedia()
-        defer { try? media.discard() }
+        defer { try? FileManager.default.removeItem(at: media.directory) }
         let source = try await segment(media, origin: 100, system: true, microphone: false)
-        let output = media.directory.appendingPathComponent("existing.mp4")
+        let output = media.directory.appendingPathExtension("mp4")
+        defer { try? FileManager.default.removeItem(at: output) }
         let sentinel = Data("existing destination".utf8)
         try sentinel.write(to: output)
         let exporter = RecordingExporter()
@@ -172,23 +174,43 @@ import os
         #expect(FileManager.default.fileExists(atPath: source.path))
         #expect(try FileManager.default.contentsOfDirectory(atPath: media.directory.path).filter { $0.hasPrefix(".") }.isEmpty)
     }
+    @Test @MainActor func exportInsideMediaDirectoryCannotOverwriteSourceAndCanRetry() async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let source = try await segment(media, origin: 100, system: false, microphone: false)
+        let sentinel = Data("existing destination".utf8)
+        let forbidden = media.directory.appendingPathComponent("output.mp4")
+        try sentinel.write(to: forbidden)
+        let exporter = RecordingExporter()
+        await #expect(throws: CaptureError.invalidExportDestination) {
+            try await exporter.export(segments: [source], trim: nil, to: forbidden)
+        }
+        #expect(try Data(contentsOf: forbidden) == sentinel)
+        #expect(FileManager.default.fileExists(atPath: source.path))
+        let output = media.directory.appendingPathExtension("mp4")
+        defer { try? FileManager.default.removeItem(at: output) }
+        try await exporter.export(segments: [source], trim: nil, to: output)
+        try await media.discard()
+        #expect(FileManager.default.fileExists(atPath: output.path))
+    }
     @Test @MainActor func failedSaveAllowsRetryAndLeavesSource() async throws {
         let media = try RecordingMedia()
-        defer { try? media.discard() }
+        defer { try? FileManager.default.removeItem(at: media.directory) }
         let source = try await segment(media, origin: 100, system: false, microphone: false)
         let exporter = RecordingExporter()
         await #expect(throws: (any Error).self) {
-            try await exporter.export(segments: [source], trim: nil, to: media.directory.appendingPathComponent("missing/output.mp4"))
+            try await exporter.export(segments: [source], trim: nil, to: media.directory.appendingPathExtension("missing").appendingPathComponent("output.mp4"))
         }
         #expect(FileManager.default.fileExists(atPath: source.path))
-        let output = media.directory.appendingPathComponent("retry.mp4")
+        let output = media.directory.appendingPathExtension("mp4")
+        defer { try? FileManager.default.removeItem(at: output) }
         try await exporter.export(segments: [source], trim: nil, to: output)
         #expect(FileManager.default.fileExists(atPath: output.path))
     }
     @Test(arguments: [(false, false), (true, false), (false, true)]) @MainActor
     func audioOptionsProduceExpectedTracks(options: (Bool, Bool)) async throws {
         let media = try RecordingMedia()
-        defer { try? media.discard() }
+        defer { try? FileManager.default.removeItem(at: media.directory) }
         let url = try await segment(media, origin: 100, system: options.0, microphone: options.1)
         let tracks = try await AVURLAsset(url: url).loadTracks(withMediaType: .audio)
         #expect(tracks.count == (options.0 || options.1 ? 1 : 0))

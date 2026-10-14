@@ -54,6 +54,7 @@ extension Translations {
 确认捕获范围和声音设置后，点击录屏。	Confirm the target and audio settings, then click Record screen.
 请选择有效的屏幕区域。	Select a valid screen area.
 请选择有效的裁剪时间范围。	Select a valid trim range.
+请选择录制临时目录之外的保存位置。	Choose a save location outside the recording’s temporary folder.
 当前操作尚未结束。	The current operation has not finished.
 屏幕捕获未完成，请重试。	Screen capture failed. Try again.
 录制写入失败，请检查可用磁盘空间。	Recording could not be written. Check free disk space.
