@@ -2141,3 +2141,5 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 {} × {} 像素	{} × {} pixels
 拖动选框移动，拖动边缘调整，按 Return 确认	Faites glisser l’intérieur pour déplacer ou un bord pour redimensionner ; Retour confirme
 已选择范围，按 Return 确认，Esc 取消	Zone sélectionnée ; Retour confirme, Échap annule
+麦克风录制中断，请检查设备连接后重试。	L’enregistrement du microphone a été interrompu. Vérifiez la connexion de l’appareil et réessayez.
+录制未能停止，请重试。	L’enregistrement n’a pas pu être arrêté. Réessayez.

@@ -99,12 +99,12 @@ final class RecordingWriter: NSObject, SCStreamOutput, AVCaptureAudioDataOutputS
                                                   sampleTimingArray: &timings, sampleBufferOut: &adjusted) == noErr,
               let adjusted, input.append(adjusted) else { fail(); return }
     }
-    func reportAudioFailure() { queue.async { if !self.finishing { self.fail() } } }
-    private func fail() {
+    func reportAudioFailure(_ failure: CaptureError = .microphoneFailed) { queue.async { if !self.finishing { self.fail(failure) } } }
+    private func fail(_ failure: CaptureError = .writerFailed) {
         guard !failed else { return }
         failed = true
-        Self.logger.error("Media writer failed")
-        onFailure(.writerFailed)
+        Self.logger.error("Media pipeline failed")
+        onFailure(failure)
     }
     func finish(endTime: CMTime? = nil) async throws -> Bool {
         try await CaptureCallback<Bool>().wait(onCancel: { self.cancel() }) { completion in

@@ -58,8 +58,8 @@ targets:
       properties:
         CFBundleName: XStats Capture
         CFBundleDisplayName: XStats Capture
-        CFBundleShortVersionString: $(MARKETING_VERSION)
-        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(CAPTURE_VERSION)
+        CFBundleVersion: $(CAPTURE_BUILD)
         CFBundleDevelopmentRegion: zh-Hans
         CFBundleLocalizations: [zh-Hans, zh-Hant, ja, ko, en, de, es, fr, ar]
         CFBundleURLTypes:
@@ -81,8 +81,11 @@ targets:
         PRODUCT_NAME: XStats Capture
         PRODUCT_MODULE_NAME: XStatsCapture
         PRODUCT_BUNDLE_IDENTIFIER: work.12306.xstats.capture
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        # Capture 独立发布，主程序版本脚本不得推进这两项。
+        CAPTURE_VERSION: "0.1.0"
+        CAPTURE_BUILD: "1"
+        MARKETING_VERSION: $(CAPTURE_VERSION)
+        CURRENT_PROJECT_VERSION: $(CAPTURE_BUILD)
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - package: XStatsKit

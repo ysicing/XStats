@@ -4,10 +4,18 @@ import Foundation
 import CoreGraphics
 import Localization
 import ScreenCaptureKit
+import AVFoundation
 
 public enum CaptureError: Error, LocalizedError, Equatable {
     case invalidRequest, invalidRegion, invalidTransition, invalidTrim, invalidExportDestination
-    case screenPermission, microphonePermission, unavailableTarget, captureFailed, writerFailed, exportFailed
+    case screenPermission, microphonePermission, microphoneFailed, unavailableTarget, captureFailed, writerFailed, exportFailed
+    /// 设备断开和会话中断属于采集故障；仅权限错误提示用户恢复麦克风权限。
+    static func microphoneFailure(_ error: NSError?) -> CaptureError {
+        if error?.domain == AVFoundationErrorDomain, error?.code == AVError.Code.applicationIsNotAuthorizedToUseDevice.rawValue {
+            return .microphonePermission
+        }
+        return .microphoneFailed
+    }
     /// 保留业务错误，并区分系统捕获错误和媒体写入错误，避免给出错误的恢复建议。
     public static func recordingFailure(_ error: any Error) -> CaptureError {
         if let failure = error as? CaptureError { return failure }
@@ -30,6 +38,7 @@ public enum CaptureError: Error, LocalizedError, Equatable {
         case .invalidExportDestination: tr("请选择录制临时目录之外的保存位置。")
         case .screenPermission: tr("请在系统设置中允许 XStats Capture 录制屏幕，然后重试。")
         case .microphonePermission: tr("请在系统设置中允许 XStats Capture 使用麦克风，然后重试。")
+        case .microphoneFailed: tr("麦克风录制中断，请检查设备连接后重试。")
         case .unavailableTarget: tr("捕获目标已不可用，录制已结束。")
         case .captureFailed: tr("屏幕捕获未完成，请重试。")
         case .writerFailed: tr("录制写入失败，请检查可用磁盘空间。")

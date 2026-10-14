@@ -4,6 +4,7 @@ import Testing
 import Foundation
 import CoreGraphics
 import ScreenCaptureKit
+import AVFoundation
 @testable import CaptureCore
 
 @Suite struct CaptureModelTests {
@@ -15,6 +16,12 @@ import ScreenCaptureKit
         #expect(CaptureError.recordingFailure(NSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.noCaptureSource.rawValue)) == .unavailableTarget)
         #expect(CaptureError.recordingFailure(NSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.failedToStart.rawValue)) == .captureFailed)
         #expect(CaptureError.recordingFailure(CocoaError(.fileWriteOutOfSpace)) == .writerFailed)
+    }
+    @Test func microphoneErrorsNeverSuggestDiskRecovery() {
+        #expect(CaptureError.microphoneFailure(nil) == .microphoneFailed)
+        #expect(CaptureError.microphoneFailure(NSError(domain: AVFoundationErrorDomain, code: AVError.Code.deviceWasDisconnected.rawValue)) == .microphoneFailed)
+        #expect(CaptureError.microphoneFailure(NSError(domain: AVFoundationErrorDomain, code: AVError.Code.applicationIsNotAuthorizedToUseDevice.rawValue)) == .microphonePermission)
+        #expect(CaptureError.recordingFailure(CaptureError.microphoneFailed) == .microphoneFailed)
     }
     @Test func versionedRequestsRejectUnexpectedInput() throws {
         #expect(try CaptureRequest(url: URL(string: "xstats-capture://v1/screenshot")!).action == .screenshot)

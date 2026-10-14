@@ -63,18 +63,30 @@ struct CaptureHomeView: View {
 struct RecordingControlView: View {
     @ObservedObject var controller: CaptureController
     var body: some View {
-        VStack(spacing: 14) {
-            Text(controller.countdown > 0 ? controller.countdown.formatted(.number.locale(L10n.locale)) : tr(controller.paused ? "录制已暂停" : "正在录制"))
+        let title: String
+        if controller.countdown > 0 {
+            title = controller.countdown.formatted(.number.locale(L10n.locale))
+        } else if controller.needsStopRetry {
+            title = tr("录制未能停止，请重试。")
+        } else {
+            title = tr(controller.paused ? "录制已暂停" : "正在录制")
+        }
+        return VStack(spacing: 14) {
+            Text(title)
                 .font(.title2.monospacedDigit())
+                .fixedSize(horizontal: false, vertical: true)
+            if let error = controller.error { Text(error).font(.caption).foregroundStyle(.secondary) }
             HStack {
                 if controller.countdown > 0 {
                     Button(tr("取消")) { controller.cancelCountdown() }
                 } else {
-                    Button(tr(controller.paused ? "继续" : "暂停")) { controller.togglePause() }
+                    if controller.canPauseRecording {
+                        Button(tr(controller.paused ? "继续" : "暂停")) { controller.togglePause() }
+                    }
                     Button(tr("停止"), systemImage: "stop.fill") { controller.stopRecording() }
                 }
             }.disabled(controller.transitioning)
-        }.padding(24).frame(width: 260)
+        }.padding(24).frame(maxWidth: .infinity)
     }
 }
 

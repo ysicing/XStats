@@ -3,6 +3,7 @@
 import Testing
 import Foundation
 import os
+import ScreenCaptureKit
 @testable import CaptureCore
 
 @Suite struct CaptureCancellationTests {
@@ -67,5 +68,40 @@ import os
             try await recorder.discard()
             #expect(!FileManager.default.fileExists(atPath: media.directory.path))
         }
+    }
+    @Test @MainActor func failedStopRetainsProducerForTheNextStopAttempt() async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        // 构造流但不启动采集，测试不需要屏幕权限。
+        let stream = SCStream(filter: SCContentFilter(), configuration: SCStreamConfiguration(), delegate: nil)
+        var attempts = 0
+        let recorder = ScreenRecorder(media: media, stream: stream) { _ in
+            attempts += 1
+            if attempts == 1 { throw CaptureError.captureFailed }
+        }
+        await #expect(throws: CaptureError.captureFailed) { try await recorder.stop() }
+        #expect(recorder.isCapturing)
+        try await recorder.stop()
+        #expect(!recorder.isCapturing)
+        #expect(attempts == 2)
+        try await recorder.stop()
+        #expect(attempts == 2)
+    }
+    @Test(arguments: [SCStreamError.Code.userDeclined, .internalError])
+    @MainActor func streamDelegatePreservesPermissionAndCaptureFailure(code: SCStreamError.Code) async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let stream = SCStream(filter: SCContentFilter(), configuration: SCStreamConfiguration(), delegate: nil)
+        let recorder = ScreenRecorder(media: media, stream: stream) { _ in }
+        let (failures, continuation) = AsyncStream<CaptureError>.makeStream()
+        recorder.onFailure = { continuation.yield($0) }
+        var iterator = failures.makeAsyncIterator()
+        recorder.stream(stream, didStopWithError: NSError(domain: SCStreamErrorDomain, code: code.rawValue))
+        #expect(await iterator.next() == (code == .userDeclined ? .screenPermission : .captureFailed))
+        #expect(!recorder.isCapturing)
+        try await recorder.stop()
+        recorder.stream(stream, didStopWithError: NSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.userDeclined.rawValue))
+        continuation.finish()
+        #expect(await iterator.next() == nil, "已停止的流的迟到回调不能恢复错误状态")
     }
 }

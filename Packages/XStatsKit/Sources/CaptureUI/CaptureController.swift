@@ -201,7 +201,9 @@ import Localization
                     recorder.onFailure = { [weak self, weak recorder] error in
                         guard let self, let recorder, self.recorder === recorder,
                               self.busy, !self.finishing, !self.terminating else { return }
-                        self.error = error.localizedDescription; self.stopRecording()
+                        self.error = error.localizedDescription
+                        self.permissionError = error == .screenPermission || error == .microphonePermission ? error : nil
+                        self.stopRecording()
                     }
                     do {
                         try await recorder.start(source: source, options: options)
@@ -232,7 +234,7 @@ import Localization
     }
     func cancelCountdown() { operation?.cancel(); selector.cancel() }
     func togglePause() {
-        guard !terminating, !transitioning, let recorder else { return }
+        guard !terminating, !transitioning, canPauseRecording, let recorder else { return }
         transitioning = true
         operation = Task {
             do {
@@ -252,6 +254,8 @@ import Localization
             }
         }
     }
+    var canPauseRecording: Bool { state.phase == .recording || state.phase == .paused }
+    var needsStopRetry: Bool { state.phase == .finishing && !transitioning }
     private func interruptRecording() {
         guard !terminating, state.shouldInterruptCapture else { return }
         if recorder == nil { cancelCountdown() }
@@ -261,7 +265,7 @@ import Localization
         } else { stopRecording() }
     }
     func stopRecording() {
-        guard !terminating, !finishing, state.shouldInterruptCapture, let recorder else { return }
+        guard !terminating, !finishing, state.shouldInterruptCapture || state.phase == .finishing, let recorder else { return }
         if transitioning {
             let task = operation
             Task { await task?.value; stopRecording() }
@@ -276,6 +280,10 @@ import Localization
                 self.error = failure.localizedDescription
                 permissionError = failure == .screenPermission || failure == .microphonePermission ? failure : nil
                 Self.logger.error("Recording stop failed; keeping completed media")
+                if recorder.isCapturing {
+                    control?.setContentSize(CGSize(width: 360, height: 260))
+                    return
+                }
             }
             guard !terminating, !Task.isCancelled else { return }
             control?.close(); control = nil; selectedSource = nil

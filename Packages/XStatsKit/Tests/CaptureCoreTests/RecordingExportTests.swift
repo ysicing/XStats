@@ -4,6 +4,7 @@ import Testing
 import Foundation
 import os
 @preconcurrency import AVFoundation
+import ScreenCaptureKit
 @testable import CaptureCore
 
 @Suite struct RecordingExportTests {
@@ -122,6 +123,21 @@ import os
         writer.queue.sync {}
         #expect(failures.withLock { $0 } == 1)
     }
+    @Test func microphoneFailureKeepsItsMeaningAndReportsOnlyOnce() async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let failures = OSAllocatedUnfairLock(initialState: [CaptureError]())
+        let writer = RecordingWriter { failure in failures.withLock { $0.append(failure) } }
+        try await writer.prepare(url: media.newSegmentURL(), size: CGSize(width: 64, height: 48), options: RecordingOptions())
+        writer.reportAudioFailure(.microphonePermission)
+        writer.reportAudioFailure(.microphoneFailed)
+        writer.queue.sync {}
+        #expect(failures.withLock { $0 } == [.microphonePermission])
+        await writer.abort()
+        writer.reportAudioFailure(.microphoneFailed)
+        writer.queue.sync {}
+        #expect(failures.withLock { $0.count } == 1)
+    }
     @Test @MainActor func staticFrameKeepsProducerDuration() async throws {
         let media = try RecordingMedia()
         defer { try? FileManager.default.removeItem(at: media.directory) }
@@ -135,6 +151,30 @@ import os
         #expect(try await writer.finish(endTime: CMTime(seconds: 102, preferredTimescale: 48000)))
         let track = try #require(try await AVURLAsset(url: url).loadTracks(withMediaType: .video).first)
         #expect(abs(try await track.load(.timeRange).duration.seconds - 2) < 0.1)
+    }
+    @Test @MainActor func confirmedStreamFailureStillFinishesTheCurrentSegment() async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let url = media.newSegmentURL()
+        let writer = RecordingWriter { _ in }
+        var options = RecordingOptions(); options.systemAudio = false
+        try await writer.prepare(url: url, size: CGSize(width: 64, height: 48), options: options)
+        let sample = try video(time: CMClockGetTime(CMClockGetHostTimeClock()).seconds - 0.1)
+        writer.queue.sync { writer.consumeVideo(sample) }
+        let stream = SCStream(filter: SCContentFilter(), configuration: SCStreamConfiguration(), delegate: nil)
+        let recorder = ScreenRecorder(media: media, stream: stream, writer: writer, activeURL: url) { _ in
+            Issue.record("delegate 已确认停止，不应再次调用停止 API")
+        }
+        let (failures, continuation) = AsyncStream<CaptureError>.makeStream()
+        recorder.onFailure = { continuation.yield($0) }
+        var iterator = failures.makeAsyncIterator()
+        recorder.stream(stream, didStopWithError: NSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.internalError.rawValue))
+        #expect(await iterator.next() == .captureFailed)
+        #expect(!recorder.isCapturing)
+        try await recorder.stop()
+        #expect(recorder.segments == [url])
+        #expect(try await AVURLAsset(url: url).loadTracks(withMediaType: .video).count == 1)
+        continuation.finish()
     }
     @Test @MainActor func pauseSegmentsTrimAndMixToSingleAudioTrack() async throws {
         let media = try RecordingMedia()

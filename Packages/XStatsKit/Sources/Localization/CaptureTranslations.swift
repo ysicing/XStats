@@ -66,6 +66,8 @@ extension Translations {
 独立截图与录屏工具，使用时启动。	Independent screenshot and recording tool, launched when needed.
 请选择已安装的 XStats Capture.app。	Select the installed XStats Capture.app.
 无法打开 XStats Capture，请检查所选应用。	Could not open XStats Capture. Check the selected app.
+麦克风录制中断，请检查设备连接后重试。	Microphone recording was interrupted. Check the device connection and try again.
+录制未能停止，请重试。	Recording could not be stopped. Try again.
 录屏已保存，但临时素材未能完全清理。	Recording saved, but some temporary media could not be removed.
 保存的文件不受影响。可在访达中检查并清理剩余临时素材。	Your saved file is unaffected. Review and remove remaining temporary media in Finder.
 显示临时素材	Show temporary media
