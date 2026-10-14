@@ -89,8 +89,7 @@ private final class MicrophoneCapture: @unchecked Sendable {
                 // ScreenCaptureKit can continue sending blank frames after a window closes.
                 let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
                     MainActor.assumeIsolated {
-                        let windows = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID) as? [[String: Any]]
-                        if windows?.isEmpty != false { self?.onFailure(.unavailableTarget) }
+                        if !Self.isWindowAvailable(windowID) { self?.onFailure(.unavailableTarget) }
                     }
                 }
                 timer.tolerance = 0.25
@@ -98,6 +97,15 @@ private final class MicrophoneCapture: @unchecked Sendable {
                 RunLoop.main.add(timer, forMode: .common)
             }
         } catch { self.source = nil; throw error }
+    }
+    static func isWindowAvailable(_ windowID: CGWindowID) -> Bool {
+        guard windowID != kCGNullWindowID else { return false }
+        // 此 API 接收无 CF 对象回调的窗口 ID 数组，元素是整数值而非 NSNumber。
+        // 按 ID 查询包含隐藏窗口，避免使用只对上下层窗口列表有意义的 including 选项。
+        var identifier = UnsafeRawPointer(bitPattern: UInt(windowID))
+        guard let identifiers = CFArrayCreate(kCFAllocatorDefault, &identifier, 1, nil) else { return false }
+        let windows = CGWindowListCreateDescriptionFromArray(identifiers) as? [[String: Any]]
+        return windows?.contains { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == windowID } == true
     }
     public func resume() async throws {
         guard stream == nil, !transitioning, let source else { throw CaptureError.invalidTransition }

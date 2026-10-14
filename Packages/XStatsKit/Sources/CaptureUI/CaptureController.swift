@@ -349,6 +349,7 @@ import Localization
                     Self.logger.error("Recording saved, but temporary media cleanup failed")
                 }
                 Self.logger.notice("Recording export completed")
+                // close 直接发送关闭通知，不调用用户关闭保护；保持 exporting 避免重复丢弃。
                 preview?.close()
                 self.recorder = nil
                 try? state.transition(to: .idle)
