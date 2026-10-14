@@ -322,8 +322,11 @@ Developer ID Application 证书生成 profile。现有扩展 ID 和 profile 可�
 没有后台更新计时器。“更多 → 更新地图数据库”可手动刷新。下载失败不影响连接列表，
 已有库保持可用；IPv4／IPv6 一起校验并原子切换本机索引。
 
-发布流程在应用制品上传前自动执行 `scripts/sync_network_geography.py --publish`：
-从 DB-IP 官方本月 gzip CSV 下载、严格校验并转换，使用系统 LZFSE 压缩；上传至
+发布流程在应用制品上传前自动执行 `scripts/sync_network_geography.py --publish --max-age-days 7`：
+按线上 `current.json` 的 `generatedAt`（UTC）判断数据年龄，不依赖本地构建目录；未超过
+7 天且两个压缩文件回读哈希校验通过时复用，不重新下载官方源、转换、压缩或上传。
+超过 7 天、线上数据缺失或清单／时间记录无效时，从 DB-IP 官方本月 gzip CSV 下载、
+严格校验并转换，使用系统 LZFSE 压缩；上传至
 `c-ip/oss/apps/macOS/XStats/network-geography`。文件名包含压缩内容 SHA-256，先上传
 并回读校验两个不可变文件，最后更新 `current.json`（CDN max-age=300）。同步失败会中止
 后续应用制品和版本清单发布。客户端入口固定为
@@ -331,7 +334,8 @@ Developer ID Application 证书生成 profile。现有扩展 ID 和 profile 可�
 
 ```bash
 python3 scripts/sync_network_geography.py            # 只准备到 dist/network-geography
-python3 scripts/sync_network_geography.py --publish  # 从官方重新获取并同步 c-ip
+python3 scripts/sync_network_geography.py --publish  # 强制从官方重新获取并同步 c-ip
+python3 scripts/sync_network_geography.py --publish --max-age-days 7  # 按线上数据年龄复用
 ```
 
 独立组件与网络扩展共同使用 `NETWORK_EXTENSION_VERSION` 与 `NETWORK_EXTENSION_BUILD`。

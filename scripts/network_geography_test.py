@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """转换和发布边界回归；网络与对象存储仅在外部 I/O 边界替身。"""
 import gzip
+from contextlib import redirect_stdout
+from datetime import datetime, timedelta, timezone
 import hashlib
 import io
 import json
@@ -83,6 +85,8 @@ class PublishingTests(unittest.TestCase):
     def read_cdn(self, url, limit):
         name = url.split("?")[0].split("/")[-1]
         self.events.append(("verify", name))
+        if name not in self.objects:
+            raise sync.urllib.error.HTTPError(url, 404, "missing", {}, None)
         return self.objects[name]
 
     def prepare(self):
@@ -180,6 +184,111 @@ class PublishingTests(unittest.TestCase):
             self.assertEqual(item["compressedSHA256"], hashlib.sha256(compressed).hexdigest())
             self.assertEqual(item["compressedBytes"], len(compressed))
 
+    def seed_publication(self, generated_at):
+        manifest = self.prepare()
+        manifest["generatedAt"] = generated_at
+        self.objects = {item["file"]: (self.output / item["file"]).read_bytes() for item in manifest["files"]}
+        self.objects["current.json"] = json.dumps(manifest).encode()
+        return manifest
+
+    def run_release_sync(self, now, age_limit=True):
+        # 保留真实 CLI、转换及发布控制流，仅替换外部下载、压缩和对象存储。
+        def download(url, limit):
+            if url == "https://example.test/source":
+                self.events.append(("source", url))
+                return gzip.compress(CSV)
+            return self.read_cdn(url, limit)
+
+        arguments = ["sync_network_geography.py", "--publish", "--output", str(self.output),
+                     "--source-url", "https://example.test/source"]
+        if age_limit:
+            arguments += ["--max-age-days", "7"]
+        with patch.object(sys, "argv", arguments), patch.object(sync, "datetime", wraps=datetime) as clock, \
+                patch.object(sync, "download_bytes", side_effect=download), \
+                patch.object(sync, "compress_lzfse", side_effect=lambda raw, compressed: compressed.write_bytes(b"lzfse" + raw.read_bytes())), \
+                patch.object(sync.subprocess, "run", side_effect=self.run_mc), redirect_stdout(io.StringIO()):
+            clock.now.return_value = now
+            sync.main()
+
+    def test_release_reuses_online_data_through_seven_days_without_local_cache(self):
+        now = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
+        for age in (timedelta(days=1), timedelta(days=7)):
+            with self.subTest(age=age):
+                manifest = self.seed_publication((now - age).isoformat())
+                for path in self.output.iterdir():
+                    path.unlink()
+                self.events.clear()
+                self.run_release_sync(now)
+                self.assertEqual(self.events, [("verify", "current.json")] +
+                                 [("verify", item["file"]) for item in manifest["files"]])
+                self.assertFalse((self.output / "current.json").exists())
+
+    def test_release_refreshes_stale_online_data_even_with_fresh_local_manifest(self):
+        now = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
+        self.seed_publication((now - timedelta(days=7, seconds=1)).isoformat())
+        self.events.clear()
+        self.run_release_sync(now)
+        self.assertIn(("source", "https://example.test/source"), self.events)
+        self.assertEqual(self.events[-2:], [("upload", "current.json"), ("verify", "current.json")])
+        self.assertEqual(json.loads(self.objects["current.json"])["generatedAt"], "2026-10-14T12:00:00Z")
+
+    def test_missing_or_invalid_publication_refreshes_instead_of_skipping(self):
+        now = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
+        for timestamp in (None, "invalid", "2026-10-14T12:00:00", "2026-10-15T12:00:00Z"):
+            with self.subTest(timestamp=timestamp):
+                self.seed_publication(timestamp)
+                if timestamp is None:
+                    self.objects.clear()
+                self.events.clear()
+                self.run_release_sync(now)
+                self.assertIn(("upload", "current.json"), self.events)
+
+    def test_recent_publication_still_requires_valid_online_assets(self):
+        now = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
+        manifest = self.seed_publication("2026-10-14T12:00:00Z")
+        self.objects[manifest["files"][0]["file"]] = b"corrupt"
+        self.events.clear()
+        with self.assertRaises(SystemExit) as error:
+            self.run_release_sync(now)
+        self.assertEqual(error.exception.code, 1)
+        self.assertFalse(any(event[0] in ("source", "upload") for event in self.events))
+
+    def test_missing_online_asset_is_republished(self):
+        now = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
+        manifest = self.seed_publication("2026-10-14T12:00:00Z")
+        missing = manifest["files"][1]["file"]
+        del self.objects[missing]
+        self.events.clear()
+        self.run_release_sync(now)
+        self.assertIn(("upload", missing), self.events)
+        self.assertIn(("upload", "current.json"), self.events)
+
+    def test_invalid_online_manifest_is_refreshed(self):
+        now = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
+        for overrides in ({"generatedAt": None}, {"files": []}, {"schemaVersion": 2}, {"version": ""}):
+            with self.subTest(overrides=overrides):
+                manifest = self.seed_publication("2026-10-14T12:00:00Z")
+                manifest.update(overrides)
+                self.objects["current.json"] = json.dumps(manifest).encode()
+                self.events.clear()
+                self.run_release_sync(now)
+                self.assertIn(("upload", "current.json"), self.events)
+
+    def test_publication_check_network_failure_does_not_publish(self):
+        with patch.object(sync, "download_bytes", side_effect=sync.urllib.error.HTTPError(
+                "https://example.test/current.json", 500, "server error", {}, None)):
+            with self.assertRaises(sync.urllib.error.HTTPError):
+                sync.published_data_is_recent(7, datetime(2026, 10, 14, tzinfo=timezone.utc))
+        self.assertEqual(self.events, [])
+
+    def test_manual_publish_without_age_limit_always_refreshes(self):
+        now = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
+        self.seed_publication("2026-10-14T12:00:00Z")
+        self.events.clear()
+        self.run_release_sync(now, age_limit=False)
+        self.assertEqual(self.events[0], ("source", "https://example.test/source"))
+        self.assertIn(("upload", "current.json"), self.events)
+
 
 class ReleaseHookTests(unittest.TestCase):
     def test_failed_geography_sync_blocks_application_upload(self):
@@ -218,7 +327,7 @@ class ReleaseHookTests(unittest.TestCase):
                                     env={**os.environ, "PATH": str(tools) + ":" + os.environ["PATH"],
                                          "GEOGRAPHY_TEST_LOG": str(log), "GEOGRAPHY_TEST_PYTHON": sys.executable})
             self.assertEqual(result.returncode, 42, result.stderr.decode())
-            self.assertEqual(log.read_text(), "geography scripts/sync_network_geography.py --publish\n")
+            self.assertEqual(log.read_text(), "geography scripts/sync_network_geography.py --publish --max-age-days 7\n")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""每次重新获取 DB-IP Lite 并准备动态地图库；只有 --publish 才上传对象存储。"""
+"""获取 DB-IP Lite 并准备动态地图库；发布时可按线上数据年龄复用。"""
 import argparse
 from datetime import datetime, timedelta, timezone
 import gzip
@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -112,6 +113,55 @@ def prepare_latest(output: Path, source_urls: list[str]) -> dict:
     raise ValueError("没有可用的数据源")
 
 
+def published_data_is_recent(max_age_days: int, now: datetime) -> bool:
+    """按线上生成时间判断，并回读验证文件；不依赖可能被清理的本地 dist。"""
+    try:
+        data = download_bytes(f"{DOWNLOAD_BASE}/current.json?verify={uuid.uuid4().hex}", 64 * 1024)
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return False
+        raise
+    try:
+        manifest = json.loads(data)
+        if not isinstance(manifest, dict) or manifest.get("schemaVersion") != 1:
+            return False
+        generated = datetime.fromisoformat(manifest["generatedAt"].replace("Z", "+00:00"))
+        if generated.tzinfo is None or not 0 <= (now - generated).total_seconds() <= max_age_days * 86400:
+            return False
+        version = manifest["version"]
+        if not isinstance(version, str) or not 0 < len(version.encode()) <= 128:
+            return False
+        files = manifest["files"]
+        if not isinstance(files, list) or len(files) != 2 or not all(isinstance(item, dict) for item in files):
+            return False
+        if {item["name"] for item in files} != {"country-ipv4.bin", "country-ipv6.bin"}:
+            return False
+        for item in files:
+            stride = 10 if item["name"] == "country-ipv4.bin" else 34
+            if type(item["bytes"]) is not int or not 0 < item["bytes"] <= MAX_BINARY_BYTES or item["bytes"] % stride:
+                return False
+            if type(item["compressedBytes"]) is not int or not 0 < item["compressedBytes"] <= MAX_COMPRESSED_BYTES:
+                return False
+            if not all(isinstance(item[key], str) and re.fullmatch(r"[0-9a-f]{64}", item[key])
+                       for key in ("sha256", "compressedSHA256")):
+                return False
+            expected_name = item["name"].replace(".bin", "-") + item["compressedSHA256"] + ".lzfse"
+            if item["file"] != expected_name:
+                return False
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return False
+    for item in files:
+        try:
+            online = download_bytes(f"{DOWNLOAD_BASE}/{item['file']}", MAX_COMPRESSED_BYTES)
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                return False
+            raise
+        if len(online) != item["compressedBytes"] or hashlib.sha256(online).hexdigest() != item["compressedSHA256"]:
+            raise ValueError(f"CDN 压缩文件校验失败：{item['file']}")
+    return True
+
+
 def publish(output: Path, manifest: dict) -> None:
     """只有已验证的不可变对象全部就位后，才发布可变入口清单。"""
     manifest_data = (output / "current.json").read_bytes()
@@ -140,9 +190,16 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=ROOT / "dist/network-geography")
     parser.add_argument("--source-url", help="默认使用 DB-IP 当月文件，未发布时回退上月")
     parser.add_argument("--publish", action="store_true", help="上传 c-ip 对象存储并验证 CDN；默认仅准备本地数据")
+    parser.add_argument("--max-age-days", type=int, help="发布时复用不超过指定天数且校验通过的线上数据；默认强制更新")
     args = parser.parse_args()
-    source_urls = [args.source_url] if args.source_url else monthly_source_urls(datetime.now(timezone.utc))
+    if args.max_age_days is not None and (not args.publish or args.max_age_days <= 0):
+        parser.error("--max-age-days 需要同时使用 --publish，且天数必须大于 0")
+    now = datetime.now(timezone.utc)
+    source_urls = [args.source_url] if args.source_url else monthly_source_urls(now)
     try:
+        if args.max_age_days is not None and published_data_is_recent(args.max_age_days, now):
+            print(f"线上地图库未超过 {args.max_age_days} 天，文件校验通过，复用现有数据（未重新下载源或上传）")
+            return
         manifest = prepare_latest(args.output, source_urls)
         for item in manifest["files"]:
             print(f"IPv{4 if item['name'] == 'country-ipv4.bin' else 6}: {item['bytes']} bytes -> {item['compressedBytes']} bytes")
