@@ -33,7 +33,7 @@ import Localization
     private var control: NSWindow?
     private var preview: NSWindow?
     private var editors: [ImageEditorWindow] = []
-    private var pins: [NSWindow] = []
+    private var pins: [(window: NSWindow, image: CGImage)] = []
     private let selector = CaptureSelection()
     private let hotKeys = CaptureHotKeys()
     private let exporter = RecordingExporter()
@@ -97,6 +97,16 @@ import Localization
         L10n.configure(language)
         home?.contentView = NSHostingView(rootView: CaptureHomeView(controller: self).environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight).environment(\.locale, L10n.locale))
         home?.title = "XStats Capture"
+        control?.title = tr("录屏")
+        control?.contentView = NSHostingView(rootView: RecordingControlView(controller: self).environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight).environment(\.locale, L10n.locale))
+        preview?.title = tr("录屏预览")
+        preview?.contentView = NSHostingView(rootView: RecordingPreviewView(controller: self).environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight).environment(\.locale, L10n.locale))
+        for editor in editors { editor.applyLanguage(L10n.language) }
+        for pin in pins {
+            pin.window.title = tr("置顶截图")
+            pin.window.contentView = NSHostingView(rootView: Image(nsImage: NSImage(cgImage: pin.image, size: CGSize(width: pin.image.width, height: pin.image.height))).resizable().scaledToFit().environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight).environment(\.locale, L10n.locale))
+        }
+        CaptureApplication.updateMenu()
         applyResidentMode()
     }
     private var statusItem: NSStatusItem?
@@ -234,7 +244,10 @@ import Localization
                 paused.toggle(); transitioning = false
             } catch is CancellationError { transitioning = false }
             catch {
-                self.error = CaptureError.writerFailed.localizedDescription
+                let failure = CaptureError.recordingFailure(error)
+                self.error = failure.localizedDescription
+                permissionError = failure == .screenPermission || failure == .microphonePermission ? failure : nil
+                Self.logger.error("Recording pause or resume failed")
                 transitioning = false; stopRecording()
             }
         }
@@ -259,7 +272,9 @@ import Localization
             defer { finishing = false; transitioning = false }
             try? state.transition(to: .finishing)
             do { try await recorder.stop() } catch {
-                self.error = CaptureError.writerFailed.localizedDescription
+                let failure = CaptureError.recordingFailure(error)
+                self.error = failure.localizedDescription
+                permissionError = failure == .screenPermission || failure == .microphonePermission ? failure : nil
                 Self.logger.error("Recording stop failed; keeping completed media")
             }
             guard !terminating, !Task.isCancelled else { return }
@@ -326,11 +341,25 @@ import Localization
                 try await exporter.export(segments: recorder.segments, trim: trim, to: url)
                 recordingSaved = true
                 player?.pause(); player?.replaceCurrentItem(with: nil); player = nil
-                try await recorder.media.discard()
+                // 保存已提交到目标文件。后续清理失败不能改变保存结果或保留空预览。
+                var cleanupFailed = false
+                do { try await recorder.media.discard() }
+                catch {
+                    cleanupFailed = true
+                    Self.logger.error("Recording saved, but temporary media cleanup failed")
+                }
                 Self.logger.notice("Recording export completed")
                 preview?.close()
                 self.recorder = nil
                 try? state.transition(to: .idle)
+                if cleanupFailed, !terminating {
+                    let alert = NSAlert()
+                    alert.alertStyle = .warning
+                    alert.messageText = tr("录屏已保存，但临时素材未能完全清理。")
+                    alert.informativeText = tr("保存的文件不受影响。可在访达中检查并清理剩余临时素材。")
+                    alert.addButton(withTitle: tr("确定")); alert.addButton(withTitle: tr("显示临时素材"))
+                    if alert.runModal() == .alertSecondButtonReturn { NSWorkspace.shared.open(recorder.media.directory) }
+                }
                 considerExit()
             } catch is CancellationError { Self.logger.notice("Recording export cancelled") }
             catch {
@@ -358,7 +387,7 @@ import Localization
         let scale = min(1, 600 / CGFloat(image.width), 450 / CGFloat(image.height))
         let window = makeWindow(title: tr("置顶截图"), size: CGSize(width: CGFloat(image.width) * scale, height: CGFloat(image.height) * scale),
                                 content: Image(nsImage: NSImage(cgImage: image, size: CGSize(width: image.width, height: image.height))).resizable().scaledToFit(), resizable: true)
-        window.level = .floating; pins.append(window); window.makeKeyAndOrderFront(nil)
+        window.level = .floating; pins.append((window, image)); window.makeKeyAndOrderFront(nil)
     }
     private func makeWindow<Content: View>(title: String, size: CGSize, content: Content, resizable: Bool) -> NSWindow {
         var style: NSWindow.StyleMask = [.titled, .closable, .miniaturizable]
@@ -400,7 +429,7 @@ import Localization
             }
             preview = nil
         }
-        pins.removeAll { $0 === window }
+        pins.removeAll { $0.window === window }
         considerExit()
     }
     func considerExit() {

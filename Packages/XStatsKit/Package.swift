@@ -29,6 +29,7 @@ let package = Package(
         .target(name: "CaptureCore", dependencies: ["Localization"]),
         .target(name: "CaptureUI", dependencies: ["CaptureCore", "Localization"]),
         .testTarget(name: "CaptureCoreTests", dependencies: ["CaptureCore"]),
+        .testTarget(name: "CaptureUITests", dependencies: ["CaptureUI"]),
         .target(name: "Localization", resources: [.process("Resources")]),
         .target(name: "AIUsage"),
         .target(name: "SMC", dependencies: ["Localization"]),

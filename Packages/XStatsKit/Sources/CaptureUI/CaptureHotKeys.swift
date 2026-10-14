@@ -28,27 +28,32 @@ struct CaptureHotKey: Codable, Equatable {
     func apply(_ bindings: [CaptureRequest.Action: CaptureHotKey]) -> Bool {
         clear()
         guard !bindings.isEmpty else { return true }
+        // Carbon 注册是逐项执行的；重复组合提前拒绝，任何失败都回滚整组。
+        let combinations = Set(bindings.values.map { UInt64($0.code) << 32 | UInt64($0.carbon) })
+        guard combinations.count == bindings.count else { return false }
         Self.current = self
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in
+        let status = InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in
             var id = EventHotKeyID()
             guard GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil,
                                     MemoryLayout<EventHotKeyID>.size, nil, &id) == noErr, id.signature == 0x58434150 else { return OSStatus(eventNotHandledErr) }
             MainActor.assumeIsolated { CaptureHotKeys.current?.onAction(id.id == 1 ? .screenshot : .record) }
             return noErr
         }, 1, &spec, nil, &handler)
-        var success = true
-        for (action, binding) in bindings {
+        guard status == noErr else { clear(); return false }
+        for action in CaptureRequest.Action.allCases {
+            guard let binding = bindings[action] else { continue }
             var reference: EventHotKeyRef?
             let id = EventHotKeyID(signature: 0x58434150, id: action == .screenshot ? 1 : 2)
             if RegisterEventHotKey(UInt32(binding.code), binding.carbon, id, GetApplicationEventTarget(), 0, &reference) == noErr, let reference { keys.append(reference) }
-            else { success = false }
+            else { clear(); return false }
         }
-        return success
+        return true
     }
     func clear() {
         for key in keys { UnregisterEventHotKey(key) }; keys.removeAll()
         if let handler { RemoveEventHandler(handler) }; handler = nil
+        if Self.current === self { Self.current = nil }
     }
 }
 

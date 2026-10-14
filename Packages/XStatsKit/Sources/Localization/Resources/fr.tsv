@@ -2133,3 +2133,6 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 请选择已安装的 XStats Capture.app。	Sélectionnez XStats Capture.app installé.
 无法打开 XStats Capture，请检查所选应用。	Impossible d’ouvrir XStats Capture. Vérifiez l’app.
 请选择录制临时目录之外的保存位置。	Choisissez un emplacement en dehors du dossier temporaire de l’enregistrement.
+录屏已保存，但临时素材未能完全清理。	L’enregistrement est sauvegardé, mais certains fichiers temporaires n’ont pas pu être supprimés.
+保存的文件不受影响。可在访达中检查并清理剩余临时素材。	Le fichier sauvegardé n’est pas affecté. Vérifiez et supprimez les fichiers temporaires restants dans le Finder.
+显示临时素材	Afficher les fichiers temporaires

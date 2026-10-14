@@ -112,13 +112,16 @@ extension ImageTool {
         model = ImageEditorModel(image: image)
         let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 950, height: 680), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         super.init(window: window)
-        window.title = tr("截图编辑")
         window.minSize = CGSize(width: 700, height: 450)
         window.isReleasedWhenClosed = false; window.delegate = self
-        window.contentView = NSHostingView(rootView: ImageEditorView(model: model).environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight).environment(\.locale, L10n.locale))
+        applyLanguage(L10n.language)
         window.center()
     }
     required init?(coder: NSCoder) { fatalError() }
+    func applyLanguage(_ language: AppLanguage) {
+        window?.title = L10n.translate("截图编辑", language: language)
+        window?.contentView = NSHostingView(rootView: ImageEditorView(model: model).environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight).environment(\.locale, L10n.locale(for: language)))
+    }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         guard !model.rendering else { return false }
         guard model.dirty else { return true }

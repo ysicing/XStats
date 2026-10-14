@@ -9,16 +9,7 @@ import Localization
     private var urls: [URL] = []
     private var launched = false
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let menu = NSMenu()
-        let application = NSMenuItem(); menu.addItem(application)
-        let appMenu = NSMenu(); application.submenu = appMenu
-        appMenu.addItem(withTitle: tr("退出"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        let edit = NSMenuItem(title: tr("编辑"), action: nil, keyEquivalent: ""); menu.addItem(edit)
-        let editMenu = NSMenu(); edit.submenu = editMenu
-        for (title, action, key) in [(tr("复制"), "copy:", "c"), (tr("粘贴"), "paste:", "v"), (tr("全选"), "selectAll:", "a")] {
-            editMenu.addItem(withTitle: title, action: Selector(action), keyEquivalent: key)
-        }
-        NSApp.mainMenu = menu
+        CaptureApplication.updateMenu()
         launched = true
         controller.showHome(); controller.installObservers()
         for url in urls { controller.handle(url) }; urls.removeAll()
@@ -41,6 +32,18 @@ import Localization
 }
 
 public enum CaptureApplication {
+    @MainActor static func updateMenu() {
+        let menu = NSMenu()
+        let application = NSMenuItem(); menu.addItem(application)
+        let appMenu = NSMenu(); application.submenu = appMenu
+        appMenu.addItem(withTitle: tr("退出"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let edit = NSMenuItem(title: tr("编辑"), action: nil, keyEquivalent: ""); menu.addItem(edit)
+        let editMenu = NSMenu(); edit.submenu = editMenu
+        for (title, action, key) in [(tr("复制"), "copy:", "c"), (tr("粘贴"), "paste:", "v"), (tr("全选"), "selectAll:", "a")] {
+            editMenu.addItem(withTitle: title, action: Selector(action), keyEquivalent: key)
+        }
+        NSApp.mainMenu = menu
+    }
     @MainActor public static func main() {
         let app = NSApplication.shared
         let delegate = CaptureAppDelegate()

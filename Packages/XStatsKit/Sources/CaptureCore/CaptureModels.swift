@@ -3,10 +3,24 @@
 import Foundation
 import CoreGraphics
 import Localization
+import ScreenCaptureKit
 
 public enum CaptureError: Error, LocalizedError, Equatable {
     case invalidRequest, invalidRegion, invalidTransition, invalidTrim, invalidExportDestination
     case screenPermission, microphonePermission, unavailableTarget, captureFailed, writerFailed, exportFailed
+    /// 保留业务错误，并区分系统捕获错误和媒体写入错误，避免给出错误的恢复建议。
+    public static func recordingFailure(_ error: any Error) -> CaptureError {
+        if let failure = error as? CaptureError { return failure }
+        let failure = error as NSError
+        guard failure.domain == SCStreamErrorDomain else { return .writerFailed }
+        switch failure.code {
+        case SCStreamError.Code.userDeclined.rawValue: return .screenPermission
+        case SCStreamError.Code.noCaptureSource.rawValue,
+             SCStreamError.Code.noWindowList.rawValue,
+             SCStreamError.Code.noDisplayList.rawValue: return .unavailableTarget
+        default: return .captureFailed
+        }
+    }
     public var errorDescription: String? {
         switch self {
         case .invalidRequest: tr("无法识别此截图请求，请更新 XStats Capture。")

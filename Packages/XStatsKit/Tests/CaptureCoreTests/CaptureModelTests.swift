@@ -3,9 +3,19 @@
 import Testing
 import Foundation
 import CoreGraphics
+import ScreenCaptureKit
 @testable import CaptureCore
 
 @Suite struct CaptureModelTests {
+    @Test func recordingErrorsKeepTheirRecoveryMeaning() {
+        for failure in [CaptureError.screenPermission, .microphonePermission, .unavailableTarget, .captureFailed, .writerFailed] {
+            #expect(CaptureError.recordingFailure(failure) == failure)
+        }
+        #expect(CaptureError.recordingFailure(NSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.userDeclined.rawValue)) == .screenPermission)
+        #expect(CaptureError.recordingFailure(NSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.noCaptureSource.rawValue)) == .unavailableTarget)
+        #expect(CaptureError.recordingFailure(NSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.failedToStart.rawValue)) == .captureFailed)
+        #expect(CaptureError.recordingFailure(CocoaError(.fileWriteOutOfSpace)) == .writerFailed)
+    }
     @Test func versionedRequestsRejectUnexpectedInput() throws {
         #expect(try CaptureRequest(url: URL(string: "xstats-capture://v1/screenshot")!).action == .screenshot)
         #expect(throws: CaptureError.self) { try CaptureRequest(url: URL(string: "xstats-capture://v2/record")!) }
