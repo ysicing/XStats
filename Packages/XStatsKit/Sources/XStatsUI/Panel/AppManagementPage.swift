@@ -556,7 +556,9 @@ private struct AppUninstallInspector: View {
             HStack {
                 Text(tr("卸载应用")).dsFont(.lg, weight: .semibold)
                 Spacer()
-                Button(tr("关闭面板")) { dismiss() }.keyboardShortcut(.cancelAction).disabled(model.uninstaller.isRemoving)
+                MiniIconButton(systemName: "xmark", help: tr("关闭面板")) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(model.uninstaller.isRemoving)
             }
             ScrollView {
                 if let app = model.uninstaller.selected {
