@@ -26,7 +26,7 @@ struct NetworkPopover: View {
             }
         }
 
-        ForEach(MenuBarItem.network.popoverSections.filter { isDetailPage || settings.isVisible($0) }) { section in
+        MainActorForEach(MenuBarItem.network.popoverSections.filter { isDetailPage || settings.isVisible($0) }) { section in
             switch section {
             case .networkHistory: TrafficHistorySection()
             case .networkProbe: ProbeSection()
@@ -226,7 +226,7 @@ private struct AddressSection: View {
                 // 原生 / 广播、IP 类型、网络类型做成徽章，一眼看结论；反向解析、住宅概率等细节不在弹窗里占行
                 if let publicAddresses, !Self.badges(publicAddresses).isEmpty {
                     FlowLayout(spacing: DS.Space.s2) {
-                        ForEach(Self.badges(publicAddresses), id: \.text) { badge in
+                        MainActorForEach(Self.badges(publicAddresses), id: \.text) { badge in
                             TagBadge(icon: badge.icon, text: badge.text, tone: badge.tone)
                         }
                     }
@@ -588,8 +588,8 @@ private struct DNSSection: View {
                                 editingManual = true
                             }
                         })) {
-                        ForEach(DNSPreset.allCases) { preset in
-                            Text(preset.title).tag(DNSPreset?.some(preset))
+                        ForEach(DNSPreset.allCases.map { (preset: $0, title: $0.title) }, id: \.preset.id) { @Sendable option in
+                            Text(option.title).tag(DNSPreset?.some(option.preset))
                         }
                         Divider()
                         Text(tr("手动")).tag(DNSPreset?.none)

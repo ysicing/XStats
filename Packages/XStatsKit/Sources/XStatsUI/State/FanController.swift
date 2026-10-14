@@ -16,7 +16,7 @@ extension HelperClient: FanControlClient {}
 @MainActor
 @Observable
 public final class FanController {
-    public enum Mode: String, CaseIterable, Identifiable {
+    public enum Mode: String, CaseIterable, Identifiable, Sendable {
         case automatic, cooling, maximum, custom
 
         public var id: String { rawValue }

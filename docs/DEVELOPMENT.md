@@ -177,6 +177,31 @@ XSTATS_MONITORING_RESOURCE_REPORT="$PWD/build/monitoring-verification/resources.
 此项约运行 15 秒，使用隔离偏好，不操作风扇、音量、显示器或系统扩展；报告记录各阶段快照数、
 CPU 采样数与测试进程 CPU 时间。它验证采样循环的需求与释放，不代表整机能耗或长期稳定性结论。
 
+## macOS 15 启动与 SwiftUI 隔离验收
+
+macOS 15 的异步 DisplayLink 可能在后台调用 `ForEach.content`。只传递不可变快照的行使用
+`@Sendable` 回调和仅赋值的 `nonisolated init`；读取模型、图标缓存或绑定的监控列表使用
+`MainActorForEach`，将实际构建延迟到行的 `MainActor body`。不要把模型或 AppKit 缓存改为非隔离，
+也不要在后台闭包里直接调用 builder。几何与时间线闭包需单独核实，不能仅凭存在执行器检查就批量改写。
+
+在有桌面会话的 macOS 15 测试机运行：
+
+```bash
+XSTATS_STARTUP_REPORT_DIR="$PWD/build/startup-verification" \
+  swift test --package-path Packages/XStatsKit --no-parallel \
+  --filter 'StartupRenderingTests|MainActorForEachIsolationTests|BluetoothListIsolationTests|BatteryEnergyPresentationTests|CPUPresentationTests'
+```
+
+窗口验收覆盖 10 个保存页面与能耗开/关，共 20 种组合；通过真实 `MainWindowController` 反复挂载、
+刷新、关闭，并进入关于/升级页。测试使用隔离偏好与演示指标，不启动主程序采样调度或更新安装；
+报告包含实际 OS，`macOS15` 必须为 `true` 才算该系统的窗口验收。后台列表测试另行覆盖蓝牙多部件、
+行构建与模型读取的隔离、数据 ID 与设置更新；蓝牙演示数据在已挂载窗口中依次切换加载、空列表、
+单电量、多部件与断开状态，并检查左右书写布局。Picker 的直接标签保持原结构，仅在主线程预先生成文案快照。
+
+这些测试不等于完整进程启动验收。发布候选仍需在 macOS 15 上手动验证冷启动恢复能耗/本机信息/仪表盘、
+蓝牙设备列表、打开电池弹窗、关闭能耗后重启以及从恢复页进入升级页。缺少 macOS 15 机器时报告待验证，
+不能用其他系统测试通过或 macOS 部署目标版本代替。
+
 ## 本地签名与权限
 
 有 Developer ID Application 证书时默认选择钥匙串中的第一个身份；多张证书时用

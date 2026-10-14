@@ -334,7 +334,7 @@ private struct FanTile: View {
                 .frame(height: DS.Size.tileChart / 2, alignment: .center)
 
             HStack(spacing: DS.Space.s1) {
-                ForEach([FanController.Mode.automatic, .cooling, .maximum]) { mode in
+                MainActorForEach([FanController.Mode.automatic, .cooling, .maximum]) { mode in
                     ChipButton(title: mode.title, isSelected: model.fans.mode == mode) {
                         model.requestFanMode(mode)
                     }
@@ -450,11 +450,11 @@ private struct TopProcessesCard: View {
             .foregroundStyle(DS.Palette.textSecondary)
 
             // 数据到达前用等高占位行，避免面板高度变化
-            ForEach(0..<max(0, Self.rowCount - processes.count), id: \.self) { _ in
+            MainActorForEach(0..<max(0, Self.rowCount - processes.count), id: \.self) { _ in
                 PlaceholderLine()
                     .frame(height: DS.TextSize.sm.rawValue * 1.25)
             }
-            ForEach(processes) { process in
+            MainActorForEach(processes) { process in
                 HStack(spacing: DS.Space.s2) {
                     AppIconCache.shared.image(for: process)
                         .resizable()

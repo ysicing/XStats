@@ -41,7 +41,7 @@ struct TemperatureCard: View {
             if summaries.isEmpty {
                 PlaceholderLine()
             } else {
-                ForEach(summaries) { summary in
+                MainActorForEach(summaries) { summary in
                     TemperatureRow(summary: summary, fahrenheit: model.settings.useFahrenheit)
                 }
             }
@@ -100,7 +100,7 @@ private struct FanCard: View {
                     .dsFont(.sm)
                     .foregroundStyle(DS.Palette.textSecondary)
             } else {
-                ForEach(fans) { fan in
+                MainActorForEach(fans) { fan in
                     FanRow(fan: fan, name: name(for: fan, count: fans.count))
                 }
 

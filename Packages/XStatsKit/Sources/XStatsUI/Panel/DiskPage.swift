@@ -88,7 +88,7 @@ private struct SpaceCard: View {
         WeightedRow(weights: [1, 1], spacing: DS.Space.s6) {
             VStack(alignment: .leading, spacing: DS.Space.s2) {
                 Text(tr("按文件夹")).dsFont(.xs, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
-                ForEach(Array(top)) { folder in
+                MainActorForEach(Array(top)) { folder in
                     VStack(spacing: DS.Space.s1) {
                         HStack(spacing: DS.Space.s2) {
                             Text(verbatim: folder.name).dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textPrimary).lineLimit(1)
@@ -108,7 +108,7 @@ private struct SpaceCard: View {
                 if result.largestFiles.isEmpty {
                     Text(tr("没有超过 50 MB 的文件")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                 }
-                ForEach(result.largestFiles.prefix(8)) { file in
+                MainActorForEach(result.largestFiles.prefix(8)) { file in
                     HStack(spacing: DS.Space.s2) {
                         VStack(alignment: .leading, spacing: 0) {
                             Text(verbatim: file.name).dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textPrimary).lineLimit(1)
@@ -204,7 +204,7 @@ private struct SnapshotsCard: View {
             if tools.snapshotsLoaded, tools.snapshots.isEmpty {
                 Text(tr("现在没有本地快照")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
             }
-            ForEach(tools.snapshots.prefix(6)) { snapshot in
+            MainActorForEach(tools.snapshots.prefix(6)) { snapshot in
                 InfoRow(label: snapshot.date.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? snapshot.identifier) {
                     Text(verbatim: snapshot.date.map { $0.formatted(.relative(presentation: .named).locale(L10n.locale)) } ?? "")
                 }
@@ -236,7 +236,7 @@ private struct VolumesCard: View {
         if !tools.volumes.isEmpty || tools.volumeOutcome != nil {
             Card {
                 CardHeader(icon: "externaldrive", title: tr("其他磁盘"), detail: tr("外置硬盘、U 盘、镜像与网络共享"))
-                ForEach(tools.volumes) { volume in
+                MainActorForEach(tools.volumes) { volume in
                     VStack(alignment: .leading, spacing: DS.Space.s1) {
                         HStack(spacing: DS.Space.s2) {
                             Image(systemName: volume.isLocal ? (volume.isInternal ? "internaldrive" : "externaldrive") : "network")
@@ -463,7 +463,7 @@ private struct DiskProcessRows: View {
         if rows.isEmpty {
             Text(tr("最近没有应用在读写磁盘")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
         }
-        ForEach(Array(rows), id: \.0.id) { row, total in
+        MainActorForEach(Array(rows), id: \.0.id) { row, total in
             VStack(spacing: DS.Space.s1) {
                 HStack(spacing: DS.Space.s2) {
                     AppIconCache.shared.image(bundlePath: row.bundlePath)
@@ -497,7 +497,7 @@ struct DiskPopover: View {
 
         DiskHero()
 
-        ForEach(MenuBarItem.disk.popoverSections.filter { settings.isVisible($0) }) { section in
+        MainActorForEach(MenuBarItem.disk.popoverSections.filter { settings.isVisible($0) }) { section in
             switch section {
             case .diskActivity:
                 let reads = store.diskReadHistory.elements

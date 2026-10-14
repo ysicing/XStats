@@ -54,7 +54,7 @@ struct SystemInfoPage: View {
                 InfoCard(icon: "cpu", title: tr("处理器")) {
                     InfoRow(label: tr("芯片"), text: topology.brand)
                     InfoRow(label: tr("核心"), text: tr("\(topology.logicalCores) 核"))
-                    ForEach(topology.clusters) { cluster in
+                    MainActorForEach(topology.clusters) { cluster in
                         InfoRow(label: cluster.name, text: tr("\(cluster.coreIndices.count) 核"))
                     }
                 }

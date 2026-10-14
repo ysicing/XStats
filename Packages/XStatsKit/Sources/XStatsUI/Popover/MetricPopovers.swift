@@ -37,7 +37,7 @@ struct CPUPopover: View {
             }
             card(.cpuApps)
         } else {
-            ForEach(MenuBarItem.cpu.popoverSections.filter { model.settings.isVisible($0) }) { section in
+            MainActorForEach(MenuBarItem.cpu.popoverSections.filter { model.settings.isVisible($0) }) { section in
                 card(section)
             }
         }
@@ -73,7 +73,7 @@ struct CPUPopover: View {
         case .cpuClusters:
             SectionCard(title: section.title, hint: clusterExplanation(store.topology),
                         trailing: { Text(verbatim: store.topology.brand) }) {
-                ForEach(store.topology.clusters) { cluster in
+                MainActorForEach(store.topology.clusters) { cluster in
                     let average = CoreClusterBars.average(of: cluster, perCore: cpu?.perCore ?? []) ?? 0
                     ShareRow(label: tr("\(cluster.name) · \(cluster.coreIndices.count) 核"), value: Format.percent(average),
                              detail: store.power?.clusterFrequency[cluster.id].map { Format.frequency(megahertz: $0) },
@@ -88,7 +88,7 @@ struct CPUPopover: View {
                         hint: tr("平均负载除以核心数：小于 1 表示任务不用排队，大于 1 表示有任务在等 CPU"),
                         trailing: { Text(loadTrend(cpu?.loadAverage ?? [])) }) {
                 let averages = cpu?.loadAverage ?? []
-                ForEach(Array([tr("1 分钟"), tr("5 分钟"), tr("15 分钟")].enumerated()), id: \.offset) { index, label in
+                MainActorForEach(Array([tr("1 分钟"), tr("5 分钟"), tr("15 分钟")].enumerated()), id: \.offset) { index, label in
                     let value = averages[safe: index] ?? 0
                     ShareRow(label: label,
                              value: tr("每核 \((value / cores).formatted(.number.precision(.fractionLength(2))))"),
@@ -183,7 +183,7 @@ private struct CoreRingGrid: View {
         // 最快的一类在前
         let clusters = topology.clusters.sorted { $0.id < $1.id }
         VStack(alignment: .leading, spacing: DS.Space.s3) {
-            ForEach(clusters) { cluster in
+            MainActorForEach(clusters) { cluster in
                 VStack(alignment: .leading, spacing: DS.Space.s2) {
                     if clusters.count > 1 {
                         // 这类核心是干什么的，悬停组名时再说
@@ -197,7 +197,7 @@ private struct CoreRingGrid: View {
                         .help(optional: cluster.role(in: topology))
                     }
                     LazyVGrid(columns: Self.columns, alignment: .leading, spacing: DS.Space.s2) {
-                        ForEach(cluster.coreIndices, id: \.self) { index in
+                        MainActorForEach(cluster.coreIndices, id: \.self) { index in
                             let value = perCore[safe: index] ?? 0
                             VStack(spacing: DS.Space.s1) {
                                 RingGauge(fraction: value, color: loadTone(value).color, size: Self.ring) {
@@ -363,7 +363,7 @@ private struct ChartDurationPicker: View {
     var body: some View {
         let settings = model.settings
         HStack(spacing: DS.Space.s3) {
-            ForEach(AppSettings.cpuChartOptions, id: \.self) { seconds in
+            MainActorForEach(AppSettings.cpuChartOptions, id: \.self) { seconds in
                 let selected = settings.cpuChartSeconds == seconds
                 Button {
                     settings.cpuChartSeconds = seconds
@@ -390,9 +390,10 @@ private struct PercentAxis: View {
     var body: some View {
         GeometryReader { proxy in
             let inset = DS.Size.chartLine
-            let usable = proxy.size.height - inset * 2
+            let size = proxy.size
+            let usable = size.height - inset * 2
             let half = DS.TextSize.xs.rawValue / 2 + DS.Size.stroke
-            ForEach([1.0, 0.75, 0.5, 0.25, 0.0], id: \.self) { fraction in
+            MainActorForEach([1.0, 0.75, 0.5, 0.25, 0.0], id: \.self) { fraction in
                 Text(verbatim: "\(Int(fraction * 100))%")
                     .dsFont(.xs)
                     .foregroundStyle(DS.Palette.textTertiary)
@@ -400,7 +401,7 @@ private struct PercentAxis: View {
                     .lineLimit(1)
                     .fixedSize()
                     .frame(width: Self.width, alignment: .trailing)
-                    .position(x: Self.width / 2, y: min(max(inset + usable * CGFloat(1 - fraction), half), proxy.size.height - half))
+                    .position(x: Self.width / 2, y: min(max(inset + usable * CGFloat(1 - fraction), half), size.height - half))
             }
         }
         .frame(width: Self.width, height: height)
@@ -421,7 +422,7 @@ struct MemoryPopover: View {
 
         MemoryHero()
 
-        ForEach(MenuBarItem.memory.popoverSections.filter { isDetailPage || settings.isVisible($0) }) { section in
+        MainActorForEach(MenuBarItem.memory.popoverSections.filter { isDetailPage || settings.isVisible($0) }) { section in
             switch section {
             case .memoryWaterline:
                 SectionCard(title: section.title, trailing: { Text(verbatim: memory.map { Format.bytes($0.total) } ?? "") }) {
@@ -435,7 +436,7 @@ struct MemoryPopover: View {
                         ]
                         WaterlineBar(segments: parts.map { (Double($0.1), $0.2) }, total: Double(memory.total))
                         LazyVGrid(columns: [GridItem(.flexible(), spacing: DS.Space.s3), GridItem(.flexible())], spacing: DS.Space.s2) {
-                            ForEach(parts, id: \.0) { part in
+                            MainActorForEach(parts, id: \.0) { part in
                                 HStack(spacing: DS.Space.s1) {
                                     RoundedRectangle(cornerRadius: DS.Radius.sm / 2).fill(part.2)
                                         .frame(width: DS.Size.barHeight, height: DS.Size.barHeight)
@@ -572,7 +573,7 @@ private struct AppUsageList: View {
         if visible.isEmpty {
             Text(tr("正在统计…")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
         }
-        ForEach(visible) { app in
+        MainActorForEach(visible) { app in
             let value = metric == .cpu ? app.cpu : Double(app.memory)
             VStack(spacing: DS.Space.s1) {
                 HStack(spacing: DS.Space.s2) {
@@ -734,7 +735,7 @@ struct GPUPopover: View {
             }
         }
 
-        ForEach(MenuBarItem.gpu.popoverSections.filter { isDetailPage || settings.isVisible($0) }) { section in
+        MainActorForEach(MenuBarItem.gpu.popoverSections.filter { isDetailPage || settings.isVisible($0) }) { section in
             switch section {
             case .gpuHistory:
                 SectionCard(title: section.title, trailing: { Text(tr("最近 60 秒")) }) {
@@ -787,7 +788,7 @@ struct ThermalPopover: View {
             }
         }
 
-        ForEach(item.popoverSections.filter { ($0 != .thermalFans || model.store.supportsFans) && (isDetailPage || settings.isVisible($0)) }) { section in
+        MainActorForEach(item.popoverSections.filter { ($0 != .thermalFans || model.store.supportsFans) && (isDetailPage || settings.isVisible($0)) }) { section in
             switch section {
             case .thermalSensors:
                 SectionCard(title: section.title, trailing: { Text(tr("最高 / 平均")) }) {
@@ -795,7 +796,7 @@ struct ThermalPopover: View {
                     if temperatures.isEmpty {
                         Text(tr("正在读取传感器…")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                     }
-                    ForEach(temperatures) { summary in
+                    MainActorForEach(temperatures) { summary in
                         VStack(spacing: DS.Space.s1) {
                             InfoRow(label: summary.group.title) {
                                 Text(verbatim: "\(Format.temperature(summary.maximum, fahrenheit: settings.useFahrenheit)) / \(Format.temperature(summary.average, fahrenheit: settings.useFahrenheit))")
@@ -811,14 +812,14 @@ struct ThermalPopover: View {
                     if fans.isEmpty {
                         Text(tr("未检测到风扇")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                     } else {
-                        ForEach(fans) { fan in
+                        MainActorForEach(fans) { fan in
                             VStack(spacing: DS.Space.s1) {
                                 InfoRow(label: tr("风扇 \(fan.id + 1)"), text: fan.isStarting ? tr("启动中…") : Format.rpm(fan.current))
                                 ProgressTrack(fraction: fan.maximum > 0 ? fan.current / fan.maximum : 0, height: DS.Space.s1)
                             }
                         }
                         HStack(spacing: DS.Space.s1) {
-                            ForEach([FanController.Mode.automatic, .cooling, .maximum]) { mode in
+                            MainActorForEach([FanController.Mode.automatic, .cooling, .maximum]) { mode in
                                 ChipButton(title: mode.title, isSelected: model.fans.mode == mode) {
                                     model.requestFanMode(mode)
                                 }

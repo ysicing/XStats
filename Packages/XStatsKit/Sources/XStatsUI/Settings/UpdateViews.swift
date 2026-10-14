@@ -45,7 +45,7 @@ struct ReleaseSummary: View {
     @ViewBuilder
     private var notes: some View {
         let list = VStack(alignment: .leading, spacing: DS.Space.s2) {
-            ForEach(Array(release.notes(for: model.settings.language.resolved.languageCode).enumerated()), id: \.offset) { _, note in
+            MainActorForEach(Array(release.notes(for: model.settings.language.resolved.languageCode).enumerated()), id: \.offset) { _, note in
                 HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
                     Circle().fill(DS.Palette.primary).frame(width: DS.Space.s1 + DS.Space.s1 / 2, height: DS.Space.s1 + DS.Space.s1 / 2)
                         .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + DS.Space.s1 }
@@ -172,7 +172,7 @@ struct UpdateSettings: View {
             GroupRow {
                 SettingRow(title: tr("自动检查更新")) {
                     Menu {
-                        ForEach(UpdateCheckSchedule.allCases) { schedule in
+                        MainActorForEach(UpdateCheckSchedule.allCases) { schedule in
                             Button {
                                 settings.updateCheckSchedule = schedule
                             } label: {
