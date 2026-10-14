@@ -69,7 +69,10 @@ extension ImageTool {
     }
     func applyStyle() {
         // Inline text uses the current style when committed; avoid replacing its draft mid-edit.
-        guard !editingText else { return }
+        if editingText {
+            if let item = selected, item.color != color.cgColor || item.fontSize != fontSize { dirty = true }
+            return
+        }
         guard var item = selected else { return }
         if item.tool != .redact { item.color = color.cgColor }
         item.lineWidth = lineWidth; item.fontSize = fontSize
@@ -180,6 +183,9 @@ extension ImageTool {
 @MainActor final class ImageEditorWindow: NSWindowController, NSWindowDelegate {
     let model: ImageEditorModel
     var onClose: () -> Void = {}
+    private var closeTask: Task<Void, Never>?
+    private var closeAlert: NSAlert?
+    private var closed = false
     init(image: CGImage) {
         model = ImageEditorModel(image: image)
         let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 950, height: 680), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
@@ -199,15 +205,39 @@ extension ImageTool {
         window?.contentView = content
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard !closed, closeTask == nil, closeAlert == nil else { return false }
         model.finishEditing()
-        guard !model.rendering else { return false }
+        if model.rendering {
+            closeTask = Task { [weak self] in
+                guard let self else { return }
+                await model.waitForPendingWork()
+                guard !Task.isCancelled, !closed else { return }
+                closeTask = nil
+                sender.performClose(nil)
+            }
+            return false
+        }
         guard model.dirty else { return true }
         let alert = NSAlert()
         alert.messageText = tr("丢弃未保存的截图？")
         alert.addButton(withTitle: tr("丢弃")); alert.addButton(withTitle: tr("取消"))
-        return alert.runModal() == .alertFirstButtonReturn
+        closeAlert = alert
+        alert.beginSheetModal(for: sender) { [weak self] response in
+            guard let self else { return }
+            closeAlert = nil
+            guard !closed, response == .alertFirstButtonReturn else { return }
+            sender.close()
+        }
+        return false
     }
-    func windowWillClose(_ notification: Notification) { onClose() }
+    func windowWillClose(_ notification: Notification) {
+        closed = true
+        closeTask?.cancel(); closeTask = nil
+        if let sheet = window?.attachedSheet { window?.endSheet(sheet, returnCode: .alertSecondButtonReturn) }
+        closeAlert = nil
+        model.cancelPendingWork(terminating: true)
+        onClose()
+    }
 }
 
 private struct ImageEditorView: View {

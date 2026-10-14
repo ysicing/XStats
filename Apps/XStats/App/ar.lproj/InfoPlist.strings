@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 "NSCalendarsFullAccessUsageDescription" = "يعرض أحداث التقويم المحددة محليًا دون تعديلها أو رفعها.";
 "NSRemindersFullAccessUsageDescription" = "يعرض التذكيرات المستحقة المحددة محليًا دون تعديلها أو رفعها.";
-"NSAudioCaptureUsageDescription" = "ضبط مستوى صوت التطبيقات محليًا في الوقت الحقيقي دون تسجيل الصوت أو حفظه أو تحميله.";
+"NSAudioCaptureUsageDescription" = "ضبط مستوى صوت التطبيقات محليًا؛ يُسجّل الصوت فقط عند تفعيل صوت النظام في تسجيل الشاشة. يُحفظ المحتوى على هذا الـ Mac ولا يُرفع إلى الإنترنت.";
 "NSBluetoothAlwaysUsageDescription" = "عرض أجهزة صوت Bluetooth المقترنة والاتصال بها عند اختيارها.";
 "NSSystemExtensionUsageDescription" = "عرض اتصالات شبكة التطبيقات محليًا دون حظر الاتصالات أو قراءة محتوى الاتصالات.";
+"NSScreenCaptureUsageDescription" = "يلتقط المنطقة أو النافذة أو الشاشة المحددة عند أخذ لقطة شاشة أو تسجيلها. يُحفظ المحتوى على هذا الـ Mac فقط ولا يُرفع إلى الإنترنت.";
+"NSMicrophoneUsageDescription" = "عند تفعيل الميكروفون، يُسجّل الصوت في فيديو محلي دون رفع المحتوى.";

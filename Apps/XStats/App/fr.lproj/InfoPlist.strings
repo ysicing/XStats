@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 "NSCalendarsFullAccessUsageDescription" = "Affiche localement les événements sélectionnés sans les modifier ni les téléverser.";
 "NSRemindersFullAccessUsageDescription" = "Affiche localement les rappels sélectionnés sans les modifier ni les téléverser.";
-"NSAudioCaptureUsageDescription" = "Régler localement le volume par app en temps réel, sans enregistrer, conserver ni envoyer le son.";
+"NSAudioCaptureUsageDescription" = "Régler le volume des apps localement. Le son est enregistré uniquement si vous activez l’audio système pour un enregistrement d’écran. Le contenu reste sur ce Mac et n’est pas envoyé en ligne.";
 "NSBluetoothAlwaysUsageDescription" = "Afficher les appareils audio Bluetooth jumelés et les connecter lorsque vous les sélectionnez.";
 "NSSystemExtensionUsageDescription" = "Afficher localement les connexions réseau des apps sans les bloquer ni lire le contenu des communications.";
+"NSScreenCaptureUsageDescription" = "Capture la zone, la fenêtre ou l’écran sélectionné lors des captures ou des enregistrements. Le contenu reste sur ce Mac et n’est pas envoyé en ligne.";
+"NSMicrophoneUsageDescription" = "Quand vous activez le microphone, le son est enregistré dans une vidéo locale, sans envoi.";

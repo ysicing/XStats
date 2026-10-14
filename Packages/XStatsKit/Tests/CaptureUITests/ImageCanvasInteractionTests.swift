@@ -91,6 +91,36 @@ import CaptureCore
         model.undo(); await model.waitForPendingWork()
         #expect(model.document.annotations[0].text == "Before")
     }
+    @Test(arguments: [false, true]) func savedTextStyleDraftRequiresUnsavedConfirmation(changeFont: Bool) async throws {
+        let (model, canvas, window) = try editor()
+        defer { window.close() }
+        let item = ImageAnnotation(tool: .text, points: [CGPoint(x: 20, y: 20)], text: "Saved text")
+        model.document.add(item); model.select(item.id)
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
+        defer { try? FileManager.default.removeItem(at: file) }
+        model.save(to: file, jpeg: false)
+        await model.waitForPendingWork()
+        #expect(!model.dirty)
+        model.tool = .text; canvas.synchronize()
+        canvas.mouseDown(with: try mouse(.leftMouseDown, CGPoint(x: 23, y: 23), in: canvas))
+        #expect(model.editingText)
+        model.applyStyle()
+        #expect(!model.dirty, "Selecting the existing style must not create an unsaved draft")
+        if changeFont { model.fontSize = 40 } else { model.color = .systemBlue }
+        model.applyStyle(); canvas.synchronize()
+        #expect(model.dirty, "Quit protection must see style-only edits before inline text commits")
+        #expect(!model.rendering && model.document.annotations[0] == item)
+        model.finishEditing()
+        await model.waitForPendingWork()
+        #expect(model.selected?.text == "Saved text")
+        if changeFont { #expect(model.selected?.fontSize == 40) }
+        else { #expect(model.selected?.color == NSColor.systemBlue.cgColor) }
+        model.save(to: file, jpeg: false)
+        await model.waitForPendingWork()
+        #expect(!model.dirty && FileManager.default.fileExists(atPath: file.path))
+        model.undo(); await model.waitForPendingWork()
+        #expect(model.dirty && model.document.annotations[0] == item)
+    }
     @Test func selectedOutlineCanMoveFromItsInteriorAndClippedObjectsDoNotJump() async throws {
         let (model, canvas, window) = try editor()
         defer { window.orderOut(nil) }
