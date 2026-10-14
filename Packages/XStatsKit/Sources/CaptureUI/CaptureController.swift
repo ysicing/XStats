@@ -173,7 +173,7 @@ import Localization
                 let content = try await ScreenCaptureSource.content()
                 try Task.checkCancellation()
                 home?.orderOut(nil)
-                guard let source = try await selector.select(mode: mode, content: content) else { resetOperation(); showHome(); return }
+                guard let source = try await selector.select(mode: mode, action: action, content: content) else { resetOperation(); showHome(); return }
                 try Task.checkCancellation()
                 selectedSource = source
                 if action == .screenshot {

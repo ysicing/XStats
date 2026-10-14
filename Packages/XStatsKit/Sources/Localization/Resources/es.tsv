@@ -2136,3 +2136,8 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 录屏已保存，但临时素材未能完全清理。	La grabación se guardó, pero no se pudieron eliminar todos los archivos temporales.
 保存的文件不受影响。可在访达中检查并清理剩余临时素材。	El archivo guardado no se ve afectado. Revisa y elimina los archivos temporales restantes en Finder.
 显示临时素材	Mostrar archivos temporales
+开始录屏	Iniciar grabación
+重新选择	Volver a seleccionar
+{} × {} 像素	{} × {} píxeles
+拖动选框移动，拖动边缘调整，按 Return 确认	Arrastra dentro para mover o un borde para ajustar el tamaño; Intro confirma
+已选择范围，按 Return 确认，Esc 取消	Área seleccionada; Intro confirma, Esc cancela
