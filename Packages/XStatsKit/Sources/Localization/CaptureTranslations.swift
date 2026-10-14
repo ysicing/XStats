@@ -51,7 +51,6 @@ extension Translations {
 丢弃未保存的截图？	Discard the unsaved screenshot?
 丢弃未保存的录屏？	Discard the unsaved recording?
 退出并丢弃未保存的内容？	Quit and discard unsaved content?
-确认捕获范围和声音设置后，点击录屏。	Confirm the target and audio settings, then click Record screen.
 请选择有效的屏幕区域。	Select a valid screen area.
 请选择有效的裁剪时间范围。	Select a valid trim range.
 请选择录制临时目录之外的保存位置。	Choose a save location outside the recording’s temporary folder.
@@ -76,5 +75,18 @@ extension Translations {
 {} × {} 像素	{} × {} pixels
 拖动选框移动，拖动边缘调整，按 Return 确认	Drag inside to move, drag an edge to resize; Return confirms
 已选择范围，按 Return 确认，Esc 取消	Target selected; Return confirms, Esc cancels
+截图标注与屏幕录制	Screenshot annotation and screen recording
+截图与录屏	Screenshots and recordings
+选择范围后，倒计时 3 秒开始录制。	Recording starts after a 3-second countdown.
+截图后可标注、复制或保存。	Annotate, copy or save after capturing.
+内容仅保存在本机	Content stays on this Mac
+录制区域	Record area
+录制窗口	Record window
+录制屏幕	Record screen
+截取区域	Capture area
+截取窗口	Capture window
+截取屏幕	Capture screen
+确认捕获范围和声音设置后，开始录制。	Confirm the target and audio settings, then start recording.
+关闭设置	Close settings
 """#
 }

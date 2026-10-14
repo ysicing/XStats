@@ -2118,7 +2118,6 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Der Hom
 丢弃未保存的截图？	Ungespeicherten Screenshot verwerfen?
 丢弃未保存的录屏？	Ungespeicherte Aufnahme verwerfen?
 退出并丢弃未保存的内容？	Beenden und ungespeicherte Inhalte verwerfen?
-确认捕获范围和声音设置后，点击录屏。	Ziel und Audio prüfen, dann Bildschirmaufnahme anklicken.
 请选择有效的屏幕区域。	Gültigen Bildschirmbereich auswählen.
 请选择有效的裁剪时间范围。	Gültigen Zeitbereich auswählen.
 当前操作尚未结束。	Der aktuelle Vorgang ist noch nicht beendet.
@@ -2143,3 +2142,16 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Der Hom
 已选择范围，按 Return 确认，Esc 取消	Bereich ausgewählt; Return bestätigt, Esc bricht ab
 麦克风录制中断，请检查设备连接后重试。	Die Mikrofonaufnahme wurde unterbrochen. Prüfen Sie die Geräteverbindung und versuchen Sie es erneut.
 录制未能停止，请重试。	Die Aufnahme konnte nicht beendet werden. Versuchen Sie es erneut.
+截图标注与屏幕录制	Screenshots bearbeiten und Bildschirm aufnehmen
+截图与录屏	Screenshots und Aufnahmen
+选择范围后，倒计时 3 秒开始录制。	Nach der Auswahl startet die Aufnahme mit einem 3-Sekunden-Countdown.
+截图后可标注、复制或保存。	Nach der Aufnahme bearbeiten, kopieren oder sichern.
+内容仅保存在本机	Inhalte bleiben auf diesem Mac
+录制区域	Bereich aufnehmen
+录制窗口	Fenster aufnehmen
+录制屏幕	Bildschirm aufnehmen
+截取区域	Bereich erfassen
+截取窗口	Fenster erfassen
+截取屏幕	Bildschirm erfassen
+确认捕获范围和声音设置后，开始录制。	Ziel und Audioeinstellungen prüfen, dann die Aufnahme starten.
+关闭设置	Einstellungen schließen

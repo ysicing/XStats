@@ -2118,7 +2118,6 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 丢弃未保存的截图？	Abandonner la capture non enregistrée ?
 丢弃未保存的录屏？	Abandonner l’enregistrement non sauvegardé ?
 退出并丢弃未保存的内容？	Quitter et abandonner le contenu non enregistré ?
-确认捕获范围和声音设置后，点击录屏。	Vérifiez la cible et l’audio, puis cliquez sur Enregistrer l’écran.
 请选择有效的屏幕区域。	Sélectionnez une zone valide.
 请选择有效的裁剪时间范围。	Sélectionnez une plage temporelle valide.
 当前操作尚未结束。	L’opération en cours n’est pas terminée.
@@ -2143,3 +2142,16 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 已选择范围，按 Return 确认，Esc 取消	Zone sélectionnée ; Retour confirme, Échap annule
 麦克风录制中断，请检查设备连接后重试。	L’enregistrement du microphone a été interrompu. Vérifiez la connexion de l’appareil et réessayez.
 录制未能停止，请重试。	L’enregistrement n’a pas pu être arrêté. Réessayez.
+截图标注与屏幕录制	Annotez vos captures et enregistrez l’écran
+截图与录屏	Captures et enregistrements
+选择范围后，倒计时 3 秒开始录制。	Après la sélection, l’enregistrement démarre après un compte à rebours de 3 secondes.
+截图后可标注、复制或保存。	Annotez, copiez ou sauvegardez après la capture.
+内容仅保存在本机	Le contenu reste sur ce Mac
+录制区域	Enregistrer une zone
+录制窗口	Enregistrer une fenêtre
+录制屏幕	Enregistrer l’écran
+截取区域	Capturer une zone
+截取窗口	Capturer une fenêtre
+截取屏幕	Capturer l’écran
+确认捕获范围和声音设置后，开始录制。	Vérifiez la cible et l’audio, puis démarrez l’enregistrement.
+关闭设置	Fermer les réglages

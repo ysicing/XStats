@@ -2118,7 +2118,6 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 丢弃未保存的截图？	¿Descartar la captura sin guardar?
 丢弃未保存的录屏？	¿Descartar la grabación sin guardar?
 退出并丢弃未保存的内容？	¿Salir y descartar el contenido sin guardar?
-确认捕获范围和声音设置后，点击录屏。	Confirma el destino y el audio y pulsa Grabar pantalla.
 请选择有效的屏幕区域。	Selecciona un área válida.
 请选择有效的裁剪时间范围。	Selecciona un intervalo válido.
 当前操作尚未结束。	La operación actual no ha terminado.
@@ -2143,3 +2142,16 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 已选择范围，按 Return 确认，Esc 取消	Área seleccionada; Intro confirma, Esc cancela
 麦克风录制中断，请检查设备连接后重试。	Se interrumpió la grabación del micrófono. Comprueba la conexión del dispositivo e inténtalo de nuevo.
 录制未能停止，请重试。	No se pudo detener la grabación. Inténtalo de nuevo.
+截图标注与屏幕录制	Anota capturas y graba la pantalla
+截图与录屏	Capturas y grabaciones
+选择范围后，倒计时 3 秒开始录制。	Tras elegir el área, la grabación comienza después de una cuenta atrás de 3 segundos.
+截图后可标注、复制或保存。	Anota, copia o guarda después de capturar.
+内容仅保存在本机	El contenido permanece en este Mac
+录制区域	Grabar un área
+录制窗口	Grabar una ventana
+录制屏幕	Grabar la pantalla
+截取区域	Capturar un área
+截取窗口	Capturar una ventana
+截取屏幕	Capturar la pantalla
+确认捕获范围和声音设置后，开始录制。	Confirma el destino y el audio y comienza la grabación.
+关闭设置	Cerrar ajustes

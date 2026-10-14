@@ -7,56 +7,163 @@ import Localization
 
 struct CaptureHomeView: View {
     @ObservedObject var controller: CaptureController
+    @State private var showingSettings = false
+
     var body: some View {
-        ScrollView {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("XStats Capture").font(.title.bold())
-            Text(tr("截图标注与屏幕录制，内容仅保存在本机。")).foregroundStyle(.secondary)
-            Picker(tr("捕获范围"), selection: $controller.mode) {
-                ForEach(CaptureMode.allCases) { Text($0.title).tag($0) }
-            }.pickerStyle(.segmented)
-            HStack {
-                Toggle(tr("系统声音"), isOn: $controller.systemAudio)
-                Toggle(tr("麦克风"), isOn: $controller.microphone)
+        VStack(alignment: .leading, spacing: 24) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("XStats Capture").font(.title2.weight(.semibold))
+                    Text(tr("截图标注与屏幕录制"))
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button { showingSettings.toggle() } label: {
+                    Image(systemName: "gearshape").font(.title3)
+                }
+                .buttonStyle(.borderless)
+                .help(tr("设置"))
+                .accessibilityLabel(tr("设置"))
+                .popover(isPresented: $showingSettings, arrowEdge: .top) {
+                    CaptureSettingsView(controller: controller)
+                }
             }
-            if controller.mode == .window, controller.systemAudio {
-                Text(tr("窗口模式只录制所选 App 的声音。")).font(.caption).foregroundStyle(.secondary)
+
+            Picker(tr("截图与录屏"), selection: $controller.captureAction) {
+                Label(tr("截图"), systemImage: "camera").tag(CaptureRequest.Action.screenshot)
+                Label(tr("录屏"), systemImage: "record.circle").tag(CaptureRequest.Action.record)
             }
-            HStack {
-                Button(tr("截图"), systemImage: "camera") { controller.begin(.screenshot) }
-                Button(tr("录屏"), systemImage: "record.circle") { controller.begin(.record) }
-            }.controlSize(.large).disabled(controller.busy)
+            .pickerStyle(.segmented).labelsHidden().controlSize(.large)
+            .disabled(controller.busy)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text(tr("捕获范围")).font(.callout.weight(.medium)).foregroundStyle(.secondary)
+                HStack(spacing: 12) {
+                    ForEach(CaptureMode.allCases) { mode in
+                        CaptureTargetButton(mode: mode, selected: controller.mode == mode) {
+                            controller.mode = mode
+                        }
+                    }
+                }.disabled(controller.busy)
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                if controller.captureAction == .record {
+                    HStack(spacing: 24) {
+                        Toggle(isOn: $controller.systemAudio) {
+                            Label(tr("系统声音"), systemImage: "speaker.wave.2")
+                        }
+                        Toggle(isOn: $controller.microphone) {
+                            Label(tr("麦克风"), systemImage: "mic")
+                        }
+                    }
+                    .toggleStyle(.checkbox).disabled(controller.busy)
+                    if controller.mode == .window, controller.systemAudio {
+                        Text(tr("窗口模式只录制所选 App 的声音。"))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Text(tr(controller.captureAction == .record
+                        ? "选择范围后，倒计时 3 秒开始录制。" : "截图后可标注、复制或保存。"))
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button { controller.begin(controller.captureAction) } label: {
+                    Label(primaryTitle, systemImage: controller.captureAction == .record ? "record.circle" : "camera")
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity).padding(.vertical, 8)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large)
+                .disabled(controller.busy)
+            }
+
             if let error = controller.error {
-                Text(error).font(.callout).foregroundStyle(.red).textSelection(.enabled)
-                if controller.permissionError != nil { Button(tr("打开隐私设置")) { controller.openPrivacySettings() } }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(error).font(.callout).foregroundStyle(.red)
+                        .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                    if controller.permissionError != nil {
+                        Button(tr("打开隐私设置")) { controller.openPrivacySettings() }
+                    }
+                }
             }
             if controller.hasRecordingMedia {
-                HStack {
-                    Button(tr("录屏预览")) { controller.recoverRecordingPreview() }
-                    Button(tr("在访达中显示原始片段")) { controller.revealMedia() }
-                    Button(tr("丢弃")) { controller.discardRecording() }
+                ViewThatFits(in: .horizontal) {
+                    HStack { recoveryActions }
+                    VStack(alignment: .leading, spacing: 8) { recoveryActions }
                 }
             }
-            Divider()
-            Toggle(tr("常驻菜单栏"), isOn: $controller.resident)
-                .onChange(of: controller.resident) { controller.applyResidentMode() }
-            Text(tr("关闭后按需退出；常驻时可使用全局快捷键。")).font(.caption).foregroundStyle(.secondary)
-            if controller.resident {
-                HStack {
-                    Text(tr("截图快捷键")); Spacer()
-                    CaptureShortcutRecorder(value: controller.screenshotKey) { controller.setShortcut($0, for: .screenshot) }
-                }
-                HStack {
-                    Text(tr("录屏快捷键")); Spacer()
-                    CaptureShortcutRecorder(value: controller.recordingKey) { controller.setShortcut($0, for: .record) }
-                }
-                if controller.shortcutConflict { Text(tr("快捷键已被占用，请更换。")).font(.caption).foregroundStyle(.red) }
+            Label(tr("内容仅保存在本机"), systemImage: "lock")
+                .font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(28).frame(width: 520)
+        .fixedSize(horizontal: false, vertical: true)
+        .environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight)
+        .environment(\.locale, L10n.locale)
+        .onAppear { controller.fitHomeWindow() }
+        .onChange(of: controller.captureAction) { _, action in
+            if action == .record, !controller.busy {
+                controller.systemAudio = true
+                controller.microphone = false
             }
-            Picker(tr("语言"), selection: $controller.language) {
-                ForEach(AppLanguage.allCases, id: \.rawValue) { Text($0 == .system ? tr("自动检测") : $0.nativeName).tag($0) }
-            }.onChange(of: controller.language) { controller.applyLanguage() }
-        }.padding(28).frame(maxWidth: .infinity, alignment: .leading)
-        }.frame(minWidth: 490, minHeight: 460)
+            controller.fitHomeWindow()
+        }
+        .onChange(of: controller.mode) { controller.fitHomeWindow() }
+        .onChange(of: controller.systemAudio) { controller.fitHomeWindow() }
+        .onChange(of: controller.error) { controller.fitHomeWindow() }
+        .onChange(of: controller.hasRecordingMedia) { controller.fitHomeWindow() }
+        .onChange(of: controller.language) { controller.fitHomeWindow() }
+    }
+
+    private var primaryTitle: String {
+        switch (controller.captureAction, controller.mode) {
+        case (.record, .region): tr("录制区域")
+        case (.record, .window): tr("录制窗口")
+        case (.record, .display): tr("录制屏幕")
+        case (_, .region): tr("截取区域")
+        case (_, .window): tr("截取窗口")
+        case (_, .display): tr("截取屏幕")
+        }
+    }
+
+    @ViewBuilder private var recoveryActions: some View {
+        Button(tr("录屏预览")) { controller.recoverRecordingPreview() }
+        Button(tr("在访达中显示原始片段")) { controller.revealMedia() }
+        Button(tr("丢弃")) { controller.discardRecording() }
+    }
+}
+
+private struct CaptureTargetButton: View {
+    let mode: CaptureMode
+    let selected: Bool
+    let action: () -> Void
+    private var symbol: String {
+        switch mode {
+        case .region: "rectangle.dashed"
+        case .window: "macwindow"
+        case .display: "display"
+        }
+    }
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 10) {
+                Image(systemName: symbol).font(.system(size: 24))
+                    .accessibilityHidden(true)
+                Text(mode.title).font(.callout.weight(.medium))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundStyle(selected ? Color.accentColor : Color.primary)
+            .frame(maxWidth: .infinity, minHeight: 70)
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.bordered)
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(selected ? Color.accentColor : Color.clear, lineWidth: 1.5)
+                .allowsHitTesting(false)
+        }
+        .accessibilityLabel(mode.title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

@@ -10,6 +10,7 @@ import Localization
 
 @MainActor final class CaptureController: NSObject, ObservableObject, NSWindowDelegate {
     @Published var mode: CaptureMode = .region
+    @Published var captureAction: CaptureRequest.Action = .screenshot
     @Published var systemAudio = true
     @Published var microphone = false
     @Published var resident = UserDefaults.standard.bool(forKey: "capture.resident")
@@ -102,7 +103,6 @@ import Localization
     func applyLanguage() {
         UserDefaults.standard.set(language.rawValue, forKey: "capture.language")
         L10n.configure(language)
-        home?.contentView = NSHostingView(rootView: CaptureHomeView(controller: self).environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight).environment(\.locale, L10n.locale))
         home?.title = "XStats Capture"
         control?.title = tr("录屏")
         control?.contentView = NSHostingView(rootView: RecordingControlView(controller: self).environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight).environment(\.locale, L10n.locale))
@@ -146,10 +146,27 @@ import Localization
         guard !terminating else { return }
         if busy { showActiveWindow(); return }
         if home == nil {
-            home = makeWindow(title: "XStats Capture", size: CGSize(width: 540, height: 620), content: CaptureHomeView(controller: self), resizable: true)
+            home = makeWindow(title: "XStats Capture", size: CGSize(width: 520, height: 430), content: CaptureHomeView(controller: self), resizable: false)
         }
         systemAudio = true; microphone = false
         home?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+    }
+    /// Measure only after a content change; fixed width makes wrapping deterministic.
+    /// Comparing the result avoids a window/layout feedback loop.
+    func fitHomeWindow() {
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let home = self?.home, let content = home.contentView else { return }
+            content.layoutSubtreeIfNeeded()
+            let size = content.fittingSize
+            guard size.width.isFinite, size.height.isFinite, size.width > 0, size.height > 0 else { return }
+            let current = home.contentRect(forFrameRect: home.frame).size
+            guard abs(current.height - size.height) > 1 || abs(current.width - size.width) > 1 else { return }
+            // Keep the title bar in place as the recording controls appear or disappear.
+            let top = home.frame.maxY
+            home.setContentSize(size)
+            home.setFrameOrigin(CGPoint(x: home.frame.minX, y: top - home.frame.height))
+        }
     }
     private func showActiveWindow() {
         (control ?? preview ?? home)?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
@@ -164,9 +181,10 @@ import Localization
         guard !terminating else { return }
         guard action != .open else { showHome(); return }
         guard !busy, preview == nil, recorder == nil else { showActiveWindow(); return }
+        captureAction = action
         if external, action == .record {
             showHome()
-            error = tr("确认捕获范围和声音设置后，点击录屏。")
+            error = tr("确认捕获范围和声音设置后，开始录制。")
             return
         }
         if home == nil { showHome() }
