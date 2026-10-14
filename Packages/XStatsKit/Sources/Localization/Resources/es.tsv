@@ -2077,6 +2077,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 截图标注与屏幕录制，内容仅保存在本机。	Anota capturas y graba la pantalla. El contenido permanece en este Mac.
 捕获范围	Destino de captura
 系统声音	Audio del sistema
+窗口模式只录制所选 App 的声音。	El modo ventana solo graba el audio de la app seleccionada.
 麦克风	Micrófono
 常驻菜单栏	Mantener en la barra de menús
 关闭后按需退出；常驻时可使用全局快捷键。	Salir al cerrar las ventanas. Mantén la app abierta para usar atajos globales.

@@ -19,6 +19,9 @@ struct CaptureHomeView: View {
                 Toggle(tr("系统声音"), isOn: $controller.systemAudio)
                 Toggle(tr("麦克风"), isOn: $controller.microphone)
             }
+            if controller.mode == .window, controller.systemAudio {
+                Text(tr("窗口模式只录制所选 App 的声音。")).font(.caption).foregroundStyle(.secondary)
+            }
             HStack {
                 Button(tr("截图"), systemImage: "camera") { controller.begin(.screenshot) }
                 Button(tr("录屏"), systemImage: "record.circle") { controller.begin(.record) }
@@ -79,7 +82,7 @@ struct RecordingPreviewView: View {
     @ObservedObject var controller: CaptureController
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if let player = controller.player { VideoPlayer(player: player).frame(minHeight: 320) }
+            if let player = controller.player { CaptureVideoPlayer(player: player).frame(minHeight: 320) }
             HStack {
                 Text(tr("开始时间"))
                 Slider(value: $controller.trimStart, in: 0...max(0.01, controller.duration - 0.01)).disabled(controller.exporting).onChange(of: controller.trimStart) { controller.seekTrim() }
@@ -102,5 +105,24 @@ struct RecordingPreviewView: View {
                 }
             }
         }.padding(20).frame(minWidth: 650, minHeight: 470)
+    }
+}
+
+/// Use AVKit's native view directly; the SwiftUI VideoPlayer overlay can fail
+/// while initializing runtime metadata on newer macOS releases.
+private struct CaptureVideoPlayer: NSViewRepresentable {
+    let player: AVPlayer
+    func makeNSView(context: Context) -> AVPlayerView {
+        let view = AVPlayerView()
+        view.controlsStyle = .inline
+        view.videoGravity = .resizeAspect
+        view.player = player
+        return view
+    }
+    func updateNSView(_ view: AVPlayerView, context: Context) {
+        if view.player !== player { view.player = player }
+    }
+    static func dismantleNSView(_ view: AVPlayerView, coordinator: ()) {
+        view.player = nil
     }
 }

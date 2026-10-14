@@ -2077,6 +2077,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 截图标注与屏幕录制，内容仅保存在本机。	Annotez vos captures et enregistrez l’écran. Le contenu reste sur ce Mac.
 捕获范围	Cible de capture
 系统声音	Audio système
+窗口模式只录制所选 App 的声音。	Le mode fenêtre enregistre uniquement le son de l’app sélectionnée.
 麦克风	Microphone
 常驻菜单栏	Rester dans la barre des menus
 关闭后按需退出；常驻时可使用全局快捷键。	Quitter après fermeture. Les raccourcis globaux nécessitent de rester actif.

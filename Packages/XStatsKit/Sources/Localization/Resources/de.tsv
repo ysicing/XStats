@@ -2077,6 +2077,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Der Hom
 截图标注与屏幕录制，内容仅保存在本机。	Screenshots bearbeiten und Bildschirm aufnehmen. Inhalte bleiben auf diesem Mac.
 捕获范围	Aufnahmeziel
 系统声音	Systemaudio
+窗口模式只录制所选 App 的声音。	Im Fenstermodus wird nur der Ton der ausgewählten App aufgenommen.
 麦克风	Mikrofon
 常驻菜单栏	In Menüleiste bleiben
 关闭后按需退出；常驻时可使用全局快捷键。	Nach Schließen beenden. Im Hintergrund sind globale Kurzbefehle verfügbar.

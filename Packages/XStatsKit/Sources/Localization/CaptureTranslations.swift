@@ -10,6 +10,7 @@ extension Translations {
 截图标注与屏幕录制，内容仅保存在本机。	Annotate screenshots and record your screen. Content stays on this Mac.
 捕获范围	Capture target
 系统声音	System audio
+窗口模式只录制所选 App 的声音。	Window mode records audio only from the selected app.
 常驻菜单栏	Stay in menu bar
 关闭后按需退出；常驻时可使用全局快捷键。	Quit after closing windows. Stay running to use global shortcuts.
 截图快捷键	Screenshot shortcut

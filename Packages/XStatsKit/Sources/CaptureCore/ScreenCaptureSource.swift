@@ -43,7 +43,16 @@ public struct ScreenCaptureSource: @unchecked Sendable {
         try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration(recording: false))
     }
     public static func content() async throws -> SCShareableContent {
-        guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else { throw CaptureError.screenPermission }
-        return try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+        // Let ScreenCaptureKit request authorization. A false CoreGraphics preflight
+        // result must not prevent the framework from presenting its first-use prompt.
+        do {
+            return try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+        } catch {
+            let failure = error as NSError
+            if failure.domain == SCStreamErrorDomain, failure.code == SCStreamError.Code.userDeclined.rawValue {
+                throw CaptureError.screenPermission
+            }
+            throw error
+        }
     }
 }
