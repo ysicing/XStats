@@ -295,9 +295,22 @@ private struct CapacityCard: View {
     }
 }
 
-/// 容量分段：已用（超过 90% 变橙）、可清除、可用，主窗口卡片与菜单栏弹窗共用
+/// APFS 容量组成，读取不可用时保留已用 / 可清除 / 可用汇总。主窗口与弹窗共用。
 enum DiskSegments {
     static func segments(_ disk: DiskUsage) -> [SegmentedBar.Segment] {
+        if let breakdown = disk.breakdown, disk.total > 0 {
+            let parts: [(String, String, UInt64, Color)] = [
+                ("system", tr("系统卷"), breakdown.system, DS.Palette.primary),
+                ("data", tr("数据卷"), breakdown.data, DS.Palette.success),
+                ("vm", tr("虚拟内存"), breakdown.virtualMemory, DS.Palette.warning),
+                ("other", tr("其他系统数据"), breakdown.other, DS.Palette.neutral300),
+                ("purgeable", tr("可清除"), breakdown.purgeable, DS.Palette.secondary),
+                ("free", tr("可用"), breakdown.free, DS.Palette.neutral500),
+            ]
+            return parts.filter { $0.2 > 0 }.map { id, label, bytes, color in
+                SegmentedBar.Segment(id: id, label: label, fraction: Double(bytes) / Double(disk.total), color: color)
+            }
+        }
         var segments = [SegmentedBar.Segment(id: "used", label: tr("已用"), fraction: disk.usedFraction,
                                              color: disk.usedFraction > 0.9 ? DS.Palette.warning : DS.Palette.primary)]
         if disk.purgeable > 0 {
@@ -323,6 +336,10 @@ enum DiskSegments {
 
     private static func bytes(for id: String, in disk: DiskUsage) -> UInt64 {
         switch id {
+        case "system": disk.breakdown?.system ?? 0
+        case "data": disk.breakdown?.data ?? 0
+        case "vm": disk.breakdown?.virtualMemory ?? 0
+        case "other": disk.breakdown?.other ?? 0
         case "used": disk.used
         case "purgeable": disk.purgeable
         default: disk.free

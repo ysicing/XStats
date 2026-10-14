@@ -236,6 +236,7 @@ private struct BatteryHero: View {
                 }
                 .accessibilityElement(children: .combine)
             }
+            BatteryElectricalRows(battery: battery)
         }
     }
 }
@@ -295,6 +296,7 @@ private struct BatteryHealthSection: View {
                 Text(verbatim: battery.health.map { Format.percent($0) } ?? "—")
                     .foregroundStyle(battery.health.map { $0 < 0.8 ? DS.Palette.warning : DS.Palette.textPrimary } ?? DS.Palette.textPrimary)
             }
+            BatteryElectricalRows(battery: battery)
             InfoRow(label: tr("循环次数"), text: battery.cycleCount.map(String.init) ?? "—")
             if let temperature = model.store.sensors?.temperature(.battery) {
                 InfoRow(label: tr("电池温度"), text: Format.temperature(temperature.maximum, fahrenheit: model.settings.useFahrenheit))
@@ -311,6 +313,26 @@ private struct BatteryHealthSection: View {
                 BatterySettingsButton()
             }
         }
+    }
+}
+
+/// 主窗口健康摘要与弹窗复用同一组电气参数，不增加额外读取。
+private struct BatteryElectricalRows: View {
+    let battery: BatteryStatus
+
+    var body: some View {
+        InfoRow(label: tr("设计容量"), text: battery.designCapacity.map {
+            "\($0.formatted(.number.locale(L10n.locale))) mAh"
+        } ?? "—")
+        InfoRow(label: tr("满充容量"), text: battery.fullChargeCapacity.map {
+            "\($0.formatted(.number.locale(L10n.locale))) mAh"
+        } ?? "—")
+        InfoRow(label: tr("电压"), text: battery.voltage.map {
+            "\($0.formatted(.number.precision(.fractionLength(2)).locale(L10n.locale))) V"
+        } ?? "—")
+        InfoRow(label: tr("电流"), text: battery.amperage.map {
+            "\($0.formatted(.number.precision(.fractionLength(2)).locale(L10n.locale))) A"
+        } ?? "—")
     }
 }
 

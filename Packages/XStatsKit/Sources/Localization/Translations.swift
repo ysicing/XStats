@@ -8,8 +8,24 @@
 
 extension Translations {
     static var tables: [String] {
-        [english, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish, appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish]
+        [english, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish, appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish, hardwareDetailsEnglish]
     }
+
+    static let hardwareDetailsEnglish = #"""
+GPU 功耗	GPU Power
+虚拟内存	Virtual Memory
+工作频率	Active Frequency
+渲染器利用率	Renderer Utilization
+分块器利用率	Tiler Utilization
+GPU 内存占用	GPU Memory Usage
+设计容量	Design Capacity
+满充容量	Full Charge Capacity
+电压	Voltage
+电流	Current
+系统卷	System Volume
+数据卷	Data Volume
+其他系统数据	Other System Data
+"""#
 
     static let applicationPresentationEnglish = #"""
 隐藏其他	Hide Others

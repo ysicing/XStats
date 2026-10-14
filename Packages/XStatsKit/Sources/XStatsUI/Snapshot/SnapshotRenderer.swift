@@ -25,6 +25,47 @@ enum SnapshotRenderer {
         do { try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true) }
         catch { reportFailure(outputDirectory, error: error); return }
 
+        if CommandLine.arguments.contains("--hardware-details-only") {
+            let suite = "XStats.hardwareDetailsSnapshot.\(UUID())"
+            guard let defaults = UserDefaults(suiteName: suite) else { return }
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let settings = AppSettings(defaults: defaults)
+            settings.language = L10n.language
+            settings.menuBarItems = []
+            settings.historyEnabled = false
+            settings.enabledAlerts = []
+            settings.panelTab = .gpu
+            let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+            model.isMainWindowVisible = true
+            var demand = model.demand
+            demand.disk = true; demand.diskDetail = true; demand.battery = true
+            await model.hub.update(demand)
+            // 只读当前硬件，不启动其他功能或进程采样。截图写入前停止循环。
+            await model.hub.start(primeAllMetrics: false) { snapshot in model.store.apply(snapshot) }
+            try? await Task.sleep(for: .seconds(5))
+            await model.hub.stop()
+            for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+                guard let appearance = NSAppearance(named: name) else { continue }
+                NSApp.appearance = appearance
+                for (width, detail) in [(DS.Size.popoverWidth, false), (CGFloat(600), true)] {
+                    for item in [MenuBarItem.gpu, .battery, .disk] {
+                        let content = VStack(spacing: DS.Space.s3) {
+                            switch item {
+                            case .gpu: GPUPopover()
+                            case .battery: BatteryPopover()
+                            default: DiskPopover()
+                            }
+                        }
+                        .environment(\.isDetailPage, detail).appLanguageEnvironment()
+                        .padding(DS.Space.s3).frame(width: width)
+                        write(content, model: model, appearance: appearance,
+                              to: outputDirectory.appendingPathComponent("hardware-\(item.rawValue)-\(Int(width))-\(suffix).png"))
+                    }
+                }
+            }
+            return
+        }
+
         if CommandLine.arguments.contains("--app-management-only") {
             let suite = "XStats.appManagementSnapshot.\(UUID())"
             guard let defaults = UserDefaults(suiteName: suite) else { return }

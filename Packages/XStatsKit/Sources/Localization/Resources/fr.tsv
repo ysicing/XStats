@@ -2078,3 +2078,17 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 丢包	Perte de paquets
 结束时间：{}	Fin à {}
 最近 {} 次探测	{} dernières sondes
+
+工作频率	Fréquence en activité
+渲染器利用率	Utilisation du moteur de rendu
+分块器利用率	Utilisation du moteur de tuilage
+GPU 内存占用	Mémoire GPU utilisée
+设计容量	Capacité nominale
+满充容量	Capacité à pleine charge
+电压	Tension
+电流	Courant
+系统卷	Volume système
+数据卷	Volume de données
+其他系统数据	Autres données système
+GPU 功耗	Puissance GPU
+虚拟内存	Mémoire virtuelle

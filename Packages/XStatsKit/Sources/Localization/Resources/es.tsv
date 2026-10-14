@@ -2078,3 +2078,17 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 丢包	Pérdida de paquetes
 结束时间：{}	Finaliza a las {}
 最近 {} 次探测	Últimas {} comprobaciones
+
+工作频率	Frecuencia activa
+渲染器利用率	Uso del renderizador
+分块器利用率	Uso del motor de mosaicos
+GPU 内存占用	Memoria de GPU usada
+设计容量	Capacidad de diseño
+满充容量	Capacidad de carga completa
+电压	Voltaje
+电流	Corriente
+系统卷	Volumen del sistema
+数据卷	Volumen de datos
+其他系统数据	Otros datos del sistema
+GPU 功耗	Potencia de GPU
+虚拟内存	Memoria virtual

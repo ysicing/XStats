@@ -108,6 +108,10 @@ README 共用图库选取 AI、历史、显示器、番茄钟、音频与日历�
 截图统一使用当前发布构建；核心监控和工具页可来自完整模式的只读采样，公开使用前检查用户路径、设备标识和真实地址。
 保留演示数据说明，不把模拟组件版本当成实际发布版本。
 
+硬件详情走查：`XStats --snapshot <目录> --hardware-details-only --language zh-Hans` 使用隔离偏好，只读采集 GPU、电池和磁盘约五秒，停止采样后输出 320 点弹窗与 600 点详情的明暗截图。使用 `de`、`ar` 检查长译文及 RTL；这些截图采用真实本机数据，无内置电池或不支持的属性沿用缺失状态。单元测试中的演示读数与实机截图应分别标注。
+
+GPU 采样生命周期的实机检查：设置 `XSTATS_GPU_RESOURCE_REPORT=<输出路径>`，单独筛选 `HardwareDetailsPresentationTests/gpuDetailsSamplingStopsAndRestartsWithFreshBaselines`；记录关闭、重开、暂停、恢复及功能关闭阶段的样本数与 CPU 时间。磁盘组成的单次只读检查：设置 `XSTATS_DISK_DETAILS_REPORT=<输出路径>`，筛选 `HardwareDetailsTests/realDiskCompositionIsReadableAndBounded`。未提供环境变量时不运行这些延时硬件检查。
+
 菜单栏布局走查可对当前构建运行 `XStats --snapshot <目录> --menubar-only --language zh-Hans`；
 仅采集相关指标，输出三种布局、总览和详情的明暗截图，不扫描清理目录或 AI 日志。
 README 的聚合状态总览使用该模式的 `overview-light.png` / `overview-dark.png`，

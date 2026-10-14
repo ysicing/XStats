@@ -23,6 +23,9 @@ public struct MetricsDemand: Sendable, Equatable {
     public var power = false
     /// 各类核心的频率
     public var cpuFrequency = false
+    /// GPU 详情可见时的频率；功耗另受能耗开关控制
+    public var gpuFrequency = false
+    public var gpuPower = false
     /// 磁盘读写速率与 SMART 健康信息
     public var diskDetail = false
 
@@ -31,7 +34,7 @@ public struct MetricsDemand: Sendable, Equatable {
     /// 没有读取方时连采样循环也停止，不能只跳过某几个采集器后继续定时唤醒。
     public var hasSamples: Bool {
         cpu || memory || network || gpu || disk || battery || processes || systemProcesses
-            || appEnergy || !temperatures.isEmpty || fans || power || cpuFrequency || diskDetail
+            || appEnergy || !temperatures.isEmpty || fans || power || cpuFrequency || gpuFrequency || gpuPower || diskDetail
     }
 }
 
@@ -85,7 +88,13 @@ public actor MetricsHub {
             || (newDemand.appEnergy && !demand.appEnergy)
             || (newDemand.disk && !demand.disk)
             || (newDemand.diskDetail && !demand.diskDetail)
-        if (newDemand.power && !demand.power) || (newDemand.cpuFrequency && !demand.cpuFrequency) {
+            || (newDemand.gpuFrequency && !demand.gpuFrequency)
+            || (newDemand.gpuPower && !demand.gpuPower)
+        if newDemand.power != demand.power || newDemand.cpuFrequency != demand.cpuFrequency
+            || newDemand.gpuFrequency != demand.gpuFrequency || newDemand.gpuPower != demand.gpuPower {
+            power.resetBaselines(gpu: (newDemand.power || newDemand.gpuPower) != (demand.power || demand.gpuPower),
+                                 cpuFrequency: newDemand.cpuFrequency != demand.cpuFrequency,
+                                 gpuFrequency: newDemand.gpuFrequency != demand.gpuFrequency)
             lastPower = .distantPast
         }
         // 关闭期间的累计计数不属于重新启用后的实时速率。
@@ -114,6 +123,8 @@ public actor MetricsHub {
     public func setPaused(_ value: Bool) {
         guard value != paused else { return }
         paused = value
+        power.resetBaselines()
+        lastPower = .distantPast
         appEnergy = AppEnergySampler()
         nextAppEnergyUptime = nil
         restart()
@@ -123,6 +134,7 @@ public actor MetricsHub {
         loop?.cancel()
         loop = nil
         handler = nil
+        power.resetBaselines()
         appEnergy = AppEnergySampler()
         nextAppEnergyUptime = nil
     }
@@ -186,7 +198,7 @@ public actor MetricsHub {
         }
         if demand.gpu { snapshot.gpu = GPUSampler.sample() }
         if demand.disk, now.timeIntervalSince(lastDisk) > 30 {
-            snapshot.disk = DiskSampler.sample()
+            snapshot.disk = DiskSampler.sample(includeBreakdown: self.demand.diskDetail)
             lastDisk = now
         }
         if demand.battery, now.timeIntervalSince(lastBattery) > 10 {
@@ -216,8 +228,9 @@ public actor MetricsHub {
             }
         }
         // IOReport 采样有一定开销，至少间隔 2 秒
-        if demand.power || demand.cpuFrequency, now.timeIntervalSince(lastPower) >= 1.9 {
-            snapshot.power = power.sample(system: demand.power, gpu: demand.power, frequency: demand.cpuFrequency, now: now)
+        if demand.power || demand.cpuFrequency || demand.gpuFrequency || demand.gpuPower, now.timeIntervalSince(lastPower) >= 1.9 {
+            snapshot.power = power.sample(system: demand.power, gpu: demand.power || demand.gpuPower, frequency: demand.cpuFrequency,
+                                          gpuFrequency: self.demand.gpuFrequency, now: now)
             lastPower = now
         }
         return snapshot

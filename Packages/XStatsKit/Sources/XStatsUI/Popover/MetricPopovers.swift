@@ -747,6 +747,11 @@ struct GPUPopover: View {
                 SectionCard(title: section.title) {
                     InfoRow(label: tr("型号"), text: gpu?.name ?? "—")
                     InfoRow(label: tr("核心数"), text: gpu?.coreCount.map(String.init) ?? "—")
+                    InfoRow(label: tr("GPU 功耗"), text: store.power?.gpu.map { Format.watts($0) } ?? "—")
+                    InfoRow(label: tr("工作频率"), text: store.power?.gpuFrequency.map { Format.frequency(megahertz: $0) } ?? "—")
+                    InfoRow(label: tr("渲染器利用率"), text: gpu?.rendererUtilization.map { Format.percent($0) } ?? "—")
+                    InfoRow(label: tr("分块器利用率"), text: gpu?.tilerUtilization.map { Format.percent($0) } ?? "—")
+                    InfoRow(label: tr("GPU 内存占用"), text: gpu?.memoryInUse.map { Format.bytes($0) } ?? "—")
                     InfoRow(label: tr("平均温度"), text: temperature.map { Format.temperature($0.average, fahrenheit: settings.useFahrenheit) } ?? "—")
                     InfoRow(label: tr("最高温度"), text: temperature.map { Format.temperature($0.maximum, fahrenheit: settings.useFahrenheit) } ?? "—")
                 }

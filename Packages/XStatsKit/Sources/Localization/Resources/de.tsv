@@ -2078,3 +2078,17 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Der Hom
 丢包	Paketverlust
 结束时间：{}	Endet um {}
 最近 {} 次探测	Letzte {} Prüfungen
+
+工作频率	Aktive Taktfrequenz
+渲染器利用率	Renderer-Auslastung
+分块器利用率	Tiler-Auslastung
+GPU 内存占用	GPU-Speicherbelegung
+设计容量	Auslegungskapazität
+满充容量	Kapazität bei voller Ladung
+电压	Spannung
+电流	Stromstärke
+系统卷	Systemvolume
+数据卷	Datenvolume
+其他系统数据	Sonstige Systemdaten
+GPU 功耗	GPU-Leistung
+虚拟内存	Virtueller Speicher

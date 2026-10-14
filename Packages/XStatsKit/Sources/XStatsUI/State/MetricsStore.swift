@@ -70,7 +70,8 @@ public final class MetricsStore {
 
     /// 关闭功能后移除实时缓存，避免重新打开页面把旧值当作当前值。
     /// 持久化历史由 HistoryRecorder 管理，不在这里删除。
-    func clearDisabledModules(_ enabled: Set<MonitoringModule>, powerRequested: Bool = false, appEnergyRequested: Bool = false) {
+    func clearDisabledModules(_ enabled: Set<MonitoringModule>, powerRequested: Bool = false,
+                              gpuPowerRequested: Bool = false, gpuFrequencyRequested: Bool = false, appEnergyRequested: Bool = false) {
         if !appEnergyRequested, appEnergy != nil { appEnergy = nil }
         if !enabled.contains(.cpu), cpu != nil || !cpuTotal.elements.isEmpty {
             cpu = nil
@@ -107,19 +108,15 @@ public final class MetricsStore {
                                         fans: fansEnabled ? readings.fans : [], fanCount: fanCount)
             }
         }
-        // 关闭最后一个功耗读取方后清除实时曲线，CPU 频率需求仍独立保留。
-        if !powerRequested, power?.system != nil || power?.gpu != nil || power?.battery != nil || power?.adapter != nil
-            || !powerHistory.elements.isEmpty {
-            power = enabled.contains(.cpu) && power?.clusterFrequency.isEmpty == false
-                ? PowerReading(clusterFrequency: power?.clusterFrequency ?? [:]) : nil
-            powerHistory = History(capacity: Self.historyCapacity)
-        }
-        if !enabled.contains(.cpu), power?.clusterFrequency.isEmpty == false { power?.clusterFrequency = [:] }
+        power = power?.retaining(system: powerRequested, gpu: powerRequested || gpuPowerRequested,
+                                cpuFrequency: enabled.contains(.cpu), gpuFrequency: gpuFrequencyRequested)
+        if !powerRequested, !powerHistory.elements.isEmpty { powerHistory = History(capacity: Self.historyCapacity) }
+
     }
 
     /// 基础容量只在页面打开时读取一次，不启动磁盘活动或 SMART 监控。
     func refreshDiskCapacity() async {
-        let capacity = await Task.detached { DiskSampler.sample() }.value
+        let capacity = await Task.detached { DiskSampler.sample(includeBreakdown: true) }.value
         guard !Task.isCancelled else { return }
         if disk != capacity { disk = capacity }
     }
