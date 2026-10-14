@@ -1,17 +1,11 @@
 {
-  "version": "1.3.1",
+  "version": "1.3.2",
   "sourceNotes": [
-    "应用管理支持检查 App Store 应用更新",
-    "网站分流的 AI 分类新增 xAI 连通性与出口检测",
-    "完善原生应用菜单与主窗口体验，手动启动时打开主窗口，登录与后台启动继续安静运行",
-    "收窄卸载残留扫描范围，避免为识别目标应用而访问其他应用的私有容器"
+    "修复 macOS 15 上蓝牙设备列表触发的启动崩溃"
   ],
   "translations": {
     "en": [
-      "Check App Store app updates in App management. Show an update action beside the version only when a newer release is compatible with this Mac, then let App Store handle the update; failed or unmatched queries keep the current version without an extra indicator",
-      "Add xAI connectivity and egress checks to the AI category in website routing",
-      "Improve native menus and the main window: manual launches open the window, while login and background launches stay quiet. Keep the Dock entry when a window is minimized or hidden, and follow the Dock preference after closing windows while continuing to run in the menu bar",
-      "Limit uninstall leftover scans to the target app to avoid accessing other apps private containers; preserve pending confirmations during system authorization or while the window is hidden, so review can continue after returning"
+      "Fix a startup crash triggered by Bluetooth device lists on macOS 15 and harden list rendering in monitoring pages, menu bar details, and the update page. If the old version cannot launch, download the 1.3.2 DMG, drag XStats into Applications to replace it, and reopen the app"
     ]
   }
 }
