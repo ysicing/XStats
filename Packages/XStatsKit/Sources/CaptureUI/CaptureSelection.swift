@@ -27,6 +27,7 @@ import Localization
                           let display = content.displays.first(where: { $0.displayID == id }) else { continue }
                     let panel = SelectionPanel(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
                     panel.isReleasedWhenClosed = false
+                    panel.acceptsMouseMovedEvents = true
                     panel.level = .screenSaver; panel.isOpaque = false; panel.backgroundColor = .clear
                     panel.hidesOnDeactivate = false; panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
                     let view = SelectionView(frame: CGRect(origin: .zero, size: screen.frame.size), mode: mode, action: action,

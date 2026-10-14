@@ -25,14 +25,18 @@ extension ImageTool {
     var imageIsCurrent = true
     var error: String?
     var onPin: (CGImage) -> Void = { _ in }
+    private(set) var terminating = false
     private var renderTask: Task<Void, Never>?
     private var cancelWorker: (() -> Void)?
-    init(image: CGImage) {
+    private var pendingTasks: [UUID: Task<Void, Never>] = [:]
+    private let saveImage: @Sendable (ImageEditDocument, URL, Bool) throws -> Void
+    init(image: CGImage, saveImage: @escaping @Sendable (ImageEditDocument, URL, Bool) throws -> Void = { try $0.save(to: $1, jpeg: $2) }) {
+        self.saveImage = saveImage
         document = ImageEditDocument(image: image)
         self.image = NSImage(cgImage: image, size: CGSize(width: image.width, height: image.height))
     }
     func commit(_ points: [CGPoint]) {
-        guard !rendering, !points.isEmpty else { return }
+        guard !terminating, !rendering, !points.isEmpty else { return }
         do {
             if tool == .crop, let first = points.first, let last = points.last {
                 try document.crop(to: CGRect(x: min(first.x, last.x), y: min(first.y, last.y), width: abs(first.x - last.x), height: abs(first.y - last.y)))
@@ -42,15 +46,18 @@ extension ImageTool {
             refresh()
         } catch { self.error = error.localizedDescription }
     }
-    func undo() { document.undo(); refresh() }
-    func redo() { document.redo(); refresh() }
+    func undo() { guard !terminating else { return }; document.undo(); refresh() }
+    func redo() { guard !terminating else { return }; document.redo(); refresh() }
     private func refresh() {
+        guard !terminating else { return }
         cancelPendingWork()
         rendering = true; dirty = true; imageIsCurrent = false; error = nil
         let document = document
         let worker = Task.detached(priority: .userInitiated) { try document.render() }
         cancelWorker = { worker.cancel() }
-        renderTask = Task {
+        let id = UUID()
+        let task = Task {
+            defer { pendingTasks[id] = nil }
             do {
                 let result = try await withTaskCancellationHandler { try await worker.value } onCancel: { worker.cancel() }
                 guard !Task.isCancelled else { return }
@@ -62,15 +69,16 @@ extension ImageTool {
             }
             rendering = false; cancelWorker = nil
         }
+        renderTask = task; pendingTasks[id] = task
     }
     func copy() {
-        guard !rendering, imageIsCurrent else { return }
+        guard !terminating, !rendering, imageIsCurrent else { return }
         NSPasteboard.general.clearContents()
         if NSPasteboard.general.writeObjects([image]) { dirty = false }
         else { error = CaptureError.exportFailed.localizedDescription }
     }
     func save(jpeg: Bool) {
-        guard !rendering else { return }
+        guard !terminating, !rendering else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = jpeg ? [.jpeg] : [.png]
         panel.nameFieldStringValue = "Screenshot.\(jpeg ? "jpg" : "png")"
@@ -78,12 +86,15 @@ extension ImageTool {
         save(to: url, jpeg: jpeg)
     }
     func save(to url: URL, jpeg: Bool) {
-        guard !rendering else { return }
+        guard !terminating, !rendering else { return }
         let document = document
         rendering = true; error = nil
-        let worker = Task.detached(priority: .userInitiated) { try document.save(to: url, jpeg: jpeg) }
+        let saveImage = saveImage
+        let worker = Task.detached(priority: .userInitiated) { try saveImage(document, url, jpeg) }
         cancelWorker = { worker.cancel() }
-        renderTask = Task {
+        let id = UUID()
+        let task = Task {
+            defer { pendingTasks[id] = nil }
             do {
                 try await withTaskCancellationHandler { try await worker.value } onCancel: { worker.cancel() }
                 guard !Task.isCancelled else { return }
@@ -94,14 +105,21 @@ extension ImageTool {
             }
             rendering = false; cancelWorker = nil
         }
+        renderTask = task; pendingTasks[id] = task
     }
     func pin() {
-        guard imageIsCurrent, !rendering, let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+        guard !terminating, imageIsCurrent, !rendering, let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
         onPin(cgImage)
     }
-    func cancelPendingWork() {
+    func cancelPendingWork(terminating: Bool = false) {
+        if terminating { self.terminating = true }
         renderTask?.cancel(); cancelWorker?()
         renderTask = nil; cancelWorker = nil; rendering = false
+    }
+    /// 取消不等于工作线程已退出；保留所有未收尾任务，直到编码与临时文件清理完成。
+    func waitForPendingWork() async {
+        let tasks = Array(pendingTasks.values)
+        for task in tasks { await task.value }
     }
 }
 
@@ -157,7 +175,7 @@ private struct ImageEditorView: View {
                     Button("JPEG") { model.save(jpeg: true) }
                 }
             }.padding()
-        }.disabled(model.rendering)
+        }.disabled(model.rendering || model.terminating)
     }
 }
 

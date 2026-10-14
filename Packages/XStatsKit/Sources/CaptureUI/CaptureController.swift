@@ -209,11 +209,12 @@ import Localization
                         try await recorder.start(source: source, options: options)
                         try Task.checkCancellation()
                     } catch {
+                        let failure = error is CancellationError ? error : CaptureError.recordingFailure(error)
                         // 初次启动失败没有可恢复的片段，释放占位状态以允许再次录制。
                         self.recorder = nil
                         do { try await recorder.discard() }
                         catch { Self.logger.error("Failed to discard media after recording startup failure") }
-                        throw error
+                        throw failure
                     }
                     try state.transition(to: .recording)
                     transitioning = false; paused = false
@@ -453,8 +454,10 @@ import Localization
     func discardAndStop() async {
         terminating = true
         operation?.cancel(); selector.cancel(); exporter.cancel()
-        for editor in editors { editor.model.cancelPendingWork() }
+        let models = editors.map(\.model)
+        for model in models { model.cancelPendingWork(terminating: true) }
         Self.logger.notice("Cancelling capture operations before termination")
+        for model in models { await model.waitForPendingWork() }
         await operation?.value
         do { try await recorder?.discard() }
         catch { Self.logger.error("Failed to discard recording media before termination") }
