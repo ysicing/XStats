@@ -6,6 +6,65 @@ import CoreGraphics
 @testable import CaptureCore
 
 @Suite struct ImageEditingTests {
+    @Test func objectEditsAndDeletionRestoreIdentityAndStyleThroughHistory() throws {
+        var document = ImageEditDocument(image: try image())
+        let original = ImageAnnotation(tool: .text, points: [CGPoint(x: 4, y: 5)], text: "Before")
+        document.add(original)
+        var edited = original.translated(by: CGSize(width: 8, height: 6))
+        edited.text = "After"; edited.fontSize = 40
+        document.update(edited)
+        document.remove(id: original.id)
+        #expect(document.annotations.isEmpty)
+        document.undo()
+        #expect(document.annotations == [edited])
+        document.undo()
+        #expect(document.annotations == [original])
+        document.redo()
+        #expect(document.annotations == [edited])
+        document.redo()
+        #expect(document.annotations.isEmpty)
+    }
+    @Test func hitTestingUsesVisibleShapesAndTopmostObject() throws {
+        var document = ImageEditDocument(image: try image())
+        let line = ImageAnnotation(tool: .arrow, points: [CGPoint(x: 2, y: 2), CGPoint(x: 25, y: 20)])
+        let cover = ImageAnnotation(tool: .redact, points: [CGPoint(x: 10, y: 10), CGPoint(x: 20, y: 20)])
+        document.add(line); document.add(cover)
+        #expect(document.annotation(at: CGPoint(x: 15, y: 15), tolerance: 2)?.id == cover.id)
+        #expect(line.contains(CGPoint(x: 3, y: 20), tolerance: 2) == false)
+        #expect(line.contains(CGPoint(x: 12, y: 10), tolerance: 2))
+        #expect(document.annotation(at: CGPoint(x: 35, y: 25), tolerance: 2) == nil)
+    }
+    @Test func movingRedactionChangesFinalPixelsAndDeletionRestoresThem() throws {
+        var document = ImageEditDocument(image: try image())
+        let cover = ImageAnnotation(tool: .redact, points: [CGPoint(x: 2, y: 2), CGPoint(x: 8, y: 8)])
+        document.add(cover)
+        document.update(cover.translated(by: CGSize(width: 20, height: 10)))
+        let output = try document.render()
+        let bytes = try #require(output.dataProvider?.data) as Data
+        #expect(bytes[4 * output.bytesPerRow + 4 * 4] == 255)
+        #expect(bytes[14 * output.bytesPerRow + 24 * 4] == 0)
+        document.remove(id: cover.id)
+        let clean = try document.render()
+        let restored = try #require(clean.dataProvider?.data) as Data
+        #expect(restored[14 * clean.bytesPerRow + 24 * 4] == 255)
+    }
+    @Test func resizingPenPreservesItsShapeAndIdentity() {
+        let pen = ImageAnnotation(tool: .pen, points: [CGPoint(x: 10, y: 10), CGPoint(x: 15, y: 20), CGPoint(x: 20, y: 10)])
+        let resized = pen.resized(to: CGRect(x: 20, y: 30, width: 20, height: 30))
+        #expect(resized.id == pen.id)
+        #expect(resized.points == [CGPoint(x: 20, y: 30), CGPoint(x: 30, y: 60), CGPoint(x: 40, y: 30)])
+    }
+    @Test func noOpAndMissingObjectEditsDoNotConsumeUndo() throws {
+        var document = ImageEditDocument(image: try image())
+        let item = ImageAnnotation(tool: .rectangle, points: [CGPoint(x: 3, y: 3), CGPoint(x: 20, y: 20)])
+        document.add(item)
+        document.update(item)
+        document.remove(id: UUID())
+        document.undo()
+        #expect(document.annotations.isEmpty && !document.canUndo)
+        document.add(item)
+        #expect(!document.canRedo)
+    }
     private func image() throws -> CGImage {
         let context = try #require(CGContext(data: nil, width: 40, height: 30, bitsPerComponent: 8, bytesPerRow: 0,
                                             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))

@@ -2155,3 +2155,25 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 截取屏幕	Capturer l’écran
 确认捕获范围和声音设置后，开始录制。	Vérifiez la cible et l’audio, puis démarrez l’enregistrement.
 关闭设置	Fermer les réglages
+选择	Sélection
+颜色	Couleur
+字号 {}	Taille {}
+粗细	Épaisseur
+细	Fin
+中	Moyen
+粗	Épais
+实色遮挡	Masquage opaque
+删除标注	Supprimer l’annotation
+图片格式	Format d’image
+红色	Rouge
+橙色	Orange
+黄色	Jaune
+绿色	Vert
+蓝色	Bleu
+白色	Blanc
+黑色	Noir
+标注画布	Zone d’annotation
+拖动标注移动，拖动控制点调整；双击文字编辑，Delete 删除。	Glissez pour déplacer, utilisez les poignées pour redimensionner. Double-cliquez le texte pour modifier, Delete pour supprimer.
+点击图片输入文字，Return 完成，Esc 取消。	Cliquez sur l’image pour écrire. Return valide, Esc annule.
+点击标注选中，拖动移动；Esc 取消选择。	Cliquez une annotation pour sélectionner, glissez pour déplacer. Esc désélectionne.
+在图片上拖动绘制，Esc 取消。	Glissez sur l’image pour dessiner. Esc annule.

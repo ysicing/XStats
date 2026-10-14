@@ -18,8 +18,13 @@ extension ImageTool {
 @MainActor @Observable final class ImageEditorModel {
     var document: ImageEditDocument
     var image: NSImage
-    var tool: ImageTool = .arrow
-    var text = ""
+    var tool: ImageTool?
+    var selectedID: UUID?
+    var color = NSColor.systemRed
+    var lineWidth: CGFloat = 4
+    var fontSize: CGFloat = 26
+    var editingText = false
+    @ObservationIgnored var finishEditing: () -> Void = {}
     var dirty = true
     var rendering = false
     var imageIsCurrent = true
@@ -35,19 +40,53 @@ extension ImageTool {
         document = ImageEditDocument(image: image)
         self.image = NSImage(cgImage: image, size: CGSize(width: image.width, height: image.height))
     }
-    func commit(_ points: [CGPoint]) {
-        guard !terminating, !rendering, !points.isEmpty else { return }
-        do {
-            if tool == .crop, let first = points.first, let last = points.last {
-                try document.crop(to: CGRect(x: min(first.x, last.x), y: min(first.y, last.y), width: abs(first.x - last.x), height: abs(first.y - last.y)))
-            } else if tool != .text || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                document.add(ImageAnnotation(tool: tool, points: points, text: text))
-            }
-            refresh()
-        } catch { self.error = error.localizedDescription }
+    var selected: ImageAnnotation? { document.annotations.first { $0.id == selectedID } }
+    var effectiveTool: ImageTool? { selected?.tool ?? tool }
+    func select(_ id: UUID?) {
+        selectedID = id
+        if let item = selected {
+            color = NSColor(cgColor: item.color) ?? .systemRed
+            lineWidth = item.lineWidth; fontSize = item.fontSize
+        }
     }
-    func undo() { guard !terminating else { return }; document.undo(); refresh() }
-    func redo() { guard !terminating else { return }; document.redo(); refresh() }
+    func annotation(tool: ImageTool, points: [CGPoint], text: String = "") -> ImageAnnotation {
+        ImageAnnotation(tool: tool, points: points, text: text, color: color.cgColor, lineWidth: lineWidth, fontSize: fontSize)
+    }
+    func commit(_ item: ImageAnnotation) {
+        guard !terminating, !rendering, !item.points.isEmpty else { return }
+        if item.tool == .crop {
+            do { try document.crop(to: item.bounds); select(nil); refresh() }
+            catch { self.error = error.localizedDescription }
+            return
+        }
+        guard item.tool != .text || !item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        if document.annotations.contains(where: { $0.id == item.id }) {
+            guard selected != item else { return }
+            document.update(item)
+        } else { document.add(item) }
+        tool = nil; select(item.id); refresh()
+    }
+    func applyStyle() {
+        // Inline text uses the current style when committed; avoid replacing its draft mid-edit.
+        guard !editingText else { return }
+        guard var item = selected else { return }
+        if item.tool != .redact { item.color = color.cgColor }
+        item.lineWidth = lineWidth; item.fontSize = fontSize
+        commit(item)
+    }
+    func deleteSelected() {
+        guard !terminating, !rendering, let id = selectedID else { return }
+        finishEditing()
+        document.remove(id: id); select(nil); refresh()
+    }
+    func undo() {
+        guard !terminating else { return }
+        finishEditing(); document.undo(); select(nil); refresh()
+    }
+    func redo() {
+        guard !terminating else { return }
+        finishEditing(); document.redo(); select(nil); refresh()
+    }
     private func refresh() {
         guard !terminating else { return }
         cancelPendingWork()
@@ -72,18 +111,26 @@ extension ImageTool {
         renderTask = task; pendingTasks[id] = task
     }
     func copy() {
-        guard !terminating, !rendering, imageIsCurrent else { return }
-        NSPasteboard.general.clearContents()
-        if NSPasteboard.general.writeObjects([image]) { dirty = false }
-        else { error = CaptureError.exportFailed.localizedDescription }
+        finishEditing()
+        Task {
+            await waitForPendingWork()
+            guard !terminating, !rendering, imageIsCurrent else { return }
+            NSPasteboard.general.clearContents()
+            if NSPasteboard.general.writeObjects([image]) { dirty = false }
+            else { error = CaptureError.exportFailed.localizedDescription }
+        }
     }
     func save(jpeg: Bool) {
-        guard !terminating, !rendering else { return }
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = jpeg ? [.jpeg] : [.png]
-        panel.nameFieldStringValue = "Screenshot.\(jpeg ? "jpg" : "png")"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        save(to: url, jpeg: jpeg)
+        finishEditing()
+        Task {
+            await waitForPendingWork()
+            guard !terminating, !rendering else { return }
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = jpeg ? [.jpeg] : [.png]
+            panel.nameFieldStringValue = "Screenshot.\(jpeg ? "jpg" : "png")"
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            save(to: url, jpeg: jpeg)
+        }
     }
     func save(to url: URL, jpeg: Bool) {
         guard !terminating, !rendering else { return }
@@ -108,8 +155,13 @@ extension ImageTool {
         renderTask = task; pendingTasks[id] = task
     }
     func pin() {
-        guard !terminating, imageIsCurrent, !rendering, let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
-        onPin(cgImage)
+        finishEditing()
+        Task {
+            await waitForPendingWork()
+            guard !terminating, imageIsCurrent, !rendering,
+                  let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+            onPin(cgImage)
+        }
     }
     func cancelPendingWork(terminating: Bool = false) {
         if terminating { self.terminating = true }
@@ -137,10 +189,15 @@ extension ImageTool {
     }
     required init?(coder: NSCoder) { fatalError() }
     func applyLanguage(_ language: AppLanguage) {
+        model.finishEditing()
         window?.title = L10n.translate("截图编辑", language: language)
-        window?.contentView = NSHostingView(rootView: ImageEditorView(model: model).environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight).environment(\.locale, L10n.locale(for: language)))
+        let content = NSHostingView(rootView: ImageEditorView(model: model).environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight).environment(\.locale, L10n.locale(for: language)))
+        // This resizable editor has an explicit minimum; property changes must not resize it.
+        content.sizingOptions = []
+        window?.contentView = content
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        model.finishEditing()
         guard !model.rendering else { return false }
         guard model.dirty else { return true }
         let alert = NSAlert()
@@ -153,78 +210,114 @@ extension ImageTool {
 
 private struct ImageEditorView: View {
     @Bindable var model: ImageEditorModel
+    private let colors: [NSColor] = [.systemRed, .systemOrange, .systemYellow, .systemGreen, .systemBlue, .white, .black]
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Picker(tr("标注工具"), selection: $model.tool) { ForEach(ImageTool.allCases) { Text($0.title).tag($0) } }
-                    .pickerStyle(.segmented)
-                Button(tr("撤销"), systemImage: "arrow.uturn.backward") { model.undo() }.disabled(!model.document.canUndo)
-                Button(tr("重做"), systemImage: "arrow.uturn.forward") { model.redo() }.disabled(!model.document.canRedo)
-            }.padding()
-            if model.tool == .text { TextField(tr("标注文字"), text: $model.text).textFieldStyle(.roundedBorder).padding(.horizontal).padding(.bottom, 8) }
-            ImageCanvas(model: model)
-                .background(.quaternary)
-            HStack {
-                if model.rendering { ProgressView().controlSize(.small) }
-                if let error = model.error { Text(error).foregroundStyle(.red).font(.caption) }
-                Spacer()
-                Button(tr("置顶")) { model.pin() }.disabled(!model.imageIsCurrent)
-                Button(tr("复制")) { model.copy() }.keyboardShortcut("c", modifiers: .command).disabled(!model.imageIsCurrent)
-                Menu(tr("保存")) {
-                    Button("PNG") { model.save(jpeg: false) }
-                    Button("JPEG") { model.save(jpeg: true) }
+            HStack(spacing: 8) {
+                toolButton(nil, title: tr("选择"), symbol: "cursorarrow")
+                Divider().frame(height: 24)
+                ForEach(ImageTool.allCases) { tool in
+                    toolButton(tool, title: tool.title, symbol: tool.symbol)
                 }
-            }.padding()
+                Spacer(minLength: 12)
+                Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward") }
+                    .help(tr("撤销")).accessibilityLabel(tr("撤销"))
+                    .keyboardShortcut("z", modifiers: .command).disabled(!model.document.canUndo)
+                Button { model.redo() } label: { Image(systemName: "arrow.uturn.forward") }
+                    .help(tr("重做")).accessibilityLabel(tr("重做"))
+                    .keyboardShortcut("z", modifiers: [.command, .shift]).disabled(!model.document.canRedo)
+            }.padding(.horizontal, 16).padding(.vertical, 12)
+            Divider()
+            HStack(spacing: 12) {
+                if let tool = model.effectiveTool, tool != .crop, tool != .redact {
+                    Text(tr("颜色")).font(.caption).foregroundStyle(.secondary)
+                    ForEach(colors.indices, id: \.self) { index in
+                        Button {
+                            model.color = colors[index]; model.applyStyle()
+                        } label: {
+                            Circle().fill(Color(nsColor: colors[index])).frame(width: 16, height: 16)
+                                .overlay(Circle().stroke(.primary.opacity(0.3), lineWidth: 1))
+                                .padding(3)
+                                .overlay(Circle().stroke(colorIsSelected(colors[index]) ? Color.accentColor : .clear, lineWidth: 2))
+                        }.buttonStyle(.borderless)
+                            .help(tr(colorNames[index])).accessibilityLabel(tr(colorNames[index]))
+                            .accessibilityAddTraits(colorIsSelected(colors[index]) ? .isSelected : [])
+                    }
+                    Divider().frame(height: 18)
+                    if tool == .text {
+                        Stepper(value: $model.fontSize, in: 12...96, step: 2) {
+                            Text(tr("字号 {}").replacingOccurrences(of: "{}", with: Int(model.fontSize).formatted(.number.locale(L10n.locale))))
+                        }.fixedSize().onChange(of: model.fontSize) { model.applyStyle() }
+                    } else {
+                        Picker(tr("粗细"), selection: $model.lineWidth) {
+                            Text(tr("细")).tag(CGFloat(2))
+                            Text(tr("中")).tag(CGFloat(4))
+                            Text(tr("粗")).tag(CGFloat(8))
+                        }.fixedSize().onChange(of: model.lineWidth) { model.applyStyle() }
+                    }
+                } else if model.effectiveTool == .redact {
+                    Label(tr("实色遮挡"), systemImage: "square.fill").font(.callout).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if model.selected != nil {
+                    Button(tr("删除标注"), systemImage: "trash") { model.deleteSelected() }
+                }
+            }.frame(minHeight: 28).padding(.horizontal, 16).padding(.vertical, 8)
+            ImageCanvas(model: model).frame(maxWidth: .infinity, maxHeight: .infinity).background(.quaternary)
+            HStack {
+                Text(instruction).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                if model.rendering { ProgressView().controlSize(.small) }
+                Button(tr("置顶"), systemImage: "pin") { model.pin() }.disabled(!model.imageIsCurrent)
+                Button(tr("复制"), systemImage: "doc.on.doc") { model.copy() }
+                    .keyboardShortcut("c", modifiers: .command).disabled(!model.imageIsCurrent)
+                Button(tr("保存"), systemImage: "square.and.arrow.down") { model.save(jpeg: false) }
+                    .buttonStyle(.borderedProminent).keyboardShortcut("s", modifiers: .command)
+                Menu { Button("PNG") { model.save(jpeg: false) }; Button("JPEG") { model.save(jpeg: true) } }
+                    label: { Image(systemName: "chevron.down") }
+                    .menuStyle(.borderlessButton).fixedSize().help(tr("图片格式")).accessibilityLabel(tr("图片格式"))
+            }.padding(16)
+            if let error = model.error { Text(error).foregroundStyle(.red).font(.caption).padding(.horizontal, 16).padding(.bottom, 12) }
         }.disabled(model.rendering || model.terminating)
     }
+    private var colorNames: [String] { ["红色", "橙色", "黄色", "绿色", "蓝色", "白色", "黑色"] }
+    private func colorIsSelected(_ color: NSColor) -> Bool {
+        guard let current = model.color.usingColorSpace(.sRGB), let candidate = color.usingColorSpace(.sRGB) else { return false }
+        return abs(current.redComponent - candidate.redComponent) < 0.005
+            && abs(current.greenComponent - candidate.greenComponent) < 0.005
+            && abs(current.blueComponent - candidate.blueComponent) < 0.005
+    }
+    private var instruction: String {
+        if model.selected != nil { return tr("拖动标注移动，拖动控制点调整；双击文字编辑，Delete 删除。") }
+        if model.tool == .text { return tr("点击图片输入文字，Return 完成，Esc 取消。") }
+        if model.tool == nil { return tr("点击标注选中，拖动移动；Esc 取消选择。") }
+        return tr("在图片上拖动绘制，Esc 取消。")
+    }
+    private func toolButton(_ tool: ImageTool?, title: String, symbol: String) -> some View {
+        Button {
+            model.finishEditing(); model.select(nil); model.tool = tool
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: symbol).font(.system(size: 17))
+                Text(title).font(.caption)
+            }.frame(minWidth: 36, minHeight: 38).padding(.horizontal, 4)
+                .foregroundStyle(model.tool == tool ? Color.accentColor : .primary)
+                .background(model.tool == tool ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        }.buttonStyle(.borderless).help(title).accessibilityLabel(title)
+            .accessibilityAddTraits(model.tool == tool ? .isSelected : [])
+    }
 }
 
-private struct ImageCanvas: NSViewRepresentable {
-    let model: ImageEditorModel
-    func makeNSView(context: Context) -> ImageCanvasView { ImageCanvasView(model: model) }
-    func updateNSView(_ view: ImageCanvasView, context: Context) { view.needsDisplay = true }
-}
-
-@MainActor private final class ImageCanvasView: NSView {
-    let model: ImageEditorModel
-    private var points: [CGPoint] = []
-    override var isFlipped: Bool { true }
-    init(model: ImageEditorModel) { self.model = model; super.init(frame: .zero) }
-    required init?(coder: NSCoder) { fatalError() }
-    private var imageRect: CGRect {
-        let size = model.image.size
-        let scale = min((bounds.width - 24) / size.width, (bounds.height - 24) / size.height)
-        let width = max(1, size.width * scale), height = max(1, size.height * scale)
-        return CGRect(x: (bounds.width - width) / 2, y: (bounds.height - height) / 2, width: width, height: height)
-    }
-    private func imagePoint(_ event: NSEvent) -> CGPoint {
-        let point = convert(event.locationInWindow, from: nil), rect = imageRect, crop = model.document.cropRect
-        return CGPoint(x: crop.minX + min(max(0, (point.x - rect.minX) / rect.width), 1) * crop.width,
-                       y: crop.minY + min(max(0, (point.y - rect.minY) / rect.height), 1) * crop.height)
-    }
-    override func mouseDown(with event: NSEvent) {
-        guard !model.rendering, imageRect.contains(convert(event.locationInWindow, from: nil)) else { return }
-        points = [imagePoint(event)]; needsDisplay = true
-    }
-    override func mouseDragged(with event: NSEvent) {
-        guard !points.isEmpty, points.count < 4096 else { return }
-        if model.tool == .pen { points.append(imagePoint(event)) }
-        else { points = [points[0], imagePoint(event)] }
-        needsDisplay = true
-    }
-    override func mouseUp(with event: NSEvent) {
-        guard !points.isEmpty else { return }
-        if model.tool != .pen { points = [points[0], imagePoint(event)] }
-        model.commit(points); points.removeAll(); needsDisplay = true
-    }
-    override func draw(_ dirtyRect: NSRect) {
-        model.image.draw(in: imageRect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
-        guard let first = points.first else { return }
-        let path = NSBezierPath()
-        let crop = model.document.cropRect, rect = imageRect
-        let scale = rect.width / crop.width
-        path.move(to: CGPoint(x: rect.minX + (first.x - crop.minX) * scale, y: rect.minY + (first.y - crop.minY) * scale))
-        for point in points.dropFirst() { path.line(to: CGPoint(x: rect.minX + (point.x - crop.minX) * scale, y: rect.minY + (point.y - crop.minY) * scale)) }
-        NSColor.controlAccentColor.setStroke(); path.lineWidth = 2; path.stroke()
+extension ImageTool {
+    var symbol: String {
+        switch self {
+        case .crop: "crop"
+        case .arrow: "arrow.up.right"
+        case .rectangle: "rectangle"
+        case .pen: "pencil.tip"
+        case .text: "textformat"
+        case .redact: "square.fill"
+        }
     }
 }

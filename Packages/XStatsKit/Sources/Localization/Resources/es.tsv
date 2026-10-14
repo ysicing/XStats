@@ -2155,3 +2155,25 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 截取屏幕	Capturar la pantalla
 确认捕获范围和声音设置后，开始录制。	Confirma el destino y el audio y comienza la grabación.
 关闭设置	Cerrar ajustes
+选择	Seleccionar
+颜色	Color
+字号 {}	Tamaño {}
+粗细	Grosor
+细	Fino
+中	Medio
+粗	Grueso
+实色遮挡	Ocultación opaca
+删除标注	Eliminar anotación
+图片格式	Formato de imagen
+红色	Rojo
+橙色	Naranja
+黄色	Amarillo
+绿色	Verde
+蓝色	Azul
+白色	Blanco
+黑色	Negro
+标注画布	Lienzo de anotación
+拖动标注移动，拖动控制点调整；双击文字编辑，Delete 删除。	Arrastra para mover y usa los controles para cambiar el tamaño. Doble clic para editar texto y Delete para eliminar.
+点击图片输入文字，Return 完成，Esc 取消。	Haz clic en la imagen para escribir. Return confirma y Esc cancela.
+点击标注选中，拖动移动；Esc 取消选择。	Haz clic para seleccionar y arrastra para mover. Esc quita la selección.
+在图片上拖动绘制，Esc 取消。	Arrastra sobre la imagen para dibujar. Esc cancela.

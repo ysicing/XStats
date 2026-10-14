@@ -88,5 +88,27 @@ extension Translations {
 截取屏幕	Capture screen
 确认捕获范围和声音设置后，开始录制。	Confirm the target and audio settings, then start recording.
 关闭设置	Close settings
+选择	Select
+颜色	Color
+字号 {}	Size {}
+粗细	Stroke
+细	Thin
+中	Medium
+粗	Thick
+实色遮挡	Solid redaction
+删除标注	Delete annotation
+图片格式	Image format
+红色	Red
+橙色	Orange
+黄色	Yellow
+绿色	Green
+蓝色	Blue
+白色	White
+黑色	Black
+标注画布	Annotation canvas
+拖动标注移动，拖动控制点调整；双击文字编辑，Delete 删除。	Drag to move, drag handles to resize; double-click text to edit, Delete to remove.
+点击图片输入文字，Return 完成，Esc 取消。	Click the image to type; Return finishes, Esc cancels.
+点击标注选中，拖动移动；Esc 取消选择。	Click an annotation to select, drag to move; Esc deselects.
+在图片上拖动绘制，Esc 取消。	Drag on the image to draw; Esc cancels.
 """#
 }
