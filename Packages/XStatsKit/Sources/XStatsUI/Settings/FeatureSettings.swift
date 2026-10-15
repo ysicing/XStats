@@ -6,6 +6,8 @@ import NetworkObservation
 import Localization
 import Metrics
 import SwiftUI
+import CaptureCore
+import CaptureUI
 
 /// 功能页的本地导航状态，不写入偏好或设置备份。
 enum FeatureSettingsTab: String, CaseIterable, Identifiable {
@@ -86,12 +88,34 @@ struct FeatureSettings: View {
         }
     }
 
+    private func launchCapture(_ action: CaptureRequest.Action) {
+        XStatsCapture.workspace.open(action)
+    }
+
     private var optionalFeatures: some View {
         @Bindable var settings = model.settings
         return VStack(alignment: .leading, spacing: DS.Space.s4) {
             Text(tr("按需启用工具，关闭后保留配置。"))
                 .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
                 .frame(minHeight: DS.Size.controlHeight, alignment: .topLeading)
+            SettingsGroup {
+                GroupRow(showsDivider: false) {
+                    VStack(alignment: .leading, spacing: DS.Space.s2) {
+                        SettingRow(title: "XStats Capture", subtitle: tr("内置截图与录屏工具，按需使用。"), icon: "camera.viewfinder") {
+                            Menu(tr("打开 XStats Capture")) {
+                                Button(tr("截图")) { launchCapture(.screenshot) }
+                                Button(tr("录屏")) { launchCapture(.record) }
+                                Button(tr("打开 XStats Capture")) { launchCapture(.open) }
+                            }
+                        }
+                        Divider()
+                        CaptureShortcutSettingsView(shortcuts: XStatsCapture.workspace.shortcuts)
+                        Text(tr("快捷键在 XStats 运行时生效。"))
+                            .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
             SettingsGroup {
                 if #available(macOS 15, *) {
                     GroupRow(showsDivider: false) {

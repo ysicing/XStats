@@ -2070,6 +2070,117 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 使用文档	Guide d’utilisation
 关窗后保留程序坞图标	Garder l’icône du Dock après fermeture
 打开窗口时自动显示图标；关闭后仍可从程序坞与 ⌘Tab 找到 XStats	L’icône apparaît automatiquement lorsqu’une fenêtre est ouverte. Après fermeture, XStats reste accessible dans le Dock et avec ⌘Tab.
+截图	Capture d’écran
+录屏	Enregistrer l’écran
+区域	Zone
+整个屏幕	Écran entier
+截图标注与屏幕录制，内容仅保存在本机。	Annotez vos captures et enregistrez l’écran. Le contenu reste sur ce Mac.
+捕获范围	Cible de capture
+系统声音	Audio système
+窗口模式只录制所选 App 的声音。	Le mode fenêtre enregistre uniquement le son de l’app sélectionnée.
+麦克风	Microphone
+常驻菜单栏	Rester dans la barre des menus
+关闭后按需退出；常驻时可使用全局快捷键。	Quitter après fermeture. Les raccourcis globaux nécessitent de rester actif.
+截图快捷键	Raccourci de capture
+录屏快捷键	Raccourci d’enregistrement
+设置快捷键	Définir un raccourci
+按下快捷键，Esc 取消	Appuyez sur un raccourci ; Échap annule
+快捷键已被占用，请更换。	Ce raccourci est utilisé. Choisissez-en un autre.
+打开 XStats Capture	Ouvrir XStats Capture
+打开隐私设置	Ouvrir les réglages de confidentialité
+拖动选择区域，按 Esc 取消	Faites glisser pour sélectionner ; Échap annule
+点击窗口，按 Esc 取消	Cliquez sur une fenêtre ; Échap annule
+点击要捕获的屏幕，按 Esc 取消	Cliquez sur l’écran ; Échap annule
+截图编辑	Éditeur de capture
+标注工具	Outil d’annotation
+标注文字	Texte d’annotation
+裁剪	Recadrer
+箭头	Flèche
+矩形	Rectangle
+画笔	Stylo
+文字	Texte
+遮挡	Masquer
+复制	Copier
+保存	Enregistrer
+置顶	Épingler
+置顶截图	Capture épinglée
+最多置顶 5 张截图，请先关闭已有截图。	Vous pouvez épingler 5 captures. Fermez-en une d’abord.
+正在录制	Enregistrement en cours
+录制已暂停	Enregistrement en pause
+录屏预览	Aperçu de l’enregistrement
+开始时间	Heure de début
+结束时间	Heure de fin
+导出 MP4	Exporter en MP4
+取消导出	Annuler l’exportation
+在访达中显示原始片段	Afficher les segments originaux dans le Finder
+丢弃	Abandonner
+丢弃并退出	Abandonner et quitter
+丢弃未保存的截图？	Abandonner la capture non enregistrée ?
+丢弃未保存的录屏？	Abandonner l’enregistrement non sauvegardé ?
+退出并丢弃未保存的内容？	Quitter et abandonner le contenu non enregistré ?
+请选择有效的屏幕区域。	Sélectionnez une zone valide.
+请选择有效的裁剪时间范围。	Sélectionnez une plage temporelle valide.
+当前操作尚未结束。	L’opération en cours n’est pas terminée.
+屏幕捕获未完成，请重试。	La capture a échoué. Réessayez.
+录制写入失败，请检查可用磁盘空间。	Impossible d’écrire l’enregistrement. Vérifiez l’espace libre.
+导出未完成，原始录制仍保留，可重试。	L’exportation a échoué. L’original est conservé pour réessayer.
+捕获目标已不可用，录制已结束。	La cible est indisponible. L’enregistrement s’est arrêté.
+无法识别此截图请求，请更新 XStats Capture。	Requête inconnue. Mettez à jour XStats Capture.
+请在系统设置中允许 {} 录制屏幕，然后重试。	Autorisez l’enregistrement de l’écran pour {} dans Réglages Système, puis réessayez.
+请在系统设置中允许 {} 使用麦克风，然后重试。	Autorisez le microphone pour {} dans Réglages Système, puis réessayez.
+内置截图与录屏工具，按需使用。	Outils intégrés de capture et d’enregistrement d’écran, disponibles à la demande.
+请选择已安装的 XStats Capture.app。	Sélectionnez XStats Capture.app installé.
+无法打开 XStats Capture，请检查所选应用。	Impossible d’ouvrir XStats Capture. Vérifiez l’app.
+请选择录制临时目录之外的保存位置。	Choisissez un emplacement en dehors du dossier temporaire de l’enregistrement.
+录屏已保存，但临时素材未能完全清理。	L’enregistrement est sauvegardé, mais certains fichiers temporaires n’ont pas pu être supprimés.
+保存的文件不受影响。可在访达中检查并清理剩余临时素材。	Le fichier sauvegardé n’est pas affecté. Vérifiez et supprimez les fichiers temporaires restants dans le Finder.
+显示临时素材	Afficher les fichiers temporaires
+开始录屏	Démarrer l’enregistrement
+重新选择	Sélectionner à nouveau
+{} × {} 像素	{} × {} pixels
+拖动选框移动，拖动边缘调整，按 Return 确认	Faites glisser l’intérieur pour déplacer ou un bord pour redimensionner ; Retour confirme
+已选择范围，按 Return 确认，Esc 取消	Zone sélectionnée ; Retour confirme, Échap annule
+麦克风录制中断，请检查设备连接后重试。	L’enregistrement du microphone a été interrompu. Vérifiez la connexion de l’appareil et réessayez.
+录制未能停止，请重试。	L’enregistrement n’a pas pu être arrêté. Réessayez.
+截图标注与屏幕录制	Annotez vos captures et enregistrez l’écran
+截图与录屏	Captures et enregistrements
+选择范围后，倒计时 3 秒开始录制。	Après la sélection, l’enregistrement démarre après un compte à rebours de 3 secondes.
+截图后可标注、复制或保存。	Annotez, copiez ou sauvegardez après la capture.
+内容仅保存在本机	Le contenu reste sur ce Mac
+录制区域	Enregistrer une zone
+录制窗口	Enregistrer une fenêtre
+录制屏幕	Enregistrer l’écran
+截取区域	Capturer une zone
+截取窗口	Capturer une fenêtre
+截取屏幕	Capturer l’écran
+确认捕获范围和声音设置后，开始录制。	Vérifiez la cible et l’audio, puis démarrez l’enregistrement.
+关闭设置	Fermer les réglages
+选择	Sélection
+颜色	Couleur
+字号 {}	Taille {}
+粗细	Épaisseur
+细	Fin
+中	Moyen
+粗	Épais
+实色遮挡	Masquage opaque
+删除标注	Supprimer l’annotation
+图片格式	Format d’image
+红色	Rouge
+橙色	Orange
+黄色	Jaune
+绿色	Vert
+蓝色	Bleu
+白色	Blanc
+黑色	Noir
+标注画布	Zone d’annotation
+拖动标注移动，拖动控制点调整；双击文字编辑，Delete 删除。	Glissez pour déplacer, utilisez les poignées pour redimensionner. Double-cliquez le texte pour modifier, Delete pour supprimer.
+点击图片输入文字，Return 完成，Esc 取消。	Cliquez sur l’image pour écrire. Return valide, Esc annule.
+点击标注选中，拖动移动；Esc 取消选择。	Cliquez une annotation pour sélectionner, glissez pour déplacer. Esc désélectionne.
+在图片上拖动绘制，Esc 取消。	Glissez sur l’image pour dessiner. Esc annule.
+点击设置快捷键；Delete 清除，Esc 取消。	Cliquer pour définir ; Suppr efface, Échap annule.
+快捷键无效或已被占用，原设置已保留。	Raccourci invalide ou déjà utilisé. Les réglages précédents sont conservés.
+快捷键在常驻菜单栏时生效。	Les raccourcis fonctionnent lorsque l’app reste dans la barre des menus.
+快捷键在 XStats 运行时生效。	Les raccourcis fonctionnent lorsque XStats est en cours d’exécution.
 4 小时	4 heures
 8 小时	8 heures
 12 小时	12 heures

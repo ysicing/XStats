@@ -6,6 +6,8 @@ let package = Package(
     defaultLocalization: "zh-Hans",
     platforms: [.macOS(.v14)],
     products: [
+        .library(name: "CaptureCore", targets: ["CaptureCore"]),
+        .library(name: "CaptureUI", targets: ["CaptureUI"]),
         .library(name: "Localization", targets: ["Localization"]),
         .library(name: "AIUsage", targets: ["AIUsage"]),
         .library(name: "SMC", targets: ["SMC"]),
@@ -24,6 +26,10 @@ let package = Package(
         .package(url: "https://github.com/sparkle-project/Sparkle.git", exact: "2.10.0"),
     ],
     targets: [
+        .target(name: "CaptureCore", dependencies: ["Localization"]),
+        .target(name: "CaptureUI", dependencies: ["CaptureCore", "Localization"]),
+        .testTarget(name: "CaptureCoreTests", dependencies: ["CaptureCore"]),
+        .testTarget(name: "CaptureUITests", dependencies: ["CaptureUI"]),
         .target(name: "Localization", resources: [.process("Resources")]),
         .target(name: "AIUsage"),
         .target(name: "SMC", dependencies: ["Localization"]),
@@ -36,7 +42,7 @@ let package = Package(
         .target(name: "AudioDSP", publicHeadersPath: "include", linkerSettings: [.linkedFramework("CoreAudio")]),
         .target(name: "AudioControl", dependencies: ["AudioDSP"]),
         .target(name: "NetworkObservation", dependencies: ["Localization"]),
-        .target(name: "XStatsUI", dependencies: ["NetworkObservation", "AudioControl", "AIUsage", "Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync", "WidgetData",
+        .target(name: "XStatsUI", dependencies: ["CaptureUI", "CaptureCore", "NetworkObservation", "AudioControl", "AIUsage", "Localization", "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync", "WidgetData",
                                                    .product(name: "Tyme4Swift", package: "tyme4swift"),
                                                    .product(name: "Sparkle", package: "Sparkle")],
                 resources: [.copy("Resources/Flags"), .copy("Resources/Logos"), .copy("Resources/Legal"), .copy("Resources/NetworkGeography")]),

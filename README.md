@@ -114,6 +114,7 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
 
 | 工具 | 说明 |
 |---|---|
+| **XStats Capture** | 内置截图标注与带声音的录屏，也可作为独立 App 使用；本地构建与权限见 [Capture 使用说明](docs/CAPTURE.md) |
 | **风扇控制** | 在支持的设备上切换自动或手动控制 |
 | **防休眠** | 保持系统或屏幕唤醒，可配置合盖运行 |
 | **应用管理与清理** | 浏览应用信息、检查 App Store 更新、管理 Homebrew，审阅应用残留、缓存与项目产物 · [清理范围](docs/CLEANUP.md) |

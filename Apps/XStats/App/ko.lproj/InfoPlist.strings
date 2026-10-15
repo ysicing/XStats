@@ -1,0 +1,9 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+"NSCalendarsFullAccessUsageDescription" = "선택한 캘린더 일정을 이 Mac에 표시하며 수정하거나 업로드하지 않습니다.";
+"NSRemindersFullAccessUsageDescription" = "선택한 기한이 있는 미리 알림을 이 Mac에 표시하며 수정하거나 업로드하지 않습니다.";
+"NSAudioCaptureUsageDescription" = "앱 음량을 이 Mac에서 조절합니다. 화면 녹화에서 시스템 오디오를 켠 경우에만 소리를 녹음합니다. 콘텐츠는 이 Mac에 저장되며 업로드되지 않습니다.";
+"NSBluetoothAlwaysUsageDescription" = "페어링된 Bluetooth 오디오 기기를 표시하고 선택하면 연결합니다.";
+"NSSystemExtensionUsageDescription" = "연결을 차단하거나 통신 내용을 읽지 않고 앱의 네트워크 연결을 로컬에서 확인합니다.";
+"NSScreenCaptureUsageDescription" = "스크린샷이나 화면 녹화 시 선택한 영역, 윈도우 또는 화면을 캡처합니다. 콘텐츠는 이 Mac에만 저장되며 업로드되지 않습니다.";
+"NSMicrophoneUsageDescription" = "마이크를 켜면 오디오를 이 Mac의 동영상에 녹음하며 업로드하지 않습니다.";

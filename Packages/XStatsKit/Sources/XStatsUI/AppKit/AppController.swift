@@ -157,6 +157,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--island") { islandPreview.start() }
         applyAppearance()
         updateNetworkVisibility()
+        XStatsCapture.workspace.startShortcuts()
+        XStatsCapture.workspace.onWindowsChanged = { [weak self] in self?.updateActivationPolicy() }
         appliedLanguage = model.settings.language
         startUpdateChecks()
         model.alerts.openTab = { [weak self] tab in
@@ -238,6 +240,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard terminationTask == nil else { return .terminateLater }
+        guard XStatsCapture.workspace.confirmTermination() else { return .terminateCancel }
         // brew 写操作的输出指向空设备，XStats 退出不会让它因 SIGPIPE 中断；默认等待，
         // 但不能无条件拒绝退出，否则 brew 卡住时会阻塞注销与关机。
         if model.appManagement.operation != nil {
@@ -252,8 +256,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             // 继续走下方的网络组件与健康提醒退出准备，不跳过其他退出门禁。
         }
         let needsNetwork = model.updates.installationRequiresPreparation || model.connectionMonitor.terminationRequiresPreparation || model.networkComponent.terminationRequiresPreparation
-        guard needsNetwork || model.wellness.requiresTerminationPreparation else { return .terminateNow }
-        guard terminationTask == nil else { return .terminateLater }
+        guard needsNetwork || model.wellness.requiresTerminationPreparation || XStatsCapture.workspace.hasActiveWorkspace else { return .terminateNow }
         // Sparkle 在安装就绪后可能因用户主动退出而继续安装；退出也必须经过相同的停用门禁。
         terminationTask = Task {
             defer { terminationTask = nil }
@@ -266,6 +269,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 }
                 rest.prepareForTermination()
                 await model.wellness.prepareForTermination()
+                await XStatsCapture.workspace.prepareForTermination()
                 sender.reply(toApplicationShouldTerminate: true)
             } catch {
                 model.networkComponent.cancelTermination()
@@ -280,6 +284,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
     public func applicationWillTerminate(_ notification: Notification) {
         model.fans.setPaused(true)
         islandPreview.stop()
+        XStatsCapture.workspace.shortcuts.stop()
+        XStatsCapture.workspace.cleanUp()
         wellnessNotifications?.dismiss()
         deepLinksReady = false
         deepLinkTask?.cancel(); pendingDeepLinks.removeAll()
@@ -444,6 +450,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private func updateActivationPolicy() {
         let hasWindow = mainWindow.isOpen || aiUsageSettingsWindow.isVisible || updateWindow.isOpen
             || egressWindow.isVisible || speedTestWindow.isVisible || projectPurgeWindow.isOpen
+            || XStatsCapture.workspace.hasOpenWindows
         let policy: NSApplication.ActivationPolicy = hasWindow || model.settings.showDockIcon ? .regular : .accessory
         guard NSApp.activationPolicy() != policy else { return }
         guard NSApp.setActivationPolicy(policy) else {
@@ -725,6 +732,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
         appliedLanguage = language
         model.displays.refreshCatalog()
+        XStatsCapture.workspace.refreshLanguage()
         installMainMenu()
         menuBar.dismissPopovers()
         menuBar.refreshImages(force: true)

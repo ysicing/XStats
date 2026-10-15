@@ -2070,6 +2070,117 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 使用文档	Guía de uso
 关窗后保留程序坞图标	Mantener el icono del Dock al cerrar
 打开窗口时自动显示图标；关闭后仍可从程序坞与 ⌘Tab 找到 XStats	El icono aparece automáticamente mientras hay una ventana abierta. Después de cerrarla, XStats sigue disponible en el Dock y con ⌘Tab.
+截图	Captura de pantalla
+录屏	Grabar pantalla
+区域	Área
+整个屏幕	Pantalla completa
+截图标注与屏幕录制，内容仅保存在本机。	Anota capturas y graba la pantalla. El contenido permanece en este Mac.
+捕获范围	Destino de captura
+系统声音	Audio del sistema
+窗口模式只录制所选 App 的声音。	El modo ventana solo graba el audio de la app seleccionada.
+麦克风	Micrófono
+常驻菜单栏	Mantener en la barra de menús
+关闭后按需退出；常驻时可使用全局快捷键。	Salir al cerrar las ventanas. Mantén la app abierta para usar atajos globales.
+截图快捷键	Atajo de captura
+录屏快捷键	Atajo de grabación
+设置快捷键	Definir atajo
+按下快捷键，Esc 取消	Pulsa un atajo; Esc cancela
+快捷键已被占用，请更换。	Este atajo está en uso. Elige otro.
+打开 XStats Capture	Abrir XStats Capture
+打开隐私设置	Abrir ajustes de privacidad
+拖动选择区域，按 Esc 取消	Arrastra para seleccionar; Esc cancela
+点击窗口，按 Esc 取消	Haz clic en una ventana; Esc cancela
+点击要捕获的屏幕，按 Esc 取消	Haz clic en la pantalla; Esc cancela
+截图编辑	Editor de capturas
+标注工具	Herramienta de anotación
+标注文字	Texto de anotación
+裁剪	Recortar
+箭头	Flecha
+矩形	Rectángulo
+画笔	Lápiz
+文字	Texto
+遮挡	Ocultar
+复制	Copiar
+保存	Guardar
+置顶	Fijar
+置顶截图	Captura fijada
+最多置顶 5 张截图，请先关闭已有截图。	Puedes fijar hasta 5 capturas. Cierra una primero.
+正在录制	Grabando
+录制已暂停	Grabación pausada
+录屏预览	Vista previa de grabación
+开始时间	Hora de inicio
+结束时间	Hora de fin
+导出 MP4	Exportar MP4
+取消导出	Cancelar exportación
+在访达中显示原始片段	Mostrar segmentos originales en Finder
+丢弃	Descartar
+丢弃并退出	Descartar y salir
+丢弃未保存的截图？	¿Descartar la captura sin guardar?
+丢弃未保存的录屏？	¿Descartar la grabación sin guardar?
+退出并丢弃未保存的内容？	¿Salir y descartar el contenido sin guardar?
+请选择有效的屏幕区域。	Selecciona un área válida.
+请选择有效的裁剪时间范围。	Selecciona un intervalo válido.
+当前操作尚未结束。	La operación actual no ha terminado.
+屏幕捕获未完成，请重试。	La captura falló. Inténtalo de nuevo.
+录制写入失败，请检查可用磁盘空间。	No se pudo escribir la grabación. Comprueba el espacio libre.
+导出未完成，原始录制仍保留，可重试。	Falló la exportación. Se conserva el original para reintentar.
+捕获目标已不可用，录制已结束。	El destino no está disponible. La grabación se detuvo.
+无法识别此截图请求，请更新 XStats Capture。	Solicitud desconocida. Actualiza XStats Capture.
+请在系统设置中允许 {} 录制屏幕，然后重试。	Permite grabar la pantalla a {} en Ajustes del Sistema y reintenta.
+请在系统设置中允许 {} 使用麦克风，然后重试。	Permite usar el micrófono a {} en Ajustes del Sistema y reintenta.
+内置截图与录屏工具，按需使用。	Herramientas integradas de captura y grabación de pantalla, disponibles cuando las necesites.
+请选择已安装的 XStats Capture.app。	Selecciona XStats Capture.app instalado.
+无法打开 XStats Capture，请检查所选应用。	No se pudo abrir XStats Capture. Comprueba la app.
+请选择录制临时目录之外的保存位置。	Elige una ubicación fuera de la carpeta temporal de la grabación.
+录屏已保存，但临时素材未能完全清理。	La grabación se guardó, pero no se pudieron eliminar todos los archivos temporales.
+保存的文件不受影响。可在访达中检查并清理剩余临时素材。	El archivo guardado no se ve afectado. Revisa y elimina los archivos temporales restantes en Finder.
+显示临时素材	Mostrar archivos temporales
+开始录屏	Iniciar grabación
+重新选择	Volver a seleccionar
+{} × {} 像素	{} × {} píxeles
+拖动选框移动，拖动边缘调整，按 Return 确认	Arrastra dentro para mover o un borde para ajustar el tamaño; Intro confirma
+已选择范围，按 Return 确认，Esc 取消	Área seleccionada; Intro confirma, Esc cancela
+麦克风录制中断，请检查设备连接后重试。	Se interrumpió la grabación del micrófono. Comprueba la conexión del dispositivo e inténtalo de nuevo.
+录制未能停止，请重试。	No se pudo detener la grabación. Inténtalo de nuevo.
+截图标注与屏幕录制	Anota capturas y graba la pantalla
+截图与录屏	Capturas y grabaciones
+选择范围后，倒计时 3 秒开始录制。	Tras elegir el área, la grabación comienza después de una cuenta atrás de 3 segundos.
+截图后可标注、复制或保存。	Anota, copia o guarda después de capturar.
+内容仅保存在本机	El contenido permanece en este Mac
+录制区域	Grabar un área
+录制窗口	Grabar una ventana
+录制屏幕	Grabar la pantalla
+截取区域	Capturar un área
+截取窗口	Capturar una ventana
+截取屏幕	Capturar la pantalla
+确认捕获范围和声音设置后，开始录制。	Confirma el destino y el audio y comienza la grabación.
+关闭设置	Cerrar ajustes
+选择	Seleccionar
+颜色	Color
+字号 {}	Tamaño {}
+粗细	Grosor
+细	Fino
+中	Medio
+粗	Grueso
+实色遮挡	Ocultación opaca
+删除标注	Eliminar anotación
+图片格式	Formato de imagen
+红色	Rojo
+橙色	Naranja
+黄色	Amarillo
+绿色	Verde
+蓝色	Azul
+白色	Blanco
+黑色	Negro
+标注画布	Lienzo de anotación
+拖动标注移动，拖动控制点调整；双击文字编辑，Delete 删除。	Arrastra para mover y usa los controles para cambiar el tamaño. Doble clic para editar texto y Delete para eliminar.
+点击图片输入文字，Return 完成，Esc 取消。	Haz clic en la imagen para escribir. Return confirma y Esc cancela.
+点击标注选中，拖动移动；Esc 取消选择。	Haz clic para seleccionar y arrastra para mover. Esc quita la selección.
+在图片上拖动绘制，Esc 取消。	Arrastra sobre la imagen para dibujar. Esc cancela.
+点击设置快捷键；Delete 清除，Esc 取消。	Haz clic para configurar; Supr borra y Esc cancela.
+快捷键无效或已被占用，原设置已保留。	El atajo no es válido o está en uso. Se conservó la configuración anterior.
+快捷键在常驻菜单栏时生效。	Los atajos funcionan mientras la app permanece en la barra de menús.
+快捷键在 XStats 运行时生效。	Los atajos funcionan mientras XStats está en ejecución.
 4 小时	4 horas
 8 小时	8 horas
 12 小时	12 horas

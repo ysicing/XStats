@@ -1,0 +1,9 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+"NSCalendarsFullAccessUsageDescription" = "Muestra localmente los eventos seleccionados sin modificarlos ni subirlos.";
+"NSRemindersFullAccessUsageDescription" = "Muestra localmente los recordatorios seleccionados sin modificarlos ni subirlos.";
+"NSAudioCaptureUsageDescription" = "Ajusta el volumen de las apps localmente. El audio solo se graba al activar el sonido del sistema para una grabación de pantalla. El contenido permanece en este Mac y no se sube.";
+"NSBluetoothAlwaysUsageDescription" = "Mostrar dispositivos de audio Bluetooth enlazados y conectarlos cuando los selecciones.";
+"NSSystemExtensionUsageDescription" = "Ver las conexiones de red de las apps localmente, sin bloquearlas ni leer el contenido de las comunicaciones.";
+"NSScreenCaptureUsageDescription" = "Captura la región, ventana o pantalla seleccionada al hacer capturas o grabaciones. El contenido se guarda solo en este Mac y no se sube.";
+"NSMicrophoneUsageDescription" = "Al activar el micrófono, graba audio en un vídeo local sin subir contenido.";

@@ -1,0 +1,5 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+"NSMicrophoneUsageDescription" = "Al activar el micrófono, graba audio en un vídeo local sin subir contenido.";
+"NSAudioCaptureUsageDescription" = "Al activar el audio del sistema, se graba en un vídeo local sin subir contenido.";
+"NSScreenCaptureUsageDescription" = "Captura la región, ventana o pantalla seleccionada al hacer capturas o grabaciones. El contenido se guarda solo en este Mac y no se sube.";

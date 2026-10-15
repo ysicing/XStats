@@ -19,12 +19,12 @@ MODE="${MODE:-$EXPECTED_MODE}"
 SYSTEM_EXTENSION="$APP/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension"
 if [ "$MODE" = network-component ]; then
   [ -d "$SYSTEM_EXTENSION" ] || { echo "error: 网络组件未嵌入网络系统扩展" >&2; exit 1; }
-  APP_ENTITLEMENTS="$ROOT/NetworkMonitorApp/XStatsNetworkMonitor.entitlements"
+  APP_ENTITLEMENTS="$ROOT/Apps/NetworkMonitor/App/XStatsNetworkMonitor.entitlements"
   # Xcode post-build 已生成 plist；签名包装也重新核对，防止增量产物缺失或保留旧 Mach key。
   bash "$ROOT/scripts/embed_network_agent.sh" "$APP"
 else
   [ ! -d "$APP/Contents/Library/SystemExtensions" ] || { echo "error: 主应用不得嵌入系统扩展" >&2; exit 1; }
-  APP_ENTITLEMENTS="$ROOT/App/XStats.entitlements"
+  APP_ENTITLEMENTS="$ROOT/Apps/XStats/App/XStats.entitlements"
 fi
 FRAMEWORK="$APP/Contents/Frameworks/Sparkle.framework"
 [ -d "$FRAMEWORK" ] || { echo "error: 应用未嵌入 Sparkle.framework" >&2; exit 1; }
@@ -66,10 +66,10 @@ if [ "$IDENTITY" = "-" ]; then
   # 无团队的临时签名无法通过 Hardened Runtime 的动态库团队校验，仅本地/CI 关闭 runtime。
   # Xcode 的无证书路径不签名，由此处补齐自身二进制及 entitlement；线上安装仍禁止此构建。
   if [ "$MODE" = network-component ]; then
-    codesign --force --sign - --timestamp=none --options 0 --entitlements "$ROOT/NetworkExtension/XStatsNetworkExtension.entitlements" "$SYSTEM_EXTENSION"
+    codesign --force --sign - --timestamp=none --options 0 --entitlements "$ROOT/Apps/NetworkMonitor/Extension/XStatsNetworkExtension.entitlements" "$SYSTEM_EXTENSION"
   else
     codesign --force --sign - --timestamp=none --options 0 "$APP/Contents/MacOS/XStatsHelper"
-    codesign --force --sign - --timestamp=none --options 0 --entitlements "$ROOT/Widget/XStatsWidget.entitlements" "$APP/Contents/PlugIns/XStatsWidget.appex"
+    codesign --force --sign - --timestamp=none --options 0 --entitlements "$ROOT/Apps/XStats/Widget/XStatsWidget.entitlements" "$APP/Contents/PlugIns/XStatsWidget.appex"
   fi
   # 临时签名不具备受 profile 约束的网络权限，仅用于 UI/CI；主 App 必须仍可启动。
   # 签名团队缺失时，启用查看的入口也会拒绝提交系统扩展激活请求。
