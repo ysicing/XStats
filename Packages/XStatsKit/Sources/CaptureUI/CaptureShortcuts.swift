@@ -14,6 +14,7 @@ import OSLog
     @Published private(set) var enabled = false
     private let defaults: UserDefaults
     private let hotKeys = CaptureHotKeys()
+    private var editing = false
     private static let logger = Logger(subsystem: CaptureRequest.bundleIdentifier, category: "shortcuts")
     var onAction: (CaptureRequest.Action) -> Void {
         get { hotKeys.onAction }
@@ -64,9 +65,18 @@ import OSLog
         }
         guard !enabled else { return }
         enabled = true
+        guard !editing else { return }
         conflict = !valid(bindings) || !hotKeys.apply(bindings)
         if conflict { Self.logger.error("Global shortcut registration failed") }
         else if !bindings.isEmpty { Self.logger.info("Global shortcuts started") }
+    }
+    func setEditing(_ value: Bool) {
+        guard editing != value else { return }
+        editing = value
+        if value { hotKeys.clear(); return }
+        guard enabled else { return }
+        conflict = !valid(bindings) || !hotKeys.apply(bindings)
+        if conflict { Self.logger.error("Global shortcut registration failed after editing") }
     }
     public func stop() { setEnabled(false) }
 }
@@ -79,12 +89,14 @@ public struct CaptureShortcutSettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(tr("截图快捷键")); Spacer()
-                CaptureShortcutRecorder(value: shortcuts.screenshotKey) { shortcuts.setShortcut($0, for: .screenshot) }
+                CaptureShortcutRecorder(value: shortcuts.screenshotKey, onChange: { shortcuts.setShortcut($0, for: .screenshot) },
+                                        onRecordingChanged: shortcuts.setEditing)
                     .frame(maxWidth: 240).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
                 Text(tr("录屏快捷键")); Spacer()
-                CaptureShortcutRecorder(value: shortcuts.recordingKey) { shortcuts.setShortcut($0, for: .record) }
+                CaptureShortcutRecorder(value: shortcuts.recordingKey, onChange: { shortcuts.setShortcut($0, for: .record) },
+                                        onRecordingChanged: shortcuts.setEditing)
                     .frame(maxWidth: 240).fixedSize(horizontal: false, vertical: true)
             }
             Text(tr("点击设置快捷键；Delete 清除，Esc 取消。"))

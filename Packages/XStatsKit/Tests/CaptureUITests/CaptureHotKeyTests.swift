@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import AppKit
 import Carbon
+import SwiftUI
 import Testing
 import CaptureCore
 import Localization
@@ -189,6 +190,80 @@ import Localization
                 #expect(L10n.translate(text, language: language) != text)
             }
         }
+    }
+    @Test(arguments: ["commit", "escape", "delete", "blur", "detach", "deactivate"])
+    func editingReleasesGlobalBindingsAndRestoresThemOnExit(_ ending: String) throws {
+        _ = NSApplication.shared
+        let name = "capture-shortcut-edit-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = CaptureShortcuts(defaults: defaults)
+        defer { settings.stop() }
+        let screenshot = binding(80), recording = binding(90)
+        settings.setShortcut(screenshot, for: .screenshot)
+        settings.setShortcut(recording, for: .record)
+        settings.setEnabled(true)
+        try #require(!settings.conflict)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 200), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let hosting = NSHostingView(rootView: CaptureShortcutSettingsView(shortcuts: settings))
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        var pending: [NSView] = [hosting]
+        var buttons: [ShortcutButton] = []
+        while let view = pending.popLast() {
+            if let button = view as? ShortcutButton { buttons.append(button) }
+            pending.append(contentsOf: view.subviews)
+        }
+        let button = try #require(buttons.first { $0.binding == screenshot })
+        let competing = CaptureHotKeys()
+        defer { competing.clear() }
+        #expect(!competing.apply([.screenshot: screenshot]))
+        button.performClick(nil)
+        try #require(button.recording)
+        // A real Carbon reservation proves old keys cannot intercept the edit.
+        #expect(competing.apply([.screenshot: screenshot, .record: recording]))
+        competing.clear()
+        switch ending {
+        case "commit", "escape", "delete":
+            let code: UInt16 = ending == "commit" ? 80 : (ending == "escape" ? 53 : 51)
+            let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero,
+                modifierFlags: ending == "commit" ? screenshot.flags : [], timestamp: 0,
+                windowNumber: window.windowNumber, context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: code))
+            #expect(button.performKeyEquivalent(with: event))
+        case "blur": window.makeFirstResponder(nil)
+        case "detach": button.removeFromSuperview()
+        default: NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
+        }
+        #expect(!button.recording)
+        #expect(!competing.apply([.record: recording]))
+        #expect(competing.apply([.screenshot: screenshot]) == (ending == "delete"))
+        #expect(settings.screenshotKey == (ending == "delete" ? nil : screenshot))
+        #expect(!settings.conflict)
+    }
+    @Test(arguments: [false, true])
+    func editingRespectsHostEnabledState(_ enableDuringEdit: Bool) throws {
+        _ = NSApplication.shared
+        let name = "capture-shortcut-state-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = CaptureShortcuts(defaults: defaults)
+        defer { settings.stop() }
+        let key = binding(80)
+        settings.setShortcut(key, for: .screenshot)
+        settings.setEnabled(!enableDuringEdit)
+        settings.setEditing(true)
+        settings.setEnabled(enableDuringEdit)
+        let competing = CaptureHotKeys()
+        defer { competing.clear() }
+        #expect(competing.apply([.screenshot: key]))
+        competing.clear()
+        settings.setEditing(false)
+        #expect(settings.enabled == enableDuringEdit)
+        #expect(competing.apply([.screenshot: key]) == !enableDuringEdit)
+        #expect(settings.screenshotKey == key)
+        #expect(!settings.conflict)
     }
     @Test func anotherProcessCannotShareCaptureShortcut() async throws {
         // A same-process Carbon reservation cannot catch accidental non-exclusive registration.

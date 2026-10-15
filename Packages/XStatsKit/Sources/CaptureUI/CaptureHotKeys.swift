@@ -75,17 +75,26 @@ struct CaptureHotKey: Codable, Equatable {
 struct CaptureShortcutRecorder: NSViewRepresentable {
     let value: CaptureHotKey?
     var onChange: (CaptureHotKey?) -> Void
+    var onRecordingChanged: (Bool) -> Void = { _ in }
     func makeNSView(context: Context) -> ShortcutButton { ShortcutButton() }
     func updateNSView(_ view: ShortcutButton, context: Context) {
         view.binding = value; view.onChange = onChange
+        view.onRecordingChanged = onRecordingChanged
         if !view.recording { view.title = value?.display ?? tr("设置快捷键") }
+    }
+    static func dismantleNSView(_ view: ShortcutButton, coordinator: ()) {
+        view.finishRecording()
+        view.onChange = { _ in }
+        view.onRecordingChanged = { _ in }
     }
 }
 
 @MainActor final class ShortcutButton: NSButton {
     var binding: CaptureHotKey?
     var onChange: (CaptureHotKey?) -> Void = { _ in }
+    var onRecordingChanged: (Bool) -> Void = { _ in }
     var recording = false
+    private var windowObserver: NSObjectProtocol?
     override init(frame: NSRect) {
         super.init(frame: frame)
         bezelStyle = .rounded; target = self; action = #selector(record)
@@ -93,7 +102,32 @@ struct CaptureShortcutRecorder: NSViewRepresentable {
     convenience init() { self.init(frame: .zero) }
     required init?(coder: NSCoder) { fatalError() }
     override var acceptsFirstResponder: Bool { true }
-    @objc private func record() { recording = true; title = tr("按下快捷键，Esc 取消"); window?.makeFirstResponder(self) }
+    @objc private func record() {
+        guard !recording, window?.makeFirstResponder(self) == true else { return }
+        recording = true
+        title = tr("按下快捷键，Esc 取消")
+        onRecordingChanged(true)
+    }
+    func finishRecording() {
+        guard recording else { return }
+        recording = false
+        title = binding?.display ?? tr("设置快捷键")
+        onRecordingChanged(false)
+    }
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        finishRecording()
+        if let windowObserver { NotificationCenter.default.removeObserver(windowObserver) }
+        windowObserver = nil
+        super.viewWillMove(toWindow: newWindow)
+        guard let newWindow else { return }
+        windowObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification,
+                                                                object: newWindow, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.finishRecording() }
+        }
+    }
+    isolated deinit {
+        if let windowObserver { NotificationCenter.default.removeObserver(windowObserver) }
+    }
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         guard recording, window?.firstResponder === self else { return super.performKeyEquivalent(with: event) }
         keyDown(with: event)
@@ -101,15 +135,20 @@ struct CaptureShortcutRecorder: NSViewRepresentable {
     }
     override func keyDown(with event: NSEvent) {
         guard recording else { super.keyDown(with: event); return }
-        if event.keyCode == 53 { recording = false; title = binding?.display ?? tr("设置快捷键"); return }
-        if event.keyCode == 51 { recording = false; onChange(nil); title = binding?.display ?? tr("设置快捷键"); return }
+        if event.keyCode == 53 { finishRecording(); return }
+        if event.keyCode == 51 {
+            finishRecording(); onChange(nil)
+            title = binding?.display ?? tr("设置快捷键")
+            return
+        }
         let flags = event.modifierFlags.intersection([.control, .option, .shift, .command])
         guard !flags.intersection([.control, .option, .command]).isEmpty else { return }
         let key = CaptureHotKey(code: event.keyCode, modifiers: flags.rawValue, characters: event.charactersIgnoringModifiers ?? "")
-        recording = false; onChange(key); title = binding?.display ?? tr("设置快捷键")
+        finishRecording(); onChange(key)
+        title = binding?.display ?? tr("设置快捷键")
     }
     override func resignFirstResponder() -> Bool {
-        recording = false; title = binding?.display ?? tr("设置快捷键")
+        finishRecording()
         return super.resignFirstResponder()
     }
 }
