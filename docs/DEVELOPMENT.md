@@ -110,6 +110,8 @@ README 共用图库选取 AI、历史、显示器、番茄钟、音频与日历�
 
 硬件详情走查：`XStats --snapshot <目录> --hardware-details-only --language zh-Hans` 使用隔离偏好，只读采集 GPU、电池和磁盘约五秒，停止采样后输出 320 点弹窗与 600 点详情的明暗截图。使用 `de`、`ar` 检查长译文及 RTL；这些截图采用真实本机数据，无内置电池或不支持的属性沿用缺失状态。单元测试中的演示读数与实机截图应分别标注。
 
+指标摘要走查：`XStats --snapshot <目录> --metric-summary-only --language zh-Hans` 使用隔离偏好，采集 CPU、内存与网络约三秒后停止循环，再以匿名演示进程、2 GB 交换区及严重热压力生成明暗截图。用 `de`、`ar` 检查长译文和 RTL。CPU 应用汇总与总览共用「整机／单核」口径，默认整机；设置参与保存、导入导出与同步，切换不改变采样、排行及告警。内存顶部始终显示交换区用量；温度区域的系统热压力随现有温度采样读取，不依赖 CPU 使用率采样。
+
 GPU 采样生命周期的实机检查：设置 `XSTATS_GPU_RESOURCE_REPORT=<输出路径>`，单独筛选 `HardwareDetailsPresentationTests/gpuDetailsSamplingStopsAndRestartsWithFreshBaselines`；记录关闭、重开、暂停、恢复及功能关闭阶段的样本数与 CPU 时间。磁盘组成的单次只读检查：设置 `XSTATS_DISK_DETAILS_REPORT=<输出路径>`，筛选 `HardwareDetailsTests/realDiskCompositionIsReadableAndBounded`。未提供环境变量时不运行这些延时硬件检查。
 
 菜单栏布局走查可对当前构建运行 `XStats --snapshot <目录> --menubar-only --language zh-Hans`；

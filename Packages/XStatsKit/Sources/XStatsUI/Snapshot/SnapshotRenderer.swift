@@ -25,6 +25,61 @@ enum SnapshotRenderer {
         do { try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true) }
         catch { reportFailure(outputDirectory, error: error); return }
 
+        if CommandLine.arguments.contains("--metric-summary-only") {
+            let suite = "XStats.metricSummarySnapshot.\(UUID())"
+            guard let defaults = UserDefaults(suiteName: suite) else { return }
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let settings = AppSettings(defaults: defaults)
+            settings.language = L10n.language
+            settings.menuBarItems = []
+            settings.historyEnabled = false
+            settings.enabledAlerts = []
+            settings.publicIPLookup = false
+            settings.probeEnabled = false
+            settings.hiddenPopoverSections.formUnion(MenuBarItem.network.popoverSections.filter { $0 != .networkHistory })
+            let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+                                 networkCacheDefaults: defaults)
+            var demand = MetricsDemand()
+            demand.cpu = true; demand.memory = true; demand.network = true
+            var snapshot = MetricsSnapshot()
+            await model.hub.update(demand)
+            await model.hub.start(primeAllMetrics: false) { snapshot = $0 }
+            try? await Task.sleep(for: .seconds(3))
+            await model.hub.stop()
+            // 演示数据：确定性数值与匿名应用名，截图不包含本机进程及地址。
+            snapshot.processes = [ProcessUsage(pid: 42, name: "Demo", executablePath: nil,
+                                               appBundlePath: nil, cpu: 2, memory: 1_073_741_824)]
+            snapshot.thermalState = .serious
+            snapshot.networkInterface = nil
+            snapshot.memory?.swapUsed = 2_147_483_648
+            snapshot.network?.downloadBytesPerSecond = 4_000_000
+            snapshot.network?.uploadBytesPerSecond = 1_000_000
+            model.store.apply(snapshot)
+            for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+                guard let appearance = NSAppearance(named: name) else { continue }
+                NSApp.appearance = appearance
+                for perCore in [false, true] {
+                    settings.cpuSharePerCore = perCore
+                    let scale = perCore ? "core" : "machine"
+                    write(VStack(spacing: DS.Space.s3) { CPUPopover() }
+                        .appLanguageEnvironment().padding(DS.Space.s3).frame(width: DS.Size.popoverWidth),
+                          model: model, appearance: appearance,
+                          to: outputDirectory.appendingPathComponent("cpu-\(scale)-\(suffix).png"))
+                    write(OverviewPage().appLanguageEnvironment().frame(width: 640, height: 760),
+                          model: model, appearance: appearance,
+                          to: outputDirectory.appendingPathComponent("overview-\(scale)-\(suffix).png"))
+                }
+                write(VStack(spacing: DS.Space.s3) { MemoryPopover(); ThermalPopover(item: .temperature); NetworkPopover() }
+                    .appLanguageEnvironment().padding(DS.Space.s3).frame(width: DS.Size.popoverWidth),
+                      model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("summaries-\(suffix).png"))
+                write(TemperatureCard().appLanguageEnvironment().padding(DS.Space.s3).frame(width: 600),
+                      model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("temperature-\(suffix).png"))
+            }
+            return
+        }
+
         if CommandLine.arguments.contains("--hardware-details-only") {
             let suite = "XStats.hardwareDetailsSnapshot.\(UUID())"
             guard let defaults = UserDefaults(suiteName: suite) else { return }

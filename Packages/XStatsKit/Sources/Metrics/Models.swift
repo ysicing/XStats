@@ -244,6 +244,8 @@ public struct MetricsSnapshot: Sendable {
     /// Hub 的采样代次；手工快照与演示数据不设置。用于拒绝开关变化前已排队的结果。
     public var samplingGeneration: Int?
     public var cpu: CPULoad?
+    /// 系统热压力也随温度需求采集，不依赖 CPU 使用率采样。
+    public var thermalState: ProcessInfo.ThermalState?
     public var memory: MemoryUsage?
     public var network: NetworkRate?
     public var networkInterface: NetworkInterfaceInfo?

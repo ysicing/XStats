@@ -28,6 +28,9 @@ GPU 内存占用	GPU Memory Usage
 """#
 
     static let applicationPresentationEnglish = #"""
+CPU 占用口径	CPU Percentage Scale
+单核	Per Core
+占整机：{}	Whole Mac: {}
 隐藏其他	Hide Others
 全部显示	Show All
 帮助	Help

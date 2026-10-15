@@ -97,7 +97,8 @@ struct CPUPopover: View {
             }
         case .cpuApps:
             SectionCard(title: section.title,
-                        hint: tr("每个应用占整机 CPU 的比例：\(Format.logicalCores) 个核心全部跑满为 100%，与顶部的总占用是同一把尺子。鼠标悬停在数值上可以看按单核计的占用（活动监视器的算法）")) {
+                        hint: model.settings.processCPUHint,
+                        trailing: { CPUSharePicker() }) {
                 AppUsageList(apps: AppUsage.group(store.processes).sorted { $0.cpu > $1.cpu },
                              rowCount: isDetailPage ? 10 : 6, metric: .cpu)
             }
@@ -235,7 +236,7 @@ private struct CPUHero: View {
         let history = store.cpuTotal.elements
         let trendLabel = trend(history)
         let temperature = store.sensors?.temperature(.cpu)
-        let thermalState = cpu?.thermalState
+        let thermalState = store.thermalState
         let pressureLabel = thermalState?.pressureLabel ?? tr("热压力：未知")
         let pressureHelp = [pressureLabel, tr("由 macOS 报告的系统热状态，与 CPU 温度读数独立。")].joined(separator: "\n")
         let pressureTone = thermalState.map(Tone.forThermalState) ?? .neutral
@@ -501,6 +502,7 @@ private struct MemoryHero: View {
                         .monospacedDigit()
                 }
             }
+            InfoRow(label: tr("交换区"), text: memory.map { Format.bytes($0.swapUsed) } ?? "—")
             PressureStrip(history: store.pressureHistory.elements)
             HStack {
                 Text(tr("压力走势")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
@@ -559,6 +561,7 @@ struct AppUsage: Identifiable {
 }
 
 private struct AppUsageList: View {
+    @Environment(AppModel.self) private var model
     enum Metric { case cpu, memory }
 
     let apps: [AppUsage]
@@ -595,7 +598,7 @@ private struct AppUsageList: View {
                         .dsFont(.xs, weight: .medium)
                         .monospacedDigit()
                         .foregroundStyle(DS.Palette.textSecondary)
-                        .help(optional: metric == .cpu ? tr("按单核满载为 100% 计：\(Format.coreShare(app.cpu))") : nil)
+                        .help(optional: metric == .cpu ? model.settings.alternateCPUText(app.cpu) : nil)
                 }
                 ProgressTrack(fraction: peak > 0 ? value / peak : 0, color: DS.Palette.primary, height: DS.Space.s1, showsTrack: false)
                     .padding(.leading, DS.Size.iconInline + DS.Space.s2)
@@ -608,8 +611,7 @@ private struct AppUsageList: View {
     private func valueText(_ app: AppUsage) -> String {
         switch metric {
         case .cpu:
-            // 占整机的比例；单核口径的数值放在悬停提示里
-            return Format.machineShare(app.cpu)
+            return model.settings.processCPUText(app.cpu)
         case .memory:
             guard let total, total > 0 else { return Format.bytes(app.memory) }
             return "\(Format.bytes(app.memory)) · \(Format.percent(Double(app.memory) / Double(total)))"
@@ -793,6 +795,7 @@ struct ThermalPopover: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+            if item == .temperature { ThermalStateSummary() }
         }
 
         MainActorForEach(item.popoverSections.filter { ($0 != .thermalFans || model.store.supportsFans) && (isDetailPage || settings.isVisible($0)) }) { section in

@@ -410,6 +410,7 @@ public final class AppModel {
     func snapshotForEnabledModules(_ snapshot: MetricsSnapshot, demand: MetricsDemand? = nil) -> MetricsSnapshot {
         let demand = demand ?? self.demand
         var result = snapshot
+        if !demand.cpu, demand.temperatures.isEmpty { result.thermalState = nil }
         if !demand.appEnergy { result.appEnergy = nil }
         if !settings.isModuleEnabled(.cpu) { result.cpu = nil; result.power?.clusterFrequency = [:] }
         if !settings.isModuleEnabled(.memory) { result.memory = nil }

@@ -83,8 +83,8 @@ private struct TrafficHistorySection: View {
         SectionCard(title: PopoverSection.networkHistory.title, trailing: {
             HStack(spacing: DS.Space.s1) {
                 Text(tr("60 秒峰值"))
-                peak("↑", upload, color: DS.NetworkPalette.upload)
                 peak("↓", download, color: DS.NetworkPalette.download)
+                peak("↑", upload, color: DS.NetworkPalette.upload)
             }
             .monospacedDigit()
         }) {

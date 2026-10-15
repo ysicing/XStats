@@ -790,6 +790,25 @@ public final class AppSettings {
     public var alertCPULoad: Int {
         didSet { defaults.set(alertCPULoad, forKey: Keys.alertCPULoad) }
     }
+    /// 应用汇总与总览共用显示口径；采样值始终以单核满载为 100%。
+    public var cpuSharePerCore: Bool {
+        didSet { defaults.set(cpuSharePerCore, forKey: Keys.cpuSharePerCore) }
+    }
+
+    func processCPUText(_ value: Double) -> String {
+        cpuSharePerCore ? Format.coreShare(value) : Format.machineShare(value)
+    }
+
+    var processCPUHint: String {
+        cpuSharePerCore ? tr("以单核满载为 100%")
+            : tr("占整机 CPU 的比例：\(Format.logicalCores) 个核心全部跑满为 100%")
+    }
+
+    func alternateCPUText(_ value: Double) -> String {
+        cpuSharePerCore ? tr("占整机：\(Format.machineShare(value))")
+            : tr("按单核满载为 100% 计：\(Format.coreShare(value))")
+    }
+
     /// CPU 详情顶部走势图显示最近多少秒
     public var cpuChartSeconds: Int {
         didSet { defaults.set(cpuChartSeconds, forKey: Keys.cpuChartSeconds) }
@@ -1010,6 +1029,7 @@ public final class AppSettings {
             ? defaults.integer(forKey: Keys.alertCPUTemperature) : 95
         alertCPULoad = Self.alertLoadOptions.contains(defaults.integer(forKey: Keys.alertCPULoad))
             ? defaults.integer(forKey: Keys.alertCPULoad) : 80
+        cpuSharePerCore = defaults.bool(forKey: Keys.cpuSharePerCore)
         cpuChartSeconds = Self.cpuChartOptions.contains(defaults.integer(forKey: Keys.cpuChartSeconds))
             ? defaults.integer(forKey: Keys.cpuChartSeconds) : 60
         // 仅在没有偏好时确定默认值；后续语言、地区变化及备份恢复不重置用户选择。
@@ -1191,6 +1211,7 @@ public final class AppSettings {
         static let notifyUpdates = "notifyUpdates"
         static let alertCPUTemperature = "alertCPUTemperature"
         static let alertCPULoad = "alertCPULoad"
+        static let cpuSharePerCore = "cpuSharePerCore"
         static let cpuChartSeconds = "cpuChartSeconds"
     }
 }

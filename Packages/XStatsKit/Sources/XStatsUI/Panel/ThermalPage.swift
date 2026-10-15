@@ -38,6 +38,7 @@ struct TemperatureCard: View {
         Card {
             CardHeader(icon: "thermometer.medium", title: tr("温度"),
                        detail: summaries.isEmpty ? tr("读取中") : tr("\(sensorCount) 个传感器"))
+            ThermalStateSummary()
             if summaries.isEmpty {
                 PlaceholderLine()
             } else {

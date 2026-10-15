@@ -2092,3 +2092,6 @@ GPU 内存占用	Memoria de GPU usada
 其他系统数据	Otros datos del sistema
 GPU 功耗	Potencia de GPU
 虚拟内存	Memoria virtual
+CPU 占用口径	Escala de uso de CPU
+单核	Por núcleo
+占整机：{}	Mac completo: {}

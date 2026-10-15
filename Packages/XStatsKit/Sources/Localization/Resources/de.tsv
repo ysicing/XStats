@@ -2092,3 +2092,6 @@ GPU 内存占用	GPU-Speicherbelegung
 其他系统数据	Sonstige Systemdaten
 GPU 功耗	GPU-Leistung
 虚拟内存	Virtueller Speicher
+CPU 占用口径	CPU-Anzeigeskala
+单核	Pro Kern
+占整机：{}	Gesamter Mac: {}
