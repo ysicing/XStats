@@ -31,6 +31,13 @@ public struct ImageEditDocument: Sendable {
         guard !annotation.points.isEmpty, annotations.count < 1000 else { return }
         checkpoint(); annotations.append(annotation)
     }
+    /// A detection result is one user action and one undo step. Reject oversized batches atomically.
+    @discardableResult public mutating func add(_ annotations: [ImageAnnotation]) -> Bool {
+        guard !annotations.isEmpty, self.annotations.count + annotations.count <= 1000,
+              annotations.allSatisfy({ !$0.points.isEmpty }) else { return false }
+        checkpoint(); self.annotations.append(contentsOf: annotations)
+        return true
+    }
     public mutating func crop(to rect: CGRect) throws {
         let rect = rect.standardized.intersection(cropRect).integral
         guard !rect.isNull, rect.width >= 2, rect.height >= 2 else { throw CaptureError.invalidRegion }
@@ -57,7 +64,7 @@ public struct ImageEditDocument: Sendable {
         history.append(Revision(annotations: annotations, crop: cropRect))
         annotations = next.annotations; cropRect = next.crop
     }
-    public func render() throws -> CGImage {
+    public func render(mosaics: ImageMosaics? = nil) throws -> CGImage {
         try Task.checkCancellation()
         guard let context = CGContext(data: nil, width: Int(cropRect.width), height: Int(cropRect.height), bitsPerComponent: 8, bytesPerRow: 0,
                                       space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { throw CaptureError.captureFailed }
@@ -67,7 +74,8 @@ public struct ImageEditDocument: Sendable {
         context.translateBy(x: 0, y: CGFloat(original.height)); context.scaleBy(x: 1, y: -1)
         context.draw(original, in: CGRect(x: 0, y: 0, width: original.width, height: original.height))
         context.restoreGState()
-        for item in annotations { try Task.checkCancellation(); item.draw(in: context) }
+        let mosaics = try mosaics ?? (annotations.contains { $0.tool == .redact } ? ImageMosaics(image: original) : nil)
+        for item in annotations { try Task.checkCancellation(); item.draw(in: context, mosaics: mosaics) }
         try Task.checkCancellation()
         guard let result = context.makeImage() else { throw CaptureError.captureFailed }
         return result

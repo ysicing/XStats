@@ -123,5 +123,14 @@ extension Translations {
 正在预览窗口…	Loading window preview…
 窗口预览未完成，请重新选择。	Window preview failed. Select the window again.
 目标窗口当前不可见	The target window is not currently visible
+马赛克	Mosaic
+颗粒大小	Block size
+一键打码	Auto redact
+在本机识别手机号、邮箱、身份证号和银行卡号。	Find phone numbers, email addresses, national ID numbers and bank card numbers on this Mac.
+正在识别敏感信息…	Finding sensitive information…
+未发现新的敏感信息，可手动补充马赛克。	No new sensitive information found. Add mosaic masks manually if needed.
+已添加 {} 处马赛克，请检查并补充遗漏。	Added {} mosaic masks. Review the image for anything missed.
+标注数量已达上限，请先删除部分标注。	The annotation limit has been reached. Delete some annotations first.
+敏感信息识别未完成，请重试。	Sensitive information could not be recognized. Try again.
 """#
 }

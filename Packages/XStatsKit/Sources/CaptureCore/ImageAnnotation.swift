@@ -12,10 +12,11 @@ public struct ImageAnnotation: Sendable, Identifiable, Equatable {
     public var color: CGColor
     public var lineWidth: CGFloat
     public var fontSize: CGFloat
+    public var mosaicSize: MosaicSize
     public init(id: UUID = UUID(), tool: ImageTool, points: [CGPoint], text: String = "",
-                color: CGColor = CGColor(red: 1, green: 0.2, blue: 0.15, alpha: 1), lineWidth: CGFloat = 4, fontSize: CGFloat = 26) {
+                color: CGColor = CGColor(red: 1, green: 0.2, blue: 0.15, alpha: 1), lineWidth: CGFloat = 4, fontSize: CGFloat = 26, mosaicSize: MosaicSize = .medium) {
         self.id = id; self.tool = tool; self.points = points; self.text = text
-        self.color = color; self.lineWidth = lineWidth; self.fontSize = fontSize
+        self.color = color; self.lineWidth = lineWidth; self.fontSize = fontSize; self.mosaicSize = mosaicSize
     }
     private var textLine: CTLine {
         CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [
@@ -84,7 +85,7 @@ public struct ImageAnnotation: Sendable, Identifiable, Equatable {
         }
     }
     /// Used by both the interactive canvas and final export, in top-left image coordinates.
-    public func draw(in context: CGContext) {
+    public func draw(in context: CGContext, mosaics: ImageMosaics? = nil) {
         guard let first = points.first else { return }
         context.saveGState()
         defer { context.restoreGState() }
@@ -94,7 +95,8 @@ public struct ImageAnnotation: Sendable, Identifiable, Equatable {
         case .crop: break
         case .rectangle: context.stroke(bounds)
         case .redact:
-            context.setFillColor(CGColor(gray: 0, alpha: 1)); context.fill(bounds.integral)
+            if let mosaics { mosaics.draw(in: context, rect: bounds, size: mosaicSize) }
+            else { context.setFillColor(CGColor(gray: 0, alpha: 1)); context.fill(bounds.integral) }
         case .pen, .arrow:
             context.beginPath(); context.move(to: first)
             for point in points.dropFirst() { context.addLine(to: point) }

@@ -5,12 +5,13 @@ import SwiftUI
 import Observation
 import CaptureCore
 import Localization
+import os
 
 extension ImageTool {
     var title: String {
         switch self {
         case .crop: tr("裁剪"); case .arrow: tr("箭头"); case .rectangle: tr("矩形")
-        case .pen: tr("画笔"); case .text: tr("文字"); case .redact: tr("遮挡")
+        case .pen: tr("画笔"); case .text: tr("文字"); case .redact: tr("马赛克")
         }
     }
 }
@@ -23,6 +24,15 @@ extension ImageTool {
     var color = NSColor.systemRed
     var lineWidth: CGFloat = 4
     var fontSize: CGFloat = 26
+    var mosaicSize: MosaicSize = .medium
+    var mosaics: ImageMosaics?
+    private(set) var detecting = false
+    var detectedCount: Int?
+    private let mosaicWorker: Task<ImageMosaics, Error>
+    private var detectRegions: (@Sendable (CGImage, CGRect) throws -> [CGRect])?
+    private var recognitionID: UUID?
+    private var cancelRecognition: (() -> Void)?
+    private static let logger = Logger(subsystem: CaptureRequest.bundleIdentifier, category: "image-editor")
     var editingText = false
     @ObservationIgnored var finishEditing: () -> Void = {}
     var dirty = true
@@ -38,8 +48,19 @@ extension ImageTool {
     private let saveImage: @Sendable (ImageEditDocument, URL, Bool) throws -> Void
     init(image: CGImage, saveImage: @escaping @Sendable (ImageEditDocument, URL, Bool) throws -> Void = { try $0.save(to: $1, jpeg: $2) }) {
         self.saveImage = saveImage
+        let worker = Task.detached(priority: .userInitiated) { try ImageMosaics(image: image) }
+        mosaicWorker = worker
         document = ImageEditDocument(image: image)
         self.image = NSImage(cgImage: image, size: CGSize(width: image.width, height: image.height))
+        let id = UUID()
+        pendingTasks[id] = Task {
+            defer { pendingTasks[id] = nil }
+            if let result = try? await worker.value, !terminating { mosaics = result }
+        }
+    }
+    convenience init(image: CGImage, detectRegions: @escaping @Sendable (CGImage, CGRect) throws -> [CGRect]) {
+        self.init(image: image)
+        self.detectRegions = detectRegions
     }
     var selected: ImageAnnotation? { document.annotations.first { $0.id == selectedID } }
     var effectiveTool: ImageTool? { selected?.tool ?? tool }
@@ -47,14 +68,14 @@ extension ImageTool {
         selectedID = id
         if let item = selected {
             color = NSColor(cgColor: item.color) ?? .systemRed
-            lineWidth = item.lineWidth; fontSize = item.fontSize
+            lineWidth = item.lineWidth; fontSize = item.fontSize; mosaicSize = item.mosaicSize
         }
     }
     func annotation(tool: ImageTool, points: [CGPoint], text: String = "") -> ImageAnnotation {
-        ImageAnnotation(tool: tool, points: points, text: text, color: color.cgColor, lineWidth: lineWidth, fontSize: fontSize)
+        ImageAnnotation(tool: tool, points: points, text: text, color: color.cgColor, lineWidth: lineWidth, fontSize: fontSize, mosaicSize: mosaicSize)
     }
     func commit(_ item: ImageAnnotation) {
-        guard !terminating, !rendering, !item.points.isEmpty else { return }
+        guard !terminating, !rendering, !detecting, !item.points.isEmpty else { return }
         if item.tool == .crop {
             do { try document.crop(to: item.bounds); select(nil); refresh() }
             catch { self.error = error.localizedDescription }
@@ -75,28 +96,34 @@ extension ImageTool {
         }
         guard var item = selected else { return }
         if item.tool != .redact { item.color = color.cgColor }
-        item.lineWidth = lineWidth; item.fontSize = fontSize
+        item.lineWidth = lineWidth; item.fontSize = fontSize; item.mosaicSize = mosaicSize
         commit(item)
     }
     func deleteSelected() {
-        guard !terminating, !rendering, let id = selectedID else { return }
+        guard !terminating, !rendering, !detecting, let id = selectedID else { return }
         finishEditing()
         document.remove(id: id); select(nil); refresh()
     }
     func undo() {
-        guard !terminating else { return }
+        guard !terminating, !detecting else { return }
         finishEditing(); document.undo(); select(nil); refresh()
     }
     func redo() {
-        guard !terminating else { return }
+        guard !terminating, !detecting else { return }
         finishEditing(); document.redo(); select(nil); refresh()
     }
     private func refresh() {
         guard !terminating else { return }
+        detectedCount = nil
         cancelPendingWork()
         rendering = true; dirty = true; imageIsCurrent = false; error = nil
         let document = document
-        let worker = Task.detached(priority: .userInitiated) { try document.render() }
+        let mosaicWorker = mosaicWorker
+        let worker = Task.detached(priority: .userInitiated) {
+            let mosaics = try await mosaicWorker.value
+            try Task.checkCancellation()
+            return try document.render(mosaics: mosaics)
+        }
         cancelWorker = { worker.cancel() }
         let id = UUID()
         let task = Task {
@@ -114,11 +141,65 @@ extension ImageTool {
         }
         renderTask = task; pendingTasks[id] = task
     }
+    func detectSensitiveInformation() {
+        guard !terminating, !rendering, !detecting else { return }
+        finishEditing()
+        // Committing an inline text draft may start rendering; retry after it finishes.
+        guard !rendering else { return }
+        detecting = true; detectedCount = nil; error = nil
+        let id = UUID()
+        recognitionID = id
+        let original = document.original, crop = document.cropRect
+        let detectRegions = detectRegions
+        let detector = SensitiveTextDetector()
+        let worker = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            return try detectRegions?(original, crop) ?? detector.regions(in: original, crop: crop)
+        }
+        cancelRecognition = { worker.cancel(); detector.cancel() }
+        Self.logger.info("Sensitive text recognition started")
+        pendingTasks[id] = Task {
+            defer {
+                pendingTasks[id] = nil
+                // Only one worker can exist; cancellation keeps the slot occupied until it exits.
+                recognitionID = nil; detecting = false; cancelRecognition = nil
+            }
+            do {
+                let regions = try await withTaskCancellationHandler { try await worker.value } onCancel: {
+                    worker.cancel(); detector.cancel()
+                }
+                guard !terminating, recognitionID == id, !Task.isCancelled else { return }
+                let existing = document.annotations.filter { $0.tool == .redact }
+                let items = regions.filter { rect in !existing.contains { $0.bounds.contains(rect) } }.map { rect in
+                    ImageAnnotation(tool: .redact, points: [rect.origin, CGPoint(x: rect.maxX, y: rect.maxY)], mosaicSize: mosaicSize)
+                }
+                if !items.isEmpty {
+                    guard document.add(items) else {
+                        error = tr("标注数量已达上限，请先删除部分标注。")
+                        return
+                    }
+                    select(nil); tool = nil; refresh()
+                }
+                detectedCount = items.count
+                Self.logger.info("Sensitive text recognition finished; added \(items.count) masks")
+            } catch {
+                guard !terminating, recognitionID == id, !Task.isCancelled else { return }
+                self.error = tr("敏感信息识别未完成，请重试。")
+                Self.logger.error("Sensitive text recognition failed")
+            }
+        }
+    }
+    func cancelDetection() {
+        guard detecting, recognitionID != nil else { return }
+        cancelRecognition?(); cancelRecognition = nil
+        recognitionID = nil
+        Self.logger.info("Sensitive text recognition cancelled")
+    }
     func copy() {
         finishEditing()
         Task {
             await waitForPendingWork()
-            guard !terminating, !rendering, imageIsCurrent else { return }
+            guard !terminating, !rendering, !detecting, imageIsCurrent else { return }
             NSPasteboard.general.clearContents()
             if NSPasteboard.general.writeObjects([image]) { dirty = false }
             else { error = CaptureError.exportFailed.localizedDescription }
@@ -128,7 +209,7 @@ extension ImageTool {
         finishEditing()
         Task {
             await waitForPendingWork()
-            guard !terminating, !rendering else { return }
+            guard !terminating, !rendering, !detecting else { return }
             let panel = NSSavePanel()
             panel.allowedContentTypes = jpeg ? [.jpeg] : [.png]
             panel.nameFieldStringValue = "Screenshot.\(jpeg ? "jpg" : "png")"
@@ -137,7 +218,7 @@ extension ImageTool {
         }
     }
     func save(to url: URL, jpeg: Bool) {
-        guard !terminating, !rendering else { return }
+        guard !terminating, !rendering, !detecting else { return }
         let document = document
         rendering = true; error = nil
         let saveImage = saveImage
@@ -163,20 +244,22 @@ extension ImageTool {
         finishEditing()
         Task {
             await waitForPendingWork()
-            guard canPin, !terminating, imageIsCurrent, !rendering,
+            guard canPin, !terminating, imageIsCurrent, !rendering, !detecting,
                   let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
             onPin(cgImage)
         }
     }
     func cancelPendingWork(terminating: Bool = false) {
-        if terminating { self.terminating = true }
+        if terminating {
+            self.terminating = true
+            cancelDetection(); mosaicWorker.cancel()
+        }
         renderTask?.cancel(); cancelWorker?()
         renderTask = nil; cancelWorker = nil; rendering = false
     }
     /// 取消不等于工作线程已退出；保留所有未收尾任务，直到编码与临时文件清理完成。
     func waitForPendingWork() async {
-        let tasks = Array(pendingTasks.values)
-        for task in tasks { await task.value }
+        while let task = pendingTasks.values.first { await task.value }
     }
 }
 
@@ -207,7 +290,8 @@ extension ImageTool {
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         guard !closed, closeTask == nil, closeAlert == nil else { return false }
         model.finishEditing()
-        if model.rendering {
+        model.cancelDetection()
+        if model.rendering || model.detecting {
             closeTask = Task { [weak self] in
                 guard let self else { return }
                 await model.waitForPendingWork()
@@ -258,7 +342,7 @@ private struct ImageEditorView: View {
                 Button { model.redo() } label: { Image(systemName: "arrow.uturn.forward") }
                     .help(tr("重做")).accessibilityLabel(tr("重做"))
                     .keyboardShortcut("z", modifiers: [.command, .shift]).disabled(!model.document.canRedo)
-            }.padding(.horizontal, 16).padding(.vertical, 12)
+            }.padding(.horizontal, 16).padding(.vertical, 12).disabled(model.detecting)
             Divider()
             HStack(spacing: 12) {
                 if let tool = model.effectiveTool, tool != .crop, tool != .redact {
@@ -288,13 +372,23 @@ private struct ImageEditorView: View {
                         }.fixedSize().onChange(of: model.lineWidth) { model.applyStyle() }
                     }
                 } else if model.effectiveTool == .redact {
-                    Label(tr("实色遮挡"), systemImage: "square.fill").font(.callout).foregroundStyle(.secondary)
+                    Picker(tr("颗粒大小"), selection: $model.mosaicSize) {
+                        Text(tr("细")).tag(MosaicSize.fine)
+                        Text(tr("中")).tag(MosaicSize.medium)
+                        Text(tr("粗")).tag(MosaicSize.coarse)
+                    }.pickerStyle(.segmented).fixedSize()
+                        .onChange(of: model.mosaicSize) { model.applyStyle() }
+
                 }
                 Spacer()
+                if model.effectiveTool == .redact {
+                    Button(tr("一键打码"), systemImage: "sparkle.magnifyingglass") { model.detectSensitiveInformation() }
+                        .help(tr("在本机识别手机号、邮箱、身份证号和银行卡号。"))
+                }
                 if model.selected != nil {
                     Button(tr("删除标注"), systemImage: "trash") { model.deleteSelected() }
                 }
-            }.frame(minHeight: 28).padding(.horizontal, 16).padding(.vertical, 8)
+            }.frame(minHeight: 28).padding(.horizontal, 16).padding(.vertical, 8).disabled(model.detecting)
             ImageCanvas(model: model).frame(maxWidth: .infinity, maxHeight: .infinity).background(.quaternary)
             HStack {
                 Text(instruction).font(.caption).foregroundStyle(.secondary)
@@ -309,7 +403,19 @@ private struct ImageEditorView: View {
                 Menu { Button("PNG") { model.save(jpeg: false) }; Button("JPEG") { model.save(jpeg: true) } }
                     label: { Image(systemName: "chevron.down") }
                     .menuStyle(.borderlessButton).fixedSize().help(tr("图片格式")).accessibilityLabel(tr("图片格式"))
-            }.padding(16)
+            }.padding(16).disabled(model.detecting)
+            if model.detecting {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text(tr("正在识别敏感信息…")).font(.caption)
+                    Button(tr("取消")) { model.cancelDetection() }
+                }.padding(.horizontal, 16).padding(.bottom, 12)
+            } else if let count = model.detectedCount {
+                Text(count == 0 ? tr("未发现新的敏感信息，可手动补充马赛克。") :
+                    tr("已添加 {} 处马赛克，请检查并补充遗漏。").replacingOccurrences(of: "{}", with: count.formatted(.number.locale(L10n.locale))))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 16).padding(.bottom, 12)
+            }
             if let error = model.error { Text(error).foregroundStyle(.red).font(.caption).padding(.horizontal, 16).padding(.bottom, 12) }
         }.disabled(model.rendering || model.terminating)
     }
@@ -349,7 +455,7 @@ extension ImageTool {
         case .rectangle: "rectangle"
         case .pen: "pencil.tip"
         case .text: "textformat"
-        case .redact: "square.fill"
+        case .redact: "square.grid.3x3.fill"
         }
     }
 }

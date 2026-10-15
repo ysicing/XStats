@@ -15,7 +15,7 @@ struct ImageCanvas: NSViewRepresentable {
     }
     func updateNSView(_ view: ImageCanvasView, context: Context) {
         // Register the model dependencies read by AppKit drawing and the inline field.
-        _ = model.document; _ = model.selectedID; _ = model.color; _ = model.fontSize
+        _ = model.mosaics; _ = model.document; _ = model.selectedID; _ = model.color; _ = model.fontSize
         view.synchronize()
     }
 }
@@ -88,7 +88,7 @@ struct ImageCanvas: NSViewRepresentable {
     }
     override func mouseDown(with event: NSEvent) {
         finishText()
-        guard !model.rendering, !model.terminating else { return }
+        guard !model.rendering, !model.detecting, !model.terminating else { return }
         let location = convert(event.locationInWindow, from: nil)
         guard imageRect.insetBy(dx: -8, dy: -8).contains(location) else { model.select(nil); needsDisplay = true; return }
         window?.makeFirstResponder(self)
@@ -120,6 +120,7 @@ struct ImageCanvas: NSViewRepresentable {
         needsDisplay = true
     }
     override func mouseDragged(with event: NSEvent) {
+        guard !model.detecting, !model.terminating else { return }
         guard let gesture else { return }
         let point = imagePoint(event)
         switch gesture {
@@ -157,6 +158,7 @@ struct ImageCanvas: NSViewRepresentable {
         model.commit(result); needsDisplay = true
     }
     override func keyDown(with event: NSEvent) {
+        guard !model.detecting, !model.terminating else { return }
         if event.keyCode == 53 {
             gesture = nil; cancelText(); model.select(nil); needsDisplay = true; return
         }
@@ -223,10 +225,10 @@ struct ImageCanvas: NSViewRepresentable {
         let preview = gesture?.preview
         for item in model.document.annotations {
             if item.id == editingText?.id { continue }
-            if let preview, preview.id == item.id { preview.draw(in: context) }
-            else { item.draw(in: context) }
+            if let preview, preview.id == item.id { preview.draw(in: context, mosaics: model.mosaics) }
+            else { item.draw(in: context, mosaics: model.mosaics) }
         }
-        if let preview, case .draw = gesture, preview.tool != .crop { preview.draw(in: context) }
+        if let preview, case .draw = gesture, preview.tool != .crop { preview.draw(in: context, mosaics: model.mosaics) }
         context.restoreGState()
         if let preview, preview.tool == .crop {
             let first = viewPoint(CGPoint(x: preview.bounds.minX, y: preview.bounds.minY))

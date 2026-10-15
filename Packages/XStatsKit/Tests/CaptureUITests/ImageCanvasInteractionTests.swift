@@ -31,9 +31,10 @@ import CaptureCore
         #expect(abs((actual?.width ?? .infinity) - expected.width) < 0.001)
         #expect(abs((actual?.height ?? .infinity) - expected.height) < 0.001)
     }
-    @Test func dragPreviewIsSolidAndDoesNotCommitUntilMouseUp() async throws {
+    @Test func dragPreviewUsesSourceColorsAndDoesNotCommitUntilMouseUp() async throws {
         let (model, canvas, window) = try editor()
         defer { window.orderOut(nil) }
+        await model.waitForPendingWork()
         model.tool = .redact; canvas.synchronize()
         canvas.mouseDown(with: try mouse(.leftMouseDown, CGPoint(x: 20, y: 20), in: canvas))
         canvas.mouseDragged(with: try mouse(.leftMouseDragged, CGPoint(x: 60, y: 60), in: canvas))
@@ -42,7 +43,7 @@ import CaptureCore
         canvas.cacheDisplay(in: canvas.bounds, to: bitmap)
         let rect = canvas.imageRect
         let inside = try #require(bitmap.colorAt(x: Int(rect.minX + rect.width * 0.4), y: Int(rect.minY + rect.height * 0.4))?.usingColorSpace(.deviceRGB))
-        #expect(inside.redComponent < 0.01 && inside.greenComponent < 0.01 && inside.blueComponent < 0.01)
+        #expect(inside.redComponent > 0.99 && inside.greenComponent > 0.99 && inside.blueComponent > 0.99)
         canvas.mouseUp(with: try mouse(.leftMouseUp, CGPoint(x: 60, y: 60), in: canvas))
         await model.waitForPendingWork()
         #expect(model.document.annotations.count == 1 && model.selectedID == model.document.annotations[0].id)

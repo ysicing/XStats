@@ -2245,3 +2245,12 @@ CPU 占用口径	Échelle d’utilisation du CPU
 正在预览窗口…	Chargement de l’aperçu de la fenêtre…
 窗口预览未完成，请重新选择。	L’aperçu a échoué. Sélectionnez à nouveau la fenêtre.
 目标窗口当前不可见	La fenêtre cible n’est pas visible actuellement
+马赛克	Mosaïque
+颗粒大小	Taille des blocs
+一键打码	Masquer automatiquement
+在本机识别手机号、邮箱、身份证号和银行卡号。	Détecter les numéros de téléphone, adresses e-mail, numéros d’identité et de carte bancaire sur ce Mac.
+正在识别敏感信息…	Recherche d’informations sensibles…
+未发现新的敏感信息，可手动补充马赛克。	Aucune nouvelle information sensible détectée. Ajoutez des mosaïques manuellement si nécessaire.
+已添加 {} 处马赛克，请检查并补充遗漏。	{} mosaïques ajoutées. Vérifiez si des informations ont été oubliées.
+标注数量已达上限，请先删除部分标注。	La limite d’annotations est atteinte. Supprimez-en quelques-unes d’abord.
+敏感信息识别未完成，请重试。	Impossible de reconnaître les informations sensibles. Réessayez.
