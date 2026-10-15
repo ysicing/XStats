@@ -53,6 +53,21 @@ import AVFoundation
         try clock.resume(at: 120)
         #expect(clock.presentationTime(at: 121) == 6)
     }
+    @Test func elapsedTimeFreezesDuringPausesAndResetsForNextRecording() throws {
+        var clock = RecordingClock()
+        #expect(clock.elapsedTime(at: 99) == 0)
+        try clock.start(at: 100)
+        #expect(clock.elapsedTime(at: 102.5) == 2.5)
+        try clock.pause(at: 103)
+        #expect(clock.elapsedTime(at: 113) == 3)
+        try clock.resume(at: 113)
+        #expect(clock.elapsedTime(at: 114) == 4)
+        try clock.pause(at: 115)
+        #expect(clock.elapsedTime(at: 4000) == 5)
+        clock = RecordingClock()
+        try clock.start(at: 5000)
+        #expect(clock.elapsedTime(at: 5001) == 1)
+    }
     @Test func statePreventsConcurrentStartAndStopDuringTransition() throws {
         var state = CaptureSessionState()
         try state.transition(to: .selecting)

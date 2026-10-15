@@ -40,6 +40,10 @@ extension Translations {
 最多置顶 5 张截图，请先关闭已有截图。	Up to 5 screenshots can be pinned. Close one first.
 正在录制	Recording
 录制已暂停	Recording paused
+录制时长	Recording duration
+开始：{}	Start: {}
+结束：{}	End: {}
+保留时长：{}	Duration kept: {}
 录屏预览	Recording preview
 开始时间	Start time
 结束时间	End time

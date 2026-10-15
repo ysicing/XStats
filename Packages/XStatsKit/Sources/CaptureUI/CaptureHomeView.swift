@@ -181,6 +181,18 @@ struct RecordingControlView: View {
             Text(title)
                 .font(.title2.monospacedDigit())
                 .fixedSize(horizontal: false, vertical: true)
+            if controller.countdown == 0 {
+                Group {
+                    if controller.recordingClock.isRunning && controller.recordingControlsVisible {
+                        TimelineView(.periodic(from: .now, by: 1)) { _ in
+                            elapsedText()
+                        }
+                    } else {
+                        elapsedText()
+                    }
+                }
+                .font(.system(.title, design: .monospaced))
+            }
             if let target = controller.recordingTargetName {
                 Text(target).font(.caption).lineLimit(2).truncationMode(.middle)
                 if !controller.targetWindowVisible {
@@ -200,6 +212,10 @@ struct RecordingControlView: View {
             }.disabled(controller.transitioning)
         }.padding(24).frame(maxWidth: .infinity)
     }
+    private func elapsedText() -> some View {
+        let text = RecordingTimeText.string(controller.recordingClock.elapsedTime(at: ProcessInfo.processInfo.systemUptime))
+        return Text(text).accessibilityLabel(tr("录制时长")).accessibilityValue(text)
+    }
 }
 
 struct RecordingPreviewView: View {
@@ -207,16 +223,25 @@ struct RecordingPreviewView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let player = controller.player { CaptureVideoPlayer(player: player).frame(minHeight: 320) }
-            HStack {
-                Text(tr("开始时间"))
-                Slider(value: $controller.trimStart, in: 0...max(0.01, controller.duration - 0.01)).disabled(controller.exporting).onChange(of: controller.trimStart) { controller.seekTrim() }
-                Text(controller.trimStart.formatted(.number.precision(.fractionLength(1)).locale(L10n.locale))).monospacedDigit()
+            VStack(spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(tr("开始：{}").replacingOccurrences(of: "{}", with: RecordingTimeText.string(controller.trimStart, fractional: true)))
+                        .environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight)
+                    Spacer(minLength: 12)
+                    Text(tr("保留时长：{}").replacingOccurrences(of: "{}", with: RecordingTimeText.string(controller.trimEnd - controller.trimStart, fractional: true)))
+                        .foregroundStyle(.secondary)
+                        .environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight)
+                    Spacer(minLength: 12)
+                    Text(tr("结束：{}").replacingOccurrences(of: "{}", with: RecordingTimeText.string(controller.trimEnd, fractional: true)))
+                        .environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight)
+                }.font(.caption).monospacedDigit()
+                RecordingTrimSlider(start: controller.trimStart, end: controller.trimEnd, duration: controller.duration,
+                                    enabled: !controller.exporting) { handle, time in
+                    controller.setTrim(handle, to: time)
+                }.frame(height: 28)
             }
-            HStack {
-                Text(tr("结束时间"))
-                Slider(value: $controller.trimEnd, in: 0.01...max(0.01, controller.duration)).disabled(controller.exporting).onChange(of: controller.trimEnd) { controller.seekTrim() }
-                Text(controller.trimEnd.formatted(.number.precision(.fractionLength(1)).locale(L10n.locale))).monospacedDigit()
-            }
+            // 媒体时间轴保持从左到右，翻译及周边控件继续遵循应用语言方向。
+            .environment(\.layoutDirection, .leftToRight)
             if let error = controller.error { Text(error).foregroundStyle(.red).font(.caption) }
             HStack {
                 Button(tr("在访达中显示原始片段")) { controller.revealMedia() }

@@ -28,6 +28,8 @@ import Localization
         }
     }
     @Published var paused = false
+    @Published private(set) var recordingClock = RecordingClock()
+    @Published private(set) var recordingControlsVisible = false
     @Published private(set) var recordingTargetName: String?
     @Published private(set) var targetWindowVisible = true
     @Published var countdown = 0
@@ -110,6 +112,7 @@ import Localization
     }
     func cleanUp() {
         operation?.cancel(); cacheCleanup?.cancel(); selector.cancel(); player?.pause()
+        try? recordingClock.pause(at: ProcessInfo.processInfo.systemUptime)
         rangeIndicator.close()
         if host == .standalone { shortcuts.stop() }
         for observer in observers {
@@ -254,7 +257,8 @@ import Localization
                     Self.logger.notice("Screenshot completed")
                 } else {
                     try state.transition(to: .countdown)
-                    let controlSize = source.windowID == nil ? CGSize(width: 260, height: 130) : CGSize(width: 320, height: 210)
+                    recordingClock = RecordingClock()
+                    let controlSize = source.windowID == nil ? CGSize(width: 260, height: 170) : CGSize(width: 320, height: 250)
                     control = makeWindow(title: tr("录屏"), size: controlSize, content: RecordingControlView(controller: self), resizable: false)
                     control?.level = .floating
                     updateRecordingRange()
@@ -299,6 +303,7 @@ import Localization
                         throw failure
                     }
                     try state.transition(to: .recording)
+                    try recordingClock.start(at: ProcessInfo.processInfo.systemUptime)
                     transitioning = false; paused = false
                     updateRecordingRange()
                 }
@@ -314,6 +319,7 @@ import Localization
     private func resetOperation() {
         if state.phase != .idle { try? state.transition(to: .idle) }
         busy = false; paused = false; countdown = 0; transitioning = false; selectedSource = nil
+        recordingClock = RecordingClock(); recordingControlsVisible = false
         recordingTargetName = nil; targetWindowState = nil; targetWindowVisible = true
         rangeIndicator.close()
         control?.close(); control = nil
@@ -330,11 +336,14 @@ import Localization
     func cancelCountdown() { operation?.cancel(); selector.cancel() }
     func togglePause() {
         guard !terminating, !transitioning, canPauseRecording, let recorder else { return }
+        // 暂停时立即停表，不能把停止生产者和文件封口的等待计入有效录制时长。
+        if !paused { try? recordingClock.pause(at: ProcessInfo.processInfo.systemUptime) }
         transitioning = true
         operation = Task {
             do {
                 if paused {
                     try state.transition(to: .resuming); try await recorder.resume(); try state.transition(to: .recording)
+                    try recordingClock.resume(at: ProcessInfo.processInfo.systemUptime)
                 } else {
                     try state.transition(to: .pausing); try await recorder.pause(); try state.transition(to: .paused)
                 }
@@ -377,6 +386,8 @@ import Localization
     /// Own finalization as one operation, preserving recoverable media and stop retries.
     func finalizeRecording(_ recorder: ScreenRecorder) async {
         self.recorder = recorder
+        let clockWasRunning = recordingClock.isRunning
+        try? recordingClock.pause(at: ProcessInfo.processInfo.systemUptime)
         busy = true; finishing = true; transitioning = true
         defer { finishing = false; transitioning = false }
         if state.phase != .finishing { try? state.transition(to: .finishing) }
@@ -396,12 +407,15 @@ import Localization
             // segment already failed. Retrying cannot recover that lost segment.
             if failure == .writerFailed { terminalRecordingError = terminalRecordingError ?? failure }
             if recorder.isCapturing {
+                // 停止失败时生产者仍运行；恢复计时，重试等待不应被当作暂停。
+                if clockWasRunning { try? recordingClock.resume(at: ProcessInfo.processInfo.systemUptime) }
                 stopRetryError = true
                 control?.setContentSize(CGSize(width: 360, height: 260))
                 return
             }
             terminalRecordingError = terminalRecordingError ?? failure
         }
+        try? recordingClock.pause(at: ProcessInfo.processInfo.systemUptime)
         guard !terminating, !Task.isCancelled else { return }
         rangeIndicator.close()
         control?.close(); control = nil; selectedSource = nil
@@ -454,9 +468,12 @@ import Localization
             }
         }
     }
-    func seekTrim() {
-        player?.seek(to: CMTime(seconds: trimStart, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+    func setTrim(_ handle: RecordingTrimRangeView.Handle, to time: Double) {
+        guard !exporting else { return }
+        if handle == .start { trimStart = time } else { trimEnd = time }
+        player?.pause()
         player?.currentItem?.forwardPlaybackEndTime = CMTime(seconds: trimEnd, preferredTimescale: 600)
+        player?.seek(to: CMTime(seconds: time, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
     }
     func exportRecording() {
         guard !terminating, !exporting, let recorder else { return }
@@ -565,6 +582,10 @@ import Localization
         pins.removeAll { $0.window === window }
         onWindowsChanged(); considerExit()
     }
+    func windowDidChangeOcclusionState(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === control else { return }
+        recordingControlsVisible = window.occlusionState.contains(.visible) && !window.isMiniaturized
+    }
     var hasOpenWindows: Bool { windowCount > 0 }
     private var windowCount: Int { [home, control, preview].compactMap { $0 }.count + editors.count + pins.count }
     private var captureWindowIDs: Set<CGWindowID> {
@@ -581,6 +602,7 @@ import Localization
     var hasUnsavedWork: Bool { busy || (recorder != nil && !recordingSaved) || editors.contains(where: { $0.model.dirty || $0.model.rendering }) }
     func discardAndStop() async {
         terminating = true
+        try? recordingClock.pause(at: ProcessInfo.processInfo.systemUptime)
         operation?.cancel(); cacheCleanup?.cancel(); selector.cancel(); exporter.cancel()
         rangeIndicator.close()
         let models = editors.map(\.model)

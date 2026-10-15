@@ -2254,3 +2254,7 @@ CPU 占用口径	Échelle d’utilisation du CPU
 已添加 {} 处马赛克，请检查并补充遗漏。	{} mosaïques ajoutées. Vérifiez si des informations ont été oubliées.
 标注数量已达上限，请先删除部分标注。	La limite d’annotations est atteinte. Supprimez-en quelques-unes d’abord.
 敏感信息识别未完成，请重试。	Impossible de reconnaître les informations sensibles. Réessayez.
+录制时长	Durée d’enregistrement
+开始：{}	Début : {}
+结束：{}	Fin : {}
+保留时长：{}	Durée conservée : {}

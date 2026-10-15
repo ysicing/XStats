@@ -101,6 +101,26 @@ import AVFoundation
         #expect(controller.error == (terminalFailure ? CaptureError.microphoneFailed.localizedDescription : nil))
         #expect(controller.permissionError == nil)
         #expect(!controller.busy)
+        let player = try #require(controller.player)
+        let end = controller.duration * 0.8
+        player.play()
+        controller.setTrim(.end, to: end)
+        for _ in 0..<100 {
+            if abs(player.currentTime().seconds - end) < 0.02 { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(player.rate == 0)
+        #expect(abs(player.currentTime().seconds - end) < 0.02)
+        #expect(controller.trimStart == 0)
+        #expect(abs((player.currentItem?.forwardPlaybackEndTime.seconds ?? -1) - end) < 0.002)
+        let start = controller.duration * 0.2
+        controller.setTrim(.start, to: start)
+        for _ in 0..<100 {
+            if abs(player.currentTime().seconds - start) < 0.02 { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(abs(player.currentTime().seconds - start) < 0.02)
+        #expect(controller.trimEnd == end)
         await controller.discardAndStop()
         #expect(!FileManager.default.fileExists(atPath: media.directory.path))
     }

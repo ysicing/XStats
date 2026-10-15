@@ -2254,3 +2254,7 @@ CPU 占用口径	CPU-Anzeigeskala
 已添加 {} 处马赛克，请检查并补充遗漏。	{} Mosaike hinzugefügt. Prüfe das Bild auf übersehene Informationen.
 标注数量已达上限，请先删除部分标注。	Die maximale Anzahl an Anmerkungen ist erreicht. Lösche zuerst einige Anmerkungen.
 敏感信息识别未完成，请重试。	Sensible Informationen konnten nicht erkannt werden. Versuche es erneut.
+录制时长	Aufnahmedauer
+开始：{}	Start: {}
+结束：{}	Ende: {}
+保留时长：{}	Beibehaltene Dauer: {}
