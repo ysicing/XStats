@@ -35,33 +35,33 @@ trap 'rm -rf "$WORK"' EXIT
 python3 - <<'PY'
 import plistlib
 
-with open("App/XStats.entitlements", "rb") as source:
+with open("Apps/XStats/App/XStats.entitlements", "rb") as source:
     entitlements = plistlib.load(source)
 assert entitlements.get("com.apple.security.personal-information.calendars") is True, "缺少 EventKit 日历访问 entitlement"
 assert "com.apple.developer.system-extension.install" not in entitlements
 assert "com.apple.developer.networking.networkextension" not in entitlements
-with open("App/Info.plist", "rb") as source:
+with open("Apps/XStats/App/Info.plist", "rb") as source:
     info = plistlib.load(source)
 for key in ("NSCalendarsFullAccessUsageDescription", "NSRemindersFullAccessUsageDescription"):
     assert info.get(key), f"缺少权限说明：{key}"
 assert "NetworkObservationExtensionVersion" not in info
 assert "NetworkObservationExtensionBuild" not in info
-with open("NetworkMonitorApp/Info.plist", "rb") as source:
+with open("Apps/NetworkMonitor/App/Info.plist", "rb") as source:
     component = plistlib.load(source)
 assert component["SUFeedURL"] == "https://apps.12306.work/api/v1/apps/xstats-network-monitor/update/appcast.xml"
 assert component["SURequireSignedFeed"] is True and component["SUVerifyUpdateBeforeExtraction"] is True
 assert component["SUEnableAutomaticChecks"] is False
 assert component["SUPublicEDKey"] == info["SUPublicEDKey"]
 assert component.get("NSSystemExtensionUsageDescription")
-with open("NetworkMonitorApp/XStatsNetworkMonitor.entitlements", "rb") as source:
+with open("Apps/NetworkMonitor/App/XStatsNetworkMonitor.entitlements", "rb") as source:
     component_entitlements = plistlib.load(source)
 assert component_entitlements["com.apple.developer.system-extension.install"] is True
 assert component_entitlements["com.apple.developer.networking.networkextension"] == ["content-filter-provider-systemextension"]
-with open("NetworkExtension/Info.plist", "rb") as source:
+with open("Apps/NetworkMonitor/Extension/Info.plist", "rb") as source:
     extension = plistlib.load(source)
 assert extension["CFBundlePackageType"] == "SYSX"
 assert extension["NetworkExtension"]["NEProviderClasses"]["com.apple.networkextension.filter-data"].endswith(".ConnectionFilterProvider")
-with open("NetworkExtension/XStatsNetworkExtension.entitlements", "rb") as source:
+with open("Apps/NetworkMonitor/Extension/XStatsNetworkExtension.entitlements", "rb") as source:
     entitlements = plistlib.load(source)
 assert entitlements.get("com.apple.security.app-sandbox") is True
 assert entitlements["com.apple.developer.networking.networkextension"] == ["content-filter-provider-systemextension"]
@@ -70,7 +70,7 @@ groups = entitlements.get("com.apple.security.application-groups", [])
 assert any(mach_service.startswith(group + ".") for group in groups), "NE Mach 服务必须位于扩展 App Group 命名空间中"
 assert "NetworkObservationMachService" not in info, "主应用从已验证的独立组件读取服务名"
 assert component["NetworkObservationMachService"] == mach_service
-with open("App/XStats.entitlements", "rb") as source:
+with open("Apps/XStats/App/XStats.entitlements", "rb") as source:
     app_groups = plistlib.load(source).get("com.apple.security.application-groups", [])
 assert all(group in app_groups for group in groups), "主 App 与扩展必须属于同一 IPC App Group"
 assert all(group in component_entitlements["com.apple.security.application-groups"] for group in groups)

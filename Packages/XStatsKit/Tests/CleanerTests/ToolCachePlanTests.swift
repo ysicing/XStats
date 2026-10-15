@@ -126,7 +126,7 @@ struct ToolCachePlanTests {
         #expect(!fm.fileExists(atPath: String(lines[1])))
     }
 
-    @Test func queryTimeoutAlsoStopsReadingAnInheritedOutputPipe() async throws {
+    @Test(.timeLimit(.minutes(1))) func queryTimeoutAlsoStopsReadingAnInheritedOutputPipe() async throws {
         let fm = FileManager.default
         let home = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString).resolvingSymlinksInPath()
         let executable = home.appendingPathComponent(".local/bin/uv")
@@ -138,12 +138,15 @@ struct ToolCachePlanTests {
         }
         try Data("#!/bin/sh\n/bin/sleep 30 &\necho $! > \"$HOME/child\"\nexit 0\n".utf8).write(to: executable)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
-        let started = ContinuousClock.now
         do {
-            _ = try await DeveloperToolRunner.run("uv", arguments: ["cache", "dir"], home: home.path, timeout: 0.25)
+            // 留出子进程启动时间，使并行 CI 覆盖继承管道，而非仅覆盖启动期间的超时。
+            _ = try await DeveloperToolRunner.run("uv", arguments: ["cache", "dir"], home: home.path, timeout: 2)
             Issue.record("Query waited for a background process instead of timing out")
         } catch ToolExecutionError.timedOut(let tool) { #expect(tool == "uv") }
-        #expect(ContinuousClock.now - started < .seconds(3))
+        let value = try String(contentsOf: home.appendingPathComponent("child"), encoding: .utf8)
+        let pid = try #require(Int32(value.trimmingCharacters(in: .whitespacesAndNewlines)))
+        // 验证仍持有写端的子进程尚未退出，而非把 CI 线程调度延迟当成超时逻辑失败。
+        #expect(kill(pid, 0) == 0, "查询应在子进程释放输出管道之前返回超时")
     }
 
     @Test(arguments: ["npm", "yarn", "pnpm", "bun", "go", "cargo-cache", "uv"])

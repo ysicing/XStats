@@ -297,8 +297,8 @@ func TestSparkleFeedUpstreamFailuresUseProductionRedirectPolicy(t *testing.T) {
 // 服务端验签公钥必须与客户端内置公钥一致，轮换时漏改会让所有 Sparkle 检查返回 502。
 func TestSparklePublicKeyMatchesClient(t *testing.T) {
 	sources := map[string]*regexp.Regexp{
-		"../../App/Info.plist": regexp.MustCompile(`<key>SUPublicEDKey</key>\s*<string>([^<]+)</string>`),
-		"../../project.yml":    regexp.MustCompile(`SUPublicEDKey:\s*"([^"]+)"`),
+		"../../Apps/XStats/App/Info.plist": regexp.MustCompile(`<key>SUPublicEDKey</key>\s*<string>([^<]+)</string>`),
+		"../../project.yml":                regexp.MustCompile(`SUPublicEDKey:\s*"([^"]+)"`),
 	}
 	for path, pattern := range sources {
 		data, err := os.ReadFile(path)

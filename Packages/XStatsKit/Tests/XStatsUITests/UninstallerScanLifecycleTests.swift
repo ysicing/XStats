@@ -128,6 +128,8 @@ struct UninstallerScanLifecycleTests {
         controller.reloadApps()
         let deadline = ContinuousClock.now + .seconds(120)
         while controller.sizes[slow.id] == nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        // 新计量发布与旧子任务退出没有先后保证，须分别等待取消收尾。
+        while !slowCalls.finished, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         #expect(listCalls.calls == 2, "计量未完成时显式刷新也必须重新列举")
         #expect(slowCalls.finished, "被中断的计量必须响应取消")
         #expect(controller.sizes[measured.id] == 100 && controller.sizes[slow.id] == 200)

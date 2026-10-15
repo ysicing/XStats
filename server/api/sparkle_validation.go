@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-// 与客户端 App/Info.plist 的 SUPublicEDKey 一致；更换发布密钥时同步更新。
+// 与客户端 Apps/XStats/App/Info.plist 的 SUPublicEDKey 一致；更换发布密钥时同步更新。
 const sparklePublicKey = "j/I8zd8BXz4oPldnhocEySXTMmXPxKMyBRwoA4ewLIk="
 
 type sparkleRSS struct {

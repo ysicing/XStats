@@ -1,0 +1,5 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+"NSMicrophoneUsageDescription" = "عند تفعيل الميكروفون، يُسجّل الصوت في فيديو محلي دون رفع المحتوى.";
+"NSAudioCaptureUsageDescription" = "عند تفعيل صوت النظام، يُسجّل في فيديو محلي دون رفع المحتوى.";
+"NSScreenCaptureUsageDescription" = "يلتقط المنطقة أو النافذة أو الشاشة المحددة عند أخذ لقطة شاشة أو تسجيلها. يُحفظ المحتوى على هذا الـ Mac فقط ولا يُرفع إلى الإنترنت.";

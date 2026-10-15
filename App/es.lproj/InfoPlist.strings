@@ -1,7 +1,0 @@
-// Copyright (C) 2026 ysicing
-// SPDX-License-Identifier: AGPL-3.0-or-later
-"NSCalendarsFullAccessUsageDescription" = "Muestra localmente los eventos seleccionados sin modificarlos ni subirlos.";
-"NSRemindersFullAccessUsageDescription" = "Muestra localmente los recordatorios seleccionados sin modificarlos ni subirlos.";
-"NSAudioCaptureUsageDescription" = "Ajustar el volumen por app localmente en tiempo real, sin grabar, guardar ni subir audio.";
-"NSBluetoothAlwaysUsageDescription" = "Mostrar dispositivos de audio Bluetooth enlazados y conectarlos cuando los selecciones.";
-"NSSystemExtensionUsageDescription" = "Ver las conexiones de red de las apps localmente, sin bloquearlas ni leer el contenido de las comunicaciones.";

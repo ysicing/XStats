@@ -200,7 +200,7 @@ def main() -> None:
     parser.add_argument("archive", type=Path)
     parser.add_argument("--verify", action="store_true")
     parser.add_argument("--notes-file", type=Path, default=ROOT / "docs/ReleaseNotes.json")
-    parser.add_argument("--app-info", type=Path, default=ROOT / "App/Info.plist")
+    parser.add_argument("--app-info", type=Path, default=ROOT / "Apps/XStats/App/Info.plist")
     parser.add_argument("--output", type=Path, help="组件可使用独立固定 appcast.xml 名称")
     arguments = parser.parse_args()
     tools = tools_directory()

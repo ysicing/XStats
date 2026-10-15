@@ -30,6 +30,8 @@ XStats 本次确认的版权所有者署名为 **ysicing**，当前新增代码�
 
 `docs/ReleaseNotes.json` 和 `docs/NetworkComponentReleaseNotes.json` 中自行编写的更新摘要译文采用 AGPL-3.0-or-later。这些 JSON 文件不支持注释，许可在本文件中记录。
 
-`App/XStats.entitlements`、`NetworkExtension/Info.plist` 与 `NetworkExtension/XStatsNetworkExtension.entitlements` 为 XcodeGen 生成的项目配置，重新生成时不保留注释文件头，采用 AGPL-3.0-or-later，许可在本文记录。网络连接模块为 XStats 自行编写；FreeSnitch 仅用于架构调研，未复制其源码或素材。
+`Apps/XStats/App/XStats.entitlements`、`Apps/NetworkMonitor/Extension/Info.plist` 与 `Apps/NetworkMonitor/Extension/XStatsNetworkExtension.entitlements` 为 XcodeGen 生成的项目配置，重新生成时不保留注释文件头，采用 AGPL-3.0-or-later，许可在本文记录。网络连接模块为 XStats 自行编写；FreeSnitch 仅用于架构调研，未复制其源码或素材。
 
 按需下载的 DB-IP Lite 数据保留 CC BY 4.0；`Resources/NetworkGeography` 中的 Natural Earth 数据为 Public Domain，不属于自编 AGPL 代码。来源、转换方式与声明见 [ThirdPartyNotices.md](ThirdPartyNotices.md)，资源中的 `ATTRIBUTION.md` 随安装包分发。
+
+`Apps/Capture/App/Info.plist` 与 `Apps/Capture/App/XStatsCapture.entitlements` 是 XcodeGen 生成的独立 Capture 配置，采用 AGPL-3.0-or-later，不在生成文件内添加注释。Capture 使用本仓库已有 App 图标；Vorssaint 仅用于功能流程调研，未复制其代码或素材。

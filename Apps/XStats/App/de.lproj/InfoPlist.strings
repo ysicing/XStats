@@ -1,0 +1,9 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+"NSCalendarsFullAccessUsageDescription" = "Zeigt ausgewählte Kalendertermine lokal an, ohne sie zu ändern oder hochzuladen.";
+"NSRemindersFullAccessUsageDescription" = "Zeigt ausgewählte fällige Erinnerungen lokal an, ohne sie zu ändern oder hochzuladen.";
+"NSAudioCaptureUsageDescription" = "App-Lautstärke lokal anpassen. Audio wird nur aufgenommen, wenn Sie Systemaudio für eine Bildschirmaufnahme aktivieren. Inhalte bleiben auf diesem Mac und werden nicht hochgeladen.";
+"NSBluetoothAlwaysUsageDescription" = "Gekoppelte Bluetooth-Audiogeräte anzeigen und bei Ihrer Auswahl verbinden.";
+"NSSystemExtensionUsageDescription" = "App-Netzwerkverbindungen lokal anzeigen, ohne Verbindungen zu blockieren oder Kommunikationsinhalte zu lesen.";
+"NSScreenCaptureUsageDescription" = "Bei Screenshots oder Aufnahmen wird der ausgewählte Bereich, das Fenster oder der Bildschirm erfasst. Inhalte bleiben auf diesem Mac und werden nicht hochgeladen.";
+"NSMicrophoneUsageDescription" = "Bei aktiviertem Mikrofon wird Audio lokal im Video gespeichert und nicht hochgeladen.";
