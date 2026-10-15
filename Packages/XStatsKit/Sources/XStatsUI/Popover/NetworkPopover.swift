@@ -24,6 +24,14 @@ struct NetworkPopover: View {
                 Rectangle().fill(DS.Palette.border).frame(width: DS.Size.stroke, height: DS.Space.s8)
                 RateHero(title: tr("上传"), bytesPerSecond: rate?.uploadBytesPerSecond, color: DS.NetworkPalette.upload)
             }
+            if !isDetailPage {
+                let physical = model.network.details?.physical
+                InfoRow(label: tr("接口"), text: physical.map { tr("\($0.displayName)（\($0.bsdName)）") }
+                        ?? (model.network.details == nil ? tr("正在读取…") : tr("未连接网络")))
+                if let address = physical?.ipv4.first ?? physical?.ipv6.first {
+                    InfoRow(label: physical?.ipv4.isEmpty == false ? tr("本地 IPv4") : tr("本地 IPv6")) { CopyableText(text: address) }
+                }
+            }
             if settings.probeEnabled {
                 let summary = NetworkProbeSummary(samples: model.network.probes.elements)
                 HStack(spacing: DS.Space.s3) {
@@ -83,8 +91,8 @@ private struct TrafficHistorySection: View {
         SectionCard(title: PopoverSection.networkHistory.title, trailing: {
             HStack(spacing: DS.Space.s1) {
                 Text(tr("60 秒峰值"))
-                peak("↑", upload, color: DS.NetworkPalette.upload)
                 peak("↓", download, color: DS.NetworkPalette.download)
+                peak("↑", upload, color: DS.NetworkPalette.upload)
             }
             .monospacedDigit()
         }) {
@@ -133,6 +141,7 @@ private struct ProbeSection: View {
 
 private struct InterfaceSection: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.isDetailPage) private var isDetailPage
 
     var body: some View {
         let network = model.network
@@ -158,7 +167,9 @@ private struct InterfaceSection: View {
             }
         }) {
             if let physical {
-                InfoRow(label: tr("接口"), text: tr("\(physical.displayName)（\(physical.bsdName)）"))
+                if isDetailPage {
+                    InfoRow(label: tr("接口"), text: tr("\(physical.displayName)（\(physical.bsdName)）"))
+                }
                 InfoRow(label: tr("状态")) {
                     StatusBadge(text: physical.isUp ? tr("已连接") : tr("未连接"), tone: physical.isUp ? .success : .error)
                 }

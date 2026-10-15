@@ -24,6 +24,7 @@ public final class MetricsStore {
     public private(set) var system = SystemInfoReader.read()
 
     public private(set) var cpu: CPULoad?
+    public private(set) var thermalState: ProcessInfo.ThermalState?
     public private(set) var cpuTotal = History<Double>(capacity: historyCapacity)
     /// 带时间戳的 CPU 总占用，供可选 1 / 3 / 5 分钟的走势图按时间定位；每秒一次时正好装下 5 分钟
     public private(set) var cpuTimeline = History<TimedValue>(capacity: timelineCapacity)
@@ -72,6 +73,7 @@ public final class MetricsStore {
     /// 持久化历史由 HistoryRecorder 管理，不在这里删除。
     func clearDisabledModules(_ enabled: Set<MonitoringModule>, powerRequested: Bool = false,
                               gpuPowerRequested: Bool = false, gpuFrequencyRequested: Bool = false, appEnergyRequested: Bool = false) {
+        if !enabled.contains(.cpu), !enabled.contains(.battery), thermalState != nil { thermalState = nil }
         if !appEnergyRequested, appEnergy != nil { appEnergy = nil }
         if !enabled.contains(.cpu), cpu != nil || !cpuTotal.elements.isEmpty {
             cpu = nil
@@ -123,6 +125,7 @@ public final class MetricsStore {
 
     public func apply(_ snapshot: MetricsSnapshot) {
         lastUpdate = snapshot.date
+        if let state = snapshot.thermalState ?? snapshot.cpu?.thermalState { thermalState = state }
         if let appEnergy = snapshot.appEnergy { self.appEnergy = appEnergy }
         if let activity = snapshot.diskActivity {
             diskActivity = activity

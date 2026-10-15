@@ -194,6 +194,9 @@ public actor MetricsHub {
         let demand = primed ? self.demand : Self.everything(interval: self.demand.interval)
         primed = true
         if demand.cpu { snapshot.cpu = cpu.sample() }
+        if demand.cpu || !demand.temperatures.isEmpty {
+            snapshot.thermalState = snapshot.cpu?.thermalState ?? ProcessInfo.processInfo.thermalState
+        }
 
         if demand.memory { snapshot.memory = memory.sample() }
         if demand.network {

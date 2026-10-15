@@ -20,3 +20,12 @@ open /Applications/XStats.app --args --island
 - 窗口形状使用短过渡，同步裁剪内容；系统开启“减少动态效果”时即时变化，没有循环装饰动画。
 
 本阶段使用原创实现，不包含 vorssaint-utils 的源代码或素材。真实多显示器、刘海屏、全屏应用与 Mission Control 的组合仍需在对应硬件上验证。
+
+列表沿用 `MainActorForEach` 隔离模型读取，避免 macOS 15 的后台 DisplayLink 调用构建闭包时触发主线程断言。在图形会话中运行：
+
+```sh
+swift test --package-path Packages/XStatsKit --no-parallel \
+  --filter 'IslandListIsolationTests|IslandGeometryTests|IslandInteractionTests|IslandWindowLifecycleTests'
+```
+
+用例覆盖实际列表回调的后台构建（含嵌套额度周期）、左右书写布局下的场景与额度显示切换，以及关闭／锁屏／休眠时的展示需求释放。后台回调测试可在开发机复现隔离边界，但不能代替 macOS 15 的真实 DisplayLink 验收。

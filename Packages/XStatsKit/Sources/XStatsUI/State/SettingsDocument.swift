@@ -37,6 +37,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var networkLocationStyle: String?
     public var styleOverrides: [String: String]?
     public var refreshSeconds: Int?
+    public var cpuSharePerCore: Bool?
     public var colorizeHighLoad: Bool?
     public var bluetoothLowBatteryInMenuBar: Bool?
     public var useFahrenheit: Bool?
@@ -97,6 +98,7 @@ extension AppSettings {
         doc.networkLocationStyle = networkLocationStyle.rawValue
         doc.styleOverrides = Dictionary(uniqueKeysWithValues: styleOverrides.map { ($0.key.rawValue, $0.value.rawValue) })
         doc.refreshSeconds = refreshSeconds
+        doc.cpuSharePerCore = cpuSharePerCore
         doc.colorizeHighLoad = colorizeHighLoad
         doc.bluetoothLowBatteryInMenuBar = bluetoothLowBatteryInMenuBar
         doc.useFahrenheit = useFahrenheit
@@ -170,6 +172,7 @@ extension AppSettings {
             })
         })
         assign(\.refreshSeconds, option(doc.refreshSeconds, in: Self.refreshOptions))
+        assign(\.cpuSharePerCore, doc.cpuSharePerCore)
         assign(\.colorizeHighLoad, doc.colorizeHighLoad)
         assign(\.bluetoothLowBatteryInMenuBar, doc.bluetoothLowBatteryInMenuBar)
         assign(\.useFahrenheit, doc.useFahrenheit)

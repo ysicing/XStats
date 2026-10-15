@@ -6,7 +6,12 @@
 //  Copyright © 2021 Serhiy Mytrovtsiy. All rights reserved.
 //
 
+// Copyright (c) 2026 GiantAccel, LLC (OpenStats fan-control behavior)
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
 import Foundation
+import os
 
 public struct FanState: Sendable, Equatable, Identifiable {
     public let id: Int
@@ -78,13 +83,30 @@ struct FanStartupTracker {
     }
 }
 
+/// 与真实 SMC 和确定性固件夹具共用的窄接口，不改变串行读写要求。
+protocol FanSMCAccess {
+    func double(_ key: SMCKey) -> Double?
+    func exists(_ key: SMCKey) -> Bool
+    func write(_ key: SMCKey, value: Double) throws
+}
+
+extension SMCConnection: FanSMCAccess {}
+
 public final class FanControl {
-    private let smc: SMCConnection
+    private static let log = Logger(subsystem: "work.12306.xstats.helper", category: "fan-control")
+    private let smc: any FanSMCAccess
+    private let sleep: (TimeInterval) -> Void
     private var lowercaseModeKey: Bool?
     private var startup = FanStartupTracker()
 
     public init(smc: SMCConnection) {
         self.smc = smc
+        sleep = Thread.sleep(forTimeInterval:)
+    }
+
+    init(access: any FanSMCAccess, sleep: @escaping (TimeInterval) -> Void) {
+        smc = access
+        self.sleep = sleep
     }
 
     public var fanCount: Int {
@@ -123,10 +145,29 @@ public final class FanControl {
         let clamped = min(max(rpm, minimum), maximum)
 
         #if arch(arm64)
-        if smc.double(modeKey(id)) != 1 {
-            try unlockManualMode(fan: id)
+        let alreadyManual = smc.double(modeKey(id)) == 1
+        do {
+            if !alreadyManual { try unlockManualMode(fan: id) }
+            try writeWithRetry(SMCKey("F\(id)Tg"), value: clamped)
+        } catch {
+            // 仅撤回本次新接管的风扇；另一个风扇仍手动时保留全局解锁。
+            if !alreadyManual {
+                do {
+                    try writeWithRetry(modeKey(id), value: 0)
+                    let count = smc.double(SMCKey("FNum")).flatMap { UInt8(exactly: $0) }.map(Int.init)
+                    let allAutomatic = count.map { count in
+                        count > 0 && (0..<count).allSatisfy { smc.double(modeKey($0)) == 0 }
+                    } ?? false
+                    let ftst = SMCKey("Ftst")
+                    if allAutomatic, smc.exists(ftst), smc.double(ftst) == 1 {
+                        try writeWithRetry(ftst, value: 0)
+                    }
+                } catch {
+                    Self.log.error("Manual fan change rollback failed: \(String(describing: error), privacy: .private)")
+                }
+            }
+            throw error
         }
-        try writeWithRetry(SMCKey("F\(id)Tg"), value: clamped)
         #else
         try smc.write(SMCKey("F\(id)Md"), value: 1)
         try smc.write(SMCKey("F\(id)Tg"), value: clamped)
@@ -170,17 +211,21 @@ public final class FanControl {
 
     #if arch(arm64)
     private func unlockManualMode(fan id: Int) throws {
-        // M5 及以后：直接写模式键即可
-        if (try? smc.write(modeKey(id), value: 1)) != nil { return }
+        let key = modeKey(id)
+        // 新机型直接接受模式写入；读回确认，固件静默忽略时不能宣告成功。
+        if (try? smc.write(key, value: 1)) != nil, smc.double(key) == 1 { return }
 
-        // M1–M4：先写 Ftst=1，等待 thermalmonitord 让出控制权
         let ftst = SMCKey("Ftst")
-        guard smc.exists(ftst) else { throw SMCError.firmwareRejected(modeKey(id), 0) }
+        guard smc.exists(ftst) else { throw SMCError.firmwareRejected(key, 0) }
         if smc.double(ftst) != 1 {
             try writeWithRetry(ftst, value: 1, attempts: 100)
-            Thread.sleep(forTimeInterval: 3)
         }
-        try writeWithRetry(modeKey(id), value: 1, attempts: 300, delay: 0.1)
+        // M1–M4：thermalmonitord 一旦让出控制权就继续，最多尝试 15 秒。
+        for attempt in 0..<300 {
+            if (try? smc.write(key, value: 1)) != nil, smc.double(key) == 1 { return }
+            if attempt < 299 { sleep(0.05) }
+        }
+        throw SMCError.firmwareRejected(key, 0)
     }
 
     private func writeWithRetry(_ key: SMCKey, value: Double, attempts: Int = 10, delay: TimeInterval = 0.05) throws {
@@ -191,7 +236,7 @@ public final class FanControl {
                 return
             } catch {
                 lastError = error
-                if attempt < attempts - 1 { Thread.sleep(forTimeInterval: delay) }
+                if attempt < attempts - 1 { sleep(delay) }
             }
         }
         throw lastError ?? SMCError.firmwareRejected(key, 0)

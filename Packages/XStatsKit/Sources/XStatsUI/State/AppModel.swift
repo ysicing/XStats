@@ -320,6 +320,11 @@ public final class AppModel {
         settings.isModuleEnabled(.battery) && isMainWindowVisible && settings.panelTab == .battery
     }
 
+    var diskVolumesVisible: Bool {
+        settings.isModuleEnabled(.disk)
+            && (openPopover == .disk || (isMainWindowVisible && settings.panelTab == .disk))
+    }
+
     /// 网络详情（接口、公网 IP、进程流量）正在显示
     var isNetworkDetailVisible: Bool {
         settings.isModuleEnabled(.network)
@@ -420,6 +425,7 @@ public final class AppModel {
     func snapshotForEnabledModules(_ snapshot: MetricsSnapshot, demand: MetricsDemand? = nil) -> MetricsSnapshot {
         let demand = demand ?? self.demand
         var result = snapshot
+        if !demand.cpu, demand.temperatures.isEmpty { result.thermalState = nil }
         if !demand.appEnergy { result.appEnergy = nil }
         if !settings.isModuleEnabled(.cpu) { result.cpu = nil; result.power?.clusterFrequency = [:] }
         if !settings.isModuleEnabled(.memory) { result.memory = nil }

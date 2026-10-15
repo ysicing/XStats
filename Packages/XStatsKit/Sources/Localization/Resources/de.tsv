@@ -2098,3 +2098,6 @@ GPU 功耗	GPU-Leistung
 关闭灵动岛	Dynamic Island schließen
 点击展开	Zum Aufklappen klicken
 自动选择屏幕	Bildschirm automatisch wählen
+CPU 占用口径	CPU-Anzeigeskala
+单核	Pro Kern
+占整机：{}	Gesamter Mac: {}

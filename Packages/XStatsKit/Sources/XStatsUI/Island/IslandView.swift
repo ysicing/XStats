@@ -127,7 +127,8 @@ struct IslandView: View {
                     .accessibilityLabel(tr("收起")).help(tr("收起"))
             }
             HStack(spacing: 4) {
-                ForEach(IslandScene.allCases, id: \.rawValue) { scene in
+                // macOS 15 可在后台构建列表行；模型读取延迟到行的 MainActor body。
+                MainActorForEach(IslandScene.allCases, id: \.rawValue) { scene in
                     Button { selectScene(scene) } label: {
                         Label(scene.title, systemImage: scene.symbol)
                             .font(.system(size: 11, weight: .medium))
@@ -208,7 +209,7 @@ struct IslandView: View {
                             if appModel.aiUsage.magpieQuotas.isEmpty { Text(tr("暂无额度数据")).foregroundStyle(.secondary) }
                             else { MagpieQuotaAccounts(accounts: appModel.aiUsage.magpieQuotas) }
                         } else {
-                            ForEach(appModel.aiUsage.visibleQuotaProviders(for: nil)) { provider in
+                            MainActorForEach(appModel.aiUsage.visibleQuotaProviders(for: nil)) { provider in
                                 quota(provider)
                             }
                             if appModel.aiUsage.visibleQuotaProviders(for: nil).isEmpty { Text(tr("暂无额度数据")).foregroundStyle(.secondary) }
@@ -251,7 +252,7 @@ struct IslandView: View {
         return VStack(alignment: .leading, spacing: 8) {
             Text(provider == .codex ? "Codex" : "Claude Code").fontWeight(.semibold)
             if let snapshot = state.snapshot {
-                ForEach(snapshot.windows) { window in
+                MainActorForEach(snapshot.windows) { window in
                     HStack {
                         Text(quotaTitle(window.kind))
                         Spacer()
