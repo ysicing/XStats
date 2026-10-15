@@ -62,7 +62,7 @@ extension Translations {
 无法识别此截图请求，请更新 XStats Capture。	Unknown capture request. Update XStats Capture.
 请在系统设置中允许 {} 录制屏幕，然后重试。	Allow {} to record the screen in System Settings, then retry.
 请在系统设置中允许 {} 使用麦克风，然后重试。	Allow {} to use the microphone in System Settings, then retry.
-内置截图与录屏工具，按需使用。	Built-in screenshot and recording tools, available on demand.
+截图、图片标注与录屏。	Screenshots, image annotation and screen recording.
 请选择已安装的 XStats Capture.app。	Select the installed XStats Capture.app.
 无法打开 XStats Capture，请检查所选应用。	Could not open XStats Capture. Check the selected app.
 麦克风录制中断，请检查设备连接后重试。	Microphone recording was interrupted. Check the device connection and try again.
@@ -115,10 +115,10 @@ extension Translations {
 快捷键在常驻菜单栏时生效。	Shortcuts work while staying in the menu bar.
 快捷键在 XStats 运行时生效。	Shortcuts work while XStats is running.
 打开独立版	Open Standalone App
-使用独立版	Use Standalone App
+改用独立版	Switch to Standalone App
 改用内置版	Switch to Built-in Tools
-已找到独立版，可脱离 XStats 使用。	Standalone app found. Use it without running XStats.
-正在使用独立版，内置功能已停用。	Using the standalone app. Built-in tools are off.
+已安装独立版，可单独运行。切换后将停用内置功能。	The standalone app is installed and can run on its own. Switching turns off the built-in tools.
+正在使用独立版。	Using the standalone app.
 未找到独立版，可改用内置版。	Standalone app not found. You can switch to built-in tools.
 请先完成并关闭内置截图或录屏窗口，再切换。	Finish your work and close the built-in capture windows before switching.
 """#

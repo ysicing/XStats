@@ -16,9 +16,9 @@ struct CaptureFeatureSettings: View {
     }
 
     private var subtitle: String {
-        guard integration.prefersStandalone else { return tr("内置截图与录屏工具，按需使用。") }
+        guard integration.prefersStandalone else { return tr("截图、图片标注与录屏。") }
         return tr(integration.standaloneApplicationURL == nil
-                  ? "未找到独立版，可改用内置版。" : "正在使用独立版，内置功能已停用。")
+                  ? "未找到独立版，可改用内置版。" : "正在使用独立版。")
     }
 
     var body: some View {
@@ -59,10 +59,10 @@ struct CaptureFeatureSettings: View {
                 }
                 if integration.standaloneApplicationURL != nil {
                     HStack(alignment: .firstTextBaseline, spacing: DS.Space.s3) {
-                        Text(tr("已找到独立版，可脱离 XStats 使用。"))
+                        Text(tr("已安装独立版，可单独运行。切换后将停用内置功能。"))
                             .foregroundStyle(DS.Palette.textSecondary)
                         Spacer(minLength: 0)
-                        Button(tr("使用独立版")) { Task { await integration.openStandalone() } }
+                        Button(tr("改用独立版")) { Task { await integration.openStandalone() } }
                             .buttonStyle(.link).fixedSize()
                     }
                     .dsFont(.xs)

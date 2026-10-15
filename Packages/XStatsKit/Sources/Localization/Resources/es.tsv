@@ -2128,7 +2128,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 无法识别此截图请求，请更新 XStats Capture。	Solicitud desconocida. Actualiza XStats Capture.
 请在系统设置中允许 {} 录制屏幕，然后重试。	Permite grabar la pantalla a {} en Ajustes del Sistema y reintenta.
 请在系统设置中允许 {} 使用麦克风，然后重试。	Permite usar el micrófono a {} en Ajustes del Sistema y reintenta.
-内置截图与录屏工具，按需使用。	Herramientas integradas de captura y grabación de pantalla, disponibles cuando las necesites.
+截图、图片标注与录屏。	Capturas de pantalla, anotación de imágenes y grabación de pantalla.
 请选择已安装的 XStats Capture.app。	Selecciona XStats Capture.app instalado.
 无法打开 XStats Capture，请检查所选应用。	No se pudo abrir XStats Capture. Comprueba la app.
 请选择录制临时目录之外的保存位置。	Elige una ubicación fuera de la carpeta temporal de la grabación.
@@ -2213,10 +2213,10 @@ CPU 占用口径	Escala de uso de CPU
 单核	Por núcleo
 占整机：{}	Mac completo: {}
 打开独立版	Abrir la app independiente
-使用独立版	Usar la app independiente
+改用独立版	Cambiar a la app independiente
 改用内置版	Cambiar a las herramientas integradas
-已找到独立版，可脱离 XStats 使用。	Se ha encontrado la app independiente. Puedes usarla sin ejecutar XStats.
-正在使用独立版，内置功能已停用。	Se está usando la app independiente. Las herramientas integradas están desactivadas.
+已安装独立版，可单独运行。切换后将停用内置功能。	La app independiente está instalada y puede ejecutarse por sí sola. Al cambiar, se desactivarán las herramientas integradas.
+正在使用独立版。	Se está usando la app independiente.
 未找到独立版，可改用内置版。	No se ha encontrado la app independiente. Puedes cambiar a las herramientas integradas.
 请先完成并关闭内置截图或录屏窗口，再切换。	Termina tu trabajo y cierra las ventanas de captura integradas antes de cambiar.
 灵动岛设置	Ajustes de Dynamic Island
