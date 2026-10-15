@@ -67,21 +67,31 @@ public struct HotKey: Codable, Equatable, Sendable {
     private static let functionKeys: [Int: Int] = [
         kVK_F1: 1, kVK_F2: 2, kVK_F3: 3, kVK_F4: 4, kVK_F5: 5, kVK_F6: 6,
         kVK_F7: 7, kVK_F8: 8, kVK_F9: 9, kVK_F10: 10, kVK_F11: 11, kVK_F12: 12,
+        kVK_F13: 13, kVK_F14: 14, kVK_F15: 15, kVK_F16: 16,
+        kVK_F17: 17, kVK_F18: 18, kVK_F19: 19, kVK_F20: 20,
     ]
 
     static func keyName(keyCode: UInt16, fallback: String) -> String {
         switch Int(keyCode) {
         case kVK_Space: tr("空格")
         case kVK_Return: "↩"
+        case kVK_ANSI_KeypadEnter: "⌤"
+        case kVK_ANSI_KeypadClear: "⌧"
         case kVK_Tab: "⇥"
         case kVK_Delete: "⌫"
+        case kVK_ForwardDelete: "⌦"
         case kVK_Escape: "⎋"
+        case kVK_Help: tr("帮助")
+        case kVK_Home: "↖"
+        case kVK_End: "↘"
+        case kVK_PageUp: "⇞"
+        case kVK_PageDown: "⇟"
         case kVK_LeftArrow: "←"
         case kVK_RightArrow: "→"
         case kVK_UpArrow: "↑"
         case kVK_DownArrow: "↓"
         default:
-            // F1–F12 的虚拟键码不连续，逐个对照
+            // F1–F20 的虚拟键码不连续，逐个对照
             functionKeys[Int(keyCode)].map { "F\($0)" } ?? fallback.uppercased()
         }
     }

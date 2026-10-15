@@ -10,6 +10,32 @@ import Localization
 
 // Carbon 快捷键是进程外资源；本套件串行且每个测试都解除自己的注册。
 @Suite(.serialized) @MainActor struct CaptureHotKeyTests {
+    @Test(arguments: [
+        (kVK_UpArrow, "\u{F700}", "↑"), (kVK_DownArrow, "\u{F701}", "↓"),
+        (kVK_LeftArrow, "\u{F702}", "←"), (kVK_RightArrow, "\u{F703}", "→"),
+        (kVK_F1, "\u{F704}", "F1"), (kVK_F5, "\u{F708}", "F5"),
+        (kVK_F12, "\u{F70F}", "F12"), (kVK_F20, "\u{F717}", "F20"),
+        (kVK_Return, "\r", "↩"), (kVK_ANSI_KeypadEnter, "\u{3}", "⌤"),
+        (kVK_Tab, "\t", "⇥"), (kVK_ForwardDelete, "\u{F728}", "⌦"), (kVK_ANSI_KeypadClear, "\u{F739}", "⌧"),
+        (kVK_Home, "\u{F729}", "↖"), (kVK_End, "\u{F72B}", "↘"),
+        (kVK_PageUp, "\u{F72C}", "⇞"), (kVK_PageDown, "\u{F72D}", "⇟")
+    ])
+    func savedSpecialKeysDisplayReadableNames(code: Int, characters: String, expected: String) throws {
+        let saved = CaptureHotKey(code: UInt16(code), modifiers: NSEvent.ModifierFlags.command.rawValue, characters: characters)
+        let restored = try JSONDecoder().decode(CaptureHotKey.self, from: JSONEncoder().encode(saved))
+        #expect(restored.display == "⌘" + expected)
+        #expect(restored.code == saved.code)
+        #expect(restored.carbon == saved.carbon)
+    }
+    @Test func printableKeysPreserveTheRecordedKeyboardLayout() {
+        let key = CaptureHotKey(code: UInt16(kVK_ANSI_A), modifiers: NSEvent.ModifierFlags([.control, .option, .shift, .command]).rawValue, characters: "ä")
+        #expect(key.display == "⌃⌥⇧⌘Ä")
+    }
+    @Test func helpKeyDisplaysItsLocalizedName() {
+        let key = CaptureHotKey(code: UInt16(kVK_Help), modifiers: NSEvent.ModifierFlags.command.rawValue, characters: "\u{F746}")
+        let localizedLabels = Set(AppLanguage.allCases.map { "⌘" + L10n.translate("帮助", language: $0) })
+        #expect(localizedLabels.contains(key.display))
+    }
     private func binding(_ code: UInt16) -> CaptureHotKey {
         CaptureHotKey(code: code, modifiers: NSEvent.ModifierFlags([.control, .option, .command]).rawValue, characters: "")
     }

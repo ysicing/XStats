@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Localization
 import SwiftUI
 @testable import Metrics
 import Testing
@@ -882,6 +883,29 @@ private func isolatedDefaults() -> UserDefaults {
 @Suite struct FunctionKeyTests {
     @Test func namesFunctionKeys() {
         #expect(HotKey(keyCode: 0x7A, modifiers: [.command], key: "\u{F704}").display == "⌘F1")
+    }
+
+    @Test(arguments: [
+        (UInt16(0x69), "\u{F710}", "F13"), (0x6B, "\u{F711}", "F14"),
+        (0x71, "\u{F712}", "F15"), (0x6A, "\u{F713}", "F16"),
+        (0x40, "\u{F714}", "F17"), (0x4F, "\u{F715}", "F18"),
+        (0x50, "\u{F716}", "F19"), (0x5A, "\u{F717}", "F20"),
+        (0x73, "\u{F729}", "↖"), (0x77, "\u{F72B}", "↘"),
+        (0x74, "\u{F72C}", "⇞"), (0x79, "\u{F72D}", "⇟"),
+        (0x75, "\u{F728}", "⌦"), (0x4C, "\u{3}", "⌤"), (0x47, "\u{F739}", "⌧"),
+        (0x7E, "\u{F700}", "↑"), (0x7B, "\u{F702}", "←")
+    ])
+    func restoredSpecialKeysDisplayReadableNames(keyCode: UInt16, key: String, expected: String) throws {
+        let saved = HotKey(keyCode: keyCode, modifiers: [.command, .option], key: key)
+        let restored = try JSONDecoder().decode(HotKey.self, from: JSONEncoder().encode(saved))
+        #expect(restored.display == "⌥⌘" + expected)
+        #expect(restored == saved)
+    }
+
+    @Test func helpKeyDisplaysItsLocalizedName() {
+        let key = HotKey(keyCode: 0x72, modifiers: [.command], key: "\u{F746}")
+        let localizedLabels = Set(AppLanguage.allCases.map { "⌘" + L10n.translate("帮助", language: $0) })
+        #expect(localizedLabels.contains(key.display))
     }
 }
 
