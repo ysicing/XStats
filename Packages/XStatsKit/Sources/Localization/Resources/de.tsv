@@ -2258,3 +2258,14 @@ CPU 占用口径	CPU-Anzeigeskala
 开始：{}	Start: {}
 结束：{}	Ende: {}
 保留时长：{}	Beibehaltene Dauer: {}
+截图与录屏缓存	Screenshot- und Aufnahme-Cache
+正在计算缓存占用…	Cache-Belegung wird berechnet…
+缓存占用：{}	Cache-Belegung: {}
+可清理：{}	Bereinigbar: {}
+正在使用和最近 1 小时的素材会保留。截图在内存中处理，已保存的文件不受影响。	Verwendete Medien und Aufnahmen der letzten Stunde bleiben erhalten. Screenshots werden im Arbeitsspeicher verarbeitet; gespeicherte Dateien bleiben unverändert.
+清理录屏残留？	Aufnahmereste bereinigen?
+清理后无法恢复这些未保存的录制素材。正在使用、最近 1 小时的素材及已保存文件会保留。	Diese ungespeicherten Aufnahmen können danach nicht wiederhergestellt werden. Verwendete Medien, Aufnahmen der letzten Stunde und gespeicherte Dateien bleiben erhalten.
+清理录屏残留	Aufnahmereste bereinigen
+已清理 {} 缓存。	{} Cache bereinigt.
+缓存未能完全清理，请刷新后重试。	Der Cache konnte nicht vollständig bereinigt werden. Aktualisiere die Anzeige und versuche es erneut.
+无法读取缓存占用，请重试。	Die Cache-Belegung konnte nicht gelesen werden. Versuche es erneut.

@@ -2258,3 +2258,14 @@ CPU 占用口径	Échelle d’utilisation du CPU
 开始：{}	Début : {}
 结束：{}	Fin : {}
 保留时长：{}	Durée conservée : {}
+截图与录屏缓存	Cache des captures et enregistrements
+正在计算缓存占用…	Calcul de la taille du cache…
+缓存占用：{}	Taille du cache : {}
+可清理：{}	À libérer : {}
+正在使用和最近 1 小时的素材会保留。截图在内存中处理，已保存的文件不受影响。	Les médias utilisés et ceux de la dernière heure sont conservés. Les captures sont traitées en mémoire ; les fichiers enregistrés restent intacts.
+清理录屏残留？	Supprimer les restes d’enregistrements ?
+清理后无法恢复这些未保存的录制素材。正在使用、最近 1 小时的素材及已保存文件会保留。	Ces enregistrements non sauvegardés ne pourront pas être récupérés. Les médias utilisés, ceux de la dernière heure et les fichiers enregistrés seront conservés.
+清理录屏残留	Nettoyer les enregistrements
+已清理 {} 缓存。	{} de cache supprimé.
+缓存未能完全清理，请刷新后重试。	Une partie du cache n’a pas pu être supprimée. Actualisez et réessayez.
+无法读取缓存占用，请重试。	Impossible de lire la taille du cache. Réessayez.

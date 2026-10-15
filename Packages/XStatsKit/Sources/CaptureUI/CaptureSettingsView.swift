@@ -41,6 +41,8 @@ struct CaptureSettingsView: View {
             }
             // AppKit caches the selected item's label; rebuild the picker when its language changes.
             .id(controller.language)
+            Divider()
+            CaptureCacheSettingsView()
         }
         .padding(20).frame(width: 340)
         .environment(\.layoutDirection, L10n.language.isRightToLeft ? .rightToLeft : .leftToRight)

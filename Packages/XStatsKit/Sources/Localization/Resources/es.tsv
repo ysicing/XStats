@@ -2258,3 +2258,14 @@ CPU 占用口径	Escala de uso de CPU
 开始：{}	Inicio: {}
 结束：{}	Fin: {}
 保留时长：{}	Duración conservada: {}
+截图与录屏缓存	Caché de capturas y grabaciones
+正在计算缓存占用…	Calculando el tamaño de la caché…
+缓存占用：{}	Tamaño de la caché: {}
+可清理：{}	Se puede liberar: {}
+正在使用和最近 1 小时的素材会保留。截图在内存中处理，已保存的文件不受影响。	Se conservan los medios en uso y los de la última hora. Las capturas se procesan en memoria; los archivos guardados no se modifican.
+清理录屏残留？	¿Borrar restos de grabaciones?
+清理后无法恢复这些未保存的录制素材。正在使用、最近 1 小时的素材及已保存文件会保留。	Estas grabaciones sin guardar no se podrán recuperar. Se conservarán los medios en uso, los de la última hora y los archivos guardados.
+清理录屏残留	Borrar restos de grabaciones
+已清理 {} 缓存。	Se han borrado {} de caché.
+缓存未能完全清理，请刷新后重试。	No se ha podido borrar toda la caché. Actualiza e inténtalo de nuevo.
+无法读取缓存占用，请重试。	No se ha podido leer el tamaño de la caché. Inténtalo de nuevo.

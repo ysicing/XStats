@@ -76,6 +76,10 @@ struct CaptureFeatureSettings: View {
                 Text(issue.message).dsFont(.xs)
                     .foregroundStyle(issue == .launchFailed ? DS.Palette.error : DS.Palette.textSecondary)
             }
+            if !isSnapshot {
+                Divider()
+                CaptureCacheSettingsView()
+            }
         }
         .fixedSize(horizontal: false, vertical: true)
         .disabled(integration.isOpening)

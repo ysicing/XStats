@@ -136,5 +136,16 @@ extension Translations {
 已添加 {} 处马赛克，请检查并补充遗漏。	Added {} mosaic masks. Review the image for anything missed.
 标注数量已达上限，请先删除部分标注。	The annotation limit has been reached. Delete some annotations first.
 敏感信息识别未完成，请重试。	Sensitive information could not be recognized. Try again.
+截图与录屏缓存	Screenshot and recording cache
+正在计算缓存占用…	Calculating cache usage…
+缓存占用：{}	Cache usage: {}
+可清理：{}	Reclaimable: {}
+正在使用和最近 1 小时的素材会保留。截图在内存中处理，已保存的文件不受影响。	Media in use and from the last hour is kept. Screenshots are processed in memory; saved files are unaffected.
+清理录屏残留？	Clear recording leftovers?
+清理后无法恢复这些未保存的录制素材。正在使用、最近 1 小时的素材及已保存文件会保留。	These unsaved recordings cannot be recovered after cleanup. Media in use, media from the last hour and saved files will be kept.
+清理录屏残留	Clear recording leftovers
+已清理 {} 缓存。	Cleared {} of cache.
+缓存未能完全清理，请刷新后重试。	Some cache could not be cleared. Refresh and try again.
+无法读取缓存占用，请重试。	Could not read cache usage. Try again.
 """#
 }

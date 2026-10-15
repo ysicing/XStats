@@ -8,10 +8,7 @@ import OSLog
 public struct RecordingMedia: Sendable {
     public let directory: URL
     private let lease: RecordingSessionLease
-    static var recordingsRoot: URL {
-        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("XStatsCapture/Recordings", isDirectory: true)
-    }
+    static var recordingsRoot: URL { CaptureCache.recordingsDirectory }
     public init() throws { try self.init(root: Self.recordingsRoot) }
     init(root: URL) throws {
         directory = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -25,49 +22,8 @@ public struct RecordingMedia: Sendable {
     }
     static func cleanStaleSessions(root: URL, now: Date = Date(), maximumAge: TimeInterval = 7 * 86400,
                                    maximumBytes: Int64 = 10 * 1024 * 1024 * 1024, maximumSessions: Int = 20) async throws {
-        let worker = Task.detached(priority: .utility) {
-            let manager = FileManager.default
-            guard manager.fileExists(atPath: root.path) else { return }
-            let directories = try manager.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey])
-            var candidates: [(url: URL, date: Date, bytes: Int64)] = []
-            var bytes: Int64 = 0
-            var count = 0
-            var removed = 0
-            for directory in directories {
-                try Task.checkCancellation()
-                guard UUID(uuidString: directory.lastPathComponent) != nil else { continue }
-                let values = try directory.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey])
-                guard values.isDirectory == true, values.isSymbolicLink != true else { continue }
-                let date = values.contentModificationDate ?? now
-                // Protect the gap between mkdir and lease creation, and recent crash data.
-                guard now.timeIntervalSince(date) >= 3600 else { count += 1; continue }
-                guard let lease = try? RecordingSessionLease(directory: directory) else { continue }
-                // Creating a lock for pre-lease sessions changes the directory mtime.
-                // Sweeping must not restart the retention clock.
-                try manager.setAttributes([.modificationDate: date], ofItemAtPath: directory.path)
-                let size = try manager.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey])
-                    .reduce(Int64(0)) { total, file in
-                        let properties = try file.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey])
-                        return total + (properties.isRegularFile == true && properties.isSymbolicLink != true ? Int64(properties.fileSize ?? 0) : 0)
-                    }
-                withExtendedLifetime(lease) { candidates.append((directory, date, size)) }
-                bytes += size; count += 1
-            }
-            for candidate in candidates.sorted(by: { $0.date < $1.date }) {
-                try Task.checkCancellation()
-                guard now.timeIntervalSince(candidate.date) > maximumAge || bytes > maximumBytes || count > maximumSessions else { continue }
-                // Recheck the lease: another host might have opened this session since enumeration.
-                guard let lease = try? RecordingSessionLease(directory: candidate.url) else { continue }
-                try withExtendedLifetime(lease) { try manager.removeItem(at: candidate.url) }
-                bytes -= candidate.bytes; count -= 1; removed += 1
-            }
-            if removed > 0 {
-                Logger(subsystem: CaptureRequest.bundleIdentifier, category: "media").notice("Removed \(removed) stale recording sessions")
-            }
-        }
-        try await withTaskCancellationHandler {
-            try await worker.value
-        } onCancel: { worker.cancel() }
+        _ = try await CaptureCache.manage(root: root, now: now,
+                                         policy: .retention(age: maximumAge, bytes: maximumBytes, sessions: maximumSessions))
     }
     public func newSegmentURL() -> URL { directory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov") }
     public func discard() async throws {
@@ -214,7 +170,7 @@ private final class ExportCancellation: @unchecked Sendable {
 }
 
 /// Kernel-backed leases also protect recordings owned by the other Capture host.
-private final class RecordingSessionLease: Sendable {
+final class RecordingSessionLease: Sendable {
     private let descriptor: Int32
     init(directory: URL) throws {
         let descriptor = open(directory.appendingPathComponent(".session.lock").path, O_CREAT | O_RDWR | O_NOFOLLOW, S_IRUSR | S_IWUSR)
