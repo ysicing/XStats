@@ -29,7 +29,10 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: macos-15
+    # macos-15 镜像上最新的 Xcode 26.3（Swift 6.2.4）编译 XStatsUI 时
+    # IRGen 会触发 SmallVector 容量溢出并 abort。跟随 GitHub 当前最新的
+    # macOS 镜像，让流水线用到已修复该问题的工具链。
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
 
