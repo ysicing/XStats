@@ -34,6 +34,24 @@ struct IslandListIsolationTests {
     }
 
     @Test(arguments: [false, true])
+    func selectedContentListsCanBuildOffMainQueue(singleScene: Bool) async throws {
+        let suite = "IslandSelectedContentTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let app = await Self.appModel(defaults: defaults)
+        defer { app.aiUsage.stop() }
+        app.settings.islandPreferences.scenes = singleScene ? [.system] : [.system, .focus]
+        app.settings.islandPreferences.systemMetrics = [.memory, .power]
+        let model = IslandModel()
+        model.presentation = .expanded
+        let view = IslandView(model: model, appModel: app, selectScene: { _ in }, expand: {}, collapse: {}, stop: {})
+        let probes = islandListProbes(in: view.body)
+        #expect(probes.count == (singleScene ? 1 : 2))
+        let counts = await Task.detached { probes.map { $0.content.buildRows() } }.value
+        #expect(counts == (singleScene ? [1] : [2, 1]))
+    }
+
+    @Test(arguments: [false, true])
     func magpieListsCanBuildOffMainQueue(nestedWindows: Bool) async throws {
         let accounts = try await IslandMagpieFixture().quotas()
         let lists = islandListProbes(in: MagpieQuotaAccounts(accounts: accounts).body)
@@ -46,13 +64,23 @@ struct IslandListIsolationTests {
         #expect(counts == (nestedWindows ? [2, 1] : [2, 2]))
     }
 
-    @Test func expandedScenesRenderAfterSelectionAndQuotaChanges() async {
+    @Test func compactAndExpandedScenesRenderAfterSelectionAndQuotaChanges() async {
         // tr 使用进程全局语言；在独立进程渲染真实译文，不污染并行运行的其他套件。
         await #expect(processExitsWith: .success) {
             for language in [AppLanguage.english, .arabic] {
                 for magpie in [false, true] {
-                    try await Self.renderExpandedScenes(language: language, magpie: magpie)
+                    for presentation in [IslandPresentation.collapsed, .expanded] {
+                        try await Self.renderScenes(language: language, magpie: magpie, presentation: presentation)
+                    }
                 }
+            }
+        }
+    }
+
+    @Test func settingsRenderWithCustomDimensionsAndLongOrRightToLeftLabels() async {
+        await #expect(processExitsWith: .success) {
+            for language in [AppLanguage.english, .german, .arabic] {
+                try await Self.renderSettings(language: language)
             }
         }
     }
@@ -104,7 +132,41 @@ struct IslandListIsolationTests {
         #expect(view.quotaStatus(for: .codex) == L10n.translate(source, language: L10n.language))
     }
 
-    private static func renderExpandedScenes(language: AppLanguage, magpie: Bool) async throws {
+    private static func renderSettings(language: AppLanguage) async throws {
+        _ = NSApplication.shared
+        let previousLanguage = L10n.language
+        L10n.configure(language)
+        defer { L10n.configure(previousLanguage) }
+        let suite = "IslandSettingsRenderingTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(language.rawValue, forKey: AppSettings.languageKey)
+        let app = await appModel(defaults: defaults)
+        defer { app.aiUsage.stop() }
+        app.settings.islandPreferences.enabled = true
+        app.settings.islandPreferences.size = .custom
+        app.settings.islandPreferences.opening = .hoverExpand
+        app.settings.islandPreferences.display = "disconnected-display"
+        let host = NSHostingView(rootView: IslandOptionsPopover().environment(app))
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 460, height: 560),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        defer { window.close() }
+        window.orderFront(nil)
+        for placement in IslandPlacement.allCases {
+            app.settings.islandPreferences.placement = placement
+            for opening in IslandOpening.allCases {
+                app.settings.islandPreferences.opening = opening
+                host.layoutSubtreeIfNeeded()
+                window.displayIfNeeded()
+                try await Task.sleep(for: .milliseconds(100))
+                #expect(host.fittingSize == CGSize(width: 460, height: 560))
+            }
+        }
+    }
+
+    private static func renderScenes(language: AppLanguage, magpie: Bool, presentation: IslandPresentation) async throws {
         _ = NSApplication.shared
         _ = try #require(NSScreen.main)
         let previousLanguage = L10n.language
@@ -120,12 +182,13 @@ struct IslandListIsolationTests {
         let app = await appModel(defaults: defaults, magpie: magpie)
         defer { app.aiUsage.stop() }
         let model = IslandModel()
-        model.presentation = .expanded
+        model.presentation = presentation
+        let size = presentation.contentSize
         let host = NSHostingView(rootView: IslandView(model: model, appModel: app,
             selectScene: { model.scene = $0 }, expand: {}, collapse: {}, stop: {})
             .environment(\.layoutDirection, language == .arabic ? .rightToLeft : .leftToRight)
-            .frame(width: 420, height: 300))
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 300),
+            .frame(width: size.width, height: size.height))
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = host
@@ -138,8 +201,17 @@ struct IslandListIsolationTests {
                 host.layoutSubtreeIfNeeded()
                 window.displayIfNeeded()
                 try await Task.sleep(for: .milliseconds(100))
-                #expect(window.isVisible && host.fittingSize == CGSize(width: 420, height: 300))
+                #expect(window.isVisible && host.fittingSize == size)
             }
+        }
+        model.scene = .system
+        app.settings.islandPreferences.scenes = [.system]
+        for metric in IslandSystemMetric.allCases {
+            app.settings.islandPreferences.systemMetrics = [metric]
+            host.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+            try await Task.sleep(for: .milliseconds(100))
+            #expect(host.fittingSize == size)
         }
     }
 

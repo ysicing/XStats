@@ -2212,3 +2212,34 @@ GPU 功耗	GPU-Leistung
 CPU 占用口径	CPU-Anzeigeskala
 单核	Pro Kern
 占整机：{}	Gesamter Mac: {}
+打开独立版	Eigenständige App öffnen
+使用独立版	Eigenständige App verwenden
+改用内置版	Zu integrierten Werkzeugen wechseln
+已找到独立版，可脱离 XStats 使用。	Eigenständige App gefunden. Sie funktioniert ohne laufendes XStats.
+正在使用独立版，内置功能已停用。	Die eigenständige App wird verwendet. Integrierte Werkzeuge sind deaktiviert.
+未找到独立版，可改用内置版。	Eigenständige App nicht gefunden. Sie können zu den integrierten Werkzeugen wechseln.
+请先完成并关闭内置截图或录屏窗口，再切换。	Beenden Sie Ihre Arbeit und schließen Sie vor dem Wechsel die integrierten Aufnahmefenster.
+灵动岛设置	Dynamic-Island-Einstellungen
+悬停预览	Vorschau bei Mauszeigerkontakt
+悬停展开	Bei Mauszeigerkontakt öffnen
+显示屏幕	Bildschirm
+未连接的显示器	Nicht verbundener Bildschirm
+默认场景	Standardansicht
+展开尺寸	Größe im geöffneten Zustand
+与菜单栏的间距	Abstand unter der Menüleiste
+全屏时隐藏	Im Vollbild ausblenden
+交互	Interaktion
+打开方式	Öffnungsverhalten
+悬停等待时间	Verzögerung beim Zeigen
+移开后收起	Nach Verlassen schließen
+显示样式	Darstellung
+悬浮胶囊	Schwebende Kapsel
+顶部贴合	Am oberen Rand
+悬浮在菜单栏下方，可调整间距。	Schwebt unter der Menüleiste mit einstellbarem Abstand.
+贴合屏幕顶边，内容避开刘海和菜单栏；系统菜单优先显示。	Schließt an den Bildschirmrand an. Inhalte bleiben unter Kamera und Menüleiste. Systemmenüs haben Vorrang.
+收起时宽度随内容调整。点击展开后会保持打开。	Die eingeklappte Breite passt sich dem Inhalt an. Per Klick bleibt die Insel geöffnet.
+显示内容	Angezeigte Inhalte
+场景	Ansichten
+系统指标	Systemwerte
+收起时显示首个已选指标。	Im eingeklappten Zustand wird der erste ausgewählte Wert angezeigt.
+仅选择灵动岛显示的内容；未启用的功能需先在主应用中开启。	Wähle die Inhalte für Dynamic Island. Aktiviere ausgeschaltete Funktionen zuerst in der Haupt-App.

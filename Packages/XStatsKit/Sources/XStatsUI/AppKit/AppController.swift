@@ -154,7 +154,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
         widgetTimer?.tolerance = 5 * 60
         model.aiUsage.start()
-        if CommandLine.arguments.contains("--island") { islandPreview.start() }
+        if CommandLine.arguments.contains("--island") { model.settings.islandPreferences.enabled = true }
+        islandPreview.syncWithPreferences()
+        observeIslandSettings()
         applyAppearance()
         updateNetworkVisibility()
         XStatsCapture.workspace.startShortcuts()
@@ -844,6 +846,18 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self.restMenuBar.sync()
                 if !self.model.settings.restEnabled { self.restWindows.hideHUD() }
                 self.observeRestEnabled()
+            }
+        }
+    }
+
+    private func observeIslandSettings() {
+        withObservationTracking {
+            _ = model.settings.islandPreferences
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.islandPreview.syncWithPreferences()
+                self.observeIslandSettings()
             }
         }
     }

@@ -7,7 +7,7 @@ import Localization
 import Observation
 import SwiftUI
 
-enum IslandScene: Int, CaseIterable {
+enum IslandScene: Int, CaseIterable, Codable, Sendable {
     case system, ai, focus
 
     var title: String {
@@ -42,13 +42,10 @@ final class IslandModel {
     var scene: IslandScene = .system
 }
 
-struct IslandView: View {
-    let model: IslandModel
+@MainActor
+struct IslandReading {
+    let scene: IslandScene
     let appModel: AppModel
-    var selectScene: (IslandScene) -> Void
-    var expand: () -> Void
-    var collapse: () -> Void
-    var stop: () -> Void
 
     private var settings: AppSettings { appModel.settings }
     private var rest: RestController { appModel.rest }
@@ -60,9 +57,29 @@ struct IslandView: View {
         guard settings.aiUsageEnabled else { return tr("尚未启用") }
         return appModel.aiUsage.todayTokens.map { UsageNumber.short($0, westernUnits: settings.aiUsageWesternUnits) + " Tokens" } ?? "—"
     }
+    func value(for metric: IslandSystemMetric) -> String {
+        switch metric {
+        case .cpu: return cpuValue
+        case .memory:
+            guard settings.isModuleEnabled(.memory) else { return tr("尚未启用") }
+            return appModel.store.memory.map { Format.bytes($0.used, locale: L10n.locale) } ?? "—"
+        case .temperature:
+            guard settings.isModuleEnabled(.battery) else { return tr("尚未启用") }
+            guard let value = appModel.store.sensors?.temperature(.cpu)?.maximum else { return "—" }
+            let reading = Measurement(value: value, unit: UnitTemperature.celsius)
+            return (settings.useFahrenheit ? reading.converted(to: .fahrenheit) : reading)
+                .formatted(.measurement(width: .narrow, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0))).locale(L10n.locale))
+        case .power:
+            guard settings.isModuleEnabled(.battery) else { return tr("尚未启用") }
+            return appModel.store.power?.system.map(Format.watts) ?? "—"
+        }
+    }
+
     var compactValue: String {
-        switch model.scene {
-        case .system: return "CPU " + cpuValue
+        switch scene {
+        case .system:
+            let metric = settings.islandPreferences.primaryMetric
+            return metric.title + " " + value(for: metric)
         case .ai:
             guard settings.aiUsageEnabled else { return tr("尚未启用") }
             if settings.aiUsageShowsLocalUsage { return tokenValue }
@@ -76,20 +93,36 @@ struct IslandView: View {
         case .focus: return settings.restEnabled ? WellnessFormat.timer(rest.secondsRemaining) : tr("尚未启用")
         }
     }
+}
+
+struct IslandView: View {
+    let model: IslandModel
+    let appModel: AppModel
+    var selectScene: (IslandScene) -> Void
+    var expand: () -> Void
+    var collapse: () -> Void
+    var stop: () -> Void
+
+    private var settings: AppSettings { appModel.settings }
+    private var rest: RestController { appModel.rest }
+    private var preferences: IslandPreferences { settings.islandPreferences.normalized }
+    private var reading: IslandReading { IslandReading(scene: model.scene, appModel: appModel) }
+    var cpuValue: String { reading.cpuValue }
+    var tokenValue: String { reading.tokenValue }
+    var compactValue: String { reading.compactValue }
 
     var body: some View {
         Group {
             switch model.presentation {
             case .collapsed:
                 Button(action: expand) {
-                    HStack(spacing: 12) {
-                        Image(systemName: model.scene.symbol).foregroundStyle(model.scene.tint)
-                        Text(compactValue).monospacedDigit().fontWeight(.medium).lineLimit(1).minimumScaleFactor(0.7)
+                    HStack(spacing: 8) {
+                        Image(systemName: model.scene.symbol).foregroundStyle(model.scene.tint).frame(width: 14)
+                        Text(compactValue).monospacedDigit().fontWeight(.medium).lineLimit(1)
                         Spacer(minLength: 0)
-                        Text("XStats").font(.system(size: 10)).foregroundStyle(.secondary)
                         Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
                     }
-                    .padding(.horizontal, 18)
+                    .padding(.horizontal, 12)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .contentShape(Rectangle())
                 }
@@ -137,22 +170,24 @@ struct IslandView: View {
                 Button(action: collapse) { Image(systemName: "chevron.up").padding(5) }
                     .accessibilityLabel(tr("收起")).help(tr("收起"))
             }
-            HStack(spacing: 4) {
-                // macOS 15 可在后台构建列表行；模型读取延迟到行的 MainActor body。
-                MainActorForEach(IslandScene.allCases, id: \.rawValue) { scene in
-                    Button { selectScene(scene) } label: {
-                        Label(scene.title, systemImage: scene.symbol)
-                            .font(.system(size: 11, weight: .medium))
-                            .lineLimit(1).minimumScaleFactor(0.7)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(model.scene == scene ? .white.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 9))
+            if preferences.scenes.count > 1 {
+                HStack(spacing: 4) {
+                    // macOS 15 可在后台构建列表行；模型读取延迟到行的 MainActor body。
+                    MainActorForEach(preferences.scenes, id: \.rawValue) { scene in
+                        Button { selectScene(scene) } label: {
+                            Label(scene.title, systemImage: scene.symbol)
+                                .font(.system(size: 11, weight: .medium))
+                                .lineLimit(1).minimumScaleFactor(0.7)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(model.scene == scene ? .white.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 9))
+                        }
+                        .accessibilityAddTraits(model.scene == scene ? [.isSelected] : [])
                     }
-                    .accessibilityAddTraits(model.scene == scene ? [.isSelected] : [])
                 }
+                .padding(3)
+                .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
             }
-            .padding(3)
-            .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
             sceneContent.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             HStack(spacing: 10) {
                 Button(tr("打开 XStats 主窗口")) {
@@ -172,16 +207,16 @@ struct IslandView: View {
         case .system:
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(cpuValue).font(.system(size: 34, weight: .semibold, design: .rounded))
+                    Text(reading.value(for: preferences.primaryMetric)).font(.system(size: 34, weight: .semibold, design: .rounded))
                         .lineLimit(1).minimumScaleFactor(0.7)
-                    Text("CPU").foregroundStyle(.secondary)
+                    Text(preferences.primaryMetric.title).foregroundStyle(.secondary)
                     Spacer()
                     Image(systemName: "waveform.path.ecg").font(.system(size: 28)).foregroundStyle(.mint)
                 }
                 HStack(spacing: 10) {
-                    metric(tr("内存"), value: settings.isModuleEnabled(.memory) ? appModel.store.memory.map { Format.bytes($0.used, locale: L10n.locale) } ?? "—" : tr("尚未启用"))
-                    metric(tr("温度"), value: temperature)
-                    metric(tr("功耗"), value: settings.isModuleEnabled(.battery) ? appModel.store.power?.system.map(Format.watts) ?? "—" : tr("尚未启用"))
+                    MainActorForEach(Array(preferences.systemMetrics.dropFirst()), id: \.self) { item in
+                        metric(item.title, value: reading.value(for: item))
+                    }
                 }
             }
         case .ai:
@@ -248,14 +283,6 @@ struct IslandView: View {
                 }
             }
         }
-    }
-
-    private var temperature: String {
-        guard settings.isModuleEnabled(.battery) else { return tr("尚未启用") }
-        guard let value = appModel.store.sensors?.temperature(.cpu)?.maximum else { return "—" }
-        let reading = Measurement(value: value, unit: UnitTemperature.celsius)
-        return (settings.useFahrenheit ? reading.converted(to: .fahrenheit) : reading)
-            .formatted(.measurement(width: .narrow, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0))).locale(L10n.locale))
     }
 
     private func quota(_ provider: AIProviderID) -> some View {

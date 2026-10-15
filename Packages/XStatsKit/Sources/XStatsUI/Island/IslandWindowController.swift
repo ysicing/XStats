@@ -3,6 +3,7 @@
 
 import AppKit
 import Localization
+import Observation
 import OSLog
 import SwiftUI
 
@@ -11,6 +12,7 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     private static let logger = Logger(subsystem: "work.12306.xstats.app", category: "island")
     let model = IslandModel()
     private let appModel: AppModel
+    private let fullscreenDetector: @MainActor (NSScreen) -> Bool
     private(set) var panel: IslandPanel?
     private(set) var isRunning = false
     private var interaction = IslandInteraction()
@@ -21,21 +23,47 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     private var localMonitor: Any?
     private var globalMonitor: Any?
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
-    private var screenID: CGDirectDisplayID?
+    private var fullscreenTask: Task<Void, Never>?
+    private var readingGeneration: UInt = 0
+    private var compactWidth: CGFloat = 160
+    private var appliedPreferences = IslandPreferences()
+    private var fullscreen = false
     private var locked = false
     private var sleeping = false
     private var displaysSleeping = false
 
-    init(appModel: AppModel) {
+    init(appModel: AppModel, fullscreenDetector: @escaping @MainActor (NSScreen) -> Bool = IslandFullscreen.isActive) {
         self.appModel = appModel
+        self.fullscreenDetector = fullscreenDetector
         super.init()
     }
 
-    var isSuspended: Bool { locked || sleeping || displaysSleeping }
+    private var preferences: IslandPreferences { appModel.settings.islandPreferences.normalized }
+    var isSuspended: Bool { locked || sleeping || displaysSleeping || (preferences.hideInFullscreen && fullscreen) }
+
+    func syncWithPreferences() {
+        guard preferences.enabled else { stop(); return }
+        guard isRunning else { start(); return }
+        let previous = appliedPreferences
+        appliedPreferences = preferences
+        model.scene = preferences.scene
+        if previous.opening != preferences.opening || previous.display != preferences.display || previous.placement != preferences.placement {
+            hoverTask?.cancel()
+            hoverTask = nil
+            interaction.collapse()
+            panel?.resignKey()
+        }
+        compactWidth = IslandCompactLayout.width(for: IslandReading(scene: model.scene, appModel: appModel).compactValue)
+        refreshFullscreenState()
+        if isSuspended { releasePanel() }
+        else { render(animated: false) }
+    }
 
     func start() {
         if isRunning { expand(); return }
         isRunning = true
+        appliedPreferences = preferences
+        model.scene = preferences.scene
         interaction.collapse()
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "capsule.lefthalf.filled", accessibilityDescription: tr("灵动岛"))
@@ -45,6 +73,9 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         item.menu = menu
         statusItem = item
         installObservers()
+        readingGeneration &+= 1
+        observeReading(generation: readingGeneration)
+        refreshFullscreenState()
         render(animated: false)
         Self.logger.notice("Island started with shared application services")
     }
@@ -53,11 +84,16 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         panel?.title = tr("灵动岛")
         statusItem?.button?.toolTip = tr("灵动岛")
         statusItem?.button?.image?.accessibilityDescription = tr("灵动岛")
+        compactWidth = IslandCompactLayout.width(for: IslandReading(scene: model.scene, appModel: appModel).compactValue)
+        if isRunning { render(animated: false) }
     }
 
     func stop() {
         guard isRunning else { return }
         isRunning = false
+        readingGeneration &+= 1
+        fullscreenTask?.cancel()
+        fullscreenTask = nil
         releasePanel()
         observers.forEach { $0.0.removeObserver($0.1) }
         observers.removeAll()
@@ -66,6 +102,7 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         locked = false
         sleeping = false
         displaysSleeping = false
+        fullscreen = false
         Self.logger.notice("Island stopped; visibility demand released")
     }
 
@@ -99,7 +136,7 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         hoverTask?.cancel()
         hoverTask = nil
         interaction.expand()
-        render(animated: true)
+        render(animated: NSApp.currentEvent?.type != .keyDown)
         // Only an explicit click/menu action takes keyboard focus. Hover never steals it.
         panel?.makeKey()
     }
@@ -114,32 +151,44 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     }
 
     @objc private func endPreview() {
+        appModel.settings.islandPreferences.enabled = false
         stop()
     }
 
-    private func entered() {
+    func entered() {
         hoverTask?.cancel()
         let ticket = interaction.enter()
-        guard interaction.presentation == .collapsed else { return }
+        guard interaction.presentation == .collapsed, preferences.opening != .click else { return }
+        let delay = preferences.hoverDelay
         hoverTask = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+            do { try await Task.sleep(for: .seconds(delay)) } catch { return }
             guard let self, self.isRunning, !self.isSuspended else { return }
             self.hoverTask = nil
-            self.interaction.finishHover(generation: ticket)
+            self.interaction.finishHover(generation: ticket, opening: self.preferences.opening)
             self.render(animated: true)
         }
     }
 
-    private func exited() {
+    func exited() {
         hoverTask?.cancel()
         hoverTask = nil
         let previous = interaction.presentation
-        interaction.leave()
+        let ticket = interaction.leave()
         if previous != interaction.presentation { render(animated: true) }
+        guard interaction.closesOnExit else { return }
+        let delay = preferences.closeDelay
+        hoverTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+            guard let self, self.isRunning, !self.isSuspended else { return }
+            self.hoverTask = nil
+            self.interaction.finishClose(generation: ticket)
+            if self.interaction.presentation != previous { self.render(animated: true) }
+        }
     }
 
     private var selectedScreen: NSScreen? {
-        if let screenID, let screen = NSScreen.screens.first(where: { displayID($0) == screenID }) { return screen }
+        if !preferences.display.isEmpty,
+           let screen = NSScreen.screens.first(where: { IslandPreferences.displayKey($0) == preferences.display }) { return screen }
         return NSScreen.screens.first(where: { CGDisplayIsBuiltin(displayID($0)) != 0 }) ?? NSScreen.main ?? NSScreen.screens.first
     }
 
@@ -152,7 +201,9 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         guard let screen = selectedScreen else { releasePanel(); return }
         model.presentation = interaction.presentation
         let geometry = IslandGeometry(screen)
-        let target = geometry.frame(for: model.presentation)
+        let placement = preferences.placement
+        let topClearance = geometry.attachedTopClearance
+        let target = geometry.frame(for: model.presentation, preferences: preferences, compactWidth: compactWidth)
         let panel = panel ?? makePanel()
         let previous = panel.frame
         let canAnimate = animated && panel.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -164,30 +215,32 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         let reserved = canAnimate ? previous.union(target) : target
         panel.setFrame(reserved, display: false)
         let canvas = panel.contentView as! IslandCanvas
-        canvas.layoutSurface(target: target, geometry: geometry, animated: canAnimate)
+        canvas.layoutSurface(target: target, placement: placement, topClearance: topClearance, animated: canAnimate)
         panel.orderFrontRegardless()
         updateDemand()
         updateInputMonitors()
         guard canAnimate else { transitionTask = nil; return }
         transitionTask = Task { @MainActor [weak self, weak panel] in
-            do { try await Task.sleep(for: .milliseconds(180)) } catch { return }
+            do { try await Task.sleep(for: .seconds(DS.Motion.selectionDuration)) } catch { return }
             guard let self, let panel, self.isRunning, !self.isSuspended,
                   self.transitionGeneration == generation, self.panel === panel else { return }
             self.transitionTask = nil
             panel.setFrame(target, display: false)
-            (panel.contentView as? IslandCanvas)?.layoutSurface(target: target, geometry: geometry, animated: false)
+            (panel.contentView as? IslandCanvas)?.layoutSurface(target: target, placement: placement, topClearance: topClearance, animated: false)
         }
     }
 
     private func makePanel() -> IslandPanel {
         let panel = IslandPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isReleasedWhenClosed = false
-        panel.level = .statusBar
+        // 浮在普通窗口之上，但系统菜单及状态栏始终优先显示和接收操作。
+        panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
+        panel.animationBehavior = .none
         panel.isMovable = false
         panel.title = tr("灵动岛")
         let content = IslandView(model: model, appModel: appModel,
@@ -198,6 +251,7 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         let canvas = IslandCanvas(content: content)
         canvas.onEnter = { [weak self] in self?.entered() }
         canvas.onExit = { [weak self] in self?.exited() }
+        canvas.onPress = { [weak self] in self?.expand() }
         panel.contentView = canvas
         self.panel = panel
         return panel
@@ -220,8 +274,54 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     }
 
     func selectScene(_ scene: IslandScene) {
+        guard preferences.scenes.contains(scene) else { return }
         model.scene = scene
+        appModel.settings.islandPreferences.scene = scene
         updateDemand()
+    }
+
+    private func observeReading(generation: UInt) {
+        withObservationTracking {
+            compactWidth = IslandCompactLayout.width(for: IslandReading(scene: model.scene, appModel: appModel).compactValue)
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, self.isRunning, self.readingGeneration == generation else { return }
+                let previous = self.compactWidth
+                self.observeReading(generation: generation)
+                if previous != self.compactWidth, self.model.presentation == .collapsed {
+                    self.render(animated: false)
+                }
+            }
+        }
+    }
+
+    func setFullscreen(_ value: Bool) {
+        guard fullscreen != value else { return }
+        fullscreen = value
+        reconcileSuspension()
+    }
+
+    /// 只在桌面、前台应用或显示器变化后读取窗口边界，不读取标题，也不轮询。
+    private func refreshFullscreenState() {
+        guard isRunning, preferences.hideInFullscreen, let screen = selectedScreen else {
+            setFullscreen(false)
+            return
+        }
+        setFullscreen(fullscreenDetector(screen))
+    }
+
+    private func scheduleFullscreenRefresh() {
+        fullscreenTask?.cancel()
+        fullscreenTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .milliseconds(150)) } catch { return }
+            guard let self, self.isRunning else { return }
+            self.fullscreenTask = nil
+            let wasSuspended = self.isSuspended
+            self.refreshFullscreenState()
+            // 切换 Space / 全屏时系统可能移动辅助窗口；布尔状态不变也必须校正位置。
+            // 从隐藏恢复的路径已在 reconcileSuspension 中重建并定位，避免重复布局。
+            if !wasSuspended, !self.isSuspended { self.render(animated: false) }
+        }
     }
 
     private func updateDemand() {
@@ -276,10 +376,17 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
                 self.hoverTask?.cancel()
                 self.hoverTask = nil
                 self.interaction.leave()
+                self.scheduleFullscreenRefresh()
                 self.render(animated: false)
             }
         }))
         let workspace = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification,
+                     NSWorkspace.didHideApplicationNotification, NSWorkspace.didUnhideApplicationNotification] {
+            observers.append((workspace, workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.scheduleFullscreenRefresh() }
+            }))
+        }
         observers.append((workspace, workspace.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.setSleeping(true) }
         }))
@@ -308,12 +415,12 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         addItem(tr("展开"), action: #selector(expand), to: menu)
         addItem(tr("收起"), action: #selector(collapse), to: menu)
         let automatic = addItem(tr("自动选择屏幕"), action: #selector(selectScreen(_:)), to: menu)
-        automatic.state = screenID == nil ? .on : .off
+        automatic.state = preferences.display.isEmpty ? .on : .off
         for screen in NSScreen.screens {
-            let id = displayID(screen)
+            let id = IslandPreferences.displayKey(screen)
             let item = addItem(screen.localizedName, action: #selector(selectScreen(_:)), to: menu)
-            item.representedObject = NSNumber(value: id)
-            item.state = screenID == id ? .on : .off
+            item.representedObject = id
+            item.state = preferences.display == id ? .on : .off
         }
         menu.addItem(.separator())
         addItem(tr("关闭灵动岛"), action: #selector(endPreview), to: menu)
@@ -327,10 +434,12 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     }
 
     @objc private func selectScreen(_ sender: NSMenuItem) {
-        screenID = (sender.representedObject as? NSNumber)?.uint32Value
+        appModel.settings.islandPreferences.display = sender.representedObject as? String ?? ""
         interaction.collapse()
+        panel?.resignKey()
         hoverTask?.cancel()
         hoverTask = nil
+        refreshFullscreenState()
         render(animated: false)
     }
 }
@@ -346,8 +455,10 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     private let hosting: NSHostingView<IslandView>
     private var tracking: NSTrackingArea?
     private var lastWindowFrame: CGRect?
+    private var trackingRect = CGRect.zero
     var onEnter: (() -> Void)?
     var onExit: (() -> Void)?
+    var onPress: (() -> Void)?
 
     init(content: IslandView) {
         hosting = NSHostingView(rootView: content)
@@ -362,7 +473,7 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
 
     required init?(coder: NSCoder) { nil }
 
-    func layoutSurface(target: CGRect, geometry: IslandGeometry, animated: Bool) {
+    func layoutSurface(target: CGRect, placement: IslandPlacement, topClearance: CGFloat, animated: Bool) {
         guard let window else { return }
         let local = CGRect(x: target.minX - window.frame.minX, y: target.minY - window.frame.minY,
                            width: target.width, height: target.height)
@@ -373,30 +484,8 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
             oldPath = oldPath?.copy(using: &offset)
         }
         lastWindowFrame = window.frame
-        let path = CGMutablePath()
-        let w = local.width
-        let h = local.height
-        let top = geometry.contentInset
-        let r: CGFloat = min(top > 0 ? 20 : 24, (h - top) / 2)
-        let neck = geometry.hasNotch ? min(w - 24, geometry.cameraWidth) : w - 2 * r
-        let left = (w - neck) / 2
-        let right = w - left
-        // Same path topology in every state permits an interruptible Core Animation morph.
-        path.move(to: CGPoint(x: left, y: 0))
-        path.addQuadCurve(to: CGPoint(x: left, y: top), control: CGPoint(x: left, y: top))
-        path.addLine(to: CGPoint(x: r, y: top))
-        path.addQuadCurve(to: CGPoint(x: 0, y: top + r), control: CGPoint(x: 0, y: top))
-        path.addLine(to: CGPoint(x: 0, y: h - r))
-        path.addQuadCurve(to: CGPoint(x: r, y: h), control: CGPoint(x: 0, y: h))
-        path.addLine(to: CGPoint(x: w - r, y: h))
-        path.addQuadCurve(to: CGPoint(x: w, y: h - r), control: CGPoint(x: w, y: h))
-        path.addLine(to: CGPoint(x: w, y: top + r))
-        path.addQuadCurve(to: CGPoint(x: w - r, y: top), control: CGPoint(x: w, y: top))
-        path.addLine(to: CGPoint(x: right, y: top))
-        path.addQuadCurve(to: CGPoint(x: right, y: 0), control: CGPoint(x: right, y: top))
-        path.closeSubpath()
-        var transform = CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: local.minX, ty: local.maxY)
-        let newPath = path.copy(using: &transform)!
+        // 同一模式下路径拓扑固定，中断时沿当前呈现形状继续过渡；切换模式即时重新布局。
+        let newPath = IslandSilhouette.path(in: local, placement: placement)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         surface.frame = bounds
@@ -407,12 +496,12 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
             let animation = CABasicAnimation(keyPath: "path")
             animation.fromValue = oldPath
             animation.toValue = newPath
-            // Matches DS.Motion.quick's short ease-out selection feedback.
-            animation.duration = 0.15
-            animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            animation.duration = DS.Motion.selectionDuration
+            animation.timingFunction = DS.Motion.selectionTimingFunction
             surface.add(animation, forKey: "island-shape")
         }
-        hosting.frame = CGRect(x: local.minX, y: local.minY, width: local.width, height: max(0, local.height - top))
+        hosting.frame = IslandSilhouette.contentFrame(in: local, placement: placement, topClearance: topClearance)
+        trackingRect = local
         updateTrackingAreas()
     }
 
@@ -427,11 +516,12 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let tracking { removeTrackingArea(tracking) }
-        let area = NSTrackingArea(rect: hosting.frame, options: [.mouseEnteredAndExited, .activeAlways], owner: self)
+        let area = NSTrackingArea(rect: trackingRect, options: [.mouseEnteredAndExited, .activeAlways], owner: self)
         addTrackingArea(area)
         tracking = area
     }
 
     override func mouseEntered(with event: NSEvent) { onEnter?() }
     override func mouseExited(with event: NSEvent) { onExit?() }
+    override func mouseDown(with event: NSEvent) { onPress?() }
 }

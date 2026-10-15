@@ -114,5 +114,12 @@ extension Translations {
 快捷键无效或已被占用，原设置已保留。	This shortcut is invalid or in use. Previous settings were kept.
 快捷键在常驻菜单栏时生效。	Shortcuts work while staying in the menu bar.
 快捷键在 XStats 运行时生效。	Shortcuts work while XStats is running.
+打开独立版	Open Standalone App
+使用独立版	Use Standalone App
+改用内置版	Switch to Built-in Tools
+已找到独立版，可脱离 XStats 使用。	Standalone app found. Use it without running XStats.
+正在使用独立版，内置功能已停用。	Using the standalone app. Built-in tools are off.
+未找到独立版，可改用内置版。	Standalone app not found. You can switch to built-in tools.
+请先完成并关闭内置截图或录屏窗口，再切换。	Finish your work and close the built-in capture windows before switching.
 """#
 }

@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import AppKit
 import CaptureCore
+import Combine
 import Localization
 
 /// The host owns process-wide behavior; capture functionality is shared.
 public enum CaptureHost: Sendable { case embedded, standalone }
 
-@MainActor public final class CaptureWorkspace {
+@MainActor public final class CaptureWorkspace: ObservableObject {
+    @Published public private(set) var enabled: Bool
     private let host: CaptureHost
     private let defaults: UserDefaults
     public let shortcuts: CaptureShortcuts
@@ -19,19 +21,31 @@ public enum CaptureHost: Sendable { case embedded, standalone }
 
     public init(host: CaptureHost = .embedded, defaults: UserDefaults = .standard) {
         self.host = host; self.defaults = defaults
+        enabled = host == .standalone || defaults.bool(forKey: "capture.enabled")
         shortcuts = CaptureShortcuts(defaults: defaults)
         shortcuts.onAction = { [weak self] in self?.open($0) }
     }
+    /// 内置功能按需启用；关闭只停止入口与快捷键，不丢弃已有任务和编辑内容。
+    public func setEnabled(_ value: Bool) {
+        guard host == .embedded, enabled != value else { return }
+        enabled = value
+        defaults.set(value, forKey: "capture.enabled")
+        shortcuts.setEnabled(value)
+    }
     /// Call at embedded host startup; registrations survive closing the capture workspace.
     public func startShortcuts() {
-        if host == .embedded { shortcuts.setEnabled(true) }
+        if host == .embedded { shortcuts.setEnabled(enabled) }
     }
     public func open(_ action: CaptureRequest.Action = .open) {
+        guard enabled else { return }
         let controller = activeController()
         if action == .open { controller.showHome() }
         else { controller.begin(action, external: true) }
     }
-    public func handle(_ url: URL) { activeController().handle(url) }
+    public func handle(_ url: URL) {
+        guard enabled else { return }
+        activeController().handle(url)
+    }
     public func refreshLanguage() { controller?.applyLanguage() }
 
     private func activeController() -> CaptureController {

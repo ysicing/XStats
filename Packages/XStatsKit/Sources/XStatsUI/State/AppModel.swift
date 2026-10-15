@@ -219,9 +219,12 @@ public final class AppModel {
         let temperaturePopover = popover == .temperature
         let fanPopover = popover == .fan
         let islandSystem = islandScene == .system
-        let islandDetails = islandSystem && islandExpanded
-        let liveIsland = islandSystem && (settings.isModuleEnabled(.cpu)
-            || (islandDetails && (settings.isModuleEnabled(.memory) || energyEnabled)))
+        let islandPreferences = settings.islandPreferences.normalized
+        let islandMetrics: Set<IslandSystemMetric> = islandSystem
+            ? Set(islandExpanded ? islandPreferences.systemMetrics : [islandPreferences.primaryMetric]) : []
+        let liveIsland = (islandMetrics.contains(.cpu) && settings.isModuleEnabled(.cpu))
+            || (islandMetrics.contains(.memory) && settings.isModuleEnabled(.memory))
+            || (!islandMetrics.isDisjoint(with: [.temperature, .power]) && energyEnabled)
 
         // 仅实时监控页需要每秒采样；历史、工具和设置页沿用用户设置的后台间隔。
         // 能耗关闭时能耗页只展示基础电量，不算实时页，交给下方 10 秒基础电量分支。
@@ -240,9 +243,9 @@ public final class AppModel {
         let alerts = settings.activeAlerts
         let showing = { (page: PanelTab, item: MenuBarItem) in (window && tab == page) || popover == item }
         demand.cpu = settings.isModuleEnabled(.cpu)
-            && (islandSystem || recording || dashboard || processPage || summary.contains(.cpu) || showing(.cpu, .cpu) || alerts.contains(.cpuLoad))
+            && (islandMetrics.contains(.cpu) || recording || dashboard || processPage || summary.contains(.cpu) || showing(.cpu, .cpu) || alerts.contains(.cpuLoad))
         demand.memory = settings.isModuleEnabled(.memory)
-            && (islandDetails || recording || dashboard || summary.contains(.memory) || showing(.memory, .memory) || alerts.contains(.memoryPressure))
+            && (islandMetrics.contains(.memory) || recording || dashboard || summary.contains(.memory) || showing(.memory, .memory) || alerts.contains(.memoryPressure))
         demand.network = settings.isModuleEnabled(.network)
             && (recording || dashboard || summary.contains(.network) || showing(.network, .network))
         demand.gpu = (window && [.overview, .system].contains(tab)) || summary.contains(.gpu) || showing(.gpu, .gpu)
@@ -255,7 +258,7 @@ public final class AppModel {
         demand.systemProcesses = processPage
 
         var groups = Set<TemperatureGroup>()
-        if islandDetails { groups.insert(.cpu) }
+        if islandMetrics.contains(.temperature) { groups.insert(.cpu) }
         if window && tab == .overview { groups.formUnion([.cpu, .gpu]) }
         if overview.contains(.cpu) || overview.contains(.temperature) { groups.insert(.cpu) }
         if overview.contains(.gpu) { groups.insert(.gpu) }
@@ -267,7 +270,7 @@ public final class AppModel {
         if alerts.contains(.cpuTemperature) { groups.insert(.cpu) }
         demand.temperatures = groups
         demand.power = settings.isModuleEnabled(.battery)
-            && (islandDetails || (window && tab == .battery)
+            && (islandMetrics.contains(.power) || (window && tab == .battery)
                 || (temperaturePopover && settings.isVisible(.thermalPower))
                 || (popover == .battery && settings.isVisible(.batteryPower)))
         let gpuDetailsVisible = (window && tab == .gpu) || (popover == .gpu && settings.isVisible(.gpuDetails))

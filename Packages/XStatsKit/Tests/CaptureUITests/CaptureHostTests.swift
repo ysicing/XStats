@@ -7,7 +7,59 @@ import CaptureCore
 import Localization
 @testable import CaptureUI
 
-@Suite @MainActor struct CaptureHostTests {
+// Carbon 快捷键是进程级资源；同一套件依次注册和释放。
+@Suite(.serialized) @MainActor struct CaptureHostTests {
+    @Test func embeddedRequiresOptInAndPreservesShortcutsAcrossDisableAndRestart() async throws {
+        _ = NSApplication.shared
+        let name = "capture-enabled-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let workspace = CaptureWorkspace(host: .embedded, defaults: defaults)
+        defer { workspace.shortcuts.stop(); workspace.cleanUp() }
+        let key = CaptureHotKey(code: 91, modifiers: NSEvent.ModifierFlags([.control, .option, .command]).rawValue, characters: "8")
+        workspace.shortcuts.setShortcut(key, for: .record)
+        workspace.startShortcuts()
+        #expect(!workspace.enabled && !workspace.shortcuts.enabled)
+        workspace.open()
+        #expect(!workspace.hasActiveWorkspace)
+        workspace.setEnabled(true)
+        #expect(workspace.enabled && workspace.shortcuts.enabled && !workspace.shortcuts.conflict)
+        #expect(!workspace.hasActiveWorkspace)
+        let restored = CaptureWorkspace(host: .embedded, defaults: defaults)
+        #expect(restored.enabled && restored.shortcuts.recordingKey == key)
+        workspace.open()
+        let controller = try #require(workspace.controller)
+        workspace.setEnabled(false)
+        #expect(!workspace.shortcuts.enabled)
+        #expect(workspace.controller === controller) // 关闭入口不丢弃已打开的编辑内容。
+        #expect(workspace.shortcuts.recordingKey == key)
+        let disabled = CaptureWorkspace(host: .embedded, defaults: defaults)
+        #expect(!disabled.enabled && disabled.shortcuts.recordingKey == key)
+        var competitor: EventHotKeyRef?
+        try #require(RegisterEventHotKey(UInt32(key.code), key.carbon, EventHotKeyID(signature: 0x58545432, id: 2),
+            GetApplicationEventTarget(), 0, &competitor) == noErr)
+        if let competitor { UnregisterEventHotKey(competitor) }
+        await workspace.prepareForTermination()
+        workspace.cleanUp()
+        workspace.shortcuts.onAction(.record)
+        #expect(!workspace.hasActiveWorkspace)
+        workspace.setEnabled(true)
+        #expect(workspace.shortcuts.enabled && !workspace.shortcuts.conflict)
+    }
+
+    @Test func standaloneDoesNotUseEmbeddedFeatureSwitch() {
+        let name = "capture-standalone-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(false, forKey: "capture.enabled")
+        let workspace = CaptureWorkspace(host: .standalone, defaults: defaults)
+        #expect(workspace.enabled)
+        workspace.setEnabled(false)
+        #expect(workspace.enabled)
+        workspace.startShortcuts()
+        #expect(!workspace.shortcuts.enabled)
+    }
+
     @Test func embeddedShortcutsStayRegisteredAfterClosingAndLazilyReopen() async throws {
         _ = NSApplication.shared
         let name = "capture-host-" + UUID().uuidString
@@ -17,6 +69,7 @@ import Localization
         defer { workspace.shortcuts.stop(); workspace.cleanUp() }
         let key = CaptureHotKey(code: 91, modifiers: NSEvent.ModifierFlags([.control, .option, .command]).rawValue, characters: "8")
         workspace.shortcuts.setShortcut(key, for: .record)
+        workspace.setEnabled(true)
         workspace.startShortcuts()
         #expect(workspace.controller == nil)
         #expect(!workspace.shortcuts.conflict)
@@ -49,6 +102,7 @@ import Localization
         let delegate = NSApp.delegate
         let workspace = CaptureWorkspace(host: .embedded, defaults: defaults)
         #expect(workspace.controller == nil)
+        workspace.setEnabled(true)
         workspace.open(.open)
         let controller = workspace.controller
         #expect(controller?.resident == false)
@@ -67,7 +121,12 @@ import Localization
     @Test func repeatedOpenReusesHomeAndCloseReleasesEmbeddedController() async throws {
         _ = NSApplication.shared
         let originalWindows = Set(NSApp.windows.map(ObjectIdentifier.init))
-        let workspace = CaptureWorkspace(host: .embedded)
+        let name = "capture-reopen-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let workspace = CaptureWorkspace(host: .embedded, defaults: defaults)
+        defer { workspace.shortcuts.stop() }
+        workspace.setEnabled(true)
         workspace.open(.open)
         weak var controller = workspace.controller
         workspace.open(.open)

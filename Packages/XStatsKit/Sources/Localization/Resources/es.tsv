@@ -2212,3 +2212,34 @@ GPU 功耗	Potencia de GPU
 CPU 占用口径	Escala de uso de CPU
 单核	Por núcleo
 占整机：{}	Mac completo: {}
+打开独立版	Abrir la app independiente
+使用独立版	Usar la app independiente
+改用内置版	Cambiar a las herramientas integradas
+已找到独立版，可脱离 XStats 使用。	Se ha encontrado la app independiente. Puedes usarla sin ejecutar XStats.
+正在使用独立版，内置功能已停用。	Se está usando la app independiente. Las herramientas integradas están desactivadas.
+未找到独立版，可改用内置版。	No se ha encontrado la app independiente. Puedes cambiar a las herramientas integradas.
+请先完成并关闭内置截图或录屏窗口，再切换。	Termina tu trabajo y cierra las ventanas de captura integradas antes de cambiar.
+灵动岛设置	Ajustes de Dynamic Island
+悬停预览	Vista previa al pasar el cursor
+悬停展开	Expandir al pasar el cursor
+显示屏幕	Pantalla
+未连接的显示器	Pantalla desconectada
+默认场景	Vista predeterminada
+展开尺寸	Tamaño expandido
+与菜单栏的间距	Separación bajo la barra de menús
+全屏时隐藏	Ocultar en pantalla completa
+交互	Interacción
+打开方式	Modo de apertura
+悬停等待时间	Espera al pasar el cursor
+移开后收起	Cerrar al retirar el cursor
+显示样式	Apariencia
+悬浮胶囊	Cápsula flotante
+顶部贴合	Unida al borde superior
+悬浮在菜单栏下方，可调整间距。	Flota debajo de la barra de menús con una separación ajustable.
+贴合屏幕顶边，内容避开刘海和菜单栏；系统菜单优先显示。	Se une al borde superior de la pantalla, con el contenido debajo de la cámara y la barra de menús. Los menús del sistema tienen prioridad.
+收起时宽度随内容调整。点击展开后会保持打开。	El ancho contraído se adapta al contenido. Haz clic para mantenerla abierta.
+显示内容	Contenido mostrado
+场景	Escenas
+系统指标	Métricas del sistema
+收起时显示首个已选指标。	Al contraerse, se muestra la primera métrica seleccionada.
+仅选择灵动岛显示的内容；未启用的功能需先在主应用中开启。	Elige qué muestra Dynamic Island. Activa primero las funciones deshabilitadas en la aplicación principal.
