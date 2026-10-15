@@ -60,11 +60,20 @@ struct IslandView: View {
         guard settings.aiUsageEnabled else { return tr("尚未启用") }
         return appModel.aiUsage.todayTokens.map { UsageNumber.short($0, westernUnits: settings.aiUsageWesternUnits) + " Tokens" } ?? "—"
     }
-    private var compactValue: String {
+    var compactValue: String {
         switch model.scene {
-        case .system: "CPU " + cpuValue
-        case .ai: tokenValue
-        case .focus: settings.restEnabled ? WellnessFormat.timer(rest.secondsRemaining) : tr("尚未启用")
+        case .system: return "CPU " + cpuValue
+        case .ai:
+            guard settings.aiUsageEnabled else { return tr("尚未启用") }
+            if settings.aiUsageShowsLocalUsage { return tokenValue }
+            // 灵动岛独立于菜单栏的服务选择，只复用其有效额度窗口口径。
+            let quotas = appModel.aiUsage.usesMagpie ? appModel.aiUsage.magpieQuotaReadings()
+                : MenuBarReading(model: appModel, items: [.aiUsage]).aiQuotas
+            guard let quota = quotas.first else { return tr("暂无额度数据") }
+            let percent = AIUsageFormat.quotaPercent(remainingPercent: quota.window.remainingPercent,
+                showsRemaining: settings.aiQuotaShowsRemaining, locale: L10n.locale)
+            return quota.sourceName + " " + tr(settings.aiQuotaShowsRemaining ? "剩余" : "已用") + " " + percent
+        case .focus: return settings.restEnabled ? WellnessFormat.timer(rest.secondsRemaining) : tr("尚未启用")
         }
     }
 
@@ -85,6 +94,7 @@ struct IslandView: View {
                     .contentShape(Rectangle())
                 }
                 .accessibilityLabel(tr("展开灵动岛"))
+                .accessibilityValue(compactValue)
             case .preview:
                 Button(action: expand) {
                     VStack(alignment: .leading, spacing: 10) {
@@ -105,6 +115,7 @@ struct IslandView: View {
                     .contentShape(Rectangle())
                 }
                 .accessibilityLabel(tr("展开灵动岛"))
+                .accessibilityValue(compactValue)
             case .expanded:
                 expanded
             }
@@ -263,7 +274,21 @@ struct IslandView: View {
                 Text(snapshot.fetchedAt, format: Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale))
                     .font(.system(size: 10)).foregroundStyle(.secondary)
                 if state.isStale { Text(tr("显示上次成功读取的数据。")).font(.system(size: 10)).foregroundStyle(.orange) }
-            } else { Text(tr("暂无额度数据")).foregroundStyle(.secondary) }
+                if state.failure != nil { Text(quotaStatus(for: provider)).foregroundStyle(.orange) }
+            } else if state.isRefreshing {
+                ProgressView().controlSize(.small)
+            } else { Text(quotaStatus(for: provider)).foregroundStyle(.secondary) }
+        }
+    }
+
+    func quotaStatus(for provider: AIProviderID) -> String {
+        switch appModel.aiUsage.visibleQuotaState(for: provider).failure {
+        case nil: tr("暂无额度数据")
+        case .notConfigured: tr("未检测到登录凭据，请先登录对应 CLI")
+        case .unauthorized: tr("登录已失效，请在对应 CLI 重新登录")
+        case .rateLimited: tr("服务暂时限流，稍后会自动重试")
+        case .network: tr("暂时无法连接额度服务")
+        case .invalidResponse: tr("额度接口返回了无法识别的数据")
         }
     }
 
