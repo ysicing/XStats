@@ -34,4 +34,4 @@ XStats 本次确认的版权所有者署名为 **ysicing**，当前新增代码�
 
 按需下载的 DB-IP Lite 数据保留 CC BY 4.0；`Resources/NetworkGeography` 中的 Natural Earth 数据为 Public Domain，不属于自编 AGPL 代码。来源、转换方式与声明见 [ThirdPartyNotices.md](ThirdPartyNotices.md)，资源中的 `ATTRIBUTION.md` 随安装包分发。
 
-`Apps/Capture/App/Info.plist` 与 `Apps/Capture/App/XStatsCapture.entitlements` 是 XcodeGen 生成的独立 Capture 配置，采用 AGPL-3.0-or-later，不在生成文件内添加注释。Capture 使用本仓库已有 App 图标；Vorssaint 仅用于功能流程调研，未复制其代码或素材。
+`Apps/Capture/App/Info.plist` 与 `Apps/Capture/App/XStatsCapture.entitlements` 是 XcodeGen 生成的独立 Capture 配置，采用 AGPL-3.0-or-later，不在生成文件内添加注释。`Apps/Capture/App/Assets.xcassets` 中的独立 Capture 图标及 JSON 资源配置为本项目原创，采用 AGPL-3.0-or-later，由 `scripts/render_capture_icon.swift` 绘制生成，不使用第三方字体或图形素材。Vorssaint 仅用于功能流程调研，未复制其代码或素材。

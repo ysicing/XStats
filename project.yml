@@ -51,8 +51,6 @@ targets:
     sources:
       - path: Apps/Capture/App
         excludes: ["*.plist", "*.entitlements"]
-      - path: Apps/XStats/App/Assets.xcassets
-        buildPhase: resources
     info:
       path: Apps/Capture/App/Info.plist
       properties:
