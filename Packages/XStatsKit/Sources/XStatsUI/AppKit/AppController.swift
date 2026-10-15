@@ -35,6 +35,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private var pendingDeepLinks: [AppDeepLink] = []
     private var deepLinkTask: Task<Void, Never>?
     private var terminationTask: Task<Void, Never>?
+    private lazy var islandPreview = IslandWindowController(appModel: model)
 
     public override init() {
         super.init()
@@ -46,6 +47,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? tr("开发版")
         Log.app.notice("XStats \(version, privacy: .public) 启动，macOS \(ProcessInfo.processInfo.operatingSystemVersionString, privacy: .public)")
         installMainMenu()
+        model.previewIsland = { [weak self] in self?.islandPreview.start() }
         menuBar = MenuBarController(model: model)
         calendarMenuBar = CalendarMenuBarController(model: model)
         mainWindow = MainWindowController(model: model)
@@ -152,6 +154,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
         widgetTimer?.tolerance = 5 * 60
         model.aiUsage.start()
+        if CommandLine.arguments.contains("--island") { islandPreview.start() }
         applyAppearance()
         updateNetworkVisibility()
         XStatsCapture.workspace.startShortcuts()
@@ -280,6 +283,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
     public func applicationWillTerminate(_ notification: Notification) {
         model.fans.setPaused(true)
+        islandPreview.stop()
         XStatsCapture.workspace.shortcuts.stop()
         XStatsCapture.workspace.cleanUp()
         wellnessNotifications?.dismiss()
@@ -737,6 +741,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         egressWindow.refreshLanguage()
         aiUsageSettingsWindow.refreshLanguage()
         updateWindow.refreshLanguage()
+        islandPreview.refreshLanguage()
     }
 
     private func updateNetworkVisibility() {

@@ -221,6 +221,15 @@ struct FeatureSettings: View {
             }
             SettingsGroup {
                 GroupRow(showsDivider: false) {
+                    SettingRow(title: tr("灵动岛"),
+                               subtitle: tr("在屏幕顶部查看系统指标、AI 用量与休息计时"),
+                               icon: "capsule") {
+                        Button(tr("打开")) { model.previewIsland() }
+                    }
+                }
+            }
+            SettingsGroup {
+                GroupRow(showsDivider: false) {
                     SettingRow(title: tr("菜单栏日历"),
                                subtitle: tr("独立显示日期，点击打开月历；不受指标合并布局影响"),
                                icon: "calendar") {

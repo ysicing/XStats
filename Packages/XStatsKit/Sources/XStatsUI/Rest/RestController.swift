@@ -207,6 +207,7 @@ final class RestController {
     private var hudVisible = false
     private var pageVisible = false
     private var menuBarVisible = false
+    private var islandVisible = false
     private var restVisible = false
     private var suspendedAt: UInt64?
     private var lastFocusCredited = false
@@ -299,6 +300,15 @@ final class RestController {
     func setMenuBarVisible(_ visible: Bool) {
         menuBarVisible = visible
         updateDisplayTimer()
+    }
+
+    func setIslandVisible(_ visible: Bool) {
+        guard islandVisible != visible else { return }
+        islandVisible = visible
+        // Lock/sleep observers may hide the island after suspend(); only sync() on wake resumes work.
+        guard suspendedAt == nil else { return }
+        updateDisplayTimer()
+        if visible { refresh() }
     }
 
     func startPause() {
@@ -516,7 +526,7 @@ final class RestController {
     }
 
     private func updateDisplayTimer() {
-        let needsUpdates = settings.restEnabled && isRunning && (restVisible || hudVisible || pageVisible || menuBarVisible)
+        let needsUpdates = settings.restEnabled && isRunning && (restVisible || hudVisible || pageVisible || menuBarVisible || islandVisible)
         if needsUpdates && displayTimer == nil {
             displayTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.refresh() }

@@ -34,9 +34,8 @@ struct MagpieQuotaAccounts: View {
 
     private var providerPicker: some View {
         Picker(tr("订阅额度"), selection: selection) {
-            ForEach(providers, id: \.self) { provider in
-                providerLabel(provider).tag(provider)
-            }
+            // 保留 Picker 可直接读取的 tag；图标读取延迟到行的 MainActor body。
+            ForEach(providers, id: \.self, content: MagpieQuotaProviderLabel.option)
         }
         .labelsHidden()
     }
@@ -52,7 +51,7 @@ struct MagpieQuotaAccounts: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                providerLabel(currentProvider).dsFont(.sm, weight: .semibold)
+                MagpieQuotaProviderLabel(provider: currentProvider).dsFont(.sm, weight: .semibold)
             }
             // 只淡入新的账户组；旧组即时移除，快速切换时不叠加过期额度。
             // 内层取消隐式动画，避免进度条和数字在服务之间插值。
@@ -71,7 +70,7 @@ struct MagpieQuotaAccounts: View {
     private var accountContent: some View {
         VStack(alignment: .leading, spacing: DS.Space.s3) {
             let visibleAccounts = accounts.filter { $0.provider == currentProvider }
-            ForEach(Array(visibleAccounts.enumerated()), id: \.element.id) { index, account in
+            MainActorForEach(Array(visibleAccounts.enumerated()), id: \.element.id) { index, account in
                 if index > 0 { Divider() }
                 VStack(alignment: .leading, spacing: DS.Space.s2) {
                     HStack(alignment: .firstTextBaseline) {
@@ -91,7 +90,7 @@ struct MagpieQuotaAccounts: View {
                         Text(tr("Magpie 未能读取此账户的额度。"))
                             .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                     } else {
-                        ForEach(Array(account.windows.enumerated()), id: \.offset) { _, window in
+                        MainActorForEach(Array(account.windows.enumerated()), id: \.offset) { _, window in
                             HStack {
                                 Text(window.name).foregroundStyle(DS.Palette.textSecondary)
                                 Spacer(minLength: DS.Space.s2)
@@ -134,8 +133,18 @@ struct MagpieQuotaAccounts: View {
         if remaining < 80 { return DS.Palette.primary }
         return DS.Palette.success
     }
+}
 
-    private func providerLabel(_ provider: String) -> some View {
+private struct MagpieQuotaProviderLabel: View {
+    let provider: String
+
+    nonisolated init(provider: String) { self.provider = provider }
+
+    @Sendable nonisolated static func option(_ provider: String) -> some View {
+        Self(provider: provider).tag(provider)
+    }
+
+    var body: some View {
         Label {
             Text(AIServiceBrand.title(provider))
         } icon: {
@@ -170,7 +179,7 @@ private struct MagpieAccountDetails: View {
                 if count > 0, !dates.isEmpty {
                     DisclosureGroup {
                         VStack(alignment: .leading, spacing: DS.Space.s1) {
-                            ForEach(Array(dates.enumerated()), id: \.offset) { _, date in
+                            MainActorForEach(Array(dates.enumerated()), id: \.offset) { _, date in
                                 Text(tr("到期：\(UsageNumber.quotaDate(date, includesTime: true))"))
                             }
                         }

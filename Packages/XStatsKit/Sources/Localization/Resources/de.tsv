@@ -2203,6 +2203,12 @@ GPU 内存占用	GPU-Speicherbelegung
 其他系统数据	Sonstige Systemdaten
 GPU 功耗	GPU-Leistung
 虚拟内存	Virtueller Speicher
+灵动岛	Dynamic Island
+在屏幕顶部查看系统指标、AI 用量与休息计时	Systemwerte, KI-Nutzung und Pausentimer am oberen Bildschirmrand anzeigen
+展开灵动岛	Dynamic Island aufklappen
+关闭灵动岛	Dynamic Island schließen
+点击展开	Zum Aufklappen klicken
+自动选择屏幕	Bildschirm automatisch wählen
 CPU 占用口径	CPU-Anzeigeskala
 单核	Pro Kern
 占整机：{}	Gesamter Mac: {}

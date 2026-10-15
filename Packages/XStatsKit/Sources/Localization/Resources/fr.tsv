@@ -2203,6 +2203,12 @@ GPU 内存占用	Mémoire GPU utilisée
 其他系统数据	Autres données système
 GPU 功耗	Puissance GPU
 虚拟内存	Mémoire virtuelle
+灵动岛	Dynamic Island
+在屏幕顶部查看系统指标、AI 用量与休息计时	Consultez les mesures système, l’utilisation de l’IA et le minuteur de pause en haut de l’écran
+展开灵动岛	Développer Dynamic Island
+关闭灵动岛	Fermer Dynamic Island
+点击展开	Cliquer pour développer
+自动选择屏幕	Choisir automatiquement l’écran
 CPU 占用口径	Échelle d’utilisation du CPU
 单核	Par cœur
 占整机：{}	Mac entier : {}
