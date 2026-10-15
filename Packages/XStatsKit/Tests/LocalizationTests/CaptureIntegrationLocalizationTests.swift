@@ -5,7 +5,7 @@ import Testing
 
 struct CaptureIntegrationLocalizationTests {
     @Test func cacheManagementHasTranslationsInEveryCatalog() throws {
-        let sources = ["截图与录屏缓存", "正在计算缓存占用…", "缓存占用：{}", "可清理：{}", "正在使用和最近 1 小时的素材会保留。截图在内存中处理，已保存的文件不受影响。", "清理录屏残留？", "清理后无法恢复这些未保存的录制素材。正在使用、最近 1 小时的素材及已保存文件会保留。", "清理录屏残留", "已清理 {} 缓存。", "缓存未能完全清理，请刷新后重试。", "无法读取缓存占用，请重试。"]
+        let sources = ["快捷键、缓存与独立版", "截图与录屏缓存", "正在计算缓存占用…", "缓存占用：{}", "可清理：{}", "正在使用和最近 1 小时的素材会保留。截图在内存中处理，已保存的文件不受影响。", "清理录屏残留？", "清理后无法恢复这些未保存的录制素材。正在使用、最近 1 小时的素材及已保存文件会保留。", "清理录屏残留", "已清理 {} 缓存。", "缓存未能完全清理，请刷新后重试。", "无法读取缓存占用，请重试。"]
         for language in AppLanguage.allCases where language != .system && language != .chinese {
             let catalog = try #require(Translations.catalog(for: language))
             for source in sources { #expect(catalog.translate(source)?.isEmpty == false, "\(language): \(source)") }

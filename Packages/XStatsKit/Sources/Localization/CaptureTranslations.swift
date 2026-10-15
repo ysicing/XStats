@@ -147,5 +147,6 @@ extension Translations {
 已清理 {} 缓存。	Cleared {} of cache.
 缓存未能完全清理，请刷新后重试。	Some cache could not be cleared. Refresh and try again.
 无法读取缓存占用，请重试。	Could not read cache usage. Try again.
+快捷键、缓存与独立版	Shortcuts, cache and standalone app
 """#
 }
