@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 import IOKit
 import IOKit.ps
@@ -6,7 +11,7 @@ import Localization
 // MARK: - 磁盘
 
 public enum DiskSampler {
-    public static func sample(volume: URL = URL(fileURLWithPath: "/")) -> DiskUsage? {
+    public static func sample(volume: URL = URL(fileURLWithPath: "/"), includeBreakdown: Bool = false) -> DiskUsage? {
         let keys: Set<URLResourceKey> = [.volumeLocalizedNameKey, .volumeTotalCapacityKey,
                                          .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey]
         guard let values = try? volume.resourceValues(forKeys: keys),
@@ -14,9 +19,11 @@ public enum DiskSampler {
         // “重要用途可用空间”包含可清除空间，与访达显示一致；减去普通可用空间就是可清除的部分
         let available = max(0, values.volumeAvailableCapacityForImportantUsage ?? 0)
         let strict = Int64(values.volumeAvailableCapacity ?? 0)
-        return DiskUsage(volumeName: values.volumeLocalizedName ?? tr("磁盘"),
+        var usage = DiskUsage(volumeName: values.volumeLocalizedName ?? tr("磁盘"),
                          total: UInt64(total), available: UInt64(available),
                          purgeable: UInt64(max(0, available - strict)))
+        if includeBreakdown, volume.path == "/" { usage.breakdown = DiskBreakdown.read(usage) }
+        return usage
     }
 }
 
@@ -53,16 +60,31 @@ public enum BatterySampler {
         guard service != 0 else { return }
         defer { IOObjectRelease(service) }
 
-        status.cycleCount = IORegistry.property(service, "CycleCount") as? Int
-        if let data = IORegistry.property(service, "BatteryData") as? [String: Any],
-           let design = data["DesignCapacity"] as? Int, design > 0,
-           let capacity = (data["NominalChargeCapacity"] as? Int) ?? (data["FullChargeCapacity"] as? Int) {
+        // 只复制电池详情用到的属性，不读取整张设备表。
+        let keys = ["CycleCount", "BatteryData", "Voltage", "InstantAmperage", "Amperage", "AdapterDetails"]
+        let properties = Dictionary(uniqueKeysWithValues: keys.compactMap { key in
+            IORegistry.property(service, key).map { (key, $0) }
+        })
+        applyRegistryDetails(properties, to: &status)
+    }
+
+    static func applyRegistryDetails(_ properties: [String: Any], to status: inout BatteryStatus) {
+        status.cycleCount = properties["CycleCount"] as? Int
+        let data = properties["BatteryData"] as? [String: Any] ?? [:]
+        status.designCapacity = (data["DesignCapacity"] as? Int).flatMap { $0 > 0 ? $0 : nil }
+        status.fullChargeCapacity = ((data["NominalChargeCapacity"] as? Int)
+            ?? (data["FullChargeCapacity"] as? Int)).flatMap { $0 > 0 ? $0 : nil }
+        status.health = nil
+        if let design = status.designCapacity, let capacity = status.fullChargeCapacity {
             status.health = min(1, Double(capacity) / Double(design))
         }
-        if let adapter = IORegistry.property(service, "AdapterDetails") as? [String: Any] {
-            status.adapterWatts = adapter["Watts"] as? Int
-        }
+        status.voltage = (properties["Voltage"] as? Int).flatMap { $0 > 0 ? Double($0) / 1000 : nil }
+        // IOKit 有时以 UInt64 存储负数，NSNumber.int64Value 保留二进制符号。
+        status.amperage = ((properties["InstantAmperage"] ?? properties["Amperage"]) as? NSNumber)
+            .map { Double($0.int64Value) / 1000 }
+        status.adapterWatts = (properties["AdapterDetails"] as? [String: Any])?["Watts"] as? Int
     }
+
 }
 
 // MARK: - GPU
@@ -80,14 +102,23 @@ public enum GPUSampler {
             defer { IOObjectRelease(service) }
             // 只读取需要的属性，避免复制整张属性表
             guard let stats = IORegistry.property(service, "PerformanceStatistics") as? [String: Any],
-                  let utilization = stats["Device Utilization %"] as? Int else { continue }
-            let usage = GPUUsage(name: IORegistry.property(service, "model") as? String ?? "GPU",
-                                 utilization: Double(min(100, max(0, utilization))) / 100,
-                                 coreCount: IORegistry.property(service, "gpu-core-count") as? Int)
+                  let usage = usage(name: IORegistry.property(service, "model") as? String ?? "GPU",
+                                    coreCount: IORegistry.property(service, "gpu-core-count") as? Int,
+                                    statistics: stats) else { continue }
             if best == nil || usage.utilization > best!.utilization { best = usage }
         }
         return best
     }
+
+    static func usage(name: String, coreCount: Int?, statistics: [String: Any]) -> GPUUsage? {
+        guard let utilization = statistics["Device Utilization %"] as? Int else { return nil }
+        var usage = GPUUsage(name: name, utilization: Double(min(100, max(0, utilization))) / 100, coreCount: coreCount)
+        usage.rendererUtilization = (statistics["Renderer Utilization %"] as? Int).map { Double(min(100, max(0, $0))) / 100 }
+        usage.tilerUtilization = (statistics["Tiler Utilization %"] as? Int).map { Double(min(100, max(0, $0))) / 100 }
+        usage.memoryInUse = (statistics["In use system memory"] as? Int).flatMap { $0 >= 0 ? UInt64($0) : nil }
+        return usage
+    }
+
 }
 
 // MARK: - 系统信息

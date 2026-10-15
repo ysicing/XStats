@@ -37,6 +37,9 @@ XStats 基于 [gentpan/OpenStats](https://github.com/gentpan/OpenStats) 开发�
 原项目使用 MIT License，Copyright (c) 2026 GiantAccel, LLC；完整许可证与版权声明保留在 [LICENSES/OpenStats-MIT.txt](LICENSES/OpenStats-MIT.txt) 中。
 
 网络测速、应用卸载识别与路径校验、多安装副本保护，以及部分菜单栏显示和排序逻辑包含对上游实现的移植与适配。
+GPU 工作频率、电池电气参数及 APFS 容量组成参考原项目实现，并适配 XStats 的按需采集与缺失值处理。
+风扇切档后的短时转速反馈参考原项目实现，并增加可见性、暂停与过期结果约束，复用现有只读 SMC 连接。
+
 移植代码与测试保留 OpenStats MIT 版权与许可声明；XStats 的新增代码与修改采用 AGPL-3.0-or-later。
 
 上游的残留目录、容器元数据和应用组查找思路参考

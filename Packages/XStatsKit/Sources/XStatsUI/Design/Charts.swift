@@ -262,7 +262,7 @@ struct CoreClusterBars: View {
             GeometryReader { proxy in
                 let barWidth = Self.barWidth(for: proxy.size.width, clusters: clusters, total: total)
                 HStack(spacing: Self.groupGap) {
-                    ForEach(clusters) { cluster in
+                    MainActorForEach(clusters) { cluster in
                         let count = CGFloat(cluster.coreIndices.count)
                         HStack(spacing: DS.Space.s1) {
                             if byCluster {
@@ -311,7 +311,7 @@ struct CoreHeatmap: View {
 
         HStack(alignment: .top, spacing: DS.Space.s2) {
             VStack(alignment: .leading, spacing: Self.groupGap) {
-                ForEach(clusters) { cluster in
+                MainActorForEach(clusters) { cluster in
                     // 类型名后面带上核心数，与“各核心占用”里的分组标题一致
                     Text(verbatim: "\(cluster.name) · \(cluster.coreIndices.count)")
                         .dsFont(.xs)

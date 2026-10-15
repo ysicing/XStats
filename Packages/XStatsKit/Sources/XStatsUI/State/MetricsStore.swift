@@ -24,6 +24,7 @@ public final class MetricsStore {
     public private(set) var system = SystemInfoReader.read()
 
     public private(set) var cpu: CPULoad?
+    public private(set) var thermalState: ProcessInfo.ThermalState?
     public private(set) var cpuTotal = History<Double>(capacity: historyCapacity)
     /// 带时间戳的 CPU 总占用，供可选 1 / 3 / 5 分钟的走势图按时间定位；每秒一次时正好装下 5 分钟
     public private(set) var cpuTimeline = History<TimedValue>(capacity: timelineCapacity)
@@ -51,6 +52,8 @@ public final class MetricsStore {
     public private(set) var appEnergy: AppEnergyReading?
     /// 按应用汇总的磁盘读写排行，分数是最近十几秒的平均速率
     private(set) var diskRanking = ActivityRanking()
+    private(set) var diskReadAverage = ActivityRanking(floor: 0)
+    private(set) var diskWriteAverage = ActivityRanking(floor: 0)
     public private(set) var systemCounts: SystemCounts?
     public private(set) var sensors: SensorReadings?
     /// 独立观察硬件能力，避免每次传感器采样都触发菜单栏布局重建。
@@ -68,7 +71,9 @@ public final class MetricsStore {
 
     /// 关闭功能后移除实时缓存，避免重新打开页面把旧值当作当前值。
     /// 持久化历史由 HistoryRecorder 管理，不在这里删除。
-    func clearDisabledModules(_ enabled: Set<MonitoringModule>, powerRequested: Bool = false, appEnergyRequested: Bool = false) {
+    func clearDisabledModules(_ enabled: Set<MonitoringModule>, powerRequested: Bool = false,
+                              gpuPowerRequested: Bool = false, gpuFrequencyRequested: Bool = false, appEnergyRequested: Bool = false) {
+        if !enabled.contains(.cpu), !enabled.contains(.battery), thermalState != nil { thermalState = nil }
         if !appEnergyRequested, appEnergy != nil { appEnergy = nil }
         if !enabled.contains(.cpu), cpu != nil || !cpuTotal.elements.isEmpty {
             cpu = nil
@@ -105,25 +110,22 @@ public final class MetricsStore {
                                         fans: fansEnabled ? readings.fans : [], fanCount: fanCount)
             }
         }
-        // 关闭最后一个功耗读取方后清除实时曲线，CPU 频率需求仍独立保留。
-        if !powerRequested, power?.system != nil || power?.gpu != nil || power?.battery != nil || power?.adapter != nil
-            || !powerHistory.elements.isEmpty {
-            power = enabled.contains(.cpu) && power?.clusterFrequency.isEmpty == false
-                ? PowerReading(clusterFrequency: power?.clusterFrequency ?? [:]) : nil
-            powerHistory = History(capacity: Self.historyCapacity)
-        }
-        if !enabled.contains(.cpu), power?.clusterFrequency.isEmpty == false { power?.clusterFrequency = [:] }
+        power = power?.retaining(system: powerRequested, gpu: powerRequested || gpuPowerRequested,
+                                cpuFrequency: enabled.contains(.cpu), gpuFrequency: gpuFrequencyRequested)
+        if !powerRequested, !powerHistory.elements.isEmpty { powerHistory = History(capacity: Self.historyCapacity) }
+
     }
 
     /// 基础容量只在页面打开时读取一次，不启动磁盘活动或 SMART 监控。
     func refreshDiskCapacity() async {
-        let capacity = await Task.detached { DiskSampler.sample() }.value
+        let capacity = await Task.detached { DiskSampler.sample(includeBreakdown: true) }.value
         guard !Task.isCancelled else { return }
         if disk != capacity { disk = capacity }
     }
 
     public func apply(_ snapshot: MetricsSnapshot) {
         lastUpdate = snapshot.date
+        if let state = snapshot.thermalState ?? snapshot.cpu?.thermalState { thermalState = state }
         if let appEnergy = snapshot.appEnergy { self.appEnergy = appEnergy }
         if let activity = snapshot.diskActivity {
             diskActivity = activity
@@ -179,6 +181,11 @@ public final class MetricsStore {
             }
             let activity = totals.mapValues { total in total.read.map { $0 + total.write } ?? 0 }
             diskRanking.update(activity)
+            diskReadAverage.update(totals.mapValues { $0.read ?? 0 })
+            diskWriteAverage.update(totals.mapValues { $0.read == nil ? 0 : $0.write })
+            let rankedIDs = Set(diskRanking.scores.keys)
+            diskReadAverage.retain(rankedIDs)
+            diskWriteAverage.retain(rankedIDs)
         }
         if let counts = snapshot.systemCounts { systemCounts = counts }
         if let sensors = snapshot.sensors { mergeSensors(sensors) }
@@ -188,6 +195,12 @@ public final class MetricsStore {
     func recordFanCount(_ count: Int?) {
         guard fanCount == nil, let count else { return }
         fanCount = count
+    }
+
+    /// 切档后的只读反馈不推进温度、历史或全量快照时间；失败保留最后一次实际转速。
+    func updateFans(_ fans: [FanState]) {
+        guard fanCount != 0, !fans.isEmpty || sensors != nil else { return }
+        mergeSensors(SensorReadings(temperatures: [], fans: fans, fanCount: fanCount))
     }
 
     /// 不同页面采集的温度分组不同，按组合并，避免切页时数据闪烁

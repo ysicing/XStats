@@ -110,6 +110,12 @@ README 共用图库选取 AI、历史、显示器、番茄钟、音频与日历�
 截图统一使用当前发布构建；核心监控和工具页可来自完整模式的只读采样，公开使用前检查用户路径、设备标识和真实地址。
 保留演示数据说明，不把模拟组件版本当成实际发布版本。
 
+硬件详情走查：`XStats --snapshot <目录> --hardware-details-only --language zh-Hans` 使用隔离偏好，只读采集 GPU、电池和磁盘约五秒，停止采样后输出 320 点弹窗与 600 点详情的明暗截图。使用 `de`、`ar` 检查长译文及 RTL；这些截图采用真实本机数据，无内置电池或不支持的属性沿用缺失状态。单元测试中的演示读数与实机截图应分别标注。
+
+指标摘要走查：`XStats --snapshot <目录> --metric-summary-only --language zh-Hans` 使用隔离偏好，采集 CPU、内存与网络约三秒后停止循环，再以匿名演示进程、2 GB 交换区及严重热压力生成明暗截图。用 `de`、`ar` 检查长译文和 RTL。CPU 应用汇总与总览共用「整机／单核」口径，默认整机；设置参与保存、导入导出与同步，切换不改变采样、排行及告警。内存顶部始终显示交换区用量；温度区域的系统热压力随现有温度采样读取，不依赖 CPU 使用率采样。
+
+GPU 采样生命周期的实机检查：设置 `XSTATS_GPU_RESOURCE_REPORT=<输出路径>`，单独筛选 `HardwareDetailsPresentationTests/gpuDetailsSamplingStopsAndRestartsWithFreshBaselines`；记录关闭、重开、暂停、恢复及功能关闭阶段的样本数与 CPU 时间。磁盘组成的单次只读检查：设置 `XSTATS_DISK_DETAILS_REPORT=<输出路径>`，筛选 `HardwareDetailsTests/realDiskCompositionIsReadableAndBounded`。未提供环境变量时不运行这些延时硬件检查。
+
 菜单栏布局走查可对当前构建运行 `XStats --snapshot <目录> --menubar-only --language zh-Hans`；
 仅采集相关指标，输出三种布局、总览和详情的明暗截图，不扫描清理目录或 AI 日志。
 README 的聚合状态总览使用该模式的 `overview-light.png` / `overview-dark.png`，
@@ -150,6 +156,10 @@ API 检测；配置开启不代表模型可用。此模式不生成回答、修�
 
 聚合排序定向验证：`swift test --package-path Packages/XStatsKit --filter 'MenuBarOrderTests|MenuBarLayoutTests|MenuBarResourceTests|WebDAVSettingsTests|MonitoringResourceTests'`。覆盖顺序保存、关闭再开启、硬件不可用项目、功能启用过滤、设置同步与重绘观察。使用现有 `--menubar-only` 截图入口检查中文、英文和 RTL；独立图标仍由系统拖动排序。
 
+合并菜单栏的“项目间距”可选 4、6、8、12 点，默认 8 点，包含在备份与设置同步中。该设置只用于聚合布局的项目分隔。AI 用量内部各服务之间固定 6 点，图标风格中图标与百分比间隔 3 点；百分比至少预留两位数字的宽度，100% 与 >99% 按实际文字宽度扩展，避免普通额度变化时跳动并减少留白。弹窗顶栏和菜单栏右键菜单提供防休眠快捷入口，保留原有时长并补充 4、8、12 小时；已保存合盖运行请求时先打开防休眠页。风扇快捷模式仍走辅助工具与安全检查，缺少风扇参数或辅助工具时打开散热页，不增加后台采样。CPU、内存、概览进程与网络应用排行保留仍在前 N 名的项目位置，数值继续更新，新成员替换离开的成员。磁盘应用读写数字与条形使用相同平滑速率；网络详情在探测开启时展示最近一次延迟及现有最多 60 次探测的丢包比例，不增加探测请求。
+
+本批定向验证：`swift test --package-path Packages/XStatsKit --filter 'MenuBarEnhancementsTests|FanSafetyLifecycleTests|LocalizationTests'`。设置 `XSTATS_MENU_RESOURCE_REPORT=<输出路径>` 运行 `MenuBarResourceTests`，检查打开、关闭、暂停和恢复的实际采样行为；长译文与 RTL 仍使用上述原生截图入口。
+
 应用页使用原生表格浏览 App 与 Homebrew 清单，可搜索、按列排序、查看运行状态、版本、大小、架构、上次打开与来源。App 清单复用固定应用目录扫描，保护 XStats 自身和 Apple 应用；普通应用卸载打开原有残留预览与确认。Homebrew 来源按 Cask 的真实 app 产物路径匹配，卸载走 Cask 命令而不是直接回收本体。Spotlight 没有上次打开记录或无法识别架构时显示空值，不以文件修改时间代替使用记录。
 
 应用管理没有检查定时器。App 列表按需从 `~/Library/Caches/XStats/AppInventory-v2.json` 恢复展示快照（最多 8 MiB、10,000 项，保留 7 天），重启后先显示缓存，再异步核对本地清单与元数据。自动刷新保留表格与刷新按钮，只重新计量新增、身份或应用本体／Info.plist 修改时间变化、或计量超过 24 小时的应用；手动重新扫描则重做全部计量。App 清单在 30 秒内复用内存结果，超过期限后于下次访问时后台核对；已知安装／卸载变化和手动刷新立即核对。元数据在应用身份或指纹变化时失效，“上次打开”不依赖文件指纹，按 60 秒期限在访问时重新查询。体积遍历每批最多 20 项，并在单项完成后检查 100 毫秒预算，合并发布结果；关闭时丢弃未提交批次，不标记为已计量。应用图标最多缓存 128 个小位图，逐项淘汰最久未使用项；Homebrew 清单沿用 5 分钟的按需刷新间隔。缓存不保存卸载计划与授权，卸载仍读取真实应用身份并经过预览确认；Homebrew 清单和操作保护保持实时读取。窗口不可见、锁屏、休眠、离开页面时取消只读遍历，拒绝旧任务结果，关闭功能释放结果。运行状态通过 NSWorkspace 事件更新。Homebrew 自动更新、分析、自动清理与依赖自动移除均关闭；只有点击“检查更新”才执行 `brew update`。Formula / Cask 更新、卸载逐项确认，保留原生依赖保护，不使用 force / zap；运行中的 Cask、XStats 本身和固定版本更新有保护。已经确认的 brew 写操作不因切页或关闭窗口中断，操作中退出应用会提示等待；结束后两个列表失效，失败时提示终端检查。
@@ -165,6 +175,12 @@ App 标签中的“检查更新”查询 App Store 来源的 Mac 应用。通过
 启用但无展示、历史记录或提醒需求时不采集；全部需求为空时停止采样循环。历史记录默认开启，
 只为仍启用的 CPU、内存、网络维持后台采样，其余指标仍按界面需求记录。
 手动风扇关闭前交还系统控制，失败恢复功能入口；合盖运行继续保留电量保护。
+
+风扇切换档位、自定义转速提交或唤醒重新下发成功后，只在风扇读数可见时立即读取实际转速，并按约 500 毫秒的间隔短暂跟踪；最多 10 秒、20 次读取，接近目标后提前结束。读取复用 MetricsHub 的 SMC 连接，只更新风扇，不提高其他指标的采样频率或写入历史。菜单栏风扇读数、包含风扇摘要的合并面板、风扇弹窗以及概览／风扇页可作为读取方；最后一个读取方关闭、功能关闭、锁屏、休眠和退出时取消，迟到结果丢弃。读取失败时保留实际转速并结束跟踪；控制失败不启动跟踪，仍沿用原有错误和安全复位流程。指令目标不会作为实际转速展示。
+手动风扇模式写入后读回确认；旧机型解锁不再固定等待 3 秒，而是在控制权交出后立即继续，模式等待最多约 15 秒。新接管失败时尝试撤回该风扇；只有确认全部风扇自动控制时才复位全局解锁，避免干扰另一个手动风扇。
+
+指标弹窗默认收起核心分工、排队程度、压缩详情、SSD 健康和功耗等次要分区，已保存的分区选择与备份恢复优先；主窗口保留完整详情。内存顶部展示已有用量历史并按当前内存压力着色；网络顶部展示当前物理接口与可复制的本地地址。磁盘弹窗显示其他已装载卷的可用／总容量，复用主窗口的卷读取；仅在磁盘内容可见时按打开及装卸事件读取，隐藏、锁屏或休眠时取消，不新增定时轮询。
+
 这些开关控制主程序，系统小组件继续独立刷新。
 
 定向截图 `--features-only` 额外输出 `monitoring-features-*`、`optional-features-*` 与 `monitoring-disabled-*`，可用
@@ -178,6 +194,31 @@ XSTATS_MONITORING_RESOURCE_REPORT="$PWD/build/monitoring-verification/resources.
 
 此项约运行 15 秒，使用隔离偏好，不操作风扇、音量、显示器或系统扩展；报告记录各阶段快照数、
 CPU 采样数与测试进程 CPU 时间。它验证采样循环的需求与释放，不代表整机能耗或长期稳定性结论。
+
+## macOS 15 启动与 SwiftUI 隔离验收
+
+macOS 15 的异步 DisplayLink 可能在后台调用 `ForEach.content`。只传递不可变快照的行使用
+`@Sendable` 回调和仅赋值的 `nonisolated init`；读取模型、图标缓存或绑定的监控列表使用
+`MainActorForEach`，将实际构建延迟到行的 `MainActor body`。不要把模型或 AppKit 缓存改为非隔离，
+也不要在后台闭包里直接调用 builder。几何与时间线闭包需单独核实，不能仅凭存在执行器检查就批量改写。
+
+在有桌面会话的 macOS 15 测试机运行：
+
+```bash
+XSTATS_STARTUP_REPORT_DIR="$PWD/build/startup-verification" \
+  swift test --package-path Packages/XStatsKit --no-parallel \
+  --filter 'StartupRenderingTests|MainActorForEachIsolationTests|BluetoothListIsolationTests|BatteryEnergyPresentationTests|CPUPresentationTests'
+```
+
+窗口验收覆盖 10 个保存页面与能耗开/关，共 20 种组合；通过真实 `MainWindowController` 反复挂载、
+刷新、关闭，并进入关于/升级页。测试使用隔离偏好与演示指标，不启动主程序采样调度或更新安装；
+报告包含实际 OS，`macOS15` 必须为 `true` 才算该系统的窗口验收。后台列表测试另行覆盖蓝牙多部件、
+行构建与模型读取的隔离、数据 ID 与设置更新；蓝牙演示数据在已挂载窗口中依次切换加载、空列表、
+单电量、多部件与断开状态，并检查左右书写布局。Picker 的直接标签保持原结构，仅在主线程预先生成文案快照。
+
+这些测试不等于完整进程启动验收。发布候选仍需在 macOS 15 上手动验证冷启动恢复能耗/本机信息/仪表盘、
+蓝牙设备列表、打开电池弹窗、关闭能耗后重启以及从恢复页进入升级页。缺少 macOS 15 机器时报告待验证，
+不能用其他系统测试通过或 macOS 部署目标版本代替。
 
 ## 本地签名与权限
 
@@ -299,8 +340,11 @@ Developer ID Application 证书生成 profile。现有扩展 ID 和 profile 可�
 没有后台更新计时器。“更多 → 更新地图数据库”可手动刷新。下载失败不影响连接列表，
 已有库保持可用；IPv4／IPv6 一起校验并原子切换本机索引。
 
-发布流程在应用制品上传前自动执行 `scripts/sync_network_geography.py --publish`：
-从 DB-IP 官方本月 gzip CSV 下载、严格校验并转换，使用系统 LZFSE 压缩；上传至
+发布流程在应用制品上传前自动执行 `scripts/sync_network_geography.py --publish --max-age-days 7`：
+按线上 `current.json` 的 `generatedAt`（UTC）判断数据年龄，不依赖本地构建目录；未超过
+7 天且两个压缩文件回读哈希校验通过时复用，不重新下载官方源、转换、压缩或上传。
+超过 7 天、线上数据缺失或清单／时间记录无效时，从 DB-IP 官方本月 gzip CSV 下载、
+严格校验并转换，使用系统 LZFSE 压缩；上传至
 `c-ip/oss/apps/macOS/XStats/network-geography`。文件名包含压缩内容 SHA-256，先上传
 并回读校验两个不可变文件，最后更新 `current.json`（CDN max-age=300）。同步失败会中止
 后续应用制品和版本清单发布。客户端入口固定为
@@ -308,7 +352,8 @@ Developer ID Application 证书生成 profile。现有扩展 ID 和 profile 可�
 
 ```bash
 python3 scripts/sync_network_geography.py            # 只准备到 dist/network-geography
-python3 scripts/sync_network_geography.py --publish  # 从官方重新获取并同步 c-ip
+python3 scripts/sync_network_geography.py --publish  # 强制从官方重新获取并同步 c-ip
+python3 scripts/sync_network_geography.py --publish --max-age-days 7  # 按线上数据年龄复用
 ```
 
 独立组件与网络扩展共同使用 `NETWORK_EXTENSION_VERSION` 与 `NETWORK_EXTENSION_BUILD`。

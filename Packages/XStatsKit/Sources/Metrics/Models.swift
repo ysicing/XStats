@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Darwin
 import Foundation
 import Localization
@@ -103,6 +108,8 @@ public struct DiskUsage: Sendable, Equatable {
     public var available: UInt64
     /// 可用空间里可清除的那部分
     public var purgeable: UInt64
+    /// APFS 启动容器组成；读取失败或非启动卷时为 nil。
+    public var breakdown: DiskBreakdown?
 
     public init(volumeName: String, total: UInt64, available: UInt64, purgeable: UInt64 = 0) {
         self.volumeName = volumeName
@@ -128,12 +135,19 @@ public struct BatteryStatus: Sendable, Equatable {
     public var cycleCount: Int?
     public var health: Double?          // 0...1
     public var adapterWatts: Int?
+    public var designCapacity: Int?       // mAh
+    public var fullChargeCapacity: Int?   // mAh
+    public var voltage: Double?          // V
+    public var amperage: Double?         // A，放电为负
 }
 
 public struct GPUUsage: Sendable, Equatable {
     public var name: String
     public var utilization: Double      // 0...1
     public var coreCount: Int?
+    public var rendererUtilization: Double?
+    public var tilerUtilization: Double?
+    public var memoryInUse: UInt64?
 }
 
 public struct ProcessUsage: Sendable, Equatable, Identifiable {
@@ -230,6 +244,8 @@ public struct MetricsSnapshot: Sendable {
     /// Hub 的采样代次；手工快照与演示数据不设置。用于拒绝开关变化前已排队的结果。
     public var samplingGeneration: Int?
     public var cpu: CPULoad?
+    /// 系统热压力也随温度需求采集，不依赖 CPU 使用率采样。
+    public var thermalState: ProcessInfo.ThermalState?
     public var memory: MemoryUsage?
     public var network: NetworkRate?
     public var networkInterface: NetworkInterfaceInfo?

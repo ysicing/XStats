@@ -2181,3 +2181,28 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Der Hom
 快捷键无效或已被占用，原设置已保留。	Ungültiges oder belegtes Kürzel. Die bisherigen Einstellungen bleiben erhalten.
 快捷键在常驻菜单栏时生效。	Kürzel sind aktiv, solange die App in der Menüleiste bleibt.
 快捷键在 XStats 运行时生效。	Kürzel sind aktiv, solange XStats läuft.
+4 小时	4 Stunden
+8 小时	8 Stunden
+12 小时	12 Stunden
+项目间距	Abstand zwischen Einträgen
+调整合并菜单栏中各项目之间的距离	Abstand zwischen Einträgen in der kombinierten Menüleiste anpassen
+丢包	Paketverlust
+结束时间：{}	Endet um {}
+最近 {} 次探测	Letzte {} Prüfungen
+
+工作频率	Aktive Taktfrequenz
+渲染器利用率	Renderer-Auslastung
+分块器利用率	Tiler-Auslastung
+GPU 内存占用	GPU-Speicherbelegung
+设计容量	Auslegungskapazität
+满充容量	Kapazität bei voller Ladung
+电压	Spannung
+电流	Stromstärke
+系统卷	Systemvolume
+数据卷	Datenvolume
+其他系统数据	Sonstige Systemdaten
+GPU 功耗	GPU-Leistung
+虚拟内存	Virtueller Speicher
+CPU 占用口径	CPU-Anzeigeskala
+单核	Pro Kern
+占整机：{}	Gesamter Mac: {}

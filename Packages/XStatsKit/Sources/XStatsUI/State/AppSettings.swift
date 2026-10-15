@@ -128,9 +128,11 @@ public enum PopoverSection: String, CaseIterable, Identifiable, Sendable {
 
     public var id: String { rawValue }
 
-    /// 弹窗默认不显示的区块（主窗口详情页始终显示）：热力图已经能看出各核心此刻的占用，
-    /// 每核柱状图给想要一眼看清单个核心的人在设置里打开，避免弹窗默认太长
-    static let hiddenByDefault: Set<PopoverSection> = [.cpuCores]
+    /// 弹窗保留关键摘要与应用排行，次要硬件细节可在设置里展开。
+    /// 主窗口详情页仍展示完整内容；已保存的显示选择优先于这些默认值。
+    static let hiddenByDefault: Set<PopoverSection> = [
+        .cpuCores, .cpuClusters, .cpuLoadAverage, .memoryCompression, .diskHealth, .thermalPower,
+    ]
 
     var title: String {
         switch self {
@@ -746,6 +748,9 @@ public final class AppSettings {
     public var showDockIcon: Bool {
         didSet { defaults.set(showDockIcon, forKey: Keys.showDockIcon) }
     }
+    public var menuBarItemSpacing: Int {
+        didSet { defaults.set(menuBarItemSpacing, forKey: Keys.menuBarItemSpacing) }
+    }
     public var menuBarLayout: MenuBarLayout {
         didSet { defaults.set(menuBarLayout.rawValue, forKey: Keys.menuBarLayout) }
     }
@@ -787,6 +792,25 @@ public final class AppSettings {
     public var alertCPULoad: Int {
         didSet { defaults.set(alertCPULoad, forKey: Keys.alertCPULoad) }
     }
+    /// 应用汇总与总览共用显示口径；采样值始终以单核满载为 100%。
+    public var cpuSharePerCore: Bool {
+        didSet { defaults.set(cpuSharePerCore, forKey: Keys.cpuSharePerCore) }
+    }
+
+    func processCPUText(_ value: Double) -> String {
+        cpuSharePerCore ? Format.coreShare(value) : Format.machineShare(value)
+    }
+
+    var processCPUHint: String {
+        cpuSharePerCore ? tr("以单核满载为 100%")
+            : tr("占整机 CPU 的比例：\(Format.logicalCores) 个核心全部跑满为 100%")
+    }
+
+    func alternateCPUText(_ value: Double) -> String {
+        cpuSharePerCore ? tr("占整机：\(Format.machineShare(value))")
+            : tr("按单核满载为 100% 计：\(Format.coreShare(value))")
+    }
+
     /// CPU 详情顶部走势图显示最近多少秒
     public var cpuChartSeconds: Int {
         didSet { defaults.set(cpuChartSeconds, forKey: Keys.cpuChartSeconds) }
@@ -856,6 +880,7 @@ public final class AppSettings {
         }
     }
 
+    public static let menuBarSpacingOptions = [4, 6, 8, 12]
     public static let refreshOptions = [1, 2, 3, 5]
     public static let restWorkOptions = [20, 25, 30, 45, 60]
     public static let restBreakOptions = [3, 5, 10]
@@ -981,6 +1006,8 @@ public final class AppSettings {
         cleanExcludedPaths = CleanupExclusions.normalized(defaults.stringArray(forKey: Keys.cleanExcludedPaths) ?? [])
         cleanSelectedRuleIDs = defaults.stringArray(forKey: Keys.cleanSelectedRuleIDs).map(Set.init)
         projectPurgeConfiguredPaths = defaults.stringArray(forKey: Keys.projectPurgeConfiguredPaths)
+        let spacing = defaults.integer(forKey: Keys.menuBarItemSpacing)
+        menuBarItemSpacing = Self.menuBarSpacingOptions.contains(spacing) ? spacing : 8
         menuBarLayout = defaults.string(forKey: Keys.menuBarLayout).flatMap(MenuBarLayout.init(rawValue:)) ?? .separate
         expandedPopoverSections = Set((defaults.stringArray(forKey: Keys.expandedPopoverSections) ?? []).compactMap(PopoverSection.init(rawValue:)))
         hiddenPopoverSections = defaults.stringArray(forKey: Keys.hiddenPopoverSections)
@@ -1004,6 +1031,7 @@ public final class AppSettings {
             ? defaults.integer(forKey: Keys.alertCPUTemperature) : 95
         alertCPULoad = Self.alertLoadOptions.contains(defaults.integer(forKey: Keys.alertCPULoad))
             ? defaults.integer(forKey: Keys.alertCPULoad) : 80
+        cpuSharePerCore = defaults.bool(forKey: Keys.cpuSharePerCore)
         cpuChartSeconds = Self.cpuChartOptions.contains(defaults.integer(forKey: Keys.cpuChartSeconds))
             ? defaults.integer(forKey: Keys.cpuChartSeconds) : 60
         // 仅在没有偏好时确定默认值；后续语言、地区变化及备份恢复不重置用户选择。
@@ -1167,6 +1195,7 @@ public final class AppSettings {
         static let cleanExcludedPaths = "cleanExcludedPaths"
         static let cleanSelectedRuleIDs = "cleanSelectedRuleIDs"
         static let projectPurgeConfiguredPaths = "projectPurgeConfiguredPaths"
+        static let menuBarItemSpacing = "menuBarItemSpacing"
         static let menuBarLayout = "menuBarLayout"
         static let hiddenPopoverSections = "hiddenPopoverSections"
         static let expandedPopoverSections = "expandedPopoverSections"
@@ -1184,6 +1213,7 @@ public final class AppSettings {
         static let notifyUpdates = "notifyUpdates"
         static let alertCPUTemperature = "alertCPUTemperature"
         static let alertCPULoad = "alertCPULoad"
+        static let cpuSharePerCore = "cpuSharePerCore"
         static let cpuChartSeconds = "cpuChartSeconds"
     }
 }

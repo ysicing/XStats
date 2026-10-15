@@ -38,10 +38,11 @@ struct TemperatureCard: View {
         Card {
             CardHeader(icon: "thermometer.medium", title: tr("温度"),
                        detail: summaries.isEmpty ? tr("读取中") : tr("\(sensorCount) 个传感器"))
+            ThermalStateSummary()
             if summaries.isEmpty {
                 PlaceholderLine()
             } else {
-                ForEach(summaries) { summary in
+                MainActorForEach(summaries) { summary in
                     TemperatureRow(summary: summary, fahrenheit: model.settings.useFahrenheit)
                 }
             }
@@ -100,7 +101,7 @@ private struct FanCard: View {
                     .dsFont(.sm)
                     .foregroundStyle(DS.Palette.textSecondary)
             } else {
-                ForEach(fans) { fan in
+                MainActorForEach(fans) { fan in
                     FanRow(fan: fan, name: name(for: fan, count: fans.count))
                 }
 
@@ -190,6 +191,7 @@ private struct CustomLevelControl: View {
             DSSlider(value: $controller.customLevel) {
                 Task { await model.fans.commitCustomLevel() }
             }
+            .disabled(controller.isApplying)
             HStack {
                 Text(tr("安静")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                 Spacer()

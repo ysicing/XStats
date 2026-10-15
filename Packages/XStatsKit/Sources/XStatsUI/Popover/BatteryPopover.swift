@@ -16,7 +16,7 @@ struct BatteryPopover: View {
 
         if battery != nil || !isDetailPage { BatteryHero(battery: battery) }
 
-        ForEach(MenuBarItem.battery.popoverSections.filter { isDetailPage || settings.isVisible($0) }) { section in
+        MainActorForEach(MenuBarItem.battery.popoverSections.filter { isDetailPage || settings.isVisible($0) }) { section in
             switch section {
             case .batteryHistory:
                 if battery != nil && !isDetailPage {
@@ -109,7 +109,7 @@ private struct BatteryAppEnergySection: View {
                     Text(tr("当前没有明显的 CPU 耗电活动"))
                         .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                 }
-                ForEach(reading.apps) { app in
+                MainActorForEach(reading.apps) { app in
                     VStack(spacing: DS.Space.s1) {
                         HStack(spacing: DS.Space.s2) {
                             AppIconCache.shared.image(bundlePath: app.bundlePath)
@@ -236,6 +236,7 @@ private struct BatteryHero: View {
                 }
                 .accessibilityElement(children: .combine)
             }
+            BatteryElectricalRows(battery: battery)
         }
     }
 }
@@ -295,6 +296,7 @@ private struct BatteryHealthSection: View {
                 Text(verbatim: battery.health.map { Format.percent($0) } ?? "—")
                     .foregroundStyle(battery.health.map { $0 < 0.8 ? DS.Palette.warning : DS.Palette.textPrimary } ?? DS.Palette.textPrimary)
             }
+            BatteryElectricalRows(battery: battery)
             InfoRow(label: tr("循环次数"), text: battery.cycleCount.map(String.init) ?? "—")
             if let temperature = model.store.sensors?.temperature(.battery) {
                 InfoRow(label: tr("电池温度"), text: Format.temperature(temperature.maximum, fahrenheit: model.settings.useFahrenheit))
@@ -311,6 +313,26 @@ private struct BatteryHealthSection: View {
                 BatterySettingsButton()
             }
         }
+    }
+}
+
+/// 主窗口健康摘要与弹窗复用同一组电气参数，不增加额外读取。
+private struct BatteryElectricalRows: View {
+    let battery: BatteryStatus
+
+    var body: some View {
+        InfoRow(label: tr("设计容量"), text: battery.designCapacity.map {
+            "\($0.formatted(.number.locale(L10n.locale))) mAh"
+        } ?? "—")
+        InfoRow(label: tr("满充容量"), text: battery.fullChargeCapacity.map {
+            "\($0.formatted(.number.locale(L10n.locale))) mAh"
+        } ?? "—")
+        InfoRow(label: tr("电压"), text: battery.voltage.map {
+            "\($0.formatted(.number.precision(.fractionLength(2)).locale(L10n.locale))) V"
+        } ?? "—")
+        InfoRow(label: tr("电流"), text: battery.amperage.map {
+            "\($0.formatted(.number.precision(.fractionLength(2)).locale(L10n.locale))) A"
+        } ?? "—")
     }
 }
 
@@ -350,13 +372,13 @@ struct SleepAssertionsSection: View {
                     Text(tr("没有 App 阻止 Mac 进入睡眠"))
                         .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                 }
-                ForEach(apps.prefix(8)) { process in SleepAssertionRow(process: process) }
+                ForEach(apps.prefix(8)) { @Sendable process in SleepAssertionRow(process: process) }
                 if apps.count > 8 {
                     Text(tr("另有 \((apps.count - 8).formatted(.number.locale(L10n.locale))) 项")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                 }
                 if !services.isEmpty {
                     DisclosureGroup {
-                        ForEach(services.prefix(8)) { process in SleepAssertionRow(process: process) }
+                        ForEach(services.prefix(8)) { @Sendable process in SleepAssertionRow(process: process) }
                         if services.count > 8 {
                             Text(tr("另有 \((services.count - 8).formatted(.number.locale(L10n.locale))) 项")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                         }
@@ -374,6 +396,10 @@ struct SleepAssertionsSection: View {
 
 private struct SleepAssertionRow: View {
     let process: SleepBlockingProcess
+
+    nonisolated init(process: SleepBlockingProcess) {
+        self.process = process
+    }
 
     var body: some View {
         HStack(spacing: DS.Space.s2) {
@@ -442,7 +468,8 @@ struct BluetoothDeviceList: View {
             if devices.isEmpty {
                 Text(tr("没有已连接的蓝牙设备")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
             }
-            ForEach(devices) { device in
+            // macOS 15 会在 DisplayLink 后台队列构建行；闭包只传递设备快照，不继承 body 的主线程隔离。
+            ForEach(devices) { @Sendable device in
                 BluetoothDeviceRow(device: device)
             }
         } else {
@@ -453,6 +480,10 @@ struct BluetoothDeviceList: View {
 
 private struct BluetoothDeviceRow: View {
     let device: BluetoothDevice
+
+    nonisolated init(device: BluetoothDevice) {
+        self.device = device
+    }
 
     private var layout: BluetoothDeviceRowLayout {
         BluetoothDeviceRowLayout(batteryCount: device.batteries.count)
@@ -500,7 +531,7 @@ private struct BluetoothDeviceRow: View {
 
             if layout == .parts {
                 HStack(alignment: .top, spacing: DS.Space.s2) {
-                    ForEach(device.batteries, id: \.label) { battery in
+                    ForEach(device.batteries, id: \.label) { @Sendable [device] battery in
                         BluetoothBatteryPart(device: device, battery: battery)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -578,6 +609,11 @@ private struct BluetoothDeviceRow: View {
 private struct BluetoothBatteryPart: View {
     let device: BluetoothDevice
     let battery: (label: String, percent: Int)
+
+    nonisolated init(device: BluetoothDevice, battery: (label: String, percent: Int)) {
+        self.device = device
+        self.battery = battery
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {

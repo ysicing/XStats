@@ -313,7 +313,7 @@ struct DisabledMonitoringPage: View {
         case .cpu:
             InfoRow(label: tr("芯片"), text: store.topology.brand)
             InfoRow(label: tr("核心"), text: tr("\(store.topology.logicalCores) 核"))
-            ForEach(store.topology.clusters) { cluster in
+            MainActorForEach(store.topology.clusters) { cluster in
                 InfoRow(label: cluster.name, text: tr("\(cluster.coreIndices.count) 核"))
             }
         case .gpu:

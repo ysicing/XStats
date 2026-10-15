@@ -61,30 +61,63 @@ final class DiskToolsController {
     @ObservationIgnored private let helper: HelperClient
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var volumeObservers: [NSObjectProtocol] = []
+    @ObservationIgnored private var volumeTask: Task<Void, Never>?
+    @ObservationIgnored private var volumesVisible = false
+    @ObservationIgnored private var volumesPaused = false
+    @ObservationIgnored private var volumeRefreshPending = false
+    @ObservationIgnored private let readVolumes: @Sendable () -> [MountedVolume]
     @ObservationIgnored private let scanSpace: @Sendable (@Sendable (SpaceScanProgress) -> Void) throws -> SpaceScanResult
 
     init(helper: HelperClient, defaults: UserDefaults = .standard,
+         readVolumes: @escaping @Sendable () -> [MountedVolume] = { MountedVolumes.list() },
          scanSpace: @escaping @Sendable (@Sendable (SpaceScanProgress) -> Void) throws -> SpaceScanResult = {
              try SpaceScanner.scan(progress: $0)
          }) {
         self.helper = helper
         self.defaults = defaults
+        self.readVolumes = readVolumes
         self.scanSpace = scanSpace
         lastVerified = defaults.object(forKey: Keys.lastVerified) as? Date
         lastVerifiedOK = defaults.object(forKey: Keys.lastVerifiedOK) as? Bool ?? true
     }
 
-    /// 磁盘页打开时刷新快照与卷宗；接入、拔出磁盘时跟着刷新
+    /// 快照仅在主窗口打开时读取；卷信息由可见需求独立管理，弹窗不启动快照扫描。
     func pageOpened() {
         refreshSnapshots()
-        refreshVolumes()
-        guard volumeObservers.isEmpty else { return }
+    }
+
+    func setVolumesVisible(_ visible: Bool) {
+        guard volumesVisible != visible else { return }
+        volumesVisible = visible
+        updateVolumeDemand()
+    }
+
+    func setPaused(_ paused: Bool) {
+        guard volumesPaused != paused else { return }
+        volumesPaused = paused
+        updateVolumeDemand()
+    }
+
+    private var needsVolumes: Bool { volumesVisible && !volumesPaused }
+
+    private func updateVolumeDemand() {
         let center = NSWorkspace.shared.notificationCenter
-        for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
-            volumeObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.refreshVolumes() }
-            })
+        guard needsVolumes else {
+            for observer in volumeObservers { center.removeObserver(observer) }
+            volumeObservers.removeAll()
+            volumeRefreshPending = false
+            volumeTask?.cancel()
+            volumes = []
+            return
         }
+        if volumeObservers.isEmpty {
+            for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
+                volumeObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.refreshVolumes() }
+                })
+            }
+        }
+        refreshVolumes()
     }
 
     // MARK: 检查
@@ -149,10 +182,34 @@ final class DiskToolsController {
     // MARK: 卷宗
 
     func refreshVolumes() {
-        Task {
-            volumes = await Task.detached { MountedVolumes.list() }.value
+        guard needsVolumes else { return }
+        guard volumeTask == nil else {
+            volumeRefreshPending = true
+            return
+        }
+        volumeRefreshPending = false
+        let readVolumes = readVolumes
+        volumeTask = Task { [weak self] in
+            let worker = Task.detached(priority: .utility) {
+                guard !Task.isCancelled else { return [MountedVolume]() }
+                return readVolumes()
+            }
+            let result = await withTaskCancellationHandler {
+                await worker.value
+            } onCancel: {
+                worker.cancel()
+            }
+            guard let self else { return }
+            let cancelled = Task.isCancelled
+            volumeTask = nil
+            if needsVolumes && !cancelled { volumes = result }
+            // 多次装卸通知合并为一次后续读取；旧读取结束前不启动并发扫描。
+            if needsVolumes && (cancelled || volumeRefreshPending) { refreshVolumes() }
         }
     }
+
+    /// 原生截图使用确定性卷信息，不访问真实挂载路径。
+    func showPreview(volumes: [MountedVolume]) { self.volumes = volumes }
 
     func eject(_ volume: MountedVolume) {
         guard !ejecting.contains(volume.id) else { return }

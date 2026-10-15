@@ -88,6 +88,7 @@ struct PopoverHeader: View {
     var showsTitle = true
     var showsUpdate = true
     var showsGeneralSettings = true
+    var showsQuickControls = true
     @Environment(AppModel.self) private var model
 
     var body: some View {
@@ -106,6 +107,10 @@ struct PopoverHeader: View {
             }
             Spacer(minLength: DS.Space.s2)
             if showsUpdate { UpdateAvailableButton() }
+            if showsQuickControls {
+                KeepAwakeMenu()
+                if item == .fan || item == .temperature { FanModeMenu() }
+            }
             if item == .memory { PurgeMemoryButton() }
             if item == .aiUsage {
                 // 当前数据的操作在前；来源配置用滑杆，最右侧齿轮进入 AI 主窗口。
@@ -394,14 +399,14 @@ struct ProcessList<Row: View>: View {
                 .foregroundStyle(DS.Palette.textTertiary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(height: Self.rowHeight)
-            ForEach(1..<rowCount, id: \.self) { _ in
+            MainActorForEach(1..<rowCount, id: \.self) { _ in
                 Color.clear.frame(height: Self.rowHeight)
             }
         } else {
-            ForEach(0..<min(count, rowCount), id: \.self) { index in
+            MainActorForEach(0..<min(count, rowCount), id: \.self) { index in
                 row(index).frame(height: Self.rowHeight)
             }
-            ForEach(0..<max(0, rowCount - count), id: \.self) { _ in
+            MainActorForEach(0..<max(0, rowCount - count), id: \.self) { _ in
                 Color.clear.frame(height: Self.rowHeight)
             }
         }

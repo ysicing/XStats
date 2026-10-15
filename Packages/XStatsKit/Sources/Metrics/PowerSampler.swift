@@ -1,8 +1,13 @@
+// GPU frequency portions adapted from gentpan/OpenStats, Copyright (c) 2026 GiantAccel, LLC.
+// Original portions: MIT, see LICENSES/OpenStats-MIT.txt.
+// XStats modifications: Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import Foundation
 import IOKit
 import SMC
 
-/// 功耗与 CPU 频率
+/// 功耗与 CPU / GPU 频率
 public struct PowerReading: Sendable, Equatable {
     /// 整机功耗（SMC PSTR）
     public var system: Double?
@@ -14,15 +19,29 @@ public struct PowerReading: Sendable, Equatable {
     public var gpu: Double?
     /// 各类核心在工作时的平均频率（MHz），键为 perflevel，0 为最高性能档
     public var clusterFrequency: [Int: Double] = [:]
+    /// GPU 工作状态的驻留时间加权平均频率（MHz），空闲或不支持时为 nil
+    public var gpuFrequency: Double?
 
     public init(system: Double? = nil, adapter: Double? = nil, battery: Double? = nil, gpu: Double? = nil,
-                clusterFrequency: [Int: Double] = [:]) {
+                clusterFrequency: [Int: Double] = [:], gpuFrequency: Double? = nil) {
         self.system = system
         self.adapter = adapter
         self.battery = battery
         self.gpu = gpu
         self.clusterFrequency = clusterFrequency
+        self.gpuFrequency = gpuFrequency
     }
+
+    /// 清除已无读取方的实时指标，同时保留其他独立请求的频率或功耗。
+    public func retaining(system: Bool, gpu: Bool, cpuFrequency: Bool, gpuFrequency: Bool) -> PowerReading? {
+        let reading = PowerReading(system: system ? self.system : nil, adapter: system ? adapter : nil,
+                                   battery: system ? battery : nil, gpu: gpu ? self.gpu : nil,
+                                   clusterFrequency: cpuFrequency ? clusterFrequency : [:],
+                                   gpuFrequency: gpuFrequency ? self.gpuFrequency : nil)
+        return reading.system != nil || reading.adapter != nil || reading.battery != nil || reading.gpu != nil
+            || !reading.clusterFrequency.isEmpty || reading.gpuFrequency != nil ? reading : nil
+    }
+
 }
 
 /// 功耗读 SMC，CPU 频率与 GPU 能耗读 IOReport，都不需要 root。
@@ -31,6 +50,9 @@ public final class PowerSampler: @unchecked Sendable {
     private let smc = try? SMCConnection()
     private var energy: Subscription?
     private var cpuStates: Subscription?
+    private var gpuStates: Subscription?
+    private var lastGPUStates: (date: Date, sample: CFDictionary)?
+    private lazy var gpuFrequencyTable: [Double]? = Self.readGPUFrequencyTable()
     private var lastEnergy: (date: Date, sample: CFDictionary)?
     private var lastStates: (date: Date, sample: CFDictionary)?
     private lazy var frequencyTables: [[Double]] = Self.readFrequencyTables()
@@ -39,7 +61,7 @@ public final class PowerSampler: @unchecked Sendable {
 
     /// SMC 读数几乎没有开销；IOReport 每次采样约 5 毫秒 CPU，GPU 功耗与 CPU 频率只在界面需要时读
     public func sample(system includeSystem: Bool = true, gpu includeGPU: Bool = true,
-                       frequency includeFrequency: Bool = true, now: Date = Date()) -> PowerReading {
+                       frequency includeFrequency: Bool = true, gpuFrequency includeGPUFrequency: Bool = false, now: Date = Date()) -> PowerReading {
         var reading = PowerReading()
         // CPU 详情可能只请求频率；温度/功耗功能关闭时不能顺带读取 SMC 功耗。
         if includeSystem {
@@ -49,7 +71,15 @@ public final class PowerSampler: @unchecked Sendable {
         }
         if includeGPU { reading.gpu = sampleGPU(now: now) }
         if includeFrequency { reading.clusterFrequency = sampleFrequencies(now: now) }
+        if includeGPUFrequency { reading.gpuFrequency = sampleGPUFrequency(now: now) }
         return reading
+    }
+
+    /// 需求变化或暂停后重新建立基线，避免把关闭期间的计数算进实时读数。
+    public func resetBaselines(gpu: Bool = true, cpuFrequency: Bool = true, gpuFrequency: Bool = true) {
+        if gpu { lastEnergy = nil }
+        if cpuFrequency { lastStates = nil }
+        if gpuFrequency { lastGPUStates = nil }
     }
 
     private func positive(_ value: Double?) -> Double? {
@@ -73,6 +103,64 @@ public final class PowerSampler: @unchecked Sendable {
             let value = Double(IOReportSimpleGetIntegerValue(channel, 0))
             let joules = value * Self.joulesPerUnit(Subscription.unit(channel))
             return joules / seconds
+        }
+        return nil
+    }
+
+    private func sampleGPUFrequency(now: Date) -> Double? {
+        guard let table = gpuFrequencyTable else { return nil }
+        if gpuStates == nil { gpuStates = Subscription(group: "GPU Stats", subgroup: "GPU Performance States") }
+        guard let current = gpuStates?.sample() else { return nil }
+        defer { lastGPUStates = (now, current) }
+        guard let last = lastGPUStates, (0.2...15).contains(now.timeIntervalSince(last.date)),
+              let delta = IOReportCreateSamplesDelta(last.sample, current, nil)?.takeRetainedValue() else { return nil }
+        for channel in Subscription.channels(in: delta) where Subscription.name(channel) == "GPUPH" {
+            let states = (0..<IOReportStateGetCount(channel)).map { index in
+                (name: IOReportStateGetNameForIndex(channel, index)?.takeUnretainedValue() as String? ?? "",
+                 residency: IOReportStateGetResidency(channel, index))
+            }
+            return Self.gpuFrequency(states, table: table)
+        }
+        return nil
+    }
+
+    static func gpuFrequency(_ states: [(name: String, residency: Int64)], table: [Double]) -> Double? {
+        var weighted = 0.0, active = 0.0
+        for state in states {
+            guard state.name.hasPrefix("P"), let index = Int(state.name.dropFirst()), index > 0,
+                  index < table.count, state.residency > 0, table[index].isFinite, table[index] > 0 else { continue }
+            weighted += table[index] * Double(state.residency)
+            active += Double(state.residency)
+        }
+        return active > 0 ? weighted / active : nil
+    }
+
+    static func parseGPUFrequencyTable(_ data: Data) -> [Double]? {
+        guard data.count >= 16, data.count % 8 == 0 else { return nil }
+        let values = stride(from: 0, to: data.count, by: 8).map { offset in
+            Double(UInt32(littleEndian: data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset, as: UInt32.self) }))
+        }
+        guard values.first == 0, let top = values.max() else { return nil }
+        let scale = top > 100_000_000 ? 1e-6 : top > 100_000 ? 1e-3 : 1
+        let table = values.map { $0 * scale }
+        guard (200...5000).contains(table.max() ?? 0), table.dropFirst().allSatisfy({ $0 > 0 }) else { return nil }
+        return table
+    }
+
+    private static func readGPUFrequencyTable() -> [Double]? {
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleARMIODevice"), &iterator) == KERN_SUCCESS else {
+            return nil
+        }
+        defer { IOObjectRelease(iterator) }
+        while case let entry = IOIteratorNext(iterator), entry != 0 {
+            defer { IOObjectRelease(entry) }
+            var name = [CChar](repeating: 0, count: 128)
+            guard IORegistryEntryGetName(entry, &name) == KERN_SUCCESS,
+                  String(decoding: name.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self) == "pmgr",
+                  let data = IORegistryEntryCreateCFProperty(entry, "voltage-states9" as CFString, kCFAllocatorDefault, 0)?
+                    .takeRetainedValue() as? Data else { continue }
+            return parseGPUFrequencyTable(data)
         }
         return nil
     }
@@ -211,7 +299,7 @@ private final class Subscription {
 
     // subscription 是 OpaquePointer，不受 ARC 管理，本类也不释放它：IOReport 是私有框架，
     // 没有公开的释放入口，而它是否为 CF 对象无法验证——释放错了会在 dealloc 时崩溃。
-    // 目前全进程只有 MetricsHub 持有的那一个 PowerSampler，两个 Subscription 各只创建一次且
+    // 目前全进程只有 MetricsHub 持有的那一个 PowerSampler，三个 Subscription 各只创建一次且
     // 随进程存在，不会增长。若将来 PowerSampler 改成可反复创建，必须先确认正确的释放方式再补 deinit。
 
     func sample() -> CFDictionary? {

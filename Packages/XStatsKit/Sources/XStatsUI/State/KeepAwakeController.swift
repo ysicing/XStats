@@ -36,7 +36,7 @@ public final class KeepAwakeController {
     }
 
     public enum Duration: Int, CaseIterable, Identifiable {
-        case minutes15 = 15, hour1 = 60, hours2 = 120, hours5 = 300, unlimited = 0
+        case minutes15 = 15, hour1 = 60, hours2 = 120, hours4 = 240, hours5 = 300, hours8 = 480, hours12 = 720, unlimited = 0
 
         public var id: Int { rawValue }
 
@@ -45,7 +45,10 @@ public final class KeepAwakeController {
             case .minutes15: tr("15 分钟")
             case .hour1: tr("1 小时")
             case .hours2: tr("2 小时")
+            case .hours4: tr("4 小时")
             case .hours5: tr("5 小时")
+            case .hours8: tr("8 小时")
+            case .hours12: tr("12 小时")
             case .unlimited: tr("不限")
             }
         }

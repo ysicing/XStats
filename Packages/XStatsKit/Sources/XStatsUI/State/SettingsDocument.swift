@@ -37,6 +37,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var networkLocationStyle: String?
     public var styleOverrides: [String: String]?
     public var refreshSeconds: Int?
+    public var cpuSharePerCore: Bool?
     public var colorizeHighLoad: Bool?
     public var bluetoothLowBatteryInMenuBar: Bool?
     public var useFahrenheit: Bool?
@@ -45,6 +46,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var appearance: String?
     public var showDockIcon: Bool?
     public var speedTestRoute: String?
+    public var menuBarItemSpacing: Int?
     public var menuBarLayout: String?
     public var hiddenPopoverSections: [String]?
     public var probeEnabled: Bool?
@@ -96,6 +98,7 @@ extension AppSettings {
         doc.networkLocationStyle = networkLocationStyle.rawValue
         doc.styleOverrides = Dictionary(uniqueKeysWithValues: styleOverrides.map { ($0.key.rawValue, $0.value.rawValue) })
         doc.refreshSeconds = refreshSeconds
+        doc.cpuSharePerCore = cpuSharePerCore
         doc.colorizeHighLoad = colorizeHighLoad
         doc.bluetoothLowBatteryInMenuBar = bluetoothLowBatteryInMenuBar
         doc.useFahrenheit = useFahrenheit
@@ -104,6 +107,7 @@ extension AppSettings {
         doc.appearance = appearance.rawValue
         doc.showDockIcon = showDockIcon
         doc.speedTestRoute = speedTestRoute.rawValue
+        doc.menuBarItemSpacing = menuBarItemSpacing
         doc.menuBarLayout = menuBarLayout.rawValue
         doc.hiddenPopoverSections = hiddenPopoverSections.map(\.rawValue).sorted()
         doc.probeEnabled = probeEnabled
@@ -168,6 +172,7 @@ extension AppSettings {
             })
         })
         assign(\.refreshSeconds, option(doc.refreshSeconds, in: Self.refreshOptions))
+        assign(\.cpuSharePerCore, doc.cpuSharePerCore)
         assign(\.colorizeHighLoad, doc.colorizeHighLoad)
         assign(\.bluetoothLowBatteryInMenuBar, doc.bluetoothLowBatteryInMenuBar)
         assign(\.useFahrenheit, doc.useFahrenheit)
@@ -176,6 +181,7 @@ extension AppSettings {
         assign(\.appearance, doc.appearance.flatMap(AppearanceMode.init(rawValue:)))
         assign(\.showDockIcon, doc.showDockIcon)
         assign(\.speedTestRoute, doc.speedTestRoute.flatMap(SpeedRoute.init(rawValue:)))
+        assign(\.menuBarItemSpacing, option(doc.menuBarItemSpacing, in: Self.menuBarSpacingOptions))
         assign(\.menuBarLayout, doc.menuBarLayout.flatMap(MenuBarLayout.init(rawValue:)))
         assign(\.hiddenPopoverSections, doc.hiddenPopoverSections.map { Set($0.compactMap(PopoverSection.init(rawValue:))) })
         assign(\.probeEnabled, doc.probeEnabled)

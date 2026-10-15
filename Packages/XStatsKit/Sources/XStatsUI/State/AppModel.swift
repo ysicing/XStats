@@ -119,7 +119,9 @@ public final class AppModel {
             quotaCacheURL: quotaCacheURL, costReferenceStore: .shared, magpieClient: magpie)
         self.store = store
         self.helper = helper
-        fans = FanController(helper: fanControl ?? helper, store: store, settings: settings)
+        let samplingHub = hub
+        fans = FanController(helper: fanControl ?? helper, store: store, settings: settings,
+                             readFans: { await samplingHub.sampleFans() })
         keepAwake = KeepAwakeController(helper: helper, settings: settings)
         cleaner = CleanerController(settings: settings)
         projectPurge = ProjectPurgeController(settings: settings)
@@ -190,6 +192,13 @@ public final class AppModel {
             && (openPopover == .display || (isMainWindowVisible && settings.panelTab == .system))
     }
 
+    var fanFeedbackVisible: Bool {
+        settings.isModuleEnabled(.thermal) && store.supportsFans
+            && (drawnMenuBarItems.contains(.fan) || openPopover == .fan
+                || (isCombinedOverviewVisible && visibleMenuBarItems.contains(.fan))
+                || (isMainWindowVisible && [.overview, .thermal].contains(settings.panelTab)))
+    }
+
     /// 根据当前可见内容决定采集范围：主窗口看标签页，详情弹窗看是哪一项
     var demand: MetricsDemand {
         var demand = MetricsDemand()
@@ -251,6 +260,9 @@ public final class AppModel {
             && ((window && tab == .battery)
                 || (temperaturePopover && settings.isVisible(.thermalPower))
                 || (popover == .battery && settings.isVisible(.batteryPower)))
+        let gpuDetailsVisible = (window && tab == .gpu) || (popover == .gpu && settings.isVisible(.gpuDetails))
+        demand.gpuFrequency = settings.isModuleEnabled(.gpu) && gpuDetailsVisible
+        demand.gpuPower = energyEnabled && demand.gpuFrequency
         demand.cpuFrequency = showing(.cpu, .cpu)
         // 未知时隐藏入口，但保留按需探测；不能用界面可见性阻断首次识别或失败重试。
         demand.fans = store.fanCount != 0 && ((window && (tab == .thermal || tab == .overview)) || summary.contains(.fan)
@@ -298,6 +310,11 @@ public final class AppModel {
         settings.isModuleEnabled(.battery) && isMainWindowVisible && settings.panelTab == .battery
     }
 
+    var diskVolumesVisible: Bool {
+        settings.isModuleEnabled(.disk)
+            && (openPopover == .disk || (isMainWindowVisible && settings.panelTab == .disk))
+    }
+
     /// 网络详情（接口、公网 IP、进程流量）正在显示
     var isNetworkDetailVisible: Bool {
         settings.isModuleEnabled(.network)
@@ -322,7 +339,17 @@ public final class AppModel {
         refreshLaunchAtLogin()
     }
 
-    /// 快捷切换风扇：未安装辅助工具时打开散热页引导安装
+    /// 普通防休眠快捷入口不隐式开启已保存的合盖运行请求。
+    func requestKeepAwake(_ active: Bool, duration: KeepAwakeController.Duration? = nil) {
+        if active, keepAwake.lidClosedRequested || keepAwake.lidClosedActive {
+            openMainWindow(.keepAwake)
+            return
+        }
+        if let duration { keepAwake.setDuration(duration) }
+        Task { await keepAwake.setActive(active) }
+    }
+
+    /// 快捷切换风扇：缺少参数或辅助工具时打开散热页，按需采样并引导操作。
     func requestFanMode(_ mode: FanController.Mode) {
         guard mode == .automatic || settings.isModuleEnabled(.thermal) else {
             settings.panelTab = .thermal
@@ -330,6 +357,11 @@ public final class AppModel {
             return
         }
         guard store.supportsFans else { return }
+        if mode != .automatic, store.sensors?.fans.isEmpty != false {
+            settings.panelTab = .thermal
+            if !isMainWindowVisible { openMainWindow(.thermal) }
+            return
+        }
         guard helper.isReady else {
             settings.panelTab = .thermal
             if !isMainWindowVisible { openMainWindow(.thermal) }
@@ -371,7 +403,8 @@ public final class AppModel {
         let demand = demand
         // actor 已采完的快照可能晚于开关关闭到达；在主线程再次按最终开关裁剪。
         let filtered = snapshotForEnabledModules(snapshot, demand: demand)
-        store.clearDisabledModules(settings.enabledMonitoringModules, powerRequested: demand.power, appEnergyRequested: demand.appEnergy)
+        store.clearDisabledModules(settings.enabledMonitoringModules, powerRequested: demand.power, gpuPowerRequested: demand.gpuPower,
+                                   gpuFrequencyRequested: demand.gpuFrequency, appEnergyRequested: demand.appEnergy)
         store.apply(filtered)
         fans.evaluateSafety(temperature: snapshot.sensors?.temperature(.cpu)?.maximum)
         keepAwake.evaluateBattery(snapshot.battery)
@@ -382,6 +415,7 @@ public final class AppModel {
     func snapshotForEnabledModules(_ snapshot: MetricsSnapshot, demand: MetricsDemand? = nil) -> MetricsSnapshot {
         let demand = demand ?? self.demand
         var result = snapshot
+        if !demand.cpu, demand.temperatures.isEmpty { result.thermalState = nil }
         if !demand.appEnergy { result.appEnergy = nil }
         if !settings.isModuleEnabled(.cpu) { result.cpu = nil; result.power?.clusterFrequency = [:] }
         if !settings.isModuleEnabled(.memory) { result.memory = nil }
@@ -397,11 +431,9 @@ public final class AppModel {
                                  fans: fansEnabled ? sensors.fans : [],
                                  fanCount: sensors.fanCount) : nil
         }
-        // 功耗由可见能耗内容请求，关闭最后一个读取方后仅保留 CPU 页需要的频率。
-        if !demand.power {
-            result.power = settings.isModuleEnabled(.cpu) && result.power?.clusterFrequency.isEmpty == false
-                ? PowerReading(clusterFrequency: result.power?.clusterFrequency ?? [:]) : nil
-        }
+        result.power = result.power?.retaining(system: demand.power, gpu: demand.power || demand.gpuPower,
+                                              cpuFrequency: settings.isModuleEnabled(.cpu),
+                                              gpuFrequency: demand.gpuFrequency)
         return result
     }
 
@@ -410,7 +442,8 @@ public final class AppModel {
         uninstaller.setEnabled(settings.uninstallerEnabled)
         appManagement.setEnabled(settings.uninstallerEnabled)
         displays.setEnabled(settings.isModuleEnabled(.display))
-        store.clearDisabledModules(settings.enabledMonitoringModules, powerRequested: demand.power, appEnergyRequested: demand.appEnergy)
+        store.clearDisabledModules(settings.enabledMonitoringModules, powerRequested: demand.power, gpuPowerRequested: demand.gpuPower,
+                                   gpuFrequencyRequested: demand.gpuFrequency, appEnergyRequested: demand.appEnergy)
         if let popover = openPopover, !settings.isModuleEnabled(for: popover) { openPopover = nil }
         if !settings.isModuleEnabled(.thermal), fans.mode != .automatic, !fans.isApplying, restoringFans == nil {
             restoringFans = Task { [weak self] in

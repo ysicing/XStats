@@ -255,7 +255,7 @@ private struct MainSidebar: View {
             .foregroundStyle(DS.Palette.textTertiary)
             .padding(.horizontal, DS.Space.s2)
             .padding(.top, DS.Space.s2)
-        ForEach(tabs) { tab in
+        MainActorForEach(tabs) { tab in
             SidebarButton(title: tab.title, symbol: tab.symbol,
                           isSelected: model.settings.panelTab == tab, badge: badge(for: tab)) {
                 model.settings.panelTab = tab
@@ -417,7 +417,7 @@ private struct PageHeader: View {
                 // macOS 26 上这一组是一颗玻璃胶囊，与访达工具栏的分组一致
                 HStack(spacing: DS.Space.s3) {
                     Text(tr("在菜单栏显示")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                    ForEach(items) { item in
+                    MainActorForEach(items) { item in
                         let moduleEnabled = settings.isModuleEnabled(for: item)
                         if items.count > 1 {
                             Text(item.popoverTitle).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)

@@ -24,9 +24,26 @@ struct NetworkPopover: View {
                 Rectangle().fill(DS.Palette.border).frame(width: DS.Size.stroke, height: DS.Space.s8)
                 RateHero(title: tr("上传"), bytesPerSecond: rate?.uploadBytesPerSecond, color: DS.NetworkPalette.upload)
             }
+            if !isDetailPage {
+                let physical = model.network.details?.physical
+                InfoRow(label: tr("接口"), text: physical.map { tr("\($0.displayName)（\($0.bsdName)）") }
+                        ?? (model.network.details == nil ? tr("正在读取…") : tr("未连接网络")))
+                if let address = physical?.ipv4.first ?? physical?.ipv6.first {
+                    InfoRow(label: physical?.ipv4.isEmpty == false ? tr("本地 IPv4") : tr("本地 IPv6")) { CopyableText(text: address) }
+                }
+            }
+            if settings.probeEnabled {
+                let summary = NetworkProbeSummary(samples: model.network.probes.elements)
+                HStack(spacing: DS.Space.s3) {
+                    InfoRow(label: tr("延迟"), text: summary.count == 0 ? "—"
+                            : summary.latestLatency.map { $0.formatted(.number.locale(L10n.locale).precision(.fractionLength(0))) + " ms" } ?? tr("超时"))
+                    InfoRow(label: tr("丢包"), text: summary.lossFraction.map(Format.percent) ?? "—")
+                        .help(tr("最近 \(summary.count) 次探测"))
+                }
+            }
         }
 
-        ForEach(MenuBarItem.network.popoverSections.filter { isDetailPage || settings.isVisible($0) }) { section in
+        MainActorForEach(MenuBarItem.network.popoverSections.filter { isDetailPage || settings.isVisible($0) }) { section in
             switch section {
             case .networkHistory: TrafficHistorySection()
             case .networkProbe: ProbeSection()
@@ -74,8 +91,8 @@ private struct TrafficHistorySection: View {
         SectionCard(title: PopoverSection.networkHistory.title, trailing: {
             HStack(spacing: DS.Space.s1) {
                 Text(tr("60 秒峰值"))
-                peak("↑", upload, color: DS.NetworkPalette.upload)
                 peak("↓", download, color: DS.NetworkPalette.download)
+                peak("↑", upload, color: DS.NetworkPalette.upload)
             }
             .monospacedDigit()
         }) {
@@ -124,6 +141,7 @@ private struct ProbeSection: View {
 
 private struct InterfaceSection: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.isDetailPage) private var isDetailPage
 
     var body: some View {
         let network = model.network
@@ -149,7 +167,9 @@ private struct InterfaceSection: View {
             }
         }) {
             if let physical {
-                InfoRow(label: tr("接口"), text: tr("\(physical.displayName)（\(physical.bsdName)）"))
+                if isDetailPage {
+                    InfoRow(label: tr("接口"), text: tr("\(physical.displayName)（\(physical.bsdName)）"))
+                }
                 InfoRow(label: tr("状态")) {
                     StatusBadge(text: physical.isUp ? tr("已连接") : tr("未连接"), tone: physical.isUp ? .success : .error)
                 }
@@ -226,7 +246,7 @@ private struct AddressSection: View {
                 // 原生 / 广播、IP 类型、网络类型做成徽章，一眼看结论；反向解析、住宅概率等细节不在弹窗里占行
                 if let publicAddresses, !Self.badges(publicAddresses).isEmpty {
                     FlowLayout(spacing: DS.Space.s2) {
-                        ForEach(Self.badges(publicAddresses), id: \.text) { badge in
+                        MainActorForEach(Self.badges(publicAddresses), id: \.text) { badge in
                             TagBadge(icon: badge.icon, text: badge.text, tone: badge.tone)
                         }
                     }
@@ -588,8 +608,8 @@ private struct DNSSection: View {
                                 editingManual = true
                             }
                         })) {
-                        ForEach(DNSPreset.allCases) { preset in
-                            Text(preset.title).tag(DNSPreset?.some(preset))
+                        ForEach(DNSPreset.allCases.map { (preset: $0, title: $0.title) }, id: \.preset.id) { @Sendable option in
+                            Text(option.title).tag(DNSPreset?.some(option.preset))
                         }
                         Divider()
                         Text(tr("手动")).tag(DNSPreset?.none)

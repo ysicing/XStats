@@ -1,17 +1,29 @@
 {
-  "version": "1.3.1",
+  "version": "1.3.3",
   "sourceNotes": [
-    "应用管理支持检查 App Store 应用更新",
-    "网站分流的 AI 分类新增 xAI 连通性与出口检测",
-    "完善原生应用菜单与主窗口体验，手动启动时打开主窗口，登录与后台启动继续安静运行",
-    "收窄卸载残留扫描范围，避免为识别目标应用而访问其他应用的私有容器"
+    "菜单栏弹窗和右键菜单新增防休眠快捷操作，支持 4、8、12 小时",
+    "GPU 详情新增功耗、工作频率、渲染器与分块器利用率及内存占用",
+    "磁盘容量新增 APFS 系统卷、数据卷、虚拟内存等组成",
+    "CPU 应用汇总与仪表盘新增整机／单核占用口径切换，选择统一保存，不改变采样、排行与告警",
+    "内存摘要显示交换区用量与最近一分钟的用量曲线",
+    "网络弹窗顶部显示物理接口与可复制的本地地址",
+    "精简指标弹窗的默认详情分区，保留已有显示选择",
+    "稳定 CPU、内存、仪表盘与网络应用排行的位置，数值持续刷新",
+    "修复风扇手动模式接管与等待反馈",
+    "将应用卸载预览的关闭操作改为图标按钮，保留 Esc 关闭与卸载执行期间的保护"
   ],
   "translations": {
     "en": [
-      "Check App Store app updates in App management. Show an update action beside the version only when a newer release is compatible with this Mac, then let App Store handle the update; failed or unmatched queries keep the current version without an extra indicator",
-      "Add xAI connectivity and egress checks to the AI category in website routing",
-      "Improve native menus and the main window: manual launches open the window, while login and background launches stay quiet. Keep the Dock entry when a window is minimized or hidden, and follow the Dock preference after closing windows while continuing to run in the menu bar",
-      "Limit uninstall leftover scans to the target app to avoid accessing other apps private containers; preserve pending confirmations during system authorization or while the window is hidden, so review can continue after returning"
+      "Add keep-awake shortcuts to menu bar popovers and context menus, including 4-, 8-, and 12-hour durations. Macs with fans can also switch cooling modes through the existing helper and safety checks",
+      "Add GPU power, operating frequency, renderer and tiler utilization, and memory usage, plus battery design capacity, full-charge capacity, voltage, and current. Readings unavailable from the hardware remain empty",
+      "Show APFS system, data, virtual-memory, and other capacity segments and available/total space for other mounted volumes in the disk popover. Fix network shares incorrectly reporting zero available space",
+      "Add a shared whole-machine/per-core CPU scale selector to app summaries and the dashboard. Save the selection without changing sampling, rankings, or alerts",
+      "Show swap usage and the last minute of memory usage in the memory summary, and show system thermal pressure with temperature readings even when CPU monitoring is off",
+      "Show the physical interface and a copyable local address at the top of the network popover. When connection probing is enabled, summarize the latest latency and packet loss across up to 60 existing probes without adding requests",
+      "Simplify default metric popover sections while preserving saved choices. Add spacing controls for the combined menu bar and tighten AI quota layouts to reduce shifting as readings change",
+      "Keep CPU, memory, dashboard, and network ranking entries in stable positions while values update. Use consistent smoothed rates for disk application numbers, bars, and rankings",
+      "Fix manual fan control takeover and waiting feedback. Verify control state after writes and briefly track actual RPM after successful mode changes, stopping early near the target without displaying target RPM as measured speed",
+      "Use an icon button to close application uninstall previews while preserving Escape dismissal and protection during removal"
     ]
   }
 }

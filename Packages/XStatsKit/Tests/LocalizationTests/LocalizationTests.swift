@@ -36,6 +36,17 @@ import Testing
         #expect(Translations.shared.translate("设置 · 关于") == "Settings · About")
     }
 
+    @Test func menuEnhancementTextExistsAndPreservesTemplateValuesInEveryCatalog() throws {
+        for language in AppLanguage.allCases where language != .system && language != .chinese {
+            let table = try #require(Translations.catalog(for: language))
+            for source in ["4 小时", "8 小时", "12 小时", "项目间距", "调整合并菜单栏中各项目之间的距离", "丢包"] {
+                #expect(table.translate(source) != nil)
+            }
+            #expect(try #require(table.translate("结束时间：20:45")).contains("20:45"))
+            #expect(try #require(table.translate("最近 37 次探测")).contains("37"))
+        }
+    }
+
     @Test func defaultsToChinese() {
         #expect(tr("内存") == "内存")
         #expect(AppLanguage.english.resolved == .english)

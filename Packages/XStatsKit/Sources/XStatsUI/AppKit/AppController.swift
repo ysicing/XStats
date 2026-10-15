@@ -279,6 +279,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        model.fans.setPaused(true)
         XStatsCapture.workspace.shortcuts.stop()
         XStatsCapture.workspace.cleanUp()
         wellnessNotifications?.dismiss()
@@ -464,6 +465,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
             _ = model.bluetoothDemand
             _ = model.sleepAssertionsVisible
             _ = model.displayControlsVisible
+            _ = model.fanFeedbackVisible
+            _ = model.diskVolumesVisible
             _ = model.settings.audioEnabled
             _ = model.audioControlsVisible
             _ = model.audioMenuVisible
@@ -471,6 +474,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             _ = model.displays.catalog
             _ = model.settings.menuBarItems
             _ = model.settings.menuBarOrder
+            _ = model.settings.menuBarItemSpacing
             _ = model.settings.menuBarLayout
             _ = model.settings.menuBarStyle
             _ = model.settings.networkStyle
@@ -516,6 +520,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
                 self.updateNetworkVisibility()
             }
         }
+        model.fans.setFeedbackVisible(model.fanFeedbackVisible)
+        model.diskTools.setVolumesVisible(model.diskVolumesVisible)
     }
 
     /// 网络观察的订阅单独闭环，不跨其它采样模块的 await，避免漏掉等待期间的关闭/暂停。
@@ -785,7 +791,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
     private func pauseForInactivity() {
         menuBar.dismissPopovers()
+        model.fans.setPaused(true)
         model.network.setPaused(true)
+        model.diskTools.setPaused(true)
         model.aiUsage.setPaused(true)
         model.displays.setPaused(true)
         model.audio.setPaused(true)
@@ -803,7 +811,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
     private func resumeFromInactivity() {
         // 系统唤醒时常仍停在锁屏界面，要等解锁后再恢复。
         guard !screenLocked else { return }
+        model.fans.setPaused(false)
         model.network.setPaused(false)
+        model.diskTools.setPaused(false)
         model.aiUsage.setPaused(false)
         model.displays.setPaused(false)
         model.audio.setPaused(false)

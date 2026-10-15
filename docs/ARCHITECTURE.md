@@ -896,6 +896,19 @@ merge concurrent edits, or use iCloud. A missing remote file requires an initial
   Performance States*, using the `voltage-states*-sram` tables of `pmgr` (Hz on older chips, MHz on
   newer ones). Each IOReport sample costs about 5 ms of CPU, so it runs at most every 2 s and only
   while a page shows it.
+- GPU details also expose renderer/tiler utilization and shared-memory usage from the same
+  `IOAccelerator` reading. Active GPU frequency is residency-weighted from `GPUPH` performance
+  states and the `pmgr` `voltage-states9` table. It is sampled only while GPU details are visible;
+  GPU power additionally requires Energy to be enabled. IOReport baselines reset when their
+  demand changes or sampling pauses; unsupported and idle frequency readings remain unavailable.
+- Battery design/full-charge capacity (mAh), voltage (V), and signed current (A) come from the
+  existing battery registry read; no additional timer is started. Nominal capacity is preferred
+  for health, with full-charge capacity as the fallback. Missing values are not reported as zero.
+- APFS startup-container composition is read only for disk details or a one-shot basic disk page
+  refresh. `ATTR_VOL_SPACEUSED` separates System, Data and VM volumes; purgeable space is removed
+  from Data before display. Remaining allocated space is labeled Other System Data, including
+  auxiliary volumes and snapshots. Failed or inconsistent reads retain the used/purgeable/free
+  summary. External-volume summaries are unchanged.
 - Disk activity diffs `IOBlockStorageDriver` statistics; SSD health reads the NVMe SMART log
   through the system `NVMeSMARTLib` plug-in (no root).
 - `HistoryRecorder` folds each sample into a per-minute record (averages, CPU and temperature

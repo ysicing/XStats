@@ -2181,3 +2181,28 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 快捷键无效或已被占用，原设置已保留。	Raccourci invalide ou déjà utilisé. Les réglages précédents sont conservés.
 快捷键在常驻菜单栏时生效。	Les raccourcis fonctionnent lorsque l’app reste dans la barre des menus.
 快捷键在 XStats 运行时生效。	Les raccourcis fonctionnent lorsque XStats est en cours d’exécution.
+4 小时	4 heures
+8 小时	8 heures
+12 小时	12 heures
+项目间距	Espacement des éléments
+调整合并菜单栏中各项目之间的距离	Ajuster l’espacement des éléments de la barre de menus combinée
+丢包	Perte de paquets
+结束时间：{}	Fin à {}
+最近 {} 次探测	{} dernières sondes
+
+工作频率	Fréquence en activité
+渲染器利用率	Utilisation du moteur de rendu
+分块器利用率	Utilisation du moteur de tuilage
+GPU 内存占用	Mémoire GPU utilisée
+设计容量	Capacité nominale
+满充容量	Capacité à pleine charge
+电压	Tension
+电流	Courant
+系统卷	Volume système
+数据卷	Volume de données
+其他系统数据	Autres données système
+GPU 功耗	Puissance GPU
+虚拟内存	Mémoire virtuelle
+CPU 占用口径	Échelle d’utilisation du CPU
+单核	Par cœur
+占整机：{}	Mac entier : {}

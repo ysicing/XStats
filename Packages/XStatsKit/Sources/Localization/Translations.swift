@@ -8,10 +8,29 @@
 
 extension Translations {
     static var tables: [String] {
-        [english, captureEnglish, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish, appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish]
+        [english, captureEnglish, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish, appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish, hardwareDetailsEnglish]
     }
 
+    static let hardwareDetailsEnglish = #"""
+GPU 功耗	GPU Power
+虚拟内存	Virtual Memory
+工作频率	Active Frequency
+渲染器利用率	Renderer Utilization
+分块器利用率	Tiler Utilization
+GPU 内存占用	GPU Memory Usage
+设计容量	Design Capacity
+满充容量	Full Charge Capacity
+电压	Voltage
+电流	Current
+系统卷	System Volume
+数据卷	Data Volume
+其他系统数据	Other System Data
+"""#
+
     static let applicationPresentationEnglish = #"""
+CPU 占用口径	CPU Percentage Scale
+单核	Per Core
+占整机：{}	Whole Mac: {}
 隐藏其他	Hide Others
 全部显示	Show All
 帮助	Help
@@ -257,6 +276,15 @@ XStats 网络连接查看	XStats Network Connection Viewer
 """#
 
     static let english = #"""
+4 小时	4 hours
+8 小时	8 hours
+12 小时	12 hours
+项目间距	Item spacing
+调整合并菜单栏中各项目之间的距离	Adjust the space between items in the combined menu bar
+丢包	Packet loss
+结束时间：{}	Ends at {}
+最近 {} 次探测	Last {} probes
+
 热压力：正常	Thermal pressure: Normal
 热压力：偏高	Thermal pressure: Elevated
 热压力：严重	Thermal pressure: Serious

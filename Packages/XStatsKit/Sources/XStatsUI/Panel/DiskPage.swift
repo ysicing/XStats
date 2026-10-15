@@ -88,7 +88,7 @@ private struct SpaceCard: View {
         WeightedRow(weights: [1, 1], spacing: DS.Space.s6) {
             VStack(alignment: .leading, spacing: DS.Space.s2) {
                 Text(tr("按文件夹")).dsFont(.xs, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
-                ForEach(Array(top)) { folder in
+                MainActorForEach(Array(top)) { folder in
                     VStack(spacing: DS.Space.s1) {
                         HStack(spacing: DS.Space.s2) {
                             Text(verbatim: folder.name).dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textPrimary).lineLimit(1)
@@ -108,7 +108,7 @@ private struct SpaceCard: View {
                 if result.largestFiles.isEmpty {
                     Text(tr("没有超过 50 MB 的文件")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                 }
-                ForEach(result.largestFiles.prefix(8)) { file in
+                MainActorForEach(result.largestFiles.prefix(8)) { file in
                     HStack(spacing: DS.Space.s2) {
                         VStack(alignment: .leading, spacing: 0) {
                             Text(verbatim: file.name).dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textPrimary).lineLimit(1)
@@ -204,7 +204,7 @@ private struct SnapshotsCard: View {
             if tools.snapshotsLoaded, tools.snapshots.isEmpty {
                 Text(tr("现在没有本地快照")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
             }
-            ForEach(tools.snapshots.prefix(6)) { snapshot in
+            MainActorForEach(tools.snapshots.prefix(6)) { snapshot in
                 InfoRow(label: snapshot.date.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? snapshot.identifier) {
                     Text(verbatim: snapshot.date.map { $0.formatted(.relative(presentation: .named).locale(L10n.locale)) } ?? "")
                 }
@@ -236,7 +236,7 @@ private struct VolumesCard: View {
         if !tools.volumes.isEmpty || tools.volumeOutcome != nil {
             Card {
                 CardHeader(icon: "externaldrive", title: tr("其他磁盘"), detail: tr("外置硬盘、U 盘、镜像与网络共享"))
-                ForEach(tools.volumes) { volume in
+                MainActorForEach(tools.volumes) { volume in
                     VStack(alignment: .leading, spacing: DS.Space.s1) {
                         HStack(spacing: DS.Space.s2) {
                             Image(systemName: volume.isLocal ? (volume.isInternal ? "internaldrive" : "externaldrive") : "network")
@@ -295,9 +295,22 @@ private struct CapacityCard: View {
     }
 }
 
-/// 容量分段：已用（超过 90% 变橙）、可清除、可用，主窗口卡片与菜单栏弹窗共用
+/// APFS 容量组成，读取不可用时保留已用 / 可清除 / 可用汇总。主窗口与弹窗共用。
 enum DiskSegments {
     static func segments(_ disk: DiskUsage) -> [SegmentedBar.Segment] {
+        if let breakdown = disk.breakdown, disk.total > 0 {
+            let parts: [(String, String, UInt64, Color)] = [
+                ("system", tr("系统卷"), breakdown.system, DS.Palette.primary),
+                ("data", tr("数据卷"), breakdown.data, DS.Palette.success),
+                ("vm", tr("虚拟内存"), breakdown.virtualMemory, DS.Palette.warning),
+                ("other", tr("其他系统数据"), breakdown.other, DS.Palette.neutral300),
+                ("purgeable", tr("可清除"), breakdown.purgeable, DS.Palette.secondary),
+                ("free", tr("可用"), breakdown.free, DS.Palette.neutral500),
+            ]
+            return parts.filter { $0.2 > 0 }.map { id, label, bytes, color in
+                SegmentedBar.Segment(id: id, label: label, fraction: Double(bytes) / Double(disk.total), color: color)
+            }
+        }
         var segments = [SegmentedBar.Segment(id: "used", label: tr("已用"), fraction: disk.usedFraction,
                                              color: disk.usedFraction > 0.9 ? DS.Palette.warning : DS.Palette.primary)]
         if disk.purgeable > 0 {
@@ -323,6 +336,10 @@ enum DiskSegments {
 
     private static func bytes(for id: String, in disk: DiskUsage) -> UInt64 {
         switch id {
+        case "system": disk.breakdown?.system ?? 0
+        case "data": disk.breakdown?.data ?? 0
+        case "vm": disk.breakdown?.virtualMemory ?? 0
+        case "other": disk.breakdown?.other ?? 0
         case "used": disk.used
         case "purgeable": disk.purgeable
         default: disk.free
@@ -454,7 +471,7 @@ private struct DiskProcessRows: View {
     let rowCount: Int
 
     var body: some View {
-        // 顺序和条形长度按最近十几秒的平均速率，数字显示当前速率：列表不会随每秒的波动跳动
+        // 排名、条形与数字统一使用最近十几秒的平滑速率。
         let grouped = Dictionary(uniqueKeysWithValues: ProcessRowModel.grouped(model.store.processes).map { ($0.id, $0) })
         let rows = model.store.diskRanking.ranked(limit: rowCount)
             .compactMap { entry in grouped[entry.id].map { ($0, entry.score) } }
@@ -463,7 +480,7 @@ private struct DiskProcessRows: View {
         if rows.isEmpty {
             Text(tr("最近没有应用在读写磁盘")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
         }
-        ForEach(Array(rows), id: \.0.id) { row, total in
+        MainActorForEach(Array(rows), id: \.0.id) { row, total in
             VStack(spacing: DS.Space.s1) {
                 HStack(spacing: DS.Space.s2) {
                     AppIconCache.shared.image(bundlePath: row.bundlePath)
@@ -474,7 +491,7 @@ private struct DiskProcessRows: View {
                         .foregroundStyle(DS.Palette.textPrimary)
                         .lineLimit(1)
                     Spacer(minLength: DS.Space.s2)
-                    Text(verbatim: tr("读 \(Format.menuBarRate(row.disk?.read ?? 0)) · 写 \(Format.menuBarRate(row.disk?.write ?? 0))"))
+                    Text(verbatim: tr("读 \(Format.menuBarRate(model.store.diskReadAverage.scores[row.id] ?? 0)) · 写 \(Format.menuBarRate(model.store.diskWriteAverage.scores[row.id] ?? 0))"))
                         .dsFont(.xs, weight: .medium)
                         .foregroundStyle(DS.Palette.textPrimary)
                         .monospacedDigit()
@@ -497,7 +514,27 @@ struct DiskPopover: View {
 
         DiskHero()
 
-        ForEach(MenuBarItem.disk.popoverSections.filter { settings.isVisible($0) }) { section in
+        if !model.diskTools.volumes.isEmpty {
+            SectionCard(title: tr("其他磁盘")) {
+                MainActorForEach(model.diskTools.volumes) { volume in
+                    VStack(alignment: .leading, spacing: DS.Space.s1) {
+                        HStack(spacing: DS.Space.s2) {
+                            Text(verbatim: volume.name).dsFont(.xs, weight: .medium)
+                                .foregroundStyle(DS.Palette.textPrimary).lineLimit(1).truncationMode(.middle)
+                            Spacer(minLength: DS.Space.s1)
+                            Text(verbatim: tr("可用 \(Format.bytes(volume.available, base: .decimal)) / 共 \(Format.bytes(volume.total, base: .decimal))"))
+                                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary).monospacedDigit()
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        ProgressTrack(fraction: volume.usedFraction,
+                                      color: volume.usedFraction > 0.9 ? DS.Palette.warning : DS.Palette.primary,
+                                      height: DS.Space.s1)
+                    }
+                }
+            }
+        }
+
+        MainActorForEach(MenuBarItem.disk.popoverSections.filter { settings.isVisible($0) }) { section in
             switch section {
             case .diskActivity:
                 let reads = store.diskReadHistory.elements

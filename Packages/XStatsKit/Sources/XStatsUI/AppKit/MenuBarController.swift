@@ -15,6 +15,8 @@ final class MenuBarController: NSObject {
     // 每个实际状态项只保留上一轮读数；布局、设置或外观变化时失效。
     private var renderedReadings: [MenuBarItem?: (reading: MenuBarReading, appearance: NSAppearance.Name)] = [:]
 
+    private var renderedItemSpacing: Int?
+
     /// 开发调试：启动后展开并固定某个弹窗
     var pinsNextPopover = false
 
@@ -80,6 +82,10 @@ final class MenuBarController: NSObject {
 
     func refreshImages(force: Bool = false) {
         let settings = model.settings
+        if renderedItemSpacing != settings.menuBarItemSpacing {
+            renderedReadings.removeAll()
+            renderedItemSpacing = settings.menuBarItemSpacing
+        }
         let reading = MenuBarReading(model: model, items: model.drawnMenuBarItems)
         for (index, entry) in items.enumerated() {
             let itemsToDraw = entry.key.map { [$0] } ?? model.drawnMenuBarItems
@@ -100,7 +106,8 @@ final class MenuBarController: NSObject {
                                                      style: { settings.style(for: $0) },
                                                      networkStyle: settings.networkStyle,
                                                      colorizeHighLoad: settings.colorizeHighLoad,
-                                                     fahrenheit: settings.useFahrenheit)
+                                                     fahrenheit: settings.useFahrenheit,
+                                                     itemGap: CGFloat(settings.menuBarItemSpacing))
                 renderedReadings[entry.key] = (entryReading, appearance)
             }
             // 额度的重置时间、过期状态等只影响提示，不必重画相同图像。
@@ -229,14 +236,55 @@ final class MenuBarController: NSObject {
 
     private func showContextMenu(for statusItem: NSStatusItem) {
         dismissPopovers()
+        let menu = contextMenu()
+        statusItem.menu = menu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
+    }
+
+    func contextMenu() -> NSMenu {
         let menu = NSMenu()
         menu.addItem(withTitle: tr("打开 XStats"), action: #selector(openMainWindow), keyEquivalent: "").target = self
         menu.addItem(withTitle: tr("设置…"), action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(.separator())
+        let awake = menu.addItem(withTitle: tr("防休眠"), action: #selector(toggleKeepAwake), keyEquivalent: "")
+        awake.target = self
+        awake.state = model.keepAwake.isActive ? .on : .off
+        let durations = NSMenu()
+        for duration in KeepAwakeController.Duration.allCases {
+            let item = durations.addItem(withTitle: duration.title, action: #selector(selectKeepAwakeDuration(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = duration.rawValue
+            item.state = model.keepAwake.duration == duration ? .on : .off
+        }
+        menu.addItem(withTitle: tr("持续时间"), action: nil, keyEquivalent: "").submenu = durations
+        if model.settings.isModuleEnabled(.thermal), model.store.supportsFans {
+            let modes = NSMenu()
+            for mode in FanController.Mode.allCases where mode != .custom {
+                let item = modes.addItem(withTitle: mode.title, action: #selector(selectFanMode(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = mode.rawValue
+                item.state = model.fans.mode == mode ? .on : .off
+                item.isEnabled = !model.fans.isApplying
+            }
+            modes.autoenablesItems = false
+            menu.addItem(withTitle: tr("散热模式"), action: nil, keyEquivalent: "").submenu = modes
+        }
+        menu.addItem(.separator())
         menu.addItem(withTitle: tr("退出 XStats"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        statusItem.menu = menu
-        statusItem.button?.performClick(nil)
-        statusItem.menu = nil
+        return menu
+    }
+
+    @objc private func toggleKeepAwake() { model.requestKeepAwake(!model.keepAwake.isActive) }
+
+    @objc private func selectKeepAwakeDuration(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? Int, let duration = KeepAwakeController.Duration(rawValue: value) else { return }
+        model.requestKeepAwake(true, duration: duration)
+    }
+
+    @objc private func selectFanMode(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? String, let mode = FanController.Mode(rawValue: value) else { return }
+        model.requestFanMode(mode)
     }
 
     @objc private func openMainWindow() { model.openMainWindow(nil) }

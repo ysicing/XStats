@@ -397,6 +397,18 @@ struct MenuBarSettings: View {
 
         SettingsGroup(caption: tr("其他")) {
             GroupRow(showsDivider: false) {
+                SettingRow(title: tr("项目间距"), subtitle: tr("调整合并菜单栏中各项目之间的距离")) {
+                    Picker(tr("项目间距"), selection: $settings.menuBarItemSpacing) {
+                        ForEach(AppSettings.menuBarSpacingOptions, id: \.self) { value in
+                            Text(verbatim: value.formatted(.number.locale(L10n.locale)) + " pt").tag(value)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    .disabled(settings.menuBarLayout != .combined)
+                }
+            }
+            GroupRow {
                 SettingRow(title: tr("高负载时着色"), subtitle: tr("占用超过 85%（电池电量低于 20%）时数值与图形显示为红色")) {
                     DSToggle(isOn: $settings.colorizeHighLoad, label: tr("高负载时着色"))
                 }
@@ -502,7 +514,8 @@ private struct ItemStyleRow: View {
         let settings = model.settings
         let image = MenuBarRenderer.image(reading: MenuBarReading(model: model, items: [item]), items: [item],
                                           style: { settings.style(for: $0) }, networkStyle: settings.networkStyle,
-                                          colorizeHighLoad: settings.colorizeHighLoad, fahrenheit: settings.useFahrenheit)
+                                          colorizeHighLoad: settings.colorizeHighLoad, fahrenheit: settings.useFahrenheit,
+                                          itemGap: CGFloat(settings.menuBarItemSpacing))
         return Image(nsImage: MenuBarRenderer.preview(image, dark: colorScheme == .dark))
             .padding(.horizontal, DS.Space.s3)
             .frame(height: DS.Size.segmentHeight + DS.Space.s1)

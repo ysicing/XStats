@@ -334,7 +334,7 @@ private struct FanTile: View {
                 .frame(height: DS.Size.tileChart / 2, alignment: .center)
 
             HStack(spacing: DS.Space.s1) {
-                ForEach([FanController.Mode.automatic, .cooling, .maximum]) { mode in
+                MainActorForEach([FanController.Mode.automatic, .cooling, .maximum]) { mode in
                     ChipButton(title: mode.title, isSelected: model.fans.mode == mode) {
                         model.requestFanMode(mode)
                     }
@@ -433,28 +433,30 @@ private struct TopProcessesCard: View {
     @Environment(AppModel.self) private var model
     @Environment(\.isSnapshot) private var isSnapshot
     private static let rowCount = 5
+    @State private var previous: [Int32] = []
 
     var body: some View {
-        let processes = Array(model.store.processes.prefix(Self.rowCount))
+        let processes = StableOrder.arrange(model.store.processes, previous: previous, limit: Self.rowCount, id: \.pid)
 
         Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
             HStack(spacing: DS.Space.s1) {
                 Image(systemName: "chart.bar.fill").font(.system(size: DS.TextSize.xs.rawValue, weight: .semibold))
                 Text(tr("高占用进程")).dsFont(.xs, weight: .semibold)
                 Spacer()
+                CPUSharePicker()
                 Text("CPU").dsFont(.xs, weight: .medium).frame(width: DS.Size.valueColumn, alignment: .trailing)
-                    .help(tr("占整机 CPU 的比例：\(Format.logicalCores) 个核心全部跑满为 100%"))
+                    .help(model.settings.processCPUHint)
                 Text(tr("内存")).dsFont(.xs, weight: .medium).frame(width: DS.Size.valueColumn, alignment: .trailing)
                 Color.clear.frame(width: DS.Size.iconInline)
             }
             .foregroundStyle(DS.Palette.textSecondary)
 
             // 数据到达前用等高占位行，避免面板高度变化
-            ForEach(0..<max(0, Self.rowCount - processes.count), id: \.self) { _ in
+            MainActorForEach(0..<max(0, Self.rowCount - processes.count), id: \.self) { _ in
                 PlaceholderLine()
                     .frame(height: DS.TextSize.sm.rawValue * 1.25)
             }
-            ForEach(processes) { process in
+            MainActorForEach(processes) { process in
                 HStack(spacing: DS.Space.s2) {
                     AppIconCache.shared.image(for: process)
                         .resizable()
@@ -464,10 +466,10 @@ private struct TopProcessesCard: View {
                         .foregroundStyle(DS.Palette.textPrimary)
                         .lineLimit(1)
                     Spacer(minLength: DS.Space.s2)
-                    Text(verbatim: Format.machineShare(process.cpu))
+                    Text(verbatim: model.settings.processCPUText(process.cpu))
                         .dsFont(.sm, weight: .medium)
                         .foregroundStyle(cpuTone(process.cpu).color)
-                        .help(tr("按单核满载为 100% 计：\(Format.coreShare(process.cpu))"))
+                        .help(model.settings.alternateCPUText(process.cpu))
                         .frame(width: DS.Size.valueColumn, alignment: .trailing)
                     Text(verbatim: Format.bytes(process.memory))
                         .dsFont(.sm)
@@ -477,6 +479,7 @@ private struct TopProcessesCard: View {
                 }
                 .monospacedDigit()
             }
+            .onChange(of: processes.map(\.pid), initial: true) { _, ids in previous = ids }
         }
     }
 

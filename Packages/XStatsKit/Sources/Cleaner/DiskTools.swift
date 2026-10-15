@@ -93,6 +93,18 @@ public struct MountedVolume: Sendable, Equatable, Identifiable {
     public let isEjectable: Bool
     public let isLocal: Bool
 
+    public init(url: URL, name: String, total: UInt64, available: UInt64,
+                isInternal: Bool, isRemovable: Bool, isEjectable: Bool, isLocal: Bool) {
+        self.url = url
+        self.name = name
+        self.total = total
+        self.available = available
+        self.isInternal = isInternal
+        self.isRemovable = isRemovable
+        self.isEjectable = isEjectable
+        self.isLocal = isLocal
+    }
+
     public var id: String { url.path }
     public var used: UInt64 { total > available ? total - available : 0 }
     public var usedFraction: Double { total == 0 ? 0 : Double(used) / Double(total) }
@@ -101,24 +113,34 @@ public struct MountedVolume: Sendable, Equatable, Identifiable {
 public enum MountedVolumes {
     /// 启动盘之外、访达里能看到的卷：外置硬盘、U 盘、镜像、网络共享
     public static func list() -> [MountedVolume] {
-        let keys: Set<URLResourceKey> = [.volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey,
+        let keys: Set<URLResourceKey> = [.volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey, .volumeAvailableCapacityForImportantUsageKey,
                                          .volumeIsInternalKey, .volumeIsRemovableKey, .volumeIsEjectableKey,
                                          .volumeIsRootFileSystemKey, .volumeIsBrowsableKey, .volumeIsLocalKey]
         let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: Array(keys), options: [.skipHiddenVolumes]) ?? []
         return urls.compactMap { url in
+            guard !Task.isCancelled else { return nil }
             guard let values = try? url.resourceValues(forKeys: keys),
                   values.volumeIsRootFileSystem != true, values.volumeIsBrowsable != false,
                   let total = values.volumeTotalCapacity, total > 0 else { return nil }
             return MountedVolume(url: url,
                                  name: values.volumeName ?? url.lastPathComponent,
                                  total: UInt64(total),
-                                 available: UInt64(max(0, values.volumeAvailableCapacityForImportantUsage ?? 0)),
+                                 available: availableCapacity(important: values.volumeAvailableCapacityForImportantUsage,
+                                                              ordinary: values.volumeAvailableCapacity,
+                                                              isLocal: values.volumeIsLocal ?? true),
                                  isInternal: values.volumeIsInternal ?? false,
                                  isRemovable: values.volumeIsRemovable ?? false,
                                  isEjectable: values.volumeIsEjectable ?? false,
                                  isLocal: values.volumeIsLocal ?? true)
         }
         .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// 网络文件系统可能把 ImportantUsage 报为 0；普通可用容量才反映服务器空闲空间。
+    /// 本地 APFS 保留包含可清除空间的口径，与访达一致。
+    static func availableCapacity(important: Int64?, ordinary: Int?, isLocal: Bool) -> UInt64 {
+        let available = isLocal ? (important ?? ordinary.map(Int64.init)) : (ordinary.map(Int64.init) ?? important)
+        return UInt64(max(0, available ?? 0))
     }
 }
 

@@ -1,3 +1,8 @@
+// Copyright (c) 2026 GiantAccel, LLC
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
+// See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
+
 import Foundation
 import Localization
 import Metrics
@@ -16,7 +21,7 @@ extension HelperClient: FanControlClient {}
 @MainActor
 @Observable
 public final class FanController {
-    public enum Mode: String, CaseIterable, Identifiable {
+    public enum Mode: String, CaseIterable, Identifiable, Sendable {
         case automatic, cooling, maximum, custom
 
         public var id: String { rawValue }
@@ -36,7 +41,14 @@ public final class FanController {
 
     public private(set) var mode: Mode = .automatic
     /// 自定义档位：0 为最低转速，1 为最高转速
-    public var customLevel: Double = 0.5
+    public var customLevel: Double {
+        get { selectedCustomLevel }
+        set {
+            guard !isApplying, newValue.isFinite else { return }
+            selectedCustomLevel = min(1, max(0, newValue))
+        }
+    }
+    private var selectedCustomLevel: Double = 0.5
     public private(set) var isApplying = false
     public private(set) var notice: String?
     public private(set) var noticeIsError = false
@@ -44,15 +56,34 @@ public final class FanController {
     @ObservationIgnored private let helper: any FanControlClient
     @ObservationIgnored private let store: MetricsStore
     @ObservationIgnored private let settings: AppSettings
+    @ObservationIgnored private let readFans: (@Sendable () async -> [FanState]?)?
+    @ObservationIgnored private var feedbackTask: Task<Void, Never>?
+    @ObservationIgnored private var feedbackGeneration = 0
+    @ObservationIgnored private var feedbackVisible = false
+    @ObservationIgnored private var paused = false
 
-    init(helper: any FanControlClient, store: MetricsStore, settings: AppSettings) {
+    init(helper: any FanControlClient, store: MetricsStore, settings: AppSettings,
+         readFans: (@Sendable () async -> [FanState]?)? = nil) {
         self.helper = helper
         self.store = store
         self.settings = settings
+        self.readFans = readFans
+    }
+
+    deinit { feedbackTask?.cancel() }
+
+    func setFeedbackVisible(_ visible: Bool) {
+        feedbackVisible = visible
+        if !visible { cancelFeedback() }
+    }
+
+    func setPaused(_ value: Bool) {
+        paused = value
+        if value { cancelFeedback() }
     }
 
     func select(_ newMode: Mode) async {
-        guard newMode != mode || newMode == .custom else { return }
+        guard !isApplying, newMode != mode || newMode == .custom else { return }
         let previous = mode
         mode = newMode
         if let error = await apply() {
@@ -64,13 +95,13 @@ public final class FanController {
     }
 
     func commitCustomLevel() async {
-        guard mode == .custom else { return }
+        guard !isApplying, mode == .custom else { return }
         if let error = await apply() { show(error, isError: true) }
     }
 
     /// 连接恢复或唤醒后重新下发
     func reapply() async {
-        guard mode != .automatic else { return }
+        guard !isApplying, mode != .automatic else { return }
         if let error = await apply() { show(error, isError: true) }
     }
 
@@ -98,21 +129,68 @@ public final class FanController {
 
     private func apply() async -> String? {
         isApplying = true
+        cancelFeedback()
         defer { isApplying = false }
 
         if mode == .automatic {
-            return await helper.resetAllFans()
+            let error = await helper.resetAllFans()
+            if error == nil { watchFeedback() }
+            return error
         }
         let fans = store.sensors?.fans ?? []
         guard !fans.isEmpty else { return tr("未检测到可调节的风扇") }
-        for fan in fans {
-            if let error = await helper.setFanTarget(fan: fan.id, rpm: targetRPM(for: fan)) {
+        let targets = fans.map { (id: $0.id, rpm: targetRPM(for: $0)) }
+        for target in targets {
+            if let error = await helper.setFanTarget(fan: target.id, rpm: target.rpm) {
                 _ = await helper.resetAllFans()
                 return error
             }
         }
+        watchFeedback()
         return nil
     }
+
+    private func cancelFeedback() {
+        feedbackGeneration &+= 1
+        feedbackTask?.cancel()
+        feedbackTask = nil
+    }
+
+    /// 实际转速在切档后才逐渐变化；仅有可见读取方时短暂加快只读反馈。
+    private func watchFeedback() {
+        guard feedbackAllowed, let readFans else { return }
+        let generation = feedbackGeneration
+        Log.fans.debug("Fan feedback started")
+        feedbackTask = Task { [weak self] in
+            defer {
+                if self?.feedbackGeneration == generation { self?.feedbackTask = nil }
+                Log.fans.debug("Fan feedback stopped")
+            }
+            let deadline = ContinuousClock.now + .seconds(10)
+            for _ in 0..<20 {
+                guard !Task.isCancelled, self?.feedbackAllowed == true, ContinuousClock.now < deadline else { return }
+                guard let fans = await readFans(), !Task.isCancelled, ContinuousClock.now < deadline else { return }
+                guard self?.acceptFeedback(fans) == false else { return }
+                // 容差合并唤醒；常规采样的间隔和其他指标不受影响。
+                do { try await Task.sleep(for: .milliseconds(500), tolerance: .milliseconds(100)) }
+                catch { return }
+            }
+        }
+    }
+
+    /// 返回 true 表示结束跟踪；不能把指令目标写成当前转速。
+    private func acceptFeedback(_ fans: [FanState]) -> Bool {
+        guard feedbackAllowed else { return true }
+        store.updateFans(fans)
+        guard !fans.isEmpty else { return true }
+        return fans.allSatisfy { fan in
+            let target = targetRPM(for: fan)
+            return fan.isManual == (mode != .automatic) && !fan.isStarting
+                && target.isFinite && abs(fan.current - target) <= max(100, abs(target) * 0.05)
+        }
+    }
+
+    private var feedbackAllowed: Bool { feedbackVisible && !paused && settings.isModuleEnabled(.thermal) }
 
     private func show(_ message: String, isError: Bool) {
         if isError { Log.fans.error("\(message, privacy: .public)") } else { Log.fans.info("\(message, privacy: .public)") }

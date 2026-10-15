@@ -268,8 +268,9 @@ enum MenuBarRenderer {
         static let stackedUpperBaseline: CGFloat = 12
         static let stackedLowerBaseline: CGFloat = 1
         static let symbolSize: CGFloat = 11
-        static let itemGap = DS.Space.s3
         static let innerGap = DS.Space.s1
+        static let aiServiceGap: CGFloat = 6
+        static let aiIconValueGap: CGFloat = 3
         static let historyCount = 10
         static let historyBarWidth: CGFloat = 2
         static let historyBarGap: CGFloat = 1
@@ -302,7 +303,8 @@ enum MenuBarRenderer {
                      style: { settings.style(for: $0) },
                      networkStyle: settings.networkStyle,
                      colorizeHighLoad: settings.colorizeHighLoad,
-                     fahrenheit: settings.useFahrenheit)
+                     fahrenheit: settings.useFahrenheit,
+                     itemGap: CGFloat(settings.menuBarItemSpacing))
     }
 
     static func image(reading: MenuBarReading,
@@ -310,7 +312,8 @@ enum MenuBarRenderer {
                       style: (MenuBarItem) -> MenuBarStyle,
                       networkStyle: NetworkMenuStyle,
                       colorizeHighLoad: Bool,
-                      fahrenheit: Bool) -> NSImage {
+                      fahrenheit: Bool,
+                      itemGap: CGFloat = 8) -> NSImage {
         var segments: [Segment] = []
         if reading.keepAwake { segments.append(symbolSegment("cup.and.saucer.fill")) }
         for item in items {
@@ -320,12 +323,12 @@ enum MenuBarRenderer {
         // 即使防休眠标记存在，空项目布局也保留 XStats 的主入口图标。
         if items.isEmpty { segments.append(symbolSegment("waveform.path.ecg")) }
 
-        let width = segments.reduce(0) { $0 + $1.width } + CGFloat(segments.count - 1) * Metrics.itemGap
+        let width = segments.reduce(0) { $0 + $1.width } + CGFloat(segments.count - 1) * itemGap
         let image = NSImage(size: NSSize(width: ceil(width), height: Metrics.barHeight), flipped: false) { rect in
             var x: CGFloat = 0
             for segment in segments {
                 segment.draw(NSRect(x: x, y: rect.minY, width: segment.width, height: rect.height))
-                x += segment.width + Metrics.itemGap
+                x += segment.width + itemGap
             }
             return true
         }
@@ -408,6 +411,8 @@ enum MenuBarRenderer {
             return textSegment(item: .aiUsage, value: reading.aiTokens.map { tokenText($0, westernUnits: reading.aiUsageWesternUnits) } ?? "—",
                                sample: "999.9M", style: style)
         }
+        // 额度组内采用紧凑间距；外部“项目间距”只分隔 AI 与其他监控项目。
+        let iconSample = AIUsageFormat.quotaPercent(remainingPercent: 99, showsRemaining: true, locale: L10n.locale, compact: true)
         let status = combine(reading.aiQuotas.map { quota in
             let name = quota.sourceName
             let label = "\(name) · \(quota.shortWindowName)"
@@ -421,14 +426,15 @@ enum MenuBarRenderer {
             case .inline: return inlineText(label: label, value: value, sample: "100%", alert: false)
             case .icon:
                 return combine([aiProviderLogo(quota.magpieName ?? quota.provider?.rawValue ?? ""),
-                                inlineValue(value, sample: "100%", alert: false, leadingAligned: true)])
+                                inlineValue(value, sample: iconSample, alert: false, leadingAligned: true)],
+                               gap: Metrics.aiIconValueGap)
             case .ring, .history, .line:
                 return combine([ring(fraction: fraction, alert: false, color: color, diameter: 15, lineWidth: 2.5), inline])
             case .pie: return combine([pie(fraction: fraction, alert: false, color: color), inline])
             case .meter: return combine([meter(fraction: fraction, alert: false, color: color), inline])
             case .dot: return combine([quotaDot(color: color), stacked])
             }
-        }, gap: DS.Space.s2)
+        }, gap: Metrics.aiServiceGap)
         return status
     }
 

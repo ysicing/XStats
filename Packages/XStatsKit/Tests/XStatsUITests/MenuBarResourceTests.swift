@@ -50,8 +50,10 @@ struct MenuBarResourceTests {
         }
         var report: [Phase] = []
         for (name, visible, paused) in [("idle", false, false), ("overview", true, false),
+                                       ("details", true, false),
                                        ("closed", false, false), ("paused", false, true),
                                        ("resumed", false, false)] {
+            model.combinedPopoverTab = name == "details" ? .memory : nil
             if visible {
                 panel.isPinned = true
                 panel.present(below: NSRect(x: screen.visibleFrame.midX, y: screen.visibleFrame.maxY,
@@ -72,7 +74,8 @@ struct MenuBarResourceTests {
             else { #expect(steady.count >= 1) }
             #expect(steady.allSatisfy { $0.power == nil && $0.diskActivity == nil && $0.diskHealth == nil })
             if visible {
-                #expect(steady.contains { $0.processes != nil })
+                if name == "details" { #expect(steady.contains { $0.processes != nil }) }
+                else { #expect(steady.allSatisfy { $0.processes == nil }) }
                 #expect(steady.contains { $0.sensors != nil })
             } else {
                 #expect(steady.allSatisfy { $0.gpu == nil && $0.disk == nil && $0.processes == nil && $0.sensors == nil })

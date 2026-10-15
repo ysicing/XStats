@@ -25,6 +25,117 @@ enum SnapshotRenderer {
         do { try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true) }
         catch { reportFailure(outputDirectory, error: error); return }
 
+        if CommandLine.arguments.contains("--metric-summary-only") {
+            let suite = "XStats.metricSummarySnapshot.\(UUID())"
+            guard let defaults = UserDefaults(suiteName: suite) else { return }
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let settings = AppSettings(defaults: defaults)
+            settings.language = L10n.language
+            settings.menuBarItems = []
+            settings.historyEnabled = false
+            settings.enabledAlerts = []
+            settings.publicIPLookup = false
+            settings.probeEnabled = false
+            settings.hiddenPopoverSections.formUnion(MenuBarItem.network.popoverSections.filter { $0 != .networkHistory })
+            let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+                                 networkCacheDefaults: defaults)
+            var demand = MetricsDemand()
+            demand.cpu = true; demand.memory = true; demand.network = true
+            var snapshot = MetricsSnapshot()
+            await model.hub.update(demand)
+            await model.hub.start(primeAllMetrics: false) { snapshot = $0 }
+            try? await Task.sleep(for: .seconds(3))
+            await model.hub.stop()
+            // 演示数据：确定性数值与匿名应用名，截图不包含本机进程及地址。
+            snapshot.processes = [ProcessUsage(pid: 42, name: "Demo", executablePath: nil,
+                                               appBundlePath: nil, cpu: 2, memory: 1_073_741_824)]
+            snapshot.thermalState = .serious
+            snapshot.networkInterface = nil
+            snapshot.memory?.swapUsed = 2_147_483_648
+            snapshot.network?.downloadBytesPerSecond = 4_000_000
+            snapshot.network?.uploadBytesPerSecond = 1_000_000
+            snapshot.disk = DiskUsage(volumeName: "Macintosh HD", total: 1_000_000_000_000,
+                                      available: 400_000_000_000, purgeable: 20_000_000_000)
+            // 曲线使用匿名演示历史；系统读取已停止，不增加截图期间的采样。
+            for index in 0..<60 {
+                snapshot.memory?.app = UInt64(4_000_000_000 + 1_000_000_000 * (1 + sin(Double(index) / 8)))
+                model.store.apply(snapshot)
+            }
+            await model.network.refreshDetails(basicOnly: true)
+            model.network.maskForSnapshot()
+            model.diskTools.showPreview(volumes: [MountedVolume(url: URL(fileURLWithPath: "/Volumes/Demo"),
+                name: "Demo External SSD", total: 2_000_000_000_000, available: 800_000_000_000,
+                isInternal: false, isRemovable: true, isEjectable: true, isLocal: true)])
+            for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+                guard let appearance = NSAppearance(named: name) else { continue }
+                NSApp.appearance = appearance
+                for perCore in [false, true] {
+                    settings.cpuSharePerCore = perCore
+                    let scale = perCore ? "core" : "machine"
+                    write(VStack(spacing: DS.Space.s3) { CPUPopover() }
+                        .appLanguageEnvironment().padding(DS.Space.s3).frame(width: DS.Size.popoverWidth),
+                          model: model, appearance: appearance,
+                          to: outputDirectory.appendingPathComponent("cpu-\(scale)-\(suffix).png"))
+                    write(OverviewPage().appLanguageEnvironment().frame(width: 640, height: 760),
+                          model: model, appearance: appearance,
+                          to: outputDirectory.appendingPathComponent("overview-\(scale)-\(suffix).png"))
+                }
+                write(VStack(spacing: DS.Space.s3) { MemoryPopover(); ThermalPopover(item: .temperature); NetworkPopover() }
+                    .appLanguageEnvironment().padding(DS.Space.s3).frame(width: DS.Size.popoverWidth),
+                      model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("summaries-\(suffix).png"))
+                write(VStack(spacing: DS.Space.s3) { DiskPopover() }
+                    .appLanguageEnvironment().padding(DS.Space.s3).frame(width: DS.Size.popoverWidth),
+                      model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("disk-volumes-\(suffix).png"))
+                write(TemperatureCard().appLanguageEnvironment().padding(DS.Space.s3).frame(width: 600),
+                      model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("temperature-\(suffix).png"))
+            }
+            return
+        }
+
+        if CommandLine.arguments.contains("--hardware-details-only") {
+            let suite = "XStats.hardwareDetailsSnapshot.\(UUID())"
+            guard let defaults = UserDefaults(suiteName: suite) else { return }
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let settings = AppSettings(defaults: defaults)
+            settings.language = L10n.language
+            settings.menuBarItems = []
+            settings.historyEnabled = false
+            settings.enabledAlerts = []
+            settings.panelTab = .gpu
+            let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+            model.isMainWindowVisible = true
+            var demand = model.demand
+            demand.disk = true; demand.diskDetail = true; demand.battery = true
+            await model.hub.update(demand)
+            // 只读当前硬件，不启动其他功能或进程采样。截图写入前停止循环。
+            await model.hub.start(primeAllMetrics: false) { snapshot in model.store.apply(snapshot) }
+            try? await Task.sleep(for: .seconds(5))
+            await model.hub.stop()
+            for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+                guard let appearance = NSAppearance(named: name) else { continue }
+                NSApp.appearance = appearance
+                for (width, detail) in [(DS.Size.popoverWidth, false), (CGFloat(600), true)] {
+                    for item in [MenuBarItem.gpu, .battery, .disk] {
+                        let content = VStack(spacing: DS.Space.s3) {
+                            switch item {
+                            case .gpu: GPUPopover()
+                            case .battery: BatteryPopover()
+                            default: DiskPopover()
+                            }
+                        }
+                        .environment(\.isDetailPage, detail).appLanguageEnvironment()
+                        .padding(DS.Space.s3).frame(width: width)
+                        write(content, model: model, appearance: appearance,
+                              to: outputDirectory.appendingPathComponent("hardware-\(item.rawValue)-\(Int(width))-\(suffix).png"))
+                    }
+                }
+            }
+            return
+        }
+
         if CommandLine.arguments.contains("--app-management-only") {
             let suite = "XStats.appManagementSnapshot.\(UUID())"
             guard let defaults = UserDefaults(suiteName: suite) else { return }
