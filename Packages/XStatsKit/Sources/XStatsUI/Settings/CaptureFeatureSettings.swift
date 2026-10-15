@@ -39,7 +39,7 @@ struct CaptureFeatureSettings: View {
                                 Button(tr("打开 XStats Capture")) { workspace.open() }
                             }
                         }
-                        DSToggle(isOn: Binding(get: { workspace.enabled }, set: workspace.setEnabled), label: "XStats Capture")
+                        DSToggle(isOn: Binding(get: { workspace.enabled }, set: { workspace.setEnabled($0) }), label: "XStats Capture")
                     }
                 }
             }
