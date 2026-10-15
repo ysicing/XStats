@@ -70,7 +70,7 @@ import ScreenCaptureKit
         writer.queue.sync { writer.consumeVideo(frame) }
         #expect(try await !writer.finish())
     }
-    @Test @MainActor func audioBackpressureDropsSamplesAndRecordingContinues() async throws {
+    @Test @MainActor func transientAudioBackpressureBuffersSamplesAndRecordingContinues() async throws {
         let media = try RecordingMedia()
         defer { try? FileManager.default.removeItem(at: media.directory) }
         let blocked = OSAllocatedUnfairLock(initialState: true)
@@ -100,6 +100,86 @@ import ScreenCaptureKit
         #expect(try await AVURLAsset(url: url).loadTracks(withMediaType: .audio).count == 2)
         #expect(try await AVURLAsset(url: url).loadTracks(withMediaType: .video).count == 1)
     }
+    @Test func audioBackpressureKeepsLaterSamplesOnTheVideoTimeline() async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let blocked = OSAllocatedUnfairLock(initialState: false)
+        let writer = RecordingWriter(isReady: { input in
+            if input.mediaType == .audio, blocked.withLock({ $0 }) { return false }
+            return input.isReadyForMoreMediaData
+        }) { _ in }
+        let url = media.newSegmentURL()
+        try await writer.prepare(url: url, size: CGSize(width: 64, height: 48), options: RecordingOptions())
+        for frame in 0..<60 {
+            blocked.withLock { $0 = (15..<30).contains(frame) }
+            let time = 100 + Double(frame) / 30
+            let picture = try video(time: time)
+            let sound = try audio(time: time, channels: 2, frequency: 440)
+            writer.queue.sync {
+                writer.consumeVideo(picture)
+                writer.consumeAudio(sound, microphone: false)
+            }
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        #expect(try await writer.finish())
+        let asset = AVURLAsset(url: url)
+        let sound = try #require(try await asset.loadTracks(withMediaType: .audio).first)
+        let picture = try #require(try await asset.loadTracks(withMediaType: .video).first)
+        let audioEnd = try await sound.load(.timeRange).end.seconds
+        let videoEnd = try await picture.load(.timeRange).end.seconds
+        #expect(abs(audioEnd - videoEnd) < 0.1)
+    }
+    @Test @MainActor func producerAudioTimestampGapsDoNotMoveLaterSoundEarlier() async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let url = media.newSegmentURL()
+        let writer = RecordingWriter { _ in }
+        try await writer.prepare(url: url, size: CGSize(width: 64, height: 48), options: RecordingOptions())
+        for frame in 0..<60 {
+            let time = 100 + Double(frame) / 30
+            let picture = try video(time: time)
+            let sound = (15..<30).contains(frame) ? nil : try audio(time: time, channels: 2, frequency: 440)
+            writer.queue.sync {
+                writer.consumeVideo(picture)
+                if let sound { writer.consumeAudio(sound, microphone: false) }
+            }
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        #expect(try await writer.finish())
+        let track = try #require(try await AVURLAsset(url: url).loadTracks(withMediaType: .audio).first)
+        #expect(abs(try await track.load(.timeRange).end.seconds - 2) < 0.1)
+        let output = media.directory.appendingPathExtension("mp4")
+        defer { try? FileManager.default.removeItem(at: output) }
+        try await RecordingExporter().export(segments: [url], trim: nil, to: output)
+        let asset = AVURLAsset(url: output)
+        let exportedTrack = try #require(try await asset.loadTracks(withMediaType: .audio).first)
+        let reader = try AVAssetReader(asset: asset)
+        let decoded = AVAssetReaderTrackOutput(track: exportedTrack, outputSettings: [
+            AVFormatIDKey: kAudioFormatLinearPCM, AVLinearPCMIsFloatKey: true,
+            AVLinearPCMBitDepthKey: 32, AVLinearPCMIsNonInterleaved: false])
+        reader.add(decoded)
+        #expect(reader.startReading())
+        var gapEnergy = 0.0, markerEnergy = 0.0, gapCount = 0, markerCount = 0
+        while let sample = decoded.copyNextSampleBuffer() {
+            let time = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+            guard let block = CMSampleBufferGetDataBuffer(sample) else { continue }
+            let count = CMBlockBufferGetDataLength(block) / 4
+            var values = [Float](repeating: 0, count: count)
+            let status = values.withUnsafeMutableBytes {
+                CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: $0.count, destination: $0.baseAddress!)
+            }
+            #expect(status == noErr)
+            for index in values.indices {
+                let position = time + Double(index / 2) / 48000
+                if (0.65..<0.85).contains(position) { gapEnergy += Double(values[index] * values[index]); gapCount += 1 }
+                if (1.1..<1.3).contains(position) { markerEnergy += Double(values[index] * values[index]); markerCount += 1 }
+            }
+        }
+        #expect(reader.status == .completed)
+        #expect(gapCount > 1000 && markerCount > 1000)
+        #expect(sqrt(gapEnergy / Double(max(1, gapCount))) < 0.001)
+        #expect(sqrt(markerEnergy / Double(max(1, markerCount))) > 0.04)
+    }
     @Test func cancelledFinishStopsWriterWithoutReportingMediaFailure() async throws {
         let media = try RecordingMedia()
         defer { try? FileManager.default.removeItem(at: media.directory) }
@@ -119,6 +199,129 @@ import ScreenCaptureKit
         writer.queue.sync { writer.consumeVideo(sample) }
         #expect(failures.withLock { $0 } == 0)
         #expect(try await !writer.finish())
+    }
+    @Test func stoppingDrainsBlockedMicrophoneAfterOtherInputsFinish() async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let blocked = OSAllocatedUnfairLock(initialState: false)
+        let failures = OSAllocatedUnfairLock(initialState: 0)
+        let writer = RecordingWriter(isReady: { input in
+            if input.mediaType == .audio, input.outputSettings?[AVNumberOfChannelsKey] as? Int == 1,
+               blocked.withLock({ $0 }) { return false }
+            return input.isReadyForMoreMediaData
+        }) { _ in failures.withLock { $0 += 1 } }
+        var options = RecordingOptions(); options.microphone = true
+        let url = media.newSegmentURL()
+        try await writer.prepare(url: url, size: CGSize(width: 64, height: 48), options: options)
+        for frame in 0..<30 {
+            blocked.withLock { $0 = frame >= 24 }
+            let time = 100 + Double(frame) / 30
+            let picture = try video(time: time)
+            let system = try audio(time: time, channels: 2, frequency: 440)
+            let mic = try audio(time: time, channels: 1, frequency: 880)
+            writer.queue.sync {
+                writer.consumeVideo(picture)
+                writer.consumeAudio(system, microphone: false)
+                writer.consumeAudio(mic, microphone: true)
+            }
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        let release = Task {
+            try await Task.sleep(for: .milliseconds(100))
+            blocked.withLock { $0 = false }
+        }
+        #expect(try await writer.finish())
+        try await release.value
+        #expect(failures.withLock { $0 } == 0)
+        let tracks = try await AVURLAsset(url: url).loadTracks(withMediaType: .audio)
+        #expect(tracks.count == 2)
+        for track in tracks { #expect(abs(try await track.load(.timeRange).end.seconds - 1) < 0.1) }
+    }
+    @Test(arguments: [false, true])
+    func sustainedAudioBackpressureStopsInsteadOfCompressingTheTimeline(_ overflow: Bool) async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let failures = OSAllocatedUnfairLock(initialState: 0)
+        let writer = RecordingWriter(isReady: { input in
+            input.mediaType == .video && input.isReadyForMoreMediaData
+        }) { _ in failures.withLock { $0 += 1 } }
+        try await writer.prepare(url: media.newSegmentURL(), size: CGSize(width: 64, height: 48), options: RecordingOptions())
+        let picture = try video(time: 100)
+        writer.queue.sync { writer.consumeVideo(picture) }
+        for frame in 0..<(overflow ? 70 : 2) {
+            let sound = try audio(time: 100 + Double(frame) / 30, channels: 2, frequency: 440)
+            writer.queue.sync { writer.consumeAudio(sound, microphone: false) }
+        }
+        if overflow { #expect(failures.withLock { $0 } == 1) }
+        await #expect(throws: CaptureError.writerFailed) { try await writer.finish() }
+        #expect(await writer.hasCommittedMedia)
+        #expect(failures.withLock { $0 } == 1)
+        await writer.abort()
+    }
+    @Test(arguments: [false, true])
+    func cancellationWhileDrainingAudioReleasesPendingWorkWithoutFailure(_ cancelTask: Bool) async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let failures = OSAllocatedUnfairLock(initialState: 0)
+        let writer = RecordingWriter(isReady: { input in
+            input.mediaType == .video && input.isReadyForMoreMediaData
+        }) { _ in failures.withLock { $0 += 1 } }
+        try await writer.prepare(url: media.newSegmentURL(), size: CGSize(width: 64, height: 48), options: RecordingOptions())
+        let picture = try video(time: 100), sound = try audio(time: 100, channels: 2, frequency: 440)
+        writer.queue.sync { writer.consumeVideo(picture); writer.consumeAudio(sound, microphone: false) }
+        let finishing = Task { try await writer.finish() }
+        try await Task.sleep(for: .milliseconds(30))
+        if cancelTask { finishing.cancel() } else { await writer.abort() }
+        await #expect(throws: CancellationError.self) { try await finishing.value }
+        await writer.abort()
+        try await Task.sleep(for: .milliseconds(1_100))
+        #expect(failures.withLock { $0 } == 0)
+        #expect(try await !writer.finish())
+    }
+    @Test func cancellingDuplicateFinishDoesNotCancelTheActiveFinish() async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let blocked = OSAllocatedUnfairLock(initialState: true)
+        let writer = RecordingWriter(isReady: { input in
+            if input.mediaType == .audio, blocked.withLock({ $0 }) { return false }
+            return input.isReadyForMoreMediaData
+        }) { _ in Issue.record("Cancelling a duplicate finish must not fail the active recording") }
+        try await writer.prepare(url: media.newSegmentURL(), size: CGSize(width: 64, height: 48), options: RecordingOptions())
+        let picture = try video(time: 100), sound = try audio(time: 100, channels: 2, frequency: 440)
+        writer.queue.sync { writer.consumeVideo(picture); writer.consumeAudio(sound, microphone: false) }
+        let finishing = Task { try await writer.finish() }
+        try await Task.sleep(for: .milliseconds(30))
+        let duplicate = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await writer.finish()
+        }
+        await #expect(throws: CancellationError.self) { try await duplicate.value }
+        blocked.withLock { $0 = false }
+        #expect(try await finishing.value)
+        #expect(await writer.hasCommittedMedia)
+    }
+    @Test func fullAudioBacklogCanRecoverBeforeTheNextSampleArrives() async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let blocked = OSAllocatedUnfairLock(initialState: true)
+        let failures = OSAllocatedUnfairLock(initialState: 0)
+        let writer = RecordingWriter(isReady: { input in
+            if input.mediaType == .audio, blocked.withLock({ $0 }) { return false }
+            return input.isReadyForMoreMediaData
+        }) { _ in failures.withLock { $0 += 1 } }
+        let url = media.newSegmentURL()
+        try await writer.prepare(url: url, size: CGSize(width: 64, height: 48), options: RecordingOptions())
+        let picture = try video(time: 100)
+        writer.queue.sync { writer.consumeVideo(picture) }
+        for frame in 0..<65 {
+            if frame == 64 { blocked.withLock { $0 = false } }
+            let sound = try audio(time: 100 + Double(frame) / 30, channels: 2, frequency: 440)
+            writer.queue.sync { writer.consumeAudio(sound, microphone: false) }
+        }
+        #expect(try await writer.finish(endTime: CMTime(seconds: 100 + 65.0 / 30, preferredTimescale: 48000)))
+        #expect(failures.withLock { $0 } == 0)
+        let track = try #require(try await AVURLAsset(url: url).loadTracks(withMediaType: .audio).first)
+        #expect(abs(try await track.load(.timeRange).end.seconds - 65.0 / 30) < 0.1)
     }
     @Test func mediaFailureReportsOnceAndStopsAfterFinish() async throws {
         let media = try RecordingMedia()
@@ -185,6 +388,24 @@ import ScreenCaptureKit
         #expect(recorder.segments == [url])
         #expect(try await AVURLAsset(url: url).loadTracks(withMediaType: .video).count == 1)
         continuation.finish()
+    }
+    @Test @MainActor func audioFailureRetainsTheSealedSegmentAndReportsTheError() async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let url = media.newSegmentURL()
+        let writer = RecordingWriter(isReady: { input in
+            input.mediaType == .video && input.isReadyForMoreMediaData
+        }) { _ in }
+        try await writer.prepare(url: url, size: CGSize(width: 64, height: 48), options: RecordingOptions())
+        let time = CMClockGetTime(CMClockGetHostTimeClock()).seconds - 0.1
+        let picture = try video(time: time), sound = try audio(time: time, channels: 2, frequency: 440)
+        writer.queue.sync { writer.consumeVideo(picture); writer.consumeAudio(sound, microphone: false) }
+        let stream = SCStream(filter: SCContentFilter(), configuration: SCStreamConfiguration(), delegate: nil)
+        let recorder = ScreenRecorder(media: media, stream: stream, writer: writer, activeURL: url) { _ in }
+        await #expect(throws: CaptureError.writerFailed) { try await recorder.stop() }
+        #expect(!recorder.isCapturing)
+        #expect(recorder.segments == [url])
+        #expect(try await AVURLAsset(url: url).loadTracks(withMediaType: .video).count == 1)
     }
     @Test @MainActor func pauseSegmentsTrimAndMixToSingleAudioTrack() async throws {
         let media = try RecordingMedia()

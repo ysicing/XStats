@@ -183,6 +183,10 @@ final class MicrophoneCapture: @unchecked Sendable {
                 if error is CancellationError {
                     await writer.abort()
                     if let url { try? FileManager.default.removeItem(at: url) }
+                } else if await writer.hasCommittedMedia, let url {
+                    // A terminal audio failure can still seal playable earlier
+                    // media. Keep it while propagating the failure to the host.
+                    segments.append(url)
                 }
                 captureError = error
             }
