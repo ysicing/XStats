@@ -1,7 +1,7 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import AIUsage
+@testable import AIUsage
 import AppKit
 import Localization
 import SwiftUI
@@ -33,8 +33,21 @@ struct IslandListIsolationTests {
         #expect(counts == (nestedQuotas ? [2, 4] : [3, 2]))
     }
 
-    @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft])
-    func expandedScenesRenderAfterSelectionAndQuotaChanges(direction: LayoutDirection) async throws {
+    @Test(arguments: [false, true])
+    func magpieListsCanBuildOffMainQueue(nestedWindows: Bool) async throws {
+        let accounts = try await IslandMagpieFixture().quotas()
+        let lists = islandListProbes(in: MagpieQuotaAccounts(accounts: accounts).body)
+        #expect(lists.count == 2)
+        let accountList = try #require(lists.last)
+        let probes = nestedWindows ? accountList.content.nestedLists() : lists
+        #expect(probes.count == 2)
+
+        let counts = await Task.detached { probes.map { $0.content.buildRows() } }.value
+        #expect(counts == (nestedWindows ? [2, 1] : [2, 2]))
+    }
+
+    @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft], [false, true])
+    func expandedScenesRenderAfterSelectionAndQuotaChanges(direction: LayoutDirection, magpie: Bool) async throws {
         _ = NSApplication.shared
         _ = try #require(NSScreen.main)
         let suite = "IslandRenderingTests.\(UUID())"
@@ -43,7 +56,7 @@ struct IslandListIsolationTests {
         // 初始化前写入隔离偏好，避免 language.didSet 修改进程全局 L10n。
         defaults.set((direction == .rightToLeft ? AppLanguage.arabic : .english).rawValue,
                      forKey: AppSettings.languageKey)
-        let app = await appModel(defaults: defaults)
+        let app = await appModel(defaults: defaults, magpie: magpie)
         defer { app.aiUsage.stop() }
         let model = IslandModel()
         model.presentation = .expanded
@@ -68,7 +81,7 @@ struct IslandListIsolationTests {
         }
     }
 
-    private func appModel(defaults: UserDefaults) async -> AppModel {
+    private func appModel(defaults: UserDefaults, magpie: Bool = false) async -> AppModel {
         let settings = AppSettings(defaults: defaults)
         settings.historyEnabled = false
         settings.enabledAlerts = []
@@ -77,9 +90,31 @@ struct IslandListIsolationTests {
         let app = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [
             IslandQuotaFixture(id: .codex, kinds: [.session, .weekly]),
             IslandQuotaFixture(id: .claude, kinds: [.session, .weekly, .opusWeekly, .sonnetWeekly]),
-        ])
+        ], magpieClient: magpie ? IslandMagpieFixture() : nil)
         await app.aiUsage.refresh()
         return app
+    }
+}
+
+private struct IslandMagpieFixture: MagpieFetching {
+    func quotas() async throws -> [MagpieQuota] {
+        try MagpieClient.decodeQuotas(Data(#"""
+        {"object":"list","data":[
+            {"provider":"codex","name":"Demo account","kind":"subscription","windows":[
+                {"name":"5 hours","used":25,"remaining":75},
+                {"name":"7 days","used":40,"remaining":60}],
+             "resets":{"count":2,"each":[{"until":"2099-10-20T12:00:00Z"},{"until":"2099-11-20T12:00:00Z"}]}},
+            {"provider":"codex","name":"Second demo account","kind":"subscription","windows":[
+                {"name":"7 days","used":10,"remaining":90}]},
+            {"provider":"claude","name":"Other service","kind":"subscription","windows":[]}
+        ]}
+        """#.utf8))
+    }
+
+    func usage(period: MagpiePeriod) async throws -> MagpieUsageSummary {
+        try MagpieClient.decodeUsage(Data("""
+        {"period":"\(period.rawValue)","bucket":"hour","input":100,"output":20,"calls":1,"cost":0.25,"models":[],"series":[]}
+        """.utf8), period: period)
     }
 }
 

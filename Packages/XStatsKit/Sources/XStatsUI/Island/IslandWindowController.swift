@@ -52,6 +52,7 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     func refreshLanguage() {
         panel?.title = tr("灵动岛")
         statusItem?.button?.toolTip = tr("灵动岛")
+        statusItem?.button?.image?.accessibilityDescription = tr("灵动岛")
     }
 
     func stop() {

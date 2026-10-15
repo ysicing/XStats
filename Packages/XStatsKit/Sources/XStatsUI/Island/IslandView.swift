@@ -168,7 +168,7 @@ struct IslandView: View {
                     Image(systemName: "waveform.path.ecg").font(.system(size: 28)).foregroundStyle(.mint)
                 }
                 HStack(spacing: 10) {
-                    metric(tr("内存"), value: settings.isModuleEnabled(.memory) ? appModel.store.memory.map { Format.bytes($0.used) } ?? "—" : tr("尚未启用"))
+                    metric(tr("内存"), value: settings.isModuleEnabled(.memory) ? appModel.store.memory.map { Format.bytes($0.used, locale: L10n.locale) } ?? "—" : tr("尚未启用"))
                     metric(tr("温度"), value: temperature)
                     metric(tr("功耗"), value: settings.isModuleEnabled(.battery) ? appModel.store.power?.system.map(Format.watts) ?? "—" : tr("尚未启用"))
                 }

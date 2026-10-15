@@ -40,11 +40,11 @@ public enum Format {
         return "\(share.formatted(.number.precision(.fractionLength(1))))%"
     }
 
-    public static func bytes(_ value: UInt64, base: ByteBase = .binary) -> String {
-        bytes(Double(value), base: base)
+    public static func bytes(_ value: UInt64, base: ByteBase = .binary, locale: Locale = .current) -> String {
+        bytes(Double(value), base: base, locale: locale)
     }
 
-    public static func bytes(_ value: Double, base: ByteBase = .binary) -> String {
+    public static func bytes(_ value: Double, base: ByteBase = .binary, locale: Locale = .current) -> String {
         let step: Double = base == .binary ? 1024 : 1000
         var amount = max(0, value)
         var index = 0
@@ -52,9 +52,9 @@ public enum Format {
             amount /= step
             index += 1
         }
-        if index == 0 { return "\(Int(amount)) B" }
+        if index == 0 { return "\(Int(amount).formatted(.number.grouping(.never).locale(locale))) B" }
         let digits = amount >= 100 ? 0 : 1
-        return "\(amount.formatted(.number.precision(.fractionLength(digits)))) \(units[index])"
+        return "\(amount.formatted(.number.precision(.fractionLength(digits)).locale(locale))) \(units[index])"
     }
 
     /// 菜单栏网速：保留完整单位，数字最多 3 位，宽度稳定

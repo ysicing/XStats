@@ -52,6 +52,16 @@ struct FormatTests {
         #expect(Format.bytes(UInt64(412_000_000_000), base: .decimal) == "412 GB")
     }
 
+    @Test(arguments: ["en_US", "de_DE", "ar_EG"])
+    func bytesUsesExplicitLocale(identifier: String) {
+        let locale = Locale(identifier: identifier)
+        let fractional = 1.5.formatted(.number.precision(.fractionLength(1)).locale(locale))
+        #expect(Format.bytes(UInt64(1536), locale: locale) == fractional + " KB")
+        #expect(Format.bytes(1500.0, base: .decimal, locale: locale) == fractional + " KB")
+        let bytes = 1000.formatted(.number.grouping(.never).locale(locale))
+        #expect(Format.bytes(UInt64(1000), locale: locale) == bytes + " B")
+    }
+
     @Test func formatsProcessCPU() {
         // 单核口径：一个核跑满是 100%，多线程可以超过
         #expect(Format.coreShare(0.995) == "99.5%")
