@@ -11,6 +11,13 @@ public struct ScreenCaptureSource: @unchecked Sendable {
     public let pixelSize: CGSize
     public let displayID: CGDirectDisplayID
     public let windowID: CGWindowID?
+    private let windowFrame: CGRect?
+    public var captureFrame: CGRect {
+        if let windowFrame { return windowFrame }
+        let displayFrame = CGDisplayBounds(displayID)
+        return sourceRect?.offsetBy(dx: displayFrame.minX, dy: displayFrame.minY) ?? displayFrame
+    }
+    public let targetName: String?
     public init(display: SCDisplay, excludedApps: [SCRunningApplication] = [], excludedWindows: [SCWindow] = [], region: CaptureGeometry.Region? = nil) {
         self.display = display
         filter = excludedApps.isEmpty
@@ -20,6 +27,8 @@ public struct ScreenCaptureSource: @unchecked Sendable {
         let scale = CGFloat(filter.pointPixelScale)
         pixelSize = region?.pixelSize ?? CGSize(width: filter.contentRect.width * scale, height: filter.contentRect.height * scale)
         displayID = display.displayID; windowID = nil
+        windowFrame = nil
+        targetName = nil
     }
     public init(window: SCWindow, displayID: CGDirectDisplayID) {
         display = nil
@@ -28,6 +37,8 @@ public struct ScreenCaptureSource: @unchecked Sendable {
         let scale = CGFloat(filter.pointPixelScale)
         pixelSize = CGSize(width: filter.contentRect.width * scale, height: filter.contentRect.height * scale)
         self.displayID = displayID; windowID = window.windowID
+        windowFrame = window.frame
+        targetName = window.title.flatMap { $0.isEmpty ? nil : $0 } ?? window.owningApplication?.applicationName
     }
     /// Only display/region filters need window exclusions; an independent window
     /// filter already limits capture to the selected target.
@@ -52,8 +63,13 @@ public struct ScreenCaptureSource: @unchecked Sendable {
         configuration.colorSpaceName = CGColorSpace.sRGB
         return configuration
     }
-    public func screenshot() async throws -> CGImage {
+    public func screenshot(maximumDimension: CGFloat? = nil) async throws -> CGImage {
         let configuration = configuration(recording: false)
+        if let maximumDimension, maximumDimension > 0 {
+            let ratio = min(1, maximumDimension / max(pixelSize.width, pixelSize.height))
+            configuration.width = max(1, Int(pixelSize.width * ratio))
+            configuration.height = max(1, Int(pixelSize.height * ratio))
+        }
         return try await Self.screenshot { completion in
             SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration, completionHandler: completion)
         }

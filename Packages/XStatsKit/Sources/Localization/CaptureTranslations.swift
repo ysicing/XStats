@@ -73,8 +73,8 @@ extension Translations {
 开始录屏	Start recording
 重新选择	Reselect
 {} × {} 像素	{} × {} pixels
-拖动选框移动，拖动边缘调整，按 Return 确认	Drag inside to move, drag an edge to resize; Return confirms
-已选择范围，按 Return 确认，Esc 取消	Target selected; Return confirms, Esc cancels
+拖动选框移动，拖动边缘调整，按回车确认	Drag inside to move, drag an edge to resize; Return confirms
+已选择范围，按回车确认，Esc 取消	Target selected; Return confirms, Esc cancels
 截图标注与屏幕录制	Screenshot annotation and screen recording
 截图与录屏	Screenshots and recordings
 选择范围后，倒计时 3 秒开始录制。	Recording starts after a 3-second countdown.
@@ -86,7 +86,6 @@ extension Translations {
 截取区域	Capture area
 截取窗口	Capture window
 截取屏幕	Capture screen
-确认捕获范围和声音设置后，开始录制。	Confirm the target and audio settings, then start recording.
 关闭设置	Close settings
 选择	Select
 颜色	Color
@@ -107,7 +106,7 @@ extension Translations {
 黑色	Black
 标注画布	Annotation canvas
 拖动标注移动，拖动控制点调整；双击文字编辑，Delete 删除。	Drag to move, drag handles to resize; double-click text to edit, Delete to remove.
-点击图片输入文字，Return 完成，Esc 取消。	Click the image to type; Return finishes, Esc cancels.
+点击图片输入文字，按回车完成，Esc 取消。	Click the image to type; Return finishes, Esc cancels.
 点击标注选中，拖动移动；Esc 取消选择。	Click an annotation to select, drag to move; Esc deselects.
 在图片上拖动绘制，Esc 取消。	Drag on the image to draw; Esc cancels.
 点击设置快捷键；Delete 清除，Esc 取消。	Click to set a shortcut; Delete clears, Esc cancels.
@@ -121,5 +120,8 @@ extension Translations {
 正在使用独立版。	Using the standalone app.
 未找到独立版，可改用内置版。	Standalone app not found. You can switch to built-in tools.
 请先完成并关闭内置截图或录屏窗口，再切换。	Finish your work and close the built-in capture windows before switching.
+正在预览窗口…	Loading window preview…
+窗口预览未完成，请重新选择。	Window preview failed. Select the window again.
+目标窗口当前不可见	The target window is not currently visible
 """#
 }

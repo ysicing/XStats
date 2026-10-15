@@ -181,6 +181,12 @@ struct RecordingControlView: View {
             Text(title)
                 .font(.title2.monospacedDigit())
                 .fixedSize(horizontal: false, vertical: true)
+            if let target = controller.recordingTargetName {
+                Text(target).font(.caption).lineLimit(2).truncationMode(.middle)
+                if !controller.targetWindowVisible {
+                    Text(tr("目标窗口当前不可见")).font(.caption).foregroundStyle(.secondary)
+                }
+            }
             if let error = controller.error { Text(error).font(.caption).foregroundStyle(.secondary) }
             HStack {
                 if controller.countdown > 0 {

@@ -15,6 +15,10 @@ public enum CaptureGeometry {
         let source = CGRect(x: rect.minX - display.minX, y: display.maxY - rect.maxY, width: rect.width, height: rect.height)
         return Region(sourceRect: source, pixelSize: CGSize(width: (rect.width * scale).rounded(), height: (rect.height * scale).rounded()))
     }
+    /// Quartz uses a top-left origin anchored to the primary display.
+    public static func appKitFrame(_ quartzFrame: CGRect, primaryHeight: CGFloat) -> CGRect {
+        CGRect(x: quartzFrame.minX, y: primaryHeight - quartzFrame.maxY, width: quartzFrame.width, height: quartzFrame.height)
+    }
     public static func recordingSize(_ original: CGSize) -> CGSize {
         let ratio = min(1, 3840 / max(2, original.width, original.height))
         return CGSize(width: max(2, floor(original.width * ratio / 2) * 2), height: max(2, floor(original.height * ratio / 2) * 2))

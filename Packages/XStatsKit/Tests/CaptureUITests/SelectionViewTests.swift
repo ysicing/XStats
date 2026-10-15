@@ -7,6 +7,29 @@ import Testing
 @testable import CaptureUI
 
 @Suite @MainActor struct SelectionViewTests {
+    @Test(arguments: [CaptureMode.region, .display])
+    func highlightedInteriorRetainsAlphaForMouseEvents(_ mode: CaptureMode) throws {
+        let (view, window) = makeView(mode: mode, action: .screenshot)
+        defer { window.close() }
+        view.mouseDown(with: try mouse(.leftMouseDown, at: CGPoint(x: 100, y: 100), window: window))
+        view.mouseUp(with: try mouse(.leftMouseUp, at: CGPoint(x: 300, y: 300), window: window))
+        try #require(view.isReady)
+        let bitmap = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 500, pixelsHigh: 400,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0))
+        let context = try #require(NSGraphicsContext(bitmapImageRep: bitmap))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        view.draw(view.bounds)
+        NSGraphicsContext.restoreGraphicsState()
+        // The selected area must remain almost clear, but alpha zero would make
+        // WindowServer pass its clicks through to the underlying application.
+        for point in [CGPoint(x: 160, y: 160), CGPoint(x: 240, y: 240)] {
+            let alpha = try #require(bitmap.colorAt(x: Int(point.x), y: Int(point.y))).alphaComponent
+            #expect(alpha > 0)
+            #expect(alpha < 0.02)
+        }
+    }
     @Test(arguments: [CaptureRequest.Action.screenshot, .record])
     func regionStaysEditableUntilExplicitConfirmation(_ action: CaptureRequest.Action) throws {
         let (view, window) = makeView(mode: .region, action: action)

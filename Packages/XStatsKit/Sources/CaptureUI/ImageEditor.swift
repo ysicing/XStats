@@ -322,7 +322,7 @@ private struct ImageEditorView: View {
     }
     private var instruction: String {
         if model.selected != nil { return tr("拖动标注移动，拖动控制点调整；双击文字编辑，Delete 删除。") }
-        if model.tool == .text { return tr("点击图片输入文字，Return 完成，Esc 取消。") }
+        if model.tool == .text { return tr("点击图片输入文字，按回车完成，Esc 取消。") }
         if model.tool == nil { return tr("点击标注选中，拖动移动；Esc 取消选择。") }
         return tr("在图片上拖动绘制，Esc 取消。")
     }

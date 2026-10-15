@@ -82,7 +82,10 @@ import Localization
         eventMonitor = nil
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil; activeView = nil
-        for panel in panels { panel.orderOut(nil); panel.close() }
+        for panel in panels {
+            (panel.contentView as? SelectionView)?.resetSelection()
+            panel.orderOut(nil); panel.close()
+        }
         panels.removeAll()
         let continuation = self.continuation; self.continuation = nil
         continuation?.resume(returning: source)
@@ -114,11 +117,13 @@ import Localization
     private let controls = NSStackView()
     private let dimensions = NSTextField(labelWithString: "")
     private let confirm = NSButton()
+    private let windowPreview = SelectionWindowPreview()
+    private let targetName = NSTextField(labelWithString: "")
     var isReady: Bool {
         guard !completed else { return false }
         return switch mode {
         case .region: region.isReady
-        case .window: selectedWindow != nil
+        case .window: selectedWindow != nil && windowPreview.image != nil
         case .display: selectedDisplay
         }
     }
@@ -148,6 +153,14 @@ import Localization
         dimensions.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         dimensions.lineBreakMode = .byTruncatingTail
         controls.addArrangedSubview(dimensions)
+        if mode == .window {
+            targetName.font = .systemFont(ofSize: 12, weight: .medium)
+            targetName.lineBreakMode = .byTruncatingMiddle
+            targetName.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            targetName.widthAnchor.constraint(lessThanOrEqualToConstant: 200).isActive = true
+            controls.addArrangedSubview(targetName)
+        }
+        windowPreview.onChange = { [weak self] in self?.updatePresentation() }
         confirm.title = action == .record ? localized("开始录屏") : localized("截图")
         confirm.bezelStyle = .rounded; confirm.controlSize = .large
         confirm.target = self; confirm.action = #selector(confirmSelection)
@@ -200,6 +213,7 @@ import Localization
         case .display:
             selectedDisplay = true
         case .window:
+            guard selectedWindow == nil else { return }
             let point = quartzPoint(event)
             guard let candidate = windows.first(where: { $0.frame.contains(point) }) else { return }
             selectedWindow = candidate; hovered = nil
@@ -208,6 +222,13 @@ import Localization
         }
         onActivate(self)
         updatePresentation()
+        if let selectedWindow {
+            let source = ScreenCaptureSource(window: selectedWindow, displayID: 0)
+            windowPreview.load {
+                // The preview has a bounded pixel budget and no live stream.
+                try await source.screenshot(maximumDimension: 1600)
+            }
+        }
     }
     override func mouseDragged(with event: NSEvent) {
         guard mode == .region, !completed else { return }
@@ -222,6 +243,7 @@ import Localization
     @objc func confirmSelection() {
         guard isReady else { return }
         completed = true
+        windowPreview.reset()
         if mode == .window { onSelection(nil, selectedWindow) }
         else if mode == .region, let rect = region.rect {
             onSelection(rect.offsetBy(dx: screenFrame.minX, dy: screenFrame.minY), nil)
@@ -230,6 +252,7 @@ import Localization
     @objc private func reselect() { onReset() }
     @objc private func cancelSelection() { onCancel() }
     func resetSelection() {
+        windowPreview.reset()
         region.reset(); selectedWindow = nil; hovered = nil; selectedDisplay = false
         updatePresentation()
     }
@@ -238,15 +261,24 @@ import Localization
         if mode == .display { return selectedDisplay ? bounds : nil }
         guard let window = selectedWindow ?? hovered else { return nil }
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
-        return CGRect(x: window.frame.minX - screenFrame.minX, y: primaryHeight - window.frame.maxY - screenFrame.minY,
-                      width: window.frame.width, height: window.frame.height)
+        let target = CaptureGeometry.appKitFrame(window.frame, primaryHeight: primaryHeight)
+            .offsetBy(dx: -screenFrame.minX, dy: -screenFrame.minY)
+        return selectedWindow != nil ? SelectionWindowPreview.fittedFrame(target: target, in: bounds) : target
     }
     private func updatePresentation() {
         needsDisplay = true
-        toolbar.isHidden = !isReady
-        guard isReady, let highlight else { return }
-        let width = Int((highlight.width * scale).rounded()).formatted(.number.locale(L10n.locale(for: language)))
-        let height = Int((highlight.height * scale).rounded()).formatted(.number.locale(L10n.locale(for: language)))
+        let hasDraft = mode == .window ? selectedWindow != nil && !completed : isReady
+        toolbar.isHidden = !hasDraft
+        confirm.isEnabled = isReady
+        guard hasDraft, let highlight else { return }
+        let pixelSize = selectedWindow.map { window in
+            let source = ScreenCaptureSource(window: window, displayID: 0)
+            return source.pixelSize
+        } ?? CGSize(width: highlight.width * scale, height: highlight.height * scale)
+        targetName.stringValue = selectedWindow?.title.flatMap { $0.isEmpty ? nil : $0 } ?? selectedWindow?.owningApplication?.applicationName ?? ""
+        targetName.toolTip = targetName.stringValue
+        let width = Int(pixelSize.width.rounded()).formatted(.number.locale(L10n.locale(for: language)))
+        let height = Int(pixelSize.height.rounded()).formatted(.number.locale(L10n.locale(for: language)))
         dimensions.stringValue = localized("\(width) × \(height) 像素")
         let size = CGSize(width: min(bounds.width - 32, controls.fittingSize.width + 28), height: 58)
         // 优先放在选框外；贴近屏幕边缘时移到框内，始终留在当前显示器上。
@@ -260,7 +292,12 @@ import Localization
     override func draw(_ dirtyRect: NSRect) {
         NSColor.black.withAlphaComponent(0.28).setFill(); bounds.fill()
         if let highlight {
-            NSColor.clear.setFill(); highlight.fill(using: .copy)
+            // Fully transparent pixels let WindowServer send clicks to the window
+            // below us. Keep the highlight visually clear while retaining its hit area.
+            NSColor.black.withAlphaComponent(0.01).setFill(); highlight.fill(using: .copy)
+            if let image = windowPreview.image {
+                NSImage(cgImage: image, size: highlight.size).draw(in: highlight)
+            }
             let border = NSBezierPath(rect: highlight.insetBy(dx: 0.5, dy: 0.5))
             border.lineWidth = 2; NSColor.white.setStroke(); border.stroke()
             if mode == .region, region.isReady {
@@ -273,8 +310,12 @@ import Localization
             }
         }
         let text: String
-        if isReady || region.isAdjusting {
-            text = mode == .region ? localized("拖动选框移动，拖动边缘调整，按 Return 确认") : localized("已选择范围，按 Return 确认，Esc 取消")
+        if mode == .window, windowPreview.loading {
+            text = localized("正在预览窗口…")
+        } else if mode == .window, let error = windowPreview.error {
+            text = error == .screenPermission ? error.localizedDescription : localized("窗口预览未完成，请重新选择。")
+        } else if isReady || region.isAdjusting {
+            text = mode == .region ? localized("拖动选框移动，拖动边缘调整，按回车确认") : localized("已选择范围，按回车确认，Esc 取消")
         } else {
             text = switch mode {
             case .region: localized("拖动选择区域，按 Esc 取消")

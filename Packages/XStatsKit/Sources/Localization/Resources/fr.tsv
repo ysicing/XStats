@@ -2138,8 +2138,8 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 开始录屏	Démarrer l’enregistrement
 重新选择	Sélectionner à nouveau
 {} × {} 像素	{} × {} pixels
-拖动选框移动，拖动边缘调整，按 Return 确认	Faites glisser l’intérieur pour déplacer ou un bord pour redimensionner ; Retour confirme
-已选择范围，按 Return 确认，Esc 取消	Zone sélectionnée ; Retour confirme, Échap annule
+拖动选框移动，拖动边缘调整，按回车确认	Faites glisser l’intérieur pour déplacer ou un bord pour redimensionner ; Retour confirme
+已选择范围，按回车确认，Esc 取消	Zone sélectionnée ; Retour confirme, Échap annule
 麦克风录制中断，请检查设备连接后重试。	L’enregistrement du microphone a été interrompu. Vérifiez la connexion de l’appareil et réessayez.
 录制未能停止，请重试。	L’enregistrement n’a pas pu être arrêté. Réessayez.
 截图标注与屏幕录制	Annotez vos captures et enregistrez l’écran
@@ -2153,7 +2153,6 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 截取区域	Capturer une zone
 截取窗口	Capturer une fenêtre
 截取屏幕	Capturer l’écran
-确认捕获范围和声音设置后，开始录制。	Vérifiez la cible et l’audio, puis démarrez l’enregistrement.
 关闭设置	Fermer les réglages
 选择	Sélection
 颜色	Couleur
@@ -2174,7 +2173,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 黑色	Noir
 标注画布	Zone d’annotation
 拖动标注移动，拖动控制点调整；双击文字编辑，Delete 删除。	Glissez pour déplacer, utilisez les poignées pour redimensionner. Double-cliquez le texte pour modifier, Delete pour supprimer.
-点击图片输入文字，Return 完成，Esc 取消。	Cliquez sur l’image pour écrire. Return valide, Esc annule.
+点击图片输入文字，按回车完成，Esc 取消。	Cliquez sur l’image pour écrire. Return valide, Esc annule.
 点击标注选中，拖动移动；Esc 取消选择。	Cliquez une annotation pour sélectionner, glissez pour déplacer. Esc désélectionne.
 在图片上拖动绘制，Esc 取消。	Glissez sur l’image pour dessiner. Esc annule.
 点击设置快捷键；Delete 清除，Esc 取消。	Cliquer pour définir ; Suppr efface, Échap annule.
@@ -2243,3 +2242,6 @@ CPU 占用口径	Échelle d’utilisation du CPU
 系统指标	Indicateurs système
 收起时显示首个已选指标。	Le premier indicateur sélectionné apparaît dans la vue réduite.
 仅选择灵动岛显示的内容；未启用的功能需先在主应用中开启。	Choisissez le contenu de Dynamic Island. Activez d’abord les fonctions désactivées dans l’application principale.
+正在预览窗口…	Chargement de l’aperçu de la fenêtre…
+窗口预览未完成，请重新选择。	L’aperçu a échoué. Sélectionnez à nouveau la fenêtre.
+目标窗口当前不可见	La fenêtre cible n’est pas visible actuellement

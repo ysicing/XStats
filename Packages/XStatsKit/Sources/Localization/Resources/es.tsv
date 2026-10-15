@@ -2138,8 +2138,8 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 开始录屏	Iniciar grabación
 重新选择	Volver a seleccionar
 {} × {} 像素	{} × {} píxeles
-拖动选框移动，拖动边缘调整，按 Return 确认	Arrastra dentro para mover o un borde para ajustar el tamaño; Intro confirma
-已选择范围，按 Return 确认，Esc 取消	Área seleccionada; Intro confirma, Esc cancela
+拖动选框移动，拖动边缘调整，按回车确认	Arrastra dentro para mover o un borde para ajustar el tamaño; Intro confirma
+已选择范围，按回车确认，Esc 取消	Área seleccionada; Intro confirma, Esc cancela
 麦克风录制中断，请检查设备连接后重试。	Se interrumpió la grabación del micrófono. Comprueba la conexión del dispositivo e inténtalo de nuevo.
 录制未能停止，请重试。	No se pudo detener la grabación. Inténtalo de nuevo.
 截图标注与屏幕录制	Anota capturas y graba la pantalla
@@ -2153,7 +2153,6 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 截取区域	Capturar un área
 截取窗口	Capturar una ventana
 截取屏幕	Capturar la pantalla
-确认捕获范围和声音设置后，开始录制。	Confirma el destino y el audio y comienza la grabación.
 关闭设置	Cerrar ajustes
 选择	Seleccionar
 颜色	Color
@@ -2174,7 +2173,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 黑色	Negro
 标注画布	Lienzo de anotación
 拖动标注移动，拖动控制点调整；双击文字编辑，Delete 删除。	Arrastra para mover y usa los controles para cambiar el tamaño. Doble clic para editar texto y Delete para eliminar.
-点击图片输入文字，Return 完成，Esc 取消。	Haz clic en la imagen para escribir. Return confirma y Esc cancela.
+点击图片输入文字，按回车完成，Esc 取消。	Haz clic en la imagen para escribir. Return confirma y Esc cancela.
 点击标注选中，拖动移动；Esc 取消选择。	Haz clic para seleccionar y arrastra para mover. Esc quita la selección.
 在图片上拖动绘制，Esc 取消。	Arrastra sobre la imagen para dibujar. Esc cancela.
 点击设置快捷键；Delete 清除，Esc 取消。	Haz clic para configurar; Supr borra y Esc cancela.
@@ -2243,3 +2242,6 @@ CPU 占用口径	Escala de uso de CPU
 系统指标	Métricas del sistema
 收起时显示首个已选指标。	Al contraerse, se muestra la primera métrica seleccionada.
 仅选择灵动岛显示的内容；未启用的功能需先在主应用中开启。	Elige qué muestra Dynamic Island. Activa primero las funciones deshabilitadas en la aplicación principal.
+正在预览窗口…	Cargando vista previa de la ventana…
+窗口预览未完成，请重新选择。	No se pudo mostrar la vista previa. Selecciona de nuevo la ventana.
+目标窗口当前不可见	La ventana seleccionada no está visible actualmente

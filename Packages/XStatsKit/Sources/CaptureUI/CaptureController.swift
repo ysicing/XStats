@@ -28,6 +28,8 @@ import Localization
         }
     }
     @Published var paused = false
+    @Published private(set) var recordingTargetName: String?
+    @Published private(set) var targetWindowVisible = true
     @Published var countdown = 0
     @Published var transitioning = false
     @Published var exporting = false
@@ -47,6 +49,8 @@ import Localization
     private var editors: [ImageEditorWindow] = []
     private var pins: [(window: NSWindow, image: CGImage)] = []
     private let selector = CaptureSelection()
+    private let rangeIndicator = RecordingRangeIndicator()
+    private var targetWindowState: CaptureWindowState?
     private let exporter = RecordingExporter()
     private var recorder: ScreenRecorder?
     private var operation: Task<Void, Never>?
@@ -85,6 +89,8 @@ import Localization
                 let displays = Set(NSScreen.screens.compactMap { $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32 })
                 if Self.shouldInterruptForDisplayChange(displayID: source.displayID, windowID: source.windowID, availableDisplays: displays) {
                     self.interruptRecording()
+                } else {
+                    self.updateRecordingRange()
                 }
             }
         })
@@ -104,6 +110,7 @@ import Localization
     }
     func cleanUp() {
         operation?.cancel(); cacheCleanup?.cancel(); selector.cancel(); player?.pause()
+        rangeIndicator.close()
         if host == .standalone { shortcuts.stop() }
         for observer in observers {
             NotificationCenter.default.removeObserver(observer)
@@ -217,16 +224,14 @@ import Localization
         captureAction = action
         if external, action == .record {
             showHome()
-            error = tr("确认捕获范围和声音设置后，开始录制。")
             return
         }
-        if home == nil { showHome() }
         do { try state.transition(to: .selecting) } catch { return }
-        busy = true; error = nil; permissionError = nil
+        busy = true; paused = false; error = nil; permissionError = nil
         terminalRecordingError = nil; stopRetryError = false
         let mode = mode
         var options = RecordingOptions(); options.systemAudio = systemAudio; options.microphone = microphone
-        operation = Task {
+        operation = Task { [self] in
             do {
                 if action == .record, options.microphone { try await ScreenRecorder.requestMicrophone() }
                 let content = try await ScreenCaptureSource.content(onScreenWindowsOnly: host == .standalone)
@@ -236,19 +241,24 @@ import Localization
                 guard var source = try await selector.select(mode: mode, action: action, content: content, exclusion: exclusion) else { resetOperation(); showHome(); return }
                 try Task.checkCancellation()
                 selectedSource = source
+                recordingTargetName = source.targetName
+                targetWindowVisible = true; targetWindowState = nil
                 if action == .screenshot {
                     let image = try await source.screenshot()
                     try Task.checkCancellation()
                     try state.transition(to: .preview)
                     openEditor(image)
                     try state.transition(to: .idle)
-                    busy = false; selectedSource = nil
+                    busy = false; selectedSource = nil; recordingTargetName = nil
                     home?.close()
                     Self.logger.notice("Screenshot completed")
                 } else {
                     try state.transition(to: .countdown)
-                    control = makeWindow(title: tr("录屏"), size: CGSize(width: 260, height: 130), content: RecordingControlView(controller: self), resizable: false)
-                    control?.level = .floating; control?.makeKeyAndOrderFront(nil); onWindowsChanged()
+                    let controlSize = source.windowID == nil ? CGSize(width: 260, height: 130) : CGSize(width: 320, height: 210)
+                    control = makeWindow(title: tr("录屏"), size: controlSize, content: RecordingControlView(controller: self), resizable: false)
+                    control?.level = .floating
+                    updateRecordingRange()
+                    control?.makeKeyAndOrderFront(nil); onWindowsChanged()
                     for count in stride(from: 3, through: 1, by: -1) {
                         countdown = count
                         try await Task.sleep(for: .seconds(1))
@@ -265,6 +275,12 @@ import Localization
                     try state.transition(to: .starting)
                     let recorder = ScreenRecorder(media: try RecordingMedia())
                     self.recorder = recorder; recordingSaved = false
+                    recorder.onTargetWindowChanged = { [weak self] windowState in
+                        guard let self, self.targetWindowState != windowState else { return }
+                        self.targetWindowState = windowState
+                        self.targetWindowVisible = windowState.isOnScreen
+                        self.updateRecordingRange()
+                    }
                     recorder.onFailure = { [weak self, weak recorder] error in
                         guard let self, let recorder, self.recorder === recorder,
                               self.busy, !self.finishing, !self.terminating else { return }
@@ -284,6 +300,7 @@ import Localization
                     }
                     try state.transition(to: .recording)
                     transitioning = false; paused = false
+                    updateRecordingRange()
                 }
             } catch is CancellationError { resetOperation(); showHome() }
             catch {
@@ -296,8 +313,19 @@ import Localization
     }
     private func resetOperation() {
         if state.phase != .idle { try? state.transition(to: .idle) }
-        busy = false; countdown = 0; transitioning = false; selectedSource = nil
+        busy = false; paused = false; countdown = 0; transitioning = false; selectedSource = nil
+        recordingTargetName = nil; targetWindowState = nil; targetWindowVisible = true
+        rangeIndicator.close()
         control?.close(); control = nil
+    }
+    private func updateRecordingRange() {
+        guard let source = selectedSource, source.sourceRect != nil || source.windowID != nil else { return }
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        let frame = CaptureGeometry.appKitFrame(targetWindowState?.frame ?? source.captureFrame, primaryHeight: primaryHeight)
+        rangeIndicator.update(frame: frame, paused: paused, visible: targetWindowVisible)
+        guard targetWindowVisible, let control, !control.isVisible else { return }
+        control.setFrame(RecordingRangeIndicator.controlFrame(size: control.frame.size, target: frame,
+            screens: NSScreen.screens.map(\.visibleFrame)), display: false)
     }
     func cancelCountdown() { operation?.cancel(); selector.cancel() }
     func togglePause() {
@@ -311,6 +339,7 @@ import Localization
                     try state.transition(to: .pausing); try await recorder.pause(); try state.transition(to: .paused)
                 }
                 paused.toggle(); transitioning = false
+                updateRecordingRange()
             } catch is CancellationError { transitioning = false }
             catch {
                 let failure = CaptureError.recordingFailure(error)
@@ -374,7 +403,9 @@ import Localization
             terminalRecordingError = terminalRecordingError ?? failure
         }
         guard !terminating, !Task.isCancelled else { return }
+        rangeIndicator.close()
         control?.close(); control = nil; selectedSource = nil
+        recordingTargetName = nil; targetWindowState = nil; targetWindowVisible = true
         do { try await showRecordingPreview(recorder) }
         catch {
             self.error = terminalRecordingError?.localizedDescription ?? CaptureError.captureFailed.localizedDescription
@@ -538,7 +569,7 @@ import Localization
     private var windowCount: Int { [home, control, preview].compactMap { $0 }.count + editors.count + pins.count }
     private var captureWindowIDs: Set<CGWindowID> {
         Set(([home, control, preview].compactMap { $0 } + editors.compactMap(\.window) + pins.map(\.window))
-            .map { CGWindowID($0.windowNumber) })
+            .map { CGWindowID($0.windowNumber) }).union(rangeIndicator.windowIDs)
     }
     func considerExit() {
         Task { @MainActor [weak self] in
@@ -551,6 +582,7 @@ import Localization
     func discardAndStop() async {
         terminating = true
         operation?.cancel(); cacheCleanup?.cancel(); selector.cancel(); exporter.cancel()
+        rangeIndicator.close()
         let models = editors.map(\.model)
         for model in models { model.cancelPendingWork(terminating: true) }
         Self.logger.notice("Cancelling capture operations before termination")

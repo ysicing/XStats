@@ -69,6 +69,7 @@ final class MicrophoneCapture: @unchecked Sendable {
     public private(set) var segments: [URL] = []
     public let media: RecordingMedia
     public var onFailure: (CaptureError) -> Void = { _ in }
+    public var onTargetWindowChanged: ((CaptureWindowState) -> Void)?
     private var stream: SCStream?
     private var writer: RecordingWriter?
     private var microphone: MicrophoneCapture?
@@ -101,26 +102,24 @@ final class MicrophoneCapture: @unchecked Sendable {
             if let windowID = source.windowID {
                 // A narrow window-ID lookup runs only while this window recording exists.
                 // ScreenCaptureKit can continue sending blank frames after a window closes.
-                let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+                let interval: TimeInterval = onTargetWindowChanged == nil ? 1 : 0.25
+                let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
                     MainActor.assumeIsolated {
-                        if !Self.isWindowAvailable(windowID) { self?.onFailure(.unavailableTarget) }
+                        guard let self else { return }
+                        if let state = CaptureWindowState.read(windowID) { self.onTargetWindowChanged?(state) }
+                        else { self.onFailure(.unavailableTarget) }
                     }
                 }
-                timer.tolerance = 0.25
+                timer.tolerance = interval / 5
                 targetTimer = timer
                 RunLoop.main.add(timer, forMode: .common)
             }
         } catch { self.source = nil; throw error }
     }
     static func isWindowAvailable(_ windowID: CGWindowID) -> Bool {
-        guard windowID != kCGNullWindowID else { return false }
-        // 此 API 接收无 CF 对象回调的窗口 ID 数组，元素是整数值而非 NSNumber。
-        // 按 ID 查询包含隐藏窗口，避免使用只对上下层窗口列表有意义的 including 选项。
-        var identifier = UnsafeRawPointer(bitPattern: UInt(windowID))
-        guard let identifiers = CFArrayCreate(kCFAllocatorDefault, &identifier, 1, nil) else { return false }
-        let windows = CGWindowListCreateDescriptionFromArray(identifiers) as? [[String: Any]]
-        return windows?.contains { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == windowID } == true
+        CaptureWindowState.read(windowID) != nil
     }
+
     public func resume() async throws {
         guard stream == nil, !transitioning, let source else { throw CaptureError.invalidTransition }
         transitioning = true
@@ -195,8 +194,9 @@ final class MicrophoneCapture: @unchecked Sendable {
         if let captureError { throw captureError }
     }
     public func stop() async throws {
-        targetTimer?.invalidate(); targetTimer = nil
-        defer { if !isCapturing { source = nil } }
+        defer {
+            if !isCapturing { targetTimer?.invalidate(); targetTimer = nil; source = nil }
+        }
         if isCapturing || writer != nil { try await pause() }
     }
     private static func stopStream(_ stream: SCStream) async throws {
