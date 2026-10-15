@@ -190,6 +190,7 @@ private struct CustomLevelControl: View {
             DSSlider(value: $controller.customLevel) {
                 Task { await model.fans.commitCustomLevel() }
             }
+            .disabled(controller.isApplying)
             HStack {
                 Text(tr("安静")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                 Spacer()

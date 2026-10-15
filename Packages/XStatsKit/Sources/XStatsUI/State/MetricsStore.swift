@@ -194,6 +194,12 @@ public final class MetricsStore {
         fanCount = count
     }
 
+    /// 切档后的只读反馈不推进温度、历史或全量快照时间；失败保留最后一次实际转速。
+    func updateFans(_ fans: [FanState]) {
+        guard fanCount != 0, !fans.isEmpty || sensors != nil else { return }
+        mergeSensors(SensorReadings(temperatures: [], fans: fans, fanCount: fanCount))
+    }
+
     /// 不同页面采集的温度分组不同，按组合并，避免切页时数据闪烁
     private func mergeSensors(_ new: SensorReadings) {
         if let count = new.fanCount, count != fanCount { fanCount = count }

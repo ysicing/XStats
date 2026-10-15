@@ -119,6 +119,13 @@ public actor MetricsHub {
     /// 启动时识别风扇硬件，不依赖采样循环是否运行；与传感器采样共用连接与缓存。
     public func detectFanCount() -> Int? { sensors.detectFanCount() }
 
+    /// 切档反馈只读风扇，复用 actor 内的 SMC 连接；不推进其他指标或发布全量快照。
+    /// nil 表示读取方已停用、暂停或停止，调用方应结束短时跟踪。
+    public func sampleFans() -> [FanState]? {
+        guard !Task.isCancelled, !paused, handler != nil, demand.fans else { return nil }
+        return sensors.sample(groups: [], includeFans: true)?.fans
+    }
+
     /// 锁屏、屏幕休眠或系统睡眠时暂停采样
     public func setPaused(_ value: Bool) {
         guard value != paused else { return }

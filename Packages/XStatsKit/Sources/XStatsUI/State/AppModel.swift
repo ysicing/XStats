@@ -119,7 +119,9 @@ public final class AppModel {
             quotaCacheURL: quotaCacheURL, costReferenceStore: .shared, magpieClient: magpie)
         self.store = store
         self.helper = helper
-        fans = FanController(helper: fanControl ?? helper, store: store, settings: settings)
+        let samplingHub = hub
+        fans = FanController(helper: fanControl ?? helper, store: store, settings: settings,
+                             readFans: { await samplingHub.sampleFans() })
         keepAwake = KeepAwakeController(helper: helper, settings: settings)
         cleaner = CleanerController(settings: settings)
         projectPurge = ProjectPurgeController(settings: settings)
@@ -188,6 +190,13 @@ public final class AppModel {
     var displayControlsVisible: Bool {
         settings.isModuleEnabled(.display)
             && (openPopover == .display || (isMainWindowVisible && settings.panelTab == .system))
+    }
+
+    var fanFeedbackVisible: Bool {
+        settings.isModuleEnabled(.thermal) && store.supportsFans
+            && (drawnMenuBarItems.contains(.fan) || openPopover == .fan
+                || (isCombinedOverviewVisible && visibleMenuBarItems.contains(.fan))
+                || (isMainWindowVisible && [.overview, .thermal].contains(settings.panelTab)))
     }
 
     /// 根据当前可见内容决定采集范围：主窗口看标签页，详情弹窗看是哪一项
