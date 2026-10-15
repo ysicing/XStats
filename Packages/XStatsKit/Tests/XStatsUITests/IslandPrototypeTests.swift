@@ -3,6 +3,7 @@
 
 import AppKit
 import Foundation
+import SwiftUI
 @testable import Metrics
 import Testing
 @testable import XStatsUI
@@ -260,6 +261,20 @@ final class IslandWindowLifecycleTests {
         settings.historyEnabled = false
         settings.enabledAlerts = []
         return AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+    }
+
+    @Test(arguments: [0.02, 0.29, 1.0])
+    func collapsedWidthFitsTheNativeLabel(load: Double) {
+        _ = NSApplication.shared
+        let app = appModel()
+        var snapshot = MetricsSnapshot()
+        snapshot.cpu = CPULoad(total: load, user: load, system: 0, perCore: [], loadAverage: [])
+        app.store.apply(snapshot)
+        let model = IslandModel()
+        let view = IslandView(model: model, appModel: app, selectScene: { _ in }, expand: {}, collapse: {}, stop: {})
+        let host = NSHostingView(rootView: view.fixedSize(horizontal: true, vertical: false))
+        let idealWidth = host.fittingSize.width
+        #expect(IslandCompactLayout.width(for: view.compactValue) >= idealWidth)
     }
 
     @Test func preferencesRestoreAndOldBackupsLeaveThemAlone() throws {

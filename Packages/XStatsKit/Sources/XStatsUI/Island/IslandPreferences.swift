@@ -153,9 +153,16 @@ public struct IslandPreferences: Codable, Equatable, Sendable {
 
 /// 同一排文字的测量与渲染使用相同字号；宽度按小步取整，避免个位读数导致细碎抖动。
 enum IslandCompactLayout {
+    static let horizontalPadding: CGFloat = 12
+    static let spacing: CGFloat = 8
+    static let iconWidth: CGFloat = 14
+    static let disclosureWidth: CGFloat = 8
+
     static func width(for value: String) -> CGFloat {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         let textWidth = (value as NSString).size(withAttributes: [.font: font]).width
-        return min(260, max(120, ceil((textWidth + 60) / 8) * 8))
+        // Spacer 两侧也参与 HStack 间距，完整保留三段间距，避免挤掉百分号。
+        let chromeWidth = 2 * horizontalPadding + iconWidth + disclosureWidth + 3 * spacing
+        return min(260, max(120, ceil((textWidth + chromeWidth) / 8) * 8))
     }
 }

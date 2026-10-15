@@ -85,6 +85,44 @@ struct IslandListIsolationTests {
         }
     }
 
+    @Test func compactWidthFitsLocalizedScenesAndMetrics() async {
+        // 使用真实 SwiftUI 理想宽度核对测量结果，语言切换限定在子进程。
+        await #expect(processExitsWith: .success) {
+            try await Self.verifyLocalizedCompactWidths()
+        }
+    }
+
+    private static func verifyLocalizedCompactWidths() async throws {
+        _ = NSApplication.shared
+        let suite = "IslandCompactLayoutTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let app = await Self.appModel(defaults: defaults)
+        defer { app.aiUsage.stop() }
+        let model = IslandModel()
+        let view = IslandView(model: model, appModel: app, selectScene: { _ in }, expand: {}, collapse: {}, stop: {})
+        let host = NSHostingView(rootView: view.fixedSize(horizontal: true, vertical: false))
+        for language in AppLanguage.allCases where language != .system {
+            app.settings.language = language
+            for enabled in [true, false] {
+                app.settings.aiUsageEnabled = enabled
+                app.settings.restEnabled = enabled
+                for module in [MonitoringModule.cpu, .memory, .battery] {
+                    app.settings.setModuleEnabled(module, enabled)
+                }
+                for scene in IslandScene.allCases {
+                    model.scene = scene
+                    for metric in IslandSystemMetric.allCases {
+                        app.settings.islandPreferences.systemMetrics = [metric]
+                        let idealWidth = host.fittingSize.width
+                        #expect(IslandCompactLayout.width(for: view.compactValue) >= idealWidth,
+                                "\(language) \(scene) \(metric): \(view.compactValue)")
+                    }
+                }
+            }
+        }
+    }
+
     @Test(arguments: [false, true])
     func compactAIShowsQuotaWhenTokenUsageIsHidden(magpie: Bool) async throws {
         let suite = "IslandCompactTests.\(UUID())"

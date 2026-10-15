@@ -116,13 +116,14 @@ struct IslandView: View {
             switch model.presentation {
             case .collapsed:
                 Button(action: expand) {
-                    HStack(spacing: 8) {
-                        Image(systemName: model.scene.symbol).foregroundStyle(model.scene.tint).frame(width: 14)
+                    HStack(spacing: IslandCompactLayout.spacing) {
+                        Image(systemName: model.scene.symbol).foregroundStyle(model.scene.tint).frame(width: IslandCompactLayout.iconWidth)
                         Text(compactValue).monospacedDigit().fontWeight(.medium).lineLimit(1)
                         Spacer(minLength: 0)
                         Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+                            .frame(width: IslandCompactLayout.disclosureWidth)
                     }
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, IslandCompactLayout.horizontalPadding)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .contentShape(Rectangle())
                 }
