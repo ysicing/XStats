@@ -514,6 +514,26 @@ struct DiskPopover: View {
 
         DiskHero()
 
+        if !model.diskTools.volumes.isEmpty {
+            SectionCard(title: tr("其他磁盘")) {
+                MainActorForEach(model.diskTools.volumes) { volume in
+                    VStack(alignment: .leading, spacing: DS.Space.s1) {
+                        HStack(spacing: DS.Space.s2) {
+                            Text(verbatim: volume.name).dsFont(.xs, weight: .medium)
+                                .foregroundStyle(DS.Palette.textPrimary).lineLimit(1).truncationMode(.middle)
+                            Spacer(minLength: DS.Space.s1)
+                            Text(verbatim: tr("可用 \(Format.bytes(volume.available, base: .decimal)) / 共 \(Format.bytes(volume.total, base: .decimal))"))
+                                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary).monospacedDigit()
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        ProgressTrack(fraction: volume.usedFraction,
+                                      color: volume.usedFraction > 0.9 ? DS.Palette.warning : DS.Palette.primary,
+                                      height: DS.Space.s1)
+                    }
+                }
+            }
+        }
+
         MainActorForEach(MenuBarItem.disk.popoverSections.filter { settings.isVisible($0) }) { section in
             switch section {
             case .diskActivity:

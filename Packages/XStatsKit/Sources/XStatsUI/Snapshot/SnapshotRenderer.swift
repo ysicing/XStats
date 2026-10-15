@@ -54,7 +54,18 @@ enum SnapshotRenderer {
             snapshot.memory?.swapUsed = 2_147_483_648
             snapshot.network?.downloadBytesPerSecond = 4_000_000
             snapshot.network?.uploadBytesPerSecond = 1_000_000
-            model.store.apply(snapshot)
+            snapshot.disk = DiskUsage(volumeName: "Macintosh HD", total: 1_000_000_000_000,
+                                      available: 400_000_000_000, purgeable: 20_000_000_000)
+            // 曲线使用匿名演示历史；系统读取已停止，不增加截图期间的采样。
+            for index in 0..<60 {
+                snapshot.memory?.app = UInt64(4_000_000_000 + 1_000_000_000 * (1 + sin(Double(index) / 8)))
+                model.store.apply(snapshot)
+            }
+            await model.network.refreshDetails(basicOnly: true)
+            model.network.maskForSnapshot()
+            model.diskTools.showPreview(volumes: [MountedVolume(url: URL(fileURLWithPath: "/Volumes/Demo"),
+                name: "Demo External SSD", total: 2_000_000_000_000, available: 800_000_000_000,
+                isInternal: false, isRemovable: true, isEjectable: true, isLocal: true)])
             for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
                 guard let appearance = NSAppearance(named: name) else { continue }
                 NSApp.appearance = appearance
@@ -73,6 +84,10 @@ enum SnapshotRenderer {
                     .appLanguageEnvironment().padding(DS.Space.s3).frame(width: DS.Size.popoverWidth),
                       model: model, appearance: appearance,
                       to: outputDirectory.appendingPathComponent("summaries-\(suffix).png"))
+                write(VStack(spacing: DS.Space.s3) { DiskPopover() }
+                    .appLanguageEnvironment().padding(DS.Space.s3).frame(width: DS.Size.popoverWidth),
+                      model: model, appearance: appearance,
+                      to: outputDirectory.appendingPathComponent("disk-volumes-\(suffix).png"))
                 write(TemperatureCard().appLanguageEnvironment().padding(DS.Space.s3).frame(width: 600),
                       model: model, appearance: appearance,
                       to: outputDirectory.appendingPathComponent("temperature-\(suffix).png"))

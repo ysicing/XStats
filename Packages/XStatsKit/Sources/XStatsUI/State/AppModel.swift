@@ -310,6 +310,11 @@ public final class AppModel {
         settings.isModuleEnabled(.battery) && isMainWindowVisible && settings.panelTab == .battery
     }
 
+    var diskVolumesVisible: Bool {
+        settings.isModuleEnabled(.disk)
+            && (openPopover == .disk || (isMainWindowVisible && settings.panelTab == .disk))
+    }
+
     /// 网络详情（接口、公网 IP、进程流量）正在显示
     var isNetworkDetailVisible: Bool {
         settings.isModuleEnabled(.network)

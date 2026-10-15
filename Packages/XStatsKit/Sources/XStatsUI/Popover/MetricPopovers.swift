@@ -479,7 +479,7 @@ struct MemoryPopover: View {
     }
 }
 
-/// 内存顶部：可用多少、压力状态、最近一分钟的压力走势
+/// 内存顶部：可用多少、压力状态、最近一分钟的用量走势
 private struct MemoryHero: View {
     @Environment(AppModel.self) private var model
 
@@ -503,9 +503,9 @@ private struct MemoryHero: View {
                 }
             }
             InfoRow(label: tr("交换区"), text: memory.map { Format.bytes($0.swapUsed) } ?? "—")
-            PressureStrip(history: store.pressureHistory.elements)
+            LineHistoryChart(values: store.memoryHistory.elements, color: tone(memory?.pressure).color)
             HStack {
-                Text(tr("压力走势")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+                Text(tr("使用历史")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
                 Spacer()
                 Text(tr("最近 60 秒")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
             }

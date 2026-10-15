@@ -93,6 +93,18 @@ public struct MountedVolume: Sendable, Equatable, Identifiable {
     public let isEjectable: Bool
     public let isLocal: Bool
 
+    public init(url: URL, name: String, total: UInt64, available: UInt64,
+                isInternal: Bool, isRemovable: Bool, isEjectable: Bool, isLocal: Bool) {
+        self.url = url
+        self.name = name
+        self.total = total
+        self.available = available
+        self.isInternal = isInternal
+        self.isRemovable = isRemovable
+        self.isEjectable = isEjectable
+        self.isLocal = isLocal
+    }
+
     public var id: String { url.path }
     public var used: UInt64 { total > available ? total - available : 0 }
     public var usedFraction: Double { total == 0 ? 0 : Double(used) / Double(total) }
@@ -106,6 +118,7 @@ public enum MountedVolumes {
                                          .volumeIsRootFileSystemKey, .volumeIsBrowsableKey, .volumeIsLocalKey]
         let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: Array(keys), options: [.skipHiddenVolumes]) ?? []
         return urls.compactMap { url in
+            guard !Task.isCancelled else { return nil }
             guard let values = try? url.resourceValues(forKeys: keys),
                   values.volumeIsRootFileSystem != true, values.volumeIsBrowsable != false,
                   let total = values.volumeTotalCapacity, total > 0 else { return nil }

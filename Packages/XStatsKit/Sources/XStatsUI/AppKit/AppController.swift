@@ -459,6 +459,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             _ = model.sleepAssertionsVisible
             _ = model.displayControlsVisible
             _ = model.fanFeedbackVisible
+            _ = model.diskVolumesVisible
             _ = model.settings.audioEnabled
             _ = model.audioControlsVisible
             _ = model.audioMenuVisible
@@ -513,6 +514,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
             }
         }
         model.fans.setFeedbackVisible(model.fanFeedbackVisible)
+        model.diskTools.setVolumesVisible(model.diskVolumesVisible)
     }
 
     /// 网络观察的订阅单独闭环，不跨其它采样模块的 await，避免漏掉等待期间的关闭/暂停。
@@ -783,6 +785,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         menuBar.dismissPopovers()
         model.fans.setPaused(true)
         model.network.setPaused(true)
+        model.diskTools.setPaused(true)
         model.aiUsage.setPaused(true)
         model.displays.setPaused(true)
         model.audio.setPaused(true)
@@ -802,6 +805,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         guard !screenLocked else { return }
         model.fans.setPaused(false)
         model.network.setPaused(false)
+        model.diskTools.setPaused(false)
         model.aiUsage.setPaused(false)
         model.displays.setPaused(false)
         model.audio.setPaused(false)
