@@ -136,11 +136,14 @@ public enum MountedVolumes {
         .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
-    /// 网络文件系统可能把 ImportantUsage 报为 0；普通可用容量才反映服务器空闲空间。
-    /// 本地 APFS 保留包含可清除空间的口径，与访达一致。
+    /// ImportantUsage 只在 APFS 上有意义：网络卷、HFS、exFAT 和只读映像会把它报为 0 而不是缺失，
+    /// 因此 0 与 nil 同样视为该口径不可用，回退到另一个口径。
+    /// 本地卷优先使用含可清除空间的 ImportantUsage，与访达一致；网络卷的普通可用容量才反映服务器空闲空间。
     static func availableCapacity(important: Int64?, ordinary: Int?, isLocal: Bool) -> UInt64 {
-        let available = isLocal ? (important ?? ordinary.map(Int64.init)) : (ordinary.map(Int64.init) ?? important)
-        return UInt64(max(0, available ?? 0))
+        let importantValue = important.flatMap { $0 > 0 ? $0 : nil }
+        let ordinaryValue = ordinary.flatMap { $0 > 0 ? Int64($0) : nil }
+        let available = isLocal ? (importantValue ?? ordinaryValue) : (ordinaryValue ?? importantValue)
+        return UInt64(available ?? 0)
     }
 }
 

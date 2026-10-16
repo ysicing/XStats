@@ -15,4 +15,11 @@ struct MountedVolumeCapacityTests {
         #expect(MountedVolumes.availableCapacity(important: nil, ordinary: 100, isLocal: true) == 100)
         #expect(MountedVolumes.availableCapacity(important: -1, ordinary: -1, isLocal: true) == 0)
     }
+
+    /// HFS、exFAT 和只读映像等非 APFS 本地卷会把 ImportantUsage 报为 0，而非缺失。
+    @Test func localVolumesFallBackToOrdinaryCapacityWhenImportantUsageReportsZero() {
+        #expect(MountedVolumes.availableCapacity(important: 0, ordinary: 4_390_912, isLocal: true) == 4_390_912)
+        #expect(MountedVolumes.availableCapacity(important: 0, ordinary: 0, isLocal: true) == 0)
+        #expect(MountedVolumes.availableCapacity(important: 0, ordinary: nil, isLocal: true) == 0)
+    }
 }
