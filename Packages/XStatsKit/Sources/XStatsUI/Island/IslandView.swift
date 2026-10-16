@@ -114,12 +114,25 @@ struct IslandView: View {
         Group {
             switch model.presentation {
             case .collapsed:
+                let account = model.scene == .ai ? reading.quotaAccount : nil
                 Button(action: expand) {
                     HStack(spacing: IslandCompactLayout.spacing) {
                         if let notice = model.powerNotice {
                             Image(systemName: notice.symbol).foregroundStyle(notice == .lowBattery ? .orange : .green)
                                 .frame(width: IslandCompactLayout.iconWidth)
-                        } else if model.scene == .ai, let account = reading.quotaAccount,
+                        } else if let account, let provider = account.provider,
+                                  let name = AIServiceBrand.logoName(provider),
+                                  let logo = LogoCache.shared.image(named: name, template: true) {
+                            Image(nsImage: logo).resizable().scaledToFit()
+                                .frame(width: IslandCompactLayout.iconWidth, height: IslandCompactLayout.iconWidth)
+                                .overlay(alignment: .bottomTrailing) {
+                                    if account.stale {
+                                        Image(systemName: "clock.fill").font(.system(size: 7))
+                                            .foregroundStyle(.orange).background(.black, in: Circle())
+                                    }
+                                }
+                                .accessibilityHidden(true)
+                        } else if let account,
                                   let window = account.primary(at: model.date), let remaining = window.remaining {
                             ZStack {
                                 Circle().stroke(.white.opacity(0.2), lineWidth: 2)
@@ -131,7 +144,7 @@ struct IslandView: View {
                             .frame(width: IslandCompactLayout.iconWidth, height: IslandCompactLayout.iconWidth)
                             .accessibilityHidden(true)
                         } else {
-                            Image(systemName: model.scene == .ai && reading.quotaAccount?.stale == true ? "clock.badge.exclamationmark" : reading.symbol)
+                            Image(systemName: account?.stale == true ? "clock.badge.exclamationmark" : reading.symbol)
                                 .foregroundStyle(model.scene.tint).frame(width: IslandCompactLayout.iconWidth)
                         }
                         Text(model.powerNotice.map { $0.title + " " + reading.batteryValue } ?? compactValue).monospacedDigit().fontWeight(.medium).lineLimit(1).truncationMode(.middle)
@@ -284,6 +297,16 @@ struct IslandView: View {
         }
     }
 
+    private func quotaTint(for window: IslandQuotaAccount.Window, stale: Bool) -> Color {
+        guard !stale, !window.unlimited, let remaining = window.remaining, remaining.isFinite else { return .secondary }
+        // 颜色始终表达剩余额度的紧张程度，不随“已用／剩余”显示方式反转。
+        if remaining <= 10 { return DS.Palette.critical }
+        if remaining <= 20 { return DS.Palette.error }
+        if remaining < 40 { return DS.Palette.warning }
+        if remaining < 80 { return DS.Palette.primary }
+        return DS.Palette.success
+    }
+
     func aiContent(at date: Date) -> some View {
         @Bindable var settings = appModel.settings
         let accounts = reading.quotaAccounts
@@ -305,6 +328,7 @@ struct IslandView: View {
                         if let primary = account.primary(at: date) {
                             HStack(alignment: .firstTextBaseline) {
                                 Text(reading.quotaValue(primary)).font(.system(size: 34, weight: .semibold, design: .rounded)).monospacedDigit()
+                                    .foregroundStyle(quotaTint(for: primary, stale: account.stale))
                                 Text(tr(settings.aiQuotaShowsRemaining ? "剩余" : "已用") + " · " + primary.title)
                                     .foregroundStyle(.secondary)
                             }
@@ -315,10 +339,13 @@ struct IslandView: View {
                                     Text(window.title)
                                     Spacer()
                                     Text(reading.quotaValue(window)).monospacedDigit()
+                                        .foregroundStyle(quotaTint(for: window, stale: account.stale))
                                 }
                                 if let remaining = window.remaining, remaining.isFinite, !window.unlimited {
-                                    ProgressView(value: min(100, max(0, settings.aiQuotaShowsRemaining ? remaining : 100 - remaining)), total: 100)
-                                        .tint(.purple).accessibilityLabel(window.title)
+                                    ProgressTrack(fraction: (settings.aiQuotaShowsRemaining ? remaining : 100 - remaining) / 100,
+                                                  color: quotaTint(for: window, stale: account.stale), height: 8)
+                                        .accessibilityLabel(window.title)
+                                        .accessibilityValue(reading.quotaValue(window))
                                         .overlay {
                                             if !account.stale, let fraction = window.paceFraction(at: date, showsRemaining: settings.aiQuotaShowsRemaining) {
                                                 GeometryReader { geometry in

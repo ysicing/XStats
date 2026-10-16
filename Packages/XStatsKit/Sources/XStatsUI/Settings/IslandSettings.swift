@@ -11,7 +11,8 @@ struct IslandFeatureSettings: View {
 
     var body: some View {
         @Bindable var settings = model.settings
-        SettingRow(title: tr("灵动岛"), subtitle: tr("在屏幕顶部查看系统指标、AI 额度、电池与休息计时"), icon: "capsule") {
+        SettingRow(title: tr("灵动岛"), subtitle: tr("在屏幕顶部查看系统指标、AI 额度、电池与休息计时"),
+                   icon: "capsule", badge: tr("测试")) {
             HStack(spacing: DS.Space.s3) {
                 if settings.islandPreferences.enabled {
                     Button(tr("设置")) { showsOptions = true }

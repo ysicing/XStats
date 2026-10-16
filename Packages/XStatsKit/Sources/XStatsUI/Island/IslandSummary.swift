@@ -39,6 +39,7 @@ struct IslandQuotaAccount: Identifiable, Sendable {
     let stale: Bool
     let status: String?
     var compactTitle: String? = nil
+    var provider: String? = nil
 
     func primary(at date: Date) -> Window? {
         // 无限额度与未知数值不能参与紧张程度排序，过期窗口不能冒充当前额度。
@@ -94,7 +95,7 @@ extension IslandReading {
                     }, updatedAt: account.readAt ?? usage.magpieQuotaUpdatedAt,
                     stale: usage.magpieQuotaFailure != nil || account.error != nil,
                     status: account.error != nil || usage.magpieQuotaFailure != nil ? tr("暂时无法连接额度服务") : nil,
-                    compactTitle: account.provider)
+                    compactTitle: account.provider, provider: account.provider)
             }
         }
         return AIProviderID.allCases.filter { appModel.settings.aiUsageSources.contains($0) }.map { provider in
@@ -113,7 +114,8 @@ extension IslandReading {
                     .init(id: window.kind.rawValue, title: Self.quotaTitle(window.kind),
                           remaining: window.remainingPercent, resetsAt: window.resetsAt,
                           duration: window.duration)
-                } ?? [], updatedAt: state.snapshot?.fetchedAt, stale: state.isStale || state.failure != nil, status: status)
+                } ?? [], updatedAt: state.snapshot?.fetchedAt, stale: state.isStale || state.failure != nil,
+                status: status, provider: provider.rawValue)
         }
     }
 

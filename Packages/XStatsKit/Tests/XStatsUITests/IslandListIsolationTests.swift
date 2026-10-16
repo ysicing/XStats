@@ -175,6 +175,12 @@ struct IslandListIsolationTests {
         let sourceName = magpie ? "codex" : "Codex"
         let accounts = IslandReading(scene: .ai, appModel: app).quotaAccounts
         #expect(Set(accounts.map(\.title)).count == accounts.count)
+        // 图标必须跟随实际服务来源；Magpie 的账号标题可能自定义且身份已哈希。
+        #expect(Set(accounts.compactMap(\.provider)) == ["codex", "claude"])
+        for account in accounts {
+            let name = try #require(account.provider.flatMap(AIServiceBrand.logoName))
+            #expect(LogoCache.shared.image(named: name, template: true) != nil)
+        }
         #expect(app.aiUsage.todayTokens == nil)
         for remaining in [true, false] {
             app.settings.aiQuotaShowsRemaining = remaining

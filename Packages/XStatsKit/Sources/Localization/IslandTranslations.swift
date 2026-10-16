@@ -4,6 +4,7 @@
 extension Translations {
     static let islandEnglish = #"""
 灵动岛	Dynamic Island
+测试	Beta
 在屏幕顶部查看系统指标、AI 用量与休息计时	View system metrics, AI usage and your rest timer at the top of the screen
 展开灵动岛	Expand Dynamic Island
 关闭灵动岛	Close Dynamic Island

@@ -2295,3 +2295,4 @@ CPU 占用口径	Échelle d’utilisation du CPU
 当前没有可显示的内容，请启用相关模块或选择其他内容。	Aucun contenu disponible. Activez un module associé ou choisissez un autre contenu.
 自动优先使用内置屏幕；手动选择的屏幕断开时临时回退，重新连接后恢复。	Privilégier automatiquement l’écran intégré. Si l’écran choisi est déconnecté, en utiliser temporairement un autre et y revenir à sa reconnexion.
 悬浮在可用顶边下方；菜单栏隐藏时自动上移，保留设定间距。	Flotter sous le bord supérieur disponible. Remonter quand la barre des menus est masquée, en conservant l’écart choisi.
+测试	Beta
