@@ -22,9 +22,11 @@ public struct FanState: Sendable, Equatable, Identifiable {
     public var isManual: Bool
     /// 固件报告起步、且尚未读到转速；展示窗口有上限，不掩盖持续停转。
     public var isStarting: Bool
+    /// 模式键是否读到。读不到时 isManual 只是占位的 false，不能据此认定风扇已交还系统。
+    public var isModeKnown: Bool
 
     public init(id: Int, current: Double, minimum: Double, maximum: Double, target: Double, isManual: Bool,
-                isStarting: Bool = false) {
+                isStarting: Bool = false, isModeKnown: Bool = true) {
         self.id = id
         self.current = current
         self.minimum = minimum
@@ -32,6 +34,7 @@ public struct FanState: Sendable, Equatable, Identifiable {
         self.target = target
         self.isManual = isManual
         self.isStarting = isStarting
+        self.isModeKnown = isModeKnown
     }
 
     /// 当前转速在 min...max 区间的占比
@@ -113,9 +116,14 @@ public final class FanControl {
         Int(smc.double(SMCKey("FNum")) ?? 0)
     }
 
+    /// nil 表示 FNum 读取失败，0 才表示确认无风扇；需要区分两者时不要使用 fanCount。
+    private var detectedFanCount: Int? {
+        smc.double(SMCKey("FNum")).flatMap { UInt8(exactly: $0) }.map(Int.init)
+    }
+
     public func read() -> [FanState] {
         let now = ProcessInfo.processInfo.systemUptime
-        let count = smc.double(SMCKey("FNum")).flatMap { UInt8(exactly: $0) }.map(Int.init)
+        let count = detectedFanCount
         startup.retain(fanCount: count)
         guard let count else { return [] }
         let fans = (0..<count).compactMap { id -> FanState? in
@@ -131,7 +139,8 @@ public final class FanControl {
             let isStarting = startup.update(id: id, current: current, target: targetReading,
                                             isManual: modeReading.map { $0 == 1 }, status: status, now: now)
             return FanState(id: id, current: current, minimum: minimum, maximum: maximum,
-                            target: target, isManual: mode == 1, isStarting: isStarting)
+                            target: target, isManual: mode == 1, isStarting: isStarting,
+                            isModeKnown: modeReading != nil)
         }
         return fans
     }
@@ -154,8 +163,7 @@ public final class FanControl {
             if !alreadyManual {
                 do {
                     try writeWithRetry(modeKey(id), value: 0)
-                    let count = smc.double(SMCKey("FNum")).flatMap { UInt8(exactly: $0) }.map(Int.init)
-                    let allAutomatic = count.map { count in
+                    let allAutomatic = detectedFanCount.map { count in
                         count > 0 && (0..<count).allSatisfy { smc.double(modeKey($0)) == 0 }
                     } ?? false
                     let ftst = SMCKey("Ftst")
@@ -186,8 +194,11 @@ public final class FanControl {
 
     /// 全部风扇恢复系统自动控制
     public func resetAll() throws {
+        // FNum 读不到时不能当作没有风扇：helper 只在复位不抛错时才清除已接管记录，
+        // 静默成功会让风扇停在手动转速，且之后不再重试。
+        guard let count = detectedFanCount else { throw SMCError.callFailed(SMCKey("FNum"), KERN_FAILURE) }
         var firstError: Error?
-        for id in 0..<fanCount {
+        for id in 0..<count {
             do { try setAutomatic(fan: id) } catch { firstError = firstError ?? error }
         }
         #if arch(arm64)

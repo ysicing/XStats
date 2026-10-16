@@ -185,7 +185,8 @@ public final class FanController {
         guard !fans.isEmpty else { return true }
         return fans.allSatisfy { fan in
             let target = targetRPM(for: fan)
-            return fan.isManual == (mode != .automatic) && !fan.isStarting
+            // 模式键读不到时 isManual 只是占位值，不能当作已交还系统或已接管，继续等待下一次读取。
+            return fan.isModeKnown && fan.isManual == (mode != .automatic) && !fan.isStarting
                 && target.isFinite && abs(fan.current - target) <= max(100, abs(target) * 0.05)
         }
     }

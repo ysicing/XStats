@@ -87,6 +87,34 @@ struct FanUnlockTests {
         #expect(firmware.values[SMCKey("Ftst")] == 1)
     }
 
+    /// helper 只在复位不抛错时才清除“已接管”记录；FNum 读不到却当作 0 台风扇会让风扇永久停在手动转速。
+    @Test func resettingWithUnreadableFanCountFailsInsteadOfPretendingSuccess() {
+        let firmware = FanFirmware()
+        firmware.values[SMCKey("FNum")] = nil
+        firmware.values[SMCKey("F0Md")] = 1
+        firmware.values[SMCKey("Ftst")] = 1
+        #expect(throws: SMCError.self) { try firmware.control().resetAll() }
+    }
+
+    @Test func confirmedFanlessMachineResetsWithoutError() throws {
+        let firmware = FanFirmware()
+        firmware.values[SMCKey("FNum")] = 0
+        try firmware.control().resetAll()
+    }
+
+    @Test func unreadableModeKeyIsReportedAsUnknownRatherThanAutomatic() {
+        let firmware = FanFirmware()
+        firmware.values[SMCKey("FNum")] = 1
+        firmware.values[SMCKey("F0Ac")] = 1_500
+        firmware.values[SMCKey("F0Md")] = nil
+        let unknown = firmware.control().read()
+        #expect(unknown.count == 1 && unknown[0].isModeKnown == false)
+
+        firmware.values[SMCKey("F0Md")] = 1
+        let manual = firmware.control().read()
+        #expect(manual[0].isModeKnown && manual[0].isManual)
+    }
+
     @Test func resettingAllFansReturnsGlobalUnlockToSystem() throws {
         let firmware = FanFirmware()
         firmware.values[SMCKey("F0Md")] = 1

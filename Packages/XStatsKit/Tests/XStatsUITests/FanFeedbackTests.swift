@@ -104,6 +104,30 @@ struct FanFeedbackTests {
         }
     }
 
+    /// 模式键读不到时不能确认已交还系统，跟踪必须继续读取；读到且一致时才在首次读取后结束。
+    @Test(arguments: [true, false]) func automaticFeedbackNeverConfirmsAnUnreadModeKey(modeKnown: Bool) async throws {
+        let fixture = FanFeedbackFixture()
+        fixture.reading = [fan(5_000)]
+        try await withController(fixture) { controller, store in
+            controller.setFeedbackVisible(true)
+            await controller.select(.maximum)
+            try await waitUntil { store.fastestFan?.current == 5_000 }
+            try await Task.sleep(for: .milliseconds(650))
+            #expect(fixture.reads == 1)
+
+            fixture.reading = [FanState(id: 0, current: 1_200, minimum: 1_000, maximum: 5_000, target: 1_200,
+                                        isManual: false, isModeKnown: modeKnown)]
+            await controller.select(.automatic)
+            try await waitUntil { fixture.reads >= 2 }
+            try await Task.sleep(for: .milliseconds(1_200))
+            if modeKnown {
+                #expect(fixture.reads == 2)
+            } else {
+                #expect(fixture.reads >= 3)
+            }
+        }
+    }
+
     @Test func failedOrInvisibleCommandsDoNotStartFeedback() async throws {
         let fixture = FanFeedbackFixture()
         try await withController(fixture) { controller, store in
