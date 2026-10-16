@@ -3,6 +3,8 @@
 
 import AppKit
 import Localization
+import Metrics
+import IOKit.ps
 import Observation
 import OSLog
 import SwiftUI
@@ -25,6 +27,14 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var fullscreenTask: Task<Void, Never>?
     private var readingGeneration: UInt = 0
+    private var quotaExpiryTask: Task<Void, Never>?
+    private var quotaExpiry: Date?
+    private var powerSource: CFRunLoopSource?
+    private var powerRefreshTask: Task<Void, Never>?
+    private var powerNoticeTask: Task<Void, Never>?
+    private var previousBattery: BatteryStatus?
+    private var lastBatteryRevision: UInt = 0
+    private let powerNoticeDuration: Duration
     private var compactWidth: CGFloat = 160
     private var appliedPreferences = IslandPreferences()
     private var fullscreen = false
@@ -32,28 +42,31 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     private var sleeping = false
     private var displaysSleeping = false
 
-    init(appModel: AppModel, fullscreenDetector: @escaping @MainActor (NSScreen) -> Bool = IslandFullscreen.isActive) {
+    init(appModel: AppModel, powerNoticeDuration: Duration = .seconds(4), fullscreenDetector: @escaping @MainActor (NSScreen) -> Bool = IslandFullscreen.isActive) {
         self.appModel = appModel
+        self.powerNoticeDuration = powerNoticeDuration
         self.fullscreenDetector = fullscreenDetector
         super.init()
     }
 
-    private var preferences: IslandPreferences { appModel.settings.islandPreferences.normalized }
-    var isSuspended: Bool { locked || sleeping || displaysSleeping || (preferences.hideInFullscreen && fullscreen) }
+    private var preferences: IslandPreferences { appModel.islandPreferences }
+    var isSuspended: Bool { preferences.scenes.isEmpty || locked || sleeping || displaysSleeping || (preferences.hideInFullscreen && fullscreen) }
 
     func syncWithPreferences() {
         guard preferences.enabled else { stop(); return }
         guard isRunning else { start(); return }
         let previous = appliedPreferences
         appliedPreferences = preferences
-        model.scene = preferences.scene
+        if model.presentation != .expanded || !preferences.scenes.contains(model.scene) || previous.scene != preferences.scene {
+            model.scene = preferences.scene
+        }
         if previous.opening != preferences.opening || previous.display != preferences.display || previous.placement != preferences.placement {
             hoverTask?.cancel()
             hoverTask = nil
             interaction.collapse()
             panel?.resignKey()
         }
-        compactWidth = IslandCompactLayout.width(for: IslandReading(scene: model.scene, appModel: appModel).compactValue)
+        compactWidth = measuredCompactWidth()
         refreshFullscreenState()
         if isSuspended { releasePanel() }
         else { render(animated: false) }
@@ -84,7 +97,7 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         panel?.title = tr("灵动岛")
         statusItem?.button?.toolTip = tr("灵动岛")
         statusItem?.button?.image?.accessibilityDescription = tr("灵动岛")
-        compactWidth = IslandCompactLayout.width(for: IslandReading(scene: model.scene, appModel: appModel).compactValue)
+        compactWidth = measuredCompactWidth()
         if isRunning { render(animated: false) }
     }
 
@@ -187,19 +200,17 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     }
 
     private var selectedScreen: NSScreen? {
-        if !preferences.display.isEmpty,
-           let screen = NSScreen.screens.first(where: { IslandPreferences.displayKey($0) == preferences.display }) { return screen }
-        return NSScreen.screens.first(where: { CGDisplayIsBuiltin(displayID($0)) != 0 }) ?? NSScreen.main ?? NSScreen.screens.first
-    }
-
-    private func displayID(_ screen: NSScreen) -> CGDirectDisplayID {
-        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
+        guard let id = IslandDisplayChoice.preferredID(savedID: preferences.display, displays: IslandDisplayChoice.connected) else { return nil }
+        return NSScreen.screens.first { IslandPreferences.displayKey($0) == id }
     }
 
     private func render(animated: Bool) {
         guard isRunning, !isSuspended else { return }
         guard let screen = selectedScreen else { releasePanel(); return }
         model.presentation = interaction.presentation
+        if model.presentation != .collapsed { clearPowerNotice() }
+        model.date = Date()
+        if model.presentation == .collapsed { resolveFocus() }
         let geometry = IslandGeometry(screen)
         let placement = preferences.placement
         let topClearance = geometry.attachedTopClearance
@@ -218,6 +229,7 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         canvas.layoutSurface(target: target, placement: placement, topClearance: topClearance, animated: canAnimate)
         panel.orderFrontRegardless()
         updateDemand()
+        updateQuotaExpiry()
         updateInputMonitors()
         guard canAnimate else { transitionTask = nil; return }
         transitionTask = Task { @MainActor [weak self, weak panel] in
@@ -258,6 +270,10 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     }
 
     private func releasePanel() {
+        stopPowerObservation()
+        quotaExpiryTask?.cancel()
+        quotaExpiryTask = nil
+        quotaExpiry = nil
         hoverTask?.cancel()
         hoverTask = nil
         transitionTask?.cancel()
@@ -278,20 +294,74 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         model.scene = scene
         appModel.settings.islandPreferences.scene = scene
         updateDemand()
+        updateQuotaExpiry()
+    }
+
+    private func resolveFocus() {
+        model.scene = preferences.automaticFocus ? IslandFocus.scene(preferences: preferences, battery: appModel.store.battery,
+            quota: preferences.scenes.contains(.ai) ? IslandReading(scene: .ai, appModel: appModel).quotaAccount : nil, at: Date()) : preferences.scene
+        compactWidth = measuredCompactWidth()
     }
 
     private func observeReading(generation: UInt) {
+        let observedPreferences = preferences
         withObservationTracking {
-            compactWidth = IslandCompactLayout.width(for: IslandReading(scene: model.scene, appModel: appModel).compactValue)
+            _ = preferences
+            // 观察真实服务的更新，不另设额度或电量轮询。展开期间仍记录变化但不抢占页面。
+            if preferences.scenes.contains(.battery) { _ = appModel.store.batteryRevision }
+            if preferences.automaticFocus {
+                _ = IslandFocus.scene(preferences: preferences,
+                    battery: preferences.scenes.contains(.battery) ? appModel.store.battery : nil,
+                    quota: preferences.scenes.contains(.ai) ? IslandReading(scene: .ai, appModel: appModel).quotaAccount : nil, at: Date())
+            }
+            compactWidth = measuredCompactWidth()
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self, self.isRunning, self.readingGeneration == generation else { return }
-                let previous = self.compactWidth
+                let previousWidth = self.compactWidth
+                let previousScene = self.model.scene
+                self.receiveBattery(self.appModel.store.battery, revision: self.appModel.store.batteryRevision)
+                let contentChanged = observedPreferences != self.preferences
+                if !self.preferences.scenes.contains(self.model.scene) || observedPreferences.scene != self.preferences.scene {
+                    self.model.scene = self.preferences.scene
+                }
+                if self.model.presentation == .collapsed { self.resolveFocus() }
+                self.model.date = Date()
                 self.observeReading(generation: generation)
-                if previous != self.compactWidth, self.model.presentation == .collapsed {
+                self.updateQuotaExpiry()
+                if self.isSuspended { self.releasePanel(); return }
+                if contentChanged || previousScene != self.model.scene
+                    || (self.model.presentation == .collapsed && previousWidth != self.compactWidth) {
                     self.render(animated: false)
                 }
             }
+        }
+    }
+
+    /// 只为所选账号最近的重置点安排一次性失效，不增加网络请求或周期性唤醒。
+    private func updateQuotaExpiry() {
+        guard isRunning, !isSuspended, panel?.isVisible == true else { return }
+        let date = Date()
+        let needsQuota = model.scene == .ai || (preferences.automaticFocus && preferences.scenes.contains(.ai))
+        var next = needsQuota ? IslandReading(scene: .ai, appModel: appModel).quotaAccount?.windows
+            .compactMap(\.resetsAt).filter { $0 > date }.min() : nil
+        // 仅展开且存在可靠刻线时，每分钟更新一次时间位置；复用同一个失效任务。
+        if model.scene == .ai, model.presentation == .expanded,
+           let account = IslandReading(scene: .ai, appModel: appModel).quotaAccount, !account.stale,
+           account.windows.contains(where: { $0.paceFraction(at: date, showsRemaining: true) != nil }) {
+            let minute = Date(timeIntervalSince1970: (floor(date.timeIntervalSince1970 / 60) + 1) * 60)
+            next = min(next ?? minute, minute)
+        }
+        guard next != quotaExpiry else { return }
+        quotaExpiryTask?.cancel()
+        quotaExpiry = next
+        guard let next else { quotaExpiryTask = nil; return }
+        quotaExpiryTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(max(0, next.timeIntervalSinceNow))) } catch { return }
+            guard let self, !Task.isCancelled, self.isRunning, !self.isSuspended, self.quotaExpiry == next else { return }
+            self.quotaExpiry = nil
+            self.quotaExpiryTask = nil
+            self.render(animated: false)
         }
     }
 
@@ -329,6 +399,81 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         appModel.islandScene = visible ? model.scene : nil
         appModel.islandExpanded = visible && model.presentation == .expanded
         appModel.rest.setIslandVisible(visible && model.scene == .focus)
+        if visible && preferences.scenes.contains(.battery) { startPowerObservation() }
+        else { stopPowerObservation() }
+    }
+
+    private func measuredCompactWidth() -> CGFloat {
+        let reading = IslandReading(scene: model.scene, appModel: appModel)
+        let value = model.powerNotice.map { $0.title + " " + reading.batteryValue } ?? reading.compactValue
+        return IslandCompactLayout.width(for: value)
+    }
+
+    private func clearPowerNotice() {
+        powerNoticeTask?.cancel()
+        powerNoticeTask = nil
+        model.powerNotice = nil
+    }
+
+    /// 只有真实电源变更才触发一次读取；持续电量变化沿用 MetricsHub 原有低频采样。
+    private func startPowerObservation() {
+        guard powerSource == nil else { return }
+        previousBattery = nil
+        lastBatteryRevision = appModel.store.batteryRevision
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        guard let source = IOPSNotificationCreateRunLoopSource({ context in
+            guard let context else { return }
+            MainActor.assumeIsolated {
+                Unmanaged<IslandWindowController>.fromOpaque(context).takeUnretainedValue().refreshPowerReading()
+            }
+        }, context)?.takeRetainedValue() else { return }
+        powerSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        refreshPowerReading()
+    }
+
+    private func refreshPowerReading() {
+        powerRefreshTask?.cancel()
+        let hub = appModel.hub
+        powerRefreshTask = Task { @MainActor [weak self] in
+            guard let snapshot = await hub.sampleBattery(), !Task.isCancelled, let self,
+                  self.isRunning, !self.isSuspended, self.panel?.isVisible == true,
+                  self.preferences.scenes.contains(.battery) else { return }
+            self.appModel.handle(snapshot)
+        }
+    }
+
+    private func stopPowerObservation() {
+        if let source = powerSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            CFRunLoopSourceInvalidate(source)
+        }
+        powerSource = nil
+        powerRefreshTask?.cancel()
+        powerRefreshTask = nil
+        previousBattery = nil
+        clearPowerNotice()
+    }
+
+    func receiveBattery(_ battery: BatteryStatus?, revision: UInt) {
+        guard isRunning, !isSuspended, panel?.isVisible == true, preferences.scenes.contains(.battery) else { return }
+        // 组合观察也会由设置或展示状态触发。恢复前的缓存与已消费快照不能建立新基线。
+        guard revision != lastBatteryRevision else { return }
+        lastBatteryRevision = revision
+        let previous = previousBattery
+        previousBattery = battery
+        guard let battery, let event = IslandPowerNotice.event(previous: previous, current: battery),
+              model.presentation == .collapsed else { return }
+        clearPowerNotice()
+        model.powerNotice = event
+        render(animated: false)
+        powerNoticeTask = Task { @MainActor [weak self, powerNoticeDuration] in
+            do { try await Task.sleep(for: powerNoticeDuration) } catch { return }
+            guard let self, !Task.isCancelled, self.isRunning, !self.isSuspended else { return }
+            self.powerNoticeTask = nil
+            self.model.powerNotice = nil
+            self.render(animated: false)
+        }
     }
 
     private func updateInputMonitors() {
@@ -416,9 +561,9 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         addItem(tr("收起"), action: #selector(collapse), to: menu)
         let automatic = addItem(tr("自动选择屏幕"), action: #selector(selectScreen(_:)), to: menu)
         automatic.state = preferences.display.isEmpty ? .on : .off
-        for screen in NSScreen.screens {
-            let id = IslandPreferences.displayKey(screen)
-            let item = addItem(screen.localizedName, action: #selector(selectScreen(_:)), to: menu)
+        for screen in IslandDisplayChoice.connected {
+            let id = screen.id
+            let item = addItem(screen.title, action: #selector(selectScreen(_:)), to: menu)
             item.representedObject = id
             item.state = preferences.display == id ? .on : .off
         }

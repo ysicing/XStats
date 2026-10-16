@@ -11,7 +11,7 @@ struct IslandFeatureSettings: View {
 
     var body: some View {
         @Bindable var settings = model.settings
-        SettingRow(title: tr("灵动岛"), subtitle: tr("在屏幕顶部查看系统指标、AI 用量与休息计时"), icon: "capsule") {
+        SettingRow(title: tr("灵动岛"), subtitle: tr("在屏幕顶部查看系统指标、AI 额度、电池与休息计时"), icon: "capsule") {
             HStack(spacing: DS.Space.s3) {
                 if settings.islandPreferences.enabled {
                     Button(tr("设置")) { showsOptions = true }
@@ -35,6 +35,14 @@ struct IslandOptionsPopover: View {
     @State private var screens = IslandDisplayChoice.connected
     var open: () -> Void = {}
 
+    private var preferences: IslandPreferences {
+        model.islandPreferences
+    }
+
+    private var availableContent: IslandPreferences {
+        IslandPreferences().available(settings: model.settings, hasInternalBattery: model.store.hasInternalBattery)
+    }
+
     var body: some View {
         @Bindable var settings = model.settings
         ScrollView {
@@ -44,21 +52,22 @@ struct IslandOptionsPopover: View {
                     Spacer()
                     Button(tr("展开灵动岛"), action: open)
                         .buttonStyle(DSButtonStyle(kind: .secondary))
+                        .disabled(preferences.scenes.isEmpty)
                 }
                 SettingsGroup(caption: tr("显示内容")) {
                     GroupRow(showsDivider: false) {
                         option(tr("场景")) {
-                            MainActorForEach(IslandScene.allCases, id: \.rawValue) { scene in
+                            MainActorForEach(availableContent.scenes, id: \.rawValue) { scene in
                                 Toggle(scene.title, isOn: sceneVisibility(scene))
                                     .toggleStyle(.checkbox)
                                     .disabled(settings.islandPreferences.normalized.scenes == [scene])
                             }
                         }
                     }
-                    if settings.islandPreferences.normalized.scenes.contains(.system) {
+                    if settings.islandPreferences.normalized.scenes.contains(.system), !availableContent.systemMetrics.isEmpty {
                         GroupRow {
                             option(tr("系统指标")) {
-                                MainActorForEach(IslandSystemMetric.allCases, id: \.self) { metric in
+                                MainActorForEach(availableContent.systemMetrics, id: \.self) { metric in
                                     Toggle(metric.title, isOn: metricVisibility(metric))
                                         .toggleStyle(.checkbox)
                                         .disabled(settings.islandPreferences.normalized.systemMetrics == [metric])
@@ -69,16 +78,21 @@ struct IslandOptionsPopover: View {
                         }
                     }
                 }
-                Text(tr("仅选择灵动岛显示的内容；未启用的功能需先在主应用中开启。"))
+                Text(tr("未启用的模块自动隐藏，重新启用后恢复选择。电池基础信息独立于能耗开关。"))
                     .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if preferences.scenes.isEmpty {
+                    Text(tr("当前没有可显示的内容，请启用相关模块或选择其他内容。"))
+                        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 SettingsGroup(caption: tr("显示")) {
                     GroupRow(showsDivider: false) {
                         option(tr("显示屏幕")) {
                             Picker(tr("显示屏幕"), selection: $settings.islandPreferences.display) {
                                 Text(tr("自动选择屏幕")).tag("")
                                 MainActorForEach(screens) { screen in
-                                    Text(screen.name).tag(screen.id)
+                                    Text(screen.title).tag(screen.id)
                                 }
                                 if !settings.islandPreferences.display.isEmpty,
                                    !screens.contains(where: { $0.id == settings.islandPreferences.display }) {
@@ -86,6 +100,9 @@ struct IslandOptionsPopover: View {
                                 }
                             }
                             .labelsHidden()
+                            Text(tr("自动优先使用内置屏幕；手动选择的屏幕断开时临时回退，重新连接后恢复。"))
+                                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     GroupRow {
@@ -102,13 +119,23 @@ struct IslandOptionsPopover: View {
                         }
                     }
                     GroupRow {
-                        option(tr("默认场景")) {
-                            Picker(tr("默认场景"), selection: $settings.islandPreferences.scene) {
-                                MainActorForEach(settings.islandPreferences.normalized.scenes, id: \.rawValue) { scene in
-                                    Text(scene.title).tag(scene)
+                        VStack(alignment: .leading, spacing: DS.Space.s2) {
+                            Toggle(tr("自动关注"), isOn: $settings.islandPreferences.automaticFocus)
+                            Text(tr("仅在收起时优先显示低电量或额度耗尽；展开后保持当前页面。"))
+                                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    if !preferences.scenes.isEmpty {
+                        GroupRow {
+                            option(tr("默认场景")) {
+                                Picker(tr("默认场景"), selection: Binding(get: { preferences.scene }, set: { settings.islandPreferences.scene = $0 })) {
+                                    MainActorForEach(preferences.scenes, id: \.rawValue) { scene in
+                                        Text(scene.title).tag(scene)
+                                    }
                                 }
+                                .labelsHidden()
                             }
-                            .labelsHidden()
                         }
                     }
                     GroupRow {
@@ -169,8 +196,12 @@ struct IslandOptionsPopover: View {
     }
 
     private func sceneVisibility(_ scene: IslandScene) -> Binding<Bool> {
-        Binding(get: { model.settings.islandPreferences.normalized.scenes.contains(scene) },
-                set: { model.settings.islandPreferences.setScene(scene, visible: $0) })
+        Binding(get: { model.settings.islandPreferences.normalized.scenes.contains(scene) }, set: { visible in
+            // 从保存的选择编辑，临时隐藏的模块和硬件选项不能被顺带取消。
+            var value = model.settings.islandPreferences
+            value.setScene(scene, visible: visible)
+            model.settings.islandPreferences = value
+        })
     }
 
     private func metricVisibility(_ metric: IslandSystemMetric) -> Binding<Bool> {
@@ -203,14 +234,5 @@ struct IslandOptionsPopover: View {
                     .monospacedDigit().dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
             }
         }
-    }
-}
-
-private struct IslandDisplayChoice: Identifiable, Sendable {
-    let id: String
-    let name: String
-
-    @MainActor static var connected: [Self] {
-        NSScreen.screens.map { Self(id: IslandPreferences.displayKey($0), name: $0.localizedName) }
     }
 }

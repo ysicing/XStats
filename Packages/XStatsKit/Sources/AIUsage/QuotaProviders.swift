@@ -12,10 +12,13 @@ public struct AIQuotaWindow: Codable, Equatable, Sendable, Identifiable {
     public let kind: AIQuotaKind
     public let usedPercent: Double
     public let resetsAt: Date?
+    /// 服务端明确给出的周期长度（秒）；旧缓存或按窗口位置归类时为 nil。
+    public let duration: TimeInterval?
     public var id: AIQuotaKind { kind }
 
-    public init(kind: AIQuotaKind, usedPercent: Double, resetsAt: Date?) {
+    public init(kind: AIQuotaKind, usedPercent: Double, resetsAt: Date?, duration: TimeInterval? = nil) {
         self.kind = kind; self.usedPercent = usedPercent; self.resetsAt = resetsAt
+        self.duration = duration
     }
 
     public var remainingPercent: Double { 100 - usedPercent }
@@ -277,7 +280,7 @@ public actor CodexQuotaProvider: AIQuotaProvider {
                 ?? (item["reset_after_seconds"] as? NSNumber).map { now.addingTimeInterval($0.doubleValue) }
             let exact = seconds != nil
             if selected[kind]?.exact != true || exact {
-                selected[kind] = (AIQuotaWindow(kind: kind, usedPercent: used, resetsAt: reset), exact)
+                selected[kind] = (AIQuotaWindow(kind: kind, usedPercent: used, resetsAt: reset, duration: seconds.map(Double.init)), exact)
             }
         }
         let windows = [AIQuotaKind.session, .weekly].compactMap { selected[$0]?.window }
@@ -335,7 +338,8 @@ public actor ClaudeQuotaProvider: AIQuotaProvider {
                   let used = (item["utilization"] as? NSNumber)?.doubleValue,
                   used.isFinite, (0...100).contains(used) else { continue }
             let reset = (item["resets_at"] as? String).flatMap { fractionalFormatter.date(from: $0) ?? formatter.date(from: $0) }
-            windows.append(AIQuotaWindow(kind: kind, usedPercent: used, resetsAt: reset))
+            windows.append(AIQuotaWindow(kind: kind, usedPercent: used, resetsAt: reset,
+                                         duration: kind == .session ? 5 * 3600 : 7 * 24 * 3600))
         }
         guard !windows.isEmpty else { throw AIQuotaFailure.invalidResponse }
         return AIQuotaSnapshot(provider: .claude, windows: windows, fetchedAt: now)

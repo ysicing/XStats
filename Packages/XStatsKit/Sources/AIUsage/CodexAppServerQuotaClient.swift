@@ -51,7 +51,7 @@ enum CodexAppServerQuotaClient {
             let exact = minutes != nil
             // 同类只保留一个：先到的 primary 优先，只有未标注时长的才被明确时长的替换
             if selected[kind] == nil || (exact && selected[kind]?.exact == false) {
-                selected[kind] = (AIQuotaWindow(kind: kind, usedPercent: used, resetsAt: reset), exact)
+                selected[kind] = (AIQuotaWindow(kind: kind, usedPercent: used, resetsAt: reset, duration: minutes.map { Double($0) * 60 }), exact)
             }
         }
         let windows = [AIQuotaKind.session, .weekly].compactMap { selected[$0]?.window }

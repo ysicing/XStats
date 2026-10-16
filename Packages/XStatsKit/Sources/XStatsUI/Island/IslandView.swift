@@ -8,13 +8,14 @@ import Observation
 import SwiftUI
 
 enum IslandScene: Int, CaseIterable, Codable, Sendable {
-    case system, ai, focus
+    case system, ai, focus, battery
 
     var title: String {
         switch self {
         case .system: tr("系统")
         case .ai: tr("AI 用量")
         case .focus: tr("休息")
+        case .battery: tr("电池")
         }
     }
 
@@ -23,6 +24,7 @@ enum IslandScene: Int, CaseIterable, Codable, Sendable {
         case .system: "waveform.path.ecg"
         case .ai: "sparkles"
         case .focus: "timer"
+        case .battery: "battery.100percent"
         }
     }
 
@@ -31,6 +33,7 @@ enum IslandScene: Int, CaseIterable, Codable, Sendable {
         case .system: .mint
         case .ai: .purple
         case .focus: .orange
+        case .battery: .green
         }
     }
 }
@@ -40,12 +43,15 @@ enum IslandScene: Int, CaseIterable, Codable, Sendable {
 final class IslandModel {
     var presentation: IslandPresentation = .collapsed
     var scene: IslandScene = .system
+    var date = Date()
+    var powerNotice: IslandPowerNotice?
 }
 
 @MainActor
 struct IslandReading {
     let scene: IslandScene
     let appModel: AppModel
+    var now = Date()
 
     private var settings: AppSettings { appModel.settings }
     private var rest: RestController { appModel.rest }
@@ -78,18 +84,11 @@ struct IslandReading {
     var compactValue: String {
         switch scene {
         case .system:
-            let metric = settings.islandPreferences.primaryMetric
+            guard let metric = appModel.islandPreferences.primaryMetric else { return "—" }
             return metric.title + " " + value(for: metric)
         case .ai:
-            guard settings.aiUsageEnabled else { return tr("尚未启用") }
-            if settings.aiUsageShowsLocalUsage { return tokenValue }
-            // 灵动岛独立于菜单栏的服务选择，只复用其有效额度窗口口径。
-            let quotas = appModel.aiUsage.usesMagpie ? appModel.aiUsage.magpieQuotaReadings()
-                : MenuBarReading(model: appModel, items: [.aiUsage]).aiQuotas
-            guard let quota = quotas.first else { return tr("暂无额度数据") }
-            let percent = AIUsageFormat.quotaPercent(remainingPercent: quota.window.remainingPercent,
-                showsRemaining: settings.aiQuotaShowsRemaining, locale: L10n.locale)
-            return quota.sourceName + " " + tr(settings.aiQuotaShowsRemaining ? "剩余" : "已用") + " " + percent
+            return quotaSummary(at: now)
+        case .battery: return batteryValue
         case .focus: return settings.restEnabled ? WellnessFormat.timer(rest.secondsRemaining) : tr("尚未启用")
         }
     }
@@ -105,8 +104,8 @@ struct IslandView: View {
 
     private var settings: AppSettings { appModel.settings }
     private var rest: RestController { appModel.rest }
-    private var preferences: IslandPreferences { settings.islandPreferences.normalized }
-    private var reading: IslandReading { IslandReading(scene: model.scene, appModel: appModel) }
+    private var preferences: IslandPreferences { appModel.islandPreferences }
+    private var reading: IslandReading { IslandReading(scene: model.scene, appModel: appModel, now: model.date) }
     var cpuValue: String { reading.cpuValue }
     var tokenValue: String { reading.tokenValue }
     var compactValue: String { reading.compactValue }
@@ -117,8 +116,25 @@ struct IslandView: View {
             case .collapsed:
                 Button(action: expand) {
                     HStack(spacing: IslandCompactLayout.spacing) {
-                        Image(systemName: model.scene.symbol).foregroundStyle(model.scene.tint).frame(width: IslandCompactLayout.iconWidth)
-                        Text(compactValue).monospacedDigit().fontWeight(.medium).lineLimit(1)
+                        if let notice = model.powerNotice {
+                            Image(systemName: notice.symbol).foregroundStyle(notice == .lowBattery ? .orange : .green)
+                                .frame(width: IslandCompactLayout.iconWidth)
+                        } else if model.scene == .ai, let account = reading.quotaAccount,
+                                  let window = account.primary(at: model.date), let remaining = window.remaining {
+                            ZStack {
+                                Circle().stroke(.white.opacity(0.2), lineWidth: 2)
+                                Circle().trim(from: 0, to: min(1, max(0, settings.aiQuotaShowsRemaining ? remaining / 100 : 1 - remaining / 100)))
+                                    .stroke(account.stale ? .orange : .purple, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                                    .rotationEffect(.degrees(-90))
+                                if account.stale { Image(systemName: "clock.fill").font(.system(size: 8)).foregroundStyle(.orange) }
+                            }
+                            .frame(width: IslandCompactLayout.iconWidth, height: IslandCompactLayout.iconWidth)
+                            .accessibilityHidden(true)
+                        } else {
+                            Image(systemName: model.scene == .ai && reading.quotaAccount?.stale == true ? "clock.badge.exclamationmark" : reading.symbol)
+                                .foregroundStyle(model.scene.tint).frame(width: IslandCompactLayout.iconWidth)
+                        }
+                        Text(model.powerNotice.map { $0.title + " " + reading.batteryValue } ?? compactValue).monospacedDigit().fontWeight(.medium).lineLimit(1).truncationMode(.middle)
                         Spacer(minLength: 0)
                         Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
                             .frame(width: IslandCompactLayout.disclosureWidth)
@@ -128,12 +144,12 @@ struct IslandView: View {
                     .contentShape(Rectangle())
                 }
                 .accessibilityLabel(tr("展开灵动岛"))
-                .accessibilityValue(compactValue)
+                .accessibilityValue(model.powerNotice.map { $0.title + " " + reading.batteryValue } ?? (compactValue + " · " + reading.context))
             case .preview:
                 Button(action: expand) {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 7) {
                         HStack {
-                            Label(model.scene.title, systemImage: model.scene.symbol).foregroundStyle(model.scene.tint)
+                            Label(model.scene.title, systemImage: reading.symbol).foregroundStyle(model.scene.tint)
                             Spacer()
                             Text("XStats").font(.system(size: 10)).foregroundStyle(.secondary)
                         }
@@ -143,6 +159,8 @@ struct IslandView: View {
                             Spacer()
                             Text(tr("点击展开")).font(.system(size: 11)).foregroundStyle(.secondary)
                         }
+                        Text(reading.context).font(.system(size: 11)).foregroundStyle(.secondary)
+                            .lineLimit(1).truncationMode(.middle)
                     }
                     .padding(18)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -192,7 +210,7 @@ struct IslandView: View {
             sceneContent.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             HStack(spacing: 10) {
                 Button(tr("打开 XStats 主窗口")) {
-                    appModel.openMainWindow(model.scene == .system ? .overview : model.scene == .ai ? .aiUsage : .rest)
+                    appModel.openMainWindow(model.scene == .system ? .overview : model.scene == .ai ? .aiUsage : model.scene == .battery ? .battery : .rest)
                     collapse()
                 }
                 Spacer(minLength: 0)
@@ -208,9 +226,11 @@ struct IslandView: View {
         case .system:
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(reading.value(for: preferences.primaryMetric)).font(.system(size: 34, weight: .semibold, design: .rounded))
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                    Text(preferences.primaryMetric.title).foregroundStyle(.secondary)
+                    if let primary = preferences.primaryMetric {
+                        Text(reading.value(for: primary)).font(.system(size: 34, weight: .semibold, design: .rounded))
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                        Text(primary.title).foregroundStyle(.secondary)
+                    }
                     Spacer()
                     Image(systemName: "waveform.path.ecg").font(.system(size: 28)).foregroundStyle(.mint)
                 }
@@ -221,49 +241,27 @@ struct IslandView: View {
                 }
             }
         case .ai:
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    if !settings.aiUsageEnabled { Text(tr("尚未启用")) }
-                    else {
-                        if settings.aiUsageShowsLocalUsage {
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(tr("今日消耗的 Token")).font(.system(size: 10)).foregroundStyle(.secondary)
-                                Spacer(minLength: 8)
-                                Text(tokenValue).font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
-                                    .lineLimit(1).minimumScaleFactor(0.7)
-                            }
-                            if let updated = appModel.aiUsage.usesMagpie ? appModel.aiUsage.magpieUsageUpdatedAt[.daily] : appModel.aiUsage.localState(for: nil).updated {
-                                Text(updated, format: Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale))
-                                    .font(.system(size: 10)).foregroundStyle(.secondary)
-                            }
-                            if appModel.aiUsage.usesMagpie ? appModel.aiUsage.magpieUsageFailures[.daily] != nil : appModel.aiUsage.localState(for: nil).stale {
-                                Text(tr("显示上次成功读取的数据。")).font(.system(size: 10)).foregroundStyle(.orange)
-                            }
-                        }
-                        if appModel.aiUsage.usesMagpie {
-                            if appModel.aiUsage.magpieQuotaFailure != nil {
-                                Text(tr("暂时无法连接额度服务")).foregroundStyle(.orange)
-                            }
-                            if let updated = appModel.aiUsage.magpieQuotaUpdatedAt,
-                               appModel.aiUsage.magpieQuotaFailure != nil || !settings.aiUsageShowsLocalUsage {
-                                Text(updated, format: Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale))
-                                    .font(.system(size: 10)).foregroundStyle(.secondary)
-                            }
-                            if appModel.aiUsage.magpieQuotaFailure != nil, !appModel.aiUsage.magpieQuotas.isEmpty {
-                                Text(tr("显示上次成功读取的数据。"))
-                                    .font(.system(size: 10)).foregroundStyle(.orange)
-                            }
-                            if appModel.aiUsage.magpieQuotas.isEmpty { Text(tr("暂无额度数据")).foregroundStyle(.secondary) }
-                            else { MagpieQuotaAccounts(accounts: appModel.aiUsage.magpieQuotas) }
-                        } else {
-                            MainActorForEach(appModel.aiUsage.visibleQuotaProviders(for: nil)) { provider in
-                                quota(provider)
-                            }
-                            if appModel.aiUsage.visibleQuotaProviders(for: nil).isEmpty { Text(tr("暂无额度数据")).foregroundStyle(.secondary) }
-                        }
-                    }
+            aiContent(at: model.date)
+        case .battery:
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(reading.batteryValue).font(.system(size: 34, weight: .semibold, design: .rounded)).monospacedDigit()
+                    Spacer()
+                    Image(systemName: appModel.store.battery?.isCharging == true ? "battery.100percent.bolt" : "battery.100percent")
+                        .font(.system(size: 30)).foregroundStyle(.green).accessibilityHidden(true)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                if let battery = appModel.store.battery {
+                    ProgressView(value: min(1, max(0, battery.level))).tint(.green)
+                        .accessibilityLabel(tr("电池")).accessibilityValue(reading.batteryValue)
+                    Text(reading.batteryContext).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let health = battery.health {
+                        metric(tr("健康度"), value: health.formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale)))
+                    }
+                } else {
+                    Text(tr("暂无电池数据")).foregroundStyle(.secondary)
+                    Text(tr("未检测到内置电池，或暂时无法读取。")).font(.system(size: 11)).foregroundStyle(.secondary)
+                }
             }
         case .focus:
             if !settings.restEnabled { Text(tr("尚未启用")).foregroundStyle(.secondary) }
@@ -286,46 +284,91 @@ struct IslandView: View {
         }
     }
 
-    private func quota(_ provider: AIProviderID) -> some View {
-        let state = appModel.aiUsage.visibleQuotaState(for: provider)
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(provider == .codex ? "Codex" : "Claude Code").fontWeight(.semibold)
-            if let snapshot = state.snapshot {
-                MainActorForEach(snapshot.windows) { window in
-                    HStack {
-                        Text(quotaTitle(window.kind))
-                        Spacer()
-                        Text(tr(settings.aiQuotaShowsRemaining ? "剩余" : "已用"))
-                        Text(AIUsageFormat.quotaPercent(remainingPercent: window.remainingPercent, showsRemaining: settings.aiQuotaShowsRemaining, locale: L10n.locale)).monospacedDigit()
+    func aiContent(at date: Date) -> some View {
+        @Bindable var settings = appModel.settings
+        let accounts = reading.quotaAccounts
+        let account = reading.quotaAccount
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                if !settings.aiUsageEnabled { Text(tr("尚未启用")).foregroundStyle(.secondary) }
+                else {
+                    Picker(tr("主显示账号"), selection: $settings.islandPreferences.quotaAccountID) {
+                        Text(tr("自动选择账号")).tag("")
+                        ForEach(accounts, content: IslandAccountOption.option)
+                        if !settings.islandPreferences.quotaAccountID.isEmpty,
+                           !accounts.contains(where: { $0.id == settings.islandPreferences.quotaAccountID }) {
+                            Text(tr("所选账号不可用")).tag(settings.islandPreferences.quotaAccountID)
+                        }
+                    }
+                    .font(.system(size: 11))
+                    if let account {
+                        if let primary = account.primary(at: date) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(reading.quotaValue(primary)).font(.system(size: 34, weight: .semibold, design: .rounded)).monospacedDigit()
+                                Text(tr(settings.aiQuotaShowsRemaining ? "剩余" : "已用") + " · " + primary.title)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        MainActorForEach(account.windows.filter { $0.isCurrent(at: date) }) { window in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(window.title)
+                                    Spacer()
+                                    Text(reading.quotaValue(window)).monospacedDigit()
+                                }
+                                if let remaining = window.remaining, remaining.isFinite, !window.unlimited {
+                                    ProgressView(value: min(100, max(0, settings.aiQuotaShowsRemaining ? remaining : 100 - remaining)), total: 100)
+                                        .tint(.purple).accessibilityLabel(window.title)
+                                        .overlay {
+                                            if !account.stale, let fraction = window.paceFraction(at: date, showsRemaining: settings.aiQuotaShowsRemaining) {
+                                                GeometryReader { geometry in
+                                                    let position = settings.language.resolved.isRightToLeft ? 1 - fraction : fraction
+                                                    Rectangle().fill(.white.opacity(0.9)).frame(width: 2, height: 10)
+                                                        .position(x: 1 + max(0, geometry.size.width - 2) * position, y: geometry.size.height / 2)
+                                                }
+                                                .accessibilityHidden(true)
+                                            }
+                                        }
+                                }
+                                Text(window.resetsAt.map { tr("重置于：\($0.formatted(.dateTime.month(.defaultDigits).day().hour().minute().locale(L10n.locale)))") } ?? tr("重置时间未知"))
+                                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                            }
+                        }
+                        if !account.stale, account.windows.contains(where: { $0.paceFraction(at: date, showsRemaining: settings.aiQuotaShowsRemaining) != nil }) {
+                            Text(tr("刻线表示周期时间进度")).font(.system(size: 10)).foregroundStyle(.secondary)
+                        }
+                        if account.windows.filter({ $0.isCurrent(at: date) }).isEmpty { Text(tr("暂无当前额度")).foregroundStyle(.secondary) }
+                        if let status = account.status { Text(status).foregroundStyle(.orange) }
+                        if account.stale { Text(tr("显示上次成功读取的数据。")).foregroundStyle(.orange) }
+                        if let updated = account.updatedAt {
+                            Text(updated, format: Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale))
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text(settings.islandPreferences.quotaAccountID.isEmpty ? reading.quotaServiceStatus ?? tr("暂无额度数据") : tr("所选账号不可用"))
+                            .foregroundStyle(.secondary)
+                    }
+                    if account == nil, !settings.islandPreferences.quotaAccountID.isEmpty,
+                       let status = reading.quotaServiceStatus { Text(status).foregroundStyle(.orange) }
+                    if settings.aiUsageShowsLocalUsage {
+                        Divider()
+                        HStack {
+                            Text(tr("今日消耗的 Token")).foregroundStyle(.secondary)
+                            Spacer()
+                            Text(tokenValue).monospacedDigit()
+                        }
+                        if appModel.aiUsage.usesMagpie ? appModel.aiUsage.magpieUsageFailures[.daily] != nil : appModel.aiUsage.localState(for: nil).stale {
+                            Text(tr("显示上次成功读取的数据。")).foregroundStyle(.orange)
+                        }
+                        if let updated = appModel.aiUsage.usesMagpie ? appModel.aiUsage.magpieUsageUpdatedAt[.daily] : appModel.aiUsage.localState(for: nil).updated {
+                            Text(updated, format: Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
-                Text(snapshot.fetchedAt, format: Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale))
-                    .font(.system(size: 10)).foregroundStyle(.secondary)
-                if state.isStale { Text(tr("显示上次成功读取的数据。")).font(.system(size: 10)).foregroundStyle(.orange) }
-                if state.failure != nil { Text(quotaStatus(for: provider)).foregroundStyle(.orange) }
-            } else if state.isRefreshing {
-                ProgressView().controlSize(.small)
-            } else { Text(quotaStatus(for: provider)).foregroundStyle(.secondary) }
-        }
-    }
-
-    func quotaStatus(for provider: AIProviderID) -> String {
-        switch appModel.aiUsage.visibleQuotaState(for: provider).failure {
-        case nil: tr("暂无额度数据")
-        case .notConfigured: tr("未检测到登录凭据，请先登录对应 CLI")
-        case .unauthorized: tr("登录已失效，请在对应 CLI 重新登录")
-        case .rateLimited: tr("服务暂时限流，稍后会自动重试")
-        case .network: tr("暂时无法连接额度服务")
-        case .invalidResponse: tr("额度接口返回了无法识别的数据")
-        }
-    }
-
-    private func quotaTitle(_ kind: AIQuotaKind) -> String {
-        switch kind {
-        case .session: tr("5 小时")
-        case .weekly: tr("7 天")
-        case .opusWeekly: "Opus · " + tr("7 天")
-        case .sonnetWeekly: "Sonnet · " + tr("7 天")
+            }
+            .font(.system(size: 11))
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -338,4 +381,14 @@ struct IslandView: View {
         .padding(10)
         .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
     }
+}
+
+/// tag 保留在 Picker 的直接选项上；文字在 MainActor body 读取，兼容后台列表构建。
+private struct IslandAccountOption: View {
+    let account: IslandQuotaAccount
+    nonisolated init(account: IslandQuotaAccount) { self.account = account }
+    @Sendable nonisolated static func option(_ account: IslandQuotaAccount) -> some View {
+        Self(account: account).tag(account.id)
+    }
+    var body: some View { Text(account.title) }
 }

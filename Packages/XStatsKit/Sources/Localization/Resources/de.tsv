@@ -2234,14 +2234,12 @@ CPU 占用口径	CPU-Anzeigeskala
 显示样式	Darstellung
 悬浮胶囊	Schwebende Kapsel
 顶部贴合	Am oberen Rand
-悬浮在菜单栏下方，可调整间距。	Schwebt unter der Menüleiste mit einstellbarem Abstand.
 贴合屏幕顶边，内容避开刘海和菜单栏；系统菜单优先显示。	Schließt an den Bildschirmrand an. Inhalte bleiben unter Kamera und Menüleiste. Systemmenüs haben Vorrang.
 收起时宽度随内容调整。点击展开后会保持打开。	Die eingeklappte Breite passt sich dem Inhalt an. Per Klick bleibt die Insel geöffnet.
 显示内容	Angezeigte Inhalte
 场景	Ansichten
 系统指标	Systemwerte
 收起时显示首个已选指标。	Im eingeklappten Zustand wird der erste ausgewählte Wert angezeigt.
-仅选择灵动岛显示的内容；未启用的功能需先在主应用中开启。	Wähle die Inhalte für Dynamic Island. Aktiviere ausgeschaltete Funktionen zuerst in der Haupt-App.
 正在预览窗口…	Fenstervorschau wird geladen…
 窗口预览未完成，请重新选择。	Fenstervorschau fehlgeschlagen. Wähle das Fenster erneut aus.
 目标窗口当前不可见	Das Zielfenster ist derzeit nicht sichtbar
@@ -2270,3 +2268,30 @@ CPU 占用口径	CPU-Anzeigeskala
 缓存未能完全清理，请刷新后重试。	Der Cache konnte nicht vollständig bereinigt werden. Aktualisiere die Anzeige und versuche es erneut.
 无法读取缓存占用，请重试。	Die Cache-Belegung konnte nicht gelesen werden. Versuche es erneut.
 快捷键、缓存与独立版	Tastaturkurzbefehle, Cache und eigenständige App
+在屏幕顶部查看系统指标、AI 额度、电池与休息计时	Systemwerte, KI-Kontingente, Akku und Pausentimer am oberen Bildschirmrand anzeigen
+主显示账号	Primäres Konto
+自动选择账号	Konto automatisch wählen
+选择主显示账号	Primäres Konto wählen
+所选账号不可用	Gewähltes Konto nicht verfügbar
+暂无当前额度	Kein aktuelles Kontingent verfügbar
+上次读取	Letzter Abruf
+重置时间未知	Zurücksetzzeit unbekannt
+重置于：{}	Zurücksetzung: {}
+无限额度	Unbegrenzt
+暂无电池数据	Keine Akkudaten
+未检测到内置电池，或暂时无法读取。	Kein integrierter Akku erkannt oder Daten vorübergehend nicht verfügbar.
+预计充满：{}	Bis vollständig geladen: ca. {}
+预计剩余：{}	Geschätzte Restzeit: {}
+自动关注	Automatischer Fokus
+仅在收起时优先显示低电量或额度耗尽；展开后保持当前页面。	Nur eingeklappt niedrigen Akkustand oder erschöpfte Kontingente priorisieren. Ausgeklappt bleibt die aktuelle Seite.
+已接通电源	Stromversorgung angeschlossen
+已断开电源	Stromversorgung getrennt
+电池电量低	Niedriger Akkustand
+电池已充满	Akku vollständig geladen
+刻线表示周期时间进度	Die Markierung zeigt den zeitlichen Fortschritt im Zeitraum
+{}（内置屏幕）	{} (Integriertes Display)
+{}（外接屏幕）	{} (Externes Display)
+未启用的模块自动隐藏，重新启用后恢复选择。电池基础信息独立于能耗开关。	Deaktivierte Module werden automatisch ausgeblendet. Beim erneuten Aktivieren wird die Auswahl wiederhergestellt. Grundlegende Batterieinfos sind unabhängig von der Energieüberwachung.
+当前没有可显示的内容，请启用相关模块或选择其他内容。	Keine Inhalte verfügbar. Aktiviere ein zugehöriges Modul oder wähle andere Inhalte.
+自动优先使用内置屏幕；手动选择的屏幕断开时临时回退，重新连接后恢复。	Automatisch das integrierte Display bevorzugen. Wird ein gewähltes Display getrennt, wird vorübergehend ein anderes verwendet und nach dem Wiederverbinden zurückgewechselt.
+悬浮在可用顶边下方；菜单栏隐藏时自动上移，保留设定间距。	Unter dem verfügbaren oberen Rand schweben. Wenn die Menüleiste ausgeblendet wird, nach oben rücken und den gewählten Abstand beibehalten.

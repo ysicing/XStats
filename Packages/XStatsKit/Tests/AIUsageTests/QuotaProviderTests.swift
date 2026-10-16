@@ -144,6 +144,17 @@ private actor StubQuotaHTTPClient: QuotaHTTPClient {
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
     }
 
+    @Test func durationMetadataRemainsOptionalForOldCachesAndUnknownAppServerWindows() throws {
+        let old = try JSONDecoder().decode(AIQuotaWindow.self, from: Data(#"{"kind":"session","usedPercent":25}"#.utf8))
+        #expect(old.duration == nil && old.remainingPercent == 75)
+        let known = AIQuotaWindow(kind: .session, usedPercent: 25, resetsAt: nil, duration: 18_000)
+        #expect(try JSONDecoder().decode(AIQuotaWindow.self, from: JSONEncoder().encode(known)) == known)
+        let inferred = try CodexAppServerQuotaClient.parse(Data(#"{"result":{"rateLimits":{"primary":{"usedPercent":25,"resetsAt":1800003600}}}}"#.utf8), now: Date(timeIntervalSince1970: 1_800_000_000))
+        #expect(inferred.window(.session)?.duration == nil)
+        let explicit = try CodexAppServerQuotaClient.parse(Data(#"{"result":{"rateLimits":{"primary":{"usedPercent":25,"windowDurationMins":300,"resetsAt":1800003600}}}}"#.utf8), now: Date(timeIntervalSince1970: 1_800_000_000))
+        #expect(explicit.window(.session)?.duration == 18_000)
+    }
+
     @Test func codexShowsOnlyQuotaWindowsReturnedForEachPlan() throws {
         let now = Date(timeIntervalSince1970: 1_799_000_000)
         let plus = Data(#"{"plan_type":"plus","rate_limit":{"primary_window":{"used_percent":35,"limit_window_seconds":18000,"reset_after_seconds":3600},"secondary_window":null}}"#.utf8)
@@ -152,10 +163,12 @@ private actor StubQuotaHTTPClient: QuotaHTTPClient {
         let plusSnapshot = try CodexQuotaProvider.parse(plus, now: now)
         #expect(plusSnapshot.window(.session)?.remainingPercent == 65)
         #expect(plusSnapshot.window(.weekly) == nil)
+        #expect(plusSnapshot.window(.session)?.duration == 18_000)
 
         let proSnapshot = try CodexQuotaProvider.parse(pro, now: now)
         #expect(proSnapshot.window(.session) == nil)
         #expect(proSnapshot.window(.weekly)?.remainingPercent == 26)
+        #expect(proSnapshot.window(.weekly)?.duration == 604_800)
     }
 
     @Test func claudeMapsFiveHourAndWeeklyBuckets() async throws {
@@ -167,6 +180,8 @@ private actor StubQuotaHTTPClient: QuotaHTTPClient {
         #expect(result.window(.session)?.usedPercent == 22.5)
         #expect(result.window(.weekly)?.usedPercent == 72)
         #expect(result.window(.sonnetWeekly)?.usedPercent == 81)
+        #expect(result.window(.session)?.duration == 18_000)
+        #expect(result.window(.sonnetWeekly)?.duration == 604_800)
         let request = try #require(await http.lastRequest())
         #expect(request.url?.absoluteString == "https://api.anthropic.com/api/oauth/usage")
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer claude-test-token")
@@ -182,6 +197,7 @@ private actor StubQuotaHTTPClient: QuotaHTTPClient {
         #expect(result.window(.session)?.usedPercent == 14)
         #expect(result.window(.weekly)?.usedPercent == 84)
         #expect(result.window(.weekly)?.resetsAt == now.addingTimeInterval(7200))
+        #expect(result.windows.allSatisfy { $0.duration == nil })
     }
 
     @Test func unauthorizedDoesNotReturnOldOrEmptyQuota() async {

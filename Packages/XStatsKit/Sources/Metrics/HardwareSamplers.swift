@@ -30,13 +30,32 @@ public enum DiskSampler {
 // MARK: - 电池
 
 public enum BatterySampler {
-    public static func sample() -> BatteryStatus? {
-        guard let blob = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
-              let sources = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef] else { return nil }
+    public static func sample() -> BatteryStatus? { read().battery }
 
-        for source in sources {
-            guard let description = IOPSGetPowerSourceDescription(blob, source)?.takeUnretainedValue() as? [String: Any],
-                  description[kIOPSTypeKey] as? String == kIOPSInternalBatteryType else { continue }
+    /// 一次系统电源读取同时返回电量与硬件能力；nil 表示读取不完整，不能据此隐藏电池。
+    public static func read() -> (battery: BatteryStatus?, hasInternalBattery: Bool?) {
+        guard let blob = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+              let sources = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef] else { return (nil, nil) }
+        let descriptions = sources.map {
+            IOPSGetPowerSourceDescription(blob, $0)?.takeUnretainedValue() as? [String: Any]
+        }
+        var reading = readPowerSources(descriptions)
+        if var battery = reading.battery {
+            fillRegistryDetails(&battery)
+            reading.battery = battery
+        }
+        return reading
+    }
+
+    static func readPowerSources(_ descriptions: [[String: Any]?]?) -> (battery: BatteryStatus?, hasInternalBattery: Bool?) {
+        guard let descriptions else { return (nil, nil) }
+        var complete = true
+        for source in descriptions {
+            guard let description = source, let type = description[kIOPSTypeKey] as? String else {
+                complete = false
+                continue
+            }
+            guard type == kIOPSInternalBatteryType else { continue }
 
             let current = description[kIOPSCurrentCapacityKey] as? Int ?? 0
             let maximum = description[kIOPSMaxCapacityKey] as? Int ?? 100
@@ -46,13 +65,12 @@ public enum BatterySampler {
             let minutesKey = isCharging ? kIOPSTimeToFullChargeKey : kIOPSTimeToEmptyKey
             let minutes = (description[minutesKey] as? Int).flatMap { $0 > 0 ? $0 : nil }
 
-            var status = BatteryStatus(level: maximum > 0 ? Double(current) / Double(maximum) : 0,
+            let status = BatteryStatus(level: maximum > 0 ? Double(current) / Double(maximum) : 0,
                                        isCharging: isCharging, isPluggedIn: pluggedIn, isFullyCharged: charged,
                                        minutesRemaining: pluggedIn && !isCharging ? nil : minutes)
-            fillRegistryDetails(&status)
-            return status
+            return (status, true)
         }
-        return nil
+        return (nil, complete ? false : nil)
     }
 
     private static func fillRegistryDetails(_ status: inout BatteryStatus) {

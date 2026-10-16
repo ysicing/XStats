@@ -126,6 +126,17 @@ public actor MetricsHub {
         return sensors.sample(groups: [], includeFans: true)?.fans
     }
 
+    /// 电源事件只读电池，不推进其他指标。调用方在主线程检查取消并按需求代次接收快照。
+    /// nil 表示没有电池读取需求、采样暂停或服务已停止。
+    public func sampleBattery() -> MetricsSnapshot? {
+        guard !Task.isCancelled, !paused, demand.battery, handler != nil else { return nil }
+        var snapshot = MetricsSnapshot()
+        snapshot.samplingGeneration = demand.generation
+        (snapshot.battery, snapshot.hasInternalBattery) = BatterySampler.read()
+        lastBattery = Date()
+        return snapshot
+    }
+
     /// 锁屏、屏幕休眠或系统睡眠时暂停采样
     public func setPaused(_ value: Bool) {
         guard value != paused else { return }
@@ -212,7 +223,7 @@ public actor MetricsHub {
             lastDisk = now
         }
         if demand.battery, now.timeIntervalSince(lastBattery) > 10 {
-            snapshot.battery = BatterySampler.sample()
+            (snapshot.battery, snapshot.hasInternalBattery) = BatterySampler.read()
             lastBattery = now
         }
         let uptime = ProcessInfo.processInfo.systemUptime

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import AppKit
+import Localization
 
 @MainActor
 enum IslandFullscreen {
@@ -39,11 +40,10 @@ struct IslandGeometry {
     let visible: CGRect
     var safeTop: CGFloat = 0
     var camera: ClosedRange<CGFloat>?
-    var menuBarHeight: CGFloat = 22
 
     var hasNotch: Bool { safeTop > 0 && camera.map { $0.upperBound > $0.lowerBound } == true }
 
-    var topClearance: CGFloat { max(safeTop, menuBarHeight, screen.maxY - visible.maxY) }
+    var topClearance: CGFloat { max(0, safeTop, screen.maxY - visible.maxY) }
     // 贴合模式只避让当前占用的顶部区域；菜单栏自动隐藏时不额外画一段空黑条。
     var attachedTopClearance: CGFloat { max(0, safeTop, screen.maxY - visible.maxY) }
 
@@ -60,7 +60,7 @@ struct IslandGeometry {
         let width = min(desiredWidth, visible.width)
         let center = hasNotch ? (camera!.lowerBound + camera!.upperBound) / 2 : visible.midX
         let x = min(max(center - width / 2, visible.minX), visible.maxX - width)
-        // 自动隐藏菜单栏或全屏时 visibleFrame 可能覆盖整屏，仍须为系统菜单预留空间。
+        // 只避让目标屏幕实际保留的菜单栏和安全区；自动隐藏时保留用户设定的悬浮间距。
         let top = attached ? screen.maxY : screen.maxY - topClearance - preferences.normalized.topInset
         let height = max(0, min(size.height + (attached ? attachedTopClearance : 0), top - visible.minY))
         return CGRect(x: x, y: top - height, width: width, height: height)
@@ -70,7 +70,6 @@ struct IslandGeometry {
         screen = display.frame
         visible = display.visibleFrame
         safeTop = display.safeAreaInsets.top
-        menuBarHeight = NSStatusBar.system.thickness
         if let left = display.auxiliaryTopLeftArea, let right = display.auxiliaryTopRightArea {
             camera = left.maxX...max(left.maxX, right.minX)
         }
@@ -81,6 +80,27 @@ struct IslandGeometry {
         self.visible = visible
         self.safeTop = safeTop
         self.camera = camera
+    }
+}
+
+/// 首项是系统主屏幕，自动选择优先使用当前连接的内置屏幕；偏好中的 UUID 不受临时回退影响。
+struct IslandDisplayChoice: Identifiable, Sendable {
+    let id: String
+    let name: String
+    let isBuiltIn: Bool
+
+    var title: String { isBuiltIn ? tr("\(name)（内置屏幕）") : tr("\(name)（外接屏幕）") }
+
+    static func preferredID(savedID: String, displays: [Self]) -> String? {
+        if !savedID.isEmpty, displays.contains(where: { $0.id == savedID }) { return savedID }
+        return (displays.first(where: \.isBuiltIn) ?? displays.first)?.id
+    }
+
+    @MainActor static var connected: [Self] {
+        NSScreen.screens.map { screen in
+            let number = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
+            return Self(id: IslandPreferences.displayKey(screen), name: screen.localizedName, isBuiltIn: CGDisplayIsBuiltin(number) != 0)
+        }
     }
 }
 

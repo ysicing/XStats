@@ -465,6 +465,29 @@ private actor GatedUsageProvider: AIUsageProvider {
         #expect(controller.todayTokens == nil)
     }
 
+    @Test func reenablingSourceCannotPublishItsPreviousInFlightQuota() async {
+        let settings = AppSettings(defaults: defaultsForAIUsage())
+        settings.aiUsageEnabled = true
+        let provider = GatedSourceQuotaProvider()
+        let controller = AIUsageController(settings: settings, providers: [], quotaProviders: [provider])
+        defer { controller.stop() }
+        let inFlight = Task { await controller.refresh() }
+        while await provider.startCount() == 0 { await Task.yield() }
+        settings.aiUsageSources = [.claude]
+        controller.start()
+        settings.aiUsageSources = [.codex, .claude]
+        controller.start()
+        await provider.releaseFirst()
+        await inFlight.value
+        while await provider.startCount() < 2 { await Task.yield() }
+        // 新查询尚未完成；上一次启用期间的返回值不能作为新鲜额度发布。
+        #expect(controller.visibleQuotaState(for: .codex).snapshot == nil)
+        #expect(controller.visibleQuotaState(for: .codex).isRefreshing)
+        await provider.releaseAll()
+        await controller.refresh()
+        #expect(controller.visibleQuotaState(for: .codex).snapshot?.windows.first?.usedPercent == 20)
+    }
+
     @Test func disabledSourceIsNotFetchedOrIncludedInReports() async throws {
         let now = Date()
         let snapshot = usageSnapshot(tokens: 110, at: now)
@@ -668,6 +691,29 @@ private actor GatedUsageProvider: AIUsageProvider {
         controller.setPaused(true)
         await controller.refresh()
         #expect(await provider.count() == 0)
+    }
+}
+
+/// 控制外部查询的完成顺序；刻意忽略取消，检验控制器能否隔离旧代次结果。
+private actor GatedSourceQuotaProvider: AIQuotaProvider {
+    nonisolated let id = AIProviderID.codex
+    private var started = 0
+    private var gates: [Int: CheckedContinuation<Void, Never>] = [:]
+    private var open = false
+
+    func fetch() async throws -> AIQuotaSnapshot {
+        started += 1
+        let request = started
+        if !open { await withCheckedContinuation { gates[request] = $0 } }
+        return .init(provider: id, windows: [.init(kind: .session, usedPercent: request == 1 ? 100 : 20, resetsAt: nil)], fetchedAt: Date())
+    }
+
+    func startCount() -> Int { started }
+    func releaseFirst() { gates.removeValue(forKey: 1)?.resume() }
+    func releaseAll() {
+        open = true
+        for gate in gates.values { gate.resume() }
+        gates.removeAll()
     }
 }
 

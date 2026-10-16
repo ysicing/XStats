@@ -204,6 +204,11 @@ public final class AppModel {
                 || (isMainWindowVisible && [.overview, .thermal].contains(settings.panelTab)))
     }
 
+    /// 保存的选项与当前可展示内容分离，重新启用模块时恢复原有选择。
+    var islandPreferences: IslandPreferences {
+        settings.islandPreferences.available(settings: settings, hasInternalBattery: store.hasInternalBattery)
+    }
+
     /// 根据当前可见内容决定采集范围：主窗口看标签页，详情弹窗看是哪一项
     var demand: MetricsDemand {
         var demand = MetricsDemand()
@@ -218,10 +223,10 @@ public final class AppModel {
         let summary = menu.union(overview)
         let temperaturePopover = popover == .temperature
         let fanPopover = popover == .fan
-        let islandSystem = islandScene == .system
-        let islandPreferences = settings.islandPreferences.normalized
+        let islandPreferences = self.islandPreferences
+        let islandSystem = islandScene == .system && islandPreferences.scenes.contains(.system)
         let islandMetrics: Set<IslandSystemMetric> = islandSystem
-            ? Set(islandExpanded ? islandPreferences.systemMetrics : [islandPreferences.primaryMetric]) : []
+            ? Set(islandExpanded ? islandPreferences.systemMetrics : Array(islandPreferences.systemMetrics.prefix(1))) : []
         let liveIsland = (islandMetrics.contains(.cpu) && settings.isModuleEnabled(.cpu))
             || (islandMetrics.contains(.memory) && settings.isModuleEnabled(.memory))
             || (!islandMetrics.isDisjoint(with: [.temperature, .power]) && energyEnabled)
@@ -251,7 +256,8 @@ public final class AppModel {
         demand.gpu = (window && [.overview, .system].contains(tab)) || summary.contains(.gpu) || showing(.gpu, .gpu)
         demand.disk = (window && [.overview, .system, .cleaner, .disk].contains(tab)) || summary.contains(.disk) || popover == .disk
         demand.diskDetail = showing(.disk, .disk)
-        demand.battery = (window && [.overview, .system, .keepAwake].contains(tab)) || keepAwake.lidClosedActive
+        demand.battery = (islandScene != nil && islandPreferences.scenes.contains(.battery))
+            || (window && [.overview, .system, .keepAwake].contains(tab)) || keepAwake.lidClosedActive
             || summary.contains(.battery) || showing(.battery, .battery)
         demand.processes = processPage || (window && [.overview, .disk].contains(tab)) || showing(.cpu, .cpu) || showing(.memory, .memory)
             || popover == .disk
@@ -302,7 +308,8 @@ public final class AppModel {
             || showing(.cpu, .cpu) || showing(.memory, .memory)
             || demand.diskDetail))
         // 基础电量每 10 秒读取一次；只有这个读取方时无需维持秒级唤醒。
-        if !settings.isModuleEnabled(.battery), demand.battery {
+        if demand.battery, !energyEnabled || islandScene == .battery
+            || (islandScene != nil && islandPreferences.scenes.contains(.battery)) {
             var otherDemand = demand
             otherDemand.battery = false
             if !otherDemand.hasSamples { demand.interval = .seconds(10) }

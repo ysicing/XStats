@@ -4,6 +4,7 @@
 @testable import AIUsage
 import AppKit
 import Localization
+@testable import Metrics
 import SwiftUI
 import Testing
 @testable import XStatsUI
@@ -22,15 +23,12 @@ struct IslandListIsolationTests {
         model.scene = .ai
         let view = IslandView(model: model, appModel: app, selectScene: { model.scene = $0 },
                               expand: {}, collapse: {}, stop: {})
-        let lists = islandListProbes(in: view.body)
+        if nestedQuotas { app.settings.islandPreferences.quotaAccountID = AIProviderID.claude.rawValue }
+        // 直接检验真实账号选择器和当前账号窗口，模拟 macOS 15 后台列表回调。
+        let lists = islandListProbes(in: view.aiContent(at: Date()))
         #expect(lists.count == 2)
-        let providers = try #require(lists.last)
-        let probes = nestedQuotas ? providers.content.nestedLists() : lists
-        #expect(probes.count == 2)
-
-        // 直接调用真实 ForEach.content，模拟 macOS 15 的后台 DisplayLink。
-        let counts = await Task.detached { probes.map { $0.content.buildRows() } }.value
-        #expect(counts == (nestedQuotas ? [2, 4] : [3, 2]))
+        let counts = await Task.detached { lists.map { $0.content.buildRows() } }.value
+        #expect(counts == (nestedQuotas ? [2, 4] : [2, 2]))
     }
 
     @Test(arguments: [false, true])
@@ -49,6 +47,45 @@ struct IslandListIsolationTests {
         #expect(probes.count == (singleScene ? 1 : 2))
         let counts = await Task.detached { probes.map { $0.content.buildRows() } }.value
         #expect(counts == (singleScene ? [1] : [2, 1]))
+    }
+
+    @Test func absentBatteryIsRemovedFromSceneList() async throws {
+        let suite = "IslandAbsentBatteryLists.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let app = await Self.appModel(defaults: defaults)
+        defer { app.aiUsage.stop() }
+        var snapshot = MetricsSnapshot()
+        snapshot.hasInternalBattery = false
+        app.store.apply(snapshot)
+        let model = IslandModel()
+        model.presentation = .expanded
+        let view = IslandView(model: model, appModel: app, selectScene: { _ in }, expand: {}, collapse: {}, stop: {})
+        let scenes = try #require(islandListProbes(in: view.body).first)
+        #expect(await Task.detached { scenes.content.buildRows() }.value == 3)
+    }
+
+    @Test func disabledScenesAndMetricsAreAbsentFromActualExpandedLists() async throws {
+        let suite = "IslandDisabledLists.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let app = await Self.appModel(defaults: defaults)
+        defer { app.aiUsage.stop() }
+        app.settings.aiUsageEnabled = false
+        app.settings.restEnabled = false
+        app.settings.setModuleEnabled(.cpu, false)
+        app.settings.setModuleEnabled(.battery, false)
+        app.settings.islandPreferences.systemMetrics = [.cpu, .memory, .power]
+        var snapshot = MetricsSnapshot()
+        snapshot.hasInternalBattery = true
+        app.store.apply(snapshot)
+        let model = IslandModel()
+        model.presentation = .expanded
+        let view = IslandView(model: model, appModel: app, selectScene: { _ in }, expand: {}, collapse: {}, stop: {})
+        let probes = islandListProbes(in: view.body)
+        #expect(app.islandPreferences.scenes == [.system, .battery])
+        #expect(app.islandPreferences.primaryMetric == .memory)
+        #expect(await Task.detached { probes.map { $0.content.buildRows() } }.value == [2, 0])
     }
 
     @Test(arguments: [false, true])
@@ -136,6 +173,8 @@ struct IslandListIsolationTests {
         model.scene = .ai
         let view = IslandView(model: model, appModel: app, selectScene: { _ in }, expand: {}, collapse: {}, stop: {})
         let sourceName = magpie ? "codex" : "Codex"
+        let accounts = IslandReading(scene: .ai, appModel: app).quotaAccounts
+        #expect(Set(accounts.map(\.title)).count == accounts.count)
         #expect(app.aiUsage.todayTokens == nil)
         for remaining in [true, false] {
             app.settings.aiQuotaShowsRemaining = remaining
@@ -143,6 +182,12 @@ struct IslandListIsolationTests {
                 showsRemaining: remaining, locale: L10n.locale)
             #expect(view.compactValue.contains(percent))
             #expect(view.compactValue.contains(sourceName))
+            let reading = IslandReading(scene: .ai, appModel: app)
+            let window = try #require(reading.quotaAccount?.primary(at: Date()))
+            #expect(window.duration != nil || magpie)
+            #expect(!view.compactValue.contains(window.title))
+            #expect(reading.context.contains(window.title))
+            if magpie { #expect(window.paceFraction(at: Date(), showsRemaining: remaining) == nil) }
         }
         app.settings.aiUsageEnabled = false
         #expect(!view.compactValue.contains(sourceName))
@@ -158,7 +203,6 @@ struct IslandListIsolationTests {
         let state = app.aiUsage.visibleQuotaState(for: .codex)
         #expect(state.snapshot == nil && state.failure == failure)
         #expect(app.aiUsage.visibleQuotaProviders(for: nil).contains(.codex))
-        let view = IslandView(model: IslandModel(), appModel: app, selectScene: { _ in }, expand: {}, collapse: {}, stop: {})
         let source: String
         switch failure {
         case .unauthorized: source = "登录已失效，请在对应 CLI 重新登录"
@@ -167,7 +211,26 @@ struct IslandListIsolationTests {
         case .invalidResponse: source = "额度接口返回了无法识别的数据"
         case .notConfigured: return
         }
-        #expect(view.quotaStatus(for: .codex) == L10n.translate(source, language: L10n.language))
+        #expect(IslandReading(scene: .ai, appModel: app).quotaAccounts.first?.status == L10n.translate(source, language: L10n.language))
+    }
+
+    @Test func magpieFirstFailureIsVisibleWithoutCachedAccounts() async throws {
+        let suite = "IslandMagpieFailureTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.aiUsageEnabled = true
+        let app = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [], magpieClient: IslandUnavailableMagpie())
+        defer { app.aiUsage.stop() }
+        await app.aiUsage.refresh()
+        let reading = IslandReading(scene: .ai, appModel: app)
+        #expect(reading.quotaAccounts.isEmpty)
+        let status = try #require(reading.quotaServiceStatus)
+        #expect(reading.compactValue == status)
+        #expect(reading.context == status)
+        app.settings.islandPreferences.quotaAccountID = "missing"
+        #expect(reading.quotaServiceStatus == status)
+        #expect(reading.compactValue != status)
     }
 
     private static func renderSettings(language: AppLanguage) async throws {
@@ -193,6 +256,11 @@ struct IslandListIsolationTests {
         defer { window.close() }
         window.orderFront(nil)
         for placement in IslandPlacement.allCases {
+            var snapshot = MetricsSnapshot()
+            snapshot.hasInternalBattery = placement == .floating
+            app.store.apply(snapshot)
+            app.settings.islandPreferences.scenes = placement == .attached ? [.battery] : IslandScene.allCases
+            app.settings.islandPreferences.scene = .battery
             app.settings.islandPreferences.placement = placement
             for opening in IslandOpening.allCases {
                 app.settings.islandPreferences.opening = opening
@@ -225,7 +293,8 @@ struct IslandListIsolationTests {
         let host = NSHostingView(rootView: IslandView(model: model, appModel: app,
             selectScene: { model.scene = $0 }, expand: {}, collapse: {}, stop: {})
             .environment(\.layoutDirection, language == .arabic ? .rightToLeft : .leftToRight)
-            .frame(width: size.width, height: size.height))
+            .frame(width: size.width, height: size.height)
+            .background(.black))
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
@@ -234,6 +303,14 @@ struct IslandListIsolationTests {
         window.orderFront(nil)
         for scene in IslandScene.allCases {
             model.scene = scene
+            if scene == .battery {
+                var snapshot = MetricsSnapshot()
+                snapshot.battery = BatteryStatus(level: 0.42, isCharging: false, isPluggedIn: true,
+                    isFullyCharged: false, minutesRemaining: 120, health: 0.96)
+                app.store.apply(snapshot)
+                // 接电但未充电时，即使收到旧估计，也不能显示充满倒计时。
+                #expect(IslandReading(scene: .battery, appModel: app).batteryContext == snapshot.battery?.stateText)
+            }
             for showsRemaining in [true, false] {
                 app.settings.aiQuotaShowsRemaining = showsRemaining
                 host.layoutSubtreeIfNeeded()
@@ -241,6 +318,20 @@ struct IslandListIsolationTests {
                 try await Task.sleep(for: .milliseconds(100))
                 #expect(window.isVisible && host.fittingSize == size)
             }
+            if scene == .ai {
+                let image = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+                host.cacheDisplay(in: host.bounds, to: image)
+                let png = try #require(image.representation(using: .png, properties: [:]))
+                try png.write(to: FileManager.default.temporaryDirectory.appendingPathComponent(
+                    "xstats-island-fixture-\(language.rawValue)-ai-\(magpie)-\(String(describing: presentation)).png"))
+            }
+        }
+        if presentation == .expanded {
+            let image = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: image)
+            let png = try #require(image.representation(using: .png, properties: [:]))
+            let path = FileManager.default.temporaryDirectory.appendingPathComponent("xstats-island-fixture-\(language.rawValue)-battery-\(magpie).png")
+            try png.write(to: path)
         }
         model.scene = .system
         app.settings.islandPreferences.scenes = [.system]
@@ -259,6 +350,7 @@ struct IslandListIsolationTests {
         settings.historyEnabled = false
         settings.enabledAlerts = []
         settings.aiUsageEnabled = true
+        settings.restEnabled = true
         settings.aiUsageSources = [.codex, .claude]
         let app = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [
             IslandQuotaFixture(id: .codex, kinds: [.session, .weekly], failure: quotaFailure),
@@ -273,11 +365,11 @@ private struct IslandMagpieFixture: MagpieFetching {
     func quotas() async throws -> [MagpieQuota] {
         try MagpieClient.decodeQuotas(Data(#"""
         {"object":"list","data":[
-            {"provider":"codex","name":"Demo account","kind":"subscription","windows":[
+            {"provider":"codex","name":"Demo account","user":"first@example.test","kind":"subscription","windows":[
                 {"name":"5 hours","used":25,"remaining":75},
                 {"name":"7 days","used":40,"remaining":60}],
              "resets":{"count":2,"each":[{"until":"2099-10-20T12:00:00Z"},{"until":"2099-11-20T12:00:00Z"}]}},
-            {"provider":"codex","name":"Second demo account","kind":"subscription","windows":[
+            {"provider":"codex","name":"Demo account","user":"second@example.test","kind":"subscription","windows":[
                 {"name":"7 days","used":10,"remaining":90}]},
             {"provider":"claude","name":"Other service","kind":"subscription","windows":[]}
         ]}
@@ -298,7 +390,8 @@ private struct IslandQuotaFixture: AIQuotaProvider {
 
     func fetch() async throws -> AIQuotaSnapshot {
         if let failure { throw failure }
-        return AIQuotaSnapshot(provider: id, windows: kinds.map { AIQuotaWindow(kind: $0, usedPercent: 25, resetsAt: nil) },
+        return AIQuotaSnapshot(provider: id, windows: kinds.map { AIQuotaWindow(kind: $0, usedPercent: 25, resetsAt: Date().addingTimeInterval(3600),
+                duration: $0 == .session ? 5 * 3600 : 7 * 24 * 3600) },
                         fetchedAt: Date())
     }
 }
@@ -337,4 +430,9 @@ private struct IslandBackgroundListProbe: @unchecked Sendable {
     if let list = value as? any IslandDeferredListProbe { return islandListProbes(in: list.listBody) }
     if let content = value as? any IslandListContentProbe { return [IslandBackgroundListProbe(content: content)] }
     return Mirror(reflecting: value).children.flatMap { islandListProbes(in: $0.value) }
+}
+
+private struct IslandUnavailableMagpie: MagpieFetching {
+    func quotas() async throws -> [MagpieQuota] { throw MagpieFailure.unavailable }
+    func usage(period: MagpiePeriod) async throws -> MagpieUsageSummary { throw MagpieFailure.unavailable }
 }

@@ -2234,14 +2234,12 @@ CPU 占用口径	Escala de uso de CPU
 显示样式	Apariencia
 悬浮胶囊	Cápsula flotante
 顶部贴合	Unida al borde superior
-悬浮在菜单栏下方，可调整间距。	Flota debajo de la barra de menús con una separación ajustable.
 贴合屏幕顶边，内容避开刘海和菜单栏；系统菜单优先显示。	Se une al borde superior de la pantalla, con el contenido debajo de la cámara y la barra de menús. Los menús del sistema tienen prioridad.
 收起时宽度随内容调整。点击展开后会保持打开。	El ancho contraído se adapta al contenido. Haz clic para mantenerla abierta.
 显示内容	Contenido mostrado
 场景	Escenas
 系统指标	Métricas del sistema
 收起时显示首个已选指标。	Al contraerse, se muestra la primera métrica seleccionada.
-仅选择灵动岛显示的内容；未启用的功能需先在主应用中开启。	Elige qué muestra Dynamic Island. Activa primero las funciones deshabilitadas en la aplicación principal.
 正在预览窗口…	Cargando vista previa de la ventana…
 窗口预览未完成，请重新选择。	No se pudo mostrar la vista previa. Selecciona de nuevo la ventana.
 目标窗口当前不可见	La ventana seleccionada no está visible actualmente
@@ -2270,3 +2268,30 @@ CPU 占用口径	Escala de uso de CPU
 缓存未能完全清理，请刷新后重试。	No se ha podido borrar toda la caché. Actualiza e inténtalo de nuevo.
 无法读取缓存占用，请重试。	No se ha podido leer el tamaño de la caché. Inténtalo de nuevo.
 快捷键、缓存与独立版	Atajos, caché y app independiente
+在屏幕顶部查看系统指标、AI 额度、电池与休息计时	Ver métricas del sistema, cuotas de IA, batería y temporizador de descanso en la parte superior
+主显示账号	Cuenta principal
+自动选择账号	Elegir cuenta automáticamente
+选择主显示账号	Elegir una cuenta principal
+所选账号不可用	Cuenta seleccionada no disponible
+暂无当前额度	No hay cuota actual disponible
+上次读取	Última lectura
+重置时间未知	Hora de restablecimiento desconocida
+重置于：{}	Se restablece: {}
+无限额度	Sin límite
+暂无电池数据	Sin datos de batería
+未检测到内置电池，或暂时无法读取。	No se ha detectado batería integrada o sus datos no están disponibles temporalmente.
+预计充满：{}	Hasta carga completa: aprox. {}
+预计剩余：{}	Tiempo restante estimado: {}
+自动关注	Prioridad automática
+仅在收起时优先显示低电量或额度耗尽；展开后保持当前页面。	Priorizar batería baja o cuotas agotadas solo al contraer. Mantener la página actual al expandir.
+已接通电源	Alimentación conectada
+已断开电源	Alimentación desconectada
+电池电量低	Batería baja
+电池已充满	Batería completamente cargada
+刻线表示周期时间进度	La marca indica el progreso temporal del ciclo
+{}（内置屏幕）	{} (Pantalla integrada)
+{}（外接屏幕）	{} (Pantalla externa)
+未启用的模块自动隐藏，重新启用后恢复选择。电池基础信息独立于能耗开关。	Los módulos desactivados se ocultan automáticamente y se restauran tus selecciones al reactivarlos. La información básica de la batería es independiente del monitoreo energético.
+当前没有可显示的内容，请启用相关模块或选择其他内容。	No hay contenido disponible. Activa un módulo relacionado o elige otro contenido.
+自动优先使用内置屏幕；手动选择的屏幕断开时临时回退，重新连接后恢复。	Priorizar automáticamente la pantalla integrada. Si se desconecta la pantalla elegida, usar otra temporalmente y volver al reconectarla.
+悬浮在可用顶边下方；菜单栏隐藏时自动上移，保留设定间距。	Flotar bajo el borde superior disponible. Subir cuando se oculte la barra de menús, conservando la separación elegida.

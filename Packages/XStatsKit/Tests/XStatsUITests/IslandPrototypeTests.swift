@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import AppKit
+import AIUsage
 import Foundation
 import SwiftUI
 @testable import Metrics
@@ -99,6 +100,7 @@ struct IslandGeometryTests {
         preferences.setScene(.focus, visible: false)
         #expect(preferences.scene == .system)
         preferences.setScene(.ai, visible: false)
+        preferences.setScene(.battery, visible: false)
         preferences.setScene(.system, visible: false)
         #expect(preferences.scenes == [.system])
         preferences.setMetric(.cpu, visible: false)
@@ -114,6 +116,19 @@ struct IslandGeometryTests {
         #expect(preferences.normalized.systemMetrics == [.cpu])
     }
 
+    @Test func displaySelectionSurvivesDisconnectClamshellAndReconnect() {
+        let external = IslandDisplayChoice(id: "external", name: "Display", isBuiltIn: false)
+        let builtIn = IslandDisplayChoice(id: "internal", name: "Display", isBuiltIn: true)
+        let secondary = IslandDisplayChoice(id: "second", name: "Display", isBuiltIn: false)
+        #expect(IslandDisplayChoice.preferredID(savedID: "", displays: [external, builtIn]) == builtIn.id)
+        #expect(IslandDisplayChoice.preferredID(savedID: external.id, displays: [external, builtIn]) == external.id)
+        #expect(IslandDisplayChoice.preferredID(savedID: external.id, displays: [builtIn]) == builtIn.id)
+        #expect(IslandDisplayChoice.preferredID(savedID: external.id, displays: [external, builtIn]) == external.id)
+        #expect(IslandDisplayChoice.preferredID(savedID: builtIn.id, displays: [external, secondary]) == external.id)
+        #expect(IslandDisplayChoice.preferredID(savedID: "", displays: [external, secondary]) == external.id)
+        #expect(IslandDisplayChoice.preferredID(savedID: "", displays: []) == nil)
+    }
+
     @Test func customDimensionsAndGapKeepTheMenuBarClear() {
         let screen = CGRect(x: -800, y: -600, width: 800, height: 600)
         let geometry = IslandGeometry(screen: screen, visible: screen)
@@ -124,7 +139,7 @@ struct IslandGeometryTests {
         preferences.topInset = 24
         let expanded = geometry.frame(for: .expanded, preferences: preferences)
         #expect(expanded.width == 560 && expanded.height == 400)
-        #expect(expanded.maxY == screen.maxY - 22 - 24)
+        #expect(expanded.maxY == screen.maxY - 24)
         let collapsed = geometry.frame(for: .collapsed, preferences: preferences, compactWidth: 128)
         #expect(collapsed.width == 128 && collapsed.height == 32)
         #expect(collapsed.maxY == expanded.maxY)
@@ -165,11 +180,11 @@ struct IslandGeometryTests {
     }
 
     @Test(arguments: [IslandPresentation.collapsed, .preview, .expanded])
-    func autoHiddenMenuBarStillHasClearance(presentation: IslandPresentation) {
+    func autoHiddenMenuBarOnlyKeepsFloatingGap(presentation: IslandPresentation) {
         let screen = CGRect(x: -1920, y: 200, width: 1920, height: 1080)
         let geometry = IslandGeometry(screen: screen, visible: screen)
         let frame = geometry.frame(for: presentation)
-        #expect(frame.maxY <= screen.maxY - 22 - 8)
+        #expect(frame.maxY == screen.maxY - 8)
         #expect(screen.contains(frame))
     }
 
@@ -253,14 +268,19 @@ final class IslandWindowLifecycleTests {
         for suite in suites { UserDefaults.standard.removePersistentDomain(forName: suite) }
     }
 
-    private func appModel() -> AppModel {
+    private func appModel(quotaProviders: [any AIQuotaProvider] = []) -> AppModel {
         let suite = "IslandTests.\(UUID())"
         suites.append(suite)
         let settings = AppSettings(defaults: UserDefaults(suiteName: suite)!)
         settings.menuBarItems = []
         settings.historyEnabled = false
         settings.enabledAlerts = []
-        return AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        settings.aiUsageEnabled = true
+        let app = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: quotaProviders)
+        var snapshot = MetricsSnapshot()
+        snapshot.hasInternalBattery = true
+        app.store.apply(snapshot)
+        return app
     }
 
     @Test(arguments: [0.02, 0.29, 1.0])
@@ -366,6 +386,272 @@ final class IslandWindowLifecycleTests {
         #expect(app.aiUsage.todayTokens == nil)
     }
 
+    @Test func confirmedAbsentBatteryFallsBackAndReleasesOnlyIslandBatteryDemand() async throws {
+        let app = appModel()
+        app.settings.setModuleEnabled(.battery, false)
+        app.settings.islandPreferences.scene = .battery
+        app.settings.islandPreferences.scenes = [.battery]
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        controller.expand()
+        #expect(controller.model.scene == .battery)
+        var snapshot = MetricsSnapshot()
+        snapshot.hasInternalBattery = false
+        app.store.apply(snapshot)
+        let deadline = ContinuousClock.now + .seconds(2)
+        while controller.panel != nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(controller.isRunning && controller.panel == nil && app.islandScene == nil)
+        #expect(controller.model.presentation == .collapsed)
+        #expect(!app.demand.battery)
+        #expect(app.settings.islandPreferences.scene == .battery)
+        #expect(app.settings.islandPreferences.scenes == [.battery])
+        #expect(app.store.battery == nil && app.store.hasInternalBattery == false)
+        app.settings.setModuleEnabled(.battery, true)
+        #expect(!app.demand.power && !app.demand.battery)
+        // 其他界面的电池基础信息需求仍按原有规则管理。
+        app.openPopover = .battery
+        #expect(app.demand.battery)
+    }
+
+    @Test func absentBatteryAtStartupSkipsAutomaticFocusAndPowerNotices() {
+        let app = appModel()
+        app.settings.setModuleEnabled(.battery, false)
+        app.settings.islandPreferences.scene = .battery
+        app.settings.islandPreferences.automaticFocus = true
+        var snapshot = MetricsSnapshot()
+        snapshot.hasInternalBattery = false
+        app.store.apply(snapshot)
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        #expect(controller.model.scene == .system)
+        #expect(!app.demand.battery)
+        controller.receiveBattery(BatteryStatus(level: 0.5, isCharging: false, isPluggedIn: false, isFullyCharged: false), revision: 1)
+        controller.receiveBattery(BatteryStatus(level: 0.5, isCharging: true, isPluggedIn: true, isFullyCharged: false), revision: 2)
+        #expect(controller.model.powerNotice == nil)
+        #expect(!app.demand.battery)
+    }
+
+    @Test func allUnavailableContentReleasesPanelAndRestoresWithoutPolling() async throws {
+        let app = appModel()
+        app.settings.islandPreferences.scenes = [.ai]
+        app.settings.islandPreferences.scene = .ai
+        let saved = app.settings.islandPreferences
+        let baseline = app.demand
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        controller.expand()
+        #expect(controller.panel != nil && app.islandScene == .ai)
+        for _ in 0..<3 {
+            app.settings.aiUsageEnabled = false
+            let hiddenDeadline = ContinuousClock.now + .seconds(2)
+            while controller.panel != nil, ContinuousClock.now < hiddenDeadline {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            #expect(controller.isRunning && controller.isSuspended && controller.panel == nil)
+            #expect(app.islandScene == nil && app.demand == baseline)
+            #expect(app.settings.islandPreferences == saved)
+            controller.expand()
+            #expect(controller.panel == nil)
+            app.settings.aiUsageEnabled = true
+            let visibleDeadline = ContinuousClock.now + .seconds(2)
+            while controller.panel == nil, ContinuousClock.now < visibleDeadline {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            #expect(controller.panel?.isVisible == true && app.islandScene == .ai)
+            #expect(controller.model.presentation == .collapsed)
+        }
+    }
+
+    @Test func unavailablePrimaryUsesNextEnabledMetricWithoutEnablingModules() async throws {
+        let app = appModel()
+        app.settings.islandPreferences.scenes = [.system]
+        app.settings.islandPreferences.systemMetrics = [.cpu, .memory]
+        app.settings.setModuleEnabled(.cpu, false)
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        #expect(app.islandPreferences.primaryMetric == .memory)
+        #expect(!app.demand.cpu && app.demand.memory)
+        #expect(IslandReading(scene: .system, appModel: app).context == IslandSystemMetric.memory.title)
+        app.settings.setModuleEnabled(.memory, false)
+        let deadline = ContinuousClock.now + .seconds(2)
+        while controller.panel != nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(controller.panel == nil && !app.demand.cpu && !app.demand.memory)
+        #expect(app.settings.islandPreferences.systemMetrics == [.cpu, .memory])
+        app.settings.setModuleEnabled(.cpu, true)
+        let restored = ContinuousClock.now + .seconds(2)
+        while controller.panel == nil, ContinuousClock.now < restored { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(controller.panel != nil && app.demand.cpu && !app.demand.memory)
+    }
+
+    @Test func unknownBatteryReadPreservesKnownPresenceAndLastReading() {
+        let store = MetricsStore(readBattery: false)
+        #expect(store.hasInternalBattery == nil)
+        var snapshot = MetricsSnapshot()
+        snapshot.battery = BatteryStatus(level: 0.5, isCharging: false, isPluggedIn: false, isFullyCharged: false)
+        store.apply(snapshot)
+        store.apply(MetricsSnapshot())
+        #expect(store.hasInternalBattery == true && store.battery?.level == 0.5)
+        snapshot = MetricsSnapshot()
+        snapshot.hasInternalBattery = false
+        store.apply(snapshot)
+        store.apply(MetricsSnapshot())
+        #expect(store.hasInternalBattery == false && store.battery == nil)
+    }
+
+    @Test func batteryDemandUsesBasicSamplingAndIsReleasedWhenHidden() {
+        let app = appModel()
+        app.settings.setModuleEnabled(.battery, false)
+        app.settings.islandPreferences.scene = .battery
+        let baseline = app.demand
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        #expect(app.demand.battery && app.demand.interval == .seconds(10))
+        #expect(!app.demand.power && app.demand.temperatures.isEmpty && !app.demand.appEnergy)
+        controller.expand()
+        #expect(app.demand.battery && app.demand.interval == .seconds(10))
+        controller.setLocked(true)
+        #expect(app.demand == baseline)
+        controller.setLocked(false)
+        #expect(app.demand.battery)
+        controller.stop()
+        #expect(app.demand == baseline)
+    }
+
+    @Test func powerNoticesExpireRestoreAndDoNotInterruptOrReplayAfterHiding() async throws {
+        let app = appModel()
+        app.settings.setModuleEnabled(.battery, false)
+        app.settings.islandPreferences.scene = .ai
+        let controller = IslandWindowController(appModel: app, powerNoticeDuration: .milliseconds(100), fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        #expect(app.demand.battery && !app.demand.power)
+        var snapshot = MetricsSnapshot()
+        var battery = BatteryStatus(level: 0.5, isCharging: false, isPluggedIn: false, isFullyCharged: false)
+        snapshot.battery = battery
+        app.store.apply(snapshot)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        #expect(controller.model.powerNotice == nil)
+        battery.isPluggedIn = true
+        snapshot.battery = battery
+        app.store.apply(snapshot)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        #expect(controller.model.powerNotice == .connected && controller.model.scene == .ai)
+        try await Task.sleep(for: .milliseconds(160))
+        #expect(controller.model.powerNotice == nil && controller.model.scene == .ai)
+        battery.isPluggedIn = false
+        snapshot.battery = battery
+        app.store.apply(snapshot)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        #expect(controller.model.powerNotice == .disconnected)
+        controller.expand()
+        #expect(controller.model.powerNotice == nil)
+        battery.isPluggedIn = true
+        snapshot.battery = battery
+        app.store.apply(snapshot)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        #expect(controller.model.powerNotice == nil && controller.model.presentation == .expanded)
+        controller.collapse()
+        #expect(controller.model.powerNotice == nil)
+        battery.isPluggedIn = false
+        snapshot.battery = battery
+        app.store.apply(snapshot)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        controller.setSleeping(true)
+        #expect(controller.panel == nil && controller.model.powerNotice == nil && !app.demand.battery)
+        controller.setSleeping(false)
+        snapshot.battery = battery
+        app.store.apply(snapshot)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        #expect(controller.model.powerNotice == nil)
+        controller.stop()
+        try await Task.sleep(for: .milliseconds(160))
+        #expect(controller.panel == nil && controller.model.powerNotice == nil)
+    }
+
+    @Test func restoringVisibilityIgnoresCachedReadsBeforeTheFirstNewBatterySnapshot() {
+        let app = appModel()
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        var snapshot = MetricsSnapshot()
+        var battery = BatteryStatus(level: 0.5, isCharging: false, isPluggedIn: false, isFullyCharged: false)
+        snapshot.battery = battery
+        app.store.apply(snapshot)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        controller.setFullscreen(true)
+        // 恢复时设置变化、摘要读取或隐藏前排队的回调仍可能读到旧缓存。
+        controller.setFullscreen(false)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        battery.isPluggedIn = true
+        snapshot.battery = battery
+        app.store.apply(snapshot)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        #expect(controller.model.powerNotice == nil)
+        battery.isPluggedIn = false
+        snapshot.battery = battery
+        app.store.apply(snapshot)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        #expect(controller.model.powerNotice == .disconnected)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        #expect(controller.model.powerNotice == .disconnected)
+    }
+
+    @Test(arguments: [false, true])
+    func resetDeadlineInvalidatesQuotaWithoutFetchingOrStealingExpandedScene(expanded: Bool) async throws {
+        let app = appModel(quotaProviders: [IslandExpiryQuota()])
+        app.settings.aiUsageEnabled = true
+        app.settings.aiUsageSources = [.codex]
+        app.settings.islandPreferences.automaticFocus = true
+        await app.aiUsage.refresh()
+        defer { app.aiUsage.stop() }
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        #expect(controller.model.scene == .ai)
+        let attempt = app.aiUsage.lastAttemptAt
+        if expanded { controller.expand() }
+        try await Task.sleep(for: .seconds(1.2))
+        #expect(controller.model.scene == (expanded ? .ai : .system))
+        #expect(IslandReading(scene: .ai, appModel: app).quotaAccount?.primary(at: Date()) == nil)
+        #expect(app.aiUsage.lastAttemptAt == attempt)
+    }
+
+    @Test func automaticFocusKeepsExpandedPageAndResolvesOnCollapse() async throws {
+        let app = appModel()
+        app.settings.islandPreferences.enabled = true
+        app.settings.islandPreferences.automaticFocus = true
+        app.settings.islandPreferences.scene = .ai
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        #expect(app.demand.battery)
+        controller.expand()
+        var snapshot = MetricsSnapshot()
+        snapshot.battery = BatteryStatus(level: 0.05, isCharging: false, isPluggedIn: false, isFullyCharged: false)
+        app.store.apply(snapshot)
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(controller.model.scene == .ai)
+        controller.collapse()
+        #expect(controller.model.scene == .battery)
+        #expect(app.settings.islandPreferences.scene == .ai)
+        controller.expand()
+        controller.selectScene(.system)
+        controller.syncWithPreferences()
+        #expect(controller.model.scene == .system)
+        #expect(app.demand.cpu)
+        controller.setSleeping(true)
+        #expect(app.islandScene == nil)
+        #expect(!app.demand.battery)
+    }
+
     @Test func systemDemandTracksVisibleContentAndRespectsDisabledModules() {
         let app = appModel()
         let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
@@ -415,6 +701,140 @@ final class IslandWindowLifecycleTests {
         #expect(app.demand.interval == baseline.interval)
     }
 
+    @Test(arguments: IslandSystemMetric.allCases)
+    func moduleToggleDropsIslandReadingsAndRestoresOnlyRequestedMetrics(metric: IslandSystemMetric) {
+        let app = appModel()
+        app.settings.islandPreferences.systemMetrics = [metric]
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        controller.expand()
+        var snapshot = MetricsSnapshot()
+        snapshot.cpu = CPULoad(total: 0.5, user: 0.3, system: 0.2, perCore: [], loadAverage: [])
+        snapshot.memory = MemoryUsage(total: 100, app: 30, wired: 10, compressed: 10, cached: 10,
+            swapUsed: 0, swapTotal: 0, pressure: .normal, uncompressed: 10, swapInBytes: 0, swapOutBytes: 0)
+        snapshot.sensors = SensorReadings(temperatures: [.init(group: .cpu, average: 50, maximum: 55, sensorCount: 1)], fans: [])
+        snapshot.power = PowerReading(system: 20)
+        app.store.apply(snapshot)
+        let reading = IslandReading(scene: .system, appModel: app)
+        let enabledValue = reading.value(for: metric)
+        let module: MonitoringModule = metric == .cpu ? .cpu : metric == .memory ? .memory : .battery
+        app.settings.setModuleEnabled(module, false)
+        app.applyMonitoringSettings()
+        #expect(reading.value(for: metric) != enabledValue)
+        #expect(!app.demand.cpu && !app.demand.memory && !app.demand.power && app.demand.temperatures.isEmpty)
+        #expect(app.demand.battery && !app.demand.appEnergy)
+        #expect(app.settings.islandPreferences.primaryMetric == metric)
+        app.settings.setModuleEnabled(module, true)
+        #expect(reading.value(for: metric) == "—")
+        #expect(app.demand.cpu == (metric == .cpu))
+        #expect(app.demand.memory == (metric == .memory))
+        #expect(app.demand.power == (metric == .power))
+        #expect(app.demand.temperatures.contains(.cpu) == (metric == .temperature))
+        app.store.apply(snapshot)
+        #expect(reading.value(for: metric) == enabledValue)
+        #expect(controller.model.scene == .system && controller.model.presentation == .expanded)
+    }
+
+    @Test(arguments: [false, true])
+    func disablingAIReleasesAutomaticFocusAndEnablingRestoresSelectedAccount(expanded: Bool) async throws {
+        let app = appModel(quotaProviders: [IslandToggleQuota()])
+        app.settings.aiUsageEnabled = true
+        app.settings.aiUsageSources = [.codex]
+        app.settings.islandPreferences.automaticFocus = true
+        app.settings.islandPreferences.quotaAccountID = AIProviderID.codex.rawValue
+        await app.aiUsage.refresh()
+        defer { app.aiUsage.stop() }
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        #expect(controller.model.scene == .ai)
+        if expanded { controller.expand() }
+        let reading = IslandReading(scene: .ai, appModel: app)
+        #expect(reading.quotaAccount != nil)
+        app.settings.aiUsageEnabled = false
+        app.aiUsage.start()
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(reading.quotaAccounts.isEmpty && reading.quotaAccount == nil)
+        #expect(app.aiUsage.todayTokens == nil)
+        #expect(controller.model.scene == .system)
+        #expect(app.settings.islandPreferences.quotaAccountID == AIProviderID.codex.rawValue)
+        app.settings.aiUsageEnabled = true
+        await app.aiUsage.refresh()
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(reading.quotaAccount?.id == AIProviderID.codex.rawValue)
+        #expect(controller.model.scene == (expanded ? .system : .ai))
+        // 单个来源关闭也不能继续显示其缓存；恢复来源不改变固定账号偏好。
+        app.settings.aiUsageSources = []
+        #expect(reading.quotaAccount == nil)
+        app.settings.aiUsageSources = [.codex]
+        #expect(reading.quotaAccount?.id == AIProviderID.codex.rawValue)
+    }
+
+    @Test func restModuleToggleStopsActionsAndPreservesIslandSelection() async throws {
+        let app = appModel()
+        app.settings.islandPreferences.scene = .focus
+        app.settings.restEnabled = true
+        app.rest.sync()
+        app.rest.setRunning(true)
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop(); app.rest.stop() }
+        controller.start()
+        controller.expand()
+        let reading = IslandReading(scene: .focus, appModel: app)
+        let runningValue = reading.compactValue
+        app.settings.restEnabled = false
+        app.rest.sync()
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(controller.model.scene == .system)
+        #expect(!app.rest.isRunning && app.rest.secondsRemaining == 0)
+        #expect(reading.compactValue != runningValue)
+        app.rest.startPause()
+        #expect(!app.rest.isRunning)
+        app.settings.restEnabled = true
+        app.rest.sync()
+        try await Task.sleep(for: .milliseconds(50))
+        app.rest.startPause()
+        #expect(app.rest.isRunning && app.rest.secondsRemaining > 0)
+        #expect(controller.model.scene == .focus && controller.model.presentation == .expanded)
+        #expect(app.settings.islandPreferences.scene == .focus)
+    }
+
+    @Test func deselectingBatteryClearsPowerNoticeAndReenablingStartsWithFreshBaseline() {
+        let app = appModel()
+        app.settings.islandPreferences.enabled = true
+        app.settings.islandPreferences.scene = .ai
+        app.settings.setModuleEnabled(.battery, false)
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        var snapshot = MetricsSnapshot()
+        var battery = BatteryStatus(level: 0.5, isCharging: false, isPluggedIn: false, isFullyCharged: false)
+        snapshot.battery = battery
+        app.store.apply(snapshot)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        battery.isPluggedIn = true
+        snapshot.battery = battery
+        app.store.apply(snapshot)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        #expect(controller.model.powerNotice == .connected)
+        app.settings.islandPreferences.setScene(.battery, visible: false)
+        controller.syncWithPreferences()
+        #expect(!app.demand.battery && controller.model.powerNotice == nil)
+        battery.isPluggedIn = false
+        snapshot.battery = battery
+        app.store.apply(snapshot)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        #expect(controller.model.powerNotice == nil)
+        app.settings.islandPreferences.setScene(.battery, visible: true)
+        controller.syncWithPreferences()
+        #expect(app.demand.battery && !app.settings.isModuleEnabled(.battery))
+        #expect(!app.demand.power && app.demand.temperatures.isEmpty && !app.demand.appEnergy)
+        app.store.apply(snapshot)
+        controller.receiveBattery(battery, revision: app.store.batteryRevision)
+        #expect(controller.model.powerNotice == nil)
+    }
+
     @Test func hidingTheCurrentSceneFallsBackAndReleasesItsDemand() {
         let app = appModel()
         app.settings.islandPreferences.enabled = true
@@ -426,12 +846,12 @@ final class IslandWindowLifecycleTests {
         app.settings.islandPreferences.setScene(.system, visible: false)
         controller.syncWithPreferences()
         #expect(controller.model.scene == .ai)
-        #expect(app.demand == baseline)
+        #expect(app.demand.battery && app.demand.interval == .seconds(10) && !app.demand.cpu)
         controller.selectScene(.system)
         #expect(controller.model.scene == .ai)
         app.settings.islandPreferences.setScene(.ai, visible: false)
         controller.syncWithPreferences()
-        #expect(controller.model.scene == .focus)
+        #expect(controller.model.scene == .battery)
         #expect(!app.settings.restEnabled)
         app.settings.islandPreferences.setScene(.system, visible: true)
         controller.selectScene(.system)
@@ -445,11 +865,15 @@ final class IslandWindowLifecycleTests {
 
     @Test func switchingScenesAndSuspendingReleaseOnlyIslandDemand() {
         let app = appModel()
+        app.settings.islandPreferences.enabled = true
         let baseline = app.demand
         let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
         defer { controller.stop() }
         controller.start()
         controller.selectScene(.ai)
+        #expect(app.demand.battery && app.demand.interval == .seconds(10) && !app.demand.cpu)
+        app.settings.islandPreferences.setScene(.battery, visible: false)
+        controller.syncWithPreferences()
         #expect(app.demand == baseline)
         controller.selectScene(.system)
         #expect(app.demand.cpu)
@@ -642,5 +1066,20 @@ final class IslandWindowLifecycleTests {
         #expect(content.frame == canvas.bounds)
         controller.stop()
         #expect(panel.contentView == nil)
+    }
+}
+
+private struct IslandExpiryQuota: AIQuotaProvider {
+    let id = AIProviderID.codex
+    func fetch() async throws -> AIQuotaSnapshot {
+        .init(provider: id, windows: [.init(kind: .session, usedPercent: 100, resetsAt: Date().addingTimeInterval(0.8))], fetchedAt: Date())
+    }
+}
+
+private struct IslandToggleQuota: AIQuotaProvider {
+    let id = AIProviderID.codex
+    func fetch() async throws -> AIQuotaSnapshot {
+        .init(provider: id, windows: [.init(kind: .session, usedPercent: 100,
+            resetsAt: Date().addingTimeInterval(600), duration: 18_000)], fetchedAt: Date())
     }
 }

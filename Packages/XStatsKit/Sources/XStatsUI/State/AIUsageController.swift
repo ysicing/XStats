@@ -186,16 +186,20 @@ public final class AIUsageController {
     public func start() {
         cadenceTask?.cancel()
         cadenceTask = nil
+        // 调度重建也代表新的配置代次。仅取消 cadence 不会传递到独立的刷新任务；
+        // 来源关闭后快速重新启用时，旧请求即使忽略取消也不能回写到新状态。
+        generation += 1
+        for task in refreshTasks.values { task.cancel() }
+        refreshTask?.cancel()
+        refreshTask = nil
+        magpieRefreshing = false
+        for id in states.keys { states[id]?.isRefreshing = false }
+        for id in quotaStates.keys { quotaStates[id]?.isRefreshing = false }
         if !settings.aiUsageShowsLocalUsage {
             magpieUsage.removeAll()
             magpieUsageFailures.removeAll()
             magpieUsageUpdatedAt.removeAll()
             for task in costTasks.values { task.cancel() }
-            // 关闭日志读取时丢弃在途扫描；额度轮询会在下方重新启动。
-            generation += 1
-            for task in refreshTasks.values { task.cancel() }
-            refreshTask?.cancel()
-            refreshTask = nil
         }
         for provider in providers where !settings.aiUsageShowsLocalUsage || !settings.aiUsageSources.contains(provider.id) {
             states[provider.id] = AIUsageProviderState(provider: provider.id)
@@ -205,10 +209,6 @@ public final class AIUsageController {
         }
         guard settings.aiUsageEnabled, (usesMagpie || !settings.aiUsageSources.isEmpty), !paused else {
             for task in costTasks.values { task.cancel() }
-            generation += 1
-            // 不再轮询时，在途的冷扫描也没有意义了
-            for task in refreshTasks.values { task.cancel() }
-            refreshTask?.cancel(); refreshTask = nil
             if !settings.aiUsageEnabled {
                 magpieQuotas = []; magpieQuotaFailure = nil; magpieQuotaUpdatedAt = nil
                 magpieUsage = [:]; magpieUsageFailures = [:]; magpieUsageUpdatedAt = [:]
@@ -240,6 +240,8 @@ public final class AIUsageController {
         for task in refreshTasks.values { task.cancel() }
         refreshTask?.cancel()
         refreshTask = nil
+        for id in states.keys { states[id]?.isRefreshing = false }
+        for id in quotaStates.keys { quotaStates[id]?.isRefreshing = false }
     }
 
     /// 系统唤醒会连发屏幕唤醒与系统唤醒两个通知，重复的恢复不能再排一次扫描
@@ -274,8 +276,11 @@ public final class AIUsageController {
         }
         let currentGeneration = generation
         defer {
-            for id in states.keys { states[id]?.isRefreshing = false }
-            for id in quotaStates.keys { quotaStates[id]?.isRefreshing = false }
+            // 旧请求可以晚于新请求退出，不能清掉新代次正在刷新的状态。
+            if currentGeneration == generation {
+                for id in states.keys { states[id]?.isRefreshing = false }
+                for id in quotaStates.keys { quotaStates[id]?.isRefreshing = false }
+            }
         }
         let attempt = now()
 

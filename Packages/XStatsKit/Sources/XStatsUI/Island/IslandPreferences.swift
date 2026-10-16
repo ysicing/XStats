@@ -16,7 +16,7 @@ enum IslandPlacement: String, Codable, CaseIterable, Sendable {
 
     var hint: String {
         switch self {
-        case .floating: tr("悬浮在菜单栏下方，可调整间距。")
+        case .floating: tr("悬浮在可用顶边下方；菜单栏隐藏时自动上移，保留设定间距。")
         case .attached: tr("贴合屏幕顶边，内容避开刘海和菜单栏；系统菜单优先显示。")
         }
     }
@@ -64,6 +64,8 @@ public struct IslandPreferences: Codable, Equatable, Sendable {
     var enabled = false
     var scene = IslandScene.system
     var scenes = IslandScene.allCases
+    var automaticFocus = false
+    var quotaAccountID = ""
     var systemMetrics = IslandSystemMetric.allCases
     /// 空字符串自动选择内建屏幕；UUID 跨重启保留显示器选择，断开时临时回退。
     var display = ""
@@ -81,13 +83,15 @@ public struct IslandPreferences: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case enabled, scene, scenes, systemMetrics, display, placement, opening, hoverDelay, closeDelay, hideInFullscreen
-        case size, customWidth, customHeight, topInset
+        case size, customWidth, customHeight, topInset, automaticFocus, quotaAccountID
     }
 
     // 新增展示选项时，旧偏好和备份中缺少的字段沿用默认值，不能丢失启用状态和场景。
     public init(from decoder: any Decoder) throws {
         self.init()
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        automaticFocus = try values.decodeIfPresent(Bool.self, forKey: .automaticFocus) ?? automaticFocus
+        quotaAccountID = try values.decodeIfPresent(String.self, forKey: .quotaAccountID) ?? quotaAccountID
         enabled = try values.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
         scene = try values.decodeIfPresent(IslandScene.self, forKey: .scene) ?? scene
         scenes = try values.decodeIfPresent([IslandScene].self, forKey: .scenes) ?? scenes
@@ -119,8 +123,38 @@ public struct IslandPreferences: Codable, Equatable, Sendable {
         return result
     }
 
-    /// 收起态使用首个勾选指标，展开态再加入其余指标的需求。
-    var primaryMetric: IslandSystemMetric { normalized.systemMetrics[0] }
+    /// 只裁剪运行时内容；空结果表示暂时隐藏，不能再次 normalized 而恢复已关闭的 CPU。
+    func available(hasInternalBattery: Bool?, enabledMetrics: [IslandSystemMetric] = IslandSystemMetric.allCases,
+                   aiEnabled: Bool = true, restEnabled: Bool = true) -> Self {
+        var value = normalized
+        value.systemMetrics.removeAll { !enabledMetrics.contains($0) }
+        let hasSystemMetrics = !value.systemMetrics.isEmpty
+        value.scenes.removeAll { scene in
+            switch scene {
+            case .system: !hasSystemMetrics
+            case .ai: !aiEnabled
+            case .focus: !restEnabled
+            case .battery: hasInternalBattery == false
+            }
+        }
+        if !value.scenes.contains(value.scene), let first = value.scenes.first { value.scene = first }
+        return value
+    }
+
+    @MainActor func available(settings: AppSettings, hasInternalBattery: Bool?) -> Self {
+        let metrics = IslandSystemMetric.allCases.filter { metric in
+            switch metric {
+            case .cpu: settings.isModuleEnabled(.cpu)
+            case .memory: settings.isModuleEnabled(.memory)
+            case .temperature, .power: settings.isModuleEnabled(.battery)
+            }
+        }
+        return available(hasInternalBattery: hasInternalBattery, enabledMetrics: metrics,
+                         aiEnabled: settings.aiUsageEnabled, restEnabled: settings.restEnabled)
+    }
+
+    /// 收起态使用首个可用的已选指标；全部不可用时不产生系统监控需求。
+    var primaryMetric: IslandSystemMetric? { systemMetrics.first }
 
     mutating func setScene(_ scene: IslandScene, visible: Bool) {
         var value = normalized
