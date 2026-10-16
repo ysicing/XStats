@@ -74,6 +74,7 @@ extension Translations {
 录屏已保存，但临时素材未能完全清理。	Recording saved, but some temporary media could not be removed.
 保存的文件不受影响。可在访达中检查并清理剩余临时素材。	Your saved file is unaffected. Review and remove remaining temporary media in Finder.
 显示临时素材	Show temporary media
+确定	OK
 开始录屏	Start recording
 重新选择	Reselect
 {} × {} 像素	{} × {} pixels

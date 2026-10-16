@@ -26,6 +26,13 @@ struct CaptureIntegrationLocalizationTests {
             for source in sources { #expect(catalog.translate(source)?.isEmpty == false, "\(language): \(source)") }
         }
     }
+    @Test func exportCleanupAlertHasTranslationsInEveryCatalog() throws {
+        let sources = ["录屏已保存，但临时素材未能完全清理。", "保存的文件不受影响。可在访达中检查并清理剩余临时素材。", "确定", "显示临时素材"]
+        for language in AppLanguage.allCases where language != .system && language != .chinese {
+            let catalog = try #require(Translations.catalog(for: language))
+            for source in sources { #expect(catalog.translate(source)?.isEmpty == false, "\(language): \(source)") }
+        }
+    }
     @Test func standaloneSwitchHasTranslationsInEveryCatalog() throws {
         let sources = ["截图、图片标注与录屏。", "打开独立版", "改用独立版", "改用内置版", "已安装独立版，可单独运行。切换后将停用内置功能。",
                        "正在使用独立版。", "未找到独立版，可改用内置版。",

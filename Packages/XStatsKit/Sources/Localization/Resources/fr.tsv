@@ -2135,6 +2135,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 录屏已保存，但临时素材未能完全清理。	L’enregistrement est sauvegardé, mais certains fichiers temporaires n’ont pas pu être supprimés.
 保存的文件不受影响。可在访达中检查并清理剩余临时素材。	Le fichier sauvegardé n’est pas affecté. Vérifiez et supprimez les fichiers temporaires restants dans le Finder.
 显示临时素材	Afficher les fichiers temporaires
+确定	OK
 开始录屏	Démarrer l’enregistrement
 重新选择	Sélectionner à nouveau
 {} × {} 像素	{} × {} pixels
