@@ -425,6 +425,7 @@ CPU 负载很高	CPU load is very high
 点击查看更新内容并安装。	Click to see what’s new and install.
 CPU 过热	CPU Overheating
 CPU：{}（以单核满载为 100%）	CPU: {} (100% = one full core)
+CPU、内存、磁盘与电池。每隔几分钟刷新一次。	CPU, memory, disk and battery. Refreshes every few minutes.
 Cloudflare 接入节点（机场代码）	Cloudflare edge location (airport code)
 Cloudflare（1.1.1.1）	Cloudflare (1.1.1.1)
 CoreSimulator 的动态库与运行时缓存	CoreSimulator dyld and runtime caches
@@ -1356,6 +1357,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Python package and 
 签名校验未通过：{}	Signature check failed: {}
 粘贴	Paste
 系统	System
+系统概览	System Overview
 系统代理	System Proxy
 系统或其他用户的进程，XStats 不提供结束	A system or other user's process; XStats can't end it
 系统服务	System Services

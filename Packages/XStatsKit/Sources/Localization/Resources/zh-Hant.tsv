@@ -58,6 +58,7 @@ CPU 负载偏高	CPU 負載偏高
 CPU 负载很高	CPU 負載很高
 CPU 过热	CPU 過熱
 CPU：{}（以单核满载为 100%）	CPU：{}（以單核滿載為 100%）
+CPU、内存、磁盘与电池。每隔几分钟刷新一次。	CPU、記憶體、磁碟與電池。每隔幾分鐘重新整理一次。
 Cloudflare 接入节点（机场代码）	Cloudflare 接入節點（機場代碼）
 Cloudflare（1.1.1.1）	Cloudflare（1.1.1.1）
 CoreSimulator 的动态库与运行时缓存	CoreSimulator 的動態庫與運行時緩存
@@ -995,6 +996,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	uv 下載的 Python
 签名校验未通过：{}	簽名校驗未通過：{}
 粘贴	粘貼
 系统	系統
+系统概览	系統概覽
 系统代理	系統代理
 系统或其他用户的进程，XStats 不提供结束	系統或其他用戶的進程，XStats 不提供結束
 系统服务	系統服務

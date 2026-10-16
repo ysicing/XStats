@@ -1,3 +1,4 @@
+import Localization
 import Metrics
 import SwiftUI
 import WidgetData
@@ -157,9 +158,9 @@ struct SystemWidgetView: View {
             HStack {
                 Gauge(title: "CPU", value: entry.cpu, size: 48)
                 Spacer()
-                Gauge(title: "内存", value: entry.memory, color: pressureColor, size: 48)
+                Gauge(title: tr("内存"), value: entry.memory, color: pressureColor, size: 48)
             }
-            BarRow(title: "磁盘", value: entry.disk, detail: percent(entry.disk))
+            BarRow(title: tr("磁盘"), value: entry.disk, detail: percent(entry.disk))
         }
     }
 
@@ -169,17 +170,17 @@ struct SystemWidgetView: View {
             HStack {
                 Gauge(title: "CPU", value: entry.cpu)
                 Spacer()
-                Gauge(title: "内存", value: entry.memory, color: pressureColor)
+                Gauge(title: tr("内存"), value: entry.memory, color: pressureColor)
                 Spacer()
-                Gauge(title: "磁盘", value: entry.disk)
+                Gauge(title: tr("磁盘"), value: entry.disk)
                 if let battery = entry.battery {
                     Spacer()
-                    Gauge(title: entry.charging ? "充电中" : "电池", value: battery,
+                    Gauge(title: entry.charging ? tr("充电中") : tr("电池"), value: battery,
                           color: battery <= 0.2 ? Palette.error : Palette.success)
                 }
             }
             if let free = entry.diskFree {
-                Text("磁盘可用 \(ByteCountFormatter.string(fromByteCount: Int64(free), countStyle: .file))")
+                Text(tr("磁盘可用 \(ByteCountFormatter.string(fromByteCount: Int64(free), countStyle: .file))"))
                     .font(.system(size: 12))
                     .foregroundStyle(Palette.textSecondary)
             }
@@ -200,8 +201,8 @@ struct SystemWidget: Widget {
         StaticConfiguration(kind: WidgetKind.system, provider: SystemProvider()) { entry in
             SystemWidgetView(entry: entry)
         }
-        .configurationDisplayName("系统概览")
-        .description("CPU、内存、磁盘与电池。每隔几分钟刷新一次。")
+        .configurationDisplayName(tr("系统概览"))
+        .description(tr("CPU、内存、磁盘与电池。每隔几分钟刷新一次。"))
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

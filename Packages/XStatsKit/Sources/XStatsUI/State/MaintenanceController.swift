@@ -46,7 +46,12 @@ public final class MaintenanceController {
             outcomes[command] = Outcome(text: tr("DNS 缓存已刷新"), isError: false)
         case .purgeMemory:
             let after = MemorySampler().sample()
-            let freed = (before?.cached ?? 0) > (after?.cached ?? 0) ? before!.cached - after!.cached : 0
+            let freed: UInt64
+            if let before, let after, before.cached > after.cached {
+                freed = before.cached - after.cached
+            } else {
+                freed = 0
+            }
             outcomes[command] = Outcome(text: freed > 0 ? tr("已释放 \(Format.bytes(freed)) 缓存内存") : tr("内存已整理"), isError: false)
         }
     }
