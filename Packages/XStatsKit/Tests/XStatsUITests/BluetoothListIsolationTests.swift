@@ -1,6 +1,7 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+@testable import AIUsage
 import AppKit
 import SwiftUI
 import Observation
@@ -25,6 +26,30 @@ struct BluetoothListIsolationTests {
             return probes.map { $0.content.buildRows() }
         }.value
         #expect(counts == [batteryParts ? 3 : 1])
+    }
+
+    /// Magpie 额度列表与蓝牙列表是同一类崩溃面：macOS 15 会在后台线程调用 ForEach.content。
+    @Test(arguments: [false, true])
+    func magpieQuotaListsCanBeBuiltOffTheMainQueue(nestedWindows: Bool) async throws {
+        let accounts = try MagpieClient.decodeQuotas(Data(#"""
+        {"object":"list","data":[
+            {"provider":"codex","name":"Demo account","user":"first@example.test","kind":"subscription","windows":[
+                {"name":"5 hours","used":25,"remaining":75},
+                {"name":"7 days","used":40,"remaining":60}],
+             "resets":{"count":2,"each":[{"until":"2099-10-20T12:00:00Z"},{"until":"2099-11-20T12:00:00Z"}]}},
+            {"provider":"codex","name":"Demo account","user":"second@example.test","kind":"subscription","windows":[
+                {"name":"7 days","used":10,"remaining":90}]},
+            {"provider":"claude","name":"Other service","kind":"subscription","windows":[]}
+        ]}
+        """#.utf8))
+        let lists = listProbes(in: MagpieQuotaAccounts(accounts: accounts).body)
+        #expect(lists.count == 2)
+        let accountList = try #require(lists.last)
+        let probes = nestedWindows ? accountList.content.nestedLists() : lists
+        #expect(probes.count == 2)
+
+        let counts = await Task.detached { probes.map { $0.content.buildRows() } }.value
+        #expect(counts == (nestedWindows ? [2, 1] : [2, 2]))
     }
 
     @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft])
@@ -84,6 +109,15 @@ extension ForEach: ListContentProbe where Content: View {
     }
 }
 
+private protocol DeferredListProbe {
+    @MainActor var listBody: Any { get }
+}
+
+// MainActorForEach 的实际 ForEach 在计算属性 body 中，反射看不到，需要先展开。
+extension MainActorForEach: DeferredListProbe {
+    fileprivate var listBody: Any { body }
+}
+
 // 测试专用：传递由安全构建回调组成的列表，模拟旧 SwiftUI 未标注 Sendable 的回调边界。
 private struct BackgroundListProbe: @unchecked Sendable {
     let content: any ListContentProbe
@@ -92,6 +126,7 @@ private struct BackgroundListProbe: @unchecked Sendable {
 // body 的不透明返回类型由 ViewBuilder 包装；反射只用于取出实际 ForEach，避免测试另一份闭包。
 @MainActor
 private func listProbes(in value: Any) -> [BackgroundListProbe] {
+    if let list = value as? any DeferredListProbe { return listProbes(in: list.listBody) }
     if let content = value as? any ListContentProbe { return [BackgroundListProbe(content: content)] }
     return Mirror(reflecting: value).children.flatMap { listProbes(in: $0.value) }
 }
