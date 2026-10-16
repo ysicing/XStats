@@ -8,7 +8,7 @@
 
 extension Translations {
     static var tables: [String] {
-        [english, captureEnglish, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish, appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish, hardwareDetailsEnglish, islandEnglish]
+        [english, captureEnglish, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish, audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish, appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish, hardwareDetailsEnglish]
     }
 
     static let hardwareDetailsEnglish = #"""

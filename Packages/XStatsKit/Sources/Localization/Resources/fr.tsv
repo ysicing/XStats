@@ -2202,12 +2202,6 @@ GPU 内存占用	Mémoire GPU utilisée
 其他系统数据	Autres données système
 GPU 功耗	Puissance GPU
 虚拟内存	Mémoire virtuelle
-灵动岛	Dynamic Island
-在屏幕顶部查看系统指标、AI 用量与休息计时	Consultez les mesures système, l’utilisation de l’IA et le minuteur de pause en haut de l’écran
-展开灵动岛	Développer Dynamic Island
-关闭灵动岛	Fermer Dynamic Island
-点击展开	Cliquer pour développer
-自动选择屏幕	Choisir automatiquement l’écran
 CPU 占用口径	Échelle d’utilisation du CPU
 单核	Par cœur
 占整机：{}	Mac entier : {}
@@ -2218,28 +2212,6 @@ CPU 占用口径	Échelle d’utilisation du CPU
 正在使用独立版。	L’app autonome est utilisée.
 未找到独立版，可改用内置版。	App autonome introuvable. Vous pouvez passer aux outils intégrés.
 请先完成并关闭内置截图或录屏窗口，再切换。	Terminez votre travail et fermez les fenêtres de capture intégrées avant de changer.
-灵动岛设置	Réglages de Dynamic Island
-悬停预览	Aperçu au survol
-悬停展开	Développer au survol
-显示屏幕	Écran
-未连接的显示器	Écran déconnecté
-默认场景	Vue par défaut
-展开尺寸	Taille développée
-与菜单栏的间距	Espace sous la barre des menus
-全屏时隐藏	Masquer en plein écran
-交互	Interaction
-打开方式	Mode d’ouverture
-悬停等待时间	Délai de survol
-移开后收起	Fermer après le départ du pointeur
-显示样式	Apparence
-悬浮胶囊	Capsule flottante
-顶部贴合	Fixée en haut
-贴合屏幕顶边，内容避开刘海和菜单栏；系统菜单优先显示。	Rejoint le bord supérieur de l’écran, avec le contenu sous la caméra et la barre des menus. Les menus système sont prioritaires.
-收起时宽度随内容调整。点击展开后会保持打开。	La largeur réduite s’adapte au contenu. Cliquez pour la garder ouverte.
-显示内容	Contenu affiché
-场景	Vues
-系统指标	Indicateurs système
-收起时显示首个已选指标。	Le premier indicateur sélectionné apparaît dans la vue réduite.
 正在预览窗口…	Chargement de l’aperçu de la fenêtre…
 窗口预览未完成，请重新选择。	L’aperçu a échoué. Sélectionnez à nouveau la fenêtre.
 目标窗口当前不可见	La fenêtre cible n’est pas visible actuellement
@@ -2268,31 +2240,3 @@ CPU 占用口径	Échelle d’utilisation du CPU
 缓存未能完全清理，请刷新后重试。	Une partie du cache n’a pas pu être supprimée. Actualisez et réessayez.
 无法读取缓存占用，请重试。	Impossible de lire la taille du cache. Réessayez.
 快捷键、缓存与独立版	Raccourcis, cache et app autonome
-在屏幕顶部查看系统指标、AI 额度、电池与休息计时	Afficher les mesures système, quotas IA, batterie et minuteur de pause en haut de l’écran
-主显示账号	Compte principal
-自动选择账号	Choisir le compte automatiquement
-选择主显示账号	Choisir un compte principal
-所选账号不可用	Compte sélectionné indisponible
-暂无当前额度	Aucun quota actuel disponible
-上次读取	Dernière lecture
-重置时间未知	Heure de réinitialisation inconnue
-重置于：{}	Réinitialisation : {}
-无限额度	Illimité
-暂无电池数据	Aucune donnée de batterie
-未检测到内置电池，或暂时无法读取。	Aucune batterie intégrée détectée, ou données temporairement indisponibles.
-预计充满：{}	Charge complète estimée : {}
-预计剩余：{}	Autonomie estimée : {}
-自动关注	Priorité automatique
-仅在收起时优先显示低电量或额度耗尽；展开后保持当前页面。	Donner la priorité à la batterie faible ou aux quotas épuisés uniquement en mode réduit. Garder la page actuelle en mode développé.
-已接通电源	Alimentation connectée
-已断开电源	Alimentation déconnectée
-电池电量低	Batterie faible
-电池已充满	Batterie complètement chargée
-刻线表示周期时间进度	Le repère indique la progression du temps dans le cycle
-{}（内置屏幕）	{} (Écran intégré)
-{}（外接屏幕）	{} (Écran externe)
-未启用的模块自动隐藏，重新启用后恢复选择。电池基础信息独立于能耗开关。	Les modules désactivés sont masqués automatiquement et vos choix sont restaurés à leur réactivation. Les informations de base de la batterie sont indépendantes du suivi énergétique.
-当前没有可显示的内容，请启用相关模块或选择其他内容。	Aucun contenu disponible. Activez un module associé ou choisissez un autre contenu.
-自动优先使用内置屏幕；手动选择的屏幕断开时临时回退，重新连接后恢复。	Privilégier automatiquement l’écran intégré. Si l’écran choisi est déconnecté, en utiliser temporairement un autre et y revenir à sa reconnexion.
-悬浮在可用顶边下方；菜单栏隐藏时自动上移，保留设定间距。	Flotter sous le bord supérieur disponible. Remonter quand la barre des menus est masquée, en conservant l’écart choisi.
-测试	Beta

@@ -48,10 +48,6 @@ public final class MetricsStore {
     public private(set) var disk: DiskUsage?
     /// 启动时读取一次，确保面板首次打开时布局（是否有电池卡片）就已确定
     public private(set) var battery: BatteryStatus?
-    /// 未知与确认无内置电池分开，瞬时读取失败不改变已确认的硬件能力。
-    public private(set) var hasInternalBattery: Bool?
-    /// 每次收到真实电池快照递增，即使数值相同；区分新采样与界面重读缓存。
-    private(set) var batteryRevision: UInt = 0
     public private(set) var processes: [ProcessUsage] = []
     public private(set) var appEnergy: AppEnergyReading?
     /// 按应用汇总的磁盘读写排行，分数是最近十几秒的平均速率
@@ -71,9 +67,7 @@ public final class MetricsStore {
     public private(set) var diskHealth: DiskHealth?
     public private(set) var lastUpdate: Date?
 
-    public init(readBattery: Bool = true) {
-        if readBattery { (battery, hasInternalBattery) = BatterySampler.read() }
-    }
+    public init(readBattery: Bool = true) { battery = readBattery ? BatterySampler.sample() : nil }
 
     /// 关闭功能后移除实时缓存，避免重新打开页面把旧值当作当前值。
     /// 持久化历史由 HistoryRecorder 管理，不在这里删除。
@@ -171,15 +165,8 @@ public final class MetricsStore {
             gpuHistory.append(gpu.utilization)
         }
         if let disk = snapshot.disk { self.disk = disk }
-        if let presence = snapshot.hasInternalBattery {
-            hasInternalBattery = presence
-            if !presence { battery = nil }
-        }
-        if let battery = snapshot.battery {
-            hasInternalBattery = true
-            self.battery = battery
-            batteryRevision &+= 1
-        }
+        if snapshot.hasInternalBattery == false { battery = nil }
+        if let battery = snapshot.battery { self.battery = battery }
         if let processes = snapshot.processes {
             self.processes = processes
             // 排行只需要磁盘计数，不必构建带名称、文案和其他指标的完整界面行。

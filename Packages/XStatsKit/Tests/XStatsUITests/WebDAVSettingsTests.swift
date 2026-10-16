@@ -165,4 +165,23 @@ struct WebDAVSettingsTests {
         #expect(settings.refreshSeconds == 2)
         #expect(backup.document == document)
     }
+
+    @Test func removedFeaturePreferencesDoNotBlockBackupRestore() throws {
+        let suite = "WebDAVSettingsTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let legacyPreferences = Data(#"{"enabled":true,"scene":1,"display":"old-display"}"#.utf8)
+        defaults.set(legacyPreferences, forKey: "islandPreferences")
+        let settings = AppSettings(defaults: defaults)
+        let data = Data(#"{"format":"work.12306.xstats.settings","version":1,"savedAt":"2026-10-16T00:00:00Z","document":{"schema":1,"refreshSeconds":5,"restEnabled":true,"islandPreferences":{"enabled":true,"scene":1}}}"#.utf8)
+        let backup = try SettingsBackup.decode(data)
+        settings.apply(backup.document)
+        #expect(settings.refreshSeconds == 5)
+        #expect(settings.restEnabled)
+        let restored = AppSettings(defaults: defaults)
+        #expect(restored.refreshSeconds == 5)
+        #expect(restored.restEnabled)
+        let exported = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(restored.exportDocument())) as? [String: Any])
+        #expect(exported["islandPreferences"] == nil)
+    }
 }

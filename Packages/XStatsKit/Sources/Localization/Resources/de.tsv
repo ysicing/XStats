@@ -2202,12 +2202,6 @@ GPU 内存占用	GPU-Speicherbelegung
 其他系统数据	Sonstige Systemdaten
 GPU 功耗	GPU-Leistung
 虚拟内存	Virtueller Speicher
-灵动岛	Dynamic Island
-在屏幕顶部查看系统指标、AI 用量与休息计时	Systemwerte, KI-Nutzung und Pausentimer am oberen Bildschirmrand anzeigen
-展开灵动岛	Dynamic Island aufklappen
-关闭灵动岛	Dynamic Island schließen
-点击展开	Zum Aufklappen klicken
-自动选择屏幕	Bildschirm automatisch wählen
 CPU 占用口径	CPU-Anzeigeskala
 单核	Pro Kern
 占整机：{}	Gesamter Mac: {}
@@ -2218,28 +2212,6 @@ CPU 占用口径	CPU-Anzeigeskala
 正在使用独立版。	Die eigenständige App wird verwendet.
 未找到独立版，可改用内置版。	Eigenständige App nicht gefunden. Sie können zu den integrierten Werkzeugen wechseln.
 请先完成并关闭内置截图或录屏窗口，再切换。	Beenden Sie Ihre Arbeit und schließen Sie vor dem Wechsel die integrierten Aufnahmefenster.
-灵动岛设置	Dynamic-Island-Einstellungen
-悬停预览	Vorschau bei Mauszeigerkontakt
-悬停展开	Bei Mauszeigerkontakt öffnen
-显示屏幕	Bildschirm
-未连接的显示器	Nicht verbundener Bildschirm
-默认场景	Standardansicht
-展开尺寸	Größe im geöffneten Zustand
-与菜单栏的间距	Abstand unter der Menüleiste
-全屏时隐藏	Im Vollbild ausblenden
-交互	Interaktion
-打开方式	Öffnungsverhalten
-悬停等待时间	Verzögerung beim Zeigen
-移开后收起	Nach Verlassen schließen
-显示样式	Darstellung
-悬浮胶囊	Schwebende Kapsel
-顶部贴合	Am oberen Rand
-贴合屏幕顶边，内容避开刘海和菜单栏；系统菜单优先显示。	Schließt an den Bildschirmrand an. Inhalte bleiben unter Kamera und Menüleiste. Systemmenüs haben Vorrang.
-收起时宽度随内容调整。点击展开后会保持打开。	Die eingeklappte Breite passt sich dem Inhalt an. Per Klick bleibt die Insel geöffnet.
-显示内容	Angezeigte Inhalte
-场景	Ansichten
-系统指标	Systemwerte
-收起时显示首个已选指标。	Im eingeklappten Zustand wird der erste ausgewählte Wert angezeigt.
 正在预览窗口…	Fenstervorschau wird geladen…
 窗口预览未完成，请重新选择。	Fenstervorschau fehlgeschlagen. Wähle das Fenster erneut aus.
 目标窗口当前不可见	Das Zielfenster ist derzeit nicht sichtbar
@@ -2268,31 +2240,3 @@ CPU 占用口径	CPU-Anzeigeskala
 缓存未能完全清理，请刷新后重试。	Der Cache konnte nicht vollständig bereinigt werden. Aktualisiere die Anzeige und versuche es erneut.
 无法读取缓存占用，请重试。	Die Cache-Belegung konnte nicht gelesen werden. Versuche es erneut.
 快捷键、缓存与独立版	Tastaturkurzbefehle, Cache und eigenständige App
-在屏幕顶部查看系统指标、AI 额度、电池与休息计时	Systemwerte, KI-Kontingente, Akku und Pausentimer am oberen Bildschirmrand anzeigen
-主显示账号	Primäres Konto
-自动选择账号	Konto automatisch wählen
-选择主显示账号	Primäres Konto wählen
-所选账号不可用	Gewähltes Konto nicht verfügbar
-暂无当前额度	Kein aktuelles Kontingent verfügbar
-上次读取	Letzter Abruf
-重置时间未知	Zurücksetzzeit unbekannt
-重置于：{}	Zurücksetzung: {}
-无限额度	Unbegrenzt
-暂无电池数据	Keine Akkudaten
-未检测到内置电池，或暂时无法读取。	Kein integrierter Akku erkannt oder Daten vorübergehend nicht verfügbar.
-预计充满：{}	Bis vollständig geladen: ca. {}
-预计剩余：{}	Geschätzte Restzeit: {}
-自动关注	Automatischer Fokus
-仅在收起时优先显示低电量或额度耗尽；展开后保持当前页面。	Nur eingeklappt niedrigen Akkustand oder erschöpfte Kontingente priorisieren. Ausgeklappt bleibt die aktuelle Seite.
-已接通电源	Stromversorgung angeschlossen
-已断开电源	Stromversorgung getrennt
-电池电量低	Niedriger Akkustand
-电池已充满	Akku vollständig geladen
-刻线表示周期时间进度	Die Markierung zeigt den zeitlichen Fortschritt im Zeitraum
-{}（内置屏幕）	{} (Integriertes Display)
-{}（外接屏幕）	{} (Externes Display)
-未启用的模块自动隐藏，重新启用后恢复选择。电池基础信息独立于能耗开关。	Deaktivierte Module werden automatisch ausgeblendet. Beim erneuten Aktivieren wird die Auswahl wiederhergestellt. Grundlegende Batterieinfos sind unabhängig von der Energieüberwachung.
-当前没有可显示的内容，请启用相关模块或选择其他内容。	Keine Inhalte verfügbar. Aktiviere ein zugehöriges Modul oder wähle andere Inhalte.
-自动优先使用内置屏幕；手动选择的屏幕断开时临时回退，重新连接后恢复。	Automatisch das integrierte Display bevorzugen. Wird ein gewähltes Display getrennt, wird vorübergehend ein anderes verwendet und nach dem Wiederverbinden zurückgewechselt.
-悬浮在可用顶边下方；菜单栏隐藏时自动上移，保留设定间距。	Unter dem verfügbaren oberen Rand schweben. Wenn die Menüleiste ausgeblendet wird, nach oben rücken und den gewählten Abstand beibehalten.
-测试	Beta

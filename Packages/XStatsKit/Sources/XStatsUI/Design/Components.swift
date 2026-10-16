@@ -794,7 +794,6 @@ struct SettingRow<Control: View>: View {
     let title: String
     var subtitle: String?
     var icon: String?
-    var badge: String? = nil
     @ViewBuilder var control: Control
 
     var body: some View {
@@ -806,12 +805,7 @@ struct SettingRow<Control: View>: View {
                     .frame(width: DS.Size.iconStandalone, height: DS.Size.iconStandalone)
             }
             VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
-                HStack(spacing: DS.Space.s2) {
-                    Text(title).dsFont(.sm, weight: .medium).foregroundStyle(DS.Palette.textPrimary)
-                    if let badge {
-                        TagBadge(icon: nil, text: badge, tone: .neutral, compact: true)
-                    }
-                }
+                Text(title).dsFont(.sm, weight: .medium).foregroundStyle(DS.Palette.textPrimary)
                 if let subtitle {
                     Text(subtitle).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)

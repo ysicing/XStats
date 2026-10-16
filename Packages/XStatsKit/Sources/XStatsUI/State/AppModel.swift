@@ -49,10 +49,6 @@ public final class AppModel {
     /// 功能页分类仅用于当前窗口，不持久化、不影响采样需求。
     var featureSettingsTab: FeatureSettingsTab = .basic
 
-    /// 只为当前可见的灵动岛场景申请已有采样，不启动独立采集器。
-    var islandScene: IslandScene?
-    var islandExpanded = false
-
     public var isMainWindowVisible = false
     /// 被其他应用占用、没能注册的快捷键
     public var hotKeyConflicts: Set<HotKeyAction> = []
@@ -78,7 +74,6 @@ public final class AppModel {
     public private(set) var launchAtLoginError: String?
 
     @ObservationIgnored var openSettings: () -> Void = {}
-    @ObservationIgnored var previewIsland: () -> Void = {}
     @ObservationIgnored var openActivityMonitor: () -> Void = {
         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
     }
@@ -204,11 +199,6 @@ public final class AppModel {
                 || (isMainWindowVisible && [.overview, .thermal].contains(settings.panelTab)))
     }
 
-    /// 保存的选项与当前可展示内容分离，重新启用模块时恢复原有选择。
-    var islandPreferences: IslandPreferences {
-        settings.islandPreferences.available(settings: settings, hasInternalBattery: store.hasInternalBattery)
-    }
-
     /// 根据当前可见内容决定采集范围：主窗口看标签页，详情弹窗看是哪一项
     var demand: MetricsDemand {
         var demand = MetricsDemand()
@@ -223,13 +213,6 @@ public final class AppModel {
         let summary = menu.union(overview)
         let temperaturePopover = popover == .temperature
         let fanPopover = popover == .fan
-        let islandPreferences = self.islandPreferences
-        let islandSystem = islandScene == .system && islandPreferences.scenes.contains(.system)
-        let islandMetrics: Set<IslandSystemMetric> = islandSystem
-            ? Set(islandExpanded ? islandPreferences.systemMetrics : Array(islandPreferences.systemMetrics.prefix(1))) : []
-        let liveIsland = (islandMetrics.contains(.cpu) && settings.isModuleEnabled(.cpu))
-            || (islandMetrics.contains(.memory) && settings.isModuleEnabled(.memory))
-            || (!islandMetrics.isDisjoint(with: [.temperature, .power]) && energyEnabled)
 
         // 仅实时监控页需要每秒采样；历史、工具和设置页沿用用户设置的后台间隔。
         // 能耗关闭时能耗页只展示基础电量，不算实时页，交给下方 10 秒基础电量分支。
@@ -242,29 +225,27 @@ public final class AppModel {
         let liveOverview = !overview.subtracting(selfRefreshing).isEmpty
         // 进程页要读全系统进程（启动 ps），每 2 秒刷新一次足够，也更省电
         demand.interval = processPage && !livePopover ? .seconds(2)
-            : liveWindow || livePopover || liveOverview || liveIsland ? .seconds(1) : .seconds(settings.refreshSeconds)
+            : liveWindow || livePopover || liveOverview ? .seconds(1) : .seconds(settings.refreshSeconds)
         let dashboard = window && tab == .overview
         let recording = settings.historyEnabled
         let alerts = settings.activeAlerts
         let showing = { (page: PanelTab, item: MenuBarItem) in (window && tab == page) || popover == item }
         demand.cpu = settings.isModuleEnabled(.cpu)
-            && (islandMetrics.contains(.cpu) || recording || dashboard || processPage || summary.contains(.cpu) || showing(.cpu, .cpu) || alerts.contains(.cpuLoad))
+            && (recording || dashboard || processPage || summary.contains(.cpu) || showing(.cpu, .cpu) || alerts.contains(.cpuLoad))
         demand.memory = settings.isModuleEnabled(.memory)
-            && (islandMetrics.contains(.memory) || recording || dashboard || summary.contains(.memory) || showing(.memory, .memory) || alerts.contains(.memoryPressure))
+            && (recording || dashboard || summary.contains(.memory) || showing(.memory, .memory) || alerts.contains(.memoryPressure))
         demand.network = settings.isModuleEnabled(.network)
             && (recording || dashboard || summary.contains(.network) || showing(.network, .network))
         demand.gpu = (window && [.overview, .system].contains(tab)) || summary.contains(.gpu) || showing(.gpu, .gpu)
         demand.disk = (window && [.overview, .system, .cleaner, .disk].contains(tab)) || summary.contains(.disk) || popover == .disk
         demand.diskDetail = showing(.disk, .disk)
-        demand.battery = (islandScene != nil && islandPreferences.scenes.contains(.battery))
-            || (window && [.overview, .system, .keepAwake].contains(tab)) || keepAwake.lidClosedActive
+        demand.battery = (window && [.overview, .system, .keepAwake].contains(tab)) || keepAwake.lidClosedActive
             || summary.contains(.battery) || showing(.battery, .battery)
         demand.processes = processPage || (window && [.overview, .disk].contains(tab)) || showing(.cpu, .cpu) || showing(.memory, .memory)
             || popover == .disk
         demand.systemProcesses = processPage
 
         var groups = Set<TemperatureGroup>()
-        if islandMetrics.contains(.temperature) { groups.insert(.cpu) }
         if window && tab == .overview { groups.formUnion([.cpu, .gpu]) }
         if overview.contains(.cpu) || overview.contains(.temperature) { groups.insert(.cpu) }
         if overview.contains(.gpu) { groups.insert(.gpu) }
@@ -276,7 +257,7 @@ public final class AppModel {
         if alerts.contains(.cpuTemperature) { groups.insert(.cpu) }
         demand.temperatures = groups
         demand.power = settings.isModuleEnabled(.battery)
-            && (islandMetrics.contains(.power) || (window && tab == .battery)
+            && ((window && tab == .battery)
                 || (temperaturePopover && settings.isVisible(.thermalPower))
                 || (popover == .battery && settings.isVisible(.batteryPower)))
         let gpuDetailsVisible = (window && tab == .gpu) || (popover == .gpu && settings.isVisible(.gpuDetails))
@@ -308,8 +289,7 @@ public final class AppModel {
             || showing(.cpu, .cpu) || showing(.memory, .memory)
             || demand.diskDetail))
         // 基础电量每 10 秒读取一次；只有这个读取方时无需维持秒级唤醒。
-        if demand.battery, !energyEnabled || islandScene == .battery
-            || (islandScene != nil && islandPreferences.scenes.contains(.battery)) {
+        if demand.battery, !energyEnabled {
             var otherDemand = demand
             otherDemand.battery = false
             if !otherDemand.hasSamples { demand.interval = .seconds(10) }

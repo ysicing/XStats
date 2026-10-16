@@ -18,7 +18,6 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var schema: Int? = 1
     public var calendarEnabled: Bool?
     public var calendarPreferences: CalendarPreferences?
-    public var islandPreferences: IslandPreferences?
     public var restEnabled: Bool?
     public var wellnessPreferences: WellnessPreferences?
     public var restWorkMinutes: Int?
@@ -79,10 +78,6 @@ extension AppSettings {
         var doc = SettingsDocument()
         doc.calendarEnabled = calendarEnabled
         doc.calendarPreferences = calendarPreferences
-        var island = islandPreferences.normalized
-        // 显示器身份仅在本机有效；备份保存展示习惯，恢复时保留本机屏幕选择。
-        island.display = ""
-        doc.islandPreferences = island
         doc.restEnabled = restEnabled
         doc.wellnessPreferences = wellnessPreferences.normalized
         doc.restWorkMinutes = restWorkMinutes
@@ -150,10 +145,6 @@ extension AppSettings {
         assign(\.notifyUpdates, doc.notifyUpdates)
         assign(\.calendarEnabled, doc.calendarEnabled)
         assign(\.calendarPreferences, doc.calendarPreferences)
-        if var island = doc.islandPreferences?.normalized {
-            island.display = islandPreferences.display
-            assign(\.islandPreferences, island)
-        }
         assign(\.restEnabled, doc.restEnabled)
         assign(\.wellnessPreferences, doc.wellnessPreferences?.normalized)
         assign(\.restWorkMinutes, option(doc.restWorkMinutes, in: Self.restWorkOptions))

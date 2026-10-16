@@ -504,10 +504,6 @@ public final class AppSettings {
     var networkObservationDefaults: UserDefaults { defaults }
     var updateDefaults: UserDefaults { defaults }
 
-    var islandPreferences: IslandPreferences {
-        didSet { defaults.set(try? JSONEncoder().encode(islandPreferences.normalized), forKey: "islandPreferences") }
-    }
-
     /// 日历独立于性能指标，即使指标合并也保留单独入口；旧用户默认关闭。
     public var calendarEnabled: Bool {
         didSet { defaults.set(calendarEnabled, forKey: Keys.calendarEnabled) }
@@ -898,8 +894,6 @@ public final class AppSettings {
 
     public init(defaults: UserDefaults = .standard, calendarLocale: Locale = .current, calendar: Calendar = .current) {
         self.defaults = defaults
-        islandPreferences = defaults.data(forKey: "islandPreferences")
-            .flatMap { try? JSONDecoder().decode(IslandPreferences.self, from: $0) }?.normalized ?? IslandPreferences()
         let isRestEnabled = defaults.bool(forKey: Keys.restEnabled)
         restEnabled = isRestEnabled
         restWorkMinutes = Self.restWorkOptions.contains(defaults.integer(forKey: Keys.restWorkMinutes))

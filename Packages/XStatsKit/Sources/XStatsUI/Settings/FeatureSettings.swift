@@ -202,11 +202,6 @@ struct FeatureSettings: View {
             }
             SettingsGroup {
                 GroupRow(showsDivider: false) {
-                    IslandFeatureSettings()
-                }
-            }
-            SettingsGroup {
-                GroupRow(showsDivider: false) {
                     SettingRow(title: tr("菜单栏日历"),
                                subtitle: tr("独立显示日期，点击打开月历；不受指标合并布局影响"),
                                icon: "calendar") {
