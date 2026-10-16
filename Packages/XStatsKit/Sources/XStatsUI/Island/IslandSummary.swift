@@ -61,7 +61,16 @@ struct IslandQuotaAccount: Identifiable, Sendable {
 
     /// 偏好中只保存不可逆身份摘要，不写入账号或邮箱原文。
     static func identity(_ value: String) -> String {
-        SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
+        // 每次视图读取都会使用此标识；直接编码十六进制，避免逐字节调用 Foundation 格式化。
+        let hex = Array("0123456789abcdef".utf8)
+        let digest = SHA256.hash(data: Data(value.utf8))
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(SHA256.Digest.byteCount * 2)
+        for byte in digest {
+            bytes.append(hex[Int(byte >> 4)])
+            bytes.append(hex[Int(byte & 0x0f)])
+        }
+        return String(decoding: bytes, as: UTF8.self)
     }
 }
 

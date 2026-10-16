@@ -4,6 +4,7 @@
 import AppKit
 import AIUsage
 import Foundation
+import Observation
 import SwiftUI
 @testable import Metrics
 import Testing
@@ -863,6 +864,43 @@ final class IslandWindowLifecycleTests {
         #expect(app.demand == baseline)
     }
 
+    @Test func selectingTheCurrentTabDoesNotRewritePreferences() {
+        let app = appModel()
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        withObservationTracking {
+            _ = app.settings.islandPreferences
+        } onChange: {
+            Issue.record("Repeated selection must not invalidate Island preferences")
+        }
+        controller.selectScene(controller.model.scene)
+    }
+
+    @Test func rapidExpandedTabSwitchesKeepTheLastSelectionAndWindowSize() async throws {
+        let app = appModel()
+        app.settings.islandPreferences.enabled = true
+        app.settings.restEnabled = true
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        controller.expand()
+        try await Task.sleep(for: .milliseconds(220))
+        let frame = try #require(controller.panel?.frame)
+        let attempt = app.aiUsage.lastAttemptAt
+        for scene in [IslandScene.ai, .focus, .system, .focus, .ai, .system, .ai] {
+            controller.selectScene(scene)
+            controller.syncWithPreferences()
+            controller.panel?.contentView?.layoutSubtreeIfNeeded()
+        }
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(controller.model.scene == .ai && controller.model.presentation == .expanded)
+        #expect(app.islandScene == .ai && app.islandExpanded)
+        #expect(controller.panel?.frame == frame)
+        #expect(app.aiUsage.lastAttemptAt == attempt)
+        #expect(AppSettings(defaults: app.settings.audioDefaults).islandPreferences.scene == .ai)
+    }
+
     @Test func switchingScenesAndSuspendingReleaseOnlyIslandDemand() {
         let app = appModel()
         app.settings.islandPreferences.enabled = true
@@ -906,6 +944,48 @@ final class IslandWindowLifecycleTests {
         now += 2_000_000_000
         try await Task.sleep(for: .milliseconds(1250))
         #expect(rest.secondsRemaining == hidden)
+    }
+
+    @Test func expansionPublishesContentAfterItsContainerHasTheFinalSize() throws {
+        let app = appModel()
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        let screen = try #require(controller.panel?.screen)
+        let geometry = IslandGeometry(screen)
+        let target = geometry.frame(for: .expanded, preferences: app.islandPreferences)
+        let expected = IslandSilhouette.contentFrame(in: target, placement: app.islandPreferences.placement,
+                                                    topClearance: geometry.attachedTopClearance).size
+        withObservationTracking {
+            _ = controller.model.presentation
+        } onChange: {
+            MainActor.assumeIsolated {
+                // 发布展开内容前应完成容器定位，避免在收起尺寸上同步重建再重新布局。
+                #expect(controller.panel?.contentView?.subviews.first?.frame.size == expected)
+            }
+        }
+        controller.expand()
+        #expect(controller.model.presentation == .expanded)
+    }
+
+    @Test func repeatedExpansionAndPreferenceSyncPreserveTheRunningTransition() throws {
+        let app = appModel()
+        app.settings.islandPreferences.enabled = true
+        let controller = IslandWindowController(appModel: app, fullscreenDetector: { _ in false })
+        defer { controller.stop() }
+        controller.start()
+        controller.expand()
+        let date = controller.model.date
+        controller.expand()
+        #expect(controller.model.date == date)
+        let mask = try #require(controller.panel?.contentView?.layer?.mask)
+        let animating = mask.animation(forKey: "island-shape") != nil
+        controller.syncWithPreferences()
+        #expect((mask.animation(forKey: "island-shape") != nil) == animating)
+        controller.collapse()
+        let closing = mask.animation(forKey: "island-shape") != nil
+        controller.syncWithPreferences()
+        #expect((mask.animation(forKey: "island-shape") != nil) == closing)
     }
 
     @Test func stoppingDuringExpansionReleasesWindowAndPreventsLateReopening() async throws {

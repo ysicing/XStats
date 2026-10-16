@@ -66,7 +66,6 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
             interaction.collapse()
             panel?.resignKey()
         }
-        compactWidth = measuredCompactWidth()
         refreshFullscreenState()
         if isSuspended { releasePanel() }
         else { render(animated: false) }
@@ -148,8 +147,9 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         guard isRunning, !isSuspended else { return }
         hoverTask?.cancel()
         hoverTask = nil
+        let previous = interaction.presentation
         interaction.expand()
-        render(animated: NSApp.currentEvent?.type != .keyDown)
+        if previous != interaction.presentation { render(animated: NSApp.currentEvent?.type != .keyDown) }
         // Only an explicit click/menu action takes keyboard focus. Hover never steals it.
         panel?.makeKey()
     }
@@ -207,39 +207,45 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     private func render(animated: Bool) {
         guard isRunning, !isSuspended else { return }
         guard let screen = selectedScreen else { releasePanel(); return }
-        model.presentation = interaction.presentation
-        if model.presentation != .collapsed { clearPowerNotice() }
-        model.date = Date()
-        if model.presentation == .collapsed { resolveFocus() }
+        let presentation = interaction.presentation
+        if presentation == .collapsed { resolveFocus() }
         let geometry = IslandGeometry(screen)
         let placement = preferences.placement
         let topClearance = geometry.attachedTopClearance
-        let target = geometry.frame(for: model.presentation, preferences: preferences, compactWidth: compactWidth)
+        let target = geometry.frame(for: presentation, preferences: preferences, compactWidth: compactWidth)
         let panel = panel ?? makePanel()
-        let previous = panel.frame
-        let canAnimate = animated && panel.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        transitionTask?.cancel()
-        transitionGeneration &+= 1
-        let generation = transitionGeneration
-        // Keep the top edge fixed. WindowServer gets only the reserved bounds and final bounds,
-        // rather than a new NSWindow frame on each animation frame.
-        let reserved = canAnimate ? previous.union(target) : target
-        panel.setFrame(reserved, display: false)
         let canvas = panel.contentView as! IslandCanvas
-        canvas.layoutSurface(target: target, placement: placement, topClearance: topClearance, animated: canAnimate)
+        if !canvas.matches(target: target, placement: placement, topClearance: topClearance) {
+            let previous = panel.frame
+            let canAnimate = animated && panel.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            transitionTask?.cancel()
+            transitionGeneration &+= 1
+            let generation = transitionGeneration
+            // Keep the top edge fixed. WindowServer gets only the reserved bounds and final bounds,
+            // rather than a new NSWindow frame on each animation frame.
+            let reserved = canAnimate ? previous.union(target) : target
+            panel.setFrame(reserved, display: false)
+            canvas.layoutSurface(target: target, placement: placement, topClearance: topClearance, animated: canAnimate)
+            if canAnimate {
+                transitionTask = Task { @MainActor [weak self, weak panel] in
+                    do { try await Task.sleep(for: .seconds(DS.Motion.selectionDuration)) } catch { return }
+                    guard let self, let panel, self.isRunning, !self.isSuspended,
+                          self.transitionGeneration == generation, self.panel === panel else { return }
+                    self.transitionTask = nil
+                    panel.setFrame(target, display: false)
+                    (panel.contentView as? IslandCanvas)?.layoutSurface(target: target, placement: placement, topClearance: topClearance, animated: false)
+                }
+            } else { transitionTask = nil }
+        }
+        // AppKit 调整窗口时会同步刷新 HostingView。先定位容器，再发布内容，
+        // 避免展开视图先在收起尺寸上重建；同一目标的刷新也不打断正在运行的动画。
+        model.presentation = presentation
+        if presentation != .collapsed { clearPowerNotice() }
+        model.date = Date()
         panel.orderFrontRegardless()
         updateDemand()
         updateQuotaExpiry()
         updateInputMonitors()
-        guard canAnimate else { transitionTask = nil; return }
-        transitionTask = Task { @MainActor [weak self, weak panel] in
-            do { try await Task.sleep(for: .seconds(DS.Motion.selectionDuration)) } catch { return }
-            guard let self, let panel, self.isRunning, !self.isSuspended,
-                  self.transitionGeneration == generation, self.panel === panel else { return }
-            self.transitionTask = nil
-            panel.setFrame(target, display: false)
-            (panel.contentView as? IslandCanvas)?.layoutSurface(target: target, placement: placement, topClearance: topClearance, animated: false)
-        }
     }
 
     private func makePanel() -> IslandPanel {
@@ -291,6 +297,7 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
 
     func selectScene(_ scene: IslandScene) {
         guard preferences.scenes.contains(scene) else { return }
+        guard model.scene != scene || appModel.settings.islandPreferences.scene != scene else { return }
         model.scene = scene
         appModel.settings.islandPreferences.scene = scene
         updateDemand()
@@ -314,7 +321,12 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
                     battery: preferences.scenes.contains(.battery) ? appModel.store.battery : nil,
                     quota: preferences.scenes.contains(.ai) ? IslandReading(scene: .ai, appModel: appModel).quotaAccount : nil, at: Date())
             }
-            compactWidth = measuredCompactWidth()
+            if model.presentation == .collapsed {
+                compactWidth = measuredCompactWidth()
+            } else if model.scene == .ai, !preferences.automaticFocus {
+                // 展开时只跟踪额度失效所需的数据，不测量不可见的收起态文字。
+                _ = IslandReading(scene: .ai, appModel: appModel).quotaAccount
+            }
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self, self.isRunning, self.readingGeneration == generation else { return }
@@ -343,11 +355,11 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
         guard isRunning, !isSuspended, panel?.isVisible == true else { return }
         let date = Date()
         let needsQuota = model.scene == .ai || (preferences.automaticFocus && preferences.scenes.contains(.ai))
-        var next = needsQuota ? IslandReading(scene: .ai, appModel: appModel).quotaAccount?.windows
-            .compactMap(\.resetsAt).filter { $0 > date }.min() : nil
+        let account = needsQuota ? IslandReading(scene: .ai, appModel: appModel, now: date).quotaAccount : nil
+        var next = account?.windows.compactMap(\.resetsAt).filter { $0 > date }.min()
         // 仅展开且存在可靠刻线时，每分钟更新一次时间位置；复用同一个失效任务。
         if model.scene == .ai, model.presentation == .expanded,
-           let account = IslandReading(scene: .ai, appModel: appModel).quotaAccount, !account.stale,
+           let account, !account.stale,
            account.windows.contains(where: { $0.paceFraction(at: date, showsRemaining: true) != nil }) {
             let minute = Date(timeIntervalSince1970: (floor(date.timeIntervalSince1970 / 60) + 1) * 60)
             next = min(next ?? minute, minute)
@@ -600,6 +612,7 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
     private let hosting: NSHostingView<IslandView>
     private var tracking: NSTrackingArea?
     private var lastWindowFrame: CGRect?
+    private var lastLayout: (target: CGRect, placement: IslandPlacement, topClearance: CGFloat)?
     private var trackingRect = CGRect.zero
     var onEnter: (() -> Void)?
     var onExit: (() -> Void)?
@@ -618,8 +631,15 @@ final class IslandWindowController: NSObject, NSMenuDelegate {
 
     required init?(coder: NSCoder) { nil }
 
+    func matches(target: CGRect, placement: IslandPlacement, topClearance: CGFloat) -> Bool {
+        guard let lastLayout else { return false }
+        return lastLayout.target == target && lastLayout.placement == placement
+            && lastLayout.topClearance == topClearance && lastWindowFrame == window?.frame
+    }
+
     func layoutSurface(target: CGRect, placement: IslandPlacement, topClearance: CGFloat, animated: Bool) {
         guard let window else { return }
+        lastLayout = (target, placement, topClearance)
         let local = CGRect(x: target.minX - window.frame.minX, y: target.minY - window.frame.minY,
                            width: target.width, height: target.height)
         var oldPath = surface.presentation()?.path ?? surface.path

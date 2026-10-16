@@ -287,7 +287,7 @@ struct IslandView: View {
     func aiContent(at date: Date) -> some View {
         @Bindable var settings = appModel.settings
         let accounts = reading.quotaAccounts
-        let account = reading.quotaAccount
+        let account = IslandQuotaAccount.selected(in: accounts, id: settings.islandPreferences.quotaAccountID, at: date)
         return ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 if !settings.aiUsageEnabled { Text(tr("尚未启用")).foregroundStyle(.secondary) }
