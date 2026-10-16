@@ -37,7 +37,8 @@ public struct MainWindowView: View {
     .background(DS.Palette.background)
     // 需要等待的任务进行中，整个窗口压暗并显示加载框
     .loadingHUD(
-      isSnapshot ? nil : busyMessage, progress: isSnapshot ? nil : busyProgress,
+      isSnapshot ? nil : busyMessage, detail: isSnapshot ? nil : busyDetail,
+      progress: isSnapshot ? nil : busyProgress,
       cleanerStage: isSnapshot ? nil : busyCleanerStage,
       onCancel: isSnapshot ? nil : busyCancel
     )
@@ -84,6 +85,13 @@ public struct MainWindowView: View {
       return model.cleaner.isCancelling ? .skippingVerification : .verifying
     }
     return model.cleaner.isCancelling ? .stopping : .cleaning
+  }
+
+  private var busyDetail: String? {
+    guard busyCleanerStage == nil, !model.uninstaller.isRemoving,
+      model.diagnostics.phase == .collecting
+    else { return nil }
+    return model.diagnostics.stage.detail
   }
 
   private var busyProgress: CleanProgress? {

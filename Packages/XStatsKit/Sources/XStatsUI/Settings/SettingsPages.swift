@@ -218,7 +218,7 @@ struct DiagnosticsSettings: View {
       GroupRow(showsDivider: false) {
         SettingRow(
           title: tr("导出诊断信息"),
-          subtitle: tr("打包版本、系统与辅助工具状态、主要设置、最近 3 天的运行日志和崩溃报告，反馈问题时附上；会去掉序列号、IP 与硬件地址")
+          subtitle: tr("打包版本、系统与辅助工具状态、主要设置、最近 3 天的运行日志和最新 5 份崩溃报告，反馈问题时附上；会去掉序列号、IP 与硬件地址")
         ) {
           Button(diagnostics.phase == .collecting ? tr("正在导出…") : tr("导出…")) {
             diagnostics.export(model: model)

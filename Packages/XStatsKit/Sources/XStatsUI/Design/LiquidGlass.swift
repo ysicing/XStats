@@ -80,6 +80,7 @@ enum CleanerHUDStage {
 /// 整个窗口压暗，中间浮一块玻璃加载框，写明正在做什么；任务结束自动消失
 struct LoadingHUD: View {
   let message: String
+  let detail: String?
   let progress: CleanProgress?
   let cleanerStage: CleanerHUDStage?
   let onCancel: (() -> Void)?
@@ -99,6 +100,12 @@ struct LoadingHUD: View {
             .dsFont(.base, weight: .medium)
             .foregroundStyle(DS.Palette.textPrimary)
             .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if let detail {
+          Text(verbatim: detail)
+            .dsFont(.sm)
+            .foregroundStyle(DS.Palette.textSecondary)
             .fixedSize(horizontal: false, vertical: true)
         }
         if let cleanerStage {
@@ -204,13 +211,15 @@ private struct HUDBackground: ViewModifier {
 extension View {
   /// 有文字时在上方盖一层全局加载框
   func loadingHUD(
-    _ message: String?, progress: CleanProgress? = nil, cleanerStage: CleanerHUDStage? = nil,
+    _ message: String?, detail: String? = nil,
+    progress: CleanProgress? = nil, cleanerStage: CleanerHUDStage? = nil,
     onCancel: (() -> Void)? = nil
   ) -> some View {
     overlay {
       if let message {
         LoadingHUD(
-          message: message, progress: progress, cleanerStage: cleanerStage, onCancel: onCancel)
+          message: message, detail: detail, progress: progress,
+          cleanerStage: cleanerStage, onCancel: onCancel)
       }
     }
     .animation(DS.Motion.quick, value: message)

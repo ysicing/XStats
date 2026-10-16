@@ -833,11 +833,52 @@ private func isolatedDefaults() -> UserDefaults {
 }
 
 @Suite struct DiagnosticsArchiveTests {
-  @Test func writesZipWithSummaryAndLog() throws {
+  @MainActor
+  @Test func progressHUDSupportsLongTranslationsAndRTL() throws {
+    for language in [AppLanguage.chinese, .german, .arabic] {
+      let title = L10n.translate("正在导出诊断信息…", language: language)
+      let detail =
+        L10n.translate("正在收集清理记录…", language: language) + "\n"
+        + L10n.translate("第 3/5 步", language: language)
+      let host = NSHostingView(
+        rootView: LoadingHUD(
+          message: title, detail: detail, progress: nil, cleanerStage: nil, onCancel: nil
+        )
+        .environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight)
+        .environment(\.locale, L10n.locale(for: language))
+        .frame(width: 628, height: 320))
+      let size = host.fittingSize
+      #expect(size.width == 628 && size.height == 320)
+      let window = NSWindow(
+        contentRect: NSRect(origin: .zero, size: size), styleMask: .borderless,
+        backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false
+      window.contentView = host
+      defer { window.close() }
+      host.layoutSubtreeIfNeeded()
+      if let path = ProcessInfo.processInfo.environment["XSTATS_DIAGNOSTICS_PREVIEW_DIR"] {
+        let folder = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        try #require(bitmap.representation(using: .png, properties: [:])).write(
+          to: folder.appendingPathComponent("diagnostics-\(language.languageCode).png"))
+      }
+    }
+  }
+
+  @MainActor
+  @Test func writesZipWithSummaryAndLog() async throws {
     let destination = FileManager.default.temporaryDirectory.appendingPathComponent(
       "diag-\(UUID().uuidString).zip")
     defer { try? FileManager.default.removeItem(at: destination) }
-    try DiagnosticsExporter.writeArchive(summary: "# 测试\n", to: destination)
+    var stages: [DiagnosticsExporter.Stage] = []
+    try await DiagnosticsExporter.writeArchive(summary: "# 测试\n", to: destination) { stage in
+      // 进度必须在对应工作开始前送达主线程；压缩完成前不能报告导出完成。
+      #expect(!FileManager.default.fileExists(atPath: destination.path))
+      stages.append(stage)
+    }
+    #expect(stages == [.logs, .cleanup, .crashes, .archive])
     let listing = Process()
     listing.executableURL = URL(fileURLWithPath: "/usr/bin/zipinfo")
     listing.arguments = ["-1", destination.path]

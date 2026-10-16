@@ -18,7 +18,7 @@ enum Log {
   static let sync = Logger(subsystem: subsystem, category: "sync")
 }
 
-/// 导出诊断信息：版本与系统、辅助工具状态、主要设置、最近 3 天的运行日志、清理记录与崩溃报告，打成一个 zip。
+/// 导出诊断信息：版本与系统、辅助工具状态、主要设置、最近 3 天的运行日志、清理记录与最新 5 份崩溃报告，打成一个 zip。
 /// 不包含序列号、IP 地址与硬件地址。
 @MainActor
 @Observable
@@ -33,7 +33,29 @@ final class DiagnosticsExporter {
     case failed(String)
   }
 
+  enum Stage: Int, CaseIterable, Sendable {
+    case summary = 1
+    case logs, cleanup, crashes, archive
+
+    var message: String {
+      switch self {
+      case .summary: tr("正在汇总系统信息…")
+      case .logs: tr("正在收集运行日志…")
+      case .cleanup: tr("正在收集清理记录…")
+      case .crashes: tr("正在处理崩溃报告…")
+      case .archive: tr("正在压缩打包…")
+      }
+    }
+
+    var detail: String {
+      let step = rawValue.formatted(.number.locale(L10n.locale))
+      let total = Self.allCases.count.formatted(.number.locale(L10n.locale))
+      return message + "\n" + tr("第 \(step)/\(total) 步")
+    }
+  }
+
   private(set) var phase: Phase = .idle
+  private(set) var stage: Stage = .summary
 
   func export(model: AppModel) {
     guard phase != .collecting else { return }
@@ -44,11 +66,16 @@ final class DiagnosticsExporter {
     NSApp.activate()
     guard panel.runModal() == .OK, let destination = panel.url else { return }
 
+    stage = .summary
     phase = .collecting
     Task {
       let summary = await Self.summary(model: model)
       do {
-        try await Task.detached { try Self.writeArchive(summary: summary, to: destination) }.value
+        try await Task.detached {
+          try await Self.writeArchive(summary: summary, to: destination) { stage in
+            self.stage = stage
+          }
+        }.value
         Log.app.notice("已导出诊断信息")
         phase = .finished(destination)
       } catch {
@@ -163,7 +190,10 @@ final class DiagnosticsExporter {
       .split(separator: "\n").suffix(500).joined(separator: "\n")
   }
 
-  nonisolated static func writeArchive(summary: String, to destination: URL) throws {
+  nonisolated static func writeArchive(
+    summary: String, to destination: URL,
+    progress: @MainActor @Sendable (Stage) -> Void = { _ in }
+  ) async throws {
     let manager = FileManager.default
     let work = manager.temporaryDirectory.appendingPathComponent(
       "XStats-diagnostics-\(UUID().uuidString)")
@@ -174,6 +204,8 @@ final class DiagnosticsExporter {
     try summary.write(
       to: folder.appendingPathComponent("summary.txt"), atomically: true, encoding: .utf8)
 
+    // 阶段切换先交给主线程显示，再执行后台阻塞 I/O；不按时间估算百分比，也不新增轮询。
+    await progress(.logs)
     // 统一日志：主程序、辅助工具、网络组件与系统扩展最近 3 天的记录。
     let log = run(
       "/usr/bin/log",
@@ -184,6 +216,7 @@ final class DiagnosticsExporter {
     try redact(log).write(
       to: folder.appendingPathComponent("xstats.log"), atomically: true, encoding: .utf8)
 
+    await progress(.cleanup)
     let home = URL(fileURLWithPath: NSHomeDirectory())
     let cleanup = home.appendingPathComponent("Library/Logs/XStats/cleanup.log")
     if let recent = try? cleanupLogTail(at: cleanup) {
@@ -191,6 +224,7 @@ final class DiagnosticsExporter {
         to: folder.appendingPathComponent("cleanup.log"), atomically: true, encoding: .utf8)
     }
 
+    await progress(.crashes)
     // 最近 5 份崩溃 / 卡死报告
     let reports = home.appendingPathComponent("Library/Logs/DiagnosticReports")
     let crashes =
@@ -212,6 +246,7 @@ final class DiagnosticsExporter {
       }
     }
 
+    await progress(.archive)
     try? manager.removeItem(at: destination)
     let zip = run(
       "/usr/bin/ditto",

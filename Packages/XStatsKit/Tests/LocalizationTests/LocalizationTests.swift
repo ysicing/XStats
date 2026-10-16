@@ -3,6 +3,20 @@ import Testing
 
 // 不切换全局语言：其他测试套件并行运行，依赖中文原文
 @Suite struct LocalizationTests {
+  @Test func diagnosticsProgressIsTranslatedInEveryCatalog() throws {
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for source in [
+        "正在汇总系统信息…", "正在收集运行日志…", "正在收集清理记录…",
+        "正在处理崩溃报告…", "正在压缩打包…",
+      ] {
+        #expect(table.translate(source)?.isEmpty == false)
+      }
+      let step = try #require(table.translate("第 2/5 步"))
+      #expect(step.contains("2") && step.contains("5"))
+    }
+  }
+
   @Test func translatesExactAndTemplates() {
     let table = Translations.shared
     #expect(table.translate("内存") == "Memory")
