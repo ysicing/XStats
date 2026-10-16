@@ -77,8 +77,19 @@ public struct SpeedPath: @unchecked Sendable {
 /// 同一时间只由一个任务使用；取消靠 `cancel()`，挂着的收发会立刻以失败返回
 final class SpeedConnection: @unchecked Sendable {
   struct Response {
-    var status: Int
-    var headers: [String: String]
+    let status: Int
+    let headers: [String: String]
+
+    init?(status: Int, headers: [String: String]) {
+      if let value = headers["content-length"] {
+        // 显式声明的非法长度必须拒绝，不能退回读到 EOF，更不能作为缓冲区切片长度。
+        guard !value.isEmpty, value.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }),
+          Int(value) != nil
+        else { return nil }
+      }
+      self.status = status
+      self.headers = headers
+    }
 
     /// chunked 编码不解析，按读到关闭为止处理
     var contentLength: Int? {

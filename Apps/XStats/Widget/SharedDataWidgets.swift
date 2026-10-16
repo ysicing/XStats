@@ -195,7 +195,11 @@ private struct TodayTokensWidgetView: View {
       if sources.isEmpty {
         WidgetEmptyState(enabled: entry.snapshot.showsLocalUsage)
       } else {
-        let total = sources.reduce(0) { $0 + $1.tokens }
+        // 各来源可能已在上游封顶，合并时仍需防止异常用量溢出。
+        let total = sources.reduce(0) { total, source in
+          let (sum, overflow) = total.addingReportingOverflow(max(0, source.tokens))
+          return overflow ? Int.max : sum
+        }
         Text(
           AIUsageFormat.tokens(
             total, westernUnits: entry.snapshot.westernUnits == true, locale: L10n.locale)

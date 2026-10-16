@@ -297,7 +297,12 @@ enum DeveloperToolRunner {
       try await Task.sleep(for: .milliseconds(25))
     }
     try Task.checkCancellation()
-    let result = try await outputTask.value
+    let result = try await withTaskCancellationHandler {
+      try await outputTask.value
+    } onCancel: {
+      outputTask.cancel()
+    }
+    try Task.checkCancellation()
     guard process.terminationStatus == 0 else {
       throw ToolExecutionError.failed(
         tool: "brew", status: process.terminationStatus,

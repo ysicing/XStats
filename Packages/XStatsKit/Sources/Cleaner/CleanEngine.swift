@@ -429,6 +429,8 @@ public enum CleanEngine {
 
 /// 清理操作日志：~/Library/Logs/XStats/cleanup.log，每行一条 JSON
 public struct CleanLog: Sendable {
+  static let maximumBytes = 1024 * 1024
+  private static let writeLock = NSLock()
   public let url: URL
 
   public init(
@@ -478,18 +480,56 @@ public struct CleanLog: Sendable {
   }
 
   private func write(_ entry: [String: Any]) {
-    guard var data = try? JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys])
+    // 单条异常错误文本不能撑大文件；按 Unicode scalar 截断，兼顾 UTF-8 和超长组合字符，JSON 仍保持完整。
+    let boundedEntry = entry.mapValues { value -> Any in
+      if let text = value as? String { return String(text.unicodeScalars.prefix(4096)) }
+      return value
+    }
+    guard
+      var data = try? JSONSerialization.data(withJSONObject: boundedEntry, options: [.sortedKeys])
     else { return }
     data.append(0x0A)
 
-    try? FileManager.default.createDirectory(
-      at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-    if let handle = try? FileHandle(forWritingTo: url) {
-      defer { try? handle.close() }
-      _ = try? handle.seekToEnd()
-      try? handle.write(contentsOf: data)
-    } else {
-      try? data.write(to: url)
+    // 多个清理入口共用日志，压缩和追加必须串行，避免丢失并发写入。
+    Self.writeLock.withLock {
+      do {
+        try FileManager.default.createDirectory(
+          at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+          try data.write(to: url, options: .atomic)
+          return
+        }
+        let handle = try FileHandle(forUpdating: url)
+        defer { try? handle.close() }
+        let size = try handle.seekToEnd()
+        if size + UInt64(data.count) > UInt64(Self.maximumBytes) {
+          // 仅在达到上限时读取半个窗口；丢弃首条残行，兼容旧版本遗留的大文件。
+          let retainedBytes = min(size, UInt64(Self.maximumBytes / 2))
+          try handle.seek(toOffset: size - retainedBytes)
+          var tail = try handle.read(upToCount: Int(retainedBytes)) ?? Data()
+          if size > retainedBytes {
+            if let newline = tail.firstIndex(of: 0x0A) {
+              tail = Data(tail.suffix(from: tail.index(after: newline)))
+            } else {
+              tail.removeAll()
+            }
+          }
+          // 不把新增 JSON 接到意外中断的旧记录上。
+          if tail.last != 0x0A {
+            if let newline = tail.lastIndex(of: 0x0A) {
+              tail = Data(tail.prefix(through: newline))
+            } else {
+              tail.removeAll()
+            }
+          }
+          tail.append(data)
+          try tail.write(to: url, options: .atomic)
+        } else {
+          try handle.write(contentsOf: data)
+        }
+      } catch {
+        // 清理日志是尽力写入；磁盘或权限错误不能改变清理结果。
+      }
     }
   }
 }

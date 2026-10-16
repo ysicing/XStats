@@ -159,18 +159,21 @@ struct CodexLocalLogParser: Codable {
     if let total, total == previous { return }
     let usage = last ?? total.map { $0.delta(previous) }
     if let total { previous = total }
-    guard let usage, usage.input + usage.output > 0, let timestamp = iso.date(obj["timestamp"])
+    guard let usage, addingUsageCounts(usage.input, usage.output) > 0,
+      let timestamp = iso.date(obj["timestamp"])
     else { return }
     let day = calendar.startOfDay(for: timestamp)
     let key = "\(day.timeIntervalSince1970):\(model)"
     var row = rows[key] ?? ModelTokenUsage(day: day, model: model)
-    row.input += usage.input
-    row.cached += min(usage.cached, usage.input)
-    row.output += usage.output
-    row.records += 1
+    row.input = addingUsageCounts(row.input, usage.input)
+    row.cached = addingUsageCounts(row.cached, min(usage.cached, usage.input))
+    row.output = addingUsageCounts(row.output, usage.output)
+    row.records = addingUsageCounts(row.records, 1)
     let hour = UsageTimeSeries.hourStart(for: timestamp, dayStart: day)
     if row.hourlyTokens == nil { row.hourlyTokens = [:] }
-    row.hourlyTokens?[hour, default: 0] += usage.input + usage.output
+    let previousHourTokens = row.hourlyTokens?[hour] ?? 0
+    row.hourlyTokens?[hour] = addingUsageCounts(
+      previousHourTokens, addingUsageCounts(usage.input, usage.output))
     rows[key] = row
   }
 
@@ -211,8 +214,9 @@ struct CodexLocalLogParser: Codable {
     }
     func delta(_ prior: Self?) -> Self {
       Self(
-        input: max(0, input - (prior?.input ?? 0)), cached: max(0, cached - (prior?.cached ?? 0)),
-        output: max(0, output - (prior?.output ?? 0)))
+        input: max(0, max(0, input) - max(0, prior?.input ?? 0)),
+        cached: max(0, max(0, cached) - max(0, prior?.cached ?? 0)),
+        output: max(0, max(0, output) - max(0, prior?.output ?? 0)))
     }
   }
 }

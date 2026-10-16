@@ -282,6 +282,16 @@ task compile CONFIG=Debug
 `swift test --package-path Packages/XStatsKit --filter 'DiagnosticsTests|DiagnosticsArchiveTests|NetworkMonitorTests|NetworkComponent'`。
 日志改动可编译组件验证，无需安装或重新激活过滤器。
 
+清理操作日志 `~/Library/Logs/XStats/cleanup.log` 最多保留 1 MiB，达到上限时仅保留
+末尾约 512 KiB 的完整记录；单条文本字段限制为 4096 个 Unicode scalar。诊断导出
+仅读取末尾 256 KiB 并取最后 500 行，兼容旧版本遗留的大日志，不增加后台轮转任务。
+
+Helper 的网络、磁盘维护在独立串行队列执行，不占用风扇控制与客户端断连恢复的状态队列。
+每条维护命令最多 30 秒，本地快照删除最多 120 秒，`pmset` 最多 5 秒；输出保留上限为
+64 KiB。超时包含主进程退出后等待输出管道 EOF 的时间，必要时终止本次启动的进程。
+禁用睡眠前先持久化接管意图，命令超时或失败时保留恢复记录，避免实际已生效却漏掉恢复。
+定向回归可运行 `swift test --package-path Packages/XStatsKit --filter HelperToolRunnerTests`。
+
 主程序与独立组件的共享 Sparkle 驱动在各自子系统的 `update` 类别记录实际检查开始、
 发现版本、没有可提醒的更新、区域入口重试、取消和最终结果。正常周期使用 notice，
 清单加载使用 info，入口重试使用 warning，启动或最终失败使用 error。

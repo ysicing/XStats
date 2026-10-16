@@ -24,6 +24,9 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
 {
   /// 所有可变状态只在该队列上访问
   private let queue = DispatchQueue(label: "work.12306.xstats.helper.state")
+  // 磁盘/网络维护不得占住风扇与断连恢复使用的状态队列。
+  private let maintenanceQueue = DispatchQueue(label: "work.12306.xstats.helper.maintenance")
+  private var activeMaintenance = 0
   private let listener = NSXPCListener(machServiceName: HelperConstants.machServiceName)
   private let stateURL = URL(
     fileURLWithPath: "/Library/Application Support/XStats/helper-state.plist")
@@ -132,17 +135,17 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
   }
 
   func flushDNSCache(reply: @escaping @Sendable (String?) -> Void) {
-    queue.async { [self] in reply(run(.flushDNS)) }
+    performMaintenance { [self] in reply(run(.flushDNS)) }
   }
 
   func purgeMemory(reply: @escaping @Sendable (String?) -> Void) {
-    queue.async { [self] in reply(run(.purgeMemory)) }
+    performMaintenance { [self] in reply(run(.purgeMemory)) }
   }
 
   func setDNSServers(
     service: String, servers: [String], reply: @escaping @Sendable (String?) -> Void
   ) {
-    queue.async { [self] in
+    performMaintenance { [self] in
       guard DNSConfiguration.isValidServiceName(service),
         servers.count <= DNSConfiguration.maxServers,
         servers.allSatisfy(DNSConfiguration.isValidAddress)
@@ -166,13 +169,14 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
   }
 
   func deleteLocalSnapshots(identifiers: [String], reply: @escaping @Sendable (String?) -> Void) {
-    queue.async { [self] in
+    performMaintenance { [self] in
       guard !identifiers.isEmpty, identifiers.count <= LocalSnapshotCommand.maxCount,
         identifiers.allSatisfy(LocalSnapshotCommand.isValidIdentifier)
       else { return reply("无效的快照标识") }
       for identifier in identifiers {
         let result = runTool(
-          LocalSnapshotCommand.tool, LocalSnapshotCommand.arguments(identifier: identifier))
+          LocalSnapshotCommand.tool, LocalSnapshotCommand.arguments(identifier: identifier),
+          timeout: 120)
         guard result.status == 0 else {
           log.error("删除快照失败：\(result.output, privacy: .public)")
           return reply(
@@ -216,7 +220,7 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
   private func scheduleIdleExit() {
     idleExit?.cancel()
     let work = DispatchWorkItem { [weak self] in
-      guard let self, self.connections.isEmpty else { return }
+      guard let self, self.connections.isEmpty, self.activeMaintenance == 0 else { return }
       log.info("空闲退出")
       exit(0)
     }
@@ -241,7 +245,13 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
   // MARK: 睡眠
 
   private func applySleepDisabled(_ disabled: Bool) -> String? {
-    let result = runTool("/usr/bin/pmset", ["-a", "disablesleep", disabled ? "1" : "0"])
+    // 先记录接管意图：pmset 已生效但超时/退出异常时，也必须在断连后尝试恢复。
+    if disabled {
+      sleepDisabledByHelper = true
+      persist()
+    }
+    let result = runTool(
+      "/usr/bin/pmset", ["-a", "disablesleep", disabled ? "1" : "0"], timeout: 5)
     guard result.status == 0 else {
       return "pmset 执行失败：\(result.output.trimmingCharacters(in: .whitespacesAndNewlines))"
     }
@@ -264,21 +274,29 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
     return nil
   }
 
-  private func runTool(_ path: String, _ arguments: [String]) -> (status: Int32, output: String) {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: path)
-    process.arguments = arguments
-    let pipe = Pipe()
-    process.standardOutput = pipe
-    process.standardError = pipe
-    do {
-      try process.run()
-    } catch {
-      return (-1, error.localizedDescription)
+  private func performMaintenance(_ operation: @escaping @Sendable () -> Void) {
+    queue.async { [self] in
+      activeMaintenance += 1
+      idleExit?.cancel()
+      maintenanceQueue.async { [self] in
+        operation()
+        queue.async { [self] in
+          activeMaintenance -= 1
+          if connections.isEmpty { scheduleIdleExit() }
+        }
+      }
     }
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    process.waitUntilExit()
-    return (process.terminationStatus, String(decoding: data, as: UTF8.self))
+  }
+
+  private func runTool(_ path: String, _ arguments: [String], timeout: TimeInterval = 30)
+    -> (status: Int32, output: String)
+  {
+    let result = HelperToolRunner.run(path: path, arguments: arguments, timeout: timeout)
+    if result.timedOut {
+      log.error("辅助命令超时：\((path as NSString).lastPathComponent, privacy: .public)")
+      return (-1, "ETIMEDOUT")
+    }
+    return (result.status, result.output)
   }
 
   // MARK: 持久化

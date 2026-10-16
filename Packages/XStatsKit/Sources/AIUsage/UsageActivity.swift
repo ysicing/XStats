@@ -50,10 +50,11 @@ public struct UsageTimeSeries: Sendable {
           continue
         }
         for (hour, tokens) in hours where hour >= start && hour <= now {
-          values[hour, default: 0] += tokens
+          values[hour] = addingUsageCounts(values[hour, default: 0], tokens)
         }
       } else {
-        values[calendar.startOfDay(for: row.day), default: 0] += row.total
+        let day = calendar.startOfDay(for: row.day)
+        values[day] = addingUsageCounts(values[day, default: 0], row.total)
       }
     }
     var buckets: [Bucket] = []
@@ -80,7 +81,7 @@ public struct UsageActivity: Sendable {
   public let daily: [Date: Int]
   public let weeks: [Week]
   public var peak: Int { daily.values.max() ?? 0 }
-  public var total: Int { daily.values.reduce(0, +) }
+  public var total: Int { daily.values.reduce(0, addingUsageCounts) }
 
   public init(rows: [ModelTokenUsage], now: Date = Date(), calendar: Calendar = .current) {
     let end = calendar.startOfDay(for: now)
@@ -89,7 +90,8 @@ public struct UsageActivity: Sendable {
     self.end = end
     var daily: [Date: Int] = [:]
     for row in rows where row.day >= start && row.day <= now {
-      daily[calendar.startOfDay(for: row.day), default: 0] += row.total
+      let day = calendar.startOfDay(for: row.day)
+      daily[day] = addingUsageCounts(daily[day, default: 0], row.total)
     }
     self.daily = daily
     let leading = (calendar.component(.weekday, from: start) - calendar.firstWeekday + 7) % 7

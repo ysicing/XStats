@@ -9,6 +9,43 @@ import Testing
 
 @Suite("网络测速")
 struct SpeedTestTests {
+  @Test(arguments: [
+    "-1", String(Int.min), "-0", "+1", "", "invalid", "1, 1", "9223372036854775808",
+  ])
+  func rejectsInvalidResponseContentLength(_ value: String) {
+    #expect(SpeedConnection.Response(status: 200, headers: ["content-length": value]) == nil)
+  }
+
+  @Test(arguments: [0, 1, 1024, Int.max])
+  func acceptsNonnegativeResponseContentLength(_ length: Int) throws {
+    let response = try #require(
+      SpeedConnection.Response(status: 200, headers: ["content-length": String(length)]))
+    #expect(response.contentLength == length)
+    #expect(response.isReusable)
+  }
+
+  @Test func responseWithoutLengthIsNotReusable() throws {
+    let response = try #require(SpeedConnection.Response(status: 200, headers: [:]))
+    #expect(response.contentLength == nil)
+    #expect(response.isReusable == false)
+  }
+
+  @Test func chunkedResponseKeepsReadUntilCloseBehavior() throws {
+    let response = try #require(
+      SpeedConnection.Response(
+        status: 200, headers: ["transfer-encoding": "Chunked", "content-length": "1024"]))
+    #expect(response.contentLength == nil)
+    #expect(response.isReusable == false)
+  }
+
+  @Test func closeResponseIsNotReusable() throws {
+    let response = try #require(
+      SpeedConnection.Response(
+        status: 200, headers: ["content-length": "0", "connection": "close"]))
+    #expect(response.contentLength == 0)
+    #expect(response.isReusable == false)
+  }
+
   @Test func 国内节点覆盖三十一个省的三网() {
     #expect(ChinaNode.provinces.count == 31)
     #expect(ChinaNode.all.count == 93)

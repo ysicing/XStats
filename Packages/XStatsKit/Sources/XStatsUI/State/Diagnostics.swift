@@ -144,6 +144,25 @@ final class DiagnosticsExporter {
     return lines.joined(separator: "\n") + "\n"
   }
 
+  /// 旧版本日志可能很大：先限制磁盘读取，再按完整行截取，避免 UTF-8 从字符中间解码。
+  nonisolated static func cleanupLogTail(at url: URL, maximumBytes: Int = 256 * 1024) throws
+    -> String
+  {
+    guard maximumBytes > 0 else { return "" }
+    let handle = try FileHandle(forReadingFrom: url)
+    defer { try? handle.close() }
+    let size = try handle.seekToEnd()
+    let count = min(size, UInt64(maximumBytes))
+    try handle.seek(toOffset: size - count)
+    var data = try handle.read(upToCount: Int(count)) ?? Data()
+    if size > count {
+      guard let newline = data.firstIndex(of: 0x0A) else { return "" }
+      data = Data(data.suffix(from: data.index(after: newline)))
+    }
+    return String(decoding: data, as: UTF8.self)
+      .split(separator: "\n").suffix(500).joined(separator: "\n")
+  }
+
   nonisolated static func writeArchive(summary: String, to destination: URL) throws {
     let manager = FileManager.default
     let work = manager.temporaryDirectory.appendingPathComponent(
@@ -167,8 +186,7 @@ final class DiagnosticsExporter {
 
     let home = URL(fileURLWithPath: NSHomeDirectory())
     let cleanup = home.appendingPathComponent("Library/Logs/XStats/cleanup.log")
-    if let text = try? String(contentsOf: cleanup, encoding: .utf8) {
-      let recent = text.split(separator: "\n").suffix(500).joined(separator: "\n")
+    if let recent = try? cleanupLogTail(at: cleanup) {
       try redact(recent).write(
         to: folder.appendingPathComponent("cleanup.log"), atomically: true, encoding: .utf8)
     }

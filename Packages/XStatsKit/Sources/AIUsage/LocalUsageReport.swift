@@ -3,6 +3,13 @@
 
 import Foundation
 
+/// 用量是非负计数；损坏的旧检查点也可能绕过日志校验。
+/// 正常值精确相加，负值忽略，超过 Int 表示范围时封顶，避免统计数据使应用崩溃。
+func addingUsageCounts(_ lhs: Int, _ rhs: Int) -> Int {
+  let (sum, overflow) = max(0, lhs).addingReportingOverflow(max(0, rhs))
+  return overflow ? Int.max : sum
+}
+
 public struct ModelTokenUsage: Equatable, Sendable, Identifiable, Codable {
   public let day: Date
   public let model: String
@@ -13,7 +20,7 @@ public struct ModelTokenUsage: Equatable, Sendable, Identifiable, Codable {
   /// 同一天的小时 Token 分布；nil 表示旧数据没有小时明细，不能当作午夜用量。
   public var hourlyTokens: [Date: Int]?
   public var records: Int = 0
-  public var total: Int { input + output }
+  public var total: Int { addingUsageCounts(input, output) }
   public var id: String { "\(day.timeIntervalSince1970):\(model)" }
 
   public init(
@@ -31,11 +38,11 @@ public struct ModelTokenUsage: Equatable, Sendable, Identifiable, Codable {
   }
 
   public mutating func add(_ other: Self) {
-    input += other.input
-    cached += other.cached
-    output += other.output
-    records += other.records
-    cacheCreated += other.cacheCreated
+    input = addingUsageCounts(input, other.input)
+    cached = addingUsageCounts(cached, other.cached)
+    output = addingUsageCounts(output, other.output)
+    records = addingUsageCounts(records, other.records)
+    cacheCreated = addingUsageCounts(cacheCreated, other.cacheCreated)
   }
 }
 
@@ -80,7 +87,7 @@ public struct LocalUsageReport: Equatable, Sendable {
       // 小时明细只在同一天/同模型间合并；任一旧行缺失明细时，不伪造完整分布。
       if let previous = merged[row.id] {
         if let priorHours = previous.hourlyTokens, let hours = row.hourlyTokens {
-          value.hourlyTokens = priorHours.merging(hours, uniquingKeysWith: +)
+          value.hourlyTokens = priorHours.merging(hours, uniquingKeysWith: addingUsageCounts)
         } else {
           value.hourlyTokens = nil
         }

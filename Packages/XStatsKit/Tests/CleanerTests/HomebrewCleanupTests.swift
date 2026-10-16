@@ -381,6 +381,39 @@ import Testing
     #expect(packages.map(\.id) == ["formula:tool"])
   }
 
+  @Test func cleanupCancellationAfterParentExitInterruptsInheritedPipe() async throws {
+    let home = try stubBrew(
+      "#!/bin/sh\necho $$ > \"$HOME/parent\"\n/bin/sleep 5 &\nexit 0\n")
+    defer { try? FileManager.default.removeItem(at: home) }
+    let task = Task {
+      try await DeveloperToolRunner.run("brew", arguments: ["cleanup"], home: home.path)
+    }
+    defer { task.cancel() }
+    let pidFile = home.appendingPathComponent("parent")
+    let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+    var parentExited = false
+    while ContinuousClock.now < deadline {
+      if let text = try? String(contentsOf: pidFile, encoding: .utf8),
+        let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)),
+        kill(pid, 0) != 0 && errno == ESRCH
+      {
+        parentExited = true
+        break
+      }
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(parentExited)
+    // 让执行器越过进程轮询，进入等待继承管道 EOF 的阶段。
+    try await Task.sleep(for: .milliseconds(150))
+    let started = ContinuousClock.now
+    task.cancel()
+    do {
+      _ = try await task.value
+      Issue.record("取消后的清理不能报告成功")
+    } catch is CancellationError {}
+    #expect(ContinuousClock.now - started < .seconds(2))
+  }
+
   private func stubBrew(_ script: String) throws -> URL {
     let home = FileManager.default.temporaryDirectory.appendingPathComponent(
       "xstats-brew-test-\(UUID())")
