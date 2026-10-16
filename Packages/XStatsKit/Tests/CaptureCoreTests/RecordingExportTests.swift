@@ -407,6 +407,25 @@ import ScreenCaptureKit
         #expect(recorder.segments == [url])
         #expect(try await AVURLAsset(url: url).loadTracks(withMediaType: .video).count == 1)
     }
+    /// writer 失败且没有任何可封存的媒体时，残缺文件不可播放，必须随失败一并清理，
+    /// 否则磁盘写满这类失败会让半成品继续占用空间，直到下次启动的过期清理。
+    @Test @MainActor func failedFinishWithoutSealedMediaRemovesTheUnplayableSegment() async throws {
+        let media = try RecordingMedia()
+        defer { try? FileManager.default.removeItem(at: media.directory) }
+        let url = media.newSegmentURL()
+        let writer = RecordingWriter { _ in }
+        var options = RecordingOptions(); options.systemAudio = false
+        try await writer.prepare(url: url, size: CGSize(width: 64, height: 48), options: options)
+        let time = CMClockGetTime(CMClockGetHostTimeClock()).seconds - 1
+        let first = try video(time: time), later = try video(time: time + 0.5), outOfOrder = try video(time: time + 0.2)
+        writer.queue.sync { writer.consumeVideo(first); writer.consumeVideo(later); writer.consumeVideo(outOfOrder) }
+        let stream = SCStream(filter: SCContentFilter(), configuration: SCStreamConfiguration(), delegate: nil)
+        let recorder = ScreenRecorder(media: media, stream: stream, writer: writer, activeURL: url) { _ in }
+        await #expect(throws: CaptureError.writerFailed) { try await recorder.stop() }
+        #expect(!(await writer.hasCommittedMedia))
+        #expect(recorder.segments.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+    }
     @Test @MainActor func pauseSegmentsTrimAndMixToSingleAudioTrack() async throws {
         let media = try RecordingMedia()
         defer { try? FileManager.default.removeItem(at: media.directory) }

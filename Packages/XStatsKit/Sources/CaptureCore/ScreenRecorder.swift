@@ -186,6 +186,10 @@ final class MicrophoneCapture: @unchecked Sendable {
                     // A terminal audio failure can still seal playable earlier
                     // media. Keep it while propagating the failure to the host.
                     segments.append(url)
+                } else if let url {
+                    // Nothing was sealed, so the file is unplayable. Remove it now: the failure
+                    // is typically a full disk, and leaving it would keep holding space.
+                    try? FileManager.default.removeItem(at: url)
                 }
                 captureError = error
             }
