@@ -90,12 +90,20 @@ final class DiagnosticsExporter {
 
   // MARK: 内容
 
-  private static func summary(model: AppModel) async -> String {
+  static func summary(
+    model: AppModel,
+    readTeamIdentifier: @escaping @Sendable () -> String? = {
+      CodeSigningInfo.currentTeamIdentifier()
+    }
+  ) async -> String {
     let bundle = Bundle.main
     let settings = model.settings
     let store = model.store
     let process = ProcessInfo.processInfo
     let remoteVersion = await model.helper.remoteProtocolVersion()
+    // SigningInformation 会连带校验证书链及时间戳；async 汇总仍在 MainActor，
+    // 必须把同步 Security 调用显式移到后台，避免导出时触发 SecTrust 主线程警告。
+    let teamIdentifier = await Task.detached(priority: .utility) { readTeamIdentifier() }.value
     var lines: [String] = []
     func section(_ title: String) {
       lines.append("")
@@ -112,7 +120,7 @@ final class DiagnosticsExporter {
     row(tr("版本"), bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString"))
     row(tr("构建"), bundle.object(forInfoDictionaryKey: "CFBundleVersion"))
     row(tr("位置"), bundle.bundleURL.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
-    row(tr("签名团队"), CodeSigningInfo.currentTeamIdentifier() ?? tr("未签名（开发构建）"))
+    row(tr("签名团队"), teamIdentifier ?? tr("未签名（开发构建）"))
     row(tr("已运行"), Format.uptime(since: launchDate))
 
     section(tr("系统"))

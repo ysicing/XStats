@@ -739,6 +739,23 @@ private func isolatedDefaults() -> UserDefaults {
 }
 
 @Suite struct DiagnosticsTests {
+  @MainActor
+  @Test(arguments: ["TEAM123456", nil] as [String?])
+  func summaryReadsSigningIdentityOffMainThread(team: String?) async throws {
+    let suite = "XStats.DiagnosticsSigning.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let model = AppModel(
+      settings: AppSettings(defaults: defaults), historyURL: nil,
+      aiUsageProviders: [], aiQuotaProviders: [], networkCacheDefaults: defaults)
+    let text = await DiagnosticsExporter.summary(model: model) {
+      // 模拟 Security 的同步边界；即使从 MainActor 导出，也不能在主线程评估证书链。
+      #expect(!Thread.isMainThread)
+      return team
+    }
+    #expect(text.contains("\(tr("签名团队")): \(team ?? tr("未签名（开发构建）"))"))
+  }
+
   @Test func logCollectionPreservesOutputAndStopsAtSizeLimit() {
     let text = DiagnosticsExporter.run("/usr/bin/printf", ["abcdef"], timeout: 2, maximumBytes: 3)
     #expect(text.hasPrefix("abc\n"))
