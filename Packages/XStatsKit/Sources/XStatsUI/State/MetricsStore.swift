@@ -165,7 +165,6 @@ public final class MetricsStore {
             gpuHistory.append(gpu.utilization)
         }
         if let disk = snapshot.disk { self.disk = disk }
-        if snapshot.hasInternalBattery == false { battery = nil }
         if let battery = snapshot.battery { self.battery = battery }
         if let processes = snapshot.processes {
             self.processes = processes

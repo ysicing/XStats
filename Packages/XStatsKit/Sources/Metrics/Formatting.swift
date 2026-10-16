@@ -40,11 +40,12 @@ public enum Format {
         return "\(share.formatted(.number.precision(.fractionLength(1))))%"
     }
 
-    public static func bytes(_ value: UInt64, base: ByteBase = .binary, locale: Locale = .current) -> String {
+    /// 数字分隔符与数字字形跟随应用语言，而非系统区域，与界面其余文本保持一致。
+    public static func bytes(_ value: UInt64, base: ByteBase = .binary, locale: Locale = L10n.locale) -> String {
         bytes(Double(value), base: base, locale: locale)
     }
 
-    public static func bytes(_ value: Double, base: ByteBase = .binary, locale: Locale = .current) -> String {
+    public static func bytes(_ value: Double, base: ByteBase = .binary, locale: Locale = L10n.locale) -> String {
         let step: Double = base == .binary ? 1024 : 1000
         var amount = max(0, value)
         var index = 0

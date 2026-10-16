@@ -212,7 +212,7 @@ public actor MetricsHub {
             lastDisk = now
         }
         if demand.battery, now.timeIntervalSince(lastBattery) > 10 {
-            (snapshot.battery, snapshot.hasInternalBattery) = BatterySampler.read()
+            snapshot.battery = BatterySampler.sample()
             lastBattery = now
         }
         let uptime = ProcessInfo.processInfo.systemUptime

@@ -251,8 +251,6 @@ public struct MetricsSnapshot: Sendable {
     public var networkInterface: NetworkInterfaceInfo?
     public var disk: DiskUsage?
     public var battery: BatteryStatus?
-    /// 未读取或读取失败时为 nil；false 仅代表完整读取后确认没有内置电池。
-    public var hasInternalBattery: Bool?
     public var gpu: GPUUsage?
     public var processes: [ProcessUsage]?
     public var appEnergy: AppEnergyReading?
