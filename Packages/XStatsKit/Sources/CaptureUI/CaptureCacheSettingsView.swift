@@ -3,7 +3,6 @@
 import AppKit
 import CaptureCore
 import Localization
-import OSLog
 import SwiftUI
 
 /// 独立版和内置版设置共用按需扫描入口，不依赖 Capture 是否启用。
@@ -99,8 +98,7 @@ public struct CaptureCacheSettingsView: View {
             usage = nil
             failed = true
             feedback = tr(clean ? "缓存未能完全清理，请刷新后重试。" : "无法读取缓存占用，请重试。")
-            Logger(subsystem: CaptureRequest.bundleIdentifier, category: "media")
-                .error("Capture cache operation failed; cleanup: \(clean)")
+            CaptureCache.logger.error("Capture cache operation failed; cleanup: \(clean)")
         }
     }
 }

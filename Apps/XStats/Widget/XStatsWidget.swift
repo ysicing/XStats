@@ -25,12 +25,16 @@ struct SystemProvider: TimelineProvider {
     func placeholder(in context: Context) -> SystemEntry { .placeholder }
 
     func getSnapshot(in context: Context, completion: @escaping (SystemEntry) -> Void) {
-        completion(context.isPreview ? .placeholder : Self.read())
+        guard !context.isPreview else { return completion(.placeholder) }
+        // read() 内部有 0.5 秒阻塞采样，派发到后台队列避免卡住小组件画廊的调用线程。
+        DispatchQueue.global(qos: .userInitiated).async { completion(Self.read()) }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SystemEntry>) -> Void) {
-        let entry = Self.read()
-        completion(Timeline(entries: [entry], policy: .after(entry.date.addingTimeInterval(5 * 60))))
+        DispatchQueue.global(qos: .userInitiated).async {
+            let entry = Self.read()
+            completion(Timeline(entries: [entry], policy: .after(entry.date.addingTimeInterval(5 * 60))))
+        }
     }
 
     /// CPU 占用需要两次采样，间隔半秒

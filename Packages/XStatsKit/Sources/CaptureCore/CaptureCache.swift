@@ -5,6 +5,8 @@ import OSLog
 
 /// 两种宿主共享的临时素材约定；用户保存的截图、视频不属于缓存。
 public enum CaptureCache {
+    public static let logger = Logger(subsystem: CaptureRequest.bundleIdentifier, category: "media")
+
     public static var directory: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("XStatsCapture", isDirectory: true)
@@ -118,8 +120,7 @@ public enum CaptureCache {
                 report.usage.reclaimableSessions -= 1
             }
             if report.removedSessions > 0 {
-                Logger(subsystem: CaptureRequest.bundleIdentifier, category: "media")
-                    .notice("Removed \(report.removedSessions) unused recording sessions, \(report.removedBytes) bytes")
+                logger.notice("Removed \(report.removedSessions) unused recording sessions, \(report.removedBytes) bytes")
             }
             return report
         }

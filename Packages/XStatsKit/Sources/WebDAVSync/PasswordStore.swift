@@ -43,11 +43,15 @@ public struct KeychainWebDAVPasswordStore: WebDAVPasswordStore {
     public func write(_ password: String, account: String) throws {
         let query = query(account)
         let data = Data(password.utf8)
-        var status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        // 显式限定为本机、解锁后可读，避免被误加同步属性导致密码随 iCloud 钥匙串同步。
+        let attributes: [String: Any] = [kSecValueData as String: data,
+                                          kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
+        var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
         if status == errSecItemNotFound {
             var item = query
             item[kSecValueData as String] = data
             item[kSecAttrLabel as String] = "XStats WebDAV"
+            item[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
             status = SecItemAdd(item as CFDictionary, nil)
         }
         guard status == errSecSuccess else { throw WebDAVKeychainError(status: status) }

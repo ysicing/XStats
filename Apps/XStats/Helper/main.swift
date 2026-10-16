@@ -173,12 +173,15 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
         guard connections.isEmpty else { return }
         // 应用已退出或崩溃：把系统恢复到默认状态
         log.info("客户端全部断开，恢复风扇与睡眠设置")
-        _ = resetFans()
+        if let error = resetFans() { log.error("恢复风扇失败：\(error, privacy: .public)") }
         if sleepDisabledByHelper { _ = applySleepDisabled(false) }
         scheduleIdleExit()
     }
 
     private func recoverFromPreviousRun() {
+        // /Library/Application Support 对 admin 组可写；拒绝符号链接，避免跟随到其他文件。
+        var information = stat()
+        guard stateURL.path.withCString({ lstat($0, &information) }) == 0, information.st_mode & S_IFMT != S_IFLNK else { return }
         guard let data = try? Data(contentsOf: stateURL),
               let state = try? PropertyListDecoder().decode(PersistedState.self, from: data) else { return }
         log.notice("上次异常退出，恢复风扇与睡眠设置")
