@@ -61,6 +61,8 @@ public final class FanController {
     @ObservationIgnored private var feedbackGeneration = 0
     @ObservationIgnored private var feedbackVisible = false
     @ObservationIgnored private var paused = false
+    /// 最近一次 apply 的写入失败后，兜底复位也失败。
+    @ObservationIgnored private var fallbackResetFailed = false
 
     init(helper: any FanControlClient, store: MetricsStore, settings: AppSettings,
          readFans: (@Sendable () async -> [FanState]?)? = nil) {
@@ -87,7 +89,9 @@ public final class FanController {
         let previous = mode
         mode = newMode
         if let error = await apply() {
-            mode = previous
+            // 兜底复位失败时硬件可能仍被手动接管，回滚成“自动”会让界面掩盖这一点；
+            // 保留所选档位，后续重新下发、过热保护和退出复位才会继续生效。
+            if !fallbackResetFailed { mode = previous }
             show(error, isError: true)
         } else {
             clearNotice()
@@ -129,6 +133,7 @@ public final class FanController {
 
     private func apply() async -> String? {
         isApplying = true
+        fallbackResetFailed = false
         cancelFeedback()
         defer { isApplying = false }
 
@@ -142,8 +147,11 @@ public final class FanController {
         let targets = fans.map { (id: $0.id, rpm: targetRPM(for: $0)) }
         for target in targets {
             if let error = await helper.setFanTarget(fan: target.id, rpm: target.rpm) {
-                _ = await helper.resetAllFans()
-                return error
+                guard let resetError = await helper.resetAllFans() else { return error }
+                // 兜底复位也失败时已接管的风扇可能仍是手动，优先报告复位失败，并让 select 保留手动状态。
+                Log.fans.error("Fan fallback reset failed: \(resetError, privacy: .private)")
+                fallbackResetFailed = true
+                return resetError
             }
         }
         watchFeedback()

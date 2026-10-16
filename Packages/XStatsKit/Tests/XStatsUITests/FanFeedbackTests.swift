@@ -10,6 +10,8 @@ import Testing
 @MainActor private final class FanFeedbackFixture: FanControlClient {
     var writes: [(Int, Double)] = []
     var error: String?
+    /// 复位结果独立于写入结果，才能区分“写入失败但已回到自动”和“兜底复位也失败”。
+    var resetError: String?
     var holdWrite = false
     var writeContinuation: CheckedContinuation<String?, Never>?
     var holdRead = false
@@ -22,7 +24,7 @@ import Testing
         if holdWrite { return await withCheckedContinuation { writeContinuation = $0 } }
         return error
     }
-    func resetAllFans() async -> String? { error }
+    func resetAllFans() async -> String? { resetError }
     func read() async -> [FanState]? {
         reads += 1
         if holdRead { return await withCheckedContinuation { readContinuation = $0 } }
@@ -139,6 +141,28 @@ struct FanFeedbackTests {
             await controller.select(.cooling)
             try await Task.sleep(for: .milliseconds(50))
             #expect(fixture.reads == 0 && controller.mode == .maximum && controller.noticeIsError)
+        }
+    }
+
+    /// 写入失败后的兜底复位也失败时，硬件可能仍被手动接管；不能回滚成“自动”让界面掩盖这一点。
+    @Test func failedFallbackResetKeepsTheManualStateInsteadOfShowingAutomatic() async throws {
+        let fixture = FanFeedbackFixture()
+        fixture.error = "fixture-write-failure"
+        fixture.resetError = "fixture-reset-failure"
+        try await withController(fixture) { controller, _ in
+            await controller.select(.maximum)
+            #expect(controller.mode == .maximum && controller.noticeIsError)
+            #expect(controller.notice == "fixture-reset-failure")
+        }
+    }
+
+    @Test func failedWriteWithSuccessfulFallbackResetRollsBackToThePreviousMode() async throws {
+        let fixture = FanFeedbackFixture()
+        fixture.error = "fixture-write-failure"
+        try await withController(fixture) { controller, _ in
+            await controller.select(.maximum)
+            #expect(controller.mode == .automatic && controller.noticeIsError)
+            #expect(controller.notice == "fixture-write-failure")
         }
     }
 
