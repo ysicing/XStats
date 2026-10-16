@@ -8,66 +8,77 @@ import Testing
 
 @MainActor
 struct UninstallerConfirmationTests {
-    private func app(_ name: String) -> InstalledApp {
-        InstalledApp(url: URL(fileURLWithPath: "/Applications/\(name).app"), name: name,
-                     bundleIdentifier: "test.\(name)", version: nil, teamIdentifier: nil)
+  private func app(_ name: String) -> InstalledApp {
+    InstalledApp(
+      url: URL(fileURLWithPath: "/Applications/\(name).app"), name: name,
+      bundleIdentifier: "test.\(name)", version: nil, teamIdentifier: nil)
+  }
+
+  @Test func cancelKeepsSelectedAppWithoutRemovingIt() async throws {
+    let controller = UninstallerController(
+      currentBundleIdentifier: nil,
+      findLeftovers: {
+        [AppLeftover(url: $0.url, kind: .application, size: 100)]
+      })
+    let target = app("ConfirmationTestA")
+    controller.select(target)
+    let deadline = ContinuousClock.now + .seconds(120)
+    while controller.isScanning, ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(10))
     }
+    try #require(controller.canUninstall)
 
-    @Test func cancelKeepsSelectedAppWithoutRemovingIt() async throws {
-        let controller = UninstallerController(currentBundleIdentifier: nil, findLeftovers: {
-            [AppLeftover(url: $0.url, kind: .application, size: 100)]
-        })
-        let target = app("ConfirmationTestA")
-        controller.select(target)
-        let deadline = ContinuousClock.now + .seconds(120)
-        while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
-        try #require(controller.canUninstall)
+    controller.requestUninstall()
+    #expect(controller.pendingUninstall == target)
+    controller.cancelUninstall()
+    controller.confirmUninstall()
 
-        controller.requestUninstall()
-        #expect(controller.pendingUninstall == target)
-        controller.cancelUninstall()
-        controller.confirmUninstall()
+    #expect(controller.pendingUninstall == nil)
+    #expect(controller.selected == target)
+    #expect(!controller.isRemoving)
+  }
 
-        #expect(controller.pendingUninstall == nil)
-        #expect(controller.selected == target)
-        #expect(!controller.isRemoving)
+  @Test func switchingAppInvalidatesOldConfirmation() async throws {
+    let controller = UninstallerController(
+      currentBundleIdentifier: nil,
+      findLeftovers: {
+        [AppLeftover(url: $0.url, kind: .application, size: 100)]
+      })
+    let first = app("ConfirmationTestA")
+    let second = app("ConfirmationTestB")
+    controller.select(first)
+    let deadline = ContinuousClock.now + .seconds(120)
+    while controller.isScanning, ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(10))
     }
+    try #require(controller.canUninstall)
+    controller.requestUninstall()
+    controller.select(second)
+    controller.confirmUninstall()
 
-    @Test func switchingAppInvalidatesOldConfirmation() async throws {
-        let controller = UninstallerController(currentBundleIdentifier: nil, findLeftovers: {
-            [AppLeftover(url: $0.url, kind: .application, size: 100)]
-        })
-        let first = app("ConfirmationTestA")
-        let second = app("ConfirmationTestB")
-        controller.select(first)
-        let deadline = ContinuousClock.now + .seconds(120)
-        while controller.isScanning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
-        try #require(controller.canUninstall)
-        controller.requestUninstall()
-        controller.select(second)
-        controller.confirmUninstall()
+    #expect(controller.pendingUninstall == nil)
+    #expect(controller.selected == second)
+    #expect(!controller.isRemoving)
+  }
 
-        #expect(controller.pendingUninstall == nil)
-        #expect(controller.selected == second)
-        #expect(!controller.isRemoving)
-    }
+  @Test func pausingForSystemAuthorizationKeepsConfirmationAndChoices() async throws {
+    let controller = UninstallerController(
+      currentBundleIdentifier: nil,
+      findLeftovers: {
+        [AppLeftover(url: $0.url, kind: .application, size: 100)]
+      }, recycleFiles: { _, _ in Issue.record("Pausing must not uninstall an application") })
+    let target = app("AuthorizationTest")
+    await controller.select(target)?.value
+    try #require(controller.canUninstall)
+    controller.requestUninstall()
+    let choices = controller.chosen
 
-    @Test func pausingForSystemAuthorizationKeepsConfirmationAndChoices() async throws {
-        let controller = UninstallerController(currentBundleIdentifier: nil, findLeftovers: {
-            [AppLeftover(url: $0.url, kind: .application, size: 100)]
-        }, recycleFiles: { _, _ in Issue.record("Pausing must not uninstall an application") })
-        let target = app("AuthorizationTest")
-        await controller.select(target)?.value
-        try #require(controller.canUninstall)
-        controller.requestUninstall()
-        let choices = controller.chosen
+    controller.cancelScanning(preservingConfirmation: true)
+    controller.resumeSelectionScan()
 
-        controller.cancelScanning(preservingConfirmation: true)
-        controller.resumeSelectionScan()
-
-        #expect(controller.pendingUninstall == target)
-        #expect(controller.selected == target && controller.chosen == choices)
-        #expect(!controller.isRemoving)
-        controller.cancelUninstall()
-    }
+    #expect(controller.pendingUninstall == target)
+    #expect(controller.selected == target && controller.chosen == choices)
+    #expect(!controller.isRemoving)
+    controller.cancelUninstall()
+  }
 }

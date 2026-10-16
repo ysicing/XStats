@@ -6,281 +6,302 @@ import Testing
 @testable import XStatsUI
 
 private final class ResetCounter: @unchecked Sendable {
-    private let lock = NSLock()
-    private var count = 0
-    var value: Int { lock.withLock { count } }
-    func increment() { lock.withLock { count += 1 } }
+  private let lock = NSLock()
+  private var count = 0
+  var value: Int { lock.withLock { count } }
+  func increment() { lock.withLock { count += 1 } }
 }
 
 private actor TestDisplayBackend: DisplayDDCBackend {
-    var reads = 0
-    var writes = 0
-    var readResult: [DisplayControl: DDCResult] = [.brightness: .value(DDCValue(current: 75, maximum: 100)), .volume: .unsupported]
-    var writeResult = DDCResult.value(DDCValue(current: 60, maximum: 100))
-    var gateReads = false
-    var gates: [CheckedContinuation<[DisplayControl: DDCResult], Never>] = []
-    var tickets: [DDCCancellation] = []
-    var timingOutTargets: Set<UInt32> = []
-    var readOrder: [UInt32] = []
-    var slotHeld = false
-    var timeoutsHoldSlot = false
-    nonisolated let resets = ResetCounter()
-    func read(_ target: DisplayTarget, cancellation: DDCCancellation) async -> [DisplayControl: DDCResult] {
-        reads += 1
-        tickets.append(cancellation)
-        readOrder.append(target.id)
-        // 与 NativeDisplayDDC.execute 一致：超时的调用返回前占着执行槽，紧随其后的请求得到 busy
-        if slotHeld {
-            slotHeld = false
-            return [.brightness: .busy]
-        }
-        // 与 NativeDisplayDDC.execute 一致：超时时取消传入的令牌
-        if timingOutTargets.contains(target.id) {
-            cancellation.cancel()
-            slotHeld = timeoutsHoldSlot
-            return [.brightness: .timedOut]
-        }
-        if gateReads { return await withCheckedContinuation { gates.append($0) } }
-        return readResult
+  var reads = 0
+  var writes = 0
+  var readResult: [DisplayControl: DDCResult] = [
+    .brightness: .value(DDCValue(current: 75, maximum: 100)), .volume: .unsupported,
+  ]
+  var writeResult = DDCResult.value(DDCValue(current: 60, maximum: 100))
+  var gateReads = false
+  var gates: [CheckedContinuation<[DisplayControl: DDCResult], Never>] = []
+  var tickets: [DDCCancellation] = []
+  var timingOutTargets: Set<UInt32> = []
+  var readOrder: [UInt32] = []
+  var slotHeld = false
+  var timeoutsHoldSlot = false
+  nonisolated let resets = ResetCounter()
+  func read(_ target: DisplayTarget, cancellation: DDCCancellation) async -> [DisplayControl:
+    DDCResult]
+  {
+    reads += 1
+    tickets.append(cancellation)
+    readOrder.append(target.id)
+    // 与 NativeDisplayDDC.execute 一致：超时的调用返回前占着执行槽，紧随其后的请求得到 busy
+    if slotHeld {
+      slotHeld = false
+      return [.brightness: .busy]
     }
-    func write(_ target: DisplayTarget, control: DisplayControl, percent: Double, cancellation: DDCCancellation) async -> DDCResult {
-        writes += 1
-        return writeResult
+    // 与 NativeDisplayDDC.execute 一致：超时时取消传入的令牌
+    if timingOutTargets.contains(target.id) {
+      cancellation.cancel()
+      slotHeld = timeoutsHoldSlot
+      return [.brightness: .timedOut]
     }
-    nonisolated func resetConnections() { resets.increment() }
-    func block() { gateReads = true }
-    func timeOut(_ id: UInt32, holdingSlot: Bool = false) {
-        timingOutTargets.insert(id)
-        timeoutsHoldSlot = holdingSlot
-    }
-    func finish(_ value: UInt16) { gates.removeFirst().resume(returning: [.brightness: .value(DDCValue(current: value, maximum: 100))]) }
-    func setWriteResult(_ value: DDCResult) { writeResult = value }
-    func count() -> Int { reads }
-    func order() -> [UInt32] { readOrder }
-    func releaseSlot() { slotHeld = false }
-    func writeCount() -> Int { writes }
-    func wasCancelled(_ index: Int) -> Bool { tickets[index].isCancelled }
+    if gateReads { return await withCheckedContinuation { gates.append($0) } }
+    return readResult
+  }
+  func write(
+    _ target: DisplayTarget, control: DisplayControl, percent: Double, cancellation: DDCCancellation
+  ) async -> DDCResult {
+    writes += 1
+    return writeResult
+  }
+  nonisolated func resetConnections() { resets.increment() }
+  func block() { gateReads = true }
+  func timeOut(_ id: UInt32, holdingSlot: Bool = false) {
+    timingOutTargets.insert(id)
+    timeoutsHoldSlot = holdingSlot
+  }
+  func finish(_ value: UInt16) {
+    gates.removeFirst().resume(returning: [
+      .brightness: .value(DDCValue(current: value, maximum: 100))
+    ])
+  }
+  func setWriteResult(_ value: DDCResult) { writeResult = value }
+  func count() -> Int { reads }
+  func order() -> [UInt32] { readOrder }
+  func releaseSlot() { slotHeld = false }
+  func writeCount() -> Int { writes }
+  func wasCancelled(_ index: Int) -> Bool { tickets[index].isCancelled }
 }
 
 @MainActor
 struct DisplayControllerTests {
-    @Test func disabledParameterControlsKeepDisplayInfoAndBlockDDCReadsAndWrites() async {
-        let backend = TestDisplayBackend()
-        let controller = DisplayController(backend: backend)
-        controller.showPreview(catalog: [display], readings: [display.id: [.brightness: .value(.init(current: 65, maximum: 100))]])
-        controller.setEnabled(false)
-        controller.setVisible(true)
-        await controller.refresh()
-        await controller.redetect()
-        await controller.write(50, control: .brightness, display: display)
-        #expect(controller.catalog == [display])
-        #expect(controller.readings.isEmpty)
-        #expect(await backend.count() == 0)
-        #expect(await backend.writeCount() == 0)
-    }
+  @Test func disabledParameterControlsKeepDisplayInfoAndBlockDDCReadsAndWrites() async {
+    let backend = TestDisplayBackend()
+    let controller = DisplayController(backend: backend)
+    controller.showPreview(
+      catalog: [display],
+      readings: [display.id: [.brightness: .value(.init(current: 65, maximum: 100))]])
+    controller.setEnabled(false)
+    controller.setVisible(true)
+    await controller.refresh()
+    await controller.redetect()
+    await controller.write(50, control: .brightness, display: display)
+    #expect(controller.catalog == [display])
+    #expect(controller.readings.isEmpty)
+    #expect(await backend.count() == 0)
+    #expect(await backend.writeCount() == 0)
+  }
 
-    @Test func disablingParameterControlsRejectsLateReadWithoutRemovingDisplayInfo() async throws {
-        let backend = TestDisplayBackend()
-        await backend.block()
-        let controller = DisplayController(backend: backend, catalog: [display])
-        defer { controller.stop() }
-        controller.setVisible(true)
-        try await waitForReads(backend, 1)
-        controller.setEnabled(false)
-        await backend.finish(90)
-        await Task.yield()
-        #expect(await backend.wasCancelled(0))
-        #expect(controller.catalog == [display])
-        #expect(controller.readings.isEmpty)
-        #expect(!controller.isRefreshing)
-    }
+  @Test func disablingParameterControlsRejectsLateReadWithoutRemovingDisplayInfo() async throws {
+    let backend = TestDisplayBackend()
+    await backend.block()
+    let controller = DisplayController(backend: backend, catalog: [display])
+    defer { controller.stop() }
+    controller.setVisible(true)
+    try await waitForReads(backend, 1)
+    controller.setEnabled(false)
+    await backend.finish(90)
+    await Task.yield()
+    #expect(await backend.wasCancelled(0))
+    #expect(controller.catalog == [display])
+    #expect(controller.readings.isEmpty)
+    #expect(!controller.isRefreshing)
+  }
 
-    @Test func enablingParameterControlsStartsReadingWhenDisplayInfoIsAlreadyVisible() async throws {
-        let backend = TestDisplayBackend()
-        let controller = DisplayController(backend: backend, catalog: [display])
-        defer { controller.stop() }
-        controller.setEnabled(false)
-        controller.setVisible(true)
-        #expect(await backend.count() == 0)
-        controller.setEnabled(true)
-        try await waitForReads(backend, 1)
-        #expect(controller.catalog == [display])
-    }
+  @Test func enablingParameterControlsStartsReadingWhenDisplayInfoIsAlreadyVisible() async throws {
+    let backend = TestDisplayBackend()
+    let controller = DisplayController(backend: backend, catalog: [display])
+    defer { controller.stop() }
+    controller.setEnabled(false)
+    controller.setVisible(true)
+    #expect(await backend.count() == 0)
+    controller.setEnabled(true)
+    try await waitForReads(backend, 1)
+    #expect(controller.catalog == [display])
+  }
 
-    private var display: DisplayInfo {
-        DisplayInfo(target: DisplayTarget(id: 7, identity: "fixture-connection"), name: "Fixture Display",
-                    isBuiltIn: false, isMain: true, summary: "1920×1080 · 60Hz")
+  private var display: DisplayInfo {
+    DisplayInfo(
+      target: DisplayTarget(id: 7, identity: "fixture-connection"), name: "Fixture Display",
+      isBuiltIn: false, isMain: true, summary: "1920×1080 · 60Hz")
+  }
+  private func waitForReads(_ backend: TestDisplayBackend, _ count: Int) async throws {
+    let deadline = ContinuousClock.now + .seconds(120)
+    while await backend.count() < count, ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(10))
     }
-    private func waitForReads(_ backend: TestDisplayBackend, _ count: Int) async throws {
-        let deadline = ContinuousClock.now + .seconds(120)
-        while await backend.count() < count, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
-        #expect(await backend.count() >= count)
+    #expect(await backend.count() >= count)
+  }
+  private func settle(_ controller: DisplayController) async throws {
+    let deadline = ContinuousClock.now + .seconds(120)
+    while controller.isRefreshing, ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(10))
     }
-    private func settle(_ controller: DisplayController) async throws {
-        let deadline = ContinuousClock.now + .seconds(120)
-        while controller.isRefreshing, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
-        #expect(!controller.isRefreshing)
-    }
+    #expect(!controller.isRefreshing)
+  }
 
-    @Test func previewDoesNotReadOrWriteDisplayHardware() async {
-        let backend = TestDisplayBackend()
-        let controller = DisplayController(backend: backend)
-        controller.showPreview(catalog: [display], readings: [display.id: [.brightness: .value(.init(current: 65, maximum: 100))]])
-        #expect(controller.catalog == [display])
-        #expect(await backend.count() == 0)
-        #expect(await backend.writeCount() == 0)
-        #expect(backend.resets.value == 0)
-    }
+  @Test func previewDoesNotReadOrWriteDisplayHardware() async {
+    let backend = TestDisplayBackend()
+    let controller = DisplayController(backend: backend)
+    controller.showPreview(
+      catalog: [display],
+      readings: [display.id: [.brightness: .value(.init(current: 65, maximum: 100))]])
+    #expect(controller.catalog == [display])
+    #expect(await backend.count() == 0)
+    #expect(await backend.writeCount() == 0)
+    #expect(backend.resets.value == 0)
+  }
 
-    @Test func timeoutOnOneDisplayDoesNotSkipTheNextDisplay() async throws {
-        let backend = TestDisplayBackend()
-        await backend.timeOut(7)
-        let second = DisplayInfo(target: DisplayTarget(id: 8, identity: "fixture-second"), name: "Second Display",
-                                 isBuiltIn: false, isMain: false, summary: "2560×1440 · 60Hz")
-        let controller = DisplayController(backend: backend, catalog: [display, second])
-        defer { controller.stop() }
-        controller.setVisible(true)
-        try await waitForReads(backend, 2)
-        try await settle(controller)
-        #expect(await backend.wasCancelled(0))
-        #expect(!(await backend.wasCancelled(1)))
-        #expect(controller.readings[7]?[.brightness] == .timedOut)
-        #expect(controller.readings[8]?[.brightness] == .value(DDCValue(current: 75, maximum: 100)))
-    }
+  @Test func timeoutOnOneDisplayDoesNotSkipTheNextDisplay() async throws {
+    let backend = TestDisplayBackend()
+    await backend.timeOut(7)
+    let second = DisplayInfo(
+      target: DisplayTarget(id: 8, identity: "fixture-second"), name: "Second Display",
+      isBuiltIn: false, isMain: false, summary: "2560×1440 · 60Hz")
+    let controller = DisplayController(backend: backend, catalog: [display, second])
+    defer { controller.stop() }
+    controller.setVisible(true)
+    try await waitForReads(backend, 2)
+    try await settle(controller)
+    #expect(await backend.wasCancelled(0))
+    #expect(!(await backend.wasCancelled(1)))
+    #expect(controller.readings[7]?[.brightness] == .timedOut)
+    #expect(controller.readings[8]?[.brightness] == .value(DDCValue(current: 75, maximum: 100)))
+  }
 
-    @Test func persistentlyTimedOutDisplayIsReadLastSoOthersGetTheSlot() async throws {
-        let backend = TestDisplayBackend()
-        await backend.timeOut(7, holdingSlot: true)
-        let second = DisplayInfo(target: DisplayTarget(id: 8, identity: "fixture-second"), name: "Second Display",
-                                 isBuiltIn: false, isMain: false, summary: "2560×1440 · 60Hz")
-        let controller = DisplayController(backend: backend, catalog: [display, second])
-        defer { controller.stop() }
-        controller.setVisible(true)
-        try await waitForReads(backend, 2)
-        try await settle(controller)
-        // 首轮按目录顺序：7 超时后占着执行槽，8 只得到 busy
-        #expect(await backend.order() == [7, 8])
-        #expect(controller.readings[8]?[.brightness] == .busy)
-        await backend.releaseSlot()
-        await controller.refresh()
-        // 下一轮 7 排到最后，8 先拿到执行槽；7 仍会重试，不被永久放弃
-        #expect(await backend.order() == [7, 8, 8, 7])
-        #expect(controller.readings[8]?[.brightness] == .value(DDCValue(current: 75, maximum: 100)))
-        #expect(controller.readings[7]?[.brightness] == .timedOut)
-    }
+  @Test func persistentlyTimedOutDisplayIsReadLastSoOthersGetTheSlot() async throws {
+    let backend = TestDisplayBackend()
+    await backend.timeOut(7, holdingSlot: true)
+    let second = DisplayInfo(
+      target: DisplayTarget(id: 8, identity: "fixture-second"), name: "Second Display",
+      isBuiltIn: false, isMain: false, summary: "2560×1440 · 60Hz")
+    let controller = DisplayController(backend: backend, catalog: [display, second])
+    defer { controller.stop() }
+    controller.setVisible(true)
+    try await waitForReads(backend, 2)
+    try await settle(controller)
+    // 首轮按目录顺序：7 超时后占着执行槽，8 只得到 busy
+    #expect(await backend.order() == [7, 8])
+    #expect(controller.readings[8]?[.brightness] == .busy)
+    await backend.releaseSlot()
+    await controller.refresh()
+    // 下一轮 7 排到最后，8 先拿到执行槽；7 仍会重试，不被永久放弃
+    #expect(await backend.order() == [7, 8, 8, 7])
+    #expect(controller.readings[8]?[.brightness] == .value(DDCValue(current: 75, maximum: 100)))
+    #expect(controller.readings[7]?[.brightness] == .timedOut)
+  }
 
-    @Test func wakeDropsMatchedConnectionsButVisibilityChangesKeepThem() async throws {
-        let backend = TestDisplayBackend()
-        let controller = DisplayController(backend: backend, catalog: [display])
-        defer { controller.stop() }
-        controller.setVisible(true)
-        controller.setVisible(false)
-        controller.setVisible(true)
-        #expect(backend.resets.value == 0)
-        controller.setPaused(true)
-        #expect(backend.resets.value == 0)
-        controller.setPaused(false)
-        #expect(backend.resets.value == 1)
-        await controller.redetect()
-        #expect(backend.resets.value == 2)
-    }
+  @Test func wakeDropsMatchedConnectionsButVisibilityChangesKeepThem() async throws {
+    let backend = TestDisplayBackend()
+    let controller = DisplayController(backend: backend, catalog: [display])
+    defer { controller.stop() }
+    controller.setVisible(true)
+    controller.setVisible(false)
+    controller.setVisible(true)
+    #expect(backend.resets.value == 0)
+    controller.setPaused(true)
+    #expect(backend.resets.value == 0)
+    controller.setPaused(false)
+    #expect(backend.resets.value == 1)
+    await controller.redetect()
+    #expect(backend.resets.value == 2)
+  }
 
-    @Test func onlyVisibleControlsReadAndOnlyKnownSupportedControlsWrite() async throws {
-        let backend = TestDisplayBackend()
-        let controller = DisplayController(backend: backend, catalog: [display])
-        defer { controller.stop() }
-        await controller.refresh()
-        #expect(await backend.count() == 0)
-        controller.setVisible(true)
-        try await waitForReads(backend, 1)
-        try await settle(controller)
-        #expect(controller.readings[7]?[.volume] == .unsupported)
-        // 保护状态前的正常刷新可以增加总次数，之后应验证读取增量。
-        await controller.refresh()
-        let token = UUID()
-        controller.beginEditing(token)
-        try await settle(controller)
-        await controller.write(20, control: .volume, display: display)
-        await controller.write(.nan, control: .brightness, display: display)
-        #expect(await backend.writeCount() == 0)
-        await controller.write(60, control: .brightness, display: display)
-        #expect(await backend.writeCount() == 1)
-        #expect(controller.readings[7]?[.brightness] == .value(DDCValue(current: 60, maximum: 100)))
-        controller.setVisible(false)
-        let readsBeforeHiddenOperations = await backend.count()
-        await controller.refresh()
-        await controller.write(20, control: .brightness, display: display)
-        #expect(await backend.count() == readsBeforeHiddenOperations)
-        #expect(await backend.writeCount() == 1)
-    }
+  @Test func onlyVisibleControlsReadAndOnlyKnownSupportedControlsWrite() async throws {
+    let backend = TestDisplayBackend()
+    let controller = DisplayController(backend: backend, catalog: [display])
+    defer { controller.stop() }
+    await controller.refresh()
+    #expect(await backend.count() == 0)
+    controller.setVisible(true)
+    try await waitForReads(backend, 1)
+    try await settle(controller)
+    #expect(controller.readings[7]?[.volume] == .unsupported)
+    // 保护状态前的正常刷新可以增加总次数，之后应验证读取增量。
+    await controller.refresh()
+    let token = UUID()
+    controller.beginEditing(token)
+    try await settle(controller)
+    await controller.write(20, control: .volume, display: display)
+    await controller.write(.nan, control: .brightness, display: display)
+    #expect(await backend.writeCount() == 0)
+    await controller.write(60, control: .brightness, display: display)
+    #expect(await backend.writeCount() == 1)
+    #expect(controller.readings[7]?[.brightness] == .value(DDCValue(current: 60, maximum: 100)))
+    controller.setVisible(false)
+    let readsBeforeHiddenOperations = await backend.count()
+    await controller.refresh()
+    await controller.write(20, control: .brightness, display: display)
+    #expect(await backend.count() == readsBeforeHiddenOperations)
+    #expect(await backend.writeCount() == 1)
+  }
 
-    @Test func oldReadCannotPublishAfterCloseOrClearNewRequest() async throws {
-        let backend = TestDisplayBackend()
-        await backend.block()
-        let controller = DisplayController(backend: backend, catalog: [display])
-        defer { controller.stop() }
-        controller.setVisible(true)
-        try await waitForReads(backend, 1)
-        controller.setVisible(false)
-        #expect(await backend.wasCancelled(0))
-        controller.setVisible(true)
-        try await waitForReads(backend, 2)
-        await backend.finish(10)
-        try await Task.sleep(for: .milliseconds(30))
-        #expect(controller.isRefreshing)
-        #expect(controller.readings.isEmpty)
-        await backend.finish(80)
-        try await settle(controller)
-        #expect(controller.readings[7]?[.brightness] == .value(DDCValue(current: 80, maximum: 100)))
-    }
+  @Test func oldReadCannotPublishAfterCloseOrClearNewRequest() async throws {
+    let backend = TestDisplayBackend()
+    await backend.block()
+    let controller = DisplayController(backend: backend, catalog: [display])
+    defer { controller.stop() }
+    controller.setVisible(true)
+    try await waitForReads(backend, 1)
+    controller.setVisible(false)
+    #expect(await backend.wasCancelled(0))
+    controller.setVisible(true)
+    try await waitForReads(backend, 2)
+    await backend.finish(10)
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(controller.isRefreshing)
+    #expect(controller.readings.isEmpty)
+    await backend.finish(80)
+    try await settle(controller)
+    #expect(controller.readings[7]?[.brightness] == .value(DDCValue(current: 80, maximum: 100)))
+  }
 
-    @Test func pauseAndWakeSettlingCannotBeBypassedByManualRefreshOrReopen() async throws {
-        let backend = TestDisplayBackend()
-        let controller = DisplayController(backend: backend, catalog: [display])
-        defer { controller.stop() }
-        controller.setVisible(true)
-        try await waitForReads(backend, 1)
-        try await settle(controller)
-        await controller.refresh()
-        // 冻结后续周期读取并排空已有请求，再进入暂停状态。
-        controller.beginEditing(UUID())
-        try await settle(controller)
-        controller.setPaused(true)
-        let readsBeforePausedOperations = await backend.count()
-        await controller.refresh()
-        await controller.write(20, control: .brightness, display: display)
-        #expect(await backend.writeCount() == 0)
-        controller.setPaused(false)
-        #expect(controller.isSettling)
-        controller.setVisible(false)
-        controller.setVisible(true)
-        await controller.refresh()
-        #expect(controller.isSettling)
-        // 先结束可见需求，避免断言的异步读取遇到已到期的恢复任务。
-        controller.setVisible(false)
-        #expect(await backend.count() == readsBeforePausedOperations)
-    }
+  @Test func pauseAndWakeSettlingCannotBeBypassedByManualRefreshOrReopen() async throws {
+    let backend = TestDisplayBackend()
+    let controller = DisplayController(backend: backend, catalog: [display])
+    defer { controller.stop() }
+    controller.setVisible(true)
+    try await waitForReads(backend, 1)
+    try await settle(controller)
+    await controller.refresh()
+    // 冻结后续周期读取并排空已有请求，再进入暂停状态。
+    controller.beginEditing(UUID())
+    try await settle(controller)
+    controller.setPaused(true)
+    let readsBeforePausedOperations = await backend.count()
+    await controller.refresh()
+    await controller.write(20, control: .brightness, display: display)
+    #expect(await backend.writeCount() == 0)
+    controller.setPaused(false)
+    #expect(controller.isSettling)
+    controller.setVisible(false)
+    controller.setVisible(true)
+    await controller.refresh()
+    #expect(controller.isSettling)
+    // 先结束可见需求，避免断言的异步读取遇到已到期的恢复任务。
+    controller.setVisible(false)
+    #expect(await backend.count() == readsBeforePausedOperations)
+  }
 
-    @Test func failedReadbackIsNotReportedAsSuccessfulAndEditingDefersPolling() async throws {
-        let backend = TestDisplayBackend()
-        let controller = DisplayController(backend: backend, catalog: [display])
-        defer { controller.stop() }
-        controller.setVisible(true)
-        try await waitForReads(backend, 1)
-        try await settle(controller)
-        let token = UUID()
-        await controller.refresh()
-        controller.beginEditing(token)
-        defer { controller.endEditing(token) }
-        try await settle(controller)
-        let readsBeforeEditingRefresh = await backend.count()
-        await controller.refresh()
-        #expect(await backend.count() == readsBeforeEditingRefresh)
-        await backend.setWriteResult(.unconfirmed(nil))
-        await controller.write(20, control: .brightness, display: display)
-        #expect(controller.readings[7]?[.brightness] == .unconfirmed(nil))
-        #expect(!controller.isWriting)
-        await controller.write(40, control: .brightness, display: display)
-        #expect(await backend.writeCount() == 1)
-    }
+  @Test func failedReadbackIsNotReportedAsSuccessfulAndEditingDefersPolling() async throws {
+    let backend = TestDisplayBackend()
+    let controller = DisplayController(backend: backend, catalog: [display])
+    defer { controller.stop() }
+    controller.setVisible(true)
+    try await waitForReads(backend, 1)
+    try await settle(controller)
+    let token = UUID()
+    await controller.refresh()
+    controller.beginEditing(token)
+    defer { controller.endEditing(token) }
+    try await settle(controller)
+    let readsBeforeEditingRefresh = await backend.count()
+    await controller.refresh()
+    #expect(await backend.count() == readsBeforeEditingRefresh)
+    await backend.setWriteResult(.unconfirmed(nil))
+    await controller.write(20, control: .brightness, display: display)
+    #expect(controller.readings[7]?[.brightness] == .unconfirmed(nil))
+    #expect(!controller.isWriting)
+    await controller.write(40, control: .brightness, display: display)
+    #expect(await backend.writeCount() == 1)
+  }
 }

@@ -57,6 +57,8 @@ brew install go go-task xcodegen
 在仓库根目录执行：
 
 ```bash
+task format                         # 提交前使用 swift format 格式化源码
+task format-check                   # 严格检查格式，不修改文件
 task generate                       # 从 project.yml 生成 Xcode 工程
 task build                          # 构建、安装并启动；构建号递增
 task build BUMP=0 INSTALL=0          # 只构建，不改构建号或安装
@@ -69,6 +71,13 @@ task snapshot                       # 使用当前 Release 构建渲染截图
 task version                        # 查看版本与构建号
 task clean                          # 删除 build/
 ```
+
+每次提交前先执行 `task format`，再执行 `task format-check`。两者使用 Swift 工具链自带的
+`swift format` 和根目录 `.swift-format`，处理 Git 已跟踪及未忽略的新 Swift 文件，
+跳过构建产物、依赖缓存和本地索引。检查格式化差异后，仅暂存本次提交范围内的文件。
+GitHub Actions 在测试和构建前执行同一条 `task format-check`，检查失败则停止后续步骤；
+在本地执行 `task format` 修正后再提交。
+保留现有导入顺序，避免格式器的导入排序合并脚本 shebang 与紧随其后的版权注释。
 
 `task test` 按 Swift 测试模块隔离运行，其中 `XStatsUITests` 显式使用 `--no-parallel`。
 UI 用例共享主 actor，同步布局、日历计算和阻塞夹具并发时会拖延取消与超时处理；串行执行保留全部断言与原有时限。

@@ -8,118 +8,126 @@ import SwiftUI
 /// 主窗口打开时提供标准应用体验；关闭、最小化与隐藏分别管理窗口与采集需求。
 @MainActor
 final class MainWindowController: NSObject, NSWindowDelegate {
-    private let model: AppModel
-    private var window: NSWindow?
-    private(set) var isOpen = false
-    var onVisibilityChange: ((Bool) -> Void)?
+  private let model: AppModel
+  private var window: NSWindow?
+  private(set) var isOpen = false
+  var onVisibilityChange: ((Bool) -> Void)?
 
-    init(model: AppModel) {
-        self.model = model
-        super.init()
-        // ⌘H 隐藏应用时窗口既未关闭也未最小化；不更新可见性会让按需采样与观察在后台继续。
-        // selector 形式的观察者随对象释放自动移除。
-        NotificationCenter.default.addObserver(self, selector: #selector(applicationVisibilityChanged),
-                                               name: NSApplication.didHideNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(applicationVisibilityChanged),
-                                               name: NSApplication.didUnhideNotification, object: nil)
+  init(model: AppModel) {
+    self.model = model
+    super.init()
+    // ⌘H 隐藏应用时窗口既未关闭也未最小化；不更新可见性会让按需采样与观察在后台继续。
+    // selector 形式的观察者随对象释放自动移除。
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(applicationVisibilityChanged),
+      name: NSApplication.didHideNotification, object: nil)
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(applicationVisibilityChanged),
+      name: NSApplication.didUnhideNotification, object: nil)
+  }
+
+  @objc private func applicationVisibilityChanged(_ notification: Notification) {
+    let visible =
+      notification.name == NSApplication.didUnhideNotification
+      && window?.isVisible == true && window?.isMiniaturized == false
+    if model.isMainWindowVisible != visible { model.isMainWindowVisible = visible }
+  }
+
+  var isVisible: Bool { window?.isVisible == true }
+  /// 登录窗口等系统面板挂靠用
+  var nsWindow: NSWindow? { window }
+
+  func close() {
+    window?.performClose(nil)
+  }
+
+  func show(tab: PanelTab?) {
+    if let tab { model.settings.panelTab = tab }
+    let window = self.window ?? makeWindow()
+    self.window = window
+    if !isOpen {
+      isOpen = true
+      onVisibilityChange?(true)
     }
-
-    @objc private func applicationVisibilityChanged(_ notification: Notification) {
-        let visible = notification.name == NSApplication.didUnhideNotification
-            && window?.isVisible == true && window?.isMiniaturized == false
-        if model.isMainWindowVisible != visible { model.isMainWindowVisible = visible }
+    if !window.isVisible {
+      window.setFrame(initialFrame(for: window), display: false)
     }
+    if NSApp.isHidden { NSApp.unhide(nil) }
+    NSApp.activate()
+    if window.isMiniaturized { window.deminiaturize(nil) }
+    window.makeKeyAndOrderFront(nil)
+    model.isMainWindowVisible = true
+  }
 
-    var isVisible: Bool { window?.isVisible == true }
-    /// 登录窗口等系统面板挂靠用
-    var nsWindow: NSWindow? { window }
+  private func makeWindow() -> NSWindow {
+    let width = DS.Size.sidebarWidth + DS.Size.panelWidth
+    let window = NSWindow(
+      contentRect: NSRect(
+        x: 0, y: 0, width: DS.Size.sidebarWidth + DS.Size.windowDefaultContentWidth,
+        height: DS.Size.panelMinHeight * 2),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+      backing: .buffered,
+      defer: false)
+    window.title = "XStats"
+    WindowChrome.apply(to: window)
+    window.isReleasedWhenClosed = false
+    // 切换应用或系统授权只转移焦点；主窗口由关闭、隐藏或最小化等明确操作收起。
+    window.hidesOnDeactivate = false
+    window.delegate = self
+    window.contentMinSize = NSSize(width: width, height: DS.Size.panelMinHeight * 1.5)
+    // 默认尺寸调大后换一个保存名，旧的小窗口尺寸不再沿用
+    window.setFrameAutosaveName("XStatsMainWindow.v2")
+    window.contentView = NSHostingView(rootView: MainWindowView().environment(model))
+    return window
+  }
 
-    func close() {
-        window?.performClose(nil)
+  /// 首次打开时按仪表盘内容高度确定窗口大小，之后沿用用户调整过的尺寸
+  private func initialFrame(for window: NSWindow) -> NSRect {
+    let visible = (window.screen ?? NSScreen.main)?.visibleFrame ?? .zero
+    if window.frame.height > DS.Size.panelMinHeight * 2, visible.intersects(window.frame) {
+      return window.frame
     }
+    let measuring = NSHostingView(
+      rootView: MainWindowView().environment(model).environment(\.isSnapshot, true))
+    let height = min(measuring.fittingSize.height, visible.height - DS.Space.s12)
+    // 至少 720pt 高（屏幕放得下时），页面较短也不会开成一个小窗口
+    let size = NSSize(
+      width: min(window.frame.width, visible.width - DS.Space.s12),
+      height: min(max(height, DS.Size.windowDefaultHeight), visible.height - DS.Space.s12))
+    return NSRect(
+      x: visible.midX - size.width / 2, y: visible.midY - size.height / 2,
+      width: size.width, height: size.height)
+  }
 
-    func show(tab: PanelTab?) {
-        if let tab { model.settings.panelTab = tab }
-        let window = self.window ?? makeWindow()
-        self.window = window
-        if !isOpen {
-            isOpen = true
-            onVisibilityChange?(true)
-        }
-        if !window.isVisible {
-            window.setFrame(initialFrame(for: window), display: false)
-        }
-        if NSApp.isHidden { NSApp.unhide(nil) }
-        NSApp.activate()
-        if window.isMiniaturized { window.deminiaturize(nil) }
-        window.makeKeyAndOrderFront(nil)
-        model.isMainWindowVisible = true
-    }
+  func windowWillClose(_ notification: Notification) {
+    isOpen = false
+    model.isMainWindowVisible = false
+    onVisibilityChange?(false)
+  }
 
-    private func makeWindow() -> NSWindow {
-        let width = DS.Size.sidebarWidth + DS.Size.panelWidth
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: DS.Size.sidebarWidth + DS.Size.windowDefaultContentWidth,
-                                                  height: DS.Size.panelMinHeight * 2),
-                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-                              backing: .buffered,
-                              defer: false)
-        window.title = "XStats"
-        WindowChrome.apply(to: window)
-        window.isReleasedWhenClosed = false
-        // 切换应用或系统授权只转移焦点；主窗口由关闭、隐藏或最小化等明确操作收起。
-        window.hidesOnDeactivate = false
-        window.delegate = self
-        window.contentMinSize = NSSize(width: width, height: DS.Size.panelMinHeight * 1.5)
-        // 默认尺寸调大后换一个保存名，旧的小窗口尺寸不再沿用
-        window.setFrameAutosaveName("XStatsMainWindow.v2")
-        window.contentView = NSHostingView(rootView: MainWindowView().environment(model))
-        return window
-    }
+  func windowDidMiniaturize(_ notification: Notification) {
+    model.isMainWindowVisible = false
+  }
 
-    /// 首次打开时按仪表盘内容高度确定窗口大小，之后沿用用户调整过的尺寸
-    private func initialFrame(for window: NSWindow) -> NSRect {
-        let visible = (window.screen ?? NSScreen.main)?.visibleFrame ?? .zero
-        if window.frame.height > DS.Size.panelMinHeight * 2, visible.intersects(window.frame) {
-            return window.frame
-        }
-        let measuring = NSHostingView(rootView: MainWindowView().environment(model).environment(\.isSnapshot, true))
-        let height = min(measuring.fittingSize.height, visible.height - DS.Space.s12)
-        // 至少 720pt 高（屏幕放得下时），页面较短也不会开成一个小窗口
-        let size = NSSize(width: min(window.frame.width, visible.width - DS.Space.s12),
-                          height: min(max(height, DS.Size.windowDefaultHeight), visible.height - DS.Space.s12))
-        return NSRect(x: visible.midX - size.width / 2, y: visible.midY - size.height / 2,
-                      width: size.width, height: size.height)
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        isOpen = false
-        model.isMainWindowVisible = false
-        onVisibilityChange?(false)
-    }
-
-    func windowDidMiniaturize(_ notification: Notification) {
-        model.isMainWindowVisible = false
-    }
-
-    func windowDidDeminiaturize(_ notification: Notification) {
-        model.isMainWindowVisible = true
-    }
+  func windowDidDeminiaturize(_ notification: Notification) {
+    model.isMainWindowVisible = true
+  }
 }
 
 /// XStats 窗口的统一外观：透明标题栏，内容铺满整个窗口，底色与页面一致
 @MainActor
 enum WindowChrome {
-    static func apply(to window: NSWindow) {
-        window.styleMask.insert(.fullSizeContentView)
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.titlebarSeparatorStyle = .none
-        window.backgroundColor = .dsBackground
-        // 空的标准工具栏让标题栏与顶栏同高（52pt），红绿灯按钮与页面标题、右上角按钮对齐
-        let toolbar = NSToolbar(identifier: "XStats.\(window.title)")
-        toolbar.showsBaselineSeparator = false
-        window.toolbar = toolbar
-        window.toolbarStyle = .unified
-    }
+  static func apply(to window: NSWindow) {
+    window.styleMask.insert(.fullSizeContentView)
+    window.titleVisibility = .hidden
+    window.titlebarAppearsTransparent = true
+    window.titlebarSeparatorStyle = .none
+    window.backgroundColor = .dsBackground
+    // 空的标准工具栏让标题栏与顶栏同高（52pt），红绿灯按钮与页面标题、右上角按钮对齐
+    let toolbar = NSToolbar(identifier: "XStats.\(window.title)")
+    toolbar.showsBaselineSeparator = false
+    window.toolbar = toolbar
+    window.toolbarStyle = .unified
+  }
 
 }

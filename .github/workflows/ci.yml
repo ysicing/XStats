@@ -77,6 +77,11 @@ jobs:
       - name: Install build tools
         run: brew install go-task xcodegen
 
+      - name: Check Swift formatting
+        run: |
+          swift format --version
+          task format-check
+
       - name: Test
         run: task test
 

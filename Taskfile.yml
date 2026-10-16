@@ -29,6 +29,16 @@ vars:
       fi
 
 tasks:
+  format:
+    desc: 使用 Swift 工具链格式化项目 Swift 源码
+    cmds:
+      - git ls-files --cached --others --exclude-standard -z -- '*.swift' | xargs -0 swift format format --in-place --configuration .swift-format
+
+  format-check:
+    desc: 检查项目 Swift 源码格式，不修改文件
+    cmds:
+      - git ls-files --cached --others --exclude-standard -z -- '*.swift' | xargs -0 swift format lint --strict --configuration .swift-format
+
   compile-capture:
     desc: 只编译独立 XStats Capture，不安装或推进版本
     deps: [generate]

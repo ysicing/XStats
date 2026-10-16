@@ -4,7 +4,7 @@
 import Foundation
 
 enum NetworkMonitorSupport {
-    static let isAvailable = supports(on: ProcessInfo.processInfo.operatingSystemVersion)
+  static let isAvailable = supports(on: ProcessInfo.processInfo.operatingSystemVersion)
 
-    static func supports(on version: OperatingSystemVersion) -> Bool { version.majorVersion >= 15 }
+  static func supports(on version: OperatingSystemVersion) -> Bool { version.majorVersion >= 15 }
 }

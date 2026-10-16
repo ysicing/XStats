@@ -11,315 +11,366 @@ import UniformTypeIdentifiers
 
 /// 卸载应用：左侧应用列表，右侧残留文件与卸载按钮；也可以把应用拖到页面上
 struct UninstallerPage: View {
-    @Environment(AppModel.self) private var model
-    @State private var search = ""
-    @State private var isDropTargeted = false
+  @Environment(AppModel.self) private var model
+  @State private var search = ""
+  @State private var isDropTargeted = false
 
-    var body: some View {
-        let uninstaller = model.uninstaller
+  var body: some View {
+    let uninstaller = model.uninstaller
 
-        HStack(alignment: .top, spacing: DS.Space.s3) {
-            AppListColumn(search: $search)
-                .frame(width: DS.Size.sidebarWidth + DS.Space.s16)
-            PageScroll {
-                if let app = uninstaller.selected {
-                    AppDetailCard(app: app, confirm: { uninstaller.requestUninstall() })
-                    if uninstaller.scanIncomplete, !uninstaller.installationCheckIncomplete {
-                        InfoBanner(icon: "exclamationmark.triangle", text: tr("部分位置未能读取，可能仍有残留。仅移除已确认的项目。"), tone: .warning)
-                    }
-                } else {
-                    DropHint(isTargeted: isDropTargeted)
-                }
-                if let outcome = uninstaller.outcome {
-                    InfoBanner(icon: outcome.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill",
-                               text: outcome.text, tone: outcome.isError ? .error : .success)
-                }
-            }
+    HStack(alignment: .top, spacing: DS.Space.s3) {
+      AppListColumn(search: $search)
+        .frame(width: DS.Size.sidebarWidth + DS.Space.s16)
+      PageScroll {
+        if let app = uninstaller.selected {
+          AppDetailCard(app: app, confirm: { uninstaller.requestUninstall() })
+          if uninstaller.scanIncomplete, !uninstaller.installationCheckIncomplete {
+            InfoBanner(
+              icon: "exclamationmark.triangle", text: tr("部分位置未能读取，可能仍有残留。仅移除已确认的项目。"),
+              tone: .warning)
+          }
+        } else {
+          DropHint(isTargeted: isDropTargeted)
         }
-        .padding(.leading, DS.Space.s3)
-        .onAppear { if model.isMainWindowVisible { uninstaller.resumeScanning() } }
-        .onDisappear { uninstaller.cancelScanning() }
-        .onChange(of: model.isMainWindowVisible) { _, visible in
-            if visible { uninstaller.resumeScanning() } else { uninstaller.cancelScanning(preservingConfirmation: true) }
+        if let outcome = uninstaller.outcome {
+          InfoBanner(
+            icon: outcome.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill",
+            text: outcome.text, tone: outcome.isError ? .error : .success)
         }
-        .onChange(of: uninstaller.isRemoving) { _, removing in
-            if !removing, model.isMainWindowVisible { uninstaller.resumeScanning() }
-        }
-        .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
-            guard let provider = providers.first else { return false }
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                guard let url else { return }
-                Task { @MainActor in uninstaller.select(url: url) }
-            }
-            return true
-        }
-        .sheet(item: Binding<InstalledApp?>(
-            get: { uninstaller.pendingUninstall },
-            set: { if $0 == nil { uninstaller.cancelUninstall() } }
-        )) { app in
-            UninstallConfirmationSheet(app: app, uninstaller: uninstaller)
-        }
+      }
     }
+    .padding(.leading, DS.Space.s3)
+    .onAppear { if model.isMainWindowVisible { uninstaller.resumeScanning() } }
+    .onDisappear { uninstaller.cancelScanning() }
+    .onChange(of: model.isMainWindowVisible) { _, visible in
+      if visible {
+        uninstaller.resumeScanning()
+      } else {
+        uninstaller.cancelScanning(preservingConfirmation: true)
+      }
+    }
+    .onChange(of: uninstaller.isRemoving) { _, removing in
+      if !removing, model.isMainWindowVisible { uninstaller.resumeScanning() }
+    }
+    .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
+      guard let provider = providers.first else { return false }
+      _ = provider.loadObject(ofClass: URL.self) { url, _ in
+        guard let url else { return }
+        Task { @MainActor in uninstaller.select(url: url) }
+      }
+      return true
+    }
+    .sheet(
+      item: Binding<InstalledApp?>(
+        get: { uninstaller.pendingUninstall },
+        set: { if $0 == nil { uninstaller.cancelUninstall() } }
+      )
+    ) { app in
+      UninstallConfirmationSheet(app: app, uninstaller: uninstaller)
+    }
+  }
 }
 
 struct UninstallConfirmationSheet: View {
-    let app: InstalledApp
-    let uninstaller: UninstallerController
+  let app: InstalledApp
+  let uninstaller: UninstallerController
 
-    var body: some View {
-        let selectedCount = uninstaller.chosen.count.formatted(.number.locale(L10n.locale))
-        VStack(alignment: .leading, spacing: DS.Space.s4) {
-            HStack(alignment: .top, spacing: DS.Space.s3) {
-                AppIconCache.shared.image(bundlePath: app.url.path)
-                    .resizable()
-                    .frame(width: DS.Space.s8, height: DS.Space.s8)
-                Text(uninstaller.includesApplication ? tr("将“\(app.name)”移到废纸篓？") : tr("清理“\(app.name)”的残留？"))
-                    .dsFont(.lg, weight: .semibold)
-                    .foregroundStyle(DS.Palette.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+  var body: some View {
+    let selectedCount = uninstaller.chosen.count.formatted(.number.locale(L10n.locale))
+    VStack(alignment: .leading, spacing: DS.Space.s4) {
+      HStack(alignment: .top, spacing: DS.Space.s3) {
+        AppIconCache.shared.image(bundlePath: app.url.path)
+          .resizable()
+          .frame(width: DS.Space.s8, height: DS.Space.s8)
+        Text(
+          uninstaller.includesApplication ? tr("将“\(app.name)”移到废纸篓？") : tr("清理“\(app.name)”的残留？")
+        )
+        .dsFont(.lg, weight: .semibold)
+        .foregroundStyle(DS.Palette.textPrimary)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
 
-            VStack(alignment: .leading, spacing: DS.Space.s3) {
-                Text(uninstaller.includesApplication
-                     ? tr("包含应用及所选残留，共 \(selectedCount) 项（\(Format.bytes(uninstaller.chosenSize, base: .decimal))）。")
-                     : tr("所选残留共 \(selectedCount) 项（\(Format.bytes(uninstaller.chosenSize, base: .decimal))）。"))
-                    .dsFont(.sm)
-                    .foregroundStyle(DS.Palette.textPrimary)
-                Text(tr("可在废纸篓中恢复。清空废纸篓后才会释放空间。"))
-                    .dsFont(.sm)
-                    .foregroundStyle(DS.Palette.textSecondary)
-                if uninstaller.installationCheckIncomplete {
-                    Text(tr("无法完整检查应用安装位置；为避免影响其他副本，本次保留共用数据。"))
-                        .dsFont(.sm).foregroundStyle(DS.Palette.warning)
-                } else if !uninstaller.otherInstalledCopies.isEmpty {
-                    Text(tr("检测到相同应用的其他安装副本；本次只移除所选应用，共用的数据会保留。"))
-                        .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
-                } else if uninstaller.scanIncomplete {
-                    Text(tr("部分位置未能读取，可能仍有残留。仅移除已确认的项目。"))
-                        .dsFont(.sm).foregroundStyle(DS.Palette.warning)
-                }
-            }
-            .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: DS.Space.s2) {
-                Spacer()
-                Button(tr("取消")) { uninstaller.cancelUninstall() }
-                    .buttonStyle(.bordered)
-                    .keyboardShortcut(.cancelAction)
-                Button(tr("移到废纸篓"), role: .destructive) { uninstaller.confirmUninstall() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(DS.Palette.error)
-            }
-            .controlSize(.large)
-            .buttonBorderShape(.capsule)
-            .dsFont(.sm, weight: .medium)
+      VStack(alignment: .leading, spacing: DS.Space.s3) {
+        Text(
+          uninstaller.includesApplication
+            ? tr(
+              "包含应用及所选残留，共 \(selectedCount) 项（\(Format.bytes(uninstaller.chosenSize, base: .decimal))）。"
+            )
+            : tr(
+              "所选残留共 \(selectedCount) 项（\(Format.bytes(uninstaller.chosenSize, base: .decimal))）。")
+        )
+        .dsFont(.sm)
+        .foregroundStyle(DS.Palette.textPrimary)
+        Text(tr("可在废纸篓中恢复。清空废纸篓后才会释放空间。"))
+          .dsFont(.sm)
+          .foregroundStyle(DS.Palette.textSecondary)
+        if uninstaller.installationCheckIncomplete {
+          Text(tr("无法完整检查应用安装位置；为避免影响其他副本，本次保留共用数据。"))
+            .dsFont(.sm).foregroundStyle(DS.Palette.warning)
+        } else if !uninstaller.otherInstalledCopies.isEmpty {
+          Text(tr("检测到相同应用的其他安装副本；本次只移除所选应用，共用的数据会保留。"))
+            .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
+        } else if uninstaller.scanIncomplete {
+          Text(tr("部分位置未能读取，可能仍有残留。仅移除已确认的项目。"))
+            .dsFont(.sm).foregroundStyle(DS.Palette.warning)
         }
-        .padding(DS.Space.s6)
-        .frame(width: 440)
-        .background(DS.Palette.background)
-        .appLanguageEnvironment()
+      }
+      .fixedSize(horizontal: false, vertical: true)
+
+      HStack(spacing: DS.Space.s2) {
+        Spacer()
+        Button(tr("取消")) { uninstaller.cancelUninstall() }
+          .buttonStyle(.bordered)
+          .keyboardShortcut(.cancelAction)
+        Button(tr("移到废纸篓"), role: .destructive) { uninstaller.confirmUninstall() }
+          .buttonStyle(.borderedProminent)
+          .tint(DS.Palette.error)
+      }
+      .controlSize(.large)
+      .buttonBorderShape(.capsule)
+      .dsFont(.sm, weight: .medium)
     }
+    .padding(DS.Space.s6)
+    .frame(width: 440)
+    .background(DS.Palette.background)
+    .appLanguageEnvironment()
+  }
 }
 
 private struct AppListColumn: View {
-    @Environment(AppModel.self) private var model
-    @Binding var search: String
+  @Environment(AppModel.self) private var model
+  @Binding var search: String
 
-    var body: some View {
-        let uninstaller = model.uninstaller
-        let query = search.trimmingCharacters(in: .whitespaces)
-        let apps = query.isEmpty ? uninstaller.apps
-            : uninstaller.apps.filter { $0.name.localizedCaseInsensitiveContains(query) || $0.bundleIdentifier.localizedCaseInsensitiveContains(query) }
+  var body: some View {
+    let uninstaller = model.uninstaller
+    let query = search.trimmingCharacters(in: .whitespaces)
+    let apps =
+      query.isEmpty
+      ? uninstaller.apps
+      : uninstaller.apps.filter {
+        $0.name.localizedCaseInsensitiveContains(query)
+          || $0.bundleIdentifier.localizedCaseInsensitiveContains(query)
+      }
 
-        VStack(alignment: .leading, spacing: DS.Space.s2) {
-            HStack(spacing: DS.Space.s2) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: DS.TextSize.xs.rawValue, weight: .semibold))
-                    .foregroundStyle(DS.Palette.textTertiary)
-                TextField(tr("搜索应用"), text: $search)
-                    .textFieldStyle(.plain)
-                    .dsFont(.sm)
-                IconButton(systemName: "arrow.clockwise", help: tr("重新扫描")) { uninstaller.reloadApps() }
+    VStack(alignment: .leading, spacing: DS.Space.s2) {
+      HStack(spacing: DS.Space.s2) {
+        Image(systemName: "magnifyingglass")
+          .font(.system(size: DS.TextSize.xs.rawValue, weight: .semibold))
+          .foregroundStyle(DS.Palette.textTertiary)
+        TextField(tr("搜索应用"), text: $search)
+          .textFieldStyle(.plain)
+          .dsFont(.sm)
+        IconButton(systemName: "arrow.clockwise", help: tr("重新扫描")) { uninstaller.reloadApps() }
+      }
+      .padding(.leading, DS.Space.s2)
+      .frame(height: DS.Size.controlHeight)
+      .background(DS.Palette.elevated, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+      .overlay(
+        RoundedRectangle(cornerRadius: DS.Radius.md).strokeBorder(
+          DS.Palette.neutral300, lineWidth: DS.Size.stroke))
+
+      Text(uninstaller.isLoading ? tr("正在扫描应用…") : tr("\(apps.count) 个应用，系统自带的不列出"))
+        .dsFont(.xs)
+        .foregroundStyle(DS.Palette.textTertiary)
+
+      ScrollView {
+        LazyVStack(spacing: DS.Space.s1 / 2) {
+          ForEach(apps) { app in
+            AppListRow(
+              app: app, size: uninstaller.sizes[app.id], isSelected: uninstaller.selected == app
+            ) {
+              uninstaller.select(app)
             }
-            .padding(.leading, DS.Space.s2)
-            .frame(height: DS.Size.controlHeight)
-            .background(DS.Palette.elevated, in: RoundedRectangle(cornerRadius: DS.Radius.md))
-            .overlay(RoundedRectangle(cornerRadius: DS.Radius.md).strokeBorder(DS.Palette.neutral300, lineWidth: DS.Size.stroke))
-
-            Text(uninstaller.isLoading ? tr("正在扫描应用…") : tr("\(apps.count) 个应用，系统自带的不列出"))
-                .dsFont(.xs)
-                .foregroundStyle(DS.Palette.textTertiary)
-
-            ScrollView {
-                LazyVStack(spacing: DS.Space.s1 / 2) {
-                    ForEach(apps) { app in
-                        AppListRow(app: app, size: uninstaller.sizes[app.id], isSelected: uninstaller.selected == app) {
-                            uninstaller.select(app)
-                        }
-                    }
-                }
-                // 探针必须放在内容里才找得到这个列表自己的 NSScrollView；挂在外面时接了鼠标会显示一条粗的传统滚动条
-                .overlayScrollers()
-            }
+          }
         }
-        .padding(.vertical, DS.Space.s3)
-        .frame(maxHeight: .infinity, alignment: .top)
+        // 探针必须放在内容里才找得到这个列表自己的 NSScrollView；挂在外面时接了鼠标会显示一条粗的传统滚动条
+        .overlayScrollers()
+      }
     }
+    .padding(.vertical, DS.Space.s3)
+    .frame(maxHeight: .infinity, alignment: .top)
+  }
 }
 
 private struct AppListRow: View {
-    let app: InstalledApp
-    let size: UInt64?
-    let isSelected: Bool
-    let action: () -> Void
-    @State private var hovering = false
+  let app: InstalledApp
+  let size: UInt64?
+  let isSelected: Bool
+  let action: () -> Void
+  @State private var hovering = false
 
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: DS.Space.s2) {
-                AppIconCache.shared.image(bundlePath: app.url.path)
-                    .resizable()
-                    .frame(width: DS.Size.iconStandalone + DS.Space.s1, height: DS.Size.iconStandalone + DS.Space.s1)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(verbatim: app.name)
-                        .dsFont(.sm, weight: isSelected ? .semibold : .regular)
-                        .foregroundStyle(isSelected ? DS.Palette.primary : DS.Palette.textPrimary)
-                        .lineLimit(1)
-                    Text(verbatim: size.map { Format.bytes($0, base: .decimal) } ?? tr("计算中"))
-                        .dsFont(.xs)
-                        .foregroundStyle(DS.Palette.textTertiary)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, DS.Space.s2)
-            .padding(.vertical, DS.Space.s1)
-            .background(isSelected ? DS.Palette.primarySoft : hovering ? DS.Palette.surface : .clear,
-                        in: RoundedRectangle(cornerRadius: DS.Radius.md))
-            .contentShape(Rectangle())
+  var body: some View {
+    Button(action: action) {
+      HStack(spacing: DS.Space.s2) {
+        AppIconCache.shared.image(bundlePath: app.url.path)
+          .resizable()
+          .frame(
+            width: DS.Size.iconStandalone + DS.Space.s1,
+            height: DS.Size.iconStandalone + DS.Space.s1)
+        VStack(alignment: .leading, spacing: 0) {
+          Text(verbatim: app.name)
+            .dsFont(.sm, weight: isSelected ? .semibold : .regular)
+            .foregroundStyle(isSelected ? DS.Palette.primary : DS.Palette.textPrimary)
+            .lineLimit(1)
+          Text(verbatim: size.map { Format.bytes($0, base: .decimal) } ?? tr("计算中"))
+            .dsFont(.xs)
+            .foregroundStyle(DS.Palette.textTertiary)
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
+        Spacer(minLength: 0)
+      }
+      .padding(.horizontal, DS.Space.s2)
+      .padding(.vertical, DS.Space.s1)
+      .background(
+        isSelected ? DS.Palette.primarySoft : hovering ? DS.Palette.surface : .clear,
+        in: RoundedRectangle(cornerRadius: DS.Radius.md)
+      )
+      .contentShape(Rectangle())
     }
+    .buttonStyle(.plain)
+    .onHover { hovering = $0 }
+  }
 }
 
 struct AppDetailCard: View {
-    @Environment(AppModel.self) private var model
-    let app: InstalledApp
-    let confirm: () -> Void
+  @Environment(AppModel.self) private var model
+  let app: InstalledApp
+  let confirm: () -> Void
 
-    var body: some View {
-        @Bindable var uninstaller = model.uninstaller
-        let running = uninstaller.isRunning(app)
+  var body: some View {
+    @Bindable var uninstaller = model.uninstaller
+    let running = uninstaller.isRunning(app)
 
-        Card {
-            HStack(spacing: DS.Space.s3) {
-                AppIconCache.shared.image(bundlePath: app.url.path)
-                    .resizable()
-                    .frame(width: DS.Space.s12, height: DS.Space.s12)
-                VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
-                    Text(verbatim: app.name).dsFont(.lg, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
-                    Text(verbatim: [app.version.map { tr("版本 \($0)") }, app.bundleIdentifier].compactMap { $0 }.joined(separator: " · "))
-                        .dsFont(.xs)
-                        .foregroundStyle(DS.Palette.textSecondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
-            }
-
-            if running {
-                InfoBanner(icon: "exclamationmark.triangle", text: tr("\(app.name) 正在运行，卸载前需要先退出。"), tone: .warning) {
-                    Button(tr("退出应用")) { uninstaller.quit(app) }
-                        .buttonStyle(DSButtonStyle(kind: .secondary))
-                }
-            }
-
-            if uninstaller.installationCheckIncomplete {
-                InfoBanner(icon: "exclamationmark.triangle", text: tr("无法完整检查应用安装位置；为避免影响其他副本，本次保留共用数据。"), tone: .warning)
-            } else if !uninstaller.otherInstalledCopies.isEmpty {
-                InfoBanner(icon: "doc.on.doc", text: tr("检测到相同应用的其他安装副本；本次只移除所选应用，共用的数据会保留。"), tone: .neutral)
-            }
-
-            HairlineDivider()
-            HStack {
-                Text(tr("将移到废纸篓")).dsFont(.sm, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
-                Spacer()
-                Text(verbatim: uninstaller.isScanning ? tr("正在查找残留…") : tr("已选 \(uninstaller.chosen.count) 项 · \(Format.bytes(uninstaller.chosenSize, base: .decimal))"))
-                    .dsFont(.xs)
-                    .foregroundStyle(DS.Palette.textTertiary)
-            }
-
-            ForEach(AppLeftover.Kind.allCases, id: \.self) { kind in
-                let items = uninstaller.leftovers.filter { $0.kind == kind }
-                if !items.isEmpty {
-                    VStack(alignment: .leading, spacing: DS.Space.s1) {
-                        Text(kind.title).dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
-                        ForEach(items) { item in
-                            HStack(spacing: DS.Space.s2) {
-                                DSCheckbox(isOn: uninstaller.chosen.contains(item.id)) { uninstaller.toggle(item) }
-                                    .disabled(item.kind == .application || uninstaller.isRemoving)
-                                VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
-                                    Text(verbatim: item.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
-                                        .dsFont(.xs)
-                                        .foregroundStyle(DS.Palette.textPrimary)
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
-                                        .help(item.url.path)
-                                    if item.requiresReview {
-                                        Text(tr("可能与其他应用共用，默认保留"))
-                                            .dsFont(.xs)
-                                            .foregroundStyle(DS.Palette.textSecondary)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                }
-                                Spacer(minLength: DS.Space.s2)
-                                Text(verbatim: Format.bytes(item.size, base: .decimal))
-                                    .dsFont(.xs)
-                                    .foregroundStyle(DS.Palette.textTertiary)
-                                    .monospacedDigit()
-                                MiniIconButton(systemName: "magnifyingglass", help: tr("在访达中显示")) {
-                                    NSWorkspace.shared.activateFileViewerSelecting([item.url])
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            HairlineDivider()
-            HStack(spacing: DS.Space.s3) {
-                Spacer()
-                Button(uninstaller.isRemoving ? tr("正在移除…") : uninstaller.includesApplication ? tr("卸载") : tr("清理残留")) { confirm() }
-                    .buttonStyle(DSButtonStyle(kind: .primary))
-                    .disabled(running || !uninstaller.canUninstall)
-            }
-            Text(tr("查找应用数据、辅助组件和沙盒容器；可能共用的数据默认不勾选。所选项目移到废纸篓，应用移除后才清除程序坞图标。"))
-                .dsFont(.xs)
-                .foregroundStyle(DS.Palette.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
+    Card {
+      HStack(spacing: DS.Space.s3) {
+        AppIconCache.shared.image(bundlePath: app.url.path)
+          .resizable()
+          .frame(width: DS.Space.s12, height: DS.Space.s12)
+        VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
+          Text(verbatim: app.name).dsFont(.lg, weight: .semibold).foregroundStyle(
+            DS.Palette.textPrimary)
+          Text(
+            verbatim: [app.version.map { tr("版本 \($0)") }, app.bundleIdentifier].compactMap { $0 }
+              .joined(separator: " · ")
+          )
+          .dsFont(.xs)
+          .foregroundStyle(DS.Palette.textSecondary)
+          .lineLimit(1)
         }
+        Spacer(minLength: 0)
+      }
+
+      if running {
+        InfoBanner(
+          icon: "exclamationmark.triangle", text: tr("\(app.name) 正在运行，卸载前需要先退出。"), tone: .warning
+        ) {
+          Button(tr("退出应用")) { uninstaller.quit(app) }
+            .buttonStyle(DSButtonStyle(kind: .secondary))
+        }
+      }
+
+      if uninstaller.installationCheckIncomplete {
+        InfoBanner(
+          icon: "exclamationmark.triangle", text: tr("无法完整检查应用安装位置；为避免影响其他副本，本次保留共用数据。"),
+          tone: .warning)
+      } else if !uninstaller.otherInstalledCopies.isEmpty {
+        InfoBanner(
+          icon: "doc.on.doc", text: tr("检测到相同应用的其他安装副本；本次只移除所选应用，共用的数据会保留。"), tone: .neutral)
+      }
+
+      HairlineDivider()
+      HStack {
+        Text(tr("将移到废纸篓")).dsFont(.sm, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
+        Spacer()
+        Text(
+          verbatim: uninstaller.isScanning
+            ? tr("正在查找残留…")
+            : tr(
+              "已选 \(uninstaller.chosen.count) 项 · \(Format.bytes(uninstaller.chosenSize, base: .decimal))"
+            )
+        )
+        .dsFont(.xs)
+        .foregroundStyle(DS.Palette.textTertiary)
+      }
+
+      ForEach(AppLeftover.Kind.allCases, id: \.self) { kind in
+        let items = uninstaller.leftovers.filter { $0.kind == kind }
+        if !items.isEmpty {
+          VStack(alignment: .leading, spacing: DS.Space.s1) {
+            Text(kind.title).dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
+            ForEach(items) { item in
+              HStack(spacing: DS.Space.s2) {
+                DSCheckbox(isOn: uninstaller.chosen.contains(item.id)) { uninstaller.toggle(item) }
+                  .disabled(item.kind == .application || uninstaller.isRemoving)
+                VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
+                  Text(
+                    verbatim: item.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
+                  )
+                  .dsFont(.xs)
+                  .foregroundStyle(DS.Palette.textPrimary)
+                  .lineLimit(1)
+                  .truncationMode(.middle)
+                  .help(item.url.path)
+                  if item.requiresReview {
+                    Text(tr("可能与其他应用共用，默认保留"))
+                      .dsFont(.xs)
+                      .foregroundStyle(DS.Palette.textSecondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                }
+                Spacer(minLength: DS.Space.s2)
+                Text(verbatim: Format.bytes(item.size, base: .decimal))
+                  .dsFont(.xs)
+                  .foregroundStyle(DS.Palette.textTertiary)
+                  .monospacedDigit()
+                MiniIconButton(systemName: "magnifyingglass", help: tr("在访达中显示")) {
+                  NSWorkspace.shared.activateFileViewerSelecting([item.url])
+                }
+              }
+            }
+          }
+        }
+      }
+
+      HairlineDivider()
+      HStack(spacing: DS.Space.s3) {
+        Spacer()
+        Button(
+          uninstaller.isRemoving
+            ? tr("正在移除…") : uninstaller.includesApplication ? tr("卸载") : tr("清理残留")
+        ) { confirm() }
+        .buttonStyle(DSButtonStyle(kind: .primary))
+        .disabled(running || !uninstaller.canUninstall)
+      }
+      Text(tr("查找应用数据、辅助组件和沙盒容器；可能共用的数据默认不勾选。所选项目移到废纸篓，应用移除后才清除程序坞图标。"))
+        .dsFont(.xs)
+        .foregroundStyle(DS.Palette.textTertiary)
+        .fixedSize(horizontal: false, vertical: true)
     }
+  }
 }
 
 private struct DropHint: View {
-    let isTargeted: Bool
+  let isTargeted: Bool
 
-    var body: some View {
-        VStack(spacing: DS.Space.s3) {
-            Image(systemName: "arrow.down.app")
-                .font(.system(size: DS.TextSize.xxl.rawValue))
-                .foregroundStyle(isTargeted ? DS.Palette.primary : DS.Palette.textTertiary)
-            Text(tr("从左侧选择应用，或把应用拖到这里"))
-                .dsFont(.sm, weight: .medium)
-                .foregroundStyle(DS.Palette.textPrimary)
-            Text(tr("找出应用留下的数据、缓存、容器与登录启动项，勾选后移到废纸篓，可以放回"))
-                .dsFont(.xs)
-                .foregroundStyle(DS.Palette.textSecondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(DS.Space.s12)
-        .background(isTargeted ? DS.Palette.primarySoft : DS.Palette.surface, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
+  var body: some View {
+    VStack(spacing: DS.Space.s3) {
+      Image(systemName: "arrow.down.app")
+        .font(.system(size: DS.TextSize.xxl.rawValue))
+        .foregroundStyle(isTargeted ? DS.Palette.primary : DS.Palette.textTertiary)
+      Text(tr("从左侧选择应用，或把应用拖到这里"))
+        .dsFont(.sm, weight: .medium)
+        .foregroundStyle(DS.Palette.textPrimary)
+      Text(tr("找出应用留下的数据、缓存、容器与登录启动项，勾选后移到废纸篓，可以放回"))
+        .dsFont(.xs)
+        .foregroundStyle(DS.Palette.textSecondary)
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
     }
+    .frame(maxWidth: .infinity)
+    .padding(DS.Space.s12)
+    .background(
+      isTargeted ? DS.Palette.primarySoft : DS.Palette.surface,
+      in: RoundedRectangle(cornerRadius: DS.Radius.lg))
+  }
 }

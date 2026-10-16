@@ -6,240 +6,283 @@ import Testing
 import WidgetData
 
 @Test func snapshotRoundTripAndDisabledModules() throws {
-    let suite = "WidgetSnapshotTests.\(UUID().uuidString)"
-    let defaults = try #require(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
-    let store = WidgetSnapshotStore(defaults: defaults)
-    let now = Date()
-    let snapshot = WidgetSnapshot(
-        aiEnabled: true,
-        quotas: [.init(provider: "codex", kind: "weekly", remainingPercent: 37, resetsAt: now.addingTimeInterval(60),
-                       fetchedAt: now, isStale: false)],
-        publicIPEnabled: true,
-        addresses: [.init(family: "v4", ip: "203.0.113.1", countryCode: "CN", city: nil,
-                          organization: nil, purityScore: 82, purityGrade: "A")],
-        language: "japanese", calendarFirstWeekday: 1, showsLunar: false, showsAlmanac: false)
-    #expect(store.save(snapshot))
-    #expect(store.load() == snapshot)
-    #expect(snapshot.currentQuotas(at: now).count == 1)
-    #expect(snapshot.currentQuotas(at: now.addingTimeInterval(61)).isEmpty)
+  let suite = "WidgetSnapshotTests.\(UUID().uuidString)"
+  let defaults = try #require(UserDefaults(suiteName: suite))
+  defer { defaults.removePersistentDomain(forName: suite) }
+  let store = WidgetSnapshotStore(defaults: defaults)
+  let now = Date()
+  let snapshot = WidgetSnapshot(
+    aiEnabled: true,
+    quotas: [
+      .init(
+        provider: "codex", kind: "weekly", remainingPercent: 37,
+        resetsAt: now.addingTimeInterval(60),
+        fetchedAt: now, isStale: false)
+    ],
+    publicIPEnabled: true,
+    addresses: [
+      .init(
+        family: "v4", ip: "203.0.113.1", countryCode: "CN", city: nil,
+        organization: nil, purityScore: 82, purityGrade: "A")
+    ],
+    language: "japanese", calendarFirstWeekday: 1, showsLunar: false, showsAlmanac: false)
+  #expect(store.save(snapshot))
+  #expect(store.load() == snapshot)
+  #expect(snapshot.currentQuotas(at: now).count == 1)
+  #expect(snapshot.currentQuotas(at: now.addingTimeInterval(61)).isEmpty)
 
-    var disabled = snapshot
-    disabled.aiEnabled = false
-    disabled.publicIPEnabled = false
-    #expect(disabled.currentQuotas(at: now).isEmpty)
-    #expect(disabled.visibleAddresses.isEmpty)
+  var disabled = snapshot
+  disabled.aiEnabled = false
+  disabled.publicIPEnabled = false
+  #expect(disabled.currentQuotas(at: now).isEmpty)
+  #expect(disabled.visibleAddresses.isEmpty)
 }
 
 @Test(arguments: Array(1...7))
 func snapshotPreservesEveryWeekStartAndReloadsCalendars(firstWeekday: Int) throws {
-    let previous = WidgetSnapshot(calendarFirstWeekday: firstWeekday % 7 + 1)
-    let snapshot = WidgetSnapshot(calendarFirstWeekday: firstWeekday)
-    let restored = try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot))
-    #expect(restored.calendarFirstWeekday == firstWeekday)
-    #expect(restored.changedWidgetKinds(from: previous) == [WidgetKind.calendar, WidgetKind.tomorrowWork, WidgetKind.calendarMonth])
+  let previous = WidgetSnapshot(calendarFirstWeekday: firstWeekday % 7 + 1)
+  let snapshot = WidgetSnapshot(calendarFirstWeekday: firstWeekday)
+  let restored = try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot))
+  #expect(restored.calendarFirstWeekday == firstWeekday)
+  #expect(
+    restored.changedWidgetKinds(from: previous) == [
+      WidgetKind.calendar, WidgetKind.tomorrowWork, WidgetKind.calendarMonth,
+    ])
 }
 
 @Test func calendarSummaryUsesLocalCivilDayAndOldCacheStillDecodes() throws {
-    let legacy = Data(#"{"aiEnabled":false,"quotas":[],"publicIPEnabled":false,"addresses":[],"language":"system","calendarFirstWeekday":2,"showsLunar":true}"#.utf8)
-    let oldSnapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: legacy)
-    #expect(oldSnapshot.calendarDays == nil)
-    #expect(oldSnapshot.showsSeasonal == nil)
+  let legacy = Data(
+    #"{"aiEnabled":false,"quotas":[],"publicIPEnabled":false,"addresses":[],"language":"system","calendarFirstWeekday":2,"showsLunar":true}"#
+      .utf8)
+  let oldSnapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: legacy)
+  #expect(oldSnapshot.calendarDays == nil)
+  #expect(oldSnapshot.showsSeasonal == nil)
 
-    let day = WidgetSnapshot.CalendarSummary(dateKey: "2026-09-25", festivals: ["中秋节"],
-                                             solarTerm: nil, schedule: .dayOff, holidayName: "中秋节",
-                                             twelveStar: "除", isEcliptic: true,
-                                             recommends: ["祭祀"], avoids: ["动土"])
-    var snapshot = oldSnapshot
-    snapshot.calendarDays = [day]
-    let instant = try #require(ISO8601DateFormatter().date(from: "2026-09-24T16:00:00Z"))
-    var shanghai = Calendar(identifier: .gregorian)
-    shanghai.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
-    var utc = Calendar(identifier: .gregorian)
-    utc.timeZone = try #require(TimeZone(secondsFromGMT: 0))
-    #expect(snapshot.calendarSummary(for: instant, calendar: shanghai) == day)
-    #expect(snapshot.calendarSummary(for: instant, calendar: utc) == nil)
-    #expect(try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot)) == snapshot)
+  let day = WidgetSnapshot.CalendarSummary(
+    dateKey: "2026-09-25", festivals: ["中秋节"],
+    solarTerm: nil, schedule: .dayOff, holidayName: "中秋节",
+    twelveStar: "除", isEcliptic: true,
+    recommends: ["祭祀"], avoids: ["动土"])
+  var snapshot = oldSnapshot
+  snapshot.calendarDays = [day]
+  let instant = try #require(ISO8601DateFormatter().date(from: "2026-09-24T16:00:00Z"))
+  var shanghai = Calendar(identifier: .gregorian)
+  shanghai.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
+  var utc = Calendar(identifier: .gregorian)
+  utc.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+  #expect(snapshot.calendarSummary(for: instant, calendar: shanghai) == day)
+  #expect(snapshot.calendarSummary(for: instant, calendar: utc) == nil)
+  #expect(
+    try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot)) == snapshot)
 }
 
 @Test func dateKeysStayGregorianWhateverTheSystemCalendar() throws {
-    let noon = try #require(WidgetSnapshot.keyCalendar.date(from: DateComponents(year: 2026, month: 9, day: 25, hour: 12)))
-    var buddhist = Calendar(identifier: .buddhist)
-    buddhist.timeZone = .autoupdatingCurrent
-    // 佛历下同一天的年份是 2569；若用系统日历拼键，Widget 会找不到主应用写入的公历键。
-    #expect(buddhist.component(.year, from: noon) == 2569)
-    #expect(WidgetSnapshot.dayKey(for: noon) == "2026-09-25")
-    #expect(WidgetSnapshot.monthKey(for: noon) == "2026-09")
-    #expect(WidgetSnapshot.dayKey(year: 2026, month: 1, day: 2) == "2026-01-02")
+  let noon = try #require(
+    WidgetSnapshot.keyCalendar.date(from: DateComponents(year: 2026, month: 9, day: 25, hour: 12)))
+  var buddhist = Calendar(identifier: .buddhist)
+  buddhist.timeZone = .autoupdatingCurrent
+  // 佛历下同一天的年份是 2569；若用系统日历拼键，Widget 会找不到主应用写入的公历键。
+  #expect(buddhist.component(.year, from: noon) == 2569)
+  #expect(WidgetSnapshot.dayKey(for: noon) == "2026-09-25")
+  #expect(WidgetSnapshot.monthKey(for: noon) == "2026-09")
+  #expect(WidgetSnapshot.dayKey(year: 2026, month: 1, day: 2) == "2026-01-02")
 
-    let day = WidgetSnapshot.CalendarSummary(dateKey: "2026-09-25", festivals: [], solarTerm: nil,
-                                             schedule: .holiday, holidayName: "中秋节", twelveStar: "除",
-                                             isEcliptic: true, recommends: [], avoids: [])
-    let month = WidgetSnapshot.MonthSummary(monthKey: "2026-09", firstWeekday: 2, featureKeys: [], days: [])
-    let snapshot = WidgetSnapshot(calendarDays: [day], monthSummaries: [month])
-    #expect(snapshot.calendarSummary(for: noon) == day)
-    #expect(snapshot.monthSummary(for: noon) == month)
-    #expect(snapshot.calendarSummary(for: noon, calendar: buddhist) == nil)
+  let day = WidgetSnapshot.CalendarSummary(
+    dateKey: "2026-09-25", festivals: [], solarTerm: nil,
+    schedule: .holiday, holidayName: "中秋节", twelveStar: "除",
+    isEcliptic: true, recommends: [], avoids: [])
+  let month = WidgetSnapshot.MonthSummary(
+    monthKey: "2026-09", firstWeekday: 2, featureKeys: [], days: [])
+  let snapshot = WidgetSnapshot(calendarDays: [day], monthSummaries: [month])
+  #expect(snapshot.calendarSummary(for: noon) == day)
+  #expect(snapshot.monthSummary(for: noon) == month)
+  #expect(snapshot.calendarSummary(for: noon, calendar: buddhist) == nil)
 }
 
 @Test func seasonalDayToggleReloadsOnlyDailyCalendar() {
-    let previous = WidgetSnapshot()
-    var enabled = previous
-    enabled.showsSeasonal = true
-    #expect(enabled.changedWidgetKinds(from: previous) == [WidgetKind.calendar])
+  let previous = WidgetSnapshot()
+  var enabled = previous
+  enabled.showsSeasonal = true
+  #expect(enabled.changedWidgetKinds(from: previous) == [WidgetKind.calendar])
 }
 
 @Test func monthCalendarSnapshotRoundTripsAndReloadsItsOwnWidget() throws {
-    let previous = WidgetSnapshot()
-    let day = WidgetSnapshot.MonthDay(dateKey: "2026-09-25", number: 25, subtitle: "中秋节",
-                                      holidayName: "中秋节", isWork: false, isWeekend: false)
-    let month = WidgetSnapshot.MonthSummary(monthKey: "2026-09", firstWeekday: 2,
-                                            featureKeys: ["holidays", "lunar"], days: [day])
-    var snapshot = previous
-    snapshot.monthSummaries = [month]
+  let previous = WidgetSnapshot()
+  let day = WidgetSnapshot.MonthDay(
+    dateKey: "2026-09-25", number: 25, subtitle: "中秋节",
+    holidayName: "中秋节", isWork: false, isWeekend: false)
+  let month = WidgetSnapshot.MonthSummary(
+    monthKey: "2026-09", firstWeekday: 2,
+    featureKeys: ["holidays", "lunar"], days: [day])
+  var snapshot = previous
+  snapshot.monthSummaries = [month]
 
-    #expect(snapshot.changedWidgetKinds(from: previous) == [WidgetKind.calendarMonth])
-    #expect(try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot)) == snapshot)
-    let date = try #require(ISO8601DateFormatter().date(from: "2026-08-31T16:00:00Z"))
-    var shanghai = Calendar(identifier: .gregorian)
-    shanghai.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
-    var utc = Calendar(identifier: .gregorian)
-    utc.timeZone = try #require(TimeZone(secondsFromGMT: 0))
-    #expect(snapshot.monthSummary(for: date, calendar: shanghai) == month)
-    #expect(snapshot.monthSummary(for: date, calendar: utc) == nil)
-    let legacy = Data(#"{"aiEnabled":false,"quotas":[],"publicIPEnabled":false,"addresses":[],"language":"system","calendarFirstWeekday":2,"showsLunar":true}"#.utf8)
-    #expect(try JSONDecoder().decode(WidgetSnapshot.self, from: legacy).monthSummaries == nil)
+  #expect(snapshot.changedWidgetKinds(from: previous) == [WidgetKind.calendarMonth])
+  #expect(
+    try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot)) == snapshot)
+  let date = try #require(ISO8601DateFormatter().date(from: "2026-08-31T16:00:00Z"))
+  var shanghai = Calendar(identifier: .gregorian)
+  shanghai.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
+  var utc = Calendar(identifier: .gregorian)
+  utc.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+  #expect(snapshot.monthSummary(for: date, calendar: shanghai) == month)
+  #expect(snapshot.monthSummary(for: date, calendar: utc) == nil)
+  let legacy = Data(
+    #"{"aiEnabled":false,"quotas":[],"publicIPEnabled":false,"addresses":[],"language":"system","calendarFirstWeekday":2,"showsLunar":true}"#
+      .utf8)
+  #expect(try JSONDecoder().decode(WidgetSnapshot.self, from: legacy).monthSummaries == nil)
 }
 
 @Test func publicAddressSnapshotKeepsLocationASAndFlagsWithoutBreakingOldData() throws {
-    let enriched = Data(#"{"family":"v4","ip":"203.0.113.8","countryCode":"CN","city":"上海","region":"上海","cityEnglish":"Shanghai","regionEnglish":"Shanghai","organization":"Example","purityScore":85,"purityGrade":"A","asn":"AS4134","isNative":true,"ipType":"Residential IP","riskFlags":["proxy"]}"#.utf8)
-    let address = try JSONDecoder().decode(WidgetSnapshot.Address.self, from: enriched)
-    let encoded = try JSONEncoder().encode(address)
-    let fields = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
-    #expect(fields["region"] as? String == "上海")
-    #expect(fields["cityEnglish"] as? String == "Shanghai")
-    #expect(fields["regionEnglish"] as? String == "Shanghai")
-    #expect(fields["asn"] as? String == "AS4134")
-    #expect(fields["isNative"] as? Bool == true)
-    #expect(fields["ipType"] as? String == "Residential IP")
-    #expect(fields["riskFlags"] as? [String] == ["proxy"])
+  let enriched = Data(
+    #"{"family":"v4","ip":"203.0.113.8","countryCode":"CN","city":"上海","region":"上海","cityEnglish":"Shanghai","regionEnglish":"Shanghai","organization":"Example","purityScore":85,"purityGrade":"A","asn":"AS4134","isNative":true,"ipType":"Residential IP","riskFlags":["proxy"]}"#
+      .utf8)
+  let address = try JSONDecoder().decode(WidgetSnapshot.Address.self, from: enriched)
+  let encoded = try JSONEncoder().encode(address)
+  let fields = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+  #expect(fields["region"] as? String == "上海")
+  #expect(fields["cityEnglish"] as? String == "Shanghai")
+  #expect(fields["regionEnglish"] as? String == "Shanghai")
+  #expect(fields["asn"] as? String == "AS4134")
+  #expect(fields["isNative"] as? Bool == true)
+  #expect(fields["ipType"] as? String == "Residential IP")
+  #expect(fields["riskFlags"] as? [String] == ["proxy"])
 
-    let old = Data(#"{"family":"v4","ip":"203.0.113.8","countryCode":"CN","city":null,"organization":null,"purityScore":null,"purityGrade":null}"#.utf8)
-    #expect(try JSONDecoder().decode(WidgetSnapshot.Address.self, from: old).ip == "203.0.113.8")
+  let old = Data(
+    #"{"family":"v4","ip":"203.0.113.8","countryCode":"CN","city":null,"organization":null,"purityScore":null,"purityGrade":null}"#
+      .utf8)
+  #expect(try JSONDecoder().decode(WidgetSnapshot.Address.self, from: old).ip == "203.0.113.8")
 }
 
 @Test func tomorrowWorkAnswerDoesNotGuessWithoutHolidayCoverage() {
-    #expect(WidgetSnapshot.CalendarSummary.Schedule.work.needsWork == true)
-    #expect(WidgetSnapshot.CalendarSummary.Schedule.makeupWork.needsWork == true)
-    #expect(WidgetSnapshot.CalendarSummary.Schedule.weekend.needsWork == false)
-    #expect(WidgetSnapshot.CalendarSummary.Schedule.holiday.needsWork == false)
-    #expect(WidgetSnapshot.CalendarSummary.Schedule.makeupDayOff.needsWork == false)
-    #expect(WidgetSnapshot.CalendarSummary.Schedule.dayOff.needsWork == false)
-    #expect(WidgetSnapshot.CalendarSummary.Schedule.unknown.needsWork == nil)
+  #expect(WidgetSnapshot.CalendarSummary.Schedule.work.needsWork == true)
+  #expect(WidgetSnapshot.CalendarSummary.Schedule.makeupWork.needsWork == true)
+  #expect(WidgetSnapshot.CalendarSummary.Schedule.weekend.needsWork == false)
+  #expect(WidgetSnapshot.CalendarSummary.Schedule.holiday.needsWork == false)
+  #expect(WidgetSnapshot.CalendarSummary.Schedule.makeupDayOff.needsWork == false)
+  #expect(WidgetSnapshot.CalendarSummary.Schedule.dayOff.needsWork == false)
+  #expect(WidgetSnapshot.CalendarSummary.Schedule.unknown.needsWork == nil)
 }
 
 @Test func todayTokenUsageResetsAtLocalMidnightAndRespectsModuleSwitch() throws {
-    let scannedDay = try #require(ISO8601DateFormatter().date(from: "2026-09-24T15:00:00Z"))
-    let nextDay = try #require(ISO8601DateFormatter().date(from: "2026-09-24T16:00:00Z"))
-    var shanghai = Calendar(identifier: .gregorian)
-    shanghai.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
-    let usage = WidgetSnapshot.DailyTokenUsage(provider: "codex", day: scannedDay, tokens: 12_345)
-    var snapshot = WidgetSnapshot(aiEnabled: true, dailyTokens: [usage])
+  let scannedDay = try #require(ISO8601DateFormatter().date(from: "2026-09-24T15:00:00Z"))
+  let nextDay = try #require(ISO8601DateFormatter().date(from: "2026-09-24T16:00:00Z"))
+  var shanghai = Calendar(identifier: .gregorian)
+  shanghai.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
+  let usage = WidgetSnapshot.DailyTokenUsage(provider: "codex", day: scannedDay, tokens: 12_345)
+  var snapshot = WidgetSnapshot(aiEnabled: true, dailyTokens: [usage])
 
-    #expect(snapshot.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == 12_345)
-    #expect(snapshot.todayTokens(for: "codex", at: nextDay, calendar: shanghai) == 0)
-    #expect(snapshot.todayTokens(for: "claude", at: scannedDay, calendar: shanghai) == nil)
-    let restored = try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot))
-    #expect(restored.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == 12_345)
-    snapshot.localUsageEnabled = false
-    #expect(snapshot.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == nil)
-    let hidden = try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot))
-    #expect(hidden.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == nil)
-    snapshot.localUsageEnabled = true
-    snapshot.aiEnabled = false
-    #expect(snapshot.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == nil)
+  #expect(snapshot.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == 12_345)
+  #expect(snapshot.todayTokens(for: "codex", at: nextDay, calendar: shanghai) == 0)
+  #expect(snapshot.todayTokens(for: "claude", at: scannedDay, calendar: shanghai) == nil)
+  let restored = try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot))
+  #expect(restored.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == 12_345)
+  snapshot.localUsageEnabled = false
+  #expect(snapshot.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == nil)
+  let hidden = try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot))
+  #expect(hidden.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == nil)
+  snapshot.localUsageEnabled = true
+  snapshot.aiEnabled = false
+  #expect(snapshot.todayTokens(for: "codex", at: scannedDay, calendar: shanghai) == nil)
 }
 
 @Test func oldWidgetSnapshotDecodesWithoutDailyTokens() throws {
-    let legacy = Data(#"{"aiEnabled":true,"quotaEnabled":false,"quotas":[{"provider":"codex","kind":"weekly","remainingPercent":50,"resetsAt":null,"fetchedAt":0,"isStale":false}],"publicIPEnabled":false,"addresses":[],"language":"system","calendarFirstWeekday":2,"showsLunar":true}"#.utf8)
-    let snapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: legacy)
-    #expect(snapshot.todayTokens(for: "codex") == nil)
-    #expect(snapshot.currentQuotas().count == 1)
-    #expect(snapshot.localUsageEnabled == nil)
-    #expect(snapshot.quotaShowsRemaining == nil)
-    #expect(snapshot.westernUnits == nil)
+  let legacy = Data(
+    #"{"aiEnabled":true,"quotaEnabled":false,"quotas":[{"provider":"codex","kind":"weekly","remainingPercent":50,"resetsAt":null,"fetchedAt":0,"isStale":false}],"publicIPEnabled":false,"addresses":[],"language":"system","calendarFirstWeekday":2,"showsLunar":true}"#
+      .utf8)
+  let snapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: legacy)
+  #expect(snapshot.todayTokens(for: "codex") == nil)
+  #expect(snapshot.currentQuotas().count == 1)
+  #expect(snapshot.localUsageEnabled == nil)
+  #expect(snapshot.quotaShowsRemaining == nil)
+  #expect(snapshot.westernUnits == nil)
 }
 
 @Test func onlyWidgetsWhoseDisplayedDataChangedAreReloaded() {
-    let now = Date()
-    func quota(fetchedAt: Date, remaining: Double = 37) -> WidgetSnapshot.Quota {
-        .init(provider: "codex", kind: "weekly", remainingPercent: remaining, resetsAt: now.addingTimeInterval(3600),
-              fetchedAt: fetchedAt, isStale: false)
-    }
-    let address = WidgetSnapshot.Address(family: "v4", ip: "203.0.113.1", countryCode: "CN", city: nil,
-                                         organization: nil, purityScore: 82, purityGrade: "A")
-    let base = WidgetSnapshot(aiEnabled: true, quotas: [quota(fetchedAt: now)],
-                              dailyTokens: [.init(provider: "codex", day: now, tokens: 10)],
-                              publicIPEnabled: true, addresses: [address], showsLunar: true)
+  let now = Date()
+  func quota(fetchedAt: Date, remaining: Double = 37) -> WidgetSnapshot.Quota {
+    .init(
+      provider: "codex", kind: "weekly", remainingPercent: remaining,
+      resetsAt: now.addingTimeInterval(3600),
+      fetchedAt: fetchedAt, isStale: false)
+  }
+  let address = WidgetSnapshot.Address(
+    family: "v4", ip: "203.0.113.1", countryCode: "CN", city: nil,
+    organization: nil, purityScore: 82, purityGrade: "A")
+  let base = WidgetSnapshot(
+    aiEnabled: true, quotas: [quota(fetchedAt: now)],
+    dailyTokens: [.init(provider: "codex", day: now, tokens: 10)],
+    publicIPEnabled: true, addresses: [address], showsLunar: true)
 
-    // 重新抓取但额度未变：抓取时间不显示在 Widget 上，不应消耗重载预算
-    var refetched = base
-    refetched.quotas = [quota(fetchedAt: now.addingTimeInterval(1800))]
-    #expect(refetched != base)
-    #expect(refetched.changedWidgetKinds(from: base).isEmpty)
+  // 重新抓取但额度未变：抓取时间不显示在 Widget 上，不应消耗重载预算
+  var refetched = base
+  refetched.quotas = [quota(fetchedAt: now.addingTimeInterval(1800))]
+  #expect(refetched != base)
+  #expect(refetched.changedWidgetKinds(from: base).isEmpty)
 
-    var quotaChanged = base
-    quotaChanged.quotas = [quota(fetchedAt: now, remaining: 20)]
-    #expect(quotaChanged.changedWidgetKinds(from: base) == [WidgetKind.aiQuota])
+  var quotaChanged = base
+  quotaChanged.quotas = [quota(fetchedAt: now, remaining: 20)]
+  #expect(quotaChanged.changedWidgetKinds(from: base) == [WidgetKind.aiQuota])
 
-    var tokensChanged = base
-    tokensChanged.dailyTokens = [.init(provider: "codex", day: now, tokens: 11)]
-    #expect(tokensChanged.changedWidgetKinds(from: base) == [WidgetKind.todayTokens])
+  var tokensChanged = base
+  tokensChanged.dailyTokens = [.init(provider: "codex", day: now, tokens: 11)]
+  #expect(tokensChanged.changedWidgetKinds(from: base) == [WidgetKind.todayTokens])
 
-    var localDisabled = base
-    localDisabled.localUsageEnabled = false
-    #expect(localDisabled.todayTokens(for: "codex", at: now) == nil)
-    #expect(localDisabled.changedWidgetKinds(from: base) == [WidgetKind.todayTokens])
+  var localDisabled = base
+  localDisabled.localUsageEnabled = false
+  #expect(localDisabled.todayTokens(for: "codex", at: now) == nil)
+  #expect(localDisabled.changedWidgetKinds(from: base) == [WidgetKind.todayTokens])
 
-    var ipDisabled = base
-    ipDisabled.publicIPEnabled = false
-    #expect(ipDisabled.changedWidgetKinds(from: base) == [WidgetKind.ipPurity, WidgetKind.publicIP])
+  var ipDisabled = base
+  ipDisabled.publicIPEnabled = false
+  #expect(ipDisabled.changedWidgetKinds(from: base) == [WidgetKind.ipPurity, WidgetKind.publicIP])
 
-    var noAddress = base
-    noAddress.addresses = []
-    var noAddressDisabled = noAddress
-    noAddressDisabled.publicIPEnabled = false
-    #expect(noAddressDisabled.changedWidgetKinds(from: noAddress) == [WidgetKind.ipPurity, WidgetKind.publicIP])
-    #expect(noAddress.changedWidgetKinds(from: noAddressDisabled) == [WidgetKind.ipPurity, WidgetKind.publicIP])
+  var noAddress = base
+  noAddress.addresses = []
+  var noAddressDisabled = noAddress
+  noAddressDisabled.publicIPEnabled = false
+  #expect(
+    noAddressDisabled.changedWidgetKinds(from: noAddress) == [
+      WidgetKind.ipPurity, WidgetKind.publicIP,
+    ])
+  #expect(
+    noAddress.changedWidgetKinds(from: noAddressDisabled) == [
+      WidgetKind.ipPurity, WidgetKind.publicIP,
+    ])
 
-    var aiDisabled = base
-    aiDisabled.aiEnabled = false
-    #expect(aiDisabled.changedWidgetKinds(from: base) == [WidgetKind.aiQuota, WidgetKind.todayTokens])
+  var aiDisabled = base
+  aiDisabled.aiEnabled = false
+  #expect(
+    aiDisabled.changedWidgetKinds(from: base) == [WidgetKind.aiQuota, WidgetKind.todayTokens])
 
-    var lunarHidden = base
-    lunarHidden.showsLunar = false
-    #expect(lunarHidden.changedWidgetKinds(from: base) == [WidgetKind.calendar, WidgetKind.tomorrowWork])
+  var lunarHidden = base
+  lunarHidden.showsLunar = false
+  #expect(
+    lunarHidden.changedWidgetKinds(from: base) == [WidgetKind.calendar, WidgetKind.tomorrowWork])
 
-    var relocalized = base
-    relocalized.language = "japanese"
-    #expect(relocalized.changedWidgetKinds(from: base) == [WidgetKind.aiQuota, WidgetKind.todayTokens,
-                                                           WidgetKind.ipPurity, WidgetKind.publicIP,
-                                                           WidgetKind.calendar, WidgetKind.tomorrowWork,
-                                                           WidgetKind.calendarMonth])
+  var relocalized = base
+  relocalized.language = "japanese"
+  #expect(
+    relocalized.changedWidgetKinds(from: base) == [
+      WidgetKind.aiQuota, WidgetKind.todayTokens,
+      WidgetKind.ipPurity, WidgetKind.publicIP,
+      WidgetKind.calendar, WidgetKind.tomorrowWork,
+      WidgetKind.calendarMonth,
+    ])
 }
 
 @Test func displayPreferencesPreserveLegacyDefaultsAndReloadOnlyAffectedWidgets() throws {
-    let legacy = WidgetSnapshot()
-    var current = legacy
-    current.quotaShowsRemaining = true
-    current.westernUnits = false
-    #expect(current.changedWidgetKinds(from: legacy).isEmpty)
-    current.quotaShowsRemaining = false
-    #expect(current.changedWidgetKinds(from: legacy) == [WidgetKind.aiQuota])
-    current.quotaShowsRemaining = true
-    current.westernUnits = true
-    #expect(current.changedWidgetKinds(from: legacy) == [WidgetKind.todayTokens])
-    let restored = try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(current))
-    #expect(restored.westernUnits == true)
-    #expect(restored.quotaShowsRemaining == true)
+  let legacy = WidgetSnapshot()
+  var current = legacy
+  current.quotaShowsRemaining = true
+  current.westernUnits = false
+  #expect(current.changedWidgetKinds(from: legacy).isEmpty)
+  current.quotaShowsRemaining = false
+  #expect(current.changedWidgetKinds(from: legacy) == [WidgetKind.aiQuota])
+  current.quotaShowsRemaining = true
+  current.westernUnits = true
+  #expect(current.changedWidgetKinds(from: legacy) == [WidgetKind.todayTokens])
+  let restored = try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(current))
+  #expect(restored.westernUnits == true)
+  #expect(restored.quotaShowsRemaining == true)
 }

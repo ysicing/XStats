@@ -9,80 +9,82 @@ import Testing
 
 @MainActor
 struct FanAvailabilityTests {
-    @Test func onlyConfirmedFansAppearAndPreferencesArePreserved() throws {
-        let name = "FanAvailabilityTests.\(UUID())"
-        let defaults = try #require(UserDefaults(suiteName: name))
-        defer { defaults.removePersistentDomain(forName: name) }
-        let settings = AppSettings(defaults: defaults)
-        settings.menuBarItems = [.temperature, .fan]
-        settings.panelTab = .thermal
-        let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
-        model.isMainWindowVisible = true
-        #expect(!model.availableMenuBarItems.contains(.fan))
-        #expect(!model.visibleMenuBarItems.contains(.fan))
-        #expect(model.demand.fans)
-        var snapshot = MetricsSnapshot()
-        snapshot.sensors = SensorReadings(temperatures: [], fans: [], fanCount: 0)
-        model.store.apply(snapshot)
-        #expect(!model.store.supportsFans)
-        #expect(!model.availableMenuBarItems.contains(.fan))
-        #expect(model.visibleMenuBarItems == [.temperature])
-        #expect(!model.demand.fans)
-        #expect(settings.menuBarItems.contains(.fan))
-        // 后续仅采温度或读取失败不会让入口来回闪烁。
-        snapshot.sensors = SensorReadings(temperatures: [], fans: [])
-        model.store.apply(snapshot)
-        #expect(!model.store.supportsFans)
-        snapshot.sensors = SensorReadings(temperatures: [], fans: [], fanCount: 2)
-        model.store.apply(snapshot)
-        #expect(model.store.supportsFans)
-        #expect(model.visibleMenuBarItems.contains(.fan))
-        #expect(model.demand.fans)
-    }
+  @Test func onlyConfirmedFansAppearAndPreferencesArePreserved() throws {
+    let name = "FanAvailabilityTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let settings = AppSettings(defaults: defaults)
+    settings.menuBarItems = [.temperature, .fan]
+    settings.panelTab = .thermal
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+    model.isMainWindowVisible = true
+    #expect(!model.availableMenuBarItems.contains(.fan))
+    #expect(!model.visibleMenuBarItems.contains(.fan))
+    #expect(model.demand.fans)
+    var snapshot = MetricsSnapshot()
+    snapshot.sensors = SensorReadings(temperatures: [], fans: [], fanCount: 0)
+    model.store.apply(snapshot)
+    #expect(!model.store.supportsFans)
+    #expect(!model.availableMenuBarItems.contains(.fan))
+    #expect(model.visibleMenuBarItems == [.temperature])
+    #expect(!model.demand.fans)
+    #expect(settings.menuBarItems.contains(.fan))
+    // 后续仅采温度或读取失败不会让入口来回闪烁。
+    snapshot.sensors = SensorReadings(temperatures: [], fans: [])
+    model.store.apply(snapshot)
+    #expect(!model.store.supportsFans)
+    snapshot.sensors = SensorReadings(temperatures: [], fans: [], fanCount: 2)
+    model.store.apply(snapshot)
+    #expect(model.store.supportsFans)
+    #expect(model.visibleMenuBarItems.contains(.fan))
+    #expect(model.demand.fans)
+  }
 
-    @Test func unknownFansStayHiddenAndStoppedFansRemainVisible() {
-        let store = MetricsStore()
-        var snapshot = MetricsSnapshot()
-        snapshot.sensors = SensorReadings(temperatures: [], fans: [])
-        store.apply(snapshot)
-        #expect(!store.supportsFans)
-        let stopped = FanState(id: 0, current: 0, minimum: 0, maximum: 6000, target: 0, isManual: false)
-        snapshot.sensors = SensorReadings(temperatures: [], fans: [stopped], fanCount: 1)
-        store.apply(snapshot)
-        #expect(store.supportsFans)
-        #expect(store.fastestFan?.current == 0)
-        snapshot.sensors = SensorReadings(temperatures: [], fans: [])
-        store.apply(snapshot)
-        #expect(store.supportsFans)
-    }
+  @Test func unknownFansStayHiddenAndStoppedFansRemainVisible() {
+    let store = MetricsStore()
+    var snapshot = MetricsSnapshot()
+    snapshot.sensors = SensorReadings(temperatures: [], fans: [])
+    store.apply(snapshot)
+    #expect(!store.supportsFans)
+    let stopped = FanState(id: 0, current: 0, minimum: 0, maximum: 6000, target: 0, isManual: false)
+    snapshot.sensors = SensorReadings(temperatures: [], fans: [stopped], fanCount: 1)
+    store.apply(snapshot)
+    #expect(store.supportsFans)
+    #expect(store.fastestFan?.current == 0)
+    snapshot.sensors = SensorReadings(temperatures: [], fans: [])
+    store.apply(snapshot)
+    #expect(store.supportsFans)
+  }
 
-    @Test func staleFansReusedAfterReadFailureDropStartingState() {
-        let store = MetricsStore()
-        var snapshot = MetricsSnapshot()
-        let starting = FanState(id: 0, current: 0, minimum: 0, maximum: 6000, target: 2000, isManual: true,
-                                isStarting: true)
-        snapshot.sensors = SensorReadings(temperatures: [], fans: [starting], fanCount: 1)
-        store.apply(snapshot)
-        #expect(store.sensors?.fans.isStartingUp == true)
-        // 读取失败返回空数组：沿用旧读数，但不再显示“启动中”。
-        snapshot.sensors = SensorReadings(temperatures: [], fans: [])
-        store.apply(snapshot)
-        #expect(store.sensors?.fans.count == 1)
-        #expect(store.sensors?.fans.first?.target == 2000)
-        #expect(store.sensors?.fans.isStartingUp == false)
-    }
+  @Test func staleFansReusedAfterReadFailureDropStartingState() {
+    let store = MetricsStore()
+    var snapshot = MetricsSnapshot()
+    let starting = FanState(
+      id: 0, current: 0, minimum: 0, maximum: 6000, target: 2000, isManual: true,
+      isStarting: true)
+    snapshot.sensors = SensorReadings(temperatures: [], fans: [starting], fanCount: 1)
+    store.apply(snapshot)
+    #expect(store.sensors?.fans.isStartingUp == true)
+    // 读取失败返回空数组：沿用旧读数，但不再显示“启动中”。
+    snapshot.sensors = SensorReadings(temperatures: [], fans: [])
+    store.apply(snapshot)
+    #expect(store.sensors?.fans.count == 1)
+    #expect(store.sensors?.fans.first?.target == 2000)
+    #expect(store.sensors?.fans.isStartingUp == false)
+  }
 
-    @Test func startupProbeOnlyFillsUnknownFanCount() {
-        let store = MetricsStore(readBattery: false)
-        store.recordFanCount(nil)
-        #expect(store.fanCount == nil)
-        store.recordFanCount(0)
-        #expect(store.fanCount == 0)
-        var snapshot = MetricsSnapshot()
-        snapshot.sensors = SensorReadings(temperatures: [], fans: [], fanCount: 2)
-        store.apply(snapshot)
-        // 晚到的启动探测不能覆盖采样确认的数量。
-        store.recordFanCount(0)
-        #expect(store.fanCount == 2 && store.supportsFans)
-    }
+  @Test func startupProbeOnlyFillsUnknownFanCount() {
+    let store = MetricsStore(readBattery: false)
+    store.recordFanCount(nil)
+    #expect(store.fanCount == nil)
+    store.recordFanCount(0)
+    #expect(store.fanCount == 0)
+    var snapshot = MetricsSnapshot()
+    snapshot.sensors = SensorReadings(temperatures: [], fans: [], fanCount: 2)
+    store.apply(snapshot)
+    // 晚到的启动探测不能覆盖采样确认的数量。
+    store.recordFanCount(0)
+    #expect(store.fanCount == 2 && store.supportsFans)
+  }
 }

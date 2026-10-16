@@ -15,245 +15,264 @@ import WebDAVSync
 /// 枚举以原始值保存，字段全部可选：旧版本读到新字段会忽略，新版本读到旧文档不会解码失败；
 /// 应用时逐项校验，不认识的值跳过
 public struct SettingsDocument: Codable, Equatable, Sendable {
-    public var schema: Int? = 1
-    public var calendarEnabled: Bool?
-    public var calendarPreferences: CalendarPreferences?
-    public var restEnabled: Bool?
-    public var wellnessPreferences: WellnessPreferences?
-    public var restWorkMinutes: Int?
-    public var restBreakMinutes: Int?
-    public var restLongBreakMinutes: Int?
-    public var restCycleEnabled: Bool?
-    public var restMode: String?
-    public var restSound: String?
-    public var restHUDStyle: String?
-    public var calendarFeatures: [String]?
-    public var calendarFirstWeekday: Int?
-    public var menuBarItems: [String]?
-    public var menuBarOrder: [String]?
-    public var enabledMonitoringModules: [String]?
-    public var menuBarStyle: String?
-    public var networkStyle: String?
-    public var networkLocationStyle: String?
-    public var styleOverrides: [String: String]?
-    public var refreshSeconds: Int?
-    public var cpuSharePerCore: Bool?
-    public var colorizeHighLoad: Bool?
-    public var bluetoothLowBatteryInMenuBar: Bool?
-    public var useFahrenheit: Bool?
-    public var lidModeBatteryFloor: Int?
-    public var fanSafetyTemperature: Int?
-    public var appearance: String?
-    public var showDockIcon: Bool?
-    public var speedTestRoute: String?
-    public var menuBarItemSpacing: Int?
-    public var menuBarLayout: String?
-    public var hiddenPopoverSections: [String]?
-    public var probeEnabled: Bool?
-    public var probeInBackground: Bool?
-    public var probeTarget: String?
-    public var publicIPLookup: Bool?
-    public var enabledAlerts: [String]?
-    public var notifyUpdates: Bool?
-    public var alertCPUTemperature: Int?
-    public var alertCPULoad: Int?
-    public var language: String?
-    public var hotKeys: [String: HotKey]?
-    public var historyEnabled: Bool?
-    public var autoCheckUpdates: Bool?
-    public var updateCheckSchedule: String?
-    public var cleanerEnabled: Bool?
-    public var uninstallerEnabled: Bool?
-    public var processesEnabled: Bool?
-    public var audioEnabled: Bool?
-    public var networkConnectionsEnabled: Bool?
-    public var cleanPrefersTrash: Bool?
+  public var schema: Int? = 1
+  public var calendarEnabled: Bool?
+  public var calendarPreferences: CalendarPreferences?
+  public var restEnabled: Bool?
+  public var wellnessPreferences: WellnessPreferences?
+  public var restWorkMinutes: Int?
+  public var restBreakMinutes: Int?
+  public var restLongBreakMinutes: Int?
+  public var restCycleEnabled: Bool?
+  public var restMode: String?
+  public var restSound: String?
+  public var restHUDStyle: String?
+  public var calendarFeatures: [String]?
+  public var calendarFirstWeekday: Int?
+  public var menuBarItems: [String]?
+  public var menuBarOrder: [String]?
+  public var enabledMonitoringModules: [String]?
+  public var menuBarStyle: String?
+  public var networkStyle: String?
+  public var networkLocationStyle: String?
+  public var styleOverrides: [String: String]?
+  public var refreshSeconds: Int?
+  public var cpuSharePerCore: Bool?
+  public var colorizeHighLoad: Bool?
+  public var bluetoothLowBatteryInMenuBar: Bool?
+  public var useFahrenheit: Bool?
+  public var lidModeBatteryFloor: Int?
+  public var fanSafetyTemperature: Int?
+  public var appearance: String?
+  public var showDockIcon: Bool?
+  public var speedTestRoute: String?
+  public var menuBarItemSpacing: Int?
+  public var menuBarLayout: String?
+  public var hiddenPopoverSections: [String]?
+  public var probeEnabled: Bool?
+  public var probeInBackground: Bool?
+  public var probeTarget: String?
+  public var publicIPLookup: Bool?
+  public var enabledAlerts: [String]?
+  public var notifyUpdates: Bool?
+  public var alertCPUTemperature: Int?
+  public var alertCPULoad: Int?
+  public var language: String?
+  public var hotKeys: [String: HotKey]?
+  public var historyEnabled: Bool?
+  public var autoCheckUpdates: Bool?
+  public var updateCheckSchedule: String?
+  public var cleanerEnabled: Bool?
+  public var uninstallerEnabled: Bool?
+  public var processesEnabled: Bool?
+  public var audioEnabled: Bool?
+  public var networkConnectionsEnabled: Bool?
+  public var cleanPrefersTrash: Bool?
 
-    public init() {}
+  public init() {}
 }
 
 extension AppSettings {
-    /// 显式列出可同步的偏好；WebDAV 地址、用户名和密码不会进入备份。
-    public func exportDocument() -> SettingsDocument {
-        var doc = SettingsDocument()
-        doc.calendarEnabled = calendarEnabled
-        doc.calendarPreferences = calendarPreferences
-        doc.restEnabled = restEnabled
-        doc.wellnessPreferences = wellnessPreferences.normalized
-        doc.restWorkMinutes = restWorkMinutes
-        doc.restBreakMinutes = restBreakMinutes
-        doc.restLongBreakMinutes = restLongBreakMinutes
-        doc.restCycleEnabled = restCycleEnabled
-        doc.restMode = restMode.rawValue
-        // 自定义音频属于本机文件，其他 Mac 恢复备份时从关闭开始。
-        doc.restSound = (restSound == .custom ? RestSound.off : restSound).rawValue
-        doc.restHUDStyle = restHUDStyle.rawValue
-        doc.calendarFeatures = calendarFeatures.map(\.rawValue).sorted()
-        doc.calendarFirstWeekday = calendarFirstWeekday
-        doc.menuBarItems = menuBarItems.map(\.rawValue).sorted()
-        doc.menuBarOrder = menuBarOrder.map(\.rawValue)
-        doc.enabledMonitoringModules = enabledMonitoringModules.map(\.rawValue).sorted()
-        doc.menuBarStyle = menuBarStyle.rawValue
-        doc.networkStyle = networkStyle.rawValue
-        doc.networkLocationStyle = networkLocationStyle.rawValue
-        doc.styleOverrides = Dictionary(uniqueKeysWithValues: styleOverrides.map { ($0.key.rawValue, $0.value.rawValue) })
-        doc.refreshSeconds = refreshSeconds
-        doc.cpuSharePerCore = cpuSharePerCore
-        doc.colorizeHighLoad = colorizeHighLoad
-        doc.bluetoothLowBatteryInMenuBar = bluetoothLowBatteryInMenuBar
-        doc.useFahrenheit = useFahrenheit
-        doc.lidModeBatteryFloor = lidModeBatteryFloor
-        doc.fanSafetyTemperature = fanSafetyTemperature
-        doc.appearance = appearance.rawValue
-        doc.showDockIcon = showDockIcon
-        doc.speedTestRoute = speedTestRoute.rawValue
-        doc.menuBarItemSpacing = menuBarItemSpacing
-        doc.menuBarLayout = menuBarLayout.rawValue
-        doc.hiddenPopoverSections = hiddenPopoverSections.map(\.rawValue).sorted()
-        doc.probeEnabled = probeEnabled
-        doc.probeInBackground = probeInBackground
-        doc.probeTarget = probeTarget.rawValue
-        doc.publicIPLookup = publicIPLookup
-        doc.enabledAlerts = enabledAlerts.map(\.rawValue).sorted()
-        doc.notifyUpdates = notifyUpdates
-        doc.alertCPUTemperature = alertCPUTemperature
-        doc.alertCPULoad = alertCPULoad
-        doc.language = language.rawValue
-        doc.hotKeys = Dictionary(uniqueKeysWithValues: hotKeys.map { ($0.key.rawValue, $0.value) })
-        doc.historyEnabled = historyEnabled
-        doc.autoCheckUpdates = autoCheckUpdates
-        doc.updateCheckSchedule = updateCheckSchedule.rawValue
-        doc.cleanerEnabled = cleanerEnabled
-        doc.uninstallerEnabled = uninstallerEnabled
-        doc.processesEnabled = processesEnabled
-        doc.audioEnabled = audioEnabled
-        doc.networkConnectionsEnabled = networkConnectionsEnabled
-        doc.cleanPrefersTrash = cleanPrefersTrash
-        return doc
+  /// 显式列出可同步的偏好；WebDAV 地址、用户名和密码不会进入备份。
+  public func exportDocument() -> SettingsDocument {
+    var doc = SettingsDocument()
+    doc.calendarEnabled = calendarEnabled
+    doc.calendarPreferences = calendarPreferences
+    doc.restEnabled = restEnabled
+    doc.wellnessPreferences = wellnessPreferences.normalized
+    doc.restWorkMinutes = restWorkMinutes
+    doc.restBreakMinutes = restBreakMinutes
+    doc.restLongBreakMinutes = restLongBreakMinutes
+    doc.restCycleEnabled = restCycleEnabled
+    doc.restMode = restMode.rawValue
+    // 自定义音频属于本机文件，其他 Mac 恢复备份时从关闭开始。
+    doc.restSound = (restSound == .custom ? RestSound.off : restSound).rawValue
+    doc.restHUDStyle = restHUDStyle.rawValue
+    doc.calendarFeatures = calendarFeatures.map(\.rawValue).sorted()
+    doc.calendarFirstWeekday = calendarFirstWeekday
+    doc.menuBarItems = menuBarItems.map(\.rawValue).sorted()
+    doc.menuBarOrder = menuBarOrder.map(\.rawValue)
+    doc.enabledMonitoringModules = enabledMonitoringModules.map(\.rawValue).sorted()
+    doc.menuBarStyle = menuBarStyle.rawValue
+    doc.networkStyle = networkStyle.rawValue
+    doc.networkLocationStyle = networkLocationStyle.rawValue
+    doc.styleOverrides = Dictionary(
+      uniqueKeysWithValues: styleOverrides.map { ($0.key.rawValue, $0.value.rawValue) })
+    doc.refreshSeconds = refreshSeconds
+    doc.cpuSharePerCore = cpuSharePerCore
+    doc.colorizeHighLoad = colorizeHighLoad
+    doc.bluetoothLowBatteryInMenuBar = bluetoothLowBatteryInMenuBar
+    doc.useFahrenheit = useFahrenheit
+    doc.lidModeBatteryFloor = lidModeBatteryFloor
+    doc.fanSafetyTemperature = fanSafetyTemperature
+    doc.appearance = appearance.rawValue
+    doc.showDockIcon = showDockIcon
+    doc.speedTestRoute = speedTestRoute.rawValue
+    doc.menuBarItemSpacing = menuBarItemSpacing
+    doc.menuBarLayout = menuBarLayout.rawValue
+    doc.hiddenPopoverSections = hiddenPopoverSections.map(\.rawValue).sorted()
+    doc.probeEnabled = probeEnabled
+    doc.probeInBackground = probeInBackground
+    doc.probeTarget = probeTarget.rawValue
+    doc.publicIPLookup = publicIPLookup
+    doc.enabledAlerts = enabledAlerts.map(\.rawValue).sorted()
+    doc.notifyUpdates = notifyUpdates
+    doc.alertCPUTemperature = alertCPUTemperature
+    doc.alertCPULoad = alertCPULoad
+    doc.language = language.rawValue
+    doc.hotKeys = Dictionary(uniqueKeysWithValues: hotKeys.map { ($0.key.rawValue, $0.value) })
+    doc.historyEnabled = historyEnabled
+    doc.autoCheckUpdates = autoCheckUpdates
+    doc.updateCheckSchedule = updateCheckSchedule.rawValue
+    doc.cleanerEnabled = cleanerEnabled
+    doc.uninstallerEnabled = uninstallerEnabled
+    doc.processesEnabled = processesEnabled
+    doc.audioEnabled = audioEnabled
+    doc.networkConnectionsEnabled = networkConnectionsEnabled
+    doc.cleanPrefersTrash = cleanPrefersTrash
+    return doc
+  }
+
+  /// 把文档套用到当前设置。只改有变化的项，避免无谓地触发持久化与界面重建
+  public func apply(_ doc: SettingsDocument) {
+    func assign<T: Equatable>(_ keyPath: ReferenceWritableKeyPath<AppSettings, T>, _ value: T?) {
+      guard let value, self[keyPath: keyPath] != value else { return }
+      self[keyPath: keyPath] = value
+    }
+    func option(_ value: Int?, in options: [Int]) -> Int? {
+      value.flatMap { options.contains($0) ? $0 : nil }
     }
 
-    /// 把文档套用到当前设置。只改有变化的项，避免无谓地触发持久化与界面重建
-    public func apply(_ doc: SettingsDocument) {
-        func assign<T: Equatable>(_ keyPath: ReferenceWritableKeyPath<AppSettings, T>, _ value: T?) {
-            guard let value, self[keyPath: keyPath] != value else { return }
-            self[keyPath: keyPath] = value
-        }
-        func option(_ value: Int?, in options: [Int]) -> Int? {
-            value.flatMap { options.contains($0) ? $0 : nil }
-        }
-
-        assign(\.notifyUpdates, doc.notifyUpdates)
-        assign(\.calendarEnabled, doc.calendarEnabled)
-        assign(\.calendarPreferences, doc.calendarPreferences)
-        assign(\.restEnabled, doc.restEnabled)
-        assign(\.wellnessPreferences, doc.wellnessPreferences?.normalized)
-        assign(\.restWorkMinutes, option(doc.restWorkMinutes, in: Self.restWorkOptions))
-        assign(\.restBreakMinutes, option(doc.restBreakMinutes, in: Self.restBreakOptions))
-        assign(\.restLongBreakMinutes, option(doc.restLongBreakMinutes, in: Self.restLongBreakOptions))
-        if let mode = doc.restMode.flatMap(RestRunMode.init(rawValue:)) {
-            assign(\.restMode, mode)
-        } else if let cycle = doc.restCycleEnabled {
-            // 工作番茄和单次的兼容布尔值均为 false，需比较完整模式才能正确恢复。
-            assign(\.restMode, cycle ? .cycle : .single)
-        }
-        assign(\.restSound, doc.restSound.flatMap(RestSound.init(rawValue:)))
-        assign(\.restHUDStyle, doc.restHUDStyle.flatMap(RestHUDStyle.init(rawValue:)))
-        assign(\.calendarFeatures, doc.calendarFeatures.map(CalendarFeature.restored(from:)))
-        assign(\.calendarFirstWeekday, option(doc.calendarFirstWeekday, in: Array(1...7)))
-        assign(\.menuBarItems, doc.menuBarItems.map { Set($0.compactMap(MenuBarItem.init(rawValue:))) })
-        if let order = doc.menuBarOrder { setMenuBarOrder(order.compactMap(MenuBarItem.init(rawValue:))) }
-        assign(\.menuBarStyle, doc.menuBarStyle.flatMap(MenuBarStyle.init(rawValue:)))
-        assign(\.networkStyle, doc.networkStyle.flatMap(NetworkMenuStyle.init(rawValue:)))
-        assign(\.networkLocationStyle, doc.networkLocationStyle.flatMap(NetworkLocationStyle.init(rawValue:)))
-        assign(\.styleOverrides, doc.styleOverrides.map { overrides in
-            Dictionary(uniqueKeysWithValues: overrides.compactMap { key, value in
-                guard let item = MenuBarItem(rawValue: key), let style = MenuBarStyle(rawValue: value) else { return nil }
-                return (item, style)
-            })
-        })
-        assign(\.refreshSeconds, option(doc.refreshSeconds, in: Self.refreshOptions))
-        assign(\.cpuSharePerCore, doc.cpuSharePerCore)
-        assign(\.colorizeHighLoad, doc.colorizeHighLoad)
-        assign(\.bluetoothLowBatteryInMenuBar, doc.bluetoothLowBatteryInMenuBar)
-        assign(\.useFahrenheit, doc.useFahrenheit)
-        assign(\.lidModeBatteryFloor, option(doc.lidModeBatteryFloor, in: Self.batteryFloorOptions))
-        assign(\.fanSafetyTemperature, option(doc.fanSafetyTemperature, in: Self.fanSafetyOptions))
-        assign(\.appearance, doc.appearance.flatMap(AppearanceMode.init(rawValue:)))
-        assign(\.showDockIcon, doc.showDockIcon)
-        assign(\.speedTestRoute, doc.speedTestRoute.flatMap(SpeedRoute.init(rawValue:)))
-        assign(\.menuBarItemSpacing, option(doc.menuBarItemSpacing, in: Self.menuBarSpacingOptions))
-        assign(\.menuBarLayout, doc.menuBarLayout.flatMap(MenuBarLayout.init(rawValue:)))
-        assign(\.hiddenPopoverSections, doc.hiddenPopoverSections.map { Set($0.compactMap(PopoverSection.init(rawValue:))) })
-        assign(\.probeEnabled, doc.probeEnabled)
-        assign(\.probeInBackground, doc.probeInBackground)
-        assign(\.probeTarget, doc.probeTarget.flatMap(ProbeTarget.init(rawValue:)))
-        assign(\.publicIPLookup, doc.publicIPLookup)
-        assign(\.enabledAlerts, doc.enabledAlerts.map { Set($0.compactMap(AlertKind.init(rawValue:))) })
-        assign(\.alertCPUTemperature, option(doc.alertCPUTemperature, in: Self.alertTemperatureOptions))
-        assign(\.alertCPULoad, option(doc.alertCPULoad, in: Self.alertLoadOptions))
-        assign(\.language, doc.language.flatMap(AppLanguage.init(rawValue:)))
-        assign(\.hotKeys, doc.hotKeys.map { stored in
-            Dictionary(uniqueKeysWithValues: stored.compactMap { key, value in
-                HotKeyAction(rawValue: key).map { ($0, value) }
-            })
-        })
-        assign(\.historyEnabled, doc.historyEnabled)
-        if let schedule = doc.updateCheckSchedule.flatMap(UpdateCheckSchedule.init(rawValue:)) {
-            assign(\.updateCheckSchedule, schedule)
-        } else {
-            assign(\.autoCheckUpdates, doc.autoCheckUpdates)
-        }
-        assign(\.cleanerEnabled, doc.cleanerEnabled)
-        assign(\.uninstallerEnabled, doc.uninstallerEnabled)
-        assign(\.processesEnabled, doc.processesEnabled)
-        assign(\.audioEnabled, doc.audioEnabled)
-        // 文档里的明确关闭优先于菜单栏选择，避免恢复时由菜单栏联动重新开启。
-        assign(\.enabledMonitoringModules, doc.enabledMonitoringModules.map {
-            Set($0.compactMap(MonitoringModule.init(rawValue:)))
-        })
-        assign(\.networkConnectionsEnabled, doc.networkConnectionsEnabled)
-        assign(\.cleanPrefersTrash, doc.cleanPrefersTrash)
+    assign(\.notifyUpdates, doc.notifyUpdates)
+    assign(\.calendarEnabled, doc.calendarEnabled)
+    assign(\.calendarPreferences, doc.calendarPreferences)
+    assign(\.restEnabled, doc.restEnabled)
+    assign(\.wellnessPreferences, doc.wellnessPreferences?.normalized)
+    assign(\.restWorkMinutes, option(doc.restWorkMinutes, in: Self.restWorkOptions))
+    assign(\.restBreakMinutes, option(doc.restBreakMinutes, in: Self.restBreakOptions))
+    assign(\.restLongBreakMinutes, option(doc.restLongBreakMinutes, in: Self.restLongBreakOptions))
+    if let mode = doc.restMode.flatMap(RestRunMode.init(rawValue:)) {
+      assign(\.restMode, mode)
+    } else if let cycle = doc.restCycleEnabled {
+      // 工作番茄和单次的兼容布尔值均为 false，需比较完整模式才能正确恢复。
+      assign(\.restMode, cycle ? .cycle : .single)
     }
-
-    /// 出厂设置对应的文档：用一个空的 defaults 域构造一次即可，不会写盘
-    public static func defaultDocument() -> SettingsDocument {
-        let name = "work.12306.xstats.defaults-probe"
-        let defaults = UserDefaults(suiteName: name) ?? .standard
-        defaults.removePersistentDomain(forName: name)
-        return AppSettings(defaults: defaults).exportDocument()
+    assign(\.restSound, doc.restSound.flatMap(RestSound.init(rawValue:)))
+    assign(\.restHUDStyle, doc.restHUDStyle.flatMap(RestHUDStyle.init(rawValue:)))
+    assign(\.calendarFeatures, doc.calendarFeatures.map(CalendarFeature.restored(from:)))
+    assign(\.calendarFirstWeekday, option(doc.calendarFirstWeekday, in: Array(1...7)))
+    assign(\.menuBarItems, doc.menuBarItems.map { Set($0.compactMap(MenuBarItem.init(rawValue:))) })
+    if let order = doc.menuBarOrder {
+      setMenuBarOrder(order.compactMap(MenuBarItem.init(rawValue:)))
     }
+    assign(\.menuBarStyle, doc.menuBarStyle.flatMap(MenuBarStyle.init(rawValue:)))
+    assign(\.networkStyle, doc.networkStyle.flatMap(NetworkMenuStyle.init(rawValue:)))
+    assign(
+      \.networkLocationStyle, doc.networkLocationStyle.flatMap(NetworkLocationStyle.init(rawValue:))
+    )
+    assign(
+      \.styleOverrides,
+      doc.styleOverrides.map { overrides in
+        Dictionary(
+          uniqueKeysWithValues: overrides.compactMap { key, value in
+            guard let item = MenuBarItem(rawValue: key), let style = MenuBarStyle(rawValue: value)
+            else { return nil }
+            return (item, style)
+          })
+      })
+    assign(\.refreshSeconds, option(doc.refreshSeconds, in: Self.refreshOptions))
+    assign(\.cpuSharePerCore, doc.cpuSharePerCore)
+    assign(\.colorizeHighLoad, doc.colorizeHighLoad)
+    assign(\.bluetoothLowBatteryInMenuBar, doc.bluetoothLowBatteryInMenuBar)
+    assign(\.useFahrenheit, doc.useFahrenheit)
+    assign(\.lidModeBatteryFloor, option(doc.lidModeBatteryFloor, in: Self.batteryFloorOptions))
+    assign(\.fanSafetyTemperature, option(doc.fanSafetyTemperature, in: Self.fanSafetyOptions))
+    assign(\.appearance, doc.appearance.flatMap(AppearanceMode.init(rawValue:)))
+    assign(\.showDockIcon, doc.showDockIcon)
+    assign(\.speedTestRoute, doc.speedTestRoute.flatMap(SpeedRoute.init(rawValue:)))
+    assign(\.menuBarItemSpacing, option(doc.menuBarItemSpacing, in: Self.menuBarSpacingOptions))
+    assign(\.menuBarLayout, doc.menuBarLayout.flatMap(MenuBarLayout.init(rawValue:)))
+    assign(
+      \.hiddenPopoverSections,
+      doc.hiddenPopoverSections.map { Set($0.compactMap(PopoverSection.init(rawValue:))) })
+    assign(\.probeEnabled, doc.probeEnabled)
+    assign(\.probeInBackground, doc.probeInBackground)
+    assign(\.probeTarget, doc.probeTarget.flatMap(ProbeTarget.init(rawValue:)))
+    assign(\.publicIPLookup, doc.publicIPLookup)
+    assign(\.enabledAlerts, doc.enabledAlerts.map { Set($0.compactMap(AlertKind.init(rawValue:))) })
+    assign(\.alertCPUTemperature, option(doc.alertCPUTemperature, in: Self.alertTemperatureOptions))
+    assign(\.alertCPULoad, option(doc.alertCPULoad, in: Self.alertLoadOptions))
+    assign(\.language, doc.language.flatMap(AppLanguage.init(rawValue:)))
+    assign(
+      \.hotKeys,
+      doc.hotKeys.map { stored in
+        Dictionary(
+          uniqueKeysWithValues: stored.compactMap { key, value in
+            HotKeyAction(rawValue: key).map { ($0, value) }
+          })
+      })
+    assign(\.historyEnabled, doc.historyEnabled)
+    if let schedule = doc.updateCheckSchedule.flatMap(UpdateCheckSchedule.init(rawValue:)) {
+      assign(\.updateCheckSchedule, schedule)
+    } else {
+      assign(\.autoCheckUpdates, doc.autoCheckUpdates)
+    }
+    assign(\.cleanerEnabled, doc.cleanerEnabled)
+    assign(\.uninstallerEnabled, doc.uninstallerEnabled)
+    assign(\.processesEnabled, doc.processesEnabled)
+    assign(\.audioEnabled, doc.audioEnabled)
+    // 文档里的明确关闭优先于菜单栏选择，避免恢复时由菜单栏联动重新开启。
+    assign(
+      \.enabledMonitoringModules,
+      doc.enabledMonitoringModules.map {
+        Set($0.compactMap(MonitoringModule.init(rawValue:)))
+      })
+    assign(\.networkConnectionsEnabled, doc.networkConnectionsEnabled)
+    assign(\.cleanPrefersTrash, doc.cleanPrefersTrash)
+  }
+
+  /// 出厂设置对应的文档：用一个空的 defaults 域构造一次即可，不会写盘
+  public static func defaultDocument() -> SettingsDocument {
+    let name = "work.12306.xstats.defaults-probe"
+    let defaults = UserDefaults(suiteName: name) ?? .standard
+    defaults.removePersistentDomain(forName: name)
+    return AppSettings(defaults: defaults).exportDocument()
+  }
 }
 
 /// WebDAV 文件封装：格式标识和版本用于防止把任意 JSON 或未来不兼容备份误当作设置。
 public struct SettingsBackup: Codable, Equatable, Sendable {
-    public let format: String
-    public let version: Int
-    public let savedAt: Date
-    public let document: SettingsDocument
+  public let format: String
+  public let version: Int
+  public let savedAt: Date
+  public let document: SettingsDocument
 
-    public init(document: SettingsDocument, savedAt: Date = Date()) {
-        format = "work.12306.xstats.settings"
-        version = 1
-        self.savedAt = savedAt
-        self.document = document
-    }
+  public init(document: SettingsDocument, savedAt: Date = Date()) {
+    format = "work.12306.xstats.settings"
+    version = 1
+    self.savedAt = savedAt
+    self.document = document
+  }
 
-    public func encoded() throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(self)
-        guard data.count <= WebDAVClient.maximumBytes else { throw WebDAVError.tooLarge }
-        return data
-    }
+  public func encoded() throws -> Data {
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    let data = try encoder.encode(self)
+    guard data.count <= WebDAVClient.maximumBytes else { throw WebDAVError.tooLarge }
+    return data
+  }
 
-    public static func decode(_ data: Data) throws -> SettingsBackup {
-        guard data.count <= WebDAVClient.maximumBytes else { throw WebDAVError.tooLarge }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        guard let backup = try? decoder.decode(SettingsBackup.self, from: data),
-              backup.format == "work.12306.xstats.settings" else { throw WebDAVError.invalidDocument }
-        guard backup.version == 1, backup.document.schema == 1 else { throw WebDAVError.unsupportedVersion }
-        return backup
+  public static func decode(_ data: Data) throws -> SettingsBackup {
+    guard data.count <= WebDAVClient.maximumBytes else { throw WebDAVError.tooLarge }
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    guard let backup = try? decoder.decode(SettingsBackup.self, from: data),
+      backup.format == "work.12306.xstats.settings"
+    else { throw WebDAVError.invalidDocument }
+    guard backup.version == 1, backup.document.schema == 1 else {
+      throw WebDAVError.unsupportedVersion
     }
+    return backup
+  }
 }

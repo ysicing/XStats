@@ -8,278 +8,382 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct ObservationServiceHostTests {
-    private func peer(_ listener: NSXPCListener) -> NSXPCConnection {
-        let peer = NSXPCConnection(listenerEndpoint: listener.endpoint)
-        peer.remoteObjectInterface = NSXPCInterface(with: NetworkObservationService.self)
-        peer.resume()
-        return peer
-    }
+  private func peer(_ listener: NSXPCListener) -> NSXPCConnection {
+    let peer = NSXPCConnection(listenerEndpoint: listener.endpoint)
+    peer.remoteObjectInterface = NSXPCInterface(with: NetworkObservationService.self)
+    peer.resume()
+    return peer
+  }
 
-    private func read(_ peer: NSXPCConnection, cursor: Int64 = 0, epoch: String = "") async throws -> ObservationBatch {
-        let reply = NetworkMonitorReply()
-        let data: Data = try await withCheckedThrowingContinuation { continuation in
-            reply.install(continuation)
-            let proxy = peer.remoteObjectProxyWithErrorHandler { @Sendable error in reply.finish(.failure(error)) } as! NetworkObservationService
-            proxy.readEvents(after: cursor, epoch: epoch) { data in reply.finish(.success(data)) }
-        }
-        return try ObservationBatch.decode(data)
+  private func read(_ peer: NSXPCConnection, cursor: Int64 = 0, epoch: String = "") async throws
+    -> ObservationBatch
+  {
+    let reply = NetworkMonitorReply()
+    let data: Data = try await withCheckedThrowingContinuation { continuation in
+      reply.install(continuation)
+      let proxy =
+        peer.remoteObjectProxyWithErrorHandler { @Sendable error in reply.finish(.failure(error)) }
+        as! NetworkObservationService
+      proxy.readEvents(after: cursor, epoch: epoch) { data in reply.finish(.success(data)) }
     }
+    return try ObservationBatch.decode(data)
+  }
 
-    private func diagnostics(_ peer: NSXPCConnection, window: Double) async throws -> FlowDiagnosticsDTO {
-        let reply = NetworkMonitorReply()
-        let data: Data = try await withCheckedThrowingContinuation { continuation in
-            reply.install(continuation)
-            let proxy = peer.remoteObjectProxyWithErrorHandler { @Sendable error in reply.finish(.failure(error)) } as! NetworkObservationService
-            proxy.flowDiagnostics(windowSeconds: window) { @Sendable data in reply.finish(.success(data)) }
-        }
-        return try JSONDecoder().decode(FlowDiagnosticsDTO.self, from: data)
+  private func diagnostics(_ peer: NSXPCConnection, window: Double) async throws
+    -> FlowDiagnosticsDTO
+  {
+    let reply = NetworkMonitorReply()
+    let data: Data = try await withCheckedThrowingContinuation { continuation in
+      reply.install(continuation)
+      let proxy =
+        peer.remoteObjectProxyWithErrorHandler { @Sendable error in reply.finish(.failure(error)) }
+        as! NetworkObservationService
+      proxy.flowDiagnostics(windowSeconds: window) { @Sendable data in reply.finish(.success(data))
+      }
     }
+    return try JSONDecoder().decode(FlowDiagnosticsDTO.self, from: data)
+  }
 
-    @Test func leaseIsAReusedOneShotAndOldDeadlineCannotRevokeRenewal() async throws {
-        let listener = NSXPCListener.anonymous()
-        let clock = LeaseClockFixture(), timers = LeaseTimerFactory()
-        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement(),
-                                          now: clock.read, makeDeadline: timers.make)
-        let generation = host.startFilter()
-        defer { host.beginStoppingFilter(generation: generation); listener.invalidate() }
-        let reader = peer(listener)
-        defer { reader.invalidate() }
-        #expect(timers.count == 0, "没有 reader 时不能创建截止源")
-        let before = try await read(reader)
-        #expect(host.currentDemand.isActive)
-        #expect(timers.count == 1)
-        clock.set(104)
-        _ = try await read(reader)
-        #expect(timers.count == 1 && timers.timer(0).schedules == 2)
-        clock.set(106)
-        timers.timer(0).fire()
-        #expect(host.currentDemand.isActive, "旧截止已排队也不得撤销104秒续期后的租约")
-        let event = ObservedConnection(id: UUID(), timestamp: Date(), processID: 1, executablePath: "fixture",
-                                       address: nil, hostname: nil, port: nil, transport: .tcp, direction: .outbound)
-        host.buffer.record(event, now: 107)
-        clock.set(110)
-        timers.timer(0).fire()
-        #expect(!host.currentDemand.isActive && timers.timer(0).cancelled)
-        host.buffer.close(event.id)
-        clock.set(112)
-        let resumed = try await read(reader)
-        #expect(resumed.epoch == before.epoch, "到期只停止新流观察，不清历史")
-        #expect(resumed.events.count == 2 && resumed.events.last?.closedAt != nil)
-        #expect(resumed.activeIDs?.isEmpty == true)
-        #expect(timers.count == 2, "到期源已销毁，恢复才创建新的一次性源")
+  @Test func leaseIsAReusedOneShotAndOldDeadlineCannotRevokeRenewal() async throws {
+    let listener = NSXPCListener.anonymous()
+    let clock = LeaseClockFixture()
+    let timers = LeaseTimerFactory()
+    let host = ObservationServiceHost(
+      listener: listener, requiredClientCode: try requirement(),
+      now: clock.read, makeDeadline: timers.make)
+    let generation = host.startFilter()
+    defer {
+      host.beginStoppingFilter(generation: generation)
+      listener.invalidate()
     }
+    let reader = peer(listener)
+    defer { reader.invalidate() }
+    #expect(timers.count == 0, "没有 reader 时不能创建截止源")
+    let before = try await read(reader)
+    #expect(host.currentDemand.isActive)
+    #expect(timers.count == 1)
+    clock.set(104)
+    _ = try await read(reader)
+    #expect(timers.count == 1 && timers.timer(0).schedules == 2)
+    clock.set(106)
+    timers.timer(0).fire()
+    #expect(host.currentDemand.isActive, "旧截止已排队也不得撤销104秒续期后的租约")
+    let event = ObservedConnection(
+      id: UUID(), timestamp: Date(), processID: 1, executablePath: "fixture",
+      address: nil, hostname: nil, port: nil, transport: .tcp, direction: .outbound)
+    host.buffer.record(event, now: 107)
+    clock.set(110)
+    timers.timer(0).fire()
+    #expect(!host.currentDemand.isActive && timers.timer(0).cancelled)
+    host.buffer.close(event.id)
+    clock.set(112)
+    let resumed = try await read(reader)
+    #expect(resumed.epoch == before.epoch, "到期只停止新流观察，不清历史")
+    #expect(resumed.events.count == 2 && resumed.events.last?.closedAt != nil)
+    #expect(resumed.activeIDs?.isEmpty == true)
+    #expect(timers.count == 2, "到期源已销毁，恢复才创建新的一次性源")
+  }
 
-    @Test func diagnosticClientDoesNotBecomeReaderAndReplacedReaderCannotEndNewLease() async throws {
-        let listener = NSXPCListener.anonymous()
-        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
-        let generation = host.startFilter()
-        defer { host.beginStoppingFilter(generation: generation); listener.invalidate() }
-        let first = peer(listener), second = peer(listener), diagnostic = peer(listener)
-        defer { first.invalidate(); second.invalidate(); diagnostic.invalidate() }
-        let baseline = try await diagnostics(diagnostic, window: 30)
-        #expect(!host.currentDemand.isActive && !host.buffer.isObserving())
-        _ = try await read(first)
-        _ = try await diagnostics(diagnostic, window: 0)
-        _ = try await read(first)
-        _ = try await read(second)
-        first.invalidate()
-        _ = try await read(second)
-        #expect(host.currentDemand.isActive)
-        #expect(try await diagnostics(diagnostic, window: 0).token == baseline.token)
+  @Test func diagnosticClientDoesNotBecomeReaderAndReplacedReaderCannotEndNewLease() async throws {
+    let listener = NSXPCListener.anonymous()
+    let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
+    let generation = host.startFilter()
+    defer {
+      host.beginStoppingFilter(generation: generation)
+      listener.invalidate()
     }
+    let first = peer(listener)
+    let second = peer(listener)
+    let diagnostic = peer(listener)
+    defer {
+      first.invalidate()
+      second.invalidate()
+      diagnostic.invalidate()
+    }
+    let baseline = try await diagnostics(diagnostic, window: 30)
+    #expect(!host.currentDemand.isActive && !host.buffer.isObserving())
+    _ = try await read(first)
+    _ = try await diagnostics(diagnostic, window: 0)
+    _ = try await read(first)
+    _ = try await read(second)
+    first.invalidate()
+    _ = try await read(second)
+    #expect(host.currentDemand.isActive)
+    #expect(try await diagnostics(diagnostic, window: 0).token == baseline.token)
+  }
 
-    @Test func invalidReadDoesNotTakeLeaseAndLateOldGenerationDeadlineIsIgnored() async throws {
-        let listener = NSXPCListener.anonymous()
-        let clock = LeaseClockFixture(), timers = LeaseTimerFactory()
-        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement(),
-                                          now: clock.read, makeDeadline: timers.make)
-        let old = host.startFilter()
-        let first = peer(listener)
-        defer { first.invalidate(); listener.invalidate() }
-        await #expect(throws: (any Error).self) { _ = try await read(first, cursor: -1) }
-        #expect(!host.currentDemand.isActive && timers.count == 0)
-        _ = try await read(first)
-        host.beginStoppingFilter(generation: old)
-        let current = host.startFilter()
-        let second = peer(listener)
-        defer { second.invalidate(); host.beginStoppingFilter(generation: current) }
-        clock.set(200)
-        _ = try await read(second)
-        clock.set(205)
-        timers.timer(0).fire()
-        #expect(host.currentDemand.isActive && host.currentDemand.generation == current)
+  @Test func invalidReadDoesNotTakeLeaseAndLateOldGenerationDeadlineIsIgnored() async throws {
+    let listener = NSXPCListener.anonymous()
+    let clock = LeaseClockFixture()
+    let timers = LeaseTimerFactory()
+    let host = ObservationServiceHost(
+      listener: listener, requiredClientCode: try requirement(),
+      now: clock.read, makeDeadline: timers.make)
+    let old = host.startFilter()
+    let first = peer(listener)
+    defer {
+      first.invalidate()
+      listener.invalidate()
     }
+    await #expect(throws: (any Error).self) { _ = try await read(first, cursor: -1) }
+    #expect(!host.currentDemand.isActive && timers.count == 0)
+    _ = try await read(first)
+    host.beginStoppingFilter(generation: old)
+    let current = host.startFilter()
+    let second = peer(listener)
+    defer {
+      second.invalidate()
+      host.beginStoppingFilter(generation: current)
+    }
+    clock.set(200)
+    _ = try await read(second)
+    clock.set(205)
+    timers.timer(0).fire()
+    #expect(host.currentDemand.isActive && host.currentDemand.generation == current)
+  }
 
-    @Test func renewingLiveLeaseRetriesFailedFilterSettings() async throws {
-        let listener = NSXPCListener.anonymous()
-        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
-        let applies = HostApplyFixture()
-        let lifecycle = FilterSettingsLifecycle(apply: applies.apply)
-        let generation = host.startFilter(demandChanged: lifecycle.setDemand)
-        defer { host.beginStoppingFilter(generation: generation); listener.invalidate() }
-        lifecycle.start(generation: generation) { _ in }
-        applies.complete(0)
-        let reader = peer(listener)
-        defer { reader.invalidate() }
-        _ = try await read(reader)
-        applies.complete(1, error: CocoaError(.fileReadUnknown))
-        _ = try await read(reader)
-        #expect(applies.modes == [false, true, true])
-        try #require(applies.modes.count == 3)
-        applies.complete(2)
-        #expect(lifecycle.appliedObservation == true)
-        _ = try await read(reader)
-        #expect(applies.modes.count == 3, "正常续租不重复应用已成功的规则")
+  @Test func renewingLiveLeaseRetriesFailedFilterSettings() async throws {
+    let listener = NSXPCListener.anonymous()
+    let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
+    let applies = HostApplyFixture()
+    let lifecycle = FilterSettingsLifecycle(apply: applies.apply)
+    let generation = host.startFilter(demandChanged: lifecycle.setDemand)
+    defer {
+      host.beginStoppingFilter(generation: generation)
+      listener.invalidate()
     }
+    lifecycle.start(generation: generation) { _ in }
+    applies.complete(0)
+    let reader = peer(listener)
+    defer { reader.invalidate() }
+    _ = try await read(reader)
+    applies.complete(1, error: CocoaError(.fileReadUnknown))
+    _ = try await read(reader)
+    #expect(applies.modes == [false, true, true])
+    try #require(applies.modes.count == 3)
+    applies.complete(2)
+    #expect(lifecycle.appliedObservation == true)
+    _ = try await read(reader)
+    #expect(applies.modes.count == 3, "正常续租不重复应用已成功的规则")
+  }
 
-    @Test func failedSettingsAreVisibleAcrossReadersUntilObservationReallyRecovers() async throws {
-        let listener = NSXPCListener.anonymous()
-        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
-        let applies = HostApplyFixture()
-        let lifecycle = FilterSettingsLifecycle(apply: applies.apply, onResult: host.recordSettingsResult)
-        let generation = host.startFilter(demandChanged: lifecycle.setDemand)
-        defer { host.beginStoppingFilter(generation: generation); listener.invalidate() }
-        lifecycle.start(generation: generation) { _ in }
-        applies.complete(0)
-        let first = peer(listener), second = peer(listener)
-        defer { first.invalidate(); second.invalidate() }
-        _ = try await read(first)
-        applies.complete(1, error: CocoaError(.fileReadUnknown))
-        await #expect(throws: (any Error).self) { _ = try await read(second) }
-        try #require(applies.modes.count == 3)
-        applies.complete(2, error: CocoaError(.fileReadUnknown))
-        await #expect(throws: (any Error).self) { _ = try await read(second) }
-        try #require(applies.modes.count == 4)
-        applies.complete(3)
-        _ = try await read(second)
-        #expect(lifecycle.appliedObservation == true)
-        #expect(applies.modes.count == 4)
-        // 乱序旧错误与旧 provider 的结果均不能让已恢复的读取再次失败。
-        host.recordSettingsResult(generation: generation, requestID: 2, observing: true, error: CocoaError(.fileReadUnknown))
-        host.recordSettingsResult(generation: generation - 1, requestID: 999, observing: true, error: CocoaError(.fileReadUnknown))
-        _ = try await read(second)
+  @Test func failedSettingsAreVisibleAcrossReadersUntilObservationReallyRecovers() async throws {
+    let listener = NSXPCListener.anonymous()
+    let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
+    let applies = HostApplyFixture()
+    let lifecycle = FilterSettingsLifecycle(
+      apply: applies.apply, onResult: host.recordSettingsResult)
+    let generation = host.startFilter(demandChanged: lifecycle.setDemand)
+    defer {
+      host.beginStoppingFilter(generation: generation)
+      listener.invalidate()
     }
+    lifecycle.start(generation: generation) { _ in }
+    applies.complete(0)
+    let first = peer(listener)
+    let second = peer(listener)
+    defer {
+      first.invalidate()
+      second.invalidate()
+    }
+    _ = try await read(first)
+    applies.complete(1, error: CocoaError(.fileReadUnknown))
+    await #expect(throws: (any Error).self) { _ = try await read(second) }
+    try #require(applies.modes.count == 3)
+    applies.complete(2, error: CocoaError(.fileReadUnknown))
+    await #expect(throws: (any Error).self) { _ = try await read(second) }
+    try #require(applies.modes.count == 4)
+    applies.complete(3)
+    _ = try await read(second)
+    #expect(lifecycle.appliedObservation == true)
+    #expect(applies.modes.count == 4)
+    // 乱序旧错误与旧 provider 的结果均不能让已恢复的读取再次失败。
+    host.recordSettingsResult(
+      generation: generation, requestID: 2, observing: true, error: CocoaError(.fileReadUnknown))
+    host.recordSettingsResult(
+      generation: generation - 1, requestID: 999, observing: true,
+      error: CocoaError(.fileReadUnknown))
+    _ = try await read(second)
+  }
 
-    @Test func persistentApplyFailureRemainsAnErrorAcrossIdleAndReconnects() async throws {
-        let listener = NSXPCListener.anonymous()
-        let clock = LeaseClockFixture(), timers = LeaseTimerFactory()
-        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement(), now: clock.read, makeDeadline: timers.make)
-        let applies = HostApplyFixture()
-        let lifecycle = FilterSettingsLifecycle(apply: applies.apply, onResult: host.recordSettingsResult)
-        let generation = host.startFilter(demandChanged: lifecycle.setDemand)
-        defer { host.beginStoppingFilter(generation: generation); listener.invalidate() }
-        lifecycle.start(generation: generation) { _ in }
-        applies.complete(0)
-        let first = peer(listener)
-        _ = try await read(first)
-        applies.complete(1, error: CocoaError(.fileReadUnknown))
-        clock.set(107); timers.timer(0).fire(); first.invalidate()
-        #expect(!host.currentDemand.isActive)
-        #expect(applies.modes == [false, true], "无人读取时不进行后台重试")
-        for _ in 0..<3 {
-            let reader = peer(listener)
-            defer { reader.invalidate() }
-            await #expect(throws: (any Error).self) { _ = try await read(reader) }
-            applies.complete(applies.modes.count - 1, error: CocoaError(.fileReadUnknown))
-        }
-        #expect(applies.modes == [false, true, true, true, true])
+  @Test func persistentApplyFailureRemainsAnErrorAcrossIdleAndReconnects() async throws {
+    let listener = NSXPCListener.anonymous()
+    let clock = LeaseClockFixture()
+    let timers = LeaseTimerFactory()
+    let host = ObservationServiceHost(
+      listener: listener, requiredClientCode: try requirement(), now: clock.read,
+      makeDeadline: timers.make)
+    let applies = HostApplyFixture()
+    let lifecycle = FilterSettingsLifecycle(
+      apply: applies.apply, onResult: host.recordSettingsResult)
+    let generation = host.startFilter(demandChanged: lifecycle.setDemand)
+    defer {
+      host.beginStoppingFilter(generation: generation)
+      listener.invalidate()
     }
+    lifecycle.start(generation: generation) { _ in }
+    applies.complete(0)
+    let first = peer(listener)
+    _ = try await read(first)
+    applies.complete(1, error: CocoaError(.fileReadUnknown))
+    clock.set(107)
+    timers.timer(0).fire()
+    first.invalidate()
+    #expect(!host.currentDemand.isActive)
+    #expect(applies.modes == [false, true], "无人读取时不进行后台重试")
+    for _ in 0..<3 {
+      let reader = peer(listener)
+      defer { reader.invalidate() }
+      await #expect(throws: (any Error).self) { _ = try await read(reader) }
+      applies.complete(applies.modes.count - 1, error: CocoaError(.fileReadUnknown))
+    }
+    #expect(applies.modes == [false, true, true, true, true])
+  }
 
-    private func requirement() throws -> String {
-        var code: SecCode?
-        var staticCode: SecStaticCode?
-        var requirement: SecRequirement?
-        var text: CFString?
-        #expect(SecCodeCopySelf([], &code) == errSecSuccess)
-        let own = try #require(code)
-        #expect(SecCodeCopyStaticCode(own, [], &staticCode) == errSecSuccess)
-        #expect(SecCodeCopyDesignatedRequirement(try #require(staticCode), [], &requirement) == errSecSuccess)
-        #expect(SecRequirementCopyString(try #require(requirement), [], &text) == errSecSuccess)
-        return try #require(text) as String
-    }
+  private func requirement() throws -> String {
+    var code: SecCode?
+    var staticCode: SecStaticCode?
+    var requirement: SecRequirement?
+    var text: CFString?
+    #expect(SecCodeCopySelf([], &code) == errSecSuccess)
+    let own = try #require(code)
+    #expect(SecCodeCopyStaticCode(own, [], &staticCode) == errSecSuccess)
+    #expect(
+      SecCodeCopyDesignatedRequirement(try #require(staticCode), [], &requirement) == errSecSuccess)
+    #expect(SecRequirementCopyString(try #require(requirement), [], &text) == errSecSuccess)
+    return try #require(text) as String
+  }
 
-    private func stopped(_ peer: NSXPCConnection) async throws -> Bool {
-        try await withCheckedThrowingContinuation { continuation in
-            let proxy = peer.remoteObjectProxyWithErrorHandler { @Sendable error in continuation.resume(throwing: error) } as! NetworkObservationService
-            proxy.isFilterStopped { @Sendable value in continuation.resume(returning: value) }
-        }
+  private func stopped(_ peer: NSXPCConnection) async throws -> Bool {
+    try await withCheckedThrowingContinuation { continuation in
+      let proxy =
+        peer.remoteObjectProxyWithErrorHandler { @Sendable error in
+          continuation.resume(throwing: error)
+        } as! NetworkObservationService
+      proxy.isFilterStopped { @Sendable value in continuation.resume(returning: value) }
     }
+  }
 
-    @Test func lifecycleRepliesStayAvailableAfterStopAndClientReplacementCannotConfirmStop() async throws {
-        let listener = NSXPCListener.anonymous()
-        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
-        defer { listener.invalidate() }
-        let generation = host.startFilter()
-        let first = NSXPCConnection(listenerEndpoint: listener.endpoint)
-        first.remoteObjectInterface = NSXPCInterface(with: NetworkObservationService.self)
-        first.resume()
-        defer { first.invalidate() }
-        #expect(try await stopped(first) == false)
-        let second = NSXPCConnection(listenerEndpoint: listener.endpoint)
-        second.remoteObjectInterface = NSXPCInterface(with: NetworkObservationService.self)
-        second.resume()
-        defer { second.invalidate() }
-        #expect(try await stopped(second) == false)
-        #expect(host.isFilterStopped == false)
-        host.beginStoppingFilter(generation: generation)
-        #expect(try await stopped(second) == false, "完成 stopFilter 前不能确认停止")
-        host.finishStoppingFilter(generation: generation)
-        #expect(try await stopped(second) == true)
-    }
+  @Test func lifecycleRepliesStayAvailableAfterStopAndClientReplacementCannotConfirmStop()
+    async throws
+  {
+    let listener = NSXPCListener.anonymous()
+    let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
+    defer { listener.invalidate() }
+    let generation = host.startFilter()
+    let first = NSXPCConnection(listenerEndpoint: listener.endpoint)
+    first.remoteObjectInterface = NSXPCInterface(with: NetworkObservationService.self)
+    first.resume()
+    defer { first.invalidate() }
+    #expect(try await stopped(first) == false)
+    let second = NSXPCConnection(listenerEndpoint: listener.endpoint)
+    second.remoteObjectInterface = NSXPCInterface(with: NetworkObservationService.self)
+    second.resume()
+    defer { second.invalidate() }
+    #expect(try await stopped(second) == false)
+    #expect(host.isFilterStopped == false)
+    host.beginStoppingFilter(generation: generation)
+    #expect(try await stopped(second) == false, "完成 stopFilter 前不能确认停止")
+    host.finishStoppingFilter(generation: generation)
+    #expect(try await stopped(second) == true)
+  }
 
-    @Test func lateStopCompletionCannotConfirmANewerFilterGeneration() throws {
-        let listener = NSXPCListener.anonymous()
-        let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
-        defer { listener.invalidate() }
-        let old = host.startFilter()
-        host.beginStoppingFilter(generation: old)
-        let current = host.startFilter()
-        host.finishStoppingFilter(generation: old)
-        #expect(host.isFilterStopped == false)
-        host.beginStoppingFilter(generation: current)
-        host.finishStoppingFilter(generation: current)
-        #expect(host.isFilterStopped == true)
-    }
+  @Test func lateStopCompletionCannotConfirmANewerFilterGeneration() throws {
+    let listener = NSXPCListener.anonymous()
+    let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
+    defer { listener.invalidate() }
+    let old = host.startFilter()
+    host.beginStoppingFilter(generation: old)
+    let current = host.startFilter()
+    host.finishStoppingFilter(generation: old)
+    #expect(host.isFilterStopped == false)
+    host.beginStoppingFilter(generation: current)
+    host.finishStoppingFilter(generation: current)
+    #expect(host.isFilterStopped == true)
+  }
 }
 
 private final class LeaseClockFixture: @unchecked Sendable {
-    private let lock = NSLock()
-    private var now: TimeInterval = 100
-    func read() -> TimeInterval { lock.lock(); defer { lock.unlock() }; return now }
-    func set(_ value: TimeInterval) { lock.lock(); now = value; lock.unlock() }
+  private let lock = NSLock()
+  private var now: TimeInterval = 100
+  func read() -> TimeInterval {
+    lock.lock()
+    defer { lock.unlock() }
+    return now
+  }
+  func set(_ value: TimeInterval) {
+    lock.lock()
+    now = value
+    lock.unlock()
+  }
 }
 private final class LeaseTimerFactory: @unchecked Sendable {
-    private let lock = NSLock()
-    private var timers: [LeaseTimerFixture] = []
-    var count: Int { lock.lock(); defer { lock.unlock() }; return timers.count }
-    func timer(_ index: Int) -> LeaseTimerFixture { lock.lock(); defer { lock.unlock() }; return timers[index] }
-    func make(handler: @escaping @Sendable () -> Void) -> any ObservationLeaseDeadline {
-        let timer = LeaseTimerFixture(handler: handler)
-        lock.lock(); timers.append(timer); lock.unlock()
-        return timer
-    }
+  private let lock = NSLock()
+  private var timers: [LeaseTimerFixture] = []
+  var count: Int {
+    lock.lock()
+    defer { lock.unlock() }
+    return timers.count
+  }
+  func timer(_ index: Int) -> LeaseTimerFixture {
+    lock.lock()
+    defer { lock.unlock() }
+    return timers[index]
+  }
+  func make(handler: @escaping @Sendable () -> Void) -> any ObservationLeaseDeadline {
+    let timer = LeaseTimerFixture(handler: handler)
+    lock.lock()
+    timers.append(timer)
+    lock.unlock()
+    return timer
+  }
 }
 private final class LeaseTimerFixture: ObservationLeaseDeadline, @unchecked Sendable {
-    private let lock = NSLock()
-    private let handler: @Sendable () -> Void
-    private var scheduleCount = 0
-    private var isCancelled = false
-    var schedules: Int { lock.lock(); defer { lock.unlock() }; return scheduleCount }
-    var cancelled: Bool { lock.lock(); defer { lock.unlock() }; return isCancelled }
-    init(handler: @escaping @Sendable () -> Void) { self.handler = handler }
-    func schedule(after seconds: TimeInterval) { lock.lock(); scheduleCount += 1; lock.unlock() }
-    func cancel() { lock.lock(); isCancelled = true; lock.unlock() }
-    func fire() { handler() }
+  private let lock = NSLock()
+  private let handler: @Sendable () -> Void
+  private var scheduleCount = 0
+  private var isCancelled = false
+  var schedules: Int {
+    lock.lock()
+    defer { lock.unlock() }
+    return scheduleCount
+  }
+  var cancelled: Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return isCancelled
+  }
+  init(handler: @escaping @Sendable () -> Void) { self.handler = handler }
+  func schedule(after seconds: TimeInterval) {
+    lock.lock()
+    scheduleCount += 1
+    lock.unlock()
+  }
+  func cancel() {
+    lock.lock()
+    isCancelled = true
+    lock.unlock()
+  }
+  func fire() { handler() }
 }
 
 private final class HostApplyFixture: @unchecked Sendable {
-    private let lock = NSLock()
-    private var requests: [(Bool, FilterSettingsLifecycle.Completion)] = []
-    var modes: [Bool] { lock.lock(); defer { lock.unlock() }; return requests.map(\.0) }
-    func apply(_ observing: Bool, completion: @escaping FilterSettingsLifecycle.Completion) {
-        lock.lock(); requests.append((observing, completion)); lock.unlock()
-    }
-    func complete(_ index: Int, error: (any Error)? = nil) {
-        lock.lock(); let callback = requests[index].1; lock.unlock(); callback(error)
-    }
+  private let lock = NSLock()
+  private var requests: [(Bool, FilterSettingsLifecycle.Completion)] = []
+  var modes: [Bool] {
+    lock.lock()
+    defer { lock.unlock() }
+    return requests.map(\.0)
+  }
+  func apply(_ observing: Bool, completion: @escaping FilterSettingsLifecycle.Completion) {
+    lock.lock()
+    requests.append((observing, completion))
+    lock.unlock()
+  }
+  func complete(_ index: Int, error: (any Error)? = nil) {
+    lock.lock()
+    let callback = requests[index].1
+    lock.unlock()
+    callback(error)
+  }
 }

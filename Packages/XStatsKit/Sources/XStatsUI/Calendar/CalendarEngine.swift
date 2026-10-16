@@ -9,213 +9,250 @@ import WidgetData
 
 /// 公历是月历的坐标；其余信息可独立隐藏，设置以稳定 rawValue 保存和同步。
 public enum CalendarFeature: String, CaseIterable, Identifiable, Sendable {
-    case lunar, holidays, festivals, seasonalInfo, tibetan, hijri
-    public var id: String { rawValue }
-    /// 中国大陆默认值，也是按地区区分之前的旧版默认；已有安装缺少保存值时沿用，避免升级后日历内容消失。
-    static let mainlandChinaDefaults: Set<Self> = [.lunar, .holidays, .festivals, .seasonalInfo]
+  case lunar, holidays, festivals, seasonalInfo, tibetan, hijri
+  public var id: String { rawValue }
+  /// 中国大陆默认值，也是按地区区分之前的旧版默认；已有安装缺少保存值时沿用，避免升级后日历内容消失。
+  static let mainlandChinaDefaults: Set<Self> = [.lunar, .holidays, .festivals, .seasonalInfo]
 
-    /// 默认值依据使用地区，不依据应用语言或设备销售地；其他地区可自行启用。
-    public static func defaults(for locale: Locale) -> Set<Self> {
-        locale.region?.identifier == "CN" ? mainlandChinaDefaults : []
-    }
+  /// 默认值依据使用地区，不依据应用语言或设备销售地；其他地区可自行启用。
+  public static func defaults(for locale: Locale) -> Set<Self> {
+    locale.region?.identifier == "CN" ? mainlandChinaDefaults : []
+  }
 
-    var title: String {
-        switch self {
-        case .lunar: tr("农历")
-        case .holidays: tr("中国大陆节假日与调休")
-        case .festivals: tr("传统与公历节日")
-        case .seasonalInfo: tr("节气与时令")
-        case .tibetan: tr("藏历")
-        case .hijri: tr("回历")
-        }
+  var title: String {
+    switch self {
+    case .lunar: tr("农历")
+    case .holidays: tr("中国大陆节假日与调休")
+    case .festivals: tr("传统与公历节日")
+    case .seasonalInfo: tr("节气与时令")
+    case .tibetan: tr("藏历")
+    case .hijri: tr("回历")
     }
+  }
 
-    /// 旧偏好与备份中的节气、时令开关合并；任一项曾开启就保留用户的显示意愿。
-    static func restored(from rawValues: [String]) -> Set<Self> {
-        // 星期固定显示；已移除的 weekdays、ganzhi 与未知选项一起忽略，不影响其他选择。
-        var features = Set(rawValues.compactMap(Self.init(rawValue:)))
-        // 使用新的设置键也使 Widget 的旧摘要失效，避免复用只包含节气或时令的旧缓存。
-        if rawValues.contains(where: { ["solarTerms", "seasonal", "dogDays", "plumRain"].contains($0) }) {
-            features.insert(.seasonalInfo)
-        }
-        return features
+  /// 旧偏好与备份中的节气、时令开关合并；任一项曾开启就保留用户的显示意愿。
+  static func restored(from rawValues: [String]) -> Set<Self> {
+    // 星期固定显示；已移除的 weekdays、ganzhi 与未知选项一起忽略，不影响其他选择。
+    var features = Set(rawValues.compactMap(Self.init(rawValue:)))
+    // 使用新的设置键也使 Widget 的旧摘要失效，避免复用只包含节气或时令的旧缓存。
+    if rawValues.contains(where: { ["solarTerms", "seasonal", "dogDays", "plumRain"].contains($0) })
+    {
+      features.insert(.seasonalInfo)
     }
+    return features
+  }
 }
 
 struct CalendarMonth: Equatable, Hashable {
-    static let years = 1900...2100
-    var year: Int
-    var month: Int
+  static let years = 1900...2100
+  var year: Int
+  var month: Int
 
-    func shifted(by delta: Int) -> Self? {
-        let index = year * 12 + month - 1 + delta
-        let result = Self(year: index / 12, month: index % 12 + 1)
-        return Self.years.contains(result.year) ? result : nil
-    }
+  func shifted(by delta: Int) -> Self? {
+    let index = year * 12 + month - 1 + delta
+    let result = Self(year: index / 12, month: index % 12 + 1)
+    return Self.years.contains(result.year) ? result : nil
+  }
 }
 
 struct CalendarDay: Identifiable, Equatable {
-    struct Holiday: Equatable {
-        let name: String
-        let isWork: Bool
-    }
-    let date: Date
-    let year: Int
-    let month: Int
-    let day: Int
-    /// Foundation 的星期编号：1 为周日。
-    let weekday: Int
-    let lunarLabel: String
-    let lunarSummary: String
-    let festivals: [String]
-    let solarTerm: String?
-    let holiday: Holiday?
-    let dogDays: String?
-    let plumRain: String?
-    let nineDays: String?
-    let seasonalBoundary: String?
-    /// 日期身份在创建时确定，避免 SwiftUI 比较列表时反复格式化字符串。
-    let id: String
-    var isWeekend: Bool { weekday == 1 || weekday == 7 }
+  struct Holiday: Equatable {
+    let name: String
+    let isWork: Bool
+  }
+  let date: Date
+  let year: Int
+  let month: Int
+  let day: Int
+  /// Foundation 的星期编号：1 为周日。
+  let weekday: Int
+  let lunarLabel: String
+  let lunarSummary: String
+  let festivals: [String]
+  let solarTerm: String?
+  let holiday: Holiday?
+  let dogDays: String?
+  let plumRain: String?
+  let nineDays: String?
+  let seasonalBoundary: String?
+  /// 日期身份在创建时确定，避免 SwiftUI 比较列表时反复格式化字符串。
+  let id: String
+  var isWeekend: Bool { weekday == 1 || weekday == 7 }
 
-    /// 每格仅显示一条主注释，所有启用的信息在选中日期详情中保留。
-    func subtitle(features: Set<CalendarFeature>) -> String {
-        // 一九与冬至同日，阶段起点优先展示；节日和节气仍可在单日详情查看。
-        if features.contains(.seasonalInfo), let seasonalBoundary { return seasonalBoundary }
-        if features.contains(.festivals), let festival = festivals.first { return festival }
-        if features.contains(.seasonalInfo), let solarTerm { return solarTerm }
-        return features.contains(.lunar) ? lunarLabel : ""
-    }
+  /// 每格仅显示一条主注释，所有启用的信息在选中日期详情中保留。
+  func subtitle(features: Set<CalendarFeature>) -> String {
+    // 一九与冬至同日，阶段起点优先展示；节日和节气仍可在单日详情查看。
+    if features.contains(.seasonalInfo), let seasonalBoundary { return seasonalBoundary }
+    if features.contains(.festivals), let festival = festivals.first { return festival }
+    if features.contains(.seasonalInfo), let solarTerm { return solarTerm }
+    return features.contains(.lunar) ? lunarLabel : ""
+  }
 }
 
 struct CalendarDetail: Identifiable {
-    let feature: CalendarFeature
-    let value: String
-    var isUnavailable = false
-    var id: CalendarFeature { feature }
+  let feature: CalendarFeature
+  let value: String
+  var isUnavailable = false
+  var id: CalendarFeature { feature }
 }
 
 /// Tyme 使用可变的静态表；统一在主线程读取，不把其引用类型暴露给界面或跨线程共享。
 @MainActor
 enum CalendarEngine {
-    // 实际面板、测量视图和 onAppear 共用一次计算；只保留最近一个月，翻月不会累积内存。
-    private static var monthCache: (month: CalendarMonth, firstWeekday: Int, timeZone: TimeZone, days: [CalendarDay])?
+  // 实际面板、测量视图和 onAppear 共用一次计算；只保留最近一个月，翻月不会累积内存。
+  private static var monthCache:
+    (month: CalendarMonth, firstWeekday: Int, timeZone: TimeZone, days: [CalendarDay])?
 
-    static func gregorian(timeZone: TimeZone = .autoupdatingCurrent) -> Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        return calendar
+  static func gregorian(timeZone: TimeZone = .autoupdatingCurrent) -> Calendar {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timeZone
+    return calendar
+  }
+
+  static func today(at date: Date = Date(), timeZone: TimeZone = .autoupdatingCurrent)
+    -> CalendarDay?
+  {
+    let parts = gregorian(timeZone: timeZone).dateComponents([.year, .month, .day], from: date)
+    guard let year = parts.year, let month = parts.month, let day = parts.day else { return nil }
+    if let cached = monthCache, cached.timeZone.identifier == timeZone.identifier,
+      let existing = cached.days.first(where: {
+        $0.year == year && $0.month == month && $0.day == day
+      })
+    {
+      return existing
     }
+    return self.day(year: year, month: month, day: day, timeZone: timeZone)
+  }
 
-    static func today(at date: Date = Date(), timeZone: TimeZone = .autoupdatingCurrent) -> CalendarDay? {
-        let parts = gregorian(timeZone: timeZone).dateComponents([.year, .month, .day], from: date)
-        guard let year = parts.year, let month = parts.month, let day = parts.day else { return nil }
-        if let cached = monthCache, cached.timeZone.identifier == timeZone.identifier,
-           let existing = cached.days.first(where: { $0.year == year && $0.month == month && $0.day == day }) {
-            return existing
-        }
-        return self.day(year: year, month: month, day: day, timeZone: timeZone)
+  /// 菜单栏省略农历年份，但保留月份、初一及闰月标识，避免月初或跨月时产生歧义。
+  static func lunarDateTitle(
+    at date: Date, locale: Locale, timeZone: TimeZone = .autoupdatingCurrent
+  ) -> String? {
+    let parts = gregorian(timeZone: timeZone).dateComponents([.year, .month, .day], from: date)
+    guard let year = parts.year, let month = parts.month, let day = parts.day,
+      (1899...2101).contains(year), let solar = try? SolarDay.fromYmd(year, month, day)
+    else { return nil }
+    if locale.language.languageCode?.identifier == "zh" {
+      let lunar = solar.getLunarDay()
+      let title = lunar.lunarMonth.getName() + lunar.getName()
+      return locale.language.script?.identifier == "Hant"
+        ? title.applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? title : title
     }
+    // 系统为其他语言提供农历月份名称和本地化数字；中文沿用 Tyme 的“初一、廿一”等写法。
+    let formatter = DateFormatter()
+    formatter.locale = locale
+    formatter.calendar = Calendar(identifier: .chinese)
+    formatter.timeZone = timeZone
+    formatter.setLocalizedDateFormatFromTemplate("MMMMd")
+    return formatter.string(from: date)
+  }
 
-    /// 菜单栏省略农历年份，但保留月份、初一及闰月标识，避免月初或跨月时产生歧义。
-    static func lunarDateTitle(at date: Date, locale: Locale, timeZone: TimeZone = .autoupdatingCurrent) -> String? {
-        let parts = gregorian(timeZone: timeZone).dateComponents([.year, .month, .day], from: date)
-        guard let year = parts.year, let month = parts.month, let day = parts.day,
-              (1899...2101).contains(year), let solar = try? SolarDay.fromYmd(year, month, day) else { return nil }
-        if locale.language.languageCode?.identifier == "zh" {
-            let lunar = solar.getLunarDay()
-            let title = lunar.lunarMonth.getName() + lunar.getName()
-            return locale.language.script?.identifier == "Hant"
-                ? title.applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? title : title
-        }
-        // 系统为其他语言提供农历月份名称和本地化数字；中文沿用 Tyme 的“初一、廿一”等写法。
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.calendar = Calendar(identifier: .chinese)
-        formatter.timeZone = timeZone
-        formatter.setLocalizedDateFormatFromTemplate("MMMMd")
-        return formatter.string(from: date)
+  /// 保留同月的公历选择，并用当前时区重建 Date；不能复用旧时区的绝对时间。
+  static func selection(
+    _ previous: CalendarDay?, in month: CalendarMonth,
+    timeZone: TimeZone = .autoupdatingCurrent
+  ) -> CalendarDay? {
+    let day =
+      previous?.year == month.year && previous?.month == month.month ? (previous?.day ?? 1) : 1
+    return self.day(year: month.year, month: month.month, day: day, timeZone: timeZone)
+  }
+
+  static func month(
+    year: Int, month: Int, firstWeekday: Int,
+    timeZone: TimeZone = .autoupdatingCurrent
+  ) -> [CalendarDay] {
+    let requested = CalendarMonth(year: year, month: month)
+    let weekStart = (1...7).contains(firstWeekday) ? firstWeekday : Calendar.current.firstWeekday
+    // 固定自动更新时区的当前值，避免缓存里的时区也跟着系统变化，误判为可复用。
+    let zone = TimeZone(identifier: timeZone.identifier) ?? timeZone
+    if let cached = monthCache, cached.month == requested,
+      cached.firstWeekday == weekStart, cached.timeZone == zone
+    {
+      return cached.days
     }
-
-    /// 保留同月的公历选择，并用当前时区重建 Date；不能复用旧时区的绝对时间。
-    static func selection(_ previous: CalendarDay?, in month: CalendarMonth,
-                          timeZone: TimeZone = .autoupdatingCurrent) -> CalendarDay? {
-        let day = previous?.year == month.year && previous?.month == month.month ? (previous?.day ?? 1) : 1
-        return self.day(year: month.year, month: month.month, day: day, timeZone: timeZone)
+    guard CalendarMonth.years.contains(year), (1...12).contains(month),
+      let first = day(year: year, month: month, day: 1, timeZone: zone)
+    else { return [] }
+    let calendar = gregorian(timeZone: zone)
+    let offset = (first.weekday - weekStart + 7) % 7
+    // 用日历加天而非 86400 秒；夏令时切换不能导致重复日期或漏掉日期。
+    let days: [CalendarDay] = (0..<42).compactMap { index in
+      guard let date = calendar.date(byAdding: .day, value: index - offset, to: first.date) else {
+        return nil
+      }
+      return today(at: date, timeZone: zone)
     }
+    monthCache = (requested, weekStart, zone, days)
+    return days
+  }
 
-    static func month(year: Int, month: Int, firstWeekday: Int,
-                      timeZone: TimeZone = .autoupdatingCurrent) -> [CalendarDay] {
-        let requested = CalendarMonth(year: year, month: month)
-        let weekStart = (1...7).contains(firstWeekday) ? firstWeekday : Calendar.current.firstWeekday
-        // 固定自动更新时区的当前值，避免缓存里的时区也跟着系统变化，误判为可复用。
-        let zone = TimeZone(identifier: timeZone.identifier) ?? timeZone
-        if let cached = monthCache, cached.month == requested,
-           cached.firstWeekday == weekStart, cached.timeZone == zone { return cached.days }
-        guard CalendarMonth.years.contains(year), (1...12).contains(month),
-              let first = day(year: year, month: month, day: 1, timeZone: zone) else { return [] }
-        let calendar = gregorian(timeZone: zone)
-        let offset = (first.weekday - weekStart + 7) % 7
-        // 用日历加天而非 86400 秒；夏令时切换不能导致重复日期或漏掉日期。
-        let days: [CalendarDay] = (0..<42).compactMap { index in
-            guard let date = calendar.date(byAdding: .day, value: index - offset, to: first.date) else { return nil }
-            return today(at: date, timeZone: zone)
-        }
-        monthCache = (requested, weekStart, zone, days)
-        return days
+  static func day(
+    year: Int, month: Int, day: Int,
+    timeZone: TimeZone = .autoupdatingCurrent
+  ) -> CalendarDay? {
+    // 包含边缘月份的相邻日期；界面浏览限制在 1900–2100 年，避开历史历法切换歧义。
+    guard (1899...2101).contains(year), (1...12).contains(month),
+      let solar = try? SolarDay.fromYmd(year, month, day)
+    else { return nil }
+    let calendar = gregorian(timeZone: timeZone)
+    guard
+      let date = calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))
+    else { return nil }
+    let lunar = solar.getLunarDay()
+    let term = solar.termDay
+    let festivals = [lunar.festival?.getName(), solar.festival?.getName()].compactMap { $0 }
+    let dog = solar.dogDay
+    let plumRain = solar.plumRainDay
+    let nine = solar.nineDay
+    let seasonalBoundary: String?
+    if let dog, dog.dayIndex == 0 {
+      seasonalBoundary = dog.getName()
+    } else if let plumRain, plumRain.dayIndex == 0 {
+      seasonalBoundary = plumRain.getName()
+    } else if let nine, nine.dayIndex == 0 {
+      seasonalBoundary = nine.getName()
+    } else {
+      seasonalBoundary = nil
     }
+    return CalendarDay(
+      date: date, year: year, month: month, day: day,
+      weekday: calendar.component(.weekday, from: date),
+      lunarLabel: lunar.day == 1 ? lunar.lunarMonth.getName() : lunar.getName(),
+      lunarSummary: lunar.description,
+      festivals: festivals, solarTerm: term.dayIndex == 0 ? term.solarTerm.getName() : nil,
+      holiday: hasHolidayData(year: year)
+        ? solar.legalHoliday.map { .init(name: $0.name, isWork: $0.isWork) } : nil,
+      dogDays: dog?.description, plumRain: plumRain?.description,
+      nineDays: nine?.description, seasonalBoundary: seasonalBoundary,
+      id: WidgetSnapshot.dayKey(year: year, month: month, day: day))
+  }
 
-    static func day(year: Int, month: Int, day: Int,
-                    timeZone: TimeZone = .autoupdatingCurrent) -> CalendarDay? {
-        // 包含边缘月份的相邻日期；界面浏览限制在 1900–2100 年，避开历史历法切换歧义。
-        guard (1899...2101).contains(year), (1...12).contains(month),
-              let solar = try? SolarDay.fromYmd(year, month, day) else { return nil }
-        let calendar = gregorian(timeZone: timeZone)
-        guard let date = calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12)) else { return nil }
-        let lunar = solar.getLunarDay()
-        let term = solar.termDay
-        let festivals = [lunar.festival?.getName(), solar.festival?.getName()].compactMap { $0 }
-        let dog = solar.dogDay
-        let plumRain = solar.plumRainDay
-        let nine = solar.nineDay
-        let seasonalBoundary: String?
-        if let dog, dog.dayIndex == 0 { seasonalBoundary = dog.getName() }
-        else if let plumRain, plumRain.dayIndex == 0 { seasonalBoundary = plumRain.getName() }
-        else if let nine, nine.dayIndex == 0 { seasonalBoundary = nine.getName() }
-        else { seasonalBoundary = nil }
-        return CalendarDay(date: date, year: year, month: month, day: day,
-                           weekday: calendar.component(.weekday, from: date),
-                           lunarLabel: lunar.day == 1 ? lunar.lunarMonth.getName() : lunar.getName(),
-                           lunarSummary: lunar.description,
-                           festivals: festivals, solarTerm: term.dayIndex == 0 ? term.solarTerm.getName() : nil,
-                           holiday: hasHolidayData(year: year) ? solar.legalHoliday.map { .init(name: $0.name, isWork: $0.isWork) } : nil,
-                           dogDays: dog?.description, plumRain: plumRain?.description,
-                           nineDays: nine?.description, seasonalBoundary: seasonalBoundary,
-                           id: WidgetSnapshot.dayKey(year: year, month: month, day: day))
+  /// 年份覆盖来自固定版本的数据本身；未收录年份不能把 nil 解读为“无需调休”。
+  static func hasHolidayData(year: Int) -> Bool { holidayYears.contains(year) }
+  private static let holidayYears: Set<Int> = {
+    let data = Array(LegalHoliday.DATA.utf8)
+    return Set(
+      stride(from: 0, to: data.count, by: 13).compactMap { index in
+        guard index + 4 <= data.count else { return nil }
+        return Int(String(decoding: data[index..<(index + 4)], as: UTF8.self))
+      })
+  }()
+
+  static func additionalCalendars(for day: CalendarDay, features: Set<CalendarFeature>)
+    -> [CalendarDetail]
+  {
+    guard let solar = try? SolarDay.fromYmd(day.year, day.month, day.day) else { return [] }
+    var details: [CalendarDetail] = []
+    if features.contains(.tibetan) {
+      // 上游从固定起点向前扫描，范围外部分路径使用 try!；先检查完整的公历覆盖范围。
+      let supported = day.id >= "1951-01-08" && day.id <= "2051-02-11"
+      let value = supported ? (try? solar.getRabByungDay().description) : nil
+      details.append(
+        .init(feature: .tibetan, value: value ?? tr("该日期暂无藏历数据"), isUnavailable: value == nil))
     }
-
-    /// 年份覆盖来自固定版本的数据本身；未收录年份不能把 nil 解读为“无需调休”。
-    static func hasHolidayData(year: Int) -> Bool { holidayYears.contains(year) }
-    private static let holidayYears: Set<Int> = {
-        let data = Array(LegalHoliday.DATA.utf8)
-        return Set(stride(from: 0, to: data.count, by: 13).compactMap { index in
-            guard index + 4 <= data.count else { return nil }
-            return Int(String(decoding: data[index..<(index + 4)], as: UTF8.self))
-        })
-    }()
-
-    static func additionalCalendars(for day: CalendarDay, features: Set<CalendarFeature>) -> [CalendarDetail] {
-        guard let solar = try? SolarDay.fromYmd(day.year, day.month, day.day) else { return [] }
-        var details: [CalendarDetail] = []
-        if features.contains(.tibetan) {
-            // 上游从固定起点向前扫描，范围外部分路径使用 try!；先检查完整的公历覆盖范围。
-            let supported = day.id >= "1951-01-08" && day.id <= "2051-02-11"
-            let value = supported ? (try? solar.getRabByungDay().description) : nil
-            details.append(.init(feature: .tibetan, value: value ?? tr("该日期暂无藏历数据"), isUnavailable: value == nil))
-        }
-        if features.contains(.hijri) {
-            details.append(.init(feature: .hijri, value: solar.getHijriDay().description))
-        }
-        return details
+    if features.contains(.hijri) {
+      details.append(.init(feature: .hijri, value: solar.getHijriDay().description))
     }
+    return details
+  }
 }

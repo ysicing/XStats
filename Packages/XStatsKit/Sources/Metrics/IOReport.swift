@@ -5,21 +5,29 @@ import Foundation
 typealias IOReportSubscriptionRef = OpaquePointer
 
 @_silgen_name("IOReportCopyChannelsInGroup")
-func IOReportCopyChannelsInGroup(_ group: CFString?, _ subgroup: CFString?, _ a: UInt64, _ b: UInt64, _ c: UInt64) -> Unmanaged<CFMutableDictionary>?
+func IOReportCopyChannelsInGroup(
+  _ group: CFString?, _ subgroup: CFString?, _ a: UInt64, _ b: UInt64, _ c: UInt64
+) -> Unmanaged<CFMutableDictionary>?
 
 @_silgen_name("IOReportMergeChannels")
 func IOReportMergeChannels(_ into: CFMutableDictionary, _ from: CFDictionary, _ unused: CFTypeRef?)
 
 @_silgen_name("IOReportCreateSubscription")
-func IOReportCreateSubscription(_ allocator: UnsafeRawPointer?, _ channels: CFMutableDictionary,
-                                _ subscribed: UnsafeMutablePointer<Unmanaged<CFMutableDictionary>?>,
-                                _ channelID: UInt64, _ options: CFTypeRef?) -> IOReportSubscriptionRef?
+func IOReportCreateSubscription(
+  _ allocator: UnsafeRawPointer?, _ channels: CFMutableDictionary,
+  _ subscribed: UnsafeMutablePointer<Unmanaged<CFMutableDictionary>?>,
+  _ channelID: UInt64, _ options: CFTypeRef?
+) -> IOReportSubscriptionRef?
 
 @_silgen_name("IOReportCreateSamples")
-func IOReportCreateSamples(_ subscription: IOReportSubscriptionRef, _ channels: CFMutableDictionary, _ options: CFTypeRef?) -> Unmanaged<CFDictionary>?
+func IOReportCreateSamples(
+  _ subscription: IOReportSubscriptionRef, _ channels: CFMutableDictionary, _ options: CFTypeRef?
+) -> Unmanaged<CFDictionary>?
 
 @_silgen_name("IOReportCreateSamplesDelta")
-func IOReportCreateSamplesDelta(_ previous: CFDictionary, _ current: CFDictionary, _ options: CFTypeRef?) -> Unmanaged<CFDictionary>?
+func IOReportCreateSamplesDelta(
+  _ previous: CFDictionary, _ current: CFDictionary, _ options: CFTypeRef?
+) -> Unmanaged<CFDictionary>?
 
 @_silgen_name("IOReportChannelGetGroup")
 func IOReportChannelGetGroup(_ channel: CFDictionary) -> Unmanaged<CFString>?
