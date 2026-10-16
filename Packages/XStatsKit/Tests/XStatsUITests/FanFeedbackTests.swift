@@ -144,9 +144,14 @@ struct FanFeedbackTests {
         try await withController(fixture) { controller, store in
             controller.setFeedbackVisible(true)
             await controller.select(.maximum)
-            try await Task.sleep(for: .seconds(11))
+            // 转速始终达不到目标，跟踪循环按 500ms 间隔重读，直到 20 次或 10 秒上限。
+            // 2 秒内应只有 4~5 次读取；上界放宽到 8 容忍调度抖动，但仍能发现间隔丢失
+            // （无节流时 20 次预算会在这段时间内被瞬间耗尽）。
+            try await Task.sleep(for: .seconds(2))
             let count = fixture.reads
-            #expect((2...20).contains(count) && store.fastestFan?.current == 1_100)
+            #expect((2...8).contains(count) && store.fastestFan?.current == 1_100)
+            // 关闭反馈后循环必须停止，不再消耗读取预算。
+            controller.setFeedbackVisible(false)
             try await Task.sleep(for: .milliseconds(650))
             #expect(fixture.reads == count)
         }

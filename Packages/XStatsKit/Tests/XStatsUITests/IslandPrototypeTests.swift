@@ -261,6 +261,10 @@ struct IslandInteractionTests {
     }
 }
 
+// 控制器订阅的是进程级通知中心（NotificationCenter/NSWorkspace/DistributedNotificationCenter，
+// object 均为 nil），并共享 NSStatusBar 与 NSApp.currentEvent。并发用例在 await 处交错时，
+// 一个用例投递的空间切换等通知会被其他用例仍在运行的控制器收到，必须串行执行。
+@Suite(.serialized)
 @MainActor
 final class IslandWindowLifecycleTests {
     private var suites: [String] = []

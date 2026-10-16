@@ -51,7 +51,9 @@ struct SleepAssertionControllerTests {
         let controller = SleepAssertionController(read: { throw NSError(domain: "Test", code: 1) })
         defer { controller.setVisible(false) }
         controller.setVisible(true)
-        let deadline = ContinuousClock.now + .seconds(2)
+        // 读取任务同样跑在主 actor 上，机器繁忙时首轮调度可能排在若干用例之后；
+        // 这里只放宽等待上限，正常仍会立即满足，不改变断言本身。
+        let deadline = ContinuousClock.now + .seconds(30)
         while !controller.isUnavailable && ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(5))
         }

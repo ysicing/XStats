@@ -256,9 +256,11 @@ import Updates
         let started = ContinuousClock.now
         backend.readContinuation?.resume(returning: batch(ObservationLimits.batchCount))
         backend.readContinuation = nil
+        // 读满后走 continue 分支，不经过 2 秒轮询等待；这里断言没有发生过那次等待。
+        // waitUntil 只让出主 actor，不自带延迟，因此满载时的耗时只来自调度排队，
+        // 仍远小于一个轮询周期。阈值取 2 秒减去 250ms 容差的下界。
         try await waitUntil { backend.readRequests == 2 }
-        // 常规轮询间隔为 2 秒；读满后应立即续读积压事件。
-        #expect(ContinuousClock.now - started < .milliseconds(1500))
+        #expect(ContinuousClock.now - started < .milliseconds(1750))
         #expect(controller.records.count == ObservationLimits.batchCount)
         backend.readContinuation?.resume(throwing: CancellationError())
         backend.readContinuation = nil
