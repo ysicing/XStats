@@ -177,6 +177,26 @@ public enum CleanEngine {
 
     // MARK: 清理
 
+    /// 单条规则在一次清理中的进度上下文；跨子阶段复用同一份计数基准。
+    private struct RuleProgress {
+        let scan: RuleScan
+        let ruleIndex: Int
+        let ruleCount: Int
+        let completedBeforeRule: Int
+        let currentRuleTotal: Int
+        let totalSteps: Int
+        let progressInterval: Int
+        let startedAt: Date
+
+        func snapshot(completed: Int, toolScannedBytes: UInt64?) -> CleanProgress {
+            CleanProgress(completed: completed, total: totalSteps, currentRule: scan.rule.title,
+                          ruleNumber: ruleIndex + 1, ruleCount: ruleCount,
+                          currentRuleCompleted: completed - completedBeforeRule,
+                          currentRuleTotal: currentRuleTotal, currentRuleStartedAt: startedAt,
+                          toolScannedBytes: toolScannedBytes)
+        }
+    }
+
     /// 清理选中规则的扫描结果。执行前逐项重新校验：扫描到执行之间应用可能已经启动
     public static func clean(_ scans: [RuleScan], selected: Set<String>, preferTrash: Bool,
                              environment: CleanEnvironment, log: CleanLog? = CleanLog(),
@@ -191,21 +211,17 @@ public enum CleanEngine {
 
         for (ruleIndex, scan) in selectedScans.enumerated() {
             if Task.isCancelled { report.wasCancelled = true; return report }
-            let completedBeforeRule = completedSteps
-            let currentRuleTotal = scan.rule.usesToolCleaner ? 1 : scan.items.count
-            let currentRuleStartedAt = Date()
-            let currentProgress = {
-                CleanProgress(completed: completedSteps, total: totalSteps, currentRule: scan.rule.title,
-                              ruleNumber: ruleIndex + 1, ruleCount: selectedScans.count,
-                              currentRuleCompleted: completedSteps - completedBeforeRule,
-                              currentRuleTotal: currentRuleTotal, currentRuleStartedAt: currentRuleStartedAt,
-                              toolScannedBytes: scan.rule.usesToolCleaner ? scan.totalSize : nil)
-            }
+            let progress = RuleProgress(scan: scan, ruleIndex: ruleIndex, ruleCount: selectedScans.count,
+                                        completedBeforeRule: completedSteps,
+                                        currentRuleTotal: scan.rule.usesToolCleaner ? 1 : scan.items.count,
+                                        totalSteps: totalSteps, progressInterval: progressInterval, startedAt: Date())
+            let currentProgress = { progress.snapshot(completed: completedSteps,
+                                                       toolScannedBytes: scan.rule.usesToolCleaner ? scan.totalSize : nil) }
             await onProgress?(currentProgress())
-            var running = await refreshRunningApps?() ?? environment.runningBundleIdentifiers()
+            let running = await refreshRunningApps?() ?? environment.runningBundleIdentifiers()
             if scan.rule.usesToolCleaner, !environment.excludedPaths.isEmpty, scan.toolCachePlan?.hasBoundedScope != true {
                 report.failures.append(ToolCachePlanError.unknownScope.localizedDescription)
-                completedSteps += currentRuleTotal
+                completedSteps += progress.currentRuleTotal
                 await onProgress?(currentProgress())
                 continue
             }
@@ -213,64 +229,19 @@ public enum CleanEngine {
                 CleanupExclusions.overlaps($0, paths: environment.excludedPaths)
             }) {
                 report.skippedCount += scan.items.count
-                completedSteps += currentRuleTotal
+                completedSteps += progress.currentRuleTotal
                 await onProgress?(currentProgress())
                 continue
             }
             if scan.rule.blockingApps.contains(where: { running.contains($0.bundleID) }) {
                 report.skippedCount += scan.items.count
-                completedSteps += currentRuleTotal
+                completedSteps += progress.currentRuleTotal
                 await onProgress?(currentProgress())
                 continue
             }
             if scan.rule.usesToolCleaner {
-                guard let plan = scan.toolCachePlan else {
-                    report.failures.append(ToolCachePlanError.unknownScope.localizedDescription)
-                    completedSteps += currentRuleTotal
-                    await onProgress?(currentProgress())
-                    continue
-                }
-                if let tool = scan.rule.requiredTool, !environment.isToolAvailable(tool) {
-                    report.failures.append(tr("\(scan.rule.title)：未找到 \(tool)，无法安全清理"))
-                    completedSteps += 1
-                    await onProgress?(currentProgress())
-                    continue
-                }
-                do {
-                    let toolReport = try await plan.execute(in: environment)
-                    if let toolReport {
-                        report.freedBytes += toolReport.freedBytes
-                        report.removedCount += toolReport.removedCount
-                        report.skippedCount += toolReport.skippedCount
-                        report.failures += toolReport.failures
-                        report.trashedBytes += toolReport.trashedBytes
-                        report.wasCancelled = toolReport.wasCancelled
-                        report.hasUncertainFreedBytes = report.hasUncertainFreedBytes || toolReport.hasUncertainFreedBytes
-                        log?.recordTool(rule: scan.rule, report: toolReport)
-                        if report.wasCancelled { return report }
-                    } else {
-                        for item in scan.items {
-                            let remaining: UInt64
-                            do { remaining = try scanAllocatedSize(of: item.url) }
-                            catch let error as CocoaError where error.code == .fileReadNoSuchFile { remaining = 0 }
-                            catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == Int(ENOENT) { remaining = 0 }
-                            log?.record(item: item, rule: scan.rule, action: "tool", detail: scan.rule.requiredTool)
-                            guard remaining < item.size else { continue }
-                            report.freedBytes += item.size - remaining
-                            report.removedCount += 1
-                        }
-                    }
-                } catch {
-                    // 外部命令可能已删除部分内容，失败或取消后都无法从扫描结果确认实际释放量。
-                    report.hasUncertainFreedBytes = true
-                    log?.recordToolInterruption(rule: scan.rule, error: error,
-                                                cancelled: error is CancellationError || Task.isCancelled)
-                    if error is CancellationError || Task.isCancelled {
-                        report.wasCancelled = true
-                        return report
-                    }
-                    report.failures.append(tr("\(scan.rule.title)：\(error.localizedDescription)"))
-                }
+                let cancelled = await cleanWithTool(scan, environment: environment, log: log, report: &report)
+                if cancelled { return report }
                 completedSteps += 1
                 await onProgress?(currentProgress())
                 continue
@@ -282,43 +253,108 @@ public enum CleanEngine {
                 continue
             }
             let useTrash = !scan.rule.deletesPermanently(preferTrash: preferTrash)
-
-            for item in scan.items {
-                // 每个目录候选操作前刷新；不是逐个缓存文件刷新，避免大目录清理期间沿用旧快照。
-                running = await refreshRunningApps?() ?? environment.runningBundleIdentifiers()
-                if Task.isCancelled { report.wasCancelled = true; return report }
-                let blockingApp = scan.rule.blockingApps.first { running.contains($0.bundleID) }
-                if let reason = blockingApp.map({ SkipReason.appRunning($0.name) }) ?? skipReason(for: item.url, rule: scan.rule, running: running,
-                                           environment: environment, safety: safety) {
-                    report.skippedCount += 1
-                    log?.record(item: item, rule: scan.rule, action: "skip", detail: reason.title)
-                    completedSteps += 1
-                    if completedSteps % progressInterval == 0 || completedSteps - completedBeforeRule == currentRuleTotal {
-                        await onProgress?(currentProgress())
-                    }
-                    continue
-                }
-                do {
-                    if useTrash {
-                        try FileManager.default.trashItem(at: item.url, resultingItemURL: nil)
-                        report.trashedBytes += item.size
-                    } else {
-                        try FileManager.default.removeItem(at: item.url)
-                        report.freedBytes += item.size
-                    }
-                    report.removedCount += 1
-                    log?.record(item: item, rule: scan.rule, action: useTrash ? "trash" : "delete", detail: nil)
-                } catch {
-                    report.failures.append(tr("\(item.url.lastPathComponent)：\(error.localizedDescription)"))
-                    log?.record(item: item, rule: scan.rule, action: "fail", detail: error.localizedDescription)
-                }
-                completedSteps += 1
-                if completedSteps % progressInterval == 0 || completedSteps - completedBeforeRule == currentRuleTotal {
-                    await onProgress?(currentProgress())
-                }
-            }
+            let cancelled = await cleanManually(scan, useTrash: useTrash, running: running, environment: environment,
+                                                safety: safety, log: log, refreshRunningApps: refreshRunningApps,
+                                                progress: progress, onProgress: onProgress,
+                                                report: &report, completedSteps: &completedSteps)
+            if cancelled { return report }
         }
         return report
+    }
+
+    /// 工具托管清理路径：执行外部清理工具，或在工具不产出报告时按剩余体积估算释放量。
+    /// 取消只会在该规则内发生，返回 true 时调用方必须立即结束整次清理。
+    private static func cleanWithTool(_ scan: RuleScan, environment: CleanEnvironment, log: CleanLog?,
+                                      report: inout CleanReport) async -> Bool {
+        guard let plan = scan.toolCachePlan else {
+            report.failures.append(ToolCachePlanError.unknownScope.localizedDescription)
+            return false
+        }
+        if let tool = scan.rule.requiredTool, !environment.isToolAvailable(tool) {
+            report.failures.append(tr("\(scan.rule.title)：未找到 \(tool)，无法安全清理"))
+            return false
+        }
+        do {
+            let toolReport = try await plan.execute(in: environment)
+            guard let toolReport else {
+                for item in scan.items {
+                    let remaining: UInt64
+                    do { remaining = try scanAllocatedSize(of: item.url) }
+                    catch let error as CocoaError where error.code == .fileReadNoSuchFile { remaining = 0 }
+                    catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == Int(ENOENT) { remaining = 0 }
+                    log?.record(item: item, rule: scan.rule, action: "tool", detail: scan.rule.requiredTool)
+                    guard remaining < item.size else { continue }
+                    report.freedBytes += item.size - remaining
+                    report.removedCount += 1
+                }
+                return false
+            }
+            report.freedBytes += toolReport.freedBytes
+            report.removedCount += toolReport.removedCount
+            report.skippedCount += toolReport.skippedCount
+            report.failures += toolReport.failures
+            report.trashedBytes += toolReport.trashedBytes
+            report.wasCancelled = toolReport.wasCancelled
+            report.hasUncertainFreedBytes = report.hasUncertainFreedBytes || toolReport.hasUncertainFreedBytes
+            log?.recordTool(rule: scan.rule, report: toolReport)
+            return report.wasCancelled
+        } catch {
+            // 外部命令可能已删除部分内容，失败或取消后都无法从扫描结果确认实际释放量。
+            report.hasUncertainFreedBytes = true
+            log?.recordToolInterruption(rule: scan.rule, error: error,
+                                        cancelled: error is CancellationError || Task.isCancelled)
+            guard error is CancellationError || Task.isCancelled else {
+                report.failures.append(tr("\(scan.rule.title)：\(error.localizedDescription)"))
+                return false
+            }
+            report.wasCancelled = true
+            return true
+        }
+    }
+
+    /// 手动文件清理路径：逐项重新核对运行中的应用与保护规则后，移入废纸篓或直接删除。
+    /// 取消时整条规则的剩余条目一律中止，调用方须返回已有 report，不得继续下一条规则。
+    private static func cleanManually(_ scan: RuleScan, useTrash: Bool, running: Set<String>,
+                                      environment: CleanEnvironment, safety: SafetyGuard, log: CleanLog?,
+                                      refreshRunningApps: (@Sendable () async -> Set<String>)?,
+                                      progress: RuleProgress, onProgress: (@Sendable (CleanProgress) async -> Void)?,
+                                      report: inout CleanReport, completedSteps: inout Int) async -> Bool {
+        var running = running
+        for item in scan.items {
+            // 每个目录候选操作前刷新；不是逐个缓存文件刷新，避免大目录清理期间沿用旧快照。
+            running = await refreshRunningApps?() ?? environment.runningBundleIdentifiers()
+            if Task.isCancelled { report.wasCancelled = true; return true }
+            let blockingApp = scan.rule.blockingApps.first { running.contains($0.bundleID) }
+            if let reason = blockingApp.map({ SkipReason.appRunning($0.name) }) ?? skipReason(for: item.url, rule: scan.rule, running: running,
+                                       environment: environment, safety: safety) {
+                report.skippedCount += 1
+                log?.record(item: item, rule: scan.rule, action: "skip", detail: reason.title)
+                completedSteps += 1
+                if completedSteps % progress.progressInterval == 0 || completedSteps - progress.completedBeforeRule == progress.currentRuleTotal {
+                    await onProgress?(progress.snapshot(completed: completedSteps, toolScannedBytes: nil))
+                }
+                continue
+            }
+            do {
+                if useTrash {
+                    try FileManager.default.trashItem(at: item.url, resultingItemURL: nil)
+                    report.trashedBytes += item.size
+                } else {
+                    try FileManager.default.removeItem(at: item.url)
+                    report.freedBytes += item.size
+                }
+                report.removedCount += 1
+                log?.record(item: item, rule: scan.rule, action: useTrash ? "trash" : "delete", detail: nil)
+            } catch {
+                report.failures.append(tr("\(item.url.lastPathComponent)：\(error.localizedDescription)"))
+                log?.record(item: item, rule: scan.rule, action: "fail", detail: error.localizedDescription)
+            }
+            completedSteps += 1
+            if completedSteps % progress.progressInterval == 0 || completedSteps - progress.completedBeforeRule == progress.currentRuleTotal {
+                await onProgress?(progress.snapshot(completed: completedSteps, toolScannedBytes: nil))
+            }
+        }
+        return false
     }
 }
 
