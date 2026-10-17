@@ -177,13 +177,16 @@ struct RestCountdownRing: View {
 
 @MainActor
 final class RestWindowController {
+  private let timer: TimerController?
   private let rest: RestController
   private let wellness: WellnessController?
   private var overlays: [RestPanel] = []
+  var restOverlayCount: Int { overlays.count }
   private var hud: RestPanel?
   private var screenObserver: NSObjectProtocol?
 
-  init(rest: RestController, wellness: WellnessController? = nil) {
+  init(rest: RestController, wellness: WellnessController? = nil, timer: TimerController? = nil) {
+    self.timer = timer
     self.rest = rest
     self.wellness = wellness
     screenObserver = NotificationCenter.default.addObserver(
@@ -196,6 +199,8 @@ final class RestWindowController {
 
   func showRest() {
     hideRest()
+    // 息屏期间仍保留休息截止点，但任何入口都不能重新创建遮罩。
+    guard wellness?.isSystemPaused != true else { return }
     for screen in NSScreen.screens {
       let panel = RestPanel(
         contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
@@ -267,10 +272,11 @@ final class RestWindowController {
     panel.contentView = NSHostingView(
       rootView: RestHUDView(
         rest: rest,
-        close: { [weak panel, weak rest] in
+        close: { [weak panel, weak rest, weak timer] in
           panel?.close()
           rest?.setHUDVisible(false)
-        }, wellness: wellness))
+          timer?.setHUDVisible(false)
+        }, wellness: wellness, timer: timer))
     let visible = NSScreen.main?.visibleFrame ?? .zero
     let defaultOrigin = NSPoint(x: visible.maxX - 292, y: visible.midY - 92)
     if isNew {
@@ -291,11 +297,13 @@ final class RestWindowController {
     }
     panel.orderFrontRegardless()
     rest.setHUDVisible(true)
+    timer?.setHUDVisible(true)
   }
 
   func hideHUD() {
     hud?.close()
     rest.setHUDVisible(false)
+    timer?.setHUDVisible(false)
   }
 
   private func refreshScreens() {

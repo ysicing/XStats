@@ -41,10 +41,16 @@ struct WellnessHealthCard: View {
     let wellness = model.wellness
     Card {
       HStack {
-        Label(tr("护眼休息"), systemImage: "eye").dsFont(.sm, weight: .semibold)
+        Label(tr("休息"), systemImage: "eye").dsFont(.sm, weight: .semibold)
         Spacer()
-        Button(tr("开始护眼休息")) { wellness.startShortRest() }
-          .buttonStyle(DSButtonStyle(kind: .secondary)).disabled(wellness.isEyeRestActive)
+        RestActionsMenu()
+        RestOptionsButton(forBreaks: true)
+      }
+      if wellness.isEyeRestActive {
+        Text(
+          wellness.breakKind.title + " · " + WellnessFormat.timer(wellness.eyeRestSecondsRemaining)
+        )
+        .monospacedDigit()
       }
       Text(tr("看看远处，活动一下肩颈。"))
         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
@@ -231,7 +237,7 @@ struct WellnessEyeRestView: View {
     let language = wellness.settings.language.resolved
     VStack(spacing: 22) {
       RestCountdownRing(
-        title: tr("护眼休息"), secondsRemaining: wellness.eyeRestSecondsRemaining,
+        title: wellness.breakKind.title, secondsRemaining: wellness.eyeRestSecondsRemaining,
         duration: wellness.eyeRestDuration)
       Text(tr("让眼睛休息一下")).font(.system(size: 34, weight: .medium, design: .rounded))
       Text(tr("看看远处，轻轻眨眼，放松肩颈"))

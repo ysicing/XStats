@@ -92,7 +92,7 @@ checkboxes in Optional Features. Thermals exposes temperature and fan checkboxes
 support. Detailed appearance settings remain in the existing Menu Bar settings page. Display Parameter Controls is in
 Optional Features; its information-only menu-bar toggle stays independent of DDC enablement.
 Optional Features uses separate cards: Network Monitor, Processes, Uninstaller and Cleanup;
-AI Usage, Audio and Display Parameter Controls; Focus & Eye Care; and Menu Bar Calendar.
+AI Usage, Audio and Display Parameter Controls; Timers; and Menu Bar Calendar.
 Each card has consistent separators between rows, with no divider above its first row.
 Uninstaller is also optional and off by default. Its preference persists in settings backups;
 disabling it hides the sidebar entry, redirects its page/deep link to feature settings, cancels
@@ -381,7 +381,24 @@ is separate from hover and disabled state, while interactive system glass keeps 
 Supporting text colors are tested against window, card and elevated solid backgrounds in both
 appearances. These policies add no timers or retained per-interaction state.
 
-## Focus and wellness
+## Timers and wellness
+
+`TimerController` owns independent deadline-based countdown and elapsed-time stopwatch values.
+It gates Pomodoro starts through `RestController.allowsStart`, requiring confirmation before pausing
+the competing countdown/Pomodoro and preserving its progress. Stopwatch runs independently, with
+at most 200 laps. There is one countdown deadline timer, and a 1 Hz display timer only while a page,
+HUD, menu-bar readout or quick popover needs live values. The popover has independent visibility
+demand so its parallel stopwatch stays current; dismissing it cancels only unconfirmed switches
+and releases its view. Paused menu-bar readings retain their mode and value, and eye rest has
+presentation priority. Left click opens the quick popover; right click offers the full page and HUD.
+Lock/sleep invalidates both timers; wake recomputes elapsed time
+using the continuous clock and settles countdown completion once. Completion uses the existing
+notification delegate and ordinary notification permissions. Closing a window preserves sessions;
+feature disable and app termination end sessions while preserving preferences and focus history.
+`timerPreferences` is optional in settings backups, defaults to the legacy Pomodoro view, a four-round
+long-break interval and unlimited rounds, and is normalized on load/import. Existing `rest*` and
+`wellnessPreferences` keys remain intact. Countdown and stopwatch do not enter focus activity history.
+
 
 `RestSession` uses absolute `mach_continuous_time` deadlines and recalculates after wake instead
 of accumulating timer ticks. Rest features default off and require a manual start. Phase changes
@@ -390,7 +407,7 @@ Start / Pause / Resume / End actions shared by the page and HUD. An opt-in setti
 round automatically after a break; changing it preserves the current deadline and running state.
 The stored `single`, `cycle` and `workday` preference values remain readable, with the latter two
 represented by the same switch. End resets the session to its focus start without deleting today’s
-completed count or activities. Phase selectors and mode selectors are absent from the main page. Daily completion counts
+completed count or activities. The page selects Countdown / Pomodoro / Stopwatch without changing running sessions. Daily completion counts
 and HUD placement stay local. The Mini HUD uses a 276×184 panel with a stable time display, a
 left close action, right style selector, and 32-point footer controls. Only non-control regions drag;
 old restored window sizes are resized and clamped to the screen without discarding the saved origin.
@@ -412,7 +429,7 @@ long breaks from the eye-break duration and reminder interval. Lock/sleep cancel
 pauses reminder intervals and discards pending reminders without a catch-up burst.
 
 The eye-break global shortcut uses the existing Carbon hotkey registration and wellness start path.
-It is unbound by default, survives settings backup and restore, and opens Features when Focus & Eye Care
+It is unbound by default, survives settings backup and restore, and opens Features when Timers
 is disabled. Repeated activation during an eye break does not reset its deadline.
 
 Reminders within five minutes of a Pomodoro break merge into the existing curtain. A completed break

@@ -1391,7 +1391,6 @@ Apple 智能	Apple Intelligence
 数字倒计时	Compte à rebours numérique
 进度圆环	Anneau de progression
 进度条	Barre de progression
-切换迷你 HUD 样式	Changer le style du Mini HUD
 继续	Reprendre
 VPN 不允许绕开它直连，TCP 建连会被本机代理提前应答，测不出真实延迟。关掉 VPN 再测	Le VPN interdit la connexion directe et le proxy local répond à la connexion TCP avant la cible : la latence réelle ne peut pas être mesurée. Désactivez le VPN puis réessayez
 国内节点只能测 TCP 建连，经代理测不准，所以始终直连测	Les nœuds chinois ne permettent que de mesurer la connexion TCP ; via un proxy, la mesure serait fausse, donc elle se fait toujours en direct
@@ -1761,8 +1760,8 @@ Xcode 代码补全模型	Modèles de complétion de code Xcode
 已关闭（受管理）	Désactivé (géré)
 未开启	Non activé
 模型未就绪	Modèle non prêt
-专注与护眼	Concentration et repos visuel
-专注计时、护眼休息与本机活动统计。	Minuteur de concentration, repos des yeux et statistiques locales.
+计时	Minuteurs
+倒计时、番茄钟、秒表与护眼提醒。	Compte à rebours, Pomodoro, chronomètre et pauses pour les yeux.
 休息提醒	Rappel de pause
 提醒间隔	Intervalle des rappels
 稍后 10 分钟	Dans 10 minutes
@@ -2156,3 +2155,45 @@ Microsoft Teams（旧版）	Microsoft Teams (classique)
 将永久删除 {} 个所选项目，共 {}。此操作无法撤销。	Suppression définitive de {} éléments sélectionnés, soit {}. Cette opération est irréversible.
 将把 {} 个所选项目移到废纸篓，共 {}。需要时可从废纸篓放回。	{} éléments sélectionnés, soit {}, seront placés dans la corbeille. Vous pourrez les remettre à leur place.
 将永久删除废纸篓中选中的 {} 个项目，共 {}。此操作无法撤销。	Suppression définitive de {} éléments sélectionnés dans la corbeille, soit {}. Cette opération est irréversible.
+倒计时	Compte à rebours
+秒表	Chronomètre
+计时模式	Mode de minuterie
+切换正在运行的计时？	Changer de minuteur actif ?
+切换并开始	Changer et démarrer
+当前倒计时或番茄钟将暂停并保留进度，秒表不受影响。	Le compte à rebours ou Pomodoro actuel sera mis en pause et sa progression conservée. Le chronomètre reste inchangé.
+跳过当前阶段	Passer cette phase
+已完成 {} 轮	{} cycles terminés
+倒计时结束	Compte à rebours terminé
+设定的时间已到。	Le temps défini est écoulé.
+小时	Heures
+秒	Secondes
+计次	Tour
+分段	Tour
+分段用时	Temps du tour
+累计用时	Temps total
+已记录 200 次分段；重置后可重新记录。	200 tours enregistrés. Réinitialisez pour en enregistrer d’autres.
+长休息间隔	Intervalle des pauses longues
+每 {} 轮	Tous les {} cycles
+目标轮数	Nombre de cycles visé
+完成目标后的休息结束时停止自动循环。	Arrêter l’enchaînement automatique après la pause du dernier cycle.
+打开计时页面	Ouvrir les minuteurs
+显示迷你 HUD	Afficher le mini HUD
+自定义时长…	Durée personnalisée…
+
+短休息	Pause courte
+休息设置	Réglages des pauses
+休息时关闭显示器	Éteindre l’écran pendant les pauses
+唤亮屏幕后休息继续，结束时不会主动点亮屏幕。	La pause continue au réveil de l’écran. Sa fin ne rallume pas l’écran.
+结束休息	Terminer la pause
+关闭显示器	Éteindre l’écran
+暂停专注并休息	Suspendre la concentration et faire une pause
+开始休息	Commencer une pause
+无法关闭显示器	Impossible d’éteindre l’écran
+休息计时仍会继续，请稍后重试。	Le minuteur de pause continue. Réessayez plus tard.
+休息结束	Pause terminée
+可以继续专注了。	Vous pouvez reprendre votre concentration.
+打开计时弹窗	Ouvrir le panneau des minuteurs
+显示 / 隐藏迷你 HUD	Afficher / masquer le mini HUD
+开始短休息	Commencer une courte pause
+开始长休息	Commencer une longue pause
+空格：开始或暂停 · ⌘L：秒表计次。输入时不触发。	Espace : démarrer ou suspendre · ⌘L : tour. Inactif pendant la saisie.

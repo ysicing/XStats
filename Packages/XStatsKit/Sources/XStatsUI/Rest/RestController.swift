@@ -127,7 +127,9 @@ struct RestSession {
   }
 
   /// 睡眠后可跨越多个阶段；单次模式在一次休息结束后停在下一轮专注起点。
-  @discardableResult mutating func advance(to now: UInt64, cycle: Bool = false) -> [UInt64] {
+  @discardableResult mutating func advance(
+    to now: UInt64, cycle: Bool = false, longBreakInterval: Int = 4, targetRounds: Int = 0
+  ) -> [UInt64] {
     guard isRunning else { return [] }
     var completedAt: [UInt64] = []
     while now >= deadline {
@@ -138,7 +140,7 @@ struct RestSession {
         completedFocus += 1
         completedAt.append(reached)
         canUndoFocus = true
-        phase = completedFocus.isMultiple(of: 4) ? .longRest : .rest
+        phase = completedFocus.isMultiple(of: max(1, longBreakInterval)) ? .longRest : .rest
       } else {
         phase = .work
         canUndoFocus = false
@@ -148,7 +150,7 @@ struct RestSession {
       remainingByPhase[phase] = phaseDuration
       activeDurationByPhase[phase] = phaseDuration
       deadline = reached + phaseDuration
-      if phase == .work && !cycle {
+      if phase == .work && (!cycle || (targetRounds > 0 && completedFocus >= targetRounds)) {
         isRunning = false
         deadline = now + phaseDuration
         break
@@ -194,6 +196,10 @@ struct RestSession {
   }
 }
 
+enum RestStartRequest: Equatable {
+  case start, skip, postpone
+}
+
 @MainActor @Observable
 final class RestController {
   private(set) var phase: RestPhase = .work
@@ -203,6 +209,7 @@ final class RestController {
   private(set) var secondsRemaining: TimeInterval = 0
   private(set) var phaseDuration: TimeInterval = 0
   private(set) var isPreviewingSound = false
+  private(set) var completedRounds = 0
   private(set) var completedToday: Int
 
   private var session: RestSession?
@@ -229,6 +236,7 @@ final class RestController {
   private let clock: () -> UInt64
   /// 墙上时间只用于按自然日统计；计时仍以 clock 的单调时钟为准。
   private let date: () -> Date
+  var allowsStart: ((RestStartRequest) -> Bool)?
   var onRestChange: ((Bool) -> Void)?
   var onStateChange: (() -> Void)?
   var onSessionChange: (() -> Void)?
@@ -244,9 +252,15 @@ final class RestController {
   var primaryAction: RestPrimaryAction {
     if let previewAction { return previewAction }
     if isRunning { return .pause }
+    if hasReachedTarget { return .startFocus }
     if settings.restMode == .workday && !isWorkdayActive { return .startFocus }
     if canContinue || (settings.restMode == .workday && isWorkdayActive) { return .resume }
     return phase == .work && (session?.completedFocus ?? 0) > 0 ? .startNextRound : .startFocus
+  }
+
+  private var hasReachedTarget: Bool {
+    let target = settings.timerPreferences.normalized.targetRounds
+    return target > 0 && completedRounds >= target && phase == .work && !isRunning
   }
 
   init(
@@ -318,6 +332,8 @@ final class RestController {
 
   func startPause() {
     guard settings.restEnabled else { return }
+    if !isRunning && allowsStart?(.start) == false { return }
+    if hasReachedTarget { endSession() }
     if settings.restMode == .workday && !isWorkdayActive {
       startWorkday()
       return
@@ -429,7 +445,8 @@ final class RestController {
   }
 
   func skip() {
-    guard settings.restMode != .workday || isWorkdayActive else { return }
+    guard settings.restEnabled, settings.restMode != .workday || isWorkdayActive else { return }
+    guard isRunning || allowsStart?(.skip) != false else { return }
     settleExpiredSession()
     guard var session else { return }
     session.skip(at: clock())
@@ -438,6 +455,8 @@ final class RestController {
   }
 
   func postponeFiveMinutes() {
+    guard settings.restEnabled, phase.isResting else { return }
+    guard isRunning || allowsStart?(.postpone) != false else { return }
     settleExpiredSession()
     guard var session else { return }
     let previousCount = session.completedFocus
@@ -464,7 +483,10 @@ final class RestController {
     let continuesAutomatically =
       settings.restMode == .cycle
       || (settings.restMode == .workday && isWorkdayActive)
-    let completedAt = session.advance(to: now, cycle: continuesAutomatically)
+    let preferences = settings.timerPreferences.normalized
+    let completedAt = session.advance(
+      to: now, cycle: continuesAutomatically,
+      longBreakInterval: preferences.longBreakInterval, targetRounds: preferences.targetRounds)
     let nowDate = date()
     let today = Calendar.current.startOfDay(for: nowDate)
     let credited = completedAt.filter { completion in
@@ -476,6 +498,7 @@ final class RestController {
     updateCompletedToday(by: credited.count)
     suspendedAt = nil
     self.session = session
+    completedRounds = session.completedFocus
     phase = session.phase
     isRunning = session.isRunning
     canContinue = session.canContinue
@@ -580,6 +603,7 @@ final class RestController {
     if restVisible { onRestChange?(false) }
     restVisible = false
     phase = .work
+    completedRounds = 0
     onSessionChange?()
     onStateChange?()
     defaults?.set(false, forKey: "rest.enabled")
@@ -607,8 +631,15 @@ final class RestController {
     WidgetCenter.shared.reloadTimelines(ofKind: "rest")
   }
 
+  private var manualRestVisible = false
+  func setManualRestVisible(_ visible: Bool) {
+    guard manualRestVisible != visible else { return }
+    manualRestVisible = visible
+    syncSound()
+  }
+
   func syncSound() {
-    if settings.restEnabled && isRunning && phase.isResting {
+    if settings.restEnabled && (manualRestVisible || (isRunning && phase.isResting)) {
       // 真正的休息接管同一个引擎，试听截止任务不能停止后续休息声音。
       cancelSoundPreview()
       audio.play(settings.restSound, customURL: settings.restCustomAudioURL)
@@ -622,7 +653,7 @@ final class RestController {
   var canPreviewSound: Bool {
     settings.restEnabled && settings.restSound != .off
       && (settings.restSound != .custom || settings.restCustomAudioURL != nil)
-      && !(isRunning && phase.isResting)
+      && !manualRestVisible && !(isRunning && phase.isResting)
   }
 
   @discardableResult

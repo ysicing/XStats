@@ -3,6 +3,22 @@
 
 extension Translations {
   static let wellnessEnglish = #"""
+    休息设置	Break settings
+    休息时关闭显示器	Turn off display during breaks
+    唤亮屏幕后休息继续，结束时不会主动点亮屏幕。	The break continues when the display wakes. Finishing does not turn it on.
+    结束休息	End break
+    关闭显示器	Turn off display
+    暂停专注并休息	Pause focus and take a break
+    开始休息	Start a break
+    无法关闭显示器	Could not turn off the display
+    休息计时仍会继续，请稍后重试。	The break timer will continue. Try again later.
+    休息结束	Break finished
+    可以继续专注了。	You can resume focusing.
+    打开计时弹窗	Open timer popover
+    显示 / 隐藏迷你 HUD	Show / hide mini HUD
+    开始短休息	Start a short break
+    开始长休息	Start a long break
+    空格：开始或暂停 · ⌘L：秒表计次。输入时不触发。	Space: start or pause · ⌘L: stopwatch lap. Inactive while typing.
     试听	Preview
     停止试听	Stop preview
     试听 5 秒后自动停止	Preview stops after 5 seconds
@@ -17,8 +33,8 @@ extension Translations {
     定时提醒	Scheduled reminders
     临近轮间休息时合并提醒，避免重复打扰。	Merge reminders with nearby between-round breaks to avoid interruptions.
     开始护眼休息	Start an eye break
-    专注与护眼	Focus & Eye Care
-    专注计时、护眼休息与本机活动统计。	Focus timer, eye breaks and local activity statistics.
+    计时	Timers
+    倒计时、番茄钟、秒表与护眼提醒。	Countdown, Pomodoro, stopwatch and eye-break reminders.
     休息提醒	Break reminder
     提醒间隔	Reminder interval
     稍后 10 分钟	In 10 minutes
@@ -50,6 +66,7 @@ extension Translations {
     休息后自动开始下一轮	Start next round automatically after a break
     关闭时，休息结束后由你开始下一轮。	When off, you choose when to start the next round after your break.
     专注时长	Focus duration
+    短休息	Short break
     长休息	Long break
     结束	End
     溪流	Stream
@@ -64,5 +81,29 @@ extension Translations {
     请选择不超过 50 MB 的音频文件。	Choose an audio file no larger than 50 MB.
     无法读取该音频，请选择 MP3、M4A、WAV 或 AIFF 文件。	Could not read this audio. Choose an MP3, M4A, WAV or AIFF file.
     无法导入音频	Unable to import audio
+    倒计时	Countdown
+    秒表	Stopwatch
+    计时模式	Timer mode
+    切换正在运行的计时？	Switch the active timer?
+    切换并开始	Switch and start
+    当前倒计时或番茄钟将暂停并保留进度，秒表不受影响。	The current countdown or Pomodoro will pause and keep its progress. The stopwatch will continue unchanged.
+    跳过当前阶段	Skip phase
+    已完成 {} 轮	{} rounds completed
+    倒计时结束	Countdown finished
+    设定的时间已到。	Your timer has finished.
+    小时	Hours
+    秒	Seconds
+    计次	Lap
+    分段	Lap
+    分段用时	Lap time
+    累计用时	Total time
+    已记录 200 次分段；重置后可重新记录。	200 laps recorded. Reset to record more.
+    长休息间隔	Long-break interval
+    每 {} 轮	Every {} rounds
+    目标轮数	Target rounds
+    完成目标后的休息结束时停止自动循环。	Stop automatic cycling after the break following the final round.
+    打开计时页面	Open Timers
+    显示迷你 HUD	Show Mini HUD
+    自定义时长…	Custom duration…
     """#
 }

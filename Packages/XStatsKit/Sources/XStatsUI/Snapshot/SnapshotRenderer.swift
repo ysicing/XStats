@@ -452,6 +452,16 @@ enum SnapshotRenderer {
       return
     }
 
+    if CommandLine.arguments.contains("--timer-only") {
+      renderTimers(outputDirectory: outputDirectory)
+      if CommandLine.arguments.contains("--verify-runtime") {
+        do { try await verifyTimerRuntime(outputDirectory: outputDirectory) } catch {
+          reportFailure(outputDirectory.appendingPathComponent("timer-runtime.json"), error: error)
+        }
+      }
+      return
+    }
+
     if CommandLine.arguments.contains("--rest-hud-only") {
       renderRestHUD(outputDirectory: outputDirectory)
       return
@@ -947,7 +957,144 @@ enum SnapshotRenderer {
       .write(to: outputDirectory.appendingPathComponent("runtime.json"))
   }
 
-  /// 健康截图只用虚构活动与独立偏好，不请求通知授权、不启动采样、不访问用户活动库。
+  /// 使用隔离偏好测量真实计时器的可见、后台、挂起与关闭路径，不发系统通知。
+  private static func verifyTimerRuntime(outputDirectory: URL) async throws {
+    let suite = "XStats.timerRuntime.\(UUID())"
+    guard let defaults = UserDefaults(suiteName: suite) else {
+      throw CocoaError(.coderInvalidValue)
+    }
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.restEnabled = true
+    let rest = RestController(settings: settings, localDefaults: defaults, sharedDefaults: nil)
+    let timer = TimerController(rest: rest, settings: settings)
+    let wellness = WellnessController(
+      rest: rest, settings: settings, store: WellnessActivityStore(url: nil))
+    defer {
+      wellness.suspend()
+      timer.stop()
+      rest.stop()
+    }
+    rest.sync()
+    var observations: [[String: Any]] = []
+    for phase in [
+      "idle", "visible", "hidden", "suspended", "manual-break", "screen-off-break", "break-ended",
+      "disabled",
+    ] {
+      switch phase {
+      case "visible":
+        timer.select(.countdown)
+        timer.setPageVisible(true)
+        timer.startPauseCountdown()
+        timer.startPauseStopwatch()
+      case "hidden": timer.setPageVisible(false)
+      case "suspended": timer.suspend()
+      case "manual-break":
+        timer.resume()
+        wellness.startBreak(.short)
+      case "screen-off-break": wellness.suspend(preservingRest: true)
+      case "break-ended": wellness.finishEyeRest(completed: false)
+      case "disabled":
+        timer.resume()
+        settings.restEnabled = false
+        timer.sync()
+        wellness.sync()
+      default: break
+      }
+      var before = rusage()
+      getrusage(RUSAGE_SELF, &before)
+      let started = ProcessInfo.processInfo.systemUptime
+      try await Task.sleep(for: .seconds(3))
+      var after = rusage()
+      getrusage(RUSAGE_SELF, &after)
+      let cpu =
+        Double(
+          after.ru_utime.tv_sec - before.ru_utime.tv_sec + after.ru_stime.tv_sec
+            - before.ru_stime.tv_sec)
+        + Double(
+          after.ru_utime.tv_usec - before.ru_utime.tv_usec + after.ru_stime.tv_usec
+            - before.ru_stime.tv_usec) / 1e6
+      let elapsed = ProcessInfo.processInfo.systemUptime - started
+      observations.append([
+        "phase": phase, "seconds": elapsed, "cpuPercent": cpu / elapsed * 100,
+        "peakResidentBytes": after.ru_maxrss, "displayTimer": timer.hasDisplayTimer,
+        "deadlineTimer": timer.hasDeadlineTimer,
+        "breakActive": wellness.isEyeRestActive, "breakDisplayTimer": wellness.hasDisplayTimer,
+        "breakDeadlineTimer": wellness.hasDeadlineTimer,
+      ])
+    }
+    try JSONSerialization.data(
+      withJSONObject: ["demo": true, "observations": observations],
+      options: [.prettyPrinted, .sortedKeys]
+    )
+    .write(to: outputDirectory.appendingPathComponent("timer-runtime.json"))
+  }
+
+  private static func renderTimers(outputDirectory: URL) {
+    let suite = "XStats.timerSnapshot.\(UUID())"
+    guard let defaults = UserDefaults(suiteName: suite) else { return }
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.language = L10n.language
+    settings.restEnabled = true
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+    model.rest.showPreview()
+    model.wellness.showPreview(activities: [], at: Date())
+    for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+      guard let appearance = NSAppearance(named: name) else { continue }
+      NSApp.appearance = appearance
+      for mode in TimerMode.allCases {
+        model.rest.showPreview(action: mode == .pomodoro ? .pause : .startFocus)
+        model.timer.showPreview(mode)
+        write(
+          RestPage().frame(width: 900).appLanguageEnvironment(), model: model,
+          appearance: appearance,
+          to: outputDirectory.appendingPathComponent("timer-\(mode.rawValue)-\(suffix).png"))
+        write(
+          TimerPopover(openPage: {}, showHUD: {}, close: {}), model: model,
+          appearance: appearance,
+          to: outputDirectory.appendingPathComponent("timer-popover-\(mode.rawValue)-\(suffix).png")
+        )
+        write(
+          RestHUDView(rest: model.rest, close: {}, timer: model.timer), model: model,
+          appearance: appearance,
+          to: outputDirectory.appendingPathComponent("timer-hud-\(mode.rawValue)-\(suffix).png"))
+        model.rest.showPreview(action: mode == .pomodoro ? .resume : .startFocus)
+        model.timer.showPreview(mode, paused: true)
+        write(
+          TimerPopover(openPage: {}, showHUD: {}, close: {}), model: model,
+          appearance: appearance,
+          to: outputDirectory.appendingPathComponent(
+            "timer-popover-\(mode.rawValue)-paused-\(suffix).png"))
+      }
+      for mode in TimerMode.allCases {
+        model.timer.stop()
+        model.timer.select(mode)
+        model.rest.showPreview(action: .startFocus)
+        write(
+          TimerPopover(openPage: {}, showHUD: {}, close: {}), model: model,
+          appearance: appearance,
+          to: outputDirectory.appendingPathComponent(
+            "timer-popover-\(mode.rawValue)-setup-\(suffix).png"))
+      }
+      write(
+        RestOptionsPopover(), model: model, appearance: appearance,
+        to: outputDirectory.appendingPathComponent("timer-settings-\(suffix).png"))
+      write(
+        RestOptionsPopover(forBreaks: true), model: model, appearance: appearance,
+        to: outputDirectory.appendingPathComponent("timer-break-settings-\(suffix).png"))
+      for kind in ManualBreakKind.allCases {
+        model.wellness.showPreview(activities: [], at: Date(), eyeRest: true, kind: kind)
+        write(
+          RestHUDView(rest: model.rest, close: {}, wellness: model.wellness, timer: model.timer),
+          model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent("timer-break-\(kind)-hud-\(suffix).png"))
+      }
+      model.wellness.showPreview(activities: [], at: Date())
+    }
+  }
+
   private static func renderWellness(outputDirectory: URL) {
     let suite = "XStats.wellnessSnapshot.\(UUID())"
     guard let defaults = UserDefaults(suiteName: suite) else { return }

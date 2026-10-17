@@ -18,4 +18,18 @@ struct WellnessLocalizationTests {
       #expect(L10n.translate("已记录 3 轮", language: language).contains("3"))
     }
   }
+  @Test func hudStyleMenuLabelsAreAvailableInEveryLanguage() throws {
+    let keys = ["迷你 HUD 样式", "数字倒计时", "进度圆环", "进度条"]
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      var titles: Set<String> = []
+      for key in keys {
+        let title = try #require(table.translate(key))
+        #expect(title.isEmpty == false)
+        titles.insert(title)
+      }
+      #expect(titles.count == keys.count)
+    }
+  }
+
 }

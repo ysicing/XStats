@@ -10,19 +10,45 @@ struct RestHUDView: View {
   let rest: RestController
   let close: () -> Void
   var wellness: WellnessController? = nil
+  var timer: TimerController? = nil
+  private var mode: TimerMode { timer?.presentedMode ?? .pomodoro }
 
   private var eyeRest: Bool { wellness?.isEyeRestActive == true }
+  /// 护眼休息覆盖后台计时；只有实际显示秒表时固定使用数字。
+  var showsStyleMenu: Bool { eyeRest || mode != .stopwatch }
+  var displayStyle: RestHUDStyle { showsStyleMenu ? rest.settings.restHUDStyle : .countdown }
+
   private var seconds: TimeInterval {
-    eyeRest ? wellness?.eyeRestSecondsRemaining ?? 0 : rest.secondsRemaining
+    if eyeRest { return wellness?.eyeRestSecondsRemaining ?? 0 }
+    if mode == .countdown { return timer?.remaining ?? 0 }
+    if mode == .stopwatch { return timer?.elapsed ?? 0 }
+    return rest.secondsRemaining
   }
   private var duration: TimeInterval {
-    eyeRest ? wellness?.eyeRestDuration ?? 0 : rest.phaseDuration
+    if eyeRest { return wellness?.eyeRestDuration ?? 0 }
+    return mode == .countdown ? timer?.countdown.duration ?? 0 : rest.phaseDuration
   }
   private var progress: Double { duration > 0 ? min(1, max(0, 1 - seconds / duration)) : 0 }
-  private var resting: Bool { eyeRest || rest.phase.isResting }
+  private var resting: Bool { eyeRest || (mode == .pomodoro && rest.phase.isResting) }
   private var accent: Color { resting ? DS.Palette.success : DS.Palette.warning }
-  private var running: Bool { eyeRest || rest.isRunning }
-  private var status: String { tr(running ? "计时中" : rest.primaryAction == .resume ? "已暂停" : "待开始") }
+  private var running: Bool {
+    eyeRest
+      || (mode == .countdown
+        ? timer?.countdown.isRunning == true
+        : mode == .stopwatch ? timer?.stopwatch.isRunning == true : rest.isRunning)
+  }
+  private var resumable: Bool {
+    mode == .countdown
+      ? timer?.countdown.canContinue == true
+      : mode == .stopwatch ? (timer?.elapsed ?? 0) > 0 : rest.primaryAction == .resume
+  }
+  private var actionTitle: String { tr(running ? "暂停" : resumable ? "继续" : "开始") }
+  private var status: String {
+    if !eyeRest && mode == .countdown && timer?.countdown.isFinished == true {
+      return tr("倒计时结束")
+    }
+    return tr(running ? "计时中" : resumable ? "已暂停" : "待开始")
+  }
 
   var body: some View {
     VStack(spacing: 12) {
@@ -32,18 +58,38 @@ struct RestHUDView: View {
         }
         .buttonStyle(RestHUDButtonStyle(size: 24))
         .help(tr("收起迷你 HUD")).accessibilityLabel(tr("收起迷你 HUD"))
-        Label(eyeRest ? tr("护眼休息") : rest.phase.title, systemImage: resting ? "eye" : "timer")
-          .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(.secondary)
+        Label(
+          eyeRest
+            ? (wellness?.breakKind.title ?? tr("休息"))
+            : mode == .pomodoro ? rest.phase.title : mode.title,
+          systemImage: resting ? "eye" : "timer"
+        )
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(.secondary)
         Spacer(minLength: 8)
-        Button {
-          rest.settings.restHUDStyle = rest.settings.restHUDStyle.next
-        } label: {
-          Image(systemName: rest.settings.restHUDStyle.symbol).font(
-            .system(size: 12, weight: .medium))
+        if showsStyleMenu {
+          Menu {
+            Picker(
+              tr("迷你 HUD 样式"),
+              selection: Binding(
+                get: { rest.settings.restHUDStyle },
+                set: { rest.settings.restHUDStyle = $0 }
+              )
+            ) {
+              ForEach(RestHUDStyle.allCases) { style in
+                Label(style.title, systemImage: style.symbol).tag(style)
+              }
+            }.pickerStyle(.inline)
+          } label: {
+            Image(systemName: "slider.horizontal.3").font(.system(size: 12, weight: .medium))
+          }
+          .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+          .frame(width: 24, height: 24)
+          .foregroundStyle(.secondary)
+          .background(DS.Palette.textPrimary.opacity(0.055), in: Circle())
+          .help(tr("迷你 HUD 样式")).accessibilityLabel(tr("迷你 HUD 样式"))
+          .accessibilityValue(rest.settings.restHUDStyle.title)
         }
-        .buttonStyle(RestHUDButtonStyle(size: 24))
-        .help(tr("切换迷你 HUD 样式")).accessibilityLabel(tr("切换迷你 HUD 样式"))
       }
       .frame(height: 24)
       display.frame(maxWidth: .infinity).frame(height: 68)
@@ -52,22 +98,36 @@ struct RestHUDView: View {
         Spacer(minLength: 8)
         if !eyeRest {
           Button {
-            rest.startPause()
+            if mode == .countdown {
+              timer?.startPauseCountdown()
+            } else if mode == .stopwatch {
+              timer?.startPauseStopwatch()
+            } else {
+              rest.startPause()
+            }
           } label: {
             Image(systemName: running ? "pause.fill" : "play.fill").font(
               .system(size: 12, weight: .semibold))
           }
           .buttonStyle(RestHUDButtonStyle(size: 32, primary: true))
-          .help(rest.primaryAction.title).accessibilityLabel(rest.primaryAction.title)
+          .help(actionTitle).accessibilityLabel(actionTitle)
         }
         Button {
-          if eyeRest { wellness?.finishEyeRest(completed: false) } else { rest.endSession() }
+          if eyeRest {
+            wellness?.finishEyeRest(completed: false)
+          } else if mode == .countdown {
+            timer?.resetCountdown()
+          } else if mode == .stopwatch {
+            timer?.resetStopwatch()
+          } else {
+            rest.endSession()
+          }
         } label: {
           Image(systemName: "stop.fill").font(.system(size: 10, weight: .medium))
         }
         .buttonStyle(RestHUDButtonStyle(size: 32))
         .help(tr("结束")).accessibilityLabel(tr("结束"))
-        .disabled(!eyeRest && !rest.canEndSession)
+        .disabled(!eyeRest && mode == .pomodoro && !rest.canEndSession)
       }
       .frame(height: 32)
     }
@@ -80,7 +140,7 @@ struct RestHUDView: View {
   }
 
   @ViewBuilder private var display: some View {
-    switch rest.settings.restHUDStyle {
+    switch displayStyle {
     case .countdown:
       clock(size: 48)
     case .ring:
@@ -104,7 +164,7 @@ struct RestHUDView: View {
   }
 
   private func clock(size: CGFloat) -> some View {
-    Text(WellnessFormat.timer(seconds))
+    Text(TimerFormat.clock(seconds, countingDown: eyeRest || mode != .stopwatch))
       .font(.system(size: size, weight: .medium, design: .rounded)).monospacedDigit()
       .foregroundStyle(.primary).lineLimit(1).minimumScaleFactor(0.8)
   }

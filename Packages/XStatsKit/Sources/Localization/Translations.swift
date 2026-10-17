@@ -216,7 +216,6 @@ extension Translations {
     数字倒计时	Digital countdown
     进度圆环	Progress ring
     进度条	Progress bar
-    切换迷你 HUD 样式	Switch Mini HUD style
     休息声音	Break sounds
     白噪音	White noise
     粉红噪音	Pink noise

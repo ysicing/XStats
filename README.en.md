@@ -52,7 +52,7 @@ Manage Basic and Optional Features separately in Settings → Features.
 
 <p align="center">
   <img src="Assets/readme/monitoring-features-zh-Hans-light.png" width="49%" alt="Basic Features: separate activation and menu bar display controls">
-  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="Optional Features: grouped tools, modules, Focus & Eye Care and calendar">
+  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="Optional Features: grouped tools, modules, Timers and calendar">
 </p>
 
 ### System monitoring
@@ -122,10 +122,10 @@ When Magpie is installed, account quotas, tokens and costs come from its local A
 | **Network diagnostics** | Speed tests, DNS queries, egress checks, public IP location and purity, connectivity probes |
 | **Menu bar calendar** | Chinese lunar calendar, holidays and make-up workdays, almanac, calendar events and reminders |
 | **Audio** | System volume and input/output switching; per-app volume and output on macOS 14.4+, processed locally |
-| **Focus & Eye Care** | Pomodoro timer, multi-display break screens and mini HUD; independent eye-break reminders and local activity statistics |
+| **Timers** | Countdown, Pomodoro and stopwatch; multi-display break screens, mini HUD, independent eye-break reminders and local focus statistics |
 | **Process manager** | Search, sort, group by app and end processes |
 
-Focus & Eye Care combines Pomodoro with independent eye breaks, offering break sounds, local audio, global shortcuts and on-device activity statistics.
+Timers brings together countdown, Pomodoro and stopwatch, with on-demand short and long breaks, optional display sleep, independent eye-break reminders, break sounds and local focus statistics.
 
 Optional tools can be enabled as needed. Privileged actions such as fan control and lid-closed keep-awake require an authorized helper. Cleanup and uninstall require preview and confirmation. Cleanup moves items to Trash or deletes them directly depending on the item type and settings; uninstall uses Trash.
 
@@ -152,7 +152,7 @@ Network connections, AI usage and quotas, history, audio, displays and calendar 
 </p>
 <p align="center">
   <img src="Assets/readme/calendar-zh-Hans-light.png" width="49%" alt="Menu bar calendar">
-  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="Focus & Eye Care: Pomodoro, reminders and today’s activity">
+  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="Timers: Pomodoro, reminders and today’s activity">
 </p>
 
 </details>

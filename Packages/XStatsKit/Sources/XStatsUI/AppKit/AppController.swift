@@ -29,6 +29,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private var wellnessNotifications: WellnessNotifications!
   private var widgetTimer: Timer?
   private let hotKeys = HotKeyCenter()
+  private let displaySleep = DisplaySleepController()
   private var workspaceObservers: [NSObjectProtocol] = []
   private var screenLocked = false
   private var deepLinksReady = false
@@ -63,19 +64,54 @@ public final class AppController: NSObject, NSApplicationDelegate {
     projectPurgeWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
     egressWindow = EgressWindowController(model: model)
     egressWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
-    restWindows = RestWindowController(rest: rest, wellness: model.wellness)
+    restWindows = RestWindowController(rest: rest, wellness: model.wellness, timer: model.timer)
     restMenuBar = RestMenuBarController(
-      rest: rest, wellness: model.wellness,
-      open: { [weak self] in
-        self?.model.openMainWindow(.rest)
-      },
-      toggleHUD: { [weak self] in
-        self?.restWindows.toggleHUD()
+      model: model,
+      showHUD: { [weak self] in self?.restWindows.showHUD() },
+      prepareToShow: { [weak self] in
+        self?.menuBar.dismissPopovers()
+        self?.calendarMenuBar.dismiss()
       })
-    rest.onRestChange = { [weak self] _ in self?.reconcileRestPresentation() }
-    rest.onStateChange = { [weak self] in self?.restMenuBar.update() }
+    model.timer.onStateChange = { [weak self] in self?.restMenuBar.update() }
+    model.timer.onSwitchRequested = { [weak self] in
+      guard let self, !self.restMenuBar.isPresented else { return }
+      self.model.openMainWindow(.rest)
+    }
+    model.timer.onCountdownStarted = { [weak self] in
+      guard let alerts = self?.model.alerts, alerts.authorization == .unknown else { return }
+      alerts.requestAuthorization()
+    }
+    model.timer.onCountdownCompleted = { [weak self] in
+      self?.model.alerts.notifyCountdownCompleted()
+    }
+    rest.onRestChange = { [weak self] active in
+      guard let self else { return }
+      self.reconcileRestPresentation()
+      if active && self.model.settings.timerPreferences.sleepDisplayDuringBreak {
+        self.displaySleep.sleep()
+      }
+    }
+    rest.onStateChange = { [weak self] in
+      self?.model.timer.reconcilePresentation()
+      self?.restMenuBar.update()
+    }
+    model.wellness.onSleepDisplay = { [weak self] in self?.displaySleep.sleep() }
+    displaySleep.onFailure = { [weak self] in
+      guard let self else { return }
+      self.model.openMainWindow(.rest)
+      self.model.wellness.displaySleepFailed = true
+    }
+    model.wellness.onBreakStarted = { [weak self] in
+      guard let alerts = self?.model.alerts, alerts.authorization == .unknown else { return }
+      alerts.requestAuthorization()
+    }
+    model.wellness.onBreakCompleted = { [weak self] in self?.model.alerts.notifyBreakCompleted() }
     model.wellness.onPresentationChange = { [weak self] _ in self?.reconcileRestPresentation() }
-    model.wellness.onStateChange = { [weak self] in self?.restMenuBar.update() }
+    model.wellness.onStateChange = { [weak self] in
+      guard let self else { return }
+      self.model.timer.setCompactReadoutsCovered(self.model.wellness.isEyeRestActive)
+      self.restMenuBar.update()
+    }
     wellnessNotifications = WellnessNotifications(wellness: model.wellness) { [weak self] in
       self?.model.openMainWindow(.rest)
     }
@@ -106,6 +142,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       self?.mainWindow.show(tab: .settingsGeneral)
     }
     model.openMainWindow = { [weak self] tab in
+      self?.restMenuBar.dismiss()
       self?.menuBar.dismissPopovers()
       self?.calendarMenuBar.dismiss()
       self?.mainWindow.show(tab: tab)
@@ -143,11 +180,13 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
     observeWorkspace()
     observeRestEnabled()
+    observeTimerPresentation()
     observeRestDurations()
     observeCleanerSetting()
     observeRestMode()
     observeRestSound()
     rest.sync()
+    model.timer.sync()
     restMenuBar.sync()
     observeModel()
     observeNetworkObservationDemand()
@@ -199,6 +238,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
       calendarMenuBar.update()
       DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
         self?.calendarMenuBar.show()
+      }
+    }
+    if arguments.contains("--show-timer"), model.settings.restEnabled {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+        self?.restMenuBar.show()
       }
     }
     if arguments.contains("--show-window") {
@@ -289,6 +333,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
           await model.networkComponent.prepareForTermination()
           try await model.connectionMonitor.prepareForTermination(preserveFilter: updatingApp)
         }
+        restMenuBar.dismiss()
+        model.timer.stop()
         rest.prepareForTermination()
         await model.wellness.prepareForTermination()
         await XStatsCapture.workspace.prepareForTermination()
@@ -315,6 +361,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     deepLinkTask?.cancel()
     pendingDeepLinks.removeAll()
     Log.app.notice("XStats 自身即将退出，PID \(ProcessInfo.processInfo.processIdentifier)")
+    model.timer.stop()
     rest.prepareForTermination()
     widgetTimer?.invalidate()
     calendarMenuBar.stop()
@@ -434,16 +481,24 @@ public final class AppController: NSObject, NSApplicationDelegate {
   }
 
   private func applyHotKeys() {
-    hotKeys.apply(model.settings.hotKeys)
+    hotKeys.apply(
+      model.isRecordingShortcut
+        ? [:]
+        : model.settings.hotKeys.filter {
+          !$0.key.requiresTimer || model.settings.restEnabled
+        })
     model.hotKeyConflicts = hotKeys.conflicts
     withObservationTracking {
       _ = model.settings.hotKeys
+      _ = model.settings.restEnabled
+      _ = model.isRecordingShortcut
     } onChange: { [weak self] in
       Task { @MainActor in self?.applyHotKeys() }
     }
   }
 
   private func perform(_ action: HotKeyAction) {
+    guard !model.isRecordingShortcut else { return }
     Log.app.info("快捷键：\(action.rawValue, privacy: .public)")
     switch action {
     case .toggleMainWindow:
@@ -462,14 +517,22 @@ public final class AppController: NSObject, NSApplicationDelegate {
     case .openCalendar:
       menuBar.dismissPopovers()
       model.openCalendar()
-    case .startEyeRest:
+    case .sleepDisplay:
+      displaySleep.sleep()
+    case .openTimer, .toggleTimerHUD, .startShortBreak, .startLongBreak, .startEyeRest:
       guard model.settings.restEnabled else {
         model.openMainWindow(.settingsFeatures)
         return
       }
       menuBar.dismissPopovers()
       calendarMenuBar.dismiss()
-      model.wellness.startShortRest()
+      switch action {
+      case .openTimer: restMenuBar.show()
+      case .toggleTimerHUD: restWindows.toggleHUD()
+      case .startShortBreak: model.wellness.startBreak(.short)
+      case .startLongBreak: model.wellness.startBreak(.long)
+      default: model.wellness.startShortRest()
+      }
     }
   }
 
@@ -882,6 +945,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   }
 
   private func pauseForInactivity() {
+    restMenuBar.dismiss()
     menuBar.dismissPopovers()
     model.fans.setPaused(true)
     model.network.setPaused(true)
@@ -893,10 +957,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.appManagement.setPaused(true)
     model.connectionMonitor.setPaused(true)
     model.history.flush()
-    model.wellness.suspend()
+    model.wellness.suspend(preservingRest: true)
     wellnessNotifications.dismiss()
     restWindows.hideRest()
     rest.suspend()
+    model.timer.suspend()
     Task { await model.hub.setPaused(true) }
   }
 
@@ -913,12 +978,28 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.appManagement.setPaused(false)
     model.connectionMonitor.setPaused(false)
     rest.sync()
+    model.timer.resume()
     model.wellness.resume()
     if rest.phase.isResting && rest.isRunning { restWindows.ensureRestVisible() }
     Task {
       await model.hub.setPaused(false)
       await model.fans.reapply()
     }
+  }
+
+  private func observeTimerPresentation() {
+    withObservationTracking {
+      _ = model.isMainWindowVisible
+      _ = model.settings.panelTab
+      _ = model.settings.timerPreferences
+      _ = model.settings.language
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeTimerPresentation() }
+    }
+    model.timer.sync()
+    let pageVisible = model.isMainWindowVisible && model.settings.panelTab == .rest
+    model.timer.setPageVisible(pageVisible)
+    rest.setPageVisible(pageVisible && model.timer.mode == .pomodoro)
   }
 
   private func observeRestEnabled() {
@@ -928,6 +1009,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       Task { @MainActor [weak self] in
         guard let self else { return }
         self.rest.restart()
+        self.model.timer.sync()
         self.restMenuBar.sync()
         if !self.model.settings.restEnabled { self.restWindows.hideHUD() }
         self.observeRestEnabled()

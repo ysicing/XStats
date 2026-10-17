@@ -7,6 +7,12 @@ import Observation
 
 /// 协调独立护眼提醒、番茄阶段和手动护眼休息；提醒不改番茄计时，主动休息才暂停专注。
 @MainActor @Observable final class WellnessController {
+  var displaySleepFailed = false
+  private(set) var breakKind: ManualBreakKind = .eye
+  var onBreakStarted: (() -> Void)?
+  var onBreakCompleted: (() -> Void)?
+  var onSleepDisplay: (() -> Void)?
+  var pausesFocus: Bool { rest.isRunning && rest.phase == .work }
   private(set) var pending: Set<HealthReminderKind> = []
   private(set) var isEyeRestActive = false
   private(set) var eyeRestSecondsRemaining: TimeInterval = 0
@@ -101,6 +107,10 @@ import Observation
   func refresh() {
     guard !preview, !isReconciling else { return }
     guard settings.restEnabled && !systemPaused else {
+      // 息屏仍可用单次截止唤醒完成休息；系统睡眠期间不唤醒电脑，恢复后补结算。
+      if settings.restEnabled, let restDeadline, clock() >= restDeadline {
+        finishEyeRest(completed: true)
+      }
       publishSchedule()
       return
     }
@@ -122,18 +132,28 @@ import Observation
     refresh()
   }
 
-  func startShortRest() {
+  // 保留原护眼动作的调用契约，短休和长休使用显式类型。
+  func startShortRest() { startBreak(.eye) }
+
+  func startBreak(_ kind: ManualBreakKind) {
     guard settings.restEnabled, !isEyeRestActive, !systemPaused, !preview else { return }
     onDismissReminder?()
     pauseFocusForExercise()
+    if kind != .eye && rest.phase.isResting && rest.isRunning {
+      // 手动休息不推进或重置番茄阶段，暂停已有休息以免重复累计。
+      rest.setRunning(false)
+    }
+    breakKind = kind
     embeddedInRest = rest.phase.isResting && rest.isRunning
-    let duration = Double(settings.wellnessPreferences.normalized.breakSeconds)
+    let duration = kind.duration(settings: settings)
     eyeRestDuration = embeddedInRest ? min(duration, pomodoroRestRemaining) : duration
     restDeadline = clock() + eyeRestDuration
     eyeRestSegmentStart = clock()
     eyeRestSegmentDate = date()
     isEyeRestActive = true
     refresh()
+    onBreakStarted?()
+    if settings.timerPreferences.sleepDisplayDuringBreak { onSleepDisplay?() }
   }
 
   func finishEyeRest(completed: Bool) {
@@ -146,19 +166,31 @@ import Observation
     eyeRestDuration = 0
     embeddedInRest = false
     publishSchedule()
+    if completed { onBreakCompleted?() }
   }
 
   func continueFocus() {
     guard canContinueFocus, !isEyeRestActive, settings.restEnabled else { return }
-    canContinueFocus = false
     rest.setRunning(true)
+    // 计时互斥确认被取消时仍可恢复原专注，不能提前隐藏入口。
+    if rest.isRunning { canContinueFocus = false }
   }
 
-  func suspend() {
-    guard !systemPaused else { return }
+  func suspend(preservingRest: Bool = false) {
+    guard !systemPaused else {
+      if !preservingRest { finishEyeRest(completed: false) }
+      return
+    }
     systemPaused = true
+    if preservingRest && isEyeRestActive && embeddedInRest {
+      // 番茄活动将在休眠处理时截断；之后的主动休息由自己的截止点结算。
+      embeddedInRest = false
+      eyeRestSegmentStart = clock()
+      eyeRestSegmentDate = date()
+      rest.setRunning(false)
+    }
     onDismissReminder?()
-    finishEyeRest(completed: false)
+    if !preservingRest { finishEyeRest(completed: false) }
     schedule.suspend(at: clock())
     publishSchedule()
   }
@@ -297,9 +329,13 @@ import Observation
     let midnight = pageVisible ? tomorrow.map { now + $0.timeIntervalSince(date()) } : nil
     if pageVisible && !Calendar.current.isDate(summaryDay, inSameDayAs: date()) { reloadSummary() }
     nextWake =
-      settings.restEnabled && !systemPaused
-      ? [schedule.nextWake(focusBreakAt: focusBreakAt), eyeRestDeadline, midnight].compactMap { $0 }
-        .min() : nil
+      !settings.restEnabled
+      ? nil
+      : systemPaused
+        ? eyeRestDeadline
+        : [schedule.nextWake(focusBreakAt: focusBreakAt), eyeRestDeadline, midnight].compactMap {
+          $0
+        }.min()
     if schedulesTimers {
       if let nextWake {
         if scheduledWake.map({ abs($0 - nextWake) > 0.01 }) ?? true {
@@ -333,6 +369,7 @@ import Observation
       }
     }
     let present = isEyeRestActive && !systemPaused
+    rest.setManualRestVisible(present)
     if present != lastPresentation {
       lastPresentation = present
       onPresentationChange?(present)
@@ -341,8 +378,12 @@ import Observation
   }
 
   /// 只注入演示值，不启用提醒、计时器或写入本机活动库。
-  func showPreview(activities: [WellnessActivity], at now: Date, eyeRest: Bool = false) {
+  func showPreview(
+    activities: [WellnessActivity], at now: Date, eyeRest: Bool = false,
+    kind: ManualBreakKind = .eye
+  ) {
     preview = true
+    breakKind = kind
     isEyeRestActive = eyeRest
     eyeRestDuration = eyeRest ? 60 : 0
     eyeRestSecondsRemaining = eyeRest ? 42 : 0

@@ -376,7 +376,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .battery: tr("能耗")
     case .processes: tr("进程")
     case .keepAwake: tr("防休眠")
-    case .rest: tr("专注与护眼")
+    case .rest: tr("计时")
     case .cleaner: tr("清理")
     case .uninstaller: tr("应用")
     case .startupItems: tr("启动项")
@@ -556,6 +556,12 @@ public final class AppSettings {
     didSet {
       defaults.set(restEnabled, forKey: Keys.restEnabled)
       if !restEnabled && panelTab == .rest { panelTab = .settingsFeatures }
+    }
+  }
+  public var timerPreferences: TimerPreferences {
+    didSet {
+      defaults.set(
+        try? JSONEncoder().encode(timerPreferences.normalized), forKey: "timerPreferences")
     }
   }
   public var restWorkMinutes: Int {
@@ -959,6 +965,10 @@ public final class AppSettings {
     self.defaults = defaults
     let isRestEnabled = defaults.bool(forKey: Keys.restEnabled)
     restEnabled = isRestEnabled
+    timerPreferences =
+      defaults.data(forKey: "timerPreferences")
+      .flatMap { try? JSONDecoder().decode(TimerPreferences.self, from: $0) }?.normalized
+      ?? TimerPreferences()
     restWorkMinutes =
       Self.restWorkOptions.contains(defaults.integer(forKey: Keys.restWorkMinutes))
       ? defaults.integer(forKey: Keys.restWorkMinutes) : 25

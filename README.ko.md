@@ -52,7 +52,7 @@ XStats는 Swift, AppKit, SwiftUI로 만든 무료 오픈소스 네이티브 앱�
 
 <p align="center">
   <img src="Assets/readme/monitoring-features-zh-Hans-light.png" width="49%" alt="기본 기능: 활성화와 메뉴 막대 표시를 별도로 설정">
-  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="선택 기능: 도구, 모듈, 집중과 눈 휴식, 달력을 분류">
+  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="선택 기능: 도구, 모듈, 타이머, 달력을 분류">
 </p>
 
 ### 시스템 모니터링
@@ -122,10 +122,10 @@ Magpie가 설치되어 있으면 로컬 API에서 각 계정의 한도, 토큰, 
 | **네트워크 진단** | 속도 테스트, DNS 조회, 외부 연결 경로 검사, 공인 IP 위치 및 순도, 연결 탐색 |
 | **메뉴 막대 달력** | 음력, 중국 공휴일과 대체 근무일, 역서, 캘린더 일정과 미리 알림 |
 | **오디오** | 시스템 음량과 입출력 기기 전환. macOS 14.4 이상에서 앱별 음량과 출력 조절(기기에서만 처리) |
-| **집중과 눈 휴식** | 뽀모도로, 여러 디스플레이의 휴식 화면, 미니 HUD. 독립적인 눈 휴식 알림과 로컬 활동 통계 |
+| **타이머** | 카운트다운, 뽀모도로, 스톱워치. 여러 화면의 휴식 표시, 미니 HUD, 독립적인 눈 휴식 알림과 로컬 집중 통계 |
 | **프로세스 관리** | 검색, 정렬, 앱별 그룹화, 프로세스 종료 |
 
-집중과 눈 휴식은 뽀모도로와 독립적인 눈 휴식을 결합하며, 휴식 소리, 로컬 오디오, 전역 단축키와 기기 내 활동 통계를 지원합니다.
+타이머는 카운트다운, 뽀모도로, 스톱워치와 함께 원할 때 시작하는 짧은 휴식과 긴 휴식, 휴식 중 화면 끄기, 눈 휴식 알림, 휴식 소리와 로컬 집중 통계를 제공합니다.
 
 선택 기능은 필요에 따라 켤 수 있습니다. 팬 제어와 덮개를 닫은 상태의 잠자기 방지에는 보조 도구 설치와 권한 허용이 필요합니다. 정리와 앱 제거는 미리보기와 확인 후 실행됩니다. 정리는 항목 유형과 설정에 따라 휴지통으로 옮기거나 직접 삭제하며, 앱 제거는 휴지통을 사용합니다.
 
@@ -152,7 +152,7 @@ Magpie가 설치되어 있으면 로컬 API에서 각 계정의 한도, 토큰, 
 </p>
 <p align="center">
   <img src="Assets/readme/calendar-zh-Hans-light.png" width="49%" alt="메뉴 막대 달력">
-  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="집중과 눈 휴식: 뽀모도로, 건강 알림, 오늘의 활동">
+  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="타이머: 뽀모도로, 건강 알림, 오늘의 활동">
 </p>
 
 </details>

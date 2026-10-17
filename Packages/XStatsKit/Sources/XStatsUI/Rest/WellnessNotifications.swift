@@ -85,7 +85,7 @@ import UserNotifications
     generation += 1
     let postedGeneration = generation
     let content = UNMutableNotificationContent()
-    content.title = tr("专注与护眼")
+    content.title = tr("计时")
     content.body = tr("看看远处，活动一下肩颈。")
     content.categoryIdentifier = "XStats.wellness.rest"
     content.userInfo = [

@@ -636,12 +636,6 @@ private func noonClock(_ now: @escaping () -> UInt64) -> () -> Date {
     #expect(window.frame.origin == origin)
   }
 
-  @Test func hudStylesCycleInAStableOrder() {
-    #expect(RestHUDStyle.countdown.next == .ring)
-    #expect(RestHUDStyle.ring.next == .hourglass)
-    #expect(RestHUDStyle.hourglass.next == .countdown)
-  }
-
   @Test func disabledPomodoroDoesNotRestoreItsPage() {
     let suite = "RestRouteTests.\(UUID())"
     let defaults = UserDefaults(suiteName: suite)!

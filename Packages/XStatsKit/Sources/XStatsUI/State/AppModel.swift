@@ -17,6 +17,7 @@ public final class AppModel {
   let networkComponent: NetworkComponentController
   let networkGeography = NetworkGeographyController()
   public let settings: AppSettings
+  let timer: TimerController
   let rest: RestController
   let wellness: WellnessController
   let calendarAgenda = CalendarAgendaController()
@@ -51,6 +52,8 @@ public final class AppModel {
 
   public var isMainWindowVisible = false
   /// 被其他应用占用、没能注册的快捷键
+  var isRecordingShortcut = false
+  var timerShortcutBlockers: Set<UUID> = []
   public var hotKeyConflicts: Set<HotKeyAction> = []
   /// 当前打开的菜单栏详情弹窗；合并模式的弹窗切到某一项时也是这一项
   public var openPopover: MenuBarItem?
@@ -118,6 +121,7 @@ public final class AppModel {
     networkComponent = NetworkComponentController(backend: observationBackend)
     audio = AudioController(defaults: settings.audioDefaults)
     rest = RestController(settings: settings)
+    timer = TimerController(rest: rest, settings: settings)
     wellness = WellnessController(
       rest: rest, settings: settings, store: WellnessActivityStore(url: settings.wellnessStorageURL)
     )

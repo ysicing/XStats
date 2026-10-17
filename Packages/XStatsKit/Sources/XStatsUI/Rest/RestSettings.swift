@@ -47,29 +47,34 @@ public enum RestHUDStyle: String, CaseIterable, Identifiable, Sendable {
     }
   }
 
-  var next: Self {
-    switch self {
-    case .countdown: .ring
-    case .ring: .hourglass
-    case .hourglass: .countdown
-    }
-  }
 }
 
 /// 与菜单栏日历一致：功能页只保留模块开关，详细选项由独立弹出层承载。
 struct RestOptionsButton: View {
+  @Environment(AppModel.self) private var model
+  @State private var shortcutBlocker = UUID()
+  var forBreaks = false
   @State private var isPresented = false
 
   var body: some View {
     Button(tr("设置")) { isPresented = true }
       .buttonStyle(DSButtonStyle(kind: .secondary))
       .popover(isPresented: $isPresented, arrowEdge: .top) {
-        RestOptionsPopover()
+        RestOptionsPopover(forBreaks: forBreaks)
       }
+      .onChange(of: isPresented) { _, presented in
+        if presented {
+          model.timerShortcutBlockers.insert(shortcutBlocker)
+        } else {
+          model.timerShortcutBlockers.remove(shortcutBlocker)
+        }
+      }
+      .onDisappear { model.timerShortcutBlockers.remove(shortcutBlocker) }
   }
 }
 
 struct RestOptionsPopover: View {
+  var forBreaks = false
   @Environment(AppModel.self) private var model
   @State private var soundPreviewFailed = false
   @State private var selectsAudio = false
@@ -84,123 +89,152 @@ struct RestOptionsPopover: View {
 
     ScrollView {
       VStack(alignment: .leading, spacing: DS.Space.s4) {
-        SettingsGroup(caption: tr("专注")) {
-          GroupRow(showsDivider: false) {
-            SettingRow(title: tr("专注时长")) {
-              Picker(tr("专注时长"), selection: $settings.restWorkMinutes) {
-                ForEach(AppSettings.restWorkOptions, id: \.self) { minutes in
-                  Text(tr("\(minutes) 分钟")).tag(minutes)
-                }
-              }
-              .labelsHidden()
-              .pickerStyle(.menu)
-              .controlSize(.small)
-              .fixedSize()
-              .frame(width: 160, alignment: .trailing)
-            }
-          }
-          GroupRow {
-            SettingRow(title: tr("轮间休息"), subtitle: tr("每轮专注结束后的休息。")) {
-              Picker(tr("轮间休息"), selection: $settings.restBreakMinutes) {
-                ForEach(AppSettings.restBreakOptions, id: \.self) { minutes in
-                  Text(tr("\(minutes) 分钟")).tag(minutes)
-                }
-              }
-              .labelsHidden()
-              .pickerStyle(.menu)
-              .controlSize(.small)
-              .fixedSize()
-              .frame(width: 160, alignment: .trailing)
-            }
-          }
-          GroupRow {
-            SettingRow(title: tr("长休息"), subtitle: tr("每完成 4 轮专注后进入长休")) {
-              Picker(tr("长休息"), selection: $settings.restLongBreakMinutes) {
-                ForEach(AppSettings.restLongBreakOptions, id: \.self) { minutes in
-                  Text(tr("\(minutes) 分钟")).tag(minutes)
-                }
-              }
-              .labelsHidden()
-              .pickerStyle(.menu)
-              .controlSize(.small)
-              .fixedSize()
-              .frame(width: 160, alignment: .trailing)
-            }
-          }
-          GroupRow {
-            SettingRow(title: tr("休息后自动开始下一轮"), subtitle: tr("关闭时，休息结束后由你开始下一轮。")) {
-              DSToggle(isOn: $settings.restAutomaticallyStartsNextRound, label: tr("休息后自动开始下一轮"))
-            }
-          }
-          GroupRow {
-            SettingRow(title: tr("休息声音"), subtitle: tr("试听 5 秒后自动停止")) {
-              HStack(spacing: DS.Space.s2) {
-                if settings.restSound != .off
-                  && (settings.restSound != .custom || settings.restCustomAudio != nil)
-                {
-                  Button {
-                    if model.rest.isPreviewingSound {
-                      model.rest.stopSoundPreview()
-                    } else {
-                      soundPreviewFailed = !model.rest.startSoundPreview()
-                    }
-                  } label: {
-                    Image(systemName: model.rest.isPreviewingSound ? "stop.fill" : "play.fill")
-                      .font(.system(size: 11, weight: .semibold))
-                      .frame(width: 24, height: 24)
-                      .contentShape(Rectangle())
-                  }
-                  .buttonStyle(.borderless)
-                  .controlSize(.small)
-                  .accessibilityLabel(tr(model.rest.isPreviewingSound ? "停止试听" : "试听"))
-                  .help(tr(model.rest.isPreviewingSound ? "停止试听" : "试听"))
-                  .disabled(!model.rest.canPreviewSound)
-                }
-                Picker(tr("休息声音"), selection: $settings.restSound) {
-                  ForEach(RestSound.allCases) { sound in
-                    Text(sound.title).tag(sound)
+        SettingsGroup(caption: tr(forBreaks ? "休息设置" : "番茄钟")) {
+          if !forBreaks {
+            GroupRow(showsDivider: false) {
+              SettingRow(title: tr("专注时长")) {
+                Picker(tr("专注时长"), selection: $settings.restWorkMinutes) {
+                  ForEach(AppSettings.restWorkOptions, id: \.self) { minutes in
+                    Text(tr("\(minutes) 分钟")).tag(minutes)
                   }
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .controlSize(.small)
                 .fixedSize()
+                .frame(width: 160, alignment: .trailing)
               }
-              .frame(width: 160, alignment: .trailing)
             }
-          }
-          if settings.restSound == .custom {
             GroupRow {
-              SettingRow(
-                title: tr("音频文件"),
-                subtitle: settings.restCustomAudio?.displayName ?? tr("选择本地音频，休息时循环播放。")
-              ) {
-                Button(
-                  tr(importsAudio ? "正在导入…" : settings.restCustomAudio == nil ? "选择文件…" : "更换文件…")
-                ) {
-                  model.rest.stopSoundPreview()
-                  selectsAudio = true
+              SettingRow(title: tr("轮间休息"), subtitle: tr("每轮专注结束后的休息。")) {
+                Picker(tr("轮间休息"), selection: $settings.restBreakMinutes) {
+                  ForEach(AppSettings.restBreakOptions, id: \.self) { minutes in
+                    Text(tr("\(minutes) 分钟")).tag(minutes)
+                  }
                 }
-                .controlSize(.small).disabled(importsAudio)
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .fixedSize()
+                .frame(width: 160, alignment: .trailing)
+              }
+            }
+            GroupRow {
+              SettingRow(title: tr("长休息")) {
+                Picker(tr("长休息"), selection: $settings.restLongBreakMinutes) {
+                  ForEach(AppSettings.restLongBreakOptions, id: \.self) { minutes in
+                    Text(tr("\(minutes) 分钟")).tag(minutes)
+                  }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .fixedSize()
+                .frame(width: 160, alignment: .trailing)
+              }
+            }
+            GroupRow {
+              SettingRow(title: tr("长休息间隔")) {
+                Picker(tr("长休息间隔"), selection: $settings.timerPreferences.longBreakInterval) {
+                  ForEach(1...12, id: \.self) { rounds in
+                    Text(tr("每 \(WellnessFormat.number(rounds)) 轮")).tag(rounds)
+                  }
+                }.labelsHidden().pickerStyle(.menu).controlSize(.small).fixedSize()
+              }
+            }
+            GroupRow {
+              SettingRow(title: tr("目标轮数"), subtitle: tr("完成目标后的休息结束时停止自动循环。")) {
+                Picker(tr("目标轮数"), selection: $settings.timerPreferences.targetRounds) {
+                  Text(tr("不限")).tag(0)
+                  ForEach(1...24, id: \.self) { rounds in
+                    Text(WellnessFormat.number(rounds)).tag(rounds)
+                  }
+                }.labelsHidden().pickerStyle(.menu).controlSize(.small).fixedSize()
+              }
+            }
+            GroupRow {
+              SettingRow(title: tr("休息后自动开始下一轮"), subtitle: tr("关闭时，休息结束后由你开始下一轮。")) {
+                DSToggle(isOn: $settings.restAutomaticallyStartsNextRound, label: tr("休息后自动开始下一轮"))
               }
             }
           }
-          GroupRow {
-            SettingRow(title: tr("迷你 HUD 样式")) {
-              Picker(tr("迷你 HUD 样式"), selection: $settings.restHUDStyle) {
-                ForEach(RestHUDStyle.allCases) { style in
-                  Text(style.title).tag(style)
+          if forBreaks {
+            GroupRow(showsDivider: false) {
+              SettingRow(title: tr("休息时关闭显示器"), subtitle: tr("唤亮屏幕后休息继续，结束时不会主动点亮屏幕。")) {
+                DSToggle(
+                  isOn: $settings.timerPreferences.sleepDisplayDuringBreak, label: tr("休息时关闭显示器"))
+              }
+            }
+            GroupRow {
+              SettingRow(title: tr("休息声音"), subtitle: tr("试听 5 秒后自动停止")) {
+                HStack(spacing: DS.Space.s2) {
+                  if settings.restSound != .off
+                    && (settings.restSound != .custom || settings.restCustomAudio != nil)
+                  {
+                    Button {
+                      if model.rest.isPreviewingSound {
+                        model.rest.stopSoundPreview()
+                      } else {
+                        soundPreviewFailed = !model.rest.startSoundPreview()
+                      }
+                    } label: {
+                      Image(systemName: model.rest.isPreviewingSound ? "stop.fill" : "play.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .accessibilityLabel(tr(model.rest.isPreviewingSound ? "停止试听" : "试听"))
+                    .help(tr(model.rest.isPreviewingSound ? "停止试听" : "试听"))
+                    .disabled(!model.rest.canPreviewSound)
+                  }
+                  Picker(tr("休息声音"), selection: $settings.restSound) {
+                    ForEach(RestSound.allCases) { sound in
+                      Text(sound.title).tag(sound)
+                    }
+                  }
+                  .labelsHidden()
+                  .pickerStyle(.menu)
+                  .controlSize(.small)
+                  .fixedSize()
+                }
+                .frame(width: 160, alignment: .trailing)
+              }
+            }
+            if settings.restSound == .custom {
+              GroupRow {
+                SettingRow(
+                  title: tr("音频文件"),
+                  subtitle: settings.restCustomAudio?.displayName ?? tr("选择本地音频，休息时循环播放。")
+                ) {
+                  Button(
+                    tr(importsAudio ? "正在导入…" : settings.restCustomAudio == nil ? "选择文件…" : "更换文件…")
+                  ) {
+                    model.rest.stopSoundPreview()
+                    selectsAudio = true
+                  }
+                  .controlSize(.small).disabled(importsAudio)
                 }
               }
-              .labelsHidden()
-              .pickerStyle(.menu)
-              .controlSize(.small)
-              .fixedSize()
-              .frame(width: 160, alignment: .trailing)
+            }
+            GroupRow {
+              SettingRow(title: tr("迷你 HUD 样式")) {
+                Picker(tr("迷你 HUD 样式"), selection: $settings.restHUDStyle) {
+                  ForEach(RestHUDStyle.allCases) { style in
+                    Text(style.title).tag(style)
+                  }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .fixedSize()
+                .frame(width: 160, alignment: .trailing)
+              }
             }
           }
         }
-        WellnessPreferencesSettings()
+        if forBreaks { WellnessPreferencesSettings() }
       }
       .padding(DS.Space.s4)
     }
@@ -208,7 +242,8 @@ struct RestOptionsPopover: View {
     .frame(width: 480)
     .frame(
       height: isSnapshot
-        ? nil : min(680, max(300, (NSScreen.main?.visibleFrame.height ?? 800) - 120))
+        ? nil
+        : min(forBreaks ? 460 : 470, max(300, (NSScreen.main?.visibleFrame.height ?? 800) - 120))
     )
     .fixedSize(horizontal: false, vertical: isSnapshot)
     .background(DS.Palette.background)

@@ -977,7 +977,7 @@ private func isolatedDefaults() -> UserDefaults {
 @Suite struct HotKeyTests {
   @Test func eyeRestActionKeepsExistingCarbonIDs() throws {
     let calendar = try #require(HotKeyAction(rawValue: "openCalendar"))
-    #expect(HotKeyAction.allCases.last == .startEyeRest)
+    #expect(HotKeyAction.allCases.contains(.startEyeRest))
     #expect(HotKeyAction.startEyeRest.carbonID == 6)
     #expect(calendar.carbonID == 5)
     #expect(HotKeyAction.toggleMainWindow.carbonID == 1)

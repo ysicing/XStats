@@ -52,7 +52,7 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
 
 <p align="center">
   <img src="Assets/readme/monitoring-features-zh-Hans-light.png" width="49%" alt="基础功能：启用开关与菜单栏展示分别设置">
-  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="可选功能：工具、常用模块、专注与护眼和日历分组管理">
+  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="可选功能：工具、常用模块、计时和日历分组管理">
 </p>
 
 ### 系统监控
@@ -122,10 +122,10 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
 | **网络诊断** | 测速、DNS 查询、出口检测、公网 IP 归属地与纯净度、连通性探测 |
 | **菜单栏日历** | 农历、节假日与调休、黄历，以及系统日程和提醒事项 |
 | **音频** | 系统音量与输入 / 输出设备切换；macOS 14.4+ 可按应用调节音量与输出，仅在本机处理 |
-| **专注与护眼** | 番茄计时、多屏休息幕布与迷你 HUD；独立护眼提醒与本机活动统计 |
+| **计时** | 倒计时、番茄钟与秒表；多屏休息幕布、迷你 HUD、独立护眼提醒与本机专注统计 |
 | **进程管理** | 搜索、排序、按应用分组与结束进程 |
 
-专注与护眼结合番茄计时和独立护眼休息，支持休息声音、本地音频、全局快捷键与本机活动统计。
+计时支持倒计时、番茄钟和秒表，支持随时短休或长休、休息时息屏，以及独立护眼提醒、休息声音与本机专注统计。
 
 可选工具可按需启用。风扇控制、合盖防休眠等特权操作需要安装并授权辅助工具；清理与卸载会先预览并请求确认；清理会按项目类型和设置移到废纸篓或直接删除，卸载使用废纸篓。
 
@@ -152,7 +152,7 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
 </p>
 <p align="center">
   <img src="Assets/readme/calendar-zh-Hans-light.png" width="49%" alt="菜单栏日历">
-  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="专注与护眼：番茄计时、健康提醒与今日概览">
+  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="计时：番茄计时、健康提醒与今日概览">
 </p>
 
 </details>

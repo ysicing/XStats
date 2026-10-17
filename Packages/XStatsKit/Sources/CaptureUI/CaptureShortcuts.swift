@@ -15,6 +15,7 @@ import OSLog
   private let defaults: UserDefaults
   private let hotKeys = CaptureHotKeys()
   private var editing = false
+  private var externalRecording = false
   private static let logger = Logger(
     subsystem: CaptureRequest.bundleIdentifier, category: "shortcuts")
   var onAction: (CaptureRequest.Action) -> Void {
@@ -71,7 +72,7 @@ import OSLog
     }
     guard !enabled else { return }
     enabled = true
-    guard !editing else { return }
+    guard !editing && !externalRecording else { return }
     conflict = !valid(bindings) || !hotKeys.apply(bindings)
     if conflict {
       Self.logger.error("Global shortcut registration failed")
@@ -86,9 +87,19 @@ import OSLog
       hotKeys.clear()
       return
     }
-    guard enabled else { return }
+    guard enabled && !externalRecording else { return }
     conflict = !valid(bindings) || !hotKeys.apply(bindings)
     if conflict { Self.logger.error("Global shortcut registration failed after editing") }
+  }
+  /// 宿主录制其他快捷键时临时释放注册，不改变用户绑定或启用状态。
+  public func setExternalRecording(_ value: Bool) {
+    guard externalRecording != value else { return }
+    externalRecording = value
+    if value {
+      hotKeys.clear()
+    } else if enabled && !editing {
+      conflict = !valid(bindings) || !hotKeys.apply(bindings)
+    }
   }
   public func stop() { setEnabled(false) }
 }
@@ -96,7 +107,12 @@ import OSLog
 /// Both hosts use the same native recorder and conflict feedback.
 public struct CaptureShortcutSettingsView: View {
   @ObservedObject private var shortcuts: CaptureShortcuts
-  public init(shortcuts: CaptureShortcuts) { self.shortcuts = shortcuts }
+  private let onRecordingChanged: (Bool) -> Void
+  public init(shortcuts: CaptureShortcuts, onRecordingChanged: @escaping (Bool) -> Void = { _ in })
+  {
+    self.shortcuts = shortcuts
+    self.onRecordingChanged = onRecordingChanged
+  }
   public var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
@@ -104,7 +120,10 @@ public struct CaptureShortcutSettingsView: View {
         Spacer()
         CaptureShortcutRecorder(
           value: shortcuts.screenshotKey, onChange: { shortcuts.setShortcut($0, for: .screenshot) },
-          onRecordingChanged: shortcuts.setEditing
+          onRecordingChanged: { value in
+            shortcuts.setEditing(value)
+            onRecordingChanged(value)
+          }
         )
         .frame(maxWidth: 240).fixedSize(horizontal: false, vertical: true)
       }
@@ -113,7 +132,10 @@ public struct CaptureShortcutSettingsView: View {
         Spacer()
         CaptureShortcutRecorder(
           value: shortcuts.recordingKey, onChange: { shortcuts.setShortcut($0, for: .record) },
-          onRecordingChanged: shortcuts.setEditing
+          onRecordingChanged: { value in
+            shortcuts.setEditing(value)
+            onRecordingChanged(value)
+          }
         )
         .frame(maxWidth: 240).fixedSize(horizontal: false, vertical: true)
       }

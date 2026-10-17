@@ -6,6 +6,7 @@ import Localization
 import SwiftUI
 
 struct CaptureFeatureSettings: View {
+  @Environment(AppModel.self) private var model
   @ObservedObject private var integration: XStatsCapture
   @ObservedObject private var workspace: CaptureWorkspace
   @Environment(\.isSnapshot) private var isSnapshot
@@ -66,7 +67,12 @@ struct CaptureFeatureSettings: View {
               .dsFont(.xs)
             } else {
               if workspace.enabled {
-                CaptureShortcutSettingsView(shortcuts: workspace.shortcuts)
+                CaptureShortcutSettingsView(
+                  shortcuts: workspace.shortcuts,
+                  onRecordingChanged: {
+                    if $0 { ShortcutRecordingSession.shared.cancel() }
+                    model.isRecordingShortcut = $0
+                  })
                 Text(tr("快捷键在 XStats 运行时生效。"))
                   .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
               }

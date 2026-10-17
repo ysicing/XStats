@@ -253,7 +253,7 @@ struct HotKeySettings: View {
 
   var body: some View {
     let settings = model.settings
-    let actions = HotKeyAction.allCases.filter { $0 != .startEyeRest || settings.restEnabled }
+    let actions = HotKeyAction.allCases.filter { !$0.requiresTimer || settings.restEnabled }
     SettingsGroup(caption: tr("全局快捷键（在任何应用中都能使用，需要包含 ⌘、⌥ 或 ⌃）")) {
       ForEach(Array(actions.enumerated()), id: \.element) { index, action in
         let subtitle: String? =
@@ -282,7 +282,9 @@ struct HotKeySettings: View {
 
 /// 点一下开始录制，按下组合键完成；Esc 取消，⌫ 清除
 struct ShortcutRecorder: View {
+  @Environment(AppModel.self) private var model
   @Binding var hotKey: HotKey?
+  @State private var recordingID = UUID()
   @State private var recording = false
   @State private var monitor: Any?
 
@@ -302,10 +304,15 @@ struct ShortcutRecorder: View {
       }
     }
     .onDisappear { stop() }
+    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification))
+    { _ in stop() }
   }
 
   private func start() {
+    ShortcutRecordingSession.shared.begin(recordingID, stop: stop)
     recording = true
+    model.isRecordingShortcut = true
+    XStatsCapture.workspace.shortcuts.setExternalRecording(true)
     monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
       switch Int(event.keyCode) {
       case 53:  // Esc
@@ -330,6 +337,11 @@ struct ShortcutRecorder: View {
   }
 
   private func stop() {
+    ShortcutRecordingSession.shared.end(recordingID)
+    if recording {
+      model.isRecordingShortcut = false
+      XStatsCapture.workspace.shortcuts.setExternalRecording(false)
+    }
     recording = false
     if let monitor { NSEvent.removeMonitor(monitor) }
     monitor = nil

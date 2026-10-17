@@ -5,6 +5,12 @@ import Localization
 /// 可以绑定全局快捷键的操作
 public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable {
   case toggleMainWindow, showProcesses, toggleKeepAwake, purgeMemory, openCalendar, startEyeRest
+  // 追加新动作，保持现有 Carbon 编号和保存的标识不变。
+  case openTimer, toggleTimerHUD, startShortBreak, startLongBreak, sleepDisplay
+
+  var requiresTimer: Bool {
+    [.startEyeRest, .openTimer, .toggleTimerHUD, .startShortBreak, .startLongBreak].contains(self)
+  }
 
   public var id: String { rawValue }
 
@@ -16,6 +22,11 @@ public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable 
     case .purgeMemory: tr("释放内存")
     case .openCalendar: tr("打开日历")
     case .startEyeRest: tr("开始护眼休息")
+    case .openTimer: tr("打开计时弹窗")
+    case .toggleTimerHUD: tr("显示 / 隐藏迷你 HUD")
+    case .startShortBreak: tr("开始短休息")
+    case .startLongBreak: tr("开始长休息")
+    case .sleepDisplay: tr("关闭显示器")
     }
   }
 
@@ -113,7 +124,13 @@ final class HotKeyCenter {
     for reference in references.values { UnregisterEventHotKey(reference) }
     references = [:]
     conflicts = []
-    for (action, hotKey) in bindings where hotKey.isValid {
+    // 同组重复绑定全部标记冲突，避免字典遍历顺序决定哪个动作被触发。
+    let duplicates = Self.duplicateActions(in: bindings)
+    conflicts = duplicates
+    for action in HotKeyAction.allCases {
+      guard let hotKey = bindings[action], hotKey.isValid, !duplicates.contains(action) else {
+        continue
+      }
       var reference: EventHotKeyRef?
       let id = EventHotKeyID(signature: Self.signature, id: action.carbonID)
       let status = RegisterEventHotKey(
@@ -125,6 +142,14 @@ final class HotKeyCenter {
         conflicts.insert(action)
       }
     }
+  }
+
+  static func duplicateActions(in bindings: [HotKeyAction: HotKey]) -> Set<HotKeyAction> {
+    let groups = Dictionary(grouping: bindings.keys) { action in
+      let key = bindings[action]!
+      return UInt64(key.keyCode) << 32 | UInt64(key.carbonModifiers)
+    }
+    return Set(groups.values.filter { $0.count > 1 }.flatMap { $0 })
   }
 
   private static let signature: OSType = 0x4F50_5354  // "OPST"
@@ -147,5 +172,28 @@ final class HotKeyCenter {
         MainActor.assumeIsolated { HotKeyCenter.current?.onAction(action) }
         return noErr
       }, 1, &spec, nil, &handler)
+  }
+}
+
+/// 多行录制器共用单一所有者，切换行时先撤销旧监听，再接收新的组合键。
+@MainActor final class ShortcutRecordingSession {
+  static let shared = ShortcutRecordingSession()
+  private var owner: UUID?
+  private var stopOwner: (() -> Void)?
+  func begin(_ id: UUID, stop: @escaping () -> Void) {
+    cancel()
+    owner = id
+    stopOwner = stop
+  }
+  func end(_ id: UUID) {
+    guard owner == id else { return }
+    owner = nil
+    stopOwner = nil
+  }
+  func cancel() {
+    let stop = stopOwner
+    owner = nil
+    stopOwner = nil
+    stop?()
   }
 }

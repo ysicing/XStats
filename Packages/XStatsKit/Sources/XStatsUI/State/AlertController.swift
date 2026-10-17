@@ -422,6 +422,29 @@ public final class AlertController: NSObject {
       UNNotificationRequest(identifier: "xstats.\(kind.rawValue)", content: content, trigger: nil))
   }
 
+  /// 倒计时的截止回调只触发一次；采用普通通知，遵守系统勿扰与声音设置。
+  func notifyCountdownCompleted() {
+    guard settings.restEnabled, let center else { return }
+    let content = UNMutableNotificationContent()
+    content.title = tr("倒计时结束")
+    content.body = tr("设定的时间已到。")
+    content.sound = .default
+    content.userInfo = ["tab": PanelTab.rest.rawValue]
+    center.add(
+      UNNotificationRequest(identifier: "XStats.countdown", content: content, trigger: nil))
+  }
+
+  func notifyBreakCompleted() {
+    guard settings.restEnabled, let center else { return }
+    let content = UNMutableNotificationContent()
+    content.title = tr("休息结束")
+    content.body = tr("可以继续专注了。")
+    content.sound = .default
+    content.userInfo = ["tab": PanelTab.rest.rawValue]
+    center.add(
+      UNNotificationRequest(identifier: "XStats.manualBreak", content: content, trigger: nil))
+  }
+
   private enum Keys {
     static let batteryNotified = "alertBatteryHealthNotified"
   }

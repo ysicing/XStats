@@ -58,6 +58,30 @@ import Localization
     try #require(status == noErr)
     return try #require(reference)
   }
+  @Test func hostRecordingReleasesBindingsWithoutChangingPreferences() throws {
+    _ = NSApplication.shared
+    let name = "capture-external-recording-" + UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let shortcuts = CaptureShortcuts(defaults: defaults)
+    defer { shortcuts.stop() }
+    let key = binding(91)
+    shortcuts.setShortcut(key, for: .screenshot)
+    shortcuts.setEnabled(true)
+    try #require(shortcuts.conflict == false)
+    shortcuts.setExternalRecording(true)
+    let reservation = try reserve(key)
+    #expect(shortcuts.screenshotKey == key && shortcuts.enabled)
+    UnregisterEventHotKey(reservation)
+    shortcuts.setExternalRecording(false)
+    #expect(shortcuts.conflict == false)
+    shortcuts.setExternalRecording(true)
+    shortcuts.setEnabled(false)
+    shortcuts.setExternalRecording(false)
+    let disabledReservation = try reserve(key)
+    UnregisterEventHotKey(disabledReservation)
+    #expect(shortcuts.enabled == false && shortcuts.screenshotKey == key)
+  }
   @Test func inactiveSettingsRejectDuplicateWithoutReplacingSavedBinding() {
     let name = "capture-shortcuts-" + UUID().uuidString
     let defaults = UserDefaults(suiteName: name)!

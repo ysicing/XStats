@@ -18,6 +18,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var schema: Int? = 1
   public var calendarEnabled: Bool?
   public var calendarPreferences: CalendarPreferences?
+  public var timerPreferences: TimerPreferences?
   public var restEnabled: Bool?
   public var wellnessPreferences: WellnessPreferences?
   public var restWorkMinutes: Int?
@@ -78,6 +79,7 @@ extension AppSettings {
     var doc = SettingsDocument()
     doc.calendarEnabled = calendarEnabled
     doc.calendarPreferences = calendarPreferences
+    doc.timerPreferences = timerPreferences.normalized
     doc.restEnabled = restEnabled
     doc.wellnessPreferences = wellnessPreferences.normalized
     doc.restWorkMinutes = restWorkMinutes
@@ -146,6 +148,7 @@ extension AppSettings {
     assign(\.notifyUpdates, doc.notifyUpdates)
     assign(\.calendarEnabled, doc.calendarEnabled)
     assign(\.calendarPreferences, doc.calendarPreferences)
+    assign(\.timerPreferences, doc.timerPreferences?.normalized)
     assign(\.restEnabled, doc.restEnabled)
     assign(\.wellnessPreferences, doc.wellnessPreferences?.normalized)
     assign(\.restWorkMinutes, option(doc.restWorkMinutes, in: Self.restWorkOptions))
