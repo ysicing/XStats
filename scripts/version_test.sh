@@ -80,13 +80,15 @@ expect_project 1.0.0 110
 # 主程序 build/release 不得改写 Capture 的独立版本或变量引用。
 for command in build release; do
   setup 1.0.0 109 "$VALID_LOG"
+  # 用例自己设置独立版本，不依赖仓库当前发行号。
+  sed -i '' -E 's/(CAPTURE_VERSION: *)"[0-9.]+"/\1"9.8.7"/; s/(CAPTURE_BUILD: *)"[0-9]+"/\1"42"/' "$WORK/case/project.yml"
   sed -n '/^  XStatsCapture:/,/^  XStats:/p' "$WORK/case/project.yml" > "$WORK/capture-before.yml"
   (cd "$WORK/case" && scripts/version.sh "$command" >/dev/null)
   sed -n '/^  XStatsCapture:/,/^  XStats:/p' "$WORK/case/project.yml" > "$WORK/capture-after.yml"
   cmp -s "$WORK/capture-before.yml" "$WORK/capture-after.yml" \
     || { echo "$command 不应修改 Capture 版本" >&2; exit 1; }
-  grep -q 'CAPTURE_VERSION: "0.1.0"' "$WORK/case/project.yml"
-  grep -q 'CAPTURE_BUILD: "1"' "$WORK/case/project.yml"
+  grep -q 'CAPTURE_VERSION: "9.8.7"' "$WORK/case/project.yml"
+  grep -q 'CAPTURE_BUILD: "42"' "$WORK/case/project.yml"
   grep -Fq 'CFBundleShortVersionString: $(CAPTURE_VERSION)' "$WORK/case/project.yml"
   grep -Fq 'CFBundleVersion: $(CAPTURE_BUILD)' "$WORK/case/project.yml"
 done
