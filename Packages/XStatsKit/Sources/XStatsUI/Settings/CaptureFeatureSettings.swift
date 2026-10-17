@@ -11,6 +11,7 @@ struct CaptureFeatureSettings: View {
   @ObservedObject private var workspace: CaptureWorkspace
   @Environment(\.isSnapshot) private var isSnapshot
   @State private var detailsExpanded = false
+  @State private var recordingID = UUID()
 
   init(integration: XStatsCapture = .shared) {
     self.integration = integration
@@ -22,6 +23,19 @@ struct CaptureFeatureSettings: View {
     return tr(
       integration.standaloneApplicationURL == nil
         ? "未找到独立版，可改用内置版。" : "正在使用独立版。")
+  }
+
+  /// Capture 录制器与 XStats 快捷键录制器共用 `ShortcutRecordingSession` 双向互斥：
+  /// 开始时登记所有权，让对方的监听先撤销；录制按钮失去第一响应者会自行结束录制，
+  /// 因此 XStats 侧开始新录制时只需放弃窗口的第一响应者即可停止 Capture 录制器。
+  private func setCaptureRecording(_ recording: Bool) {
+    if recording {
+      let window = NSApp.keyWindow
+      ShortcutRecordingSession.shared.begin(recordingID) { window?.makeFirstResponder(nil) }
+    } else {
+      ShortcutRecordingSession.shared.end(recordingID)
+    }
+    model.isRecordingShortcut = recording
   }
 
   var body: some View {
@@ -69,10 +83,7 @@ struct CaptureFeatureSettings: View {
               if workspace.enabled {
                 CaptureShortcutSettingsView(
                   shortcuts: workspace.shortcuts,
-                  onRecordingChanged: {
-                    if $0 { ShortcutRecordingSession.shared.cancel() }
-                    model.isRecordingShortcut = $0
-                  })
+                  onRecordingChanged: setCaptureRecording)
                 Text(tr("快捷键在 XStats 运行时生效。"))
                   .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
               }
