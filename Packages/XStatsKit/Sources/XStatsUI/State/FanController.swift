@@ -92,8 +92,8 @@ public final class FanController {
     mode = newMode
     if let error = await apply() {
       // 兜底复位失败时硬件可能仍被手动接管，回滚成“自动”会让界面掩盖这一点；
-      // 保留所选档位，后续重新下发、过热保护和退出复位才会继续生效。
-      if !fallbackResetFailed { mode = previous }
+      // 原本已经手动控制时保留旧档位：新转速未必写入，尤其不能丢失自定义低速的过热保护。
+      if !fallbackResetFailed || previous != .automatic { mode = previous }
       show(error, isError: true)
     } else {
       clearNotice()

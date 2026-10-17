@@ -12,6 +12,7 @@ import Testing
   var error: String?
   /// 复位结果独立于写入结果，才能区分“写入失败但已回到自动”和“兜底复位也失败”。
   var resetError: String?
+  var resetRequests = 0
   var holdWrite = false
   var writeContinuation: CheckedContinuation<String?, Never>?
   var holdRead = false
@@ -24,7 +25,10 @@ import Testing
     if holdWrite { return await withCheckedContinuation { writeContinuation = $0 } }
     return error
   }
-  func resetAllFans() async -> String? { resetError }
+  func resetAllFans() async -> String? {
+    resetRequests += 1
+    return resetError
+  }
   func read() async -> [FanState]? {
     reads += 1
     if holdRead { return await withCheckedContinuation { readContinuation = $0 } }
@@ -161,6 +165,26 @@ struct FanFeedbackTests {
       await controller.select(.maximum)
       #expect(controller.mode == .maximum && controller.noticeIsError)
       #expect(controller.notice == "fixture-reset-failure")
+    }
+  }
+
+  /// 已有低速手动档不能因新档位写入失败而失去后续过热恢复。
+  @Test(arguments: [FanController.Mode.maximum, .cooling])
+  func failedManualSwitchKeepsCustomOverheatProtection(next: FanController.Mode) async throws {
+    let fixture = FanFeedbackFixture()
+    try await withController(fixture) { controller, _ in
+      controller.customLevel = 0.1
+      await controller.select(.custom)
+      fixture.error = "fixture-write-failure"
+      fixture.resetError = "fixture-reset-failure"
+      await controller.select(next)
+      #expect(controller.mode == .custom && controller.noticeIsError)
+      #expect(fixture.resetRequests == 1)
+      fixture.error = nil
+      fixture.resetError = nil
+      controller.evaluateSafety(temperature: 110)
+      try await waitUntil { fixture.resetRequests == 2 }
+      #expect(controller.mode == .automatic && !controller.noticeIsError)
     }
   }
 
