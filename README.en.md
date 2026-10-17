@@ -114,7 +114,7 @@ When Magpie is installed, account quotas, tokens and costs come from its local A
 
 | Tool | Description |
 |---|---|
-| **XStats Capture** | Built-in screenshot annotation and screen recording with audio, also available as a standalone app; see [local builds and permissions](docs/CAPTURE.md) |
+| **XStats Capture** | Built-in screenshot annotation, local redaction, and screen recording with audio; the standalone app is currently available as a local build. See [Capture usage and permissions](docs/CAPTURE.md) |
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
 | **Apps and cleanup** | Browse app information, check App Store updates, manage Homebrew, and review app leftovers, caches and build artifacts · [Cleanup scope](docs/CLEANUP.md) |
@@ -210,7 +210,7 @@ Issues and pull requests are welcome. See [DEVELOPMENT.md](docs/DEVELOPMENT.md) 
 <!-- changelog:start -->
 <!-- Generated from CHANGELOG.md by scripts/sync_changelog.py. Do not edit by hand. -->
 
-Latest release **1.3.3** (2026-10-15) · [full changelog](CHANGELOG.md) (kept in Chinese)
+Latest release **1.4.0** (2026-10-17) · [full changelog](CHANGELOG.md) (kept in Chinese)
 
 <!-- changelog:end -->
 

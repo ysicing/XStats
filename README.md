@@ -114,7 +114,7 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
 
 | 工具 | 说明 |
 |---|---|
-| **XStats Capture** | 内置截图标注与带声音的录屏，也可作为独立 App 使用；本地构建与权限见 [Capture 使用说明](docs/CAPTURE.md) |
+| **XStats Capture** | 内置截图标注、本地打码与带声音的录屏；独立版暂供本地构建，详见 [Capture 使用说明](docs/CAPTURE.md) |
 | **风扇控制** | 在支持的设备上切换自动或手动控制 |
 | **防休眠** | 保持系统或屏幕唤醒，可配置合盖运行 |
 | **应用管理与清理** | 浏览应用信息、检查 App Store 更新、管理 Homebrew，审阅应用残留、缓存与项目产物 · [清理范围](docs/CLEANUP.md) |
@@ -210,7 +210,7 @@ task build BUMP=0 INSTALL=0
 <!-- changelog:start -->
 <!-- 由 scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->
 
-最新版本 **1.3.3**（2026-10-15） · [完整更新日志](CHANGELOG.md)
+最新版本 **1.4.0**（2026-10-17） · [完整更新日志](CHANGELOG.md)
 
 <!-- changelog:end -->
 
