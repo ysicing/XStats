@@ -4,6 +4,7 @@
 import Foundation
 import ServiceManagement
 import Testing
+import os
 @testable import XStatsUI
 
 @MainActor
@@ -24,6 +25,52 @@ private final class Registration: HelperRegistration {
 
 @MainActor
 struct HelperLifecycleTests {
+  @Test func startupReadsSigningIdentityOffMainThreadBeforeVerifyingHelper() async {
+    let service = Registration()
+    let helper = HelperClient(
+      service: service,
+      readTeamIdentifier: {
+        #expect(!Thread.isMainThread)
+        return "ABCDE12345"
+      }, versionProbe: { 5 })
+    await helper.verifyVersion()
+    #expect(helper.canInstall)
+    #expect(helper.isReady)
+    #expect(service.operations.isEmpty)
+  }
+
+  @Test(arguments: [true, false])
+  func pendingIdentityIsNotTreatedAsUnsignedAndConcurrentChecksShareOneRead(signed: Bool) async {
+    let service = Registration()
+    let reads = OSAllocatedUnfairLock(initialState: 0)
+    let helper = HelperClient(
+      service: service,
+      readTeamIdentifier: {
+        #expect(!Thread.isMainThread)
+        reads.withLock { $0 += 1 }
+        return signed ? "ABCDE12345" : nil
+      },
+      versionProbe: {
+        #expect(signed, "没有签名时不能连接旧 Helper")
+        return 5
+      })
+    #expect(helper.isResolvingIdentity)
+    #expect(!helper.canInstall && !helper.isReady)
+    helper.install()
+    #expect(service.operations.isEmpty)
+    #expect(helper.lastError == nil)
+
+    async let first: Void = helper.verifyVersion()
+    async let second: Void = helper.verifyVersion()
+    _ = await (first, second)
+    #expect(!helper.isResolvingIdentity)
+    #expect(helper.canInstall == signed)
+    #expect(helper.isReady == signed)
+    #expect(service.operations == (signed ? [] : ["unregister"]))
+    await helper.verifyVersion()
+    #expect(reads.withLock { $0 } == 1)
+  }
+
   @Test func adHocDisablesRegistrationAndRemovesOldDaemonWithoutConnecting() async {
     let service = Registration()
     let helper = HelperClient(

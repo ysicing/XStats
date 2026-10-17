@@ -928,7 +928,7 @@ struct HelperSettings: View {
             .buttonStyle(DSButtonStyle(kind: .ghost))
           Spacer()
         }
-        .disabled(helper.isWorking)
+        .disabled(helper.isWorking || helper.isResolvingIdentity)
       }
     }
 
@@ -947,9 +947,9 @@ struct HelperSettings: View {
     if let error = helper.lastError {
       InfoBanner(icon: "exclamationmark.triangle.fill", text: error, tone: .error)
     }
-    if CodeSigningInfo.currentTeamIdentifier() != nil {
+    if helper.canInstall {
       InfoBanner(icon: "checkmark.seal", text: tr("已使用 Developer ID 签名"), tone: .success)
-    } else {
+    } else if !helper.isResolvingIdentity {
       InfoBanner(icon: "info.circle", text: HelperClient.signingMessage, tone: .neutral)
     }
   }

@@ -34,20 +34,34 @@ public final class HelperClient {
   public private(set) var lastError: String?
   /// 正在运行的辅助工具比应用旧：登记的是另一份应用包里的辅助工具，或替换应用后旧进程还没退出
   public private(set) var isOutdated = false
+  public private(set) var isResolvingIdentity = false
 
   /// 连接中断后重新连上时回调，用于重新下发风扇 / 防休眠状态
   @ObservationIgnored var onReconnect: (() -> Void)?
 
   @ObservationIgnored private var connection: NSXPCConnection?
   @ObservationIgnored private let service: any HelperRegistration
-  @ObservationIgnored private let teamIdentifier: String?
+  @ObservationIgnored private var teamIdentifier: String?
+  @ObservationIgnored private var identityTask: Task<String?, Never>?
   @ObservationIgnored private let versionProbe: (@MainActor () async -> Int?)?
   private var isCheckingVersion = false
   private var hasVerifiedConnection = false
 
   public convenience init() {
     self.init(
-      teamIdentifier: CodeSigningInfo.currentTeamIdentifier(), service: SystemHelperRegistration())
+      service: SystemHelperRegistration(),
+      readTeamIdentifier: { CodeSigningInfo.currentTeamIdentifier() })
+  }
+
+  convenience init(
+    service: any HelperRegistration, readTeamIdentifier: @escaping @Sendable () -> String?,
+    versionProbe: (@MainActor () async -> Int?)? = nil
+  ) {
+    self.init(teamIdentifier: nil, service: service, versionProbe: versionProbe)
+    isResolvingIdentity = true
+    // 读取带时间戳的签名会触发证书信任评估；启动和 SwiftUI 布局都不能同步执行。
+    // 所有调用共享一次读取，完成前不能把“尚未读取”误判为 ad-hoc 并注销服务。
+    identityTask = Task.detached(priority: .utility) { readTeamIdentifier() }
   }
 
   init(
@@ -60,7 +74,7 @@ public final class HelperClient {
   }
 
   public var canInstall: Bool {
-    HelperConstants.clientRequirement(teamIdentifier: teamIdentifier) != nil
+    !isResolvingIdentity && HelperConstants.clientRequirement(teamIdentifier: teamIdentifier) != nil
   }
   public var isReady: Bool {
     canInstall && status == .enabled && hasVerifiedConnection && !isOutdated && !isWorking
@@ -76,6 +90,10 @@ public final class HelperClient {
   var needsAttention: Bool { !isReady || isOutdated }
 
   public func refreshStatus() {
+    guard !isResolvingIdentity else {
+      Task { await verifyVersion() }
+      return
+    }
     guard canInstall else {
       status = .unavailable(Self.signingMessage)
       return
@@ -104,6 +122,7 @@ public final class HelperClient {
   }
 
   public func install() {
+    guard !isResolvingIdentity else { return }
     guard canInstall, !isWorking else {
       if !canInstall {
         status = .unavailable(Self.signingMessage)
@@ -156,6 +175,7 @@ public final class HelperClient {
 
   /// 注册状态不等于可安全调用。版本 5 之前必须注销旧服务，再注册并核对当前版本。
   func verifyVersion(allowRestart: Bool = true) async {
+    await resolveSigningIdentity()
     guard !isCheckingVersion, !isWorking else { return }
     isCheckingVersion = true
     defer { isCheckingVersion = false }
@@ -187,6 +207,13 @@ public final class HelperClient {
     guard lastError == nil, service.status == .enabled else { return }
     isOutdated = !HelperConstants.isCompatible(version: await remoteProtocolVersion())
     hasVerifiedConnection = !isOutdated
+  }
+
+  private func resolveSigningIdentity() async {
+    guard let identityTask else { return }
+    teamIdentifier = await identityTask.value
+    self.identityTask = nil
+    isResolvingIdentity = false
   }
 
   public func openLoginItemsSettings() {
@@ -231,6 +258,7 @@ public final class HelperClient {
 
   /// 已安装的辅助工具的协议版本；旧版本不认识新增的方法，调用前先确认
   func remoteProtocolVersion() async -> Int? {
+    await resolveSigningIdentity()
     refreshStatus()
     guard canInstall, status == .enabled else { return nil }
     if let versionProbe { return await versionProbe() }
@@ -274,6 +302,7 @@ public final class HelperClient {
   private func call(_ body: (XStatsHelperProtocol, @escaping @Sendable (String?) -> Void) -> Void)
     async -> String?
   {
+    await resolveSigningIdentity()
     refreshStatus()
     if canInstall { await verifyVersion() }
     guard isReady else { return tr("辅助工具未启用") }
