@@ -83,6 +83,7 @@ task build BUMP=0 INSTALL=0          # 只构建，不改构建号或安装
 task compile CONFIG=Debug           # 只编译 Debug，不安装
 task compile-capture                # 独立 Capture 验证构建，不安装、不推进版本
 task run-capture                    # 构建并启动 Capture
+task release-capture -- --publish   # 独立 Capture 签名、公证与发布，见 CAPTURE.md
 task test                           # 脚本、Go API 和 Swift 测试
 task open                           # 生成工程并用 Xcode 打开
 task snapshot                       # 使用当前 Release 构建渲染截图

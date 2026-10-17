@@ -47,7 +47,9 @@ tasks:
         xcodebuild -project "{{.PROJECT}}" -scheme XStatsCapture -configuration "{{.CONFIG}}" \
           -derivedDataPath build/DerivedData-capture-arm64 -destination 'generic/platform=macOS' \
           ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
-          {{if .TEAM_ID}}CODE_SIGN_IDENTITY="{{.SIGN_ID}}" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM={{.TEAM_ID}}{{else}}CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=""{{end}} build
+          {{if .TEAM_ID}}CODE_SIGN_IDENTITY="{{.SIGN_ID}}" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM={{.TEAM_ID}}{{if eq .CONFIG "Release"}} OTHER_CODE_SIGN_FLAGS=--timestamp CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO{{end}}{{else}}CODE_SIGNING_ALLOWED=NO ENABLE_HARDENED_RUNTIME=NO{{end}} \
+          {{if eq .CLEAN "1"}}clean {{end}}build
+      - bash scripts/sign_sparkle.sh "build/DerivedData-capture-arm64/Build/Products/{{.CONFIG}}/XStats Capture.app" "{{.SIGN_ID}}" capture
 
   run-capture:
     desc: 构建并打开独立 Capture App，不安装或推进版本
@@ -124,6 +126,11 @@ tasks:
       - bash scripts/embed_network_agent_test.sh
       - bash scripts/network_component_lifetime_test.sh
 
+  release-capture:
+    desc: 构建、公证独立 Capture；-- 后传 --publish 或 --publish-only
+    cmds:
+      - python3 scripts/release_capture.py {{.CLI_ARGS}}
+
   release-network-component:
     desc: 签名、公证并打包独立网络组件，不上传
     cmds:
@@ -171,6 +178,7 @@ tasks:
       - bash scripts/publish_release_test.sh
       - python3 scripts/release_provenance_test.py
       - python3 scripts/publish_api_test.py
+      - python3 scripts/release_capture_test.py
       - python3 scripts/sync_changelog_test.py
       - python3 scripts/sparkle_appcast_test.py
       - python3 scripts/github_release_notes_test.py

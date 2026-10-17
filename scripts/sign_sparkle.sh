@@ -12,6 +12,7 @@ APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/
 case "$APP_ID" in
   work.12306.xstats.app) EXPECTED_MODE=main ;;
   work.12306.xstats.networkmonitor) EXPECTED_MODE=network-component ;;
+  work.12306.xstats.capture) EXPECTED_MODE=capture ;;
   *) echo "error: 未知应用 Bundle ID：$APP_ID" >&2; exit 1 ;;
 esac
 MODE="${MODE:-$EXPECTED_MODE}"
@@ -24,7 +25,11 @@ if [ "$MODE" = network-component ]; then
   bash "$ROOT/scripts/embed_network_agent.sh" "$APP"
 else
   [ ! -d "$APP/Contents/Library/SystemExtensions" ] || { echo "error: 主应用不得嵌入系统扩展" >&2; exit 1; }
-  APP_ENTITLEMENTS="$ROOT/Apps/XStats/App/XStats.entitlements"
+  if [ "$MODE" = capture ]; then
+    APP_ENTITLEMENTS="$ROOT/Apps/Capture/App/XStatsCapture.entitlements"
+  else
+    APP_ENTITLEMENTS="$ROOT/Apps/XStats/App/XStats.entitlements"
+  fi
 fi
 FRAMEWORK="$APP/Contents/Frameworks/Sparkle.framework"
 [ -d "$FRAMEWORK" ] || { echo "error: 应用未嵌入 Sparkle.framework" >&2; exit 1; }
@@ -67,7 +72,7 @@ if [ "$IDENTITY" = "-" ]; then
   # Xcode 的无证书路径不签名，由此处补齐自身二进制及 entitlement；线上安装仍禁止此构建。
   if [ "$MODE" = network-component ]; then
     codesign --force --sign - --timestamp=none --options 0 --entitlements "$ROOT/Apps/NetworkMonitor/Extension/XStatsNetworkExtension.entitlements" "$SYSTEM_EXTENSION"
-  else
+  elif [ "$MODE" = main ]; then
     codesign --force --sign - --timestamp=none --options 0 "$APP/Contents/MacOS/XStatsHelper"
     codesign --force --sign - --timestamp=none --options 0 --entitlements "$ROOT/Apps/XStats/Widget/XStatsWidget.entitlements" "$APP/Contents/PlugIns/XStatsWidget.appex"
   fi
@@ -90,7 +95,7 @@ else
   # 从内到外重签 Widget，保留 Xcode 已展开的 profile entitlement，再重签主应用。
   if [ "$MODE" = network-component ]; then
     codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$SYSTEM_EXTENSION"
-  else
+  elif [ "$MODE" = main ]; then
     codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$APP/Contents/PlugIns/XStatsWidget.appex"
   fi
   codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$APP"

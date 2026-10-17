@@ -45,12 +45,15 @@ import Localization
 }
 
 public enum CaptureApplication {
+  // 只在独立 App 的 main() 创建；内置 Capture 不启动第二个更新器。
+  @MainActor private static var updates: CaptureUpdater?
   @MainActor static func updateMenu() {
     let menu = NSMenu()
     let application = NSMenuItem()
     menu.addItem(application)
     let appMenu = NSMenu()
     application.submenu = appMenu
+    if let updates { updates.addMenuItems(to: appMenu) }
     appMenu.addItem(
       withTitle: tr("退出"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     let edit = NSMenuItem(title: tr("编辑"), action: nil, keyEquivalent: "")
@@ -67,6 +70,7 @@ public enum CaptureApplication {
   @MainActor public static func main() {
     let app = NSApplication.shared
     let delegate = CaptureAppDelegate()
+    updates = CaptureUpdater()
     app.setActivationPolicy(.regular)
     app.delegate = delegate
     withExtendedLifetime(delegate) { app.run() }

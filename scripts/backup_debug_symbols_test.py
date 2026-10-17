@@ -172,7 +172,7 @@ class SymbolBackupTests(unittest.TestCase):
         shutil.copy2(SCRIPT, scripts / SCRIPT.name)
         # The archive generator already has real Mach-O coverage; reuse this test archive here.
         (scripts / "archive_debug_symbols.py").write_text(
-            "BINARIES = " + repr(BINARIES) + "\nif __name__ == '__main__':\n    print(" + repr(str(self.archive)) + ")\n")
+            "BINARIES = " + repr(BINARIES) + "\nCAPTURE_BINARIES = ()\nif __name__ == '__main__':\n    print(" + repr(str(self.archive)) + ")\n")
         (scripts / "release_provenance.py").write_text("print('fixture')")
         (scripts / "version.sh").write_text("#!/bin/sh\necho 9.9.9\n")
         (scripts / "version.sh").chmod(0o700)

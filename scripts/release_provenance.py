@@ -15,6 +15,7 @@ ALLOWED_RELEASE_FILES = {
     "project.yml",
     "CHANGELOG.md",
     "docs/ReleaseNotes.json",
+    "docs/CaptureReleaseNotes.json",
     "README.md",
     "README.en.md",
     "README.ja.md",

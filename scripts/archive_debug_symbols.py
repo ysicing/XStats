@@ -28,6 +28,8 @@ BINARIES = (
 )
 
 
+CAPTURE_BINARIES = (("Contents/MacOS/XStats Capture", "XStats Capture.app.dSYM"),) + BINARIES[3:]
+
 def uuids(path: Path) -> dict[str, str]:
     output = subprocess.check_output(["xcrun", "dwarfdump", "--uuid", str(path)], text=True)
     result = {arch: uuid.upper() for uuid, arch in re.findall(r"UUID: ([0-9A-Fa-f-]{36}) \(([^)]+)\)", output)}
@@ -39,13 +41,19 @@ def uuids(path: Path) -> dict[str, str]:
 def archive(app: Path, products: Path, destination: Path) -> Path:
     with (app / "Contents/Info.plist").open("rb") as handle:
         info = plistlib.load(handle)
-    if info.get("CFBundleIdentifier") != "work.12306.xstats.app":
-        raise ValueError("符号归档仅适用于 XStats 主应用")
+    identifier = info.get("CFBundleIdentifier")
+    if identifier not in ("work.12306.xstats.app", "work.12306.xstats.capture"):
+        raise ValueError("不支持的符号归档应用")
+    capture = identifier == "work.12306.xstats.capture"
+    binaries = CAPTURE_BINARIES if capture else BINARIES
+    product = "XStats-Capture" if capture else "XStats"
     version, build = info["CFBundleShortVersionString"], info["CFBundleVersion"]
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) or not re.fullmatch(r"[0-9]+", build):
         raise ValueError("符号归档的版本或构建号无效")
     manifest = {"format": 1, "version": version, "build": build, "binaries": []}
-    for relative, name in BINARIES:
+    if capture:
+        manifest["product"] = product
+    for relative, name in binaries:
         binary, dsym = app / relative, products / name
         dwarf = dsym / "Contents/Resources/DWARF"
         if not dwarf.is_dir() or not any(p.is_file() and p.stat().st_size > 0 for p in dwarf.iterdir()):
@@ -68,13 +76,13 @@ def archive(app: Path, products: Path, destination: Path) -> Path:
                 digest.update(chunk)
         manifest["binaries"].append({"path": relative, "dsym": name, "uuids": binary_uuids, "sha256": digest.hexdigest()})
 
-    name = f"XStats-{version}-{build}-AppleSilicon.dSYMs"
+    name = f"{product}-{version}-{build}-AppleSilicon.dSYMs"
     destination.mkdir(mode=0o700, parents=True, exist_ok=True)
     output = destination / (name + ".zip")
     if output.exists():
         with zipfile.ZipFile(output) as bundle:
             recorded = json.loads(bundle.read(name + "/manifest.json"))
-            for _, dsym in BINARIES:
+            for _, dsym in binaries:
                 prefix = name + "/" + dsym + "/Contents/Resources/DWARF/"
                 if not any(entry.filename.startswith(prefix) and not entry.is_dir() and entry.file_size > 0
                            for entry in bundle.infolist()):
@@ -88,7 +96,7 @@ def archive(app: Path, products: Path, destination: Path) -> Path:
     with tempfile.TemporaryDirectory(dir=destination) as work:
         staging = Path(work) / name
         staging.mkdir()
-        for _, dsym in BINARIES:
+        for _, dsym in binaries:
             shutil.copytree(products / dsym, staging / dsym, symlinks=True)
         (staging / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         temporary = Path(work) / (name + ".zip")

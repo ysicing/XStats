@@ -27,7 +27,11 @@ let package = Package(
   ],
   targets: [
     .target(name: "CaptureCore", dependencies: ["Localization"]),
-    .target(name: "CaptureUI", dependencies: ["CaptureCore", "Localization"]),
+    .target(
+      name: "CaptureUI",
+      dependencies: [
+        "CaptureCore", "Localization", "Updates", .product(name: "Sparkle", package: "Sparkle"),
+      ]),
     .testTarget(name: "CaptureCoreTests", dependencies: ["CaptureCore"]),
     .testTarget(name: "CaptureUITests", dependencies: ["CaptureUI"]),
     .target(name: "Localization", resources: [.process("Resources")]),

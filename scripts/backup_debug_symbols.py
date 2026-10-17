@@ -14,7 +14,7 @@ import sys
 import tempfile
 import zipfile
 
-from archive_debug_symbols import BINARIES
+from archive_debug_symbols import BINARIES, CAPTURE_BINARIES
 
 
 DEFAULT_TARGET = "home/oss/apps/macOS/XStats"
@@ -72,12 +72,16 @@ def backup(archive: Path, target: str) -> str:
             raise ValueError("符号清单超过大小上限")
         manifest = json.loads(bundle.read(member))
         version, build = manifest["version"], manifest["build"]
+        product = manifest.get("product", "XStats")
+        if product not in ("XStats", "XStats-Capture"):
+            raise ValueError("不支持的符号归档产品")
+        binaries = CAPTURE_BINARIES if product == "XStats-Capture" else BINARIES
         if (manifest.get("format") != 1 or not isinstance(version, str) or not isinstance(build, str)
                 or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) or not re.fullmatch(r"[0-9]+", build)
-                or archive.name != f"XStats-{version}-{build}-AppleSilicon.dSYMs.zip"):
+                or archive.name != f"{product}-{version}-{build}-AppleSilicon.dSYMs.zip"):
             raise ValueError("符号归档名称与版本清单不一致")
         entries = manifest["binaries"]
-        if len(entries) != len(BINARIES) or [(item["path"], item["dsym"]) for item in entries] != list(BINARIES):
+        if len(entries) != len(binaries) or [(item["path"], item["dsym"]) for item in entries] != list(binaries):
             raise ValueError("符号清单缺少预期二进制")
         for item in entries:
             if (item["uuids"].keys() != {"arm64"}

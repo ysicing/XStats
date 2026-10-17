@@ -29,7 +29,7 @@ MAXIMUM_FEED_BYTES = 256 * 1024
 
 def sparkle_feed_url(endpoint: str, query: str = "") -> str:
     parts = urlsplit(endpoint)
-    match = re.fullmatch(r"/api/v1/apps/(xstats|xstats-network-monitor)/releases/current", parts.path)
+    match = re.fullmatch(r"/api/v1/apps/(xstats|xstats-network-monitor|xstats-capture)/releases/current", parts.path)
     if not match:
         raise ValueError(f"无法推导 Sparkle 更新源：{endpoint}")
     return urlunsplit((parts.scheme, parts.netloc, f"/api/v1/apps/{match.group(1)}/update/appcast.xml", query, ""))
@@ -51,7 +51,7 @@ def check_sparkle_endpoints(endpoints: list[str]) -> None:
                 directives = {item.strip().lower() for item in (error.headers.get("Cache-Control") or "").split(",")}
                 # 新组件在首次 PUT 后才登记；只接受服务端明确的 unknown application。
                 new_component = False
-                if error.code == 404 and "/apps/xstats-network-monitor/" in url:
+                if error.code == 404 and any(f"/apps/{app}/" in url for app in ("xstats-network-monitor", "xstats-capture")):
                     try:
                         new_component = json.loads(error.read(4096)).get("error") == "unknown application"
                     except (ValueError, AttributeError):
@@ -107,7 +107,7 @@ def publish(appcast: Path, endpoints: list[str], token: str) -> None:
 
 def configured_endpoints(environment: Mapping[str, str]) -> list[str]:
     application = environment.get("XSTATS_APP_ID", "xstats")
-    if application not in ("xstats", "xstats-network-monitor"):
+    if application not in ("xstats", "xstats-network-monitor", "xstats-capture"):
         raise ValueError("不支持的应用标识")
     configured = environment.get("XSTATS_API_URLS", "")
     if configured:

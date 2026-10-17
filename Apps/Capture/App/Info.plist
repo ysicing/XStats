@@ -57,5 +57,21 @@
 	<string>在您开启麦克风时，将声音录制到本机视频中，不上传内容。</string>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>在您截图或录屏时，捕获所选区域、窗口或屏幕，内容仅保存在本机，不上传。</string>
+	<key>SUAllowsAutomaticUpdates</key>
+	<false/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://apps.12306.work/api/v1/apps/xstats-capture/update/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>j/I8zd8BXz4oPldnhocEySXTMmXPxKMyBRwoA4ewLIk=</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
+	<key>SUSendProfileInfo</key>
+	<false/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 </dict>
 </plist>

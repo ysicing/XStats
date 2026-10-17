@@ -29,6 +29,22 @@ class SparkleAppcastTests(unittest.TestCase):
             manifest.write_text(json.dumps(feed))
             self.assertEqual(load_manifest(manifest, archive), feed)
 
+    def test_capture_archive_cannot_be_mistaken_for_main(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "capture.zip"
+            with zipfile.ZipFile(archive, "w") as bundle:
+                bundle.writestr("XStats Capture.app/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": "work.12306.xstats.capture"}))
+            data = archive.read_bytes()
+            feed = {"version": "0.1.0", "build": "1", "size": len(data), "notes": ["test"],
+                    "bundleIdentifier": "work.12306.xstats.capture", "url": "https://example.test/capture.zip", "sha256": hashlib.sha256(data).hexdigest()}
+            manifest = Path(directory) / "appcast.json"
+            manifest.write_text(json.dumps(feed))
+            self.assertEqual(load_manifest(manifest, archive), feed)
+            feed["bundleIdentifier"] = "work.12306.xstats.app"
+            manifest.write_text(json.dumps(feed))
+            with self.assertRaises(ValueError):
+                load_manifest(manifest, archive)
+
     def test_component_archive_requires_its_own_bundle_and_matching_extension(self):
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / "component.zip"

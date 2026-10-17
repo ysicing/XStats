@@ -49,6 +49,8 @@ targets:
     type: application
     platform: macOS
     sources:
+      - path: LICENSES/Sparkle-License.txt
+        buildPhase: resources
       - path: Apps/Capture/App
         excludes: ["*.plist", "*.entitlements"]
     info:
@@ -56,6 +58,14 @@ targets:
       properties:
         CFBundleName: XStats Capture
         CFBundleDisplayName: XStats Capture
+        SUFeedURL: https://apps.12306.work/api/v1/apps/xstats-capture/update/appcast.xml
+        SUPublicEDKey: "j/I8zd8BXz4oPldnhocEySXTMmXPxKMyBRwoA4ewLIk="
+        SUEnableAutomaticChecks: true
+        SURequireSignedFeed: true
+        SUVerifyUpdateBeforeExtraction: true
+        SUAllowsAutomaticUpdates: false
+        SUAutomaticallyUpdate: false
+        SUSendProfileInfo: false
         CFBundleShortVersionString: $(CAPTURE_VERSION)
         CFBundleVersion: $(CAPTURE_BUILD)
         CFBundleDevelopmentRegion: zh-Hans
@@ -75,6 +85,7 @@ targets:
       properties:
         com.apple.security.device.audio-input: true
     settings:
+      groups: [releaseSymbols]
       base:
         PRODUCT_NAME: XStats Capture
         PRODUCT_MODULE_NAME: XStatsCapture

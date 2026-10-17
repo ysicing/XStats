@@ -46,6 +46,9 @@ on_error() {
     push)
       echo "error: release commit 已创建但尚未确认推送成功；请先运行 git push origin main。" >&2
       ;;
+    capture)
+      echo "error: XStats 已发布；Capture 阶段失败。根据 dist/capture 的制品与日志独立恢复，不要重发 XStats。" >&2
+      ;;
     publish)
       echo "error: release commit 已推送；请修复外部问题后运行 task publish 续跑，不要再次执行 release-all。" >&2
       ;;
@@ -55,6 +58,7 @@ on_error() {
 trap on_error ERR
 
 # 在投入签名和公证时间前拒绝任何未提交源码；版本元数据仍可按发布流程保持未提交。
+python3 scripts/release_capture.py --check-follow
 python3 scripts/release_provenance.py prepare >/dev/null
 task test
 RECOVERY=build
@@ -70,6 +74,7 @@ RELEASE_FILES=(
   project.yml
   CHANGELOG.md
   docs/ReleaseNotes.json
+  docs/CaptureReleaseNotes.json
   README.md
   README.en.md
   README.ja.md
@@ -88,6 +93,9 @@ RECOVERY=push
 git push origin main
 RECOVERY=publish
 ./scripts/publish_release.sh
+# 仅相关代码变化时构建并发布独立 Capture；不变则直接跳过。
+RECOVERY=capture
+python3 scripts/release_capture.py --follow
 RECOVERY=""
 
 echo "✅ XStats ${VERSION} 完整发布完成"

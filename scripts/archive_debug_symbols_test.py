@@ -83,6 +83,22 @@ class DebugSymbolsTests(unittest.TestCase):
         self.assertEqual(self.archive().returncode, 0)
         self.assertEqual(archive.read_bytes(), first)
 
+    def test_capture_archive_has_own_name_and_only_six_binaries(self):
+        info_path = self.app / "Contents/Info.plist"
+        info = plistlib.loads(info_path.read_bytes())
+        info["CFBundleIdentifier"] = "work.12306.xstats.capture"
+        info_path.write_bytes(plistlib.dumps(info))
+        shutil.copy2(self.app / "Contents/MacOS/XStats", self.app / "Contents/MacOS/XStats Capture")
+        shutil.copytree(self.products / "XStats.app.dSYM", self.products / "XStats Capture.app.dSYM")
+        result = self.archive()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        name = "XStats-Capture-9.9.9-999-AppleSilicon.dSYMs"
+        with zipfile.ZipFile(self.output / (name + ".zip")) as bundle:
+            manifest = json.loads(bundle.read(name + "/manifest.json"))
+        self.assertEqual(manifest["product"], "XStats-Capture")
+        self.assertEqual(len(manifest["binaries"]), 6)
+        self.assertFalse(any("Helper" in e["path"] or "Widget" in e["path"] for e in manifest["binaries"]))
+
     def test_missing_dsym_stops_archiving(self):
         shutil.rmtree(self.products / "XStatsWidget.appex.dSYM")
         result = self.archive()

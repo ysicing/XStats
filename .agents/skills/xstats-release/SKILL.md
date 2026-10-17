@@ -57,3 +57,7 @@ Stop rather than weakening a safety check when the source changed after the buil
 - A Cloudflare response with `cf-mitigated: challenge` is an edge failure, not an application authentication failure. Use an already authorized clean egress when available; do not solve the challenge interactively or broadly disable protections.
 - If object upload fails, confirm the target is `c-ip`. Do not silently substitute `c`, `cos`, `home`, `ggy`, another bucket, or GitHub assets.
 - Never report completion from a successful build, upload, or tag alone. Completion requires the final verification checklist in the runbook.
+
+## Conditional Capture release
+
+Before `task release-all`, run `python3 scripts/release_capture.py --check-follow`. Capture follows XStats releases only when its code, resources, used shared dependencies or packaging changed since the latest `capture-v*` tag. If affected, prepare `CAPTURE_VERSION` / `CAPTURE_BUILD` and bilingual `docs/CaptureReleaseNotes.json` from verified changes before building; otherwise leave them unchanged. The release-all hook publishes Capture after XStats, with separate artifacts, feed, tag and cask, without changing GitHub latest. See [Capture release and recovery](../../../docs/CAPTURE.md). Recover a partially published Capture independently with `task release-capture -- --publish-only`; never rerun an already published main release.

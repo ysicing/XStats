@@ -114,7 +114,7 @@ When Magpie is installed, account quotas, tokens and costs come from its local A
 
 | Tool | Description |
 |---|---|
-| **XStats Capture** | Built-in screenshot annotation, local redaction, and screen recording with audio; the standalone app is currently available as a local build. See [Capture usage and permissions](docs/CAPTURE.md) |
+| **XStats Capture** | Built-in screenshot annotation, local redaction, and screen recording with audio; also available as a [standalone Capture download](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.0). See [Capture usage and permissions](docs/CAPTURE.md) |
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
 | **Apps and cleanup** | Browse app information, check App Store updates, manage Homebrew, and review app leftovers, caches and build artifacts · [Cleanup scope](docs/CLEANUP.md) |
@@ -186,7 +186,7 @@ Or download the DMG from [GitHub Releases](https://github.com/ysicing/xstats/rel
 
 Monitoring data, local history and AI token statistics are processed locally and are not uploaded to the XStats update service. These features connect to external services and can be disabled or used on demand:
 
-- **Update checks**: the main app and independent network component send their version and a hashed installation ID to retrieve their update feed.
+- **Update checks**: the main app, independent network component and standalone Capture send their version and a hashed installation ID to retrieve their update feed.
 - **AI quota queries**: use your local CLI sign-in to query the provider; a configured fallback queries the server you specify.
 - **Cost estimates**: fetch public model prices and reference exchange rates on demand, without sending session logs or token statistics.
 - **Network Monitor**: downloads the component and a public geography database; connection records and destination IPs are not uploaded.

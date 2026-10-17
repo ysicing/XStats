@@ -31,6 +31,7 @@ def tools_directory() -> Path:
         ROOT / "Packages/XStatsKit/.build/artifacts/sparkle/Sparkle/bin",
         ROOT / "build/DerivedData-arm64/SourcePackages/artifacts/sparkle/Sparkle/bin",
         ROOT / "build/DerivedData-network-arm64/SourcePackages/artifacts/sparkle/Sparkle/bin",
+        ROOT / "build/DerivedData-capture-arm64/SourcePackages/artifacts/sparkle/Sparkle/bin",
     ]
     for directory in candidates:
         if all((directory / name).is_file() for name in ("sign_update", "generate_keys")):
@@ -64,7 +65,7 @@ def load_manifest(manifest: Path, archive: Path) -> dict:
         raise ValueError("清单构建号或更新摘要无效")
     extension = feed.get("networkExtension")
     identifier = feed.get("bundleIdentifier", "work.12306.xstats.app")
-    roots = {"work.12306.xstats.app": "XStats.app", "work.12306.xstats.networkmonitor": "XStats Network Monitor.app"}
+    roots = {"work.12306.xstats.app": "XStats.app", "work.12306.xstats.networkmonitor": "XStats Network Monitor.app", "work.12306.xstats.capture": "XStats Capture.app"}
     if identifier not in roots:
         raise ValueError("清单应用身份无效")
     if identifier == "work.12306.xstats.networkmonitor" and extension is None:

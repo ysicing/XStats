@@ -33,6 +33,7 @@ LOG
     printf '# XStats\n' > "$WORK/repo/$file"
   done
   printf '{"version":"0.8.0"}\n' > "$WORK/repo/docs/ReleaseNotes.json"
+  printf '{}\n' > "$WORK/repo/docs/CaptureReleaseNotes.json"
   : > "$WORK/repo/Assets/readme/activity.svg"
   : > "$WORK/repo/Assets/readme/activity.zh.svg"
   : > "$WORK/log"
@@ -106,15 +107,17 @@ git fetch --quiet origin main
 git rev-parse HEAD
 git rev-parse origin/main
 git ls-remote --exit-code --tags origin refs/tags/v0.8.0
+python3 scripts/release_capture.py --check-follow
 python3 scripts/release_provenance.py prepare
 task test
 task release
 python3 scripts/release_provenance.py prepare
-git add -- project.yml CHANGELOG.md docs/ReleaseNotes.json README.md README.en.md README.ja.md README.ko.md Assets/readme/activity.svg Assets/readme/activity.zh.svg
+git add -- project.yml CHANGELOG.md docs/ReleaseNotes.json docs/CaptureReleaseNotes.json README.md README.en.md README.ja.md README.ko.md Assets/readme/activity.svg Assets/readme/activity.zh.svg
 git diff --cached --quiet
 git commit -m chore(release): 发布 0.8.0
 git push origin main
 publish
+python3 scripts/release_capture.py --follow
 LOG
 diff -u "$WORK/expected" "$WORK/log"
 

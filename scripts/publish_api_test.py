@@ -61,6 +61,17 @@ class PublishAPITest(unittest.TestCase):
         with patch("publish_api.urllib.request.urlopen", side_effect=errors):
             publish_api.check_sparkle_endpoints(list(publish_api.DEFAULT_ENDPOINTS))
 
+    def test_capture_first_registration_accepts_only_explicit_unknown_application(self):
+        endpoint = "https://example.test/api/v1/apps/xstats-capture/releases/current"
+        for body, accepted in ((b'{"error":"unknown application"}', True), (b'{"error":"not found"}', False)):
+            error = urllib.error.HTTPError(endpoint, 404, "missing", {"Cache-Control": "no-store"}, io.BytesIO(body))
+            with patch("publish_api.urllib.request.urlopen", side_effect=error):
+                if accepted:
+                    publish_api.check_sparkle_endpoints([endpoint])
+                else:
+                    with self.assertRaises(RuntimeError):
+                        publish_api.check_sparkle_endpoints([endpoint])
+
     def test_verify_fetches_each_region_with_release_probe_and_compares_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             feed = Path(directory) / "XStats-1.0.0-AppleSilicon.xml"
