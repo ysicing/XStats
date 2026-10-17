@@ -4,14 +4,15 @@
 import Dispatch
 import Foundation
 
-/// ISO8601DateFormatter 的创建开销远高于一次解析，按解析状态复用一份，不要逐行新建。
-struct ISO8601Parser {
-  private let fractional: ISO8601DateFormatter = {
+/// 格式化器只在真正解析时间时创建：恢复未变化文件的检查点不需要它们。
+/// 仅在所属 Provider 的串行扫描或单次同步解析内复用，不跨并发任务共享。
+final class ISO8601Parser {
+  private lazy var fractional: ISO8601DateFormatter = {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     return formatter
   }()
-  private let whole = ISO8601DateFormatter()
+  private lazy var whole = ISO8601DateFormatter()
 
   func date(_ value: Any?) -> Date? {
     guard let text = value as? String else { return nil }
