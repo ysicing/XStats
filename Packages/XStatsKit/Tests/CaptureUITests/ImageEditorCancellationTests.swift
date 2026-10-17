@@ -34,20 +34,24 @@ import CaptureCore
       starts.finish()
       finishes.finish()
     }
-    let model = ImageEditorModel(image: try #require(context.makeImage())) { document, url, jpeg in
-      let staging = url.appendingPathExtension("staging")
-      try original.write(to: staging)
-      defer {
-        try? FileManager.default.removeItem(at: staging)
-        finishes.yield(url)
-      }
-      starts.yield(url)
-      // 模拟编码器尚未响应取消；工作线程等待有上限，主线程保持可用。
-      let release = url == first ? firstRelease : secondRelease
-      guard release.wait(timeout: .now() + 10) == .success else { throw CaptureError.exportFailed }
-      try Task.checkCancellation()
-      try document.save(to: url, jpeg: jpeg)
-    }
+    let model = ImageEditorModel(
+      image: try #require(context.makeImage()),
+      saveImage: { document, url, jpeg, mosaics in
+        let staging = url.appendingPathExtension("staging")
+        try original.write(to: staging)
+        defer {
+          try? FileManager.default.removeItem(at: staging)
+          finishes.yield(url)
+        }
+        starts.yield(url)
+        // 模拟编码器尚未响应取消；工作线程等待有上限，主线程保持可用。
+        let release = url == first ? firstRelease : secondRelease
+        guard release.wait(timeout: .now() + 10) == .success else {
+          throw CaptureError.exportFailed
+        }
+        try Task.checkCancellation()
+        try document.save(to: url, jpeg: jpeg, mosaics: mosaics)
+      })
     var startIterator = started.makeAsyncIterator()
     var finishIterator = finished.makeAsyncIterator()
     model.save(to: first, jpeg: false)

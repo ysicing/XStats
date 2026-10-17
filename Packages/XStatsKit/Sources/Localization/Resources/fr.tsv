@@ -2249,3 +2249,9 @@ CPU 占用口径	Échelle d’utilisation du CPU
 缓存未能完全清理，请刷新后重试。	Une partie du cache n’a pas pu être supprimée. Actualisez et réessayez.
 无法读取缓存占用，请重试。	Impossible de lire la taille du cache. Réessayez.
 快捷键、缓存与独立版	Raccourcis, cache et app autonome
+未启用	Non activé
+正在启用…	Activation…
+重试	Réessayer
+输入	Entrée
+输出	Sortie
+磁盘可用 {}	Espace disque disponible {}

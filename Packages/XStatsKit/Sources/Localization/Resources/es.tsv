@@ -2249,3 +2249,9 @@ CPU 占用口径	Escala de uso de CPU
 缓存未能完全清理，请刷新后重试。	No se ha podido borrar toda la caché. Actualiza e inténtalo de nuevo.
 无法读取缓存占用，请重试。	No se ha podido leer el tamaño de la caché. Inténtalo de nuevo.
 快捷键、缓存与独立版	Atajos, caché y app independiente
+未启用	Sin activar
+正在启用…	Activando…
+重试	Reintentar
+输入	Entrada
+输出	Salida
+磁盘可用 {}	Espacio disponible en disco {}

@@ -33,6 +33,21 @@ private final class FanFirmware: FanSMCAccess {
 }
 
 struct FanUnlockTests {
+  @Test func detectedFanCountDistinguishesUnknownFromFanlessHardware() {
+    let firmware = FanFirmware()
+    let control = firmware.control()
+    for value in [Double.nan, .infinity, -1, 0.5, 256] {
+      firmware.values[SMCKey("FNum")] = value
+      #expect(control.detectedFanCount == nil)
+    }
+    firmware.values[SMCKey("FNum")] = nil
+    #expect(control.detectedFanCount == nil)
+    firmware.values[SMCKey("FNum")] = 0
+    #expect(control.detectedFanCount == 0)
+    firmware.values[SMCKey("FNum")] = 2
+    #expect(control.detectedFanCount == 2)
+  }
+
   @Test func directModeNeedsNoUnlockOrDelayAndClampsRPM() throws {
     let firmware = FanFirmware()
     try firmware.control().setManual(fan: 0, rpm: 8000)

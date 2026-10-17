@@ -50,15 +50,18 @@ extension ImageTool {
   private var renderTask: Task<Void, Never>?
   private var cancelWorker: (() -> Void)?
   private var pendingTasks: [UUID: Task<Void, Never>] = [:]
-  private let saveImage: @Sendable (ImageEditDocument, URL, Bool) throws -> Void
+  private let saveImage: @Sendable (ImageEditDocument, URL, Bool, ImageMosaics?) throws -> Void
   init(
     image: CGImage,
-    saveImage: @escaping @Sendable (ImageEditDocument, URL, Bool) throws -> Void = {
-      try $0.save(to: $1, jpeg: $2)
+    makeMosaics: @escaping @Sendable (CGImage) throws -> ImageMosaics = {
+      try ImageMosaics(image: $0)
+    },
+    saveImage: @escaping @Sendable (ImageEditDocument, URL, Bool, ImageMosaics?) throws -> Void = {
+      try $0.save(to: $1, jpeg: $2, mosaics: $3)
     }
   ) {
     self.saveImage = saveImage
-    let worker = Task.detached(priority: .userInitiated) { try ImageMosaics(image: image) }
+    let worker = Task.detached(priority: .userInitiated) { try makeMosaics(image) }
     mosaicWorker = worker
     document = ImageEditDocument(image: image)
     self.image = NSImage(cgImage: image, size: CGSize(width: image.width, height: image.height))
@@ -159,7 +162,10 @@ extension ImageTool {
     let document = document
     let mosaicWorker = mosaicWorker
     let worker = Task.detached(priority: .userInitiated) {
-      let mosaics = try await mosaicWorker.value
+      // 普通标注不依赖马赛克；预计算失败不应阻断红框、文字或撤销后的导出。
+      let mosaics =
+        document.annotations.contains { $0.tool == .redact }
+        ? try await mosaicWorker.value : nil
       try Task.checkCancellation()
       return try document.render(mosaics: mosaics)
     }
@@ -288,7 +294,15 @@ extension ImageTool {
     rendering = true
     error = nil
     let saveImage = saveImage
-    let worker = Task.detached(priority: .userInitiated) { try saveImage(document, url, jpeg) }
+    let mosaicWorker = mosaicWorker
+    let worker = Task.detached(priority: .userInitiated) {
+      // 复用编辑器预计算；失败时由 render 按需重试，仍不允许遗漏遮挡。
+      let mosaics =
+        document.annotations.contains { $0.tool == .redact }
+        ? try? await mosaicWorker.value : nil
+      try Task.checkCancellation()
+      try saveImage(document, url, jpeg, mosaics)
+    }
     cancelWorker = { worker.cancel() }
     let id = UUID()
     let task = Task {

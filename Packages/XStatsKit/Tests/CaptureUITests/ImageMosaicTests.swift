@@ -16,6 +16,69 @@ import CaptureCore
     context.fill(CGRect(x: 0, y: 0, width: 160, height: 100))
     return try #require(context.makeImage())
   }
+  @Test func failedMosaicPreparationDoesNotBlockOrdinaryAnnotationsOrUndo() async throws {
+    let model = ImageEditorModel(
+      image: try image(),
+      makeMosaics: { _ in
+        throw CaptureError.captureFailed
+      })
+    let rectangle = ImageAnnotation(
+      tool: .rectangle, points: [CGPoint(x: 10, y: 10), CGPoint(x: 80, y: 60)])
+    model.commit(rectangle)
+    await model.waitForPendingWork()
+    #expect(model.imageIsCurrent && model.error == nil && !model.rendering)
+    let bitmap = NSBitmapImageRep(
+      cgImage: try #require(model.image.cgImage(forProposedRect: nil, context: nil, hints: nil)))
+    let border = try #require(bitmap.colorAt(x: 10, y: 30)?.usingColorSpace(.sRGB))
+    #expect(border.greenComponent < 0.5)
+
+    // 有遮挡时仍须失败关闭，不能导出未经遮挡的敏感信息。
+    model.commit(
+      ImageAnnotation(tool: .redact, points: [CGPoint(x: 20, y: 20), CGPoint(x: 60, y: 50)]))
+    await model.waitForPendingWork()
+    #expect(!model.imageIsCurrent && model.error != nil && !model.rendering)
+    model.undo()
+    await model.waitForPendingWork()
+    #expect(model.imageIsCurrent && model.error == nil)
+  }
+
+  @Test(arguments: [false, true])
+  func savingRedactionsReusesPreparedMosaics(jpeg: Bool) async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let destination = directory.appendingPathComponent(jpeg ? "image.jpg" : "image.png")
+    let source = try #require(
+      CGContext(
+        data: nil, width: 160, height: 100, bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpace(name: CGColorSpace.sRGB)!,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+    source.setFillColor(CGColor(gray: 1, alpha: 1))
+    source.fill(CGRect(x: 0, y: 0, width: 160, height: 100))
+    source.setFillColor(CGColor(gray: 0, alpha: 1))
+    for x in stride(from: 0, to: 160, by: 2) {
+      source.fill(CGRect(x: x, y: 0, width: 1, height: 100))
+    }
+    let model = ImageEditorModel(
+      image: try #require(source.makeImage()),
+      saveImage: { document, url, jpeg, mosaics in
+        let prepared = try #require(mosaics)
+        try document.save(to: url, jpeg: jpeg, mosaics: prepared)
+      })
+    model.commit(
+      ImageAnnotation(tool: .redact, points: [CGPoint(x: 20, y: 20), CGPoint(x: 60, y: 50)]))
+    await model.waitForPendingWork()
+    model.save(to: destination, jpeg: jpeg)
+    await model.waitForPendingWork()
+    #expect(model.error == nil && !model.dirty && !model.rendering)
+    let output = try #require(NSBitmapImageRep(data: Data(contentsOf: destination)))
+    #expect(output.pixelsWide == 160 && output.pixelsHigh == 100)
+    let color = try #require(output.colorAt(x: 40, y: 30)?.usingColorSpace(.sRGB))
+    #expect(color.redComponent > 0.2 && color.redComponent < 0.8)
+    #expect(abs(color.greenComponent - color.redComponent) < 0.05)
+    #expect(abs(color.blueComponent - color.redComponent) < 0.05)
+  }
+
   @Test func automaticMasksAreEditableAndUndoAsOneActionWithoutDuplicates() async throws {
     let model = ImageEditorModel(
       image: try image(),

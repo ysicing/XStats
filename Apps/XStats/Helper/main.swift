@@ -92,7 +92,9 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
   func setFanTarget(fan: Int, rpm: Double, reply: @escaping @Sendable (String?) -> Void) {
     queue.async { [self] in
       guard let fans else { return reply("无法访问 SMC") }
-      guard (0..<fans.fanCount).contains(fan), rpm.isFinite, rpm > 0 else {
+      // 读取失败不等于零个风扇，不能把硬件访问故障报告为调用参数错误。
+      guard let count = fans.detectedFanCount else { return reply("无法访问 SMC") }
+      guard (0..<count).contains(fan), rpm.isFinite, rpm > 0 else {
         return reply("无效的风扇参数")
       }
       do {
@@ -110,7 +112,9 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
   func setFanAutomatic(fan: Int, reply: @escaping @Sendable (String?) -> Void) {
     queue.async { [self] in
       guard let fans else { return reply("无法访问 SMC") }
-      guard (0..<fans.fanCount).contains(fan) else { return reply("无效的风扇编号") }
+      // 读取失败不等于零个风扇，不能把硬件访问故障报告为调用参数错误。
+      guard let count = fans.detectedFanCount else { return reply("无法访问 SMC") }
+      guard (0..<count).contains(fan) else { return reply("无效的风扇编号") }
       do {
         try fans.setAutomatic(fan: fan)
         if manualFans.remove(fan) != nil { persist() }

@@ -2249,3 +2249,9 @@ CPU 占用口径	CPU-Anzeigeskala
 缓存未能完全清理，请刷新后重试。	Der Cache konnte nicht vollständig bereinigt werden. Aktualisiere die Anzeige und versuche es erneut.
 无法读取缓存占用，请重试。	Die Cache-Belegung konnte nicht gelesen werden. Versuche es erneut.
 快捷键、缓存与独立版	Tastaturkurzbefehle, Cache und eigenständige App
+未启用	Nicht aktiviert
+正在启用…	Wird aktiviert…
+重试	Erneut versuchen
+输入	Eingabe
+输出	Ausgabe
+磁盘可用 {}	Freier Speicherplatz {}

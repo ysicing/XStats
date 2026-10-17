@@ -280,6 +280,12 @@ extension Translations {
     """#
 
   static let english = #"""
+    未启用	Not enabled
+    正在启用…	Enabling…
+    重试	Retry
+    输入	Input
+    输出	Output
+    磁盘可用 {}	Disk available {}
     4 小时	4 hours
     8 小时	8 hours
     12 小时	12 hours

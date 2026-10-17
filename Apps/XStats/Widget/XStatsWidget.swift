@@ -16,10 +16,14 @@ struct SystemEntry: TimelineEntry {
   let diskFree: UInt64?
   let battery: Double?
   let charging: Bool
+  // 每个条目固定自己的语言，不依赖同进程其他 Provider 修改全局 L10n 的时序。
+  let language = AppLanguage(rawValue: WidgetSnapshotStore().load().language) ?? .system
 
-  static let placeholder = SystemEntry(
-    date: .now, cpu: 0.18, memory: 0.62, memoryPressure: .normal,
-    disk: 0.41, diskFree: 1_200_000_000_000, battery: 0.86, charging: false)
+  static var placeholder: SystemEntry {
+    SystemEntry(
+      date: .now, cpu: 0.18, memory: 0.62, memoryPressure: .normal,
+      disk: 0.41, diskFree: 1_200_000_000_000, battery: 0.86, charging: false)
+  }
 }
 
 struct SystemProvider: TimelineProvider {
@@ -112,6 +116,8 @@ private struct Gauge: View {
       Text(title)
         .font(.system(size: 12))
         .foregroundStyle(Palette.textSecondary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
     }
   }
 }
@@ -153,6 +159,12 @@ struct SystemWidgetView: View {
       }
     }
     .containerBackground(Palette.background, for: .widget)
+    .environment(\.locale, L10n.locale(for: entry.language))
+    .environment(\.layoutDirection, entry.language.isRightToLeft ? .rightToLeft : .leftToRight)
+  }
+
+  private func localized(_ text: String) -> String {
+    L10n.translate(text, language: entry.language)
   }
 
   private var header: some View {
@@ -171,9 +183,9 @@ struct SystemWidgetView: View {
       HStack {
         Gauge(title: "CPU", value: entry.cpu, size: 48)
         Spacer()
-        Gauge(title: tr("内存"), value: entry.memory, color: pressureColor, size: 48)
+        Gauge(title: localized("内存"), value: entry.memory, color: pressureColor, size: 48)
       }
-      BarRow(title: tr("磁盘"), value: entry.disk, detail: percent(entry.disk))
+      BarRow(title: localized("磁盘"), value: entry.disk, detail: percent(entry.disk))
     }
   }
 
@@ -183,20 +195,24 @@ struct SystemWidgetView: View {
       HStack {
         Gauge(title: "CPU", value: entry.cpu)
         Spacer()
-        Gauge(title: tr("内存"), value: entry.memory, color: pressureColor)
+        Gauge(title: localized("内存"), value: entry.memory, color: pressureColor)
         Spacer()
-        Gauge(title: tr("磁盘"), value: entry.disk)
+        Gauge(title: localized("磁盘"), value: entry.disk)
         if let battery = entry.battery {
           Spacer()
           Gauge(
-            title: entry.charging ? tr("充电中") : tr("电池"), value: battery,
+            title: entry.charging ? localized("充电中") : localized("电池"), value: battery,
             color: battery <= 0.2 ? Palette.error : Palette.success)
         }
       }
       if let free = entry.diskFree {
-        Text(tr("磁盘可用 \(ByteCountFormatter.string(fromByteCount: Int64(free), countStyle: .file))"))
-          .font(.system(size: 12))
-          .foregroundStyle(Palette.textSecondary)
+        Text(
+          localized(
+            "磁盘可用 \(Int64(free).formatted(.byteCount(style: .file).locale(L10n.locale(for: entry.language))))"
+          )
+        )
+        .font(.system(size: 12))
+        .foregroundStyle(Palette.textSecondary)
       }
     }
   }
@@ -212,11 +228,12 @@ struct SystemWidgetView: View {
 
 struct SystemWidget: Widget {
   var body: some WidgetConfiguration {
-    StaticConfiguration(kind: WidgetKind.system, provider: SystemProvider()) { entry in
+    let language = AppLanguage(rawValue: WidgetSnapshotStore().load().language) ?? .system
+    return StaticConfiguration(kind: WidgetKind.system, provider: SystemProvider()) { entry in
       SystemWidgetView(entry: entry)
     }
-    .configurationDisplayName(tr("系统概览"))
-    .description(tr("CPU、内存、磁盘与电池。每隔几分钟刷新一次。"))
+    .configurationDisplayName(L10n.translate("系统概览", language: language))
+    .description(L10n.translate("CPU、内存、磁盘与电池。每隔几分钟刷新一次。", language: language))
     .supportedFamilies([.systemSmall, .systemMedium])
   }
 }

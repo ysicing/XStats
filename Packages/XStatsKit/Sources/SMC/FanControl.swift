@@ -121,7 +121,7 @@ public final class FanControl {
   }
 
   /// nil 表示 FNum 读取失败，0 才表示确认无风扇；需要区分两者时不要使用 fanCount。
-  private var detectedFanCount: Int? {
+  public var detectedFanCount: Int? {
     smc.double(SMCKey("FNum")).flatMap { UInt8(exactly: $0) }.map(Int.init)
   }
 

@@ -229,14 +229,14 @@ struct HelperRequiredBanner: View {
       case .notInstalled:
         Button(tr("安装")) { model.helper.install() }
           .buttonStyle(DSButtonStyle(kind: .primary))
-          .disabled(model.helper.isWorking)
+          .disabled(model.helper.isWorking || model.helper.isResolvingIdentity)
       case .requiresApproval:
         Button(tr("去批准")) { model.helper.openLoginItemsSettings() }
           .buttonStyle(DSButtonStyle(kind: .primary))
       case .enabled where model.helper.isOutdated:
         Button(tr("重新安装")) { Task { await model.helper.reinstall() } }
           .buttonStyle(DSButtonStyle(kind: .primary))
-          .disabled(model.helper.isWorking)
+          .disabled(model.helper.isWorking || model.helper.isResolvingIdentity)
       case .enabled, .unavailable:
         EmptyView()
       }

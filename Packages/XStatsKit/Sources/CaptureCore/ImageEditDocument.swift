@@ -104,7 +104,8 @@ public struct ImageEditDocument: Sendable {
     guard let result = context.makeImage() else { throw CaptureError.captureFailed }
     return result
   }
-  public func encoded(jpeg: Bool = false) throws -> Data {
+  /// 编码当前标注；可复用基于 original 预计算的马赛克，未提供时按需生成。
+  public func encoded(jpeg: Bool = false, mosaics: ImageMosaics? = nil) throws -> Data {
     try Task.checkCancellation()
     let data = NSMutableData()
     guard
@@ -112,7 +113,7 @@ public struct ImageEditDocument: Sendable {
         data, (jpeg ? UTType.jpeg : UTType.png).identifier as CFString, 1, nil)
     else { throw CaptureError.exportFailed }
     CGImageDestinationAddImage(
-      destination, try render(),
+      destination, try render(mosaics: mosaics),
       jpeg ? [kCGImageDestinationLossyCompressionQuality: 0.9] as CFDictionary : nil)
     try Task.checkCancellation()
     guard CGImageDestinationFinalize(destination) else { throw CaptureError.exportFailed }
@@ -120,8 +121,8 @@ public struct ImageEditDocument: Sendable {
     return data as Data
   }
   /// 只向相邻临时文件分块写入，取消后不提交到用户选择的位置。
-  public func save(to url: URL, jpeg: Bool = false) throws {
-    let bytes = try encoded(jpeg: jpeg)
+  public func save(to url: URL, jpeg: Bool = false, mosaics: ImageMosaics? = nil) throws {
+    let bytes = try encoded(jpeg: jpeg, mosaics: mosaics)
     try Task.checkCancellation()
     let staging = url.deletingLastPathComponent().appendingPathComponent(
       ".\(UUID().uuidString).capture-image")
