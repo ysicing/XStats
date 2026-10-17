@@ -35,6 +35,9 @@ public enum HelperToolRunner {
     guard flags >= 0, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) >= 0 else {
       return Result(status: -1, output: "Cannot configure process output", timedOut: false)
     }
+    // 退出由 terminationHandler 通知，等待期间不按固定间隔唤醒；purge、tmutil 可能静默运行数十秒。
+    let exited = DispatchSemaphore(value: 0)
+    process.terminationHandler = { _ in exited.signal() }
     let deadline = ContinuousClock.now.advanced(by: .seconds(timeout))
     do { try process.run() } catch {
       return Result(status: -1, output: error.localizedDescription, timedOut: false)
@@ -43,41 +46,44 @@ public enum HelperToolRunner {
     var output = Data()
     var bytes = [UInt8](repeating: 0, count: 16 * 1024)
     var eof = false
-    while ContinuousClock.now < deadline {
-      if !eof {
-        var event = pollfd(fd: descriptor, events: Int16(POLLIN | POLLHUP), revents: 0)
-        let ready = poll(&event, 1, 20)
-        if ready > 0 {
-          let count = bytes.withUnsafeMutableBytes {
-            Darwin.read(descriptor, $0.baseAddress, $0.count)
-          }
-          if count == 0 {
-            eof = true
-          } else if count > 0 {
-            output.append(contentsOf: bytes.prefix(min(count, maximumOutputBytes - output.count)))
-          } else if errno != EINTR && errno != EAGAIN {
-            eof = true
-          }
-        }
-      } else if process.isRunning {
-        // 输出提前关闭时仍须等待退出，但不能忙等占满 Helper 的工作线程。
-        Thread.sleep(forTimeInterval: 0.02)
+    // poll 直接等到有输出、管道关闭或截止时间，不再以短超时空转。
+    while !eof {
+      let remaining = ContinuousClock.now.duration(to: deadline) / .milliseconds(1)
+      guard remaining > 0 else { break }
+      var event = pollfd(fd: descriptor, events: Int16(POLLIN | POLLHUP), revents: 0)
+      let ready = poll(&event, 1, Int32(min(remaining.rounded(.up), Double(Int32.max))))
+      if ready < 0 {
+        // poll 自身失败时无法继续读取；按输出结束处理，避免立即重试形成忙等。
+        if errno != EINTR { eof = true }
+        continue
       }
-      if eof && !process.isRunning {
-        return Result(
-          status: process.terminationStatus, output: String(decoding: output, as: UTF8.self),
-          timedOut: false)
+      guard ready > 0 else { continue }
+      let count = bytes.withUnsafeMutableBytes {
+        Darwin.read(descriptor, $0.baseAddress, $0.count)
       }
+      if count == 0 {
+        eof = true
+      } else if count > 0 {
+        output.append(contentsOf: bytes.prefix(min(count, maximumOutputBytes - output.count)))
+      } else if errno != EINTR && errno != EAGAIN {
+        eof = true
+      }
+    }
+    // 输出提前关闭时仍须等待退出，但只等到原截止时间。
+    let remaining = max(0, ContinuousClock.now.duration(to: deadline) / .seconds(1))
+    if eof, exited.wait(timeout: .now() + remaining) == .success {
+      return Result(
+        status: process.terminationStatus, output: String(decoding: output, as: UTF8.self),
+        timedOut: false)
     }
 
     // 只终止本次启动的进程。SIGTERM 无效时升级为 SIGKILL，绝不再次无界 waitUntilExit。
     if process.isRunning {
       process.terminate()
-      let grace = ContinuousClock.now.advanced(by: .milliseconds(200))
-      while process.isRunning && ContinuousClock.now < grace {
-        Thread.sleep(forTimeInterval: 0.01)
+      // 通知可能晚于实际退出；升级信号前重新确认，避免向已退出进程的旧 PID 发信号。
+      if exited.wait(timeout: .now() + 0.2) == .timedOut, process.isRunning {
+        _ = kill(process.processIdentifier, SIGKILL)
       }
-      if process.isRunning { _ = kill(process.processIdentifier, SIGKILL) }
     }
     return Result(status: -1, output: String(decoding: output, as: UTF8.self), timedOut: true)
   }

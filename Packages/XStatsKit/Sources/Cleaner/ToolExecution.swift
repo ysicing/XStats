@@ -213,7 +213,8 @@ enum DeveloperToolRunner {
         (try FileManager.default.attributesOfItem(atPath: outputURL.path)[.size] as? NSNumber)?
         .intValue ?? 0
       guard size <= outputLimit else { throw ToolExecutionError.outputTooLarge("brew") }
-      try await Task.sleep(for: .milliseconds(25))
+      // brew 预览通常持续数秒；与写操作相同的轮询频率足以感知退出、取消与输出上限。
+      try await Task.sleep(for: .milliseconds(100), tolerance: .milliseconds(50))
     }
     try Task.checkCancellation()
     guard !watchdog.didTimeOut else { throw ToolExecutionError.timedOut("brew") }
@@ -292,9 +293,10 @@ enum DeveloperToolRunner {
       outputTask.cancel()
       stop(process)
     }
+    // 清理可能持续数分钟，输出由读取任务排空；这里只需低频感知退出与取消。
     while process.isRunning {
       try Task.checkCancellation()
-      try await Task.sleep(for: .milliseconds(25))
+      try await Task.sleep(for: .milliseconds(100), tolerance: .milliseconds(50))
     }
     try Task.checkCancellation()
     let result = try await withTaskCancellationHandler {
