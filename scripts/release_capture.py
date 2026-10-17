@@ -304,7 +304,9 @@ def publish_release(version, build, name, notes):
         else:
             run("gh", "release", "create", tag, DIST / f"{name}.dmg", "--target", commit, "--title", f"XStats Capture {version}", "--notes-file", body, "--latest=false")
         endpoints = configured_endpoints({**os.environ, "XSTATS_APP_ID": "xstats-capture"})
-        publish(DIST / "appcast.json", endpoints, os.environ.get("XSTATS_RELEASE_TOKEN", ""))
+        app_info = plistlib.loads((work / APP.name / "Contents/Info.plist").read_bytes())
+        publish(DIST / "appcast.json", endpoints, os.environ.get("XSTATS_RELEASE_TOKEN", ""),
+                application_name="XStats Capture", sparkle_public_key=app_info["SUPublicEDKey"])
         verify_sparkle_feeds(DIST / f"{name}.xml", endpoints)
         run("gh", "repo", "clone", "ysicing/homebrew-tap", work / "tap", "--", "--quiet")
         cask = work / "tap/Casks/xstats-capture.rb"

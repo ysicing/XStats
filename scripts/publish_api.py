@@ -75,7 +75,7 @@ def verify_sparkle_feeds(feed: Path, endpoints: list[str]) -> None:
         print(f"✅ Sparkle 更新源已生效：{urlsplit(url).netloc}")
 
 
-def publish(appcast: Path, endpoints: list[str], token: str) -> None:
+def publish(appcast: Path, endpoints: list[str], token: str, *, application_name: str = "", sparkle_public_key: str = "") -> None:
     if not token:
         raise ValueError("XSTATS_RELEASE_TOKEN 不能为空")
     if not endpoints:
@@ -88,6 +88,12 @@ def publish(appcast: Path, endpoints: list[str], token: str) -> None:
     manifest = json.loads(body)
     if not isinstance(manifest, dict) or not manifest.get("version"):
         raise ValueError(f"{appcast} 不是有效的版本清单")
+    if application_name or sparkle_public_key:
+        if not application_name or not sparkle_public_key:
+            raise ValueError("首次登记应用必须同时提供名称与 Sparkle 公钥")
+        # 登记字段仅属于发布请求，不改写已绑定来源记录的版本清单。
+        manifest.update(app_name=application_name, sparkle_public_key=sparkle_public_key)
+        body = json.dumps(manifest, ensure_ascii=False).encode("utf-8")
     for endpoint in endpoints:
         request = urllib.request.Request(
             endpoint,

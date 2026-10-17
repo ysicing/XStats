@@ -18,6 +18,26 @@ import publish_api
 
 
 class PublishAPITest(unittest.TestCase):
+    def test_first_publication_registers_metadata_without_changing_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "appcast.json"
+            original = b'{"version":"0.1.0","build":"1"}\n'
+            path.write_bytes(original)
+            response = contextlib.nullcontext(type("Response", (), {"status": 204})())
+            endpoint = "https://example.test/api/v1/apps/xstats-capture/releases/current"
+            key = "A" * 43 + "="
+            with patch("publish_api.urllib.request.urlopen", return_value=response) as send:
+                publish_api.publish(path, [endpoint], "fixture", application_name="XStats Capture", sparkle_public_key=key)
+            request = json.loads(send.call_args.args[0].data)
+            self.assertEqual(request["app_name"], "XStats Capture")
+            self.assertEqual(request["sparkle_public_key"], key)
+            self.assertEqual(request["version"], "0.1.0")
+            self.assertEqual(path.read_bytes(), original)
+            with patch("publish_api.urllib.request.urlopen") as send:
+                with self.assertRaisesRegex(ValueError, "Sparkle"):
+                    publish_api.publish(path, [endpoint], "fixture", application_name="XStats Capture")
+                send.assert_not_called()
+
     def test_defaults_to_all_regional_endpoints(self) -> None:
         self.assertEqual(publish_api.configured_endpoints({}), [
             "https://apps.12306.work/api/v1/apps/xstats/releases/current",
