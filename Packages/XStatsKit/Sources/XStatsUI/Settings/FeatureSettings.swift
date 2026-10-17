@@ -14,7 +14,7 @@ enum FeatureSettingsTab: String, CaseIterable, Identifiable {
   var title: String { self == .basic ? tr("基础功能") : tr("可选功能") }
 }
 
-/// 分类选择与页面标题共用固定顶栏；键盘和辅助功能操作不等待内容过渡。
+/// 分类紧邻所控制的内容；使用原生分段控件保留键盘导航与辅助功能语义。
 struct FeatureSettingsTabPicker: View {
   @Environment(AppModel.self) private var model
 
@@ -31,8 +31,10 @@ struct FeatureSettingsTabPicker: View {
     }
     .pickerStyle(.segmented)
     .labelsHidden()
-    .controlSize(.regular)
-    .fixedSize()
+    .controlSize(.large)
+    .fixedSize(horizontal: true, vertical: false)
+    .frame(maxWidth: DS.Size.popoverWidth, alignment: .leading)
+    .accessibilityIdentifier("feature-settings-category")
   }
 }
 
@@ -45,25 +47,27 @@ struct FeatureSettings: View {
   @Environment(\.isSnapshot) private var isSnapshot
 
   var body: some View {
-    VStack(alignment: .leading, spacing: DS.Space.s3) {
+    VStack(alignment: .leading, spacing: 0) {
       if isSnapshot {
-        HStack {
-          Text(tr("功能")).dsFont(.sm, weight: .semibold)
-          Spacer()
-          FeatureSettingsTabPicker()
-        }
+        Text(tr("功能")).dsFont(.sm, weight: .semibold)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, DS.Space.s3)
+          .frame(height: DS.Size.windowHeader)
+      }
+      FeatureSettingsTabPicker()
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, DS.Space.s3)
-        .frame(height: DS.Size.windowHeader)
-      }
+        .padding(.vertical, DS.Space.s3)
       // 内容只做短淡入淡出，保持固定视口；选中状态、滚动起点与开关立即更新。
-      SettingsTabPage {
-        if model.featureSettingsTab == .basic { basicFeatures } else { optionalFeatures }
+      ZStack(alignment: .topLeading) {
+        SettingsTabPage {
+          if model.featureSettingsTab == .basic { basicFeatures } else { optionalFeatures }
+        }
+        .id(model.featureSettingsTab)
+        .transition(.opacity)
       }
-      .id(model.featureSettingsTab)
-      .transition(.opacity)
+      .dsSelectionAnimation(DS.Motion.usageSelection, value: model.featureSettingsTab)
     }
-    .padding(.top, isSnapshot ? 0 : DS.Space.s3)
-    .dsSelectionAnimation(DS.Motion.usageSelection, value: model.featureSettingsTab)
     .sheet(
       isPresented: $managesNetworkComponent, onDismiss: { enablesAfterComponentInstall = false }
     ) {
@@ -81,9 +85,6 @@ struct FeatureSettings: View {
 
   private var basicFeatures: some View {
     VStack(alignment: .leading, spacing: DS.Space.s4) {
-      Text(tr("关闭功能会停止实时监控，保留基础信息、页面入口和已有历史。"))
-        .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
-        .frame(minHeight: DS.Size.controlHeight, alignment: .topLeading)
       SettingsGroup {
         ForEach(
           MonitoringModule.allCases.filter {
@@ -93,7 +94,7 @@ struct FeatureSettings: View {
           GroupRow(showsDivider: module != .cpu) { MonitoringFeatureRow(module: module) }
         }
       }
-      Text(tr("移出菜单栏不会关闭功能；系统小组件仍独立刷新。"))
+      Text(tr("取消菜单栏显示不会关闭对应功能。系统小组件会继续独立刷新。"))
         .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
     }
   }
@@ -101,9 +102,6 @@ struct FeatureSettings: View {
   private var optionalFeatures: some View {
     @Bindable var settings = model.settings
     return VStack(alignment: .leading, spacing: DS.Space.s4) {
-      Text(tr("按需启用工具，关闭后保留配置。"))
-        .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
-        .frame(minHeight: DS.Size.controlHeight, alignment: .topLeading)
       SettingsGroup {
         GroupRow(showsDivider: false) {
           CaptureFeatureSettings()

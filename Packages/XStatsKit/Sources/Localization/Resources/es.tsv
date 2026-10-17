@@ -3,13 +3,9 @@
 暂无数据	Aún no hay datos
 主应用缓存	Caché de XStats
 今日消耗的 Token	Tokens consumidos hoy
-查看今天 Codex 和 Claude 的 Token 用量	Ver los tokens usados hoy por Codex y Claude
 分	puntos
-查看 Codex 和 Claude 的剩余额度与重置时间	Ver cuotas restantes de Codex y Claude y cuándo se restablecen
 显示主应用已查询的公网 IP 纯净度	Mostrar la reputación de IP consultada por XStats
-显示主应用已查询的公网 IPv4 和 IPv6	Mostrar las IPv4 e IPv6 públicas consultadas por XStats
 查看公网 IP、归属地、ASN 和标记	Ver la IP pública, ubicación, ASN y etiquetas
-查看今天的日期或本月月历。	Ver la fecha de hoy o el calendario del mes.
 设备不支持	Dispositivo no compatible
 需要 macOS 15.1 或更新版本	Requiere macOS 15.1 o posterior
 支持	Compatible
@@ -99,7 +95,6 @@ XStats 的通知被关闭了，打开的提醒不会显示。	Las notificaciones
 XStats 辅助工具	Auxiliar de XStats
 XStats 通知测试	Notificación de prueba de XStats
 XStats 防休眠	XStats Mantener activo
-XStats 需要授权以安装新版本。	XStats necesita permiso para instalar la nueva versión.
 XStats 需要管理员权限来修改“{}”的 DNS。	XStats necesita permisos de administrador para cambiar el DNS de «{}».
 XStats 需要管理员权限来删除 Time Machine 本地快照。	XStats necesita permisos de administrador para borrar instantáneas locales de Time Machine.
 XStats 需要管理员权限来刷新 DNS 缓存。	XStats necesita permisos de administrador para vaciar la caché DNS.
@@ -142,7 +137,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 {} 个应用，系统自带的不列出	{} apps; no se muestran las del sistema
 {} 个网站	{} sitios
 {} 个进程	{} procesos
-{} 中位延迟	Mediana de {}
 {} 分钟	{} min
 {} 可用 {} · 共 {}	{}: {} libres · {} en total
 {} 天	{} d
@@ -155,7 +149,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 {} 正在运行，卸载前需要先退出。	{} está en ejecución. Ciérrala antes de desinstalar.
 {} 测	en {}
 {} 秒	{} s
-{} 秒 / {} MB	{} s / {} MB
 {} 秒·{} MB	{} s · {} MB
 {} 组	{} grupos
 {} 缓存	Caché de {}
@@ -180,7 +173,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 {}，后台{}	{}, en segundo plano {}
 {}：{}	{}: {}
 {}：{}/{} 个节点连得上	{}: {}/{} nodos accesibles
-~/.npm/_cacache，安装依赖时自动重新下载	~/.npm/_cacache; se descarga de nuevo al instalar dependencias
 ~/Library/Caches 中各应用的缓存，删除后会按需重建	Cachés de apps en ~/Library/Caches; se regeneran cuando hace falta
 ~/Library/Logs 中的日志和诊断报告	Registros e informes de diagnóstico en ~/Library/Logs
 · 结果反映 XStats 自己发出的请求，按应用分流的规则下其他应用可能走不同出口	· Los resultados reflejan solicitudes de XStats; con reglas por app, otras apps pueden usar salidas distintas
@@ -213,7 +205,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 不在可卸载的位置：{}	Ubicación no apta para desinstalar: {}
 不提供电量	Sin información de batería
 不支持 IPv6	IPv6 no compatible
-不是团队 {} 签名的完整应用（{}）	No es una app completa firmada por el equipo {} ({})
 不是应用程序	No es una aplicación
 不是绝对路径	No es una ruta absoluta
 不经过代理	Sin proxy
@@ -229,8 +220,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 中继	Retransmisión
 主显示器	Pantalla principal
 主窗口与弹窗的配色；菜单栏始终跟随系统	Colores de la ventana y las ventanas emergentes; la barra de menús sigue el sistema
-云端只保存邮箱、姓名与设置文档	La nube solo guarda tu correo, nombre y documento de ajustes
-云端已有 {} 在 {} 保存的设置，和这台 Mac 上的不一样。要用哪一份？	{1} guardó ajustes en la nube {2} y difieren de los de este Mac. ¿Cuáles quieres usar?
 交换区	Intercambio
 仅系统不休眠	Mantener el sistema activo
 介质错误	Errores del soporte
@@ -251,7 +240,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 企业	Empresa
 企业 IP	IP empresarial
 企业网络	Red empresarial
-会一并找出它留在资源库里的缓存、偏好设置、容器与登录启动项，全部移到废纸篓，可以放回	También busca sus cachés, preferencias, contenedores y agentes de inicio en la Biblioteca y los mueve a la Papelera, desde donde pueden restaurarse
 会结束这个应用的 {} 个进程，未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	Se cerrarán {} procesos de la app y podrías perder el trabajo sin guardar. Forzar salida los termina de inmediato sin permitir guardar.
 传输速率	Velocidad de enlace
 位置	Ubicación
@@ -264,7 +252,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 住宅概率	Probabilidad residencial
 余量 {}	Margen {}
 使用 {} 登录	Iniciar sesión con {}
-使用云端设置	Usar ajustes de la nube
 使用历史	Historial de uso
 使用电池	Con batería
 使用电池且电量低于该值时，自动关闭合盖运行	Desactivar el modo de tapa cerrada cuando la batería baje de este nivel
@@ -336,12 +323,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 刚刚检测	Comprobado ahora
 刚刚被使用	Usado recientemente
 删除	Eliminar
-删除…	Eliminar…
 删除中…	Eliminando…
-删除云端数据	Eliminar datos de la nube
-删除云端数据？	¿Eliminar datos de la nube?
 删除全部本地快照？	¿Eliminar todas las instantáneas locales?
-删除账号、所有登录方式与云端保存的设置；这台 Mac 上的设置保留	Elimina la cuenta, todos los métodos de acceso y los ajustes de la nube; conserva los ajustes de este Mac
 到时后自动恢复系统默认的睡眠行为。	El reposo normal se restaura al agotarse el tiempo.
 刷新	Actualizar
 刷新 DNS 缓存	Vaciar caché DNS
@@ -356,15 +339,12 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 剩余寿命 {}% · 已写入 {}	{}% de vida útil · {} escritos
 剪切	Cortar
 功耗	Consumo
-包名是 {}	El identificador del paquete es {}
-包含城市数据	Incluir datos de ciudades
 协议版本	Versión del protocolo
 单个节点一次测速最多花的时间与流量，先到哪个停哪个	Límite de tiempo y datos por prueba de un nodo; se detiene al alcanzar cualquiera
 单行	En una línea
 单行文字	Texto en una línea
 占整机 CPU 的比例：{} 个核心全部跑满为 100%	Porcentaje de CPU total: los {} núcleos a plena carga equivalen al 100%
 占用	Uso
-占用超过 85% 时数值与图形显示为红色	Mostrar valores y gráficos en rojo si el uso supera el 85%
 占用超过 85%（电池电量低于 20%）时数值与图形显示为红色	Valores y gráficos en rojo por encima del 85% de uso (batería por debajo del 20%)
 占用高于	Uso superior a
 卷	Volumen
@@ -383,7 +363,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 压缩	Comprimida
 压缩与交换	Compresión e intercambio
 压缩为你省下	Ahorro por compresión
-压缩包里应当只有一个 .app	El archivo debe contener exactamente un .app
 压缩比	Relación de compresión
 原因	Motivo
 原生 / 广播	Nativa / difusión
@@ -406,7 +385,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 取消	Cancelar
 受保护	Protegido
 受保护的项目：{}	Elemento protegido: {}
-另一台 Mac	Otro Mac
 另有 {} 个出口，见网站分流	{} salidas más; consulta Enrutamiento de sitios
 另有 {} 移到废纸篓	Además, {} movidos a la Papelera
 另有 {} 项	{} más
@@ -417,7 +395,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 只在显示温度或开启过热通知时记录	Solo se registra al mostrar la temperatura o activar las alertas de sobrecalentamiento
 只在显示电池信息时记录	Solo se registra mientras se muestra la información de la batería
 只显示菜单栏时的采样间隔；打开弹窗或主窗口时为 1 秒（进程页 2 秒）	Intervalo de muestreo cuando solo se muestra la barra de menús; 1 segundo con una ventana abierta (2 en Procesos)
-只查找以该应用包名命名的文件，以及 Application Support、Logs 下与应用同名的目录；钥匙串与其他应用共享的数据不会动。程序坞里的图标会一并移除	Solo incluye archivos con el identificador de la app y carpetas con su nombre en Application Support y Logs. No afecta al llavero ni a datos compartidos con otras apps. También elimina el icono del Dock
 只设置了系统代理：浏览器等应用走代理，命令行工具、游戏等不读代理设置的程序仍在直连。要接管全部流量，可以开启增强模式或 TUN 模式。	Solo hay un proxy del sistema: los navegadores lo usan, pero las herramientas de consola, juegos y apps que ignoran estos ajustes siguen conectándose directamente. Activa el modo mejorado o TUN para enrutar todo el tráfico.
 可在废纸篓中恢复。清空废纸篓后才会释放空间。	Puedes restaurarlos desde la Papelera. El espacio se libera al vaciarla.
 可执行文件：{}	Ejecutable: {}
@@ -428,7 +405,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 可用 {}	{} disponibles
 可用 {} / 共 {}	{1} libres de {2}
 可用内存只剩 {}，系统正在压缩和交换内存。关闭不用的应用可以缓解。	Solo quedan {} de memoria; el sistema está comprimiendo e intercambiando. Cierra apps que no uses para aliviarlo.
-可用空间包含系统可以随时清除的缓存，与访达显示一致	El espacio disponible incluye cachés purgables, como en Finder
 可访问	Accesible
 右侧风扇	Ventilador derecho
 右耳	Derecho
@@ -445,11 +421,8 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 合盖运行设置	Modo de tapa cerrada
 合盖运行需要修改系统睡眠设置，需安装辅助工具（管理员授权一次）。	Este modo modifica el reposo del sistema y necesita el auxiliar (una autorización de administrador).
 同步	Sincronizar
-同步失败	Error de sincronización
-同步的内容：菜单栏项目与风格、刷新频率、外观与语言、详情弹窗的区块、连接探测、通知、快捷键、风扇安全温度、合盖电量下限。当前页面、辅助工具与历史记录留在本机。	Se sincronizan: elementos y estilos de la barra de menús, frecuencia de actualización, apariencia e idioma, secciones emergentes, sondeo de conexión, notificaciones, atajos, temperatura de seguridad y batería mínima con tapa cerrada. La página actual, el auxiliar y el historial permanecen en este Mac.
 后台低频探测	Sondeo en segundo plano
 启动于	Arranque
-启动时和之后每天检查一次，发现新版本时显示更新摘要	Comprueba al iniciar y una vez al día; muestra las novedades si encuentra una actualización
 启动磁盘	Disco de arranque
 启动磁盘可用空间低于 10% 或 10 GB，每 10 分钟检查一次	Menos del 10% o 10 GB libres en el disco de arranque; se comprueba cada 10 minutos
 启动磁盘已用占比	Uso del disco de arranque
@@ -475,9 +448,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 在 GitHub 提交问题	Informar de un problema en GitHub
 在 cleanip.io 查看这个 IP 的完整报告	Abrir el informe completo de esta IP en cleanip.io
 在主窗口打开“{}”	Abrir «{}» en la ventana principal
-在程序坞显示图标	Mostrar icono en el Dock
 在线升级	Actualizaciones en línea
-在线升级：发现新版本时显示更新摘要，一键安装并自动重启	Actualizaciones: consulta novedades, instala con un clic y reinicia la app automáticamente
 在菜单栏显示	Mostrar en la barra de menús
 在菜单栏显示{}	Mostrar {} en la barra de menús
 在访达中显示	Mostrar en Finder
@@ -494,9 +465,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 安全温度	Temperatura de seguridad
 安装	Instalar
 安装包	Instaladores
-安装包不支持这台 Mac 的芯片	Esta actualización no admite el chip de este Mac
 安装包内容不正确：{}	Paquete de actualización no válido: {}
-安装包校验值与版本清单不一致，已放弃安装	La suma de verificación no coincide con el manifiesto; instalación cancelada
 安装失败：{}	Error de instalación: {}
 安装辅助工具	Instalar auxiliar
 安静	Silencioso
@@ -536,12 +505,10 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 已到设定时间，防休眠已关闭	Se agotó el tiempo; Mantener activo está desactivado
 已加载	Cargado
 已取消	Cancelado
-已取消登录	Inicio de sesión cancelado
 已启用	Activado
 已导出 {}	Exportado {}
 已将 {} 与 {} 项残留移到废纸篓，约 {}{}{}。需要时可以在废纸篓里放回。	Se movieron {} y {} restos a la Papelera, unos {}{}{}. Puedes restaurarlos desde allí.
 已应用远端设置	Ajustes remotos aplicados
-已开启同步	Sincronización activada
 已恢复自动获取 DNS	DNS automático restaurado
 已扫描 {} 个条目 · {}	{} elementos analizados · {}
 已把“{}”移到废纸篓	«{}» se movió a la Papelera
@@ -573,7 +540,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 应用	Apps
 应用 UI 语言	Idioma de la interfaz
 应用 {} / 辅助工具 {}	App {} / Auxiliar {}
-应用与勾选的 {} 项残留会移到废纸篓，约 {}。清空废纸篓前都可以放回。	La app y {} restos seleccionados se moverán a la Papelera, unos {}. Puedes restaurarlos hasta vaciarla.
 应用包内未找到辅助工具，请使用完整构建的 XStats.app	No se encontró el auxiliar en la app. Usa una compilación completa de XStats.app.
 应用并覆盖	Aplicar y sobrescribir
 应用拒绝退出，可以试试强制退出	La app rechazó salir. Prueba Forzar salida.
@@ -611,7 +577,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 归属地	Ubicación
 归属地数据来自	Datos de ubicación de
 当前 {} · 发布于 {} · {} · {}	Actual {} · Publicado {} · {} · {}
-当前为临时签名的开发构建，辅助工具只能校验应用标识。使用 Developer ID 证书构建后会自动启用团队校验。	Esta compilación de desarrollo tiene firma ad hoc; el auxiliar solo puede verificar el identificador. La verificación del equipo se activa automáticamente con Developer ID.
 当前效果（实时数据）	Vista previa (datos en directo)
 当前版本	Versión actual
 当前版本 {}	Versión actual {}
@@ -632,7 +597,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 我的	Míos
 截图已输出到 {}	Capturas guardadas en {}
 所属应用：{}（{}）	App: {} ({})
-所有内容先移到废纸篓。	Todo se mueve primero a la Papelera.
 所有指标合成一个图标，点击弹出状态总览，可切到各项详情	Todas las métricas en un icono; pulsa para ver el resumen y las pestañas con detalles
 所有检测目标都连不上。请检查网络连接，或者代理软件是否正常运行。	No se pudo acceder a ningún destino de prueba. Revisa la conexión y el funcionamiento de tu app de proxy.
 所有用户	Todos los usuarios
@@ -671,7 +635,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 按系统休眠	Reposo del sistema
 按规则分流	Enrutamiento por reglas
 按进程	Por proceso
-换一台 Mac 登录后，菜单栏、外观、通知与快捷键等偏好会自动恢复。不登录也能使用全部功能。	Inicia sesión en otro Mac y recupera automáticamente tus preferencias de barra de menús, apariencia, notificaciones y atajos. Todas las funciones están disponibles sin iniciar sesión.
 换入 / 换出	Intercambio de entrada / salida
 掌托	Reposamanos
 排队程度	Cola de ejecución
@@ -702,19 +665,15 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 整机功耗	Consumo del sistema
 文件系统检查	Comprobación del sistema de archivos
 文件系统结构完好，没有发现错误	Estructura del sistema de archivos intacta; sin errores
-新版本未通过 Apple 公证检查，已放弃安装	La nueva versión no superó la certificación de Apple; instalación cancelada
 新版本需要 macOS {} 或更高版本	La nueva versión requiere macOS {} o posterior
 无	Ninguno
 无 Bundle ID	Sin identificador de paquete
 无法创建电源断言（{}）	No se pudo crear la aserción de energía ({})
-无法创建签名要求	No se pudo crear el requisito de firma
 无法打开	No se pudo abrir
-无法打开登录窗口	No se pudo abrir la ventana de acceso
 无法推出“{}”：{}	No se pudo expulsar «{1}»: {2}
 无法确认是否经过代理	No se puede confirmar el uso del proxy
 无法移到废纸篓：{}	No se pudo mover a la Papelera: {}
 无法读取	No se puede leer
-无法读取签名	No se pudo leer la firma
 无法连接 WebDAV，请检查网络、地址和 HTTPS 证书	No se puede conectar a WebDAV. Revisa la red, la URL y el certificado HTTPS
 无法连接辅助工具	No se pudo conectar al auxiliar
 无法连接辅助工具：{}	No se pudo conectar al auxiliar: {}
@@ -731,7 +690,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 暂时没有拿到评分，稍后会再试	Sin puntuación todavía; se reintentará más tarde
 更新内容	Novedades
 更省电，负责后台和轻量任务	Más eficientes; realizan tareas ligeras y en segundo plano
-替换后未找到应用	No se encontró la app tras reemplazarla
 替换应用失败：{}	Error al reemplazar la app: {}
 最低 {} · 最高 {} · 目标 {} RPM	Mín. {} · Máx. {} · Objetivo {} RPM
 最大的文件	Archivos más grandes
@@ -747,8 +705,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 最高	Máximo
 最高 / 平均	Máx. / Media
 最高温度	Temperatura máxima
-服务器返回 {}	El servidor devolvió {}
-服务器返回的数据格式不正确	El servidor devolvió datos con formato incorrecto
 未使用	Sin usar
 未使用代理	Sin proxy en uso
 未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	Puedes perder el trabajo sin guardar. Forzar salida termina de inmediato sin permitir guardar.
@@ -820,8 +776,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 正在下载设置…	Descargando ajustes…
 正在使用	En uso
 正在修改 DNS…	Cambiando DNS…
-正在同步	Sincronizando
-正在同步…	Sincronizando…
 正在安装，完成后 XStats 会自动重启。	Instalando. XStats se reiniciará al terminar.
 正在导出…	Exportando…
 正在导出诊断信息…	Exportando diagnóstico…
@@ -859,7 +813,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 正常	Normal
 此刻各核心的占用；超过 60% 变橙色、85% 变红色	Carga actual por núcleo; naranja por encima del 60%, rojo por encima del 85%
 此设备没有可调节的风扇	Este Mac no tiene ventiladores ajustables
-每个应用占整机 CPU 的比例：{} 个核心全部跑满为 100%，与顶部的总占用是同一把尺子。鼠标悬停在数值上可以看按单核计的占用（活动监视器的算法）	Uso de CPU total por app: los {} núcleos a plena carga equivalen al 100%, igual que el total superior. Pasa el cursor sobre el valor para ver el uso por núcleo, como en Monitor de Actividad
 每个指标一个图标，点击弹出该项详情	Un icono por métrica; pulsa para ver detalles
 主要指标每分钟写入本机数据库并保留 7 天	Las métricas principales se guardan localmente cada minuto y se conservan 7 días.
 每核 {}	{} por núcleo
@@ -915,7 +868,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 版本	Versión
 版本 {}	Versión {}
 版本 {}{}	Versión {}{}
-版本是 {}，清单写的是 {}	La versión es {}, pero el manifiesto indica {}
 版本清单格式不正确	Manifiesto de versión no válido
 更新源已发布其他版本，请重新检查更新后再安装	Se ha publicado otra versión. Vuelve a buscar actualizaciones antes de instalar.
 物理地址	Dirección de hardware
@@ -958,10 +910,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 电量低于 {}%，已关闭合盖运行	Batería por debajo del {}%; modo de tapa cerrada desactivado
 电量历史	Historial de carga
 电量条	Medidor
-登录以同步设置	Inicia sesión para sincronizar ajustes
 登录启动项	Agentes de inicio
-登录回调不正确	Respuesta de inicio de sesión no válida
-登录已失效，请重新登录	Tu sesión ha caducado. Vuelve a iniciar sesión.
 登录时启动	Abrir al iniciar sesión
 登录时运行	Se ejecuta al iniciar sesión
 登录项设置	Ítems de inicio
@@ -992,13 +941,10 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 窗口	Ventana
 窗口状态	Estado guardado
 立即切换；显示器、应用名称等由系统提供的文字在下次启动时切换	Se aplica al instante; los nombres proporcionados por macOS, como pantallas y apps, cambian al reiniciar
-立即同步	Sincronizar ahora
 竖向电量条表示当前占用比例	Un medidor vertical muestra el uso actual
 等待批准	Esperando aprobación
-等待选择	Esperando tu elección
 签名团队	Equipo firmante
 签名方：{}	Firmado por: {}
-签名校验未通过：{}	Error de verificación de firma: {}
 粘贴	Pegar
 系统	Sistema
 系统概览	Resumen del sistema
@@ -1093,7 +1039,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 蓝牙设备电量低	Batería Bluetooth baja
 蓝牙设备电量低时提示	Avisar de batería Bluetooth baja
 覆盖远端设置？	¿Sobrescribir ajustes remotos?
-解压失败：{}	Error al descomprimir: {}
 计算中	Calculando
 记录历史数据	Registrar historial
 设置	Ajustes
@@ -1101,7 +1046,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 设置…	Ajustes…
 设置同步	Sincronización de ajustes
 设置备份版本不受支持，请先更新 XStats	Versión de copia no compatible. Actualiza XStats primero
-设置改动后 2 秒内上传；启动、唤醒与每 15 分钟检查一次云端	Los cambios se suben en 2 segundos; se consulta la nube al iniciar, al despertar y cada 15 minutos
 设置文件超过 1 MB，已停止同步	El archivo de ajustes supera 1 MB. Sincronización detenida
 设置风扇目标转速，或恢复系统自动控制	Configurar velocidad objetivo o restaurar control automático de ventiladores
 评分由 cleanip.io 提供，点击查看完整报告	Puntuación de cleanip.io. Pulsa para ver el informe completo
@@ -1130,8 +1074,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 负载在下降	Carga en descenso
 负载平稳	Carga estable
 账号	Cuenta
-账号与云端设置会立即删除，无法恢复。	La cuenta y los ajustes de la nube se eliminan inmediatamente y no se pueden recuperar.
-账号与同步	Cuenta y sincronización
 走势图显示最近多长时间	Periodo mostrado en el gráfico de tendencia
 走势时长	Duración de tendencia
 超时	Tiempo agotado
@@ -1172,7 +1114,6 @@ Apple 智能本机模型当前不可用。	El modelo de Apple Intelligence en el
 这段时间没有记录	Sin registros en este periodo
 这段时间还没有记录。XStats 运行时每分钟记录一次，睡眠与锁屏期间不记录。	Aún no hay registros. XStats registra cada minuto mientras funciona, excepto durante el reposo y el bloqueo.
 这里列出资源库里的 LaunchAgents 与 LaunchDaemons。停用只写入系统的停用记录并卸载，不删除文件，随时可以重新启用；登录时打开的应用与后台权限在系统设置里管理。	Muestra LaunchAgents y LaunchDaemons de tus bibliotecas. Desactivarlos registra el estado y los descarga sin borrar archivos, por lo que puedes reactivarlos. Las apps de inicio y permisos en segundo plano se gestionan en Ajustes del Sistema.
-这里显示已配对蓝牙配件，以及最近 30 分钟内读到的电量	Muestra accesorios Bluetooth enlazados y baterías leídas en los últimos 30 minutos
 进程	Procesos
 进程 {} · 线程 {}	Procesos {} · Hilos {}
 进程名：{}	Nombre del proceso: {}
@@ -1186,12 +1127,10 @@ Apple 智能本机模型当前不可用。	El modelo de Apple Intelligence en el
 连接信息有改动，请先保存配置	Los datos de conexión cambiaron. Guarda primero la configuración
 连接探测	Conectividad
 连接探测历史	Historial de sondeos
-连接探测只在需要时运行，更省电	El sondeo solo se ejecuta cuando hace falta para ahorrar energía
 退出	Salir
 退出 XStats	Salir de XStats
 退出应用	Salir de la app
 退出应用…	Salir de la app…
-退出登录	Cerrar sesión
 适中	Moderado
 选择显示项目	Elegir elementos
 选择语言	Elegir idioma
@@ -1284,7 +1223,6 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Tokens locales de Codex /
 订阅额度	Subscription usage
 服务端用量 · 与本机 Token 统计不同	Server usage · separate from local token statistics
 重置：	Resets:
-查询失败，显示上次额度	Query failed; showing previous quota
 上次额度	Cuota anterior
 显示本地用量	Mostrar uso local
 读取本机会话日志；关闭后停止扫描并隐藏 Token 统计。	Lee los registros de sesión locales; al desactivarlo, detiene el análisis y oculta las estadísticas de tokens.
@@ -1426,10 +1364,8 @@ Apple 智能	Apple Intelligence
 明天上班吗	¿Trabajas mañana?
 查看明天是否上班或放假。	Consulta si mañana es laborable o festivo.
 休息声音	Sonidos de descanso
-仅在休息时本地实时合成	Generados localmente en tiempo real durante los descansos
 白噪音	Ruido blanco
 粉红噪音	Ruido rosa
-雨声	Lluvia
 让眼睛休息一下	Descansa la vista
 看看远处，轻轻眨眼，放松肩颈	Mira a lo lejos, parpadea suavemente y relaja los hombros
 长按跳过 · 或按 Esc 随时返回	Mantén pulsado para omitir · o pulsa Esc para volver
@@ -1439,7 +1375,6 @@ Apple 智能	Apple Intelligence
 查看下一次休息或当前休息倒计时。	Consulta la cuenta atrás hasta el próximo descanso o el final del actual.
 收起到迷你 HUD	Contraer al Mini HUD
 番茄钟	Temporizador Pomodoro
-番茄钟与护眼休息	Pomodoro y descansos visuales
 专注	Concentración
 短休	Descanso corto
 长休	Descanso largo
@@ -1455,25 +1390,17 @@ Apple 智能	Apple Intelligence
 {} 轮	{} sesiones
 再专注 5 分钟	Concentrarse 5 minutos más
 专注中	Concentrándose
-工作时长（分钟）	Intervalo de trabajo (minutos)
-休息时长（分钟）	Duración del descanso (minutos)
-长休时长（分钟）	Descanso largo (minutos)
 迷你 HUD 样式	Estilo de Mini HUD
 数字倒计时	Cuenta atrás digital
 进度圆环	Anillo de progreso
-沙漏	Reloj de arena
 进度条	Barra de progreso
 切换迷你 HUD 样式	Cambiar estilo de Mini HUD
-拖动迷你 HUD	Arrastrar Mini HUD
 继续	Continuar
 VPN 不允许绕开它直连，TCP 建连会被本机代理提前应答，测不出真实延迟。关掉 VPN 再测	La VPN impide la conexión directa y el proxy local responde antes al enlace TCP, por lo que no se puede medir la latencia real. Desactiva la VPN y vuelve a intentarlo
 国内节点只能测 TCP 建连，经代理测不准，所以始终直连测	Los nodos de China solo permiten medir la conexión TCP; con un proxy sería impreciso, así que siempre se miden directamente
 检测到 {}。直连会绕开它，测的是本机宽带；经 {} 测的是代理线路	Se detectó {}. Directo lo evita y mide tu conexión; por {} mide la ruta del proxy
 工作番茄	Trabajo
-开始工作	Empezar a trabajar
-结束工作	Terminar el trabajo
 待开始	Listo para empezar
-手动开始工作，专注与休息自动交替；每 4 轮进入长休。	Inicia el trabajo manualmente. La concentración y los descansos se alternan; tras cuatro sesiones, llega un descanso largo.
 起身活动一下	Levántate y muévete
 走动几步，看看远处，让身体和眼睛都休息	Camina un poco y mira a lo lejos para descansar el cuerpo y la vista
 清除本机记录的指标历史	Borrar el historial de métricas guardado en este dispositivo
@@ -1491,8 +1418,6 @@ XStats 反馈 · {}	Comentarios sobre XStats · {}
 跳过 {} 项 · 失败 {} 项	Omitidos {} · Fallidos {}
 {} 个目录未完成扫描，结果已排除	No se pudieron analizar por completo {} directorios; se excluyeron sus resultados
 没有发现可清理的项目产物	No se encontraron artefactos del proyecto para limpiar
-最近 7 天有活动	Actividad en los últimos 7 días
-超过 7 天未使用	Sin usar durante más de 7 días
 云盘	Almacenamiento en la nube
 Agent 工作树	Árbol de trabajo del agente
 {} 项 · {}	{} elementos · {}
@@ -1508,7 +1433,6 @@ Agent 工作树	Árbol de trabajo del agente
 完成	Listo
 选择项目目录	Elegir carpetas de proyectos
 添加	Añadir
-所选内容包含最近 7 天有活动的项目，清理后需要重新构建。	La selección incluye proyectos activos en los últimos 7 días; habrá que volver a compilarlos.
 云盘项目可能同步删除。	Los proyectos en la nube también podrían eliminarse en otros dispositivos.
 {} 项含手写或被 Git 跟踪的内容，已保护	{} elementos contienen archivos escritos a mano o seguidos por Git y están protegidos
 未安装 Xcode 命令行工具，无法确认 Git 仓库中的 {} 项是否被跟踪，已保留	Las herramientas de línea de comandos de Xcode no están instaladas: no se pudieron comprobar {} elementos de repositorios Git y se conservaron
@@ -1520,7 +1444,6 @@ Agent 工作树	Árbol de trabajo del agente
 Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依赖。	Homebrew limpiará versiones antiguas y cachés según su estado al ejecutarse, sin eliminar dependencias automáticamente.
 尚未扫描	Aún no se ha analizado
 点击重新扫描以计算可清理空间	Pulsa Volver a analizar para calcular el espacio recuperable
-正在重新扫描…	Volviendo a analizar…
 已处理 {}/{} 步	{} de {} pasos procesados
 正在停止清理…	Deteniendo la limpieza…
 正在核对剩余项目…	Comprobando los elementos restantes…
@@ -1534,7 +1457,6 @@ Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依�
 正在处理当前项目	Procesando el elemento actual
 已停止，已清理部分不会恢复	Detenido. Los elementos ya eliminados no se pueden restaurar.
 扫描大小约 {}	Tamaño analizado: aprox. {}
-正在取消…	Cancelando…
 按需扫描缓存、日志与项目产物，清理前逐项确认。	Analiza cachés, registros y artefactos de proyectos cuando lo necesites. Revisa cada elemento antes de limpiar.
 “{}”只剩 {} 可用。请检查不再需要的文件。	En «{}» solo quedan {} disponibles. Revisa los archivos que ya no necesitas.
 安装标识	Identificador de instalación
@@ -1724,18 +1646,15 @@ IP 归属地	Ubicación IP
 网络过滤配置与此扩展不匹配。	La configuración del filtro de red no corresponde a esta extensión.
 XStats 网络连接查看	Visor de conexiones de red de XStats
 只读观察 · 全部放行	Observación de solo lectura · Todo permitido
-只在本机记录新连接的应用与目标信息，不读取通信内容。	Registra localmente la app y el destino sin leer el contenido de las comunicaciones.
 停止查看	Detener visualización
 启用连接查看	Activar visualización de conexiones
 移除网络扩展	Eliminar extensión de red
 搜索应用、地址或端口	Buscar apps, direcciones o puertos
 清空记录	Borrar registros
 最近连接记录	Registros de conexiones recientes
-仅显示开启查看后观察到的连接，记录不代表连接当前仍在线。	Solo se muestran conexiones observadas desde el inicio; un registro no indica que la conexión siga activa.
 扩展缓冲区已有 {} 条旧记录被淘汰。	El búfer de la extensión ha descartado {} registros antiguos.
 暂无连接记录	Aún no hay registros de conexiones
 没有匹配的连接	No hay conexiones coincidentes
-启用查看后，打开网页或使用联网应用，新的连接会显示在这里。	Tras activar la vista, abre una página web o usa una app en línea para ver nuevas conexiones aquí.
 等待系统授权	Esperando autorización del sistema
 采集已暂停	Recopilación pausada
 未能启用	No se pudo activar
@@ -1755,10 +1674,8 @@ XStats 网络连接查看	Visor de conexiones de red de XStats
 仅显示活动连接	Mostrar solo conexiones activas
 汇总方式	Agrupar por
 活动连接	Conexiones activas
-国家级位置，非设备精确位置	Ubicación por país, no la ubicación exacta del dispositivo
 暂停时保留当前画面；继续后更新观察到的连接。	Al pausar se conserva la vista; al reanudar se actualizan las conexiones observadas.
 显示观察期间的新连接；重新开始前已建立的连接不在此列。	Muestra conexiones abiertas durante la observación; no incluye las conexiones anteriores.
-查看应用连接、域名和国家分布，不读取通信内容。	Ver conexiones, dominios y países sin leer el contenido de las comunicaciones.
 请在系统设置中允许 XStats 网络扩展，然后返回此处。	Permite la extensión de red de XStats en Ajustes del Sistema y vuelve aquí.
 错误详情	Detalles del error
 正在监视	Monitorizando
@@ -1770,7 +1687,6 @@ XStats 网络连接查看	Visor de conexiones de red de XStats
 更新失败，继续使用已缓存的数据。	La actualización falló. Se usarán los datos guardados.
 地图数据库未就绪，连接列表仍可使用。	La base del mapa no está disponible. La lista de conexiones sigue disponible.
 下载地图数据库	Descargar base de datos del mapa
-国家分布	Distribución por país
 连接详情	Detalles de conexión
 国家或地域	Países o regiones
 国家或地域分布	Distribución por país o región
@@ -1795,7 +1711,6 @@ XStats 网络连接查看	Visor de conexiones de red de XStats
 系统过滤配置	Configuración del filtro del sistema
 可用更新	Actualización disponible
 正在更新网络组件…	Actualizando el componente de red…
-打开组件	Abrir componente
 卸载组件	Desinstalar componente
 尚未安装网络组件	Componente de red sin instalar
 安装组件	Instalar componente
@@ -1803,22 +1718,17 @@ XStats 网络连接查看	Visor de conexiones de red de XStats
 将停止查看、移除系统扩展和后台项目，并删除伴随应用。	Detiene la visualización, elimina la extensión y el servicio en segundo plano y borra la app auxiliar.
 网络组件有更新	Hay una actualización del componente de red
 关闭面板	Cerrar panel
-关闭功能会停止采集并移除菜单栏入口，已有历史保留。	Desactivar una función detiene la recopilación y elimina sus elementos de la barra de menús. Se conserva el historial existente.
-移出菜单栏不会关闭功能；系统小组件仍独立刷新。	Quitar un elemento de la barra de menús no desactiva la función. Los widgets del sistema se actualizan de forma independiente.
-已关闭，不再采集	Desactivado, sin recopilación
+取消菜单栏显示不会关闭对应功能。系统小组件会继续独立刷新。	Ocultar un elemento de la barra de menús no desactiva la función correspondiente. Los widgets del sistema siguen actualizándose de forma independiente.
 已启用，按需采集	Activado, recopilación bajo demanda
-此功能已关闭，不再采集数据。启用后仅按展示、历史和提醒需求采集。	Esta función está desactivada y no recopila datos. Al activarla, solo se recopilan cuando son necesarios para la vista, el historial o las alertas.
 启用监控功能	Activar monitorización
 没有启用监控功能	No hay funciones de monitorización activadas
 加入菜单栏时会同时启用功能	Añadir este elemento a la barra de menús también activa su función
 基础功能	Funciones básicas
 可选功能	Funciones opcionales
-按需启用工具，关闭后保留配置。	Activa las herramientas cuando las necesites. Sus ajustes se conservan al desactivarlas.
 显示器参数控制	Control de parámetros de pantalla
 允许调节亮度、对比度和音量	Ajustar brillo, contraste y volumen
 仅查看显示器信息，不读取或设置参数	Solo información de la pantalla; no se leen ni cambian parámetros
 只显示信息，参数控制在功能设置中启用	Solo muestra información. Activa el control de parámetros en Funciones.
-查看应用与残留文件，确认后移到废纸篓。	Revisa las apps y los archivos residuales y muévelos a la papelera tras confirmar.
 Apple 智能详情	Detalles de Apple Intelligence
 查看 Apple 智能功能与模型占用	Ver funciones y almacenamiento de modelos
 本机模型已就绪	El modelo local está listo
@@ -1875,10 +1785,8 @@ Xcode 代码补全模型	Modelos de completado de código de Xcode
 清除记录	Borrar registros
 清除活动记录？	¿Borrar los registros de actividad?
 将删除本机专注与休息记录，计时配置和已有完成轮数保留。	Borra los registros locales de concentración y descanso; conserva ajustes y rondas completadas.
-结束练习	Finalizar ejercicio
 按 Esc 随时返回	Pulsa Esc para volver cuando quieras
 看看远处，活动一下肩颈。	Mira a lo lejos y mueve los hombros y el cuello.
-尚未开启	Sin activar
 日期	Fecha
 已记录 {} 轮	{} rondas registradas
 休息	Descanso
@@ -1991,12 +1899,8 @@ Magpie 数据无法读取，请检查版本或数据大小。	No se pueden leer 
 查看账户剩余额度与重置时间	Ver cuotas restantes y tiempos de restablecimiento
 查看今天的 Token 用量	Ver el uso de tokens de hoy
 到期：{}	Vence: {}
-关闭功能会停止相关采集，已有历史保留。电池基础信息仍可查看。	Al desactivar una función se detiene su recopilación y se conserva el historial. La información básica de la batería sigue disponible.
-采集功耗和电量历史；关闭后仍显示电量、健康度和蓝牙设备	Recopilar consumo e historial de batería; el nivel, la salud y los dispositivos Bluetooth siguen visibles al desactivar
 仅显示电池信息，采集在功能设置中启用	Mostrar solo información de la batería; activar la recopilación en Funciones
 电量记录已暂停，已有历史保留	El registro de batería está en pausa; se conserva el historial existente
-关闭功能会停止实时监控，保留基础信息、页面入口和已有历史。	Al desactivar una función se detiene la supervisión en tiempo real y se conservan la información básica, el acceso a la página y el historial existente.
-监控已关闭，基础信息仍可查看。实时指标、曲线与告警已暂停。	La supervisión está desactivada. La información básica sigue disponible; las métricas en tiempo real, los gráficos y las alertas están en pausa.
 App 能耗	Consumo de las apps
 CPU 能耗	Consumo de CPU
 暂时无法读取 App 能耗	Los datos de consumo de las apps no están disponibles temporalmente
@@ -2033,7 +1937,6 @@ iPhone 与 iPad	iPhone y iPad
 有可用更新	Actualización disponible
 正在卸载软件包…	Desinstalando paquete…
 正在更新软件包…	Actualizando paquete…
-正在读取应用清单…	Leyendo lista de aplicaciones…
 浏览应用信息，管理 Homebrew，并预览卸载残留。	Consulta apps, gestiona Homebrew y revisa los archivos residuales antes de desinstalar.
 由 Homebrew 卸载所选项目，依赖保护仍然生效。	Homebrew desinstalará el elemento seleccionado manteniendo la protección de dependencias.
 Homebrew 会更新所选项目及必要的依赖。	Homebrew actualizará el elemento seleccionado y las dependencias necesarias.
@@ -2082,7 +1985,6 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 录屏	Grabar pantalla
 区域	Área
 整个屏幕	Pantalla completa
-截图标注与屏幕录制，内容仅保存在本机。	Anota capturas y graba la pantalla. El contenido permanece en este Mac.
 捕获范围	Destino de captura
 系统声音	Audio del sistema
 窗口模式只录制所选 App 的声音。	El modo ventana solo graba el audio de la app seleccionada.
@@ -2093,14 +1995,12 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 录屏快捷键	Atajo de grabación
 设置快捷键	Definir atajo
 按下快捷键，Esc 取消	Pulsa un atajo; Esc cancela
-快捷键已被占用，请更换。	Este atajo está en uso. Elige otro.
 打开 XStats Capture	Abrir XStats Capture
 打开隐私设置	Abrir ajustes de privacidad
 拖动选择区域，按 Esc 取消	Arrastra para seleccionar; Esc cancela
 点击窗口，按 Esc 取消	Haz clic en una ventana; Esc cancela
 点击要捕获的屏幕，按 Esc 取消	Haz clic en la pantalla; Esc cancela
 截图编辑	Editor de capturas
-标注工具	Herramienta de anotación
 标注文字	Texto de anotación
 裁剪	Recortar
 箭头	Flecha
@@ -2137,7 +2037,6 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 请在系统设置中允许 {} 录制屏幕，然后重试。	Permite grabar la pantalla a {} en Ajustes del Sistema y reintenta.
 请在系统设置中允许 {} 使用麦克风，然后重试。	Permite usar el micrófono a {} en Ajustes del Sistema y reintenta.
 截图、图片标注与录屏。	Capturas de pantalla, anotación de imágenes y grabación de pantalla.
-请选择已安装的 XStats Capture.app。	Selecciona XStats Capture.app instalado.
 无法打开 XStats Capture，请检查所选应用。	No se pudo abrir XStats Capture. Comprueba la app.
 请选择录制临时目录之外的保存位置。	Elige una ubicación fuera de la carpeta temporal de la grabación.
 录屏已保存，但临时素材未能完全清理。	La grabación se guardó, pero no se pudieron eliminar todos los archivos temporales.
@@ -2170,7 +2069,6 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 细	Fino
 中	Medio
 粗	Grueso
-实色遮挡	Ocultación opaca
 删除标注	Eliminar anotación
 图片格式	Formato de imagen
 红色	Rojo

@@ -10,6 +10,33 @@ import Testing
 
 @MainActor
 struct MenuBarLayoutTests {
+  @Test func freshInstallDefaultsToCombinedAcrossLaunches() throws {
+    let suite = "MenuBarLayoutTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    #expect(AppSettings(defaults: defaults).menuBarLayout == .combined)
+    #expect(AppSettings(defaults: defaults).menuBarLayout == .combined)
+  }
+
+  @Test(arguments: MenuBarLayout.allCases)
+  func savedLayoutSurvivesUpgrade(layout: MenuBarLayout) throws {
+    let suite = "MenuBarLayoutTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(layout.rawValue, forKey: "menuBarLayout")
+    #expect(AppSettings(defaults: defaults).menuBarLayout == layout)
+  }
+
+  @Test(arguments: ["menuBarItems", "aiMenuBarProviders"])
+  func existingInstallWithoutSavedLayoutKeepsSeparate(marker: String) throws {
+    let suite = "MenuBarLayoutTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set([], forKey: marker)
+    #expect(AppSettings(defaults: defaults).menuBarLayout == .separate)
+    #expect(AppSettings(defaults: defaults).menuBarLayout == .separate)
+  }
+
   private func model(_ body: (AppModel, UserDefaults) throws -> Void) throws {
     let suite = "MenuBarLayoutTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

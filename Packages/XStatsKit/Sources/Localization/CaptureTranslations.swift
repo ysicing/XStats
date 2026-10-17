@@ -7,7 +7,6 @@ extension Translations {
     录屏	Record screen
     区域	Area
     整个屏幕	Entire screen
-    截图标注与屏幕录制，内容仅保存在本机。	Annotate screenshots and record your screen. Content stays on this Mac.
     捕获范围	Capture target
     系统声音	System audio
     窗口模式只录制所选 App 的声音。	Window mode records audio only from the selected app.
@@ -17,7 +16,6 @@ extension Translations {
     录屏快捷键	Recording shortcut
     设置快捷键	Set shortcut
     按下快捷键，Esc 取消	Press a shortcut; Esc cancels
-    快捷键已被占用，请更换。	This shortcut is in use. Choose another.
     打开 XStats Capture	Open XStats Capture
     打开隐私设置	Open privacy settings
     拖动选择区域，按 Esc 取消	Drag to select an area; Esc cancels
@@ -27,7 +25,6 @@ extension Translations {
     麦克风	Microphone
     箭头	Arrow
     文字	Text
-    标注工具	Annotation tool
     标注文字	Annotation text
     裁剪	Crop
     矩形	Rectangle
@@ -67,7 +64,6 @@ extension Translations {
     请在系统设置中允许 {} 录制屏幕，然后重试。	Allow {} to record the screen in System Settings, then retry.
     请在系统设置中允许 {} 使用麦克风，然后重试。	Allow {} to use the microphone in System Settings, then retry.
     截图、图片标注与录屏。	Screenshots, image annotation and screen recording.
-    请选择已安装的 XStats Capture.app。	Select the installed XStats Capture.app.
     无法打开 XStats Capture，请检查所选应用。	Could not open XStats Capture. Check the selected app.
     麦克风录制中断，请检查设备连接后重试。	Microphone recording was interrupted. Check the device connection and try again.
     录制未能停止，请重试。	Recording could not be stopped. Try again.
@@ -99,7 +95,6 @@ extension Translations {
     细	Thin
     中	Medium
     粗	Thick
-    实色遮挡	Solid redaction
     删除标注	Delete annotation
     图片格式	Image format
     红色	Red

@@ -381,7 +381,6 @@ private struct PageHeader: View {
       .frame(maxHeight: .infinity)
       .background(WindowDragArea())
 
-      if tab == .settingsFeatures { FeatureSettingsTabPicker() }
       if model.keepAwake.isActive {
         // 与右边的按钮同高，顶栏里的控件高度一致
         HStack(spacing: DS.Space.s1) {

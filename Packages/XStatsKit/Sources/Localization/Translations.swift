@@ -59,10 +59,6 @@ extension Translations {
     暂时无法读取 App 能耗	App energy data is temporarily unavailable
     当前没有明显的 CPU 耗电活动	No noticeable CPU energy activity right now
     每 5 秒更新，合并应用及辅助进程。仅含可读取的 CPU 能耗，不含 GPU、屏幕等耗电。	Updates every 5 seconds and groups apps with their helpers. Includes readable CPU energy only, excluding GPU, display and other power use.
-    关闭功能会停止实时监控，保留基础信息、页面入口和已有历史。	Turning off a feature stops live monitoring and keeps basic information, page access and existing history.
-    监控已关闭，基础信息仍可查看。实时指标、曲线与告警已暂停。	Monitoring is off. Basic information remains available; live metrics, charts and alerts are paused.
-    关闭功能会停止相关采集，已有历史保留。电池基础信息仍可查看。	Turning off a feature stops its monitoring and keeps existing history. Basic battery information remains available.
-    采集功耗和电量历史；关闭后仍显示电量、健康度和蓝牙设备	Collect power usage and battery history; battery level, health and Bluetooth devices remain visible when off
     仅显示电池信息，采集在功能设置中启用	Show battery information only; enable monitoring in Features
     电量记录已暂停，已有历史保留	Battery recording is paused; existing history is kept
     检测到相同应用的其他安装副本；本次只移除所选应用，共用的数据会保留。	Another copy of this app is installed. Only the selected app will be removed; shared data will be kept.
@@ -118,19 +114,14 @@ extension Translations {
     查找应用数据、辅助组件和沙盒容器；可能共用的数据默认不勾选。所选项目移到废纸篓，应用移除后才清除程序坞图标。	Find app data, helper components and sandbox containers. Potentially shared data is not selected by default. Selected items move to Trash; the Dock icon is removed only after the app is removed.
     找出应用留下的数据、缓存、容器与登录启动项，勾选后移到废纸篓，可以放回	Find app data, caches, containers and launch agents. Select items to move to Trash, where they can be restored.
     已将 {} 的 {} 项残留移到废纸篓，约 {}{}。需要时可以在废纸篓里放回。	Moved {2} leftovers for {1} to Trash, about {3}{4}. You can restore them from Trash.
-    查看应用与残留文件，确认后移到废纸篓。	View apps and leftover files, then move them to the Trash after confirmation.
     显示器参数控制	Display Parameter Controls
     允许调节亮度、对比度和音量	Adjust brightness, contrast and volume
     仅查看显示器信息，不读取或设置参数	Display information only; no parameter reads or changes
     只显示信息，参数控制在功能设置中启用	Shows information only. Enable parameter controls in Features.
-    按需启用工具，关闭后保留配置。	Enable tools when needed. Turning them off keeps their configuration.
     基础功能	Basic Features
     可选功能	Optional Features
-    关闭功能会停止采集并移除菜单栏入口，已有历史保留。	Turning off a feature stops collection and removes its menu bar items. Existing history is kept.
-    移出菜单栏不会关闭功能；系统小组件仍独立刷新。	Removing an item from the menu bar keeps its feature enabled. System widgets refresh independently.
-    已关闭，不再采集	Off, no collection
+    取消菜单栏显示不会关闭对应功能。系统小组件会继续独立刷新。	Hiding a menu bar item does not turn off its feature. System widgets continue to refresh independently.
     已启用，按需采集	Enabled, collected on demand
-    此功能已关闭，不再采集数据。启用后仅按展示、历史和提醒需求采集。	This feature is off and no longer collects data. Enable it to collect only when needed for display, history or alerts.
     启用监控功能	Enable monitoring
     没有启用监控功能	No monitoring features enabled
     加入菜单栏时会同时启用功能	Adding this item to the menu bar also enables its feature
@@ -153,7 +144,6 @@ extension Translations {
     系统过滤配置	System filter configuration
     可用更新	Available update
     正在更新网络组件…	Updating network component…
-    打开组件	Open component
     卸载组件	Uninstall component
     尚未安装网络组件	Network component not installed
     安装组件	Install component
@@ -168,7 +158,6 @@ extension Translations {
     中国香港	Hong Kong, China
     中国澳门	Macao, China
     中国台湾	Taiwan, China
-    国家分布	Countries
     连接详情	Connection details
     更新地图数据库	Update map database
     正在更新地图数据库…	Updating map database…
@@ -187,10 +176,8 @@ extension Translations {
     仅显示活动连接	Show active connections only
     汇总方式	Group by
     活动连接	Active connections
-    国家级位置，非设备精确位置	Country-level location, not a precise device location
     暂停时保留当前画面；继续后更新观察到的连接。	Pausing keeps this view; resuming updates observed connections.
     显示观察期间的新连接；重新开始前已建立的连接不在此列。	Shows connections opened during observation; pre-existing connections are not included.
-    查看应用连接、域名和国家分布，不读取通信内容。	View app connections, domains and countries without reading communication content.
     请在系统设置中允许 XStats 网络扩展，然后返回此处。	Allow the XStats network extension in System Settings, then return here.
     错误详情	Error details
     正在监视	Monitoring
@@ -208,18 +195,15 @@ extension Translations {
     网络过滤配置与此扩展不匹配。	The network filter configuration does not match this extension.
     XStats 网络连接查看	XStats Network Connection Viewer
     只读观察 · 全部放行	Read-only observation · All allowed
-    只在本机记录新连接的应用与目标信息，不读取通信内容。	Record app and destination metadata locally without reading communication content.
     停止查看	Stop viewing
     启用连接查看	Enable connection viewing
     移除网络扩展	Remove network extension
     搜索应用、地址或端口	Search apps, addresses or ports
     清空记录	Clear records
     最近连接记录	Recent connection records
-    仅显示开启查看后观察到的连接，记录不代表连接当前仍在线。	Only connections observed after viewing starts are shown; records do not mean a connection is still active.
     扩展缓冲区已有 {} 条旧记录被淘汰。	The extension buffer has evicted {} older records.
     暂无连接记录	No connection records yet
     没有匹配的连接	No matching connections
-    启用查看后，打开网页或使用联网应用，新的连接会显示在这里。	After enabling viewing, open a webpage or use an online app to see new connections here.
     等待系统授权	Waiting for system approval
     采集已暂停	Collection paused
     未能启用	Could not enable
@@ -229,20 +213,14 @@ extension Translations {
     """#
 
   static let restEnglish = #"""
-    工作时长（分钟）	Work interval (minutes)
-    休息时长（分钟）	Break duration (minutes)
     迷你 HUD 样式	Mini HUD style
     数字倒计时	Digital countdown
     进度圆环	Progress ring
-    沙漏	Hourglass
     进度条	Progress bar
     切换迷你 HUD 样式	Switch Mini HUD style
-    拖动迷你 HUD	Drag Mini HUD
     休息声音	Break sounds
-    仅在休息时本地实时合成	Generated locally during breaks
     白噪音	White noise
     粉红噪音	Pink noise
-    雨声	Rain
     让眼睛休息一下	Give your eyes a break
     看看远处，轻轻眨眼，放松肩颈	Look into the distance, blink gently, and relax your shoulders
     长按跳过 · 或按 Esc 随时返回	Hold to skip · or press Esc to return
@@ -250,17 +228,13 @@ extension Translations {
     收起迷你 HUD	Hide Mini HUD
     收起到迷你 HUD	Collapse to Mini HUD
     番茄钟	Pomodoro Timer
-    番茄钟与护眼休息	Pomodoro & Eye Breaks
     专注	Focus
     短休	Short break
     长休	Long break
     单次	Single
     循环	Cycle
     工作番茄	Workday
-    开始工作	Start work
-    结束工作	End work
     待开始	Ready to start
-    手动开始工作，专注与休息自动交替；每 4 轮进入长休。	Start your workday manually. Focus and breaks alternate, with a long break after four focus sessions.
     起身活动一下	Stand up and move
     走动几步，看看远处，让身体和眼睛都休息	Walk a little and look into the distance to rest your body and eyes
     计时中	Running
@@ -270,7 +244,6 @@ extension Translations {
     继续	Continue
     重置	Reset
     跳过	Skip
-    长休时长（分钟）	Long break duration (minutes)
     每完成 4 轮专注后进入长休	Take a long break after four focus sessions
     {} 轮	{} sessions
     再专注 5 分钟	Focus 5 more minutes
@@ -364,18 +337,13 @@ extension Translations {
     启用 AI 用量	Enable AI Usage
     订阅额度	Subscription usage
     今日消耗的 Token	Tokens used today
-    查看今天 Codex 和 Claude 的 Token 用量	View today's Codex and Claude token usage
     暂无数据	No data yet
     主应用缓存	From XStats cache
     分	points
-    查看 Codex 和 Claude 的剩余额度与重置时间	View remaining Codex and Claude quota and reset times
     显示主应用已查询的公网 IP 纯净度	Show IP cleanliness already checked by the main app
-    显示主应用已查询的公网 IPv4 和 IPv6	Show public IPv4 and IPv6 already checked by the main app
     查看公网 IP、归属地、ASN 和标记	View public IP, location, ASN, and tags
-    查看今天的日期或本月月历。	View today's date or this month's calendar.
     服务端用量 · 与本机 Token 统计不同	Server usage · separate from local token statistics
     重置：	Resets:
-    查询失败，显示上次额度	Query failed; showing previous quota
     上次额度	Previous quota
     暂无额度数据	No quota data yet
     未检测到登录凭据，请先登录对应 CLI	No login credentials found; sign in with the corresponding CLI
@@ -458,7 +426,6 @@ extension Translations {
     XStats 辅助工具	XStats Helper
     XStats 通知测试	XStats Test Notification
     XStats 防休眠	XStats Keep Awake
-    XStats 需要授权以安装新版本。	XStats needs permission to install the new version.
     XStats 需要管理员权限来修改“{}”的 DNS。	XStats needs administrator permission to change DNS for “{}”.
     XStats 需要管理员权限来删除 Time Machine 本地快照。	XStats needs administrator privileges to delete Time Machine local snapshots.
     XStats 需要管理员权限来刷新 DNS 缓存。	XStats needs administrator permission to flush the DNS cache.
@@ -514,7 +481,6 @@ extension Translations {
     {} 个应用，系统自带的不列出	{} apps; built-in apps are not listed
     {} 个网站	{} sites
     {} 个进程	{} processes
-    {} 中位延迟	{} median
     {} 分钟	{} min
     {} 可用 {} · 共 {}	{} {} free · {} total
     {} 天	{} d
@@ -527,7 +493,6 @@ extension Translations {
     {} 正在运行，卸载前需要先退出。	{} is running. Quit it before uninstalling.
     {} 测	at {}
     {} 秒	{}s
-    {} 秒 / {} MB	{}s / {} MB
     {} 秒·{} MB	{}s · {} MB
     {} 组	{} groups
     {} 缓存	{} Cache
@@ -552,7 +517,6 @@ extension Translations {
     {}，后台{}	{}, background {}
     {}：{}	{}: {}
     {}：{}/{} 个节点连得上	{}: {}/{} nodes reachable
-    ~/.npm/_cacache，安装依赖时自动重新下载	~/.npm/_cacache; downloaded again when installing dependencies
     ~/Library/Caches 中各应用的缓存，删除后会按需重建	App caches in ~/Library/Caches; rebuilt as needed
     ~/Library/Logs 中的日志和诊断报告	Logs and diagnostic reports in ~/Library/Logs
     · 结果反映 XStats 自己发出的请求，按应用分流的规则下其他应用可能走不同出口	· Results reflect requests sent by XStats; with per-app rules, other apps may use different exits
@@ -583,7 +547,6 @@ extension Translations {
     不在可卸载的位置：{}	Not in a location that can be uninstalled: {}
     不提供电量	No battery info
     不支持 IPv6	IPv6 not supported
-    不是团队 {} 签名的完整应用（{}）	Not a complete app signed by team {} ({})
     不是应用程序	Not an application
     不是绝对路径	Not an absolute path
     不经过代理	Without proxy
@@ -599,8 +562,6 @@ extension Translations {
     中继	Relay
     主显示器	Main display
     主窗口与弹窗的配色；菜单栏始终跟随系统	Colors for the window and popovers; the menu bar always follows the system
-    云端只保存邮箱、姓名与设置文档	The cloud only keeps your email, name and the settings document
-    云端已有 {} 在 {} 保存的设置，和这台 Mac 上的不一样。要用哪一份？	{1} saved settings to the cloud {2}, and they differ from this Mac's. Which one should be used?
     交换区	Swap
     仅系统不休眠	Keep system awake
     介质错误	Media errors
@@ -621,7 +582,6 @@ extension Translations {
     企业	Business
     企业 IP	Business IP
     企业网络	Business network
-    会一并找出它留在资源库里的缓存、偏好设置、容器与登录启动项，全部移到废纸篓，可以放回	Also finds its caches, preferences, containers and launch agents in your Library and moves them all to the Trash, where you can restore them
     会结束这个应用的 {} 个进程，未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	This ends {} processes of the app and unsaved work may be lost. Force Quit ends them immediately without letting the app save.
     传输速率	Link rate
     位置	Location
@@ -634,7 +594,6 @@ extension Translations {
     住宅概率	Residential probability
     余量 {}	Headroom {}
     使用 {} 登录	Sign in with {}
-    使用云端设置	Use cloud settings
     使用历史	Usage History
     使用电池	On battery
     使用电池且电量低于该值时，自动关闭合盖运行	Turn off lid-closed mode when on battery below this level
@@ -704,12 +663,8 @@ extension Translations {
     刚刚检测	Checked just now
     刚刚被使用	Recently used
     删除	Delete
-    删除…	Delete…
     删除中…	Deleting…
-    删除云端数据	Delete cloud data
-    删除云端数据？	Delete cloud data?
     删除全部本地快照？	Delete all local snapshots?
-    删除账号、所有登录方式与云端保存的设置；这台 Mac 上的设置保留	Deletes the account, every sign-in method and the settings stored in the cloud; settings on this Mac stay
     到时后自动恢复系统默认的睡眠行为。	Normal sleep behavior resumes when time runs out.
     刷新	Refresh
     刷新 DNS 缓存	Flush DNS Cache
@@ -724,15 +679,12 @@ extension Translations {
     剩余寿命 {}% · 已写入 {}	{}% life left · {} written
     剪切	Cut
     功耗	Power
-    包名是 {}	Bundle ID is {}
-    包含城市数据	Include City Data
     协议版本	Protocol version
     单个节点一次测速最多花的时间与流量，先到哪个停哪个	Time and data cap for one node's speed test, whichever comes first
     单行	Inline
     单行文字	Inline Text
     占整机 CPU 的比例：{} 个核心全部跑满为 100%	Share of total CPU: all {} cores fully busy is 100%
     占用	Usage
-    占用超过 85% 时数值与图形显示为红色	Show values and graphs in red above 85%
     占用超过 85%（电池电量低于 20%）时数值与图形显示为红色	Values and graphics turn red above 85% usage (below 20% battery)
     占用高于	Usage above
     卷	Volume
@@ -751,7 +703,6 @@ extension Translations {
     压缩	Compressed
     压缩与交换	Compression & Swap
     压缩为你省下	Saved by compression
-    压缩包里应当只有一个 .app	The archive should contain exactly one .app
     压缩比	Compression ratio
     原因	Reason
     原生 / 广播	Native / broadcast
@@ -774,7 +725,6 @@ extension Translations {
     取消	Cancel
     受保护	Protected
     受保护的项目：{}	Protected item: {}
-    另一台 Mac	Another Mac
     另有 {} 个出口，见网站分流	{} more exits, see Site Routing
     另有 {} 移到废纸篓	Plus {} moved to Trash
     另有 {} 项	{} more
@@ -784,7 +734,6 @@ extension Translations {
     只在显示温度或开启过热通知时记录	Recorded only while temperature is displayed or overheating alerts are enabled
     只在显示电池信息时记录	Recorded only while battery information is displayed
     只显示菜单栏时的采样间隔；打开弹窗或主窗口时为 1 秒（进程页 2 秒）	Sampling interval when only the menu bar is shown; 1 second with a popover or window open (2 seconds on Processes)
-    只查找以该应用包名命名的文件，以及 Application Support、Logs 下与应用同名的目录；钥匙串与其他应用共享的数据不会动。程序坞里的图标会一并移除	Only files named after the app's bundle ID, plus folders with the app's name in Application Support and Logs, are included. Keychains and data shared with other apps are never touched. The Dock icon is removed as well
     只设置了系统代理：浏览器等应用走代理，命令行工具、游戏等不读代理设置的程序仍在直连。要接管全部流量，可以开启增强模式或 TUN 模式。	Only a system proxy is set: browsers and most apps use it, but command-line tools, games, and other programs that ignore proxy settings still connect directly. To route all traffic, turn on enhanced mode or TUN mode.
     可在废纸篓中恢复。清空废纸篓后才会释放空间。	You can restore these items from the Trash. Space is freed after you empty the Trash.
     可执行文件：{}	Executable: {}
@@ -795,7 +744,6 @@ extension Translations {
     可用 {}	{} available
     可用 {} / 共 {}	{1} free of {2}
     可用内存只剩 {}，系统正在压缩和交换内存。关闭不用的应用可以缓解。	Only {} of memory is available and the system is compressing and swapping. Quitting unused apps will help.
-    可用空间包含系统可以随时清除的缓存，与访达显示一致	Available space includes purgeable caches, matching Finder
     可访问	Reachable
     右侧风扇	Right Fan
     右耳	Right
@@ -812,11 +760,8 @@ extension Translations {
     合盖运行设置	Lid Mode
     合盖运行需要修改系统睡眠设置，需安装辅助工具（管理员授权一次）。	Lid mode changes system sleep settings and needs the helper (one-time admin approval).
     同步	Sync
-    同步失败	Sync failed
-    同步的内容：菜单栏项目与风格、刷新频率、外观与语言、详情弹窗的区块、连接探测、通知、快捷键、风扇安全温度、合盖电量下限。当前页面、辅助工具与历史记录留在本机。	What syncs: menu bar items and styles, refresh rate, appearance and language, popover sections, connection probe, notifications, hotkeys, fan safety temperature and lid-mode battery floor. The current page, the helper and history stay on this Mac.
     后台低频探测	Background Probing
     启动于	Booted
-    启动时和之后每天检查一次，发现新版本时显示更新摘要	Checks at launch and daily, and shows what's new when an update is found
     启动磁盘	Startup Disk
     启动磁盘可用空间低于 10% 或 10 GB，每 10 分钟检查一次	Startup disk has less than 10% or 10 GB free; checked every 10 minutes
     启动磁盘已用占比	Startup disk used
@@ -843,9 +788,7 @@ extension Translations {
     在 GitHub 提交问题	Report a Problem on GitHub
     在 cleanip.io 查看这个 IP 的完整报告	Open this IP's full report on cleanip.io
     在主窗口打开“{}”	Open “{}” in the main window
-    在程序坞显示图标	Show Icon in Dock
     在线升级	Online Updates
-    在线升级：发现新版本时显示更新摘要，一键安装并自动重启	Online updates: see what's new, install in one click and relaunch automatically
     在菜单栏显示	Show in Menu Bar
     在菜单栏显示{}	Show {} in menu bar
     在访达中显示	Show in Finder
@@ -862,9 +805,7 @@ extension Translations {
     安全温度	Safety Temperature
     安装	Install
     安装包	Installers
-    安装包不支持这台 Mac 的芯片	This update doesn't support this Mac's chip
     安装包内容不正确：{}	The update package is invalid: {}
-    安装包校验值与版本清单不一致，已放弃安装	The update's checksum doesn't match the manifest; installation stopped
     安装失败：{}	Install failed: {}
     安装辅助工具	Install Helper
     安静	Quiet
@@ -901,11 +842,9 @@ extension Translations {
     已到设定时间，防休眠已关闭	Time's up; Keep Awake is off
     已加载	Loaded
     已取消	Cancelled
-    已取消登录	Sign-in cancelled
     已启用	Enabled
     已导出 {}	Exported {}
     已将 {} 与 {} 项残留移到废纸篓，约 {}{}{}。需要时可以在废纸篓里放回。	Moved {} and {} leftovers to the Trash, about {}{}{}. You can put them back from the Trash.
-    已开启同步	Sync is on
     已恢复自动获取 DNS	DNS is automatic again
     已扫描 {} 个条目 · {}	Scanned {} items · {}
     已把“{}”移到废纸篓	Moved “{}” to the Trash
@@ -938,7 +877,6 @@ extension Translations {
     复制安装标识	Copy Installation ID
     应用	Apps
     应用 {} / 辅助工具 {}	App {} / Helper {}
-    应用与勾选的 {} 项残留会移到废纸篓，约 {}。清空废纸篓前都可以放回。	The app and {} selected leftovers will move to the Trash, about {}. You can restore them until you empty the Trash.
     应用包内未找到辅助工具，请使用完整构建的 XStats.app	Helper not found in the app bundle. Use a complete XStats.app build.
     应用拒绝退出，可以试试强制退出	The app refused to quit. Try Force Quit.
     应用数据	App Data
@@ -974,7 +912,6 @@ extension Translations {
     归属地	Location
     归属地数据来自	Location data from
     当前 {} · 发布于 {} · {} · {}	Current {} · Released {} · {} · {}
-    当前为临时签名的开发构建，辅助工具只能校验应用标识。使用 Developer ID 证书构建后会自动启用团队校验。	This is an ad-hoc signed development build, so the helper can only check the bundle ID. Team verification turns on automatically with a Developer ID build.
     当前效果（实时数据）	Preview (live data)
     当前版本	Current version
     当前版本 {}	Current version {}
@@ -995,7 +932,6 @@ extension Translations {
     我的	Mine
     截图已输出到 {}	Snapshots saved to {}
     所属应用：{}（{}）	App: {} ({})
-    所有内容先移到废纸篓。	Everything goes to the Trash first.
     所有指标合成一个图标，点击弹出状态总览，可切到各项详情	All metrics in one icon; click for a status overview, with tabs for each metric's details
     所有检测目标都连不上。请检查网络连接，或者代理软件是否正常运行。	None of the test targets could be reached. Check your network connection and whether your proxy app is running properly.
     所有用户	All Users
@@ -1034,7 +970,6 @@ extension Translations {
     按系统休眠	System sleep
     按规则分流	Rule-Based Routing
     按进程	By Process
-    换一台 Mac 登录后，菜单栏、外观、通知与快捷键等偏好会自动恢复。不登录也能使用全部功能。	Sign in on another Mac and your menu bar, appearance, notification and hotkey preferences come back automatically. Everything works without signing in.
     换入 / 换出	Swap in / out
     掌托	Palm rest
     排队程度	Run Queue
@@ -1064,19 +999,15 @@ extension Translations {
     整机功耗	System Power
     文件系统检查	File system check
     文件系统结构完好，没有发现错误	The file system structure is intact; no errors found
-    新版本未通过 Apple 公证检查，已放弃安装	The new version failed Apple notarization; installation stopped
     新版本需要 macOS {} 或更高版本	The new version requires macOS {} or later
     无	None
     无 Bundle ID	No bundle ID
     无法创建电源断言（{}）	Couldn't create power assertion ({})
-    无法创建签名要求	Couldn't create the signing requirement
     无法打开	Couldn't open
-    无法打开登录窗口	Couldn't open the sign-in window
     无法推出“{}”：{}	Couldn't eject “{1}”: {2}
     无法确认是否经过代理	Can't Confirm Proxy Use
     无法移到废纸篓：{}	Couldn't move to the Trash: {}
     无法读取	Unreadable
-    无法读取签名	Couldn't read the signature
     无法连接辅助工具	Couldn't connect to the helper
     无法连接辅助工具：{}	Couldn't connect to the helper: {}
     无需清理	Nothing to clean
@@ -1092,7 +1023,6 @@ extension Translations {
     暂时没有拿到评分，稍后会再试	No score yet; it will try again later
     更新内容	What's New
     更省电，负责后台和轻量任务	More efficient; handles background and light work
-    替换后未找到应用	App not found after replacement
     替换应用失败：{}	Failed to replace the app: {}
     最低 {} · 最高 {} · 目标 {} RPM	Min {} · Max {} · Target {} RPM
     最大的文件	Largest files
@@ -1108,8 +1038,6 @@ extension Translations {
     最高	Max
     最高 / 平均	Max / Avg
     最高温度	Max temperature
-    服务器返回 {}	Server returned {}
-    服务器返回的数据格式不正确	The server returned malformed data
     未使用	Unused
     未使用代理	No Proxy in Use
     未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	Unsaved work may be lost. Force Quit ends it immediately without letting it save.
@@ -1179,8 +1107,6 @@ extension Translations {
     正在下载	Downloading
     正在使用	In use
     正在修改 DNS…	Changing DNS…
-    正在同步	Syncing
-    正在同步…	Syncing…
     正在安装，完成后 XStats 会自动重启。	Installing. XStats will relaunch when it's done.
     正在导出…	Exporting…
     正在导出诊断信息…	Exporting diagnostics…
@@ -1205,8 +1131,6 @@ extension Translations {
     正在测下行	Measuring download
     正在测延迟	Measuring latency
     正在清理…	Cleaning…
-    正在取消…	Cancelling…
-    正在重新扫描…	Rescanning…
     已处理 {}/{} 步	Processed {}/{} steps
     正在停止清理…	Stopping cleanup…
     正在核对剩余项目…	Checking remaining items…
@@ -1233,7 +1157,6 @@ extension Translations {
     正常	Normal
     此刻各核心的占用；超过 60% 变橙色、85% 变红色	Current load of each core; orange above 60%, red above 85%
     此设备没有可调节的风扇	This Mac has no adjustable fans
-    每个应用占整机 CPU 的比例：{} 个核心全部跑满为 100%，与顶部的总占用是同一把尺子。鼠标悬停在数值上可以看按单核计的占用（活动监视器的算法）	Each app's share of total CPU: all {} cores fully busy is 100%, the same scale as the total above. Hover a value to see it per core (the Activity Monitor way)
     每个指标一个图标，点击弹出该项详情	One icon per metric; click for its details
     主要指标每分钟写入本机数据库并保留 7 天	Key metrics are written to a local database every minute and kept for 7 days.
     每核 {}	{} per core
@@ -1288,7 +1211,6 @@ extension Translations {
     版本	Version
     版本 {}	Version {}
     版本 {}{}	Version {}{}
-    版本是 {}，清单写的是 {}	Version is {}, but the manifest says {}
     版本清单格式不正确	Invalid version manifest
     更新源已发布其他版本，请重新检查更新后再安装	A different version has been published. Check for updates again before installing.
     物理地址	Hardware address
@@ -1330,10 +1252,7 @@ extension Translations {
     电量低于 {}%，已关闭合盖运行	Battery below {}%; lid mode turned off
     电量历史	Charge history
     电量条	Meter
-    登录以同步设置	Sign in to sync settings
     登录启动项	Launch Agents
-    登录回调不正确	Invalid sign-in callback
-    登录已失效，请重新登录	Your session has expired. Please sign in again.
     登录时启动	Launch at Login
     登录时运行	Runs at login
     登录项设置	Login Items
@@ -1364,13 +1283,10 @@ extension Translations {
     窗口	Window
     窗口状态	Saved State
     立即切换；显示器、应用名称等由系统提供的文字在下次启动时切换	Applies right away; names supplied by macOS, such as displays and apps, switch at next launch
-    立即同步	Sync now
     竖向电量条表示当前占用比例	A vertical meter shows current usage
     等待批准	Waiting for Approval
-    等待选择	Waiting for your choice
     签名团队	Signing team
     签名方：{}	Signed by: {}
-    签名校验未通过：{}	Signature check failed: {}
     粘贴	Paste
     系统	System
     系统概览	System Overview
@@ -1463,13 +1379,11 @@ extension Translations {
     蓝牙设备电量 {}%	Bluetooth device battery {}%
     蓝牙设备电量低	Bluetooth Battery Low
     蓝牙设备电量低时提示	Low Bluetooth battery hint
-    解压失败：{}	Unzip failed: {}
     计算中	Calculating
     记录历史数据	Record History
     设置	Settings
     设置 · {}	Settings · {}
     设置…	Settings…
-    设置改动后 2 秒内上传；启动、唤醒与每 15 分钟检查一次云端	Changes upload within 2 seconds; the cloud is checked at launch, on wake and every 15 minutes
     设置风扇目标转速，或恢复系统自动控制	Set fan target speeds, or return them to automatic
     评分由 cleanip.io 提供，点击查看完整报告	Score by cleanip.io. Click to open the full report
     该项目在菜单栏里的实时效果	Live preview of this item in the menu bar
@@ -1492,8 +1406,6 @@ extension Translations {
     负载在下降	Load falling
     负载平稳	Load steady
     账号	Account
-    账号与云端设置会立即删除，无法恢复。	The account and cloud settings are deleted immediately and cannot be recovered.
-    账号与同步	Account & Sync
     走势图显示最近多长时间	How far back the trend chart shows
     走势时长	Trend duration
     超时	Timed out
@@ -1534,7 +1446,6 @@ extension Translations {
     这段时间没有记录	No records for this period
     这段时间还没有记录。XStats 运行时每分钟记录一次，睡眠与锁屏期间不记录。	No records for this period yet. XStats records once a minute while running, except during sleep and lock.
     这里列出资源库里的 LaunchAgents 与 LaunchDaemons。停用只写入系统的停用记录并卸载，不删除文件，随时可以重新启用；登录时打开的应用与后台权限在系统设置里管理。	Lists LaunchAgents and LaunchDaemons from your Library folders. Turning one off records it as disabled and unloads it without deleting files, so you can turn it back on anytime. Login apps and background permissions are managed in System Settings.
-    这里显示已配对蓝牙配件，以及最近 30 分钟内读到的电量	Shows paired Bluetooth accessories and battery readings seen in the last 30 minutes
     进程	Processes
     进程 {} · 线程 {}	Processes {} · Threads {}
     进程名：{}	Process name: {}
@@ -1543,12 +1454,10 @@ extension Translations {
     连不上	Unreachable
     连接探测	Connectivity
     连接探测历史	Probe History
-    连接探测只在需要时运行，更省电	Connectivity probing runs only when needed, saving power
     退出	Quit
     退出 XStats	Quit XStats
     退出应用	Quit App
     退出应用…	Quit App…
-    退出登录	Sign out
     适中	Moderate
     选择显示项目	Choose Items
     通用	General
@@ -1639,8 +1548,6 @@ extension Translations {
     跳过 {} 项 · 失败 {} 项	Skipped {} · Failed {}
     {} 个目录未完成扫描，结果已排除	{} directories could not be fully scanned; their results were excluded
     没有发现可清理的项目产物	No project artifacts to clean
-    最近 7 天有活动	Activity in the last 7 days
-    超过 7 天未使用	Unused for over 7 days
     云盘	Cloud storage
     Agent 工作树	Agent worktree
     {} 项 · {}	{} items · {}
@@ -1656,7 +1563,6 @@ extension Translations {
     完成	Done
     选择项目目录	Choose Project Folders
     添加	Add
-    所选内容包含最近 7 天有活动的项目，清理后需要重新构建。	The selection includes projects active in the last 7 days; they will need to be rebuilt.
     云盘项目可能同步删除。	Cloud projects may be deleted on other devices too.
     {} 项含手写或被 Git 跟踪的内容，已保护	{} items contain hand-written or Git-tracked files and are protected
     未安装 Xcode 命令行工具，无法确认 Git 仓库中的 {} 项是否被跟踪，已保留	Xcode Command Line Tools are not installed, so {} items in Git repositories could not be checked for tracked files and were kept
@@ -1755,7 +1661,6 @@ extension Translations {
     有可用更新	Update Available
     正在卸载软件包…	Uninstalling package…
     正在更新软件包…	Updating package…
-    正在读取应用清单…	Reading application inventory…
     浏览应用信息，管理 Homebrew，并预览卸载残留。	Browse app information, manage Homebrew, and review uninstall leftovers.
     由 Homebrew 卸载所选项目，依赖保护仍然生效。	Homebrew will uninstall the selected item with dependency protections enabled.
     Homebrew 会更新所选项目及必要的依赖。	Homebrew will update the selected item and any required dependencies.

@@ -38,9 +38,7 @@ extension Translations {
     清除记录	Clear records
     清除活动记录？	Clear activity records?
     将删除本机专注与休息记录，计时配置和已有完成轮数保留。	Deletes local focus and break records; timer settings and completed rounds are kept.
-    结束练习	End exercise
     看看远处，活动一下肩颈。	Look into the distance and move your shoulders and neck.
-    尚未开启	Not enabled
     日期	Date
     已记录 {} 轮	{} rounds recorded
     按 Esc 随时返回	Press Esc to return anytime

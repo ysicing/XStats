@@ -1113,9 +1113,16 @@ public final class AppSettings {
     projectPurgeConfiguredPaths = defaults.stringArray(forKey: Keys.projectPurgeConfiguredPaths)
     let spacing = defaults.integer(forKey: Keys.menuBarItemSpacing)
     menuBarItemSpacing = Self.menuBarSpacingOptions.contains(spacing) ? spacing : 8
-    menuBarLayout =
-      defaults.string(forKey: Keys.menuBarLayout).flatMap(MenuBarLayout.init(rawValue:))
-      ?? .separate
+    let savedMenuBarLayout = defaults.string(forKey: Keys.menuBarLayout).flatMap(
+      MenuBarLayout.init(rawValue:))
+    // 旧版可能从未保存布局；沿用已有安装的独立模式，只给全新安装启用聚合模式。
+    let initialMenuBarLayout =
+      savedMenuBarLayout ?? (items != nil || savedAIMenuBarProviders != nil ? .separate : .combined)
+    menuBarLayout = initialMenuBarLayout
+    if savedMenuBarLayout == nil {
+      // 固化首次选择，避免下次启动时被本次写入的其他默认设置误判为旧版安装。
+      defaults.set(initialMenuBarLayout.rawValue, forKey: Keys.menuBarLayout)
+    }
     expandedPopoverSections = Set(
       (defaults.stringArray(forKey: Keys.expandedPopoverSections) ?? []).compactMap(
         PopoverSection.init(rawValue:)))
