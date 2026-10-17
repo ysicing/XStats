@@ -8,10 +8,11 @@ XStats 新增代码与修改采用 AGPL-3.0-or-later，范围见 [LICENSING.md](
 的时间/模型筛选、总览、趋势与模型排行，以及 OpenUsage 的本地会话日志解析边界。
 本轮 SwiftUI 界面与本机扫描器为 XStats 独立实现，未引入 CC Switch 的 Rust/React 源码或依赖。
 
-## 项目产物清理范围参考
+## 项目产物与应用缓存清理范围参考
 
 项目产物的候选目录、默认搜索位置及安全检查参考 [tw93/Mole 的 `mo purge`](https://github.com/tw93/Mole)（GPL-3.0）。
-XStats 使用独立编写的 Swift 扫描与废纸篓流程，未引入 Mole 的 Shell 源码或运行时依赖。
+Slack、Discord、旧版 Microsoft Teams、Claude、Codex、Antigravity、Qoder、CodeBuddy 及编辑器的明确缓存位置参考 [Mole V1.61.0 的应用缓存规则](https://github.com/tw93/Mole/blob/V1.61.0/lib/clean/app_caches.sh)及[开发工具规则](https://github.com/tw93/Mole/blob/V1.61.0/lib/clean/dev.sh)（GPL-3.0）。
+XStats 使用独立编写的 Swift 扫描、路径保护与原生确认流程，未引入 Mole 的 Shell 源码或运行时依赖。
 
 ## 休息与活动回顾设计参考
 

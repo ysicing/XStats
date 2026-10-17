@@ -73,6 +73,8 @@ struct CleanerReviewFlowTests {
     #expect(controller.selectedBytes == 300)
     controller.toggle(first, in: scan)
     #expect(controller.selectedBytes == 200 && controller.selectedScans.first?.items == [second])
+    let confirmation = CleanerConfirmation(scans: controller.selectedScans, preferTrash: false)
+    #expect(confirmation.permanentCount == 1 && confirmation.permanentBytes == 200)
     controller.toggle(scan)  // 部分选择补齐，而不是清空。
     #expect(controller.selectedItems(in: scan).count == 2)
     controller.toggle(first, in: scan)

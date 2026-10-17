@@ -93,6 +93,9 @@ public final class CleanerController {
           await MainActor.run {
             Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
           }
+        },
+        refreshRunningApplicationNames: {
+          await MainActor.run { Self.runningApplicationNames() }
         }
       ) { [weak self] progress in
         await MainActor.run { self?.cleanProgress = progress }
@@ -245,7 +248,18 @@ public final class CleanerController {
   /// 运行中的应用在主线程读取一次后传入后台扫描
   private func environment() -> CleanEnvironment {
     let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+    let names = Self.runningApplicationNames()
     return CleanEnvironment(
-      runningBundleIdentifiers: { running }, excludedPaths: settings.cleanExcludedPaths)
+      runningBundleIdentifiers: { running }, runningApplicationNames: { names },
+      excludedPaths: settings.cleanExcludedPaths)
+  }
+  private static func runningApplicationNames() -> Set<String> {
+    Set(
+      NSWorkspace.shared.runningApplications.flatMap { app in
+        // 辅助进程可能独立存活；同时记录其外层 .app，避免主进程退出后失去名称保护。
+        let bundleNames = (app.bundleURL?.pathComponents ?? []).filter { $0.hasSuffix(".app") }
+          .map { String($0.dropLast(4)) }
+        return bundleNames + [app.localizedName].compactMap { $0 }
+      })
   }
 }

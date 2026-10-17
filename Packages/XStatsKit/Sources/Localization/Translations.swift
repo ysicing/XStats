@@ -17,6 +17,8 @@ extension Translations {
   }
 
   static let hardwareDetailsEnglish = #"""
+    Microsoft Teams（旧版）	Microsoft Teams (classic)
+    仅清理已确认的缓存目录，保留账号、设置和本地数据	Only clears verified cache folders; keeps accounts, settings and local data
     GPU 功耗	GPU Power
     虚拟内存	Virtual Memory
     工作频率	Active Frequency
@@ -85,9 +87,6 @@ extension Translations {
     所选内容包含最近 7 天有修改的项目，清理后需要重新构建。	The selection includes items modified in the last 7 days. They will need to be rebuilt after cleanup.
     pip 缓存	pip Cache
     pip3 下载与 wheel 缓存，不涉及虚拟环境或已安装的包	pip3 download and wheel caches; leaves virtual environments and installed packages intact
-    VS Code 缓存	VS Code Cache
-    Cursor 缓存	Cursor Cache
-    仅清理网页、脚本与 GPU 缓存，保留设置、扩展和会话	Clears web, script and GPU caches only; keeps settings, extensions and sessions
     保留项目已达 50 项上限，请先移除不再需要的保留项。	The limit of 50 kept items has been reached. Remove items you no longer need to keep first.
     无法确认工具的清理范围，已停止清理	The tool’s cleanup scope could not be confirmed. Cleanup was stopped.
     部分位置未能读取，可能仍有残留。仅移除已确认的项目。	Some locations could not be read and leftovers may remain. Only confirmed items will be removed.
@@ -253,6 +252,13 @@ extension Translations {
     """#
 
   static let english = #"""
+    永久删除所选项目？	Permanently delete selected items?
+    将所选项目移到废纸篓？	Move selected items to Trash?
+    确认清理所选项目？	Clean selected items?
+    永久删除	Delete Permanently
+    将永久删除 {} 个所选项目，共 {}。此操作无法撤销。	Permanently delete {} selected items, totaling {}. This cannot be undone.
+    将把 {} 个所选项目移到废纸篓，共 {}。需要时可从废纸篓放回。	Move {} selected items to Trash, totaling {}. You can put them back from Trash.
+    将永久删除废纸篓中选中的 {} 个项目，共 {}。此操作无法撤销。	Permanently delete {} selected items from Trash, totaling {}. This cannot be undone.
     未启用	Not enabled
     正在启用…	Enabling…
     重试	Retry
@@ -469,7 +475,6 @@ extension Translations {
     {} 命令执行失败（退出码 {}）	{} command failed (exit code {})
     {} 命令执行失败（退出码 {}）：{}	{} command failed (exit code {}): {}
     {}：未找到 {}，无法安全清理	{}: {} was not found, so it cannot be cleaned safely
-    支持的内容先移到废纸篓；工具缓存由对应命令直接清理。	Supported items are moved to Trash first; tool caches are cleaned directly by their commands.
     支持的缓存可以恢复；工具缓存始终由对应命令直接清理	Supported caches can be restored; tool caches are always cleaned directly by their commands
     {} {} 英寸	{} {}-inch
     {} · {} 个	{} · {}
@@ -820,7 +825,6 @@ extension Translations {
     导出诊断信息	Export Diagnostics
     寿命偏低，注意备份	Low remaining life; keep backups
     寿命按厂商估算的已用比例计算；写入量越大消耗越快，日常使用通常可用很多年	Life is based on the vendor's wear estimate. Heavy writes wear it faster; typical use lasts many years.
-    将清理 {} 个项目，共 {}。{}	{} items, {} total, will be cleaned. {}
     将移到废纸篓	Will move to Trash
     小标签在上、数值在下，两行靠右对齐，数值的右边不会跳	Small label above the value; both lines align right so the value's edge stays fixed
     同双行文字，但两行各自居中；标签比数值宽时（风扇、温度）不会偏到一边	Like Stacked Text, but each line is centered so short values stay beneath wider labels
@@ -1322,7 +1326,6 @@ extension Translations {
     继续运行	Keep running
     绿色正常、橙色偏高（60% 以上）、红色很高（85% 以上）	Green is normal, orange is high (above 60%), red is very high (above 85%)
     缓存	Caches
-    缓存与日志将直接删除且无法恢复，下载内容移到废纸篓。	Caches and logs will be permanently deleted and cannot be recovered; downloads go to the Trash.
     缓存也先移到废纸篓	Move caches to Trash too
     编辑	Edit
     网站	Site

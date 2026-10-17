@@ -350,14 +350,26 @@ enum SnapshotRenderer {
         try? await Task.sleep(for: .seconds(120))
         window.orderOut(nil)
       }
-      // 清单截图使用演示候选，覆盖新增开发者项目与长译文，不查询本机工具。
+      // 清单截图使用演示候选，覆盖应用缓存、开发者项目与长译文，不查询本机工具。
       model.cleaner.showPreview(
         RuleCatalog.rules().enumerated().map { index, rule in
+          let path =
+            switch rule.id {
+            case "app.claude": "/Users/demo/Library/Application Support/Claude/Cache"
+            case "app.antigravity": "/Users/demo/Library/Application Support/Antigravity/Cache"
+            case "app.qoder": "/Users/demo/Library/Application Support/Qoder/CachedData"
+            case "app.codebuddy": "/Users/demo/Library/Application Support/CodeBuddy/Cache"
+            case "app.codex": "/Users/demo/Library/Caches/Codex/Default/Cache"
+            case "app.slack": "/Users/demo/Library/Application Support/Slack/Cache"
+            case "app.discord": "/Users/demo/Library/Application Support/discord/Cache"
+            case "app.teamsClassic": "/Users/demo/Library/Application Support/Microsoft/Teams/Cache"
+            default: "/Users/demo/Library/Caches/" + rule.id
+            }
           let items =
-            rule.category == .developer
+            rule.category == .developer || rule.id.hasPrefix("app.")
             ? [
               CleanItem(
-                url: URL(fileURLWithPath: "/Users/demo/Library/Caches/" + rule.id),
+                url: URL(fileURLWithPath: path),
                 size: UInt64(index + 1) * 1_000_000)
             ]
             : []

@@ -125,7 +125,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 {} 命令执行失败（退出码 {}）	La commande {} a échoué (code de sortie {})
 {} 命令执行失败（退出码 {}）：{}	La commande {} a échoué (code de sortie {}) : {}
 {}：未找到 {}，无法安全清理	{} : {} est introuvable et ne peut pas être nettoyé en toute sécurité
-支持的内容先移到废纸篓；工具缓存由对应命令直接清理。	Les éléments pris en charge sont d’abord placés dans la corbeille ; les caches d’outils sont nettoyés directement par leurs commandes.
 支持的缓存可以恢复；工具缓存始终由对应命令直接清理	Les caches pris en charge peuvent être restaurés ; les caches d’outils sont toujours nettoyés directement par leurs commandes
 {} {} 英寸	{} {} pouces
 {} · {} 个	{} · {}
@@ -483,7 +482,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 寿命偏低，注意备份	Durée de vie restante faible ; effectuez des sauvegardes
 寿命按厂商估算的已用比例计算；写入量越大消耗越快，日常使用通常可用很多年	La durée de vie repose sur l’estimation d’usure du fabricant. Les écritures intensives accélèrent l’usure ; un usage courant permet généralement plusieurs années de service.
 将应用 {} 保存的设置，覆盖本机对应偏好。	Appliquer les réglages enregistrés le {} en remplaçant les préférences locales correspondantes.
-将清理 {} 个项目，共 {}。{}	{} éléments, soit {} au total, seront nettoyés. {}
 将移到废纸篓	Sera déplacé vers la Corbeille
 小标签在上、数值在下，两行靠右对齐，数值的右边不会跳	Petite étiquette au-dessus de la valeur ; les deux lignes alignées à droite pour stabiliser le bord de la valeur
 同双行文字，但两行各自居中；标签比数值宽时（风扇、温度）不会偏到一边	Comme le texte sur deux lignes, mais chaque ligne est centrée ; les valeurs courtes restent sous les libellés plus larges
@@ -980,7 +978,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 继续运行	Continuer l’exécution
 绿色正常、橙色偏高（60% 以上）、红色很高（85% 以上）	Vert : normal, orange : élevé (au-dessus de 60 %), rouge : très élevé (au-dessus de 85 %)
 缓存	Caches
-缓存与日志将直接删除且无法恢复，下载内容移到废纸篓。	Les caches et journaux seront supprimés définitivement, sans possibilité de récupération ; les téléchargements sont déplacés vers la Corbeille.
 缓存也先移到废纸篓	Déplacer aussi les caches vers la Corbeille
 编辑	Édition
 网站	Site
@@ -1853,9 +1850,6 @@ Xcode 代码补全模型	Modèles de complétion de code Xcode
 保留项目已达 50 项上限，请先移除不再需要的保留项。	La limite de 50 éléments conservés est atteinte. Retirez d’abord ceux que vous n’avez plus besoin de conserver.
 pip 缓存	Cache pip
 pip3 下载与 wheel 缓存，不涉及虚拟环境或已安装的包	Caches de téléchargement et de wheels de pip3 ; conserve les environnements virtuels et les paquets installés
-VS Code 缓存	Cache VS Code
-Cursor 缓存	Cache Cursor
-仅清理网页、脚本与 GPU 缓存，保留设置、扩展和会话	Efface uniquement les caches web, de scripts et GPU ; conserve les réglages, extensions et sessions
 可清理	À nettoyer
 无需清理（{}）	Aucun nettoyage nécessaire ({})
 清理空间	Libérer de l’espace
@@ -2153,3 +2147,12 @@ CPU 占用口径	Échelle d’utilisation du CPU
 输入	Entrée
 输出	Sortie
 磁盘可用 {}	Espace disque disponible {}
+Microsoft Teams（旧版）	Microsoft Teams (classique)
+仅清理已确认的缓存目录，保留账号、设置和本地数据	Vide uniquement les dossiers de cache vérifiés ; conserve les comptes, réglages et données locales
+永久删除所选项目？	Supprimer définitivement les éléments sélectionnés ?
+将所选项目移到废纸篓？	Placer les éléments sélectionnés dans la corbeille ?
+确认清理所选项目？	Nettoyer les éléments sélectionnés ?
+永久删除	Supprimer définitivement
+将永久删除 {} 个所选项目，共 {}。此操作无法撤销。	Suppression définitive de {} éléments sélectionnés, soit {}. Cette opération est irréversible.
+将把 {} 个所选项目移到废纸篓，共 {}。需要时可从废纸篓放回。	{} éléments sélectionnés, soit {}, seront placés dans la corbeille. Vous pourrez les remettre à leur place.
+将永久删除废纸篓中选中的 {} 个项目，共 {}。此操作无法撤销。	Suppression définitive de {} éléments sélectionnés dans la corbeille, soit {}. Cette opération est irréversible.

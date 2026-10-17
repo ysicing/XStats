@@ -175,16 +175,16 @@ private struct CleanerActions: View {
         .buttonStyle(DSButtonStyle(kind: .primary))
         .disabled(cleaner.isBusy || cleaner.selectedScans.isEmpty)
         .confirmationDialog(
-          tr("确认清理"), isPresented: $cleaner.isConfirming, titleVisibility: .visible
+          confirmation.title, isPresented: $cleaner.isConfirming, titleVisibility: .visible
         ) {
-          Button(tr("确认清理"), role: .destructive) {
+          Button(confirmation.buttonTitle, role: .destructive) {
             // 系统弹层可能先清除展示绑定，执行前重新验证选择并进入确认保护。
             cleaner.requestClean()
             cleaner.confirmClean()
           }
           Button(tr("取消"), role: .cancel) { cleaner.cancelClean() }
         } message: {
-          Text(confirmationText)
+          Text(confirmation.message)
         }
         if cleaner.phase == .scanning {
           Button(tr("取消")) { cleaner.cancelOperation() }
@@ -195,19 +195,9 @@ private struct CleanerActions: View {
     }
   }
 
-  private var confirmationText: String {
-    let cleaner = model.cleaner
-    let count = cleaner.selectedScans.reduce(0) { $0 + $1.items.count }
-    let trashNote =
-      model.settings.cleanPrefersTrash
-      ? tr("支持的内容先移到废纸篓；工具缓存由对应命令直接清理。")
-      : tr("缓存与日志将直接删除且无法恢复，下载内容移到废纸篓。")
-    var text = tr(
-      "将清理 \(count) 个项目，共 \(Format.bytes(cleaner.selectedBytes, base: .decimal))。\(trashNote)")
-    if cleaner.selectedScans.contains(where: { $0.id == "developer.homebrew" }) {
-      text += " " + tr("Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依赖。")
-    }
-    return text
+  private var confirmation: CleanerConfirmation {
+    CleanerConfirmation(
+      scans: model.cleaner.selectedScans, preferTrash: model.settings.cleanPrefersTrash)
   }
 
 }

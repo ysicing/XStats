@@ -69,21 +69,26 @@ public struct SafetyGuard: Sendable {
   }
 
   public func validate(_ url: URL) throws {
+    try validate(url, additionalCachePaths: [])
+  }
+
+  /// 精确路径例外只用于已登记应用，不扩大其他 Application Support 目录的白名单。
+  func validate(_ url: URL, additionalCachePaths: [String]) throws {
     let raw = url.path
     guard raw.hasPrefix("/") else { throw SafetyError.notAbsolute }
     guard !url.pathComponents.contains("..") else { throw SafetyError.traversal }
     guard !raw.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) else {
       throw SafetyError.controlCharacter
     }
-    try check(path: (raw as NSString).standardizingPath)
+    try check(path: (raw as NSString).standardizingPath, additionalCachePaths: additionalCachePaths)
     // 解析符号链接（含父目录）后再检查一次：只会更严格，不会因此放行
     let resolved = url.resolvingSymlinksInPath().path
     if resolved != raw {
-      try check(path: resolved)
+      try check(path: resolved, additionalCachePaths: additionalCachePaths)
     }
   }
 
-  private func check(path: String) throws {
+  private func check(path: String, additionalCachePaths: [String]) throws {
     let homePrefix = home + "/"
     guard path.hasPrefix(homePrefix) else { throw SafetyError.outsideAllowedRoots }
     let relative = String(path.dropFirst(homePrefix.count))
@@ -105,7 +110,9 @@ public struct SafetyGuard: Sendable {
 
     if root == "Library/Application Support" {
       let leaf = (path as NSString).lastPathComponent
-      guard Self.applicationSupportCacheNames.contains(leaf) else {
+      guard
+        Self.applicationSupportCacheNames.contains(leaf) || additionalCachePaths.contains(relative)
+      else {
         throw SafetyError.applicationSupportNotCache
       }
     }

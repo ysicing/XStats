@@ -16,4 +16,21 @@ struct AppManagementLocalizationTests {
       for source in sources { #expect(table.translate(source) != nil, "\(language): \(source)") }
     }
   }
+  @Test func cleanupConfirmationHasExplicitTranslations() throws {
+    let keys = [
+      "永久删除所选项目？", "将所选项目移到废纸篓？", "确认清理所选项目？", "永久删除", "移到废纸篓",
+      "将永久删除 4 个所选项目，共 714 MB。此操作无法撤销。",
+      "将把 4 个所选项目移到废纸篓，共 714 MB。需要时可从废纸篓放回。",
+      "将永久删除废纸篓中选中的 4 个项目，共 714 MB。此操作无法撤销。",
+    ]
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for key in keys {
+        let text = try #require(table.translate(key), "\(language): \(key)")
+        #expect(!text.isEmpty && text != key)
+        if key.contains("714 MB") { #expect(text.contains("714 MB") && text.contains("4")) }
+      }
+    }
+  }
+
 }

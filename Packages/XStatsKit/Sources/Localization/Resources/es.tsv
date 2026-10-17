@@ -125,7 +125,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 {} 命令执行失败（退出码 {}）	Falló el comando {} (código de salida {})
 {} 命令执行失败（退出码 {}）：{}	Falló el comando {} (código de salida {}): {}
 {}：未找到 {}，无法安全清理	{}: no se encontró {} y no se puede limpiar de forma segura
-支持的内容先移到废纸篓；工具缓存由对应命令直接清理。	Los elementos compatibles se mueven primero a la papelera; las cachés de herramientas se limpian directamente con sus comandos.
 支持的缓存可以恢复；工具缓存始终由对应命令直接清理	Las cachés compatibles se pueden restaurar; las cachés de herramientas siempre se limpian directamente con sus comandos
 {} {} 英寸	{} de {} pulgadas
 {} · {} 个	{} · {}
@@ -483,7 +482,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 寿命偏低，注意备份	Vida útil baja; mantén copias de seguridad
 寿命按厂商估算的已用比例计算；写入量越大消耗越快，日常使用通常可用很多年	La vida útil se basa en el desgaste estimado por el fabricante. Las escrituras intensivas la acortan; el uso habitual permite muchos años.
 将应用 {} 保存的设置，覆盖本机对应偏好。	Aplicar los ajustes guardados el {}, sobrescribiendo las preferencias locales correspondientes.
-将清理 {} 个项目，共 {}。{}	Se limpiarán {} elementos, {} en total. {}
 将移到废纸篓	Se moverá a la Papelera
 小标签在上、数值在下，两行靠右对齐，数值的右边不会跳	Etiqueta pequeña encima del valor; ambas líneas alineadas a la derecha para fijar el borde del valor
 同双行文字，但两行各自居中；标签比数值宽时（风扇、温度）不会偏到一边	Como el texto en dos líneas, pero cada línea centrada; los valores cortos quedan bajo etiquetas más anchas
@@ -980,7 +978,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 继续运行	Seguir funcionando
 绿色正常、橙色偏高（60% 以上）、红色很高（85% 以上）	Verde: normal; naranja: alto (más del 60%); rojo: muy alto (más del 85%)
 缓存	Cachés
-缓存与日志将直接删除且无法恢复，下载内容移到废纸篓。	Las cachés y registros se eliminarán de forma permanente y no se podrán recuperar; las descargas van a la Papelera.
 缓存也先移到废纸篓	Mover también las cachés a la Papelera
 编辑	Editar
 网站	Sitio
@@ -1853,9 +1850,6 @@ Xcode 代码补全模型	Modelos de completado de código de Xcode
 保留项目已达 50 项上限，请先移除不再需要的保留项。	Se alcanzó el límite de 50 elementos conservados. Quita primero los que ya no necesites conservar.
 pip 缓存	Caché de pip
 pip3 下载与 wheel 缓存，不涉及虚拟环境或已安装的包	Cachés de descargas y wheels de pip3; conserva entornos virtuales y paquetes instalados
-VS Code 缓存	Caché de VS Code
-Cursor 缓存	Caché de Cursor
-仅清理网页、脚本与 GPU 缓存，保留设置、扩展和会话	Solo borra cachés web, de scripts y GPU; conserva ajustes, extensiones y sesiones
 可清理	Disponible para limpiar
 无需清理（{}）	No requieren limpieza ({})
 清理空间	Liberar espacio
@@ -2153,3 +2147,12 @@ CPU 占用口径	Escala de uso de CPU
 输入	Entrada
 输出	Salida
 磁盘可用 {}	Espacio disponible en disco {}
+Microsoft Teams（旧版）	Microsoft Teams (clásico)
+仅清理已确认的缓存目录，保留账号、设置和本地数据	Solo borra carpetas de caché verificadas; conserva cuentas, ajustes y datos locales
+永久删除所选项目？	¿Eliminar permanentemente los elementos seleccionados?
+将所选项目移到废纸篓？	¿Mover los elementos seleccionados a la papelera?
+确认清理所选项目？	¿Limpiar los elementos seleccionados?
+永久删除	Eliminar permanentemente
+将永久删除 {} 个所选项目，共 {}。此操作无法撤销。	Se eliminarán permanentemente {} elementos seleccionados, con un total de {}. Esta acción no se puede deshacer.
+将把 {} 个所选项目移到废纸篓，共 {}。需要时可从废纸篓放回。	Se moverán {} elementos seleccionados a la papelera, con un total de {}. Podrás restaurarlos desde la papelera.
+将永久删除废纸篓中选中的 {} 个项目，共 {}。此操作无法撤销。	Se eliminarán permanentemente {} elementos seleccionados de la papelera, con un total de {}. Esta acción no se puede deshacer.

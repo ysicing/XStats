@@ -127,7 +127,7 @@ When Magpie is installed, account quotas, tokens and costs come from its local A
 
 Focus & Eye Care combines Pomodoro with independent eye breaks, offering break sounds, local audio, global shortcuts and on-device activity statistics.
 
-Optional tools can be enabled as needed. Privileged actions such as fan control and lid-closed keep-awake require an authorized helper. Cleanup and uninstall show a preview before moving selected items to Trash after confirmation.
+Optional tools can be enabled as needed. Privileged actions such as fan control and lid-closed keep-awake require an authorized helper. Cleanup and uninstall require preview and confirmation. Cleanup moves items to Trash or deletes them directly depending on the item type and settings; uninstall uses Trash.
 
 <details>
 <summary>More screenshots</summary>

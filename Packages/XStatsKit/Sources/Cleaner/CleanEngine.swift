@@ -45,8 +45,10 @@ public enum CleanEngine {
     -> RuleScan
   {
     let running = environment.runningBundleIdentifiers()
-    if let app = rule.blockingApps.first(where: { running.contains($0.bundleID) }) {
-      return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .appRunning(app.name))
+    if let app = rule.runningApplication(
+      identifiers: running, names: environment.runningApplicationNames())
+    {
+      return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .appRunning(app))
     }
     var toolCachePlan: ToolCachePlan?
     if let prepareTool = rule.prepareTool {
@@ -130,14 +132,39 @@ public enum CleanEngine {
     environment: CleanEnvironment, safety: SafetyGuard
   ) -> SkipReason? {
     if CleanupExclusions.overlaps(url, paths: environment.excludedPaths) { return .excluded }
-    guard (try? safety.validate(url)) != nil else { return .protected }
+    if !rule.cacheRelativePaths.isEmpty {
+      let allowed = rule.cacheRelativePaths.map {
+        URL(fileURLWithPath: environment.home).appendingPathComponent($0).standardizedFileURL.path
+      }
+      guard allowed.contains(url.standardizedFileURL.path) else { return .protected }
+    }
+    guard (try? safety.validate(url, additionalCachePaths: rule.cacheRelativePaths)) != nil else {
+      return .protected
+    }
+    // 专属目录即使不存在、应用运行中或未被勾选，也不允许通用规则接管。
+    if rule.id == "system.caches" || rule.id == "system.logs" {
+      let roots = ApplicationCacheCatalog.reservedRoots.map {
+        URL(fileURLWithPath: environment.home).appendingPathComponent($0).path
+      }
+      if CleanupExclusions.overlaps(url, paths: roots) { return .protected }
+    }
+    if rule.requiresUnredirectedPath,
+      !AppUninstaller.isUnredirected(url, home: environment.home)
+    {
+      return .protected
+    }
 
-    if rule.checksOwnerApp, let owner = owningApp(of: url, running: running) {
+    if rule.checksOwnerApp,
+      let owner = owningApp(of: url, running: running, names: environment.runningApplicationNames())
+    {
       return .appRunning(owner)
     }
+    // 扫描 URL 可能缓存资源属性；执行前必须从文件系统重新读取修改时间。
     if rule.minimumAge > 0,
-      let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey])
-        .contentModificationDate,
+      let modified = try? URL(fileURLWithPath: url.path).resourceValues(forKeys: [
+        .contentModificationDateKey
+      ])
+      .contentModificationDate,
       environment.now().timeIntervalSince(modified) < rule.minimumAge
     {
       return .recentlyModified
@@ -145,11 +172,21 @@ public enum CleanEngine {
     return nil
   }
 
-  /// 条目名为反向域名时，匹配正在运行的应用（名称相同，或是其子标识）
-  static func owningApp(of url: URL, running: Set<String>) -> String? {
+  /// 同时识别友好名称、已登记的目录别名，以及反向域名的应用与辅助进程。
+  static func owningApp(of url: URL, running: Set<String>, names: Set<String> = []) -> String? {
     let name = url.lastPathComponent
+    if let owner = ApplicationCacheCatalog.runningOwner(
+      directory: name, identifiers: running, names: names)
+    {
+      return owner
+    }
+    if let owner = names.first(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
+      return owner
+    }
     guard name.split(separator: ".").count >= 3 else { return nil }
-    return running.first { name == $0 || name.hasPrefix($0 + ".") }
+    return running.sorted().first {
+      name == $0 || name.hasPrefix($0 + ".") || $0.hasPrefix(name + ".")
+    }
   }
 
   /// 展示应用体积。只解析根上的符号链接，且目标本身必须仍是 .app；内部链接不跟随。
@@ -238,6 +275,7 @@ public enum CleanEngine {
     _ scans: [RuleScan], selected: Set<String>, preferTrash: Bool,
     environment: CleanEnvironment, log: CleanLog? = CleanLog(),
     refreshRunningApps: (@Sendable () async -> Set<String>)? = nil,
+    refreshRunningApplicationNames: (@Sendable () async -> Set<String>)? = nil,
     onProgress: (@Sendable (CleanProgress) async -> Void)? = nil
   ) async -> CleanReport {
     let safety = SafetyGuard(home: environment.home)
@@ -282,7 +320,11 @@ public enum CleanEngine {
         await onProgress?(currentProgress())
         continue
       }
-      if scan.rule.blockingApps.contains(where: { running.contains($0.bundleID) }) {
+      if scan.rule.runningApplication(
+        identifiers: running,
+        names: await refreshRunningApplicationNames?() ?? environment.runningApplicationNames())
+        != nil
+      {
         report.skippedCount += scan.items.count
         completedSteps += progress.currentRuleTotal
         await onProgress?(currentProgress())
@@ -306,6 +348,7 @@ public enum CleanEngine {
       let cancelled = await cleanManually(
         scan, useTrash: useTrash, running: running, environment: environment,
         safety: safety, log: log, refreshRunningApps: refreshRunningApps,
+        refreshRunningApplicationNames: refreshRunningApplicationNames,
         progress: progress, onProgress: onProgress,
         report: &report, completedSteps: &completedSteps)
       if cancelled { return report }
@@ -375,6 +418,7 @@ public enum CleanEngine {
     _ scan: RuleScan, useTrash: Bool, running: Set<String>,
     environment: CleanEnvironment, safety: SafetyGuard, log: CleanLog?,
     refreshRunningApps: (@Sendable () async -> Set<String>)?,
+    refreshRunningApplicationNames: (@Sendable () async -> Set<String>)?,
     progress: RuleProgress, onProgress: (@Sendable (CleanProgress) async -> Void)?,
     report: inout CleanReport, completedSteps: inout Int
   ) async -> Bool {
@@ -386,11 +430,18 @@ public enum CleanEngine {
         report.wasCancelled = true
         return true
       }
-      let blockingApp = scan.rule.blockingApps.first { running.contains($0.bundleID) }
-      if let reason = blockingApp.map({ SkipReason.appRunning($0.name) })
+      let names = await refreshRunningApplicationNames?() ?? environment.runningApplicationNames()
+      if Task.isCancelled {
+        report.wasCancelled = true
+        return true
+      }
+      var currentEnvironment = environment
+      currentEnvironment.runningApplicationNames = { names }
+      let blockingApp = scan.rule.runningApplication(identifiers: running, names: names)
+      if let reason = blockingApp.map({ SkipReason.appRunning($0) })
         ?? skipReason(
           for: item.url, rule: scan.rule, running: running,
-          environment: environment, safety: safety)
+          environment: currentEnvironment, safety: safety)
       {
         report.skippedCount += 1
         log?.record(item: item, rule: scan.rule, action: "skip", detail: reason.title)

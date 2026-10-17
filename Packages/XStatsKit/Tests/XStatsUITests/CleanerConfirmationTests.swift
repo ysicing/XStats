@@ -1,0 +1,64 @@
+// Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+@testable import Cleaner
+import Foundation
+import Localization
+import Testing
+@testable import XStatsUI
+
+@MainActor
+struct CleanerConfirmationTests {
+  @Test(arguments: [false, true])
+  func trashAlwaysWarnsAboutPermanentDeletion(preferTrash: Bool) throws {
+    let confirmation = CleanerConfirmation(
+      scans: [try scan("trash", bytes: 714_000_000)], preferTrash: preferTrash)
+    #expect(confirmation.kind == .trashOnly)
+    #expect(confirmation.permanentCount == 1 && confirmation.recoverableCount == 0)
+    #expect(confirmation.permanentBytes == 714_000_000)
+    #expect(confirmation.buttonTitle == tr("永久删除"))
+  }
+
+  @Test(arguments: [false, true])
+  func mixedSelectionFollowsExecutionPolicy(preferTrash: Bool) throws {
+    let confirmation = CleanerConfirmation(
+      scans: [
+        try scan("trash", bytes: 100), try scan("system.caches", bytes: 200),
+        try scan("downloads.installers", bytes: 300),
+      ], preferTrash: preferTrash)
+    #expect(confirmation.kind == .mixed)
+    #expect(confirmation.permanentCount == (preferTrash ? 1 : 2))
+    #expect(confirmation.permanentBytes == (preferTrash ? 100 : 300))
+    #expect(confirmation.recoverableBytes == (preferTrash ? 500 : 300))
+    #expect(confirmation.buttonTitle == tr("确认清理"))
+  }
+
+  @Test func recoverableAndPermanentSelectionsUseDifferentActions() throws {
+    let caches = [try scan("system.caches", bytes: 200)]
+    let recoverable = CleanerConfirmation(scans: caches, preferTrash: true)
+    let permanent = CleanerConfirmation(scans: caches, preferTrash: false)
+    #expect(recoverable.kind == .recoverable)
+    #expect(permanent.kind == .permanent)
+    #expect(recoverable.buttonTitle == tr("移到废纸篓"))
+    #expect(permanent.buttonTitle == tr("永久删除"))
+  }
+
+  @Test func toolsRemainPermanentAndUsePreviewSize() throws {
+    let rule = try #require(RuleCatalog.rules().first { $0.id == "developer.homebrew" })
+    let items = [CleanItem(url: URL(fileURLWithPath: "/fixture/cache"), size: 10)]
+    let scan = RuleScan(
+      rule: rule, items: items, skippedCount: 0, blocked: nil,
+      toolPreview: ToolCleanupPreview(items: items, totalSize: 500, details: ""))
+    let confirmation = CleanerConfirmation(scans: [scan], preferTrash: true)
+    #expect(confirmation.kind == .permanent)
+    #expect(confirmation.permanentBytes == 500)
+    #expect(confirmation.includesHomebrew)
+  }
+
+  private func scan(_ id: String, bytes: UInt64) throws -> RuleScan {
+    let rule = try #require(RuleCatalog.rules().first { $0.id == id })
+    return RuleScan(
+      rule: rule, items: [CleanItem(url: URL(fileURLWithPath: "/fixture/" + id), size: bytes)],
+      skippedCount: 0, blocked: nil)
+  }
+}

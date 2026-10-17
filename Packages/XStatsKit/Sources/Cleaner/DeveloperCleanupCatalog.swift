@@ -181,32 +181,15 @@ enum DeveloperCleanupCatalog {
         hasBoundedScope: false, preview: preview, parseReport: HomebrewCleanup.report)
     })
 
-  static let vscodeCache = editorCache(
-    id: "vscode", title: tr("VS Code 缓存"),
-    directories: ["Code", "Code - Insiders"],
-    apps: [
-      ("com.microsoft.VSCode", "Visual Studio Code"),
-      ("com.microsoft.VSCodeInsiders", "Visual Studio Code Insiders"),
-    ])
-  static let cursorCache = editorCache(
-    id: "cursor", title: tr("Cursor 缓存"), directories: ["Cursor"],
-    apps: [("com.todesktop.230313mzl4w4u92", "Cursor")])
-
-  private static func editorCache(
-    id: String, title: String, directories: [String], apps: [(String, String)]
-  ) -> CleanRule {
-    CleanRule(
-      id: "developer." + id, category: .developer, title: title,
-      detail: tr("仅清理网页、脚本与 GPU 缓存，保留设置、扩展和会话"), symbol: "chevron.left.forwardslash.chevron.right",
-      selectedByDefault: false, blockingApps: apps
-    ) { env in
-      let support = URL(fileURLWithPath: env.home).appendingPathComponent(
-        "Library/Application Support")
-      return directories.flatMap { directory in
-        ["Cache", "Code Cache", "GPUCache"].map {
-          support.appendingPathComponent(directory).appendingPathComponent($0)
-        }
-      }.filter { FileManager.default.fileExists(atPath: $0.path) }
-    }
-  }
+  static let vscodeCache = ApplicationCacheCatalog.cache(
+    id: "developer.vscode", name: "VS Code", directories: ["Code", "Code - Insiders"],
+    names: ["Cache", "Code Cache", "GPUCache", "CachedData", "CachedExtensionVSIXs"],
+    bundleIDs: ["com.microsoft.VSCode", "com.microsoft.VSCodeInsiders"],
+    applicationNames: [
+      "Visual Studio Code", "Visual Studio Code - Insiders", "Visual Studio Code Insiders",
+    ], category: .developer)
+  static let cursorCache = ApplicationCacheCatalog.cache(
+    id: "developer.cursor", name: "Cursor", directories: ["Cursor"],
+    names: ["Cache", "Code Cache", "GPUCache", "CachedExtensionVSIXs"],
+    bundleIDs: ["com.todesktop.230313mzl4w4u92"], category: .developer)
 }

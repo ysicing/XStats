@@ -4,7 +4,8 @@ import Localization
 /// 基础清理规则；开发者项目集中在 DeveloperCleanupCatalog 中维护。
 public enum RuleCatalog {
   public static func rules() -> [CleanRule] {
-    [userCaches, logs] + browsers.map(browserRule) + DeveloperCleanupCatalog.rules
+    [userCaches, logs] + ApplicationCacheCatalog.rules + browsers.map(browserRule)
+      + DeveloperCleanupCatalog.rules
       + [incompleteDownloads, installers, trash]
   }
 

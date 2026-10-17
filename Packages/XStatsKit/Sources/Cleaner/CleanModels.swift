@@ -50,6 +50,7 @@ public enum SkipReason: Sendable, Equatable, Hashable {
 public struct CleanEnvironment: Sendable {
   public var home: String
   public var runningBundleIdentifiers: @Sendable () -> Set<String>
+  public var runningApplicationNames: @Sendable () -> Set<String>
   public var now: @Sendable () -> Date
   public var isToolAvailable: @Sendable (String) -> Bool
   public var runTool: @Sendable (String, [String]) async throws -> ToolRunResult
@@ -63,6 +64,7 @@ public struct CleanEnvironment: Sendable {
   public init(
     home: String = NSHomeDirectory(),
     runningBundleIdentifiers: @escaping @Sendable () -> Set<String>,
+    runningApplicationNames: @escaping @Sendable () -> Set<String> = { [] },
     now: @escaping @Sendable () -> Date = Date.init,
     isToolAvailable: (@Sendable (String) -> Bool)? = nil,
     runTool: (@Sendable (String, [String]) async throws -> ToolRunResult)? = nil,
@@ -74,6 +76,7 @@ public struct CleanEnvironment: Sendable {
   ) {
     self.home = home
     self.runningBundleIdentifiers = runningBundleIdentifiers
+    self.runningApplicationNames = runningApplicationNames
     self.now = now
     self.isToolAvailable =
       isToolAvailable ?? { DeveloperToolRunner.executable(named: $0, home: home) != nil }
@@ -109,6 +112,11 @@ public struct CleanRule: Sendable, Identifiable {
   public let blockingApps: [(bundleID: String, name: String)]
   /// 条目名为反向域名（如 com.foo.bar）时，对应应用运行中则跳过该条目
   public let checksOwnerApp: Bool
+  /// 应用专属缓存不接受家目录以下任意层级的符号链接，执行前也重新检查。
+  let requiresUnredirectedPath: Bool
+  /// 应用缓存的精确家目录相对路径；扫描和执行使用相同的范围。
+  let cacheRelativePaths: [String]
+  let blockingApplicationNames: [String]
   /// 最近修改过的条目视为正在使用
   public let minimumAge: TimeInterval
   public let requiredTool: String?
@@ -121,6 +129,8 @@ public struct CleanRule: Sendable, Identifiable {
     id: String, category: CleanCategory, title: String, detail: String, symbol: String,
     selectedByDefault: Bool = true, policy: DeletionPolicy = .delete,
     blockingApps: [(bundleID: String, name: String)] = [], checksOwnerApp: Bool = false,
+    requiresUnredirectedPath: Bool = false,
+    cacheRelativePaths: [String] = [], blockingApplicationNames: [String] = [],
     minimumAge: TimeInterval = 120, requiredTool: String? = nil,
     prepareTool: (@Sendable (CleanEnvironment) async throws -> ToolCachePlan)? = nil,
     locate: @escaping @Sendable (CleanEnvironment) throws -> [URL]
@@ -134,6 +144,9 @@ public struct CleanRule: Sendable, Identifiable {
     self.policy = policy
     self.blockingApps = blockingApps
     self.checksOwnerApp = checksOwnerApp
+    self.requiresUnredirectedPath = requiresUnredirectedPath
+    self.cacheRelativePaths = cacheRelativePaths
+    self.blockingApplicationNames = blockingApplicationNames
     self.minimumAge = minimumAge
     self.requiredTool = requiredTool
     self.prepareTool = prepareTool
@@ -150,6 +163,18 @@ public struct CleanRule: Sendable, Identifiable {
       id: id, category: category, title: title, detail: detail, symbol: symbol,
       selectedByDefault: selectedByDefault, minimumAge: minimumAge,
       requiredTool: requiredTool, prepareTool: prepareTool, locate: { _ in [] })
+  }
+
+  /// 包含应用的辅助进程；未确认的产品标识使用原生应用名称兜底。
+  func runningApplication(identifiers: Set<String>, names: Set<String>) -> String? {
+    if let app = blockingApps.first(where: { app in
+      identifiers.contains { $0 == app.bundleID || $0.hasPrefix(app.bundleID + ".") }
+    }) {
+      return app.name
+    }
+    return blockingApplicationNames.first { name in
+      names.contains { $0.caseInsensitiveCompare(name) == .orderedSame }
+    }
   }
 
   public var usesToolCleaner: Bool { prepareTool != nil }
