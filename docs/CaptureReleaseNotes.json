@@ -1,18 +1,12 @@
 {
-  "version": "0.1.0",
-  "date": "2026-10-17",
+  "version": "0.1.1",
+  "date": "2026-10-18",
   "sourceNotes": [
-    "首次发布独立 XStats Capture，无需安装 XStats 即可截图、编辑与录屏。",
-    "支持区域、窗口与整屏截图，提供标注、裁剪、马赛克和本机敏感信息识别。",
-    "支持系统声音与麦克风录制、暂停继续、首尾裁剪和 MP4 导出。",
-    "提供独立偏好设置与快捷键，并通过 Sparkle 检查和安装已签名更新。"
+    "更新共享快捷键组件，支持宿主录制快捷键时临时释放注册，并保留已有截图与录屏快捷键配置。"
   ],
   "translations": {
     "en": [
-      "First standalone release of XStats Capture: capture, annotate and record without installing XStats.",
-      "Capture a region, window or display, with annotations, cropping, pixelation and on-device sensitive information detection.",
-      "Record system audio and microphone input, pause and resume, trim the ends and export MP4 video.",
-      "Includes independent preferences and shortcuts, with Sparkle checks and installation of signed updates."
+      "Update the shared shortcut component to temporarily release registrations while the host records shortcuts, preserving existing screenshot and recording key bindings."
     ]
   }
 }

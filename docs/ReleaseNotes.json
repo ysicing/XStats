@@ -1,27 +1,25 @@
 {
-  "version": "1.4.0",
+  "version": "1.4.1",
   "sourceNotes": [
-    "新增 XStats Capture 截图标注工具",
-    "截图新增马赛克与本地一键打码，可识别手机号、邮箱等敏感文字并编辑遮挡范围",
-    "新增带系统声音和麦克风的录屏，支持倒计时、暂停续录、录制计时、预览裁剪和 MP4 导出",
-    "完善诊断导出说明并显示实际处理阶段，减少启动和导出时主线程上的签名检查等待",
-    "优化监控、AI 用量与清理任务的资源管理，减少不必要的格式化、子进程等待唤醒及关闭后的后台工作",
-    "隐藏未启用护眼功能的快捷键设置，改善特殊按键名称显示并补齐小组件与截图工具的多语言文案",
-    "加固风扇自动恢复与控制状态确认，读取或复位失败时不再误报已交还系统，并修复保护流程回归",
-    "修复部分本地磁盘容量口径为零时错误显示无可用空间的问题，并加固内存释放统计和异常输入处理",
-    "修复截图保存、录屏写入与导出的边界问题，保护已有文件和其他会话素材，失败或取消后保留可恢复内容"
+    "将“专注与护眼”升级为“计时”",
+    "新增主动短休、长休和关闭显示器入口",
+    "重做菜单栏计时弹窗与时长刻度交互",
+    "统一计时与休息快捷键设置",
+    "扩展常用应用与开发工具缓存清理，增加运行中应用保护和路径去重，继续使用原生扫描、选择与确认流程",
+    "精简功能设置布局和说明，新安装用户默认使用聚合菜单栏，已有用户的配置保持不变",
+    "根据实际选择及删除方式生成清理确认文案和按钮，明确区分移到废纸篓、永久删除和清空废纸篓",
+    "修复息屏或锁屏期间屏幕配置变化可能重建并遗留休息遮罩的问题，保留休息截止时间并正确恢复展示"
   ],
   "translations": {
     "en": [
-      "Add optional XStats Capture with region, window, and full-screen screenshots, cropping, arrows, rectangles, freehand drawing, text, undo/redo, and pinned images. It is off by default and can be enabled in feature settings",
-      "Add mosaic redaction and local sensitive-text detection for phone numbers, email addresses, and other supported patterns. Adjust the resulting masks before sharing; images stay on this Mac and automatic detection still requires manual review",
-      "Add screen recording with system audio and microphone options, a countdown, pause/resume, elapsed time, preview trimming, and MP4 export. Configure screenshot and recording shortcuts and clean up recording leftovers on demand while protecting media still in use",
-      "Clarify diagnostic export contents and show actual processing stages. Move signing checks off the main thread during startup and export to reduce waiting",
-      "Improve resource management for monitoring, AI usage, and cleanup tasks, reducing unnecessary formatting, subprocess wait wakeups, and background work after closing views",
-      "Hide eye-care shortcut settings when the feature is disabled, show readable names for special keys, and complete widget and capture-tool translations",
-      "Strengthen automatic fan recovery and control-state verification. Failed reads or resets no longer report that control has returned to macOS, and safety-flow regressions are fixed",
-      "Fix local disks incorrectly showing no available space when a capacity reading is zero, and harden memory-release statistics and invalid-input handling",
-      "Fix screenshot saving and recording write/export edge cases. Protect existing files and other recording sessions, and preserve recoverable media after failures or cancellation"
+      "Expand Focus & Eye Care into Timer with countdown, Pomodoro and stopwatch modes, including laps, while preserving existing focus settings and eye-care reminders",
+      "Add on-demand short and long breaks and a turn-off-display action. Optionally turn off displays during breaks without waking them when a break ends; resume paused focus manually",
+      "Redesign the menu bar timer popover and duration ruler, add paused states and context-menu actions, and organize mode-specific settings and mini HUD styles",
+      "Unify timer and break shortcuts, including Space to start or pause and Command-L for stopwatch laps, while preventing accidental actions during text entry, settings popovers and shortcut recording",
+      "Expand common application and developer-tool cache cleanup with running-app protection and path deduplication, retaining the native scan, selection and confirmation flow",
+      "Simplify feature settings and descriptions. New installations default to a combined menu bar while existing user preferences are preserved",
+      "Generate cleanup confirmation text and buttons from the selected items and deletion methods, distinguishing Move to Trash, permanent deletion and Empty Trash",
+      "Fix break overlays being recreated or left behind when display configuration changes while the screen is off or locked, preserving break deadlines and restoring presentation correctly"
     ]
   }
 }
