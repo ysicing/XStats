@@ -253,8 +253,9 @@ struct HotKeySettings: View {
 
   var body: some View {
     let settings = model.settings
+    let actions = HotKeyAction.allCases.filter { $0 != .startEyeRest || settings.restEnabled }
     SettingsGroup(caption: tr("全局快捷键（在任何应用中都能使用，需要包含 ⌘、⌥ 或 ⌃）")) {
-      ForEach(Array(HotKeyAction.allCases.enumerated()), id: \.element) { index, action in
+      ForEach(Array(actions.enumerated()), id: \.element) { index, action in
         let subtitle: String? =
           if model.hotKeyConflicts.contains(action) {
             tr("这个快捷键已被其他应用或系统占用，请换一个")
