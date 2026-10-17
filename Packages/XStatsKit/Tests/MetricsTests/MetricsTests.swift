@@ -27,6 +27,22 @@ struct SMCDecoderTests {
     }
   }
 
+  @Test(arguments: ["flt ", "ui8 ", "flag", "fpe2"])
+  func encodeRejectsNonFiniteValues(type: String) {
+    #expect(SMCDecoder.encode(type: type, value: .nan) == nil)
+    #expect(SMCDecoder.encode(type: type, value: .infinity) == nil)
+    #expect(SMCDecoder.encode(type: type, value: -.infinity) == nil)
+  }
+
+  @Test func integerEncodingClampsBeforeConversion() {
+    #expect(SMCDecoder.encode(type: "ui8 ", value: .greatestFiniteMagnitude) == [255])
+    #expect(SMCDecoder.encode(type: "flag", value: -.greatestFiniteMagnitude) == [0])
+    #expect(SMCDecoder.encode(type: "fpe2", value: .greatestFiniteMagnitude) == [255, 255])
+    #expect(SMCDecoder.encode(type: "fpe2", value: -.greatestFiniteMagnitude) == [0, 0])
+    #expect(SMCDecoder.encode(type: "ui8 ", value: 12.75) == [12])
+    #expect(SMCDecoder.encode(type: "fpe2", value: 1.49) == [0, 5])
+  }
+
   @Test func SMCStructMatchesKernelLayout() {
     #expect(MemoryLayout<SMCParam>.stride == 80)
   }

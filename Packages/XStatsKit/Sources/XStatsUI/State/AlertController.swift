@@ -128,6 +128,10 @@ public final class AlertController: NSObject {
   @ObservationIgnored private var periodicTask: Task<Void, Never>?
   /// 每个蓝牙设备上次提醒的时间
   @ObservationIgnored private var bluetoothNotified: [String: Date] = [:]
+  /// 读取蓝牙设备电量；应用内注入为复用 BluetoothController 的近期读数，避免重复启动 system_profiler
+  @ObservationIgnored var readBluetoothDevices: () async -> [BluetoothDevice] = {
+    await Task.detached(priority: .utility) { BluetoothBatteryReader.read() }.value
+  }
 
   /// 单元测试与截图进程没有应用包标识，不能使用通知中心
   private var center: UNUserNotificationCenter? {
@@ -167,7 +171,7 @@ public final class AlertController: NSObject {
       if periodicTask == nil {
         periodicTask = Task { [weak self] in
           while !Task.isCancelled {
-            self?.checkPeriodic()
+            await self?.checkPeriodic()
             await self?.checkBluetooth()
             try? await Task.sleep(for: .seconds(10 * 60), tolerance: .seconds(60))
           }
@@ -209,9 +213,17 @@ public final class AlertController: NSObject {
     }
   }
 
-  private func checkPeriodic(now: Date = Date()) {
+  private func checkPeriodic(now: Date = Date()) async {
     let enabled = settings.activeAlerts
-    if enabled.contains(.diskSpace), let disk = DiskSampler.sample() {
+    let readDisk = enabled.contains(.diskSpace)
+    let readBattery = enabled.contains(.batteryHealth)
+    guard readDisk || readBattery else { return }
+    // 查询可用容量可能因 APFS 清算可清除空间耗时数秒，不能阻塞主线程
+    let (disk, battery) = await Task.detached(priority: .utility) {
+      (readDisk ? DiskSampler.sample() : nil, readBattery ? BatterySampler.sample() : nil)
+    }.value
+    guard !Task.isCancelled else { return }
+    if enabled.contains(.diskSpace), settings.activeAlerts.contains(.diskSpace), let disk {
       let low =
         disk.total > 0
         && (Double(disk.available) / Double(disk.total) < 0.1 || disk.available < 10_000_000_000)
@@ -224,7 +236,9 @@ public final class AlertController: NSObject {
           "“\(disk.volumeName)”只剩 \(Format.bytes(disk.available, base: .decimal)) 可用。请检查不再需要的文件。")
       fireIfNeeded(.diskSpace, isActive: low, now: now, body: body)
     }
-    if enabled.contains(.batteryHealth), let health = BatterySampler.sample()?.health {
+    if enabled.contains(.batteryHealth), settings.activeAlerts.contains(.batteryHealth),
+      let health = battery?.health
+    {
       // 冷却时间跨越重启，记在偏好设置里
       let last = defaults.object(forKey: Keys.batteryNotified) as? Date
       if health < 0.8,
@@ -240,7 +254,7 @@ public final class AlertController: NSObject {
 
   private func checkBluetooth(now: Date = Date()) async {
     guard settings.activeAlerts.contains(.bluetoothBattery) else { return }
-    let devices = await Task.detached { BluetoothBatteryReader.read() }.value
+    let devices = await readBluetoothDevices()
     guard !Task.isCancelled, settings.activeAlerts.contains(.bluetoothBattery) else { return }
     for device in Self.connectedBluetoothDevices(devices) {
       guard let lowest = device.batteries.min(by: { $0.percent < $1.percent }), lowest.percent <= 15

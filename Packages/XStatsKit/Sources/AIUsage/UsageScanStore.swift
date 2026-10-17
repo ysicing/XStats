@@ -109,13 +109,18 @@ final class UsageScanStore {
       bytesRead += chunk.count
       cursor += UInt64(chunk.count)
       pending.append(chunk)
-      while let newline = pending.firstIndex(of: 10) {
-        if !skipping { consume(&state, Data(pending[..<newline])) }
-        let length = pending.distance(from: pending.startIndex, to: newline) + 1
-        offset += UInt64(length)
-        pending.removeSubrange(...newline)
+      var start = pending.startIndex
+      // 上一轮残留的半行已确认不含换行，只在新追加的数据里查找，避免超长行被反复扫描。
+      var searchFrom = pending.index(pending.endIndex, offsetBy: -chunk.count)
+      while let newline = pending[searchFrom...].firstIndex(of: 10) {
+        if !skipping { consume(&state, Data(pending[start..<newline])) }
+        offset += UInt64(pending.distance(from: start, to: newline) + 1)
+        start = pending.index(after: newline)
+        searchFrom = start
         skipping = false
       }
+      // 每块只移除一次已消费的行；逐行 removeSubrange 会反复搬移剩余数据，整体接近二次方。
+      pending.removeSubrange(..<start)
       if pending.count > 8 * 1024 * 1024 {
         // 跳过超长正文，直到遇到换行才允许提交游标。
         offset += UInt64(pending.count)

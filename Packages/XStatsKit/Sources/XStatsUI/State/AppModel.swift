@@ -145,6 +145,7 @@ public final class AppModel {
     network = NetworkController(settings: settings, cacheDefaults: networkCacheDefaults)
     updates = UpdateController(settings: settings, defaults: settings.updateDefaults)
     alerts = AlertController(settings: settings)
+    alerts.readBluetoothDevices = { [bluetooth] in await bluetooth.recentDevices(maxAge: 5 * 60) }
     history = HistoryRecorder(settings: settings, databaseURL: historyURL)
     sync = SyncController(settings: settings)
     diskTools = DiskToolsController(helper: helper)

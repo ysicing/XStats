@@ -362,17 +362,27 @@ struct CalendarPopover: View {
   }
 
   private func monthName(_ month: Int) -> String {
-    let formatter = DateFormatter()
-    formatter.locale = L10n.locale
-    formatter.calendar = CalendarEngine.gregorian()
-    return formatter.monthSymbols[month - 1]
+    CalendarSymbols.current().months[month - 1]
   }
 
   private func weekdayName(_ weekday: Int) -> String {
+    CalendarSymbols.current().weekdays[weekday - 1]
+  }
+}
+
+/// 月份与星期名只随应用语言变化；按 locale 缓存一份，避免每次重绘为每个月份、星期新建 DateFormatter
+@MainActor
+private enum CalendarSymbols {
+  private static var cached: (locale: Locale, months: [String], weekdays: [String])?
+
+  static func current() -> (months: [String], weekdays: [String]) {
+    let locale = L10n.locale
+    if let cached, cached.locale == locale { return (cached.months, cached.weekdays) }
     let formatter = DateFormatter()
-    formatter.locale = L10n.locale
+    formatter.locale = locale
     formatter.calendar = CalendarEngine.gregorian()
-    return formatter.shortWeekdaySymbols[weekday - 1]
+    cached = (locale, formatter.monthSymbols, formatter.shortWeekdaySymbols)
+    return (formatter.monthSymbols, formatter.shortWeekdaySymbols)
   }
 }
 

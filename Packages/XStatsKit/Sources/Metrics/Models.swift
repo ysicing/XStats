@@ -195,8 +195,13 @@ public struct SystemCounts: Sendable, Equatable {
   public var threads: Int
 
   public static func read() -> SystemCounts? {
+    // mach_host_self() 与 processor_set_default 都返回需要调用方释放的 send right；
+    // 每个采样周期都会调用，不释放会让端口引用计数持续增长
+    let host = mach_host_self()
+    defer { mach_port_deallocate(mach_task_self_, host) }
     var set: processor_set_name_t = 0
-    guard processor_set_default(mach_host_self(), &set) == KERN_SUCCESS else { return nil }
+    guard processor_set_default(host, &set) == KERN_SUCCESS else { return nil }
+    defer { mach_port_deallocate(mach_task_self_, set) }
     var load = processor_set_load_info()
     var count = mach_msg_type_number_t(
       MemoryLayout<processor_set_load_info>.size / MemoryLayout<integer_t>.size)

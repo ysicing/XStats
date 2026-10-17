@@ -199,35 +199,17 @@ public enum BluetoothBatteryReader {
     return .other
   }
 
+  /// 最多等 10 秒，蓝牙服务卡住时不拖住采样；复用有界执行器，超时后先 TERM 再 KILL，
+  /// 避免子进程忽略 TERM 时 readDataToEndOfFile 永久阻塞、读取状态一直停在“读取中”。
   private static func runSystemProfiler() -> Data {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
-    process.arguments = ["SPBluetoothDataType", "-json", "-detailLevel", "basic"]
-    let pipe = Pipe()
-    process.standardOutput = pipe
-    process.standardError = FileHandle.nullDevice
-    do { try process.run() } catch { return Data() }
-    // 最多等 10 秒，蓝牙服务卡住时不拖住采样
-    let deadline = DispatchTime.now() + 10
-    DispatchQueue.global().asyncAfter(deadline: deadline) {
-      if process.isRunning { process.terminate() }
-    }
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    process.waitUntilExit()
-    return data
+    let output = NetworkProcessSampler.run(
+      path: "/usr/sbin/system_profiler",
+      arguments: ["SPBluetoothDataType", "-json", "-detailLevel", "basic"], timeout: 10)
+    return Data((output ?? "").utf8)
   }
 
   private static func runPMSet() -> String {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
-    process.arguments = ["-g", "accps"]
-    let pipe = Pipe()
-    process.standardOutput = pipe
-    process.standardError = FileHandle.nullDevice
-    do { try process.run() } catch { return "" }
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    process.waitUntilExit()
-    return process.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : ""
+    NetworkProcessSampler.run(path: "/usr/bin/pmset", arguments: ["-g", "accps"], timeout: 5) ?? ""
   }
 
   private static func hidBatteries() -> [BluetoothDevice] {

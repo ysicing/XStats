@@ -83,6 +83,8 @@ public final class SpeedTestController {
   /// 每次开始、停止或结束宽带测速都换代；阶段与进度回调是另行投递到主线程的，
   /// 过期回调据此丢弃，不会在停止后把界面改回“测试中”。
   @ObservationIgnored private var broadbandRun = 0
+  /// 节点下载测速的代次，作用同 broadbandRun：丢弃停止或结束后才投递到主线程的进度回调
+  @ObservationIgnored private var downloadRun = 0
   typealias BroadbandRunner =
     @Sendable (
       SpeedLimit, SpeedPath,
@@ -160,6 +162,7 @@ public final class SpeedTestController {
     downloadTask?.cancel()
     probeTask?.cancel()
     broadbandRun += 1
+    downloadRun += 1
     broadbandStage = nil
     isTestingChina = false
     isTestingGlobal = false
@@ -326,6 +329,7 @@ public final class SpeedTestController {
 
   /// 单个节点的下载测速，手动触发，一次只跑一个
   public func download(_ node: GlobalNode) {
+    downloadRun += 1
     if downloadingNode == node.id {
       downloadTask?.cancel()
       downloadingNode = nil
@@ -333,6 +337,7 @@ public final class SpeedTestController {
       return
     }
     downloadTask?.cancel()
+    let run = downloadRun
     downloadingNode = node.id
     liveBitsPerSecond = 0
     downloadTask = Task { [self, limit, route = settings.speedTestRoute] in
@@ -340,9 +345,13 @@ public final class SpeedTestController {
       guard !Task.isCancelled else { return }
       let result = await ThroughputProbe.download(node.downloadURL, limit: limit, path: path) {
         speed, _ in
-        Task { @MainActor [weak self] in self?.liveBitsPerSecond = speed }
+        Task { @MainActor [weak self] in
+          guard let self, self.downloadRun == run else { return }
+          self.liveBitsPerSecond = speed
+        }
       }
       guard !Task.isCancelled else { return }
+      downloadRun += 1
       if let result {
         globalSpeed[node.id] = result
         globalRoute = path.route

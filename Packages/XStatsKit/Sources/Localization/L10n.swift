@@ -73,8 +73,9 @@ public enum L10n {
     guard let missingLogURL, misses.insert(key).inserted else { return }
     let line = key.replacingOccurrences(of: "\n", with: "\\n") + "\n"
     if let handle = try? FileHandle(forWritingTo: missingLogURL) {
-      handle.seekToEndOfFile()
-      handle.write(Data(line.utf8))
+      // 使用可抛错的 API：旧的 seekToEndOfFile()/write(_:) 失败时抛 ObjC 异常，Swift 无法捕获而直接崩溃
+      _ = try? handle.seekToEnd()
+      try? handle.write(contentsOf: Data(line.utf8))
       try? handle.close()
     } else {
       try? Data(line.utf8).write(to: missingLogURL)
@@ -89,19 +90,28 @@ public func tr(_ text: String) -> String { L10n.translate(text) }
 /// 不可变翻译表，可在采样和界面线程共享。占位符支持 {} 以及重排后的 {1}、{2}。
 final class Translations: Sendable {
   static let shared = Translations(tables: tables)
-  private static let catalogs: [AppLanguage: Translations] = {
-    var result: [AppLanguage: Translations] = [.english: shared]
-    for language in AppLanguage.allCases
-    where language != .system && language != .chinese && language != .english {
-      guard let url = Bundle.module.url(forResource: language.languageCode, withExtension: "tsv"),
-        let text = try? String(contentsOf: url, encoding: .utf8)
-      else { continue }
-      result[language] = Translations(tables: [text], rightToLeft: language.isRightToLeft)
-    }
-    return result
-  }()
+  /// 按需加载的语言表。只解析实际用到的语言，避免首次翻译就把全部 TSV 与模板正则常驻内存。
+  /// 该锁只作为最内层锁使用（L10n.translate 持有 L10n.lock 时会进入这里），内部不得再获取其他锁。
+  private static let catalogLock = NSLock()
+  nonisolated(unsafe) private static var catalogs: [AppLanguage: Translations?] = [:]
 
-  static func catalog(for language: AppLanguage) -> Translations? { catalogs[language.resolved] }
+  static func catalog(for language: AppLanguage) -> Translations? {
+    let language = language.resolved
+    if language == .english { return shared }
+    guard language != .chinese else { return nil }
+    return catalogLock.withLock {
+      if let cached = catalogs[language] { return cached }
+      var loaded: Translations?
+      if let url = Bundle.module.url(forResource: language.languageCode, withExtension: "tsv"),
+        let text = try? String(contentsOf: url, encoding: .utf8)
+      {
+        loaded = Translations(tables: [text], rightToLeft: language.isRightToLeft)
+      }
+      // 缺失的语言表也记为 nil，避免每次翻译都重新查找资源。
+      catalogs[language] = .some(loaded)
+      return loaded
+    }
+  }
 
   private let exact: [String: String]
   private let templates: [Template]

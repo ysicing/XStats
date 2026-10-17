@@ -638,21 +638,29 @@ public enum ProjectPurge {
 
   /// 运行子进程并限时等待；超时先 terminate 再 SIGKILL。返回退出码，启动失败或超时返回 nil
   private static func wait(for process: Process, timeout: TimeInterval) -> Int32? {
+    // 退出由 terminationHandler 通知；按 100ms 分片等待只为响应任务取消，避免 20ms 轮询的频繁唤醒。
+    // 不用 waitUntilExit()：非 RunLoop 线程上错过退出通知会永久等待
+    let exited = DispatchSemaphore(value: 0)
+    process.terminationHandler = { _ in exited.signal() }
     do { try process.run() } catch { return nil }
     let deadline = Date().addingTimeInterval(timeout)
-    while process.isRunning && Date() < deadline && !Task.isCancelled {
-      Thread.sleep(forTimeInterval: 0.02)
+    while !Task.isCancelled {
+      let remaining = deadline.timeIntervalSinceNow
+      guard remaining > 0 else { break }
+      if exited.wait(timeout: .now() + min(remaining, 0.1)) == .success {
+        return process.terminationStatus
+      }
     }
     if process.isRunning {
       process.terminate()
-      let grace = Date().addingTimeInterval(1)
-      while process.isRunning && Date() < grace { Thread.sleep(forTimeInterval: 0.02) }
-      if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
-      // 不用 waitUntilExit()：非 RunLoop 线程上错过退出通知会永久等待
-      let killed = Date().addingTimeInterval(2)
-      while process.isRunning && Date() < killed { Thread.sleep(forTimeInterval: 0.02) }
+      // 通知可能晚于实际退出；升级信号前重新确认，避免向已退出进程的旧 PID 发信号
+      if exited.wait(timeout: .now() + 1) == .timedOut, process.isRunning {
+        _ = Darwin.kill(process.processIdentifier, SIGKILL)
+        _ = exited.wait(timeout: .now() + 2)
+      }
       return nil
     }
+    // 取消或截止时进程恰好已退出：沿用原语义，按实际退出码返回
     return process.terminationStatus
   }
 

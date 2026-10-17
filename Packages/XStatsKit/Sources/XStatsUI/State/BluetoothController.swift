@@ -103,6 +103,10 @@ public final class BluetoothController {
   @ObservationIgnored private var demand: Demand = .off
   @ObservationIgnored private var task: Task<Void, Never>?
   @ObservationIgnored private var deviceCache = BluetoothDeviceCache()
+  @ObservationIgnored private var readingTask: Task<Void, Never>?
+  @ObservationIgnored var readDevices: () async -> [BluetoothDevice] = {
+    await Task.detached(priority: .utility) { BluetoothBatteryReader.read() }.value
+  }
 
   /// 电量最低的一块电池（耳机的左右耳、充电盒分别算）
   public var lowest: (device: BluetoothDevice, label: String, percent: Int)? {
@@ -136,19 +140,36 @@ public final class BluetoothController {
     }
   }
 
+  /// 供低电量提醒复用：读数足够新时直接返回，否则读一次并更新共享缓存。
+  /// 返回值可能含缓存中已断开的设备，调用方需按 isConnected 过滤。
+  func recentDevices(maxAge: TimeInterval, now: Date = Date()) async -> [BluetoothDevice] {
+    if let updatedAt, now.timeIntervalSince(updatedAt) < maxAge, let devices { return devices }
+    await read()
+    return devices ?? []
+  }
+
   /// 弹窗里的刷新按钮
   func refresh() {
     Task { await read() }
   }
 
   private func read() async {
-    guard !isReading else { return }
+    // 提醒和界面共享同一次采样，等待缓存合并完成再返回，不能因正在读取就返回旧值。
+    if let readingTask {
+      await readingTask.value
+      return
+    }
     isReading = true
-    let current = await Task.detached(priority: .utility) { BluetoothBatteryReader.read() }.value
-    let now = Date()
-    devices = deviceCache.merge(current: current, now: now)
-    updatedAt = now
-    isReading = false
+    let reading = Task { [self] in
+      let current = await readDevices()
+      let now = Date()
+      devices = deviceCache.merge(current: current, now: now)
+      updatedAt = now
+      isReading = false
+      readingTask = nil
+    }
+    readingTask = reading
+    await reading.value
   }
 }
 

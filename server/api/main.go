@@ -37,6 +37,12 @@ func validHTTPS(raw string, optional bool) bool {
 	return err == nil && parsed.Scheme == "https" && parsed.Host != ""
 }
 
+// appcast 入口按安装包路径推导同名 XML，发布时就拒绝非 .zip 安装包，避免发布成功后更新源才失效。
+func zipAsset(raw string) bool {
+	parsed, err := url.Parse(raw)
+	return err == nil && strings.HasSuffix(parsed.Path, ".zip")
+}
+
 //go:embed dashboard.html
 var dashboardFiles embed.FS
 
@@ -172,7 +178,7 @@ func newApplicationWithFeedClient(databasePath string, releaseToken string, feed
 		if candidate.Version == "" || candidate.Build == "" || candidate.Date == "" ||
 			candidate.MinimumSystem == "" || !validHTTPS(candidate.URL, false) || !validHTTPS(candidate.DMG, true) ||
 			!validHTTPS(candidate.Changelog, true) || !installationIDPattern.MatchString(candidate.SHA256) ||
-			candidate.Size <= 0 || len(candidate.Notes) == 0 {
+			candidate.Size <= 0 || len(candidate.Notes) == 0 || !zipAsset(candidate.URL) {
 			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid release"})
 		}
 		err := database.Transaction(func(transaction *gorm.DB) error {
@@ -200,6 +206,10 @@ func newApplicationWithFeedClient(databasePath string, releaseToken string, feed
 
 		var current release
 		if err := database.Where("is_current = ?", true).First(&current).Error; err != nil {
+			// 数据库故障由 gorm 日志记录；只有确实没有发布记录才返回 503。
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "could not load release"})
+			}
 			return c.Status(http.StatusServiceUnavailable).JSON(fiber.Map{"error": "no release published"})
 		}
 		return c.JSON(current)
@@ -214,6 +224,9 @@ func newApplicationWithFeedClient(databasePath string, releaseToken string, feed
 		}
 		var current release
 		if err := database.Where("is_current = ?", true).First(&current).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return c.SendStatus(http.StatusInternalServerError)
+			}
 			return c.SendStatus(http.StatusServiceUnavailable)
 		}
 		asset, err := url.Parse(current.URL)
@@ -251,7 +264,9 @@ func newApplicationWithFeedClient(databasePath string, releaseToken string, feed
 		c.Type("xml", "utf-8")
 		return c.Send(data)
 	})
-	app.Get("/stats", func(c fiber.Ctx) error {
+	// 统计页每次都对安装表做全表计数与分组，单独限流，避免公开入口被反复刷新拖慢更新检查。
+	statsLimiter := limiter.New(limiter.Config{Max: 10, Expiration: time.Minute})
+	app.Get("/stats", statsLimiter, func(c fiber.Ctx) error {
 		var data dashboardData
 		data.GeneratedAt = time.Now().Format("2006-01-02 15:04:05 MST")
 		if err := database.Model(&installation{}).Count(&data.TotalInstallations).Error; err != nil {
@@ -267,6 +282,8 @@ func newApplicationWithFeedClient(databasePath string, releaseToken string, feed
 		var current release
 		if err := database.Where("is_current = ?", true).First(&current).Error; err == nil {
 			data.CurrentVersion = current.Version
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.SendStatus(http.StatusInternalServerError)
 		}
 		if err := database.Model(&installation{}).
 			Select("current_version AS version, COUNT(*) AS count").

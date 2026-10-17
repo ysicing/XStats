@@ -70,6 +70,72 @@ func TestPublishReleaseRejectsInsecureAssetURL(t *testing.T) {
 	}
 }
 
+func TestPublishReleaseRequiresZipAsset(t *testing.T) {
+	for _, asset := range []struct {
+		url    string
+		status int
+	}{
+		{"https://example.test/XStats.dmg", http.StatusBadRequest},
+		{"https://example.test/download?file=XStats.zip", http.StatusBadRequest},
+		{"https://example.test/XStats.zip?token=fixture", http.StatusNoContent},
+	} {
+		t.Run(asset.url, func(t *testing.T) {
+			app, err := newApplication(t.TempDir()+"/xstats.sqlite", "release-secret")
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, err := json.Marshal(release{
+				Version: "1.0.0", Build: "1", Date: "2026-10-17", MinimumSystem: "14.0",
+				URL: asset.url, SHA256: strings.Repeat("a", 64), Size: 123, Notes: []string{"fixture"},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := httptest.NewRequest(http.MethodPut, "/api/v1/releases/current", strings.NewReader(string(body)))
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Authorization", "Bearer release-secret")
+			response, err := app.Test(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer response.Body.Close()
+			if response.StatusCode != asset.status {
+				t.Fatalf("status = %d, want %d", response.StatusCode, asset.status)
+			}
+		})
+	}
+}
+
+func TestDashboardRateLimitDoesNotBlockAppcast(t *testing.T) {
+	app, err := newApplication(t.TempDir()+"/xstats.sqlite", "release-secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 11; i++ {
+		response, err := app.Test(httptest.NewRequest(http.MethodGet, "/stats", nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		want := http.StatusOK
+		if i == 10 {
+			want = http.StatusTooManyRequests
+		}
+		if response.StatusCode != want {
+			t.Fatalf("request %d: status = %d, want %d", i+1, response.StatusCode, want)
+		}
+	}
+	response, err := app.Test(httptest.NewRequest(http.MethodGet,
+		"/api/v1/update/appcast.xml?current_version=1.0.0&installation_id="+strings.Repeat("a", 64), nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("appcast status = %d, want %d", response.StatusCode, http.StatusServiceUnavailable)
+	}
+}
+
 func TestPublishedReleaseIsReturnedByUpdateCheck(t *testing.T) {
 	app, err := newApplication(t.TempDir()+"/xstats.sqlite", "release-secret")
 	if err != nil {

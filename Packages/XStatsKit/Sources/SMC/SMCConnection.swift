@@ -240,13 +240,15 @@ public enum SMCDecoder {
   }
 
   public static func encode(type: String, value: Double) -> [UInt8]? {
+    // 写入值可能由固件读数推算；NaN、无穷或超出 Int 范围时 Int(_:) 会直接陷阱崩溃
+    guard value.isFinite else { return nil }
     switch type {
     case "flt ":
       return withUnsafeBytes(of: Float32(value)) { Array($0) }
     case "ui8 ", "flag":
-      return [UInt8(clamping: Int(value))]
+      return [UInt8(min(max(value, 0), Double(UInt8.max)))]
     case "fpe2":
-      let raw = UInt16(clamping: Int(value * 4))
+      let raw = UInt16(min(max(value * 4, 0), Double(UInt16.max)))
       return [UInt8(raw >> 8), UInt8(raw & 0xff)]
     default:
       return nil
