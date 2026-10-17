@@ -6,6 +6,23 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 本文用于本地开发、构建、测试和发布。应用使用说明见 [README.md](../README.md)，
 模块边界与实现约束见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
+## 本地性能报告
+
+运行 `task perf`：先构建 Release 测试程序，再串行执行 `MonitoringResourceTests` 的三组
+真实硬件测试（监控开关、电池页面、关闭监控后的基础信息页面）。不安装应用、不推进版本，
+也不需要管理员权限。需使用能提供功耗与 App 能耗采样的 Apple Silicon Mac；硬件或权限
+不满足现有测试断言时会失败，不将未测项目记为通过。运行期间保持机器唤醒，避免同时构建或执行其他重负载任务。
+
+全部测试通过且三份数据完整后，更新固定的 [性能报告](PERFORMANCE.md)。该 Markdown 摘要
+随代码提交，使用 `git diff -- docs/PERFORMANCE.md` 或 Git 历史查看变化；命令本身不提交 Git。
+每次原始 JSON、环境信息与构建／测试日志保存在 `build/performance/<时间>-<随机后缀>/`，不入库。
+失败返回非零并保留上一份成功摘要，排障查看终端输出的本次日志目录。
+
+报告记录测试进程 CPU 时间、快照和样本数，以及已有测试提供的阶段耗时；不包含子进程 CPU、
+应用内存峰值、唤醒或整机耗电量。三组各运行一次，不设耗时回归阈值；小幅变化不等于性能退化。
+比较时核对硬件、系统、工具链和负载。报告中的 HEAD 是运行起点，未提交代码会如实标记，
+不是生成报告后才创建的提交。
+
 ## 应用窗口与菜单
 
 从 Finder、启动台或 `open /Applications/XStats.app` 手动启动时显示主窗口。登录项或系统服务启动通过打开应用事件的 `keyAEPropData` 识别，保持后台运行；`--background` 可用于本地验证，已有定向调试参数与深链不额外打开主窗口。

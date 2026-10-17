@@ -175,10 +175,16 @@ tasks:
       - python3 scripts/sparkle_appcast_test.py
       - python3 scripts/github_release_notes_test.py
       - python3 scripts/network_geography_test.py
+      - python3 scripts/perf_test.py
       - bash scripts/release_network_component_test.sh
       - task: test-network-component
       - task: test-api
       - task: test-swift
+
+  perf:
+    desc: 串行运行本机资源测试并更新 docs/PERFORMANCE.md
+    cmds:
+      - python3 scripts/perf.py
 
   test-api:
     internal: true
