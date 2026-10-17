@@ -196,7 +196,8 @@ import ScreenCaptureKit
     #expect(try await writer.finish())
     let track = try #require(try await AVURLAsset(url: url).loadTracks(withMediaType: .audio).first)
     #expect(abs(try await track.load(.timeRange).end.seconds - 2) < 0.1)
-    let output = media.directory.appendingPathExtension("mp4")
+    let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+      .appendingPathExtension("mp4")
     defer { try? FileManager.default.removeItem(at: output) }
     try await RecordingExporter().export(segments: [url], trim: nil, to: output)
     let asset = AVURLAsset(url: output)
@@ -543,7 +544,8 @@ import ScreenCaptureKit
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let first = try await segment(media, origin: 100, system: true, microphone: true)
     let second = try await segment(media, origin: 120, system: true, microphone: true)
-    let output = media.directory.appendingPathExtension("mp4")
+    let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+      .appendingPathExtension("mp4")
     defer { try? FileManager.default.removeItem(at: output) }
     let exporter = RecordingExporter()
     let composition = try await exporter.composition(segments: [first, second])
@@ -601,7 +603,8 @@ import ScreenCaptureKit
     }
     #expect(try Data(contentsOf: forbidden) == sentinel)
     #expect(FileManager.default.fileExists(atPath: source.path))
-    let output = media.directory.appendingPathExtension("mp4")
+    let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+      .appendingPathExtension("mp4")
     defer { try? FileManager.default.removeItem(at: output) }
     try await exporter.export(segments: [source], trim: nil, to: output)
     try await media.discard()
@@ -611,7 +614,8 @@ import ScreenCaptureKit
     let media = try RecordingMedia()
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let source = try await segment(media, origin: 100, system: false, microphone: false)
-    let output = media.directory.appendingPathExtension("mp4")
+    let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+      .appendingPathExtension("mp4")
     defer { try? FileManager.default.removeItem(at: output) }
     try Data("old movie".utf8).write(to: output)
     let onMain = OSAllocatedUnfairLock(initialState: false)
@@ -632,10 +636,12 @@ import ScreenCaptureKit
     await #expect(throws: (any Error).self) {
       try await exporter.export(
         segments: [source], trim: nil,
-        to: media.directory.appendingPathExtension("missing").appendingPathComponent("output.mp4"))
+        to: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+          .appendingPathComponent("output.mp4"))
     }
     #expect(FileManager.default.fileExists(atPath: source.path))
-    let output = media.directory.appendingPathExtension("mp4")
+    let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+      .appendingPathExtension("mp4")
     defer { try? FileManager.default.removeItem(at: output) }
     try await exporter.export(segments: [source], trim: nil, to: output)
     #expect(FileManager.default.fileExists(atPath: output.path))

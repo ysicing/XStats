@@ -136,6 +136,11 @@ public enum RecordingSampleTime {
     exporting = true
     defer { exporting = false }
     try await Task.detached(priority: .utility) {
+      // 其他会话也可能被清理；已保存文件必须放在整个录制缓存之外。
+      let cache = CaptureCache.recordingsDirectory
+      if FileManager.default.fileExists(atPath: cache.path) {
+        try RecordingMedia.validateExportDestination(destination, outside: cache)
+      }
       for directory in Set(segments.map { $0.deletingLastPathComponent() }) {
         try RecordingMedia.validateExportDestination(destination, outside: directory)
       }
