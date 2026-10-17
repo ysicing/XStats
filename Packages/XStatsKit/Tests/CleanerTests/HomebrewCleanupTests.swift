@@ -270,19 +270,26 @@ import Testing
     let task = Task {
       try await DeveloperToolRunner.run("brew", arguments: [command], home: home.path)
     }
+    defer { task.cancel() }
     let deadline = ContinuousClock.now.advanced(by: .seconds(3))
     let pidFile = home.appendingPathComponent("pid")
-    while !FileManager.default.fileExists(atPath: pidFile.path), ContinuousClock.now < deadline {
+    // 重定向先创建空文件，再写入 PID；仅等待文件存在会在写入前取消进程。
+    var startedPID: Int32?
+    while ContinuousClock.now < deadline {
+      if let text = try? String(contentsOf: pidFile, encoding: .utf8),
+        let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 0
+      {
+        startedPID = pid
+        break
+      }
       try await Task.sleep(for: .milliseconds(10))
     }
+    let pid = try #require(startedPID)
     task.cancel()
     do {
       _ = try await task.value
       Issue.record("取消命令不应成功")
     } catch is CancellationError {}
-    let pidText = try String(contentsOf: pidFile, encoding: .utf8).trimmingCharacters(
-      in: .whitespacesAndNewlines)
-    let pid = try #require(Int32(pidText))
     #expect(kill(pid, 0) != 0)
   }
 
@@ -383,14 +390,24 @@ import Testing
 
   @Test func cleanupCancellationAfterParentExitInterruptsInheritedPipe() async throws {
     let home = try stubBrew(
-      "#!/bin/sh\necho $$ > \"$HOME/parent\"\n/bin/sleep 5 &\nexit 0\n")
+      "#!/bin/sh\necho $$ > \"$HOME/parent\"\n/bin/sleep 30 &\necho $! > \"$HOME/child\"\nexit 0\n")
     defer { try? FileManager.default.removeItem(at: home) }
+    // CI 并行运行阻塞型工具夹具时，启动与回收可能晚于三秒。
+    // 持有管道的子进程须活到取消断言结束；测试自行回收，不依赖短暂的自然退出窗口。
+    let childFile = home.appendingPathComponent("child")
+    defer {
+      if let text = try? String(contentsOf: childFile, encoding: .utf8),
+        let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 0
+      {
+        _ = kill(pid, SIGTERM)
+      }
+    }
     let task = Task {
       try await DeveloperToolRunner.run("brew", arguments: ["cleanup"], home: home.path)
     }
     defer { task.cancel() }
     let pidFile = home.appendingPathComponent("parent")
-    let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+    let deadline = ContinuousClock.now.advanced(by: .seconds(10))
     var parentExited = false
     while ContinuousClock.now < deadline {
       if let text = try? String(contentsOf: pidFile, encoding: .utf8),
@@ -402,9 +419,12 @@ import Testing
       }
       try await Task.sleep(for: .milliseconds(10))
     }
-    #expect(parentExited)
+    try #require(parentExited, "必须先确认夹具父进程已退出，才能验证继承管道的取消")
     // 让执行器越过进程轮询，进入等待继承管道 EOF 的阶段。
     try await Task.sleep(for: .milliseconds(150))
+    let childText = try String(contentsOf: childFile, encoding: .utf8)
+    let childPID = try #require(Int32(childText.trimmingCharacters(in: .whitespacesAndNewlines)))
+    try #require(kill(childPID, 0) == 0, "取消时子进程必须仍持有管道，不能靠自然 EOF 完成")
     let started = ContinuousClock.now
     task.cancel()
     do {
