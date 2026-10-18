@@ -6,6 +6,8 @@
 //  Copyright © 2021 Serhiy Mytrovtsiy. All rights reserved.
 //
 
+// XStats modifications Copyright (C) 2026 ysicing
+// SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
 import Foundation
 import IOKit
 import Localization
@@ -36,6 +38,8 @@ public enum SMCError: Error, Sendable, CustomStringConvertible {
   case openFailed(kern_return_t)
   case callFailed(SMCKey, kern_return_t)
   case firmwareRejected(SMCKey, UInt8)
+  case writeNotApplied(SMCKey)
+  case readbackFailed(SMCKey)
   case unsupportedType(SMCKey, String)
 
   public var description: String {
@@ -45,6 +49,8 @@ public enum SMCError: Error, Sendable, CustomStringConvertible {
     case .callFailed(let key, let kr): tr("SMC [\(key)] 调用失败 (\(Self.message(kr)))")
     case .firmwareRejected(let key, let code):
       tr("SMC [\(key)] 被固件拒绝 (0x\(String(code, radix: 16)))")
+    case .writeNotApplied(let key): tr("SMC [\(key)] 写入后读回值不匹配")
+    case .readbackFailed(let key): tr("SMC [\(key)] 写入后无法读取数值")
     case .unsupportedType(let key, let type): tr("SMC [\(key)] 不支持的数据类型 \(type)")
     }
   }

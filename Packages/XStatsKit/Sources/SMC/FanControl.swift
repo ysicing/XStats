@@ -212,7 +212,7 @@ public final class FanControl {
       do { try setAutomatic(fan: id) } catch { firstError = firstError ?? error }
     }
     #if arch(arm64)
-      // M1–M4 需要复位 Ftst，让 thermalmonitord 接管
+      // 使用 Ftst 解锁的机型还需复位该键，让 thermalmonitord 接管。
       let ftst = SMCKey("Ftst")
       if smc.exists(ftst), smc.double(ftst) == 1 {
         do { try writeWithRetry(ftst, value: 0) } catch { firstError = firstError ?? error }
@@ -233,20 +233,28 @@ public final class FanControl {
   #if arch(arm64)
     private func unlockManualMode(fan id: Int) throws {
       let key = modeKey(id)
-      // 新机型直接接受模式写入；读回确认，固件静默忽略时不能宣告成功。
-      if (try? smc.write(key, value: 1)) != nil, smc.double(key) == 1 { return }
-
-      let ftst = SMCKey("Ftst")
-      guard smc.exists(ftst) else { throw SMCError.firmwareRejected(key, 0) }
-      if smc.double(ftst) != 1 {
-        try writeWithRetry(ftst, value: 1, attempts: 100)
+      var lastError: Error = SMCError.writeNotApplied(key)
+      // 首次直接写入成功时不触碰 Ftst、也不等待；失败后最多再尝试约 15 秒。
+      for attempt in 0...300 {
+        do {
+          try smc.write(key, value: 1)
+          guard let mode = smc.double(key) else { throw SMCError.readbackFailed(key) }
+          if mode == 1 { return }
+          lastError = SMCError.writeNotApplied(key)
+        } catch {
+          lastError = error
+        }
+        if attempt == 0 {
+          // Ftst 是可选解锁步骤；部分 M1 也没有该键，仍需重试模式写入并读回确认。
+          let ftst = SMCKey("Ftst")
+          if smc.exists(ftst), smc.double(ftst) != 1 {
+            try writeWithRetry(ftst, value: 1, attempts: 100)
+          }
+        } else if attempt < 300 {
+          sleep(0.05)
+        }
       }
-      // M1–M4：thermalmonitord 一旦让出控制权就继续，最多尝试 15 秒。
-      for attempt in 0..<300 {
-        if (try? smc.write(key, value: 1)) != nil, smc.double(key) == 1 { return }
-        if attempt < 299 { sleep(0.05) }
-      }
-      throw SMCError.firmwareRejected(key, 0)
+      throw lastError
     }
 
     private func writeWithRetry(

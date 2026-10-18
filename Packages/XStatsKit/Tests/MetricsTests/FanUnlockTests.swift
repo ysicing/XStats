@@ -15,16 +15,23 @@ private final class FanFirmware: FanSMCAccess {
   var readyAfter = 0
   var modeAttempts = 0
   var ignoresModeWrites = false
+  var ignoredModeAttempts = 0
+  var unreadableModeAfterWrite = false
+  var modeWriteError: SMCError?
   var failsTarget = false
 
-  func double(_ key: SMCKey) -> Double? { values[key] }
+  func double(_ key: SMCKey) -> Double? {
+    if key == SMCKey("F0Md"), unreadableModeAfterWrite, modeAttempts > 0 { return nil }
+    return values[key]
+  }
   func exists(_ key: SMCKey) -> Bool { values[key] != nil }
   func write(_ key: SMCKey, value: Double) throws {
     writes.append((key, value))
     if key == SMCKey("F0Md"), value == 1 {
       modeAttempts += 1
+      if let modeWriteError { throw modeWriteError }
       if modeAttempts <= readyAfter { throw SMCError.firmwareRejected(key, 1) }
-      if ignoresModeWrites { return }
+      if ignoresModeWrites || modeAttempts <= ignoredModeAttempts { return }
     }
     if key == SMCKey("F0Tg"), failsTarget { throw SMCError.firmwareRejected(key, 1) }
     values[key] = value
@@ -48,11 +55,15 @@ struct FanUnlockTests {
     #expect(control.detectedFanCount == 2)
   }
 
-  @Test func directModeNeedsNoUnlockOrDelayAndClampsRPM() throws {
+  @Test(arguments: [false, true])
+  func directModeNeedsNoUnlockOrDelayAndClampsRPM(hasFtst: Bool) throws {
     let firmware = FanFirmware()
+    if !hasFtst { firmware.values[SMCKey("Ftst")] = nil }
     try firmware.control().setManual(fan: 0, rpm: 8000)
     #expect(firmware.values[SMCKey("F0Tg")] == 5000)
-    #expect(firmware.values[SMCKey("Ftst")] == 0 && firmware.sleeps.isEmpty)
+    #expect(firmware.values[SMCKey("Ftst")] == (hasFtst ? 0 : nil))
+    #expect(firmware.sleeps.isEmpty)
+    #expect(firmware.modeAttempts == 1)
   }
 
   @Test func legacyUnlockReturnsAsSoonAsFirmwareAcceptsAndReadsBack() throws {
@@ -62,6 +73,86 @@ struct FanUnlockTests {
     #expect(firmware.values[SMCKey("F0Md")] == 1)
     #expect(firmware.values[SMCKey("F0Tg")] == 2000)
     #expect(firmware.sleeps.reduce(0, +) < 0.2)
+  }
+
+  @Test(.bug("https://github.com/ysicing/XStats/issues/15"), arguments: [false, true])
+  func missingFtstRetriesUntilManualModeIsConfirmed(silent: Bool) throws {
+    let firmware = FanFirmware()
+    firmware.values[SMCKey("Ftst")] = nil
+    firmware.readyAfter = silent ? 0 : 3
+    firmware.ignoredModeAttempts = silent ? 3 : 0
+    try firmware.control().setManual(fan: 0, rpm: 2000)
+    #expect(firmware.values[SMCKey("F0Md")] == 1)
+    #expect(firmware.values[SMCKey("F0Tg")] == 2000)
+    #expect(firmware.modeAttempts == 4)
+    #expect(firmware.sleeps.reduce(0, +) < 0.2)
+    #expect(firmware.writes.allSatisfy { $0.0 != SMCKey("Ftst") })
+  }
+
+  @Test(arguments: [false, true])
+  func modeWriteFailurePreservesFirmwareResult(hasFtst: Bool) {
+    let firmware = FanFirmware()
+    if !hasFtst { firmware.values[SMCKey("Ftst")] = nil }
+    firmware.modeWriteError = .firmwareRejected(SMCKey("F0Md"), 0x85)
+    do {
+      try firmware.control().setManual(fan: 0, rpm: 2000)
+      Issue.record("A rejected mode write must fail")
+    } catch {
+      guard case SMCError.firmwareRejected(let key, let code) = error else {
+        Issue.record("Expected the original firmware error, got \(error)")
+        return
+      }
+      #expect(key == SMCKey("F0Md") && code == 0x85)
+    }
+    #expect(firmware.values[SMCKey("F0Tg")] == nil)
+    #expect(firmware.values[SMCKey("F0Md")] == 0)
+    #expect(firmware.values[SMCKey("Ftst")] == (hasFtst ? 0 : nil))
+    #expect(firmware.modeAttempts == 301)
+    #expect(firmware.sleeps.count == 299)
+    #expect(firmware.sleeps.reduce(0, +) <= 15.1)
+  }
+
+  @Test func modeWriteFailurePreservesTransportError() {
+    let firmware = FanFirmware()
+    firmware.values[SMCKey("Ftst")] = nil
+    firmware.modeWriteError = .callFailed(SMCKey("F0Md"), KERN_FAILURE)
+    do {
+      try firmware.control().setManual(fan: 0, rpm: 2000)
+      Issue.record("A failed mode call must fail")
+    } catch {
+      guard case SMCError.callFailed(let key, let code) = error else {
+        Issue.record("Expected the original transport error, got \(error)")
+        return
+      }
+      #expect(key == SMCKey("F0Md") && code == KERN_FAILURE)
+    }
+    #expect(firmware.values[SMCKey("F0Tg")] == nil)
+  }
+
+  @Test(arguments: [false, true], [false, true])
+  func unconfirmedModeDistinguishesUnreadableFromUnappliedWrite(hasFtst: Bool, unreadable: Bool) {
+    let firmware = FanFirmware()
+    if !hasFtst { firmware.values[SMCKey("Ftst")] = nil }
+    firmware.readyAfter = 1
+    firmware.unreadableModeAfterWrite = unreadable
+    firmware.ignoresModeWrites = !unreadable
+    do {
+      try firmware.control().setManual(fan: 0, rpm: 2000)
+      Issue.record("An unconfirmed mode must not allow a target write")
+    } catch {
+      switch error {
+      case SMCError.readbackFailed(let key):
+        #expect(unreadable && key == SMCKey("F0Md"))
+      case SMCError.writeNotApplied(let key):
+        #expect(!unreadable && key == SMCKey("F0Md"))
+      default:
+        Issue.record("Expected a readback error, got \(error)")
+      }
+    }
+    #expect(firmware.values[SMCKey("F0Tg")] == nil)
+    #expect(firmware.values[SMCKey("F0Md")] == 0)
+    #expect(firmware.modeAttempts == 301)
+    #expect(firmware.sleeps.count == 299)
   }
 
   @Test func silentModeRejectionTimesOutAndRestoresSystemOwnership() {
@@ -74,14 +165,17 @@ struct FanUnlockTests {
     #expect(firmware.modeAttempts <= 301)
   }
 
-  @Test func failedTargetRestoresOnlyNewlyAcquiredFanWithoutDisruptingOtherFan() {
+  @Test(arguments: [false, true])
+  func failedTargetRestoresOnlyNewlyAcquiredFanWithoutDisruptingOtherFan(hasFtst: Bool) {
     let firmware = FanFirmware()
     firmware.values[SMCKey("F1Md")] = 1
-    firmware.values[SMCKey("Ftst")] = 1
+    firmware.values[SMCKey("Ftst")] = hasFtst ? 1 : nil
+    firmware.readyAfter = 3
     firmware.failsTarget = true
     #expect(throws: SMCError.self) { try firmware.control().setManual(fan: 0, rpm: 2000) }
     #expect(firmware.values[SMCKey("F0Md")] == 0)
-    #expect(firmware.values[SMCKey("F1Md")] == 1 && firmware.values[SMCKey("Ftst")] == 1)
+    #expect(firmware.values[SMCKey("F1Md")] == 1)
+    #expect(firmware.values[SMCKey("Ftst")] == (hasFtst ? 1 : nil))
   }
 
   @Test func unknownFanCountCannotResetAnotherFansGlobalUnlock() {

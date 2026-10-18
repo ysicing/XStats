@@ -71,6 +71,8 @@ IPv6 没有经过代理：只走 IPv6 的连接会直接暴露本机地址 {}。
 IPv6 连接也经过代理。	Les connexions IPv6 passent également par le proxy.
 SMC [{}] 不支持的数据类型 {}	SMC [{}] : type de données {} non pris en charge
 SMC [{}] 被固件拒绝 (0x{})	SMC [{}] : refusé par le micrologiciel (0x{})
+SMC [{}] 写入后读回值不匹配	SMC [{}] : la valeur relue ne correspond pas à la valeur écrite
+SMC [{}] 写入后无法读取数值	SMC [{}] : impossible de relire la valeur après l’écriture
 SMC [{}] 调用失败 ({})	SMC [{}] : échec de l’appel ({})
 SMC 通信与 Apple Silicon 风扇解锁流程移植自该项目 · MIT License	L’accès au SMC et le déverrouillage des ventilateurs Apple Silicon proviennent de ce projet · Licence MIT
 SSD 健康	État du SSD

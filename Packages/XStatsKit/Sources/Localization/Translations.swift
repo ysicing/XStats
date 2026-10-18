@@ -445,6 +445,8 @@ extension Translations {
     XStats-诊断-{}.zip	XStats-Diagnostics-{}.zip
     SMC [{}] 不支持的数据类型 {}	SMC [{}] unsupported data type {}
     SMC [{}] 被固件拒绝 (0x{})	SMC [{}] rejected by firmware (0x{})
+    SMC [{}] 写入后读回值不匹配	SMC [{}] readback does not match the written value
+    SMC [{}] 写入后无法读取数值	SMC [{}] could not read back the value after writing
     SMC [{}] 调用失败 ({})	SMC [{}] call failed ({})
     SMC 通信与 Apple Silicon 风扇解锁流程移植自该项目 · MIT License	SMC access and the Apple Silicon fan unlock sequence are ported from this project · MIT License
     XStats 基于 OpenStats 开发，感谢原项目的开源贡献 · MIT License	XStats is based on OpenStats. Thanks to the original project for its open-source contributions · MIT License

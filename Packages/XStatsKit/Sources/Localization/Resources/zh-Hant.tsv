@@ -72,6 +72,8 @@ IPv6 没有经过代理：只走 IPv6 的连接会直接暴露本机地址 {}。
 IPv6 连接也经过代理。	IPv6 連接也經過代理。
 SMC [{}] 不支持的数据类型 {}	SMC [{}] 不支持的數據類型 {}
 SMC [{}] 被固件拒绝 (0x{})	SMC [{}] 被固件拒絕 (0x{})
+SMC [{}] 写入后读回值不匹配	SMC [{}] 寫入後讀回值不符
+SMC [{}] 写入后无法读取数值	SMC [{}] 寫入後無法讀取數值
 SMC [{}] 调用失败 ({})	SMC [{}] 調用失敗 ({})
 SMC 通信与 Apple Silicon 风扇解锁流程移植自该项目 · MIT License	SMC 通信與 Apple Silicon 風扇解鎖流程移植自該項目 · MIT License
 SSD 健康	SSD 健康
