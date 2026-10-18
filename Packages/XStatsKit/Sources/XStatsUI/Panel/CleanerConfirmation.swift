@@ -14,6 +14,8 @@ struct CleanerConfirmation {
   let permanentBytes: UInt64
   let recoverableBytes: UInt64
   let includesHomebrew: Bool
+  /// 执行时才会重新检查运行中的应用；数量只是上限，需要在提示中说明。
+  let mayBeSkippedWhileAppRunning: Bool
 
   init(scans: [RuleScan], preferTrash: Bool) {
     let selected = scans.filter { $0.isCleanable }
@@ -24,6 +26,7 @@ struct CleanerConfirmation {
     permanentBytes = permanent.reduce(0) { $0 + $1.totalSize }
     recoverableBytes = recoverable.reduce(0) { $0 + $1.totalSize }
     includesHomebrew = selected.contains { $0.id == "developer.homebrew" }
+    mayBeSkippedWhileAppRunning = selected.contains { $0.rule.mayBeSkippedWhileAppRunning }
     if !selected.isEmpty && selected.allSatisfy({ $0.id == "trash" }) {
       kind = .trashOnly
     } else if permanent.isEmpty {
@@ -68,6 +71,9 @@ struct CleanerConfirmation {
     }
     if includesHomebrew {
       text += "\n\n" + tr("Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依赖。")
+    }
+    if mayBeSkippedWhileAppRunning {
+      text += "\n\n" + tr("正在运行的应用对应的项目会被跳过，实际处理数量可能少于上述数量。")
     }
     return text
   }

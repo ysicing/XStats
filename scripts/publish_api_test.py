@@ -120,6 +120,18 @@ class PublishAPITest(unittest.TestCase):
         with self.assertRaises(ValueError):
             publish_api.configured_endpoints({"XSTATS_APP_ID": "xstats-network-monitor", "XSTATS_API_URL": publish_api.DEFAULT_ENDPOINTS[0]})
 
+    def test_endpoints_require_https_except_loopback(self) -> None:
+        path = "/api/v1/apps/xstats/releases/current"
+        for host in ("localhost:8080", "127.0.0.1:8080", "[::1]:8080"):
+            url = f"http://{host}{path}"
+            self.assertEqual(publish_api.configured_endpoints({"XSTATS_API_URLS": url}), [url])
+        for url in (f"http://apps.12306.work{path}", f"http://localhost.evil.test{path}", f"http://127.0.0.1.evil.test{path}",
+                    f"ftp://localhost{path}", f"//apps.12306.work{path}"):
+            with self.assertRaisesRegex(ValueError, "https"):
+                publish_api.configured_endpoints({"XSTATS_API_URL": url})
+            with self.assertRaisesRegex(ValueError, "https"):
+                publish_api.configured_endpoints({"XSTATS_API_URLS": f"https://apps.12306.work{path}, {url}"})
+
     def test_unregistered_component_is_allowed_only_with_expected_response(self) -> None:
         endpoint = publish_api.configured_endpoints({"XSTATS_APP_ID": "xstats-network-monitor"})[0]
         url = publish_api.sparkle_feed_url(endpoint)

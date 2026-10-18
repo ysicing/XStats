@@ -58,6 +58,10 @@ public struct CleanEnvironment: Sendable {
   public var runToolWithEnvironment:
     @Sendable (String, [String], [String: String]) async throws -> ToolRunResult
   var inspectTool: @Sendable (String, [String]) async throws -> ToolRunResult
+  /// 移到废纸篓的实现；默认走系统废纸篓，测试替换以免污染真实废纸篓。
+  var trash: @Sendable (URL) throws -> Void = {
+    try FileManager.default.trashItem(at: $0, resultingItemURL: nil)
+  }
   let toolEnvironment: [String: String]
   public var excludedPaths: [String]
 
@@ -117,6 +121,9 @@ public struct CleanRule: Sendable, Identifiable {
   /// 应用缓存的精确家目录相对路径；扫描和执行使用相同的范围。
   let cacheRelativePaths: [String]
   let blockingApplicationNames: [String]
+  /// 扫描 ~/Library/Caches、~/Library/Logs 的通用规则；必须让出专属规则的目录，并让出工具缓存根。
+  /// 以后新增同类规则只需声明此属性，不依赖规则 id。
+  let isGenericLibraryScan: Bool
   /// 最近修改过的条目视为正在使用
   public let minimumAge: TimeInterval
   public let requiredTool: String?
@@ -131,6 +138,7 @@ public struct CleanRule: Sendable, Identifiable {
     blockingApps: [(bundleID: String, name: String)] = [], checksOwnerApp: Bool = false,
     requiresUnredirectedPath: Bool = false,
     cacheRelativePaths: [String] = [], blockingApplicationNames: [String] = [],
+    isGenericLibraryScan: Bool = false,
     minimumAge: TimeInterval = 120, requiredTool: String? = nil,
     prepareTool: (@Sendable (CleanEnvironment) async throws -> ToolCachePlan)? = nil,
     locate: @escaping @Sendable (CleanEnvironment) throws -> [URL]
@@ -147,6 +155,7 @@ public struct CleanRule: Sendable, Identifiable {
     self.requiresUnredirectedPath = requiresUnredirectedPath
     self.cacheRelativePaths = cacheRelativePaths
     self.blockingApplicationNames = blockingApplicationNames
+    self.isGenericLibraryScan = isGenericLibraryScan
     self.minimumAge = minimumAge
     self.requiredTool = requiredTool
     self.prepareTool = prepareTool
@@ -178,6 +187,11 @@ public struct CleanRule: Sendable, Identifiable {
   }
 
   public var usesToolCleaner: Bool { prepareTool != nil }
+
+  /// 执行时可能因对应应用正在运行而跳过条目；确认提示据此说明实际数量可能更少。
+  public var mayBeSkippedWhileAppRunning: Bool {
+    !blockingApps.isEmpty || !blockingApplicationNames.isEmpty || checksOwnerApp
+  }
 
   /// 确认提示与清理执行共用的删除方式；工具清理和清空废纸篓始终不可恢复。
   public func deletesPermanently(preferTrash: Bool) -> Bool {

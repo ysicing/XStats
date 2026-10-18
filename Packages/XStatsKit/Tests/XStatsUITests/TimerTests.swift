@@ -140,7 +140,8 @@ struct TimerSessionTests {
       timer.setPageVisible(true)
       #expect(timer.hasDisplayTimer)
       timer.suspend()
-      #expect(timer.hasDeadlineTimer == false)
+      // 倒计时按单调时钟走，挂起只停读数刷新，截止唤醒保留。
+      #expect(timer.hasDeadlineTimer)
       #expect(timer.hasDisplayTimer == false)
       clock.now = 2000
       timer.resume()
@@ -152,6 +153,44 @@ struct TimerSessionTests {
       #expect(timer.hasDeadlineTimer == false)
       #expect(timer.hasDisplayTimer == false)
       #expect(timer.stopwatch.isRunning == false)
+    }
+  }
+
+  @Test func countdownCompletesWhileSuspendedAndResumeDoesNotRepeat() throws {
+    try fixture { _, _, timer, clock in
+      var completions = 0
+      timer.onCountdownCompleted = { completions += 1 }
+      // 暂停再继续以重排一个极短的真实截止定时器，避免等待完整时长。
+      timer.startPauseCountdown()
+      clock.now = timer.countdown.duration - 0.02
+      timer.startPauseCountdown()
+      timer.startPauseCountdown()
+      timer.suspend()
+      #expect(timer.hasDeadlineTimer)
+      clock.now = timer.countdown.duration + 1
+      // 不调用 refresh/resume，仅依靠挂起期间保留的截止定时器触发。
+      RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+      #expect(completions == 1)
+      #expect(timer.countdown.isFinished)
+      timer.resume()
+      timer.refresh()
+      #expect(completions == 1)
+    }
+  }
+
+  @Test func confirmSwitchWithUnmetPomodoroPreconditionKeepsModeAndCountdown() throws {
+    try fixture { settings, rest, timer, _ in
+      timer.select(.stopwatch)
+      timer.startPauseCountdown()
+      rest.skip()
+      #expect(timer.pendingStart == .pomodoro)
+      settings.restMode = .workday
+      #expect(rest.isWorkdayActive == false)
+      timer.confirmSwitch()
+      #expect(timer.pendingStart == nil)
+      #expect(timer.mode == .stopwatch)
+      #expect(timer.countdown.isRunning)
+      #expect(rest.isRunning == false)
     }
   }
 
@@ -500,6 +539,35 @@ struct TimerSessionTests {
     #expect(firstStopped == 1 && secondStopped == 1)
     session.cancel()
     #expect(secondStopped == 1)
+  }
+  @Test func recordingMutualExclusionIsSymmetric() {
+    let session = ShortcutRecordingSession()
+    let xstats = UUID()
+    let capture = UUID()
+    var xstatsRecording = false
+    var captureRecording = false
+    func startXStats() {
+      session.begin(xstats) {
+        xstatsRecording = false
+        session.end(xstats)
+      }
+      xstatsRecording = true
+    }
+    func startCapture() {
+      session.begin(capture) {
+        captureRecording = false
+        session.end(capture)
+      }
+      captureRecording = true
+    }
+    startCapture()
+    startXStats()
+    #expect(xstatsRecording && !captureRecording)
+    startCapture()
+    #expect(captureRecording && !xstatsRecording)
+    session.end(capture)
+    session.cancel()
+    #expect(captureRecording)
   }
   @Test(arguments: TimerMode.allCases) func localKeysOnlyControlSelectedMode(_ mode: TimerMode) {
     #expect(TimerKeyboardShortcuts.command(keyCode: 49, modifiers: [], mode: mode) == .primary)

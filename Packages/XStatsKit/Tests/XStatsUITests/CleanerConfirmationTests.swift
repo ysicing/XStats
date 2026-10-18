@@ -55,6 +55,15 @@ struct CleanerConfirmationTests {
     #expect(confirmation.includesHomebrew)
   }
 
+  @Test func appRunningNoteAppearsOnlyWhenItemsMayBeSkipped() throws {
+    let apps = CleanerConfirmation(
+      scans: [try scan("app.slack", bytes: 100)], preferTrash: false)
+    let trash = CleanerConfirmation(scans: [try scan("trash", bytes: 100)], preferTrash: false)
+    let note = tr("正在运行的应用对应的项目会被跳过，实际处理数量可能少于上述数量。")
+    #expect(apps.mayBeSkippedWhileAppRunning && apps.message.contains(note))
+    #expect(!trash.mayBeSkippedWhileAppRunning && !trash.message.contains(note))
+  }
+
   private func scan(_ id: String, bytes: UInt64) throws -> RuleScan {
     let rule = try #require(RuleCatalog.rules().first { $0.id == id })
     return RuleScan(

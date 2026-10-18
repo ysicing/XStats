@@ -178,8 +178,7 @@ private struct CleanerActions: View {
           confirmation.title, isPresented: $cleaner.isConfirming, titleVisibility: .visible
         ) {
           Button(confirmation.buttonTitle, role: .destructive) {
-            // 系统弹层可能先清除展示绑定，执行前重新验证选择并进入确认保护。
-            cleaner.requestClean()
+            // 系统弹层可能先清除展示绑定；执行的是弹出时冻结的同一份选择。
             cleaner.confirmClean()
           }
           Button(tr("取消"), role: .cancel) { cleaner.cancelClean() }
@@ -197,7 +196,7 @@ private struct CleanerActions: View {
 
   private var confirmation: CleanerConfirmation {
     CleanerConfirmation(
-      scans: model.cleaner.selectedScans, preferTrash: model.settings.cleanPrefersTrash)
+      scans: model.cleaner.confirmationScans, preferTrash: model.settings.cleanPrefersTrash)
   }
 
 }

@@ -68,7 +68,18 @@ def version_settings():
 
 def sync_release_tags():
     # GitHub 创建的标签不一定附着在远端 main 当前尖端，普通 fetch main 不会补齐。
-    run("git", "fetch", "--quiet", "--no-tags", "origin", "refs/tags/capture-v*:refs/tags/capture-v*")
+    # refspec 刻意不加 +：本地同名但指向不同提交的标签不得被静默覆盖。
+    fetch = subprocess.run(["git", "fetch", "--quiet", "--no-tags", "origin", "refs/tags/capture-v*:refs/tags/capture-v*"],
+                           capture_output=True, text=True)
+    if fetch.returncode == 0:
+        return
+    local = dict(line.split()[::-1] for line in run("git", "for-each-ref", "--format=%(objectname) %(refname)", "refs/tags/capture-v*", capture=True).splitlines())
+    remote = dict(line.split("\t")[::-1] for line in run("git", "ls-remote", "--tags", "origin", "refs/tags/capture-v*", capture=True).splitlines()
+                  if not line.endswith("^{}"))
+    conflicts = sorted(ref.removeprefix("refs/tags/") for ref, sha in local.items() if ref in remote and remote[ref] != sha)
+    if conflicts:
+        raise ValueError(f"本地 tag {', '.join(conflicts)} 与 origin 指向不同提交；不会自动覆盖，请核对来源后手动处理（如 git tag -d <tag> 后重试）")
+    raise ValueError(f"同步 capture-v* 标签失败：{fetch.stderr.strip()}")
 
 
 def localization_changed(baseline, paths):
@@ -76,12 +87,17 @@ def localization_changed(baseline, paths):
     if not localized:
         return False
     sources = []
-    for ref in (baseline, "HEAD"):
-        sources.append(run("git", "grep", "-h", "-I", "-e", ".", ref, "--", "Apps/Capture/", "Packages/XStatsKit/Sources/CaptureCore/", "Packages/XStatsKit/Sources/CaptureUI/", capture=True))
+    # 不带 ref 的 git grep 读取工作区（含未提交修改），--untracked 再补上未跟踪文件。
+    for ref in ((baseline,), ("--untracked",)):
+        sources.append(run("git", "grep", "-h", "-I", "-e", ".", *ref, "--", "Apps/Capture/", "Packages/XStatsKit/Sources/CaptureCore/", "Packages/XStatsKit/Sources/CaptureUI/", capture=True))
     # 键可能由枚举 rawValue 传入 tr；取两个版本所有字面量，避免只匹配 tr("...") 漏掉动态入口。
     keys = {re.sub(r'\\\([^)]*\)', '{}', value) for value in re.findall(r'"((?:\\.|[^"\\])*)"', "\n".join(sources))}
+    untracked = set(untracked_files())
     for path in localized:
-        changes = run("git", "diff", "--unified=0", baseline, "HEAD", "--", path, capture=True)
+        if path in untracked:
+            changes = "\n".join("+" + line for line in (ROOT / path).read_text().splitlines())
+        else:
+            changes = run("git", "diff", "--unified=0", baseline, "--", path, capture=True)
         for line in changes.splitlines():
             if not line.startswith(("+", "-")) or line.startswith(("+++", "---")):
                 continue
@@ -93,8 +109,14 @@ def localization_changed(baseline, paths):
     return False
 
 
+def untracked_files():
+    return run("git", "ls-files", "--others", "--exclude-standard", capture=True).splitlines()
+
+
 def related_changes(baseline):
-    paths = run("git", "diff", "--name-only", baseline, "HEAD", capture=True).splitlines()
+    # 与基线比较工作区而非仅 HEAD：已暂存、未暂存和未跟踪的改动都会进入随后的 release commit 或阻塞它，
+    # 预检必须与发布后 --follow 看到的结论一致，否则会在 XStats 发布完才发现 Capture 需要发版。
+    paths = run("git", "diff", "--name-only", baseline, capture=True).splitlines() + untracked_files()
     if any(path.startswith(RELATED) for path in paths):
         return True
     if localization_changed(baseline, paths):
@@ -259,6 +281,21 @@ end
     print(f"✅ Capture {version} ({build}) 构建、公证、签名完成", flush=True)
 
 
+def push_cask(tap, source, version):
+    """把 cask 写入 tap 并推送；push 前先同步远端，避免 clone 后 tap 有新提交导致非快进拒绝。"""
+    (tap / "Casks/xstats-capture.rb").write_bytes(Path(source).read_bytes())
+    run("git", "-C", tap, "add", "Casks/xstats-capture.rb")
+    if not subprocess.run(["git", "-C", str(tap), "diff", "--cached", "--quiet"]).returncode:
+        return
+    try:
+        run("git", "-C", tap, "commit", "-q", "-m", f"chore(cask): 发布 Capture {version}")
+        run("git", "-C", tap, "pull", "--rebase", "--quiet")
+        run("git", "-C", tap, "push", "--quiet")
+    except subprocess.CalledProcessError as error:
+        raise ValueError("Capture cask 推送失败；JSON/XML 已发布但 GitHub Release 与标签尚未创建，"
+                         "修复后运行 python3 scripts/release_capture.py --publish-only（幂等续传）") from error
+
+
 def publish_release(version, build, name, notes):
     commit = clean_head()
     record = json.loads((DIST / "release-provenance.json").read_text())
@@ -295,27 +332,25 @@ def publish_release(version, build, name, notes):
                 raise ValueError("Capture 公开下载哈希不一致")
         body = work / "notes.md"
         body.write_text(f"## XStats Capture {version}\n\n" + "\n".join("- " + n for n in notes["sourceNotes"]) + "\n\n## English\n\n" + "\n".join("- " + n for n in notes["translations"]["en"]) + "\n\nmacOS 14+ · Apple Silicon\n")
+        # 既有 Release 的制品冲突要在写入更新源之前发现；创建动作留到最后。
         release = subprocess.run(["gh", "release", "view", tag, "--json", "assets"], capture_output=True, text=True)
         if release.returncode == 0:
             assets = json.loads(release.stdout)["assets"]
             wanted = next((a for a in assets if a["name"] == name + ".dmg"), None)
             if not wanted or wanted.get("digest") != "sha256:" + digest(DIST / (name + ".dmg")):
                 raise ValueError("既有 GitHub Capture Release 制品不一致；不覆盖")
-        else:
-            run("gh", "release", "create", tag, DIST / f"{name}.dmg", "--target", commit, "--title", f"XStats Capture {version}", "--notes-file", body, "--latest=false")
         endpoints = configured_endpoints({**os.environ, "XSTATS_APP_ID": "xstats-capture"})
         app_info = plistlib.loads((work / APP.name / "Contents/Info.plist").read_bytes())
         publish(DIST / "appcast.json", endpoints, os.environ.get("XSTATS_RELEASE_TOKEN", ""),
                 application_name="XStats Capture", sparkle_public_key=app_info["SUPublicEDKey"])
         verify_sparkle_feeds(DIST / f"{name}.xml", endpoints)
         run("gh", "repo", "clone", "ysicing/homebrew-tap", work / "tap", "--", "--quiet")
-        cask = work / "tap/Casks/xstats-capture.rb"
-        cask.write_bytes((DIST / "xstats-capture.rb").read_bytes())
-        run("git", "-C", work / "tap", "add", "Casks/xstats-capture.rb")
-        changed = subprocess.run(["git", "-C", str(work / "tap"), "diff", "--cached", "--quiet"]).returncode
-        if changed:
-            run("git", "-C", work / "tap", "commit", "-m", f"chore(cask): 发布 Capture {version}")
-            run("git", "-C", work / "tap", "push")
+        push_cask(work / "tap", DIST / "xstats-capture.rb", version)
+        # GitHub Release 与 capture-v* 标签是“发布已完成”的唯一标志，必须最后创建：
+        # --follow 以最新标签为基线，若标签先于 JSON/XML/cask 出现，中途失败后重跑会得到“无相关改动”而静默跳过。
+        # 标签缺失时重跑 --follow 会因对象已存在而明确拒绝重建，并指向 --publish-only。
+        if release.returncode != 0:
+            run("gh", "release", "create", tag, DIST / f"{name}.dmg", "--target", commit, "--title", f"XStats Capture {version}", "--notes-file", body, "--latest=false")
     sync_release_tags()
     print(f"✅ Capture {version} 已发布；主程序版本与更新源保持独立", flush=True)
 

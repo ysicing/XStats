@@ -5,7 +5,7 @@ import Foundation
 import Observation
 import OSLog
 
-/// 倒计时与番茄钟互斥，秒表独立；仅可见时刷新读数，后台只保留倒计时的一次截止唤醒。
+/// 倒计时与番茄钟互斥，秒表独立；仅可见时刷新读数，后台（含锁屏、休眠挂起）只保留倒计时的一次截止唤醒。
 @MainActor @Observable final class TimerController {
   private(set) var countdown: CountdownSession
   private(set) var stopwatch = StopwatchSession()
@@ -172,16 +172,19 @@ import OSLog
     }
     self.pendingStart = nil
     refresh()
+    // 前置条件先于 select 判断，避免只切换了模式却没有任何动作。
+    if pendingStart == .pomodoro {
+      if pendingPomodoroAction == .skip && settings.restMode == .workday && !rest.isWorkdayActive {
+        return
+      }
+      if pendingPomodoroAction == .postpone && !rest.phase.isResting { return }
+    }
     select(pendingStart)
     if pendingStart == .countdown {
       rest.setRunning(false)
       countdown.start(at: now)
       onCountdownStarted?()
     } else {
-      if pendingPomodoroAction == .skip && settings.restMode == .workday && !rest.isWorkdayActive {
-        return
-      }
-      if pendingPomodoroAction == .postpone && !rest.phase.isResting { return }
       countdown.pause(at: now)
       switch pendingPomodoroAction {
       case .start: rest.setRunning(true)
@@ -244,7 +247,9 @@ import OSLog
 
   private func updateTimers() {
     let enabled = settings.restEnabled && !suspended
-    let deadline = enabled ? countdown.deadline : nil
+    // 倒计时按单调时钟（休眠期间照常走）计时，挂起时仍保留截止唤醒，到点即通知；
+    // 系统睡眠期间 Timer 不触发，唤醒后由 resume→sync 补发，已完成的会话不会重复通知。
+    let deadline = settings.restEnabled ? countdown.deadline : nil
     if scheduledDeadline != deadline {
       deadlineTimer?.invalidate()
       deadlineTimer = nil

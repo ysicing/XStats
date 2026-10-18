@@ -63,6 +63,7 @@ SH
 #!/bin/bash
 set -euo pipefail
 echo "python3 $*" >> "$RELEASE_ALL_TEST_LOG"
+[ "${FAKE_CAPTURE_FAIL:-0}" != 1 ] || [[ "$*" != *--follow* ]] || exit 74
 printf 'abc123\n'
 SH
   cat > "$WORK/repo/scripts/publish_release.sh" <<'SH'
@@ -131,5 +132,13 @@ if grep -Eq '^git (add|commit|push)|^publish$' "$WORK/log"; then
   echo "构建失败后不应提交、推送或发布" >&2
   exit 1
 fi
+
+setup
+expect_failure "Capture 阶段失败" env XSTATS_RELEASE_TOKEN=test FAKE_CAPTURE_FAIL=1 \
+  PATH="$WORK/bin:$PATH" RELEASE_ALL_TEST_LOG="$WORK/log" \
+  "$WORK/repo/scripts/release_all.sh"
+grep -q 'python3 scripts/release_capture.py --publish-only' "$WORK/stderr" \
+  || { cat "$WORK/stderr" >&2; exit 1; }
+grep -q '不要重发 XStats' "$WORK/stderr" || { cat "$WORK/stderr" >&2; exit 1; }
 
 echo "一键发布脚本测试通过"

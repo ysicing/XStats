@@ -534,7 +534,7 @@ GitHub Actions 作为异步验证，等待、运行或失败均不阻塞正在�
 - 海外主入口：`https://apps.12306.work`。
 - 海外备用入口：`https://apps-api.xiai.me`。
 
-默认发布和校验覆盖三个入口，固定路径及环境变量覆盖方式见 [发布脚本](../scripts/publish_api.py)。
+默认发布和校验覆盖三个入口，固定路径及环境变量覆盖方式见 [发布脚本](../scripts/publish_api.py)；覆盖的入口必须是 https，仅 `localhost`、`127.0.0.1`、`::1` 允许 http，避免 Bearer token 明文外发。
 详细签名配置、制品核验、分步发布与失败恢复见 [发布 runbook](../.agents/skills/xstats-release/references/runbook.md)。
 
 ## 项目目录

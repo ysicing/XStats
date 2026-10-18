@@ -3,7 +3,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 # XStats Capture
 
-XStats Capture 支持 macOS 14+ 和 Apple Silicon，由共享的 `CaptureCore`、`CaptureUI` 组件提供两种宿主：XStats 内置工具和独立 macOS App。XStats 使用按需启用的内置 Capture，无须安装独立 App；独立版可以脱离 XStats 使用，不加载系统监控、网络扩展或辅助工具。独立版为 0.1.0（1），通过 [Capture Release](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.0) 下载已签名、公证的 DMG，或运行 `brew install --cask ysicing/tap/xstats-capture` 安装。应用菜单提供“关于”“检查更新…”和“自动检查更新”；Sparkle 管理检查、跳过版本及用户确认后的安装，不自动下载或安装。更新检查向区域 API 发送 Capture 版本和安装标识的哈希，不发送截图、录屏或系统分析。
+XStats Capture 支持 macOS 14+ 和 Apple Silicon，由共享的 `CaptureCore`、`CaptureUI` 组件提供两种宿主：XStats 内置工具和独立 macOS App。XStats 使用按需启用的内置 Capture，无须安装独立 App；独立版可以脱离 XStats 使用，不加载系统监控、网络扩展或辅助工具。独立版为 0.1.1（2），通过 [Capture Release](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.1) 下载已签名、公证的 DMG，或运行 `brew install --cask ysicing/tap/xstats-capture` 安装。应用菜单提供“关于”“检查更新…”和“自动检查更新”；Sparkle 管理检查、跳过版本及用户确认后的安装，不自动下载或安装。更新检查向区域 API 发送 Capture 版本和安装标识的哈希，不发送截图、录屏或系统分析。
 
 ## 本地构建与启动
 
@@ -26,11 +26,11 @@ Capture 版本由 `project.yml` 中的 `CAPTURE_VERSION` 与 `CAPTURE_BUILD` 独
 
 `task release-capture -- --publish` 从干净、已提交并推送的 `main` 构建和发布；本地验证先运行 `task test`、`task format`、`task format-check`。需要有效 Developer ID Application 证书、`XStats` 公证凭据、既有 Sparkle 密钥、对象存储和 `XSTATS_RELEASE_TOKEN`。版本来自 `CAPTURE_VERSION` / `CAPTURE_BUILD`，摘要来自 `docs/CaptureReleaseNotes.json` 的简体中文和英文；不修改 XStats 版本或安装本机应用。
 
-产物写入 `dist/capture/`，来源记录绑定源码提交、摘要及全部制品哈希。应用和 DMG 均签名、公证、装订并验证 Gatekeeper；全部二进制为同团队签名的 arm64，UUID 匹配的 dSYM 私有备份后才继续。发布到独立 `capture/` 对象前缀，公开回读通过后创建 `capture-v<版本>` Release（不替换 GitHub 最新主程序版本），最后发布 `xstats-capture` 的三区域 JSON / 签名 XML 和独立 Homebrew cask。主程序的版本、清单、Cask 和历史制品保持独立。
+产物写入 `dist/capture/`，来源记录绑定源码提交、摘要及全部制品哈希。应用和 DMG 均签名、公证、装订并验证 Gatekeeper；全部二进制为同团队签名的 arm64，UUID 匹配的 dSYM 私有备份后才继续。发布到独立 `capture/` 对象前缀，公开回读通过后依次发布 `xstats-capture` 的三区域 JSON、校验签名 XML、推送独立 Homebrew cask（推送前先同步 tap 最新提交），最后创建 `capture-v<版本>` Release 与标签（不替换 GitHub 最新主程序版本）。标签是“发布已完成”的唯一标志，因此中途失败不会留下让后续跟随检查误判为已发布的标签。主程序的版本、清单、Cask 和历史制品保持独立。
 
-中断后保留原始制品和 `release-provenance.json`，确认源码未变，运行 `task release-capture -- --publish-only` 续传；不重新构建或覆盖同名已公开制品。构建尚未完成时先核对日志与符号归档，不盲目重跑。
+中断后保留原始制品和 `release-provenance.json`，确认源码未变，运行 `task release-capture -- --publish-only`（即 `python3 scripts/release_capture.py --publish-only`，幂等）续传；不重新构建或覆盖同名已公开制品。构建尚未完成时先核对日志与符号归档，不盲目重跑。
 
-后续跟随 `task release-all`：发布前比较最近 `capture-v*` 标签，仅 Capture App、CaptureCore / CaptureUI、其翻译与共享更新代码、相关依赖和打包设置变化时要求发版。有相关改动须提前递增 Capture 的 semver 与构建号，并依据实际变化同步中英文摘要；主程序发布完成后自动执行独立发布。无关主程序、网络组件或文档变化会跳过 Capture，不推进其版本。`python3 scripts/release_capture.py --check-follow` 可提前检查；若主程序已发布而 Capture 发布中断，独立恢复，不重发主程序。
+后续跟随 `task release-all`：发布前比较最近 `capture-v*` 标签与当前工作区（含已暂存、未暂存和未跟踪文件，不只是已提交的 HEAD），仅 Capture App、CaptureCore / CaptureUI、其翻译与共享更新代码、相关依赖和打包设置变化时要求发版。有相关改动须提前递增 Capture 的 semver 与构建号，并依据实际变化同步中英文摘要；主程序发布完成后自动执行独立发布。无关主程序、网络组件或文档变化会跳过 Capture，不推进其版本。`python3 scripts/release_capture.py --check-follow` 可提前检查；本地存在与 origin 指向不同提交的同名 `capture-v*` 标签时会报错并停止，不会自动覆盖，需核对后手动处理；若主程序已发布而 Capture 发布中断，独立恢复，不重发主程序。
 
 ## 截图
 

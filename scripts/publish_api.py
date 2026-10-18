@@ -25,6 +25,7 @@ DEFAULT_ENDPOINTS = (
 # 与服务端 releaseProbeInstallationID 一致：核验更新源但不计入安装统计。
 RELEASE_PROBE_INSTALLATION_ID = "0" * 64
 MAXIMUM_FEED_BYTES = 256 * 1024
+LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
 
 
 def sparkle_feed_url(endpoint: str, query: str = "") -> str:
@@ -123,7 +124,11 @@ def configured_endpoints(environment: Mapping[str, str]) -> list[str]:
     else:
         endpoints = [endpoint.replace("/apps/xstats/", f"/apps/{application}/") for endpoint in DEFAULT_ENDPOINTS]
     for endpoint in endpoints:
-        if urlsplit(endpoint).path != f"/api/v1/apps/{application}/releases/current":
+        parts = urlsplit(endpoint)
+        # Bearer token 会随请求发出：仅本机回环地址允许明文 http，其余必须 https。
+        if parts.scheme != "https" and not (parts.scheme == "http" and parts.hostname in LOOPBACK_HOSTS):
+            raise ValueError("发布接口必须使用 https（仅 localhost、127.0.0.1、::1 允许 http）")
+        if parts.path != f"/api/v1/apps/{application}/releases/current":
             raise ValueError("发布路径与应用标识不一致")
     return endpoints
 

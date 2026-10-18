@@ -2155,6 +2155,7 @@ Microsoft Teams（旧版）	Microsoft Teams (klassisch)
 将永久删除 {} 个所选项目，共 {}。此操作无法撤销。	{} ausgewählte Objekte mit insgesamt {} werden endgültig gelöscht. Dies kann nicht rückgängig gemacht werden.
 将把 {} 个所选项目移到废纸篓，共 {}。需要时可从废纸篓放回。	{} ausgewählte Objekte mit insgesamt {} werden in den Papierkorb bewegt. Sie können von dort zurückgelegt werden.
 将永久删除废纸篓中选中的 {} 个项目，共 {}。此操作无法撤销。	{} ausgewählte Objekte im Papierkorb mit insgesamt {} werden endgültig gelöscht. Dies kann nicht rückgängig gemacht werden.
+正在运行的应用对应的项目会被跳过，实际处理数量可能少于上述数量。	Objekte laufender Apps werden übersprungen, daher kann die tatsächliche Anzahl unter der oben genannten liegen.
 倒计时	Countdown
 秒表	Stoppuhr
 计时模式	Zeitmessmodus

@@ -258,6 +258,7 @@ extension Translations {
     将永久删除 {} 个所选项目，共 {}。此操作无法撤销。	Permanently delete {} selected items, totaling {}. This cannot be undone.
     将把 {} 个所选项目移到废纸篓，共 {}。需要时可从废纸篓放回。	Move {} selected items to Trash, totaling {}. You can put them back from Trash.
     将永久删除废纸篓中选中的 {} 个项目，共 {}。此操作无法撤销。	Permanently delete {} selected items from Trash, totaling {}. This cannot be undone.
+    正在运行的应用对应的项目会被跳过，实际处理数量可能少于上述数量。	Items belonging to running apps are skipped, so the actual number processed may be lower than the number above.
     未启用	Not enabled
     正在启用…	Enabling…
     重试	Retry

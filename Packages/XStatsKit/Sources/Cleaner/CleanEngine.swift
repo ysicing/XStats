@@ -28,7 +28,7 @@ public enum CleanEngine {
       let toolRoots = ordered.compactMap(\.toolCachePlan).flatMap(\.roots)
       // 工具的自定义缓存可能也位于通用 Caches/Logs 下，不能重复计量或先被直接删除。
       return ordered.map { scan in
-        guard ["system.caches", "system.logs"].contains(scan.id) else { return scan }
+        guard scan.rule.isGenericLibraryScan else { return scan }
         let items = scan.items.filter { item in
           !toolRoots.contains { CleanupExclusions.overlaps(item.url, paths: [$0.path]) }
         }
@@ -142,7 +142,7 @@ public enum CleanEngine {
       return .protected
     }
     // 专属目录即使不存在、应用运行中或未被勾选，也不允许通用规则接管。
-    if rule.id == "system.caches" || rule.id == "system.logs" {
+    if rule.isGenericLibraryScan {
       let roots = ApplicationCacheCatalog.reservedRoots.map {
         URL(fileURLWithPath: environment.home).appendingPathComponent($0).path
       }
@@ -159,17 +159,44 @@ public enum CleanEngine {
     {
       return .appRunning(owner)
     }
-    // 扫描 URL 可能缓存资源属性；执行前必须从文件系统重新读取修改时间。
-    if rule.minimumAge > 0,
-      let modified = try? URL(fileURLWithPath: url.path).resourceValues(forKeys: [
-        .contentModificationDateKey
-      ])
-      .contentModificationDate,
-      environment.now().timeIntervalSince(modified) < rule.minimumAge
-    {
+    if rule.minimumAge > 0, isRecentlyModified(url, rule: rule, now: environment.now()) {
       return .recentlyModified
     }
     return nil
+  }
+
+  /// 应用缓存规则向下检查的最大层数与条目数；Chromium 缓存形如 Cache/Cache_Data/f_xxxxxx。
+  static let recentWriteDepthLimit = 3
+  static let recentWriteEntryLimit = 2_000
+
+  /// 目录自身 mtime 只反映直接子项的增删，应用缓存规则额外有界地检查更深处的最近写入。
+  /// 达到条目上限仍未发现最近写入时按“未修改”处理：运行中应用已由进程标识与名称拦截，
+  /// 保守地拒绝大缓存会让规则永远无法执行。取消时同样提前返回，调用方在删除前再核对取消状态。
+  static func isRecentlyModified(_ url: URL, rule: CleanRule, now: Date) -> Bool {
+    // 扫描 URL 可能缓存资源属性；执行前必须从文件系统重新读取修改时间。
+    let fresh = URL(fileURLWithPath: url.path)
+    let key = URLResourceKey.contentModificationDateKey
+    if let modified = try? fresh.resourceValues(forKeys: [key]).contentModificationDate,
+      now.timeIntervalSince(modified) < rule.minimumAge
+    {
+      return true
+    }
+    guard !rule.cacheRelativePaths.isEmpty,
+      let enumerator = FileManager.default.enumerator(
+        at: fresh, includingPropertiesForKeys: [key], options: [.skipsPackageDescendants])
+    else { return false }
+    var visited = 0
+    while let entry = enumerator.nextObject() as? URL {
+      visited += 1
+      if visited > recentWriteEntryLimit || Task.isCancelled { return false }
+      if let modified = try? entry.resourceValues(forKeys: [key]).contentModificationDate,
+        now.timeIntervalSince(modified) < rule.minimumAge
+      {
+        return true
+      }
+      if enumerator.level >= recentWriteDepthLimit { enumerator.skipDescendants() }
+    }
+    return false
   }
 
   /// 同时识别友好名称、已登记的目录别名，以及反向域名的应用与辅助进程。
@@ -438,11 +465,29 @@ public enum CleanEngine {
       var currentEnvironment = environment
       currentEnvironment.runningApplicationNames = { names }
       let blockingApp = scan.rule.runningApplication(identifiers: running, names: names)
-      if let reason = blockingApp.map({ SkipReason.appRunning($0) })
+      var skip =
+        blockingApp.map({ SkipReason.appRunning($0) })
         ?? skipReason(
           for: item.url, rule: scan.rule, running: running,
           environment: currentEnvironment, safety: safety)
-      {
+      if skip == nil {
+        // skipReason 末段的有界遍历可能耗时，取消在此生效，不能带着取消继续删除。
+        if Task.isCancelled {
+          report.wasCancelled = true
+          return true
+        }
+        // 紧贴删除前的最后一次复检，缩小符号链接被替换的窗口。残余窗口：复检与
+        // removeItem/trashItem 之间仍是按路径操作；彻底关闭需要 openat/unlinkat 逐级
+        // O_NOFOLLOW。能替换这些目录的进程已具备同用户对其的完整写权限，微秒级窗口可接受。
+        if (try? safety.validate(item.url, additionalCachePaths: scan.rule.cacheRelativePaths))
+          == nil
+          || (scan.rule.requiresUnredirectedPath
+            && !AppUninstaller.isUnredirected(item.url, home: environment.home))
+        {
+          skip = .protected
+        }
+      }
+      if let reason = skip {
         report.skippedCount += 1
         log?.record(item: item, rule: scan.rule, action: "skip", detail: reason.title)
         completedSteps += 1
@@ -455,7 +500,7 @@ public enum CleanEngine {
       }
       do {
         if useTrash {
-          try FileManager.default.trashItem(at: item.url, resultingItemURL: nil)
+          try environment.trash(item.url)
           report.trashedBytes += item.size
         } else {
           try FileManager.default.removeItem(at: item.url)

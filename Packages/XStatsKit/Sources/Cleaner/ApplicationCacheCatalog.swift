@@ -12,6 +12,9 @@ enum ApplicationCacheCatalog {
   static let editorCaches = chromiumCaches + ["CachedData", "CachedExtensionVSIXs"]
 
   /// 通用规则始终让出这些目录，包括符号链接别名。Codex 根中还有用户状态，不能整体删除。
+  /// Application Support 各项并非死配置：通用规则只扫描 Caches/Logs，但其中的符号链接别名
+  /// 解析后会落到这些目录（例如 Caches/alias -> Application Support/Claude/Cache），
+  /// 只有这里的保留根能拦住，删掉会使 genericRulesProtectFriendlyNamesHelpersAndAliases 失败。
   static let reservedRoots =
     [
       "Library/Caches/Codex", "Library/Caches/com.openai.codex",
@@ -21,13 +24,19 @@ enum ApplicationCacheCatalog {
       "CodeBuddy CN", "Code", "Code - Insiders", "Cursor",
     ].map { "Library/Application Support/" + $0 }
 
+  /// Qoder：来自第三方卸载资料（Mole）的 com.qoder.ide，本机未安装，未能直接核对 Info.plist。
+  /// CodeBuddy CN：本机偏好文件名 com.tencent.codebuddycn 佐证；国际版 com.tencent.codebuddy
+  /// 沿用既有登记且未能核实。标识不匹配时，仍由应用名称与 .app 目录名兜底拦截。
+  static let qoderIdentifiers = ["com.qoder.ide"]
+  static let codeBuddyIdentifiers = ["com.tencent.codebuddy", "com.tencent.codebuddycn"]
+
   private struct Owner {
     let directories: [String]
     let identifiers: [String]
     let names: [String]
   }
 
-  // 目录名与 .app 名称并不总是一致；不为未知的产品标识编造反向域名。
+  // 目录名与 .app 名称并不总是一致；未能核实的产品标识不编造，由应用名称兜底。
   private static let owners: [Owner] = [
     Owner(
       directories: ["Slack"], identifiers: ["com.tinyspeck.slackmacgap", "com.slack.Slack"],
@@ -41,9 +50,9 @@ enum ApplicationCacheCatalog {
     Owner(directories: ["Codex"], identifiers: ["com.openai.codex"], names: ["Codex"]),
     Owner(
       directories: ["Antigravity"], identifiers: ["com.google.antigravity"], names: ["Antigravity"]),
-    Owner(directories: ["Qoder"], identifiers: [], names: ["Qoder"]),
+    Owner(directories: ["Qoder"], identifiers: ["com.qoder.ide"], names: ["Qoder"]),
     Owner(
-      directories: ["CodeBuddy", "CodeBuddy CN"], identifiers: ["com.tencent.codebuddy"],
+      directories: ["CodeBuddy", "CodeBuddy CN"], identifiers: codeBuddyIdentifiers,
       names: ["CodeBuddy", "CodeBuddy CN"]),
     Owner(
       directories: ["Code", "Code - Insiders"],
@@ -92,10 +101,11 @@ enum ApplicationCacheCatalog {
         id: "app.antigravity", name: "Antigravity", directories: ["Antigravity"],
         names: chromiumCaches, bundleIDs: ["com.google.antigravity"]),
       cache(
-        id: "app.qoder", name: "Qoder", directories: ["Qoder"], names: editorCaches, bundleIDs: []),
+        id: "app.qoder", name: "Qoder", directories: ["Qoder"], names: editorCaches,
+        bundleIDs: qoderIdentifiers),
       cache(
         id: "app.codebuddy", name: "CodeBuddy", directories: ["CodeBuddy", "CodeBuddy CN"],
-        names: editorCaches, bundleIDs: ["com.tencent.codebuddy"],
+        names: editorCaches, bundleIDs: codeBuddyIdentifiers,
         applicationNames: ["CodeBuddy", "CodeBuddy CN"]),
       cache(
         id: "app.codex", name: "Codex",
@@ -123,12 +133,27 @@ enum ApplicationCacheCatalog {
         .filter { url in
           do {
             return try url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
-          } catch let error as CocoaError
-            where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile
-          {
+          } catch  where isMissingOrNotDirectory(error) {
+            // 候选或其父级不存在，或父级是普通文件（ENOTDIR）：只跳过该候选，不让整条规则失败。
             return false
           }
         }
     }
+  }
+
+  /// 不存在或路径中间层不是目录；Cocoa 可能把 ENOENT/ENOTDIR 包在 underlying error 里。
+  static func isMissingOrNotDirectory(_ error: Error) -> Bool {
+    let failure = error as NSError
+    if failure.domain == NSCocoaErrorDomain,
+      [NSFileReadNoSuchFileError, NSFileNoSuchFileError].contains(failure.code)
+    {
+      return true
+    }
+    if failure.domain == NSPOSIXErrorDomain, [Int(ENOENT), Int(ENOTDIR)].contains(failure.code) {
+      return true
+    }
+    guard let underlying = failure.userInfo[NSUnderlyingErrorKey] as? NSError else { return false }
+    return underlying.domain == NSPOSIXErrorDomain
+      && [Int(ENOENT), Int(ENOTDIR)].contains(underlying.code)
   }
 }

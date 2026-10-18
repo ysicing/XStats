@@ -190,6 +190,6 @@ enum DeveloperCleanupCatalog {
     ], category: .developer)
   static let cursorCache = ApplicationCacheCatalog.cache(
     id: "developer.cursor", name: "Cursor", directories: ["Cursor"],
-    names: ["Cache", "Code Cache", "GPUCache", "CachedExtensionVSIXs"],
+    names: ["Cache", "Code Cache", "GPUCache", "CachedData", "CachedExtensionVSIXs"],
     bundleIDs: ["com.todesktop.230313mzl4w4u92"], category: .developer)
 }

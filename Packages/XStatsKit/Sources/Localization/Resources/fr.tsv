@@ -2155,6 +2155,7 @@ Microsoft Teams（旧版）	Microsoft Teams (classique)
 将永久删除 {} 个所选项目，共 {}。此操作无法撤销。	Suppression définitive de {} éléments sélectionnés, soit {}. Cette opération est irréversible.
 将把 {} 个所选项目移到废纸篓，共 {}。需要时可从废纸篓放回。	{} éléments sélectionnés, soit {}, seront placés dans la corbeille. Vous pourrez les remettre à leur place.
 将永久删除废纸篓中选中的 {} 个项目，共 {}。此操作无法撤销。	Suppression définitive de {} éléments sélectionnés dans la corbeille, soit {}. Cette opération est irréversible.
+正在运行的应用对应的项目会被跳过，实际处理数量可能少于上述数量。	Les éléments des apps en cours d’exécution sont ignorés ; le nombre réel peut donc être inférieur à celui indiqué.
 倒计时	Compte à rebours
 秒表	Chronomètre
 计时模式	Mode de minuterie

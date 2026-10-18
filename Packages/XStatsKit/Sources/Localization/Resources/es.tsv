@@ -2155,6 +2155,7 @@ Microsoft Teams（旧版）	Microsoft Teams (clásico)
 将永久删除 {} 个所选项目，共 {}。此操作无法撤销。	Se eliminarán permanentemente {} elementos seleccionados, con un total de {}. Esta acción no se puede deshacer.
 将把 {} 个所选项目移到废纸篓，共 {}。需要时可从废纸篓放回。	Se moverán {} elementos seleccionados a la papelera, con un total de {}. Podrás restaurarlos desde la papelera.
 将永久删除废纸篓中选中的 {} 个项目，共 {}。此操作无法撤销。	Se eliminarán permanentemente {} elementos seleccionados de la papelera, con un total de {}. Esta acción no se puede deshacer.
+正在运行的应用对应的项目会被跳过，实际处理数量可能少于上述数量。	Se omitirán los elementos de las apps en ejecución, por lo que el número real puede ser menor que el indicado.
 倒计时	Cuenta atrás
 秒表	Cronómetro
 计时模式	Modo de temporizador

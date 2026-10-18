@@ -122,8 +122,10 @@ struct DeveloperCleanupCatalogTests {
       try fm.createDirectory(
         at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
       try Data(repeating: 1, count: 4096).write(to: file)
-      try fm.setAttributes(
-        [.modificationDate: Date.distantPast], ofItemAtPath: file.deletingLastPathComponent().path)
+      // 应用缓存规则会检查缓存内部的最近写入，文件与目录的修改时间都要调旧。
+      for url in [file, file.deletingLastPathComponent()] {
+        try fm.setAttributes([.modificationDate: Date.distantPast], ofItemAtPath: url.path)
+      }
     }
     let rule = try #require(RuleCatalog.rules().first { $0.id == fixture.0 })
     #expect(!rule.selectedByDefault && !rule.usesToolCleaner)

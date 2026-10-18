@@ -21,6 +21,8 @@ public final class CleanerController {
     didSet { settings.cleanSelectedRuleIDs = selection }
   }
   public var isConfirming = false
+  /// 弹出确认时冻结的选择；提示文案与最终执行使用同一份，避免确认期间选择或排除项变化后“所见非所清”。
+  private(set) var pendingScans: [RuleScan] = []
   private var deselectedItems: Set<String> = []
 
   @ObservationIgnored private let settings: AppSettings
@@ -39,7 +41,7 @@ public final class CleanerController {
   func scan(ifNeeded: Bool = false) {
     guard settings.cleanerEnabled, !isBusy, !(ifNeeded && lastScan != nil) else { return }
     phase = .scanning
-    isConfirming = false
+    invalidateConfirmation()
     let environment = environment()
     let rules = rules
     task = Task {
@@ -58,11 +60,18 @@ public final class CleanerController {
   func requestClean() {
     guard settings.cleanerEnabled, phase == .ready || phase == .finished, !selectedScans.isEmpty
     else { return }
+    pendingScans = selectedScans
     isConfirming = true
   }
 
   func cancelClean() {
+    invalidateConfirmation()
+  }
+
+  /// 选择、排除项或扫描结果变化后，之前冻结的确认内容不再有效。
+  private func invalidateConfirmation() {
     isConfirming = false
+    pendingScans = []
   }
 
   func cancelOperation() {
@@ -72,18 +81,20 @@ public final class CleanerController {
   }
 
   func confirmClean() {
-    guard settings.cleanerEnabled, isConfirming else { return }
-    isConfirming = false
+    // 系统弹层可能先清除展示绑定，所以以冻结的选择而不是 isConfirming 判断是否已确认。
+    guard settings.cleanerEnabled, phase == .ready || phase == .finished, !pendingScans.isEmpty
+    else { return }
+    let scans = pendingScans
+    invalidateConfirmation()
     report = nil
     cleanProgress = nil
     isCancelling = false
     phase = .cleaning
     Log.app.notice(
-      "Cleanup started rules=\(self.selectedScans.count) items=\(self.selectedScans.reduce(0) { $0 + $1.items.count })"
+      "Cleanup started rules=\(scans.count) items=\(scans.reduce(0) { $0 + $1.items.count })"
     )
     let environment = environment()
-    let scans = selectedScans
-    let selection = selection
+    let selection = Set(scans.map(\.id))
     let preferTrash = settings.cleanPrefersTrash
     task = Task { [self] in
       var result = await CleanEngine.clean(
@@ -136,7 +147,7 @@ public final class CleanerController {
     } else {
       selection.remove(scan.id)
     }
-    isConfirming = false
+    invalidateConfirmation()
   }
 
   func toggle(_ item: CleanItem, in scan: RuleScan) {
@@ -147,7 +158,7 @@ public final class CleanerController {
       selection.insert(scan.id)
     }
     if wasSelected { deselectedItems.insert(item.id) } else { deselectedItems.remove(item.id) }
-    isConfirming = false
+    invalidateConfirmation()
   }
 
   func selectedItems(in scan: RuleScan) -> [CleanItem] {
@@ -164,7 +175,7 @@ public final class CleanerController {
   @discardableResult
   func exclude(_ url: URL) -> Bool {
     guard !isBusy else { return false }
-    isConfirming = false
+    invalidateConfirmation()
     guard !exclusionLimitReached else {
       // 拒绝持久化时也撤销本次选择，避免菜单打开后容量变化导致“要求保留却被清理”。
       for scan in scans {
@@ -185,7 +196,7 @@ public final class CleanerController {
   func removeExclusion(_ path: String) {
     guard !isBusy else { return }
     settings.cleanExcludedPaths.removeAll { $0 == path }
-    isConfirming = false
+    invalidateConfirmation()
     scan()
   }
 
@@ -205,6 +216,9 @@ public final class CleanerController {
     }
   }
 
+  /// 确认弹窗展示的内容：已冻结时用冻结的选择，否则退回当前选择。
+  var confirmationScans: [RuleScan] { pendingScans.isEmpty ? selectedScans : pendingScans }
+
   var selectedBytes: UInt64 {
     selectedScans.reduce(0) { $0 + $1.totalSize }
   }
@@ -218,6 +232,7 @@ public final class CleanerController {
   func showPreview(_ results: [RuleScan]) {
     scans = results
     deselectedItems = []
+    invalidateConfirmation()
     phase = .ready
     lastScan = Date()
   }
@@ -259,7 +274,10 @@ public final class CleanerController {
         // 辅助进程可能独立存活；同时记录其外层 .app，避免主进程退出后失去名称保护。
         let bundleNames = (app.bundleURL?.pathComponents ?? []).filter { $0.hasSuffix(".app") }
           .map { String($0.dropLast(4)) }
-        return bundleNames + [app.localizedName].compactMap { $0 }
+        // 同时记录可执行文件名：localizedName 可能被本地化，辅助进程的名称也未必与外层应用一致。
+        return bundleNames
+          + [app.localizedName, app.executableURL?.lastPathComponent]
+          .compactMap { $0 }
       })
   }
 }

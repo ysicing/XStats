@@ -32,6 +32,42 @@ struct CleanerReviewFlowTests {
     #expect(!controller.scanIncomplete && !controller.canUninstall)
   }
 
+  @Test func confirmationFreezesTheSelectionShownInTheDialog() throws {
+    let suite = "CleanerConfirmationFreezeTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    // 只验证确认状态，不调用 scan/confirmClean，因此不会访问用户目录。
+    let controller = CleanerController(settings: settings)
+    let caches = try #require(RuleCatalog.rules().first { $0.id == "system.caches" })
+    let logs = try #require(RuleCatalog.rules().first { $0.id == "system.logs" })
+    let kept = CleanItem(url: URL(fileURLWithPath: "/Users/demo/Library/Caches/kept"), size: 100)
+    let late = CleanItem(url: URL(fileURLWithPath: "/Users/demo/Library/Logs/late"), size: 200)
+    controller.showPreview([
+      RuleScan(rule: caches, items: [kept], skippedCount: 0, blocked: nil),
+      RuleScan(rule: logs, items: [late], skippedCount: 0, blocked: nil),
+    ])
+    controller.selection = [caches.id, logs.id]
+    controller.requestClean()
+    #expect(controller.isConfirming)
+    #expect(controller.pendingScans.map(\.id) == [caches.id, logs.id])
+    // 弹窗打开期间选择或排除项在别处变化，已展示的确认内容和将要执行的内容不变。
+    controller.selection = [caches.id]
+    settings.cleanExcludedPaths = [late.url.path]
+    #expect(controller.selectedScans.map(\.id) == [caches.id])
+    #expect(controller.confirmationScans.map(\.id) == [caches.id, logs.id])
+    #expect(controller.confirmationScans.flatMap(\.items) == [kept, late])
+    // 取消后回到当前选择，不残留旧选择。
+    controller.cancelClean()
+    #expect(controller.pendingScans.isEmpty && !controller.isConfirming)
+    #expect(controller.confirmationScans.map(\.id) == [caches.id])
+    // 重新发起确认冻结新的选择；再次改动选择会使确认失效。
+    controller.requestClean()
+    #expect(controller.pendingScans.map(\.id) == [caches.id])
+    controller.toggle(try #require(controller.scans.first { $0.id == caches.id }))
+    #expect(controller.pendingScans.isEmpty && !controller.isConfirming)
+  }
+
   @Test func exclusionCapacityFailureDoesNotKeepTheItemSelected() throws {
     let suite = "CleanerExclusionCapacityTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
