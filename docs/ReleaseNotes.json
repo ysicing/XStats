@@ -1,23 +1,13 @@
 {
-  "version": "1.4.2",
+  "version": "1.4.3",
   "sourceNotes": [
-    "菜单栏计时弹窗将“休息”与倒计时、番茄钟、秒表并排展示",
-    "将护眼提醒整理为轻量文字状态栏，明确下次提醒时间与暂停等状态，休息设置统一收纳到更多菜单",
-    "优化进程名称解析，减少采集时不必要的文件系统查询，保留原有按需采集、应用归属和异常回退行为",
-    "加固应用缓存清理保护",
-    "修复清理确认与实际选择可能不一致的问题",
-    "修复倒计时挂起期间可能延迟通知及番茄钟操作条件不满足时误切换模式的问题，恢复后不会重复通知",
-    "修复截图与计时快捷键录制的双向互斥，避免切换录制入口时同时监听按键"
+    "新增默认关闭的基础菜单栏折叠，可在设置中启用并点击系统箭头收起或展开不常用图标",
+    "修复 Homebrew 版本检查与卸载规则"
   ],
   "translations": {
     "en": [
-      "Move Break alongside Countdown, Pomodoro and Stopwatch in the menu bar timer popover, with short and long breaks and optional display sleep, preserving saved durations and timer preferences",
-      "Simplify eye-care reminders into a lightweight text status bar with the next reminder time and paused states, and place break settings in the More menu",
-      "Reduce unnecessary file-system queries when resolving process names while preserving demand-driven sampling, application attribution and failure fallbacks",
-      "Strengthen application-cache cleanup protections with application and helper-process identification, recent-write checks and path revalidation before deletion, preventing generic rules from taking over dedicated caches",
-      "Keep cleanup confirmation consistent with the selected items, invalidate old confirmations when selections, exclusions or scan results change, and explain that items belonging to running applications may be skipped",
-      "Fix delayed countdown notifications while suspended and unintended mode changes when Pomodoro action prerequisites are not met, without repeating notifications after resuming",
-      "Fix mutual exclusion between capture and timer shortcut recorders so switching recorders does not leave both listening for keys"
+      "Add optional basic menu bar folding, disabled by default, with system chevrons to collapse or expand less-used icons. Manually move icons to the left of the transparent divider; results depend on available screen space.",
+      "Fix Homebrew version checks and uninstall rules to distinguish XStats and Capture releases and preserve their shared screenshot and recording cache when either app is removed."
     ]
   }
 }
