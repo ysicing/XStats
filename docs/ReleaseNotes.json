@@ -1,25 +1,23 @@
 {
-  "version": "1.4.1",
+  "version": "1.4.2",
   "sourceNotes": [
-    "将“专注与护眼”升级为“计时”",
-    "新增主动短休、长休和关闭显示器入口",
-    "重做菜单栏计时弹窗与时长刻度交互",
-    "统一计时与休息快捷键设置",
-    "扩展常用应用与开发工具缓存清理，增加运行中应用保护和路径去重，继续使用原生扫描、选择与确认流程",
-    "精简功能设置布局和说明，新安装用户默认使用聚合菜单栏，已有用户的配置保持不变",
-    "根据实际选择及删除方式生成清理确认文案和按钮，明确区分移到废纸篓、永久删除和清空废纸篓",
-    "修复息屏或锁屏期间屏幕配置变化可能重建并遗留休息遮罩的问题，保留休息截止时间并正确恢复展示"
+    "菜单栏计时弹窗将“休息”与倒计时、番茄钟、秒表并排展示",
+    "将护眼提醒整理为轻量文字状态栏，明确下次提醒时间与暂停等状态，休息设置统一收纳到更多菜单",
+    "优化进程名称解析，减少采集时不必要的文件系统查询，保留原有按需采集、应用归属和异常回退行为",
+    "加固应用缓存清理保护",
+    "修复清理确认与实际选择可能不一致的问题",
+    "修复倒计时挂起期间可能延迟通知及番茄钟操作条件不满足时误切换模式的问题，恢复后不会重复通知",
+    "修复截图与计时快捷键录制的双向互斥，避免切换录制入口时同时监听按键"
   ],
   "translations": {
     "en": [
-      "Expand Focus & Eye Care into Timer with countdown, Pomodoro and stopwatch modes, including laps, while preserving existing focus settings and eye-care reminders",
-      "Add on-demand short and long breaks and a turn-off-display action. Optionally turn off displays during breaks without waking them when a break ends; resume paused focus manually",
-      "Redesign the menu bar timer popover and duration ruler, add paused states and context-menu actions, and organize mode-specific settings and mini HUD styles",
-      "Unify timer and break shortcuts, including Space to start or pause and Command-L for stopwatch laps, while preventing accidental actions during text entry, settings popovers and shortcut recording",
-      "Expand common application and developer-tool cache cleanup with running-app protection and path deduplication, retaining the native scan, selection and confirmation flow",
-      "Simplify feature settings and descriptions. New installations default to a combined menu bar while existing user preferences are preserved",
-      "Generate cleanup confirmation text and buttons from the selected items and deletion methods, distinguishing Move to Trash, permanent deletion and Empty Trash",
-      "Fix break overlays being recreated or left behind when display configuration changes while the screen is off or locked, preserving break deadlines and restoring presentation correctly"
+      "Move Break alongside Countdown, Pomodoro and Stopwatch in the menu bar timer popover, with short and long breaks and optional display sleep, preserving saved durations and timer preferences",
+      "Simplify eye-care reminders into a lightweight text status bar with the next reminder time and paused states, and place break settings in the More menu",
+      "Reduce unnecessary file-system queries when resolving process names while preserving demand-driven sampling, application attribution and failure fallbacks",
+      "Strengthen application-cache cleanup protections with application and helper-process identification, recent-write checks and path revalidation before deletion, preventing generic rules from taking over dedicated caches",
+      "Keep cleanup confirmation consistent with the selected items, invalidate old confirmations when selections, exclusions or scan results change, and explain that items belonging to running applications may be skipped",
+      "Fix delayed countdown notifications while suspended and unintended mode changes when Pomodoro action prerequisites are not met, without repeating notifications after resuming",
+      "Fix mutual exclusion between capture and timer shortcut recorders so switching recorders does not leave both listening for keys"
     ]
   }
 }
