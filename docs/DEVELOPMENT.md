@@ -508,6 +508,20 @@ NOTARY_PROFILE=XStats task release-all
 `task release` 只构建制品；已推送 release commit 后若外部发布失败，用 `task publish` 续跑。
 重新执行 `task release-all` 会再次推进构建号。
 
+Homebrew tap 的 XStats 与 Capture Cask 分别由 `scripts/release.sh` 和
+`scripts/release_capture.py` 生成。两者的 livecheck 使用 GitHub Releases，分别匹配
+`vX.Y.Z` 与 `capture-vX.Y.Z` 正式标签，排除草稿与预发布；修改 tap 时同步修改生成器。
+普通卸载请求对应应用正常退出并移除应用本体，保留配置与历史；显式 `--zap` 才清理各自列出的私有数据。
+两种宿主共用的 `~/Library/Caches/XStatsCapture` 素材缓存始终保留，独立网络组件与辅助工具安全恢复状态不由 Cask 删除。
+安装 Homebrew 后，`python3 scripts/homebrew_cask_test.py` 使用真实 Cask DSL 和离线 Releases 夹具验证生成结果，
+不执行安装或卸载；无 Homebrew 时此项测试明确跳过。tap 修改后另运行：
+
+```bash
+brew livecheck --cask ysicing/tap/xstats ysicing/tap/xstats-capture
+brew style --cask ysicing/tap/xstats ysicing/tap/xstats-capture
+brew audit --strict --online --cask ysicing/tap/xstats ysicing/tap/xstats-capture
+```
+
 显式 Sparkle／应用重签名与 DMG 签名遇到 Apple 的
 `The timestamp service is not available.` 时最多尝试 3 次，间隔为 2 秒、5 秒；
 每次使用相同证书、时间戳、runtime 和 entitlement 参数。其他签名错误立即停止，

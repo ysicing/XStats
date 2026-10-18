@@ -179,6 +179,7 @@ tasks:
       - python3 scripts/release_provenance_test.py
       - python3 scripts/publish_api_test.py
       - python3 scripts/release_capture_test.py
+      - python3 scripts/homebrew_cask_test.py
       - python3 scripts/sync_changelog_test.py
       - python3 scripts/sparkle_appcast_test.py
       - python3 scripts/github_release_notes_test.py
