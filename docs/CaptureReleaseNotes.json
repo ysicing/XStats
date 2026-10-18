@@ -1,12 +1,12 @@
 {
-  "version": "0.1.2",
-  "date": "2026-10-18",
+  "version": "0.1.3",
+  "date": "2026-10-19",
   "sourceNotes": [
-    "修复 Homebrew 独立版本检查与卸载规则，卸载时保留与 XStats 共用的截图与录屏素材缓存。"
+    "完善录屏导出路径校验与回归覆盖，继续保护录制缓存和其他会话素材。"
   ],
   "translations": {
     "en": [
-      "Fix Homebrew checks for independent Capture releases and uninstall rules, preserving the screenshot and recording cache shared with XStats when uninstalling."
+      "Improve recording export path validation and regression coverage while preserving protection for the recording cache and media from other sessions."
     ]
   }
 }
