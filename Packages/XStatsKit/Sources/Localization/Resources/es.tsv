@@ -346,7 +346,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 单行文字	Texto en una línea
 占整机 CPU 的比例：{} 个核心全部跑满为 100%	Porcentaje de CPU total: los {} núcleos a plena carga equivalen al 100%
 占用	Uso
-占用超过 85%（电池电量低于 20%）时数值与图形显示为红色	Valores y gráficos en rojo por encima del 85% de uso (batería por debajo del 20%)
+占用 ≥80% 或电量 ≤20% 时为橙色；占用 ≥90% 或电量 ≤10% 时为红色	Naranja con uso ≥80% o batería ≤20%; rojo con uso ≥90% o batería ≤10%
 占用高于	Uso superior a
 卷	Volumen
 卸载	Desinstalar
@@ -978,7 +978,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 统一内存（CPU 与 GPU 共享）	Memoria unificada (compartida por CPU y GPU)
 统计家目录里每个文件夹占多少空间，并找出最大的文件；只读取大小，不改动任何文件。文件多时需要几十秒。	Mide el espacio de cada carpeta de inicio y encuentra los archivos más grandes. Solo lee tamaños, sin modificar archivos; puede tardar un minuto si hay muchos.
 继续运行	Seguir funcionando
-绿色正常、橙色偏高（60% 以上）、红色很高（85% 以上）	Verde: normal; naranja: alto (más del 60%); rojo: muy alto (más del 85%)
+开启高负载着色后，圆点提示占用偏高或电量偏低	Con el color de carga alta activado, los puntos indican uso elevado o batería baja
 缓存	Cachés
 缓存也先移到废纸篓	Mover también las cachés a la Papelera
 编辑	Editar

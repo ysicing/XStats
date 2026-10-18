@@ -701,7 +701,7 @@ extension Translations {
     单行文字	Inline Text
     占整机 CPU 的比例：{} 个核心全部跑满为 100%	Share of total CPU: all {} cores fully busy is 100%
     占用	Usage
-    占用超过 85%（电池电量低于 20%）时数值与图形显示为红色	Values and graphics turn red above 85% usage (below 20% battery)
+    占用 ≥80% 或电量 ≤20% 时为橙色；占用 ≥90% 或电量 ≤10% 时为红色	Orange at usage ≥80% or battery ≤20%; red at usage ≥90% or battery ≤10%
     占用高于	Usage above
     卷	Volume
     卸载	Uninstall
@@ -1335,7 +1335,7 @@ extension Translations {
     统一内存（CPU 与 GPU 共享）	Unified memory (shared by CPU and GPU)
     统计家目录里每个文件夹占多少空间，并找出最大的文件；只读取大小，不改动任何文件。文件多时需要几十秒。	Measures how much space each folder in your home folder takes and finds the largest files. It only reads sizes and changes nothing; with many files it can take a minute.
     继续运行	Keep running
-    绿色正常、橙色偏高（60% 以上）、红色很高（85% 以上）	Green is normal, orange is high (above 60%), red is very high (above 85%)
+    开启高负载着色后，圆点提示占用偏高或电量偏低	With high-load coloring enabled, dots indicate high usage or low battery
     缓存	Caches
     缓存也先移到废纸篓	Move caches to Trash too
     编辑	Edit

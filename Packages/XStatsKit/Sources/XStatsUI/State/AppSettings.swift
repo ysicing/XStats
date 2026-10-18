@@ -291,7 +291,7 @@ public enum MenuBarStyle: String, CaseIterable, Identifiable, Sendable {
     case .history: tr("10 根柱子是最近 10 次采样（约 20 秒）的变化")
     case .line: tr("折线是最近 30 次采样（约 1 分钟）的走势")
     case .meter: tr("竖向电量条表示当前占用比例")
-    case .dot: tr("绿色正常、橙色偏高（60% 以上）、红色很高（85% 以上）")
+    case .dot: tr("开启高负载着色后，圆点提示占用偏高或电量偏低")
     }
   }
 }

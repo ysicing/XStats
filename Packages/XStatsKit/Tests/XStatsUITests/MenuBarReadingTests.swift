@@ -12,6 +12,142 @@ import AIUsage
 
 @MainActor
 struct MenuBarReadingTests {
+  @Test(arguments: [MenuBarStyle.ring, .pie, .history, .line, .meter, .dot], [false, true])
+  func warningColorsLeaveGraphicalTextNeutral(style: MenuBarStyle, dark: Bool) throws {
+    for value in [0.85, 0.95, 1.0] {
+      var reading = MenuBarReading()
+      reading.cpu = value
+      reading.gpu = value
+      reading.memory = value
+      reading.disk = value
+      reading.cpuHistory = [value, value]
+      reading.gpuHistory = [value, value]
+      reading.memoryHistory = [value, value]
+      reading.diskHistory = [value, value]
+      reading.battery = 1 - value
+      reading.batteryHistory = [1 - value, 1 - value]
+      for item: MenuBarItem in [.cpu, .gpu, .memory, .disk, .battery] {
+        for valueOnTop in [false, true] {
+          let reference = MenuBarRenderer.image(
+            reading: reading, items: [item], style: { _ in .stackedCenter }, networkStyle: .dots,
+            colorizeHighLoad: false, fahrenheit: false, valueOnTop: valueOnTop)
+          let textWidth = Int(reference.size.width * 2)
+          let bitmaps = try [false, true].map { enabled in
+            let image = MenuBarRenderer.image(
+              reading: reading, items: [item], style: { _ in style }, networkStyle: .dots,
+              colorizeHighLoad: enabled, fahrenheit: false, valueOnTop: valueOnTop)
+            let preview = MenuBarRenderer.preview(image, dark: dark, backingScale: 2)
+            let data = try #require(preview.tiffRepresentation)
+            return try #require(NSBitmapImageRep(data: data)?.cgImage)
+          }
+          let text = try bitmaps.map { bitmap in
+            let crop = try #require(
+              bitmap.cropping(
+                to: CGRect(
+                  x: bitmap.width - textWidth, y: 0,
+                  width: textWidth, height: bitmap.height)))
+            return NSBitmapImageRep(cgImage: crop).representation(using: .png, properties: [:])
+          }
+          #expect(text[0] == text[1], "\(item) 的 \(style) 只应给图形着色")
+          #expect(
+            NSBitmapImageRep(cgImage: bitmaps[0]).tiffRepresentation
+              != NSBitmapImageRep(cgImage: bitmaps[1]).tiffRepresentation)
+        }
+      }
+    }
+  }
+
+  @Test(arguments: MenuBarStyle.allCases, [false, true])
+  func loadColorsRespectThresholdsAndToggle(style: MenuBarStyle, dark: Bool) throws {
+    for item: MenuBarItem in [.cpu, .gpu, .memory, .disk, .battery] {
+      for (value, expected) in [
+        (0.0, 0), (0.1, 0), (0.2, 0), (0.201, 0),
+        (0.799, 0), (0.8, 1), (0.899, 1), (0.9, 2), (1.0, 2),
+      ] {
+        var reading = MenuBarReading()
+        reading.cpu = value
+        reading.gpu = value
+        reading.memory = value
+        reading.disk = value
+        reading.cpuHistory = [value, value]
+        reading.gpuHistory = [value, value]
+        reading.memoryHistory = [value, value]
+        reading.diskHistory = [value, value]
+        // 用同一组边界验证“使用率高”和“剩余电量低”两个方向。
+        let remaining = value == 0.8 ? 0.2 : value == 0.9 ? 0.1 : 1 - value
+        reading.battery = remaining
+        reading.batteryHistory = [remaining, remaining]
+        for enabled in [false, true] {
+          try expectLoadColor(
+            reading: reading, item: item, style: style, dark: dark,
+            enabled: enabled, expected: enabled ? expected : 0)
+        }
+      }
+    }
+    for item: MenuBarItem in [.cpu, .gpu, .memory, .disk, .battery] {
+      try expectLoadColor(
+        reading: MenuBarReading(), item: item, style: style, dark: dark,
+        enabled: true, expected: 0)
+    }
+    for (percent, expected) in [(0, 2), (10, 2), (11, 1), (20, 1), (21, 0), (100, 0)] {
+      var reading = MenuBarReading()
+      reading.bluetoothDevice = ("headphones", percent)
+      for enabled in [false, true] {
+        try expectLoadColor(
+          reading: reading, item: .battery, style: style, dark: dark,
+          enabled: enabled, expected: enabled ? expected : 0)
+      }
+    }
+  }
+
+  private func expectLoadColor(
+    reading: MenuBarReading, item: MenuBarItem, style: MenuBarStyle,
+    dark: Bool, enabled: Bool, expected: Int
+  ) throws {
+    let image = MenuBarRenderer.image(
+      reading: reading, items: [item], style: { _ in style }, networkStyle: .dots,
+      colorizeHighLoad: enabled, fahrenheit: false)
+    #expect(image.isTemplate == (expected == 0), "\(item), \(style), \(enabled)")
+    let preview = MenuBarRenderer.preview(image, dark: dark, backingScale: 2)
+    let data = try #require(preview.tiffRepresentation)
+    let bitmap = try #require(NSBitmapImageRep(data: data))
+    var hasRed = false
+    var hasOrange = false
+    // 零电量图形只有半透明底槽，其余读数仍要求存在清晰可见的警示填充。
+    let alphaThreshold = item == .battery && reading.battery == 0 ? 0.05 : 0.5
+    for y in 0..<bitmap.pixelsHigh {
+      for x in 0..<bitmap.pixelsWide {
+        guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
+          color.alphaComponent > alphaThreshold
+        else { continue }
+        let (r, g, b) = (color.redComponent, color.greenComponent, color.blueComponent)
+        hasRed = hasRed || (r > g * 1.8 && r > b * 1.8)
+        hasOrange = hasOrange || (r > g * 1.1 && g > b * 1.8 && g > 0.25)
+      }
+    }
+    #expect(
+      hasRed == (expected == 2),
+      "\(item), \(style), \(enabled), dark=\(dark)")
+    #expect(hasOrange == (expected == 1), "\(item), \(style), \(enabled), dark=\(dark)")
+  }
+
+  @Test(arguments: MenuBarStyle.allCases)
+  func loadColorToggleDoesNotChangeAIQuota(style: MenuBarStyle) throws {
+    var reading = MenuBarReading()
+    reading.aiQuotas = [
+      MenuBarQuota(
+        provider: .codex, window: AIQuotaWindow(kind: .weekly, usedPercent: 96, resetsAt: nil),
+        fetchedAt: Date(timeIntervalSince1970: 1_800_000_000), isStale: false)
+    ]
+    let images = [false, true].map { enabled in
+      MenuBarRenderer.preview(
+        MenuBarRenderer.image(
+          reading: reading, items: [.aiUsage], style: { _ in style }, networkStyle: .dots,
+          colorizeHighLoad: enabled, fahrenheit: false), dark: false, backingScale: 2)
+    }
+    #expect(images[0].tiffRepresentation == images[1].tiffRepresentation)
+  }
+
   @Test func valuePositionPersistsAndRoundTripsWithoutChangingOldBackups() throws {
     let suite = "MenuBarValuePosition.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

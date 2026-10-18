@@ -312,10 +312,6 @@ enum MenuBarRenderer {
     static let meterSize = NSSize(width: 5, height: 13)
     static let dotSize: CGFloat = 5
     static let trackAlpha: CGFloat = 0.25
-    static let warningLevel = 0.6
-    static let highLevel = 0.85
-    /// 电量低于这个比例按警示着色
-    static let lowBatteryLevel = 0.2
   }
 
   private struct Segment {
@@ -449,7 +445,7 @@ enum MenuBarRenderer {
       if style == .icon {
         return combine([
           symbolSegment(reading.audioMuted ? "speaker.slash" : "speaker.wave.2"),
-          inlineValue(value, sample: "100%", alert: false),
+          inlineValue(value, sample: "100%", color: nil),
         ])
       }
       return textSegment(
@@ -501,23 +497,23 @@ enum MenuBarRenderer {
         let color = aiQuotaColor(quota.remainingPercent)
         switch style {
         case .stacked, .stackedCenter: return stacked
-        case .inline: return inlineText(label: label, value: value, sample: "100%", alert: false)
+        case .inline: return inlineText(label: label, value: value, sample: "100%", color: nil)
         case .icon:
           return combine(
             [
               aiProviderLogo(quota.magpieName ?? quota.provider?.rawValue ?? ""),
-              inlineValue(value, sample: iconSample, alert: false, leadingAligned: true),
+              inlineValue(value, sample: iconSample, color: nil, leadingAligned: true),
             ],
             gap: Metrics.aiIconValueGap)
         case .ring, .history, .line:
           return combine([
-            ring(fraction: fraction, alert: false, color: color, diameter: 15, lineWidth: 2.5),
+            ring(fraction: fraction, color: color, diameter: 15, lineWidth: 2.5),
             stacked,
           ])
-        case .pie: return combine([pie(fraction: fraction, alert: false, color: color), stacked])
+        case .pie: return combine([pie(fraction: fraction, color: color), stacked])
         case .meter:
-          return combine([meter(fraction: fraction, alert: false, color: color), stacked])
-        case .dot: return combine([quotaDot(color: color), stacked])
+          return combine([meter(fraction: fraction, color: color), stacked])
+        case .dot: return combine([dot(color: color), stacked])
         }
       }, gap: Metrics.aiServiceGap)
     return status
@@ -588,18 +584,19 @@ enum MenuBarRenderer {
   ) -> Segment {
     let bluetooth = reading.bluetoothDevice.map { device -> Segment in
       let value = "\(device.percent)%"
-      let alert = colorizeHighLoad && device.percent <= MenuBarReading.lowBluetoothPercent
+      let color = loadWarningColor(
+        Double(device.percent) / 100, lowIsWarning: true, enabled: colorizeHighLoad)
       // 蓝牙回退与低电量提示也遵循文字排版；BT 区分外设电量与本机 BAT。
       switch style {
       case .stacked, .stackedCenter:
         return stackedText(
-          label: "BT", value: value, sample: "100%", alert: alert,
+          label: "BT", value: value, sample: "100%", color: color,
           centered: style == .stackedCenter, valueOnTop: valueOnTop)
       case .inline:
-        return inlineText(label: "BT", value: value, sample: "100%", alert: alert)
+        return inlineText(label: "BT", value: value, sample: "100%", color: color)
       default:
         return combine([
-          symbolSegment(device.symbol), inlineValue(value, sample: "100%", alert: alert),
+          symbolSegment(device.symbol), inlineValue(value, sample: "100%", color: color),
         ])
       }
     }
@@ -610,25 +607,40 @@ enum MenuBarRenderer {
     }
     let fraction = min(1, max(0, level))
     let text = Format.percent(fraction)
-    let alert = colorizeHighLoad && fraction <= Metrics.lowBatteryLevel
+    let color = loadWarningColor(level, lowIsWarning: true, enabled: colorizeHighLoad)
+    // 零电量没有填充区域，用底槽保留警示；仅电池启用，避免改变 AI 额度的空图形。
+    let emptyTrackColor = fraction == 0 ? color : nil
     let label = MenuBarItem.battery.menuBarLabel
     let stacked = stackedText(
-      label: label, value: text, sample: "100%", alert: alert,
+      label: label, value: text, sample: "100%",
+      color: style == .stacked || style == .stackedCenter ? color : nil,
       centered: style != .stacked, valueOnTop: valueOnTop)
     var segment: Segment
     switch style {
     case .stacked, .stackedCenter: segment = stacked
-    case .inline: segment = inlineText(label: label, value: text, sample: "100%", alert: alert)
+    case .inline: segment = inlineText(label: label, value: text, sample: "100%", color: color)
     case .icon:
       let symbol = reading.batteryCharging ? "battery.100.bolt" : batterySymbol(fraction)
-      segment = combine([symbolSegment(symbol), inlineValue(text, sample: "100%", alert: alert)])
-    case .ring: segment = combine([ring(fraction: fraction, alert: alert), stacked])
-    case .pie: segment = combine([pie(fraction: fraction, alert: alert), stacked])
-    case .history: segment = combine([historyBars(reading.batteryHistory, alert: alert), stacked])
-    case .line: segment = combine([historyLine(reading.batteryHistory, alert: alert), stacked])
-    case .meter: segment = combine([meter(fraction: fraction, alert: alert), stacked])
-    // 圆点的颜色档按“越满越危险”定义，电量正好相反
-    case .dot: segment = combine([levelDot(fraction: 1 - fraction), stacked])
+      segment = combine([symbolSegment(symbol), inlineValue(text, sample: "100%", color: color)])
+    case .ring:
+      segment = combine([
+        ring(fraction: fraction, color: color, emptyTrackColor: emptyTrackColor), stacked,
+      ])
+    case .pie:
+      segment = combine([
+        pie(fraction: fraction, color: color, emptyTrackColor: emptyTrackColor), stacked,
+      ])
+    case .history:
+      segment = combine([
+        historyBars(reading.batteryHistory, color: color, emptyTrackColor: emptyTrackColor),
+        stacked,
+      ])
+    case .line: segment = combine([historyLine(reading.batteryHistory, color: color), stacked])
+    case .meter:
+      segment = combine([
+        meter(fraction: fraction, color: color, emptyTrackColor: emptyTrackColor), stacked,
+      ])
+    case .dot: segment = combine([dot(color: color), stacked])
     }
     if reading.batteryCharging && style != .icon {
       segment = combine([symbolSegment("bolt.fill"), segment])
@@ -655,31 +667,33 @@ enum MenuBarRenderer {
   ) -> Segment {
     let fraction = min(1, max(0, value ?? 0))
     let text = value.map { Format.percent($0) } ?? "—"
-    let alert = colorizeHighLoad && fraction >= Metrics.highLevel
+    let color = loadWarningColor(value, enabled: colorizeHighLoad)
     let sample = "100%"
+    // 有负载图形时由图形承担警示，文字保持系统前景色，避免重复强调。
     let stacked = stackedText(
-      label: item.menuBarLabel, value: text, sample: sample, alert: alert,
+      label: item.menuBarLabel, value: text, sample: sample,
+      color: style == .stacked || style == .stackedCenter ? color : nil,
       centered: style != .stacked, valueOnTop: valueOnTop)
 
     switch style {
     case .stacked, .stackedCenter:
       return stacked
     case .inline:
-      return inlineText(label: item.menuBarLabel, value: text, sample: sample, alert: alert)
+      return inlineText(label: item.menuBarLabel, value: text, sample: sample, color: color)
     case .icon:
-      return combine([symbolSegment(item.symbol), inlineValue(text, sample: sample, alert: alert)])
+      return combine([symbolSegment(item.symbol), inlineValue(text, sample: sample, color: color)])
     case .ring:
-      return combine([ring(fraction: fraction, alert: alert), stacked])
+      return combine([ring(fraction: fraction, color: color), stacked])
     case .pie:
-      return combine([pie(fraction: fraction, alert: alert), stacked])
+      return combine([pie(fraction: fraction, color: color), stacked])
     case .history:
-      return combine([historyBars(history, alert: alert), stacked])
+      return combine([historyBars(history, color: color), stacked])
     case .line:
-      return combine([historyLine(history, alert: alert), stacked])
+      return combine([historyLine(history, color: color), stacked])
     case .meter:
-      return combine([meter(fraction: fraction, alert: alert), stacked])
+      return combine([meter(fraction: fraction, color: color), stacked])
     case .dot:
-      return combine([levelDot(fraction: fraction), stacked])
+      return combine([dot(color: color), stacked])
     }
   }
 
@@ -688,40 +702,51 @@ enum MenuBarRenderer {
     item: MenuBarItem, value: String, sample: String, style: MenuBarStyle, valueOnTop: Bool
   ) -> Segment {
     switch style {
-    case .inline: inlineText(label: item.menuBarLabel, value: value, sample: sample, alert: false)
+    case .inline: inlineText(label: item.menuBarLabel, value: value, sample: sample, color: nil)
     case .icon:
-      combine([symbolSegment(item.symbol), inlineValue(value, sample: sample, alert: false)])
+      combine([symbolSegment(item.symbol), inlineValue(value, sample: sample, color: nil)])
     default:
       stackedText(
-        label: item.menuBarLabel, value: value, sample: sample, alert: false,
+        label: item.menuBarLabel, value: value, sample: sample, color: nil,
         centered: style != .stacked, valueOnTop: valueOnTop)
     }
   }
 
   // MARK: 文字
 
-  private static func foreground(_ alert: Bool) -> NSColor {
-    alert ? .systemRed : .labelColor
+  /// 使用率与剩余电量方向相反；只在用户开启着色且读数有效时提示。
+  private static func loadWarningColor(
+    _ value: Double?, lowIsWarning: Bool = false, enabled: Bool
+  ) -> NSColor? {
+    guard enabled, let value, value.isFinite else { return nil }
+    if lowIsWarning {
+      if value <= 0.1 { return .systemRed }
+      if value <= 0.2 { return .systemOrange }
+    } else {
+      if value >= 0.9 { return .systemRed }
+      if value >= 0.8 { return .systemOrange }
+    }
+    return nil
   }
 
   /// 文字色在绘制时按菜单栏外观解析；小标签也用主文字色，避免深色菜单栏里变得过淡。
   /// 双行风格共用宽度计算；居中时让标签和数值分别按自己的宽度定位。
   /// 仅“双行文字”靠右对齐，图形样式搭配的双行文字默认居中。
   private static func stackedText(
-    label: String, value: String, sample: String, alert: Bool,
+    label: String, value: String, sample: String, color: NSColor?,
     centered: Bool = false, valueOnTop: Bool
   ) -> Segment {
     let labelAttributes: [NSAttributedString.Key: Any] = [
       .font: Metrics.labelFont, .foregroundColor: NSColor.labelColor,
     ]
     let valueAttributes: [NSAttributedString.Key: Any] = [
-      .font: Metrics.stackedValueFont, .foregroundColor: foreground(alert),
+      .font: Metrics.stackedValueFont, .foregroundColor: (color ?? .labelColor),
     ]
     let width = ceil(
       max(
         textWidth(label, labelAttributes), textWidth(value, valueAttributes),
         textWidth(sample, valueAttributes)))
-    return Segment(width: width) { rect in
+    return Segment(width: width, colored: color != nil) { rect in
       let base = baselineOrigin(in: rect)
       let labelBaseline =
         base + (valueOnTop ? Metrics.stackedLowerBaseline : Metrics.stackedUpperBaseline)
@@ -743,15 +768,16 @@ enum MenuBarRenderer {
     }
   }
 
-  private static func inlineText(label: String, value: String, sample: String, alert: Bool)
+  private static func inlineText(label: String, value: String, sample: String, color: NSColor?)
     -> Segment
   {
     let labelAttributes: [NSAttributedString.Key: Any] = [
       .font: Metrics.inlineLabelFont, .foregroundColor: NSColor.labelColor,
     ]
     let labelWidth = ceil(textWidth(label, labelAttributes))
-    let valueSegment = inlineValue(value, sample: sample, alert: alert)
-    return Segment(width: labelWidth + Metrics.innerGap + valueSegment.width) { rect in
+    let valueSegment = inlineValue(value, sample: sample, color: color)
+    return Segment(width: labelWidth + Metrics.innerGap + valueSegment.width, colored: color != nil)
+    { rect in
       drawText(
         label, labelAttributes, rightEdge: rect.minX + labelWidth,
         baseline: rect.midY - Metrics.inlineLabelFont.capHeight / 2)
@@ -763,14 +789,14 @@ enum MenuBarRenderer {
   }
 
   private static func inlineValue(
-    _ value: String, sample: String, alert: Bool, leadingAligned: Bool = false
+    _ value: String, sample: String, color: NSColor?, leadingAligned: Bool = false
   ) -> Segment {
     let attributes: [NSAttributedString.Key: Any] = [
-      .font: Metrics.inlineValueFont, .foregroundColor: foreground(alert),
+      .font: Metrics.inlineValueFont, .foregroundColor: (color ?? .labelColor),
     ]
     let valueWidth = textWidth(value, attributes)
     let width = ceil(max(valueWidth, textWidth(sample, attributes)))
-    return Segment(width: width) { rect in
+    return Segment(width: width, colored: color != nil) { rect in
       // 额度图标与数值相邻；预留宽度留在数值之后，避免短百分比在图标旁留下空白。
       let rightEdge = leadingAligned ? rect.minX + valueWidth : rect.maxX
       drawText(
@@ -811,18 +837,20 @@ enum MenuBarRenderer {
   // MARK: 图形
 
   private static func ring(
-    fraction: Double, alert: Bool, color: NSColor? = nil,
+    fraction: Double, color: NSColor? = nil,
+    emptyTrackColor: NSColor? = nil,
     diameter: CGFloat = Metrics.gaugeDiameter,
     lineWidth: CGFloat = Metrics.ringWidth
   ) -> Segment {
-    Segment(width: diameter, colored: color != nil) { rect in
+    Segment(width: diameter, colored: color != nil || emptyTrackColor != nil) { rect in
       let inset = lineWidth / 2
       let circle = NSRect(
         x: rect.minX + inset, y: rect.midY - diameter / 2 + inset,
         width: diameter - lineWidth, height: diameter - lineWidth)
       let track = NSBezierPath(ovalIn: circle)
       track.lineWidth = lineWidth
-      NSColor.labelColor.withAlphaComponent(Metrics.trackAlpha).setStroke()
+      (fraction > 0 ? NSColor.labelColor : emptyTrackColor ?? .labelColor)
+        .withAlphaComponent(Metrics.trackAlpha).setStroke()
       track.stroke()
       guard fraction > 0 else { return }
       let arc = NSBezierPath()
@@ -831,17 +859,20 @@ enum MenuBarRenderer {
         startAngle: 90, endAngle: 90 - 360 * fraction, clockwise: true)
       arc.lineWidth = lineWidth
       arc.lineCapStyle = .round
-      (color ?? foreground(alert)).setStroke()
+      (color ?? .labelColor).setStroke()
       arc.stroke()
     }
   }
 
-  private static func pie(fraction: Double, alert: Bool, color: NSColor? = nil) -> Segment {
-    Segment(width: Metrics.gaugeDiameter, colored: color != nil) { rect in
+  private static func pie(
+    fraction: Double, color: NSColor? = nil, emptyTrackColor: NSColor? = nil
+  ) -> Segment {
+    Segment(width: Metrics.gaugeDiameter, colored: color != nil || emptyTrackColor != nil) { rect in
       let circle = NSRect(
         x: rect.minX, y: rect.midY - Metrics.gaugeDiameter / 2,
         width: Metrics.gaugeDiameter, height: Metrics.gaugeDiameter)
-      NSColor.labelColor.withAlphaComponent(Metrics.trackAlpha).setFill()
+      (fraction > 0 ? NSColor.labelColor : emptyTrackColor ?? .labelColor)
+        .withAlphaComponent(Metrics.trackAlpha).setFill()
       NSBezierPath(ovalIn: circle).fill()
       guard fraction > 0 else { return }
       let center = NSPoint(x: circle.midX, y: circle.midY)
@@ -851,26 +882,30 @@ enum MenuBarRenderer {
         withCenter: center, radius: circle.width / 2,
         startAngle: 90, endAngle: 90 - 360 * fraction, clockwise: true)
       wedge.close()
-      (color ?? foreground(alert)).setFill()
+      (color ?? .labelColor).setFill()
       wedge.fill()
     }
   }
 
   /// 最近 10 次采样的负载，每根柱子一次采样
-  private static func historyBars(_ history: [Double], alert: Bool) -> Segment {
+  private static func historyBars(
+    _ history: [Double], color: NSColor?, emptyTrackColor: NSColor? = nil
+  ) -> Segment {
     let recent = Array(history.suffix(Metrics.historyCount))
     let padded = Array(repeating: 0, count: Metrics.historyCount - recent.count) + recent
     let width =
       CGFloat(Metrics.historyCount) * Metrics.historyBarWidth + CGFloat(Metrics.historyCount - 1)
       * Metrics.historyBarGap
-    return Segment(width: width) { rect in
+    let trackColor =
+      recent.contains(where: { $0 > 0 }) ? NSColor.labelColor : emptyTrackColor ?? .labelColor
+    return Segment(width: width, colored: color != nil || emptyTrackColor != nil) { rect in
       let bottom = rect.midY - Metrics.chartHeight / 2
       // 不画满高的底槽，只留一条淡基线，柱子的起伏才看得清
-      NSColor.labelColor.withAlphaComponent(Metrics.trackAlpha).setFill()
+      trackColor.withAlphaComponent(Metrics.trackAlpha).setFill()
       NSRect(x: rect.minX, y: bottom, width: width, height: 1).fill()
       for (index, value) in padded.enumerated() where value > 0 {
         let x = rect.minX + CGFloat(index) * (Metrics.historyBarWidth + Metrics.historyBarGap)
-        foreground(alert && value >= Metrics.highLevel).setFill()
+        (color ?? .labelColor).setFill()
         NSRect(
           x: x, y: bottom, width: Metrics.historyBarWidth,
           height: max(1, Metrics.chartHeight * min(1, value))
@@ -880,9 +915,9 @@ enum MenuBarRenderer {
   }
 
   /// 最近 30 次采样的折线，最新的点在右边，线下填淡色；数据不足时从右往左只画已有的部分
-  private static func historyLine(_ history: [Double], alert: Bool) -> Segment {
+  private static func historyLine(_ history: [Double], color: NSColor?) -> Segment {
     let recent = Array(history.suffix(Metrics.lineCount))
-    return Segment(width: Metrics.lineWidth) { rect in
+    return Segment(width: Metrics.lineWidth, colored: color != nil) { rect in
       let bottom = rect.midY - Metrics.chartHeight / 2
       NSColor.labelColor.withAlphaComponent(Metrics.trackAlpha).setFill()
       NSRect(x: rect.minX, y: bottom, width: Metrics.lineWidth, height: 1).fill()
@@ -901,24 +936,28 @@ enum MenuBarRenderer {
       area.line(to: NSPoint(x: rect.maxX, y: bottom))
       area.line(to: NSPoint(x: startX, y: bottom))
       area.close()
-      foreground(alert).withAlphaComponent(Metrics.trackAlpha).setFill()
+      (color ?? .labelColor).withAlphaComponent(Metrics.trackAlpha).setFill()
       area.fill()
 
       line.lineWidth = 1
       line.lineJoinStyle = .round
-      foreground(alert).setStroke()
+      (color ?? .labelColor).setStroke()
       line.stroke()
     }
   }
 
   /// 竖向电量条
-  private static func meter(fraction: Double, alert: Bool, color: NSColor? = nil) -> Segment {
-    Segment(width: Metrics.meterSize.width, colored: color != nil) { rect in
+  private static func meter(
+    fraction: Double, color: NSColor? = nil, emptyTrackColor: NSColor? = nil
+  ) -> Segment {
+    Segment(width: Metrics.meterSize.width, colored: color != nil || emptyTrackColor != nil) {
+      rect in
       let frame = NSRect(
         x: rect.minX, y: rect.midY - Metrics.meterSize.height / 2,
         width: Metrics.meterSize.width, height: Metrics.meterSize.height)
       let radius = Metrics.meterSize.width / 3
-      NSColor.labelColor.withAlphaComponent(Metrics.trackAlpha).setFill()
+      (fraction > 0 ? NSColor.labelColor : emptyTrackColor ?? .labelColor)
+        .withAlphaComponent(Metrics.trackAlpha).setFill()
       let outline = NSBezierPath(roundedRect: frame, xRadius: radius, yRadius: radius)
       outline.fill()
       guard fraction > 0 else { return }
@@ -928,32 +967,14 @@ enum MenuBarRenderer {
       let filled = NSRect(
         x: frame.minX, y: frame.minY, width: frame.width,
         height: frame.height * fraction)
-      (color ?? foreground(alert)).setFill()
+      (color ?? .labelColor).setFill()
       filled.fill()
     }
   }
 
-  /// 按负载着色的状态点：绿色正常、橙色偏高、红色很高
-  private static func levelDot(fraction: Double) -> Segment {
-    var segment = Segment(width: Metrics.dotSize) { rect in
-      let color: NSColor =
-        fraction >= Metrics.highLevel
-        ? .systemRed
-        : fraction >= Metrics.warningLevel ? .systemOrange : .systemGreen
-      color.setFill()
-      NSBezierPath(
-        ovalIn: NSRect(
-          x: rect.minX, y: rect.midY - Metrics.dotSize / 2,
-          width: Metrics.dotSize, height: Metrics.dotSize)
-      ).fill()
-    }
-    segment.colored = true
-    return segment
-  }
-
-  private static func quotaDot(color: NSColor) -> Segment {
-    Segment(width: Metrics.dotSize, colored: true) { rect in
-      color.setFill()
+  private static func dot(color: NSColor?) -> Segment {
+    Segment(width: Metrics.dotSize, colored: color != nil) { rect in
+      (color ?? .labelColor).setFill()
       NSBezierPath(
         ovalIn: NSRect(
           x: rect.minX, y: rect.midY - Metrics.dotSize / 2,
@@ -1045,8 +1066,8 @@ enum MenuBarRenderer {
       segment.colored = style == .dots
       return segment
     case .inline:
-      let upSegment = inlineText(label: "↑", value: up, sample: "999 KB/s", alert: false)
-      let downSegment = inlineText(label: "↓", value: down, sample: "999 KB/s", alert: false)
+      let upSegment = inlineText(label: "↑", value: up, sample: "999 KB/s", color: nil)
+      let downSegment = inlineText(label: "↓", value: down, sample: "999 KB/s", color: nil)
       return combine([upSegment, downSegment], gap: Metrics.innerGap * 2)
     }
   }

@@ -504,7 +504,8 @@ struct MenuBarSettings: View {
         }
       }
       GroupRow {
-        SettingRow(title: tr("高负载时着色"), subtitle: tr("占用超过 85%（电池电量低于 20%）时数值与图形显示为红色")) {
+        SettingRow(title: tr("高负载时着色"), subtitle: tr("占用 ≥80% 或电量 ≤20% 时为橙色；占用 ≥90% 或电量 ≤10% 时为红色"))
+        {
           DSToggle(isOn: $settings.colorizeHighLoad, label: tr("高负载时着色"))
         }
       }

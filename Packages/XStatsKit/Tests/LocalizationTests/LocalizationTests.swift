@@ -14,11 +14,13 @@ import Testing
     }
   }
 
-  @Test func menuBarValuePositionHasExplicitTranslations() throws {
+  @Test func menuBarPresentationHasExplicitTranslations() throws {
     for language in AppLanguage.allCases where language != .system && language != .chinese {
       let table = try #require(Translations.catalog(for: language))
       for source in [
         "数值位置", "适用于双行文字及图形旁的双行文字", "上方", "下方",
+        "占用 ≥80% 或电量 ≤20% 时为橙色；占用 ≥90% 或电量 ≤10% 时为红色",
+        "开启高负载着色后，圆点提示占用偏高或电量偏低",
         "小标签与数值分两行，靠右对齐，数值的右边不会跳",
       ] {
         #expect(table.translate(source)?.isEmpty == false, "\(language): \(source)")
