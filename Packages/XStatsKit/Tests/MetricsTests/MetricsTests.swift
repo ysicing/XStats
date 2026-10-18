@@ -352,6 +352,24 @@ struct LiveSamplerTests {
 }
 
 @Suite struct ProcessParsingTests {
+  @Test(arguments: [
+    ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "Google Chrome"),
+    ("/Applications/测试.app/Contents/MacOS/测试 程序", "测试 程序"),
+    ("/missing/path/name%20with#question?", "name%20with#question?"),
+    ("/private/tmp/.hidden", ".hidden"),
+    ("/usr/bin/工具😀", "工具😀"),
+  ])
+  func executableNamesPreserveLiteralPathComponents(path: String, expected: String) {
+    #expect(ProcessSampler.executableName(for: path) == expected)
+  }
+
+  @Test func inaccessibleProcessMetadataFallsBackToPID() {
+    let metadata = ProcessSampler.meta(for: -1)
+    #expect(metadata.name == "PID -1")
+    #expect(metadata.path == nil)
+    #expect(metadata.bundle == nil)
+  }
+
   @Test func parsesPSOutput() {
     let output = """
           1     0  99:12.26  28144 /sbin/launchd

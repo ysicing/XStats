@@ -208,12 +208,17 @@ public struct ProcessSampler {
     return name
   }
 
+  /// 内核返回的是可执行文件路径；显式指定文件类型，避免 URL 为推断目录而查询文件系统。
+  static func executableName(for path: String) -> String {
+    URL(fileURLWithPath: path, isDirectory: false).lastPathComponent
+  }
+
   static func meta(for pid: pid_t) -> Meta {
     var pathBuffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
     let pathLength = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
     let path = pathLength > 0 ? String(nullTerminated: pathBuffer) : nil
 
-    var name = path.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""
+    var name = path.map { executableName(for: $0) } ?? ""
     if name.isEmpty {
       var nameBuffer = [CChar](repeating: 0, count: 256)
       proc_name(pid, &nameBuffer, UInt32(nameBuffer.count))
