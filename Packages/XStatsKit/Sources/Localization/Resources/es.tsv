@@ -2202,3 +2202,8 @@ Microsoft Teams（旧版）	Microsoft Teams (clásico)
 下次提醒在 {}	Próximo recordatorio a las {}
 休息设置…	Ajustes de descanso…
 等待休息	Hora de descansar
+基础折叠（实验性）	Plegado básico (experimental)
+折叠菜单栏图标	Plegar iconos de la barra de menús
+按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。	Mantén ⌘ y arrastra los iconos poco usados a la izquierda del separador transparente, dejando la flecha a la derecha. Haz clic en la flecha para plegar o desplegar; el resultado depende del espacio en pantalla.
+收起菜单栏图标	Plegar iconos de la barra de menús
+展开菜单栏图标	Desplegar iconos de la barra de menús

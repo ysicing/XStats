@@ -2202,3 +2202,8 @@ Microsoft Teams（旧版）	Microsoft Teams (klassisch)
 下次提醒在 {}	Nächste Erinnerung um {}
 休息设置…	Pauseneinstellungen…
 等待休息	Pause fällig
+基础折叠（实验性）	Einfaches Einklappen (experimentell)
+折叠菜单栏图标	Menüleistensymbole einklappen
+按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。	Halte ⌘ gedrückt und ziehe selten verwendete Symbole links neben den transparenten Trennbereich. Der Pfeil bleibt rechts. Klicke zum Ein- oder Ausklappen auf den Pfeil; das Ergebnis hängt vom Bildschirmplatz ab.
+收起菜单栏图标	Menüleistensymbole einklappen
+展开菜单栏图标	Menüleistensymbole ausklappen

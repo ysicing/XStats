@@ -2202,3 +2202,8 @@ Microsoft Teams（旧版）	Microsoft Teams (classique)
 下次提醒在 {}	Prochain rappel à {}
 休息设置…	Réglages des pauses…
 等待休息	Pause à prendre
+基础折叠（实验性）	Repli simple (expérimental)
+折叠菜单栏图标	Replier les icônes de la barre des menus
+按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。	Maintenez ⌘ et faites glisser les icônes peu utilisées à gauche du séparateur transparent, en gardant la flèche à droite. Cliquez sur la flèche pour replier ou déplier ; le résultat dépend de l’espace disponible.
+收起菜单栏图标	Replier les icônes de la barre des menus
+展开菜单栏图标	Déplier les icônes de la barre des menus

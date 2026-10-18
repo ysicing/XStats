@@ -369,6 +369,17 @@ struct MenuBarSettings: View {
       }
     }
 
+    SettingsGroup(caption: tr("基础折叠（实验性）")) {
+      GroupRow(showsDivider: false) {
+        SettingRow(
+          title: tr("折叠菜单栏图标"),
+          subtitle: tr("按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。")
+        ) {
+          DSToggle(isOn: $settings.menuBarFoldingEnabled, label: tr("折叠菜单栏图标"))
+        }
+      }
+    }
+
     SettingsGroup(caption: tr("整体风格")) {
       LazyVGrid(
         columns: [

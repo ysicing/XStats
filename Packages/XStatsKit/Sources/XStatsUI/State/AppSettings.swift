@@ -803,6 +803,11 @@ public final class AppSettings {
   public var showDockIcon: Bool {
     didSet { defaults.set(showDockIcon, forKey: Keys.showDockIcon) }
   }
+  // 本机菜单栏布局实验开关，不随设置文档同步到其他设备。
+  public var menuBarFoldingEnabled: Bool {
+    didSet { defaults.set(menuBarFoldingEnabled, forKey: Keys.menuBarFoldingEnabled) }
+  }
+
   public var menuBarItemSpacing: Int {
     didSet { defaults.set(menuBarItemSpacing, forKey: Keys.menuBarItemSpacing) }
   }
@@ -1122,6 +1127,7 @@ public final class AppSettings {
     cleanSelectedRuleIDs = defaults.stringArray(forKey: Keys.cleanSelectedRuleIDs).map(Set.init)
     projectPurgeConfiguredPaths = defaults.stringArray(forKey: Keys.projectPurgeConfiguredPaths)
     let spacing = defaults.integer(forKey: Keys.menuBarItemSpacing)
+    menuBarFoldingEnabled = defaults.bool(forKey: Keys.menuBarFoldingEnabled)
     menuBarItemSpacing = Self.menuBarSpacingOptions.contains(spacing) ? spacing : 8
     let savedMenuBarLayout = defaults.string(forKey: Keys.menuBarLayout).flatMap(
       MenuBarLayout.init(rawValue:))
@@ -1352,6 +1358,7 @@ public final class AppSettings {
     static let cleanExcludedPaths = "cleanExcludedPaths"
     static let cleanSelectedRuleIDs = "cleanSelectedRuleIDs"
     static let projectPurgeConfiguredPaths = "projectPurgeConfiguredPaths"
+    static let menuBarFoldingEnabled = "menuBarFoldingEnabled"
     static let menuBarItemSpacing = "menuBarItemSpacing"
     static let menuBarLayout = "menuBarLayout"
     static let hiddenPopoverSections = "hiddenPopoverSections"

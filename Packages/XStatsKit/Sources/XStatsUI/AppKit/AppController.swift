@@ -15,6 +15,7 @@ import WidgetKit
 public final class AppController: NSObject, NSApplicationDelegate {
   private let model = AppModel(quotaCacheURL: AIQuotaCacheStore.defaultURL)
   private let widgetStore = WidgetSnapshotStore()
+  private var menuBarFolding: MenuBarFoldingController!
   private var menuBar: MenuBarController!
   private var calendarMenuBar: CalendarMenuBarController!
   private var mainWindow: MainWindowController!
@@ -134,6 +135,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.connectionMonitor.resumeAfterUpdate()
     menuBar.update()
     calendarMenuBar.start()
+    menuBarFolding = MenuBarFoldingController(settings: model.settings)
+    menuBarFolding.start()
 
     // 设置已并入主窗口：所有“设置…”入口都打开主窗口的通用设置
     model.openSettings = { [weak self] in
@@ -364,6 +367,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.timer.stop()
     rest.prepareForTermination()
     widgetTimer?.invalidate()
+    menuBarFolding.stop()
     calendarMenuBar.stop()
     model.displays.stop()
     model.audio.stop()

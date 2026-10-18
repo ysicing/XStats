@@ -17,6 +17,11 @@ extension Translations {
   }
 
   static let hardwareDetailsEnglish = #"""
+    基础折叠（实验性）	Basic Folding (Experimental)
+    折叠菜单栏图标	Fold Menu Bar Icons
+    按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。	Hold ⌘ and drag infrequently used icons to the left of the transparent separator, keeping the arrow on the right. Click the arrow to collapse or expand; results depend on screen space.
+    收起菜单栏图标	Collapse Menu Bar Icons
+    展开菜单栏图标	Expand Menu Bar Icons
     Microsoft Teams（旧版）	Microsoft Teams (classic)
     仅清理已确认的缓存目录，保留账号、设置和本地数据	Only clears verified cache folders; keeps accounts, settings and local data
     GPU 功耗	GPU Power

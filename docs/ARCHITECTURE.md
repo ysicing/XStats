@@ -29,6 +29,25 @@ Disabled optional-feature entry points lead to Features, including calendar and 
 Disabled monitoring pages retain hardware/basic information and an enable action, without mounting
 live metrics, charts, rankings or controls.
 
+## Experimental menu bar folding
+
+Menu Bar settings offers opt-in basic folding, disabled by default. Hold Command and drag
+infrequently used icons left of the divider, keeping the arrow to its right; click the arrow
+to collapse or expand. Disabling the feature removes both controls and restores available space.
+`MenuBarFoldingController` owns two native status items independently of metric item rebuilding.
+The divider button is transparent, retaining its layout and drag position without drawing a line.
+The divider and arrow are independently movable: the divider defines the folding boundary and
+does not follow the arrow. macOS 27 manages placement itself; the legacy position preference
+preservation in the controller applies to earlier macOS versions, not automatic adjacency.
+It sizes the spacer to half the narrowest display width minus 20 points. A fixed 500-point
+spacer can remain visible as a blank gap when the arrow is farther right; reaching half the
+display width can instead cause macOS 27 to discard the spacer without pushing other items.
+The near-half-width approach is tested on macOS 27.0.1 with a 1920-point-wide display;
+other layouts and OS versions remain unverified. This relies on native overflow, not a public
+hide-other-apps API, so sufficient hiding is not guaranteed. Startup and screen changes expand
+the section. The enable preference stays local and is excluded from settings export/sync.
+There is no icon enumeration, automatic arrangement, background polling, or extra permission.
+
 ## Sampling
 
 `MetricsHub` owns one demand-driven loop. Basic monitoring has separate feature and menu-bar
