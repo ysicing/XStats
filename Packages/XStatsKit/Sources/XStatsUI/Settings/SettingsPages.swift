@@ -395,6 +395,16 @@ struct MenuBarSettings: View {
       }
       .padding(DS.Space.s3)
       .disabled(settings.menuBarLayout == .iconOnly)
+      GroupRow {
+        SettingRow(title: tr("数值位置"), subtitle: tr("适用于双行文字及图形旁的双行文字")) {
+          SegmentedControl(
+            selection: $settings.menuBarValueOnTop,
+            options: [(true, tr("上方")), (false, tr("下方"))]
+          )
+          .fixedSize()
+          .disabled(settings.menuBarLayout == .iconOnly)
+        }
+      }
       HairlineDivider()
       Text(tr("整体风格套用到所有项目。想让某个项目不一样，在下面“显示项目”里给它单独选一种，比如 CPU 用圆环、风扇用数字。"))
         .dsFont(.xs)
@@ -619,7 +629,7 @@ private struct ItemStyleRow: View {
       reading: MenuBarReading(model: model, items: [item]), items: [item],
       style: { settings.style(for: $0) }, networkStyle: settings.networkStyle,
       colorizeHighLoad: settings.colorizeHighLoad, fahrenheit: settings.useFahrenheit,
-      itemGap: CGFloat(settings.menuBarItemSpacing))
+      itemGap: CGFloat(settings.menuBarItemSpacing), valueOnTop: settings.menuBarValueOnTop)
     return Image(nsImage: MenuBarRenderer.preview(image, dark: colorScheme == .dark))
       .padding(.horizontal, DS.Space.s3)
       .frame(height: DS.Size.segmentHeight + DS.Space.s1)
@@ -711,7 +721,8 @@ private struct StyleCard: View {
     let sample = MenuBarRenderer.image(
       reading: previewReading, items: previewItems,
       style: { _ in style }, networkStyle: model.settings.networkStyle,
-      colorizeHighLoad: false, fahrenheit: model.settings.useFahrenheit)
+      colorizeHighLoad: false, fahrenheit: model.settings.useFahrenheit,
+      valueOnTop: model.settings.menuBarValueOnTop)
     Button(action: action) {
       VStack(alignment: .leading, spacing: DS.Space.s2) {
         // 预览按原尺寸显示，超出卡片宽度时等比缩小，保证各卡片对齐

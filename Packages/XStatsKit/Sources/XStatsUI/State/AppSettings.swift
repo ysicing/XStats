@@ -54,8 +54,8 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
     case .memory: "RAM"
     case .network: "NET"
     case .gpu: "GPU"
-    case .disk: "DISK"
-    case .temperature: "TEMP"
+    case .disk: "SSD"
+    case .temperature: "TMP"
     case .fan: "FAN"
     case .battery: "BAT"
     case .aiUsage: "AI"
@@ -282,7 +282,7 @@ public enum MenuBarStyle: String, CaseIterable, Identifiable, Sendable {
 
   var detail: String {
     switch self {
-    case .stacked: tr("小标签在上、数值在下，两行靠右对齐，数值的右边不会跳")
+    case .stacked: tr("小标签与数值分两行，靠右对齐，数值的右边不会跳")
     case .stackedCenter: tr("同双行文字，但两行各自居中；标签比数值宽时（风扇、温度）不会偏到一边")
     case .inline: tr("标签与数值同一行，最易读")
     case .icon: tr("用系统图标代替文字标签")
@@ -348,7 +348,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
   ]
   // 按中文名称由短到长排列，所有语言沿用固定顺序，保持导航位置一致。
   static let tools: [PanelTab] = [
-    .audio, .processes, .cleaner, .uninstaller, .startupItems, .keepAwake, .connections, .rest,
+    .audio, .processes, .cleaner, .uninstaller, .rest, .startupItems, .keepAwake, .connections,
   ]
   // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
   static let settings: [PanelTab] = [
@@ -664,6 +664,10 @@ public final class AppSettings {
   }
   public var menuBarStyle: MenuBarStyle {
     didSet { defaults.set(menuBarStyle.rawValue, forKey: Keys.menuBarStyle) }
+  }
+  /// 双行文字的数值位置；默认在下方，保留已有排版。
+  public var menuBarValueOnTop: Bool {
+    didSet { defaults.set(menuBarValueOnTop, forKey: Keys.menuBarValueOnTop) }
   }
   public var networkStyle: NetworkMenuStyle {
     didSet { defaults.set(networkStyle.rawValue, forKey: Keys.networkStyle) }
@@ -1036,6 +1040,7 @@ public final class AppSettings {
     )
     menuBarStyle =
       defaults.string(forKey: Keys.menuBarStyle).flatMap(MenuBarStyle.init(rawValue:)) ?? .stacked
+    menuBarValueOnTop = defaults.bool(forKey: Keys.menuBarValueOnTop)
     networkStyle =
       defaults.string(forKey: Keys.networkStyle).flatMap(NetworkMenuStyle.init(rawValue:)) ?? .dots
     networkLocationStyle =
@@ -1330,6 +1335,7 @@ public final class AppSettings {
     static let menuBarItems = "menuBarItems"
     static let menuBarOrder = "menuBarOrder"
     static let menuBarStyle = "menuBarStyle"
+    static let menuBarValueOnTop = "menuBarValueOnTop"
     static let networkStyle = "networkStyle"
     static let networkLocationStyle = "networkLocationStyle"
     static let styleOverrides = "styleOverrides"

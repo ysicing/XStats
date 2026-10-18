@@ -289,7 +289,7 @@ enum MenuBarRenderer {
       ofSize: 11, weight: .medium)
     @MainActor static let networkFont = NSFont.monospacedDigitSystemFont(
       ofSize: 9, weight: .regular)
-    @MainActor static let quotaLabelFont = NSFont.systemFont(ofSize: 9, weight: .semibold)
+    @MainActor static let quotaLabelFont = NSFont.systemFont(ofSize: 8, weight: .medium)
     @MainActor static let quotaValueFont = NSFont.monospacedDigitSystemFont(
       ofSize: 12, weight: .semibold)
     static let barHeight: CGFloat = 22
@@ -335,7 +335,7 @@ enum MenuBarRenderer {
       networkStyle: settings.networkStyle,
       colorizeHighLoad: settings.colorizeHighLoad,
       fahrenheit: settings.useFahrenheit,
-      itemGap: CGFloat(settings.menuBarItemSpacing))
+      itemGap: CGFloat(settings.menuBarItemSpacing), valueOnTop: settings.menuBarValueOnTop)
   }
 
   static func image(
@@ -345,7 +345,8 @@ enum MenuBarRenderer {
     networkStyle: NetworkMenuStyle,
     colorizeHighLoad: Bool,
     fahrenheit: Bool,
-    itemGap: CGFloat = 8
+    itemGap: CGFloat = 8,
+    valueOnTop: Bool = false
   ) -> NSImage {
     var segments: [Segment] = []
     if reading.keepAwake { segments.append(symbolSegment("cup.and.saucer.fill")) }
@@ -353,7 +354,7 @@ enum MenuBarRenderer {
       segments.append(
         segment(
           for: item, reading: reading, style: style(item), networkStyle: networkStyle,
-          colorizeHighLoad: colorizeHighLoad, fahrenheit: fahrenheit))
+          colorizeHighLoad: colorizeHighLoad, fahrenheit: fahrenheit, valueOnTop: valueOnTop))
     }
     // 即使防休眠标记存在，空项目布局也保留 XStats 的主入口图标。
     if items.isEmpty { segments.append(symbolSegment("waveform.path.ecg")) }
@@ -415,13 +416,15 @@ enum MenuBarRenderer {
 
   private static func segment(
     for item: MenuBarItem, reading: MenuBarReading, style: MenuBarStyle,
-    networkStyle: NetworkMenuStyle, colorizeHighLoad: Bool, fahrenheit: Bool
+    networkStyle: NetworkMenuStyle, colorizeHighLoad: Bool, fahrenheit: Bool, valueOnTop: Bool
   ) -> Segment {
     switch item {
     case .cpu, .gpu, .memory, .disk:
       let (value, history) = reading.percent(item)
       return percentSegment(
-        item: item, value: value, history: history, style: style, colorizeHighLoad: colorizeHighLoad
+        item: item, value: value, history: history, style: style,
+        colorizeHighLoad: colorizeHighLoad,
+        valueOnTop: valueOnTop
       )
     case .network:
       let speed = networkSegment(
@@ -438,7 +441,8 @@ enum MenuBarRenderer {
           let degrees = fahrenheit ? celsius * 9 / 5 + 32 : celsius
           return "\(Int(degrees.rounded()))°"
         } ?? "—"
-      return textSegment(item: item, value: text, sample: "100°", style: style)
+      return textSegment(
+        item: item, value: text, sample: "100°", style: style, valueOnTop: valueOnTop)
     case .audio:
       let value =
         reading.audioMuted ? tr("已静音") : reading.audioVolume.map { Format.percent($0) } ?? "—"
@@ -448,28 +452,34 @@ enum MenuBarRenderer {
           inlineValue(value, sample: "100%", alert: false),
         ])
       }
-      return textSegment(item: item, value: value, sample: "100%", style: style)
+      return textSegment(
+        item: item, value: value, sample: "100%", style: style, valueOnTop: valueOnTop)
     case .display:
       return textSegment(
         item: item, value: reading.displayCount.formatted(.number.locale(L10n.locale)), sample: "8",
-        style: style)
+        style: style, valueOnTop: valueOnTop)
     case .fan:
       return textSegment(
-        item: item, value: reading.fanRPM.map { "\(Int($0))" } ?? "—", sample: "8888", style: style)
+        item: item, value: reading.fanRPM.map { "\(Int($0))" } ?? "—", sample: "8888", style: style,
+        valueOnTop: valueOnTop)
     case .battery:
-      return batterySegment(reading: reading, style: style, colorizeHighLoad: colorizeHighLoad)
+      return batterySegment(
+        reading: reading, style: style, colorizeHighLoad: colorizeHighLoad,
+        valueOnTop: valueOnTop)
     case .aiUsage:
-      return aiUsageSegment(reading: reading, style: style)
+      return aiUsageSegment(reading: reading, style: style, valueOnTop: valueOnTop)
     }
   }
 
-  private static func aiUsageSegment(reading: MenuBarReading, style: MenuBarStyle) -> Segment {
+  private static func aiUsageSegment(
+    reading: MenuBarReading, style: MenuBarStyle, valueOnTop: Bool
+  ) -> Segment {
     guard !reading.aiQuotas.isEmpty else {
       return textSegment(
         item: .aiUsage,
         value: reading.aiTokens.map { tokenText($0, westernUnits: reading.aiUsageWesternUnits) }
           ?? "—",
-        sample: "999.9M", style: style)
+        sample: "999.9M", style: style, valueOnTop: valueOnTop)
     }
     // 额度组内采用紧凑间距；外部“项目间距”只分隔 AI 与其他监控项目。
     let iconSample = AIUsageFormat.quotaPercent(
@@ -481,8 +491,9 @@ enum MenuBarRenderer {
         let value = AIUsageFormat.quotaPercent(
           remainingPercent: quota.window.remainingPercent,
           showsRemaining: reading.aiQuotaShowsRemaining, locale: L10n.locale, compact: true)
-        let stacked = aiQuotaText(label: name, value: value, centered: style == .stackedCenter)
-        let inline = aiQuotaInlineText(label: name, value: value)
+        let stacked = aiQuotaText(
+          label: name, value: value, centered: style != .stacked,
+          valueOnTop: valueOnTop)
         let fraction =
           (AIUsageFormat.quotaValue(
             remainingPercent: quota.window.remainingPercent,
@@ -501,11 +512,11 @@ enum MenuBarRenderer {
         case .ring, .history, .line:
           return combine([
             ring(fraction: fraction, alert: false, color: color, diameter: 15, lineWidth: 2.5),
-            inline,
+            stacked,
           ])
-        case .pie: return combine([pie(fraction: fraction, alert: false, color: color), inline])
+        case .pie: return combine([pie(fraction: fraction, alert: false, color: color), stacked])
         case .meter:
-          return combine([meter(fraction: fraction, alert: false, color: color), inline])
+          return combine([meter(fraction: fraction, alert: false, color: color), stacked])
         case .dot: return combine([quotaDot(color: color), stacked])
         }
       }, gap: Metrics.aiServiceGap)
@@ -540,7 +551,9 @@ enum MenuBarRenderer {
   }
 
   /// 额度是常驻读数：来源和百分比都用主文字色，时间窗及重置时间由悬停提示承载。
-  private static func aiQuotaText(label: String, value: String, centered: Bool) -> Segment {
+  private static func aiQuotaText(
+    label: String, value: String, centered: Bool, valueOnTop: Bool
+  ) -> Segment {
     let labelAttributes: [NSAttributedString.Key: Any] = [
       .font: Metrics.quotaLabelFont, .foregroundColor: NSColor.labelColor,
     ]
@@ -553,42 +566,25 @@ enum MenuBarRenderer {
         textWidth("100%", valueAttributes)))
     return Segment(width: width) { rect in
       let base = baselineOrigin(in: rect)
+      // 来源名可能包含 g、p 等下伸字母；放在下方时多留 1pt，避免被 22pt 画布裁切。
+      let labelBaseline =
+        base + (valueOnTop ? Metrics.stackedLowerBaseline + 1 : Metrics.stackedUpperBaseline)
+      let valueBaseline =
+        base + (valueOnTop ? Metrics.stackedUpperBaseline : Metrics.stackedLowerBaseline)
       if centered {
-        drawText(label, labelAttributes, centerX: rect.midX, baseline: base + 12)
-        drawText(value, valueAttributes, centerX: rect.midX, baseline: base + 1)
+        drawText(label, labelAttributes, centerX: rect.midX, baseline: labelBaseline)
+        drawText(value, valueAttributes, centerX: rect.midX, baseline: valueBaseline)
       } else {
-        drawText(label, labelAttributes, rightEdge: rect.maxX, baseline: base + 12)
-        drawText(value, valueAttributes, rightEdge: rect.maxX, baseline: base + 1)
+        drawText(label, labelAttributes, rightEdge: rect.maxX, baseline: labelBaseline)
+        drawText(value, valueAttributes, rightEdge: rect.maxX, baseline: valueBaseline)
       }
-    }
-  }
-
-  private static func aiQuotaInlineText(label: String, value: String) -> Segment {
-    let labelAttributes: [NSAttributedString.Key: Any] = [
-      .font: Metrics.inlineValueFont, .foregroundColor: NSColor.labelColor,
-    ]
-    let valueAttributes: [NSAttributedString.Key: Any] = [
-      .font: Metrics.quotaValueFont, .foregroundColor: NSColor.labelColor,
-    ]
-    let labelWidth = ceil(textWidth(label, labelAttributes))
-    let valueWidth = ceil(
-      max(textWidth(value, valueAttributes), textWidth("100%", valueAttributes)))
-    return Segment(width: labelWidth + Metrics.innerGap + valueWidth) { rect in
-      drawText(
-        label, labelAttributes, rightEdge: rect.minX + labelWidth,
-        baseline: rect.midY - Metrics.inlineValueFont.capHeight / 2)
-      // 保留 100% 的宽度以免数字变化时状态项跳动，但数值紧跟来源名。
-      drawText(
-        value, valueAttributes,
-        rightEdge: rect.minX + labelWidth + Metrics.innerGap + textWidth(value, valueAttributes),
-        baseline: rect.midY - Metrics.quotaValueFont.capHeight / 2)
     }
   }
 
   /// 电池：按电量画图形，电量低时着色为警示；充电中在前面加一道闪电。
   /// 没有电池的 Mac 显示电量最低的蓝牙设备；开了提示且某个设备电量低时，附在电池后面
   private static func batterySegment(
-    reading: MenuBarReading, style: MenuBarStyle, colorizeHighLoad: Bool
+    reading: MenuBarReading, style: MenuBarStyle, colorizeHighLoad: Bool, valueOnTop: Bool
   ) -> Segment {
     let bluetooth = reading.bluetoothDevice.map { device -> Segment in
       let value = "\(device.percent)%"
@@ -598,7 +594,7 @@ enum MenuBarRenderer {
       case .stacked, .stackedCenter:
         return stackedText(
           label: "BT", value: value, sample: "100%", alert: alert,
-          centered: style == .stackedCenter)
+          centered: style == .stackedCenter, valueOnTop: valueOnTop)
       case .inline:
         return inlineText(label: "BT", value: value, sample: "100%", alert: alert)
       default:
@@ -608,7 +604,9 @@ enum MenuBarRenderer {
       }
     }
     guard let level = reading.battery else {
-      return bluetooth ?? textSegment(item: .battery, value: "—", sample: "100%", style: style)
+      return bluetooth
+        ?? textSegment(
+          item: .battery, value: "—", sample: "100%", style: style, valueOnTop: valueOnTop)
     }
     let fraction = min(1, max(0, level))
     let text = Format.percent(fraction)
@@ -616,7 +614,7 @@ enum MenuBarRenderer {
     let label = MenuBarItem.battery.menuBarLabel
     let stacked = stackedText(
       label: label, value: text, sample: "100%", alert: alert,
-      centered: style == .stackedCenter)
+      centered: style != .stacked, valueOnTop: valueOnTop)
     var segment: Segment
     switch style {
     case .stacked, .stackedCenter: segment = stacked
@@ -653,7 +651,7 @@ enum MenuBarRenderer {
 
   private static func percentSegment(
     item: MenuBarItem, value: Double?, history: [Double],
-    style: MenuBarStyle, colorizeHighLoad: Bool
+    style: MenuBarStyle, colorizeHighLoad: Bool, valueOnTop: Bool
   ) -> Segment {
     let fraction = min(1, max(0, value ?? 0))
     let text = value.map { Format.percent($0) } ?? "—"
@@ -661,7 +659,7 @@ enum MenuBarRenderer {
     let sample = "100%"
     let stacked = stackedText(
       label: item.menuBarLabel, value: text, sample: sample, alert: alert,
-      centered: style == .stackedCenter)
+      centered: style != .stacked, valueOnTop: valueOnTop)
 
     switch style {
     case .stacked, .stackedCenter:
@@ -687,7 +685,7 @@ enum MenuBarRenderer {
 
   /// 温度、风扇没有百分比图形：两行风格用标签 + 数值，单行风格与图标风格保持单行
   private static func textSegment(
-    item: MenuBarItem, value: String, sample: String, style: MenuBarStyle
+    item: MenuBarItem, value: String, sample: String, style: MenuBarStyle, valueOnTop: Bool
   ) -> Segment {
     switch style {
     case .inline: inlineText(label: item.menuBarLabel, value: value, sample: sample, alert: false)
@@ -696,7 +694,7 @@ enum MenuBarRenderer {
     default:
       stackedText(
         label: item.menuBarLabel, value: value, sample: sample, alert: false,
-        centered: style == .stackedCenter)
+        centered: style != .stacked, valueOnTop: valueOnTop)
     }
   }
 
@@ -708,9 +706,10 @@ enum MenuBarRenderer {
 
   /// 文字色在绘制时按菜单栏外观解析；小标签也用主文字色，避免深色菜单栏里变得过淡。
   /// 双行风格共用宽度计算；居中时让标签和数值分别按自己的宽度定位。
+  /// 仅“双行文字”靠右对齐，图形样式搭配的双行文字默认居中。
   private static func stackedText(
     label: String, value: String, sample: String, alert: Bool,
-    centered: Bool = false
+    centered: Bool = false, valueOnTop: Bool
   ) -> Segment {
     let labelAttributes: [NSAttributedString.Key: Any] = [
       .font: Metrics.labelFont, .foregroundColor: NSColor.labelColor,
@@ -724,18 +723,22 @@ enum MenuBarRenderer {
         textWidth(sample, valueAttributes)))
     return Segment(width: width) { rect in
       let base = baselineOrigin(in: rect)
+      let labelBaseline =
+        base + (valueOnTop ? Metrics.stackedLowerBaseline : Metrics.stackedUpperBaseline)
+      let valueBaseline =
+        base + (valueOnTop ? Metrics.stackedUpperBaseline : Metrics.stackedLowerBaseline)
       if centered {
         drawText(
-          label, labelAttributes, centerX: rect.midX, baseline: base + Metrics.stackedUpperBaseline)
+          label, labelAttributes, centerX: rect.midX, baseline: labelBaseline)
         drawText(
-          value, valueAttributes, centerX: rect.midX, baseline: base + Metrics.stackedLowerBaseline)
+          value, valueAttributes, centerX: rect.midX, baseline: valueBaseline)
       } else {
         drawText(
           label, labelAttributes, rightEdge: rect.maxX,
-          baseline: base + Metrics.stackedUpperBaseline)
+          baseline: labelBaseline)
         drawText(
           value, valueAttributes, rightEdge: rect.maxX,
-          baseline: base + Metrics.stackedLowerBaseline)
+          baseline: valueBaseline)
       }
     }
   }

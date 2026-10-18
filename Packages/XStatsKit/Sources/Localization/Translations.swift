@@ -17,6 +17,10 @@ extension Translations {
   }
 
   static let hardwareDetailsEnglish = #"""
+    数值位置	Value Position
+    适用于双行文字及图形旁的双行文字	Applies to two-line text and two-line text beside charts
+    上方	Above
+    下方	Below
     基础折叠（实验性）	Basic Folding (Experimental)
     折叠菜单栏图标	Fold Menu Bar Icons
     按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。	Hold ⌘ and drag infrequently used icons to the left of the transparent separator, keeping the arrow on the right. Click the arrow to collapse or expand; results depend on screen space.
@@ -833,7 +837,7 @@ extension Translations {
     寿命偏低，注意备份	Low remaining life; keep backups
     寿命按厂商估算的已用比例计算；写入量越大消耗越快，日常使用通常可用很多年	Life is based on the vendor's wear estimate. Heavy writes wear it faster; typical use lasts many years.
     将移到废纸篓	Will move to Trash
-    小标签在上、数值在下，两行靠右对齐，数值的右边不会跳	Small label above the value; both lines align right so the value's edge stays fixed
+    小标签与数值分两行，靠右对齐，数值的右边不会跳	Label and value on separate lines, aligned right to keep the value’s edge fixed
     同双行文字，但两行各自居中；标签比数值宽时（风扇、温度）不会偏到一边	Like Stacked Text, but each line is centered so short values stay beneath wider labels
     尚未检查	Not checked yet
     屏幕保持常亮	Keep display on

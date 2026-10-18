@@ -485,7 +485,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 寿命按厂商估算的已用比例计算；写入量越大消耗越快，日常使用通常可用很多年	La durée de vie repose sur l’estimation d’usure du fabricant. Les écritures intensives accélèrent l’usure ; un usage courant permet généralement plusieurs années de service.
 将应用 {} 保存的设置，覆盖本机对应偏好。	Appliquer les réglages enregistrés le {} en remplaçant les préférences locales correspondantes.
 将移到废纸篓	Sera déplacé vers la Corbeille
-小标签在上、数值在下，两行靠右对齐，数值的右边不会跳	Petite étiquette au-dessus de la valeur ; les deux lignes alignées à droite pour stabiliser le bord de la valeur
+小标签与数值分两行，靠右对齐，数值的右边不会跳	Libellé et valeur sur deux lignes, alignés à droite pour garder le bord de la valeur fixe
 同双行文字，但两行各自居中；标签比数值宽时（风扇、温度）不会偏到一边	Comme le texte sur deux lignes, mais chaque ligne est centrée ; les valeurs courtes restent sous les libellés plus larges
 尚未检查	Pas encore vérifié
 屏幕保持常亮	Maintenir l’écran allumé
@@ -2209,3 +2209,7 @@ Microsoft Teams（旧版）	Microsoft Teams (classique)
 按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。	Maintenez ⌘ et faites glisser les icônes peu utilisées à gauche du séparateur transparent, en gardant la flèche à droite. Cliquez sur la flèche pour replier ou déplier ; le résultat dépend de l’espace disponible.
 收起菜单栏图标	Replier les icônes de la barre des menus
 展开菜单栏图标	Déplier les icônes de la barre des menus
+数值位置	Position de la valeur
+适用于双行文字及图形旁的双行文字	S’applique au texte sur deux lignes et au texte sur deux lignes à côté des graphiques
+上方	En haut
+下方	En bas

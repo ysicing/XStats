@@ -12,6 +12,195 @@ import AIUsage
 
 @MainActor
 struct MenuBarReadingTests {
+  @Test func valuePositionPersistsAndRoundTripsWithoutChangingOldBackups() throws {
+    let suite = "MenuBarValuePosition.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    #expect(!settings.menuBarValueOnTop)
+    settings.menuBarValueOnTop = true
+    #expect(AppSettings(defaults: defaults).menuBarValueOnTop)
+    let document = try JSONDecoder().decode(
+      SettingsDocument.self, from: JSONEncoder().encode(settings.exportDocument()))
+    settings.menuBarValueOnTop = false
+    settings.apply(document)
+    #expect(settings.menuBarValueOnTop)
+    settings.apply(SettingsDocument())
+    #expect(settings.menuBarValueOnTop)
+  }
+
+  @Test(arguments: [
+    MenuBarStyle.stacked, .stackedCenter, .ring, .pie, .history, .line, .meter, .dot,
+  ])
+  func valuePositionSwapsTextRowsWithoutResizing(style: MenuBarStyle) throws {
+    var reading = MenuBarReading.sample
+    reading.keepAwake = false
+    for item in MenuBarItem.allCases where item != .network {
+      let images = try [false, true].map { valueOnTop in
+        let image = MenuBarRenderer.image(
+          reading: reading, items: [item], style: { _ in style }, networkStyle: .dots,
+          colorizeHighLoad: false, fahrenheit: false, valueOnTop: valueOnTop)
+        let preview = MenuBarRenderer.preview(image, dark: false, backingScale: 2)
+        let data = try #require(preview.tiffRepresentation)
+        return try #require(NSBitmapImageRep(data: data).flatMap { $0.cgImage })
+      }
+      #expect(images[0].width == images[1].width)
+      #expect(images[0].height == images[1].height)
+      // 两个文字行相距 11pt；调换顺序时字形与字号应保持一致。
+      let bottom = try #require(
+        images[0].cropping(
+          to: CGRect(
+            x: 0, y: 22, width: images[0].width, height: 22)))
+      let top = try #require(
+        images[1].cropping(
+          to: CGRect(
+            x: 0, y: 0, width: images[1].width, height: 22)))
+      if style == .stacked || style == .stackedCenter {
+        #expect(
+          NSBitmapImageRep(cgImage: bottom).tiffRepresentation
+            == NSBitmapImageRep(cgImage: top).tiffRepresentation)
+      }
+      #expect(
+        NSBitmapImageRep(cgImage: images[0]).tiffRepresentation
+          != NSBitmapImageRep(cgImage: images[1]).tiffRepresentation)
+    }
+  }
+
+  @Test(arguments: [
+    MenuBarStyle.stacked, .stackedCenter, .ring, .pie, .history, .line, .meter, .dot,
+  ])
+  func valuePositionAppliesToQuotaAndBluetoothFallback(style: MenuBarStyle) throws {
+    var quota = MenuBarReading.sample
+    quota.aiQuotas = [
+      MenuBarQuota(
+        provider: nil, window: AIQuotaWindow(kind: .weekly, usedPercent: 19, resetsAt: nil),
+        fetchedAt: Date(timeIntervalSince1970: 1_800_000_000), isStale: false,
+        magpieName: "Magpie")
+    ]
+    var bluetooth = MenuBarReading()
+    bluetooth.bluetoothDevice = ("headphones", 19)
+    for (reading, item) in [(quota, MenuBarItem.aiUsage), (bluetooth, .battery)] {
+      let images = [false, true].map { valueOnTop in
+        MenuBarRenderer.preview(
+          MenuBarRenderer.image(
+            reading: reading, items: [item], style: { _ in style }, networkStyle: .dots,
+            colorizeHighLoad: false, fahrenheit: false, valueOnTop: valueOnTop),
+          dark: false, backingScale: 2)
+      }
+      #expect(images[0].size == images[1].size)
+      // 蓝牙在图形样式下保持单行图标 + 电量；AI 额度使用居中双行。
+      if item == .battery && style != .stacked && style != .stackedCenter {
+        #expect(images[0].tiffRepresentation == images[1].tiffRepresentation)
+      } else {
+        #expect(images[0].tiffRepresentation != images[1].tiffRepresentation)
+        if style == .stacked || style == .stackedCenter {
+          let bitmaps = try images.map { image in
+            let data = try #require(image.tiffRepresentation)
+            return try #require(NSBitmapImageRep(data: data)?.cgImage)
+          }
+          // 额度的来源名下移 10pt，给下伸字母留出 1pt；数字上移 11pt。
+          // 裁出完整字形，避免把相邻行的下伸字母误算成数字的一部分。
+          let rowCrops =
+            item == .aiUsage
+            ? [(beforeY: 2, afterY: 22, height: 22), (beforeY: 24, afterY: 2, height: 20)]
+            : [(beforeY: 0, afterY: 22, height: 22), (beforeY: 22, afterY: 0, height: 22)]
+          for row in rowCrops {
+            let before = try #require(
+              bitmaps[0].cropping(
+                to: CGRect(
+                  x: 0, y: row.beforeY, width: bitmaps[0].width, height: row.height)))
+            let after = try #require(
+              bitmaps[1].cropping(
+                to: CGRect(
+                  x: 0, y: row.afterY, width: bitmaps[1].width, height: row.height)))
+            #expect(
+              NSBitmapImageRep(cgImage: before).tiffRepresentation
+                == NSBitmapImageRep(cgImage: after).tiffRepresentation,
+              "调换位置不应裁切额度或蓝牙的文字：\(item)")
+          }
+        }
+      }
+    }
+  }
+
+  @Test func valuePositionPreservesSingleLineAndNetworkLayouts() {
+    for style in [MenuBarStyle.inline, .icon] {
+      let images = [false, true].map { valueOnTop in
+        MenuBarRenderer.preview(
+          MenuBarRenderer.image(
+            reading: .sample, items: MenuBarItem.allCases, style: { _ in style },
+            networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false,
+            valueOnTop: valueOnTop), dark: false, backingScale: 2)
+      }
+      #expect(images[0].tiffRepresentation == images[1].tiffRepresentation)
+    }
+    for style in NetworkMenuStyle.allCases {
+      let images = [false, true].map { valueOnTop in
+        MenuBarRenderer.preview(
+          MenuBarRenderer.image(
+            reading: .sample, items: [.network], style: { _ in .stackedCenter },
+            networkStyle: style, colorizeHighLoad: false, fahrenheit: false,
+            valueOnTop: valueOnTop), dark: false, backingScale: 2)
+      }
+      #expect(images[0].tiffRepresentation == images[1].tiffRepresentation)
+    }
+  }
+
+  @Test(arguments: [MenuBarStyle.ring, .pie, .history, .line, .meter, .dot])
+  func graphicalStylesCenterTheirTwoLineText(style: MenuBarStyle) throws {
+    var reading = MenuBarReading.sample
+    reading.keepAwake = false
+    reading.batteryCharging = false
+    reading.bluetoothDevice = nil
+    reading.aiQuotas = []
+    for item: MenuBarItem in [.cpu, .battery, .aiUsage] {
+      for valueOnTop in [false, true] {
+        try expectCenteredTrailingText(
+          reading: reading, item: item, style: style, valueOnTop: valueOnTop)
+      }
+    }
+  }
+
+  @Test(arguments: [MenuBarStyle.ring, .pie, .history, .line, .meter, .dot])
+  func quotaGraphicalStylesCenterTheirTwoLineText(style: MenuBarStyle) throws {
+    var reading = MenuBarReading.sample
+    reading.keepAwake = false
+    reading.aiQuotas = [
+      MenuBarQuota(
+        provider: .codex,
+        window: AIQuotaWindow(kind: .weekly, usedPercent: 96, resetsAt: nil),
+        fetchedAt: Date(timeIntervalSince1970: 1_800_000_000), isStale: false)
+    ]
+    for valueOnTop in [false, true] {
+      try expectCenteredTrailingText(
+        reading: reading, item: .aiUsage, style: style, valueOnTop: valueOnTop)
+    }
+  }
+
+  private func expectCenteredTrailingText(
+    reading: MenuBarReading, item: MenuBarItem, style: MenuBarStyle, valueOnTop: Bool
+  ) throws {
+    let bitmaps = try [MenuBarStyle.stackedCenter, style].map { candidate in
+      let image = MenuBarRenderer.image(
+        reading: reading, items: [item], style: { _ in candidate },
+        networkStyle: .dots, colorizeHighLoad: false, fahrenheit: false, valueOnTop: valueOnTop)
+      let preview = MenuBarRenderer.preview(image, dark: false, backingScale: 2)
+      let data = try #require(preview.tiffRepresentation)
+      return try #require(NSBitmapImageRep(data: data))
+    }
+    let reference = try #require(bitmaps[0].cgImage)
+    let actual = try #require(bitmaps[1].cgImage)
+    // 图形占据左侧；右侧文字应与独立“双行居中”逐像素一致，不能沿用靠右排版。
+    let crop = try #require(
+      actual.cropping(
+        to: CGRect(
+          x: actual.width - reference.width, y: 0,
+          width: reference.width, height: reference.height)))
+    let expected = NSBitmapImageRep(cgImage: reference).representation(using: .png, properties: [:])
+    let result = NSBitmapImageRep(cgImage: crop).representation(using: .png, properties: [:])
+    #expect(result == expected, "\(item) 的 \(style) 文字应居中")
+  }
+
   @Test(arguments: [false, true])
   func quotaIconsMatchServicesAndDirectAccounts(dark: Bool) throws {
     let providers = ["grok", "codex", "copilot", "claude", "gemini", "perplexity"]

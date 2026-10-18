@@ -605,6 +605,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.settings.menuBarOrder
       _ = model.settings.menuBarItemSpacing
       _ = model.settings.menuBarLayout
+      _ = model.settings.menuBarValueOnTop
       _ = model.settings.menuBarStyle
       _ = model.settings.networkStyle
       _ = model.settings.processesEnabled

@@ -34,6 +34,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var menuBarOrder: [String]?
   public var enabledMonitoringModules: [String]?
   public var menuBarStyle: String?
+  public var menuBarValueOnTop: Bool?
   public var networkStyle: String?
   public var networkLocationStyle: String?
   public var styleOverrides: [String: String]?
@@ -96,6 +97,7 @@ extension AppSettings {
     doc.menuBarOrder = menuBarOrder.map(\.rawValue)
     doc.enabledMonitoringModules = enabledMonitoringModules.map(\.rawValue).sorted()
     doc.menuBarStyle = menuBarStyle.rawValue
+    doc.menuBarValueOnTop = menuBarValueOnTop
     doc.networkStyle = networkStyle.rawValue
     doc.networkLocationStyle = networkLocationStyle.rawValue
     doc.styleOverrides = Dictionary(
@@ -169,6 +171,7 @@ extension AppSettings {
       setMenuBarOrder(order.compactMap(MenuBarItem.init(rawValue:)))
     }
     assign(\.menuBarStyle, doc.menuBarStyle.flatMap(MenuBarStyle.init(rawValue:)))
+    assign(\.menuBarValueOnTop, doc.menuBarValueOnTop)
     assign(\.networkStyle, doc.networkStyle.flatMap(NetworkMenuStyle.init(rawValue:)))
     assign(
       \.networkLocationStyle, doc.networkLocationStyle.flatMap(NetworkLocationStyle.init(rawValue:))
