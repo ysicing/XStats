@@ -221,6 +221,25 @@ struct LiveSamplerTests {
     #expect(retained == valid)
   }
 
+  @Test func stopsProcessSnapshotAfterTimeout() {
+    let clock = ContinuousClock()
+    let started = clock.now
+    let result = ProcessSampler.runPS(path: "/bin/sleep", arguments: ["1.5"], timeout: 0.02)
+    #expect(result == nil)
+    #expect(started.duration(to: clock.now) < .seconds(1))
+  }
+
+  @Test func rejectsOversizedProcessOutputWithoutReturningPartialRows() {
+    #expect(
+      NetworkProcessSampler.run(
+        path: "/usr/bin/printf", arguments: ["%1024s", "x"], timeout: 2,
+        maximumOutputBytes: 256) == nil)
+    #expect(
+      NetworkProcessSampler.run(
+        path: "/usr/bin/printf", arguments: ["ok"], timeout: 2,
+        maximumOutputBytes: 256) == "ok")
+  }
+
   @Test func stopsNettopCommandAfterTimeout() {
     let clock = ContinuousClock()
     let started = clock.now

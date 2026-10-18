@@ -137,7 +137,7 @@ public final class HelperClient {
       try service.register()
     } catch {
       lastError = tr("安装失败：\(error.localizedDescription)")
-      Log.helper.error("安装失败：\(error.localizedDescription, privacy: .public)")
+      Log.helper.error("安装失败：\(String(error.localizedDescription.prefix(500)), privacy: .private)")
     }
     refreshStatus()
     if status == .requiresApproval {
@@ -159,7 +159,7 @@ public final class HelperClient {
       try await service.unregister()
     } catch {
       lastError = tr("卸载失败：\(error.localizedDescription)")
-      Log.helper.error("卸载失败：\(error.localizedDescription, privacy: .public)")
+      Log.helper.error("卸载失败：\(String(error.localizedDescription.prefix(500)), privacy: .private)")
     }
     refreshStatus()
   }
@@ -311,7 +311,8 @@ public final class HelperClient {
       let once = ResumeOnce(continuation)
       let proxy =
         connection.remoteObjectProxyWithErrorHandler { error in
-          Log.helper.error("XPC 调用失败：\(error.localizedDescription, privacy: .public)")
+          Log.helper.error(
+            "XPC 调用失败：\(String(error.localizedDescription.prefix(500)), privacy: .private)")
           once.resume(tr("无法连接辅助工具：\(error.localizedDescription)"))
         } as? XStatsHelperProtocol
       guard let proxy else {

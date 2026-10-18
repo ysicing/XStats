@@ -7,7 +7,7 @@ import AVFoundation
 
 @Suite struct RecordingMediaTests {
   @Test @MainActor func temporaryMediaStaysOnFailedExportAndDiscardsExplicitly() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     let segment = media.newSegmentURL()
     try Data("invalid media".utf8).write(to: segment)
     #expect(FileManager.default.fileExists(atPath: segment.path))
@@ -23,19 +23,17 @@ import AVFoundation
     #expect(!FileManager.default.fileExists(atPath: media.directory.path))
   }
   @Test @MainActor func exportRejectsOtherCachedSessionsAndAliases() async throws {
-    let media = try RecordingMedia()
-    let other = try RecordingMedia()
-    defer {
-      try? FileManager.default.removeItem(at: media.directory)
-      try? FileManager.default.removeItem(at: other.directory)
-    }
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let media = try RecordingMedia(root: root)
+    let other = try RecordingMedia(root: root)
     let alias = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: other.directory)
     defer { try? FileManager.default.removeItem(at: alias) }
     let sentinel = Data("existing saved file".utf8)
     let saved = other.directory.appendingPathComponent("output.mp4")
     try sentinel.write(to: saved)
-    let exporter = RecordingExporter()
+    let exporter = RecordingExporter(recordingsRoot: root)
     for directory in [other.directory, alias, alias.appendingPathComponent("nested")] {
       await #expect(throws: CaptureError.invalidExportDestination) {
         try await exporter.export(
@@ -52,7 +50,7 @@ import AVFoundation
     #expect(RecordingSampleTime.relative(sample: .nan, origin: 100) == nil)
   }
   @Test func exportRejectsTemporaryFolderAndSymlinkAliases() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let child = media.directory.appendingPathComponent("nested")
     try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)

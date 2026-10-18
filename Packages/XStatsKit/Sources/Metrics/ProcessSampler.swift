@@ -184,21 +184,11 @@ public struct ProcessSampler {
     return parts.compactMap { $0 }.reduce(0) { $0 * 60 + $1 }
   }
 
-  private static func runPS() -> String? {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/bin/ps")
-    process.arguments = ["-axo", "pid=,uid=,time=,rss=,comm="]
-    let pipe = Pipe()
-    process.standardOutput = pipe
-    process.standardError = FileHandle.nullDevice
-    do {
-      try process.run()
-    } catch {
-      return nil
-    }
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    process.waitUntilExit()
-    return process.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : nil
+  static func runPS(
+    path: String = "/bin/ps", arguments: [String] = ["-axo", "pid=,uid=,time=,rss=,comm="],
+    timeout: TimeInterval = 5
+  ) -> String? {
+    NetworkProcessSampler.run(path: path, arguments: arguments, timeout: timeout)
   }
 
   private mutating func userName(_ uid: UInt32) -> String {

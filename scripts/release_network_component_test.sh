@@ -165,8 +165,12 @@ diff -u "$WORK/expected" "$WORK/order"
 expect_failure '公开版本已经存在' bash "$WORK/repo/scripts/release_network_component.sh" --publish
 ! grep -q '^task ' "$WORK/events"
 : > "$WORK/events"
-bash "$WORK/repo/scripts/release_network_component.sh" --publish-only > "$WORK/stdout"
-! grep -q '^task\|^xcrun ' "$WORK/events"
+# 恢复仅依赖原制品：删除构建产物并移除本机签名配置。
+rm -rf "$WORK/repo/build"
+env -u SIGN_ID -u XSTATS_COMPONENT_PROFILE -u XSTATS_NETWORK_PROFILE \
+  bash "$WORK/repo/scripts/release_network_component.sh" --publish-only > "$WORK/stdout"
+! grep -q '^task\|^xcrun notarytool\|^xcrun stapler staple' "$WORK/events"
+grep -q '^xcrun stapler validate' "$WORK/events"
 ! grep -q '^upload .*zip' "$WORK/events"
 grep -q '^api dist/network-monitor/appcast.json' "$WORK/events"
 : > "$WORK/events"

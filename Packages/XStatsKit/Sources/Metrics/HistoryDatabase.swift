@@ -1,6 +1,7 @@
 import Foundation
 import Localization
 import SQLite3
+import OSLog
 
 /// 每分钟一条的历史记录；没有采集到的指标为 nil
 public struct HistoryRecord: Sendable, Equatable {
@@ -69,6 +70,23 @@ public actor HistoryDatabase {
   }
 
   nonisolated(unsafe) private var db: OpaquePointer?
+  private static let log = Logger(subsystem: "work.12306.xstats", category: "history")
+  private var failures: [String: Int32] = [:]
+
+  /// 同一操作的相同错误只记录一次；只记录 SQLite 状态码，不暴露路径或数据。
+  private func succeeded(_ code: Int32, operation: String) -> Bool {
+    if code == SQLITE_OK || code == SQLITE_DONE || code == SQLITE_ROW {
+      if failures.removeValue(forKey: operation) != nil {
+        Self.log.notice("历史数据库操作恢复：\(operation, privacy: .public)")
+      }
+      return true
+    }
+    if failures[operation] != code {
+      Self.log.error("历史数据库操作失败：\(operation, privacy: .public)，SQLite \(code)")
+      failures[operation] = code
+    }
+    return false
+  }
 
   public init(url: URL = HistoryDatabase.defaultURL) throws {
     try FileManager.default.createDirectory(
@@ -92,27 +110,43 @@ public actor HistoryDatabase {
           download REAL, upload REAL, gpu REAL, temperature REAL, power REAL, battery REAL
       );
       """
-    guard sqlite3_exec(handle, schema, nil, nil, nil) == SQLITE_OK else {
+    let schemaResult = sqlite3_exec(handle, schema, nil, nil, nil)
+    guard schemaResult == SQLITE_OK else {
+      Self.log.error("历史数据库建表失败：SQLite \(schemaResult)")
       let message = String(cString: sqlite3_errmsg(handle))
       sqlite3_close(handle)
       db = nil
       throw Error.open(message)
     }
-    // 旧库没有 battery 列：加上；新库已经有，这句报“列已存在”，忽略
-    sqlite3_exec(handle, "ALTER TABLE samples ADD COLUMN battery REAL", nil, nil, nil)
+    // 只迁移缺失列；真实迁移失败必须在打开阶段报告，不能留下一个无法写入的库。
+    if sqlite3_table_column_metadata(handle, nil, "samples", "battery", nil, nil, nil, nil, nil)
+      != SQLITE_OK
+    {
+      let migrationResult = sqlite3_exec(
+        handle, "ALTER TABLE samples ADD COLUMN battery REAL", nil, nil, nil)
+      guard migrationResult == SQLITE_OK else {
+        Self.log.error("历史数据库迁移失败：SQLite \(migrationResult)")
+        let message = String(cString: sqlite3_errmsg(handle))
+        sqlite3_close(handle)
+        db = nil
+        throw Error.open(message)
+      }
+    }
   }
 
   deinit {
     sqlite3_close(db)
   }
 
-  public func insert(_ record: HistoryRecord) {
+  /// 返回是否成功写入；失败按状态变化记录日志，不将失败伪装成已保存。
+  @discardableResult public func insert(_ record: HistoryRecord) -> Bool {
     let sql = """
       INSERT OR REPLACE INTO samples (minute, cpu, cpu_max, memory, pressure, download, upload, gpu, temperature, power, battery)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       """
     var statement: OpaquePointer?
-    guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return }
+    guard succeeded(sqlite3_prepare_v2(db, sql, -1, &statement, nil), operation: "insert.prepare")
+    else { return false }
     defer { sqlite3_finalize(statement) }
     sqlite3_bind_int64(statement, 1, Int64(record.minute))
     let values: [Double?] = [
@@ -127,7 +161,7 @@ public actor HistoryDatabase {
         sqlite3_bind_null(statement, position)
       }
     }
-    sqlite3_step(statement)
+    return succeeded(sqlite3_step(statement), operation: "insert")
   }
 
   /// 按 bucket 秒汇总：平均值取平均，CPU 峰值、内存压力、温度取最大
@@ -140,7 +174,8 @@ public actor HistoryDatabase {
       GROUP BY slot ORDER BY slot
       """
     var statement: OpaquePointer?
-    guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return [] }
+    guard succeeded(sqlite3_prepare_v2(db, sql, -1, &statement, nil), operation: "query.prepare")
+    else { return [] }
     defer { sqlite3_finalize(statement) }
     sqlite3_bind_int64(statement, 1, Int64(size))
     sqlite3_bind_int64(statement, 2, Int64(size))
@@ -152,7 +187,8 @@ public actor HistoryDatabase {
         ? nil : sqlite3_column_double(statement, column)
     }
     var points: [HistoryPoint] = []
-    while sqlite3_step(statement) == SQLITE_ROW {
+    var code = sqlite3_step(statement)
+    while code == SQLITE_ROW {
       points.append(
         HistoryPoint(
           date: Date(timeIntervalSince1970: TimeInterval(sqlite3_column_int64(statement, 0))),
@@ -160,37 +196,46 @@ public actor HistoryDatabase {
           download: double(5), upload: double(6), gpu: double(7), temperature: double(8),
           power: double(9),
           battery: double(10)))
+      code = sqlite3_step(statement)
     }
-    return points
+    return succeeded(code, operation: "query") ? points : []
   }
 
   public func prune(before date: Date) {
     var statement: OpaquePointer?
     guard
-      sqlite3_prepare_v2(db, "DELETE FROM samples WHERE minute < ?", -1, &statement, nil)
-        == SQLITE_OK
+      succeeded(
+        sqlite3_prepare_v2(db, "DELETE FROM samples WHERE minute < ?", -1, &statement, nil),
+        operation: "prune.prepare")
     else { return }
     defer { sqlite3_finalize(statement) }
     sqlite3_bind_int64(statement, 1, Int64(date.timeIntervalSince1970))
-    sqlite3_step(statement)
+    _ = succeeded(sqlite3_step(statement), operation: "prune")
   }
 
   public func clear() {
     guard
-      sqlite3_exec(db, "BEGIN IMMEDIATE; DELETE FROM samples; COMMIT;", nil, nil, nil) == SQLITE_OK
+      succeeded(
+        sqlite3_exec(db, "BEGIN IMMEDIATE; DELETE FROM samples; COMMIT;", nil, nil, nil),
+        operation: "clear")
     else {
       sqlite3_exec(db, "ROLLBACK;", nil, nil, nil)
       return
     }
-    sqlite3_exec(db, "VACUUM;", nil, nil, nil)
+    _ = succeeded(sqlite3_exec(db, "VACUUM;", nil, nil, nil), operation: "vacuum")
   }
 
   public func count() -> Int {
     var statement: OpaquePointer?
-    guard sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM samples", -1, &statement, nil) == SQLITE_OK
+    guard
+      succeeded(
+        sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM samples", -1, &statement, nil),
+        operation: "count.prepare")
     else { return 0 }
     defer { sqlite3_finalize(statement) }
-    return sqlite3_step(statement) == SQLITE_ROW ? Int(sqlite3_column_int64(statement, 0)) : 0
+    let code = sqlite3_step(statement)
+    return succeeded(code, operation: "count") && code == SQLITE_ROW
+      ? Int(sqlite3_column_int64(statement, 0)) : 0
   }
 }
 

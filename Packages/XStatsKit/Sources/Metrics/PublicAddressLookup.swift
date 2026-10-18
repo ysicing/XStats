@@ -270,8 +270,17 @@ public enum PublicAddressLookup {
   /// 按 IP 缓存一小时；收到 429 后到当天（UTC）结束都不再请求
   actor GeoCache {
     private static let lifetime: TimeInterval = 60 * 60
-    private var entries: [String: (info: GeoInfo, date: Date)] = [:]
+    private(set) var entries: [String: (info: GeoInfo, date: Date)] = [:]
     private var blockedUntil: Date?
+
+    func store(_ info: GeoInfo, for ip: String, now: Date = Date()) {
+      // 轮换出口只保留近期结果，不为过期条目维持后台清理任务。
+      entries = entries.filter { now.timeIntervalSince($0.value.date) < Self.lifetime }
+      entries[ip] = (info, now)
+      if entries.count > 64, let oldest = entries.min(by: { $0.value.date < $1.value.date })?.key {
+        entries.removeValue(forKey: oldest)
+      }
+    }
 
     /// `ip` 是 Cloudflare 给出的地址，决定锁定哪一族、按它缓存；查不到的不缓存，下次打开详情再试
     func lookup(_ ip: String) async -> GeoInfo? {
@@ -294,7 +303,7 @@ public enum PublicAddressLookup {
       guard status == 200, let data, let info = PublicAddressLookup.parseCleanIP(data),
         let seen = info.ip, seen.contains(":") == ipv6
       else { return nil }
-      entries[ip] = (info, Date())
+      store(info, for: ip)
       return info
     }
 
@@ -348,8 +357,26 @@ public enum PublicAddressLookup {
   }
 
   static func getWithStatus(_ url: URL, session: URLSession) async -> (Data?, Int) {
-    guard let (data, response) = try? await session.data(from: url) else { return (nil, 0) }
-    return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
+    await getWithStatus(URLRequest(url: url), session: session)
+  }
+
+  static func getWithStatus(_ request: URLRequest, session: URLSession) async -> (Data?, Int) {
+    do {
+      let (bytes, response) = try await session.bytes(for: request)
+      defer { bytes.task.cancel() }
+      guard let response = response as? HTTPURLResponse,
+        // HEAD 的声明长度描述 GET 的内容，并非本次响应体。
+        request.httpMethod == "HEAD" || response.expectedContentLength <= 1_048_576
+      else { return (nil, 0) }
+      var data = Data()
+      // 公网地址和探测响应仅需少量文本；不信任 Content-Length。
+      for try await byte in bytes {
+        try Task.checkCancellation()
+        guard data.count < 1_048_576 else { return (nil, 0) }
+        data.append(byte)
+      }
+      return (data, response.statusCode)
+    } catch { return (nil, 0) }
   }
 
   static func parseTrace(_ body: String) -> [String: String] {

@@ -138,7 +138,7 @@ final class DiskToolsController {
       if result.ok {
         Log.app.notice("磁盘检查通过")
       } else {
-        Log.app.error("磁盘检查发现问题：\(result.summary, privacy: .public)")
+        Log.app.error("磁盘检查发现问题：\(String(result.summary.prefix(500)), privacy: .private)")
       }
     }
   }
@@ -174,7 +174,7 @@ final class DiskToolsController {
           prompt: tr("XStats 需要管理员权限来删除 Time Machine 本地快照。"))
       }
       if let error {
-        Log.app.error("删除本地快照失败：\(error, privacy: .public)")
+        Log.app.error("删除本地快照失败：\(String(error.prefix(500)), privacy: .private)")
         snapshotOutcome = Outcome(text: error, isError: error != MaintenanceController.cancelled)
       } else {
         Log.app.notice("已删除 \(identifiers.count) 个本地快照")

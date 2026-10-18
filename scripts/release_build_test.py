@@ -86,9 +86,17 @@ if not widget.exists():
         (self.work / "project.yml").write_text('CURRENT_PROJECT_VERSION: "145"\n')
         self.write_executable(self.bin / "python3", '#!/bin/bash\n[ "$2" != prepare ] || echo revision\nexit 0\n')
         self.write_executable(self.bin / "task", '#!/bin/bash\nprintf "%s\\n" "$@" > release-task-args\nexit 73\n')
+        sentinels = [self.work / "dist" / product / "recovery.zip"
+                     for product in ("capture", "network-monitor")]
+        for sentinel in sentinels:
+            sentinel.parent.mkdir(parents=True)
+            sentinel.write_bytes(b"original signed artifact")
         result = subprocess.run(["bash", "scripts/release.sh"], cwd=self.work,
                                 env=dict(self.env, SIGN_ID="ABC", DIST="dist"), text=True, capture_output=True)
         self.assertEqual(result.returncode, 73, result.stderr)
+        for sentinel in sentinels:
+            self.assertTrue(sentinel.exists(), f"removed recovery artifact: {sentinel}")
+            self.assertEqual(sentinel.read_bytes(), b"original signed artifact")
         args = (self.work / "release-task-args").read_text().splitlines()
         for argument in ["build", "CONFIG=Release", "INSTALL=0", "BUMP=0", "CLEAN=1", "SIGN_ID=ABC"]:
             self.assertIn(argument, args)

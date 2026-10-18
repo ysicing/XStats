@@ -103,7 +103,7 @@ import ScreenCaptureKit
     return url
   }
   @Test func noCommittedVideoDoesNotProduceARecoverableSegment() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let writer = RecordingWriter(isReady: { _ in false }) { _ in }
     let url = media.newSegmentURL()
@@ -115,7 +115,7 @@ import ScreenCaptureKit
   }
   @Test @MainActor func transientAudioBackpressureBuffersSamplesAndRecordingContinues() async throws
   {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let blocked = OSAllocatedUnfairLock(initialState: true)
     let failures = OSAllocatedUnfairLock(initialState: 0)
@@ -146,7 +146,7 @@ import ScreenCaptureKit
     #expect(try await AVURLAsset(url: url).loadTracks(withMediaType: .video).count == 1)
   }
   @Test func audioBackpressureKeepsLaterSamplesOnTheVideoTimeline() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let blocked = OSAllocatedUnfairLock(initialState: false)
     let writer = RecordingWriter(isReady: { input in
@@ -176,7 +176,7 @@ import ScreenCaptureKit
     #expect(abs(audioEnd - videoEnd) < 0.1)
   }
   @Test @MainActor func producerAudioTimestampGapsDoNotMoveLaterSoundEarlier() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let url = media.newSegmentURL()
     let writer = RecordingWriter { _ in }
@@ -243,7 +243,7 @@ import ScreenCaptureKit
     #expect(sqrt(markerEnergy / Double(max(1, markerCount))) > 0.04)
   }
   @Test func cancelledFinishStopsWriterWithoutReportingMediaFailure() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let failures = OSAllocatedUnfairLock(initialState: 0)
     let writer = RecordingWriter { _ in failures.withLock { $0 += 1 } }
@@ -265,7 +265,7 @@ import ScreenCaptureKit
     #expect(try await !writer.finish())
   }
   @Test func stoppingDrainsBlockedMicrophoneAfterOtherInputsFinish() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let blocked = OSAllocatedUnfairLock(initialState: false)
     let failures = OSAllocatedUnfairLock(initialState: 0)
@@ -308,7 +308,7 @@ import ScreenCaptureKit
   @Test(arguments: [false, true])
   func sustainedAudioBackpressureStopsInsteadOfCompressingTheTimeline(_ overflow: Bool) async throws
   {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let failures = OSAllocatedUnfairLock(initialState: 0)
     let writer = RecordingWriter(isReady: { input in
@@ -332,7 +332,7 @@ import ScreenCaptureKit
   func cancellationWhileDrainingAudioReleasesPendingWorkWithoutFailure(_ cancelTask: Bool)
     async throws
   {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let failures = OSAllocatedUnfairLock(initialState: 0)
     let writer = RecordingWriter(isReady: { input in
@@ -356,7 +356,7 @@ import ScreenCaptureKit
     #expect(try await !writer.finish())
   }
   @Test func cancellingDuplicateFinishDoesNotCancelTheActiveFinish() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let blocked = OSAllocatedUnfairLock(initialState: true)
     let writer = RecordingWriter(isReady: { input in
@@ -383,7 +383,7 @@ import ScreenCaptureKit
     #expect(await writer.hasCommittedMedia)
   }
   @Test func fullAudioBacklogCanRecoverBeforeTheNextSampleArrives() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let blocked = OSAllocatedUnfairLock(initialState: true)
     let failures = OSAllocatedUnfairLock(initialState: 0)
@@ -408,7 +408,7 @@ import ScreenCaptureKit
     #expect(abs(try await track.load(.timeRange).end.seconds - 65.0 / 30) < 0.1)
   }
   @Test func mediaFailureReportsOnceAndStopsAfterFinish() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let failures = OSAllocatedUnfairLock(initialState: 0)
     let writer = RecordingWriter { _ in failures.withLock { $0 += 1 } }
@@ -424,7 +424,7 @@ import ScreenCaptureKit
     #expect(failures.withLock { $0 } == 1)
   }
   @Test func microphoneFailureKeepsItsMeaningAndReportsOnlyOnce() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let failures = OSAllocatedUnfairLock(initialState: [CaptureError]())
     let writer = RecordingWriter { failure in failures.withLock { $0.append(failure) } }
@@ -440,7 +440,7 @@ import ScreenCaptureKit
     #expect(failures.withLock { $0.count } == 1)
   }
   @Test @MainActor func staticFrameKeepsProducerDuration() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let url = media.newSegmentURL()
     let writer = RecordingWriter { _ in }
@@ -455,7 +455,7 @@ import ScreenCaptureKit
     #expect(abs(try await track.load(.timeRange).duration.seconds - 2) < 0.1)
   }
   @Test @MainActor func confirmedStreamFailureStillFinishesTheCurrentSegment() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let url = media.newSegmentURL()
     let writer = RecordingWriter { _ in }
@@ -485,7 +485,7 @@ import ScreenCaptureKit
     continuation.finish()
   }
   @Test @MainActor func audioFailureRetainsTheSealedSegmentAndReportsTheError() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let url = media.newSegmentURL()
     let writer = RecordingWriter(isReady: { input in
@@ -513,7 +513,7 @@ import ScreenCaptureKit
   /// writer 失败且没有任何可封存的媒体时，残缺文件不可播放，必须随失败一并清理，
   /// 否则磁盘写满这类失败会让半成品继续占用空间，直到下次启动的过期清理。
   @Test @MainActor func failedFinishWithoutSealedMediaRemovesTheUnplayableSegment() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let url = media.newSegmentURL()
     let writer = RecordingWriter { _ in }
@@ -540,7 +540,7 @@ import ScreenCaptureKit
     #expect(!FileManager.default.fileExists(atPath: url.path))
   }
   @Test @MainActor func pauseSegmentsTrimAndMixToSingleAudioTrack() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let first = try await segment(media, origin: 100, system: true, microphone: true)
     let second = try await segment(media, origin: 120, system: true, microphone: true)
@@ -567,7 +567,7 @@ import ScreenCaptureKit
       CMFormatDescriptionGetMediaSubType(try #require(formats.first)) == kCMVideoCodecType_H264)
   }
   @Test @MainActor func cancelledExportPreservesOriginalAndExistingDestination() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let source = try await segment(media, origin: 100, system: true, microphone: false)
     let destinationDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -591,7 +591,7 @@ import ScreenCaptureKit
       ])
   }
   @Test @MainActor func exportInsideMediaDirectoryCannotOverwriteSourceAndCanRetry() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let source = try await segment(media, origin: 100, system: false, microphone: false)
     let sentinel = Data("existing destination".utf8)
@@ -611,7 +611,7 @@ import ScreenCaptureKit
     #expect(FileManager.default.fileExists(atPath: output.path))
   }
   @Test @MainActor func finalCommitRunsOffMainThreadAndReplacesExistingDestination() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let source = try await segment(media, origin: 100, system: false, microphone: false)
     let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -629,7 +629,7 @@ import ScreenCaptureKit
     #expect(FileManager.default.fileExists(atPath: source.path))
   }
   @Test @MainActor func failedSaveAllowsRetryAndLeavesSource() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let source = try await segment(media, origin: 100, system: false, microphone: false)
     let exporter = RecordingExporter()
@@ -648,7 +648,7 @@ import ScreenCaptureKit
   }
   @Test(arguments: [(false, false), (true, false), (false, true)]) @MainActor
   func audioOptionsProduceExpectedTracks(options: (Bool, Bool)) async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let url = try await segment(media, origin: 100, system: options.0, microphone: options.1)
     let tracks = try await AVURLAsset(url: url).loadTracks(withMediaType: .audio)

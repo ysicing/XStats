@@ -17,6 +17,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+if [ "$PUBLISH_ONLY" = 0 ]; then
 SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null | awk '/Developer ID Application/ { print $2; exit }' || true)}"
 [ -n "$SIGN_ID" ] && [ "$SIGN_ID" != - ] \
   || { echo 'error: 独立组件发行需要有效 Developer ID Application 证书；ad-hoc 仅使用 task build-network-component' >&2; exit 1; }
@@ -24,6 +25,9 @@ SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null | awk
   || { echo 'error: 需要 XSTATS_COMPONENT_PROFILE 选择网络组件的 Developer ID profile' >&2; exit 1; }
 [ -n "${XSTATS_NETWORK_PROFILE:-}" ] \
   || { echo 'error: 需要 XSTATS_NETWORK_PROFILE 选择网络扩展的 Developer ID profile' >&2; exit 1; }
+TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null | grep -F "$SIGN_ID" | head -1 | sed -nE 's/.*\(([A-Z0-9]+)\)"$/\1/p' || true)"
+[ -n "$TEAM_ID" ] || { echo 'error: 无法从 Developer ID 签名身份解析团队 ID' >&2; exit 1; }
+fi
 if [ "$PUBLISH" = 1 ] && [ "${SKIP_NOTARIZE:-0}" = 1 ]; then
   echo 'error: 未公证的组件不能发布' >&2
   exit 1
@@ -31,8 +35,6 @@ fi
 [ -n "$NOTES" ] && [ -f "$NOTES" ] \
   || { echo 'error: --notes 或 NETWORK_RELEASE_NOTES 必须指定独立组件的中英文摘要 JSON' >&2; exit 1; }
 NOTES="$(cd "$(dirname "$NOTES")" && pwd)/$(basename "$NOTES")"
-TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null | grep -F "$SIGN_ID" | head -1 | sed -nE 's/.*\(([A-Z0-9]+)\)"$/\1/p' || true)"
-[ -n "$TEAM_ID" ] || { echo 'error: 无法从 Developer ID 签名身份解析团队 ID' >&2; exit 1; }
 VERSION="$(sed -nE 's/^ *NETWORK_EXTENSION_VERSION: *"?([0-9.]+)"?.*/\1/p' project.yml | head -1)"
 BUILD="$(sed -nE 's/^ *NETWORK_EXTENSION_BUILD: *"?([0-9]+)"?.*/\1/p' project.yml | head -1)"
 [ -n "$VERSION" ] && [ -n "$BUILD" ] || { echo 'error: 独立组件版本未配置' >&2; exit 1; }
@@ -161,6 +163,13 @@ feed=json.load(open(sys.argv[1]))
 if (feed.get('version'),feed.get('build'),feed.get('url')) != tuple(sys.argv[2:]):
     raise SystemExit('error: 既有制品的版本、构建号或地址与当前声明不一致')
 PYVERIFY
+  # 恢复使用 ZIP 内的签名应用，不依赖已清理的 DerivedData 或本机签名证书。
+  ditto -x -k "$DIST/$NAME.zip" "$WORK/recovery"
+  APP="$WORK/recovery/XStats Network Monitor.app"
+  [ -d "$APP" ] && [ ! -e "$WORK/recovery/__MACOSX" ] \
+    || { echo 'error: 最终 ZIP 不符合单根应用安装契约' >&2; exit 1; }
+  codesign --verify --deep --strict "$APP"
+  xcrun stapler validate "$APP"
   python3 scripts/sparkle_appcast.py "$DIST/appcast.json" "$DIST/$NAME.zip" --verify \
     --notes-file "$NOTES" --app-info "$APP/Contents/Info.plist" --output "$DIST/appcast.xml"
 fi

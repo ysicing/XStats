@@ -339,3 +339,46 @@ func TestSparkleReleaseProbeReturnsFeedWithoutTracking(t *testing.T) {
 		t.Fatalf("release probe tracked %d", count)
 	}
 }
+
+func TestUpdateFeedsSurviveStatisticsWriteFailure(t *testing.T) {
+	feed := signedSparkleFixture(t, "0.14.1")
+	client := &http.Client{Transport: feedTransport(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(feed)), Header: make(http.Header), Request: r}, nil
+	})}
+	databasePath := t.TempDir() + "/xstats.sqlite"
+	app, err := newApplicationWithFeedClient(databasePath, "release-secret", client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publishSparkleFixture(t, app, "0.14.1", "126")
+	database, err := gorm.Open(sqlite.Open(databasePath), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := database.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	// 只破坏统计写入；发布记录和已验签清单仍然可读。
+	if err := database.Exec("CREATE TRIGGER reject_statistics BEFORE INSERT ON installations BEGIN SELECT RAISE(FAIL, 'statistics unavailable'); END").Error; err != nil {
+		t.Fatal(err)
+	}
+	id := strings.Repeat("a", 64)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/update/check", strings.NewReader(`{"current_version":"0.14.0","installation_id":"`+id+`"}`))
+	request.Header.Set("Content-Type", "application/json")
+	for _, req := range []*http.Request{request, httptest.NewRequest(http.MethodGet, "/api/v1/update/appcast.xml?current_version=0.14.0&installation_id="+id, nil)} {
+		res, err := app.Test(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			t.Errorf("%s: status=%d", req.URL.Path, res.StatusCode)
+		}
+		if req.Method == http.MethodGet && string(data) != feed {
+			t.Error("signed feed changed")
+		}
+	}
+}

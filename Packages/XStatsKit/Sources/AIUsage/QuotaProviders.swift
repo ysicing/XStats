@@ -79,8 +79,7 @@ protocol QuotaHTTPClient: Sendable {
 actor URLSessionQuotaHTTPClient: QuotaHTTPClient {
   private let session: URLSession
 
-  init() {
-    let configuration = URLSessionConfiguration.ephemeral
+  init(configuration: URLSessionConfiguration = .ephemeral) {
     configuration.urlCache = nil
     configuration.httpCookieStorage = nil
     configuration.httpShouldSetCookies = false
@@ -91,8 +90,18 @@ actor URLSessionQuotaHTTPClient: QuotaHTTPClient {
   }
 
   func send(_ request: URLRequest) async throws -> (Data, Int) {
-    let (data, response) = try await session.data(for: request)
-    guard let response = response as? HTTPURLResponse else { throw AIQuotaFailure.network }
+    let (bytes, response) = try await session.bytes(for: request)
+    defer { bytes.task.cancel() }
+    guard let response = response as? HTTPURLResponse,
+      response.expectedContentLength <= 1_048_576
+    else { throw AIQuotaFailure.network }
+    var data = Data()
+    // 配额 JSON 应很小；流式限制也覆盖未声明长度与分块响应。
+    for try await byte in bytes {
+      try Task.checkCancellation()
+      guard data.count < 1_048_576 else { throw AIQuotaFailure.network }
+      data.append(byte)
+    }
     return (data, response.statusCode)
   }
 }

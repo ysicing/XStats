@@ -50,12 +50,14 @@ notarize() {
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-rm -rf "$DIST"
 mkdir -p "$DIST"
+# dist 也保存独立产品的恢复制品，只清理本次主程序生成的文件。
+NAME="XStats-${VERSION}-AppleSilicon"
+rm -f "$DIST/$NAME.dmg" "$DIST/$NAME.zip" "$DIST/$NAME.xml" \
+  "$DIST/appcast.json" "$DIST/xstats.rb" "$DIST/release-provenance.json"
 PROVENANCE="$DIST/release-provenance.json"
 python3 scripts/release_provenance.py record "$PROVENANCE" "$BASE_SHA" "$VERSION" "$BUILD"
 
-NAME="XStats-${VERSION}-AppleSilicon"
 echo
 echo "==== Apple Silicon（arm64）===="
 

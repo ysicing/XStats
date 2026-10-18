@@ -280,9 +280,8 @@ public enum EgressProber {
     case .system:
       var request = URLRequest(url: target.url)
       if case .reach(_, let head) = target.probe, head { request.httpMethod = "HEAD" }
-      guard let (data, response) = try? await session.data(for: request),
-        let status = (response as? HTTPURLResponse)?.statusCode
-      else { return nil }
+      let (body, status) = await PublicAddressLookup.getWithStatus(request, session: session)
+      guard let data = body else { return nil }
       return target.measuresExit ? (status == 200 ? data : nil) : data
     case .socket:
       return ok(

@@ -38,7 +38,8 @@ public final class MaintenanceController {
       : await Self.runWithAdministratorPrompt(shell: command.shellCommand, prompt: prompt)
 
     if let error {
-      Log.app.error("\(command.rawValue, privacy: .public) 失败：\(error, privacy: .public)")
+      Log.app.error(
+        "\(command.rawValue, privacy: .public) 失败：\(String(error.prefix(500)), privacy: .private)")
       outcomes[command] = Outcome(text: error, isError: error != Self.cancelled)
       return
     }
@@ -84,7 +85,7 @@ public final class MaintenanceController {
         shell: shell, prompt: tr("XStats 需要管理员权限来修改“\(service)”的 DNS。"))
     }
     if let error {
-      Log.network.error("设置 DNS 失败：\(error, privacy: .public)")
+      Log.network.error("设置 DNS 失败：\(String(error.prefix(500)), privacy: .private)")
       dnsOutcome = Outcome(text: error, isError: error != Self.cancelled)
     } else {
       dnsOutcome = Outcome(

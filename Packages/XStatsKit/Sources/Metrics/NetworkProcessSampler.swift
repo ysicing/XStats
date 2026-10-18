@@ -116,7 +116,10 @@ public struct NetworkProcessSampler: Sendable {
   }
 
   /// 同步运行短命令并持续排空 stdout；超时后先 TERM、再 KILL，避免 `nettop` 挂住采样循环。
-  static func run(path: String, arguments: [String], timeout: TimeInterval) -> String? {
+  static func run(
+    path: String, arguments: [String], timeout: TimeInterval,
+    maximumOutputBytes: Int = 8 * 1024 * 1024
+  ) -> String? {
     guard !Task.isCancelled else { return nil }
     let process = Process()
     process.executableURL = URL(fileURLWithPath: path)
@@ -132,8 +135,16 @@ public struct NetworkProcessSampler: Sendable {
       defer { drain.leave() }
       // 旧的 readDataToEndOfFile() 在超时关闭 pipe 时可能抛出无法由 Swift 捕获的 NSException。
       // throwing API 会把同一竞争转换成普通 I/O 错误，失败时由调用方按无采样结果处理。
-      guard let data = try? pipe.fileHandleForReading.readToEnd() else { return }
-      output.store(data)
+      // 有界保存并继续排空，避免超大输出占满内存或堵住子进程；总运行时间仍由下方控制。
+      var data = Data()
+      var exceededLimit = false
+      do {
+        while let chunk = try pipe.fileHandleForReading.read(upToCount: 64 * 1024), !chunk.isEmpty {
+          if chunk.count > maximumOutputBytes - data.count { exceededLimit = true }
+          if !exceededLimit { data.append(chunk) }
+        }
+      } catch { return }
+      if !exceededLimit { output.store(data) }
     }
 
     let terminated = DispatchSemaphore(value: 0)

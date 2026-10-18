@@ -45,7 +45,10 @@ echo "git $*" >> "$RELEASE_ALL_TEST_LOG"
 case "${1:-}" in
   symbolic-ref) printf '%s\n' "${FAKE_BRANCH:-main}" ;;
   rev-parse) printf '%s\n' "${FAKE_SHA:-abc123}" ;;
-  ls-remote) [ "${FAKE_TAG_EXISTS:-0}" = 1 ] ;;
+  ls-remote)
+    [ "${FAKE_REMOTE_ERROR:-0}" != 1 ] || exit 128
+    [ "${FAKE_TAG_EXISTS:-0}" != 1 ] || exit 0
+    exit 2 ;;
   diff) [ "${3:-}" != --quiet ] ;;
 esac
 SH
@@ -98,6 +101,12 @@ expect_failure "非 main 分支" env XSTATS_RELEASE_TOKEN=test FAKE_BRANCH=featu
   "$WORK/repo/scripts/release_all.sh"
 grep -q 'main' "$WORK/stderr" || { cat "$WORK/stderr" >&2; exit 1; }
 grep -qx 'git symbolic-ref --quiet --short HEAD' "$WORK/log"
+
+setup
+expect_failure "远端查询失败不能继续发布" env XSTATS_RELEASE_TOKEN=test FAKE_REMOTE_ERROR=1 \
+  PATH="$WORK/bin:$PATH" RELEASE_ALL_TEST_LOG="$WORK/log" \
+  "$WORK/repo/scripts/release_all.sh"
+! grep -q '^task ' "$WORK/log"
 
 setup
 env XSTATS_RELEASE_TOKEN=test PATH="$WORK/bin:$PATH" RELEASE_ALL_TEST_LOG="$WORK/log" \

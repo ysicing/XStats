@@ -32,7 +32,7 @@ import AVFoundation
   }
   @Test func emptyFinalizationReleasesRecorderAndTemporaryMedia() async throws {
     _ = NSApplication.shared
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     let recorder = ScreenRecorder(media: media)
     let controller = CaptureController(host: .embedded)
     defer { controller.cleanUp() }
@@ -44,7 +44,7 @@ import AVFoundation
   }
   @Test func retryClearsTransientPermissionFailure() async throws {
     _ = NSApplication.shared
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     let stream = SCStream(
       filter: SCContentFilter(), configuration: SCStreamConfiguration(), delegate: nil)
     var attempts = 0
@@ -64,7 +64,7 @@ import AVFoundation
   }
   @Test func writerFailureDuringFailedStopSurvivesSuccessfulRetry() async throws {
     _ = NSApplication.shared
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     let stream = SCStream(
       filter: SCContentFilter(), configuration: SCStreamConfiguration(), delegate: nil)
     var attempts = 0
@@ -89,7 +89,7 @@ import AVFoundation
     async throws
   {
     _ = NSApplication.shared
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     let url = media.newSegmentURL()
     let writer = RecordingWriter { _ in }
     var options = RecordingOptions()

@@ -78,8 +78,19 @@ public enum RecordingSampleTime {
   private var session: AVAssetExportSession?
   private var exporting = false
   private let commit: @Sendable (URL, URL) throws -> Void
-  public init() { commit = Self.commitStagedFile }
-  init(commit: @escaping @Sendable (URL, URL) throws -> Void) { self.commit = commit }
+  private let recordingsRoot: URL
+  public init() {
+    recordingsRoot = CaptureCache.recordingsDirectory
+    commit = Self.commitStagedFile
+  }
+  init(recordingsRoot: URL) {
+    self.recordingsRoot = recordingsRoot
+    commit = Self.commitStagedFile
+  }
+  init(commit: @escaping @Sendable (URL, URL) throws -> Void) {
+    recordingsRoot = CaptureCache.recordingsDirectory
+    self.commit = commit
+  }
   private nonisolated static func commitStagedFile(_ staging: URL, _ destination: URL) throws {
     if FileManager.default.fileExists(atPath: destination.path) {
       _ = try FileManager.default.replaceItemAt(destination, withItemAt: staging)
@@ -135,9 +146,9 @@ public enum RecordingSampleTime {
     guard !exporting else { throw CaptureError.invalidTransition }
     exporting = true
     defer { exporting = false }
+    let cache = recordingsRoot
     try await Task.detached(priority: .utility) {
       // 其他会话也可能被清理；已保存文件必须放在整个录制缓存之外。
-      let cache = CaptureCache.recordingsDirectory
       if FileManager.default.fileExists(atPath: cache.path) {
         try RecordingMedia.validateExportDestination(destination, outside: cache)
       }

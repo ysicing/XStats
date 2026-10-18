@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import SQLite3
 @testable import Metrics
 
 @Suite struct HistoryDatabaseTests {
@@ -26,6 +27,24 @@ import Testing
     #expect(record?.gpu == nil)
     #expect(accumulator.flush()?.minute == Int(base.timeIntervalSince1970) + 60)
     #expect(accumulator.flush() == nil)
+  }
+
+  @Test func lockedWriterReportsFailureAndRecoversAfterUnlock() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let url = root.appendingPathComponent("history.sqlite")
+    let database = try HistoryDatabase(url: url)
+    var blocker: OpaquePointer?
+    try #require(sqlite3_open(url.path, &blocker) == SQLITE_OK)
+    defer { sqlite3_close(blocker) }
+    try #require(sqlite3_exec(blocker, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK)
+    let record = HistoryRecord(minute: 1_800_000_000, cpu: 0.5)
+    // 持锁时确实写入失败，调用方必须能够区分失败与成功。
+    #expect(await database.insert(record) == false)
+    #expect(await database.count() == 0)
+    try #require(sqlite3_exec(blocker, "ROLLBACK", nil, nil, nil) == SQLITE_OK)
+    #expect(await database.insert(record) == true)
+    #expect(await database.count() == 1)
   }
 
   @Test func storesQueriesAndPrunes() async throws {

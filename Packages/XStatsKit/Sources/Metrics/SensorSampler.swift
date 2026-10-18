@@ -3,15 +3,41 @@ import SMC
 
 /// 温度与风扇（只读，普通权限即可）。
 public final class SensorSampler {
-  private let smc: SMCConnection?
-  private let fans: FanControl?
+  private var smc: SMCConnection?
+  private var fans: FanControl?
   private var detectedFanCount: Int?
-  private lazy var catalog: [TemperatureGroup: [SMCKey]] =
-    smc.map(TemperatureCatalog.discover) ?? [:]
+  private var catalog: [TemperatureGroup: [SMCKey]] = [:]
+  private var lastDiscovery: ContinuousClock.Instant?
+  private let discoverTemperatures: (() -> [TemperatureGroup: [SMCKey]])?
 
   public init() {
     smc = try? SMCConnection()
     fans = smc.map(FanControl.init)
+    discoverTemperatures = nil
+  }
+
+  init(discoverTemperatures: @escaping () -> [TemperatureGroup: [SMCKey]]) {
+    smc = nil
+    fans = nil
+    self.discoverTemperatures = discoverTemperatures
+  }
+
+  func temperatureKeys(now: ContinuousClock.Instant = .now) -> [TemperatureGroup: [SMCKey]] {
+    // 首次枚举为空时沿现有采样限频重试；成功后不再扫描，不新增后台定时器。
+    if lastDiscovery == nil || (catalog.isEmpty && lastDiscovery!.duration(to: now) >= .seconds(30))
+    {
+      lastDiscovery = now
+      if let discoverTemperatures {
+        catalog = discoverTemperatures()
+      } else {
+        if smc == nil {
+          smc = try? SMCConnection()
+          fans = smc.map(FanControl.init)
+        }
+        catalog = smc.map(TemperatureCatalog.discover) ?? [:]
+      }
+    }
+    return catalog
   }
 
   /// 只读一次风扇数量并缓存；读取失败返回 nil，由后续采样或下次启动重试。
@@ -26,6 +52,7 @@ public final class SensorSampler {
   public func sample(
     groups: Set<TemperatureGroup> = Set(TemperatureGroup.allCases), includeFans: Bool = true
   ) -> SensorReadings? {
+    let catalog = groups.isEmpty ? [:] : temperatureKeys()
     guard let smc else { return nil }
     // 硬件数量成功读到后复用；未知时随既有采样重试，不新增轮询。
     _ = detectFanCount()

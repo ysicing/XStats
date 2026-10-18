@@ -201,7 +201,8 @@ func newApplicationWithFeedClient(databasePath string, releaseToken string, feed
 			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
 		}
 		if err := recordUpdateCheck(database, check); err != nil {
-			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "could not record update check"})
+			// 统计是附属写入，失败不能阻断仍可读取的更新。GORM 已记录数据库错误。
+			log.Print("update check statistics write failed")
 		}
 
 		var current release
@@ -258,7 +259,7 @@ func newApplicationWithFeedClient(databasePath string, releaseToken string, feed
 		}
 		if check.InstallationID != releaseProbeInstallationID {
 			if err := recordUpdateCheck(database, check); err != nil {
-				return c.SendStatus(http.StatusInternalServerError)
+				log.Print("appcast statistics write failed")
 			}
 		}
 		c.Type("xml", "utf-8")

@@ -453,6 +453,8 @@ XSTATS_COMPONENT_PROFILE='组件 profile 名称' XSTATS_NETWORK_PROFILE='扩展 
 发布到三个区域 API，使用现有公钥登记组件应用；不再写跨版本 ZIP 别名或可变对象存储 XML。
 已存在的公开版本禁止重新构建覆盖；中断后以原始公证 ZIP/XML 执行
 `./scripts/release_network_component.sh --notes docs/NetworkComponentReleaseNotes.json --publish-only`。
+恢复从原 ZIP 解包校验签名、公证票据与更新清单，不依赖 DerivedData、Developer ID 私钥或构建 profile；
+仍需 Sparkle 验签工具及原密钥账户、对象存储与更新 API 的发布凭据。主程序发布保留独立产品的制品目录。
 源站已有同名 ZIP 时必须与本地原制品哈希相同，否则停止；组件更新与主程序一样走区域 API，API 原样返回不可变 XML，发布后逐入口回读核验。
 
 可对构建执行 `XStats --snapshot <目录> --connections-only --language en` 走查界面。

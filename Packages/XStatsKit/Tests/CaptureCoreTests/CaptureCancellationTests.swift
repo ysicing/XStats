@@ -66,7 +66,7 @@ import ScreenCaptureKit
   }
   @Test @MainActor func discardReleasesTemporaryMediaAndAllowsNewRecorder() async throws {
     for _ in 0..<2 {
-      let media = try RecordingMedia()
+      let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
       let recorder = ScreenRecorder(media: media)
       try Data([1, 2, 3]).write(to: media.newSegmentURL())
       try await recorder.discard()
@@ -74,7 +74,7 @@ import ScreenCaptureKit
     }
   }
   @Test @MainActor func failedStopRetainsProducerForTheNextStopAttempt() async throws {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     // 构造流但不启动采集，测试不需要屏幕权限。
     let stream = SCStream(
@@ -96,7 +96,7 @@ import ScreenCaptureKit
   @MainActor func streamDelegatePreservesPermissionAndCaptureFailure(code: SCStreamError.Code)
     async throws
   {
-    let media = try RecordingMedia()
+    let media = try RecordingMedia(root: FileManager.default.temporaryDirectory)
     defer { try? FileManager.default.removeItem(at: media.directory) }
     let stream = SCStream(
       filter: SCContentFilter(), configuration: SCStreamConfiguration(), delegate: nil)

@@ -34,6 +34,10 @@ fi
 if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null 2>&1; then
   echo "error: v${VERSION} 已存在；若是恢复中断的发布，请运行 task publish。" >&2
   exit 1
+else
+  status=$?
+  # --exit-code 的 2 才表示没有匹配；连接或鉴权失败不能当作版本不存在。
+  [ "$status" = 2 ] || { echo "error: 无法确认远端版本 v${VERSION}，停止发布。" >&2; exit "$status"; }
 fi
 
 RECOVERY=""
