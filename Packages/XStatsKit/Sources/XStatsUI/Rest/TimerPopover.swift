@@ -438,18 +438,17 @@ struct TimerPopover: View {
   private var eyeRestRow: some View {
     ViewThatFits(in: .horizontal) {
       HStack(spacing: 12) {
-        Label(tr("护眼提醒"), systemImage: "eye").foregroundStyle(DS.Palette.textPrimary)
+        Text(tr("护眼提醒"))
         Spacer(minLength: 8)
         Text(TimerReminderStatus(wellness: model.wellness).title)
-          .foregroundStyle(DS.Palette.textSecondary).fixedSize()
+          .fixedSize()
       }
       VStack(alignment: .leading, spacing: 4) {
-        Label(tr("护眼提醒"), systemImage: "eye").foregroundStyle(DS.Palette.textPrimary)
+        Text(tr("护眼提醒"))
         Text(TimerReminderStatus(wellness: model.wellness).title)
-          .foregroundStyle(DS.Palette.textSecondary)
       }.frame(maxWidth: .infinity, alignment: .leading)
     }
-    .font(.system(size: 11)).padding(.vertical, 3)
+    .font(.system(size: 11)).foregroundStyle(DS.Palette.textSecondary).padding(.vertical, 3)
     .accessibilityElement(children: .combine)
   }
 }
