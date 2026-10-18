@@ -930,6 +930,7 @@ struct HelperSettings: View {
           CapabilityLine(text: tr("刷新 DNS 缓存、释放内存、为网络服务设置 DNS 服务器"))
           CapabilityLine(text: tr("应用退出或断开连接时，自动恢复风扇与睡眠设置"))
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
       GroupRow {
         HStack(spacing: DS.Space.s2) {
