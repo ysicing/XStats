@@ -72,6 +72,49 @@ import Testing
     }
   }
 
+  @Test func timerReminderStatusKeepsScheduledTimeAndDistinguishesSuspension() async throws {
+    try await fixture { settings, _, wellness, _ in
+      let deadline = try #require(wellness.nextRestAt)
+      #expect(TimerReminderStatus(wellness: wellness) == .scheduled(deadline))
+      wellness.suspend()
+      #expect(TimerReminderStatus(wellness: wellness) == .paused)
+      wellness.resume()
+      #expect(TimerReminderStatus(wellness: wellness) == .scheduled(deadline))
+      settings.wellnessPreferences.breakEnabled = false
+      wellness.sync()
+      #expect(TimerReminderStatus(wellness: wellness) == .disabled)
+    }
+  }
+
+  @Test func timerReminderStatusPrioritizesActiveBreakOverDisabledReminders() async throws {
+    try await fixture { settings, _, wellness, _ in
+      settings.wellnessPreferences.breakEnabled = false
+      wellness.sync()
+      wellness.startBreak(.short)
+      #expect(TimerReminderStatus(wellness: wellness) == .resting)
+      wellness.suspend(preservingRest: true)
+      #expect(TimerReminderStatus(wellness: wellness) == .resting)
+      wellness.finishEyeRest(completed: false)
+      #expect(TimerReminderStatus(wellness: wellness) == .disabled)
+    }
+  }
+
+  @Test func timerReminderStatusDistinguishesDueAndPostponedReminders() async throws {
+    try await fixture { _, _, wellness, clock in
+      clock.seconds = 1800
+      wellness.refresh()
+      #expect(TimerReminderStatus(wellness: wellness) == .pending)
+      wellness.postpone(.rest)
+      let deadline = try #require(wellness.nextRestAt)
+      #expect(TimerReminderStatus(wellness: wellness) == .scheduled(deadline))
+      #expect(wellness.pending.isEmpty)
+      wellness.suspend()
+      #expect(TimerReminderStatus(wellness: wellness) == .paused)
+      wellness.resume()
+      #expect(TimerReminderStatus(wellness: wellness) == .scheduled(deadline))
+    }
+  }
+
   @Test func repeatedEyeRestRequestsKeepDeadlineAndRespectDisabledFeature() async throws {
     try await fixture { settings, _, wellness, clock in
       wellness.startShortRest()

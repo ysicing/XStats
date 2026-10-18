@@ -87,6 +87,7 @@ struct LanguageSupportTests {
     let catalog = try #require(Translations.catalog(for: language))
     #expect(catalog.sourceKeys == Translations.shared.sourceKeys)
     for key in [
+      "休息类型", "下次提醒在 {}", "休息设置…", "等待休息",
       "暂无正在播放或已调整音量的应用", "Studio Headphones · 未连接", "正在连接“Studio Headphones”…",
       "蓝牙未开启，请在系统设置中开启蓝牙。",
       "请在系统设置的隐私与安全性中允许 XStats 使用蓝牙。",

@@ -8,6 +8,8 @@ import SwiftUI
 struct TimerKeyboardShortcuts: NSViewRepresentable {
   let model: AppModel
   var enabled = true
+  var primaryAction: (() -> Void)?
+  var allowsLaps = true
   func makeNSView(context: Context) -> KeyView { KeyView() }
   func updateNSView(_ view: KeyView, context: Context) {
     view.handle = { event in
@@ -19,8 +21,11 @@ struct TimerKeyboardShortcuts: NSViewRepresentable {
       switch Self.command(
         keyCode: event.keyCode, modifiers: event.modifierFlags, mode: model.timer.mode)
       {
-      case .primary: model.timer.performPrimaryAction()
-      case .lap: model.timer.recordLap()
+      case .primary:
+        if let primaryAction { primaryAction() } else { model.timer.performPrimaryAction() }
+      case .lap:
+        guard allowsLaps else { return false }
+        model.timer.recordLap()
       case nil: return false
       }
       return true

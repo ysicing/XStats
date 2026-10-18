@@ -4,6 +4,10 @@
 extension Translations {
   static let wellnessEnglish = #"""
     休息设置	Break settings
+    休息类型	Break type
+    下次提醒在 {}	Next reminder at {}
+    休息设置…	Break settings…
+    等待休息	Break due
     休息时关闭显示器	Turn off display during breaks
     唤亮屏幕后休息继续，结束时不会主动点亮屏幕。	The break continues when the display wakes. Finishing does not turn it on.
     结束休息	End break

@@ -2198,3 +2198,7 @@ Microsoft Teams（旧版）	Microsoft Teams (klassisch)
 开始短休息	Kurze Pause starten
 开始长休息	Lange Pause starten
 空格：开始或暂停 · ⌘L：秒表计次。输入时不触发。	Leertaste: starten/pausieren · ⌘L: Rundenzeit. Beim Tippen inaktiv.
+休息类型	Pausenart
+下次提醒在 {}	Nächste Erinnerung um {}
+休息设置…	Pauseneinstellungen…
+等待休息	Pause fällig

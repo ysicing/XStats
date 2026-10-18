@@ -1037,6 +1037,7 @@ enum SnapshotRenderer {
     let settings = AppSettings(defaults: defaults)
     settings.language = L10n.language
     settings.restEnabled = true
+    settings.wellnessPreferences.breakEnabled = true
     let model = AppModel(
       settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
     model.rest.showPreview()
@@ -1078,6 +1079,13 @@ enum SnapshotRenderer {
           to: outputDirectory.appendingPathComponent(
             "timer-popover-\(mode.rawValue)-setup-\(suffix).png"))
       }
+      for kind in [ManualBreakKind.short, .long] {
+        write(
+          TimerPopover(showsRest: true, breakKind: kind, openPage: {}, showHUD: {}, close: {}),
+          model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent(
+            "timer-popover-break-\(kind)-setup-\(suffix).png"))
+      }
       write(
         RestOptionsPopover(), model: model, appearance: appearance,
         to: outputDirectory.appendingPathComponent("timer-settings-\(suffix).png"))
@@ -1087,11 +1095,27 @@ enum SnapshotRenderer {
       for kind in ManualBreakKind.allCases {
         model.wellness.showPreview(activities: [], at: Date(), eyeRest: true, kind: kind)
         write(
+          TimerPopover(showsRest: true, openPage: {}, showHUD: {}, close: {}),
+          model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent(
+            "timer-popover-break-\(kind)-active-\(suffix).png"))
+        write(
           RestHUDView(rest: model.rest, close: {}, wellness: model.wellness, timer: model.timer),
           model: model, appearance: appearance,
           to: outputDirectory.appendingPathComponent("timer-break-\(kind)-hud-\(suffix).png"))
       }
       model.wellness.showPreview(activities: [], at: Date())
+      for state in ["disabled", "paused", "scheduled"] {
+        model.wellness.resume()
+        model.wellness.showPreview(activities: [], at: Date())
+        settings.wellnessPreferences.breakEnabled = state != "disabled"
+        if state == "paused" { model.wellness.suspend() }
+        write(
+          TimerPopover(showsRest: true, openPage: {}, showHUD: {}, close: {}),
+          model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent(
+            "timer-popover-reminder-\(state)-\(suffix).png"))
+      }
     }
   }
 
