@@ -504,9 +504,20 @@ struct MenuBarSettings: View {
         }
       }
       GroupRow {
-        SettingRow(title: tr("高负载时着色"), subtitle: tr("占用 ≥80% 或电量 ≤20% 时为橙色；占用 ≥90% 或电量 ≤10% 时为红色"))
-        {
+        SettingRow(
+          title: tr("高负载时着色"),
+          subtitle: tr("占用偏高或电量偏低时用橙色、红色提示；电量 ≤20% 为橙色，≤10% 为红色")
+        ) {
           DSToggle(isOn: $settings.colorizeHighLoad, label: tr("高负载时着色"))
+        }
+      }
+      GroupRow {
+        SettingRow(title: tr("占用着色灵敏度"), subtitle: settings.loadSensitivity.detail) {
+          SegmentedControl(
+            selection: $settings.loadSensitivity,
+            options: LoadSensitivity.allCases.map { ($0, $0.title) }
+          )
+          .fixedSize()
         }
       }
       GroupRow {
@@ -630,7 +641,8 @@ private struct ItemStyleRow: View {
       reading: MenuBarReading(model: model, items: [item]), items: [item],
       style: { settings.style(for: $0) }, networkStyle: settings.networkStyle,
       colorizeHighLoad: settings.colorizeHighLoad, fahrenheit: settings.useFahrenheit,
-      itemGap: CGFloat(settings.menuBarItemSpacing), valueOnTop: settings.menuBarValueOnTop)
+      itemGap: CGFloat(settings.menuBarItemSpacing), valueOnTop: settings.menuBarValueOnTop,
+      loadSensitivity: settings.loadSensitivity)
     return Image(nsImage: MenuBarRenderer.preview(image, dark: colorScheme == .dark))
       .padding(.horizontal, DS.Space.s3)
       .frame(height: DS.Size.segmentHeight + DS.Space.s1)

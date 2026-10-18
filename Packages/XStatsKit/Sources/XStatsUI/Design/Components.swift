@@ -331,6 +331,36 @@ struct PillSwitch<Value: Hashable>: View {
   }
 }
 
+// MARK: - 负载分级
+
+/// 占用率与剩余电量的统一分级，菜单栏、弹窗和面板共用，避免各处阈值漂移。
+/// 占用率阈值随用户选择的灵敏度变化；剩余电量固定为 ≤20% 警示、≤10% 严重。
+enum LoadLevel {
+  case normal, warning, critical
+
+  /// 占用率越高越严重（CPU、GPU、内存、磁盘），`value` 取 0...1。
+  static func usage(_ value: Double, sensitivity: LoadSensitivity) -> LoadLevel {
+    let thresholds = sensitivity.usageThresholds
+    if value >= thresholds.critical { return .critical }
+    return value >= thresholds.warning ? .warning : .normal
+  }
+
+  /// 剩余量越低越严重（电池、蓝牙设备电量），`value` 取 0...1。
+  static func remaining(_ value: Double) -> LoadLevel {
+    if value <= 0.1 { return .critical }
+    return value <= 0.2 ? .warning : .normal
+  }
+
+  /// 正常档的外观因位置而异，由调用方指定。
+  func tone(normal: Tone) -> Tone {
+    switch self {
+    case .normal: normal
+    case .warning: .warning
+    case .critical: .error
+    }
+  }
+}
+
 // MARK: - 徽标
 
 enum Tone {

@@ -1119,6 +1119,20 @@ private func isolatedDefaults() -> UserDefaults {
     settings.colorizeHighLoad = true
     #expect(settings.exportDocument() != AppSettings.defaultDocument())
   }
+
+  @Test func loadSensitivityRoundTripsAndIgnoresUnknownValues() {
+    let source = AppSettings(defaults: isolatedDefaults())
+    #expect(source.loadSensitivity == .standard)
+    source.loadSensitivity = .sensitive
+    let target = AppSettings(defaults: isolatedDefaults())
+    target.apply(source.exportDocument())
+    #expect(target.loadSensitivity == .sensitive)
+
+    var unknown = SettingsDocument()
+    unknown.loadSensitivity = "future"
+    target.apply(unknown)
+    #expect(target.loadSensitivity == .sensitive)
+  }
 }
 
 @Suite struct ActivityRankingTests {

@@ -331,7 +331,8 @@ enum MenuBarRenderer {
       networkStyle: settings.networkStyle,
       colorizeHighLoad: settings.colorizeHighLoad,
       fahrenheit: settings.useFahrenheit,
-      itemGap: CGFloat(settings.menuBarItemSpacing), valueOnTop: settings.menuBarValueOnTop)
+      itemGap: CGFloat(settings.menuBarItemSpacing), valueOnTop: settings.menuBarValueOnTop,
+      loadSensitivity: settings.loadSensitivity)
   }
 
   static func image(
@@ -342,7 +343,8 @@ enum MenuBarRenderer {
     colorizeHighLoad: Bool,
     fahrenheit: Bool,
     itemGap: CGFloat = 8,
-    valueOnTop: Bool = false
+    valueOnTop: Bool = false,
+    loadSensitivity: LoadSensitivity = .standard
   ) -> NSImage {
     var segments: [Segment] = []
     if reading.keepAwake { segments.append(symbolSegment("cup.and.saucer.fill")) }
@@ -350,7 +352,8 @@ enum MenuBarRenderer {
       segments.append(
         segment(
           for: item, reading: reading, style: style(item), networkStyle: networkStyle,
-          colorizeHighLoad: colorizeHighLoad, fahrenheit: fahrenheit, valueOnTop: valueOnTop))
+          colorizeHighLoad: colorizeHighLoad, fahrenheit: fahrenheit, valueOnTop: valueOnTop,
+          loadSensitivity: loadSensitivity))
     }
     // 即使防休眠标记存在，空项目布局也保留 XStats 的主入口图标。
     if items.isEmpty { segments.append(symbolSegment("waveform.path.ecg")) }
@@ -412,7 +415,8 @@ enum MenuBarRenderer {
 
   private static func segment(
     for item: MenuBarItem, reading: MenuBarReading, style: MenuBarStyle,
-    networkStyle: NetworkMenuStyle, colorizeHighLoad: Bool, fahrenheit: Bool, valueOnTop: Bool
+    networkStyle: NetworkMenuStyle, colorizeHighLoad: Bool, fahrenheit: Bool, valueOnTop: Bool,
+    loadSensitivity: LoadSensitivity
   ) -> Segment {
     switch item {
     case .cpu, .gpu, .memory, .disk:
@@ -420,7 +424,7 @@ enum MenuBarRenderer {
       return percentSegment(
         item: item, value: value, history: history, style: style,
         colorizeHighLoad: colorizeHighLoad,
-        valueOnTop: valueOnTop
+        valueOnTop: valueOnTop, loadSensitivity: loadSensitivity
       )
     case .network:
       let speed = networkSegment(
@@ -663,11 +667,11 @@ enum MenuBarRenderer {
 
   private static func percentSegment(
     item: MenuBarItem, value: Double?, history: [Double],
-    style: MenuBarStyle, colorizeHighLoad: Bool, valueOnTop: Bool
+    style: MenuBarStyle, colorizeHighLoad: Bool, valueOnTop: Bool, loadSensitivity: LoadSensitivity
   ) -> Segment {
     let fraction = min(1, max(0, value ?? 0))
     let text = value.map { Format.percent($0) } ?? "—"
-    let color = loadWarningColor(value, enabled: colorizeHighLoad)
+    let color = loadWarningColor(value, sensitivity: loadSensitivity, enabled: colorizeHighLoad)
     let sample = "100%"
     // 有负载图形时由图形承担警示，文字保持系统前景色，避免重复强调。
     let stacked = stackedText(
@@ -716,17 +720,17 @@ enum MenuBarRenderer {
 
   /// 使用率与剩余电量方向相反；只在用户开启着色且读数有效时提示。
   private static func loadWarningColor(
-    _ value: Double?, lowIsWarning: Bool = false, enabled: Bool
+    _ value: Double?, lowIsWarning: Bool = false, sensitivity: LoadSensitivity = .standard,
+    enabled: Bool
   ) -> NSColor? {
     guard enabled, let value, value.isFinite else { return nil }
-    if lowIsWarning {
-      if value <= 0.1 { return .systemRed }
-      if value <= 0.2 { return .systemOrange }
-    } else {
-      if value >= 0.9 { return .systemRed }
-      if value >= 0.8 { return .systemOrange }
+    switch lowIsWarning
+      ? LoadLevel.remaining(value) : LoadLevel.usage(value, sensitivity: sensitivity)
+    {
+    case .normal: return nil
+    case .warning: return .systemOrange
+    case .critical: return .systemRed
     }
-    return nil
   }
 
   /// 文字色在绘制时按菜单栏外观解析；小标签也用主文字色，避免深色菜单栏里变得过淡。

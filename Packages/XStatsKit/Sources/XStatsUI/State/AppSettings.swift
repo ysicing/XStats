@@ -296,6 +296,35 @@ public enum MenuBarStyle: String, CaseIterable, Identifiable, Sendable {
   }
 }
 
+/// 占用率着色的灵敏度预设；剩余电量的阈值固定，不随预设变化。
+public enum LoadSensitivity: String, CaseIterable, Identifiable, Sendable {
+  case standard, sensitive
+
+  public var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .standard: tr("标准")
+    case .sensitive: tr("灵敏")
+    }
+  }
+
+  var detail: String {
+    switch self {
+    case .standard: tr("占用 ≥80% 为橙色，≥90% 为红色")
+    case .sensitive: tr("占用 ≥60% 为橙色，≥85% 为红色")
+    }
+  }
+
+  /// 占用率达到该比例为警示（橙色）、严重（红色）。
+  var usageThresholds: (warning: Double, critical: Double) {
+    switch self {
+    case .standard: (0.8, 0.9)
+    case .sensitive: (0.6, 0.85)
+    }
+  }
+}
+
 public enum NetworkMenuStyle: String, CaseIterable, Identifiable, Sendable {
   case dots, arrows, inline
 
@@ -767,6 +796,9 @@ public final class AppSettings {
   public var colorizeHighLoad: Bool {
     didSet { defaults.set(colorizeHighLoad, forKey: Keys.colorizeHighLoad) }
   }
+  public var loadSensitivity: LoadSensitivity {
+    didSet { defaults.set(loadSensitivity.rawValue, forKey: Keys.loadSensitivity) }
+  }
   /// 键盘、鼠标、耳机等蓝牙设备电量低时，在菜单栏电池项旁提示
   public var bluetoothLowBatteryInMenuBar: Bool {
     didSet { defaults.set(bluetoothLowBatteryInMenuBar, forKey: Keys.bluetoothLowBatteryInMenuBar) }
@@ -1092,6 +1124,9 @@ public final class AppSettings {
       Self.aiUsageRefreshOptions.contains(defaults.integer(forKey: Keys.aiUsageRefreshMinutes))
       ? defaults.integer(forKey: Keys.aiUsageRefreshMinutes) : 30
     colorizeHighLoad = defaults.bool(forKey: Keys.colorizeHighLoad)
+    loadSensitivity =
+      defaults.string(forKey: Keys.loadSensitivity).flatMap(LoadSensitivity.init(rawValue:))
+      ?? .standard
     bluetoothLowBatteryInMenuBar =
       defaults.object(forKey: Keys.bluetoothLowBatteryInMenuBar) as? Bool ?? true
     useFahrenheit = defaults.bool(forKey: Keys.useFahrenheit)
@@ -1351,6 +1386,7 @@ public final class AppSettings {
     static let aiUsageCurrency = "aiUsageCurrency"
     static let aiUsageRefreshMinutes = "aiUsageRefreshMinutes"
     static let colorizeHighLoad = "colorizeHighLoad"
+    static let loadSensitivity = "loadSensitivity"
     static let bluetoothLowBatteryInMenuBar = "bluetoothLowBatteryInMenuBar"
     static let useFahrenheit = "useFahrenheit"
     static let lidModeBatteryFloor = "lidModeBatteryFloor"

@@ -196,7 +196,8 @@ private struct BatteryHero: View {
   }
 
   private func chargeSummary(_ battery: BatteryStatus) -> some View {
-    let tone: Tone = battery.level <= 0.2 ? .error : battery.isCharging ? .primary : .success
+    let tone = LoadLevel.remaining(battery.level).tone(
+      normal: battery.isCharging ? .primary : .success)
     return HStack(spacing: DS.Space.s3) {
       RingGauge(fraction: battery.level, color: tone.color, size: DS.Space.s12 + DS.Space.s2) {
         Image(systemName: battery.isCharging ? "bolt.fill" : "laptopcomputer")

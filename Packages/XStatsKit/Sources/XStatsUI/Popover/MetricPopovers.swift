@@ -14,8 +14,8 @@ extension View {
   }
 }
 
-private func loadTone(_ value: Double) -> Tone {
-  value >= 0.85 ? .error : value >= 0.6 ? .warning : .primary
+private func loadTone(_ value: Double, _ sensitivity: LoadSensitivity) -> Tone {
+  LoadLevel.usage(value, sensitivity: sensitivity).tone(normal: .primary)
 }
 
 // MARK: - CPU
@@ -66,8 +66,10 @@ struct CPUPopover: View {
     case .cpuCores:
       // 主窗口：每个核心一个圆环，中间写百分比，最直观；弹窗窄，用每核一根柱子的紧凑版（默认关闭，在设置里打开）
       if isDetailPage {
-        SectionCard(title: section.title, hint: tr("此刻各核心的占用；超过 60% 变橙色、85% 变红色")) {
-          CoreRingGrid(topology: store.topology, perCore: cpu?.perCore ?? [])
+        SectionCard(title: section.title, hint: tr("此刻各核心的占用；偏高时变橙色或红色")) {
+          CoreRingGrid(
+            topology: store.topology, perCore: cpu?.perCore ?? [],
+            sensitivity: model.settings.loadSensitivity)
         }
       } else {
         SectionCard(title: section.title, hint: tr("每根柱子一个核心，按核心类型着色")) {
@@ -106,7 +108,8 @@ struct CPUPopover: View {
           ShareRow(
             label: label,
             value: tr("每核 \((value / cores).formatted(.number.precision(.fractionLength(2))))"),
-            fraction: value / cores, color: loadTone(value / cores).color)
+            fraction: value / cores,
+            color: loadTone(value / cores, model.settings.loadSensitivity).color)
         }
       }
     case .cpuApps:
@@ -197,6 +200,7 @@ extension ProcessInfo.ThermalState {
 private struct CoreRingGrid: View {
   let topology: CPUTopology
   let perCore: [Double]
+  let sensitivity: LoadSensitivity
 
   private static let ring = DS.Space.s12 + DS.Space.s2
   private static let columns = [
@@ -224,7 +228,9 @@ private struct CoreRingGrid: View {
             MainActorForEach(cluster.coreIndices, id: \.self) { index in
               let value = perCore[safe: index] ?? 0
               VStack(spacing: DS.Space.s1) {
-                RingGauge(fraction: value, color: loadTone(value).color, size: Self.ring) {
+                RingGauge(
+                  fraction: value, color: loadTone(value, sensitivity).color, size: Self.ring
+                ) {
                   Text(verbatim: Format.percent(value))
                     .dsFont(.xs, weight: .semibold)
                     .monospacedDigit()
@@ -286,7 +292,9 @@ private struct CPUHero: View {
           value: cpu.map { "\(Int(($0.total * 100).rounded()))" } ?? "—", unit: "%", size: .xxl)
         VStack(alignment: .leading, spacing: DS.Space.s1) {
           StatusBadge(
-            text: usageStatus, tone: total >= 0.85 ? .error : total >= 0.6 ? .warning : .success
+            text: usageStatus,
+            tone: LoadLevel.usage(total, sensitivity: model.settings.loadSensitivity)
+              .tone(normal: .success)
           )
           .help([usageStatus, pressureHelp].joined(separator: "\n"))
           Text(verbatim: trendLabel)
@@ -366,7 +374,11 @@ private struct CPUHero: View {
   }
 
   private func status(_ total: Double) -> String {
-    total >= 0.85 ? tr("满载") : total >= 0.6 ? tr("繁忙") : total >= 0.25 ? tr("适中") : tr("空闲")
+    switch LoadLevel.usage(total, sensitivity: model.settings.loadSensitivity) {
+    case .critical: tr("满载")
+    case .warning: tr("繁忙")
+    case .normal: total >= 0.25 ? tr("适中") : tr("空闲")
+    }
   }
 
   /// 离 100°C 还差多少度；华氏制下按温差换算（差 45°C 即差 81°F）
@@ -799,7 +811,8 @@ struct GPUPopover: View {
     Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
       HStack(spacing: DS.Space.s3) {
         RingGauge(
-          fraction: gpu?.utilization ?? 0, color: loadTone(gpu?.utilization ?? 0).color,
+          fraction: gpu?.utilization ?? 0,
+          color: loadTone(gpu?.utilization ?? 0, settings.loadSensitivity).color,
           size: heroGauge
         ) {
           Text(verbatim: gpu.map { Format.percent($0.utilization) } ?? "—")

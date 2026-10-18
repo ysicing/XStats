@@ -41,6 +41,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var refreshSeconds: Int?
   public var cpuSharePerCore: Bool?
   public var colorizeHighLoad: Bool?
+  public var loadSensitivity: String?
   public var bluetoothLowBatteryInMenuBar: Bool?
   public var useFahrenheit: Bool?
   public var lidModeBatteryFloor: Int?
@@ -105,6 +106,7 @@ extension AppSettings {
     doc.refreshSeconds = refreshSeconds
     doc.cpuSharePerCore = cpuSharePerCore
     doc.colorizeHighLoad = colorizeHighLoad
+    doc.loadSensitivity = loadSensitivity.rawValue
     doc.bluetoothLowBatteryInMenuBar = bluetoothLowBatteryInMenuBar
     doc.useFahrenheit = useFahrenheit
     doc.lidModeBatteryFloor = lidModeBatteryFloor
@@ -189,6 +191,7 @@ extension AppSettings {
     assign(\.refreshSeconds, option(doc.refreshSeconds, in: Self.refreshOptions))
     assign(\.cpuSharePerCore, doc.cpuSharePerCore)
     assign(\.colorizeHighLoad, doc.colorizeHighLoad)
+    assign(\.loadSensitivity, doc.loadSensitivity.flatMap(LoadSensitivity.init(rawValue:)))
     assign(\.bluetoothLowBatteryInMenuBar, doc.bluetoothLowBatteryInMenuBar)
     assign(\.useFahrenheit, doc.useFahrenheit)
     assign(\.lidModeBatteryFloor, option(doc.lidModeBatteryFloor, in: Self.batteryFloorOptions))

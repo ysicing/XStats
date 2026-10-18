@@ -243,8 +243,10 @@ struct OverviewReading {
       chart = .line(store.cpuTotal.elements, DS.Palette.primary)
       if let total = store.cpu?.total {
         setPercent(total)
-        tone = Self.loadTone(total)
-        detail = [loadLevel(total), temperature(.cpu)].compactMap { $0 }.joined(separator: " · ")
+        tone = Self.loadTone(total, model.settings.loadSensitivity)
+        detail = [loadLevel(total, model.settings.loadSensitivity), temperature(.cpu)].compactMap {
+          $0
+        }.joined(separator: " · ")
       }
     case .memory:
       if let memory = store.memory {
@@ -276,9 +278,10 @@ struct OverviewReading {
       chart = .line(store.gpuHistory.elements, DS.Palette.secondary)
       if let gpu = store.gpu {
         setPercent(gpu.utilization)
-        tone = Self.loadTone(gpu.utilization)
-        detail = [loadLevel(gpu.utilization), temperature(.gpu)].compactMap { $0 }.joined(
-          separator: " · ")
+        tone = Self.loadTone(gpu.utilization, model.settings.loadSensitivity)
+        detail = [loadLevel(gpu.utilization, model.settings.loadSensitivity), temperature(.gpu)]
+          .compactMap { $0 }.joined(
+            separator: " · ")
       }
     case .disk:
       if let disk = store.disk {
@@ -319,11 +322,13 @@ struct OverviewReading {
       }
       if let battery = store.battery {
         setPercent(battery.level)
-        tone = battery.level <= 0.2 && !battery.isCharging ? .error : .neutral
+        let low = LoadLevel.remaining(battery.level)
+        tone = battery.isCharging ? .neutral : low.tone(normal: .neutral)
         chart = .level(
           battery.level,
-          battery.level <= 0.2
-            ? DS.Palette.error : battery.isCharging ? DS.Palette.primary : DS.Palette.success)
+          low == .normal
+            ? (battery.isCharging ? DS.Palette.primary : DS.Palette.success)
+            : low.tone(normal: .neutral).color)
         // 充电中的时间是充满所需，其余是还能用多久，状态已经说明了是哪一种
         detail = [battery.stateText, battery.minutesRemaining.map { Format.duration(minutes: $0) }]
           .compactMap { $0 }.joined(separator: " · ")
@@ -331,9 +336,9 @@ struct OverviewReading {
         // 没有电池的 Mac：与菜单栏一致，显示电量最低的蓝牙设备
         value = "\(lowest.percent)"
         unit = "%"
-        tone = lowest.percent <= MenuBarReading.lowBluetoothPercent ? .error : .neutral
-        chart = .level(
-          Double(lowest.percent) / 100, tone == .error ? DS.Palette.error : DS.Palette.success)
+        let fraction = Double(lowest.percent) / 100
+        tone = LoadLevel.remaining(fraction).tone(normal: .neutral)
+        chart = .level(fraction, tone == .neutral ? DS.Palette.success : tone.color)
         detail =
           lowest.label.isEmpty ? lowest.device.name : "\(lowest.device.name) · \(lowest.label)"
       } else {
@@ -379,7 +384,7 @@ struct OverviewReading {
     unit = "%"
   }
 
-  private static func loadTone(_ value: Double) -> Tone {
-    value >= 0.85 ? .error : value >= 0.6 ? .warning : .neutral
+  private static func loadTone(_ value: Double, _ sensitivity: LoadSensitivity) -> Tone {
+    LoadLevel.usage(value, sensitivity: sensitivity).tone(normal: .neutral)
   }
 }

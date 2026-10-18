@@ -215,8 +215,10 @@ private struct HealthHeader: View {
 
 // MARK: - 指标卡片
 
-func loadLevel(_ value: Double) -> String {
-  value < 0.3 ? tr("低负载") : value < 0.7 ? tr("中等负载") : tr("高负载")
+/// 文字分级与着色共用 `LoadLevel`：占用达到橙色阈值即为“高负载”，各入口不会一处偏高一处适中。
+func loadLevel(_ value: Double, _ sensitivity: LoadSensitivity) -> String {
+  if LoadLevel.usage(value, sensitivity: sensitivity) != .normal { return tr("高负载") }
+  return value < 0.3 ? tr("低负载") : tr("中等负载")
 }
 
 private func splitRate(_ text: String) -> (String, String) {
@@ -245,7 +247,10 @@ private struct CPUTile: View {
     ) {
       BarHistoryChart(values: store.cpuTotal.elements, capacity: 20, height: DS.Size.tileChart)
     } footer: {
-      Text(verbatim: tr("\(loadLevel(total)) · 负载 \(load)/\(store.topology.logicalCores)"))
+      Text(
+        verbatim: tr(
+          "\(loadLevel(total, model.settings.loadSensitivity)) · 负载 \(load)/\(store.topology.logicalCores)"
+        ))
     }
   }
 }
@@ -271,7 +276,10 @@ private struct GPUTile: View {
         height: DS.Size.tileChart)
     } footer: {
       Text(
-        verbatim: [loadLevel(utilization), store.gpu?.coreCount.map { tr("\($0) 核") }].compactMap {
+        verbatim: [
+          loadLevel(utilization, model.settings.loadSensitivity),
+          store.gpu?.coreCount.map { tr("\($0) 核") },
+        ].compactMap {
           $0
         }.joined(separator: " · "))
     }
@@ -453,7 +461,8 @@ private struct BatteryCard: View {
 
   var body: some View {
     if let battery = model.store.battery {
-      let tone: Tone = battery.level < 0.2 ? .error : battery.isCharging ? .primary : .success
+      let tone = LoadLevel.remaining(battery.level).tone(
+        normal: battery.isCharging ? .primary : .success)
       Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
         HStack(spacing: DS.Space.s1) {
           Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.75")

@@ -346,7 +346,12 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 单行文字	Einzeiliger Text
 占整机 CPU 的比例：{} 个核心全部跑满为 100%	Anteil an der gesamten CPU: Alle {} Kerne voll ausgelastet entsprechen 100 %
 占用	Auslastung
-占用 ≥80% 或电量 ≤20% 时为橙色；占用 ≥90% 或电量 ≤10% 时为红色	Orange bei Auslastung ≥80 % oder Batteriestand ≤20 %; Rot bei Auslastung ≥90 % oder Batteriestand ≤10 %
+占用偏高或电量偏低时用橙色、红色提示；电量 ≤20% 为橙色，≤10% 为红色	Orange oder Rot bei hoher Auslastung oder niedrigem Akkustand; Akku ≤20 % ist orange, ≤10 % rot
+占用着色灵敏度	Empfindlichkeit der Auslastungsfärbung
+标准	Standard
+灵敏	Empfindlich
+占用 ≥80% 为橙色，≥90% 为红色	Orange ab Auslastung ≥80 %, Rot ab ≥90 %
+占用 ≥60% 为橙色，≥85% 为红色	Orange ab Auslastung ≥60 %, Rot ab ≥85 %
 占用高于	Auslastung über
 卷	Volume
 卸载	Deinstallieren
@@ -811,7 +816,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 正在读取风扇…	Lüfter werden gelesen …
 正在释放…	Wird freigegeben …
 正常	Normal
-此刻各核心的占用；超过 60% 变橙色、85% 变红色	Aktuelle Auslastung je Kern; über 60 % orange, über 85 % rot
+此刻各核心的占用；偏高时变橙色或红色	Aktuelle Auslastung je Kern; bei hoher Last orange oder rot
 此设备没有可调节的风扇	Dieser Mac hat keine regelbaren Lüfter
 每个指标一个图标，点击弹出该项详情	Ein Symbol je Kennzahl; ein Klick öffnet die Details
 主要指标每分钟写入本机数据库并保留 7 天	Wichtige Messwerte werden jede Minute lokal gespeichert und 7 Tage aufbewahrt.

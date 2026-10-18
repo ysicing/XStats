@@ -113,7 +113,8 @@ final class MenuBarController: NSObject {
           colorizeHighLoad: settings.colorizeHighLoad,
           fahrenheit: settings.useFahrenheit,
           itemGap: CGFloat(settings.menuBarItemSpacing),
-          valueOnTop: settings.menuBarValueOnTop)
+          valueOnTop: settings.menuBarValueOnTop,
+          loadSensitivity: settings.loadSensitivity)
         renderedReadings[entry.key] = (entryReading, appearance)
       }
       // 额度的重置时间、过期状态等只影响提示，不必重画相同图像。

@@ -701,7 +701,12 @@ extension Translations {
     单行文字	Inline Text
     占整机 CPU 的比例：{} 个核心全部跑满为 100%	Share of total CPU: all {} cores fully busy is 100%
     占用	Usage
-    占用 ≥80% 或电量 ≤20% 时为橙色；占用 ≥90% 或电量 ≤10% 时为红色	Orange at usage ≥80% or battery ≤20%; red at usage ≥90% or battery ≤10%
+    占用偏高或电量偏低时用橙色、红色提示；电量 ≤20% 为橙色，≤10% 为红色	Orange or red when usage is high or battery is low; battery ≤20% is orange, ≤10% is red
+    占用着色灵敏度	Usage Coloring Sensitivity
+    标准	Standard
+    灵敏	Sensitive
+    占用 ≥80% 为橙色，≥90% 为红色	Orange at usage ≥80%, red at ≥90%
+    占用 ≥60% 为橙色，≥85% 为红色	Orange at usage ≥60%, red at ≥85%
     占用高于	Usage above
     卷	Volume
     卸载	Uninstall
@@ -1170,7 +1175,7 @@ extension Translations {
     正在读取风扇…	Reading fans…
     正在释放…	Freeing…
     正常	Normal
-    此刻各核心的占用；超过 60% 变橙色、85% 变红色	Current load of each core; orange above 60%, red above 85%
+    此刻各核心的占用；偏高时变橙色或红色	Current load of each core; turns orange or red when high
     此设备没有可调节的风扇	This Mac has no adjustable fans
     每个指标一个图标，点击弹出该项详情	One icon per metric; click for its details
     主要指标每分钟写入本机数据库并保留 7 天	Key metrics are written to a local database every minute and kept for 7 days.

@@ -346,7 +346,12 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 单行文字	Texte sur une ligne
 占整机 CPU 的比例：{} 个核心全部跑满为 100%	Part du CPU total : les {} cœurs entièrement utilisés représentent 100 %
 占用	Utilisation
-占用 ≥80% 或电量 ≤20% 时为橙色；占用 ≥90% 或电量 ≤10% 时为红色	Orange si utilisation ≥80 % ou batterie ≤20 % ; rouge si utilisation ≥90 % ou batterie ≤10 %
+占用偏高或电量偏低时用橙色、红色提示；电量 ≤20% 为橙色，≤10% 为红色	Orange ou rouge quand l’utilisation est élevée ou la batterie faible ; batterie ≤20 % en orange, ≤10 % en rouge
+占用着色灵敏度	Sensibilité de la coloration de l’utilisation
+标准	Standard
+灵敏	Sensible
+占用 ≥80% 为橙色，≥90% 为红色	Orange dès ≥80 % d’utilisation, rouge dès ≥90 %
+占用 ≥60% 为橙色，≥85% 为红色	Orange dès ≥60 % d’utilisation, rouge dès ≥85 %
 占用高于	Utilisation supérieure à
 卷	Volume
 卸载	Désinstaller
@@ -811,7 +816,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 正在读取风扇…	Lecture des ventilateurs…
 正在释放…	Libération…
 正常	Normal
-此刻各核心的占用；超过 60% 变橙色、85% 变红色	Charge actuelle de chaque cœur ; orange au-dessus de 60 %, rouge au-dessus de 85 %
+此刻各核心的占用；偏高时变橙色或红色	Charge actuelle de chaque cœur ; orange ou rouge quand elle est élevée
 此设备没有可调节的风扇	Ce Mac ne dispose d’aucun ventilateur réglable
 每个指标一个图标，点击弹出该项详情	Une icône par mesure ; cliquez pour afficher ses détails
 主要指标每分钟写入本机数据库并保留 7 天	Les principales mesures sont enregistrées localement chaque minute et conservées 7 jours.

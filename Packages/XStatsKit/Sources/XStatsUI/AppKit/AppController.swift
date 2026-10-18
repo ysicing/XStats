@@ -615,6 +615,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.network.publicAddresses?.countryCode
       _ = model.settings.styleOverrides
       _ = model.settings.colorizeHighLoad
+      _ = model.settings.loadSensitivity
       _ = model.settings.useFahrenheit
       _ = model.settings.hiddenPopoverSections
       _ = model.settings.expandedPopoverSections
