@@ -1,6 +1,6 @@
 ---
 name: xstats-release
-description: Execute, resume, or verify the XStats macOS client release workflow, including semver metadata, arm64 Developer ID signing, Apple notarization, c-ip object storage, regional update APIs, GitHub Release, Homebrew tap, and CI. Use for an actual XStats app release or a partial-release recovery; do not use for XStats Server development or server-image delivery.
+description: Execute, resume, or verify the XStats macOS client release workflow, including independently versioned Capture releases, release documentation, semver metadata, arm64 Developer ID signing, Apple notarization, c-ip object storage, regional update APIs, GitHub Release, Homebrew tap, and CI. Use for an actual XStats app release or a partial-release recovery; do not use for XStats Server development or server-image delivery.
 ---
 
 <!-- Copyright (C) 2026 ysicing -->
@@ -38,7 +38,7 @@ Before acting, read the repository `AGENTS.md`, the release section of `docs/DEV
 
 ## Execution shape
 
-1. Establish a clean, current source baseline. Use `xstats-changelog` to prepare and review the user-facing release summary, then pass repository tests. Known GitHub Actions failures are follow-up items and do not delay the release workflow.
+1. Reconcile current-version documentation and download links using the runbook’s documentation checks, then establish a clean, current source baseline. Use `xstats-changelog` to prepare and review the user-facing release summary, then pass repository tests. Known GitHub Actions failures are follow-up items and do not delay the release workflow.
 2. Prepare only release metadata, then let `task release` advance `project.yml`, build, sign, notarize, staple, and generate `dist/`.
 3. Verify the built app in `build/DerivedData-arm64/Build/Products/Release/XStats.app` and generated artifacts before committing release metadata; leave `/Applications/XStats.app` untouched.
 4. Commit and push only the allowed metadata, then run the provenance verifier.
@@ -61,3 +61,5 @@ Stop rather than weakening a safety check when the source changed after the buil
 ## Conditional Capture release
 
 Before `task release-all`, run `python3 scripts/release_capture.py --check-follow`. Capture follows XStats releases only when its code, resources, used shared dependencies or packaging changed since the latest `capture-v*` tag. If affected, prepare `CAPTURE_VERSION` / `CAPTURE_BUILD` and bilingual `docs/CaptureReleaseNotes.json` from verified changes before building; otherwise leave them unchanged. The release-all hook publishes Capture after XStats, with separate artifacts, feed, tag and cask, without changing GitHub latest. See [Capture release and recovery](../../../docs/CAPTURE.md). Recover a partially published Capture independently with `task release-capture -- --publish-only`; never rerun an already published main release.
+
+Capture documentation is part of release acceptance. For every main-app release, standalone Capture release, and publication recovery, check the Capture download links in all four READMEs and the version, build number, and Release link in `docs/CAPTURE.md`. Use the current `project.yml` and live GitHub Release assets as evidence rather than old audits, memory, or example versions. Follow the [release documentation checks](references/runbook.md#release-documentation-checks) for timing and recovery constraints.

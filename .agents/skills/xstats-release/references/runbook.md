@@ -111,6 +111,17 @@ task release-all
 
 It runs `task test`, performs the same release build, stages only allowed release metadata, commits and pushes it, then invokes `task publish`. After it returns, continue with the final verification section rather than repeating the manual commit or publish steps.
 
+### Release documentation checks
+
+Check on every release and edit only changed values. Preserve version references in historical changelogs, historical Releases, and test fixtures.
+
+- Read `CAPTURE_VERSION` / `CAPTURE_BUILD` from the current `project.yml`. Use `gh release list` and `gh release view capture-v<version> --json tagName,isDraft,isPrerelease,assets,url` to verify the published version and its DMG. The main app's GitHub latest release does not identify the latest Capture release.
+- When publishing Capture, update the `releases/tag/capture-v<version>` links in `README.md`, `README.en.md`, `README.ja.md`, and `README.ko.md`, plus the current version, build number, and download link in `docs/CAPTURE.md`, before building. All four README links must agree. Derive the target version from this independent release's configuration rather than old documentation.
+- When Capture is not part of the release, point its documentation to the latest completed formal Capture Release. If configuration has advanced to an unpublished version, do not describe that version as already available.
+- `docs/CAPTURE.md` is outside the main app's release-metadata allowlist, and Capture publication requires clean, pushed source. Prepare this document alongside Capture's version changes and commit/push under existing authorization before establishing the release baseline. Do not defer it until after the build or broaden the provenance or staging allowlists to accommodate it.
+- After publication, re-read the remote Release and confirm it is neither draft nor prerelease and contains the uploaded DMG for the expected version. Recheck all five documents. A prepared target link does not prove publication succeeded; if the Release or asset is missing, report incomplete publication and resume the original release workflow.
+- During `--publish-only` recovery, preserve the original source commit, version, notes, and artifacts. If documentation was missed, finish recovering the original artifacts first, then commit the documentation correction separately within the authorized scope. Do not alter provenance, move tags, rebuild, or increment versions for documentation fixes.
+
 ## 3. Verify local artifacts
 
 Expected files:
@@ -222,6 +233,7 @@ Prove all of the following from live state:
 - GitHub Release is neither draft nor prerelease and contains the notarized DMG with the expected digest.
 - All three public object URLs return bytes matching local DMG, ZIP and signed XML SHA-256 values; the JSON ZIP URL maps to the corresponding immutable XML.
 - All configured update-check endpoints return the released version/build and `c.ysicing.net` URLs. Reuse one fixed validation installation ID instead of creating many statistics rows.
+- Current-version documentation passes the documentation checks above; Capture links resolve to its verified formal Release and DMG, including after a conditional Capture release.
 - The remote Homebrew cask matches `dist/xstats.rb`; `brew info --cask ysicing/tap/xstats` shows the released version and arm64/macOS requirements.
 - After publication, check the release commit and any immediate release-workflow fix commits' GitHub Actions status once. Record each visible run's link and actual result; if queued, running, or not yet listed, report CI as pending or unobserved without waiting or polling. Record completed failures for separate follow-up; do not pause publication, modify source, rebuild or increment the build number solely because CI failed.
 - Temporary port forwards, credential aliases, debug pods, and staging directories created by this run are removed.
