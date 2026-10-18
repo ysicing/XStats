@@ -80,8 +80,10 @@ final class MenuBarFoldingController: NSObject {
     // macOS 27 会直接丢弃达到半屏宽的状态项，因此保留 20pt 余量，不能使用超长占位。
     let screenWidth = NSScreen.screens.map(\.frame.width).min() ?? 1512
     divider?.length = isCollapsed ? screenWidth / 2 - 20 : NSStatusItem.variableLength
-    arrow?.button?.title = isCollapsed ? "▶︎" : "◀︎"
     let title = isCollapsed ? tr("展开菜单栏图标") : tr("收起菜单栏图标")
+    arrow?.button?.image = NSImage(
+      systemSymbolName: isCollapsed ? "chevron.right" : "chevron.left",
+      accessibilityDescription: title)
     arrow?.button?.toolTip = title
     arrow?.button?.setAccessibilityLabel(title)
     divider?.button?.toolTip = tr("按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。")
