@@ -46,6 +46,7 @@ public final class HelperClient {
   @ObservationIgnored private let versionProbe: (@MainActor () async -> Int?)?
   private var isCheckingVersion = false
   private var hasVerifiedConnection = false
+  private var hasInstallationError = false
 
   public convenience init() {
     self.init(
@@ -113,9 +114,11 @@ public final class HelperClient {
         : .unavailable(tr("应用包内未找到辅助工具，请使用完整构建的 XStats.app"))
     @unknown default: status = .unavailable(tr("未知状态"))
     }
-    if status == .enabled, !hasVerifiedConnection, !isCheckingVersion, !isWorking, !isOutdated {
+    if status == .enabled, !hasVerifiedConnection || hasInstallationError,
+      !isCheckingVersion, !isWorking, !isOutdated
+    {
       Task {
-        guard !hasVerifiedConnection, !isOutdated else { return }
+        guard !hasVerifiedConnection || hasInstallationError, !isOutdated else { return }
         await verifyVersion()
       }
     }
@@ -133,9 +136,11 @@ public final class HelperClient {
     isWorking = true
     defer { isWorking = false }
     lastError = nil
+    hasInstallationError = false
     do {
       try service.register()
     } catch {
+      hasInstallationError = true
       lastError = tr("安装失败：\(error.localizedDescription)")
       Log.helper.error("安装失败：\(String(error.localizedDescription.prefix(500)), privacy: .private)")
     }
@@ -151,6 +156,7 @@ public final class HelperClient {
     isWorking = true
     defer { isWorking = false }
     lastError = nil
+    hasInstallationError = false
     connection?.invalidate()
     connection = nil
     hasVerifiedConnection = false
@@ -194,6 +200,11 @@ public final class HelperClient {
     guard !HelperConstants.isCompatible(version: version) else {
       hasVerifiedConnection = true
       isOutdated = false
+      // 注册可能曾失败，但用户批准后服务已恢复；只在握手成功后移除过期错误。
+      if hasInstallationError {
+        lastError = nil
+        hasInstallationError = false
+      }
       return
     }
     isOutdated = true

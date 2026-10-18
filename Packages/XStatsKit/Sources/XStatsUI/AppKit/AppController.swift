@@ -302,6 +302,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
     drainDeepLinks()
   }
 
+  public func applicationDidBecomeActive(_ notification: Notification) {
+    // 用户在系统设置批准后台项目后，原页面不会重新 onAppear。
+    model.helper.refreshStatus()
+  }
+
   public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     guard terminationTask == nil else { return .terminateLater }
     guard XStatsCapture.workspace.confirmTermination() else { return .terminateCancel }

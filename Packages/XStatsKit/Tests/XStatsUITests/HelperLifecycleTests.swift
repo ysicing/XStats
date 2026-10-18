@@ -11,9 +11,11 @@ import os
 private final class Registration: HelperRegistration {
   var status: SMAppService.Status = .enabled
   var operations: [String] = []
+  var failRegister = false
   var failUnregister = false
-  func register() {
+  func register() throws {
     operations.append("register")
+    if failRegister { throw NSError(domain: NSPOSIXErrorDomain, code: Int(EPERM)) }
     status = .enabled
   }
   func unregister() async throws {
@@ -25,6 +27,56 @@ private final class Registration: HelperRegistration {
 
 @MainActor
 struct HelperLifecycleTests {
+  @Test func approvalRefreshVerifiesHelperWithoutRegisteringAgain() async throws {
+    let service = Registration()
+    service.status = .requiresApproval
+    let helper = HelperClient(teamIdentifier: "ABCDE12345", service: service, versionProbe: { 5 })
+    helper.refreshStatus()
+    #expect(helper.status == .requiresApproval)
+    #expect(!helper.isReady)
+
+    service.status = .enabled
+    helper.refreshStatus()
+    let deadline = ContinuousClock.now + .seconds(5)
+    while !helper.isReady, ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(1))
+    }
+    #expect(helper.status == .enabled)
+    #expect(helper.isReady)
+    #expect(service.operations.isEmpty)
+  }
+
+  @Test(arguments: [true, false], [true, false])
+  func installationErrorClearsOnlyAfterSuccessfulHandshake(connected: Bool, previouslyReady: Bool)
+    async throws
+  {
+    let service = Registration()
+    let remoteVersion = OSAllocatedUnfairLock(initialState: Int?(5))
+    let helper = HelperClient(
+      teamIdentifier: "ABCDE12345", service: service,
+      versionProbe: { remoteVersion.withLock { $0 } })
+    if previouslyReady {
+      await helper.verifyVersion()
+      #expect(helper.isReady)
+    }
+    service.status = .notRegistered
+    service.failRegister = true
+    helper.install()
+    let installationError = try #require(helper.lastError)
+
+    remoteVersion.withLock { $0 = connected ? 5 : nil }
+    service.status = .enabled
+    helper.refreshStatus()
+    let deadline = ContinuousClock.now + .seconds(5)
+    while helper.lastError != nil, !helper.isOutdated, ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(1))
+    }
+    #expect(helper.status == .enabled)
+    #expect(helper.isReady == connected)
+    #expect(helper.lastError == (connected ? nil : installationError))
+    #expect(service.operations == ["register"])
+  }
+
   @Test func startupReadsSigningIdentityOffMainThreadBeforeVerifyingHelper() async {
     let service = Registration()
     let helper = HelperClient(
@@ -121,5 +173,17 @@ struct HelperLifecycleTests {
     await helper.verifyVersion()
     #expect(helper.isReady == false)
     #expect(service.operations.isEmpty)
+  }
+
+  @Test func successfulHandshakePreservesUninstallFailure() async throws {
+    let service = Registration()
+    service.failUnregister = true
+    let helper = HelperClient(teamIdentifier: "ABCDE12345", service: service, versionProbe: { 5 })
+    await helper.verifyVersion()
+    await helper.uninstall()
+    let uninstallError = try #require(helper.lastError)
+    await helper.verifyVersion()
+    #expect(helper.lastError == uninstallError)
+    #expect(helper.isReady)
   }
 }
