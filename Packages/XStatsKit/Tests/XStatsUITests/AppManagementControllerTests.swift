@@ -358,7 +358,7 @@ import Testing
     let controller = AppManagementController(
       listApps: { [updated, added] }, inspectApp: { _ in ApplicationMetadata() },
       measureSize: { url in
-        measured.withLock { $0.insert(url.path) }
+        _ = measured.withLock { $0.insert(url.path) }
         return 99
       }, brewAvailable: false, cacheURL: url)
     defer { controller.setVisible(false) }
@@ -390,7 +390,7 @@ import Testing
     let controller = AppManagementController(
       listApps: { [changed, expired] }, inspectApp: { _ in ApplicationMetadata() },
       measureSize: { url in
-        measured.withLock { $0.insert(url.path) }
+        _ = measured.withLock { $0.insert(url.path) }
         return 99
       }, brewAvailable: false, cacheURL: url)
     defer { controller.setVisible(false) }
