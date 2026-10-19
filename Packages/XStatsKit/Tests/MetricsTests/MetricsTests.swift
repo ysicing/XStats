@@ -240,6 +240,51 @@ struct LiveSamplerTests {
         maximumOutputBytes: 256) == "ok")
   }
 
+  @Test(arguments: [1, 256, 65_536, 131_072])
+  func collectsOutputAtLimitAcrossPipeBuffers(byteCount: Int) {
+    let output = NetworkProcessSampler.run(
+      path: "/usr/bin/printf", arguments: ["%\(byteCount)s", "x"], timeout: 2,
+      maximumOutputBytes: byteCount)
+    #expect(output == String(repeating: " ", count: byteCount - 1) + "x")
+  }
+
+  @Test func collectsConcurrentShortCommands() async {
+    await withTaskGroup(of: String?.self) { group in
+      for _ in 0..<12 {
+        group.addTask {
+          NetworkProcessSampler.run(
+            path: "/usr/bin/printf", arguments: ["ok"], timeout: 2)
+        }
+      }
+      for await output in group { #expect(output == "ok") }
+    }
+  }
+
+  @Test(arguments: [0, 7])
+  func waitsForExitAfterOutputCloses(exitCode: Int) {
+    let output = NetworkProcessSampler.run(
+      path: "/bin/sh", arguments: ["-c", "exec 1>&-; sleep 0.1; exit \(exitCode)"], timeout: 2)
+    #expect(output == (exitCode == 0 ? "" : nil))
+    #expect(
+      NetworkProcessSampler.run(
+        path: "/bin/sh", arguments: ["-c", "printf partial; exit 7"], timeout: 2) == nil)
+  }
+
+  @Test func stopsContinuousOversizedOutputAtDeadline() {
+    let clock = ContinuousClock()
+    let started = clock.now
+    let output = NetworkProcessSampler.run(
+      path: "/usr/bin/yes", arguments: [], timeout: 0.05, maximumOutputBytes: 256)
+    #expect(output == nil)
+    #expect(started.duration(to: clock.now) < .seconds(1))
+  }
+
+  @Test func failedCommandLaunchReturnsWithoutWaitingForOutput() {
+    #expect(
+      NetworkProcessSampler.run(
+        path: "/xstats-test-missing-command", arguments: [], timeout: 2) == nil)
+  }
+
   @Test func stopsNettopCommandAfterTimeout() {
     let clock = ContinuousClock()
     let started = clock.now
@@ -278,7 +323,7 @@ struct LiveSamplerTests {
     let (output, returned) = await task.value
 
     #expect(output == nil)
-    // TERM、KILL 和管道排空可各等待 0.5 秒；留出 CI 调度余量，仍须早于 5 秒命令完成。
+    // TERM、KILL 可各等待 0.5 秒；留出 CI 调度余量，仍须早于 5 秒命令完成。
     #expect(cancelled.duration(to: returned) < .seconds(3))
   }
 

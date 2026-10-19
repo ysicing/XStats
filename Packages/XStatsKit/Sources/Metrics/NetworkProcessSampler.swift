@@ -1,22 +1,6 @@
 import Darwin
 import Foundation
-
-private final class LockedProcessOutput: @unchecked Sendable {
-  private let lock = NSLock()
-  private var data: Data?
-
-  func store(_ data: Data) {
-    lock.lock()
-    self.data = data
-    lock.unlock()
-  }
-
-  func load() -> Data? {
-    lock.lock()
-    defer { lock.unlock() }
-    return data
-  }
-}
+import OSLog
 
 public struct NetworkProcessUsage: Sendable, Equatable, Identifiable {
   public var id: Int32 { pid }
@@ -31,6 +15,8 @@ public struct NetworkProcessUsage: Sendable, Equatable, Identifiable {
 /// 只在网络详情打开时运行，每次约 40 ms。
 public struct NetworkProcessSampler: Sendable {
   private static let nettopLock = NSLock()
+  private static let commandLog = Logger(
+    subsystem: "work.12306.xstats", category: "process-sampler")
   private var previous: [Int32: (download: UInt64, upload: UInt64)] = [:]
   private var previousTime: UInt64 = 0
   private var lastResults: [NetworkProcessUsage] = []
@@ -115,36 +101,25 @@ public struct NetworkProcessSampler: Sendable {
       arguments: ["-P", "-L", "1", "-n", "-x", "-J", "bytes_in,bytes_out"], timeout: 5)
   }
 
-  /// 同步运行短命令并持续排空 stdout；超时后先 TERM、再 KILL，避免 `nettop` 挂住采样循环。
+  /// 同步运行短命令并有界读取 stdout；超时或取消后先 TERM、再 KILL。
   static func run(
     path: String, arguments: [String], timeout: TimeInterval,
     maximumOutputBytes: Int = 8 * 1024 * 1024
   ) -> String? {
-    guard !Task.isCancelled else { return nil }
+    guard !Task.isCancelled, maximumOutputBytes >= 0 else { return nil }
     let process = Process()
     process.executableURL = URL(fileURLWithPath: path)
     process.arguments = arguments
     let pipe = Pipe()
     process.standardOutput = pipe
     process.standardError = FileHandle.nullDevice
-
-    let output = LockedProcessOutput()
-    let drain = DispatchGroup()
-    drain.enter()
-    DispatchQueue.global(qos: .utility).async {
-      defer { drain.leave() }
-      // 旧的 readDataToEndOfFile() 在超时关闭 pipe 时可能抛出无法由 Swift 捕获的 NSException。
-      // throwing API 会把同一竞争转换成普通 I/O 错误，失败时由调用方按无采样结果处理。
-      // 有界保存并继续排空，避免超大输出占满内存或堵住子进程；总运行时间仍由下方控制。
-      var data = Data()
-      var exceededLimit = false
-      do {
-        while let chunk = try pipe.fileHandleForReading.read(upToCount: 64 * 1024), !chunk.isEmpty {
-          if chunk.count > maximumOutputBytes - data.count { exceededLimit = true }
-          if !exceededLimit { data.append(chunk) }
-        }
-      } catch { return }
-      if !exceededLimit { output.store(data) }
+    let reader = pipe.fileHandleForReading
+    defer { reader.closeFile() }
+    let descriptor = reader.fileDescriptor
+    let flags = fcntl(descriptor, F_GETFL)
+    guard flags != -1, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) != -1 else {
+      commandLog.debug("Cannot configure command output pipe, errno=\(errno)")
+      return nil
     }
 
     let terminated = DispatchSemaphore(value: 0)
@@ -153,49 +128,81 @@ public struct NetworkProcessSampler: Sendable {
       try process.run()
     } catch {
       pipe.fileHandleForWriting.closeFile()
-      drain.wait()
+      commandLog.debug("Cannot launch sampling command, code=\((error as NSError).code)")
       return nil
     }
 
     let timeoutNanoseconds = UInt64(max(0, timeout) * 1_000_000_000)
     let deadline = DispatchTime.now().uptimeNanoseconds &+ timeoutNanoseconds
+    var data = Data()
+    var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+    var exceededLimit = false
+    var reachedEOF = false
     var stopped = false
     var exited = false
-    while !exited {
+    // 在同一线程排空管道并检查截止时间，避免读取队列调度延迟被误判为无输出，
+    // 也避免超时线程关闭句柄时与后台 read 竞争。只保存限额内数据，超量后仍持续排空。
+    while !exited || !reachedEOF {
       if Task.isCancelled {
         stopped = true
         break
       }
       let now = DispatchTime.now().uptimeNanoseconds
       guard now < deadline else {
+        commandLog.debug("Sampling command exceeded its execution deadline")
         stopped = true
         break
       }
+      if !exited { exited = terminated.wait(timeout: .now()) == .success }
       let slice = min(deadline - now, 50_000_000)
-      exited = terminated.wait(timeout: .now() + .nanoseconds(Int(slice))) == .success
+      if reachedEOF {
+        if !exited {
+          exited = terminated.wait(timeout: .now() + .nanoseconds(Int(slice))) == .success
+        }
+        continue
+      }
+
+      var event = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
+      let ready = poll(&event, 1, Int32((slice + 999_999) / 1_000_000))
+      if ready < 0 {
+        if errno == EINTR { continue }
+        commandLog.debug("Cannot poll command output, errno=\(errno)")
+        stopped = true
+        break
+      }
+      guard ready > 0 else { continue }
+      let count = buffer.withUnsafeMutableBytes {
+        Darwin.read(descriptor, $0.baseAddress, $0.count)
+      }
+      if count < 0 {
+        if errno == EINTR || errno == EAGAIN { continue }
+        commandLog.debug("Cannot read command output, errno=\(errno)")
+        stopped = true
+        break
+      }
+      if count == 0 {
+        reachedEOF = true
+      } else {
+        if count > maximumOutputBytes - data.count { exceededLimit = true }
+        if !exceededLimit { data.append(contentsOf: buffer.prefix(count)) }
+      }
     }
 
-    if stopped {
+    if stopped, !exited {
       if process.isRunning { process.terminate() }
       exited = terminated.wait(timeout: .now() + 0.5) == .success
       if !exited {
-        kill(process.processIdentifier, SIGKILL)
+        if process.isRunning { kill(process.processIdentifier, SIGKILL) }
         exited = terminated.wait(timeout: .now() + 0.5) == .success
       }
     }
     guard exited else {
-      pipe.fileHandleForReading.closeFile()
+      commandLog.error("Sampling command did not exit after termination escalation")
       return nil
     }
     process.waitUntilExit()
-    guard drain.wait(timeout: .now() + 0.5) == .success else {
-      pipe.fileHandleForReading.closeFile()
-      return nil
-    }
-
-    guard !stopped, process.terminationStatus == 0,
-      let data = output.load()
-    else { return nil }
+    if exceededLimit { commandLog.debug("Discarded sampling command output exceeding byte limit") }
+    guard !stopped, !exceededLimit, process.terminationStatus == 0 else { return nil }
     return String(decoding: data, as: UTF8.self)
   }
 }
