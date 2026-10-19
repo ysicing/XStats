@@ -2225,3 +2225,45 @@ Microsoft Teams（旧版）	Microsoft Teams (classique)
 实验性功能	Fonctions expérimentales
 实验性功能仍在探索中，可能存在兼容性或稳定性问题，后续更新中可能调整或移除。	Les fonctions expérimentales sont encore à l’étude et peuvent présenter des problèmes de compatibilité ou de stabilité. Elles peuvent être modifiées ou supprimées dans de futures mises à jour.
 点击系统双箭头可能出现空白或图标错位。请用 XStats 箭头展开；无法恢复时关闭此功能。	Cliquer sur le double chevron du système peut laisser un espace vide ou décaler les icônes. Dépliez-les avec la flèche de XStats. Si cela ne suffit pas, désactivez cette fonction.
+Agent 数据	Données des agents
+查看编程 Agent 的数据占用，清理旧日志并管理 worktree	Consultez le stockage des agents de programmation, nettoyez les anciens journaux et gérez les worktrees
+已安装工具	Outils installés
+工具数据	Données des outils
+部分位置未完整扫描，数量与大小仅包含已确认的项目。	Certains emplacements n’ont pas été entièrement analysés. Seuls les éléments confirmés sont comptés.
+点击重新扫描以查看工具与 worktree	Relancez l’analyse pour voir les outils et worktrees
+未完整统计	Mesure incomplète
+数据位置	Emplacements des données
+未安装 Git 命令行工具，暂时无法检查 worktree	Les outils de ligne de commande Git sont requis pour vérifier les worktrees
+已扫描位置中未发现 worktree	Aucun worktree trouvé aux emplacements analysés
+分离 HEAD	HEAD détachée
+检查通过，移除前会再次核对	Vérifications réussies ; nouvel examen avant la suppression
+移除…	Supprimer…
+已扫描位置	Emplacements analysés
+工具数据不含托管 worktree。仅清理 7 天前的日志，保留会话、配置与凭据。	Les données excluent les worktrees gérés. Seuls les journaux de plus de 7 jours sont nettoyés ; sessions, réglages et identifiants sont conservés.
+仅检查常见工具目录与项目位置；移除 worktree 不会删除分支，且无法从废纸篓恢复。	Seuls les emplacements courants sont examinés. La suppression conserve la branche et ne passe pas par la Corbeille.
+{} 个旧日志可清理	{} anciens journaux à nettoyer
+清理旧日志…	Nettoyer les anciens journaux…
+添加扫描目录…	Ajouter un dossier à analyser…
+移除这个 worktree？	Supprimer ce worktree ?
+将旧日志移到废纸篓？	Placer les anciens journaux dans la Corbeille ?
+移除 worktree	Supprimer le worktree
+将移除该工作目录，保留 Git 分支。请先结束使用它的 Agent 会话并关闭编辑器。此操作无法撤销。	Le répertoire sera supprimé et sa branche Git conservée. Terminez les sessions d’agent et fermez les éditeurs qui l’utilisent. Cette action est irréversible.
+将 {} 个旧日志移到废纸篓，需要时可从废纸篓恢复。	Placer {} anciens journaux dans la Corbeille. Vous pourrez les restaurer si nécessaire.
+仅检测到数据	Données uniquement
+未检测到	Non détecté
+扫描未完成，请重试	L’analyse n’a pas abouti. Réessayez.
+已移除 worktree，分支已保留	Worktree supprimé ; branche conservée
+移除未完成，请刷新检查实际状态	La suppression n’a pas abouti. Actualisez pour vérifier l’état.
+已将 {} 个旧日志移到废纸篓	{} anciens journaux placés dans la Corbeille
+部分日志未清理，请刷新后重试	Certains journaux n’ont pas été nettoyés. Actualisez et réessayez.
+操作已结束，结果待刷新确认	Opération terminée. Actualisez pour confirmer le résultat.
+仅清理 7 天前的日志，保留会话、配置与凭据	Seuls les journaux de plus de 7 jours sont nettoyés ; sessions, réglages et identifiants sont conservés
+有修改或未跟踪、被忽略的文件	Fichiers modifiés, non suivis ou ignorés présents
+worktree 已锁定	Le worktree est verrouillé
+独立提交尚无分支或标签保留	Les commits détachés ne sont conservés par aucune branche ou étiquette
+无法完成安全检查	Impossible de terminer les vérifications de sécurité
+路径不在家目录内或包含符号链接	Le chemin est hors du dossier de départ ou contient des liens symboliques
+包含子模块，需在 Git 中处理	Contient des sous-modules ; à gérer dans Git
+已安装	Installé
+查看…	Afficher…
+编程工具的本地数据与工作目录	Données locales et répertoires de travail des outils de programmation

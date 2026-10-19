@@ -365,6 +365,7 @@ enum FeedbackLinks {
 
 private struct PageHeader: View {
   @Environment(AppModel.self) private var model
+  @State private var showAgentData = false
 
   var body: some View {
     let settings = model.settings
@@ -422,6 +423,16 @@ private struct PageHeader: View {
         .accessibilityLabel(tr("打开系统活动监视器"))
       }
       if tab == .cleaner {
+        Button {
+          showAgentData = true
+        } label: {
+          HStack(spacing: DS.Space.s1) {
+            Image(systemName: "terminal")
+            Text(tr("Agent 数据")).lineLimit(1).fixedSize()
+          }
+        }
+        .buttonStyle(DSButtonStyle(kind: .secondary))
+        .help(tr("查看编程 Agent 的数据占用，清理旧日志并管理 worktree"))
         Button {
           model.openProjectPurgeWindow()
         } label: {
@@ -482,6 +493,9 @@ private struct PageHeader: View {
     .padding(.horizontal, DS.Space.s3 + DS.Space.s1)
     // 52pt 高的顶栏里，32pt 的按钮与开关组上下各留 10pt
     .frame(height: DS.Size.windowHeader)
+    .sheet(isPresented: $showAgentData) {
+      AICleanupSheet(excludedPaths: model.cleaner.excludedPaths)
+    }
   }
 }
 

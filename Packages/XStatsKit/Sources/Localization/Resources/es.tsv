@@ -2225,3 +2225,45 @@ Microsoft Teams（旧版）	Microsoft Teams (clásico)
 实验性功能	Funciones experimentales
 实验性功能仍在探索中，可能存在兼容性或稳定性问题，后续更新中可能调整或移除。	Las funciones experimentales aún están en fase de exploración y pueden presentar problemas de compatibilidad o estabilidad. Pueden cambiar o eliminarse en futuras actualizaciones.
 点击系统双箭头可能出现空白或图标错位。请用 XStats 箭头展开；无法恢复时关闭此功能。	Al pulsar la doble flecha del sistema pueden aparecer espacios vacíos o iconos desplazados. Despliega con la flecha de XStats; si no se restaura, desactiva esta función.
+Agent 数据	Datos de agentes
+查看编程 Agent 的数据占用，清理旧日志并管理 worktree	Consulta el espacio de los agentes de programación, limpia registros antiguos y administra worktrees
+已安装工具	Herramientas instaladas
+工具数据	Datos de herramientas
+部分位置未完整扫描，数量与大小仅包含已确认的项目。	Algunas ubicaciones no se analizaron por completo. Las cifras solo incluyen elementos confirmados.
+点击重新扫描以查看工具与 worktree	Vuelve a analizar para ver herramientas y worktrees
+未完整统计	Medición incompleta
+数据位置	Ubicaciones de datos
+未安装 Git 命令行工具，暂时无法检查 worktree	Se necesitan las herramientas de Git para revisar worktrees
+已扫描位置中未发现 worktree	No se encontraron worktrees en las ubicaciones analizadas
+分离 HEAD	HEAD separado
+检查通过，移除前会再次核对	Verificación superada; se revisará antes de eliminar
+移除…	Eliminar…
+已扫描位置	Ubicaciones analizadas
+工具数据不含托管 worktree。仅清理 7 天前的日志，保留会话、配置与凭据。	Los datos excluyen los worktrees gestionados. Solo se limpian registros de más de 7 días; se conservan sesiones, ajustes y credenciales.
+仅检查常见工具目录与项目位置；移除 worktree 不会删除分支，且无法从废纸篓恢复。	Solo se revisan ubicaciones habituales. Eliminar un worktree conserva su rama y no permite recuperarlo desde la Papelera.
+{} 个旧日志可清理	{} registros antiguos disponibles
+清理旧日志…	Limpiar registros antiguos…
+添加扫描目录…	Añadir carpeta de análisis…
+移除这个 worktree？	¿Eliminar este worktree?
+将旧日志移到废纸篓？	¿Mover los registros antiguos a la Papelera?
+移除 worktree	Eliminar worktree
+将移除该工作目录，保留 Git 分支。请先结束使用它的 Agent 会话并关闭编辑器。此操作无法撤销。	Se eliminará el directorio conservando su rama de Git. Cierra antes las sesiones del agente y los editores que lo usan. No se puede deshacer.
+将 {} 个旧日志移到废纸篓，需要时可从废纸篓恢复。	Se moverán {} registros antiguos a la Papelera. Puedes restaurarlos si los necesitas.
+仅检测到数据	Solo datos
+未检测到	No detectado
+扫描未完成，请重试	El análisis no se completó. Inténtalo de nuevo.
+已移除 worktree，分支已保留	Worktree eliminado; rama conservada
+移除未完成，请刷新检查实际状态	No se completó la eliminación. Actualiza para comprobar el estado.
+已将 {} 个旧日志移到废纸篓	Se movieron {} registros antiguos a la Papelera
+部分日志未清理，请刷新后重试	No se limpiaron algunos registros. Actualiza e inténtalo de nuevo.
+操作已结束，结果待刷新确认	La operación terminó. Actualiza para confirmar el resultado.
+仅清理 7 天前的日志，保留会话、配置与凭据	Solo se limpian registros de más de 7 días; se conservan sesiones, ajustes y credenciales
+有修改或未跟踪、被忽略的文件	Hay archivos modificados, sin seguimiento o ignorados
+worktree 已锁定	El worktree está bloqueado
+独立提交尚无分支或标签保留	Los commits separados no están retenidos por una rama o etiqueta
+无法完成安全检查	No se pudieron completar las comprobaciones de seguridad
+路径不在家目录内或包含符号链接	La ruta está fuera de la carpeta personal o contiene enlaces simbólicos
+包含子模块，需在 Git 中处理	Contiene submódulos; administrar en Git
+已安装	Instalado
+查看…	Ver…
+编程工具的本地数据与工作目录	Datos locales y directorios de trabajo de herramientas de programación

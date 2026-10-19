@@ -12,9 +12,54 @@ extension Translations {
       english, captureEnglish, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish,
       audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish,
       appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish,
-      hardwareDetailsEnglish,
+      hardwareDetailsEnglish, aiCleanupEnglish,
     ]
   }
+
+  static let aiCleanupEnglish = #"""
+    查看…	View…
+    已安装	Installed
+    Agent 数据	Agent Data
+    编程工具的本地数据与工作目录	Local data and working directories for coding tools
+    查看编程 Agent 的数据占用，清理旧日志并管理 worktree	Inspect coding agent storage, clean old logs and manage worktrees
+    已安装工具	Installed Tools
+    工具数据	Tool Data
+    部分位置未完整扫描，数量与大小仅包含已确认的项目。	Some locations could not be fully scanned. Counts and sizes include confirmed items only.
+    点击重新扫描以查看工具与 worktree	Scan again to view tools and worktrees
+    未完整统计	Not Fully Measured
+    数据位置	Data Locations
+    未安装 Git 命令行工具，暂时无法检查 worktree	Git command line tools are required to inspect worktrees
+    已扫描位置中未发现 worktree	No worktrees found in scanned locations
+    分离 HEAD	Detached HEAD
+    检查通过，移除前会再次核对	Checks passed; will check again before removal
+    移除…	Remove…
+    已扫描位置	Scanned Locations
+    工具数据不含托管 worktree。仅清理 7 天前的日志，保留会话、配置与凭据。	Tool data excludes managed worktrees. Only logs older than 7 days are cleaned; sessions, settings and credentials are kept.
+    仅检查常见工具目录与项目位置；移除 worktree 不会删除分支，且无法从废纸篓恢复。	Only common tool and project locations are checked. Removing a worktree keeps its branch and cannot be undone via Trash.
+    {} 个旧日志可清理	{} old logs available to clean
+    清理旧日志…	Clean Old Logs…
+    添加扫描目录…	Add Scan Folder…
+    移除这个 worktree？	Remove this worktree?
+    将旧日志移到废纸篓？	Move old logs to Trash?
+    移除 worktree	Remove Worktree
+    将移除该工作目录，保留 Git 分支。请先结束使用它的 Agent 会话并关闭编辑器。此操作无法撤销。	The working directory will be removed and its Git branch kept. End agent sessions using it and close editors first. This cannot be undone.
+    将 {} 个旧日志移到废纸篓，需要时可从废纸篓恢复。	Move {} old logs to Trash. You can restore them from Trash if needed.
+    仅检测到数据	Data Only
+    未检测到	Not Detected
+    扫描未完成，请重试	Scan did not complete. Try again.
+    已移除 worktree，分支已保留	Worktree removed; branch kept
+    移除未完成，请刷新检查实际状态	Removal did not complete. Refresh to check the current state.
+    已将 {} 个旧日志移到废纸篓	Moved {} old logs to Trash
+    部分日志未清理，请刷新后重试	Some logs were not cleaned. Refresh and try again.
+    操作已结束，结果待刷新确认	Operation ended. Refresh to confirm the result.
+    仅清理 7 天前的日志，保留会话、配置与凭据	Only clean logs older than 7 days; keep sessions, settings and credentials
+    有修改或未跟踪、被忽略的文件	Modified, untracked or ignored files exist
+    worktree 已锁定	Worktree is locked
+    独立提交尚无分支或标签保留	Detached commits are not retained by a branch or tag
+    无法完成安全检查	Safety checks could not be completed
+    路径不在家目录内或包含符号链接	Path is outside the home folder or contains symbolic links
+    包含子模块，需在 Git 中处理	Contains submodules; manage in Git
+    """#
 
   static let hardwareDetailsEnglish = #"""
     数值位置	Value Position

@@ -40,6 +40,10 @@ public struct SafetyGuard: Sendable {
     ".cargo/registry",
     ".cargo/git",
     ".cache/uv",
+    // AI 清理只允许各工具的日志子项，不放行工具数据根。
+    ".codex/log",
+    ".claude/debug",
+    ".local/share/opencode/log",
     ".yarn/berry/cache",
     "Library/pnpm/store",
     ".pnpm-store",
