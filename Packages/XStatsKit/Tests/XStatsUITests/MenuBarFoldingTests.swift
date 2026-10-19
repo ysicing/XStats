@@ -8,6 +8,32 @@ import Testing
 @MainActor
 struct MenuBarFoldingTests {
   @Test(arguments: [false, true])
+  func disabledFoldingPreservesManualChoice(collapsed: Bool) throws {
+    _ = NSApplication.shared
+    let suite = "MenuBarFoldingTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    #expect(!settings.menuBarFoldingEnabled)
+    settings.menuBarFoldingCollapsed = collapsed
+    let controller = MenuBarFoldingController(settings: settings)
+    defer { controller.stop() }
+
+    controller.start()
+    #expect(!controller.isCollapsed)
+    // 开关关闭时不创建占位，旧入口也不能强制折叠或改写手动选择。
+    controller.toggle()
+    #expect(!controller.isCollapsed)
+    #expect(!settings.menuBarFoldingEnabled)
+    #expect(settings.menuBarFoldingCollapsed == collapsed)
+    controller.stop()
+    controller.start()
+    controller.toggle()
+    #expect(!controller.isCollapsed)
+    #expect(settings.menuBarFoldingCollapsed == collapsed)
+  }
+
+  @Test(arguments: [false, true])
   func manualSelectionSurvivesRestart(collapsed: Bool) throws {
     _ = NSApplication.shared
     let suite = "MenuBarFoldingTests.\(UUID())"

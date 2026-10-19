@@ -26,6 +26,9 @@ extension Translations {
     按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。	Hold ⌘ and drag infrequently used icons to the left of the transparent separator, keeping the arrow on the right. Click the arrow to collapse or expand; results depend on screen space.
     收起菜单栏图标	Collapse Menu Bar Icons
     展开菜单栏图标	Expand Menu Bar Icons
+    实验性功能	Experimental Features
+    实验性功能仍在探索中，可能存在兼容性或稳定性问题，后续更新中可能调整或移除。	Experimental features are still being explored and may have compatibility or stability issues. They may change or be removed in future updates.
+    点击系统双箭头可能出现空白或图标错位。请用 XStats 箭头展开；无法恢复时关闭此功能。	Clicking the system’s double chevron may leave blank space or misplace icons. Expand with the XStats arrow; if this does not help, turn this feature off.
     Microsoft Teams（旧版）	Microsoft Teams (classic)
     仅清理已确认的缓存目录，保留账号、设置和本地数据	Only clears verified cache folders; keeps accounts, settings and local data
     GPU 功耗	GPU Power

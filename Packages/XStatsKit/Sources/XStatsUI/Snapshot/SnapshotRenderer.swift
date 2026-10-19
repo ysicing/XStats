@@ -1265,6 +1265,11 @@ enum SnapshotRenderer {
           FeatureSettings().frame(width: 900).appLanguageEnvironment(), model: model,
           appearance: appearance,
           to: outputDirectory.appendingPathComponent("optional-features-\(suffix).png"))
+        model.featureSettingsTab = .experimental
+        write(
+          FeatureSettings().frame(width: 900).appLanguageEnvironment(), model: model,
+          appearance: appearance,
+          to: outputDirectory.appendingPathComponent("experimental-features-\(suffix).png"))
         write(
           DisabledMonitoringPage(module: .gpu).frame(width: 900).appLanguageEnvironment(),
           model: model, appearance: appearance,

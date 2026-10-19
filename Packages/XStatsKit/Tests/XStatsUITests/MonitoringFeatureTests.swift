@@ -26,8 +26,9 @@ final class MonitoringFeatureTests {
     let preferences = settings.exportDocument()
     let demand = model.demand
     for _ in 0..<10 {
-      model.featureSettingsTab = .optional
-      model.featureSettingsTab = .basic
+      for tab in FeatureSettingsTab.allCases {
+        model.featureSettingsTab = tab
+      }
     }
     #expect(settings.exportDocument() == preferences)
     #expect(model.demand == demand)

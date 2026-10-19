@@ -9,9 +9,15 @@ import SwiftUI
 
 /// 功能页的本地导航状态，不写入偏好或设置备份。
 enum FeatureSettingsTab: String, CaseIterable, Identifiable {
-  case basic, optional
+  case basic, optional, experimental
   var id: String { rawValue }
-  var title: String { self == .basic ? tr("基础功能") : tr("可选功能") }
+  var title: String {
+    switch self {
+    case .basic: tr("基础功能")
+    case .optional: tr("可选功能")
+    case .experimental: tr("实验性功能")
+    }
+  }
 }
 
 /// 分类紧邻所控制的内容；使用原生分段控件保留键盘导航与辅助功能语义。
@@ -33,12 +39,12 @@ struct FeatureSettingsTabPicker: View {
     .labelsHidden()
     .controlSize(.large)
     .fixedSize(horizontal: true, vertical: false)
-    .frame(maxWidth: DS.Size.popoverWidth, alignment: .leading)
+    .frame(maxWidth: .infinity, alignment: .leading)
     .accessibilityIdentifier("feature-settings-category")
   }
 }
 
-/// 功能开关按两类展示；切换分类不改变任何功能或采样偏好。
+/// 功能开关按基础、可选和实验性分类；切换分类不改变任何功能或采样偏好。
 struct FeatureSettings: View {
   @Environment(AppModel.self) private var model
   @State private var managesNetworkComponent = false
@@ -61,7 +67,11 @@ struct FeatureSettings: View {
       // 内容只做短淡入淡出，保持固定视口；选中状态、滚动起点与开关立即更新。
       ZStack(alignment: .topLeading) {
         SettingsTabPage {
-          if model.featureSettingsTab == .basic { basicFeatures } else { optionalFeatures }
+          switch model.featureSettingsTab {
+          case .basic: basicFeatures
+          case .optional: optionalFeatures
+          case .experimental: experimentalFeatures
+          }
         }
         .id(model.featureSettingsTab)
         .transition(.opacity)
@@ -248,6 +258,34 @@ struct FeatureSettings: View {
     }
   }
 
+  private var experimentalFeatures: some View {
+    @Bindable var settings = model.settings
+    return VStack(alignment: .leading, spacing: DS.Space.s4) {
+      Text(tr("实验性功能仍在探索中，可能存在兼容性或稳定性问题，后续更新中可能调整或移除。"))
+        .dsFont(.xs)
+        .foregroundStyle(DS.Palette.textSecondary)
+        .fixedSize(horizontal: false, vertical: true)
+      SettingsGroup {
+        GroupRow(showsDivider: false) {
+          SettingRow(
+            title: tr("折叠菜单栏图标"),
+            subtitle: tr("按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。"),
+            icon: "menubar.arrow.up.rectangle"
+          ) {
+            DSToggle(isOn: $settings.menuBarFoldingEnabled, label: tr("折叠菜单栏图标"))
+          }
+        }
+        if #available(macOS 27, *) {
+          InfoBanner(
+            icon: "exclamationmark.triangle",
+            text: tr("点击系统双箭头可能出现空白或图标错位。请用 XStats 箭头展开；无法恢复时关闭此功能。")
+          )
+          .padding(.horizontal, DS.Space.s4)
+          .padding(.bottom, DS.Space.s3)
+        }
+      }
+    }
+  }
 }
 
 /// 功能启用与菜单栏展示分开控制，不再用文字重复陈述开关状态。

@@ -2222,3 +2222,6 @@ Microsoft Teams（旧版）	Microsoft Teams (classique)
 恢复全屏提醒	Réafficher le rappel en plein écran
 跳过休息并开始专注	Passer la pause et commencer à se concentrer
 按 Esc 收起提醒，计时继续	Échap masque le rappel ; le minuteur continue
+实验性功能	Fonctions expérimentales
+实验性功能仍在探索中，可能存在兼容性或稳定性问题，后续更新中可能调整或移除。	Les fonctions expérimentales sont encore à l’étude et peuvent présenter des problèmes de compatibilité ou de stabilité. Elles peuvent être modifiées ou supprimées dans de futures mises à jour.
+点击系统双箭头可能出现空白或图标错位。请用 XStats 箭头展开；无法恢复时关闭此功能。	Cliquer sur le double chevron du système peut laisser un espace vide ou décaler les icônes. Dépliez-les avec la flèche de XStats. Si cela ne suffit pas, désactivez cette fonction.

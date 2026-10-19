@@ -31,7 +31,9 @@ live metrics, charts, rankings or controls.
 
 ## Experimental menu bar folding
 
-Menu Bar settings offers opt-in basic folding, disabled by default. Hold Command and drag
+Settings → Features has Basic, Optional, and Experimental categories. Experimental offers
+opt-in menu bar folding, disabled by default on all supported macOS
+versions. Existing local enable and collapse choices are preserved. Hold Command and drag
 infrequently used icons left of the divider, keeping the arrow to its right; click the arrow
 to collapse or expand. Disabling the feature removes both controls and restores available space.
 `MenuBarFoldingController` owns two native status items independently of metric item rebuilding.
@@ -42,6 +44,11 @@ preservation in the controller applies to earlier macOS versions, not automatic 
 It sizes the spacer to half the narrowest display width minus 20 points. A fixed 500-point
 spacer can remain visible as a blank gap when the arrow is farther right; reaching half the
 display width can instead cause macOS 27 to discard the spacer without pushing other items.
+On macOS 27, manual collapse deliberately triggers native overflow and its double-chevron
+button even when unused screen space remains. Opening the system overflow can expose the
+wide transparent spacer as a blank gap or displaced icons. Experimental settings explains
+this limitation and directs users to expand with the XStats arrow or disable folding. With folding
+disabled, XStats does not force overflow; macOS handles it naturally as icons run out of room.
 The near-half-width approach is tested on macOS 27.0.1 with a 1920-point-wide display;
 other layouts and OS versions remain unverified. This relies on native overflow, not a public
 hide-other-apps API, so sufficient hiding is not guaranteed. Startup restores the last manual
@@ -104,7 +111,9 @@ remain visible and refresh on system display events. The information-only menu-b
 when controls are off; showing it does not enable parameter control. Disabled control generations
 cancel queued DDC work and discard late replies without clearing the display catalog.
 
-The Features page uses two native segmented tabs, Basic Features and Optional Features.
+The Features page uses three native segmented tabs: Basic Features, Optional Features,
+and Experimental Features. Menu bar folding lives in Experimental Features rather than
+Menu Bar settings; switching categories does not enable it or reset its local preferences.
 Basic Features contains seven monitoring groups. Each row has a feature enable switch and
 a directly visible Show in Menu Bar checkbox below its title, distinguishing collection from
 display without repeating the switch state in text. AI Usage and Audio have the same display

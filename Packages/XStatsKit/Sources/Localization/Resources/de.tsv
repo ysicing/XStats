@@ -2222,3 +2222,6 @@ Microsoft Teams（旧版）	Microsoft Teams (klassisch)
 恢复全屏提醒	Vollbild-Erinnerung wieder anzeigen
 跳过休息并开始专注	Pause überspringen und Fokus starten
 按 Esc 收起提醒，计时继续	Esc blendet die Erinnerung aus; der Timer läuft weiter
+实验性功能	Experimentelle Funktionen
+实验性功能仍在探索中，可能存在兼容性或稳定性问题，后续更新中可能调整或移除。	Experimentelle Funktionen werden noch erprobt und können Kompatibilitäts- oder Stabilitätsprobleme aufweisen. Sie können in künftigen Updates geändert oder entfernt werden.
+点击系统双箭头可能出现空白或图标错位。请用 XStats 箭头展开；无法恢复时关闭此功能。	Ein Klick auf den Doppelpfeil des Systems kann Leerraum oder verschobene Symbole verursachen. Klappe die Symbole mit dem XStats-Pfeil auf. Hilft das nicht, deaktiviere diese Funktion.
