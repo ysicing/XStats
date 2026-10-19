@@ -1939,7 +1939,7 @@ iPhone 与 iPad	iPhone 與 iPad
 正在卸载软件包…	正在解除安裝套件…
 正在更新软件包…	正在更新套件…
 浏览应用信息，管理 Homebrew，并预览卸载残留。	瀏覽應用程式資訊、管理 Homebrew，並預覽解除安裝殘留。
-由 Homebrew 卸载所选项目，依赖保护仍然生效。	由 Homebrew 解除安裝所選項目，相依性保護仍然生效。
+将通过 Homebrew 从电脑中卸载此项目。	將透過 Homebrew 從電腦中解除安裝此項目。
 Homebrew 会更新所选项目及必要的依赖。	Homebrew 會更新所選項目及必要的相依套件。
 Homebrew 操作失败，请在终端检查后重试	Homebrew 操作失敗，請在終端機檢查後重試
 已更新“{}”	已更新「{}」

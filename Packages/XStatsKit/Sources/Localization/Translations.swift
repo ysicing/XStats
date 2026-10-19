@@ -1684,7 +1684,7 @@ extension Translations {
     正在卸载软件包…	Uninstalling package…
     正在更新软件包…	Updating package…
     浏览应用信息，管理 Homebrew，并预览卸载残留。	Browse app information, manage Homebrew, and review uninstall leftovers.
-    由 Homebrew 卸载所选项目，依赖保护仍然生效。	Homebrew will uninstall the selected item with dependency protections enabled.
+    将通过 Homebrew 从电脑中卸载此项目。	Homebrew will uninstall this item from your Mac.
     Homebrew 会更新所选项目及必要的依赖。	Homebrew will update the selected item and any required dependencies.
     Homebrew 操作失败，请在终端检查后重试	Homebrew operation failed. Check in Terminal and try again.
     已更新“{}”	Updated “{}”

@@ -770,6 +770,34 @@ import Testing
     #expect(controller.completion == nil)
   }
 
+  @Test func uninstallCompletionUsesSharedFeedbackAndDoesNotReplayAfterLeaving() async throws {
+    let fixture = app("Example")
+    let controller = AppManagementController(listApps: { [] }, brewAvailable: false)
+    defer { controller.setVisible(false) }
+    controller.showUninstallCompletion(for: fixture)
+    #expect(controller.completion == nil)
+    controller.setVisible(true)
+    controller.showUninstallCompletion(for: fixture)
+    let first = try #require(controller.completion)
+    #expect(first.action == .uninstall && first.packageName == fixture.name)
+    controller.showUninstallCompletion(for: app("Second"))
+    let second = try #require(controller.completion)
+    controller.dismissCompletion(first.id)
+    #expect(controller.completion?.id == second.id)
+    controller.dismissCompletion(second.id)
+    #expect(controller.completion == nil)
+    controller.setPaused(true)
+    controller.showUninstallCompletion(for: fixture)
+    #expect(controller.completion == nil)
+    controller.setPaused(false)
+    controller.showUninstallCompletion(for: fixture)
+    #expect(controller.completion != nil)
+    controller.setVisible(false)
+    controller.showUninstallCompletion(for: fixture)
+    controller.setVisible(true)
+    #expect(controller.completion == nil)
+  }
+
   @Test func failedBrewOperationWithoutOutputFinishesAndReloadsInventory() async throws {
     let reads = AppManagementTestValue(0)
     let package = HomebrewPackage(

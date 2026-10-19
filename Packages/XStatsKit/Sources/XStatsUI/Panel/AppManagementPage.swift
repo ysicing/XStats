@@ -62,6 +62,28 @@ struct AppManagementPage: View {
       }
     }
     .padding([.horizontal, .bottom], DS.Space.s3)
+    .overlay(alignment: .bottom) {
+      ZStack {
+        if let completion = controller.completion {
+          Label {
+            Text(completion.text).foregroundStyle(DS.Palette.textPrimary)
+          } icon: {
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(DS.Badge.successText)
+          }
+          .dsFont(.sm)
+          .lineLimit(2)
+          .padding(.horizontal, DS.Space.s4).padding(.vertical, DS.Space.s3)
+          .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
+          .dsShadow(DS.Shadow.level1)
+          .frame(maxWidth: 420)
+          .padding(.horizontal, DS.Space.s4).padding(.bottom, DS.Space.s12)
+          .id(completion.id)
+          .transition(.opacity)
+        }
+      }
+      .animation(reduceMotion ? nil : DS.Motion.quick, value: controller.completion?.id)
+      .allowsHitTesting(false)
+    }
     .task(id: controller.completion?.id) {
       guard let id = controller.completion?.id else { return }
       do { try await Task.sleep(for: .seconds(3)) } catch { return }
@@ -435,20 +457,7 @@ struct AppManagementPage: View {
         ProgressView().controlSize(.small)
         Text(action == .upgrade ? tr("正在更新软件包…") : tr("正在卸载软件包…"))
       }
-      // 在既有底栏内反馈，固定高度避免完成／消失时推动表格。
-      ZStack(alignment: .leading) {
-        if let completion = controller.completion {
-          Label(completion.text, systemImage: "checkmark.circle.fill")
-            .foregroundStyle(DS.Badge.successText)
-            .lineLimit(1)
-            .help(completion.text)
-            .id(completion.id)
-            .transition(.opacity)
-        }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .frame(height: 20)
-      .animation(reduceMotion ? nil : DS.Motion.quick, value: controller.completion?.id)
+      Spacer(minLength: 0).frame(height: 20)
       if let selected { actions(for: selected).disabled(model.uninstaller.isRemoving) }
     }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
   }
@@ -645,34 +654,59 @@ private struct HomebrewConfirmationSheet: View {
   let confirm: () -> Void
   let cancel: () -> Void
   var body: some View {
-    VStack(alignment: .leading, spacing: DS.Space.s4) {
-      Text(
-        confirmation.action == .upgrade
-          ? tr("更新“\(confirmation.package.displayName)”？")
-          : tr("卸载“\(confirmation.package.displayName)”？")
-      )
-      .dsFont(.lg, weight: .semibold)
-      Text(
-        confirmation.action == .upgrade
-          ? tr("Homebrew 会更新所选项目及必要的依赖。") : tr("由 Homebrew 卸载所选项目，依赖保护仍然生效。")
-      )
-      .dsFont(.sm).fixedSize(horizontal: false, vertical: true)
-      Text(verbatim: confirmation.package.name).dsFont(.xs).foregroundStyle(
-        DS.Palette.textSecondary)
-      HStack {
-        Spacer()
-        Button(tr("取消"), action: cancel).keyboardShortcut(.cancelAction)
-        Button(confirmation.action == .upgrade ? tr("更新软件包") : tr("卸载"), action: confirm)
-          .buttonStyle(.borderedProminent).tint(
-            confirmation.action == .upgrade ? DS.Palette.primary : DS.Palette.error)
+    VStack(alignment: .leading, spacing: DS.Space.s6) {
+      VStack(alignment: .leading, spacing: DS.Space.s2) {
+        Text(
+          confirmation.action == .upgrade
+            ? tr("更新“\(confirmation.package.displayName)”？")
+            : tr("卸载“\(confirmation.package.displayName)”？")
+        )
+        .dsFont(.lg, weight: .semibold)
+        .fixedSize(horizontal: false, vertical: true)
+        Text(
+          confirmation.action == .upgrade
+            ? tr("Homebrew 会更新所选项目及必要的依赖。") : tr("将通过 Homebrew 从电脑中卸载此项目。")
+        )
+        .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
+        .fixedSize(horizontal: false, vertical: true)
+        // 标题已说明对象；仅在完整标识不同（如自定义 tap）时补充，避免重复显示。
+        if confirmation.package.name != confirmation.package.displayName {
+          Text(verbatim: confirmation.package.name)
+            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .environment(\.layoutDirection, .leftToRight)
+        }
       }
-    }.padding(DS.Space.s6).frame(width: 420).appLanguageEnvironment()
+      .frame(maxWidth: .infinity, alignment: .leading)
+      HStack(spacing: DS.Space.s2) {
+        Spacer()
+        Button(action: cancel) {
+          Text(tr("取消")).frame(minWidth: 64)
+        }
+        .buttonStyle(.bordered).keyboardShortcut(.cancelAction)
+        Button(
+          role: confirmation.action == .uninstall ? .destructive : nil, action: confirm
+        ) {
+          Text(confirmation.action == .upgrade ? tr("更新软件包") : tr("卸载"))
+            .frame(minWidth: 64)
+        }
+        .buttonStyle(.borderedProminent).tint(
+          confirmation.action == .upgrade ? DS.Palette.primary : DS.Palette.error)
+      }
+      .controlSize(.large).fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(DS.Space.s6).frame(width: 420)
+    .fixedSize(horizontal: false, vertical: true).appLanguageEnvironment()
   }
 }
 
-private struct AppUninstallInspector: View {
+struct AppUninstallInspector: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
+  private var showsResultOnly: Bool {
+    model.uninstaller.selected == nil && model.uninstaller.outcome?.isError == true
+  }
+
   var body: some View {
     VStack(spacing: DS.Space.s3) {
       HStack {
@@ -682,17 +716,31 @@ private struct AppUninstallInspector: View {
           .keyboardShortcut(.cancelAction)
           .disabled(model.uninstaller.isRemoving)
       }
-      ScrollView {
-        if let app = model.uninstaller.selected {
-          AppDetailCard(app: app) { model.uninstaller.requestUninstall() }
-        }
-        if let outcome = model.uninstaller.outcome {
-          InfoBanner(
-            icon: outcome.isError ? "exclamationmark.triangle" : "checkmark.circle",
-            text: outcome.text, tone: outcome.isError ? .error : .success)
+      if showsResultOnly {
+        outcomeBanner
+        Button(tr("完成")) { dismiss() }
+          .buttonStyle(.borderedProminent)
+          .keyboardShortcut(.defaultAction)
+          .frame(maxWidth: .infinity, alignment: .trailing)
+      } else {
+        ScrollView {
+          if let app = model.uninstaller.selected {
+            AppDetailCard(app: app) { model.uninstaller.requestUninstall() }
+          }
+          outcomeBanner
         }
       }
-    }.padding(DS.Space.s4).frame(width: 560, height: 560)
+    }.padding(DS.Space.s4).frame(width: 560, height: showsResultOnly ? nil : 560)
+      // 错误结果没有可重试项目时按内容收紧，成功结果直接关闭面板。
+      .fixedSize(horizontal: false, vertical: true)
+      .onChange(of: model.uninstaller.selected) { previous, current in
+        guard let previous, current == nil, !model.uninstaller.isRemoving,
+          let outcome = model.uninstaller.outcome, !outcome.isError
+        else { return }
+        // 仅全部处理成功时返回列表；部分失败与未处理残留仍留在面板内。
+        model.appManagement.showUninstallCompletion(for: previous)
+        dismiss()
+      }
       .onChange(of: model.isMainWindowVisible) { _, visible in
         if visible { model.uninstaller.resumeSelectionScan() }
       }
@@ -704,5 +752,13 @@ private struct AppUninstallInspector: View {
         UninstallConfirmationSheet(app: app, uninstaller: model.uninstaller)
       }
       .appLanguageEnvironment()
+  }
+
+  @ViewBuilder private var outcomeBanner: some View {
+    if let outcome = model.uninstaller.outcome {
+      InfoBanner(
+        icon: outcome.isError ? "exclamationmark.triangle" : "checkmark.circle",
+        text: outcome.text, tone: outcome.isError ? .error : .success)
+    }
   }
 }

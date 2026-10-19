@@ -899,6 +899,12 @@ final class AppManagementController {
     }
   }
 
+  func showUninstallCompletion(for app: InstalledApp) {
+    // 窗口隐藏或离开页面后不补播过时的成功提示。
+    guard visible, !paused else { return }
+    completion = Completion(action: .uninstall, packageName: app.name)
+  }
+
   func dismissCompletion(_ id: UUID) {
     // 上一条提示的延迟任务不能清除后来完成的新操作。
     guard completion?.id == id else { return }
