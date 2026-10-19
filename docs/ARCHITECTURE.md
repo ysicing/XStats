@@ -44,8 +44,9 @@ spacer can remain visible as a blank gap when the arrow is farther right; reachi
 display width can instead cause macOS 27 to discard the spacer without pushing other items.
 The near-half-width approach is tested on macOS 27.0.1 with a 1920-point-wide display;
 other layouts and OS versions remain unverified. This relies on native overflow, not a public
-hide-other-apps API, so sufficient hiding is not guaranteed. Startup and screen changes expand
-the section. The enable preference stays local and is excluded from settings export/sync.
+hide-other-apps API, so sufficient hiding is not guaranteed. Startup restores the last manual
+collapse/expand choice; screen changes temporarily expand the section without overwriting it.
+The enable preference and manual choice stay local and are excluded from settings export/sync.
 There is no icon enumeration, automatic arrangement, background polling, or extra permission.
 
 ## Sampling

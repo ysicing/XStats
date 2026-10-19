@@ -44,6 +44,7 @@ final class MenuBarFoldingController: NSObject {
     }
     if settings.menuBarFoldingEnabled {
       if arrow == nil {
+        isCollapsed = settings.menuBarFoldingCollapsed
         // 新项目通常在左侧创建：先放箭头，再放分隔符；用户可用 ⌘ 拖动位置。
         let arrow = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         arrow.autosaveName = "XStats.Folding.Arrow"
@@ -56,7 +57,7 @@ final class MenuBarFoldingController: NSObject {
         // 只隐藏绘制，保留原有尺寸与拖动位置，避免改变折叠边界。
         divider.button?.isTransparent = true
         self.divider = divider
-        Log.app.info("Menu bar folding enabled, expanded")
+        Log.app.info("Menu bar folding enabled, collapsed: \(self.isCollapsed)")
       }
       updateButtons()
     } else {
@@ -67,6 +68,7 @@ final class MenuBarFoldingController: NSObject {
   @objc func toggle() {
     guard divider != nil else { return }
     isCollapsed.toggle()
+    settings.menuBarFoldingCollapsed = isCollapsed
     updateButtons()
   }
 

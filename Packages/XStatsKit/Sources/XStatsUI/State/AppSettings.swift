@@ -843,6 +843,10 @@ public final class AppSettings {
   public var menuBarFoldingEnabled: Bool {
     didSet { defaults.set(menuBarFoldingEnabled, forKey: Keys.menuBarFoldingEnabled) }
   }
+  /// 仅记住本机手动选择；显示器变化或退出时临时展开不覆盖它。
+  var menuBarFoldingCollapsed: Bool {
+    didSet { defaults.set(menuBarFoldingCollapsed, forKey: Keys.menuBarFoldingCollapsed) }
+  }
 
   public var menuBarItemSpacing: Int {
     didSet { defaults.set(menuBarItemSpacing, forKey: Keys.menuBarItemSpacing) }
@@ -1168,6 +1172,7 @@ public final class AppSettings {
     projectPurgeConfiguredPaths = defaults.stringArray(forKey: Keys.projectPurgeConfiguredPaths)
     let spacing = defaults.integer(forKey: Keys.menuBarItemSpacing)
     menuBarFoldingEnabled = defaults.bool(forKey: Keys.menuBarFoldingEnabled)
+    menuBarFoldingCollapsed = defaults.bool(forKey: Keys.menuBarFoldingCollapsed)
     menuBarItemSpacing = Self.menuBarSpacingOptions.contains(spacing) ? spacing : 8
     let savedMenuBarLayout = defaults.string(forKey: Keys.menuBarLayout).flatMap(
       MenuBarLayout.init(rawValue:))
@@ -1401,6 +1406,7 @@ public final class AppSettings {
     static let cleanSelectedRuleIDs = "cleanSelectedRuleIDs"
     static let projectPurgeConfiguredPaths = "projectPurgeConfiguredPaths"
     static let menuBarFoldingEnabled = "menuBarFoldingEnabled"
+    static let menuBarFoldingCollapsed = "menuBarFoldingCollapsed"
     static let menuBarItemSpacing = "menuBarItemSpacing"
     static let menuBarLayout = "menuBarLayout"
     static let hiddenPopoverSections = "hiddenPopoverSections"
