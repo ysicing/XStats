@@ -2227,6 +2227,7 @@ Microsoft Teams（旧版）	Microsoft Teams (classique)
 点击系统双箭头可能出现空白或图标错位。请用 XStats 箭头展开；无法恢复时关闭此功能。	Cliquer sur le double chevron du système peut laisser un espace vide ou décaler les icônes. Dépliez-les avec la flèche de XStats. Si cela ne suffit pas, désactivez cette fonction.
 Agent 数据	Données des agents
 查看编程 Agent 的数据占用，清理旧日志并管理 worktree	Consultez le stockage des agents de programmation, nettoyez les anciens journaux et gérez les worktrees
+在清理页查看编程 Agent 的数据占用，清理旧日志并管理 worktree。	Consultez l’espace occupé par les agents de programmation, nettoyez les anciens journaux et gérez les worktrees depuis la page Nettoyage.
 已安装工具	Outils installés
 工具数据	Données des outils
 部分位置未完整扫描，数量与大小仅包含已确认的项目。	Certains emplacements n’ont pas été entièrement analysés. Seuls les éléments confirmés sont comptés.
@@ -2266,4 +2267,4 @@ worktree 已锁定	Le worktree est verrouillé
 包含子模块，需在 Git 中处理	Contient des sous-modules ; à gérer dans Git
 已安装	Installé
 查看…	Afficher…
-编程工具的本地数据与工作目录	Données locales et répertoires de travail des outils de programmation
+AI 工具的本地数据与工作目录	Données locales et répertoires de travail des outils d’IA

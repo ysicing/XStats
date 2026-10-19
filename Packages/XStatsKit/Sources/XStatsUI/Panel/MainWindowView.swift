@@ -423,16 +423,18 @@ private struct PageHeader: View {
         .accessibilityLabel(tr("打开系统活动监视器"))
       }
       if tab == .cleaner {
-        Button {
-          showAgentData = true
-        } label: {
-          HStack(spacing: DS.Space.s1) {
-            Image(systemName: "terminal")
-            Text(tr("Agent 数据")).lineLimit(1).fixedSize()
+        if settings.agentDataEnabled {
+          Button {
+            showAgentData = true
+          } label: {
+            HStack(spacing: DS.Space.s1) {
+              Image(systemName: "terminal")
+              Text(tr("Agent 数据")).lineLimit(1).fixedSize()
+            }
           }
+          .buttonStyle(DSButtonStyle(kind: .secondary))
+          .help(tr("查看编程 Agent 的数据占用，清理旧日志并管理 worktree"))
         }
-        .buttonStyle(DSButtonStyle(kind: .secondary))
-        .help(tr("查看编程 Agent 的数据占用，清理旧日志并管理 worktree"))
         Button {
           model.openProjectPurgeWindow()
         } label: {

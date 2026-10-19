@@ -20,8 +20,9 @@ extension Translations {
     查看…	View…
     已安装	Installed
     Agent 数据	Agent Data
-    编程工具的本地数据与工作目录	Local data and working directories for coding tools
+    AI 工具的本地数据与工作目录	Local data and working directories for AI tools
     查看编程 Agent 的数据占用，清理旧日志并管理 worktree	Inspect coding agent storage, clean old logs and manage worktrees
+    在清理页查看编程 Agent 的数据占用，清理旧日志并管理 worktree。	Inspect coding agent storage, clean old logs and manage worktrees from the Cleanup page.
     已安装工具	Installed Tools
     工具数据	Tool Data
     部分位置未完整扫描，数量与大小仅包含已确认的项目。	Some locations could not be fully scanned. Counts and sizes include confirmed items only.

@@ -5,6 +5,151 @@ import Testing
 @testable import Cleaner
 
 struct AICleanupTests {
+  @Test func desktopDetectionStopsWhenItsDeadlineHasExpired() throws {
+    let fixture = try AICleanupFixture()
+    defer { fixture.dispose() }
+    let result = try AIAgentCleanup.desktopBundleIdentifiers(
+      in: [fixture.home], budget: AIScanBudget(deadline: .distantPast))
+    #expect(result.incomplete)
+    #expect(result.identifiers.isEmpty)
+  }
+
+  @Test func truncatedDesktopDetectionMarksScanIncompleteAndStillFindsWorktrees() async throws {
+    let fixture = try AICleanupFixture(git: true)
+    defer { fixture.dispose() }
+    let applications = fixture.home.appendingPathComponent("Applications")
+    try FileManager.default.createDirectory(at: applications, withIntermediateDirectories: true)
+    for index in 0..<1_001 {
+      try Data().write(to: applications.appendingPathComponent("entry-\(index)"))
+    }
+    var environment = fixture.environment
+    environment.applicationDirectories = [applications]
+    let result = try await AIAgentCleanup.scan(environment: environment)
+    #expect(result.incomplete)
+    #expect(result.worktrees.count == 1)
+    #expect(result.worktrees.first?.canRemove == true)
+  }
+
+  @Test func largeToolCatalogCannotStarveWorktreeDiscovery() async throws {
+    let fixture = try AICleanupFixture(git: true)
+    defer { fixture.dispose() }
+    let seed = fixture.home.appendingPathComponent("seed")
+    try Data(repeating: 1, count: 4096).write(to: seed)
+    // 三个目录各自在单目录上限以内，但总条目超过工具统计预算。
+    for name in [".codex", ".claude", ".grok"] {
+      let root = fixture.home.appendingPathComponent(name)
+      try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+      for index in 0..<25_000 {
+        try FileManager.default.linkItem(at: seed, to: root.appendingPathComponent("file-\(index)"))
+      }
+    }
+    let result = try await AIAgentCleanup.scan(environment: fixture.environment)
+    #expect(result.incomplete)
+    #expect(result.tools.contains { !$0.dataDirectories.isEmpty && $0.bytes == nil })
+    #expect(result.worktrees.count == 1)
+    #expect(result.worktrees.first?.canRemove == true)
+  }
+
+  @Test func desktopDetectionUsesBundleIdentityAndRequiresAnExecutable() async throws {
+    let fixture = try AICleanupFixture()
+    defer { fixture.dispose() }
+    let applications = fixture.home.appendingPathComponent("Applications")
+    let bundles = [
+      ("Renamed Editor", "com.microsoft.VSCode", true),
+      ("Assistant", "com.anthropic.claudefordesktop", true),
+      ("Harness", "com.deepseek.dsh", true),
+      ("Cindy", "unrelated.cindy", true),
+      ("Buddy", "com.tencent.codebuddycn", true),
+      ("International Buddy", "com.workbuddy.workbuddy", true),
+      ("Incomplete", "com.tencent.workbuddy.mac", false),
+    ]
+    for (name, identifier, runnable) in bundles {
+      let contents = applications.appendingPathComponent("\(name).app/Contents")
+      try FileManager.default.createDirectory(
+        at: contents.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
+      let plist: [String: String] = [
+        "CFBundleIdentifier": identifier, "CFBundleExecutable": "fixture",
+        "CFBundlePackageType": "APPL",
+      ]
+      try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        .write(to: contents.appendingPathComponent("Info.plist"))
+      if runnable {
+        let executable = contents.appendingPathComponent("MacOS/fixture")
+        try Data("fixture".utf8).write(to: executable)
+        try FileManager.default.setAttributes(
+          [.posixPermissions: 0o755], ofItemAtPath: executable.path)
+      }
+    }
+    var environment = fixture.environment
+    environment.applicationDirectories = [applications]
+    let result = try await AIAgentCleanup.scan(environment: environment)
+    #expect(
+      Set(result.tools.filter { $0.installation == .installed }.map(\.id)) == [
+        "vscode", "claude-desktop", "deepseek", "codebuddy", "workbuddy",
+      ])
+    #expect(result.tools.first { $0.id == "claude" }?.installation == .absent)
+    #expect(result.tools.first { $0.id == "cindy" }?.installation == .absent)
+  }
+
+  @Test func additionalToolDataIsReadOnlyAndVSCodeScopeExcludesSharedEditorData() async throws {
+    let fixture = try AICleanupFixture()
+    defer { fixture.dispose() }
+    let relatives = [
+      ".grok", ".dsh", ".pi/agent", ".cindy", ".codebuddy", ".codebuddycn", ".workbuddy",
+      "Library/Application Support/Claude", "Library/Application Support/CindyGlobal",
+      "Library/Application Support/com.workbuddy.workbuddy",
+      "Library/Application Support/Code/User/globalStorage/github.copilot-chat",
+      "Library/Application Support/Code/User/workspaceStorage",
+    ]
+    for relative in relatives {
+      let directory = fixture.home.appendingPathComponent(relative)
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      try Data(repeating: 1, count: 4096).write(
+        to: directory.appendingPathComponent("session.json"))
+    }
+    let result = try await AIAgentCleanup.scan(environment: fixture.environment)
+    for id in [
+      "grok", "deepseek", "pi", "cindy", "codebuddy", "workbuddy", "claude-desktop", "vscode",
+    ] {
+      let tool = try #require(result.tools.first { $0.id == id })
+      #expect(tool.installation == .dataOnly)
+      #expect((tool.bytes ?? 0) > 0)
+    }
+    let vscode = try #require(result.tools.first { $0.id == "vscode" })
+    #expect(vscode.dataDirectories.count == 1)
+    #expect(vscode.dataDirectories.first?.lastPathComponent == "github.copilot-chat")
+    #expect(
+      Set(AIAgentCleanup.logRules(environment: fixture.environment).map(\.id)) == [
+        "ai.logs.codex", "ai.logs.claude", "ai.logs.opencode",
+      ])
+    #expect(!result.incomplete)
+  }
+
+  @Test func additionalCustomHomesAndCrossToolOverlapDoNotDoubleCount() async throws {
+    let fixture = try AICleanupFixture()
+    defer { fixture.dispose() }
+    let shared = fixture.home.appendingPathComponent("shared")
+    let pi = fixture.home.appendingPathComponent("pi-custom")
+    for root in [shared, pi] {
+      try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+      try Data(repeating: 1, count: 4096).write(to: root.appendingPathComponent("state"))
+    }
+    var environment = fixture.environment
+    environment.variables = [
+      "GROK_HOME": shared.path, "DSH_HOME": shared.path, "PI_CODING_AGENT_DIR": pi.path,
+    ]
+    environment.executable = {
+      ["grok", "dsh", "pi"].contains($0) ? URL(fileURLWithPath: "/fixture/" + $0) : nil
+    }
+    let result = try await AIAgentCleanup.scan(environment: environment)
+    #expect(result.installedCount == 3)
+    #expect(result.tools.first { $0.id == "grok" }?.dataDirectories.map(\.path) == [shared.path])
+    #expect((result.tools.first { $0.id == "grok" }?.bytes ?? 0) > 0)
+    #expect(result.tools.first { $0.id == "deepseek" }?.bytes == nil)
+    #expect(result.tools.first { $0.id == "pi" }?.dataDirectories.map(\.path) == [pi.path])
+    #expect(result.incomplete)
+  }
+
   @Test func separatesInstalledToolsFromDataAndHonorsCustomHome() async throws {
     let fixture = try AICleanupFixture()
     defer { fixture.dispose() }
@@ -38,6 +183,54 @@ struct AICleanupTests {
     try FileManager.default.createSymbolicLink(at: link, withDestinationURL: directory)
     #expect(throws: AIScanError.self) { try AIScanBudget().size(link) }
     #expect(throws: AIScanError.self) { try AIScanBudget(entries: 0).size(directory) }
+    #expect(throws: AIScanError.limit) {
+      try AIScanBudget(deadline: .distantPast).size(directory)
+    }
+    #expect(throws: AIScanError.limit) {
+      try AIScanBudget(parent: AIScanBudget(entries: 0)).size(directory)
+    }
+  }
+
+  @Test func codexDataWithMoreThanTenThousandEntriesIsFullyMeasured() async throws {
+    let fixture = try AICleanupFixture()
+    defer { fixture.dispose() }
+    let directory = fixture.home.appendingPathComponent(".codex/.tmp")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let payload = Data(repeating: 1, count: 4096)
+    var expectedBytes: UInt64 = 0
+    // Codex 的临时文件和插件会轻易超过旧条目上限，但仍可在时间预算内完成计量。
+    for index in 0..<10_001 {
+      let file = directory.appendingPathComponent("file-\(index)")
+      try payload.write(to: file)
+      expectedBytes += UInt64(
+        try file.resourceValues(forKeys: [.fileAllocatedSizeKey]).fileAllocatedSize ?? 0)
+    }
+    let scan = try await AIAgentCleanup.scan(environment: fixture.environment)
+    let codex = try #require(scan.tools.first { $0.id == "codex" })
+    #expect(codex.bytes == expectedBytes)
+    #expect(!scan.incomplete)
+  }
+
+  @Test func measurementExcludesOnlyTopLevelWorktreesAndDoesNotFollowLinks() throws {
+    let fixture = try AICleanupFixture()
+    defer { fixture.dispose() }
+    let root = fixture.home.appendingPathComponent(".codex")
+    var expectedBytes: UInt64 = 0
+    for relative in ["worktrees/managed", "plugins/worktrees/data", "worktrees-backup/data"] {
+      let file = root.appendingPathComponent(relative)
+      try FileManager.default.createDirectory(
+        at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try Data(repeating: 1, count: 4096).write(to: file)
+      if relative != "worktrees/managed" {
+        expectedBytes += UInt64(
+          try file.resourceValues(forKeys: [.fileAllocatedSizeKey]).fileAllocatedSize ?? 0)
+      }
+    }
+    try FileManager.default.createSymbolicLink(
+      at: root.appendingPathComponent("linked"),
+      withDestinationURL: root.appendingPathComponent("worktrees-backup"))
+    #expect(try AIScanBudget().size(root, excludingWorktrees: true) == expectedBytes)
+    #expect(try AIScanBudget().size(root) > expectedBytes)
   }
 
   @Test func logsPreserveSessionsCredentialsRecentFilesAndExclusions() async throws {
@@ -221,7 +414,7 @@ private struct AICleanupFixture {
   var environment: AICleanupEnvironment {
     AICleanupEnvironment(
       home: home.path, variables: [:], searchRoots: [home], executable: { _ in nil },
-      hasGit: { usesGit }, codexDesktopInstalled: { false })
+      hasGit: { usesGit }, codexDesktopInstalled: { false }, applicationDirectories: [])
   }
   init(git: Bool = false) throws {
     usesGit = git

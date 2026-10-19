@@ -66,6 +66,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var autoCheckUpdates: Bool?
   public var updateCheckSchedule: String?
   public var cleanerEnabled: Bool?
+  public var agentDataEnabled: Bool?
   public var uninstallerEnabled: Bool?
   public var processesEnabled: Bool?
   public var audioEnabled: Bool?
@@ -131,6 +132,7 @@ extension AppSettings {
     doc.autoCheckUpdates = autoCheckUpdates
     doc.updateCheckSchedule = updateCheckSchedule.rawValue
     doc.cleanerEnabled = cleanerEnabled
+    doc.agentDataEnabled = agentDataEnabled
     doc.uninstallerEnabled = uninstallerEnabled
     doc.processesEnabled = processesEnabled
     doc.audioEnabled = audioEnabled
@@ -227,6 +229,7 @@ extension AppSettings {
       assign(\.autoCheckUpdates, doc.autoCheckUpdates)
     }
     assign(\.cleanerEnabled, doc.cleanerEnabled)
+    assign(\.agentDataEnabled, doc.agentDataEnabled)
     assign(\.uninstallerEnabled, doc.uninstallerEnabled)
     assign(\.processesEnabled, doc.processesEnabled)
     assign(\.audioEnabled, doc.audioEnabled)

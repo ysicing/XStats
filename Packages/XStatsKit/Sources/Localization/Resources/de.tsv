@@ -2227,6 +2227,7 @@ Microsoft Teams（旧版）	Microsoft Teams (klassisch)
 点击系统双箭头可能出现空白或图标错位。请用 XStats 箭头展开；无法恢复时关闭此功能。	Ein Klick auf den Doppelpfeil des Systems kann Leerraum oder verschobene Symbole verursachen. Klappe die Symbole mit dem XStats-Pfeil auf. Hilft das nicht, deaktiviere diese Funktion.
 Agent 数据	Agent-Daten
 查看编程 Agent 的数据占用，清理旧日志并管理 worktree	Speicherbelegung von Coding-Agenten prüfen, alte Protokolle bereinigen und Worktrees verwalten
+在清理页查看编程 Agent 的数据占用，清理旧日志并管理 worktree。	Auf der Bereinigungsseite den Speicherbedarf von Coding-Agents prüfen, alte Protokolle bereinigen und Worktrees verwalten.
 已安装工具	Installierte Tools
 工具数据	Tool-Daten
 部分位置未完整扫描，数量与大小仅包含已确认的项目。	Einige Orte wurden nicht vollständig geprüft. Anzahl und Größe umfassen nur bestätigte Einträge.
@@ -2266,4 +2267,4 @@ worktree 已锁定	Worktree ist gesperrt
 包含子模块，需在 Git 中处理	Enthält Submodule; in Git verwalten
 已安装	Installiert
 查看…	Ansehen…
-编程工具的本地数据与工作目录	Lokale Daten und Arbeitsverzeichnisse für Coding-Tools
+AI 工具的本地数据与工作目录	Lokale Daten und Arbeitsverzeichnisse für KI-Tools

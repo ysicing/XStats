@@ -26,6 +26,7 @@ struct AICleanupSheet: View {
   @State private var section = 0
   @State private var pauseReasons: Set<String> = []
   private var paused: Bool { !pauseReasons.isEmpty }
+  private var enabled: Bool { model.settings.cleanerEnabled && model.settings.agentDataEnabled }
   @State private var isVisible = false
 
   var body: some View {
@@ -43,6 +44,7 @@ struct AICleanupSheet: View {
           Spacer(minLength: 0)
           if controller.isBusy, controller.scan != nil { ProgressView().controlSize(.small) }
           Button {
+            guard enabled else { return }
             controller.refresh()
           } label: {
             Label(tr("重新扫描"), systemImage: "arrow.clockwise")
@@ -103,26 +105,35 @@ struct AICleanupSheet: View {
       isPresented: Binding(get: { controller.confirmation != nil }, set: { _ in })
     ) {
       Button(tr("取消"), role: .cancel) { controller.confirmation = nil }
-      Button(confirmationAction, role: .destructive) { controller.confirm() }
+      Button(confirmationAction, role: .destructive) {
+        guard enabled else { return }
+        controller.confirm()
+      }
     } message: {
       Text(confirmationMessage)
     }
     .onAppear {
       isVisible = true
-      if !isSnapshot { controller.refresh() }
+      if !isSnapshot {
+        if enabled { controller.refresh() } else { dismiss() }
+      }
     }
     .onDisappear {
       isVisible = false
       controller.cancel()
     }
-    .onChange(of: model.settings.cleanerEnabled) { _, enabled in
+    .onChange(of: enabled) { _, enabled in
       if !enabled {
         controller.cancel()
         dismiss()
       }
     }
     .onChange(of: model.isMainWindowVisible) { _, visible in
-      if !visible { controller.cancel() } else if isVisible && !paused { controller.refresh() }
+      if !visible {
+        controller.cancel()
+      } else if enabled && isVisible && !paused {
+        controller.refresh()
+      }
     }
     .onReceive(
       NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)
@@ -165,13 +176,24 @@ struct AICleanupSheet: View {
         .accessibilityHidden(true)
       VStack(alignment: .leading, spacing: DS.Space.s1) {
         Text(tr("Agent 数据")).dsFont(.lg, weight: .semibold)
-        Text(tr("编程工具的本地数据与工作目录"))
+        Text(tr("AI 工具的本地数据与工作目录"))
           .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
           .fixedSize(horizontal: false, vertical: true)
       }
       Spacer(minLength: DS.Space.s3)
-      Button(tr("完成")) { dismiss() }
-        .buttonStyle(.bordered).keyboardShortcut(.cancelAction)
+      Button {
+        dismiss()
+      } label: {
+        Image(systemName: "xmark")
+          .font(.system(size: 11, weight: .semibold))
+          .foregroundStyle(DS.Palette.textSecondary)
+          .frame(width: 28, height: 28)
+          .background(DS.Palette.surface, in: Circle())
+      }
+      .buttonStyle(.plain)
+      .help(tr("关闭面板"))
+      .accessibilityLabel(tr("关闭面板"))
+      .keyboardShortcut(.cancelAction)
     }
     .padding(DS.Space.s6)
   }
@@ -275,10 +297,12 @@ struct AICleanupSheet: View {
 
   private func toolSymbol(_ id: String) -> String {
     switch id {
-    case "claude": "asterisk"
+    case "claude", "claude-desktop": "asterisk"
     case "gemini": "sparkle"
     case "cursor": "cursorarrow"
-    case "opencode": "chevron.left.forwardslash.chevron.right"
+    case "opencode", "vscode", "codebuddy": "chevron.left.forwardslash.chevron.right"
+    case "cindy": "person.crop.circle"
+    case "workbuddy": "briefcase"
     default: "terminal"
     }
   }
@@ -311,51 +335,53 @@ struct AICleanupSheet: View {
       .frame(maxWidth: .infinity, minHeight: 156)
       .background(DS.Palette.background, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
     }
-    MainActorForEach(scan.worktrees) { item in
-      VStack(alignment: .leading, spacing: DS.Space.s3) {
-        HStack(alignment: .top, spacing: DS.Space.s3) {
-          Image(systemName: "arrow.triangle.branch")
-            .font(.system(size: 18, weight: .medium)).foregroundStyle(DS.Palette.primary)
-            .frame(width: 36, height: 36)
-            .background(DS.Palette.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
-            .accessibilityHidden(true)
-          VStack(alignment: .leading, spacing: DS.Space.s1) {
-            Text(verbatim: item.repository.lastPathComponent).dsFont(.sm, weight: .semibold)
-            Text(verbatim: item.branch ?? tr("分离 HEAD")).dsFont(.xs)
-              .foregroundStyle(DS.Palette.textSecondary)
+    if !scan.worktrees.isEmpty {
+      VStack(spacing: 0) {
+        MainActorForEach(Array(scan.worktrees.enumerated()), id: \.element.id) { index, item in
+          if index > 0 { HairlineDivider().padding(.leading, DS.Space.s4) }
+          HStack(alignment: .top, spacing: DS.Space.s3) {
+            Image(systemName: "arrow.triangle.branch")
+              .font(.system(size: 16, weight: .medium)).foregroundStyle(DS.Palette.primary)
+              .frame(width: 32, height: 32)
+              .background(DS.Palette.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+              .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: DS.Space.s1) {
+              HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
+                Text(verbatim: item.repository.lastPathComponent).dsFont(.sm, weight: .semibold)
+                Text(verbatim: item.branch ?? tr("分离 HEAD")).dsFont(.xs)
+                  .foregroundStyle(DS.Palette.textSecondary)
+              }
               .fixedSize(horizontal: false, vertical: true)
+              Text(verbatim: displayPath(item.url)).dsFont(.xs).textSelection(.enabled)
+                .foregroundStyle(DS.Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .environment(\.layoutDirection, .leftToRight)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .trailing, spacing: DS.Space.s2) {
+              Text(verbatim: item.bytes.map { Format.bytes($0, base: .decimal) } ?? "—")
+                .dsFont(.sm, weight: .medium).monospacedDigit()
+              HStack(spacing: DS.Space.s3) {
+                Button {
+                  NSWorkspace.shared.activateFileViewerSelecting([item.url])
+                } label: {
+                  Image(systemName: "folder")
+                }
+                .buttonStyle(.borderless)
+                .help(tr("在访达中显示")).accessibilityLabel(tr("在访达中显示"))
+                Button(tr("移除…")) { controller.requestRemoval(item) }
+                  .buttonStyle(.bordered)
+                  .disabled(!item.canRemove || controller.isBusy || paused)
+                  .help(item.protection?.title ?? tr("检查通过，移除前会再次核对"))
+                  .accessibilityHint(item.protection?.title ?? tr("检查通过，移除前会再次核对"))
+              }
+            }
+            .fixedSize(horizontal: true, vertical: false)
           }
-          Spacer(minLength: DS.Space.s3)
-          Text(verbatim: item.bytes.map { Format.bytes($0, base: .decimal) } ?? "—")
-            .dsFont(.sm, weight: .medium).monospacedDigit()
-        }
-        Text(verbatim: displayPath(item.url)).dsFont(.xs).textSelection(.enabled)
-          .foregroundStyle(DS.Palette.textSecondary).fixedSize(horizontal: false, vertical: true)
-          .environment(\.layoutDirection, .leftToRight)
-        HairlineDivider()
-        HStack(alignment: .center, spacing: DS.Space.s3) {
-          Label(
-            item.protection?.title ?? tr("检查通过，移除前会再次核对"),
-            systemImage: item.canRemove ? "checkmark.shield" : "lock.shield"
-          )
-          .dsFont(.xs).foregroundStyle(
-            item.canRemove ? DS.Palette.success : DS.Palette.textSecondary
-          )
-          .fixedSize(horizontal: false, vertical: true)
-          Spacer(minLength: 0)
-          Button {
-            NSWorkspace.shared.activateFileViewerSelecting([item.url])
-          } label: {
-            Image(systemName: "folder")
-          }
-          .buttonStyle(.borderless)
-          .help(tr("在访达中显示")).accessibilityLabel(tr("在访达中显示"))
-          Button(tr("移除…")) { controller.requestRemoval(item) }
-            .buttonStyle(.bordered)
-            .disabled(!item.canRemove || controller.isBusy || paused)
+          .padding(.horizontal, DS.Space.s4)
+          .padding(.vertical, DS.Space.s3)
         }
       }
-      .padding(DS.Space.s4)
       .background(DS.Palette.background, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
     }
     DisclosureGroup(tr("已扫描位置")) {
@@ -443,7 +469,7 @@ struct AICleanupSheet: View {
     panel.begin { response in
       guard response == .OK, let url = panel.url else { return }
       Task { @MainActor in
-        guard isVisible, model.isMainWindowVisible, !paused else { return }
+        guard enabled, isVisible, model.isMainWindowVisible, !paused else { return }
         controller.refresh(additionalRoot: url)
       }
     }
@@ -454,6 +480,6 @@ struct AICleanupSheet: View {
   }
   private func resume(_ reason: String) {
     pauseReasons.remove(reason)
-    if isVisible, !paused, model.isMainWindowVisible { controller.refresh() }
+    if enabled, isVisible, !paused, model.isMainWindowVisible { controller.refresh() }
   }
 }

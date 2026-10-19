@@ -84,15 +84,17 @@ Gradle、Maven、Docker、AI 模型和历史会话不在本次新增范围中：
 
 ## Agent 数据
 
-清理页右上角并列提供“Agent 数据”和“项目产物”入口。“Agent 数据”用于盘点编程 Agent 的本地数据与 worktree，按需扫描 Codex、Claude Code、Gemini CLI、OpenCode、Cursor Agent 和 Aider。检测到可执行命令才计为已安装；Codex 桌面应用与 CLI 合并计一种，只有数据目录时单独标注。工具占用不包含其根目录下托管的 worktree，不读取会话或凭据内容。支持 `CODEX_HOME`、`CLAUDE_CONFIG_DIR` 与 OpenCode 的 XDG 数据目录；自定义位置仅盘点，不开放日志清理。
+“Agent 数据”为默认关闭的实验性功能，可在“设置 → 功能 → 实验性功能”中启用。启用后，清理页右上角显示“Agent 数据”入口，与“项目产物”并列；清理功能也需开启。“Agent 数据”按需盘点 AI 工具的本地数据与 worktree，覆盖 Codex、Claude Code、Gemini CLI、OpenCode、Cursor Agent、Aider、VS Code（Copilot）、Grok Build、Claude Desktop、DeepSeek Harness、Pi、Cindy、CodeBuddy 和腾讯 WorkBuddy（国内版与国际版／Workbuddy-AI 合并识别）。检测到对应命令或标准应用目录中具有匹配 bundle ID 与可执行文件的桌面应用，才计为已安装；Codex 桌面应用与 CLI 合并计一种，Claude Desktop 与 Claude Code 分开列出，只有数据目录时单独标注。
 
-首版仅回收默认 `.codex/log`、`.claude/debug`、`.local/share/opencode/log` 中 7 天前的普通 `.log`、`.txt` 日志，执行前重查路径、修改时间与现有保留项目。旧日志移到废纸篓，不宣称立即释放空间。不会删除会话、凭据、配置、SQLite、快照、模型或工具本体；Gemini 的临时目录可能含恢复点和对话，不作为可再生缓存，见 [Gemini checkpointing](https://geminicli.com/docs/cli/checkpointing/)。
+VS Code 仅计量默认 Code／Code - Insiders 用户目录中 `globalStorage/github.copilot-chat` 与 `globalStorage/emptyWindowChatSessions`，不把整个编辑器、扩展、共享工作区存储或项目算作 Agent 数据；此范围不代表全部 VS Code Agent 数据。Cindy 的中国与全球版数据合并盘点，但不重复统计外部 Codex、Claude 或 Pi 目录。工具占用仅排除由 Worktree 页另行发现的 Codex、Claude 根目录下的托管 worktree，不读取会话或凭据内容。支持 `CODEX_HOME`、`CLAUDE_CONFIG_DIR`、`GROK_HOME`、`DSH_HOME`、`PI_CODING_AGENT_DIR` 与 OpenCode 的 XDG 数据目录；自定义位置仅盘点，不开放日志清理。跨工具路径重叠时不重复计量，并标为未完整统计。
 
-worktree 仅由 Git 的登记清单确认，排除主工作目录并按路径去重。默认覆盖工具托管位置和家目录内常见项目位置，允许本次添加扫描目录，不进行全盘搜索。项目发现深度不超过 4 层、目录条目不超过 5,000、仓库不超过 80 个、worktree 不超过 200 个；单次盘点有总耗时与文件数量预算，无法完成的占用显示未完整统计。扫描范围可在页面查看，检测数量不代表整台 Mac 的总量。
+日志清理仅回收默认 `.codex/log`、`.claude/debug`、`.local/share/opencode/log` 中 7 天前的普通 `.log`、`.txt` 日志，执行前重查路径、修改时间与现有保留项目。旧日志移到废纸篓，不宣称立即释放空间。不会删除会话、凭据、配置、SQLite、快照、模型或工具本体；Gemini 的临时目录可能含恢复点和对话，不作为可再生缓存，见 [Gemini checkpointing](https://geminicli.com/docs/cli/checkpointing/)。
+
+worktree 仅由 Git 的登记清单确认，排除主工作目录并按路径去重。默认覆盖工具托管位置和家目录内常见项目位置，允许本次添加扫描目录，不进行全盘搜索。项目发现深度不超过 4 层、目录条目不超过 5,000、仓库不超过 80 个、worktree 不超过 200 个；工具统计与 worktree 发现共用 25 秒截止时间；桌面应用识别与工具统计合计最多占用前 10 秒，其中应用识别仅枚举标准应用目录的直接子项，上限为 1,000 条／2 秒；工具与 worktree 阶段分别保留 60,000 条目预算，单个工具目录上限为 30,000 条／2 秒，避免新增工具耗尽 worktree 的扫描预算。无法完成的占用显示未完整统计。扫描范围可在页面查看，检测数量不代表整台 Mac 的总量。
 
 移除必须逐项确认，在确认前和执行前检查目录身份、Git 公共目录、登记位置、HEAD 和分支是否仍一致。现有保留项目、修改、未跟踪及被忽略的文件、锁定、子模块、未由引用保留的独立提交或检查失败都会阻止移除。仅允许家目录内、无符号链接的真实工作目录。执行普通 `git worktree remove`，不强制删除、不删分支、不清理失效登记；Git 命令关闭钩子与文件监视器，限制运行时间和输出。移除目录不经过废纸篓，确认框提醒先结束 Agent 会话和编辑器；文件检查无法识别未保存的编辑器缓冲区。
 
-关闭页面、关闭/最小化主窗口、关闭清理功能、锁屏或休眠时取消任务，不保留轮询；过期任务不会更新界面。操作后重新扫描，超时和取消不被当作成功。
+关闭页面、关闭/最小化主窗口、关闭清理功能或 Agent 数据实验开关、锁屏或休眠时取消任务，不保留轮询；过期任务不会更新界面。操作后重新扫描，超时和取消不被当作成功。
 
 ## 执行边界
 

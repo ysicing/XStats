@@ -268,6 +268,17 @@ struct FeatureSettings: View {
       SettingsGroup {
         GroupRow(showsDivider: false) {
           SettingRow(
+            title: tr("Agent 数据"),
+            subtitle: tr("在清理页查看编程 Agent 的数据占用，清理旧日志并管理 worktree。"),
+            icon: "terminal"
+          ) {
+            DSToggle(isOn: $settings.agentDataEnabled, label: tr("Agent 数据"))
+          }
+        }
+      }
+      SettingsGroup {
+        GroupRow(showsDivider: false) {
+          SettingRow(
             title: tr("折叠菜单栏图标"),
             subtitle: tr("按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。"),
             icon: "menubar.arrow.up.rectangle"

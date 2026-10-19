@@ -757,6 +757,10 @@ public final class AppSettings {
       if !cleanerEnabled && panelTab == .cleaner { panelTab = .settingsFeatures }
     }
   }
+  /// 实验性 Agent 数据默认关闭；启用后仍只在打开面板时扫描。
+  public var agentDataEnabled: Bool {
+    didSet { defaults.set(agentDataEnabled, forKey: Keys.agentDataEnabled) }
+  }
   /// 卸载工具按需启用；关闭只停扫描和隐藏入口，不执行删除。
   public var uninstallerEnabled: Bool {
     didSet {
@@ -1101,6 +1105,7 @@ public final class AppSettings {
     networkConnectionsEnabled = isNetworkConnectionsEnabled
     let isCleanerEnabled = defaults.object(forKey: Keys.cleanerEnabled) as? Bool ?? true
     cleanerEnabled = isCleanerEnabled
+    agentDataEnabled = defaults.bool(forKey: Keys.agentDataEnabled)
     let isUninstallerEnabled = defaults.object(forKey: "uninstallerEnabled") as? Bool ?? true
     uninstallerEnabled = isUninstallerEnabled
     let isProcessesEnabled = defaults.bool(forKey: Keys.processesEnabled)
@@ -1382,6 +1387,7 @@ public final class AppSettings {
     static let refreshSeconds = "refreshSeconds"
     static let aiUsageEnabled = "aiUsageEnabled"
     static let cleanerEnabled = "cleanerEnabled"
+    static let agentDataEnabled = "agentDataEnabled"
     static let processesEnabled = "processesEnabled"
     static let aiUsageSources = "aiUsageSources"
     static let aiUsageShowsLocalUsage = "aiUsageShowsLocalUsage"

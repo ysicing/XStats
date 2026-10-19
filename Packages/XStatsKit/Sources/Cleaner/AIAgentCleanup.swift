@@ -2,6 +2,7 @@
 
 import Foundation
 import Localization
+import os
 
 public struct AIAgentTool: Identifiable, Sendable {
   public enum Installation: Sendable { case installed, dataOnly, absent }
@@ -32,6 +33,7 @@ public struct AICleanupEnvironment: Sendable {
   public var executable: @Sendable (String) -> URL?
   public var hasGit: @Sendable () -> Bool
   public var codexDesktopInstalled: @Sendable () -> Bool
+  public var applicationDirectories: [URL]
   public var clean: CleanEnvironment
 
   public init(
@@ -40,11 +42,17 @@ public struct AICleanupEnvironment: Sendable {
     searchRoots: [URL]? = nil, executable: (@Sendable (String) -> URL?)? = nil,
     hasGit: (@Sendable () -> Bool)? = nil,
     codexDesktopInstalled: (@Sendable () -> Bool)? = nil,
+    applicationDirectories: [URL]? = nil,
     clean: CleanEnvironment? = nil
   ) {
     self.home = home
     self.variables = variables
     self.searchRoots = searchRoots
+    self.applicationDirectories =
+      applicationDirectories ?? [
+        URL(fileURLWithPath: "/Applications"),
+        URL(fileURLWithPath: home).appendingPathComponent("Applications"),
+      ]
     self.executable = executable ?? { DeveloperToolRunner.executable(named: $0, home: home) }
     self.hasGit = hasGit ?? { ProjectPurge.developerToolsInstalled() }
     self.codexDesktopInstalled =
@@ -56,17 +64,23 @@ public struct AICleanupEnvironment: Sendable {
 }
 
 public enum AIAgentCleanup {
+  private static let logger = Logger(subsystem: "work.12306.xstats", category: "ai-cleanup")
+
   private struct Definition {
     let id: String
     let name: String
-    let command: String
+    let command: String?
     let paths: [URL]
+    var bundles: [String] = []
   }
 
   /// 单次扫描的遍历总量与时间均有上限；只在页面打开或手动刷新时调用。
   @concurrent
   public static func scan(environment: AICleanupEnvironment) async throws -> AICleanupScan {
     let budget = AIScanBudget()
+    // 工具数量增长后不能耗尽 Worktree 的条目预算；统计最多占用前 10 秒，
+    // 两阶段各有有界条目预算，仍共用整次扫描的 25 秒截止时间。
+    let toolBudget = AIScanBudget(seconds: 10, deadline: budget.deadline)
     let home = URL(fileURLWithPath: environment.home).standardizedFileURL
     let codex = configured(
       "CODEX_HOME", fallback: home.appendingPathComponent(".codex"), environment)
@@ -78,6 +92,7 @@ public enum AIAgentCleanup {
       "XDG_CACHE_HOME", fallback: home.appendingPathComponent(".cache"), environment)
     let config = configured(
       "XDG_CONFIG_HOME", fallback: home.appendingPathComponent(".config"), environment)
+    let support = home.appendingPathComponent("Library/Application Support")
     let definitions = [
       Definition(id: "codex", name: "Codex", command: "codex", paths: [codex]),
       Definition(id: "claude", name: "Claude Code", command: "claude", paths: [claude]),
@@ -96,12 +111,63 @@ public enum AIAgentCleanup {
       Definition(
         id: "aider", name: "Aider", command: "aider", paths: [home.appendingPathComponent(".aider")]
       ),
+      // VS Code 的共享配置、扩展与工作区存储不能整体归入 Agent 数据。
+      Definition(
+        id: "vscode", name: "VS Code (Copilot)", command: "code",
+        paths: ["Code", "Code - Insiders"].flatMap { edition in
+          ["github.copilot-chat", "emptyWindowChatSessions"].map {
+            support.appendingPathComponent("\(edition)/User/globalStorage/\($0)")
+          }
+        }, bundles: ["com.microsoft.VSCode", "com.microsoft.VSCodeInsiders"]),
+      Definition(
+        id: "grok", name: "Grok Build", command: "grok",
+        paths: [
+          configured("GROK_HOME", fallback: home.appendingPathComponent(".grok"), environment)
+        ]),
+      Definition(
+        id: "claude-desktop", name: "Claude Desktop", command: nil,
+        paths: [support.appendingPathComponent("Claude")],
+        bundles: ["com.anthropic.claudefordesktop"]),
+      Definition(
+        id: "deepseek", name: "DeepSeek Harness", command: "dsh",
+        paths: [
+          configured("DSH_HOME", fallback: home.appendingPathComponent(".dsh"), environment),
+          support.appendingPathComponent("@deepseek-ai/dsh-desktop"),
+        ], bundles: ["com.deepseek.dsh"]),
+      Definition(
+        id: "pi", name: "Pi", command: "pi",
+        paths: [
+          configured(
+            "PI_CODING_AGENT_DIR", fallback: home.appendingPathComponent(".pi/agent"), environment)
+        ]),
+      Definition(
+        id: "cindy", name: "Cindy", command: nil,
+        paths: [home.appendingPathComponent(".cindy")]
+          + ["Cindy", "CindyGlobal"].map { support.appendingPathComponent($0) },
+        bundles: ["com.xd.cindy", "com.xd.cindycn"]),
+      Definition(
+        id: "codebuddy", name: "CodeBuddy", command: "codebuddy",
+        paths: [".codebuddy", ".codebuddycn"].map { home.appendingPathComponent($0) }
+          + ["CodeBuddy", "CodeBuddy CN", "CodeBuddyExtension"].map {
+            support.appendingPathComponent($0)
+          }, bundles: ["com.tencent.codebuddy", "com.tencent.codebuddycn"]),
+      Definition(
+        id: "workbuddy", name: "WorkBuddy", command: nil,
+        paths: [home.appendingPathComponent(".workbuddy")]
+          + ["WorkBuddy", "com.tencent.workbuddy.mac", "com.workbuddy.workbuddy"].map {
+            support.appendingPathComponent($0)
+          },
+        bundles: ["com.tencent.workbuddy.mac", "com.workbuddy.workbuddy"]),
     ]
+    let desktopDetection = try desktopBundleIdentifiers(
+      in: environment.applicationDirectories,
+      budget: AIScanBudget(seconds: 2, entries: 1_000, parent: toolBudget))
     var result = AICleanupScan()
+    result.incomplete = desktopDetection.incomplete
     var measured = Set<String>()
     for definition in definitions {
       try Task.checkCancellation()
-      let executable = environment.executable(definition.command)
+      let executable = definition.command.flatMap { environment.executable($0) }
       let paths = definition.paths.filter { FileManager.default.fileExists(atPath: $0.path) }
       var total: UInt64 = 0
       var complete = true
@@ -118,12 +184,18 @@ public enum AIAgentCleanup {
           continue
         }
         measured.insert(normalized)
+        let started = Date()
         do {
+          // Codex 的临时文件与插件可能超过一万项；扩大条目预算，但仍受单目录时限与全局预算约束。
           total += try AIScanBudget(
-            seconds: 2, entries: 10_000, deadline: budget.deadline, parent: budget
+            seconds: 2, entries: 30_000, deadline: toolBudget.deadline, parent: toolBudget
           ).size(
-            path, excludingWorktrees: true)
+            path, excludingWorktrees: definition.id == "codex" || definition.id == "claude")
         } catch is CancellationError { throw CancellationError() } catch {
+          let failure = error as NSError
+          logger.warning(
+            "Tool data measurement incomplete: tool=\(definition.id, privacy: .public) elapsed=\(Date().timeIntervalSince(started), privacy: .public) error=\(failure.domain, privacy: .public):\(failure.code, privacy: .public) detail=\(String(failure.localizedDescription.prefix(256)), privacy: .private)"
+          )
           complete = false
           result.incomplete = true
         }
@@ -132,6 +204,7 @@ public enum AIAgentCleanup {
         AIAgentTool(
           id: definition.id, name: definition.name,
           installation: executable != nil
+            || definition.bundles.contains(where: desktopDetection.identifiers.contains)
             || (definition.id == "codex" && environment.codexDesktopInstalled())
             ? .installed : paths.isEmpty ? .absent : .dataOnly,
           executable: executable, dataDirectories: paths, bytes: complete ? total : nil))
@@ -228,6 +301,42 @@ public enum AIAgentCleanup {
     }
   }
 
+  /// 只检查两个标准应用目录的直接子项；不启动应用，不进行 Spotlight 或全盘搜索。
+  static func desktopBundleIdentifiers(in directories: [URL], budget: AIScanBudget) throws
+    -> (identifiers: Set<String>, incomplete: Bool)
+  {
+    var identifiers = Set<String>()
+    var incomplete = false
+    do {
+      for directory in directories {
+        try budget.check()
+        guard FileManager.default.fileExists(atPath: directory.path) else { continue }
+        // 惰性读取直接子项，并与工具阶段共享预算，为 Worktree 发现保留时间。
+        guard
+          let entries = FileManager.default.enumerator(
+            at: directory, includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants, .skipsPackageDescendants],
+            errorHandler: { _, _ in
+              incomplete = true
+              return false
+            })
+        else { throw AIScanError.limit }
+        for case let url as URL in entries {
+          try budget.check()
+          guard url.pathExtension == "app",
+            let bundle = Bundle(url: url), let identifier = bundle.bundleIdentifier,
+            let executable = bundle.executableURL,
+            FileManager.default.isExecutableFile(atPath: executable.path)
+          else { continue }
+          identifiers.insert(identifier)
+        }
+      }
+    } catch is CancellationError { throw CancellationError() } catch {
+      incomplete = true
+    }
+    return (identifiers, incomplete)
+  }
+
   private static func configured(_ key: String, fallback: URL, _ environment: AICleanupEnvironment)
     -> URL
   {
@@ -261,7 +370,8 @@ final class AIScanBudget {
   }
   func size(_ root: URL, excludingWorktrees: Bool = false) throws -> UInt64 {
     try check()
-    guard root.standardizedFileURL.path == root.resolvingSymlinksInPath().path else {
+    let root = root.standardizedFileURL
+    guard root.path == root.resolvingSymlinksInPath().path else {
       throw AIScanError.limit
     }
     let keys: Set<URLResourceKey> = [.isSymbolicLinkKey, .isRegularFileKey, .fileAllocatedSizeKey]
@@ -274,14 +384,17 @@ final class AIScanBudget {
           return false
         })
     else { throw AIScanError.limit }
+    // 排除路径只计算一次；仅同名条目需要规范化，以兼容 /var 与 /private/var 等系统路径别名。
+    let worktreesPath =
+      excludingWorktrees
+      ? root.appendingPathComponent("worktrees", isDirectory: true).path : nil
     var bytes: UInt64 = 0
     for case let entry as URL in entries {
       try check()
       let values = try entry.resourceValues(forKeys: keys)
       if values.isSymbolicLink == true
-        || (excludingWorktrees
-          && entry.standardizedFileURL.path
-            == root.appendingPathComponent("worktrees").standardizedFileURL.path)
+        || (excludingWorktrees && entry.lastPathComponent == "worktrees"
+          && entry.standardizedFileURL.path == worktreesPath)
       {
         entries.skipDescendants()
         continue
