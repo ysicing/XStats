@@ -89,6 +89,9 @@ public actor MetricsHub {
       || !newDemand.temperatures.isSubset(of: demand.temperatures)
       || (newDemand.fans && !demand.fans)
       || (newDemand.processes && !demand.processes)
+      || (newDemand.systemProcesses && !demand.systemProcesses)
+      || (newDemand.power && !demand.power)
+      || (newDemand.cpuFrequency && !demand.cpuFrequency)
       || (newDemand.appEnergy && !demand.appEnergy)
       || (newDemand.disk && !demand.disk)
       || (newDemand.diskDetail && !demand.diskDetail)
@@ -119,7 +122,9 @@ public actor MetricsHub {
       lastDiskHealth = .distantPast
     }
 
-    restart()
+    // 仅新增指标或缩短间隔时立即采样，避免关弹窗、切页打断 CPU 等增量指标的采样窗口。
+    // 需求减少由下一轮读取；没有读取方时立即取消，晚到的快照仍由主线程按最终需求裁剪。
+    if needsImmediateRefresh || loop == nil || !demand.hasSamples { restart() }
   }
 
   /// 启动时识别风扇硬件，不依赖采样循环是否运行；与传感器采样共用连接与缓存。
