@@ -1,13 +1,21 @@
 {
-  "version": "1.4.3",
+  "version": "1.4.4",
   "sourceNotes": [
-    "新增默认关闭的基础菜单栏折叠，可在设置中启用并点击系统箭头收起或展开不常用图标",
-    "修复 Homebrew 版本检查与卸载规则"
+    "菜单栏新增双行数值位置选择，可将数值放在上方或下方，并统一圆环、饼图、历史曲线等样式的文字排版",
+    "新增标准与灵敏两档占用着色灵敏度",
+    "修复辅助工具授权后的状态刷新与过期安装错误提示，并改善设置页说明的对齐",
+    "修复部分没有 Ftst 解锁键的机型无法重试接管风扇的问题",
+    "改善温度传感器首次读取失败后的恢复，限制网络响应与地址缓存大小，并为进程采集补齐超时保护",
+    "加固历史记录数据库迁移与读写异常处理，减少诊断日志暴露本机信息的风险"
   ],
   "translations": {
     "en": [
-      "Add optional basic menu bar folding, disabled by default, with system chevrons to collapse or expand less-used icons. Manually move icons to the left of the transparent divider; results depend on available screen space.",
-      "Fix Homebrew version checks and uninstall rules to distinguish XStats and Capture releases and preserve their shared screenshot and recording cache when either app is removed."
+      "Add a choice of placing values above or below labels in two-line menu bar layouts, with consistent text placement beside rings, pies, and history charts.",
+      "Add standard and sensitive presets for utilization warning colors, with shared load levels across the menu bar, CPU/GPU details, and overview. Low-battery thresholds remain unchanged.",
+      "Fix helper status refresh after authorization and stale installation errors, and improve alignment of descriptions in settings.",
+      "Fix manual fan takeover retries on Macs without the Ftst unlock key, while retaining readback verification and safe recovery.",
+      "Improve recovery when temperature sensor discovery initially fails, bound network response and address-cache sizes, and add process-sampling timeouts.",
+      "Harden history database migration and read/write error handling, and reduce exposure of local information in diagnostic logs."
     ]
   }
 }
