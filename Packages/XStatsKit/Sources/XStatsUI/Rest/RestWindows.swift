@@ -3,6 +3,7 @@
 
 import AppKit
 import Localization
+import Observation
 import SwiftUI
 
 @MainActor
@@ -64,6 +65,7 @@ private struct RestOverlayContent: View {
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   let rest: RestController
   let wellness: WellnessController?
+  let dismiss: () -> Void
 
   var body: some View {
     ZStack {
@@ -73,9 +75,9 @@ private struct RestOverlayContent: View {
         } else {
           Color.black.opacity(0.25)
         }
-        WellnessEyeRestView(wellness: wellness)
+        WellnessEyeRestView(wellness: wellness, dismiss: dismiss)
       } else {
-        RestOverlayView(rest: rest)
+        RestOverlayView(rest: rest, dismiss: dismiss)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -86,8 +88,8 @@ private struct RestOverlayView: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   let rest: RestController
+  let dismiss: () -> Void
   @State private var haloPulse = false
-  @State private var holding = false
 
   var body: some View {
     let language = rest.settings.language.resolved
@@ -113,23 +115,11 @@ private struct RestOverlayView: View {
         )
         .font(.system(size: 16))
         .foregroundStyle(.secondary)
-        HStack(spacing: 14) {
-          Text(tr("长按跳过 · 或按 Esc 随时返回"))
-            .font(.system(size: 13, weight: .medium))
-            .padding(.horizontal, 22)
-            .padding(.vertical, 12)
-            .background(.regularMaterial, in: Capsule())
-            .scaleEffect(holding ? 0.96 : 1)
-            .onLongPressGesture(minimumDuration: 0.8, pressing: { holding = $0 }) { rest.skip() }
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction { rest.skip() }
-          Button(tr("再专注 5 分钟")) { rest.postponeFiveMinutes() }
-            .buttonStyle(.plain)
-            .font(.system(size: 13, weight: .medium))
-            .padding(.horizontal, 22)
-            .padding(.vertical, 12)
-            .background(.regularMaterial, in: Capsule())
-        }
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: 14) { controls }.fixedSize()
+          VStack(spacing: 10) { controls }
+        }.buttonStyle(DSButtonStyle(kind: .secondary))
+        Text(tr("按 Esc 收起提醒，计时继续")).dsFont(.xs).foregroundStyle(.secondary)
       }
       .frame(maxWidth: 680)
     }
@@ -141,6 +131,14 @@ private struct RestOverlayView: View {
       withAnimation(.easeInOut(duration: 3.5).repeatForever(autoreverses: true)) {
         haloPulse = true
       }
+    }
+  }
+
+  private var controls: some View {
+    Group {
+      Button(tr("收起提醒"), action: dismiss)
+      Button(tr("跳过休息并开始专注")) { rest.skip() }
+      Button(tr("再专注 5 分钟")) { rest.postponeFiveMinutes() }
     }
   }
 }
@@ -175,7 +173,7 @@ struct RestCountdownRing: View {
   }
 }
 
-@MainActor
+@MainActor @Observable
 final class RestWindowController {
   private let timer: TimerController?
   private let rest: RestController
@@ -184,6 +182,14 @@ final class RestWindowController {
   var restOverlayCount: Int { overlays.count }
   private var hud: RestPanel?
   private var screenObserver: NSObjectProtocol?
+  private var dismissedPhase: RestPhase?
+  private var dismissedRound: Int?
+  private var eyeRestDismissed = false
+  private(set) var isHUDVisible = false
+  var canRestoreRest: Bool {
+    rest.settings.restEnabled && overlays.isEmpty && wellness?.isSystemPaused != true
+      && (wellness?.isEyeRestActive == true || (rest.phase.isResting && rest.isRunning))
+  }
 
   init(rest: RestController, wellness: WellnessController? = nil, timer: TimerController? = nil) {
     self.timer = timer
@@ -213,18 +219,14 @@ final class RestWindowController {
       panel.backgroundColor = .clear
       panel.appearance = NSAppearance(named: .darkAqua)
       panel.hasShadow = false
-      panel.onEscape = { [weak rest, weak wellness] in
-        if wellness?.isEyeRestActive == true {
-          wellness?.finishEyeRest(completed: false)
-        } else {
-          rest?.skip()
-        }
-      }
+      panel.onEscape = { [weak self] in self?.dismissRest() }
       let blur = NSVisualEffectView(frame: NSRect(origin: .zero, size: screen.frame.size))
       blur.blendingMode = .behindWindow
       blur.material = .underWindowBackground
       blur.state = .active
-      let hosting = NSHostingView(rootView: RestOverlayContent(rest: rest, wellness: wellness))
+      let hosting = NSHostingView(
+        rootView: RestOverlayContent(
+          rest: rest, wellness: wellness, dismiss: { [weak self] in self?.dismissRest() }))
       hosting.frame = blur.bounds
       hosting.autoresizingMask = [.width, .height]
       blur.addSubview(hosting)
@@ -236,7 +238,51 @@ final class RestWindowController {
   }
 
   func ensureRestVisible() {
+    if !rest.phase.isResting {
+      dismissedPhase = nil
+      dismissedRound = nil
+    }
+    if wellness?.isEyeRestActive != true { eyeRestDismissed = false }
+    let eyeRest = wellness?.isEyeRestActive == true
+    // 暂停、继续和多屏重建保留收起选择；跨过整轮后阶段可能相同，轮次也属于提醒身份。
+    let dismissed =
+      eyeRest
+      ? eyeRestDismissed
+      : dismissedPhase == rest.phase && dismissedRound == rest.completedRounds
+    guard rest.settings.restEnabled, wellness?.isSystemPaused != true,
+      eyeRest || (rest.phase.isResting && rest.isRunning), !dismissed
+    else {
+      hideRest()
+      return
+    }
     if overlays.isEmpty { showRest() }
+  }
+
+  func dismissRest() {
+    if wellness?.isEyeRestActive == true { eyeRestDismissed = true }
+    if rest.phase.isResting {
+      dismissedPhase = rest.phase
+      dismissedRound = rest.completedRounds
+    }
+    hideRest()
+  }
+
+  func restoreRest() {
+    // 打开菜单到执行操作之间可能已经到期，不恢复过期的休息，也不重置截止点。
+    rest.sync()
+    wellness?.refresh()
+    guard canRestoreRest else { return }
+    dismissedPhase = nil
+    dismissedRound = nil
+    eyeRestDismissed = false
+    ensureRestVisible()
+  }
+
+  func stop() {
+    hideRest()
+    hideHUD()
+    if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+    screenObserver = nil
   }
 
   func hideRest() {
@@ -272,11 +318,7 @@ final class RestWindowController {
     panel.contentView = NSHostingView(
       rootView: RestHUDView(
         rest: rest,
-        close: { [weak panel, weak rest, weak timer] in
-          panel?.close()
-          rest?.setHUDVisible(false)
-          timer?.setHUDVisible(false)
-        }, wellness: wellness, timer: timer))
+        close: { [weak self] in self?.hideHUD() }, wellness: wellness, timer: timer))
     let visible = NSScreen.main?.visibleFrame ?? .zero
     let defaultOrigin = NSPoint(x: visible.maxX - 292, y: visible.midY - 92)
     if isNew {
@@ -296,18 +338,22 @@ final class RestWindowController {
       panel.setFrameOrigin(defaultOrigin)
     }
     panel.orderFrontRegardless()
+    isHUDVisible = true
     rest.setHUDVisible(true)
     timer?.setHUDVisible(true)
   }
 
   func hideHUD() {
     hud?.close()
+    hud?.contentView = nil
+    isHUDVisible = false
     rest.setHUDVisible(false)
     timer?.setHUDVisible(false)
   }
 
   private func refreshScreens() {
-    if rest.phase.isResting && rest.isRunning || wellness?.isEyeRestActive == true { showRest() }
+    hideRest()
+    ensureRestVisible()
     if let hud, hud.isVisible {
       if !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(hud.frame) }) {
         let visible = NSScreen.main?.visibleFrame ?? .zero

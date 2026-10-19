@@ -9,16 +9,16 @@ import SwiftUI
 @MainActor
 final class RestMenuBarController: NSObject {
   private let model: AppModel
-  private let showHUD: () -> Void
+  private let windows: RestWindowController
   private let prepareToShow: () -> Void
   private var item: NSStatusItem?
   private var panel: StatusPanel?
   private var renderedSymbol: String?
   var isPresented: Bool { panel?.isVisible == true }
 
-  init(model: AppModel, showHUD: @escaping () -> Void, prepareToShow: @escaping () -> Void) {
+  init(model: AppModel, windows: RestWindowController, prepareToShow: @escaping () -> Void) {
     self.model = model
-    self.showHUD = showHUD
+    self.windows = windows
     self.prepareToShow = prepareToShow
     super.init()
   }
@@ -87,6 +87,12 @@ final class RestMenuBarController: NSObject {
       self
     menu.addItem(withTitle: tr("显示迷你 HUD"), action: #selector(openHUD), keyEquivalent: "").target =
       self
+    if windows.canRestoreRest {
+      let restore = menu.addItem(
+        withTitle: tr("恢复全屏提醒"), action: #selector(restoreReminder), keyEquivalent: "")
+      restore.identifier = NSUserInterfaceItemIdentifier("restore-rest-reminder")
+      restore.target = self
+    }
     menu.addItem(.separator())
     if model.wellness.isEyeRestActive {
       menu.addItem(withTitle: tr("结束休息"), action: #selector(endBreak), keyEquivalent: "").target =
@@ -118,16 +124,18 @@ final class RestMenuBarController: NSObject {
     prepareToShow()
     if panel == nil {
       let model = self.model
+      let windows = self.windows
       let panel = StatusPanel(
         width: 400, minHeight: 180,
         content: { [weak self] in
           TimerPopover(
+            windows: windows,
             openPage: { self?.openPage() }, showHUD: { self?.openHUD() }, close: { self?.dismiss() }
           )
           .environment(model)
         },
         measuring: {
-          TimerPopover(openPage: {}, showHUD: {}, close: {})
+          TimerPopover(windows: windows, openPage: {}, showHUD: {}, close: {})
             .environment(model).environment(\.isSnapshot, true)
         })
       panel.onVisibilityChange = { [weak self] visible in
@@ -150,6 +158,11 @@ final class RestMenuBarController: NSObject {
 
   @objc private func openHUD() {
     dismiss()
-    showHUD()
+    windows.showHUD()
+  }
+
+  @objc private func restoreReminder() {
+    dismiss()
+    windows.restoreRest()
   }
 }

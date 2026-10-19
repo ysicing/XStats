@@ -3,6 +3,10 @@
 
 extension Translations {
   static let wellnessEnglish = #"""
+    收起提醒	Dismiss reminder
+    恢复全屏提醒	Restore full-screen reminder
+    跳过休息并开始专注	Skip break and start focus
+    按 Esc 收起提醒，计时继续	Press Esc to dismiss; the timer continues
     休息设置	Break settings
     休息类型	Break type
     下次提醒在 {}	Next reminder at {}

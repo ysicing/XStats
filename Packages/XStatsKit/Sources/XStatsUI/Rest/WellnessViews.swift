@@ -233,6 +233,7 @@ struct WellnessStatisticsView: View {
 /// 护眼幕布复用轮间休息的倒计时视觉，保持独立窗口中的语言与控件一致。
 struct WellnessEyeRestView: View {
   let wellness: WellnessController
+  var dismiss: () -> Void = {}
   var body: some View {
     let language = wellness.settings.language.resolved
     VStack(spacing: 22) {
@@ -243,10 +244,13 @@ struct WellnessEyeRestView: View {
       Text(tr("看看远处，轻轻眨眼，放松肩颈"))
         .font(.system(size: 16)).foregroundStyle(.secondary)
         .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-      Button(tr("结束")) { wellness.finishEyeRest(completed: false) }
-        .buttonStyle(.plain).font(.system(size: 13, weight: .medium))
-        .padding(.horizontal, 22).padding(.vertical, 12).background(.regularMaterial, in: Capsule())
-      Text(tr("按 Esc 随时返回")).dsFont(.xs).foregroundStyle(.secondary)
+      HStack(spacing: 14) {
+        Button(tr("收起提醒"), action: dismiss)
+          .buttonStyle(DSButtonStyle(kind: .secondary))
+        Button(tr("结束休息")) { wellness.finishEyeRest(completed: false) }
+          .buttonStyle(DSButtonStyle(kind: .secondary))
+      }
+      Text(tr("按 Esc 收起提醒，计时继续")).dsFont(.xs).foregroundStyle(.secondary)
     }
     .padding(DS.Space.s6).frame(maxWidth: 560)
     .environment(\.locale, L10n.locale(for: language))

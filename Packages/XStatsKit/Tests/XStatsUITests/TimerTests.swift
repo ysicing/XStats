@@ -344,10 +344,16 @@ struct TimerSessionTests {
       let model = AppModel(
         settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
       var openedPage: PanelTab?
-      var hudCount = 0
+      let windows = RestWindowController(
+        rest: model.rest, wellness: model.wellness, timer: model.timer)
+      defer {
+        windows.stop()
+        model.timer.stop()
+        model.rest.stop()
+      }
       model.openMainWindow = { openedPage = $0 }
       let controller = RestMenuBarController(
-        model: model, showHUD: { hudCount += 1 }, prepareToShow: {})
+        model: model, windows: windows, prepareToShow: {})
       let menu = controller.contextMenu()
       #expect(menu.items.filter { !$0.isSeparatorItem }.count == 6)
       for item in menu.items.prefix(2) {
@@ -355,7 +361,7 @@ struct TimerSessionTests {
         #expect(NSApplication.shared.sendAction(action, to: item.target, from: item))
       }
       #expect(openedPage == .rest)
-      #expect(hudCount == 1)
+      #expect(windows.isHUDVisible)
       #expect(model.timer.countdown.isRunning == false)
       #expect(model.timer.stopwatch.isRunning == false)
     }

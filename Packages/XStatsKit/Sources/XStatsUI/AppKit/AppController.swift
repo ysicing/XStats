@@ -67,8 +67,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     egressWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
     restWindows = RestWindowController(rest: rest, wellness: model.wellness, timer: model.timer)
     restMenuBar = RestMenuBarController(
-      model: model,
-      showHUD: { [weak self] in self?.restWindows.showHUD() },
+      model: model, windows: restWindows,
       prepareToShow: { [weak self] in
         self?.menuBar.dismissPopovers()
         self?.calendarMenuBar.dismiss()
@@ -93,6 +92,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       }
     }
     rest.onStateChange = { [weak self] in
+      self?.reconcileRestPresentation()
       self?.model.timer.reconcilePresentation()
       self?.restMenuBar.update()
     }
@@ -110,6 +110,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.wellness.onPresentationChange = { [weak self] _ in self?.reconcileRestPresentation() }
     model.wellness.onStateChange = { [weak self] in
       guard let self else { return }
+      self.reconcileRestPresentation()
       self.model.timer.setCompactReadoutsCovered(self.model.wellness.isEyeRestActive)
       self.restMenuBar.update()
     }
@@ -370,6 +371,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     pendingDeepLinks.removeAll()
     Log.app.notice("XStats 自身即将退出，PID \(ProcessInfo.processInfo.processIdentifier)")
     model.timer.stop()
+    restWindows.stop()
     rest.prepareForTermination()
     widgetTimer?.invalidate()
     menuBarFolding.stop()
@@ -1059,11 +1061,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       restWindows.hideRest()
       return
     }
-    if rest.phase.isResting && rest.isRunning || model.wellness.isEyeRestActive {
-      restWindows.ensureRestVisible()
-    } else {
-      restWindows.hideRest()
-    }
+    restWindows.ensureRestVisible()
   }
 
   /// 关闭清理模块时停止尚未结束的扫描或清理，并关闭其独立窗口。

@@ -118,6 +118,80 @@ import Testing
     await model.wellness.prepareForTermination()
   }
 
+  @Test func contextMenuRestoresHiddenReminderAndRejectsAnExpiredAction() async throws {
+    let suite = "TimerPopoverRestTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.restEnabled = true
+    settings.timerPreferences.sleepDisplayDuringBreak = false
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+    let windows = RestWindowController(
+      rest: model.rest, wellness: model.wellness, timer: model.timer)
+    let menu = RestMenuBarController(model: model, windows: windows, prepareToShow: {})
+    defer {
+      windows.stop()
+      model.timer.stop()
+      model.rest.stop()
+    }
+    model.wellness.startBreak(.short)
+    windows.ensureRestVisible()
+    windows.dismissRest()
+    let remaining = model.wellness.eyeRestSecondsRemaining
+    let item = try #require(
+      menu.contextMenu().items.first {
+        $0.identifier?.rawValue == "restore-rest-reminder"
+      })
+    let action = try #require(item.action)
+    #expect(NSApplication.shared.sendAction(action, to: item.target, from: item))
+    #expect(windows.restOverlayCount == NSScreen.screens.count && !windows.canRestoreRest)
+    #expect(model.wellness.isEyeRestActive)
+    #expect(abs(model.wellness.eyeRestSecondsRemaining - remaining) < 1)
+    windows.dismissRest()
+    model.wellness.finishEyeRest(completed: false)
+    #expect(NSApplication.shared.sendAction(action, to: item.target, from: item))
+    #expect(windows.restOverlayCount == 0 && !model.wellness.isEyeRestActive)
+    await model.wellness.prepareForTermination()
+  }
+
+  @Test func restoreActionParticipatesInPopoverMeasurement() async throws {
+    let suite = "TimerPopoverRestTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.restEnabled = true
+    settings.timerPreferences.sleepDisplayDuringBreak = false
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+    let windows = RestWindowController(
+      rest: model.rest, wellness: model.wellness, timer: model.timer)
+    defer {
+      windows.stop()
+      model.timer.stop()
+      model.rest.stop()
+    }
+    model.wellness.startBreak(.short)
+    let host = NSHostingView(
+      rootView: TimerPopover(
+        showsRest: true, windows: windows, openPage: {}, showHUD: {}, close: {}
+      ).environment(model).environment(\.isSnapshot, true))
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 400, height: 360),
+      styleMask: .borderless, backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentView = host
+    defer { window.close() }
+    try await settle(host)
+    let hiddenHeight = host.fittingSize.height
+    windows.restoreRest()
+    try await settle(host)
+    #expect(host.fittingSize.height < hiddenHeight)
+    #expect(host.fittingSize.width <= 400)
+    model.wellness.finishEyeRest(completed: false)
+    await model.wellness.prepareForTermination()
+  }
+
   private func settle(_ host: NSView) async throws {
     try await Task.sleep(for: .milliseconds(25))
     host.layoutSubtreeIfNeeded()

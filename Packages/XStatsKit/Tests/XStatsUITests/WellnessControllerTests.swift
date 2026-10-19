@@ -280,11 +280,168 @@ import Testing
     }
   }
 
+  @Test func escapeHidesPomodoroReminderWithoutSkippingTheBreak() async throws {
+    try await fixture { settings, rest, wellness, _ in
+      _ = NSApplication.shared
+      settings.restMode = .cycle
+      rest.selectPhase(.rest)
+      rest.setRunning(true)
+      let windows = RestWindowController(rest: rest, wellness: wellness)
+      defer { windows.stop() }
+      windows.ensureRestVisible()
+      let deadline = rest.deadline
+      let overlay = try #require(
+        NSApp.windows.compactMap { $0 as? RestPanel }.first { $0.isVisible })
+      overlay.cancelOperation(nil)
+      #expect(rest.phase == .rest && rest.isRunning && rest.deadline == deadline)
+      #expect(windows.restOverlayCount == 0)
+    }
+  }
+
+  @Test func hiddenHUDReleasesItsSwiftUIContent() async throws {
+    try await fixture { settings, rest, wellness, clock in
+      _ = NSApplication.shared
+      let timer = TimerController(rest: rest, settings: settings, clock: { clock.seconds })
+      let windows = RestWindowController(rest: rest, wellness: wellness, timer: timer)
+      defer {
+        windows.stop()
+        timer.stop()
+      }
+      timer.startPauseStopwatch()
+      for _ in 0..<3 {
+        windows.showHUD()
+        let panel = try #require(
+          NSApp.windows.compactMap { $0 as? RestPanel }.first {
+            $0.hudDragEnabled && $0.isVisible
+          })
+        #expect(panel.contentView != nil)
+        #expect(timer.hasDisplayTimer)
+        windows.hideHUD()
+        #expect(!panel.isVisible && panel.contentView == nil)
+        #expect(!timer.hasDisplayTimer && timer.stopwatch.isRunning)
+      }
+    }
+  }
+
+  @Test func dismissedPomodoroStaysHiddenUntilRestoredOrTheNextRound() async throws {
+    try await fixture { settings, rest, wellness, clock in
+      _ = NSApplication.shared
+      settings.restMode = .cycle
+      let windows = RestWindowController(rest: rest, wellness: wellness)
+      defer { windows.stop() }
+      rest.onRestChange = { [weak windows] _ in windows?.ensureRestVisible() }
+      rest.setRunning(true)
+      clock.seconds = Double(settings.restWorkMinutes * 60)
+      rest.sync()
+      #expect(rest.phase == .rest && windows.restOverlayCount == NSScreen.screens.count)
+      let deadline = rest.deadline
+      let completed = rest.completedToday
+      windows.dismissRest()
+      #expect(windows.canRestoreRest)
+      NotificationCenter.default.post(
+        name: NSApplication.didChangeScreenParametersNotification, object: nil)
+      clock.seconds += 10
+      rest.setRunning(false)
+      windows.restoreRest()
+      #expect(windows.restOverlayCount == 0 && !windows.canRestoreRest)
+      rest.setRunning(true)
+      #expect(windows.restOverlayCount == 0 && rest.deadline == deadline)
+      windows.restoreRest()
+      windows.restoreRest()
+      #expect(windows.restOverlayCount == NSScreen.screens.count && !windows.canRestoreRest)
+      #expect(rest.completedToday == completed && rest.deadline == deadline)
+      windows.dismissRest()
+      // 休眠跨过完整专注后仍可能是短休，新的轮次必须显示提醒。
+      rest.suspend()
+      clock.seconds += Double((settings.restWorkMinutes + settings.restBreakMinutes) * 60)
+      rest.sync()
+      windows.ensureRestVisible()
+      #expect(rest.phase == .rest && windows.restOverlayCount == NSScreen.screens.count)
+      windows.stop()
+      NotificationCenter.default.post(
+        name: NSApplication.didChangeScreenParametersNotification, object: nil)
+      #expect(windows.restOverlayCount == 0)
+    }
+  }
+
+  @Test func endingAPausedDismissedSessionDoesNotHideTheNextSession() async throws {
+    try await fixture { settings, rest, wellness, clock in
+      _ = NSApplication.shared
+      settings.restMode = .cycle
+      let windows = RestWindowController(rest: rest, wellness: wellness)
+      defer { windows.stop() }
+      rest.onRestChange = { [weak windows] _ in windows?.ensureRestVisible() }
+      rest.onStateChange = { [weak windows] in windows?.ensureRestVisible() }
+      rest.setRunning(true)
+      clock.seconds = Double(settings.restWorkMinutes * 60)
+      rest.sync()
+      windows.dismissRest()
+      rest.setRunning(false)
+      rest.endSession()
+      rest.setRunning(true)
+      clock.seconds += Double(settings.restWorkMinutes * 60)
+      rest.sync()
+      #expect(rest.phase == .rest && windows.restOverlayCount == NSScreen.screens.count)
+    }
+  }
+
+  @Test func aNewEyeBreakIsVisibleWhenPomodoroRestWasAlsoDismissed() async throws {
+    try await fixture { settings, rest, wellness, _ in
+      _ = NSApplication.shared
+      settings.restMode = .cycle
+      rest.selectPhase(.rest)
+      rest.setRunning(true)
+      let windows = RestWindowController(rest: rest, wellness: wellness)
+      defer { windows.stop() }
+      wellness.onStateChange = { [weak windows] in windows?.ensureRestVisible() }
+      wellness.startShortRest()
+      windows.dismissRest()
+      wellness.finishEyeRest(completed: false)
+      #expect(windows.restOverlayCount == 0)
+      wellness.startShortRest()
+      #expect(windows.restOverlayCount == NSScreen.screens.count)
+    }
+  }
+
+  @Test func dismissedManualBreakRestoresRemainingTimeButNotExpiredBreaks() async throws {
+    try await fixture { _, rest, wellness, clock in
+      _ = NSApplication.shared
+      let windows = RestWindowController(rest: rest, wellness: wellness)
+      defer { windows.stop() }
+      wellness.onPresentationChange = { [weak windows] _ in windows?.ensureRestVisible() }
+      wellness.startShortRest()
+      let duration = wellness.eyeRestDuration
+      let overlay = try #require(
+        NSApp.windows.compactMap { $0 as? RestPanel }.first { $0.isVisible })
+      overlay.cancelOperation(nil)
+      clock.seconds = 10
+      wellness.refresh()
+      NotificationCenter.default.post(
+        name: NSApplication.didChangeScreenParametersNotification, object: nil)
+      #expect(wellness.isEyeRestActive && wellness.eyeRestSecondsRemaining == duration - 10)
+      #expect(windows.restOverlayCount == 0 && windows.canRestoreRest)
+      wellness.suspend(preservingRest: true)
+      windows.restoreRest()
+      #expect(windows.restOverlayCount == 0 && !windows.canRestoreRest)
+      wellness.resume()
+      #expect(windows.restOverlayCount == 0)
+      windows.restoreRest()
+      #expect(windows.restOverlayCount == NSScreen.screens.count)
+      #expect(wellness.eyeRestSecondsRemaining == duration - 10)
+      windows.dismissRest()
+      clock.seconds = duration + 1
+      windows.restoreRest()
+      #expect(!wellness.isEyeRestActive && windows.restOverlayCount == 0 && !windows.canRestoreRest)
+      wellness.startBreak(.long)
+      #expect(windows.restOverlayCount == NSScreen.screens.count)
+    }
+  }
+
   @Test func screenChangesDuringSuspendedBreakDoNotRecreateOverlays() async throws {
     try await fixture { _, rest, wellness, clock in
       _ = NSApplication.shared
       let windows = RestWindowController(rest: rest, wellness: wellness)
-      defer { windows.hideRest() }
+      defer { windows.stop() }
       wellness.startBreak(.short)
       let duration = wellness.eyeRestDuration
       wellness.suspend(preservingRest: true)
@@ -308,7 +465,7 @@ import Testing
     try await fixture { _, rest, wellness, _ in
       _ = NSApplication.shared
       let windows = RestWindowController(rest: rest, wellness: wellness)
-      defer { windows.hideRest() }
+      defer { windows.stop() }
       wellness.startBreak(.short)
       windows.showRest()
       #expect(windows.restOverlayCount == NSScreen.screens.count)

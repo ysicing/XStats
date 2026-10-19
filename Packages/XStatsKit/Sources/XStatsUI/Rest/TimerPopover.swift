@@ -13,6 +13,7 @@ struct TimerPopover: View {
   // 休息是弹窗内的操作页，不写入三种计时模式的持久化配置。
   @State var showsRest = false
   @State var breakKind: ManualBreakKind = .short
+  var windows: RestWindowController? = nil
   var openPage: () -> Void
   var showHUD: () -> Void
   var close: () -> Void
@@ -51,6 +52,17 @@ struct TimerPopover: View {
           breakContent
         } else {
           timerContent
+        }
+        if let windows, windows.canRestoreRest {
+          Button {
+            close()
+            windows.restoreRest()
+          } label: {
+            Label(tr("恢复全屏提醒"), systemImage: "arrow.up.left.and.arrow.down.right")
+          }
+          .buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(.orange)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .accessibilityIdentifier("timer-restore-reminder")
         }
         if timer.pendingStart != nil {
           VStack(alignment: .leading, spacing: 8) {
