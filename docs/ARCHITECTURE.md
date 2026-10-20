@@ -803,10 +803,21 @@ the History page's range. Macs without a battery still show available power, App
 falls back to the Bluetooth device with the lowest battery.
 
 `BluetoothController` (`XStatsUI/State`) wraps `BluetoothBatteryReader`, which shells out to
-`system_profiler` and takes a second or two, so it polls only on demand: every minute while the battery
+`system_profiler` and takes a second or two, so it reads only on demand: every minute while the battery
 popover / page or the System page is open, every five minutes when the menu bar needs it (the
 low-battery hint or a Mac without a battery), otherwise not at all. `AppModel.bluetoothDemand` derives
 that from the same visibility state as `demand`.
+While demand is active and Bluetooth permission is already granted, public IOBluetooth connection
+and disconnection notifications also request a refresh. Existing connections are watched for
+disconnection; the observer neither scans nearby devices nor requests permission. Events are
+coalesced for one second, with event-triggered reads starting at least five seconds after the last
+read start, and share the same in-flight read as the UI and alerts. An event during a read schedules
+one follow-up read; event reads also defer the fallback poll. Without permission or event registration, polling remains
+available at the same intervals. There is no accessory battery notification-key dependency.
+Screen sleep, system sleep, session inactivity, lock and termination stop event observation and
+cancel queued and running reads. Cancellation reaches the bounded command executor, and invalidated
+results cannot update the cache. A restarted session waits for a cancelling read to exit before
+starting another, while wake restores the current demand with a fresh read.
 Charging state comes from named `pmset -g accps` accessory entries. For anonymous entries, it is
 attached only when the reported percentage matches exactly one connected Bluetooth battery device;
 ambiguous matches remain unknown. Disconnected cached devices never retain a charging label.

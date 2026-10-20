@@ -38,10 +38,14 @@ public struct BluetoothDevice: Sendable, Equatable, Identifiable {
 /// 电量来自三处：system_profiler 的蓝牙信息、pmset 的附件电源，以及 IOKit 的 HID BatteryPercent。
 public enum BluetoothBatteryReader {
   public static func read() -> [BluetoothDevice] {
+    guard !Task.isCancelled else { return [] }
     let powerOutput = runPMSet()
+    guard !Task.isCancelled else { return [] }
     var devices = parseSystemProfiler(runSystemProfiler())
+    guard !Task.isCancelled else { return [] }
     devices = merge(devices, with: parsePMSet(powerOutput))
     devices = merge(devices, with: hidBatteries())
+    guard !Task.isCancelled else { return [] }
     return mergeChargingSources(devices, powerOutput: powerOutput)
       .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
   }
@@ -225,6 +229,7 @@ public enum BluetoothBatteryReader {
     var results: [BluetoothDevice] = []
     while case let service = IOIteratorNext(iterator), service != 0 {
       defer { IOObjectRelease(service) }
+      guard !Task.isCancelled else { return [] }
       guard
         let percent = IORegistryEntryCreateCFProperty(
           service, "BatteryPercent" as CFString, kCFAllocatorDefault, 0)?
