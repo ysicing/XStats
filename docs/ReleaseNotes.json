@@ -1,21 +1,25 @@
 {
-  "version": "1.4.4",
+  "version": "1.4.5",
   "sourceNotes": [
-    "菜单栏新增双行数值位置选择，可将数值放在上方或下方，并统一圆环、饼图、历史曲线等样式的文字排版",
-    "新增标准与灵敏两档占用着色灵敏度",
-    "修复辅助工具授权后的状态刷新与过期安装错误提示，并改善设置页说明的对齐",
-    "修复部分没有 Ftst 解锁键的机型无法重试接管风扇的问题",
-    "改善温度传感器首次读取失败后的恢复，限制网络响应与地址缓存大小，并为进程采集补齐超时保护",
-    "加固历史记录数据库迁移与读写异常处理，减少诊断日志暴露本机信息的风险"
+    "新增默认关闭的“Agent 数据”实验性功能",
+    "应用音量新增独立开关，关闭后停止应用音频处理并保留音量与输出配置",
+    "音频界面与菜单栏根据输出设备显示图标，并在音频页展示已连接蓝牙设备的已知电量",
+    "蓝牙设备连接或断开后按需刷新电量，锁屏、休眠或不再需要时停止监听与读取",
+    "修复菜单栏手动折叠状态重启后丢失，将入口归入实验性功能并补充系统溢出限制说明",
+    "支持从计时弹窗恢复已收起的休息提醒，并完善提醒窗口关闭后的资源释放",
+    "优化应用卸载确认与完成反馈，减少选择变化或卸载失败时的误导",
+    "改善监控需求减少时的采样衔接，并修复子进程输出收集的调度竞争"
   ],
   "translations": {
     "en": [
-      "Add a choice of placing values above or below labels in two-line menu bar layouts, with consistent text placement beside rings, pies, and history charts.",
-      "Add standard and sensitive presets for utilization warning colors, with shared load levels across the menu bar, CPU/GPU details, and overview. Low-battery thresholds remain unchanged.",
-      "Fix helper status refresh after authorization and stale installation errors, and improve alignment of descriptions in settings.",
-      "Fix manual fan takeover retries on Macs without the Ftst unlock key, while retaining readback verification and safe recovery.",
-      "Improve recovery when temperature sensor discovery initially fails, bound network response and address-cache sizes, and add process-sampling timeouts.",
-      "Harden history database migration and read/write error handling, and reduce exposure of local information in diagnostic logs."
+      "Add the opt-in experimental Agent Data feature to inspect local storage used by installed AI tools and remove eligible Git worktrees. Tool data is read-only; worktree removal requires individual confirmation and checks for uncommitted content.",
+      "Add a separate app-volume switch. Turning it off stops per-app audio processing while preserving volume and output settings; system volume and device selection remain available.",
+      "Show device-specific output icons in audio controls and the menu bar, and known battery levels for the connected Bluetooth output on the audio page.",
+      "Refresh Bluetooth battery readings on connection changes while needed, and stop observation and reads when locked, asleep, or no longer in use.",
+      "Restore the last manually chosen menu bar folding state after restart, move the control to Experimental Features, and explain system overflow limitations.",
+      "Allow dismissed rest reminders to be restored from the timer popover, and improve resource cleanup when reminder windows close.",
+      "Improve app-uninstall confirmations and completion feedback, including when selections change or removal fails.",
+      "Improve sampling transitions when monitoring demand decreases and fix a scheduling race in subprocess output collection."
     ]
   }
 }
