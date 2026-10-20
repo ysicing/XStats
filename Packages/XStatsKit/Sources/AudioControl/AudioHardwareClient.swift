@@ -291,6 +291,10 @@ public final class AudioHardwareClient: @unchecked Sendable {
     for output in outputIDs {
       addListener(
         output,
+        AudioHAL.address(kAudioDevicePropertyDataSource, scope: kAudioDevicePropertyScopeOutput),
+        detail: true)
+      addListener(
+        output,
         AudioHAL.address(
           kAudioDevicePropertyPreferredChannelsForStereo, scope: kAudioDevicePropertyScopeOutput),
         detail: true)
@@ -305,6 +309,7 @@ public final class AudioHardwareClient: @unchecked Sendable {
         detail: true)
     }
     for stream in streams {
+      addListener(stream, AudioHAL.address(kAudioStreamPropertyTerminalType), detail: true)
       addListener(stream, AudioHAL.address(kAudioStreamPropertyStartingChannel), detail: true)
       addListener(stream, AudioHAL.address(kAudioStreamPropertyVirtualFormat), detail: true)
       addListener(stream, AudioHAL.address(kAudioStreamPropertyIsActive), detail: true)

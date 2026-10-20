@@ -369,9 +369,12 @@ public final class AppModel {
     return demand
   }
 
-  /// 蓝牙电量读取很慢，只在需要时轮询：电池弹窗 / 页面、本机信息页打开时每分钟；
+  /// 蓝牙电量读取很慢，只在需要时轮询：电池 / 本机信息页、蓝牙输出的音频界面打开时每分钟；
   /// 菜单栏开着电池项且要做低电量提示、或这台 Mac 没有电池时每 5 分钟
   var bluetoothDemand: BluetoothController.Demand {
+    if settings.audioEnabled && audioControlsVisible && audio.output?.bluetoothAddress != nil {
+      return .foreground
+    }
     if (isMainWindowVisible && [.battery, .system].contains(settings.panelTab))
       || openPopover == .battery
     {

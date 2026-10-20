@@ -167,9 +167,9 @@ enum AudioHAL {
       else { return nil }
       let input =
         !(ids(id, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeInput) ?? []).isEmpty
-      let output =
-        !(ids(id, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeOutput) ?? [])
-        .isEmpty
+      let outputStreams =
+        ids(id, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeOutput) ?? []
+      let output = !outputStreams.isEmpty
       guard input || output else { return nil }
       let transport = uint(id, kAudioDevicePropertyTransportType)
       let bluetooth =
@@ -200,8 +200,31 @@ enum AudioHAL {
         canBeDefaultOutput: output
           && uint(
             id, kAudioDevicePropertyDeviceCanBeDefaultDevice, scope: kAudioDevicePropertyScopeOutput
-          ) == 1)
+          ) == 1,
+        outputKind: outputKind(
+          transport: transport,
+          dataSource: output
+            ? uint(id, kAudioDevicePropertyDataSource, scope: kAudioDevicePropertyScopeOutput)
+            : nil,
+          terminalTypes: outputStreams.compactMap { uint($0, kAudioStreamPropertyTerminalType) }))
     }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+  }
+
+  /// 端点信息优先于连接方式；未知蓝牙设备保留通用无线类别，不按名称猜测型号。
+  static func outputKind(transport: UInt32?, dataSource: UInt32?, terminalTypes: [UInt32])
+    -> AudioOutputKind
+  {
+    if dataSource == 0x6864_706E { return .headphones }  // 内置插孔的 'hdpn'
+    if dataSource == 0x6973_706B { return .speaker }  // 内置扬声器的 'ispk'
+    if terminalTypes.contains(kAudioStreamTerminalTypeHeadphones) { return .headphones }
+    if terminalTypes.contains(kAudioStreamTerminalTypeSpeaker) { return .speaker }
+    switch transport {
+    case kAudioDeviceTransportTypeBuiltIn: return .speaker
+    case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE: return .bluetooth
+    case kAudioDeviceTransportTypeUSB: return .usb
+    case kAudioDeviceTransportTypeHDMI, kAudioDeviceTransportTypeDisplayPort: return .display
+    default: return .unknown
+    }
   }
 
   /// 不只比较设备 UID：采样率或流布局变更后旧回调格式必须失效。

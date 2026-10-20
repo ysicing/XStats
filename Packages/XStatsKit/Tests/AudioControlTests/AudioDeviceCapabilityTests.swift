@@ -1,9 +1,48 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import Testing
+import CoreAudio
 @testable import AudioControl
 
 struct AudioDeviceCapabilityTests {
+  @Test func outputIconsPreferEndpointInformationAndKeepUnknownTransportsGeneric() {
+    #expect(
+      AudioHAL.outputKind(
+        transport: kAudioDeviceTransportTypeBuiltIn, dataSource: 0x6864_706E, terminalTypes: [])
+        == .headphones)
+    #expect(
+      AudioHAL.outputKind(
+        transport: kAudioDeviceTransportTypeBuiltIn, dataSource: 0x6973_706B,
+        terminalTypes: [kAudioStreamTerminalTypeHeadphones]) == .speaker)
+    #expect(
+      AudioHAL.outputKind(
+        transport: kAudioDeviceTransportTypeBluetooth, dataSource: nil,
+        terminalTypes: [kAudioStreamTerminalTypeHeadphones]) == .headphones)
+    #expect(
+      AudioHAL.outputKind(
+        transport: kAudioDeviceTransportTypeBluetooth, dataSource: nil,
+        terminalTypes: [kAudioStreamTerminalTypeSpeaker]) == .speaker)
+    #expect(
+      AudioHAL.outputKind(
+        transport: kAudioDeviceTransportTypeBluetoothLE, dataSource: nil, terminalTypes: [])
+        == .bluetooth)
+    #expect(
+      AudioHAL.outputKind(
+        transport: kAudioDeviceTransportTypeUSB, dataSource: nil, terminalTypes: []) == .usb)
+    #expect(
+      AudioHAL.outputKind(
+        transport: kAudioDeviceTransportTypeHDMI, dataSource: nil, terminalTypes: []) == .display)
+    #expect(
+      AudioHAL.outputKind(
+        transport: kAudioDeviceTransportTypeDisplayPort, dataSource: nil, terminalTypes: [])
+        == .display)
+    #expect(
+      AudioHAL.outputKind(
+        transport: kAudioDeviceTransportTypeBuiltIn, dataSource: nil, terminalTypes: []) == .speaker
+    )
+    #expect(AudioHAL.outputKind(transport: nil, dataSource: 123, terminalTypes: []) == .unknown)
+  }
+
   @Test func unsupportedDefaultsNeverReachTheNativeSelectionDriver() async {
     let client = AudioHardwareClient(selectDevice: { _, _, _ in
       Issue.record("An ineligible endpoint must not be offered to the native default-device writer")

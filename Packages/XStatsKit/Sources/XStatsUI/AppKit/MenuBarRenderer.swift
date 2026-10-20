@@ -34,6 +34,7 @@ struct MenuBarReading {
   var audioVolume: Double?
   var audioMuted = false
   var audioDeviceName: String?
+  var audioSymbol = "speaker.wave.2"
   var cpu: Double?
   var cpuHistory: [Double] = []
   var gpu: Double?
@@ -78,6 +79,7 @@ struct MenuBarReading {
         audioVolume = model.audio.output?.outputVolume
         audioMuted = model.audio.output?.outputMuted == true
         audioDeviceName = model.audio.output?.name
+        audioSymbol = AudioControlPresentation.outputSymbol(model.audio.output, muted: audioMuted)
       case .cpu:
         cpu = store.cpu?.total
         cpuHistory = store.cpuTotal.elements
@@ -191,7 +193,9 @@ struct MenuBarReading {
     guard keepAwake == previous.keepAwake else { return false }
     switch item {
     case .display: return displayCount == previous.displayCount
-    case .audio: return audioVolume == previous.audioVolume && audioMuted == previous.audioMuted
+    case .audio:
+      return audioVolume == previous.audioVolume && audioMuted == previous.audioMuted
+        && (style != .icon || audioSymbol == previous.audioSymbol)
     case .cpu, .gpu, .memory, .disk:
       let current = percent(item)
       let old = previous.percent(item)
@@ -448,7 +452,7 @@ enum MenuBarRenderer {
         reading.audioMuted ? tr("已静音") : reading.audioVolume.map { Format.percent($0) } ?? "—"
       if style == .icon {
         return combine([
-          symbolSegment(reading.audioMuted ? "speaker.slash" : "speaker.wave.2"),
+          symbolSegment(reading.audioMuted ? "speaker.slash" : reading.audioSymbol),
           inlineValue(value, sample: "100%", color: nil),
         ])
       }

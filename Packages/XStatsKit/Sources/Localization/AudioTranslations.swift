@@ -7,7 +7,7 @@ extension Translations {
     系统音量、音频设备与应用音量	System volume, audio devices and app volume
     应用音量	App volume
     应用音量需要 macOS 14.4 或更新版本	App volume requires macOS 14.4 or later
-    仅在本机处理声音，不录制或上传音频。开启后可独立调节正在播放声音的应用。	Audio is processed locally without recording or uploading. Enable to adjust each app that is playing audio.
+    开启后可独立调节正在播放声音的应用。	Enable to adjust each app that is playing audio.
     开启应用音量	Enable app volume
     请在系统设置的屏幕与系统音频录制中允许 XStats，然后重新开启应用音量。	Allow XStats under Screen & System Audio Recording in System Settings, then enable app volume again.
     音频设备已变化，请重试。	The audio device changed. Please try again.

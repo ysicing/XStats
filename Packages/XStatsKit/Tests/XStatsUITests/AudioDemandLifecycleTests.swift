@@ -150,6 +150,71 @@ struct AudioDemandLifecycleTests {
     #expect(controller.error == .permissionRequired, "空需求收尾后仍需提示用户去系统设置授权")
   }
 
+  @Test func disablingAppVolumeStopsProcessingAndRetainsAdjustments() async throws {
+    let (defaults, suite) = try makeDefaults(appVolume: true)
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let log = DemandLog()
+    let mixer = AudioMixerClient(automaticHealthChecks: false) { target, output, _ in
+      DemandPipeline(target, output: output, log: log)
+    }
+    let (controller, hardware) = makeController(defaults, log: log, mixer: mixer)
+    defer { controller.stop() }
+    guard controller.supportsMixing else { return }
+    let output = AudioDeviceInfo(id: 1, uid: "test.output", name: "Output", hasOutput: true)
+    let app = AudioApplication(
+      id: "test.player", name: "Player", processObjectIDs: [11], isPlaying: true)
+    controller.showPreview(
+      AudioHardwareSnapshot(
+        devices: [output], outputID: 1, inputID: nil, applications: [app]),
+      volumes: [:], outputs: [:])
+    controller.setDemand(enabled: true, visible: false, menuVisible: false)
+    controller.setAppLevel(0.5, app: app)
+    try await waitUntil { log.entries.contains("start:\(app.id)") }
+    controller.disableMixing()
+    try await waitUntil { log.entries.contains("stop:\(app.id)") }
+    #expect(!controller.appVolumeEnabled)
+    #expect(!defaults.bool(forKey: "audio.appVolumeEnabled"))
+    #expect(await hardware.listenerCount() == 0, "隐藏界面关闭应用处理后不再保留设备或应用监听")
+    #expect(controller.volume(for: app).level == 0.5)
+    let saved = try JSONDecoder().decode(
+      [String: AudioAppVolume].self,
+      from: try #require(defaults.data(forKey: "audio.applicationVolumes")))
+    #expect(saved[app.id]?.level == 0.5, "关闭时立即保存尚未落盘的调整")
+    let restored = AudioController(defaults: defaults)
+    defer { restored.stop() }
+    #expect(!restored.appVolumeEnabled)
+    #expect(restored.volume(for: app).level == 0.5)
+    controller.setDemand(enabled: true, visible: true, menuVisible: false)
+    #expect(await hardware.listenerCount() > 0, "系统音量与设备选择仍有独立监听需求")
+    #expect(log.activityReadCount == 0, "只显示系统控件不再采集应用播放状态")
+  }
+
+  @Test func disablingAppVolumeRetainsRoutesAndClearsPendingApplicationFeedback() async throws {
+    let (defaults, suite) = try makeDefaults(appVolume: true)
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let (controller, _) = makeController(defaults, log: DemandLog())
+    defer { controller.stop() }
+    let output = AudioDeviceInfo(id: 1, uid: "test.output", name: "Output", hasOutput: true)
+    let app = AudioApplication(
+      id: "test.player", name: "Player", processObjectIDs: [11], isPlaying: true)
+    controller.showPreview(
+      AudioHardwareSnapshot(
+        devices: [output], outputID: 1, inputID: nil, applications: [app]),
+      volumes: [:], outputs: [:])
+    controller.setDemand(enabled: true, visible: false, menuVisible: false)
+    controller.setAppOutput(output.uid, app: app)
+    try #require(controller.pendingOutputApps.contains(app.id))
+    controller.disableMixing()
+    #expect(controller.pendingOutputApps.isEmpty)
+    #expect(controller.failedOutputApps.isEmpty)
+    #expect(controller.unresolvedApps.isEmpty)
+    #expect(controller.outputRoutes[app.id] == output.uid)
+    let restored = AudioController(defaults: defaults)
+    defer { restored.stop() }
+    #expect(!restored.appVolumeEnabled)
+    #expect(restored.outputRoutes[app.id] == output.uid)
+  }
+
   private func waitUntil(_ condition: () -> Bool) async throws {
     let deadline = ContinuousClock.now + .seconds(120)
     while !condition(), ContinuousClock.now < deadline {

@@ -31,6 +31,10 @@ public struct AudioAppVolume: Codable, Equatable, Sendable {
 
 public enum AudioDirection: Sendable, Equatable { case input, output }
 
+public enum AudioOutputKind: Sendable, Equatable {
+  case speaker, headphones, bluetooth, usb, display, unknown
+}
+
 public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
   public let id: UInt32
   public let uid: String
@@ -48,13 +52,16 @@ public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
   public let canSetInputMute: Bool
   public let canSetOutputMute: Bool
   public let bluetoothAddress: String?
+  public let outputKind: AudioOutputKind
   public init(
     id: UInt32, uid: String, name: String, hasInput: Bool = false, hasOutput: Bool = false,
     inputVolume: Double? = nil, outputVolume: Double? = nil, inputMuted: Bool? = nil,
     outputMuted: Bool? = nil,
     canSetInputVolume: Bool = false, canSetOutputVolume: Bool = false,
     canSetInputMute: Bool = false, canSetOutputMute: Bool = false,
-    bluetoothAddress: String? = nil, canBeDefaultInput: Bool? = nil, canBeDefaultOutput: Bool? = nil
+    bluetoothAddress: String? = nil, canBeDefaultInput: Bool? = nil,
+    canBeDefaultOutput: Bool? = nil,
+    outputKind: AudioOutputKind = .unknown
   ) {
     self.id = id
     self.uid = uid
@@ -70,6 +77,7 @@ public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
     self.canSetInputMute = canSetInputMute
     self.canSetOutputMute = canSetOutputMute
     self.bluetoothAddress = bluetoothAddress
+    self.outputKind = outputKind
     self.canBeDefaultInput = canBeDefaultInput ?? hasInput
     self.canBeDefaultOutput = canBeDefaultOutput ?? hasOutput
   }
@@ -77,6 +85,14 @@ public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
   /// 系统选择器要求流存在且可作为默认设备；独立输出仍按 hasOutput 使用完整设备目录。
   public func canBeDefault(_ direction: AudioDirection) -> Bool {
     direction == .input ? hasInput && canBeDefaultInput : hasOutput && canBeDefaultOutput
+  }
+
+  /// 只按规范化的硬件地址关联，不以名称或不完整地址推断同一设备。
+  public func matchesBluetoothAddress(_ address: String) -> Bool {
+    guard let bluetoothAddress, let expected = BluetoothAudioDevice.address(in: address) else {
+      return false
+    }
+    return BluetoothAudioDevice.address(in: bluetoothAddress) == expected
   }
 
 }

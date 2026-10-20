@@ -3,6 +3,7 @@
 
 import AppKit
 import AudioControl
+import Metrics
 import Localization
 import SwiftUI
 
@@ -21,18 +22,31 @@ struct AudioMixerContent: View {
         AudioDeviceSection(direction: .input).frame(maxWidth: .infinity)
       }
     }
-    SectionCard(title: tr("应用音量"), hint: tr("应用音量支持 0–200%；高增益时自动限制峰值，不改变系统音量。")) {
+    SectionCard(
+      title: tr("应用音量"), hint: tr("应用音量支持 0–200%；高增益时自动限制峰值，不改变系统音量。"),
+      trailing: {
+        Toggle(
+          tr("应用音量"),
+          isOn: Binding(
+            get: { model.audio.appVolumeEnabled || model.audio.isAuthorizing },
+            set: { enabled in
+              if enabled { model.audio.authorizeMixing() } else { model.audio.disableMixing() }
+            })
+        )
+        .toggleStyle(.switch).controlSize(.small).labelsHidden()
+        .disabled(
+          !model.audio.supportsMixing || (model.audio.isWorking && !model.audio.isAuthorizing)
+        )
+        .accessibilityIdentifier("audio.appVolumeEnabled")
+      }
+    ) {
       if !model.audio.supportsMixing {
         Text(tr("应用音量需要 macOS 14.4 或更新版本")).dsFont(.sm)
       } else if !model.audio.appVolumeEnabled {
-        Text(tr("仅在本机处理声音，不录制或上传音频。开启后可独立调节正在播放声音的应用。"))
+        Text(tr("开启后可独立调节正在播放声音的应用。"))
           .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary).fixedSize(
             horizontal: false, vertical: true)
-        HStack(spacing: DS.Space.s2) {
-          Button(tr("开启应用音量")) { model.audio.authorizeMixing() }
-            .buttonStyle(.borderedProminent).disabled(model.audio.isWorking)
-          if model.audio.isAuthorizing { AudioSwitchingFeedback(text: tr("正在请求音频权限…")) }
-        }
+        if model.audio.isAuthorizing { AudioSwitchingFeedback(text: tr("正在请求音频权限…")) }
       } else if model.audio.listedApplications.isEmpty {
         Text(tr("暂无正在播放或已调整音量的应用")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
       } else {
@@ -166,6 +180,11 @@ private struct AudioDeviceSection: View {
         }
         if device != nil {
           HStack(spacing: DS.Space.s2) {
+            Image(
+              systemName: direction == .output
+                ? AudioControlPresentation.outputSymbol(device) : "mic"
+            )
+            .foregroundStyle(DS.Palette.textSecondary).accessibilityHidden(true)
             Text(volumeTitle).dsFont(.sm)
             Spacer(minLength: DS.Space.s1)
             if let level {
@@ -207,6 +226,12 @@ private struct AudioDeviceSection: View {
           } else {
             Text(tr("此设备的音量由设备自身控制")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
           }
+        }
+        if direction == .output,
+          let battery = AudioControlPresentation.connectedBattery(
+            for: device, devices: model.bluetooth.devices)
+        {
+          BluetoothDeviceList(devices: [battery])
         }
       } else {
         Text(tr("没有可用音频设备")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
@@ -360,6 +385,26 @@ struct AudioApplicationRow: View {
 }
 
 enum AudioControlPresentation {
+  static func outputSymbol(_ device: AudioDeviceInfo?, muted: Bool = false) -> String {
+    if muted { return "speaker.slash" }
+    switch device?.outputKind ?? .unknown {
+    case .headphones: return "headphones"
+    case .bluetooth: return "dot.radiowaves.left.and.right"
+    case .usb: return "cable.connector"
+    case .display: return "display"
+    case .speaker, .unknown: return "speaker.wave.2"
+    }
+  }
+
+  static func connectedBattery(for output: AudioDeviceInfo?, devices: [BluetoothDevice]?)
+    -> BluetoothDevice?
+  {
+    guard let output, output.hasOutput else { return nil }
+    return devices?.first {
+      $0.isConnected && !$0.batteries.isEmpty && output.matchesBluetoothAddress($0.address)
+    }
+  }
+
   static func muteSymbol(_ direction: AudioDirection, muted: Bool) -> String {
     direction == .input
       ? (muted ? "mic.slash" : "mic") : (muted ? "speaker.slash" : "speaker.wave.2")

@@ -1591,7 +1591,7 @@ IP 归属地	Ubicación IP
 系统音量、音频设备与应用音量	Volumen del sistema, dispositivos de audio y volumen por app
 应用音量	Volumen por app
 应用音量需要 macOS 14.4 或更新版本	El volumen por app requiere macOS 14.4 o posterior
-仅在本机处理声音，不录制或上传音频。开启后可独立调节正在播放声音的应用。	El audio se procesa localmente, sin grabarlo ni subirlo. Activa la función para ajustar cada app que reproduce audio.
+开启后可独立调节正在播放声音的应用。	Activa la función para ajustar cada app que reproduce audio.
 开启应用音量	Activar volumen por app
 请在系统设置的屏幕与系统音频录制中允许 XStats，然后重新开启应用音量。	Permite XStats en Grabación de pantalla y audio del sistema en Ajustes del Sistema y vuelve a activar el volumen por app.
 音频设备已变化，请重试。	El dispositivo de audio cambió. Inténtalo de nuevo.

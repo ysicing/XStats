@@ -325,7 +325,9 @@ final class AudioController {
   }
 
   func authorizeMixing() {
-    guard enabled, !sleeping, supportsMixing, !isWorking else { return }
+    guard enabled, !sleeping, supportsMixing, !appVolumeEnabled, !isWorking else { return }
+    // 新的用户选择使旧的关闭／刷新任务失效，不能在授权后拆掉刚恢复的处理。
+    revision &+= 1
     perform { [self] in
       let command = operationRevision
       try await mixer.requestAccess()
@@ -336,6 +338,26 @@ final class AudioController {
       updateWatchers()
     }
     isAuthorizing = true
+  }
+
+  func disableMixing() {
+    guard appVolumeEnabled || isAuthorizing, !isWorking || isAuthorizing else { return }
+    cancelPendingAudioOperation()
+    revision &+= 1
+    mixTask?.cancel()
+    mixTask = nil
+    mixRequests.reset()
+    appVolumeEnabled = false
+    defaults.set(false, forKey: "audio.appVolumeEnabled")
+    mixingError = nil
+    pendingOutputApps.removeAll()
+    failedOutputApps.removeAll()
+    unresolvedApps.removeAll()
+    // 关闭处理而非重置设置；滑块尚未落盘的调整也要保留给下次开启。
+    if persistTask != nil { persist() }
+    updatePlaybackGrace()
+    updateWatchers()
+    if enabled, !sleeping { reconcile() }
   }
 
   func setAppLevel(_ level: Double, app: AudioApplication) {
@@ -438,6 +460,10 @@ final class AudioController {
   private func updatePlaybackGrace() {
     playbackGraceTask?.cancel()
     playbackGraceTask = nil
+    guard appVolumeEnabled else {
+      playbackGrace.reset()
+      return
+    }
     guard let expiry = playbackGrace.update(snapshot.applications, now: .now) else { return }
     let epoch = revision
     playbackGraceTask = Task { [weak self] in

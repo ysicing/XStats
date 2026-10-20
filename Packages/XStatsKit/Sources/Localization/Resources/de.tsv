@@ -1591,7 +1591,7 @@ IP 归属地	IP-Standort
 系统音量、音频设备与应用音量	Systemlautstärke, Audiogeräte und App-Lautstärke
 应用音量	App-Lautstärke
 应用音量需要 macOS 14.4 或更新版本	App-Lautstärke erfordert macOS 14.4 oder neuer
-仅在本机处理声音，不录制或上传音频。开启后可独立调节正在播放声音的应用。	Audio wird lokal verarbeitet, ohne Aufnahme oder Upload. Aktiviere die Funktion, um die Lautstärke spielender Apps einzeln anzupassen.
+开启后可独立调节正在播放声音的应用。	Aktiviere die Funktion, um die Lautstärke spielender Apps einzeln anzupassen.
 开启应用音量	App-Lautstärke aktivieren
 请在系统设置的屏幕与系统音频录制中允许 XStats，然后重新开启应用音量。	Erlaube XStats unter Bildschirm- und Systemaudioaufnahme in den Systemeinstellungen und aktiviere die App-Lautstärke erneut.
 音频设备已变化，请重试。	Das Audiogerät hat sich geändert. Bitte erneut versuchen.

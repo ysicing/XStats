@@ -39,7 +39,7 @@ public struct BluetoothAudioDevice: Sendable, Equatable, Identifiable {
   }
 
   public func matches(_ device: AudioDeviceInfo, direction: AudioDirection) -> Bool {
-    guard let address = device.bluetoothAddress, Self.address(in: address) == id else {
+    guard device.matchesBluetoothAddress(address) else {
       return false
     }
     return direction == .output ? device.hasOutput : device.hasInput

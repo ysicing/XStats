@@ -1059,6 +1059,15 @@ The system pickers and HAL default-device writes check each direction's
 valid per-app output endpoints are not removed from the shared catalog. Capability changes are
 observed without adding a polling timer.
 
+Output icons use HAL data-source and stream terminal metadata, falling back to transport categories
+for USB, display and Bluetooth endpoints. Data-source and terminal changes share the existing HAL
+listeners; icon-style menu images invalidate when the effective symbol changes, even at the same
+volume. Unknown Bluetooth endpoints use a generic wireless symbol, and mute retains its explicit
+slashed-speaker symbol. Visible audio controls with a Bluetooth output reuse foreground battery
+demand. The output card displays known battery parts only for a connected device with the same
+normalized hardware address; names and disconnected cached readings cannot establish this match.
+Keeping only the audio menu item visible adds no Bluetooth battery demand.
+
 On macOS 14.4 and later, explicit user activation starts a short unmuted tap/aggregate input to
 trigger the system audio capture prompt. Its IOProc discards input, clears output and reports only
 initialization progress; physical microphone streams are disabled. The local activation preference
@@ -1066,6 +1075,10 @@ is a user choice, not proof of a current macOS grant: Core Audio still enforces 
 starts. The legacy flag migrates to `audio.appVolumeEnabled` and cannot override an explicit newer
 choice. Closing the controls, disabling or sleeping cancels pending activation without publishing
 a late enabled state. Probe objects use the same owned cleanup path as other audio resources.
+The application-volume card has its own switch. Turning it off also cancels pending activation,
+removes application-monitoring demand and submits empty mixing demand immediately. Saved gains,
+mute choices and output routes are retained for the next activation; system volume and device
+selection remain available. Turning processing off also cancels playback-grace wakeups.
 Applications keep stable rows while their audio connection is paused.
 The visible application list excludes idle registrations that have never played during this run.
 It retains playing apps, volume/mute or output-route adjustments, and previously playing or explicitly
