@@ -17,6 +17,7 @@ final class AudioController {
   private(set) var switchingDevice: AudioDirection?
   private(set) var bluetoothDevices: [BluetoothAudioDevice] = []
   private(set) var connectingBluetooth: String?
+  private(set) var disconnectingBluetooth: String?
   private(set) var pendingOutputApps: Set<String> = []
   private(set) var failedOutputApps: Set<String> = []
   private(set) var unresolvedApps: Set<String> = []
@@ -56,6 +57,10 @@ final class AudioController {
 
   var output: AudioDeviceInfo? { snapshot.devices.first { $0.id == snapshot.outputID } }
   var input: AudioDeviceInfo? { snapshot.devices.first { $0.id == snapshot.inputID } }
+  var connectedBluetoothOutput: BluetoothAudioDevice? {
+    guard let output else { return nil }
+    return bluetoothDevices.first { $0.hasOutput && $0.matches(output, direction: .output) }
+  }
   var supportsMixing: Bool { AudioMixerClient.isSupported }
   var listedApplications: [AudioApplication] {
     applicationList.visible(snapshot.applications, volumes: volumes, outputs: outputRoutes)
@@ -227,6 +232,7 @@ final class AudioController {
     operationTask = nil
     operationRevision &+= 1
     connectingBluetooth = nil
+    disconnectingBluetooth = nil
     switchingDevice = nil
     isWorking = false
     isAuthorizing = false
@@ -550,7 +556,9 @@ final class AudioController {
     guard !isWorking, let device = snapshot.devices.first(where: { $0.id == id }) else { return }
     guard device.id != (direction == .output ? snapshot.outputID : snapshot.inputID) else { return }
     perform(switching: direction) { [self] in
-      try await switchDevice(device, direction: direction, command: operationRevision)
+      try await changeDevice(direction: direction, command: operationRevision) { [hardware] in
+        try await hardware.select(device, direction: direction)
+      }
     }
   }
 
@@ -562,7 +570,20 @@ final class AudioController {
       let command = operationRevision
       let ready = try await bluetooth.connect(device, direction: direction)
       guard operationIsCurrent(command) else { throw CancellationError() }
-      try await switchDevice(ready, direction: direction, command: command)
+      try await changeDevice(direction: direction, command: command) { [hardware] in
+        try await hardware.select(ready, direction: direction)
+      }
+    }
+  }
+
+  func disconnectBluetoothOutput() {
+    guard enabled, visible, !sleeping, !isWorking, let device = connectedBluetoothOutput else {
+      return
+    }
+    perform(disconnectingBluetoothID: device.id) { [self] in
+      try await changeDevice(direction: .output, command: operationRevision) { [bluetooth] in
+        try await bluetooth.disconnect(device)
+      }
     }
   }
 
@@ -570,9 +591,10 @@ final class AudioController {
     enabled && !sleeping && !Task.isCancelled && operationRevision == command
   }
 
-  private func switchDevice(_ device: AudioDeviceInfo, direction: AudioDirection, command: UInt64)
-    async throws
-  {
+  /// 选择设备和断开蓝牙共用输出过渡保护，避免系统回退输出时短暂恢复原始应用音量。
+  private func changeDevice(
+    direction: AudioDirection, command: UInt64, change: () async throws -> Void
+  ) async throws {
     guard operationIsCurrent(command) else { throw CancellationError() }
     let guardTap =
       direction == .output
@@ -582,7 +604,7 @@ final class AudioController {
       throw CancellationError()
     }
     do {
-      try await hardware.select(device, direction: direction)
+      try await change()
       guard operationIsCurrent(command) else { throw CancellationError() }
       let includeApplications = watchesApplications
       let updated = await hardware.snapshot(includeApplications: includeApplications)
@@ -596,7 +618,7 @@ final class AudioController {
       guard operationIsCurrent(command) else { throw CancellationError() }
       try await mixer.finishOutputSwitch(guardTap)
     } catch {
-      // 写设备失败时，先尝试恢复当前输出上的音量，之后才释放过渡静音。
+      // 设备变更失败时，先尝试恢复当前输出上的音量，之后才释放过渡静音。
       if operationIsCurrent(command), supportsMixing {
         let includeApplications = appVolumeEnabled
         let updated = await hardware.snapshot(includeApplications: includeApplications)
@@ -624,6 +646,7 @@ final class AudioController {
 
   private func perform(
     switching direction: AudioDirection? = nil, bluetoothID: String? = nil,
+    disconnectingBluetoothID: String? = nil,
     _ operation: @escaping @MainActor () async throws -> Void
   ) {
     guard enabled, !sleeping else { return }
@@ -631,6 +654,7 @@ final class AudioController {
     isAuthorizing = false
     switchingDevice = direction
     connectingBluetooth = bluetoothID
+    disconnectingBluetooth = disconnectingBluetoothID
     operationError = nil
     let epoch = revision
     operationRevision &+= 1
@@ -646,6 +670,7 @@ final class AudioController {
         isAuthorizing = false
         switchingDevice = nil
         connectingBluetooth = nil
+        disconnectingBluetooth = nil
         operationTask = nil
         return
       }
@@ -660,6 +685,7 @@ final class AudioController {
       isAuthorizing = false
       switchingDevice = nil
       connectingBluetooth = nil
+      disconnectingBluetooth = nil
       operationTask = nil
       scheduleRefresh(immediate: true)
     }

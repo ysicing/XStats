@@ -55,5 +55,10 @@ extension Translations {
     最多同时处理 {} 个应用，请恢复部分应用的原始音量或默认输出。	Up to {} apps can be processed at once. Restore original volume or default output for some apps.
     音量或输出控制未生效。	Volume or output control has not taken effect.
     {} 音频选项	{} audio options
+    断开连接	Disconnect
+    正在断开“{}”…	Disconnecting from {}…
+    蓝牙设备未断开，请重试。	The Bluetooth device is still connected. Please try again.
+    断开此蓝牙音频设备的输入与输出连接	Disconnect both input and output for this Bluetooth audio device
+    在滑杆上向上滚动调高音量，向下滚动调低音量	Scroll up on the slider to raise the volume; scroll down to lower it
     """#
 }

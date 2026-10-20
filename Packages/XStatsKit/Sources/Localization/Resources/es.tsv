@@ -2259,3 +2259,8 @@ worktree 已锁定	El worktree está bloqueado
 包含子模块，需在 Git 中处理	Contiene submódulos; administrar en Git
 已安装	Instalado
 查看…	Ver…
+断开连接	Desconectar
+正在断开“{}”…	Desconectando de {}…
+蓝牙设备未断开，请重试。	El dispositivo Bluetooth sigue conectado. Inténtalo de nuevo.
+断开此蓝牙音频设备的输入与输出连接	Desconectar tanto la entrada como la salida de este dispositivo de audio Bluetooth
+在滑杆上向上滚动调高音量，向下滚动调低音量	Desplázate hacia arriba sobre el regulador para subir el volumen y hacia abajo para bajarlo

@@ -756,6 +756,11 @@ enum SnapshotRenderer {
         canSetInputVolume: true, canSetOutputVolume: true, canSetInputMute: true,
         canSetOutputMute: true)
       let external = AudioDeviceInfo(id: 2, uid: "demo.usb", name: "USB Audio", hasOutput: true)
+      let headphones = AudioDeviceInfo(
+        id: 3, uid: "demo.bluetooth", name: "Studio Headphones", hasInput: true, hasOutput: true,
+        inputVolume: 0.4, outputVolume: 0.5, inputMuted: false, outputMuted: false,
+        canSetInputVolume: true, canSetOutputVolume: true, canSetInputMute: true,
+        canSetOutputMute: true, bluetoothAddress: "AA-BB-CC-DD-EE-FF")
       let apps = [
         AudioApplication(
           id: "demo.playing", name: "Music",
@@ -780,7 +785,7 @@ enum SnapshotRenderer {
       ]
       model.audio.showPreview(
         AudioHardwareSnapshot(
-          devices: [builtIn, external], outputID: 1, inputID: 1, applications: apps),
+          devices: [builtIn, external, headphones], outputID: 3, inputID: 1, applications: apps),
         volumes: ["demo.playing": AudioAppVolume(level: 1.6)!],
         outputs: ["demo.playing": "demo.usb", "demo.paused": "demo.missing"],
         bluetoothDevices: [

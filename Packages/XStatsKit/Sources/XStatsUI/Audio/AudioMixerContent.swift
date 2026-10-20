@@ -77,6 +77,7 @@ struct AudioMixerContent: View {
     case .bluetoothPermissionRequired: tr("请在系统设置的隐私与安全性中允许 XStats 使用蓝牙。")
     case .bluetoothConnectionFailed: tr("无法连接蓝牙设备，请确认设备已开启且在附近，然后重试。")
     case .bluetoothAudioUnavailable: tr("蓝牙音频未就绪，请确认设备支持所选的输入或输出，然后重试。")
+    case .bluetoothDisconnectionFailed: tr("蓝牙设备未断开，请重试。")
     case .unavailable, .hardware: tr("音频操作未完成，请重试。")
     }
   }
@@ -169,6 +170,18 @@ private struct AudioDeviceSection: View {
             }
           }
         }.labelsHidden().pickerStyle(.menu).disabled(model.audio.isWorking)
+        if direction == .output {
+          if let id = model.audio.disconnectingBluetooth,
+            let paired = model.audio.bluetoothDevices.first(where: { $0.id == id })
+          {
+            AudioSwitchingFeedback(text: tr("正在断开“\(paired.name)”…"))
+          } else if model.audio.connectedBluetoothOutput != nil {
+            Button(tr("断开连接")) { model.audio.disconnectBluetoothOutput() }
+              .buttonStyle(DSButtonStyle(kind: .secondary)).disabled(model.audio.isWorking)
+              .help(tr("断开此蓝牙音频设备的输入与输出连接"))
+              .accessibilityIdentifier("audio.disconnectBluetoothOutput")
+          }
+        }
         if model.audio.switchingDevice == direction {
           if let id = model.audio.connectingBluetooth,
             let paired = model.audio.bluetoothDevices.first(where: { $0.id == id })
@@ -220,6 +233,18 @@ private struct AudioDeviceSection: View {
             )
             .controlSize(.small).tint(muted ? DS.Palette.textSecondary : DS.Palette.primary)
             .disabled(model.audio.isWorking).accessibilityLabel(volumeTitle)
+            .help(tr("在滑杆上向上滚动调高音量，向下滚动调低音量"))
+            .overlay {
+              AudioVolumeScroll(enabled: !model.audio.isWorking) { delta in
+                let current = draft.value ?? level
+                let next = min(1, max(0, current + delta))
+                guard next != current else { return }
+                editingChanged(true)
+                draft.update(next)
+                model.audio.setDeviceLevel(next, direction: direction)
+                editingChanged(false)
+              }
+            }
             .accessibilityValue(
               (draft.value ?? level).formatted(
                 .percent.precision(.fractionLength(0)).locale(L10n.locale)))

@@ -2259,3 +2259,8 @@ worktree 已锁定	Worktree ist gesperrt
 包含子模块，需在 Git 中处理	Enthält Submodule; in Git verwalten
 已安装	Installiert
 查看…	Ansehen…
+断开连接	Verbindung trennen
+正在断开“{}”…	Verbindung mit {} wird getrennt…
+蓝牙设备未断开，请重试。	Das Bluetooth-Gerät ist noch verbunden. Bitte erneut versuchen.
+断开此蓝牙音频设备的输入与输出连接	Ein- und Ausgabeverbindung dieses Bluetooth-Audiogeräts trennen
+在滑杆上向上滚动调高音量，向下滚动调低音量	Auf dem Regler nach oben scrollen, um die Lautstärke zu erhöhen, und nach unten, um sie zu senken

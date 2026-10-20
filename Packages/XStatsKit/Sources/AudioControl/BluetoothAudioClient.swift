@@ -3,6 +3,7 @@
 import Foundation
 import IOBluetooth
 import CoreBluetooth
+import os
 
 /// 已配对的音频能力来自缓存的设备类别与 SDP，不发起附近设备扫描或远程服务查询。
 public struct BluetoothAudioDevice: Sendable, Equatable, Identifiable {
@@ -47,11 +48,15 @@ public struct BluetoothAudioDevice: Sendable, Equatable, Identifiable {
 }
 
 /// 原生对象仅在串行队列局部使用；不可变闭包和参数可安全跨线程共享。
-/// 连接调用有 10 秒分页超时，之后最多等 8 秒音频就绪；没有后台重连或常驻轮询。
+/// 连接调用有 10 秒分页超时，之后最多等 8 秒音频就绪；断开后最多等 8 秒链路确认。
+/// 仅在用户操作期间回读状态，没有后台重连或常驻轮询。
 public final class BluetoothAudioClient: Sendable {
+  private static let logger = Logger(subsystem: "work.12306.xstats", category: "AudioBluetooth")
   private let queue = DispatchQueue(label: "work.12306.xstats.audio.bluetooth", qos: .userInitiated)
   private let readPaired: @Sendable () throws -> [BluetoothAudioDevice]
   private let connectDevice: @Sendable (String) throws -> Void
+  private let disconnectDevice: @Sendable (String) throws -> Void
+  private let readConnected: @Sendable (String) throws -> Bool
   private let readDevices: @Sendable () -> [AudioDeviceInfo]
   private let readinessTimeout: Duration
   private let pollInterval: Duration
@@ -65,10 +70,14 @@ public final class BluetoothAudioClient: Sendable {
     readPaired: @escaping @Sendable () throws -> [BluetoothAudioDevice],
     connect: @escaping @Sendable (String) throws -> Void,
     devices: @escaping @Sendable () -> [AudioDeviceInfo], readinessTimeout: Duration = .seconds(8),
-    pollInterval: Duration = .milliseconds(250)
+    pollInterval: Duration = .milliseconds(250),
+    disconnect: (@Sendable (String) throws -> Void)? = nil,
+    isConnected: (@Sendable (String) throws -> Bool)? = nil
   ) {
     self.readPaired = readPaired
     connectDevice = connect
+    disconnectDevice = disconnect ?? Self.closeConnection
+    readConnected = isConnected ?? Self.isConnected
     readDevices = devices
     self.readinessTimeout = readinessTimeout
     self.pollInterval = pollInterval
@@ -129,6 +138,50 @@ public final class BluetoothAudioClient: Sendable {
       throw AudioControlError.bluetoothAudioUnavailable
     } onCancel: {
       cancellation.cancel()
+    }
+  }
+
+  /// 仅断开仍在配对目录中的音频输出设备；原生请求成功不代表链路已经断开。
+  public func disconnect(_ device: BluetoothAudioDevice) async throws {
+    let cancellation = AudioOperationCancellation()
+    do {
+      try await withTaskCancellationHandler {
+        try Task.checkCancellation()
+        try await execute { [self] in
+          try cancellation.check()
+          guard let current = try readPaired().first(where: { $0.id == device.id }) else {
+            throw AudioControlError.routeChanged
+          }
+          guard current.hasOutput else { throw AudioControlError.unsupported }
+          try cancellation.check()
+          Self.logger.info("Bluetooth audio disconnection requested")
+          try disconnectDevice(current.address)
+          try cancellation.check()
+        }
+        let deadline = ContinuousClock.now + readinessTimeout
+        repeat {
+          try Task.checkCancellation()
+          let connected = try await execute { [readConnected] in
+            try cancellation.check()
+            return try readConnected(device.address)
+          }
+          try Task.checkCancellation()
+          if !connected {
+            Self.logger.info("Bluetooth audio disconnection confirmed")
+            return
+          }
+          try await Task.sleep(for: pollInterval, tolerance: .milliseconds(20))
+        } while ContinuousClock.now < deadline
+        throw AudioControlError.bluetoothDisconnectionFailed
+      } onCancel: {
+        cancellation.cancel()
+      }
+    } catch is CancellationError {
+      Self.logger.info("Bluetooth audio disconnection cancelled")
+      throw CancellationError()
+    } catch {
+      Self.logger.error("Bluetooth audio disconnection failed")
+      throw error
     }
   }
 
@@ -199,6 +252,30 @@ public final class BluetoothAudioClient: Sendable {
     }
     guard status == kIOReturnSuccess || device.isConnected() else {
       throw AudioControlError.bluetoothConnectionFailed
+    }
+  }
+
+  private static func isConnected(_ address: String) throws -> Bool {
+    if CBManager.authorization == .denied || CBManager.authorization == .restricted {
+      throw AudioControlError.bluetoothPermissionRequired
+    }
+    guard let device = IOBluetoothDevice(addressString: address), device.isPaired() else {
+      throw AudioControlError.routeChanged
+    }
+    return device.isConnected()
+  }
+
+  private static func closeConnection(_ address: String) throws {
+    guard try isConnected(address) else { return }
+    guard let device = IOBluetoothDevice(addressString: address) else {
+      throw AudioControlError.routeChanged
+    }
+    let status = device.closeConnection()
+    if status == kIOReturnNotPermitted || status == kIOReturnNotPrivileged {
+      throw AudioControlError.bluetoothPermissionRequired
+    }
+    guard status == kIOReturnSuccess || !device.isConnected() else {
+      throw AudioControlError.bluetoothDisconnectionFailed
     }
   }
 }

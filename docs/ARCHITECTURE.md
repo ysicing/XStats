@@ -1068,6 +1068,21 @@ demand. The output card displays known battery parts only for a connected device
 normalized hardware address; names and disconnected cached readings cannot establish this match.
 Keeping only the audio menu item visible adds no Bluetooth battery demand.
 
+The active paired Bluetooth output can be disconnected from the output card, affecting both its
+input and output connection. The serial Bluetooth queue rechecks the paired audio capability and
+normalized address before the request, then confirms the link state with a bounded readback.
+Disconnection shares the output-switch guard and mixer recovery path. Closing the controls,
+disabling audio or sleeping cancels queued work and rejects late results; no background reconnect
+or connection polling remains after the operation. The `AudioBluetooth` unified-log category
+records request, confirmation, cancellation and failure without device names or addresses.
+
+System input/output volume sliders accept vertical scrolling only within their visible bounds.
+Mouse wheels use 2% steps per line; precise trackpad deltas use 0.2% per point, capped at 10% per
+event, with physical upward scrolling increasing volume. Horizontal gestures, modifier shortcuts
+and momentum do not change volume. The overlay preserves native slider clicks, dragging and
+accessibility, reuses the existing draft and serialized volume writer, and removes its local event
+monitor on detachment. It adds no polling timer.
+
 On macOS 14.4 and later, explicit user activation starts a short unmuted tap/aggregate input to
 trigger the system audio capture prompt. Its IOProc discards input, clears output and reports only
 initialization progress; physical microphone streams are disabled. The local activation preference

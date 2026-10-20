@@ -136,7 +136,7 @@ public struct AudioHardwareSnapshot: Sendable, Equatable {
 public enum AudioControlError: Error, Sendable, Equatable {
   case unavailable, unsupported, routeChanged, permissionRequired, unsupportedFormat, renderStalled
   case bluetoothUnavailable, bluetoothPermissionRequired, bluetoothConnectionFailed,
-    bluetoothAudioUnavailable
+    bluetoothAudioUnavailable, bluetoothDisconnectionFailed
   case hardware(Int32)
   case processingLimit(Int)
 }
