@@ -80,30 +80,39 @@ struct MagpieControllerTests {
     return settings
   }
 
-  @Test func menuBarChoicesOnlyIncludeReturnedServicesAndSurviveARefreshFailure() async throws {
+  @Test func menuBarChoicesIncludeDefaultsSavedAndReturnedServicesAcrossRefreshFailure()
+    async throws
+  {
     let payload = Data(
       #"{"object":"list","data":[{"provider":"codex","name":"first","kind":"subscription","windows":[]},{"provider":"codex","name":"second","kind":"subscription","windows":[]},{"provider":"claude","name":"account","kind":"subscription","error":"unavailable","windows":[]},{"provider":"grok","name":"account","kind":"subscription","windows":[]},{"provider":"workbuddy-ai","name":"account","kind":"subscription","windows":[]}]}"#
         .utf8)
     let settings = settings()
-    settings.aiMenuBarProviders.insert("saved-provider")
+    settings.aiMenuBarProviders = ["codex", "saved-provider"]
     let selection = settings.aiMenuBarProviders
     let magpie = MagpieStub(quotaPayload: payload)
     let controller = AIUsageController(settings: settings, providers: [], magpieClient: magpie)
     defer { controller.stop() }
-    #expect(controller.availableMenuBarQuotaProviders.isEmpty)
+    #expect(
+      controller.availableMenuBarQuotaProviders == [
+        "codex", "claude", "gemini", "grok", "saved-provider",
+      ])
     await controller.refresh()
     #expect(
-      controller.availableMenuBarQuotaProviders == ["codex", "claude", "grok", "workbuddy-ai"])
+      controller.availableMenuBarQuotaProviders == [
+        "codex", "claude", "gemini", "grok", "saved-provider", "workbuddy-ai",
+      ])
     await magpie.fail(true)
     await controller.refresh()
     #expect(controller.magpieQuotaFailure == .unavailable)
     #expect(
-      controller.availableMenuBarQuotaProviders == ["codex", "claude", "grok", "workbuddy-ai"])
+      controller.availableMenuBarQuotaProviders == [
+        "codex", "claude", "gemini", "grok", "saved-provider", "workbuddy-ai",
+      ])
     #expect(settings.aiMenuBarProviders == selection)
   }
 
-  @Test func upgradedInstallKeepsTheLegacyMenuBarServicesOnFirstQuotaRead() async throws {
-    let providers = ["perplexity", "copilot", "codex", "claude"]
+  @Test func upgradedInstallWithoutSavedSelectionUsesFourDefaults() async throws {
+    let providers = ["perplexity", "copilot", "grok", "gemini", "codex", "claude"]
     let accounts = providers.map {
       [
         "provider": $0, "name": "account", "kind": "subscription",
@@ -118,19 +127,21 @@ struct MagpieControllerTests {
     defaults.set(["cpu", "aiUsage"], forKey: "menuBarItems")
     defaults.set(true, forKey: "aiUsageEnabled")
     let settings = AppSettings(defaults: defaults)
-    #expect(settings.aiMenuBarProvidersFollowLegacyOrder)
+    #expect(settings.aiMenuBarProviders == ["codex", "claude", "gemini", "grok"])
     let controller = AIUsageController(
       settings: settings, providers: [], magpieClient: MagpieStub(quotaPayload: payload))
     defer { controller.stop() }
     await controller.refresh()
-    #expect(settings.aiMenuBarProviders == ["claude", "codex", "copilot"])
-    #expect(!settings.aiMenuBarProvidersFollowLegacyOrder)
+    #expect(settings.aiMenuBarProviders == ["codex", "claude", "gemini", "grok"])
     #expect(
-      Set(controller.menuBarMagpieQuotas().map(\.sourceName)) == ["claude", "codex", "copilot"])
-    #expect(AppSettings(defaults: defaults).aiMenuBarProviders == ["claude", "codex", "copilot"])
+      Set(controller.menuBarMagpieQuotas().map(\.sourceName)) == [
+        "codex", "claude", "gemini", "grok",
+      ])
+    #expect(
+      AppSettings(defaults: defaults).aiMenuBarProviders == ["codex", "claude", "gemini", "grok"])
   }
 
-  @Test func menuBarShowsEverySelectedAvailableServiceWithoutLimitingWidgetOrRequestingAgain()
+  @Test func menuBarShowsAtMostFourSelectedServicesWithoutLimitingWidgetOrRequestingAgain()
     async throws
   {
     let providers = [
@@ -153,12 +164,12 @@ struct MagpieControllerTests {
     await model.aiUsage.refresh()
     #expect(
       model.aiUsage.menuBarMagpieQuotas().map(\.sourceName) == [
-        "codex", "claude", "grok", "gemini",
+        "codex", "claude", "gemini", "grok",
       ])
     settings.aiMenuBarProviders = Set(providers)
     let all = MenuBarReading(model: model, items: [.aiUsage])
-    #expect(all.aiQuotas.count == 7)
-    #expect(all.aiQuotas.map(\.sourceName) == AIServiceBrand.menuBarOrder + ["future-provider"])
+    #expect(all.aiQuotas.count == 4)
+    #expect(all.aiQuotas.map(\.sourceName) == ["codex", "claude", "gemini", "grok"])
     settings.aiMenuBarProviders = ["copilot", "future-provider"]
     let selected = MenuBarReading(model: model, items: [.aiUsage])
     #expect(selected.aiQuotas.map(\.sourceName) == ["copilot", "future-provider"])
@@ -209,7 +220,9 @@ struct MagpieControllerTests {
       settings: settings(), historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
       magpieClient: MagpieStub(quotaPayload: payload))
     defer { model.aiUsage.stop() }
-    model.settings.aiMenuBarProviders.insert("future-provider-with-a-long-service-name")
+    model.settings.aiMenuBarProviders = [
+      "codex", "claude", "grok", "future-provider-with-a-long-service-name",
+    ]
     await model.aiUsage.refresh()
     let host = NSHostingView(
       rootView: AIQuotaMenuBarSelection().environment(model)

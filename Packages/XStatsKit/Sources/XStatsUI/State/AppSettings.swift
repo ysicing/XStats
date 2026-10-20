@@ -787,15 +787,27 @@ public final class AppSettings {
   public var aiQuotaShowsRemaining: Bool {
     didSet { defaults.set(aiQuotaShowsRemaining, forKey: Keys.aiQuotaShowsRemaining) }
   }
-  /// 只控制菜单栏展示，不改变额度查询、本地用量来源或系统小组件。
+  /// 最多选择四个菜单栏服务，不改变额度查询、本地用量来源或系统小组件。
   public var aiMenuBarProviders: Set<String> {
     didSet {
+      let normalized = Self.normalizedAIMenuBarProviders(aiMenuBarProviders)
+      // @Observable 会让属性内的赋值再次经过 setter；只在超限时写回，避免递归更新。
+      if normalized != aiMenuBarProviders {
+        aiMenuBarProviders = normalized
+        return
+      }
       defaults.set(aiMenuBarProviders.sorted(), forKey: Keys.aiMenuBarProviders)
-      aiMenuBarProvidersFollowLegacyOrder = false
     }
   }
-  /// 1.2.0 及更早版本按服务名排序取前三个有效服务；升级用户首次读到额度时据此生成选择，保持显示的服务集合不变（顺序沿用当前品牌顺序）。
-  public internal(set) var aiMenuBarProvidersFollowLegacyOrder: Bool
+
+  private static func normalizedAIMenuBarProviders(_ providers: Set<String>) -> Set<String> {
+    guard providers.count > aiMenuBarProviderLimit else { return providers }
+    // 旧版本允许超过上限；按固定品牌顺序、再按其他服务名收敛，避免 Set 遍历导致重启后组合变化。
+    let ordered =
+      AIServiceBrand.menuBarOrder.filter { providers.contains($0) }
+      + providers.subtracting(AIServiceBrand.menuBarOrder).sorted()
+    return Set(ordered.prefix(aiMenuBarProviderLimit))
+  }
   public var aiUsageWesternUnits: Bool {
     didSet { defaults.set(aiUsageWesternUnits, forKey: Keys.aiUsageWesternUnits) }
   }
@@ -1026,6 +1038,7 @@ public final class AppSettings {
   public static let restWorkOptions = [20, 25, 30, 45, 60]
   public static let restBreakOptions = [3, 5, 10]
   public static let restLongBreakOptions = [10, 15, 20, 30]
+  public static let aiMenuBarProviderLimit = 4
   public static let aiUsageRefreshOptions = [1, 3, 5, 10, 15, 30, 60]
   public static let batteryFloorOptions = [10, 20, 30, 40]
   public static let fanSafetyOptions = [85, 90, 95, 100]
@@ -1148,15 +1161,11 @@ public final class AppSettings {
     aiQuotaShowsRemaining = defaults.object(forKey: Keys.aiQuotaShowsRemaining) as? Bool ?? true
     let savedAIMenuBarProviders = defaults.stringArray(forKey: Keys.aiMenuBarProviders).map(
       Set.init)
-    let defaultAIMenuBarProviders: Set<String> = ["codex", "claude", "grok", "gemini"]
-    aiMenuBarProviders = savedAIMenuBarProviders ?? defaultAIMenuBarProviders
-    // 已有安装（保存过菜单栏项）缺少该键时沿用旧版规则；全新安装使用默认服务集合。
-    let followsLegacyAIMenuBarOrder = savedAIMenuBarProviders == nil && items != nil
-    aiMenuBarProvidersFollowLegacyOrder = followsLegacyAIMenuBarOrder
-    // 全新安装立即保存默认集合，之后保存菜单栏项也不会被误判为旧版升级。
-    if savedAIMenuBarProviders == nil, !followsLegacyAIMenuBarOrder {
-      defaults.set(defaultAIMenuBarProviders.sorted(), forKey: Keys.aiMenuBarProviders)
-    }
+    let initialAIMenuBarProviders = Self.normalizedAIMenuBarProviders(
+      savedAIMenuBarProviders ?? Set(AIServiceBrand.defaultMenuBarProviders))
+    aiMenuBarProviders = initialAIMenuBarProviders
+    // 无显式选择的旧安装也使用四个默认服务；保存空集合仍表示用户全部取消。
+    defaults.set(initialAIMenuBarProviders.sorted(), forKey: Keys.aiMenuBarProviders)
     aiUsageWesternUnits = defaults.bool(forKey: Keys.aiUsageWesternUnits)
     aiUsageCurrency =
       defaults.string(forKey: Keys.aiUsageCurrency).flatMap(AIUsageCurrency.init(rawValue:)) ?? .usd

@@ -420,20 +420,17 @@ public final class AIUsageController {
     return magpieUsage[period]
   }
 
-  /// 只列出 Magpie 实际返回的服务，已知品牌保持稳定顺序，同服务多账户合并成一个选项。
+  /// 默认和已选服务始终可编辑，其余候选来自 Magpie；同服务多账户合并成一个选项。
   var availableMenuBarQuotaProviders: [String] {
     guard usesMagpie else { return [] }
     let available = Set(magpieQuotas.map(\.provider))
+      .union(AIServiceBrand.defaultMenuBarProviders).union(settings.aiMenuBarProviders)
     return AIServiceBrand.menuBarOrder.filter { available.contains($0) }
       + available.subtracting(AIServiceBrand.menuBarOrder).sorted()
   }
 
   func menuBarMagpieQuotas(at date: Date = Date()) -> [MenuBarQuota] {
     let readings = magpieQuotaReadings(at: date)
-    if settings.aiMenuBarProvidersFollowLegacyOrder {
-      let legacy = Set(readings.map(\.sourceName).sorted().prefix(3))
-      return readings.filter { legacy.contains($0.sourceName) }
-    }
     return readings.filter { settings.aiMenuBarProviders.contains($0.sourceName) }
   }
 
@@ -516,11 +513,6 @@ public final class AIUsageController {
       magpieQuotaFailure = nil
       magpieQuotaUpdatedAt = attempt
     case .failure(let failure): magpieQuotaFailure = failure
-    }
-    // 升级后首次读到有效额度时，把旧版实际显示的服务保存为选择，之后由用户自行调整。
-    if settings.aiMenuBarProvidersFollowLegacyOrder {
-      let legacy = magpieQuotaReadings(at: attempt).map(\.sourceName).sorted().prefix(3)
-      if !legacy.isEmpty { settings.aiMenuBarProviders = Set(legacy) }
     }
     if settings.aiUsageShowsLocalUsage {
       for (period, result) in usage {

@@ -874,6 +874,7 @@ extension Translations {
     在主窗口打开“{}”	Open “{}” in the main window
     在线升级	Online Updates
     在菜单栏显示	Show in Menu Bar
+    在菜单栏显示（最多 {} 个）	Show in Menu Bar (up to {})
     在菜单栏显示{}	Show {} in menu bar
     在访达中显示	Show in Finder
     型号	Model

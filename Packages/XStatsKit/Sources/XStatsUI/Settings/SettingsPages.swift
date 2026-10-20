@@ -537,8 +537,10 @@ struct AIQuotaMenuBarSelection: View {
   @Environment(AppModel.self) private var model
 
   var body: some View {
+    let limit = AppSettings.aiMenuBarProviderLimit.formatted(.number.locale(L10n.locale))
     VStack(alignment: .leading, spacing: DS.Space.s2) {
-      Text(tr("在菜单栏显示")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+      Text(tr("在菜单栏显示（最多 \(limit) 个）"))
+        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       // 最多四列，避免服务选项随窗口变宽而分散；窄窗口由系统网格自然换行。
       LazyVGrid(
         columns: [GridItem(.adaptive(minimum: 160), spacing: DS.Space.s4, alignment: .leading)],
@@ -550,6 +552,8 @@ struct AIQuotaMenuBarSelection: View {
               get: { model.settings.aiMenuBarProviders.contains(provider) },
               set: { enabled in
                 if enabled {
+                  guard model.settings.aiMenuBarProviders.count < AppSettings.aiMenuBarProviderLimit
+                  else { return }
                   model.settings.aiMenuBarProviders.insert(provider)
                 } else {
                   model.settings.aiMenuBarProviders.remove(provider)
@@ -572,6 +576,9 @@ struct AIQuotaMenuBarSelection: View {
           .toggleStyle(.checkbox)
           .dsFont(.sm)
           .accessibilityLabel(AIServiceBrand.menuBarTitle(provider))
+          .disabled(
+            !model.settings.aiMenuBarProviders.contains(provider)
+              && model.settings.aiMenuBarProviders.count >= AppSettings.aiMenuBarProviderLimit)
         }
       }
       .frame(maxWidth: 4 * 160 + 3 * DS.Space.s4, alignment: .leading)

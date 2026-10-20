@@ -13,16 +13,34 @@ struct AIUsageSettingsTests {
     defer { defaults.removePersistentDomain(forName: name) }
     let settings = AppSettings(defaults: defaults)
     #expect(settings.aiMenuBarProviders == ["codex", "claude", "grok", "gemini"])
-    #expect(!settings.aiMenuBarProvidersFollowLegacyOrder)
     // 新装后保存了菜单栏项，再次启动也不能被当作旧版升级。
     settings.menuBarItems.insert(.aiUsage)
     #expect(defaults.stringArray(forKey: "menuBarItems") != nil)
-    #expect(!AppSettings(defaults: defaults).aiMenuBarProvidersFollowLegacyOrder)
+    #expect(AppSettings(defaults: defaults).aiMenuBarProviders == settings.aiMenuBarProviders)
     settings.aiMenuBarProviders = ["copilot", "future-provider"]
     #expect(AppSettings(defaults: defaults).aiMenuBarProviders == settings.aiMenuBarProviders)
     settings.aiMenuBarProviders = []
     #expect(AppSettings(defaults: defaults).aiMenuBarProviders.isEmpty)
     #expect(settings.aiUsageSources.count == 2)
+  }
+
+  @Test func menuBarProviderLimitAppliesToSavedAndAssignedSelections() throws {
+    let name = "AIUsageSettingsTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let oversized = ["custom-z", "copilot", "grok", "gemini", "claude", "codex"]
+    defaults.set(oversized, forKey: "aiMenuBarProviders")
+    let settings = AppSettings(defaults: defaults)
+    let expected: Set<String> = ["codex", "claude", "gemini", "grok"]
+    #expect(settings.aiMenuBarProviders == expected)
+    #expect(Set(try #require(defaults.stringArray(forKey: "aiMenuBarProviders"))) == expected)
+    settings.aiMenuBarProviders = ["custom-z", "custom-a", "custom-c", "custom-b", "custom-d"]
+    #expect(settings.aiMenuBarProviders == ["custom-a", "custom-b", "custom-c", "custom-d"])
+    settings.aiMenuBarProviders = ["copilot", "custom-z", "claude", "perplexity"]
+    #expect(AppSettings(defaults: defaults).aiMenuBarProviders == settings.aiMenuBarProviders)
+    settings.aiMenuBarProviders.remove("claude")
+    settings.aiMenuBarProviders.insert("gemini")
+    #expect(settings.aiMenuBarProviders == ["copilot", "custom-z", "gemini", "perplexity"])
   }
 
   @Test func oldPreferencesKeepDefaultsAndNewChoicesPersist() throws {

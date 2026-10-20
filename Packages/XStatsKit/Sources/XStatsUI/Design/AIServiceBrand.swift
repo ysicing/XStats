@@ -3,10 +3,11 @@
 
 /// 订阅页面与菜单栏共用服务名称和标志；未知服务保留原名并使用通用图标。
 enum AIServiceBrand {
-  static let menuBarOrder = ["codex", "claude", "grok", "gemini", "copilot", "perplexity"]
+  static let defaultMenuBarProviders = ["codex", "claude", "gemini", "grok"]
+  static let menuBarOrder = defaultMenuBarProviders + ["copilot", "perplexity"]
 
   static func menuBarTitle(_ provider: String) -> String {
-    provider == "codex" ? "OpenAI" : title(provider)
+    title(provider)
   }
 
   static func logoName(_ provider: String) -> String? {

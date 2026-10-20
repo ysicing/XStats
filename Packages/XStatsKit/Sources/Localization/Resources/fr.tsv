@@ -2298,3 +2298,4 @@ worktree 已锁定	Le worktree est verrouillé
 拖动以调整顺序	Faire glisser pour réorganiser
 自定义弹窗内容	Personnaliser le contenu des fenêtres
 选择各指标弹窗显示的内容，并调整排列顺序。	Choisissez le contenu affiché dans la fenêtre de chaque indicateur et ajustez son ordre.
+在菜单栏显示（最多 {} 个）	Afficher dans la barre des menus ({} maximum)
