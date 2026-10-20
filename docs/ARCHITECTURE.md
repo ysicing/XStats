@@ -1076,6 +1076,23 @@ disabling audio or sleeping cancels queued work and rejects late results; no bac
 or connection polling remains after the operation. The `AudioBluetooth` unified-log category
 records request, confirmation, cancellation and failure without device names or addresses.
 
+Bluetooth audio pickers and full battery-device lists share local address-based pin/hide preferences.
+Hiding changes presentation only: it does not disconnect devices, stop battery reads or suppress alerts.
+The selected and connecting audio endpoints remain selectable even when hidden. Full battery lists show
+five devices initially with an expand action; their management menu can restore hidden devices.
+Management entries appear only in System Info and the battery popover, not in audio controls.
+Entries without a complete hardware address remain visible but do not receive persistent preferences.
+
+Visible audio controls probe the current Bluetooth output for listening-mode capability through the
+undocumented Core Audio HAL properties `lstm` and `lsms`. Only advertised noise cancellation,
+transparency and adaptive modes are selectable, with at least two modes and a writable property required.
+The off state is observable but is not offered as a target because its support bit is unspecified.
+Unknown values are not guessed. `AudioListeningModeClient` confines HAL access and property listeners
+to its serial queue, verifies the default output and UID before writes, then uses bounded delayed
+readback to confirm changes. It does not retry writes. Closing, pausing or disabling the controls,
+sleeping and switching outputs release the listeners and reject late results. There is no background
+mode polling. The `AudioListeningMode` log category records outcomes without device identifiers.
+
 System input/output volume sliders accept vertical scrolling only within their visible bounds.
 Mouse wheels use 2% steps per line; precise trackpad deltas use 0.2% per point, capped at 10% per
 event, with physical upward scrolling increasing volume. Horizontal gestures, modifier shortcuts

@@ -488,7 +488,7 @@ private struct BluetoothSection: View {
         RefreshButton(loading: bluetooth.isReading, help: tr("重新读取蓝牙设备电量")) { bluetooth.refresh() }
       }
     ) {
-      BluetoothDeviceList(devices: bluetooth.devices)
+      ManagedBluetoothDeviceList(devices: bluetooth.devices)
     }
   }
 }
@@ -510,6 +510,42 @@ private func bluetoothBatteryColor(percent: Int, connected: Bool) -> Color {
   case ...20: return DS.Palette.error
   case ...50: return DS.Palette.warning
   default: return DS.Palette.success
+  }
+}
+
+struct ManagedBluetoothDeviceList: View {
+  let devices: [BluetoothDevice]?
+  @Environment(AppModel.self) private var model
+  @State private var expanded = false
+
+  var body: some View {
+    if let devices {
+      let arranged = model.settings.bluetoothDevicePreferences.arranged(devices, address: \.address)
+      let displayed = expanded ? arranged : Array(arranged.prefix(5))
+      if arranged.isEmpty && !devices.isEmpty {
+        Text(tr("暂无显示的蓝牙设备")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+      } else {
+        BluetoothDeviceList(devices: displayed)
+      }
+      let choices = BluetoothDeviceChoice.unique(
+        devices.compactMap {
+          BluetoothDeviceChoice(address: $0.address, name: $0.name)
+        })
+      if arranged.count > 5 || !choices.isEmpty
+        || !model.settings.bluetoothDevicePreferences.hidden.isEmpty
+      {
+        HStack {
+          if arranged.count > 5 {
+            Button(expanded ? tr("收起设备") : tr("展开更多设备")) { expanded.toggle() }
+              .buttonStyle(.link).dsFont(.xs)
+          }
+          Spacer(minLength: DS.Space.s1)
+          BluetoothDeviceMenu(devices: choices)
+        }
+      }
+    } else {
+      BluetoothDeviceList(devices: nil)
+    }
   }
 }
 

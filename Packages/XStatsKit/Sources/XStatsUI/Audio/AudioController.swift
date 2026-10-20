@@ -18,6 +18,8 @@ final class AudioController {
   private(set) var bluetoothDevices: [BluetoothAudioDevice] = []
   private(set) var connectingBluetooth: String?
   private(set) var disconnectingBluetooth: String?
+  private(set) var listeningMode: AudioListeningModeState?
+  private(set) var changingListeningMode: AudioListeningMode?
   private(set) var pendingOutputApps: Set<String> = []
   private(set) var failedOutputApps: Set<String> = []
   private(set) var unresolvedApps: Set<String> = []
@@ -31,6 +33,8 @@ final class AudioController {
   @ObservationIgnored private let hardware: AudioHardwareClient
   @ObservationIgnored private let mixer: AudioMixerClient
   @ObservationIgnored private let bluetooth: BluetoothAudioClient
+  @ObservationIgnored private let listeningModes: AudioListeningModeClient
+  @ObservationIgnored private var listeningModeDevice: AudioDeviceInfo?
   @ObservationIgnored private let activationNotifications: NotificationCenter
   @ObservationIgnored private var activationObserver: NSObjectProtocol?
   @ObservationIgnored private var bluetoothRefreshGeneration: UInt64 = 0
@@ -79,12 +83,14 @@ final class AudioController {
     defaults: UserDefaults = .standard, mixer: AudioMixerClient = AudioMixerClient(),
     hardware: AudioHardwareClient = AudioHardwareClient(),
     bluetooth: BluetoothAudioClient = BluetoothAudioClient(),
+    listeningModes: AudioListeningModeClient = AudioListeningModeClient(),
     activationNotifications: NotificationCenter = .default
   ) {
     self.defaults = defaults
     self.mixer = mixer
     self.hardware = hardware
     self.bluetooth = bluetooth
+    self.listeningModes = listeningModes
     self.activationNotifications = activationNotifications
     let activationKey = "audio.appVolumeEnabled"
     let savedActivation =
@@ -156,7 +162,7 @@ final class AudioController {
   /// 离屏走查夹具；已启用的真实控制器不能被演示状态覆盖，也不会请求权限或启动处理。
   func showPreview(
     _ snapshot: AudioHardwareSnapshot, volumes: [String: AudioAppVolume], outputs: [String: String],
-    bluetoothDevices: [BluetoothAudioDevice] = []
+    bluetoothDevices: [BluetoothAudioDevice] = [], listeningMode: AudioListeningModeState? = nil
   ) {
     guard !enabled else { return }
     applicationList.update(snapshot.applications)
@@ -165,6 +171,7 @@ final class AudioController {
     outputRoutes = outputs
     appVolumeEnabled = true
     self.bluetoothDevices = bluetoothDevices
+    self.listeningMode = listeningMode
   }
 
   func volume(for app: AudioApplication) -> AudioAppVolume {
@@ -192,6 +199,8 @@ final class AudioController {
     self.visible = visible
     self.menuVisible = menuVisible
     revision &+= 1
+    // 先取消旧刷新，再入队停止监听；已入队的探测完成后也不能留下后台监听。
+    refreshTask?.cancel()
     if enabled, visible, !sleeping {
       if !wasBluetoothVisible { refreshBluetoothDevices() }
     } else {
@@ -233,6 +242,7 @@ final class AudioController {
     operationRevision &+= 1
     connectingBluetooth = nil
     disconnectingBluetooth = nil
+    changingListeningMode = nil
     switchingDevice = nil
     isWorking = false
     isAuthorizing = false
@@ -240,6 +250,11 @@ final class AudioController {
 
   private func updateWatchers() {
     updateBluetoothActivationObserver()
+    if !enabled || !visible || sleeping {
+      listeningModes.stopWatching()
+      listeningMode = nil
+      listeningModeDevice = nil
+    }
     refreshTask?.cancel()
     let epoch = revision
     if !enabled || sleeping {
@@ -318,6 +333,18 @@ final class AudioController {
       // 未采集应用目录时不能把空数组解释成连接结束；重新打开后再核对实际音频对象。
       if includeApplications { applicationList.update(updated.applications) }
       snapshot = updated
+      if visible {
+        let target = output
+        if target?.id != listeningModeDevice?.id || target?.uid != listeningModeDevice?.uid {
+          listeningMode = nil
+        }
+        let state = await listeningModes.watch(target) { [weak self] in
+          Task { @MainActor [weak self] in self?.scheduleRefresh() }
+        }
+        guard !Task.isCancelled, revision == epoch, enabled, visible, !sleeping else { return }
+        listeningMode = state
+        listeningModeDevice = target
+      }
       updatePlaybackGrace()
       let currentIDs = Set(updated.applications.map(\.id))
       pendingOutputApps.formIntersection(Set(updated.applications.filter(\.isPlaying).map(\.id)))
@@ -587,6 +614,16 @@ final class AudioController {
     }
   }
 
+  func setListeningMode(_ mode: AudioListeningMode) {
+    guard enabled, visible, !sleeping, !isWorking, let output,
+      output.bluetoothAddress != nil,
+      let state = listeningMode, state.isControllable, state.modes.contains(mode),
+      state.current != mode
+    else { return }
+    perform { [listeningModes] in try await listeningModes.setMode(mode, device: output) }
+    changingListeningMode = mode
+  }
+
   private func operationIsCurrent(_ command: UInt64) -> Bool {
     enabled && !sleeping && !Task.isCancelled && operationRevision == command
   }
@@ -671,6 +708,7 @@ final class AudioController {
         switchingDevice = nil
         connectingBluetooth = nil
         disconnectingBluetooth = nil
+        changingListeningMode = nil
         operationTask = nil
         return
       }
@@ -686,6 +724,7 @@ final class AudioController {
       switchingDevice = nil
       connectingBluetooth = nil
       disconnectingBluetooth = nil
+      changingListeningMode = nil
       operationTask = nil
       scheduleRefresh(immediate: true)
     }
@@ -748,6 +787,9 @@ final class AudioController {
     volumeWriter.cancelPending()
     removeSleepObservers()
     hardware.stopWatching()
+    listeningModes.stopWatching()
+    listeningMode = nil
+    listeningModeDevice = nil
     Task { await mixer.stop() }
   }
 }

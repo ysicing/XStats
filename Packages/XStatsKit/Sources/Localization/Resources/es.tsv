@@ -2264,3 +2264,18 @@ worktree 已锁定	El worktree está bloqueado
 蓝牙设备未断开，请重试。	El dispositivo Bluetooth sigue conectado. Inténtalo de nuevo.
 断开此蓝牙音频设备的输入与输出连接	Desconectar tanto la entrada como la salida de este dispositivo de audio Bluetooth
 在滑杆上向上滚动调高音量，向下滚动调低音量	Desplázate hacia arriba sobre el regulador para subir el volumen y hacia abajo para bajarlo
+取消置顶	Desanclar
+置顶设备	Anclar dispositivo
+显示设备	Mostrar dispositivo
+隐藏设备	Ocultar dispositivo
+显示所有隐藏设备	Mostrar todos los dispositivos ocultos
+管理蓝牙设备	Gestionar dispositivos Bluetooth
+暂无显示的蓝牙设备	No hay dispositivos Bluetooth para mostrar
+收起设备	Mostrar menos dispositivos
+展开更多设备	Mostrar más dispositivos
+聆听模式	Modo de escucha
+降噪	Cancelación de ruido
+通透	Transparencia
+自适应	Adaptativo
+正在切换到“{}”…	Cambiando a {}…
+聆听模式切换未确认，请检查耳机后重试。	No se pudo confirmar el cambio de modo de escucha. Comprueba los auriculares e inténtalo de nuevo.

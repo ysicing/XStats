@@ -335,7 +335,7 @@ private struct BluetoothCard: View {
 
   var body: some View {
     InfoCard(icon: "dot.radiowaves.left.and.right", title: tr("蓝牙设备")) {
-      BluetoothDeviceList(devices: model.bluetooth.devices)
+      ManagedBluetoothDeviceList(devices: model.bluetooth.devices)
     }
   }
 }

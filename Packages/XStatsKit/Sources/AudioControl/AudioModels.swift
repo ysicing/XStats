@@ -137,6 +137,7 @@ public enum AudioControlError: Error, Sendable, Equatable {
   case unavailable, unsupported, routeChanged, permissionRequired, unsupportedFormat, renderStalled
   case bluetoothUnavailable, bluetoothPermissionRequired, bluetoothConnectionFailed,
     bluetoothAudioUnavailable, bluetoothDisconnectionFailed
+  case listeningModeUnconfirmed
   case hardware(Int32)
   case processingLimit(Int)
 }

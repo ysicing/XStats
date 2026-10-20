@@ -60,5 +60,20 @@ extension Translations {
     蓝牙设备未断开，请重试。	The Bluetooth device is still connected. Please try again.
     断开此蓝牙音频设备的输入与输出连接	Disconnect both input and output for this Bluetooth audio device
     在滑杆上向上滚动调高音量，向下滚动调低音量	Scroll up on the slider to raise the volume; scroll down to lower it
+    取消置顶	Unpin
+    置顶设备	Pin device
+    显示设备	Show device
+    隐藏设备	Hide device
+    显示所有隐藏设备	Show all hidden devices
+    管理蓝牙设备	Manage Bluetooth devices
+    暂无显示的蓝牙设备	No Bluetooth devices to display
+    收起设备	Show fewer devices
+    展开更多设备	Show more devices
+    聆听模式	Listening mode
+    降噪	Noise cancellation
+    通透	Transparency
+    自适应	Adaptive
+    正在切换到“{}”…	Switching to {}…
+    聆听模式切换未确认，请检查耳机后重试。	Listening mode could not be confirmed. Check your headphones and try again.
     """#
 }

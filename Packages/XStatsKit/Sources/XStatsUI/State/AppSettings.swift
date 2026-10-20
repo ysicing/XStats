@@ -558,6 +558,14 @@ public final class AppSettings {
   var networkObservationDefaults: UserDefaults { defaults }
   var updateDefaults: UserDefaults { defaults }
 
+  var bluetoothDevicePreferences: BluetoothDevicePreferences {
+    didSet {
+      defaults.set(
+        try? JSONEncoder().encode(bluetoothDevicePreferences), forKey: "bluetooth.devicePreferences"
+      )
+    }
+  }
+
   /// 日历独立于性能指标，即使指标合并也保留单独入口；旧用户默认关闭。
   public var calendarEnabled: Bool {
     didSet { defaults.set(calendarEnabled, forKey: Keys.calendarEnabled) }
@@ -1012,6 +1020,11 @@ public final class AppSettings {
     calendar: Calendar = .current
   ) {
     self.defaults = defaults
+    bluetoothDevicePreferences =
+      defaults.data(forKey: "bluetooth.devicePreferences").flatMap {
+        guard $0.count <= 32_768 else { return nil as BluetoothDevicePreferences? }
+        return try? JSONDecoder().decode(BluetoothDevicePreferences.self, from: $0)
+      } ?? BluetoothDevicePreferences()
     let isRestEnabled = defaults.bool(forKey: Keys.restEnabled)
     restEnabled = isRestEnabled
     timerPreferences =

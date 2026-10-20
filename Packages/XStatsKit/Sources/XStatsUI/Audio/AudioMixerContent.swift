@@ -7,6 +7,17 @@ import Metrics
 import Localization
 import SwiftUI
 
+extension AudioListeningMode {
+  var title: String {
+    switch self {
+    case .off: tr("关闭")
+    case .noiseCancellation: tr("降噪")
+    case .transparency: tr("通透")
+    case .adaptive: tr("自适应")
+    }
+  }
+}
+
 /// 控件即时跟随输入；异步状态只作明确反馈，不移动正在操作的内容。
 struct AudioMixerContent: View {
   @Environment(AppModel.self) private var model
@@ -78,6 +89,7 @@ struct AudioMixerContent: View {
     case .bluetoothConnectionFailed: tr("无法连接蓝牙设备，请确认设备已开启且在附近，然后重试。")
     case .bluetoothAudioUnavailable: tr("蓝牙音频未就绪，请确认设备支持所选的输入或输出，然后重试。")
     case .bluetoothDisconnectionFailed: tr("蓝牙设备未断开，请重试。")
+    case .listeningModeUnconfirmed: tr("聆听模式切换未确认，请检查耳机后重试。")
     case .unavailable, .hardware: tr("音频操作未完成，请重试。")
     }
   }
@@ -95,6 +107,66 @@ private struct AudioSwitchingFeedback: View {
       }
       Text(text).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
     }
+  }
+}
+
+struct AudioListeningModeControl: View {
+  let state: AudioListeningModeState
+  let target: AudioListeningMode?
+  let busy: Bool
+  let select: @MainActor @Sendable (AudioListeningMode) -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: DS.Space.s1) {
+      Text(tr("聆听模式")).dsFont(.sm)
+      ViewThatFits(in: .horizontal) {
+        buttons(horizontal: true)
+        buttons(horizontal: false)
+      }
+      if let target {
+        AudioSwitchingFeedback(text: tr("正在切换到“\(target.title)”…"))
+      }
+    }
+  }
+
+  private func buttons(horizontal: Bool) -> some View {
+    let layout =
+      horizontal
+      ? AnyLayout(HStackLayout(spacing: DS.Space.s1))
+      : AnyLayout(VStackLayout(alignment: .leading, spacing: DS.Space.s1))
+    return layout {
+      ForEach(state.modes, id: \.rawValue) { @Sendable [state, busy, select] mode in
+        AudioListeningModeButton(
+          mode: mode, selected: state.current == mode, busy: busy, select: select)
+      }
+    }
+  }
+}
+
+private struct AudioListeningModeButton: View {
+  let mode: AudioListeningMode
+  let selected: Bool
+  let busy: Bool
+  let select: @MainActor @Sendable (AudioListeningMode) -> Void
+
+  nonisolated init(
+    mode: AudioListeningMode, selected: Bool, busy: Bool,
+    select: @escaping @MainActor @Sendable (AudioListeningMode) -> Void
+  ) {
+    self.mode = mode
+    self.selected = selected
+    self.busy = busy
+    self.select = select
+  }
+
+  var body: some View {
+    Button {
+      select(mode)
+    } label: {
+      Label(mode.title, systemImage: selected ? "checkmark.circle.fill" : "circle").fixedSize()
+    }
+    .buttonStyle(.bordered).controlSize(.small).disabled(busy)
+    .accessibilityAddTraits(selected ? .isSelected : [])
   }
 }
 
@@ -124,8 +196,15 @@ private struct AudioDeviceSection: View {
   }
   var body: some View {
     SectionCard(title: title) {
-      let devices = model.audio.snapshot.devices.filter { $0.canBeDefault(direction) }
-      let paired = model.audio.bluetoothDevices.filter { candidate in
+      let preferences = model.settings.bluetoothDevicePreferences
+      let selectedAddress = device?.bluetoothAddress.flatMap(BluetoothDevicePreferences.key)
+      let keeping = Set([selectedAddress, model.audio.connectingBluetooth].compactMap { $0 })
+      let devices = preferences.arranged(
+        model.audio.snapshot.devices.filter { $0.canBeDefault(direction) },
+        address: { $0.bluetoothAddress ?? "" }, keeping: keeping)
+      let paired = preferences.arranged(
+        model.audio.bluetoothDevices, address: \.address, keeping: keeping
+      ).filter { candidate in
         guard direction == .output ? candidate.hasOutput : candidate.hasInput else { return false }
         // HAL 端点先出现、切换稍后完成；保留待处理选项，避免 Picker 的 selection 暂时失去标签。
         if model.audio.switchingDevice == direction, model.audio.connectingBluetooth == candidate.id
@@ -180,6 +259,11 @@ private struct AudioDeviceSection: View {
               .buttonStyle(DSButtonStyle(kind: .secondary)).disabled(model.audio.isWorking)
               .help(tr("断开此蓝牙音频设备的输入与输出连接"))
               .accessibilityIdentifier("audio.disconnectBluetoothOutput")
+          }
+          if let state = model.audio.listeningMode, state.isControllable {
+            AudioListeningModeControl(
+              state: state, target: model.audio.changingListeningMode, busy: model.audio.isWorking,
+              select: { model.audio.setListeningMode($0) })
           }
         }
         if model.audio.switchingDevice == direction {
