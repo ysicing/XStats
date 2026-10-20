@@ -41,6 +41,8 @@ struct AICleanupTests {
       try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
       for index in 0..<25_000 {
         try FileManager.default.linkItem(at: seed, to: root.appendingPathComponent("file-\(index)"))
+        // 大目录夹具分批让出执行器，避免挤占并行进程用例的启动与取消检查。
+        if index.isMultiple(of: 128) { await Task.yield() }
       }
     }
     var environment = fixture.environment
@@ -221,6 +223,7 @@ struct AICleanupTests {
       try payload.write(to: file)
       expectedBytes += UInt64(
         try file.resourceValues(forKeys: [.fileAllocatedSizeKey]).fileAllocatedSize ?? 0)
+      if index.isMultiple(of: 128) { await Task.yield() }
     }
     var environment = fixture.environment
     environment.codexDesktopInstalled = { true }
