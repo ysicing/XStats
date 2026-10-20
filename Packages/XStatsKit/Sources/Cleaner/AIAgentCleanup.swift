@@ -13,12 +13,26 @@ public struct AIAgentTool: Identifiable, Sendable {
   public let dataDirectories: [URL]
   /// nil 表示未能完整计量，不把读取失败解释为零占用。
   public let bytes: UInt64?
+  /// 扫描时确认的桌面应用安装位置；仅有 CLI 时为 nil。
+  public let applicationURL: URL?
+
+  public init(
+    id: String, name: String, installation: Installation, executable: URL?,
+    dataDirectories: [URL], bytes: UInt64?, applicationURL: URL? = nil
+  ) {
+    self.id = id
+    self.name = name
+    self.installation = installation
+    self.executable = executable
+    self.dataDirectories = dataDirectories
+    self.bytes = bytes
+    self.applicationURL = applicationURL
+  }
 }
 
 public struct AICleanupScan: Sendable {
   public var tools: [AIAgentTool] = []
   public var worktrees: [AIWorktree] = []
-  public var logs: [RuleScan] = []
   public var incomplete = false
   public var gitAvailable = true
   public var searchedRoots: [URL] = []
@@ -94,7 +108,9 @@ public enum AIAgentCleanup {
       "XDG_CONFIG_HOME", fallback: home.appendingPathComponent(".config"), environment)
     let support = home.appendingPathComponent("Library/Application Support")
     let definitions = [
-      Definition(id: "codex", name: "Codex", command: "codex", paths: [codex]),
+      Definition(
+        id: "codex", name: "Codex", command: "codex", paths: [codex],
+        bundles: ["com.openai.codex"]),
       Definition(id: "claude", name: "Claude Code", command: "claude", paths: [claude]),
       Definition(
         id: "gemini", name: "Gemini CLI", command: "gemini",
@@ -159,7 +175,7 @@ public enum AIAgentCleanup {
           },
         bundles: ["com.tencent.workbuddy.mac", "com.workbuddy.workbuddy"]),
     ]
-    let desktopDetection = try desktopBundleIdentifiers(
+    let desktopDetection = try desktopApplications(
       in: environment.applicationDirectories,
       budget: AIScanBudget(seconds: 2, entries: 1_000, parent: toolBudget))
     var result = AICleanupScan()
@@ -168,6 +184,12 @@ public enum AIAgentCleanup {
     for definition in definitions {
       try Task.checkCancellation()
       let executable = definition.command.flatMap { environment.executable($0) }
+      // 数据目录可能在卸载后保留；只盘点仍有命令或桌面应用的工具。
+      guard
+        executable != nil
+          || definition.bundles.contains(where: { desktopDetection.applications[$0] != nil })
+          || (definition.id == "codex" && environment.codexDesktopInstalled())
+      else { continue }
       let paths = definition.paths.filter { FileManager.default.fileExists(atPath: $0.path) }
       var total: UInt64 = 0
       var complete = true
@@ -203,11 +225,10 @@ public enum AIAgentCleanup {
       result.tools.append(
         AIAgentTool(
           id: definition.id, name: definition.name,
-          installation: executable != nil
-            || definition.bundles.contains(where: desktopDetection.identifiers.contains)
-            || (definition.id == "codex" && environment.codexDesktopInstalled())
-            ? .installed : paths.isEmpty ? .absent : .dataOnly,
-          executable: executable, dataDirectories: paths, bytes: complete ? total : nil))
+          installation: .installed,
+          executable: executable, dataDirectories: paths, bytes: complete ? total : nil,
+          applicationURL: definition.bundles.compactMap { desktopDetection.applications[$0] }.first)
+      )
     }
     let managed = [
       codex.appendingPathComponent("worktrees"), claude.appendingPathComponent("worktrees"),
@@ -229,64 +250,7 @@ public enum AIAgentCleanup {
       result.incomplete = result.incomplete || discovered.incomplete
     }
     try Task.checkCancellation()
-    result.logs = await CleanEngine.scan(
-      logRules(environment: environment), environment: environment.clean)
-    result.incomplete =
-      result.incomplete || result.logs.contains { $0.unreadableCount > 0 || $0.blocked != nil }
-    try Task.checkCancellation()
     return result
-  }
-
-  /// 仅登记默认位置的旧普通日志文件，不清理自定义路径、会话、SQLite、配置或快照。
-  public static func logRules(environment: AICleanupEnvironment) -> [CleanRule] {
-    let paths = [
-      ("codex", ".codex/log", "CODEX_HOME", environment.home + "/.codex"),
-      ("claude", ".claude/debug", "CLAUDE_CONFIG_DIR", environment.home + "/.claude"),
-      (
-        "opencode", ".local/share/opencode/log", "XDG_DATA_HOME", environment.home + "/.local/share"
-      ),
-    ]
-    return paths.compactMap { id, relative, variable, defaultRoot in
-      if let custom = environment.variables[variable],
-        URL(fileURLWithPath: custom).standardizedFileURL.path != defaultRoot
-      {
-        return nil
-      }
-      return CleanRule(
-        id: "ai.logs." + id, category: .developer, title: id,
-        detail: tr("仅清理 7 天前的日志，保留会话、配置与凭据"), symbol: "doc.text",
-        selectedByDefault: false, policy: .trash, requiresUnredirectedPath: true,
-        minimumAge: 7 * 86_400
-      ) { env in
-        let root = URL(fileURLWithPath: env.home).appendingPathComponent(relative)
-        guard FileManager.default.fileExists(atPath: root.path) else { return [] }
-        var unreadable = false
-        guard AppUninstaller.isUnredirected(root, home: env.home),
-          let entries = FileManager.default.enumerator(
-            at: root, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
-            options: [.skipsSubdirectoryDescendants],
-            errorHandler: { _, _ in
-              unreadable = true
-              return false
-            })
-        else { throw CocoaError(.fileReadNoPermission) }
-        var files: [URL] = []
-        var visited = 0
-        for case let file as URL in entries {
-          try Task.checkCancellation()
-          visited += 1
-          guard visited <= 2_000 else { throw AIScanError.limit }
-          let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
-          if values.isRegularFile == true, values.isSymbolicLink != true,
-            ["log", "txt"].contains(file.pathExtension.lowercased())
-          {
-            files.append(file)
-          }
-        }
-        if unreadable { throw CocoaError(.fileReadNoPermission) }
-        return files
-      }
-    }
   }
 
   static func codexDesktopInstalled(home: URL) -> Bool {
@@ -302,10 +266,10 @@ public enum AIAgentCleanup {
   }
 
   /// 只检查两个标准应用目录的直接子项；不启动应用，不进行 Spotlight 或全盘搜索。
-  static func desktopBundleIdentifiers(in directories: [URL], budget: AIScanBudget) throws
-    -> (identifiers: Set<String>, incomplete: Bool)
+  static func desktopApplications(in directories: [URL], budget: AIScanBudget) throws
+    -> (applications: [String: URL], incomplete: Bool)
   {
-    var identifiers = Set<String>()
+    var applications: [String: URL] = [:]
     var incomplete = false
     do {
       for directory in directories {
@@ -328,13 +292,14 @@ public enum AIAgentCleanup {
             let executable = bundle.executableURL,
             FileManager.default.isExecutableFile(atPath: executable.path)
           else { continue }
-          identifiers.insert(identifier)
+          // 直接复用检测到的安装位置，避免界面再按应用名称猜路径或重新扫描。
+          if applications[identifier] == nil { applications[identifier] = url }
         }
       }
     } catch is CancellationError { throw CancellationError() } catch {
       incomplete = true
     }
-    return (identifiers, incomplete)
+    return (applications, incomplete)
   }
 
   private static func configured(_ key: String, fallback: URL, _ environment: AICleanupEnvironment)

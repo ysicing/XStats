@@ -27,6 +27,8 @@ public final class AppModel {
   public let fans: FanController
   public let keepAwake: KeepAwakeController
   public let cleaner: CleanerController
+  // 最近一次 Agent 盘点仅保留在本次进程内；关闭弹窗不丢弃，也不启动后台刷新。
+  let agentData = AICleanupController()
   let projectPurge: ProjectPurgeController
   public let maintenance: MaintenanceController
   public let network: NetworkController

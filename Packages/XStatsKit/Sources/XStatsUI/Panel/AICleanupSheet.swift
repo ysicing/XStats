@@ -13,17 +13,13 @@ struct AICleanupSheet: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var controller: AICleanupController
 
-  init(excludedPaths: [String]) {
-    let clean = CleanEnvironment(runningBundleIdentifiers: { [] }, excludedPaths: excludedPaths)
-    _controller = State(
-      initialValue: AICleanupController(environment: AICleanupEnvironment(clean: clean)))
-  }
   init(controller: AICleanupController, initialSection: Int = 0) {
     _controller = State(initialValue: controller)
     _section = State(initialValue: initialSection)
   }
 
   @State private var section = 0
+  @State private var scanLocationsExpanded = true
   @State private var pauseReasons: Set<String> = []
   private var paused: Bool { !pauseReasons.isEmpty }
   private var enabled: Bool { model.settings.cleanerEnabled && model.settings.agentDataEnabled }
@@ -35,7 +31,7 @@ struct AICleanupSheet: View {
       VStack(alignment: .leading, spacing: DS.Space.s4) {
         HStack(spacing: DS.Space.s4) {
           Picker(tr("类型"), selection: $section) {
-            Text(tr("工具数据")).tag(0)
+            Text(tr("AI 工具")).tag(0)
             Text("Worktree").tag(1)
           }
           .pickerStyle(.segmented)
@@ -94,18 +90,19 @@ struct AICleanupSheet: View {
       .padding(.bottom, DS.Space.s3)
       .frame(maxHeight: .infinity)
       .background(DS.Palette.surface)
-      HairlineDivider()
-      footer.padding(DS.Space.s6)
     }
-    .frame(width: 760, height: sheetHeight)
+    .frame(
+      minWidth: 560, idealWidth: 760, maxWidth: .infinity,
+      minHeight: 400, idealHeight: 620, maxHeight: .infinity
+    )
     .background(DS.Palette.background).appLanguageEnvironment()
     // Alert 自动关闭可能早于按钮回调；冻结目标由明确的按钮动作或页面取消来清除。
     .alert(
-      confirmationTitle,
+      tr("移除这个 worktree？"),
       isPresented: Binding(get: { controller.confirmation != nil }, set: { _ in })
     ) {
       Button(tr("取消"), role: .cancel) { controller.confirmation = nil }
-      Button(confirmationAction, role: .destructive) {
+      Button(tr("移除 worktree"), role: .destructive) {
         guard enabled else { return }
         controller.confirm()
       }
@@ -115,7 +112,11 @@ struct AICleanupSheet: View {
     .onAppear {
       isVisible = true
       if !isSnapshot {
-        if enabled { controller.refresh() } else { dismiss() }
+        if enabled {
+          controller.loadIfNeeded(excludedPaths: model.cleaner.excludedPaths)
+        } else {
+          dismiss()
+        }
       }
     }
     .onDisappear {
@@ -124,15 +125,20 @@ struct AICleanupSheet: View {
     }
     .onChange(of: enabled) { _, enabled in
       if !enabled {
-        controller.cancel()
+        controller.invalidate()
         dismiss()
+      }
+    }
+    .onChange(of: model.cleaner.excludedPaths) { _, paths in
+      if enabled, isVisible, !paused, model.isMainWindowVisible {
+        controller.loadIfNeeded(excludedPaths: paths)
       }
     }
     .onChange(of: model.isMainWindowVisible) { _, visible in
       if !visible {
         controller.cancel()
       } else if enabled && isVisible && !paused {
-        controller.refresh()
+        controller.loadIfNeeded(excludedPaths: model.cleaner.excludedPaths)
       }
     }
     .onReceive(
@@ -159,11 +165,6 @@ struct AICleanupSheet: View {
     ) { _ in resume("lock") }
   }
 
-  private var sheetHeight: CGFloat {
-    guard section == 1, let scan = controller.scan else { return 620 }
-    return scan.worktrees.isEmpty ? 460 : 640
-  }
-
   private var header: some View {
     HStack(spacing: DS.Space.s3) {
       Image(systemName: "terminal")
@@ -174,12 +175,7 @@ struct AICleanupSheet: View {
           DS.Palette.primary.opacity(0.1), in: RoundedRectangle(cornerRadius: DS.Radius.lg)
         )
         .accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: DS.Space.s1) {
-        Text(tr("Agent 数据")).dsFont(.lg, weight: .semibold)
-        Text(tr("AI 工具的本地数据与工作目录"))
-          .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
-          .fixedSize(horizontal: false, vertical: true)
-      }
+      Text(tr("Agent 数据")).dsFont(.lg, weight: .semibold)
       Spacer(minLength: DS.Space.s3)
       Button {
         dismiss()
@@ -198,74 +194,69 @@ struct AICleanupSheet: View {
     .padding(DS.Space.s6)
   }
 
-  private func tools(_ scan: AICleanupScan) -> some View {
-    let detected = scan.tools.filter { $0.installation != .absent }
-    let absent = scan.tools.filter { $0.installation == .absent }
-    return VStack(alignment: .leading, spacing: DS.Space.s3) {
-      HStack(spacing: DS.Space.s2) {
-        Text(tr("已安装工具"))
-        Text(verbatim: number(scan.installedCount)).monospacedDigit()
-        Text("·").accessibilityHidden(true)
-        Text("Worktree")
-        Text(verbatim: number(scan.worktrees.count)).monospacedDigit()
+  @ViewBuilder private func tools(_ scan: AICleanupScan) -> some View {
+    HStack(spacing: DS.Space.s2) {
+      Text(tr("已安装工具"))
+      Text(verbatim: number(scan.installedCount)).monospacedDigit()
+    }
+    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+    .padding(.horizontal, DS.Space.s3)
+    if scan.tools.isEmpty {
+      VStack(spacing: DS.Space.s3) {
+        Image(systemName: "terminal")
+          .font(.system(size: 32, weight: .light)).foregroundStyle(DS.Palette.textTertiary)
+          .accessibilityHidden(true)
+        Text(tr("未发现已安装的 AI 工具"))
+          .dsFont(.sm, weight: .medium).multilineTextAlignment(.center)
       }
-      .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-      .padding(.horizontal, DS.Space.s3)
+      .padding(DS.Space.s6)
+      .frame(maxWidth: .infinity, minHeight: 156)
+      .background(DS.Palette.background, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
+    } else {
       VStack(spacing: 0) {
-        MainActorForEach(Array(detected.enumerated()), id: \.element.id) { index, tool in
+        MainActorForEach(Array(scan.tools.enumerated()), id: \.element.id) { index, tool in
           if index > 0 { HairlineDivider().padding(.leading, DS.Space.s4) }
           toolRow(tool)
         }
       }
       .background(DS.Palette.background, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
-      if !absent.isEmpty {
-        DisclosureGroup {
-          VStack(spacing: 0) {
-            MainActorForEach(absent) { tool in toolRow(tool) }
-          }
-        } label: {
-          HStack {
-            Text(tr("未检测到"))
-            Spacer()
-            Text(verbatim: number(absent.count)).monospacedDigit()
-          }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-        }
-        .padding(DS.Space.s3)
-        .background(DS.Palette.background, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
-      }
     }
   }
 
   private func toolRow(_ tool: AIAgentTool) -> some View {
-    VStack(alignment: .leading, spacing: 0) {
-      if tool.dataDirectories.isEmpty {
-        toolLabel(tool).padding(.leading, DS.Space.s4)
-      } else {
-        DisclosureGroup {
-          VStack(alignment: .leading, spacing: DS.Space.s2) {
-            MainActorForEach(tool.dataDirectories, id: \.path) { url in
-              HStack(alignment: .top, spacing: DS.Space.s3) {
-                Text(verbatim: displayPath(url))
-                  .dsFont(.xs).textSelection(.enabled)
-                  .foregroundStyle(DS.Palette.textSecondary)
-                  .frame(maxWidth: .infinity, alignment: .leading)
-                  .fixedSize(horizontal: false, vertical: true)
-                  .environment(\.layoutDirection, .leftToRight)
-                Button {
-                  NSWorkspace.shared.activateFileViewerSelecting([url])
-                } label: {
-                  Image(systemName: "folder")
-                }
-                .buttonStyle(.borderless)
-                .help(tr("在访达中显示")).accessibilityLabel(tr("在访达中显示"))
-              }
+    HStack(alignment: .top, spacing: DS.Space.s3) {
+      toolIcon(tool)
+        .frame(width: 32, height: 32)
+        .accessibilityHidden(true)
+      VStack(alignment: .leading, spacing: DS.Space.s2) {
+        HStack(spacing: DS.Space.s3) {
+          Text(verbatim: tool.name).dsFont(.sm, weight: .semibold)
+          Spacer(minLength: 0)
+          Text(verbatim: tool.bytes.map { Format.bytes($0, base: .decimal) } ?? tr("未完整统计"))
+            .dsFont(.sm, weight: .medium).monospacedDigit()
+            .foregroundStyle(tool.bytes == nil ? DS.Palette.textSecondary : DS.Palette.textPrimary)
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        if tool.dataDirectories.isEmpty {
+          Text(tr("尚未发现关联数据目录"))
+            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+        }
+        MainActorForEach(tool.dataDirectories, id: \.path) { url in
+          HStack(alignment: .top, spacing: DS.Space.s3) {
+            Text(verbatim: displayPath(url))
+              .dsFont(.xs).textSelection(.enabled)
+              .foregroundStyle(DS.Palette.textSecondary)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .fixedSize(horizontal: false, vertical: true)
+              .environment(\.layoutDirection, .leftToRight)
+            Button {
+              NSWorkspace.shared.activateFileViewerSelecting([url])
+            } label: {
+              Image(systemName: "folder")
             }
+            .buttonStyle(.borderless)
+            .help(tr("在访达中显示")).accessibilityLabel(tr("在访达中显示"))
           }
-          .padding(.leading, DS.Space.s12)
-          .padding(.top, DS.Space.s2)
-          .padding(.bottom, DS.Space.s1)
-        } label: {
-          toolLabel(tool)
         }
       }
     }
@@ -273,37 +264,26 @@ struct AICleanupSheet: View {
     .padding(.vertical, DS.Space.s3)
   }
 
-  private func toolLabel(_ tool: AIAgentTool) -> some View {
-    HStack(spacing: DS.Space.s3) {
-      Image(systemName: toolSymbol(tool.id))
-        .font(.system(size: 16, weight: .medium))
-        .foregroundStyle(
-          tool.installation == .installed ? DS.Palette.primary : DS.Palette.textSecondary
-        )
+  @ViewBuilder private func toolIcon(_ tool: AIAgentTool) -> some View {
+    if let applicationURL = tool.applicationURL {
+      AppIconCache.shared.image(bundlePath: applicationURL.path)
+        .resizable().scaledToFit().frame(width: 32, height: 32)
+    } else if let name = tool.id == "codebuddy"
+      ? "tool-codebuddy" : AIServiceBrand.logoName(tool.id == "vscode" ? "copilot" : tool.id),
+      let logo = LogoCache.shared.image(
+        named: name, template: ["codex", "grok", "vscode"].contains(tool.id))
+    {
+      Image(nsImage: logo).resizable().scaledToFit()
+        .foregroundStyle(DS.Palette.textPrimary)
+        .frame(width: 22, height: 22)
         .frame(width: 32, height: 32)
         .background(DS.Palette.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
-        .accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(verbatim: tool.name).dsFont(.sm, weight: .semibold)
-        Text(status(tool.installation)).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-      }
-      Spacer(minLength: DS.Space.s3)
-      Text(verbatim: tool.bytes.map { Format.bytes($0, base: .decimal) } ?? tr("未完整统计"))
-        .dsFont(.sm, weight: .medium).monospacedDigit()
-        .foregroundStyle(tool.bytes == nil ? DS.Palette.textSecondary : DS.Palette.textPrimary)
-        .fixedSize(horizontal: true, vertical: false)
-    }
-  }
-
-  private func toolSymbol(_ id: String) -> String {
-    switch id {
-    case "claude", "claude-desktop": "asterisk"
-    case "gemini": "sparkle"
-    case "cursor": "cursorarrow"
-    case "opencode", "vscode", "codebuddy": "chevron.left.forwardslash.chevron.right"
-    case "cindy": "person.crop.circle"
-    case "workbuddy": "briefcase"
-    default: "terminal"
+    } else {
+      Image(systemName: "terminal")
+        .font(.system(size: 16, weight: .medium))
+        .foregroundStyle(DS.Palette.textSecondary)
+        .frame(width: 32, height: 32)
+        .background(DS.Palette.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
     }
   }
 
@@ -326,10 +306,6 @@ struct AICleanupSheet: View {
             ? tr("已扫描位置中未发现 worktree") : tr("未安装 Git 命令行工具，暂时无法检查 worktree")
         )
         .dsFont(.sm, weight: .medium).multilineTextAlignment(.center)
-        if scan.gitAvailable {
-          Button(tr("添加扫描目录…")) { addRoot() }
-            .buttonStyle(.bordered).disabled(controller.isBusy || paused)
-        }
       }
       .padding(DS.Space.s6)
       .frame(maxWidth: .infinity, minHeight: 156)
@@ -384,77 +360,100 @@ struct AICleanupSheet: View {
       }
       .background(DS.Palette.background, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
     }
-    DisclosureGroup(tr("已扫描位置")) {
-      VStack(alignment: .leading, spacing: DS.Space.s2) {
-        MainActorForEach(scan.searchedRoots, id: \.path) { url in
-          Text(verbatim: displayPath(url)).dsFont(.xs).textSelection(.enabled)
-            .foregroundStyle(DS.Palette.textSecondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .environment(\.layoutDirection, .leftToRight)
+    scanLocations(scan)
+  }
+
+  private func scanLocations(_ scan: AICleanupScan) -> some View {
+    VStack(spacing: 0) {
+      HStack(spacing: DS.Space.s3) {
+        Button {
+          withAnimation(reduceMotion ? nil : DS.Motion.quick) {
+            scanLocationsExpanded.toggle()
+          }
+        } label: {
+          HStack(spacing: DS.Space.s2) {
+            Image(systemName: "magnifyingglass")
+              .foregroundStyle(DS.Palette.textSecondary)
+              .accessibilityHidden(true)
+            Text(tr("扫描位置")).dsFont(.sm, weight: .medium)
+            Text(verbatim: number(scan.searchedRoots.count))
+              .dsFont(.xs).monospacedDigit().foregroundStyle(DS.Palette.textSecondary)
+              .padding(.horizontal, DS.Space.s2)
+              .padding(.vertical, DS.Space.s1)
+              .background(DS.Palette.surface, in: Capsule())
+            Image(systemName: scanLocationsExpanded ? "chevron.down" : "chevron.forward")
+              .font(.system(size: 10, weight: .semibold))
+              .foregroundStyle(DS.Palette.textTertiary)
+            Spacer(minLength: 0)
+          }
+          .frame(minHeight: 28)
+          .contentShape(Rectangle())
         }
-      }.padding(.top, DS.Space.s2)
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+          Text(tr("扫描位置")) + Text(" ") + Text(verbatim: number(scan.searchedRoots.count))
+        )
+        .accessibilityValue(scanLocationsExpanded ? tr("展开") : tr("收起"))
+        .help(scanLocationsExpanded ? tr("收起") : tr("展开"))
+        Button {
+          addRoot()
+        } label: {
+          Label(tr("添加目录…"), systemImage: "plus")
+        }
+        .buttonStyle(.bordered)
+        .disabled(controller.isBusy || paused)
+      }
+      .padding(.horizontal, DS.Space.s4)
+      .padding(.vertical, DS.Space.s3)
+      if scanLocationsExpanded {
+        HairlineDivider().padding(.horizontal, DS.Space.s4)
+        if scan.searchedRoots.isEmpty {
+          Text(tr("没有扫描目录"))
+            .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(DS.Space.s4)
+        } else {
+          VStack(spacing: 0) {
+            MainActorForEach(Array(scan.searchedRoots.enumerated()), id: \.element.path) {
+              index, url in
+              if index > 0 { HairlineDivider().padding(.leading, DS.Space.s4) }
+              HStack(alignment: .top, spacing: DS.Space.s3) {
+                Image(systemName: "folder")
+                  .font(.system(size: 16)).foregroundStyle(DS.Palette.textSecondary)
+                  .frame(width: 24, height: 24).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: DS.Space.s1) {
+                  Text(verbatim: url.lastPathComponent).dsFont(.sm, weight: .medium)
+                    .fixedSize(horizontal: false, vertical: true)
+                  Text(verbatim: displayPath(url)).dsFont(.xs).textSelection(.enabled)
+                    .foregroundStyle(DS.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .environment(\.layoutDirection, .leftToRight)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Button {
+                  NSWorkspace.shared.activateFileViewerSelecting([url])
+                } label: {
+                  Image(systemName: "arrow.up.forward.square")
+                    .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.borderless)
+                .help(tr("在访达中显示"))
+                .accessibilityLabel(tr("在访达中显示"))
+              }
+              .padding(.horizontal, DS.Space.s4)
+              .padding(.vertical, DS.Space.s3)
+            }
+          }
+        }
+      }
     }
-    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-    .padding(DS.Space.s3)
     .background(DS.Palette.background, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
   }
 
-  private var footer: some View {
-    HStack(alignment: .center, spacing: DS.Space.s4) {
-      VStack(alignment: .leading, spacing: DS.Space.s1) {
-        if section == 0, controller.scan != nil {
-          Text(tr("\(number(controller.logCount)) 个旧日志可清理"))
-            .dsFont(.sm, weight: .medium)
-        }
-        Text(
-          section == 0
-            ? tr("工具数据不含托管 worktree。仅清理 7 天前的日志，保留会话、配置与凭据。")
-            : tr("仅检查常见工具目录与项目位置；移除 worktree 不会删除分支，且无法从废纸篓恢复。")
-        )
-        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-        .fixedSize(horizontal: false, vertical: true)
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      if section == 0 {
-        Button(tr("清理旧日志…")) { controller.requestLogCleanup() }
-          .buttonStyle(.borderedProminent).controlSize(.large)
-          .disabled(controller.logCount == 0 || controller.isBusy || paused)
-      } else if controller.scan?.worktrees.isEmpty == false {
-        Button(tr("添加扫描目录…")) { addRoot() }
-          .buttonStyle(.bordered).disabled(controller.isBusy || paused)
-      }
-    }
-  }
-
-  private var confirmationTitle: String {
-    switch controller.confirmation {
-    case .worktree: tr("移除这个 worktree？")
-    default: tr("将旧日志移到废纸篓？")
-    }
-  }
-  private var confirmationAction: String {
-    switch controller.confirmation {
-    case .worktree: tr("移除 worktree")
-    default: tr("移到废纸篓")
-    }
-  }
   private var confirmationMessage: String {
-    switch controller.confirmation {
-    case .worktree(let item):
-      return displayPath(item.url) + "\n\n"
-        + tr("将移除该工作目录，保留 Git 分支。请先结束使用它的 Agent 会话并关闭编辑器。此操作无法撤销。")
-    case .logs(let logs):
-      let count = logs.reduce(0) { $0 + $1.items.count }
-      return tr("将 \(number(count)) 个旧日志移到废纸篓，需要时可从废纸篓恢复。")
-    case nil: return ""
-    }
-  }
-  private func status(_ installation: AIAgentTool.Installation) -> String {
-    switch installation {
-    case .installed: tr("已安装")
-    case .dataOnly: tr("仅检测到数据")
-    case .absent: tr("未检测到")
-    }
+    guard case .worktree(let item) = controller.confirmation else { return "" }
+    return displayPath(item.url) + "\n\n"
+      + tr("将移除该工作目录，保留 Git 分支。请先结束使用它的 Agent 会话并关闭编辑器。此操作无法撤销。")
   }
   private func displayPath(_ url: URL) -> String {
     let home = NSHomeDirectory()
@@ -480,6 +479,8 @@ struct AICleanupSheet: View {
   }
   private func resume(_ reason: String) {
     pauseReasons.remove(reason)
-    if enabled, isVisible, !paused, model.isMainWindowVisible { controller.refresh() }
+    if enabled, isVisible, !paused, model.isMainWindowVisible {
+      controller.loadIfNeeded(excludedPaths: model.cleaner.excludedPaths)
+    }
   }
 }

@@ -12,7 +12,6 @@ final class AICleanupController {
   enum Phase { case idle, scanning, checking, cleaning }
   enum Confirmation {
     case worktree(AIWorktree)
-    case logs([RuleScan])
   }
   private(set) var phase: Phase = .idle
   private(set) var scan: AICleanupScan?
@@ -21,7 +20,7 @@ final class AICleanupController {
   private(set) var isError = false
   private var generation = 0
   @ObservationIgnored private var task: Task<Void, Never>?
-  @ObservationIgnored private let environment: AICleanupEnvironment
+  @ObservationIgnored private var environment: AICleanupEnvironment
   @ObservationIgnored private let scanner:
     @Sendable (AICleanupEnvironment) async throws -> AICleanupScan
   private static let logger = Logger(subsystem: "work.12306.xstats", category: "ai-cleanup")
@@ -37,7 +36,24 @@ final class AICleanupController {
   }
 
   var isBusy: Bool { phase != .idle }
-  var logCount: Int { scan?.logs.reduce(0) { $0 + $1.items.count } ?? 0 }
+
+  func loadIfNeeded(excludedPaths: [String]) {
+    if Set(environment.clean.excludedPaths) != Set(excludedPaths) {
+      // 缓存中的 Worktree 保护状态依赖保留项目；配置变化时不能继续沿用。
+      environment.searchRoots = scan?.searchedRoots ?? environment.searchRoots
+      environment.clean.excludedPaths = excludedPaths
+      invalidate()
+    }
+    guard scan == nil else { return }
+    refresh()
+  }
+
+  func invalidate() {
+    cancel()
+    scan = nil
+    message = nil
+    isError = false
+  }
 
   func refresh(additionalRoot: URL? = nil) {
     guard !isBusy else { return }
@@ -88,11 +104,6 @@ final class AICleanupController {
     }
   }
 
-  func requestLogCleanup() {
-    guard !isBusy, let logs = scan?.logs.filter(\.isCleanable), !logs.isEmpty else { return }
-    confirmation = .logs(logs)
-  }
-
   func confirm() {
     guard !isBusy, let pending = confirmation else { return }
     confirmation = nil
@@ -112,12 +123,6 @@ final class AICleanupController {
           notice = (error as? AIWorktree.Protection)?.title ?? tr("移除未完成，请刷新检查实际状态")
           failed = true
         }
-      case .logs(let logs):
-        let report = await CleanEngine.clean(
-          logs, selected: Set(logs.map(\.id)), preferTrash: true, environment: environment.clean)
-        notice = tr("已将 \(report.removedCount.formatted(.number.locale(L10n.locale))) 个旧日志移到废纸篓")
-        failed = report.wasCancelled || !report.failures.isEmpty || report.skippedCount > 0
-        if failed { notice = tr("部分日志未清理，请刷新后重试") }
       }
       guard !Task.isCancelled, generation == token else { return }
       // 成功、失败均重新核对：取消或 Git 超时不代表磁盘上的操作一定未发生。
@@ -138,6 +143,11 @@ final class AICleanupController {
   }
 
   func cancel() {
+    if phase == .cleaning {
+      // Git 操作取消不代表磁盘未改变，不能在下次打开时复用操作前的结果。
+      environment.searchRoots = scan?.searchedRoots ?? environment.searchRoots
+      scan = nil
+    }
     generation += 1
     task?.cancel()
     task = nil

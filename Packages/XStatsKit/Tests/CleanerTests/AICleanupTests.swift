@@ -8,10 +8,10 @@ struct AICleanupTests {
   @Test func desktopDetectionStopsWhenItsDeadlineHasExpired() throws {
     let fixture = try AICleanupFixture()
     defer { fixture.dispose() }
-    let result = try AIAgentCleanup.desktopBundleIdentifiers(
+    let result = try AIAgentCleanup.desktopApplications(
       in: [fixture.home], budget: AIScanBudget(deadline: .distantPast))
     #expect(result.incomplete)
-    #expect(result.identifiers.isEmpty)
+    #expect(result.applications.isEmpty)
   }
 
   @Test func truncatedDesktopDetectionMarksScanIncompleteAndStillFindsWorktrees() async throws {
@@ -43,7 +43,11 @@ struct AICleanupTests {
         try FileManager.default.linkItem(at: seed, to: root.appendingPathComponent("file-\(index)"))
       }
     }
-    let result = try await AIAgentCleanup.scan(environment: fixture.environment)
+    var environment = fixture.environment
+    environment.executable = {
+      ["codex", "claude", "grok"].contains($0) ? URL(fileURLWithPath: "/fixture/" + $0) : nil
+    }
+    let result = try await AIAgentCleanup.scan(environment: environment)
     #expect(result.incomplete)
     #expect(result.tools.contains { !$0.dataDirectories.isEmpty && $0.bytes == nil })
     #expect(result.worktrees.count == 1)
@@ -55,6 +59,7 @@ struct AICleanupTests {
     defer { fixture.dispose() }
     let applications = fixture.home.appendingPathComponent("Applications")
     let bundles = [
+      ("Renamed Codex", "com.openai.codex", true),
       ("Renamed Editor", "com.microsoft.VSCode", true),
       ("Assistant", "com.anthropic.claudefordesktop", true),
       ("Harness", "com.deepseek.dsh", true),
@@ -84,11 +89,21 @@ struct AICleanupTests {
     environment.applicationDirectories = [applications]
     let result = try await AIAgentCleanup.scan(environment: environment)
     #expect(
-      Set(result.tools.filter { $0.installation == .installed }.map(\.id)) == [
-        "vscode", "claude-desktop", "deepseek", "codebuddy", "workbuddy",
+      Set(result.tools.map(\.id)) == [
+        "codex", "vscode", "claude-desktop", "deepseek", "codebuddy", "workbuddy",
       ])
-    #expect(result.tools.first { $0.id == "claude" }?.installation == .absent)
-    #expect(result.tools.first { $0.id == "cindy" }?.installation == .absent)
+    #expect(!result.tools.contains { $0.id == "claude" })
+    #expect(!result.tools.contains { $0.id == "cindy" })
+    #expect(
+      result.tools.first { $0.id == "codex" }?.applicationURL?.resolvingSymlinksInPath().path
+        == applications.appendingPathComponent("Renamed Codex.app").resolvingSymlinksInPath().path)
+    #expect(
+      result.tools.first { $0.id == "vscode" }?.applicationURL?.resolvingSymlinksInPath().path
+        == applications.appendingPathComponent("Renamed Editor.app").resolvingSymlinksInPath().path)
+    #expect(
+      result.tools.first { $0.id == "workbuddy" }?.applicationURL?.resolvingSymlinksInPath().path
+        == applications.appendingPathComponent("International Buddy.app").resolvingSymlinksInPath()
+        .path)
   }
 
   @Test func additionalToolDataIsReadOnlyAndVSCodeScopeExcludesSharedEditorData() async throws {
@@ -107,21 +122,21 @@ struct AICleanupTests {
       try Data(repeating: 1, count: 4096).write(
         to: directory.appendingPathComponent("session.json"))
     }
-    let result = try await AIAgentCleanup.scan(environment: fixture.environment)
-    for id in [
-      "grok", "deepseek", "pi", "cindy", "codebuddy", "workbuddy", "claude-desktop", "vscode",
-    ] {
+    var environment = fixture.environment
+    environment.executable = {
+      ["grok", "dsh", "pi", "codebuddy", "code"].contains($0)
+        ? URL(fileURLWithPath: "/fixture/" + $0) : nil
+    }
+    let result = try await AIAgentCleanup.scan(environment: environment)
+    #expect(Set(result.tools.map(\.id)) == ["grok", "deepseek", "pi", "codebuddy", "vscode"])
+    for id in ["grok", "deepseek", "pi", "codebuddy", "vscode"] {
       let tool = try #require(result.tools.first { $0.id == id })
-      #expect(tool.installation == .dataOnly)
+      #expect(tool.installation == .installed)
       #expect((tool.bytes ?? 0) > 0)
     }
     let vscode = try #require(result.tools.first { $0.id == "vscode" })
     #expect(vscode.dataDirectories.count == 1)
     #expect(vscode.dataDirectories.first?.lastPathComponent == "github.copilot-chat")
-    #expect(
-      Set(AIAgentCleanup.logRules(environment: fixture.environment).map(\.id)) == [
-        "ai.logs.codex", "ai.logs.claude", "ai.logs.opencode",
-      ])
     #expect(!result.incomplete)
   }
 
@@ -150,7 +165,7 @@ struct AICleanupTests {
     #expect(result.incomplete)
   }
 
-  @Test func separatesInstalledToolsFromDataAndHonorsCustomHome() async throws {
+  @Test func listsOnlyInstalledToolsAndHonorsCustomHome() async throws {
     let fixture = try AICleanupFixture()
     defer { fixture.dispose() }
     let custom = fixture.home.appendingPathComponent("custom-codex")
@@ -160,17 +175,19 @@ struct AICleanupTests {
       at: fixture.home.appendingPathComponent(".gemini"), withIntermediateDirectories: true)
     var environment = fixture.environment
     environment.variables = ["CODEX_HOME": custom.path]
+    // 残留目录不代表仍安装工具，未使用过的已安装工具仍应列出。
     environment.executable = { $0 == "claude" ? URL(fileURLWithPath: "/fixture/claude") : nil }
     let result = try await AIAgentCleanup.scan(environment: environment)
     #expect(result.installedCount == 1)
-    let codex = try #require(result.tools.first { $0.id == "codex" })
-    #expect(codex.installation == .dataOnly)
-    #expect(codex.dataDirectories.map(\.path) == [custom.path])
-    #expect((codex.bytes ?? 0) > 0)
-    #expect(result.tools.first { $0.id == "gemini" }?.installation == .dataOnly)
-    #expect(result.tools.first { $0.id == "cursor" }?.installation == .absent)
-    #expect(
-      !AIAgentCleanup.logRules(environment: environment).contains { $0.id == "ai.logs.codex" })
+    #expect(result.tools.map(\.id) == ["claude"])
+    #expect(result.tools.first?.dataDirectories.isEmpty == true)
+    #expect(result.tools.first?.bytes == 0)
+    #expect(result.tools.first?.applicationURL == nil)
+    environment.executable = { $0 == "codex" ? URL(fileURLWithPath: "/fixture/codex") : nil }
+    let updated = try await AIAgentCleanup.scan(environment: environment)
+    #expect(updated.tools.map(\.id) == ["codex"])
+    #expect(updated.tools.first?.dataDirectories.map(\.path) == [custom.path])
+    #expect((updated.tools.first?.bytes ?? 0) > 0)
   }
 
   @Test func scanDoesNotFollowLinksAndMarksBudgetExhaustion() throws {
@@ -205,7 +222,9 @@ struct AICleanupTests {
       expectedBytes += UInt64(
         try file.resourceValues(forKeys: [.fileAllocatedSizeKey]).fileAllocatedSize ?? 0)
     }
-    let scan = try await AIAgentCleanup.scan(environment: fixture.environment)
+    var environment = fixture.environment
+    environment.codexDesktopInstalled = { true }
+    let scan = try await AIAgentCleanup.scan(environment: environment)
     let codex = try #require(scan.tools.first { $0.id == "codex" })
     #expect(codex.bytes == expectedBytes)
     #expect(!scan.incomplete)
@@ -233,41 +252,42 @@ struct AICleanupTests {
     #expect(try AIScanBudget().size(root) > expectedBytes)
   }
 
-  @Test func logsPreserveSessionsCredentialsRecentFilesAndExclusions() async throws {
+  @Test func toolInventoryPreservesDataAndLogPathsAreNotCleanable() async throws {
     let fixture = try AICleanupFixture()
     defer { fixture.dispose() }
-    let root = fixture.home.appendingPathComponent(".codex/log")
-    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    for name in ["old.log", "recent.log", "auth.json", "state.sqlite", "session.jsonl"] {
-      let file = root.appendingPathComponent(name)
-      try Data(repeating: 1, count: 4096).write(to: file)
-      if name != "recent.log" {
-        try FileManager.default.setAttributes(
-          [.modificationDate: Date().addingTimeInterval(-10 * 86_400)], ofItemAtPath: file.path)
+    let roots = [".codex/log", ".claude/debug", ".local/share/opencode/log"]
+    let names = ["old.log", "recent.log", "auth.json", "state.sqlite", "session.jsonl"]
+    let payload = Data(repeating: 1, count: 4096)
+    let oldDate = Date(timeIntervalSince1970: 1_600_000_000)
+    for relative in roots {
+      let root = fixture.home.appendingPathComponent(relative)
+      try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+      for name in names {
+        let file = root.appendingPathComponent(name)
+        try payload.write(to: file)
+        try FileManager.default.setAttributes([.modificationDate: oldDate], ofItemAtPath: file.path)
       }
     }
     var environment = fixture.environment
-    let scans = await CleanEngine.scan(
-      AIAgentCleanup.logRules(environment: environment), environment: environment.clean)
-    #expect(scans.flatMap(\.items).map { $0.url.lastPathComponent } == ["old.log"])
-    // 定向替换回收器，只修改临时夹具，不访问真实废纸篓。
-    environment.clean.trash = { try FileManager.default.removeItem(at: $0) }
-    let report = await CleanEngine.clean(
-      scans, selected: ["ai.logs.codex"], preferTrash: true, environment: environment.clean,
-      log: nil)
-    #expect(report.removedCount == 1)
-    for name in ["recent.log", "auth.json", "state.sqlite", "session.jsonl"] {
-      #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent(name).path))
+    environment.executable = {
+      ["codex", "claude", "opencode"].contains($0) ? URL(fileURLWithPath: "/fixture/" + $0) : nil
     }
-    environment.clean.excludedPaths = [root.path]
-    let excluded = await CleanEngine.scan(
-      AIAgentCleanup.logRules(environment: environment), environment: environment.clean)
-    #expect(excluded.flatMap(\.items).isEmpty)
-    #expect(throws: SafetyError.self) {
-      try SafetyGuard(home: fixture.home.path).validate(
-        fixture.home.appendingPathComponent(".codex/auth.json"))
+    let scan = try await AIAgentCleanup.scan(environment: environment)
+    #expect(Set(scan.tools.map(\.id)) == ["codex", "claude", "opencode"])
+    for relative in roots {
+      let root = fixture.home.appendingPathComponent(relative)
+      #expect(Set(try FileManager.default.contentsOfDirectory(atPath: root.path)) == Set(names))
+      for name in names {
+        let file = root.appendingPathComponent(name)
+        #expect(try Data(contentsOf: file) == payload)
+        #expect(
+          try file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+            == oldDate)
+        #expect(throws: SafetyError.self) {
+          try SafetyGuard(home: fixture.home.path).validate(file)
+        }
+      }
     }
-    #expect(throws: SafetyError.self) { try SafetyGuard(home: fixture.home.path).validate(root) }
   }
 
   @Test func cleanWorktreeRemovalKeepsBranchAndRepository() async throws {
@@ -368,6 +388,7 @@ struct AICleanupTests {
       ["worktree", "move", fixture.tree.path, managed.path], at: fixture.repository)
     var environment = fixture.environment
     environment.searchRoots = [fixture.repository, managed]
+    environment.codexDesktopInstalled = { true }
     let scan = try await AIAgentCleanup.scan(environment: environment)
     #expect(scan.worktrees.count == 1)
     #expect(scan.tools.first { $0.id == "codex" }?.bytes == 0)

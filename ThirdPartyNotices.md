@@ -81,6 +81,11 @@ GitHub、GitHub Copilot、Google 与 Apple 的名称和标志均为各自公司�
 
 ## 开发工具品牌图标
 
+`Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/tool-codebuddy.svg` 来自
+[LobeHub Icons](https://github.com/lobehub/lobe-icons/blob/8a1b2821bb768c484fe8da20c5e1838b6bf551a9/packages/static-svg/icons/codebuddy-color.svg)，
+MIT License，Copyright (c) 2023 LobeHub。完整许可保留在 SVG 中；XStats 仅将尺寸单位调整为像素以供 AppKit 渲染。
+CodeBuddy 的名称和标志属于其权利人，图标仅用于标识对应工具。
+
 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/tool-{npm,yarn,pnpm,bun,go,rust,uv}.svg` 来自
 [Simple Icons](https://github.com/simple-icons/simple-icons/tree/b86d5c9a0bdd4f3f5c30898a63654dd32f39fd76)，
 使用 CC0-1.0。npm、Yarn、pnpm、Bun、Go、Rust、uv 的名称与标志均为各自权利人的商标，XStats 仅用这些图标标识对应工具的缓存。

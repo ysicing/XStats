@@ -433,7 +433,7 @@ private struct PageHeader: View {
             }
           }
           .buttonStyle(DSButtonStyle(kind: .secondary))
-          .help(tr("查看编程 Agent 的数据占用，清理旧日志并管理 worktree"))
+          .help(tr("查看已安装的 AI 工具及数据目录，管理 worktree"))
         }
         Button {
           model.openProjectPurgeWindow()
@@ -496,7 +496,12 @@ private struct PageHeader: View {
     // 52pt 高的顶栏里，32pt 的按钮与开关组上下各留 10pt
     .frame(height: DS.Size.windowHeader)
     .sheet(isPresented: $showAgentData) {
-      AICleanupSheet(excludedPaths: model.cleaner.excludedPaths)
+      if #available(macOS 15, *) {
+        AICleanupSheet(controller: model.agentData)
+          .presentationSizing(.fitted)
+      } else {
+        AICleanupSheet(controller: model.agentData)
+      }
     }
   }
 }

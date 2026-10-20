@@ -269,7 +269,7 @@ struct FeatureSettings: View {
         GroupRow(showsDivider: false) {
           SettingRow(
             title: tr("Agent 数据"),
-            subtitle: tr("在清理页查看编程 Agent 的数据占用，清理旧日志并管理 worktree。"),
+            subtitle: tr("在清理页查看已安装的 AI 工具及关联数据目录，并管理 worktree。"),
             icon: "terminal"
           ) {
             DSToggle(isOn: $settings.agentDataEnabled, label: tr("Agent 数据"))

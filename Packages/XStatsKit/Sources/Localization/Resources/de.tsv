@@ -2226,10 +2226,12 @@ Microsoft Teams（旧版）	Microsoft Teams (klassisch)
 实验性功能仍在探索中，可能存在兼容性或稳定性问题，后续更新中可能调整或移除。	Experimentelle Funktionen werden noch erprobt und können Kompatibilitäts- oder Stabilitätsprobleme aufweisen. Sie können in künftigen Updates geändert oder entfernt werden.
 点击系统双箭头可能出现空白或图标错位。请用 XStats 箭头展开；无法恢复时关闭此功能。	Ein Klick auf den Doppelpfeil des Systems kann Leerraum oder verschobene Symbole verursachen. Klappe die Symbole mit dem XStats-Pfeil auf. Hilft das nicht, deaktiviere diese Funktion.
 Agent 数据	Agent-Daten
-查看编程 Agent 的数据占用，清理旧日志并管理 worktree	Speicherbelegung von Coding-Agenten prüfen, alte Protokolle bereinigen und Worktrees verwalten
-在清理页查看编程 Agent 的数据占用，清理旧日志并管理 worktree。	Auf der Bereinigungsseite den Speicherbedarf von Coding-Agents prüfen, alte Protokolle bereinigen und Worktrees verwalten.
+查看已安装的 AI 工具及数据目录，管理 worktree	Installierte KI-Werkzeuge und ihre Datenordner anzeigen; Worktrees verwalten
+在清理页查看已安装的 AI 工具及关联数据目录，并管理 worktree。	Installierte KI-Werkzeuge und ihre zugehörigen Datenordner auf der Seite „Bereinigung“ anzeigen und Worktrees verwalten.
 已安装工具	Installierte Tools
-工具数据	Tool-Daten
+AI 工具	KI-Werkzeuge
+未发现已安装的 AI 工具	Keine installierten KI-Werkzeuge gefunden
+尚未发现关联数据目录	Noch keine zugehörigen Datenordner gefunden
 部分位置未完整扫描，数量与大小仅包含已确认的项目。	Einige Orte wurden nicht vollständig geprüft. Anzahl und Größe umfassen nur bestätigte Einträge.
 点击重新扫描以查看工具与 worktree	Erneut scannen, um Tools und Worktrees anzuzeigen
 未完整统计	Nicht vollständig gemessen
@@ -2240,25 +2242,15 @@ Agent 数据	Agent-Daten
 检查通过，移除前会再次核对	Prüfung bestanden; erneute Prüfung vor dem Entfernen
 移除…	Entfernen…
 已扫描位置	Gescannte Orte
-工具数据不含托管 worktree。仅清理 7 天前的日志，保留会话、配置与凭据。	Tool-Daten schließen verwaltete Worktrees aus. Nur über 7 Tage alte Protokolle werden bereinigt; Sitzungen, Einstellungen und Zugangsdaten bleiben erhalten.
-仅检查常见工具目录与项目位置；移除 worktree 不会删除分支，且无法从废纸篓恢复。	Nur übliche Tool- und Projektorte werden geprüft. Beim Entfernen bleibt der Branch erhalten; Wiederherstellung über den Papierkorb ist nicht möglich.
-{} 个旧日志可清理	{} alte Protokolle bereinigbar
-清理旧日志…	Alte Protokolle bereinigen…
 添加扫描目录…	Scan-Ordner hinzufügen…
 移除这个 worktree？	Diesen Worktree entfernen?
-将旧日志移到废纸篓？	Alte Protokolle in den Papierkorb bewegen?
 移除 worktree	Worktree entfernen
 将移除该工作目录，保留 Git 分支。请先结束使用它的 Agent 会话并关闭编辑器。此操作无法撤销。	Das Arbeitsverzeichnis wird entfernt, der Git-Branch bleibt erhalten. Beenden Sie zuerst Agent-Sitzungen und Editoren. Dies kann nicht rückgängig gemacht werden.
-将 {} 个旧日志移到废纸篓，需要时可从废纸篓恢复。	{} alte Protokolle in den Papierkorb bewegen. Sie können bei Bedarf wiederhergestellt werden.
-仅检测到数据	Nur Daten gefunden
 未检测到	Nicht erkannt
 扫描未完成，请重试	Scan nicht abgeschlossen. Erneut versuchen.
 已移除 worktree，分支已保留	Worktree entfernt; Branch beibehalten
 移除未完成，请刷新检查实际状态	Entfernen nicht abgeschlossen. Zum Prüfen aktualisieren.
-已将 {} 个旧日志移到废纸篓	{} alte Protokolle in den Papierkorb bewegt
-部分日志未清理，请刷新后重试	Einige Protokolle wurden nicht bereinigt. Aktualisieren und erneut versuchen.
 操作已结束，结果待刷新确认	Vorgang beendet. Ergebnis durch Aktualisieren bestätigen.
-仅清理 7 天前的日志，保留会话、配置与凭据	Nur über 7 Tage alte Protokolle bereinigen; Sitzungen, Einstellungen und Zugangsdaten behalten
 有修改或未跟踪、被忽略的文件	Geänderte, unversionierte oder ignorierte Dateien vorhanden
 worktree 已锁定	Worktree ist gesperrt
 独立提交尚无分支或标签保留	Losgelöste Commits werden von keinem Branch oder Tag gehalten
@@ -2267,4 +2259,3 @@ worktree 已锁定	Worktree ist gesperrt
 包含子模块，需在 Git 中处理	Enthält Submodule; in Git verwalten
 已安装	Installiert
 查看…	Ansehen…
-AI 工具的本地数据与工作目录	Lokale Daten und Arbeitsverzeichnisse für KI-Tools
