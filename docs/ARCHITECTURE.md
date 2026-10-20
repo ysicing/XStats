@@ -29,6 +29,34 @@ Disabled optional-feature entry points lead to Features, including calendar and 
 Disabled monitoring pages retain hardware/basic information and an enable action, without mounting
 live metrics, charts, rankings or controls.
 
+## Popover content and Wi-Fi details
+
+Settings → Menu Bar offers a global Customize Popover Content switch below Value Position.
+When off, popovers use default visibility and canonical order, and per-metric editors stay hidden.
+Turning it on restores the saved per-metric visibility and order without changing main-window pages.
+New installs default to off; existing non-default visibility or saved orders enable it on upgrade.
+The switch is persisted and backed up; an explicit off value wins over saved customizations.
+Legacy backups infer the switch from imported choices; empty documents leave it unchanged.
+Rendering and collection demand use the same effective visibility.
+Titles and summary readings stay fixed; standalone popovers and expanded aggregate rows share
+the configured section order. Main-window pages keep their canonical layouts. Hidden sections
+retain their positions, and unavailable hardware is skipped without removing its preference.
+Resetting order affects only the current metric, not visibility or feature enablement.
+The compact editor supports handle dragging within one metric, with live preview and a single
+save on valid drop. Esc or dropping outside discards the draft; arrow buttons remain available.
+Orders are included in settings backups as optional per-metric arrays. Reads discard unknown,
+duplicate and unrelated identifiers; new sections append in default order. Old settings keep
+the existing layout, and importing an old document preserves the current order.
+
+The network interface card reads the current physical Wi-Fi connection through CoreWLAN,
+including under a VPN. It shows SSID, signal, negotiated link rate, band and channel; an
+expandable area adds BSSID, channel width, PHY, security, noise and signal-to-noise ratio.
+Main-window details show all fields. Missing fields stay unavailable independently, and
+restricted SSID/BSSID access is explained without requesting new permissions. The local
+expansion preference is excluded from settings backups. These reads reuse the existing
+foreground interface refresh (about every four seconds); no network scans or new polling
+loops are added. Closing details or pausing the app stops the foreground refresh as before.
+
 ## Experimental menu bar folding
 
 Settings → Features has Basic, Optional, and Experimental categories. Experimental offers

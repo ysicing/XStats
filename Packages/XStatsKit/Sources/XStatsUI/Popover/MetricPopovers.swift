@@ -37,7 +37,7 @@ struct CPUPopover: View {
       }
       card(.cpuApps)
     } else {
-      MainActorForEach(MenuBarItem.cpu.popoverSections.filter { model.settings.isVisible($0) }) {
+      MainActorForEach(model.settings.popoverSections(for: .cpu)) {
         section in
         card(section)
       }
@@ -473,7 +473,7 @@ struct MemoryPopover: View {
     MemoryHero()
 
     MainActorForEach(
-      MenuBarItem.memory.popoverSections.filter { isDetailPage || settings.isVisible($0) }
+      settings.popoverSections(for: .memory, isDetailPage: isDetailPage)
     ) { section in
       switch section {
       case .memoryWaterline:
@@ -839,7 +839,7 @@ struct GPUPopover: View {
     }
 
     MainActorForEach(
-      MenuBarItem.gpu.popoverSections.filter { isDetailPage || settings.isVisible($0) }
+      settings.popoverSections(for: .gpu, isDetailPage: isDetailPage)
     ) { section in
       switch section {
       case .gpuHistory:
@@ -918,8 +918,8 @@ struct ThermalPopover: View {
     }
 
     MainActorForEach(
-      item.popoverSections.filter {
-        ($0 != .thermalFans || model.store.supportsFans) && (isDetailPage || settings.isVisible($0))
+      settings.popoverSections(for: item, isDetailPage: isDetailPage).filter {
+        $0 != .thermalFans || model.store.supportsFans
       }
     ) { section in
       switch section {

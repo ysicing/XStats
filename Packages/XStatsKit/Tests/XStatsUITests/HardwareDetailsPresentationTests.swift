@@ -42,6 +42,7 @@ final class HardwareDetailsPresentationTests {
     model.applyMonitoringSettings()
     #expect(model.demand.gpuFrequency && !model.demand.gpuPower)
     #expect(model.store.power?.gpu == nil && model.store.power?.gpuFrequency == 900)
+    model.settings.customPopoverContentEnabled = true
     model.settings.hiddenPopoverSections = [.gpuDetails]
     model.handle(snapshot)
     #expect(!model.demand.gpuFrequency && !model.demand.gpuPower && model.store.power == nil)
@@ -72,6 +73,7 @@ final class HardwareDetailsPresentationTests {
   @Test(arguments: [(CGFloat(320), false), (CGFloat(600), true)])
   func detailsFitNarrowAndMainWindowInBothDirections(width: CGFloat, detail: Bool) throws {
     let model = try model()
+    model.settings.customPopoverContentEnabled = true
     model.settings.hiddenPopoverSections = [
       .batteryApps, .batteryHistory, .batteryBluetooth, .batteryPower, .thermalSensors, .gpuHistory,
     ]

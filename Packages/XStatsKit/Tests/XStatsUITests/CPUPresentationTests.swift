@@ -68,6 +68,7 @@ struct CPUPresentationTests {
     let defaults = try #require(UserDefaults(suiteName: name))
     defer { defaults.removePersistentDomain(forName: name) }
     let settings = AppSettings(defaults: defaults)
+    settings.customPopoverContentEnabled = true
     for section in MenuBarItem.cpu.popoverSections { settings.setVisible(section, false) }
     let model = AppModel(
       settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])

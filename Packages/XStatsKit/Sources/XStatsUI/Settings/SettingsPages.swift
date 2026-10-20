@@ -384,23 +384,6 @@ struct MenuBarSettings: View {
       }
       .padding(DS.Space.s3)
       .disabled(settings.menuBarLayout == .iconOnly)
-      GroupRow {
-        SettingRow(title: tr("数值位置"), subtitle: tr("适用于双行文字及图形旁的双行文字")) {
-          SegmentedControl(
-            selection: $settings.menuBarValueOnTop,
-            options: [(true, tr("上方")), (false, tr("下方"))]
-          )
-          .fixedSize()
-          .disabled(settings.menuBarLayout == .iconOnly)
-        }
-      }
-      HairlineDivider()
-      Text(tr("整体风格套用到所有项目。想让某个项目不一样，在下面“显示项目”里给它单独选一种，比如 CPU 用圆环、风扇用数字。"))
-        .dsFont(.xs)
-        .foregroundStyle(DS.Palette.textSecondary)
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.horizontal, DS.Space.s4)
-        .padding(.vertical, DS.Space.s3)
     }
 
     SettingsGroup(caption: settings.menuBarLayout == .iconOnly ? tr("面板项目") : tr("显示项目")) {
@@ -472,7 +455,9 @@ struct MenuBarSettings: View {
                 }
                 .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
               }
-              if !item.popoverSections.isEmpty { PopoverSectionPicker(item: item) }
+              if settings.customPopoverContentEnabled, !item.popoverSections.isEmpty {
+                PopoverSectionPicker(item: item)
+              }
             }
           }
         }
@@ -481,6 +466,24 @@ struct MenuBarSettings: View {
 
     SettingsGroup(caption: tr("其他")) {
       GroupRow(showsDivider: false) {
+        SettingRow(title: tr("数值位置"), subtitle: tr("适用于双行文字及图形旁的双行文字")) {
+          SegmentedControl(
+            selection: $settings.menuBarValueOnTop,
+            options: [(true, tr("上方")), (false, tr("下方"))]
+          )
+          .fixedSize()
+          .disabled(settings.menuBarLayout == .iconOnly)
+        }
+      }
+      GroupRow {
+        SettingRow(
+          title: tr("自定义弹窗内容"),
+          subtitle: tr("选择各指标弹窗显示的内容，并调整排列顺序。")
+        ) {
+          DSToggle(isOn: $settings.customPopoverContentEnabled, label: tr("自定义弹窗内容"))
+        }
+      }
+      GroupRow {
         SettingRow(title: tr("项目间距"), subtitle: tr("调整合并菜单栏中各项目之间的距离")) {
           Picker(tr("项目间距"), selection: $settings.menuBarItemSpacing) {
             ForEach(AppSettings.menuBarSpacingOptions, id: \.self) { value in
@@ -640,62 +643,148 @@ private struct ItemStyleRow: View {
   }
 }
 
-/// 选择该项详情弹窗里显示哪些区块
-private struct PopoverSectionPicker: View {
+/// 每个指标独立排列，隐藏内容仍留在列表中，便于恢复原位。
+struct PopoverSectionPicker: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State var isExpanded = false
+  @State private var sectionDrag: PopoverSectionDrag?
   let item: MenuBarItem
 
   var body: some View {
     let settings = model.settings
-    HStack(alignment: .firstTextBaseline, spacing: DS.Space.s3) {
-      Text(tr("弹窗显示"))
-        .dsFont(.xs)
-        .foregroundStyle(DS.Palette.textSecondary)
-        .fixedSize()
-      FlowLayout(spacing: DS.Space.s1) {
-        ForEach(item.popoverSections.filter { $0 != .thermalFans || model.store.supportsFans }) {
-          section in
-          let visible = settings.isVisible(section)
-          SectionToggleChip(title: section.title, isOn: visible) {
-            settings.setVisible(section, !visible)
+    let order = settings.editablePopoverSections(
+      for: item, hasBattery: model.store.battery != nil, supportsFans: model.store.supportsFans)
+    let visibleCount = order.filter { settings.isVisible($0) }.count
+    let displayOrder = sectionDrag?.previewOrder ?? order
+    VStack(alignment: .leading, spacing: DS.Space.s2) {
+      HStack(alignment: .firstTextBaseline, spacing: DS.Space.s3) {
+        Button {
+          DS.Motion.select { isExpanded.toggle() }
+        } label: {
+          HStack(spacing: DS.Space.s2) {
+            Image(systemName: isExpanded ? "chevron.down" : "chevron.forward")
+              .font(.system(size: DS.TextSize.xs.rawValue, weight: .semibold))
+              .accessibilityHidden(true)
+            Text(tr("弹窗内容")).fontWeight(.medium)
+            Text(
+              tr(
+                "已显示 \(visibleCount.formatted(.number.locale(L10n.locale))) / \(order.count.formatted(.number.locale(L10n.locale))) 项"
+              )
+            )
+            .foregroundStyle(DS.Palette.textSecondary)
+            .monospacedDigit()
           }
+          .fixedSize(horizontal: false, vertical: true)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(isExpanded ? tr("已展开") : tr("已收起"))
+        Spacer(minLength: 0)
+        if isExpanded {
+          Button(tr("恢复默认顺序")) {
+            DS.Motion.select { settings.resetPopoverSectionOrder(for: item) }
+          }
+          .buttonStyle(.borderless)
+          .fixedSize(horizontal: false, vertical: true)
+          .disabled(settings.popoverSectionOrders[item] == nil)
         }
       }
-    }
-    .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
-  }
-}
-
-private struct SectionToggleChip: View {
-  let title: String
-  let isOn: Bool
-  let action: () -> Void
-  @State private var hovering = false
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: DS.Space.s1) {
-        Image(systemName: isOn ? "checkmark" : "plus")
-          .font(.system(size: DS.TextSize.xs.rawValue - DS.Space.s1 / 2, weight: .bold))
-        Text(title).dsFont(.xs, weight: .medium)
+      .dsFont(.xs)
+      if isExpanded {
+        VStack(spacing: 0) {
+          ForEach(Array(displayOrder.enumerated()), id: \.element) { index, section in
+            HStack(spacing: DS.Space.s3) {
+              PopoverSectionDragHandle(title: section.title, animateCancellation: !reduceMotion) {
+                sectionDrag = PopoverSectionDrag(section: section, order: order)
+              } end: {
+                sectionDrag = nil
+              }
+              .frame(width: DS.Size.iconStandalone, height: DS.Size.segmentHeight)
+              .help(tr("拖动以调整顺序"))
+              .accessibilityHidden(true)
+              Toggle(
+                isOn: Binding(
+                  get: { settings.isVisible(section) },
+                  set: { settings.setVisible(section, $0) })
+              ) {
+                Text(section.title).fixedSize(horizontal: false, vertical: true)
+              }
+              .toggleStyle(.checkbox)
+              Spacer(minLength: 0)
+              HStack(spacing: 0) {
+                Button {
+                  DS.Motion.select {
+                    settings.movePopoverSection(section, for: item, by: -1, among: order)
+                  }
+                } label: {
+                  Image(systemName: "arrow.up")
+                    .frame(width: DS.Size.segmentHeight, height: DS.Size.segmentHeight)
+                }
+                .help(tr("将\(section.title)向前移动"))
+                .accessibilityLabel(tr("将\(section.title)向前移动"))
+                .disabled(index == 0)
+                Button {
+                  DS.Motion.select {
+                    settings.movePopoverSection(section, for: item, by: 1, among: order)
+                  }
+                } label: {
+                  Image(systemName: "arrow.down")
+                    .frame(width: DS.Size.segmentHeight, height: DS.Size.segmentHeight)
+                }
+                .help(tr("将\(section.title)向后移动"))
+                .accessibilityLabel(tr("将\(section.title)向后移动"))
+                .disabled(index == order.count - 1)
+              }
+              .buttonStyle(.borderless)
+              .controlSize(.small)
+              .background(DS.Palette.track, in: RoundedRectangle(cornerRadius: DS.Radius.sm))
+            }
+            .dsFont(.xs)
+            .padding(.horizontal, DS.Space.s3)
+            .padding(.vertical, DS.Space.s2)
+            .contentShape(Rectangle())
+            .opacity(sectionDrag?.section == section ? 0 : 1)
+            .onDrop(
+              of: [PopoverSectionDragHandle.pasteboardType.rawValue],
+              delegate: PopoverSectionDropDelegate(section: section, drag: $sectionDrag) { draft in
+                let currentOrder = settings.editablePopoverSections(
+                  for: item, hasBattery: model.store.battery != nil,
+                  supportsFans: model.store.supportsFans)
+                guard let offset = draft.offset(in: currentOrder)
+                else {
+                  return false
+                }
+                settings.movePopoverSection(
+                  draft.section, for: item, by: offset, among: currentOrder)
+                return true
+              }
+            )
+            .overlay(alignment: .bottom) {
+              if index < order.count - 1 {
+                HairlineDivider().padding(.horizontal, DS.Space.s3)
+              }
+            }
+          }
+        }
+        // 只在顺序变化时移动稳定标识的行；采样刷新与显示勾选不触发布局动画。
+        .dsSelectionAnimation(DS.Motion.usageSelection, value: displayOrder)
+        .background(DS.Palette.elevated, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+        .overlay {
+          RoundedRectangle(cornerRadius: DS.Radius.md)
+            .strokeBorder(DS.Palette.border, lineWidth: DS.Size.stroke)
+        }
+        .transition(.opacity)
       }
-      .foregroundStyle(isOn ? DS.Palette.primary : DS.Palette.textSecondary)
-      .padding(.horizontal, DS.Space.s2)
-      .frame(height: DS.Size.segmentHeight)
-      .background(
-        isOn ? DS.Palette.primary.opacity(0.12) : hovering ? DS.Palette.surfaceHover : .clear,
-        in: RoundedRectangle(cornerRadius: DS.Radius.sm)
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: DS.Radius.sm)
-          .strokeBorder(
-            isOn ? DS.Palette.primary.opacity(0.4) : DS.Palette.border, lineWidth: DS.Size.stroke)
-      )
-      .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
-    .onHover { hovering = $0 }
-    .accessibilityAddTraits(isOn ? .isSelected : [])
+    .foregroundStyle(DS.Palette.textPrimary)
+    .dsSelectionAnimation(DS.Motion.quick, value: isExpanded)
+    .frame(maxWidth: DS.Size.settingsListWidth, alignment: .leading)
+    .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .onChange(of: order) { sectionDrag = nil }
+    .onChange(of: isExpanded) { if !isExpanded { sectionDrag = nil } }
+    .onDisappear { sectionDrag = nil }
   }
 }
 

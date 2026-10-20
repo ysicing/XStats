@@ -460,6 +460,8 @@ public final class NetworkController {
   /// 截图时换成文档示例地址，不暴露本机的 IP 与硬件地址
   func maskForSnapshot() {
     guard var details else { return }
+    details.physical?.wifi?.ssid = "Example Wi-Fi"
+    details.physical?.wifi?.bssid = "02:00:00:00:00:01"
     details.physical?.ipv4 = ["192.168.1.20"]
     details.physical?.ipv6 = ["2001:db8::20"]
     details.physical?.router = "192.168.1.1"

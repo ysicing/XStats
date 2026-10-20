@@ -632,7 +632,7 @@ struct DiskPopover: View {
       }
     }
 
-    MainActorForEach(MenuBarItem.disk.popoverSections.filter { settings.isVisible($0) }) {
+    MainActorForEach(settings.popoverSections(for: .disk)) {
       section in
       switch section {
       case .diskActivity:

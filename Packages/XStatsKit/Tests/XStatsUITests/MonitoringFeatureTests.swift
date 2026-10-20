@@ -312,6 +312,7 @@ final class MonitoringFeatureTests {
     #expect(!model.demand.appEnergy)
     model.openPopover = .battery
     #expect(model.demand.appEnergy && !model.demand.processes && !model.demand.systemProcesses)
+    settings.customPopoverContentEnabled = true
     settings.hiddenPopoverSections.insert(.batteryApps)
     #expect(!model.demand.appEnergy && model.demand.power)
     settings.panelTab = .battery
@@ -393,6 +394,7 @@ final class MonitoringFeatureTests {
       isFullyCharged: false, minutesRemaining: nil, cycleCount: 100, health: 0.9)
     model.store.apply(basic)
     #expect(model.demand.power)
+    settings.customPopoverContentEnabled = true
     settings.hiddenPopoverSections.insert(.batteryPower)
     #expect(model.demand.battery && !model.demand.power)
     // 详情页始终展示所有分区，不受弹窗分区偏好影响。

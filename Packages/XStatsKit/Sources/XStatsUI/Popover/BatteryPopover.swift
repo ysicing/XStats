@@ -17,7 +17,7 @@ struct BatteryPopover: View {
     if battery != nil || !isDetailPage { BatteryHero(battery: battery) }
 
     MainActorForEach(
-      MenuBarItem.battery.popoverSections.filter { isDetailPage || settings.isVisible($0) }
+      settings.popoverSections(for: .battery, isDetailPage: isDetailPage)
     ) { section in
       switch section {
       case .batteryHistory:

@@ -664,7 +664,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 数据	Datos
 数据来源	Fuente
 整体风格	Estilo general
-整体风格套用到所有项目。想让某个项目不一样，在下面“显示项目”里给它单独选一种，比如 CPU 用圆环、风扇用数字。	El estilo general se aplica a todos los elementos. Para variar uno, elige su estilo en Elementos; por ejemplo, anillo para CPU y números para ventiladores.
 整机	Sistema
 整机 {}	Sistema {}
 整机功耗	Consumo del sistema
@@ -2279,3 +2278,23 @@ worktree 已锁定	El worktree está bloqueado
 自适应	Adaptativo
 正在切换到“{}”…	Cambiando a {}…
 聆听模式切换未确认，请检查耳机后重试。	No se pudo confirmar el cambio de modo de escucha. Comprueba los auriculares e inténtalo de nuevo.
+弹窗内容	Contenido de la ventana
+恢复默认顺序	Restaurar orden predeterminado
+链路速率	Velocidad del enlace
+频段 / 信道	Banda / Canal
+无线详情	Detalles inalámbricos
+接入点地址	Dirección del punto de acceso
+信道宽度	Ancho del canal
+无线协议	Protocolo inalámbrico
+安全方式	Seguridad
+噪声	Ruido
+信噪比	Relación señal/ruido
+开放网络	Red abierta
+已展开	Expandido
+已收起	Contraído
+系统未提供网络名称或接入点地址，可能受定位权限限制。	El sistema no proporcionó el nombre de la red o la dirección del punto de acceso. Los permisos de ubicación pueden restringir el acceso.
+无线链路协商速率，不代表实际下载速度。	Velocidad negociada del enlace inalámbrico, no la velocidad real de descarga.
+已显示 {} / {} 项	Se muestran {} de {} elementos
+拖动以调整顺序	Arrastra para reordenar
+自定义弹窗内容	Personalizar contenido de las ventanas
+选择各指标弹窗显示的内容，并调整排列顺序。	Elige el contenido de la ventana de cada indicador y ajusta su orden.

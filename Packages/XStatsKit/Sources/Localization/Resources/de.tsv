@@ -664,7 +664,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 数据	Daten
 数据来源	Quelle
 整体风格	Gesamtstil
-整体风格套用到所有项目。想让某个项目不一样，在下面“显示项目”里给它单独选一种，比如 CPU 用圆环、风扇用数字。	Der Gesamtstil gilt für alle Elemente. Wählen Sie unter „Elemente“ unten einen eigenen Stil für einzelne Elemente, etwa einen CPU-Ring oder Zahlen für den Lüfter.
 整机	System
 整机 {}	System {}
 整机功耗	Systemleistungsaufnahme
@@ -2279,3 +2278,23 @@ worktree 已锁定	Worktree ist gesperrt
 自适应	Adaptiv
 正在切换到“{}”…	Wechsel zu {}…
 聆听模式切换未确认，请检查耳机后重试。	Der Hörmoduswechsel konnte nicht bestätigt werden. Prüfe deine Kopfhörer und versuche es erneut.
+弹窗内容	Popover-Inhalt
+恢复默认顺序	Standardreihenfolge wiederherstellen
+链路速率	Verbindungsrate
+频段 / 信道	Frequenzband / Kanal
+无线详情	WLAN-Details
+接入点地址	Access-Point-Adresse
+信道宽度	Kanalbreite
+无线协议	WLAN-Standard
+安全方式	Sicherheit
+噪声	Rauschen
+信噪比	Signal-Rausch-Verhältnis
+开放网络	Offenes Netzwerk
+已展开	Ausgeklappt
+已收起	Eingeklappt
+系统未提供网络名称或接入点地址，可能受定位权限限制。	Das System hat den Netzwerknamen oder die Access-Point-Adresse nicht bereitgestellt. Ortungsberechtigungen können den Zugriff beschränken.
+无线链路协商速率，不代表实际下载速度。	Ausgehandelte WLAN-Verbindungsrate, keine tatsächliche Downloadgeschwindigkeit.
+已显示 {} / {} 项	{} von {} Einträgen angezeigt
+拖动以调整顺序	Zum Sortieren ziehen
+自定义弹窗内容	Popover-Inhalt anpassen
+选择各指标弹窗显示的内容，并调整排列顺序。	Wähle die Inhalte der einzelnen Messwert-Popover und passe ihre Reihenfolge an.

@@ -51,7 +51,9 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var speedTestRoute: String?
   public var menuBarItemSpacing: Int?
   public var menuBarLayout: String?
+  public var customPopoverContentEnabled: Bool?
   public var hiddenPopoverSections: [String]?
+  public var popoverSectionOrders: [String: [String]]?
   public var probeEnabled: Bool?
   public var probeInBackground: Bool?
   public var probeTarget: String?
@@ -117,7 +119,12 @@ extension AppSettings {
     doc.speedTestRoute = speedTestRoute.rawValue
     doc.menuBarItemSpacing = menuBarItemSpacing
     doc.menuBarLayout = menuBarLayout.rawValue
+    doc.customPopoverContentEnabled = customPopoverContentEnabled
     doc.hiddenPopoverSections = hiddenPopoverSections.map(\.rawValue).sorted()
+    doc.popoverSectionOrders = Dictionary(
+      uniqueKeysWithValues: popoverSectionOrders.map {
+        ($0.key.rawValue, $0.value.map(\.rawValue))
+      })
     doc.probeEnabled = probeEnabled
     doc.probeInBackground = probeInBackground
     doc.probeTarget = probeTarget.rawValue
@@ -206,6 +213,14 @@ extension AppSettings {
     assign(
       \.hiddenPopoverSections,
       doc.hiddenPopoverSections.map { Set($0.compactMap(PopoverSection.init(rawValue:))) })
+    if let orders = doc.popoverSectionOrders { setPopoverSectionOrders(orders) }
+    if let enabled = doc.customPopoverContentEnabled {
+      customPopoverContentEnabled = enabled
+    } else if doc.hiddenPopoverSections != nil || doc.popoverSectionOrders != nil {
+      // 旧备份没有总开关，按导入后的选择恢复原有显示效果；空文档不改变开关。
+      customPopoverContentEnabled =
+        !popoverSectionOrders.isEmpty || hiddenPopoverSections != PopoverSection.hiddenByDefault
+    }
     assign(\.probeEnabled, doc.probeEnabled)
     assign(\.probeInBackground, doc.probeInBackground)
     assign(\.probeTarget, doc.probeTarget.flatMap(ProbeTarget.init(rawValue:)))

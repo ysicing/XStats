@@ -12,9 +12,32 @@ extension Translations {
       english, captureEnglish, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish,
       audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish,
       appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish,
-      hardwareDetailsEnglish, aiCleanupEnglish,
+      hardwareDetailsEnglish, aiCleanupEnglish, networkPresentationEnglish,
     ]
   }
+
+  static let networkPresentationEnglish = #"""
+    自定义弹窗内容	Customize Popover Content
+    选择各指标弹窗显示的内容，并调整排列顺序。	Choose the content shown in each metric’s popover and adjust its order.
+    弹窗内容	Popover Content
+    恢复默认顺序	Restore Default Order
+    拖动以调整顺序	Drag to reorder
+    已显示 {} / {} 项	Showing {} of {} items
+    链路速率	Link Rate
+    频段 / 信道	Band / Channel
+    无线详情	Wireless Details
+    接入点地址	Access Point Address
+    信道宽度	Channel Width
+    无线协议	Wireless Protocol
+    安全方式	Security
+    噪声	Noise
+    信噪比	Signal-to-Noise Ratio
+    开放网络	Open Network
+    已展开	Expanded
+    已收起	Collapsed
+    系统未提供网络名称或接入点地址，可能受定位权限限制。	The system did not provide the network name or access point address. Location permissions may restrict access.
+    无线链路协商速率，不代表实际下载速度。	Negotiated wireless link rate, not actual download speed.
+    """#
 
   static let aiCleanupEnglish = #"""
     查看…	View…
@@ -1053,7 +1076,6 @@ extension Translations {
     数据	Data
     数据来源	Source
     整体风格	Overall style
-    整体风格套用到所有项目。想让某个项目不一样，在下面“显示项目”里给它单独选一种，比如 CPU 用圆环、风扇用数字。	The overall style applies to every item. To make one item different, pick a style for it under Items below, say a ring for CPU and plain numbers for the fan.
     整机	System
     整机 {}	System {}
     整机功耗	System Power

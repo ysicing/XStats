@@ -664,7 +664,6 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 数据	Données
 数据来源	Source
 整体风格	Style global
-整体风格套用到所有项目。想让某个项目不一样，在下面“显示项目”里给它单独选一种，比如 CPU 用圆环、风扇用数字。	Le style global s’applique à tous les éléments. Pour personnaliser un élément, choisissez son style sous « Éléments » ci-dessous, par exemple un anneau pour le CPU et des chiffres pour le ventilateur.
 整机	Système
 整机 {}	Système {}
 整机功耗	Consommation du système
@@ -2279,3 +2278,23 @@ worktree 已锁定	Le worktree est verrouillé
 自适应	Adaptatif
 正在切换到“{}”…	Passage à {}…
 聆听模式切换未确认，请检查耳机后重试。	Le changement de mode d’écoute n’a pas pu être confirmé. Vérifiez votre casque et réessayez.
+弹窗内容	Contenu de la fenêtre
+恢复默认顺序	Rétablir l’ordre par défaut
+链路速率	Débit de liaison
+频段 / 信道	Bande / Canal
+无线详情	Détails Wi-Fi
+接入点地址	Adresse du point d’accès
+信道宽度	Largeur du canal
+无线协议	Protocole Wi-Fi
+安全方式	Sécurité
+噪声	Bruit
+信噪比	Rapport signal/bruit
+开放网络	Réseau ouvert
+已展开	Développé
+已收起	Réduit
+系统未提供网络名称或接入点地址，可能受定位权限限制。	Le système n’a pas fourni le nom du réseau ou l’adresse du point d’accès. Les autorisations de localisation peuvent en limiter l’accès.
+无线链路协商速率，不代表实际下载速度。	Débit négocié de la liaison Wi-Fi, et non vitesse réelle de téléchargement.
+已显示 {} / {} 项	{} éléments affichés sur {}
+拖动以调整顺序	Faire glisser pour réorganiser
+自定义弹窗内容	Personnaliser le contenu des fenêtres
+选择各指标弹窗显示的内容，并调整排列顺序。	Choisissez le contenu affiché dans la fenêtre de chaque indicateur et ajustez son ordre.

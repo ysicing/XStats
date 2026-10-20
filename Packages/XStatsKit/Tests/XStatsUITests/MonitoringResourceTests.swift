@@ -137,6 +137,7 @@ struct MonitoringResourceTests {
       // 功耗基线使用隐藏 App 能耗分区的弹窗；同样的功耗与电量需求、同样的采样频率。
       model.isMainWindowVisible = visible && energy
       model.openPopover = visible && !energy ? .battery : nil
+      settings.customPopoverContentEnabled = true
       settings.hiddenPopoverSections = energy ? [] : [.batteryApps, .thermalSensors]
       model.applyMonitoringSettings()
       await model.hub.update(model.demand)

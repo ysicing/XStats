@@ -53,6 +53,7 @@ struct BatteryEnergyPresentationTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
     settings.enabledMonitoringModules = [.battery]
+    settings.customPopoverContentEnabled = true
     settings.hiddenPopoverSections = Set(MenuBarItem.battery.popoverSections).subtracting([
       .batteryApps, .thermalSensors,
     ])

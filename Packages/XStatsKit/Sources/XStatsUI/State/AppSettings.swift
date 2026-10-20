@@ -866,12 +866,30 @@ public final class AppSettings {
   public var menuBarLayout: MenuBarLayout {
     didSet { defaults.set(menuBarLayout.rawValue, forKey: Keys.menuBarLayout) }
   }
+  /// 关闭时使用默认内容与顺序，保留已保存的自定义选择。
+  public var customPopoverContentEnabled: Bool {
+    didSet { defaults.set(customPopoverContentEnabled, forKey: Keys.customPopoverContentEnabled) }
+  }
   /// 用户在详情弹窗里隐藏的区块
   public var hiddenPopoverSections: Set<PopoverSection> {
     didSet {
       defaults.set(
         hiddenPopoverSections.map(\.rawValue).sorted(), forKey: Keys.hiddenPopoverSections)
     }
+  }
+  /// 按指标独立保存完整顺序，隐藏区块仍保留位置；主窗口不使用此排列。
+  public private(set) var popoverSectionOrders: [MenuBarItem: [PopoverSection]] {
+    didSet {
+      defaults.set(
+        Dictionary(
+          uniqueKeysWithValues: popoverSectionOrders.map {
+            ($0.key.rawValue, $0.value.map(\.rawValue))
+          }), forKey: Keys.popoverSectionOrders)
+    }
+  }
+  /// 无线详情的展开状态只保留在本机，与其他弹窗展开偏好一致。
+  public var wifiDetailsExpanded: Bool {
+    didSet { defaults.set(wifiDetailsExpanded, forKey: Keys.wifiDetailsExpanded) }
   }
   /// 弹窗里默认收起、被用户展开的区块（IP 纯净度、DNS）；只影响菜单栏弹窗，主窗口始终完整显示
   public var expandedPopoverSections: Set<PopoverSection> {
@@ -1202,12 +1220,23 @@ public final class AppSettings {
       // 固化首次选择，避免下次启动时被本次写入的其他默认设置误判为旧版安装。
       defaults.set(initialMenuBarLayout.rawValue, forKey: Keys.menuBarLayout)
     }
+    let savedPopoverOrders = Self.normalizedPopoverSectionOrders(
+      defaults.dictionary(forKey: Keys.popoverSectionOrders) as? [String: [String]] ?? [:])
+    popoverSectionOrders = savedPopoverOrders
+    wifiDetailsExpanded = defaults.bool(forKey: Keys.wifiDetailsExpanded)
     expandedPopoverSections = Set(
       (defaults.stringArray(forKey: Keys.expandedPopoverSections) ?? []).compactMap(
         PopoverSection.init(rawValue:)))
-    hiddenPopoverSections =
+    let savedHiddenSections =
       defaults.stringArray(forKey: Keys.hiddenPopoverSections)
       .map { Set($0.compactMap(PopoverSection.init(rawValue:))) } ?? PopoverSection.hiddenByDefault
+    hiddenPopoverSections = savedHiddenSections
+    // 升级时保留已有自定义效果，并固化开关，避免关闭后被旧配置再次自动开启。
+    let initialCustomContent =
+      defaults.object(forKey: Keys.customPopoverContentEnabled) as? Bool
+      ?? (!savedPopoverOrders.isEmpty || savedHiddenSections != PopoverSection.hiddenByDefault)
+    customPopoverContentEnabled = initialCustomContent
+    defaults.set(initialCustomContent, forKey: Keys.customPopoverContentEnabled)
     probeEnabled = defaults.object(forKey: Keys.probeEnabled) as? Bool ?? true
     probeInBackground = defaults.object(forKey: Keys.probeInBackground) as? Bool ?? true
     probeTarget =
@@ -1344,7 +1373,82 @@ public final class AppSettings {
     styleOverrides[item] = style
   }
 
-  func isVisible(_ section: PopoverSection) -> Bool { !hiddenPopoverSections.contains(section) }
+  /// 渲染与采集需求共用生效后的可见性，避免关闭自定义后仍按隐藏配置采样。
+  func isVisible(_ section: PopoverSection) -> Bool {
+    let hidden =
+      customPopoverContentEnabled ? hiddenPopoverSections : PopoverSection.hiddenByDefault
+    return !hidden.contains(section)
+  }
+
+  /// 追加版本升级中新出现的区块，不改变用户已有顺序。
+  func orderedPopoverSections(for item: MenuBarItem) -> [PopoverSection] {
+    let saved = popoverSectionOrders[item] ?? []
+    return saved + item.popoverSections.filter { !saved.contains($0) }
+  }
+
+  /// 只编辑设备支持的内容；不支持的区块仍保留原有顺序和显示偏好。
+  func editablePopoverSections(
+    for item: MenuBarItem, hasBattery: Bool, supportsFans: Bool
+  ) -> [PopoverSection] {
+    orderedPopoverSections(for: item).filter { section in
+      switch section {
+      case .batteryHistory, .batteryHealth: hasBattery
+      case .thermalFans: supportsFans
+      default: true
+      }
+    }
+  }
+
+  func popoverSections(for item: MenuBarItem, isDetailPage: Bool = false) -> [PopoverSection] {
+    if isDetailPage { return item.popoverSections }
+    let order =
+      customPopoverContentEnabled ? orderedPopoverSections(for: item) : item.popoverSections
+    return order.filter { isVisible($0) }
+  }
+
+  func movePopoverSection(
+    _ section: PopoverSection, for item: MenuBarItem, by offset: Int,
+    among sections: [PopoverSection]? = nil
+  ) {
+    var order = orderedPopoverSections(for: item)
+    var editable = sections ?? order
+    guard order.filter({ editable.contains($0) }) == editable,
+      let source = editable.firstIndex(of: section)
+    else { return }
+    let (destination, overflow) = source.addingReportingOverflow(offset)
+    guard !overflow, editable.indices.contains(destination), source != destination else { return }
+    let indices = order.indices.filter { editable.contains(order[$0]) }
+    editable.remove(at: source)
+    editable.insert(section, at: destination)
+    // 只替换可编辑的位置，避免移动越过设备不支持的区块时出现空操作。
+    for (index, replacement) in zip(indices, editable) { order[index] = replacement }
+    popoverSectionOrders[item] = order
+  }
+
+  func resetPopoverSectionOrder(for item: MenuBarItem) {
+    popoverSectionOrders[item] = nil
+  }
+
+  func setPopoverSectionOrders(_ stored: [String: [String]]) {
+    let normalized = Self.normalizedPopoverSectionOrders(stored)
+    if popoverSectionOrders != normalized { popoverSectionOrders = normalized }
+  }
+
+  private static func normalizedPopoverSectionOrders(
+    _ stored: [String: [String]]
+  ) -> [MenuBarItem: [PopoverSection]] {
+    var result: [MenuBarItem: [PopoverSection]] = [:]
+    for item in MenuBarItem.allCases {
+      guard let saved = stored[item.rawValue], !item.popoverSections.isEmpty else { continue }
+      let allowed = Set(item.popoverSections)
+      var seen = Set<PopoverSection>()
+      let order = saved.compactMap(PopoverSection.init(rawValue:)).filter {
+        allowed.contains($0) && seen.insert($0).inserted
+      }
+      if !order.isEmpty { result[item] = order }
+    }
+    return result
+  }
 
   func isExpanded(_ section: PopoverSection) -> Bool { expandedPopoverSections.contains(section) }
 
@@ -1428,7 +1532,10 @@ public final class AppSettings {
     static let menuBarFoldingCollapsed = "menuBarFoldingCollapsed"
     static let menuBarItemSpacing = "menuBarItemSpacing"
     static let menuBarLayout = "menuBarLayout"
+    static let customPopoverContentEnabled = "customPopoverContentEnabled"
     static let hiddenPopoverSections = "hiddenPopoverSections"
+    static let popoverSectionOrders = "popoverSectionOrders"
+    static let wifiDetailsExpanded = "wifiDetailsExpanded"
     static let expandedPopoverSections = "expandedPopoverSections"
     static let probeEnabled = "probeEnabled"
     static let probeInBackground = "probeInBackground"

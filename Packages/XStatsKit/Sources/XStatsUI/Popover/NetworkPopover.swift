@@ -57,7 +57,7 @@ struct NetworkPopover: View {
     }
 
     MainActorForEach(
-      MenuBarItem.network.popoverSections.filter { isDetailPage || settings.isVisible($0) }
+      settings.popoverSections(for: .network, isDetailPage: isDetailPage)
     ) { section in
       switch section {
       case .networkHistory: TrafficHistorySection()
@@ -207,9 +207,7 @@ private struct InterfaceSection: View {
         }
         InfoRow(label: tr("物理地址")) { CopyableText(text: physical.hardwareAddress ?? "—") }
         if let wifi = physical.wifi {
-          if let ssid = wifi.ssid { InfoRow(label: tr("网络名称"), text: ssid) }
-          InfoRow(label: tr("信号强度"), text: "\(wifi.rssi) dBm · \(signalQuality(wifi.rssi))")
-          InfoRow(label: tr("传输速率"), text: "\(Int(wifi.transmitRate)) Mbps")
+          WiFiConnectionRows(wifi: wifi)
         }
       } else {
         Text(details == nil ? tr("正在读取…") : tr("未连接网络")).dsFont(.xs).foregroundStyle(
@@ -229,6 +227,79 @@ private struct InterfaceSection: View {
           text: Format.bytes(counted.upload, base: .decimal))
       }
     }
+  }
+
+}
+
+/// 当前连接的无线参数；只呈现已读取的值，不创建扫描或刷新任务。
+struct WiFiConnectionRows: View {
+  @Environment(AppModel.self) private var model
+  @Environment(\.isDetailPage) private var isDetailPage
+  let wifi: WiFiLink
+
+  var body: some View {
+    let permissionHint = tr("系统未提供网络名称或接入点地址，可能受定位权限限制。")
+    InfoRow(label: tr("网络名称")) {
+      CopyableText(text: wifi.ssid ?? "—")
+        .help(wifi.ssid == nil ? permissionHint : "")
+    }
+    InfoRow(
+      label: tr("信号强度"),
+      text: wifi.rssi.map {
+        "\($0.formatted(.number.locale(L10n.locale))) dBm · \(signalQuality($0))"
+      } ?? "—")
+    InfoRow(
+      label: tr("链路速率"),
+      text: wifi.transmitRate.map {
+        $0.formatted(.number.locale(L10n.locale).precision(.fractionLength(0...1))) + " Mbps"
+      } ?? "—"
+    ).help(tr("无线链路协商速率，不代表实际下载速度。"))
+    InfoRow(label: tr("频段 / 信道"), text: bandAndChannel)
+
+    if !isDetailPage {
+      Button {
+        model.settings.wifiDetailsExpanded.toggle()
+      } label: {
+        HStack {
+          Text(tr("无线详情"))
+          Spacer(minLength: DS.Space.s2)
+          Image(systemName: model.settings.wifiDetailsExpanded ? "chevron.up" : "chevron.down")
+        }
+        .dsFont(.xs)
+        .foregroundStyle(DS.Palette.textSecondary)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityValue(model.settings.wifiDetailsExpanded ? tr("已展开") : tr("已收起"))
+    }
+    if isDetailPage || model.settings.wifiDetailsExpanded {
+      InfoRow(label: tr("接入点地址")) {
+        CopyableText(text: wifi.bssid ?? "—")
+          .help(wifi.bssid == nil ? permissionHint : "")
+      }
+      InfoRow(
+        label: tr("信道宽度"),
+        text: wifi.channelWidthMHz.map { $0.formatted(.number.locale(L10n.locale)) + " MHz" } ?? "—"
+      )
+      InfoRow(label: tr("无线协议"), text: wifi.phyMode ?? "—")
+      InfoRow(label: tr("安全方式"), text: wifi.security.map { tr($0) } ?? "—")
+      InfoRow(
+        label: tr("噪声"),
+        text: wifi.noise.map { $0.formatted(.number.locale(L10n.locale)) + " dBm" } ?? "—")
+      InfoRow(
+        label: tr("信噪比"),
+        text: wifi.signalToNoiseRatio.map { $0.formatted(.number.locale(L10n.locale)) + " dB" }
+          ?? "—")
+    }
+  }
+
+  private var bandAndChannel: String {
+    let band =
+      wifi.bandGHz.map {
+        $0.formatted(.number.locale(L10n.locale).precision(.fractionLength(0...1))) + " GHz"
+      } ?? "—"
+    let channel = wifi.channel.map { $0.formatted(.number.locale(L10n.locale)) } ?? "—"
+    return "\(band) · \(channel)"
   }
 
   private func signalQuality(_ rssi: Int) -> String {

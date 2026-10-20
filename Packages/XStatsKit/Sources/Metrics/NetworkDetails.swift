@@ -6,9 +6,38 @@ import SystemConfiguration
 public struct WiFiLink: Sendable, Equatable {
   /// macOS 14 起读取网络名需要定位权限，未授权时为 nil
   public var ssid: String?
-  public var rssi: Int
-  public var noise: Int
-  public var transmitRate: Double
+  public var rssi: Int?
+  public var noise: Int?
+  public var transmitRate: Double?
+  public var bssid: String?
+  public var bandGHz: Double?
+  public var channel: Int?
+  public var channelWidthMHz: Int?
+  public var phyMode: String?
+  public var security: String?
+
+  /// 0 是 CoreWLAN 未提供测量的占位值，不能显示为真实信号或参与信噪比计算。
+  public init(
+    ssid: String?, rssi: Int?, noise: Int?, transmitRate: Double?,
+    bssid: String? = nil, bandGHz: Double? = nil, channel: Int? = nil,
+    channelWidthMHz: Int? = nil, phyMode: String? = nil, security: String? = nil
+  ) {
+    self.ssid = ssid
+    self.rssi = rssi.flatMap { $0 < 0 ? $0 : nil }
+    self.noise = noise.flatMap { $0 < 0 ? $0 : nil }
+    self.transmitRate = transmitRate.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+    self.bssid = bssid
+    self.bandGHz = bandGHz
+    self.channel = channel
+    self.channelWidthMHz = channelWidthMHz
+    self.phyMode = phyMode
+    self.security = security
+  }
+
+  public var signalToNoiseRatio: Int? {
+    guard let rssi, let noise, rssi < 0, noise < 0, rssi >= noise else { return nil }
+    return rssi - noise
+  }
 }
 
 /// 实际承载流量的物理网卡（Wi-Fi、有线网卡等）
@@ -161,13 +190,60 @@ public enum NetworkDetailsReader {
   }
 
   private static func wifiLink(_ bsdName: String) -> WiFiLink? {
-    guard let interface = CWWiFiClient.shared().interface(withName: bsdName), interface.powerOn()
+    guard let interface = CWWiFiClient.shared().interface(withName: bsdName), interface.powerOn(),
+      interface.interfaceMode() != .none
     else { return nil }
-    let rssi = interface.rssiValue()
-    guard rssi != 0 else { return nil }
+    let channel = interface.wlanChannel()
+    let band: Double? =
+      switch channel?.channelBand {
+      case .band2GHz: 2.4
+      case .band5GHz: 5
+      case .band6GHz: 6
+      default: nil
+      }
+    let width: Int? =
+      switch channel?.channelWidth {
+      case .width20MHz: 20
+      case .width40MHz: 40
+      case .width80MHz: 80
+      case .width160MHz: 160
+      default: nil
+      }
+    let phy: String? =
+      switch interface.activePHYMode() {
+      case .mode11a: "802.11a"
+      case .mode11b: "802.11b"
+      case .mode11g: "802.11g"
+      case .mode11n: "802.11n"
+      case .mode11ac: "802.11ac"
+      case .mode11ax: "802.11ax"
+      case .mode11be: "802.11be"
+      default: nil
+      }
+    let security: String? =
+      switch interface.security() {
+      case .none: "开放网络"
+      case .WEP: "WEP"
+      case .wpaPersonal: "WPA Personal"
+      case .wpaPersonalMixed: "WPA/WPA2 Personal"
+      case .wpa2Personal: "WPA2 Personal"
+      case .personal: "Personal"
+      case .dynamicWEP: "Dynamic WEP"
+      case .wpaEnterprise: "WPA Enterprise"
+      case .wpaEnterpriseMixed: "WPA/WPA2 Enterprise"
+      case .wpa2Enterprise: "WPA2 Enterprise"
+      case .enterprise: "Enterprise"
+      case .wpa3Personal: "WPA3 Personal"
+      case .wpa3Enterprise: "WPA3 Enterprise"
+      case .wpa3Transition: "WPA2/WPA3 Personal"
+      case .OWE: "OWE"
+      case .oweTransition: "OWE Transition"
+      default: nil
+      }
     return WiFiLink(
-      ssid: interface.ssid(), rssi: rssi, noise: interface.noiseMeasurement(),
-      transmitRate: interface.transmitRate())
+      ssid: interface.ssid(), rssi: interface.rssiValue(), noise: interface.noiseMeasurement(),
+      transmitRate: interface.transmitRate(), bssid: interface.bssid(), bandGHz: band,
+      channel: channel?.channelNumber, channelWidthMHz: width, phyMode: phy, security: security)
   }
 
   // MARK: 地址

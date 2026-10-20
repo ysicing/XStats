@@ -201,6 +201,8 @@ extension DS {
     /// 主窗口默认内容区宽度（侧边栏另计）
     static let windowDefaultContentWidth: CGFloat = 880
     static let sidebarWidth: CGFloat = 192
+    /// 设置页的内嵌列表保持紧凑，让行操作靠近对应内容。
+    static let settingsListWidth: CGFloat = 480
     /// 升级提示窗口
     static let updateWindowWidth: CGFloat = 480
     static let updateNotesHeight: CGFloat = 192
