@@ -11,14 +11,16 @@ import Testing
 
 @MainActor
 struct BluetoothListIsolationTests {
-  @Test(arguments: [false, true])
-  func listContentCanBeBuiltOffTheMainQueue(batteryParts: Bool) async throws {
+  @Test(arguments: [false, true], [false, true])
+  func listContentCanBeBuiltOffTheMainQueue(batteryParts: Bool, allowsManagement: Bool) async throws
+  {
     let devices = [
       BluetoothDevice(
         name: "Headphones", address: "00:11:22:33:44:55", kind: .headphones,
         batteries: [("Left", 70), ("Right", 60), ("Case", 90)])
     ]
-    let lists = listProbes(in: BluetoothDeviceList(devices: devices).body)
+    let lists = listProbes(
+      in: BluetoothDeviceList(devices: devices, allowsManagement: allowsManagement).body)
     let list = try #require(lists.first)
     #expect(lists.count == 1)
     let probes = batteryParts ? list.content.nestedLists() : lists

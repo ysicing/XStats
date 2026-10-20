@@ -525,22 +525,23 @@ struct ManagedBluetoothDeviceList: View {
       if arranged.isEmpty && !devices.isEmpty {
         Text(tr("暂无显示的蓝牙设备")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
       } else {
-        BluetoothDeviceList(devices: displayed)
+        BluetoothDeviceList(devices: displayed, allowsManagement: true)
       }
       let choices = BluetoothDeviceChoice.unique(
         devices.compactMap {
           BluetoothDeviceChoice(address: $0.address, name: $0.name)
         })
-      if arranged.count > 5 || !choices.isEmpty
+      let showsManagement =
+        (devices.count > 5 && !choices.isEmpty)
         || !model.settings.bluetoothDevicePreferences.hidden.isEmpty
-      {
+      if arranged.count > 5 || showsManagement {
         HStack {
           if arranged.count > 5 {
             Button(expanded ? tr("收起设备") : tr("展开更多设备")) { expanded.toggle() }
               .buttonStyle(.link).dsFont(.xs)
           }
           Spacer(minLength: DS.Space.s1)
-          BluetoothDeviceMenu(devices: choices)
+          if showsManagement { BluetoothDeviceMenu(devices: choices) }
         }
       }
     } else {
@@ -551,6 +552,7 @@ struct ManagedBluetoothDeviceList: View {
 
 struct BluetoothDeviceList: View {
   let devices: [BluetoothDevice]?
+  var allowsManagement = false
 
   var body: some View {
     if let devices {
@@ -558,8 +560,8 @@ struct BluetoothDeviceList: View {
         Text(tr("没有已连接的蓝牙设备")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
       }
       // macOS 15 会在 DisplayLink 后台队列构建行；闭包只传递设备快照，不继承 body 的主线程隔离。
-      ForEach(devices) { @Sendable device in
-        BluetoothDeviceRow(device: device)
+      ForEach(devices) { @Sendable [allowsManagement] device in
+        BluetoothDeviceRow(device: device, allowsManagement: allowsManagement)
       }
     } else {
       Text(tr("正在读取…")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
@@ -569,9 +571,11 @@ struct BluetoothDeviceList: View {
 
 private struct BluetoothDeviceRow: View {
   let device: BluetoothDevice
+  let allowsManagement: Bool
 
-  nonisolated init(device: BluetoothDevice) {
+  nonisolated init(device: BluetoothDevice, allowsManagement: Bool) {
     self.device = device
+    self.allowsManagement = allowsManagement
   }
 
   private var layout: BluetoothDeviceRowLayout {
@@ -637,6 +641,14 @@ private struct BluetoothDeviceRow: View {
       }
     }
     .accessibilityElement(children: .combine)
+    .contentShape(Rectangle())
+    .contextMenu {
+      if allowsManagement,
+        let choice = BluetoothDeviceChoice(address: device.address, name: device.name)
+      {
+        BluetoothDeviceActions(device: choice)
+      }
+    }
   }
 
   private var lastSeenText: String? {

@@ -1079,7 +1079,8 @@ records request, confirmation, cancellation and failure without device names or 
 Bluetooth audio pickers and full battery-device lists share local address-based pin/hide preferences.
 Hiding changes presentation only: it does not disconnect devices, stop battery reads or suppress alerts.
 The selected and connecting audio endpoints remain selectable even when hidden. Full battery lists show
-five devices initially with an expand action; their management menu can restore hidden devices.
+five devices initially with an expand action. Device context menus expose pin/hide actions; a separate
+management entry appears above five devices or whenever hidden preferences need a restore path.
 Management entries appear only in System Info and the battery popover, not in audio controls.
 Entries without a complete hardware address remain visible but do not receive persistent preferences.
 

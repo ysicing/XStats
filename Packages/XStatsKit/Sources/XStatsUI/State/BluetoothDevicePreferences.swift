@@ -103,12 +103,27 @@ struct BluetoothDeviceMenu: View {
 
 private struct BluetoothDeviceMenuEntry: View {
   let device: BluetoothDeviceChoice
-  @Environment(AppModel.self) private var model
 
   nonisolated init(device: BluetoothDeviceChoice) { self.device = device }
 
   var body: some View {
     Menu {
+      BluetoothDeviceActions(device: device)
+    } label: {
+      Text(verbatim: device.name)
+    }
+  }
+}
+
+/// 管理菜单与设备行右键菜单使用相同操作，避免两处的置顶、隐藏行为不一致。
+struct BluetoothDeviceActions: View {
+  let device: BluetoothDeviceChoice
+  @Environment(AppModel.self) private var model
+
+  nonisolated init(device: BluetoothDeviceChoice) { self.device = device }
+
+  var body: some View {
+    Group {
       Button(
         model.settings.bluetoothDevicePreferences.pinned.contains(device.id)
           ? tr("取消置顶") : tr("置顶设备")
@@ -117,8 +132,6 @@ private struct BluetoothDeviceMenuEntry: View {
         model.settings.bluetoothDevicePreferences.hidden.contains(device.id)
           ? tr("显示设备") : tr("隐藏设备")
       ) { model.settings.bluetoothDevicePreferences.toggleHidden(device.id) }
-    } label: {
-      Text(verbatim: device.name)
     }
   }
 }
