@@ -70,11 +70,154 @@ public struct NetworkDetails: Sendable, Equatable {
   public var dnsServers: [String]
 }
 
+/// 本机已连接接口的地址快照；名称来自系统服务，不依据地址段猜测 VPN 产品。
+public struct LocalNetworkInterface: Sendable, Equatable, Identifiable {
+  public enum Kind: Sendable { case wifi, ethernet, tunnel, other }
+  public var id: String { bsdName }
+  public let bsdName: String
+  public let name: String?
+  public let kind: Kind
+  public let ipv4: [String]
+  public let ipv6: [String]
+  public let linkLocal: [String]
+
+  public init(
+    bsdName: String, name: String? = nil, kind: Kind, ipv4: [String] = [],
+    ipv6: [String] = [], linkLocal: [String] = []
+  ) {
+    self.bsdName = bsdName
+    self.name = name
+    self.kind = kind
+    self.ipv4 = ipv4
+    self.ipv6 = ipv6
+    self.linkLocal = linkLocal
+  }
+}
+
 public enum NetworkDetailsReader {
   private static let tunnelPrefixes = ["utun", "ipsec", "ppp", "tun", "tap"]
 
   static func isTunnel(_ bsdName: String) -> Bool {
     tunnelPrefixes.contains { bsdName.hasPrefix($0) }
+  }
+
+  /// 仅在查询窗口打开或刷新时读取，不启动监控、不调用外部服务或 VPN CLI。
+  public static func readLocalInterfaces() -> [LocalNetworkInterface] {
+    let store = SCDynamicStoreCreate(nil, "XStats.LocalInterfaces" as CFString, nil, nil)
+    let preferences = SCPreferencesCreate(nil, "XStats.LocalInterfaces" as CFString, nil)
+    let services = preferences.flatMap { SCNetworkServiceCopyAll($0) as? [SCNetworkService] } ?? []
+    let currentServices =
+      preferences.flatMap { SCNetworkSetCopyCurrent($0) }
+      .flatMap { SCNetworkSetCopyServices($0) as? [SCNetworkService] } ?? []
+    let currentIDs = Set(currentServices.compactMap { SCNetworkServiceGetServiceID($0) as String? })
+    var metadata: [String: LocalInterfaceService] = [:]
+    // CopyAll 也包含不在当前网络位置里的服务；只有运行态映射才可用于命名隧道。
+    for service in services where SCNetworkServiceGetEnabled(service) {
+      guard let interface = SCNetworkServiceGetInterface(service),
+        let id = SCNetworkServiceGetServiceID(service) as String?
+      else { continue }
+      let runtime = store.flatMap {
+        value($0, "State:/Network/Service/\(id)/IPv4")?["InterfaceName"] as? String
+          ?? value($0, "State:/Network/Service/\(id)/IPv6")?["InterfaceName"] as? String
+      }
+      guard runtime != nil || currentIDs.contains(id) else { continue }
+      guard let bsd = runtime ?? SCNetworkInterfaceGetBSDName(interface) as String? else {
+        continue
+      }
+      guard !isTunnel(bsd) || runtime != nil else { continue }
+      let type = SCNetworkInterfaceGetInterfaceType(interface) as String?
+      let kind: LocalNetworkInterface.Kind
+      if isTunnel(bsd) {
+        kind = .tunnel
+      } else if type == (kSCNetworkInterfaceTypeIEEE80211 as String) {
+        kind = .wifi
+      } else if type == (kSCNetworkInterfaceTypeEthernet as String) {
+        kind = .ethernet
+      } else {
+        kind = .other
+      }
+      metadata[bsd] = LocalInterfaceService(
+        name: SCNetworkServiceGetName(service) as String?, kind: kind)
+    }
+    // Network Extension 创建的隧道可能没有持久化服务，按运行态的服务 ID 关联名称。
+    if let store,
+      let keys = SCDynamicStoreCopyKeyList(store, "State:/Network/Service/.*/IPv[46]" as CFString)
+        as? [String]
+    {
+      for key in keys.sorted() {
+        guard let bsd = value(store, key)?["InterfaceName"] as? String, isTunnel(bsd),
+          metadata[bsd]?.name == nil
+        else { continue }
+        let parts = key.split(separator: "/")
+        guard parts.count == 5 else { continue }
+        let name = value(store, "Setup:/Network/Service/\(parts[3])")?["UserDefinedName"] as? String
+        metadata[bsd] = LocalInterfaceService(name: name, kind: .tunnel)
+      }
+    }
+    let primary = store.flatMap {
+      value($0, "State:/Network/Global/IPv4")?["PrimaryInterface"] as? String
+        ?? value($0, "State:/Network/Global/IPv6")?["PrimaryInterface"] as? String
+    }
+    return localInterfaces(
+      addresses: interfaceAddresses(includeLinkLocal: true), services: metadata, primaryBSD: primary
+    )
+  }
+
+  struct LocalInterfaceService {
+    var name: String?
+    var kind: LocalNetworkInterface.Kind
+  }
+
+  static func localInterfaces(
+    addresses: [String: Addresses], services: [String: LocalInterfaceService], primaryBSD: String?
+  ) -> [LocalNetworkInterface] {
+    let interfaces = addresses.compactMap { bsd, addresses -> LocalNetworkInterface? in
+      guard addresses.isUp, !addresses.isLoopback,
+        !["lo", "awdl", "llw", "p2p", "ap", "anpi"].contains(where: bsd.hasPrefix)
+      else { return nil }
+      let v4 = Array(Set(addresses.ipv4.filter { usableLocalAddress($0) })).sorted()
+      let v6 = Array(Set(addresses.ipv6.filter { usableLocalAddress($0) })).sorted()
+      let ipv4 = v4.filter { !isLinkLocalAddress($0) }
+      let ipv6 = v6.filter { !isLinkLocalAddress($0) }
+      // 无有效地址的接口与系统常见的 link-local-only utun 不占据列表。
+      guard !ipv4.isEmpty || !ipv6.isEmpty else { return nil }
+      let service = services[bsd]
+      return LocalNetworkInterface(
+        bsdName: bsd, name: service?.name,
+        kind: service?.kind ?? (isTunnel(bsd) ? .tunnel : .other),
+        ipv4: ipv4, ipv6: ipv6,
+        linkLocal: (v4 + v6).filter(isLinkLocalAddress).map {
+          $0.contains(":") ? "\($0)%\(bsd)" : $0
+        })
+    }
+    return interfaces.sorted { lhs, rhs in
+      if (lhs.bsdName == primaryBSD) != (rhs.bsdName == primaryBSD) {
+        return lhs.bsdName == primaryBSD
+      }
+      if (lhs.kind == .tunnel) != (rhs.kind == .tunnel) { return rhs.kind == .tunnel }
+      return lhs.bsdName.localizedStandardCompare(rhs.bsdName) == .orderedAscending
+    }
+  }
+
+  private static func usableLocalAddress(_ text: String) -> Bool {
+    if text.contains(":") {
+      var address = in6_addr()
+      guard inet_pton(AF_INET6, text, &address) == 1 else { return false }
+      let bytes = withUnsafeBytes(of: address) { Array($0) }
+      return bytes[0] != 0xff
+        && !(bytes.prefix(15).allSatisfy { $0 == 0 } && bytes[15] <= 1)
+    }
+    var address = in_addr()
+    guard inet_pton(AF_INET, text, &address) == 1 else { return false }
+    let octets = text.split(separator: ".").compactMap { UInt8($0) }
+    return octets.count == 4 && octets[0] != 0 && octets[0] != 127 && octets[0] < 224
+  }
+
+  private static func isLinkLocalAddress(_ text: String) -> Bool {
+    if !text.contains(":") { return text.hasPrefix("169.254.") }
+    var address = in6_addr()
+    guard inet_pton(AF_INET6, text, &address) == 1 else { return false }
+    return withUnsafeBytes(of: address) { $0[0] == 0xfe && ($0[1] & 0xc0) == 0x80 }
   }
 
   /// 读取接口、地址与 DNS。只读 SystemConfiguration 与 getifaddrs，不需要权限。
@@ -288,14 +431,15 @@ public enum NetworkDetailsReader {
 
   // MARK: 地址
 
-  private struct Addresses {
+  struct Addresses {
     var isUp = false
+    var isLoopback = false
     var ipv4: [String] = []
     var ipv6: [String] = []
   }
 
   /// 按接口汇总 IPv4 与 IPv6 地址；IPv6 只保留全局与唯一本地地址，不含 fe80 链路本地地址
-  private static func interfaceAddresses() -> [String: Addresses] {
+  private static func interfaceAddresses(includeLinkLocal: Bool = false) -> [String: Addresses] {
     var result: [String: Addresses] = [:]
     var head: UnsafeMutablePointer<ifaddrs>?
     guard getifaddrs(&head) == 0, let first = head else { return result }
@@ -306,6 +450,7 @@ public enum NetworkDetailsReader {
       guard let address = entry.ifa_addr else { continue }
       let name = String(cString: entry.ifa_name)
       var info = result[name] ?? Addresses()
+      info.isLoopback = entry.ifa_flags & UInt32(IFF_LOOPBACK) != 0
       if entry.ifa_flags & UInt32(IFF_UP) != 0, entry.ifa_flags & UInt32(IFF_RUNNING) != 0 {
         info.isUp = true
       }
@@ -314,7 +459,8 @@ public enum NetworkDetailsReader {
       case AF_INET:
         if let text = numericHost(address) { info.ipv4.append(text) }
       case AF_INET6:
-        if let text = numericHost(address), !text.lowercased().hasPrefix("fe80") {
+        if let text = numericHost(address), includeLinkLocal || !text.lowercased().hasPrefix("fe80")
+        {
           info.ipv6.append(text)
         }
       default:

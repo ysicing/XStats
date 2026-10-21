@@ -2359,7 +2359,13 @@ Wi-Fi 图标大小	Taille de l’icône Wi-Fi
 菜单栏应用尚未恢复	Les apps de la barre des menus n’ont pas été restaurées
 仍然退出会保留恢复记录，下次启动时重试；也可在系统设置的“菜单栏”中恢复显示。	Quitter quand même conserve le journal de récupération pour réessayer au prochain lancement. Vous pouvez aussi réafficher les apps dans Réglages Système → Barre des menus.
 
-本机 IP 查询	Consulter l’IP publique
+本机 IP 查询	Consulter les adresses IP
+出口对比	Comparaison des sorties
+查看网站连通性与代理路线	Vérifier la connectivité des sites et les routes du proxy
+未获取到 IPv6 地址，请检查网络或稍后重试。	Aucune adresse IPv6 reçue. Vérifiez la connexion ou réessayez plus tard.
+查询次数已达上限，请稍后重试。	Limite de requêtes atteinte. Réessayez plus tard.
+查询服务暂时不可用，请稍后重试。	Le service de recherche est temporairement indisponible. Réessayez plus tard.
+查询服务返回了无效响应，请重试。	Le service de recherche a renvoyé une réponse invalide. Réessayez.
 按需连接第三方服务，查看它们看到的公网出口。不同来源可能经过不同代理路线。	Contacte des services tiers à la demande pour afficher l’IP publique. Chaque service peut utiliser un itinéraire proxy différent.
 隐藏 IP	Masquer l’IP
 隐藏国内信息	Masquer les résultats de Chine
@@ -2385,3 +2391,9 @@ Wi-Fi 图标大小	Taille de l’icône Wi-Fi
 连接过多，只显示前 {} 项	Trop de connexions ; seules les {} premières sont affichées
 仅列出当前用户的进程，系统服务占用的端口不会显示	Seuls vos processus sont listés ; les ports des services système n’apparaissent pas
 会断开它占用的端口与连接，未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	Ses ports et connexions seront fermés et le travail non enregistré peut être perdu. « Forcer à quitter » le termine immédiatement sans lui permettre d’enregistrer.
+本地接口	Interfaces locales
+暂无已连接的本地接口	Aucune interface locale connectée
+有线网络	Ethernet
+其他接口	Autre interface
+更多地址	Autres adresses
+链路本地	Lien local

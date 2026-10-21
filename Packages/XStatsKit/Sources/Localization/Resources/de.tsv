@@ -2359,7 +2359,13 @@ Wi-Fi 图标大小	Größe des WLAN-Symbols
 菜单栏应用尚未恢复	Menüleisten-Apps wurden noch nicht wiederhergestellt
 仍然退出会保留恢复记录，下次启动时重试；也可在系统设置的“菜单栏”中恢复显示。	Beim Beenden bleibt das Wiederherstellungsprotokoll für einen erneuten Versuch beim nächsten Start erhalten. Du kannst die Apps auch unter Systemeinstellungen → Menüleiste wieder einblenden.
 
-本机 IP 查询	Öffentliche IP abfragen
+本机 IP 查询	IP-Adressen abfragen
+出口对比	Ausgangsvergleich
+查看网站连通性与代理路线	Website-Erreichbarkeit und Proxy-Routen prüfen
+未获取到 IPv6 地址，请检查网络或稍后重试。	Keine IPv6-Adresse erhalten. Prüfen Sie die Verbindung oder versuchen Sie es später erneut.
+查询次数已达上限，请稍后重试。	Abfragelimit erreicht. Versuchen Sie es später erneut.
+查询服务暂时不可用，请稍后重试。	Der Abfragedienst ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut.
+查询服务返回了无效响应，请重试。	Der Abfragedienst hat eine ungültige Antwort geliefert. Versuchen Sie es erneut.
 按需连接第三方服务，查看它们看到的公网出口。不同来源可能经过不同代理路线。	Dienste werden bei Bedarf kontaktiert, um die öffentliche IP anzuzeigen. Je nach Dienst können unterschiedliche Proxy-Routen gelten.
 隐藏 IP	IP ausblenden
 隐藏国内信息	Ergebnisse aus China ausblenden
@@ -2385,3 +2391,9 @@ Wi-Fi 图标大小	Größe des WLAN-Symbols
 连接过多，只显示前 {} 项	Zu viele Verbindungen; nur die ersten {} werden angezeigt
 仅列出当前用户的进程，系统服务占用的端口不会显示	Nur eigene Prozesse werden angezeigt; von Systemdiensten belegte Ports fehlen
 会断开它占用的端口与连接，未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	Seine Ports und Verbindungen werden getrennt, ungesicherte Arbeit kann verloren gehen. „Sofort beenden“ beendet ihn ohne Gelegenheit zum Sichern.
+本地接口	Lokale Schnittstellen
+暂无已连接的本地接口	Keine verbundenen lokalen Schnittstellen
+有线网络	Ethernet
+其他接口	Andere Schnittstelle
+更多地址	Weitere Adressen
+链路本地	Link-lokal

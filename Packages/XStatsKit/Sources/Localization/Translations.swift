@@ -18,7 +18,19 @@ extension Translations {
   }
 
   static let networkPresentationEnglish = #"""
-    本机 IP 查询	Public IP Lookup
+    本地接口	Local Interfaces
+    暂无已连接的本地接口	No connected local interfaces
+    有线网络	Ethernet
+    其他接口	Other Interface
+    更多地址	More Addresses
+    链路本地	Link-local
+    本机 IP 查询	IP Address Lookup
+    出口对比	Exit Comparison
+    查看网站连通性与代理路线	Check website connectivity and proxy routes
+    未获取到 IPv6 地址，请检查网络或稍后重试。	No IPv6 address received. Check your connection or try again later.
+    查询次数已达上限，请稍后重试。	Query limit reached. Try again later.
+    查询服务暂时不可用，请稍后重试。	The lookup service is temporarily unavailable. Try again later.
+    查询服务返回了无效响应，请重试。	The lookup service returned an invalid response. Try again.
     按需连接第三方服务，查看它们看到的公网出口。不同来源可能经过不同代理路线。	Connect to third-party services on demand to see your public IP. Different services may use different proxy routes.
     隐藏 IP	Hide IP
     隐藏国内信息	Hide China Results
