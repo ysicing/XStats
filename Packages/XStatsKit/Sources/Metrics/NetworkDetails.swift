@@ -256,7 +256,8 @@ public enum NetworkDetailsReader {
       case .mode11n: "802.11n"
       case .mode11ac: "802.11ac"
       case .mode11ax: "802.11ax"
-      case .mode11be: "802.11be"
+      // 枚举名 mode11be 仅在较新的 SDK 中存在，按原始值（kCWPHYMode11be = 7）匹配以兼容旧 SDK 编译。
+      case let mode where mode.rawValue == 7: "802.11be"
       default: nil
       }
     let security: String? =
