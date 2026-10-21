@@ -199,6 +199,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     restMenuBar.sync()
     observeModel()
     observeNetworkObservationDemand()
+    observePortsDemand()
     observeProbeSettings()
     observeAIUsageSchedule()
     observeAIUsageState()
@@ -710,6 +711,20 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.networkGeography.setDemand(enabled: model.connectionMonitor.isReading)
   }
 
+  /// 端口页只在功能开启、主窗口可见且停在端口页时读取；订阅单独闭环，中间不 await。
+  private func observePortsDemand() {
+    withObservationTracking {
+      _ = model.settings.portsEnabled
+      _ = model.settings.panelTab
+      _ = model.isMainWindowVisible
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observePortsDemand() }
+    }
+    model.ports.setDemand(
+      enabled: model.settings.portsEnabled,
+      visible: model.isMainWindowVisible && model.settings.panelTab == .ports)
+  }
+
   /// 探测目标变化时清空历史重新探测；关闭公网 IP 查询时清除已显示的结果
   private func observeProbeSettings() {
     withObservationTracking {
@@ -1003,6 +1018,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.sleepAssertions.setPaused(true)
     model.appManagement.setPaused(true)
     model.connectionMonitor.setPaused(true)
+    model.ports.setPaused(true)
     model.history.flush()
     model.wellness.suspend(preservingRest: true)
     wellnessNotifications.dismiss()
@@ -1025,6 +1041,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.sleepAssertions.setPaused(false)
     model.appManagement.setPaused(false)
     model.connectionMonitor.setPaused(false)
+    model.ports.setPaused(false)
     rest.sync()
     model.timer.resume()
     model.wellness.resume()

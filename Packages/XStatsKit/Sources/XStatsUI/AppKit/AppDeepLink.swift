@@ -15,7 +15,8 @@ enum AppDeepLink: Equatable, Sendable {
   static let pages: [String: PanelTab] = [
     "overview": .overview, "system": .system, "history": .history, "ai-usage": .aiUsage,
     "cpu": .cpu, "gpu": .gpu, "memory": .memory, "disk": .disk, "network": .network,
-    "thermal": .thermal, "battery": .battery, "processes": .processes, "audio": .audio,
+    "thermal": .thermal, "battery": .battery, "processes": .processes, "ports": .ports,
+    "audio": .audio,
     "connections": .connections,
     "keep-awake": .keepAwake, "rest": .rest, "cleaner": .cleaner, "uninstaller": .uninstaller,
     "startup-items": .startupItems, "settings": .settingsGeneral,
@@ -76,7 +77,8 @@ enum AppDeepLink: Equatable, Sendable {
     switch requested {
     case .audio where !settings.audioEnabled, .rest where !settings.restEnabled,
       .connections where !settings.canViewNetworkConnections,
-      .processes where !settings.processesEnabled, .cleaner where !settings.cleanerEnabled,
+      .processes where !settings.processesEnabled, .ports where !settings.portsEnabled,
+      .cleaner where !settings.cleanerEnabled,
       .uninstaller where !settings.uninstallerEnabled,
       .aiUsage where !settings.aiUsageEnabled:
       .settingsFeatures

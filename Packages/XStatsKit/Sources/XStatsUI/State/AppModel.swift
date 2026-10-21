@@ -44,6 +44,7 @@ public final class AppModel {
   public let bluetooth = BluetoothController()
   let sleepAssertions = SleepAssertionController()
   let startupItems = StartupItemsController()
+  let ports = PortsController()
   public let history: HistoryRecorder
   public let sync: SyncController
   let diskTools: DiskToolsController

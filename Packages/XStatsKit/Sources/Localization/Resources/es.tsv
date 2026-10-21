@@ -2358,3 +2358,22 @@ Wi-Fi 图标大小	Tamaño del icono Wi-Fi
 首次使用需授权访问菜单栏应用列表；仅访问选定文件，无需屏幕录制。	Primero permite el acceso a la lista de apps. Solo se accede al archivo seleccionado; no se necesita grabación de pantalla.
 菜单栏应用尚未恢复	Las apps de la barra de menús no se han restaurado
 仍然退出会保留恢复记录，下次启动时重试；也可在系统设置的“菜单栏”中恢复显示。	Salir de todos modos conserva el registro de recuperación para volver a intentarlo en el próximo inicio. También puedes volver a mostrar las apps en Ajustes del Sistema → Barra de menús.
+端口	Puertos
+端口号	Puerto
+监听	Escuchando
+已建立	Establecida
+对端	Remoto
+冲突	Conflicto
+拷贝本地地址	Copiar dirección local
+拷贝对端地址	Copiar dirección remota
+按进程统计，同一进程的各行速率相同	Medido por proceso; las filas del mismo proceso muestran la misma velocidad
+搜索端口、进程、服务或地址	Buscar puerto, proceso, servicio o dirección
+暂时无法读取端口	No se pueden leer los puertos ahora
+查看监听端口、已建立的连接及占用进程，可结束占用端口的进程。	Consulta los puertos en escucha, las conexiones establecidas y los procesos que los usan; puedes terminar el proceso que ocupa un puerto.
+正在读取端口…	Leyendo puertos…
+没有匹配的端口	No hay puertos coincidentes
+监听 {} · 连接 {}	Escuchando {} · Conexiones {}
+端口 {} 同时被多个进程监听	Varios procesos escuchan en el puerto {}
+连接过多，只显示前 {} 项	Demasiadas conexiones; se muestran las primeras {}
+仅列出当前用户的进程，系统服务占用的端口不会显示	Solo se muestran tus procesos; no aparecen los puertos de los servicios del sistema
+会断开它占用的端口与连接，未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	Se cerrarán sus puertos y conexiones, y puedes perder el trabajo sin guardar. Forzar salida termina de inmediato sin permitir guardar.

@@ -184,6 +184,15 @@ struct FeatureSettings: View {
         }
         GroupRow {
           SettingRow(
+            title: tr("端口"),
+            subtitle: tr("查看监听端口、已建立的连接及占用进程，可结束占用端口的进程。"),
+            icon: "point.3.connected.trianglepath.dotted"
+          ) {
+            DSToggle(isOn: $settings.portsEnabled, label: tr("端口"))
+          }
+        }
+        GroupRow {
+          SettingRow(
             title: tr("应用"), subtitle: tr("浏览应用信息，管理 Homebrew，并预览卸载残留。"), icon: "square.grid.2x2"
           ) {
             DSToggle(isOn: $settings.uninstallerEnabled, label: tr("应用"))

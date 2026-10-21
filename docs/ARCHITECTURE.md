@@ -57,6 +57,16 @@ expansion preference is excluded from settings backups. These reads reuse the ex
 foreground interface refresh (about every four seconds); no network scans or new polling
 loops are added. Closing details or pausing the app stops the foreground refresh as before.
 
+The IP lookup sheet also reads a one-shot local-interface snapshot on opening and manual refresh,
+independent of monitoring enablement. It reuses `NetworkDetailsReader` address enumeration and
+SystemConfiguration service metadata, includes connected physical and tunnel interfaces, and omits
+loopback, system communication, disconnected and link-local-only interfaces. Extra IPv6 and
+link-local addresses are expandable. VPN product names appear only when associated with an actual
+system service; interface prefixes and address ranges do not identify Tailscale or WireGuard.
+Local addresses never go to lookup services. Hiding IPs removes local address and copy controls
+from the rendered and accessibility trees. Closing the sheet cancels presentation tasks; no
+observer, polling loop, external VPN command or persisted interface cache is added.
+
 ## Experimental menu bar folding
 
 Settings → Features → Experimental offers opt-in menu bar folding. On macOS 27,
@@ -190,6 +200,17 @@ process sampling to the collapsed overview. Expanding CPU, memory or disk detail
 their process data. The feature row explains the resource cost of refreshing the process list
 inline, before enabling, without a confirmation dialog. The preference is backed up; older documents without
 it preserve the current setting. Saved process-page routes fall back to Features settings when disabled.
+
+The port page is an optional tool, disabled by default through `portsEnabled`. `PortSampler` reads
+listening sockets and established TCP connections through libproc (`proc_listpids` → `proc_pidinfo`
+→ `proc_pidfdinfo`), so it only sees processes owned by the current user; system and root sockets
+are not listed. A port is marked as a conflict only when processes listen on it through separate
+kernel sockets (`soi_so`); forked workers sharing an inherited TCP listener and shared UDP ports
+are not flagged. Per-process rates reuse `NetworkProcessSampler`'s `nettop` deltas. `PortsController`
+samples every 3 seconds only while the feature is on, the main window shows the page, and the
+session is active; sleep and lock pause it, and the rate baseline is dropped on every stop. Turning
+the feature off clears results. Ending a process signals only its own PID (through `NSRunningApplication`
+when the process is an app), and it refuses root, other-user, XStats's own, and protected processes.
 
 The sandboxed WidgetKit extension samples CPU, memory, disk, and battery through `Metrics`
 independently, so it remains useful when the app is not running.

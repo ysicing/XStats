@@ -13,6 +13,7 @@ extension Translations {
       audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish,
       appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish,
       hardwareDetailsEnglish, aiCleanupEnglish, networkPresentationEnglish, trioEnglish,
+      portsEnglish,
     ]
   }
 

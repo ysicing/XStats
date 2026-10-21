@@ -2358,3 +2358,22 @@ Wi-Fi 图标大小	Größe des WLAN-Symbols
 首次使用需授权访问菜单栏应用列表；仅访问选定文件，无需屏幕录制。	Erlauben Sie zunächst den Zugriff auf die Menüleisten-App-Liste. Nur die gewählte Datei wird gelesen; eine Bildschirmaufnahme ist nicht erforderlich.
 菜单栏应用尚未恢复	Menüleisten-Apps wurden noch nicht wiederhergestellt
 仍然退出会保留恢复记录，下次启动时重试；也可在系统设置的“菜单栏”中恢复显示。	Beim Beenden bleibt das Wiederherstellungsprotokoll für einen erneuten Versuch beim nächsten Start erhalten. Du kannst die Apps auch unter Systemeinstellungen → Menüleiste wieder einblenden.
+端口	Ports
+端口号	Port
+监听	Lauschend
+已建立	Verbunden
+对端	Gegenstelle
+冲突	Konflikt
+拷贝本地地址	Lokale Adresse kopieren
+拷贝对端地址	Adresse der Gegenstelle kopieren
+按进程统计，同一进程的各行速率相同	Pro Prozess gemessen; Zeilen desselben Prozesses zeigen dieselbe Rate
+搜索端口、进程、服务或地址	Port, Prozess, Dienst oder Adresse suchen
+暂时无法读取端口	Ports können gerade nicht gelesen werden
+查看监听端口、已建立的连接及占用进程，可结束占用端口的进程。	Zeigt lauschende Ports, bestehende Verbindungen und die zugehörigen Prozesse; Prozesse, die einen Port belegen, lassen sich beenden.
+正在读取端口…	Ports werden gelesen …
+没有匹配的端口	Keine passenden Ports
+监听 {} · 连接 {}	Lauschend {} · Verbindungen {}
+端口 {} 同时被多个进程监听	Auf Port {} lauschen mehrere Prozesse
+连接过多，只显示前 {} 项	Zu viele Verbindungen; nur die ersten {} werden angezeigt
+仅列出当前用户的进程，系统服务占用的端口不会显示	Nur eigene Prozesse werden angezeigt; von Systemdiensten belegte Ports fehlen
+会断开它占用的端口与连接，未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	Seine Ports und Verbindungen werden getrennt, ungesicherte Arbeit kann verloren gehen. „Sofort beenden“ beendet ihn ohne Gelegenheit zum Sichern.

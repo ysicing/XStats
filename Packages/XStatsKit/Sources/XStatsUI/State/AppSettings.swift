@@ -365,7 +365,7 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
 /// 主窗口侧边栏的页面
 public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
   case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery,
-    processes, keepAwake, rest, cleaner, uninstaller, startupItems, audio, connections
+    processes, ports, keepAwake, rest, cleaner, uninstaller, startupItems, audio, connections
   case settingsGeneral, settingsFeatures, settingsMenuBar, settingsNotifications, settingsAccount,
     settingsHelper, settingsAbout
 
@@ -377,7 +377,8 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
   ]
   // 按中文名称由短到长排列，所有语言沿用固定顺序，保持导航位置一致。
   static let tools: [PanelTab] = [
-    .audio, .processes, .cleaner, .uninstaller, .rest, .startupItems, .keepAwake, .connections,
+    .audio, .processes, .ports, .cleaner, .uninstaller, .rest, .startupItems, .keepAwake,
+    .connections,
   ]
   // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
   static let settings: [PanelTab] = [
@@ -404,6 +405,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .thermal: tr("风扇")
     case .battery: tr("能耗")
     case .processes: tr("进程")
+    case .ports: tr("端口")
     case .keepAwake: tr("防休眠")
     case .rest: tr("计时")
     case .cleaner: tr("清理")
@@ -435,6 +437,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .thermal: "fan"
     case .battery: "bolt"
     case .processes: "list.bullet.rectangle"
+    case .ports: "point.3.connected.trianglepath.dotted"
     case .keepAwake: "cup.and.saucer"
     case .rest: "timer"
     case .cleaner: "eraser"
@@ -759,6 +762,13 @@ public final class AppSettings {
       if !processesEnabled && panelTab == .processes { panelTab = .settingsFeatures }
     }
   }
+  /// 端口查看默认关闭；只在打开端口页时读取本机 socket。
+  public var portsEnabled: Bool {
+    didSet {
+      defaults.set(portsEnabled, forKey: Keys.portsEnabled)
+      if !portsEnabled && panelTab == .ports { panelTab = .settingsFeatures }
+    }
+  }
   /// 清理工具默认开启；扫描只在打开页面后按需执行，保留用户已保存的关闭设置。
   public var cleanerEnabled: Bool {
     didSet {
@@ -849,6 +859,7 @@ public final class AppSettings {
       if panelTab == .audio && !audioEnabled { panelTab = .settingsFeatures }
       if panelTab == .connections && !canViewNetworkConnections { panelTab = .settingsFeatures }
       if panelTab == .processes && !processesEnabled { panelTab = .settingsFeatures }
+      if panelTab == .ports && !portsEnabled { panelTab = .settingsFeatures }
       if panelTab == .uninstaller && !uninstallerEnabled { panelTab = .settingsFeatures }
       defaults.set(panelTab.rawValue, forKey: Keys.panelTab)
     }
@@ -1212,6 +1223,8 @@ public final class AppSettings {
     uninstallerEnabled = isUninstallerEnabled
     let isProcessesEnabled = defaults.bool(forKey: Keys.processesEnabled)
     processesEnabled = isProcessesEnabled
+    let isPortsEnabled = defaults.bool(forKey: Keys.portsEnabled)
+    portsEnabled = isPortsEnabled
     aiUsageSources =
       defaults.stringArray(forKey: Keys.aiUsageSources)
       .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
@@ -1259,6 +1272,7 @@ public final class AppSettings {
           || (savedPanelTab == .cleaner && !isCleanerEnabled)
           || (savedPanelTab == .uninstaller && !isUninstallerEnabled)
           || (savedPanelTab == .processes && !isProcessesEnabled)
+          || (savedPanelTab == .ports && !isPortsEnabled)
         ? .settingsFeatures : savedPanelTab
     }
     appearance =
@@ -1579,6 +1593,7 @@ public final class AppSettings {
     static let cleanerEnabled = "cleanerEnabled"
     static let agentDataEnabled = "agentDataEnabled"
     static let processesEnabled = "processesEnabled"
+    static let portsEnabled = "portsEnabled"
     static let aiUsageSources = "aiUsageSources"
     static let aiUsageShowsLocalUsage = "aiUsageShowsLocalUsage"
     static let aiQuotaShowsRemaining = "aiQuotaShowsRemaining"

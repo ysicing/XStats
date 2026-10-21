@@ -130,6 +130,7 @@ public struct MainWindowView: View {
         case .thermal: ThermalPage()
         case .battery: EnergyPage()
         case .processes: ProcessesPage()
+        case .ports: PortsPage()
         case .keepAwake: KeepAwakePage()
         case .rest: RestPage()
         case .cleaner: CleanerPage()
@@ -249,6 +250,7 @@ private struct MainSidebar: View {
           case .cleaner: model.settings.cleanerEnabled
           case .uninstaller: model.settings.uninstallerEnabled
           case .processes: model.settings.processesEnabled
+          case .ports: model.settings.portsEnabled
           default: true
           }
         })
