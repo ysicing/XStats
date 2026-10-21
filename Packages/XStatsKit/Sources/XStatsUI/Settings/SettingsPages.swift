@@ -387,7 +387,6 @@ struct MenuBarSettings: View {
           }
         }
         .padding(DS.Space.s3)
-        .disabled(settings.menuBarLayout == .iconOnly)
       }
 
     }
@@ -437,13 +436,13 @@ struct MenuBarSettings: View {
               }
             }
             if moduleEnabled, settings.isEnabled(item) {
-              ItemStyleRow(item: item)
-                .disabled(settings.menuBarLayout == .iconOnly)
-              if item == .aiUsage, model.aiUsage.usesMagpie,
-                !model.aiUsage.availableMenuBarQuotaProviders.isEmpty
-              {
-                AIQuotaMenuBarSelection()
-                  .disabled(settings.menuBarLayout == .iconOnly)
+              if settings.menuBarLayout != .iconOnly {
+                ItemStyleRow(item: item)
+                if item == .aiUsage, model.aiUsage.usesMagpie,
+                  !model.aiUsage.availableMenuBarQuotaProviders.isEmpty
+                {
+                  AIQuotaMenuBarSelection()
+                }
               }
               if item == .network {
                 SettingRow(
@@ -471,17 +470,18 @@ struct MenuBarSettings: View {
     }
 
     SettingsGroup(caption: tr("其他")) {
-      GroupRow(showsDivider: false) {
-        SettingRow(title: tr("数值位置"), subtitle: tr("适用于双行文字及图形旁的双行文字")) {
-          SegmentedControl(
-            selection: $settings.menuBarValueOnTop,
-            options: [(true, tr("上方")), (false, tr("下方"))]
-          )
-          .fixedSize()
-          .disabled(settings.menuBarLayout == .iconOnly)
+      if settings.menuBarLayout != .iconOnly {
+        GroupRow(showsDivider: false) {
+          SettingRow(title: tr("数值位置"), subtitle: tr("适用于双行文字及图形旁的双行文字")) {
+            SegmentedControl(
+              selection: $settings.menuBarValueOnTop,
+              options: [(true, tr("上方")), (false, tr("下方"))]
+            )
+            .fixedSize()
+          }
         }
       }
-      GroupRow {
+      GroupRow(showsDivider: settings.menuBarLayout != .iconOnly) {
         SettingRow(
           title: tr("自定义弹窗内容"),
           subtitle: tr("选择各指标弹窗显示的内容，并调整排列顺序。")
@@ -489,24 +489,27 @@ struct MenuBarSettings: View {
           DSToggle(isOn: $settings.customPopoverContentEnabled, label: tr("自定义弹窗内容"))
         }
       }
-      GroupRow {
-        SettingRow(title: tr("项目间距"), subtitle: tr("调整合并菜单栏中各项目之间的距离")) {
-          Picker(tr("项目间距"), selection: $settings.menuBarItemSpacing) {
-            ForEach(AppSettings.menuBarSpacingOptions, id: \.self) { value in
-              Text(verbatim: value.formatted(.number.locale(L10n.locale)) + " pt").tag(value)
+      if settings.menuBarLayout == .combined {
+        GroupRow {
+          SettingRow(title: tr("项目间距"), subtitle: tr("调整合并菜单栏中各项目之间的距离")) {
+            Picker(tr("项目间距"), selection: $settings.menuBarItemSpacing) {
+              ForEach(AppSettings.menuBarSpacingOptions, id: \.self) { value in
+                Text(verbatim: value.formatted(.number.locale(L10n.locale)) + " pt").tag(value)
+              }
             }
+            .labelsHidden()
+            .fixedSize()
           }
-          .labelsHidden()
-          .fixedSize()
-          .disabled(settings.menuBarLayout != .combined)
         }
       }
-      GroupRow {
-        SettingRow(
-          title: tr("高负载时着色"),
-          subtitle: tr("占用偏高或电量偏低时用橙色、红色提示；电量 ≤20% 为橙色，≤10% 为红色")
-        ) {
-          DSToggle(isOn: $settings.colorizeHighLoad, label: tr("高负载时着色"))
+      if settings.menuBarLayout != .iconOnly {
+        GroupRow {
+          SettingRow(
+            title: tr("高负载时着色"),
+            subtitle: tr("占用偏高或电量偏低时用橙色、红色提示；电量 ≤20% 为橙色，≤10% 为红色")
+          ) {
+            DSToggle(isOn: $settings.colorizeHighLoad, label: tr("高负载时着色"))
+          }
         }
       }
       GroupRow {
@@ -518,12 +521,14 @@ struct MenuBarSettings: View {
           .fixedSize()
         }
       }
-      GroupRow {
-        SettingRow(
-          title: tr("蓝牙设备电量低时提示"),
-          subtitle: tr("键盘、鼠标、耳机等低于 20% 时，在菜单栏的电池项目旁显示该设备的图标与电量；需要开启电池项目")
-        ) {
-          DSToggle(isOn: $settings.bluetoothLowBatteryInMenuBar, label: tr("蓝牙设备电量低时提示"))
+      if settings.menuBarLayout != .iconOnly {
+        GroupRow {
+          SettingRow(
+            title: tr("蓝牙设备电量低时提示"),
+            subtitle: tr("键盘、鼠标、耳机等低于 20% 时，在菜单栏的电池项目旁显示该设备的图标与电量；需要开启电池项目")
+          ) {
+            DSToggle(isOn: $settings.bluetoothLowBatteryInMenuBar, label: tr("蓝牙设备电量低时提示"))
+          }
         }
       }
     }

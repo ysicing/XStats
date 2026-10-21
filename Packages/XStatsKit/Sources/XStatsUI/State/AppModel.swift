@@ -210,7 +210,7 @@ public final class AppModel {
   var drawnMenuBarItems: [MenuBarItem] {
     guard settings.menuBarLayout == .iconOnly else { return visibleMenuBarItems }
     var selected = Set(settings.trio.sources.compactMap(\.item))
-    if settings.trio.center == .network, settings.trio.bluetoothReplacesNetwork,
+    if settings.trio.center == .network, settings.trio.followsBluetoothAudio,
       settings.isModuleEnabled(for: .network)
     {
       selected.insert(.audio)
@@ -384,9 +384,14 @@ public final class AppModel {
     return demand
   }
 
-  /// 蓝牙电量读取很慢，只在需要时轮询：电池 / 本机信息页、蓝牙输出的音频界面打开时每分钟；
-  /// 菜单栏开着电池项且要做低电量提示、或这台 Mac 没有电池时每 5 分钟
+  /// 蓝牙读取很慢：设备相关页面打开时每分钟；菜单栏指定设备或需要蓝牙电量时每 5 分钟。
+  /// 前台需求优先于菜单栏后台需求，连接事件复用同一控制器。
   var bluetoothDemand: BluetoothController.Demand {
+    let trioBluetooth =
+      settings.menuBarLayout == .iconOnly && settings.trio.bluetoothReplacesNetwork
+    if trioBluetooth && isMainWindowVisible && settings.panelTab == .settingsMenuBar {
+      return .foreground
+    }
     if settings.audioEnabled && audioControlsVisible && audio.output?.bluetoothAddress != nil {
       return .foreground
     }
@@ -397,6 +402,11 @@ public final class AppModel {
     }
     if isCombinedOverviewVisible && visibleMenuBarItems.contains(.battery) && store.battery == nil {
       return .foreground
+    }
+    if trioBluetooth, settings.trio.bluetoothDeviceID != nil,
+      settings.isModuleEnabled(for: .network)
+    {
+      return .background
     }
     if drawnMenuBarItems.contains(.battery)
       && (settings.bluetoothLowBatteryInMenuBar || store.battery == nil)

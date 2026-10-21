@@ -1762,6 +1762,24 @@ extension Translations {
 
 extension Translations {
   static let trioEnglish = #"""
+    电池图标	Battery Icon
+    显示顶部内容	Show Top Content
+    电源状态显示	Power Status Display
+    始终显示电量	Always Show Battery Level
+    充电时显示闪电，其余显示电量	Show Bolt While Charging, Otherwise Battery Level
+    充电时显示闪电，接电时显示插头	Show Bolt While Charging, Plug on External Power
+    电量数字与符号大小	Battery Number and Symbol Size
+    网络图标	Network Icon
+    蓝牙图标	Bluetooth Icon
+    Wi-Fi 图标大小	Wi-Fi Icon Size
+    临时连接使用 Wi-Fi 图标	Use Wi-Fi Icon for Ad Hoc Connections
+    互联网共享使用 Wi-Fi 图标	Use Wi-Fi Icon for Internet Sharing
+    蓝牙设备替换网络图标	Replace Network Icon with Bluetooth Device
+    替换图标使用的设备	Device for Replacement Icon
+    仅改变图标，音量仍跟随当前输出；指定设备断开后显示网络图标。	Only changes the icon. Volume follows the current output; the network icon returns when the selected device disconnects.
+    自动跟随音频输出	Follow Audio Output Automatically
+    所选设备不可用	Selected Device Unavailable
+    蓝牙图标大小	Bluetooth Icon Size
     自由搭配三合一图标，点击查看状态总览	Customize a three-in-one icon; click for the status overview
     三合一内容	Three-in-One Content
     外环与顶部	Outer Ring and Top

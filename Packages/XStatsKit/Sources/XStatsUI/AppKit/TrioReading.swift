@@ -17,6 +17,8 @@ struct TrioReading: Equatable {
   var audioPlaying = false
   var audioSymbol = "headphones"
   var audioName: String?
+  var selectedBluetoothSymbol: String?
+  var selectedBluetoothName: String?
   struct AIDot: Equatable {
     let name: String
     /// nil 表示当前没有有效额度，与剩余额度为零区分；每个服务保留固定位置。
@@ -86,6 +88,15 @@ struct TrioReading: Equatable {
       audioSymbol = AudioControlPresentation.outputSymbol(output, muted: false)
       audioName = output?.name
     }
+    if items.contains(.network), configuration.bluetoothReplacesNetwork,
+      let selectedID = configuration.bluetoothDeviceID,
+      let device = model.bluetooth.devices?.first(where: {
+        $0.isConnected && BluetoothDevicePreferences.key($0.address) == selectedID
+      })
+    {
+      selectedBluetoothSymbol = device.kind.symbol
+      selectedBluetoothName = device.name
+    }
     keepAwake = model.keepAwake.isActive
   }
 
@@ -94,12 +105,29 @@ struct TrioReading: Equatable {
       if configuration.center == .audio { return audioSymbol }
       return configuration.center.item?.symbol ?? "minus"
     }
-    if configuration.bluetoothReplacesNetwork, bluetoothOutput,
-      !configuration.networkErrorsFirst || !connection.isError
-    {
-      return audioSymbol
-    }
+    if let symbol = bluetoothReplacementSymbol(configuration) { return symbol }
     return networkSymbol(configuration)
+  }
+
+  func bluetoothReplacementSymbol(_ configuration: TrioConfiguration) -> String? {
+    guard configuration.center == .network, configuration.bluetoothReplacesNetwork,
+      !configuration.networkErrorsFirst || !connection.isError
+    else { return nil }
+    if configuration.bluetoothDeviceID != nil { return selectedBluetoothSymbol }
+    return bluetoothOutput ? audioSymbol : nil
+  }
+
+  func batteryPowerSymbol(_ configuration: TrioConfiguration) -> String? {
+    guard configuration.outer == .battery, configuration.showsValue,
+      let level = values[.battery], level.isFinite
+    else { return nil }
+    switch configuration.effectiveBatteryDisplay {
+    case .value: return nil
+    case .chargingSymbol: return charging ? "bolt.fill" : nil
+    case .powerSymbol:
+      if charging { return "bolt.fill" }
+      return pluggedIn ? "powerplug.fill" : nil
+    }
   }
 
   func usesBlueVolume(_ configuration: TrioConfiguration) -> Bool {
@@ -113,8 +141,9 @@ struct TrioReading: Equatable {
     case .noInternet: "wifi.exclamationmark"
     case .ethernet: configuration.ethernetAsWiFi ? "wifi" : "network"
     case .hotspot: configuration.hotspotAsWiFi ? "wifi" : "personalhotspot"
-    case .temporary: "point.3.connected.trianglepath.dotted"
-    case .sharing: "arrow.up.forward.app"
+    case .temporary:
+      configuration.temporaryAsWiFi == true ? "wifi" : "point.3.connected.trianglepath.dotted"
+    case .sharing: configuration.sharingAsWiFi == true ? "wifi" : "arrow.up.forward.app"
     case .unknown: "questionmark"
     }
   }
@@ -199,11 +228,10 @@ struct TrioReading: Equatable {
         lines.append(tr("已连接电源，未充电"))
       }
     }
-    if configuration.center == .network, bluetoothOutput,
-      configuration.bluetoothReplacesNetwork,
-      let audioName
-    {
-      lines.append(audioName)
+    if bluetoothReplacementSymbol(configuration) != nil {
+      if let name = configuration.bluetoothDeviceID == nil ? audioName : selectedBluetoothName {
+        lines.append(name)
+      }
     }
     if keepAwake { lines.append(tr("防止休眠")) }
     return lines.isEmpty ? "XStats" : lines.joined(separator: "\n")

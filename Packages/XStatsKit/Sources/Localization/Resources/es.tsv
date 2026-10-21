@@ -2329,3 +2329,21 @@ Wi-Fi 不可用	Wi-Fi no disponible
 互联网共享	Compartir Internet
 已连接电源，未充电	Conectado, sin cargar
 防止休眠	Evitar reposo
+蓝牙设备替换网络图标	Sustituir el icono de red por el dispositivo Bluetooth
+替换图标使用的设备	Dispositivo para el icono de sustitución
+仅改变图标，音量仍跟随当前输出；指定设备断开后显示网络图标。	Solo cambia el icono. El volumen sigue la salida actual; al desconectarse el dispositivo elegido, vuelve el icono de red.
+自动跟随音频输出	Seguir la salida de audio automáticamente
+所选设备不可用	Dispositivo seleccionado no disponible
+蓝牙图标大小	Tamaño del icono Bluetooth
+网络图标	Icono de red
+蓝牙图标	Icono Bluetooth
+Wi-Fi 图标大小	Tamaño del icono Wi-Fi
+临时连接使用 Wi-Fi 图标	Usar el icono Wi-Fi para conexiones ad hoc
+互联网共享使用 Wi-Fi 图标	Usar el icono Wi-Fi al compartir Internet
+电池图标	Icono de batería
+显示顶部内容	Mostrar contenido superior
+电源状态显示	Visualización del estado de alimentación
+始终显示电量	Mostrar siempre el nivel de batería
+充电时显示闪电，其余显示电量	Rayo al cargar; nivel de batería en otros casos
+充电时显示闪电，接电时显示插头	Rayo al cargar; enchufe con alimentación externa
+电量数字与符号大小	Tamaño del número y símbolo de batería

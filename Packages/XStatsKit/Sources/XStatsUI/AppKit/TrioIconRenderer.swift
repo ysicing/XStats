@@ -4,15 +4,37 @@ import AppKit
 /// 用原生路径和 SF Symbols 绘制固定大小的单图标；没有常驻动画或独立刷新循环。
 @MainActor
 enum TrioIconRenderer {
+  /// 程序坞沿用菜单栏的矢量内容，用固定浅色底保持不同桌面背景下的可读性。
+  static func dockImage(reading: TrioReading, configuration: TrioConfiguration) -> NSImage {
+    let content = image(reading: reading, configuration: configuration, dark: false)
+    content.isTemplate = false
+    let image = NSImage(size: NSSize(width: 256, height: 256), flipped: false) { _ in
+      let tile = NSBezierPath(
+        roundedRect: NSRect(x: 16, y: 16, width: 224, height: 224), xRadius: 48, yRadius: 48)
+      NSColor.white.setFill()
+      tile.fill()
+      NSColor.black.withAlphaComponent(0.08).setStroke()
+      tile.lineWidth = 1
+      tile.stroke()
+      content.draw(in: NSRect(x: 32, y: 40, width: 192, height: 176))
+      return true
+    }
+    image.accessibilityDescription = content.accessibilityDescription
+    return image
+  }
+
   static func image(reading: TrioReading, configuration: TrioConfiguration, dark: Bool) -> NSImage {
+    let batteryLevel = reading.values[.battery]
     let colored =
       configuration.footer == .aiUsage
       || configuration.statusColors && configuration.sources.contains(.battery)
+        && batteryLevel?.isFinite == true
         && (reading.charging || reading.pluggedIn || reading.lowPower
-          || (reading.values[.battery] ?? 1) <= 0.2)
+          || LoadLevel.remaining(batteryLevel ?? 1) != .normal)
       || (configuration.sources.contains(.audio)
         || (configuration.center == .network
-          && reading.centerSymbol(configuration) == reading.audioSymbol))
+          && configuration.bluetoothDeviceID == nil
+          && reading.bluetoothReplacementSymbol(configuration) != nil))
         && reading.usesBlueVolume(configuration)
     let foreground: NSColor = colored && dark ? .white : .black
     let image = NSImage(size: NSSize(width: 24, height: 22), flipped: false) { _ in
@@ -41,10 +63,16 @@ enum TrioIconRenderer {
     foreground: NSColor
   ) -> NSColor {
     if source == .audio, reading.usesBlueVolume(configuration) { return .systemBlue }
-    guard configuration.statusColors, source == .battery, reading.values[.battery] != nil else {
+    guard configuration.statusColors, source == .battery,
+      let level = reading.values[.battery], level.isFinite
+    else {
       return foreground
     }
-    if reading.values[.battery]! < 0.2 { return .systemRed }
+    switch LoadLevel.remaining(level) {
+    case .critical: return .systemRed
+    case .warning: return .systemOrange
+    case .normal: break
+    }
     if reading.lowPower { return .systemYellow }
     if reading.charging || reading.pluggedIn { return .systemGreen }
     return foreground
@@ -81,15 +109,14 @@ enum TrioIconRenderer {
     guard source != .none else { return }
     let center = NSPoint(x: 12, y: 10.5)
     let radius: CGFloat = 9
-    let powerSymbol =
-      source == .battery && reading.values[source] != nil
-      && (reading.charging || reading.pluggedIn) && !config.showsValueWhenPluggedIn
+    let powerSymbol = reading.batteryPowerSymbol(config)
+    let topScale: CGFloat = source == .battery ? config.effectiveBatteryTopScale : 1
     let value = reading.shortValue(source)
-    let fontSize: CGFloat = value.count > 2 ? 7 : 8
+    let fontSize: CGFloat = (value.count > 2 ? 7 : 8) * topScale
     let font = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .bold)
     // 缺口按实际文字宽度留白，避免两位数和 100 与圆弧相交；没有顶部内容时连接整段圆环。
     let labelWidth: CGFloat =
-      if powerSymbol { 7 } else if config.showsValue {
+      if powerSymbol != nil { 7 * topScale } else if config.showsValue {
         min(18, (value as NSString).size(withAttributes: [.font: font]).width)
       } else { 0 }
     let angle: CGFloat =
@@ -113,10 +140,13 @@ enum TrioIconRenderer {
           width: 1.9)
       }
     }
-    if powerSymbol {
+    if let powerSymbol {
       symbol(
-        reading.charging ? "bolt.fill" : "powerplug.fill",
-        in: NSRect(x: 8.5, y: 15.5, width: 7, height: 6.5), color: active)
+        powerSymbol,
+        in: NSRect(
+          x: 12 - 3.5 * topScale, y: 22 - 6.5 * topScale,
+          width: 7 * topScale, height: 6.5 * topScale),
+        color: active)
     } else if config.showsValue {
       if source == .network {
         symbol(
@@ -135,19 +165,32 @@ enum TrioIconRenderer {
   ) {
     let source = config.center
     guard source != .none else { return }
-    let rect = NSRect(x: 6, y: 5.5, width: 12, height: 10)
+    var rect = NSRect(x: 6, y: 5.5, width: 12, height: 10)
     if source == .network || source == .audio {
-      let isBluetooth = source == .audio || reading.centerSymbol(config) == reading.audioSymbol
-      let color: NSColor = isBluetooth && reading.usesBlueVolume(config) ? .systemBlue : foreground
+      let replacement = reading.bluetoothReplacementSymbol(config) != nil
+      let name = reading.centerSymbol(config)
+      let scale: Double =
+        if replacement {
+          config.effectiveBluetoothIconScale
+        } else if source == .network && name.hasPrefix("wifi") {
+          config.effectiveWiFiIconScale
+        } else { 1 }
+      if scale != 1 {
+        // 顶边固定，缩放限制在外环内，避免向上侵入顶部数值。
+        rect = NSRect(
+          x: 12 - 6 * scale, y: 15.5 - 10 * scale, width: 12 * scale, height: 10 * scale)
+      }
+      let isAudio = source == .audio || (replacement && config.bluetoothDeviceID == nil)
+      let color: NSColor = isAudio && reading.usesBlueVolume(config) ? .systemBlue : foreground
       var opacity: CGFloat = 1
       var variable: Double?
-      if source == .network, !isBluetooth {
+      if source == .network, !replacement {
         if case .wifi(let bars) = reading.connection { variable = Double(bars) / 3 }
         if reading.connection == .unassociated { variable = 0 }
         if reading.connection == .unknown { opacity = 0.4 }
       }
       symbol(
-        reading.centerSymbol(config), in: rect, color: color.withAlphaComponent(opacity),
+        name, in: rect, color: color.withAlphaComponent(opacity),
         variable: variable)
     } else if source == .display {
       symbol(source.item!.symbol, in: rect, color: foreground)

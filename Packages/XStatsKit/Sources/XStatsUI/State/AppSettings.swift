@@ -896,7 +896,7 @@ public final class AppSettings {
       if menuBarLayout == .iconOnly {
         let added = normalized.sources.filter { !previous.sources.contains($0) }
         if !added.isEmpty { enableTrioSources(added) }
-        if normalized.bluetoothReplacesNetwork, !previous.bluetoothReplacesNetwork {
+        if normalized.followsBluetoothAudio, !previous.followsBluetoothAudio {
           audioEnabled = true
         }
       }

@@ -5,6 +5,34 @@ import Testing
 @testable import Localization
 
 struct NetworkPresentationLocalizationTests {
+  @Test func trioBatteryOptionsHaveExplicitTranslations() throws {
+    let keys = [
+      "电池图标", "显示顶部内容", "电源状态显示", "始终显示电量",
+      "充电时显示闪电，其余显示电量", "充电时显示闪电，接电时显示插头",
+      "电量数字与符号大小",
+    ]
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for key in keys {
+        #expect(table.sourceKeys.contains(key), "\(language): \(key)")
+        #expect(table.translate(key)?.isEmpty == false, "\(language): \(key)")
+      }
+    }
+  }
+
+  @Test func trioNetworkIconOptionsHaveExplicitTranslations() throws {
+    let keys = [
+      "网络图标", "蓝牙图标", "Wi-Fi 图标大小", "临时连接使用 Wi-Fi 图标", "互联网共享使用 Wi-Fi 图标",
+    ]
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for key in keys {
+        #expect(table.sourceKeys.contains(key), "\(language): \(key)")
+        #expect(table.translate(key)?.isEmpty == false, "\(language): \(key)")
+      }
+    }
+  }
+
   @Test func wirelessDetailsAndOrderingHaveExplicitTranslations() throws {
     let keys = [
       "自定义弹窗内容", "选择各指标弹窗显示的内容，并调整排列顺序。", "弹窗内容", "恢复默认顺序", "拖动以调整顺序", "已显示 {} / {} 项", "链路速率",

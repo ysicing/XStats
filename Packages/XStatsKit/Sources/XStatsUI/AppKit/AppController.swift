@@ -585,6 +585,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       Log.app.error("Unable to change application activation policy: \(policy.rawValue)")
       return
     }
+    menuBar.refreshDockIcon()
     if hasWindow && !NSApp.isHidden { NSApp.activate() }
   }
 
@@ -608,6 +609,12 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.settings.menuBarOrder
       _ = model.settings.menuBarItemSpacing
       _ = model.settings.trio
+      if model.settings.menuBarLayout == .iconOnly,
+        model.settings.trio.bluetoothReplacesNetwork,
+        model.settings.trio.bluetoothDeviceID != nil
+      {
+        _ = model.bluetooth.devices
+      }
       _ = model.settings.menuBarLayout
       _ = model.settings.menuBarValueOnTop
       _ = model.settings.menuBarStyle

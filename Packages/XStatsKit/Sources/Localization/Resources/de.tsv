@@ -2329,3 +2329,21 @@ Wi-Fi 不可用	Wi-Fi nicht verfügbar
 互联网共享	Internetfreigabe
 已连接电源，未充电	Am Netz, lädt nicht
 防止休眠	Ruhezustand verhindern
+蓝牙设备替换网络图标	Netzwerksymbol durch Bluetooth-Gerät ersetzen
+替换图标使用的设备	Gerät für das Ersatzsymbol
+仅改变图标，音量仍跟随当前输出；指定设备断开后显示网络图标。	Ändert nur das Symbol. Die Lautstärke folgt der aktuellen Ausgabe; wird das gewählte Gerät getrennt, erscheint das Netzwerksymbol.
+自动跟随音频输出	Audioausgabe automatisch folgen
+所选设备不可用	Gewähltes Gerät nicht verfügbar
+蓝牙图标大小	Größe des Bluetooth-Symbols
+网络图标	Netzwerksymbol
+蓝牙图标	Bluetooth-Symbol
+Wi-Fi 图标大小	Größe des WLAN-Symbols
+临时连接使用 Wi-Fi 图标	WLAN-Symbol für Ad-hoc-Verbindungen verwenden
+互联网共享使用 Wi-Fi 图标	WLAN-Symbol für Internetfreigabe verwenden
+电池图标	Batteriesymbol
+显示顶部内容	Inhalt oben anzeigen
+电源状态显示	Anzeige des Stromstatus
+始终显示电量	Immer Batteriestand anzeigen
+充电时显示闪电，其余显示电量	Beim Laden Blitz, sonst Batteriestand anzeigen
+充电时显示闪电，接电时显示插头	Beim Laden Blitz, bei Netzbetrieb Stecker anzeigen
+电量数字与符号大小	Größe der Batteriezahl und Symbole

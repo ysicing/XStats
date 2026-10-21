@@ -18,6 +18,8 @@ final class MenuBarController: NSObject {
 
   private var renderedTrio:
     (reading: TrioReading, configuration: TrioConfiguration, appearance: NSAppearance.Name)?
+  private var renderedDockTrio:
+    (reading: TrioReading, configuration: TrioConfiguration, language: AppLanguage)?
   private var renderedItemSpacing: Int?
 
   /// 开发调试：启动后展开并固定某个弹窗
@@ -87,8 +89,9 @@ final class MenuBarController: NSObject {
   func refreshImages(force: Bool = false) {
     let settings = model.settings
     if settings.menuBarLayout == .iconOnly {
-      guard let button = items.first?.statusItem.button else { return }
       let reading = TrioReading(model: model)
+      refreshDockIcon(reading: reading)
+      guard let button = items.first?.statusItem.button else { return }
       let appearance = button.effectiveAppearance
       if force || renderedTrio?.reading != reading || renderedTrio?.configuration != settings.trio
         || renderedTrio?.appearance != appearance.name
@@ -105,6 +108,7 @@ final class MenuBarController: NSObject {
       }
       return
     }
+    refreshDockIcon()
     renderedTrio = nil
     if renderedItemSpacing != settings.menuBarItemSpacing {
       renderedReadings.removeAll()
@@ -145,6 +149,27 @@ final class MenuBarController: NSObject {
         ? "XStats" : reading.tooltip(items: itemsToDraw, fahrenheit: settings.useFahrenheit)
       if button.toolTip != tooltip { button.toolTip = tooltip }
     }
+  }
+
+  /// 共用现有采样刷新；隐藏程序坞时释放动态图标，重新显示时立即补上当前状态。
+  func refreshDockIcon(reading: TrioReading? = nil) {
+    guard model.settings.menuBarLayout == .iconOnly, NSApp.activationPolicy() == .regular else {
+      if renderedDockTrio != nil {
+        NSApp.applicationIconImage = nil
+        renderedDockTrio = nil
+      }
+      return
+    }
+    let reading = reading ?? TrioReading(model: model)
+    let configuration = model.settings.trio
+    let language = model.settings.language
+    guard
+      renderedDockTrio?.reading != reading || renderedDockTrio?.configuration != configuration
+        || renderedDockTrio?.language != language
+    else { return }
+    NSApp.applicationIconImage = TrioIconRenderer.dockImage(
+      reading: reading, configuration: configuration)
+    renderedDockTrio = (reading, configuration, language)
   }
 
   // MARK: 点击
