@@ -192,6 +192,8 @@ brew install --cask xstats
 - **네트워크 모니터**: 구성요소와 공개 지리 데이터베이스를 다운로드할 때 네트워크에 연결하며 연결 기록과 대상 IP는 업로드하지 않습니다.
 - **네트워크 진단**: 공인 IP, 위치, 속도 테스트, DNS, 연결 탐색, 글로벌 프로브는 해당 서비스에 연결합니다. 글로벌 프로브의 대상과 결과는 다른 사람이 조회할 수 있습니다.
 
+macOS 27의 실험적 메뉴 막대 접기는 선택한 앱을 숨기고 복원하기 위해 시스템 설정 파일 하나에 대한 접근을 요청합니다. 화면 기록은 필요하지 않으며 앱 목록을 업로드하지 않습니다.
+
 자세한 내용은 [개인정보 처리방침(영어)](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.en.md)과 [서비스 약관(영어)](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.en.md)을 확인하세요.
 
 ## 빌드와 기여

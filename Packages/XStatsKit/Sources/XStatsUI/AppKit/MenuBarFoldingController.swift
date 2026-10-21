@@ -5,18 +5,26 @@ import AppKit
 import Localization
 import Observation
 
-/// 仅通过原生状态项占位触发溢出，不枚举或操作其他应用的图标。
+/// macOS 27 按应用切换系统显示开关；较早系统沿用状态项占位。
 @MainActor
 final class MenuBarFoldingController: NSObject {
   private let settings: AppSettings
+  private let applicationFolding: MenuBarApplicationFolding?
   private var arrow: NSStatusItem?
   private var divider: NSStatusItem?
   private var started = false
   private var awaitingLayout = false
   private(set) var isCollapsed = false
 
-  init(settings: AppSettings) {
+  init(
+    settings: AppSettings, applicationFolding: MenuBarApplicationFolding? = nil,
+    usesApplicationVisibility: Bool = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+      >= 27
+  ) {
     self.settings = settings
+    self.applicationFolding =
+      usesApplicationVisibility
+      ? (applicationFolding ?? MenuBarApplicationFolding(settings: settings)) : nil
     super.init()
   }
 
@@ -44,10 +52,27 @@ final class MenuBarFoldingController: NSObject {
     withObservationTracking {
       _ = settings.menuBarFoldingEnabled
       _ = settings.language
+      _ = applicationFolding?.isCollapsed
+      _ = applicationFolding?.isBusy
+      _ = applicationFolding?.recoveryNeeded
+      _ = applicationFolding?.issue
     } onChange: { [weak self] in
       Task { @MainActor in self?.observeSettings() }
     }
-    if settings.menuBarFoldingEnabled {
+    if let applicationFolding {
+      applicationFolding.setEnabled(settings.menuBarFoldingEnabled)
+      isCollapsed = applicationFolding.isCollapsed
+      // 恢复失败时保留恢复入口，即使用户已关闭开关。
+      if settings.menuBarFoldingEnabled || applicationFolding.recoveryNeeded {
+        if arrow == nil {
+          arrow = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+          arrow?.autosaveName = "XStats.Folding.Arrow"
+        }
+        updateButtons()
+      } else {
+        removeItems()
+      }
+    } else if settings.menuBarFoldingEnabled {
       if arrow == nil {
         isCollapsed = settings.menuBarFoldingCollapsed
         // 新状态项通常插在左侧；恢复的系统排列仍可能改变这两个项目的相对位置。
@@ -66,6 +91,12 @@ final class MenuBarFoldingController: NSObject {
   }
 
   @objc func toggle() {
+    if let applicationFolding {
+      if settings.menuBarFoldingEnabled || applicationFolding.recoveryNeeded {
+        applicationFolding.toggle()
+      }
+      return
+    }
     guard divider != nil else { return }
     isCollapsed.toggle()
     settings.menuBarFoldingCollapsed = isCollapsed
@@ -73,6 +104,10 @@ final class MenuBarFoldingController: NSObject {
   }
 
   @objc func expand() {
+    if let applicationFolding {
+      applicationFolding.expand()
+      return
+    }
     isCollapsed = false
     updateButtons()
   }
@@ -101,11 +136,25 @@ final class MenuBarFoldingController: NSObject {
   }
 
   private func updateButtons() {
+    if let applicationFolding {
+      let title =
+        applicationFolding.recoveryNeeded || isCollapsed
+        ? tr("展开菜单栏图标") : tr("收起菜单栏图标")
+      arrow?.button?.title = ""
+      arrow?.button?.target = self
+      arrow?.button?.action = #selector(toggle)
+      arrow?.button?.isEnabled = !applicationFolding.isBusy
+      arrow?.button?.image = NSImage(
+        systemSymbolName: isCollapsed ? "chevron.left" : "chevron.right",
+        accessibilityDescription: title)
+      arrow?.button?.toolTip = applicationFolding.issue ?? title
+      arrow?.button?.setAccessibilityLabel(title)
+      return
+    }
     // 初始窗口坐标尚未就绪时先保留展开布局，等待原生布局通知后再恢复折叠。
     let canCollapse = !isCollapsed || (divider?.length ?? 0) > 12 || ensureArrowOnRight()
     awaitingLayout = !canCollapse
-    // 固定 500pt 在箭头靠右时仍能放下，会留下大片空白；接近半屏宽才能让占位一起溢出。
-    // macOS 27 会直接丢弃达到半屏宽的状态项，因此保留 20pt 余量，不能使用超长占位。
+    // 较早系统保留原有占位尺寸；macOS 27 已在上方使用应用显示开关。
     let screenWidth = NSScreen.screens.map(\.frame.width).min() ?? 1512
     divider?.button?.image = nil
     // 不使用 isTransparent 隐藏标题：macOS 27 的菜单栏宿主仍可能绘制标题内容。
@@ -129,7 +178,7 @@ final class MenuBarFoldingController: NSObject {
   }
 
   private func removeItems() {
-    expand()
+    if applicationFolding == nil { expand() }
     // 旧版 AppKit 移除状态项会清除位置；保存其偏好。macOS 27 由系统自行管理排列。
     let defaults = UserDefaults.standard
     let positions = [divider, arrow].compactMap { item -> (String, Any)? in

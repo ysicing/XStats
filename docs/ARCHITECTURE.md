@@ -59,30 +59,36 @@ loops are added. Closing details or pausing the app stops the foreground refresh
 
 ## Experimental menu bar folding
 
-Settings → Features has Basic, Optional, and Experimental categories. Experimental offers
-opt-in menu bar folding, disabled by default on all supported macOS
-versions. Existing local enable and collapse choices are preserved. Hold Command and drag
-infrequently used icons left of the divider, keeping the arrow to its right; click the arrow
-to collapse or expand. Disabling the feature removes both controls and restores available space.
-`MenuBarFoldingController` owns two native status items independently of metric item rebuilding.
-The divider button is transparent, retaining its layout and drag position without drawing a line.
-The divider and arrow are independently movable: the divider defines the folding boundary and
-does not follow the arrow. macOS 27 manages placement itself; the legacy position preference
-preservation in the controller applies to earlier macOS versions, not automatic adjacency.
-It sizes the spacer to half the narrowest display width minus 20 points. A fixed 500-point
-spacer can remain visible as a blank gap when the arrow is farther right; reaching half the
-display width can instead cause macOS 27 to discard the spacer without pushing other items.
-On macOS 27, manual collapse deliberately triggers native overflow and its double-chevron
-button even when unused screen space remains. Opening the system overflow can expose the
-wide transparent spacer as a blank gap or displaced icons. Experimental settings explains
-this limitation and directs users to expand with the XStats arrow or disable folding. With folding
-disabled, XStats does not force overflow; macOS handles it naturally as icons run out of room.
-The near-half-width approach is tested on macOS 27.0.1 with a 1920-point-wide display;
-other layouts and OS versions remain unverified. This relies on native overflow, not a public
-hide-other-apps API, so sufficient hiding is not guaranteed. Startup restores the last manual
-collapse/expand choice; screen changes temporarily expand the section without overwriting it.
-The enable preference and manual choice stay local and are excluded from settings export/sync.
-There is no icon enumeration, automatic arrangement, background polling, or extra permission.
+Settings → Features → Experimental offers opt-in menu bar folding. On macOS 27,
+`MenuBarApplicationFolding` manages an explicit selection of third-party applications.
+A single status-item arrow switches their system menu-bar visibility; it does not insert
+an oversized separator. All icons owned by an external application change together.
+Apple system items and XStats itself are excluded. Selection and file-access bookmarks
+are local to this Mac and excluded from settings export/sync.
+
+The user grants access to `group.com.apple.controlcenter.plist` through an `NSOpenPanel`.
+`MenuBarVisibilityStore` reads the `trackedApplications` binary property list and changes
+only the existing selected applications' `isAllowed` values. The format is undocumented;
+unreadable, malformed, missing, or concurrently changed input fails explicitly. Unknown
+fields are retained, and writes target only this one preference key. No private framework,
+closed-source dependency, screen capture, icon movement, system-process restart, or
+background polling is used. Preference reads and writes run on one serial background queue
+with bounded output and a subprocess deadline. Readback confirms preference state, not
+whether MenuBarAgent has visually applied it; that still requires native UI verification.
+
+A recovery journal is persisted before hiding previously visible applications. Expanding,
+disabling, and normal termination restore only those entries; applications already hidden
+by the user stay hidden. Startup attempts recovery even with folding disabled. A failed
+restore retains the journal and recovery UI; normal termination waits for pending writes
+and refuses to finish if restoration fails. A crash can leave apps hidden until the next
+successful recovery or a manual change in System Settings → Menu Bar. Other managers
+editing the same applications concurrently are not supported: a boolean preference cannot
+identify who last wrote an identical value.
+
+Earlier macOS versions retain the two-status-item divider/arrow implementation, including
+manual Command-drag arrangement, saved positions and temporary expansion after screen
+changes. Both implementations preserve the last manual collapse choice across restarts;
+opening the application picker temporarily expands the native mode for editing.
 
 ## Sampling
 

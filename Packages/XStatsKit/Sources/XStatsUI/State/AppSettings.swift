@@ -555,6 +555,7 @@ public enum UpdateCheckSchedule: String, CaseIterable, Identifiable, Sendable {
 public final class AppSettings {
   @ObservationIgnored private let defaults: UserDefaults
   var audioDefaults: UserDefaults { defaults }
+  var menuBarFoldingDefaults: UserDefaults { defaults }
   var networkObservationDefaults: UserDefaults { defaults }
   var updateDefaults: UserDefaults { defaults }
 

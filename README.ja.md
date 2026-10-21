@@ -192,6 +192,8 @@ brew install --cask xstats
 - **ネットワークモニター**：コンポーネントと公開地理データベースのダウンロード時に接続します。接続記録や接続先 IP はアップロードしません。
 - **ネットワーク診断**：公開 IP、所在地、速度テスト、DNS、接続テスト、グローバルプローブは各サービスへ接続します。グローバルプローブの対象と結果は他の人が照会できる場合があります。
 
+macOS 27 の実験的なメニューバー折りたたみは、選択したアプリの非表示と復元のため、システム設定ファイル 1 つへのアクセスを求めます。画面収録は不要で、アプリ一覧はアップロードしません。
+
 詳細は[プライバシーポリシー（英語）](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.en.md)と[利用規約（英語）](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.en.md)を参照してください。
 
 ## ビルドと貢献

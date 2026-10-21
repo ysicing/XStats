@@ -192,6 +192,8 @@ brew install --cask xstats
 - **网络监视器**：下载组件及公共地理数据库时联网；连接记录和目标 IP 不上传。
 - **网络诊断**：公网 IP、归属地、测速、DNS、连接探测与全球探针会请求相应服务；全球探针的测量目标与结果可能被他人查询。
 
+macOS 27 的实验性菜单栏折叠需授权访问单个系统配置文件，用于隐藏和恢复所选应用；无需屏幕录制，应用列表不上传。
+
 完整说明见[隐私政策](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.zh-Hans.md)和[服务条款](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.zh-Hans.md)。
 
 ## 构建与贡献

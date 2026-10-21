@@ -192,6 +192,8 @@ Monitoring data, local history and AI token statistics are processed locally and
 - **Network Monitor**: downloads the component and a public geography database; connection records and destination IPs are not uploaded.
 - **Network diagnostics**: public IP, location, speed tests, DNS, connectivity probes and global probes contact their services; global-probe targets and results may be queried by others.
 
+Experimental menu bar folding on macOS 27 asks for access to one system configuration file to hide and restore selected apps. It does not require screen recording or upload the app list.
+
 See the [Privacy Policy](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.en.md) and [Terms of Service](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.en.md) for details.
 
 ## Build and contribute

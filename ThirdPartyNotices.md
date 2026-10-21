@@ -32,6 +32,13 @@ Apple 智能功能对应的偏好键、模型集合和资产清单字段参考
 [pared](https://github.com/4evy/pared)（MIT）研究。XStats 的 Swift 状态判定、只读资产查询、限时子进程与浮层为独立实现，
 未引入上游源码或运行时依赖，不执行其模型重置、删除、下载阻断或配置描述文件操作。
 
+## macOS 27 菜单栏应用显示参考
+
+系统 `trackedApplications` / `isAllowed` 字段结构与通过偏好服务更新显示开关的思路参考
+[Tuck 的公开实现](https://github.com/beaugunderson/tuck/blob/49bbe23ce9ce22217c7709b6f8293468387c9826/Sources/AllowList.swift)（GPL-3.0）。
+XStats 的配置校验、单键写入、恢复日志、串行执行与授权界面为独立实现，未引入 Tuck 源码或运行时依赖，
+也未引入 Thaw 的闭源 PlatformRuntimeKit。
+
 ## gentpan/OpenStats
 
 XStats 基于 [gentpan/OpenStats](https://github.com/gentpan/OpenStats) 开发，感谢原项目的开源贡献。

@@ -16,7 +16,7 @@ struct MenuBarFoldingTests {
     let settings = AppSettings(defaults: defaults)
     #expect(!settings.menuBarFoldingEnabled)
     settings.menuBarFoldingCollapsed = collapsed
-    let controller = MenuBarFoldingController(settings: settings)
+    let controller = MenuBarFoldingController(settings: settings, usesApplicationVisibility: false)
     defer { controller.stop() }
 
     controller.start()
@@ -41,7 +41,7 @@ struct MenuBarFoldingTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
     settings.menuBarFoldingEnabled = true
-    let controller = MenuBarFoldingController(settings: settings)
+    let controller = MenuBarFoldingController(settings: settings, usesApplicationVisibility: false)
     defer { controller.stop() }
     controller.start()
     #expect(!controller.isCollapsed)
@@ -50,7 +50,8 @@ struct MenuBarFoldingTests {
     #expect(controller.isCollapsed == collapsed)
     controller.stop()
 
-    let restored = MenuBarFoldingController(settings: AppSettings(defaults: defaults))
+    let restored = MenuBarFoldingController(
+      settings: AppSettings(defaults: defaults), usesApplicationVisibility: false)
     defer { restored.stop() }
     restored.start()
     #expect(restored.isCollapsed == collapsed)
@@ -63,7 +64,7 @@ struct MenuBarFoldingTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
     settings.menuBarFoldingEnabled = true
-    let controller = MenuBarFoldingController(settings: settings)
+    let controller = MenuBarFoldingController(settings: settings, usesApplicationVisibility: false)
     defer { controller.stop() }
     controller.start()
     controller.toggle()
@@ -72,7 +73,8 @@ struct MenuBarFoldingTests {
     #expect(!controller.isCollapsed)
     controller.stop()
 
-    let restored = MenuBarFoldingController(settings: AppSettings(defaults: defaults))
+    let restored = MenuBarFoldingController(
+      settings: AppSettings(defaults: defaults), usesApplicationVisibility: false)
     defer { restored.stop() }
     restored.start()
     #expect(restored.isCollapsed)

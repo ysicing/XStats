@@ -77,6 +77,15 @@ extension Translations {
     """#
 
   static let hardwareDetailsEnglish = #"""
+    管理应用…	Manage Apps…
+    授权菜单栏应用列表	Allow Access to Menu Bar App List
+    请选择 group.com.apple.controlcenter.plist，仅授权此文件，用于隐藏和恢复所选应用。	Select group.com.apple.controlcenter.plist. Access is limited to this file, to hide and restore selected apps.
+    授权访问	Allow Access
+    无法读取菜单栏应用列表，请重新授权该文件。	Cannot read the menu bar app list. Allow access to the file again.
+    菜单栏应用尚未恢复，请重试恢复后退出。	Menu bar apps have not been restored. Retry restoring them before quitting.
+    无法读取或更新菜单栏应用列表，请授权后重试；也可在系统设置中恢复显示。	Cannot read or update the menu bar app list. Allow access and retry; you can also restore visibility in System Settings.
+    选择要隐藏的应用，点击菜单栏箭头收起或展开。同一应用的图标会一起变化。	Choose apps to hide, then click the menu bar arrow to collapse or expand. All icons from the same app change together.
+    首次使用需授权访问菜单栏应用列表；仅访问选定文件，无需屏幕录制。	First, allow access to the menu bar app list. Only the selected file is accessed; screen recording is not required.
     数值位置	Value Position
     适用于双行文字及图形旁的双行文字	Applies to two-line text and two-line text beside charts
     上方	Above

@@ -13,6 +13,7 @@ import Updates
 public final class AppModel {
   let displays = DisplayController()
   let audio: AudioController
+  let menuBarApplicationFolding: MenuBarApplicationFolding
   let connectionMonitor: NetworkMonitorController
   let networkComponent: NetworkComponentController
   let networkGeography = NetworkGeographyController()
@@ -116,6 +117,7 @@ public final class AppModel {
     let store = MetricsStore()
     let helper = HelperClient()
     self.settings = settings
+    menuBarApplicationFolding = MenuBarApplicationFolding(settings: settings)
     uninstaller = UninstallerController(enabled: settings.uninstallerEnabled)
     let observationBackend = NativeNetworkMonitorBackend()
     connectionMonitor = NetworkMonitorController(

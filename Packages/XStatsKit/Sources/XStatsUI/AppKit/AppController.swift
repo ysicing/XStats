@@ -136,7 +136,12 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.connectionMonitor.resumeAfterUpdate()
     menuBar.update()
     calendarMenuBar.start()
-    menuBarFolding = MenuBarFoldingController(settings: model.settings)
+    model.menuBarApplicationFolding.showManagement = { [weak self] in
+      self?.model.featureSettingsTab = .experimental
+      self?.model.openMainWindow(.settingsFeatures)
+    }
+    menuBarFolding = MenuBarFoldingController(
+      settings: model.settings, applicationFolding: model.menuBarApplicationFolding)
     menuBarFolding.start()
 
     // 设置已并入主窗口：所有“设置…”入口都打开主窗口的通用设置
@@ -331,10 +336,21 @@ public final class AppController: NSObject, NSApplicationDelegate {
     guard
       needsNetwork || model.wellness.requiresTerminationPreparation
         || XStatsCapture.workspace.hasActiveWorkspace
+        || model.menuBarApplicationFolding.requiresTerminationPreparation
     else { return .terminateNow }
     // Sparkle 在安装就绪后可能因用户主动退出而继续安装；退出也必须经过相同的停用门禁。
     terminationTask = Task {
       defer { terminationTask = nil }
+      do {
+        try await model.menuBarApplicationFolding.prepareForTermination()
+      } catch {
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = tr("菜单栏应用尚未恢复，请重试恢复后退出。")
+        alert.runModal()
+        sender.reply(toApplicationShouldTerminate: false)
+        return
+      }
       do {
         if needsNetwork {
           let updatingApp = model.updates.installationRequiresPreparation
@@ -349,6 +365,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         await XStatsCapture.workspace.prepareForTermination()
         sender.reply(toApplicationShouldTerminate: true)
       } catch {
+        model.menuBarApplicationFolding.cancelTermination()
         model.networkComponent.cancelTermination()
         if model.updates.installationRequiresPreparation {
           model.updates.installationPreparationFailed(error)

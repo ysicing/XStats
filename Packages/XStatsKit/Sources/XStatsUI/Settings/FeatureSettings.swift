@@ -277,22 +277,18 @@ struct FeatureSettings: View {
         }
       }
       SettingsGroup {
-        GroupRow(showsDivider: false) {
-          SettingRow(
-            title: tr("折叠菜单栏图标"),
-            subtitle: tr("按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。"),
-            icon: "menubar.arrow.up.rectangle"
-          ) {
-            DSToggle(isOn: $settings.menuBarFoldingEnabled, label: tr("折叠菜单栏图标"))
-          }
-        }
         if #available(macOS 27, *) {
-          InfoBanner(
-            icon: "exclamationmark.triangle",
-            text: tr("点击系统双箭头可能出现空白或图标错位。请用 XStats 箭头展开；无法恢复时关闭此功能。")
-          )
-          .padding(.horizontal, DS.Space.s4)
-          .padding(.bottom, DS.Space.s3)
+          MenuBarApplicationFoldingSettings()
+        } else {
+          GroupRow(showsDivider: false) {
+            SettingRow(
+              title: tr("折叠菜单栏图标"),
+              subtitle: tr("按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。"),
+              icon: "menubar.arrow.up.rectangle"
+            ) {
+              DSToggle(isOn: $settings.menuBarFoldingEnabled, label: tr("折叠菜单栏图标"))
+            }
+          }
         }
       }
     }
