@@ -413,6 +413,7 @@ private struct AddressSection: View {
           }
         }
       }
+      LocalIPQueryButton()
       MiniIconButton(
         systemName: "arrow.triangle.branch", help: tr("出口与分流：检查 VPN 与代理是否生效、各网站从哪个出口出去")
       ) {

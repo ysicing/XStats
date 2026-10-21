@@ -121,7 +121,7 @@ When Magpie is installed, account quotas, tokens and costs come from its local A
 | **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
 | **Apps and cleanup** | Browse app information, check App Store updates, manage Homebrew, and review app leftovers, caches and build artifacts · [Cleanup scope](docs/CLEANUP.md) |
 | **Startup items** | Manage login items and background startup entries |
-| **Network diagnostics** | Speed tests, DNS queries, egress checks, public IP location and purity, connectivity probes |
+| **Network diagnostics** | Speed tests, DNS queries, egress checks, multi-source public IP lookup, location and purity, connectivity probes |
 | **Menu bar calendar** | Chinese lunar calendar, holidays and make-up workdays, almanac, calendar events and reminders |
 | **Audio** | System volume and input/output switching; per-app volume and output on macOS 14.4+, processed locally |
 | **Timers** | Countdown, Pomodoro and stopwatch; multi-display break screens, mini HUD, independent eye-break reminders and local focus statistics |

@@ -2358,6 +2358,14 @@ Wi-Fi 图标大小	Taille de l’icône Wi-Fi
 首次使用需授权访问菜单栏应用列表；仅访问选定文件，无需屏幕录制。	Autorisez d’abord l’accès à la liste des apps. Seul le fichier choisi est utilisé ; l’enregistrement de l’écran n’est pas nécessaire.
 菜单栏应用尚未恢复	Les apps de la barre des menus n’ont pas été restaurées
 仍然退出会保留恢复记录，下次启动时重试；也可在系统设置的“菜单栏”中恢复显示。	Quitter quand même conserve le journal de récupération pour réessayer au prochain lancement. Vous pouvez aussi réafficher les apps dans Réglages Système → Barre des menus.
+
+本机 IP 查询	Consulter l’IP publique
+按需连接第三方服务，查看它们看到的公网出口。不同来源可能经过不同代理路线。	Contacte des services tiers à la demande pour afficher l’IP publique. Chaque service peut utiliser un itinéraire proxy différent.
+隐藏 IP	Masquer l’IP
+隐藏国内信息	Masquer les résultats de Chine
+隐藏国际信息	Masquer les résultats internationaux
+信息已隐藏	Informations masquées
+未获取到地址，请检查网络或稍后重试。	Aucune adresse reçue. Vérifiez la connexion ou réessayez plus tard.
 端口	Ports
 端口号	Port
 监听	En écoute

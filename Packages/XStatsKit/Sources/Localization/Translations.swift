@@ -18,6 +18,13 @@ extension Translations {
   }
 
   static let networkPresentationEnglish = #"""
+    本机 IP 查询	Public IP Lookup
+    按需连接第三方服务，查看它们看到的公网出口。不同来源可能经过不同代理路线。	Connect to third-party services on demand to see your public IP. Different services may use different proxy routes.
+    隐藏 IP	Hide IP
+    隐藏国内信息	Hide China Results
+    隐藏国际信息	Hide International Results
+    信息已隐藏	Information Hidden
+    未获取到地址，请检查网络或稍后重试。	No address received. Check your connection or try again later.
     自定义弹窗内容	Customize Popover Content
     选择各指标弹窗显示的内容，并调整排列顺序。	Choose the content shown in each metric’s popover and adjust its order.
     弹窗内容	Popover Content

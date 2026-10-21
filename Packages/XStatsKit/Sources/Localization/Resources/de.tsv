@@ -2358,6 +2358,14 @@ Wi-Fi 图标大小	Größe des WLAN-Symbols
 首次使用需授权访问菜单栏应用列表；仅访问选定文件，无需屏幕录制。	Erlauben Sie zunächst den Zugriff auf die Menüleisten-App-Liste. Nur die gewählte Datei wird gelesen; eine Bildschirmaufnahme ist nicht erforderlich.
 菜单栏应用尚未恢复	Menüleisten-Apps wurden noch nicht wiederhergestellt
 仍然退出会保留恢复记录，下次启动时重试；也可在系统设置的“菜单栏”中恢复显示。	Beim Beenden bleibt das Wiederherstellungsprotokoll für einen erneuten Versuch beim nächsten Start erhalten. Du kannst die Apps auch unter Systemeinstellungen → Menüleiste wieder einblenden.
+
+本机 IP 查询	Öffentliche IP abfragen
+按需连接第三方服务，查看它们看到的公网出口。不同来源可能经过不同代理路线。	Dienste werden bei Bedarf kontaktiert, um die öffentliche IP anzuzeigen. Je nach Dienst können unterschiedliche Proxy-Routen gelten.
+隐藏 IP	IP ausblenden
+隐藏国内信息	Ergebnisse aus China ausblenden
+隐藏国际信息	Internationale Ergebnisse ausblenden
+信息已隐藏	Informationen ausgeblendet
+未获取到地址，请检查网络或稍后重试。	Keine Adresse erhalten. Prüfen Sie die Verbindung oder versuchen Sie es später erneut.
 端口	Ports
 端口号	Port
 监听	Lauschend

@@ -449,6 +449,7 @@ private struct PageHeader: View {
         .help(tr("按需扫描项目构建产物，逐项选择后移到废纸篓。"))
       }
       if tab == .network {
+        LocalIPQueryButton()
         Button {
           model.openSpeedTestWindow()
         } label: {
