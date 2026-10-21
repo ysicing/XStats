@@ -244,27 +244,26 @@ enum TrioIconRenderer {
     }
   }
 
-  /// 一点对应一个服务，扇形面积表示剩余额度；零额度留原色边框，未知额度为灰色空心。
+  /// 固定保留四个位置，扇形面积和颜色表示剩余额度；未启用或未知额度为灰色空心。
   private static func drawAIDots(_ dots: [TrioReading.AIDot], foreground: NSColor) {
-    guard !dots.isEmpty else {
-      foreground.withAlphaComponent(0.23).setStroke()
-      let empty = NSBezierPath(ovalIn: NSRect(x: 10.65, y: 0.75, width: 2.3, height: 2.3))
-      empty.lineWidth = 0.4
-      empty.stroke()
-      return
-    }
-    let visible = Array(dots.prefix(4))
-    for (index, dot) in visible.enumerated() {
-      let x = 12 + (CGFloat(index) - CGFloat(visible.count - 1) / 2) * 3.4
-      let y: CGFloat = visible.count >= 3 && (index == 0 || index == visible.count - 1) ? 3.1 : 1.9
+    for index in 0..<4 {
+      let fraction = dots.indices.contains(index) ? dots[index].fraction : nil
+      let x = 12 + (CGFloat(index) - 1.5) * 3.4
+      let y: CGFloat = index == 0 || index == 3 ? 3.1 : 1.9
       let center = NSPoint(x: x, y: y)
       let radius: CGFloat = 1.25
       let circle = NSBezierPath(
         ovalIn: NSRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
-      let color = AIServiceBrand.dotColor(dot.name, foreground: foreground)
       foreground.withAlphaComponent(0.18).setFill()
       circle.fill()
-      if let fraction = dot.fraction, fraction.isFinite {
+      if let fraction, fraction.isFinite {
+        let color: NSColor =
+          switch fraction {
+          case ..<0.1: .systemRed
+          case ..<0.2: .systemOrange
+          case ..<0.5: .systemBlue
+          default: .systemGreen
+          }
         color.setFill()
         if fraction >= 1 {
           circle.fill()

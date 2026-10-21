@@ -539,6 +539,81 @@ struct TrioIconTests {
     for dot in reading.aiDots { #expect(tooltip.contains(AIServiceBrand.title(dot.name))) }
   }
 
+  @Test(arguments: 0...4)
+  func aiDotsKeepFourSlotsWhenServicesAreDisabled(enabledCount: Int) throws {
+    let names = ["codex", "claude", "gemini", "grok"]
+    let config = TrioConfiguration(outer: .none, center: .none, footer: .aiUsage)
+    var selected = TrioReading()
+    selected.aiDots = names.prefix(enabledCount).map {
+      TrioReading.AIDot(name: $0, fraction: 0.75)
+    }
+    var fourSlots = selected
+    fourSlots.aiDots += names.dropFirst(enabledCount).map {
+      TrioReading.AIDot(name: $0, fraction: nil)
+    }
+    for dark in [false, true] {
+      let actual = TrioIconRenderer.image(reading: selected, configuration: config, dark: dark)
+      let expected = TrioIconRenderer.image(reading: fourSlots, configuration: config, dark: dark)
+      #expect(try #require(actual.tiffRepresentation) == #require(expected.tiffRepresentation))
+    }
+  }
+
+  @Test(arguments: [
+    (0.0, NSColor.systemRed), (0.099, .systemRed),
+    (0.1, .systemOrange), (0.199, .systemOrange),
+    (0.2, .systemBlue), (0.499, .systemBlue),
+    (0.5, .systemGreen), (1.0, .systemGreen),
+    (nil as Double?, nil as NSColor?), (.nan, nil), (.infinity, nil),
+  ])
+  func aiDotColorsFollowRemainingQuota(fraction: Double?, expected: NSColor?) throws {
+    let config = TrioConfiguration(outer: .none, center: .none, footer: .aiUsage)
+    for dark in [false, true] {
+      var reading = TrioReading()
+      reading.aiDots = [TrioReading.AIDot(name: "codex", fraction: fraction)]
+      let image = TrioIconRenderer.image(reading: reading, configuration: config, dark: dark)
+      // 放大原生矢量绘制，以便零额度的细边框也能验证颜色。
+      let enlarged = NSImage(size: NSSize(width: 96, height: 88), flipped: false) { bounds in
+        image.draw(in: bounds)
+        return true
+      }
+      let data = try #require(enlarged.tiffRepresentation)
+      let bitmap = try #require(NSBitmapImageRep(data: data))
+      let target = try expected.map { try #require($0.usingColorSpace(.deviceRGB)) }
+      var hasExpectedColor = false
+      var hasChromaticColor = false
+      var hasVisiblePixels = false
+      for y in 0..<bitmap.pixelsHigh {
+        for x in 0..<bitmap.pixelsWide {
+          guard let pixel = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
+            pixel.alphaComponent > 0.2
+          else { continue }
+          hasVisiblePixels = true
+          let channels = [pixel.redComponent, pixel.greenComponent, pixel.blueComponent]
+          if (channels.max() ?? 0) - (channels.min() ?? 0) > 0.15 {
+            hasChromaticColor = true
+          }
+          if let target,
+            abs(pixel.redComponent - target.redComponent) < 0.1,
+            abs(pixel.greenComponent - target.greenComponent) < 0.1,
+            abs(pixel.blueComponent - target.blueComponent) < 0.1
+          {
+            hasExpectedColor = true
+          }
+        }
+      }
+      #expect(hasVisiblePixels)
+      if target != nil {
+        #expect(hasExpectedColor)
+      } else {
+        #expect(!hasChromaticColor)
+      }
+      reading.aiDots[0] = TrioReading.AIDot(name: "claude", fraction: fraction)
+      let otherProvider = TrioIconRenderer.image(
+        reading: reading, configuration: config, dark: dark)
+      #expect(try #require(image.tiffRepresentation) == #require(otherProvider.tiffRepresentation))
+    }
+  }
+
   @Test func slotsDriveOnlySelectedEnabledMetrics() throws {
     let suite = "TrioIconTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
