@@ -146,8 +146,22 @@ GPU 采样生命周期的实机检查：设置 `XSTATS_GPU_RESOURCE_REPORT=<输�
 
 菜单栏布局走查可对当前构建运行 `XStats --snapshot <目录> --menubar-only --language zh-Hans`；
 仅采集相关指标，输出三种布局、总览和详情的明暗截图，不扫描清理目录或 AI 日志。
-README 的聚合状态总览使用该模式的 `overview-light.png` / `overview-dark.png`，
-保存为 `Assets/readme/combined-overview-zh-Hans-<light|dark>.png`，与主窗口仪表盘截图区分。
+README 的菜单栏图库使用独立的演示模式：
+
+```bash
+SIGN_ID=- task build BUMP=0 INSTALL=0 CONFIG=Release
+task snapshot SNAPSHOT_DIR=build/readme-gallery/zh-Hans -- --readme-only --language zh-Hans
+```
+
+`--readme-only` 使用隔离偏好，输出三种菜单栏布局、聚合状态总览、Magpie AI 用量、
+三合一设置、弹窗区块排序与 Wi-Fi 详情的明暗截图。仅短暂只读采样取得指标结构，
+展示数值随后由演示值覆盖；不启动持续监控、不连接真实 Magpie、不读取个人 AI 日志，也不修改硬件设置。
+网络名称、接入点地址、音频设备和账户均为虚构数据。
+`menubar-layouts-dark.png`、`combined-overview-<light|dark>.png`、
+`ai-usage-light.png`、`trio-settings-light.png`、`popover-order-light.png` 和
+`wifi-details-light.png` 分别保存为 `Assets/readme/<名称>-zh-Hans-<light|dark>.png`；
+菜单栏布局图使用 `menubar-layouts-zh-Hans-dark.png`。
+更新后逐张检查内容与裁切，同步四语言 README 的图片引用、替代文本和演示数据说明。
 显示器控制页面可改用 `--display-only`，只读本机信息和 DDC 能力，不修改硬件设置。
 
 系统信息中的 Apple 智能详情可单独走查：

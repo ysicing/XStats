@@ -18,7 +18,7 @@ CPU、メモリ、ネットワーク、温度をひと目で確認し、詳細�
 
 [简体中文](README.md) · [English](README.en.md) · **日本語** · [한국어](README.ko.md)
 
-<img src="Assets/readme/menubar-dark.png" width="626" alt="XStats のメニューバー表示">
+<img src="Assets/readme/menubar-layouts-zh-Hans-dark.png" width="760" alt="XStats のメニューバー表示：個別、統合、3つの指標をまとめるアイコン">
 
 </div>
 
@@ -41,6 +41,8 @@ XStats は Swift、AppKit、SwiftUI で開発した、無料のオープンソ�
   <img src="Assets/readme/combined-overview-zh-Hans-light.png" width="360" alt="集約モードの概要、ライト表示">
   <img src="Assets/readme/combined-overview-zh-Hans-dark.png" width="360" alt="集約モードの概要、ダーク表示">
 </p>
+
+メニューバーの各レイアウトと状態の概要は、表示や情報の組み合わせが分かるデモデータを使用しています。
 
 ### 機能の有効化とメニューバー表示
 
@@ -132,8 +134,17 @@ Magpie がインストールされている場合、各アカウントの利用�
 <details>
 <summary>その他のスクリーンショット</summary>
 
-ネットワーク接続、AI 使用量と利用枠、履歴、オーディオ、ディスプレイ、予定はデモデータです。基本的なシステム監視画面には本機の読み取り専用計測を含みます。利用できるハードウェア機能は機種によって異なります。
+メニューバーの各レイアウト、状態の概要、Wi-Fi 詳細、ネットワーク接続、AI 使用量と利用枠、履歴、オーディオ、ディスプレイ、予定はデモデータです。その他のシステム監視画面には本機の読み取り専用計測を含みます。利用できるハードウェア機能は機種によって異なります。
 
+<p align="center">
+  <img src="Assets/readme/trio-settings-zh-Hans-light.png" width="720" alt="3つの指標をまとめるアイコンの内容と外観設定">
+</p>
+<p align="center">
+  <img src="Assets/readme/popover-order-zh-Hans-light.png" width="600" alt="ポップオーバーの項目と表示順のカスタマイズ">
+</p>
+<p align="center">
+  <img src="Assets/readme/wifi-details-zh-Hans-light.png" width="360" alt="Wi-Fi の信号、リンク、安全性の詳細">
+</p>
 <p align="center">
   <img src="Assets/readme/thermal-dark.png" width="49%" alt="温度とファン制御">
   <img src="Assets/readme/keepawake-light.png" width="49%" alt="スリープ防止の設定">
@@ -143,8 +154,10 @@ Magpie がインストールされている場合、各アカウントの利用�
   <img src="Assets/readme/ip-purity-light.png" width="49%" alt="公開 IP とクリーン度の確認">
 </p>
 <p align="center">
-  <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="49%" alt="AI 使用量と統計">
-  <img src="Assets/readme/history-zh-Hans-dark.png" width="49%" alt="履歴の推移">
+  <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="760" alt="Magpie の AI 使用量、サービス選択と利用枠">
+</p>
+<p align="center">
+  <img src="Assets/readme/history-zh-Hans-dark.png" width="760" alt="履歴の推移">
 </p>
 <p align="center">
   <img src="Assets/readme/audio-zh-Hans-light.png" width="49%" alt="音声とアプリ別ミキサー">

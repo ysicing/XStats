@@ -18,7 +18,7 @@ CPU、内存、网络与温度一眼可见，展开即可查看趋势与应用�
 
 **简体中文** · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-<img src="Assets/readme/menubar-dark.png" width="626" alt="XStats 菜单栏读数">
+<img src="Assets/readme/menubar-layouts-zh-Hans-dark.png" width="760" alt="XStats 三种菜单栏布局：独立、聚合与三合一图标">
 
 </div>
 
@@ -41,6 +41,8 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
   <img src="Assets/readme/combined-overview-zh-Hans-light.png" width="360" alt="聚合模式状态总览，浅色">
   <img src="Assets/readme/combined-overview-zh-Hans-dark.png" width="360" alt="聚合模式状态总览，深色">
 </p>
+
+菜单栏布局与状态总览使用演示数据，便于展示不同布局与信息组合。
 
 ### 按需启用与菜单栏展示
 
@@ -132,8 +134,17 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
 <details>
 <summary>更多截图</summary>
 
-网络连接、AI 用量与额度、历史、音频、显示器和日程截图使用演示数据；核心系统监控截图包含本机只读采样。截图不代表所有机型都提供相同的硬件能力。
+菜单栏布局、状态总览、Wi-Fi 详情、网络连接、AI 用量与额度、历史、音频、显示器和日程截图使用演示数据；其余系统监控截图包含本机只读采样。截图不代表所有机型都提供相同的硬件能力。
 
+<p align="center">
+  <img src="Assets/readme/trio-settings-zh-Hans-light.png" width="720" alt="三合一图标内容与外观设置">
+</p>
+<p align="center">
+  <img src="Assets/readme/popover-order-zh-Hans-light.png" width="600" alt="自定义弹窗区块与排序">
+</p>
+<p align="center">
+  <img src="Assets/readme/wifi-details-zh-Hans-light.png" width="360" alt="Wi-Fi 信号、链路与安全详情">
+</p>
 <p align="center">
   <img src="Assets/readme/thermal-dark.png" width="49%" alt="温度与风扇控制">
   <img src="Assets/readme/keepawake-light.png" width="49%" alt="防休眠设置">
@@ -143,8 +154,10 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
   <img src="Assets/readme/ip-purity-light.png" width="49%" alt="公网 IP 与纯净度检测">
 </p>
 <p align="center">
-  <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="49%" alt="AI 用量与统计">
-  <img src="Assets/readme/history-zh-Hans-dark.png" width="49%" alt="历史趋势">
+  <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="760" alt="Magpie AI 用量、服务选择与订阅额度">
+</p>
+<p align="center">
+  <img src="Assets/readme/history-zh-Hans-dark.png" width="760" alt="历史趋势">
 </p>
 <p align="center">
   <img src="Assets/readme/audio-zh-Hans-light.png" width="49%" alt="音频与应用混音">

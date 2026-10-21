@@ -18,7 +18,7 @@ CPU, 메모리, 네트워크, 온도를 한눈에 보고, 세부 화면에서 �
 
 [简体中文](README.md) · [English](README.en.md) · [日本語](README.ja.md) · **한국어**
 
-<img src="Assets/readme/menubar-dark.png" width="626" alt="XStats 메뉴 막대 표시">
+<img src="Assets/readme/menubar-layouts-zh-Hans-dark.png" width="760" alt="XStats 메뉴 막대 레이아웃: 개별, 통합, 세 가지 지표 아이콘">
 
 </div>
 
@@ -41,6 +41,8 @@ XStats는 Swift, AppKit, SwiftUI로 만든 무료 오픈소스 네이티브 앱�
   <img src="Assets/readme/combined-overview-zh-Hans-light.png" width="360" alt="통합 메뉴 막대 개요, 밝은 화면">
   <img src="Assets/readme/combined-overview-zh-Hans-dark.png" width="360" alt="통합 메뉴 막대 개요, 어두운 화면">
 </p>
+
+메뉴 막대 레이아웃과 상태 개요는 다양한 표시 방식과 정보 조합을 보여 주는 데모 데이터를 사용합니다.
 
 ### 기능 활성화와 메뉴 막대 표시
 
@@ -132,8 +134,17 @@ Magpie가 설치되어 있으면 로컬 API에서 각 계정의 한도, 토큰, 
 <details>
 <summary>더 많은 스크린샷</summary>
 
-네트워크 연결, AI 사용량과 한도, 기록, 오디오, 디스플레이, 일정 화면은 데모 데이터입니다. 기본 시스템 모니터링 화면에는 이 Mac의 읽기 전용 측정값이 포함됩니다. 하드웨어 기능은 기종에 따라 다릅니다.
+메뉴 막대 레이아웃, 상태 개요, Wi-Fi 상세 정보, 네트워크 연결, AI 사용량과 한도, 기록, 오디오, 디스플레이, 일정 화면은 데모 데이터입니다. 나머지 시스템 모니터링 화면에는 이 Mac의 읽기 전용 측정값이 포함됩니다. 하드웨어 기능은 기종에 따라 다릅니다.
 
+<p align="center">
+  <img src="Assets/readme/trio-settings-zh-Hans-light.png" width="720" alt="세 가지 지표 아이콘의 내용 및 모양 설정">
+</p>
+<p align="center">
+  <img src="Assets/readme/popover-order-zh-Hans-light.png" width="600" alt="팝오버 섹션과 표시 순서 사용자 지정">
+</p>
+<p align="center">
+  <img src="Assets/readme/wifi-details-zh-Hans-light.png" width="360" alt="Wi-Fi 신호, 링크 및 보안 상세 정보">
+</p>
 <p align="center">
   <img src="Assets/readme/thermal-dark.png" width="49%" alt="온도 및 팬 제어">
   <img src="Assets/readme/keepawake-light.png" width="49%" alt="잠자기 방지 설정">
@@ -143,8 +154,10 @@ Magpie가 설치되어 있으면 로컬 API에서 각 계정의 한도, 토큰, 
   <img src="Assets/readme/ip-purity-light.png" width="49%" alt="공인 IP 및 순도 확인">
 </p>
 <p align="center">
-  <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="49%" alt="AI 사용량과 통계">
-  <img src="Assets/readme/history-zh-Hans-dark.png" width="49%" alt="기록 추이">
+  <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="760" alt="Magpie AI 사용량, 서비스 선택 및 구독 한도">
+</p>
+<p align="center">
+  <img src="Assets/readme/history-zh-Hans-dark.png" width="760" alt="기록 추이">
 </p>
 <p align="center">
   <img src="Assets/readme/audio-zh-Hans-light.png" width="49%" alt="오디오와 앱 믹서">

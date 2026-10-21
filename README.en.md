@@ -18,7 +18,7 @@ See CPU, memory, network and temperature at a glance, and open the details for t
 
 [简体中文](README.md) · **English** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-<img src="Assets/readme/menubar-dark.png" width="626" alt="XStats menu bar readings">
+<img src="Assets/readme/menubar-layouts-zh-Hans-dark.png" width="760" alt="XStats menu bar layouts: separate, aggregated and three-in-one">
 
 </div>
 
@@ -41,6 +41,8 @@ The aggregated overview brings metrics together and opens individual details.
   <img src="Assets/readme/combined-overview-zh-Hans-light.png" width="360" alt="Aggregated menu bar overview, light mode">
   <img src="Assets/readme/combined-overview-zh-Hans-dark.png" width="360" alt="Aggregated menu bar overview, dark mode">
 </p>
+
+Menu bar layouts and the status overview use demo data to illustrate different layouts and combinations.
 
 ### Feature activation and menu bar visibility
 
@@ -132,8 +134,17 @@ Optional tools can be enabled as needed. Privileged actions such as fan control 
 <details>
 <summary>More screenshots</summary>
 
-Network connections, AI usage and quotas, history, audio, displays and calendar screenshots use demo data. Core system monitoring screenshots include read-only measurements from this Mac. Hardware capabilities vary by model.
+Menu bar layouts, the status overview, Wi-Fi details, network connections, AI usage and quotas, history, audio, displays and calendar screenshots use demo data. Other system monitoring screenshots include read-only measurements from this Mac. Hardware capabilities vary by model.
 
+<p align="center">
+  <img src="Assets/readme/trio-settings-zh-Hans-light.png" width="720" alt="Three-in-one icon sources and appearance">
+</p>
+<p align="center">
+  <img src="Assets/readme/popover-order-zh-Hans-light.png" width="600" alt="Custom popover sections and ordering">
+</p>
+<p align="center">
+  <img src="Assets/readme/wifi-details-zh-Hans-light.png" width="360" alt="Wi-Fi signal, link and security details">
+</p>
 <p align="center">
   <img src="Assets/readme/thermal-dark.png" width="49%" alt="Temperature and fan control">
   <img src="Assets/readme/keepawake-light.png" width="49%" alt="Keep-awake settings">
@@ -143,8 +154,10 @@ Network connections, AI usage and quotas, history, audio, displays and calendar 
   <img src="Assets/readme/ip-purity-light.png" width="49%" alt="Public IP and purity checks">
 </p>
 <p align="center">
-  <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="49%" alt="AI usage and statistics">
-  <img src="Assets/readme/history-zh-Hans-dark.png" width="49%" alt="History trends">
+  <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="760" alt="Magpie AI usage, service selection and subscription quotas">
+</p>
+<p align="center">
+  <img src="Assets/readme/history-zh-Hans-dark.png" width="760" alt="History trends">
 </p>
 <p align="center">
   <img src="Assets/readme/audio-zh-Hans-light.png" width="49%" alt="Audio and app mixing">

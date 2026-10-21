@@ -477,6 +477,11 @@ enum SnapshotRenderer {
       return
     }
 
+    if CommandLine.arguments.contains("--readme-only") {
+      await renderReadme(outputDirectory: outputDirectory)
+      return
+    }
+
     if CommandLine.arguments.contains("--features-only") {
       await renderFeatures(outputDirectory: outputDirectory)
       await renderAudio(outputDirectory: outputDirectory, demo: true)
@@ -1294,6 +1299,153 @@ enum SnapshotRenderer {
     } catch { reportFailure(outputDirectory, error: error) }
   }
 
+  /// 公开图库：仅用一次本机只读采样取得指标结构，覆盖全部展示数值后停止读取。
+  /// AI、音频与无线详情均为虚构数据，不启动监控、读取个人日志或调用硬件控制。
+  private static func renderReadme(outputDirectory: URL) async {
+    let suite = "XStats.readmeSnapshot.\(UUID())"
+    guard let defaults = UserDefaults(suiteName: suite) else {
+      reportFailure(outputDirectory, error: CocoaError(.coderInvalidValue))
+      return
+    }
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.language = L10n.language
+    settings.historyEnabled = false
+    settings.enabledAlerts = []
+    settings.publicIPLookup = false
+    settings.probeEnabled = false
+    settings.menuBarItems = [.cpu, .memory, .network, .disk, .aiUsage, .audio]
+    settings.setMenuBarOrder([.cpu, .memory, .network, .disk, .aiUsage, .audio])
+    settings.aiUsageEnabled = true
+    settings.aiMenuBarProviders = ["codex", "claude", "gemini", "grok"]
+    settings.aiQuotaSelectedProvider = "codex"
+    settings.customPopoverContentEnabled = true
+    settings.trio.outer = .cpu
+    settings.trio.footer = .aiUsage
+    settings.menuBarStyle = .ring
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      magpieClient: ReadmeMagpieProvider(), networkCacheDefaults: defaults)
+    defer { model.aiUsage.stop() }
+    await model.aiUsage.refresh()
+    await model.aiUsage.selectMagpiePeriod(.monthly)
+    var cpuSampler = CPUSampler()
+    var networkSampler = NetworkSampler()
+    _ = cpuSampler.sample()
+    _ = networkSampler.sample()
+    // CPU 需要两个不同计数周期；连续读取可能没有 tick 增量，不能据此判断采样不可用。
+    try? await Task.sleep(for: .milliseconds(100))
+    var snapshot = MetricsSnapshot()
+    snapshot.cpu = cpuSampler.sample()
+    snapshot.memory = MemorySampler().sample()
+    snapshot.network = networkSampler.sample()
+    guard snapshot.cpu != nil, snapshot.memory != nil, snapshot.network != nil else {
+      reportFailure(outputDirectory, error: CocoaError(.coderInvalidValue))
+      return
+    }
+    snapshot.cpu?.user = 0.18
+    snapshot.cpu?.system = 0.06
+    snapshot.cpu?.total = 0.24
+    snapshot.cpu?.perCore = Array(repeating: 0.24, count: model.store.topology.logicalCores)
+    snapshot.cpu?.loadAverage = [1.2, 1.4, 1.1]
+    snapshot.cpu?.thermalState = .nominal
+    snapshot.memory?.total = 32_000_000_000
+    snapshot.memory?.app = 12_000_000_000
+    snapshot.memory?.wired = 3_000_000_000
+    snapshot.memory?.compressed = 2_000_000_000
+    snapshot.memory?.cached = 5_000_000_000
+    snapshot.memory?.swapUsed = 0
+    snapshot.memory?.swapTotal = 0
+    snapshot.memory?.pressure = .normal
+    snapshot.memory?.uncompressed = 3_000_000_000
+    snapshot.memory?.swapInBytes = 0
+    snapshot.memory?.swapOutBytes = 0
+    snapshot.network?.connection = .wifi(bars: 3)
+    snapshot.network?.downloadBytesPerSecond = 4_200_000
+    snapshot.network?.uploadBytesPerSecond = 820_000
+    snapshot.network?.totalDownloaded = 12_000_000_000
+    snapshot.network?.totalUploaded = 2_400_000_000
+    snapshot.disk = DiskUsage(
+      volumeName: "Macintosh HD", total: 1_000_000_000_000, available: 640_000_000_000)
+    for index in 0..<60 {
+      snapshot.date = Date().addingTimeInterval(Double(index - 59))
+      snapshot.cpu?.total = 0.24 + 0.06 * sin(Double(index) / 6)
+      model.store.apply(snapshot)
+    }
+    let headphones = AudioDeviceInfo(
+      id: 1, uid: "demo.headphones", name: "Studio Headphones", hasOutput: true,
+      outputVolume: 0.65, outputMuted: false, canSetOutputVolume: true, canSetOutputMute: true,
+      bluetoothAddress: "02-00-00-00-00-01")
+    model.audio.showPreview(
+      AudioHardwareSnapshot(devices: [headphones], outputID: 1, inputID: nil, applications: []),
+      volumes: [:], outputs: [:])
+    let wifi = WiFiLink(
+      ssid: "Example Wi-Fi", rssi: -48, noise: -92, transmitRate: 1200,
+      bssid: "02:00:00:00:00:01", bandGHz: 5, channel: 36, channelWidthMHz: 80,
+      phyMode: "802.11ax", security: "WPA3 Personal")
+    settings.wifiDetailsExpanded = true
+    for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+      guard let appearance = NSAppearance(named: name) else { continue }
+      NSApp.appearance = appearance
+      var images: [[NSImage]] = []
+      for layout in MenuBarLayout.allCases {
+        settings.menuBarLayout = layout
+        let row: [NSImage]
+        if layout == .separate {
+          // 独立布局在系统中由多个 NSStatusItem 组成，逐项使用同一原生绘制入口。
+          row = model.drawnMenuBarItems.map { item in
+            MenuBarRenderer.image(
+              reading: MenuBarReading(model: model, items: [item]), items: [item],
+              style: { settings.style(for: $0) }, networkStyle: settings.networkStyle,
+              colorizeHighLoad: settings.colorizeHighLoad, fahrenheit: settings.useFahrenheit,
+              valueOnTop: settings.menuBarValueOnTop, loadSensitivity: settings.loadSensitivity)
+          }
+        } else {
+          row = [MenuBarRenderer.image(for: model)]
+        }
+        images.append(
+          row.map { MenuBarRenderer.preview($0, dark: suffix == "dark", backingScale: 2) })
+      }
+      write(
+        ReadmeMenuBarGallery(images: images).appLanguageEnvironment(),
+        model: model, appearance: appearance,
+        to: outputDirectory.appendingPathComponent("menubar-layouts-\(suffix).png"))
+      settings.menuBarLayout = .combined
+      model.combinedPopoverTab = nil
+      write(
+        CombinedPopoverView().appLanguageEnvironment(), model: model, appearance: appearance,
+        to: outputDirectory.appendingPathComponent("combined-overview-\(suffix).png"))
+      write(
+        AIUsagePage(initialActivityMode: .monthly).frame(width: 900).appLanguageEnvironment(),
+        model: model, appearance: appearance,
+        to: outputDirectory.appendingPathComponent("ai-usage-\(suffix).png"))
+      settings.menuBarLayout = .iconOnly
+      write(
+        VStack(spacing: DS.Space.s4) {
+          Image(
+            nsImage: MenuBarRenderer.preview(
+              MenuBarRenderer.image(for: model), dark: suffix == "dark", backingScale: 2))
+          TrioSettings()
+        }
+        .padding(DS.Space.s4).frame(width: 720).appLanguageEnvironment(),
+        model: model, appearance: appearance,
+        to: outputDirectory.appendingPathComponent("trio-settings-\(suffix).png"))
+      write(
+        VStack(alignment: .leading, spacing: DS.Space.s4) {
+          Text(MenuBarItem.cpu.title).dsFont(.base, weight: .semibold)
+          PopoverSectionPicker(isExpanded: true, item: .cpu)
+        }.padding(DS.Space.s4).frame(width: 600).appLanguageEnvironment(),
+        model: model, appearance: appearance,
+        to: outputDirectory.appendingPathComponent("popover-order-\(suffix).png"))
+      write(
+        SectionCard(title: PopoverSection.networkInterface.title) {
+          WiFiConnectionRows(wifi: wifi)
+        }.padding(DS.Space.s3).frame(width: 360).appLanguageEnvironment(),
+        model: model, appearance: appearance,
+        to: outputDirectory.appendingPathComponent("wifi-details-\(suffix).png"))
+    }
+  }
+
   /// 显示器走查只读信息和 Get VCP 能力，不执行设置写入。
   private static func renderDisplays(outputDirectory: URL) async {
     let suite = "XStats.displaySnapshot.\(UUID())"
@@ -1524,6 +1676,89 @@ enum SnapshotRenderer {
     didFail = true
     FileHandle.standardError.write(
       Data("Snapshot failed: \(url.path): \(error.localizedDescription)\n".utf8))
+  }
+}
+
+/// 菜单栏比较图直接使用真实渲染结果，保持菜单栏图标的实际点尺寸。
+private struct ReadmeMenuBarGallery: View {
+  let images: [[NSImage]]
+
+  var body: some View {
+    VStack(spacing: DS.Space.s3) {
+      ForEach(Array(MenuBarLayout.allCases.enumerated()), id: \.element) { index, layout in
+        HStack(spacing: DS.Space.s4) {
+          Text(layout.title).dsFont(.sm, weight: .semibold).frame(width: 72, alignment: .leading)
+          HStack(spacing: DS.Space.s4) {
+            ForEach(images[index].indices, id: \.self) { imageIndex in
+              Image(nsImage: images[index][imageIndex])
+            }
+          }
+          Spacer(minLength: 0)
+        }
+        .padding(DS.Space.s4)
+        .frame(height: 72)
+        .background(DS.Palette.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+      }
+    }
+    .padding(DS.Space.s4)
+    .frame(width: 760)
+  }
+}
+
+/// 本地虚构 Magpie 响应；不连接 Magpie，也不访问真实账户或凭据。
+private struct ReadmeMagpieProvider: MagpieFetching {
+  func quotas() async throws -> [MagpieQuota] {
+    try JSONDecoder().decode(
+      [MagpieQuota].self,
+      from:
+        Data(
+          """
+          [
+            {"provider":"codex","name":"Demo Codex","kind":"subscription","plan":"Pro","last":true,
+             "windows":[{"name":"5 hours","used":32,"remaining":68},{"name":"7 days","used":41,"remaining":59}]},
+            {"provider":"claude","name":"Demo Claude","kind":"subscription","plan":"Pro",
+             "windows":[{"name":"7 days","used":48,"remaining":52}]},
+            {"provider":"gemini","name":"Demo Gemini","kind":"subscription",
+             "windows":[{"name":"1 day","used":18,"remaining":82}]},
+            {"provider":"grok","name":"Demo Grok","kind":"subscription",
+             "windows":[{"name":"7 days","used":72,"remaining":28}]}
+          ]
+          """.utf8))
+  }
+
+  func usage(period: MagpiePeriod) async throws -> MagpieUsageSummary {
+    let count = period == .daily ? 24 : 30
+    let interval: TimeInterval = period == .daily ? 3600 : 86400
+    let start = Calendar.current.startOfDay(for: Date())
+    let formatter = ISO8601DateFormatter()
+    let series: [[String: Any]] = (0..<count).map { index in
+      [
+        "time": formatter.string(
+          from: start.addingTimeInterval(Double(index - count + 1) * interval)),
+        "input": 240_000 + index * 3000, "output": 32_000 + index * 500,
+      ]
+    }
+    let input = series.reduce(0) { $0 + ($1["input"] as? Int ?? 0) }
+    let output = series.reduce(0) { $0 + ($1["output"] as? Int ?? 0) }
+    let payload: [String: Any] = [
+      "period": period.rawValue, "bucket": period == .daily ? "hour" : "day",
+      "input": input, "output": output, "cache_read": 2_400_000, "cache_write": 180_000,
+      "calls": 840, "cost": 18.27, "series": series,
+      "models": [
+        [
+          "id": "demo.codex", "provider": "codex", "model": "gpt-5.4", "input": input / 2,
+          "output": output / 2,
+        ],
+        [
+          "id": "demo.claude", "provider": "claude", "model": "claude-sonnet",
+          "input": input - input / 2, "output": output - output / 2,
+        ],
+      ],
+    ]
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try decoder.decode(
+      MagpieUsageSummary.self, from: JSONSerialization.data(withJSONObject: payload))
   }
 }
 
