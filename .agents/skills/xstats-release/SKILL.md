@@ -53,6 +53,8 @@ Stop rather than weakening a safety check when the source changed after the buil
 ## Partial-release handling
 
 - Determine the last proven stage before retrying. Object uploads, GitHub Release updates, API publication, and tap updates are separate facts.
+- Before starting `task release` or `task release-all`, record the current version/build and verify the required signing and publication configuration is available. Both commands can advance the build number before a later gate fails.
+- After a failed or interrupted command, confirm the original command and its release subprocesses have exited, then inspect the version source and release log before retrying. A cancellation request alone does not prove the process stopped. Retain an advanced, unpublished build number and follow the runbook's [build recovery steps](references/runbook.md#recover-an-interrupted-build-without-advancing-the-build-number). Use `BUMP=0` only with `task build` when a rebuild is appropriate before a valid symbol archive exists; it does not suppress the unconditional version increment in `task release` or `task release-all`. Reuse completed artifacts for later stages instead of rebuilding.
 - Run `task publish` only after confirming the same provenance record and release commit; it invokes the idempotent publisher without rebuilding.
 - A Cloudflare response with `cf-mitigated: challenge` is an edge failure, not an application authentication failure. Use an already authorized clean egress when available; do not solve the challenge interactively or broadly disable protections.
 - If object upload fails, confirm the target is `c-ip`. Do not silently substitute `c`, `cos`, `home`, `ggy`, another bucket, or GitHub assets.

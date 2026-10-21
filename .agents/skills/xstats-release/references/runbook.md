@@ -49,6 +49,11 @@ the official signing tools. Missing keys are a blocker; do not generate or rotat
 
 For the one-command path, `XSTATS_RELEASE_TOKEN` must already be available through an authorized environment or credential store. `task release-all` refuses to start when the token is absent, the branch is not `main`, `HEAD` differs from `origin/main`, or the release tag already exists.
 
+Before either `task release` or `task release-all`, record the current version/build from
+`./scripts/version.sh` and the source HEAD in the release log, and verify the signing, provisioning,
+notarization and required publication configuration above. A later failure can occur after the
+build number has already advanced; a nonzero exit does not mean the version source is unchanged.
+
 ## 2. Prepare version metadata
 
 - Use `xstats-changelog` to consolidate the release notes, then replace the first `## 未发布` heading with `## X.Y.Z · YYYY-MM-DD`.
@@ -85,10 +90,25 @@ Do not rerun `task release-all` or `task release` blindly: both enter the versio
 Keep the full log, source HEAD, marketing/build versions, `dist/release-provenance.json`, original
 artifacts and any completed symbol archive. The release script has no automatic build-resume mode.
 
+Before starting any recovery:
+
+1. Confirm the original command and its release subprocesses have exited. Sending Ctrl-C or receiving
+   a cancellation acknowledgement is not proof that the task, build or publication has stopped.
+   Inspect the original session and relevant process state before starting another attempt.
+2. Compare `./scripts/version.sh`, `git diff -- project.yml` and the release log with the recorded
+   starting version/build. Check existing artifacts, provenance and remote publication state to
+   establish the last proven stage; do not infer it from the failed command's name alone.
+3. Retain any advanced, unpublished build number and recover at the appropriate stage below.
+   `BUMP=0` is a `task build` control, not a release-resume flag: passing it to `task release` or
+   `task release-all` does not suppress `scripts/version.sh release`. Do not decrement a published
+   build, move its tag or replace its artifacts to fill a numbering gap.
+
 - Before a valid symbol archive exists, a failed compile/re-sign or empty dSYM can be repaired with
   `task build CONFIG=Release INSTALL=0 BUMP=0 CLEAN=1 SIGN_ID=<same identity>` using the same
   provisioning profiles and unchanged source HEAD. Verify the rebuilt DWARF and UUIDs before
-  continuing the remaining release stages. Do not invoke the version increment again.
+  continuing the remaining release stages. This command only rebuilds/signs the app; it does not
+  complete symbol backup, notarization, packaging or publication. Continue those stages from the
+  current `scripts/release.sh` without invoking the version increment again.
 - Once a valid symbol archive exists, reuse its matching original binaries for backup, notarization
   and packaging. If private backup alone failed, rerun
   `python3 scripts/backup_debug_symbols.py <original symbol ZIP>`. A rebuild creates different UUIDs
@@ -98,6 +118,13 @@ artifacts and any completed symbol archive. The release script has no automatic 
 - If the release commit exists but push failed, verify the remote state and retry `git push origin main`.
   After the commit is pushed, resume external publication with `task publish`, retaining the built
   artifacts and symbols. Never replace an already published tag or version artifact.
+
+The XStats 1.4.6 release on 2026-10-21 exposed this failure mode: the first attempt advanced build
+153 to 154 before a signing-configuration failure; restarting through `task release` advanced it
+again to 155. Build 154 was not published, and build 155 became the formal release. The correct
+recovery was to retain 154, confirm the failed process had exited, restore the authorized signing
+configuration, and resume with the non-incrementing build command above. An interrupted recovery
+also continued after Ctrl-C, reinforcing the need to verify process exit before starting another task.
 
 Use one release machine at a time. Cross-machine recovery requires transferring the original
 artifacts, provenance and matching symbols; a second build is not a substitute for those files.
