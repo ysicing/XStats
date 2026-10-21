@@ -1,25 +1,27 @@
 {
-  "version": "1.4.5",
+  "version": "1.4.6",
   "sourceNotes": [
-    "新增默认关闭的“Agent 数据”实验性功能",
-    "应用音量新增独立开关，关闭后停止应用音频处理并保留音量与输出配置",
-    "音频界面与菜单栏根据输出设备显示图标，并在音频页展示已连接蓝牙设备的已知电量",
-    "蓝牙设备连接或断开后按需刷新电量，锁屏、休眠或不再需要时停止监听与读取",
-    "修复菜单栏手动折叠状态重启后丢失，将入口归入实验性功能并补充系统溢出限制说明",
-    "支持从计时弹窗恢复已收起的休息提醒，并完善提醒窗口关闭后的资源释放",
-    "优化应用卸载确认与完成反馈，减少选择变化或卸载失败时的误导",
-    "改善监控需求减少时的采样衔接，并修复子进程输出收集的调度竞争"
+    "三合一菜单栏与程序坞图标支持自由组合顶部指标、中部连接状态和底部读数",
+    "AI 用量菜单栏最多显示四个可选服务",
+    "菜单栏图标可按应用整理，并收起或展开选定应用，重启后保留选择",
+    "Wi-Fi 弹窗补充连接详情",
+    "自定义弹窗内容支持调整区块顺序",
+    "蓝牙音频新增设备整理与聆听模式切换",
+    "音频页支持滚动调节系统音量与输入音量，并可断开当前蓝牙音频输出",
+    "优化三合一图标的状态辨识与配色，并改善菜单栏图标折叠操作",
+    "修复 AI 用量服务选择无法记住、概览卡片显示服务不一致的问题，并兼容没有内置电池的设备"
   ],
   "translations": {
     "en": [
-      "Add the opt-in experimental Agent Data feature to inspect local storage used by installed AI tools and remove eligible Git worktrees. Tool data is read-only; worktree removal requires individual confirmation and checks for uncommitted content.",
-      "Add a separate app-volume switch. Turning it off stops per-app audio processing while preserving volume and output settings; system volume and device selection remain available.",
-      "Show device-specific output icons in audio controls and the menu bar, and known battery levels for the connected Bluetooth output on the audio page.",
-      "Refresh Bluetooth battery readings on connection changes while needed, and stop observation and reads when locked, asleep, or no longer in use.",
-      "Restore the last manually chosen menu bar folding state after restart, move the control to Experimental Features, and explain system overflow limitations.",
-      "Allow dismissed rest reminders to be restored from the timer popover, and improve resource cleanup when reminder windows close.",
-      "Improve app-uninstall confirmations and completion feedback, including when selections change or removal fails.",
-      "Improve sampling transitions when monitoring demand decreases and fix a scheduling race in subprocess output collection."
+      "Customize the combined menu bar and Dock icon by choosing the top metric, middle connection status, and bottom reading.",
+      "Show up to four selectable AI providers in the menu bar.",
+      "Organize menu bar icons by app, then fold or reveal selected apps while keeping the selection after restart.",
+      "Show more details in the Wi-Fi popover.",
+      "Reorder sections in custom popover content.",
+      "Organize Bluetooth audio devices and switch their listening modes.",
+      "Scroll over the audio page sliders to adjust system or input volume, and disconnect the current Bluetooth audio output.",
+      "Improve state legibility and colors in the combined icon, and refine menu bar icon folding.",
+      "Fix AI usage provider selections not being remembered and overview cards showing a different provider; support devices without a built-in battery."
     ]
   }
 }
