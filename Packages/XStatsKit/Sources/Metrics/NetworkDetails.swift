@@ -123,6 +123,45 @@ public enum NetworkDetailsReader {
     return NetworkDetails(physical: physical, tunnel: tunnel, dnsServers: dnsServers)
   }
 
+  struct ConnectionInterface: Sendable {
+    let bsdName: String
+    let isUp: Bool
+    let isWiFi: Bool
+  }
+
+  /// 图标复用详情页的物理服务选择，只读取接口标志和共享状态，不解析地址与 DNS。
+  static func readConnection() -> (physical: ConnectionInterface?, sharing: Bool) {
+    guard let store = SCDynamicStoreCreate(nil, "XStats.Connection" as CFString, nil, nil) else {
+      return (nil, false)
+    }
+    let nat = value(store, "com.apple.nat")?["NAT"] as? [String: Any]
+    if nat?["Enabled"] as? Bool == true { return (nil, true) }
+    let ipv4 = value(store, "State:/Network/Global/IPv4")
+    let ipv6 = value(store, "State:/Network/Global/IPv6")
+    guard
+      let service = physicalService(
+        store: store, preferences: SCPreferencesCreate(nil, "XStats" as CFString, nil),
+        primaryBSD: (ipv4?["PrimaryInterface"] ?? ipv6?["PrimaryInterface"]) as? String,
+        primaryService: (ipv4?["PrimaryService"] ?? ipv6?["PrimaryService"]) as? String)
+    else { return (nil, false) }
+
+    var head: UnsafeMutablePointer<ifaddrs>?
+    guard getifaddrs(&head) == 0, let first = head else { return (nil, false) }
+    defer { freeifaddrs(head) }
+    var isUp = false
+    for pointer in sequence(first: first, next: { $0.pointee.ifa_next }) {
+      let entry = pointer.pointee
+      guard entry.ifa_addr != nil, String(cString: entry.ifa_name) == service.bsdName else {
+        continue
+      }
+      isUp = entry.ifa_flags & UInt32(IFF_UP | IFF_RUNNING) == UInt32(IFF_UP | IFF_RUNNING)
+      if isUp { break }
+    }
+    return (
+      ConnectionInterface(bsdName: service.bsdName, isUp: isUp, isWiFi: service.isWiFi), false
+    )
+  }
+
   // MARK: 服务
 
   private struct Service {

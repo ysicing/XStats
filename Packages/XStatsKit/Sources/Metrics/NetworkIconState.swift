@@ -2,7 +2,6 @@
 import CoreWLAN
 import Foundation
 import Network
-import SystemConfiguration
 
 /// 菜单栏只消费连接状态，不读取流量内容、不扫描附近网络，也不发起互联网探测。
 public enum NetworkIconState: Equatable, Sendable {
@@ -23,26 +22,43 @@ public enum NetworkIconState: Equatable, Sendable {
     .off, .unavailable, .noInternet, .ethernet, .hotspot, .temporary, .sharing,
   ]
 
-  static func read(path: NetworkIconPathMonitor.State? = nil) -> Self {
-    let details = NetworkDetailsReader.read()
-    let wifi = CWWiFiClient.shared().interface()
-    let mode = wifi?.interfaceMode()
-    if let store = SCDynamicStoreCreate(nil, "XStats.Connection" as CFString, nil, nil),
-      let nat = SCDynamicStoreCopyValue(store, "com.apple.nat" as CFString) as? [String: Any],
-      let settings = nat["NAT"] as? [String: Any], settings["Enabled"] as? Bool == true
-    {
-      return .sharing
+  init(wifiRSSI: Int?) {
+    // 已连接不代表已取得信号测量，缺失读数不能显示成满格。
+    guard let wifiRSSI, wifiRSSI < 0 else {
+      self = .unknown
+      return
     }
+    self = .wifi(bars: wifiRSSI >= -60 ? 3 : wifiRSSI >= -75 ? 2 : 1)
+  }
+
+  /// 已联网接口的状态优先级；有线、无路由和热点均不需要读取信号强度。
+  static func connected(
+    isWiFi: Bool, path: NetworkIconPathMonitor.State?, rssi: () -> Int?
+  ) -> Self {
+    if path?.satisfied == false { return .noInternet }
+    guard isWiFi else { return .ethernet }
+    if let path, path.wifi && path.expensive && path.satisfied { return .hotspot }
+    return Self(wifiRSSI: rssi())
+  }
+
+  static func read(path: NetworkIconPathMonitor.State? = nil) -> Self {
+    let connection = NetworkDetailsReader.readConnection()
+    if connection.sharing { return .sharing }
+    let client = CWWiFiClient.shared()
+    let wifi = client.interface()
+    let mode = wifi?.interfaceMode()
     if mode == .hostAP { return .sharing }
     if mode == .IBSS { return .temporary }
-    if let physical = details.physical, physical.isUp {
-      if path?.satisfied == false { return .noInternet }
-      if physical.bsdName == wifi?.interfaceName || physical.wifi != nil {
-        if let path, path.wifi && path.expensive && path.satisfied { return .hotspot }
-        let bars = physical.wifi?.rssi.map { $0 >= -60 ? 3 : $0 >= -75 ? 2 : 1 } ?? 3
-        return .wifi(bars: bars)
+    if let physical = connection.physical, physical.isUp {
+      let isDefaultWiFi = physical.bsdName == wifi?.interfaceName
+      return connected(isWiFi: physical.isWiFi || isDefaultWiFi, path: path) {
+        guard physical.isWiFi else { return nil }
+        let interface = isDefaultWiFi ? wifi : client.interface(withName: physical.bsdName)
+        guard let interface, interface.powerOn(),
+          (isDefaultWiFi ? mode : interface.interfaceMode()) != CWInterfaceMode.none
+        else { return nil }
+        return interface.rssiValue()
       }
-      return .ethernet
     }
     guard let wifi else { return .unavailable }
     guard wifi.powerOn() else { return .off }

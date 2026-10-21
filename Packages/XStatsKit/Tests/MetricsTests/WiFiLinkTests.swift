@@ -24,4 +24,15 @@ struct WiFiLinkTests {
       #expect(invalid.signalToNoiseRatio == nil && invalid.transmitRate == nil)
     }
   }
+
+  @Test(arguments: [
+    (nil as Int?, NetworkIconState.unknown),
+    (0, .unknown), (10, .unknown),
+    (-59, .wifi(bars: 3)), (-60, .wifi(bars: 3)),
+    (-61, .wifi(bars: 2)), (-75, .wifi(bars: 2)), (-76, .wifi(bars: 1)),
+  ])
+  func signalIconPreservesUnknownReadingsAndThresholds(rssi: Int?, expected: NetworkIconState) {
+    let link = WiFiLink(ssid: nil, rssi: rssi, noise: nil, transmitRate: nil)
+    #expect(NetworkIconState(wifiRSSI: link.rssi) == expected)
+  }
 }
