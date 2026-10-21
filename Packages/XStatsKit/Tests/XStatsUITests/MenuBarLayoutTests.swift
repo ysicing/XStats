@@ -52,8 +52,9 @@ struct MenuBarLayoutTests {
       let settings = model.settings
       settings.menuBarItems = [.gpu, .disk, .temperature, .battery]
       settings.menuBarStyle = .ring
+      settings.trio = TrioConfiguration(outer: .memory, center: .network, footer: .audio)
       settings.menuBarLayout = .iconOnly
-      #expect(model.drawnMenuBarItems.isEmpty)
+      #expect(Set(model.drawnMenuBarItems) == [.memory, .network, .audio])
       #expect(Set(model.visibleMenuBarItems) == settings.menuBarItems)
       let document = settings.exportDocument()
       settings.menuBarLayout = .separate
@@ -69,6 +70,7 @@ struct MenuBarLayoutTests {
 
   @Test func overviewSamplingStartsOnOpenAndStopsOnClose() throws {
     try model { model, _ in
+      model.settings.trio = TrioConfiguration(outer: .memory, center: .network, footer: .audio)
       model.settings.menuBarLayout = .iconOnly
       model.settings.menuBarItems = [.cpu, .memory, .gpu, .disk, .temperature, .battery]
       model.settings.processesEnabled = true
@@ -106,6 +108,7 @@ struct MenuBarLayoutTests {
 
   @Test func disabledProcessesAndUnselectedMetricsAreNotCollectedForOverview() throws {
     try model { model, _ in
+      model.settings.trio = TrioConfiguration(outer: .memory, center: .network, footer: .audio)
       model.settings.menuBarLayout = .iconOnly
       model.settings.menuBarItems = [.cpu, .memory]
       model.settings.processesEnabled = false
@@ -192,6 +195,7 @@ struct MenuBarLayoutTests {
 
   @Test func mainWindowDemandStillOverridesIndependentPanelRefresh() throws {
     try model { model, _ in
+      model.settings.trio = TrioConfiguration(outer: .memory, center: .network, footer: .audio)
       model.settings.menuBarLayout = .iconOnly
       model.settings.menuBarItems = [.display]
       model.settings.refreshSeconds = 5
@@ -236,6 +240,7 @@ struct MenuBarLayoutTests {
       model.settings.menuBarItems = [.fan]
       #expect(!model.visibleMenuBarItems.contains(.fan))
       #expect(model.demand.fans)
+      model.settings.trio = TrioConfiguration(outer: .memory, center: .network, footer: .audio)
       model.settings.menuBarLayout = .iconOnly
       #expect(!model.demand.fans)
       model.isCombinedPopoverOpen = true
@@ -250,6 +255,7 @@ struct MenuBarLayoutTests {
 
   @Test func iconImageIgnoresLiveMetricsAndRetainsKeepAwakeIndicator() throws {
     try model { model, _ in
+      model.settings.trio = TrioConfiguration(outer: .memory, center: .network, footer: .audio)
       model.settings.menuBarLayout = .iconOnly
       let before = MenuBarRenderer.image(for: model)
       var snapshot = MetricsSnapshot()
@@ -281,6 +287,7 @@ struct MenuBarLayoutTests {
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
       aiUsageProviders: [], aiQuotaProviders: [])
+    model.settings.trio = TrioConfiguration(outer: .memory, center: .network, footer: .audio)
     model.settings.menuBarLayout = .iconOnly
     await confirmation(expectedCount: 0) { changed in
       withObservationTracking {
@@ -305,6 +312,7 @@ struct MenuBarLayoutTests {
       settings: AppSettings(defaults: defaults), historyURL: nil,
       aiUsageProviders: [], aiQuotaProviders: [])
     model.settings.menuBarItems = [.cpu, .memory, .gpu, .disk, .network, .temperature, .battery]
+    model.settings.trio = TrioConfiguration(outer: .memory, center: .network, footer: .audio)
     model.settings.menuBarLayout = .iconOnly
     let idle = model.demand
     let panel = StatusPanel(width: DS.Size.combinedPopoverWidth, minHeight: 100, maxHeight: 500) {

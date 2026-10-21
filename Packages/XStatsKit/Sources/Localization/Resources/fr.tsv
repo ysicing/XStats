@@ -1554,7 +1554,6 @@ AI 用量与额度共用此间隔；新数据到达后更新菜单栏。	L’uti
 套餐剩余时间	Durée restante du forfait
 Token 用量	Tokens
 仅图标	Icône seule
-只显示 XStats 图标，点击查看已选项目的状态总览	Afficher uniquement l’icône XStats ; cliquer pour voir les indicateurs sélectionnés
 面板项目	Indicateurs du panneau
 所选项目显示在弹出面板中，原有图标风格会保留。	Les indicateurs sélectionnés apparaissent dans le panneau. Vos styles d’icônes sont conservés.
 启动中…	Démarrage…
@@ -2299,3 +2298,34 @@ worktree 已锁定	Le worktree est verrouillé
 自定义弹窗内容	Personnaliser le contenu des fenêtres
 选择各指标弹窗显示的内容，并调整排列顺序。	Choisissez le contenu affiché dans la fenêtre de chaque indicateur et ajustez son ordre.
 在菜单栏显示（最多 {} 个）	Afficher dans la barre des menus ({} maximum)
+自由搭配三合一图标，点击查看状态总览	Combinez trois indicateurs ; cliquez pour afficher l’aperçu
+三合一内容	Contenu des trois indicateurs
+外环与顶部	Anneau extérieur et haut
+中部	Centre
+底部	Bas
+图标外观	Apparence de l’icône
+顶部显示数值	Afficher la valeur en haut
+电池状态颜色	Couleurs de l’état de la batterie
+接通电源时显示数值	Afficher la valeur sur secteur
+底部样式	Style du bas
+圆点	Points
+圆弧	Arc
+连接与音频	Connexion et audio
+蓝牙音频替换网络图标	Remplacer l’icône réseau par l’audio Bluetooth
+网络异常时优先显示网络	Afficher en priorité les problèmes réseau
+有线连接使用 Wi-Fi 图标	Utiliser l’icône Wi-Fi pour Ethernet
+个人热点使用 Wi-Fi 图标	Utiliser l’icône Wi-Fi pour le partage de connexion
+蓝牙播放时使用蓝色	Utiliser le bleu pendant la lecture Bluetooth
+额度来源	Source du quota
+自动选择	Sélection automatique
+Wi-Fi 信号：{} 格	Signal Wi-Fi : {} barres
+Wi-Fi 已开启，未连接	Wi-Fi activé, non connecté
+Wi-Fi 已关闭	Wi-Fi désactivé
+Wi-Fi 不可用	Wi-Fi indisponible
+无可用网络路由	Aucune route réseau disponible
+有线连接	Connexion Ethernet
+个人热点	Partage de connexion
+临时连接	Connexion ad hoc
+互联网共享	Partage Internet
+已连接电源，未充电	Sur secteur, sans charge
+防止休眠	Empêcher la mise en veille

@@ -101,6 +101,7 @@ public struct NetworkInterfaceInfo: Sendable, Equatable {
 }
 
 public struct NetworkRate: Sendable, Equatable {
+  public var connection: NetworkIconState? = nil
   public var downloadBytesPerSecond: Double
   public var uploadBytesPerSecond: Double
   public var totalDownloaded: UInt64

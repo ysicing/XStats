@@ -6,6 +6,10 @@ import SystemConfiguration
 public struct NetworkSampler {
   private var last: (download: UInt64, upload: UInt64, time: UInt64)?
 
+  private var lastConnectionRead: TimeInterval?
+  private var connection: NetworkIconState?
+  private var pathMonitor: NetworkIconPathMonitor?
+
   public init() {}
 
   /// `getifaddrs` 中的 `if_data.ifi_ibytes` 只有 32 位，超过 4 GiB 会回绕；
@@ -39,7 +43,17 @@ public struct NetworkSampler {
     return (download, upload)
   }
 
-  public mutating func sample() -> NetworkRate? {
+  public mutating func sample(includeConnection: Bool = false) -> NetworkRate? {
+    if includeConnection {
+      if pathMonitor == nil { pathMonitor = NetworkIconPathMonitor() }
+      let uptime = ProcessInfo.processInfo.systemUptime
+      if lastConnectionRead.map({ uptime - $0 >= 4 }) ?? true {
+        connection = NetworkIconState.read(path: pathMonitor?.snapshot())
+        lastConnectionRead = uptime
+      }
+    } else {
+      stopConnectionMonitoring()
+    }
     guard let now = Self.counters() else { return nil }
     let time = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
     defer { last = (now.download, now.upload, time) }
@@ -49,8 +63,14 @@ public struct NetworkSampler {
     let down = now.download >= last.download ? Double(now.download - last.download) / seconds : 0
     let up = now.upload >= last.upload ? Double(now.upload - last.upload) / seconds : 0
     return NetworkRate(
-      downloadBytesPerSecond: down, uploadBytesPerSecond: up,
+      connection: connection, downloadBytesPerSecond: down, uploadBytesPerSecond: up,
       totalDownloaded: now.download, totalUploaded: now.upload)
+  }
+
+  mutating func stopConnectionMonitoring() {
+    pathMonitor = nil
+    connection = nil
+    lastConnectionRead = nil
   }
 
   public static func primaryInterface() -> NetworkInterfaceInfo? {

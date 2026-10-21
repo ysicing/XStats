@@ -195,7 +195,7 @@ public enum MenuBarLayout: String, CaseIterable, Identifiable, Sendable {
   case separate
   /// 所有指标合成一个图标，点击弹出状态总览，可切到各项详情
   case combined
-  /// 只显示应用标志；保存的项目选择用于弹出面板，不持续绘制读数。
+  /// 一个实时三合一图标；三个区域与弹出面板的项目分别配置。
   case iconOnly
 
   public var id: String { rawValue }
@@ -212,7 +212,7 @@ public enum MenuBarLayout: String, CaseIterable, Identifiable, Sendable {
     switch self {
     case .separate: tr("每个指标一个图标，点击弹出该项详情")
     case .combined: tr("所有指标合成一个图标，点击弹出状态总览，可切到各项详情")
-    case .iconOnly: tr("只显示 XStats 图标，点击查看已选项目的状态总览")
+    case .iconOnly: tr("自由搭配三合一图标，点击查看状态总览")
     }
   }
 }
@@ -876,7 +876,38 @@ public final class AppSettings {
     didSet { defaults.set(menuBarItemSpacing, forKey: Keys.menuBarItemSpacing) }
   }
   public var menuBarLayout: MenuBarLayout {
-    didSet { defaults.set(menuBarLayout.rawValue, forKey: Keys.menuBarLayout) }
+    didSet {
+      defaults.set(menuBarLayout.rawValue, forKey: Keys.menuBarLayout)
+      if menuBarLayout == .iconOnly { enableTrioSources(trio.sources) }
+    }
+  }
+  @ObservationIgnored private let trioHasBattery: Bool
+  @ObservationIgnored private var trioHasFans: Bool?
+  private var trioConfiguration: TrioConfiguration
+  public var trio: TrioConfiguration {
+    get { trioConfiguration }
+    set {
+      var normalized = newValue.normalized
+      if !trioHasBattery, normalized.outer == .battery { normalized.outer = .cpu }
+      if trioHasFans == false, normalized.footer == .fan { normalized.footer = .audio }
+      let previous = trioConfiguration
+      trioConfiguration = normalized
+      defaults.set(try? JSONEncoder().encode(normalized), forKey: "menuBarTrio")
+      if menuBarLayout == .iconOnly {
+        let added = normalized.sources.filter { !previous.sources.contains($0) }
+        if !added.isEmpty { enableTrioSources(added) }
+        if normalized.bluetoothReplacesNetwork, !previous.bluetoothReplacesNetwork {
+          audioEnabled = true
+        }
+      }
+    }
+  }
+
+  /// 硬件探测和常规采样共用此入口；未知状态不抹掉已保存的风扇选择。
+  func updateTrioFanAvailability(_ count: Int?) {
+    guard let count else { return }
+    trioHasFans = count > 0
+    if count == 0, trio.footer == .fan { trio = trio }
   }
   /// 关闭时使用默认内容与顺序，保留已保存的自定义选择。
   public var customPopoverContentEnabled: Bool {
@@ -1051,6 +1082,28 @@ public final class AppSettings {
     calendar: Calendar = .current
   ) {
     self.defaults = defaults
+    trioHasBattery = BatterySampler.sample() != nil
+    var migratedTrioSources: [TrioSource] = []
+    let savedTrio = defaults.data(forKey: "menuBarTrio").flatMap { data -> TrioConfiguration? in
+      guard data.count <= 4096,
+        let configuration = try? JSONDecoder().decode(TrioConfiguration.self, from: data)
+      else { return nil }
+      if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        let footer = object["footer"] as? String
+      {
+        if TrioFooterSource(rawValue: footer) == nil { migratedTrioSources.append(.audio) }
+      }
+      return configuration
+    }
+    var initialTrio = (savedTrio ?? TrioConfiguration()).normalized
+    if !trioHasBattery, initialTrio.outer == .battery { initialTrio.outer = .cpu }
+    if let savedTrio {
+      migratedTrioSources += initialTrio.sources.filter { !savedTrio.sources.contains($0) }
+    }
+    trioConfiguration = initialTrio
+    if savedTrio == nil || initialTrio != savedTrio || !migratedTrioSources.isEmpty {
+      defaults.set(try? JSONEncoder().encode(initialTrio), forKey: "menuBarTrio")
+    }
     bluetoothDevicePreferences =
       defaults.data(forKey: "bluetooth.devicePreferences").flatMap {
         guard $0.count <= 32_768 else { return nil as BluetoothDevicePreferences? }
@@ -1285,6 +1338,11 @@ public final class AppSettings {
     }
     if savedCalendarFeatures == nil {
       defaults.set(calendarFeatures.map(\.rawValue).sorted(), forKey: Keys.calendarFeatures)
+    }
+    if menuBarLayout == .iconOnly {
+      if savedTrio == nil { enableTrioSources(trio.sources) }
+      // 只启用迁移后新加入的来源，保留其他模块明确关闭的状态。
+      if !migratedTrioSources.isEmpty { enableTrioSources(migratedTrioSources) }
     }
     // 首次采用系统的周起始日并保存，之后系统设置变化不覆盖用户选择。
     if savedCalendarFirstWeekday == nil {

@@ -160,7 +160,8 @@ enum AudioHAL {
   }
 
   static func devices() -> [AudioDeviceInfo] {
-    (ids(system, kAudioHardwarePropertyDevices) ?? []).compactMap { id in
+    let playing = playingOutputDevices()
+    return (ids(system, kAudioHardwarePropertyDevices) ?? []).compactMap { id in
       guard uint(id, kAudioDevicePropertyDeviceIsAlive) == 1,
         uint(id, kAudioDevicePropertyIsHidden) != 1,
         let uid = string(id, kAudioDevicePropertyDeviceUID), !uid.hasPrefix("XStats.Audio.")
@@ -206,7 +207,8 @@ enum AudioHAL {
           dataSource: output
             ? uint(id, kAudioDevicePropertyDataSource, scope: kAudioDevicePropertyScopeOutput)
             : nil,
-          terminalTypes: outputStreams.compactMap { uint($0, kAudioStreamPropertyTerminalType) }))
+          terminalTypes: outputStreams.compactMap { uint($0, kAudioStreamPropertyTerminalType) }),
+        isRunningOutput: output ? playing.map { $0.contains(id) } : nil)
     }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
   }
 
@@ -270,6 +272,40 @@ enum AudioHAL {
     var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
     return AudioObjectGetPropertyData(stream, &property, 0, nil, &size, &format) == noErr
       ? format : nil
+  }
+
+  /// 设备全局 running 标记也会被纯录音触发；输出播放必须同时匹配进程的输出状态和输出路由。
+  /// 不加载应用名称、包和图标；14.0–14.3 无法确认时保持未知。
+  static func playingOutputDevices() -> Set<AudioObjectID>? {
+    guard #available(macOS 14.4, *), let output = defaultDevice(.output),
+      let transport = uint(output, kAudioDevicePropertyTransportType),
+      transport == kAudioDeviceTransportTypeBluetooth
+        || transport == kAudioDeviceTransportTypeBluetoothLE,
+      let processes = ids(system, kAudioHardwarePropertyProcessObjectList)
+    else { return nil }
+    return outputPlaybackDevices(
+      processes,
+      running: {
+        uint($0, kAudioProcessPropertyIsRunningOutput)
+      },
+      outputs: {
+        ids($0, kAudioProcessPropertyDevices, scope: kAudioDevicePropertyScopeOutput)
+      })
+  }
+
+  /// 输入录音和其他设备上的播放不能点亮当前输出；读取失败保持未知，不能当作停止。
+  static func outputPlaybackDevices(
+    _ processes: [AudioObjectID], running: (AudioObjectID) -> UInt32?,
+    outputs: (AudioObjectID) -> [AudioObjectID]?
+  ) -> Set<AudioObjectID>? {
+    var playing = Set<AudioObjectID>()
+    for process in processes {
+      guard let active = running(process) else { return nil }
+      guard active == 1 else { continue }
+      guard let devices = outputs(process) else { return nil }
+      playing.formUnion(devices)
+    }
+    return playing
   }
 
   static func applicationSnapshot() -> (applications: [AudioApplication], activity: [UInt32]) {

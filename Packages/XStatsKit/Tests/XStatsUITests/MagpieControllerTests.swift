@@ -190,6 +190,32 @@ struct MagpieControllerTests {
     #expect(model.aiUsage.magpieQuotaReadings().count == 7)
   }
 
+  @Test func trioFooterKeepsSelectedServicesAndIndependentRemainingQuota() async throws {
+    let payload = Data(
+      #"{"object":"list","data":[{"provider":"codex","name":"a","kind":"subscription","windows":[{"name":"7 days","remaining":100}]},{"provider":"claude","name":"b","kind":"subscription","windows":[{"name":"7 days","remaining":50}]},{"provider":"gemini","name":"c","kind":"subscription","windows":[{"name":"7 days","remaining":0}]}]}"#
+        .utf8)
+    let settings = settings()
+    settings.menuBarLayout = .iconOnly
+    settings.trio = TrioConfiguration(outer: .none, center: .none, footer: .aiUsage)
+    let magpie = MagpieStub(quotaPayload: payload)
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      magpieClient: magpie)
+    defer { model.aiUsage.stop() }
+    await model.aiUsage.refresh()
+    let reading = TrioReading(model: model)
+    #expect(reading.aiDots.map(\.name) == ["codex", "claude", "gemini", "grok"])
+    #expect(reading.aiDots.map(\.fraction) == [1, 0.5, 0, nil])
+    #expect(TrioReading(model: model).aiDots == reading.aiDots)
+    settings.aiMenuBarProviders = ["claude", "unavailable-service"]
+    let selected = TrioReading(model: model)
+    #expect(selected.aiDots.map(\.name) == ["claude", "unavailable-service"])
+    #expect(selected.aiDots.map(\.fraction) == [0.5, nil])
+    #expect(await magpie.counts().0 == 1)
+    settings.aiUsageEnabled = false
+    #expect(TrioReading(model: model).aiDots.isEmpty)
+  }
+
   @Test func selectedUnavailableQuotasStayHiddenAndAnInvalidRecentAccountCanFallBack() async throws
   {
     let payload = Data(

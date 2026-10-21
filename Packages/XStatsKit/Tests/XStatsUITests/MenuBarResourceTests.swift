@@ -32,6 +32,7 @@ struct MenuBarResourceTests {
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
       aiUsageProviders: [], aiQuotaProviders: [])
+    model.settings.trio = TrioConfiguration(outer: .memory, center: .network, footer: .audio)
     model.settings.menuBarLayout = .iconOnly
     model.settings.menuBarItems = [.cpu, .memory, .network, .gpu, .disk, .temperature]
     model.settings.processesEnabled = true

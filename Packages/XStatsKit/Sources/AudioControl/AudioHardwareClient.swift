@@ -80,7 +80,7 @@ public final class AudioHardwareClient: @unchecked Sendable {
       ] {
         addListener(AudioHAL.system, AudioHAL.address(selector), detail: false)
       }
-      if applications, #available(macOS 14.4, *) {
+      if #available(macOS 14.4, *) {
         addListener(
           AudioHAL.system, AudioHAL.address(kAudioHardwarePropertyProcessObjectList), detail: false)
       }
@@ -241,7 +241,12 @@ public final class AudioHardwareClient: @unchecked Sendable {
 
   private func bindDetails(_ snapshot: AudioHardwareSnapshot) {
     let processIDs: [AudioObjectID]
-    if watchingApplications, #available(macOS 14.4, *) {
+    if #available(macOS 14.4, *),
+      watchingApplications
+        || snapshot.devices.contains(where: {
+          $0.id == snapshot.outputID && ($0.outputKind == .bluetooth || $0.bluetoothAddress != nil)
+        })
+    {
       processIDs = AudioHAL.ids(AudioHAL.system, kAudioHardwarePropertyProcessObjectList) ?? []
     } else {
       processIDs = []
@@ -289,6 +294,9 @@ public final class AudioHardwareClient: @unchecked Sendable {
       }
     }
     for output in outputIDs {
+      // 仅作为重新读取进程输出状态的通知，不将设备的录音活动当作播放。
+      addListener(
+        output, AudioHAL.address(kAudioDevicePropertyDeviceIsRunningSomewhere), detail: true)
       addListener(
         output,
         AudioHAL.address(kAudioDevicePropertyDataSource, scope: kAudioDevicePropertyScopeOutput),
@@ -317,6 +325,10 @@ public final class AudioHardwareClient: @unchecked Sendable {
     if #available(macOS 14.4, *) {
       for id in processIDs {
         addListener(id, AudioHAL.address(kAudioProcessPropertyIsRunningOutput), detail: true)
+        addListener(
+          id,
+          AudioHAL.address(kAudioProcessPropertyDevices, scope: kAudioDevicePropertyScopeOutput),
+          detail: true)
       }
     }
   }

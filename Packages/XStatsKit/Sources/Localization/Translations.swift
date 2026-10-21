@@ -12,7 +12,7 @@ extension Translations {
       english, captureEnglish, webDAVEnglish, languagePickerEnglish, calendarEnglish, restEnglish,
       audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish,
       appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish,
-      hardwareDetailsEnglish, aiCleanupEnglish, networkPresentationEnglish,
+      hardwareDetailsEnglish, aiCleanupEnglish, networkPresentationEnglish, trioEnglish,
     ]
   }
 
@@ -1670,7 +1670,6 @@ extension Translations {
     不能在 XStats 内卸载或退出 XStats 自身	XStats cannot uninstall or quit itself from this tool
     应用本体未能移动；已将 {} 项残留移到废纸篓，约 {}。请解决错误后重试。	The app could not be moved. Related items moved to Trash: {} (about {}). Resolve the error and try again.
     仅图标	Icon only
-    只显示 XStats 图标，点击查看已选项目的状态总览	Show only the XStats icon; click to view an overview of selected metrics
     面板项目	Panel metrics
     所选项目显示在弹出面板中，原有图标风格会保留。	Selected metrics appear in the popover. Your icon styles are preserved.
     启动中…	Starting…
@@ -1758,5 +1757,42 @@ extension Translations {
     没有找到应用	No apps found
     筛选	Filter
     通用架构	Universal
+    """#
+}
+
+extension Translations {
+  static let trioEnglish = #"""
+    自由搭配三合一图标，点击查看状态总览	Customize a three-in-one icon; click for the status overview
+    三合一内容	Three-in-One Content
+    外环与顶部	Outer Ring and Top
+    中部	Center
+    底部	Bottom
+    图标外观	Icon Appearance
+    顶部显示数值	Show Value at Top
+    电池状态颜色	Battery Status Colors
+    接通电源时显示数值	Show Value When Plugged In
+    底部样式	Bottom Style
+    圆点	Dots
+    圆弧	Arc
+    连接与音频	Connection and Audio
+    蓝牙音频替换网络图标	Replace Network Icon with Bluetooth Audio
+    网络异常时优先显示网络	Prioritize Network Issues
+    有线连接使用 Wi-Fi 图标	Use Wi-Fi Icon for Ethernet
+    个人热点使用 Wi-Fi 图标	Use Wi-Fi Icon for Personal Hotspot
+    蓝牙播放时使用蓝色	Use Blue During Bluetooth Playback
+    额度来源	Quota Source
+    自动选择	Automatic Selection
+    Wi-Fi 信号：{} 格	Wi-Fi signal: {} bars
+    Wi-Fi 已开启，未连接	Wi-Fi On, Not Connected
+    Wi-Fi 已关闭	Wi-Fi Off
+    Wi-Fi 不可用	Wi-Fi Unavailable
+    无可用网络路由	No Available Network Route
+    有线连接	Ethernet Connection
+    个人热点	Personal Hotspot
+    临时连接	Ad Hoc Connection
+    互联网共享	Internet Sharing
+    已连接电源，未充电	Plugged In, Not Charging
+    防止休眠	Keep Awake
+    静音	Muted
     """#
 }

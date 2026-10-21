@@ -9,6 +9,7 @@ public struct MetricsDemand: Sendable, Equatable {
   public var cpu = false
   public var memory = false
   public var network = false
+  public var networkConnection = false
   public var gpu = false
   public var disk = false
   public var battery = false
@@ -84,6 +85,7 @@ public actor MetricsHub {
       || (newDemand.cpu && !demand.cpu)
       || (newDemand.memory && !demand.memory)
       || (newDemand.network && !demand.network)
+      || (newDemand.networkConnection && !demand.networkConnection)
       || (newDemand.gpu && !demand.gpu)
       || (newDemand.battery && !demand.battery)
       || !newDemand.temperatures.isSubset(of: demand.temperatures)
@@ -114,6 +116,7 @@ public actor MetricsHub {
       appEnergy = AppEnergySampler()
       nextAppEnergyUptime = nil
     }
+    if !newDemand.networkConnection { network.stopConnectionMonitoring() }
     demand = newDemand
     if needsImmediateRefresh {
       lastDisk = .distantPast
@@ -141,6 +144,7 @@ public actor MetricsHub {
   public func setPaused(_ value: Bool) {
     guard value != paused else { return }
     paused = value
+    if value { network.stopConnectionMonitoring() }
     power.resetBaselines()
     lastPower = .distantPast
     appEnergy = AppEnergySampler()
@@ -149,6 +153,7 @@ public actor MetricsHub {
   }
 
   public func stop() {
+    network.stopConnectionMonitoring()
     loop?.cancel()
     loop = nil
     handler = nil
@@ -211,7 +216,7 @@ public actor MetricsHub {
 
     if demand.memory { snapshot.memory = memory.sample() }
     if demand.network {
-      snapshot.network = network.sample()
+      snapshot.network = network.sample(includeConnection: demand.networkConnection)
       if now.timeIntervalSince(lastInterface) > 15 {
         snapshot.networkInterface = NetworkSampler.primaryInterface()
         lastInterface = now

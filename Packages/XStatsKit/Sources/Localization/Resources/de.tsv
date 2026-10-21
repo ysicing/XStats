@@ -1554,7 +1554,6 @@ AI 用量与额度共用此间隔；新数据到达后更新菜单栏。	KI-Nutz
 套餐剩余时间	Verbleibende Tariflaufzeit
 Token 用量	Tokens
 仅图标	Nur Symbol
-只显示 XStats 图标，点击查看已选项目的状态总览	Nur das XStats-Symbol anzeigen; anklicken, um die ausgewählten Messwerte zu sehen
 面板项目	Panel-Messwerte
 所选项目显示在弹出面板中，原有图标风格会保留。	Die ausgewählten Messwerte erscheinen im Panel. Ihre Symbolstile bleiben erhalten.
 启动中…	Startet…
@@ -2299,3 +2298,34 @@ worktree 已锁定	Worktree ist gesperrt
 自定义弹窗内容	Popover-Inhalt anpassen
 选择各指标弹窗显示的内容，并调整排列顺序。	Wähle die Inhalte der einzelnen Messwert-Popover und passe ihre Reihenfolge an.
 在菜单栏显示（最多 {} 个）	In der Menüleiste anzeigen (maximal {})
+自由搭配三合一图标，点击查看状态总览	Drei Anzeigen frei kombinieren; Klick öffnet die Statusübersicht
+三合一内容	Drei Anzeigen
+外环与顶部	Außenring und oben
+中部	Mitte
+底部	Unten
+图标外观	Symboldarstellung
+顶部显示数值	Wert oben anzeigen
+电池状态颜色	Farben für den Batteriestatus
+接通电源时显示数值	Wert bei Netzbetrieb anzeigen
+底部样式	Stil unten
+圆点	Punkte
+圆弧	Bogen
+连接与音频	Verbindung und Audio
+蓝牙音频替换网络图标	Netzwerksymbol durch Bluetooth-Audio ersetzen
+网络异常时优先显示网络	Netzwerkprobleme bevorzugt anzeigen
+有线连接使用 Wi-Fi 图标	Wi-Fi-Symbol für Ethernet verwenden
+个人热点使用 Wi-Fi 图标	Wi-Fi-Symbol für persönlichen Hotspot verwenden
+蓝牙播放时使用蓝色	Blau bei Bluetooth-Wiedergabe verwenden
+额度来源	Kontingentquelle
+自动选择	Automatische Auswahl
+Wi-Fi 信号：{} 格	Wi-Fi-Signal: {} Balken
+Wi-Fi 已开启，未连接	Wi-Fi an, nicht verbunden
+Wi-Fi 已关闭	Wi-Fi aus
+Wi-Fi 不可用	Wi-Fi nicht verfügbar
+无可用网络路由	Keine Netzwerkroute verfügbar
+有线连接	Ethernet-Verbindung
+个人热点	Persönlicher Hotspot
+临时连接	Ad-hoc-Verbindung
+互联网共享	Internetfreigabe
+已连接电源，未充电	Am Netz, lädt nicht
+防止休眠	Ruhezustand verhindern

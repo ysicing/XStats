@@ -184,6 +184,7 @@ public final class AppModel {
     Task { [weak self] in
       let count = await hub.detectFanCount()
       self?.store.recordFanCount(count)
+      self?.settings.updateTrioFanAvailability(count)
     }
   }
 
@@ -207,7 +208,17 @@ public final class AppModel {
 
   /// 实际绘制读数的项目与面板项目分开，切换为仅图标时不改写用户的项目选择。
   var drawnMenuBarItems: [MenuBarItem] {
-    settings.menuBarLayout == .iconOnly ? [] : visibleMenuBarItems
+    guard settings.menuBarLayout == .iconOnly else { return visibleMenuBarItems }
+    var selected = Set(settings.trio.sources.compactMap(\.item))
+    if settings.trio.center == .network, settings.trio.bluetoothReplacesNetwork,
+      settings.isModuleEnabled(for: .network)
+    {
+      selected.insert(.audio)
+    }
+    return MenuBarItem.allCases.filter {
+      selected.contains($0) && settings.isModuleEnabled(for: $0)
+        && ($0 != .fan || store.supportsFans)
+    }
   }
 
   var isCombinedOverviewVisible: Bool {
@@ -287,6 +298,8 @@ public final class AppModel {
     demand.network =
       settings.isModuleEnabled(.network)
       && (recording || dashboard || summary.contains(.network) || showing(.network, .network))
+    demand.networkConnection =
+      demand.network && settings.menuBarLayout == .iconOnly && menu.contains(.network)
     demand.gpu =
       (window && [.overview, .system].contains(tab)) || summary.contains(.gpu)
       || showing(.gpu, .gpu)
@@ -336,6 +349,8 @@ public final class AppModel {
       store.fanCount != 0
       && ((window && (tab == .thermal || tab == .overview)) || summary.contains(.fan)
         || fans.mode != .automatic || fanPopover
+        || (store.fanCount == nil && settings.menuBarLayout == .iconOnly
+          && settings.trio.footer == .fan)
         || (store.fanCount == nil && settings.menuBarItems.contains(.fan)
           && (settings.menuBarLayout != .iconOnly || isCombinedOverviewVisible)))
     demand.gpu = demand.gpu && settings.isModuleEnabled(.gpu)
@@ -494,6 +509,7 @@ public final class AppModel {
       gpuPowerRequested: demand.gpuPower,
       gpuFrequencyRequested: demand.gpuFrequency, appEnergyRequested: demand.appEnergy)
     store.apply(filtered)
+    settings.updateTrioFanAvailability(store.fanCount)
     fans.evaluateSafety(temperature: snapshot.sensors?.temperature(.cpu)?.maximum)
     keepAwake.evaluateBattery(snapshot.battery)
     alerts.evaluate(store)

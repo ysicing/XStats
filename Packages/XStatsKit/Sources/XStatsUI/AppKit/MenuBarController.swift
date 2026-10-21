@@ -16,6 +16,8 @@ final class MenuBarController: NSObject {
   private var renderedReadings:
     [MenuBarItem?: (reading: MenuBarReading, appearance: NSAppearance.Name)] = [:]
 
+  private var renderedTrio:
+    (reading: TrioReading, configuration: TrioConfiguration, appearance: NSAppearance.Name)?
   private var renderedItemSpacing: Int?
 
   /// 开发调试：启动后展开并固定某个弹窗
@@ -84,6 +86,26 @@ final class MenuBarController: NSObject {
 
   func refreshImages(force: Bool = false) {
     let settings = model.settings
+    if settings.menuBarLayout == .iconOnly {
+      guard let button = items.first?.statusItem.button else { return }
+      let reading = TrioReading(model: model)
+      let appearance = button.effectiveAppearance
+      if force || renderedTrio?.reading != reading || renderedTrio?.configuration != settings.trio
+        || renderedTrio?.appearance != appearance.name
+      {
+        button.image = TrioIconRenderer.image(
+          reading: reading, configuration: settings.trio,
+          dark: appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua)
+        renderedTrio = (reading, settings.trio, appearance.name)
+      }
+      let tooltip = reading.tooltip(settings.trio)
+      if button.toolTip != tooltip {
+        button.toolTip = tooltip
+        button.setAccessibilityLabel(tooltip)
+      }
+      return
+    }
+    renderedTrio = nil
     if renderedItemSpacing != settings.menuBarItemSpacing {
       renderedReadings.removeAll()
       renderedItemSpacing = settings.menuBarItemSpacing

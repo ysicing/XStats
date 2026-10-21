@@ -50,6 +50,8 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var showDockIcon: Bool?
   public var speedTestRoute: String?
   public var menuBarItemSpacing: Int?
+  public var trio: TrioConfiguration?
+  public var aiMenuBarProviders: [String]?
   public var menuBarLayout: String?
   public var customPopoverContentEnabled: Bool?
   public var hiddenPopoverSections: [String]?
@@ -118,6 +120,8 @@ extension AppSettings {
     doc.showDockIcon = showDockIcon
     doc.speedTestRoute = speedTestRoute.rawValue
     doc.menuBarItemSpacing = menuBarItemSpacing
+    doc.trio = trio
+    doc.aiMenuBarProviders = aiMenuBarProviders.sorted()
     doc.menuBarLayout = menuBarLayout.rawValue
     doc.customPopoverContentEnabled = customPopoverContentEnabled
     doc.hiddenPopoverSections = hiddenPopoverSections.map(\.rawValue).sorted()
@@ -209,6 +213,8 @@ extension AppSettings {
     assign(\.showDockIcon, doc.showDockIcon)
     assign(\.speedTestRoute, doc.speedTestRoute.flatMap(SpeedRoute.init(rawValue:)))
     assign(\.menuBarItemSpacing, option(doc.menuBarItemSpacing, in: Self.menuBarSpacingOptions))
+    assign(\.trio, doc.trio)
+    if let providers = doc.aiMenuBarProviders { aiMenuBarProviders = Set(providers) }
     assign(\.menuBarLayout, doc.menuBarLayout.flatMap(MenuBarLayout.init(rawValue:)))
     assign(
       \.hiddenPopoverSections,

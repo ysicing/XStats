@@ -52,6 +52,8 @@ public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
   public let canSetInputMute: Bool
   public let canSetOutputMute: Bool
   public let bluetoothAddress: String?
+  /// HAL 输出方向运行标记；未知时为 nil，不能把仅连接视为正在播放。
+  public let isRunningOutput: Bool?
   public let outputKind: AudioOutputKind
   public init(
     id: UInt32, uid: String, name: String, hasInput: Bool = false, hasOutput: Bool = false,
@@ -61,7 +63,7 @@ public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
     canSetInputMute: Bool = false, canSetOutputMute: Bool = false,
     bluetoothAddress: String? = nil, canBeDefaultInput: Bool? = nil,
     canBeDefaultOutput: Bool? = nil,
-    outputKind: AudioOutputKind = .unknown
+    outputKind: AudioOutputKind = .unknown, isRunningOutput: Bool? = nil
   ) {
     self.id = id
     self.uid = uid
@@ -78,6 +80,7 @@ public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
     self.canSetOutputMute = canSetOutputMute
     self.bluetoothAddress = bluetoothAddress
     self.outputKind = outputKind
+    self.isRunningOutput = isRunningOutput
     self.canBeDefaultInput = canBeDefaultInput ?? hasInput
     self.canBeDefaultOutput = canBeDefaultOutput ?? hasOutput
   }

@@ -369,21 +369,27 @@ struct MenuBarSettings: View {
       }
     }
 
-    SettingsGroup(caption: tr("整体风格")) {
-      LazyVGrid(
-        columns: [
-          GridItem(.flexible(), spacing: DS.Space.s3), GridItem(.flexible(), spacing: DS.Space.s3),
-        ],
-        spacing: DS.Space.s3
-      ) {
-        ForEach(MenuBarStyle.allCases) { style in
-          StyleCard(style: style, isSelected: settings.menuBarStyle == style) {
-            settings.menuBarStyle = style
+    if settings.menuBarLayout == .iconOnly {
+      TrioSettings()
+    } else {
+      SettingsGroup(caption: tr("整体风格")) {
+        LazyVGrid(
+          columns: [
+            GridItem(.flexible(), spacing: DS.Space.s3),
+            GridItem(.flexible(), spacing: DS.Space.s3),
+          ],
+          spacing: DS.Space.s3
+        ) {
+          ForEach(MenuBarStyle.allCases) { style in
+            StyleCard(style: style, isSelected: settings.menuBarStyle == style) {
+              settings.menuBarStyle = style
+            }
           }
         }
+        .padding(DS.Space.s3)
+        .disabled(settings.menuBarLayout == .iconOnly)
       }
-      .padding(DS.Space.s3)
-      .disabled(settings.menuBarLayout == .iconOnly)
+
     }
 
     SettingsGroup(caption: settings.menuBarLayout == .iconOnly ? tr("面板项目") : tr("显示项目")) {
@@ -885,10 +891,16 @@ private struct MenuBarPreview: View {
       Text(tr("当前效果（实时数据）")).dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
       // 实时图标宽度会随启用的项目变化；并排时两张预览可能撑出设置页。
       VStack(spacing: DS.Space.s2) {
-        preview(image: image, dark: false)
-        preview(image: image, dark: true)
+        preview(image: previewImage(image, dark: false), dark: false)
+        preview(image: previewImage(image, dark: true), dark: true)
       }
     }
+  }
+
+  private func previewImage(_ fallback: NSImage, dark: Bool) -> NSImage {
+    guard model.settings.menuBarLayout == .iconOnly else { return fallback }
+    return TrioIconRenderer.image(
+      reading: TrioReading(model: model), configuration: model.settings.trio, dark: dark)
   }
 
   private func preview(image: NSImage, dark: Bool) -> some View {

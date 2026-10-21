@@ -327,6 +327,11 @@ enum MenuBarRenderer {
 
   static func image(for model: AppModel) -> NSImage {
     let settings = model.settings
+    if settings.menuBarLayout == .iconOnly {
+      let dark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+      return TrioIconRenderer.image(
+        reading: TrioReading(model: model), configuration: settings.trio, dark: dark)
+    }
     let items = model.drawnMenuBarItems
     return image(
       reading: MenuBarReading(model: model, items: items),

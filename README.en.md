@@ -33,7 +33,7 @@ XStats is a free, open-source native app built with Swift, AppKit and SwiftUI. N
 
 ### Menu bar layout
 
-Show metrics **separately**, in **Aggregated Mode**, or behind **a single icon**. Items, order and styles (text, icons, rings, progress bars, history charts) are all configurable.
+Show metrics **separately**, in **Aggregated Mode**, or as **a three-in-one icon** with freely combined sources. Items, order and styles (text, icons, rings, progress bars, history charts) are all configurable.
 
 The aggregated overview brings metrics together and opens individual details.
 

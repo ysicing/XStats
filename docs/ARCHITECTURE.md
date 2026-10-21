@@ -403,14 +403,39 @@ including its provider and period; local Token usage remains in the expanded det
 summary fallback when enabled and no subscription quota is available. Subscription quota has a
 progress track matching the selected used/remaining percentage; unbounded Token counts do not.
 
-The *iconOnly* layout draws only the XStats symbol (plus the keep-awake indicator when active).
-It preserves selected metrics and styles; its 360 pt overview uses the same selection as combined
-mode. Additional GPU, disk, battery, temperature and fan demand exists only while corresponding
-rows or details are shown. A Mac without a built-in battery labels the row as Bluetooth devices
-and shows the lowest connected accessory charge. The optional three-row process summary follows
-`processesEnabled` and appears when all rows are collapsed;
-it does not request full-system process enumeration. Closing the panel releases these demands,
-while baseline CPU, memory, network, history and safety requirements keep their existing behavior.
+The *iconOnly* layout draws one 24 × 22 pt three-in-one status icon. Its outer ring/top
+selects battery, CPU, memory or disk usage. The center automatically shows network state or the
+current Bluetooth audio output; it does not offer general metric sources. The bottom selects
+audio, fan speed or AI quota. Popover metric selection and other layouts' styles remain separate.
+A Mac without an internal battery hides that choice and defaults to CPU/network/audio. Unsupported
+legacy top sources fall back to CPU and legacy center sources migrate to network. Newly added
+sources are enabled during migration without re-enabling unrelated disabled modules.
+Battery charging, external power, full charge, low power and low charge have distinct presentations;
+low charge takes color priority over low-power mode and external power. A Bluetooth output can
+replace the network glyph even while playback is paused, optionally preserving network errors;
+only active Bluetooth playback tints volume blue. Audio and fan speed support dots or an arc.
+Fan progress is current RPM divided by the same fan's valid hardware maximum, not its minimum-to-maximum
+control range. Tooltip keeps the actual RPM; stopped, missing and invalid maximum readings are distinct.
+The fan choice is hidden on machines without fans; a restored fan footer falls back to audio once
+zero fans is confirmed. Unknown hardware retains the saved choice and permits demand-driven retry. AI quota uses one dot per selected service (at most four),
+with brand-colored sector fill showing remaining quota. Unavailable quota keeps a gray outline in its
+fixed service position; zero remaining quota keeps an empty brand-colored outline. It reuses the
+existing menu-bar service selection and quota snapshots, with no additional polling. The selected
+services are included in settings export/import; old documents preserve the current selection. Legacy bottom
+metrics other than fan speed migrate to audio; the saved audio/fan style is ignored while AI dots are selected.
+Colors follow the actual status item's appearance; uncolored images remain system templates.
+The keep-awake badge is retained.
+Network connection details reuse MetricsHub sampling (at most once every four seconds), with a
+path listener only while the icon needs it; pause, stop and demand removal release that listener.
+No reachability requests, nearby Wi-Fi scans or animation timers are added. An expensive Wi-Fi route
+is classified as a personal hotspot, matching the upstream heuristic; this is not proof of its hardware.
+A route failure is described as no available network route, not a remote Internet health check.
+Audio device running state uses existing HAL property listeners and does not enumerate applications.
+Selected enabled sources drive menu demand; adding a source enables its feature except battery
+extra collection and display hardware controls. Removing one only removes display demand. Imports
+apply explicit feature switches after the icon configuration, preserving intentionally disabled features.
+The 360 pt overview continues to use the separate panel selection. Expanding rows requests details;
+closing the panel releases those demands while icon, history and safety requirements remain.
 
 Popovers are borderless, non-activating `NSPanel`s. The SwiftUI tree is created on open and
 destroyed on close, so a hidden popover costs nothing. Height comes from measuring a flat,

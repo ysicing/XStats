@@ -607,6 +607,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.settings.menuBarItems
       _ = model.settings.menuBarOrder
       _ = model.settings.menuBarItemSpacing
+      _ = model.settings.trio
       _ = model.settings.menuBarLayout
       _ = model.settings.menuBarValueOnTop
       _ = model.settings.menuBarStyle
