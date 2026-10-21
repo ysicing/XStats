@@ -57,12 +57,14 @@ struct TrioIconTests {
     controller.refreshDockIcon()
     #expect(app.applicationIconImage?.tiffRepresentation != firstData)
     var reading = TrioReading()
-    reading.values[.battery] = 0.8
+    // 无内置电池时顶部会回退到 CPU，测试应更新实际显示的指标。
+    let outerSource = settings.trio.outer
+    reading.values[outerSource] = 0.8
     controller.refreshDockIcon(reading: reading)
-    let chargedData = try #require(app.applicationIconImage?.tiffRepresentation)
-    reading.values[.battery] = 0.1
+    let highValueData = try #require(app.applicationIconImage?.tiffRepresentation)
+    reading.values[outerSource] = 0.1
     controller.refreshDockIcon(reading: reading)
-    #expect(app.applicationIconImage?.tiffRepresentation != chargedData)
+    #expect(app.applicationIconImage?.tiffRepresentation != highValueData)
     settings.menuBarLayout = .combined
     controller.refreshDockIcon()
     let restoredIcon = app.applicationIconImage
