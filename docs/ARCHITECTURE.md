@@ -79,8 +79,10 @@ whether MenuBarAgent has visually applied it; that still requires native UI veri
 A recovery journal is persisted before hiding previously visible applications. Expanding,
 disabling, and normal termination restore only those entries; applications already hidden
 by the user stay hidden. Startup attempts recovery even with folding disabled. A failed
-restore retains the journal and recovery UI; normal termination waits for pending writes
-and refuses to finish if restoration fails. A crash can leave apps hidden until the next
+restore retains the journal and recovery UI; normal termination waits for pending writes.
+If restoration fails, the user can cancel or explicitly quit with the recovery journal
+retained for another attempt at startup. Continuing still runs the remaining termination
+checks. A crash or an unsuccessful restore can leave apps hidden until the next
 successful recovery or a manual change in System Settings → Menu Bar. Other managers
 editing the same applications concurrently are not supported: a boolean preference cannot
 identify who last wrote an identical value.
@@ -431,10 +433,18 @@ services are included in settings export/import; old documents preserve the curr
 metrics other than fan speed migrate to audio; the saved audio/fan style is ignored while AI dots are selected.
 Colors follow the actual status item's appearance; uncolored images remain system templates.
 The keep-awake badge is retained.
-Network connection details reuse MetricsHub sampling (at most once every four seconds), with a
+Trio image reuse compares displayed values rather than raw samples: arcs use whole-percentage
+steps, audio/fan dots use four levels, and AI dot sectors use whole-percentage steps while
+preserving their color boundaries. Battery color thresholds use the original level. Tooltips
+retain current raw readings without forcing menu-bar or Dock image creation.
+Network connection details reuse MetricsHub sampling (every four seconds while the path is stable), with a
 path listener only while the icon needs it; pause, stop and demand removal release that listener.
-No reachability requests, nearby Wi-Fi scans or animation timers are added. An expensive Wi-Fi route
-is classified as a personal hotspot, matching the upstream heuristic; this is not proof of its hardware.
+The first path callback and subsequent path changes invalidate that throttle on the next existing
+sampling tick. No reachability requests, nearby Wi-Fi scans or animation timers are added.
+An expensive Wi-Fi route is shown using its actual signal, since connection cost does not
+identify a personal hotspot. The hotspot presentation remains compatible with saved settings
+and previews, but the live reader does not infer it from cost or Low Data Mode.
+Its appearance toggle is therefore omitted from settings.
 A route failure is described as no available network route, not a remote Internet health check.
 Audio device running state uses existing HAL property listeners and does not enumerate applications.
 Selected enabled sources drive menu demand; adding a source enables its feature except battery

@@ -111,6 +111,138 @@ struct TrioIconTests {
     #expect(settings.trio.effectiveBatteryTopScale == 1.1)
   }
 
+  @Test func imageReuseIgnoresSubpixelSamplesAndTooltipOnlyChanges() throws {
+    let configuration = TrioConfiguration(outer: .cpu, footer: .fan)
+    var previous = TrioReading()
+    previous.values[.cpu] = 0.201
+    previous.values[.fan] = 2001
+    previous.fanFraction = 0.501
+    var next = previous
+    next.values[.cpu] = 0.204
+    next.values[.fan] = 2099
+    next.fanFraction = 0.524
+    next.audioName = "Updated device name"
+    #expect(next != previous)
+    #expect(next.tooltip(configuration) != previous.tooltip(configuration))
+    #expect(next.hasSameImage(as: previous, configuration: configuration))
+    let first = try #require(
+      TrioIconRenderer.image(reading: previous, configuration: configuration, dark: false)
+        .tiffRepresentation)
+    #expect(
+      TrioIconRenderer.image(reading: next, configuration: configuration, dark: false)
+        .tiffRepresentation == first)
+    next.values[.cpu] = 0.206
+    #expect(!next.hasSameImage(as: previous, configuration: configuration))
+    #expect(
+      TrioIconRenderer.image(reading: next, configuration: configuration, dark: false)
+        .tiffRepresentation != first)
+  }
+
+  @Test func footerReusePreservesDotArcMuteAndMissingDataBoundaries() {
+    var configuration = TrioConfiguration(outer: .cpu, footer: .fan)
+    var previous = TrioReading()
+    previous.fanFraction = 0.5
+    var next = previous
+    next.fanFraction = 0.5001
+    #expect(!next.hasSameImage(as: previous, configuration: configuration))
+    configuration.footerStyle = .arc
+    #expect(next.hasSameImage(as: previous, configuration: configuration))
+    next.fanFraction = 0.506
+    #expect(!next.hasSameImage(as: previous, configuration: configuration))
+    previous.fanFraction = nil
+    next.fanFraction = 0
+    #expect(!next.hasSameImage(as: previous, configuration: configuration))
+    configuration.footer = .audio
+    previous.values[.audio] = 0
+    next.values[.audio] = 0
+    next.muted = true
+    #expect(!next.hasSameImage(as: previous, configuration: configuration))
+  }
+
+  @Test(arguments: [0.1, 0.2])
+  func batteryColorCrossingInvalidatesTheSameRoundedPercent(threshold: Double) throws {
+    let configuration = TrioConfiguration()
+    var previous = TrioReading()
+    previous.values[.battery] = threshold
+    var next = previous
+    next.values[.battery] = threshold + 0.0001
+    #expect(next.shortValue(.battery) == previous.shortValue(.battery))
+    #expect(next.outerFraction(.battery) == previous.outerFraction(.battery))
+    #expect(!next.hasSameImage(as: previous, configuration: configuration))
+    #expect(
+      TrioIconRenderer.image(reading: next, configuration: configuration, dark: false)
+        .tiffRepresentation
+        != TrioIconRenderer.image(reading: previous, configuration: configuration, dark: false)
+        .tiffRepresentation)
+  }
+
+  @Test(arguments: [0.1, 0.2, 0.5])
+  func aiSectorReusePreservesColorBoundaries(threshold: Double) throws {
+    let configuration = TrioConfiguration(footer: .aiUsage)
+    var previous = TrioReading()
+    previous.aiDots = [.init(name: "codex", fraction: threshold - 0.001)]
+    var next = previous
+    next.aiDots = [.init(name: "claude", fraction: threshold - 0.0001)]
+    #expect(next.hasSameImage(as: previous, configuration: configuration))
+    let first = try #require(
+      TrioIconRenderer.image(reading: previous, configuration: configuration, dark: false)
+        .tiffRepresentation)
+    #expect(
+      TrioIconRenderer.image(reading: next, configuration: configuration, dark: false)
+        .tiffRepresentation == first)
+    next.aiDots[0].fraction = threshold
+    #expect(!next.hasSameImage(as: previous, configuration: configuration))
+    #expect(
+      TrioIconRenderer.image(reading: next, configuration: configuration, dark: false)
+        .tiffRepresentation != first)
+    next.aiDots[0].fraction = nil
+    previous.aiDots[0].fraction = 0
+    #expect(!next.hasSameImage(as: previous, configuration: configuration))
+  }
+
+  @Test func dockReusesImageAcrossOneHundredSamplesButKeepsCurrentTooltip() throws {
+    let app = NSApplication.shared
+    let previousPolicy = app.activationPolicy()
+    let originalIcon = app.applicationIconImage?.copy() as? NSImage
+    defer {
+      app.applicationIconImage = originalIcon
+      _ = app.setActivationPolicy(previousPolicy)
+    }
+    let suite = "TrioDockReuse.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.trio = TrioConfiguration(outer: .cpu, footer: .fan)
+    settings.menuBarLayout = .iconOnly
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+    var imagesCreated = 0
+    let controller = MenuBarController(model: model) { reading, configuration in
+      imagesCreated += 1
+      return TrioIconRenderer.dockImage(reading: reading, configuration: configuration)
+    }
+    #expect(app.setActivationPolicy(.regular))
+    var reading = TrioReading()
+    for index in 0..<100 {
+      reading.values[.cpu] = 0.20 + Double(index) * 0.00001
+      reading.values[.fan] = 2001 + Double(index)
+      reading.fanFraction = (2001 + Double(index)) / 4000
+      controller.refreshDockIcon(reading: reading)
+      #expect(app.applicationIconImage?.accessibilityDescription == reading.tooltip(settings.trio))
+    }
+    #expect(imagesCreated == 1)
+    reading.values[.cpu] = 0.21
+    controller.refreshDockIcon(reading: reading)
+    #expect(imagesCreated == 2)
+    #expect(app.setActivationPolicy(.accessory))
+    reading.values[.cpu] = 0.3
+    controller.refreshDockIcon(reading: reading)
+    #expect(imagesCreated == 2)
+    #expect(app.setActivationPolicy(.regular))
+    controller.refreshDockIcon(reading: reading)
+    #expect(imagesCreated == 3)
+  }
+
   @Test func legacyBatteryOptionsPreserveDisplayAndNormalizeNewValues() throws {
     let suite = "TrioBatteryMigration.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

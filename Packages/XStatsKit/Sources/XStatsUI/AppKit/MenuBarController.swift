@@ -7,6 +7,7 @@ import SwiftUI
 @MainActor
 final class MenuBarController: NSObject {
   private let model: AppModel
+  private let makeDockImage: @MainActor (TrioReading, TrioConfiguration) -> NSImage
   private var items: [(key: MenuBarItem?, statusItem: NSStatusItem)] = []
   private var panels: [MenuBarItem: StatusPanel] = [:]
   /// 合并模式的面板：状态总览与各项详情
@@ -25,8 +26,14 @@ final class MenuBarController: NSObject {
   /// 开发调试：启动后展开并固定某个弹窗
   var pinsNextPopover = false
 
-  init(model: AppModel) {
+  init(
+    model: AppModel,
+    makeDockImage: @escaping @MainActor (TrioReading, TrioConfiguration) -> NSImage =
+      TrioIconRenderer
+      .dockImage
+  ) {
     self.model = model
+    self.makeDockImage = makeDockImage
     super.init()
   }
 
@@ -93,7 +100,11 @@ final class MenuBarController: NSObject {
       refreshDockIcon(reading: reading)
       guard let button = items.first?.statusItem.button else { return }
       let appearance = button.effectiveAppearance
-      if force || renderedTrio?.reading != reading || renderedTrio?.configuration != settings.trio
+      let sameImage =
+        renderedTrio.map {
+          reading.hasSameImage(as: $0.reading, configuration: settings.trio)
+        } ?? false
+      if force || !sameImage || renderedTrio?.configuration != settings.trio
         || renderedTrio?.appearance != appearance.name
       {
         button.image = TrioIconRenderer.image(
@@ -105,6 +116,7 @@ final class MenuBarController: NSObject {
       if button.toolTip != tooltip {
         button.toolTip = tooltip
         button.setAccessibilityLabel(tooltip)
+        button.image?.accessibilityDescription = tooltip
       }
       return
     }
@@ -163,12 +175,19 @@ final class MenuBarController: NSObject {
     let reading = reading ?? TrioReading(model: model)
     let configuration = model.settings.trio
     let language = model.settings.language
+    let sameImage =
+      renderedDockTrio.map {
+        reading.hasSameImage(as: $0.reading, configuration: configuration)
+      } ?? false
+    let tooltip = reading.tooltip(configuration)
+    if NSApp.applicationIconImage?.accessibilityDescription != tooltip {
+      NSApp.applicationIconImage?.accessibilityDescription = tooltip
+    }
     guard
-      renderedDockTrio?.reading != reading || renderedDockTrio?.configuration != configuration
+      !sameImage || renderedDockTrio?.configuration != configuration
         || renderedDockTrio?.language != language
     else { return }
-    NSApp.applicationIconImage = TrioIconRenderer.dockImage(
-      reading: reading, configuration: configuration)
+    NSApp.applicationIconImage = makeDockImage(reading, configuration)
     renderedDockTrio = (reading, configuration, language)
   }
 

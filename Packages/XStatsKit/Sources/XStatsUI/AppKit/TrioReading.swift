@@ -23,6 +23,12 @@ struct TrioReading: Equatable {
     let name: String
     /// nil 表示当前没有有效额度，与剩余额度为零区分；每个服务保留固定位置。
     var fraction: Double?
+
+    /// 按整百分比绘制扇形，向下取整保留 10%、20%、50% 的颜色分界。
+    var imageFraction: Double? {
+      guard let fraction, fraction.isFinite else { return nil }
+      return floor(min(1, max(0, fraction)) * 100) / 100
+    }
   }
   var aiDots: [AIDot] = []
   var keepAwake = false
@@ -98,6 +104,76 @@ struct TrioReading: Equatable {
       selectedBluetoothName = device.name
     }
     keepAwake = model.keepAwake.isActive
+  }
+
+  /// 图像按显示粒度比较，原始读数仍用于提示；菜单栏和程序坞共用此规则。
+  func hasSameImage(as other: Self, configuration: TrioConfiguration) -> Bool {
+    guard keepAwake == other.keepAwake,
+      outerFraction(configuration.outer) == other.outerFraction(configuration.outer)
+    else { return false }
+    if configuration.showsValue,
+      shortValue(configuration.outer) != other.shortValue(configuration.outer)
+        || batteryPowerSymbol(configuration) != other.batteryPowerSymbol(configuration)
+    {
+      return false
+    }
+    if configuration.center == .network || configuration.outer == .network {
+      guard connection == other.connection,
+        bluetoothReplacementSymbol(configuration) == other.bluetoothReplacementSymbol(configuration)
+      else { return false }
+    }
+    if configuration.center != .none {
+      guard centerSymbol(configuration) == other.centerSymbol(configuration) else { return false }
+      if configuration.center != .network && configuration.center != .audio
+        && configuration.center != .display,
+        shortValue(configuration.center) != other.shortValue(configuration.center)
+      {
+        return false
+      }
+    }
+    if configuration.statusColors, configuration.sources.contains(.battery) {
+      guard
+        values[.battery].map(LoadLevel.remaining)
+          == other.values[.battery].map(LoadLevel.remaining),
+        charging == other.charging, pluggedIn == other.pluggedIn, lowPower == other.lowPower
+      else { return false }
+    }
+    if configuration.sources.contains(.audio) || configuration.followsBluetoothAudio {
+      guard usesBlueVolume(configuration) == other.usesBlueVolume(configuration) else {
+        return false
+      }
+    }
+    if configuration.footer == .aiUsage {
+      for index in 0..<4 {
+        let fraction = aiDots.indices.contains(index) ? aiDots[index].imageFraction : nil
+        let otherFraction =
+          other.aiDots.indices.contains(index) ? other.aiDots[index].imageFraction : nil
+        if fraction != otherFraction { return false }
+      }
+    } else {
+      guard footerFraction(configuration) == other.footerFraction(configuration) else {
+        return false
+      }
+      if configuration.footer == .audio, muted != other.muted { return false }
+    }
+    return true
+  }
+
+  func outerFraction(_ source: TrioSource) -> Double? {
+    if source == .network {
+      if connection == .unknown { return nil }
+      return connection.isError ? 0 : 1
+    }
+    guard isProportional(source), let value = values[source], value.isFinite else { return nil }
+    return (min(1, max(0, value)) * 100).rounded() / 100
+  }
+
+  func footerFraction(_ configuration: TrioConfiguration) -> Double? {
+    let raw = configuration.footer == .fan ? fanFraction : (muted ? 0 : values[.audio])
+    guard let raw, raw.isFinite else { return nil }
+    let value = min(1, max(0, raw))
+    return configuration.footerStyle == .dots
+      ? ceil(value * 4) / 4 : (value * 100).rounded() / 100
   }
 
   func centerSymbol(_ configuration: TrioConfiguration) -> String {

@@ -2356,3 +2356,5 @@ Wi-Fi 图标大小	Größe des WLAN-Symbols
 无法读取或更新菜单栏应用列表，请授权后重试；也可在系统设置中恢复显示。	Die Menüleisten-App-Liste kann nicht gelesen oder aktualisiert werden. Erlauben Sie den Zugriff und versuchen Sie es erneut. Die Sichtbarkeit lässt sich auch in den Systemeinstellungen wiederherstellen.
 选择要隐藏的应用，点击菜单栏箭头收起或展开。同一应用的图标会一起变化。	Wählen Sie auszublendende Apps. Der Pfeil in der Menüleiste klappt sie ein oder aus. Alle Symbole einer App ändern sich gemeinsam.
 首次使用需授权访问菜单栏应用列表；仅访问选定文件，无需屏幕录制。	Erlauben Sie zunächst den Zugriff auf die Menüleisten-App-Liste. Nur die gewählte Datei wird gelesen; eine Bildschirmaufnahme ist nicht erforderlich.
+菜单栏应用尚未恢复	Menüleisten-Apps wurden noch nicht wiederhergestellt
+仍然退出会保留恢复记录，下次启动时重试；也可在系统设置的“菜单栏”中恢复显示。	Beim Beenden bleibt das Wiederherstellungsprotokoll für einen erneuten Versuch beim nächsten Start erhalten. Du kannst die Apps auch unter Systemeinstellungen → Menüleiste wieder einblenden.

@@ -229,6 +229,96 @@ struct MenuBarVisibilityTests {
     #expect(try fixture.states()["example.a"] == true)
   }
 
+  @MainActor @Test(arguments: [false, true])
+  func failedRestorationRequiresExplicitQuitConsent(allowQuit: Bool) async throws {
+    let fixture = try Fixture(["example.a": true])
+    defer { fixture.cleanUp() }
+    let suite = "MenuBarVisibilityTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.menuBarFoldingEnabled = true
+    let folding = MenuBarApplicationFolding(
+      settings: settings, store: fixture.store, applicationURLs: fixture.applicationURLs)
+    folding.setEnabled(true)
+    try await settle(folding)
+    folding.select("example.a", enabled: true)
+    folding.toggle()
+    try await settle(folding)
+    let journal = try Data(contentsOf: fixture.journal)
+    fixture.failReads(.accessDenied)
+    var confirmations = 0
+    do {
+      try await folding.prepareForTermination {
+        confirmations += 1
+        return allowQuit
+      }
+      #expect(allowQuit)
+    } catch {
+      #expect(!allowQuit)
+    }
+    #expect(confirmations == 1)
+    #expect(folding.recoveryNeeded && folding.issue != nil)
+    #expect(try Data(contentsOf: fixture.journal) == journal)
+    #expect(try fixture.states()["example.a"] == false)
+
+    if allowQuit {
+      folding.refresh()
+      #expect(!folding.isBusy)
+      // 后续网络退出门禁拒绝退出时，仍可取消退出并重新操作。
+      folding.cancelTermination()
+    }
+    fixture.failReads(nil)
+    folding.refresh()
+    try await settle(folding)
+    #expect(try fixture.states()["example.a"] == true)
+    #expect(!fixture.store.hasRecoveryRecord)
+  }
+
+  @MainActor @Test func quittingWithPendingRecoveryPreservesNextStartupRetry() async throws {
+    let fixture = try Fixture(["example.a": true])
+    defer { fixture.cleanUp() }
+    try await fixture.store.collapse(["example.a"], ownBundleID: Self.ownID)
+    let suite = "MenuBarVisibilityTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    let folding = MenuBarApplicationFolding(
+      settings: settings, store: fixture.store, applicationURLs: fixture.applicationURLs)
+    fixture.failReads(.invalidFormat)
+    try await folding.prepareForTermination { true }
+    #expect(fixture.store.hasRecoveryRecord)
+    #expect(try fixture.states()["example.a"] == false)
+    fixture.failReads(nil)
+    let restarted = MenuBarApplicationFolding(
+      settings: settings,
+      store: MenuBarVisibilityStore(client: fixture.client, journal: fixture.journal),
+      applicationURLs: fixture.applicationURLs)
+    restarted.setEnabled(false)
+    try await settle(restarted)
+    #expect(try fixture.states()["example.a"] == true)
+    #expect(!fixture.store.hasRecoveryRecord)
+  }
+
+  @MainActor @Test func corruptedRecoveryRecordAllowsExplicitQuitWithoutDiscardingIt() async throws
+  {
+    let fixture = try Fixture(["example.a": true])
+    defer { fixture.cleanUp() }
+    try await fixture.store.collapse(["example.a"], ownBundleID: Self.ownID)
+    let corrupt = Data("invalid recovery record".utf8)
+    try corrupt.write(to: fixture.journal)
+    let suite = "MenuBarVisibilityTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let folding = MenuBarApplicationFolding(
+      settings: AppSettings(defaults: defaults), store: fixture.store,
+      applicationURLs: fixture.applicationURLs)
+    await #expect(throws: (any Error).self) { try await folding.prepareForTermination() }
+    try await folding.prepareForTermination { true }
+    #expect(try Data(contentsOf: fixture.journal) == corrupt)
+    #expect(try fixture.states()["example.a"] == false)
+  }
+
   @MainActor @Test func listOnlyIncludesExistingTrackedApplications() async throws {
     let states = [
       "example.installed": true, "example.missing": true, "example.unresolved": true,
@@ -368,6 +458,7 @@ struct MenuBarVisibilityTests {
     private let lock = NSLock()
     private var data: Data
     private var failsAfterWrite = false
+    private var readFailure: MenuBarVisibilityError?
     let journal = FileManager.default.temporaryDirectory
       .appendingPathComponent("MenuBarVisibilityTests-\(UUID())/recovery.json")
 
@@ -396,7 +487,12 @@ struct MenuBarVisibilityTests {
 
     var client: MenuBarVisibilityStore.Client {
       .init(
-        read: { self.lock.withLock { self.data } },
+        read: {
+          try self.lock.withLock {
+            if let error = self.readFailure { throw error }
+            return self.data
+          }
+        },
         write: { data in
           try self.lock.withLock {
             self.data = data
@@ -416,6 +512,7 @@ struct MenuBarVisibilityTests {
       try lock.withLock { data = try MenuBarApplicationList(data: data).updating([id: allowed]) }
     }
     func failAfterNextWrite() { lock.withLock { failsAfterWrite = true } }
+    func failReads(_ error: MenuBarVisibilityError?) { lock.withLock { readFailure = error } }
     func cleanUp() { try? FileManager.default.removeItem(at: journal.deletingLastPathComponent()) }
   }
 }

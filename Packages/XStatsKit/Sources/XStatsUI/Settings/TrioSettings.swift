@@ -122,11 +122,6 @@ struct TrioSettings: View {
           }
         }
         GroupRow {
-          SettingRow(title: tr("个人热点使用 Wi-Fi 图标")) {
-            DSToggle(isOn: $settings.trio.hotspotAsWiFi, label: tr("个人热点使用 Wi-Fi 图标"))
-          }
-        }
-        GroupRow {
           SettingRow(title: tr("临时连接使用 Wi-Fi 图标")) {
             DSToggle(
               isOn: Binding(

@@ -31,13 +31,13 @@ public enum NetworkIconState: Equatable, Sendable {
     self = .wifi(bars: wifiRSSI >= -60 ? 3 : wifiRSSI >= -75 ? 2 : 1)
   }
 
-  /// 已联网接口的状态优先级；有线、无路由和热点均不需要读取信号强度。
+  /// 已联网接口的状态优先级；有线和无路由不需要读取信号强度。
   static func connected(
     isWiFi: Bool, path: NetworkIconPathMonitor.State?, rssi: () -> Int?
   ) -> Self {
     if path?.satisfied == false { return .noInternet }
     guard isWiFi else { return .ethernet }
-    if let path, path.wifi && path.expensive && path.satisfied { return .hotspot }
+    // 连接成本不能证明是个人热点；无法确认类型时沿用物理 Wi-Fi 的信号状态。
     return Self(wifiRSSI: rssi())
   }
 
@@ -69,7 +69,7 @@ public enum NetworkIconState: Equatable, Sendable {
 
 /// 仅在三合一网络来源需要时监听路由事件；不发请求，关闭、锁屏与停止时释放。
 final class NetworkIconPathMonitor: @unchecked Sendable {
-  struct State: Sendable {
+  struct State: Equatable, Sendable {
     let satisfied: Bool
     let wifi: Bool
     let expensive: Bool

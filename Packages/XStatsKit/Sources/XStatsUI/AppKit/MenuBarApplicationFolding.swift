@@ -145,19 +145,22 @@ final class MenuBarApplicationFolding {
     }
   }
 
-  /// 等待正在进行的写入，再恢复；恢复失败时由退出门禁保留应用和重试入口。
-  func prepareForTermination() async throws {
+  /// 等待正在进行的写入，再恢复；失败时只有用户明确放行才继续退出，恢复记录仍保留。
+  func prepareForTermination(allowUnrestored: () -> Bool = { false }) async throws {
     terminating = true
     await operation?.value
     do {
       try await restore()
-      scopedURL?.stopAccessingSecurityScopedResource()
-      scopedURL = nil
     } catch {
-      terminating = false
       issue = tr("菜单栏应用尚未恢复，请重试恢复后退出。")
-      throw error
+      guard allowUnrestored() else {
+        terminating = false
+        throw error
+      }
+      Log.app.notice("Quitting with menu bar recovery still pending")
     }
+    scopedURL?.stopAccessingSecurityScopedResource()
+    scopedURL = nil
   }
 
   func cancelTermination() {

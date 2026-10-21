@@ -91,17 +91,6 @@ enum TrioIconRenderer {
     path.stroke()
   }
 
-  private static func fraction(_ source: TrioSource, reading: TrioReading) -> Double? {
-    if source == .network {
-      if reading.connection == .unknown { return nil }
-      return reading.connection.isError ? 0 : 1
-    }
-    guard reading.isProportional(source), let value = reading.values[source], value.isFinite else {
-      return nil
-    }
-    return min(1, max(0, value))
-  }
-
   private static func drawOuter(
     _ reading: TrioReading, _ config: TrioConfiguration, foreground: NSColor, active: NSColor
   ) {
@@ -128,7 +117,7 @@ enum TrioIconRenderer {
         center: center, radius: radius, start: start, end: end,
         color: foreground.withAlphaComponent(0.28), width: 1.9)
     }
-    if let fraction = fraction(source, reading: reading) {
+    if let fraction = reading.outerFraction(source) {
       let degrees = fraction * sweep * 2
       arc(
         center: center, radius: radius, start: 210, end: 210 - min(sweep, degrees), color: active,
@@ -206,9 +195,7 @@ enum TrioIconRenderer {
       drawAIDots(reading.aiDots, foreground: foreground)
       return
     }
-    let value =
-      config.footer == .fan
-      ? reading.fanFraction : (reading.muted ? 0 : fraction(.audio, reading: reading))
+    let value = reading.footerFraction(config)
     if config.footerStyle == .arc {
       let center = NSPoint(x: 12, y: 10.5)
       arc(
@@ -247,7 +234,7 @@ enum TrioIconRenderer {
   /// 固定保留四个位置，扇形面积和颜色表示剩余额度；未启用或未知额度为灰色空心。
   private static func drawAIDots(_ dots: [TrioReading.AIDot], foreground: NSColor) {
     for index in 0..<4 {
-      let fraction = dots.indices.contains(index) ? dots[index].fraction : nil
+      let fraction = dots.indices.contains(index) ? dots[index].imageFraction : nil
       let x = 12 + (CGFloat(index) - 1.5) * 3.4
       let y: CGFloat = index == 0 || index == 3 ? 3.1 : 1.9
       let center = NSPoint(x: x, y: y)

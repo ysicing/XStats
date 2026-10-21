@@ -2356,3 +2356,5 @@ Wi-Fi 图标大小	Taille de l’icône Wi-Fi
 无法读取或更新菜单栏应用列表，请授权后重试；也可在系统设置中恢复显示。	Impossible de lire ou modifier la liste des apps. Autorisez l’accès et réessayez ; vous pouvez aussi rétablir l’affichage dans Réglages Système.
 选择要隐藏的应用，点击菜单栏箭头收起或展开。同一应用的图标会一起变化。	Choisissez les apps à masquer, puis cliquez sur la flèche de la barre des menus. Les icônes d’une même app changent ensemble.
 首次使用需授权访问菜单栏应用列表；仅访问选定文件，无需屏幕录制。	Autorisez d’abord l’accès à la liste des apps. Seul le fichier choisi est utilisé ; l’enregistrement de l’écran n’est pas nécessaire.
+菜单栏应用尚未恢复	Les apps de la barre des menus n’ont pas été restaurées
+仍然退出会保留恢复记录，下次启动时重试；也可在系统设置的“菜单栏”中恢复显示。	Quitter quand même conserve le journal de récupération pour réessayer au prochain lancement. Vous pouvez aussi réafficher les apps dans Réglages Système → Barre des menus.

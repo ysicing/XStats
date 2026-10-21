@@ -83,6 +83,8 @@ extension Translations {
     授权访问	Allow Access
     无法读取菜单栏应用列表，请重新授权该文件。	Cannot read the menu bar app list. Allow access to the file again.
     菜单栏应用尚未恢复，请重试恢复后退出。	Menu bar apps have not been restored. Retry restoring them before quitting.
+    菜单栏应用尚未恢复	Menu bar apps have not been restored
+    仍然退出会保留恢复记录，下次启动时重试；也可在系统设置的“菜单栏”中恢复显示。	Quitting anyway keeps the recovery record for another attempt at next launch. You can also restore app visibility in System Settings → Menu Bar.
     无法读取或更新菜单栏应用列表，请授权后重试；也可在系统设置中恢复显示。	Cannot read or update the menu bar app list. Allow access and retry; you can also restore visibility in System Settings.
     选择要隐藏的应用，点击菜单栏箭头收起或展开。同一应用的图标会一起变化。	Choose apps to hide, then click the menu bar arrow to collapse or expand. All icons from the same app change together.
     首次使用需授权访问菜单栏应用列表；仅访问选定文件，无需屏幕录制。	First, allow access to the menu bar app list. Only the selected file is accessed; screen recording is not required.

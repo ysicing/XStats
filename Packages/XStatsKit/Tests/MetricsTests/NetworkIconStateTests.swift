@@ -10,7 +10,6 @@ struct NetworkIconStateTests {
     (false, .init(satisfied: true, wifi: true, expensive: true), .ethernet),
     (false, .init(satisfied: false, wifi: false, expensive: false), .noInternet),
     (true, .init(satisfied: false, wifi: true, expensive: true), .noInternet),
-    (true, .init(satisfied: true, wifi: true, expensive: true), .hotspot),
   ])
   func specialConnectionsSkipSignalReading(
     isWiFi: Bool, path: NetworkIconPathMonitor.State?, expected: NetworkIconState
@@ -22,6 +21,37 @@ struct NetworkIconStateTests {
     }
     #expect(state == expected)
     #expect(signalReads == 0)
+  }
+
+  @Test(arguments: [false, true])
+  func wifiCostDoesNotIdentifyPersonalHotspot(expensive: Bool) {
+    let path = NetworkIconPathMonitor.State(satisfied: true, wifi: true, expensive: expensive)
+    #expect(NetworkIconState.connected(isWiFi: true, path: path, rssi: { -61 }) == .wifi(bars: 2))
+  }
+
+  @Test func pathArrivalAndChangesBypassOnlyTheConnectionReadThrottle() {
+    var sampler = NetworkSampler()
+    var reads = 0
+    let read: (NetworkIconPathMonitor.State?) -> NetworkIconState = { path in
+      reads += 1
+      return path?.satisfied == false ? .noInternet : .wifi(bars: 2)
+    }
+    #expect(sampler.sampleConnection(uptime: 100, path: nil, read: read) == .wifi(bars: 2))
+    #expect(sampler.sampleConnection(uptime: 100.1, path: nil, read: read) == .wifi(bars: 2))
+    #expect(reads == 1)
+    let offline = NetworkIconPathMonitor.State(satisfied: false, wifi: true, expensive: false)
+    #expect(sampler.sampleConnection(uptime: 100.2, path: offline, read: read) == .noInternet)
+    #expect(reads == 2)
+    #expect(sampler.sampleConnection(uptime: 104.1, path: offline, read: read) == .noInternet)
+    #expect(reads == 2)
+    #expect(sampler.sampleConnection(uptime: 104.3, path: offline, read: read) == .noInternet)
+    #expect(reads == 3)
+    let online = NetworkIconPathMonitor.State(satisfied: true, wifi: true, expensive: false)
+    #expect(sampler.sampleConnection(uptime: 104.4, path: online, read: read) == .wifi(bars: 2))
+    #expect(reads == 4)
+    sampler.stopConnectionMonitoring()
+    #expect(sampler.sampleConnection(uptime: 104.5, path: online, read: read) == .wifi(bars: 2))
+    #expect(reads == 5)
   }
 
   @Test(arguments: [

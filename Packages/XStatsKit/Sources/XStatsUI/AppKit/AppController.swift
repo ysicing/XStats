@@ -342,12 +342,16 @@ public final class AppController: NSObject, NSApplicationDelegate {
     terminationTask = Task {
       defer { terminationTask = nil }
       do {
-        try await model.menuBarApplicationFolding.prepareForTermination()
+        try await model.menuBarApplicationFolding.prepareForTermination {
+          NSApp.activate()
+          let alert = NSAlert()
+          alert.messageText = tr("菜单栏应用尚未恢复")
+          alert.informativeText = tr("仍然退出会保留恢复记录，下次启动时重试；也可在系统设置的“菜单栏”中恢复显示。")
+          alert.addButton(withTitle: tr("取消"))
+          alert.addButton(withTitle: tr("仍然退出"))
+          return alert.runModal() == .alertSecondButtonReturn
+        }
       } catch {
-        NSApp.activate()
-        let alert = NSAlert()
-        alert.messageText = tr("菜单栏应用尚未恢复，请重试恢复后退出。")
-        alert.runModal()
         sender.reply(toApplicationShouldTerminate: false)
         return
       }

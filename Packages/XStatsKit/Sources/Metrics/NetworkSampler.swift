@@ -7,6 +7,7 @@ public struct NetworkSampler {
   private var last: (download: UInt64, upload: UInt64, time: UInt64)?
 
   private var lastConnectionRead: TimeInterval?
+  private var lastConnectionPath: NetworkIconPathMonitor.State?
   private var connection: NetworkIconState?
   private var pathMonitor: NetworkIconPathMonitor?
 
@@ -46,11 +47,8 @@ public struct NetworkSampler {
   public mutating func sample(includeConnection: Bool = false) -> NetworkRate? {
     if includeConnection {
       if pathMonitor == nil { pathMonitor = NetworkIconPathMonitor() }
-      let uptime = ProcessInfo.processInfo.systemUptime
-      if lastConnectionRead.map({ uptime - $0 >= 4 }) ?? true {
-        connection = NetworkIconState.read(path: pathMonitor?.snapshot())
-        lastConnectionRead = uptime
-      }
+      sampleConnection(
+        uptime: ProcessInfo.processInfo.systemUptime, path: pathMonitor?.snapshot())
     } else {
       stopConnectionMonitoring()
     }
@@ -67,10 +65,27 @@ public struct NetworkSampler {
       totalDownloaded: now.download, totalUploaded: now.upload)
   }
 
+  /// 首个路径回调及路由变化在下一轮现有采样生效；路径未变时保持四秒节流。
+  @discardableResult
+  mutating func sampleConnection(
+    uptime: TimeInterval, path: NetworkIconPathMonitor.State?,
+    read: (NetworkIconPathMonitor.State?) -> NetworkIconState = NetworkIconState.read
+  ) -> NetworkIconState {
+    if connection == nil || path != lastConnectionPath
+      || (lastConnectionRead.map { uptime - $0 >= 4 } ?? true)
+    {
+      connection = read(path)
+      lastConnectionRead = uptime
+      lastConnectionPath = path
+    }
+    return connection ?? .unknown
+  }
+
   mutating func stopConnectionMonitoring() {
     pathMonitor = nil
     connection = nil
     lastConnectionRead = nil
+    lastConnectionPath = nil
   }
 
   public static func primaryInterface() -> NetworkInterfaceInfo? {
