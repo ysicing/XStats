@@ -5,7 +5,8 @@ import Foundation
 import Testing
 @testable import Cleaner
 
-@Suite struct HomebrewCleanupTests {
+/// 这些用例启动真实脚本并观察 PID；串行执行避免并发进程启动争用夹具的等待期限。
+@Suite(.serialized) struct HomebrewCleanupTests {
   @Test func previewIncludesPrunedContainersAndUsesNativeTotal() throws {
     let preview = try HomebrewCleanup.parsePreview(
       """

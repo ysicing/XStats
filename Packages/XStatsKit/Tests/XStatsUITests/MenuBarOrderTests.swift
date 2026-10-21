@@ -46,8 +46,9 @@ struct MenuBarOrderTests {
     #expect(drawing(reloaded) == [.gpu, .memory, .cpu])
     reloaded.menuBarLayout = .separate
     #expect(drawing(reloaded) == [.cpu, .memory, .gpu])
+    reloaded.trio = TrioConfiguration(outer: .cpu, center: .network, footer: .audio)
     reloaded.menuBarLayout = .iconOnly
-    #expect(drawing(reloaded).isEmpty)
+    #expect(drawing(reloaded) == [.cpu, .network, .audio])
   }
 
   @Test func turningAnItemOffKeepsItsPlaceAndMovingDoesNotEnableModules() {
