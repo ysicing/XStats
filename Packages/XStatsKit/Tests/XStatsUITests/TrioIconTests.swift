@@ -358,6 +358,101 @@ struct TrioIconTests {
     }
   }
 
+  @Test(arguments: [TrioSource.cpu, .memory, .disk])
+  func usageRingColorsMatchLoadAndRespectMonochrome(source: TrioSource) throws {
+    var config = TrioConfiguration(outer: source)
+    for (value, expected): (Double?, NSColor?) in [
+      (0.4, .systemGreen), (0.7999, .systemGreen),
+      (0.8, .systemOrange), (0.8999, .systemOrange), (0.9, .systemRed), (1, .systemRed),
+      (nil, nil), (.nan, nil), (.infinity, nil),
+    ] {
+      var reading = TrioReading()
+      reading.values[source] = value
+      for dark in [false, true] {
+        config.statusColors = true
+        let image = TrioIconRenderer.image(reading: reading, configuration: config, dark: dark)
+        #expect(image.isTemplate == (expected == nil))
+        #expect(try containsRingColor(image, matching: expected) == (expected != nil))
+        let dock = TrioIconRenderer.dockImage(reading: reading, configuration: config)
+        #expect(try containsRingColor(dock, matching: expected) == (expected != nil))
+        config.statusColors = false
+        let monochrome = TrioIconRenderer.image(
+          reading: reading, configuration: config, dark: dark)
+        #expect(monochrome.isTemplate)
+        #expect(try !containsRingColor(monochrome, matching: nil))
+      }
+    }
+  }
+
+  private func containsRingColor(_ image: NSImage, matching expected: NSColor?) throws -> Bool {
+    let enlarged = NSImage(size: NSSize(width: 96, height: 88), flipped: false) { bounds in
+      image.draw(in: bounds)
+      return true
+    }
+    let data = try #require(enlarged.tiffRepresentation)
+    let bitmap = try #require(NSBitmapImageRep(data: data))
+    let target = try expected.map { try #require($0.usingColorSpace(.deviceRGB)) }
+    for y in 0..<bitmap.pixelsHigh {
+      for x in 0..<bitmap.pixelsWide {
+        guard let pixel = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
+          pixel.alphaComponent > 0.5
+        else { continue }
+        if let target {
+          if abs(pixel.redComponent - target.redComponent) < 0.1,
+            abs(pixel.greenComponent - target.greenComponent) < 0.1,
+            abs(pixel.blueComponent - target.blueComponent) < 0.1
+          {
+            return true
+          }
+        } else {
+          let channels = [pixel.redComponent, pixel.greenComponent, pixel.blueComponent]
+          if (channels.max() ?? 0) - (channels.min() ?? 0) > 0.15 { return true }
+        }
+      }
+    }
+    return false
+  }
+
+  @Test(arguments: [TrioSource.cpu, .memory, .disk])
+  func usageRingReusePreservesThresholdsAndSensitivity(source: TrioSource) throws {
+    var config = TrioConfiguration(outer: source)
+    for sensitivity in LoadSensitivity.allCases {
+      for threshold in [sensitivity.usageThresholds.warning, sensitivity.usageThresholds.critical] {
+        var previous = TrioReading()
+        previous.loadSensitivity = sensitivity
+        previous.values[source] = threshold - 0.0001
+        var next = previous
+        next.values[source] = threshold
+        #expect(previous.outerFraction(source) == next.outerFraction(source))
+        #expect(!next.hasSameImage(as: previous, configuration: config))
+        config.statusColors = false
+        #expect(next.hasSameImage(as: previous, configuration: config))
+        config.statusColors = true
+      }
+    }
+    var standard = TrioReading()
+    standard.values[source] = 0.85
+    var sensitive = standard
+    sensitive.loadSensitivity = .sensitive
+    #expect(!sensitive.hasSameImage(as: standard, configuration: config))
+    let image = TrioIconRenderer.image(reading: sensitive, configuration: config, dark: true)
+    #expect(try containsRingColor(image, matching: .systemRed))
+    standard.values[source] = 0.4
+    sensitive.values[source] = 0.4
+    #expect(sensitive.hasSameImage(as: standard, configuration: config))
+  }
+
+  @Test func usageRingReadsConfiguredSensitivity() throws {
+    let suite = "TrioRingSensitivity.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.loadSensitivity = .sensitive
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+    #expect(TrioReading(model: model).loadSensitivity == .sensitive)
+  }
+
   @Test func legacyNetworkOptionsKeepExistingChoicesAndClampScale() throws {
     var config = TrioConfiguration(outer: .memory, footer: .aiUsage)
     config.ethernetAsWiFi = true

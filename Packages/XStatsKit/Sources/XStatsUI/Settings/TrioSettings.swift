@@ -29,29 +29,32 @@ struct TrioSettings: View {
         }
       }
     }
-    if config.outer != .battery || config.footer != .aiUsage {
-      SettingsGroup(caption: tr("图标外观")) {
-        if config.outer != .battery {
-          GroupRow(showsDivider: config.footer != .aiUsage) {
-            SettingRow(title: tr("顶部显示数值")) {
-              DSToggle(isOn: $settings.trio.showsValue, label: tr("顶部显示数值"))
-            }
+    SettingsGroup(caption: tr("图标外观")) {
+      if config.outer != .battery {
+        GroupRow {
+          SettingRow(title: tr("顶部显示数值")) {
+            DSToggle(isOn: $settings.trio.showsValue, label: tr("顶部显示数值"))
           }
         }
-        if config.footer != .aiUsage {
-          GroupRow(showsDivider: false) {
-            SettingRow(title: tr("底部样式")) {
-              Picker(tr("底部样式"), selection: $settings.trio.footerStyle) {
-                ForEach(TrioFooterStyle.allCases) { Text($0.title).tag($0) }
-              }.labelsHidden().fixedSize()
-            }
+      }
+      if config.footer != .aiUsage {
+        GroupRow {
+          SettingRow(title: tr("底部样式")) {
+            Picker(tr("底部样式"), selection: $settings.trio.footerStyle) {
+              ForEach(TrioFooterStyle.allCases) { Text($0.title).tag($0) }
+            }.labelsHidden().fixedSize()
           }
+        }
+      }
+      GroupRow(showsDivider: false) {
+        SettingRow(title: tr("外环状态颜色")) {
+          DSToggle(isOn: $settings.trio.statusColors, label: tr("外环状态颜色"))
         }
       }
     }
     if config.outer == .battery {
       SettingsGroup(caption: tr("电池图标")) {
-        GroupRow {
+        GroupRow(showsDivider: config.showsValue) {
           SettingRow(title: tr("显示顶部内容")) {
             DSToggle(isOn: $settings.trio.showsValue, label: tr("显示顶部内容"))
           }
@@ -72,7 +75,7 @@ struct TrioSettings: View {
               }.labelsHidden().frame(maxWidth: 380)
             }
           }
-          GroupRow {
+          GroupRow(showsDivider: false) {
             SettingRow(title: tr("电量数字与符号大小")) {
               HStack(spacing: DS.Space.s2) {
                 Slider(
@@ -88,11 +91,6 @@ struct TrioSettings: View {
                   .frame(minWidth: 45, alignment: .trailing)
               }
             }
-          }
-        }
-        GroupRow(showsDivider: false) {
-          SettingRow(title: tr("电池状态颜色")) {
-            DSToggle(isOn: $settings.trio.statusColors, label: tr("电池状态颜色"))
           }
         }
       }

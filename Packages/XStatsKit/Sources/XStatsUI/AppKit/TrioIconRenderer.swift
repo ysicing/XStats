@@ -24,13 +24,12 @@ enum TrioIconRenderer {
   }
 
   static func image(reading: TrioReading, configuration: TrioConfiguration, dark: Bool) -> NSImage {
-    let batteryLevel = reading.values[.battery]
+    let outerColor = color(for: configuration.outer, reading: reading, configuration: configuration)
+    let footerColor = color(
+      for: configuration.footer.source, reading: reading, configuration: configuration)
     let colored =
       configuration.footer == .aiUsage
-      || configuration.statusColors && configuration.sources.contains(.battery)
-        && batteryLevel?.isFinite == true
-        && (reading.charging || reading.pluggedIn || reading.lowPower
-          || LoadLevel.remaining(batteryLevel ?? 1) != .normal)
+      || outerColor != nil || footerColor != nil
       || (configuration.sources.contains(.audio)
         || (configuration.center == .network
           && configuration.bluetoothDeviceID == nil
@@ -38,15 +37,9 @@ enum TrioIconRenderer {
         && reading.usesBlueVolume(configuration)
     let foreground: NSColor = colored && dark ? .white : .black
     let image = NSImage(size: NSSize(width: 24, height: 22), flipped: false) { _ in
-      let outerColor = color(
-        for: configuration.outer, reading: reading, configuration: configuration,
-        foreground: foreground)
-      let footerColor = color(
-        for: configuration.footer.source, reading: reading, configuration: configuration,
-        foreground: foreground)
-      drawOuter(reading, configuration, foreground: foreground, active: outerColor)
+      drawOuter(reading, configuration, foreground: foreground, active: outerColor ?? foreground)
       drawCenter(reading, configuration, foreground: foreground)
-      drawFooter(reading, configuration, foreground: foreground, active: footerColor)
+      drawFooter(reading, configuration, foreground: foreground, active: footerColor ?? foreground)
       if reading.keepAwake {
         symbol(
           "cup.and.saucer.fill", in: NSRect(x: 20, y: 18, width: 4, height: 4), color: foreground)
@@ -59,14 +52,19 @@ enum TrioIconRenderer {
   }
 
   private static func color(
-    for source: TrioSource, reading: TrioReading, configuration: TrioConfiguration,
-    foreground: NSColor
-  ) -> NSColor {
+    for source: TrioSource, reading: TrioReading, configuration: TrioConfiguration
+  ) -> NSColor? {
     if source == .audio, reading.usesBlueVolume(configuration) { return .systemBlue }
-    guard configuration.statusColors, source == .battery,
-      let level = reading.values[.battery], level.isFinite
-    else {
-      return foreground
+    guard configuration.statusColors else { return nil }
+    if let level = reading.usageLevel(source) {
+      switch level {
+      case .normal: return .systemGreen
+      case .warning: return .systemOrange
+      case .critical: return .systemRed
+      }
+    }
+    guard source == .battery, let level = reading.values[.battery], level.isFinite else {
+      return nil
     }
     switch LoadLevel.remaining(level) {
     case .critical: return .systemRed
@@ -75,7 +73,7 @@ enum TrioIconRenderer {
     }
     if reading.lowPower { return .systemYellow }
     if reading.charging || reading.pluggedIn { return .systemGreen }
-    return foreground
+    return nil
   }
 
   private static func arc(

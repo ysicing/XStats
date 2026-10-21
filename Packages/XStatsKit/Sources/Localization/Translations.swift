@@ -1798,7 +1798,7 @@ extension Translations {
     底部	Bottom
     图标外观	Icon Appearance
     顶部显示数值	Show Value at Top
-    电池状态颜色	Battery Status Colors
+    外环状态颜色	Ring Status Colors
     接通电源时显示数值	Show Value When Plugged In
     底部样式	Bottom Style
     圆点	Dots

@@ -33,10 +33,12 @@ struct TrioReading: Equatable {
   var aiDots: [AIDot] = []
   var keepAwake = false
   var fanFraction: Double?
+  var loadSensitivity: LoadSensitivity = .standard
 
   init() {}
 
   @MainActor init(model: AppModel) {
+    loadSensitivity = model.settings.loadSensitivity
     let configuration = model.settings.trio
     let items = Set(model.drawnMenuBarItems)
     for source in Set(configuration.sources) {
@@ -138,6 +140,12 @@ struct TrioReading: Equatable {
         charging == other.charging, pluggedIn == other.pluggedIn, lowPower == other.lowPower
       else { return false }
     }
+    // 圆弧按整百分比复用，但阈值两侧的颜色可能不同，必须额外比较负载档位。
+    if configuration.statusColors,
+      usageLevel(configuration.outer) != other.usageLevel(configuration.outer)
+    {
+      return false
+    }
     if configuration.sources.contains(.audio) || configuration.followsBluetoothAudio {
       guard usesBlueVolume(configuration) == other.usesBlueVolume(configuration) else {
         return false
@@ -166,6 +174,13 @@ struct TrioReading: Equatable {
     }
     guard isProportional(source), let value = values[source], value.isFinite else { return nil }
     return (min(1, max(0, value)) * 100).rounded() / 100
+  }
+
+  func usageLevel(_ source: TrioSource) -> LoadLevel? {
+    guard source == .cpu || source == .memory || source == .disk,
+      let value = values[source], value.isFinite
+    else { return nil }
+    return LoadLevel.usage(value, sensitivity: loadSensitivity)
   }
 
   func footerFraction(_ configuration: TrioConfiguration) -> Double? {
