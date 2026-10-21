@@ -79,29 +79,44 @@ enum TrioIconRenderer {
   ) {
     let source = config.outer
     guard source != .none else { return }
-    let center = NSPoint(x: 11.8, y: 10.6)
-    for (start, end): (CGFloat, CGFloat) in [(210, 112), (68, -30)] {
+    let center = NSPoint(x: 12, y: 10.5)
+    let radius: CGFloat = 9
+    let powerSymbol =
+      source == .battery && reading.values[source] != nil
+      && (reading.charging || reading.pluggedIn) && !config.showsValueWhenPluggedIn
+    let value = reading.shortValue(source)
+    let fontSize: CGFloat = value.count > 2 ? 7 : 8
+    let font = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .bold)
+    // 缺口按实际文字宽度留白，避免两位数和 100 与圆弧相交；没有顶部内容时连接整段圆环。
+    let labelWidth: CGFloat =
+      if powerSymbol { 7 } else if config.showsValue {
+        min(18, (value as NSString).size(withAttributes: [.font: font]).width)
+      } else { 0 }
+    let angle: CGFloat =
+      labelWidth > 0
+      ? acos(min(1, (labelWidth / 2 + 1) / radius)) * 180 / .pi : 90
+    let sweep = 30 + angle
+    for (start, end): (CGFloat, CGFloat) in [(210, 180 - angle), (angle, -30)] {
       arc(
-        center: center, radius: 8.7, start: start, end: end,
-        color: foreground.withAlphaComponent(0.23), width: 1.65)
+        center: center, radius: radius, start: start, end: end,
+        color: foreground.withAlphaComponent(0.28), width: 1.9)
     }
     if let fraction = fraction(source, reading: reading) {
-      let degrees = fraction * 196
+      let degrees = fraction * sweep * 2
       arc(
-        center: center, radius: 8.7, start: 210, end: 210 - min(98, degrees), color: active,
-        width: 1.65)
-      if degrees > 98 {
+        center: center, radius: radius, start: 210, end: 210 - min(sweep, degrees), color: active,
+        width: 1.9)
+      if degrees > sweep {
         arc(
-          center: center, radius: 8.7, start: 68, end: 68 - (degrees - 98), color: active,
-          width: 1.65)
+          center: center, radius: radius, start: angle, end: angle - (degrees - sweep),
+          color: active,
+          width: 1.9)
       }
     }
-    if source == .battery, reading.values[source] != nil,
-      reading.charging || reading.pluggedIn, !config.showsValueWhenPluggedIn
-    {
+    if powerSymbol {
       symbol(
         reading.charging ? "bolt.fill" : "powerplug.fill",
-        in: NSRect(x: 9, y: 16.5, width: 6, height: 5.5), color: active)
+        in: NSRect(x: 8.5, y: 15.5, width: 7, height: 6.5), color: active)
     } else if config.showsValue {
       if source == .network {
         symbol(
@@ -109,7 +124,7 @@ enum TrioIconRenderer {
           color: foreground)
       } else {
         text(
-          reading.shortValue(source), in: NSRect(x: 5, y: 15.3, width: 14, height: 7), size: 7,
+          value, in: NSRect(x: 3, y: 14, width: 18, height: 8), size: fontSize,
           color: foreground)
       }
     }
@@ -120,7 +135,7 @@ enum TrioIconRenderer {
   ) {
     let source = config.center
     guard source != .none else { return }
-    let rect = NSRect(x: 6.8, y: 6.7, width: 10, height: 9)
+    let rect = NSRect(x: 6, y: 5.5, width: 12, height: 10)
     if source == .network || source == .audio {
       let isBluetooth = source == .audio || reading.centerSymbol(config) == reading.audioSymbol
       let color: NSColor = isBluetooth && reading.usesBlueVolume(config) ? .systemBlue : foreground
@@ -152,24 +167,24 @@ enum TrioIconRenderer {
       config.footer == .fan
       ? reading.fanFraction : (reading.muted ? 0 : fraction(.audio, reading: reading))
     if config.footerStyle == .arc {
-      let center = NSPoint(x: 11.8, y: 10.6)
+      let center = NSPoint(x: 12, y: 10.5)
       arc(
-        center: center, radius: 8.7, start: -62, end: -118,
-        color: foreground.withAlphaComponent(0.23), width: 1.65)
+        center: center, radius: 9, start: -62, end: -118,
+        color: foreground.withAlphaComponent(0.28), width: 1.9)
       if let value {
         arc(
-          center: center, radius: 8.7, start: -62, end: -62 - 56 * value, color: active, width: 1.65
+          center: center, radius: 9, start: -62, end: -62 - 56 * value, color: active, width: 1.9
         )
       }
     } else {
       let points: [NSPoint] = [
-        NSPoint(x: 7, y: 3.1), NSPoint(x: 10.2, y: 1.9), NSPoint(x: 13.5, y: 1.9),
-        NSPoint(x: 16.7, y: 3.1),
+        NSPoint(x: 6.8, y: 3.1), NSPoint(x: 10.3, y: 1.9), NSPoint(x: 13.7, y: 1.9),
+        NSPoint(x: 17.2, y: 3.1),
       ]
       let count = value.map { $0 > 0 ? Int(ceil($0 * 4)) : 0 } ?? 0
       for (index, point) in points.enumerated() {
-        (index < count ? active : foreground.withAlphaComponent(0.23)).setFill()
-        NSBezierPath(ovalIn: NSRect(x: point.x - 0.9, y: point.y - 0.9, width: 1.8, height: 1.8))
+        (index < count ? active : foreground.withAlphaComponent(0.28)).setFill()
+        NSBezierPath(ovalIn: NSRect(x: point.x - 1.15, y: point.y - 1.15, width: 2.3, height: 2.3))
           .fill()
       }
     }
@@ -197,10 +212,10 @@ enum TrioIconRenderer {
     }
     let visible = Array(dots.prefix(4))
     for (index, dot) in visible.enumerated() {
-      let x = 11.8 + (CGFloat(index) - CGFloat(visible.count - 1) / 2) * 3.3
+      let x = 12 + (CGFloat(index) - CGFloat(visible.count - 1) / 2) * 3.4
       let y: CGFloat = visible.count >= 3 && (index == 0 || index == visible.count - 1) ? 3.1 : 1.9
       let center = NSPoint(x: x, y: y)
-      let radius: CGFloat = 1.15
+      let radius: CGFloat = 1.25
       let circle = NSBezierPath(
         ovalIn: NSRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
       let color = AIServiceBrand.dotColor(dot.name, foreground: foreground)
@@ -223,13 +238,13 @@ enum TrioIconRenderer {
       } else {
         foreground.withAlphaComponent(0.35).setStroke()
       }
-      circle.lineWidth = 0.4
+      circle.lineWidth = 0.5
       circle.stroke()
     }
   }
 
   private static func text(_ value: String, in rect: NSRect, size: CGFloat, color: NSColor) {
-    let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .semibold)
+    let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .bold)
     let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
     let string = value as NSString
     let measured = string.size(withAttributes: attributes)
@@ -237,8 +252,8 @@ enum TrioIconRenderer {
     let scale = min(1, rect.width / max(1, measured.width))
     NSGraphicsContext.saveGraphicsState()
     let transform = AffineTransform(
-      translationByX: rect.midX - measured.width * scale / 2,
-      byY: rect.midY - measured.height * scale / 2)
+      translationByX: (rect.midX - measured.width * scale / 2).rounded(.toNearestOrEven),
+      byY: (rect.midY - measured.height * scale / 2).rounded(.toNearestOrEven))
     (transform as NSAffineTransform).concat()
     let scaling = NSAffineTransform()
     scaling.scale(by: scale)

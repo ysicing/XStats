@@ -12,6 +12,7 @@ final class MenuBarFoldingController: NSObject {
   private var arrow: NSStatusItem?
   private var divider: NSStatusItem?
   private var started = false
+  private var awaitingLayout = false
   private(set) var isCollapsed = false
 
   init(settings: AppSettings) {
@@ -25,6 +26,10 @@ final class MenuBarFoldingController: NSObject {
     NotificationCenter.default.addObserver(
       self, selector: #selector(expand), name: NSApplication.didChangeScreenParametersNotification,
       object: nil)
+    for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification] {
+      NotificationCenter.default.addObserver(
+        self, selector: #selector(statusItemLayoutChanged), name: name, object: nil)
+    }
     observeSettings()
   }
 
@@ -45,17 +50,12 @@ final class MenuBarFoldingController: NSObject {
     if settings.menuBarFoldingEnabled {
       if arrow == nil {
         isCollapsed = settings.menuBarFoldingCollapsed
-        // 新项目通常在左侧创建：先放箭头，再放分隔符；用户可用 ⌘ 拖动位置。
+        // 新状态项通常插在左侧；恢复的系统排列仍可能改变这两个项目的相对位置。
         let arrow = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         arrow.autosaveName = "XStats.Folding.Arrow"
-        arrow.button?.target = self
-        arrow.button?.action = #selector(toggle)
         self.arrow = arrow
-        let divider = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let divider = NSStatusBar.system.statusItem(withLength: 12)
         divider.autosaveName = "XStats.Folding.Divider"
-        divider.button?.title = "│"
-        // 只隐藏绘制，保留原有尺寸与拖动位置，避免改变折叠边界。
-        divider.button?.isTransparent = true
         self.divider = divider
         Log.app.info("Menu bar folding enabled, collapsed: \(self.isCollapsed)")
       }
@@ -77,18 +77,55 @@ final class MenuBarFoldingController: NSObject {
     updateButtons()
   }
 
+  @objc private func statusItemLayoutChanged(_ notification: Notification) {
+    guard awaitingLayout, let window = notification.object as? NSWindow,
+      window === arrow?.button?.window || window === divider?.button?.window
+    else { return }
+    updateButtons()
+  }
+
+  private func ensureArrowOnRight() -> Bool {
+    guard let arrow, let divider,
+      let arrowWindow = arrow.button?.window, let dividerWindow = divider.button?.window,
+      let screen = arrowWindow.screen, screen == dividerWindow.screen,
+      arrowWindow.frame.height > 0, dividerWindow.frame.height > 0,
+      screen.frame.intersects(arrowWindow.frame), screen.frame.intersects(dividerWindow.frame),
+      arrowWindow.frame.midX != dividerWindow.frame.midX
+    else { return false }
+    if arrowWindow.frame.midX < dividerWindow.frame.midX {
+      // 交换职责而非移动系统图标，确保恢复入口在占位右侧；保留各状态项的位置标识。
+      self.arrow = divider
+      self.divider = arrow
+    }
+    return true
+  }
+
   private func updateButtons() {
+    // 初始窗口坐标尚未就绪时先保留展开布局，等待原生布局通知后再恢复折叠。
+    let canCollapse = !isCollapsed || (divider?.length ?? 0) > 12 || ensureArrowOnRight()
+    awaitingLayout = !canCollapse
     // 固定 500pt 在箭头靠右时仍能放下，会留下大片空白；接近半屏宽才能让占位一起溢出。
     // macOS 27 会直接丢弃达到半屏宽的状态项，因此保留 20pt 余量，不能使用超长占位。
     let screenWidth = NSScreen.screens.map(\.frame.width).min() ?? 1512
-    divider?.length = isCollapsed ? screenWidth / 2 - 20 : NSStatusItem.variableLength
+    divider?.button?.image = nil
+    // 不使用 isTransparent 隐藏标题：macOS 27 的菜单栏宿主仍可能绘制标题内容。
+    divider?.button?.title = ""
+    divider?.button?.target = nil
+    divider?.button?.action = nil
+    divider?.length = isCollapsed && canCollapse ? screenWidth / 2 - 20 : 12
     let title = isCollapsed ? tr("展开菜单栏图标") : tr("收起菜单栏图标")
+    arrow?.length = NSStatusItem.variableLength
+    arrow?.button?.title = ""
+    arrow?.button?.target = self
+    arrow?.button?.action = #selector(toggle)
     arrow?.button?.image = NSImage(
-      systemSymbolName: isCollapsed ? "chevron.right" : "chevron.left",
+      // 箭头指向操作后的移动方向：向左展开隐藏区，向右收起。
+      systemSymbolName: isCollapsed ? "chevron.left" : "chevron.right",
       accessibilityDescription: title)
     arrow?.button?.toolTip = title
     arrow?.button?.setAccessibilityLabel(title)
     divider?.button?.toolTip = tr("按住 ⌘ 将不常用图标拖到透明分隔区左侧，保留箭头在右侧。点击箭头收起或展开；效果取决于屏幕空间。")
+    divider?.button?.setAccessibilityLabel(divider?.button?.toolTip)
   }
 
   private func removeItems() {
