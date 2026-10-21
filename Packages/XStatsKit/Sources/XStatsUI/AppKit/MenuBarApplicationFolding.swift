@@ -27,6 +27,8 @@ final class MenuBarApplicationFolding {
   private let settings: AppSettings
   private let defaults: UserDefaults
   private let store: MenuBarVisibilityStore
+  private let applicationURLs: (String) -> [URL]
+  private let runningApplicationURLs: (String) -> [URL]
   private let ownBundleID: String
   private var enabledState: Bool?
   private var scopedURL: URL?
@@ -35,10 +37,20 @@ final class MenuBarApplicationFolding {
   private static let selectionKey = "menuBarFoldingApplications"
   private static let bookmarkKey = "menuBarFoldingFileBookmark"
 
-  init(settings: AppSettings, store: MenuBarVisibilityStore = .init()) {
+  init(
+    settings: AppSettings, store: MenuBarVisibilityStore = .init(),
+    applicationURLs: @escaping (String) -> [URL] = { id in
+      NSWorkspace.shared.urlsForApplications(withBundleIdentifier: id)
+    },
+    runningApplicationURLs: @escaping (String) -> [URL] = { id in
+      NSRunningApplication.runningApplications(withBundleIdentifier: id).compactMap(\.bundleURL)
+    }
+  ) {
     self.settings = settings
     defaults = settings.menuBarFoldingDefaults
     self.store = store
+    self.applicationURLs = applicationURLs
+    self.runningApplicationURLs = runningApplicationURLs
     ownBundleID = Bundle.main.bundleIdentifier ?? "work.12306.xstats.app"
     selected = Set(defaults.stringArray(forKey: Self.selectionKey) ?? [])
   }
@@ -85,7 +97,17 @@ final class MenuBarApplicationFolding {
     }
     let expanding = isCollapsed || recoveryNeeded
     run {
-      if expanding { try await self.restore() } else { try await self.collapse() }
+      if expanding {
+        try await self.restore()
+      } else {
+        // 打开列表后仍可能卸载应用；收起前重新确认，避免失效选择阻塞其余应用。
+        try await self.loadApplications()
+        guard !self.selected.isEmpty else {
+          self.showManagement()
+          return
+        }
+        try await self.collapse()
+      }
       self.settings.menuBarFoldingCollapsed = !expanding
     }
   }
@@ -185,17 +207,36 @@ final class MenuBarApplicationFolding {
     hasAccess = false
     let states = try await store.read()
     hasAccess = true
-    let ids = Set(
-      states.keys.filter {
-        !$0.hasPrefix("com.apple.") && $0 != ownBundleID && !$0.hasPrefix(ownBundleID + ".")
+    let ids = states.keys.filter {
+      !$0.hasPrefix("com.apple.") && $0 != ownBundleID && !$0.hasPrefix(ownBundleID + ".")
+    }
+    applications = ids.compactMap { id -> Application? in
+      let runningURLs = Set(runningApplicationURLs(id).map { $0.resolvingSymlinksInPath() })
+      // 系统跟踪记录和 LaunchServices 都可能残留旧路径，不能仅凭注册信息认定仍已安装。
+      let candidates = applicationURLs(id) + runningURLs
+      let url = candidates.map { $0.resolvingSymlinksInPath() }.first { candidate in
+        guard candidate.isFileURL, candidate.pathExtension.lowercased() == "app",
+          !candidate.pathComponents.contains(where: { $0 == ".Trash" || $0 == ".Trashes" })
+        else { return false }
+        // Xcode 编译产物也会被系统登记；仅在实际运行时纳入，避免残留产物冒充已安装应用。
+        guard !candidate.path.contains("/Build/Products/") || runningURLs.contains(candidate) else {
+          return false
+        }
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDirectory)
+          && isDirectory.boolValue && Bundle(url: candidate)?.bundleIdentifier == id
       }
-    ).union(selected)
-    applications = ids.map { id in
-      let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)
-      let name = url.map { FileManager.default.displayName(atPath: $0.path) } ?? id
+      guard let url else { return nil }
       return Application(
-        id: id, name: name, icon: url.map { NSWorkspace.shared.icon(forFile: $0.path) })
+        id: id, name: FileManager.default.displayName(atPath: url.path),
+        icon: NSWorkspace.shared.icon(forFile: url.path))
     }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    // 刷新和启动会先恢复日志，再整理选择；此处只更新 XStats 偏好，不删除系统历史条目。
+    let availableSelection = selected.intersection(applications.map(\.id))
+    if availableSelection != selected {
+      selected = availableSelection
+      defaults.set(selected.sorted(), forKey: Self.selectionKey)
+    }
   }
 
   private func collapse() async throws {

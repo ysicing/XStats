@@ -143,7 +143,8 @@ struct MenuBarVisibilityTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
     settings.menuBarFoldingEnabled = true
-    let folding = MenuBarApplicationFolding(settings: settings, store: fixture.store)
+    let folding = MenuBarApplicationFolding(
+      settings: settings, store: fixture.store, applicationURLs: fixture.applicationURLs)
     folding.setEnabled(true)
     try await settle(folding)
     folding.select("example.a", enabled: true)
@@ -167,7 +168,8 @@ struct MenuBarVisibilityTests {
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let folding = MenuBarApplicationFolding(
-      settings: AppSettings(defaults: defaults), store: fixture.store)
+      settings: AppSettings(defaults: defaults), store: fixture.store,
+      applicationURLs: fixture.applicationURLs)
     folding.setEnabled(false)
     try await settle(folding)
     #expect(try fixture.states()["example.a"] == true)
@@ -183,7 +185,8 @@ struct MenuBarVisibilityTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
     settings.menuBarFoldingEnabled = true
-    let folding = MenuBarApplicationFolding(settings: settings, store: fixture.store)
+    let folding = MenuBarApplicationFolding(
+      settings: settings, store: fixture.store, applicationURLs: fixture.applicationURLs)
     folding.setEnabled(true)
     try await settle(folding)
     folding.select("example.a", enabled: true)
@@ -203,7 +206,8 @@ struct MenuBarVisibilityTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
     settings.menuBarFoldingEnabled = true
-    let folding = MenuBarApplicationFolding(settings: settings, store: fixture.store)
+    let folding = MenuBarApplicationFolding(
+      settings: settings, store: fixture.store, applicationURLs: fixture.applicationURLs)
     folding.setEnabled(true)
     try await settle(folding)
     folding.select("example.a", enabled: true)
@@ -223,6 +227,131 @@ struct MenuBarVisibilityTests {
     #expect(!folding.isCollapsed)
     #expect(!fixture.store.hasRecoveryRecord)
     #expect(try fixture.states()["example.a"] == true)
+  }
+
+  @MainActor @Test func listOnlyIncludesExistingTrackedApplications() async throws {
+    let states = [
+      "example.installed": true, "example.missing": true, "example.unresolved": true,
+      "example.trash": true, "example.wrong": true, "example.fallback": true,
+      "com.apple.Finder": true, Self.ownID: true, Self.ownID + ".helper": true,
+    ]
+    let fixture = try Fixture(states)
+    defer { fixture.cleanUp() }
+    try fixture.install("example.noLongerTracked")
+    let suite = "MenuBarVisibilityTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(
+      ["example.installed", "example.missing", "example.noLongerTracked", "com.apple.Finder"],
+      forKey: "menuBarFoldingApplications")
+    let missing = fixture.applicationURL("example.missing")
+    try FileManager.default.removeItem(at: missing)
+    let trash = fixture.journal.deletingLastPathComponent().appendingPathComponent(".Trash")
+    try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: true)
+    let trashedApp = trash.appendingPathComponent("Removed.app")
+    try FileManager.default.moveItem(at: fixture.applicationURL("example.trash"), to: trashedApp)
+    let folding = MenuBarApplicationFolding(
+      settings: AppSettings(defaults: defaults), store: fixture.store,
+      applicationURLs: { id in
+        switch id {
+        case "example.unresolved": []
+        case "example.trash": [trashedApp]
+        case "example.wrong": [fixture.applicationURL("example.installed")]
+        case "example.fallback": [missing, fixture.applicationURL(id)]
+        default: fixture.applicationURLs(id)
+        }
+      })
+    folding.refresh()
+    try await settle(folding)
+    #expect(Set(folding.applications.map(\.id)) == ["example.installed", "example.fallback"])
+    #expect(folding.selected == ["example.installed"])
+    #expect(defaults.stringArray(forKey: "menuBarFoldingApplications") == ["example.installed"])
+    #expect(try fixture.states() == states)
+  }
+
+  @MainActor @Test(arguments: [false, true])
+  func uninstallAfterLoadingDoesNotBlockRemainingApplications(removeAll: Bool) async throws {
+    let fixture = try Fixture(["example.a": true, "example.b": true])
+    defer { fixture.cleanUp() }
+    let suite = "MenuBarVisibilityTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.menuBarFoldingEnabled = true
+    let folding = MenuBarApplicationFolding(
+      settings: settings, store: fixture.store, applicationURLs: fixture.applicationURLs)
+    folding.setEnabled(true)
+    try await settle(folding)
+    folding.select("example.a", enabled: true)
+    folding.select("example.b", enabled: true)
+    try FileManager.default.removeItem(at: fixture.applicationURL("example.a"))
+    if removeAll { try FileManager.default.removeItem(at: fixture.applicationURL("example.b")) }
+    var openedManagement = false
+    folding.showManagement = { openedManagement = true }
+    folding.toggle()
+    try await settle(folding)
+    #expect(folding.selected == (removeAll ? [] : ["example.b"]))
+    #expect(folding.isCollapsed == !removeAll)
+    #expect(openedManagement == removeAll)
+    #expect(try fixture.states() == ["example.a": true, "example.b": removeAll])
+    folding.expand()
+    try await settle(folding)
+    #expect(try fixture.states() == ["example.a": true, "example.b": true])
+    #expect(!fixture.store.hasRecoveryRecord)
+  }
+
+  @MainActor @Test func inactiveBuildProductsAreNotInstalledApplications() async throws {
+    let states = ["example.inactive": true, "example.running": true, "example.installed": true]
+    let fixture = try Fixture(states)
+    defer { fixture.cleanUp() }
+    let products = fixture.journal.deletingLastPathComponent()
+      .appendingPathComponent("DerivedData/Example/Build/Products/Debug")
+    try FileManager.default.createDirectory(at: products, withIntermediateDirectories: true)
+    for id in states.keys {
+      try FileManager.default.moveItem(
+        at: fixture.applicationURL(id), to: products.appendingPathComponent("\(id).app"))
+    }
+    // 同一标识符同时有旧编译产物和正式副本时，仍须找到后者。
+    try fixture.install("example.installed")
+    let suite = "MenuBarVisibilityTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(states.keys.sorted(), forKey: "menuBarFoldingApplications")
+    let folding = MenuBarApplicationFolding(
+      settings: AppSettings(defaults: defaults), store: fixture.store,
+      applicationURLs: { id in
+        [products.appendingPathComponent("\(id).app"), fixture.applicationURL(id)]
+      },
+      runningApplicationURLs: { id in
+        id == "example.running" ? [products.appendingPathComponent("\(id).app")] : []
+      })
+    folding.refresh()
+    try await settle(folding)
+    #expect(Set(folding.applications.map(\.id)) == ["example.running", "example.installed"])
+    #expect(folding.selected == ["example.running", "example.installed"])
+    #expect(try fixture.states() == states)
+  }
+
+  @MainActor @Test func restoresJournalBeforeRemovingUninstalledSelection() async throws {
+    let fixture = try Fixture(["example.a": true])
+    defer { fixture.cleanUp() }
+    try await fixture.store.collapse(["example.a"], ownBundleID: Self.ownID)
+    try FileManager.default.removeItem(at: fixture.applicationURL("example.a"))
+    let suite = "MenuBarVisibilityTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(["example.a"], forKey: "menuBarFoldingApplications")
+    let settings = AppSettings(defaults: defaults)
+    settings.menuBarFoldingEnabled = true
+    settings.menuBarFoldingCollapsed = true
+    let folding = MenuBarApplicationFolding(
+      settings: settings, store: fixture.store, applicationURLs: fixture.applicationURLs)
+    folding.setEnabled(true)
+    try await settle(folding)
+    #expect(folding.applications.isEmpty && folding.selected.isEmpty)
+    #expect(!folding.isCollapsed && !folding.recoveryNeeded)
+    #expect(try fixture.states()["example.a"] == true)
+    #expect(!fixture.store.hasRecoveryRecord)
   }
 
   @MainActor private func settle(_ folding: MenuBarApplicationFolding) async throws {
@@ -247,7 +376,23 @@ struct MenuBarVisibilityTests {
         [["bundle": ["_0": id]] as [String: Any], ["isAllowed": allowed]]
       }
       data = try PropertyListSerialization.data(fromPropertyList: rows, format: .binary, options: 0)
+      for id in states.keys { try install(id) }
     }
+
+    func install(_ id: String) throws {
+      let contents = applicationURL(id).appendingPathComponent("Contents")
+      try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+      try PropertyListSerialization.data(
+        fromPropertyList: ["CFBundleIdentifier": id, "CFBundlePackageType": "APPL"],
+        format: .xml, options: 0
+      ).write(to: contents.appendingPathComponent("Info.plist"))
+    }
+
+    func applicationURL(_ id: String) -> URL {
+      journal.deletingLastPathComponent().appendingPathComponent("\(id).app")
+    }
+
+    func applicationURLs(_ id: String) -> [URL] { [applicationURL(id)] }
 
     var client: MenuBarVisibilityStore.Client {
       .init(
