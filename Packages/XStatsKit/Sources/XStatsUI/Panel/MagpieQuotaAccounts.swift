@@ -8,13 +8,7 @@ import SwiftUI
 /// 服务选择仅过滤已读取的额度，不重新请求，也不将同服务的账户额度相加。
 struct MagpieQuotaAccounts: View {
   let accounts: [MagpieQuota]
-  @Environment(AppModel.self) private var model
-  @State private var selectedProvider: String
-
-  init(accounts: [MagpieQuota]) {
-    self.accounts = accounts
-    _selectedProvider = State(initialValue: accounts.first?.provider ?? "")
-  }
+  let settings: AppSettings
 
   private var providers: [String] {
     var seen: Set<String> = []
@@ -22,7 +16,8 @@ struct MagpieQuotaAccounts: View {
   }
 
   private var currentProvider: String {
-    providers.contains(selectedProvider) ? selectedProvider : providers.first ?? ""
+    let selected = settings.aiQuotaSelectedProvider
+    return providers.contains(selected) ? selected : providers.first ?? ""
   }
 
   // 刷新可能移除已选服务；同一帧使用有效选项，避免 Picker 暂时持有不存在的标签。
@@ -30,7 +25,7 @@ struct MagpieQuotaAccounts: View {
     Binding(
       get: { currentProvider },
       set: { provider in
-        DS.Motion.select { selectedProvider = provider }
+        DS.Motion.select { settings.aiQuotaSelectedProvider = provider }
       })
   }
 
@@ -63,9 +58,6 @@ struct MagpieQuotaAccounts: View {
           .transition(.asymmetric(insertion: .opacity, removal: .identity))
       }
       .dsSelectionAnimation(DS.Motion.usageSelection, value: currentProvider)
-    }
-    .onChange(of: providers) { _, updated in
-      if !updated.contains(selectedProvider) { selectedProvider = updated.first ?? "" }
     }
   }
 
@@ -102,12 +94,12 @@ struct MagpieQuotaAccounts: View {
                   window.resetsAt.map({ $0 > Date() }) ?? true
                 {
                   Text(
-                    tr(model.settings.aiQuotaShowsRemaining ? "剩余" : "已用") + " "
-                      + (!model.settings.aiQuotaShowsRemaining && (window.used ?? 0) > 100
+                    tr(settings.aiQuotaShowsRemaining ? "剩余" : "已用") + " "
+                      + (!settings.aiQuotaShowsRemaining && (window.used ?? 0) > 100
                         ? ((window.used ?? 100) / 100).formatted(.percent.locale(L10n.locale))
                         : AIUsageFormat.quotaPercent(
                           remainingPercent: remaining,
-                          showsRemaining: model.settings.aiQuotaShowsRemaining, locale: L10n.locale))
+                          showsRemaining: settings.aiQuotaShowsRemaining, locale: L10n.locale))
                   )
                   .monospacedDigit()
                 } else {
@@ -121,7 +113,7 @@ struct MagpieQuotaAccounts: View {
                 ProgressTrack(
                   fraction: (AIUsageFormat.quotaValue(
                     remainingPercent: remaining,
-                    showsRemaining: model.settings.aiQuotaShowsRemaining) ?? 0) / 100,
+                    showsRemaining: settings.aiQuotaShowsRemaining) ?? 0) / 100,
                   color: progressTint(for: remaining)
                 )
                 .accessibilityHidden(true)  // 相邻文字已完整表达窗口与额度，避免重复朗读。

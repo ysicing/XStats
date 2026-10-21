@@ -349,8 +349,20 @@ struct OverviewReading {
         }
       }
     case .aiUsage:
-      // 与菜单栏一致：优先显示最紧张的订阅窗口，本机用量仍可在展开后查看。
-      if let quota = MenuBarReading(model: model, items: [.aiUsage]).aiQuotas.min(by: {
+      let quotas: [MenuBarQuota]
+      let selectedProvider = model.settings.aiQuotaSelectedProvider
+      if model.aiUsage.usesMagpie, !selectedProvider.isEmpty {
+        // 跟随详情页选择；服务缺席时临时展示首项，不改写选择，也不受菜单栏四项配置限制。
+        let accounts = model.aiUsage.magpieQuotas
+        let provider =
+          accounts.contains(where: { $0.provider == selectedProvider })
+          ? selectedProvider : accounts.first?.provider
+        quotas = model.aiUsage.magpieQuotaReadings().filter { $0.sourceName == provider }
+      } else {
+        // 未选择服务时沿用最紧张的订阅窗口，本机用量仍可在展开后查看。
+        quotas = MenuBarReading(model: model, items: [.aiUsage]).aiQuotas
+      }
+      if let quota = quotas.min(by: {
         $0.remainingPercent < $1.remainingPercent
       }) {
         value = AIUsageFormat.quotaPercent(

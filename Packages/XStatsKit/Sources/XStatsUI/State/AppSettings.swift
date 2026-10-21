@@ -788,6 +788,10 @@ public final class AppSettings {
   public var aiQuotaShowsRemaining: Bool {
     didSet { defaults.set(aiQuotaShowsRemaining, forKey: Keys.aiQuotaShowsRemaining) }
   }
+  /// 页面与弹窗共用最近选择；服务暂时缺席时仅回退展示，不覆盖用户选择。
+  public var aiQuotaSelectedProvider: String {
+    didSet { defaults.set(aiQuotaSelectedProvider, forKey: Keys.aiQuotaSelectedProvider) }
+  }
   /// 最多选择四个菜单栏服务，不改变额度查询、本地用量来源或系统小组件。
   public var aiMenuBarProviders: Set<String> {
     didSet {
@@ -1213,6 +1217,7 @@ public final class AppSettings {
       .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
     aiUsageShowsLocalUsage = defaults.object(forKey: Keys.aiUsageShowsLocalUsage) as? Bool ?? true
     aiQuotaShowsRemaining = defaults.object(forKey: Keys.aiQuotaShowsRemaining) as? Bool ?? true
+    aiQuotaSelectedProvider = defaults.string(forKey: Keys.aiQuotaSelectedProvider) ?? ""
     let savedAIMenuBarProviders = defaults.stringArray(forKey: Keys.aiMenuBarProviders).map(
       Set.init)
     let initialAIMenuBarProviders = Self.normalizedAIMenuBarProviders(
@@ -1577,6 +1582,7 @@ public final class AppSettings {
     static let aiUsageSources = "aiUsageSources"
     static let aiUsageShowsLocalUsage = "aiUsageShowsLocalUsage"
     static let aiQuotaShowsRemaining = "aiQuotaShowsRemaining"
+    static let aiQuotaSelectedProvider = "aiQuotaSelectedProvider"
     static let aiMenuBarProviders = "aiMenuBarProviders"
     static let aiUsageWesternUnits = "aiUsageWesternUnits"
     static let aiUsageCurrency = "aiUsageCurrency"

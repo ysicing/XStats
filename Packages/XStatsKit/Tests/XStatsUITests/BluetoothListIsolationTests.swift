@@ -49,7 +49,11 @@ struct BluetoothListIsolationTests {
             {"provider":"claude","name":"Other service","kind":"subscription","windows":[]}
         ]}
         """#.utf8))
-    let lists = listProbes(in: MagpieQuotaAccounts(accounts: accounts).body)
+    let name = "MagpieQuotaListIsolationTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let lists = listProbes(
+      in: MagpieQuotaAccounts(accounts: accounts, settings: AppSettings(defaults: defaults)).body)
     #expect(lists.count == 2)
     let accountList = try #require(lists.last)
     let probes = nestedWindows ? accountList.content.nestedLists() : lists

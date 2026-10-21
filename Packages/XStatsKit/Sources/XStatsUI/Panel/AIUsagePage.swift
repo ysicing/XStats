@@ -131,7 +131,7 @@ private struct MagpieUsageContent: View {
         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
         .fixedSize(horizontal: false, vertical: true)
       if !model.aiUsage.magpieQuotas.isEmpty {
-        MagpieQuotaAccounts(accounts: model.aiUsage.magpieQuotas)
+        MagpieQuotaAccounts(accounts: model.aiUsage.magpieQuotas, settings: model.settings)
       }
       if let failure = model.aiUsage.magpieQuotaFailure {
         connectionStatus(failure, stale: !model.aiUsage.magpieQuotas.isEmpty)

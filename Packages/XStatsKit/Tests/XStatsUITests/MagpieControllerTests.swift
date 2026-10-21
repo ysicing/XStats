@@ -4,6 +4,7 @@
 @testable import AIUsage
 import Foundation
 import AppKit
+import Localization
 import SwiftUI
 import Testing
 @testable import XStatsUI
@@ -188,6 +189,53 @@ struct MagpieControllerTests {
     settings.aiMenuBarProviders = []
     #expect(model.aiUsage.menuBarMagpieQuotas().isEmpty)
     #expect(model.aiUsage.magpieQuotaReadings().count == 7)
+  }
+
+  @Test func overviewFollowsSavedQuotaProviderIndependentlyOfMenuBarSelection() async throws {
+    let payload = Data(
+      #"{"object":"list","data":[{"provider":"claude","name":"first","kind":"subscription","windows":[{"name":"7 days","remaining":20}]},{"provider":"workbuddy","name":"second","kind":"subscription","windows":[{"name":"credits","remaining":95}]},{"provider":"workbuddy-ai","name":"third","kind":"subscription","windows":[{"name":"7 days","remaining":62}]},{"provider":"unavailable","name":"fourth","kind":"subscription","error":"unavailable","windows":[]}]}"#
+        .utf8)
+    let settings = settings()
+    settings.aiUsageShowsLocalUsage = false
+    settings.aiMenuBarProviders = ["claude"]
+    let magpie = MagpieStub(quotaPayload: payload)
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      magpieClient: magpie)
+    defer { model.aiUsage.stop() }
+    await model.aiUsage.refresh()
+    for (provider, remaining, window) in [
+      ("workbuddy", 95.0, "credits"), ("workbuddy-ai", 62.0, "7 days"),
+      ("claude", 20.0, "7 days"),
+    ] {
+      settings.aiQuotaSelectedProvider = provider
+      for showsRemaining in [false, true] {
+        settings.aiQuotaShowsRemaining = showsRemaining
+        let reading = OverviewReading(item: .aiUsage, model: model)
+        #expect(reading.detail.hasPrefix(provider + " · " + window + " · "))
+        #expect(
+          reading.value
+            == AIUsageFormat.quotaPercent(
+              remainingPercent: remaining, showsRemaining: showsRemaining,
+              locale: L10n.locale, compact: true))
+        if case .level(let fraction, _) = reading.chart {
+          #expect(abs(fraction - (showsRemaining ? remaining : 100 - remaining) / 100) < 0.0001)
+        } else {
+          Issue.record("Selected quota must have a progress indicator")
+        }
+      }
+    }
+    // 所选服务尚在列表但额度不可用时，不展示其他服务的百分比。
+    settings.aiQuotaSelectedProvider = "unavailable"
+    let unavailable = OverviewReading(item: .aiUsage, model: model)
+    #expect(unavailable.value == "—")
+    #expect(!unavailable.hasChart)
+    // 服务暂时缺席时与详情页一样展示首项，但保留选择等待它恢复。
+    settings.aiQuotaSelectedProvider = "missing"
+    #expect(OverviewReading(item: .aiUsage, model: model).detail.hasPrefix("claude · "))
+    #expect(settings.aiQuotaSelectedProvider == "missing")
+    #expect(settings.aiMenuBarProviders == ["claude"])
+    #expect(await magpie.counts().0 == 1)
   }
 
   @Test func trioFooterKeepsSelectedServicesAndIndependentRemainingQuota() async throws {
@@ -468,6 +516,60 @@ struct MagpieControllerTests {
     #expect(LogoCache.shared.image(named: "site-openai", template: true)?.size == originalLogoSize)
   }
 
+  @Test func quotaProviderChoiceSurvivesReopeningAndTemporaryAbsence() throws {
+    let name = "MagpieQuotaSelectionTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let stages: [([String], Int)] = [
+      (["claude", "grok", "codex"], 0),
+      (["claude", "grok", "codex"], 2),
+      (["codex", "claude", "grok"], 0),
+      (["claude", "grok"], 0),
+      ([], -1),
+      (["claude", "grok", "codex"], 2),
+    ]
+    for (stage, entry) in stages.enumerated() {
+      let (providers, expectedSegment) = entry
+      let records = providers.map {
+        ["provider": $0, "name": "Demo", "kind": "subscription", "windows": []] as [String: Any]
+      }
+      let accounts = try MagpieClient.decodeQuotas(
+        JSONSerialization.data(withJSONObject: ["object": "list", "data": records]))
+      // 每轮重建偏好、模型和页面，覆盖关窗重开及应用重启后的恢复。
+      let model = AppModel(
+        settings: AppSettings(defaults: defaults), historyURL: nil,
+        aiUsageProviders: [], aiQuotaProviders: [])
+      defer { model.aiUsage.stop() }
+      let host = NSHostingView(
+        rootView: MagpieQuotaAccounts(accounts: accounts, settings: model.settings).environment(
+          model
+        )
+        .environment(\.isSnapshot, true).frame(width: 600))
+      _ = host.fittingSize
+      host.layoutSubtreeIfNeeded()
+      var views: [NSView] = [host]
+      var control: NSSegmentedControl?
+      while let view = views.popLast() {
+        if let picker = view as? NSSegmentedControl {
+          control = picker
+          break
+        }
+        views.append(contentsOf: view.subviews)
+      }
+      if providers.isEmpty {
+        #expect(control == nil)
+      } else {
+        let picker = try #require(control)
+        #expect(picker.selectedSegment == expectedSegment)
+        if stage == 0 {
+          picker.selectedSegment = 2
+          #expect(picker.sendAction(picker.action, to: picker.target))
+        }
+      }
+      #expect(defaults.string(forKey: "aiQuotaSelectedProvider") == "codex")
+    }
+  }
+
   @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft])
   func manyQuotaProvidersRenderAtPopoverWidth(direction: LayoutDirection) throws {
     let providers = [
@@ -496,7 +598,7 @@ struct MagpieControllerTests {
     let model = AppModel(
       settings: settings(), historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
     let host = NSHostingView(
-      rootView: Card { MagpieQuotaAccounts(accounts: accounts) }
+      rootView: Card { MagpieQuotaAccounts(accounts: accounts, settings: model.settings) }
         .environment(model).environment(\.layoutDirection, direction)
         .environment(\.isSnapshot, true)
         .padding(16).frame(width: 380))
