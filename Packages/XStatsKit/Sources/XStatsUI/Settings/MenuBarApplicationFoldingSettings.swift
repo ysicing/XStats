@@ -93,7 +93,7 @@ private struct MenuBarApplicationSelection: View {
           Button(tr("展开菜单栏图标")) { folding.toggle() }
         } else if folding.hasAccess {
           Button(tr("收起菜单栏图标")) { folding.toggle() }
-            .disabled(folding.selected.isEmpty || !folding.isEnabled)
+            .disabled(folding.availableSelection.isEmpty || !folding.isEnabled)
         }
         if folding.isBusy { ProgressView().controlSize(.small) }
         Spacer()

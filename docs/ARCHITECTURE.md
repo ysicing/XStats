@@ -65,6 +65,11 @@ A single status-item arrow switches their system menu-bar visibility; it does no
 an oversized separator. All icons owned by an external application change together.
 Apple system items and XStats itself are excluded. Selection and file-access bookmarks
 are local to this Mac and excluded from settings export/sync.
+Unavailable applications are omitted from the picker without deleting their saved selection:
+an unmounted volume or an unresolved LaunchServices registration does not prove uninstallation.
+Before collapsing, the available list is refreshed and only its intersection with the saved
+selection is used. Unavailable selections do not block other applications; when an application
+becomes available on a later refresh, its selection is retained.
 
 The user grants access to `group.com.apple.controlcenter.plist` through an `NSOpenPanel`.
 `MenuBarVisibilityStore` reads the `trackedApplications` binary property list and changes

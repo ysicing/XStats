@@ -57,6 +57,8 @@ final class MenuBarApplicationFolding {
 
   var requiresTerminationPreparation: Bool { isBusy || recoveryNeeded }
   var isEnabled: Bool { settings.menuBarFoldingEnabled }
+  // 找不到路径不等于卸载；保留用户选择，仅让当前可用的应用参与折叠。
+  var availableSelection: Set<String> { selected.intersection(applications.map(\.id)) }
 
   /// 设置观察会在 isBusy 变化后重入；繁忙期间的新开关状态随后再处理。
   func setEnabled(_ enabled: Bool) {
@@ -67,7 +69,7 @@ final class MenuBarApplicationFolding {
       try await self.restore()
       guard enabled else { return }
       try await self.loadApplications()
-      if self.settings.menuBarFoldingCollapsed && !self.selected.isEmpty {
+      if self.settings.menuBarFoldingCollapsed && !self.availableSelection.isEmpty {
         try await self.collapse()
       }
     }
@@ -102,7 +104,7 @@ final class MenuBarApplicationFolding {
       } else {
         // 打开列表后仍可能卸载应用；收起前重新确认，避免失效选择阻塞其余应用。
         try await self.loadApplications()
-        guard !self.selected.isEmpty else {
+        guard !self.availableSelection.isEmpty else {
           self.showManagement()
           return
         }
@@ -234,19 +236,14 @@ final class MenuBarApplicationFolding {
         id: id, name: FileManager.default.displayName(atPath: url.path),
         icon: NSWorkspace.shared.icon(forFile: url.path))
     }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-    // 刷新和启动会先恢复日志，再整理选择；此处只更新 XStats 偏好，不删除系统历史条目。
-    let availableSelection = selected.intersection(applications.map(\.id))
-    if availableSelection != selected {
-      selected = availableSelection
-      defaults.set(selected.sorted(), forKey: Self.selectionKey)
-    }
   }
 
   private func collapse() async throws {
+    let identifiers = availableSelection
     recoveryNeeded = true
-    try await store.collapse(selected, ownBundleID: ownBundleID)
+    try await store.collapse(identifiers, ownBundleID: ownBundleID)
     isCollapsed = true
-    Log.app.info("Menu bar application folding applied, selected count: \(self.selected.count)")
+    Log.app.info("Menu bar application folding applied, selected count: \(identifiers.count)")
   }
 
   private func restore() async throws {
