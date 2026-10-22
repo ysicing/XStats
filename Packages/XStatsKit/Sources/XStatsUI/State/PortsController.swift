@@ -11,7 +11,7 @@ import Metrics
 final class PortsController {
   private(set) var sockets: [PortSocket] = []
   private(set) var rates: [Int32: NetworkProcessRate] = [:]
-  private(set) var conflicts: Set<Int> = []
+  private(set) var conflicts: Set<UInt64> = []
   private(set) var hasLoaded = false
   /// 系统拒绝列出进程时为 true，界面显示读取失败而不是空列表
   private(set) var failed = false
@@ -60,6 +60,7 @@ final class PortsController {
     // 停止后丢弃速率基线：隔了很久的两次读数只能得到失真的平均值
     guard shouldRun else {
       rateSampler = NetworkProcessSampler()
+      rates = [:]
       return
     }
     task = Task { [weak self] in
@@ -94,29 +95,32 @@ final class PortsController {
   func showDemo(sockets: [PortSocket], rates: [Int32: NetworkProcessRate]) {
     self.sockets = sockets
     self.rates = rates
-    conflicts = PortSampler.conflictingPorts(sockets)
+    conflicts = PortSampler.conflictingSocketIDs(sockets)
     hasLoaded = true
     failed = false
   }
 
-  private func publish(
+  func publish(
     sockets: [PortSocket]?, rates: [Int32: NetworkProcessRate]?, sampler: NetworkProcessSampler
   ) {
-    rateSampler = sampler
-    // nettop 偶尔失败时沿用上次速率，避免整列闪成“—”
-    if let rates, rates != self.rates { self.rates = rates }
+    // 失败后重建速率基线，不把旧区间读数挂到新连接或复用的 PID 上。
+    rateSampler = rates == nil ? NetworkProcessSampler() : sampler
     guard let sockets else {
       if !failed { Log.network.error("Cannot enumerate processes for port listing") }
       failed = true
       hasLoaded = true
+      self.sockets = []
+      self.rates = [:]
+      conflicts = []
       return
     }
     if failed { Log.network.notice("Port listing recovered") }
     failed = false
     hasLoaded = true
+    self.rates = rates ?? [:]
     guard sockets != self.sockets else { return }
     self.sockets = sockets
-    conflicts = PortSampler.conflictingPorts(sockets)
+    conflicts = PortSampler.conflictingSocketIDs(sockets)
   }
 }
 

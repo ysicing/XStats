@@ -73,7 +73,7 @@ public enum HomebrewServices {
     let current = try await inventory()
     let arguments = try arguments(for: action, service: service, current: current)
     _ = try await DeveloperToolRunner.run(
-      "brew", arguments: arguments, home: NSHomeDirectory(), previewTimeout: 90)
+      "brew", arguments: arguments, home: NSHomeDirectory())
   }
 
   static func arguments(

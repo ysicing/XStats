@@ -13,17 +13,18 @@ final class HomebrewServicesController {
   private(set) var working: String?
   private(set) var error: String?
   private(set) var completion: String?
-  let brewAvailable: Bool
+  private(set) var brewAvailable: Bool
   private var visible = false
   private var paused = false
   private var generation = UUID()
   @ObservationIgnored private var readTask: Task<Void, Never>?
+  @ObservationIgnored private let checkBrewAvailability: () -> Bool
   @ObservationIgnored private let readInventory: @Sendable () async throws -> [HomebrewService]
   @ObservationIgnored private let performAction:
     @Sendable (HomebrewServices.Action, HomebrewService) async throws -> Void
 
   init(
-    brewAvailable: Bool = HomebrewManagement.isAvailable,
+    brewAvailable: @escaping () -> Bool = { HomebrewManagement.isAvailable },
     readInventory: @escaping @Sendable () async throws -> [HomebrewService] = {
       try await HomebrewServices.inventory()
     },
@@ -32,7 +33,8 @@ final class HomebrewServicesController {
         try await HomebrewServices.perform($0, service: $1)
       }
   ) {
-    self.brewAvailable = brewAvailable
+    self.brewAvailable = brewAvailable()
+    self.checkBrewAvailability = brewAvailable
     self.readInventory = readInventory
     self.performAction = performAction
   }
@@ -64,7 +66,15 @@ final class HomebrewServicesController {
   }
 
   func refresh() {
-    guard visible, !paused, brewAvailable, !isLoading, working == nil else { return }
+    guard visible, !paused, !isLoading, working == nil else { return }
+    // 安装、卸载或移动 Homebrew 后无需重启应用；仅在页面有需求时重新检查。
+    brewAvailable = checkBrewAvailability()
+    guard brewAvailable else {
+      services = []
+      error = nil
+      completion = nil
+      return
+    }
     isLoading = true
     error = nil
     let current = UUID()

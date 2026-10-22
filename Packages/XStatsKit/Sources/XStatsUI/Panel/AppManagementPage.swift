@@ -232,8 +232,7 @@ struct AppManagementPage: View {
           model.homebrewServices.refresh()
         }
         .disabled(
-          !model.homebrewServices.brewAvailable || model.homebrewServices.isLoading
-            || model.homebrewServices.working != nil)
+          model.homebrewServices.isLoading || model.homebrewServices.working != nil)
       } else if section == .startup {
         Button(tr("登录项设置")) { model.helper.openLoginItemsSettings() }
           .buttonStyle(DSButtonStyle(kind: .secondary))

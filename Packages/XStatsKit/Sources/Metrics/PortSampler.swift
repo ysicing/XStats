@@ -6,6 +6,7 @@ import Foundation
 /// 本机一个 TCP / UDP socket 的端点与所属进程。
 public struct PortSocket: Sendable, Equatable, Identifiable {
   public enum Transport: String, Sendable { case tcp, udp }
+  public enum AddressFamily: String, Sendable { case ipv4, ipv6, dualStack }
   /// 监听：TCP LISTEN 或尚未指定对端的已绑定 UDP；已建立：TCP ESTABLISHED 或已 connect 的 UDP。
   public enum State: String, Sendable { case listening, established }
 
@@ -19,17 +20,19 @@ public struct PortSocket: Sendable, Equatable, Identifiable {
   public let state: State
   /// nil 表示绑定到任意地址（0.0.0.0 / ::）
   public let localAddress: String?
+  /// 通配地址也保留协议族，避免把独立的 IPv4 / IPv6 监听误判为冲突。
+  public let addressFamily: AddressFamily
   public let localPort: Int
   public let remoteAddress: String?
   public let remotePort: Int?
-  /// 同一进程同时绑定 IPv4 与 IPv6 任意地址时标识相同，只保留一行。
   /// 排序、查找选中行都会反复读取，所以在初始化时算好。
   public let id: String
 
   public init(
     pid: Int32, name: String, appBundlePath: String? = nil, uid: UInt32, socketID: UInt64,
     transport: Transport, state: State, localAddress: String?, localPort: Int,
-    remoteAddress: String? = nil, remotePort: Int? = nil
+    remoteAddress: String? = nil, remotePort: Int? = nil,
+    addressFamily: AddressFamily? = nil
   ) {
     self.pid = pid
     self.name = name
@@ -39,11 +42,14 @@ public struct PortSocket: Sendable, Equatable, Identifiable {
     self.transport = transport
     self.state = state
     self.localAddress = localAddress
+    self.addressFamily =
+      addressFamily ?? (localAddress?.contains(":") == true ? .ipv6 : .ipv4)
     self.localPort = localPort
     self.remoteAddress = remoteAddress
     self.remotePort = remotePort
     id = [
-      String(pid), transport.rawValue, state.rawValue, localAddress ?? "*", String(localPort),
+      String(pid), transport.rawValue, state.rawValue, self.addressFamily.rawValue,
+      localAddress ?? "*", String(localPort),
       remoteAddress ?? "", remotePort.map(String.init) ?? "",
     ].joined(separator: "|")
   }
@@ -77,6 +83,7 @@ public enum PortSampler {
     let localPort: Int
     var remoteAddress: String?
     var remotePort: Int?
+    let addressFamily: PortSocket.AddressFamily
   }
 
   /// 读取当前的监听端口与已建立连接；系统拒绝列出进程时返回 nil。取消后返回已收集的部分，由调用方丢弃。
@@ -104,7 +111,8 @@ public enum PortSampler {
           pid: pid, name: meta.name, appBundlePath: meta.bundle, uid: uid,
           socketID: endpoint.socketID, transport: endpoint.transport, state: endpoint.state,
           localAddress: endpoint.localAddress, localPort: endpoint.localPort,
-          remoteAddress: endpoint.remoteAddress, remotePort: endpoint.remotePort)
+          remoteAddress: endpoint.remoteAddress, remotePort: endpoint.remotePort,
+          addressFamily: endpoint.addressFamily)
         // 已建立连接达到上限后仍要继续扫描，后启动进程的监听端口才不会丢
         guard
           socket.state == .listening
@@ -128,24 +136,35 @@ public enum PortSampler {
     endpoints(of: pid).contains { $0.socketID == socketID }
   }
 
-  /// 被两个及以上进程各自监听的 TCP 端口。
-  /// nginx worker、gunicorn、Node cluster 等子进程继承父进程的同一个监听 socket，属于共享而非冲突，
-  /// 因此只有两个进程持有的 socket 完全不重叠时才算冲突。
-  /// UDP 端口复用很常见（例如 mDNS 的 5353 由多个进程共享），不算冲突。
-  public static func conflictingPorts(_ sockets: [PortSocket]) -> Set<Int> {
-    var holders: [Int: [Int32: Set<UInt64>]] = [:]
+  /// 只标记不同进程通过独立内核 socket 监听重叠 TCP 地址的行。
+  /// 继承的监听 socket、独立地址与 UDP 复用不标记；结果按 socket 返回，避免误标同端口的其他地址。
+  public static func conflictingSocketIDs(_ sockets: [PortSocket]) -> Set<UInt64> {
+    var listeners: [Int: [PortSocket]] = [:]
     for socket in sockets where socket.transport == .tcp && socket.state == .listening {
-      holders[socket.localPort, default: [:]][socket.pid, default: []].insert(socket.socketID)
+      listeners[socket.localPort, default: []].append(socket)
     }
-    var conflicts = Set<Int>()
-    for (port, byProcess) in holders where byProcess.count > 1 {
-      let owned = Array(byProcess.values)
-      let separate = owned.indices.contains { index in
-        owned[(index + 1)...].contains { $0.isDisjoint(with: owned[index]) }
+    var conflicts = Set<UInt64>()
+    for group in listeners.values where group.count > 1 {
+      for socket in group where !conflicts.contains(socket.socketID) {
+        if let other = group.first(where: {
+          $0.pid != socket.pid && $0.socketID != socket.socketID
+            && bindingsOverlap(socket, $0)
+        }) {
+          conflicts.insert(socket.socketID)
+          conflicts.insert(other.socketID)
+        }
       }
-      if separate { conflicts.insert(port) }
     }
     return conflicts
+  }
+
+  private static func bindingsOverlap(_ lhs: PortSocket, _ rhs: PortSocket) -> Bool {
+    guard
+      lhs.addressFamily == rhs.addressFamily
+        || lhs.addressFamily == .dualStack || rhs.addressFamily == .dualStack
+    else { return false }
+    return lhs.localAddress == nil || rhs.localAddress == nil
+      || lhs.localAddress == rhs.localAddress
   }
 
   private static func endpoints(of pid: pid_t) -> [Endpoint] {
@@ -186,13 +205,13 @@ public enum PortSampler {
         return Endpoint(
           socketID: socketID, transport: .tcp, state: .listening,
           localAddress: localAddress(address),
-          localPort: localPort)
+          localPort: localPort, addressFamily: addressFamily(address))
       case Int32(TSI_S_ESTABLISHED):
         return Endpoint(
           socketID: socketID, transport: .tcp, state: .established,
           localAddress: localAddress(address),
           localPort: localPort, remoteAddress: remoteAddress(address),
-          remotePort: port(address.insi_fport))
+          remotePort: port(address.insi_fport), addressFamily: addressFamily(address))
       default:
         return nil
       }
@@ -207,11 +226,12 @@ public enum PortSampler {
         ? Endpoint(
           socketID: socketID, transport: .udp, state: .established,
           localAddress: localAddress(address),
-          localPort: localPort, remoteAddress: remoteAddress(address), remotePort: remotePort)
+          localPort: localPort, remoteAddress: remoteAddress(address), remotePort: remotePort,
+          addressFamily: addressFamily(address))
         : Endpoint(
           socketID: socketID, transport: .udp, state: .listening,
           localAddress: localAddress(address),
-          localPort: localPort)
+          localPort: localPort, addressFamily: addressFamily(address))
     default:
       return nil
     }
@@ -220,6 +240,14 @@ public enum PortSampler {
   /// `insi_lport` / `insi_fport` 的低 16 位是网络字节序的端口号
   static func port(_ raw: Int32) -> Int {
     Int(UInt16(bigEndian: UInt16(truncatingIfNeeded: raw)))
+  }
+
+  private static func addressFamily(_ address: in_sockinfo) -> PortSocket.AddressFamily {
+    let flags = Int32(address.insi_vflag)
+    if flags & INI_IPV4 != 0 {
+      return flags & INI_IPV6 != 0 ? .dualStack : .ipv4
+    }
+    return .ipv6
   }
 
   private static func localAddress(_ address: in_sockinfo) -> String? {

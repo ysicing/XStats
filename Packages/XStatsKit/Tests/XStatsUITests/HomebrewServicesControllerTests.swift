@@ -10,7 +10,7 @@ struct HomebrewServicesControllerTests {
   @Test func hiddenAndPausedPagesDoNotReadAndLateResultsAreDiscarded() async throws {
     let gate = BrewServiceReadGate()
     let controller = HomebrewServicesController(
-      brewAvailable: true, readInventory: { await gate.read() })
+      brewAvailable: { true }, readInventory: { await gate.read() })
     controller.refresh()
     #expect(await gate.calls == 0)
     controller.setVisible(true)
@@ -35,7 +35,7 @@ struct HomebrewServicesControllerTests {
   @Test func errorsStayVisibleAndRefreshCanRecover() async throws {
     let fixture = BrewServiceFailureFixture()
     let controller = HomebrewServicesController(
-      brewAvailable: true, readInventory: { try await fixture.read() })
+      brewAvailable: { true }, readInventory: { try await fixture.read() })
     controller.setVisible(true)
     await waitUntil { !controller.isLoading }
     #expect(controller.error != nil && controller.services.isEmpty)
@@ -49,7 +49,7 @@ struct HomebrewServicesControllerTests {
     let gate = BrewServiceReadGate()
     let fixture = BrewServiceOperationFixture()
     let controller = HomebrewServicesController(
-      brewAvailable: true, readInventory: { await gate.read() },
+      brewAvailable: { true }, readInventory: { await gate.read() },
       performAction: { action, _ in await fixture.perform(action) })
     controller.setVisible(true)
     await waitUntil { await gate.calls == 1 }
@@ -75,7 +75,7 @@ struct HomebrewServicesControllerTests {
   @Test func absentHomebrewDoesNotStartARead() async {
     let gate = BrewServiceReadGate()
     let controller = HomebrewServicesController(
-      brewAvailable: false, readInventory: { await gate.read() })
+      brewAvailable: { false }, readInventory: { await gate.read() })
     controller.setVisible(true)
     controller.refresh()
     #expect(!controller.isLoading)
@@ -90,6 +90,39 @@ struct HomebrewServicesControllerTests {
       HomebrewServicesPage.filteredServices(services, search: "REDIS").map(\.name) == ["redis"])
     #expect(HomebrewServicesPage.filteredServices(services, search: "alice").count == 1)
     #expect(HomebrewServicesPage.filteredServices(services, search: "com.apple").isEmpty)
+  }
+
+  @Test func availabilityIsRecheckedOnOpeningAndRefreshing() async throws {
+    var available = false
+    let gate = BrewServiceReadGate()
+    let controller = HomebrewServicesController(
+      brewAvailable: { available }, readInventory: { await gate.read() })
+    controller.setVisible(true)
+    #expect(!controller.brewAvailable && !controller.isLoading)
+    #expect(await gate.calls == 0)
+
+    available = true
+    controller.refresh()
+    await waitUntil { await gate.calls == 1 }
+    try await gate.finish()
+    await waitUntil { !controller.isLoading }
+    #expect(controller.brewAvailable && controller.services.count == 1)
+
+    controller.setVisible(false)
+    available = false
+    controller.setVisible(true)
+    #expect(!controller.brewAvailable && controller.services.isEmpty)
+    #expect(controller.error == nil)
+    #expect(await gate.calls == 1)
+
+    controller.setVisible(false)
+    available = true
+    controller.setVisible(true)
+    await waitUntil { await gate.calls == 2 }
+    try await gate.finish()
+    await waitUntil { !controller.isLoading }
+    #expect(controller.brewAvailable && controller.services.count == 1)
+    controller.setVisible(false)
   }
 
   @Test(arguments: [

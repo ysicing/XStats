@@ -147,8 +147,8 @@ struct PortsPage: View {
   }
 
   /// 冲突只针对 TCP 监听；同端口的已建立连接或 UDP 不标记
-  private func isConflict(_ socket: PortSocket, _ conflicts: Set<Int>) -> Bool {
-    socket.transport == .tcp && socket.state == .listening && conflicts.contains(socket.localPort)
+  private func isConflict(_ socket: PortSocket, _ conflicts: Set<UInt64>) -> Bool {
+    socket.transport == .tcp && socket.state == .listening && conflicts.contains(socket.socketID)
   }
 
   // MARK: 工具栏与汇总

@@ -8,19 +8,20 @@ struct PortSamplerTests {
   private func socket(
     pid: Int32, transport: PortSocket.Transport = .tcp, state: PortSocket.State = .listening,
     local: String? = nil, port: Int, remote: String? = nil, remotePort: Int? = nil,
-    socketID: UInt64? = nil
+    socketID: UInt64? = nil, family: PortSocket.AddressFamily? = nil
   ) -> PortSocket {
     PortSocket(
       pid: pid, name: "proc\(pid)", uid: 501,
       socketID: socketID ?? (UInt64(pid) << 16 | UInt64(port)), transport: transport, state: state,
-      localAddress: local, localPort: port, remoteAddress: remote, remotePort: remotePort)
+      localAddress: local, localPort: port, remoteAddress: remote, remotePort: remotePort,
+      addressFamily: family)
   }
 
   @Test func sameTCPListenPortAcrossProcessesIsConflict() {
     let sockets = [
       socket(pid: 10, port: 3000), socket(pid: 11, port: 3000), socket(pid: 12, port: 4000),
     ]
-    #expect(PortSampler.conflictingPorts(sockets) == [3000])
+    #expect(PortSampler.conflictingSocketIDs(sockets) == Set(sockets.prefix(2).map(\.socketID)))
   }
 
   @Test func sharedUDPPortAndSameProcessAreNotConflicts() {
@@ -29,7 +30,7 @@ struct PortSamplerTests {
       socket(pid: 20, port: 8080), socket(pid: 20, local: "::", port: 8080),
       socket(pid: 21, state: .established, port: 8080, remote: "1.1.1.1", remotePort: 443),
     ]
-    #expect(PortSampler.conflictingPorts(sockets).isEmpty)
+    #expect(PortSampler.conflictingSocketIDs(sockets).isEmpty)
   }
 
   /// fork 出的子进程继承同一个监听 socket 属于共享；另一个进程单独监听同一端口才是冲突
@@ -38,9 +39,73 @@ struct PortSamplerTests {
       socket(pid: 10, port: 8000, socketID: 1), socket(pid: 11, port: 8000, socketID: 1),
       socket(pid: 12, port: 8000, socketID: 1),
     ]
-    #expect(PortSampler.conflictingPorts(shared).isEmpty)
+    #expect(PortSampler.conflictingSocketIDs(shared).isEmpty)
     #expect(
-      PortSampler.conflictingPorts(shared + [socket(pid: 13, port: 8000, socketID: 2)]) == [8000])
+      PortSampler.conflictingSocketIDs(shared + [socket(pid: 13, port: 8000, socketID: 2)]) == [
+        1, 2,
+      ])
+  }
+
+  @Test func differentLocalAddressesDoNotConflictAndOnlyOverlappingRowsAreMarked() {
+    let loopback = socket(pid: 10, local: "127.0.0.1", port: 8080)
+    let lan = socket(pid: 11, local: "192.168.1.2", port: 8080)
+    let anotherLoopback = socket(pid: 12, local: "127.0.0.1", port: 8080)
+    #expect(PortSampler.conflictingSocketIDs([loopback, lan]).isEmpty)
+    #expect(
+      PortSampler.conflictingSocketIDs([loopback, lan, anotherLoopback])
+        == [loopback.socketID, anotherLoopback.socketID])
+  }
+
+  @Test func wildcardListenersOnlyOverlapTheirSupportedAddressFamilies() {
+    let ipv4 = socket(pid: 10, local: "127.0.0.1", port: 8080)
+    let ipv6 = socket(pid: 11, local: "::1", port: 8080)
+    let wildcard4 = socket(pid: 12, port: 8080, family: .ipv4)
+    let wildcard6 = socket(pid: 13, port: 8080, family: .ipv6)
+    let dualStack = socket(pid: 14, port: 8080, family: .dualStack)
+    #expect(PortSampler.conflictingSocketIDs([ipv4, ipv6]).isEmpty)
+    #expect(PortSampler.conflictingSocketIDs([wildcard4, ipv6]).isEmpty)
+    #expect(PortSampler.conflictingSocketIDs([wildcard6, ipv4]).isEmpty)
+    #expect(PortSampler.conflictingSocketIDs([wildcard4, wildcard6]).isEmpty)
+    for peer in [ipv4, ipv6, wildcard4, wildcard6] {
+      #expect(
+        PortSampler.conflictingSocketIDs([dualStack, peer]) == [dualStack.socketID, peer.socketID])
+    }
+    #expect(
+      PortSampler.conflictingSocketIDs([wildcard4, ipv4]) == [wildcard4.socketID, ipv4.socketID])
+    #expect(
+      PortSampler.conflictingSocketIDs([wildcard6, ipv6]) == [wildcard6.socketID, ipv6.socketID])
+    #expect(wildcard4.id != socket(pid: 12, port: 8080, family: .ipv6).id)
+  }
+
+  /// 从内核读取 IPv6-only 与双栈通配监听，保证协议族信息没有在“*”显示时丢失。
+  @Test(arguments: [true, false])
+  func samplePreservesIPv6WildcardFamily(_ ipv6Only: Bool) throws {
+    let fd = Darwin.socket(AF_INET6, SOCK_STREAM, 0)
+    try #require(fd >= 0)
+    defer { close(fd) }
+    var only: Int32 = ipv6Only ? 1 : 0
+    try #require(
+      setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &only, socklen_t(MemoryLayout<Int32>.size)) == 0)
+    var address = sockaddr_in6()
+    address.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+    address.sin6_family = sa_family_t(AF_INET6)
+    let bound = withUnsafePointer(to: &address) {
+      $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+        bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in6>.size))
+      }
+    }
+    try #require(bound == 0)
+    try #require(listen(fd, 1) == 0)
+    var length = socklen_t(MemoryLayout<sockaddr_in6>.size)
+    let named = withUnsafeMutablePointer(to: &address) {
+      $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(fd, $0, &length) }
+    }
+    try #require(named == 0)
+    let port = Int(UInt16(bigEndian: address.sin6_port))
+    let sockets = try #require(PortSampler.sample())
+    let own = try #require(sockets.first { $0.pid == getpid() && $0.localPort == port })
+    #expect(own.localAddress == nil)
+    #expect(own.addressFamily == (ipv6Only ? .ipv6 : .dualStack))
   }
 
   /// insi_lport 保存的是网络字节序，3000 在内核里以大端形式出现
@@ -145,6 +210,6 @@ struct PortSamplerTests {
     let parent = try #require(sockets.first { $0.pid == getpid() })
     let inherited = try #require(sockets.first { $0.pid == child })
     #expect(parent.socketID == inherited.socketID)
-    #expect(!PortSampler.conflictingPorts(sockets).contains(port))
+    #expect(PortSampler.conflictingSocketIDs(sockets).isEmpty)
   }
 }

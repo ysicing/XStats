@@ -211,12 +211,16 @@ it preserve the current setting. Saved process-page routes fall back to Features
 The port page is an optional tool, disabled by default through `portsEnabled`. `PortSampler` reads
 listening sockets and established TCP connections through libproc (`proc_listpids` → `proc_pidinfo`
 → `proc_pidfdinfo`), so it only sees processes owned by the current user; system and root sockets
-are not listed. A port is marked as a conflict only when processes listen on it through separate
-kernel sockets (`soi_so`); forked workers sharing an inherited TCP listener and shared UDP ports
-are not flagged. Per-process rates reuse `NetworkProcessSampler`'s `nettop` deltas. `PortsController`
+are not listed. Conflict markers apply only to TCP listeners on overlapping local addresses through
+separate kernel sockets (`soi_so`) in different processes. Wildcard bindings retain their IPv4,
+IPv6 or dual-stack flags; separate address families, independent local addresses, inherited listeners
+and shared UDP ports are not flagged. Markers are keyed by kernel socket, so other addresses on
+the same port are not marked. Per-process rates reuse `NetworkProcessSampler`'s `nettop` deltas. `PortsController`
 samples every 3 seconds only while the feature is on, the main window shows the page, and the
-session is active; sleep and lock pause it, and the rate baseline is dropped on every stop. Turning
-the feature off clears results. Ending a process signals only its own PID (through `NSRunningApplication`
+session is active; sleep and lock pause it, and rates and their baseline are dropped on every stop.
+A socket enumeration failure clears connections, rates and conflict markers and shows the existing
+read-failure state. A failed rate read clears displayed rates and resets the baseline rather than
+presenting cached values as live. Turning the feature off clears results. Ending a process signals only its own PID (through `NSRunningApplication`
 when the process is an app), and it refuses root, other-user, XStats's own, and protected processes.
 
 The sandboxed WidgetKit extension samples CPU, memory, disk, and battery through `Metrics`
@@ -361,6 +365,13 @@ identifiers and output are bounded. Explicit index refresh and per-package opera
 bounded tool runner with auto-update, analytics, cleanup and autoremove disabled. Mutations retain
 Homebrew dependency protection, disallow pinned upgrades and running/self Cask changes, and finish
 independently of page visibility. App uninstall still uses the existing preview/recycler safety path.
+
+The Services category reads Homebrew availability on entry and manual refresh, including when
+Homebrew was absent at app startup; refresh remains available in that state. Service inventory reads
+use the bounded preview runner. Confirmed `brew services start/stop/restart` commands use the write
+runner: preview output limits do not apply and a write timeout stops waiting without terminating
+brew. Explicit task cancellation still stops the command. Service mutations finish independently of
+page visibility, and only a visible page refreshes afterward.
 
 Application uninstallation uses a separate controller and scans only app-specific paths.
 Identity comes from the app's names and bounded embedded bundles (512 entries, 64 bundles,

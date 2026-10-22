@@ -189,6 +189,61 @@ final class PortsPresentationTests {
     #expect(pids(query: "safari") == [30])
   }
 
+  @Test func socketReadFailureClearsCachedConnectionsAndRecovers() {
+    let controller = PortsController()
+    let sockets = [socket(pid: 10, port: 8080), socket(pid: 11, port: 8080)]
+    let rates = [Int32(10): NetworkProcessRate(name: "proc", download: 1024, upload: 512)]
+    controller.publish(sockets: sockets, rates: rates, sampler: NetworkProcessSampler())
+    #expect(controller.sockets.count == 2 && controller.conflicts.count == 2)
+    #expect(!controller.failed)
+
+    controller.publish(sockets: nil, rates: rates, sampler: NetworkProcessSampler())
+    #expect(controller.failed && controller.hasLoaded)
+    #expect(controller.sockets.isEmpty && controller.rates.isEmpty && controller.conflicts.isEmpty)
+
+    controller.publish(sockets: [sockets[0]], rates: [:], sampler: NetworkProcessSampler())
+    #expect(!controller.failed && controller.sockets == [sockets[0]])
+    #expect(controller.conflicts.isEmpty && controller.rates.isEmpty)
+  }
+
+  @Test func rateReadFailureDoesNotAttachCachedRatesToReusedPID() {
+    let controller = PortsController()
+    let previous = socket(pid: 10, name: "old", port: 8080)
+    let rates = [Int32(10): NetworkProcessRate(name: "old", download: 1024, upload: 512)]
+    controller.publish(sockets: [previous], rates: rates, sampler: NetworkProcessSampler())
+    #expect(controller.rates[10]?.download == 1024)
+    let replacement = socket(pid: 10, name: "new", port: 9000)
+    for _ in 0..<3 {
+      controller.publish(sockets: [replacement], rates: nil, sampler: NetworkProcessSampler())
+      #expect(controller.rates.isEmpty)
+      #expect(controller.sockets == [replacement] && !controller.failed)
+    }
+    let recovered = [Int32(10): NetworkProcessRate(name: "new", download: 128, upload: 0)]
+    controller.publish(sockets: [replacement], rates: recovered, sampler: NetworkProcessSampler())
+    #expect(controller.rates[10]?.name == "new" && controller.rates[10]?.download == 128)
+  }
+
+  @Test func pausingOrHidingPortContentDropsDisplayedRates() {
+    let controller = PortsController()
+    let sockets = [socket(pid: 10, port: 8080)]
+    let rates = [Int32(10): NetworkProcessRate(name: "proc", download: 1024, upload: 512)]
+    // 同一主 Actor 周期内关闭需求，采样任务还未运行；验证反复开关不会保留旧速率。
+    for _ in 0..<5 {
+      controller.setDemand(enabled: true, visible: true)
+      controller.publish(sockets: sockets, rates: rates, sampler: NetworkProcessSampler())
+      controller.setPaused(true)
+      #expect(controller.rates.isEmpty)
+      controller.setDemand(enabled: true, visible: false)
+      controller.setPaused(false)
+      controller.setDemand(enabled: true, visible: true)
+      controller.publish(sockets: sockets, rates: rates, sampler: NetworkProcessSampler())
+      controller.setDemand(enabled: true, visible: false)
+      #expect(controller.rates.isEmpty)
+    }
+    controller.setDemand(enabled: false, visible: false)
+    #expect(controller.sockets.isEmpty && !controller.hasLoaded)
+  }
+
   @Test func quitIsBlockedForSystemOwnedAndSelfProcesses() throws {
     let own = socket(pid: 999_999, port: 9000)
     #expect(PortActions.quitBlockedReason(own) == nil)
