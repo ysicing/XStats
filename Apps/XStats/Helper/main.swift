@@ -37,8 +37,7 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
 
   private var connections: Set<ObjectIdentifier> = []
   private var fans: FanControl?
-  private var manualFans: Set<Int> = []
-  private var sleepDisabledByHelper = false
+  private var recoveryState = HelperRecoveryState()
   private var idleExit: DispatchWorkItem?
 
   func run() {
@@ -98,9 +97,10 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
         return reply("无效的风扇参数")
       }
       do {
+        // 写入可能部分生效后抛错；先落盘意图，断连或异常重启仍能恢复。
+        recoveryState.recordFanOverride(fan)
+        persist()
         try fans.setManual(fan: fan, rpm: rpm)
-        // 落盘接管记录，辅助工具异常退出后重启时才能把风扇交还系统
-        if manualFans.insert(fan).inserted { persist() }
         reply(nil)
       } catch {
         log.error("设置风扇 \(fan) 失败：\(String(describing: error), privacy: .public)")
@@ -117,7 +117,8 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
       guard (0..<count).contains(fan) else { return reply("无效的风扇编号") }
       do {
         try fans.setAutomatic(fan: fan)
-        if manualFans.remove(fan) != nil { persist() }
+        recoveryState.recordFanRestored(fan)
+        persist()
         reply(nil)
       } catch {
         log.error("恢复风扇 \(fan) 失败：\(String(describing: error), privacy: .public)")
@@ -200,7 +201,7 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
     // 应用已退出或崩溃：把系统恢复到默认状态
     log.info("客户端全部断开，恢复风扇与睡眠设置")
     if let error = resetFans() { log.error("恢复风扇失败：\(error, privacy: .public)") }
-    if sleepDisabledByHelper { _ = applySleepDisabled(false) }
+    if recoveryState.sleepDisabled { _ = applySleepDisabled(false) }
     scheduleIdleExit()
   }
 
@@ -211,11 +212,12 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
       information.st_mode & S_IFMT != S_IFLNK
     else { return }
     guard let data = try? Data(contentsOf: stateURL),
-      let state = try? PropertyListDecoder().decode(PersistedState.self, from: data)
+      let state = try? PropertyListDecoder().decode(HelperRecoveryState.self, from: data)
     else { return }
     log.notice("上次异常退出，恢复风扇与睡眠设置")
+    // 任一恢复都会持久化当前状态，必须先完整接回所有未恢复标记。
+    recoveryState = state
     if state.sleepDisabled {
-      sleepDisabledByHelper = true
       _ = applySleepDisabled(false)
     }
     if state.fansOverridden { _ = resetFans() }
@@ -235,10 +237,10 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
   // MARK: 风扇
 
   private func resetFans() -> String? {
-    guard let fans else { return manualFans.isEmpty ? nil : "无法访问 SMC" }
+    guard let fans else { return recoveryState.fansOverridden ? "无法访问 SMC" : nil }
     do {
       try fans.resetAll()
-      manualFans.removeAll()
+      recoveryState.recordAllFansRestored()
       persist()
       return nil
     } catch {
@@ -251,7 +253,7 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
   private func applySleepDisabled(_ disabled: Bool) -> String? {
     // 先记录接管意图：pmset 已生效但超时/退出异常时，也必须在断连后尝试恢复。
     if disabled {
-      sleepDisabledByHelper = true
+      recoveryState.sleepDisabled = true
       persist()
     }
     let result = runTool(
@@ -259,7 +261,7 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
     guard result.status == 0 else {
       return "pmset 执行失败：\(result.output.trimmingCharacters(in: .whitespacesAndNewlines))"
     }
-    sleepDisabledByHelper = disabled
+    recoveryState.sleepDisabled = disabled
     persist()
     return nil
   }
@@ -305,21 +307,14 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
 
   // MARK: 持久化
 
-  private struct PersistedState: Codable {
-    var sleepDisabled: Bool
-    var fansOverridden: Bool
-  }
-
   private func persist() {
-    let state = PersistedState(
-      sleepDisabled: sleepDisabledByHelper, fansOverridden: !manualFans.isEmpty)
-    guard state.sleepDisabled || state.fansOverridden else {
+    guard recoveryState.hasPendingRecovery else {
       try? FileManager.default.removeItem(at: stateURL)
       return
     }
     try? FileManager.default.createDirectory(
       at: stateURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try? PropertyListEncoder().encode(state).write(to: stateURL, options: .atomic)
+    try? PropertyListEncoder().encode(recoveryState).write(to: stateURL, options: .atomic)
   }
 }
 

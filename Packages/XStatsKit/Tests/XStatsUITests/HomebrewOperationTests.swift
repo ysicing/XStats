@@ -153,6 +153,54 @@ struct HomebrewOperationTests {
     #expect(model.appManagement.homebrewOperations === model.homebrewServices.homebrewOperations)
   }
 
+  @Test(arguments: ["package", "service"])
+  func timedOutWriteKeepsOtherPageBlockedUntilActualExit(_ operation: String) async throws {
+    let state = HomebrewOperationState()
+    let fixture = HomebrewWriteFixture()
+    let exit = HomebrewWriteFixture()
+    let completion = Task<Void, Never> { _ = try? await exit.perform("exit") }
+    let apps = makeApps(state: state, fixture: fixture)
+    let services = makeServices(state: state, fixture: fixture)
+    apps.setVisible(true, tab: .homebrew)
+    services.setVisible(true)
+    await waitUntil { !apps.isReading && !services.isLoading }
+    await waitUntil { await exit.calls == ["exit"] }
+    let service = try #require(services.services.first)
+    if operation == "package" {
+      apps.perform(.upgrade, package: package)
+    } else {
+      services.perform(.restart, service: service)
+    }
+    await waitUntil { await fixture.calls == [operation] }
+    await fixture.finishAll(error: HomebrewOperationTimeout(completion: completion))
+    await waitUntil { apps.error != nil || services.error != nil }
+    #expect(state.isRunning)
+    #expect(apps.completion == nil && services.completion == nil)
+    #expect(operation == "package" ? apps.operation != nil : services.working != nil)
+
+    apps.setVisible(false)
+    services.setVisible(false)
+    apps.setPaused(true)
+    services.setPaused(true)
+    #expect(state.isRunning)
+    apps.setPaused(false)
+    services.setPaused(false)
+    apps.setVisible(true, tab: .homebrew)
+    services.setVisible(true)
+    await waitUntil { !apps.isReading && !services.isLoading }
+    apps.perform(.uninstall, package: package)
+    apps.checkBrewUpdates()
+    services.perform(.start, service: service)
+    #expect(await fixture.calls == [operation])
+    #expect(state.isRunning && !apps.isCheckingUpdates)
+
+    await exit.finishAll()
+    await waitUntil { !state.isRunning && apps.operation == nil && services.working == nil }
+    #expect(apps.completion == nil && services.completion == nil)
+    apps.setVisible(false)
+    services.setVisible(false)
+  }
+
   private func makeApps(
     state: HomebrewOperationState, fixture: HomebrewWriteFixture
   ) -> AppManagementController {

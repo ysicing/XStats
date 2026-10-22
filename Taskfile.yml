@@ -176,6 +176,7 @@ tasks:
       - python3 scripts/backup_debug_symbols_test.py
       - bash scripts/release_all_test.sh
       - bash scripts/publish_release_test.sh
+      - python3 scripts/object_storage_test.py
       - python3 scripts/release_provenance_test.py
       - python3 scripts/publish_api_test.py
       - python3 scripts/release_capture_test.py

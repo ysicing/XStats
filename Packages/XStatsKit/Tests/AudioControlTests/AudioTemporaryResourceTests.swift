@@ -74,6 +74,56 @@ private final class GuardedTestPipeline: AudioMixPipeline {
 }
 
 struct AudioTemporaryResourceTests {
+  @Test(arguments: [false, true])
+  func lateFinishingCannotReleaseANewGuardWithAReusedHALID(deferred: Bool) async throws {
+    let log = TemporaryAudioLog()
+    let client = AudioMixerClient(
+      automaticHealthChecks: false,
+      outputGuardFactory: { _ in TestOutputGuard(log: log, failures: 0) }
+    ) { _, _, _ in GuardedTestPipeline(log: log) }
+    let oldGuard = try #require(try await client.prepareOutputSwitch(additionalProcessIDs: [7]))
+    await client.stop()
+    let newGuard = try #require(try await client.prepareOutputSwitch(additionalProcessIDs: [8]))
+    try await client.finishOutputSwitch(oldGuard, afterRestoring: deferred)
+    try await client.apply([], outputUID: "default")
+    #expect(log.entries.filter { $0 == "removed:guard" }.count == 1)
+    try await client.finishOutputSwitch(newGuard)
+    #expect(log.entries.filter { $0 == "removed:guard" }.count == 2)
+    await client.stop()
+  }
+
+  @Test func stoppingADeferredSwitchReleasesItsGuardWithoutRebuildingPipelines() async throws {
+    let log = TemporaryAudioLog()
+    let client = AudioMixerClient(
+      automaticHealthChecks: false,
+      outputGuardFactory: { _ in TestOutputGuard(log: log, failures: 0) }
+    ) { _, _, _ in GuardedTestPipeline(log: log) }
+    let guardID = try #require(try await client.prepareOutputSwitch(additionalProcessIDs: [7]))
+    try await client.finishOutputSwitch(guardID, afterRestoring: true)
+    #expect(!log.entries.contains("removed:guard"))
+    await client.stop()
+    try await client.finishOutputSwitch(guardID, afterRestoring: true)
+    #expect(log.entries == ["destroy:guard", "removed:guard"])
+  }
+
+  @Test func deferredGuardCleanupFailureRemainsOwnedUntilStopped() async throws {
+    let log = TemporaryAudioLog()
+    let client = AudioMixerClient(
+      automaticHealthChecks: false,
+      outputGuardFactory: { _ in TestOutputGuard(log: log, failures: 1) }
+    ) { _, _, _ in GuardedTestPipeline(log: log) }
+    let guardID = try #require(try await client.prepareOutputSwitch(additionalProcessIDs: [7]))
+    try await client.finishOutputSwitch(guardID, afterRestoring: true)
+    await #expect(throws: AudioControlError.hardware(-1)) {
+      try await client.apply([], outputUID: "default")
+    }
+    #expect(!log.entries.contains("removed:guard"))
+    await client.stop()
+    #expect(log.entries.filter { $0 == "removed:guard" }.count == 1)
+    try await client.finishOutputSwitch(guardID)
+    #expect(log.entries.filter { $0 == "removed:guard" }.count == 1)
+  }
+
   @Test func aFixedNativeRouteIsGuardedWithoutAnExistingPipeline() async throws {
     let log = TemporaryAudioLog()
     let client = AudioMixerClient(

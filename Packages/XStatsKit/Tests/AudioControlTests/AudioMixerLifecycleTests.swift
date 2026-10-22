@@ -59,8 +59,15 @@ private final class TestPipeline: AudioMixPipeline, @unchecked Sendable {
 }
 private final class SlotTestOutputGuard: AudioOutputSwitchGuard {
   let id: UInt32
-  init(id: UInt32 = 99) { self.id = id }
-  func stop() throws {}
+  let log: PipelineLog?
+  init(id: UInt32 = 99, log: PipelineLog? = nil) {
+    self.id = id
+    self.log = log
+  }
+  func stop() throws {
+    log?.append("guard.stop")
+    log?.append("guard.stop:\(id)")
+  }
 }
 private final class SlotGuardSequence: @unchecked Sendable {
   private let lock = NSLock()
@@ -73,6 +80,129 @@ private final class SlotGuardSequence: @unchecked Sendable {
   }
 }
 struct AudioMixerLifecycleTests {
+  @Test func nextSwitchInheritsGuardCoverageBeforeTheRecoverySnapshot() async throws {
+    let log = PipelineLog()
+    let guards = SlotGuardSequence()
+    let client = AudioMixerClient(
+      automaticHealthChecks: false,
+      outputGuardFactory: { objects in
+        let id = guards.next()
+        log.append("guard.create:\(id):\(objects)")
+        return SlotTestOutputGuard(id: id, log: log)
+      }
+    ) {
+      TestPipeline($0, output: $1, source: $2, log: log)
+    }
+    let mutedTarget = AudioMixTarget(
+      id: "b", processObjectIDs: [2],
+      volume: try #require(AudioAppVolume(level: 1, isMuted: true)))
+    try await client.apply([try target("a"), mutedTarget], outputUID: "default")
+    let firstGuard = try #require(try await client.prepareOutputSwitch())
+    try await client.finishOutputSwitch(firstGuard, afterRestoring: true)
+
+    let secondGuard = try #require(try await client.prepareOutputSwitch())
+    let entries = log.entries
+    let created = try #require(entries.firstIndex(of: "guard.create:102:[1, 2]"))
+    let released = try #require(entries.firstIndex(of: "guard.stop:101"))
+    #expect(created < released)
+    try await client.finishOutputSwitch(firstGuard)
+    try await client.finishOutputSwitch(secondGuard, afterRestoring: true)
+    await client.checkHealth(now: 0)
+    #expect(!log.entries.contains("guard.stop:102"))
+    #expect(log.entries.filter { $0.hasPrefix("start:") }.count == 2)
+    await client.stop()
+    #expect(log.entries.filter { $0 == "guard.stop:101" }.count == 1)
+    #expect(log.entries.filter { $0 == "guard.stop:102" }.count == 1)
+  }
+
+  @Test(arguments: [false, true])
+  func nextSwitchPreservesGuardCoverageAfterPartialRecovery(clearDemand: Bool) async throws {
+    let log = PipelineLog()
+    let guards = SlotGuardSequence()
+    let client = AudioMixerClient(
+      automaticHealthChecks: false,
+      outputGuardFactory: { objects in
+        let id = guards.next()
+        log.append("guard.create:\(id):\(objects)")
+        return SlotTestOutputGuard(id: id, log: log)
+      }
+    ) {
+      TestPipeline(
+        $0, output: $1, source: $2, log: log,
+        startError: $0.id == "b" && $1 != "default" ? .unsupportedFormat : nil)
+    }
+    let firstTarget = try target("a")
+    let mutedTarget = AudioMixTarget(
+      id: "b", processObjectIDs: [2],
+      volume: try #require(AudioAppVolume(level: 1, isMuted: true)))
+    let demand = [firstTarget, mutedTarget]
+    try await client.apply(demand, outputUID: "default")
+    let firstGuard = try #require(try await client.prepareOutputSwitch())
+    await #expect(throws: AudioControlError.unsupportedFormat) {
+      try await client.apply(demand, outputUID: "usb")
+    }
+    try await client.finishOutputSwitch(firstGuard, afterRestoring: true)
+    #expect(await client.unresolvedApplicationIDs() == ["b"])
+    #expect(log.entries.contains("volume:a:usb:0.5"))
+    #expect(log.entries.contains("guard.create:101:[1, 2]"))
+    #expect(!log.entries.contains("guard.stop:101"))
+
+    let secondGuard = try #require(try await client.prepareOutputSwitch())
+    let entries = log.entries
+    let created = try #require(entries.firstIndex { $0.hasPrefix("guard.create:102:") })
+    let released = try #require(entries.firstIndex(of: "guard.stop:101"))
+    #expect(entries[created] == "guard.create:102:[1, 2]")
+    #expect(created < released)
+    await #expect(throws: AudioControlError.unsupportedFormat) {
+      try await client.apply(demand, outputUID: "hdmi")
+    }
+    try await client.finishOutputSwitch(secondGuard, afterRestoring: true)
+    await client.checkHealth(now: 0)
+    #expect(await client.unresolvedApplicationIDs() == ["b"])
+    #expect(!log.entries.contains("guard.stop:102"))
+    let started = log.entries.filter { $0.hasPrefix("start:") }.count
+    if clearDemand {
+      try await client.apply([], outputUID: "hdmi")
+    } else {
+      await client.stop()
+    }
+    try await client.finishOutputSwitch(firstGuard)
+    #expect(log.entries.filter { $0 == "guard.stop:101" }.count == 1)
+    #expect(log.entries.filter { $0 == "guard.stop:102" }.count == 1)
+    #expect(log.entries.filter { $0.hasPrefix("start:") }.count == started)
+    #expect(await client.unresolvedApplicationIDs().isEmpty)
+    await client.stop()
+  }
+
+  @Test func automaticCleanupFinishesADeferredGuardOnlyAfterDemandIsRestored() async throws {
+    let log = PipelineLog()
+    let client = AudioMixerClient(
+      automaticHealthChecks: false,
+      outputGuardFactory: { _ in SlotTestOutputGuard(log: log) }
+    ) {
+      TestPipeline(
+        $0, output: $1, source: $2, log: log, stopFailures: $0.id == "b" ? 2 : 0,
+        startError: $0.id == "b" ? .unsupportedFormat : nil)
+    }
+    let guardID = try #require(try await client.prepareOutputSwitch(additionalProcessIDs: [1]))
+    try await client.finishOutputSwitch(guardID, afterRestoring: true)
+    await client.checkHealth(now: 0)
+    #expect(!log.entries.contains("guard.stop"))
+    let firstTarget = try target("a")
+    await #expect(throws: AudioControlError.unsupportedFormat) {
+      try await client.apply([firstTarget, try target("b")], outputUID: "default")
+    }
+    await #expect(throws: AudioControlError.unavailable) {
+      try await client.apply([firstTarget], outputUID: "default")
+    }
+    #expect(!log.entries.contains("guard.stop"))
+    let now = Double(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000
+    await client.checkHealth(now: now + 0.1)
+    #expect(await client.unresolvedApplicationIDs().isEmpty)
+    #expect(log.entries.contains("guard.stop"))
+    await client.stop()
+  }
+
   @Test func finishingAnOldGuardDoesNotClearANewSwitchsReservedSlots() async throws {
     let log = PipelineLog()
     let guards = SlotGuardSequence()

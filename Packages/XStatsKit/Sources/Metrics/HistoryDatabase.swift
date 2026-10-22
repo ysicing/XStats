@@ -244,10 +244,11 @@ public struct HistoryAccumulator: Sendable {
   private var minute: Int?
   private var sums: [String: (total: Double, count: Int)] = [:]
   private var maxima: [String: Double] = [:]
+  private var needsFlush = false
 
   public init() {}
 
-  /// 加入一次采样；跨到下一分钟时返回上一分钟的记录
+  /// 加入一次采样；跨分钟时返回上一分钟尚未刷新的累计记录。
   public mutating func add(
     date: Date, cpu: Double?, memory: Double?, pressure: Int?, download: Double?, upload: Double?,
     gpu: Double?, temperature: Double?, power: Double?, battery: Double? = nil
@@ -255,7 +256,7 @@ public struct HistoryAccumulator: Sendable {
     let current = Int(date.timeIntervalSince1970) / 60 * 60
     var finished: HistoryRecord?
     if let minute, minute != current {
-      finished = record(for: minute)
+      if needsFlush { finished = record(for: minute) }
       sums = [:]
       maxima = [:]
     }
@@ -279,17 +280,14 @@ public struct HistoryAccumulator: Sendable {
     peak("temperature", temperature)
     average("power", power)
     average("battery", battery)
+    needsFlush = true
     return finished
   }
 
-  /// 退出或暂停时写入当前这一分钟
+  /// 取得当前分钟的累计快照；保留累计值，供暂停后同分钟继续采样。
   public mutating func flush() -> HistoryRecord? {
-    guard let minute, !sums.isEmpty || !maxima.isEmpty else { return nil }
-    defer {
-      self.minute = nil
-      sums = [:]
-      maxima = [:]
-    }
+    guard needsFlush, let minute, !sums.isEmpty || !maxima.isEmpty else { return nil }
+    needsFlush = false
     return record(for: minute)
   }
 

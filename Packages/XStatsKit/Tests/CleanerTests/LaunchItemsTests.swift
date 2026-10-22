@@ -44,6 +44,86 @@ import Testing
       program: nil, runAtLoad: true, keepAlive: false, disabledInPlist: false)
     #expect(LaunchItems.setEnabled(false, item: item) != nil)
   }
+
+  @Test(arguments: [true, false])
+  func failedOverrideDoesNotAttemptLoading(_ enabled: Bool) throws {
+    let item = try userItem()
+    var commands: [[String]] = []
+    let error = LaunchItems.setEnabled(enabled, item: item) { arguments in
+      commands.append(arguments)
+      return arguments.first == (enabled ? "enable" : "disable")
+        ? (1, "override denied") : (0, "")
+    }
+    #expect(error != nil)
+    #expect(commands == [[enabled ? "enable" : "disable", "gui/\(getuid())/com.example.agent"]])
+  }
+
+  @Test(arguments: [Int32(5), 37, 1])
+  func bootstrapFailureRequiresConfirmedLoadedService(_ status: Int32) throws {
+    let item = try userItem()
+    var commands: [[String]] = []
+    let error = LaunchItems.setEnabled(true, item: item) { arguments in
+      commands.append(arguments)
+      switch arguments.first {
+      case "enable": return (0, "")
+      case "bootstrap": return (status, "Input/output error")
+      case "list": return (0, "PID\tStatus\tLabel\n")
+      default: return (1, "unexpected command")
+      }
+    }
+    #expect(error != nil)
+    #expect(commands.last == ["list"])
+  }
+
+  @Test(arguments: ["-", "42"])
+  func alreadyLoadedBootstrapIsIdempotentEvenWithoutPID(_ pid: String) throws {
+    let item = try userItem()
+    let error = LaunchItems.setEnabled(true, item: item) { arguments in
+      switch arguments.first {
+      case "enable": return (0, "")
+      case "bootstrap": return (5, "Input/output error")
+      case "list": return (0, "PID\tStatus\tLabel\n\(pid)\t0\tcom.example.agent\n")
+      default: return (1, "unexpected command")
+      }
+    }
+    #expect(error == nil)
+  }
+
+  @Test(arguments: [Int32(0), 1])
+  func failedStatusReadCannotConfirmUnloadedService(_ readStatus: Int32) throws {
+    let item = try userItem()
+    let error = LaunchItems.setEnabled(false, item: item) { arguments in
+      switch arguments.first {
+      case "disable": return (0, "")
+      case "bootout": return (3, "No such process")
+      case "list": return (readStatus, "unrecognized output")
+      default: return (1, "unexpected command")
+      }
+    }
+    #expect(error != nil)
+  }
+
+  @Test(arguments: [false, true])
+  func bootoutFailureRequiresConfirmedAbsence(_ loaded: Bool) throws {
+    let item = try userItem()
+    let error = LaunchItems.setEnabled(false, item: item) { arguments in
+      switch arguments.first {
+      case "disable": return (0, "")
+      case "bootout": return (3, "No such process")
+      case "list":
+        return (0, "PID\tStatus\tLabel\n" + (loaded ? "-\t0\tcom.example.agent\n" : ""))
+      default: return (1, "unexpected command")
+      }
+    }
+    #expect((error == nil) == !loaded)
+  }
+
+  private func userItem() throws -> LaunchItem {
+    try #require(
+      LaunchItems.item(
+        from: ["Label": "com.example.agent"],
+        plist: URL(fileURLWithPath: "/tmp/com.example.agent.plist"), scope: .user))
+  }
   @Test func launchStatusDoesNotMixUserAndSystemDomains() {
     let url = URL(fileURLWithPath: "/tmp/shared.plist")
     let agent = LaunchItem(

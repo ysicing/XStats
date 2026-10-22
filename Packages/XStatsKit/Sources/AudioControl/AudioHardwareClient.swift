@@ -17,6 +17,7 @@ public final class AudioHardwareClient: @unchecked Sendable {
     [(AudioObjectID, AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
   private var detailKey: [UInt32] = []
   private let applicationActivity: @Sendable () -> [UInt32]
+  private let readSnapshot: (@Sendable (Bool) -> AudioHardwareSnapshot)?
   private var activitySignature: [UInt32] = []
   private var activityTimer: DispatchSourceTimer?
   private var activityInterval: TimeInterval?
@@ -28,10 +29,12 @@ public final class AudioHardwareClient: @unchecked Sendable {
     selectDevice:
       @escaping @Sendable (AudioDeviceInfo, AudioDirection, AudioOperationCancellation) ->
       AudioControlError?,
-    applicationActivity: @escaping @Sendable () -> [UInt32] = AudioHAL.applicationActivity
+    applicationActivity: @escaping @Sendable () -> [UInt32] = AudioHAL.applicationActivity,
+    readSnapshot: (@Sendable (Bool) -> AudioHardwareSnapshot)? = nil
   ) {
     self.selectDevice = selectDevice
     self.applicationActivity = applicationActivity
+    self.readSnapshot = readSnapshot
     queue.setSpecific(key: queueKey, value: 1)
   }
 
@@ -45,6 +48,7 @@ public final class AudioHardwareClient: @unchecked Sendable {
 
   public func snapshot(includeApplications: Bool) async -> AudioHardwareSnapshot {
     await execute { [self] in
+      if let readSnapshot { return readSnapshot(includeApplications) }
       let catalog: (applications: [AudioApplication], activity: [UInt32]) =
         includeApplications ? AudioHAL.applicationSnapshot() : ([], [])
       let snapshot = AudioHardwareSnapshot(

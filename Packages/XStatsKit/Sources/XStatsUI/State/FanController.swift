@@ -61,6 +61,10 @@ public final class FanController {
   @ObservationIgnored private var feedbackGeneration = 0
   @ObservationIgnored private var feedbackVisible = false
   @ObservationIgnored private var paused = false
+  @ObservationIgnored private var pauseGeneration = 0
+  @ObservationIgnored private var pauseResetSucceeded = false
+  @ObservationIgnored private var pauseTask: Task<Bool, Never>?
+  @ObservationIgnored private var applicationWaiters: [CheckedContinuation<Void, Never>] = []
   /// 最近一次 apply 的写入失败后，兜底复位也失败。
   @ObservationIgnored private var fallbackResetFailed = false
 
@@ -82,12 +86,54 @@ public final class FanController {
   }
 
   func setPaused(_ value: Bool) {
+    if paused != value { pauseGeneration &+= 1 }
     paused = value
-    if value { cancelFeedback() }
+    guard value else {
+      pauseResetSucceeded = false
+      return
+    }
+    cancelFeedback()
+    guard pauseTask == nil, !pauseResetSucceeded else { return }
+    // XPC 写入不能靠取消撤销。保留独立任务，等在途写与失败收尾结束后再复位；
+    // 调用者被取消或立即恢复时，也必须收取真实硬件结果。
+    pauseTask = Task {
+      await waitForApplication()
+      defer { pauseTask = nil }
+      guard mode != .automatic else {
+        pauseResetSucceeded = true
+        return true
+      }
+      isApplying = true
+      defer { finishApplication() }
+      if let error = await helper.resetAllFans() {
+        pauseResetSucceeded = false
+        show(error, isError: true)
+        return false
+      }
+      pauseResetSucceeded = true
+      clearNotice()
+      return true
+    }
+  }
+
+  /// 仅返回 true 时才可停止安全采样；失败仍允许过热复位，恢复使旧请求失效。
+  func prepareForPause() async -> Bool {
+    guard !Task.isCancelled else { return false }
+    setPaused(true)
+    let generation = pauseGeneration
+    let succeeded: Bool
+    if let pauseTask {
+      succeeded = await pauseTask.value
+    } else {
+      succeeded = pauseResetSucceeded
+    }
+    return succeeded && paused && generation == pauseGeneration && !Task.isCancelled
   }
 
   func select(_ newMode: Mode) async {
-    guard !isApplying, newMode != mode || newMode == .custom else { return }
+    guard !isApplying, !paused || newMode == .automatic,
+      newMode != mode || newMode == .custom
+    else { return }
     let previous = mode
     mode = newMode
     if let error = await apply() {
@@ -101,13 +147,14 @@ public final class FanController {
   }
 
   func commitCustomLevel() async {
-    guard !isApplying, mode == .custom else { return }
+    guard !paused, !isApplying, mode == .custom else { return }
     if let error = await apply() { show(error, isError: true) }
   }
 
   /// 连接恢复或唤醒后重新下发
   func reapply() async {
-    guard !isApplying, mode != .automatic else { return }
+    if let pauseTask { _ = await pauseTask.value }
+    guard !paused, !isApplying, mode != .automatic else { return }
     if let error = await apply() { show(error, isError: true) }
   }
 
@@ -138,9 +185,10 @@ public final class FanController {
 
   private func apply() async -> String? {
     isApplying = true
+    pauseResetSucceeded = false
     fallbackResetFailed = false
     cancelFeedback()
-    defer { isApplying = false }
+    defer { finishApplication() }
 
     if mode == .automatic {
       let error = await helper.resetAllFans()
@@ -161,6 +209,19 @@ public final class FanController {
     }
     watchFeedback()
     return nil
+  }
+
+  private func waitForApplication() async {
+    while isApplying {
+      await withCheckedContinuation { applicationWaiters.append($0) }
+    }
+  }
+
+  private func finishApplication() {
+    isApplying = false
+    let waiters = applicationWaiters
+    applicationWaiters.removeAll()
+    for waiter in waiters { waiter.resume() }
   }
 
   private func cancelFeedback() {

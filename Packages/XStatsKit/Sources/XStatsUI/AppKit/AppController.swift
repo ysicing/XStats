@@ -37,6 +37,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private var pendingDeepLinks: [AppDeepLink] = []
   private var deepLinkTask: Task<Void, Never>?
   private var terminationTask: Task<Void, Never>?
+  private var isTerminating = false
+  private var isInactive = false
+  private var inactivityGeneration = 0
+  private var hubShouldPause = false
+  private var hubPauseTask: Task<Void, Never>?
 
   public override init() {
     super.init()
@@ -334,11 +339,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
       model.updates.installationRequiresPreparation
       || model.connectionMonitor.terminationRequiresPreparation
       || model.networkComponent.terminationRequiresPreparation
-    guard
-      needsNetwork || model.wellness.requiresTerminationPreparation
-        || XStatsCapture.workspace.hasActiveWorkspace
-        || model.menuBarApplicationFolding.requiresTerminationPreparation
-    else { return .terminateNow }
     // Sparkle 在安装就绪后可能因用户主动退出而继续安装；退出也必须经过相同的停用门禁。
     terminationTask = Task {
       defer { terminationTask = nil }
@@ -368,6 +368,14 @@ public final class AppController: NSObject, NSApplicationDelegate {
         rest.prepareForTermination()
         await model.wellness.prepareForTermination()
         await XStatsCapture.workspace.prepareForTermination()
+        isTerminating = true
+        inactivityGeneration &+= 1
+        // 退出恢复沿用 WillTerminate 中的有界同步兜底；无响应 XPC 不能阻塞历史刷盘。
+        model.fans.setPaused(true)
+        model.keepAwake.releaseForTermination()
+        setHubPaused(true)
+        await hubPauseTask?.value
+        await model.history.flushAndWait()
         sender.reply(toApplicationShouldTerminate: true)
       } catch {
         model.menuBarApplicationFolding.cancelTermination()
@@ -407,7 +415,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.sleepAssertions.setVisible(false)
     model.appManagement.setVisible(false)
     model.keepAwake.releaseForTermination()
-    if model.fans.mode != .automatic || model.keepAwake.lidClosedActive {
+    if model.fans.mode != .automatic || model.keepAwake.requiresTerminationRestoration {
       model.helper.restoreDefaultsSynchronously()
     }
   }
@@ -1004,6 +1012,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
   }
 
   private func pauseForInactivity() {
+    guard !isTerminating else { return }
+    isInactive = true
+    inactivityGeneration &+= 1
+    let generation = inactivityGeneration
     restMenuBar.dismiss()
     menuBar.dismissPopovers()
     model.fans.setPaused(true)
@@ -1025,12 +1037,19 @@ public final class AppController: NSObject, NSApplicationDelegate {
     restWindows.hideRest()
     rest.suspend()
     model.timer.suspend()
-    Task { await model.hub.setPaused(true) }
+    Task {
+      guard isInactive, inactivityGeneration == generation, !isTerminating else { return }
+      let safeToPause = await model.fans.prepareForPause()
+      guard isInactive, inactivityGeneration == generation, !isTerminating else { return }
+      setHubPaused(safeToPause)
+    }
   }
 
   private func resumeFromInactivity() {
     // 系统唤醒时常仍停在锁屏界面，要等解锁后再恢复。
-    guard !screenLocked else { return }
+    guard !screenLocked, !isTerminating else { return }
+    isInactive = false
+    inactivityGeneration &+= 1
     model.fans.setPaused(false)
     model.network.setPaused(false)
     model.diskTools.setPaused(false)
@@ -1048,9 +1067,21 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.timer.resume()
     model.wellness.resume()
     if rest.phase.isResting && rest.isRunning { restWindows.ensureRestVisible() }
-    Task {
-      await model.hub.setPaused(false)
-      await model.fans.reapply()
+    setHubPaused(false)
+    Task { await model.fans.reapply() }
+  }
+
+  /// 串行提交采样暂停状态，防止跨 actor 的旧暂停晚于恢复生效。
+  private func setHubPaused(_ value: Bool) {
+    hubShouldPause = value
+    guard hubPauseTask == nil else { return }
+    hubPauseTask = Task {
+      while true {
+        let paused = hubShouldPause
+        await model.hub.setPaused(paused)
+        if paused == hubShouldPause { break }
+      }
+      hubPauseTask = nil
     }
   }
 

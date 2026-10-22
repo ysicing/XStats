@@ -169,20 +169,34 @@ public enum LaunchItems {
 
   /// 停用：写入 launchd 的停用记录并卸载，不删除 plist，随时可以重新启用。只处理当前用户的启动项
   public static func setEnabled(_ enabled: Bool, item: LaunchItem) -> String? {
+    setEnabled(enabled, item: item, runCommand: runStatus)
+  }
+
+  static func setEnabled(
+    _ enabled: Bool, item: LaunchItem,
+    runCommand: ([String]) -> (status: Int32, output: String)
+  ) -> String? {
     guard item.scope == .user else { return tr("所有用户与系统级的启动项需要管理员权限，请在系统设置的登录项中管理") }
     let domain = "gui/\(getuid())"
     let target = "\(domain)/\(item.label)"
-    if enabled {
-      _ = run(["enable", target])
-      let result = runStatus(["bootstrap", domain, item.plist.path])
-      // 已经加载时返回 5 / 37，不算失败
-      return [0, 5, 37].contains(result.status) ? nil : tr("启用失败：\(result.output)")
-    } else {
-      _ = run(["disable", target])
-      let result = runStatus(["bootout", target])
-      // 没有加载时返回 3 / 113，不算失败
-      return [0, 3, 36, 113].contains(result.status) ? nil : tr("停用失败：\(result.output)")
+    let overrideResult = runCommand([enabled ? "enable" : "disable", target])
+    guard overrideResult.status == 0 else {
+      return enabled ? tr("启用失败：\(overrideResult.output)") : tr("停用失败：\(overrideResult.output)")
     }
+    let result = runCommand(
+      enabled ? ["bootstrap", domain, item.plist.path] : ["bootout", target])
+    guard result.status != 0 else { return nil }
+    // 通用 I/O 错误也会返回 5，只有成功读取用户域并确认目标状态才能视为幂等成功。
+    let status = runCommand(["list"])
+    if status.status == 0,
+      status.output.split(separator: "\n").first?.split(separator: "\t") == [
+        "PID", "Status", "Label",
+      ],
+      (parseList(status.output)[item.label] != nil) == enabled
+    {
+      return nil
+    }
+    return enabled ? tr("启用失败：\(result.output)") : tr("停用失败：\(result.output)")
   }
 
   private static func run(_ arguments: [String]) -> String {

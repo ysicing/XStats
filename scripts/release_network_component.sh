@@ -183,7 +183,7 @@ if [ "$PUBLISH" = 1 ]; then
       actual="$(mc cat "$TARGET/$name" | shasum -a 256 | cut -d' ' -f1)"
       [ "$actual" = "$expected" ] || { echo "error: 禁止覆盖组件版本包 $name" >&2; exit 1; }
     else
-      mc cp --quiet --attr "Cache-Control=$cache" "$file" "$TARGET/$name"
+      object_upload_immutable "$file" "$TARGET/$name" "$cache"
     fi
     actual="$(curl -fsSL --max-time 300 "$BASE/$name?verify=$(date +%s)-$$" | shasum -a 256 | cut -d' ' -f1)"
     [ "$expected" = "$actual" ] || { echo "error: CDN $name 内容不一致" >&2; exit 1; }

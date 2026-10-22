@@ -69,16 +69,25 @@ enum AddressFamilyRequest {
       let status = Int(statusParts[1])
     else { return (nil, 0) }
     var headers: [String: String] = [:]
+    var contentLength: Int?
     for line in lines.dropFirst() {
       guard let colon = line.firstIndex(of: ":") else { continue }
-      headers[line[..<colon].lowercased()] = line[line.index(after: colon)...].trimmingCharacters(
+      let name = line[..<colon].lowercased()
+      let value = line[line.index(after: colon)...].trimmingCharacters(
         in: .whitespaces)
+      if name == "content-length" {
+        guard !value.isEmpty, value.utf8.allSatisfy({ (48...57).contains($0) }),
+          let length = Int(value), contentLength == nil || contentLength == length
+        else { return (nil, status) }
+        contentLength = length
+      }
+      headers[name] = value
     }
     var body = Data(raw[separator.upperBound...])
     if headers["transfer-encoding"]?.lowercased().contains("chunked") == true {
       guard let decoded = dechunk(body) else { return (nil, status) }
       body = decoded
-    } else if let length = headers["content-length"].flatMap({ Int($0) }) {
+    } else if let length = contentLength {
       guard body.count >= length else { return (nil, status) }
       body = body.prefix(length)
     }
@@ -96,12 +105,18 @@ enum AddressFamilyRequest {
           bytes[$0] == 13 && bytes[$0 + 1] == 10
         }),
         let sizeText = String(bytes: bytes[index..<lineEnd], encoding: .ascii)?
-          .split(separator: ";").first?.trimmingCharacters(in: .whitespaces),
+          .split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false).first,
+        !sizeText.isEmpty,
+        sizeText.utf8.allSatisfy({
+          (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0)
+        }),
         let size = Int(sizeText, radix: 16)
       else { return nil }
       index = lineEnd + 2
       if size == 0 { return output }
-      guard bytes.count - index >= size else { return nil }
+      guard bytes.count - index >= 2, size <= bytes.count - index - 2,
+        bytes[index + size] == 13, bytes[index + size + 1] == 10
+      else { return nil }
       output.append(contentsOf: bytes[index..<index + size])
       index += size + 2
     }

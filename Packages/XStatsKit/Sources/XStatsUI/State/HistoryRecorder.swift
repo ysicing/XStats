@@ -50,6 +50,7 @@ public final class HistoryRecorder {
   @ObservationIgnored private(set) var database: HistoryDatabase?
   @ObservationIgnored private var accumulator = HistoryAccumulator()
   @ObservationIgnored private var lastPrune = Date.distantPast
+  @ObservationIgnored private var pendingWrite: Task<Void, Never>?
 
   init(settings: AppSettings, databaseURL: URL? = HistoryDatabase.defaultURL) {
     self.settings = settings
@@ -60,7 +61,7 @@ public final class HistoryRecorder {
 
   /// 每次采样后调用；只记录这次快照里真实采到的指标
   func record(_ snapshot: MetricsSnapshot) {
-    guard settings.historyEnabled, let database else { return }
+    guard settings.historyEnabled, database != nil else { return }
     let battery = settings.isModuleEnabled(.battery) ? snapshot.battery?.level : nil
     // 关闭电池监测后仍读取基础电量，但不能因此每分钟写入一条空历史。
     guard
@@ -83,16 +84,30 @@ public final class HistoryRecorder {
     let now = Date()
     let prune = now.timeIntervalSince(lastPrune) > 60 * 60
     if prune { lastPrune = now }
-    Task {
-      await database.insert(finished)
-      if prune { await database.prune(before: now.addingTimeInterval(-HistoryDatabase.retention)) }
-    }
+    enqueueWrite(
+      finished, pruneBefore: prune ? now.addingTimeInterval(-HistoryDatabase.retention) : nil)
   }
 
-  /// 暂停采样（睡眠、锁屏）或退出前写入当前这一分钟
+  /// 暂停采样（睡眠、锁屏）或退出前排队写入当前这一分钟。
   func flush() {
-    guard let database, let record = accumulator.flush() else { return }
-    Task { await database.insert(record) }
+    guard let record = accumulator.flush() else { return }
+    enqueueWrite(record)
+  }
+
+  /// 停止新增采样后调用；等待当前分钟及此前排队的写入完成，失败由数据库记录日志。
+  func flushAndWait() async {
+    flush()
+    await pendingWrite?.value
+  }
+
+  private func enqueueWrite(_ record: HistoryRecord, pruneBefore: Date? = nil) {
+    guard let database else { return }
+    let previous = pendingWrite
+    pendingWrite = Task {
+      await previous?.value
+      await database.insert(record)
+      if let pruneBefore { await database.prune(before: pruneBefore) }
+    }
   }
 
   func load(_ range: Range? = nil) {
@@ -125,7 +140,9 @@ public final class HistoryRecorder {
   func clear() {
     accumulator = HistoryAccumulator()
     guard let database else { return }
-    Task {
+    let previous = pendingWrite
+    pendingWrite = Task {
+      await previous?.value
       await database.clear()
       load()
     }

@@ -124,6 +124,8 @@ struct HomebrewServicesControllerTests {
   ) async throws {
     let state = HomebrewOperationState()
     let fixture = BrewServiceOperationFixture()
+    let exit = BrewServiceOperationFixture()
+    let completion = Task<Void, Never> { _ = try? await exit.perform(action) }
     let services = try HomebrewServices.parse(#"[{"name":"redis","status":"none"}]"#)
     let controller = HomebrewServicesController(
       brewAvailable: { true }, readInventory: { services },
@@ -138,17 +140,22 @@ struct HomebrewServicesControllerTests {
     let service = try #require(controller.services.first)
     controller.perform(action, service: service)
     await waitUntil { await fixture.calls == 1 }
+    await waitUntil { await exit.calls == 1 }
     if hidden { controller.setVisible(false) }
-    await fixture.finish(error: ToolExecutionError.timedOut("brew"))
-    await waitUntil { controller.working == nil && !state.isRunning }
+    await fixture.finish(error: HomebrewOperationTimeout(completion: completion))
+    await waitUntil { controller.error != nil }
 
     #expect(controller.error == tr("Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态"))
     #expect(controller.error != ToolExecutionError.timedOut("brew").localizedDescription)
     #expect(controller.completion == nil)
     #expect(!controller.isLoading)
+    #expect(controller.working == service.id && state.isRunning)
     // 结果未知时不能直接重试；用户须先核对状态并刷新清单。
     controller.perform(action, service: service)
     #expect(await fixture.calls == 1)
+    await exit.finish()
+    await waitUntil { controller.working == nil && !state.isRunning }
+    #expect(controller.completion == nil)
     controller.setVisible(false)
   }
 

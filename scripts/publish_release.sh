@@ -82,7 +82,7 @@ python3 scripts/sync_network_geography.py --publish --max-age-days 7 \
 upload() {
   local name online
   name="$(basename "$1")"
-  if [[ "$PUBLISHED" != *" $name "* ]]; then mc cp --quiet "$1" "$MC_TARGET/${name}"; fi
+  if [[ "$PUBLISHED" != *" $name "* ]]; then object_upload_immutable "$1" "$MC_TARGET/${name}"; fi
   online="$(curl -fsSL --max-time 300 "${DOWNLOAD_BASE}/${name}" | shasum -a 256 | cut -d' ' -f1)"
   [ "$online" = "$(shasum -a 256 "$1" | cut -d' ' -f1)" ] \
     || { echo "线上 ${name} 校验不一致：$online" >&2; exit 1; }

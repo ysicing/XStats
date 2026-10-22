@@ -36,11 +36,13 @@ final class AudioController {
   @ObservationIgnored private let listeningModes: AudioListeningModeClient
   @ObservationIgnored private var listeningModeDevice: AudioDeviceInfo?
   @ObservationIgnored private let activationNotifications: NotificationCenter
+  @ObservationIgnored private let sleepNotifications: NotificationCenter
   @ObservationIgnored private var activationObserver: NSObjectProtocol?
   @ObservationIgnored private var bluetoothRefreshGeneration: UInt64 = 0
   @ObservationIgnored private var bluetoothRefreshTask: Task<Void, Never>?
   @ObservationIgnored private var operationTask: Task<Void, Never>?
   @ObservationIgnored private var operationRevision: UInt64 = 0
+  @ObservationIgnored private var awaitingOutputSnapshot = false
   @ObservationIgnored private var enabled = false
   @ObservationIgnored private var visible = false
   @ObservationIgnored private var menuVisible = false
@@ -84,7 +86,8 @@ final class AudioController {
     hardware: AudioHardwareClient = AudioHardwareClient(),
     bluetooth: BluetoothAudioClient = BluetoothAudioClient(),
     listeningModes: AudioListeningModeClient = AudioListeningModeClient(),
-    activationNotifications: NotificationCenter = .default
+    activationNotifications: NotificationCenter = .default,
+    sleepNotifications: NotificationCenter = NSWorkspace.shared.notificationCenter
   ) {
     self.defaults = defaults
     self.mixer = mixer
@@ -92,6 +95,7 @@ final class AudioController {
     self.bluetooth = bluetooth
     self.listeningModes = listeningModes
     self.activationNotifications = activationNotifications
+    self.sleepNotifications = sleepNotifications
     let activationKey = "audio.appVolumeEnabled"
     let savedActivation =
       defaults.object(forKey: activationKey) == nil
@@ -258,6 +262,7 @@ final class AudioController {
     refreshTask?.cancel()
     let epoch = revision
     if !enabled || sleeping {
+      awaitingOutputSnapshot = false
       unresolvedApps.removeAll()
       pendingOutputApps.removeAll()
       failedOutputApps.removeAll()
@@ -353,7 +358,10 @@ final class AudioController {
       outputRoutes = outputRoutes.filter {
         !$0.key.hasPrefix("pid:") || currentIDs.contains($0.key)
       }
-      if !isWorking { reconcile() }
+      if !isWorking {
+        awaitingOutputSnapshot = false
+        reconcile()
+      }
     }
   }
 
@@ -508,6 +516,7 @@ final class AudioController {
   }
 
   private func reconcile() {
+    guard !awaitingOutputSnapshot || !enabled || sleeping || !appVolumeEnabled else { return }
     let targets = mixTargets
     let uid = output?.uid
     guard let generation = mixRequests.begin(.init(targets: targets, outputUID: uid)) else {
@@ -579,10 +588,15 @@ final class AudioController {
     }
   }
 
-  func selectDevice(_ id: UInt32, direction: AudioDirection) {
-    guard !isWorking, let device = snapshot.devices.first(where: { $0.id == id }) else { return }
-    guard device.id != (direction == .output ? snapshot.outputID : snapshot.inputID) else { return }
-    perform(switching: direction) { [self] in
+  @discardableResult
+  func selectDevice(_ id: UInt32, direction: AudioDirection) -> Task<Void, Never>? {
+    guard !isWorking, let device = snapshot.devices.first(where: { $0.id == id }) else {
+      return nil
+    }
+    guard device.id != (direction == .output ? snapshot.outputID : snapshot.inputID) else {
+      return nil
+    }
+    return perform(switching: direction) { [self] in
       try await changeDevice(direction: direction, command: operationRevision) { [hardware] in
         try await hardware.select(device, direction: direction)
       }
@@ -633,14 +647,12 @@ final class AudioController {
     direction: AudioDirection, command: UInt64, change: () async throws -> Void
   ) async throws {
     guard operationIsCurrent(command) else { throw CancellationError() }
+    if direction == .output { awaitingOutputSnapshot = true }
     let guardTap =
       direction == .output
       ? try await mixer.prepareOutputSwitch(additionalProcessIDs: outputSwitchProcessIDs) : nil
-    guard operationIsCurrent(command) else {
-      try? await mixer.finishOutputSwitch(guardTap)
-      throw CancellationError()
-    }
     do {
+      guard operationIsCurrent(command) else { throw CancellationError() }
       try await change()
       guard operationIsCurrent(command) else { throw CancellationError() }
       let includeApplications = watchesApplications
@@ -653,19 +665,15 @@ final class AudioController {
         try await mixer.apply(targets, outputUID: output?.uid)
       }
       guard operationIsCurrent(command) else { throw CancellationError() }
+      if direction == .output { awaitingOutputSnapshot = false }
       try await mixer.finishOutputSwitch(guardTap)
     } catch {
-      // 设备变更失败时，先尝试恢复当前输出上的音量，之后才释放过渡静音。
-      if operationIsCurrent(command), supportsMixing {
-        let includeApplications = appVolumeEnabled
-        let updated = await hardware.snapshot(includeApplications: includeApplications)
-        if operationIsCurrent(command) {
-          if includeApplications { applicationList.update(updated.applications) }
-          snapshot = updated
-          try? await mixer.apply(mixTargets, outputUID: output?.uid)
-        }
+      // 取消或失败后由最新需求恢复管线；恢复失败时保留保护，关闭与睡眠则直接释放。
+      if direction == .output {
+        try? await mixer.finishOutputSwitch(
+          guardTap, afterRestoring: enabled && !sleeping && appVolumeEnabled)
+        scheduleRefresh(immediate: true)
       }
-      try? await mixer.finishOutputSwitch(guardTap)
       throw error
     }
   }
@@ -681,12 +689,13 @@ final class AudioController {
     }.flatMap(\.processObjectIDs)
   }
 
+  @discardableResult
   private func perform(
     switching direction: AudioDirection? = nil, bluetoothID: String? = nil,
     disconnectingBluetoothID: String? = nil,
     _ operation: @escaping @MainActor () async throws -> Void
-  ) {
-    guard enabled, !sleeping else { return }
+  ) -> Task<Void, Never>? {
+    guard enabled, !sleeping else { return nil }
     isWorking = true
     isAuthorizing = false
     switchingDevice = direction
@@ -728,6 +737,7 @@ final class AudioController {
       operationTask = nil
       scheduleRefresh(immediate: true)
     }
+    return operationTask
   }
 
   private func installSleepObservers() {
@@ -735,7 +745,7 @@ final class AudioController {
     for (name, sleep) in [
       (NSWorkspace.willSleepNotification, true), (NSWorkspace.didWakeNotification, false),
     ] {
-      let observer = NSWorkspace.shared.notificationCenter.addObserver(
+      let observer = sleepNotifications.addObserver(
         forName: name, object: nil, queue: .main
       ) { [weak self] _ in
         MainActor.assumeIsolated {
@@ -758,13 +768,14 @@ final class AudioController {
 
   private func removeSleepObservers() {
     for observer in sleepObservers {
-      NSWorkspace.shared.notificationCenter.removeObserver(observer)
+      sleepNotifications.removeObserver(observer)
     }
     sleepObservers.removeAll()
   }
 
   func stop() {
     enabled = false
+    awaitingOutputSnapshot = false
     if persistTask != nil { persist() }
     updateBluetoothActivationObserver()
     unresolvedApps.removeAll()

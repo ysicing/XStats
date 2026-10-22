@@ -337,12 +337,23 @@ import Testing
   @Test(arguments: [["upgrade"], ["services", "restart", "fixture"]])
   func operationTimeoutStopsWaitingWithoutKillingBrew(_ arguments: [String]) async throws {
     let home = try stubBrew("#!/bin/sh\necho $$ > \"$HOME/pid\"\nexec /bin/sleep 30\n")
-    defer { try? FileManager.default.removeItem(at: home) }
+    defer {
+      if let text = try? String(contentsOf: home.appendingPathComponent("pid"), encoding: .utf8),
+        let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines))
+      {
+        _ = kill(pid, SIGKILL)
+      }
+      try? FileManager.default.removeItem(at: home)
+    }
+    let timeout: HomebrewOperationTimeout
     do {
       _ = try await DeveloperToolRunner.run(
         "brew", arguments: arguments, home: home.path, timeout: 0.3, previewTimeout: 0.3)
       Issue.record("超时必须报告")
-    } catch ToolExecutionError.timedOut {}
+      return
+    } catch let error as HomebrewOperationTimeout {
+      timeout = error
+    }
     // 负载较高时 stub 可能晚于时限才写出 PID，按截止时间等待而非固定间隔。
     let pidFile = home.appendingPathComponent("pid")
     let deadline = ContinuousClock.now + .seconds(5)
@@ -353,8 +364,23 @@ import Testing
     }
     let pidText = try String(contentsOf: pidFile, encoding: .utf8)
     let pid = try #require(Int32(pidText.trimmingCharacters(in: .whitespacesAndNewlines)))
-    defer { _ = kill(pid, SIGKILL) }
+    let exited = BrewExitCapture()
+    let waiter = Task {
+      await exited.start()
+      await timeout.waitForExit()
+      await exited.record()
+    }
+    let startDeadline = ContinuousClock.now + .seconds(5)
+    while !(await exited.started), ContinuousClock.now < startDeadline { await Task.yield() }
+    #expect(await exited.started)
+    waiter.cancel()
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(!(await exited.finished))
     #expect(kill(pid, 0) == 0)
+    _ = kill(pid, SIGTERM)
+    await waiter.value
+    #expect(await exited.finished)
+    #expect(kill(pid, 0) != 0)
   }
 
   @Test(arguments: ["upgrade", "uninstall"])
@@ -450,4 +476,11 @@ import Testing
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
     return home
   }
+}
+
+private actor BrewExitCapture {
+  private(set) var started = false
+  private(set) var finished = false
+  func start() { started = true }
+  func record() { finished = true }
 }

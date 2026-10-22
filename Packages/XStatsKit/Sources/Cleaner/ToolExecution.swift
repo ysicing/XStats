@@ -39,6 +39,16 @@ public enum ToolExecutionError: Error, LocalizedError, Sendable {
   }
 }
 
+/// 写操作超时后仍拥有进程的退出等待；调用方须等实际退出后再释放写锁。
+public struct HomebrewOperationTimeout: Error, Sendable {
+  let completion: Task<Void, Never>
+
+  /// 超时后的等待不响应取消，避免调用方提前释放锁或结束仍在修改安装的进程。
+  public func waitForExit() async {
+    await completion.value
+  }
+}
+
 enum DeveloperToolRunner {
   /// 只从常见的用户工具目录和系统工具目录解析，避免依赖 GUI 进程通常不完整的 PATH。
   static func executable(named name: String, home: String) -> URL? {
@@ -235,7 +245,7 @@ enum DeveloperToolRunner {
     return ToolRunResult(status: process.terminationStatus, output: output)
   }
 
-  /// 已确认的 brew 写操作的总时限。超时只停止等待、不结束 brew，避免打断部分完成的安装。
+  /// 已确认的 brew 写操作的提示时限。超时后仍须等待实际退出再释放写锁。
   static let homebrewOperationTimeout: TimeInterval = 3_600
 
   /// 已确认的 brew 写操作只使用退出状态，原始输出丢弃，避免长操作或后台子进程无限占用磁盘。
@@ -249,22 +259,47 @@ enum DeveloperToolRunner {
     process.standardError = FileHandle.nullDevice
     process.standardInput = FileHandle.nullDevice
     try Task.checkCancellation()
+    let (exited, exitSignal) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+    let (events, eventSignal) = AsyncStream<HomebrewOperationEvent>.makeStream(
+      bufferingPolicy: .bufferingNewest(2))
+    process.terminationHandler = { _ in
+      exitSignal.finish()
+      eventSignal.yield(.exited)
+      eventSignal.finish()
+    }
     do { try process.run() } catch {
+      exitSignal.finish()
+      eventSignal.finish()
       throw ToolExecutionError.failed(tool: "brew", status: -1, output: error.localizedDescription)
     }
-    let deadline = ContinuousClock.now.advanced(by: .seconds(timeout))
+    // 只保留本次进程的一次退出等待，无轮询；不继承调用方的取消。
+    let completion = Task.detached(priority: .utility) {
+      for await _ in exited {}
+      withExtendedLifetime(process) {}
+    }
+    let timer = Task {
+      do { try await Task.sleep(for: .seconds(timeout)) } catch { return }
+      eventSignal.yield(.timedOut)
+    }
+    defer {
+      timer.cancel()
+      eventSignal.finish()
+    }
     do {
-      // 写操作通常持续数秒到数分钟，较低的轮询频率足以及时感知退出与取消，避免长时间高频唤醒。
-      while process.isRunning {
+      for await event in events {
         try Task.checkCancellation()
-        guard ContinuousClock.now < deadline else { throw ToolExecutionError.timedOut("brew") }
-        try await Task.sleep(for: .milliseconds(100), tolerance: .milliseconds(50))
+        if case .timedOut = event, process.isRunning {
+          throw HomebrewOperationTimeout(completion: completion)
+        }
+        break
       }
       try Task.checkCancellation()
     } catch is CancellationError {
       stop(process)
+      await completion.value
       throw CancellationError()
     }
+    await completion.value
     guard process.terminationStatus == 0 else {
       throw ToolExecutionError.failed(
         tool: "brew", status: process.terminationStatus,
@@ -272,6 +307,8 @@ enum DeveloperToolRunner {
     }
     return ToolRunResult(status: process.terminationStatus, output: "")
   }
+
+  private enum HomebrewOperationEvent: Sendable { case exited, timedOut }
 
   /// 持续排空管道，让清理执行到底；只保留有限的末尾诊断文本和逐行汇总。
   private static func runHomebrewCleanup(_ process: Process, outputLimit: Int) async throws

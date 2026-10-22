@@ -64,7 +64,10 @@ public final class AudioMixerClient: @unchecked Sendable {
   private let automaticHealthChecks: Bool
   private let outputGuardFactory: @Sendable ([UInt32]) throws -> any AudioOutputSwitchGuard
   private let accessProbeFactory: @Sendable () throws -> any AudioAccessProbe
-  private var outputGuards: [UInt32: any AudioOutputSwitchGuard] = [:]
+  private var outputGuards: [UInt32: (resource: any AudioOutputSwitchGuard, processIDs: [UInt32])] =
+    [:]
+  private var outputGuardSequence: UInt32 = 0
+  private var deferredOutputGuards: Set<UInt32> = []
   private var outputSwitchSlots: (guardID: UInt32, applications: Set<String>)?
 
   public convenience init() {
@@ -234,6 +237,9 @@ public final class AudioMixerClient: @unchecked Sendable {
             }
           }
         }
+        if failure == nil, failed.isEmpty, isCurrent(command) {
+          failure = releaseDeferredOutputGuards()
+        }
         updateTimer()
         if let id = failed.keys.sorted().first, let issue = failed[id]?.error {
           failure = issue
@@ -335,7 +341,11 @@ public final class AudioMixerClient: @unchecked Sendable {
           continuation.resume(throwing: AudioControlError.unavailable)
           return
         }
-        let objects = Set(pipelines.values.flatMap(\.processIDs) + additionalProcessIDs).sorted()
+        // 失败或取消后的保护可能覆盖尚未恢复的应用，新 guard 须完整接管后才能释放旧保护。
+        let objects = Set(
+          pipelines.values.flatMap(\.processIDs)
+            + outputGuards.values.flatMap(\.processIDs) + additionalProcessIDs
+        ).sorted()
         guard !objects.isEmpty else {
           continuation.resume(returning: nil)
           return
@@ -345,25 +355,34 @@ public final class AudioMixerClient: @unchecked Sendable {
           continuation.resume(throwing: error)
           return
         }
-        outputGuards[resource.id] = resource
-        releaseAll(preservingOutputGuard: resource.id)
+        outputGuardSequence &+= 1
+        let guardID = outputGuardSequence
+        outputGuards[guardID] = (resource, objects)
+        releaseAll(preservingOutputGuard: guardID)
         guard retired.isEmpty else {
-          try? releaseOutputGuard(resource.id)
+          try? releaseOutputGuard(guardID)
           updateTimer()
           continuation.resume(throwing: AudioControlError.unavailable)
           return
         }
-        continuation.resume(returning: resource.id)
+        continuation.resume(returning: guardID)
       }
     }
   }
-  public func finishOutputSwitch(_ tap: UInt32?) async throws {
+  public func finishOutputSwitch(_ tap: UInt32?, afterRestoring: Bool = false) async throws {
     guard #available(macOS 14.4, *), let tap else { return }
     try await withCheckedThrowingContinuation {
       (continuation: CheckedContinuation<Void, any Error>) in
       queue.async { [self] in
-        // 已取消操作可能晚到；只有所属 guard 的收尾才撤销本次预留。
-        defer { if outputSwitchSlots?.guardID == tap { outputSwitchSlots = nil } }
+        guard outputGuards[tap] != nil else {
+          continuation.resume()
+          return
+        }
+        if afterRestoring {
+          deferredOutputGuards.insert(tap)
+          continuation.resume()
+          return
+        }
         do {
           try releaseOutputGuard(tap)
           updateTimer()
@@ -390,8 +409,17 @@ public final class AudioMixerClient: @unchecked Sendable {
   }
 
   private func releaseOutputGuard(_ id: UInt32) throws {
-    guard let resource = outputGuards.removeValue(forKey: id) else { return }
-    if let failure = releaseResource(resource) { throw failure }
+    deferredOutputGuards.remove(id)
+    if outputSwitchSlots?.guardID == id { outputSwitchSlots = nil }
+    guard let guardEntry = outputGuards.removeValue(forKey: id) else { return }
+    if let failure = releaseResource(guardEntry.resource) { throw failure }
+  }
+  private func releaseDeferredOutputGuards() -> (any Error)? {
+    var failure: (any Error)?
+    for id in deferredOutputGuards {
+      do { try releaseOutputGuard(id) } catch { failure = error }
+    }
+    return failure
   }
   private static var now: Double { Double(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000 }
   private func isCurrent(_ command: UInt64) -> Bool { lock.withLock { revision == command } }
@@ -502,7 +530,21 @@ public final class AudioMixerClient: @unchecked Sendable {
           failureHandler?(issue)
         }
       }
-      if failed.isEmpty && pendingReplacements.isEmpty && retired.isEmpty { failureHandler?(nil) }
+      if failed.isEmpty && pendingReplacements.isEmpty && retired.isEmpty {
+        var failure: (any Error)?
+        // 空需求可能仍在等待输出快照；只有已恢复的管线才能结束过渡保护。
+        if !targets.isEmpty,
+          targets.values.allSatisfy({ target in
+            guard let destination = target.outputUID ?? sourceUID else { return false }
+            return pipelines[target.id]?.matches(
+              target, outputUID: destination, sourceUID: sourceUID) == true
+          }),
+          isCurrent(command)
+        {
+          failure = releaseDeferredOutputGuards()
+        }
+        failureHandler?(failure.map { $0 as? AudioControlError ?? .unavailable })
+      }
     }
     updateTimer()
   }

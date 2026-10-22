@@ -5,6 +5,13 @@ import Metrics
 import Observation
 
 @MainActor
+protocol SleepControlClient: AnyObject {
+  func setSleepDisabled(_ disabled: Bool) async -> String?
+}
+
+extension HelperClient: SleepControlClient {}
+
+@MainActor
 @Observable
 public final class KeepAwakeController {
   public enum Mode: String, CaseIterable, Identifiable {
@@ -74,10 +81,18 @@ public final class KeepAwakeController {
 
   @ObservationIgnored private var assertionID: IOPMAssertionID = 0
   @ObservationIgnored private var expiryTask: Task<Void, Never>?
-  @ObservationIgnored private let helper: HelperClient
+  @ObservationIgnored private var lidModeTask: Task<Void, Never>?
+  @ObservationIgnored private var sleepStateUncertain = false
+  @ObservationIgnored private var forceLidMode = false
+  @ObservationIgnored private var sleepDisableInFlight = false
+  @ObservationIgnored private let helper: any SleepControlClient
   @ObservationIgnored private let settings: AppSettings
 
-  init(helper: HelperClient, settings: AppSettings) {
+  var requiresTerminationRestoration: Bool {
+    lidClosedActive || sleepStateUncertain || sleepDisableInFlight
+  }
+
+  init(helper: any SleepControlClient, settings: AppSettings) {
     self.helper = helper
     self.settings = settings
   }
@@ -115,19 +130,16 @@ public final class KeepAwakeController {
     endDate = nil
     expiryTask?.cancel()
     releaseAssertion()
-    if lidClosedActive {
-      if let error = await helper.setSleepDisabled(false) {
-        show(tr("恢复系统睡眠失败：\(error)"), isError: true)
-        return
-      }
-      lidClosedActive = false
+    await applyLidMode()
+    if !isActive, !requiresTerminationRestoration, let reason {
+      show(reason, isError: false)
     }
-    if let reason { show(reason, isError: false) }
   }
 
   /// 连接恢复后重新下发合盖设置
   func reapply() async {
     guard isActive, lidClosedRequested else { return }
+    forceLidMode = true
     await applyLidMode()
   }
 
@@ -145,18 +157,43 @@ public final class KeepAwakeController {
 
   /// 退出应用时释放电源断言（合盖设置由 HelperClient 同步恢复）
   func releaseForTermination() {
+    isActive = false
+    endDate = nil
+    expiryTask?.cancel()
     releaseAssertion()
   }
 
   private func applyLidMode() async {
-    let wanted = isActive && lidClosedRequested
-    guard wanted != lidClosedActive else { return }
-    if let error = await helper.setSleepDisabled(wanted) {
-      lidClosedRequested = lidClosedActive
-      show(error, isError: true)
-      return
+    if let lidModeTask {
+      await lidModeTask.value
+    } else {
+      let task = Task { await synchronizeLidMode() }
+      lidModeTask = task
+      await task.value
     }
-    lidClosedActive = wanted
+  }
+
+  /// Helper 写入不能随调用方取消而丢弃；旧请求完成后继续收敛到最新需求。
+  private func synchronizeLidMode() async {
+    defer { lidModeTask = nil }
+    while true {
+      let wanted = isActive && lidClosedRequested
+      guard forceLidMode || sleepStateUncertain || wanted != lidClosedActive else { return }
+      forceLidMode = false
+      sleepDisableInFlight = wanted
+      let error = await helper.setSleepDisabled(wanted)
+      sleepDisableInFlight = false
+      if let error {
+        sleepStateUncertain = true
+        show(error, isError: true)
+        if wanted != (isActive && lidClosedRequested) { continue }
+        lidClosedRequested = lidClosedActive
+        if wanted, !lidClosedActive { continue }
+        return
+      }
+      lidClosedActive = wanted
+      sleepStateUncertain = false
+    }
   }
 
   private func takeAssertion() {

@@ -78,6 +78,12 @@ cat > "$WORK/bin/mc" <<'STUB'
 set -euo pipefail
 name="${@: -1}"
 name="${name##*/}"
+conditional=0
+if [ "$1" = --custom-header ]; then
+  [ "$2" = 'If-None-Match: *' ] || exit 1
+  conditional=1
+  shift 2
+fi
 case "$1" in
   stat)
     if [ "${COMPONENT_STAT_ERROR:-0}" = 1 ]; then
@@ -88,6 +94,20 @@ case "$1" in
     fi ;;
   cat) cat "$COMPONENT_TEST_OBJECTS/$name" ;;
   cp)
+    if [[ "$name" == *.zip ]] && [ -n "${COMPONENT_RACE:-}" ]; then
+      if [ "$COMPONENT_RACE" = same ]; then
+        cp "${@: -2:1}" "$COMPONENT_TEST_OBJECTS/$name"
+      else
+        printf 'concurrent release' > "$COMPONENT_TEST_OBJECTS/$name"
+      fi
+    fi
+    if [ "$conditional" = 1 ]; then
+      [[ " $* " == *" --disable-multipart "* ]] || exit 1
+      if [ -f "$COMPONENT_TEST_OBJECTS/$name" ]; then
+        echo '{"status":"error","error":{"cause":{"error":{"Code":"PreconditionFailed"}}}}'
+        exit 1
+      fi
+    fi
     printf 'upload %s\n' "$name" >> "$COMPONENT_TEST_LOG"
     if [ "${COMPONENT_FAIL_ZIP:-0}" = 1 ] && [[ "$name" == *.zip ]]; then exit 55; fi
     cp "${@: -2:1}" "$COMPONENT_TEST_OBJECTS/$name" ;;
@@ -183,6 +203,19 @@ if COMPONENT_FAIL_ZIP=1 bash "$WORK/repo/scripts/release_network_component.sh" -
   echo 'ZIP 上传失败应中止发布' >&2; exit 1
 fi
 ! grep -q '^upload XStats-Network-Monitor-2.3.4-AppleSilicon.xml' "$WORK/events"
+
+rm -f "$WORK/objects/"*
+: > "$WORK/events"
+expect_failure '禁止覆盖' env COMPONENT_RACE=different bash "$WORK/repo/scripts/release_network_component.sh" --publish-only
+[ "$(cat "$WORK/objects/XStats-Network-Monitor-2.3.4-AppleSilicon.zip")" = 'concurrent release' ]
+! grep -q '^api dist/' "$WORK/events"
+
+rm -f "$WORK/objects/"*
+: > "$WORK/events"
+COMPONENT_RACE=same bash "$WORK/repo/scripts/release_network_component.sh" --publish-only > "$WORK/stdout"
+! grep -q '^upload .*zip' "$WORK/events"
+grep -q '^api dist/network-monitor/appcast.json' "$WORK/events"
+
 [ ! -e "$WORK/repo/dist/appcast.json" ]
 grep -q 'MARKETING_VERSION: "9.9.9"' "$WORK/repo/project.yml"
 grep -q 'CURRENT_PROJECT_VERSION: "999"' "$WORK/repo/project.yml"

@@ -123,6 +123,7 @@ struct HomebrewServicesTests {
     }
     let services = try HomebrewServices.parse(#"[{"name":"redis","status":"none"}]"#)
     let service = try #require(services.first)
+    let timeout: HomebrewOperationTimeout
     do {
       try await HomebrewServices.perform(
         action, service: service, readInventory: { services },
@@ -131,10 +132,13 @@ struct HomebrewServicesTests {
             "brew", arguments: $0, home: home.path, timeout: 0.5)
         })
       Issue.record("应停止等待仍在运行的写操作")
-    } catch ToolExecutionError.timedOut {
+      return
+    } catch let error as HomebrewOperationTimeout {
       // 保留执行器的写超时语义，不能转换成“操作尚未执行”。
+      timeout = error
     } catch {
       Issue.record("写超时被错误转换：\(error)")
+      return
     }
     let command = try String(contentsOf: home.appendingPathComponent("mutation"), encoding: .utf8)
     #expect(
@@ -143,6 +147,9 @@ struct HomebrewServicesTests {
     let pidText = try String(contentsOf: home.appendingPathComponent("pid"), encoding: .utf8)
     let pid = try #require(Int32(pidText.trimmingCharacters(in: .whitespacesAndNewlines)))
     #expect(kill(pid, 0) == 0)
+    _ = kill(pid, SIGTERM)
+    await timeout.waitForExit()
+    #expect(kill(pid, 0) != 0)
   }
 
   @Test func preflightCancellationAndInvalidInventoryNeverStartAMutation() async throws {

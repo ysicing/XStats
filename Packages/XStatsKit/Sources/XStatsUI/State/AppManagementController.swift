@@ -870,10 +870,10 @@ final class AppManagementController {
           self.completion = Completion(action: action, packageName: package.displayName)
         }
         Log.app.notice("Homebrew operation completed action=\(action.rawValue, privacy: .public)")
-      } catch ToolExecutionError.timedOut {
-        // 超时只停止等待，brew 可能仍在后台执行，不能报告为失败或成功。
+      } catch let timeout as HomebrewOperationTimeout {
         self?.error = tr("Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态")
         Log.app.error("Homebrew operation timed out action=\(action.rawValue, privacy: .public)")
+        await timeout.waitForExit()
       } catch ToolExecutionError.failed(_, let status, let output) {
         self?.error = tr("Homebrew 操作失败，请在终端检查后重试")
         // 写操作输出不落盘；退出码公开，启动失败等已有诊断保持有界且私有。

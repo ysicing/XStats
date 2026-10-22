@@ -29,6 +29,66 @@ import SQLite3
     #expect(accumulator.flush() == nil)
   }
 
+  @Test func flushPreservesSameMinuteSampleWeightsAndPeaks() throws {
+    var accumulator = HistoryAccumulator()
+    let base = Date(timeIntervalSince1970: 1_800_000_000)
+    _ = accumulator.add(
+      date: base, cpu: 0.9, memory: 0.6, pressure: 4, download: 900, upload: nil, gpu: 0.9,
+      temperature: 95, power: 30, battery: 0.9)
+    let firstSnapshot = accumulator.flush()
+    let first = try #require(firstSnapshot)
+    #expect(first.cpuMax == 0.9 && first.temperature == 95 && first.pressure == 4)
+    #expect(accumulator.flush() == nil)
+    _ = accumulator.add(
+      date: base.addingTimeInterval(20), cpu: 0.3, memory: nil, pressure: 1, download: 300,
+      upload: 20, gpu: nil, temperature: 40, power: 10, battery: nil)
+    _ = accumulator.add(
+      date: base.addingTimeInterval(40), cpu: 0, memory: 0.2, pressure: 2, download: 0,
+      upload: 40, gpu: 0.3, temperature: 60, power: 20, battery: 0.7)
+    let resumedSnapshot = accumulator.flush()
+    let resumed = try #require(resumedSnapshot)
+    #expect(abs((resumed.cpu ?? 0) - 0.4) < 1e-9)
+    #expect(resumed.cpuMax == 0.9 && resumed.temperature == 95 && resumed.pressure == 4)
+    #expect(abs((resumed.memory ?? 0) - 0.4) < 1e-9)
+    #expect(resumed.download == 400 && resumed.upload == 30)
+    #expect(abs((resumed.gpu ?? 0) - 0.6) < 1e-9)
+    #expect(resumed.power == 20)
+    #expect(abs((resumed.battery ?? 0) - 0.8) < 1e-9)
+    #expect(accumulator.flush() == nil)
+    #expect(
+      accumulator.add(
+        date: base.addingTimeInterval(61), cpu: 0.1, memory: nil, pressure: 1, download: nil,
+        upload: nil, gpu: nil, temperature: 35, power: nil) == nil)
+    let nextSnapshot = accumulator.flush()
+    let next = try #require(nextSnapshot)
+    #expect(next.cpu == 0.1 && next.cpuMax == 0.1 && next.temperature == 35)
+  }
+
+  @Test func rolloverPersistsCumulativeRecordAfterMidMinuteFlush() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let database = try HistoryDatabase(url: root.appendingPathComponent("history.sqlite"))
+    let base = Date(timeIntervalSince1970: 1_800_000_000)
+    var accumulator = HistoryAccumulator()
+    _ = accumulator.add(
+      date: base, cpu: 0.9, memory: nil, pressure: 4, download: nil, upload: nil, gpu: nil,
+      temperature: 95, power: nil)
+    let initial = accumulator.flush()
+    await database.insert(try #require(initial))
+    _ = accumulator.add(
+      date: base.addingTimeInterval(30), cpu: 0.1, memory: nil, pressure: 1, download: nil,
+      upload: nil, gpu: nil, temperature: 40, power: nil)
+    let finished = accumulator.add(
+      date: base.addingTimeInterval(61), cpu: 0.2, memory: nil, pressure: 1, download: nil,
+      upload: nil, gpu: nil, temperature: 35, power: nil)
+    await database.insert(try #require(finished))
+    let points = await database.query(from: base, to: base.addingTimeInterval(60), bucket: 60)
+    let point = try #require(points.first)
+    #expect(points.count == 1)
+    #expect(point.cpu == 0.5 && point.cpuMax == 0.9)
+    #expect(point.temperature == 95 && point.pressure == 4)
+  }
+
   @Test func lockedWriterReportsFailureAndRecoversAfterUnlock() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }

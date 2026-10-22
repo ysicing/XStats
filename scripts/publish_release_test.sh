@@ -63,6 +63,12 @@ cat > "$WORK/bin/mc" <<'STUB'
 set -euo pipefail
 name="${@: -1}"
 name="${name##*/}"
+conditional=0
+if [ "$1" = --custom-header ]; then
+  [ "$2" = 'If-None-Match: *' ] || exit 1
+  conditional=1
+  shift 2
+fi
 case "$1" in
   stat)
     if [ "${PUBLISH_STAT_ERROR:-0}" = 1 ]; then
@@ -73,6 +79,26 @@ case "$1" in
     fi ;;
   cat) cat "$PUBLISH_TEST_OBJECTS/$name" ;;
   cp)
+    if [[ "$name" == *.zip ]] && [ -n "${PUBLISH_RACE:-}" ]; then
+      if [ "$PUBLISH_RACE" = same ]; then
+        cp "${@: -2:1}" "$PUBLISH_TEST_OBJECTS/$name"
+      else
+        printf 'concurrent release' > "$PUBLISH_TEST_OBJECTS/$name"
+      fi
+    fi
+    if [ -n "${PUBLISH_UPLOAD_ERROR:-}" ] && [[ "$name" == *.zip ]]; then
+      printf '{"status":"error","error":{"cause":{"error":{"Code":"%s"}}}}\n' "$PUBLISH_UPLOAD_ERROR"
+      echo 'fixture-secret-must-not-leak' >&2
+      exit 1
+    fi
+    if [ "$conditional" = 1 ]; then
+      [[ " $* " == *" --disable-multipart "* ]] || exit 1
+      if [ -f "$PUBLISH_TEST_OBJECTS/$name" ]; then
+        echo '{"status":"success"}'
+        echo '{"status":"error","error":{"cause":{"error":{"Code":"PreconditionFailed"}}}}'
+        exit 1
+      fi
+    fi
     printf 'upload %s\n' "$name" >> "$PUBLISH_TEST_LOG"
     cp "${@: -2:1}" "$PUBLISH_TEST_OBJECTS/$name" ;;
   *) exit 1 ;;
@@ -134,5 +160,24 @@ expect_refusal '禁止覆盖已发布的 XStats-9.9.9-AppleSilicon.zip'
 rm "$WORK/objects/"*
 PUBLISH_STAT_ERROR=1 expect_refusal '无法确认源站'
 [ -z "$(ls "$WORK/objects")" ] || { echo '查询失败时不应上传' >&2; exit 1; }
+
+# 另一发布者在预检之后创建不同内容，不能覆盖，也不能切换更新清单。
+if PUBLISH_RACE=different publish; then echo '并发异内容覆盖未被拒绝' >&2; exit 1; fi
+[ "$(cat "$WORK/objects/XStats-9.9.9-AppleSilicon.zip")" = 'concurrent release' ]
+! grep -Eq '^gh |^api dist/' "$WORK/events"
+
+# 同内容抢先创建可安全继续，不重写已经公开的对象。
+rm -f "$WORK/objects/"*
+PUBLISH_RACE=same publish || { cat "$WORK/stderr" >&2; exit 1; }
+! grep -q '^upload .*zip' "$WORK/events"
+grep -qx 'api dist/appcast.json' "$WORK/events"
+
+# 网络或权限错误不能因为同名对象可读而被误判为成功，原始错误不泄露到日志。
+for error in AccessDenied RequestTimeout; do
+  rm -f "$WORK/objects/"*
+  if PUBLISH_UPLOAD_ERROR="$error" PUBLISH_RACE=same publish; then echo '上传错误未停止发布' >&2; exit 1; fi
+  ! grep -Eq '^gh |^api dist/' "$WORK/events"
+  ! grep -q 'fixture-secret-must-not-leak' "$WORK/stdout" "$WORK/stderr"
+done
 
 echo 'publish_release_test: ok'
