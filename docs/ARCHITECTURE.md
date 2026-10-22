@@ -1014,6 +1014,9 @@ The client no longer downloads the package twice to run a separate same-Team/Gat
 Instead, release scripts enforce the expected Developer ID team, arm64, hardened runtime and secure
 timestamps for the app, Widget, helper and every Sparkle executable, then notarize, staple and require
 Gatekeeper acceptance before packaging. Public releases must keep these gates intact.
+An unsigned or ad-hoc main-app build may update to a public release through the same Sparkle flow.
+The host's missing Developer ID team is not an installation blocker; the main-product bundle ID
+restriction, signed-feed requirement and archive-signature verification remain in force.
 
 Downloads expose progress in the existing update window with redraws coalesced to half-percent steps.
 Checks and downloads can be cancelled; extraction/replacement must finish once started. Widget

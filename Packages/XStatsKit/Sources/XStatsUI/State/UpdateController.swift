@@ -31,15 +31,20 @@ public final class UpdateController {
 
   @ObservationIgnored private let settings: AppSettings
   @ObservationIgnored private let defaults: UserDefaults
+  @ObservationIgnored private let bundle: Bundle
   @ObservationIgnored private var updater: SPUUpdater?
   @ObservationIgnored private var sparkleInstaller: SparkleInstaller?
   @ObservationIgnored private let launchedAt: Date
   @ObservationIgnored private var isNotifying = false
   @ObservationIgnored private var started = false
 
-  init(settings: AppSettings, defaults: UserDefaults = .standard, launchedAt: Date = Date()) {
+  init(
+    settings: AppSettings, defaults: UserDefaults = .standard, launchedAt: Date = Date(),
+    bundle: Bundle = .main
+  ) {
     self.settings = settings
     self.defaults = defaults
+    self.bundle = bundle
     self.launchedAt = launchedAt
     lastChecked = defaults.object(forKey: Keys.lastChecked) as? Date
     skippedVersion = defaults.string(forKey: Keys.skippedVersion)
@@ -51,7 +56,7 @@ public final class UpdateController {
   }
 
   var currentVersion: String {
-    Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+    bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
   }
 
   /// 已知版本在“以后再说”后仍可查看；跳过版本立即隐藏，离线也不撤销选择。
@@ -92,14 +97,11 @@ public final class UpdateController {
     phase == .installing || sparkleInstaller?.hasInstallationRequest == true
   }
 
-  /// 未签名或临时签名的开发构建不执行在线安装，只提供手动下载
+  /// 开发构建也可升级正式版，更新来源与安装包签名由 Sparkle 校验。
   var installBlockedReason: String? {
-    // 仅为当前产品启用安装器，防止开发/旧产品构建误用发布更新源。
-    guard let bundleID = Bundle.main.bundleIdentifier, bundleID == "work.12306.xstats.app" else {
+    // 仅为当前产品启用安装器，防止其他产品构建误用发布更新源。
+    guard let bundleID = bundle.bundleIdentifier, bundleID == "work.12306.xstats.app" else {
       return tr("开发构建不支持在线升级")
-    }
-    guard UpdateInstaller.teamIdentifier(of: Bundle.main.bundleURL) != nil else {
-      return tr("开发构建不支持在线升级，请下载安装包")
     }
     return nil
   }
@@ -136,6 +138,7 @@ public final class UpdateController {
   private func ensureUpdater() throws {
     guard updater == nil else { return }
     let driver = SparkleInstaller(
+      bundle: bundle,
       onPhase: { [weak self] in self?.phase = $0 },
       onRelaunch: { [weak self] in self?.skippedVersion = nil })
     driver.prepareForInstallation = { [weak self] in try await self?.prepareForInstallation() }

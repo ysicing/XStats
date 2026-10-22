@@ -269,7 +269,8 @@ XSTATS_STARTUP_REPORT_DIR="$PWD/build/startup-verification" \
 ## 本地签名与权限
 
 有 Developer ID Application 证书时默认选择钥匙串中的第一个身份；多张证书时用
-`SIGN_ID` 指定证书指纹。无可用身份时使用 ad-hoc 签名，不能在线安装更新或使用特权辅助工具。
+`SIGN_ID` 指定证书指纹。无可用身份时使用 ad-hoc 签名，主应用仍可通过 Sparkle 升级到正式版，
+但不能使用特权辅助工具。更新清单和安装包仍须通过内置公钥的签名校验。
 
 主应用与 Widget 的签名需要启用相同的 App Group，并分别安装匹配的 provisioning profile：
 

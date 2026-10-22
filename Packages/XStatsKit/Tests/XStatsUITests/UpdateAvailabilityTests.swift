@@ -7,6 +7,37 @@ import Updates
 
 @MainActor
 struct UpdateAvailabilityTests {
+  @Test(
+    arguments: [
+      ("work.12306.xstats.app", true),
+      ("work.12306.xstats.capture", false),
+      ("work.12306.xstats.networkmonitor", false),
+      ("com.example.other", false),
+      (nil, false),
+    ] as [(String?, Bool)])
+  func unsignedHostCanUpgradeOnlyTheMainProduct(_ identifier: String?, _ allowed: Bool) throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let appURL = directory.appendingPathComponent("XStats.app")
+    let contents = appURL.appendingPathComponent("Contents")
+    try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+    var info: [String: Any] = [
+      "CFBundleName": "XStats", "CFBundleShortVersionString": "0.0.1", "CFBundleVersion": "1",
+    ]
+    info["CFBundleIdentifier"] = identifier
+    try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+      .write(to: contents.appendingPathComponent("Info.plist"))
+    let bundle = try #require(Bundle(url: appURL))
+    #expect(UpdateInstaller.teamIdentifier(of: appURL) == nil)
+    let suite = "UpdateAvailabilityTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let controller = UpdateController(
+      settings: AppSettings(defaults: defaults), defaults: defaults, bundle: bundle)
+    #expect((controller.installBlockedReason == nil) == allowed)
+    #expect(controller.currentVersion == "0.0.1")
+  }
+
   private func release(_ version: String) -> UpdateRelease {
     UpdateRelease(
       version: version, build: "200", date: "2026-10-05", minimumSystem: "14.0",

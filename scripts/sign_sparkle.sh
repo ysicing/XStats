@@ -69,7 +69,7 @@ done
 codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" "${OPTIONS[@]}" "$FRAMEWORK"
 if [ "$IDENTITY" = "-" ]; then
   # 无团队的临时签名无法通过 Hardened Runtime 的动态库团队校验，仅本地/CI 关闭 runtime。
-  # Xcode 的无证书路径不签名，由此处补齐自身二进制及 entitlement；线上安装仍禁止此构建。
+  # Xcode 的无证书路径不签名，由此处补齐自身二进制及 entitlement；正式发布仍须证书签名与公证。
   if [ "$MODE" = network-component ]; then
     codesign --force --sign - --timestamp=none --options 0 --entitlements "$ROOT/Apps/NetworkMonitor/Extension/XStatsNetworkExtension.entitlements" "$SYSTEM_EXTENSION"
   elif [ "$MODE" = main ]; then

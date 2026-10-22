@@ -712,8 +712,8 @@ private func isolatedDefaults() -> UserDefaults {
     #expect(recent.phase == .idle)
   }
 
-  @Test func developmentBuildCannotInstall() {
-    // 测试进程不是签名的 XStats.app
+  @Test func unrelatedHostCannotInstallMainApplicationUpdates() {
+    // 测试进程不是主产品，不能使用 XStats.app 的安装入口。
     let controller = UpdateController(settings: AppSettings(defaults: isolatedDefaults()))
     #expect(controller.installBlockedReason != nil)
   }
