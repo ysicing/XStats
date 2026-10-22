@@ -171,6 +171,7 @@ public final class AudioMixerClient: @unchecked Sendable {
         }
         // 输入经过控制器按应用归并，但外部调用方也不能用重复 ID 崩溃整个进程。
         targets = Dictionary(active.map { ($0.id, $0) }, uniquingKeysWith: { _, newest in newest })
+        outputSwitchSlots?.applications.formIntersection(targets.keys)
         sourceUID = outputUID
         for id in Array(pipelines.keys) where targets[id] == nil {
           retire(id)
@@ -435,7 +436,9 @@ public final class AudioMixerClient: @unchecked Sendable {
     retired.removeAll { (try? $0.stop()) != nil }
   }
   private func releaseAll(scheduleCleanup: Bool = true, preservingOutputGuard: UInt32? = nil) {
-    outputSwitchSlots = preservingOutputGuard.map { ($0, Set(pipelines.keys)) }
+    // 连续切换可能尚未恢复任何管线；仍有效的旧名额须与现有管线一并交给新保护。
+    let reserved = (outputSwitchSlots?.applications ?? []).union(pipelines.keys)
+    outputSwitchSlots = preservingOutputGuard.map { ($0, reserved) }
     timer?.cancel()
     timer = nil
     for id in Array(pipelines.keys) { retire(id) }

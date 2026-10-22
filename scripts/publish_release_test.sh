@@ -42,7 +42,7 @@ import hashlib, json, pathlib, sys
 dist = pathlib.Path(sys.argv[1])
 digest = lambda name: hashlib.sha256((dist / name).read_bytes()).hexdigest()
 (dist / 'appcast.json').write_text(json.dumps({
-    'version': '9.9.9', 'notes': ['fixture'], 'sha256': digest('XStats-9.9.9-AppleSilicon.zip'),
+    'version': '9.9.9', 'build': '999', 'notes': ['fixture'], 'sha256': digest('XStats-9.9.9-AppleSilicon.zip'),
     'url': 'https://example.invalid/XStats-9.9.9-AppleSilicon.zip'}))
 (dist / 'xstats.rb').write_text(f'version "9.9.9"\nsha256 "{digest("XStats-9.9.9-AppleSilicon.dmg")}"\n')
 PY
@@ -122,6 +122,15 @@ case "$1 $2" in
 esac
 STUB
 printf '#!/bin/sh\nexit 0\n' > "$WORK/bin/xcrun"
+export PUBLISH_TEST_REAL_GIT="$(command -v git)"
+cat > "$WORK/bin/git" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+if [ "${1:-}" = fetch ]; then
+  printf 'git fetch\n' >> "$PUBLISH_TEST_LOG"
+fi
+exec "$PUBLISH_TEST_REAL_GIT" "$@"
+STUB
 chmod +x "$WORK/bin/"*
 export PATH="$WORK/bin:$PATH" PUBLISH_TEST_LOG="$WORK/events" PUBLISH_TEST_OBJECTS="$WORK/objects" \
   PUBLISH_TEST_TAP="$WORK/tap.git"
@@ -136,6 +145,29 @@ expect_refusal() {
     echo "拒绝前不应上传或发布：" >&2; cat "$WORK/events" >&2; exit 1
   fi
 }
+
+# 版本或构建号不匹配时，必须在 git fetch 和任何发布入口探测之前拒绝。
+cp "$DIST/appcast.json" "$WORK/valid-appcast.json"
+for mismatch in stale-build missing-build numeric-build wrong-version; do
+  python3 - "$WORK/valid-appcast.json" "$DIST/appcast.json" "$mismatch" <<'PY'
+import json, pathlib, sys
+feed = json.loads(pathlib.Path(sys.argv[1]).read_text())
+case = sys.argv[3]
+if case == 'stale-build':
+    feed['build'] = '998'
+elif case == 'missing-build':
+    del feed['build']
+elif case == 'numeric-build':
+    feed['build'] = 999
+elif case == 'wrong-version':
+    feed['version'] = '9.9.8'
+pathlib.Path(sys.argv[2]).write_text(json.dumps(feed))
+PY
+  expect_refusal 'dist/appcast.json 与升级包不一致'
+  [ ! -s "$WORK/events" ] \
+    || { echo "$mismatch 在拒绝前触发了远端操作：" >&2; cat "$WORK/events" >&2; exit 1; }
+done
+cp "$WORK/valid-appcast.json" "$DIST/appcast.json"
 
 # 首次发布：三个制品都上传并回读。
 publish || { cat "$WORK/stderr" >&2; exit 1; }

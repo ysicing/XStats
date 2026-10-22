@@ -13,6 +13,8 @@ public struct MetricsDemand: Sendable, Equatable {
   public var gpu = false
   public var disk = false
   public var battery = false
+  /// 合盖运行的电量保护；锁屏后只保留此低频读取方。
+  public var batterySafety = false
   /// 电池页的按应用 CPU 能耗，首次约一秒建立读数，之后每 5 秒读取一次。
   public var appEnergy = false
   public var processes = false
@@ -34,7 +36,8 @@ public struct MetricsDemand: Sendable, Equatable {
 
   /// 没有读取方时连采样循环也停止，不能只跳过某几个采集器后继续定时唤醒。
   public var hasSamples: Bool {
-    cpu || memory || network || gpu || disk || battery || processes || systemProcesses
+    cpu || memory || network || gpu || disk || battery || batterySafety || processes
+      || systemProcesses
       || appEnergy || !temperatures.isEmpty || fans || power || cpuFrequency || gpuFrequency
       || gpuPower || diskDetail
   }
@@ -63,8 +66,28 @@ public actor MetricsHub {
   private var lastInterface = Date.distantPast
   private var lastPower = Date.distantPast
   private var lastDiskHealth = Date.distantPast
+  private let readBattery: @Sendable () -> BatteryStatus?
 
-  public init() {}
+  public init() {
+    readBattery = { BatterySampler.sample() }
+  }
+
+  init(readBattery: @escaping @Sendable () -> BatteryStatus?) {
+    self.readBattery = readBattery
+  }
+
+  var samplingDemand: MetricsDemand {
+    if paused {
+      var safety = MetricsDemand()
+      safety.generation = demand.generation
+      safety.interval = .seconds(30)
+      safety.battery = demand.batterySafety
+      return safety
+    }
+    var active = demand
+    active.battery = active.battery || active.batterySafety
+    return active
+  }
 
   /// 正常启动预采全部指标以稳定首次布局；专用快照和资源验证可仅采当前需求。
   public func start(
@@ -88,6 +111,7 @@ public actor MetricsHub {
       || (newDemand.networkConnection && !demand.networkConnection)
       || (newDemand.gpu && !demand.gpu)
       || (newDemand.battery && !demand.battery)
+      || (newDemand.batterySafety && !demand.batterySafety)
       || !newDemand.temperatures.isSubset(of: demand.temperatures)
       || (newDemand.fans && !demand.fans)
       || (newDemand.processes && !demand.processes)
@@ -127,7 +151,7 @@ public actor MetricsHub {
 
     // 仅新增指标或缩短间隔时立即采样，避免关弹窗、切页打断 CPU 等增量指标的采样窗口。
     // 需求减少由下一轮读取；没有读取方时立即取消，晚到的快照仍由主线程按最终需求裁剪。
-    if needsImmediateRefresh || loop == nil || !demand.hasSamples { restart() }
+    if needsImmediateRefresh || loop == nil || !samplingDemand.hasSamples { restart() }
   }
 
   /// 启动时识别风扇硬件，不依赖采样循环是否运行；与传感器采样共用连接与缓存。
@@ -140,13 +164,14 @@ public actor MetricsHub {
     return sensors.sample(groups: [], includeFans: true)?.fans
   }
 
-  /// 锁屏、屏幕休眠或系统睡眠时暂停采样
+  /// 暂停普通监控；合盖运行时仍以低频电量读取保障低电量恢复系统睡眠。
   public func setPaused(_ value: Bool) {
     guard value != paused else { return }
     paused = value
     if value { network.stopConnectionMonitoring() }
     power.resetBaselines()
     lastPower = .distantPast
+    lastBattery = .distantPast
     appEnergy = AppEnergySampler()
     nextAppEnergyUptime = nil
     restart()
@@ -182,7 +207,7 @@ public actor MetricsHub {
 
   private func restart() {
     loop?.cancel()
-    guard !paused, handler != nil, demand.hasSamples else {
+    guard handler != nil, samplingDemand.hasSamples else {
       loop = nil
       return
     }
@@ -199,16 +224,19 @@ public actor MetricsHub {
         }
       }
       // 容差让系统合并定时器唤醒，降低功耗
-      try? await Task.sleep(for: demand.interval, tolerance: demand.interval / 4)
+      let interval = samplingDemand.interval
+      try? await Task.sleep(for: interval, tolerance: interval / 4)
     }
   }
 
   private func collect() -> MetricsSnapshot {
     let now = Date()
     var snapshot = MetricsSnapshot()
+    snapshot.isBatterySafetySample = paused
     snapshot.samplingGeneration = self.demand.generation
-    let demand = primed ? self.demand : Self.everything(interval: self.demand.interval)
-    primed = true
+    let demand =
+      paused || primed ? samplingDemand : Self.everything(interval: self.demand.interval)
+    if !paused { primed = true }
     if demand.cpu { snapshot.cpu = cpu.sample() }
     if demand.cpu || !demand.temperatures.isEmpty {
       snapshot.thermalState = snapshot.cpu?.thermalState ?? ProcessInfo.processInfo.thermalState
@@ -228,7 +256,7 @@ public actor MetricsHub {
       lastDisk = now
     }
     if demand.battery, now.timeIntervalSince(lastBattery) > 10 {
-      snapshot.battery = BatterySampler.sample()
+      snapshot.battery = readBattery()
       lastBattery = now
     }
     let uptime = ProcessInfo.processInfo.systemUptime

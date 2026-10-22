@@ -1,4 +1,6 @@
 import Foundation
+import CoreFoundation
+import Darwin
 import Localization
 
 /// 一个 launchd 启动项（LaunchAgents / LaunchDaemons 里的 plist）
@@ -38,8 +40,9 @@ public struct LaunchItem: Sendable, Identifiable, Hashable {
   public let keepAlive: Bool
   /// 在 plist 里被标记为 Disabled
   public let disabledInPlist: Bool
+  fileprivate var configuration: Data?
 
-  /// 构造一个已解析的启动项目；不读取文件或执行 launchctl。
+  /// 构造展示数据，不读取文件；启停操作须使用扫描得到的配置快照。
   public init(
     label: String, plist: URL, scope: Scope, program: String?, runAtLoad: Bool,
     keepAlive: Bool, disabledInPlist: Bool
@@ -117,10 +120,48 @@ public enum LaunchItems {
       if let flag = plist["KeepAlive"] as? Bool { return flag }
       return plist["KeepAlive"] is [String: Any]
     }()
-    return LaunchItem(
+    var item = LaunchItem(
       label: label, plist: url, scope: scope, program: program,
       runAtLoad: plist["RunAtLoad"] as? Bool ?? false, keepAlive: keepAlive,
       disabledInPlist: plist["Disabled"] as? Bool ?? false)
+    item.configuration = try? PropertyListSerialization.data(
+      fromPropertyList: plist, format: .binary, options: 0)
+    return item
+  }
+
+  private static func configuration(at url: URL) -> [String: Any]? {
+    var information = stat()
+    guard url.path.withCString({ lstat($0, &information) }) == 0,
+      information.st_mode & S_IFMT == S_IFREG, information.st_size <= 1_048_576,
+      let data = try? Data(contentsOf: url)
+    else { return nil }
+    return try? PropertyListSerialization.propertyList(from: data, format: nil)
+      as? [String: Any]
+  }
+
+  private static func configurationsMatch(_ expected: Any, _ current: Any) -> Bool {
+    switch (expected, current) {
+    case (let expected as [String: Any], let current as [String: Any]):
+      return expected.count == current.count
+        && expected.allSatisfy { key, value in
+          current[key].map { configurationsMatch(value, $0) } ?? false
+        }
+    case (let expected as [Any], let current as [Any]):
+      return expected.count == current.count
+        && zip(expected, current).allSatisfy { configurationsMatch($0, $1) }
+    case (let expected as NSNumber, let current as NSNumber):
+      // Foundation 数值相等会忽略布尔、整数和实数的 plist 类型差异。
+      let realTypes = ["f", "d"]
+      return CFGetTypeID(expected) == CFGetTypeID(current)
+        && realTypes.contains(String(cString: expected.objCType))
+          == realTypes.contains(String(cString: current.objCType))
+        && expected.isEqual(to: current)
+    default:
+      guard let expected = expected as? NSObject, let current = current as? NSObject else {
+        return false
+      }
+      return CFGetTypeID(expected) == CFGetTypeID(current) && expected.isEqual(current)
+    }
   }
 
   /// 按当前分类读取域状态；系统域不复用用户域的加载列表。
@@ -177,6 +218,14 @@ public enum LaunchItems {
     runCommand: ([String]) -> (status: Int32, output: String)
   ) -> String? {
     guard item.scope == .user else { return tr("所有用户与系统级的启动项需要管理员权限，请在系统设置的登录项中管理") }
+    guard let current = configuration(at: item.plist),
+      let configuration = item.configuration,
+      let expected = try? PropertyListSerialization.propertyList(from: configuration, format: nil)
+        as? [String: Any],
+      configurationsMatch(expected, current)
+    else {
+      return tr("服务已变化或不属于当前用户，请刷新后重试")
+    }
     let domain = "gui/\(getuid())"
     let target = "\(domain)/\(item.label)"
     let overrideResult = runCommand([enabled ? "enable" : "disable", target])

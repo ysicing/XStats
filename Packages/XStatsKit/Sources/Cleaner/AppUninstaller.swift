@@ -73,6 +73,8 @@ public struct AppLeftoverScan: Sendable {
   public let installationCheckIncomplete: Bool
   let identity: AppUninstallIdentity?
   let applicationURL: URL?
+  let applicationIdentity: AppUninstallFileIdentity?
+  let applicationIdentifier: String?
 
   public init(
     items: [AppLeftover], unreadablePaths: [URL] = [], otherInstalledCopies: [URL] = [],
@@ -84,11 +86,14 @@ public struct AppLeftoverScan: Sendable {
     self.installationCheckIncomplete = installationCheckIncomplete
     identity = nil
     applicationURL = nil
+    applicationIdentity = nil
+    applicationIdentifier = nil
   }
 
   init(
     items: [AppLeftover], unreadablePaths: [URL], installations: AppInstallationCheck,
-    identity: AppUninstallIdentity, applicationURL: URL
+    identity: AppUninstallIdentity, applicationURL: URL,
+    applicationIdentity: AppUninstallFileIdentity?, applicationIdentifier: String
   ) {
     self.items = items
     self.unreadablePaths = unreadablePaths
@@ -96,6 +101,30 @@ public struct AppLeftoverScan: Sendable {
     installationCheckIncomplete = !installations.unreadableDirectories.isEmpty
     self.identity = identity
     self.applicationURL = applicationURL
+    self.applicationIdentity = applicationIdentity
+    self.applicationIdentifier = applicationIdentifier
+  }
+}
+
+/// 路径相同不代表仍是扫描时的应用；创建时间同时避免目录移走后 inode 被复用。
+struct AppUninstallFileIdentity: Sendable, Equatable {
+  let device: dev_t
+  let inode: ino_t
+  let createdSeconds: Int
+  let createdNanoseconds: Int
+  let bundleIdentifier: String?
+
+  init?(at url: URL) {
+    var information = stat()
+    guard url.path.withCString({ lstat($0, &information) }) == 0,
+      information.st_mode & S_IFMT == S_IFDIR
+    else { return nil }
+    device = information.st_dev
+    inode = information.st_ino
+    createdSeconds = information.st_birthtimespec.tv_sec
+    createdNanoseconds = information.st_birthtimespec.tv_nsec
+    bundleIdentifier =
+      AppUninstallIdentity.metadata(at: url, inside: url)?["CFBundleIdentifier"] as? String
   }
 }
 
@@ -103,6 +132,7 @@ public struct AppLeftoverScan: Sendable {
 public struct AppInstallationCheck: Sendable {
   public let otherInstalledCopies: [URL]
   public let unreadableDirectories: [URL]
+  var protectedIdentifiers: Set<String> = []
   public var preservesSharedData: Bool {
     !otherInstalledCopies.isEmpty || !unreadableDirectories.isEmpty
   }
@@ -306,6 +336,12 @@ public enum AppUninstaller {
     guard inSystemApplications || inHomeApplications else {
       throw AppUninstallError.unsafePath(path)
     }
+    if let currentIdentifier =
+      AppUninstallIdentity.metadata(at: app.url, inside: app.url)?["CFBundleIdentifier"] as? String,
+      currentIdentifier.caseInsensitiveCompare(app.bundleIdentifier) != .orderedSame
+    {
+      throw AppUninstallError.unsafePath(original)
+    }
   }
 
   public static func leftovers(for app: InstalledApp, home: String = NSHomeDirectory())
@@ -338,14 +374,22 @@ public enum AppUninstaller {
     for app: InstalledApp, home: String, identity: AppUninstallIdentity,
     installations: AppInstallationCheck, userCache: URL?
   ) throws -> AppLeftoverScan {
+    let applicationIdentity = AppUninstallFileIdentity(at: app.url)
+    if let currentIdentifier = applicationIdentity?.bundleIdentifier,
+      currentIdentifier.caseInsensitiveCompare(app.bundleIdentifier) != .orderedSame
+    {
+      throw AppUninstallError.unsafePath(app.url.path)
+    }
     var unreadablePaths = Set(installations.unreadableDirectories)
     let items = try leftovers(
       for: app, home: home, identity: identity, unreadablePaths: &unreadablePaths,
       preserveSharedData: installations.preservesSharedData, userCache: userCache,
+      protectedIdentifiers: installations.protectedIdentifiers,
       checkCancellation: { try Task.checkCancellation() })
     return AppLeftoverScan(
       items: items, unreadablePaths: unreadablePaths.sorted { $0.path < $1.path },
-      installations: installations, identity: identity, applicationURL: app.url)
+      installations: installations, identity: identity, applicationURL: app.url,
+      applicationIdentity: applicationIdentity, applicationIdentifier: app.bundleIdentifier)
   }
 
   /// 在调用方的后台任务中检查固定安装目录；读取失败时不能确认没有其他副本。
@@ -361,7 +405,13 @@ public enum AppUninstaller {
       $0.bundleIdentifier.caseInsensitiveCompare(app.bundleIdentifier) == .orderedSame
         && !isSameItem($0.url, app.url)
     }.map(\.url)
-    return AppInstallationCheck(otherInstalledCopies: copies, unreadableDirectories: unreadable)
+    var result = AppInstallationCheck(
+      otherInstalledCopies: copies, unreadableDirectories: unreadable)
+    result.protectedIdentifiers = Set(
+      installed.filter {
+        $0.bundleIdentifier.caseInsensitiveCompare(app.bundleIdentifier) != .orderedSame
+      }.map(\.bundleIdentifier))
+    return result
   }
 
   static func leftovers(for app: InstalledApp, home: String, identity: AppUninstallIdentity)
@@ -375,14 +425,17 @@ public enum AppUninstaller {
     checkCancellation: () throws -> Void
   ) throws -> [AppLeftover] {
     var unreadablePaths = Set<URL>()
+    let installations = try checkOtherInstallations(of: app, home: home)
     return try leftovers(
       for: app, home: home, identity: identity, unreadablePaths: &unreadablePaths,
+      protectedIdentifiers: installations.protectedIdentifiers,
       checkCancellation: checkCancellation)
   }
 
   private static func leftovers(
     for app: InstalledApp, home: String, identity: AppUninstallIdentity,
     unreadablePaths: inout Set<URL>, preserveSharedData: Bool = false, userCache: URL? = nil,
+    protectedIdentifiers: Set<String> = [],
     checkCancellation: () throws -> Void
   ) throws -> [AppLeftover] {
     try checkCancellation()
@@ -397,8 +450,20 @@ public enum AppUninstaller {
 
     // Code、Caches 这类单段标识可能就是共用目录名，同名条目只列出待确认，不默认勾选。
     let trustedIdentifier = AppUninstallIdentity.validIdentifier(app.bundleIdentifier) != nil
-    func auxiliaryMatch(_ name: String) -> Bool {
-      matches(name) && !(trustedIdentifier && matchesIdentifier(name, app.bundleIdentifier))
+    func auxiliaryMatch(_ name: String, kind: AppLeftover.Kind) -> Bool {
+      let identifier = app.bundleIdentifier.lowercased()
+      let suffix: String?
+      switch kind {
+      case .preferences, .launchAgents: suffix = "plist"
+      case .savedState: suffix = "savedstate"
+      case .logs: suffix = "log"
+      case .webData: suffix = "binarycookies"
+      default: suffix = nil
+      }
+      let primaryName =
+        name.lowercased() == identifier
+        || suffix.map { name.lowercased() == identifier + "." + $0 } == true
+      return matches(name) && !(trustedIdentifier && primaryName)
     }
     let vendorNames = Set(
       identity.identifiers.flatMap { identifier -> [String] in
@@ -410,6 +475,15 @@ public enum AppUninstaller {
     func add(_ url: URL, _ kind: AppLeftover.Kind, review: Bool = false) throws {
       try checkCancellation()
       let path = url.standardizedFileURL.path
+      let ownedIdentifierLength =
+        identity.identifiers.filter { matchesIdentifier(url.lastPathComponent, $0) }
+        .map(\.count).max() ?? 0
+      guard
+        kind == .application
+          || !protectedIdentifiers.contains(where: {
+            $0.count >= ownedIdentifierLength && matchesIdentifier(url.lastPathComponent, $0)
+          })
+      else { return }
       guard manager.fileExists(atPath: path),
         (try? validateLeftover(url, for: app, home: home, userCache: userCache, identity: identity))
           != nil
@@ -478,7 +552,7 @@ public enum AppUninstaller {
         if matches(entry.lastPathComponent) || named {
           try add(
             entry, kind,
-            review: review || auxiliaryMatch(entry.lastPathComponent)
+            review: review || auxiliaryMatch(entry.lastPathComponent, kind: kind)
               || (named && !matches(entry.lastPathComponent)))
         }
       }
@@ -509,7 +583,7 @@ public enum AppUninstaller {
         for child in children {
           try checkCancellation()
           if matches(child.lastPathComponent) {
-            try add(child, kind, review: auxiliaryMatch(child.lastPathComponent))
+            try add(child, kind, review: auxiliaryMatch(child.lastPathComponent, kind: kind))
           }
         }
       }
@@ -556,7 +630,8 @@ public enum AppUninstaller {
             review: owner.caseInsensitiveCompare(app.bundleIdentifier) != .orderedSame)
         }
       } else if matches(entry.lastPathComponent) {
-        try add(entry, .containers, review: auxiliaryMatch(entry.lastPathComponent))
+        try add(
+          entry, .containers, review: auxiliaryMatch(entry.lastPathComponent, kind: .containers))
       }
     }
     try scan("Application Scripts", .containers)
@@ -617,7 +692,9 @@ public enum AppUninstaller {
           for name in try manager.contentsOfDirectory(atPath: userCache.path).sorted() {
             try checkCancellation()
             if matches(name) {
-              try add(userCache.appendingPathComponent(name), .caches, review: auxiliaryMatch(name))
+              try add(
+                userCache.appendingPathComponent(name), .caches,
+                review: auxiliaryMatch(name, kind: .caches))
             }
           }
         } catch is CancellationError { throw CancellationError() } catch {
@@ -708,10 +785,21 @@ public enum AppUninstaller {
     _ url: URL, for app: InstalledApp, scan: AppLeftoverScan, home: String, userCache: URL?
   ) throws {
     guard scan.applicationURL?.standardizedFileURL.path == app.url.standardizedFileURL.path,
+      scan.applicationIdentifier == app.bundleIdentifier,
       scan.items.contains(where: { $0.url.standardizedFileURL.path == url.standardizedFileURL.path }
       )
     else {
       throw AppUninstallError.unsafePath(url.path)
+    }
+    if let current = AppUninstallFileIdentity(at: app.url) {
+      guard let expected = scan.applicationIdentity, current == expected else {
+        throw AppUninstallError.unsafePath(url.path)
+      }
+    } else {
+      var information = stat()
+      guard url.standardizedFileURL.path != app.url.standardizedFileURL.path,
+        app.url.path.withCString({ lstat($0, &information) }) != 0, errno == ENOENT
+      else { throw AppUninstallError.unsafePath(url.path) }
     }
     try validateLeftover(url, for: app, home: home, userCache: userCache, identity: scan.identity)
   }

@@ -251,6 +251,81 @@ struct AudioMixerLifecycleTests {
     await client.stop()
   }
 
+  @Test(arguments: [false, true])
+  func repeatedOutputSwitchesPreserveAllSlotsBeforeOrDuringRecovery(partiallyRecovered: Bool)
+    async throws
+  {
+    let log = PipelineLog()
+    let guards = SlotGuardSequence()
+    let client = AudioMixerClient(
+      automaticHealthChecks: false,
+      outputGuardFactory: { _ in SlotTestOutputGuard(id: guards.next(), log: log) }
+    ) {
+      TestPipeline(
+        $0, output: $1, source: $2, log: log,
+        startError: $0.id == "b8" && $1 == "broken" ? .unsupportedFormat : nil)
+    }
+    let existing = try (1...8).map { try target("b\($0)") }
+    let fixed = AudioMixTarget(
+      id: "a", processObjectIDs: [9], volume: try #require(AudioAppVolume(level: 1)),
+      outputUID: "default")
+    try await client.apply(existing + [fixed], outputUID: "default")
+    let firstGuard = try #require(try await client.prepareOutputSwitch(additionalProcessIDs: [9]))
+    if partiallyRecovered {
+      await #expect(throws: AudioControlError.unsupportedFormat) {
+        try await client.apply(existing, outputUID: "broken")
+      }
+      #expect(await client.unresolvedApplicationIDs() == ["b8"])
+    }
+    try await client.finishOutputSwitch(firstGuard, afterRestoring: true)
+    let secondGuard = try #require(try await client.prepareOutputSwitch(additionalProcessIDs: [9]))
+    try await client.finishOutputSwitch(firstGuard)
+    await #expect(throws: AudioControlError.processingLimit(8)) {
+      try await client.apply(existing + [fixed], outputUID: "usb")
+    }
+    #expect(await client.unresolvedApplicationIDs() == ["a"])
+    #expect(log.entries.contains("start:b8:usb"))
+    #expect(!log.entries.contains("start:a:default"))
+    #expect(log.entries.filter { $0 == "guard.stop:101" }.count == 1)
+    #expect(!log.entries.contains("guard.stop:102"))
+    try await client.finishOutputSwitch(secondGuard)
+    await client.stop()
+    #expect(log.entries.filter { $0 == "guard.stop:102" }.count == 1)
+  }
+
+  @Test(arguments: [false, true])
+  func withdrawnReservationsDoNotReturnDuringTheNextOutputSwitch(remainsInCatalog: Bool)
+    async throws
+  {
+    let log = PipelineLog()
+    let client = AudioMixerClient(
+      automaticHealthChecks: false, outputGuardFactory: { _ in SlotTestOutputGuard() }
+    ) {
+      TestPipeline($0, output: $1, source: $2, log: log)
+    }
+    let existing = try (1...8).map { try target("b\($0)") }
+    let newcomer = try target("z")
+    try await client.apply(existing, outputUID: "default")
+    let firstGuard = try #require(try await client.prepareOutputSwitch())
+    var changed = Array(existing.dropFirst()) + [newcomer]
+    if remainsInCatalog {
+      changed.append(
+        AudioMixTarget(
+          id: "b1", processObjectIDs: [1], volume: try #require(AudioAppVolume(level: 1))))
+    }
+    try await client.apply(changed, outputUID: "usb")
+    let secondGuard = try #require(try await client.prepareOutputSwitch())
+    try await client.finishOutputSwitch(firstGuard)
+    await #expect(throws: AudioControlError.processingLimit(8)) {
+      try await client.apply(existing + [newcomer], outputUID: "hdmi")
+    }
+    #expect(await client.unresolvedApplicationIDs() == ["b1"])
+    #expect(log.entries.contains("start:z:hdmi"))
+    #expect(!log.entries.contains("start:b1:hdmi"))
+    try await client.finishOutputSwitch(secondGuard)
+    await client.stop()
+  }
+
   @Test func excessiveDemandKeepsExistingPipelinesAndRecoversWhenASlotIsFreed() async throws {
     let log = PipelineLog()
     let client = AudioMixerClient(automaticHealthChecks: false) {

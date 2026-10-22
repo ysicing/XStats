@@ -6,6 +6,9 @@ import base64
 import hashlib
 import json
 import plistlib
+import shutil
+import subprocess
+import sys
 import zipfile
 from pathlib import Path
 import tempfile
@@ -21,7 +24,8 @@ class SparkleAppcastTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / "main.zip"
             with zipfile.ZipFile(archive, "w") as bundle:
-                bundle.writestr("XStats.app/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": "work.12306.xstats.app"}))
+                bundle.writestr("XStats.app/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": "work.12306.xstats.app",
+                                                                              "CFBundleShortVersionString": "1.0.0", "CFBundleVersion": "200"}))
             data = archive.read_bytes()
             feed = {"version": "1.0.0", "build": "200", "size": len(data), "notes": ["test"],
                     "url": "https://example.test/main.zip", "sha256": hashlib.sha256(data).hexdigest()}
@@ -33,7 +37,8 @@ class SparkleAppcastTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / "capture.zip"
             with zipfile.ZipFile(archive, "w") as bundle:
-                bundle.writestr("XStats Capture.app/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": "work.12306.xstats.capture"}))
+                bundle.writestr("XStats Capture.app/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": "work.12306.xstats.capture",
+                                                                                      "CFBundleShortVersionString": "0.1.0", "CFBundleVersion": "1"}))
             data = archive.read_bytes()
             feed = {"version": "0.1.0", "build": "1", "size": len(data), "notes": ["test"],
                     "bundleIdentifier": "work.12306.xstats.capture", "url": "https://example.test/capture.zip", "sha256": hashlib.sha256(data).hexdigest()}
@@ -56,7 +61,8 @@ class SparkleAppcastTests(unittest.TestCase):
                     ("work.12306.xstats.networkmonitor", "XStats Network Monitor.app", "137")):
                 with self.subTest(identifier=identifier, root=root, extension_build=extension_build):
                     with zipfile.ZipFile(archive, "w") as bundle:
-                        bundle.writestr(root + "/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": identifier}))
+                        bundle.writestr(root + "/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": identifier,
+                                                                                     "CFBundleShortVersionString": "0.15.0", "CFBundleVersion": "136"}))
                         bundle.writestr(root + "/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist",
                                         plistlib.dumps({"CFBundleIdentifier": "work.12306.xstats.app.networkextension",
                                                         "CFBundleShortVersionString": "0.15.0", "CFBundleVersion": extension_build}))
@@ -71,6 +77,43 @@ class SparkleAppcastTests(unittest.TestCase):
                     else:
                         with self.assertRaises(ValueError):
                             load_manifest(manifest, archive)
+
+    def test_archive_root_version_and_build_must_match_manifest(self):
+        extension = {"CFBundleIdentifier": "work.12306.xstats.app.networkextension",
+                     "CFBundleShortVersionString": "0.15.0", "CFBundleVersion": "136"}
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "update.zip"
+            manifest = Path(directory) / "appcast.json"
+            for identifier, root in (
+                    ("work.12306.xstats.app", "XStats.app"),
+                    ("work.12306.xstats.capture", "XStats Capture.app"),
+                    ("work.12306.xstats.networkmonitor", "XStats Network Monitor.app")):
+                for version, build in (("2.0.0", "200"), ("1.0.0", "200"), ("2.0.0", "100"),
+                                       ("1.0.0", "100"), (None, "200"), ("2.0.0", None),
+                                       ("", "200"), ("2.0.0", 200), ("2.0.0", "0200")):
+                    with self.subTest(identifier=identifier, version=version, build=build):
+                        info = {"CFBundleIdentifier": identifier}
+                        if version is not None:
+                            info["CFBundleShortVersionString"] = version
+                        if build is not None:
+                            info["CFBundleVersion"] = build
+                        with zipfile.ZipFile(archive, "w") as bundle:
+                            bundle.writestr(root + "/Contents/Info.plist", plistlib.dumps(info))
+                            if identifier == "work.12306.xstats.networkmonitor":
+                                bundle.writestr(root + "/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist",
+                                                plistlib.dumps(extension))
+                        data = archive.read_bytes()
+                        feed = {"version": "2.0.0", "build": "200", "size": len(data), "notes": ["test"],
+                                "bundleIdentifier": identifier, "url": "https://example.test/update.zip",
+                                "sha256": hashlib.sha256(data).hexdigest()}
+                        if identifier == "work.12306.xstats.networkmonitor":
+                            feed["networkExtension"] = {"version": "0.15.0", "build": "136"}
+                        manifest.write_text(json.dumps(feed))
+                        if version == "2.0.0" and build == "200":
+                            self.assertEqual(load_manifest(manifest, archive), feed)
+                        else:
+                            with self.assertRaises(ValueError):
+                                load_manifest(manifest, archive)
 
     def test_signed_extension_version_is_preserved_and_tampering_is_rejected(self):
         feed = {"version": "1.0.0", "build": "200", "minimumSystem": "14.0", "size": 3,
@@ -201,7 +244,8 @@ class SparkleAppcastTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / "XStats-1.0.0-AppleSilicon.zip"
             with zipfile.ZipFile(archive, "w") as bundle:
-                bundle.writestr("XStats.app/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": "work.12306.xstats.app"}))
+                bundle.writestr("XStats.app/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": "work.12306.xstats.app",
+                                                                              "CFBundleShortVersionString": "1.0.0", "CFBundleVersion": "200"}))
                 bundle.writestr("XStats.app/Contents/Library/SystemExtensions/work.12306.xstats.app.networkextension.systemextension/Contents/Info.plist", plistlib.dumps({"CFBundleIdentifier": "work.12306.xstats.app.networkextension", "CFBundleShortVersionString": "0.15.0", "CFBundleVersion": "136"}))
             original = archive.read_bytes()
             manifest = Path(directory) / "appcast.json"
@@ -217,6 +261,70 @@ class SparkleAppcastTests(unittest.TestCase):
             manifest.write_text(json.dumps(feed))
             with self.assertRaises(ValueError):
                 load_manifest(manifest, archive)
+
+
+class AppcastManifestTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.work = Path(directory.name)
+        (self.work / "scripts").mkdir()
+        shutil.copy(ROOT / "scripts/appcast.py", self.work / "scripts")
+        self.app = self.work / "XStats.app"
+        (self.app / "Contents").mkdir(parents=True)
+        self.archive = self.work / "update.zip"
+        self.command = [sys.executable, str(self.work / "scripts/appcast.py"), "2.0.0", "200",
+                        "https://example.test", str(self.archive), str(self.work / "update.dmg"), str(self.app)]
+
+    def test_manifest_generation_rejects_changed_or_missing_app_identity(self):
+        (self.work / "CHANGELOG.md").write_text("## 2.0.0 · 2026-10-22\n- release\n", encoding="utf-8")
+        with zipfile.ZipFile(self.archive, "w") as bundle:
+            bundle.writestr("XStats.app/Contents/Info.plist", plistlib.dumps({
+                "CFBundleIdentifier": "work.12306.xstats.app",
+                "CFBundleShortVersionString": "2.0.0", "CFBundleVersion": "200"}))
+        for identifier, version, build in (
+                ("work.12306.xstats.app", "1.0.0", "200"),
+                ("work.12306.xstats.app", "2.0.0", "100"),
+                ("work.12306.xstats.capture", "2.0.0", "200"),
+                ("work.12306.xstats.app", None, "200"),
+                ("work.12306.xstats.app", "2.0.0", None)):
+            with self.subTest(identifier=identifier, version=version, build=build):
+                info = {"CFBundleIdentifier": identifier}
+                if version is not None:
+                    info["CFBundleShortVersionString"] = version
+                if build is not None:
+                    info["CFBundleVersion"] = build
+                (self.app / "Contents/Info.plist").write_bytes(plistlib.dumps(info))
+                result = subprocess.run(self.command, cwd=self.work, capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("ValueError", result.stderr)
+                self.assertNotIn("FileNotFoundError", result.stderr)
+
+    def test_manifest_generation_checks_app_before_reading_assets(self):
+        (self.app / "Contents/Info.plist").write_bytes(plistlib.dumps({
+            "CFBundleIdentifier": "work.12306.xstats.app",
+            "CFBundleShortVersionString": "1.0.0", "CFBundleVersion": "100"}))
+        result = subprocess.run(self.command, cwd=self.work, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("ValueError", result.stderr)
+        self.assertNotIn("FileNotFoundError", result.stderr)
+
+    def test_matching_app_generates_manifest_accepted_by_archive_validation(self):
+        info = {"CFBundleIdentifier": "work.12306.xstats.app",
+                "CFBundleShortVersionString": "2.0.0", "CFBundleVersion": "200"}
+        (self.app / "Contents/Info.plist").write_bytes(plistlib.dumps(info))
+        (self.work / "CHANGELOG.md").write_text("## 2.0.0 · 2026-10-22\n- release\n", encoding="utf-8")
+        with zipfile.ZipFile(self.archive, "w") as bundle:
+            bundle.writestr("XStats.app/Contents/Info.plist", plistlib.dumps(info))
+        result = subprocess.run(self.command, cwd=self.work, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        feed = json.loads(result.stdout)
+        self.assertEqual((feed["version"], feed["build"], feed["notes"]), ("2.0.0", "200", ["release"]))
+        manifest = self.work / "appcast.json"
+        manifest.write_text(result.stdout)
+        self.assertEqual(load_manifest(manifest, self.archive), feed)
 
 
 if __name__ == "__main__":

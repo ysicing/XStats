@@ -204,6 +204,7 @@ public enum EgressProber {
     interfaceName: String?, progress: @escaping @Sendable (Int) -> Void = { _ in }
   ) async -> [EgressHit] {
     let interface = await physicalInterface(named: interfaceName)
+    guard !Task.isCancelled else { return [] }
     var jobs: [(EgressTarget, EgressRoute)] = []
     for target in EgressTarget.baseline {
       jobs.append((target, .system))
@@ -217,11 +218,16 @@ public enum EgressProber {
       var next = 0
       var done = 0
       while next < min(concurrency, jobs.count) {
+        guard !Task.isCancelled else { break }
         let (index, job) = (next, jobs[next])
         group.addTask { (index, await measure(job.0, route: job.1, interface: interface)) }
         next += 1
       }
       for await (index, hit) in group {
+        guard !Task.isCancelled else {
+          group.cancelAll()
+          break
+        }
         results[index] = hit
         done += 1
         progress(done)
@@ -241,10 +247,12 @@ public enum EgressProber {
     -> EgressHit
   {
     var hit = EgressHit(targetID: target.id, route: route)
+    guard !Task.isCancelled else { return hit }
     if route == .interface && interface == nil { return hit }
     let clock = ContinuousClock()
     var start = clock.now
     guard var response = await fetch(target, route: route, interface: interface) else { return hit }
+    guard !Task.isCancelled else { return hit }
     if route == .system {
       start = clock.now
       if let timed = await fetch(target, route: route, interface: interface) { response = timed }
@@ -276,6 +284,7 @@ public enum EgressProber {
   private static func fetch(_ target: EgressTarget, route: EgressRoute, interface: NWInterface?)
     async -> Data?
   {
+    guard !Task.isCancelled else { return nil }
     switch route {
     case .system:
       var request = URLRequest(url: target.url)
@@ -305,6 +314,7 @@ public enum EgressProber {
   public static func geo(route: EgressRoute, ipv6: Bool, interfaceName: String?) async -> (
     ip: String, geo: EgressGeo
   )? {
+    guard !Task.isCancelled else { return nil }
     let url = PublicAddressLookup.cleanIPURL
     let body: Data?
     switch route {
@@ -316,8 +326,10 @@ public enum EgressProber {
           url, ipv6: ipv6, timeout: timeout, options: .init(bypassProxies: true)))
     case .interface:
       guard let interface = await physicalInterface(named: interfaceName),
+        !Task.isCancelled,
         let address = await resolve("cleanip.io", ipv6: ipv6, interface: interface)
       else { return nil }
+      guard !Task.isCancelled else { return nil }
       body = ok(
         await AddressFamilyRequest.get(
           url, ipv6: ipv6, timeout: timeout,
@@ -339,6 +351,7 @@ public enum EgressProber {
       ]
       : ["1.1.1.1/dns-query", "8.8.8.8/resolve", "223.5.5.5/resolve"]
     for server in servers {
+      guard !Task.isCancelled else { return nil }
       guard let url = URL(string: "https://\(server)?name=\(name)&type=\(ipv6 ? 28 : 1)") else {
         continue
       }

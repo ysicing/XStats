@@ -25,15 +25,42 @@ public final class EgressController {
   public private(set) var progress = 0
 
   @ObservationIgnored private var watchTask: Task<Void, Never>?
+  @ObservationIgnored private(set) var checkTask: Task<Void, Never>?
+  @ObservationIgnored private var checkGeneration = 0
+  @ObservationIgnored private var windowOpen = false
+  @ObservationIgnored private var paused = false
   @ObservationIgnored private var geoCache: [String: (geo: EgressGeo, date: Date)] = [:]
+  @ObservationIgnored private let defaults: UserDefaults
+  @ObservationIgnored private let environmentReader: @MainActor () async -> ProxyEnvironment
+  @ObservationIgnored private let measure:
+    @Sendable (String?, @escaping @Sendable (Int) -> Void) async -> [EgressHit]
+  @ObservationIgnored private let geoLookup:
+    @Sendable (EgressRoute, Bool, String?) async -> (ip: String, geo: EgressGeo)?
 
   private static let cacheKey = "egressReport2"
   /// 超过这个时间的结果，打开窗口时重新检测
   static let staleAfter: TimeInterval = 10 * 60
   static let geoLifetime: TimeInterval = 60 * 60
 
-  init() {
-    if let data = UserDefaults.standard.data(forKey: Self.cacheKey),
+  init(
+    defaults: UserDefaults = .standard,
+    environmentReader: @escaping @MainActor () async -> ProxyEnvironment = {
+      await EgressController.readEnvironment()
+    },
+    measure: @escaping @Sendable (String?, @escaping @Sendable (Int) -> Void) async -> [EgressHit] =
+      {
+        await EgressProber.measure(interfaceName: $0, progress: $1)
+      },
+    geoLookup:
+      @escaping @Sendable (EgressRoute, Bool, String?) async -> (ip: String, geo: EgressGeo)? = {
+        await EgressProber.geo(route: $0, ipv6: $1, interfaceName: $2)
+      }
+  ) {
+    self.defaults = defaults
+    self.environmentReader = environmentReader
+    self.measure = measure
+    self.geoLookup = geoLookup
+    if let data = defaults.data(forKey: Self.cacheKey),
       let report = try? JSONDecoder().decode(Report.self, from: data)
     {
       apply(report)
@@ -47,31 +74,66 @@ public final class EgressController {
   }
 
   func windowDidOpen() {
-    startWatching()
+    windowOpen = true
+    if !paused { startWatching() }
   }
 
   func windowDidClose() {
+    windowOpen = false
+    stopChecking()
+  }
+
+  func setPaused(_ value: Bool) {
+    guard paused != value else { return }
+    paused = value
+    if value {
+      stopChecking()
+    } else if windowOpen {
+      startWatching()
+    }
+  }
+
+  private func stopChecking() {
     watchTask?.cancel()
     watchTask = nil
+    checkGeneration &+= 1
+    checkTask?.cancel()
+    checkTask = nil
+    isChecking = false
+    progress = 0
   }
 
   func check() {
-    guard !isChecking else { return }
+    guard !paused, !isChecking else { return }
+    checkGeneration &+= 1
+    let generation = checkGeneration
     isChecking = true
     progress = 0
-    Task {
-      let environment = await Self.readEnvironment()
-      self.environment = environment
-      let hits = await EgressProber.measure(interfaceName: environment.physicalInterface) { done in
-        Task { @MainActor in self.progress = done }
+    checkTask = Task { [self] in
+      defer {
+        if checkGeneration == generation {
+          isChecking = false
+          checkTask = nil
+        }
       }
+      guard !Task.isCancelled, checkGeneration == generation else { return }
+      let environment = await environmentReader()
+      guard !Task.isCancelled, checkGeneration == generation else { return }
+      self.environment = environment
+      let hits = await measure(environment.physicalInterface) { done in
+        Task { @MainActor [weak self] in
+          guard let self, self.checkGeneration == generation else { return }
+          self.progress = done
+        }
+      }
+      guard !Task.isCancelled, checkGeneration == generation else { return }
       let analysis = EgressAnalysis.evaluate(hits, environment: environment)
       let geo = await lookUpGeo(
         hits: hits, analysis: analysis, interfaceName: environment.physicalInterface)
+      guard !Task.isCancelled, checkGeneration == generation else { return }
       let report = Report(date: Date(), environment: environment, hits: hits, geo: geo)
       apply(report)
-      UserDefaults.standard.set(try? JSONEncoder().encode(report), forKey: Self.cacheKey)
-      isChecking = false
+      defaults.set(try? JSONEncoder().encode(report), forKey: Self.cacheKey)
     }
   }
 
@@ -85,7 +147,8 @@ public final class EgressController {
     watchTask = Task { [weak self] in
       var first = true
       while !Task.isCancelled {
-        let environment = await Self.readEnvironment()
+        let environment = await self?.environmentReader()
+        guard let environment else { return }
         guard !Task.isCancelled, let self else { return }
         if environment != self.environment { self.environment = environment }
         let stale = self.report.map { Date().timeIntervalSince($0.date) > Self.staleAfter } ?? true
@@ -113,6 +176,7 @@ public final class EgressController {
   private func lookUpGeo(hits: [EgressHit], analysis: EgressAnalysis, interfaceName: String?) async
     -> [String: EgressGeo]
   {
+    guard !Task.isCancelled else { return [:] }
     var wanted: [(route: EgressRoute, ipv6: Bool, expected: String)] = []
     for address in analysis.rawAddresses {
       let ipv6 = address.contains(":")
@@ -137,15 +201,23 @@ public final class EgressController {
     }
     let found = await withTaskGroup(of: (ip: String, geo: EgressGeo)?.self) { group in
       for lookup in lookups {
-        group.addTask {
-          await EgressProber.geo(
-            route: lookup.route, ipv6: lookup.ipv6, interfaceName: interfaceName)
+        guard !Task.isCancelled else { break }
+        group.addTask { [geoLookup] in
+          guard !Task.isCancelled else { return nil }
+          return await geoLookup(lookup.route, lookup.ipv6, interfaceName)
         }
       }
       var found: [(ip: String, geo: EgressGeo)] = []
-      for await item in group { if let item { found.append(item) } }
+      for await item in group {
+        guard !Task.isCancelled else {
+          group.cancelAll()
+          break
+        }
+        if let item { found.append(item) }
+      }
       return found
     }
+    guard !Task.isCancelled else { return [:] }
     for item in found {
       result[item.ip] = item.geo
       geoCache[item.ip] = (item.geo, now)

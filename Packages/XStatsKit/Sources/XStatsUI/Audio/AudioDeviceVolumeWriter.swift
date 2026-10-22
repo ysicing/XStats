@@ -13,17 +13,21 @@ struct AudioDeviceVolumeRequest: Sendable {
 @MainActor
 final class AudioDeviceVolumeWriter {
   private let write: @Sendable (AudioDeviceVolumeRequest) async throws -> Void
+  private let unmute: @Sendable (AudioDeviceVolumeRequest) async throws -> Void
   private let finished: @MainActor (AudioDeviceVolumeRequest, AudioControlError?) -> Void
   private var pending: [(request: AudioDeviceVolumeRequest, sequence: UInt64)] = []
   private var outputSequence: UInt64 = 0
   private var inputSequence: UInt64 = 0
   private var generation: UInt64 = 0
   private var task: Task<Void, Never>?
+  private var inFlightWrite: Task<Void, any Error>?
   init(
     write: @escaping @Sendable (AudioDeviceVolumeRequest) async throws -> Void,
+    unmute: @escaping @Sendable (AudioDeviceVolumeRequest) async throws -> Void,
     finished: @escaping @MainActor (AudioDeviceVolumeRequest, AudioControlError?) -> Void
   ) {
     self.write = write
+    self.unmute = unmute
     self.finished = finished
   }
   func submit(_ request: AudioDeviceVolumeRequest) {
@@ -39,9 +43,21 @@ final class AudioDeviceVolumeWriter {
         let next = pending.removeFirst()
         let request = next.request
         var error: AudioControlError?
-        do { try await write(request) } catch let failure {
+        let operation = Task {
+          try Task.checkCancellation()
+          try await write(request)
+          // HAL 中已开始的音量写入可能无法撤销，但后续取消静音必须服从当前功能生命周期。
+          try Task.checkCancellation()
+          let muted =
+            request.direction == .output
+            ? request.device.outputMuted : request.device.inputMuted
+          if request.level > 0, muted == true { try await unmute(request) }
+        }
+        inFlightWrite = operation
+        do { try await operation.value } catch let failure {
           error = failure as? AudioControlError ?? .unavailable
         }
+        inFlightWrite = nil
         let newest = request.direction == .output ? outputSequence : inputSequence
         if epoch == generation, next.sequence == newest { finished(request, error) }
       }
@@ -52,5 +68,6 @@ final class AudioDeviceVolumeWriter {
   func cancelPending() {
     generation &+= 1
     pending.removeAll()
+    inFlightWrite?.cancel()
   }
 }

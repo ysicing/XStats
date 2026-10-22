@@ -21,10 +21,6 @@ PROVENANCE="dist/release-provenance.json"
 # 一个不含该版本的提交。来源记录还会校验工作区、版本文件哈希，以及构建后是否改过源码。
 # 这里只读校验，不替调用者 commit 或 push。
 python3 scripts/release_provenance.py verify "$PROVENANCE" "$VERSION" "$BUILD"
-git fetch --quiet origin main
-HEAD_SHA="$(git rev-parse HEAD)"
-[ "$HEAD_SHA" = "$(git rev-parse origin/main)" ] \
-  || { echo "HEAD 与 origin/main 不一致，请先推送版本改动" >&2; exit 1; }
 grep -q "^## ${VERSION} · " CHANGELOG.md \
   || { echo "CHANGELOG.md 顶部不是 ${VERSION}，与 project.yml 不一致" >&2; exit 1; }
 
@@ -35,15 +31,20 @@ done
 for file in "$APPCAST" "$CASK"; do
   [ -f "$file" ] || { echo "缺少 $file，先运行 ./scripts/release.sh" >&2; exit 1; }
 done
-python3 - "$APPCAST" "$VERSION" "dist/XStats-${VERSION}-AppleSilicon.zip" <<'PY' \
+python3 - "$APPCAST" "$VERSION" "$BUILD" "dist/XStats-${VERSION}-AppleSilicon.zip" <<'PY' \
   || { echo "$APPCAST 与升级包不一致" >&2; exit 1; }
 import hashlib, json, sys
 feed = json.load(open(sys.argv[1]))
 digest = lambda path: hashlib.sha256(open(path, "rb").read()).hexdigest()
 assert feed["version"] == sys.argv[2] and feed["notes"], feed
-assert feed["sha256"] == digest(sys.argv[3]) and feed["url"].endswith("-AppleSilicon.zip"), feed
+assert feed["build"] == sys.argv[3], feed
+assert feed["sha256"] == digest(sys.argv[4]) and feed["url"].endswith("-AppleSilicon.zip"), feed
 assert "intel" not in feed, feed
 PY
+git fetch --quiet origin main
+HEAD_SHA="$(git rev-parse HEAD)"
+[ "$HEAD_SHA" = "$(git rev-parse origin/main)" ] \
+  || { echo "HEAD 与 origin/main 不一致，请先推送版本改动" >&2; exit 1; }
 python3 scripts/sparkle_appcast.py "$APPCAST" "dist/XStats-${VERSION}-AppleSilicon.zip" --verify
 # 新客户端依赖固定 XML 入口；先部署两区域 API，再对外发布客户端。探测不产生安装统计。
 python3 scripts/publish_api.py --check-sparkle

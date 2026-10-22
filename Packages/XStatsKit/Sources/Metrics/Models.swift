@@ -256,6 +256,8 @@ public struct SystemInfo: Sendable, Equatable {
 }
 
 public struct MetricsSnapshot: Sendable {
+  /// 暂停期间只供合盖保护使用，不写入普通监控历史或更新界面。
+  public var isBatterySafetySample = false
   public var date = Date()
   /// Hub 的采样代次；手工快照与演示数据不设置。用于拒绝开关变化前已排队的结果。
   public var samplingGeneration: Int?

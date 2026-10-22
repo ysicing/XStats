@@ -305,7 +305,7 @@ class ReleaseHookTests(unittest.TestCase):
                 (dist / f"XStats-9.9.9-AppleSilicon.{ext}").write_bytes(b"app")
             digest = hashlib.sha256(b"app").hexdigest()
             (dist / "xstats.rb").write_text('version "9.9.9"\n' + digest)
-            (dist / "appcast.json").write_text(json.dumps({"version": "9.9.9", "notes": ["fixture"],
+            (dist / "appcast.json").write_text(json.dumps({"version": "9.9.9", "build": "1", "notes": ["fixture"],
                                                          "sha256": digest, "url": "XStats-9.9.9-AppleSilicon.zip"}))
             log = root / "events"
             commands = {

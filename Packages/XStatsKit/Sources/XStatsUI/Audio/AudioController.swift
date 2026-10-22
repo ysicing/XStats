@@ -132,12 +132,9 @@ final class AudioController {
       write: { [hardware] request in
         try await hardware.setVolume(
           request.level, device: request.device, direction: request.direction)
-        if request.level > 0,
-          (request.direction == .output ? request.device.outputMuted : request.device.inputMuted)
-            == true
-        {
-          try await hardware.setMuted(false, device: request.device, direction: request.direction)
-        }
+      },
+      unmute: { [hardware] request in
+        try await hardware.setMuted(false, device: request.device, direction: request.direction)
       },
       finished: { [weak self] request, error in
         guard let self, enabled, !sleeping else { return }

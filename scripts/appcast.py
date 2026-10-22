@@ -94,6 +94,11 @@ def component_manifest(version: str, build: str, base: str, archive: Path, app: 
 
 def main() -> None:
     version, build, base, arm_zip, arm_dmg, app = sys.argv[1:7]
+    with (Path(app) / "Contents/Info.plist").open("rb") as source:
+        info = plistlib.load(source)
+    if (info.get("CFBundleIdentifier") != "work.12306.xstats.app"
+            or info.get("CFBundleShortVersionString") != version or info.get("CFBundleVersion") != build):
+        raise ValueError("主应用包身份或版本与发行参数不一致")
     root = os.path.join(os.path.dirname(__file__), "..")
     with open(os.path.join(root, "CHANGELOG.md"), encoding="utf-8") as handle:
         date, notes = release_notes(handle.read(), version)

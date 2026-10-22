@@ -2,6 +2,7 @@
 
 import Foundation
 import Testing
+@testable import Metrics
 @testable import XStatsUI
 
 @MainActor
@@ -27,6 +28,38 @@ private final class SleepControlFixture: SleepControlClient {
 @Suite(.timeLimit(.minutes(1)))
 @MainActor
 struct KeepAwakeLifecycleTests {
+  @Test func safetyOnlySnapshotDoesNotPublishRegularMonitoringState() throws {
+    let suite = "KeepAwakeSafetySnapshot.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let model = AppModel(
+      settings: AppSettings(defaults: defaults), historyURL: nil,
+      aiUsageProviders: [], aiQuotaProviders: [])
+    var snapshot = MetricsSnapshot()
+    snapshot.isBatterySafetySample = true
+    snapshot.battery = BatteryStatus(
+      level: 0.1, isCharging: false, isPluggedIn: false, isFullyCharged: false)
+    model.handle(snapshot)
+    #expect(model.store.battery == nil)
+  }
+  @Test func lowBatteryRestoresSleepWhileLidModeIsActive() async throws {
+    try await withController { controller, helper in
+      await controller.start()
+      let enable = Task { await controller.setLidClosed(true) }
+      while helper.enableContinuation == nil { await Task.yield() }
+      helper.enableContinuation?.resume(returning: nil)
+      helper.enableContinuation = nil
+      await enable.value
+      controller.evaluateBattery(
+        BatteryStatus(level: 0.01, isCharging: false, isPluggedIn: false, isFullyCharged: false))
+      let deadline = ContinuousClock.now + .seconds(2)
+      while helper.sleepDisabled, ContinuousClock.now < deadline {
+        try await Task.sleep(for: .milliseconds(10))
+      }
+      #expect(helper.requests == [true, false])
+      #expect(!helper.sleepDisabled && !controller.lidClosedActive)
+    }
+  }
   @Test func stopWaitsForLateEnableAndRestoresSystemSleep() async throws {
     try await withController { controller, helper in
       await controller.start()

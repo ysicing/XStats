@@ -214,7 +214,8 @@ public final class FanControl {
     #if arch(arm64)
       // 使用 Ftst 解锁的机型还需复位该键，让 thermalmonitord 接管。
       let ftst = SMCKey("Ftst")
-      if smc.exists(ftst), smc.double(ftst) == 1 {
+      // 已知存在却读不到时仍须尝试有界复位，不能把未知状态当作已交还系统。
+      if smc.exists(ftst), smc.double(ftst) != 0 {
         do { try writeWithRetry(ftst, value: 0) } catch { firstError = firstError ?? error }
       }
     #endif

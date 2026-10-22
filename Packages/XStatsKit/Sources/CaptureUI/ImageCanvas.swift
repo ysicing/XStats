@@ -217,7 +217,7 @@ struct ImageCanvas: NSViewRepresentable {
     needsDisplay = true
   }
   override func keyDown(with event: NSEvent) {
-    guard !model.detecting, !model.terminating else { return }
+    guard !model.rendering, !model.detecting, !model.terminating else { return }
     if event.keyCode == 53 {
       gesture = nil
       cancelText()

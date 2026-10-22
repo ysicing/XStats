@@ -121,6 +121,7 @@ public final class AlertController: NSObject {
   @ObservationIgnored var onWellnessAction: ((String, [String], String) -> Void)?
   @ObservationIgnored private let settings: AppSettings
   @ObservationIgnored private let defaults: UserDefaults
+  @ObservationIgnored private let submitNotification: (UNNotificationRequest) -> Void
   @ObservationIgnored private var trackers: [AlertKind: AlertTracker] = [:]
   @ObservationIgnored private var pathMonitor: NWPathMonitor?
   @ObservationIgnored private var networkNotified = false
@@ -138,9 +139,19 @@ public final class AlertController: NSObject {
     Bundle.main.bundleIdentifier == nil ? nil : UNUserNotificationCenter.current()
   }
 
-  init(settings: AppSettings, defaults: UserDefaults = .standard) {
+  init(
+    settings: AppSettings, defaults: UserDefaults = .standard,
+    authorization: Authorization = .unknown,
+    submitNotification: ((UNNotificationRequest) -> Void)? = nil
+  ) {
     self.settings = settings
     self.defaults = defaults
+    self.authorization = authorization
+    self.submitNotification =
+      submitNotification ?? { request in
+        guard Bundle.main.bundleIdentifier != nil else { return }
+        UNUserNotificationCenter.current().add(request)
+      }
     super.init()
   }
 
@@ -406,11 +417,19 @@ public final class AlertController: NSObject {
       requestAuthorization { [weak self] in self?.sendTest() }
       return
     }
-    send(.cpuTemperature, title: tr("XStats 通知测试"), body: tr("通知可以正常显示。发生你打开的状况时，会像这样提醒你。"))
+    guard authorization == .allowed else { return }
+    let content = UNMutableNotificationContent()
+    content.title = tr("XStats 通知测试")
+    content.body = tr("通知可以正常显示。发生你打开的状况时，会像这样提醒你。")
+    content.sound = .default
+    content.userInfo = ["tab": PanelTab.settingsNotifications.rawValue]
+    Log.app.notice("发送测试通知")
+    submitNotification(
+      UNNotificationRequest(identifier: "xstats.test", content: content, trigger: nil))
   }
 
   private func send(_ kind: AlertKind, title: String? = nil, body: String) {
-    guard settings.activeAlerts.contains(kind), let center else { return }
+    guard settings.activeAlerts.contains(kind) else { return }
     Log.app.notice("发送通知：\(kind.rawValue, privacy: .public)")
     let content = UNMutableNotificationContent()
     content.title = title ?? kind.title
@@ -418,7 +437,7 @@ public final class AlertController: NSObject {
     content.sound = .default
     content.userInfo = ["tab": kind.tab.rawValue]
     // 同一种状况用固定标识，新的提醒替换旧的，不在通知中心堆积
-    center.add(
+    submitNotification(
       UNNotificationRequest(identifier: "xstats.\(kind.rawValue)", content: content, trigger: nil))
   }
 

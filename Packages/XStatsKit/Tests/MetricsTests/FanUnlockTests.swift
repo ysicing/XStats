@@ -19,9 +19,12 @@ private final class FanFirmware: FanSMCAccess {
   var unreadableModeAfterWrite = false
   var modeWriteError: SMCError?
   var failsTarget = false
+  var unreadableFtst = false
+  var failsFtstReset = false
 
   func double(_ key: SMCKey) -> Double? {
     if key == SMCKey("F0Md"), unreadableModeAfterWrite, modeAttempts > 0 { return nil }
+    if key == SMCKey("Ftst"), unreadableFtst { return nil }
     return values[key]
   }
   func exists(_ key: SMCKey) -> Bool { values[key] != nil }
@@ -34,6 +37,9 @@ private final class FanFirmware: FanSMCAccess {
       if ignoresModeWrites || modeAttempts <= ignoredModeAttempts { return }
     }
     if key == SMCKey("F0Tg"), failsTarget { throw SMCError.firmwareRejected(key, 1) }
+    if key == SMCKey("Ftst"), value == 0, failsFtstReset {
+      throw SMCError.firmwareRejected(key, 1)
+    }
     values[key] = value
   }
   func control() -> FanControl { FanControl(access: self, sleep: { self.sleeps.append($0) }) }
@@ -234,5 +240,37 @@ struct FanUnlockTests {
     try firmware.control().resetAll()
     #expect(firmware.values[SMCKey("F0Md")] == 0 && firmware.values[SMCKey("F1Md")] == 0)
     #expect(firmware.values[SMCKey("Ftst")] == 0)
+  }
+
+  @Test func unreadableGlobalUnlockStillAttemptsReset() throws {
+    let firmware = FanFirmware()
+    firmware.values[SMCKey("Ftst")] = 1
+    firmware.unreadableFtst = true
+    try firmware.control().resetAll()
+    #expect(firmware.values[SMCKey("Ftst")] == 0)
+    #expect(firmware.writes.filter { $0.0 == SMCKey("Ftst") }.count == 1)
+  }
+
+  @Test func failedUnreadableGlobalUnlockResetIsBoundedAndReported() {
+    let firmware = FanFirmware()
+    firmware.values[SMCKey("F0Md")] = 1
+    firmware.values[SMCKey("Ftst")] = 1
+    firmware.unreadableFtst = true
+    firmware.failsFtstReset = true
+    #expect(throws: SMCError.self) { try firmware.control().resetAll() }
+    #expect(firmware.values[SMCKey("F0Md")] == 0)
+    #expect(firmware.values[SMCKey("Ftst")] == 1)
+    #expect(firmware.writes.filter { $0.0 == SMCKey("Ftst") }.count == 10)
+    #expect(firmware.sleeps.count == 9)
+  }
+
+  @Test(arguments: [false, true])
+  func absentOrAutomaticGlobalUnlockNeedsNoWrite(present: Bool) throws {
+    let firmware = FanFirmware()
+    firmware.values[SMCKey("Ftst")] = present ? 0 : nil
+    firmware.failsFtstReset = true
+    try firmware.control().resetAll()
+    #expect(firmware.writes.allSatisfy { $0.0 != SMCKey("Ftst") })
+    #expect(firmware.sleeps.isEmpty)
   }
 }

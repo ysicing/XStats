@@ -7,6 +7,7 @@ import AppKit
 import Localization
 import SwiftUI
 import Testing
+import WidgetData
 @testable import XStatsUI
 
 private actor MagpieStub: MagpieFetching {
@@ -74,6 +75,70 @@ private final class MagpieTestClock: @unchecked Sendable {
 
 @MainActor
 struct MagpieControllerTests {
+  @Test func magpieRefreshSynchronizesWidgetIncludingStaleFailure() async throws {
+    let suite = "MagpieWidget.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.aiUsageEnabled = true
+    settings.aiUsageShowsLocalUsage = true
+    let magpie = MagpieStub()
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      magpieClient: magpie)
+    defer { model.aiUsage.stop() }
+    let store = WidgetSnapshotStore(defaults: defaults)
+    let app = AppController(model: model, widgetStore: store, reloadWidget: { _ in })
+    app.syncWidgetSnapshot()
+    app.observeWidgetState()
+    await model.aiUsage.refresh()
+    try await waitForWidget { !store.load().quotas.isEmpty }
+    #expect(store.load().dailyTokens?.first?.tokens == 120)
+    #expect(store.load().quotas.allSatisfy { !$0.isStale })
+    await magpie.fail(true)
+    await model.aiUsage.refresh()
+    try await waitForWidget { store.load().quotas.contains { $0.isStale } }
+    #expect(store.load().quotas.allSatisfy { $0.isStale })
+  }
+
+  @Test func widgetSelectsQuotaUsingCurrentTimeInsteadOfMidnight() async throws {
+    let calendar = CalendarEngine.gregorian()
+    let today = calendar.startOfDay(for: .now)
+    let now = today.addingTimeInterval(11 * 3600)
+    let expired = today.addingTimeInterval(9 * 3600).ISO8601Format()
+    let valid = today.addingTimeInterval(17 * 3600).ISO8601Format()
+    let payload = Data(
+      """
+      {"object":"list","data":[{"provider":"codex","name":"fixture","kind":"subscription","windows":[
+        {"name":"7 days","remaining":10,"resetsAt":"\(expired)"},
+        {"name":"5 hours","remaining":70,"resetsAt":"\(valid)"}
+      ]}]}
+      """.utf8)
+    let suite = "MagpieWidgetClock.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.aiUsageEnabled = true
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      magpieClient: MagpieStub(quotaPayload: payload))
+    defer { model.aiUsage.stop() }
+    await model.aiUsage.refresh()
+    let store = WidgetSnapshotStore(defaults: defaults)
+    let app = AppController(model: model, widgetStore: store, reloadWidget: { _ in })
+    app.syncWidgetSnapshot(now: now)
+    #expect(store.load().currentQuotas(at: now).map(\.kind) == ["5 hours"])
+    #expect(store.load().currentQuotas(at: now).first?.remainingPercent == 70)
+  }
+
+  private func waitForWidget(_ condition: () -> Bool) async throws {
+    let deadline = ContinuousClock.now + .seconds(2)
+    while !condition(), ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(condition())
+  }
+
   private func settings() -> AppSettings {
     let settings = AppSettings(
       defaults: UserDefaults(suiteName: "MagpieControllerTests.\(UUID().uuidString)")!)

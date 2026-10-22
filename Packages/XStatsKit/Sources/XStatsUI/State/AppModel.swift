@@ -384,7 +384,8 @@ public final class AppModel {
       demand.temperatures.insert(.cpu)
       demand.fans = true
     }
-    if keepAwake.lidClosedActive { demand.battery = true }
+    demand.batterySafety = keepAwake.lidClosedActive
+    if demand.batterySafety { demand.battery = true }
     demand.processes =
       processPage
       || (demand.processes
@@ -395,6 +396,7 @@ public final class AppModel {
     if demand.battery, !energyEnabled {
       var otherDemand = demand
       otherDemand.battery = false
+      otherDemand.batterySafety = false
       if !otherDemand.hasSamples { demand.interval = .seconds(10) }
     }
     return demand
@@ -525,6 +527,10 @@ public final class AppModel {
   }
 
   func handle(_ snapshot: MetricsSnapshot) {
+    if snapshot.isBatterySafetySample {
+      keepAwake.evaluateBattery(snapshot.battery)
+      return
+    }
     guard snapshot.samplingGeneration.map({ $0 == settings.monitoringGeneration }) ?? true else {
       return
     }

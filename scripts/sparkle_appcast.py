@@ -89,6 +89,9 @@ def load_manifest(manifest: Path, archive: Path) -> dict:
             infos.append(plistlib.loads(bundle.read(matches[0])))
         if infos[0].get("CFBundleIdentifier") != identifier:
             raise ValueError("升级 ZIP 的应用 Bundle ID 与清单不一致")
+        if (infos[0].get("CFBundleShortVersionString") != feed["version"]
+                or infos[0].get("CFBundleVersion") != feed["build"]):
+            raise ValueError("升级 ZIP 的应用版本或构建号与清单不一致")
         if extension is not None:
             info = infos[1]
             if (info.get("CFBundleIdentifier") != "work.12306.xstats.app.networkextension"

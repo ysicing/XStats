@@ -186,6 +186,7 @@ tasks:
       - python3 scripts/github_release_notes_test.py
       - python3 scripts/network_geography_test.py
       - python3 scripts/perf_test.py
+      - python3 scripts/helper_recovery_test.py
       - bash scripts/release_network_component_test.sh
       - task: test-network-component
       - task: test-api

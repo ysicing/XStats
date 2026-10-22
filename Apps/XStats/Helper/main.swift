@@ -98,12 +98,13 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
       }
       do {
         // 写入可能部分生效后抛错；先落盘意图，断连或异常重启仍能恢复。
-        recoveryState.recordFanOverride(fan)
-        persist()
+        var pending = recoveryState
+        pending.recordFanOverride(fan)
+        try persist(pending)
         try fans.setManual(fan: fan, rpm: rpm)
         reply(nil)
       } catch {
-        log.error("设置风扇 \(fan) 失败：\(String(describing: error), privacy: .public)")
+        log.error("设置风扇 \(fan) 失败：\(String(describing: error).prefix(200), privacy: .private)")
         reply("设置风扇失败：\(error)")
       }
     }
@@ -118,7 +119,7 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
       do {
         try fans.setAutomatic(fan: fan)
         recoveryState.recordFanRestored(fan)
-        persist()
+        try? persist(recoveryState)
         reply(nil)
       } catch {
         log.error("恢复风扇 \(fan) 失败：\(String(describing: error), privacy: .public)")
@@ -241,7 +242,7 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
     do {
       try fans.resetAll()
       recoveryState.recordAllFansRestored()
-      persist()
+      try? persist(recoveryState)
       return nil
     } catch {
       return "恢复风扇失败：\(error)"
@@ -253,8 +254,13 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
   private func applySleepDisabled(_ disabled: Bool) -> String? {
     // 先记录接管意图：pmset 已生效但超时/退出异常时，也必须在断连后尝试恢复。
     if disabled {
-      recoveryState.sleepDisabled = true
-      persist()
+      var pending = recoveryState
+      pending.sleepDisabled = true
+      do {
+        try persist(pending)
+      } catch {
+        return "pmset 执行失败：\(error)"
+      }
     }
     let result = runTool(
       "/usr/bin/pmset", ["-a", "disablesleep", disabled ? "1" : "0"], timeout: 5)
@@ -262,7 +268,7 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
       return "pmset 执行失败：\(result.output.trimmingCharacters(in: .whitespacesAndNewlines))"
     }
     recoveryState.sleepDisabled = disabled
-    persist()
+    if !disabled { try? persist(recoveryState) }
     return nil
   }
 
@@ -307,14 +313,23 @@ final class HelperService: NSObject, NSXPCListenerDelegate, XStatsHelperProtocol
 
   // MARK: 持久化
 
-  private func persist() {
-    guard recoveryState.hasPendingRecovery else {
-      try? FileManager.default.removeItem(at: stateURL)
-      return
+  private func persist(_ state: HelperRecoveryState) throws {
+    do {
+      if state.hasPendingRecovery {
+        try FileManager.default.createDirectory(
+          at: stateURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try PropertyListEncoder().encode(state).write(to: stateURL, options: .atomic)
+      } else {
+        do {
+          try FileManager.default.removeItem(at: stateURL)
+        } catch CocoaError.fileNoSuchFile {
+        }
+      }
+      recoveryState = state
+    } catch {
+      log.error("保存恢复状态失败：\(String(describing: error).prefix(200), privacy: .private)")
+      throw error
     }
-    try? FileManager.default.createDirectory(
-      at: stateURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try? PropertyListEncoder().encode(recoveryState).write(to: stateURL, options: .atomic)
   }
 }
 

@@ -93,6 +93,19 @@ cat > "$WORK/repo/CHANGELOG.md" <<'LOG'
 
 - 在“设置 → 关于”提供服务条款和隐私政策，说明本机数据、更新统计、第三方联网功能及用户自行配置的 WebDAV 同步。
 LOG
+python3 - "$WORK/XStats.app/Contents/Info.plist" <<'PY'
+from pathlib import Path
+import plistlib
+import sys
+
+path = Path(sys.argv[1])
+path.parent.mkdir(parents=True)
+path.write_bytes(plistlib.dumps({
+    "CFBundleIdentifier": "work.12306.xstats.app",
+    "CFBundleShortVersionString": "9.9.9",
+    "CFBundleVersion": "110",
+}))
+PY
 printf 'zip' > "$WORK/XStats-9.9.9-AppleSilicon.zip"
 printf 'dmg' > "$WORK/XStats-9.9.9-AppleSilicon.dmg"
 (cd "$WORK/repo" && python3 scripts/appcast.py 9.9.9 110 https://example.test \

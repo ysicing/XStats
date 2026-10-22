@@ -3,6 +3,7 @@
 
 import Foundation
 import Testing
+import UserNotifications
 @testable import XStatsUI
 
 @MainActor
@@ -115,5 +116,30 @@ struct UpdateNotificationTests {
     #expect(next.content.title.contains("1.0.1"))
     #expect(next.content.userInfo["updates"] as? Bool == true)
     #expect(next.trigger == nil)
+  }
+
+  @Test func testNotificationDoesNotRequireAnyMonitoringAlert() {
+    let settings = AppSettings(defaults: defaults)
+    settings.enabledAlerts = []
+    settings.enabledMonitoringModules = []
+    var requests: [UNNotificationRequest] = []
+    let controller = AlertController(
+      settings: settings, defaults: defaults, authorization: .allowed,
+      submitNotification: { requests.append($0) })
+    controller.sendTest()
+    #expect(requests.count == 1)
+    #expect(requests.first?.identifier == "xstats.test")
+    #expect(
+      requests.first?.content.userInfo["tab"] as? String == PanelTab.settingsNotifications.rawValue)
+    #expect(settings.activeAlerts.isEmpty)
+  }
+
+  @Test func deniedTestNotificationDoesNotSubmit() {
+    var submissions = 0
+    let controller = AlertController(
+      settings: AppSettings(defaults: defaults), authorization: .denied,
+      submitNotification: { _ in submissions += 1 })
+    controller.sendTest()
+    #expect(submissions == 0)
   }
 }

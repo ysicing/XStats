@@ -13,8 +13,9 @@ import WidgetKit
 
 @MainActor
 public final class AppController: NSObject, NSApplicationDelegate {
-  private let model = AppModel(quotaCacheURL: AIQuotaCacheStore.defaultURL)
-  private let widgetStore = WidgetSnapshotStore()
+  private let model: AppModel
+  private let widgetStore: WidgetSnapshotStore
+  private let reloadWidget: (String) -> Void
   private var menuBarFolding: MenuBarFoldingController!
   private var menuBar: MenuBarController!
   private var calendarMenuBar: CalendarMenuBarController!
@@ -43,7 +44,19 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private var hubShouldPause = false
   private var hubPauseTask: Task<Void, Never>?
 
-  public override init() {
+  public override convenience init() {
+    self.init(
+      model: AppModel(quotaCacheURL: AIQuotaCacheStore.defaultURL),
+      widgetStore: WidgetSnapshotStore())
+  }
+
+  init(
+    model: AppModel, widgetStore: WidgetSnapshotStore,
+    reloadWidget: @escaping (String) -> Void = { WidgetCenter.shared.reloadTimelines(ofKind: $0) }
+  ) {
+    self.model = model
+    self.widgetStore = widgetStore
+    self.reloadWidget = reloadWidget
     super.init()
   }
 
@@ -301,7 +314,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       await appModel.hub.update(appModel.demand)
       await appModel.hub.start(primeAllMetrics: false) { [weak self] snapshot in
         appModel.handle(snapshot)
-        self?.menuBar.refreshImages()
+        if !snapshot.isBatterySafetySample { self?.menuBar.refreshImages() }
       }
     }
     deepLinksReady = true
@@ -787,7 +800,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   }
 
   /// Widget 只读共享的展示摘要；所有凭据读取和网络查询仍留在主应用。
-  private func observeWidgetState() {
+  func observeWidgetState() {
     withObservationTracking {
       _ = model.settings.aiUsageEnabled
       _ = model.settings.aiUsageSources
@@ -800,6 +813,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.settings.calendarFeatures
       _ = model.aiUsage.states
       _ = model.aiUsage.quotaStates
+      _ = model.aiUsage.lastAttemptAt
       _ = model.network.publicResults
     } onChange: { [weak self] in
       Task { @MainActor in
@@ -810,11 +824,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
   }
 
-  private func syncWidgetSnapshot() {
+  func syncWidgetSnapshot(now: Date = .now) {
     let settings = model.settings
     let previous = widgetStore.load()
     let calendar = CalendarEngine.gregorian()
-    let today = calendar.startOfDay(for: .now)
+    let today = calendar.startOfDay(for: now)
     let todayKey = CalendarEngine.today(at: today)?.id
     let dataVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
     let reusesCalendar = previous.calendarDataVersion == dataVersion
@@ -880,7 +894,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       } : nil
     if model.aiUsage.usesMagpie {
       // Widget 保留原来的三服务摘要；菜单栏选择与宽度不影响小组件。
-      quotas = model.aiUsage.magpieQuotaReadings(at: today)
+      quotas = model.aiUsage.magpieQuotaReadings(at: now)
         .sorted { $0.sourceName < $1.sourceName }.prefix(3).map { quota in
           WidgetSnapshot.Quota(
             provider: quota.sourceName, kind: quota.shortWindowName,
@@ -922,7 +936,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       calendarDataVersion: dataVersion, showsAlmanac: true)
     guard snapshot != previous, widgetStore.save(snapshot) else { return }
     for kind in snapshot.changedWidgetKinds(from: previous) {
-      WidgetCenter.shared.reloadTimelines(ofKind: kind)
+      reloadWidget(kind)
     }
   }
 
@@ -1020,6 +1034,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     menuBar.dismissPopovers()
     model.fans.setPaused(true)
     model.network.setPaused(true)
+    model.egress.setPaused(true)
     model.diskTools.setPaused(true)
     model.aiUsage.setPaused(true)
     model.displays.setPaused(true)
@@ -1052,6 +1067,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     inactivityGeneration &+= 1
     model.fans.setPaused(false)
     model.network.setPaused(false)
+    model.egress.setPaused(false)
     model.diskTools.setPaused(false)
     model.aiUsage.setPaused(false)
     model.displays.setPaused(false)

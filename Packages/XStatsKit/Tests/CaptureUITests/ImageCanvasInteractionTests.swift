@@ -6,7 +6,11 @@ import CaptureCore
 @testable import CaptureUI
 
 @Suite @MainActor struct ImageCanvasInteractionTests {
-  private func editor() throws -> (ImageEditorModel, ImageCanvasView, NSWindow) {
+  private func editor(
+    saveImage: @escaping @Sendable (ImageEditDocument, URL, Bool, ImageMosaics?) throws -> Void = {
+      try $0.save(to: $1, jpeg: $2, mosaics: $3)
+    }
+  ) throws -> (ImageEditorModel, ImageCanvasView, NSWindow) {
     _ = NSApplication.shared
     let context = try #require(
       CGContext(
@@ -15,7 +19,7 @@ import CaptureCore
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
     context.setFillColor(CGColor(gray: 1, alpha: 1))
     context.fill(CGRect(x: 0, y: 0, width: 100, height: 100))
-    let model = ImageEditorModel(image: try #require(context.makeImage()))
+    let model = ImageEditorModel(image: try #require(context.makeImage()), saveImage: saveImage)
     let canvas = ImageCanvasView(model: model)
     let window = NSWindow(
       contentRect: CGRect(x: 0, y: 0, width: 320, height: 240), styleMask: [.titled],
@@ -126,6 +130,84 @@ import CaptureCore
     model.undo()
     await model.waitForPendingWork()
     #expect(model.document.annotations[0].text == "Before")
+  }
+  @Test(
+    .timeLimit(.minutes(1)),
+    arguments: [("\r", UInt16(36)), ("\u{7f}", 51), ("\u{1b}", 53), ("t", 17)]
+  )
+  func nativeKeyboardCannotEditDuringSave(characters: String, keyCode: UInt16) async throws {
+    let release = DispatchSemaphore(value: 0)
+    defer { release.signal() }
+    let (started, starts) = AsyncStream<Void>.makeStream()
+    let (saved, saves) = AsyncStream<ImageEditDocument>.makeStream()
+    defer {
+      starts.finish()
+      saves.finish()
+    }
+    let (model, canvas, window) = try editor { document, _, _, _ in
+      starts.yield(())
+      guard release.wait(timeout: .now() + 10) == .success else {
+        throw CaptureError.exportFailed
+      }
+      try Task.checkCancellation()
+      saves.yield(document)
+    }
+    defer {
+      model.cancelPendingWork(terminating: true)
+      window.close()
+    }
+    await model.waitForPendingWork()
+    let item = ImageAnnotation(tool: .text, points: [CGPoint(x: 20, y: 20)], text: "Before")
+    model.document.add(item)
+    model.select(item.id)
+    #expect(window.makeFirstResponder(canvas))
+    let enter = try #require(
+      NSEvent.keyEvent(
+        with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+        windowNumber: window.windowNumber, context: nil, characters: "\r",
+        charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36))
+    window.sendEvent(enter)
+    let before = try #require(canvas.subviews.first as? NSTextField)
+    let beforeEditor = try #require(before.currentEditor() as? NSTextView)
+    beforeEditor.insertText(
+      "Before save", replacementRange: NSRange(location: 0, length: beforeEditor.string.utf16.count)
+    )
+    model.finishEditing()
+    await model.waitForPendingWork()
+    #expect(model.selected?.text == "Before save")
+    #expect(window.makeFirstResponder(canvas))
+    var startIterator = started.makeAsyncIterator()
+    model.save(
+      to: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png"),
+      jpeg: false)
+    try #require(await startIterator.next() != nil)
+    #expect(model.rendering)
+    window.sendEvent(
+      try #require(
+        NSEvent.keyEvent(
+          with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+          windowNumber: window.windowNumber, context: nil, characters: characters,
+          charactersIgnoringModifiers: characters, isARepeat: false, keyCode: keyCode)))
+    #expect(model.editingText == false)
+    #expect(canvas.subviews.isEmpty)
+    #expect(model.selectedID == item.id && model.tool == nil)
+    model.finishEditing()
+    release.signal()
+    await model.waitForPendingWork()
+    try #require(model.error == nil)
+    var savedIterator = saved.makeAsyncIterator()
+    let savedDocument = try #require(await savedIterator.next())
+    #expect(savedDocument.annotations.first?.text == "Before save")
+    #expect(model.dirty == false && model.rendering == false)
+    window.sendEvent(enter)
+    let after = try #require(canvas.subviews.first as? NSTextField)
+    let afterEditor = try #require(after.currentEditor() as? NSTextView)
+    afterEditor.insertText(
+      "After save", replacementRange: NSRange(location: 0, length: afterEditor.string.utf16.count))
+    window.sendEvent(enter)
+    await model.waitForPendingWork()
+    #expect(model.selected?.text == "After save")
+    #expect(model.editingText == false && model.dirty)
   }
   @Test(arguments: [false, true]) func savedTextStyleDraftRequiresUnsavedConfirmation(
     changeFont: Bool
