@@ -2409,3 +2409,24 @@ Wi-Fi 图标大小	Größe des WLAN-Symbols
 登录后运行的代理（LaunchAgents）；当前用户的项目可启停，所有用户的项目只读。	Agenten (LaunchAgents) werden nach der Anmeldung ausgeführt. Eigene Einträge lassen sich aktivieren oder deaktivieren; Einträge für alle Benutzer sind schreibgeschützt.
 1 项 · 可直接停用	1 Eintrag · hier deaktivierbar
 1 项 · 需要管理员权限，只读	1 Eintrag · Administratorrechte nötig, schreibgeschützt
+后台守护进程	Hintergrunddienste
+无法识别 Homebrew 服务列表	Die Homebrew-Dienstliste konnte nicht gelesen werden
+服务已变化或不属于当前用户，请刷新后重试	Der Dienst wurde geändert oder gehört einem anderen Benutzer. Aktualisieren Sie die Liste und versuchen Sie es erneut.
+服务操作已完成，请以刷新后的状态为准	Dienstbefehl abgeschlossen. Prüfen Sie den aktualisierten Status.
+管理当前用户的 Homebrew 服务；系统级服务只读。	Verwalten Sie Ihre Homebrew-Dienste. Systemweite Dienste sind schreibgeschützt.
+安装 Homebrew 后，可在这里管理服务。	Installieren Sie Homebrew, um hier Dienste zu verwalten.
+Homebrew 服务	Homebrew-Dienste
+没有 Homebrew 服务	Keine Homebrew-Dienste
+管理服务	Dienst verwalten
+管理服务“{}”	Dienst „{}“ verwalten
+启动或重启可能同时开启登录时自动启动；停止会取消自动启动。	Starten oder Neustarten kann auch den automatischen Start bei der Anmeldung aktivieren. Stoppen deaktiviert ihn.
+启动服务	Dienst starten
+停止服务	Dienst stoppen
+重启服务	Dienst neu starten
+服务运行中	Läuft
+已安排定时运行	Geplant
+服务已停止	Gestoppt
+服务未启动	Nicht gestartet
+服务异常（退出码 {}）	Fehler (Exit-Code {})
+服务异常	Dienstfehler
+只读	Schreibgeschützt

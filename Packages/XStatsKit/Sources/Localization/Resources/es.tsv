@@ -2409,3 +2409,24 @@ Wi-Fi 图标大小	Tamaño del icono Wi-Fi
 登录后运行的代理（LaunchAgents）；当前用户的项目可启停，所有用户的项目只读。	Los agentes (LaunchAgents) se ejecutan al iniciar sesión. Puedes activar o desactivar tus elementos; los de todos los usuarios son de solo lectura.
 1 项 · 可直接停用	1 elemento · se puede desactivar aquí
 1 项 · 需要管理员权限，只读	1 elemento · requiere administrador, solo lectura
+后台守护进程	Demonios en segundo plano
+无法识别 Homebrew 服务列表	No se puede leer la lista de servicios de Homebrew
+服务已变化或不属于当前用户，请刷新后重试	El servicio ha cambiado o pertenece a otro usuario. Actualice la lista e inténtelo de nuevo.
+服务操作已完成，请以刷新后的状态为准	Comando completado. Compruebe el estado actualizado del servicio.
+管理当前用户的 Homebrew 服务；系统级服务只读。	Administre sus servicios de Homebrew. Los servicios del sistema son de solo lectura.
+安装 Homebrew 后，可在这里管理服务。	Instale Homebrew para administrar servicios aquí.
+Homebrew 服务	Servicios de Homebrew
+没有 Homebrew 服务	No hay servicios de Homebrew
+管理服务	Administrar servicio
+管理服务“{}”	Administrar el servicio «{}»
+启动或重启可能同时开启登录时自动启动；停止会取消自动启动。	Iniciar o reiniciar también puede activar el inicio automático al iniciar sesión. Detenerlo desactiva el inicio automático.
+启动服务	Iniciar servicio
+停止服务	Detener servicio
+重启服务	Reiniciar servicio
+服务运行中	En ejecución
+已安排定时运行	Programado
+服务已停止	Detenido
+服务未启动	Sin iniciar
+服务异常（退出码 {}）	Error (código de salida {})
+服务异常	Error del servicio
+只读	Solo lectura

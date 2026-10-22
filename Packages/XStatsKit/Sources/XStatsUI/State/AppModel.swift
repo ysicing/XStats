@@ -44,6 +44,7 @@ public final class AppModel {
   public let bluetooth = BluetoothController()
   let sleepAssertions = SleepAssertionController()
   let startupItems = StartupItemsController()
+  let homebrewServices = HomebrewServicesController()
   let ports = PortsController()
   public let history: HistoryRecorder
   public let sync: SyncController
@@ -119,7 +120,7 @@ public final class AppModel {
     let helper = HelperClient()
     self.settings = settings
     menuBarApplicationFolding = MenuBarApplicationFolding(settings: settings)
-    uninstaller = UninstallerController(enabled: settings.uninstallerEnabled)
+    uninstaller = UninstallerController()
     let observationBackend = NativeNetworkMonitorBackend()
     connectionMonitor = NetworkMonitorController(
       backend: observationBackend, defaults: settings.networkObservationDefaults)
@@ -571,8 +572,6 @@ public final class AppModel {
 
   /// 开关变化后同步清理已停止更新的实时值；旧历史数据库不受影响。
   func applyMonitoringSettings() {
-    uninstaller.setEnabled(settings.uninstallerEnabled)
-    appManagement.setEnabled(settings.uninstallerEnabled)
     displays.setEnabled(settings.isModuleEnabled(.display))
     store.clearDisabledModules(
       settings.enabledMonitoringModules, powerRequested: demand.power,

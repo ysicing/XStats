@@ -47,7 +47,9 @@ struct AppManagementPage: View {
     let selected = rows.first { $0.id == selection }
     VStack(alignment: .leading, spacing: DS.Space.s3) {
       toolbar
-      if !section.managesApplications {
+      if section == .services {
+        HomebrewServicesPage(search: search)
+      } else if section == .startup {
         StartupItemsPage(section: section, search: search)
       } else {
         if let error = controller.error {
@@ -190,7 +192,6 @@ struct AppManagementPage: View {
     return Picker(tr("应用服务"), selection: $settings.appServicesSection) {
       ForEach(AppServicesSection.allCases, id: \.self) { value in
         Text(value.title).tag(value)
-          .disabled(value.managesApplications && !settings.uninstallerEnabled)
       }
     }
     .pickerStyle(.segmented).labelsHidden().controlSize(.large)
@@ -224,12 +225,17 @@ struct AppManagementPage: View {
 
   private var toolbarActions: some View {
     HStack(spacing: DS.Space.s2) {
-      if !section.managesApplications {
-        if section == .startup {
-          Button(tr("登录项设置")) { model.helper.openLoginItemsSettings() }
-            .buttonStyle(DSButtonStyle(kind: .secondary))
-            .fixedSize()
+      if section == .services {
+        IconButton(systemName: "arrow.clockwise", help: tr("刷新")) {
+          model.homebrewServices.refresh()
         }
+        .disabled(
+          !model.homebrewServices.brewAvailable || model.homebrewServices.isLoading
+            || model.homebrewServices.working != nil)
+      } else if section == .startup {
+        Button(tr("登录项设置")) { model.helper.openLoginItemsSettings() }
+          .buttonStyle(DSButtonStyle(kind: .secondary))
+          .fixedSize()
         IconButton(systemName: "arrow.clockwise", help: tr("刷新")) { model.startupItems.refresh() }
           .disabled(model.startupItems.isLoading || model.startupItems.working != nil)
       } else {

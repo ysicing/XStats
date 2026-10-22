@@ -119,7 +119,7 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
 | **XStats Capture** | 内置截图标注、本地打码与带声音的录屏；可单独[下载 Capture](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.3)，详见 [Capture 使用说明](docs/CAPTURE.md) |
 | **风扇控制** | 在支持的设备上切换自动或手动控制 |
 | **防休眠** | 保持系统或屏幕唤醒，可配置合盖运行 |
-| **应用服务** | 统一管理应用、Homebrew、启动项与后台服务，查看应用信息和可用更新 |
+| **应用服务** | 统一管理应用、Homebrew、启动项与 Homebrew 服务，查看应用信息和可用更新 |
 | **清理** | 审阅应用残留、缓存与项目产物 · [清理范围](docs/CLEANUP.md) |
 | **网络诊断** | 测速、DNS 查询、出口检测、本地接口与多来源公网 IP 查询、归属地与纯净度、连通性探测 |
 | **菜单栏日历** | 农历、节假日与调休、黄历，以及系统日程和提醒事项 |

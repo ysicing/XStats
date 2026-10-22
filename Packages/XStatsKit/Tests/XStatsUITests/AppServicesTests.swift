@@ -29,29 +29,23 @@ struct AppServicesTests {
     #expect(settings.appServicesSection == .startup)
   }
 
-  @Test func disablingApplicationManagementPreservesStartupAndServices() throws {
+  @Test func legacyOptOutDoesNotRestrictAnyCategory() throws {
     let suite = "AppServicesTests.disabled.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(false, forKey: "uninstallerEnabled")
+    defaults.set(PanelTab.uninstaller.rawValue, forKey: "panelTab")
     let settings = AppSettings(defaults: defaults)
-    settings.panelTab = .uninstaller
-    settings.appServicesSection = .homebrew
-    settings.uninstallerEnabled = false
-    #expect(settings.panelTab == .uninstaller)
-    #expect(settings.appServicesSection == .startup)
-    settings.appServicesSection = .services
-    #expect(AppSettings(defaults: defaults).appServicesSection == .services)
-    settings.appServicesSection = .apps
-    #expect(settings.appServicesSection == .startup)
-    // 损坏或旧版保存的分类同样不能绕过关闭选择。
-    defaults.set("homebrew", forKey: "appServicesSection")
-    #expect(AppSettings(defaults: defaults).appServicesSection == .startup)
-    settings.uninstallerEnabled = true
-    settings.appServicesSection = .homebrew
-    #expect(AppSettings(defaults: defaults).appServicesSection == .homebrew)
+    for section in AppServicesSection.allCases {
+      settings.appServicesSection = section
+      #expect(settings.appServicesSection == section)
+      let reloaded = AppSettings(defaults: defaults)
+      #expect(reloaded.panelTab == .uninstaller)
+      #expect(reloaded.appServicesSection == section)
+    }
   }
 
-  @Test func launchCategoriesAreDisjointAndSearchMatchesProgramAndLabel() {
+  @Test func startupIncludesDaemonsAndHomebrewServicesDoNotScanLaunchd() {
     let items = LaunchItem.Scope.allCases.map { scope in
       LaunchItem(
         label: "test.\(scope.rawValue)",
@@ -59,10 +53,11 @@ struct AppServicesTests {
         program: "/Applications/Example.app/Contents/MacOS/agent", runAtLoad: true,
         keepAlive: false, disabledInPlist: false)
     }
-    #expect(AppServicesSection.startup.launchScopes == [.user, .allUsers])
-    #expect(AppServicesSection.services.launchScopes == [.system])
+    #expect(AppServicesSection.startup.launchScopes == [.user, .allUsers, .system])
+    #expect(AppServicesSection.services.launchScopes.isEmpty)
     #expect(
-      StartupItemsPage.filteredItems(items, section: .startup, scope: .system, search: "").isEmpty)
+      StartupItemsPage.filteredItems(items, section: .startup, scope: .system, search: "").count
+        == 1)
     #expect(
       StartupItemsPage.filteredItems(items, section: .services, scope: .user, search: "").isEmpty)
     #expect(
@@ -70,7 +65,7 @@ struct AppServicesTests {
         .count == 1)
     #expect(
       StartupItemsPage.filteredItems(
-        items, section: .services, scope: .system, search: "test.system"
+        items, section: .startup, scope: .system, search: "test.system"
       ).count == 1)
     #expect(
       StartupItemsPage.filteredItems(items, section: .startup, scope: .allUsers, search: "missing")
@@ -143,30 +138,26 @@ struct AppServicesTests {
 
   @Test func rapidCategoryChangesRejectOldReadsAndLimitScopes() async {
     let first = AppServicesReadGate()
-    let second = AppServicesReadGate()
     let third = AppServicesReadGate()
     let controller = StartupItemsController { scopes in
-      if scopes == [.system] { return await second.read(scopes) }
       if await first.calls == 0 { return await first.read(scopes) }
       return await third.read(scopes)
     }
     controller.setVisible(true, section: .startup)
     await waitForCalls(1, gate: first)
     controller.setVisible(true, section: .services)
-    await waitForCalls(1, gate: second)
+    #expect(!controller.isLoading)
     controller.setVisible(true, section: .startup)
     await waitForCalls(1, gate: third)
     await first.finish()
-    await second.finish()
     for _ in 0..<10 { await Task.yield() }
     #expect(controller.items.isEmpty && controller.isLoading)
     await third.finish()
     let deadline = ContinuousClock.now + .seconds(5)
     while controller.isLoading, ContinuousClock.now < deadline { await Task.yield() }
     #expect(controller.items.count == 1 && !controller.isLoading)
-    #expect(await first.scopes == [.user, .allUsers])
-    #expect(await second.scopes == [.system])
-    #expect(await third.scopes == [.user, .allUsers])
+    #expect(await first.scopes == [.user, .allUsers, .system])
+    #expect(await third.scopes == [.user, .allUsers, .system])
     controller.setVisible(false)
   }
 

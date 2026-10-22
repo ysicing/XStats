@@ -642,7 +642,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.settings.menuBarStyle
       _ = model.settings.networkStyle
       _ = model.settings.processesEnabled
-      _ = model.settings.uninstallerEnabled
       _ = model.settings.networkLocationStyle
       _ = model.settings.publicIPLookup
       _ = model.network.publicAddresses?.countryCode
@@ -1018,6 +1017,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.sleepAssertions.setPaused(true)
     model.appManagement.setPaused(true)
     model.startupItems.setPaused(true)
+    model.homebrewServices.setPaused(true)
     model.connectionMonitor.setPaused(true)
     model.ports.setPaused(true)
     model.history.flush()
@@ -1042,6 +1042,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.sleepAssertions.setPaused(false)
     model.appManagement.setPaused(false)
     model.startupItems.setPaused(false)
+    model.homebrewServices.setPaused(false)
     model.connectionMonitor.setPaused(false)
     model.ports.setPaused(false)
     rest.sync()

@@ -377,7 +377,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
   ]
   // 按中文名称由短到长排列，所有语言沿用固定顺序，保持导航位置一致。
   static let tools: [PanelTab] = [
-    .audio, .processes, .ports, .cleaner, .rest, .uninstaller, .keepAwake,
+    .audio, .processes, .ports, .cleaner, .rest, .keepAwake, .uninstaller,
     .connections,
   ]
   // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
@@ -779,15 +779,6 @@ public final class AppSettings {
   public var agentDataEnabled: Bool {
     didSet { defaults.set(agentDataEnabled, forKey: Keys.agentDataEnabled) }
   }
-  /// 卸载工具按需启用；关闭只停扫描和隐藏入口，不执行删除。
-  public var uninstallerEnabled: Bool {
-    didSet {
-      defaults.set(uninstallerEnabled, forKey: "uninstallerEnabled")
-      if !uninstallerEnabled && appServicesSection.managesApplications {
-        appServicesSection = .startup
-      }
-    }
-  }
   /// 来源开关只保存在本机；关闭后不扫描，也不显示其历史缓存。
   public var aiUsageSources: Set<AIProviderID> {
     didSet { defaults.set(aiUsageSources.map(\.rawValue).sorted(), forKey: Keys.aiUsageSources) }
@@ -854,12 +845,9 @@ public final class AppSettings {
   public var fanSafetyTemperature: Int {
     didSet { defaults.set(fanSafetyTemperature, forKey: Keys.fanSafetyTemperature) }
   }
-  /// 仅保存本机浏览分类，不随功能开关关闭而失去启动项与服务入口。
+  /// 应用服务始终可用，浏览分类仅保存在本机。
   public var appServicesSection: AppServicesSection {
     didSet {
-      if !uninstallerEnabled && appServicesSection.managesApplications {
-        appServicesSection = .startup
-      }
       defaults.set(appServicesSection.rawValue, forKey: "appServicesSection")
     }
   }
@@ -1232,8 +1220,6 @@ public final class AppSettings {
     let isCleanerEnabled = defaults.object(forKey: Keys.cleanerEnabled) as? Bool ?? true
     cleanerEnabled = isCleanerEnabled
     agentDataEnabled = defaults.bool(forKey: Keys.agentDataEnabled)
-    let isUninstallerEnabled = defaults.object(forKey: "uninstallerEnabled") as? Bool ?? true
-    uninstallerEnabled = isUninstallerEnabled
     let isProcessesEnabled = defaults.bool(forKey: Keys.processesEnabled)
     processesEnabled = isProcessesEnabled
     let isPortsEnabled = defaults.bool(forKey: Keys.portsEnabled)
@@ -1275,9 +1261,7 @@ public final class AppSettings {
     let savedSection =
       defaults.string(forKey: "appServicesSection")
       .flatMap(AppServicesSection.init(rawValue:)) ?? .apps
-    appServicesSection =
-      savedPanelTab == .startupItems
-        || (!isUninstallerEnabled && savedSection.managesApplications) ? .startup : savedSection
+    appServicesSection = savedPanelTab == .startupItems ? .startup : savedSection
     // 旧版 AI 助手设置页已移除，升级后仍留在设置分组。
     if savedPanelTabValue == "settingsAI" || savedPanelTab == .settingsAccount {
       panelTab = .settingsGeneral

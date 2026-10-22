@@ -119,12 +119,6 @@ struct StartupItemsPage: View {
     let controller = model.startupItems
 
     PageScroll {
-      InfoBanner(
-        icon: "info.circle",
-        text: section == .services
-          ? tr("后台守护进程（LaunchDaemons）只读展示，不会修改系统服务。")
-          : tr("登录后运行的代理（LaunchAgents）；当前用户的项目可启停，所有用户的项目只读。")
-      )
       if let message = controller.message {
         InfoBanner(
           icon: message.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill",
@@ -135,7 +129,8 @@ struct StartupItemsPage: View {
           controller.items, section: section, scope: scope, search: search)
         Card {
           CardHeader(
-            icon: scope == .system ? "lock.shield" : "person.crop.circle", title: scope.title
+            icon: scope == .system ? "lock.shield" : "person.crop.circle",
+            title: scope == .system ? tr("后台守护进程") : scope.title
           ) {
             HStack(spacing: DS.Space.s2) {
               Text(verbatim: scopeDetail(scope, count: items.count))

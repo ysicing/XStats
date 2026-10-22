@@ -172,7 +172,6 @@ enum SnapshotRenderer {
       defer { defaults.removePersistentDomain(forName: suite) }
       let settings = AppSettings(defaults: defaults)
       settings.language = L10n.language
-      settings.uninstallerEnabled = true
       settings.panelTab = .uninstaller
       let model = AppModel(
         settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
@@ -229,6 +228,17 @@ enum SnapshotRenderer {
             program: "/Library/PrivilegedHelperTools/com.example.backup", runAtLoad: true,
             keepAlive: true, disabledInPlist: false),
         ], status: LaunchStatus(loaded: ["com.example.editor.agent": 2048]))
+      model.homebrewServices.showPreview(
+        (try? HomebrewServices.parse(
+          #"""
+          [
+            {"name":"redis","status":"started","user":"demo"},
+            {"name":"postgresql@17","status":"none"},
+            {"name":"backup-timer","status":"scheduled","user":"demo"},
+            {"name":"nginx","status":"error","user":"root","file":"/Library/LaunchDaemons/homebrew.mxcl.nginx.plist","exit_code":256}
+          ]
+          """#
+        )) ?? [])
       for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
         guard let appearance = NSAppearance(named: name) else { continue }
         NSApp.appearance = appearance
@@ -544,7 +554,6 @@ enum SnapshotRenderer {
     ]
     settings.aiUsageEnabled = true
     settings.cleanerEnabled = true
-    settings.uninstallerEnabled = true
     settings.processesEnabled = true
     settings.portsEnabled = true
     // 历史页用示例数据：最近 24 小时每分钟一条，中间留一段“睡眠”空档

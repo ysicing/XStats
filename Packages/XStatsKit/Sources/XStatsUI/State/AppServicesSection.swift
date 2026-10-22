@@ -3,7 +3,7 @@
 import Cleaner
 import Localization
 
-/// 应用服务的展示分类；沿用原有功能开关与 launchd 权限边界。
+/// 应用服务的基础分类；数据按页面需求读取，沿用 launchd 权限边界。
 public enum AppServicesSection: String, CaseIterable, Sendable {
   case apps, homebrew, startup, services
 
@@ -20,9 +20,8 @@ public enum AppServicesSection: String, CaseIterable, Sendable {
 
   var launchScopes: [LaunchItem.Scope] {
     switch self {
-    case .startup: [.user, .allUsers]
-    case .services: [.system]
-    case .apps, .homebrew: []
+    case .startup: [.user, .allUsers, .system]
+    case .apps, .homebrew, .services: []
     }
   }
 

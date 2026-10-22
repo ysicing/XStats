@@ -193,14 +193,6 @@ struct FeatureSettings: View {
         }
         GroupRow {
           SettingRow(
-            title: tr("应用"), subtitle: tr("浏览应用信息，管理 Homebrew，并预览卸载残留。"), icon: "square.grid.2x2"
-          ) {
-            DSToggle(isOn: $settings.uninstallerEnabled, label: tr("应用"))
-              .disabled(model.uninstaller.isRemoving || model.appManagement.operation != nil)
-          }
-        }
-        GroupRow {
-          SettingRow(
             title: tr("清理"),
             subtitle: tr("按需扫描缓存、日志与项目产物，清理前逐项确认。"),
             icon: "eraser"

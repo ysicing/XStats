@@ -18,6 +18,27 @@ extension Translations {
   }
 
   static let appServicesEnglish = #"""
+    只读	Read Only
+    后台守护进程	Background Daemons
+    无法识别 Homebrew 服务列表	Unable to read the Homebrew service list
+    服务已变化或不属于当前用户，请刷新后重试	The service has changed or belongs to another user. Refresh and try again.
+    服务操作已完成，请以刷新后的状态为准	Service command completed. Check the refreshed status.
+    管理当前用户的 Homebrew 服务；系统级服务只读。	Manage your Homebrew services. System-wide services are read-only.
+    安装 Homebrew 后，可在这里管理服务。	Install Homebrew to manage services here.
+    Homebrew 服务	Homebrew Services
+    没有 Homebrew 服务	No Homebrew services
+    管理服务	Manage Service
+    管理服务“{}”	Manage service “{}”
+    启动或重启可能同时开启登录时自动启动；停止会取消自动启动。	Starting or restarting may also enable automatic startup at login. Stopping disables automatic startup.
+    启动服务	Start Service
+    停止服务	Stop Service
+    重启服务	Restart Service
+    服务运行中	Running
+    已安排定时运行	Scheduled
+    服务已停止	Stopped
+    服务未启动	Not Started
+    服务异常（退出码 {}）	Error (exit code {})
+    服务异常	Service Error
     应用服务	Apps & Services
     服务	Services
     搜索软件包	Search packages

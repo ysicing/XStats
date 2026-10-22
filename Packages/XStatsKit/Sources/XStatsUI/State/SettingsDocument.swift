@@ -71,6 +71,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var updateCheckSchedule: String?
   public var cleanerEnabled: Bool?
   public var agentDataEnabled: Bool?
+  /// 仅兼容旧备份解码；应用服务现为基础功能，导入时忽略，导出时不再写入。
   public var uninstallerEnabled: Bool?
   public var processesEnabled: Bool?
   public var portsEnabled: Bool?
@@ -145,7 +146,6 @@ extension AppSettings {
     doc.updateCheckSchedule = updateCheckSchedule.rawValue
     doc.cleanerEnabled = cleanerEnabled
     doc.agentDataEnabled = agentDataEnabled
-    doc.uninstallerEnabled = uninstallerEnabled
     doc.processesEnabled = processesEnabled
     doc.portsEnabled = portsEnabled
     doc.audioEnabled = audioEnabled
@@ -253,7 +253,6 @@ extension AppSettings {
     }
     assign(\.cleanerEnabled, doc.cleanerEnabled)
     assign(\.agentDataEnabled, doc.agentDataEnabled)
-    assign(\.uninstallerEnabled, doc.uninstallerEnabled)
     assign(\.processesEnabled, doc.processesEnabled)
     assign(\.portsEnabled, doc.portsEnabled)
     assign(\.audioEnabled, doc.audioEnabled)
