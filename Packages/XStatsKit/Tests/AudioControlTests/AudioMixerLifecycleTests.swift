@@ -7,8 +7,18 @@ import Testing
 private final class PipelineLog: @unchecked Sendable {
   private let lock = NSLock()
   private var items: [String] = []
+  private var guards: [UInt32: Set<UInt32>] = [:]
   func append(_ item: String) { lock.withLock { items.append(item) } }
   var entries: [String] { lock.withLock { items } }
+  func registerGuard(_ id: UInt32, processIDs: [UInt32]) {
+    lock.withLock { guards[id] = Set(processIDs) }
+  }
+  func removeGuard(_ id: UInt32) {
+    lock.withLock { _ = guards.removeValue(forKey: id) }
+  }
+  var guardedProcessIDs: Set<UInt32> {
+    lock.withLock { Set(guards.values.flatMap { $0 }) }
+  }
 }
 private final class TestPipeline: AudioMixPipeline, @unchecked Sendable {
   let processIDs: [UInt32]
@@ -60,13 +70,15 @@ private final class TestPipeline: AudioMixPipeline, @unchecked Sendable {
 private final class SlotTestOutputGuard: AudioOutputSwitchGuard {
   let id: UInt32
   let log: PipelineLog?
-  init(id: UInt32 = 99, log: PipelineLog? = nil) {
+  init(id: UInt32 = 99, log: PipelineLog? = nil, processIDs: [UInt32] = []) {
     self.id = id
     self.log = log
+    log?.registerGuard(id, processIDs: processIDs)
   }
   func stop() throws {
     log?.append("guard.stop")
     log?.append("guard.stop:\(id)")
+    log?.removeGuard(id)
   }
 }
 private final class SlotGuardSequence: @unchecked Sendable {
@@ -174,6 +186,176 @@ struct AudioMixerLifecycleTests {
     await client.stop()
   }
 
+  @Test func failedSecondPreparationKeepsUnrestoredProcessesGuardedUntilStopped() async throws {
+    let log = PipelineLog()
+    let guards = SlotGuardSequence()
+    let client = AudioMixerClient(
+      automaticHealthChecks: false,
+      outputGuardFactory: {
+        SlotTestOutputGuard(id: guards.next(), log: log, processIDs: $0)
+      }
+    ) {
+      TestPipeline(
+        $0, output: $1, source: $2, log: log,
+        stopFailures: $0.id == "a" && $1 == "usb" ? 2 : 0,
+        startError: $0.id == "b" && $1 == "usb" ? .unsupportedFormat : nil)
+    }
+    let mutedTarget = AudioMixTarget(
+      id: "b", processObjectIDs: [2],
+      volume: try #require(AudioAppVolume(level: 1, isMuted: true)))
+    let demand = [try target("a"), mutedTarget]
+    try await client.apply(demand, outputUID: "default")
+    let firstGuard = try #require(try await client.prepareOutputSwitch())
+    await #expect(throws: AudioControlError.unsupportedFormat) {
+      try await client.apply(demand, outputUID: "usb")
+    }
+    try await client.finishOutputSwitch(firstGuard, afterRestoring: true)
+    #expect(await client.unresolvedApplicationIDs() == ["b"])
+    #expect(log.guardedProcessIDs.contains(2))
+
+    await #expect(throws: AudioControlError.unavailable) {
+      _ = try await client.prepareOutputSwitch()
+    }
+    #expect(log.guardedProcessIDs.contains(2))
+    try await client.finishOutputSwitch(firstGuard)
+    #expect(log.guardedProcessIDs.contains(2))
+    await client.stop()
+    #expect(log.guardedProcessIDs.isEmpty)
+  }
+
+  @Test(arguments: [false, true])
+  func withdrawingOneDemandUnmutesOnlyThatProcessDuringPartialRecovery(remainsInCatalog: Bool)
+    async throws
+  {
+    let log = PipelineLog()
+    let guards = SlotGuardSequence()
+    let client = AudioMixerClient(
+      automaticHealthChecks: false,
+      outputGuardFactory: {
+        SlotTestOutputGuard(id: guards.next(), log: log, processIDs: $0)
+      }
+    ) {
+      TestPipeline(
+        $0, output: $1, source: $2, log: log,
+        startError: $0.id == "b" && $1 == "usb" ? .unsupportedFormat : nil)
+    }
+    let mutedTarget = AudioMixTarget(
+      id: "b", processObjectIDs: [2],
+      volume: try #require(AudioAppVolume(level: 1, isMuted: true)))
+    try await client.apply([try target("a"), mutedTarget], outputUID: "default")
+    let guardID = try #require(try await client.prepareOutputSwitch())
+    #expect(log.guardedProcessIDs == [1, 2])
+    await #expect(throws: AudioControlError.unsupportedFormat) {
+      try await client.apply([try target("a"), mutedTarget], outputUID: "usb")
+    }
+    try await client.finishOutputSwitch(guardID, afterRestoring: true)
+    #expect(log.guardedProcessIDs.contains(2))
+
+    var changed = [mutedTarget]
+    if remainsInCatalog {
+      changed.append(
+        AudioMixTarget(
+          id: "a", processObjectIDs: [1], volume: try #require(AudioAppVolume(level: 1))))
+    }
+    await #expect(throws: AudioControlError.unsupportedFormat) {
+      try await client.apply(changed, outputUID: "usb")
+    }
+    #expect(await client.unresolvedApplicationIDs() == ["b"])
+    #expect(log.entries.contains("stop:a:usb"))
+    #expect(log.guardedProcessIDs == [2])
+    let restartedTarget = AudioMixTarget(
+      id: "b", processObjectIDs: [3], volume: mutedTarget.volume)
+    await #expect(throws: AudioControlError.unsupportedFormat) {
+      try await client.apply([restartedTarget], outputUID: "usb")
+    }
+    #expect(log.guardedProcessIDs == [3])
+    let nextGuard = try #require(try await client.prepareOutputSwitch())
+    try await client.finishOutputSwitch(guardID)
+    #expect(log.guardedProcessIDs == [3])
+    try await client.finishOutputSwitch(nextGuard, afterRestoring: true)
+    await client.stop()
+    #expect(log.guardedProcessIDs.isEmpty)
+  }
+
+  @Test func failedGuardCoverageReplacementKeepsProtectionUntilTheNextApply() async throws {
+    let log = PipelineLog()
+    let guards = SlotGuardSequence()
+    let client = AudioMixerClient(
+      automaticHealthChecks: false,
+      outputGuardFactory: { objects in
+        log.append("guard.attempt:\(objects)")
+        if objects == [2],
+          log.entries.filter({ $0 == "guard.attempt:[2]" }).count == 1
+        {
+          throw AudioControlError.hardware(-1)
+        }
+        return SlotTestOutputGuard(id: guards.next(), log: log, processIDs: objects)
+      }
+    ) {
+      TestPipeline(
+        $0, output: $1, source: $2, log: log,
+        startError: $0.id == "b" && $1 == "usb" ? .unsupportedFormat : nil)
+    }
+    let mutedTarget = AudioMixTarget(
+      id: "b", processObjectIDs: [2],
+      volume: try #require(AudioAppVolume(level: 1, isMuted: true)))
+    let demand = [try target("a"), mutedTarget]
+    try await client.apply(demand, outputUID: "default")
+    let guardID = try #require(try await client.prepareOutputSwitch())
+    await #expect(throws: AudioControlError.unsupportedFormat) {
+      try await client.apply(demand, outputUID: "usb")
+    }
+    try await client.finishOutputSwitch(guardID, afterRestoring: true)
+    await #expect(throws: AudioControlError.self) {
+      try await client.apply([mutedTarget], outputUID: "usb")
+    }
+    #expect(log.entries.contains("guard.attempt:[2]"))
+    #expect(log.guardedProcessIDs == [1, 2])
+    await #expect(throws: AudioControlError.unsupportedFormat) {
+      try await client.apply([mutedTarget], outputUID: "usb")
+    }
+    #expect(log.guardedProcessIDs == [2])
+    await client.stop()
+    #expect(log.guardedProcessIDs.isEmpty)
+  }
+
+  @Test func anUnadmittedApplicationIsNotMutedByADeferredGuard() async throws {
+    let log = PipelineLog()
+    let guards = SlotGuardSequence()
+    let client = AudioMixerClient(
+      automaticHealthChecks: false,
+      outputGuardFactory: {
+        SlotTestOutputGuard(id: guards.next(), log: log, processIDs: $0)
+      }
+    ) {
+      TestPipeline(
+        $0, output: $1, source: $2, log: log,
+        startError: $0.id == "b8" && $1 == "usb" ? .unsupportedFormat : nil)
+    }
+    let existing = try (1...8).map { index in
+      AudioMixTarget(
+        id: "b\(index)", processObjectIDs: [UInt32(index)],
+        volume: try #require(AudioAppVolume(level: 0.5)))
+    }
+    try await client.apply(existing, outputUID: "default")
+    let guardID = try #require(try await client.prepareOutputSwitch())
+    await #expect(throws: AudioControlError.unsupportedFormat) {
+      try await client.apply(existing, outputUID: "usb")
+    }
+    try await client.finishOutputSwitch(guardID, afterRestoring: true)
+    let newcomer = AudioMixTarget(
+      id: "a", processObjectIDs: [9], volume: try #require(AudioAppVolume(level: 0.5)))
+    await #expect(throws: AudioControlError.processingLimit(8)) {
+      try await client.apply(existing + [newcomer], outputUID: "usb")
+    }
+    #expect(await client.unresolvedApplicationIDs() == ["a", "b8"])
+    #expect(!log.entries.contains("start:a:usb"))
+    #expect(!log.guardedProcessIDs.contains(9))
+    #expect(log.guardedProcessIDs.contains(8))
+    await client.stop()
+    #expect(log.guardedProcessIDs.isEmpty)
+  }
+
   @Test func automaticCleanupFinishesADeferredGuardOnlyAfterDemandIsRestored() async throws {
     let log = PipelineLog()
     let client = AudioMixerClient(
@@ -272,10 +454,11 @@ struct AudioMixerLifecycleTests {
     try await client.apply(existing + [fixed], outputUID: "default")
     let firstGuard = try #require(try await client.prepareOutputSwitch(additionalProcessIDs: [9]))
     if partiallyRecovered {
-      await #expect(throws: AudioControlError.unsupportedFormat) {
-        try await client.apply(existing, outputUID: "broken")
+      await #expect(throws: AudioControlError.self) {
+        try await client.apply(existing + [fixed], outputUID: "broken")
       }
-      #expect(await client.unresolvedApplicationIDs() == ["b8"])
+      #expect(await client.unresolvedApplicationIDs() == ["a", "b8"])
+      #expect(!log.entries.contains("start:a:default"))
     }
     try await client.finishOutputSwitch(firstGuard, afterRestoring: true)
     let secondGuard = try #require(try await client.prepareOutputSwitch(additionalProcessIDs: [9]))

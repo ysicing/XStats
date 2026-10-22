@@ -39,8 +39,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private var deepLinkTask: Task<Void, Never>?
   private var terminationTask: Task<Void, Never>?
   private var isTerminating = false
-  private var isInactive = false
-  private var inactivityGeneration = 0
   private var hubShouldPause = false
   private var hubPauseTask: Task<Void, Never>?
 
@@ -314,7 +312,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       await appModel.hub.update(appModel.demand)
       await appModel.hub.start(primeAllMetrics: false) { [weak self] snapshot in
         appModel.handle(snapshot)
-        if !snapshot.isBatterySafetySample { self?.menuBar.refreshImages() }
+        if !snapshot.isSafetySample { self?.menuBar.refreshImages() }
       }
     }
     deepLinksReady = true
@@ -382,7 +380,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
         await model.wellness.prepareForTermination()
         await XStatsCapture.workspace.prepareForTermination()
         isTerminating = true
-        inactivityGeneration &+= 1
         // 退出恢复沿用 WillTerminate 中的有界同步兜底；无响应 XPC 不能阻塞历史刷盘。
         model.fans.setPaused(true)
         model.keepAwake.releaseForTermination()
@@ -1027,9 +1024,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
   private func pauseForInactivity() {
     guard !isTerminating else { return }
-    isInactive = true
-    inactivityGeneration &+= 1
-    let generation = inactivityGeneration
     restMenuBar.dismiss()
     menuBar.dismissPopovers()
     model.fans.setPaused(true)
@@ -1052,19 +1046,12 @@ public final class AppController: NSObject, NSApplicationDelegate {
     restWindows.hideRest()
     rest.suspend()
     model.timer.suspend()
-    Task {
-      guard isInactive, inactivityGeneration == generation, !isTerminating else { return }
-      let safeToPause = await model.fans.prepareForPause()
-      guard isInactive, inactivityGeneration == generation, !isTerminating else { return }
-      setHubPaused(safeToPause)
-    }
+    setHubPaused(true)
   }
 
   private func resumeFromInactivity() {
     // 系统唤醒时常仍停在锁屏界面，要等解锁后再恢复。
     guard !screenLocked, !isTerminating else { return }
-    isInactive = false
-    inactivityGeneration &+= 1
     model.fans.setPaused(false)
     model.network.setPaused(false)
     model.egress.setPaused(false)

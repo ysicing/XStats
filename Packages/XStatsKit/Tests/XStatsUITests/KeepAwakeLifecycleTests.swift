@@ -36,7 +36,7 @@ struct KeepAwakeLifecycleTests {
       settings: AppSettings(defaults: defaults), historyURL: nil,
       aiUsageProviders: [], aiQuotaProviders: [])
     var snapshot = MetricsSnapshot()
-    snapshot.isBatterySafetySample = true
+    snapshot.isSafetySample = true
     snapshot.battery = BatteryStatus(
       level: 0.1, isCharging: false, isPluggedIn: false, isFullyCharged: false)
     model.handle(snapshot)

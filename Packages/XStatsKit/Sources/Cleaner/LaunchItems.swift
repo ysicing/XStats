@@ -226,6 +226,27 @@ public enum LaunchItems {
     else {
       return tr("服务已变化或不属于当前用户，请刷新后重试")
     }
+    var snapshotDirectory: URL?
+    defer {
+      if let snapshotDirectory { try? FileManager.default.removeItem(at: snapshotDirectory) }
+    }
+    var bootstrapPlist = item.plist
+    if enabled {
+      let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+        "xstats-launch-\(UUID().uuidString)", isDirectory: true)
+      do {
+        try FileManager.default.createDirectory(
+          at: directory, withIntermediateDirectories: false,
+          attributes: [.posixPermissions: 0o700])
+        snapshotDirectory = directory
+        bootstrapPlist = directory.appendingPathComponent(item.plist.lastPathComponent)
+        try configuration.write(to: bootstrapPlist, options: .withoutOverwriting)
+        try FileManager.default.setAttributes(
+          [.posixPermissions: 0o600], ofItemAtPath: bootstrapPlist.path)
+      } catch {
+        return tr("启用失败：\(error.localizedDescription)")
+      }
+    }
     let domain = "gui/\(getuid())"
     let target = "\(domain)/\(item.label)"
     let overrideResult = runCommand([enabled ? "enable" : "disable", target])
@@ -233,7 +254,7 @@ public enum LaunchItems {
       return enabled ? tr("启用失败：\(overrideResult.output)") : tr("停用失败：\(overrideResult.output)")
     }
     let result = runCommand(
-      enabled ? ["bootstrap", domain, item.plist.path] : ["bootout", target])
+      enabled ? ["bootstrap", domain, bootstrapPlist.path] : ["bootout", target])
     guard result.status != 0 else { return nil }
     // 通用 I/O 错误也会返回 5，只有成功读取用户域并确认目标状态才能视为幂等成功。
     let status = runCommand(["list"])

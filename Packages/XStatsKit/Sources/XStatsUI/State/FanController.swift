@@ -62,7 +62,7 @@ public final class FanController {
   @ObservationIgnored private var feedbackVisible = false
   @ObservationIgnored private var paused = false
   @ObservationIgnored private var pauseGeneration = 0
-  @ObservationIgnored private var pauseResetSucceeded = false
+  private var pauseResetSucceeded = false
   @ObservationIgnored private var pauseTask: Task<Bool, Never>?
   @ObservationIgnored private var applicationWaiters: [CheckedContinuation<Void, Never>] = []
   /// 最近一次 apply 的写入失败后，兜底复位也失败。
@@ -79,6 +79,10 @@ public final class FanController {
   }
 
   deinit { feedbackTask?.cancel() }
+
+  var requiresSafetySampling: Bool {
+    !pauseResetSucceeded && (mode != .automatic || isApplying)
+  }
 
   func setFeedbackVisible(_ visible: Bool) {
     feedbackVisible = visible

@@ -15,6 +15,8 @@ public struct MetricsDemand: Sendable, Equatable {
   public var battery = false
   /// 合盖运行的电量保护；锁屏后只保留此低频读取方。
   public var batterySafety = false
+  /// 风扇未交还系统时，暂停期间仍按原间隔读取 CPU 温度。
+  public var fanSafety = false
   /// 电池页的按应用 CPU 能耗，首次约一秒建立读数，之后每 5 秒读取一次。
   public var appEnergy = false
   public var processes = false
@@ -36,7 +38,7 @@ public struct MetricsDemand: Sendable, Equatable {
 
   /// 没有读取方时连采样循环也停止，不能只跳过某几个采集器后继续定时唤醒。
   public var hasSamples: Bool {
-    cpu || memory || network || gpu || disk || battery || batterySafety || processes
+    cpu || memory || network || gpu || disk || battery || batterySafety || fanSafety || processes
       || systemProcesses
       || appEnergy || !temperatures.isEmpty || fans || power || cpuFrequency || gpuFrequency
       || gpuPower || diskDetail
@@ -82,6 +84,10 @@ public actor MetricsHub {
       safety.generation = demand.generation
       safety.interval = .seconds(30)
       safety.battery = demand.batterySafety
+      if demand.fanSafety {
+        safety.interval = demand.interval
+        safety.temperatures = [.cpu]
+      }
       return safety
     }
     var active = demand
@@ -112,6 +118,7 @@ public actor MetricsHub {
       || (newDemand.gpu && !demand.gpu)
       || (newDemand.battery && !demand.battery)
       || (newDemand.batterySafety && !demand.batterySafety)
+      || (newDemand.fanSafety && !demand.fanSafety)
       || !newDemand.temperatures.isSubset(of: demand.temperatures)
       || (newDemand.fans && !demand.fans)
       || (newDemand.processes && !demand.processes)
@@ -164,7 +171,7 @@ public actor MetricsHub {
     return sensors.sample(groups: [], includeFans: true)?.fans
   }
 
-  /// 暂停普通监控；合盖运行时仍以低频电量读取保障低电量恢复系统睡眠。
+  /// 暂停普通监控，仅保留尚未恢复的风扇与合盖低电量保护。
   public func setPaused(_ value: Bool) {
     guard value != paused else { return }
     paused = value
@@ -232,7 +239,7 @@ public actor MetricsHub {
   private func collect() -> MetricsSnapshot {
     let now = Date()
     var snapshot = MetricsSnapshot()
-    snapshot.isBatterySafetySample = paused
+    snapshot.isSafetySample = paused
     snapshot.samplingGeneration = self.demand.generation
     let demand =
       paused || primed ? samplingDemand : Self.everything(interval: self.demand.interval)
@@ -255,7 +262,7 @@ public actor MetricsHub {
       snapshot.disk = DiskSampler.sample(includeBreakdown: self.demand.diskDetail)
       lastDisk = now
     }
-    if demand.battery, now.timeIntervalSince(lastBattery) > 10 {
+    if demand.battery, now.timeIntervalSince(lastBattery) > (paused ? 30 : 10) {
       snapshot.battery = readBattery()
       lastBattery = now
     }

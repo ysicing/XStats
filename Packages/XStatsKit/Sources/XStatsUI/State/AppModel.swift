@@ -384,6 +384,7 @@ public final class AppModel {
       demand.temperatures.insert(.cpu)
       demand.fans = true
     }
+    demand.fanSafety = fans.requiresSafetySampling || restoringFans != nil
     demand.batterySafety = keepAwake.lidClosedActive
     if demand.batterySafety { demand.battery = true }
     demand.processes =
@@ -527,7 +528,12 @@ public final class AppModel {
   }
 
   func handle(_ snapshot: MetricsSnapshot) {
-    if snapshot.isBatterySafetySample {
+    if snapshot.isSafetySample {
+      if fans.requiresSafetySampling,
+        let temperature = snapshot.sensors?.temperature(.cpu)?.maximum
+      {
+        fans.evaluateSafety(temperature: temperature)
+      }
       keepAwake.evaluateBattery(snapshot.battery)
       return
     }

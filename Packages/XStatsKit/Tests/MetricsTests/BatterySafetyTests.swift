@@ -33,7 +33,7 @@ struct BatterySafetyTests {
     await hub.stop()
     #expect(received.count == 1)
     #expect(received.first?.battery == battery)
-    #expect(received.allSatisfy { $0.isBatterySafetySample })
+    #expect(received.allSatisfy { $0.isSafetySample })
     #expect(
       received.allSatisfy {
         $0.cpu == nil && $0.memory == nil && $0.sensors == nil && $0.power == nil

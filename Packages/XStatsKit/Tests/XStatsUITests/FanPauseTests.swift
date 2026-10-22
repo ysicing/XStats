@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
-import Metrics
 import SMC
 import Testing
+@testable import Metrics
 @testable import XStatsUI
 
 @MainActor private final class PausedFanClient: FanControlClient {
@@ -55,6 +55,82 @@ import Testing
 @Suite(.timeLimit(.minutes(1)))
 @MainActor
 struct FanPauseTests {
+  @Test(arguments: [false, true])
+  func pausedMonitoringKeepsOnlyNecessarySafetySampling(resetFails: Bool) async throws {
+    let suite = "FanPauseMonitoring.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer {
+      defaults.removePersistentDomain(forName: suite)
+      try? FileManager.default.removeItem(at: root)
+    }
+    let settings = AppSettings(defaults: defaults)
+    settings.historyEnabled = true
+    settings.menuBarItems = []
+    let helper = PausedFanClient()
+    let model = AppModel(
+      settings: settings, historyURL: root.appendingPathComponent("history.sqlite"),
+      aiUsageProviders: [], aiQuotaProviders: [], quotaCacheURL: nil, magpieClient: nil,
+      networkCacheDefaults: defaults, fanControl: helper)
+    var snapshot = MetricsSnapshot()
+    snapshot.sensors = SensorReadings(
+      temperatures: [],
+      fans: [
+        FanState(
+          id: 0, current: 2_000, minimum: 1_000, maximum: 5_000,
+          target: 2_000, isManual: false)
+      ], fanCount: 1)
+    model.store.apply(snapshot)
+    model.fans.customLevel = 0.1
+    await model.fans.select(.custom)
+    var retainedSnapshot = snapshot
+    retainedSnapshot.sensors = SensorReadings(
+      temperatures: [
+        TemperatureSummary(group: .cpu, average: 110, maximum: 110, sensorCount: 1)
+      ], fans: snapshot.sensors?.fans ?? [])
+    model.store.apply(retainedSnapshot)
+    helper.resetError = resetFails ? "fixture-reset-failure" : nil
+    #expect(await model.fans.prepareForPause() == !resetFails)
+    await model.hub.update(model.demand)
+    await model.hub.setPaused(true)
+    let demand = await model.hub.samplingDemand
+    #expect(!demand.cpu && !demand.memory && !demand.network && !demand.processes)
+    #expect(!demand.power && !demand.appEnergy && !demand.fans && !demand.battery)
+    #expect(demand.temperatures == (resetFails ? [.cpu] : []))
+    #expect(demand.hasSamples == resetFails)
+    #expect(demand.interval == (resetFails ? model.demand.interval : .seconds(30)))
+    if resetFails {
+      helper.resetError = nil
+      snapshot.isSafetySample = true
+      snapshot.cpu = CPULoad(total: 0.9, user: 0.9, system: 0, perCore: [], loadAverage: [])
+      snapshot.sensors = SensorReadings(
+        temperatures: [
+          TemperatureSummary(group: .cpu, average: 110, maximum: 110, sensorCount: 1)
+        ], fans: [])
+      model.handle(snapshot)
+      try await waitUntil { model.fans.mode == .automatic && !model.fans.isApplying }
+      await model.hub.update(model.demand)
+      #expect(await model.hub.samplingDemand.hasSamples == false)
+      #expect(model.store.cpu == nil && helper.manualFans.isEmpty)
+      await model.history.flushAndWait()
+      let database = try #require(model.history.database)
+      #expect(await database.count() == 0)
+    } else {
+      let events = helper.events
+      var batterySnapshot = MetricsSnapshot()
+      batterySnapshot.isSafetySample = true
+      batterySnapshot.battery = BatteryStatus(
+        level: 0.5, isCharging: false, isPluggedIn: false, isFullyCharged: false)
+      model.handle(batterySnapshot)
+      try await Task.sleep(for: .milliseconds(20))
+      #expect(model.fans.mode == .custom)
+      #expect(helper.events == events)
+    }
+    await model.hub.setPaused(false)
+    #expect(await model.hub.samplingDemand.cpu)
+    await model.hub.stop()
+  }
+
   @Test func pauseRestoresAutomaticAndResumeReappliesTheSelectedMode() async throws {
     try await withController { fans, client in
       await fans.select(.custom)

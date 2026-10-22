@@ -180,6 +180,9 @@ public final class AudioMixerClient: @unchecked Sendable {
         failed = failed.filter { targets[$0.key] != nil }
         pendingReplacements = pendingReplacements.filter { targets[$0] != nil }
         var failure: (any Error)? = retired.isEmpty ? nil : AudioControlError.unavailable
+        if let guardFailure = updateDeferredOutputGuards(command: command) {
+          failure = guardFailure
+        }
         // 系统输出切换会先拆掉管线；重建时仍优先恢复切换前已占用的名额。
         let reserved = outputSwitchSlots?.applications ?? []
         let ordered = targets.values.sorted {
@@ -263,7 +266,8 @@ public final class AudioMixerClient: @unchecked Sendable {
   {
     guard retired.isEmpty else { throw AudioControlError.unavailable }
     // 不挤掉已有控制；超限不创建 HAL 资源，名额释放后的下一次 apply 可重新尝试。
-    guard pipelines[target.id] != nil || pipelines.count < Self.maximumProcessedApplications else {
+    let occupied = Set(pipelines.keys).union(outputSwitchSlots?.applications ?? [])
+    guard occupied.contains(target.id) || occupied.count < Self.maximumProcessedApplications else {
       throw AudioControlError.processingLimit(Self.maximumProcessedApplications)
     }
     let replacement = try factory(target, destination, sourceUID)
@@ -361,7 +365,7 @@ public final class AudioMixerClient: @unchecked Sendable {
         outputGuards[guardID] = (resource, objects)
         releaseAll(preservingOutputGuard: guardID)
         guard retired.isEmpty else {
-          try? releaseOutputGuard(guardID)
+          deferredOutputGuards.insert(guardID)
           updateTimer()
           continuation.resume(throwing: AudioControlError.unavailable)
           return
@@ -414,6 +418,32 @@ public final class AudioMixerClient: @unchecked Sendable {
     if outputSwitchSlots?.guardID == id { outputSwitchSlots = nil }
     guard let guardEntry = outputGuards.removeValue(forKey: id) else { return }
     if let failure = releaseResource(guardEntry.resource) { throw failure }
+  }
+  private func updateDeferredOutputGuards(command: UInt64) -> (any Error)? {
+    guard !deferredOutputGuards.isEmpty else { return nil }
+    let active = Set(targets.values.flatMap(\.processObjectIDs))
+    let reserved = outputSwitchSlots?.applications ?? []
+    let reservedProcesses = targets.values.filter { reserved.contains($0.id) }
+      .flatMap(\.processObjectIDs)
+    var failure: (any Error)?
+    for id in deferredOutputGuards {
+      guard isCurrent(command), let entry = outputGuards[id] else { continue }
+      let objects = Set(entry.processIDs).intersection(active).union(reservedProcesses).sorted()
+      if objects.isEmpty {
+        do { try releaseOutputGuard(id) } catch { failure = error }
+        continue
+      }
+      guard entry.processIDs != objects else { continue }
+      do {
+        let replacement = try outputGuardFactory(objects)
+        guard isCurrent(command) else {
+          return releaseResource(replacement)
+        }
+        outputGuards[id] = (replacement, objects)
+        if let cleanupFailure = releaseResource(entry.resource) { failure = cleanupFailure }
+      } catch { failure = error }
+    }
+    return failure
   }
   private func releaseDeferredOutputGuards() -> (any Error)? {
     var failure: (any Error)?
