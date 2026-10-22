@@ -1,12 +1,12 @@
 {
-  "version": "0.1.3",
-  "date": "2026-10-19",
+  "version": "0.1.4",
+  "date": "2026-10-22",
   "sourceNotes": [
-    "完善录屏导出路径校验与回归覆盖，继续保护录制缓存和其他会话素材。"
+    "修复录制等操作临时禁用置顶后，先前等待图片处理的置顶请求被意外恢复的问题。"
   ],
   "translations": {
     "en": [
-      "Improve recording export path validation and regression coverage while preserving protection for the recording cache and media from other sessions."
+      "Prevent a pending image-pinning request from running after recording or another operation temporarily disables pinning."
     ]
   }
 }
