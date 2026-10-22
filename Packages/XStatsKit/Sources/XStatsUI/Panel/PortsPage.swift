@@ -85,7 +85,8 @@ struct PortsPage: View {
     .padding([.horizontal, .bottom], DS.Space.s3)
     .frame(maxHeight: isSnapshot ? nil : .infinity, alignment: .top)
     .confirmationDialog(
-      pendingQuit.map { tr("结束“\($0.displayName)”？") } ?? "",
+      // 辅助进程的 displayName 是主应用名，而这里只会结束这一个进程，标题必须写出真实进程名与 PID
+      pendingQuit.map { tr("结束“\($0.name)”（PID \($0.pid)）？") } ?? "",
       isPresented: Binding(get: { pendingQuit != nil }, set: { if !$0 { pendingQuit = nil } }),
       titleVisibility: .visible, presenting: pendingQuit
     ) { socket in
@@ -216,6 +217,11 @@ enum PortListing {
     ascending: Bool, rates: [Int32: NetworkProcessRate]
   ) -> [PortSocket] {
     let query = query.trimmingCharacters(in: .whitespaces)
+    // 按进程排序时每次比较都要取本地化名称，先算一遍
+    let names =
+      column == .process
+      ? Dictionary(sockets.map { ($0.id, $0.displayName) }, uniquingKeysWith: { first, _ in first })
+      : [:]
     let filtered = sockets.filter { socket in
       switch filter {
       case .all: break
@@ -225,7 +231,7 @@ enum PortListing {
       return query.isEmpty || socket.matches(query)
     }
     return filtered.sorted { lhs, rhs in
-      let primary = column.compare(lhs, rhs, rates: rates)
+      let primary = column.compare(lhs, rhs, rates: rates, names: names)
       if primary != .orderedSame { return ascending == (primary == .orderedAscending) }
       return (lhs.localPort, lhs.pid, lhs.id) < (rhs.localPort, rhs.pid, rhs.id)
     }
@@ -263,12 +269,14 @@ enum PortColumn: CaseIterable {
 
   var ascendingByDefault: Bool { ![.download, .upload].contains(self) }
 
-  func compare(_ lhs: PortSocket, _ rhs: PortSocket, rates: [Int32: NetworkProcessRate])
-    -> ComparisonResult
-  {
+  func compare(
+    _ lhs: PortSocket, _ rhs: PortSocket, rates: [Int32: NetworkProcessRate],
+    names: [String: String] = [:]
+  ) -> ComparisonResult {
     switch self {
     case .port: Self.order(lhs.localPort, rhs.localPort)
-    case .process: lhs.displayName.localizedStandardCompare(rhs.displayName)
+    case .process:
+      (names[lhs.id] ?? lhs.displayName).localizedStandardCompare(names[rhs.id] ?? rhs.displayName)
     // 监听端口没有对端，排在已建立连接之前
     case .peer: (lhs.remoteEndpoint ?? "").localizedStandardCompare(rhs.remoteEndpoint ?? "")
     case .download: Self.order(rates[lhs.pid]?.download ?? 0, rates[rhs.pid]?.download ?? 0)

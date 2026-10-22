@@ -2397,3 +2397,6 @@ Wi-Fi 图标大小	Größe des WLAN-Symbols
 其他接口	Andere Schnittstelle
 更多地址	Weitere Adressen
 链路本地	Link-lokal
+结束“{}”（PID {}）？	„{}“ (PID {}) beenden?
+进程已退出或不再占用该端口，请刷新后重试	Der Prozess wurde beendet oder belegt diesen Port nicht mehr. Aktualisieren Sie und versuchen Sie es erneut.
+国际	International

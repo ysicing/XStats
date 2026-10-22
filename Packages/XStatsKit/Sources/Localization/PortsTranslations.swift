@@ -21,5 +21,7 @@ extension Translations {
     连接过多，只显示前 {} 项	Too many connections; showing the first {}
     仅列出当前用户的进程，系统服务占用的端口不会显示	Only your own processes are listed; ports used by system services are not shown
     会断开它占用的端口与连接，未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	Its ports and connections will be closed and unsaved work may be lost. Force Quit ends it immediately without letting the app save.
+    结束“{}”（PID {}）？	End “{}” (PID {})?
+    进程已退出或不再占用该端口，请刷新后重试	The process has exited or no longer holds this port. Refresh and try again.
     """#
 }

@@ -522,6 +522,7 @@ enum SnapshotRenderer {
     settings.cleanerEnabled = true
     settings.uninstallerEnabled = true
     settings.processesEnabled = true
+    settings.portsEnabled = true
     // 历史页用示例数据：最近 24 小时每分钟一条，中间留一段“睡眠”空档
     let historyURL = FileManager.default.temporaryDirectory.appendingPathComponent(
       "xstats-snapshot-history.sqlite")
@@ -571,6 +572,30 @@ enum SnapshotRenderer {
     await model.hub.stop()
     model.network.setVisibility(inMenuBar: false, detailVisible: false)
     model.network.maskForSnapshot()
+    // 端口页只用匿名演示数据：保留文档保留地址与虚构进程，不读取本机 socket
+    let uid = getuid()
+    let demoPorts: [PortSocket] = [
+      PortSocket(
+        pid: 501, name: "web-server", uid: uid, socketID: 501, transport: .tcp,
+        state: .listening, localAddress: nil, localPort: 3000),
+      PortSocket(
+        pid: 502, name: "database", uid: uid, socketID: 502, transport: .tcp,
+        state: .listening, localAddress: nil, localPort: 5432),
+      PortSocket(
+        pid: 503, name: "browser", uid: uid, socketID: 503, transport: .tcp,
+        state: .established, localAddress: "192.0.2.2", localPort: 51234,
+        remoteAddress: "192.0.2.10", remotePort: 443),
+      PortSocket(
+        pid: 504, name: "sync-agent", uid: uid, socketID: 504, transport: .tcp,
+        state: .established, localAddress: "192.0.2.2", localPort: 51300,
+        remoteAddress: "198.51.100.7", remotePort: 443),
+    ]
+    model.ports.showDemo(
+      sockets: demoPorts,
+      rates: [
+        503: NetworkProcessRate(name: "browser", download: 2_400_000, upload: 180_000),
+        504: NetworkProcessRate(name: "sync-agent", download: 12_000, upload: 56_000),
+      ])
     // 清理页展示真实扫描结果（只读，不删除任何文件）
     model.cleaner.scan()
     while model.cleaner.isBusy { try? await Task.sleep(for: .milliseconds(200)) }

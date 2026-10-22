@@ -127,6 +127,11 @@ public enum PublicAddressLookup {
     return result
   }
 
+  /// 本机在指定地址族上的出口信息（cleanip.io 原始响应），与归属地查询共用限流封锁与连接回退
+  static func requestOwnExit(ipv6: Bool) async -> (Data?, Int) {
+    await geoCache.requestOwnExit(ipv6: ipv6)
+  }
+
   /// 只查一个已知地址的归属地，公网 IP 没变时用它补全，不必重新取地址
   public static func geo(for ip: String) async -> GeoInfo? {
     await geoCache.lookup(ip)
@@ -287,24 +292,29 @@ public enum PublicAddressLookup {
       if let entry = entries[ip], Date().timeIntervalSince(entry.date) < Self.lifetime {
         return entry.info
       }
-      if let blockedUntil, Date() < blockedUntil { return nil }
       let ipv6 = ip.contains(":")
-      var (data, status) = await AddressFamilyRequest.get(
-        PublicAddressLookup.cleanIPURL, ipv6: ipv6)
-      // 锁定地址族的连接建不起来（比如只认系统 HTTP 代理的网络）时，退回系统默认的请求方式
-      if status == 0 {
-        (data, status) = await PublicAddressLookup.getWithStatus(PublicAddressLookup.cleanIPURL)
-      }
-      if status == 429 {
-        blockedUntil = Self.nextUTCMidnight()
-        return nil
-      }
+      let (data, status) = await requestOwnExit(ipv6: ipv6)
       // 退回的请求走哪一族由系统决定，查到的不是要查的那一族就不能拿来用
       guard status == 200, let data, let info = PublicAddressLookup.parseCleanIP(data),
         let seen = info.ip, seen.contains(":") == ipv6
       else { return nil }
       store(info, for: ip)
       return info
+    }
+
+    /// 请求 cleanip.io 的 /cli，返回本机在指定地址族上的出口信息。
+    /// 所有发往 cleanip.io 的请求都经过这里，共用同一份 429 封锁：已被限流时不再发请求，返回 429。
+    /// 调用方事先不知道出口地址，没法按 IP 命中缓存，需要缓存的调用方自行处理。
+    func requestOwnExit(ipv6: Bool) async -> (Data?, Int) {
+      if let blockedUntil, Date() < blockedUntil { return (nil, 429) }
+      var (data, status) = await AddressFamilyRequest.get(
+        PublicAddressLookup.cleanIPURL, ipv6: ipv6)
+      // 锁定地址族的连接建不起来（比如只认系统 HTTP 代理的网络）时，退回系统默认的请求方式
+      if status == 0 {
+        (data, status) = await PublicAddressLookup.getWithStatus(PublicAddressLookup.cleanIPURL)
+      }
+      if status == 429 { blockedUntil = Self.nextUTCMidnight() }
+      return (data, status)
     }
 
     private static func nextUTCMidnight() -> Date {

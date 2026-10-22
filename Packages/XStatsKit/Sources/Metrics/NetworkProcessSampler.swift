@@ -16,6 +16,12 @@ public struct NetworkProcessRate: Sendable, Equatable {
   public let name: String
   public let download: Double  // 字节 / 秒
   public let upload: Double
+
+  public init(name: String, download: Double, upload: Double) {
+    self.name = name
+    self.download = download
+    self.upload = upload
+  }
 }
 
 /// 各进程的网络速率。系统没有公开接口，读取 /usr/bin/nettop 的累计字节数并与上次比较。

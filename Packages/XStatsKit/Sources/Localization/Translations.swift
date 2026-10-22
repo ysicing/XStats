@@ -888,6 +888,7 @@ extension Translations {
     唤醒	Wakeups
     团队 {}	team {}
     国内	China
+    国际	International
     国内分省三网延迟	Latency Across China
     国内网站也绕到了{}，访问会变慢，也可能触发风控。	Chinese sites also detour through the {}, which is slower and may trigger security checks.
     国内网站直连，国际网站经 {} 的{}。	Chinese sites connect directly; international sites go through {}'s {}.

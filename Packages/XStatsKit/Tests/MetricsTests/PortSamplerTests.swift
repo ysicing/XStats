@@ -112,6 +112,19 @@ struct PortSamplerTests {
       })
   }
 
+  /// 真实读取：本进程持有自己的监听 socket，换一个 socket 标识或不存在的 PID 都不算持有
+  @Test func holdsSocketRequiresTheSameKernelSocket() throws {
+    let (fd, port) = try openListener()
+    defer { close(fd) }
+
+    let sockets = try #require(PortSampler.sample())
+    let own = try #require(
+      sockets.first { $0.pid == getpid() && $0.state == .listening && $0.localPort == port })
+    #expect(PortSampler.holdsSocket(pid: getpid(), socketID: own.socketID))
+    #expect(!PortSampler.holdsSocket(pid: getpid(), socketID: own.socketID &+ 1))
+    #expect(!PortSampler.holdsSocket(pid: Int32.max, socketID: own.socketID))
+  }
+
   /// 真实读取一次：子进程继承的监听 socket 与父进程标识相同，不标记冲突
   @Test func sampleTreatsInheritedListenerAsShared() throws {
     let (fd, port) = try openListener()

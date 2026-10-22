@@ -12,6 +12,7 @@ struct PortsLocalizationTests {
       "监听 {} · 连接 {}", "端口 {} 同时被多个进程监听", "连接过多，只显示前 {} 项",
       "仅列出当前用户的进程，系统服务占用的端口不会显示",
       "会断开它占用的端口与连接，未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。",
+      "结束“{}”（PID {}）？", "进程已退出或不再占用该端口，请刷新后重试", "国际",
     ]
     for language in AppLanguage.allCases where language != .system && language != .chinese {
       let table = try #require(Translations.catalog(for: language))
@@ -32,5 +33,7 @@ struct PortsLocalizationTests {
     #expect(
       L10n.translate("连接过多，只显示前 4096 项", language: .english)
         == "Too many connections; showing the first 4096")
+    #expect(
+      L10n.translate("结束“node”（PID 42）？", language: .english) == "End “node” (PID 42)?")
   }
 }

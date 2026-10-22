@@ -22,6 +22,9 @@ public struct PortSocket: Sendable, Equatable, Identifiable {
   public let localPort: Int
   public let remoteAddress: String?
   public let remotePort: Int?
+  /// 同一进程同时绑定 IPv4 与 IPv6 任意地址时标识相同，只保留一行。
+  /// 排序、查找选中行都会反复读取，所以在初始化时算好。
+  public let id: String
 
   public init(
     pid: Int32, name: String, appBundlePath: String? = nil, uid: UInt32, socketID: UInt64,
@@ -39,11 +42,7 @@ public struct PortSocket: Sendable, Equatable, Identifiable {
     self.localPort = localPort
     self.remoteAddress = remoteAddress
     self.remotePort = remotePort
-  }
-
-  /// 同一进程同时绑定 IPv4 与 IPv6 任意地址时标识相同，只保留一行。
-  public var id: String {
-    [
+    id = [
       String(pid), transport.rawValue, state.rawValue, localAddress ?? "*", String(localPort),
       remoteAddress ?? "", remotePort.map(String.init) ?? "",
     ].joined(separator: "|")
@@ -64,9 +63,10 @@ public struct PortSocket: Sendable, Equatable, Identifiable {
 
 /// 用 libproc 枚举本机 socket：进程列表 → 各进程的文件描述符 → socket 信息，不启动 lsof。
 /// 未提权时内核只允许读取当前用户自己的进程，root 与其他用户的进程会被跳过。
-/// 枚举思路参考 Burrow（MIT），见 ThirdPartyNotices.md。
+/// 枚举思路参考 Burrow（https://github.com/caezium/burrow），未使用其源码。
 public enum PortSampler {
-  /// 单次结果上限：浏览器等进程可能持有大量连接，超过后停止收集，避免列表与内存无界增长。
+  /// 单次结果上限：浏览器等进程可能持有大量连接，超过后丢弃多余的已建立连接，避免列表与内存无界增长。
+  /// 监听端口单独计数，不会被大量连接挤掉。
   public static let maximumSockets = 4096
 
   struct Endpoint: Equatable {
@@ -90,10 +90,11 @@ public enum PortSampler {
     }
     guard filled > 0 else { return nil }
 
-    var sockets: [PortSocket] = []
+    var listening: [PortSocket] = []
+    var established: [PortSocket] = []
     var seen = Set<String>()
     for pid in pids.prefix(Int(filled) / MemoryLayout<pid_t>.stride) where pid > 0 {
-      if Task.isCancelled { return sockets }
+      if Task.isCancelled { return listening + established }
       let endpoints = endpoints(of: pid)
       guard !endpoints.isEmpty else { continue }
       let meta = ProcessSampler.meta(for: pid)
@@ -104,12 +105,27 @@ public enum PortSampler {
           socketID: endpoint.socketID, transport: endpoint.transport, state: endpoint.state,
           localAddress: endpoint.localAddress, localPort: endpoint.localPort,
           remoteAddress: endpoint.remoteAddress, remotePort: endpoint.remotePort)
+        // 已建立连接达到上限后仍要继续扫描，后启动进程的监听端口才不会丢
+        guard
+          socket.state == .listening
+            ? listening.count < maximumSockets
+            : established.count < maximumSockets
+        else { continue }
         guard seen.insert(socket.id).inserted else { continue }
-        sockets.append(socket)
-        if sockets.count >= maximumSockets { return sockets }
+        if socket.state == .listening {
+          listening.append(socket)
+        } else {
+          established.append(socket)
+        }
       }
     }
-    return sockets
+    return listening + established.prefix(max(0, maximumSockets - listening.count))
+  }
+
+  /// 进程是否仍持有这个 socket。PID 被回收复用后，新进程不会持有原来的内核 socket，
+  /// 结束进程前用它确认目标没有换人。
+  public static func holdsSocket(pid: Int32, socketID: UInt64) -> Bool {
+    endpoints(of: pid).contains { $0.socketID == socketID }
   }
 
   /// 被两个及以上进程各自监听的 TCP 端口。
@@ -239,7 +255,7 @@ public enum PortSampler {
 }
 
 /// 常用端口的约定服务名，只用于在端口旁做离线提示，不代表该端口实际运行的程序。
-/// 端口与服务的对应是公开约定，挑选范围参考 Burrow 的常用端口表。
+/// 端口与服务的对应是公开约定。
 public enum PortServices {
   public static func name(for port: Int) -> String? { table[port] }
 

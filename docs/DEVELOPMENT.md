@@ -47,7 +47,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 | `xstats://keep-awake/<action>` | 普通防休眠：`start`、`stop`、`toggle` |
 
 `page`：`overview`、`system`、`history`、`ai-usage`、`cpu`、`gpu`、`memory`、`disk`、
-`network`、`thermal`、`battery`、`processes`、`audio`、`keep-awake`、`rest`、`cleaner`、
+`network`、`thermal`、`battery`、`processes`、`ports`、`audio`、`keep-awake`、`rest`、`cleaner`、
 `uninstaller`、`startup-items`，以及 `settings/general`、`settings/features`、`settings/menu-bar`、
 `settings/notifications`、`settings/helper`、`settings/about`；`settings` 等同于 `settings/general`。
 

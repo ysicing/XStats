@@ -23,8 +23,7 @@ public enum LocalIPQuery {
     let response: (Data?, Int)
     switch source {
     case .ipv4, .ipv6:
-      response = await AddressFamilyRequest.get(
-        PublicAddressLookup.cleanIPURL, ipv6: source == .ipv6)
+      response = await PublicAddressLookup.requestOwnExit(ipv6: source == .ipv6)
     case .domestic:
       response = await PublicAddressLookup.getWithStatus(EgressTarget.domestic.url)
     case .cloudflare:

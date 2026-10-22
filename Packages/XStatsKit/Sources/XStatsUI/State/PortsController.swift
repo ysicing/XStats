@@ -90,6 +90,15 @@ final class PortsController {
     }
   }
 
+  /// 截图演示：直接写入匿名示例，不启动采样
+  func showDemo(sockets: [PortSocket], rates: [Int32: NetworkProcessRate]) {
+    self.sockets = sockets
+    self.rates = rates
+    conflicts = PortSampler.conflictingPorts(sockets)
+    hasLoaded = true
+    failed = false
+  }
+
   private func publish(
     sockets: [PortSocket]?, rates: [Int32: NetworkProcessRate]?, sampler: NetworkProcessSampler
   ) {
@@ -127,6 +136,10 @@ enum PortActions {
   @MainActor
   static func terminate(_ socket: PortSocket, force: Bool) -> String? {
     if let reason = quitBlockedReason(socket) { return reason }
+    // 确认框可能开了很久：目标退出后 PID 会被回收复用，不再持有原 socket 就不能按旧快照发信号
+    guard PortSampler.holdsSocket(pid: socket.pid, socketID: socket.socketID) else {
+      return tr("进程已退出或不再占用该端口，请刷新后重试")
+    }
     if let app = NSRunningApplication(processIdentifier: socket.pid) {
       let sent = force ? app.forceTerminate() : app.terminate()
       Log.app.notice(
