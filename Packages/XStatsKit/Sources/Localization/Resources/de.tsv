@@ -2412,6 +2412,7 @@ Wi-Fi 图标大小	Größe des WLAN-Symbols
 后台守护进程	Hintergrunddienste
 无法识别 Homebrew 服务列表	Die Homebrew-Dienstliste konnte nicht gelesen werden
 服务已变化或不属于当前用户，请刷新后重试	Der Dienst wurde geändert oder gehört einem anderen Benutzer. Aktualisieren Sie die Liste und versuchen Sie es erneut.
+服务列表读取超时，操作尚未执行，请刷新后重试	Zeitüberschreitung beim Lesen der Dienstliste. Die Aktion wurde nicht ausgeführt. Aktualisieren Sie die Liste und versuchen Sie es erneut.
 服务操作已完成，请以刷新后的状态为准	Dienstbefehl abgeschlossen. Prüfen Sie den aktualisierten Status.
 管理当前用户的 Homebrew 服务；系统级服务只读。	Verwalten Sie Ihre Homebrew-Dienste. Systemweite Dienste sind schreibgeschützt.
 安装 Homebrew 后，可在这里管理服务。	Installieren Sie Homebrew, um hier Dienste zu verwalten.

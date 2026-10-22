@@ -117,7 +117,7 @@ final class HomebrewServicesController {
         working = nil
         refresh()
       } catch ToolExecutionError.timedOut {
-        // 写操作超时只停止等待，brew 可能仍在后台执行；不能断言失败或建议直接重试。
+        // 预检查超时已在服务层单独转换；写超时只停止等待，不能断言失败或建议直接重试。
         working = nil
         self.error = tr("Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态")
         Log.app.error("Homebrew 服务操作超时：\(action.rawValue, privacy: .public)")

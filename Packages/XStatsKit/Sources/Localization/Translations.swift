@@ -22,6 +22,7 @@ extension Translations {
     后台守护进程	Background Daemons
     无法识别 Homebrew 服务列表	Unable to read the Homebrew service list
     服务已变化或不属于当前用户，请刷新后重试	The service has changed or belongs to another user. Refresh and try again.
+    服务列表读取超时，操作尚未执行，请刷新后重试	Reading the service list timed out. The operation did not run. Refresh and try again.
     服务操作已完成，请以刷新后的状态为准	Service command completed. Check the refreshed status.
     管理当前用户的 Homebrew 服务；系统级服务只读。	Manage your Homebrew services. System-wide services are read-only.
     安装 Homebrew 后，可在这里管理服务。	Install Homebrew to manage services here.

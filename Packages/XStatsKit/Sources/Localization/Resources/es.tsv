@@ -2412,6 +2412,7 @@ Wi-Fi 图标大小	Tamaño del icono Wi-Fi
 后台守护进程	Demonios en segundo plano
 无法识别 Homebrew 服务列表	No se puede leer la lista de servicios de Homebrew
 服务已变化或不属于当前用户，请刷新后重试	El servicio ha cambiado o pertenece a otro usuario. Actualice la lista e inténtelo de nuevo.
+服务列表读取超时，操作尚未执行，请刷新后重试	Se agotó el tiempo de lectura de la lista de servicios. La operación no se ha ejecutado. Actualice la lista e inténtelo de nuevo.
 服务操作已完成，请以刷新后的状态为准	Comando completado. Compruebe el estado actualizado del servicio.
 管理当前用户的 Homebrew 服务；系统级服务只读。	Administre sus servicios de Homebrew. Los servicios del sistema son de solo lectura.
 安装 Homebrew 后，可在这里管理服务。	Instale Homebrew para administrar servicios aquí.

@@ -33,12 +33,13 @@ public enum HomebrewServices {
   public enum Action: String, CaseIterable, Sendable { case start, stop, restart }
 
   public enum ServiceError: Error, LocalizedError {
-    case invalidOutput, unavailableService
+    case invalidOutput, unavailableService, preflightTimedOut
 
     public var errorDescription: String? {
       switch self {
       case .invalidOutput: tr("无法识别 Homebrew 服务列表")
       case .unavailableService: tr("服务已变化或不属于当前用户，请刷新后重试")
+      case .preflightTimedOut: tr("服务列表读取超时，操作尚未执行，请刷新后重试")
       }
     }
   }
@@ -69,11 +70,29 @@ public enum HomebrewServices {
   }
 
   public static func perform(_ action: Action, service: HomebrewService) async throws {
+    try await perform(
+      action, service: service, readInventory: { try await inventory() },
+      runOperation: { arguments in
+        _ = try await DeveloperToolRunner.run(
+          "brew", arguments: arguments, home: NSHomeDirectory())
+      })
+  }
+
+  static func perform(
+    _ action: Action, service: HomebrewService,
+    readInventory: @Sendable () async throws -> [HomebrewService],
+    runOperation: @Sendable ([String]) async throws -> Void
+  ) async throws {
     // 操作前重新核对归属；页面打开后服务可能已被终端移到系统域或卸载。
-    let current = try await inventory()
+    let current: [HomebrewService]
+    do {
+      current = try await readInventory()
+    } catch ToolExecutionError.timedOut {
+      // 预读取超时会停止读取进程，此时还没有执行启停；不能误报为写操作结果未知。
+      throw ServiceError.preflightTimedOut
+    }
     let arguments = try arguments(for: action, service: service, current: current)
-    _ = try await DeveloperToolRunner.run(
-      "brew", arguments: arguments, home: NSHomeDirectory())
+    try await runOperation(arguments)
   }
 
   static func arguments(

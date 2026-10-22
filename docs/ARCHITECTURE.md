@@ -384,6 +384,9 @@ page visibility, and only a visible page refreshes afterward. Package and servic
 offer a wait-or-quit confirmation when exiting; index refresh retains its existing exit behavior.
 A service write timeout reports an unknown outcome and asks the user to verify its status in
 Terminal, rather than declaring failure or recommending a retry.
+The ownership preflight has a separate timeout error: its inventory read is stopped before any
+mutation starts, so the UI reports that no operation ran and allows a retry after refreshing.
+Only the inventory timeout is translated; write timeouts retain the unknown-outcome behavior.
 
 Application uninstallation uses a separate controller and scans only app-specific paths.
 Identity comes from the app's names and bounded embedded bundles (512 entries, 64 bundles,

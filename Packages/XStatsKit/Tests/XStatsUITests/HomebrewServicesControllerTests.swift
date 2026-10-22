@@ -74,6 +74,51 @@ struct HomebrewServicesControllerTests {
   }
 
   @Test(arguments: [HomebrewServices.Action.start, .stop, .restart], [false, true])
+  func preflightTimeoutCanRecoverAfterRefreshWithoutStartingAMutation(
+    action: HomebrewServices.Action, hidden: Bool
+  ) async throws {
+    let state = HomebrewOperationState()
+    let preflight = BrewServiceOperationFixture()
+    let writes = BrewServiceWriteRecorder()
+    let services = try HomebrewServices.parse(#"[{"name":"redis","status":"none"}]"#)
+    let controller = HomebrewServicesController(
+      brewAvailable: { true }, readInventory: { services },
+      performAction: { action, service in
+        try await HomebrewServices.perform(
+          action, service: service,
+          readInventory: {
+            try await preflight.perform(action)
+            return services
+          },
+          runOperation: { await writes.run($0) })
+      },
+      homebrewOperations: state)
+    controller.setVisible(true)
+    await waitUntil { !controller.isLoading }
+    let service = try #require(controller.services.first)
+    controller.perform(action, service: service)
+    await waitUntil { await preflight.calls == 1 }
+    if hidden { controller.setVisible(false) }
+    await preflight.finish(error: ToolExecutionError.timedOut("brew"))
+    await waitUntil { controller.working == nil && !state.isRunning }
+
+    #expect(controller.error == tr("服务列表读取超时，操作尚未执行，请刷新后重试"))
+    #expect(controller.completion == nil && !controller.isLoading)
+    #expect(await writes.commands.isEmpty)
+    // 清单恢复后允许重新确认并执行，不把尚未开始的操作留在写超时状态。
+    if hidden { controller.setVisible(true) } else { controller.refresh() }
+    await waitUntil { !controller.isLoading }
+    #expect(controller.error == nil)
+    controller.perform(action, service: service)
+    await waitUntil { await preflight.calls == 2 }
+    await preflight.finish()
+    await waitUntil { controller.working == nil && !state.isRunning && !controller.isLoading }
+    #expect(controller.completion != nil && controller.error == nil)
+    #expect(await writes.commands == [["services", action.rawValue, service.name]])
+    controller.setVisible(false)
+  }
+
+  @Test(arguments: [HomebrewServices.Action.start, .stop, .restart], [false, true])
   func timedOutWritesRequireTerminalVerification(
     action: HomebrewServices.Action, hidden: Bool
   ) async throws {
@@ -82,7 +127,11 @@ struct HomebrewServicesControllerTests {
     let services = try HomebrewServices.parse(#"[{"name":"redis","status":"none"}]"#)
     let controller = HomebrewServicesController(
       brewAvailable: { true }, readInventory: { services },
-      performAction: { action, _ in try await fixture.perform(action) },
+      performAction: { action, service in
+        try await HomebrewServices.perform(
+          action, service: service, readInventory: { services },
+          runOperation: { _ in try await fixture.perform(action) })
+      },
       homebrewOperations: state)
     controller.setVisible(true)
     await waitUntil { !controller.isLoading }
@@ -214,5 +263,12 @@ private actor BrewServiceOperationFixture {
   func finish(error: (any Error)? = nil) {
     if let error { pending?.resume(throwing: error) } else { pending?.resume() }
     pending = nil
+  }
+}
+
+private actor BrewServiceWriteRecorder {
+  private(set) var commands: [[String]] = []
+  func run(_ arguments: [String]) {
+    commands.append(arguments)
   }
 }
