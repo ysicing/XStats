@@ -43,7 +43,13 @@ extension ImageTool {
   var dirty = true
   var rendering = false
   var imageIsCurrent = true
-  var canPin = true
+  var canPin = true {
+    didSet {
+      // 录制禁用置顶后，旧请求即失效；重新允许时不能复活仍在等待图片处理的请求。
+      if !canPin { pinGeneration = UUID() }
+    }
+  }
+  private var pinGeneration = UUID()
   var error: String?
   var onPin: (CGImage) -> Void = { _ in }
   private(set) var terminating = false
@@ -325,12 +331,15 @@ extension ImageTool {
     renderTask = task
     pendingTasks[id] = task
   }
-  func pin() {
-    guard canPin else { return }
+  @discardableResult
+  func pin() -> Task<Void, Never>? {
+    guard canPin else { return nil }
+    let generation = pinGeneration
     finishEditing()
-    Task {
+    return Task {
       await waitForPendingWork()
-      guard canPin, !terminating, imageIsCurrent, !rendering, !detecting,
+      guard canPin, generation == pinGeneration, !terminating, imageIsCurrent, !rendering,
+        !detecting,
         let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
       else { return }
       onPin(cgImage)

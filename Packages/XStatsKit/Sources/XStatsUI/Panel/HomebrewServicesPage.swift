@@ -51,7 +51,7 @@ struct HomebrewServicesPage: View {
               service: service, isWorking: controller.working == service.id,
               canManage: service.canManage(currentUser: isSnapshot ? "demo" : NSUserName()),
               actionsDisabled: controller.isLoading || controller.working != nil
-                || controller.error != nil
+                || controller.error != nil || controller.homebrewOperations.isRunning
             ) { action in
               pendingService = service
               pendingAction = action

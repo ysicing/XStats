@@ -182,13 +182,48 @@ import Localization
     let model = ImageEditorModel(image: try #require(context.makeImage()))
     var pins = 0
     model.onPin = { _ in pins += 1 }
-    model.pin()
+    let pending = try #require(model.pin())
     model.canPin = false
-    for _ in 0..<20 { await Task.yield() }
+    await pending.value
     #expect(pins == 0)
     model.canPin = true
-    model.pin()
-    for _ in 0..<20 { await Task.yield() }
+    let next = try #require(model.pin())
+    await next.value
+    #expect(pins == 1)
+  }
+
+  @Test(.timeLimit(.minutes(1))) func reenablingPinningDoesNotReviveAnOlderPendingRequest()
+    async throws
+  {
+    let context = try #require(
+      CGContext(
+        data: nil, width: 20, height: 20, bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+    let release = DispatchSemaphore(value: 0)
+    defer { release.signal() }
+    let (started, starts) = AsyncStream<Void>.makeStream()
+    defer { starts.finish() }
+    let model = ImageEditorModel(
+      image: try #require(context.makeImage()),
+      makeMosaics: { image in
+        starts.yield(())
+        guard release.wait(timeout: .now() + 10) == .success else {
+          throw CaptureError.exportFailed
+        }
+        return try ImageMosaics(image: image)
+      })
+    var pins = 0
+    model.onPin = { _ in pins += 1 }
+    let pending = try #require(model.pin())
+    var iterator = started.makeAsyncIterator()
+    await iterator.next()
+    model.canPin = false
+    model.canPin = true
+    let next = try #require(model.pin())
+    release.signal()
+    await pending.value
+    await next.value
     #expect(pins == 1)
   }
 

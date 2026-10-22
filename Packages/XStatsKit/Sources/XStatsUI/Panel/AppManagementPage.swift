@@ -279,6 +279,7 @@ struct AppManagementPage: View {
         )
         .disabled(
           checkingUpdates || controller.operation != nil || model.uninstaller.isRemoving
+            || (tab == .homebrew && controller.homebrewOperations.isRunning)
             || (tab == .apps
               ? controller.isLoadingApps || !controller.hasAppInventory
               : !controller.brewAvailable || controller.isLoadingBrew)
@@ -528,6 +529,7 @@ struct AppManagementPage: View {
       Button(tr("卸载…"), role: .destructive) { uninstall(url: app.url) }
         .disabled(
           controller.operation != nil || controller.isLoadingBrew || !controller.hasBrewInventory
+            || (controller.casksByPath[app.id] != nil && controller.homebrewOperations.isRunning)
             || (row.isRunning && controller.casksByPath[app.id] != nil)
             || app.bundleIdentifier.hasPrefix("com.apple.")
             || app.bundleIdentifier.caseInsensitiveCompare(Bundle.main.bundleIdentifier ?? "")
@@ -552,7 +554,7 @@ struct AppManagementPage: View {
         pendingBrew = BrewConfirmation(package: package, action: .uninstall)
       }
       .disabled(
-        row.isRunning || controller.isCurrentApp(package) || controller.operation != nil
+        row.isRunning || controller.isCurrentApp(package) || controller.homebrewOperations.isRunning
           || controller.isCheckingUpdates)
     }
   }
@@ -560,7 +562,8 @@ struct AppManagementPage: View {
   private func upgradeIsDisabled(for row: ManagedApplicationRow) -> Bool {
     guard let package = row.package else { return true }
     return package.pinned || row.isRunning || controller.isCurrentApp(package)
-      || controller.operation != nil || controller.isCheckingUpdates || model.uninstaller.isRemoving
+      || controller.homebrewOperations.isRunning || controller.isCheckingUpdates
+      || model.uninstaller.isRemoving
   }
 
   private func uninstall(url: URL) {
@@ -572,6 +575,7 @@ struct AppManagementPage: View {
     if let cask = controller.casksByPath[url.standardizedFileURL.path],
       !controller.isCurrentApp(cask)
     {
+      guard !controller.homebrewOperations.isRunning else { return }
       guard !controller.isRunning(cask) else {
         controller.error = tr("应用正在运行，请先退出")
         return

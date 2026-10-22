@@ -40,11 +40,11 @@ public final class AppModel {
   let diagnostics = DiagnosticsExporter()
   public let alerts: AlertController
   public let uninstaller: UninstallerController
-  let appManagement = AppManagementController(cacheURL: AppInventoryCache.defaultURL)
+  let appManagement: AppManagementController
   public let bluetooth = BluetoothController()
   let sleepAssertions = SleepAssertionController()
   let startupItems = StartupItemsController()
-  let homebrewServices = HomebrewServicesController()
+  let homebrewServices: HomebrewServicesController
   let ports = PortsController()
   public let history: HistoryRecorder
   public let sync: SyncController
@@ -129,6 +129,10 @@ public final class AppModel {
     self.settings = settings
     menuBarApplicationFolding = MenuBarApplicationFolding(settings: settings)
     uninstaller = UninstallerController()
+    let homebrewOperations = HomebrewOperationState()
+    appManagement = AppManagementController(
+      cacheURL: AppInventoryCache.defaultURL, homebrewOperations: homebrewOperations)
+    homebrewServices = HomebrewServicesController(homebrewOperations: homebrewOperations)
     let observationBackend = NativeNetworkMonitorBackend()
     connectionMonitor = NetworkMonitorController(
       backend: observationBackend, defaults: settings.networkObservationDefaults)
@@ -438,9 +442,11 @@ public final class AppModel {
   }
 
   /// 网络详情（接口、公网 IP、进程流量）正在显示
+  /// 端口 sheet 遮挡网络页时暂停其详情采样；独立菜单栏弹窗仍保留自己的需求。
   var isNetworkDetailVisible: Bool {
     settings.isModuleEnabled(.network)
-      && (openPopover == .network || (isMainWindowVisible && settings.panelTab == .network))
+      && (openPopover == .network
+        || (isMainWindowVisible && settings.panelTab == .network && !portsVisible))
   }
 
   func refreshLaunchAtLogin() {

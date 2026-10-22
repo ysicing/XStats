@@ -14,6 +14,7 @@ final class HomebrewServicesController {
   private(set) var error: String?
   private(set) var completion: String?
   private(set) var brewAvailable: Bool
+  let homebrewOperations: HomebrewOperationState
   private var visible = false
   private var paused = false
   private var generation = UUID()
@@ -31,12 +32,14 @@ final class HomebrewServicesController {
     performAction:
       @escaping @Sendable (HomebrewServices.Action, HomebrewService) async throws -> Void = {
         try await HomebrewServices.perform($0, service: $1)
-      }
+      },
+    homebrewOperations: HomebrewOperationState = HomebrewOperationState()
   ) {
     self.brewAvailable = brewAvailable()
     self.checkBrewAvailability = brewAvailable
     self.readInventory = readInventory
     self.performAction = performAction
+    self.homebrewOperations = homebrewOperations
   }
 
   func setVisible(_ value: Bool) {
@@ -100,10 +103,13 @@ final class HomebrewServicesController {
     guard visible, !paused, !isLoading, working == nil, error == nil,
       service.canManage(), services.contains(service)
     else { return }
+    let homebrewOperations = homebrewOperations
+    guard homebrewOperations.begin() else { return }
     working = service.id
     completion = nil
     // 用户确认的操作独立收尾，切换页面不打断；完成后仍只在可见时刷新。
     Task {
+      defer { homebrewOperations.finish() }
       do {
         try await performAction(action, service)
         completion = tr("服务操作已完成，请以刷新后的状态为准")

@@ -162,6 +162,39 @@ final class PortsPresentationTests {
     #expect(model.portsVisible)
   }
 
+  @Test func portSheetSuspendsCoveredNetworkDetailsButKeepsIndependentPopoverDemand() {
+    let settings = makeSettings()
+    settings.portsEnabled = true
+    settings.portsPlacement = .network
+    settings.panelTab = .network
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+    model.isMainWindowVisible = true
+    #expect(model.isNetworkDetailVisible)
+    for _ in 0..<5 {
+      model.isPortsSheetPresented = true
+      #expect(model.portsVisible && !model.isNetworkDetailVisible)
+      model.openPopover = .network
+      #expect(model.isNetworkDetailVisible)
+      model.openPopover = nil
+      #expect(!model.isNetworkDetailVisible)
+      model.isPortsSheetPresented = false
+      #expect(!model.portsVisible && model.isNetworkDetailVisible)
+    }
+    model.isPortsSheetPresented = true
+    settings.portsEnabled = false
+    #expect(!model.portsVisible && model.isNetworkDetailVisible)
+    settings.portsEnabled = true
+    settings.portsPlacement = .sidebar
+    #expect(!model.portsVisible && model.isNetworkDetailVisible)
+    model.isMainWindowVisible = false
+    #expect(!model.portsVisible && !model.isNetworkDetailVisible)
+    model.openPopover = .network
+    #expect(model.isNetworkDetailVisible)
+    settings.setModuleEnabled(.network, false)
+    #expect(!model.isNetworkDetailVisible)
+  }
+
   @Test func listingFiltersSearchesAndSortsByPortThenPID() {
     let sockets = [
       socket(pid: 20, name: "node", port: 8080),

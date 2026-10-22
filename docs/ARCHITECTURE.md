@@ -218,6 +218,9 @@ and shared UDP ports are not flagged. Markers are keyed by kernel socket, so oth
 the same port are not marked. Per-process rates reuse `NetworkProcessSampler`'s `nettop` deltas. `PortsController`
 samples every 3 seconds only while the feature is on, the main window shows the page, and the
 session is active; sleep and lock pause it, and rates and their baseline are dropped on every stop.
+The network page's port sheet uses the same controller and suspends the covered network page's
+detail sampling until dismissed. An independently visible network menu-bar popover retains its
+own detail demand.
 A socket enumeration failure clears connections, rates and conflict markers and shows the existing
 read-failure state. A failed rate read clears displayed rates and resets the baseline rather than
 presenting cached values as live. Turning the feature off clears results. Ending a process signals only its own PID (through `NSRunningApplication`
@@ -365,6 +368,12 @@ identifiers and output are bounded. Explicit index refresh and per-package opera
 bounded tool runner with auto-update, analytics, cleanup and autoremove disabled. Mutations retain
 Homebrew dependency protection, disallow pinned upgrades and running/self Cask changes, and finish
 independently of page visibility. App uninstall still uses the existing preview/recycler safety path.
+`AppModel` injects one `HomebrewOperationState` into package and service management. Index refresh,
+package upgrade/uninstall and service start/stop/restart synchronously acquire this shared write
+state before launching a command; both pages disable competing write actions and execution entry
+points reject them again. The state survives navigation and is released when the command wait ends,
+including failure or cancellation. It does not track unrelated terminal commands or a brew process
+that continues after the write runner times out.
 
 The Services category reads Homebrew availability on entry and manual refresh, including when
 Homebrew was absent at app startup; refresh remains available in that state. Service inventory reads
