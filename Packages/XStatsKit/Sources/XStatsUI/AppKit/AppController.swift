@@ -323,7 +323,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       NSApp.activate()
       let alert = NSAlert()
       alert.messageText = tr("Homebrew 操作尚未完成")
-      alert.informativeText = tr("仍然退出时，Homebrew 会在后台继续完成当前操作，XStats 不再显示其结果，可稍后在终端核对。")
+      alert.informativeText = tr("退出后，已启动的 Homebrew 命令可能继续在后台运行；尚未启动的操作不会执行，请稍后在终端核对状态。")
       alert.addButton(withTitle: tr("等待完成"))
       alert.addButton(withTitle: tr("仍然退出"))
       guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }

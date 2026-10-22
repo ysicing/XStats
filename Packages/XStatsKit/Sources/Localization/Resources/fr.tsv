@@ -1950,7 +1950,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 等待完成	Attendre
 仍然退出	Quitter quand même
 合计	Total
-仍然退出时，Homebrew 会在后台继续完成当前操作，XStats 不再显示其结果，可稍后在终端核对。	Si vous quittez quand même, Homebrew terminera l’opération en arrière-plan. XStats n’affichera pas le résultat ; vous pourrez le vérifier plus tard dans le Terminal.
+退出后，已启动的 Homebrew 命令可能继续在后台运行；尚未启动的操作不会执行，请稍后在终端核对状态。	Après avoir quitté, les commandes Homebrew déjà lancées peuvent continuer en arrière-plan. Les opérations qui n’ont pas encore commencé ne seront pas exécutées. Vérifiez leur état plus tard dans le Terminal.
 名称	Nom
 来源	Source
 最新版本	Dernière version

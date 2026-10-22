@@ -1950,7 +1950,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La oper
 等待完成	Esperar
 仍然退出	Salir de todos modos
 合计	Total
-仍然退出时，Homebrew 会在后台继续完成当前操作，XStats 不再显示其结果，可稍后在终端核对。	Si sales de todos modos, Homebrew terminará la operación actual en segundo plano. XStats no mostrará el resultado; puedes comprobarlo más tarde en Terminal.
+退出后，已启动的 Homebrew 命令可能继续在后台运行；尚未启动的操作不会执行，请稍后在终端核对状态。	Al salir, los comandos de Homebrew ya iniciados pueden seguir ejecutándose en segundo plano. Las operaciones que aún no hayan comenzado no se ejecutarán. Comprueba su estado más tarde en Terminal.
 名称	Nombre
 来源	Origen
 最新版本	Última versión

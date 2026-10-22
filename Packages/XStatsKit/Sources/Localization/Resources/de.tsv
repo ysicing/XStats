@@ -1950,7 +1950,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Der Hom
 等待完成	Warten
 仍然退出	Trotzdem beenden
 合计	Gesamt
-仍然退出时，Homebrew 会在后台继续完成当前操作，XStats 不再显示其结果，可稍后在终端核对。	Wenn du trotzdem beendest, schließt Homebrew den aktuellen Vorgang im Hintergrund ab. XStats zeigt das Ergebnis nicht an; du kannst es später im Terminal prüfen.
+退出后，已启动的 Homebrew 命令可能继续在后台运行；尚未启动的操作不会执行，请稍后在终端核对状态。	Nach dem Beenden können bereits gestartete Homebrew-Befehle im Hintergrund weiterlaufen. Noch nicht gestartete Vorgänge werden nicht ausgeführt. Prüfe den Status später im Terminal.
 名称	Name
 来源	Quelle
 最新版本	Neueste Version

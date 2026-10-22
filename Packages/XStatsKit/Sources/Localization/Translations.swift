@@ -1785,7 +1785,7 @@ extension Translations {
     等待完成	Wait
     仍然退出	Quit Anyway
     合计	Total
-    仍然退出时，Homebrew 会在后台继续完成当前操作，XStats 不再显示其结果，可稍后在终端核对。	If you quit anyway, Homebrew will finish the current operation in the background. XStats won't show the result; you can check it later in Terminal.
+    退出后，已启动的 Homebrew 命令可能继续在后台运行；尚未启动的操作不会执行，请稍后在终端核对状态。	After quitting, Homebrew commands that have already started may keep running in the background. Operations that haven't started won't run. Check their status in Terminal later.
     Apple 芯片	Apple Silicon
     iPhone 与 iPad	iPhone and iPad
     上次打开	Last Opened
