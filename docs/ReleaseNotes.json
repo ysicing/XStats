@@ -1,27 +1,21 @@
 {
-  "version": "1.4.6",
+  "version": "1.4.7",
   "sourceNotes": [
-    "三合一菜单栏与程序坞图标支持自由组合顶部指标、中部连接状态和底部读数",
-    "AI 用量菜单栏最多显示四个可选服务",
-    "菜单栏图标可按应用整理，并收起或展开选定应用，重启后保留选择",
-    "Wi-Fi 弹窗补充连接详情",
-    "自定义弹窗内容支持调整区块顺序",
-    "蓝牙音频新增设备整理与聆听模式切换",
-    "音频页支持滚动调节系统音量与输入音量，并可断开当前蓝牙音频输出",
-    "优化三合一图标的状态辨识与配色，并改善菜单栏图标折叠操作",
-    "修复 AI 用量服务选择无法记住、概览卡片显示服务不一致的问题，并兼容没有内置电池的设备"
+    "新增端口页，可查看监听端口、已建立连接、所属进程和网络速率，并结束占用端口的进程",
+    "本机 IP 查询支持本地接口与多来源出口对比",
+    "应用服务整合应用、Homebrew、启动项与服务",
+    "端口入口可放在工具侧栏、网络页或同时显示，并优化应用服务的工具栏和列表布局",
+    "修复 Homebrew 包与服务操作可能跨页并发的问题",
+    "修复录制等操作临时禁用截图置顶后，先前等待图片处理的置顶请求被意外恢复的问题"
   ],
   "translations": {
     "en": [
-      "Customize the combined menu bar and Dock icon by choosing the top metric, middle connection status, and bottom reading.",
-      "Show up to four selectable AI providers in the menu bar.",
-      "Organize menu bar icons by app, then fold or reveal selected apps while keeping the selection after restart.",
-      "Show more details in the Wi-Fi popover.",
-      "Reorder sections in custom popover content.",
-      "Organize Bluetooth audio devices and switch their listening modes.",
-      "Scroll over the audio page sliders to adjust system or input volume, and disconnect the current Bluetooth audio output.",
-      "Improve state legibility and colors in the combined icon, and refine menu bar icon folding.",
-      "Fix AI usage provider selections not being remembered and overview cards showing a different provider; support devices without a built-in battery."
+      "Add a Ports page to inspect listening ports, established connections, owning processes, and per-process network rates, and terminate processes occupying ports.",
+      "Compare local interfaces and public egress addresses from multiple sources, including IP.SB location, provider, and ASN details, while respecting address-hiding settings.",
+      "Bring apps, Homebrew packages, startup items, and services together in App Services. Manage the current user’s launch agents and Homebrew services; system items remain read-only.",
+      "Choose whether Ports appears in the tools sidebar, on the Network page, or in both places, and refine the App Services toolbar and list layout.",
+      "Prevent Homebrew package and service operations from running concurrently across pages, and clarify quit confirmations, preflight timeouts, and operations that may continue after XStats stops waiting.",
+      "Prevent a pending screenshot-pinning request from running after recording or another operation temporarily disables pinning."
     ]
   }
 }
