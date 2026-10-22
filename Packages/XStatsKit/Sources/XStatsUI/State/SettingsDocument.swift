@@ -75,6 +75,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var uninstallerEnabled: Bool?
   public var processesEnabled: Bool?
   public var portsEnabled: Bool?
+  public var portsPlacement: String?
   public var audioEnabled: Bool?
   public var networkConnectionsEnabled: Bool?
   public var cleanPrefersTrash: Bool?
@@ -148,6 +149,7 @@ extension AppSettings {
     doc.agentDataEnabled = agentDataEnabled
     doc.processesEnabled = processesEnabled
     doc.portsEnabled = portsEnabled
+    doc.portsPlacement = portsPlacement.rawValue
     doc.audioEnabled = audioEnabled
     doc.networkConnectionsEnabled = networkConnectionsEnabled
     doc.cleanPrefersTrash = cleanPrefersTrash
@@ -255,6 +257,7 @@ extension AppSettings {
     assign(\.agentDataEnabled, doc.agentDataEnabled)
     assign(\.processesEnabled, doc.processesEnabled)
     assign(\.portsEnabled, doc.portsEnabled)
+    assign(\.portsPlacement, doc.portsPlacement.flatMap(PortsPlacement.init(rawValue:)))
     assign(\.audioEnabled, doc.audioEnabled)
     // 文档里的明确关闭优先于菜单栏选择，避免恢复时由菜单栏联动重新开启。
     assign(

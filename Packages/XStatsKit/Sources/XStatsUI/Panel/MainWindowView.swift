@@ -249,7 +249,7 @@ private struct MainSidebar: View {
           case .rest: model.settings.restEnabled
           case .cleaner: model.settings.cleanerEnabled
           case .processes: model.settings.processesEnabled
-          case .ports: model.settings.portsEnabled
+          case .ports: model.settings.showsPortsInSidebar
           default: true
           }
         })
@@ -448,6 +448,9 @@ private struct PageHeader: View {
         .help(tr("按需扫描项目构建产物，逐项选择后移到废纸篓。"))
       }
       if tab == .network {
+        if settings.showsPortsInNetwork {
+          PortsButton()
+        }
         LocalIPQueryButton()
         Button {
           model.openSpeedTestWindow()

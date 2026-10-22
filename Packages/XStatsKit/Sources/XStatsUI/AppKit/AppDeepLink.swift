@@ -81,6 +81,8 @@ enum AppDeepLink: Equatable, Sendable {
       .cleaner where !settings.cleanerEnabled,
       .aiUsage where !settings.aiUsageEnabled:
       return .settingsFeatures
+    case .ports where !settings.portsPlacement.includesSidebar:
+      return .network
     case .startupItems:
       settings.appServicesSection = .startup
       return .uninstaller

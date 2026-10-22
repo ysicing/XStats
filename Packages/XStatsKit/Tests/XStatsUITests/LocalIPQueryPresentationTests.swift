@@ -17,7 +17,7 @@ struct LocalIPQueryPresentationTests {
         "隐藏 IP", "隐藏国内信息", "隐藏国际信息", "信息已隐藏", "未获取到地址，请检查网络或稍后重试。",
         "出口对比", "查看网站连通性与代理路线", "未获取到 IPv6 地址，请检查网络或稍后重试。",
         "查询次数已达上限，请稍后重试。", "查询服务暂时不可用，请稍后重试。", "查询服务返回了无效响应，请重试。",
-        "国际", "本地接口", "暂无已连接的本地接口", "有线网络", "VPN / 隧道", "其他接口", "更多地址", "链路本地",
+        "国际", "本地接口", "暂无已连接的本地接口", "有线网络", "VPN / 隧道", "其他接口",
       ] {
         #expect(table.translate(key)?.isEmpty == false, "\(language): \(key)")
       }
@@ -35,6 +35,13 @@ struct LocalIPQueryPresentationTests {
               return .success(PublicAddresses(ipv4: "203.0.113.24", countryCode: "JP"))
             }
             if source == .ipify { return .success(PublicAddresses(ipv4: "192.0.2.42")) }
+            if source == .ipSB {
+              return .success(
+                PublicAddresses(
+                  ipv6: "2001:db8::25", countryCode: "DE", city: "Frankfurt",
+                  region: "Hesse", asn: "AS64500",
+                  organization: "Example International Network Operator"))
+            }
             return .success(
               PublicAddresses(
                 ipv4: "203.0.113.24", countryCode: "JP", city: "Example City",

@@ -59,7 +59,7 @@ struct LocalIPQueryView: View {
           Card(padding: DS.Space.s3, spacing: DS.Space.s3) {
             Label(tr("出口对比"), systemImage: "point.3.connected.trianglepath.dotted")
               .font(.headline)
-            ForEach([LocalIPQuery.Source.domestic, .cloudflare, .ipify]) { source in
+            ForEach([LocalIPQuery.Source.domestic, .ipSB, .cloudflare, .ipify]) { source in
               HairlineDivider()
               LocalIPSourceView(
                 source: source, revision: revision, hideIP: hideIP,
@@ -124,11 +124,10 @@ private struct LocalInterfacesView: View {
   }
 }
 
-/// 隐藏地址时不挂载复制按钮或展开内容，辅助功能与剪贴板入口也不会泄漏地址。
+/// 隐藏地址时不挂载明文或复制按钮，辅助功能与剪贴板入口也不会泄漏地址。
 struct LocalInterfaceRow: View {
   let interface: LocalNetworkInterface
   let hideIP: Bool
-  @State private var expanded = false
 
   private var title: String {
     if let name = interface.name, !name.isEmpty { return name }
@@ -161,16 +160,6 @@ struct LocalInterfaceRow: View {
       } else {
         if let ipv4 = interface.ipv4.first { address(ipv4, family: "IPv4") }
         if let ipv6 = interface.ipv6.first { address(ipv6, family: "IPv6") }
-        if interface.ipv4.count > 1 || interface.ipv6.count > 1 || !interface.linkLocal.isEmpty {
-          DisclosureGroup(tr("更多地址"), isExpanded: $expanded) {
-            ForEach(Array(interface.ipv4.dropFirst()), id: \.self) { address($0, family: "IPv4") }
-            ForEach(Array(interface.ipv6.dropFirst()), id: \.self) { address($0, family: "IPv6") }
-            ForEach(interface.linkLocal, id: \.self) {
-              address($0, family: tr("链路本地"))
-            }
-          }
-          .font(.caption).foregroundStyle(.secondary)
-        }
       }
     }
   }
@@ -203,6 +192,7 @@ private struct LocalIPSourceView: View {
     case .domestic: "CleanIP"
     case .cloudflare: "Cloudflare"
     case .ipify: "ipify"
+    case .ipSB: "IP.SB"
     }
   }
 
@@ -211,7 +201,7 @@ private struct LocalIPSourceView: View {
       HStack {
         Text(title).font(.headline)
         Spacer()
-        if source == .domestic || source == .cloudflare || source == .ipify {
+        if source == .domestic || source == .cloudflare || source == .ipify || source == .ipSB {
           TagBadge(
             text: source == .domestic ? tr("国内") : tr("国际"),
             tone: source == .domestic ? .neutral : .primary)
@@ -255,7 +245,7 @@ private struct LocalIPResultContent: View {
           } else if let ip = result.ipv4 ?? result.ipv6 {
             CopyableText(text: ip).font(.system(.body, design: .monospaced))
           }
-          if source == .ipv4 || source == .ipv6 {
+          if source == .ipv4 || source == .ipv6 || source == .ipSB {
             if let location = Self.location(result) {
               InfoRow(label: tr("归属地"), text: location)
             }

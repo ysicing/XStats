@@ -7,9 +7,16 @@ import Testing
 @testable import XStatsUI
 
 @MainActor
-struct PortsPresentationTests {
+final class PortsPresentationTests {
+  private var suites: [String] = []
+
+  deinit {
+    for suite in suites { UserDefaults.standard.removePersistentDomain(forName: suite) }
+  }
+
   private func makeSettings() -> AppSettings {
     let name = "PortsPresentationTests.\(UUID().uuidString)"
+    suites.append(name)
     let defaults = UserDefaults(suiteName: name)!
     defaults.removePersistentDomain(forName: name)
     return AppSettings(defaults: defaults)
@@ -44,6 +51,115 @@ struct PortsPresentationTests {
     settings.panelTab = .ports
     settings.portsEnabled = false
     #expect(settings.panelTab == .settingsFeatures)
+  }
+
+  @Test func placementDefaultsToSidebarAndOnlyShowsEnabledEntrances() {
+    let settings = makeSettings()
+    #expect(settings.portsPlacement == .sidebar)
+    for placement in PortsPlacement.allCases {
+      settings.portsPlacement = placement
+      settings.portsEnabled = false
+      #expect(!settings.showsPortsInSidebar)
+      #expect(!settings.showsPortsInNetwork)
+      settings.portsEnabled = true
+      #expect(settings.showsPortsInSidebar == (placement != .network))
+      #expect(settings.showsPortsInNetwork == (placement != .sidebar))
+      settings.portsEnabled = false
+      #expect(settings.portsPlacement == placement)
+    }
+  }
+
+  @Test func movingPortsOutOfSidebarRedirectsCurrentAndExternalRoutes() {
+    let settings = makeSettings()
+    settings.portsEnabled = true
+    settings.panelTab = .ports
+    settings.portsPlacement = .network
+    #expect(settings.panelTab == .network)
+    settings.panelTab = .ports
+    #expect(settings.panelTab == .network)
+    #expect(AppDeepLink.page(.ports, settings: settings) == .network)
+    settings.portsPlacement = .both
+    settings.panelTab = .ports
+    #expect(settings.panelTab == .ports)
+    #expect(AppDeepLink.page(.ports, settings: settings) == .ports)
+    settings.portsEnabled = false
+    #expect(AppDeepLink.page(.ports, settings: settings) == .settingsFeatures)
+  }
+
+  @Test func placementPersistsAndRestoresSavedRoutes() throws {
+    let suite = "PortsPlacement.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.portsEnabled = true
+    settings.portsPlacement = .both
+    #expect(AppSettings(defaults: defaults).portsPlacement == .both)
+    defaults.set("network", forKey: "portsPlacement")
+    defaults.set("ports", forKey: "panelTab")
+    let restored = AppSettings(defaults: defaults)
+    #expect(restored.portsPlacement == .network)
+    #expect(restored.panelTab == .network)
+    defaults.set("future-placement", forKey: "portsPlacement")
+    let unknown = AppSettings(defaults: defaults)
+    #expect(unknown.portsPlacement == .sidebar)
+    #expect(unknown.panelTab == .ports)
+  }
+
+  @Test func placementBackupRoundTripsAndIgnoresMissingOrUnknownChoices() throws {
+    let source = makeSettings()
+    source.portsEnabled = true
+    source.portsPlacement = .network
+    let document = try JSONDecoder().decode(
+      SettingsDocument.self, from: JSONEncoder().encode(source.exportDocument()))
+    let destination = makeSettings()
+    destination.apply(document)
+    #expect(destination.portsEnabled)
+    #expect(destination.portsPlacement == .network)
+    destination.apply(SettingsDocument())
+    #expect(destination.portsPlacement == .network)
+    var unknown = SettingsDocument()
+    unknown.portsPlacement = "future-placement"
+    destination.apply(unknown)
+    #expect(destination.portsPlacement == .network)
+  }
+
+  @Test func demandTracksOnlyVisiblePortContentAndStopsWhenClosedOrDisabled() {
+    let settings = makeSettings()
+    settings.portsEnabled = true
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+    model.isMainWindowVisible = true
+    settings.panelTab = .ports
+    #expect(model.portsVisible)
+    model.isMainWindowVisible = false
+    #expect(!model.portsVisible)
+    model.isMainWindowVisible = true
+    settings.portsPlacement = .network
+    #expect(!model.portsVisible)
+    for _ in 0..<5 {
+      model.isPortsSheetPresented = true
+      #expect(model.portsVisible)
+      model.isMainWindowVisible = false
+      #expect(!model.portsVisible)
+      model.isMainWindowVisible = true
+      model.isPortsSheetPresented = false
+      #expect(!model.portsVisible)
+    }
+    model.isPortsSheetPresented = true
+    settings.panelTab = .overview
+    #expect(!model.portsVisible)
+    settings.panelTab = .network
+    #expect(model.portsVisible)
+    settings.portsEnabled = false
+    #expect(!model.portsVisible)
+    settings.portsEnabled = true
+    settings.portsPlacement = .sidebar
+    #expect(!model.portsVisible)
+    model.isPortsSheetPresented = false
+    settings.portsPlacement = .both
+    #expect(!model.portsVisible)
+    settings.panelTab = .ports
+    #expect(model.portsVisible)
   }
 
   @Test func listingFiltersSearchesAndSortsByPortThenPID() {

@@ -183,13 +183,7 @@ struct FeatureSettings: View {
           }
         }
         GroupRow {
-          SettingRow(
-            title: tr("端口"),
-            subtitle: tr("查看监听端口、已建立的连接及占用进程，可结束占用端口的进程。"),
-            icon: "point.3.connected.trianglepath.dotted"
-          ) {
-            DSToggle(isOn: $settings.portsEnabled, label: tr("端口"))
-          }
+          PortsFeatureSettings()
         }
         GroupRow {
           SettingRow(
@@ -291,6 +285,35 @@ struct FeatureSettings: View {
             }
           }
         }
+      }
+    }
+  }
+}
+
+/// 位置选择紧邻功能开关；原生菜单适应长译文，关闭功能后收起次级设置。
+struct PortsFeatureSettings: View {
+  @Environment(AppModel.self) private var model
+
+  var body: some View {
+    @Bindable var settings = model.settings
+    VStack(alignment: .leading, spacing: DS.Space.s3) {
+      SettingRow(
+        title: tr("端口"),
+        subtitle: tr("查看监听端口、已建立的连接及占用进程，可结束占用端口的进程。"),
+        icon: "point.3.connected.trianglepath.dotted"
+      ) {
+        DSToggle(isOn: $settings.portsEnabled, label: tr("端口"))
+      }
+      if settings.portsEnabled {
+        Picker(tr("显示位置"), selection: $settings.portsPlacement) {
+          ForEach(PortsPlacement.allCases) { placement in
+            Text(placement.title).tag(placement)
+          }
+        }
+        .pickerStyle(.menu)
+        .dsFont(.sm)
+        .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
+        .accessibilityIdentifier("ports-placement")
       }
     }
   }

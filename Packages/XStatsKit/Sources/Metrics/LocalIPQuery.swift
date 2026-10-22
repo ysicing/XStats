@@ -5,7 +5,7 @@ import Foundation
 /// 按来源独立查询公网出口；归属地只属于该来源实际返回的地址，不跨出口拼接。
 public enum LocalIPQuery {
   public enum Source: String, CaseIterable, Sendable, Identifiable {
-    case ipv4, ipv6, domestic, cloudflare, ipify
+    case ipv4, ipv6, domestic, cloudflare, ipify, ipSB
     public var id: String { rawValue }
   }
 
@@ -31,6 +31,10 @@ public enum LocalIPQuery {
     case .ipify:
       response = await PublicAddressLookup.getWithStatus(
         URL(string: "https://api.ipify.org?format=json")!)
+    case .ipSB:
+      // 原生客户端直接读取 JSON，无需网页使用的 callback 包装。
+      response = await PublicAddressLookup.getWithStatus(
+        URL(string: "https://api.ip.sb/geoip")!)
     }
     guard !Task.isCancelled else { return .failure(.cancelled) }
     return decode(response.0, status: response.1, source: source)
@@ -67,6 +71,30 @@ public enum LocalIPQuery {
       return PublicAddresses(
         ipv4: ip.contains(":") ? nil : ip, ipv6: ip.contains(":") ? ip : nil,
         countryCode: fields["loc"].flatMap(PublicAddressLookup.validCountryCode))
+    case .ipSB:
+      struct GeoIP: Decodable {
+        let ip: String
+        let countryCode: String?
+        let city: String?
+        let region: String?
+        let asn: UInt32?
+        let isp: String?
+        let organization: String?
+        let asnOrganization: String?
+      }
+      let decoder = JSONDecoder()
+      decoder.keyDecodingStrategy = .convertFromSnakeCase
+      guard let geo = try? decoder.decode(GeoIP.self, from: data) else { return nil }
+      let ip = geo.ip.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard PublicAddressLookup.isAddress(ip) else { return nil }
+      let organization = [geo.isp, geo.organization, geo.asnOrganization]
+        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first { !$0.isEmpty }
+      return PublicAddresses(
+        ipv4: ip.contains(":") ? nil : ip, ipv6: ip.contains(":") ? ip : nil,
+        countryCode: geo.countryCode.flatMap(PublicAddressLookup.validCountryCode),
+        city: geo.city, region: geo.region,
+        asn: geo.asn.flatMap { $0 > 0 ? "AS\($0)" : nil }, organization: organization)
     }
   }
 }

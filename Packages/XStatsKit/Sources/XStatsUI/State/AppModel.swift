@@ -56,6 +56,14 @@ public final class AppModel {
   var featureSettingsTab: FeatureSettingsTab = .basic
 
   public var isMainWindowVisible = false
+  /// 网络页的端口 sheet 可见时，与独立端口页共享同一个采集控制器。
+  var isPortsSheetPresented = false
+
+  var portsVisible: Bool {
+    isMainWindowVisible
+      && ((settings.showsPortsInSidebar && settings.panelTab == .ports)
+        || (settings.showsPortsInNetwork && settings.panelTab == .network && isPortsSheetPresented))
+  }
   /// 被其他应用占用、没能注册的快捷键
   var isRecordingShortcut = false
   var timerShortcutBlockers: Set<UUID> = []

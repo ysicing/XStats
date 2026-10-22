@@ -183,6 +183,8 @@ struct AppManagementPage: View {
       }
     }
     .dsFont(.sm)
+    // 与 PageScroll 的内容边距对齐，也为原生控件的边缘留出空间。
+    .padding(.horizontal, DS.Space.s3)
     // 顶栏位于页面上方，给玻璃按钮的上缘和阴影留出空间，避免被顶栏遮住。
     .padding(.top, DS.Space.s2)
   }

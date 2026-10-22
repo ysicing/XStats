@@ -49,6 +49,56 @@ struct LocalIPQueryTests {
     #expect(result.countryCode == nil && result.organization == nil && result.asn == nil)
   }
 
+  @Test(arguments: ["203.0.113.25", "2001:db8::25"])
+  func ipSBKeepsGeographyWithItsReturnedAddress(ip: String) throws {
+    let body = Data(
+      """
+      {"ip":" \(ip) ","country_code":"de","region":"Hesse","city":"Frankfurt",
+       "asn":64500,"isp":"Example ISP","organization":"Example Organization",
+       "asn_organization":"Example AS"}
+      """.utf8)
+    let result = try LocalIPQuery.decode(body, status: 200, source: .ipSB).get()
+    #expect(result.ipv4 == (ip.contains(":") ? nil : ip))
+    #expect(result.ipv6 == (ip.contains(":") ? ip : nil))
+    #expect(result.countryCode == "DE")
+    #expect(result.region == "Hesse" && result.city == "Frankfurt")
+    #expect(result.asn == "AS64500")
+    #expect(result.organization == "Example ISP")
+    #expect(result.purity == nil && result.risk == nil)
+  }
+
+  @Test func ipSBAcceptsMissingGeographyWithoutInventingDetails() throws {
+    let result = try #require(
+      LocalIPQuery.parse(Data(#"{"ip":"192.0.2.25"}"#.utf8), source: .ipSB))
+    #expect(result.ipv4 == "192.0.2.25" && result.ipv6 == nil)
+    #expect(result.countryCode == nil && result.city == nil && result.region == nil)
+    #expect(result.asn == nil && result.organization == nil)
+  }
+
+  @Test(arguments: [
+    (
+      #"{"isp":" ","organization":" Example Organization ","asn_organization":"Example AS"}"#,
+      "Example Organization"
+    ),
+    (#"{"asn_organization":"Example AS"}"#, "Example AS"),
+  ])
+  func ipSBUsesAvailableOrganization(fields: String, expected: String) throws {
+    var payload = try #require(
+      JSONSerialization.jsonObject(with: Data(fields.utf8)) as? [String: Any])
+    payload["ip"] = "192.0.2.25"
+    payload["country_code"] = "../x"
+    payload["asn"] = 0
+    let result = try #require(
+      LocalIPQuery.parse(try JSONSerialization.data(withJSONObject: payload), source: .ipSB))
+    #expect(result.organization == expected)
+    #expect(result.countryCode == nil && result.asn == nil)
+  }
+
+  @Test(arguments: [429, 503])
+  func ipSBPreservesHTTPFailures(status: Int) {
+    #expect(LocalIPQuery.decode(Data(), status: status, source: .ipSB) == .failure(.http(status)))
+  }
+
   @Test func distinguishesServiceTransportAndPayloadFailures() {
     #expect(LocalIPQuery.decode(nil, status: 0, source: .ipv6) == .failure(.connection))
     #expect(LocalIPQuery.decode(nil, status: 429, source: .ipv4) == .failure(.http(429)))

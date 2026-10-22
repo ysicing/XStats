@@ -710,18 +710,17 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.networkGeography.setDemand(enabled: model.connectionMonitor.isReading)
   }
 
-  /// 端口页只在功能开启、主窗口可见且停在端口页时读取；订阅单独闭环，中间不 await。
+  /// 独立端口页与网络页 sheet 共用需求；窗口隐藏或端口内容关闭后停止读取。
   private func observePortsDemand() {
     withObservationTracking {
       _ = model.settings.portsEnabled
-      _ = model.settings.panelTab
-      _ = model.isMainWindowVisible
+      _ = model.portsVisible
     } onChange: { [weak self] in
       Task { @MainActor [weak self] in self?.observePortsDemand() }
     }
     model.ports.setDemand(
       enabled: model.settings.portsEnabled,
-      visible: model.isMainWindowVisible && model.settings.panelTab == .ports)
+      visible: model.portsVisible)
   }
 
   /// 探测目标变化时清空历史重新探测；关闭公网 IP 查询时清除已显示的结果

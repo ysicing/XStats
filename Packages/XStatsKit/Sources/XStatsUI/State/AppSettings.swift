@@ -10,6 +10,22 @@ import Localization
 import Metrics
 import Observation
 
+public enum PortsPlacement: String, CaseIterable, Identifiable, Sendable {
+  case sidebar, network, both
+
+  public var id: String { rawValue }
+  var includesSidebar: Bool { self != .network }
+  var includesNetwork: Bool { self != .sidebar }
+
+  var title: String {
+    switch self {
+    case .sidebar: tr("工具侧栏")
+    case .network: tr("网络页面")
+    case .both: tr("两处显示")
+    }
+  }
+}
+
 public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
   case cpu, memory, network, gpu, disk, temperature, fan, battery, aiUsage, display, audio
 
@@ -768,6 +784,15 @@ public final class AppSettings {
       if !portsEnabled && panelTab == .ports { panelTab = .settingsFeatures }
     }
   }
+  /// 入口位置与功能开关独立保存，关闭后保留位置选择。
+  public var portsPlacement: PortsPlacement {
+    didSet {
+      defaults.set(portsPlacement.rawValue, forKey: Keys.portsPlacement)
+      if !portsPlacement.includesSidebar && panelTab == .ports { panelTab = .network }
+    }
+  }
+  var showsPortsInSidebar: Bool { portsEnabled && portsPlacement.includesSidebar }
+  var showsPortsInNetwork: Bool { portsEnabled && portsPlacement.includesNetwork }
   /// 清理工具默认开启；扫描只在打开页面后按需执行，保留用户已保存的关闭设置。
   public var cleanerEnabled: Bool {
     didSet {
@@ -858,6 +883,7 @@ public final class AppSettings {
       if panelTab == .connections && !canViewNetworkConnections { panelTab = .settingsFeatures }
       if panelTab == .processes && !processesEnabled { panelTab = .settingsFeatures }
       if panelTab == .ports && !portsEnabled { panelTab = .settingsFeatures }
+      if panelTab == .ports && !portsPlacement.includesSidebar { panelTab = .network }
       if panelTab == .startupItems {
         appServicesSection = .startup
         panelTab = .uninstaller
@@ -1224,6 +1250,10 @@ public final class AppSettings {
     processesEnabled = isProcessesEnabled
     let isPortsEnabled = defaults.bool(forKey: Keys.portsEnabled)
     portsEnabled = isPortsEnabled
+    let initialPortsPlacement =
+      defaults.string(forKey: Keys.portsPlacement).flatMap(PortsPlacement.init(rawValue:))
+      ?? .sidebar
+    portsPlacement = initialPortsPlacement
     aiUsageSources =
       defaults.stringArray(forKey: Keys.aiUsageSources)
       .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
@@ -1265,6 +1295,8 @@ public final class AppSettings {
     // 旧版 AI 助手设置页已移除，升级后仍留在设置分组。
     if savedPanelTabValue == "settingsAI" || savedPanelTab == .settingsAccount {
       panelTab = .settingsGeneral
+    } else if savedPanelTab == .ports && isPortsEnabled && !initialPortsPlacement.includesSidebar {
+      panelTab = .network
     } else {
       panelTab =
         (savedPanelTab == .audio && !isAudioEnabled)
@@ -1601,6 +1633,7 @@ public final class AppSettings {
     static let agentDataEnabled = "agentDataEnabled"
     static let processesEnabled = "processesEnabled"
     static let portsEnabled = "portsEnabled"
+    static let portsPlacement = "portsPlacement"
     static let aiUsageSources = "aiUsageSources"
     static let aiUsageShowsLocalUsage = "aiUsageShowsLocalUsage"
     static let aiQuotaShowsRemaining = "aiQuotaShowsRemaining"

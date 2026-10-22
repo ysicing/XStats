@@ -29,6 +29,13 @@ Disabled optional-feature entry points lead to Features, including calendar and 
 Disabled monitoring pages retain hardware/basic information and an enable action, without mounting
 live metrics, charts, rankings or controls.
 
+The optional Ports tool saves its entry placement separately from enablement: Tools Sidebar
+(the default), Network Page, or both. The Network page opens the same port list in a native sheet.
+Both surfaces share one controller; socket and process-rate sampling runs only while the enabled
+port content and main window are visible, and pauses on lock or sleep. Removing the sidebar entry
+redirects an active or restored Ports route to Network. Placement is included in settings backups;
+missing or unrecognized values leave the current choice unchanged on import.
+
 ## Popover content and Wi-Fi details
 
 Settings → Menu Bar offers a global Customize Popover Content switch below Value Position.
@@ -866,6 +873,12 @@ the quota reader has no access to session-log content.
   cache and invalidates the query; sleep or lock pauses it. Every asynchronous stage and final cache
   write checks both generation and current settings, so late callbacks cannot restore cleared data
   or replace a newer lookup. An old completion cannot clear the newer query's loading state.
+- **On-demand IP comparison** — `LocalIPQuery` powers the IP-query sheet, comparing CleanIP,
+  IP.SB, Cloudflare and ipify exits. IP.SB uses `api.ip.sb/geoip` as plain JSON and displays the
+  returned address with its own country, region, city, network organization and ASN; metadata is
+  never copied between sources. Requests run on opening the sheet, refresh or retry, share the
+  bounded and cancellable HTTP reader, and add no background polling. IP.SB follows the sheet's
+  IP and international-information privacy controls.
 - **Per-process traffic** — cumulative bytes from `/usr/bin/nettop`, diffed between samples.
 - **Menu bar IP location** — optional flag or localized region name after network speeds, disabled
   by default. The compact overview's network row follows the same display preference.

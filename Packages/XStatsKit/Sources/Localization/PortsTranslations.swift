@@ -3,6 +3,10 @@
 extension Translations {
   static let portsEnglish = #"""
     端口	Ports
+    显示位置	Show In
+    工具侧栏	Tools Sidebar
+    网络页面	Network Page
+    两处显示	Both
     端口号	Port
     监听	Listening
     已建立	Established
