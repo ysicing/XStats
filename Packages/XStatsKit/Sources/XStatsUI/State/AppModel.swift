@@ -40,10 +40,12 @@ public final class AppModel {
   let diagnostics = DiagnosticsExporter()
   public let alerts: AlertController
   public let uninstaller: UninstallerController
-  let appManagement = AppManagementController(cacheURL: AppInventoryCache.defaultURL)
+  let appManagement: AppManagementController
   public let bluetooth = BluetoothController()
   let sleepAssertions = SleepAssertionController()
   let startupItems = StartupItemsController()
+  let homebrewServices: HomebrewServicesController
+  let ports = PortsController()
   public let history: HistoryRecorder
   public let sync: SyncController
   let diskTools: DiskToolsController
@@ -54,6 +56,14 @@ public final class AppModel {
   var featureSettingsTab: FeatureSettingsTab = .basic
 
   public var isMainWindowVisible = false
+  /// 网络页的端口 sheet 可见时，与独立端口页共享同一个采集控制器。
+  var isPortsSheetPresented = false
+
+  var portsVisible: Bool {
+    isMainWindowVisible
+      && ((settings.showsPortsInSidebar && settings.panelTab == .ports)
+        || (settings.showsPortsInNetwork && settings.panelTab == .network && isPortsSheetPresented))
+  }
   /// 被其他应用占用、没能注册的快捷键
   var isRecordingShortcut = false
   var timerShortcutBlockers: Set<UUID> = []
@@ -118,7 +128,11 @@ public final class AppModel {
     let helper = HelperClient()
     self.settings = settings
     menuBarApplicationFolding = MenuBarApplicationFolding(settings: settings)
-    uninstaller = UninstallerController(enabled: settings.uninstallerEnabled)
+    uninstaller = UninstallerController()
+    let homebrewOperations = HomebrewOperationState()
+    appManagement = AppManagementController(
+      cacheURL: AppInventoryCache.defaultURL, homebrewOperations: homebrewOperations)
+    homebrewServices = HomebrewServicesController(homebrewOperations: homebrewOperations)
     let observationBackend = NativeNetworkMonitorBackend()
     connectionMonitor = NetworkMonitorController(
       backend: observationBackend, defaults: settings.networkObservationDefaults)
@@ -428,9 +442,11 @@ public final class AppModel {
   }
 
   /// 网络详情（接口、公网 IP、进程流量）正在显示
+  /// 端口 sheet 遮挡网络页时暂停其详情采样；独立菜单栏弹窗仍保留自己的需求。
   var isNetworkDetailVisible: Bool {
     settings.isModuleEnabled(.network)
-      && (openPopover == .network || (isMainWindowVisible && settings.panelTab == .network))
+      && (openPopover == .network
+        || (isMainWindowVisible && settings.panelTab == .network && !portsVisible))
   }
 
   func refreshLaunchAtLogin() {
@@ -570,8 +586,6 @@ public final class AppModel {
 
   /// 开关变化后同步清理已停止更新的实时值；旧历史数据库不受影响。
   func applyMonitoringSettings() {
-    uninstaller.setEnabled(settings.uninstallerEnabled)
-    appManagement.setEnabled(settings.uninstallerEnabled)
     displays.setEnabled(settings.isModuleEnabled(.display))
     store.clearDisabledModules(
       settings.enabledMonitoringModules, powerRequested: demand.power,

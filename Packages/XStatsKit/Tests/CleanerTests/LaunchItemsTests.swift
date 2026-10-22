@@ -44,4 +44,21 @@ import Testing
       program: nil, runAtLoad: true, keepAlive: false, disabledInPlist: false)
     #expect(LaunchItems.setEnabled(false, item: item) != nil)
   }
+  @Test func launchStatusDoesNotMixUserAndSystemDomains() {
+    let url = URL(fileURLWithPath: "/tmp/shared.plist")
+    let agent = LaunchItem(
+      label: "shared", plist: url, scope: .user, program: nil,
+      runAtLoad: true, keepAlive: false, disabledInPlist: false)
+    let daemon = LaunchItem(
+      label: "shared", plist: url, scope: .system, program: nil,
+      runAtLoad: true, keepAlive: false, disabledInPlist: false)
+    let status = LaunchStatus(
+      loaded: ["shared": 42], disabled: ["shared": true],
+      systemDisabled: ["shared": false])
+    #expect(status.isDisabled(agent))
+    #expect(!status.isDisabled(daemon))
+    #expect(status.pid(agent) == 42 && status.isLoaded(agent))
+    #expect(status.pid(daemon) == nil && !status.isLoaded(daemon))
+  }
+
 }

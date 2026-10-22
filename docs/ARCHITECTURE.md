@@ -29,6 +29,13 @@ Disabled optional-feature entry points lead to Features, including calendar and 
 Disabled monitoring pages retain hardware/basic information and an enable action, without mounting
 live metrics, charts, rankings or controls.
 
+The optional Ports tool saves its entry placement separately from enablement: Tools Sidebar
+(the default), Network Page, or both. The Network page opens the same port list in a native sheet.
+Both surfaces share one controller; socket and process-rate sampling runs only while the enabled
+port content and main window are visible, and pauses on lock or sleep. Removing the sidebar entry
+redirects an active or restored Ports route to Network. Placement is included in settings backups;
+missing or unrecognized values leave the current choice unchanged on import.
+
 ## Popover content and Wi-Fi details
 
 Settings → Menu Bar offers a global Customize Popover Content switch below Value Position.
@@ -56,6 +63,16 @@ restricted SSID/BSSID access is explained without requesting new permissions. Th
 expansion preference is excluded from settings backups. These reads reuse the existing
 foreground interface refresh (about every four seconds); no network scans or new polling
 loops are added. Closing details or pausing the app stops the foreground refresh as before.
+
+The IP lookup sheet also reads a one-shot local-interface snapshot on opening and manual refresh,
+independent of monitoring enablement. It reuses `NetworkDetailsReader` address enumeration and
+SystemConfiguration service metadata, includes connected physical and tunnel interfaces, and omits
+loopback, system communication, disconnected and link-local-only interfaces. Extra IPv6 and
+link-local addresses are expandable. VPN product names appear only when associated with an actual
+system service; interface prefixes and address ranges do not identify Tailscale or WireGuard.
+Local addresses never go to lookup services. Hiding IPs removes local address and copy controls
+from the rendered and accessibility trees. Closing the sheet cancels presentation tasks; no
+observer, polling loop, external VPN command or persisted interface cache is added.
 
 ## Experimental menu bar folding
 
@@ -190,6 +207,24 @@ process sampling to the collapsed overview. Expanding CPU, memory or disk detail
 their process data. The feature row explains the resource cost of refreshing the process list
 inline, before enabling, without a confirmation dialog. The preference is backed up; older documents without
 it preserve the current setting. Saved process-page routes fall back to Features settings when disabled.
+
+The port page is an optional tool, disabled by default through `portsEnabled`. `PortSampler` reads
+listening sockets and established TCP connections through libproc (`proc_listpids` → `proc_pidinfo`
+→ `proc_pidfdinfo`), so it only sees processes owned by the current user; system and root sockets
+are not listed. Conflict markers apply only to TCP listeners on overlapping local addresses through
+separate kernel sockets (`soi_so`) in different processes. Wildcard bindings retain their IPv4,
+IPv6 or dual-stack flags; separate address families, independent local addresses, inherited listeners
+and shared UDP ports are not flagged. Markers are keyed by kernel socket, so other addresses on
+the same port are not marked. Per-process rates reuse `NetworkProcessSampler`'s `nettop` deltas. `PortsController`
+samples every 3 seconds only while the feature is on, the main window shows the page, and the
+session is active; sleep and lock pause it, and rates and their baseline are dropped on every stop.
+The network page's port sheet uses the same controller and suspends the covered network page's
+detail sampling until dismissed. An independently visible network menu-bar popover retains its
+own detail demand.
+A socket enumeration failure clears connections, rates and conflict markers and shows the existing
+read-failure state. A failed rate read clears displayed rates and resets the baseline rather than
+presenting cached values as live. Turning the feature off clears results. Ending a process signals only its own PID (through `NSRunningApplication`
+when the process is an app), and it refuses root, other-user, XStats's own, and protected processes.
 
 The sandboxed WidgetKit extension samples CPU, memory, disk, and battery through `Metrics`
 independently, so it remains useful when the app is not running.
@@ -333,6 +368,19 @@ identifiers and output are bounded. Explicit index refresh and per-package opera
 bounded tool runner with auto-update, analytics, cleanup and autoremove disabled. Mutations retain
 Homebrew dependency protection, disallow pinned upgrades and running/self Cask changes, and finish
 independently of page visibility. App uninstall still uses the existing preview/recycler safety path.
+`AppModel` injects one `HomebrewOperationState` into package and service management. Index refresh,
+package upgrade/uninstall and service start/stop/restart synchronously acquire this shared write
+state before launching a command; both pages disable competing write actions and execution entry
+points reject them again. The state survives navigation and is released when the command wait ends,
+including failure or cancellation. It does not track unrelated terminal commands or a brew process
+that continues after the write runner times out.
+
+The Services category reads Homebrew availability on entry and manual refresh, including when
+Homebrew was absent at app startup; refresh remains available in that state. Service inventory reads
+use the bounded preview runner. Confirmed `brew services start/stop/restart` commands use the write
+runner: preview output limits do not apply and a write timeout stops waiting without terminating
+brew. Explicit task cancellation still stops the command. Service mutations finish independently of
+page visibility, and only a visible page refreshes afterward.
 
 Application uninstallation uses a separate controller and scans only app-specific paths.
 Identity comes from the app's names and bounded embedded bundles (512 entries, 64 bundles,
@@ -845,6 +893,12 @@ the quota reader has no access to session-log content.
   cache and invalidates the query; sleep or lock pauses it. Every asynchronous stage and final cache
   write checks both generation and current settings, so late callbacks cannot restore cleared data
   or replace a newer lookup. An old completion cannot clear the newer query's loading state.
+- **On-demand IP comparison** — `LocalIPQuery` powers the IP-query sheet, comparing CleanIP,
+  IP.SB, Cloudflare and ipify exits. IP.SB uses `api.ip.sb/geoip` as plain JSON and displays the
+  returned address with its own country, region, city, network organization and ASN; metadata is
+  never copied between sources. Requests run on opening the sheet, refresh or retry, share the
+  bounded and cancellable HTTP reader, and add no background polling. IP.SB follows the sheet's
+  IP and international-information privacy controls.
 - **Per-process traffic** — cumulative bytes from `/usr/bin/nettop`, diffed between samples.
 - **Menu bar IP location** — optional flag or localized region name after network speeds, disabled
   by default. The compact overview's network row follows the same display preference.

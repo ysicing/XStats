@@ -51,6 +51,7 @@ final class AppManagementController {
   private(set) var brewInventoryFailed = false
   private(set) var operation: HomebrewManagement.Action?
   private(set) var operationPackage: HomebrewPackage?
+  let homebrewOperations: HomebrewOperationState
   var error: String?
   struct Completion: Identifiable {
     let id = UUID()
@@ -165,7 +166,8 @@ final class AppManagementController {
       @escaping @Sendable ([AppStoreUpdates.Candidate], String) async throws ->
       AppStoreUpdates.Report = { try await AppStoreUpdates.check($0, country: $1) },
     openStore: @escaping @MainActor (URL) -> Bool = { NSWorkspace.shared.open($0) },
-    cacheURL: URL? = nil, now: @escaping @Sendable () -> Date = { Date() }
+    cacheURL: URL? = nil, now: @escaping @Sendable () -> Date = { Date() },
+    homebrewOperations: HomebrewOperationState = HomebrewOperationState()
   ) {
     self.listApps = listApps
     self.inspectApp = inspectApp
@@ -178,6 +180,7 @@ final class AppManagementController {
     self.openStore = openStore
     self.cacheURL = cacheURL
     self.now = now
+    self.homebrewOperations = homebrewOperations
   }
 
   func setEnabled(_ value: Bool) {
@@ -773,6 +776,8 @@ final class AppManagementController {
     guard visible, !paused, enabled, brewAvailable, operation == nil, updateTask == nil else {
       return
     }
+    let homebrewOperations = homebrewOperations
+    guard homebrewOperations.begin() else { return }
     brewGeneration = UUID()
     brewTask?.cancel()
     brewTask = nil
@@ -782,6 +787,7 @@ final class AppManagementController {
     isCheckingUpdates = true
     let update = updateIndex
     updateTask = Task { [weak self] in
+      defer { homebrewOperations.finish() }
       var succeeded = false
       do {
         try await update()
@@ -846,6 +852,8 @@ final class AppManagementController {
       error = tr("应用正在运行，请先退出")
       return
     }
+    let homebrewOperations = homebrewOperations
+    guard homebrewOperations.begin() else { return }
     cancelReading()
     operation = action
     operationPackage = package
@@ -854,6 +862,7 @@ final class AppManagementController {
     let perform = performAction
     // 已确认的安装／卸载不能因为切换标签或关闭窗口被中途打断。
     operationTask = Task { [weak self] in
+      defer { homebrewOperations.finish() }
       do {
         try await perform(action, package)
         // 离开页面后不补播过时的成功反馈；写操作本身仍然正常收尾。

@@ -11,6 +11,19 @@ public struct NetworkProcessUsage: Sendable, Equatable, Identifiable {
   public var upload: Double
 }
 
+/// 单个进程的网络速率，名称取自 nettop，仅作元数据读取失败时的兜底。
+public struct NetworkProcessRate: Sendable, Equatable {
+  public let name: String
+  public let download: Double  // 字节 / 秒
+  public let upload: Double
+
+  public init(name: String, download: Double, upload: Double) {
+    self.name = name
+    self.download = download
+    self.upload = upload
+  }
+}
+
 /// 各进程的网络速率。系统没有公开接口，读取 /usr/bin/nettop 的累计字节数并与上次比较。
 /// 只在网络详情打开时运行，每次约 40 ms。
 public struct NetworkProcessSampler: Sendable {
@@ -27,13 +40,18 @@ public struct NetworkProcessSampler: Sendable {
     sample(output: Self.runNettop(), now: clock_gettime_nsec_np(CLOCK_UPTIME_RAW), limit: limit)
   }
 
-  /// 将 `nettop` 的累计值换算成区间速率。读取失败时保留上次结果，避免界面短暂清空。
-  mutating func sample(output: String?, now: UInt64, limit: Int = 8) -> [NetworkProcessUsage] {
-    guard let output else { return lastResults }
+  /// 每个 PID 的区间速率（字节 / 秒），不合并应用、不截断；首次采样只建立基线，返回空表。
+  /// 读取失败时返回 nil 并保留基线。
+  public mutating func sampleRates() -> [Int32: NetworkProcessRate]? {
+    rates(output: Self.runNettop(), now: clock_gettime_nsec_np(CLOCK_UPTIME_RAW))
+  }
+
+  mutating func rates(output: String?, now: UInt64) -> [Int32: NetworkProcessRate]? {
+    guard let output else { return nil }
     let seconds = previousTime > 0 ? Double(now - previousTime) / 1_000_000_000 : 0
     let totals = Self.parse(output)
 
-    var results: [NetworkProcessUsage] = []
+    var rates: [Int32: NetworkProcessRate] = [:]
     if seconds > 0 {
       for (pid, entry) in totals {
         guard let before = previous[pid] else { continue }
@@ -41,20 +59,30 @@ public struct NetworkProcessSampler: Sendable {
           entry.download >= before.download ? Double(entry.download - before.download) / seconds : 0
         let upload =
           entry.upload >= before.upload ? Double(entry.upload - before.upload) / seconds : 0
-        guard download + upload > 0 else { continue }
-        let meta = ProcessSampler.meta(for: pid)
-        let processName = meta.name == "PID \(pid)" ? entry.name : meta.name
-        results.append(
-          NetworkProcessUsage(
-            pid: pid,
-            name: meta.bundle.map {
-              URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent
-            } ?? processName,
-            appBundlePath: meta.bundle, download: download, upload: upload))
+        rates[pid] = NetworkProcessRate(name: entry.name, download: download, upload: upload)
       }
     }
     previous = totals.mapValues { ($0.download, $0.upload) }
     previousTime = now
+    return rates
+  }
+
+  /// 将 `nettop` 的累计值换算成区间速率。读取失败时保留上次结果，避免界面短暂清空。
+  mutating func sample(output: String?, now: UInt64, limit: Int = 8) -> [NetworkProcessUsage] {
+    guard let rates = rates(output: output, now: now) else { return lastResults }
+
+    var results: [NetworkProcessUsage] = []
+    for (pid, rate) in rates where rate.download + rate.upload > 0 {
+      let meta = ProcessSampler.meta(for: pid)
+      let processName = meta.name == "PID \(pid)" ? rate.name : meta.name
+      results.append(
+        NetworkProcessUsage(
+          pid: pid,
+          name: meta.bundle.map {
+            URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent
+          } ?? processName,
+          appBundlePath: meta.bundle, download: rate.download, upload: rate.upload))
+    }
 
     // 同一应用的多个进程合并为一行
     var merged: [String: NetworkProcessUsage] = [:]

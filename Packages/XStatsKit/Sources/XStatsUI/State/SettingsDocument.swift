@@ -71,8 +71,11 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var updateCheckSchedule: String?
   public var cleanerEnabled: Bool?
   public var agentDataEnabled: Bool?
+  /// 仅兼容旧备份解码；应用服务现为基础功能，导入时忽略，导出时不再写入。
   public var uninstallerEnabled: Bool?
   public var processesEnabled: Bool?
+  public var portsEnabled: Bool?
+  public var portsPlacement: String?
   public var audioEnabled: Bool?
   public var networkConnectionsEnabled: Bool?
   public var cleanPrefersTrash: Bool?
@@ -144,8 +147,9 @@ extension AppSettings {
     doc.updateCheckSchedule = updateCheckSchedule.rawValue
     doc.cleanerEnabled = cleanerEnabled
     doc.agentDataEnabled = agentDataEnabled
-    doc.uninstallerEnabled = uninstallerEnabled
     doc.processesEnabled = processesEnabled
+    doc.portsEnabled = portsEnabled
+    doc.portsPlacement = portsPlacement.rawValue
     doc.audioEnabled = audioEnabled
     doc.networkConnectionsEnabled = networkConnectionsEnabled
     doc.cleanPrefersTrash = cleanPrefersTrash
@@ -251,8 +255,9 @@ extension AppSettings {
     }
     assign(\.cleanerEnabled, doc.cleanerEnabled)
     assign(\.agentDataEnabled, doc.agentDataEnabled)
-    assign(\.uninstallerEnabled, doc.uninstallerEnabled)
     assign(\.processesEnabled, doc.processesEnabled)
+    assign(\.portsEnabled, doc.portsEnabled)
+    assign(\.portsPlacement, doc.portsPlacement.flatMap(PortsPlacement.init(rawValue:)))
     assign(\.audioEnabled, doc.audioEnabled)
     // 文档里的明确关闭优先于菜单栏选择，避免恢复时由菜单栏联动重新开启。
     assign(

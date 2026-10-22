@@ -49,7 +49,7 @@ enum AddressFamilyRequest {
     let request =
       "GET \(path) HTTP/1.1\r\nHost: \(hostHeader)\r\nUser-Agent: XStats\r\nAccept: \(options.accept)\r\nConnection: close\r\n\r\n"
     guard
-      let raw = await Exchange(
+      let raw = await AddressFamilyExchange(
         connection: connection, request: Data(request.utf8), timeout: timeout
       ).run()
     else {
@@ -109,14 +109,15 @@ enum AddressFamilyRequest {
   }
 }
 
-/// 一次连接的收发。所有状态只在自己的串行队列上改，结果只回调一次
-private final class Exchange: @unchecked Sendable {
+/// 一次连接的收发。每个实例仅调用一次 run；所有状态只在自己的串行队列上改，结果只回调一次。
+final class AddressFamilyExchange: @unchecked Sendable {
   private let connection: NWConnection
   private let request: Data
   private let timeout: TimeInterval
   private let queue = DispatchQueue(label: "XStats.AddressFamilyRequest")
   private var buffer = Data()
   private var continuation: CheckedContinuation<Data?, Never>?
+  private var finished = false
 
   /// 响应超过 2 MB 就不要了，cleanip.io 的 JSON 通常几 KB
   private static let limit = 2 << 20
@@ -128,23 +129,35 @@ private final class Exchange: @unchecked Sendable {
   }
 
   func run() async -> Data? {
-    await withCheckedContinuation { continuation in
-      queue.async {
-        self.continuation = continuation
-        self.connection.stateUpdateHandler = { [self] state in
-          switch state {
-          case .ready: send()
-          case .waiting, .failed, .cancelled: finish(nil)
-          default: break
+    await withTaskCancellationHandler {
+      await withCheckedContinuation { continuation in
+        let cancelled = Task.isCancelled
+        queue.async { [self] in
+          // 取消可能先于 continuation 入队；finished 让两种时序都只恢复一次，且不再启动连接。
+          guard !cancelled, !self.finished else {
+            continuation.resume(returning: nil)
+            return
+          }
+          self.continuation = continuation
+          self.connection.stateUpdateHandler = { [self] state in
+            switch state {
+            case .ready: send()
+            case .waiting, .failed, .cancelled: finish(nil)
+            default: break
+            }
+          }
+          self.connection.start(queue: self.queue)
+          self.queue.asyncAfter(deadline: .now() + self.timeout) { [weak self] in self?.finish(nil)
           }
         }
-        self.connection.start(queue: self.queue)
-        self.queue.asyncAfter(deadline: .now() + self.timeout) { [self] in finish(nil) }
       }
+    } onCancel: {
+      self.queue.async { self.finish(nil) }
     }
   }
 
   private func send() {
+    guard !finished else { return }
     connection.send(
       content: request,
       completion: .contentProcessed { [self] error in
@@ -153,8 +166,10 @@ private final class Exchange: @unchecked Sendable {
   }
 
   private func receive() {
+    guard !finished else { return }
     connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) {
       [self] data, _, isComplete, error in
+      guard !finished else { return }
       if let data { buffer.append(data) }
       if buffer.count > Self.limit {
         finish(nil)
@@ -170,10 +185,13 @@ private final class Exchange: @unchecked Sendable {
   }
 
   private func finish(_ result: Data?) {
-    guard let continuation else { return }
+    guard !finished else { return }
+    finished = true
+    let continuation = continuation
     self.continuation = nil
+    buffer.removeAll()
     connection.stateUpdateHandler = nil
     connection.cancel()
-    continuation.resume(returning: result)
+    continuation?.resume(returning: result)
   }
 }

@@ -130,11 +130,12 @@ public struct MainWindowView: View {
         case .thermal: ThermalPage()
         case .battery: EnergyPage()
         case .processes: ProcessesPage()
+        case .ports: PortsPage()
         case .keepAwake: KeepAwakePage()
         case .rest: RestPage()
         case .cleaner: CleanerPage()
         case .uninstaller: AppManagementPage()
-        case .startupItems: StartupItemsPage()
+        case .startupItems: AppManagementPage()
         case .settingsGeneral: SettingsTabPage { GeneralSettings() }
         case .settingsFeatures: FeatureSettings()
         case .settingsMenuBar: SettingsTabPage { MenuBarSettings() }
@@ -247,8 +248,8 @@ private struct MainSidebar: View {
           case .connections: model.settings.canViewNetworkConnections
           case .rest: model.settings.restEnabled
           case .cleaner: model.settings.cleanerEnabled
-          case .uninstaller: model.settings.uninstallerEnabled
           case .processes: model.settings.processesEnabled
+          case .ports: model.settings.showsPortsInSidebar
           default: true
           }
         })
@@ -447,6 +448,10 @@ private struct PageHeader: View {
         .help(tr("按需扫描项目构建产物，逐项选择后移到废纸篓。"))
       }
       if tab == .network {
+        if settings.showsPortsInNetwork {
+          PortsButton()
+        }
+        LocalIPQueryButton()
         Button {
           model.openSpeedTestWindow()
         } label: {

@@ -2358,3 +2358,79 @@ Wi-Fi 图标大小	Taille de l’icône Wi-Fi
 首次使用需授权访问菜单栏应用列表；仅访问选定文件，无需屏幕录制。	Autorisez d’abord l’accès à la liste des apps. Seul le fichier choisi est utilisé ; l’enregistrement de l’écran n’est pas nécessaire.
 菜单栏应用尚未恢复	Les apps de la barre des menus n’ont pas été restaurées
 仍然退出会保留恢复记录，下次启动时重试；也可在系统设置的“菜单栏”中恢复显示。	Quitter quand même conserve le journal de récupération pour réessayer au prochain lancement. Vous pouvez aussi réafficher les apps dans Réglages Système → Barre des menus.
+
+本机 IP 查询	Consulter les adresses IP
+出口对比	Comparaison des sorties
+查看网站连通性与代理路线	Vérifier la connectivité des sites et les routes du proxy
+未获取到 IPv6 地址，请检查网络或稍后重试。	Aucune adresse IPv6 reçue. Vérifiez la connexion ou réessayez plus tard.
+查询次数已达上限，请稍后重试。	Limite de requêtes atteinte. Réessayez plus tard.
+查询服务暂时不可用，请稍后重试。	Le service de recherche est temporairement indisponible. Réessayez plus tard.
+查询服务返回了无效响应，请重试。	Le service de recherche a renvoyé une réponse invalide. Réessayez.
+按需连接第三方服务，查看它们看到的公网出口。不同来源可能经过不同代理路线。	Contacte des services tiers à la demande pour afficher l’IP publique. Chaque service peut utiliser un itinéraire proxy différent.
+隐藏 IP	Masquer l’IP
+隐藏国内信息	Masquer les résultats de Chine
+隐藏国际信息	Masquer les résultats internationaux
+信息已隐藏	Informations masquées
+未获取到地址，请检查网络或稍后重试。	Aucune adresse reçue. Vérifiez la connexion ou réessayez plus tard.
+端口	Ports
+端口号	Port
+监听	En écoute
+已建立	Établie
+对端	Distant
+冲突	Conflit
+拷贝本地地址	Copier l’adresse locale
+拷贝对端地址	Copier l’adresse distante
+按进程统计，同一进程的各行速率相同	Mesuré par processus ; les lignes d’un même processus affichent le même débit
+搜索端口、进程、服务或地址	Rechercher un port, processus, service ou adresse
+暂时无法读取端口	Impossible de lire les ports pour le moment
+查看监听端口、已建立的连接及占用进程，可结束占用端口的进程。	Affiche les ports en écoute, les connexions établies et les processus qui les utilisent ; vous pouvez terminer le processus qui occupe un port.
+正在读取端口…	Lecture des ports…
+没有匹配的端口	Aucun port correspondant
+监听 {} · 连接 {}	En écoute {} · Connexions {}
+端口 {} 同时被多个进程监听	Plusieurs processus écoutent sur le port {}
+连接过多，只显示前 {} 项	Trop de connexions ; seules les {} premières sont affichées
+仅列出当前用户的进程，系统服务占用的端口不会显示	Seuls vos processus sont listés ; les ports des services système n’apparaissent pas
+会断开它占用的端口与连接，未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	Ses ports et connexions seront fermés et le travail non enregistré peut être perdu. « Forcer à quitter » le termine immédiatement sans lui permettre d’enregistrer.
+本地接口	Interfaces locales
+暂无已连接的本地接口	Aucune interface locale connectée
+有线网络	Ethernet
+其他接口	Autre interface
+更多地址	Autres adresses
+链路本地	Lien local
+结束“{}”（PID {}）？	Terminer « {} » (PID {}) ?
+进程已退出或不再占用该端口，请刷新后重试	Le processus s’est terminé ou n’utilise plus ce port. Actualisez puis réessayez.
+国际	International
+应用服务	Apps et services
+服务	Services
+搜索软件包	Rechercher des paquets
+搜索启动项	Rechercher des éléments de démarrage
+搜索服务	Rechercher des services
+后台守护进程（LaunchDaemons）只读展示，不会修改系统服务。	Les démons en arrière-plan (LaunchDaemons) sont en lecture seule. Les services système ne sont pas modifiés.
+登录后运行的代理（LaunchAgents）；当前用户的项目可启停，所有用户的项目只读。	Les agents (LaunchAgents) se lancent après la connexion. Vos éléments peuvent être activés ou désactivés ; ceux de tous les utilisateurs sont en lecture seule.
+1 项 · 可直接停用	1 élément · désactivable ici
+1 项 · 需要管理员权限，只读	1 élément · droits d’administration requis, lecture seule
+后台守护进程	Démons en arrière-plan
+无法识别 Homebrew 服务列表	Impossible de lire la liste des services Homebrew
+服务已变化或不属于当前用户，请刷新后重试	Le service a changé ou appartient à un autre utilisateur. Actualisez la liste et réessayez.
+服务操作已完成，请以刷新后的状态为准	Commande terminée. Vérifiez l’état actualisé du service.
+管理当前用户的 Homebrew 服务；系统级服务只读。	Gérez vos services Homebrew. Les services système sont en lecture seule.
+安装 Homebrew 后，可在这里管理服务。	Installez Homebrew pour gérer les services ici.
+Homebrew 服务	Services Homebrew
+没有 Homebrew 服务	Aucun service Homebrew
+管理服务	Gérer le service
+管理服务“{}”	Gérer le service « {} »
+启动或重启可能同时开启登录时自动启动；停止会取消自动启动。	Démarrer ou redémarrer peut aussi activer le démarrage automatique à la connexion. L’arrêter désactive le démarrage automatique.
+启动服务	Démarrer le service
+停止服务	Arrêter le service
+重启服务	Redémarrer le service
+服务运行中	En cours d’exécution
+已安排定时运行	Planifié
+服务已停止	Arrêté
+服务未启动	Non démarré
+服务异常（退出码 {}）	Erreur (code de sortie {})
+服务异常	Erreur du service
+只读	Lecture seule
+显示位置	Afficher dans
+工具侧栏	Barre latérale des outils
+网络页面	Page Réseau
+两处显示	Les deux

@@ -13,10 +13,63 @@ extension Translations {
       audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish,
       appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish,
       hardwareDetailsEnglish, aiCleanupEnglish, networkPresentationEnglish, trioEnglish,
+      portsEnglish, appServicesEnglish,
     ]
   }
 
+  static let appServicesEnglish = #"""
+    只读	Read Only
+    后台守护进程	Background Daemons
+    无法识别 Homebrew 服务列表	Unable to read the Homebrew service list
+    服务已变化或不属于当前用户，请刷新后重试	The service has changed or belongs to another user. Refresh and try again.
+    服务操作已完成，请以刷新后的状态为准	Service command completed. Check the refreshed status.
+    管理当前用户的 Homebrew 服务；系统级服务只读。	Manage your Homebrew services. System-wide services are read-only.
+    安装 Homebrew 后，可在这里管理服务。	Install Homebrew to manage services here.
+    Homebrew 服务	Homebrew Services
+    没有 Homebrew 服务	No Homebrew services
+    管理服务	Manage Service
+    管理服务“{}”	Manage service “{}”
+    启动或重启可能同时开启登录时自动启动；停止会取消自动启动。	Starting or restarting may also enable automatic startup at login. Stopping disables automatic startup.
+    启动服务	Start Service
+    停止服务	Stop Service
+    重启服务	Restart Service
+    服务运行中	Running
+    已安排定时运行	Scheduled
+    服务已停止	Stopped
+    服务未启动	Not Started
+    服务异常（退出码 {}）	Error (exit code {})
+    服务异常	Service Error
+    应用服务	Apps & Services
+    服务	Services
+    搜索软件包	Search packages
+    搜索启动项	Search startup items
+    搜索服务	Search services
+    1 项 · 可直接停用	1 item · can be turned off here
+    1 项 · 需要管理员权限，只读	1 item · needs admin, read-only
+    后台守护进程（LaunchDaemons）只读展示，不会修改系统服务。	Background daemons (LaunchDaemons) are read-only; system services are not modified.
+    登录后运行的代理（LaunchAgents）；当前用户的项目可启停，所有用户的项目只读。	Agents (LaunchAgents) run after login. Your own items can be enabled or disabled; items for all users are read-only.
+    """#
+
   static let networkPresentationEnglish = #"""
+    本地接口	Local Interfaces
+    暂无已连接的本地接口	No connected local interfaces
+    有线网络	Ethernet
+    其他接口	Other Interface
+    更多地址	More Addresses
+    链路本地	Link-local
+    本机 IP 查询	IP Address Lookup
+    出口对比	Exit Comparison
+    查看网站连通性与代理路线	Check website connectivity and proxy routes
+    未获取到 IPv6 地址，请检查网络或稍后重试。	No IPv6 address received. Check your connection or try again later.
+    查询次数已达上限，请稍后重试。	Query limit reached. Try again later.
+    查询服务暂时不可用，请稍后重试。	The lookup service is temporarily unavailable. Try again later.
+    查询服务返回了无效响应，请重试。	The lookup service returned an invalid response. Try again.
+    按需连接第三方服务，查看它们看到的公网出口。不同来源可能经过不同代理路线。	Connect to third-party services on demand to see your public IP. Different services may use different proxy routes.
+    隐藏 IP	Hide IP
+    隐藏国内信息	Hide China Results
+    隐藏国际信息	Hide International Results
+    信息已隐藏	Information Hidden
+    未获取到地址，请检查网络或稍后重试。	No address received. Check your connection or try again later.
     自定义弹窗内容	Customize Popover Content
     选择各指标弹窗显示的内容，并调整排列顺序。	Choose the content shown in each metric’s popover and adjust its order.
     弹窗内容	Popover Content
@@ -868,6 +921,7 @@ extension Translations {
     唤醒	Wakeups
     团队 {}	team {}
     国内	China
+    国际	International
     国内分省三网延迟	Latency Across China
     国内网站也绕到了{}，访问会变慢，也可能触发风控。	Chinese sites also detour through the {}, which is slower and may trigger security checks.
     国内网站直连，国际网站经 {} 的{}。	Chinese sites connect directly; international sites go through {}'s {}.

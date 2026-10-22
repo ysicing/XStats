@@ -13,7 +13,15 @@ struct AppManagementPage: View {
   @Environment(AppModel.self) private var model
   @Environment(\.isSnapshot) private var isSnapshot
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var tab: AppManagementController.Tab = .apps
+  private var section: AppServicesSection { model.settings.appServicesSection }
+  private var tab: AppManagementController.Tab { section == .homebrew ? .homebrew : .apps }
+  private struct BrowsingState {
+    var search = ""
+    var selection: String?
+    var sortOrder = [KeyPathComparator<ManagedApplicationRow>(\.name)]
+    var filter: BrewFilter = .all
+  }
+  @State private var browsingStates: [AppServicesSection: BrowsingState] = [:]
   @State private var search = ""
   @FocusState private var isSearchFocused: Bool
   @State private var selection: String?
@@ -34,37 +42,41 @@ struct AppManagementPage: View {
         && (controller.isRefreshingApps || (!controller.hasAppInventory && isScanning)) : isScanning
   }
 
-  init(tab: AppManagementController.Tab = .apps) { _tab = State(initialValue: tab) }
-
   var body: some View {
-    let rows = visibleRows()
+    let rows = section.managesApplications ? visibleRows() : []
     let selected = rows.first { $0.id == selection }
     VStack(alignment: .leading, spacing: DS.Space.s3) {
       toolbar
-      if let error = controller.error {
-        InfoBanner(icon: "exclamationmark.triangle", text: error, tone: .error)
-      }
-      if tab == .apps, controller.brewInventoryFailed {
-        // 清单失败时普通卸载降级可用；如实提示 Cask 安装的应用此时不会走 Homebrew 卸载。
-        Label(tr("无法识别 Homebrew 来源，由 Homebrew 安装的应用请在终端卸载"), systemImage: "info.circle")
-          .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-      }
-      if tab == .homebrew, !controller.brewAvailable, !isSnapshot {
-        ContentUnavailableView(
-          tr("尚未安装 Homebrew"), systemImage: "shippingbox",
-          description: Text(tr("安装 Homebrew 后，可在这里管理 Formula 与 Cask。"))
-        )
-        .frame(maxHeight: .infinity)
-        Link(tr("了解 Homebrew"), destination: URL(string: "https://brew.sh")!)
+      if section == .services {
+        HomebrewServicesPage(search: search)
+      } else if section == .startup {
+        StartupItemsPage(section: section, search: search)
       } else {
-        applicationTable(rows)
-        footer(rows: rows, selected: selected)
+        if let error = controller.error {
+          InfoBanner(icon: "exclamationmark.triangle", text: error, tone: .error)
+        }
+        if tab == .apps, controller.brewInventoryFailed {
+          // 清单失败时普通卸载降级可用；如实提示 Cask 安装的应用此时不会走 Homebrew 卸载。
+          Label(tr("无法识别 Homebrew 来源，由 Homebrew 安装的应用请在终端卸载"), systemImage: "info.circle")
+            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+        }
+        if tab == .homebrew, !controller.brewAvailable, !isSnapshot {
+          ContentUnavailableView(
+            tr("尚未安装 Homebrew"), systemImage: "shippingbox",
+            description: Text(tr("安装 Homebrew 后，可在这里管理 Formula 与 Cask。"))
+          )
+          .frame(maxHeight: .infinity)
+          Link(tr("了解 Homebrew"), destination: URL(string: "https://brew.sh")!)
+        } else {
+          applicationTable(rows)
+          footer(rows: rows, selected: selected)
+        }
       }
     }
     .padding([.horizontal, .bottom], DS.Space.s3)
     .overlay(alignment: .bottom) {
       ZStack {
-        if let completion = controller.completion {
+        if section.managesApplications, let completion = controller.completion {
           Label {
             Text(completion.text).foregroundStyle(DS.Palette.textPrimary)
           } icon: {
@@ -89,29 +101,48 @@ struct AppManagementPage: View {
       do { try await Task.sleep(for: .seconds(3)) } catch { return }
       controller.dismissCompletion(id)
     }
-    .onAppear { controller.setVisible(model.isMainWindowVisible, tab: tab) }
+    .onAppear {
+      controller.setVisible(model.isMainWindowVisible && section.managesApplications, tab: tab)
+    }
     .onDisappear {
       controller.setVisible(false)
       pendingBrew = nil
       model.uninstaller.cancelScanning()
     }
     .onChange(of: model.isMainWindowVisible) { _, visible in
-      controller.setVisible(visible, tab: tab)
+      controller.setVisible(visible && section.managesApplications, tab: tab)
       if !visible {
         pendingBrew = nil
         model.uninstaller.cancelScanning(preservingConfirmation: true)
       }
     }
-    .onChange(of: tab) { _, value in
-      selection = nil
-      search = ""
-      controller.selectTab(value)
+    .onChange(of: section) { previous, current in
+      browsingStates[previous] = BrowsingState(
+        search: search, selection: selection, sortOrder: sortOrder, filter: filter)
+      let state = browsingStates[current] ?? BrowsingState()
+      search = state.search
+      selection = state.selection
+      sortOrder = state.sortOrder
+      filter = state.filter
+      pendingBrew = nil
+      Task { @MainActor in
+        // 分类更新可能处于布局周期内；延后控制器更新，避免在 AppKit 布局中再次使约束失效。
+        await Task.yield()
+        guard model.settings.panelTab == .uninstaller,
+          model.settings.appServicesSection == current
+        else { return }
+        controller.setVisible(false)
+        controller.selectTab(tab)
+        controller.setVisible(
+          model.isMainWindowVisible && current.managesApplications, tab: tab)
+      }
     }
     .onChange(of: model.uninstaller.isRemoving) { old, new in
       if old && !new { controller.reloadInventory() }
     }
     .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-      guard controller.operation == nil, let provider = providers.first else { return false }
+      guard section.managesApplications, controller.operation == nil, let provider = providers.first
+      else { return false }
       _ = provider.loadObject(ofClass: URL.self) { url, _ in
         guard let url else { return }
         Task { @MainActor in uninstall(url: url) }
@@ -152,23 +183,30 @@ struct AppManagementPage: View {
       }
     }
     .dsFont(.sm)
+    // 与 PageScroll 的内容边距对齐，也为原生控件的边缘留出空间。
+    .padding(.horizontal, DS.Space.s3)
     // 顶栏位于页面上方，给玻璃按钮的上缘和阴影留出空间，避免被顶栏遮住。
     .padding(.top, DS.Space.s2)
   }
 
   private var categoryPicker: some View {
-    Picker(tr("应用类型"), selection: $tab) {
-      Text("App").tag(AppManagementController.Tab.apps)
-      Text("Homebrew").tag(AppManagementController.Tab.homebrew)
+    @Bindable var settings = model.settings
+    return Picker(tr("应用服务"), selection: $settings.appServicesSection) {
+      ForEach(AppServicesSection.allCases, id: \.self) { value in
+        Text(value.title).tag(value)
+      }
     }
     .pickerStyle(.segmented).labelsHidden().controlSize(.large)
-    .frame(width: 175, height: DS.Size.controlHeight)
+    .fixedSize(horizontal: true, vertical: false)
+    .frame(height: DS.Size.controlHeight)
+    .disabled(model.uninstaller.isRemoving)
+    .accessibilityIdentifier("app-services-category")
   }
 
   private var searchField: some View {
     HStack(spacing: DS.Space.s2) {
       Image(systemName: "magnifyingglass").foregroundStyle(DS.Palette.textTertiary)
-      TextField(tr("搜索应用或软件包"), text: $search)
+      TextField(section.searchPrompt, text: $search)
         .textFieldStyle(.plain)
         .focused($isSearchFocused)
       if !search.isEmpty {
@@ -189,60 +227,75 @@ struct AppManagementPage: View {
 
   private var toolbarActions: some View {
     HStack(spacing: DS.Space.s2) {
-      if tab == .homebrew {
-        Menu {
-          Picker(tr("筛选"), selection: $filter) {
-            ForEach(BrewFilter.allCases) { Text($0.title).tag($0) }
+      if section == .services {
+        IconButton(systemName: "arrow.clockwise", help: tr("刷新")) {
+          model.homebrewServices.refresh()
+        }
+        .disabled(
+          model.homebrewServices.isLoading || model.homebrewServices.working != nil)
+      } else if section == .startup {
+        Button(tr("登录项设置")) { model.helper.openLoginItemsSettings() }
+          .buttonStyle(DSButtonStyle(kind: .secondary))
+          .fixedSize()
+        IconButton(systemName: "arrow.clockwise", help: tr("刷新")) { model.startupItems.refresh() }
+          .disabled(model.startupItems.isLoading || model.startupItems.working != nil)
+      } else {
+        if tab == .homebrew {
+          Menu {
+            Picker(tr("筛选"), selection: $filter) {
+              ForEach(BrewFilter.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.inline)
+          } label: {
+            Label(filter.title, systemImage: "line.3.horizontal.decrease")
+              .lineLimit(1).fixedSize()
           }
-          .pickerStyle(.inline)
+          .buttonStyle(DSButtonStyle(kind: .secondary))
+          .fixedSize()
+          .help(tr("筛选"))
+          .accessibilityLabel(tr("筛选"))
+          .accessibilityValue(filter.title)
+        }
+        Button {
+          if tab == .apps {
+            controller.checkAppStoreUpdates(force: true)
+          } else {
+            controller.checkBrewUpdates()
+          }
         } label: {
-          Label(filter.title, systemImage: "line.3.horizontal.decrease")
-            .lineLimit(1).fixedSize()
+          Text(tr("检查更新"))
+            .opacity(checkingUpdates ? 0 : 1)
+            .overlay {
+              if checkingUpdates { ProgressView().controlSize(.small).transition(.opacity) }
+            }
         }
         .buttonStyle(DSButtonStyle(kind: .secondary))
         .fixedSize()
-        .help(tr("筛选"))
-        .accessibilityLabel(tr("筛选"))
-        .accessibilityValue(filter.title)
-      }
-      Button {
-        if tab == .apps {
-          controller.checkAppStoreUpdates(force: true)
-        } else {
-          controller.checkBrewUpdates()
-        }
-      } label: {
-        Text(tr("检查更新"))
-          .opacity(checkingUpdates ? 0 : 1)
-          .overlay {
-            if checkingUpdates { ProgressView().controlSize(.small).transition(.opacity) }
-          }
-      }
-      .buttonStyle(DSButtonStyle(kind: .secondary))
-      .fixedSize()
-      .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: checkingUpdates)
-      .help(tab == .apps ? tr("检查 App Store 更新") : tr("检查 Homebrew 更新"))
-      .accessibilityLabel(
-        checkingUpdates
-          ? tr("正在检查更新") : (tab == .apps ? tr("检查 App Store 更新") : tr("检查 Homebrew 更新"))
-      )
-      .disabled(
-        checkingUpdates || controller.operation != nil || model.uninstaller.isRemoving
-          || (tab == .apps
-            ? controller.isLoadingApps || !controller.hasAppInventory
-            : !controller.brewAvailable || controller.isLoadingBrew)
-      )
-      IconButton(systemName: "arrow.clockwise", help: tr("刷新本地清单")) { controller.refresh() }
-        .opacity(showsRefreshProgress ? 0 : 1)
-        .overlay {
-          if showsRefreshProgress { ProgressView().controlSize(.small).transition(.opacity) }
-        }
-        .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: showsRefreshProgress)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(showsRefreshProgress ? tr("正在读取…") : tr("刷新本地清单"))
+        .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: checkingUpdates)
+        .help(tab == .apps ? tr("检查 App Store 更新") : tr("检查 Homebrew 更新"))
+        .accessibilityLabel(
+          checkingUpdates
+            ? tr("正在检查更新") : (tab == .apps ? tr("检查 App Store 更新") : tr("检查 Homebrew 更新"))
+        )
         .disabled(
-          showsRefreshProgress || (tab == .apps && controller.isRestoringAppCache)
-            || controller.operation != nil || checkingUpdates)
+          checkingUpdates || controller.operation != nil || model.uninstaller.isRemoving
+            || (tab == .homebrew && controller.homebrewOperations.isRunning)
+            || (tab == .apps
+              ? controller.isLoadingApps || !controller.hasAppInventory
+              : !controller.brewAvailable || controller.isLoadingBrew)
+        )
+        IconButton(systemName: "arrow.clockwise", help: tr("刷新本地清单")) { controller.refresh() }
+          .opacity(showsRefreshProgress ? 0 : 1)
+          .overlay {
+            if showsRefreshProgress { ProgressView().controlSize(.small).transition(.opacity) }
+          }
+          .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: showsRefreshProgress)
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel(showsRefreshProgress ? tr("正在读取…") : tr("刷新本地清单"))
+          .disabled(
+            showsRefreshProgress || (tab == .apps && controller.isRestoringAppCache)
+              || controller.operation != nil || checkingUpdates)
+      }
     }
   }
 
@@ -476,6 +529,7 @@ struct AppManagementPage: View {
       Button(tr("卸载…"), role: .destructive) { uninstall(url: app.url) }
         .disabled(
           controller.operation != nil || controller.isLoadingBrew || !controller.hasBrewInventory
+            || (controller.casksByPath[app.id] != nil && controller.homebrewOperations.isRunning)
             || (row.isRunning && controller.casksByPath[app.id] != nil)
             || app.bundleIdentifier.hasPrefix("com.apple.")
             || app.bundleIdentifier.caseInsensitiveCompare(Bundle.main.bundleIdentifier ?? "")
@@ -500,7 +554,7 @@ struct AppManagementPage: View {
         pendingBrew = BrewConfirmation(package: package, action: .uninstall)
       }
       .disabled(
-        row.isRunning || controller.isCurrentApp(package) || controller.operation != nil
+        row.isRunning || controller.isCurrentApp(package) || controller.homebrewOperations.isRunning
           || controller.isCheckingUpdates)
     }
   }
@@ -508,17 +562,20 @@ struct AppManagementPage: View {
   private func upgradeIsDisabled(for row: ManagedApplicationRow) -> Bool {
     guard let package = row.package else { return true }
     return package.pinned || row.isRunning || controller.isCurrentApp(package)
-      || controller.operation != nil || controller.isCheckingUpdates || model.uninstaller.isRemoving
+      || controller.homebrewOperations.isRunning || controller.isCheckingUpdates
+      || model.uninstaller.isRemoving
   }
 
   private func uninstall(url: URL) {
-    guard controller.visible, model.isMainWindowVisible, model.settings.panelTab == .uninstaller,
+    guard section.managesApplications, controller.visible, model.isMainWindowVisible,
+      model.settings.panelTab == .uninstaller,
       controller.operation == nil, !model.uninstaller.isRemoving,
       !controller.isLoadingBrew, controller.hasBrewInventory
     else { return }
     if let cask = controller.casksByPath[url.standardizedFileURL.path],
       !controller.isCurrentApp(cask)
     {
+      guard !controller.homebrewOperations.isRunning else { return }
       guard !controller.isRunning(cask) else {
         controller.error = tr("应用正在运行，请先退出")
         return

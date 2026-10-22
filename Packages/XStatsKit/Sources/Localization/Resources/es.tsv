@@ -2358,3 +2358,79 @@ Wi-Fi 图标大小	Tamaño del icono Wi-Fi
 首次使用需授权访问菜单栏应用列表；仅访问选定文件，无需屏幕录制。	Primero permite el acceso a la lista de apps. Solo se accede al archivo seleccionado; no se necesita grabación de pantalla.
 菜单栏应用尚未恢复	Las apps de la barra de menús no se han restaurado
 仍然退出会保留恢复记录，下次启动时重试；也可在系统设置的“菜单栏”中恢复显示。	Salir de todos modos conserva el registro de recuperación para volver a intentarlo en el próximo inicio. También puedes volver a mostrar las apps en Ajustes del Sistema → Barra de menús.
+
+本机 IP 查询	Consultar direcciones IP
+出口对比	Comparación de salidas
+查看网站连通性与代理路线	Ver conectividad de sitios y rutas de proxy
+未获取到 IPv6 地址，请检查网络或稍后重试。	No se obtuvo una dirección IPv6. Comprueba la conexión o inténtalo más tarde.
+查询次数已达上限，请稍后重试。	Se alcanzó el límite de consultas. Inténtalo más tarde.
+查询服务暂时不可用，请稍后重试。	El servicio de consulta no está disponible temporalmente. Inténtalo más tarde.
+查询服务返回了无效响应，请重试。	El servicio de consulta devolvió una respuesta no válida. Inténtalo de nuevo.
+按需连接第三方服务，查看它们看到的公网出口。不同来源可能经过不同代理路线。	Se consulta a servicios externos bajo demanda para ver la IP pública. Cada servicio puede usar una ruta de proxy diferente.
+隐藏 IP	Ocultar IP
+隐藏国内信息	Ocultar resultados de China
+隐藏国际信息	Ocultar resultados internacionales
+信息已隐藏	Información oculta
+未获取到地址，请检查网络或稍后重试。	No se obtuvo una dirección. Comprueba la conexión o inténtalo más tarde.
+端口	Puertos
+端口号	Puerto
+监听	Escuchando
+已建立	Establecida
+对端	Remoto
+冲突	Conflicto
+拷贝本地地址	Copiar dirección local
+拷贝对端地址	Copiar dirección remota
+按进程统计，同一进程的各行速率相同	Medido por proceso; las filas del mismo proceso muestran la misma velocidad
+搜索端口、进程、服务或地址	Buscar puerto, proceso, servicio o dirección
+暂时无法读取端口	No se pueden leer los puertos ahora
+查看监听端口、已建立的连接及占用进程，可结束占用端口的进程。	Consulta los puertos en escucha, las conexiones establecidas y los procesos que los usan; puedes terminar el proceso que ocupa un puerto.
+正在读取端口…	Leyendo puertos…
+没有匹配的端口	No hay puertos coincidentes
+监听 {} · 连接 {}	Escuchando {} · Conexiones {}
+端口 {} 同时被多个进程监听	Varios procesos escuchan en el puerto {}
+连接过多，只显示前 {} 项	Demasiadas conexiones; se muestran las primeras {}
+仅列出当前用户的进程，系统服务占用的端口不会显示	Solo se muestran tus procesos; no aparecen los puertos de los servicios del sistema
+会断开它占用的端口与连接，未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	Se cerrarán sus puertos y conexiones, y puedes perder el trabajo sin guardar. Forzar salida termina de inmediato sin permitir guardar.
+本地接口	Interfaces locales
+暂无已连接的本地接口	No hay interfaces locales conectadas
+有线网络	Ethernet
+其他接口	Otra interfaz
+更多地址	Más direcciones
+链路本地	Enlace local
+结束“{}”（PID {}）？	¿Terminar «{}» (PID {})?
+进程已退出或不再占用该端口，请刷新后重试	El proceso ha terminado o ya no usa este puerto. Actualiza e inténtalo de nuevo.
+国际	Internacional
+应用服务	Apps y servicios
+服务	Servicios
+搜索软件包	Buscar paquetes
+搜索启动项	Buscar elementos de inicio
+搜索服务	Buscar servicios
+后台守护进程（LaunchDaemons）只读展示，不会修改系统服务。	Los procesos en segundo plano (LaunchDaemons) son de solo lectura. No se modifican los servicios del sistema.
+登录后运行的代理（LaunchAgents）；当前用户的项目可启停，所有用户的项目只读。	Los agentes (LaunchAgents) se ejecutan al iniciar sesión. Puedes activar o desactivar tus elementos; los de todos los usuarios son de solo lectura.
+1 项 · 可直接停用	1 elemento · se puede desactivar aquí
+1 项 · 需要管理员权限，只读	1 elemento · requiere administrador, solo lectura
+后台守护进程	Demonios en segundo plano
+无法识别 Homebrew 服务列表	No se puede leer la lista de servicios de Homebrew
+服务已变化或不属于当前用户，请刷新后重试	El servicio ha cambiado o pertenece a otro usuario. Actualice la lista e inténtelo de nuevo.
+服务操作已完成，请以刷新后的状态为准	Comando completado. Compruebe el estado actualizado del servicio.
+管理当前用户的 Homebrew 服务；系统级服务只读。	Administre sus servicios de Homebrew. Los servicios del sistema son de solo lectura.
+安装 Homebrew 后，可在这里管理服务。	Instale Homebrew para administrar servicios aquí.
+Homebrew 服务	Servicios de Homebrew
+没有 Homebrew 服务	No hay servicios de Homebrew
+管理服务	Administrar servicio
+管理服务“{}”	Administrar el servicio «{}»
+启动或重启可能同时开启登录时自动启动；停止会取消自动启动。	Iniciar o reiniciar también puede activar el inicio automático al iniciar sesión. Detenerlo desactiva el inicio automático.
+启动服务	Iniciar servicio
+停止服务	Detener servicio
+重启服务	Reiniciar servicio
+服务运行中	En ejecución
+已安排定时运行	Programado
+服务已停止	Detenido
+服务未启动	Sin iniciar
+服务异常（退出码 {}）	Error (código de salida {})
+服务异常	Error del servicio
+只读	Solo lectura
+显示位置	Mostrar en
+工具侧栏	Barra lateral de herramientas
+网络页面	Página de red
+两处显示	Ambos lugares

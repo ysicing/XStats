@@ -199,6 +199,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     restMenuBar.sync()
     observeModel()
     observeNetworkObservationDemand()
+    observePortsDemand()
     observeProbeSettings()
     observeAIUsageSchedule()
     observeAIUsageState()
@@ -641,7 +642,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.settings.menuBarStyle
       _ = model.settings.networkStyle
       _ = model.settings.processesEnabled
-      _ = model.settings.uninstallerEnabled
       _ = model.settings.networkLocationStyle
       _ = model.settings.publicIPLookup
       _ = model.network.publicAddresses?.countryCode
@@ -708,6 +708,19 @@ public final class AppController: NSObject, NSApplicationDelegate {
       enabled: model.settings.canViewNetworkConnections,
       visible: model.isMainWindowVisible && model.settings.panelTab == .connections)
     model.networkGeography.setDemand(enabled: model.connectionMonitor.isReading)
+  }
+
+  /// 独立端口页与网络页 sheet 共用需求；窗口隐藏或端口内容关闭后停止读取。
+  private func observePortsDemand() {
+    withObservationTracking {
+      _ = model.settings.portsEnabled
+      _ = model.portsVisible
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observePortsDemand() }
+    }
+    model.ports.setDemand(
+      enabled: model.settings.portsEnabled,
+      visible: model.portsVisible)
   }
 
   /// 探测目标变化时清空历史重新探测；关闭公网 IP 查询时清除已显示的结果
@@ -1002,7 +1015,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.bluetooth.setPaused(true)
     model.sleepAssertions.setPaused(true)
     model.appManagement.setPaused(true)
+    model.startupItems.setPaused(true)
+    model.homebrewServices.setPaused(true)
     model.connectionMonitor.setPaused(true)
+    model.ports.setPaused(true)
     model.history.flush()
     model.wellness.suspend(preservingRest: true)
     wellnessNotifications.dismiss()
@@ -1024,7 +1040,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.bluetooth.setPaused(false)
     model.sleepAssertions.setPaused(false)
     model.appManagement.setPaused(false)
+    model.startupItems.setPaused(false)
+    model.homebrewServices.setPaused(false)
     model.connectionMonitor.setPaused(false)
+    model.ports.setPaused(false)
     rest.sync()
     model.timer.resume()
     model.wellness.resume()

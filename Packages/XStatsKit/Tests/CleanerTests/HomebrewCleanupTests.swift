@@ -252,13 +252,17 @@ import Testing
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("completed").path))
   }
 
-  @Test(arguments: ["upgrade", "uninstall"])
-  func packageOperationIgnoresPreviewLimits(_ command: String) async throws {
+  @Test(arguments: [
+    ["upgrade", "--formula", "fixture"], ["uninstall", "--formula", "fixture"],
+    ["services", "start", "fixture"], ["services", "stop", "fixture"],
+    ["services", "restart", "fixture"],
+  ])
+  func writeOperationIgnoresPreviewLimits(_ arguments: [String]) async throws {
     let home = try stubBrew(
       "#!/bin/sh\nprintf 'long diagnostic output'\n/bin/sleep 0.2\nprintf 'finished'\n")
     defer { try? FileManager.default.removeItem(at: home) }
     let result = try await DeveloperToolRunner.run(
-      "brew", arguments: [command, "--formula", "fixture"],
+      "brew", arguments: arguments,
       home: home.path, previewTimeout: 0.05, outputLimit: 8)
     #expect(result.output.isEmpty && result.status == 0)
     #expect(result.cleanupReport == nil)
@@ -330,12 +334,13 @@ import Testing
   }
 
   /// 超时只停止等待并报告，不结束仍在执行的 brew，避免打断部分完成的安装。
-  @Test func operationTimeoutStopsWaitingWithoutKillingBrew() async throws {
+  @Test(arguments: [["upgrade"], ["services", "restart", "fixture"]])
+  func operationTimeoutStopsWaitingWithoutKillingBrew(_ arguments: [String]) async throws {
     let home = try stubBrew("#!/bin/sh\necho $$ > \"$HOME/pid\"\nexec /bin/sleep 30\n")
     defer { try? FileManager.default.removeItem(at: home) }
     do {
       _ = try await DeveloperToolRunner.run(
-        "brew", arguments: ["upgrade"], home: home.path, timeout: 0.3)
+        "brew", arguments: arguments, home: home.path, timeout: 0.3, previewTimeout: 0.3)
       Issue.record("超时必须报告")
     } catch ToolExecutionError.timedOut {}
     // 负载较高时 stub 可能晚于时限才写出 PID，按截止时间等待而非固定间隔。

@@ -8,52 +8,57 @@ import Testing
 
 @MainActor
 struct UninstallerFeatureTests {
-  @Test func defaultOnRoutesAndBackupRestore() throws {
+  @Test func baseFeatureRoutesIgnoreLegacyBackupOptOut() throws {
     let suite = "UninstallerFeatureTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
-    #expect(settings.uninstallerEnabled)
-    settings.uninstallerEnabled = false
-    settings.panelTab = .uninstaller
-    #expect(settings.panelTab == .settingsFeatures)
-    #expect(AppDeepLink.page(.uninstaller, settings: settings) == .settingsFeatures)
-    settings.uninstallerEnabled = true
     settings.panelTab = .uninstaller
     #expect(settings.panelTab == .uninstaller)
     #expect(AppDeepLink.page(.uninstaller, settings: settings) == .uninstaller)
-    let saved = try JSONDecoder().decode(
-      SettingsDocument.self,
-      from: JSONEncoder().encode(settings.exportDocument()))
-    settings.uninstallerEnabled = false
-    #expect(settings.panelTab == .settingsFeatures)
-    settings.apply(saved)
-    #expect(settings.uninstallerEnabled)
+    let legacy = try JSONDecoder().decode(
+      SettingsDocument.self, from: Data(#"{"uninstallerEnabled":false}"#.utf8))
+    #expect(legacy.uninstallerEnabled == false)
+    settings.appServicesSection = .homebrew
+    settings.apply(legacy)
+    #expect(settings.panelTab == .uninstaller && settings.appServicesSection == .homebrew)
+    let exported = try JSONEncoder().encode(settings.exportDocument())
+    let fields = try #require(JSONSerialization.jsonObject(with: exported) as? [String: Any])
+    #expect(fields["uninstallerEnabled"] == nil)
     settings.apply(try JSONDecoder().decode(SettingsDocument.self, from: Data("{}".utf8)))
-    #expect(settings.uninstallerEnabled)
-    #expect(AppSettings(defaults: defaults).uninstallerEnabled)
+    #expect(settings.panelTab == .uninstaller && settings.appServicesSection == .homebrew)
+    #expect(AppSettings(defaults: defaults).appServicesSection == .homebrew)
   }
 
-  @Test func freshAndUpgradedInstallsDefaultOnAndExplicitOptOutPersists() throws {
+  @Test func freshAndUpgradedInstallsKeepApplicationServicesAvailable() throws {
     let upgraded = "UninstallerFeatureTests.upgraded.\(UUID())"
     let previous = try #require(UserDefaults(suiteName: upgraded))
     defer { previous.removePersistentDomain(forName: upgraded) }
     // 模拟 0.15.0 的已有偏好：卸载页曾经可用且没有开关键。
     previous.set(PanelTab.uninstaller.rawValue, forKey: "panelTab")
     let migrated = AppSettings(defaults: previous)
-    #expect(migrated.uninstallerEnabled, "升级不能让已在使用的卸载入口消失")
     #expect(migrated.panelTab == .uninstaller)
 
     let fresh = "UninstallerFeatureTests.fresh.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: fresh))
     defer { defaults.removePersistentDomain(forName: fresh) }
-    #expect(AppSettings(defaults: defaults).uninstallerEnabled)
-    defaults.set(PanelTab.overview.rawValue, forKey: "panelTab")
+    let initial = AppSettings(defaults: defaults)
+    initial.panelTab = .uninstaller
+    #expect(initial.appServicesSection == .apps)
+    defaults.set(false, forKey: "uninstallerEnabled")
     defaults.set(true, forKey: "SUHasLaunchedBefore")
     let reloaded = AppSettings(defaults: defaults)
-    #expect(reloaded.uninstallerEnabled)
-    reloaded.uninstallerEnabled = false
-    #expect(!AppSettings(defaults: defaults).uninstallerEnabled)
+    #expect(reloaded.panelTab == .uninstaller && reloaded.appServicesSection == .apps)
+    let model = AppModel(
+      settings: reloaded, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+    defer {
+      model.uninstaller.setEnabled(false)
+      model.appManagement.setVisible(false)
+    }
+    #expect(model.uninstaller.enabled)
+    #expect(!model.uninstaller.isLoading && !model.appManagement.isReading)
+    model.applyMonitoringSettings()
+    #expect(model.uninstaller.enabled)
   }
 
   @Test func disabledControllerDoesNotScanOrRemove() async {

@@ -2358,3 +2358,79 @@ Wi-Fi 图标大小	Größe des WLAN-Symbols
 首次使用需授权访问菜单栏应用列表；仅访问选定文件，无需屏幕录制。	Erlauben Sie zunächst den Zugriff auf die Menüleisten-App-Liste. Nur die gewählte Datei wird gelesen; eine Bildschirmaufnahme ist nicht erforderlich.
 菜单栏应用尚未恢复	Menüleisten-Apps wurden noch nicht wiederhergestellt
 仍然退出会保留恢复记录，下次启动时重试；也可在系统设置的“菜单栏”中恢复显示。	Beim Beenden bleibt das Wiederherstellungsprotokoll für einen erneuten Versuch beim nächsten Start erhalten. Du kannst die Apps auch unter Systemeinstellungen → Menüleiste wieder einblenden.
+
+本机 IP 查询	IP-Adressen abfragen
+出口对比	Ausgangsvergleich
+查看网站连通性与代理路线	Website-Erreichbarkeit und Proxy-Routen prüfen
+未获取到 IPv6 地址，请检查网络或稍后重试。	Keine IPv6-Adresse erhalten. Prüfen Sie die Verbindung oder versuchen Sie es später erneut.
+查询次数已达上限，请稍后重试。	Abfragelimit erreicht. Versuchen Sie es später erneut.
+查询服务暂时不可用，请稍后重试。	Der Abfragedienst ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut.
+查询服务返回了无效响应，请重试。	Der Abfragedienst hat eine ungültige Antwort geliefert. Versuchen Sie es erneut.
+按需连接第三方服务，查看它们看到的公网出口。不同来源可能经过不同代理路线。	Dienste werden bei Bedarf kontaktiert, um die öffentliche IP anzuzeigen. Je nach Dienst können unterschiedliche Proxy-Routen gelten.
+隐藏 IP	IP ausblenden
+隐藏国内信息	Ergebnisse aus China ausblenden
+隐藏国际信息	Internationale Ergebnisse ausblenden
+信息已隐藏	Informationen ausgeblendet
+未获取到地址，请检查网络或稍后重试。	Keine Adresse erhalten. Prüfen Sie die Verbindung oder versuchen Sie es später erneut.
+端口	Ports
+端口号	Port
+监听	Lauschend
+已建立	Verbunden
+对端	Gegenstelle
+冲突	Konflikt
+拷贝本地地址	Lokale Adresse kopieren
+拷贝对端地址	Adresse der Gegenstelle kopieren
+按进程统计，同一进程的各行速率相同	Pro Prozess gemessen; Zeilen desselben Prozesses zeigen dieselbe Rate
+搜索端口、进程、服务或地址	Port, Prozess, Dienst oder Adresse suchen
+暂时无法读取端口	Ports können gerade nicht gelesen werden
+查看监听端口、已建立的连接及占用进程，可结束占用端口的进程。	Zeigt lauschende Ports, bestehende Verbindungen und die zugehörigen Prozesse; Prozesse, die einen Port belegen, lassen sich beenden.
+正在读取端口…	Ports werden gelesen …
+没有匹配的端口	Keine passenden Ports
+监听 {} · 连接 {}	Lauschend {} · Verbindungen {}
+端口 {} 同时被多个进程监听	Auf Port {} lauschen mehrere Prozesse
+连接过多，只显示前 {} 项	Zu viele Verbindungen; nur die ersten {} werden angezeigt
+仅列出当前用户的进程，系统服务占用的端口不会显示	Nur eigene Prozesse werden angezeigt; von Systemdiensten belegte Ports fehlen
+会断开它占用的端口与连接，未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。	Seine Ports und Verbindungen werden getrennt, ungesicherte Arbeit kann verloren gehen. „Sofort beenden“ beendet ihn ohne Gelegenheit zum Sichern.
+本地接口	Lokale Schnittstellen
+暂无已连接的本地接口	Keine verbundenen lokalen Schnittstellen
+有线网络	Ethernet
+其他接口	Andere Schnittstelle
+更多地址	Weitere Adressen
+链路本地	Link-lokal
+结束“{}”（PID {}）？	„{}“ (PID {}) beenden?
+进程已退出或不再占用该端口，请刷新后重试	Der Prozess wurde beendet oder belegt diesen Port nicht mehr. Aktualisieren Sie und versuchen Sie es erneut.
+国际	International
+应用服务	Apps und Dienste
+服务	Dienste
+搜索软件包	Pakete suchen
+搜索启动项	Startobjekte suchen
+搜索服务	Dienste suchen
+后台守护进程（LaunchDaemons）只读展示，不会修改系统服务。	Hintergrunddienste (LaunchDaemons) sind schreibgeschützt. Systemdienste werden nicht geändert.
+登录后运行的代理（LaunchAgents）；当前用户的项目可启停，所有用户的项目只读。	Agenten (LaunchAgents) werden nach der Anmeldung ausgeführt. Eigene Einträge lassen sich aktivieren oder deaktivieren; Einträge für alle Benutzer sind schreibgeschützt.
+1 项 · 可直接停用	1 Eintrag · hier deaktivierbar
+1 项 · 需要管理员权限，只读	1 Eintrag · Administratorrechte nötig, schreibgeschützt
+后台守护进程	Hintergrunddienste
+无法识别 Homebrew 服务列表	Die Homebrew-Dienstliste konnte nicht gelesen werden
+服务已变化或不属于当前用户，请刷新后重试	Der Dienst wurde geändert oder gehört einem anderen Benutzer. Aktualisieren Sie die Liste und versuchen Sie es erneut.
+服务操作已完成，请以刷新后的状态为准	Dienstbefehl abgeschlossen. Prüfen Sie den aktualisierten Status.
+管理当前用户的 Homebrew 服务；系统级服务只读。	Verwalten Sie Ihre Homebrew-Dienste. Systemweite Dienste sind schreibgeschützt.
+安装 Homebrew 后，可在这里管理服务。	Installieren Sie Homebrew, um hier Dienste zu verwalten.
+Homebrew 服务	Homebrew-Dienste
+没有 Homebrew 服务	Keine Homebrew-Dienste
+管理服务	Dienst verwalten
+管理服务“{}”	Dienst „{}“ verwalten
+启动或重启可能同时开启登录时自动启动；停止会取消自动启动。	Starten oder Neustarten kann auch den automatischen Start bei der Anmeldung aktivieren. Stoppen deaktiviert ihn.
+启动服务	Dienst starten
+停止服务	Dienst stoppen
+重启服务	Dienst neu starten
+服务运行中	Läuft
+已安排定时运行	Geplant
+服务已停止	Gestoppt
+服务未启动	Nicht gestartet
+服务异常（退出码 {}）	Fehler (Exit-Code {})
+服务异常	Dienstfehler
+只读	Schreibgeschützt
+显示位置	Anzeigen in
+工具侧栏	Werkzeug-Seitenleiste
+网络页面	Netzwerkseite
+两处显示	Beiden Bereichen

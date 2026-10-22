@@ -10,6 +10,22 @@ import Localization
 import Metrics
 import Observation
 
+public enum PortsPlacement: String, CaseIterable, Identifiable, Sendable {
+  case sidebar, network, both
+
+  public var id: String { rawValue }
+  var includesSidebar: Bool { self != .network }
+  var includesNetwork: Bool { self != .sidebar }
+
+  var title: String {
+    switch self {
+    case .sidebar: tr("工具侧栏")
+    case .network: tr("网络页面")
+    case .both: tr("两处显示")
+    }
+  }
+}
+
 public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
   case cpu, memory, network, gpu, disk, temperature, fan, battery, aiUsage, display, audio
 
@@ -365,7 +381,7 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
 /// 主窗口侧边栏的页面
 public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
   case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery,
-    processes, keepAwake, rest, cleaner, uninstaller, startupItems, audio, connections
+    processes, ports, keepAwake, rest, cleaner, uninstaller, startupItems, audio, connections
   case settingsGeneral, settingsFeatures, settingsMenuBar, settingsNotifications, settingsAccount,
     settingsHelper, settingsAbout
 
@@ -377,7 +393,8 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
   ]
   // 按中文名称由短到长排列，所有语言沿用固定顺序，保持导航位置一致。
   static let tools: [PanelTab] = [
-    .audio, .processes, .cleaner, .uninstaller, .rest, .startupItems, .keepAwake, .connections,
+    .audio, .processes, .ports, .cleaner, .rest, .keepAwake, .uninstaller,
+    .connections,
   ]
   // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
   static let settings: [PanelTab] = [
@@ -404,11 +421,11 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .thermal: tr("风扇")
     case .battery: tr("能耗")
     case .processes: tr("进程")
+    case .ports: tr("端口")
     case .keepAwake: tr("防休眠")
     case .rest: tr("计时")
     case .cleaner: tr("清理")
-    case .uninstaller: tr("应用")
-    case .startupItems: tr("启动项")
+    case .uninstaller, .startupItems: tr("应用服务")
     case .audio: tr("音频")
     case .connections: tr("网络监视器")
     case .settingsGeneral: tr("通用")
@@ -435,6 +452,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .thermal: "fan"
     case .battery: "bolt"
     case .processes: "list.bullet.rectangle"
+    case .ports: "point.3.connected.trianglepath.dotted"
     case .keepAwake: "cup.and.saucer"
     case .rest: "timer"
     case .cleaner: "eraser"
@@ -759,6 +777,22 @@ public final class AppSettings {
       if !processesEnabled && panelTab == .processes { panelTab = .settingsFeatures }
     }
   }
+  /// 端口查看默认关闭；只在打开端口页时读取本机 socket。
+  public var portsEnabled: Bool {
+    didSet {
+      defaults.set(portsEnabled, forKey: Keys.portsEnabled)
+      if !portsEnabled && panelTab == .ports { panelTab = .settingsFeatures }
+    }
+  }
+  /// 入口位置与功能开关独立保存，关闭后保留位置选择。
+  public var portsPlacement: PortsPlacement {
+    didSet {
+      defaults.set(portsPlacement.rawValue, forKey: Keys.portsPlacement)
+      if !portsPlacement.includesSidebar && panelTab == .ports { panelTab = .network }
+    }
+  }
+  var showsPortsInSidebar: Bool { portsEnabled && portsPlacement.includesSidebar }
+  var showsPortsInNetwork: Bool { portsEnabled && portsPlacement.includesNetwork }
   /// 清理工具默认开启；扫描只在打开页面后按需执行，保留用户已保存的关闭设置。
   public var cleanerEnabled: Bool {
     didSet {
@@ -769,13 +803,6 @@ public final class AppSettings {
   /// 实验性 Agent 数据默认关闭；启用后仍只在打开面板时扫描。
   public var agentDataEnabled: Bool {
     didSet { defaults.set(agentDataEnabled, forKey: Keys.agentDataEnabled) }
-  }
-  /// 卸载工具按需启用；关闭只停扫描和隐藏入口，不执行删除。
-  public var uninstallerEnabled: Bool {
-    didSet {
-      defaults.set(uninstallerEnabled, forKey: "uninstallerEnabled")
-      if !uninstallerEnabled && panelTab == .uninstaller { panelTab = .settingsFeatures }
-    }
   }
   /// 来源开关只保存在本机；关闭后不扫描，也不显示其历史缓存。
   public var aiUsageSources: Set<AIProviderID> {
@@ -843,13 +870,24 @@ public final class AppSettings {
   public var fanSafetyTemperature: Int {
     didSet { defaults.set(fanSafetyTemperature, forKey: Keys.fanSafetyTemperature) }
   }
+  /// 应用服务始终可用，浏览分类仅保存在本机。
+  public var appServicesSection: AppServicesSection {
+    didSet {
+      defaults.set(appServicesSection.rawValue, forKey: "appServicesSection")
+    }
+  }
   public var panelTab: PanelTab {
     didSet {
       // 统一拦截旧路由与外部打开请求，关闭的音频与进程模块回到功能开关入口。
       if panelTab == .audio && !audioEnabled { panelTab = .settingsFeatures }
       if panelTab == .connections && !canViewNetworkConnections { panelTab = .settingsFeatures }
       if panelTab == .processes && !processesEnabled { panelTab = .settingsFeatures }
-      if panelTab == .uninstaller && !uninstallerEnabled { panelTab = .settingsFeatures }
+      if panelTab == .ports && !portsEnabled { panelTab = .settingsFeatures }
+      if panelTab == .ports && !portsPlacement.includesSidebar { panelTab = .network }
+      if panelTab == .startupItems {
+        appServicesSection = .startup
+        panelTab = .uninstaller
+      }
       defaults.set(panelTab.rawValue, forKey: Keys.panelTab)
     }
   }
@@ -1208,10 +1246,14 @@ public final class AppSettings {
     let isCleanerEnabled = defaults.object(forKey: Keys.cleanerEnabled) as? Bool ?? true
     cleanerEnabled = isCleanerEnabled
     agentDataEnabled = defaults.bool(forKey: Keys.agentDataEnabled)
-    let isUninstallerEnabled = defaults.object(forKey: "uninstallerEnabled") as? Bool ?? true
-    uninstallerEnabled = isUninstallerEnabled
     let isProcessesEnabled = defaults.bool(forKey: Keys.processesEnabled)
     processesEnabled = isProcessesEnabled
+    let isPortsEnabled = defaults.bool(forKey: Keys.portsEnabled)
+    portsEnabled = isPortsEnabled
+    let initialPortsPlacement =
+      defaults.string(forKey: Keys.portsPlacement).flatMap(PortsPlacement.init(rawValue:))
+      ?? .sidebar
+    portsPlacement = initialPortsPlacement
     aiUsageSources =
       defaults.stringArray(forKey: Keys.aiUsageSources)
       .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
@@ -1246,9 +1288,15 @@ public final class AppSettings {
       ? defaults.integer(forKey: Keys.fanSafetyTemperature) : 95
     let savedPanelTabValue = defaults.string(forKey: Keys.panelTab)
     let savedPanelTab = savedPanelTabValue.flatMap(PanelTab.init(rawValue:)) ?? .overview
+    let savedSection =
+      defaults.string(forKey: "appServicesSection")
+      .flatMap(AppServicesSection.init(rawValue:)) ?? .apps
+    appServicesSection = savedPanelTab == .startupItems ? .startup : savedSection
     // 旧版 AI 助手设置页已移除，升级后仍留在设置分组。
     if savedPanelTabValue == "settingsAI" || savedPanelTab == .settingsAccount {
       panelTab = .settingsGeneral
+    } else if savedPanelTab == .ports && isPortsEnabled && !initialPortsPlacement.includesSidebar {
+      panelTab = .network
     } else {
       panelTab =
         (savedPanelTab == .audio && !isAudioEnabled)
@@ -1257,9 +1305,14 @@ public final class AppSettings {
           || (savedPanelTab == .aiUsage && !isAIUsageEnabled)
           || (savedPanelTab == .rest && !isRestEnabled)
           || (savedPanelTab == .cleaner && !isCleanerEnabled)
-          || (savedPanelTab == .uninstaller && !isUninstallerEnabled)
           || (savedPanelTab == .processes && !isProcessesEnabled)
-        ? .settingsFeatures : savedPanelTab
+          || (savedPanelTab == .ports && !isPortsEnabled)
+        ? .settingsFeatures : (savedPanelTab == .startupItems ? .uninstaller : savedPanelTab)
+    }
+    // 初始化不会触发 didSet，迁移后的路由也要落盘，否则下次启动会覆盖新选择的分类。
+    if savedPanelTab == .startupItems {
+      defaults.set(PanelTab.uninstaller.rawValue, forKey: Keys.panelTab)
+      defaults.set(AppServicesSection.startup.rawValue, forKey: "appServicesSection")
     }
     appearance =
       defaults.string(forKey: Keys.appearance).flatMap(AppearanceMode.init(rawValue:)) ?? .system
@@ -1579,6 +1632,8 @@ public final class AppSettings {
     static let cleanerEnabled = "cleanerEnabled"
     static let agentDataEnabled = "agentDataEnabled"
     static let processesEnabled = "processesEnabled"
+    static let portsEnabled = "portsEnabled"
+    static let portsPlacement = "portsPlacement"
     static let aiUsageSources = "aiUsageSources"
     static let aiUsageShowsLocalUsage = "aiUsageShowsLocalUsage"
     static let aiQuotaShowsRemaining = "aiQuotaShowsRemaining"

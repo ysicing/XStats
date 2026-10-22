@@ -172,7 +172,7 @@ enum SnapshotRenderer {
       defer { defaults.removePersistentDomain(forName: suite) }
       let settings = AppSettings(defaults: defaults)
       settings.language = L10n.language
-      settings.uninstallerEnabled = true
+      settings.panelTab = .uninstaller
       let model = AppModel(
         settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
       let apps = ["Atlas", "Boreal", "Editor", "Studio", "Terminal", "Weather"].map {
@@ -206,17 +206,51 @@ enum SnapshotRenderer {
             bundleIdentifier: apps[1].bundleIdentifier, version: "2.5.0",
             minimumSystemVersion: "14.0", storeID: "123")
         ])
+      model.startupItems.showPreview(
+        items: [
+          LaunchItem(
+            label: "com.example.editor.agent",
+            plist: URL(
+              fileURLWithPath: "/Users/demo/Library/LaunchAgents/com.example.editor.agent.plist"),
+            scope: .user,
+            program: "/Applications/Editor.app/Contents/MacOS/agent", runAtLoad: true,
+            keepAlive: false, disabledInPlist: false),
+          LaunchItem(
+            label: "com.example.sync.agent",
+            plist: URL(fileURLWithPath: "/Library/LaunchAgents/com.example.sync.agent.plist"),
+            scope: .allUsers,
+            program: "/Applications/Sync.app/Contents/MacOS/agent", runAtLoad: true,
+            keepAlive: true, disabledInPlist: false),
+          LaunchItem(
+            label: "com.example.backup.daemon",
+            plist: URL(fileURLWithPath: "/Library/LaunchDaemons/com.example.backup.daemon.plist"),
+            scope: .system,
+            program: "/Library/PrivilegedHelperTools/com.example.backup", runAtLoad: true,
+            keepAlive: true, disabledInPlist: false),
+        ], status: LaunchStatus(loaded: ["com.example.editor.agent": 2048]))
+      model.homebrewServices.showPreview(
+        (try? HomebrewServices.parse(
+          #"""
+          [
+            {"name":"redis","status":"started","user":"demo"},
+            {"name":"postgresql@17","status":"none"},
+            {"name":"backup-timer","status":"scheduled","user":"demo"},
+            {"name":"nginx","status":"error","user":"root","file":"/Library/LaunchDaemons/homebrew.mxcl.nginx.plist","exit_code":256}
+          ]
+          """#
+        )) ?? [])
       for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
         guard let appearance = NSAppearance(named: name) else { continue }
         NSApp.appearance = appearance
-        for tab in AppManagementController.Tab.allCases {
+        for section in AppServicesSection.allCases {
+          model.settings.appServicesSection = section
           // 覆盖宽窗口的列分配和窄窗口的工具栏换行；保持原有截图文件名。
           for (width, sizeSuffix) in [(CGFloat(1050), ""), (1240, "-wide"), (760, "-compact")] {
             write(
-              AppManagementPage(tab: tab).appLanguageEnvironment().frame(width: width, height: 560),
+              AppManagementPage().appLanguageEnvironment().frame(width: width, height: 560),
               model: model, appearance: appearance,
               to: outputDirectory.appendingPathComponent(
-                "apps-\(tab.rawValue)-\(suffix)\(sizeSuffix).png"))
+                "apps-\(section.rawValue)-\(suffix)\(sizeSuffix).png"))
           }
         }
       }
@@ -520,8 +554,8 @@ enum SnapshotRenderer {
     ]
     settings.aiUsageEnabled = true
     settings.cleanerEnabled = true
-    settings.uninstallerEnabled = true
     settings.processesEnabled = true
+    settings.portsEnabled = true
     // 历史页用示例数据：最近 24 小时每分钟一条，中间留一段“睡眠”空档
     let historyURL = FileManager.default.temporaryDirectory.appendingPathComponent(
       "xstats-snapshot-history.sqlite")
@@ -571,6 +605,30 @@ enum SnapshotRenderer {
     await model.hub.stop()
     model.network.setVisibility(inMenuBar: false, detailVisible: false)
     model.network.maskForSnapshot()
+    // 端口页只用匿名演示数据：保留文档保留地址与虚构进程，不读取本机 socket
+    let uid = getuid()
+    let demoPorts: [PortSocket] = [
+      PortSocket(
+        pid: 501, name: "web-server", uid: uid, socketID: 501, transport: .tcp,
+        state: .listening, localAddress: nil, localPort: 3000),
+      PortSocket(
+        pid: 502, name: "database", uid: uid, socketID: 502, transport: .tcp,
+        state: .listening, localAddress: nil, localPort: 5432),
+      PortSocket(
+        pid: 503, name: "browser", uid: uid, socketID: 503, transport: .tcp,
+        state: .established, localAddress: "192.0.2.2", localPort: 51234,
+        remoteAddress: "192.0.2.10", remotePort: 443),
+      PortSocket(
+        pid: 504, name: "sync-agent", uid: uid, socketID: 504, transport: .tcp,
+        state: .established, localAddress: "192.0.2.2", localPort: 51300,
+        remoteAddress: "198.51.100.7", remotePort: 443),
+    ]
+    model.ports.showDemo(
+      sockets: demoPorts,
+      rates: [
+        503: NetworkProcessRate(name: "browser", download: 2_400_000, upload: 180_000),
+        504: NetworkProcessRate(name: "sync-agent", download: 12_000, upload: 56_000),
+      ])
     // 清理页展示真实扫描结果（只读，不删除任何文件）
     model.cleaner.scan()
     while model.cleaner.isBusy { try? await Task.sleep(for: .milliseconds(200)) }
