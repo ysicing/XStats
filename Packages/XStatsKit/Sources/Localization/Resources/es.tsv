@@ -1943,7 +1943,7 @@ Homebrew 操作失败，请在终端检查后重试	La operación de Homebrew fa
 已卸载“{}”	“{}” desinstalado
 筛选	Filtrar
 通用架构	Universal
-软件包操作尚未完成	La operación del paquete sigue en curso
+Homebrew 操作尚未完成	La operación de Homebrew sigue en curso
 已计量 {}	Medido: {}
 无法识别 Homebrew 来源，由 Homebrew 安装的应用请在终端卸载	No se pudo identificar el origen de Homebrew. Desinstala en Terminal las apps instaladas con Homebrew.
 Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	La operación de Homebrew lleva más de una hora sin terminar. Comprueba su estado en Terminal.

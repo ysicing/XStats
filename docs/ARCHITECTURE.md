@@ -380,7 +380,10 @@ Homebrew was absent at app startup; refresh remains available in that state. Ser
 use the bounded preview runner. Confirmed `brew services start/stop/restart` commands use the write
 runner: preview output limits do not apply and a write timeout stops waiting without terminating
 brew. Explicit task cancellation still stops the command. Service mutations finish independently of
-page visibility, and only a visible page refreshes afterward.
+page visibility, and only a visible page refreshes afterward. Package and service mutations both
+offer a wait-or-quit confirmation when exiting; index refresh retains its existing exit behavior.
+A service write timeout reports an unknown outcome and asks the user to verify its status in
+Terminal, rather than declaring failure or recommending a retry.
 
 Application uninstallation uses a separate controller and scans only app-specific paths.
 Identity comes from the app's names and bounded embedded bundles (512 entries, 64 bundles,

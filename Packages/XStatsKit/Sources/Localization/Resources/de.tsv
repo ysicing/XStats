@@ -1943,7 +1943,7 @@ Homebrew 操作失败，请在终端检查后重试	Homebrew-Vorgang fehlgeschla
 已卸载“{}”	„{}“ deinstalliert
 筛选	Filtern
 通用架构	Universal
-软件包操作尚未完成	Paketvorgang läuft noch
+Homebrew 操作尚未完成	Homebrew-Vorgang läuft noch
 已计量 {}	Gemessen: {}
 无法识别 Homebrew 来源，由 Homebrew 安装的应用请在终端卸载	Homebrew-Quellen konnten nicht erkannt werden. Mit Homebrew installierte Apps bitte im Terminal deinstallieren.
 Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Der Homebrew-Vorgang läuft seit über einer Stunde. Prüfe den Status im Terminal.

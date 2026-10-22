@@ -1944,7 +1944,7 @@ Homebrew 操作失败，请在终端检查后重试	Homebrew 操作失敗，請�
 已卸载“{}”	已解除安裝「{}」
 筛选	篩選
 通用架构	通用架構
-软件包操作尚未完成	軟體套件操作尚未完成
+Homebrew 操作尚未完成	Homebrew 操作尚未完成
 已计量 {}	已計量 {}
 无法识别 Homebrew 来源，由 Homebrew 安装的应用请在终端卸载	無法識別 Homebrew 來源，由 Homebrew 安裝的 App 請在終端機解除安裝
 Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	Homebrew 操作超過 1 小時仍未結束，請在終端機核對其狀態

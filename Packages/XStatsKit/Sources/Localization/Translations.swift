@@ -1777,7 +1777,7 @@ extension Translations {
     最新版本	Latest Version
     正在运行	Running
     打开	Open
-    软件包操作尚未完成	Package Operation Is Still in Progress
+    Homebrew 操作尚未完成	Homebrew Operation Is Still in Progress
     已计量 {}	Measured {}
     无法识别 Homebrew 来源，由 Homebrew 安装的应用请在终端卸载	Couldn't identify Homebrew sources. Uninstall apps installed by Homebrew in Terminal.
     Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	The Homebrew operation has been running for over an hour. Check its status in Terminal.

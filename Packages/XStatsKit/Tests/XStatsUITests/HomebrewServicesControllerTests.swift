@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import Localization
 import Testing
 @testable import Cleaner
 @testable import XStatsUI
@@ -50,7 +51,7 @@ struct HomebrewServicesControllerTests {
     let fixture = BrewServiceOperationFixture()
     let controller = HomebrewServicesController(
       brewAvailable: { true }, readInventory: { await gate.read() },
-      performAction: { action, _ in await fixture.perform(action) })
+      performAction: { action, _ in try await fixture.perform(action) })
     controller.setVisible(true)
     await waitUntil { await gate.calls == 1 }
     try await gate.finish()
@@ -70,6 +71,36 @@ struct HomebrewServicesControllerTests {
     #expect(controller.completion == completion)
     controller.dismissCompletion(completion)
     #expect(controller.completion == nil)
+  }
+
+  @Test(arguments: [HomebrewServices.Action.start, .stop, .restart], [false, true])
+  func timedOutWritesRequireTerminalVerification(
+    action: HomebrewServices.Action, hidden: Bool
+  ) async throws {
+    let state = HomebrewOperationState()
+    let fixture = BrewServiceOperationFixture()
+    let services = try HomebrewServices.parse(#"[{"name":"redis","status":"none"}]"#)
+    let controller = HomebrewServicesController(
+      brewAvailable: { true }, readInventory: { services },
+      performAction: { action, _ in try await fixture.perform(action) },
+      homebrewOperations: state)
+    controller.setVisible(true)
+    await waitUntil { !controller.isLoading }
+    let service = try #require(controller.services.first)
+    controller.perform(action, service: service)
+    await waitUntil { await fixture.calls == 1 }
+    if hidden { controller.setVisible(false) }
+    await fixture.finish(error: ToolExecutionError.timedOut("brew"))
+    await waitUntil { controller.working == nil && !state.isRunning }
+
+    #expect(controller.error == tr("Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态"))
+    #expect(controller.error != ToolExecutionError.timedOut("brew").localizedDescription)
+    #expect(controller.completion == nil)
+    #expect(!controller.isLoading)
+    // 结果未知时不能直接重试；用户须先核对状态并刷新清单。
+    controller.perform(action, service: service)
+    #expect(await fixture.calls == 1)
+    controller.setVisible(false)
   }
 
   @Test func absentHomebrewDoesNotStartARead() async {
@@ -175,13 +206,13 @@ private actor BrewServiceFailureFixture {
 
 private actor BrewServiceOperationFixture {
   private(set) var calls = 0
-  private var pending: CheckedContinuation<Void, Never>?
-  func perform(_ action: HomebrewServices.Action) async {
+  private var pending: CheckedContinuation<Void, any Error>?
+  func perform(_ action: HomebrewServices.Action) async throws {
     calls += 1
-    await withCheckedContinuation { pending = $0 }
+    try await withCheckedThrowingContinuation { pending = $0 }
   }
-  func finish() {
-    pending?.resume()
+  func finish(error: (any Error)? = nil) {
+    if let error { pending?.resume(throwing: error) } else { pending?.resume() }
     pending = nil
   }
 }
