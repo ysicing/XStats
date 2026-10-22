@@ -13,9 +13,21 @@ extension Translations {
       audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish,
       appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish,
       hardwareDetailsEnglish, aiCleanupEnglish, networkPresentationEnglish, trioEnglish,
-      portsEnglish,
+      portsEnglish, appServicesEnglish,
     ]
   }
+
+  static let appServicesEnglish = #"""
+    应用服务	Apps & Services
+    服务	Services
+    搜索软件包	Search packages
+    搜索启动项	Search startup items
+    搜索服务	Search services
+    1 项 · 可直接停用	1 item · can be turned off here
+    1 项 · 需要管理员权限，只读	1 item · needs admin, read-only
+    后台守护进程（LaunchDaemons）只读展示，不会修改系统服务。	Background daemons (LaunchDaemons) are read-only; system services are not modified.
+    登录后运行的代理（LaunchAgents）；当前用户的项目可启停，所有用户的项目只读。	Agents (LaunchAgents) run after login. Your own items can be enabled or disabled; items for all users are read-only.
+    """#
 
   static let networkPresentationEnglish = #"""
     本地接口	Local Interfaces

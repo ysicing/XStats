@@ -79,10 +79,12 @@ enum AppDeepLink: Equatable, Sendable {
       .connections where !settings.canViewNetworkConnections,
       .processes where !settings.processesEnabled, .ports where !settings.portsEnabled,
       .cleaner where !settings.cleanerEnabled,
-      .uninstaller where !settings.uninstallerEnabled,
       .aiUsage where !settings.aiUsageEnabled:
-      .settingsFeatures
-    default: requested
+      return .settingsFeatures
+    case .startupItems:
+      settings.appServicesSection = .startup
+      return .uninstaller
+    default: return requested
     }
   }
 }

@@ -173,6 +173,7 @@ enum SnapshotRenderer {
       let settings = AppSettings(defaults: defaults)
       settings.language = L10n.language
       settings.uninstallerEnabled = true
+      settings.panelTab = .uninstaller
       let model = AppModel(
         settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
       let apps = ["Atlas", "Boreal", "Editor", "Studio", "Terminal", "Weather"].map {
@@ -206,17 +207,40 @@ enum SnapshotRenderer {
             bundleIdentifier: apps[1].bundleIdentifier, version: "2.5.0",
             minimumSystemVersion: "14.0", storeID: "123")
         ])
+      model.startupItems.showPreview(
+        items: [
+          LaunchItem(
+            label: "com.example.editor.agent",
+            plist: URL(
+              fileURLWithPath: "/Users/demo/Library/LaunchAgents/com.example.editor.agent.plist"),
+            scope: .user,
+            program: "/Applications/Editor.app/Contents/MacOS/agent", runAtLoad: true,
+            keepAlive: false, disabledInPlist: false),
+          LaunchItem(
+            label: "com.example.sync.agent",
+            plist: URL(fileURLWithPath: "/Library/LaunchAgents/com.example.sync.agent.plist"),
+            scope: .allUsers,
+            program: "/Applications/Sync.app/Contents/MacOS/agent", runAtLoad: true,
+            keepAlive: true, disabledInPlist: false),
+          LaunchItem(
+            label: "com.example.backup.daemon",
+            plist: URL(fileURLWithPath: "/Library/LaunchDaemons/com.example.backup.daemon.plist"),
+            scope: .system,
+            program: "/Library/PrivilegedHelperTools/com.example.backup", runAtLoad: true,
+            keepAlive: true, disabledInPlist: false),
+        ], status: LaunchStatus(loaded: ["com.example.editor.agent": 2048]))
       for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
         guard let appearance = NSAppearance(named: name) else { continue }
         NSApp.appearance = appearance
-        for tab in AppManagementController.Tab.allCases {
+        for section in AppServicesSection.allCases {
+          model.settings.appServicesSection = section
           // 覆盖宽窗口的列分配和窄窗口的工具栏换行；保持原有截图文件名。
           for (width, sizeSuffix) in [(CGFloat(1050), ""), (1240, "-wide"), (760, "-compact")] {
             write(
-              AppManagementPage(tab: tab).appLanguageEnvironment().frame(width: width, height: 560),
+              AppManagementPage().appLanguageEnvironment().frame(width: width, height: 560),
               model: model, appearance: appearance,
               to: outputDirectory.appendingPathComponent(
-                "apps-\(tab.rawValue)-\(suffix)\(sizeSuffix).png"))
+                "apps-\(section.rawValue)-\(suffix)\(sizeSuffix).png"))
           }
         }
       }

@@ -2400,3 +2400,12 @@ Wi-Fi 图标大小	Tamaño del icono Wi-Fi
 结束“{}”（PID {}）？	¿Terminar «{}» (PID {})?
 进程已退出或不再占用该端口，请刷新后重试	El proceso ha terminado o ya no usa este puerto. Actualiza e inténtalo de nuevo.
 国际	Internacional
+应用服务	Apps y servicios
+服务	Servicios
+搜索软件包	Buscar paquetes
+搜索启动项	Buscar elementos de inicio
+搜索服务	Buscar servicios
+后台守护进程（LaunchDaemons）只读展示，不会修改系统服务。	Los procesos en segundo plano (LaunchDaemons) son de solo lectura. No se modifican los servicios del sistema.
+登录后运行的代理（LaunchAgents）；当前用户的项目可启停，所有用户的项目只读。	Los agentes (LaunchAgents) se ejecutan al iniciar sesión. Puedes activar o desactivar tus elementos; los de todos los usuarios son de solo lectura.
+1 项 · 可直接停用	1 elemento · se puede desactivar aquí
+1 项 · 需要管理员权限，只读	1 elemento · requiere administrador, solo lectura

@@ -39,6 +39,20 @@ public struct LaunchItem: Sendable, Identifiable, Hashable {
   /// 在 plist 里被标记为 Disabled
   public let disabledInPlist: Bool
 
+  /// 构造一个已解析的启动项目；不读取文件或执行 launchctl。
+  public init(
+    label: String, plist: URL, scope: Scope, program: String?, runAtLoad: Bool,
+    keepAlive: Bool, disabledInPlist: Bool
+  ) {
+    self.label = label
+    self.plist = plist
+    self.scope = scope
+    self.program = program
+    self.runAtLoad = runAtLoad
+    self.keepAlive = keepAlive
+    self.disabledInPlist = disabledInPlist
+  }
+
   /// 可执行文件所在的 .app（用于显示图标和名称）
   public var appBundlePath: String? {
     guard let program, let range = program.range(of: ".app/") else { return nil }
@@ -50,34 +64,41 @@ public struct LaunchItem: Sendable, Identifiable, Hashable {
 public struct LaunchStatus: Sendable, Equatable {
   public var loaded: [String: Int?] = [:]
   public var disabled: [String: Bool] = [:]
+  public var systemDisabled: [String: Bool] = [:]
 
-  public init(loaded: [String: Int?] = [:], disabled: [String: Bool] = [:]) {
+  public init(
+    loaded: [String: Int?] = [:], disabled: [String: Bool] = [:],
+    systemDisabled: [String: Bool] = [:]
+  ) {
     self.loaded = loaded
     self.disabled = disabled
+    self.systemDisabled = systemDisabled
   }
 
   public func isDisabled(_ item: LaunchItem) -> Bool {
-    disabled[item.label] ?? item.disabledInPlist
+    let domain = item.scope == .system ? systemDisabled : disabled
+    return domain[item.label] ?? item.disabledInPlist
   }
 
   public func pid(_ item: LaunchItem) -> Int? {
-    loaded[item.label] ?? nil
+    item.scope == .system ? nil : loaded[item.label] ?? nil
   }
 
   public func isLoaded(_ item: LaunchItem) -> Bool {
-    loaded[item.label] != nil
+    item.scope != .system && loaded[item.label] != nil
   }
 }
 
 public enum LaunchItems {
   public static func scan(scopes: [LaunchItem.Scope] = LaunchItem.Scope.allCases) -> [LaunchItem] {
     scopes.flatMap { scope -> [LaunchItem] in
+      guard !Task.isCancelled else { return [] }
       let directory = URL(fileURLWithPath: scope.directory)
       let files =
         (try? FileManager.default.contentsOfDirectory(
           at: directory, includingPropertiesForKeys: nil)) ?? []
       return files.filter { $0.pathExtension == "plist" }.compactMap { url in
-        guard let data = try? Data(contentsOf: url),
+        guard !Task.isCancelled, let data = try? Data(contentsOf: url),
           let dictionary = try? PropertyListSerialization.propertyList(from: data, format: nil)
             as? [String: Any]
         else { return nil }
@@ -102,15 +123,20 @@ public enum LaunchItems {
       disabledInPlist: plist["Disabled"] as? Bool ?? false)
   }
 
-  /// 当前用户域的加载与停用状态；系统域的停用列表需要 root，读不到时按 plist 判断
-  public static func status() -> LaunchStatus {
-    let uid = getuid()
+  /// 按当前分类读取域状态；系统域不复用用户域的加载列表。
+  public static func status(scopes: [LaunchItem.Scope] = LaunchItem.Scope.allCases) -> LaunchStatus
+  {
     var status = LaunchStatus()
-    status.loaded = parseList(run(["list"]))
-    status.disabled = parseDisabled(run(["print-disabled", "gui/\(uid)"]))
-    for (label, disabled) in parseDisabled(run(["print-disabled", "system"]))
-    where status.disabled[label] == nil {
-      status.disabled[label] = disabled
+    if scopes.contains(.user) || scopes.contains(.allUsers) {
+      guard !Task.isCancelled else { return status }
+      status.loaded = parseList(run(["list"]))
+      guard !Task.isCancelled else { return status }
+      status.disabled = parseDisabled(run(["print-disabled", "gui/\(getuid())"]))
+    }
+    if scopes.contains(.system) {
+      guard !Task.isCancelled else { return status }
+      // 用户域与系统域可存在相同标签，不能把用户进程或停用状态套到守护进程上。
+      status.systemDisabled = parseDisabled(run(["print-disabled", "system"]))
     }
     return status
   }

@@ -16,8 +16,8 @@ struct UninstallerFeatureTests {
     #expect(settings.uninstallerEnabled)
     settings.uninstallerEnabled = false
     settings.panelTab = .uninstaller
-    #expect(settings.panelTab == .settingsFeatures)
-    #expect(AppDeepLink.page(.uninstaller, settings: settings) == .settingsFeatures)
+    #expect(settings.panelTab == .uninstaller)
+    #expect(AppDeepLink.page(.uninstaller, settings: settings) == .uninstaller)
     settings.uninstallerEnabled = true
     settings.panelTab = .uninstaller
     #expect(settings.panelTab == .uninstaller)
@@ -26,7 +26,7 @@ struct UninstallerFeatureTests {
       SettingsDocument.self,
       from: JSONEncoder().encode(settings.exportDocument()))
     settings.uninstallerEnabled = false
-    #expect(settings.panelTab == .settingsFeatures)
+    #expect(settings.panelTab == .uninstaller)
     settings.apply(saved)
     #expect(settings.uninstallerEnabled)
     settings.apply(try JSONDecoder().decode(SettingsDocument.self, from: Data("{}".utf8)))

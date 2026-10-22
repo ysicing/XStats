@@ -1,7 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import AppKit
 import Cleaner
 import Localization
-import ServiceManagement
 import SwiftUI
 
 /// 启动项：LaunchAgents / LaunchDaemons 里的后台项目，当前用户的可以直接停用
@@ -14,18 +15,82 @@ final class StartupItemsController {
   private(set) var working: String?
   private(set) var message: (text: String, isError: Bool)?
 
+  private var section: AppServicesSection = .startup
+  private var visible = false
+  private var paused = false
+  private var generation = UUID()
+  private var refreshTask: Task<Void, Never>?
+  private let readInventory: @Sendable ([LaunchItem.Scope]) async -> ([LaunchItem], LaunchStatus)
+
+  init(
+    readInventory: @escaping @Sendable ([LaunchItem.Scope]) async -> ([LaunchItem], LaunchStatus) =
+      { scopes in
+        let worker = Task.detached {
+          (LaunchItems.scan(scopes: scopes), LaunchItems.status(scopes: scopes))
+        }
+        return await withTaskCancellationHandler {
+          await worker.value
+        } onCancel: {
+          worker.cancel()
+        }
+      }
+  ) {
+    self.readInventory = readInventory
+  }
+
+  func setVisible(_ value: Bool, section: AppServicesSection? = nil) {
+    if let section, self.section != section {
+      cancelReading()
+      self.section = section
+      items = []
+      status = LaunchStatus()
+      message = nil
+    }
+    visible = value
+    if value && !paused { refresh() } else { cancelReading() }
+  }
+
+  func setPaused(_ value: Bool) {
+    paused = value
+    if value { cancelReading() } else if visible { refresh() }
+  }
+
+  private func cancelReading() {
+    generation = UUID()
+    refreshTask?.cancel()
+    refreshTask = nil
+    isLoading = false
+  }
+
   func refresh() {
-    guard !isLoading else { return }
+    guard visible, !paused, !isLoading, working == nil else { return }
     isLoading = true
-    Task {
-      let (items, status) = await Task.detached { (LaunchItems.scan(), LaunchItems.status()) }.value
+    let current = UUID()
+    generation = current
+    let scopes = section.launchScopes
+    guard !scopes.isEmpty else {
+      isLoading = false
+      return
+    }
+    refreshTask = Task {
+      guard !Task.isCancelled else { return }
+      let (items, status) = await readInventory(scopes)
+      guard !Task.isCancelled, generation == current, visible, !paused else { return }
       self.items = items
       self.status = status
       isLoading = false
+      refreshTask = nil
     }
   }
 
+  func showPreview(items: [LaunchItem], status: LaunchStatus) {
+    self.items = items
+    self.status = status
+  }
+
   func setEnabled(_ enabled: Bool, _ item: LaunchItem) {
+    guard visible, !paused, working == nil, item.scope == .user else { return }
+    cancelReading()
     working = item.id
     message = nil
     Task {
@@ -46,6 +111,9 @@ final class StartupItemsController {
 
 struct StartupItemsPage: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.isSnapshot) private var isSnapshot
+  let section: AppServicesSection
+  let search: String
 
   var body: some View {
     let controller = model.startupItems
@@ -53,20 +121,18 @@ struct StartupItemsPage: View {
     PageScroll {
       InfoBanner(
         icon: "info.circle",
-        text: tr(
-          "这里列出资源库里的 LaunchAgents 与 LaunchDaemons。停用只写入系统的停用记录并卸载，不删除文件，随时可以重新启用；登录时打开的应用与后台权限在系统设置里管理。"
-        )
-      ) {
-        Button(tr("登录项设置")) { SMAppService.openSystemSettingsLoginItems() }
-          .buttonStyle(DSButtonStyle(kind: .secondary))
-      }
+        text: section == .services
+          ? tr("后台守护进程（LaunchDaemons）只读展示，不会修改系统服务。")
+          : tr("登录后运行的代理（LaunchAgents）；当前用户的项目可启停，所有用户的项目只读。")
+      )
       if let message = controller.message {
         InfoBanner(
           icon: message.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill",
           text: message.text, tone: message.isError ? .error : .success)
       }
-      ForEach(LaunchItem.Scope.allCases, id: \.self) { scope in
-        let items = controller.items.filter { $0.scope == scope }
+      ForEach(section.launchScopes, id: \.self) { scope in
+        let items = Self.filteredItems(
+          controller.items, section: section, scope: scope, search: search)
         Card {
           CardHeader(
             icon: scope == .system ? "lock.shield" : "person.crop.circle", title: scope.title
@@ -75,19 +141,17 @@ struct StartupItemsPage: View {
               Text(verbatim: scopeDetail(scope, count: items.count))
                 .dsFont(.xs)
                 .foregroundStyle(DS.Palette.textTertiary)
-              if scope == .user {
-                IconButton(systemName: "arrow.clockwise", help: tr("刷新")) { controller.refresh() }
-              }
             }
           }
           if items.isEmpty {
-            Text(controller.isLoading && controller.items.isEmpty ? tr("正在读取…") : tr("没有启动项"))
+            Text(controller.isLoading && controller.items.isEmpty ? tr("正在读取…") : tr("没有匹配的项目"))
               .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
           }
           ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
             if index > 0 { HairlineDivider() }
             StartupItemRow(
-              item: item, status: controller.status, isWorking: controller.working == item.id
+              item: item, status: controller.status, isWorking: controller.working == item.id,
+              operationInProgress: controller.working != nil
             ) { enabled in
               controller.setEnabled(enabled, item)
             }
@@ -95,13 +159,37 @@ struct StartupItemsPage: View {
         }
       }
     }
-    .onAppear { controller.refresh() }
+    .onAppear {
+      if !isSnapshot { controller.setVisible(model.isMainWindowVisible, section: section) }
+    }
+    .onDisappear { if !isSnapshot { controller.setVisible(false) } }
+    .onChange(of: section) { _, value in
+      if !isSnapshot { controller.setVisible(model.isMainWindowVisible, section: value) }
+    }
+    .onChange(of: model.isMainWindowVisible) { _, visible in
+      if !isSnapshot { controller.setVisible(visible, section: section) }
+    }
+  }
+
+  static func filteredItems(
+    _ items: [LaunchItem], section: AppServicesSection, scope: LaunchItem.Scope, search: String
+  ) -> [LaunchItem] {
+    let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard section.launchScopes.contains(scope) else { return [] }
+    return items.filter { item in
+      item.scope == scope
+        && (query.isEmpty
+          || [item.label, item.program ?? "", item.plist.path]
+            .contains { $0.localizedStandardContains(query) })
+    }
   }
 
   private func scopeDetail(_ scope: LaunchItem.Scope, count: Int) -> String {
     switch scope {
-    case .user: tr("\(count) 项 · 可直接停用")
-    case .allUsers, .system: tr("\(count) 项 · 需要管理员权限，只读")
+    case .user:
+      count == 1 ? tr("1 项 · 可直接停用") : tr("\(count) 项 · 可直接停用")
+    case .allUsers, .system:
+      count == 1 ? tr("1 项 · 需要管理员权限，只读") : tr("\(count) 项 · 需要管理员权限，只读")
     }
   }
 }
@@ -110,6 +198,7 @@ private struct StartupItemRow: View {
   let item: LaunchItem
   let status: LaunchStatus
   let isWorking: Bool
+  let operationInProgress: Bool
   let setEnabled: (Bool) -> Void
 
   var body: some View {
@@ -150,7 +239,9 @@ private struct StartupItemRow: View {
           ProgressView().controlSize(.small)
         } else {
           DSToggle(
-            isOn: Binding(get: { !disabled }, set: { setEnabled($0) }), label: tr("启用 \(title)"))
+            isOn: Binding(get: { !disabled }, set: { setEnabled($0) }), label: tr("启用 \(title)")
+          )
+          .disabled(operationInProgress)
         }
       }
     }

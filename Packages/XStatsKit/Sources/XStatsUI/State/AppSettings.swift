@@ -377,7 +377,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
   ]
   // 按中文名称由短到长排列，所有语言沿用固定顺序，保持导航位置一致。
   static let tools: [PanelTab] = [
-    .audio, .processes, .ports, .cleaner, .uninstaller, .rest, .startupItems, .keepAwake,
+    .audio, .processes, .ports, .cleaner, .rest, .uninstaller, .keepAwake,
     .connections,
   ]
   // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
@@ -409,8 +409,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .keepAwake: tr("防休眠")
     case .rest: tr("计时")
     case .cleaner: tr("清理")
-    case .uninstaller: tr("应用")
-    case .startupItems: tr("启动项")
+    case .uninstaller, .startupItems: tr("应用服务")
     case .audio: tr("音频")
     case .connections: tr("网络监视器")
     case .settingsGeneral: tr("通用")
@@ -784,7 +783,9 @@ public final class AppSettings {
   public var uninstallerEnabled: Bool {
     didSet {
       defaults.set(uninstallerEnabled, forKey: "uninstallerEnabled")
-      if !uninstallerEnabled && panelTab == .uninstaller { panelTab = .settingsFeatures }
+      if !uninstallerEnabled && appServicesSection.managesApplications {
+        appServicesSection = .startup
+      }
     }
   }
   /// 来源开关只保存在本机；关闭后不扫描，也不显示其历史缓存。
@@ -853,6 +854,15 @@ public final class AppSettings {
   public var fanSafetyTemperature: Int {
     didSet { defaults.set(fanSafetyTemperature, forKey: Keys.fanSafetyTemperature) }
   }
+  /// 仅保存本机浏览分类，不随功能开关关闭而失去启动项与服务入口。
+  public var appServicesSection: AppServicesSection {
+    didSet {
+      if !uninstallerEnabled && appServicesSection.managesApplications {
+        appServicesSection = .startup
+      }
+      defaults.set(appServicesSection.rawValue, forKey: "appServicesSection")
+    }
+  }
   public var panelTab: PanelTab {
     didSet {
       // 统一拦截旧路由与外部打开请求，关闭的音频与进程模块回到功能开关入口。
@@ -860,7 +870,10 @@ public final class AppSettings {
       if panelTab == .connections && !canViewNetworkConnections { panelTab = .settingsFeatures }
       if panelTab == .processes && !processesEnabled { panelTab = .settingsFeatures }
       if panelTab == .ports && !portsEnabled { panelTab = .settingsFeatures }
-      if panelTab == .uninstaller && !uninstallerEnabled { panelTab = .settingsFeatures }
+      if panelTab == .startupItems {
+        appServicesSection = .startup
+        panelTab = .uninstaller
+      }
       defaults.set(panelTab.rawValue, forKey: Keys.panelTab)
     }
   }
@@ -1259,6 +1272,12 @@ public final class AppSettings {
       ? defaults.integer(forKey: Keys.fanSafetyTemperature) : 95
     let savedPanelTabValue = defaults.string(forKey: Keys.panelTab)
     let savedPanelTab = savedPanelTabValue.flatMap(PanelTab.init(rawValue:)) ?? .overview
+    let savedSection =
+      defaults.string(forKey: "appServicesSection")
+      .flatMap(AppServicesSection.init(rawValue:)) ?? .apps
+    appServicesSection =
+      savedPanelTab == .startupItems
+        || (!isUninstallerEnabled && savedSection.managesApplications) ? .startup : savedSection
     // 旧版 AI 助手设置页已移除，升级后仍留在设置分组。
     if savedPanelTabValue == "settingsAI" || savedPanelTab == .settingsAccount {
       panelTab = .settingsGeneral
@@ -1270,10 +1289,14 @@ public final class AppSettings {
           || (savedPanelTab == .aiUsage && !isAIUsageEnabled)
           || (savedPanelTab == .rest && !isRestEnabled)
           || (savedPanelTab == .cleaner && !isCleanerEnabled)
-          || (savedPanelTab == .uninstaller && !isUninstallerEnabled)
           || (savedPanelTab == .processes && !isProcessesEnabled)
           || (savedPanelTab == .ports && !isPortsEnabled)
-        ? .settingsFeatures : savedPanelTab
+        ? .settingsFeatures : (savedPanelTab == .startupItems ? .uninstaller : savedPanelTab)
+    }
+    // 初始化不会触发 didSet，迁移后的路由也要落盘，否则下次启动会覆盖新选择的分类。
+    if savedPanelTab == .startupItems {
+      defaults.set(PanelTab.uninstaller.rawValue, forKey: Keys.panelTab)
+      defaults.set(AppServicesSection.startup.rawValue, forKey: "appServicesSection")
     }
     appearance =
       defaults.string(forKey: Keys.appearance).flatMap(AppearanceMode.init(rawValue:)) ?? .system

@@ -135,7 +135,7 @@ public struct MainWindowView: View {
         case .rest: RestPage()
         case .cleaner: CleanerPage()
         case .uninstaller: AppManagementPage()
-        case .startupItems: StartupItemsPage()
+        case .startupItems: AppManagementPage()
         case .settingsGeneral: SettingsTabPage { GeneralSettings() }
         case .settingsFeatures: FeatureSettings()
         case .settingsMenuBar: SettingsTabPage { MenuBarSettings() }
@@ -248,7 +248,6 @@ private struct MainSidebar: View {
           case .connections: model.settings.canViewNetworkConnections
           case .rest: model.settings.restEnabled
           case .cleaner: model.settings.cleanerEnabled
-          case .uninstaller: model.settings.uninstallerEnabled
           case .processes: model.settings.processesEnabled
           case .ports: model.settings.portsEnabled
           default: true
