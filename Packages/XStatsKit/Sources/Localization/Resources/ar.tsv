@@ -1,6 +1,7 @@
 # Copyright (C) 2026 ysicing
 # SPDX-License-Identifier: AGPL-3.0-or-later
 暂无数据	لا توجد بيانات بعد
+共享数据不可用	البيانات المشتركة غير متاحة
 主应用缓存	ذاكرة XStats المؤقتة
 今日消耗的 Token	الرموز المستهلكة اليوم
 分	نقطة
@@ -1223,14 +1224,14 @@ Codex / Claude Code 本机 Token 用量与订阅额度	استخدام رموز C
 用量记录	سجلات الاستخدام
 模型排行	ترتيب النماذج
 启用 AI 用量	تفعيل استخدام AI
-订阅额度	Subscription usage
+订阅额度	حصص الاشتراك
 服务端用量 · 与本机 Token 统计不同	Server usage · separate from local token statistics
 重置：	Resets:
 上次额度	الحصة السابقة
 显示本地用量	عرض الاستخدام المحلي
 读取本机会话日志；关闭后停止扫描并隐藏 Token 统计。	يقرأ سجلات الجلسات المحلية؛ يؤدي إيقافه إلى وقف الفحص وإخفاء إحصاءات الرموز.
 查看 Codex / Claude 的 Token 用量与订阅额度。	عرض استخدام رموز Codex / Claude وحصص الاشتراك.
-暂无额度数据	No quota data yet
+暂无额度数据	لا توجد بيانات للحصة
 未检测到登录凭据，请先登录对应 CLI	No login credentials found; sign in with the corresponding CLI
 登录已失效，请在对应 CLI 重新登录	Login expired; sign in again with the corresponding CLI
 服务暂时限流，稍后会自动重试	Rate limited; will retry later
@@ -2438,3 +2439,9 @@ Homebrew 服务	خدمات Homebrew
 窗口与导航	النوافذ والتنقل
 系统控制	التحكم بالنظام
 计时与休息	المؤقتات والاستراحات
+累计 Token	إجمالي الرموز
+最近 365 天	آخر 365 يومًا
+Magpie 全部记录	كل سجلات Magpie
+以四个圆环查看订阅额度	عرض حصص الاشتراك في أربع حلقات
+查看累计 Token、输入输出与今日用量	عرض إجمالي الرموز والإدخال والإخراج واستخدام اليوم
+上次数据	البيانات السابقة

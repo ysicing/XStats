@@ -1,6 +1,7 @@
 # Copyright (C) 2026 ysicing
 # SPDX-License-Identifier: AGPL-3.0-or-later
 暂无数据	Aucune donnée pour le moment
+共享数据不可用	Données partagées indisponibles
 主应用缓存	Cache de XStats
 今日消耗的 Token	Tokens consommés aujourd’hui
 分	points
@@ -1223,14 +1224,14 @@ Codex / Claude Code 本机 Token 用量与订阅额度	Tokens locaux Codex / Cla
 用量记录	Relevés d’utilisation
 模型排行	Classement des modèles
 启用 AI 用量	Activer Utilisation IA
-订阅额度	Subscription usage
+订阅额度	Quotas d’abonnement
 服务端用量 · 与本机 Token 统计不同	Server usage · separate from local token statistics
 重置：	Resets:
 上次额度	Quota précédent
 显示本地用量	Afficher l’utilisation locale
 读取本机会话日志；关闭后停止扫描并隐藏 Token 统计。	Lit les journaux de session locaux ; la désactivation arrête l’analyse et masque les statistiques de tokens.
 查看 Codex / Claude 的 Token 用量与订阅额度。	Consultez l’utilisation des tokens et les quotas d’abonnement Codex / Claude.
-暂无额度数据	No quota data yet
+暂无额度数据	Aucune donnée de quota
 未检测到登录凭据，请先登录对应 CLI	No login credentials found; sign in with the corresponding CLI
 登录已失效，请在对应 CLI 重新登录	Login expired; sign in again with the corresponding CLI
 服务暂时限流，稍后会自动重试	Rate limited; will retry later
@@ -2438,3 +2439,9 @@ Homebrew 服务	Services Homebrew
 窗口与导航	Fenêtres et navigation
 系统控制	Commandes système
 计时与休息	Minuteurs et pauses
+累计 Token	Tokens cumulés
+最近 365 天	365 derniers jours
+Magpie 全部记录	Tout l’historique Magpie
+以四个圆环查看订阅额度	Consulter les quotas d’abonnement dans quatre anneaux
+查看累计 Token、输入输出与今日用量	Consulter le cumul des tokens, les entrées, les sorties et l’usage du jour
+上次数据	Dernières données

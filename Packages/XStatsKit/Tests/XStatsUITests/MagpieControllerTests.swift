@@ -86,6 +86,7 @@ struct MagpieControllerTests {
     let model = AppModel(
       settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
       magpieClient: magpie)
+    model.aiUsage.cumulativeWidgetIsInstalled = { true }
     defer { model.aiUsage.stop() }
     let store = WidgetSnapshotStore(defaults: defaults)
     let app = AppController(model: model, widgetStore: store, reloadWidget: { _ in })
@@ -94,11 +95,16 @@ struct MagpieControllerTests {
     await model.aiUsage.refresh()
     try await waitForWidget { !store.load().quotas.isEmpty }
     #expect(store.load().dailyTokens?.first?.tokens == 120)
+    #expect(store.load().visibleCumulativeTokens.first?.total == 120)
+    #expect(store.load().visibleCumulativeTokens.first?.scope == .all)
+    #expect(store.load().quotaSlots().map(\.provider) == ["codex", "claude", "gemini", "grok"])
     #expect(store.load().quotas.allSatisfy { !$0.isStale })
     await magpie.fail(true)
     await model.aiUsage.refresh()
     try await waitForWidget { store.load().quotas.contains { $0.isStale } }
     #expect(store.load().quotas.allSatisfy { $0.isStale })
+    #expect(store.load().visibleCumulativeTokens.first?.isStale == true)
+    #expect(store.load().visibleCumulativeTokens.first?.total == 120)
   }
 
   @Test func widgetSelectsQuotaUsingCurrentTimeInsteadOfMidnight() async throws {
@@ -440,10 +446,44 @@ struct MagpieControllerTests {
     settings.aiUsageSources = []
     let magpie = MagpieStub()
     let controller = AIUsageController(settings: settings, providers: [], magpieClient: magpie)
+    controller.cumulativeWidgetIsInstalled = { false }
     await controller.selectMagpiePeriod(.weekly)
     let counts = await magpie.counts()
     #expect(Set(counts.1) == [.daily, .weekly])
     #expect(controller.magpieUsage[.weekly]?.total == 120)
+  }
+
+  @Test func cumulativeWidgetRequestsOnlyOneExtraSummaryAndStopsWhenRemoved() async {
+    let settings = settings()
+    let magpie = MagpieStub()
+    let controller = AIUsageController(settings: settings, providers: [], magpieClient: magpie)
+    controller.cumulativeWidgetIsInstalled = { true }
+    await controller.selectMagpiePeriod(.cumulative)
+    #expect(await magpie.counts().1 == [.daily, .cumulative])
+    await controller.selectMagpiePeriod(.weekly)
+    #expect(await magpie.counts().1 == [.daily, .cumulative, .daily, .weekly, .cumulative])
+    controller.cumulativeWidgetIsInstalled = { false }
+    await controller.refresh()
+    #expect(Array(await magpie.counts().1.suffix(2)) == [.daily, .weekly])
+  }
+
+  @Test func pauseDuringWidgetDemandCheckDoesNotStartMagpieRequests() async throws {
+    let settings = settings()
+    let magpie = MagpieStub()
+    let controller = AIUsageController(settings: settings, providers: [], magpieClient: magpie)
+    var demand: CheckedContinuation<Bool, Never>?
+    controller.cumulativeWidgetIsInstalled = {
+      await withCheckedContinuation { demand = $0 }
+    }
+    let refresh = Task { await controller.refresh() }
+    let deadline = ContinuousClock.now + .seconds(2)
+    while demand == nil, ContinuousClock.now < deadline { await Task.yield() }
+    controller.setPaused(true)
+    let continuation = try #require(demand)
+    continuation.resume(returning: true)
+    await refresh.value
+    #expect(await magpie.counts().0 == 0)
+    #expect(await magpie.counts().1.isEmpty)
   }
 
   @Test func tokenToggleStopsUsageRequestsButKeepsQuota() async {
@@ -451,6 +491,10 @@ struct MagpieControllerTests {
     settings.aiUsageShowsLocalUsage = false
     let magpie = MagpieStub()
     let controller = AIUsageController(settings: settings, providers: [], magpieClient: magpie)
+    controller.cumulativeWidgetIsInstalled = {
+      Issue.record("Disabled Token statistics must not query Widget configurations")
+      return true
+    }
     await controller.refresh()
     let counts = await magpie.counts()
     #expect(counts.0 == 1)

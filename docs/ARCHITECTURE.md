@@ -228,14 +228,25 @@ when the process is an app), and it refuses root, other-user, XStats's own, and 
 
 The sandboxed WidgetKit extension samples CPU, memory, disk, and battery through `Metrics`
 independently, so it remains useful when the app is not running.
-AI, IP, and calendar widgets instead read a credential-free App Group snapshot. The main app
+AI, IP, and calendar widgets instead read a credential-free App Group snapshot. Missing, unreadable,
+or invalid snapshots are displayed as unavailable shared data, not as disabled features. Calendar
+widgets retain their independent Gregorian date fallback. Language changes also reload the system
+overview widget. Local App Group verification requires a build signed with an authorized team;
+ad-hoc preview signatures cannot establish shared-container access. The main app
 precomputes an eight-day holiday and almanac window; missing coverage is shown as unavailable,
 not guessed from weekdays.
 The large month-calendar widget reads lightweight six-week grids for the current and next
 month from the same snapshot. It keeps Gregorian dates visible if that cache is missing,
 without inventing lunar or holiday annotations.
-The daily Token widget receives only per-provider totals and the local day, never session logs;
-its displayed count resets at local midnight even if the main app has not refreshed yet.
+The cumulative Token widget receives only bounded per-provider input/output summaries, never session
+logs. Direct mode covers the retained rolling 365 days; Magpie covers its full recorded history and
+excludes cache traffic. The secondary daily count still resets at local midnight. Existing Token
+widget kinds are retained. Quota widgets always show four slots (2×2 in small, one row in medium);
+missing or expired readings keep a gray slot, stale readings carry a clock, and remaining quota
+controls color (green ≥50%, blue ≥20%, orange ≥10%, red below 10%). Service identities determine
+stable slot order independently of menu-bar selections. Codex/Claude/Gemini/Grok keep their default
+positions; other active providers, selected in brand/name order within the four-provider limit,
+occupy unused default positions. A failed or expired reading never removes that provider identity.
 The tomorrow-work widget uses the official 2026 holiday schedule to distinguish statutory
 holidays, adjusted days off, ordinary weekends, and makeup workdays; later years need their
 own confirmed schedule before receiving those specific labels.
@@ -713,7 +724,10 @@ removing Magpie takes effect after restarting XStats.
 Magpie mode disables the direct quota readers, local session-log scans and models.dev price requests.
 It shares the existing AI refresh cadence and pause/cancellation lifecycle; token statistics can be
 disabled independently of quotas. The visible period and today's menu-bar total are fetched, with
-at most four summaries retained in memory and an 8 MiB response limit. Redirects are rejected and
+at most four summaries retained in memory and an 8 MiB response limit. The same refresh checks
+WidgetKit configurations and additionally reads the cumulative summary only when the Token widget
+is installed. Usage periods run sequentially alongside the quota request (at most two requests at
+once), deduplicating the selected cumulative period and responding to cancellation before each request. Redirects are rejected and
 requests have bounded timeouts. Magpie is never started automatically, and an unavailable or unsupported
 API is shown explicitly without falling back to a different statistical source. Endpoint failures are
 independent; last good values are marked stale, and yesterday's summary is never republished as today's
@@ -734,9 +748,9 @@ Account rows also preserve Magpie's optional `user`, subscription `until`, and `
 Reset credit counts remain distinct from the balance and quota-window reset times; missing counts
 are unknown, not zero. Individual credit expiry dates are disclosed on demand, with bounded lists
 and no additional requests, timers, or persistent account storage.
-The widget keeps its existing summary of up to three providers and today's aggregate through its snapshot schema,
-independently of the menu-bar provider selection,
-without extra requests. Token totals follow Magpie's `input + output` convention, excluding cache traffic;
+The widget snapshot preserves up to four provider identities, one quota reading per provider,
+today's aggregate and an optional cumulative input/output summary, independently of menu-bar
+provider selection. Only the main app reads Magpie; the widget itself never requests data. Token totals follow Magpie's `input + output` convention, excluding cache traffic;
 cache reads/writes are shown separately. Only traffic routed through Magpie is counted. Its own USD cost
 estimate is displayed directly and incomplete pricing is disclosed. All-time totals use Magpie's full
 recorded history; its timeline preserves the server's hourly, daily or weekly buckets rather than

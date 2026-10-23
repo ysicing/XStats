@@ -480,7 +480,14 @@ extension Translations {
     启用 AI 用量	Enable AI Usage
     订阅额度	Subscription usage
     今日消耗的 Token	Tokens used today
+    累计 Token	Cumulative tokens
+    最近 365 天	Last 365 days
+    Magpie 全部记录	All Magpie records
+    以四个圆环查看订阅额度	View subscription quotas in four rings
+    查看累计 Token、输入输出与今日用量	View cumulative tokens, input, output, and today’s usage
+    上次数据	Previous data
     暂无数据	No data yet
+    共享数据不可用	Shared data unavailable
     主应用缓存	From XStats cache
     分	points
     显示主应用已查询的公网 IP 纯净度	Show IP cleanliness already checked by the main app

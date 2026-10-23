@@ -5,6 +5,7 @@
 import Foundation
 import Localization
 import Testing
+import WidgetData
 @testable import XStatsUI
 
 private actor StubUsageProvider: AIUsageProvider {
@@ -94,6 +95,44 @@ private actor GatedUsageProvider: AIUsageProvider {
 
 @MainActor
 @Suite struct AIUsageControllerTests {
+  @Test func widgetCumulativeUsageUsesRetainedYearAndKeepsCacheAsInputSubset() async throws {
+    let defaults = defaultsForAIUsage()
+    let settings = AppSettings(defaults: defaults)
+    settings.aiUsageEnabled = true
+    settings.aiUsageShowsLocalUsage = true
+    settings.aiUsageSources = [.codex]
+    let calendar = CalendarEngine.gregorian()
+    let now = Date()
+    let today = calendar.startOfDay(for: now)
+    let yesterday = try #require(calendar.date(byAdding: .day, value: -1, to: today))
+    let old = try #require(calendar.date(byAdding: .day, value: -365, to: today))
+    var reading = AIUsageSnapshot(provider: .codex, fetchedAt: now)
+    reading.localUsage = LocalUsageReport(
+      rows: [
+        .init(day: old, model: "old", input: 99_999),
+        .init(day: yesterday, model: "test", input: 700, cached: 400, output: 20),
+        .init(day: today, model: "test", input: 300, cached: 200, output: 30),
+      ], fileCount: 3)
+    let source = StubUsageProvider([.success(reading), .failure(.network)])
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [source], aiQuotaProviders: [])
+    defer { model.aiUsage.stop() }
+    let store = WidgetSnapshotStore(defaults: defaults)
+    let app = AppController(model: model, widgetStore: store, reloadWidget: { _ in })
+    await model.aiUsage.refresh()
+    app.syncWidgetSnapshot(now: now)
+    let usage = try #require(store.load().visibleCumulativeTokens.first)
+    #expect(usage.input == 1_000)
+    #expect(usage.output == 50)
+    #expect(usage.total == 1_050)
+    #expect(usage.scope == .recentYear)
+    #expect(store.load().todayTokens(for: "codex", at: now, calendar: calendar) == 330)
+    await model.aiUsage.refresh()
+    app.syncWidgetSnapshot(now: now)
+    #expect(store.load().visibleCumulativeTokens.first?.isStale == true)
+    #expect(store.load().visibleCumulativeTokens.first?.total == 1_050)
+  }
+
   @Test func menuBarShowsBothSubscriptionSourcesAndKeepsWeeklySummary() async {
     let settings = AppSettings(defaults: defaultsForAIUsage())
     settings.aiUsageEnabled = true

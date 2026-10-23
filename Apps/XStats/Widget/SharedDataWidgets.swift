@@ -9,6 +9,7 @@ import WidgetKit
 struct SharedDataEntry: TimelineEntry {
   let date: Date
   let snapshot: WidgetSnapshot
+  var hasSnapshot = true
 }
 
 struct SharedDataProvider: TimelineProvider {
@@ -27,6 +28,11 @@ struct SharedDataProvider: TimelineProvider {
           .init(provider: "codex", day: now, tokens: 28_400),
           .init(provider: "claude", day: now, tokens: 12_600),
         ],
+        cumulativeTokens: [
+          .init(provider: "codex", input: 2_100_000, output: 410_000, scope: .recentYear),
+          .init(provider: "claude", input: 720_000, output: 180_000, scope: .recentYear),
+        ],
+        quotaProviders: ["codex", "claude", "gemini", "grok"],
         publicIPEnabled: true,
         addresses: [
           .init(
@@ -53,9 +59,10 @@ struct SharedDataProvider: TimelineProvider {
   }
 
   private func read() -> SharedDataEntry {
-    let snapshot = WidgetSnapshotStore().load()
-    L10n.configure(AppLanguage(rawValue: snapshot.language) ?? .system)
-    return SharedDataEntry(date: .now, snapshot: snapshot)
+    let snapshot = WidgetSnapshotStore().loadIfAvailable()
+    L10n.configure(AppLanguage(rawValue: snapshot?.language ?? "system") ?? .system)
+    return SharedDataEntry(
+      date: .now, snapshot: snapshot ?? WidgetSnapshot(), hasSnapshot: snapshot != nil)
   }
 }
 
@@ -73,12 +80,99 @@ private struct WidgetHeading: View {
 
 private struct WidgetEmptyState: View {
   let enabled: Bool
+  let hasSnapshot: Bool
 
   var body: some View {
-    Text(enabled ? tr("暂无数据") : tr("尚未启用"))
+    Text(tr(hasSnapshot ? (enabled ? "暂无数据" : "尚未启用") : "共享数据不可用"))
       .font(.subheadline)
       .foregroundStyle(.secondary)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+}
+
+/// 小组件不依赖主程序的 AppKit 品牌资源，直接显示服务名，避免单字母歧义。
+private func aiWidgetProviderTitle(_ provider: String) -> String {
+  switch provider {
+  case "codex": "Codex"
+  case "claude": "Claude"
+  case "gemini": "Gemini"
+  case "grok": "Grok"
+  case "copilot": "Copilot"
+  case "perplexity": "Perplexity"
+  default: provider
+  }
+}
+
+private struct AIQuotaRing: View {
+  let slot: WidgetSnapshot.QuotaSlot
+  let showsRemaining: Bool
+
+  private var color: Color {
+    guard let remaining = slot.quota?.remainingPercent else { return .secondary }
+    switch remaining {
+    case ..<10: return .red
+    case ..<20: return .orange
+    case ..<50: return .blue
+    default: return .green
+    }
+  }
+
+  private var percent: String {
+    slot.quota.map {
+      AIUsageFormat.quotaPercent(
+        remainingPercent: $0.remainingPercent, showsRemaining: showsRemaining,
+        locale: L10n.locale, compact: true)
+    } ?? "—"
+  }
+
+  var body: some View {
+    ZStack {
+      Circle().strokeBorder(.primary.opacity(0.08), lineWidth: 5)
+      if let quota = slot.quota {
+        Circle()
+          .inset(by: 2.5)
+          .trim(
+            from: 0,
+            to: (AIUsageFormat.quotaValue(
+              remainingPercent: quota.remainingPercent, showsRemaining: showsRemaining) ?? 0) / 100
+          )
+          .stroke(color, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+          .rotationEffect(.degrees(-90))
+          .opacity(quota.isStale ? 0.55 : 1)
+      }
+      VStack(spacing: 1) {
+        Text(percent)
+          .font(.system(size: 15, weight: .semibold, design: .rounded))
+          .monospacedDigit()
+          .foregroundStyle(slot.quota == nil ? Color.secondary : color)
+        HStack(spacing: 2) {
+          if slot.quota?.isStale == true { Image(systemName: "clock") }
+          Text(aiWidgetProviderTitle(slot.provider))
+        }
+        .font(.system(size: 9, weight: .medium))
+        .foregroundStyle(.secondary)
+      }
+      .lineLimit(1)
+      .minimumScaleFactor(0.7)
+      .padding(7)
+    }
+    .aspectRatio(1, contentMode: .fit)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(aiWidgetProviderTitle(slot.provider))
+    .accessibilityValue(accessibilityValue)
+  }
+
+  private var accessibilityValue: String {
+    guard let quota = slot.quota else { return tr("暂无额度数据") }
+    var value = tr(showsRemaining ? "剩余" : "已用") + " " + percent
+    if quota.isStale { value += ", " + tr("上次额度") }
+    if let reset = quota.resetsAt {
+      value +=
+        ", " + tr("重置：") + " "
+        + reset.formatted(
+          .dateTime.month().day().hour().minute().locale(L10n.locale))
+    }
+    return value
   }
 }
 
@@ -86,80 +180,57 @@ private struct AIQuotaWidgetView: View {
   @Environment(\.widgetFamily) private var family
   let entry: SharedDataEntry
 
-  private var featured: [WidgetSnapshot.Quota] {
-    let quotas = entry.snapshot.currentQuotas(at: entry.date)
-    let otherProviders = Set(quotas.map(\.provider)).subtracting(["codex", "claude"]).sorted()
-    return (["codex", "claude"] + otherProviders).compactMap { provider in
-      let windows = quotas.filter { $0.provider == provider }
-      return windows.first(where: { $0.kind == "weekly" })
-        ?? windows.first(where: { $0.kind.hasSuffix("Weekly") })
-        ?? windows.first(where: { $0.kind == "session" })
-        ?? windows.first
-    }
-  }
-
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      WidgetHeading(title: tr("订阅额度"), symbol: "sparkles")
-      if let first = featured.first {
-        if family == .systemMedium {
-          HStack(alignment: .top, spacing: 16) {
-            ForEach(featured, id: \.provider) { quota in
-              quotaColumn(quota)
+    let slots = entry.snapshot.quotaSlots(at: entry.date)
+    let showsRemaining = entry.snapshot.quotaShowsRemaining != false
+    VStack(alignment: .leading, spacing: 6) {
+      if !entry.hasSnapshot || !entry.snapshot.aiEnabled {
+        WidgetHeading(title: tr("订阅额度"), symbol: "sparkles")
+        WidgetEmptyState(enabled: entry.snapshot.aiEnabled, hasSnapshot: entry.hasSnapshot)
+      } else if family == .systemSmall {
+        Text(tr(showsRemaining ? "剩余" : "已用"))
+          .font(.caption2.weight(.medium))
+          .foregroundStyle(.secondary)
+        Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+          ForEach(0..<2) { row in
+            GridRow {
+              ForEach(Array(slots[(row * 2)..<(row * 2 + 2)])) { slot in
+                AIQuotaRing(slot: slot, showsRemaining: showsRemaining)
+              }
             }
-            Spacer(minLength: 0)
           }
-        } else {
-          quotaColumn(first)
         }
       } else {
-        WidgetEmptyState(enabled: entry.snapshot.aiEnabled)
+        HStack {
+          WidgetHeading(title: tr("订阅额度"), symbol: "sparkles")
+          Spacer(minLength: 4)
+          Text(tr(showsRemaining ? "剩余" : "已用"))
+            .font(.caption2).foregroundStyle(.secondary)
+        }
+        Spacer(minLength: 0)
+        HStack(alignment: .top, spacing: 12) {
+          ForEach(slots) { slot in
+            VStack(spacing: 6) {
+              AIQuotaRing(slot: slot, showsRemaining: showsRemaining)
+              if let reset = slot.quota?.resetsAt {
+                Text(reset, format: .dateTime.month().day().hour().minute().locale(L10n.locale))
+                  .font(.system(size: 9))
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+                  .multilineTextAlignment(.center)
+              } else {
+                Text("—").font(.caption2).foregroundStyle(.tertiary)
+              }
+            }
+            .frame(maxWidth: .infinity)
+          }
+        }
+        Spacer(minLength: 0)
       }
-      Spacer(minLength: 0)
     }
-    .padding()
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .containerBackground(.background, for: .widget)
     .environment(\.locale, L10n.locale)
-  }
-
-  private func quotaColumn(_ quota: WidgetSnapshot.Quota) -> some View {
-    VStack(alignment: .leading, spacing: 6) {
-      Text(
-        quota.provider == "codex" ? "Codex" : quota.provider == "claude" ? "Claude" : quota.provider
-      )
-      .font(.subheadline.weight(.semibold))
-      HStack(alignment: .firstTextBaseline, spacing: 4) {
-        Text(
-          AIUsageFormat.quotaPercent(
-            remainingPercent: quota.remainingPercent,
-            showsRemaining: entry.snapshot.quotaShowsRemaining != false, locale: L10n.locale)
-        )
-        .font(.system(size: 27, weight: .semibold, design: .rounded))
-        .monospacedDigit()
-        Text(tr(entry.snapshot.quotaShowsRemaining != false ? "剩余" : "已用"))
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-      }
-      ProgressView(
-        value: AIUsageFormat.quotaValue(
-          remainingPercent: quota.remainingPercent,
-          showsRemaining: entry.snapshot.quotaShowsRemaining != false) ?? 0, total: 100
-      )
-      .tint(quota.remainingPercent < 20 ? .red : .blue)
-      if let reset = quota.resetsAt {
-        Text(tr("重置：") + " " + reset.formatted(date: .abbreviated, time: .shortened))
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-          .minimumScaleFactor(0.75)
-      }
-      if quota.isStale {
-        Text(tr("上次额度"))
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-      }
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
@@ -169,76 +240,110 @@ struct AIQuotaWidget: Widget {
       AIQuotaWidgetView(entry: entry)
     }
     .configurationDisplayName(tr("订阅额度"))
-    .description(tr("查看账户剩余额度与重置时间"))
+    .description(tr("以四个圆环查看订阅额度"))
     .supportedFamilies([.systemSmall, .systemMedium])
   }
 }
 
 private struct TodayTokensWidgetView: View {
+  @Environment(\.widgetFamily) private var family
   let entry: SharedDataEntry
 
-  private var sources: [(name: String, tokens: Int)] {
-    let otherProviders = Set((entry.snapshot.dailyTokens ?? []).map(\.provider)).subtracting([
-      "codex", "claude",
-    ]).sorted()
-    return (["codex", "claude"] + otherProviders).compactMap { provider in
-      guard let tokens = entry.snapshot.todayTokens(for: provider, at: entry.date) else {
-        return nil
-      }
-      return (provider == "codex" ? "Codex" : provider == "claude" ? "Claude" : provider, tokens)
-    }
+  private func formatted(_ count: Int) -> String {
+    AIUsageFormat.tokens(
+      count, westernUnits: entry.snapshot.westernUnits == true, locale: L10n.locale)
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      WidgetHeading(title: tr("今日消耗的 Token"), symbol: "sparkles")
+    let sources = entry.snapshot.visibleCumulativeTokens
+    let total = WidgetSnapshot.TokenUsage.sum(sources.map(\.total))
+    VStack(alignment: .leading, spacing: 6) {
+      WidgetHeading(title: tr("累计 Token"), symbol: "sparkles")
       if sources.isEmpty {
-        WidgetEmptyState(enabled: entry.snapshot.showsLocalUsage)
+        WidgetEmptyState(enabled: entry.snapshot.showsLocalUsage, hasSnapshot: entry.hasSnapshot)
       } else {
-        // 各来源可能已在上游封顶，合并时仍需防止异常用量溢出。
-        let total = sources.reduce(0) { total, source in
-          let (sum, overflow) = total.addingReportingOverflow(max(0, source.tokens))
-          return overflow ? Int.max : sum
-        }
-        Text(
-          AIUsageFormat.tokens(
-            total, westernUnits: entry.snapshot.westernUnits == true, locale: L10n.locale)
-        )
-        .font(.system(size: 36, weight: .semibold, design: .rounded))
-        .lineLimit(1)
-        .minimumScaleFactor(0.7)
-        .accessibilityLabel(total.formatted(.number.locale(L10n.locale)) + " Tokens")
-        Spacer(minLength: 0)
-        ForEach(sources, id: \.name) { source in
-          HStack {
-            Text(source.name)
-            Spacer(minLength: 4)
-            Text(
-              AIUsageFormat.tokens(
-                source.tokens, westernUnits: entry.snapshot.westernUnits == true,
-                locale: L10n.locale)
-            )
-            .monospacedDigit()
+        HStack(alignment: .top, spacing: 20) {
+          VStack(alignment: .leading, spacing: 3) {
+            Text(formatted(total))
+              .font(.system(size: 32, weight: .semibold, design: .rounded))
+              .monospacedDigit()
+              .lineLimit(1)
+              .minimumScaleFactor(0.6)
+              .accessibilityLabel(total.formatted(.number.locale(L10n.locale)) + " Tokens")
+            HStack(spacing: 3) {
+              if sources.contains(where: \.isStale) {
+                Image(systemName: "clock").accessibilityLabel(tr("上次数据"))
+              }
+              Text(tr(sources.allSatisfy { $0.scope == .all } ? "Magpie 全部记录" : "最近 365 天"))
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
           }
-          .font(.caption)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          if family == .systemMedium {
+            VStack(alignment: .leading, spacing: 6) {
+              ForEach(sources, id: \.provider) { source in
+                HStack {
+                  Text(aiWidgetProviderTitle(source.provider))
+                  Spacer(minLength: 4)
+                  Text(formatted(source.total)).monospacedDigit()
+                }
+                .font(.caption)
+                .lineLimit(1)
+              }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+          }
+        }
+        Spacer(minLength: 0)
+        HStack(spacing: 12) {
+          tokenColumn("输入", count: WidgetSnapshot.TokenUsage.sum(sources.map(\.input)))
+          tokenColumn("输出", count: WidgetSnapshot.TokenUsage.sum(sources.map(\.output)))
+        }
+        if let daily = entry.snapshot.dailyTokens, !daily.isEmpty {
+          let today = WidgetSnapshot.TokenUsage.sum(
+            daily.compactMap {
+              entry.snapshot.todayTokens(for: $0.provider, at: entry.date)
+            })
+          HStack {
+            Text(tr("今日消耗的 Token"))
+            Spacer(minLength: 4)
+            Text(formatted(today)).monospacedDigit()
+          }
+          .font(.system(size: 9))
           .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .minimumScaleFactor(0.75)
         }
       }
     }
-    .padding()
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .containerBackground(.background, for: .widget)
     .environment(\.locale, L10n.locale)
+  }
+
+  private func tokenColumn(_ title: String, count: Int) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(tr(title)).font(.system(size: 9)).foregroundStyle(.secondary)
+      Text(formatted(count)).font(.caption.weight(.medium)).monospacedDigit()
+    }
+    .lineLimit(1)
+    .minimumScaleFactor(0.7)
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
 struct TodayTokensWidget: Widget {
   var body: some WidgetConfiguration {
+    // 保留旧 kind，已有桌面小组件无需重新添加。
     StaticConfiguration(kind: WidgetKind.todayTokens, provider: SharedDataProvider()) { entry in
       TodayTokensWidgetView(entry: entry)
     }
-    .configurationDisplayName(tr("今日消耗的 Token"))
-    .description(tr("查看今天的 Token 用量"))
-    .supportedFamilies([.systemSmall])
+    .configurationDisplayName(tr("累计 Token"))
+    .description(tr("查看累计 Token、输入输出与今日用量"))
+    .supportedFamilies([.systemSmall, .systemMedium])
   }
 }
 
@@ -264,7 +369,7 @@ private struct IPPurityWidgetView: View {
           purityColumn(first)
         }
       } else {
-        WidgetEmptyState(enabled: entry.snapshot.publicIPEnabled)
+        WidgetEmptyState(enabled: entry.snapshot.publicIPEnabled, hasSnapshot: entry.hasSnapshot)
       }
       Spacer(minLength: 0)
       Text("cleanip.io · " + tr("主应用缓存"))
@@ -369,7 +474,7 @@ private struct PublicIPWidgetView: View {
           addressColumn(first)
         }
       } else {
-        WidgetEmptyState(enabled: entry.snapshot.publicIPEnabled)
+        WidgetEmptyState(enabled: entry.snapshot.publicIPEnabled, hasSnapshot: entry.hasSnapshot)
       }
       Spacer(minLength: 0)
     }

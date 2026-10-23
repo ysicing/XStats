@@ -4,6 +4,8 @@
 import AIUsage
 import Foundation
 import Observation
+import WidgetData
+import WidgetKit
 import os
 
 public struct AIUsageProviderState: Equatable, Sendable {
@@ -46,6 +48,15 @@ public final class AIUsageController {
   public private(set) var magpieRefreshing = false
   @ObservationIgnored private let magpieClient: (any MagpieFetching)?
   @ObservationIgnored private var magpiePeriod = MagpiePeriod.daily
+  /// 沿用现有刷新周期查询安装需求，不为没有使用累计小组件的用户增加统计请求。
+  @ObservationIgnored var cumulativeWidgetIsInstalled: @MainActor () async -> Bool = {
+    await withCheckedContinuation { continuation in
+      WidgetCenter.shared.getCurrentConfigurations { result in
+        let installed = (try? result.get().contains { $0.kind == WidgetKind.todayTokens }) ?? false
+        continuation.resume(returning: installed)
+      }
+    }
+  }
   private static let logger = Logger(subsystem: Log.subsystem, category: "ai-usage")
 
   public private(set) var costReferences = AICostReferenceSnapshot(catalog: nil, exchangeRate: nil)
@@ -461,7 +472,7 @@ public final class AIUsageController {
     return availableMenuBarQuotaProviders.compactMap { selected[$0] }
   }
 
-  /// 可见页只请求所选周期；今日摘要供菜单栏使用，最多保留四个周期，不读取请求明细。
+  /// 可见页请求所选周期；今日供菜单栏、累计按已安装的小组件需求读取，最多保留四个摘要。
   public func selectMagpiePeriod(_ period: MagpiePeriod) async {
     guard usesMagpie else { return }
     magpiePeriod = period
@@ -486,23 +497,31 @@ public final class AIUsageController {
     let period = magpiePeriod
     magpieRefreshing = true
     defer { if generation == epoch { magpieRefreshing = false } }
+    let needsCumulative =
+      settings.aiUsageShowsLocalUsage ? await cumulativeWidgetIsInstalled() : false
+    guard generation == epoch, settings.aiUsageEnabled, !paused, !Task.isCancelled else { return }
     // 端点失败独立处理：额度不可用不应抹去仍可读取的 Token 统计，反之亦然。
     async let quotas: Result<[MagpieQuota], MagpieFailure> = Self.readMagpieQuotas(client)
-    let periods: [MagpiePeriod] =
-      settings.aiUsageShowsLocalUsage ? (period == .daily ? [.daily] : [.daily, period]) : []
-    let usage = await withTaskGroup(
-      of: (MagpiePeriod, Result<MagpieUsageSummary, MagpieFailure>).self
-    ) { group in
-      for period in periods {
-        group.addTask {
-          do { return (period, .success(try await client.usage(period: period))) } catch let failure
-            as MagpieFailure
-          { return (period, .failure(failure)) } catch { return (period, .failure(.unavailable)) }
-        }
+    var periods: [MagpiePeriod] = []
+    if settings.aiUsageShowsLocalUsage {
+      periods = [.daily]
+      if period != .daily { periods.append(period) }
+      if needsCumulative && !periods.contains(.cumulative) { periods.append(.cumulative) }
+    }
+    // 额度与统计最多并发两个请求；多个统计周期依次读取，取消后不再调度下一项。
+    var usage: [(MagpiePeriod, Result<MagpieUsageSummary, MagpieFailure>)] = []
+    for period in periods {
+      guard !Task.isCancelled, generation == epoch, !paused,
+        settings.aiUsageEnabled, settings.aiUsageShowsLocalUsage
+      else { break }
+      do { usage.append((period, .success(try await client.usage(period: period)))) } catch let
+        failure
+        as MagpieFailure
+      {
+        usage.append((period, .failure(failure)))
+      } catch {
+        usage.append((period, .failure(.unavailable)))
       }
-      var results: [(MagpiePeriod, Result<MagpieUsageSummary, MagpieFailure>)] = []
-      for await result in group { results.append(result) }
-      return results
     }
     let quotaResult = await quotas
     guard generation == epoch, settings.aiUsageEnabled, !paused, !Task.isCancelled else { return }

@@ -2,6 +2,7 @@
 # XStats modifications Copyright (C) 2026 ysicing
 # SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
 暂无数据	暫無資料
+共享数据不可用	共用資料無法使用
 主应用缓存	主應用程式快取
 今日消耗的 Token	今日消耗的 Token
 分	分
@@ -2439,3 +2440,9 @@ Homebrew 服务	Homebrew 服務
 窗口与导航	視窗與導覽
 系统控制	系統控制
 计时与休息	計時與休息
+累计 Token	累計 Token
+最近 365 天	最近 365 天
+Magpie 全部记录	Magpie 全部記錄
+以四个圆环查看订阅额度	以四個圓環查看訂閱額度
+查看累计 Token、输入输出与今日用量	查看累計 Token、輸入輸出與今日用量
+上次数据	上次資料

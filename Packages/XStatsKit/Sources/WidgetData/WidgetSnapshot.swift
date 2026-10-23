@@ -17,6 +17,37 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     }
   }
 
+  /// 仅保存累计摘要；本机日志与 Magpie 的统计范围不同，不能混称为终身用量。
+  public struct TokenUsage: Codable, Equatable, Sendable {
+    public enum Scope: String, Codable, Sendable {
+      case recentYear, all
+    }
+
+    public let provider: String
+    public let input: Int
+    public let output: Int
+    public let scope: Scope
+    public let isStale: Bool
+
+    public init(provider: String, input: Int, output: Int, scope: Scope, isStale: Bool = false) {
+      self.provider = provider
+      self.input = max(0, input)
+      self.output = max(0, output)
+      self.scope = scope
+      self.isStale = isStale
+    }
+
+    public var total: Int { Self.sum([input, output]) }
+
+    /// 摘要可能已在来源端封顶，跨来源合计仍须防止溢出。
+    public static func sum(_ counts: [Int]) -> Int {
+      counts.reduce(0) {
+        let (sum, overflow) = $0.addingReportingOverflow(max(0, $1))
+        return overflow ? Int.max : sum
+      }
+    }
+  }
+
   public struct CalendarSummary: Codable, Equatable, Sendable {
     public enum Schedule: String, Codable, Sendable {
       case work, weekend, holiday, makeupWork, makeupDayOff, unknown
@@ -122,6 +153,12 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     }
   }
 
+  public struct QuotaSlot: Equatable, Sendable, Identifiable {
+    public let provider: String
+    public let quota: Quota?
+    public var id: String { provider }
+  }
+
   public struct Address: Codable, Equatable, Sendable {
     public let family: String
     public let ip: String
@@ -167,6 +204,10 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
   public var quotas: [Quota]
   /// 仅共享每个来源的当日合计；可选以兼容旧版 App Group 摘要。
   public var dailyTokens: [DailyTokenUsage]?
+  /// 可选以兼容旧缓存；缺失表示尚无累计摘要，不能用今日用量冒充。
+  public var cumulativeTokens: [TokenUsage]?
+  /// 保留无有效额度的服务身份，过期或暂时失败不能让后面的圆环前移。
+  public var quotaProviders: [String]?
   /// 可选以兼容旧版摘要；缺失时沿用 AI 总开关的旧行为。
   public var localUsageEnabled: Bool?
   /// 可选显示偏好；旧摘要沿用剩余额度和按语言缩写。
@@ -189,6 +230,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
   public var calendarDataVersion: String?
   public init(
     aiEnabled: Bool = false, quotas: [Quota] = [], dailyTokens: [DailyTokenUsage]? = nil,
+    cumulativeTokens: [TokenUsage]? = nil, quotaProviders: [String]? = nil,
     localUsageEnabled: Bool? = nil, quotaShowsRemaining: Bool? = nil, westernUnits: Bool? = nil,
     publicIPEnabled: Bool = false,
     addresses: [Address] = [], language: String = "system",
@@ -200,6 +242,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     self.aiEnabled = aiEnabled
     self.quotas = quotas
     self.dailyTokens = dailyTokens
+    self.cumulativeTokens = cumulativeTokens
+    self.quotaProviders = quotaProviders
     self.localUsageEnabled = localUsageEnabled
     self.quotaShowsRemaining = quotaShowsRemaining
     self.westernUnits = westernUnits
@@ -216,6 +260,35 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
   }
 
   public var showsLocalUsage: Bool { aiEnabled && localUsageEnabled != false }
+
+  public var visibleCumulativeTokens: [TokenUsage] {
+    showsLocalUsage ? (cumulativeTokens ?? []) : []
+  }
+
+  /// 默认四个品牌保留位置；其他服务仅占用未使用的位置，额度失效不影响排序。
+  public func quotaSlots(at date: Date = .now) -> [QuotaSlot] {
+    let defaults = ["codex", "claude", "gemini", "grok"]
+    let providers =
+      quotaProviders
+      ?? (defaults.filter { provider in quotas.contains { $0.provider == provider } }
+        + Set(quotas.map(\.provider)).subtracting(defaults).sorted())
+    var ordered = defaults
+    let vacancies = defaults.indices.filter { !providers.contains(defaults[$0]) }
+    var filled = 0
+    for provider in providers where !ordered.contains(provider) && !provider.isEmpty {
+      guard filled < vacancies.count else { break }
+      ordered[vacancies[filled]] = provider
+      filled += 1
+    }
+    let current = currentQuotas(at: date).filter { $0.remainingPercent.isFinite }
+    return ordered.map { provider in
+      let windows = current.filter { $0.provider == provider }
+      let quota =
+        windows.first { $0.kind == "weekly" || $0.kind.hasSuffix("Weekly") }
+        ?? windows.first { $0.kind == "session" } ?? windows.first
+      return QuotaSlot(provider: provider, quota: quota)
+    }
+  }
 
   /// 已过重置时间的缓存不再代表当前额度，Widget 不应继续显示旧百分比。
   public func currentQuotas(at date: Date = .now) -> [Quota] {
@@ -254,10 +327,14 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
       relocalized || showsLocalUsage != previous.showsLocalUsage
       || (westernUnits == true) != (previous.westernUnits == true)
     var kinds: [String] = []
-    if quotaChanged || displayed(quotas) != displayed(previous.quotas) {
+    if quotaChanged || quotaProviders != previous.quotaProviders
+      || displayed(quotas) != displayed(previous.quotas)
+    {
       kinds.append(WidgetKind.aiQuota)
     }
-    if localUsageChanged || dailyTokens != previous.dailyTokens {
+    if localUsageChanged || dailyTokens != previous.dailyTokens
+      || cumulativeTokens != previous.cumulativeTokens
+    {
       kinds.append(WidgetKind.todayTokens)
     }
     if relocalized || publicIPEnabled != previous.publicIPEnabled
@@ -278,6 +355,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     {
       kinds.append(WidgetKind.calendarMonth)
     }
+    if relocalized { kinds.append(WidgetKind.system) }
     return kinds
   }
 
@@ -340,9 +418,14 @@ public struct WidgetSnapshotStore {
   }
 
   public func load() -> WidgetSnapshot {
+    loadIfAvailable() ?? WidgetSnapshot()
+  }
+
+  /// 缺失、无权读取或损坏的摘要不能代表用户关闭了功能；展示端须保留这个区别。
+  public func loadIfAvailable() -> WidgetSnapshot? {
     guard let data = defaults?.data(forKey: Self.key),
       let snapshot = try? JSONDecoder().decode(WidgetSnapshot.self, from: data)
-    else { return WidgetSnapshot() }
+    else { return nil }
     return snapshot
   }
 

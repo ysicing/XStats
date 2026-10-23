@@ -889,10 +889,28 @@ public final class AppController: NSObject, NSApplicationDelegate {
         return WidgetSnapshot.DailyTokenUsage(
           provider: provider.rawValue, day: today, tokens: tokens)
       } : nil
+    var cumulativeTokens: [WidgetSnapshot.TokenUsage]? =
+      settings.aiUsageEnabled && settings.aiUsageShowsLocalUsage
+      ? AIProviderID.allCases.filter { settings.aiUsageSources.contains($0) }.compactMap {
+        provider in
+        guard let report = model.aiUsage.localReport(for: provider) else { return nil }
+        let total = LocalUsageReport.total(
+          report.summary(mode: .cumulative, now: now, calendar: calendar))
+        return WidgetSnapshot.TokenUsage(
+          provider: provider.rawValue, input: total.input, output: total.output,
+          scope: .recentYear, isStale: model.aiUsage.localState(for: provider).stale)
+      } : nil
+    var quotaProviders = AIProviderID.allCases.filter {
+      settings.aiUsageSources.contains($0)
+    }.map(\.rawValue)
     if model.aiUsage.usesMagpie {
-      // Widget 保留原来的三服务摘要；菜单栏选择与宽度不影响小组件。
+      // 按账户身份决定圆环位置；暂时读不到额度时保留灰环，菜单栏选择不影响小组件。
+      let available = Set(model.aiUsage.magpieQuotas.map(\.provider))
+      quotaProviders = Array(
+        (AIServiceBrand.menuBarOrder.filter { available.contains($0) }
+          + available.subtracting(AIServiceBrand.menuBarOrder).sorted()).prefix(4))
       quotas = model.aiUsage.magpieQuotaReadings(at: now)
-        .sorted { $0.sourceName < $1.sourceName }.prefix(3).map { quota in
+        .filter { quotaProviders.contains($0.sourceName) }.map { quota in
           WidgetSnapshot.Quota(
             provider: quota.sourceName, kind: quota.shortWindowName,
             remainingPercent: quota.window.remainingPercent, resetsAt: quota.window.resetsAt,
@@ -900,6 +918,13 @@ public final class AppController: NSObject, NSApplicationDelegate {
         }
       dailyTokens = model.aiUsage.todayTokens.map { tokens in
         [WidgetSnapshot.DailyTokenUsage(provider: "Magpie", day: today, tokens: tokens)]
+      }
+      cumulativeTokens = model.aiUsage.magpieSummary(for: .cumulative).map { summary in
+        [
+          WidgetSnapshot.TokenUsage(
+            provider: "Magpie", input: summary.input, output: summary.output, scope: .all,
+            isStale: model.aiUsage.magpieUsageFailures[.cumulative] != nil)
+        ]
       }
     }
     let addresses: [WidgetSnapshot.Address] =
@@ -921,6 +946,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     let snapshot = WidgetSnapshot(
       aiEnabled: settings.aiUsageEnabled, quotas: quotas,
       dailyTokens: dailyTokens,
+      cumulativeTokens: cumulativeTokens, quotaProviders: quotaProviders,
       localUsageEnabled: settings.aiUsageShowsLocalUsage,
       quotaShowsRemaining: settings.aiQuotaShowsRemaining,
       westernUnits: settings.aiUsageWesternUnits,

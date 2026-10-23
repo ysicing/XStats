@@ -5,6 +5,29 @@ import Foundation
 import Testing
 import WidgetData
 
+@Test func missingAndCorruptSnapshotsDoNotMeanDisabledModules() throws {
+  let suite = "WidgetSnapshotAvailability.\(UUID())"
+  let defaults = try #require(UserDefaults(suiteName: suite))
+  defer { defaults.removePersistentDomain(forName: suite) }
+  let store = WidgetSnapshotStore(defaults: defaults)
+  #expect(store.loadIfAvailable() == nil)
+  #expect(WidgetSnapshotStore(defaults: nil).loadIfAvailable() == nil)
+
+  // 有效的全关闭摘要与没有摘要必须区分，旧格式仍按原协议解码。
+  let disabled = WidgetSnapshot()
+  #expect(store.save(disabled))
+  #expect(store.loadIfAvailable() == disabled)
+  let key = try #require(
+    defaults.persistentDomain(forName: suite)?.first { $0.value is Data }?.key)
+  defaults.set(Data("invalid JSON".utf8), forKey: key)
+  #expect(store.loadIfAvailable() == nil)
+  defaults.set(
+    Data(
+      #"{"aiEnabled":false,"quotas":[],"publicIPEnabled":false,"addresses":[],"language":"system","calendarFirstWeekday":2,"showsLunar":true}"#
+        .utf8), forKey: key)
+  #expect(store.loadIfAvailable()?.aiEnabled == false)
+}
+
 @Test func snapshotRoundTripAndDisabledModules() throws {
   let suite = "WidgetSnapshotTests.\(UUID().uuidString)"
   let defaults = try #require(UserDefaults(suiteName: suite))
@@ -196,6 +219,79 @@ func snapshotPreservesEveryWeekStartAndReloadsCalendars(firstWeekday: Int) throw
   #expect(snapshot.localUsageEnabled == nil)
   #expect(snapshot.quotaShowsRemaining == nil)
   #expect(snapshot.westernUnits == nil)
+  #expect(snapshot.cumulativeTokens == nil)
+  #expect(snapshot.quotaProviders == nil)
+  #expect(snapshot.visibleCumulativeTokens.isEmpty)
+}
+
+@Test func cumulativeTokensKeepTheirScopeAndDoNotResetAtMidnight() throws {
+  let now = Date()
+  let usage = WidgetSnapshot.TokenUsage(
+    provider: "codex", input: 1_000, output: 200, scope: .recentYear)
+  var snapshot = WidgetSnapshot(
+    aiEnabled: true, dailyTokens: [.init(provider: "codex", day: now, tokens: 50)],
+    cumulativeTokens: [usage])
+  let restored = try JSONDecoder().decode(WidgetSnapshot.self, from: JSONEncoder().encode(snapshot))
+  #expect(restored.visibleCumulativeTokens == [usage])
+  #expect(restored.visibleCumulativeTokens.first?.total == 1_200)
+  #expect(restored.todayTokens(for: "codex", at: now.addingTimeInterval(86400)) == 0)
+  #expect(restored.visibleCumulativeTokens.first?.scope == .recentYear)
+  snapshot.localUsageEnabled = false
+  #expect(snapshot.visibleCumulativeTokens.isEmpty)
+  snapshot.localUsageEnabled = true
+  snapshot.aiEnabled = false
+  #expect(snapshot.visibleCumulativeTokens.isEmpty)
+  #expect(WidgetSnapshot.TokenUsage.sum([Int.max, 1, -1]) == Int.max)
+  #expect(WidgetSnapshot.TokenUsage.sum([-1, 2]) == 2)
+  #expect(
+    WidgetSnapshot.TokenUsage(provider: "Magpie", input: Int.max, output: 1, scope: .all).total
+      == Int.max)
+}
+
+@Test func fourQuotaSlotsKeepMissingExpiredAndZeroValuesDistinct() {
+  let now = Date()
+  func quota(_ provider: String, _ remaining: Double, reset: Date? = nil, kind: String = "weekly")
+    -> WidgetSnapshot.Quota
+  {
+    .init(
+      provider: provider, kind: kind, remainingPercent: remaining, resetsAt: reset,
+      fetchedAt: now, isStale: false)
+  }
+  var snapshot = WidgetSnapshot(
+    aiEnabled: true,
+    quotas: [
+      quota("codex", 60, kind: "session"), quota("codex", 0),
+      quota("claude", 99, reset: now), quota("gemini", .nan),
+    ], quotaProviders: ["codex", "claude", "gemini", "grok"])
+  let slots = snapshot.quotaSlots(at: now)
+  #expect(slots.map(\.provider) == ["codex", "claude", "gemini", "grok"])
+  #expect(slots[0].quota?.remainingPercent == 0)
+  #expect(slots.dropFirst().allSatisfy { $0.quota == nil })
+  #expect(WidgetSnapshot(aiEnabled: true).quotaSlots(at: now).count == 4)
+  snapshot.quotaProviders = ["copilot", "copilot", "custom", "", "claude", "codex", "extra"]
+  #expect(snapshot.quotaSlots(at: now).map(\.provider) == ["codex", "claude", "copilot", "custom"])
+  snapshot.aiEnabled = false
+  #expect(snapshot.quotaSlots(at: now).allSatisfy { $0.quota == nil })
+  snapshot.quotaProviders = nil
+  snapshot.quotas = [quota("grok", 40), quota("codex", 60)]
+  #expect(snapshot.quotaSlots(at: now).map(\.provider) == ["codex", "claude", "gemini", "grok"])
+}
+
+@Test func cumulativeSummaryAndSlotChangesReloadTheirOwnWidget() {
+  let previous = WidgetSnapshot(aiEnabled: true)
+  var current = previous
+  current.cumulativeTokens = [
+    .init(provider: "Magpie", input: 100, output: 20, scope: .all)
+  ]
+  #expect(current.changedWidgetKinds(from: previous) == [WidgetKind.todayTokens])
+  let fresh = current
+  current.cumulativeTokens = [
+    .init(provider: "Magpie", input: 100, output: 20, scope: .all, isStale: true)
+  ]
+  #expect(current.changedWidgetKinds(from: fresh) == [WidgetKind.todayTokens])
+  current = previous
+  current.quotaProviders = ["claude", "codex"]
+  #expect(current.changedWidgetKinds(from: previous) == [WidgetKind.aiQuota])
 }
 
 @Test func onlyWidgetsWhoseDisplayedDataChangedAreReloaded() {
@@ -267,7 +363,7 @@ func snapshotPreservesEveryWeekStartAndReloadsCalendars(firstWeekday: Int) throw
       WidgetKind.aiQuota, WidgetKind.todayTokens,
       WidgetKind.ipPurity, WidgetKind.publicIP,
       WidgetKind.calendar, WidgetKind.tomorrowWork,
-      WidgetKind.calendarMonth,
+      WidgetKind.calendarMonth, WidgetKind.system,
     ])
 }
 

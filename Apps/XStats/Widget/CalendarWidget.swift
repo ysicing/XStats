@@ -14,6 +14,7 @@ struct CalendarWidgetEntry: TimelineEntry {
   let today: WidgetSnapshot.CalendarSummary?
   let tomorrow: WidgetSnapshot.CalendarSummary?
   let month: WidgetSnapshot.MonthSummary?
+  var hasSnapshot = true
 }
 
 struct CalendarWidgetProvider: TimelineProvider {
@@ -43,7 +44,8 @@ struct CalendarWidgetProvider: TimelineProvider {
   }
 
   private func read() -> CalendarWidgetEntry {
-    let snapshot = WidgetSnapshotStore().load()
+    let shared = WidgetSnapshotStore().loadIfAvailable()
+    let snapshot = shared ?? WidgetSnapshot()
     L10n.configure(AppLanguage(rawValue: snapshot.language) ?? .system)
     let now = Date.now
     let nextDay = WidgetSnapshot.keyCalendar.date(byAdding: .day, value: 1, to: now) ?? now
@@ -51,7 +53,8 @@ struct CalendarWidgetProvider: TimelineProvider {
       date: now, showsLunar: snapshot.showsLunar, showsSeasonal: snapshot.showsSeasonal == true,
       firstWeekday: snapshot.calendarFirstWeekday,
       today: snapshot.calendarSummary(for: now),
-      tomorrow: snapshot.calendarSummary(for: nextDay), month: snapshot.monthSummary(for: now))
+      tomorrow: snapshot.calendarSummary(for: nextDay), month: snapshot.monthSummary(for: now),
+      hasSnapshot: shared != nil)
   }
 }
 
@@ -79,6 +82,9 @@ private struct CalendarWidgetView: View {
       Text(entry.date, format: .dateTime.weekday(.wide).month(.wide))
         .font(.subheadline)
         .lineLimit(1)
+      if !entry.hasSnapshot {
+        Text(tr("共享数据不可用")).font(.caption).foregroundStyle(.secondary)
+      }
       if entry.showsLunar {
         Text(lunarDate)
           .font(.caption)
@@ -115,6 +121,9 @@ private struct CalendarWidgetView: View {
         Text(entry.date, format: .dateTime.weekday(.wide).month(.wide))
           .font(.caption)
           .lineLimit(1)
+        if !entry.hasSnapshot {
+          Text(tr("共享数据不可用")).font(.caption).foregroundStyle(.secondary)
+        }
         if entry.showsLunar {
           Text(lunarDate).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
@@ -236,6 +245,9 @@ private struct MonthCalendarWidgetView: View {
             .foregroundStyle(.secondary).lineLimit(1).frame(maxWidth: .infinity)
         }
       }
+      if !entry.hasSnapshot {
+        Text(tr("共享数据不可用")).font(.caption).foregroundStyle(.secondary)
+      }
       LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 7), spacing: 4)
       {
         ForEach(days, id: \.dateKey) { day in
@@ -337,9 +349,14 @@ private struct TomorrowWorkWidgetView: View {
             .minimumScaleFactor(0.75)
         }
       } else {
-        Text(tr(entry.tomorrow?.schedule == .holidaysDisabled ? "仅支持中国大陆节假日" : "暂无法判断"))
-          .font(.caption.weight(.medium))
-          .foregroundStyle(.secondary)
+        Text(
+          tr(
+            !entry.hasSnapshot
+              ? "共享数据不可用"
+              : entry.tomorrow?.schedule == .holidaysDisabled ? "仅支持中国大陆节假日" : "暂无法判断")
+        )
+        .font(.caption.weight(.medium))
+        .foregroundStyle(.secondary)
       }
       Spacer(minLength: 0)
     }

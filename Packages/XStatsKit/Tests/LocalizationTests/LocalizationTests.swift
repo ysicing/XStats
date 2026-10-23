@@ -3,6 +3,18 @@ import Testing
 
 // 不切换全局语言：其他测试套件并行运行，依赖中文原文
 @Suite struct LocalizationTests {
+  @Test func aiWidgetSummaryLabelsAreTranslatedInEveryCatalog() throws {
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for source in [
+        "累计 Token", "最近 365 天", "Magpie 全部记录", "以四个圆环查看订阅额度",
+        "查看累计 Token、输入输出与今日用量", "上次数据", "订阅额度", "暂无额度数据",
+      ] {
+        #expect(table.translate(source)?.isEmpty == false, "\(language): \(source)")
+      }
+    }
+  }
+
   @Test func reviewedInterfaceKeysHaveTranslationsInEveryLanguage() throws {
     for language in AppLanguage.allCases where language != .system && language != .chinese {
       let table = try #require(Translations.catalog(for: language))

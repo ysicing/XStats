@@ -13,6 +13,7 @@ private struct RestEntry: TimelineEntry {
   let remaining: TimeInterval
   let deadline: Date
   let duration: TimeInterval
+  var hasSnapshot = true
 }
 
 private struct RestProvider: TimelineProvider {
@@ -42,7 +43,7 @@ private struct RestProvider: TimelineProvider {
         RestEntry(
           date: date, enabled: entry.enabled, isResting: entry.isResting,
           running: entry.running, remaining: entry.remaining,
-          deadline: entry.deadline, duration: entry.duration))
+          deadline: entry.deadline, duration: entry.duration, hasSnapshot: entry.hasSnapshot))
     }
     completion(Timeline(entries: entries, policy: .after(entry.deadline)))
   }
@@ -60,7 +61,8 @@ private struct RestProvider: TimelineProvider {
       running: defaults?.bool(forKey: "rest.running") ?? false,
       remaining: defaults?.double(forKey: "rest.remaining") ?? 0,
       deadline: Date(timeIntervalSince1970: defaults?.double(forKey: "rest.deadline") ?? 0),
-      duration: TimeInterval(defaults?.double(forKey: "rest.duration") ?? 0))
+      duration: TimeInterval(defaults?.double(forKey: "rest.duration") ?? 0),
+      hasSnapshot: defaults?.object(forKey: "rest.enabled") is Bool)
   }
 }
 
@@ -82,9 +84,11 @@ private struct RestWidgetView: View {
       VStack(alignment: .leading, spacing: 6) {
         Text(
           tr(
-            entry.enabled
-              ? (entry.running ? (entry.isResting ? "休息中" : "专注中") : "已暂停")
-              : "护眼休息未开启")
+            !entry.hasSnapshot
+              ? "共享数据不可用"
+              : entry.enabled
+                ? (entry.running ? (entry.isResting ? "休息中" : "专注中") : "已暂停")
+                : "护眼休息未开启")
         )
         .font(.system(size: 13, weight: .medium))
         .foregroundStyle(.secondary)
