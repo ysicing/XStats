@@ -57,6 +57,30 @@ import Testing
     #expect(AddressFamilyRequest.dechunk(Data("\(String(Int.max, radix: 16))\r\na".utf8)) == nil)
   }
 
+  @Test(arguments: [
+    "", "\r", "X-Trailer: unfinished", "X-Trailer: complete\r\n",
+    "X-Trailer: complete\r\nSecond: unfinished",
+  ])
+  func rejectsChunkedResponsesWithoutACompleteTrailerSection(_ trailer: String) {
+    for chunks in ["0\r\n", "2\r\n{}\r\n0\r\n"] {
+      let response = Data(
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n\(chunks)\(trailer)".utf8)
+      let (body, status) = AddressFamilyRequest.parse(response)
+      #expect(body == nil)
+      #expect(status == 200)
+    }
+  }
+
+  @Test(arguments: [
+    "\r\n", "X-Trailer: ignored\r\n\r\n", "X-One: first\r\nX-Two: second\r\n\r\n",
+  ])
+  func acceptsCompleteChunkedResponsesWithOrWithoutTrailers(_ trailer: String) {
+    #expect(AddressFamilyRequest.dechunk(Data("0\r\n\(trailer)".utf8)) == Data())
+    #expect(
+      AddressFamilyRequest.dechunk(Data("2\r\n{}\r\n0\r\n\(trailer)".utf8))
+        == Data("{}".utf8))
+  }
+
   @Test func acceptsHexadecimalChunksWithExtensions() {
     let body = Data("A;x=1\r\n0123456789\r\n0\r\n\r\n".utf8)
     #expect(AddressFamilyRequest.dechunk(body) == Data("0123456789".utf8))

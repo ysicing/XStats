@@ -84,6 +84,7 @@ final class AudioController {
   init(
     defaults: UserDefaults = .standard, mixer: AudioMixerClient = AudioMixerClient(),
     hardware: AudioHardwareClient = AudioHardwareClient(),
+    volumeWriter: AudioDeviceVolumeWriter? = nil,
     bluetooth: BluetoothAudioClient = BluetoothAudioClient(),
     listeningModes: AudioListeningModeClient = AudioListeningModeClient(),
     activationNotifications: NotificationCenter = .default,
@@ -128,22 +129,24 @@ final class AudioController {
         !$0.key.hasPrefix("pid:") && !$0.key.isEmpty && $0.key.count <= 512 && !$0.value.isEmpty
           && $0.value.count <= 512
       })
-    volumeWriter = AudioDeviceVolumeWriter(
-      write: { [hardware] request in
-        try await hardware.setVolume(
-          request.level, device: request.device, direction: request.direction)
-      },
-      unmute: { [hardware] request in
-        try await hardware.setMuted(false, device: request.device, direction: request.direction)
-      },
-      finished: { [weak self] request, error in
-        guard let self, enabled, !sleeping else { return }
-        let currentDevice = request.direction == .output ? output : input
-        guard currentDevice?.id == request.device.id, currentDevice?.uid == request.device.uid
-        else { return }
-        operationError = error
-        scheduleRefresh(immediate: true)
-      })
+    self.volumeWriter =
+      volumeWriter
+      ?? AudioDeviceVolumeWriter(
+        write: { [hardware] request in
+          try await hardware.setVolume(
+            request.level, device: request.device, direction: request.direction)
+        },
+        unmute: { [hardware] request in
+          try await hardware.setMuted(false, device: request.device, direction: request.direction)
+        },
+        finished: { [weak self] request, error in
+          guard let self, enabled, !sleeping else { return }
+          let currentDevice = request.direction == .output ? output : input
+          guard currentDevice?.id == request.device.id, currentDevice?.uid == request.device.uid
+          else { return }
+          operationError = error
+          scheduleRefresh(immediate: true)
+        })
     mixer.setFailureHandler { [weak self] error in
       Task { @MainActor [weak self] in
         guard let self, enabled, !sleeping, mixTask == nil,
@@ -702,14 +705,16 @@ final class AudioController {
     let epoch = revision
     operationRevision &+= 1
     let command = operationRevision
-    // 普通操作只丢弃排队音量；在途写入的取消静音仅在关闭功能或休眠时中断。
+    // 普通操作丢弃排队音量，并等待在途写入及其取消静音完成，避免切换夹在两次 HAL 写入之间。
     volumeWriter.discardPending()
     mixTask?.cancel()
     mixTask = nil
     mixRequests.reset()
     operationTask = Task { [weak self] in
       guard let self, operationRevision == command else { return }
-      guard revision == epoch, enabled, !sleeping else {
+      await volumeWriter.flush()
+      guard operationRevision == command else { return }
+      guard !Task.isCancelled, revision == epoch, enabled, !sleeping else {
         isWorking = false
         isAuthorizing = false
         switchingDevice = nil

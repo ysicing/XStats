@@ -119,7 +119,19 @@ enum AddressFamilyRequest {
         let size = Int(sizeText, radix: 16)
       else { return nil }
       index = lineEnd + 2
-      if size == 0 { return output }
+      if size == 0 {
+        // 末块后仍须读完 trailer-section 的终止空行，连接关闭不代表响应完整。
+        while index < bytes.count {
+          guard
+            let trailerEnd = (index..<max(index, bytes.count - 1)).first(where: {
+              bytes[$0] == 13 && bytes[$0 + 1] == 10
+            })
+          else { return nil }
+          if trailerEnd == index { return output }
+          index = trailerEnd + 2
+        }
+        return nil
+      }
       guard bytes.count - index >= 2, size <= bytes.count - index - 2,
         bytes[index + size] == 13, bytes[index + size + 1] == 10
       else { return nil }
