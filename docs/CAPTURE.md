@@ -3,7 +3,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 # XStats Capture
 
-XStats Capture 支持 macOS 14+ 和 Apple Silicon，由共享的 `CaptureCore`、`CaptureUI` 组件提供两种宿主：XStats 内置工具和独立 macOS App。XStats 使用按需启用的内置 Capture，无须安装独立 App；独立版可以脱离 XStats 使用，不加载系统监控、网络扩展或辅助工具。独立版为 0.1.4（5），通过 [Capture Release](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.4) 下载已签名、公证的 DMG，或运行 `brew install --cask ysicing/tap/xstats-capture` 安装。应用菜单提供“关于”“检查更新…”和“自动检查更新”；Sparkle 管理检查、跳过版本及用户确认后的安装，不自动下载或安装。更新检查向区域 API 发送 Capture 版本和安装标识的哈希，不发送截图、录屏或系统分析。
+XStats Capture 支持 macOS 14+ 和 Apple Silicon，由共享的 `CaptureCore`、`CaptureUI` 组件提供两种宿主：XStats 内置工具和独立 macOS App。XStats 使用按需启用的内置 Capture，无须安装独立 App；独立版可以脱离 XStats 使用，不加载系统监控、网络扩展或辅助工具。独立版为 0.1.5（6），通过 [Capture Release](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.5) 下载已签名、公证的 DMG，或运行 `brew install --cask ysicing/tap/xstats-capture` 安装。应用菜单提供“关于”“检查更新…”和“自动检查更新”；Sparkle 管理检查、跳过版本及用户确认后的安装，不自动下载或安装。更新检查向区域 API 发送 Capture 版本和安装标识的哈希，不发送截图、录屏或系统分析。
 
 ## 本地构建与启动
 

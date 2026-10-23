@@ -1,12 +1,12 @@
 {
-  "version": "0.1.4",
-  "date": "2026-10-22",
+  "version": "0.1.5",
+  "date": "2026-10-23",
   "sourceNotes": [
-    "修复录制等操作临时禁用置顶后，先前等待图片处理的置顶请求被意外恢复的问题。"
+    "修复保存截图期间仍可通过键盘修改或删除标注的问题。"
   ],
   "translations": {
     "en": [
-      "Prevent a pending image-pinning request from running after recording or another operation temporarily disables pinning."
+      "Prevent keyboard shortcuts from modifying or deleting annotations while a screenshot is being saved."
     ]
   }
 }
