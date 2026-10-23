@@ -61,7 +61,6 @@ public final class FanController {
   @ObservationIgnored private var feedbackGeneration = 0
   @ObservationIgnored private var feedbackVisible = false
   @ObservationIgnored private var paused = false
-  @ObservationIgnored private var pauseGeneration = 0
   private var pauseResetSucceeded = false
   @ObservationIgnored private var pauseTask: Task<Bool, Never>?
   @ObservationIgnored private var applicationWaiters: [CheckedContinuation<Void, Never>] = []
@@ -90,7 +89,6 @@ public final class FanController {
   }
 
   func setPaused(_ value: Bool) {
-    if paused != value { pauseGeneration &+= 1 }
     paused = value
     guard value else {
       pauseResetSucceeded = false
@@ -118,20 +116,6 @@ public final class FanController {
       clearNotice()
       return true
     }
-  }
-
-  /// 仅返回 true 时才可停止安全采样；失败仍允许过热复位，恢复使旧请求失效。
-  func prepareForPause() async -> Bool {
-    guard !Task.isCancelled else { return false }
-    setPaused(true)
-    let generation = pauseGeneration
-    let succeeded: Bool
-    if let pauseTask {
-      succeeded = await pauseTask.value
-    } else {
-      succeeded = pauseResetSucceeded
-    }
-    return succeeded && paused && generation == pauseGeneration && !Task.isCancelled
   }
 
   func select(_ newMode: Mode) async {

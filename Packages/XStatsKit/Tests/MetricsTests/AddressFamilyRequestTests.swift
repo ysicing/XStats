@@ -60,5 +60,7 @@ import Testing
   @Test func acceptsHexadecimalChunksWithExtensions() {
     let body = Data("A;x=1\r\n0123456789\r\n0\r\n\r\n".utf8)
     #expect(AddressFamilyRequest.dechunk(body) == Data("0123456789".utf8))
+    let spaced = Data("A \t;x=1\r\n0123456789\r\n0 ;end\r\n\r\n".utf8)
+    #expect(AddressFamilyRequest.dechunk(spaced) == Data("0123456789".utf8))
   }
 }

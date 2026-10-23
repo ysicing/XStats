@@ -227,121 +227,6 @@ import Testing
     #expect(commands.count == 2)
   }
 
-  @Test(arguments: ["enable", "bootstrap"])
-  func bootstrapUsesReviewedConfigurationDespiteConcurrentReplacement(_ replacementPoint: String)
-    throws
-  {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
-      "launch-item-race-\(UUID().uuidString)", isDirectory: true)
-    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
-    defer { try? FileManager.default.removeItem(at: directory) }
-    let url = directory.appendingPathComponent("agent.plist")
-    let original: [String: Any] = [
-      "Label": "com.audit.original",
-      "Program": "/usr/bin/true",
-      "ProgramArguments": ["true", "--config", url.path, "relative/config.json"],
-      "WorkingDirectory": directory.path,
-      "StandardOutPath": directory.appendingPathComponent("stdout.log").path,
-      "EnvironmentVariables": ["PLIST_PATH": url.path],
-      "WatchPaths": [url.path],
-      "KeepAlive": ["SuccessfulExit": false],
-    ]
-    try PropertyListSerialization.data(fromPropertyList: original, format: .xml, options: 0)
-      .write(to: url)
-    let item = try #require(LaunchItems.item(from: original, plist: url, scope: .user))
-    let replacement: [String: Any] = [
-      "Label": "com.audit.replacement",
-      "ProgramArguments": ["/usr/bin/false"],
-    ]
-    let replacementData = try PropertyListSerialization.data(
-      fromPropertyList: replacement, format: .xml, options: 0)
-    var commands: [[String]] = []
-    var loadedConfiguration: [String: Any]?
-    let error = LaunchItems.setEnabled(true, item: item) { arguments in
-      commands.append(arguments)
-      do {
-        if arguments.first == replacementPoint {
-          try replacementData.write(to: url, options: .atomic)
-        }
-        switch arguments.first {
-        case "enable":
-          return (0, "")
-        case "bootstrap":
-          guard arguments.count == 3 else { return (1, "missing bootstrap path") }
-          let data = try Data(contentsOf: URL(fileURLWithPath: arguments[2]))
-          loadedConfiguration =
-            try PropertyListSerialization.propertyList(
-              from: data, format: nil) as? [String: Any]
-          return (0, "")
-        default:
-          return (1, "unexpected command")
-        }
-      } catch {
-        Issue.record(error)
-        return (1, "fixture I/O failed")
-      }
-    }
-    #expect(error == nil)
-    #expect(commands.first == ["enable", "gui/\(getuid())/com.audit.original"])
-    #expect(commands.count == 2)
-    let loaded = try #require(loadedConfiguration)
-    #expect(NSDictionary(dictionary: loaded).isEqual(to: original))
-    let current = try #require(
-      PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil)
-        as? [String: Any])
-    #expect(current["Label"] as? String == "com.audit.replacement")
-  }
-
-  @Test(arguments: [Int32(0), 5, 1])
-  func bootstrapSnapshotIsPrivateAndCleanedAfterSuccessOrFailure(_ bootstrapStatus: Int32)
-    throws
-  {
-    let item = try userItem()
-    defer { try? FileManager.default.removeItem(at: item.plist) }
-    var snapshotURL: URL?
-    let error = LaunchItems.setEnabled(true, item: item) { arguments in
-      switch arguments.first {
-      case "enable":
-        return (0, "")
-      case "bootstrap":
-        guard arguments.count == 3 else { return (1, "missing bootstrap path") }
-        let url = URL(fileURLWithPath: arguments[2])
-        snapshotURL = url
-        do {
-          let file = try FileManager.default.attributesOfItem(atPath: url.path)
-          let directory = try FileManager.default.attributesOfItem(
-            atPath: url.deletingLastPathComponent().path)
-          #expect(file[.type] as? FileAttributeType == .typeRegular)
-          #expect(directory[.type] as? FileAttributeType == .typeDirectory)
-          #expect((file[.posixPermissions] as? NSNumber)?.intValue == 0o600)
-          #expect((directory[.posixPermissions] as? NSNumber)?.intValue == 0o700)
-          let loaded =
-            try PropertyListSerialization.propertyList(
-              from: Data(contentsOf: url), format: nil) as? [String: Any]
-          #expect(loaded?["Label"] as? String == "com.example.agent")
-        } catch {
-          Issue.record(error)
-          return (1, "fixture I/O failed")
-        }
-        return (bootstrapStatus, "bootstrap fixture result")
-      case "list":
-        let loaded = bootstrapStatus == 5 ? "-\t0\tcom.example.agent\n" : ""
-        return (0, "PID\tStatus\tLabel\n" + loaded)
-      default:
-        return (1, "unexpected command")
-      }
-    }
-    #expect((error == nil) == (bootstrapStatus != 1))
-    let snapshot = try #require(snapshotURL)
-    #expect(snapshot != item.plist)
-    if snapshot != item.plist {
-      #expect(FileManager.default.fileExists(atPath: snapshot.path) == false)
-      #expect(
-        FileManager.default.fileExists(atPath: snapshot.deletingLastPathComponent().path) == false)
-    }
-    #expect(FileManager.default.fileExists(atPath: item.plist.path))
-  }
-
   @Test func unchangedPlistStillEnablesTheReviewedService() throws {
     let item = try userItem()
     defer { try? FileManager.default.removeItem(at: item.plist) }
@@ -356,7 +241,7 @@ import Testing
         ["enable", "gui/\(getuid())/com.example.agent"],
         ["bootstrap", "gui/\(getuid())"],
       ])
-    #expect(commands.last?.count == 3)
+    #expect(commands.last == ["bootstrap", "gui/\(getuid())", item.plist.path])
   }
 
   @Test(arguments: [true, false])

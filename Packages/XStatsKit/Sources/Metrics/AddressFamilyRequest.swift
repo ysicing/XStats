@@ -104,9 +104,15 @@ enum AddressFamilyRequest {
         let lineEnd = (index..<max(index, bytes.count - 1)).first(where: {
           bytes[$0] == 13 && bytes[$0 + 1] == 10
         }),
-        let sizeText = String(bytes: bytes[index..<lineEnd], encoding: .ascii)?
-          .split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false).first,
-        !sizeText.isEmpty,
+        let line = String(bytes: bytes[index..<lineEnd], encoding: .ascii)
+      else { return nil }
+      var sizeText = Substring(line)
+      if let semicolon = line.firstIndex(of: ";") {
+        // RFC 9112 允许扩展前出现 BWS；chunk-size 本身仍不能包含空白。
+        sizeText = line[..<semicolon]
+        while sizeText.last == " " || sizeText.last == "\t" { sizeText.removeLast() }
+      }
+      guard !sizeText.isEmpty,
         sizeText.utf8.allSatisfy({
           (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0)
         }),
