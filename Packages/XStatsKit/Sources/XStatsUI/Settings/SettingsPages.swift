@@ -1049,6 +1049,8 @@ struct HelperSettings: View {
 
   var body: some View {
     let helper = model.helper
+    let unavailableReason: String? =
+      if case .unavailable(let reason) = helper.status { reason } else { nil }
 
     SettingsGroup {
       GroupRow(showsDivider: false) {
@@ -1093,7 +1095,8 @@ struct HelperSettings: View {
       }
     }
 
-    if case .unavailable(let reason) = helper.status {
+    // 不可用原因统一用错误提示展示，操作错误和签名说明不再重复同一原因。
+    if let reason = unavailableReason {
       InfoBanner(icon: "exclamationmark.triangle.fill", text: reason, tone: .error)
     }
     if helper.canInstall && helper.isOutdated {
@@ -1105,12 +1108,12 @@ struct HelperSettings: View {
           .disabled(helper.isWorking)
       }
     }
-    if let error = helper.lastError {
+    if let error = helper.lastError, error != unavailableReason {
       InfoBanner(icon: "exclamationmark.triangle.fill", text: error, tone: .error)
     }
     if helper.canInstall {
       InfoBanner(icon: "checkmark.seal", text: tr("已使用 Developer ID 签名"), tone: .success)
-    } else if !helper.isResolvingIdentity {
+    } else if !helper.isResolvingIdentity, unavailableReason != HelperClient.signingMessage {
       InfoBanner(icon: "info.circle", text: HelperClient.signingMessage, tone: .neutral)
     }
   }

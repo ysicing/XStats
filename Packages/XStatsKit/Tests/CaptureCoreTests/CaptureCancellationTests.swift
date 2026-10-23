@@ -44,23 +44,16 @@ import ScreenCaptureKit
   }
   @Test(.timeLimit(.minutes(1))) func cancellationStopsOnlyAfterNativeRegistration() async {
     let callback = CaptureCallback<Int>()
-    let (started, signal) = AsyncStream<Void>.makeStream()
-    let release = DispatchSemaphore(value: 0)
     let events = OSAllocatedUnfairLock(initialState: [String]())
-    let task = Task.detached {
+    let task = Task {
       try await callback.wait(onCancel: { events.withLock { $0.append("stop") } }) { _ in
-        signal.yield(())
-        signal.finish()
-        // 模拟同步注册尚未返回，使用专用后台任务且有界等待。
-        #expect(release.wait(timeout: .now() + 5) == .success)
+        // 在同步注册返回前取消，直接核对清理顺序，不阻塞协作线程等待其他任务。
+        withUnsafeCurrentTask { $0?.cancel() }
+        #expect(callback.isCancelled)
+        #expect(events.withLock { $0.isEmpty })
         events.withLock { $0.append("start") }
       }
     }
-    for await _ in started { break }
-    task.cancel()
-    #expect(callback.isCancelled)
-    #expect(events.withLock { $0.isEmpty })
-    release.signal()
     await #expect(throws: CancellationError.self) { try await task.value }
     #expect(events.withLock { $0 } == ["start", "stop"])
   }
