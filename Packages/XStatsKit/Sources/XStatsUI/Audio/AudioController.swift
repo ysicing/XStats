@@ -702,7 +702,8 @@ final class AudioController {
     let epoch = revision
     operationRevision &+= 1
     let command = operationRevision
-    volumeWriter.cancelPending()
+    // 普通操作只丢弃排队音量；在途写入的取消静音仅在关闭功能或休眠时中断。
+    volumeWriter.discardPending()
     mixTask?.cancel()
     mixTask = nil
     mixRequests.reset()

@@ -65,9 +65,14 @@ final class AudioDeviceVolumeWriter {
     }
   }
   func flush() async { await task?.value }
-  func cancelPending() {
+  /// 丢弃排队请求与晚到的结果；在途写入连同其取消静音照常完成。
+  func discardPending() {
     generation &+= 1
     pending.removeAll()
+  }
+  /// 关闭功能或休眠时还要中断在途任务，已进入 HAL 的写入可能完成，但不再取消静音。
+  func cancelPending() {
+    discardPending()
     inFlightWrite?.cancel()
   }
 }
