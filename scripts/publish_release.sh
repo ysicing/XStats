@@ -74,7 +74,8 @@ if ! python3 scripts/github_release_notes.py "$VERSION" > "$NOTES"; then
 fi
 
 # 首次启用地理解析的客户端依赖在线 IP 数据；线上数据超过 7 天或缺失时更新。
-# 复用时仍校验线上压缩文件；更新时文件与清单均须 CDN 回读通过，失败阻止后续应用发布。
+# 复用时仅以 HEAD 检查压缩文件存在及大小；更新时文件与清单均须完整 CDN 回读通过。
+# 检查或更新失败均阻止后续应用发布。
 python3 scripts/sync_network_geography.py --publish --max-age-days 7 \
   || { status=$?; rm -f "$NOTES"; exit "$status"; }
 

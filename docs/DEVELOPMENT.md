@@ -399,8 +399,10 @@ Developer ID Application 证书生成 profile。现有扩展 ID 和 profile 可�
 
 发布流程在应用制品上传前自动执行 `scripts/sync_network_geography.py --publish --max-age-days 7`：
 按线上 `current.json` 的 `generatedAt`（UTC）判断数据年龄，不依赖本地构建目录；未超过
-7 天且两个压缩文件回读哈希校验通过时复用，不重新下载官方源、转换、压缩或上传。
-超过 7 天、线上数据缺失或清单／时间记录无效时，从 DB-IP 官方本月 gzip CSV 下载、
+7 天且两个压缩文件的 HEAD 请求确认存在、`Content-Length` 与清单一致时复用，不下载
+压缩文件正文，不重新下载官方源、转换、压缩或上传。复用检查不重新计算文件哈希；
+网络错误、异常响应或缺少有效长度会中止发布，不回退为完整下载。
+超过 7 天、线上数据缺失、文件大小不符或清单／时间记录无效时，从 DB-IP 官方本月 gzip CSV 下载、
 严格校验并转换，使用系统 LZFSE 压缩；上传至
 `c-ip/oss/apps/macOS/XStats/network-geography`。文件名包含压缩内容 SHA-256，先上传
 并回读校验两个不可变文件，最后更新 `current.json`（CDN max-age=300）。同步失败会中止

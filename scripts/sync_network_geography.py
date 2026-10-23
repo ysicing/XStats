@@ -114,7 +114,7 @@ def prepare_latest(output: Path, source_urls: list[str]) -> dict:
 
 
 def published_data_is_recent(max_age_days: int, now: datetime) -> bool:
-    """按线上生成时间判断，并回读验证文件；不依赖可能被清理的本地 dist。"""
+    """先判断线上数据年龄，再检查文件响应头；复用时不下载压缩文件正文。"""
     try:
         data = download_bytes(f"{DOWNLOAD_BASE}/current.json?verify={uuid.uuid4().hex}", 64 * 1024)
     except urllib.error.HTTPError as error:
@@ -150,15 +150,24 @@ def published_data_is_recent(max_age_days: int, now: datetime) -> bool:
                 return False
     except (ValueError, KeyError, TypeError, AttributeError):
         return False
+    # 不可变文件已在发布时完整回读验哈希；复用只确认存在且大小一致，
+    # 避免每次应用发版都重新下载地图库。客户端仍独立校验下载内容。
     for item in files:
+        request = urllib.request.Request(f"{DOWNLOAD_BASE}/{item['file']}", method="HEAD",
+                                         headers={"User-Agent": "XStats-network-geography/1", "Accept-Encoding": "identity"})
         try:
-            online = download_bytes(f"{DOWNLOAD_BASE}/{item['file']}", MAX_COMPRESSED_BYTES)
+            with urllib.request.urlopen(request, timeout=30) as response:
+                if response.status != 200:
+                    raise ValueError(f"CDN 压缩文件 HEAD 状态异常：{item['file']}（{response.status}）")
+                length = response.headers.get("Content-Length")
+                if length is None or not re.fullmatch(r"[0-9]+", length):
+                    raise ValueError(f"CDN 压缩文件缺少有效 Content-Length：{item['file']}")
+                if int(length) != item["compressedBytes"]:
+                    return False
         except urllib.error.HTTPError as error:
             if error.code == 404:
                 return False
             raise
-        if len(online) != item["compressedBytes"] or hashlib.sha256(online).hexdigest() != item["compressedSHA256"]:
-            raise ValueError(f"CDN 压缩文件校验失败：{item['file']}")
     return True
 
 
@@ -190,7 +199,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=ROOT / "dist/network-geography")
     parser.add_argument("--source-url", help="默认使用 DB-IP 当月文件，未发布时回退上月")
     parser.add_argument("--publish", action="store_true", help="上传 c-ip 对象存储并验证 CDN；默认仅准备本地数据")
-    parser.add_argument("--max-age-days", type=int, help="发布时复用不超过指定天数且校验通过的线上数据；默认强制更新")
+    parser.add_argument("--max-age-days", type=int, help="发布时复用不超过指定天数且文件响应头检查通过的线上数据；默认强制更新")
     args = parser.parse_args()
     if args.max_age_days is not None and (not args.publish or args.max_age_days <= 0):
         parser.error("--max-age-days 需要同时使用 --publish，且天数必须大于 0")
@@ -198,7 +207,7 @@ def main() -> None:
     source_urls = [args.source_url] if args.source_url else monthly_source_urls(now)
     try:
         if args.max_age_days is not None and published_data_is_recent(args.max_age_days, now):
-            print(f"线上地图库未超过 {args.max_age_days} 天，文件校验通过，复用现有数据（未重新下载源或上传）")
+            print(f"线上地图库未超过 {args.max_age_days} 天，文件响应头检查通过，复用现有数据（未下载地图库正文或源数据，未上传）")
             return
         manifest = prepare_latest(args.output, source_urls)
         for item in manifest["files"]:

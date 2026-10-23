@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """转换和发布边界回归；网络与对象存储仅在外部 I/O 边界替身。"""
 import gzip
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta, timezone
 import hashlib
 import io
@@ -20,6 +20,17 @@ import sync_network_geography as sync
 
 
 CSV = b"1.0.0.0,1.0.0.1,AU\n1.0.0.2,1.0.0.3,AU\n::1,::2,US\n"
+
+
+class HeadOnlyResponse(io.BytesIO):
+    """HEAD 回归禁止读取正文，并沿用真实上下文关闭行为。"""
+    def __init__(self, headers, status=200):
+        super().__init__()
+        self.headers = headers
+        self.status = status
+
+    def read(self, *args, **kwargs):
+        raise AssertionError("复用线上地图库时不应读取压缩文件正文")
 
 
 class ConversionTests(unittest.TestCase):
@@ -88,6 +99,17 @@ class PublishingTests(unittest.TestCase):
         if name not in self.objects:
             raise sync.urllib.error.HTTPError(url, 404, "missing", {}, None)
         return self.objects[name]
+
+    def head_cdn(self, request, timeout):
+        self.assertEqual(request.get_method(), "HEAD")
+        self.assertEqual(timeout, 30)
+        name = request.full_url.split("/")[-1]
+        self.events.append(("head", name))
+        if name not in self.objects:
+            error = sync.urllib.error.HTTPError(request.full_url, 404, "missing", {}, None)
+            self.addCleanup(error.close)
+            raise error
+        return HeadOnlyResponse({"Content-Length": str(len(self.objects[name]))})
 
     def prepare(self):
         # 测试发布交易的压缩边界使用固定内容；原生 LZFSE 单独实测。
@@ -205,6 +227,7 @@ class PublishingTests(unittest.TestCase):
             arguments += ["--max-age-days", "7"]
         with patch.object(sys, "argv", arguments), patch.object(sync, "datetime", wraps=datetime) as clock, \
                 patch.object(sync, "download_bytes", side_effect=download), \
+                patch.object(sync.urllib.request, "urlopen", side_effect=self.head_cdn), \
                 patch.object(sync, "compress_lzfse", side_effect=lambda raw, compressed: compressed.write_bytes(b"lzfse" + raw.read_bytes())), \
                 patch.object(sync.subprocess, "run", side_effect=self.run_mc), redirect_stdout(io.StringIO()):
             clock.now.return_value = now
@@ -220,7 +243,7 @@ class PublishingTests(unittest.TestCase):
                 self.events.clear()
                 self.run_release_sync(now)
                 self.assertEqual(self.events, [("verify", "current.json")] +
-                                 [("verify", item["file"]) for item in manifest["files"]])
+                                 [("head", item["file"]) for item in manifest["files"]])
                 self.assertFalse((self.output / "current.json").exists())
 
     def test_release_refreshes_stale_online_data_even_with_fresh_local_manifest(self):
@@ -229,6 +252,7 @@ class PublishingTests(unittest.TestCase):
         self.events.clear()
         self.run_release_sync(now)
         self.assertIn(("source", "https://example.test/source"), self.events)
+        self.assertFalse(any(event[0] == "head" for event in self.events))
         self.assertEqual(self.events[-2:], [("upload", "current.json"), ("verify", "current.json")])
         self.assertEqual(json.loads(self.objects["current.json"])["generatedAt"], "2026-10-14T12:00:00Z")
 
@@ -243,15 +267,53 @@ class PublishingTests(unittest.TestCase):
                 self.run_release_sync(now)
                 self.assertIn(("upload", "current.json"), self.events)
 
-    def test_recent_publication_still_requires_valid_online_assets(self):
+    def test_recent_publication_with_wrong_asset_size_refreshes_and_verifies_uploads(self):
         now = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
         manifest = self.seed_publication("2026-10-14T12:00:00Z")
-        self.objects[manifest["files"][0]["file"]] = b"corrupt"
+        damaged = manifest["files"][0]["file"]
+        self.objects[damaged] = b"corrupt"
         self.events.clear()
-        with self.assertRaises(SystemExit) as error:
-            self.run_release_sync(now)
-        self.assertEqual(error.exception.code, 1)
-        self.assertFalse(any(event[0] in ("source", "upload") for event in self.events))
+        self.run_release_sync(now)
+        self.assertEqual(self.events[:3], [("verify", "current.json"), ("head", damaged),
+                                          ("source", "https://example.test/source")])
+        names = [item["file"] for item in manifest["files"]]
+        self.assertEqual(self.events[3:], [("upload", names[0]), ("verify", names[0]),
+                                          ("upload", names[1]), ("verify", names[1]),
+                                          ("upload", "current.json"), ("verify", "current.json")])
+
+    def test_recent_publication_rejects_invalid_head_headers_or_status_without_body_read(self):
+        now = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
+        cases = [({}, 200), ({"Content-Length": "-1"}, 200),
+                 ({"Content-Length": "invalid"}, 200), ({"Content-Length": "1.5"}, 200),
+                 ({"Content-Length": "15"}, 206)]
+        for headers, status in cases:
+            with self.subTest(headers=headers, status=status):
+                self.seed_publication("2026-10-14T12:00:00Z")
+                self.events.clear()
+                response = HeadOnlyResponse(headers, status)
+                with patch.object(self, "head_cdn", return_value=response), \
+                        redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                    self.run_release_sync(now)
+                self.assertEqual(error.exception.code, 1)
+                self.assertTrue(response.closed)
+                self.assertEqual(self.events, [("verify", "current.json")])
+
+    def test_recent_publication_head_network_errors_do_not_download_or_publish(self):
+        now = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
+        failures = [sync.urllib.error.HTTPError("https://example.test/file", code, "error", {}, None)
+                    for code in (403, 405, 500)]
+        failures += [TimeoutError("timeout"), ConnectionResetError("reset")]
+        for failure in failures:
+            if isinstance(failure, sync.urllib.error.HTTPError):
+                self.addCleanup(failure.close)
+            with self.subTest(failure=failure):
+                self.seed_publication("2026-10-14T12:00:00Z")
+                self.events.clear()
+                with patch.object(self, "head_cdn", side_effect=failure), \
+                        redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                    self.run_release_sync(now)
+                self.assertEqual(error.exception.code, 1)
+                self.assertEqual(self.events, [("verify", "current.json")])
 
     def test_missing_online_asset_is_republished(self):
         now = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
