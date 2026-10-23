@@ -151,7 +151,7 @@ public final class CleanerController {
   }
 
   func toggle(_ item: CleanItem, in scan: RuleScan) {
-    guard !isBusy, !scan.rule.usesToolCleaner else { return }
+    guard !isBusy, scan.isCleanable, !scan.rule.usesToolCleaner else { return }
     let wasSelected = selectedItems(in: scan).contains { $0.id == item.id }
     if !selection.contains(scan.id) {
       deselectedItems.formUnion(scan.items.map(\.id))
@@ -201,7 +201,12 @@ public final class CleanerController {
   }
 
   var totalBytes: UInt64 {
-    scans.filter(\.isCleanable).reduce(0) { $0 + $1.totalSize }
+    CleanItem.totalSize(
+      of: scans.filter { $0.isCleanable && !$0.rule.usesToolCleaner }.flatMap(\.items))
+  }
+
+  var previewBytes: UInt64 {
+    CleanItem.totalSize(of: scans.filter { $0.rule.previewOnly }.flatMap(\.items))
   }
 
   var selectedScans: [RuleScan] {
@@ -212,7 +217,7 @@ public final class CleanerController {
         rule: scan.rule, items: items, skippedCount: scan.skippedCount, blocked: scan.blocked,
         toolPreview: scan.toolPreview, skippedReasons: scan.skippedReasons,
         unreadableCount: scan.unreadableCount,
-        toolCachePlan: scan.toolCachePlan)
+        toolCachePlan: scan.toolCachePlan, interruption: scan.interruption)
     }
   }
 
@@ -220,13 +225,15 @@ public final class CleanerController {
   var confirmationScans: [RuleScan] { pendingScans.isEmpty ? selectedScans : pendingScans }
 
   var selectedBytes: UInt64 {
-    selectedScans.reduce(0) { $0 + $1.totalSize }
+    CleanItem.totalSize(of: selectedScans.filter { !$0.rule.usesToolCleaner }.flatMap(\.items))
   }
 
   var needsFullDiskAccess: Bool {
     scans.contains { $0.blocked == .needsFullDiskAccess }
   }
-  var hasIncompleteScan: Bool { scans.contains { $0.unreadableCount > 0 } }
+  var hasIncompleteScan: Bool {
+    scans.contains { $0.unreadableCount > 0 || $0.interruption != nil }
+  }
 
   /// 定向截图只使用注入结果，不启动扫描或清理。
   func showPreview(_ results: [RuleScan]) {

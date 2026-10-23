@@ -13,6 +13,7 @@ struct CleanerConfirmation {
   let recoverableCount: Int
   let permanentBytes: UInt64
   let recoverableBytes: UInt64
+  let toolPreviews: [(title: String, bytes: UInt64)]
   let includesHomebrew: Bool
   /// 执行时才会重新检查运行中的应用；数量只是上限，需要在提示中说明。
   let mayBeSkippedWhileAppRunning: Bool
@@ -21,10 +22,12 @@ struct CleanerConfirmation {
     let selected = scans.filter { $0.isCleanable }
     let permanent = selected.filter { $0.rule.deletesPermanently(preferTrash: preferTrash) }
     let recoverable = selected.filter { !$0.rule.deletesPermanently(preferTrash: preferTrash) }
-    permanentCount = permanent.reduce(0) { $0 + $1.items.count }
+    let permanentFiles = permanent.filter { !$0.rule.usesToolCleaner }
+    permanentCount = permanentFiles.reduce(0) { $0 + $1.items.count }
     recoverableCount = recoverable.reduce(0) { $0 + $1.items.count }
-    permanentBytes = permanent.reduce(0) { $0 + $1.totalSize }
-    recoverableBytes = recoverable.reduce(0) { $0 + $1.totalSize }
+    permanentBytes = CleanItem.totalSize(of: permanentFiles.flatMap(\.items))
+    recoverableBytes = CleanItem.totalSize(of: recoverable.flatMap(\.items))
+    toolPreviews = selected.filter { $0.rule.usesToolCleaner }.map { ($0.rule.title, $0.totalSize) }
     includesHomebrew = selected.contains { $0.id == "developer.homebrew" }
     mayBeSkippedWhileAppRunning = selected.contains { $0.rule.mayBeSkippedWhileAppRunning }
     if !selected.isEmpty && selected.allSatisfy({ $0.id == "trash" }) {
@@ -65,9 +68,17 @@ struct CleanerConfirmation {
     switch kind {
     case .trashOnly:
       text = tr("将永久删除废纸篓中选中的 \(count) 个项目，共 \(size)。此操作无法撤销。")
-    case .permanent: text = permanent
+    case .permanent: text = permanentCount > 0 ? permanent : ""
     case .recoverable: text = recoverable
-    case .mixed: text = permanent + "\n\n" + recoverable
+    case .mixed: text = permanentCount > 0 ? permanent + "\n\n" + recoverable : recoverable
+    }
+    if !toolPreviews.isEmpty {
+      if !text.isEmpty { text += "\n\n" }
+      text += tr("所选工具缓存将由对应工具永久清理，此操作无法撤销。")
+      text += "\n" + tr("工具缓存容量单独列出，不计入文件合计。")
+      for preview in toolPreviews {
+        text += "\n" + preview.title + " · " + Format.bytes(preview.bytes, base: .decimal)
+      }
     }
     if includesHomebrew {
       text += "\n\n" + tr("Homebrew 将按执行时的状态清理旧版本与缓存，不自动移除依赖。")

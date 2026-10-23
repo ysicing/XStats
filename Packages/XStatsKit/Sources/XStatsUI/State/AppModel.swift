@@ -28,6 +28,7 @@ public final class AppModel {
   public let fans: FanController
   public let keepAwake: KeepAwakeController
   public let cleaner: CleanerController
+  public let systemCheck: SystemCheckController
   // 最近一次 Agent 盘点仅保留在本次进程内；关闭弹窗不丢弃，也不启动后台刷新。
   let agentData = AICleanupController()
   let projectPurge: ProjectPurgeController
@@ -55,7 +56,9 @@ public final class AppModel {
   /// 功能页分类仅用于当前窗口，不持久化、不影响采样需求。
   var featureSettingsTab: FeatureSettingsTab = .basic
 
-  public var isMainWindowVisible = false
+  public var isMainWindowVisible = false {
+    didSet { if !isMainWindowVisible { systemCheck.cancel() } }
+  }
   /// 网络页的端口 sheet 可见时，与独立端口页共享同一个采集控制器。
   var isPortsSheetPresented = false
   /// 页面间的临时定位，不持久化，也不额外请求后台采样。
@@ -165,6 +168,7 @@ public final class AppModel {
       readFans: { await samplingHub.sampleFans() })
     keepAwake = KeepAwakeController(helper: helper, settings: settings)
     cleaner = CleanerController(settings: settings)
+    systemCheck = SystemCheckController()
     projectPurge = ProjectPurgeController(settings: settings)
     maintenance = MaintenanceController(helper: helper)
     network = NetworkController(settings: settings, cacheDefaults: networkCacheDefaults)

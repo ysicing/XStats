@@ -2455,3 +2455,37 @@ Magpie 全部记录	Todo el historial de Magpie
 正在核对其他安装副本…	Verificando otras instalaciones…
 正在统计大小（{} / {}）…	Calculando el tamaño ({} / {})…
 待统计	Pendiente
+启动代理目标	Destinos de agentes de inicio
+仅检查当前用户启动代理的绝对程序路径；不删除或停用。	Solo comprueba las rutas absolutas de los programas de tus agentes de inicio; no los elimina ni desactiva.
+遗留偏好覆盖	Anulaciones de preferencias heredadas
+检查用户偏好文件中的 App Nap 和磁盘映像验证覆盖；不修改设置。	Comprueba las anulaciones de App Nap y de verificación de imágenes de disco en los archivos de preferencias del usuario; no cambia los ajustes.
+用户目录权限	Permisos de carpetas del usuario
+仅检查主目录、Library 和 Preferences 的所有者与可写性。	Solo comprueba el propietario y el acceso de escritura de la carpeta de inicio, Library y Preferences.
+未安装 Homebrew	Homebrew no está instalado
+Homebrew 依赖预览	Vista previa de dependencias de Homebrew
+由 Homebrew 列出不再需要的依赖，仅供审阅。	Homebrew enumera las dependencias que ya no se necesitan, solo para revisarlas.
+无法完成检查，请稍后重试。	No se pudo completar la comprobación. Inténtalo de nuevo más tarde.
+已达到扫描条目上限	Se alcanzó el límite de elementos del análisis
+已达到扫描时间上限	Se alcanzó el límite de tiempo del análisis
+扫描已取消	Análisis cancelado
+系统检查	Comprobación del sistema
+CPU 短时检查	Comprobación breve de CPU
+仅报告连续两个采样区间均占用至少 25% 单核 CPU 的进程；不代表长期故障。	Solo informa de procesos que usan al menos el 25% de un núcleo de CPU en ambos intervalos de muestreo consecutivos; esto no indica un fallo prolongado.
+内存压力	Presión de memoria
+累计交换空间占用不单独视为异常。	El uso acumulado de intercambio por sí solo no se considera anómalo.
+采样期间换出 {}	Transferido al intercambio durante el muestreo: {}
+交换空间占用 {}	Espacio de intercambio usado: {}
+DNS 维护	Mantenimiento de DNS
+检测到代理或隧道环境；DNS 维护可能影响现有连接，请先排查代理设置。	Se detectó un proxy o túnel. El mantenimiento de DNS puede afectar a las conexiones existentes; comprueba primero la configuración del proxy.
+刷新 DNS 仅是可选维护；当前检查不执行刷新，也不据此判断网络故障。	Vaciar DNS es un mantenimiento opcional. Esta comprobación no vacía DNS ni lo usa para diagnosticar fallos de red.
+开始检查	Iniciar comprobación
+按需检查资源、配置和维护建议，仅预览，不执行修复。	Comprueba recursos, configuración y sugerencias de mantenimiento cuando lo necesites. Solo vista previa; no se realizan reparaciones.
+部分完成	Completado parcialmente
+需关注	Requiere atención
+可选维护	Mantenimiento opcional
+不适用	No aplicable
+未检查	Sin comprobar
+仅预览占用 {}	Espacio solo para vista previa: {}
+仅预览	Solo vista previa
+工具缓存容量单独列出，不计入文件合计。	Las estimaciones de caché de herramientas se muestran por separado y no se incluyen en el total de archivos.
+所选工具缓存将由对应工具永久清理，此操作无法撤销。	Las herramientas eliminarán permanentemente sus cachés seleccionadas. Esta acción no se puede deshacer.

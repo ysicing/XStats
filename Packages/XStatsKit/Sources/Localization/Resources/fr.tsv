@@ -2455,3 +2455,37 @@ Magpie 全部记录	Tout l’historique Magpie
 正在核对其他安装副本…	Vérification des autres installations…
 正在统计大小（{} / {}）…	Calcul de la taille ({} / {})…
 待统计	En attente
+启动代理目标	Cibles des agents de lancement
+仅检查当前用户启动代理的绝对程序路径；不删除或停用。	Vérifie uniquement les chemins absolus des programmes de vos agents de lancement, sans les supprimer ni les désactiver.
+遗留偏好覆盖	Remplacements de préférences hérités
+检查用户偏好文件中的 App Nap 和磁盘映像验证覆盖；不修改设置。	Vérifie les remplacements d’App Nap et de vérification des images disque dans les fichiers de préférences utilisateur, sans modifier les réglages.
+用户目录权限	Autorisations des dossiers utilisateur
+仅检查主目录、Library 和 Preferences 的所有者与可写性。	Vérifie uniquement le propriétaire et l’accès en écriture du dossier personnel, de Library et de Preferences.
+未安装 Homebrew	Homebrew n’est pas installé
+Homebrew 依赖预览	Aperçu des dépendances Homebrew
+由 Homebrew 列出不再需要的依赖，仅供审阅。	Homebrew répertorie les dépendances devenues inutiles, pour examen uniquement.
+无法完成检查，请稍后重试。	Impossible de terminer la vérification. Réessayez plus tard.
+已达到扫描条目上限	Limite d’éléments à analyser atteinte
+已达到扫描时间上限	Durée maximale de l’analyse atteinte
+扫描已取消	Analyse annulée
+系统检查	Vérification du système
+CPU 短时检查	Vérification brève du CPU
+仅报告连续两个采样区间均占用至少 25% 单核 CPU 的进程；不代表长期故障。	Signale uniquement les processus utilisant au moins 25% d’un cœur CPU pendant chacun des deux intervalles d’échantillonnage consécutifs ; cela n’indique pas un défaut durable.
+内存压力	Pression mémoire
+累计交换空间占用不单独视为异常。	L’utilisation cumulée de l’espace d’échange seule n’est pas considérée comme anormale.
+采样期间换出 {}	Données déchargées vers l’espace d’échange pendant l’échantillonnage : {}
+交换空间占用 {}	Espace d’échange utilisé : {}
+DNS 维护	Maintenance DNS
+检测到代理或隧道环境；DNS 维护可能影响现有连接，请先排查代理设置。	Un proxy ou un tunnel a été détecté. La maintenance DNS peut affecter les connexions existantes ; vérifiez d’abord les réglages du proxy.
+刷新 DNS 仅是可选维护；当前检查不执行刷新，也不据此判断网络故障。	Vider le cache DNS est une maintenance facultative. Cette vérification ne le vide pas et ne s’en sert pas pour diagnostiquer les pannes réseau.
+开始检查	Lancer la vérification
+按需检查资源、配置和维护建议，仅预览，不执行修复。	Vérifiez les ressources, la configuration et les suggestions de maintenance à la demande. Aperçu uniquement, sans réparation.
+部分完成	Partiellement terminé
+需关注	À vérifier
+可选维护	Maintenance facultative
+不适用	Sans objet
+未检查	Non vérifié
+仅预览占用 {}	Espace occupé en aperçu uniquement : {}
+仅预览	Aperçu uniquement
+工具缓存容量单独列出，不计入文件合计。	Les estimations des caches des outils sont affichées séparément et exclues du total des fichiers.
+所选工具缓存将由对应工具永久清理，此操作无法撤销。	Les caches sélectionnés seront définitivement nettoyés par leurs outils respectifs. Cette action est irréversible.

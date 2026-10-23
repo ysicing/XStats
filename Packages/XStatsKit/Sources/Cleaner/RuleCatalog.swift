@@ -1,11 +1,17 @@
 import Foundation
+import Darwin
 import Localization
 
 /// 基础清理规则；开发者项目集中在 DeveloperCleanupCatalog 中维护。
 public enum RuleCatalog {
+  /// 通用目录与旧扫描执行都必须让出的预览专属路径。
+  /// 仅构造一次配置并提取已登记路径，不调用 locate 或执行目录发现。
+  static let previewOnlyReservedPaths = PreviewRuleCatalog.rules.flatMap(\.cacheRelativePaths)
+
   public static func rules() -> [CleanRule] {
     [userCaches, logs] + ApplicationCacheCatalog.rules + browsers.map(browserRule)
       + DeveloperCleanupCatalog.rules
+      + PreviewRuleCatalog.rules
       + [incompleteDownloads, installers, trash]
   }
 
@@ -92,14 +98,14 @@ public enum RuleCatalog {
       }
 
       if browser.id == "firefox" {
-        let profiles = (try? children(of: env.home + "/Library/Caches/Firefox/Profiles")) ?? []
+        let profiles = try childrenIfExists(of: env.home + "/Library/Caches/Firefox/Profiles")
         urls += profiles.map { $0.appendingPathComponent("cache2") }
           .filter { fileManager.fileExists(atPath: $0.path) }
       }
 
       if let userData = browser.userDataDirectory {
         let base = env.home + "/Library/Application Support/" + userData
-        let profiles = ((try? children(of: base)) ?? []).filter(isChromiumProfile)
+        let profiles = try childrenIfExists(of: base).filter(isChromiumProfile)
         for profile in profiles {
           urls +=
             chromiumProfileCaches
@@ -151,25 +157,59 @@ public enum RuleCatalog {
 
   // MARK: 工具
 
-  /// 列出目录的直接子项（不含隐藏文件）；无权限时抛出 CleanerAccessError
-  static func children(of path: String) throws -> [URL] {
+  /// 增量读取直接子项。直接调用默认限 2,000 条 / 5 秒；扫描内复用发现与计量预算。
+  /// 隐藏条目也消耗发现预算，避免过滤过程本身无界；失败不返回部分目录列表。
+  static func children(of path: String, budget explicitBudget: ScanBudget? = nil) throws -> [URL] {
+    let budget =
+      explicitBudget ?? ScanBudget.current
+      ?? ScanBudget(limits: ScanLimits(maxEntries: 2_000, maxDuration: 5))
+    try budget.check()
     do {
-      return try FileManager.default.contentsOfDirectory(
-        at: URL(fileURLWithPath: path),
-        includingPropertiesForKeys: nil,
-        options: [.skipsHiddenFiles])
-    } catch let error as CocoaError where error.code == .fileReadNoPermission {
-      throw CleanerAccessError.permissionDenied
+      guard let directory = path.withCString({ opendir($0) }) else {
+        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+      }
+      defer { closedir(directory) }
+      let root = URL(fileURLWithPath: path)
+      var children: [URL] = []
+      while true {
+        try budget.check()
+        errno = 0
+        guard let entry = readdir(directory) else {
+          guard errno == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+          break
+        }
+        let nameLength = Int(entry.pointee.d_namlen) + 1
+        let name = withUnsafePointer(to: &entry.pointee.d_name) {
+          $0.withMemoryRebound(to: CChar.self, capacity: nameLength) {
+            String(cString: $0)
+          }
+        }
+        guard name != ".", name != ".." else { continue }
+        try budget.visit()
+        guard !name.hasPrefix(".") else { continue }
+        let child = root.appendingPathComponent(name)
+        try budget.visitCandidate(child.standardizedFileURL.path)
+        children.append(child)
+      }
+      try budget.check()
+      return children
     } catch let error as NSError
-      where error.domain == NSPOSIXErrorDomain && error.code == Int(EPERM)
+      where error.domain == NSPOSIXErrorDomain
+      && [Int(EPERM), Int(EACCES)].contains(error.code)
     {
       throw CleanerAccessError.permissionDenied
     }
   }
 
-  static func childrenIfExists(of path: String) throws -> [URL] {
-    guard FileManager.default.fileExists(atPath: path) else { return [] }
-    return try children(of: path)
+  /// 仅不存在的目录视为空；权限、读取、取消及预算错误全部保留。
+  static func childrenIfExists(
+    of path: String, budget explicitBudget: ScanBudget? = nil
+  ) throws -> [URL] {
+    do {
+      return try children(of: path, budget: explicitBudget)
+    } catch let error as POSIXError where error.code == .ENOENT {
+      return []
+    }
   }
 }
 

@@ -15,6 +15,7 @@ struct CleanerPage: View {
           SummaryCard()
           MaintenanceCard()
         }
+        SystemCheckCard()
         if model.cleaner.needsFullDiskAccess {
           InfoBanner(
             icon: "lock.shield", text: tr("部分项目需要“完全磁盘访问权限”才能扫描（Safari 缓存、废纸篓）。"), tone: .warning
@@ -50,6 +51,13 @@ struct CleanerPage: View {
         .background(DS.Palette.background)
     }
     .onAppear { if !isSnapshot { model.cleaner.scan(ifNeeded: true) } }
+    .onDisappear {
+      model.systemCheck.cancel()
+      if model.cleaner.phase == .scanning { model.cleaner.cancelOperation() }
+    }
+    .onChange(of: model.settings.cleanerEnabled) { _, enabled in
+      if !enabled { model.systemCheck.cancel() }
+    }
   }
 }
 
@@ -100,6 +108,14 @@ private struct SummaryCard: View {
       }
 
       CleanerActions()
+      if cleaner.previewBytes > 0 {
+        Text(tr("仅预览占用 \(Format.bytes(cleaner.previewBytes, base: .decimal))"))
+          .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+      }
+      if cleaner.scans.contains(where: { $0.isCleanable && $0.rule.usesToolCleaner }) {
+        Text(tr("工具缓存容量单独列出，不计入文件合计。"))
+          .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+      }
     }
   }
 
@@ -162,14 +178,16 @@ private struct CleanerActions: View {
             cleaner.phase == .scanning ? tr("扫描中…") : tr("重新扫描"), systemImage: "arrow.clockwise")
         }
         .buttonStyle(DSButtonStyle(kind: .secondary))
-        .disabled(cleaner.isBusy)
+        .disabled(cleaner.isBusy || model.systemCheck.isChecking)
 
         Button {
           cleaner.requestClean()
         } label: {
           Label(
             cleaner.phase == .cleaning
-              ? tr("清理中…") : tr("清理所选 \(Format.bytes(cleaner.selectedBytes, base: .decimal))"),
+              ? tr("清理中…")
+              : cleaner.selectedScans.contains(where: { $0.rule.usesToolCleaner })
+                ? tr("确认清理") : tr("清理所选 \(Format.bytes(cleaner.selectedBytes, base: .decimal))"),
             systemImage: "trash")
         }
         .buttonStyle(DSButtonStyle(kind: .primary))
@@ -299,7 +317,8 @@ private struct CategoryCard: View {
       } else {
         registeredScans
       }
-    let total = scans.filter(\.isCleanable).reduce(0) { $0 + $1.totalSize }
+    let total = CleanItem.totalSize(
+      of: scans.filter { $0.isCleanable && !$0.rule.usesToolCleaner }.flatMap(\.items))
 
     Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
       HStack {
@@ -321,14 +340,14 @@ private struct CategoryCard: View {
       // 只折叠确定无需清理的项目；运行中、权限不足及扫描失败等状态仍需直接展示。
       let visibleScans = scans.filter {
         showsEmpty || !$0.items.isEmpty || $0.blocked != nil || $0.unreadableCount > 0
-          || $0.skippedCount > 0
+          || $0.skippedCount > 0 || $0.interruption != nil
       }
       ForEach(Array(visibleScans.enumerated()), id: \.element.id) { index, scan in
         if index > 0 { HairlineDivider() }
         RuleRow(scan: scan)
       }
       let emptyCount = scans.filter {
-        $0.items.isEmpty && $0.blocked == nil && $0.unreadableCount == 0 && $0.skippedCount == 0
+        $0.items.isEmpty && $0.isComplete && $0.skippedCount == 0
       }.count
       if emptyCount > 0 {
         Button {
@@ -363,11 +382,13 @@ private struct RuleRow: View {
 
     VStack(alignment: .leading, spacing: DS.Space.s2) {
       HStack(spacing: DS.Space.s2) {
-        CleanupCheckbox(
-          title: scan.rule.title, selected: selectedIDs.count, total: scan.items.count
-        ) { cleaner.toggle(scan) }
-        .frame(width: 24, height: 24)
-        .disabled(!scan.isCleanable || cleaner.isBusy)
+        if !scan.rule.previewOnly {
+          CleanupCheckbox(
+            title: scan.rule.title, selected: selectedIDs.count, total: scan.items.count
+          ) { cleaner.toggle(scan) }
+          .frame(width: 24, height: 24)
+          .disabled(!scan.isCleanable || cleaner.isBusy)
+        }
         RuleIcon(name: scan.rule.symbol)
         VStack(alignment: .leading, spacing: 0) {
           Text(scan.rule.title)
@@ -381,7 +402,7 @@ private struct RuleRow: View {
             .help(statusText(selectedCount: selectedIDs.count, detailed: true))
         }
         Spacer(minLength: DS.Space.s1)
-        if scan.isCleanable {
+        if !scan.items.isEmpty {
           Text(verbatim: Format.bytes(scan.totalSize, base: .decimal))
             .dsFont(.sm, weight: .medium)
             .monospacedDigit()
@@ -402,7 +423,7 @@ private struct RuleRow: View {
         }
       }
 
-      if expanded && scan.isCleanable {
+      if expanded && !scan.items.isEmpty {
         if scan.rule.usesToolCleaner {
           Text(tr("由对应工具整体清理，不支持逐项勾选；保留其中任一项目会跳过整条规则。"))
             .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
@@ -410,10 +431,13 @@ private struct RuleRow: View {
         VStack(alignment: .leading, spacing: DS.Space.s1) {
           ForEach(scan.items.prefix(Self.previewLimit)) { item in
             HStack {
-              CleanupCheckbox(title: item.url.path, selected: selectedIDs.contains(item.id) ? 1 : 0)
-              { cleaner.toggle(item, in: scan) }
-              .frame(width: 24, height: 24)
-              .disabled(cleaner.isBusy || scan.rule.usesToolCleaner)
+              if !scan.rule.previewOnly {
+                CleanupCheckbox(
+                  title: item.url.path, selected: selectedIDs.contains(item.id) ? 1 : 0
+                ) { cleaner.toggle(item, in: scan) }
+                .frame(width: 24, height: 24)
+                .disabled(cleaner.isBusy || !scan.isCleanable || scan.rule.usesToolCleaner)
+              }
               Text(
                 verbatim: scan.toolPreview == nil
                   ? item.url.lastPathComponent
@@ -448,6 +472,7 @@ private struct RuleRow: View {
 
   private func statusText(selectedCount: Int, detailed: Bool = false) -> String {
     if let blocked = scan.blocked { return blocked.title }
+    if let interruption = scan.interruption { return interruption.title }
     if scan.items.isEmpty && scan.unreadableCount > 0 {
       return tr("扫描不完整 · \(scan.unreadableCount) 项未能读取")
     }
@@ -466,6 +491,7 @@ private struct RuleRow: View {
       text += tr(" · 已跳过 \(scan.skippedCount) 项")
     }
     if scan.rule.policy == .trash { text += tr(" · 移到废纸篓") }
+    if scan.rule.previewOnly { text = tr("仅预览") + " · " + text }
     return text
   }
 }

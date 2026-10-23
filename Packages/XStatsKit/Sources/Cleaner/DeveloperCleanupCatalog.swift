@@ -136,13 +136,21 @@ enum DeveloperCleanupCatalog {
     detail: tr("Cargo 注册表与 Git 依赖缓存，需要 cargo-cache"), symbol: "tool-rust",
     selectedByDefault: false, minimumAge: 0, requiredTool: "cargo-cache",
     prepareTool: { env in
-      let cargo = try ToolCachePlan.validatedPath(
-        env.toolEnvironment["CARGO_HOME"] ?? env.home + "/.cargo", home: env.home)
+      let roots = try rustStorageRoots(environment: env)
+      let cargo = roots[0].deletingLastPathComponent()
       return ToolCachePlan(
-        roots: [cargo.appendingPathComponent("registry"), cargo.appendingPathComponent("git")],
+        roots: roots,
         tool: "cargo-cache", arguments: ["-r", "all"],
         environmentOverrides: ["CARGO_HOME": cargo.path])
     })
+
+  /// Cargo 存储由配置直接确定；即使 cargo-cache 缺失，通用规则也不能接管。
+  static func rustStorageRoots(environment: CleanEnvironment) throws -> [URL] {
+    let cargo = try ToolCachePlan.validatedPath(
+      environment.toolEnvironment["CARGO_HOME"] ?? environment.home + "/.cargo",
+      home: environment.home)
+    return [cargo.appendingPathComponent("registry"), cargo.appendingPathComponent("git")]
+  }
 
   static let uvCache = CleanRule(
     id: "developer.uv", category: .developer, title: tr("uv 缓存"),

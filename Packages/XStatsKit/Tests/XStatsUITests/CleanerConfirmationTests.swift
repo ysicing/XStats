@@ -43,7 +43,7 @@ struct CleanerConfirmationTests {
     #expect(permanent.buttonTitle == tr("永久删除"))
   }
 
-  @Test func toolsRemainPermanentAndUsePreviewSize() throws {
+  @Test func toolsRemainPermanentAndKeepPreviewSizeSeparateFromFileTotals() throws {
     let rule = try #require(RuleCatalog.rules().first { $0.id == "developer.homebrew" })
     let items = [CleanItem(url: URL(fileURLWithPath: "/fixture/cache"), size: 10)]
     let scan = RuleScan(
@@ -51,8 +51,22 @@ struct CleanerConfirmationTests {
       toolPreview: ToolCleanupPreview(items: items, totalSize: 500, details: ""))
     let confirmation = CleanerConfirmation(scans: [scan], preferTrash: true)
     #expect(confirmation.kind == .permanent)
-    #expect(confirmation.permanentBytes == 500)
+    #expect(confirmation.permanentBytes == 0)
+    #expect(confirmation.toolPreviews.map(\.bytes) == [500])
     #expect(confirmation.includesHomebrew)
+  }
+
+  @Test func overlappingToolPlansDoNotInflateFileTotalsOrBecomePartialSelections() throws {
+    let rules = try ["developer.npm", "developer.uv"].map { id in
+      try #require(RuleCatalog.rules().first { $0.id == id })
+    }
+    let item = CleanItem(url: URL(fileURLWithPath: "/fixture/shared"), size: 100)
+    let scans = rules.map { RuleScan(rule: $0, items: [item], skippedCount: 0, blocked: nil) }
+    let confirmation = CleanerConfirmation(
+      scans: scans + [try scan("system.caches", bytes: 200)], preferTrash: false)
+    #expect(confirmation.permanentBytes == 200)
+    #expect(confirmation.toolPreviews.map(\.bytes) == [100, 100])
+    #expect(confirmation.permanentCount == 1)
   }
 
   @Test func appRunningNoteAppearsOnlyWhenItemsMayBeSkipped() throws {

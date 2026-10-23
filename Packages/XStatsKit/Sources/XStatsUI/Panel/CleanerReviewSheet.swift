@@ -36,11 +36,14 @@ struct CleanerReviewSheet: View {
             }
           ) { item in
             HStack(alignment: .top, spacing: DS.Space.s2) {
-              CleanupCheckbox(title: item.url.path, selected: selected.contains(item.id) ? 1 : 0) {
-                cleaner.toggle(item, in: scan)
+              if !scan.rule.previewOnly {
+                CleanupCheckbox(title: item.url.path, selected: selected.contains(item.id) ? 1 : 0)
+                {
+                  cleaner.toggle(item, in: scan)
+                }
+                .frame(width: 24, height: 24)
+                .disabled(cleaner.isBusy || !scan.isCleanable || scan.rule.usesToolCleaner)
               }
-              .frame(width: 24, height: 24)
-              .disabled(cleaner.isBusy || scan.rule.usesToolCleaner)
               VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
                 Text(verbatim: item.url.lastPathComponent).dsFont(.sm)
                 Text(verbatim: item.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
@@ -66,7 +69,7 @@ struct CleanerReviewSheet: View {
         }
       }
       .frame(height: 350)
-      Text(tr("已选 \(selected.count) 项"))
+      Text(scan.rule.previewOnly ? tr("仅预览") : tr("已选 \(selected.count) 项"))
         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       if cleaner.exclusionLimitReached {
         Text(tr("保留项目已达 50 项上限，请先移除不再需要的保留项。"))

@@ -118,14 +118,15 @@ enum ApplicationCacheCatalog {
   static func cache(
     id: String, name: String, directories: [String], names: [String], bundleIDs: [String],
     applicationNames: [String]? = nil, root: String = "Library/Application Support",
-    category: CleanCategory = .system
+    category: CleanCategory = .system, previewOnly: Bool = false
   ) -> CleanRule {
     let paths = directories.flatMap { directory in names.map { root + "/" + directory + "/" + $0 } }
     return CleanRule(
       id: id, category: category, title: tr("\(name) 缓存"),
       detail: tr("仅清理已确认的缓存目录，保留账号、设置和本地数据"),
       symbol: category == .developer ? "chevron.left.forwardslash.chevron.right" : "archivebox",
-      selectedByDefault: false, blockingApps: bundleIDs.map { ($0, name) },
+      selectedByDefault: false, previewOnly: previewOnly,
+      blockingApps: bundleIDs.map { ($0, name) },
       requiresUnredirectedPath: true, cacheRelativePaths: paths,
       blockingApplicationNames: applicationNames ?? [name]
     ) { environment in

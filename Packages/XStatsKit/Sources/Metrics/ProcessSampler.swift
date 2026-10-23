@@ -2,6 +2,8 @@ import Darwin
 import Foundation
 
 public struct ProcessSampler {
+  /// 只表示本次补充系统进程成功，不把读取失败解释成系统进程不存在。
+  public private(set) var systemSampleSucceeded = false
   private struct Identity: Hashable {
     let pid: Int32
     let startTime: UInt64
@@ -39,6 +41,7 @@ public struct ProcessSampler {
   /// 返回按 CPU 排序的进程。当前用户自己的进程读 proc_pid_rusage，数据最全；
   /// `includeSystem` 为真时再用 /bin/ps（系统自带、有 root 权限）补上其他用户与系统的进程，只有 CPU、内存与 CPU 时间。
   public mutating func sample(includeSystem: Bool = false) -> [ProcessUsage] {
+    systemSampleSucceeded = false
     let capacity = Int(proc_listallpids(nil, 0)) + 64
     guard capacity > 64 else { return [] }
     var pids = [pid_t](repeating: 0, count: capacity)
@@ -57,6 +60,7 @@ public struct ProcessSampler {
     results.reserveCapacity(count)
 
     for pid in pids.prefix(count) where pid > 0 {
+      if Task.isCancelled { break }
       var info = rusage_info_v4()
       let status = withUnsafeMutablePointer(to: &info) {
         $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
@@ -130,12 +134,14 @@ public struct ProcessSampler {
 
   private mutating func systemProcesses(excluding owned: Set<Int32>) -> [ProcessUsage] {
     guard let output = Self.runPS() else { return [] }
+    let entries = Self.parsePS(output)
+    systemSampleSucceeded = !entries.isEmpty
     let now = Date()
     let interval = previousSystemDate.map { now.timeIntervalSince($0) } ?? 0
     var times: [Int32: Double] = [:]
     var results: [ProcessUsage] = []
 
-    for entry in Self.parsePS(output) where !owned.contains(entry.pid) {
+    for entry in entries where !owned.contains(entry.pid) {
       times[entry.pid] = entry.cpuTime
       let name = URL(fileURLWithPath: entry.command).lastPathComponent
       var usage = ProcessUsage(

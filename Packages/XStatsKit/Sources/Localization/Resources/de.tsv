@@ -2455,3 +2455,37 @@ Magpie 全部记录	Alle Magpie-Daten
 正在核对其他安装副本…	Weitere Installationen werden geprüft…
 正在统计大小（{} / {}）…	Größe wird ermittelt ({} / {})…
 待统计	Ausstehend
+启动代理目标	Ziele der Startagenten
+仅检查当前用户启动代理的绝对程序路径；不删除或停用。	Prüft nur absolute Programmpfade Ihrer Startagenten; löscht oder deaktiviert sie nicht.
+遗留偏好覆盖	Veraltete Einstellungsüberschreibungen
+检查用户偏好文件中的 App Nap 和磁盘映像验证覆盖；不修改设置。	Prüft Überschreibungen für App Nap und die Image-Überprüfung in Benutzereinstellungsdateien; ändert keine Einstellungen.
+用户目录权限	Berechtigungen der Benutzerordner
+仅检查主目录、Library 和 Preferences 的所有者与可写性。	Prüft nur Eigentümer und Schreibzugriff für den Benutzerordner, Library und Preferences.
+未安装 Homebrew	Homebrew ist nicht installiert
+Homebrew 依赖预览	Vorschau der Homebrew-Abhängigkeiten
+由 Homebrew 列出不再需要的依赖，仅供审阅。	Homebrew listet nicht mehr benötigte Abhängigkeiten auf, nur zur Prüfung.
+无法完成检查，请稍后重试。	Die Prüfung konnte nicht abgeschlossen werden. Versuchen Sie es später erneut.
+已达到扫描条目上限	Maximale Anzahl an Scaneinträgen erreicht
+已达到扫描时间上限	Zeitlimit für den Scan erreicht
+扫描已取消	Scan abgebrochen
+系统检查	Systemprüfung
+CPU 短时检查	Kurze CPU-Prüfung
+仅报告连续两个采样区间均占用至少 25% 单核 CPU 的进程；不代表长期故障。	Meldet nur Prozesse, die in beiden aufeinanderfolgenden Messintervallen mindestens 25% eines CPU-Kerns nutzen; dies weist nicht auf einen dauerhaften Fehler hin.
+内存压力	Speicherdruck
+累计交换空间占用不单独视为异常。	Die angesammelte Swap-Belegung allein gilt nicht als auffällig.
+采样期间换出 {}	Während der Messung ausgelagert: {}
+交换空间占用 {}	Swap-Belegung: {}
+DNS 维护	DNS-Wartung
+检测到代理或隧道环境；DNS 维护可能影响现有连接，请先排查代理设置。	Ein Proxy oder Tunnel wurde erkannt. Die DNS-Wartung kann bestehende Verbindungen beeinträchtigen; prüfen Sie zuerst Ihre Proxy-Einstellungen.
+刷新 DNS 仅是可选维护；当前检查不执行刷新，也不据此判断网络故障。	Das Leeren des DNS-Caches ist optional. Diese Prüfung leert den Cache nicht und leitet daraus keine Netzwerkfehler ab.
+开始检查	Prüfung starten
+按需检查资源、配置和维护建议，仅预览，不执行修复。	Prüft Ressourcen, Konfiguration und Wartungsvorschläge bei Bedarf. Nur Vorschau, keine Reparaturen.
+部分完成	Teilweise abgeschlossen
+需关注	Prüfung erforderlich
+可选维护	Optionale Wartung
+不适用	Nicht zutreffend
+未检查	Nicht geprüft
+仅预览占用 {}	Belegung nur zur Vorschau: {}
+仅预览	Nur Vorschau
+工具缓存容量单独列出，不计入文件合计。	Tool-Cache-Schätzungen werden separat aufgeführt und nicht zur Dateisumme addiert.
+所选工具缓存将由对应工具永久清理，此操作无法撤销。	Die ausgewählten Tool-Caches werden durch die jeweiligen Tools dauerhaft bereinigt. Dies kann nicht rückgängig gemacht werden.

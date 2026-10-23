@@ -64,6 +64,7 @@ public struct CleanEnvironment: Sendable {
   }
   let toolEnvironment: [String: String]
   public var excludedPaths: [String]
+  public var scanLimits = ScanLimits()
 
   public init(
     home: String = NSHomeDirectory(),
@@ -97,7 +98,7 @@ public struct CleanEnvironment: Sendable {
     self.inspectTool =
       runTool ?? {
         try await DeveloperToolRunner.run(
-          $0, arguments: $1, home: home, timeout: 30, outputLimit: 8192)
+          $0, arguments: $1, home: home, timeout: 30, previewTimeout: 30, outputLimit: 8192)
       }
     self.toolEnvironment = toolEnvironment
     self.excludedPaths = CleanupExclusions.normalized(excludedPaths)
@@ -111,6 +112,8 @@ public struct CleanRule: Sendable, Identifiable {
   public let detail: String
   public let symbol: String
   public let selectedByDefault: Bool
+  /// 新增检查只能预览；该约束同时用于界面选择和执行引擎。
+  public let previewOnly: Bool
   public let policy: DeletionPolicy
   /// 这些应用运行时整条规则跳过（例如浏览器）
   public let blockingApps: [(bundleID: String, name: String)]
@@ -134,7 +137,7 @@ public struct CleanRule: Sendable, Identifiable {
 
   init(
     id: String, category: CleanCategory, title: String, detail: String, symbol: String,
-    selectedByDefault: Bool = true, policy: DeletionPolicy = .delete,
+    selectedByDefault: Bool = true, policy: DeletionPolicy = .delete, previewOnly: Bool = false,
     blockingApps: [(bundleID: String, name: String)] = [], checksOwnerApp: Bool = false,
     requiresUnredirectedPath: Bool = false,
     cacheRelativePaths: [String] = [], blockingApplicationNames: [String] = [],
@@ -148,7 +151,8 @@ public struct CleanRule: Sendable, Identifiable {
     self.title = title
     self.detail = detail
     self.symbol = symbol
-    self.selectedByDefault = selectedByDefault
+    self.selectedByDefault = selectedByDefault && !previewOnly
+    self.previewOnly = previewOnly
     self.policy = policy
     self.blockingApps = blockingApps
     self.checksOwnerApp = checksOwnerApp
@@ -165,12 +169,13 @@ public struct CleanRule: Sendable, Identifiable {
   /// 原生规则不提供目录扫描回退；所有候选都必须来自 prepareTool 的本次计划。
   init(
     id: String, category: CleanCategory, title: String, detail: String, symbol: String,
-    selectedByDefault: Bool = false, minimumAge: TimeInterval = 0, requiredTool: String,
+    selectedByDefault: Bool = false, previewOnly: Bool = false,
+    minimumAge: TimeInterval = 0, requiredTool: String,
     prepareTool: @escaping @Sendable (CleanEnvironment) async throws -> ToolCachePlan
   ) {
     self.init(
       id: id, category: category, title: title, detail: detail, symbol: symbol,
-      selectedByDefault: selectedByDefault, minimumAge: minimumAge,
+      selectedByDefault: selectedByDefault, previewOnly: previewOnly, minimumAge: minimumAge,
       requiredTool: requiredTool, prepareTool: prepareTool, locate: { _ in [] })
   }
 
@@ -207,10 +212,50 @@ public struct CleanItem: Sendable, Identifiable, Hashable {
   public var id: String { url.path }
   public let url: URL
   public let size: UInt64
+  /// 只保留多链接文件的身份和占用；单项大小不因其他候选是否被选中而变化。
+  struct HardLink: Sendable, Hashable {
+    let identity: String
+    let size: UInt64
+  }
+  let hardLinks: [HardLink]
 
   public init(url: URL, size: UInt64) {
+    self.init(url: url, size: size, hardLinks: [])
+  }
+
+  init(url: URL, size: UInt64, hardLinks: [HardLink]) {
     self.url = url
     self.size = size
+    self.hardLinks = hardLinks
+  }
+
+  /// 选中项的占用并集；复用扫描时记录的硬链接证据，不重新读取文件系统。
+  /// 手动构造的条目没有硬链接证据，保持原有大小语义。
+  public static func totalSize(of items: [CleanItem]) -> UInt64 {
+    var total = SizeTotal()
+    for item in items { total.insert(item) }
+    return total.bytes
+  }
+
+  /// 扫描合计与成功清理合计共用同一份身份账本，避免跨规则重复累计。
+  struct SizeTotal {
+    private(set) var bytes: UInt64 = 0
+    private var hardLinks: [String: UInt64] = [:]
+
+    mutating func insert(_ item: CleanItem) {
+      var additional = item.size
+      for link in item.hardLinks {
+        if let counted = hardLinks[link.identity] {
+          // 同一 inode 扫描期间可能变化；保留最大观测值，使合计与候选顺序无关。
+          additional -= min(additional, min(counted, link.size))
+          hardLinks[link.identity] = max(counted, link.size)
+        } else {
+          hardLinks[link.identity] = link.size
+        }
+      }
+      let sum = bytes.addingReportingOverflow(additional)
+      bytes = sum.overflow ? UInt64.max : sum.partialValue
+    }
   }
 }
 
@@ -228,12 +273,13 @@ public struct RuleScan: Sendable, Identifiable {
   public var unreadableCount: Int = 0
   /// 扫描时锁定的原生工具清理范围，随逐项选择一起传到执行阶段。
   public var toolCachePlan: ToolCachePlan? = nil
+  public var interruption: ScanInterruption?
 
   public init(
     rule: CleanRule, items: [CleanItem], skippedCount: Int, blocked: SkipReason?,
     toolPreview: ToolCleanupPreview? = nil, skippedReasons: [SkipReason: Int] = [:],
     unreadableCount: Int = 0,
-    toolCachePlan: ToolCachePlan? = nil
+    toolCachePlan: ToolCachePlan? = nil, interruption: ScanInterruption? = nil
   ) {
     self.rule = rule
     self.items = items
@@ -243,12 +289,17 @@ public struct RuleScan: Sendable, Identifiable {
     self.skippedReasons = skippedReasons
     self.unreadableCount = unreadableCount
     self.toolCachePlan = toolCachePlan
+    self.interruption = interruption
   }
 
-  public var totalSize: UInt64 { toolPreview?.totalSize ?? items.reduce(0) { $0 + $1.size } }
+  public var totalSize: UInt64 { toolPreview?.totalSize ?? CleanItem.totalSize(of: items) }
+  public var isComplete: Bool {
+    blocked == nil && unreadableCount == 0 && interruption == nil
+  }
   /// 工具会整体清理其存储，预览不完整时不能按部分候选批准整个操作。
   public var isCleanable: Bool {
-    blocked == nil && !items.isEmpty && (!rule.usesToolCleaner || unreadableCount == 0)
+    !rule.previewOnly && blocked == nil && !items.isEmpty
+      && (!rule.usesToolCleaner || isComplete)
   }
 }
 
@@ -262,8 +313,9 @@ public struct ToolCleanupPreview: Sendable {
 public struct CleanReport: Sendable {
   /// 取消是用户操作，保留已完成部分的统计，但不作为工具失败。
   public var wasCancelled = false
-  /// 原生工具中途退出时，已释放空间可能未出现在报告中。
+  /// 工具中断或硬链接仍有其他持有者时，不能确认实际释放的空间。
   public var hasUncertainFreedBytes = false
+  /// 工具报告与成功删除文件的扫描占用估计之和，不保证实际释放空间。
   public var freedBytes: UInt64 = 0
   public var removedCount = 0
   public var skippedCount = 0
