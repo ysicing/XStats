@@ -585,7 +585,7 @@ public final class AudioMixerClient: @unchecked Sendable {
 
 /// 每应用一条私有 aggregate 与 tap，支持独立输出；生命周期只在 mixer.queue 中执行。
 @available(macOS 14.4, *)
-private final class CoreAudioMixPipeline: AudioMixPipeline {
+final class CoreAudioMixPipeline: AudioMixPipeline {
   let outputUID: String
   let processIDs: [AudioObjectID]
   private let graph: [(String, [UInt32])]
@@ -687,15 +687,36 @@ private final class CoreAudioMixPipeline: AudioMixPipeline {
       guard attempt < 29 else { throw AudioControlError.unavailable }
       Thread.sleep(forTimeInterval: 0.1)
     }
+    // 主子设备不会自动同步 tap 的采样率；显式配置私有 aggregate，由 HAL 完成转换。
+    var sampleRate = selectedFormat.mSampleRate
+    var sampleRateProperty = AudioHAL.address(kAudioDevicePropertyNominalSampleRate)
+    let sampleRateStatus = AudioObjectSetPropertyData(
+      aggregate, &sampleRateProperty, 0, nil, UInt32(MemoryLayout<Float64>.size), &sampleRate)
+    guard sampleRateStatus == noErr else { throw AudioControlError.hardware(sampleRateStatus) }
     let hardwareChannels = AudioHAL.bufferChannels(output, direction: .input) ?? []
     let hardwareStreams =
       AudioHAL.ids(output, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeInput) ?? []
-    guard let inputChannels = AudioHAL.bufferChannels(aggregate, direction: .input),
-      let aggregateStreams = AudioHAL.ids(
+    var aggregateStreams: [AudioObjectID] = []
+    var inputFormat: AudioStreamBasicDescription?
+    // HAL 属性写入可能异步完成；等实际输入流同步后再校验，不把暂态缓存为永久失败。
+    for attempt in 0..<30 {
+      guard shouldContinue() else { throw AudioControlError.unavailable }
+      if let streams = AudioHAL.ids(
         aggregate, kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeInput),
-      aggregateStreams.count == hardwareStreams.count + 1,
-      let tapStream = aggregateStreams.last,
-      let inputFormat = Self.format(tapStream, selector: kAudioStreamPropertyVirtualFormat),
+        streams.count == hardwareStreams.count + 1,
+        let tapStream = streams.last,
+        let format = Self.format(tapStream, selector: kAudioStreamPropertyVirtualFormat),
+        format.mSampleRate == selectedFormat.mSampleRate
+      {
+        aggregateStreams = streams
+        inputFormat = format
+        break
+      }
+      guard attempt < 29 else { throw AudioControlError.unsupportedFormat }
+      Thread.sleep(forTimeInterval: 0.1)
+    }
+    guard let inputChannels = AudioHAL.bufferChannels(aggregate, direction: .input),
+      let inputFormat,
       Self.supportsPCM(inputFormat), inputFormat.mSampleRate == selectedFormat.mSampleRate
     else { throw AudioControlError.unsupportedFormat }
     let planar = inputFormat.mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0
