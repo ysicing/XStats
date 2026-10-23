@@ -97,6 +97,27 @@ struct AudioDeviceVolumeWriterTests {
   }
 
   @Test(.timeLimit(.minutes(1)), arguments: [AudioDirection.input, .output])
+  func discardingPendingWritesKeepsTheInFlightUnmute(direction: AudioDirection) async {
+    let gate = VolumeWriteGate()
+    var completed: [Double] = []
+    let writer = AudioDeviceVolumeWriter(
+      write: { await gate.write($0) }, unmute: { await gate.unmute($0) },
+      finished: { request, _ in completed.append(request.level) })
+    let device = AudioDeviceInfo(
+      id: 1, uid: "test", name: "Test", hasInput: true, hasOutput: true,
+      inputMuted: true, outputMuted: true)
+    writer.submit(.init(level: 0.4, device: device, direction: direction))
+    await gate.started()
+    writer.submit(.init(level: 0.9, device: device, direction: direction))
+    writer.discardPending()
+    await gate.resume()
+    await writer.flush()
+    #expect(await gate.levels == [0.4])
+    #expect(await gate.unmutedLevels == [0.4])
+    #expect(completed.isEmpty)
+  }
+
+  @Test(.timeLimit(.minutes(1)), arguments: [AudioDirection.input, .output])
   func reactivationQueuesAFreshWriteWhileTheCancelledHALWriteFinishes(direction: AudioDirection)
     async
   {
