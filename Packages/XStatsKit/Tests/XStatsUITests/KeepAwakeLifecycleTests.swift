@@ -35,12 +35,13 @@ struct KeepAwakeLifecycleTests {
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
       aiUsageProviders: [], aiQuotaProviders: [])
+    let initialBattery = model.store.battery
     var snapshot = MetricsSnapshot()
     snapshot.isSafetySample = true
     snapshot.battery = BatteryStatus(
       level: 0.1, isCharging: false, isPluggedIn: false, isFullyCharged: false)
     model.handle(snapshot)
-    #expect(model.store.battery == nil)
+    #expect(model.store.battery == initialBattery)
   }
   @Test func lowBatteryRestoresSleepWhileLidModeIsActive() async throws {
     try await withController { controller, helper in
