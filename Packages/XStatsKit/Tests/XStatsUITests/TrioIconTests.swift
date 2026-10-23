@@ -372,26 +372,42 @@ struct TrioIconTests {
         config.statusColors = true
         let image = TrioIconRenderer.image(reading: reading, configuration: config, dark: dark)
         #expect(image.isTemplate == (expected == nil))
-        #expect(try containsRingColor(image, matching: expected) == (expected != nil))
+        #expect(
+          try containsRingColor(image, matching: expected, appearance: dark ? .darkAqua : .aqua)
+            == (expected != nil))
         let dock = TrioIconRenderer.dockImage(reading: reading, configuration: config)
         #expect(try containsRingColor(dock, matching: expected) == (expected != nil))
         config.statusColors = false
         let monochrome = TrioIconRenderer.image(
           reading: reading, configuration: config, dark: dark)
         #expect(monochrome.isTemplate)
-        #expect(try !containsRingColor(monochrome, matching: nil))
+        #expect(
+          try !containsRingColor(
+            monochrome, matching: nil, appearance: dark ? .darkAqua : .aqua))
       }
     }
   }
 
-  private func containsRingColor(_ image: NSImage, matching expected: NSColor?) throws -> Bool {
-    let enlarged = NSImage(size: NSSize(width: 96, height: 88), flipped: false) { bounds in
-      image.draw(in: bounds)
-      return true
+  private func containsRingColor(
+    _ image: NSImage, matching expected: NSColor?, appearance name: NSAppearance.Name = .aqua
+  ) throws -> Bool {
+    // TIFF 可能附带显示器 HDR 映射；固定 RGB 位图和绘制外观，比较实际绘图颜色。
+    let bitmap = try #require(
+      NSBitmapImageRep(
+        bitmapDataPlanes: nil, pixelsWide: 96, pixelsHigh: 88, bitsPerSample: 8,
+        samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+        bytesPerRow: 0, bitsPerPixel: 0))
+    let context = try #require(NSGraphicsContext(bitmapImageRep: bitmap))
+    let appearance = try #require(NSAppearance(named: name))
+    var target: NSColor?
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = context
+    appearance.performAsCurrentDrawingAppearance {
+      image.draw(in: NSRect(x: 0, y: 0, width: 96, height: 88))
+      target = expected?.usingColorSpace(.deviceRGB)
     }
-    let data = try #require(enlarged.tiffRepresentation)
-    let bitmap = try #require(NSBitmapImageRep(data: data))
-    let target = try expected.map { try #require($0.usingColorSpace(.deviceRGB)) }
+    NSGraphicsContext.restoreGraphicsState()
+    if expected != nil { _ = try #require(target) }
     for y in 0..<bitmap.pixelsHigh {
       for x in 0..<bitmap.pixelsWide {
         guard let pixel = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
@@ -436,7 +452,7 @@ struct TrioIconTests {
     sensitive.loadSensitivity = .sensitive
     #expect(!sensitive.hasSameImage(as: standard, configuration: config))
     let image = TrioIconRenderer.image(reading: sensitive, configuration: config, dark: true)
-    #expect(try containsRingColor(image, matching: .systemRed))
+    #expect(try containsRingColor(image, matching: .systemRed, appearance: .darkAqua))
     standard.values[source] = 0.4
     sensitive.values[source] = 0.4
     #expect(sensitive.hasSameImage(as: standard, configuration: config))
