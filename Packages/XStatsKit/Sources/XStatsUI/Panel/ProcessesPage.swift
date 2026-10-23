@@ -35,6 +35,16 @@ struct ProcessesPage: View {
   @State private var actionError: String?
   @State private var tableWidth: CGFloat = DS.Size.panelWidth
 
+  private var emptyStateText: String {
+    guard !model.store.processes.isEmpty else { return tr("正在读取进程…") }
+    if let target = model.processNavigationTarget,
+      !model.store.processes.contains(where: target.matches)
+    {
+      return tr("未找到目标进程，它可能已退出")
+    }
+    return tr("没有匹配的进程")
+  }
+
   var body: some View {
     let rows = visibleRows()
     let selected = rows.first { $0.id == selection }
@@ -44,6 +54,18 @@ struct ProcessesPage: View {
         ProcessExplanationCard()
       }
       toolbar
+      if let target = model.processNavigationTarget {
+        HStack(spacing: DS.Space.s2) {
+          Text(verbatim: target.title).lineLimit(1).truncationMode(.middle)
+          MiniIconButton(systemName: "xmark.circle.fill", help: tr("清除筛选")) {
+            model.processNavigationTarget = nil
+            selection = nil
+          }
+          Spacer(minLength: 0)
+        }
+        .dsFont(.sm)
+        .accessibilityIdentifier("process-navigation-filter")
+      }
 
       let columns = ProcessColumn.visible(forWidth: tableWidth)
       Card(padding: 0, spacing: 0) {
@@ -57,7 +79,7 @@ struct ProcessesPage: View {
         }
         HairlineDivider()
         if rows.isEmpty {
-          Text(model.store.processes.isEmpty ? tr("正在读取进程…") : tr("没有匹配的进程"))
+          Text(emptyStateText)
             .dsFont(.sm)
             .foregroundStyle(DS.Palette.textSecondary)
             .frame(maxWidth: .infinity)
@@ -95,13 +117,26 @@ struct ProcessesPage: View {
         ProcessInspector(
           row: selected, error: actionError,
           onQuit: { pendingQuit = selected },
-          onExplain: { model.explainProcess(.init(selected.representative)) })
+          onExplain: { model.explainProcess(.init(selected.representative)) },
+          onShowApplication: {
+            if let path = selected.bundlePath { model.showApplication(path) }
+          })
       }
       summary(count: rows.count)
     }
     // 顶部不留边距：主窗口顶栏已经在按钮上下留了对称的空
     .padding([.horizontal, .bottom], DS.Space.s3)
     .frame(maxHeight: isSnapshot ? nil : .infinity, alignment: .top)
+    .onChange(of: model.processNavigationTarget, initial: true) { _, target in
+      guard let target else { return }
+      search = ""
+      scope = .all
+      grouping = .processes
+      selection = target.selection
+      actionError = nil
+    }
+    .onChange(of: selection) { _, _ in actionError = nil }
+    .onDisappear { model.processNavigationTarget = nil }
     .confirmationDialog(
       pendingQuit.map { tr("结束“\($0.title)”？") } ?? "",
       isPresented: Binding(get: { pendingQuit != nil }, set: { if !$0 { pendingQuit = nil } }),
@@ -173,6 +208,10 @@ struct ProcessesPage: View {
 
   @ViewBuilder
   private func menu(for row: ProcessRowModel) -> some View {
+    if let path = row.bundlePath, AppModel.supportsApplicationNavigation(path) {
+      Button(tr("查看应用")) { model.showApplication(path) }
+      Divider()
+    }
     if ProcessExplainer.isSupported {
       Button(tr("用 Apple 智能解释")) { model.explainProcess(.init(row.representative)) }
       Divider()
@@ -188,6 +227,12 @@ struct ProcessesPage: View {
         NSPasteboard.general.setString(String(pid), forType: .string)
       }
     }
+    if let path = row.representative.executablePath ?? row.bundlePath {
+      Button(tr("拷贝路径")) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(path, forType: .string)
+      }
+    }
     Divider()
     Button(row.count > 1 ? tr("退出应用…") : tr("结束进程…")) {
       selection = row.id
@@ -201,10 +246,11 @@ struct ProcessesPage: View {
   private func visibleRows() -> [ProcessRowModel] {
     let me = getuid()
     let filtered = model.store.processes.filter { process in
+      if let target = model.processNavigationTarget, !target.matches(process) { return false }
       switch scope {
-      case .all: true
-      case .mine: process.uid == me
-      case .system: process.uid != me
+      case .all: return true
+      case .mine: return process.uid == me
+      case .system: return process.uid != me
       }
     }
     var rows =
@@ -505,6 +551,7 @@ private struct ProcessInspector: View {
   let error: String?
   let onQuit: () -> Void
   let onExplain: () -> Void
+  let onShowApplication: () -> Void
 
   var body: some View {
     Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
@@ -529,6 +576,9 @@ private struct ProcessInspector: View {
             .lineLimit(1)
         }
         Spacer(minLength: DS.Space.s3)
+        if AppModel.supportsApplicationNavigation(row.bundlePath) {
+          IconButton(systemName: "app", help: tr("查看应用"), action: onShowApplication)
+        }
         if ProcessExplainer.isSupported {
           Button {
             onExplain()

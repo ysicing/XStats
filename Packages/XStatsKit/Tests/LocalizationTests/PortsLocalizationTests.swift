@@ -14,6 +14,8 @@ struct PortsLocalizationTests {
       "仅列出当前用户的进程，系统服务占用的端口不会显示",
       "会断开它占用的端口与连接，未保存的内容可能会丢失。强制退出会立即结束，不给应用保存的机会。",
       "结束“{}”（PID {}）？", "进程已退出或不再占用该端口，请刷新后重试", "国际",
+      "查看所属进程", "查看应用", "查看运行进程", "拷贝路径", "清除筛选",
+      "未找到目标进程，它可能已退出",
     ]
     for language in AppLanguage.allCases where language != .system && language != .chinese {
       let table = try #require(Translations.catalog(for: language))

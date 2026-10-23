@@ -58,6 +58,9 @@ public final class AppModel {
   public var isMainWindowVisible = false
   /// 网络页的端口 sheet 可见时，与独立端口页共享同一个采集控制器。
   var isPortsSheetPresented = false
+  /// 页面间的临时定位，不持久化，也不额外请求后台采样。
+  var processNavigationTarget: ProcessNavigationTarget?
+  var applicationNavigationPath: String?
 
   var portsVisible: Bool {
     isMainWindowVisible

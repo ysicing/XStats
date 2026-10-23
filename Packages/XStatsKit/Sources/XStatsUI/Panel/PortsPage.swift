@@ -21,6 +21,7 @@ struct PortsButton: View {
     .onChange(of: model.settings.showsPortsInNetwork) { _, visible in
       if !visible { presented = false }
     }
+    .onChange(of: model.settings.panelTab) { _, _ in presented = false }
   }
 }
 
@@ -38,7 +39,7 @@ struct PortsSheet: View {
           .keyboardShortcut(.cancelAction)
       }
       .padding([.horizontal, .top], DS.Space.s3)
-      PortsPage()
+      PortsPage(onNavigate: { dismiss() })
     }
     .frame(minWidth: 760, idealWidth: 960, minHeight: 480, idealHeight: 640)
     .onAppear { model.isPortsSheetPresented = true }
@@ -48,6 +49,7 @@ struct PortsSheet: View {
 
 /// 端口查看：本机监听端口与已建立连接、所属进程、按进程速率，可结束当前用户的占用进程
 struct PortsPage: View {
+  var onNavigate: () -> Void = {}
   @Environment(AppModel.self) private var model
   @Environment(\.isSnapshot) private var isSnapshot
   @State private var search = ""
@@ -118,7 +120,11 @@ struct PortsPage: View {
         PortInspector(
           socket: selected, rate: controller.rates[selected.pid],
           isConflict: isConflict(selected, controller.conflicts), error: actionError,
-          onQuit: { pendingQuit = selected })
+          onQuit: { pendingQuit = selected },
+          onShowProcess: {
+            onNavigate()
+            model.showProcesses(.portOwner(selected))
+          })
       }
       summary(count: rows.count)
     }
@@ -205,6 +211,11 @@ struct PortsPage: View {
 
   @ViewBuilder
   private func menu(for socket: PortSocket) -> some View {
+    Button(tr("查看所属进程")) {
+      onNavigate()
+      model.showProcesses(.portOwner(socket))
+    }
+    Divider()
     Button(tr("拷贝本地地址")) { copy(socket.localEndpoint) }
     if let remote = socket.remoteEndpoint {
       Button(tr("拷贝对端地址")) { copy(remote) }
@@ -474,6 +485,7 @@ private struct PortInspector: View {
   let isConflict: Bool
   let error: String?
   let onQuit: () -> Void
+  let onShowProcess: () -> Void
 
   var body: some View {
     let blocked = PortActions.quitBlockedReason(socket)
@@ -494,6 +506,8 @@ private struct PortInspector: View {
             .textSelection(.enabled)
         }
         Spacer(minLength: DS.Space.s3)
+        Button(tr("查看所属进程"), action: onShowProcess)
+          .buttonStyle(DSButtonStyle(kind: .secondary))
         if let bundle = socket.appBundlePath {
           IconButton(systemName: "folder", help: tr("在访达中显示")) {
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: bundle)])

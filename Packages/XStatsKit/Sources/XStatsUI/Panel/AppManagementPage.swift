@@ -104,6 +104,14 @@ struct AppManagementPage: View {
     .onAppear {
       controller.setVisible(model.isMainWindowVisible && section.managesApplications, tab: tab)
     }
+    .task(id: model.applicationNavigationPath) {
+      guard !isSnapshot, let path = model.applicationNavigationPath, section == .apps else {
+        return
+      }
+      search = path
+      selection = path
+      model.applicationNavigationPath = nil
+    }
     .onDisappear {
       controller.setVisible(false)
       pendingBrew = nil
@@ -354,6 +362,12 @@ struct AppManagementPage: View {
     }
     .contextMenu(forSelectionType: String.self) { ids in
       if let id = ids.first, let row = rows.first(where: { $0.id == id }) {
+        if let app = row.app {
+          Button(tr("拷贝路径")) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(app.url.path, forType: .string)
+          }
+        }
         actions(for: row).disabled(model.uninstaller.isRemoving)
       }
     } primaryAction: { ids in
@@ -522,7 +536,10 @@ struct AppManagementPage: View {
           .disabled(controller.operation != nil)
       }
       Button(tr("打开")) { NSWorkspace.shared.open(app.url) }
-      Button(tr("在 Finder 中显示")) { NSWorkspace.shared.activateFileViewerSelecting([app.url]) }
+      Button(tr("在访达中显示")) { NSWorkspace.shared.activateFileViewerSelecting([app.url]) }
+      if row.isRunning {
+        Button(tr("查看运行进程")) { model.showProcesses(.application(app.id)) }
+      }
       if row.isRunning, let cask = controller.casksByPath[app.id], !controller.isCurrentApp(cask) {
         Button(tr("退出应用")) { model.uninstaller.quit(app) }
       }
@@ -548,7 +565,7 @@ struct AppManagementPage: View {
           .disabled(upgradeIsDisabled(for: row))
       }
       if let url = package.installationURLs.first {
-        Button(tr("在 Finder 中显示")) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        Button(tr("在访达中显示")) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
       }
       Button(tr("卸载…"), role: .destructive) {
         pendingBrew = BrewConfirmation(package: package, action: .uninstall)
@@ -628,7 +645,10 @@ struct AppManagementPage: View {
     }
     let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
     return rows.filter {
-      query.isEmpty || $0.name.localizedStandardContains(query)
+      if query.hasPrefix("/") {
+        return $0.app?.id == URL(fileURLWithPath: query).standardizedFileURL.path
+      }
+      return query.isEmpty || $0.name.localizedStandardContains(query)
         || ($0.app?.bundleIdentifier ?? $0.package?.name ?? "").localizedStandardContains(query)
         || ($0.package?.summary?.localizedStandardContains(query) == true)
     }

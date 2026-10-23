@@ -2445,3 +2445,9 @@ Magpie 全部记录	Todo el historial de Magpie
 以四个圆环查看订阅额度	Ver cuotas de suscripción en cuatro anillos
 查看累计 Token、输入输出与今日用量	Ver tokens acumulados, entrada, salida y uso de hoy
 上次数据	Datos anteriores
+查看所属进程	Ver proceso propietario
+查看应用	Ver app
+查看运行进程	Ver procesos en ejecución
+拷贝路径	Copiar ruta
+清除筛选	Quitar filtro
+未找到目标进程，它可能已退出	No se encontró el proceso. Puede que haya finalizado.
