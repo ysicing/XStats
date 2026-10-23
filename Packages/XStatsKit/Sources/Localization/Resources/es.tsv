@@ -2489,3 +2489,82 @@ DNS 维护	Mantenimiento de DNS
 仅预览	Solo vista previa
 工具缓存容量单独列出，不计入文件合计。	Las estimaciones de caché de herramientas se muestran por separado y no se incluyen en el total de archivos.
 所选工具缓存将由对应工具永久清理，此操作无法撤销。	Las herramientas eliminarán permanentemente sus cachés seleccionadas. Esta acción no se puede deshacer.
+应用保存状态审阅	Revisión del estado guardado de las apps
+未找到当前用户的 Saved Application State 目录。	No se encontró la carpeta Saved Application State del usuario actual.
+运行中的应用，未计量	App en ejecución; tamaño no medido
+只审阅超过 30 天的直接 savedState 目录，跳过运行应用；仅展示完整计量占用，不判断可安全丢弃，不提供清理。	Solo revisa las carpetas savedState del nivel inmediato con más de 30 días y omite las apps en ejecución. Solo muestra el espacio medido por completo; no determina si los estados se pueden descartar de forma segura ni ofrece limpieza.
+已解析文件：{}	Archivos analizados: {}
+共享文件列表格式	Formato de las listas de archivos compartidos
+偏好文件格式	Formato de los archivos de preferencias
+仅检查共享列表根目录的 sfl2、sfl3、sfl4 文件格式；跳过最近文档，不解档或解析书签。	Solo comprueba el formato de los archivos sfl2, sfl3 y sfl4 en la raíz de las listas compartidas. Omite los documentos recientes; no deserializa objetos ni resuelve marcadores.
+仅解析 Preferences 与 ByHost 顶层的非受保护 plist；不判断偏好内容是否正确。	Solo analiza los archivos plist no protegidos del nivel superior de Preferences y ByHost; no evalúa si los valores son correctos.
+Finder 外置卷元数据偏好	Preferencias de metadatos de Finder para volúmenes externos
+只读用户保存的网络盘与 USB .DS_Store 偏好；默认值或关闭不表示故障，不代表卷上现有文件状态。	Lee las preferencias guardadas de .DS_Store para volúmenes de red y USB. Los valores predeterminados o desactivados no indican un fallo ni describen el estado de los archivos existentes en esos volúmenes.
+Spotlight 索引与有限查询	Índice de Spotlight y consulta limitada
+启动卷 Spotlight 索引已关闭；未发起搜索，也不建议重建。	La indexación de Spotlight está desactivada en el volumen de arranque. No se realizó ninguna búsqueda ni se recomienda reconstruir el índice.
+启动卷报告索引已启用	El volumen de arranque indica que la indexación está activada
+有限查询超过 3 秒；单次结果不能判断索引故障	La consulta limitada tardó más de 3 segundos; un solo resultado no permite determinar un fallo del índice
+只查询声明的应用目录并返回计数；成功或零结果均不能证明索引完整，不执行重建。	Solo consulta las carpetas de apps indicadas y devuelve recuentos. Una consulta correcta o sin resultados no demuestra que el índice esté completo; no se reconstruye.
+索引状态或有限查询证据不足；工具缺失、权限、超时和异常输出均不视为正常。	Las pruebas del estado del índice o de la consulta limitada son insuficientes. La falta de herramientas, los problemas de permisos, los tiempos de espera y las salidas inesperadas no se consideran normales.
+已找到本地应用	App local encontrada
+有限范围内未确认归属，不能判定失效	No se confirmó la app asociada en el ámbito limitado; no se puede determinar que la regla sea inválida
+Spotlight 搜索规则归属	Apps asociadas a las reglas de búsqueda de Spotlight
+保留 System 与 Apple 规则；仅核对应用目录两层内的 bundle 标识，未确认归属不等于孤儿规则。	Conserva las reglas de System y Apple. Solo coteja los identificadores de bundle en dos niveles de las carpetas de apps; una asociación sin confirmar no significa que la regla sea huérfana.
+周期维护记录	Registros de mantenimiento periódico
+当前系统未提供 periodic 工具；不根据系统版本推测维护状态。	La herramienta periodic no está disponible en este sistema; no se deduce el estado del mantenimiento a partir de la versión del sistema.
+只读 daily、weekly、monthly 记录的修改时间；超过 7 天仅供审阅，记录新鲜也不能证明维护成功。	Solo lee las fechas de modificación de los registros daily, weekly y monthly. Los registros de más de 7 días son solo para revisión; que sean recientes tampoco demuestra que el mantenimiento haya tenido éxito.
+目标未在本次范围内核对	Destino no verificado en el ámbito de esta comprobación
+记录目标存在	El destino registrado existe
+记录目标不存在，可能已移动	El destino registrado no existe; puede haberse movido
+登录项目独立来源	Fuente independiente de ítems de inicio
+仅在已有自动化权限时只读 System Events 登录项目；不含现代后台项目，不以启动代理替代，不判断应用已卸载。	Solo lee los ítems de inicio de System Events si ya se ha concedido permiso de automatización. Excluye los ítems en segundo plano modernos, no los sustituye por agentes de inicio ni deduce que se haya desinstalado una app.
+登录项目来源未授权、未运行或读取失败；不弹出授权，不将未知状态视为空列表。	La fuente de ítems de inicio no está autorizada, no se está ejecutando o no se pudo leer. No se solicita permiso ni se interpreta un estado desconocido como una lista vacía.
+默认路由	Rutas predeterminadas
+分别读取 IPv4 与 IPv6 默认路由；缺失一种路由不代表网络故障。	Lee las rutas predeterminadas de IPv4 e IPv6 por separado; la ausencia de una no indica un fallo de red.
+DNS 单次探测	Prueba única de DNS
+仅测试当前 DNS 对 apple.com 的一次解析；代理、过滤或离线均可能影响结果。	Prueba una sola resolución de apple.com con el DNS actual. Los proxies, los filtros o la falta de conexión pueden afectar al resultado.
+已挂载磁盘映像	Imágenes de disco montadas
+展示映像来源与挂载位置；未判断是否闲置，不执行卸载。	Muestra el origen de las imágenes y sus puntos de montaje; no evalúa si están sin usar ni desmonta nada.
+信息数据库	Base de datos de Mensajes
+Safari 历史数据库	Base de datos del historial de Safari
+Safari 常用网站数据库	Base de datos de sitios frecuentes de Safari
+下载隔离记录	Registros de cuarentena de descargas
+通知数据库	Base de datos de notificaciones
+使用记录数据库	Base de datos del historial de uso
+系统缓存与更新	Cachés y actualizaciones del sistema
+仅审阅系统管理目录占用，不判断过期或可回收；更新状态未知。	Solo revisa el espacio ocupado en carpetas gestionadas por el sistema; no determina si ha caducado o se puede recuperar. El estado de las actualizaciones es desconocido.
+Rosetta 数据	Datos de Rosetta
+仅审阅固定 Rosetta 缓存位置，不判断是否仍被系统使用。	Solo revisa ubicaciones fijas de caché de Rosetta; no determina si el sistema sigue usándolas.
+设备备份	Copias de seguridad de dispositivos
+备份是用户数据，不是固件或缓存；请在设备管理或空间分析中审阅。	Las copias de seguridad son datos del usuario, no firmware ni cachés. Revise su contenido en la gestión de dispositivos o el análisis de almacenamiento.
+虚拟机与虚拟磁盘	Máquinas y discos virtuales
+仅审阅固定虚拟机数据目录；使用与挂载状态未知，不判断闲置。请复用空间分析入口。	Solo revisa las carpetas fijas de datos de máquinas virtuales. El estado de uso y montaje es desconocido y no se evalúa la inactividad. Utilice el análisis de almacenamiento.
+AI 模型数据	Datos de modelos de IA
+模型数据与虚拟磁盘分开审阅，不判断闲置；其他位置请复用 AI 数据专项或空间分析入口。	Revisa los datos de modelos por separado de los discos virtuales, sin evaluar la inactividad. Para otras ubicaciones, utilice la vista de datos de IA o el análisis de almacenamiento.
+Finder 元数据与最近项目	Metadatos de Finder e ítems recientes
+仅审阅主目录及桌面、文稿、下载目录顶层的 Finder 元数据和共享列表占用，不读取最近文档内容。	Solo revisa el espacio ocupado por los metadatos de Finder y las listas compartidas en el nivel superior de las carpetas de inicio, Escritorio, Documentos y Descargas; no lee el contenido de documentos recientes.
+Time Machine 备份审阅	Revisión de copias de seguridad de Time Machine
+主库 {} 字节	Base de datos principal: {} bytes
+主库空闲页估算 {} 字节（不代表可回收空间）	Páginas libres estimadas en la base principal: {} bytes (no indican espacio recuperable)
+附属文件 {} 字节	Archivos auxiliares: {} bytes
+隔离记录 {} 条	Registros de cuarentena: {}
+只读估算，不执行数据库维护；不读取下载 URL。	Estimación de solo lectura; no realiza mantenimiento de la base de datos ni lee las URL de descarga.
+仅有主库或部分证据；日志、并发变化或读取限制使当前数据库状态未知。	Solo se dispone de la base principal o de pruebas parciales. Los registros, los cambios simultáneos o los límites de lectura impiden conocer el estado actual de la base de datos.
+邮件索引数据库	Base de datos del índice de Mail
+占用 {} 字节	Espacio ocupado: {} bytes
+大小未知	Tamaño desconocido
+设备固件	Firmware de dispositivos
+仅审阅 iTunes 固定目录中的 IPSW 固件，与设备备份分开；不判断是否仍有需要。	Solo revisa el firmware IPSW en carpetas fijas de iTunes, por separado de las copias de seguridad; no determina si sigue siendo necesario.
+OrbStack 虚拟机数据	Datos de máquinas virtuales de OrbStack
+应用数据归属审阅	Revisión de la asociación de datos de apps
+尚未加载应用清单，未检查应用数据归属；请复用选定应用的残留审阅。	No se ha cargado el inventario de apps, por lo que no se comprobó la asociación de sus datos. Utilice la revisión de restos de una app seleccionada.
+仅列有明确归属的待审阅项目：未在已加载应用清单中匹配，不代表卸载或孤儿；不是垃圾，不提供清理授权。	Solo enumera elementos con asociación explícita para su revisión. La falta de coincidencia en el inventario cargado no implica una app desinstalada ni datos huérfanos. No son basura y no se autoriza su limpieza.
+仅检查旧式本地备份标记，不能证明备份失败或已停止；请复用快照入口或 Time Machine 管理。	Solo comprueba marcadores antiguos de copias locales, que no demuestran que las copias hayan fallado o se hayan detenido. Utilice la vista de instantáneas o la gestión de Time Machine.
+权限、路径、格式或扫描预算不足，结果未知；未执行任何修改。	Los permisos, las rutas, los formatos o los límites del análisis impidieron obtener un resultado; el estado es desconocido. No se realizó ningún cambio.
+资源与维护	Recursos y mantenimiento
+配置审阅	Revisión de configuración
+网络检查	Comprobación de red
+存储审阅	Revisión del almacenamiento
+检查范围	Ámbito de la comprobación
+本次检查会向当前 DNS 查询 apple.com。	Esta comprobación consultará apple.com mediante el DNS actual.
+已确认的缓存目录；占用不代表可安全删除。	Carpetas de caché confirmadas; el espacio ocupado no implica que se puedan eliminar de forma segura.

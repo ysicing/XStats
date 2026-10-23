@@ -120,7 +120,7 @@ When Magpie is installed, account quotas, tokens and costs come from its local A
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
 | **Apps & Services** | Manage apps, Homebrew packages, startup items and Homebrew services; view app information and available updates |
-| **Cleanup** | Review app leftovers, caches and build artifacts · [Cleanup scope](docs/CLEANUP.md) |
+| **Cleanup** | Review app leftovers, caches and build artifacts, with on-demand read-only resource, configuration, network and storage checks · [Cleanup scope](docs/CLEANUP.md) |
 | **Network diagnostics** | Speed tests, DNS queries, egress checks, local interface addresses and multi-source public IP lookup, location and purity, connectivity probes |
 | **Menu bar calendar** | Chinese lunar calendar, holidays and make-up workdays, almanac, calendar events and reminders |
 | **Audio** | System volume and input/output switching; per-app volume and output on macOS 14.4+, processed locally |
@@ -204,6 +204,7 @@ Monitoring data, local history and AI token statistics are processed locally and
 - **Cost estimates**: fetch public model prices and reference exchange rates on demand, without sending session logs or token statistics.
 - **Network Monitor**: downloads the component and a public geography database; connection records and destination IPs are not uploaded.
 - **Network diagnostics**: public IP, location, speed tests, DNS, connectivity probes and global probes contact their services; global-probe targets and results may be queried by others.
+- **Network check in Cleanup**: only when started manually, it queries the current DNS resolver for `apple.com`. Local configuration, path and storage findings are not uploaded.
 
 Experimental menu bar folding on macOS 27 asks for access to one system configuration file to hide and restore selected apps. It does not require screen recording or upload the app list.
 

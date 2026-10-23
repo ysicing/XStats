@@ -23,10 +23,38 @@ struct SystemCheckCard: View {
           Button(tr("取消")) { check.cancel() }
             .buttonStyle(DSButtonStyle(kind: .secondary))
         } else {
-          Button(tr("开始检查")) { check.start() }
-            .buttonStyle(DSButtonStyle(kind: .secondary))
-            .disabled(!model.settings.cleanerEnabled || model.cleaner.isBusy)
+          Button(tr("开始检查")) {
+            check.start(
+              excludedPaths: model.cleaner.excludedPaths,
+              installedIdentifiers: model.appManagement.hasAppInventory
+                ? Set(model.appManagement.apps.map(\.bundleIdentifier)) : nil)
+          }
+          .buttonStyle(DSButtonStyle(kind: .secondary))
+          .disabled(!model.settings.cleanerEnabled || model.cleaner.isBusy)
         }
+      }
+      HStack {
+        Picker(
+          tr("检查范围"),
+          selection: Binding(get: { check.scope }, set: { check.selectScope($0) })
+        ) {
+          ForEach(SystemCheckController.Scope.allCases) { scope in
+            Text(scope.title).tag(scope)
+          }
+        }
+        .pickerStyle(.menu)
+        .labelsHidden()
+        .accessibilityLabel(tr("检查范围"))
+        .fixedSize()
+        Spacer()
+        if check.scope == .storage {
+          Button(tr("空间占用")) { model.settings.panelTab = .disk }
+            .buttonStyle(DSButtonStyle(kind: .secondary))
+        }
+      }
+      if check.scope == .network {
+        Text(tr("本次检查会向当前 DNS 查询 apple.com。"))
+          .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       }
       if check.findings.isEmpty {
         Text(tr("按需检查资源、配置和维护建议，仅预览，不执行修复。"))

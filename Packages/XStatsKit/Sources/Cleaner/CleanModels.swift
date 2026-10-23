@@ -98,7 +98,8 @@ public struct CleanEnvironment: Sendable {
     self.inspectTool =
       runTool ?? {
         try await DeveloperToolRunner.run(
-          $0, arguments: $1, home: home, timeout: 30, previewTimeout: 30, outputLimit: 8192)
+          $0, arguments: $1, home: home, timeout: 30, previewTimeout: 30,
+          outputLimit: 1_048_576, requiresCompleteOutput: true)
       }
     self.toolEnvironment = toolEnvironment
     self.excludedPaths = CleanupExclusions.normalized(excludedPaths)

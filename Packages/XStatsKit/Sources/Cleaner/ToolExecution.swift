@@ -59,12 +59,14 @@ enum DeveloperToolRunner {
   }
 
   /// 外部工具可能执行较久；放到并发执行器，避免阻塞调用它的主 Actor。
+  /// 非 brew 只读检查可要求完整输出，溢出即结束本次进程；默认仍排空管道并保留尾部。
+  /// brew 写操作继续使用原有执行语义，不因该选项或输出量被中断。
   @concurrent
   static func run(
     _ name: String, arguments: [String], home: String,
     environmentOverrides: [String: String] = [:], timeout: TimeInterval? = nil,
     previewTimeout: TimeInterval = 60, outputLimit: Int = 2_000_000,
-    includesStandardError: Bool = true
+    includesStandardError: Bool = true, requiresCompleteOutput: Bool = false
   ) async throws -> ToolRunResult {
     try Task.checkCancellation()
     guard let executable = executable(named: name, home: home) else {
@@ -146,6 +148,7 @@ enum DeveloperToolRunner {
     try? pipe.fileHandleForWriting.close()
     let reader = pipe.fileHandleForReading
     let deadline = timeout.map { ContinuousClock.now.advanced(by: .seconds($0)) }
+    let completeOutput = requiresCompleteOutput ? CompleteToolOutputState() : nil
     // 读取任务自己在读完后关闭句柄：取消时外面不能在它还在 read 时关掉同一个 fd，
     // 否则读取会报错，或读到 fd 编号被系统复用后的其他文件。
     let outputTask = Task.detached(priority: .utility) {
@@ -153,6 +156,11 @@ enum DeveloperToolRunner {
       var tail = Data()
       let limit = max(0, outputLimit)
       while let chunk = try readChunk(reader, deadline: deadline) {
+        if let completeOutput, chunk.count > limit - tail.count {
+          // 读取任务先通知进程等待方，不能等工具退出或到达超时后才传播溢出错误。
+          completeOutput.markOverflowed()
+          throw ToolExecutionError.outputTooLarge(name)
+        }
         tail.append(chunk)
         if tail.count > limit { tail.removeFirst(tail.count - limit) }
       }
@@ -165,6 +173,7 @@ enum DeveloperToolRunner {
     }
     while process.isRunning {
       try Task.checkCancellation()
+      if completeOutput?.didOverflow == true { throw ToolExecutionError.outputTooLarge(name) }
       if let deadline, ContinuousClock.now >= deadline { throw ToolExecutionError.timedOut(name) }
       try await Task.sleep(for: .milliseconds(25))
     }
@@ -177,11 +186,16 @@ enum DeveloperToolRunner {
         outputTask.cancel()
       }
     } catch {
+      if requiresCompleteOutput {
+        try Task.checkCancellation()
+        if completeOutput?.didOverflow == true { throw ToolExecutionError.outputTooLarge(name) }
+      }
       if !Task.isCancelled, let deadline, ContinuousClock.now >= deadline {
         throw ToolExecutionError.timedOut(name)
       }
       throw error
     }
+    if requiresCompleteOutput { try Task.checkCancellation() }
     guard process.terminationStatus == 0 else {
       throw ToolExecutionError.failed(
         tool: name, status: process.terminationStatus,
@@ -473,9 +487,23 @@ enum DeveloperToolRunner {
         $0.lastPathComponent.compare($1.lastPathComponent, options: .numeric) == .orderedDescending
       }
     directories += nvmVersions.map { $0.appendingPathComponent("bin") }
-    directories += ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
-      .map { URL(fileURLWithPath: $0, isDirectory: true) }
+    directories += [
+      "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin",
+    ]
+    .map { URL(fileURLWithPath: $0, isDirectory: true) }
     return directories.uniqued()
+  }
+}
+
+/// 读取任务只报告溢出，进程停止仍由 run 的同一收尾路径负责，避免跨线程重复发送信号。
+private final class CompleteToolOutputState: @unchecked Sendable {
+  private let lock = NSLock()
+  private var overflowed = false
+
+  var didOverflow: Bool { lock.withLock { overflowed } }
+
+  func markOverflowed() {
+    lock.withLock { overflowed = true }
   }
 }
 

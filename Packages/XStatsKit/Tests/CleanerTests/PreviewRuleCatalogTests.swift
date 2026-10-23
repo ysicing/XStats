@@ -123,6 +123,83 @@ struct PreviewRuleCatalogTests {
     #expect(preview.isCleanable == false)
   }
 
+  @Test(arguments: [
+    ("preview.zoom", "Library/Caches/us.zoom.xos", "Zoom"),
+    ("preview.telegram", "Library/Caches/ru.keepcoder.Telegram", "Telegram"),
+    ("preview.whatsapp", "Library/Caches/net.whatsapp.WhatsApp", "WhatsApp"),
+    ("preview.chatgpt", "Library/Caches/com.openai.chat", "ChatGPT"),
+    ("preview.figma", "Library/Caches/com.figma.Desktop", "Figma"),
+    ("preview.opera", "Library/Caches/com.operasoftware.Opera", "Opera"),
+    ("preview.vivaldi", "Library/Caches/com.vivaldi.Vivaldi", "Vivaldi"),
+    ("preview.orion", "Library/Caches/com.kagi.kagimacOS", "Orion"),
+    ("preview.dropbox", "Library/Caches/com.getdropbox.dropbox", "Dropbox"),
+    ("preview.googleDrive", "Library/Caches/com.google.GoogleDrive", "Google Drive"),
+    ("preview.oneDrive", "Library/Caches/com.microsoft.OneDrive", "OneDrive"),
+    ("preview.word", "Library/Caches/com.microsoft.Word", "Microsoft Word"),
+    ("preview.excel", "Library/Caches/com.microsoft.Excel", "Microsoft Excel"),
+    ("preview.powerpoint", "Library/Caches/com.microsoft.Powerpoint", "Microsoft PowerPoint"),
+    ("preview.outlook", "Library/Caches/com.microsoft.Outlook", "Microsoft Outlook"),
+    ("preview.zed", "Library/Caches/Zed", "Zed"),
+    ("preview.poetry", "Library/Caches/pypoetry/artifacts", "Poetry"),
+    ("preview.poetryPackages", "Library/Caches/pypoetry/cache", "Poetry"),
+    ("preview.postman", "Library/Caches/com.postmanlabs.mac", "Postman"),
+    ("preview.insomnia", "Library/Caches/com.konghq.insomnia", "Insomnia"),
+    ("preview.vmware", "Library/Caches/com.vmware.fusion", "VMware Fusion"),
+    ("preview.utm", "Library/Caches/com.utmapp.UTM", "UTM"),
+    ("preview.lima", "Library/Caches/lima/download/by-url-sha256", "Lima"),
+    ("preview.zedNode", "Library/Application Support/Zed/node/cache", "Zed"),
+    ("preview.battleNet", "Library/Application Support/Battle.net/Cache", "Battle.net"),
+    ("preview.quickLook", "Library/Caches/com.apple.QuickLook.thumbnailcache", "QuickLook"),
+    ("preview.quickLookLegacy", "Library/Caches/Quick Look", "QuickLook"),
+    ("preview.iconServices", "Library/Caches/com.apple.iconservices", "Icon Services"),
+  ])
+  func expandedRulesMatchOnlyDeclaredLeaves(_ entry: (String, String, String)) async throws {
+    let fixture = try Fixture()
+    defer { fixture.remove() }
+    let file = try fixture.file(entry.1 + "/data")
+    let sibling = try fixture.file(entry.1 + ".other/data")
+    let rule = try #require(PreviewRuleCatalog.rules.first { $0.id == entry.0 })
+    #expect(try rule.locate(fixture.environment) == [file.deletingLastPathComponent()])
+    let scan = try #require(
+      await CleanEngine.scan([rule], environment: fixture.environment).first)
+    #expect(scan.items.map(\.url) == [file.deletingLastPathComponent()])
+    #expect(scan.isCleanable == false)
+    var running = fixture.environment
+    running.runningApplicationNames = { [entry.2] }
+    let blocked = try #require(await CleanEngine.scan([rule], environment: running).first)
+    #expect(blocked.blocked == .appRunning(entry.2))
+    let report = await CleanEngine.clean(
+      [scan], selected: [rule.id], preferTrash: false, environment: fixture.environment, log: nil)
+    #expect(report.removedCount == 0)
+    #expect(FileManager.default.fileExists(atPath: file.path))
+    #expect(FileManager.default.fileExists(atPath: sibling.path))
+  }
+
+  @Test func genericOnlyScanCannotAcquirePreviewPaths() async throws {
+    let fixture = try Fixture()
+    defer { fixture.remove() }
+    _ = try fixture.file("Library/Caches/com.microsoft.teams2/data")
+    let scan = try #require(
+      await CleanEngine.scan([RuleCatalog.userCaches], environment: fixture.environment).first)
+    #expect(scan.items.isEmpty)
+  }
+
+  @Test func staleGenericScanCannotDeletePreviewPaths() async throws {
+    let fixture = try Fixture()
+    defer { fixture.remove() }
+    let file = try fixture.file("Library/Caches/com.microsoft.teams2/data")
+    let generic = RuleCatalog.userCaches
+    let stale = RuleScan(
+      rule: generic,
+      items: [CleanItem(url: file.deletingLastPathComponent(), size: 4096)],
+      skippedCount: 0, blocked: nil)
+    let report = await CleanEngine.clean(
+      [stale], selected: [generic.id], preferTrash: false, environment: fixture.environment,
+      log: nil)
+    #expect(report.removedCount == 0)
+    #expect(FileManager.default.fileExists(atPath: file.path))
+  }
+
   private struct Fixture {
     let root: URL
 
