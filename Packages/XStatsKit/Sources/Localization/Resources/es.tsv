@@ -555,6 +555,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 应用正在运行，请先退出	La app está en ejecución. Ciérrala primero.
 应用程序文件夹	Carpeta Aplicaciones
 应用缓存	Cachés de apps
+其他应用缓存	Otras cachés de apps
 应用远端设置？	¿Aplicar ajustes remotos?
 应用退出或断开连接时，自动恢复风扇与睡眠设置	Restaura los ajustes de ventilación y reposo al salir o desconectarse la app
 废纸篓	Papelera

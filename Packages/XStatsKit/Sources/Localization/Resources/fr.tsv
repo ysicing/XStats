@@ -555,6 +555,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 应用正在运行，请先退出	L’app est en cours d’exécution. Quittez-la d’abord.
 应用程序文件夹	Dossier Applications
 应用缓存	Caches des apps
+其他应用缓存	Autres caches d’apps
 应用远端设置？	Appliquer les réglages distants ?
 应用退出或断开连接时，自动恢复风扇与睡眠设置	Restaure les réglages des ventilateurs et de veille lorsque l’app quitte ou se déconnecte
 废纸篓	Corbeille

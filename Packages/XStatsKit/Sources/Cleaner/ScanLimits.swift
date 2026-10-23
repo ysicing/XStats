@@ -8,7 +8,7 @@ public struct ScanLimits: Sendable {
   public var maxDuration: TimeInterval
   public var maxCandidates: Int
 
-  /// 同一次扫描的所有规则共用上限；候选数另设上限，限制排序与路径索引的内存。
+  /// 同一次扫描共用总上限，条目额度按规则分配；候选数另设上限，限制排序与路径索引的内存。
   public init(
     maxEntries: Int = 100_000, maxDuration: TimeInterval = 20, maxCandidates: Int = 10_000
   ) {
@@ -35,6 +35,7 @@ final class ScanBudget: @unchecked Sendable {
   @TaskLocal static var current: ScanBudget?
 
   private let limits: ScanLimits
+  private let shared: ScanBudget?
   let deadline: ContinuousClock.Instant
   private let lock = NSLock()
   private var entries = 0
@@ -42,14 +43,21 @@ final class ScanBudget: @unchecked Sendable {
   private var candidatePaths = Set<String>()
   private var stopped: ScanInterruption?
 
-  init(limits: ScanLimits) {
+  init(limits: ScanLimits, sharing shared: ScanBudget? = nil) {
     self.limits = limits
+    self.shared = shared
     let duration = limits.maxDuration.isFinite ? max(0, limits.maxDuration) : 20
-    deadline = ContinuousClock.now + .seconds(duration)
+    let deadline = ContinuousClock.now + .seconds(duration)
+    self.deadline = min(deadline, shared?.deadline ?? deadline)
+  }
+
+  var remainingEntries: Int {
+    lock.withLock { limits.maxEntries - entries }
   }
 
   var interruption: ScanInterruption? {
     if Task.isCancelled { return .cancelled }
+    if let interruption = shared?.interruption { return interruption }
     return lock.withLock {
       if stopped == nil, ContinuousClock.now >= deadline { stopped = .timeLimit }
       return stopped
@@ -74,6 +82,10 @@ final class ScanBudget: @unchecked Sendable {
 
   func visitCandidate(_ path: String) throws {
     try check()
+    if let shared {
+      try shared.visitCandidate(path)
+      return
+    }
     try lock.withLock {
       if let stopped { throw stopped }
       guard candidatePaths.insert(path).inserted else { return }

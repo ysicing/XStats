@@ -4,6 +4,28 @@ import Metrics
 import SwiftUI
 
 struct CleanerPage: View {
+  enum Section {
+    case applicationCaches
+    case category(CleanCategory)
+
+    var title: String {
+      switch self {
+      case .applicationCaches: tr("应用缓存")
+      case .category(let category): category.title
+      }
+    }
+
+    func contains(_ rule: CleanRule) -> Bool {
+      // 展示分组独立于扫描分类，保留原规则、选择及清理权限。
+      // 当前系统清单除日志规则外均为缓存，应用专属路径仍由 Cleaner 内部管理。
+      let isApplicationCache = rule.category == .system && rule.id != "system.logs"
+      switch self {
+      case .applicationCaches: return isApplicationCache
+      case .category(let category): return rule.category == category && !isApplicationCache
+      }
+    }
+  }
+
   enum Tab: String, CaseIterable, Identifiable {
     case clean, optimize
 
@@ -67,14 +89,17 @@ struct CleanerPage: View {
         }
         HStack(alignment: .top, spacing: DS.Space.s3) {
           VStack(spacing: DS.Space.s3) {
-            CategoryCard(category: .system).fixedSize(horizontal: false, vertical: true)
-            CategoryCard(category: .browser).fixedSize(horizontal: false, vertical: true)
-            CategoryCard(category: .downloads).fixedSize(horizontal: false, vertical: true)
-            CategoryCard(category: .trash).fixedSize(horizontal: false, vertical: true)
+            CategoryCard(section: .applicationCaches).fixedSize(horizontal: false, vertical: true)
+            CategoryCard(section: .category(.browser)).fixedSize(horizontal: false, vertical: true)
           }
           .frame(maxWidth: .infinity)
           VStack(spacing: DS.Space.s3) {
-            CategoryCard(category: .developer).fixedSize(horizontal: false, vertical: true)
+            CategoryCard(section: .category(.developer)).fixedSize(
+              horizontal: false, vertical: true)
+            CategoryCard(section: .category(.system)).fixedSize(horizontal: false, vertical: true)
+            CategoryCard(section: .category(.downloads)).fixedSize(
+              horizontal: false, vertical: true)
+            CategoryCard(section: .category(.trash)).fixedSize(horizontal: false, vertical: true)
           }
           .frame(maxWidth: .infinity)
         }
@@ -251,13 +276,13 @@ private struct CleanerActions: View {
 
 private struct CategoryCard: View {
   @Environment(AppModel.self) private var model
-  let category: CleanCategory
+  let section: CleanerPage.Section
   @State private var showsEmpty = false
 
   var body: some View {
-    let registeredScans = model.cleaner.scans(in: category)
+    let registeredScans = model.cleaner.scans.filter { section.contains($0.rule) }
     let scans: [RuleScan] =
-      if category == .developer {
+      if case .category(.developer) = section {
         // 可清理容量降序；不可清理项及容量相同的项目保持清单顺序，避免无意义跳动。
         registeredScans.enumerated().sorted { left, right in
           if left.element.isCleanable != right.element.isCleanable {
@@ -276,7 +301,7 @@ private struct CategoryCard: View {
 
     Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
       HStack {
-        Text(category.title).dsFont(.xs, weight: .semibold).foregroundStyle(
+        Text(section.title).dsFont(.xs, weight: .semibold).foregroundStyle(
           DS.Palette.textSecondary)
         Spacer()
         if total > 0 {
@@ -318,7 +343,7 @@ private struct CategoryCard: View {
 
   /// 扫描完成前占位，保持面板高度稳定
   private var placeholderRows: Int {
-    RuleCatalog.rules().filter { $0.category == category }.count
+    RuleCatalog.rules().filter { section.contains($0) }.count
   }
 }
 

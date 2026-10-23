@@ -1045,6 +1045,7 @@ extension Translations {
     应用正在运行，请先退出	The app is running. Quit it first.
     应用程序文件夹	Applications folder
     应用缓存	App Caches
+    其他应用缓存	Other App Caches
     应用退出或断开连接时，自动恢复风扇与睡眠设置	Restores fan and sleep settings when the app quits or disconnects
     废纸篓	Trash
     延迟	Latency

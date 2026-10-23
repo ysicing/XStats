@@ -1,5 +1,6 @@
 # 开发交接
 
+- 清理扫描须为排队规则预留条目额度，完成后回收未用份额；不要让单个大目录的局部条目超限污染所有后续规则。整次候选数、截止时间及总遍历额度仍共用上限；规则未完整计量的目录不得发布容量或进入清理。
 - 本机限并发构建时，`xcodebuild -jobs` 不能约束 Release Swift Package 的 WMO 后端线程；`SWIFT_NUM_THREADS` 和较早传入的 `-num-threads` 可能被生成参数覆盖。临时 xcconfig 设置 `SWIFT_USE_PARALLEL_WHOLE_MODULE_OPTIMIZATION = NO` 并配合 `OTHER_SWIFT_FLAGS = $(inherited) -j2`，再从实际编译命令核对 `-num-threads 1`；不要为本地预览修改项目全局构建配置。
 - 工具检查需要完整输出时须显式启用字节上限并在超限时整体失败，不能解析普通命令保留的尾部。回归须经过 `CleanEnvironment.inspectTool` 生产入口；单测底层 runner 不能证明接线正确。
 - 逐层 `O_NOFOLLOW` 存储检查的夹具必须使用 `realpath` 后的物理临时根；Foundation URL 规范化可能仍保留 `/var` 别名，不应为了夹具放宽生产链接保护。

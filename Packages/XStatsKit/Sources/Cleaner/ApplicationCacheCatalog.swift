@@ -118,9 +118,12 @@ enum ApplicationCacheCatalog {
   static func cache(
     id: String, name: String, directories: [String], names: [String], bundleIDs: [String],
     applicationNames: [String]? = nil, root: String = "Library/Application Support",
-    category: CleanCategory = .system, previewOnly: Bool = false
+    category: CleanCategory = .system, previewOnly: Bool = false,
+    additionalPaths: [String] = []
   ) -> CleanRule {
-    let paths = directories.flatMap { directory in names.map { root + "/" + directory + "/" + $0 } }
+    let paths =
+      directories.flatMap { directory in names.map { root + "/" + directory + "/" + $0 } }
+      + additionalPaths
     return CleanRule(
       id: id, category: category, title: tr("\(name) 缓存"),
       detail: previewOnly

@@ -5,6 +5,96 @@ import Testing
 @testable import Cleaner
 
 struct PreviewSafetyTests {
+  @Test func allocatedRuleBudgetsCannotExceedTheSessionEntryLimit() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let counter = EntryCounter()
+    let rules = (0..<4).map { index in
+      CleanRule(
+        id: "budget.\(index)", category: .developer, title: "Fixture", detail: "",
+        symbol: "archivebox", requiredTool: "fixture",
+        prepareTool: { _ in
+          let budget = try #require(ScanBudget.current)
+          var visited = 0
+          do {
+            for _ in 0..<100 {
+              try budget.visit()
+              visited += 1
+            }
+          } catch is ScanInterruption {}
+          await counter.record(visited)
+          return ToolCachePlan(roots: [], tool: "fixture", arguments: [])
+        })
+    }
+    var environment = home.environment
+    environment.isToolAvailable = { _ in true }
+    environment.scanLimits = ScanLimits(maxEntries: 20, maxDuration: 20)
+    let scans = await CleanEngine.scan(rules, environment: environment)
+    let counts = await counter.counts
+    #expect(counts.count == 4)
+    #expect(counts.allSatisfy { $0 > 0 })
+    #expect(counts.reduce(0, +) == 20)
+    #expect(scans.allSatisfy { $0.interruption == .entryLimit && !$0.isComplete })
+  }
+
+  @Test func unusedEntryAllocationsReturnToQueuedRules() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let root = try home.file("Library/Caches/small/first").deletingLastPathComponent()
+    _ = try home.file("Library/Caches/small/second")
+    var environment = home.environment
+    environment.scanLimits = ScanLimits(maxEntries: 6, maxDuration: 20)
+    let scans = await CleanEngine.scan(
+      [
+        rule(id: "empty.first", urls: []), rule(id: "empty.second", urls: []),
+        rule(id: "small", urls: [root]),
+      ], environment: environment)
+    #expect(scans.allSatisfy { $0.isComplete })
+    #expect(scans[2].items.map(\.url) == [root])
+  }
+
+  @Test func queuedRuleBudgetKeepsTheSessionDeadline() {
+    let session = ScanBudget(limits: ScanLimits(maxDuration: 20))
+    let queued = ScanBudget(limits: ScanLimits(maxDuration: 60), sharing: session)
+    #expect(queued.deadline == session.deadline)
+  }
+
+  @Test func largeRuleDoesNotExhaustQueuedRulesEntryBudget() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let small = try home.file("Library/Caches/small/data").deletingLastPathComponent()
+    let (release, continuation) = AsyncStream<Void>.makeStream()
+    defer { continuation.finish() }
+    let large = CleanRule(
+      id: "large", category: .system, title: "Fixture", detail: "", symbol: "archivebox"
+    ) { _ in
+      defer { continuation.finish() }
+      let budget = try #require(ScanBudget.current)
+      for _ in 0..<30 { try budget.visit() }
+      return []
+    }
+    let waiting = CleanRule(
+      id: "waiting", category: .developer, title: "Fixture", detail: "", symbol: "archivebox",
+      requiredTool: "fixture",
+      prepareTool: { _ in
+        for await _ in release {}
+        return ToolCachePlan(roots: [], tool: "fixture", arguments: [])
+      })
+    var environment = home.environment
+    environment.isToolAvailable = { _ in true }
+    environment.scanLimits = ScanLimits(maxEntries: 20, maxDuration: 20)
+    let scans = await CleanEngine.scan(
+      [
+        large, waiting,
+        rule(id: "small", urls: [small]), rule(id: "absent", urls: []),
+      ], environment: environment)
+    #expect(scans[0].interruption == .entryLimit)
+    #expect(scans[0].items.isEmpty)
+    #expect(scans[2].isComplete)
+    #expect(scans[2].items.map(\.url) == [small])
+    #expect(scans[3].isComplete)
+  }
+
   @Test func previewOnlyRuleCannotDeleteEvenWhenExplicitlySelected() async throws {
     let home = try Fixture()
     defer { home.remove() }
@@ -328,7 +418,7 @@ struct PreviewSafetyTests {
         continuation.finish()
       }
       let budget = try #require(ScanBudget.current)
-      try budget.visit()
+      try budget.visitCandidate("/fixture/exhausted-candidate")
       return []
     }
     var environment = home.environment
@@ -339,7 +429,7 @@ struct PreviewSafetyTests {
       return ToolRunResult(status: 0, output: cache.path)
     }
     environment.inspectTool = environment.runTool
-    environment.scanLimits = ScanLimits(maxEntries: 3, maxDuration: 20)
+    environment.scanLimits = ScanLimits(maxEntries: 100, maxDuration: 20, maxCandidates: 1)
     let scans = await CleanEngine.scan(
       [RuleCatalog.userCaches, waiting, exhausting, DeveloperCleanupCatalog.uvCache],
       environment: environment)
@@ -667,6 +757,12 @@ struct PreviewSafetyTests {
     for (index, root) in roots.enumerated() {
       #expect(FileManager.default.fileExists(atPath: root.path) == (index >= removedRoots))
     }
+  }
+
+  private actor EntryCounter {
+    var counts: [Int] = []
+
+    func record(_ count: Int) { counts.append(count) }
   }
 
   private func rule(id: String = "fixture", urls: [URL]) -> CleanRule {

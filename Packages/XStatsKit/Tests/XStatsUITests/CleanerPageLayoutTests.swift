@@ -1,12 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import AppKit
+import Cleaner
 import SwiftUI
 import Testing
 @testable import XStatsUI
 
 @MainActor
 struct CleanerPageLayoutTests {
+  @Test func applicationCachesAreGroupedWithoutDuplicatingOrHidingRules() throws {
+    let rules = RuleCatalog.rules()
+    let applicationCaches = CleanerPage.Section.applicationCaches
+    let sections = [applicationCaches] + CleanCategory.allCases.map(CleanerPage.Section.category)
+    let applicationIDs = Set(rules.filter { applicationCaches.contains($0) }.map(\.id))
+    #expect(
+      Set(["system.caches", "app.codex", "preview.teams", "preview.telegram", "preview.chatgpt"])
+        .isSubset(of: applicationIDs))
+    #expect(!applicationIDs.contains("system.logs"))
+    for rule in rules {
+      #expect(sections.filter { $0.contains(rule) }.count == 1)
+      if rule.category != .system {
+        #expect(CleanerPage.Section.category(rule.category).contains(rule))
+      }
+    }
+    let logs = try #require(rules.first { $0.id == "system.logs" })
+    #expect(CleanerPage.Section.category(.system).contains(logs))
+  }
+
   @Test func bothTabsRenderWithoutStartingWorkInBothLayoutDirections() throws {
     let suite = "CleanerPageLayoutTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

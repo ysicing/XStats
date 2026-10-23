@@ -555,6 +555,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 应用正在运行，请先退出	Die App läuft. Beenden Sie sie zuerst.
 应用程序文件夹	Programme-Ordner
 应用缓存	App-Caches
+其他应用缓存	Weitere App-Caches
 应用远端设置？	Entfernte Einstellungen anwenden?
 应用退出或断开连接时，自动恢复风扇与睡眠设置	Stellt beim Beenden oder Verbindungsabbruch der App die Lüfter- und Ruhezustandseinstellungen wieder her
 废纸篓	Papierkorb

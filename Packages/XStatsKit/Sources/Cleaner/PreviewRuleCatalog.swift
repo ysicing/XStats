@@ -103,22 +103,17 @@ public enum PreviewRuleCatalog {
         directories: ["Caches"], names: ["com.microsoft.Outlook"],
         bundleIDs: [], applicationNames: ["Microsoft Outlook"], root: "Library",
         category: .system, previewOnly: true),
-      // Mole 2ef974753572: lib/clean/app_caches.sh:444.
+      // Mole 2ef974753572: lib/clean/app_caches.sh:444、447.
       ApplicationCacheCatalog.cache(
         id: "preview.zed", name: "Zed",
         directories: ["Caches"], names: ["Zed"],
         bundleIDs: [], applicationNames: ["Zed"], root: "Library",
-        category: .developer, previewOnly: true),
-      // Mole 2ef974753572: lib/clean/dev.sh:864.
+        category: .developer, previewOnly: true,
+        additionalPaths: ["Library/Application Support/Zed/node/cache"]),
+      // Mole 2ef974753572: lib/clean/dev.sh:864、865.
       ApplicationCacheCatalog.cache(
         id: "preview.poetry", name: "Poetry",
-        directories: ["Caches/pypoetry"], names: ["artifacts"],
-        bundleIDs: [], applicationNames: ["Poetry"], root: "Library",
-        category: .developer, previewOnly: true),
-      // Mole 2ef974753572: lib/clean/dev.sh:865.
-      ApplicationCacheCatalog.cache(
-        id: "preview.poetryPackages", name: "Poetry",
-        directories: ["Caches/pypoetry"], names: ["cache"],
+        directories: ["Caches/pypoetry"], names: ["artifacts", "cache"],
         bundleIDs: [], applicationNames: ["Poetry"], root: "Library",
         category: .developer, previewOnly: true),
       // Mole 2ef974753572: lib/clean/dev.sh:4181.
@@ -151,12 +146,6 @@ public enum PreviewRuleCatalog {
         directories: ["Caches/lima/download"], names: ["by-url-sha256"],
         bundleIDs: [], applicationNames: ["Lima"], root: "Library",
         category: .system, previewOnly: true),
-      // Mole 2ef974753572: lib/clean/app_caches.sh:447.
-      ApplicationCacheCatalog.cache(
-        id: "preview.zedNode", name: "Zed",
-        directories: ["Application Support/Zed/node"], names: ["cache"],
-        bundleIDs: [], applicationNames: ["Zed"], root: "Library",
-        category: .developer, previewOnly: true),
       // Mole 2ef974753572: lib/clean/app_caches.sh:1880.
       ApplicationCacheCatalog.cache(
         id: "preview.battleNet", name: "Battle.net",

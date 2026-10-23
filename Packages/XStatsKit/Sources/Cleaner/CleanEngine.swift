@@ -9,29 +9,40 @@ public enum CleanEngine {
   public static func scan(_ rules: [CleanRule], environment: CleanEnvironment) async -> [RuleScan] {
     let safety = SafetyGuard(home: environment.home)
     let budget = ScanBudget(limits: environment.scanLimits)
-    return await withTaskGroup(of: (Int, RuleScan).self) { group in
-      // 同时最多两个目录遍历；取消后不继续启动新规则。
+    return await withTaskGroup(of: (Int, RuleScan, Int).self) { group in
+      // 为排队规则预留条目额度；完成后归还未用额度，局部耗尽不阻断其他规则。
+      // 总条目、候选数及截止时间仍有界，同时最多两个目录遍历。
+      var remainingEntries = environment.scanLimits.maxEntries
       var next = 0
       for (index, rule) in rules.prefix(2).enumerated() {
+        var limits = environment.scanLimits
+        limits.maxEntries = remainingEntries / (rules.count - index)
+        remainingEntries -= limits.maxEntries
+        let ruleBudget = ScanBudget(limits: limits, sharing: budget)
         group.addTask {
-          let scan = await ScanBudget.$current.withValue(budget) {
+          let scan = await ScanBudget.$current.withValue(ruleBudget) {
             await scanRule(rule, environment: environment, safety: safety)
           }
-          return (index, scan)
+          return (index, scan, ruleBudget.remainingEntries)
         }
         next += 1
       }
       var results = [(Int, RuleScan)]()
       for await result in group {
-        results.append(result)
+        results.append((result.0, result.1))
+        remainingEntries += result.2
         if !Task.isCancelled, next < rules.count {
           let index = next
           let rule = rules[next]
+          var limits = environment.scanLimits
+          limits.maxEntries = remainingEntries / (rules.count - next)
+          remainingEntries -= limits.maxEntries
+          let ruleBudget = ScanBudget(limits: limits, sharing: budget)
           group.addTask {
-            let scan = await ScanBudget.$current.withValue(budget) {
+            let scan = await ScanBudget.$current.withValue(ruleBudget) {
               await scanRule(rule, environment: environment, safety: safety)
             }
-            return (index, scan)
+            return (index, scan, ruleBudget.remainingEntries)
           }
           next += 1
         }

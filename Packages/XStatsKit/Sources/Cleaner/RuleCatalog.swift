@@ -25,7 +25,7 @@ public enum RuleCatalog {
   ]
 
   static let userCaches = CleanRule(
-    id: "system.caches", category: .system, title: tr("应用缓存"),
+    id: "system.caches", category: .system, title: tr("其他应用缓存"),
     detail: tr("~/Library/Caches 中各应用的缓存，删除后会按需重建"), symbol: "archivebox",
     checksOwnerApp: true, isGenericLibraryScan: true
   ) { env in
