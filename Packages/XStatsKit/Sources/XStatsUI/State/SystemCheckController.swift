@@ -11,7 +11,7 @@ import Observation
 @Observable
 public final class SystemCheckController {
   enum Scope: String, CaseIterable, Identifiable, Sendable {
-    case resources, configuration, network, storage
+    case resources, configuration, network, storage, homebrew
 
     var id: String { rawValue }
     var title: String {
@@ -20,6 +20,7 @@ public final class SystemCheckController {
       case .configuration: tr("配置审阅")
       case .network: tr("网络检查")
       case .storage: tr("存储审阅")
+      case .homebrew: tr("Homebrew 依赖预览")
       }
     }
   }
@@ -83,7 +84,7 @@ public final class SystemCheckController {
         guard let self, !Task.isCancelled, current == generation else { return }
         findings = [
           SystemCheckFinding(
-            id: "failed", title: tr("系统检查"), status: .unchecked, isComplete: false,
+            id: "failed", title: request.scope.title, status: .unchecked, isComplete: false,
             detail: tr("无法完成检查，请稍后重试。"))
         ]
         checkedAt = Date()
@@ -102,7 +103,7 @@ public final class SystemCheckController {
       cancel()
       findings = [
         SystemCheckFinding(
-          id: "timeout", title: tr("系统检查"), status: .unchecked, isComplete: false,
+          id: "timeout", title: request.scope.title, status: .unchecked, isComplete: false,
           detail: tr("已达到扫描时间上限"))
       ]
       checkedAt = Date()
@@ -142,6 +143,8 @@ public final class SystemCheckController {
       runningApplicationNames: { request.runningNames },
       excludedPaths: request.excludedPaths)
     switch request.scope {
+    case .homebrew:
+      return [try await SystemCheck.homebrew(environment: environment)]
     case .resources:
       return try await resourceFindings(request.runningNames, environment: environment)
     case .configuration:

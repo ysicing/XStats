@@ -190,10 +190,15 @@ public enum SystemCheck {
         throw ToolExecutionError.failed(
           tool: "brew", status: result.status, output: "")
       }
+      let lines = result.output.split(separator: "\n")
+      let complete = lines.count <= 20 && lines.prefix(20).allSatisfy { $0.count <= 500 }
       return SystemCheckFinding(
         id: "brewAutoremove", title: tr("Homebrew 依赖预览"), status: .optional,
-        detail: tr("由 Homebrew 列出不再需要的依赖，仅供审阅。"),
-        evidence: result.output.split(separator: "\n").prefix(20).map(String.init))
+        isComplete: complete,
+        detail: complete
+          ? tr("由 Homebrew 列出不再需要的依赖，仅供审阅。")
+          : tr("预览内容过长，仅显示部分结果。"),
+        evidence: lines.prefix(20).map(String.init))
     } catch is CancellationError { throw CancellationError() } catch {
       return SystemCheckFinding(
         id: "brewAutoremove", title: tr("Homebrew 依赖预览"), status: .unchecked,

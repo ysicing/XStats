@@ -187,11 +187,11 @@ struct FeatureSettings: View {
         }
         GroupRow {
           SettingRow(
-            title: tr("清理"),
-            subtitle: tr("按需扫描缓存、日志与项目产物，清理前逐项确认。"),
+            title: tr("优化清理"),
+            subtitle: tr("按需清理缓存与项目产物，预览依赖并执行维护。"),
             icon: "eraser"
           ) {
-            DSToggle(isOn: $settings.cleanerEnabled, label: tr("清理"))
+            DSToggle(isOn: $settings.cleanerEnabled, label: tr("优化清理"))
           }
         }
       }
@@ -264,7 +264,7 @@ struct FeatureSettings: View {
         GroupRow(showsDivider: false) {
           SettingRow(
             title: tr("Agent 数据"),
-            subtitle: tr("在清理页查看已安装的 AI 工具及关联数据目录，并管理 worktree。"),
+            subtitle: tr("在优化清理页查看已安装的 AI 工具及关联数据目录，并管理 worktree。"),
             icon: "terminal"
           ) {
             DSToggle(isOn: $settings.agentDataEnabled, label: tr("Agent 数据"))

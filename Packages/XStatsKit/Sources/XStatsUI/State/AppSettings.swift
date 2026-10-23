@@ -424,7 +424,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .ports: tr("端口")
     case .keepAwake: tr("防休眠")
     case .rest: tr("计时")
-    case .cleaner: tr("清理")
+    case .cleaner: tr("优化清理")
     case .uninstaller, .startupItems: tr("应用服务")
     case .audio: tr("音频")
     case .connections: tr("网络监视器")

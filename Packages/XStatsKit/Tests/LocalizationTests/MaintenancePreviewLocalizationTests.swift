@@ -7,6 +7,13 @@ import Testing
 struct MaintenancePreviewLocalizationTests {
   // 同时覆盖检查卡片、扫描限制、清理页和预览规则复用的文案，防止已有译文被英文回退掩盖。
   private let keys = [
+    "优化清理",
+    "优化",
+    "按需清理缓存与项目产物，预览依赖并执行维护。",
+    "在优化清理页查看已安装的 AI 工具及关联数据目录，并管理 worktree。",
+    "遇到域名解析异常时手动刷新，不修改 DNS 服务器或代理设置。",
+    "手动释放可回收缓存；再次打开应用时可能需要重新加载，不建议频繁执行。",
+    "没有可移除的依赖",
     "启动代理目标",
     "仅检查当前用户启动代理的绝对程序路径；不删除或停用。",
     "遗留偏好覆盖",
@@ -15,6 +22,7 @@ struct MaintenancePreviewLocalizationTests {
     "仅检查主目录、Library 和 Preferences 的所有者与可写性。",
     "未安装 Homebrew",
     "Homebrew 依赖预览",
+    "预览内容过长，仅显示部分结果。",
     "由 Homebrew 列出不再需要的依赖，仅供审阅。",
     "无法完成检查，请稍后重试。",
     "已达到扫描条目上限",

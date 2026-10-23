@@ -15,6 +15,7 @@ import SwiftUI
 public struct MainWindowView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.isSnapshot) private var isSnapshot
+  @State private var cleanerTab: CleanerPage.Tab = .clean
 
   public init() {}
 
@@ -63,7 +64,7 @@ public struct MainWindowView: View {
   private var content: some View {
     VStack(spacing: 0) {
       // 滚动内容会延伸到标题栏下面；顶栏垫底色遮住它，同时保持按钮可点击。
-      PageHeader()
+      PageHeader(cleanerTab: $cleanerTab)
         .background(DS.Palette.background)
         .zIndex(1)
       page
@@ -133,7 +134,7 @@ public struct MainWindowView: View {
         case .ports: PortsPage()
         case .keepAwake: KeepAwakePage()
         case .rest: RestPage()
-        case .cleaner: CleanerPage()
+        case .cleaner: CleanerPage(tab: $cleanerTab)
         case .uninstaller: AppManagementPage()
         case .startupItems: AppManagementPage()
         case .settingsGeneral: SettingsTabPage { GeneralSettings() }
@@ -364,8 +365,9 @@ enum FeedbackLinks {
   }
 }
 
-private struct PageHeader: View {
+struct PageHeader: View {
   @Environment(AppModel.self) private var model
+  @Binding var cleanerTab: CleanerPage.Tab
   @State private var showAgentData = false
 
   var body: some View {
@@ -373,15 +375,24 @@ private struct PageHeader: View {
     let tab = settings.panelTab
 
     HStack(spacing: DS.Space.s3) {
-      // 拖动窗口的区域只覆盖标题和空白，按钮与开关不在拖动层上
-      HStack(spacing: 0) {
-        Text(tab.headerTitle)
-          .dsFont(.base, weight: .semibold)
-          .foregroundStyle(DS.Palette.textPrimary)
-        Spacer(minLength: DS.Space.s3)
+      // 拖动层只覆盖标题和空白，页内切换与操作控件保持可点击。
+      Text(tab.headerTitle)
+        .dsFont(.base, weight: .semibold)
+        .foregroundStyle(DS.Palette.textPrimary)
+        .lineLimit(1)
+        .frame(maxHeight: .infinity)
+        .background(WindowDragArea())
+
+      if tab == .cleaner {
+        SegmentedControl(
+          selection: $cleanerTab,
+          options: CleanerPage.Tab.allCases.map { ($0, $0.title) }
+        )
+        .fixedSize(horizontal: true, vertical: false)
       }
-      .frame(maxHeight: .infinity)
-      .background(WindowDragArea())
+      Spacer(minLength: 0)
+        .frame(maxHeight: .infinity)
+        .background(WindowDragArea())
 
       if model.keepAwake.isActive {
         // 与右边的按钮同高，顶栏里的控件高度一致
@@ -403,6 +414,7 @@ private struct PageHeader: View {
       if tab == .memory { PurgeMemoryButton() }
       if tab == .disk && settings.cleanerEnabled {
         Button {
+          cleanerTab = .clean
           settings.panelTab = .cleaner
         } label: {
           Label(tr("清理空间"), systemImage: PanelTab.cleaner.symbol)

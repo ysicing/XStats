@@ -1,21 +1,57 @@
 import Cleaner
-import HelperShared
 import Localization
 import Metrics
 import SwiftUI
 
 struct CleanerPage: View {
+  enum Tab: String, CaseIterable, Identifiable {
+    case clean, optimize
+
+    var id: String { rawValue }
+    var title: String { self == .clean ? tr("清理") : tr("优化") }
+  }
+
   @Environment(AppModel.self) private var model
   @Environment(\.isSnapshot) private var isSnapshot
+  @Binding var tab: Tab
+
+  init(tab: Binding<Tab> = .constant(.clean)) {
+    _tab = tab
+  }
 
   var body: some View {
+    Group {
+      if tab == .clean {
+        cleanup
+      } else {
+        PageScroll { OptimizationPage() }
+      }
+    }
+    .onAppear { updateTab() }
+    .onChange(of: tab) { _, _ in updateTab() }
+    .onDisappear {
+      model.systemCheck.cancel()
+      if model.cleaner.phase == .scanning { model.cleaner.cancelOperation() }
+    }
+    .onChange(of: model.settings.cleanerEnabled) { _, enabled in
+      if !enabled { model.systemCheck.cancel() }
+    }
+  }
+
+  private func updateTab() {
+    guard !isSnapshot else { return }
+    if tab == .clean {
+      model.systemCheck.cancel()
+      model.cleaner.scan(ifNeeded: true)
+    } else if model.cleaner.phase == .scanning {
+      model.cleaner.cancelOperation()
+    }
+  }
+
+  private var cleanup: some View {
     VStack(spacing: 0) {
       PageScroll {
-        WeightedRow(weights: [2, 1]) {
-          SummaryCard()
-          MaintenanceCard()
-        }
-        SystemCheckCard()
+        SummaryCard()
         if model.cleaner.needsFullDiskAccess {
           InfoBanner(
             icon: "lock.shield", text: tr("部分项目需要“完全磁盘访问权限”才能扫描（Safari 缓存、废纸篓）。"), tone: .warning
@@ -49,14 +85,6 @@ struct CleanerPage: View {
       CleanerFooter()
         .padding(DS.Space.s3)
         .background(DS.Palette.background)
-    }
-    .onAppear { if !isSnapshot { model.cleaner.scan(ifNeeded: true) } }
-    .onDisappear {
-      model.systemCheck.cancel()
-      if model.cleaner.phase == .scanning { model.cleaner.cancelOperation() }
-    }
-    .onChange(of: model.settings.cleanerEnabled) { _, enabled in
-      if !enabled { model.systemCheck.cancel() }
     }
   }
 }
@@ -217,80 +245,6 @@ private struct CleanerActions: View {
       scans: model.cleaner.confirmationScans, preferTrash: model.settings.cleanPrefersTrash)
   }
 
-}
-
-// MARK: - 系统维护
-
-private struct MaintenanceCard: View {
-  @Environment(AppModel.self) private var model
-
-  var body: some View {
-    Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
-      HStack(spacing: DS.Space.s1) {
-        Image(systemName: "wrench.and.screwdriver").font(
-          .system(size: DS.TextSize.xs.rawValue, weight: .semibold))
-        Text(tr("系统维护")).dsFont(.xs, weight: .semibold)
-      }
-      .foregroundStyle(DS.Palette.textSecondary)
-
-      MaintenanceButton(command: .flushDNS, icon: "network", title: tr("刷新 DNS 缓存"))
-      MaintenanceButton(command: .purgeMemory, icon: "memorychip", title: tr("释放内存"))
-
-      Text(model.helper.isReady ? tr("由辅助工具执行") : tr("需要管理员授权"))
-        .dsFont(.xs)
-        .foregroundStyle(DS.Palette.textTertiary)
-    }
-  }
-}
-
-private struct MaintenanceButton: View {
-  @Environment(AppModel.self) private var model
-  let command: MaintenanceCommand
-  let icon: String
-  let title: String
-  @State private var hovering = false
-
-  var body: some View {
-    let maintenance = model.maintenance
-    let isRunning = maintenance.running == command
-    let outcome = maintenance.outcomes[command]
-
-    Button {
-      Task { await maintenance.run(command) }
-    } label: {
-      VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
-        HStack(spacing: DS.Space.s2) {
-          Image(systemName: icon)
-            .font(.system(size: DS.TextSize.sm.rawValue, weight: .medium))
-            .frame(width: DS.Size.iconStandalone)
-          Text(title).dsFont(.sm, weight: .medium)
-          Spacer(minLength: 0)
-          if isRunning {
-            Text(tr("执行中")).dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
-          }
-        }
-        .foregroundStyle(DS.Palette.textPrimary)
-        if let outcome {
-          Text(outcome.text)
-            .dsFont(.xs)
-            .foregroundStyle(outcome.isError ? DS.Palette.error : DS.Palette.success)
-            .lineLimit(1)
-            .padding(.leading, DS.Size.iconStandalone + DS.Space.s2)
-        }
-      }
-      .padding(.horizontal, DS.Space.s2)
-      .padding(.vertical, DS.Space.s2)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        hovering ? DS.Palette.surfaceHover : DS.Palette.track,
-        in: RoundedRectangle(cornerRadius: DS.Radius.md)
-      )
-      .contentShape(Rectangle())
-    }
-    .buttonStyle(.plain)
-    .disabled(maintenance.running != nil)
-    .onHover { hovering = $0 }
-  }
 }
 
 // MARK: - 分类

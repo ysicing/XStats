@@ -6,9 +6,9 @@ import Testing
 @testable import XStatsUI
 
 @MainActor
-struct SystemCheckCardLayoutTests {
-  @Test func idleCardRendersAllScopesInBothLayoutDirections() throws {
-    let suite = "SystemCheckCardLayoutTests.\(UUID())"
+struct CleanerPageLayoutTests {
+  @Test func bothTabsRenderWithoutStartingWorkInBothLayoutDirections() throws {
+    let suite = "CleanerPageLayoutTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
@@ -18,33 +18,34 @@ struct SystemCheckCardLayoutTests {
     settings.aiUsageEnabled = false
     settings.aiUsageSources = []
     settings.cleanerEnabled = true
+    settings.panelTab = .cleaner
     let model = AppModel(
       settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
       networkCacheDefaults: defaults)
     let check = model.systemCheck
-    // AppModel 不支持注入检查器；暂停确保布局测试不会触发真实检查。
-    check.setPaused(true)
     defer {
       check.cancel()
+      model.cleaner.cancelOperation()
       model.aiUsage.stop()
     }
     let width = DS.Size.panelWidth
-    for scope in SystemCheckController.Scope.allCases {
-      check.selectScope(scope)
+    for tab in CleanerPage.Tab.allCases {
       for direction in [LayoutDirection.leftToRight, .rightToLeft] {
         let host = NSHostingView(
-          rootView: SystemCheckCard()
-            .environment(model)
-            .environment(\.layoutDirection, direction)
-            .environment(\.isSnapshot, true)
-            .preferredColorScheme(.light)
-            .padding(DS.Space.s3)
-            .frame(width: width, alignment: .leading)
-            .background(DS.Palette.background))
+          rootView: VStack(spacing: 0) {
+            PageHeader(cleanerTab: .constant(tab))
+            CleanerPage(tab: .constant(tab))
+          }
+          .environment(model)
+          .environment(\.layoutDirection, direction)
+          .environment(\.isSnapshot, true)
+          .preferredColorScheme(.light)
+          .frame(width: width, height: 700, alignment: .topLeading)
+          .background(DS.Palette.background))
         let size = host.fittingSize
         try #require(
           size.width.isFinite && size.height.isFinite && abs(size.width - width) < 1
-            && size.height > 0 && size.height < 600)
+            && size.height > 0 && size.height < 800)
         let window = NSWindow(
           contentRect: NSRect(origin: .zero, size: size), styleMask: .borderless,
           backing: .buffered, defer: false)
@@ -59,12 +60,13 @@ struct SystemCheckCardLayoutTests {
         #expect(bitmap.pixelsWide > 0 && bitmap.pixelsHigh > 0)
         #expect(!check.isChecking && check.checkedAt == nil && check.findings.isEmpty)
         #expect(check.deadlineTask == nil)
-        if let path = ProcessInfo.processInfo.environment["XSTATS_SYSTEM_CHECK_PREVIEW_DIR"] {
+        #expect(model.cleaner.phase == .idle && model.cleaner.scans.isEmpty)
+        if let path = ProcessInfo.processInfo.environment["XSTATS_CLEANER_PREVIEW_DIR"] {
           let directory = URL(fileURLWithPath: path, isDirectory: true)
           try FileManager.default.createDirectory(
             at: directory, withIntermediateDirectories: true)
           let name =
-            "system-check-\(scope.rawValue)-\(direction == .leftToRight ? "ltr" : "rtl").png"
+            "cleaner-\(tab.rawValue)-\(direction == .leftToRight ? "ltr" : "rtl").png"
           try #require(bitmap.representation(using: .png, properties: [:])).write(
             to: directory.appendingPathComponent(name))
         }

@@ -10,6 +10,7 @@ extension Translations {
     仅检查主目录、Library 和 Preferences 的所有者与可写性。	Checks only ownership and write access for the home folder, Library and Preferences.
     未安装 Homebrew	Homebrew Is Not Installed
     Homebrew 依赖预览	Homebrew Dependency Preview
+    预览内容过长，仅显示部分结果。	The preview is too long. Only part of the result is shown.
     由 Homebrew 列出不再需要的依赖，仅供审阅。	Homebrew lists dependencies that are no longer needed, for review only.
     无法完成检查，请稍后重试。	Unable to complete the check. Try again later.
     已达到扫描条目上限	Scan Entry Limit Reached
@@ -115,5 +116,12 @@ extension Translations {
     检查范围	Check Scope
     本次检查会向当前 DNS 查询 apple.com。	This check will query the current DNS for apple.com.
     已确认的缓存目录；占用不代表可安全删除。	Confirmed cache folders; usage does not mean they are safe to delete.
+    优化清理	Optimize & Clean
+    优化	Optimize
+    按需清理缓存与项目产物，预览依赖并执行维护。	Clean caches and build artifacts on demand, preview dependencies, and run maintenance.
+    在优化清理页查看已安装的 AI 工具及关联数据目录，并管理 worktree。	View installed AI tools and their associated data folders, and manage worktrees from Optimize & Clean.
+    遇到域名解析异常时手动刷新，不修改 DNS 服务器或代理设置。	Refresh manually when domain name resolution fails; DNS servers and proxy settings stay unchanged.
+    手动释放可回收缓存；再次打开应用时可能需要重新加载，不建议频繁执行。	Manually release reclaimable caches. Apps may need to reload data afterward; avoid frequent use.
+    没有可移除的依赖	No removable dependencies
     """#
 }

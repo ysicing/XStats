@@ -2568,3 +2568,11 @@ OrbStack 虚拟机数据	Données des machines virtuelles OrbStack
 检查范围	Périmètre de la vérification
 本次检查会向当前 DNS 查询 apple.com。	Cette vérification interrogera le DNS actuel pour apple.com.
 已确认的缓存目录；占用不代表可安全删除。	Dossiers de cache confirmés ; l’espace occupé ne signifie pas qu’ils peuvent être supprimés sans risque.
+优化清理	Optimisation et nettoyage
+优化	Optimisation
+按需清理缓存与项目产物，预览依赖并执行维护。	Nettoyez les caches et fichiers de compilation à la demande, prévisualisez les dépendances et lancez la maintenance.
+在优化清理页查看已安装的 AI 工具及关联数据目录，并管理 worktree。	Consultez les outils d’IA installés et leurs dossiers de données, et gérez les worktrees dans Optimisation et nettoyage.
+遇到域名解析异常时手动刷新，不修改 DNS 服务器或代理设置。	Videz le cache manuellement en cas de problème de résolution de noms, sans modifier les serveurs DNS ni le proxy.
+手动释放可回收缓存；再次打开应用时可能需要重新加载，不建议频繁执行。	Libérez manuellement les caches récupérables. Les apps peuvent devoir recharger les données ; évitez un usage fréquent.
+没有可移除的依赖	Aucune dépendance à supprimer
+预览内容过长，仅显示部分结果。	L’aperçu est trop long. Seule une partie du résultat est affichée.
