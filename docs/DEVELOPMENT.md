@@ -214,7 +214,9 @@ App 标签中的“检查更新”查询 App Store 来源的 Mac 应用。通过
 
 定向验证：`swift test --package-path Packages/XStatsKit --filter 'AppStoreUpdatesTests|ApplicationManagementTests|AppManagementControllerTests'`。可选实机只读检查：设置 `XSTATS_APP_MANAGEMENT_RESOURCE_REPORT=<输出路径>`，筛选 `AppManagementControllerTests/nativeInventoryStopsWhenClosed`，验证关闭后的遍历退出与 5 秒内无新增读取；不执行软件包更新或卸载。原生布局截图：`XStats --snapshot <目录> --app-management-only --language zh-Hans`，可切换 `en` 与 `ar`，只使用演示数据，不读取真实应用或执行 brew 写操作。
 
-卸载增强的定向验证：`swift test --package-path Packages/XStatsKit --filter 'AppUninstall|Uninstaller|ScanCancellationTests'`。测试只使用临时应用、目录和模拟回收器，覆盖容器元数据、签名应用组、共享候选默认保留、路径重定向、取消与残留重试；不会卸载真实应用。`XStats --snapshot <目录> --uninstaller-only --language zh-Hans` 使用独立偏好与演示候选生成卸载/重试及确认弹窗的明暗截图；可用 `en` 和 `ar` 验证长译文与 RTL，不扫描本机应用或调用废纸篓。
+卸载预览按真实工作显示身份核对、其他安装副本检查、残留查找和大小统计阶段。完成归属与路径检查后先显示候选列表，未计量项显示“待统计”，后台串行回填大小且不重置勾选；本轮扫描完成后才开放清理。关闭面板、切换应用或暂停时取消遍历并丢弃旧结果，未完成的扫描恢复时重做。本体计量失败阻止卸载，残留不可读则排除并提示扫描不完整；执行前仍重新核对应用文件身份、Bundle ID、其他副本、运行状态和每条目标路径。
+
+卸载增强的定向验证：`swift test --package-path Packages/XStatsKit --filter 'AppUninstall|Uninstaller|ScanCancellationTests|AppManagementLocalizationTests'`。测试只使用临时应用、目录和模拟回收器，覆盖列表先展示、后台大小回填、勾选保留、取消与晚到结果、容器元数据、签名应用组、共享候选默认保留、路径重定向、应用替换与残留重试；不会卸载真实应用。`XStats --snapshot <目录> --uninstaller-only --language zh-Hans` 使用独立偏好与演示候选生成卸载/重试及确认弹窗的明暗截图；可用 `en` 和 `ar` 验证长译文与 RTL，不扫描本机应用或调用废纸篓。
 
 显示器是单独的参数控制开关：关闭后仍显示型号、分辨率、刷新率与菜单栏信息入口，停止 DDC 参数读写；加入显示器菜单栏不会自动开启参数控制。显示器信息由系统事件更新，不添加轮询。
 

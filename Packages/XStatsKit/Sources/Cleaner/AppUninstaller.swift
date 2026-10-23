@@ -53,15 +53,25 @@ public struct AppLeftover: Sendable, Identifiable, Hashable {
   public let url: URL
   public let kind: Kind
   public let size: UInt64
+  /// 未计量的候选先用于展示，不能把占位的 0 当成实际大小。
+  public let isSizeKnown: Bool
   /// 共享或归属不确定的数据默认不选，由用户确认是否移除。
   public let requiresReview: Bool
 
-  public init(url: URL, kind: Kind, size: UInt64, requiresReview: Bool = false) {
+  public init(
+    url: URL, kind: Kind, size: UInt64, requiresReview: Bool = false, isSizeKnown: Bool = true
+  ) {
     self.url = url
     self.kind = kind
     self.size = size
+    self.isSizeKnown = isSizeKnown
     self.requiresReview = requiresReview
   }
+}
+
+/// 阶段只随真实工作推进，不按耗时推算百分比。
+public enum AppUninstallScanStage: Int, Sendable {
+  case identity, installations, leftovers, sizes
 }
 
 /// 已验证的卸载候选与未能读取的位置分开返回，部分失败不会伪装成“没有残留”。
@@ -357,22 +367,28 @@ public enum AppUninstaller {
     try scanLeftoversReport(for: app, home: home).items
   }
 
-  /// 无关位置不可读时保留完整计量的候选；应用本体无法验证或取消时仍抛错。
-  public static func scanLeftoversReport(for app: InstalledApp, home: String = NSHomeDirectory())
-    throws -> AppLeftoverScan
-  {
+  /// 先核对身份与归属；可将大小留给调用方后台计量，无法验证本体或取消时仍抛错。
+  public static func scanLeftoversReport(
+    for app: InstalledApp, home: String = NSHomeDirectory(), measureSizes: Bool = true,
+    onStage: @Sendable (AppUninstallScanStage) -> Void = { _ in }
+  ) throws -> AppLeftoverScan {
     try Task.checkCancellation()
+    onStage(.identity)
     let identity = AppUninstallIdentity(app: app)
     try Task.checkCancellation()
+    onStage(.installations)
+    let installations = try checkOtherInstallations(of: app, home: home)
+    try Task.checkCancellation()
+    onStage(.leftovers)
     return try scanLeftoversReport(
       for: app, home: home, identity: identity,
-      installations: checkOtherInstallations(of: app, home: home),
-      userCache: userCacheDirectory(home: home))
+      installations: installations, userCache: userCacheDirectory(home: home),
+      measureSizes: measureSizes)
   }
 
   static func scanLeftoversReport(
     for app: InstalledApp, home: String, identity: AppUninstallIdentity,
-    installations: AppInstallationCheck, userCache: URL?
+    installations: AppInstallationCheck, userCache: URL?, measureSizes: Bool = true
   ) throws -> AppLeftoverScan {
     let applicationIdentity = AppUninstallFileIdentity(at: app.url)
     if let currentIdentifier = applicationIdentity?.bundleIdentifier,
@@ -385,6 +401,7 @@ public enum AppUninstaller {
       for: app, home: home, identity: identity, unreadablePaths: &unreadablePaths,
       preserveSharedData: installations.preservesSharedData, userCache: userCache,
       protectedIdentifiers: installations.protectedIdentifiers,
+      measureSizes: measureSizes,
       checkCancellation: { try Task.checkCancellation() })
     return AppLeftoverScan(
       items: items, unreadablePaths: unreadablePaths.sorted { $0.path < $1.path },
@@ -436,6 +453,7 @@ public enum AppUninstaller {
     for app: InstalledApp, home: String, identity: AppUninstallIdentity,
     unreadablePaths: inout Set<URL>, preserveSharedData: Bool = false, userCache: URL? = nil,
     protectedIdentifiers: Set<String> = [],
+    measureSizes: Bool = true,
     checkCancellation: () throws -> Void
   ) throws -> [AppLeftover] {
     try checkCancellation()
@@ -494,7 +512,8 @@ public enum AppUninstaller {
         if review && !results[ancestor].requiresReview {
           let item = results[ancestor]
           results[ancestor] = AppLeftover(
-            url: item.url, kind: item.kind, size: item.size, requiresReview: true)
+            url: item.url, kind: item.kind, size: item.size, requiresReview: true,
+            isSizeKnown: item.isSizeKnown)
         }
         return
       }
@@ -502,13 +521,16 @@ public enum AppUninstaller {
         if review && !results[index].requiresReview {
           let item = results[index]
           results[index] = AppLeftover(
-            url: item.url, kind: item.kind, size: item.size, requiresReview: true)
+            url: item.url, kind: item.kind, size: item.size, requiresReview: true,
+            isSizeKnown: item.isSizeKnown)
         }
         return
       }
       let size: UInt64
       do {
-        size = try CleanEngine.scanAllocatedSize(of: url, checkCancellation: checkCancellation)
+        size =
+          measureSizes
+          ? try CleanEngine.scanAllocatedSize(of: url, checkCancellation: checkCancellation) : 0
       } catch is CancellationError { throw CancellationError() } catch {
         if kind == .application { throw error }
         unreadablePaths.insert(url)
@@ -522,7 +544,10 @@ public enum AppUninstaller {
         }
         return false
       }
-      results.append(AppLeftover(url: url, kind: kind, size: size, requiresReview: requiresReview))
+      results.append(
+        AppLeftover(
+          url: url, kind: kind, size: size, requiresReview: requiresReview,
+          isSizeKnown: measureSizes))
     }
 
     func entries(_ relative: String) throws -> [URL] {

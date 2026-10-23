@@ -8,6 +8,157 @@ import Testing
 
 @MainActor
 struct UninstallerScanLifecycleTests {
+  @Test func verifiedListAppearsBeforeBackgroundSizeMeasurementFinishes() async throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "UninstallProgress-\(UUID())"
+    ).resolvingSymlinksInPath()
+    let appURL = home.appendingPathComponent("Applications/Fixture.app")
+    let info = appURL.appendingPathComponent("Contents/Info.plist")
+    let cache = home.appendingPathComponent("Library/Caches/com.example.scanprogress")
+    try FileManager.default.createDirectory(
+      at: info.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try PropertyListSerialization.data(
+      fromPropertyList: ["CFBundleIdentifier": "com.example.scanprogress"], format: .xml, options: 0
+    ).write(to: info)
+    try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+    let app = try #require(AppUninstaller.app(at: appURL))
+    let gate = ScanGate()
+    let controller = UninstallerController(
+      currentBundleIdentifier: nil, home: home.path,
+      measureSize: { _ in
+        _ = gate.increment()
+        gate.markStarted()
+        _ = gate.release.wait(timeout: .now() + 10)
+        try Task.checkCancellation()
+        return 4096
+      })
+    let task = controller.select(app)
+    defer {
+      gate.release.signal()
+      gate.release.signal()
+      controller.cancelScanning()
+      try? FileManager.default.removeItem(at: home)
+    }
+    let deadline = ContinuousClock.now + .seconds(10)
+    while controller.isScanning, !gate.hasStarted, ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    try #require(gate.hasStarted, "残留列表的大小应由独立后台计量执行")
+    #expect(Set(controller.leftovers.map(\.url.path)) == [appURL.path, cache.path])
+    #expect(controller.isScanning && !controller.canUninstall)
+    #expect(controller.scanStage == .sizes)
+    #expect(controller.leftovers.allSatisfy { !$0.isSizeKnown })
+    let body = try #require(controller.leftovers.first { $0.kind == .application })
+    let cacheItem = try #require(controller.leftovers.first { $0.kind == .caches })
+    controller.toggle(cacheItem)
+    gate.release.signal()
+    gate.release.signal()
+    await task?.value
+    #expect(controller.canUninstall && !controller.isScanning)
+    #expect(controller.chosen == [body.id])
+    #expect(controller.chosenSize == 4096)
+    #expect(gate.calls == 2)
+    #expect(controller.scanStage == nil)
+  }
+
+  @Test func lateSizeCannotOverwriteNewScanOfSameApplication() async throws {
+    let target = app()
+    let gate = ScanGate()
+    let controller = UninstallerController(
+      currentBundleIdentifier: nil,
+      findLeftoversReport: { app in
+        AppLeftoverScan(items: [
+          AppLeftover(url: app.url, kind: .application, size: 0, isSizeKnown: false)
+        ])
+      },
+      measureSize: { _ in
+        if gate.increment() == 1 {
+          gate.markStarted()
+          _ = gate.release.wait(timeout: .now() + 10)
+          // 模拟不响应取消的底层文件调用，晚到结果仍须被代际检查丢弃。
+          return 100
+        }
+        return 800
+      })
+    defer {
+      gate.release.signal()
+      controller.cancelScanning()
+    }
+    let old = controller.select(target)
+    let started = try await gate.waitUntilStarted()
+    try #require(started)
+    await controller.select(target)?.value
+    #expect(controller.chosenSize == 800 && controller.canUninstall)
+    gate.release.signal()
+    await old?.value
+    #expect(controller.chosenSize == 800 && controller.canUninstall)
+    #expect(controller.scanStage == nil)
+  }
+
+  @Test func closingDuringSizeMeasurementCancelsWorkAndRequiresFreshScan() async throws {
+    let gate = ScanGate()
+    let target = app()
+    let controller = UninstallerController(
+      currentBundleIdentifier: nil,
+      findLeftoversReport: { app in
+        AppLeftoverScan(items: [
+          AppLeftover(url: app.url, kind: .application, size: 0, isSizeKnown: false)
+        ])
+      },
+      measureSize: { _ in
+        if gate.increment() == 1 {
+          gate.markStarted()
+          while !Task.isCancelled { Thread.sleep(forTimeInterval: 0.005) }
+          gate.markFinished()
+          throw CancellationError()
+        }
+        return 500
+      })
+    defer { controller.cancelScanning() }
+    let task = controller.select(target)
+    let started = try await gate.waitUntilStarted()
+    try #require(started)
+    controller.cancelScanning()
+    await task?.value
+    #expect(gate.finished && !controller.isScanning && controller.scanStage == nil)
+    #expect(!controller.canUninstall && controller.leftovers.allSatisfy { !$0.isSizeKnown })
+    controller.resumeSelectionScan()
+    let deadline = ContinuousClock.now + .seconds(10)
+    while controller.isScanning, ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(controller.canUninstall && controller.chosenSize == 500)
+    #expect(gate.calls == 2)
+  }
+
+  @Test(arguments: [false, true])
+  func unreadableSizeNeverBecomesAZeroByteRemovalCandidate(_ applicationFails: Bool) async {
+    let target = app()
+    let cache = URL(fileURLWithPath: "/tmp/scan-unreadable-\(UUID())")
+    let controller = UninstallerController(
+      currentBundleIdentifier: nil,
+      findLeftoversReport: { app in
+        AppLeftoverScan(items: [
+          AppLeftover(url: app.url, kind: .application, size: 0, isSizeKnown: false),
+          AppLeftover(url: cache, kind: .caches, size: 0, isSizeKnown: false),
+        ])
+      },
+      measureSize: { url in
+        if url == cache || applicationFails { throw CocoaError(.fileReadNoPermission) }
+        return 512
+      })
+    defer { controller.cancelScanning() }
+    await controller.select(target)?.value
+    #expect(!controller.isScanning && controller.scanStage == nil)
+    if applicationFails {
+      #expect(!controller.canUninstall && controller.outcome?.isError == true)
+    } else {
+      #expect(controller.canUninstall && controller.scanIncomplete)
+      #expect(controller.chosen == [target.id] && controller.chosenSize == 512)
+      #expect(controller.leftovers.allSatisfy { $0.isSizeKnown })
+    }
+  }
+
   @Test func featureDisableCancelsScanAndRejectsItsLateResult() async throws {
     let gate = ScanGate()
     let controller = UninstallerController(
@@ -205,6 +356,7 @@ private final class ScanGate: @unchecked Sendable {
   private var started = false
   var calls: Int { lock.withLock { count } }
   var finished: Bool { lock.withLock { done } }
+  var hasStarted: Bool { lock.withLock { started } }
   func increment() -> Int {
     lock.withLock {
       count += 1

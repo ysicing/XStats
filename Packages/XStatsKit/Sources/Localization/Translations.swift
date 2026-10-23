@@ -1773,6 +1773,10 @@ extension Translations {
 
 extension Translations {
   static let applicationManagementEnglish = #"""
+    正在核对应用身份…	Checking app identity…
+    正在核对其他安装副本…	Checking other installations…
+    正在统计大小（{} / {}）…	Measuring size ({} / {})…
+    待统计	Pending
     检查 App Store 更新	Check for App Store updates
     在 App Store 更新	Update in App Store
     无法打开 App Store，请手动打开后更新	Could not open the App Store. Open it manually to update.

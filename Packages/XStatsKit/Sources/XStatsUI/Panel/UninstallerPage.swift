@@ -237,9 +237,26 @@ struct AppDetailCard: View {
   let app: InstalledApp
   let confirm: () -> Void
 
+  private var scanStatus: String {
+    let uninstaller = model.uninstaller
+    switch uninstaller.scanStage {
+    case .identity: return tr("正在核对应用身份…")
+    case .installations: return tr("正在核对其他安装副本…")
+    case .sizes:
+      let completed = uninstaller.leftovers.filter(\.isSizeKnown).count.formatted(
+        .number.locale(L10n.locale))
+      let total = uninstaller.leftovers.count.formatted(.number.locale(L10n.locale))
+      return tr("正在统计大小（\(completed) / \(total)）…")
+    case .leftovers, nil: return tr("正在查找残留…")
+    }
+  }
+
   var body: some View {
     @Bindable var uninstaller = model.uninstaller
     let running = uninstaller.isRunning(app)
+    let selectedSize =
+      uninstaller.leftovers.contains { uninstaller.chosen.contains($0.id) && !$0.isSizeKnown }
+      ? tr("待统计") : Format.bytes(uninstaller.chosenSize, base: .decimal)
 
     Card {
       HStack(spacing: DS.Space.s3) {
@@ -284,13 +301,14 @@ struct AppDetailCard: View {
         Spacer()
         Text(
           verbatim: uninstaller.isScanning
-            ? tr("正在查找残留…")
+            ? scanStatus
             : tr(
-              "已选 \(uninstaller.chosen.count) 项 · \(Format.bytes(uninstaller.chosenSize, base: .decimal))"
+              "已选 \(uninstaller.chosen.count) 项 · \(selectedSize)"
             )
         )
         .dsFont(.xs)
         .foregroundStyle(DS.Palette.textTertiary)
+        .multilineTextAlignment(.trailing)
       }
 
       ForEach(AppLeftover.Kind.allCases, id: \.self) { kind in
@@ -319,10 +337,12 @@ struct AppDetailCard: View {
                   }
                 }
                 Spacer(minLength: DS.Space.s2)
-                Text(verbatim: Format.bytes(item.size, base: .decimal))
-                  .dsFont(.xs)
-                  .foregroundStyle(DS.Palette.textTertiary)
-                  .monospacedDigit()
+                Text(
+                  verbatim: item.isSizeKnown ? Format.bytes(item.size, base: .decimal) : tr("待统计")
+                )
+                .dsFont(.xs)
+                .foregroundStyle(DS.Palette.textTertiary)
+                .monospacedDigit()
                 MiniIconButton(systemName: "magnifyingglass", help: tr("在访达中显示")) {
                   NSWorkspace.shared.activateFileViewerSelecting([item.url])
                 }

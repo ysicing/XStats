@@ -9,6 +9,61 @@ import Testing
 
 @MainActor
 struct UninstallerPresentationTests {
+  @Test func scanStagesKeepInspectorSizedAndRemovalDisabled() async throws {
+    let suite = "UninstallerProgressPresentationTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let model = AppModel(
+      settings: AppSettings(defaults: defaults), historyURL: nil,
+      aiUsageProviders: [], aiQuotaProviders: [])
+    defer { model.uninstaller.setEnabled(false) }
+    let app = InstalledApp(
+      url: URL(fileURLWithPath: "/Applications/Progress Demo.app"), name: "Progress Demo",
+      bundleIdentifier: "test.uninstall.progress", version: "1.0", teamIdentifier: nil)
+    let items = [
+      AppLeftover(url: app.url, kind: .application, size: 20_000_000),
+      AppLeftover(
+        url: URL(fileURLWithPath: "/Users/demo/Library/Caches/test.uninstall.progress"),
+        kind: .caches, size: 0, isSizeKnown: false),
+      AppLeftover(
+        url: URL(
+          fileURLWithPath: "/Users/demo/Library/Group Containers/group.test.uninstall.shared"),
+        kind: .containers, size: 0, requiresReview: true, isSizeKnown: false),
+    ]
+    model.uninstaller.showPreview(
+      app: app, items: [], applicationRemoved: false, scanStage: .identity)
+    let window = NSWindow(
+      contentRect: NSRect(x: -10_000, y: -10_000, width: 800, height: 700),
+      styleMask: .borderless, backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.appearance = NSAppearance(named: .aqua)
+    window.contentView = NSHostingView(rootView: UninstallInspectorTestHost(model: model))
+    defer { window.close() }
+    window.orderFrontRegardless()
+    try await Task.sleep(for: .milliseconds(300))
+    let sheet = try #require(window.sheets.first)
+    for stage in [
+      AppUninstallScanStage.identity, .installations, .leftovers, .sizes,
+    ] {
+      model.uninstaller.showPreview(
+        app: app, items: stage == .sizes ? items : [], applicationRemoved: false, scanStage: stage)
+      try await Task.sleep(for: .milliseconds(100))
+      #expect(abs(sheet.frame.height - 560) < 1)
+      #expect(abs(sheet.frame.width - 560) < 1)
+      model.uninstaller.requestUninstall()
+      #expect(!model.uninstaller.canUninstall && model.uninstaller.pendingUninstall == nil)
+      if let output = ProcessInfo.processInfo.environment["XSTATS_UNINSTALLER_PREVIEW_DIRECTORY"] {
+        let content = try #require(sheet.contentView)
+        let image = try #require(content.bitmapImageRepForCachingDisplay(in: content.bounds))
+        content.cacheDisplay(in: content.bounds, to: image)
+        let data = try #require(image.representation(using: .png, properties: [:]))
+        let directory = URL(fileURLWithPath: output, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try data.write(to: directory.appendingPathComponent("stage-\(stage).png"))
+      }
+    }
+  }
+
   @Test(arguments: [false, true])
   func completedInspectorDismissesButFailuresAndRemainingItemsStay(longName: Bool) async throws {
     let suite = "UninstallerPresentationTests.\(UUID())"

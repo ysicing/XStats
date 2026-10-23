@@ -5,6 +5,23 @@ import Testing
 @testable import Localization
 
 struct AppManagementLocalizationTests {
+  @Test func uninstallScanStagesAndMeasuredCountsHaveExplicitTranslations() throws {
+    let sources = [
+      "正在核对应用身份…", "正在核对其他安装副本…", "正在统计大小（2 / 12）…", "待统计",
+    ]
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for source in sources {
+        let translated = try #require(table.translate(source), "\(language): \(source)")
+        #expect(translated != source && !translated.isEmpty)
+        if source.contains("12") {
+          #expect(translated.contains("2") && translated.contains("12"))
+          #expect(!translated.contains("{}"))
+        }
+      }
+    }
+  }
+
   @Test func appManagementTextExistsInEverySupportedCatalog() throws {
     let sources =
       (Translations.applicationManagementEnglish + "\n" + Translations.appServicesEnglish).split(

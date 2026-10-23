@@ -44,11 +44,11 @@ struct AppUninstallerAuditTests {
       return url
     }
 
-    func scan(_ app: InstalledApp) throws -> AppLeftoverScan {
+    func scan(_ app: InstalledApp, measureSizes: Bool = true) throws -> AppLeftoverScan {
       try AppUninstaller.scanLeftoversReport(
         for: app, home: home.path, identity: AppUninstallIdentity(app: app),
         installations: AppUninstaller.checkOtherInstallations(of: app, home: home.path),
-        userCache: nil)
+        userCache: nil, measureSizes: measureSizes)
     }
   }
 
@@ -123,15 +123,17 @@ struct AppUninstallerAuditTests {
     }
   }
 
-  @Test(arguments: ["com.audit.different", "com.audit.product"])
-  func replacedApplicationInvalidatesApplicationAndResidualAuthorization(_ identifier: String)
+  @Test(arguments: ["com.audit.different", "com.audit.product"], [false, true])
+  func replacedApplicationInvalidatesApplicationAndResidualAuthorization(
+    _ identifier: String, measureSizes: Bool
+  )
     throws
   {
     let fixture = try Fixture()
     defer { fixture.remove() }
     let app = try fixture.app()
     let residual = try fixture.directory("Library/Caches/com.audit.product")
-    let scan = try fixture.scan(app)
+    let scan = try fixture.scan(app, measureSizes: measureSizes)
     try #require(scan.items.contains { $0.url.path == residual.path })
     try FileManager.default.moveItem(
       at: app.url, to: fixture.home.appendingPathComponent("Original.app"))
@@ -143,6 +145,26 @@ struct AppUninstallerAuditTests {
           target, for: app, scan: scan, home: fixture.home.path, userCache: nil)
       }
     }
+  }
+
+  @Test func candidateDiscoveryKeepsOwnershipRulesBeforeMeasuringSizes() throws {
+    let fixture = try Fixture()
+    defer { fixture.remove() }
+    let app = try fixture.app()
+    _ = try fixture.app("Independent", identifier: "com.audit.product.independent")
+    let cache = try fixture.directory("Library/Caches/com.audit.product")
+    let shared = try fixture.directory("Library/Caches/com.audit.product.helper")
+    _ = try fixture.directory("Library/Caches/com.audit.product.independent")
+    _ = try fixture.file("Library/Caches/com.audit.product/data")
+
+    let preview = try fixture.scan(app, measureSizes: false)
+    let measured = try fixture.scan(app)
+    #expect(preview.items.map(\.url) == measured.items.map(\.url))
+    #expect(preview.items.map(\.requiresReview) == measured.items.map(\.requiresReview))
+    #expect(preview.items.allSatisfy { !$0.isSizeKnown })
+    #expect(measured.items.allSatisfy { $0.isSizeKnown })
+    #expect(measured.items.first { $0.url.path == cache.path }?.size ?? 0 > 0)
+    #expect(preview.items.first { $0.url.path == shared.path }?.requiresReview == true)
   }
 
   @Test func changedBundleIdentifierInSameDirectoryInvalidatesTheScan() throws {
