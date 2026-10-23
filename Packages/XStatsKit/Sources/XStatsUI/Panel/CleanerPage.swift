@@ -162,7 +162,7 @@ private struct SummaryCard: View {
 
       CleanerActions()
       if cleaner.previewBytes > 0 {
-        Text(tr("仅预览占用 \(Format.bytes(cleaner.previewBytes, base: .decimal))"))
+        Text(tr("仅查看项目占用 \(Format.bytes(cleaner.previewBytes, base: .decimal))"))
           .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       }
       if cleaner.scans.contains(where: { $0.isCleanable && $0.rule.usesToolCleaner }) {
@@ -333,7 +333,7 @@ private struct CategoryCard: View {
           showsEmpty.toggle()
         } label: {
           Label(
-            tr("无需清理（\(emptyCount.formatted(.number.locale(L10n.locale)))）"),
+            tr("未发现内容（\(emptyCount.formatted(.number.locale(L10n.locale)))）"),
             systemImage: showsEmpty ? "chevron.up" : "chevron.down")
         }
         .buttonStyle(.plain).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
@@ -361,18 +361,22 @@ private struct RuleRow: View {
 
     VStack(alignment: .leading, spacing: DS.Space.s2) {
       HStack(spacing: DS.Space.s2) {
-        if !scan.rule.previewOnly {
-          CleanupCheckbox(
-            title: scan.rule.title, selected: selectedIDs.count, total: scan.items.count
-          ) { cleaner.toggle(scan) }
-          .frame(width: 24, height: 24)
-          .disabled(!scan.isCleanable || cleaner.isBusy)
+        ZStack {
+          if !scan.rule.previewOnly {
+            CleanupCheckbox(
+              title: scan.rule.title, selected: selectedIDs.count, total: scan.items.count
+            ) { cleaner.toggle(scan) }
+            .disabled(!scan.isCleanable || cleaner.isBusy)
+          }
         }
+        .frame(width: 24, height: 24)
+        .accessibilityHidden(scan.rule.previewOnly)
         RuleIcon(name: scan.rule.symbol)
         VStack(alignment: .leading, spacing: 0) {
           Text(scan.rule.title)
             .dsFont(.sm, weight: .medium)
             .foregroundStyle(scan.blocked == nil ? DS.Palette.textPrimary : DS.Palette.textTertiary)
+            .lineLimit(1)
           Text(status)
             .dsFont(.xs)
             .foregroundStyle(scan.blocked == nil ? DS.Palette.textTertiary : DS.Palette.warning)
@@ -410,13 +414,16 @@ private struct RuleRow: View {
         VStack(alignment: .leading, spacing: DS.Space.s1) {
           ForEach(scan.items.prefix(Self.previewLimit)) { item in
             HStack {
-              if !scan.rule.previewOnly {
-                CleanupCheckbox(
-                  title: item.url.path, selected: selectedIDs.contains(item.id) ? 1 : 0
-                ) { cleaner.toggle(item, in: scan) }
-                .frame(width: 24, height: 24)
-                .disabled(cleaner.isBusy || !scan.isCleanable || scan.rule.usesToolCleaner)
+              ZStack {
+                if !scan.rule.previewOnly {
+                  CleanupCheckbox(
+                    title: item.url.path, selected: selectedIDs.contains(item.id) ? 1 : 0
+                  ) { cleaner.toggle(item, in: scan) }
+                  .disabled(cleaner.isBusy || !scan.isCleanable || scan.rule.usesToolCleaner)
+                }
               }
+              .frame(width: 24, height: 24)
+              .accessibilityHidden(scan.rule.previewOnly)
               Text(
                 verbatim: scan.toolPreview == nil
                   ? item.url.lastPathComponent
@@ -441,7 +448,7 @@ private struct RuleRow: View {
           Button(tr("查看全部项目")) { showsReview = true }
             .buttonStyle(.plain).dsFont(.xs).foregroundStyle(DS.Palette.primary)
         }
-        .padding(.leading, DS.Size.iconInline + DS.Size.iconStandalone + DS.Space.s2 * 2)
+        .padding(.leading, DS.Size.iconStandalone + DS.Space.s2)
       }
     }
     .sheet(isPresented: $showsReview) { CleanerReviewSheet(scan: scan, cleaner: cleaner) }
@@ -450,13 +457,18 @@ private struct RuleRow: View {
   private static let previewLimit = 6
 
   private func statusText(selectedCount: Int, detailed: Bool = false) -> String {
+    let status = scanStatusText(selectedCount: selectedCount, detailed: detailed)
+    return scan.rule.previewOnly ? tr("仅查看 · \(status)") : status
+  }
+
+  private func scanStatusText(selectedCount: Int, detailed: Bool) -> String {
     if let blocked = scan.blocked { return blocked.title }
     if let interruption = scan.interruption { return interruption.title }
     if scan.items.isEmpty && scan.unreadableCount > 0 {
       return tr("扫描不完整 · \(scan.unreadableCount) 项未能读取")
     }
     if scan.items.isEmpty && scan.skippedCount > 0 { return tr("已跳过 \(scan.skippedCount) 项") }
-    if scan.items.isEmpty { return tr("无需清理") }
+    if scan.items.isEmpty { return scan.rule.previewOnly ? tr("未发现缓存") : tr("无需清理") }
     var text =
       selectedCount > 0 && selectedCount < scan.items.count
       ? tr("已选 \(selectedCount)/\(scan.items.count) 项") : tr("\(scan.items.count) 项")
@@ -470,7 +482,6 @@ private struct RuleRow: View {
       text += tr(" · 已跳过 \(scan.skippedCount) 项")
     }
     if scan.rule.policy == .trash { text += tr(" · 移到废纸篓") }
-    if scan.rule.previewOnly { text = tr("仅预览") + " · " + text }
     return text
   }
 }

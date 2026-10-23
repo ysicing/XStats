@@ -5,7 +5,7 @@ import Testing
 @testable import Localization
 
 struct MaintenancePreviewLocalizationTests {
-  // 同时覆盖检查卡片、扫描限制、清理页和预览规则复用的文案，防止已有译文被英文回退掩盖。
+  // 同时覆盖检查卡片、扫描限制、清理页和仅查看项目复用的文案，防止已有译文被英文回退掩盖。
   private let keys = [
     "优化清理",
     "优化",
@@ -53,7 +53,7 @@ struct MaintenancePreviewLocalizationTests {
     "磁盘清理",
     "扫描于 ",
     "{} 可用 {} · 共 {}",
-    "仅预览占用 {}",
+    "仅查看项目占用 {}",
     "尚未扫描",
     "释放量未确认",
     "扫描中",
@@ -94,7 +94,10 @@ struct MaintenancePreviewLocalizationTests {
     "{} 项",
     " · 已跳过 {} 项",
     " · 移到废纸篓",
-    "仅预览",
+    "仅查看",
+    "仅查看 · {}",
+    "未发现缓存",
+    "未发现内容（{}）",
     "工具缓存容量单独列出，不计入文件合计。",
     "所选工具缓存将由对应工具永久清理，此操作无法撤销。",
     "缓存也先移到废纸篓",
@@ -182,7 +185,7 @@ struct MaintenancePreviewLocalizationTests {
     "存储审阅",
     "检查范围",
     "本次检查会向当前 DNS 查询 apple.com。",
-    "已确认的缓存目录；占用不代表可安全删除。",
+    "仅查看占用，不提供清理。",
   ]
 
   @Test func maintenancePreviewStringsHaveExplicitTranslationsInEveryLanguage() throws {
@@ -230,7 +233,7 @@ struct MaintenancePreviewLocalizationTests {
     #expect(
       L10n.translate("交换空间占用 2 GB", language: .english) == "Swap used: 2 GB")
     #expect(
-      L10n.translate("仅预览占用 512 MB", language: .english) == "Preview-only usage: 512 MB")
+      L10n.translate("仅查看项目占用 512 MB", language: .english) == "View-only items use 512 MB")
     #expect(
       L10n.translate("Microsoft Teams 缓存", language: .english) == "Microsoft Teams Cache")
   }

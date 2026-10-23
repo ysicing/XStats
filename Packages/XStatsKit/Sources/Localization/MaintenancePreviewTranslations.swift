@@ -33,8 +33,11 @@ extension Translations {
     可选维护	Optional Maintenance
     不适用	Not Applicable
     未检查	Not Checked
-    仅预览占用 {}	Preview-only usage: {}
-    仅预览	Preview Only
+    仅查看项目占用 {}	View-only items use {}
+    仅查看	View Only
+    仅查看 · {}	View only · {}
+    未发现缓存	No cache found
+    未发现内容（{}）	No content found ({})
     工具缓存容量单独列出，不计入文件合计。	Tool cache estimates are listed separately and excluded from the file total.
     所选工具缓存将由对应工具永久清理，此操作无法撤销。	The selected tool caches will be permanently cleaned by their tools. This cannot be undone.
     应用保存状态审阅	Saved Application State Review
@@ -115,7 +118,7 @@ extension Translations {
     存储审阅	Storage Review
     检查范围	Check Scope
     本次检查会向当前 DNS 查询 apple.com。	This check will query the current DNS for apple.com.
-    已确认的缓存目录；占用不代表可安全删除。	Confirmed cache folders; usage does not mean they are safe to delete.
+    仅查看占用，不提供清理。	Shows usage only; cleanup is unavailable.
     优化清理	Optimize & Clean
     优化	Optimize
     按需清理缓存与项目产物，预览依赖并执行维护。	Clean caches and build artifacts on demand, preview dependencies, and run maintenance.

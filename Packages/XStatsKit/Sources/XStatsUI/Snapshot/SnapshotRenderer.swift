@@ -313,8 +313,21 @@ enum SnapshotRenderer {
       let scan = RuleScan(
         rule: rule, items: items, skippedCount: 2, blocked: nil,
         skippedReasons: [.recentlyModified: 1, .excluded: 1], unreadableCount: 1)
-      let emptyScans = RuleCatalog.rules().filter { $0.id != rule.id }.map {
-        RuleScan(rule: $0, items: [], skippedCount: 0, blocked: nil)
+      let otherScans = RuleCatalog.rules().filter { $0.id != rule.id }.map { rule in
+        if ["preview.teams", "preview.zed"].contains(rule.id) {
+          return RuleScan(
+            rule: rule,
+            items: [
+              CleanItem(
+                url: URL(fileURLWithPath: "/Users/demo/Library/Caches/\(rule.id)"),
+                size: 24_000_000)
+            ], skippedCount: 0, blocked: nil)
+        }
+        if rule.id == "preview.chatgpt" {
+          return RuleScan(
+            rule: rule, items: [], skippedCount: 0, blocked: .appRunning("ChatGPT"))
+        }
+        return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: nil)
       }
       // 产物演示只扫描临时夹具；使用真实扫描结果保证选择契约与生产一致。
       let fixture = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -337,7 +350,7 @@ enum SnapshotRenderer {
       let projectScan = await ProjectPurge.scan(home: fixture.path)
       model.projectPurge.showPreview(projectScan)
       if let first = projectScan.items.first { model.projectPurge.toggle(first) }
-      model.cleaner.showPreview([scan] + emptyScans)
+      model.cleaner.showPreview([scan] + otherScans)
       model.cleaner.toggle(items[0], in: scan)
       for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
         guard let appearance = NSAppearance(named: name) else { continue }

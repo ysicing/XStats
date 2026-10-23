@@ -2486,8 +2486,11 @@ DNS 维护	Maintenance DNS
 可选维护	Maintenance facultative
 不适用	Sans objet
 未检查	Non vérifié
-仅预览占用 {}	Espace occupé en aperçu uniquement : {}
-仅预览	Aperçu uniquement
+仅查看项目占用 {}	Les éléments en consultation seule occupent {}
+仅查看	Consultation seule
+仅查看 · {}	Consultation seule · {}
+未发现缓存	Aucun cache trouvé
+未发现内容（{}）	Aucun contenu ({})
 工具缓存容量单独列出，不计入文件合计。	Les estimations des caches des outils sont affichées séparément et exclues du total des fichiers.
 所选工具缓存将由对应工具永久清理，此操作无法撤销。	Les caches sélectionnés seront définitivement nettoyés par leurs outils respectifs. Cette action est irréversible.
 应用保存状态审阅	Examen des états enregistrés des apps
@@ -2568,7 +2571,7 @@ OrbStack 虚拟机数据	Données des machines virtuelles OrbStack
 存储审阅	Examen du stockage
 检查范围	Périmètre de la vérification
 本次检查会向当前 DNS 查询 apple.com。	Cette vérification interrogera le DNS actuel pour apple.com.
-已确认的缓存目录；占用不代表可安全删除。	Dossiers de cache confirmés ; l’espace occupé ne signifie pas qu’ils peuvent être supprimés sans risque.
+仅查看占用，不提供清理。	Affiche uniquement l’espace occupé ; nettoyage indisponible.
 优化清理	Optimisation et nettoyage
 优化	Optimisation
 按需清理缓存与项目产物，预览依赖并执行维护。	Nettoyez les caches et fichiers de compilation à la demande, prévisualisez les dépendances et lancez la maintenance.

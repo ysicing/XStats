@@ -127,7 +127,7 @@ enum ApplicationCacheCatalog {
     return CleanRule(
       id: id, category: category, title: tr("\(name) 缓存"),
       detail: previewOnly
-        ? tr("已确认的缓存目录；占用不代表可安全删除。")
+        ? tr("仅查看占用，不提供清理。")
         : tr("仅清理已确认的缓存目录，保留账号、设置和本地数据"),
       symbol: category == .developer ? "chevron.left.forwardslash.chevron.right" : "archivebox",
       selectedByDefault: false, previewOnly: previewOnly,
