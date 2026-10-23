@@ -760,6 +760,9 @@ extension Translations {
     充电盒	Case
     全局代理	Global Proxy
     全局快捷键（在任何应用中都能使用，需要包含 ⌘、⌥ 或 ⌃）	Global shortcuts (work in any app; must include ⌘, ⌥ or ⌃)
+    窗口与导航	Windows & Navigation
+    系统控制	System Controls
+    计时与休息	Timers & Breaks
     全球探针看目标	Global Probes
     全球节点	Global Nodes
     全选	Select All

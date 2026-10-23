@@ -12,6 +12,28 @@ public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable 
     [.startEyeRest, .openTimer, .toggleTimerHUD, .startShortBreak, .startLongBreak].contains(self)
   }
 
+  /// 展示分组独立于动作声明顺序，避免调整界面时改变 Carbon 编号。
+  enum Category: CaseIterable {
+    case navigation, system, timersAndBreaks
+
+    var title: String {
+      switch self {
+      case .navigation: tr("窗口与导航")
+      case .system: tr("系统控制")
+      case .timersAndBreaks: tr("计时与休息")
+      }
+    }
+  }
+
+  var category: Category {
+    switch self {
+    case .toggleMainWindow, .showProcesses, .openCalendar: .navigation
+    case .toggleKeepAwake, .purgeMemory, .sleepDisplay: .system
+    case .startEyeRest, .openTimer, .toggleTimerHUD, .startShortBreak, .startLongBreak:
+      .timersAndBreaks
+    }
+  }
+
   public var id: String { rawValue }
 
   var title: String {

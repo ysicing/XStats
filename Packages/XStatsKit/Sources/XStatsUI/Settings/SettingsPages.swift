@@ -254,25 +254,35 @@ struct HotKeySettings: View {
   var body: some View {
     let settings = model.settings
     let actions = HotKeyAction.allCases.filter { !$0.requiresTimer || settings.restEnabled }
-    SettingsGroup(caption: tr("全局快捷键（在任何应用中都能使用，需要包含 ⌘、⌥ 或 ⌃）")) {
-      ForEach(Array(actions.enumerated()), id: \.element) { index, action in
-        let subtitle: String? =
-          if model.hotKeyConflicts.contains(action) {
-            tr("这个快捷键已被其他应用或系统占用，请换一个")
-          } else if action == .showProcesses {
-            tr("进程功能开启时打开 XStats 进程页，关闭时打开系统活动监视器。")
-          } else {
-            nil
-          }
-        GroupRow(showsDivider: index > 0) {
-          SettingRow(
-            title: action.title(processesEnabled: settings.processesEnabled),
-            subtitle: subtitle
-          ) {
-            ShortcutRecorder(
-              hotKey: Binding(
-                get: { settings.hotKeys[action] },
-                set: { settings.hotKeys[action] = $0 }))
+    VStack(alignment: .leading, spacing: DS.Space.s4) {
+      Text(tr("全局快捷键（在任何应用中都能使用，需要包含 ⌘、⌥ 或 ⌃）"))
+        .dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
+        .fixedSize(horizontal: false, vertical: true)
+      ForEach(HotKeyAction.Category.allCases, id: \.self) { category in
+        let groupedActions = actions.filter { $0.category == category }
+        if !groupedActions.isEmpty {
+          SettingsGroup(caption: category.title) {
+            ForEach(Array(groupedActions.enumerated()), id: \.element) { index, action in
+              let subtitle: String? =
+                if model.hotKeyConflicts.contains(action) {
+                  tr("这个快捷键已被其他应用或系统占用，请换一个")
+                } else if action == .showProcesses {
+                  tr("进程功能开启时打开 XStats 进程页，关闭时打开系统活动监视器。")
+                } else {
+                  nil
+                }
+              GroupRow(showsDivider: index > 0) {
+                SettingRow(
+                  title: action.title(processesEnabled: settings.processesEnabled),
+                  subtitle: subtitle
+                ) {
+                  ShortcutRecorder(
+                    hotKey: Binding(
+                      get: { settings.hotKeys[action] },
+                      set: { settings.hotKeys[action] = $0 }))
+                }
+              }
+            }
           }
         }
       }
