@@ -1,21 +1,29 @@
 {
-  "version": "1.4.7",
+  "version": "1.4.8",
   "sourceNotes": [
-    "新增端口页，可查看监听端口、已建立连接、所属进程和网络速率，并结束占用端口的进程",
-    "本机 IP 查询支持本地接口与多来源出口对比",
-    "应用服务整合应用、Homebrew、启动项与服务",
-    "端口入口可放在工具侧栏、网络页或同时显示，并优化应用服务的工具栏和列表布局",
-    "修复 Homebrew 包与服务操作可能跨页并发的问题",
-    "修复录制等操作临时禁用截图置顶后，先前等待图片处理的置顶请求被意外恢复的问题"
+    "AI 小组件新增累计 Token 展示，支持输入、输出与今日用量",
+    "订阅额度小组件固定显示四个圆环，按剩余额度着色，并区分未知、过期和上次数据",
+    "全局快捷键按窗口与导航、系统控制、计时与休息分组，辅助工具不可用提示不再重复显示",
+    "主程序的临时签名或未签名开发构建可通过在线更新安装正式版，仍校验更新清单与安装包签名",
+    "修复小组件共享数据不可读时误报功能未启用的问题，日历继续保留公历日期",
+    "修复连续切换音频输出、取消操作和调整静音设备音量时的音量、静音与路由恢复问题",
+    "修复风扇控制与合盖运行在锁屏、休眠及恢复期间的保护与状态恢复问题，并补齐传感器连接失败后的重试",
+    "修复启动项启停与卸载预览的配置复核问题",
+    "修复暂停和退出时历史记录的累计与写入顺序、出口检测取消后的过期结果，以及部分网络响应解析问题",
+    "修复截图保存期间仍可通过键盘修改或删除标注的问题"
   ],
   "translations": {
     "en": [
-      "Add a Ports page to inspect listening ports, established connections, owning processes, and per-process network rates, and terminate processes occupying ports.",
-      "Compare local interfaces and public egress addresses from multiple sources, including IP.SB location, provider, and ASN details, while respecting address-hiding settings.",
-      "Bring apps, Homebrew packages, startup items, and services together in App Services. Manage the current user’s launch agents and Homebrew services; system items remain read-only.",
-      "Choose whether Ports appears in the tools sidebar, on the Network page, or in both places, and refine the App Services toolbar and list layout.",
-      "Prevent Homebrew package and service operations from running concurrently across pages, and clarify quit confirmations, preflight timeouts, and operations that may continue after XStats stops waiting.",
-      "Prevent a pending screenshot-pinning request from running after recording or another operation temporarily disables pinning."
+      "Add a cumulative Token widget with input, output, and today’s usage. Local statistics cover the last 365 days; Magpie shows all of its recorded history.",
+      "Show four fixed subscription quota rings, color them by remaining quota, and distinguish unknown, expired, and last successful readings.",
+      "Group global shortcuts into Windows & Navigation, System Controls, and Timers & Breaks, and remove duplicate helper-unavailable messages.",
+      "Allow ad-hoc and unsigned development builds of the main app to install official releases through online updates, while retaining update-feed and archive signature verification.",
+      "Fix widgets incorrectly reporting disabled features when shared data is unreadable; calendar widgets retain the Gregorian date.",
+      "Fix volume, mute, and routing restoration during repeated audio-output switches, cancellation, and volume changes on muted devices.",
+      "Fix fan-control and closed-lid protection and recovery around locking, sleep, and wake, and retry failed sensor connections.",
+      "Revalidate startup-item configurations and uninstall previews to avoid operating on changed items or selecting data owned by independently installed apps, and clarify Homebrew quit messages.",
+      "Fix history accumulation and write ordering on pause and quit, stale results after canceling egress checks, and parsing of some network responses.",
+      "Prevent keyboard shortcuts from modifying or deleting annotations while a screenshot is being saved."
     ]
   }
 }
