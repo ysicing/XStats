@@ -90,7 +90,9 @@ struct FanPauseTests {
       ], fans: snapshot.sensors?.fans ?? [])
     model.store.apply(retainedSnapshot)
     helper.resetError = resetFails ? "fixture-reset-failure" : nil
-    #expect(await model.fans.prepareForPause() == !resetFails)
+    model.fans.setPaused(true)
+    try await waitForPauseReset(model.fans, helper, events: 2)
+    #expect(model.fans.requiresSafetySampling == resetFails)
     await model.hub.update(model.demand)
     await model.hub.setPaused(true)
     let demand = await model.hub.samplingDemand
@@ -135,15 +137,14 @@ struct FanPauseTests {
     try await withController { fans, client in
       await fans.select(.custom)
       fans.setPaused(true)
-      #expect(await fans.prepareForPause())
+      try await waitForPauseReset(fans, client, events: 3)
       #expect(client.manualFans.isEmpty)
-      #expect(fans.mode == .custom)
+      #expect(fans.mode == .custom && !fans.requiresSafetySampling)
+      // 暂停期间切档和手动提交都不能写入硬件
       await fans.select(.maximum)
       await fans.commitCustomLevel()
       await fans.reapply()
       #expect(client.events == ["write:0", "write:1", "reset"])
-      #expect(await fans.prepareForPause())
-      #expect(client.events.count == 3)
       fans.setPaused(false)
       await fans.reapply()
       #expect(client.manualFans == [0, 1])
@@ -152,26 +153,22 @@ struct FanPauseTests {
   }
 
   @Test(arguments: [false, true])
-  func pauseWaitsForEveryInFlightWriteEvenWhenTheCallerIsCancelled(cancel: Bool) async throws {
+  func pauseWaitsForEveryInFlightWriteEvenWhenTheSelectionIsCancelled(cancel: Bool) async throws {
     try await withController { fans, client in
       client.holdWrite = true
       let selection = Task { await fans.select(.custom) }
       try await waitUntil { client.writeContinuation != nil }
       fans.setPaused(true)
-      let preparation = Task { await fans.prepareForPause() }
       await Task.yield()
       #expect(client.events == ["write:0"])
-      if cancel {
-        selection.cancel()
-        preparation.cancel()
-      }
+      if cancel { selection.cancel() }
       client.finishWrite()
       await selection.value
-      let prepared = await preparation.value
-      #expect(prepared == !cancel)
+      try await waitForPauseReset(fans, client, events: 3)
       #expect(client.events == ["write:0", "write:1", "reset"])
+      // 复位任务独立于发起暂停的调用者，取消选择不能中断硬件复位
       #expect(client.manualFans.isEmpty && !client.resetWasCancelled)
-      #expect(await fans.prepareForPause())
+      #expect(!fans.requiresSafetySampling)
     }
   }
 
@@ -179,14 +176,16 @@ struct FanPauseTests {
     try await withController { fans, client in
       await fans.select(.custom)
       client.resetError = "fixture-reset-failure"
-      #expect(await fans.prepareForPause() == false)
+      fans.setPaused(true)
+      try await waitForPauseReset(fans, client, events: 3)
       #expect(client.manualFans == [0, 1])
       #expect(fans.mode == .custom && fans.noticeIsError)
+      #expect(fans.requiresSafetySampling)
       client.resetError = nil
       fans.evaluateSafety(temperature: 110)
       try await waitUntil { fans.mode == .automatic && !fans.isApplying }
       #expect(client.manualFans.isEmpty && !fans.noticeIsError)
-      #expect(await fans.prepareForPause())
+      #expect(!fans.requiresSafetySampling)
     }
   }
 
@@ -194,10 +193,14 @@ struct FanPauseTests {
     try await withController { fans, client in
       await fans.select(.custom)
       client.resetError = "fixture-reset-failure"
-      #expect(await fans.prepareForPause() == false)
+      fans.setPaused(true)
+      try await waitForPauseReset(fans, client, events: 3)
       client.resetError = nil
-      #expect(await fans.prepareForPause())
+      // 已暂停时再次请求暂停，会在上次失败后重新复位
+      fans.setPaused(true)
+      try await waitForPauseReset(fans, client, events: 4)
       #expect(fans.mode == .custom && !fans.noticeIsError)
+      #expect(!fans.requiresSafetySampling)
       #expect(client.events == ["write:0", "write:1", "reset", "reset"])
     }
   }
@@ -210,92 +213,81 @@ struct FanPauseTests {
       let selection = Task { await fans.select(.custom) }
       try await waitUntil { client.writeContinuation != nil }
       fans.setPaused(true)
-      let preparation = Task { await fans.prepareForPause() }
       client.finishWrite()
       await selection.value
-      #expect(await preparation.value == false)
+      // 写入失败后的兜底复位也失败，暂停复位随后执行
+      try await waitForPauseReset(fans, client, events: 3)
       #expect(fans.mode == .custom && fans.noticeIsError)
       #expect(client.manualFans == [0])
       #expect(client.events == ["write:0", "reset", "reset"])
       client.resetError = nil
-      #expect(await fans.prepareForPause())
+      fans.setPaused(true)
+      try await waitForPauseReset(fans, client, events: 4)
       #expect(client.manualFans.isEmpty)
+      #expect(!fans.requiresSafetySampling)
     }
   }
 
-  @Test func resumeWaitsForPendingResetAndInvalidatesOldPauseResult() async throws {
+  @Test func resumeWaitsForPendingReset() async throws {
     try await withController { fans, client in
       await fans.select(.custom)
       client.holdReset = true
-      let preparation = Task { await fans.prepareForPause() }
+      fans.setPaused(true)
       try await waitUntil { client.resetContinuation != nil }
       fans.setPaused(false)
       let resumed = Task { await fans.reapply() }
       await Task.yield()
       #expect(client.events == ["write:0", "write:1", "reset"])
       client.finishReset()
-      #expect(await preparation.value == false)
       await resumed.value
       #expect(client.events == ["write:0", "write:1", "reset", "write:0", "write:1"])
       #expect(client.manualFans == [0, 1])
-      #expect(await fans.prepareForPause())
-      #expect(client.events == ["write:0", "write:1", "reset", "write:0", "write:1", "reset"])
-      #expect(client.manualFans.isEmpty)
     }
   }
 
-  @Test func newPauseDuringResumeCannotBeOverwrittenByAnOldReapply() async throws {
+  @Test func pauseRequestedDuringResumeWinsOverOldReapply() async throws {
     try await withController { fans, client in
       await fans.select(.custom)
       client.holdReset = true
-      let first = Task { await fans.prepareForPause() }
+      fans.setPaused(true)
       try await waitUntil { client.resetContinuation != nil }
       fans.setPaused(false)
       let resumed = Task { await fans.reapply() }
       fans.setPaused(true)
-      let second = Task { await fans.prepareForPause() }
       client.finishReset()
-      #expect(await first.value == false)
-      #expect(await second.value)
       await resumed.value
       #expect(client.manualFans.isEmpty)
       #expect(client.events == ["write:0", "write:1", "reset"])
-    }
-  }
-
-  @Test func cancelledPauseWaiterStillFinishesTheHardwareReset() async throws {
-    try await withController { fans, client in
-      await fans.select(.custom)
-      client.holdReset = true
-      let preparation = Task { await fans.prepareForPause() }
-      try await waitUntil { client.resetContinuation != nil }
-      preparation.cancel()
-      client.finishReset()
-      #expect(await preparation.value == false)
-      #expect(client.manualFans.isEmpty && !client.resetWasCancelled)
-      #expect(await fans.prepareForPause())
+      #expect(!fans.requiresSafetySampling)
     }
   }
 
   @Test func automaticModeDoesNotRequireAnInstalledHelperToPause() async throws {
     try await withController { fans, client in
       client.resetError = "fixture-helper-unavailable"
-      #expect(await fans.prepareForPause())
+      fans.setPaused(true)
+      try await Task.sleep(for: .milliseconds(20))
       #expect(client.events.isEmpty)
+      #expect(!fans.requiresSafetySampling)
     }
   }
 
-  @Test func cancelledPreparationCannotStartANewPauseAfterResume() async throws {
+  @Test func immediateResumeStillCollectsThePauseReset() async throws {
     try await withController { fans, client in
       await fans.select(.custom)
-      let preparation = Task { await fans.prepareForPause() }
-      preparation.cancel()
+      fans.setPaused(true)
       fans.setPaused(false)
-      #expect(await preparation.value == false)
+      // 暂停复位已排队，恢复不能跳过硬件结果；随后按当前档位重新下发
       await fans.reapply()
-      #expect(client.events == ["write:0", "write:1", "write:0", "write:1"])
+      #expect(client.events == ["write:0", "write:1", "reset", "write:0", "write:1"])
       #expect(client.manualFans == [0, 1])
     }
+  }
+
+  private func waitForPauseReset(_ fans: FanController, _ client: PausedFanClient, events: Int)
+    async throws
+  {
+    try await waitUntil { client.events.count == events && !fans.isApplying }
   }
 
   private func withController(
