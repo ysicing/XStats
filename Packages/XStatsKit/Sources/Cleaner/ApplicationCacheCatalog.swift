@@ -119,7 +119,7 @@ enum ApplicationCacheCatalog {
     id: String, name: String, directories: [String], names: [String], bundleIDs: [String],
     applicationNames: [String]? = nil, root: String = "Library/Application Support",
     category: CleanCategory = .system, previewOnly: Bool = false,
-    additionalPaths: [String] = []
+    additionalPaths: [String] = [], tracksApplicationPresence: Bool = true
   ) -> CleanRule {
     let paths =
       directories.flatMap { directory in names.map { root + "/" + directory + "/" + $0 } }
@@ -133,7 +133,8 @@ enum ApplicationCacheCatalog {
       selectedByDefault: false, previewOnly: previewOnly,
       blockingApps: bundleIDs.map { ($0, name) },
       requiresUnredirectedPath: true, cacheRelativePaths: paths,
-      blockingApplicationNames: applicationNames ?? [name]
+      blockingApplicationNames: applicationNames ?? [name],
+      tracksApplicationPresence: tracksApplicationPresence
     ) { environment in
       return try paths.map { URL(fileURLWithPath: environment.home).appendingPathComponent($0) }
         .filter { url in

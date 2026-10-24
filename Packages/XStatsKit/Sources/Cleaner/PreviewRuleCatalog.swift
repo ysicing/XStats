@@ -17,7 +17,7 @@ public enum PreviewRuleCatalog {
       ApplicationCacheCatalog.cache(
         id: "preview.zoom", name: "Zoom",
         directories: ["Caches"], names: ["us.zoom.xos"],
-        bundleIDs: [], applicationNames: ["Zoom"], root: "Library",
+        bundleIDs: [], applicationNames: ["Zoom", "zoom.us"], root: "Library",
         category: .system, previewOnly: true),
       // Mole 2ef974753572: lib/clean/app_caches.sh:908.
       ApplicationCacheCatalog.cache(
@@ -115,7 +115,7 @@ public enum PreviewRuleCatalog {
         id: "preview.poetry", name: "Poetry",
         directories: ["Caches/pypoetry"], names: ["artifacts", "cache"],
         bundleIDs: [], applicationNames: ["Poetry"], root: "Library",
-        category: .developer, previewOnly: true),
+        category: .developer, previewOnly: true, tracksApplicationPresence: false),
       // Mole 2ef974753572: lib/clean/dev.sh:4181.
       ApplicationCacheCatalog.cache(
         id: "preview.postman", name: "Postman",
@@ -145,7 +145,7 @@ public enum PreviewRuleCatalog {
         id: "preview.lima", name: "Lima",
         directories: ["Caches/lima/download"], names: ["by-url-sha256"],
         bundleIDs: [], applicationNames: ["Lima"], root: "Library",
-        category: .system, previewOnly: true),
+        category: .system, previewOnly: true, tracksApplicationPresence: false),
       // Mole 2ef974753572: lib/clean/app_caches.sh:1880.
       ApplicationCacheCatalog.cache(
         id: "preview.battleNet", name: "Battle.net",
@@ -157,19 +157,19 @@ public enum PreviewRuleCatalog {
         id: "preview.quickLook", name: "QuickLook",
         directories: ["Caches"], names: ["com.apple.QuickLook.thumbnailcache"],
         bundleIDs: [], applicationNames: ["QuickLook"], root: "Library",
-        category: .system, previewOnly: true),
+        category: .system, previewOnly: true, tracksApplicationPresence: false),
       // Mole 2ef974753572: lib/clean/user.sh:1173.
       ApplicationCacheCatalog.cache(
         id: "preview.quickLookLegacy", name: "QuickLook",
         directories: ["Caches"], names: ["Quick Look"],
         bundleIDs: [], applicationNames: ["QuickLook"], root: "Library",
-        category: .system, previewOnly: true),
+        category: .system, previewOnly: true, tracksApplicationPresence: false),
       // Mole 2ef974753572: lib/optimize/tasks.sh:209.
       ApplicationCacheCatalog.cache(
         id: "preview.iconServices", name: "Icon Services",
         directories: ["Caches"], names: ["com.apple.iconservices"],
         bundleIDs: [], applicationNames: ["Icon Services"], root: "Library",
-        category: .system, previewOnly: true),
+        category: .system, previewOnly: true, tracksApplicationPresence: false),
     ]
   }
 }

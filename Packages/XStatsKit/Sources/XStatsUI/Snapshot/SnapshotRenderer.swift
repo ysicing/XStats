@@ -350,7 +350,12 @@ enum SnapshotRenderer {
       let projectScan = await ProjectPurge.scan(home: fixture.path)
       model.projectPurge.showPreview(projectScan)
       if let first = projectScan.items.first { model.projectPurge.toggle(first) }
-      model.cleaner.showPreview([scan] + otherScans)
+      // 历史空项、缓存残留与正在运行的已安装应用；其余未安装空项应从截图中消失。
+      settings.cleanObservedApplicationRuleIDs = ["preview.zoom"]
+      let applications = CacheApplicationInventory(
+        rules: RuleCatalog.rules(), applications: [], isComplete: true,
+        runningNames: ["ChatGPT"])
+      model.cleaner.showPreview([scan] + otherScans, applications: applications)
       model.cleaner.toggle(items[0], in: scan)
       for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
         guard let appearance = NSAppearance(named: name) else { continue }

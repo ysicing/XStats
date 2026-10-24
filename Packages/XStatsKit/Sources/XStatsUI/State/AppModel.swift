@@ -167,7 +167,12 @@ public final class AppModel {
       helper: fanControl ?? helper, store: store, settings: settings,
       readFans: { await samplingHub.sampleFans() })
     keepAwake = KeepAwakeController(helper: helper, settings: settings)
-    cleaner = CleanerController(settings: settings)
+    cleaner = CleanerController(settings: settings) { [weak store] in
+      guard let store, store.cpu != nil, let sample = store.cpuTimeline.elements.last,
+        (0...5).contains(Date().timeIntervalSince(sample.date))
+      else { return nil }
+      return sample.value
+    }
     systemCheck = SystemCheckController()
     projectPurge = ProjectPurgeController(settings: settings)
     maintenance = MaintenanceController(helper: helper)

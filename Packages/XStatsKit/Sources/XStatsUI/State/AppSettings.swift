@@ -1086,6 +1086,14 @@ public final class AppSettings {
         CleanupExclusions.normalized(cleanExcludedPaths), forKey: Keys.cleanExcludedPaths)
     }
   }
+  /// 仅本机记录实际确认过的应用规则，不随设置备份同步。
+  var cleanObservedApplicationRuleIDs: Set<String> {
+    didSet {
+      defaults.set(
+        cleanObservedApplicationRuleIDs.sorted(), forKey: Keys.cleanObservedApplicationRuleIDs)
+    }
+  }
+
   /// 清理页的规则选择；nil 表示用户从未调整过，使用规则默认值。空集合表示用户明确全部取消。
   public var cleanSelectedRuleIDs: Set<String>? {
     didSet {
@@ -1326,6 +1334,8 @@ public final class AppSettings {
     cleanExcludedPaths = CleanupExclusions.normalized(
       defaults.stringArray(forKey: Keys.cleanExcludedPaths) ?? [])
     cleanSelectedRuleIDs = defaults.stringArray(forKey: Keys.cleanSelectedRuleIDs).map(Set.init)
+    cleanObservedApplicationRuleIDs = Set(
+      defaults.stringArray(forKey: Keys.cleanObservedApplicationRuleIDs) ?? [])
     projectPurgeConfiguredPaths = defaults.stringArray(forKey: Keys.projectPurgeConfiguredPaths)
     let spacing = defaults.integer(forKey: Keys.menuBarItemSpacing)
     menuBarFoldingEnabled = defaults.bool(forKey: Keys.menuBarFoldingEnabled)
@@ -1656,6 +1666,7 @@ public final class AppSettings {
     static let cleanPrefersTrash = "cleanPrefersTrash"
     static let cleanExcludedPaths = "cleanExcludedPaths"
     static let cleanSelectedRuleIDs = "cleanSelectedRuleIDs"
+    static let cleanObservedApplicationRuleIDs = "cleanObservedApplicationRuleIDs"
     static let projectPurgeConfiguredPaths = "projectPurgeConfiguredPaths"
     static let menuBarFoldingEnabled = "menuBarFoldingEnabled"
     static let menuBarFoldingCollapsed = "menuBarFoldingCollapsed"

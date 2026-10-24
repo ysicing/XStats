@@ -37,6 +37,8 @@ extension Translations {
     仅查看	View Only
     仅查看 · {}	View only · {}
     未发现缓存	No cache found
+    曾安装	Previously installed
+    缓存残留	Remaining cache
     未发现内容（{}）	No content found ({})
     工具缓存容量单独列出，不计入文件合计。	Tool cache estimates are listed separately and excluded from the file total.
     所选工具缓存将由对应工具永久清理，此操作无法撤销。	The selected tool caches will be permanently cleaned by their tools. This cannot be undone.

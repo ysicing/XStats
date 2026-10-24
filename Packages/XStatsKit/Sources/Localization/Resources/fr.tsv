@@ -2580,3 +2580,5 @@ OrbStack 虚拟机数据	Données des machines virtuelles OrbStack
 手动释放可回收缓存；再次打开应用时可能需要重新加载，不建议频繁执行。	Libérez manuellement les caches récupérables. Les apps peuvent devoir recharger les données ; évitez un usage fréquent.
 没有可移除的依赖	Aucune dépendance à supprimer
 预览内容过长，仅显示部分结果。	L’aperçu est trop long. Seule une partie du résultat est affichée.
+曾安装	Installée précédemment
+缓存残留	Cache restant

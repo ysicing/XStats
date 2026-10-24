@@ -85,7 +85,8 @@ public enum RuleCatalog {
     CleanRule(
       id: "browser.\(browser.id)", category: .browser, title: tr("\(browser.name) 缓存"),
       detail: tr("网页缓存与脚本缓存，不涉及 Cookie、历史记录和密码"), symbol: "globe",
-      blockingApps: [(browser.bundleID, browser.name)], minimumAge: 0
+      blockingApps: [(browser.bundleID, browser.name)], tracksApplicationPresence: true,
+      minimumAge: 0
     ) { env in
       let fileManager = FileManager.default
       var urls = browser.cacheDirectories

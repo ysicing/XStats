@@ -65,6 +65,10 @@ public struct CleanEnvironment: Sendable {
   let toolEnvironment: [String: String]
   public var excludedPaths: [String]
   public var scanLimits = ScanLimits()
+  /// 机器配置决定硬上限，扫描期间的负载只影响新任务派发。
+  var activeProcessorCount = ProcessInfo.processInfo.activeProcessorCount
+  public var scanLoad: @Sendable () async -> AdaptiveConcurrencyPolicy.Load = { .current() }
+  var concurrencyUptime: @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
 
   public init(
     home: String = NSHomeDirectory(),
@@ -125,6 +129,8 @@ public struct CleanRule: Sendable, Identifiable {
   /// 应用缓存的精确家目录相对路径；扫描和执行使用相同的范围。
   let cacheRelativePaths: [String]
   let blockingApplicationNames: [String]
+  /// 仅应用专属缓存按安装情况收起；CLI 工具和系统缓存不参与应用历史。
+  public let tracksApplicationPresence: Bool
   /// 扫描 ~/Library/Caches、~/Library/Logs 的通用规则；必须让出专属规则的目录，并让出工具缓存根。
   /// 以后新增同类规则只需声明此属性，不依赖规则 id。
   let isGenericLibraryScan: Bool
@@ -142,6 +148,7 @@ public struct CleanRule: Sendable, Identifiable {
     blockingApps: [(bundleID: String, name: String)] = [], checksOwnerApp: Bool = false,
     requiresUnredirectedPath: Bool = false,
     cacheRelativePaths: [String] = [], blockingApplicationNames: [String] = [],
+    tracksApplicationPresence: Bool = false,
     isGenericLibraryScan: Bool = false,
     minimumAge: TimeInterval = 120, requiredTool: String? = nil,
     prepareTool: (@Sendable (CleanEnvironment) async throws -> ToolCachePlan)? = nil,
@@ -160,6 +167,7 @@ public struct CleanRule: Sendable, Identifiable {
     self.requiresUnredirectedPath = requiresUnredirectedPath
     self.cacheRelativePaths = cacheRelativePaths
     self.blockingApplicationNames = blockingApplicationNames
+    self.tracksApplicationPresence = tracksApplicationPresence
     self.isGenericLibraryScan = isGenericLibraryScan
     self.minimumAge = minimumAge
     self.requiredTool = requiredTool

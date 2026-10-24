@@ -190,6 +190,20 @@ public enum AppUninstaller {
       checkCancellation: { try Task.checkCancellation() })
   }
 
+  /// 缓存页需要区分未匹配与读取失败，并识别 Homebrew/Nix 的链接安装；不改变卸载列表的约束。
+  static func cacheApplicationInventory(
+    rules: [CleanRule], environment: CleanEnvironment
+  ) throws -> CacheApplicationInventory {
+    var unreadable: [URL] = []
+    let apps = try installedApps(
+      in: applicationDirectories(home: environment.home), excluding: [], unreadable: &unreadable,
+      followsSymlinks: true, checkCancellation: { try Task.checkCancellation() })
+    return CacheApplicationInventory(
+      rules: rules, applications: apps, isComplete: unreadable.isEmpty,
+      runningIdentifiers: environment.runningBundleIdentifiers(),
+      runningNames: environment.runningApplicationNames())
+  }
+
   static func installedApps(
     in directories: [URL], excluding excludedIdentifiers: Set<String>,
     checkCancellation: () throws -> Void

@@ -280,7 +280,9 @@ private struct CategoryCard: View {
   @State private var showsEmpty = false
 
   var body: some View {
-    let registeredScans = model.cleaner.scans.filter { section.contains($0.rule) }
+    let registeredScans = model.cleaner.scans.filter {
+      section.contains($0.rule) && model.cleaner.shouldDisplay($0)
+    }
     let scans: [RuleScan] =
       if case .category(.developer) = section {
         // 可清理容量降序；不可清理项及容量相同的项目保持清单顺序，避免无意义跳动。
@@ -312,13 +314,18 @@ private struct CategoryCard: View {
         }
       }
       if scans.isEmpty {
-        ForEach(0..<placeholderRows, id: \.self) { _ in
-          PlaceholderLine().frame(height: DS.Size.controlHeight)
+        if model.cleaner.lastScan == nil {
+          ForEach(0..<placeholderRows, id: \.self) { _ in
+            PlaceholderLine().frame(height: DS.Size.controlHeight)
+          }
+        } else {
+          Text(tr("未发现缓存")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
         }
       }
       // 只折叠确定无需清理的项目；运行中、权限不足及扫描失败等状态仍需直接展示。
       let visibleScans = scans.filter {
-        showsEmpty || !$0.items.isEmpty || $0.blocked != nil || $0.unreadableCount > 0
+        showsEmpty || model.cleaner.keepsEmptyVisible($0)
+          || !$0.items.isEmpty || $0.blocked != nil || $0.unreadableCount > 0
           || $0.skippedCount > 0 || $0.interruption != nil
       }
       ForEach(Array(visibleScans.enumerated()), id: \.element.id) { index, scan in
@@ -327,6 +334,7 @@ private struct CategoryCard: View {
       }
       let emptyCount = scans.filter {
         $0.items.isEmpty && $0.isComplete && $0.skippedCount == 0
+          && !model.cleaner.keepsEmptyVisible($0)
       }.count
       if emptyCount > 0 {
         Button {
@@ -458,7 +466,12 @@ private struct RuleRow: View {
 
   private func statusText(selectedCount: Int, detailed: Bool = false) -> String {
     let status = scanStatusText(selectedCount: selectedCount, detailed: detailed)
-    return scan.rule.previewOnly ? tr("仅查看 · \(status)") : status
+    let usage = scan.rule.previewOnly ? tr("仅查看 · \(status)") : status
+    switch model.cleaner.applicationState(for: scan) {
+    case .previouslyInstalled: return tr("曾安装") + " · " + usage
+    case .cacheRemains: return tr("缓存残留") + " · " + usage
+    default: return usage
+    }
   }
 
   private func scanStatusText(selectedCount: Int, detailed: Bool) -> String {

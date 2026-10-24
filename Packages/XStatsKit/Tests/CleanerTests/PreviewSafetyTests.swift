@@ -5,7 +5,280 @@ import Testing
 @testable import Cleaner
 
 struct PreviewSafetyTests {
-  @Test func allocatedRuleBudgetsCannotExceedTheSessionEntryLimit() async throws {
+  @Test(arguments: [
+    (0, 64, 2), (1, 64, 2), (2, 64, 2), (3, 64, 2), (4, 64, 2), (5, 64, 2),
+    (6, 64, 3), (8, 64, 4), (11, 64, 5), (16, 64, 8), (32, 1, 1), (32, 0, 0),
+  ])
+  func scanConcurrencyFollowsAvailableProcessors(
+    processors: Int, ruleCount: Int, expected: Int
+  ) async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let activity = ScanActivity()
+    let rules = (0..<ruleCount).map { index in
+      CleanRule(
+        id: "concurrent.\(index)", category: .developer, title: "Fixture", detail: "",
+        symbol: "archivebox", requiredTool: "fixture",
+        prepareTool: { _ in
+          await activity.enter()
+          try await Task.sleep(for: .milliseconds(20))
+          await activity.leave()
+          return ToolCachePlan(roots: [], tool: "fixture", arguments: [])
+        })
+    }
+    var environment = home.environment
+    environment.activeProcessorCount = processors
+    let clock = VisitCounter()
+    environment.concurrencyUptime = { Double(clock.tick() * 4) }
+    environment.scanLoad = { .init(cpuUsage: 0.2, memoryPressure: .normal) }
+    environment.isToolAvailable = { _ in true }
+    let scans = await CleanEngine.scan(rules, environment: environment)
+    #expect(scans.map(\.id) == rules.map(\.id))
+    #expect(scans.allSatisfy { $0.isComplete })
+    #expect(await activity.peak == expected)
+    #expect(await activity.active == 0)
+  }
+
+  @Test func cancellingAdaptiveScanStopsActiveToolsAndLeavesQueuedRulesUnstarted() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let activity = ScanActivity()
+    let (starts, continuation) = AsyncStream<Void>.makeStream()
+    defer { continuation.finish() }
+    let rules = (0..<12).map { index in
+      CleanRule(
+        id: "cancel.\(index)", category: .developer, title: "Fixture", detail: "",
+        symbol: "archivebox", requiredTool: "fixture",
+        prepareTool: { _ in
+          await activity.enter()
+          continuation.yield(())
+          do {
+            try await Task.sleep(for: .seconds(5))
+          } catch {
+            await activity.leave()
+            throw error
+          }
+          await activity.leave()
+          return ToolCachePlan(roots: [], tool: "fixture", arguments: [])
+        })
+    }
+    var environment = home.environment
+    environment.activeProcessorCount = 8
+    environment.isToolAvailable = { _ in true }
+    environment.scanLimits = ScanLimits(maxDuration: 1)
+    let scanEnvironment = environment
+    let task = Task {
+      let scans = await CleanEngine.scan(rules, environment: scanEnvironment)
+      continuation.finish()
+      return scans
+    }
+    var started = 0
+    for await _ in starts {
+      started += 1
+      if started == 2 { break }
+    }
+    task.cancel()
+    let scans = await task.value
+    #expect(started == 2)
+    #expect(scans.map(\.id) == ["cancel.0", "cancel.1"])
+    #expect(scans.allSatisfy { $0.interruption == .cancelled })
+    #expect(await activity.peak == 2)
+    #expect(await activity.active == 0)
+  }
+
+  @Test func cancellationWhilePressurePausedDoesNotStartQueuedRules() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let (samples, continuation) = AsyncStream<Void>.makeStream()
+    defer { continuation.finish() }
+    let activity = ScanActivity()
+    let rule = CleanRule(
+      id: "paused", category: .developer, title: "Fixture", detail: "", symbol: "archivebox",
+      requiredTool: "fixture",
+      prepareTool: { _ in
+        await activity.enter()
+        await activity.leave()
+        return ToolCachePlan(roots: [], tool: "fixture", arguments: [])
+      })
+    var environment = home.environment
+    environment.scanLoad = {
+      continuation.yield(())
+      return .init(cpuUsage: 0.1, memoryPressure: .critical)
+    }
+    let scanEnvironment = environment
+    let task = Task { await CleanEngine.scan([rule], environment: scanEnvironment) }
+    for await _ in samples { break }
+    task.cancel()
+    #expect(await task.value.isEmpty)
+    #expect(await activity.peak == 0)
+  }
+
+  @Test func pressurePauseCanRecoverWhenNoTasksAreActive() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let samples = EntryCounter()
+    var environment = home.environment
+    environment.scanLoad = {
+      await samples.record(1)
+      let count = await samples.counts.count
+      return .init(cpuUsage: 0.2, memoryPressure: count == 1 ? .critical : .normal)
+    }
+    let scans = await CleanEngine.scan([rule(urls: [])], environment: environment)
+    #expect(scans.count == 1)
+    #expect(scans[0].isComplete)
+    #expect(await samples.counts.count >= 2)
+  }
+
+  @Test func loadDropDrainsActiveTasksAndEventuallyFinishesTheQueue() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let activity = ScanActivity()
+    let samples = EntryCounter()
+    let clock = VisitCounter()
+    let rules = (0..<16).map { index in
+      CleanRule(
+        id: "drain.\(index)", category: .developer, title: "Fixture", detail: "",
+        symbol: "archivebox", requiredTool: "fixture",
+        prepareTool: { _ in
+          await activity.enter()
+          try await Task.sleep(for: .milliseconds(30))
+          await activity.leave()
+          return ToolCachePlan(roots: [], tool: "fixture", arguments: [])
+        })
+    }
+    var environment = home.environment
+    environment.activeProcessorCount = 16
+    environment.isToolAvailable = { _ in true }
+    environment.concurrencyUptime = { Double(clock.tick() * 4) }
+    environment.scanLoad = {
+      await samples.record(1)
+      let count = await samples.counts.count
+      return .init(
+        cpuUsage: count <= 2 ? 0.2 : 0.9,
+        memoryPressure: (3...5).contains(count) ? .critical : .normal)
+    }
+    let scans = await CleanEngine.scan(rules, environment: environment)
+    #expect(scans.map(\.id) == rules.map(\.id))
+    #expect(scans.allSatisfy { $0.isComplete })
+    // 已完成但尚未收取的任务仍占组内名额，实际执行峰值可能低于派发上限。
+    #expect((2...3).contains(await activity.peak))
+    #expect(await activity.active == 0)
+    #expect(await samples.counts.count > 5)
+  }
+
+  @Test func shortRulesDoNotReadLoadForEveryCompletion() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let samples = EntryCounter()
+    var environment = home.environment
+    environment.concurrencyUptime = { 0 }
+    environment.scanLoad = {
+      await samples.record(1)
+      return .init(cpuUsage: 0.2, memoryPressure: .normal)
+    }
+    let scans = await CleanEngine.scan(
+      (0..<32).map { rule(id: "short.\($0)", urls: []) }, environment: environment)
+    #expect(scans.count == 32)
+    #expect(scans.allSatisfy { $0.isComplete })
+    #expect(await samples.counts.count == 1)
+  }
+
+  @Test func unfinishedDirectoryCanUseEntriesReturnedByLaterRules() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    for index in 0..<15 { _ = try home.file("Library/Caches/large/\(index)") }
+    let root = home.root.appendingPathComponent("Library/Caches/large")
+    var environment = home.environment
+    environment.scanLimits = ScanLimits(maxEntries: 60)
+    let scans = await CleanEngine.scan(
+      [rule(id: "large", urls: [root])]
+        + (0..<4).map { rule(id: "empty.\($0)", urls: []) },
+      environment: environment)
+    #expect(scans.count == 5)
+    #expect(scans.allSatisfy { $0.isComplete })
+    #expect(scans[0].items.map(\.url) == [root])
+  }
+
+  @Test func refillingToolDirectoryDoesNotRepeatItsNativePreview() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    for index in 0..<15 { _ = try home.file("Library/Caches/large/\(index)") }
+    let root = home.root.appendingPathComponent("Library/Caches/large")
+    let counter = EntryCounter()
+    let tool = CleanRule(
+      id: "tool", category: .developer, title: "Fixture", detail: "", symbol: "archivebox",
+      requiredTool: "fixture",
+      prepareTool: { _ in
+        await counter.record(1)
+        return ToolCachePlan(roots: [root], tool: "fixture", arguments: [])
+      })
+    var environment = home.environment
+    environment.isToolAvailable = { _ in true }
+    environment.scanLimits = ScanLimits(maxEntries: 60)
+    let scans = await CleanEngine.scan(
+      [tool] + (0..<4).map { rule(id: "empty.\($0)", urls: []) },
+      environment: environment)
+    #expect(scans[0].isComplete)
+    #expect(scans[0].items.map(\.url) == [root])
+    #expect(await counter.counts == [1])
+  }
+
+  @Test(arguments: [4, 8, 16])
+  func refillReadsStillRespectTheSessionEntryLimit(processors: Int) async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let visits = VisitCounter()
+    let large = CleanRule(
+      id: "large", category: .system, title: "Fixture", detail: "", symbol: "archivebox"
+    ) { _ in
+      visits.start()
+      let budget = try #require(ScanBudget.current)
+      for _ in 0..<100 {
+        try budget.visit()
+        visits.visit()
+      }
+      return []
+    }
+    var environment = home.environment
+    environment.activeProcessorCount = processors
+    environment.scanLimits = ScanLimits(maxEntries: 60)
+    let scans = await CleanEngine.scan(
+      [large] + (0..<4).map { rule(id: "empty.\($0)", urls: []) },
+      environment: environment)
+    #expect(visits.snapshot == [2, 60])
+    #expect(scans[0].interruption == .entryLimit)
+    #expect(scans.dropFirst().allSatisfy { $0.isComplete })
+  }
+
+  @Test func cancellationDuringRefillPreventsFurtherRefills() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let rules = (0..<2).map { index in
+      CleanRule(
+        id: "large.\(index)", category: .system, title: "Fixture", detail: "",
+        symbol: "archivebox"
+      ) { _ in
+        let budget = try #require(ScanBudget.current)
+        if budget.remainingEntries > 10 {
+          #expect(index == 0)
+          withUnsafeCurrentTask { $0?.cancel() }
+        }
+        for _ in 0..<11 { try budget.visit() }
+        return []
+      }
+    }
+    var environment = home.environment
+    environment.scanLimits = ScanLimits(maxEntries: 60)
+    let scans = await CleanEngine.scan(
+      rules + (0..<4).map { rule(id: "empty.\($0)", urls: []) },
+      environment: environment)
+    #expect(scans.count == 6)
+    #expect(scans[0].interruption == .cancelled)
+    #expect(scans[1].interruption == .entryLimit)
+  }
+
+  @Test(arguments: [4, 8, 16])
+  func allocatedRuleBudgetsCannotExceedTheSessionEntryLimit(processors: Int) async throws {
     let home = try Fixture()
     defer { home.remove() }
     let counter = EntryCounter()
@@ -27,6 +300,7 @@ struct PreviewSafetyTests {
         })
     }
     var environment = home.environment
+    environment.activeProcessorCount = processors
     environment.isToolAvailable = { _ in true }
     environment.scanLimits = ScanLimits(maxEntries: 20, maxDuration: 20)
     let scans = await CleanEngine.scan(rules, environment: environment)
@@ -53,10 +327,71 @@ struct PreviewSafetyTests {
     #expect(scans[2].items.map(\.url) == [root])
   }
 
-  @Test func queuedRuleBudgetKeepsTheSessionDeadline() {
-    let session = ScanBudget(limits: ScanLimits(maxDuration: 20))
-    let queued = ScanBudget(limits: ScanLimits(maxDuration: 60), sharing: session)
-    #expect(queued.deadline == session.deadline)
+  @Test func queuedRuleGetsTimeEvenAfterEarlierBudgetExpires() {
+    let earlier = ScanBudget(limits: ScanLimits(maxDuration: 0))
+    #expect(earlier.interruption == .timeLimit)
+    let queued = ScanBudget(limits: ScanLimits(maxDuration: 20), sharingCandidatesWith: earlier)
+    #expect(queued.interruption == nil)
+  }
+
+  @Test func timedOutRulesDoNotPreventQueuedRulesFromScanning() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let root = try home.file("Downloads/fixture/data").deletingLastPathComponent()
+    let slow = (0..<2).map { index in
+      CleanRule(
+        id: "slow.\(index)", category: .developer, title: "Fixture", detail: "",
+        symbol: "archivebox", requiredTool: "fixture",
+        prepareTool: { _ in
+          try await Task.sleep(for: .seconds(2))
+          return ToolCachePlan(roots: [], tool: "fixture", arguments: [])
+        })
+    }
+    var environment = home.environment
+    environment.isToolAvailable = { _ in true }
+    environment.scanLimits = ScanLimits(maxDuration: 0.5)
+    let scans = await CleanEngine.scan(
+      slow + [rule(id: "download", urls: [root]), rule(id: "empty", urls: [])],
+      environment: environment)
+    #expect(scans.count == 4)
+    #expect(scans.prefix(2).allSatisfy { $0.interruption == .timeLimit && !$0.isCleanable })
+    #expect(scans[2].isComplete && scans[2].items.map(\.url) == [root])
+    #expect(scans[3].isComplete)
+    #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("data").path))
+  }
+
+  @Test func cancellingScanDoesNotStartQueuedRules() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let (started, continuation) = AsyncStream<Void>.makeStream()
+    defer { continuation.finish() }
+    let slow = (0..<2).map { index in
+      CleanRule(
+        id: "slow.\(index)", category: .developer, title: "Fixture", detail: "",
+        symbol: "archivebox", requiredTool: "fixture",
+        prepareTool: { _ in
+          continuation.yield(())
+          try await Task.sleep(for: .seconds(30))
+          return ToolCachePlan(roots: [], tool: "fixture", arguments: [])
+        })
+    }
+    let queued = CleanRule(
+      id: "queued", category: .system, title: "Fixture", detail: "", symbol: "archivebox"
+    ) { _ in
+      Issue.record("Cancellation must prevent queued rules from starting")
+      return []
+    }
+    var environment = home.environment
+    environment.isToolAvailable = { _ in true }
+    let scanEnvironment = environment
+    let task = Task { await CleanEngine.scan(slow + [queued], environment: scanEnvironment) }
+    var iterator = started.makeAsyncIterator()
+    _ = await iterator.next()
+    _ = await iterator.next()
+    task.cancel()
+    let scans = await task.value
+    #expect(scans.count == 2)
+    #expect(scans.allSatisfy { $0.interruption == .cancelled && !$0.isCleanable })
   }
 
   @Test func largeRuleDoesNotExhaustQueuedRulesEntryBudget() async throws {
@@ -309,15 +644,18 @@ struct PreviewSafetyTests {
     #expect(scans.contains { $0.interruption == .entryLimit })
   }
 
-  @Test func expiredBudgetDoesNotReportEmptyRulesAsComplete() async throws {
+  @Test func directoryScansIgnoreTheToolTimeLimit() async throws {
     let home = try Fixture()
     defer { home.remove() }
+    let root = try home.file("Library/Caches/fixture/data").deletingLastPathComponent()
     var environment = home.environment
     environment.scanLimits = ScanLimits(maxDuration: 0)
     let scans = await CleanEngine.scan(
-      (0..<4).map { rule(id: String($0), urls: []) }, environment: environment)
+      [rule(id: "cache", urls: [root])]
+        + (0..<3).map { rule(id: String($0), urls: []) }, environment: environment)
     #expect(scans.count == 4)
-    #expect(scans.allSatisfy { $0.interruption == .timeLimit && !$0.isComplete })
+    #expect(scans.allSatisfy { $0.isComplete })
+    #expect(scans[0].items.map(\.url) == [root])
   }
 
   @Test func cancellationDuringLocateIsPreservedForAnEmptyResult() async throws {
@@ -765,6 +1103,35 @@ struct PreviewSafetyTests {
     func record(_ count: Int) { counts.append(count) }
   }
 
+  private actor ScanActivity {
+    var active = 0
+    var peak = 0
+
+    func enter() {
+      active += 1
+      peak = max(peak, active)
+    }
+
+    func leave() { active -= 1 }
+  }
+
+  /// 同步目录定位闭包不能 await；仅用锁记录本次扫描实际消耗的读取额度。
+  private final class VisitCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var attempts = 0
+    private var entries = 0
+
+    func start() { lock.withLock { attempts += 1 } }
+    func visit() { lock.withLock { entries += 1 } }
+    func tick() -> Int {
+      lock.withLock {
+        attempts += 1
+        return attempts
+      }
+    }
+    var snapshot: [Int] { lock.withLock { [attempts, entries] } }
+  }
+
   private func rule(id: String = "fixture", urls: [URL]) -> CleanRule {
     CleanRule(
       id: id, category: .system, title: "Fixture", detail: "", symbol: "archivebox",
@@ -782,7 +1149,11 @@ struct PreviewSafetyTests {
     }
 
     var environment: CleanEnvironment {
-      CleanEnvironment(home: root.path, runningBundleIdentifiers: { [] }, toolEnvironment: [:])
+      var environment = CleanEnvironment(
+        home: root.path, runningBundleIdentifiers: { [] }, toolEnvironment: [:])
+      environment.activeProcessorCount = 4
+      environment.scanLoad = { .init(cpuUsage: nil, memoryPressure: .normal) }
+      return environment
     }
 
     func file(_ path: String) throws -> URL {

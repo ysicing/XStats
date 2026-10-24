@@ -24,13 +24,19 @@ public final class CleanerController {
   /// 弹出确认时冻结的选择；提示文案与最终执行使用同一份，避免确认期间选择或排除项变化后“所见非所清”。
   private(set) var pendingScans: [RuleScan] = []
   private var deselectedItems: Set<String> = []
+  private var applications: CacheApplicationInventory?
 
   @ObservationIgnored private let settings: AppSettings
+  @ObservationIgnored private let cpuUsage: @MainActor @Sendable () -> Double?
   @ObservationIgnored private let rules = RuleCatalog.rules()
   @ObservationIgnored private var task: Task<Void, Never>?
 
-  init(settings: AppSettings) {
+  init(
+    settings: AppSettings,
+    cpuUsage: @escaping @MainActor @Sendable () -> Double? = { nil }
+  ) {
     self.settings = settings
+    self.cpuUsage = cpuUsage
     let validIDs = Set(rules.map(\.id))
     let initial = settings.cleanSelectedRuleIDs ?? Set(rules.filter(\.selectedByDefault).map(\.id))
     selection = initial.intersection(validIDs)
@@ -45,11 +51,19 @@ public final class CleanerController {
     let environment = environment()
     let rules = rules
     task = Task {
+      let applications = try? await CacheApplicationInventory.read(
+        rules: rules, environment: environment)
+      guard !Task.isCancelled else {
+        phase = scans.isEmpty ? .idle : .ready
+        return
+      }
       let results = await CleanEngine.scan(rules, environment: environment)
       guard !Task.isCancelled else {
         phase = scans.isEmpty ? .idle : .ready
         return
       }
+      self.applications = applications
+      if let applications { rememberApplications(applications) }
       scans = results
       deselectedItems.formIntersection(results.flatMap { $0.items.map(\.id) })
       lastScan = Date()
@@ -126,8 +140,13 @@ public final class CleanerController {
         return
       }
       // 清理后重新计算剩余可清理空间
-      let rescanned = await CleanEngine.scan(rules, environment: self.environment())
+      let rescanEnvironment = self.environment()
+      let applications = try? await CacheApplicationInventory.read(
+        rules: rules, environment: rescanEnvironment)
+      let rescanned = await CleanEngine.scan(rules, environment: rescanEnvironment)
       if !Task.isCancelled {
+        self.applications = applications
+        if let applications { rememberApplications(applications) }
         self.scans = rescanned
         lastScan = Date()
       } else {
@@ -236,12 +255,44 @@ public final class CleanerController {
   }
 
   /// 定向截图只使用注入结果，不启动扫描或清理。
-  func showPreview(_ results: [RuleScan]) {
+  func showPreview(_ results: [RuleScan], applications: CacheApplicationInventory? = nil) {
+    self.applications = applications
     scans = results
     deselectedItems = []
     invalidateConfirmation()
     phase = .ready
     lastScan = Date()
+  }
+
+  enum ApplicationState {
+    case untracked, unknown, installed, previouslyInstalled, cacheRemains, notFound
+  }
+
+  func applicationState(for scan: RuleScan) -> ApplicationState {
+    guard scan.rule.tracksApplicationPresence else { return .untracked }
+    if applications?.installedRuleIDs.contains(scan.id) == true { return .installed }
+    if settings.cleanObservedApplicationRuleIDs.contains(scan.id) { return .previouslyInstalled }
+    guard applications?.isComplete == true else { return .unknown }
+    return scan.items.isEmpty ? .notFound : .cacheRemains
+  }
+
+  func shouldDisplay(_ scan: RuleScan) -> Bool {
+    // 只有完整空结果才能判定无缓存；运行保护、权限失败和预算中断均不代表没有内容。
+    applicationState(for: scan) != .notFound || !scan.isComplete || scan.skippedCount > 0
+  }
+
+  func keepsEmptyVisible(_ scan: RuleScan) -> Bool {
+    applicationState(for: scan) == .previouslyInstalled
+  }
+
+  func rememberApplications(_ applications: CacheApplicationInventory) {
+    guard !Task.isCancelled else { return }
+    let validIDs = Set(rules.filter(\.tracksApplicationPresence).map(\.id))
+    let observed = settings.cleanObservedApplicationRuleIDs
+      .union(applications.installedRuleIDs).intersection(validIDs)
+    if observed != settings.cleanObservedApplicationRuleIDs {
+      settings.cleanObservedApplicationRuleIDs = observed
+    }
   }
 
   func scans(in category: CleanCategory) -> [RuleScan] {
@@ -271,9 +322,12 @@ public final class CleanerController {
   private func environment() -> CleanEnvironment {
     let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
     let names = Self.runningApplicationNames()
-    return CleanEnvironment(
+    var environment = CleanEnvironment(
       runningBundleIdentifiers: { running }, runningApplicationNames: { names },
       excludedPaths: settings.cleanExcludedPaths)
+    let cpuUsage = cpuUsage
+    environment.scanLoad = { .current(cpuUsage: await cpuUsage()) }
+    return environment
   }
   private static func runningApplicationNames() -> Set<String> {
     Set(

@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import Localization
+import os
 
 public enum CleanEngine {
   // MARK: 扫描
@@ -8,59 +9,115 @@ public enum CleanEngine {
   /// 并发扫描所有规则，只读，不修改任何文件
   public static func scan(_ rules: [CleanRule], environment: CleanEnvironment) async -> [RuleScan] {
     let safety = SafetyGuard(home: environment.home)
-    let budget = ScanBudget(limits: environment.scanLimits)
-    return await withTaskGroup(of: (Int, RuleScan, Int).self) { group in
+    let budget = ScanBudget(limits: environment.scanLimits, enforcesTimeLimit: false)
+    var concurrency = AdaptiveConcurrencyPolicy(
+      activeProcessorCount: environment.activeProcessorCount)
+    let logger = Logger(subsystem: "work.12306.xstats", category: "CleanupScan")
+    var sampledAt = -TimeInterval.infinity
+    return await withTaskGroup(of: (Int, RuleScan, Int, Int).self) { group in
       // 为排队规则预留条目额度；完成后归还未用额度，局部耗尽不阻断其他规则。
-      // 总条目、候选数及截止时间仍有界，同时最多两个目录遍历。
       var remainingEntries = environment.scanLimits.maxEntries
       var next = 0
-      for (index, rule) in rules.prefix(2).enumerated() {
-        var limits = environment.scanLimits
-        limits.maxEntries = remainingEntries / (rules.count - index)
-        remainingEntries -= limits.maxEntries
-        let ruleBudget = ScanBudget(limits: limits, sharing: budget)
-        group.addTask {
-          let scan = await ScanBudget.$current.withValue(ruleBudget) {
-            await scanRule(rule, environment: environment, safety: safety)
-          }
-          return (index, scan, ruleBudget.remainingEntries)
-        }
-        next += 1
-      }
+      var active = 0
       var results = [(Int, RuleScan)]()
-      for await result in group {
-        results.append((result.0, result.1))
-        remainingEntries += result.2
-        if !Task.isCancelled, next < rules.count {
-          let index = next
-          let rule = rules[next]
-          var limits = environment.scanLimits
-          limits.maxEntries = remainingEntries / (rules.count - next)
-          remainingEntries -= limits.maxEntries
-          let ruleBudget = ScanBudget(limits: limits, sharing: budget)
-          group.addTask {
-            let scan = await ScanBudget.$current.withValue(ruleBudget) {
-              await scanRule(rule, environment: environment, safety: safety)
+      var usedEntries: [Int: Int] = [:]
+      logger.debug("Scan started; maximum concurrency \(concurrency.maximum)")
+      while next < rules.count || active > 0 {
+        if next < rules.count, !Task.isCancelled {
+          let now = environment.concurrencyUptime()
+          if now - sampledAt >= 1 {
+            let previous = concurrency.limit
+            concurrency.update(load: await environment.scanLoad(), now: now)
+            sampledAt = now
+            if previous != concurrency.limit {
+              logger.debug("Scan dispatch concurrency \(concurrency.limit)")
             }
-            return (index, scan, ruleBudget.remainingEntries)
           }
-          next += 1
+          // 增长时补齐空位；下降时仅停止补位，让在途任务自然收敛。
+          while active < concurrency.limit, next < rules.count, !Task.isCancelled {
+            let index = next
+            let rule = rules[next]
+            var limits = environment.scanLimits
+            limits.maxEntries = remainingEntries / (rules.count - next)
+            remainingEntries -= limits.maxEntries
+            let ruleLimits = limits
+            group.addTask {
+              let ruleBudget = ScanBudget(
+                limits: ruleLimits, sharingCandidatesWith: budget, enforcesTimeLimit: false)
+              let scan = await ScanBudget.$current.withValue(ruleBudget) {
+                await scanRule(rule, environment: environment, safety: safety)
+              }
+              let unused = ruleBudget.remainingEntries
+              return (index, scan, unused, ruleLimits.maxEntries - unused)
+            }
+            next += 1
+            active += 1
+          }
+        }
+        if active > 0, let result = await group.next() {
+          active -= 1
+          results.append((result.0, result.1))
+          // 补扫不足以越过原中断点时，不重复读取。
+          usedEntries[result.0] = result.3
+          remainingEntries += result.2
+        } else if next < rules.count, !Task.isCancelled {
+          // 仅扫描仍有排队工作且压力暂停时等待；取消会立即唤醒，不留下常驻任务。
+          do { try await Task.sleep(for: .seconds(1)) } catch { break }
+        } else {
+          break
         }
       }
-      let ordered = results.sorted { $0.0 < $1.0 }.map(\.1)
+      var ordered = results.sorted { $0.0 < $1.0 }.map(\.1)
+      for index in ordered.indices {
+        guard !Task.isCancelled, budget.interruption == nil else { break }
+        let previous = ordered[index]
+        guard previous.interruption == .entryLimit, previous.blocked == nil,
+          remainingEntries > (usedEntries[index] ?? 0),
+          !previous.rule.usesToolCleaner || previous.toolCachePlan != nil
+        else { continue }
+        // 补扫同样遵守压力暂停；采样预算与首轮共用。
+        while !Task.isCancelled {
+          let now = environment.concurrencyUptime()
+          if now - sampledAt >= 1 {
+            concurrency.update(load: await environment.scanLoad(), now: now)
+            sampledAt = now
+          }
+          if concurrency.limit > 0 { break }
+          do { try await Task.sleep(for: .seconds(1)) } catch { break }
+        }
+        guard !Task.isCancelled else { break }
+        var limits = environment.scanLimits
+        limits.maxEntries = remainingEntries
+        let refill = ScanBudget(
+          limits: limits, sharingCandidatesWith: budget, enforcesTimeLimit: false)
+        // 首轮全部结束后串行补扫，复用工具范围；重复遍历同样扣额度，整次读取量仍有界。
+        let scan = await ScanBudget.$current.withValue(refill) {
+          await scanRule(
+            previous.rule, environment: environment, safety: safety,
+            preparedToolPlan: previous.toolCachePlan)
+        }
+        remainingEntries = refill.remainingEntries
+        ordered[index] = scan
+      }
       let resolvedTools = Set(ordered.filter { !hasUnknownToolScope($0) }.map(\.id))
       let hasUnresolvedToolScope = rules.contains {
         $0.usesToolCleaner && !resolvedTools.contains($0.id)
       }
       let protected = protectingToolCaches(in: ordered, hasUnknownScope: hasUnresolvedToolScope)
+      logger.debug("Scan ended; cancelled \(Task.isCancelled), completed rules \(ordered.count)")
       return removingOverlaps(protected)
     }
   }
 
-  static func scanRule(_ rule: CleanRule, environment: CleanEnvironment, safety: SafetyGuard) async
+  static func scanRule(
+    _ rule: CleanRule, environment: CleanEnvironment, safety: SafetyGuard,
+    preparedToolPlan: ToolCachePlan? = nil
+  ) async
     -> RuleScan
   {
-    let budget = ScanBudget.current ?? ScanBudget(limits: environment.scanLimits)
+    let budget =
+      ScanBudget.current
+      ?? ScanBudget(limits: environment.scanLimits, enforcesTimeLimit: false)
     if let interruption = budget.interruption {
       return RuleScan(
         rule: rule, items: [], skippedCount: 0, blocked: nil, interruption: interruption)
@@ -71,16 +128,19 @@ public enum CleanEngine {
     {
       return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .appRunning(app))
     }
-    var toolCachePlan: ToolCachePlan?
-    if let prepareTool = rule.prepareTool {
+    var toolCachePlan = preparedToolPlan
+    if toolCachePlan == nil, let prepareTool = rule.prepareTool {
       if let tool = rule.requiredTool, !environment.isToolAvailable(tool) {
         return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .toolUnavailable(tool))
       }
       do {
+        // 工具预览独立计时，不把其耗时转成后续目录计量的截止时间。
+        let duration = environment.scanLimits.maxDuration
+        let toolDeadline = ContinuousClock.now + .seconds(duration.isFinite ? max(0, duration) : 20)
         let plan = try await withThrowingTaskGroup(of: ToolCachePlan.self) { group in
           group.addTask { try await prepareTool(environment) }
           group.addTask {
-            try await ContinuousClock().sleep(until: budget.deadline)
+            try await ContinuousClock().sleep(until: toolDeadline)
             throw ScanInterruption.timeLimit
           }
           defer { group.cancelAll() }
