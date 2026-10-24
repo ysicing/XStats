@@ -365,6 +365,14 @@ enum SnapshotRenderer {
           appearance: appearance,
           to: outputDirectory.appendingPathComponent("cleaner-partial-\(suffix).png"))
         write(
+          PageScroll { OptimizationPage() }.appLanguageEnvironment().frame(width: 900, height: 700),
+          model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent("cleaner-optimize-\(suffix).png"))
+        write(
+          SpotlightRepairSheet().appLanguageEnvironment().frame(width: 600),
+          model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent("spotlight-repair-\(suffix).png"))
+        write(
           ProjectPurgeWindowView().frame(width: 720, height: 680), model: model,
           appearance: appearance,
           to: outputDirectory.appendingPathComponent("project-purge-\(suffix).png"))

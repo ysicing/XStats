@@ -66,10 +66,11 @@ enum DeveloperToolRunner {
     _ name: String, arguments: [String], home: String,
     environmentOverrides: [String: String] = [:], timeout: TimeInterval? = nil,
     previewTimeout: TimeInterval = 60, outputLimit: Int = 2_000_000,
-    includesStandardError: Bool = true, requiresCompleteOutput: Bool = false
+    includesStandardError: Bool = true, requiresCompleteOutput: Bool = false,
+    executableURL: URL? = nil
   ) async throws -> ToolRunResult {
     try Task.checkCancellation()
-    guard let executable = executable(named: name, home: home) else {
+    guard let executable = executableURL ?? executable(named: name, home: home) else {
       throw ToolExecutionError.unavailable(name)
     }
 

@@ -38,12 +38,24 @@ extension Translations {
     检查范围	Check Scope
     本次检查会向当前 DNS 查询 apple.com。	This check will query the current DNS for apple.com.
     仅查看占用，不提供清理。	Shows usage only; cleanup is unavailable.
-    优化清理	Optimize & Clean
+    清理优化	Clean & Optimize
     优化	Optimize
     按需清理缓存与项目产物，预览依赖并执行维护。	Clean caches and build artifacts on demand, preview dependencies, and run maintenance.
-    在优化清理页查看已安装的 AI 工具及关联数据目录，并管理 worktree。	View installed AI tools and their associated data folders, and manage worktrees from Optimize & Clean.
+    在清理优化页查看已安装的 AI 工具及关联数据目录，并管理 worktree。	View installed AI tools and their associated data folders, and manage worktrees from Clean & Optimize.
     遇到域名解析异常时手动刷新，不修改 DNS 服务器或代理设置。	Refresh manually when domain name resolution fails; DNS servers and proxy settings stay unchanged.
     手动释放可回收缓存；再次打开应用时可能需要重新加载，不建议频繁执行。	Manually release reclaimable caches. Apps may need to reload data afterward; avoid frequent use.
     没有可移除的依赖	No removable dependencies
+    重置缩略图	Reset Thumbnails
+    预览缩略图空白或未更新时重置，文件内容不受影响。	Reset blank or outdated preview thumbnails without changing your files.
+    缩略图缓存已重置，缩略图将在浏览文件时重新生成。	Thumbnail cache reset. Thumbnails will be regenerated as you browse files.
+    修复 Spotlight 搜索	Repair Spotlight Search
+    查看修复步骤	View Repair Steps
+    搜索找不到文件时，在系统设置中重建指定位置的索引。	If search cannot find files, rebuild the index for a chosen location in System Settings.
+    在系统设置中打开 Spotlight 的“搜索隐私”或“Spotlight 隐私”。	In System Settings, open Spotlight’s Search Privacy or Spotlight Privacy.
+    将需要重建索引的文件夹或磁盘加入列表，等待几秒，再从列表中移除。	Add the folder or disk you want to reindex, wait a few seconds, then remove it from the list.
+    macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macOS will then rebuild the index. Search results may be incomplete until it finishes.
+    无法打开系统设置，请手动前往 Spotlight 设置。	Unable to open System Settings. Open Spotlight settings manually.
+    查看 Apple 修复步骤	View Apple’s Repair Steps
+    打开 Spotlight 设置	Open Spotlight Settings
     """#
 }

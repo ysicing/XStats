@@ -82,6 +82,7 @@ struct CleanerPage: View {
               .buttonStyle(DSButtonStyle(kind: .secondary))
           }
         }
+        // 固定分类所属列；展开只推开同列卡片，不按高度重新分配位置。
         HStack(alignment: .top, spacing: DS.Space.s3) {
           VStack(spacing: DS.Space.s3) {
             CategoryCard(section: .applicationCaches).fixedSize(horizontal: false, vertical: true)
@@ -295,53 +296,62 @@ private struct CategoryCard: View {
       }
     let total = CleanItem.totalSize(
       of: scans.filter { $0.isCleanable && !$0.rule.usesToolCleaner }.flatMap(\.items))
+    // 只折叠确定无需清理的项目；运行中、权限不足及扫描失败等状态仍需直接展示。
+    let visibleScans = scans.filter {
+      showsEmpty || model.cleaner.keepsEmptyVisible($0)
+        || !$0.items.isEmpty || $0.blocked != nil || $0.unreadableCount > 0
+        || $0.skippedCount > 0 || $0.interruption != nil
+    }
+    let emptyCount = scans.filter {
+      $0.items.isEmpty && $0.isComplete && $0.skippedCount == 0
+        && !model.cleaner.keepsEmptyVisible($0)
+    }.count
+    let isCollapsedEmpty = visibleScans.isEmpty && emptyCount > 0
 
     Card(padding: DS.Space.s3, spacing: DS.Space.s2) {
       HStack {
         Text(section.title).dsFont(.xs, weight: .semibold).foregroundStyle(
           DS.Palette.textSecondary)
         Spacer()
-        if total > 0 {
+        if isCollapsedEmpty {
+          emptyDisclosure(count: emptyCount)
+        } else if scans.isEmpty, model.cleaner.lastScan != nil {
+          Text(tr("未发现缓存")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+        } else if total > 0 {
           Text(verbatim: Format.bytes(total, base: .decimal))
             .dsFont(.xs, weight: .medium)
             .monospacedDigit()
             .foregroundStyle(DS.Palette.textSecondary)
         }
       }
-      if scans.isEmpty {
-        if model.cleaner.lastScan == nil {
-          ForEach(0..<placeholderRows, id: \.self) { _ in
-            PlaceholderLine().frame(height: DS.Size.controlHeight)
+      if scans.isEmpty, model.cleaner.lastScan == nil {
+        ForEach(0..<placeholderRows, id: \.self) { _ in
+          PlaceholderLine().frame(height: DS.Size.controlHeight)
+        }
+      }
+      if !visibleScans.isEmpty {
+        VStack(spacing: DS.Space.s1) {
+          ForEach(Array(visibleScans.enumerated()), id: \.element.id) { index, scan in
+            if index > 0 { HairlineDivider() }
+            RuleRow(scan: scan)
           }
-        } else {
-          Text(tr("未发现缓存")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
         }
       }
-      // 只折叠确定无需清理的项目；运行中、权限不足及扫描失败等状态仍需直接展示。
-      let visibleScans = scans.filter {
-        showsEmpty || model.cleaner.keepsEmptyVisible($0)
-          || !$0.items.isEmpty || $0.blocked != nil || $0.unreadableCount > 0
-          || $0.skippedCount > 0 || $0.interruption != nil
-      }
-      ForEach(Array(visibleScans.enumerated()), id: \.element.id) { index, scan in
-        if index > 0 { HairlineDivider() }
-        RuleRow(scan: scan)
-      }
-      let emptyCount = scans.filter {
-        $0.items.isEmpty && $0.isComplete && $0.skippedCount == 0
-          && !model.cleaner.keepsEmptyVisible($0)
-      }.count
-      if emptyCount > 0 {
-        Button {
-          showsEmpty.toggle()
-        } label: {
-          Label(
-            tr("未发现内容（\(emptyCount.formatted(.number.locale(L10n.locale)))）"),
-            systemImage: showsEmpty ? "chevron.up" : "chevron.down")
-        }
-        .buttonStyle(.plain).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+      if emptyCount > 0, !isCollapsedEmpty {
+        emptyDisclosure(count: emptyCount)
       }
     }
+  }
+
+  private func emptyDisclosure(count: Int) -> some View {
+    Button {
+      showsEmpty.toggle()
+    } label: {
+      Label(
+        tr("未发现内容（\(count.formatted(.number.locale(L10n.locale)))）"),
+        systemImage: showsEmpty ? "chevron.up" : "chevron.down")
+    }
+    .buttonStyle(.plain).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
   }
 
   /// 扫描完成前占位，保持面板高度稳定
@@ -482,7 +492,7 @@ extension RuleScan {
     }
     if items.isEmpty && skippedCount > 0 { return tr("已跳过 \(skippedCount) 项") }
     if items.isEmpty {
-      return rule.previewOnly ? tr("占用 \(Format.bytes(UInt64(0), base: .decimal))") : tr("无需清理")
+      return rule.previewOnly ? tr("未发现缓存") : tr("无需清理")
     }
     var text =
       selectedCount > 0 && selectedCount < items.count

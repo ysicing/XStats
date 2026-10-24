@@ -15,9 +15,7 @@ struct CleanerPageLayoutTests {
     let cleanable = try #require(rules.first { $0.id == "developer.go" })
     let preview = try #require(rules.first { $0.id == "preview.quickLook" })
     let empty = RuleScan(rule: preview, items: [], skippedCount: 0, blocked: nil)
-    #expect(
-      empty.cleanupStatusText(selectedCount: 0)
-        == tr("占用 \(Format.bytes(UInt64(0), base: .decimal))"))
+    #expect(empty.cleanupStatusText(selectedCount: 0) == tr("未发现缓存"))
     let unreadable = RuleScan(
       rule: preview, items: [], skippedCount: 0, blocked: nil, unreadableCount: 2)
     #expect(unreadable.cleanupStatusText(selectedCount: 0) == tr("\(2) 个文件或目录无法读取"))
@@ -53,6 +51,17 @@ struct CleanerPageLayoutTests {
     #expect(CleanerPage.Section.category(.system).contains(logs))
   }
 
+  @Test func spotlightGuidanceFitsInBothLayoutDirections() throws {
+    for direction in [LayoutDirection.leftToRight, .rightToLeft] {
+      let host = NSHostingView(
+        rootView: SpotlightRepairSheet()
+          .environment(\.layoutDirection, direction)
+          .frame(width: 600))
+      let size = host.fittingSize
+      #expect(size.width == 600 && size.height > 0 && size.height < 700)
+    }
+  }
+
   @Test func bothTabsRenderWithoutStartingWorkInBothLayoutDirections() throws {
     let suite = "CleanerPageLayoutTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
@@ -78,9 +87,11 @@ struct CleanerPageLayoutTests {
     let rules = RuleCatalog.rules()
     let go = try #require(rules.first { $0.id == "developer.go" })
     let logs = try #require(rules.first { $0.id == "system.logs" })
+    let quickLook = try #require(rules.first { $0.id == "preview.quickLook" })
     model.cleaner.showPreview([
       RuleScan(rule: go, items: [], skippedCount: 0, blocked: nil, interruption: .timeLimit),
       RuleScan(rule: logs, items: [], skippedCount: 0, blocked: nil, unreadableCount: 2),
+      RuleScan(rule: quickLook, items: [], skippedCount: 0, blocked: nil),
     ])
     for tab in CleanerPage.Tab.allCases {
       for direction in [LayoutDirection.leftToRight, .rightToLeft] {
@@ -113,7 +124,9 @@ struct CleanerPageLayoutTests {
         #expect(bitmap.pixelsWide > 0 && bitmap.pixelsHigh > 0)
         #expect(!check.isChecking && check.checkedAt == nil && check.findings.isEmpty)
         #expect(check.deadlineTask == nil)
-        #expect(model.cleaner.phase == .ready && model.cleaner.scans.count == 2)
+        #expect(model.cleaner.phase == .ready && model.cleaner.scans.count == 3)
+        #expect(
+          !model.maintenance.isResettingThumbnails && model.maintenance.thumbnailOutcome == nil)
         if let path = ProcessInfo.processInfo.environment["XSTATS_CLEANER_PREVIEW_DIR"] {
           let directory = URL(fileURLWithPath: path, isDirectory: true)
           try FileManager.default.createDirectory(

@@ -152,16 +152,11 @@ public enum PreviewRuleCatalog {
         directories: ["Application Support/Battle.net"], names: ["Cache"],
         bundleIDs: [], applicationNames: ["Battle.net"], root: "Library",
         category: .system, previewOnly: true),
-      // Mole 2ef974753572: lib/optimize/tasks.sh:207.
+      // Mole 2ef974753572: lib/optimize/tasks.sh:207、lib/clean/user.sh:1173。
+      // 新旧目录属于同一个系统缓存项目，合并展示但保持各自的精确路径保护。
       ApplicationCacheCatalog.cache(
         id: "preview.quickLook", name: "QuickLook",
-        directories: ["Caches"], names: ["com.apple.QuickLook.thumbnailcache"],
-        bundleIDs: [], applicationNames: ["QuickLook"], root: "Library",
-        category: .system, previewOnly: true, tracksApplicationPresence: false),
-      // Mole 2ef974753572: lib/clean/user.sh:1173.
-      ApplicationCacheCatalog.cache(
-        id: "preview.quickLookLegacy", name: "QuickLook",
-        directories: ["Caches"], names: ["Quick Look"],
+        directories: ["Caches"], names: ["com.apple.QuickLook.thumbnailcache", "Quick Look"],
         bundleIDs: [], applicationNames: ["QuickLook"], root: "Library",
         category: .system, previewOnly: true, tracksApplicationPresence: false),
       // Mole 2ef974753572: lib/optimize/tasks.sh:209.

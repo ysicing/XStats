@@ -1,10 +1,10 @@
-# 优化清理与 Mole 对照
+# 清理优化与 Mole 对照
 
 ## 范围与实现约束
 
 对照基线为 Mole `2ef9747535725d6370d4aebb4a3a58ecd1521488`（2026-10-23）。XStats 使用独立的 Swift 实现，不依赖或执行 Mole 脚本。本文逐项说明该固定版本的 15 类清理范围与 19 个 optimize 操作；有限检查不等于与 Mole 的路径、候选、容量或执行行为完全一致。
 
-- 现有清理规则保留原有确认和执行流程。27 个仅查看的缓存项目覆盖 29 个固定目录，内部标记为 `previewOnly`，默认未选中，不能勾选清理，执行引擎也不得接受其删除请求。
+- 现有清理规则保留原有确认和执行流程。26 个仅查看的缓存项目覆盖 29 个固定目录，内部标记为 `previewOnly`，默认未选中，不能勾选清理，执行引擎也不得接受其删除请求。
 - 只读预览只返回证据和建议，不修复配置、运行写命令、请求管理员授权或扩大删除白名单。
 - 常规清理、依赖预览、项目产物、Agent 数据、空间分析和快照分别按需发起，不因打开常规清理而扫描所有专项，也不进行全盘搜索。
 - 判断状态与检查完整性分别展示。权限不足、工具缺失、超时、异常输出、预算耗尽或采样不足均不能解释成正常或零占用。
@@ -12,12 +12,12 @@
 
 ## 当前界面入口
 
-“优化清理”使用两个 Tab：
+“清理优化”使用两个 Tab：
 
 | Tab | 功能 | 执行边界 |
 | --- | --- | --- |
 | 清理 | 缓存、日志、项目产物及仅查看的缓存目录 | 沿用选择、保留项目和确认流程；仅查看项目不能清理 |
-| 优化 | 刷新 DNS 缓存、释放内存、Homebrew 依赖预览 | 前两项为已有手动维护操作，沿用辅助工具或管理员授权；Homebrew 仅执行 `brew autoremove --dry-run`，不移除依赖 |
+| 优化 | 刷新 DNS 缓存、重置缩略图、Spotlight 修复步骤、释放内存、Homebrew 依赖预览 | DNS 和内存操作沿用辅助工具或管理员授权；缩略图只调用系统 `qlmanage -r cache`；Spotlight 只展示步骤并打开设置；Homebrew 仅执行 `brew autoremove --dry-run`，不移除依赖 |
 
 打开优化 Tab 不启动扫描或维护。切换到优化会取消清理扫描；切回清理、离开页面、隐藏主窗口、锁屏或休眠时取消依赖预览，恢复后需手动重新预览。维护操作由用户单独触发，不自动运行。
 
@@ -49,7 +49,7 @@
 
 ## 29 个仅查看的缓存目录
 
-Zed 与 Poetry 的两处路径分别合并为一条规则，合计 27 个仅查看项目；合并不扩大固定路径范围。所有路径均相对 `~/Library/`，精确保留固定源中的名称与大小写。表中“来源”是固定 Mole 提交内的文件与行号，仅用于路径溯源，不表示 XStats 执行该脚本。规则复用 `ApplicationCacheCatalog.cache`，不为容器增加通用预览或删除白名单。
+Zed、Poetry 与 QuickLook 的两处路径分别合并为一条规则，合计 26 个仅查看项目；合并不扩大固定路径范围。所有路径均相对 `~/Library/`，精确保留固定源中的名称与大小写。表中“来源”是固定 Mole 提交内的文件与行号，仅用于路径溯源，不表示 XStats 执行该脚本。规则复用 `ApplicationCacheCatalog.cache`，不为容器增加通用预览或删除白名单。
 
 | 规则 | 相对路径 | 固定源证据 |
 | --- | --- | --- |
@@ -89,14 +89,15 @@ Zed 与 Poetry 的两处路径分别合并为一条规则，合计 27 个仅查�
 
 ## Mole optimize 操作对照
 
-固定源 `lib/optimize/catalog.sh` 共登记 19 个操作。XStats 不批量执行上游优化动作；当前优化 Tab 仅开放 DNS 刷新、内存释放及 Homebrew 依赖预览。
+固定源 `lib/optimize/catalog.sh` 共登记 19 个操作。XStats 不批量执行上游优化动作；当前优化 Tab 开放 DNS 刷新、缩略图重置、Spotlight 修复步骤、内存释放及 Homebrew 依赖预览。
 
 | Mole 操作 | 有限交付 / 既有复用 | 延后或未实现的精确对齐 |
 | --- | --- | --- |
-| `cache_refresh` | QuickLook、旧版 Quick Look、Icon Services 三个缓存路径占用预览 | 不刷新缓存、重启 Finder 或图标服务，不覆盖所有系统临时缓存位置 |
+| `cache_refresh` | 清理 Tab 展示 QuickLook 与 Icon Services 固定目录占用；优化 Tab 手动重置 QuickLook 缩略图 | 不重启 Finder 或图标服务，不覆盖所有系统临时缓存位置 |
 | `network_optimization` | 复用既有 DNS 刷新入口 | 不重启服务或判断所有 DNS 问题；不提供网络检查 |
 | `disk_verify` | 保留既有独立手动磁盘验证入口 | 不自动运行 verifyVolume 或修复文件系统，不将未运行验证描述为磁盘健康 |
-| 其余 16 项 | 未交付 | `saved_state_cleanup`、`fix_broken_configs`、`sqlite_vacuum`、`prevent_network_dsstore`、`legacy_overrides_audit`、`network_stack_optimize`、`disk_permissions_repair`、`spotlight_index_optimize`、`spotlight_orphan_rules_cleanup`、`periodic_maintenance`、`shared_file_list_repair`、`login_items_audit`、`quarantine_cleanup`、`launch_agents_cleanup`、`notification_cleanup`、`coreduet_cleanup`。曾有的只读审阅已删除，不检查、不修复、不清理 |
+| `spotlight_index_optimize` | 展示 Apple 修复步骤并打开 Spotlight 设置 | 不直接执行索引重建、不判断完成状态 |
+| 其余 15 项 | 未交付 | `saved_state_cleanup`、`fix_broken_configs`、`sqlite_vacuum`、`prevent_network_dsstore`、`legacy_overrides_audit`、`network_stack_optimize`、`disk_permissions_repair`、`spotlight_orphan_rules_cleanup`、`periodic_maintenance`、`shared_file_list_repair`、`login_items_audit`、`quarantine_cleanup`、`launch_agents_cleanup`、`notification_cleanup`、`coreduet_cleanup`。曾有的只读审阅已删除，不检查、不修复、不清理 |
 
 LaunchServices 重建、自动释放内存与其他写入型优化均不属于本次预览交付。DNS 刷新、内存释放与磁盘验证等既有手动工具仍遵循各自入口与执行边界。
 

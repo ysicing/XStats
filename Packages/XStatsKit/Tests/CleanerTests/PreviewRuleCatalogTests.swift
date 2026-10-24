@@ -9,6 +9,7 @@ struct PreviewRuleCatalogTests {
     let rules = PreviewRuleCatalog.rules
     let zed = try #require(rules.first { $0.id == "preview.zed" })
     let poetry = try #require(rules.first { $0.id == "preview.poetry" })
+    let quickLook = try #require(rules.first { $0.id == "preview.quickLook" })
     #expect(
       Set(zed.cacheRelativePaths) == [
         "Library/Caches/Zed", "Library/Application Support/Zed/node/cache",
@@ -19,6 +20,31 @@ struct PreviewRuleCatalogTests {
       ])
     #expect(rules.filter { $0.title == zed.title }.count == 1)
     #expect(rules.filter { $0.title == poetry.title }.count == 1)
+    #expect(
+      Set(quickLook.cacheRelativePaths) == [
+        "Library/Caches/com.apple.QuickLook.thumbnailcache", "Library/Caches/Quick Look",
+      ])
+    #expect(rules.filter { $0.title == quickLook.title }.count == 1)
+  }
+
+  @Test func quickLookCombinesBothDirectoriesWithoutGenericCacheTakeover() async throws {
+    let fixture = try Fixture()
+    defer { fixture.remove() }
+    let directories = try [
+      fixture.file("Library/Caches/com.apple.QuickLook.thumbnailcache/data")
+        .deletingLastPathComponent(),
+      fixture.file("Library/Caches/Quick Look/data").deletingLastPathComponent(),
+    ]
+    let rule = try #require(PreviewRuleCatalog.rules.first { $0.id == "preview.quickLook" })
+    let scans = await CleanEngine.scan(
+      [RuleCatalog.userCaches, rule], environment: fixture.environment)
+    let quickLook = try #require(scans.first { $0.id == rule.id })
+    let generic = try #require(scans.first { $0.id == RuleCatalog.userCaches.id })
+    #expect(Set(quickLook.items.map(\.url)) == Set(directories))
+    #expect(quickLook.totalSize > 0)
+    #expect(quickLook.isComplete)
+    #expect(quickLook.isCleanable == false)
+    #expect(generic.items.isEmpty)
   }
 
   @Test func rulesAreUnselectedReadOnlyFilePreviews() {
@@ -166,7 +192,7 @@ struct PreviewRuleCatalogTests {
     ("preview.zed", "Library/Application Support/Zed/node/cache", "Zed"),
     ("preview.battleNet", "Library/Application Support/Battle.net/Cache", "Battle.net"),
     ("preview.quickLook", "Library/Caches/com.apple.QuickLook.thumbnailcache", "QuickLook"),
-    ("preview.quickLookLegacy", "Library/Caches/Quick Look", "QuickLook"),
+    ("preview.quickLook", "Library/Caches/Quick Look", "QuickLook"),
     ("preview.iconServices", "Library/Caches/com.apple.iconservices", "Icon Services"),
   ])
   func expandedRulesMatchOnlyDeclaredLeaves(_ entry: (String, String, String)) async throws {

@@ -2485,10 +2485,10 @@ Homebrew 依赖预览	Aperçu des dépendances Homebrew
 检查范围	Périmètre de la vérification
 本次检查会向当前 DNS 查询 apple.com。	Cette vérification interrogera le DNS actuel pour apple.com.
 仅查看占用，不提供清理。	Affiche uniquement l’espace occupé ; nettoyage indisponible.
-优化清理	Optimisation et nettoyage
+清理优化	Nettoyage et optimisation
 优化	Optimisation
 按需清理缓存与项目产物，预览依赖并执行维护。	Nettoyez les caches et fichiers de compilation à la demande, prévisualisez les dépendances et lancez la maintenance.
-在优化清理页查看已安装的 AI 工具及关联数据目录，并管理 worktree。	Consultez les outils d’IA installés et leurs dossiers de données, et gérez les worktrees dans Optimisation et nettoyage.
+在清理优化页查看已安装的 AI 工具及关联数据目录，并管理 worktree。	Consultez les outils d’IA installés et leurs dossiers de données, et gérez les worktrees dans Nettoyage et optimisation.
 遇到域名解析异常时手动刷新，不修改 DNS 服务器或代理设置。	Videz le cache manuellement en cas de problème de résolution de noms, sans modifier les serveurs DNS ni le proxy.
 手动释放可回收缓存；再次打开应用时可能需要重新加载，不建议频繁执行。	Libérez manuellement les caches récupérables. Les apps peuvent devoir recharger les données ; évitez un usage fréquent.
 没有可移除的依赖	Aucune dépendance à supprimer
@@ -2499,3 +2499,15 @@ Homebrew 依赖预览	Aperçu des dépendances Homebrew
 {} 个文件或目录无法读取	{} fichiers ou dossiers n’ont pas pu être lus
 占用 {}	Occupe {}
 不支持清理 · {}	Nettoyage indisponible · {}
+重置缩略图	Réinitialiser les vignettes
+预览缩略图空白或未更新时重置，文件内容不受影响。	Réinitialisez les vignettes vides ou obsolètes sans modifier vos fichiers.
+缩略图缓存已重置，缩略图将在浏览文件时重新生成。	Cache des vignettes réinitialisé. Elles seront recréées lors de la navigation dans les fichiers.
+修复 Spotlight 搜索	Réparer la recherche Spotlight
+查看修复步骤	Voir les étapes de réparation
+搜索找不到文件时，在系统设置中重建指定位置的索引。	Si des fichiers sont introuvables, reconstruisez l’index de l’emplacement choisi dans Réglages Système.
+在系统设置中打开 Spotlight 的“搜索隐私”或“Spotlight 隐私”。	Dans Réglages Système, ouvrez Confidentialité de la recherche ou Confidentialité Spotlight.
+将需要重建索引的文件夹或磁盘加入列表，等待几秒，再从列表中移除。	Ajoutez le dossier ou le disque à réindexer, attendez quelques secondes, puis retirez-le de la liste.
+macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macOS reconstruira l’index. Les résultats peuvent être incomplets jusqu’à la fin.
+无法打开系统设置，请手动前往 Spotlight 设置。	Impossible d’ouvrir Réglages Système. Ouvrez les réglages Spotlight manuellement.
+查看 Apple 修复步骤	Voir les étapes de réparation d’Apple
+打开 Spotlight 设置	Ouvrir les réglages Spotlight

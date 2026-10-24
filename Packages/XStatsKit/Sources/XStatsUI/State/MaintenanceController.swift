@@ -1,10 +1,11 @@
+import Cleaner
 import Foundation
 import HelperShared
 import Localization
 import Metrics
 import Observation
 
-/// 刷新 DNS、释放内存、设置 DNS 服务器：已安装辅助工具时直接执行，否则弹出系统管理员授权
+/// 手动维护：缩略图由当前用户重置；DNS 与内存操作沿用辅助工具或系统管理员授权。
 @MainActor
 @Observable
 public final class MaintenanceController {
@@ -17,15 +18,24 @@ public final class MaintenanceController {
   public private(set) var outcomes: [MaintenanceCommand: Outcome] = [:]
   public private(set) var isApplyingDNS = false
   public private(set) var dnsOutcome: Outcome?
+  public private(set) var isResettingThumbnails = false
+  public private(set) var thumbnailOutcome: Outcome?
 
   @ObservationIgnored private let helper: HelperClient
+  @ObservationIgnored private let resetThumbnailCache: @Sendable () async throws -> Void
 
-  init(helper: HelperClient) {
+  init(
+    helper: HelperClient,
+    resetThumbnailCache: @escaping @Sendable () async throws -> Void = {
+      try await ThumbnailCache.reset()
+    }
+  ) {
     self.helper = helper
+    self.resetThumbnailCache = resetThumbnailCache
   }
 
   func run(_ command: MaintenanceCommand) async {
-    guard running == nil else { return }
+    guard running == nil, !isResettingThumbnails else { return }
     running = command
     defer { running = nil }
 
@@ -56,6 +66,29 @@ public final class MaintenanceController {
       }
       outcomes[command] = Outcome(
         text: freed > 0 ? tr("已释放 \(Format.bytes(freed)) 缓存内存") : tr("内存已整理"), isError: false)
+    }
+  }
+
+  func resetThumbnails() async {
+    guard running == nil, !isResettingThumbnails, !Task.isCancelled else { return }
+    isResettingThumbnails = true
+    thumbnailOutcome = nil
+    defer { isResettingThumbnails = false }
+    Log.app.info("Thumbnail cache reset started")
+    do {
+      try await resetThumbnailCache()
+      try Task.checkCancellation()
+      thumbnailOutcome = Outcome(text: tr("缩略图缓存已重置，缩略图将在浏览文件时重新生成。"), isError: false)
+      Log.app.info("Thumbnail cache reset completed")
+    } catch {
+      guard !Task.isCancelled, !(error is CancellationError) else {
+        Log.app.info("Thumbnail cache reset cancelled")
+        return
+      }
+      thumbnailOutcome = Outcome(text: error.localizedDescription, isError: true)
+      Log.app.error(
+        "Thumbnail cache reset failed: \(String(error.localizedDescription.prefix(500)), privacy: .private)"
+      )
     }
   }
 

@@ -393,7 +393,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
   ]
   // 按中文名称由短到长排列，所有语言沿用固定顺序，保持导航位置一致。
   static let tools: [PanelTab] = [
-    .audio, .processes, .ports, .cleaner, .rest, .keepAwake, .uninstaller,
+    .audio, .processes, .ports, .rest, .keepAwake, .cleaner, .uninstaller,
     .connections,
   ]
   // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
@@ -424,7 +424,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .ports: tr("端口")
     case .keepAwake: tr("防休眠")
     case .rest: tr("计时")
-    case .cleaner: tr("优化清理")
+    case .cleaner: tr("清理优化")
     case .uninstaller, .startupItems: tr("应用服务")
     case .audio: tr("音频")
     case .connections: tr("网络监视器")

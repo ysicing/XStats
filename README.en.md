@@ -120,7 +120,7 @@ When Magpie is installed, account quotas, tokens and costs come from its local A
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
 | **Apps & Services** | Manage apps, Homebrew packages, startup items and Homebrew services; view app information and available updates |
-| **Optimize & Clean** | Review caches and build artifacts, preview Homebrew dependencies, and manually refresh DNS or release memory · [Cleanup scope](docs/CLEANUP.md) |
+| **Clean & Optimize** | Review caches and build artifacts, preview Homebrew dependencies, and manually refresh DNS or release memory · [Cleanup scope](docs/CLEANUP.md) |
 | **Network diagnostics** | Speed tests, DNS queries, egress checks, local interface addresses and multi-source public IP lookup, location and purity, connectivity probes |
 | **Menu bar calendar** | Chinese lunar calendar, holidays and make-up workdays, almanac, calendar events and reminders |
 | **Audio** | System volume and input/output switching; per-app volume and output on macOS 14.4+, processed locally |
