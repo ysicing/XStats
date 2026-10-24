@@ -547,6 +547,7 @@ public enum CleanEngine {
     try visitEntry()
     let keys: [URLResourceKey] = [
       .isRegularFileKey, .isSymbolicLinkKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey,
+      .linkCountKey,
     ]
     let values = try url.resourceValues(forKeys: Set(keys))
     guard values.isSymbolicLink != true else { return CleanItem(url: url, size: 0) }
@@ -577,7 +578,8 @@ public enum CleanEngine {
       guard fileValues.isRegularFile == true, fileValues.isSymbolicLink != true else { continue }
       guard let size = fileValues.totalFileAllocatedSize ?? fileValues.fileAllocatedSize, size >= 0
       else { throw CocoaError(.fileReadUnknown) }
-      if let link = try hardLink(of: file, size: UInt64(size)) {
+      // 链接数随遍历批量预取；仅多链接或未知时再 lstat 取身份，避免每个文件多一次系统调用。
+      if fileValues.linkCount != 1, let link = try hardLink(of: file, size: UInt64(size)) {
         guard hardLinks[link.identity] == nil else { continue }
         hardLinks[link.identity] = link
       }

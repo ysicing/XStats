@@ -86,5 +86,13 @@ struct CleanerApplicationVisibilityTests {
     controller.showPreview([empty], applications: installed)
     #expect(controller.applicationState(for: empty) == .installed)
     #expect(!controller.keepsEmptyVisible(empty))
+    // 清单读取失败或不完整时，已见过的应用不能凭历史标为“曾安装”。
+    controller.showPreview([empty], applications: nil)
+    #expect(controller.applicationState(for: empty) == .unknown)
+    controller.showPreview(
+      [empty],
+      applications: CacheApplicationInventory(rules: rules, applications: [], isComplete: false))
+    #expect(controller.applicationState(for: empty) == .unknown)
+    #expect(controller.shouldDisplay(empty))
   }
 }

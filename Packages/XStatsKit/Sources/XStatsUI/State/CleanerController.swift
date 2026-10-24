@@ -271,8 +271,9 @@ public final class CleanerController {
   func applicationState(for scan: RuleScan) -> ApplicationState {
     guard scan.rule.tracksApplicationPresence else { return .untracked }
     if applications?.installedRuleIDs.contains(scan.id) == true { return .installed }
-    if settings.cleanObservedApplicationRuleIDs.contains(scan.id) { return .previouslyInstalled }
+    // 清单读取失败或不完整时无法确认已卸载，历史记录不能推断为“曾安装”。
     guard applications?.isComplete == true else { return .unknown }
+    if settings.cleanObservedApplicationRuleIDs.contains(scan.id) { return .previouslyInstalled }
     return scan.items.isEmpty ? .notFound : .cacheRemains
   }
 

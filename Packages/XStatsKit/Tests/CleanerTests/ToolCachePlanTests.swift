@@ -293,15 +293,37 @@ struct ToolCachePlanTests {
 
   @Test(arguments: ["developer.homebrew", "developer.yarn"])
   func unboundedNativeOperationsStopWhenExclusionsExist(_ id: String) async throws {
+    // 只读预览仍可运行，以便保留范围供通用规则让出；任何清理命令都不能执行。
     let environment = CleanEnvironment(
       home: "/Users/demo", runningBundleIdentifiers: { [] }, isToolAvailable: { _ in true },
       runTool: { _, args in
-        #expect(args == ["--version"])
-        return ToolRunResult(status: 0, output: "4.0.0")
+        switch args {
+        case ["--version"]: return ToolRunResult(status: 0, output: "4.0.0")
+        case ["config", "get", "cacheFolder", "--json"]:
+          return ToolRunResult(status: 0, output: #""/Users/demo/.yarn/berry/cache""#)
+        case ["config", "get", "globalFolder", "--json"]:
+          return ToolRunResult(status: 0, output: #""/Users/demo/.yarn/berry""#)
+        case ["cleanup", "--prune=30", "--dry-run"]:
+          return ToolRunResult(
+            status: 0,
+            output: "Would remove: /Users/demo/Library/Caches/Homebrew/old (1KB)\n"
+              + "==> This operation would free approximately 1KB of disk space.")
+        default:
+          Issue.record("Unexpected tool command \(args)")
+          return ToolRunResult(status: 1, output: "")
+        }
+      },
+      runToolWithEnvironment: { _, args, _ in
+        Issue.record("A global operation ran despite exclusions: \(args)")
+        return ToolRunResult(status: 0, output: "")
       }, excludedPaths: ["/Users/demo/Protected"])
     let rule = try #require(RuleCatalog.rules().first { $0.id == id })
     let scans = await CleanEngine.scan([rule], environment: environment)
     #expect(scans.first?.blocked != nil && scans.first?.isCleanable == false)
+    #expect(scans.first?.toolCachePlan?.roots.isEmpty == false)
+    let report = await CleanEngine.clean(
+      scans, selected: [rule.id], preferTrash: false, environment: environment, log: nil)
+    #expect(report.removedCount == 0)
   }
 }
 

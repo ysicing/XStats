@@ -62,7 +62,7 @@ enum DeveloperCleanupCatalog {
       else { throw ToolCachePlanError.unknownScope }
       if major >= 2 {
         // Berry 还会调用插件的全局清理钩子，已知缓存位置不等于完整删除边界。
-        guard env.excludedPaths.isEmpty else { throw ToolCachePlanError.unknownScope }
+        // 有保留项时由引擎拒绝无界计划，但仍保留已查询的根路径，避免通用规则因此整组阻断。
         let cache = try await ToolCachePlan.queryPath(
           "yarn", ["config", "get", "cacheFolder", "--json"], environment: env, jsonOutput: true)
         let global = try await ToolCachePlan.queryPath(
@@ -177,7 +177,7 @@ enum DeveloperCleanupCatalog {
     detail: tr("由 Homebrew 清理旧版本与缓存，不自动移除依赖"), symbol: "shippingbox",
     selectedByDefault: false, minimumAge: 0, requiredTool: "brew",
     prepareTool: { env in
-      guard env.excludedPaths.isEmpty else { throw ToolCachePlanError.unknownScope }
+      // 有保留项时仍运行只读预览：引擎据此拒绝执行，同时让通用规则让出预览路径。
       let result = try await env.runTool("brew", ["cleanup", "--prune=30", "--dry-run"])
       guard result.status == 0 else {
         throw ToolExecutionError.failed(

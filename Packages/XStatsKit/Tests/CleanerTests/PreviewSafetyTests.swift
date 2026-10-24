@@ -853,6 +853,41 @@ struct PreviewSafetyTests {
     #expect(!FileManager.default.fileExists(atPath: log.path))
   }
 
+  @Test func exclusionsRejectGlobalToolWithoutBlockingGenericCachesAndLogs() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let cache = try home.file("Library/Caches/ordinary/data")
+    let log = try home.file("Library/Logs/ordinary/data")
+    let brewFile = try home.file("Library/Caches/CustomBrew/downloads/data")
+    let brewRoot = brewFile.deletingLastPathComponent().deletingLastPathComponent()
+    var environment = home.environment
+    environment.now = { Date.distantFuture }
+    environment.isToolAvailable = { $0 == "brew" }
+    environment.excludedPaths = [home.root.appendingPathComponent("unrelated-kept-item").path]
+    environment.runTool = { _, args in
+      #expect(args == ["cleanup", "--prune=30", "--dry-run"])
+      return ToolRunResult(
+        status: 0,
+        output: "Would remove: \(brewRoot.path) (4KB)\n"
+          + "==> This operation would free approximately 4KB of disk space.")
+    }
+    let scans = await CleanEngine.scan(
+      [RuleCatalog.userCaches, RuleCatalog.logs, DeveloperCleanupCatalog.homebrewCache],
+      environment: environment)
+    let brew = try #require(scans.last)
+    // 全局操作仍因保留项被拒绝，但已知预览范围要交给通用规则让出。
+    #expect(!brew.isCleanable && brew.toolCachePlan != nil)
+    #expect(scans.prefix(2).allSatisfy { $0.isCleanable && $0.isComplete })
+    #expect(scans[0].items.map(\.url.path) == [cache.deletingLastPathComponent().path])
+    let report = await CleanEngine.clean(
+      scans, selected: Set(scans.map(\.id)), preferTrash: false, environment: environment,
+      log: nil)
+    #expect(report.removedCount == 2)
+    #expect(!FileManager.default.fileExists(atPath: cache.path))
+    #expect(!FileManager.default.fileExists(atPath: log.path))
+    #expect(FileManager.default.fileExists(atPath: brewFile.path))
+  }
+
   @Test(arguments: ["Library/Caches/CustomCargo", "Library/Logs/CustomCargo"])
   func customCargoStorageStaysProtectedWithoutCargoCache(_ relativePath: String) async throws {
     let home = try Fixture()
