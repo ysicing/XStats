@@ -23,6 +23,9 @@ public final class MaintenanceController {
 
   @ObservationIgnored private let helper: HelperClient
   @ObservationIgnored private let resetThumbnailCache: @Sendable () async throws -> Void
+  @ObservationIgnored var moleIsRunning: () -> Bool = { false }
+
+  var isBusy: Bool { running != nil || isResettingThumbnails || isApplyingDNS }
 
   init(
     helper: HelperClient,
@@ -35,7 +38,7 @@ public final class MaintenanceController {
   }
 
   func run(_ command: MaintenanceCommand) async {
-    guard running == nil, !isResettingThumbnails else { return }
+    guard !isBusy, !moleIsRunning(), !Task.isCancelled else { return }
     running = command
     defer { running = nil }
 
@@ -70,7 +73,7 @@ public final class MaintenanceController {
   }
 
   func resetThumbnails() async {
-    guard running == nil, !isResettingThumbnails, !Task.isCancelled else { return }
+    guard !isBusy, !moleIsRunning(), !Task.isCancelled else { return }
     isResettingThumbnails = true
     thumbnailOutcome = nil
     defer { isResettingThumbnails = false }
@@ -94,7 +97,7 @@ public final class MaintenanceController {
 
   /// 为网络服务设置 DNS（空数组为恢复自动），完成后刷新 DNS 缓存
   func setDNSServers(_ servers: [String], service: String) async {
-    guard !isApplyingDNS else { return }
+    guard !isBusy, !moleIsRunning(), !Task.isCancelled else { return }
     guard DNSConfiguration.isValidServiceName(service),
       servers.count <= DNSConfiguration.maxServers,
       servers.allSatisfy(DNSConfiguration.isValidAddress)

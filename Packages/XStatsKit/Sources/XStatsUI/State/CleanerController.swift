@@ -6,6 +6,20 @@ import Observation
 @MainActor
 @Observable
 public final class CleanerController {
+  enum Engine: Hashable { case native, mole }
+  private(set) var engine: Engine = .native
+  let mole: MoleController
+
+  func selectEngine(_ engine: Engine) {
+    guard phase != .cleaning, !mole.isRunning, engine != .mole || mole.executable != nil else {
+      return
+    }
+    if phase == .scanning { cancelOperation() }
+    cancelClean()
+    mole.cancelConfirmation()
+    self.engine = engine
+  }
+
   public enum Phase: Equatable {
     case idle, scanning, ready, cleaning, finished
   }
@@ -28,23 +42,28 @@ public final class CleanerController {
 
   @ObservationIgnored private let settings: AppSettings
   @ObservationIgnored private let cpuUsage: @MainActor @Sendable () -> Double?
-  @ObservationIgnored private let rules = RuleCatalog.rules()
+  // 不支持清理的规则不参与应用识别或扫描；专属目录仍由引擎独立保护。
+  @ObservationIgnored private let rules = RuleCatalog.rules().filter { !$0.previewOnly }
   @ObservationIgnored private var task: Task<Void, Never>?
 
   init(
     settings: AppSettings,
+    mole: MoleController? = nil,
     cpuUsage: @escaping @MainActor @Sendable () -> Double? = { nil }
   ) {
     self.settings = settings
+    self.mole = mole ?? MoleController(settings: settings)
     self.cpuUsage = cpuUsage
     let validIDs = Set(rules.map(\.id))
     let initial = settings.cleanSelectedRuleIDs ?? Set(rules.filter(\.selectedByDefault).map(\.id))
     selection = initial.intersection(validIDs)
+    self.mole.nativeIsBusy = { [weak self] in self?.isBusy == true }
   }
 
   var isBusy: Bool { phase == .scanning || phase == .cleaning }
 
   func scan(ifNeeded: Bool = false) {
+    guard engine == .native, !mole.isRunning else { return }
     guard settings.cleanerEnabled, !isBusy, !(ifNeeded && lastScan != nil) else { return }
     phase = .scanning
     invalidateConfirmation()
@@ -72,6 +91,7 @@ public final class CleanerController {
   }
 
   func requestClean() {
+    guard engine == .native, !mole.isRunning else { return }
     guard settings.cleanerEnabled, phase == .ready || phase == .finished, !selectedScans.isEmpty
     else { return }
     pendingScans = selectedScans
@@ -95,6 +115,7 @@ public final class CleanerController {
   }
 
   func confirmClean() {
+    guard engine == .native, !mole.isRunning else { return }
     // 系统弹层可能先清除展示绑定，所以以冻结的选择而不是 isConfirming 判断是否已确认。
     guard settings.cleanerEnabled, phase == .ready || phase == .finished, !pendingScans.isEmpty
     else { return }
@@ -224,10 +245,6 @@ public final class CleanerController {
       of: scans.filter { $0.isCleanable && !$0.rule.usesToolCleaner }.flatMap(\.items))
   }
 
-  var previewBytes: UInt64 {
-    CleanItem.totalSize(of: scans.filter { $0.rule.previewOnly }.flatMap(\.items))
-  }
-
   var selectedScans: [RuleScan] {
     scans.compactMap { scan in
       let items = selectedItems(in: scan)
@@ -248,10 +265,10 @@ public final class CleanerController {
   }
 
   var needsFullDiskAccess: Bool {
-    scans.contains { $0.blocked == .needsFullDiskAccess }
+    scans.contains { !$0.rule.previewOnly && $0.blocked == .needsFullDiskAccess }
   }
   var hasIncompleteScan: Bool {
-    scans.contains { $0.unreadableCount > 0 || $0.interruption != nil }
+    scans.contains { !$0.rule.previewOnly && ($0.unreadableCount > 0 || $0.interruption != nil) }
   }
 
   /// 定向截图只使用注入结果，不启动扫描或清理。
@@ -278,8 +295,10 @@ public final class CleanerController {
   }
 
   func shouldDisplay(_ scan: RuleScan) -> Bool {
+    // 清理列表只展示支持清理的规则；隐藏仅查看项不撤销底层路径保护。
+    guard !scan.rule.previewOnly else { return false }
     // 只有完整空结果才能判定无缓存；运行保护、权限失败和预算中断均不代表没有内容。
-    applicationState(for: scan) != .notFound || !scan.isComplete || scan.skippedCount > 0
+    return applicationState(for: scan) != .notFound || !scan.isComplete || scan.skippedCount > 0
   }
 
   func keepsEmptyVisible(_ scan: RuleScan) -> Bool {

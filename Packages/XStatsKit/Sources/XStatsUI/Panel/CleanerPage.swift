@@ -42,38 +42,103 @@ struct CleanerPage: View {
   }
 
   var body: some View {
-    Group {
-      if tab == .clean {
-        cleanup
+    VStack(spacing: 0) {
+      enginePicker
+      if model.cleaner.engine == .mole {
+        MoleCommandView(controller: model.cleaner.mole, nativeBusy: nativeBusy)
+      } else if tab == .clean {
+        nativeCleanup
       } else {
-        PageScroll { OptimizationPage() }
+        PageScroll {
+          if model.cleaner.mole.executable == nil { moleGuide }
+          OptimizationPage()
+        }
       }
     }
-    .onAppear { updateTab() }
+    .task {
+      guard !isSnapshot else { return }
+      await model.cleaner.mole.refreshAvailability()
+      guard !Task.isCancelled else { return }
+      updateTab()
+    }
     .onChange(of: tab) { _, _ in updateTab() }
+    .onChange(of: model.cleaner.engine) { _, _ in updateTab() }
+    .onChange(of: model.cleaner.mole.executable) { _, executable in
+      if executable == nil { model.cleaner.selectEngine(.native) }
+    }
     .onDisappear {
       model.systemCheck.cancel()
       if model.cleaner.phase == .scanning { model.cleaner.cancelOperation() }
+      model.cleaner.mole.cancel()
     }
     .onChange(of: model.settings.cleanerEnabled) { _, enabled in
-      if !enabled { model.systemCheck.cancel() }
+      if !enabled {
+        model.systemCheck.cancel()
+        model.cleaner.mole.cancel()
+      }
     }
   }
 
   private func updateTab() {
     guard !isSnapshot else { return }
+    model.cleaner.mole.selectWorkflow(tab == .clean ? .clean : .optimize)
     if tab == .clean {
       model.systemCheck.cancel()
       model.cleaner.scan(ifNeeded: true)
-    } else if model.cleaner.phase == .scanning {
-      model.cleaner.cancelOperation()
+    } else {
+      if model.cleaner.phase == .scanning { model.cleaner.cancelOperation() }
+    }
+    if model.cleaner.engine == .mole { model.systemCheck.cancel() }
+  }
+
+  private var nativeBusy: Bool {
+    model.cleaner.isBusy || model.maintenance.isBusy
+  }
+
+  private var enginePicker: some View {
+    Group {
+      if model.cleaner.mole.executable != nil {
+        HStack(spacing: DS.Space.s3) {
+          Picker(
+            tr("引擎"),
+            selection: Binding(
+              get: { model.cleaner.engine }, set: { model.cleaner.selectEngine($0) })
+          ) {
+            Text(verbatim: "XStats").tag(CleanerController.Engine.native)
+            Text(verbatim: "Mole").tag(CleanerController.Engine.mole)
+          }
+          .fixedSize()
+          .disabled(
+            model.cleaner.phase == .cleaning || model.cleaner.mole.isRunning
+              || model.maintenance.isBusy)
+          Text(tr("推荐使用 Mole 进行优化清理。"))
+            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+          Spacer(minLength: 0)
+        }
+        .padding(DS.Space.s3)
+      }
     }
   }
 
-  private var cleanup: some View {
+  private var moleGuide: some View {
+    Group {
+      MolePreviewGuide(
+        command: tab == .clean ? "mo clean --dry-run" : "mo optimize --dry-run",
+        detail: tr("推荐使用 Mole 进行优化清理，安装后可切换引擎。"))
+      Button(tr("重新检测 Mole")) {
+        Task { await model.cleaner.mole.refreshAvailability() }
+      }
+      .buttonStyle(DSButtonStyle(kind: .secondary))
+    }
+  }
+
+  private var nativeCleanup: some View {
     VStack(spacing: 0) {
       PageScroll {
         SummaryCard()
+        if model.cleaner.mole.executable == nil {
+          moleGuide
+        }
         if model.cleaner.needsFullDiskAccess {
           InfoBanner(
             icon: "lock.shield", text: tr("部分项目需要“完全磁盘访问权限”才能扫描（Safari 缓存、废纸篓）。"), tone: .warning
@@ -157,10 +222,6 @@ private struct SummaryCard: View {
       }
 
       CleanerActions()
-      if cleaner.previewBytes > 0 {
-        Text(tr("仅查看项目占用 \(Format.bytes(cleaner.previewBytes, base: .decimal))"))
-          .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-      }
       if cleaner.scans.contains(where: { $0.isCleanable && $0.rule.usesToolCleaner }) {
         Text(tr("工具缓存容量单独列出，不计入文件合计。"))
           .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
@@ -356,7 +417,7 @@ private struct CategoryCard: View {
 
   /// 扫描完成前占位，保持面板高度稳定
   private var placeholderRows: Int {
-    RuleCatalog.rules().filter { section.contains($0) }.count
+    RuleCatalog.rules().filter { !$0.previewOnly && section.contains($0) }.count
   }
 }
 

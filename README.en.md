@@ -120,7 +120,7 @@ When Magpie is installed, account quotas, tokens and costs come from its local A
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
 | **Apps & Services** | Manage apps, Homebrew packages, startup items and Homebrew services; view app information and available updates |
-| **Clean & Optimize** | Review caches and build artifacts, preview Homebrew dependencies, and manually refresh DNS or release memory · [Cleanup scope](docs/CLEANUP.md) |
+| **Clean & Optimize** | Review caches and build artifacts, use an installed Mole engine with live logs, preview dependencies, and run maintenance on demand · [Cleanup scope](docs/CLEANUP.md) |
 | **Network diagnostics** | Speed tests, DNS queries, egress checks, local interface addresses and multi-source public IP lookup, location and purity, connectivity probes |
 | **Menu bar calendar** | Chinese lunar calendar, holidays and make-up workdays, almanac, calendar events and reminders |
 | **Audio** | System volume and input/output switching; per-app volume and output on macOS 14.4+, processed locally |
@@ -129,7 +129,7 @@ When Magpie is installed, account quotas, tokens and costs come from its local A
 
 Timers brings together countdown, Pomodoro and stopwatch, with on-demand short and long breaks, optional display sleep, independent eye-break reminders, break sounds and local focus statistics.
 
-Optional tools can be enabled as needed. Privileged actions such as fan control and lid-closed keep-awake require an authorized helper. Cleanup and uninstall require preview and confirmation. Cleanup moves items to Trash or deletes them directly depending on the item type and settings; uninstall uses Trash.
+Optional tools can be enabled as needed. Privileged actions such as fan control and lid-closed keep-awake require an authorized helper. Cleanup and uninstall require preview and confirmation. Native cleanup moves items to Trash or deletes them directly depending on the item type and settings. The Mole engine permanently cleans using its own rules; native selections and exclusions do not apply. Uninstall uses Trash.
 
 <details>
 <summary>More screenshots</summary>

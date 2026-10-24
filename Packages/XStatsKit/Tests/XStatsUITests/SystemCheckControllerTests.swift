@@ -76,7 +76,7 @@ struct SystemCheckControllerTests {
     #expect(cleaner.pendingScans.isEmpty)
     #expect(cleaner.isConfirming == false)
     #expect(cleaner.totalBytes == 0)
-    #expect(cleaner.previewBytes == 4096)
+    #expect(!cleaner.shouldDisplay(scan))
   }
 
   @Test func toolEstimatesStaySeparateWhileWholeToolsRemainSelected() throws {

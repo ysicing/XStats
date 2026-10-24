@@ -57,7 +57,12 @@ public final class AppModel {
   var featureSettingsTab: FeatureSettingsTab = .basic
 
   public var isMainWindowVisible = false {
-    didSet { if !isMainWindowVisible { systemCheck.cancel() } }
+    didSet {
+      if !isMainWindowVisible {
+        systemCheck.cancel()
+        cleaner.mole.cancel()
+      }
+    }
   }
   /// 网络页的端口 sheet 可见时，与独立端口页共享同一个采集控制器。
   var isPortsSheetPresented = false
@@ -184,6 +189,11 @@ public final class AppModel {
     sync = SyncController(settings: settings)
     diskTools = DiskToolsController(helper: helper)
     speedTest = SpeedTestController(settings: settings)
+    // 全局快捷键和菜单栏也能启动维护，互斥必须在执行入口生效。
+    cleaner.mole.nativeIsBusy = { [weak cleaner, weak maintenance] in
+      cleaner?.isBusy == true || maintenance?.isBusy == true
+    }
+    maintenance.moleIsRunning = { [weak mole = cleaner.mole] in mole?.isRunning == true }
     updates.prepareForInstallation = { [weak self] in self?.connectionMonitor.prepareForAppUpdate()
     }
     networkComponent.onPreparingUpdate = { [weak self] in

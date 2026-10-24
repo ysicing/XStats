@@ -379,6 +379,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         rest.prepareForTermination()
         await model.wellness.prepareForTermination()
         await XStatsCapture.workspace.prepareForTermination()
+        model.cleaner.mole.cancel()
+        await model.cleaner.mole.waitForExit()
         isTerminating = true
         // 退出恢复沿用 WillTerminate 中的有界同步兜底；无响应 XPC 不能阻塞历史刷盘。
         model.fans.setPaused(true)
@@ -402,6 +404,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   }
 
   public func applicationWillTerminate(_ notification: Notification) {
+    model.cleaner.mole.cancel()
     model.fans.setPaused(true)
     XStatsCapture.workspace.shortcuts.stop()
     XStatsCapture.workspace.cleanUp()
@@ -1067,6 +1070,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.connectionMonitor.setPaused(true)
     model.ports.setPaused(true)
     model.systemCheck.setPaused(true)
+    model.cleaner.mole.cancel()
     model.history.flush()
     model.wellness.suspend(preservingRest: true)
     wellnessNotifications.dismiss()
@@ -1190,6 +1194,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         if !self.model.settings.cleanerEnabled {
           self.model.cleaner.cancelClean()
           self.model.cleaner.cancelOperation()
+          self.model.cleaner.mole.cancel()
           self.model.projectPurge.isConfirming = false
           self.model.projectPurge.cancelScan()
           self.model.projectPurge.cancelClean()
