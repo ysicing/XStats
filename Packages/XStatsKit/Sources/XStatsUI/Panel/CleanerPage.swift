@@ -82,11 +82,6 @@ struct CleanerPage: View {
               .buttonStyle(DSButtonStyle(kind: .secondary))
           }
         }
-        if model.cleaner.hasIncompleteScan {
-          InfoBanner(
-            icon: "exclamationmark.triangle", text: tr("部分项目未能读取，大小仅包含已完整扫描的项目。请检查权限后重新扫描。"),
-            tone: .warning)
-        }
         HStack(alignment: .top, spacing: DS.Space.s3) {
           VStack(spacing: DS.Space.s3) {
             CategoryCard(section: .applicationCaches).fixedSize(horizontal: false, vertical: true)
@@ -387,8 +382,8 @@ private struct RuleRow: View {
             .lineLimit(1)
           Text(status)
             .dsFont(.xs)
-            .foregroundStyle(scan.blocked == nil ? DS.Palette.textTertiary : DS.Palette.warning)
-            .lineLimit(scan.blocked == nil ? 1 : nil)
+            .foregroundStyle(scan.isComplete ? DS.Palette.textTertiary : DS.Palette.warning)
+            .lineLimit(scan.isComplete ? 1 : nil)
             .fixedSize(horizontal: false, vertical: true)
             .help(statusText(selectedCount: selectedIDs.count, detailed: true))
         }
@@ -465,8 +460,7 @@ private struct RuleRow: View {
   private static let previewLimit = 6
 
   private func statusText(selectedCount: Int, detailed: Bool = false) -> String {
-    let status = scanStatusText(selectedCount: selectedCount, detailed: detailed)
-    let usage = scan.rule.previewOnly ? tr("仅查看 · \(status)") : status
+    let usage = scan.cleanupStatusText(selectedCount: selectedCount, detailed: detailed)
     switch model.cleaner.applicationState(for: scan) {
     case .previouslyInstalled: return tr("曾安装") + " · " + usage
     case .cacheRemains: return tr("缓存残留") + " · " + usage
@@ -474,28 +468,36 @@ private struct RuleRow: View {
     }
   }
 
-  private func scanStatusText(selectedCount: Int, detailed: Bool) -> String {
-    if let blocked = scan.blocked { return blocked.title }
-    if let interruption = scan.interruption { return interruption.title }
-    if scan.items.isEmpty && scan.unreadableCount > 0 {
-      return tr("扫描不完整 · \(scan.unreadableCount) 项未能读取")
+}
+
+extension RuleScan {
+  /// 失败原因优先展示；清理能力只标在已有内容的结果上，避免与空结果或运行状态混写。
+  func cleanupStatusText(selectedCount: Int, detailed: Bool = false) -> String {
+    if let blocked { return blocked.title }
+    if let interruption {
+      return interruption == .timeLimit ? tr("工具预览超时，暂不可清理") : interruption.title
     }
-    if scan.items.isEmpty && scan.skippedCount > 0 { return tr("已跳过 \(scan.skippedCount) 项") }
-    if scan.items.isEmpty { return scan.rule.previewOnly ? tr("未发现缓存") : tr("无需清理") }
+    if items.isEmpty && unreadableCount > 0 {
+      return tr("\(unreadableCount) 个文件或目录无法读取")
+    }
+    if items.isEmpty && skippedCount > 0 { return tr("已跳过 \(skippedCount) 项") }
+    if items.isEmpty {
+      return rule.previewOnly ? tr("占用 \(Format.bytes(UInt64(0), base: .decimal))") : tr("无需清理")
+    }
     var text =
-      selectedCount > 0 && selectedCount < scan.items.count
-      ? tr("已选 \(selectedCount)/\(scan.items.count) 项") : tr("\(scan.items.count) 项")
-    if scan.unreadableCount > 0 {
-      text += " · " + tr("扫描不完整 · \(scan.unreadableCount) 项未能读取")
+      selectedCount > 0 && selectedCount < items.count
+      ? tr("已选 \(selectedCount)/\(items.count) 项") : tr("\(items.count) 项")
+    if unreadableCount > 0 {
+      text += " · " + tr("\(unreadableCount) 个文件或目录无法读取")
     }
     // 卡片只显示计数；完整原因可悬停查看，避免一串 Bundle ID 抢占摘要。
-    if detailed, !scan.skippedReasons.isEmpty {
-      text += "\n" + scan.skippedReasons.keys.map(\.title).sorted().joined(separator: "\n")
-    } else if scan.skippedCount > 0 {
-      text += tr(" · 已跳过 \(scan.skippedCount) 项")
+    if detailed, !skippedReasons.isEmpty {
+      text += "\n" + skippedReasons.keys.map(\.title).sorted().joined(separator: "\n")
+    } else if skippedCount > 0 {
+      text += tr(" · 已跳过 \(skippedCount) 项")
     }
-    if scan.rule.policy == .trash { text += tr(" · 移到废纸篓") }
-    return text
+    if rule.policy == .trash { text += tr(" · 移到废纸篓") }
+    return rule.previewOnly ? tr("不支持清理 · \(text)") : text
   }
 }
 

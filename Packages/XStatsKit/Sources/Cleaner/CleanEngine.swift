@@ -9,18 +9,14 @@ public enum CleanEngine {
   /// 并发扫描所有规则，只读，不修改任何文件
   public static func scan(_ rules: [CleanRule], environment: CleanEnvironment) async -> [RuleScan] {
     let safety = SafetyGuard(home: environment.home)
-    let budget = ScanBudget(limits: environment.scanLimits, enforcesTimeLimit: false)
     var concurrency = AdaptiveConcurrencyPolicy(
       activeProcessorCount: environment.activeProcessorCount)
     let logger = Logger(subsystem: "work.12306.xstats", category: "CleanupScan")
     var sampledAt = -TimeInterval.infinity
-    return await withTaskGroup(of: (Int, RuleScan, Int, Int).self) { group in
-      // 为排队规则预留条目额度；完成后归还未用额度，局部耗尽不阻断其他规则。
-      var remainingEntries = environment.scanLimits.maxEntries
+    return await withTaskGroup(of: (Int, RuleScan).self) { group in
       var next = 0
       var active = 0
       var results = [(Int, RuleScan)]()
-      var usedEntries: [Int: Int] = [:]
       logger.debug("Scan started; maximum concurrency \(concurrency.maximum)")
       while next < rules.count || active > 0 {
         if next < rules.count, !Task.isCancelled {
@@ -37,18 +33,14 @@ public enum CleanEngine {
           while active < concurrency.limit, next < rules.count, !Task.isCancelled {
             let index = next
             let rule = rules[next]
-            var limits = environment.scanLimits
-            limits.maxEntries = remainingEntries / (rules.count - next)
-            remainingEntries -= limits.maxEntries
-            let ruleLimits = limits
             group.addTask {
-              let ruleBudget = ScanBudget(
-                limits: ruleLimits, sharingCandidatesWith: budget, enforcesTimeLimit: false)
-              let scan = await ScanBudget.$current.withValue(ruleBudget) {
+              let budget = ScanBudget(
+                limits: environment.scanLimits, enforcesTimeLimit: false, enforcesCountLimits: false
+              )
+              let scan = await ScanBudget.$current.withValue(budget) {
                 await scanRule(rule, environment: environment, safety: safety)
               }
-              let unused = ruleBudget.remainingEntries
-              return (index, scan, unused, ruleLimits.maxEntries - unused)
+              return (index, scan)
             }
             next += 1
             active += 1
@@ -57,9 +49,6 @@ public enum CleanEngine {
         if active > 0, let result = await group.next() {
           active -= 1
           results.append((result.0, result.1))
-          // 补扫不足以越过原中断点时，不重复读取。
-          usedEntries[result.0] = result.3
-          remainingEntries += result.2
         } else if next < rules.count, !Task.isCancelled {
           // 仅扫描仍有排队工作且压力暂停时等待；取消会立即唤醒，不留下常驻任务。
           do { try await Task.sleep(for: .seconds(1)) } catch { break }
@@ -67,57 +56,38 @@ public enum CleanEngine {
           break
         }
       }
-      var ordered = results.sorted { $0.0 < $1.0 }.map(\.1)
-      for index in ordered.indices {
-        guard !Task.isCancelled, budget.interruption == nil else { break }
-        let previous = ordered[index]
-        guard previous.interruption == .entryLimit, previous.blocked == nil,
-          remainingEntries > (usedEntries[index] ?? 0),
-          !previous.rule.usesToolCleaner || previous.toolCachePlan != nil
-        else { continue }
-        // 补扫同样遵守压力暂停；采样预算与首轮共用。
-        while !Task.isCancelled {
-          let now = environment.concurrencyUptime()
-          if now - sampledAt >= 1 {
-            concurrency.update(load: await environment.scanLoad(), now: now)
-            sampledAt = now
-          }
-          if concurrency.limit > 0 { break }
-          do { try await Task.sleep(for: .seconds(1)) } catch { break }
-        }
-        guard !Task.isCancelled else { break }
-        var limits = environment.scanLimits
-        limits.maxEntries = remainingEntries
-        let refill = ScanBudget(
-          limits: limits, sharingCandidatesWith: budget, enforcesTimeLimit: false)
-        // 首轮全部结束后串行补扫，复用工具范围；重复遍历同样扣额度，整次读取量仍有界。
-        let scan = await ScanBudget.$current.withValue(refill) {
-          await scanRule(
-            previous.rule, environment: environment, safety: safety,
-            preparedToolPlan: previous.toolCachePlan)
-        }
-        remainingEntries = refill.remainingEntries
-        ordered[index] = scan
-      }
+      let ordered = results.sorted { $0.0 < $1.0 }.map(\.1)
       let resolvedTools = Set(ordered.filter { !hasUnknownToolScope($0) }.map(\.id))
       let hasUnresolvedToolScope = rules.contains {
         $0.usesToolCleaner && !resolvedTools.contains($0.id)
       }
-      let protected = protectingToolCaches(in: ordered, hasUnknownScope: hasUnresolvedToolScope)
-      logger.debug("Scan ended; cancelled \(Task.isCancelled), completed rules \(ordered.count)")
-      return removingOverlaps(protected)
+      defer {
+        logger.debug("Scan ended; cancelled \(Task.isCancelled), completed rules \(ordered.count)")
+      }
+      do {
+        let protected = try protectingToolCaches(
+          in: ordered, hasUnknownScope: hasUnresolvedToolScope)
+        return try removingOverlaps(protected)
+      } catch {
+        // 取消结果整理时不返回未完成去重、范围保护的清单。
+        return ordered.map {
+          RuleScan(
+            rule: $0.rule, items: [], skippedCount: $0.skippedCount, blocked: $0.blocked,
+            toolCachePlan: $0.toolCachePlan, interruption: .cancelled)
+        }
+      }
     }
   }
 
   static func scanRule(
-    _ rule: CleanRule, environment: CleanEnvironment, safety: SafetyGuard,
-    preparedToolPlan: ToolCachePlan? = nil
+    _ rule: CleanRule, environment: CleanEnvironment, safety: SafetyGuard
   ) async
     -> RuleScan
   {
     let budget =
       ScanBudget.current
-      ?? ScanBudget(limits: environment.scanLimits, enforcesTimeLimit: false)
+      ?? ScanBudget(
+        limits: environment.scanLimits, enforcesTimeLimit: false, enforcesCountLimits: false)
     if let interruption = budget.interruption {
       return RuleScan(
         rule: rule, items: [], skippedCount: 0, blocked: nil, interruption: interruption)
@@ -128,8 +98,8 @@ public enum CleanEngine {
     {
       return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .appRunning(app))
     }
-    var toolCachePlan = preparedToolPlan
-    if toolCachePlan == nil, let prepareTool = rule.prepareTool {
+    var toolCachePlan: ToolCachePlan?
+    if let prepareTool = rule.prepareTool {
       if let tool = rule.requiredTool, !environment.isToolAvailable(tool) {
         return RuleScan(rule: rule, items: [], skippedCount: 0, blocked: .toolUnavailable(tool))
       }
@@ -249,7 +219,7 @@ public enum CleanEngine {
       guard !accepted.overlaps(url.path) else { continue }
       accepted.insert(url.path)
       do {
-        let item = try measureAllocatedSize(of: url, checkCancellation: { try budget.visit() })
+        let item = try measureAllocatedSize(of: url, budget: budget)
         try budget.check()
         if item.size > 0 { items.append(item) }
       } catch let limit as ScanInterruption {
@@ -261,7 +231,16 @@ public enum CleanEngine {
       } catch { unreadable += 1 }
     }
     interruption = interruption ?? budget.interruption
-    items.sort { $0.size == $1.size ? $0.url.path < $1.url.path : $0.size > $1.size }
+    do {
+      try Task.checkCancellation()
+      try items.sort {
+        try Task.checkCancellation()
+        return $0.size == $1.size ? $0.url.path < $1.url.path : $0.size > $1.size
+      }
+    } catch {
+      items.removeAll()
+      interruption = .cancelled
+    }
     return RuleScan(
       rule: rule, items: items, skippedCount: skipped, blocked: nil,
       skippedReasons: reasons, unreadableCount: unreadable, toolCachePlan: toolCachePlan,
@@ -277,18 +256,31 @@ public enum CleanEngine {
     return nil
   }
 
-  private static func standardizedCandidates(_ urls: [URL], budget: ScanBudget) throws -> [URL] {
+  static func standardizedCandidates(
+    _ urls: [URL], budget: ScanBudget,
+    checkCancellation: () throws -> Void = { try Task.checkCancellation() }
+  ) throws -> [URL] {
     var paths = Set<String>()
-    var candidates: [URL] = []
+    var candidates: [(url: URL, path: String, depth: Int)] = []
     for url in urls {
+      try checkCancellation()
       let candidate = url.standardizedFileURL
-      try budget.visitCandidate(candidate.path)
-      if paths.insert(candidate.path).inserted { candidates.append(candidate) }
+      let path = candidate.path
+      try budget.visitCandidate(path)
+      if paths.insert(path).inserted {
+        candidates.append((candidate, path, candidate.pathComponents.count))
+      }
     }
     try budget.check()
-    return candidates.sorted {
-      $0.pathComponents.count == $1.pathComponents.count
-        ? $0.path < $1.path : $0.pathComponents.count < $1.pathComponents.count
+    // 候选不再有数量上限，排序也必须可取消；路径和深度只计算一次。
+    try candidates.sort {
+      try checkCancellation()
+      try budget.check()
+      return $0.depth == $1.depth ? $0.path < $1.path : $0.depth < $1.depth
+    }
+    return try candidates.map {
+      try checkCancellation()
+      return $0.url
     }
   }
 
@@ -345,54 +337,74 @@ public enum CleanEngine {
   /// 工具范围未知时保留计量证据，但不批准通用规则接管；扫描与执行入口共用此保护。
   private static func protectingToolCaches(
     in scans: [RuleScan], hasUnknownScope: Bool
-  ) -> [RuleScan] {
+  ) throws -> [RuleScan] {
+    try Task.checkCancellation()
     var roots = PathIndex()
-    for root in scans.compactMap(\.toolCachePlan).flatMap(\.roots) {
-      roots.insert(root.standardizedFileURL.path)
+    for scan in scans {
+      for root in scan.toolCachePlan?.roots ?? [] {
+        try Task.checkCancellation()
+        roots.insert(root.standardizedFileURL.path)
+      }
     }
     let blocked: SkipReason? =
       hasUnknownScope ? .previewFailed(ToolCachePlanError.unknownScope.localizedDescription) : nil
-    return scans.map { scan in
+    return try scans.map { scan in
+      try Task.checkCancellation()
       guard scan.rule.isGenericLibraryScan else { return scan }
-      let items = scan.items.filter { !roots.overlaps($0.url.standardizedFileURL.path) }
+      let items = try scan.items.filter {
+        try Task.checkCancellation()
+        return !roots.overlaps($0.url.standardizedFileURL.path)
+      }
       return replacingItems(in: scan, with: items, blocked: blocked)
     }
   }
 
   /// 预览对象先保留归属，再处理专属规则与通用规则，避免通用父目录吞掉仅预览子项。
-  private static func removingOverlaps(_ scans: [RuleScan]) -> [RuleScan] {
-    let candidates = scans.enumerated().flatMap { index, scan in
-      scan.rule.usesToolCleaner ? [] : scan.items.map { (index, $0) }
-    }.sorted { left, right in
-      let a = scans[left.0].rule
-      let b = scans[right.0].rule
+  static func removingOverlaps(
+    _ scans: [RuleScan], checkCancellation: () throws -> Void = { try Task.checkCancellation() }
+  ) throws -> [RuleScan] {
+    var candidates: [(index: Int, item: CleanItem, path: String, depth: Int)] = []
+    for (index, scan) in scans.enumerated() where !scan.rule.usesToolCleaner {
+      for item in scan.items {
+        try checkCancellation()
+        let url = item.url.standardizedFileURL
+        candidates.append((index, item, url.path, url.pathComponents.count))
+      }
+    }
+    try candidates.sort { left, right in
+      try checkCancellation()
+      let a = scans[left.index].rule
+      let b = scans[right.index].rule
       if a.previewOnly != b.previewOnly { return a.previewOnly }
       if a.isGenericLibraryScan != b.isGenericLibraryScan { return !a.isGenericLibraryScan }
-      let leftPath = left.1.url.standardizedFileURL.path
-      let rightPath = right.1.url.standardizedFileURL.path
-      if leftPath != rightPath {
-        if left.1.url.pathComponents.count != right.1.url.pathComponents.count {
-          return left.1.url.pathComponents.count < right.1.url.pathComponents.count
-        }
-        return leftPath < rightPath
+      if left.path != right.path {
+        return left.depth == right.depth ? left.path < right.path : left.depth < right.depth
       }
-      return left.0 < right.0
+      return left.index < right.index
     }
     var paths = PathIndex()
-    for root in scans.compactMap(\.toolCachePlan).flatMap(\.roots) {
-      paths.insert(root.standardizedFileURL.path)
+    for scan in scans {
+      for root in scan.toolCachePlan?.roots ?? [] {
+        try checkCancellation()
+        paths.insert(root.standardizedFileURL.path)
+      }
     }
     var kept: [Int: Set<String>] = [:]
-    for (index, item) in candidates {
-      let path = item.url.standardizedFileURL.path
-      guard !paths.overlaps(path) else { continue }
-      paths.insert(path)
-      kept[index, default: []].insert(item.id)
+    for candidate in candidates {
+      try checkCancellation()
+      guard !paths.overlaps(candidate.path) else { continue }
+      paths.insert(candidate.path)
+      kept[candidate.index, default: []].insert(candidate.item.id)
     }
-    return scans.enumerated().map { index, scan in
+    return try scans.enumerated().map { index, scan in
+      try checkCancellation()
       guard !scan.rule.usesToolCleaner else { return scan }
       return replacingItems(
-        in: scan, with: scan.items.filter { kept[index]?.contains($0.id) == true })
+        in: scan,
+        with: try scan.items.filter {
+          try checkCancellation()
+          return kept[index]?.contains($0.id) == true
+        })
     }
   }
 
@@ -522,10 +534,17 @@ public enum CleanEngine {
     try measureAllocatedSize(of: url, checkCancellation: checkCancellation).size
   }
 
+  /// 条目计数仅发生在文件遍历中，排序等额外取消检查不消耗有界检查的额度。
+  static func measureAllocatedSize(of url: URL, budget: ScanBudget) throws -> CleanItem {
+    try measureAllocatedSize(
+      of: url, checkCancellation: { try budget.check() }, visitEntry: { try budget.visit() })
+  }
+
   private static func measureAllocatedSize(
-    of url: URL, checkCancellation: () throws -> Void
+    of url: URL, checkCancellation: () throws -> Void, visitEntry: () throws -> Void = {}
   ) throws -> CleanItem {
     try checkCancellation()
+    try visitEntry()
     let keys: [URLResourceKey] = [
       .isRegularFileKey, .isSymbolicLinkKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey,
     ]
@@ -553,6 +572,7 @@ public enum CleanEngine {
     var hardLinks: [String: CleanItem.HardLink] = [:]
     while let file = enumerator.nextObject() as? URL {
       try checkCancellation()
+      try visitEntry()
       let fileValues = try file.resourceValues(forKeys: Set(keys))
       guard fileValues.isRegularFile == true, fileValues.isSymbolicLink != true else { continue }
       guard let size = fileValues.totalFileAllocatedSize ?? fileValues.fileAllocatedSize, size >= 0
@@ -566,8 +586,12 @@ public enum CleanEngine {
       total = sum.partialValue
     }
     if let traversalError { throw traversalError }
-    return CleanItem(
-      url: url, size: total, hardLinks: hardLinks.values.sorted { $0.identity < $1.identity })
+    let links = try hardLinks.values.sorted {
+      try checkCancellation()
+      return $0.identity < $1.identity
+    }
+    try checkCancellation()
+    return CleanItem(url: url, size: total, hardLinks: links)
   }
 
   private static func hardLink(of url: URL, size: UInt64) throws -> CleanItem.HardLink? {
@@ -615,8 +639,14 @@ public enum CleanEngine {
     var report = CleanReport()
     var deletedFiles = CleanItem.SizeTotal()
     var trashedFiles = CleanItem.SizeTotal()
-    let protected = protectingToolCaches(
-      in: scans, hasUnknownScope: scans.contains { hasUnknownToolScope($0) })
+    let protected: [RuleScan]
+    do {
+      protected = try protectingToolCaches(
+        in: scans, hasUnknownScope: scans.contains { hasUnknownToolScope($0) })
+    } catch {
+      report.wasCancelled = true
+      return report
+    }
     let selectedScans = protected.filter { selected.contains($0.id) && $0.isCleanable }
     let totalSteps = selectedScans.reduce(0) { $0 + ($1.rule.usesToolCleaner ? 1 : $1.items.count) }
     let progressInterval = max(1, (totalSteps + 99) / 100)

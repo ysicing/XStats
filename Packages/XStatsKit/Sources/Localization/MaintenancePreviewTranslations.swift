@@ -37,6 +37,10 @@ extension Translations {
     仅查看	View Only
     仅查看 · {}	View only · {}
     未发现缓存	No cache found
+    工具预览超时，暂不可清理	Tool preview timed out; cleanup unavailable
+    {} 个文件或目录无法读取	{} files or folders could not be read
+    占用 {}	Uses {}
+    不支持清理 · {}	Cleanup unavailable · {}
     曾安装	Previously installed
     缓存残留	Remaining cache
     未发现内容（{}）	No content found ({})

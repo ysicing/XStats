@@ -6,6 +6,61 @@ import Testing
 @testable import Cleaner
 
 struct ScanCancellationTests {
+  @Test func cancellationInterruptsCandidateOrderingWithoutReturningPartialCandidates() throws {
+    let candidates = (0..<200).map {
+      URL(fileURLWithPath: "/fixture/Library/Caches/\(($0 * 37) % 200)")
+    }
+    let budget = ScanBudget(
+      limits: ScanLimits(), enforcesTimeLimit: false, enforcesCountLimits: false)
+    var checks = 0
+    #expect(throws: CancellationError.self) {
+      try CleanEngine.standardizedCandidates(candidates, budget: budget) {
+        checks += 1
+        if checks == candidates.count + 10 { throw CancellationError() }
+      }
+    }
+    #expect(checks == candidates.count + 10)
+  }
+
+  @Test func cancellationInterruptsOverlapOrderingWithoutPublishingPartialResults() throws {
+    let rule = CleanRule(
+      id: "fixture", category: .system, title: "Fixture", detail: "", symbol: "archivebox",
+      locate: { _ in [] })
+    let items = (0..<200).map {
+      CleanItem(
+        url: URL(fileURLWithPath: "/fixture/Library/Caches/\(($0 * 37) % 200)"), size: 4096)
+    }
+    let scan = RuleScan(rule: rule, items: items, skippedCount: 0, blocked: nil)
+    var checks = 0
+    #expect(throws: CancellationError.self) {
+      try CleanEngine.removingOverlaps([scan]) {
+        checks += 1
+        if checks == items.count + 10 { throw CancellationError() }
+      }
+    }
+    #expect(checks == items.count + 10)
+  }
+
+  @Test func cancellationAfterTraversalDoesNotPublishUnfinishedHardLinkAccounting() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let cache = root.appendingPathComponent("cache")
+    try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    for index in 0..<30 {
+      let file = cache.appendingPathComponent("\(index)")
+      try Data(repeating: 1, count: 4096).write(to: file)
+      try FileManager.default.linkItem(at: file, to: root.appendingPathComponent("link-\(index)"))
+    }
+    var checks = 0
+    #expect(throws: CancellationError.self) {
+      try CleanEngine.scanAllocatedSize(of: cache) {
+        checks += 1
+        if checks == 32 { throw CancellationError() }
+      }
+    }
+    #expect(checks == 32)
+  }
+
   @Test func cancellationInterruptsEnhancedResidualScanWithoutPublishingPartialCandidates() throws {
     let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: home) }

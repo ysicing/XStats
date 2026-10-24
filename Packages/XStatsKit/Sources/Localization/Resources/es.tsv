@@ -2582,3 +2582,7 @@ OrbStack 虚拟机数据	Datos de máquinas virtuales de OrbStack
 预览内容过长，仅显示部分结果。	La vista previa es demasiado larga. Solo se muestra parte del resultado.
 曾安装	Instalada anteriormente
 缓存残留	Caché restante
+工具预览超时，暂不可清理	La vista previa de la herramienta agotó el tiempo; limpieza no disponible
+{} 个文件或目录无法读取	No se pudieron leer {} archivos o carpetas
+占用 {}	Ocupa {}
+不支持清理 · {}	Limpieza no disponible · {}

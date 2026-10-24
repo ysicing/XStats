@@ -5,6 +5,38 @@ import Testing
 @testable import Cleaner
 
 struct PreviewSafetyTests {
+  @Test func hardLinkOrderingDoesNotConsumeDirectoryEntryBudget() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    for index in 0..<6 {
+      let file = try home.file("Library/Caches/linked/\(index)")
+      try FileManager.default.linkItem(
+        at: file, to: home.root.appendingPathComponent("outside-\(index)"))
+    }
+    let cache = home.root.appendingPathComponent("Library/Caches/linked")
+    var environment = home.environment
+    environment.scanLimits = ScanLimits(maxEntries: 7)
+    let scan = await boundedScan(rule(urls: [cache]), environment: environment)
+    #expect(scan.isComplete)
+    #expect(scan.items.map(\.url) == [cache])
+  }
+
+  @Test func directoryScansFinishWithoutEntryOrCandidateQuotas() async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    for index in 0..<4 { _ = try home.file("Downloads/\(index).dmg") }
+    let cache = try home.file("Library/Caches/large/nested/data").deletingLastPathComponent()
+    var environment = home.environment
+    environment.scanLimits = ScanLimits(maxEntries: 0, maxDuration: 0, maxCandidates: 0)
+    let scans = await CleanEngine.scan(
+      [RuleCatalog.installers, rule(id: "cache", urls: [cache])], environment: environment)
+    #expect(scans.count == 2)
+    #expect(scans.allSatisfy { $0.isComplete })
+    #expect(scans[0].items.count == 4)
+    #expect(scans[1].items.map(\.url) == [cache])
+    #expect(scans[1].totalSize == (try CleanEngine.scanAllocatedSize(of: cache)))
+  }
+
   @Test(arguments: [
     (0, 64, 2), (1, 64, 2), (2, 64, 2), (3, 64, 2), (4, 64, 2), (5, 64, 2),
     (6, 64, 3), (8, 64, 4), (11, 64, 5), (16, 64, 8), (32, 1, 1), (32, 0, 0),
@@ -183,7 +215,7 @@ struct PreviewSafetyTests {
     #expect(await samples.counts.count == 1)
   }
 
-  @Test func unfinishedDirectoryCanUseEntriesReturnedByLaterRules() async throws {
+  @Test func directoryCompletesAlongsideEmptyRules() async throws {
     let home = try Fixture()
     defer { home.remove() }
     for index in 0..<15 { _ = try home.file("Library/Caches/large/\(index)") }
@@ -199,7 +231,7 @@ struct PreviewSafetyTests {
     #expect(scans[0].items.map(\.url) == [root])
   }
 
-  @Test func refillingToolDirectoryDoesNotRepeatItsNativePreview() async throws {
+  @Test func toolDirectoryIsMeasuredWithoutRepeatingItsNativePreview() async throws {
     let home = try Fixture()
     defer { home.remove() }
     for index in 0..<15 { _ = try home.file("Library/Caches/large/\(index)") }
@@ -224,7 +256,7 @@ struct PreviewSafetyTests {
   }
 
   @Test(arguments: [4, 8, 16])
-  func refillReadsStillRespectTheSessionEntryLimit(processors: Int) async throws {
+  func directoryDiscoveryRunsOnceWithoutQuotaRestarts(processors: Int) async throws {
     let home = try Fixture()
     defer { home.remove() }
     let visits = VisitCounter()
@@ -233,7 +265,7 @@ struct PreviewSafetyTests {
     ) { _ in
       visits.start()
       let budget = try #require(ScanBudget.current)
-      for _ in 0..<100 {
+      for _ in 0..<100_001 {
         try budget.visit()
         visits.visit()
       }
@@ -245,40 +277,37 @@ struct PreviewSafetyTests {
     let scans = await CleanEngine.scan(
       [large] + (0..<4).map { rule(id: "empty.\($0)", urls: []) },
       environment: environment)
-    #expect(visits.snapshot == [2, 60])
-    #expect(scans[0].interruption == .entryLimit)
+    #expect(visits.snapshot == [1, 100_001])
+    #expect(scans[0].isComplete)
     #expect(scans.dropFirst().allSatisfy { $0.isComplete })
   }
 
-  @Test func cancellationDuringRefillPreventsFurtherRefills() async throws {
+  @Test func cancellationDuringLongDirectoryDiscoveryStopsFurtherReads() async throws {
     let home = try Fixture()
     defer { home.remove() }
-    let rules = (0..<2).map { index in
-      CleanRule(
-        id: "large.\(index)", category: .system, title: "Fixture", detail: "",
-        symbol: "archivebox"
-      ) { _ in
-        let budget = try #require(ScanBudget.current)
-        if budget.remainingEntries > 10 {
-          #expect(index == 0)
-          withUnsafeCurrentTask { $0?.cancel() }
-        }
-        for _ in 0..<11 { try budget.visit() }
-        return []
+    let visits = VisitCounter()
+    let directory = CleanRule(
+      id: "cancelled", category: .system, title: "Fixture", detail: "", symbol: "archivebox"
+    ) { _ in
+      let budget = try #require(ScanBudget.current)
+      for index in 0..<100_001 {
+        if index == 100 { withUnsafeCurrentTask { $0?.cancel() } }
+        try budget.visit()
+        visits.visit()
       }
+      return []
     }
     var environment = home.environment
-    environment.scanLimits = ScanLimits(maxEntries: 60)
-    let scans = await CleanEngine.scan(
-      rules + (0..<4).map { rule(id: "empty.\($0)", urls: []) },
-      environment: environment)
-    #expect(scans.count == 6)
+    environment.scanLimits = ScanLimits(maxEntries: 0, maxCandidates: 0)
+    let scans = await CleanEngine.scan([directory], environment: environment)
+    #expect(visits.snapshot == [0, 100])
+    #expect(scans.count == 1)
     #expect(scans[0].interruption == .cancelled)
-    #expect(scans[1].interruption == .entryLimit)
+    #expect(!scans[0].isComplete && scans[0].items.isEmpty)
   }
 
   @Test(arguments: [4, 8, 16])
-  func allocatedRuleBudgetsCannotExceedTheSessionEntryLimit(processors: Int) async throws {
+  func directoryRulesDoNotShareAnEntryQuota(processors: Int) async throws {
     let home = try Fixture()
     defer { home.remove() }
     let counter = EntryCounter()
@@ -307,11 +336,11 @@ struct PreviewSafetyTests {
     let counts = await counter.counts
     #expect(counts.count == 4)
     #expect(counts.allSatisfy { $0 > 0 })
-    #expect(counts.reduce(0, +) == 20)
-    #expect(scans.allSatisfy { $0.interruption == .entryLimit && !$0.isComplete })
+    #expect(counts == [100, 100, 100, 100])
+    #expect(scans.allSatisfy { $0.isComplete })
   }
 
-  @Test func unusedEntryAllocationsReturnToQueuedRules() async throws {
+  @Test func queuedDirectoriesCompleteDespiteSmallConfiguredLimits() async throws {
     let home = try Fixture()
     defer { home.remove() }
     let root = try home.file("Library/Caches/small/first").deletingLastPathComponent()
@@ -330,7 +359,7 @@ struct PreviewSafetyTests {
   @Test func queuedRuleGetsTimeEvenAfterEarlierBudgetExpires() {
     let earlier = ScanBudget(limits: ScanLimits(maxDuration: 0))
     #expect(earlier.interruption == .timeLimit)
-    let queued = ScanBudget(limits: ScanLimits(maxDuration: 20), sharingCandidatesWith: earlier)
+    let queued = ScanBudget(limits: ScanLimits(maxDuration: 20))
     #expect(queued.interruption == nil)
   }
 
@@ -394,7 +423,7 @@ struct PreviewSafetyTests {
     #expect(scans.allSatisfy { $0.interruption == .cancelled && !$0.isCleanable })
   }
 
-  @Test func largeRuleDoesNotExhaustQueuedRulesEntryBudget() async throws {
+  @Test func largeDirectoryDoesNotStopQueuedDirectories() async throws {
     let home = try Fixture()
     defer { home.remove() }
     let small = try home.file("Library/Caches/small/data").deletingLastPathComponent()
@@ -423,7 +452,7 @@ struct PreviewSafetyTests {
         large, waiting,
         rule(id: "small", urls: [small]), rule(id: "absent", urls: []),
       ], environment: environment)
-    #expect(scans[0].interruption == .entryLimit)
+    #expect(scans[0].isComplete)
     #expect(scans[0].items.isEmpty)
     #expect(scans[2].isComplete)
     #expect(scans[2].items.map(\.url) == [small])
@@ -459,7 +488,7 @@ struct PreviewSafetyTests {
     let rule = rule(urls: [root])
     var environment = home.environment
     environment.scanLimits = ScanLimits(maxEntries: 2, maxDuration: 20)
-    let scan = try #require(await CleanEngine.scan([rule], environment: environment).first)
+    let scan = await boundedScan(rule, environment: environment)
     #expect(scan.interruption == .entryLimit)
     #expect(scan.isComplete == false)
     #expect(scan.items.isEmpty)
@@ -517,8 +546,7 @@ struct PreviewSafetyTests {
     for index in 0..<4 { _ = try home.file("Downloads/\(index).dmg") }
     var environment = home.environment
     environment.scanLimits = ScanLimits(maxEntries: 2, maxDuration: 20)
-    let scan = try #require(
-      await CleanEngine.scan([RuleCatalog.installers], environment: environment).first)
+    let scan = await boundedScan(RuleCatalog.installers, environment: environment)
     #expect(scan.interruption == .entryLimit)
     #expect(!scan.isComplete && scan.items.isEmpty && scan.unreadableCount == 0)
   }
@@ -529,8 +557,7 @@ struct PreviewSafetyTests {
     _ = try home.file("Downloads/one.dmg")
     var environment = home.environment
     environment.scanLimits = ScanLimits(maxEntries: 1, maxDuration: 20)
-    let scan = try #require(
-      await CleanEngine.scan([RuleCatalog.installers], environment: environment).first)
+    let scan = await boundedScan(RuleCatalog.installers, environment: environment)
     #expect(scan.interruption == .entryLimit)
     #expect(scan.items.isEmpty && !scan.isComplete)
   }
@@ -547,7 +574,7 @@ struct PreviewSafetyTests {
     }
     var environment = home.environment
     environment.scanLimits = ScanLimits(maxEntries: 1, maxDuration: 20)
-    let scan = try #require(await CleanEngine.scan([rule], environment: environment).first)
+    let scan = await boundedScan(rule, environment: environment)
     #expect(scan.interruption == .entryLimit)
     #expect(!scan.isComplete && scan.items.isEmpty)
   }
@@ -627,7 +654,7 @@ struct PreviewSafetyTests {
     #expect(scans[0].skippedReasons[.protected] == 1)
   }
 
-  @Test func allRulesShareTheCandidateLimit() async throws {
+  @Test func directoryRulesCompleteWithoutTheSharedCandidateLimit() async throws {
     let home = try Fixture()
     defer { home.remove() }
     let first = try home.file("Library/Caches/first/data").deletingLastPathComponent()
@@ -640,8 +667,8 @@ struct PreviewSafetyTests {
         rule(id: "queued", urls: [first]),
       ], environment: environment)
     #expect(scans.count == 3)
-    #expect(scans.flatMap(\.items).count <= 1)
-    #expect(scans.contains { $0.interruption == .entryLimit })
+    #expect(scans.allSatisfy { $0.isComplete })
+    #expect(Set(scans.flatMap(\.items).map(\.url)) == [first, second])
   }
 
   @Test func directoryScansIgnoreTheToolTimeLimit() async throws {
@@ -732,51 +759,26 @@ struct PreviewSafetyTests {
     #expect(try Data(contentsOf: file) == Data(repeating: 1, count: 4096))
   }
 
-  @Test func exhaustedBudgetCannotHandAnUnresolvedToolCacheToGenericCleanup() async throws {
+  @Test func interruptedToolCannotHandItsUnresolvedCacheToGenericCleanup() async throws {
     let home = try Fixture()
     defer { home.remove() }
     let file = try home.file("Library/Caches/CustomUv/data")
     let cache = file.deletingLastPathComponent()
     let before = try Data(contentsOf: file)
-    let (release, continuation) = AsyncStream<Void>.makeStream()
-    defer { continuation.finish() }
-    // 占住第二个并发名额，确保耗尽预算的规则排在 generic 完整计量之后。
-    let waiting = CleanRule(
-      id: "waiting", category: .developer, title: "Fixture", detail: "", symbol: "archivebox",
-      requiredTool: "fixture",
-      prepareTool: { _ in
-        for await _ in release { break }
-        return ToolCachePlan(roots: [], tool: "fixture", arguments: [])
-      })
-    let exhausting = CleanRule(
-      id: "exhausting", category: .system, title: "Fixture", detail: "", symbol: "archivebox"
-    ) { _ in
-      defer {
-        continuation.yield(())
-        continuation.finish()
-      }
-      let budget = try #require(ScanBudget.current)
-      try budget.visitCandidate("/fixture/exhausted-candidate")
-      return []
-    }
+    let interrupted = CleanRule(
+      id: "interrupted", category: .developer, title: "Fixture", detail: "", symbol: "archivebox",
+      requiredTool: "fixture", prepareTool: { _ in throw ScanInterruption.timeLimit })
     var environment = home.environment
     environment.now = { Date.distantFuture }
     environment.isToolAvailable = { _ in true }
-    environment.runTool = { _, _ in
-      Issue.record("An unresolved tool must not execute")
-      return ToolRunResult(status: 0, output: cache.path)
-    }
-    environment.inspectTool = environment.runTool
-    environment.scanLimits = ScanLimits(maxEntries: 100, maxDuration: 20, maxCandidates: 1)
     let scans = await CleanEngine.scan(
-      [RuleCatalog.userCaches, waiting, exhausting, DeveloperCleanupCatalog.uvCache],
-      environment: environment)
+      [RuleCatalog.userCaches, interrupted], environment: environment)
     let generic = try #require(scans.first)
     let tool = try #require(scans.last)
     #expect(generic.items.map(\.url.path) == [cache.path])
     #expect(generic.totalSize > 0)
     #expect(generic.blocked != nil && !generic.isCleanable && !generic.isComplete)
-    #expect(tool.toolCachePlan == nil && tool.interruption == .entryLimit)
+    #expect(tool.toolCachePlan == nil && tool.interruption == .timeLimit)
     // UI 可能仅传选中的 generic；原清单的阻止原因必须足以拒绝执行。
     let report = await CleanEngine.clean(
       [generic], selected: [generic.id], preferTrash: false, environment: environment, log: nil)
@@ -1130,6 +1132,14 @@ struct PreviewSafetyTests {
       }
     }
     var snapshot: [Int] { lock.withLock { [attempts, entries] } }
+  }
+
+  /// 有界检查仍须拒绝部分计量；清理生产入口不再使用此数量边界。
+  private func boundedScan(_ rule: CleanRule, environment: CleanEnvironment) async -> RuleScan {
+    await ScanBudget.$current.withValue(ScanBudget(limits: environment.scanLimits)) {
+      await CleanEngine.scanRule(
+        rule, environment: environment, safety: SafetyGuard(home: environment.home))
+    }
   }
 
   private func rule(id: String = "fixture", urls: [URL]) -> CleanRule {

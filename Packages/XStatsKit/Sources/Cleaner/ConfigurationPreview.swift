@@ -67,7 +67,7 @@ public enum ConfigurationPreview {
         guard environment.now().timeIntervalSince1970 - modified > 30 * 86_400 else { continue }
         try budget.visitCandidate(url.standardizedFileURL.path)
         do {
-          let size = try CleanEngine.scanAllocatedSize(of: url) { try budget.visit() }
+          let size = try CleanEngine.measureAllocatedSize(of: url, budget: budget).size
           try budget.check()
           var after = stat()
           guard url.path.withCString({ lstat($0, &after) }) == 0,

@@ -2,12 +2,38 @@
 
 import AppKit
 import Cleaner
+import Localization
+import Metrics
 import SwiftUI
 import Testing
 @testable import XStatsUI
 
 @MainActor
 struct CleanerPageLayoutTests {
+  @Test func scanStatusDistinguishesEmptyCachesTimeoutsAndReadFailures() throws {
+    let rules = RuleCatalog.rules()
+    let cleanable = try #require(rules.first { $0.id == "developer.go" })
+    let preview = try #require(rules.first { $0.id == "preview.quickLook" })
+    let empty = RuleScan(rule: preview, items: [], skippedCount: 0, blocked: nil)
+    #expect(
+      empty.cleanupStatusText(selectedCount: 0)
+        == tr("占用 \(Format.bytes(UInt64(0), base: .decimal))"))
+    let unreadable = RuleScan(
+      rule: preview, items: [], skippedCount: 0, blocked: nil, unreadableCount: 2)
+    #expect(unreadable.cleanupStatusText(selectedCount: 0) == tr("\(2) 个文件或目录无法读取"))
+    let running = RuleScan(
+      rule: preview, items: [], skippedCount: 0, blocked: .appRunning("Fixture"))
+    #expect(running.cleanupStatusText(selectedCount: 0) == SkipReason.appRunning("Fixture").title)
+    let measured = RuleScan(
+      rule: preview, items: [CleanItem(url: URL(fileURLWithPath: "/fixture/cache"), size: 4096)],
+      skippedCount: 0, blocked: nil)
+    #expect(measured.cleanupStatusText(selectedCount: 0) == tr("不支持清理 · \(tr("\(1) 项"))"))
+    #expect(!measured.isCleanable)
+    let timedOut = RuleScan(
+      rule: cleanable, items: [], skippedCount: 0, blocked: nil, interruption: .timeLimit)
+    #expect(timedOut.cleanupStatusText(selectedCount: 0) == tr("工具预览超时，暂不可清理"))
+  }
+
   @Test func applicationCachesAreGroupedWithoutDuplicatingOrHidingRules() throws {
     let rules = RuleCatalog.rules()
     let applicationCaches = CleanerPage.Section.applicationCaches
@@ -49,6 +75,13 @@ struct CleanerPageLayoutTests {
       model.aiUsage.stop()
     }
     let width = DS.Size.panelWidth
+    let rules = RuleCatalog.rules()
+    let go = try #require(rules.first { $0.id == "developer.go" })
+    let logs = try #require(rules.first { $0.id == "system.logs" })
+    model.cleaner.showPreview([
+      RuleScan(rule: go, items: [], skippedCount: 0, blocked: nil, interruption: .timeLimit),
+      RuleScan(rule: logs, items: [], skippedCount: 0, blocked: nil, unreadableCount: 2),
+    ])
     for tab in CleanerPage.Tab.allCases {
       for direction in [LayoutDirection.leftToRight, .rightToLeft] {
         let host = NSHostingView(
@@ -80,7 +113,7 @@ struct CleanerPageLayoutTests {
         #expect(bitmap.pixelsWide > 0 && bitmap.pixelsHigh > 0)
         #expect(!check.isChecking && check.checkedAt == nil && check.findings.isEmpty)
         #expect(check.deadlineTask == nil)
-        #expect(model.cleaner.phase == .idle && model.cleaner.scans.isEmpty)
+        #expect(model.cleaner.phase == .ready && model.cleaner.scans.count == 2)
         if let path = ProcessInfo.processInfo.environment["XSTATS_CLEANER_PREVIEW_DIR"] {
           let directory = URL(fileURLWithPath: path, isDirectory: true)
           try FileManager.default.createDirectory(

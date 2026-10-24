@@ -158,8 +158,8 @@ public enum RuleCatalog {
 
   // MARK: 工具
 
-  /// 增量读取直接子项。直接调用默认限 2,000 条 / 5 秒；扫描内复用发现与计量预算。
-  /// 隐藏条目也消耗发现预算，避免过滤过程本身无界；失败不返回部分目录列表。
+  /// 增量读取直接子项。直接调用默认限 2,000 条 / 5 秒；清理扫描内只检查取消。
+  /// 有界检查中隐藏条目也消耗发现预算；失败不返回部分目录列表。
   static func children(
     of path: String, budget explicitBudget: ScanBudget? = nil, countCandidates: Bool = true
   ) throws -> [URL] {

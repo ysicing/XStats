@@ -8,7 +8,7 @@ public struct ScanLimits: Sendable {
   public var maxDuration: TimeInterval
   public var maxCandidates: Int
 
-  /// 清理扫描共用条目与候选总上限，条目额度按规则分配；maxDuration 仅限制工具预览。
+  /// 配置、存储等检查的数量与时间边界；清理扫描仅使用 maxDuration 限制工具预览。
   public init(
     maxEntries: Int = 100_000, maxDuration: TimeInterval = 20, maxCandidates: Int = 10_000
   ) {
@@ -30,14 +30,14 @@ public enum ScanInterruption: Error, Sendable, Equatable {
   }
 }
 
-/// 同一规则的目录发现与计量共用条目额度，规则之间仅共享候选额度。
-/// 清理目录不设时限，其他检查默认保留截止时间。
+/// 配置、存储等检查共用发现与计量边界；清理目录仅保留取消检查。
 /// 计数及终止原因只在锁内访问，锁不跨 await。
 final class ScanBudget: @unchecked Sendable {
   @TaskLocal static var current: ScanBudget?
 
   private let limits: ScanLimits
-  private let candidates: ScanCandidateBudget
+  private let candidates: ScanCandidateBudget?
+  private let enforcesCountLimits: Bool
   private let enforcesTimeLimit: Bool
   let deadline: ContinuousClock.Instant
   private let lock = NSLock()
@@ -45,23 +45,21 @@ final class ScanBudget: @unchecked Sendable {
   private var stopped: ScanInterruption?
 
   init(
-    limits: ScanLimits, sharingCandidatesWith shared: ScanBudget? = nil,
-    enforcesTimeLimit: Bool = true
+    limits: ScanLimits, enforcesTimeLimit: Bool = true, enforcesCountLimits: Bool = true
   ) {
     self.limits = limits
     self.enforcesTimeLimit = enforcesTimeLimit
-    candidates = shared?.candidates ?? ScanCandidateBudget(limit: limits.maxCandidates)
+    self.enforcesCountLimits = enforcesCountLimits
+    // 清理扫描不保留额外的全局路径索引，避免为已取消的数量限制重复存储候选。
+    candidates = enforcesCountLimits ? ScanCandidateBudget(limit: limits.maxCandidates) : nil
     let duration = limits.maxDuration.isFinite ? max(0, limits.maxDuration) : 20
     deadline = ContinuousClock.now + .seconds(duration)
   }
 
-  var remainingEntries: Int {
-    lock.withLock { limits.maxEntries - entries }
-  }
-
   var interruption: ScanInterruption? {
     if Task.isCancelled { return .cancelled }
-    if candidates.isExhausted { return .entryLimit }
+    guard enforcesCountLimits || enforcesTimeLimit else { return nil }
+    if candidates?.isExhausted == true { return .entryLimit }
     return lock.withLock {
       if stopped == nil, enforcesTimeLimit, ContinuousClock.now >= deadline { stopped = .timeLimit }
       return stopped
@@ -74,6 +72,7 @@ final class ScanBudget: @unchecked Sendable {
 
   func visit() throws {
     try check()
+    guard enforcesCountLimits else { return }
     try lock.withLock {
       if let stopped { throw stopped }
       guard entries < limits.maxEntries else {
@@ -86,11 +85,11 @@ final class ScanBudget: @unchecked Sendable {
 
   func visitCandidate(_ path: String) throws {
     try check()
-    try candidates.visit(path)
+    try candidates?.visit(path)
   }
 }
 
-/// 候选路径索引仍受整次扫描的总额度约束，不继承其他规则的超时或条目耗尽状态。
+/// 有界检查的候选路径索引；清理扫描不使用此索引。
 private final class ScanCandidateBudget: @unchecked Sendable {
   private let limit: Int
   private let lock = NSLock()
