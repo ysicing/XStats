@@ -10,7 +10,7 @@ import Testing
 struct SystemCheckControllerTests {
   @Test func deadlineRejectsLateResultsWithoutStartingAnotherCheck() async throws {
     let gate = Gate()
-    let controller = SystemCheckController(timeout: .milliseconds(5)) { _ in await gate.collect() }
+    let controller = SystemCheckController(timeout: .milliseconds(5)) { await gate.collect() }
     let task = try #require(controller.start())
     await gate.waitForStart()
     await controller.deadlineTask?.value
@@ -23,7 +23,7 @@ struct SystemCheckControllerTests {
 
   @Test func cancellationRejectsLateResultsAndAllowsAFreshCheck() async throws {
     let gate = Gate()
-    let controller = SystemCheckController { _ in await gate.collect() }
+    let controller = SystemCheckController { await gate.collect() }
     let old = try #require(controller.start())
     await gate.waitForStart()
     #expect(controller.start() == nil)
@@ -43,7 +43,7 @@ struct SystemCheckControllerTests {
 
   @Test func pauseStopsChecksAndBlocksNewWorkUntilResumed() async throws {
     let gate = Gate()
-    let controller = SystemCheckController { _ in await gate.collect() }
+    let controller = SystemCheckController { await gate.collect() }
     let task = try #require(controller.start())
     await gate.waitForStart()
     controller.setPaused(true)

@@ -64,7 +64,7 @@ private struct HomebrewDependencyPreview: View {
         Label(tr("Homebrew 依赖预览"), systemImage: "shippingbox")
           .dsFont(.sm, weight: .medium)
         Spacer()
-        if check.scope == .homebrew, let date = check.checkedAt {
+        if let date = check.checkedAt {
           Text(verbatim: date.formatted(.dateTime.hour().minute().locale(L10n.locale)))
             .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
         }
@@ -73,37 +73,32 @@ private struct HomebrewDependencyPreview: View {
           Button(tr("取消")) { check.cancel() }
             .buttonStyle(DSButtonStyle(kind: .secondary))
         } else {
-          Button(tr("预览")) {
-            check.selectScope(.homebrew)
-            check.start()
-          }
-          .buttonStyle(DSButtonStyle(kind: .secondary))
-          .disabled(!model.settings.cleanerEnabled || model.cleaner.isBusy)
+          Button(tr("预览")) { check.start() }
+            .buttonStyle(DSButtonStyle(kind: .secondary))
+            .disabled(!model.settings.cleanerEnabled || model.cleaner.isBusy)
         }
       }
       Text(tr("由 Homebrew 列出不再需要的依赖，仅供审阅。"))
         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-      if check.scope == .homebrew {
-        ForEach(check.findings) { finding in
-          HairlineDivider()
-          VStack(alignment: .leading, spacing: DS.Space.s1) {
-            if !finding.isComplete || finding.status == .unchecked
-              || finding.status == .notApplicable
-            {
-              Text(finding.detail)
-            } else if finding.evidence.isEmpty {
-              Text(tr("没有可移除的依赖"))
-            }
-            ForEach(Array(finding.evidence.enumerated()), id: \.offset) { _, evidence in
-              Text(verbatim: evidence).textSelection(.enabled)
-            }
+      ForEach(check.findings) { finding in
+        HairlineDivider()
+        VStack(alignment: .leading, spacing: DS.Space.s1) {
+          if !finding.isComplete || finding.status == .unchecked
+            || finding.status == .notApplicable
+          {
+            Text(finding.detail)
+          } else if finding.evidence.isEmpty {
+            Text(tr("没有可移除的依赖"))
           }
-          .dsFont(.xs)
-          .foregroundStyle(
-            finding.isComplete ? DS.Palette.textSecondary : DS.Palette.warning
-          )
-          .frame(maxWidth: .infinity, alignment: .leading)
+          ForEach(Array(finding.evidence.enumerated()), id: \.offset) { _, evidence in
+            Text(verbatim: evidence).textSelection(.enabled)
+          }
         }
+        .dsFont(.xs)
+        .foregroundStyle(
+          finding.isComplete ? DS.Palette.textSecondary : DS.Palette.warning
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
   }

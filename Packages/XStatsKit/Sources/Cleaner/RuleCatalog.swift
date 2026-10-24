@@ -161,7 +161,7 @@ public enum RuleCatalog {
   /// 增量读取直接子项。直接调用默认限 2,000 条 / 5 秒；清理扫描内只检查取消。
   /// 有界检查中隐藏条目也消耗发现预算；失败不返回部分目录列表。
   static func children(
-    of path: String, budget explicitBudget: ScanBudget? = nil, countCandidates: Bool = true
+    of path: String, budget explicitBudget: ScanBudget? = nil
   ) throws -> [URL] {
     let budget =
       explicitBudget ?? ScanBudget.current
@@ -191,8 +191,7 @@ public enum RuleCatalog {
         try budget.visit()
         guard !name.hasPrefix(".") else { continue }
         let child = root.appendingPathComponent(name)
-        // 配置审阅需要先保护和筛选条目，再由调用方登记实际候选。
-        if countCandidates { try budget.visitCandidate(child.standardizedFileURL.path) }
+        try budget.visitCandidate(child.standardizedFileURL.path)
         children.append(child)
       }
       try budget.check()
