@@ -177,7 +177,9 @@ enum DeveloperCleanupCatalog {
     detail: tr("由 Homebrew 清理旧版本与缓存，不自动移除依赖"), symbol: "shippingbox",
     selectedByDefault: false, minimumAge: 0, requiredTool: "brew",
     prepareTool: { env in
-      // 有保留项时仍运行只读预览：引擎据此拒绝执行，同时让通用规则让出预览路径。
+      // 待删项目不代表缓存归属范围；即使预览为空，通用规则也必须让出实际缓存根。
+      let cache = try await ToolCachePlan.queryPath("brew", ["--cache"], environment: env)
+      // 有保留项时仍生成只读计划，由引擎拒绝全局清理并保留保护范围。
       let result = try await env.runTool("brew", ["cleanup", "--prune=30", "--dry-run"])
       guard result.status == 0 else {
         throw ToolExecutionError.failed(
@@ -185,7 +187,8 @@ enum DeveloperCleanupCatalog {
       }
       let preview = try HomebrewCleanup.parsePreview(result.output)
       return ToolCachePlan(
-        roots: preview.items.map(\.url), tool: "brew", arguments: ["cleanup", "--prune=30"],
+        roots: [cache] + preview.items.map(\.url), tool: "brew",
+        arguments: ["cleanup", "--prune=30"],
         hasBoundedScope: false, preview: preview, parseReport: HomebrewCleanup.report)
     })
 

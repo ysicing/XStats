@@ -26,6 +26,40 @@ import Testing
     #expect(!preview.details.contains("Skipping"))
   }
 
+  @Test func nativeCacheQueryProtectsCustomCacheWithAnEmptyPreview() async throws {
+    let home = try stubBrew(
+      """
+      #!/bin/sh
+      printf '%s\\n' "$*" >> "$HOME/commands"
+      case "$*" in
+        --cache) printf '%s\\n' "$HOME/Library/Caches/Custom Brew" ;;
+        'cleanup --prune=30 --dry-run') exit 0 ;;
+        *) exit 9 ;;
+      esac
+      """)
+    defer { try? FileManager.default.removeItem(at: home) }
+    let cache = home.appendingPathComponent("Library/Caches/Custom Brew")
+      .resolvingSymlinksInPath()
+    try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+    let file = cache.appendingPathComponent("recent")
+    try Data([1, 2, 3]).write(to: file)
+    let environment = CleanEnvironment(
+      home: home.path, runningBundleIdentifiers: { [] }, now: { Date.distantFuture })
+    let scans = await CleanEngine.scan(
+      [RuleCatalog.userCaches, DeveloperCleanupCatalog.homebrewCache], environment: environment)
+    let brew = try #require(scans.last)
+    #expect(brew.isComplete && brew.items.isEmpty && brew.totalSize == 0)
+    #expect(brew.toolCachePlan?.roots.map(\.path) == [cache.path])
+    #expect(scans[0].isComplete && scans[0].items.isEmpty)
+    let report = await CleanEngine.clean(
+      scans, selected: [scans[0].id], preferTrash: false, environment: environment, log: nil)
+    #expect(report.removedCount == 0 && report.failures.isEmpty)
+    #expect(try Data(contentsOf: file) == Data([1, 2, 3]))
+    #expect(
+      try String(contentsOf: home.appendingPathComponent("commands"), encoding: .utf8)
+        == "--cache\ncleanup --prune=30 --dry-run\n")
+  }
+
   @Test(arguments: [
     "Would remove (empty directory): /opt/homebrew/empty",
     "Would remove (broken link): /opt/homebrew/bin/old",
@@ -39,6 +73,9 @@ import Testing
     let environment = CleanEnvironment(
       runningBundleIdentifiers: { [] }, isToolAvailable: { _ in true },
       runTool: { _, args in
+        if args == ["--cache"] {
+          return ToolRunResult(status: 0, output: "/opt/homebrew/cache")
+        }
         #expect(args.contains("--dry-run"), "Zero-byte maintenance must not run a cleanup command")
         return ToolRunResult(status: 0, output: output)
       })
@@ -63,7 +100,13 @@ import Testing
   @Test func previewFailureBlocksCleaningAndDoesNotRequestDiskAccess() async {
     let environment = CleanEnvironment(
       runningBundleIdentifiers: { [] }, isToolAvailable: { _ in true },
-      runTool: { _, _ in ToolRunResult(status: 7, output: "permission denied by brew") })
+      runTool: { _, args in
+        if args == ["--cache"] {
+          return ToolRunResult(status: 0, output: "/opt/homebrew/cache")
+        }
+        #expect(args == ["cleanup", "--prune=30", "--dry-run"])
+        return ToolRunResult(status: 7, output: "permission denied by brew")
+      })
     let scan = await CleanEngine.scan(
       [DeveloperCleanupCatalog.homebrewCache], environment: environment)
     #expect(scan.first?.isCleanable == false)
@@ -81,6 +124,9 @@ import Testing
     let environment = CleanEnvironment(
       runningBundleIdentifiers: { [] }, isToolAvailable: { _ in true },
       runTool: { _, arguments in
+        if arguments == ["--cache"] {
+          return ToolRunResult(status: 0, output: "/opt/homebrew/cache")
+        }
         if arguments.contains("--dry-run") {
           return ToolRunResult(status: 0, output: "Would remove: /opt/homebrew/Cellar/tool/1 (1MB)")
         }
@@ -114,6 +160,9 @@ import Testing
     let environment = CleanEnvironment(
       runningBundleIdentifiers: { [] }, isToolAvailable: { _ in true },
       runTool: { _, arguments in
+        if arguments == ["--cache"] {
+          return ToolRunResult(status: 0, output: "/opt/homebrew/cache")
+        }
         if arguments.contains("--dry-run") {
           return ToolRunResult(status: 0, output: "Would remove: /opt/homebrew/Cellar/tool/1 (1MB)")
         }
@@ -209,6 +258,9 @@ import Testing
     let environment = CleanEnvironment(
       runningBundleIdentifiers: { [] }, isToolAvailable: { _ in true },
       runTool: { _, arguments in
+        if arguments == ["--cache"] {
+          return ToolRunResult(status: 0, output: "/opt/homebrew/cache")
+        }
         if arguments.contains("--dry-run") {
           return ToolRunResult(
             status: 0,

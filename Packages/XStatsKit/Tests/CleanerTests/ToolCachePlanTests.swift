@@ -299,6 +299,8 @@ struct ToolCachePlanTests {
       runTool: { _, args in
         switch args {
         case ["--version"]: return ToolRunResult(status: 0, output: "4.0.0")
+        case ["--cache"]:
+          return ToolRunResult(status: 0, output: "/Users/demo/Library/Caches/Homebrew")
         case ["config", "get", "cacheFolder", "--json"]:
           return ToolRunResult(status: 0, output: #""/Users/demo/.yarn/berry/cache""#)
         case ["config", "get", "globalFolder", "--json"]:

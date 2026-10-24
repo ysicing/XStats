@@ -289,6 +289,8 @@ public enum CleanEngine {
     private var roots = Set<String>()
     private var ancestors = Set<String>()
 
+    var isEmpty: Bool { roots.isEmpty }
+
     mutating func insert(_ path: String) {
       guard roots.insert(path).inserted else { return }
       var parent = URL(fileURLWithPath: path)
@@ -344,6 +346,7 @@ public enum CleanEngine {
       for root in scan.toolCachePlan?.roots ?? [] {
         try Task.checkCancellation()
         roots.insert(root.standardizedFileURL.path)
+        roots.insert(root.resolvingSymlinksInPath().standardizedFileURL.path)
       }
     }
     let blocked: SkipReason? =
@@ -353,7 +356,10 @@ public enum CleanEngine {
       guard scan.rule.isGenericLibraryScan else { return scan }
       let items = try scan.items.filter {
         try Task.checkCancellation()
+        guard !roots.isEmpty else { return true }
+        // 父目录链接可能让候选与工具查询使用不同入口；词法与真实路径都必须让出。
         return !roots.overlaps($0.url.standardizedFileURL.path)
+          && !roots.overlaps($0.url.resolvingSymlinksInPath().standardizedFileURL.path)
       }
       return replacingItems(in: scan, with: items, blocked: blocked)
     }

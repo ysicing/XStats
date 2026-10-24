@@ -865,12 +865,14 @@ struct PreviewSafetyTests {
     environment.isToolAvailable = { $0 == "brew" }
     environment.excludedPaths = [home.root.appendingPathComponent("unrelated-kept-item").path]
     environment.runTool = { _, args in
+      if args == ["--cache"] { return ToolRunResult(status: 0, output: brewRoot.path) }
       #expect(args == ["cleanup", "--prune=30", "--dry-run"])
       return ToolRunResult(
         status: 0,
         output: "Would remove: \(brewRoot.path) (4KB)\n"
           + "==> This operation would free approximately 4KB of disk space.")
     }
+    environment.inspectTool = environment.runTool
     let scans = await CleanEngine.scan(
       [RuleCatalog.userCaches, RuleCatalog.logs, DeveloperCleanupCatalog.homebrewCache],
       environment: environment)
@@ -886,6 +888,153 @@ struct PreviewSafetyTests {
     #expect(!FileManager.default.fileExists(atPath: cache.path))
     #expect(!FileManager.default.fileExists(atPath: log.path))
     #expect(FileManager.default.fileExists(atPath: brewFile.path))
+  }
+
+  @Test(arguments: [false, true], [false, true])
+  func customHomebrewCacheStaysProtectedWithoutCachePreviewItems(
+    _ hasCellarItem: Bool, _ hasExclusions: Bool
+  ) async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let brewFile = try home.file("Library/Caches/CustomBrew/downloads/recent")
+    let brewRoot = brewFile.deletingLastPathComponent().deletingLastPathComponent()
+    let ordinary = try home.file("Library/Caches/ordinary/data")
+    let cellar = home.root.appendingPathComponent("custom prefix/Cellar/tool/1")
+    var environment = home.environment
+    environment.now = { Date.distantFuture }
+    environment.isToolAvailable = { $0 == "brew" }
+    environment.excludedPaths =
+      hasExclusions ? [home.root.appendingPathComponent("unrelated-kept-item").path] : []
+    environment.inspectTool = { tool, args in
+      #expect(tool == "brew" && args == ["--cache"])
+      return ToolRunResult(status: 0, output: brewRoot.path + "\n")
+    }
+    environment.runTool = { tool, args in
+      #expect(tool == "brew" && args == ["cleanup", "--prune=30", "--dry-run"])
+      return ToolRunResult(
+        status: 0, output: hasCellarItem ? "Would remove: \(cellar.path) (1MB)" : "")
+    }
+    let scans = await CleanEngine.scan(
+      [RuleCatalog.userCaches, DeveloperCleanupCatalog.homebrewCache], environment: environment)
+    let brew = try #require(scans.last)
+    #expect(brew.toolCachePlan?.roots.contains(brewRoot) == true)
+    if hasExclusions {
+      #expect(!brew.isCleanable && brew.blocked != nil)
+    } else {
+      #expect(brew.isComplete)
+      #expect(brew.items.map(\.url) == (hasCellarItem ? [cellar] : []))
+      #expect(brew.totalSize == (hasCellarItem ? 1_000_000 : 0))
+    }
+    #expect(scans[0].isCleanable && scans[0].isComplete)
+    #expect(scans[0].items.map(\.url) == [ordinary.deletingLastPathComponent()])
+    // 执行入口也必须保护旧清单中的整个缓存根，不能依赖扫描时已完成去重。
+    let stale = RuleScan(
+      rule: RuleCatalog.userCaches,
+      items: [
+        CleanItem(url: brewRoot, size: 4096),
+        CleanItem(url: ordinary.deletingLastPathComponent(), size: 4096),
+      ], skippedCount: 0, blocked: nil)
+    let report = await CleanEngine.clean(
+      [stale, brew], selected: [stale.id], preferTrash: false, environment: environment, log: nil)
+    #expect(report.removedCount == 1 && report.failures.isEmpty)
+    #expect(!FileManager.default.fileExists(atPath: ordinary.path))
+    #expect(try Data(contentsOf: brewFile) == Data(repeating: 1, count: 4096))
+  }
+
+  @Test(arguments: ["", "relative/cache", "/", "failed"])
+  func unknownHomebrewCacheScopeCannotBeTakenOverByGenericCleanup(_ output: String) async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let brewFile = try home.file("Library/Caches/CustomBrew/recent")
+    var environment = home.environment
+    environment.now = { Date.distantFuture }
+    environment.isToolAvailable = { $0 == "brew" }
+    environment.inspectTool = { tool, args in
+      #expect(tool == "brew" && args == ["--cache"])
+      return ToolRunResult(status: output == "failed" ? 1 : 0, output: output)
+    }
+    environment.runTool = { _, _ in
+      Issue.record("An unknown cache root must stop before the dry-run")
+      return ToolRunResult(status: 0, output: "")
+    }
+    let scans = await CleanEngine.scan(
+      [RuleCatalog.userCaches, DeveloperCleanupCatalog.homebrewCache], environment: environment)
+    #expect(scans.allSatisfy { !$0.isCleanable && $0.blocked != nil })
+    #expect(scans.last?.toolCachePlan == nil)
+    let report = await CleanEngine.clean(
+      scans, selected: Set(scans.map(\.id)), preferTrash: false, environment: environment, log: nil)
+    #expect(report.removedCount == 0)
+    #expect(try Data(contentsOf: brewFile) == Data(repeating: 1, count: 4096))
+  }
+
+  @Test(arguments: [false, true])
+  func homebrewCacheBehindALinkedParentStaysProtected(_ hasExclusions: Bool) async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let brewFile = try home.file("Library/Logs/cache-store/CustomBrew/recent")
+    let ordinary = try home.file("Library/Logs/cache-store/ordinary/data")
+    let cacheStore = ordinary.deletingLastPathComponent().deletingLastPathComponent()
+    let cacheAlias = home.root.appendingPathComponent("Library/Caches")
+    try FileManager.default.createSymbolicLink(at: cacheAlias, withDestinationURL: cacheStore)
+    let brewAlias = cacheAlias.appendingPathComponent("CustomBrew")
+    let ordinaryAlias = cacheAlias.appendingPathComponent("ordinary")
+    var environment = home.environment
+    environment.now = { Date.distantFuture }
+    environment.isToolAvailable = { $0 == "brew" }
+    environment.excludedPaths =
+      hasExclusions ? [home.root.appendingPathComponent("unrelated-kept-item").path] : []
+    environment.inspectTool = { _, args in
+      #expect(args == ["--cache"])
+      return ToolRunResult(status: 0, output: brewAlias.path)
+    }
+    environment.runTool = { _, args in
+      #expect(args == ["cleanup", "--prune=30", "--dry-run"])
+      return ToolRunResult(status: 0, output: "")
+    }
+    let scans = await CleanEngine.scan(
+      [RuleCatalog.userCaches, DeveloperCleanupCatalog.homebrewCache], environment: environment)
+    #expect(scans[0].isComplete && scans[0].isCleanable)
+    #expect(scans[0].items.map(\.url.path) == [ordinaryAlias.path])
+    let stale = RuleScan(
+      rule: RuleCatalog.userCaches,
+      items: [brewAlias, ordinaryAlias].map { CleanItem(url: $0, size: 4096) },
+      skippedCount: 0, blocked: nil)
+    let brew = try #require(scans.last)
+    let report = await CleanEngine.clean(
+      [stale, brew], selected: [stale.id], preferTrash: false, environment: environment, log: nil)
+    #expect(report.removedCount == 1 && report.failures.isEmpty)
+    #expect(!FileManager.default.fileExists(atPath: ordinary.path))
+    #expect(try Data(contentsOf: brewFile) == Data(repeating: 1, count: 4096))
+  }
+
+  @Test(arguments: [false, true])
+  func interruptedHomebrewCacheQueryCannotAuthorizeGenericCleanup(_ timesOut: Bool) async throws {
+    let home = try Fixture()
+    defer { home.remove() }
+    let brewFile = try home.file("Library/Caches/CustomBrew/recent")
+    var environment = home.environment
+    environment.now = { Date.distantFuture }
+    environment.isToolAvailable = { $0 == "brew" }
+    environment.scanLimits = ScanLimits(maxDuration: 0.02)
+    environment.inspectTool = { tool, args in
+      #expect(tool == "brew" && args == ["--cache"])
+      if timesOut { try await Task.sleep(for: .seconds(30)) }
+      throw CancellationError()
+    }
+    environment.runTool = { _, _ in
+      Issue.record("An interrupted cache query must stop before the dry-run")
+      return ToolRunResult(status: 0, output: "")
+    }
+    let scans = await CleanEngine.scan(
+      [RuleCatalog.userCaches, DeveloperCleanupCatalog.homebrewCache], environment: environment)
+    let brew = try #require(scans.last)
+    #expect(brew.interruption == (timesOut ? .timeLimit : .cancelled))
+    #expect(brew.toolCachePlan == nil && !brew.isCleanable)
+    #expect(scans[0].blocked != nil && !scans[0].isCleanable)
+    let report = await CleanEngine.clean(
+      scans, selected: [scans[0].id], preferTrash: false, environment: environment, log: nil)
+    #expect(report.removedCount == 0)
+    #expect(try Data(contentsOf: brewFile) == Data(repeating: 1, count: 4096))
   }
 
   @Test(arguments: ["Library/Caches/CustomCargo", "Library/Logs/CustomCargo"])

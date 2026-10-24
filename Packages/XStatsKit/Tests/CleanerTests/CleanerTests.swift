@@ -198,6 +198,10 @@ struct DeveloperCacheRuleTests {
       home: home.path, runningBundleIdentifiers: { [] }, isToolAvailable: { $0 == "brew" },
       runTool: { tool, arguments in
         #expect(tool == "brew")
+        if arguments == ["--cache"] {
+          return ToolRunResult(
+            status: 0, output: home.root.appendingPathComponent("Library/Caches/Homebrew").path)
+        }
         if arguments == ["cleanup", "--prune=30", "--dry-run"] {
           return ToolRunResult(
             status: 0,
