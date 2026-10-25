@@ -1,29 +1,29 @@
 {
-  "version": "1.4.8",
+  "version": "1.4.9",
   "sourceNotes": [
-    "AI 小组件新增累计 Token 展示，支持输入、输出与今日用量",
-    "订阅额度小组件固定显示四个圆环，按剩余额度着色，并区分未知、过期和上次数据",
-    "全局快捷键按窗口与导航、系统控制、计时与休息分组，辅助工具不可用提示不再重复显示",
-    "主程序的临时签名或未签名开发构建可通过在线更新安装正式版，仍校验更新清单与安装包签名",
-    "修复小组件共享数据不可读时误报功能未启用的问题，日历继续保留公历日期",
-    "修复连续切换音频输出、取消操作和调整静音设备音量时的音量、静音与路由恢复问题",
-    "修复风扇控制与合盖运行在锁屏、休眠及恢复期间的保护与状态恢复问题，并补齐传感器连接失败后的重试",
-    "修复启动项启停与卸载预览的配置复核问题",
-    "修复暂停和退出时历史记录的累计与写入顺序、出口检测取消后的过期结果，以及部分网络响应解析问题",
-    "修复截图保存期间仍可通过键盘修改或删除标注的问题"
+    "清理优化支持切换 Mole 引擎，提供安装入口、独立预览、执行确认与可取消的实时日志",
+    "原生优化页新增重置缩略图与 Spotlight 搜索修复入口，复用现有系统维护能力",
+    "端口、进程与应用服务支持相互定位，可从连接查看所属进程和应用",
+    "清理页面按应用缓存、开发者等分类展示，两列卡片自然展开，隐藏不支持清理或没有安装与缓存记录的项目",
+    "应用卸载预览分阶段展示候选并在后台统计大小，保留用户勾选，未完成扫描前不开放清理",
+    "更新应用与 README 图标，统一闪电标识",
+    "取消普通目录扫描的固定时间与条目限制，按当前负载调整并发，并修复取消及退出时的扫描工作进程回收",
+    "修复 Homebrew 自定义缓存和保留项保护，避免通用缓存清理误纳入工具管理的目录",
+    "修复连续切换音频输出时的取消竞态，以及部分虚拟输出设备采样率不同导致的音频不可用问题",
+    "修复部分分块网络响应被截断后仍当作完整内容解析的问题"
   ],
   "translations": {
     "en": [
-      "Add a cumulative Token widget with input, output, and today’s usage. Local statistics cover the last 365 days; Magpie shows all of its recorded history.",
-      "Show four fixed subscription quota rings, color them by remaining quota, and distinguish unknown, expired, and last successful readings.",
-      "Group global shortcuts into Windows & Navigation, System Controls, and Timers & Breaks, and remove duplicate helper-unavailable messages.",
-      "Allow ad-hoc and unsigned development builds of the main app to install official releases through online updates, while retaining update-feed and archive signature verification.",
-      "Fix widgets incorrectly reporting disabled features when shared data is unreadable; calendar widgets retain the Gregorian date.",
-      "Fix volume, mute, and routing restoration during repeated audio-output switches, cancellation, and volume changes on muted devices.",
-      "Fix fan-control and closed-lid protection and recovery around locking, sleep, and wake, and retry failed sensor connections.",
-      "Revalidate startup-item configurations and uninstall previews to avoid operating on changed items or selecting data owned by independently installed apps, and clarify Homebrew quit messages.",
-      "Fix history accumulation and write ordering on pause and quit, stale results after canceling egress checks, and parsing of some network responses.",
-      "Prevent keyboard shortcuts from modifying or deleting annotations while a screenshot is being saved."
+      "Add a Mole engine for cleanup and optimization, with an installation entry, independent previews, execution confirmation, and cancellable live logs. Mole follows its own rules; native selections and protected items do not apply to Mole.",
+      "Add thumbnail reset and Spotlight search repair entries to native optimization, using existing system maintenance capabilities.",
+      "Link ports, processes, and app management so connections can lead to their owning process and app.",
+      "Group cleanup by application caches, developer tools, and other categories, let two-column cards size to their content, and hide unsupported items or apps with no installation or cache records.",
+      "Show uninstall candidates in stages and calculate sizes in the background while preserving selections; cleanup remains unavailable until scanning finishes.",
+      "Update the app and README icons with a consistent lightning-bolt design.",
+      "Remove fixed duration and entry limits from ordinary directory scans, adapt concurrency to current load, and fix scan-worker reaping on cancellation and app exit.",
+      "Fix protection for custom Homebrew caches and preserved items so generic cache cleanup does not include tool-managed directories.",
+      "Fix cancellation races during repeated audio-output switches and audio failures on virtual outputs with different sample rates.",
+      "Fix truncated chunked network responses being parsed as complete content."
     ]
   }
 }
