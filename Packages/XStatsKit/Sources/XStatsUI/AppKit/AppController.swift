@@ -5,6 +5,7 @@
 
 import AppKit
 import AIUsage
+import Cleaner
 import Localization
 import Metrics
 import SwiftUI
@@ -379,6 +380,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         rest.prepareForTermination()
         await model.wellness.prepareForTermination()
         await XStatsCapture.workspace.prepareForTermination()
+        model.cleaner.cancelOperation()
+        await model.cleaner.waitForExit()
         model.cleaner.mole.cancel()
         await model.cleaner.mole.waitForExit()
         isTerminating = true
@@ -404,6 +407,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   }
 
   public func applicationWillTerminate(_ notification: Notification) {
+    model.cleaner.cancelOperation()
     model.cleaner.mole.cancel()
     model.fans.setPaused(true)
     XStatsCapture.workspace.shortcuts.stop()
@@ -1233,6 +1237,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 public enum XStatsApplication {
   @MainActor
   public static func main() {
+    CleanerDirectoryReader.runIfRequested()
     ClaudeKeychainReader.runIfRequested()
     // 只读诊断子进程不启动 UI、采样或更新服务，也不写入应用偏好。
     if CommandLine.arguments.contains(AppleIntelligenceDiagnostics.argument) {

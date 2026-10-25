@@ -39,17 +39,20 @@ final class ScanBudget: @unchecked Sendable {
   private let candidates: ScanCandidateBudget?
   private let enforcesCountLimits: Bool
   private let enforcesTimeLimit: Bool
+  let directoryReaderExecutable: URL?
   let deadline: ContinuousClock.Instant
   private let lock = NSLock()
   private var entries = 0
   private var stopped: ScanInterruption?
 
   init(
-    limits: ScanLimits, enforcesTimeLimit: Bool = true, enforcesCountLimits: Bool = true
+    limits: ScanLimits, enforcesTimeLimit: Bool = true, enforcesCountLimits: Bool = true,
+    directoryReaderExecutable: URL? = nil
   ) {
     self.limits = limits
     self.enforcesTimeLimit = enforcesTimeLimit
     self.enforcesCountLimits = enforcesCountLimits
+    self.directoryReaderExecutable = directoryReaderExecutable
     // 清理扫描不保留额外的全局路径索引，避免为已取消的数量限制重复存储候选。
     candidates = enforcesCountLimits ? ScanCandidateBudget(limit: limits.maxCandidates) : nil
     let duration = limits.maxDuration.isFinite ? max(0, limits.maxDuration) : 20

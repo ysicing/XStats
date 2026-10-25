@@ -29,7 +29,7 @@ public final class CleanerController {
   public private(set) var lastScan: Date?
   public private(set) var report: CleanReport?
   public private(set) var cleanProgress: CleanProgress?
-  /// 单次文件删除可能尚未返回；先显示取消请求，随后由任务停止剩余步骤。
+  /// 收到取消后保持互斥，直到扫描读取或清理任务实际退出。
   public private(set) var isCancelling = false
   public var selection: Set<String> {
     didSet { settings.cleanSelectedRuleIDs = selection }
@@ -42,6 +42,8 @@ public final class CleanerController {
 
   @ObservationIgnored private let settings: AppSettings
   @ObservationIgnored private let cpuUsage: @MainActor @Sendable () -> Double?
+  @ObservationIgnored private let scanOperation:
+    @Sendable ([CleanRule], CleanEnvironment) async -> (CacheApplicationInventory?, [RuleScan])
   // 不支持清理的规则不参与应用识别或扫描；专属目录仍由引擎独立保护。
   @ObservationIgnored private let rules = RuleCatalog.rules().filter { !$0.previewOnly }
   @ObservationIgnored private var task: Task<Void, Never>?
@@ -49,11 +51,16 @@ public final class CleanerController {
   init(
     settings: AppSettings,
     mole: MoleController? = nil,
-    cpuUsage: @escaping @MainActor @Sendable () -> Double? = { nil }
+    cpuUsage: @escaping @MainActor @Sendable () -> Double? = { nil },
+    scanOperation:
+      @escaping @Sendable ([CleanRule], CleanEnvironment) async -> (
+        CacheApplicationInventory?, [RuleScan]
+      ) = CleanerController.readScan
   ) {
     self.settings = settings
     self.mole = mole ?? MoleController(settings: settings)
     self.cpuUsage = cpuUsage
+    self.scanOperation = scanOperation
     let validIDs = Set(rules.map(\.id))
     let initial = settings.cleanSelectedRuleIDs ?? Set(rules.filter(\.selectedByDefault).map(\.id))
     selection = initial.intersection(validIDs)
@@ -77,17 +84,16 @@ public final class CleanerController {
     guard engine == .native, !mole.isRunning else { return }
     guard settings.cleanerEnabled, !isBusy, !(ifNeeded && lastScan != nil) else { return }
     phase = .scanning
+    isCancelling = false
     invalidateConfirmation()
     let environment = environment()
     let rules = rules
     task = Task {
-      let applications = try? await CacheApplicationInventory.read(
-        rules: rules, environment: environment)
-      guard !Task.isCancelled else {
-        phase = scans.isEmpty ? .idle : .ready
-        return
+      defer {
+        isCancelling = false
+        task = nil
       }
-      let results = await CleanEngine.scan(rules, environment: environment)
+      let (applications, results) = await scanOperation(rules, environment)
       guard !Task.isCancelled else {
         phase = scans.isEmpty ? .idle : .ready
         return
@@ -99,6 +105,15 @@ public final class CleanerController {
       lastScan = Date()
       phase = .ready
     }
+  }
+
+  nonisolated private static func readScan(
+    rules: [CleanRule], environment: CleanEnvironment
+  ) async -> (CacheApplicationInventory?, [RuleScan]) {
+    let applications = try? await CacheApplicationInventory.read(
+      rules: rules, environment: environment)
+    guard !Task.isCancelled else { return (nil, []) }
+    return (applications, await CleanEngine.scan(rules, environment: environment))
   }
 
   func requestClean() {
@@ -121,8 +136,13 @@ public final class CleanerController {
 
   func cancelOperation() {
     guard isBusy else { return }
-    if phase == .cleaning { isCancelling = true }
+    isCancelling = true
     task?.cancel()
+  }
+
+  /// 退出应用前等待结构化扫描及目录工作进程回收，不提前释放忙碌保护。
+  func waitForExit() async {
+    await task?.value
   }
 
   func confirmClean() {
@@ -143,6 +163,7 @@ public final class CleanerController {
     let selection = Set(scans.map(\.id))
     let preferTrash = settings.cleanPrefersTrash
     task = Task { [self] in
+      defer { task = nil }
       var result = await CleanEngine.clean(
         scans, selected: selection, preferTrash: preferTrash,
         environment: environment,
@@ -358,6 +379,9 @@ public final class CleanerController {
       excludedPaths: settings.cleanExcludedPaths)
     let cpuUsage = cpuUsage
     environment.scanLoad = { .current(cpuUsage: await cpuUsage()) }
+    if Bundle.main.bundleURL.pathExtension == "app" {
+      environment.directoryReaderExecutable = Bundle.main.executableURL
+    }
     return environment
   }
   private static func runningApplicationNames() -> Set<String> {

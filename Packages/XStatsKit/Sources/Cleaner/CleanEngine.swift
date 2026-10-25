@@ -35,7 +35,9 @@ public enum CleanEngine {
             let rule = rules[next]
             group.addTask {
               let budget = ScanBudget(
-                limits: environment.scanLimits, enforcesTimeLimit: false, enforcesCountLimits: false
+                limits: environment.scanLimits, enforcesTimeLimit: false,
+                enforcesCountLimits: false,
+                directoryReaderExecutable: environment.directoryReaderExecutable
               )
               let scan = await ScanBudget.$current.withValue(budget) {
                 await scanRule(rule, environment: environment, safety: safety)
@@ -87,7 +89,8 @@ public enum CleanEngine {
     let budget =
       ScanBudget.current
       ?? ScanBudget(
-        limits: environment.scanLimits, enforcesTimeLimit: false, enforcesCountLimits: false)
+        limits: environment.scanLimits, enforcesTimeLimit: false, enforcesCountLimits: false,
+        directoryReaderExecutable: environment.directoryReaderExecutable)
     if let interruption = budget.interruption {
       return RuleScan(
         rule: rule, items: [], skippedCount: 0, blocked: nil, interruption: interruption)

@@ -168,6 +168,9 @@ public enum RuleCatalog {
       ?? ScanBudget(limits: ScanLimits(maxEntries: 2_000, maxDuration: 5))
     try budget.check()
     do {
+      if let executable = budget.directoryReaderExecutable {
+        return try CleanerDirectoryReader.children(of: path, executable: executable, budget: budget)
+      }
       guard let directory = path.withCString({ opendir($0) }) else {
         throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
       }

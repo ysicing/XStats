@@ -357,8 +357,9 @@ private struct CleanerActions: View {
           Text(confirmation.message)
         }
         if cleaner.phase == .scanning {
-          Button(tr("取消")) { cleaner.cancelOperation() }
+          Button(cleaner.isCancelling ? tr("正在停止…") : tr("取消")) { cleaner.cancelOperation() }
             .buttonStyle(DSButtonStyle(kind: .secondary))
+            .disabled(cleaner.isCancelling)
         }
         Spacer()
       }

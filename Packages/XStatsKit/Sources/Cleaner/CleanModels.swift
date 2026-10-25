@@ -65,6 +65,8 @@ public struct CleanEnvironment: Sendable {
   let toolEnvironment: [String: String]
   public var excludedPaths: [String]
   public var scanLimits = ScanLimits()
+  /// 应用入口支持只读目录工作进程时启用；独立库调用保留进程内读取。
+  public var directoryReaderExecutable: URL?
   /// 机器配置决定硬上限，扫描期间的负载只影响新任务派发。
   var activeProcessorCount = ProcessInfo.processInfo.activeProcessorCount
   public var scanLoad: @Sendable () async -> AdaptiveConcurrencyPolicy.Load = { .current() }
