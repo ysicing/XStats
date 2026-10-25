@@ -151,6 +151,12 @@ struct HomebrewOperationTests {
       settings: AppSettings(defaults: defaults), historyURL: nil, aiUsageProviders: [],
       aiQuotaProviders: [])
     #expect(model.appManagement.homebrewOperations === model.homebrewServices.homebrewOperations)
+    model.settings.cleanerEnabled = true
+    #expect(model.cleaner.mole.canStart)
+    #expect(model.appManagement.homebrewOperations.begin())
+    #expect(!model.cleaner.mole.canStart)
+    model.appManagement.homebrewOperations.finish()
+    #expect(model.cleaner.mole.canStart)
   }
 
   @Test(arguments: ["package", "service"])

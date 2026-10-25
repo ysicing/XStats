@@ -14,6 +14,9 @@ extension Translations {
     安装 Mole 后，可在终端预览更多优化项目，不会执行优化。	After installing Mole, preview more optimization tasks in Terminal without applying changes.
     复制命令	Copy Command
     清理引擎	Cleanup Engine
+    安装 Mole	Install Mole
+    安装已结束，但未检测到 Mole。请查看日志后重新检测。	Installation finished, but Mole was not detected. Check the log and try detecting again.
+    安装已停止	Installation stopped
     重新检测 Mole	Detect Mole Again
     使用 Mole 清理	Clean with Mole
     使用 Mole 清理？	Clean with Mole?

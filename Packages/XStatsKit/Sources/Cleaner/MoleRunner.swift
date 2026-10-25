@@ -4,7 +4,7 @@ import Darwin
 import Foundation
 
 public enum MoleCommand: Sendable {
-  case scan, clean, optimizePreview, optimize
+  case scan, clean, optimizePreview, optimize, install
 
   public var isPreview: Bool { self == .scan || self == .optimizePreview }
   public var arguments: [String] {
@@ -13,9 +13,12 @@ public enum MoleCommand: Sendable {
     case .clean: ["clean"]
     case .optimizePreview: ["optimize", "--dry-run"]
     case .optimize: ["optimize"]
+    case .install: ["install", "mole"]
     }
   }
-  public var displayCommand: String { (["mo"] + arguments).joined(separator: " ") }
+  public var displayCommand: String {
+    ([self == .install ? "brew" : "mo"] + arguments).joined(separator: " ")
+  }
 }
 
 public struct MoleOutput: Sendable {
@@ -28,8 +31,12 @@ public struct MoleOutput: Sendable {
   }
 }
 
-/// 按需运行已安装的 Mole，不安装工具、不解释其输出为原生清理授权。
+/// 按需运行 Mole 或用户明确发起的 Homebrew 安装，不解释其输出为原生清理授权。
 public enum MoleRunner {
+  public static var homebrewExecutable: URL? {
+    DeveloperToolRunner.executable(named: "brew", home: NSHomeDirectory())
+  }
+
   @concurrent
   public static func detect() async -> URL? {
     let home = FileManager.default.homeDirectoryForCurrentUser
@@ -94,7 +101,7 @@ public enum MoleRunner {
     }
   }
 
-  /// 标准输入关闭，Mole 使用其非交互模式；不收集密码或自动回答授权提示。
+  /// 标准输入关闭，Mole 与 Homebrew 安装共用非交互执行；不收集密码或自动回答授权提示。
   /// 每次最多读取 64 KiB，每 200 ms 发布最近 128 KiB，避免连续输出占满主线程。
   @concurrent
   public static func run(
@@ -113,7 +120,7 @@ public enum MoleRunner {
       throw POSIXError(.EIO)
     }
     let pid = try spawn(
-      executable: executable, arguments: command.arguments,
+      executable: executable, command: command,
       output: pipe.fileHandleForWriting.fileDescriptor)
     // 先结束整个私有进程组，再回收 leader；PID 在最后一次 kill 前不能被复用。
     defer { stopAndReap(pid) }
@@ -160,7 +167,7 @@ public enum MoleRunner {
     }
   }
 
-  private static func spawn(executable: URL, arguments: [String], output: Int32) throws -> pid_t {
+  private static func spawn(executable: URL, command: MoleCommand, output: Int32) throws -> pid_t {
     var actions: posix_spawn_file_actions_t?
     var attributes: posix_spawnattr_t?
     var error = posix_spawn_file_actions_init(&actions)
@@ -197,7 +204,12 @@ public enum MoleRunner {
     ].joined(separator: ":")
     environment["TERM"] = "dumb"
     environment["NO_COLOR"] = "1"
-    let argv = ([executable.path] + arguments).map { strdup($0) }
+    if command == .install {
+      // 只安装用户请求的 Mole，不附带更新索引或清理其他软件包。
+      environment["HOMEBREW_NO_AUTO_UPDATE"] = "1"
+      environment["HOMEBREW_NO_INSTALL_CLEANUP"] = "1"
+    }
+    let argv = ([executable.path] + command.arguments).map { strdup($0) }
     let env = environment.map { strdup("\($0.key)=\($0.value)") }
     defer { for value in argv + env { free(value) } }
     guard (argv + env).allSatisfy({ $0 != nil }) else { throw POSIXError(.ENOMEM) }

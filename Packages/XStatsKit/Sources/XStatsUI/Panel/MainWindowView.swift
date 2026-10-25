@@ -375,7 +375,7 @@ struct PageHeader: View {
     let tab = settings.panelTab
 
     HStack(spacing: DS.Space.s3) {
-      // 拖动层只覆盖标题和空白，页内切换与操作控件保持可点击。
+      // 拖动层只覆盖标题和空白，操作控件保持可点击。
       Text(tab.headerTitle)
         .dsFont(.base, weight: .semibold)
         .foregroundStyle(DS.Palette.textPrimary)
@@ -383,15 +383,6 @@ struct PageHeader: View {
         .frame(maxHeight: .infinity)
         .background(WindowDragArea())
 
-      if tab == .cleaner {
-        SegmentedControl(
-          selection: $cleanerTab,
-          options: CleanerPage.Tab.allCases.map { ($0, $0.title) }
-        )
-        .fixedSize(horizontal: true, vertical: false)
-        // 切换 Tab 会取消 Mole 任务，运行中的清理或优化不能被一次点击打断。
-        .disabled(model.cleaner.mole.isRunning)
-      }
       Spacer(minLength: 0)
         .frame(maxHeight: .infinity)
         .background(WindowDragArea())

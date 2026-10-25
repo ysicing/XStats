@@ -9,6 +9,261 @@ import Testing
 
 @MainActor
 struct MoleControllerTests {
+  @Test func preinstallDetectionCannotOverwriteInstalledMole() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let detections = MoleCommands()
+    let gate = MoleRunGate()
+    let controller = MoleController(
+      settings: fixture.settings,
+      detect: {
+        if await detections.values.isEmpty {
+          await detections.append(.scan)
+          await gate.wait()
+          return nil
+        }
+        return URL(fileURLWithPath: "/fixture/mo")
+      },
+      findBrew: { URL(fileURLWithPath: "/fixture/brew") },
+      run: { _, _, _ in 0 })
+    let refresh = Task { await controller.refreshAvailability() }
+    await gate.waitForStart()
+    controller.install()
+    await controller.waitForExit()
+    #expect(controller.executable?.path == "/fixture/mo")
+    await gate.release()
+    await refresh.value
+    #expect(controller.executable?.path == "/fixture/mo")
+    #expect(!controller.canInstall && !controller.canExecute)
+  }
+
+  @Test(arguments: [MoleController.Workflow.clean, .optimize])
+  func homebrewWritesAndMoleCommandsAreMutuallyExclusive(workflow: MoleController.Workflow)
+    async throws
+  {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let operations = HomebrewOperationState()
+    let commands = MoleCommands()
+    let gate = MoleRunGate()
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      homebrewOperations: operations,
+      run: { _, command, _ in
+        await commands.append(command)
+        if !command.isPreview { await gate.wait() }
+        return 0
+      })
+    await controller.refreshAvailability()
+    controller.selectWorkflow(workflow)
+    #expect(operations.begin())
+    #expect(!controller.canStart)
+    controller.scan()
+    #expect(!controller.isRunning)
+    operations.finish()
+    await controller.waitForExit()
+    controller.scan()
+    await controller.waitForExit()
+    #expect(operations.begin())
+    controller.requestExecution()
+    #expect(!controller.isConfirming)
+    operations.finish()
+    controller.requestExecution()
+    #expect(controller.isConfirming)
+    #expect(operations.begin())
+    controller.confirmExecution()
+    #expect(!controller.isRunning)
+    operations.finish()
+    controller.confirmExecution()
+    await gate.waitForStart()
+    #expect(operations.isRunning)
+    #expect(!operations.begin())
+    controller.cancel()
+    #expect(operations.isRunning)
+    await gate.release()
+    await controller.waitForExit()
+    #expect(controller.wasCancelled && !operations.isRunning)
+    #expect(await commands.values == [workflow.previewCommand, workflow.executionCommand])
+  }
+
+  @Test(arguments: [MoleController.Workflow.clean, .optimize], [false, true])
+  func previewKeepsHomebrewLockUntilSuccessOrFailure(
+    workflow: MoleController.Workflow, fails: Bool
+  ) async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let operations = HomebrewOperationState()
+    let gate = MoleRunGate()
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      homebrewOperations: operations,
+      run: { _, _, _ in
+        await gate.wait()
+        if fails { throw CocoaError(.fileReadUnknown) }
+        return 0
+      })
+    await controller.refreshAvailability()
+    controller.selectWorkflow(workflow)
+    controller.scan()
+    await gate.waitForStart()
+    #expect(operations.isRunning && !controller.canStart)
+    #expect(!operations.begin())
+    await gate.release()
+    await controller.waitForExit()
+    #expect(!operations.isRunning && controller.canStart)
+    #expect(controller.canExecute == !fails)
+    #expect((controller.failure != nil) == fails)
+  }
+
+  @Test func installationStreamsLogsAndDetectsMoleOnlyAfterCompletion() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let commands = MoleCommands()
+    let gate = MoleRunGate()
+    let operations = HomebrewOperationState()
+    let controller = MoleController(
+      settings: fixture.settings,
+      detect: {
+        await commands.values.contains(.install) ? URL(fileURLWithPath: "/fixture/mo") : nil
+      },
+      findBrew: { URL(fileURLWithPath: "/fixture/brew") },
+      homebrewOperations: operations,
+      run: { url, command, output in
+        #expect(url.path == "/fixture/brew" && command == .install)
+        await commands.append(command)
+        await output(MoleOutput(text: "Installing\n", wasTruncated: false))
+        await gate.wait()
+        return 0
+      })
+    controller.install()
+    await gate.waitForStart()
+    #expect(controller.isRunning && operations.isRunning)
+    #expect(controller.output == "Installing\n" && controller.executable == nil)
+    #expect(!operations.begin())
+    controller.install()
+    controller.scan()
+    controller.selectWorkflow(.optimize)
+    controller.cancelPreview()
+    #expect(!controller.isCancelling)
+    await gate.release()
+    await controller.waitForExit()
+    #expect(await commands.values == [.install])
+    #expect(controller.executable?.path == "/fixture/mo")
+    #expect(controller.exitStatus == 0 && !controller.canExecute && !operations.isRunning)
+    controller.install()
+    #expect(!controller.isRunning)
+    #expect(await commands.values == [.install])
+  }
+
+  @Test func cancellingPostInstallDetectionRejectsLateResult() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let gate = MoleRunGate()
+    let operations = HomebrewOperationState()
+    let controller = MoleController(
+      settings: fixture.settings,
+      detect: {
+        await gate.wait()
+        return URL(fileURLWithPath: "/fixture/mo")
+      },
+      findBrew: { URL(fileURLWithPath: "/fixture/brew") },
+      homebrewOperations: operations, run: { _, _, _ in 0 })
+    controller.install()
+    await gate.waitForStart()
+    controller.cancel()
+    #expect(controller.isRunning && operations.isRunning)
+    await gate.release()
+    await controller.waitForExit()
+    #expect(controller.wasCancelled && controller.executable == nil && controller.exitStatus == nil)
+    #expect(!controller.canExecute && !operations.isRunning)
+  }
+
+  @Test func installationLaunchFailureReleasesHomebrewLock() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let operations = HomebrewOperationState()
+    let controller = MoleController(
+      settings: fixture.settings, detect: { nil },
+      findBrew: { URL(fileURLWithPath: "/fixture/brew") },
+      homebrewOperations: operations,
+      run: { _, _, _ in throw CocoaError(.fileNoSuchFile) })
+    controller.install()
+    await controller.waitForExit()
+    #expect(controller.failure != nil && controller.exitStatus == nil && !controller.canExecute)
+    #expect(!controller.isRunning && !operations.isRunning && controller.canInstall)
+  }
+
+  @Test func installationCancellationKeepsLockUntilExitAndRejectsLateSuccess() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let gate = MoleRunGate()
+    let operations = HomebrewOperationState()
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      findBrew: { URL(fileURLWithPath: "/fixture/brew") },
+      homebrewOperations: operations,
+      run: { _, _, output in
+        await gate.wait()
+        await output(MoleOutput(text: "late", wasTruncated: false))
+        return 0
+      })
+    controller.install()
+    await gate.waitForStart()
+    controller.cancel()
+    #expect(controller.isRunning && controller.isCancelling && operations.isRunning)
+    await gate.release()
+    await controller.waitForExit()
+    #expect(controller.wasCancelled && controller.executable == nil && controller.output.isEmpty)
+    #expect(controller.exitStatus == nil && !operations.isRunning)
+  }
+
+  @Test func installationRequiresHomebrewEnabledFeatureAndIdleOperations() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let commands = MoleCommands()
+    let operations = HomebrewOperationState()
+    var available = false
+    let controller = MoleController(
+      settings: fixture.settings, detect: { nil },
+      findBrew: { available ? URL(fileURLWithPath: "/fixture/brew") : nil },
+      homebrewOperations: operations,
+      run: { _, command, _ in
+        await commands.append(command)
+        return 0
+      })
+    controller.install()
+    #expect(!controller.isRunning)
+    available = true
+    #expect(operations.begin())
+    controller.install()
+    #expect(!controller.isRunning)
+    operations.finish()
+    fixture.settings.cleanerEnabled = false
+    controller.install()
+    #expect(!controller.isRunning)
+    fixture.settings.cleanerEnabled = true
+    controller.nativeIsBusy = { true }
+    controller.install()
+    #expect(!controller.isRunning)
+    #expect(await commands.values.isEmpty)
+  }
+
+  @Test(arguments: [Int32(0), 7])
+  func unsuccessfulInstallationDoesNotEnableMole(status: Int32) async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let operations = HomebrewOperationState()
+    let controller = MoleController(
+      settings: fixture.settings, detect: { nil },
+      findBrew: { URL(fileURLWithPath: "/fixture/brew") },
+      homebrewOperations: operations, run: { _, _, _ in status })
+    controller.install()
+    await controller.waitForExit()
+    #expect(controller.executable == nil && !controller.canExecute && !operations.isRunning)
+    #expect(controller.exitStatus == status)
+    if status == 0 { #expect(controller.failure != nil) }
+  }
+
   @Test(arguments: [MoleController.Workflow.clean, .optimize])
   func nativeMaintenanceBlocksPreviewAndRechecksExecutionConfirmation(
     workflow: MoleController.Workflow
@@ -301,14 +556,15 @@ struct MoleControllerTests {
     #expect(cleaner.engine == .native)
   }
 
-  @Test(arguments: [MoleController.Workflow.clean, .optimize])
+  @Test(arguments: [MoleCommand.scan, .optimizePreview, .install])
   func consoleRendersLongOutputInBothDirectionsWithoutLaunchingCommands(
-    workflow: MoleController.Workflow
+    command: MoleCommand
   ) async throws {
     let fixture = try MoleControllerFixture()
     defer { fixture.remove() }
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      findBrew: { URL(fileURLWithPath: "/fixture/brew") },
       run: { _, _, output in
         await output(
           MoleOutput(
@@ -316,18 +572,24 @@ struct MoleControllerTests {
             wasTruncated: true))
         return 0
       })
-    await controller.refreshAvailability()
-    controller.selectWorkflow(workflow)
-    controller.scan()
+    if command == .install {
+      controller.install()
+    } else {
+      await controller.refreshAvailability()
+      controller.selectWorkflow(command == .scan ? .clean : .optimize)
+      controller.scan()
+    }
     await controller.waitForExit()
     for direction in [LayoutDirection.leftToRight, .rightToLeft] {
       let host = NSHostingView(
-        rootView: MoleCommandView(controller: controller, nativeBusy: false)
-          .environment(\.layoutDirection, direction)
-          .environment(\.isSnapshot, true)
-          .preferredColorScheme(.light)
-          .frame(width: 860, height: 600)
-          .background(DS.Palette.background))
+        rootView: MoleCommandView(
+          controller: controller, nativeBusy: false, installation: command == .install
+        )
+        .environment(\.layoutDirection, direction)
+        .environment(\.isSnapshot, true)
+        .preferredColorScheme(.light)
+        .frame(width: 860, height: 600)
+        .background(DS.Palette.background))
       #expect(host.fittingSize == NSSize(width: 860, height: 600))
       let window = NSWindow(
         contentRect: NSRect(x: 0, y: 0, width: 860, height: 600),
@@ -342,7 +604,7 @@ struct MoleControllerTests {
       if let path = ProcessInfo.processInfo.environment["XSTATS_CLEANER_PREVIEW_DIR"] {
         let directory = URL(fileURLWithPath: path, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let name = "mole-\(workflow)-\(direction == .leftToRight ? "ltr" : "rtl").png"
+        let name = "mole-\(command)-\(direction == .leftToRight ? "ltr" : "rtl").png"
         try #require(bitmap.representation(using: .png, properties: [:])).write(
           to: directory.appendingPathComponent(name))
       }

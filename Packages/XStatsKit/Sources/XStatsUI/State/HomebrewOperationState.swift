@@ -2,7 +2,7 @@
 
 import Observation
 
-/// 包管理与服务管理共用写操作状态；切换页面不能释放仍在执行的命令。
+/// 包管理、服务管理与 Mole 命令共用执行状态；切换页面不能释放仍在执行的命令。
 @MainActor @Observable
 final class HomebrewOperationState {
   private(set) var isRunning = false

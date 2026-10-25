@@ -35,6 +35,7 @@ struct CleanerPage: View {
 
   @Environment(AppModel.self) private var model
   @Environment(\.isSnapshot) private var isSnapshot
+  @State private var showsMoleInstallation = false
   @Binding var tab: Tab
 
   init(tab: Binding<Tab> = .constant(.clean)) {
@@ -43,7 +44,7 @@ struct CleanerPage: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      enginePicker
+      toolbar
       if model.cleaner.engine == .mole {
         MoleCommandView(controller: model.cleaner.mole, nativeBusy: nativeBusy)
       } else if tab == .clean {
@@ -77,6 +78,21 @@ struct CleanerPage: View {
         model.cleaner.mole.cancel()
       }
     }
+    .sheet(isPresented: $showsMoleInstallation) {
+      VStack(alignment: .leading, spacing: DS.Space.s3) {
+        HStack {
+          Text(tr("安装 Mole")).dsFont(.lg, weight: .semibold)
+          Spacer()
+          Button(tr("关闭")) { showsMoleInstallation = false }
+            .disabled(model.cleaner.mole.isRunning)
+        }
+        .padding([.top, .horizontal], DS.Space.s3)
+        MoleCommandView(
+          controller: model.cleaner.mole, nativeBusy: nativeBusy, installation: true)
+      }
+      .frame(width: 760, height: 520)
+      .interactiveDismissDisabled(model.cleaner.mole.isRunning)
+    }
   }
 
   private func updateTab() {
@@ -101,27 +117,34 @@ struct CleanerPage: View {
     model.cleaner.isBusy || model.maintenance.isBusy
   }
 
-  private var enginePicker: some View {
-    Group {
+  private var toolbar: some View {
+    HStack(spacing: DS.Space.s3) {
+      SegmentedControl(
+        selection: $tab,
+        options: Tab.allCases.map { ($0, $0.title) }
+      )
+      .fixedSize(horizontal: true, vertical: false)
+      // 切换 Tab 会取消 Mole 任务，运行中的清理或优化不能被一次点击打断。
+      .disabled(model.cleaner.mole.isRunning)
+      Spacer(minLength: 0)
       if model.cleaner.mole.executable != nil {
-        HStack(spacing: DS.Space.s3) {
-          Picker(
-            tr("引擎"),
-            selection: Binding(
-              get: { model.cleaner.engine }, set: { model.cleaner.selectEngine($0) })
-          ) {
-            Text(verbatim: "XStats").tag(CleanerController.Engine.native)
-            Text(verbatim: "Mole").tag(CleanerController.Engine.mole)
-          }
-          .fixedSize()
-          .disabled(
-            model.cleaner.phase == .cleaning || model.cleaner.mole.isRunning
-              || model.maintenance.isBusy)
-          Spacer(minLength: 0)
+        Picker(
+          tr("引擎"),
+          selection: Binding(
+            get: { model.cleaner.engine }, set: { model.cleaner.selectEngine($0) })
+        ) {
+          Text(verbatim: "XStats").tag(CleanerController.Engine.native)
+          Text(verbatim: "Mole").tag(CleanerController.Engine.mole)
         }
-        .padding(DS.Space.s3)
+        .fixedSize()
+        .disabled(
+          model.cleaner.phase == .cleaning || model.cleaner.mole.isRunning
+            || model.maintenance.isBusy)
       }
     }
+    .padding(.horizontal, DS.Space.s3)
+    .padding(.top, DS.Space.s2)
+    .padding(.bottom, DS.Space.s3)
   }
 
   private var moleGuide: some View {
@@ -131,10 +154,23 @@ struct CleanerPage: View {
         detail: tab == .clean
           ? tr("安装 Mole 后，可在终端预览更多清理项目，不会删除文件。")
           : tr("安装 Mole 后，可在终端预览更多优化项目，不会执行优化。"))
-      Button(tr("重新检测 Mole")) {
-        Task { await model.cleaner.mole.refreshAvailability() }
+      HStack(spacing: DS.Space.s2) {
+        Button(tr("安装 Mole")) {
+          showsMoleInstallation = true
+          model.cleaner.mole.install()
+        }
+        .buttonStyle(DSButtonStyle(kind: .secondary))
+        .disabled(!model.cleaner.mole.canInstall)
+        Button(tr("重新检测 Mole")) {
+          Task { await model.cleaner.mole.refreshAvailability() }
+        }
+        .buttonStyle(DSButtonStyle(kind: .secondary))
+        .disabled(model.cleaner.mole.isRunning)
+        if !model.cleaner.mole.brewAvailable {
+          Text(tr("尚未安装 Homebrew"))
+            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+        }
       }
-      .buttonStyle(DSButtonStyle(kind: .secondary))
     }
   }
 

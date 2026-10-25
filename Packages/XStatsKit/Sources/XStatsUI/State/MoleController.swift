@@ -2,6 +2,7 @@
 
 import Cleaner
 import Foundation
+import Localization
 import Observation
 
 @MainActor
@@ -32,9 +33,12 @@ final class MoleController {
 
   @ObservationIgnored private let settings: AppSettings
   @ObservationIgnored private let detect: @Sendable () async -> URL?
+  @ObservationIgnored private let findBrew: () -> URL?
+  private let homebrewOperations: HomebrewOperationState
   @ObservationIgnored private let run: Runner
   @ObservationIgnored private var task: Task<Void, Never>?
   @ObservationIgnored private var pendingExecutable: URL?
+  @ObservationIgnored private var availabilityGeneration = UUID()
   @ObservationIgnored var nativeIsBusy: () -> Bool = { false }
   /// 真实执行（含取消或失败，可能已部分生效）结束后通知，原生扫描结果据此失效。
   @ObservationIgnored var onExecutionFinished: () -> Void = {}
@@ -42,21 +46,34 @@ final class MoleController {
   init(
     settings: AppSettings,
     detect: @escaping @Sendable () async -> URL? = { await MoleRunner.detect() },
+    findBrew: @escaping () -> URL? = { MoleRunner.homebrewExecutable },
+    homebrewOperations: HomebrewOperationState = HomebrewOperationState(),
     run: @escaping Runner = { url, command, output in
       try await MoleRunner.run(executable: url, command: command, output: output)
     }
   ) {
     self.settings = settings
     self.detect = detect
+    self.findBrew = findBrew
+    self.homebrewOperations = homebrewOperations
     self.run = run
   }
 
   var isRunning: Bool { operation != nil }
+  var canStart: Bool {
+    settings.cleanerEnabled && !isRunning && !nativeIsBusy() && !homebrewOperations.isRunning
+  }
+  var brewAvailable: Bool { findBrew() != nil }
+  var canInstall: Bool {
+    canStart && executable == nil && brewAvailable
+  }
 
   func refreshAvailability() async {
     guard !isRunning else { return }
+    let generation = UUID()
+    availabilityGeneration = generation
     let found = await detect()
-    guard !Task.isCancelled, !isRunning else { return }
+    guard !Task.isCancelled, !isRunning, availabilityGeneration == generation else { return }
     if found != executable {
       canExecute = false
       cancelConfirmation()
@@ -65,7 +82,7 @@ final class MoleController {
   }
 
   func selectWorkflow(_ workflow: Workflow) {
-    guard self.workflow != workflow else { return }
+    guard operation != .install, self.workflow != workflow else { return }
     cancel()
     canExecute = false
     self.workflow = workflow
@@ -81,9 +98,10 @@ final class MoleController {
   }
 
   func scan() { start(workflow.previewCommand) }
+  func install() { start(.install) }
 
   func requestExecution() {
-    guard settings.cleanerEnabled, !isRunning, !nativeIsBusy(), canExecute, let executable else {
+    guard canStart, canExecute, let executable else {
       return
     }
     pendingExecutable = executable
@@ -96,7 +114,7 @@ final class MoleController {
   }
 
   func confirmExecution() {
-    guard settings.cleanerEnabled, !isRunning, !nativeIsBusy(), canExecute,
+    guard canStart, canExecute,
       let pendingExecutable, pendingExecutable == executable
     else { return }
     start(workflow.executionCommand)
@@ -120,7 +138,18 @@ final class MoleController {
   func waitForExit() async { await task?.value }
 
   private func start(_ command: MoleCommand) {
-    guard settings.cleanerEnabled, !isRunning, !nativeIsBusy(), let executable else { return }
+    guard canStart else { return }
+    let executable: URL
+    if command == .install {
+      guard canInstall, let brew = findBrew() else { return }
+      executable = brew
+    } else {
+      guard let mole = self.executable else { return }
+      executable = mole
+    }
+    // Mole 清理内部也会调用 brew；预览与包管理操作共用状态，直至进程退出才释放。
+    guard homebrewOperations.begin() else { return }
+    availabilityGeneration = UUID()
     cancelConfirmation()
     operation = command
     lastCommand = command
@@ -134,6 +163,7 @@ final class MoleController {
     Log.app.info("Mole \(command.displayCommand, privacy: .public) started")
     task = Task {
       defer {
+        homebrewOperations.finish()
         operation = nil
         isCancelling = false
         task = nil
@@ -145,6 +175,14 @@ final class MoleController {
           await self?.receive(value)
         }
         try Task.checkCancellation()
+        if command == .install, status == 0 {
+          let found = await detect()
+          try Task.checkCancellation()
+          self.executable = found
+          if found == nil {
+            failure = tr("安装已结束，但未检测到 Mole。请查看日志后重新检测。")
+          }
+        }
         exitStatus = status
         canExecute = command == workflow.previewCommand && status == 0
         Log.app.info("Mole exited with status \(status, privacy: .public)")

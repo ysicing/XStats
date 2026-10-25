@@ -7,39 +7,46 @@ import SwiftUI
 struct MoleCommandView: View {
   let controller: MoleController
   let nativeBusy: Bool
+  var installation = false
   @State private var followsOutput = true
 
   var body: some View {
     @Bindable var mole = controller
     VStack(alignment: .leading, spacing: DS.Space.s3) {
       HStack(spacing: DS.Space.s2) {
-        Button(tr("重新扫描")) { mole.scan() }
-          .buttonStyle(DSButtonStyle(kind: .secondary))
-          .disabled(mole.isRunning || nativeBusy)
-        Button(
-          mole.workflow == .clean ? tr("使用 Mole 清理") : tr("使用 Mole 优化"),
-          role: .destructive
-        ) { mole.requestExecution() }
-        .buttonStyle(DSButtonStyle(kind: .primary))
-        .disabled(mole.isRunning || !mole.canExecute || nativeBusy)
-        .confirmationDialog(
-          mole.workflow == .clean ? tr("使用 Mole 清理？") : tr("使用 Mole 优化？"),
-          isPresented: $mole.isConfirming, titleVisibility: .visible
-        ) {
+        if installation {
+          Button(tr("安装 Mole")) { mole.install() }
+            .buttonStyle(DSButtonStyle(kind: .secondary))
+            .disabled(!mole.canInstall)
+        } else {
+          Button(tr("重新扫描")) { mole.scan() }
+            .buttonStyle(DSButtonStyle(kind: .secondary))
+            .disabled(!mole.canStart || nativeBusy)
           Button(
-            mole.workflow == .clean ? tr("执行 mo clean") : tr("执行 mo optimize"),
+            mole.workflow == .clean ? tr("使用 Mole 清理") : tr("使用 Mole 优化"),
             role: .destructive
-          ) { mole.confirmExecution() }
-          Button(tr("取消"), role: .cancel) { mole.cancelConfirmation() }
-        } message: {
-          Text(
-            mole.workflow == .clean
-              ? tr(
-                "将执行 mo clean，按 Mole 自己的规则重新扫描并永久删除文件。XStats 的勾选、保留项目和移到废纸篓设置不适用于 Mole；扫描结果不是固定清单。没有可用管理员授权时，Mole 会跳过系统级清理。"
-              )
-              : tr(
-                "将执行 mo optimize，由 Mole 决定并应用优化。预览不是固定执行清单，Mole 可能请求管理员授权。停止不能撤销已完成的更改。"
-              ))
+          ) { mole.requestExecution() }
+          .buttonStyle(DSButtonStyle(kind: .primary))
+          .disabled(!mole.canStart || !mole.canExecute || nativeBusy)
+          .confirmationDialog(
+            mole.workflow == .clean ? tr("使用 Mole 清理？") : tr("使用 Mole 优化？"),
+            isPresented: $mole.isConfirming, titleVisibility: .visible
+          ) {
+            Button(
+              mole.workflow == .clean ? tr("执行 mo clean") : tr("执行 mo optimize"),
+              role: .destructive
+            ) { mole.confirmExecution() }
+            Button(tr("取消"), role: .cancel) { mole.cancelConfirmation() }
+          } message: {
+            Text(
+              mole.workflow == .clean
+                ? tr(
+                  "将执行 mo clean，按 Mole 自己的规则重新扫描并永久删除文件。XStats 的勾选、保留项目和移到废纸篓设置不适用于 Mole；扫描结果不是固定清单。没有可用管理员授权时，Mole 会跳过系统级清理。"
+                )
+                : tr(
+                  "将执行 mo optimize，由 Mole 决定并应用优化。预览不是固定执行清单，Mole 可能请求管理员授权。停止不能撤销已完成的更改。"
+                ))
+          }
         }
         if mole.isRunning {
           Button(mole.isCancelling ? tr("正在停止…") : tr("停止")) { mole.cancel() }
@@ -49,12 +56,14 @@ struct MoleCommandView: View {
         Spacer(minLength: 0)
         if mole.isRunning { ProgressView().controlSize(.small) }
       }
-      Text(
-        mole.workflow == .clean
-          ? tr("扫描执行 mo clean --dry-run；清理执行 mo clean，由 Mole 决定清理范围。")
-          : tr("扫描执行 mo optimize --dry-run；优化执行 mo optimize，由 Mole 决定优化内容。")
-      )
-      .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+      if !installation {
+        Text(
+          mole.workflow == .clean
+            ? tr("扫描执行 mo clean --dry-run；清理执行 mo clean，由 Mole 决定清理范围。")
+            : tr("扫描执行 mo optimize --dry-run；优化执行 mo optimize，由 Mole 决定优化内容。")
+        )
+        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+      }
       if let command = mole.lastCommand {
         HStack {
           Text(verbatim: "$ " + command.displayCommand).monospaced()
@@ -102,7 +111,8 @@ struct MoleCommandView: View {
   }
 
   private var emptyText: String {
-    controller.workflow == .clean
+    if installation { return "" }
+    return controller.workflow == .clean
       ? tr("点击重新扫描，查看 Mole 的清理预览。") : tr("点击重新扫描，查看 Mole 的优化预览。")
   }
 
@@ -111,6 +121,7 @@ struct MoleCommandView: View {
     if mole.isCancelling { return tr("正在停止…") }
     if mole.isRunning { return tr("执行中") }
     if mole.wasCancelled {
+      if installation { return tr("安装已停止") }
       if mole.lastCommand?.isPreview == true { return tr("扫描已取消") }
       return mole.lastCommand == .clean
         ? tr("已停止，已清理部分不会恢复") : tr("已停止，已完成的优化不会撤销")

@@ -172,7 +172,10 @@ public final class AppModel {
       helper: fanControl ?? helper, store: store, settings: settings,
       readFans: { await samplingHub.sampleFans() })
     keepAwake = KeepAwakeController(helper: helper, settings: settings)
-    cleaner = CleanerController(settings: settings) { [weak store] in
+    cleaner = CleanerController(
+      settings: settings,
+      mole: MoleController(settings: settings, homebrewOperations: homebrewOperations)
+    ) { [weak store] in
       guard let store, store.cpu != nil, let sample = store.cpuTimeline.elements.last,
         (0...5).contains(Date().timeIntervalSince(sample.date))
       else { return nil }

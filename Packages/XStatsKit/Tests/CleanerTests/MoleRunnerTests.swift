@@ -6,6 +6,23 @@ import Testing
 @testable import Cleaner
 
 struct MoleRunnerTests {
+  @Test func installationUsesHomebrewArgumentsAndDisablesUnrelatedCleanup() async throws {
+    let fixture = try MoleFixture(
+      #"""
+      printf '%s\n' "$@"
+      printf '%s:%s\n' "$HOMEBREW_NO_AUTO_UPDATE" "$HOMEBREW_NO_INSTALL_CLEANUP"
+      if read -r answer; then exit 9; fi
+      """#)
+    defer { fixture.remove() }
+    let received = MoleOutputProbe()
+    let status = try await MoleRunner.run(executable: fixture.executable, command: .install) {
+      await received.append($0)
+    }
+    #expect(status == 0)
+    #expect(await received.outputs.last?.text == "install\nmole\n1:1\n")
+    #expect(MoleCommand.install.displayCommand == "brew install mole")
+  }
+
   @Test func optimizationUsesExactArguments() async throws {
     let fixture = try MoleFixture("printf '%s\\n' \"$@\"")
     defer { fixture.remove() }
@@ -103,8 +120,10 @@ struct MoleRunnerTests {
     #expect(start.duration(to: .now) < .seconds(2.5))
   }
 
-  @Test(arguments: [false, true])
-  func cancellationStopsTheOwnedProcessGroup(ignoresTermination: Bool) async throws {
+  @Test(arguments: [false, true], [MoleCommand.scan, .install])
+  func cancellationStopsTheOwnedProcessGroup(
+    ignoresTermination: Bool, command: MoleCommand
+  ) async throws {
     let fixture = try MoleFixture(
       (ignoresTermination ? "trap '' TERM\n" : "") + #"""
         sleep 30 &
@@ -114,7 +133,7 @@ struct MoleRunnerTests {
     defer { fixture.remove() }
     let received = MoleOutputProbe()
     let task = Task {
-      try await MoleRunner.run(executable: fixture.executable, command: .scan) {
+      try await MoleRunner.run(executable: fixture.executable, command: command) {
         await received.append($0)
       }
     }

@@ -299,6 +299,7 @@ enum SnapshotRenderer {
       let settings = AppSettings(defaults: defaults)
       settings.language = L10n.language
       settings.cleanerEnabled = true
+      settings.panelTab = .cleaner
       settings.cleanExcludedPaths = ["/Users/demo/Library/Caches/com.example.kept"]
       let model = AppModel(
         settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
@@ -361,11 +362,17 @@ enum SnapshotRenderer {
         guard let appearance = NSAppearance(named: name) else { continue }
         NSApp.appearance = appearance
         write(
-          CleanerPage().appLanguageEnvironment().frame(width: 900, height: 700), model: model,
+          VStack(spacing: 0) {
+            PageHeader(cleanerTab: .constant(.clean))
+            CleanerPage()
+          }.appLanguageEnvironment().frame(width: 900, height: 700), model: model,
           appearance: appearance,
           to: outputDirectory.appendingPathComponent("cleaner-partial-\(suffix).png"))
         write(
-          PageScroll { OptimizationPage() }.appLanguageEnvironment().frame(width: 900, height: 700),
+          VStack(spacing: 0) {
+            PageHeader(cleanerTab: .constant(.optimize))
+            CleanerPage(tab: .constant(.optimize))
+          }.appLanguageEnvironment().frame(width: 900, height: 700),
           model: model, appearance: appearance,
           to: outputDirectory.appendingPathComponent("cleaner-optimize-\(suffix).png"))
         write(
