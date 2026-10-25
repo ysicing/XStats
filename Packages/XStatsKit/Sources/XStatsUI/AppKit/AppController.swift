@@ -1070,7 +1070,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.connectionMonitor.setPaused(true)
     model.ports.setPaused(true)
     model.systemCheck.setPaused(true)
-    model.cleaner.mole.cancel()
+    model.cleaner.mole.cancelPreview()
     model.history.flush()
     model.wellness.suspend(preservingRest: true)
     wellnessNotifications.dismiss()

@@ -75,7 +75,9 @@ struct OptimizationPage: View {
         } else {
           Button(tr("重置缩略图")) { resetRequested = true }
             .buttonStyle(DSButtonStyle(kind: .secondary))
-            .disabled(maintenance.running != nil || !model.settings.cleanerEnabled)
+            .disabled(
+              maintenance.running != nil || maintenance.isBlockedByMole
+                || !model.settings.cleanerEnabled)
         }
       }
       Text(tr("预览缩略图空白或未更新时重置，文件内容不受影响。"))
@@ -150,7 +152,7 @@ private struct OptimizationActionCard: View {
         .buttonStyle(DSButtonStyle(kind: .secondary))
         .disabled(
           maintenance.running != nil || maintenance.isResettingThumbnails
-            || !model.settings.cleanerEnabled)
+            || maintenance.isBlockedByMole || !model.settings.cleanerEnabled)
       }
       Text(detail).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       Text(model.helper.isReady ? tr("由辅助工具执行") : tr("需要管理员授权"))

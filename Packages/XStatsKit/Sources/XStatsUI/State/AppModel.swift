@@ -60,7 +60,7 @@ public final class AppModel {
     didSet {
       if !isMainWindowVisible {
         systemCheck.cancel()
-        cleaner.mole.cancel()
+        cleaner.mole.cancelPreview()
       }
     }
   }

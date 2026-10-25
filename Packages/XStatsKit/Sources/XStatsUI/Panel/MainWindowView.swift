@@ -389,6 +389,8 @@ struct PageHeader: View {
           options: CleanerPage.Tab.allCases.map { ($0, $0.title) }
         )
         .fixedSize(horizontal: true, vertical: false)
+        // 切换 Tab 会取消 Mole 任务，运行中的清理或优化不能被一次点击打断。
+        .disabled(model.cleaner.mole.isRunning)
       }
       Spacer(minLength: 0)
         .frame(maxHeight: .infinity)

@@ -139,6 +139,70 @@ struct MoleControllerTests {
   }
 
   @Test(arguments: [MoleController.Workflow.clean, .optimize])
+  func leavingStopsPreviewButLetsExecutionFinish(workflow: MoleController.Workflow) async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let execution = MoleRunGate()
+    let preview = MoleRunGate()
+    let previews = MoleCommands()
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      run: { _, command, _ in
+        if command.isPreview {
+          // 首次预览直接成功以取得执行授权，第二次预览阻塞以验证离开时被停止。
+          await previews.append(command)
+          if await previews.values.count > 1 { await preview.wait() }
+        } else {
+          await execution.wait()
+        }
+        return 0
+      })
+    await controller.refreshAvailability()
+    controller.selectWorkflow(workflow)
+    controller.scan()
+    await controller.waitForExit()
+    controller.requestExecution()
+    controller.cancelPreview()
+    #expect(!controller.isConfirming)
+
+    controller.requestExecution()
+    controller.confirmExecution()
+    await execution.waitForStart()
+    controller.cancelPreview()
+    #expect(controller.isRunning && !controller.isCancelling)
+    await execution.release()
+    await controller.waitForExit()
+    #expect(!controller.wasCancelled && controller.exitStatus == 0)
+
+    controller.scan()
+    await preview.waitForStart()
+    controller.cancelPreview()
+    #expect(controller.isRunning && controller.isCancelling)
+    await preview.release()
+    await controller.waitForExit()
+    #expect(controller.wasCancelled && !controller.canExecute)
+  }
+
+  @Test func moleExecutionInvalidatesNativeScanButPreviewDoesNot() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let mole = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      run: { _, _, _ in 0 })
+    let cleaner = CleanerController(settings: fixture.settings, mole: mole)
+    await mole.refreshAvailability()
+    cleaner.showPreview([])
+    mole.scan()
+    await mole.waitForExit()
+    #expect(cleaner.lastScan != nil && cleaner.phase == .ready)
+    mole.requestExecution()
+    mole.confirmExecution()
+    await mole.waitForExit()
+    // 旧候选不能在切回原生引擎后被当作当前状态；nil 使 scan(ifNeeded:) 重新扫描。
+    #expect(cleaner.lastScan == nil && cleaner.phase == .idle && cleaner.scans.isEmpty)
+  }
+
+  @Test(arguments: [MoleController.Workflow.clean, .optimize])
   func executionRequiresSuccessfulPreviewAndExplicitConfirmation(
     workflow: MoleController.Workflow
   ) async throws {

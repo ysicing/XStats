@@ -791,7 +791,7 @@ struct PurgeMemoryButton: View {
           ? DS.Palette.error : result != nil ? DS.Palette.success : DS.Palette.textPrimary)
     }
     .buttonStyle(DSButtonStyle(kind: .secondary))
-    .disabled(maintenance.running != nil)
+    .disabled(maintenance.running != nil || maintenance.isBlockedByMole)
     .help(tr("清理可回收的缓存内存（需要管理员授权或辅助工具）"))
   }
 }

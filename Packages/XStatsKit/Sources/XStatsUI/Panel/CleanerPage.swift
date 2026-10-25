@@ -69,7 +69,7 @@ struct CleanerPage: View {
     .onDisappear {
       model.systemCheck.cancel()
       if model.cleaner.phase == .scanning { model.cleaner.cancelOperation() }
-      model.cleaner.mole.cancel()
+      model.cleaner.mole.cancelPreview()
     }
     .onChange(of: model.settings.cleanerEnabled) { _, enabled in
       if !enabled {
@@ -81,6 +81,12 @@ struct CleanerPage: View {
 
   private func updateTab() {
     guard !isSnapshot else { return }
+    // 真实执行可在离开页面后继续；外部入口改写或窗口重建后的 Tab 以运行中的工作流为准，
+    // 不能借 selectWorkflow 取消任务。
+    if model.cleaner.mole.isRunning {
+      let running: Tab = model.cleaner.mole.workflow == .clean ? .clean : .optimize
+      if tab != running { tab = running }
+    }
     model.cleaner.mole.selectWorkflow(tab == .clean ? .clean : .optimize)
     if tab == .clean {
       model.systemCheck.cancel()
@@ -111,8 +117,6 @@ struct CleanerPage: View {
           .disabled(
             model.cleaner.phase == .cleaning || model.cleaner.mole.isRunning
               || model.maintenance.isBusy)
-          Text(tr("推荐使用 Mole 进行优化清理。"))
-            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
           Spacer(minLength: 0)
         }
         .padding(DS.Space.s3)
@@ -124,7 +128,9 @@ struct CleanerPage: View {
     Group {
       MolePreviewGuide(
         command: tab == .clean ? "mo clean --dry-run" : "mo optimize --dry-run",
-        detail: tr("推荐使用 Mole 进行优化清理，安装后可切换引擎。"))
+        detail: tab == .clean
+          ? tr("安装 Mole 后，可在终端预览更多清理项目，不会删除文件。")
+          : tr("安装 Mole 后，可在终端预览更多优化项目，不会执行优化。"))
       Button(tr("重新检测 Mole")) {
         Task { await model.cleaner.mole.refreshAvailability() }
       }

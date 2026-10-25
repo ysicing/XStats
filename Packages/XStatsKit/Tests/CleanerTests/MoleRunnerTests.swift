@@ -68,6 +68,41 @@ struct MoleRunnerTests {
     #expect(buffer.output.text.utf8.count <= 64)
   }
 
+  @Test func trimmingKeepsTheTailOnAUTF8BoundaryAndReleasesStorage() {
+    var buffer = MoleLogBuffer(maximumBytes: 8)
+    // 裁剪点落在“中”的中间字节，开头不能留下半个字符。
+    buffer.append(Data("ab中文xyz".utf8))
+    #expect(buffer.output.text == "文xyz")
+    #expect(buffer.output.wasTruncated)
+    for _ in 0..<1_000 { buffer.append(Data(repeating: 66, count: 4096)) }
+    #expect(buffer.output.text == String(repeating: "B", count: 8))
+  }
+
+  @Test func onlyAnExecutableReportingMoleIsAccepted() throws {
+    let mole = try MoleFixture("echo 'Mole version 1.63.0'")
+    let other = try MoleFixture("echo 'mo 3.0.0'")
+    let failing = try MoleFixture("echo Mole; exit 1")
+    let hanging = try MoleFixture("sleep 30")
+    defer { [mole, other, failing, hanging].forEach { $0.remove() } }
+    #expect(MoleRunner.identifiesAsMole(mole.executable))
+    #expect(!MoleRunner.identifiesAsMole(other.executable))
+    #expect(!MoleRunner.identifiesAsMole(failing.executable))
+    #expect(!MoleRunner.identifiesAsMole(hanging.executable, timeout: .milliseconds(300)))
+  }
+
+  @Test(.timeLimit(.minutes(1))) func identityCheckDoesNotWaitForInheritedOutputOrIgnoredTerm()
+    throws
+  {
+    // 子进程继承输出管道后，EOF 要等它退出；身份检测只以 leader 退出为准。
+    let inherited = try MoleFixture("sleep 3 &\necho 'Mole version 1.63.0'")
+    let stubborn = try MoleFixture("trap '' TERM\nwhile :; do sleep 1; done")
+    defer { [inherited, stubborn].forEach { $0.remove() } }
+    let start = ContinuousClock.now
+    #expect(MoleRunner.identifiesAsMole(inherited.executable))
+    #expect(!MoleRunner.identifiesAsMole(stubborn.executable, timeout: .milliseconds(300)))
+    #expect(start.duration(to: .now) < .seconds(2.5))
+  }
+
   @Test(arguments: [false, true])
   func cancellationStopsTheOwnedProcessGroup(ignoresTermination: Bool) async throws {
     let fixture = try MoleFixture(

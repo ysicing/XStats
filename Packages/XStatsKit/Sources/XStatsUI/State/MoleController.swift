@@ -36,6 +36,8 @@ final class MoleController {
   @ObservationIgnored private var task: Task<Void, Never>?
   @ObservationIgnored private var pendingExecutable: URL?
   @ObservationIgnored var nativeIsBusy: () -> Bool = { false }
+  /// 真实执行（含取消或失败，可能已部分生效）结束后通知，原生扫描结果据此失效。
+  @ObservationIgnored var onExecutionFinished: () -> Void = {}
 
   init(
     settings: AppSettings,
@@ -107,6 +109,14 @@ final class MoleController {
     task?.cancel()
   }
 
+  /// 离开页面、隐藏窗口或暂停时调用：只读预览随之停止；真实执行与原生清理一致继续运行，
+  /// 中途终止会留下已部分生效的修改。关闭功能和退出应用仍使用 `cancel()`。
+  func cancelPreview() {
+    cancelConfirmation()
+    guard operation?.isPreview == true else { return }
+    cancel()
+  }
+
   func waitForExit() async { await task?.value }
 
   private func start(_ command: MoleCommand) {
@@ -127,6 +137,7 @@ final class MoleController {
         operation = nil
         isCancelling = false
         task = nil
+        if !command.isPreview { onExecutionFinished() }
       }
       do {
         let status = try await run(executable, command) { [weak self] value in

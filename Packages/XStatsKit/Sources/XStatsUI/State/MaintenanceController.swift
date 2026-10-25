@@ -26,6 +26,8 @@ public final class MaintenanceController {
   @ObservationIgnored var moleIsRunning: () -> Bool = { false }
 
   var isBusy: Bool { running != nil || isResettingThumbnails || isApplyingDNS }
+  /// Mole 运行时执行入口会拒绝维护命令；视图据此禁用控件，避免点击后静默无响应。
+  var isBlockedByMole: Bool { moleIsRunning() }
 
   init(
     helper: HelperClient,

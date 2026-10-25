@@ -14,8 +14,6 @@ extension Translations {
     安装 Mole 后，可在终端预览更多优化项目，不会执行优化。	After installing Mole, preview more optimization tasks in Terminal without applying changes.
     复制命令	Copy Command
     清理引擎	Cleanup Engine
-    推荐使用 Mole 进行优化清理。	Mole is recommended for cleanup and optimization.
-    推荐使用 Mole 进行优化清理，安装后可切换引擎。	Mole is recommended for cleanup and optimization. Install it to switch engines.
     重新检测 Mole	Detect Mole Again
     使用 Mole 清理	Clean with Mole
     使用 Mole 清理？	Clean with Mole?

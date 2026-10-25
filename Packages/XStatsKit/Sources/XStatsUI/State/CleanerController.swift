@@ -58,6 +58,17 @@ public final class CleanerController {
     let initial = settings.cleanSelectedRuleIDs ?? Set(rules.filter(\.selectedByDefault).map(\.id))
     selection = initial.intersection(validIDs)
     self.mole.nativeIsBusy = { [weak self] in self?.isBusy == true }
+    self.mole.onExecutionFinished = { [weak self] in self?.discardScanResults() }
+  }
+
+  /// Mole 按自己的规则删除文件，原生候选与容量不再代表当前状态；切回原生引擎时重新扫描。
+  private func discardScanResults() {
+    guard !isBusy else { return }
+    scans = []
+    report = nil
+    lastScan = nil
+    phase = .idle
+    invalidateConfirmation()
   }
 
   var isBusy: Bool { phase == .scanning || phase == .cleaning }

@@ -16,8 +16,6 @@ struct MaintenancePreviewLocalizationTests {
     "点击重新扫描，查看 Mole 的优化预览。",
     "已停止，已完成的优化不会撤销",
     "清理引擎",
-    "推荐使用 Mole 进行优化清理。",
-    "推荐使用 Mole 进行优化清理，安装后可切换引擎。",
     "重新检测 Mole",
     "使用 Mole 清理",
     "使用 Mole 清理？",

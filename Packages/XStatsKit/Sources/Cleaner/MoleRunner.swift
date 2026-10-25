@@ -33,11 +33,57 @@ public enum MoleRunner {
   @concurrent
   public static func detect() async -> URL? {
     let home = FileManager.default.homeDirectoryForCurrentUser
-    return executable(in: [
+    let directories = [
       home.appendingPathComponent(".local/bin"),
       URL(fileURLWithPath: "/opt/homebrew/bin"),
       URL(fileURLWithPath: "/usr/local/bin"),
-    ])
+    ]
+    // 同名的其他 `mo` 不能被当作 Mole 执行 clean / optimize；校验失败则继续找下一个目录。
+    for directory in directories {
+      if let url = executable(in: [directory]), identifiesAsMole(url) { return url }
+    }
+    return nil
+  }
+
+  /// 仅以 `--version` 输出判断身份：限时、关闭标准输入，只读取有限字节。
+  /// 非阻塞读取并以进程退出为准，不等待 EOF：继承输出管道的子进程不能让检测卡住。
+  static func identifiesAsMole(_ executable: URL, timeout: Duration = .seconds(3)) -> Bool {
+    let process = Process()
+    process.executableURL = executable
+    process.arguments = ["--version"]
+    process.standardInput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    guard (try? process.run()) != nil else { return false }
+    defer {
+      // 超时或读取失败时进程可能仍在运行或忽略 SIGTERM，强制结束后再回收。
+      if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+      process.waitUntilExit()
+      try? pipe.fileHandleForReading.close()
+    }
+    let fd = pipe.fileHandleForReading.fileDescriptor
+    let flags = fcntl(fd, F_GETFL)
+    guard flags >= 0, fcntl(fd, F_SETFL, flags | O_NONBLOCK) >= 0 else { return false }
+    var data = Data()
+    var bytes = [UInt8](repeating: 0, count: 1024)
+    let deadline = ContinuousClock.now + timeout
+    while true {
+      // 持续输出或不退出的进程同样受截止时间约束。
+      guard ContinuousClock.now < deadline else { return false }
+      // 先记录退出状态再读取：读空且读取前已退出，说明退出前的输出均已读完。
+      let exited = !process.isRunning
+      let count = bytes.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress, $0.count) }
+      if count > 0 {
+        data.append(contentsOf: bytes.prefix(min(count, max(0, 4096 - data.count))))
+        continue
+      }
+      if count < 0, errno != EAGAIN, errno != EINTR { return false }
+      if exited { break }
+      usleep(20_000)
+    }
+    return process.terminationReason == .exit && process.terminationStatus == 0
+      && String(decoding: data, as: UTF8.self).contains("Mole")
   }
 
   static func executable(in directories: [URL]) -> URL? {
@@ -186,9 +232,11 @@ struct MoleLogBuffer {
   mutating func append(_ chunk: Data) {
     data.append(chunk)
     if data.count > maximumBytes {
-      data.removeFirst(data.count - maximumBytes)
+      // Data.removeFirst 只移动切片起点，不释放已丢弃的前部；复制尾部才能让内存随上限回收。
+      data = Data(data.suffix(maximumBytes))
       // 裁剪到 UTF-8 起始边界，避免在日志开头显示半个字符。
-      while let first = data.first, first & 0xC0 == 0x80 { data.removeFirst() }
+      let boundary = data.prefix(while: { $0 & 0xC0 == 0x80 }).count
+      if boundary > 0 { data = Data(data.dropFirst(boundary)) }
       wasTruncated = true
     }
   }

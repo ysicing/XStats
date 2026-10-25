@@ -719,7 +719,7 @@ private struct DNSSection: View {
       RefreshButton(loading: maintenance.running == .flushDNS, help: tr("刷新 DNS 缓存")) {
         Task { await maintenance.run(.flushDNS) }
       }
-      .disabled(maintenance.running != nil)
+      .disabled(maintenance.running != nil || maintenance.isBlockedByMole)
     }
     SectionCard(
       title: PopoverSection.networkDNS.title, titleAccessory: tunnelWarning,
@@ -774,7 +774,7 @@ private struct DNSSection: View {
           .labelsHidden()
           .controlSize(.small)
           .fixedSize()
-          .disabled(maintenance.isApplyingDNS)
+          .disabled(maintenance.isApplyingDNS || maintenance.isBlockedByMole)
         }
       } else {
         InfoRow(
