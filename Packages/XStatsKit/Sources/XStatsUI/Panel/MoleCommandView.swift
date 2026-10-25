@@ -9,6 +9,7 @@ struct MoleCommandView: View {
   let nativeBusy: Bool
   var installation = false
   @State private var followsOutput = true
+  @State private var logContentHeight: CGFloat = 48
 
   var body: some View {
     @Bindable var mole = controller
@@ -22,6 +23,9 @@ struct MoleCommandView: View {
           Button(tr("仅预览")) { mole.scan() }
             .buttonStyle(DSButtonStyle(kind: .secondary))
             .disabled(!mole.canStart || nativeBusy)
+            .help(
+              mole.workflow == .clean
+                ? tr("查看清理范围，不删除文件") : tr("查看优化项目，不应用更改"))
           Button(
             mole.workflow == .clean ? tr("使用 Mole 清理") : tr("使用 Mole 优化"),
             role: .destructive
@@ -56,29 +60,6 @@ struct MoleCommandView: View {
         Spacer(minLength: 0)
         if mole.isRunning { ProgressView().controlSize(.small) }
       }
-      if !installation {
-        Text(
-          mole.workflow == .clean
-            ? tr("预览执行 mo clean --dry-run，不删除文件；清理执行 mo clean。")
-            : tr("预览执行 mo optimize --dry-run，不应用更改；优化执行 mo optimize。")
-        )
-        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-      }
-      if let command = mole.lastCommand {
-        HStack {
-          Text(verbatim: "$ " + command.displayCommand).monospaced()
-          Spacer()
-          Text(status).foregroundStyle(isFailure ? DS.Palette.warning : DS.Palette.textSecondary)
-        }
-        .dsFont(.xs)
-      }
-      if let failure = mole.failure {
-        Text(verbatim: failure).dsFont(.xs).foregroundStyle(DS.Palette.warning)
-      }
-      if mole.outputWasTruncated {
-        Text(tr("日志较长，仅保留最近 128 KiB。"))
-          .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-      }
       if mole.lastCommand != nil { executionLog }
     }
     .padding(DS.Space.s3)
@@ -86,29 +67,64 @@ struct MoleCommandView: View {
 
   private var executionLog: some View {
     VStack(alignment: .leading, spacing: DS.Space.s3) {
-      HStack {
-        Text(tr("执行日志")).dsFont(.xs, weight: .semibold)
-        Spacer()
+      HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
+        Text(tr("执行日志")).dsFont(.sm, weight: .semibold)
+        Text(status).dsFont(.sm)
+          .foregroundStyle(isFailure ? DS.Palette.warning : DS.Palette.textSecondary)
+        Spacer(minLength: DS.Space.s2)
         Toggle(tr("跟随输出"), isOn: $followsOutput).toggleStyle(.checkbox).fixedSize()
+      }
+      if controller.outputWasTruncated {
+        Text(tr("日志较长，仅保留最近 128 KiB。"))
+          .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       }
       ScrollViewReader { proxy in
         ScrollView([.horizontal, .vertical]) {
           VStack(alignment: .leading, spacing: 0) {
-            Text(verbatim: controller.output)
-              .font(.system(size: DS.TextSize.xs.rawValue, design: .monospaced))
-              .textSelection(.enabled)
+            if let command = controller.lastCommand {
+              Text(verbatim: "$ " + command.displayCommand)
+                .foregroundStyle(DS.Palette.textSecondary)
+            }
+            if !controller.output.isEmpty { Text(verbatim: controller.output) }
+            if let code = controller.exitStatus, code != 0 {
+              Text(tr("退出码 \(code)")).foregroundStyle(DS.Palette.warning)
+            }
+            if let failure = controller.failure {
+              Text(verbatim: failure).foregroundStyle(DS.Palette.warning)
+            }
             Color.clear.frame(height: 1).id("end")
           }
+          .font(.system(size: DS.TextSize.sm.rawValue, design: .monospaced))
+          .textSelection(.enabled)
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(DS.Space.s3)
+          // 内容高度独立于视口；短日志自然撑开，长日志受父布局剩余高度约束。
+          .onGeometryChange(for: CGFloat.self) {
+            $0.size.height
+          } action: {
+            logContentHeight = $0
+          }
         }
         .environment(\.layoutDirection, .leftToRight)
+        // 窗口缩放或标题区域增高也会挤出末行，跟随时须重新对齐。
+        .onGeometryChange(for: CGSize.self) {
+          $0.size
+        } action: { _ in
+          if followsOutput { proxy.scrollTo("end", anchor: .bottomLeading) }
+        }
         // 日志区按需挂载，快速命令可能在首次显示前已输出完毕。
         .onChange(of: controller.output, initial: true) { _, _ in
           if followsOutput { proxy.scrollTo("end", anchor: .bottomLeading) }
         }
+        .onChange(of: logContentHeight) { _, _ in
+          if followsOutput { proxy.scrollTo("end", anchor: .bottomLeading) }
+        }
+        .onChange(of: followsOutput) { _, follows in
+          if follows { proxy.scrollTo("end", anchor: .bottomLeading) }
+        }
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .frame(minHeight: 0, idealHeight: logContentHeight, maxHeight: logContentHeight)
+      .frame(maxWidth: .infinity)
       .background(DS.Palette.surface, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
     }
   }
@@ -117,7 +133,7 @@ struct MoleCommandView: View {
     controller.failure != nil || (controller.exitStatus ?? 0) != 0
   }
 
-  private var status: String {
+  var status: String {
     let mole = controller
     if mole.isCancelling { return tr("正在停止…") }
     if mole.isRunning { return tr("执行中") }
@@ -127,7 +143,21 @@ struct MoleCommandView: View {
       return mole.lastCommand == .clean
         ? tr("已停止，已清理部分不会恢复") : tr("已停止，已完成的优化不会撤销")
     }
-    if let code = mole.exitStatus { return tr("命令已退出（退出码 \(code)）") }
-    return tr("命令未能启动")
+    if isFailure || mole.exitStatus == nil {
+      switch mole.lastCommand {
+      case .scan, .optimizePreview: return tr("预览失败")
+      case .clean: return tr("清理失败")
+      case .optimize: return tr("优化失败")
+      case .install: return tr("安装失败")
+      case nil: return tr("命令未能启动")
+      }
+    }
+    switch mole.lastCommand {
+    case .scan, .optimizePreview: return tr("预览已完成")
+    case .clean: return tr("清理命令已完成")
+    case .optimize: return tr("优化命令已完成")
+    case .install: return tr("安装已完成")
+    case nil: return tr("命令未能启动")
+    }
   }
 }

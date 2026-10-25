@@ -2539,3 +2539,14 @@ macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macO
 将执行 mo optimize，由 Mole 决定并应用优化。预览不是固定执行清单，Mole 可能请求管理员授权。停止不能撤销已完成的更改。	Se ejecutará mo optimize. Mole decide y aplica las optimizaciones. La vista previa no es un plan fijo y Mole puede solicitar autorización de administrador. Detener no revierte los cambios completados.
 预览执行 mo optimize --dry-run，不应用更改；优化执行 mo optimize。	La vista previa ejecuta mo optimize --dry-run sin aplicar cambios; la optimización ejecuta mo optimize.
 已停止，已完成的优化不会撤销	Detenido; no se revertirán las optimizaciones completadas
+查看清理范围，不删除文件	Ver el alcance de la limpieza sin eliminar archivos
+查看优化项目，不应用更改	Ver las optimizaciones sin aplicar cambios
+退出码 {}	Código de salida {}
+预览失败	Error en la vista previa
+清理失败	Error en la limpieza
+优化失败	Error en la optimización
+安装失败	Error en la instalación
+预览已完成	Vista previa completada
+清理命令已完成	Comando de limpieza completado
+优化命令已完成	Comando de optimización completado
+安装已完成	Instalación completada

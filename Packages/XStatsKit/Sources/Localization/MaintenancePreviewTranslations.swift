@@ -4,6 +4,17 @@ extension Translations {
   static let maintenancePreviewEnglish = #"""
     引擎	Engine
     仅预览	Preview Only
+    查看清理范围，不删除文件	Preview cleanup scope without deleting files
+    查看优化项目，不应用更改	Preview optimizations without applying changes
+    退出码 {}	Exit code {}
+    预览失败	Preview failed
+    清理失败	Cleanup failed
+    优化失败	Optimization failed
+    安装失败	Installation failed
+    预览已完成	Preview completed
+    清理命令已完成	Cleanup command completed
+    优化命令已完成	Optimization command completed
+    安装已完成	Installation completed
     预览已取消	Preview Cancelled
     使用 Mole 优化	Optimize with Mole
     使用 Mole 优化？	Optimize with Mole?

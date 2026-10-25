@@ -3,6 +3,7 @@
 import AppKit
 import Cleaner
 import Foundation
+import Localization
 import SwiftUI
 import Testing
 @testable import XStatsUI
@@ -262,6 +263,7 @@ struct MoleControllerTests {
     #expect(controller.executable == nil && !controller.canExecute && !operations.isRunning)
     #expect(controller.exitStatus == status)
     if status == 0 { #expect(controller.failure != nil) }
+    #expect(MoleCommandView(controller: controller, nativeBusy: false).status == tr("安装失败"))
   }
 
   @Test(arguments: [MoleController.Workflow.clean, .optimize])
@@ -516,8 +518,10 @@ struct MoleControllerTests {
     }
     await gate.waitForStart()
     #expect(controller.lastCommand == command && operations.isRunning)
+    #expect(MoleCommandView(controller: controller, nativeBusy: false).status == tr("执行中"))
     controller.cancel()
     #expect(controller.isRunning && controller.isCancelling && !controller.canExecute)
+    #expect(MoleCommandView(controller: controller, nativeBusy: false).status == tr("正在停止…"))
     // 直接执行同样须等 runner 收尾，期间不能通过任一入口启动第二条命令。
     controller.scan()
     controller.requestExecution()
@@ -528,6 +532,11 @@ struct MoleControllerTests {
     await controller.waitForExit()
     #expect(!controller.isRunning && controller.wasCancelled && !operations.isRunning)
     #expect(controller.exitStatus == nil && controller.canExecute && controller.output.isEmpty)
+    let expectedStatus =
+      command.isPreview
+      ? tr("预览已取消")
+      : (command == .clean ? tr("已停止，已清理部分不会恢复") : tr("已停止，已完成的优化不会撤销"))
+    #expect(MoleCommandView(controller: controller, nativeBusy: false).status == expectedStatus)
   }
 
   @Test(arguments: [MoleController.Workflow.clean, .optimize])
@@ -718,8 +727,119 @@ struct MoleControllerTests {
     #expect(controller.exitStatus == 0 && !controller.isRunning)
   }
 
+  @Test(
+    arguments: [MoleCommand.scan, .optimizePreview, .clean, .optimize, .install],
+    [0, 1, -1])
+  func logStatusDescribesOperationResult(command: MoleCommand, result: Int) async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      findBrew: { URL(fileURLWithPath: "/fixture/brew") },
+      run: { _, _, _ in
+        if result == -1 { throw CocoaError(.fileReadUnknown) }
+        return Int32(result)
+      })
+    if command == .install {
+      controller.install()
+    } else {
+      await controller.refreshAvailability()
+      controller.selectWorkflow(command == .scan || command == .clean ? .clean : .optimize)
+      if command.isPreview {
+        controller.scan()
+      } else {
+        controller.requestExecution()
+        controller.confirmExecution()
+      }
+    }
+    await controller.waitForExit()
+    let expected: String
+    switch command {
+    case .scan, .optimizePreview: expected = result == 0 ? tr("预览已完成") : tr("预览失败")
+    case .clean: expected = result == 0 ? tr("清理命令已完成") : tr("清理失败")
+    case .optimize: expected = result == 0 ? tr("优化命令已完成") : tr("优化失败")
+    case .install: expected = result == 0 ? tr("安装已完成") : tr("安装失败")
+    }
+    #expect(MoleCommandView(controller: controller, nativeBusy: false).status == expected)
+  }
+
+  @Test(arguments: [0, 2, 500], [LayoutDirection.leftToRight, .rightToLeft])
+  func logHeightFitsContentWithinAvailableSpace(lines: Int, direction: LayoutDirection)
+    async throws
+  {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      run: { _, command, output in
+        await output(
+          MoleOutput(
+            text: String(repeating: "Mole output\n", count: command == .clean ? 2 : lines),
+            wasTruncated: false))
+        return 0
+      })
+    await controller.refreshAvailability()
+    controller.scan()
+    await controller.waitForExit()
+    let host = NSHostingView(
+      rootView: MoleCommandView(controller: controller, nativeBusy: false)
+        .environment(\.layoutDirection, direction)
+        .environment(\.isSnapshot, true)
+        .preferredColorScheme(.light)
+        .frame(width: 860, height: 600, alignment: .topLeading)
+        .background(DS.Palette.background))
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 860, height: 600),
+      styleMask: .borderless, backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    window.contentView = host
+    host.layoutSubtreeIfNeeded()
+    let log = try #require(logScrollView(in: host))
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline {
+      let height = log.bounds.height
+      let fitsContent =
+        log.documentVisibleRect.height + 2 >= (log.documentView?.bounds.height ?? .infinity)
+      if lines < 3
+        ? (height > 24 && height < 120 && fitsContent) : (height > 300 && height < 560)
+      {
+        break
+      }
+      try await Task.sleep(for: .milliseconds(20))
+      host.layoutSubtreeIfNeeded()
+    }
+    if lines < 3 {
+      #expect(log.bounds.height > 24 && log.bounds.height < 120)
+      #expect(
+        log.documentVisibleRect.height + 2 >= (try #require(log.documentView)).bounds.height)
+    } else {
+      #expect(log.bounds.height > 300 && log.bounds.height < 560)
+      #expect(try #require(log.documentView).bounds.height > log.bounds.height)
+      // 不重建视图，验证下一次短命令能从长日志高度收回。
+      controller.requestExecution()
+      controller.confirmExecution()
+      await controller.waitForExit()
+      let shrinkDeadline = ContinuousClock.now + .seconds(2)
+      while log.bounds.height >= 120, ContinuousClock.now < shrinkDeadline {
+        try await Task.sleep(for: .milliseconds(20))
+        host.layoutSubtreeIfNeeded()
+      }
+      #expect(log.bounds.height > 24 && log.bounds.height < 120)
+    }
+    if let path = ProcessInfo.processInfo.environment["XSTATS_CLEANER_PREVIEW_DIR"], lines == 2 {
+      let directory = URL(fileURLWithPath: path, isDirectory: true)
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+      host.cacheDisplay(in: host.bounds, to: bitmap)
+      let name = "mole-short-\(direction == .leftToRight ? "ltr" : "rtl").png"
+      try #require(bitmap.representation(using: .png, properties: [:])).write(
+        to: directory.appendingPathComponent(name))
+    }
+  }
+
   @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft])
-  func completedLogInitiallyFollowsOutput(direction: LayoutDirection) async throws {
+  func completedLogFollowsOutputAfterMountAndResize(direction: LayoutDirection) async throws {
     let fixture = try MoleControllerFixture()
     defer { fixture.remove() }
     let controller = MoleController(
@@ -738,8 +858,8 @@ struct MoleControllerTests {
       rootView: MoleCommandView(controller: controller, nativeBusy: false)
         .environment(\.layoutDirection, direction)
         .environment(\.isSnapshot, true)
-        .frame(width: 860, height: 600))
-    #expect(host.fittingSize == NSSize(width: 860, height: 600))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading))
+    host.frame = NSRect(x: 0, y: 0, width: 860, height: 600)
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 860, height: 600),
       styleMask: .borderless, backing: .buffered, defer: false)
@@ -747,16 +867,7 @@ struct MoleControllerTests {
     defer { window.close() }
     window.contentView = host
     host.layoutSubtreeIfNeeded()
-    var pending: [NSView] = [host]
-    var scroll: NSScrollView?
-    while let view = pending.popLast() {
-      if let candidate = view as? NSScrollView {
-        scroll = candidate
-        break
-      }
-      pending.append(contentsOf: view.subviews)
-    }
-    let log = try #require(scroll)
+    let log = try #require(logScrollView(in: host))
     let document = try #require(log.documentView)
     // scrollTo 的锚点在末行之后，文档底部还保留 s3 内边距。
     let endOfOutput = document.bounds.maxY - DS.Space.s3
@@ -769,7 +880,30 @@ struct MoleControllerTests {
     }
     #expect(document.bounds.height > log.documentVisibleRect.height)
     #expect(log.documentVisibleRect.maxY >= endOfOutput - 2)
+    for height in [360.0, 720.0, 480.0] {
+      window.setContentSize(NSSize(width: 860, height: height))
+      host.layoutSubtreeIfNeeded()
+      let resizeDeadline = ContinuousClock.now + .seconds(2)
+      while log.documentVisibleRect.maxY < endOfOutput - 2,
+        ContinuousClock.now < resizeDeadline
+      {
+        try await Task.sleep(for: .milliseconds(20))
+        host.layoutSubtreeIfNeeded()
+      }
+      #expect(log.documentVisibleRect.maxY >= endOfOutput - 2)
+    }
   }
+
+}
+
+@MainActor
+private func logScrollView(in host: NSView) -> NSScrollView? {
+  var pending = [host]
+  while let view = pending.popLast() {
+    if let scroll = view as? NSScrollView { return scroll }
+    pending.append(contentsOf: view.subviews)
+  }
+  return nil
 }
 
 private actor MoleCommands {
