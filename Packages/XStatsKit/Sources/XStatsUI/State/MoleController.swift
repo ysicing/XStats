@@ -27,7 +27,6 @@ final class MoleController {
   private(set) var failure: String?
   private(set) var wasCancelled = false
   private(set) var isCancelling = false
-  private(set) var canExecute = false
   private(set) var workflow: Workflow = .clean
   var isConfirming = false
 
@@ -63,6 +62,7 @@ final class MoleController {
   var canStart: Bool {
     settings.cleanerEnabled && !isRunning && !nativeIsBusy() && !homebrewOperations.isRunning
   }
+  var canExecute: Bool { canStart && executable != nil }
   var brewAvailable: Bool { findBrew() != nil }
   var canInstall: Bool {
     canStart && executable == nil && brewAvailable
@@ -75,7 +75,6 @@ final class MoleController {
     let found = await detect()
     guard !Task.isCancelled, !isRunning, availabilityGeneration == generation else { return }
     if found != executable {
-      canExecute = false
       cancelConfirmation()
     }
     executable = found
@@ -84,9 +83,8 @@ final class MoleController {
   func selectWorkflow(_ workflow: Workflow) {
     guard operation != .install, self.workflow != workflow else { return }
     cancel()
-    canExecute = false
     self.workflow = workflow
-    // tab 变化不能复用另一种操作的预览，也不能显示其延迟输出。
+    // Tab 变化须撤销待执行确认，也不能显示另一种操作的延迟输出。
     output = ""
     outputWasTruncated = false
     if !isRunning {
@@ -101,7 +99,7 @@ final class MoleController {
   func install() { start(.install) }
 
   func requestExecution() {
-    guard canStart, canExecute, let executable else {
+    guard canExecute, let executable else {
       return
     }
     pendingExecutable = executable
@@ -114,7 +112,7 @@ final class MoleController {
   }
 
   func confirmExecution() {
-    guard canStart, canExecute,
+    guard canExecute,
       let pendingExecutable, pendingExecutable == executable
     else { return }
     start(workflow.executionCommand)
@@ -153,7 +151,6 @@ final class MoleController {
     cancelConfirmation()
     operation = command
     lastCommand = command
-    canExecute = false
     output = ""
     outputWasTruncated = false
     exitStatus = nil
@@ -184,7 +181,6 @@ final class MoleController {
           }
         }
         exitStatus = status
-        canExecute = command == workflow.previewCommand && status == 0
         Log.app.info("Mole exited with status \(status, privacy: .public)")
       } catch {
         if Task.isCancelled || error is CancellationError {

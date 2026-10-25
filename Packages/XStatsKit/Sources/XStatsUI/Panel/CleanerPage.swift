@@ -47,6 +47,7 @@ struct CleanerPage: View {
       toolbar
       if model.cleaner.engine == .mole {
         MoleCommandView(controller: model.cleaner.mole, nativeBusy: nativeBusy)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       } else if tab == .clean {
         nativeCleanup
       } else {

@@ -34,7 +34,7 @@ struct MoleControllerTests {
     await gate.release()
     await refresh.value
     #expect(controller.executable?.path == "/fixture/mo")
-    #expect(!controller.canInstall && !controller.canExecute)
+    #expect(!controller.canInstall && controller.canExecute)
   }
 
   @Test(arguments: [MoleController.Workflow.clean, .optimize])
@@ -111,7 +111,7 @@ struct MoleControllerTests {
     await gate.release()
     await controller.waitForExit()
     #expect(!operations.isRunning && controller.canStart)
-    #expect(controller.canExecute == !fails)
+    #expect(controller.canExecute)
     #expect((controller.failure != nil) == fails)
   }
 
@@ -149,7 +149,7 @@ struct MoleControllerTests {
     await controller.waitForExit()
     #expect(await commands.values == [.install])
     #expect(controller.executable?.path == "/fixture/mo")
-    #expect(controller.exitStatus == 0 && !controller.canExecute && !operations.isRunning)
+    #expect(controller.exitStatus == 0 && controller.canExecute && !operations.isRunning)
     controller.install()
     #expect(!controller.isRunning)
     #expect(await commands.values == [.install])
@@ -341,7 +341,7 @@ struct MoleControllerTests {
     #expect(maintenance.thumbnailOutcome?.isError == false)
   }
 
-  @Test func switchingWorkflowInvalidatesPreviewAndPendingConfirmation() async throws {
+  @Test func switchingWorkflowClearsLogAndPendingConfirmation() async throws {
     let fixture = try MoleControllerFixture()
     defer { fixture.remove() }
     let commands = MoleCommands()
@@ -356,7 +356,7 @@ struct MoleControllerTests {
     await controller.waitForExit()
     controller.requestExecution()
     controller.selectWorkflow(.optimize)
-    #expect(!controller.canExecute && !controller.isConfirming && controller.lastCommand == nil)
+    #expect(controller.canExecute && !controller.isConfirming && controller.lastCommand == nil)
     controller.confirmExecution()
     #expect(await commands.values == [.scan])
     controller.scan()
@@ -389,7 +389,7 @@ struct MoleControllerTests {
     #expect(controller.isRunning && controller.isCancelling)
     await gate.release()
     await controller.waitForExit()
-    #expect(!controller.canExecute && controller.exitStatus == nil && controller.output.isEmpty)
+    #expect(controller.canExecute && controller.exitStatus == nil && controller.output.isEmpty)
     #expect(controller.workflow == .clean)
   }
 
@@ -404,7 +404,7 @@ struct MoleControllerTests {
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
       run: { _, command, _ in
         if command.isPreview {
-          // 首次预览直接成功以取得执行授权，第二次预览阻塞以验证离开时被停止。
+          // 首次预览直接成功，第二次预览阻塞以验证离开时被停止。
           await previews.append(command)
           if await previews.values.count > 1 { await preview.wait() }
         } else {
@@ -435,7 +435,7 @@ struct MoleControllerTests {
     #expect(controller.isRunning && controller.isCancelling)
     await preview.release()
     await controller.waitForExit()
-    #expect(controller.wasCancelled && !controller.canExecute)
+    #expect(controller.wasCancelled && controller.canExecute)
   }
 
   @Test func moleExecutionInvalidatesNativeScanButPreviewDoesNot() async throws {
@@ -458,7 +458,7 @@ struct MoleControllerTests {
   }
 
   @Test(arguments: [MoleController.Workflow.clean, .optimize])
-  func executionRequiresSuccessfulPreviewAndExplicitConfirmation(
+  func executionWithoutPreviewRequiresExplicitConfirmation(
     workflow: MoleController.Workflow
   ) async throws {
     let fixture = try MoleControllerFixture()
@@ -475,43 +475,63 @@ struct MoleControllerTests {
     controller.selectWorkflow(workflow)
     controller.confirmExecution()
     #expect(await commands.values.isEmpty)
-    controller.scan()
-    await controller.waitForExit()
-    #expect(controller.canExecute && controller.exitStatus == 0)
-    controller.confirmExecution()
-    #expect(await commands.values == [workflow.previewCommand])
     controller.requestExecution()
     #expect(controller.isConfirming)
+    #expect(await commands.values.isEmpty)
     controller.confirmExecution()
     await controller.waitForExit()
-    #expect(await commands.values == [workflow.previewCommand, workflow.executionCommand])
-    #expect(!controller.canExecute)
+    #expect(await commands.values == [workflow.executionCommand])
+    #expect(controller.canExecute && !controller.isConfirming)
+    controller.confirmExecution()
+    await controller.waitForExit()
+    #expect(await commands.values == [workflow.executionCommand])
   }
 
-  @Test func cancellationKeepsBusyUntilRunnerReturnsAndRejectsLateSuccess() async throws {
+  @Test(arguments: [MoleCommand.scan, .optimizePreview, .clean, .optimize])
+  func cancellationKeepsBusyUntilRunnerReturnsAndRejectsLateSuccess(command: MoleCommand)
+    async throws
+  {
     let fixture = try MoleControllerFixture()
     defer { fixture.remove() }
     let gate = MoleRunGate()
+    let commands = MoleCommands()
+    let operations = HomebrewOperationState()
     let controller = MoleController(
       settings: fixture.settings,
       detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, _, output in
+      homebrewOperations: operations,
+      run: { _, command, output in
+        await commands.append(command)
         await gate.wait()
         await output(MoleOutput(text: "late", wasTruncated: false))
         return 0
       })
     await controller.refreshAvailability()
-    controller.scan()
+    controller.selectWorkflow(command == .scan || command == .clean ? .clean : .optimize)
+    if command.isPreview {
+      controller.scan()
+    } else {
+      controller.requestExecution()
+      controller.confirmExecution()
+    }
+    await gate.waitForStart()
+    #expect(controller.lastCommand == command && operations.isRunning)
     controller.cancel()
-    #expect(controller.isRunning && controller.isCancelling)
+    #expect(controller.isRunning && controller.isCancelling && !controller.canExecute)
+    // 直接执行同样须等 runner 收尾，期间不能通过任一入口启动第二条命令。
+    controller.scan()
+    controller.requestExecution()
+    controller.confirmExecution()
+    #expect(!controller.isConfirming && operations.isRunning)
+    #expect(await commands.values == [command])
     await gate.release()
     await controller.waitForExit()
-    #expect(!controller.isRunning && controller.wasCancelled)
-    #expect(controller.exitStatus == nil && !controller.canExecute && controller.output.isEmpty)
+    #expect(!controller.isRunning && controller.wasCancelled && !operations.isRunning)
+    #expect(controller.exitStatus == nil && controller.canExecute && controller.output.isEmpty)
   }
 
   @Test(arguments: [MoleController.Workflow.clean, .optimize])
-  func missingExecutableFailureAndDisabledFeatureCannotExecute(
+  func missingExecutableAndDisabledFeatureBlockCommands(
     workflow: MoleController.Workflow
   ) async throws {
     let fixture = try MoleControllerFixture()
@@ -522,6 +542,9 @@ struct MoleControllerTests {
     missing.selectWorkflow(workflow)
     missing.scan()
     #expect(missing.executable == nil && !missing.isRunning)
+    missing.requestExecution()
+    missing.confirmExecution()
+    #expect(!missing.isConfirming && !missing.isRunning)
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
       run: { _, command, _ in
@@ -532,10 +555,93 @@ struct MoleControllerTests {
     controller.selectWorkflow(workflow)
     controller.scan()
     await controller.waitForExit()
-    #expect(controller.exitStatus == 7 && !controller.canExecute)
+    #expect(controller.exitStatus == 7 && controller.canExecute)
+    controller.requestExecution()
+    controller.confirmExecution()
+    await controller.waitForExit()
+    #expect(await commands.values == [workflow.previewCommand, workflow.executionCommand])
     fixture.settings.cleanerEnabled = false
     controller.scan()
-    #expect(await commands.values == [workflow.previewCommand])
+    controller.requestExecution()
+    controller.confirmExecution()
+    #expect(!controller.isConfirming && !controller.isRunning)
+    #expect(await commands.values == [workflow.previewCommand, workflow.executionCommand])
+  }
+
+  @Test func replacingExecutableRequiresNewConfirmation() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let detections = MoleCommands()
+    let commands = MoleCommands()
+    let controller = MoleController(
+      settings: fixture.settings,
+      detect: {
+        let path = await detections.values.isEmpty ? "/fixture/mo" : "/replacement/mo"
+        await detections.append(.scan)
+        return URL(fileURLWithPath: path)
+      },
+      run: { _, command, _ in
+        await commands.append(command)
+        return 0
+      })
+    await controller.refreshAvailability()
+    controller.requestExecution()
+    #expect(controller.isConfirming)
+    await controller.refreshAvailability()
+    #expect(!controller.isConfirming && controller.canExecute)
+    controller.confirmExecution()
+    await controller.waitForExit()
+    #expect(await commands.values.isEmpty)
+    controller.requestExecution()
+    controller.confirmExecution()
+    await controller.waitForExit()
+    #expect(await commands.values == [.clean])
+  }
+
+  @Test(arguments: [MoleController.Workflow.clean, .optimize])
+  func idleCommandsUseCompactHeightWithoutStartingWork(workflow: MoleController.Workflow)
+    async throws
+  {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      run: { _, _, _ in
+        Issue.record("Rendering must not launch a command")
+        return 0
+      })
+    await controller.refreshAvailability()
+    controller.selectWorkflow(workflow)
+    for direction in [LayoutDirection.leftToRight, .rightToLeft] {
+      let view = MoleCommandView(controller: controller, nativeBusy: false)
+        .environment(\.layoutDirection, direction)
+        .environment(\.isSnapshot, true)
+        .preferredColorScheme(.light)
+      let compact = NSHostingView(rootView: view.frame(width: 860))
+      #expect(compact.fittingSize.height > 40 && compact.fittingSize.height < 160)
+      #expect(controller.lastCommand == nil && !controller.isRunning && controller.canExecute)
+      if let path = ProcessInfo.processInfo.environment["XSTATS_CLEANER_PREVIEW_DIR"] {
+        let host = NSHostingView(
+          rootView: view.frame(width: 860, height: 600, alignment: .topLeading)
+            .background(DS.Palette.background))
+        #expect(host.fittingSize == NSSize(width: 860, height: 600))
+        let window = NSWindow(
+          contentRect: NSRect(x: 0, y: 0, width: 860, height: 600),
+          styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let directory = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let name = "mole-idle-\(workflow)-\(direction == .leftToRight ? "ltr" : "rtl").png"
+        try #require(bitmap.representation(using: .png, properties: [:])).write(
+          to: directory.appendingPathComponent(name))
+      }
+    }
   }
 
   @Test func engineRequiresInstalledMoleAndDoesNotStartNativeScan() async throws {
@@ -610,6 +716,59 @@ struct MoleControllerTests {
       }
     }
     #expect(controller.exitStatus == 0 && !controller.isRunning)
+  }
+
+  @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft])
+  func completedLogInitiallyFollowsOutput(direction: LayoutDirection) async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      run: { _, _, output in
+        await output(
+          MoleOutput(
+            text: (1...500).map { "line \($0)" }.joined(separator: "\n"),
+            wasTruncated: false))
+        return 0
+      })
+    await controller.refreshAvailability()
+    controller.scan()
+    await controller.waitForExit()
+    let host = NSHostingView(
+      rootView: MoleCommandView(controller: controller, nativeBusy: false)
+        .environment(\.layoutDirection, direction)
+        .environment(\.isSnapshot, true)
+        .frame(width: 860, height: 600))
+    #expect(host.fittingSize == NSSize(width: 860, height: 600))
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 860, height: 600),
+      styleMask: .borderless, backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    window.contentView = host
+    host.layoutSubtreeIfNeeded()
+    var pending: [NSView] = [host]
+    var scroll: NSScrollView?
+    while let view = pending.popLast() {
+      if let candidate = view as? NSScrollView {
+        scroll = candidate
+        break
+      }
+      pending.append(contentsOf: view.subviews)
+    }
+    let log = try #require(scroll)
+    let document = try #require(log.documentView)
+    // scrollTo 的锚点在末行之后，文档底部还保留 s3 内边距。
+    let endOfOutput = document.bounds.maxY - DS.Space.s3
+    let deadline = ContinuousClock.now + .seconds(2)
+    while log.documentVisibleRect.maxY < endOfOutput - 2,
+      ContinuousClock.now < deadline
+    {
+      try await Task.sleep(for: .milliseconds(20))
+      host.layoutSubtreeIfNeeded()
+    }
+    #expect(document.bounds.height > log.documentVisibleRect.height)
+    #expect(log.documentVisibleRect.maxY >= endOfOutput - 2)
   }
 }
 

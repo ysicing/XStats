@@ -3,12 +3,13 @@
 extension Translations {
   static let maintenancePreviewEnglish = #"""
     引擎	Engine
+    仅预览	Preview Only
+    预览已取消	Preview Cancelled
     使用 Mole 优化	Optimize with Mole
     使用 Mole 优化？	Optimize with Mole?
     执行 mo optimize	Run mo optimize
     将执行 mo optimize，由 Mole 决定并应用优化。预览不是固定执行清单，Mole 可能请求管理员授权。停止不能撤销已完成的更改。	This runs mo optimize. Mole determines and applies the optimizations. The preview is not a fixed execution plan, and Mole may request administrator authorization. Stopping cannot undo completed changes.
-    扫描执行 mo optimize --dry-run；优化执行 mo optimize，由 Mole 决定优化内容。	Scanning runs mo optimize --dry-run; optimization runs mo optimize. Mole determines the tasks.
-    点击重新扫描，查看 Mole 的优化预览。	Click Scan Again to preview optimization with Mole.
+    预览执行 mo optimize --dry-run，不应用更改；优化执行 mo optimize。	Preview runs mo optimize --dry-run without applying changes; optimization runs mo optimize.
     已停止，已完成的优化不会撤销	Stopped; completed optimizations will not be undone
     安装 Mole 后，可在终端预览更多清理项目，不会删除文件。	After installing Mole, preview more cleanup items in Terminal without deleting files.
     安装 Mole 后，可在终端预览更多优化项目，不会执行优化。	After installing Mole, preview more optimization tasks in Terminal without applying changes.
@@ -22,12 +23,11 @@ extension Translations {
     使用 Mole 清理？	Clean with Mole?
     执行 mo clean	Run mo clean
     将执行 mo clean，按 Mole 自己的规则重新扫描并永久删除文件。XStats 的勾选、保留项目和移到废纸篓设置不适用于 Mole；扫描结果不是固定清单。没有可用管理员授权时，Mole 会跳过系统级清理。	This runs mo clean, which rescans and permanently deletes files using Mole’s own rules. XStats selections, exclusions, and Move to Trash settings do not apply; the preview is not a fixed plan. Mole skips system cleanup if administrator authorization is unavailable.
-    扫描执行 mo clean --dry-run；清理执行 mo clean，由 Mole 决定清理范围。	Scanning runs mo clean --dry-run; cleanup runs mo clean. Mole determines the scope.
+    预览执行 mo clean --dry-run，不删除文件；清理执行 mo clean。	Preview runs mo clean --dry-run without deleting files; cleanup runs mo clean.
     正在停止…	Stopping…
     日志较长，仅保留最近 128 KiB。	The log is long. Only the latest 128 KiB is retained.
     执行日志	Execution Log
     跟随输出	Follow Output
-    点击重新扫描，查看 Mole 的清理预览。	Click Scan Again to preview cleanup with Mole.
     命令已退出（退出码 {}）	Command exited (exit code {})
     命令未能启动	Could Not Start Command
     未安装 Homebrew	Homebrew Is Not Installed

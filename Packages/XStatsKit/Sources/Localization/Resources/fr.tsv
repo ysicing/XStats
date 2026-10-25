@@ -2523,19 +2523,19 @@ macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macO
 使用 Mole 清理？	Nettoyer avec Mole ?
 执行 mo clean	Exécuter mo clean
 将执行 mo clean，按 Mole 自己的规则重新扫描并永久删除文件。XStats 的勾选、保留项目和移到废纸篓设置不适用于 Mole；扫描结果不是固定清单。没有可用管理员授权时，Mole 会跳过系统级清理。	mo clean relance une analyse et supprime définitivement les fichiers selon les règles de Mole. Les sélections, exclusions et réglages de corbeille de XStats ne s’appliquent pas ; l’aperçu n’est pas une liste fixe. Mole ignore le nettoyage système sans autorisation administrateur disponible.
-扫描执行 mo clean --dry-run；清理执行 mo clean，由 Mole 决定清理范围。	L’analyse exécute mo clean --dry-run ; le nettoyage exécute mo clean. Mole détermine le périmètre.
+预览执行 mo clean --dry-run，不删除文件；清理执行 mo clean。	L’aperçu exécute mo clean --dry-run sans supprimer de fichiers ; le nettoyage exécute mo clean.
 正在停止…	Arrêt en cours…
 日志较长，仅保留最近 128 KiB。	Le journal est long. Seuls les derniers 128 Kio sont conservés.
 执行日志	Journal d’exécution
 跟随输出	Suivre la sortie
-点击重新扫描，查看 Mole 的清理预览。	Cliquez sur Analyser à nouveau pour prévisualiser le nettoyage avec Mole.
 命令已退出（退出码 {}）	Commande terminée (code de sortie {})
 命令未能启动	Impossible de lancer la commande
 引擎	Moteur
+仅预览	Aperçu uniquement
+预览已取消	Aperçu annulé
 使用 Mole 优化	Optimiser avec Mole
 使用 Mole 优化？	Optimiser avec Mole ?
 执行 mo optimize	Exécuter mo optimize
 将执行 mo optimize，由 Mole 决定并应用优化。预览不是固定执行清单，Mole 可能请求管理员授权。停止不能撤销已完成的更改。	Exécute mo optimize. Mole choisit et applique les optimisations. L’aperçu ne constitue pas un plan fixe et Mole peut demander une autorisation administrateur. L’arrêt n’annule pas les modifications déjà effectuées.
-扫描执行 mo optimize --dry-run；优化执行 mo optimize，由 Mole 决定优化内容。	L’analyse exécute mo optimize --dry-run ; l’optimisation exécute mo optimize. Mole choisit les tâches.
-点击重新扫描，查看 Mole 的优化预览。	Cliquez sur Analyser à nouveau pour prévisualiser les optimisations de Mole.
+预览执行 mo optimize --dry-run，不应用更改；优化执行 mo optimize。	L’aperçu exécute mo optimize --dry-run sans appliquer de modifications ; l’optimisation exécute mo optimize.
 已停止，已完成的优化不会撤销	Arrêté ; les optimisations effectuées ne seront pas annulées

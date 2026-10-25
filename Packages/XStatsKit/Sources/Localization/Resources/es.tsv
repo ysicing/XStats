@@ -2523,19 +2523,19 @@ macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macO
 使用 Mole 清理？	¿Limpiar con Mole?
 执行 mo clean	Ejecutar mo clean
 将执行 mo clean，按 Mole 自己的规则重新扫描并永久删除文件。XStats 的勾选、保留项目和移到废纸篓设置不适用于 Mole；扫描结果不是固定清单。没有可用管理员授权时，Mole 会跳过系统级清理。	mo clean vuelve a analizar y elimina archivos permanentemente según las reglas de Mole. Las selecciones, exclusiones y ajustes de papelera de XStats no se aplican; la vista previa no es una lista fija. Mole omite la limpieza del sistema si no hay autorización de administrador disponible.
-扫描执行 mo clean --dry-run；清理执行 mo clean，由 Mole 决定清理范围。	El análisis ejecuta mo clean --dry-run y la limpieza mo clean. Mole determina el alcance.
+预览执行 mo clean --dry-run，不删除文件；清理执行 mo clean。	La vista previa ejecuta mo clean --dry-run sin eliminar archivos; la limpieza ejecuta mo clean.
 正在停止…	Deteniendo…
 日志较长，仅保留最近 128 KiB。	El registro es largo. Solo se conservan los últimos 128 KiB.
 执行日志	Registro de ejecución
 跟随输出	Seguir salida
-点击重新扫描，查看 Mole 的清理预览。	Pulsa Volver a analizar para ver la limpieza prevista por Mole.
 命令已退出（退出码 {}）	Comando finalizado (código de salida {})
 命令未能启动	No se pudo iniciar el comando
 引擎	Motor
+仅预览	Solo vista previa
+预览已取消	Vista previa cancelada
 使用 Mole 优化	Optimizar con Mole
 使用 Mole 优化？	¿Optimizar con Mole?
 执行 mo optimize	Ejecutar mo optimize
 将执行 mo optimize，由 Mole 决定并应用优化。预览不是固定执行清单，Mole 可能请求管理员授权。停止不能撤销已完成的更改。	Se ejecutará mo optimize. Mole decide y aplica las optimizaciones. La vista previa no es un plan fijo y Mole puede solicitar autorización de administrador. Detener no revierte los cambios completados.
-扫描执行 mo optimize --dry-run；优化执行 mo optimize，由 Mole 决定优化内容。	El análisis ejecuta mo optimize --dry-run; la optimización ejecuta mo optimize. Mole decide las tareas.
-点击重新扫描，查看 Mole 的优化预览。	Pulsa Analizar de nuevo para previsualizar la optimización con Mole.
+预览执行 mo optimize --dry-run，不应用更改；优化执行 mo optimize。	La vista previa ejecuta mo optimize --dry-run sin aplicar cambios; la optimización ejecuta mo optimize.
 已停止，已完成的优化不会撤销	Detenido; no se revertirán las optimizaciones completadas

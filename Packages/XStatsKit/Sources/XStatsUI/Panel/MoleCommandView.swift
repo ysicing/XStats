@@ -19,7 +19,7 @@ struct MoleCommandView: View {
             .buttonStyle(DSButtonStyle(kind: .secondary))
             .disabled(!mole.canInstall)
         } else {
-          Button(tr("重新扫描")) { mole.scan() }
+          Button(tr("仅预览")) { mole.scan() }
             .buttonStyle(DSButtonStyle(kind: .secondary))
             .disabled(!mole.canStart || nativeBusy)
           Button(
@@ -27,7 +27,7 @@ struct MoleCommandView: View {
             role: .destructive
           ) { mole.requestExecution() }
           .buttonStyle(DSButtonStyle(kind: .primary))
-          .disabled(!mole.canStart || !mole.canExecute || nativeBusy)
+          .disabled(!mole.canExecute || nativeBusy)
           .confirmationDialog(
             mole.workflow == .clean ? tr("使用 Mole 清理？") : tr("使用 Mole 优化？"),
             isPresented: $mole.isConfirming, titleVisibility: .visible
@@ -59,8 +59,8 @@ struct MoleCommandView: View {
       if !installation {
         Text(
           mole.workflow == .clean
-            ? tr("扫描执行 mo clean --dry-run；清理执行 mo clean，由 Mole 决定清理范围。")
-            : tr("扫描执行 mo optimize --dry-run；优化执行 mo optimize，由 Mole 决定优化内容。")
+            ? tr("预览执行 mo clean --dry-run，不删除文件；清理执行 mo clean。")
+            : tr("预览执行 mo optimize --dry-run，不应用更改；优化执行 mo optimize。")
         )
         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       }
@@ -79,6 +79,13 @@ struct MoleCommandView: View {
         Text(tr("日志较长，仅保留最近 128 KiB。"))
           .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       }
+      if mole.lastCommand != nil { executionLog }
+    }
+    .padding(DS.Space.s3)
+  }
+
+  private var executionLog: some View {
+    VStack(alignment: .leading, spacing: DS.Space.s3) {
       HStack {
         Text(tr("执行日志")).dsFont(.xs, weight: .semibold)
         Spacer()
@@ -87,7 +94,7 @@ struct MoleCommandView: View {
       ScrollViewReader { proxy in
         ScrollView([.horizontal, .vertical]) {
           VStack(alignment: .leading, spacing: 0) {
-            Text(verbatim: mole.output.isEmpty ? emptyText : mole.output)
+            Text(verbatim: controller.output)
               .font(.system(size: DS.TextSize.xs.rawValue, design: .monospaced))
               .textSelection(.enabled)
             Color.clear.frame(height: 1).id("end")
@@ -96,24 +103,18 @@ struct MoleCommandView: View {
           .padding(DS.Space.s3)
         }
         .environment(\.layoutDirection, .leftToRight)
-        .onChange(of: mole.output) { _, _ in
+        // 日志区按需挂载，快速命令可能在首次显示前已输出完毕。
+        .onChange(of: controller.output, initial: true) { _, _ in
           if followsOutput { proxy.scrollTo("end", anchor: .bottomLeading) }
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(DS.Palette.surface, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
     }
-    .padding(DS.Space.s3)
   }
 
   private var isFailure: Bool {
     controller.failure != nil || (controller.exitStatus ?? 0) != 0
-  }
-
-  private var emptyText: String {
-    if installation { return "" }
-    return controller.workflow == .clean
-      ? tr("点击重新扫描，查看 Mole 的清理预览。") : tr("点击重新扫描，查看 Mole 的优化预览。")
   }
 
   private var status: String {
@@ -121,8 +122,8 @@ struct MoleCommandView: View {
     if mole.isCancelling { return tr("正在停止…") }
     if mole.isRunning { return tr("执行中") }
     if mole.wasCancelled {
-      if installation { return tr("安装已停止") }
-      if mole.lastCommand?.isPreview == true { return tr("扫描已取消") }
+      if mole.lastCommand == .install { return tr("安装已停止") }
+      if mole.lastCommand?.isPreview == true { return tr("预览已取消") }
       return mole.lastCommand == .clean
         ? tr("已停止，已清理部分不会恢复") : tr("已停止，已完成的优化不会撤销")
     }
