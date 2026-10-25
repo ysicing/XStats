@@ -156,6 +156,104 @@ struct MoleControllerTests {
     #expect(await commands.values == [.install])
   }
 
+  @Test(arguments: [MoleController.Workflow.clean, .optimize], [Int32(0), 1])
+  func installationLogStaysInInstaller(
+    workflow: MoleController.Workflow, status: Int32
+  ) async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let commands = MoleCommands()
+    let gate = MoleRunGate()
+    let operations = HomebrewOperationState()
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      findBrew: { URL(fileURLWithPath: "/fixture/brew") },
+      homebrewOperations: operations,
+      run: { _, command, output in
+        await commands.append(command)
+        await output(
+          MoleOutput(
+            text: command == .install ? "Installation output" : "Preview output",
+            wasTruncated: false))
+        if command == .install { await gate.wait() }
+        return command == .install ? status : 0
+      })
+    controller.selectWorkflow(workflow)
+    let page = MoleCommandView(controller: controller, nativeBusy: false)
+    let installer = MoleCommandView(
+      controller: controller, nativeBusy: false, installation: true)
+    controller.install()
+    await gate.waitForStart()
+    #expect(installer.showsExecutionLog && !installer.showsIntroduction)
+    #expect(page.showsIntroduction && !page.showsExecutionLog)
+    #expect(controller.output == "Installation output" && operations.isRunning)
+    #expect(!controller.canExecute && !controller.canInstall)
+    await gate.release()
+    await controller.waitForExit()
+    #expect(installer.showsExecutionLog && page.showsIntroduction)
+    #expect(!page.showsExecutionLog)
+    #expect(controller.output == "Installation output" && controller.exitStatus == status)
+    #expect(!operations.isRunning && !controller.isConfirming)
+    #expect(await commands.values == [.install])
+    if status == 0 {
+      // 进入功能页不自动执行；下一次预览才切换到该工作流自己的日志。
+      controller.scan()
+      await controller.waitForExit()
+      #expect(page.showsExecutionLog && !page.showsIntroduction)
+      #expect(!installer.showsExecutionLog)
+      #expect(controller.output == "Preview output")
+      #expect(await commands.values == [.install, workflow.previewCommand])
+    }
+  }
+
+  @Test func cancelledInstallationLogStaysAvailableInInstaller() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let gate = MoleRunGate()
+    let controller = MoleController(
+      settings: fixture.settings, detect: { nil },
+      findBrew: { URL(fileURLWithPath: "/fixture/brew") },
+      run: { _, _, output in
+        await output(MoleOutput(text: "Installation output", wasTruncated: false))
+        await gate.wait()
+        return 0
+      })
+    controller.install()
+    await gate.waitForStart()
+    controller.cancel()
+    await gate.release()
+    await controller.waitForExit()
+    let installer = MoleCommandView(
+      controller: controller, nativeBusy: false, installation: true)
+    let page = MoleCommandView(controller: controller, nativeBusy: false)
+    #expect(controller.wasCancelled && controller.output == "Installation output")
+    #expect(installer.showsExecutionLog && !page.showsExecutionLog)
+    #expect(page.showsIntroduction)
+    #expect(installer.status == tr("安装已停止"))
+  }
+
+  @Test(arguments: [MoleController.Workflow.clean, .optimize])
+  func installerDoesNotDisplayPreviousWorkflowLog(workflow: MoleController.Workflow) async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      run: { _, _, output in
+        await output(MoleOutput(text: "Preview output", wasTruncated: false))
+        return 0
+      })
+    await controller.refreshAvailability()
+    controller.selectWorkflow(workflow)
+    controller.scan()
+    await controller.waitForExit()
+    let page = MoleCommandView(controller: controller, nativeBusy: false)
+    let installer = MoleCommandView(
+      controller: controller, nativeBusy: false, installation: true)
+    #expect(page.showsExecutionLog && !page.showsIntroduction)
+    #expect(!installer.showsExecutionLog && !installer.showsIntroduction)
+    #expect(controller.output == "Preview output")
+  }
+
   @Test func cancellingPostInstallDetectionRejectsLateResult() async throws {
     let fixture = try MoleControllerFixture()
     defer { fixture.remove() }
@@ -608,7 +706,9 @@ struct MoleControllerTests {
   }
 
   @Test(arguments: [MoleController.Workflow.clean, .optimize])
-  func idleCommandsUseCompactHeightWithoutStartingWork(workflow: MoleController.Workflow)
+  func idleActionsFitWindowAndScrollInShortWindowsWithoutStartingWork(
+    workflow: MoleController.Workflow
+  )
     async throws
   {
     let fixture = try MoleControllerFixture()
@@ -626,29 +726,41 @@ struct MoleControllerTests {
         .environment(\.layoutDirection, direction)
         .environment(\.isSnapshot, true)
         .preferredColorScheme(.light)
-      let compact = NSHostingView(rootView: view.frame(width: 860))
-      #expect(compact.fittingSize.height > 40 && compact.fittingSize.height < 160)
-      #expect(controller.lastCommand == nil && !controller.isRunning && controller.canExecute)
-      if let path = ProcessInfo.processInfo.environment["XSTATS_CLEANER_PREVIEW_DIR"] {
+      for size in [
+        NSSize(width: 860, height: 600), NSSize(width: 340, height: 380),
+        NSSize(width: 340, height: 160),
+      ] {
         let host = NSHostingView(
-          rootView: view.frame(width: 860, height: 600, alignment: .topLeading)
+          rootView: view.frame(width: size.width, height: size.height, alignment: .topLeading)
             .background(DS.Palette.background))
-        #expect(host.fittingSize == NSSize(width: 860, height: 600))
+        #expect(host.fittingSize == size)
         let window = NSWindow(
-          contentRect: NSRect(x: 0, y: 0, width: 860, height: 600),
+          contentRect: NSRect(origin: .zero, size: size),
           styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         defer { window.close() }
         window.appearance = NSAppearance(named: .aqua)
         window.contentView = host
         host.layoutSubtreeIfNeeded()
-        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-        host.cacheDisplay(in: host.bounds, to: bitmap)
-        let directory = URL(fileURLWithPath: path, isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let name = "mole-idle-\(workflow)-\(direction == .leftToRight ? "ltr" : "rtl").png"
-        try #require(bitmap.representation(using: .png, properties: [:])).write(
-          to: directory.appendingPathComponent(name))
+        let scroll = try #require(logScrollView(in: host))
+        let document = try #require(scroll.documentView)
+        #expect(document.bounds.width <= scroll.bounds.width + 2)
+        if size.height < 200 {
+          #expect(document.bounds.height > scroll.documentVisibleRect.height)
+        } else {
+          #expect(document.bounds.height <= scroll.documentVisibleRect.height + 2)
+        }
+        #expect(controller.lastCommand == nil && !controller.isRunning && controller.canExecute)
+        if let path = ProcessInfo.processInfo.environment["XSTATS_CLEANER_PREVIEW_DIR"] {
+          let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+          host.cacheDisplay(in: host.bounds, to: bitmap)
+          let directory = URL(fileURLWithPath: path, isDirectory: true)
+          try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+          let name =
+            "mole-idle-\(workflow)-\(direction == .leftToRight ? "ltr" : "rtl")-\(Int(size.width))x\(Int(size.height)).png"
+          try #require(bitmap.representation(using: .png, properties: [:])).write(
+            to: directory.appendingPathComponent(name))
+        }
       }
     }
   }

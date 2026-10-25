@@ -4,6 +4,10 @@ extension Translations {
   static let maintenancePreviewEnglish = #"""
     引擎	Engine
     仅预览	Preview Only
+    开始清理	Start Cleanup
+    开始优化	Start Optimization
+    可先预览清理范围，也可直接开始清理。	Preview what to clean, or start cleanup directly.
+    可先预览优化项目，也可直接开始优化。	Preview optimizations, or start optimizing directly.
     查看清理范围，不删除文件	Preview cleanup scope without deleting files
     查看优化项目，不应用更改	Preview optimizations without applying changes
     退出码 {}	Exit code {}

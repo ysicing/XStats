@@ -9,6 +9,10 @@ struct MaintenancePreviewLocalizationTests {
   private let keys = [
     "引擎",
     "仅预览",
+    "开始清理",
+    "开始优化",
+    "可先预览清理范围，也可直接开始清理。",
+    "可先预览优化项目，也可直接开始优化。",
     "查看清理范围，不删除文件",
     "查看优化项目，不应用更改",
     "退出码 {}",

@@ -2550,3 +2550,7 @@ macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macO
 清理命令已完成	Commande de nettoyage terminée
 优化命令已完成	Commande d’optimisation terminée
 安装已完成	Installation terminée
+开始清理	Lancer le nettoyage
+开始优化	Lancer l’optimisation
+可先预览清理范围，也可直接开始清理。	Prévisualisez les éléments à nettoyer ou lancez directement le nettoyage.
+可先预览优化项目，也可直接开始优化。	Prévisualisez les optimisations ou lancez-les directement.
