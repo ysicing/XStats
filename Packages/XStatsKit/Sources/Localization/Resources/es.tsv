@@ -2576,3 +2576,8 @@ macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macO
 检测完成	Prueba completada
 检测说明	Información de la prueba
 出口概览	Resumen de salida
+未返回公网地址	No se devolvió ninguna dirección pública
+服务检测失败	Falló la prueba del servicio
+服务检测超时	La prueba del servicio agotó el tiempo
+通过四个 STUN 服务检测公网地址，与 HTTP 出口对照	Compara las direcciones públicas de cuatro servicios STUN con la salida HTTP
+查看本次请求实际使用的 DNS 解析服务器	Consulta los servidores DNS usados para esta solicitud

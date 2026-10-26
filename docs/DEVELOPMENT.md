@@ -42,7 +42,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 | `xstats://panel/<item>` | 显示菜单栏详情；没有该入口时转到主窗口对应页面 |
 | `xstats://panel/overview` | 显示聚合模式的状态总览；分开显示模式转到主窗口总览 |
 | `xstats://open/calendar` | 日历；未开启时转到功能设置 |
-| `xstats://open/speed-test`、`xstats://open/egress` | 测速、出口与分流窗口，不自动运行探测 |
+| `xstats://open/speed-test`、`xstats://open/egress` | 测速窗口不自动运行探测；出口与分流按当前分类自动检查无结果、过期结果和网络变化 |
 | `xstats://rest/<action>` | 番茄钟：`start`、`pause`、`toggle`、`reset`、`skip`、`hud` |
 | `xstats://keep-awake/<action>` | 普通防休眠：`start`、`stop`、`toggle` |
 

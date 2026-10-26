@@ -14,37 +14,57 @@ final class NetworkLeakTestController {
   }
   enum Phase { case idle, running, complete, failed, cancelled }
   var phase: Phase = .idle
-  var candidates: [NetworkLeakTest.Candidate] = []
+  var webRTCServices: [WebRTCLeakProbe.ServiceResult] = []
   var httpExit: String?
   var dnsResult: NetworkLeakTest.DNSResult?
-  var timedOut = false
-  @ObservationIgnored private var task: Task<Void, Never>?
+  @ObservationIgnored private(set) var task: Task<Void, Never>?
   @ObservationIgnored private var generation = UUID()
+  @ObservationIgnored private let webRTCProbe: () async throws -> WebRTCLeakProbe.Result
+  @ObservationIgnored private let exitLookup: () async -> String?
+  @ObservationIgnored private let dnsProbe: () async throws -> NetworkLeakTest.DNSResult
   @ObservationIgnored private let logger = Logger(
     subsystem: "work.12306.xstats", category: "LeakTest")
 
+  init(
+    webRTCProbe: @escaping () async throws -> WebRTCLeakProbe.Result = {
+      try await WebRTCLeakProbe().run()
+    },
+    exitLookup: @escaping () async -> String? = {
+      if case .success(let addresses) = await LocalIPQuery.fetch(.ipify) {
+        return addresses.ipv4 ?? addresses.ipv6
+      }
+      return nil
+    },
+    dnsProbe: @escaping () async throws -> NetworkLeakTest.DNSResult = {
+      try await NetworkLeakTest.dns()
+    }
+  ) {
+    self.webRTCProbe = webRTCProbe
+    self.exitLookup = exitLookup
+    self.dnsProbe = dnsProbe
+  }
+
   func start(_ mode: Mode) {
     cancel()
-    candidates = []
+    webRTCServices = []
     httpExit = nil
     dnsResult = nil
-    timedOut = false
     phase = .running
     let run = generation
     logger.debug("Leak test started: \(mode.rawValue, privacy: .public)")
     task = Task {
       do {
+        try Task.checkCancellation()
         if mode == .webRTC {
-          let result = try await WebRTCLeakProbe().run()
+          let result = try await webRTCProbe()
           try Task.checkCancellation()
-          let exit = await LocalIPQuery.fetch(.ipify)
+          let exit = await exitLookup()
           try Task.checkCancellation()
           guard run == generation else { return }
-          if case .success(let addresses) = exit { httpExit = addresses.ipv4 ?? addresses.ipv6 }
-          candidates = result.candidates
-          timedOut = result.timedOut
+          httpExit = exit
+          webRTCServices = result.services
         } else {
-          let result = try await NetworkLeakTest.dns()
+          let result = try await dnsProbe()
           try Task.checkCancellation()
           guard run == generation else { return }
           dnsResult = result
@@ -74,53 +94,22 @@ final class NetworkLeakTestController {
 struct NetworkLeakTestView: View {
   let controller: NetworkLeakTestController
   let mode: NetworkLeakTestController.Mode
-  @Binding var hideIP: Bool
-  @State private var showsInformation = false
 
   var body: some View {
-    VStack(alignment: .leading, spacing: DS.Space.s4) {
-      ScrollView {
-        VStack(alignment: .leading, spacing: DS.Space.s3) {
-          if controller.phase == .complete {
-            if mode == .webRTC { webRTCResults } else { dnsResults }
-          } else {
-            VStack(spacing: DS.Space.s3) {
-              if controller.phase == .running { ProgressView().controlSize(.small) }
-              Text(tr(status)).foregroundStyle(DS.Palette.textSecondary)
-                .multilineTextAlignment(.center)
-            }.frame(maxWidth: .infinity, minHeight: 220)
-          }
-        }.frame(maxWidth: .infinity, alignment: .leading)
-      }
-      HStack {
-        Toggle(tr("隐藏 IP"), isOn: $hideIP).toggleStyle(.checkbox)
-        MiniIconButton(systemName: "info.circle", help: tr("检测说明")) {
-          showsInformation.toggle()
-        }
-        .popover(isPresented: $showsInformation) {
-          Text(
-            tr(
-              mode == .webRTC
-                ? "检测 XStats 内 WebKit 暴露的地址，不代表其他浏览器。开始后连接 Cloudflare、Google、BlackBerry、Twilio STUN 与 ipify。"
-                : "通过 bash.ws 观察本次请求的 DNS 解析服务器；结果受系统代理与分流影响。")
-          )
-          .dsFont(.sm)
-          .fixedSize(horizontal: false, vertical: true)
-          .padding(DS.Space.s4)
-          .frame(width: 360)
-        }
-        Spacer()
-        if controller.phase == .running {
-          Button(tr("取消")) { controller.cancel() }
-        } else {
-          Button(tr("开始检测")) { controller.start(mode) }
-            .buttonStyle(.borderedProminent)
-        }
+    VStack(alignment: .leading, spacing: DS.Space.s3) {
+      if controller.phase == .complete {
+        if mode == .webRTC { webRTCResults } else { dnsResults }
+      } else {
+        VStack(spacing: DS.Space.s3) {
+          if controller.phase == .running { ProgressView().controlSize(.small) }
+          Text(tr(status)).foregroundStyle(DS.Palette.textSecondary)
+            .multilineTextAlignment(.center)
+        }.frame(maxWidth: .infinity, minHeight: 220)
       }
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .padding(DS.Space.s4)
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(DS.Palette.background)
+    .frame(maxWidth: .infinity)
     .onDisappear { controller.cancel() }
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.didHideNotification)) { _ in
       controller.cancel()
@@ -140,7 +129,7 @@ struct NetworkLeakTestView: View {
 
   private var status: String {
     switch controller.phase {
-    case .idle: "点击开始检测，结果仅保留在当前窗口。"
+    case .idle: "尚未检测"
     case .running: "正在检测…"
     case .failed: "检测未完成，请检查网络或稍后重试。"
     case .cancelled: "检测已取消"
@@ -153,32 +142,28 @@ struct NetworkLeakTestView: View {
       Text("HTTP").dsFont(.sm, weight: .semibold)
       address(controller.httpExit)
       Divider()
-      Text("WebRTC / ICE").dsFont(.sm, weight: .semibold)
-      ForEach(controller.candidates) { candidate in
-        HStack(alignment: .top) {
-          address(candidate.address)
-          Spacer()
-          VStack(alignment: .trailing, spacing: DS.Space.s1) {
-            Text(verbatim: candidate.kind).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-            if let matches = NetworkLeakTest.matchesExit(candidate, exit: controller.httpExit) {
-              Text(tr(matches ? "与 HTTP 出口一致" : "与 HTTP 出口不同，请核对代理路线"))
-                .dsFont(.xs).foregroundStyle(
-                  matches ? DS.Palette.textSecondary : DS.Palette.warning
-                )
-                .multilineTextAlignment(.trailing)
-            }
+      ForEach(controller.webRTCServices) { service in
+        VStack(alignment: .leading, spacing: DS.Space.s2) {
+          Text(verbatim: service.provider.rawValue).dsFont(.sm, weight: .semibold)
+          ForEach(service.candidates.filter(\.isReflexive)) { candidate in
+            address(candidate.address)
+          }
+          if service.status != .complete || !service.candidates.contains(where: \.isReflexive) {
+            Text(tr(serviceStatus(service)))
+              .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
           }
         }.padding(.vertical, DS.Space.s1)
+        Divider()
       }
-      if !controller.candidates.contains(where: \.isReflexive) {
-        Text(tr("未取得 STUN 公网地址，无法判断是否存在泄漏。"))
-          .dsFont(.sm).foregroundStyle(DS.Palette.warning)
-      } else if controller.timedOut {
-        Text(tr("检测超时，以下仅为已收到的部分结果。"))
-          .dsFont(.sm).foregroundStyle(DS.Palette.warning)
-      }
-      Text(tr("仅比较同一地址族；地址不同可能来自分流，不直接代表泄漏。"))
-        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+    }
+  }
+
+  private func serviceStatus(_ service: WebRTCLeakProbe.ServiceResult) -> String {
+    switch service.status {
+    case .running: "正在检测…"
+    case .complete: "未返回公网地址"
+    case .failed: "服务检测失败"
+    case .timedOut: "服务检测超时"
     }
   }
 
@@ -192,13 +177,11 @@ struct NetworkLeakTestView: View {
       ForEach(result.resolvers) { resolver in
         VStack(alignment: .leading, spacing: DS.Space.s1) {
           address(resolver.address)
-          if !hideIP {
-            Text(
-              verbatim: [resolver.country, resolver.organization].filter { !$0.isEmpty }.joined(
-                separator: " · ")
-            )
-            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary).textSelection(.enabled)
-          }
+          Text(
+            verbatim: [resolver.country, resolver.organization].filter { !$0.isEmpty }.joined(
+              separator: " · ")
+          )
+          .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary).textSelection(.enabled)
         }.padding(.vertical, DS.Space.s1)
       }
       Text(tr("请核对解析服务器是否符合你的 VPN 或 DNS 配置；多个服务器不代表泄漏。"))
@@ -207,9 +190,7 @@ struct NetworkLeakTestView: View {
   }
 
   @ViewBuilder private func address(_ value: String?) -> some View {
-    if hideIP {
-      Text(tr("信息已隐藏")).foregroundStyle(DS.Palette.textSecondary)
-    } else if let value {
+    if let value {
       Text(verbatim: value).font(.system(.body, design: .monospaced)).textSelection(.enabled)
     } else {
       Text(tr("未获取到地址")).foregroundStyle(DS.Palette.textSecondary)

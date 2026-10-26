@@ -7,15 +7,38 @@ import WebKit
 /// 每次检测独占一个临时 WebKit 上下文；不加载远端页面，不申请音视频权限。
 @MainActor
 final class WebRTCLeakProbe: NSObject, WKNavigationDelegate {
+  enum Provider: String, Sendable, CaseIterable {
+    case cloudflare = "Cloudflare"
+    case google = "Google"
+    case blackBerry = "BlackBerry"
+    case twilio = "Twilio"
+
+    var url: String {
+      switch self {
+      case .cloudflare: "stun:stun.cloudflare.com:3478"
+      case .google: "stun:stun.l.google.com:19302"
+      case .blackBerry: "stun:stun.voip.blackberry.com:3478"
+      case .twilio: "stun:global.stun.twilio.com:3478"
+      }
+    }
+  }
+
+  struct ServiceResult: Sendable, Identifiable {
+    enum Status: Sendable { case running, complete, failed, timedOut }
+    let provider: Provider
+    var candidates: [NetworkLeakTest.Candidate] = []
+    var status: Status = .running
+    var id: Provider { provider }
+  }
+
   struct Result: Sendable {
-    let candidates: [NetworkLeakTest.Candidate]
-    let timedOut: Bool
+    let services: [ServiceResult]
   }
 
   private var webView: WKWebView?
   private var continuation: CheckedContinuation<Result, any Error>?
   private var deadline: Task<Void, Never>?
-  private var candidates: [NetworkLeakTest.Candidate] = []
+  private var services = Provider.allCases.map { ServiceResult(provider: $0) }
   private var started = false
   private let probeScript: String
   private let timeout: Duration
@@ -41,7 +64,10 @@ final class WebRTCLeakProbe: NSObject, WKNavigationDelegate {
         deadline = Task { [weak self] in
           do { try await Task.sleep(for: timeout) } catch { return }
           guard let self else { return }
-          self.finish(.success(Result(candidates: self.candidates, timedOut: true)))
+          for index in self.services.indices where self.services[index].status == .running {
+            self.services[index].status = .timedOut
+          }
+          self.finish(.success(Result(services: self.services)))
         }
         // HTTPS baseURL 只建立安全上下文，HTML 本身由本地提供，不请求 localhost。
         view.loadHTMLString(
@@ -78,19 +104,26 @@ final class WebRTCLeakProbe: NSObject, WKNavigationDelegate {
   }
 
   private func receive(_ body: Any) {
-    guard continuation != nil, let message = body as? [String: String] else { return }
+    guard continuation != nil, let message = body as? [String: String],
+      let name = message["provider"], let provider = Provider(rawValue: name),
+      let index = services.firstIndex(where: { $0.provider == provider }),
+      services[index].status == .running
+    else { return }
     switch message["event"] {
     case "candidate":
       if let line = message["value"], let candidate = NetworkLeakTest.candidate(line),
-        candidates.count < 64, !candidates.contains(candidate)
+        services[index].candidates.count < 64, !services[index].candidates.contains(candidate)
       {
-        candidates.append(candidate)
+        services[index].candidates.append(candidate)
       }
     case "done":
-      finish(.success(Result(candidates: candidates, timedOut: false)))
+      services[index].status = .complete
     case "error":
-      finish(.failure(NetworkLeakTest.Failure.unavailable))
+      services[index].status = .failed
     default: break
+    }
+    if services.allSatisfy({ $0.status != .running }) {
+      finish(.success(Result(services: services)))
     }
   }
 
@@ -101,7 +134,8 @@ final class WebRTCLeakProbe: NSObject, WKNavigationDelegate {
     deadline = nil
     if let view = webView {
       // JS 定时器在隐藏页面可能被节流；截止时间由 Swift 管理，关闭连接后丢弃 WebView。
-      view.evaluateJavaScript("window.leakPeer?.close(); window.leakPeer = null;")
+      view.evaluateJavaScript(
+        "window.leakPeers?.forEach(pc => pc.close()); window.leakPeers = [];")
       view.configuration.userContentController.removeScriptMessageHandler(forName: "leakTest")
       view.navigationDelegate = nil
       view.stopLoading()
@@ -124,24 +158,25 @@ final class WebRTCLeakProbe: NSObject, WKNavigationDelegate {
   // 独立实现标准 ICE 收集流程；没有远端脚本、媒体轨道或 getUserMedia 调用。
   static let script = """
     (() => {
-      const send = (event, value = '') => window.webkit.messageHandlers.leakTest.postMessage({event, value});
-      try {
-        const pc = new RTCPeerConnection({iceServers: [
-          {urls: 'stun:stun.cloudflare.com:3478'},
-          {urls: 'stun:stun.l.google.com:19302'},
-          {urls: 'stun:stun.voip.blackberry.com:3478'},
-          {urls: 'stun:global.stun.twilio.com:3478'}
-        ]});
-        window.leakPeer = pc;
-        pc.onicecandidate = event => {
-          if (event.candidate) send('candidate', event.candidate.candidate);
-          else { pc.close(); send('done'); }
-        };
-        pc.createDataChannel('leak-test');
-        pc.createOffer().then(offer => {
-          if (pc.signalingState !== 'closed') return pc.setLocalDescription(offer);
-        }).catch(() => { pc.close(); send('error'); });
-      } catch (_) { send('error'); }
+      window.leakPeers = [];
+      const providers = [\(Provider.allCases.map { "['\($0.rawValue)', '\($0.url)']" }.joined(separator: ","))];
+      // 每个连接只配置一个服务，避免 ICE 合并候选后丢失来源。
+      for (const [provider, url] of providers) {
+        const send = (event, value = '') => window.webkit.messageHandlers.leakTest.postMessage({event, provider, value});
+        let pc;
+        try {
+          pc = new RTCPeerConnection({iceServers: [{urls: url}]});
+          window.leakPeers.push(pc);
+          pc.onicecandidate = event => {
+            if (event.candidate) send('candidate', event.candidate.candidate);
+            else { pc.close(); send('done'); }
+          };
+          pc.createDataChannel('leak-test');
+          pc.createOffer().then(offer => {
+            if (pc.signalingState !== 'closed') return pc.setLocalDescription(offer);
+          }).catch(() => { pc.close(); send('error'); });
+        } catch (_) { pc?.close(); send('error'); }
+      }
     })()
     """
 }

@@ -43,6 +43,46 @@ struct NetworkLeakTestTests {
     }
   }
 
+  @Test func acceptsUnavailableDNSMetadataWithoutDiscardingResolvers() throws {
+    let data = Data(
+      """
+      [{"ip":"192.0.2.1","type":"ip","country_name":false,"asn":false},
+       {"ip":"192.0.2.2","type":"dns","country_name":false,"asn":false},
+       {"ip":"192.0.2.3","type":"dns","country_name":null,"asn":"AS64500"},
+       {"ip":"192.0.2.4","type":"dns","country_name":"Example","org":"Operator","asn":false},
+       {"ip":"No leak","type":"conclusion","country_name":false,"asn":false}]
+      """.utf8)
+    let result = try NetworkLeakTest.decodeDNS(data)
+    #expect(result.exits == ["192.0.2.1"])
+    #expect(result.resolvers.map(\.address) == ["192.0.2.2", "192.0.2.3", "192.0.2.4"])
+    #expect(result.resolvers.map(\.country) == ["", "", "Example"])
+    #expect(result.resolvers.map(\.organization) == ["", "AS64500", "Operator"])
+  }
+
+  @Test func unavailableConclusionMetadataDoesNotInvalidateValidDNSRecord() throws {
+    let data = Data(
+      """
+      [{"ip":"192.0.2.2","type":"dns","country_name":"Example","asn":"AS64500"},
+       {"ip":"No leak","type":"conclusion","country_name":false,"asn":false}]
+      """.utf8)
+    let result = try NetworkLeakTest.decodeDNS(data)
+    #expect(result.resolvers.map(\.address) == ["192.0.2.2"])
+    #expect(result.resolvers.first?.organization == "AS64500")
+  }
+
+  @Test func optionalMetadataDoesNotRelaxRequiredDNSFields() {
+    for json in [
+      "[{\"ip\":false,\"type\":\"dns\",\"country_name\":false}]",
+      "[{\"ip\":\"192.0.2.2\",\"type\":false,\"asn\":false}]",
+      "[{\"ip\":\"192.0.2.2\",\"asn\":false}]",
+      "[{\"ip\":\"not-an-address\",\"type\":\"dns\",\"asn\":false}]",
+    ] {
+      #expect(throws: NetworkLeakTest.Failure.self) {
+        try NetworkLeakTest.decodeDNS(Data(json.utf8))
+      }
+    }
+  }
+
   actor Requests {
     var urls: [URL] = []
     func append(_ url: URL) { urls.append(url) }

@@ -29,6 +29,8 @@ public final class EgressController {
   @ObservationIgnored private var checkGeneration = 0
   @ObservationIgnored private var windowOpen = false
   @ObservationIgnored private var paused = false
+  @ObservationIgnored private var automaticallyChecks = true
+  @ObservationIgnored private var onEnvironment: ((ProxyEnvironment, Bool) -> Void)?
   @ObservationIgnored private var geoCache: [String: (geo: EgressGeo, date: Date)] = [:]
   @ObservationIgnored private let defaults: UserDefaults
   @ObservationIgnored private let environmentReader: @MainActor () async -> ProxyEnvironment
@@ -73,13 +75,19 @@ public final class EgressController {
     return report.environment.signature != environment.signature
   }
 
-  func windowDidOpen() {
+  func windowDidOpen(
+    automaticallyChecks: Bool = true,
+    onEnvironment: ((ProxyEnvironment, Bool) -> Void)? = nil
+  ) {
+    self.automaticallyChecks = automaticallyChecks
+    self.onEnvironment = onEnvironment
     windowOpen = true
     if !paused { startWatching() }
   }
 
   func windowDidClose() {
     windowOpen = false
+    onEnvironment = nil
     stopChecking()
   }
 
@@ -153,9 +161,10 @@ public final class EgressController {
         if environment != self.environment { self.environment = environment }
         let stale = self.report.map { Date().timeIntervalSince($0.date) > Self.staleAfter } ?? true
         // 刚打开：没有结果或过期了就测；开着期间：网络变了就重测
-        if !self.isChecking, (first && stale) || self.networkChanged {
+        if self.automaticallyChecks, !self.isChecking, (first && stale) || self.networkChanged {
           self.check()
         }
+        self.onEnvironment?(environment, first)
         first = false
         try? await Task.sleep(for: .seconds(3))
       }
