@@ -217,6 +217,7 @@ private struct InterfaceSection: View {
         InfoRow(label: tr("VPN / 代理"), text: tr("\(tunnel.name)（\(tunnel.bsdName)）"))
       }
       if let totals {
+        InfoRow(label: tr("流量统计接口"), text: totals.interfaceName ?? "—")
         let counted = network.trafficTotals(totals)
         let sinceReset = network.trafficBaseline != nil
         InfoRow(

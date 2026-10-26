@@ -102,6 +102,9 @@ public struct NetworkInterfaceInfo: Sendable, Equatable {
 
 public struct NetworkRate: Sendable, Equatable {
   public var connection: NetworkIconState? = nil
+  /// 当前统计接口；nil 表示没有可用接口。
+  public var interfaceName: String? = nil
+  public var interfaceIndex: UInt32? = nil
   public var downloadBytesPerSecond: Double
   public var uploadBytesPerSecond: Double
   public var totalDownloaded: UInt64

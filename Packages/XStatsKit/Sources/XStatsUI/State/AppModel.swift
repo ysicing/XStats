@@ -339,6 +339,7 @@ public final class AppModel {
     demand.network =
       settings.isModuleEnabled(.network)
       && (recording || dashboard || summary.contains(.network) || showing(.network, .network))
+    demand.networkInterfaceName = settings.networkInterfaceName
     demand.networkConnection =
       demand.network && settings.menuBarLayout == .iconOnly && menu.contains(.network)
     demand.gpu =
@@ -573,6 +574,9 @@ public final class AppModel {
       settings.enabledMonitoringModules, powerRequested: demand.power,
       gpuPowerRequested: demand.gpuPower,
       gpuFrequencyRequested: demand.gpuFrequency, appEnergyRequested: demand.appEnergy)
+    if let rate = filtered.network {
+      network.reconcileTrafficBaseline(rate, previous: store.network)
+    }
     store.apply(filtered)
     settings.updateTrioFanAvailability(store.fanCount)
     fans.evaluateSafety(temperature: snapshot.sensors?.temperature(.cpu)?.maximum)

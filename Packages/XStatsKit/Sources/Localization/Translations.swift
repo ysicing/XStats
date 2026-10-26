@@ -52,6 +52,9 @@ extension Translations {
     """#
 
   static let networkPresentationEnglish = #"""
+    流量统计接口	Traffic Interface
+    自动（物理接口）	Automatic (Physical Interface)
+    {}（不可用）	{} (Unavailable)
     本地接口	Local Interfaces
     暂无已连接的本地接口	No connected local interfaces
     有线网络	Ethernet

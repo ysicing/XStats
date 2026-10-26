@@ -81,6 +81,8 @@ public final class NetworkController {
     public var upload: UInt64
     public var date: Date
     var bootTime: TimeInterval?
+    var interfaceName: String?
+    var interfaceIndex: UInt32?
   }
   public private(set) var trafficBaseline: TrafficBaseline?
   private static let trafficBaselineKey = "trafficBaseline"
@@ -112,9 +114,9 @@ public final class NetworkController {
           IPFamily(rawValue: key).map { ($0, value) }
         })
     }
-    if let data = UserDefaults.standard.data(forKey: Self.trafficBaselineKey),
+    if let data = cacheDefaults.data(forKey: Self.trafficBaselineKey),
       let baseline = try? JSONDecoder().decode(TrafficBaseline.self, from: data),
-      baseline.bootTime == Self.bootTime
+      baseline.bootTime == Self.bootTime, baseline.interfaceName != nil
     {
       trafficBaseline = baseline
     }
@@ -126,20 +128,41 @@ public final class NetworkController {
   public func resetTraffic(_ rate: NetworkRate) {
     let baseline = TrafficBaseline(
       download: rate.totalDownloaded, upload: rate.totalUploaded, date: Date(),
-      bootTime: Self.bootTime)
+      bootTime: Self.bootTime, interfaceName: rate.interfaceName,
+      interfaceIndex: rate.interfaceIndex)
     trafficBaseline = baseline
-    UserDefaults.standard.set(try? JSONEncoder().encode(baseline), forKey: Self.trafficBaselineKey)
+    cacheDefaults.set(try? JSONEncoder().encode(baseline), forKey: Self.trafficBaselineKey)
   }
 
   /// 改回开机后的累计
   public func clearTrafficBaseline() {
     trafficBaseline = nil
-    UserDefaults.standard.removeObject(forKey: Self.trafficBaselineKey)
+    cacheDefaults.removeObject(forKey: Self.trafficBaselineKey)
   }
 
-  /// 扣掉基线后的累计流量；计数器比基线小（接口变动）时按 0 算
+  /// 接口变更或计数器复位后，旧基线不能用于新的累计值。
+  func reconcileTrafficBaseline(_ rate: NetworkRate, previous: NetworkRate? = nil) {
+    guard let baseline = trafficBaseline else { return }
+    let counterReset =
+      previous.map {
+        $0.interfaceName == rate.interfaceName && $0.interfaceIndex == rate.interfaceIndex
+          && (rate.totalDownloaded < $0.totalDownloaded || rate.totalUploaded < $0.totalUploaded)
+      } ?? false
+    if counterReset || baseline.interfaceName != rate.interfaceName
+      || baseline.interfaceIndex != rate.interfaceIndex || rate.totalDownloaded < baseline.download
+      || rate.totalUploaded < baseline.upload
+    {
+      clearTrafficBaseline()
+    }
+  }
+
+  /// 累计和速率始终采用同一接口；旧版本全接口合计的基线不再适用。
   public func trafficTotals(_ rate: NetworkRate) -> (download: UInt64, upload: UInt64) {
-    guard let baseline = trafficBaseline else { return (rate.totalDownloaded, rate.totalUploaded) }
+    guard let baseline = trafficBaseline, baseline.interfaceName == rate.interfaceName,
+      baseline.interfaceIndex == rate.interfaceIndex
+    else {
+      return (rate.totalDownloaded, rate.totalUploaded)
+    }
     return (
       rate.totalDownloaded >= baseline.download ? rate.totalDownloaded - baseline.download : 0,
       rate.totalUploaded >= baseline.upload ? rate.totalUploaded - baseline.upload : 0

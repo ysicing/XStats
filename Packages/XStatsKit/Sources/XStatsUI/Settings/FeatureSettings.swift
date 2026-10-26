@@ -348,6 +348,10 @@ private struct MonitoringFeatureRow: View {
         VStack(alignment: .leading, spacing: DS.Space.s2) { menuBarToggles }
       }
       .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
+      if module == .network, model.settings.isModuleEnabled(.network) {
+        NetworkTrafficSettings()
+          .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
+      }
       if module == .thermal, let notice = model.fans.notice, model.fans.noticeIsError {
         Text(notice).dsFont(.xs).foregroundStyle(DS.Palette.error)
       }

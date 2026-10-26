@@ -55,6 +55,19 @@ Orders are included in settings backups as optional per-metric arrays. Reads dis
 duplicate and unrelated identifiers; new sections append in default order. Old settings keep
 the existing layout, and importing an old document preserves the current order.
 
+Network traffic uses one interface's 64-bit `NET_RT_IFLIST2` counters, never a sum of
+physical and tunnel interfaces. Settings → Features → Network selects automatic or a specific
+BSD interface; this machine-specific selection is excluded from synced settings. Automatic
+selection follows the active physical IPv4/IPv6 primary interface, falling back to routed
+Ethernet/Wi-Fi services in system priority order when a tunnel owns the primary route.
+No eligible interface means zero traffic; a missing manual selection is retained without
+silently falling back. Each existing sample reads routing state, with no new timer or subprocess.
+An interface name/index change, disconnect, failed read or counter rollback resets the rate
+baseline. Totals are the selected interface's current kernel counters; reset baselines are bound
+to that interface and boot session. Old aggregate reset baselines are ignored. Existing historical
+records are retained; new samples use the selected interface. Process rankings remain per-process
+measurements from nettop and need not sum to the selected physical interface's traffic.
+
 The network interface card reads the current physical Wi-Fi connection through CoreWLAN,
 including under a VPN. It shows SSID, signal, negotiated link rate, band and channel; an
 expandable area adds BSSID, channel width, PHY, security, noise and signal-to-noise ratio.

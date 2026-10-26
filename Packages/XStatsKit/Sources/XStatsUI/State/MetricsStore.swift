@@ -178,6 +178,7 @@ public final class MetricsStore {
       lastSwap = (snapshot.date, memory.swapInBytes, memory.swapOutBytes)
     }
     if let network = snapshot.network {
+      if self.network?.interfaceName != network.interfaceName { networkInterface = nil }
       self.network = network
       downloadHistory.append(network.downloadBytesPerSecond)
       uploadHistory.append(network.uploadBytesPerSecond)

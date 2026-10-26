@@ -8,6 +8,8 @@ public struct MetricsDemand: Sendable, Equatable {
   public var generation: Int = 0
   public var cpu = false
   public var memory = false
+  /// 空字符串表示自动选择；指定接口暂时消失时保留选择，不切换统计口径。
+  public var networkInterfaceName = ""
   public var network = false
   public var networkConnection = false
   public var gpu = false
@@ -66,6 +68,7 @@ public actor MetricsHub {
   private var lastDisk = Date.distantPast
   private var lastBattery = Date.distantPast
   private var lastInterface = Date.distantPast
+  private var lastNetworkInterfaceName: String?
   private var lastPower = Date.distantPast
   private var lastDiskHealth = Date.distantPast
   private let readBattery: @Sendable () -> BatteryStatus?
@@ -115,6 +118,7 @@ public actor MetricsHub {
       || (newDemand.memory && !demand.memory)
       || (newDemand.network && !demand.network)
       || (newDemand.networkConnection && !demand.networkConnection)
+      || (newDemand.network && newDemand.networkInterfaceName != demand.networkInterfaceName)
       || (newDemand.gpu && !demand.gpu)
       || (newDemand.battery && !demand.battery)
       || (newDemand.batterySafety && !demand.batterySafety)
@@ -251,9 +255,16 @@ public actor MetricsHub {
 
     if demand.memory { snapshot.memory = memory.sample() }
     if demand.network {
-      snapshot.network = network.sample(includeConnection: demand.networkConnection)
-      if now.timeIntervalSince(lastInterface) > 15 {
-        snapshot.networkInterface = NetworkSampler.primaryInterface()
+      snapshot.network = network.sample(
+        includeConnection: demand.networkConnection,
+        interfaceName: self.demand.networkInterfaceName)
+      if snapshot.network?.interfaceName != lastNetworkInterfaceName
+        || now.timeIntervalSince(lastInterface) > 15
+      {
+        lastNetworkInterfaceName = snapshot.network?.interfaceName
+        snapshot.networkInterface = lastNetworkInterfaceName.flatMap {
+          NetworkSampler.primaryInterface(named: $0)
+        }
         lastInterface = now
       }
     }

@@ -725,6 +725,14 @@ public final class AppSettings {
   public var menuBarValueOnTop: Bool {
     didSet { defaults.set(menuBarValueOnTop, forKey: Keys.menuBarValueOnTop) }
   }
+  /// 网卡名称属于本机，不随偏好备份同步到其他设备。
+  public var networkInterfaceName: String {
+    didSet {
+      guard networkInterfaceName != oldValue else { return }
+      monitoringGeneration &+= 1
+      defaults.set(networkInterfaceName, forKey: "networkInterfaceName")
+    }
+  }
   public var networkStyle: NetworkMenuStyle {
     didSet { defaults.set(networkStyle.rawValue, forKey: Keys.networkStyle) }
   }
@@ -1229,6 +1237,7 @@ public final class AppSettings {
     menuBarStyle =
       defaults.string(forKey: Keys.menuBarStyle).flatMap(MenuBarStyle.init(rawValue:)) ?? .stacked
     menuBarValueOnTop = defaults.bool(forKey: Keys.menuBarValueOnTop)
+    networkInterfaceName = defaults.string(forKey: "networkInterfaceName") ?? ""
     networkStyle =
       defaults.string(forKey: Keys.networkStyle).flatMap(NetworkMenuStyle.init(rawValue:)) ?? .dots
     networkLocationStyle =
