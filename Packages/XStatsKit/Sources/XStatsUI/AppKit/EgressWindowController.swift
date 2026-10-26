@@ -11,12 +11,14 @@ import SwiftUI
 @MainActor
 final class EgressWindowController: NSObject, NSWindowDelegate {
   private let model: AppModel
+  private let session: EgressWindowSession
   private var window: NSWindow?
   func refreshLanguage() { window?.title = tr("出口与分流") }
   var onVisibilityChange: ((Bool) -> Void)?
 
   init(model: AppModel) {
     self.model = model
+    session = EgressWindowSession(egress: model.egress)
     super.init()
   }
 
@@ -28,7 +30,7 @@ final class EgressWindowController: NSObject, NSWindowDelegate {
     self.window = window
     if !isVisible {
       isVisible = true
-      model.egress.windowDidOpen()
+      session.open()
       onVisibilityChange?(true)
     }
     NSApp.activate()
@@ -47,7 +49,8 @@ final class EgressWindowController: NSObject, NSWindowDelegate {
     window.delegate = self
     window.contentMinSize = NSSize(
       width: DS.Size.panelWidth - DS.Space.s16, height: DS.Size.panelMinHeight * 1.5)
-    window.contentView = NSHostingView(rootView: EgressWindowView().environment(model))
+    window.contentView = NSHostingView(
+      rootView: EgressWindowView(session: session).environment(model))
     // 第一次打开居中，之后沿用用户调整过的位置与大小
     if !window.setFrameUsingName("XStatsEgressWindow") { window.center() }
     window.setFrameAutosaveName("XStatsEgressWindow")
@@ -56,7 +59,11 @@ final class EgressWindowController: NSObject, NSWindowDelegate {
 
   func windowWillClose(_ notification: Notification) {
     isVisible = false
-    model.egress.windowDidClose()
+    session.close()
     onVisibilityChange?(false)
   }
+
+  func windowDidMiniaturize(_ notification: Notification) { session.setSuspended(true) }
+
+  func windowDidDeminiaturize(_ notification: Notification) { session.setSuspended(false) }
 }

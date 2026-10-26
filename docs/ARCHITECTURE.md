@@ -87,6 +87,31 @@ Local addresses never go to lookup services. Hiding IPs removes local address an
 from the rendered and accessibility trees. Closing the sheet cancels presentation tasks; no
 observer, polling loop, external VPN command or persisted interface cache is added.
 
+The Network page's **Egress & Routing** window groups Egress overview, WebRTC and DNS as
+peer tabs. WebRTC and DNS share a hide-IP option and expose scope and external services through
+an information button. Each keeps its results while switching tabs; switching cancels active work.
+Only the overview observes network changes. Closing clears leak-test results and returns to the
+overview; minimizing suspends work without discarding completed results.
+Leak tests run only after an explicit start; selecting either tab creates no WebView or leak-test
+network task.
+WebRTC uses bundled JavaScript in an ephemeral WKWebView, a data channel and Cloudflare, Google,
+BlackBerry and Twilio STUN servers, without camera/microphone access or remote page scripts.
+A native 10-second deadline bounds ICE collection because hidden WebKit JavaScript timers may be
+throttled. The view reports ICE candidates
+and an ipify HTTP exit; only reflexive candidates of the same address family are compared.
+A mismatch is a routing observation, not an automatic leak verdict; this tests XStats' WebKit
+context and does not certify Chrome, Firefox or Safari configurations.
+
+DNS uses the bash.ws test protocol referenced by MyIP (ipcheck.ing): request a validated session ID,
+make three unique HTTPS probes and read the observed resolvers. Probe TLS failures may follow
+successful DNS resolution, so the result endpoint determines success. Requests retain system proxy
+behavior; observations describe the tested request path, not every application or split-DNS domain.
+All valid resolver records are retained, deduplicated and displayed with service-provided metadata;
+provider conclusions are not trusted as a leak verdict. Reads are bounded to 64 KiB with request and
+resource timeouts. No-result and failed tests never imply safety. Cancellation, tab changes, sheet
+closure and sleep stop work; generation checks reject late results. Results live only in the sheet,
+and hiding IPs removes addresses and resolver metadata from the rendered/accessibility trees.
+
 ## Experimental menu bar folding
 
 Settings → Features → Experimental offers opt-in menu bar folding. On macOS 27,

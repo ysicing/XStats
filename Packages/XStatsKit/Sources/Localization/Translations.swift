@@ -52,6 +52,24 @@ extension Translations {
     """#
 
   static let networkPresentationEnglish = #"""
+    出口概览	Egress overview
+    检测说明	Test information
+    检测 XStats 内 WebKit 暴露的地址，不代表其他浏览器。开始后连接 Cloudflare、Google、BlackBerry、Twilio STUN 与 ipify。	Test addresses exposed by WebKit in XStats, not other browsers. Starting connects to Cloudflare, Google, BlackBerry, Twilio STUN and ipify.
+    通过 bash.ws 观察本次请求的 DNS 解析服务器；结果受系统代理与分流影响。	Use bash.ws to observe DNS resolvers for this request. System proxies and routing rules affect the result.
+    点击开始检测，结果仅保留在当前窗口。	Start a test. Results stay in this window only.
+    检测未完成，请检查网络或稍后重试。	The test did not complete. Check your connection or try again later.
+    检测已取消	Test cancelled
+    与 HTTP 出口一致	Matches the HTTP exit
+    与 HTTP 出口不同，请核对代理路线	Differs from the HTTP exit; check proxy routing
+    未取得 STUN 公网地址，无法判断是否存在泄漏。	No public STUN address was obtained. Leakage cannot be determined.
+    检测超时，以下仅为已收到的部分结果。	The test timed out. Only partial results are available.
+    仅比较同一地址族；地址不同可能来自分流，不直接代表泄漏。	Only addresses of the same family are compared. Different routes can produce different addresses without a leak.
+    检测服务看到的出口	Exit seen by the test service
+    实际解析服务器	Observed DNS resolvers
+    请核对解析服务器是否符合你的 VPN 或 DNS 配置；多个服务器不代表泄漏。	Check whether these resolvers match your VPN or DNS setup. Multiple servers do not imply a leak.
+    未获取到地址	Address unavailable
+    开始检测	Start test
+    检测完成	Test complete
     流量统计接口	Traffic Interface
     自动（物理接口）	Automatic (Physical Interface)
     {}（不可用）	{} (Unavailable)

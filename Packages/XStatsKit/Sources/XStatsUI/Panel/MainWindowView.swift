@@ -485,7 +485,7 @@ struct PageHeader: View {
       if !items.isEmpty {
         // macOS 26 上这一组是一颗玻璃胶囊，与访达工具栏的分组一致
         HStack(spacing: DS.Space.s3) {
-          Text(tr("在菜单栏显示")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+          Text(tr("在菜单栏显示")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary).fixedSize()
           MainActorForEach(items) { item in
             let moduleEnabled = settings.isModuleEnabled(for: item)
             if items.count > 1 {

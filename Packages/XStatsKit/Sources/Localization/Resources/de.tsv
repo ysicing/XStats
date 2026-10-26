@@ -2558,3 +2558,21 @@ macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macO
 流量统计接口	Schnittstelle für Datenverkehr
 自动（物理接口）	Automatisch (physische Schnittstelle)
 {}（不可用）	{} (nicht verfügbar)
+检测 XStats 内 WebKit 暴露的地址，不代表其他浏览器。开始后连接 Cloudflare、Google、BlackBerry、Twilio STUN 与 ipify。	Prüft die von WebKit in XStats sichtbaren Adressen, nicht andere Browser. Beim Start werden Cloudflare, Google, BlackBerry, Twilio STUN und ipify kontaktiert.
+通过 bash.ws 观察本次请求的 DNS 解析服务器；结果受系统代理与分流影响。	bash.ws ermittelt die DNS-Resolver dieser Anfrage. Systemproxys und Routingregeln beeinflussen das Ergebnis.
+点击开始检测，结果仅保留在当前窗口。	Starte einen Test. Ergebnisse bleiben nur in diesem Fenster.
+检测未完成，请检查网络或稍后重试。	Der Test wurde nicht abgeschlossen. Prüfe die Verbindung oder versuche es später erneut.
+检测已取消	Test abgebrochen
+与 HTTP 出口一致	Entspricht dem HTTP-Ausgang
+与 HTTP 出口不同，请核对代理路线	Abweichender HTTP-Ausgang; Proxyroute prüfen
+未取得 STUN 公网地址，无法判断是否存在泄漏。	Keine öffentliche STUN-Adresse erhalten. Eine Aussage zu Lecks ist nicht möglich.
+检测超时，以下仅为已收到的部分结果。	Der Test hat das Zeitlimit überschritten. Es liegen nur Teilergebnisse vor.
+仅比较同一地址族；地址不同可能来自分流，不直接代表泄漏。	Nur dieselbe Adressfamilie wird verglichen. Unterschiedliche Routen können ohne Leck verschiedene Adressen ergeben.
+检测服务看到的出口	Vom Testdienst gesehener Ausgang
+实际解析服务器	Beobachtete DNS-Resolver
+请核对解析服务器是否符合你的 VPN 或 DNS 配置；多个服务器不代表泄漏。	Prüfe, ob diese Resolver zu deiner VPN- oder DNS-Konfiguration passen. Mehrere Server bedeuten kein Leck.
+未获取到地址	Adresse nicht verfügbar
+开始检测	Test starten
+检测完成	Test abgeschlossen
+检测说明	Testinformationen
+出口概览	Ausgangsübersicht
