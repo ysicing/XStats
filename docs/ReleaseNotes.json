@@ -1,29 +1,15 @@
 {
-  "version": "1.4.9",
+  "version": "1.4.10",
   "sourceNotes": [
-    "清理优化支持切换 Mole 引擎，提供安装入口、独立预览、执行确认与可取消的实时日志",
-    "原生优化页新增重置缩略图与 Spotlight 搜索修复入口，复用现有系统维护能力",
-    "端口、进程与应用服务支持相互定位，可从连接查看所属进程和应用",
-    "清理页面按应用缓存、开发者等分类展示，两列卡片自然展开，隐藏不支持清理或没有安装与缓存记录的项目",
-    "应用卸载预览分阶段展示候选并在后台统计大小，保留用户勾选，未完成扫描前不开放清理",
-    "更新应用与 README 图标，统一闪电标识",
-    "取消普通目录扫描的固定时间与条目限制，按当前负载调整并发，并修复取消及退出时的扫描工作进程回收",
-    "修复 Homebrew 自定义缓存和保留项保护，避免通用缓存清理误纳入工具管理的目录",
-    "修复连续切换音频输出时的取消竞态，以及部分虚拟输出设备采样率不同导致的音频不可用问题",
-    "修复部分分块网络响应被截断后仍当作完整内容解析的问题"
+    "网络设置支持手动选择流量统计接口，并在网络详情中显示实际使用的接口",
+    "网络速率与累计流量默认按单个物理出口统计，避免物理网卡与 VPN、代理隧道重复计数",
+    "切换、断开网卡或计数器复位后重新建立速率基线，避免流量突跳"
   ],
   "translations": {
     "en": [
-      "Add a Mole engine for cleanup and optimization, with an installation entry, independent previews, execution confirmation, and cancellable live logs. Mole follows its own rules; native selections and protected items do not apply to Mole.",
-      "Add thumbnail reset and Spotlight search repair entries to native optimization, using existing system maintenance capabilities.",
-      "Link ports, processes, and app management so connections can lead to their owning process and app.",
-      "Group cleanup by application caches, developer tools, and other categories, let two-column cards size to their content, and hide unsupported items or apps with no installation or cache records.",
-      "Show uninstall candidates in stages and calculate sizes in the background while preserving selections; cleanup remains unavailable until scanning finishes.",
-      "Update the app and README icons with a consistent lightning-bolt design.",
-      "Remove fixed duration and entry limits from ordinary directory scans, adapt concurrency to current load, and fix scan-worker reaping on cancellation and app exit.",
-      "Fix protection for custom Homebrew caches and preserved items so generic cache cleanup does not include tool-managed directories.",
-      "Fix cancellation races during repeated audio-output switches and audio failures on virtual outputs with different sample rates.",
-      "Fix truncated chunked network responses being parsed as complete content."
+      "Choose a traffic interface in network settings and see the interface in use in network details. Selections are retained when an interface is temporarily unavailable.",
+      "Measure network speed and cumulative traffic on one physical uplink by default, avoiding duplicate counts from physical interfaces and VPN or proxy tunnels.",
+      "Rebuild rate baselines after interface switches, disconnects or counter resets to prevent spikes. Discard reset baselines from the previous all-interface totals while keeping existing historical records."
     ]
   }
 }
