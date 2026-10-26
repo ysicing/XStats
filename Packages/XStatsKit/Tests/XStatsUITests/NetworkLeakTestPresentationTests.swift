@@ -55,16 +55,20 @@ struct NetworkLeakTestPresentationTests {
     }
   }
 
-  @Test func sheetRendersLongAddressesAndHiddenState() async throws {
+  @Test func resultsRenderLongAddressesInBothLayoutDirections() async throws {
     for mode in NetworkLeakTestController.Mode.allCases {
-      for hidden in [false, true] {
+      for rightToLeft in [false, true] {
         let controller = NetworkLeakTestController()
         controller.phase = .complete
         controller.httpExit = "192.0.2.1"
-        controller.candidates = [
-          try #require(
-            NetworkLeakTest.candidate(
-              "candidate:a 1 udp 100 2001:db8:1234:5678:abcd:ef01:2345:6789 1234 typ srflx"))
+        let candidate = try #require(
+          NetworkLeakTest.candidate(
+            "candidate:a 1 udp 100 2001:db8:1234:5678:abcd:ef01:2345:6789 1234 typ srflx"))
+        controller.webRTCServices = [
+          .init(provider: .cloudflare, candidates: [candidate], status: .complete),
+          .init(provider: .google, candidates: [candidate], status: .complete),
+          .init(provider: .blackBerry, status: .failed),
+          .init(provider: .twilio, status: .timedOut),
         ]
         controller.dnsResult = try NetworkLeakTest.decodeDNS(
           Data(
@@ -75,10 +79,11 @@ struct NetworkLeakTestPresentationTests {
             """.utf8))
         let host = NSHostingView(
           rootView:
-            NetworkLeakTestView(controller: controller, mode: mode, hideIP: .constant(hidden))
-            .frame(width: 640, height: 480)
-            .environment(\.layoutDirection, hidden ? .rightToLeft : .leftToRight))
-        let size = NSSize(width: 640, height: 480)
+            NetworkLeakTestView(controller: controller, mode: mode)
+            .frame(width: 640)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .environment(\.layoutDirection, rightToLeft ? .rightToLeft : .leftToRight))
+        let size = NSSize(width: 640, height: 640)
         let window = NSWindow(
           contentRect: NSRect(origin: .zero, size: size),
           styleMask: .borderless, backing: .buffered, defer: false)
@@ -86,31 +91,30 @@ struct NetworkLeakTestPresentationTests {
         defer { window.close() }
         window.contentView = host
         host.frame = NSRect(origin: .zero, size: size)
-        host.appearance = NSAppearance(named: hidden ? .darkAqua : .aqua)
+        host.appearance = NSAppearance(named: rightToLeft ? .darkAqua : .aqua)
         try await Task.sleep(for: .milliseconds(100))
         host.layoutSubtreeIfNeeded()
-        #expect(host.fittingSize == size)
+        #expect(host.fittingSize.width == size.width)
+        #expect(host.fittingSize.height <= size.height)
         let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
         host.cacheDisplay(in: host.bounds, to: bitmap)
         if let directory = ProcessInfo.processInfo.environment["XSTATS_LEAK_PREVIEW_DIR"] {
           let url = URL(fileURLWithPath: directory).appendingPathComponent(
-            "\(mode.rawValue)-\(hidden).png")
+            "\(mode.rawValue)-\(rightToLeft).png")
           try bitmap.representation(using: .png, properties: [:])?.write(to: url)
         }
       }
     }
   }
 
-  @Test func longTranslationsFitInformationPopover() throws {
-    for language in AppLanguage.allCases where language != .system {
-      let text = L10n.translate(
-        "检测 XStats 内 WebKit 暴露的地址，不代表其他浏览器。开始后连接 Cloudflare、Google、BlackBerry、Twilio STUN 与 ipify。",
-        language: language)
-      let host = NSHostingView(
-        rootView: Text(text).dsFont(.sm)
-          .fixedSize(horizontal: false, vertical: true).frame(width: 328)
-          .environment(\.layoutDirection, language == .arabic ? .rightToLeft : .leftToRight))
-      #expect(host.fittingSize.height <= 180, "\(language)")
+  @Test func serviceStatusesTranslateWithoutChangingGlobalLanguage() {
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      for source in [
+        "通过四个 STUN 服务检测公网地址，与 HTTP 出口对照", "查看本次请求实际使用的 DNS 解析服务器",
+        "未返回公网地址", "服务检测失败", "服务检测超时",
+      ] {
+        #expect(L10n.translate(source, language: language) != source, "\(language): \(source)")
+      }
     }
   }
 

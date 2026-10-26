@@ -66,4 +66,6 @@ final class EgressWindowController: NSObject, NSWindowDelegate {
   func windowDidMiniaturize(_ notification: Notification) { session.setSuspended(true) }
 
   func windowDidDeminiaturize(_ notification: Notification) { session.setSuspended(false) }
+
+  func cancelLeakTests() { session.cancelLeakTests() }
 }

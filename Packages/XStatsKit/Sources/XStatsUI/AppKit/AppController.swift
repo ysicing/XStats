@@ -1062,6 +1062,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.fans.setPaused(true)
     model.network.setPaused(true)
     model.egress.setPaused(true)
+    egressWindow.cancelLeakTests()
     model.diskTools.setPaused(true)
     model.aiUsage.setPaused(true)
     model.displays.setPaused(true)

@@ -87,20 +87,33 @@ Local addresses never go to lookup services. Hiding IPs removes local address an
 from the rendered and accessibility trees. Closing the sheet cancels presentation tasks; no
 observer, polling loop, external VPN command or persisted interface cache is added.
 
-The Network page's **Egress & Routing** window groups Egress overview, WebRTC and DNS as
-peer tabs. WebRTC and DNS share a hide-IP option and expose scope and external services through
-an information button. Each keeps its results while switching tabs; switching cancels active work.
-Only the overview observes network changes. Closing clears leak-test results and returns to the
-overview; minimizing suspends work without discarding completed results.
-Leak tests run only after an explicit start; selecting either tab creates no WebView or leak-test
-network task.
+The Network page's **Egress & Routing** window places WebRTC and DNS after the website categories
+in the **Website Routing** card's header, alongside the existing website categories. Switching
+categories changes only that card's content; the exit overview remains above it. Website categories
+filter routing results without restarting their measurement. Leak-test results use the page's
+existing scroll view rather than a second nested vertical scroll area.
+WebRTC and DNS show their results directly, without a hide-IP control or information footer.
+Each tab has a short description beneath the card heading. Manual detection and progress
+use the window header's shared control, targeting the selected tab; active WebRTC and DNS tests
+can be cancelled there. Each keeps its results while switching tabs; leaving a detection page cancels active work.
+All tabs reuse the overview's single network-environment watcher. Only the selected page runs
+network tests: entering or resuming a page checks missing, unfinished or older-than-ten-minute
+results, and a changed network signature triggers another test while the page remains visible.
+Failure or cancellation alone does not retry on every watcher tick. Manual rechecks remain available.
+Closing clears leak-test results and returns to the overview; minimizing, hiding or system inactivity
+suspends work without discarding completed results. Rendering a view without opening its session
+does not create a WebView or start network requests.
 WebRTC uses bundled JavaScript in an ephemeral WKWebView, a data channel and Cloudflare, Google,
 BlackBerry and Twilio STUN servers, without camera/microphone access or remote page scripts.
+Each service has its own PeerConnection within the same temporary WebView and its own named
+result, including empty, failed and timed-out outcomes. Identical addresses from different
+services remain visible; local host candidates are omitted from the results.
 A native 10-second deadline bounds ICE collection because hidden WebKit JavaScript timers may be
-throttled. The view reports ICE candidates
-and an ipify HTTP exit; only reflexive candidates of the same address family are compared.
-A mismatch is a routing observation, not an automatic leak verdict; this tests XStats' WebKit
-context and does not certify Chrome, Firefox or Safari configurations.
+throttled. Completed service results survive the deadline; only unfinished services are marked
+timed out. Finishing or cancelling closes all four connections. The view reports ICE candidates
+and an ipify HTTP exit without repeated per-service comparison warnings. Different addresses
+may reflect routing rather than leakage; this tests XStats' WebKit context and does not certify
+Chrome, Firefox or Safari configurations.
 
 DNS uses the bash.ws test protocol referenced by MyIP (ipcheck.ing): request a validated session ID,
 make three unique HTTPS probes and read the observed resolvers. Probe TLS failures may follow

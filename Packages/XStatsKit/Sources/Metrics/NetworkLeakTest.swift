@@ -119,6 +119,18 @@ public enum NetworkLeakTest {
       let country_name: String?
       let org: String?
       let asn: String?
+
+      enum CodingKeys: String, CodingKey { case ip, type, country_name, org, asn }
+
+      init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        ip = try values.decode(String.self, forKey: .ip)
+        type = try values.decode(String.self, forKey: .type)
+        // 服务会用 false 表示未知元数据；辅助描述不可导致有效地址被整批丢弃。
+        country_name = try? values.decode(String.self, forKey: .country_name)
+        org = try? values.decode(String.self, forKey: .org)
+        asn = try? values.decode(String.self, forKey: .asn)
+      }
     }
     guard data.count <= 65_536,
       let entries = try? JSONDecoder().decode([Entry].self, from: data), entries.count <= 256

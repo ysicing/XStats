@@ -16,47 +16,39 @@ struct EgressWindowView: View {
   var body: some View {
     VStack(spacing: 0) {
       // 滚动视图会自动向上延伸到标题栏下面：顶栏垫上底色、放在它之上，滚动的内容才不会盖住按钮
-      EgressHeader(showsOverview: session.tab == .overview)
+      EgressHeader(session: session)
         .background(DS.Palette.background)
         .zIndex(1)
-      Picker(tr("出口与分流"), selection: Binding(get: { session.tab }, set: { session.select($0) })) {
-        ForEach(EgressWindowSession.Tab.allCases, id: \.self) { tab in
-          Text(verbatim: tab.title).tag(tab)
-        }
-      }
-      .pickerStyle(.segmented)
-      .labelsHidden()
-      .fixedSize()
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(.horizontal, DS.Space.s4)
-      .padding(.bottom, DS.Space.s3)
-
-      switch session.tab {
-      case .overview:
-        overview
-      case .webRTC:
-        NetworkLeakTestView(controller: session.webRTC, mode: .webRTC, hideIP: $session.hideIP)
-      case .dns:
-        NetworkLeakTestView(controller: session.dns, mode: .dns, hideIP: $session.hideIP)
-      }
+      overview
     }
     .background(DS.Palette.background)
     .ignoresSafeArea()
     .appLanguageEnvironment()
+    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didHideNotification)) { _ in
+      session.setHidden(true)
+    }
+    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didUnhideNotification)) {
+      _ in
+      session.setHidden(false)
+    }
   }
 
   private var overview: some View {
     let egress = model.egress
+    let context = egress.report.flatMap { report in
+      egress.analysis.map { EgressContext(report: report, analysis: $0) }
+    }
     return PageScroll {
-      if let report = egress.report, let analysis = egress.analysis {
-        let context = EgressContext(report: report, analysis: analysis)
+      if let context {
         OverviewCard(context: context)
-        SitesCard(context: context)
-        EnvironmentCard(environment: egress.environment ?? report.environment)
-        EgressFootnote()
-      } else {
+      } else if session.tab.isOverview {
         FirstCheckCard()
       }
+      SitesCard(context: context, session: session)
+      if let environment = egress.environment ?? egress.report?.environment {
+        EnvironmentCard(environment: environment)
+      }
+      if context != nil { EgressFootnote() }
     }
   }
 }
@@ -96,7 +88,7 @@ private struct EgressContext {
 
 private struct EgressHeader: View {
   @Environment(AppModel.self) private var model
-  var showsOverview: Bool
+  let session: EgressWindowSession
 
   var body: some View {
     let egress = model.egress
@@ -110,7 +102,7 @@ private struct EgressHeader: View {
       .frame(maxHeight: .infinity)
       .background(WindowDragArea())
 
-      if showsOverview {
+      if session.tab.isOverview {
         if let date = egress.report?.date, !egress.isChecking {
           TimelineView(.periodic(from: .now, by: 30)) { context in
             Text(verbatim: EgressText.checkedAt(date, now: context.date))
@@ -118,23 +110,31 @@ private struct EgressHeader: View {
               .foregroundStyle(DS.Palette.textTertiary)
           }
         }
-        Button {
-          egress.check()
-        } label: {
-          HStack(spacing: DS.Space.s1) {
-            if egress.isChecking {
-              ProgressView().controlSize(.mini)
+      }
+      Button {
+        session.check()
+      } label: {
+        HStack(spacing: DS.Space.s1) {
+          if session.isChecking {
+            ProgressView().controlSize(.mini)
+            if session.tab.isOverview {
               Text(tr("检测中 \(egress.progress)/\(EgressProber.jobCount)")).monospacedDigit()
             } else {
-              Image(systemName: "arrow.clockwise")
-              Text(tr("重新检测"))
+              Text(tr("正在检测…"))
             }
+          } else {
+            Image(systemName: "arrow.clockwise")
+            Text(tr("重新检测"))
           }
-          .lineLimit(1)
-          .fixedSize()
         }
-        .buttonStyle(DSButtonStyle(kind: .secondary))
-        .disabled(egress.isChecking)
+        .lineLimit(1)
+        .fixedSize()
+      }
+      .buttonStyle(DSButtonStyle(kind: .secondary))
+      .disabled(session.isChecking)
+      if !session.tab.isOverview && session.isChecking {
+        Button(tr("取消")) { session.cancelLeakTests() }
+          .buttonStyle(DSButtonStyle(kind: .secondary))
       }
     }
     // 让出红绿灯按钮，再隔开一段，标题不贴着最右边的按钮
@@ -378,35 +378,9 @@ private struct ExitNode: View {
 
 // MARK: - 网站分流
 
-private enum SiteFilter: Hashable, CaseIterable {
-  case all, ai, media, social, developer, domestic
-
-  var title: String {
-    switch self {
-    case .all: tr("全部")
-    case .ai: "AI"
-    case .media: tr("影音")
-    case .social: tr("社交")
-    case .developer: tr("开发")
-    case .domestic: tr("国内")
-    }
-  }
-
-  func includes(_ target: EgressTarget) -> Bool {
-    switch self {
-    case .all: true
-    case .ai: target.category == .ai
-    case .media: target.category == .media
-    case .social: target.category == .social
-    case .developer: target.category == .developer
-    case .domestic: target.category == .domestic
-    }
-  }
-}
-
 private struct SitesCard: View {
-  let context: EgressContext
-  @State private var filter = SiteFilter.all
+  let context: EgressContext?
+  @Bindable var session: EgressWindowSession
 
   var body: some View {
     let groups = siteGroups
@@ -414,35 +388,66 @@ private struct SitesCard: View {
       HStack(spacing: DS.Space.s3) {
         VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
           Text(tr("网站分流")).dsFont(.base, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
-          Text(tr("接入 Cloudflare 的网站能实测出口，其余按国内 / 国际规则推断"))
+          Text(tr(subtitle))
             .dsFont(.xs)
             .foregroundStyle(DS.Palette.textTertiary)
             .lineLimit(1)
+            .help(tr(subtitle))
         }
+        // 标题使用分类栏之外的剩余宽度，避免单行说明把窄窗口撑大。
+        .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, alignment: .leading)
         Spacer(minLength: DS.Space.s3)
-        SegmentedControl(selection: $filter, options: SiteFilter.allCases.map { ($0, $0.title) })
-          .frame(width: DS.Size.sidebarWidth * 2)
+        ScrollView(.horizontal) {
+          SegmentedControl(
+            selection: Binding(get: { session.tab }, set: { session.select($0) }),
+            options: EgressWindowSession.Tab.allCases.map { ($0, $0.title) }
+          )
+          .fixedSize(horizontal: true, vertical: false)
+        }
+        .scrollIndicators(.hidden)
+        .frame(
+          width: DS.Size.sidebarWidth * 2, height: DS.Size.segmentHeight + DS.Space.s1,
+          alignment: .trailing)
       }
       .padding(DS.Space.s4)
 
-      SiteColumnsHeader()
-      ForEach(groups) { group in
-        SiteGroupHeader(group: group, context: context)
-        ForEach(group.rows, id: \.target.id) { row in
-          SiteTableRow(
-            target: row.target, hit: context.hit(row.target, .system), measured: row.measured,
-            failed: group.kind == .failed)
+      switch session.tab {
+      case .webRTC:
+        NetworkLeakTestView(
+          controller: session.webRTC, mode: .webRTC)
+      case .dns:
+        NetworkLeakTestView(
+          controller: session.dns, mode: .dns)
+      default:
+        SiteColumnsHeader()
+        if let context {
+          ForEach(groups) { group in
+            SiteGroupHeader(group: group, context: context)
+            ForEach(group.rows, id: \.target.id) { row in
+              SiteTableRow(
+                target: row.target, hit: context.hit(row.target, .system), measured: row.measured,
+                failed: group.kind == .failed)
+            }
+          }
         }
-      }
-      if groups.isEmpty {
-        Text(tr("这一类没有检测结果"))
-          .dsFont(.sm)
-          .foregroundStyle(DS.Palette.textTertiary)
-          .frame(maxWidth: .infinity)
-          .padding(DS.Space.s6)
+        if groups.isEmpty {
+          Text(tr(context == nil ? "尚未检测" : "这一类没有检测结果"))
+            .dsFont(.sm)
+            .foregroundStyle(DS.Palette.textTertiary)
+            .frame(maxWidth: .infinity)
+            .padding(DS.Space.s6)
+        }
       }
       // 最后一行的悬停底色不贴到卡片圆角
       Color.clear.frame(height: DS.Space.s2)
+    }
+  }
+
+  private var subtitle: String {
+    switch session.tab {
+    case .webRTC: "通过四个 STUN 服务检测公网地址，与 HTTP 出口对照"
+    case .dns: "查看本次请求实际使用的 DNS 解析服务器"
+    default: "接入 Cloudflare 的网站能实测出口，其余按国内 / 国际规则推断"
     }
   }
 
@@ -463,9 +468,10 @@ private struct SitesCard: View {
   }
 
   private var siteGroups: [SiteGroup] {
+    guard let context, session.tab.isOverview else { return [] }
     let analysis = context.analysis
     func target(_ id: String) -> EgressTarget? {
-      EgressTarget.sites.first { $0.id == id && filter.includes($0) }
+      EgressTarget.sites.first { $0.id == id && session.tab.includes($0) }
     }
     var groups: [SiteGroup] = []
     for exit in analysis.exits {

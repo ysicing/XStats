@@ -53,6 +53,11 @@ extension Translations {
 
   static let networkPresentationEnglish = #"""
     出口概览	Egress overview
+    通过四个 STUN 服务检测公网地址，与 HTTP 出口对照	Check public addresses through four STUN services against the HTTP exit
+    查看本次请求实际使用的 DNS 解析服务器	See the DNS resolvers used for this request
+    未返回公网地址	No public address returned
+    服务检测失败	Service test failed
+    服务检测超时	Service test timed out
     检测说明	Test information
     检测 XStats 内 WebKit 暴露的地址，不代表其他浏览器。开始后连接 Cloudflare、Google、BlackBerry、Twilio STUN 与 ipify。	Test addresses exposed by WebKit in XStats, not other browsers. Starting connects to Cloudflare, Google, BlackBerry, Twilio STUN and ipify.
     通过 bash.ws 观察本次请求的 DNS 解析服务器；结果受系统代理与分流影响。	Use bash.ws to observe DNS resolvers for this request. System proxies and routing rules affect the result.
