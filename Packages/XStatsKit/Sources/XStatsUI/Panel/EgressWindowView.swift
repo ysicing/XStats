@@ -8,33 +8,56 @@ import Localization
 import Metrics
 import SwiftUI
 
-/// 出口与分流窗口：总览（结论、统计、本机网络 → 代理出口的线路）、网站分流表、本机的代理方式
+/// 出口与分流窗口：出口概览、WebRTC 与 DNS 检测共用入口和窗口生命周期。
 struct EgressWindowView: View {
   @Environment(AppModel.self) private var model
+  @Bindable var session: EgressWindowSession
 
   var body: some View {
-    let egress = model.egress
     VStack(spacing: 0) {
       // 滚动视图会自动向上延伸到标题栏下面：顶栏垫上底色、放在它之上，滚动的内容才不会盖住按钮
-      EgressHeader()
+      EgressHeader(showsOverview: session.tab == .overview)
         .background(DS.Palette.background)
         .zIndex(1)
-      PageScroll {
-        if let report = egress.report, let analysis = egress.analysis {
-          let context = EgressContext(report: report, analysis: analysis)
-          OverviewCard(context: context)
-          SitesCard(context: context)
-          EnvironmentCard(environment: egress.environment ?? report.environment)
-          EgressFootnote()
-        } else {
-          FirstCheckCard()
+      Picker(tr("出口与分流"), selection: Binding(get: { session.tab }, set: { session.select($0) })) {
+        ForEach(EgressWindowSession.Tab.allCases, id: \.self) { tab in
+          Text(verbatim: tab.title).tag(tab)
         }
+      }
+      .pickerStyle(.segmented)
+      .labelsHidden()
+      .fixedSize()
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.horizontal, DS.Space.s4)
+      .padding(.bottom, DS.Space.s3)
+
+      switch session.tab {
+      case .overview:
+        overview
+      case .webRTC:
+        NetworkLeakTestView(controller: session.webRTC, mode: .webRTC, hideIP: $session.hideIP)
+      case .dns:
+        NetworkLeakTestView(controller: session.dns, mode: .dns, hideIP: $session.hideIP)
       }
     }
     .background(DS.Palette.background)
-    // 内容延伸到透明标题栏下方，顶栏与红绿灯按钮在同一行
     .ignoresSafeArea()
     .appLanguageEnvironment()
+  }
+
+  private var overview: some View {
+    let egress = model.egress
+    return PageScroll {
+      if let report = egress.report, let analysis = egress.analysis {
+        let context = EgressContext(report: report, analysis: analysis)
+        OverviewCard(context: context)
+        SitesCard(context: context)
+        EnvironmentCard(environment: egress.environment ?? report.environment)
+        EgressFootnote()
+      } else {
+        FirstCheckCard()
+      }
+    }
   }
 }
 
@@ -73,6 +96,7 @@ private struct EgressContext {
 
 private struct EgressHeader: View {
   @Environment(AppModel.self) private var model
+  var showsOverview: Bool
 
   var body: some View {
     let egress = model.egress
@@ -86,30 +110,32 @@ private struct EgressHeader: View {
       .frame(maxHeight: .infinity)
       .background(WindowDragArea())
 
-      if let date = egress.report?.date, !egress.isChecking {
-        TimelineView(.periodic(from: .now, by: 30)) { context in
-          Text(verbatim: EgressText.checkedAt(date, now: context.date))
-            .dsFont(.xs)
-            .foregroundStyle(DS.Palette.textTertiary)
-        }
-      }
-      Button {
-        egress.check()
-      } label: {
-        HStack(spacing: DS.Space.s1) {
-          if egress.isChecking {
-            ProgressView().controlSize(.mini)
-            Text(tr("检测中 \(egress.progress)/\(EgressProber.jobCount)")).monospacedDigit()
-          } else {
-            Image(systemName: "arrow.clockwise")
-            Text(tr("重新检测"))
+      if showsOverview {
+        if let date = egress.report?.date, !egress.isChecking {
+          TimelineView(.periodic(from: .now, by: 30)) { context in
+            Text(verbatim: EgressText.checkedAt(date, now: context.date))
+              .dsFont(.xs)
+              .foregroundStyle(DS.Palette.textTertiary)
           }
         }
-        .lineLimit(1)
-        .fixedSize()
+        Button {
+          egress.check()
+        } label: {
+          HStack(spacing: DS.Space.s1) {
+            if egress.isChecking {
+              ProgressView().controlSize(.mini)
+              Text(tr("检测中 \(egress.progress)/\(EgressProber.jobCount)")).monospacedDigit()
+            } else {
+              Image(systemName: "arrow.clockwise")
+              Text(tr("重新检测"))
+            }
+          }
+          .lineLimit(1)
+          .fixedSize()
+        }
+        .buttonStyle(DSButtonStyle(kind: .secondary))
+        .disabled(egress.isChecking)
       }
-      .buttonStyle(DSButtonStyle(kind: .secondary))
-      .disabled(egress.isChecking)
     }
     // 让出红绿灯按钮，再隔开一段，标题不贴着最右边的按钮
     .padding(.leading, DS.Size.trafficLightsWidth + DS.Space.s4)

@@ -2558,3 +2558,21 @@ macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macO
 流量统计接口	Interface de trafic
 自动（物理接口）	Automatique (interface physique)
 {}（不可用）	{} (indisponible)
+检测 XStats 内 WebKit 暴露的地址，不代表其他浏览器。开始后连接 Cloudflare、Google、BlackBerry、Twilio STUN 与 ipify。	Teste les adresses exposées par WebKit dans XStats, pas les autres navigateurs. Le démarrage contacte Cloudflare, Google, BlackBerry, Twilio STUN et ipify.
+通过 bash.ws 观察本次请求的 DNS 解析服务器；结果受系统代理与分流影响。	bash.ws observe les résolveurs DNS de cette requête. Les proxys système et les règles de routage influencent le résultat.
+点击开始检测，结果仅保留在当前窗口。	Lancez un test. Les résultats restent uniquement dans cette fenêtre.
+检测未完成，请检查网络或稍后重试。	Le test n’a pas abouti. Vérifiez la connexion ou réessayez plus tard.
+检测已取消	Test annulé
+与 HTTP 出口一致	Identique à la sortie HTTP
+与 HTTP 出口不同，请核对代理路线	Sortie HTTP différente ; vérifiez le routage du proxy
+未取得 STUN 公网地址，无法判断是否存在泄漏。	Aucune adresse publique STUN obtenue. Impossible de déterminer la présence d’une fuite.
+检测超时，以下仅为已收到的部分结果。	Le test a expiré. Seuls des résultats partiels sont disponibles.
+仅比较同一地址族；地址不同可能来自分流，不直接代表泄漏。	Seules les adresses de la même famille sont comparées. Des routes différentes peuvent expliquer les écarts sans fuite.
+检测服务看到的出口	Sortie vue par le service de test
+实际解析服务器	Résolveurs DNS observés
+请核对解析服务器是否符合你的 VPN 或 DNS 配置；多个服务器不代表泄漏。	Vérifiez que ces résolveurs correspondent à votre configuration VPN ou DNS. Plusieurs serveurs n’impliquent pas une fuite.
+未获取到地址	Adresse indisponible
+开始检测	Lancer le test
+检测完成	Test terminé
+检测说明	Informations sur le test
+出口概览	Vue d’ensemble des sorties

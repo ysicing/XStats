@@ -2558,3 +2558,21 @@ macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macO
 流量统计接口	Interfaz de tráfico
 自动（物理接口）	Automática (interfaz física)
 {}（不可用）	{} (no disponible)
+检测 XStats 内 WebKit 暴露的地址，不代表其他浏览器。开始后连接 Cloudflare、Google、BlackBerry、Twilio STUN 与 ipify。	Comprueba las direcciones expuestas por WebKit en XStats, no otros navegadores. Al iniciar se conecta a Cloudflare, Google, BlackBerry, Twilio STUN e ipify.
+通过 bash.ws 观察本次请求的 DNS 解析服务器；结果受系统代理与分流影响。	bash.ws observa los resolutores DNS de esta solicitud. Los proxies del sistema y las reglas de rutas afectan al resultado.
+点击开始检测，结果仅保留在当前窗口。	Inicia una prueba. Los resultados solo se conservan en esta ventana.
+检测未完成，请检查网络或稍后重试。	La prueba no se completó. Revisa la conexión o inténtalo más tarde.
+检测已取消	Prueba cancelada
+与 HTTP 出口一致	Coincide con la salida HTTP
+与 HTTP 出口不同，请核对代理路线	Difiere de la salida HTTP; revisa la ruta del proxy
+未取得 STUN 公网地址，无法判断是否存在泄漏。	No se obtuvo una dirección pública STUN. No se puede determinar si hay fugas.
+检测超时，以下仅为已收到的部分结果。	La prueba agotó el tiempo. Solo hay resultados parciales.
+仅比较同一地址族；地址不同可能来自分流，不直接代表泄漏。	Solo se comparan direcciones de la misma familia. Las rutas distintas pueden producir diferencias sin una fuga.
+检测服务看到的出口	Salida vista por el servicio de prueba
+实际解析服务器	Resolutores DNS observados
+请核对解析服务器是否符合你的 VPN 或 DNS 配置；多个服务器不代表泄漏。	Comprueba que los resolutores coincidan con tu configuración VPN o DNS. Varios servidores no implican una fuga.
+未获取到地址	Dirección no disponible
+开始检测	Iniciar prueba
+检测完成	Prueba completada
+检测说明	Información de la prueba
+出口概览	Resumen de salida

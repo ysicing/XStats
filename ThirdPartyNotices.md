@@ -2,6 +2,13 @@
 
 XStats 新增代码与修改采用 AGPL-3.0-or-later，范围见 [LICENSING.md](LICENSING.md)。以下原有第三方许可与版权声明继续保留。
 
+## 网络泄漏检测协议参考
+
+内置 WebRTC / DNS 检测参考 [MyIP（ipcheck.ing）](https://github.com/jason5ng32/MyIP)
+（MIT，Copyright (c) 2026 Jason Ng）的 STUN / ICE 检测思路及 bash.ws 会话探测协议。
+XStats 的 Swift 网络请求、原生结果界面与本地 JavaScript 为独立实现，未引入其 Vue 源码或运行时依赖。
+检测按需连接 Cloudflare STUN、ipify 与 bash.ws，服务可用性和使用条件由各提供方决定。
+
 ## 使用统计设计参考
 
 本机 Codex 模型统计参考 [CC Switch](https://github.com/farion1231/cc-switch)（MIT，Copyright (c) 2025 Jason Young）
