@@ -7,8 +7,14 @@ import SwiftUI
 
 /// 服务选择仅过滤已读取的额度，不重新请求，也不将同服务的账户额度相加。
 struct MagpieQuotaAccounts: View {
-  let accounts: [MagpieQuota]
+  let accounts: [MagpiePreferredAccountOption]
   let settings: AppSettings
+
+  var visibleAccounts: [MagpiePreferredAccountOption] {
+    MagpiePreferredAccountOption.ordered(
+      accounts.filter { $0.provider == currentProvider },
+      preferredID: settings.aiPreferredAccounts[currentProvider])
+  }
 
   private var providers: [String] {
     var seen: Set<String> = []
@@ -30,7 +36,7 @@ struct MagpieQuotaAccounts: View {
   }
 
   private var providerPicker: some View {
-    Picker(tr("订阅额度"), selection: selection) {
+    Picker(tr("订阅账号"), selection: selection) {
       // 保留 Picker 可直接读取的 tag；图标读取延迟到行的 MainActor body。
       ForEach(providers, id: \.self, content: MagpieQuotaProviderLabel.option)
     }
@@ -39,6 +45,22 @@ struct MagpieQuotaAccounts: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: DS.Space.s3) {
+      HStack {
+        Text(tr("订阅账号")).dsFont(.sm, weight: .semibold)
+        Spacer(minLength: DS.Space.s2)
+        if visibleAccounts.count > 1 {
+          Menu {
+            Button(tr("跟随 Magpie")) {
+              settings.aiPreferredAccounts[currentProvider] = nil
+            }
+            .disabled(settings.aiPreferredAccounts[currentProvider] == nil)
+          } label: {
+            Label(tr("订阅账号"), systemImage: "ellipsis")
+          }
+          .labelStyle(.iconOnly).menuStyle(.borderlessButton).menuIndicator(.hidden)
+          .fixedSize()
+        }
+      }
       if providers.count > 1 {
         // 服务较多或名称较长时使用原生菜单，避免压缩或截断 Tab。
         ViewThatFits(in: .horizontal) {
@@ -63,28 +85,47 @@ struct MagpieQuotaAccounts: View {
 
   private var accountContent: some View {
     VStack(alignment: .leading, spacing: DS.Space.s3) {
-      let visibleAccounts = accounts.filter { $0.provider == currentProvider }
-      MainActorForEach(Array(visibleAccounts.enumerated()), id: \.element.id) { index, account in
+      MainActorForEach(Array(visibleAccounts.enumerated()), id: \.element.quota.id) {
+        index, account in
+        let quota = account.quota
         if index > 0 { Divider() }
         VStack(alignment: .leading, spacing: DS.Space.s2) {
           HStack(alignment: .firstTextBaseline) {
-            Text(account.name).dsFont(.sm, weight: .semibold)
-              .fixedSize(horizontal: false, vertical: true)
+            ViewThatFits(in: .horizontal) {
+              HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
+                Text(account.name).dsFont(.sm, weight: .semibold)
+                if let plan = quota.plan, !plan.isEmpty {
+                  Text(plan).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                }
+              }.fixedSize(horizontal: true, vertical: false)
+              VStack(alignment: .leading, spacing: DS.Space.s1) {
+                Text(account.name).dsFont(.sm, weight: .semibold)
+                  .lineLimit(1).truncationMode(.middle)
+                if let plan = quota.plan, !plan.isEmpty {
+                  Text(plan).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+            }
+            .help(account.menuTitle(among: visibleAccounts))
             Spacer(minLength: DS.Space.s2)
-            if let plan = account.plan {
-              Text(plan).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-                .multilineTextAlignment(.trailing)
+            if visibleAccounts.count > 1 {
+              MagpiePreferredAccounts(
+                account: account, options: visibleAccounts, settings: settings)
             }
           }
-          if let user = account.user, !user.isEmpty {
+          if let user = quota.user, !user.isEmpty, !account.name.contains(user) {
             Text(user).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
               .lineLimit(1).truncationMode(.middle).help(user).textSelection(.enabled)
           }
-          if account.error != nil {
+          if visibleAccounts.filter({ $0.title == account.title }).count > 1 {
+            Text(account.kind).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+          }
+          if quota.error != nil {
             Text(tr("Magpie 未能读取此账户的额度。"))
               .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
           } else {
-            MainActorForEach(Array(account.windows.enumerated()), id: \.offset) { _, window in
+            MainActorForEach(Array(quota.windows.enumerated()), id: \.offset) { _, window in
               HStack {
                 Text(window.name).foregroundStyle(DS.Palette.textSecondary)
                 Spacer(minLength: DS.Space.s2)
@@ -126,9 +167,9 @@ struct MagpieQuotaAccounts: View {
                 .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
               }
             }
-            if let balance = account.balance { Text(balance).dsFont(.xs) }
+            if let balance = quota.balance { Text(balance).dsFont(.xs) }
           }
-          MagpieAccountDetails(account: account)
+          MagpieAccountDetails(account: quota)
         }
       }
     }

@@ -172,6 +172,7 @@ tasks:
       - bash scripts/arm64_release_test.sh
       - python3 scripts/release_build_test.py
       - python3 scripts/codesign_retry_test.py
+      - python3 scripts/install_local_test.py
       - python3 scripts/archive_debug_symbols_test.py
       - python3 scripts/backup_debug_symbols_test.py
       - bash scripts/release_all_test.sh

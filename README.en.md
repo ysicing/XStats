@@ -107,7 +107,7 @@ Connections, addresses, countries or regions and component version information a
 Track AI service usage from the menu bar:
 
 - **Usage trends**: tokens, costs, request counts and generation speed for today, the last 7 / 30 days and all time.
-- **Subscription quotas**: used / remaining percentages, reset times and plan details.
+- **Subscription accounts**: service accounts, plan types, quota usage and reset times.
 - **Estimated costs**: USD estimates provided by Magpie; not a subscription bill.
 
 AI usage supports Magpie exclusively and requires it to be installed and running. XStats reads account quotas, tokens and costs from its local API, including Grok and other supported services. Only requests routed through Magpie count toward token usage.

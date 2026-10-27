@@ -1,6 +1,6 @@
 ---
 name: xstats-local-preview
-description: Build, install, and inspect the current XStats macOS app locally, using ad-hoc signing by default and certificate signing when verifying privileged features or existing macOS privacy permissions. Use for 本地构建、测试安装、预览效果; not for public releases.
+description: Build, install, and inspect the current XStats macOS app locally, using ad-hoc signing by default without asking, and certificate signing when explicitly requested or needed to verify Widgets, privileged features, or existing macOS privacy permissions. Use for 本地构建、测试安装、预览效果; not for public releases.
 ---
 
 <!-- Copyright (C) 2026 ysicing -->
@@ -8,7 +8,7 @@ description: Build, install, and inspect the current XStats macOS app locally, u
 
 # XStats 本地构建预览
 
-把当前工作区的 macOS App 编译并安装到 `/Applications/XStats.app`，让用户查看实际界面。使用仓库现有的 `Taskfile.yml` 和 `scripts/install_local.sh`；正式签名、公证和对外发布走 `xstats-release`。
+把当前工作区的 macOS App 编译并安装到 `/Applications/XStats.app`，让用户查看实际界面。使用仓库现有的 `Taskfile.yml` 和 `scripts/install_local.sh`；公证和对外发布走 `xstats-release`。
 
 ## 开始前
 
@@ -18,9 +18,9 @@ description: Build, install, and inspect the current XStats macOS app locally, u
 
 ## 构建与安装
 
-1. 按本次验收范围选择签名：
+1. 按用户明确要求和本次验收范围直接选择签名，不为常规本地安装测试反复询问签名方式。用户未说明时，普通预览采用下述默认临时签名；不要把历史某次“不要临时签名”的要求当作所有后续任务的永久限制。
    - **默认使用本地临时签名（ad-hoc）**，适用于界面、文案和普通功能预览。显式设置 `SIGN_ID=-`，不查询证书或配置 provisioning profile；仓库脚本会完成临时签名，无需 Apple 时间戳服务或公证。不要省略 `SIGN_ID`，否则 `Taskfile.yml` 会自动选择钥匙串中的 Developer ID 证书。
-   - **需要验证特权辅助工具、Widget／App Group，或沿用屏幕录制、麦克风、日历等 macOS 隐私授权时，使用证书签名**。临时签名的应用身份绑定代码哈希，替换原证书签名版本后，即使系统设置中的权限开关仍打开，TCC 也可能因签名要求不匹配而拒绝访问；重新构建后也可能需要重新授权。截图与录屏的实际捕获验收应沿用原 Developer ID 团队身份，不反复要求用户切换权限开关。使用 `security find-identity -v -p codesigning` 核对本机 Developer ID 身份；主 App 与 Widget 的 provisioning profile 名称按本机实际安装情况及 `docs/DEVELOPMENT.md` 配置为 `XSTATS_APP_PROFILE`、`XSTATS_WIDGET_PROFILE`，并用 `SIGN_ID` 选择与两个 profile 匹配的证书。不要硬编码身份、索要私钥或修改 Apple 账户。缺少可用签名时报告相应功能无法验证，不把临时签名的 UI 预览当作特权或隐私授权功能验收。
+   - **用户明确要求“不要临时签名／使用正式证书”，或需要验证特权辅助工具、Widget／App Group，或沿用屏幕录制、麦克风、日历等 macOS 隐私授权时，使用证书签名**。用户明确要求证书签名但本机缺少可用身份或 profile 时，报告阻塞，不自行降级为临时签名。临时签名的应用身份绑定代码哈希，替换原证书签名版本后，即使系统设置中的权限开关仍打开，TCC 也可能因签名要求不匹配而拒绝访问；重新构建后也可能需要重新授权。截图与录屏的实际捕获验收应沿用原 Developer ID 团队身份，不反复要求用户切换权限开关。使用 `security find-identity -v -p codesigning` 核对本机 Developer ID 身份；主 App 与 Widget 的 provisioning profile 名称按本机实际安装情况及 `docs/DEVELOPMENT.md` 配置为 `XSTATS_APP_PROFILE`、`XSTATS_WIDGET_PROFILE`，并用 `SIGN_ID` 选择与两个 profile 匹配的证书。不要硬编码身份、索要私钥或修改 Apple 账户。缺少可用签名时报告相应功能无法验证，不把临时签名的 UI 预览当作特权或隐私授权功能验收。
 2. 先编译，不安装。默认命令为 `SIGN_ID=- task build BUMP=0 INSTALL=0 CONFIG=Release`；需要证书签名时，使用上一步核实的签名环境变量运行 `task build BUMP=0 INSTALL=0 CONFIG=Release`。若确认需要刷新 Widget 目录，仅这次改为 `BUMP=1`。
 3. 确认构建成功，并对 `build/DerivedData-arm64/Build/Products/Release/XStats.app` 运行 `codesign --verify --deep --strict`、`lipo -archs`；用 `codesign -dv --verbose=4` 确认默认构建为 `Signature=adhoc`，证书构建的团队与所选身份一致。用 `plutil -extract CFBundleShortVersionString raw -o - <App>/Contents/Info.plist` 和对应的 `CFBundleVersion` 读取版本；相对路径不要交给 `defaults read` 当域名解析。
 4. 运行 `./scripts/install_local.sh build/DerivedData-arm64/Build/Products/Release/XStats.app`。它会退出旧 App 和扩展、替换 `/Applications/XStats.app` 并启动新版，保留用户偏好与历史。若仅因 `XStatsWidget 尚未退出` 而失败，可先结束 **XStatsWidget** 进程、等待退出后重试一次；不要终止 Notification Center 或清理用户数据。

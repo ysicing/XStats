@@ -307,6 +307,150 @@ struct MagpieControllerTests {
     #expect(accounts.allSatisfy { $0.quota == nil })
   }
 
+  @Test func preferredAccountLabelsIncludePlansWithoutChangingSavedIdentity() async throws {
+    let payload = Data(
+      """
+      {"object":"list","data":[
+        {"provider":"codex","name":"subscription","user":"same@example.invalid","kind":"subscription","plan":"Plus","windows":[]},
+        {"provider":"codex","name":"api","user":"same@example.invalid","kind":"api","plan":"Pro","windows":[]},
+        {"provider":"codex","name":"remote","user":"same@example.invalid","from":"Remote Mac","kind":"subscription","plan":"   ","windows":[]}
+      ]}
+      """.utf8)
+    let client = MagpieStub(quotaPayload: payload)
+    let settings = settings()
+    let controller = AIUsageController(settings: settings, magpieClient: client)
+    defer { controller.stop() }
+    await controller.refresh()
+    let accounts = controller.widgetQuotaAccounts(at: .now)
+    let options = zip(accounts, controller.magpieQuotas).map {
+      MagpiePreferredAccountOption(account: $0, quota: $1)
+    }
+    #expect(options[0].title == "same@example.invalid · Plus")
+    #expect(options[1].title == "same@example.invalid · Pro")
+    #expect(options[2].title == "same@example.invalid · Remote Mac")
+    #expect(options.map(\.id) == accounts.map(\.id))
+    settings.aiPreferredAccounts["codex"] = options[0].id
+    await client.setQuotaPayload(
+      Data(
+        String(decoding: payload, as: UTF8.self).replacingOccurrences(of: "Plus", with: "Max").utf8)
+    )
+    await controller.refresh()
+    #expect(settings.aiPreferredAccounts["codex"] == controller.widgetQuotaAccounts(at: .now)[0].id)
+    let upgraded = MagpiePreferredAccountOption(
+      account: controller.widgetQuotaAccounts(at: .now)[0], quota: controller.magpieQuotas[0])
+    #expect(upgraded.title == "same@example.invalid · Max")
+  }
+
+  @Test func preferredAccountLabelsDisambiguateMatchingPlansAndAliases() throws {
+    let quotas = try MagpieClient.decodeQuotas(
+      Data(
+        """
+        {"object":"list","data":[
+          {"provider":"codex","name":"first","alias":"Work","user":"first@example.invalid","kind":"subscription","plan":"Pro","windows":[]},
+          {"provider":"codex","name":"second","alias":"Work","user":"second@example.invalid","kind":"api","plan":"Pro","windows":[]}
+        ]}
+        """.utf8))
+    let options = quotas.enumerated().map { index, quota in
+      MagpiePreferredAccountOption(
+        account: .init(id: "\(index)", provider: quota.provider, name: quota.alias!, quota: nil),
+        quota: quota)
+    }
+    #expect(options[0].menuTitle(among: options).contains("subscription"))
+    #expect(options[0].menuTitle(among: options).contains("first@example.invalid"))
+    #expect(options[1].menuTitle(among: options).contains("api"))
+    #expect(options[1].menuTitle(among: options).contains("second@example.invalid"))
+  }
+
+  @Test func preferredSubscriptionAccountMovesFirstWithoutReorderingOthers() throws {
+    let quotas = try MagpieClient.decodeQuotas(
+      Data(
+        """
+        {"object":"list","data":[
+          {"provider":"codex","name":"first","kind":"subscription","windows":[]},
+          {"provider":"codex","name":"second","kind":"subscription","windows":[]},
+          {"provider":"codex","name":"third","kind":"subscription","windows":[]}
+        ]}
+        """.utf8))
+    let options = quotas.enumerated().map { index, quota in
+      MagpiePreferredAccountOption(
+        account: .init(id: "\(index)", provider: quota.provider, name: quota.name, quota: nil),
+        quota: quota)
+    }
+    #expect(
+      MagpiePreferredAccountOption.ordered(options, preferredID: nil).map(\.id) == ["0", "1", "2"])
+    #expect(
+      MagpiePreferredAccountOption.ordered(options, preferredID: "2").map(\.id) == ["2", "0", "1"])
+    #expect(
+      MagpiePreferredAccountOption.ordered(options, preferredID: "1").map(\.id) == ["1", "0", "2"])
+    #expect(
+      MagpiePreferredAccountOption.ordered(options, preferredID: "removed").map(\.id)
+        == ["0", "1", "2"])
+    #expect(
+      MagpiePreferredAccountOption.ordered([options[0], options[1], options[1]], preferredID: "1")
+        .map(\.id) == ["0", "1", "1"])
+    #expect(MagpiePreferredAccountOption.ordered([], preferredID: "2").isEmpty)
+
+    let settings = settings()
+    let subscriptions = MagpieQuotaAccounts(accounts: options, settings: settings)
+    let picker = MagpiePreferredAccounts(account: options[0], options: options, settings: settings)
+    #expect(picker.selection.wrappedValue == "0")
+    #expect(settings.aiPreferredAccounts.isEmpty)
+    picker.selection.wrappedValue = "2"
+    #expect(settings.aiPreferredAccounts["codex"] == "2")
+    #expect(subscriptions.visibleAccounts.map(\.id) == ["2", "0", "1"])
+    picker.selection.wrappedValue = ""
+    #expect(settings.aiPreferredAccounts.isEmpty)
+    #expect(picker.selection.wrappedValue == "0")
+    #expect(subscriptions.visibleAccounts.map(\.id) == ["0", "1", "2"])
+  }
+
+  @Test(arguments: [360.0, 640.0], [LayoutDirection.leftToRight, .rightToLeft])
+  func preferredAccountLayoutFitsLongNames(width: Double, direction: LayoutDirection) throws {
+    var records: [[String: Any]] = []
+    for provider in ["codex", "workbuddy", "workbuddy-ai"] {
+      for kind in ["subscription", "api"] {
+        records.append([
+          "provider": provider, "name": "Demo",
+          "user": "long.demo.account.for.layout@example.invalid", "kind": kind,
+          "plan": kind == "api" ? "Pro" : "self_serve_business_prolite", "windows": [],
+        ])
+      }
+    }
+    let quotas = try MagpieClient.decodeQuotas(
+      JSONSerialization.data(withJSONObject: ["object": "list", "data": records]))
+    let options = quotas.enumerated().map { index, quota in
+      MagpiePreferredAccountOption(
+        account: .init(id: "\(index)", provider: quota.provider, name: quota.user!, quota: nil),
+        quota: quota)
+    }
+    let settings = settings()
+    settings.aiPreferredAccounts["workbuddy"] = options[2].id
+    settings.aiQuotaSelectedProvider = "workbuddy"
+    let host = NSHostingView(
+      rootView: Card { MagpieQuotaAccounts(accounts: options, settings: settings) }
+        .environment(\.layoutDirection, direction).padding(16).frame(width: width))
+    let window = NSWindow(
+      contentRect: NSRect(origin: .zero, size: host.fittingSize),
+      styleMask: .borderless, backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentView = host
+    defer { window.close() }
+    host.layoutSubtreeIfNeeded()
+    #expect(abs(host.fittingSize.width - width) < 0.5)
+    #expect(host.fittingSize.height.isFinite)
+    #expect(settings.aiPreferredAccounts["workbuddy"] == options[2].id)
+    let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+    host.cacheDisplay(in: host.bounds, to: bitmap)
+    if let directory = ProcessInfo.processInfo.environment["XSTATS_MAGPIE_PREVIEW_DIR"],
+      let png = bitmap.representation(using: .png, properties: [:])
+    {
+      let suffix = direction == .leftToRight ? "ltr" : "rtl"
+      try png.write(
+        to: URL(fileURLWithPath: directory)
+          .appendingPathComponent("preferred-accounts-\(Int(width))-\(suffix).png"))
+    }
+  }
+
   private func waitForWidget(_ condition: () -> Bool) async throws {
     let deadline = ContinuousClock.now + .seconds(2)
     while !condition(), ContinuousClock.now < deadline {
@@ -807,13 +951,18 @@ struct MagpieControllerTests {
       }
       let accounts = try MagpieClient.decodeQuotas(
         JSONSerialization.data(withJSONObject: ["object": "list", "data": records]))
+      let options = accounts.enumerated().map { index, quota in
+        MagpiePreferredAccountOption(
+          account: .init(id: "\(index)", provider: quota.provider, name: quota.name, quota: nil),
+          quota: quota)
+      }
       // 每轮重建偏好、模型和页面，覆盖关窗重开及应用重启后的恢复。
       let model = AppModel(
         settings: AppSettings(defaults: defaults), historyURL: nil,
         magpieClient: UnavailableMagpieClient())
       defer { model.aiUsage.stop() }
       let host = NSHostingView(
-        rootView: MagpieQuotaAccounts(accounts: accounts, settings: model.settings).environment(
+        rootView: MagpieQuotaAccounts(accounts: options, settings: model.settings).environment(
           model
         )
         .environment(\.isSnapshot, true).frame(width: 600))
@@ -867,10 +1016,15 @@ struct MagpieControllerTests {
     ])
     let accounts = try MagpieClient.decodeQuotas(
       JSONSerialization.data(withJSONObject: ["object": "list", "data": records]))
+    let options = accounts.enumerated().map { index, quota in
+      MagpiePreferredAccountOption(
+        account: .init(id: "\(index)", provider: quota.provider, name: quota.name, quota: nil),
+        quota: quota)
+    }
     let model = AppModel(
       settings: settings(), historyURL: nil, magpieClient: UnavailableMagpieClient())
     let host = NSHostingView(
-      rootView: Card { MagpieQuotaAccounts(accounts: accounts, settings: model.settings) }
+      rootView: Card { MagpieQuotaAccounts(accounts: options, settings: model.settings) }
         .environment(model).environment(\.layoutDirection, direction)
         .environment(\.isSnapshot, true)
         .padding(16).frame(width: 380))

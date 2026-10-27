@@ -72,11 +72,6 @@ private struct MagpieUsageContent: View {
         MagpieConnectionGuide()
       } else {
         quotas
-        if !compact,
-          !model.aiUsage.magpieQuotas.isEmpty || !model.settings.aiPreferredAccounts.isEmpty
-        {
-          preferredAccounts
-        }
         if model.settings.aiUsageShowsLocalUsage {
           if let summary = model.aiUsage.magpieSummary(for: period) {
             usageSummary(summary)
@@ -120,56 +115,22 @@ private struct MagpieUsageContent: View {
 
   private var quotas: some View {
     Card(spacing: DS.Space.s3) {
-      Text(tr("订阅额度")).dsFont(.sm, weight: .semibold)
+      if model.aiUsage.magpieQuotas.isEmpty {
+        Text(tr("订阅账号")).dsFont(.sm, weight: .semibold)
+      }
       if model.aiUsage.magpieQuotas.isEmpty && model.aiUsage.magpieQuotaFailure == nil {
         Text(tr("暂无额度数据")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       }
-      Text(tr("额度按账户分别显示；菜单栏和小组件使用首选账号。"))
-        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-        .fixedSize(horizontal: false, vertical: true)
       if !model.aiUsage.magpieQuotas.isEmpty {
-        MagpieQuotaAccounts(accounts: model.aiUsage.magpieQuotas, settings: model.settings)
+        let accounts = model.aiUsage.widgetQuotaAccounts(at: .now)
+        // 展示和排序共用已保存的账号身份，套餐或别名变化不能改变首选。
+        let options = zip(accounts, model.aiUsage.magpieQuotas).map {
+          MagpiePreferredAccountOption(account: $0, quota: $1)
+        }
+        MagpieQuotaAccounts(accounts: options, settings: model.settings)
       }
       if let failure = model.aiUsage.magpieQuotaFailure {
         connectionStatus(failure, stale: !model.aiUsage.magpieQuotas.isEmpty)
-      }
-    }
-  }
-
-  @ViewBuilder private var preferredAccounts: some View {
-    let accounts = model.aiUsage.widgetQuotaAccounts(at: .now)
-    let providers = Set(
-      Dictionary(grouping: accounts, by: \.provider)
-        .filter { $0.value.count > 1 }.keys)
-    let ordered =
-      AIServiceBrand.menuBarOrder.filter { providers.contains($0) }
-      + providers.subtracting(AIServiceBrand.menuBarOrder).sorted()
-    if !ordered.isEmpty {
-      Card(spacing: DS.Space.s3) {
-        Text(tr("首选账号")).dsFont(.sm, weight: .semibold)
-        ForEach(ordered, id: \.self) { provider in
-          let candidates = accounts.filter { $0.provider == provider }
-          let counts = Dictionary(grouping: candidates, by: \.id)
-          let selected = model.settings.aiPreferredAccounts[provider] ?? ""
-          SettingRow(title: AIServiceBrand.title(provider), subtitle: nil) {
-            Picker(
-              tr("首选账号"),
-              selection: Binding(
-                get: { model.settings.aiPreferredAccounts[provider] ?? "" },
-                set: { id in
-                  model.settings.aiPreferredAccounts[provider] = id.isEmpty ? nil : id
-                })
-            ) {
-              Text(tr("跟随 Magpie")).tag("")
-              ForEach(candidates.filter { counts[$0.id]?.count == 1 }) { account in
-                Text(account.name).tag(account.id)
-              }
-              if !selected.isEmpty, counts[selected]?.count != 1 {
-                Text(tr("账号不可用")).tag(selected)
-              }
-            }.labelsHidden()
-          }
-        }
       }
     }
   }

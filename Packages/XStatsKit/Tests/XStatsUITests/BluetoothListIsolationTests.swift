@@ -52,8 +52,13 @@ struct BluetoothListIsolationTests {
     let name = "MagpieQuotaListIsolationTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: name))
     defer { defaults.removePersistentDomain(forName: name) }
+    let options = accounts.enumerated().map { index, quota in
+      MagpiePreferredAccountOption(
+        account: .init(id: "\(index)", provider: quota.provider, name: quota.name, quota: nil),
+        quota: quota)
+    }
     let lists = listProbes(
-      in: MagpieQuotaAccounts(accounts: accounts, settings: AppSettings(defaults: defaults)).body)
+      in: MagpieQuotaAccounts(accounts: options, settings: AppSettings(defaults: defaults)).body)
     #expect(lists.count == 2)
     let accountList = try #require(lists.last)
     let probes = nestedWindows ? accountList.content.nestedLists() : lists

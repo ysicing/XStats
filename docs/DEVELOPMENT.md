@@ -91,6 +91,15 @@ task version                        # 查看版本与构建号
 task clean                          # 删除 build/
 ```
 
+本地安装脚本 `scripts/install_local.sh <XStats.app>` 沿用输入产物的签名，将所选产物移动到
+`/Applications/XStats.app`，保留桌面小组件配置、偏好与历史，不自动删除其他构建或工作区文件。
+安装前保存 PlugInKit 登记快照，按 Widget 标识核对扩展与父应用，定向注销旧登记；
+安装后重新登记主应用及扩展，只有正式安装的路径与父应用校验通过才启动并报告成功。
+登记查询、解析或修复失败时停止并输出诊断；快照目录在执行时打印，不清理布局数据库或自动重启通知中心。
+旧副本文件仍在时可能被系统重新发现；只查看界面的临时预览应不包含正式 Widget，
+需要并存测试时须同时隔离主应用与扩展标识，并使用相应授权的签名。
+脚本回归可单独运行 `python3 scripts/install_local_test.py`，使用临时应用及隔离服务，不操作真实安装。
+
 每次提交前先执行 `task format`，再执行 `task format-check`。两者使用 Swift 工具链自带的
 `swift format` 和根目录 `.swift-format`，处理 Git 已跟踪及未忽略的新 Swift 文件，
 跳过构建产物、依赖缓存和本地索引。检查格式化差异后，仅暂存本次提交范围内的文件。

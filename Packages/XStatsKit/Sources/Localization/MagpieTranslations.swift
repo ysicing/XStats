@@ -24,6 +24,11 @@ extension Translations {
     查看账户剩余额度与重置时间	View remaining account quotas and reset times
     查看今天的 Token 用量	View today’s token usage
     首选账号	Preferred Account
+    展示账号	Display Accounts
+    订阅账号	Subscription Accounts
+    默认	Default
+    设为默认	Set as Default
+    用于菜单栏与小组件	Used in the menu bar and widgets
     跟随 Magpie	Follow Magpie
     账号不可用	Account Unavailable
     小组件圆环	Widget Rings
