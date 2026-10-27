@@ -5,6 +5,33 @@ import Testing
 import Localization
 
 struct AIUsageFormatTests {
+  @Test func quotaResetUsesExplicitLanguageAndDoesNotGuessMissingDates() {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    #expect(AIUsageFormat.quotaReset(at: nil, relativeTo: now, language: .english) == "—")
+    #expect(AIUsageFormat.quotaReset(at: now, relativeTo: now, language: .english) == "—")
+    #expect(
+      AIUsageFormat.quotaReset(at: now.addingTimeInterval(-60), relativeTo: now, language: .english)
+        == "—")
+    let days = AIUsageFormat.quotaReset(
+      at: now.addingTimeInterval(2 * 86400 + 1800), relativeTo: now, language: .chinese)
+    #expect(days.contains("2"))
+    #expect(days.hasSuffix("后重置"))
+    let hours = AIUsageFormat.quotaReset(
+      at: now.addingTimeInterval(3 * 3600 + 1800), relativeTo: now, language: .english)
+    #expect(hours.hasPrefix("Resets in "))
+    #expect(hours.contains("3"))
+    for language in AppLanguage.allCases where language != .system {
+      for interval in [1800.0, 10800.0, 172800.0] {
+        let text = AIUsageFormat.quotaReset(
+          at: now.addingTimeInterval(interval), relativeTo: now, language: language)
+        #expect(!text.isEmpty && text != "—")
+        if language != .chinese && language != .traditionalChinese {
+          #expect(!text.contains("重置"))
+        }
+      }
+    }
+  }
+
   @Test(arguments: [
     (0, "0"), (999, "999"), (1_000, "1K"), (1_234, "1.2K"),
     (100_000, "100K"), (123_456, "123K"), (999_499, "999K"),

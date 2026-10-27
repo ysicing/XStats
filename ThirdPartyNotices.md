@@ -93,12 +93,25 @@ GitHub 标志用于主窗口侧边栏的项目入口。账号登录入口已移�
 `google.svg` 是 Google 的品牌标志，仅按其品牌规范用于“使用 Google 登录”按钮。Apple 标志使用系统 SF Symbols 的 `apple.logo`。
 GitHub、GitHub Copilot、Google 与 Apple 的名称和标志均为各自公司的商标。
 
+`Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-workbuddy.svg` 来自
+[LobeHub Icons](https://github.com/lobehub/lobe-icons/blob/8b7bbc433d38437fa2b0cca58ae896917162b812/packages/static-svg/icons/workbuddy.svg)，
+MIT License，Copyright (c) 2023 LobeHub。完整许可保留在 SVG 中；XStats 仅将尺寸单位调整为像素以供 AppKit 渲染。
+该单色标志用于 WorkBuddy 和 WorkBuddy AI 的订阅页面、菜单栏及小组件；名称和标志属于其权利人。
+
+编码套餐与服务图标 `site-{cursor,windsurf,zai,opencode}.svg`、
+`site-{kiro,antigravity,qoder,trae,zhipu,kimi,minimax,deepseek,doubao,qwen,bailian,stepfun,openrouter}-color.svg`
+同样来自 [LobeHub Icons 的固定版本](https://github.com/lobehub/lobe-icons/tree/8b7bbc433d38437fa2b0cca58ae896917162b812/packages/static-svg/icons)，
+MIT License，Copyright (c) 2023 LobeHub。各 SVG 保留完整许可和精确来源，
+将尺寸单位调整为像素，并为 DeepSeek／GLM 的弧线参数补齐分隔符以适配 CoreSVG，
+不改变路径坐标；渲染时按外观解析 `currentColor`，保留固有品牌色。
+这些资源用于识别对应服务及其地区版本，不代表服务商认可或合作；名称和标志属于各自权利人。
+
 ## 开发工具品牌图标
 
 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/tool-codebuddy.svg` 来自
 [LobeHub Icons](https://github.com/lobehub/lobe-icons/blob/8a1b2821bb768c484fe8da20c5e1838b6bf551a9/packages/static-svg/icons/codebuddy-color.svg)，
 MIT License，Copyright (c) 2023 LobeHub。完整许可保留在 SVG 中；XStats 仅将尺寸单位调整为像素以供 AppKit 渲染。
-CodeBuddy 的名称和标志属于其权利人，图标仅用于标识对应工具。
+CodeBuddy 的名称和标志属于其权利人，图标用于标识对应工具及其订阅额度服务。
 
 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/tool-{npm,yarn,pnpm,bun,go,rust,uv}.svg` 来自
 [Simple Icons](https://github.com/simple-icons/simple-icons/tree/b86d5c9a0bdd4f3f5c30898a63654dd32f39fd76)，

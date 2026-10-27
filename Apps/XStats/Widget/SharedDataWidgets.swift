@@ -1,6 +1,7 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import AppKit
 import Localization
 import SwiftUI
 import WidgetData
@@ -10,9 +11,15 @@ struct SharedDataEntry: TimelineEntry {
   let date: Date
   let snapshot: WidgetSnapshot
   var hasSnapshot = true
+  var showsResetRing: Bool { snapshot.quotaShowsResetRing == true }
+
+  var quotaSlots: [WidgetSnapshot.QuotaSlot] {
+    snapshot.quotaSlots(at: date)
+  }
 }
 
 struct SharedDataProvider: TimelineProvider {
+  var showsQuotaResetProgress = false
   func placeholder(in context: Context) -> SharedDataEntry {
     let now = Date()
     return SharedDataEntry(
@@ -48,17 +55,39 @@ struct SharedDataProvider: TimelineProvider {
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<SharedDataEntry>) -> Void) {
-    let entry = read()
+    completion(timeline(for: read()))
+  }
+
+  func timeline(for entry: SharedDataEntry) -> Timeline<SharedDataEntry> {
     // 不发起网络请求，也不周期轮询：数据变化时主应用会主动要求重载；
     // 这里只需在额度到期（须隐藏）和午夜换日（当日 Token 归零）时自行刷新。
-    let nextReset = entry.snapshot.currentQuotas(at: entry.date)
+    let quotas =
+      showsQuotaResetProgress
+      ? entry.quotaSlots.compactMap(\.quota) : entry.snapshot.currentQuotas(at: entry.date)
+    let nextReset =
+      quotas
       .compactMap(\.resetsAt).min().map { $0.addingTimeInterval(1) }
     let nextMidnight = Calendar.autoupdatingCurrent.dateInterval(of: .day, for: entry.date)?.end
     let next = [nextReset, nextMidnight].compactMap { $0 }.min()
-    completion(Timeline(entries: [entry], policy: next.map { .after($0) } ?? .never))
+    // 周倒计时使用预先生成的小时条目，不增加接口请求或后台定时器。
+    var entries = [entry]
+    if showsQuotaResetProgress,
+      entry.quotaSlots.contains(where: {
+        $0.quota?.resetsAt != nil
+      }), let next
+    {
+      for hour in 1...24 {
+        let date = entry.date.addingTimeInterval(Double(hour) * 3600)
+        guard date < next else { break }
+        entries.append(
+          SharedDataEntry(
+            date: date, snapshot: entry.snapshot, hasSnapshot: entry.hasSnapshot))
+      }
+    }
+    return Timeline(entries: entries, policy: next.map { .after($0) } ?? .never)
   }
 
-  private func read() -> SharedDataEntry {
+  func read() -> SharedDataEntry {
     let snapshot = WidgetSnapshotStore().loadIfAvailable()
     L10n.configure(AppLanguage(rawValue: snapshot?.language ?? "system") ?? .system)
     return SharedDataEntry(
@@ -90,22 +119,41 @@ private struct WidgetEmptyState: View {
   }
 }
 
-/// 小组件不依赖主程序的 AppKit 品牌资源，直接显示服务名，避免单字母歧义。
 private func aiWidgetProviderTitle(_ provider: String) -> String {
-  switch provider {
-  case "codex": "Codex"
-  case "claude": "Claude"
-  case "gemini": "Gemini"
-  case "grok": "Grok"
-  case "copilot": "Copilot"
-  case "perplexity": "Perplexity"
-  default: provider
+  AIServiceBrand.title(provider)
+}
+
+@MainActor
+private enum AIWidgetLogos {
+  // 仅按需缓存已打包的服务标志，同品牌不同地区复用资源，不访问网络或主程序目录。
+  private static var images: [String: NSImage] = [:]
+
+  static func image(for provider: String, dark: Bool) -> NSImage? {
+    guard let name = AIServiceBrand.logoName(provider) else { return nil }
+    let originalColors = AIServiceBrand.usesOriginalLogoColors(provider)
+    let key = "\(name):\(originalColors && dark)"
+    if let image = images[key] { return image }
+    guard let url = Bundle.main.url(forResource: name, withExtension: "svg") else { return nil }
+    let image: NSImage?
+    if originalColors, let svg = try? String(contentsOf: url, encoding: .utf8) {
+      // Kimi、Qoder 等彩色标志同时含前景色路径；仅替换 currentColor，保留品牌色与渐变。
+      image = NSImage(
+        data: Data(svg.replacingOccurrences(of: "currentColor", with: dark ? "#fff" : "#000").utf8))
+    } else {
+      image = NSImage(contentsOf: url)
+    }
+    guard let image else { return nil }
+    image.isTemplate = !originalColors
+    images[key] = image
+    return image
   }
 }
 
 private struct AIQuotaRing: View {
+  @Environment(\.colorScheme) private var colorScheme
   let slot: WidgetSnapshot.QuotaSlot
-  let showsRemaining: Bool
+  let date: Date
+  let showsResetRing: Bool
 
   private var color: Color {
     guard let remaining = slot.quota?.remainingPercent else { return .secondary }
@@ -120,51 +168,61 @@ private struct AIQuotaRing: View {
   private var percent: String {
     slot.quota.map {
       AIUsageFormat.quotaPercent(
-        remainingPercent: $0.remainingPercent, showsRemaining: showsRemaining,
+        remainingPercent: $0.remainingPercent, showsRemaining: true,
         locale: L10n.locale, compact: true)
     } ?? "—"
   }
 
   var body: some View {
-    ZStack {
-      Circle().strokeBorder(.primary.opacity(0.08), lineWidth: 5)
-      if let quota = slot.quota {
-        Circle()
-          .inset(by: 2.5)
-          .trim(
-            from: 0,
-            to: (AIUsageFormat.quotaValue(
-              remainingPercent: quota.remainingPercent, showsRemaining: showsRemaining) ?? 0) / 100
-          )
-          .stroke(color, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-          .rotationEffect(.degrees(-90))
-          .opacity(quota.isStale ? 0.55 : 1)
-      }
-      VStack(spacing: 1) {
-        Text(percent)
-          .font(.system(size: 15, weight: .semibold, design: .rounded))
-          .monospacedDigit()
-          .foregroundStyle(slot.quota == nil ? Color.secondary : color)
-        HStack(spacing: 2) {
-          if slot.quota?.isStale == true { Image(systemName: "clock") }
-          Text(aiWidgetProviderTitle(slot.provider))
+    GeometryReader { geometry in
+      let side = min(geometry.size.width, geometry.size.height)
+      ZStack {
+        Circle().strokeBorder(.primary.opacity(0.08), lineWidth: 5)
+        if let quota = slot.quota {
+          Circle().inset(by: 2.5)
+            .trim(from: 0, to: min(1, max(0, quota.remainingPercent / 100)))
+            .stroke(color, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+            .rotationEffect(.degrees(-90))
         }
-        .font(.system(size: 9, weight: .medium))
-        .foregroundStyle(.secondary)
+        if showsResetRing {
+          Circle().strokeBorder(.primary.opacity(0.06), lineWidth: 3).padding(9)
+          if let fraction = slot.quota?.weeklyResetFraction(at: date) {
+            Circle().inset(by: 10.5)
+              .trim(from: 0, to: fraction)
+              .stroke(.secondary.opacity(0.7), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+              .rotationEffect(.degrees(-90))
+          }
+        }
+        if let logo = AIWidgetLogos.image(for: slot.provider, dark: colorScheme == .dark) {
+          Image(nsImage: logo).resizable().scaledToFit()
+            .frame(
+              width: side * (showsResetRing ? 0.32 : 0.44),
+              height: side * (showsResetRing ? 0.32 : 0.44)
+            )
+            .foregroundStyle(
+              Color(nsColor: AIServiceBrand.dotColor(slot.provider, foreground: .labelColor)))
+        } else {
+          // 尚无品牌资源的服务保留可辨识名称，不以其他服务的标志冒充。
+          Text(aiWidgetProviderTitle(slot.provider))
+            .font(.system(size: 9, weight: .semibold))
+            .lineLimit(1).minimumScaleFactor(0.5).padding(17)
+        }
       }
-      .lineLimit(1)
-      .minimumScaleFactor(0.7)
-      .padding(7)
+      .foregroundStyle(slot.quota == nil ? Color.secondary : Color.primary)
+      .opacity(slot.quota?.isStale == true ? 0.55 : 1)
+      .frame(width: side, height: side)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .aspectRatio(1, contentMode: .fit)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(aiWidgetProviderTitle(slot.provider))
     .accessibilityValue(accessibilityValue)
+    .help(aiWidgetProviderTitle(slot.provider) + ": " + accessibilityValue)
   }
 
   private var accessibilityValue: String {
     guard let quota = slot.quota else { return tr("暂无额度数据") }
-    var value = tr(showsRemaining ? "剩余" : "已用") + " " + percent
+    var value = tr("剩余") + " " + percent
     if quota.isStale { value += ", " + tr("上次额度") }
     if let reset = quota.resetsAt {
       value +=
@@ -180,22 +238,22 @@ private struct AIQuotaWidgetView: View {
   @Environment(\.widgetFamily) private var family
   let entry: SharedDataEntry
 
+  private var language: AppLanguage {
+    AppLanguage(rawValue: entry.snapshot.language) ?? .system
+  }
+
   var body: some View {
-    let slots = entry.snapshot.quotaSlots(at: entry.date)
-    let showsRemaining = entry.snapshot.quotaShowsRemaining != false
+    let slots = entry.quotaSlots
     VStack(alignment: .leading, spacing: 6) {
       if !entry.hasSnapshot || !entry.snapshot.aiEnabled {
         WidgetHeading(title: tr("订阅额度"), symbol: "sparkles")
         WidgetEmptyState(enabled: entry.snapshot.aiEnabled, hasSnapshot: entry.hasSnapshot)
       } else if family == .systemSmall {
-        Text(tr(showsRemaining ? "剩余" : "已用"))
-          .font(.caption2.weight(.medium))
-          .foregroundStyle(.secondary)
-        Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+        Grid(horizontalSpacing: 8, verticalSpacing: 6) {
           ForEach(0..<2) { row in
             GridRow {
               ForEach(Array(slots[(row * 2)..<(row * 2 + 2)])) { slot in
-                AIQuotaRing(slot: slot, showsRemaining: showsRemaining)
+                quotaCell(slot)
               }
             }
           }
@@ -204,39 +262,42 @@ private struct AIQuotaWidgetView: View {
         HStack {
           WidgetHeading(title: tr("订阅额度"), symbol: "sparkles")
           Spacer(minLength: 4)
-          Text(tr(showsRemaining ? "剩余" : "已用"))
+          Text(tr("剩余"))
             .font(.caption2).foregroundStyle(.secondary)
         }
         Spacer(minLength: 0)
         HStack(alignment: .top, spacing: 12) {
-          ForEach(slots) { slot in
-            VStack(spacing: 6) {
-              AIQuotaRing(slot: slot, showsRemaining: showsRemaining)
-              if let reset = slot.quota?.resetsAt {
-                Text(reset, format: .dateTime.month().day().hour().minute().locale(L10n.locale))
-                  .font(.system(size: 9))
-                  .foregroundStyle(.secondary)
-                  .lineLimit(2)
-                  .multilineTextAlignment(.center)
-              } else {
-                Text("—").font(.caption2).foregroundStyle(.tertiary)
-              }
-            }
-            .frame(maxWidth: .infinity)
-          }
+          ForEach(slots) { slot in quotaCell(slot) }
         }
         Spacer(minLength: 0)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .containerBackground(.background, for: .widget)
-    .environment(\.locale, L10n.locale)
+    .environment(\.locale, L10n.locale(for: language))
+  }
+
+  private func quotaCell(_ slot: WidgetSnapshot.QuotaSlot) -> some View {
+    VStack(spacing: family == .systemSmall ? 3 : 6) {
+      AIQuotaRing(slot: slot, date: entry.date, showsResetRing: entry.showsResetRing)
+      Text(
+        AIUsageFormat.quotaReset(
+          at: slot.quota?.resetsAt, relativeTo: entry.date, language: language)
+      )
+      .font(.system(size: family == .systemSmall ? 9 : 10))
+      .foregroundStyle(.secondary)
+      .lineLimit(1).minimumScaleFactor(0.7)
+      .frame(maxWidth: .infinity)
+    }
+    .frame(maxWidth: .infinity)
   }
 }
 
 struct AIQuotaWidget: Widget {
   var body: some WidgetConfiguration {
-    StaticConfiguration(kind: WidgetKind.aiQuota, provider: SharedDataProvider()) { entry in
+    StaticConfiguration(
+      kind: WidgetKind.aiQuota, provider: SharedDataProvider(showsQuotaResetProgress: true)
+    ) { entry in
       AIQuotaWidgetView(entry: entry)
     }
     .configurationDisplayName(tr("订阅额度"))

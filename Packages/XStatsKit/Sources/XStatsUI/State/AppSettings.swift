@@ -844,6 +844,13 @@ public final class AppSettings {
       + providers.subtracting(AIServiceBrand.menuBarOrder).sorted()
     return Set(ordered.prefix(aiMenuBarProviderLimit))
   }
+  /// 按服务保存首选账号身份；缺省时沿用 Magpie 返回顺序。
+  public var aiPreferredAccounts: [String: String] {
+    didSet { defaults.set(aiPreferredAccounts, forKey: Keys.aiPreferredAccounts) }
+  }
+  public var aiWidgetShowsResetRing: Bool {
+    didSet { defaults.set(aiWidgetShowsResetRing, forKey: Keys.aiWidgetShowsResetRing) }
+  }
   public var aiUsageWesternUnits: Bool {
     didSet { defaults.set(aiUsageWesternUnits, forKey: Keys.aiUsageWesternUnits) }
   }
@@ -1274,6 +1281,9 @@ public final class AppSettings {
     aiMenuBarProviders = initialAIMenuBarProviders
     // 无显式选择的旧安装也使用四个默认服务；保存空集合仍表示用户全部取消。
     defaults.set(initialAIMenuBarProviders.sorted(), forKey: Keys.aiMenuBarProviders)
+    aiPreferredAccounts =
+      defaults.dictionary(forKey: Keys.aiPreferredAccounts) as? [String: String] ?? [:]
+    aiWidgetShowsResetRing = defaults.bool(forKey: Keys.aiWidgetShowsResetRing)
     aiUsageWesternUnits = defaults.bool(forKey: Keys.aiUsageWesternUnits)
     aiUsageRefreshMinutes =
       Self.aiUsageRefreshOptions.contains(defaults.integer(forKey: Keys.aiUsageRefreshMinutes))
@@ -1645,6 +1655,8 @@ public final class AppSettings {
     static let aiQuotaShowsRemaining = "aiQuotaShowsRemaining"
     static let aiQuotaSelectedProvider = "aiQuotaSelectedProvider"
     static let aiMenuBarProviders = "aiMenuBarProviders"
+    static let aiPreferredAccounts = "aiPreferredAccounts"
+    static let aiWidgetShowsResetRing = "aiWidgetShowsResetRing"
     static let aiUsageWesternUnits = "aiUsageWesternUnits"
     static let aiUsageRefreshMinutes = "aiUsageRefreshMinutes"
     static let colorizeHighLoad = "colorizeHighLoad"

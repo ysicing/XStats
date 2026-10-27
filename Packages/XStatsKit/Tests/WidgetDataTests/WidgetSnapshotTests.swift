@@ -5,6 +5,105 @@ import Foundation
 import Testing
 import WidgetData
 
+@Test func widgetAccountSelectionFollowsDefaultAndPreservesExplicitIdentity() throws {
+  let now = Date()
+  func slots(_ snapshot: WidgetSnapshot, id: String, at date: Date) -> [WidgetSnapshot.QuotaSlot] {
+    var configured = snapshot
+    configured.preferredQuotaAccounts = ["codex": id]
+    return configured.quotaSlots(at: date)
+  }
+  let first = WidgetSnapshot.Quota(
+    provider: "codex", kind: "7 days", remainingPercent: 30,
+    resetsAt: now.addingTimeInterval(100), fetchedAt: now, isStale: false)
+  let other = WidgetSnapshot.Quota(
+    provider: "codex", kind: "7 days", remainingPercent: 80,
+    resetsAt: now.addingTimeInterval(200), fetchedAt: now, isStale: false)
+  let a = WidgetSnapshot.QuotaAccount(id: "a", provider: "codex", name: "A", quota: first)
+  let b = WidgetSnapshot.QuotaAccount(id: "b", provider: "codex", name: "B", quota: other)
+  var snapshot = WidgetSnapshot(
+    aiEnabled: true, quotas: [first], quotaProviders: ["codex"], quotaAccounts: [a, b])
+  #expect(snapshot.quotaSlots(at: now).first?.quota == first)
+  #expect(slots(snapshot, id: "b", at: now).first?.quota == other)
+  let restored = try JSONDecoder().decode(
+    WidgetSnapshot.self, from: JSONEncoder().encode(snapshot))
+  #expect(restored == snapshot)
+  snapshot.quotaAccounts = [b, a]
+  #expect(snapshot.quotaSlots(at: now).first?.quota == other)
+  #expect(slots(snapshot, id: "a", at: now).first?.quota == first)
+  #expect(
+    slots(snapshot, id: "b", at: now.addingTimeInterval(201)).first?.quota == nil)
+  snapshot.quotaAccounts = [a]
+  #expect(slots(snapshot, id: "b", at: now).first?.quota == nil)
+  snapshot.quotaAccounts = [a, a]
+  #expect(slots(snapshot, id: "a", at: now).first?.quota == nil)
+  snapshot.quotaAccounts = [.init(id: "a", provider: "codex", name: "A", quota: nil), b]
+  #expect(snapshot.quotaSlots(at: now).first?.quota == nil)
+  snapshot.aiEnabled = false
+  #expect(slots(snapshot, id: "b", at: now).allSatisfy { $0.quota == nil })
+  snapshot.aiEnabled = true
+  snapshot.quotaAccounts = nil
+  #expect(snapshot.quotaSlots(at: now).first?.quota == first)
+  #expect(slots(snapshot, id: "b", at: now).first?.quota == nil)
+}
+
+@Test func preferredAccountSurvivesProviderReordering() {
+  let now = Date()
+  let first = WidgetSnapshot.Quota(
+    provider: "workbuddy", kind: "7 days", remainingPercent: 10,
+    resetsAt: nil, fetchedAt: now, isStale: false)
+  let second = WidgetSnapshot.Quota(
+    provider: "workbuddy", kind: "7 days", remainingPercent: 90,
+    resetsAt: nil, fetchedAt: now, isStale: false)
+  var snapshot = WidgetSnapshot(
+    aiEnabled: true, quotaProviders: ["workbuddy"],
+    quotaAccounts: [
+      .init(id: "a", provider: "workbuddy", name: "A", quota: first),
+      .init(id: "b", provider: "workbuddy", name: "B", quota: second),
+    ], preferredQuotaAccounts: ["workbuddy": "b"])
+  #expect(snapshot.quotaSlots(at: now).first?.quota == second)
+  snapshot.quotaProviders = ["codex", "workbuddy"]
+  #expect(snapshot.quotaSlots(at: now)[1].provider == "workbuddy")
+  #expect(snapshot.quotaSlots(at: now)[1].quota == second)
+  snapshot.preferredQuotaAccounts = [:]
+  #expect(snapshot.quotaSlots(at: now)[1].quota == first)
+}
+
+@Test func widgetAccountChangesReloadWithoutReloadingForReadTimeOnly() {
+  let now = Date()
+  func snapshot(name: String = "A", fetchedAt: Date, remaining: Double = 50) -> WidgetSnapshot {
+    WidgetSnapshot(
+      aiEnabled: true, quotaProviders: ["workbuddy"],
+      quotaAccounts: [
+        .init(
+          id: "account", provider: "workbuddy", name: name,
+          quota: .init(
+            provider: "workbuddy", kind: "7 days", remainingPercent: remaining,
+            resetsAt: nil, fetchedAt: fetchedAt, isStale: false))
+      ])
+  }
+  let previous = snapshot(fetchedAt: now)
+  #expect(
+    snapshot(fetchedAt: now.addingTimeInterval(10)).changedWidgetKinds(from: previous).isEmpty)
+  #expect(
+    snapshot(name: "Renamed", fetchedAt: now).changedWidgetKinds(from: previous) == [
+      WidgetKind.aiQuota
+    ])
+  #expect(
+    snapshot(fetchedAt: now, remaining: 20).changedWidgetKinds(from: previous) == [
+      WidgetKind.aiQuota
+    ])
+  var removed = previous
+  removed.quotaAccounts = []
+  #expect(removed.changedWidgetKinds(from: previous) == [WidgetKind.aiQuota])
+  var configured = previous
+  configured.preferredQuotaAccounts = ["workbuddy": "account"]
+  #expect(configured.changedWidgetKinds(from: previous) == [WidgetKind.aiQuota])
+  configured.quotaProviders = ["codex", "workbuddy"]
+  #expect(configured.quotaSlots(at: now).first { $0.provider == "workbuddy" }?.quota != nil)
+  configured.quotaShowsResetRing = true
+  #expect(configured.changedWidgetKinds(from: previous) == [WidgetKind.aiQuota])
+}
+
 @Test func missingAndCorruptSnapshotsDoNotMeanDisabledModules() throws {
   let suite = "WidgetSnapshotAvailability.\(UUID())"
   let defaults = try #require(UserDefaults(suiteName: suite))
@@ -275,6 +374,31 @@ func snapshotPreservesEveryWeekStartAndReloadsCalendars(firstWeekday: Int) throw
   snapshot.quotaProviders = nil
   snapshot.quotas = [quota("grok", 40), quota("codex", 60)]
   #expect(snapshot.quotaSlots(at: now).map(\.provider) == ["codex", "claude", "gemini", "grok"])
+}
+
+@Test func weeklyQuotaResetRingUsesOnlyKnownWeeklyWindows() {
+  let now = Date(timeIntervalSince1970: 1_800_000_000)
+  let week: TimeInterval = 7 * 24 * 3600
+  for kind in ["7 days", "7d", "weekly", "sonnetWeekly"] {
+    for (interval, expected) in [
+      (week * 2, 1.0), (week, 1.0), (week / 2, 0.5), (0, 0.0), (-3600, 0.0),
+    ] {
+      let quota = WidgetSnapshot.Quota(
+        provider: "codex", kind: kind, remainingPercent: 20,
+        resetsAt: now.addingTimeInterval(interval), fetchedAt: now, isStale: false)
+      #expect(quota.weeklyResetFraction(at: now) == expected)
+    }
+  }
+  for kind in ["5 hours", "session", "monthly", "unknown"] {
+    let quota = WidgetSnapshot.Quota(
+      provider: "custom", kind: kind, remainingPercent: 20,
+      resetsAt: now.addingTimeInterval(3600), fetchedAt: now, isStale: false)
+    #expect(quota.weeklyResetFraction(at: now) == nil)
+  }
+  let missing = WidgetSnapshot.Quota(
+    provider: "codex", kind: "7 days", remainingPercent: 20,
+    resetsAt: nil, fetchedAt: now, isStale: false)
+  #expect(missing.weeklyResetFraction(at: now) == nil)
 }
 
 @Test func cumulativeSummaryAndSlotChangesReloadTheirOwnWidget() {

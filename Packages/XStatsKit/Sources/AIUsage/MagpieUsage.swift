@@ -24,11 +24,14 @@ public struct MagpieQuota: Decodable, Equatable, Sendable, Identifiable {
   public let error: String?
   public let readAt: Date?
   public let last: Bool?
+  public let from: String?
+  public let alias: String?
   var ordinal = 0
   // 同名账户有身份信息时按身份区分，刷新顺序变化不能把展开状态移交给另一个账户。
   public var id: String { "\(provider):\(name):\(kind):\(user ?? ""):\(ordinal)" }
   private enum CodingKeys: String, CodingKey {
     case provider, name, kind, plan, user, until, resets, windows, balance, error, readAt, last
+    case from, alias
   }
 }
 
@@ -50,6 +53,12 @@ extension MagpieQuota {
     error = try c.decodeIfPresent(String.self, forKey: .error)
     readAt = try c.decodeIfPresent(Date.self, forKey: .readAt)
     last = try c.decodeIfPresent(Bool.self, forKey: .last)
+    from = (try? c.decodeIfPresent(String.self, forKey: .from)).flatMap {
+      $0.count <= 512 ? $0 : nil
+    }
+    alias = (try? c.decodeIfPresent(String.self, forKey: .alias)).flatMap {
+      $0.count <= 512 ? $0 : nil
+    }
   }
 }
 

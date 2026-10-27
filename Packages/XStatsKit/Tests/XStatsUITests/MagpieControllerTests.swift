@@ -19,7 +19,7 @@ struct UnavailableMagpieClient: MagpieFetching {
 }
 
 private actor MagpieStub: MagpieFetching {
-  private let quotaPayload: Data?
+  private var quotaPayload: Data?
   private var failing = false
   private var gate: CheckedContinuation<Void, Never>?
   private var gated = false
@@ -29,6 +29,7 @@ private actor MagpieStub: MagpieFetching {
   init(quotaPayload: Data? = nil) { self.quotaPayload = quotaPayload }
 
   func fail(_ value: Bool) { failing = value }
+  func setQuotaPayload(_ value: Data) { quotaPayload = value }
   func hold() { gated = true }
   func release() {
     gated = false
@@ -112,7 +113,7 @@ struct MagpieControllerTests {
     #expect(!used.aiQuotaShowsRemaining)
     #expect(!used.hasSameImage(as: remaining, item: .aiUsage, style: .stacked))
     #expect(used.hasSameImage(as: remaining, item: .cpu, style: .stacked))
-    #expect(used.aiQuotas.first?.remainingPercent == 96)
+    #expect(used.aiQuotas.first?.remainingPercent == 10)
     var tokens = remaining
     tokens.aiQuotas = []
     tokens.aiTokens = 123_456
@@ -177,12 +178,80 @@ struct MagpieControllerTests {
     #expect(store.load().visibleCumulativeTokens.first?.scope == .all)
     #expect(store.load().quotaSlots().map(\.provider) == ["codex", "claude", "gemini", "grok"])
     #expect(store.load().quotas.allSatisfy { !$0.isStale })
+    let accounts = try #require(store.load().quotaAccounts)
+    let codex = accounts.filter { $0.provider == "codex" }
+    #expect(codex.count == 2)
+    // last:true 是最近服务标记，Widget 默认跟随 Magpie 返回的首个账号。
+    #expect(store.load().quotaSlots().first?.quota?.remainingPercent == 10)
+    settings.aiPreferredAccounts["codex"] = codex[1].id
+    settings.aiWidgetShowsResetRing = true
+    try await waitForWidget { store.load().preferredQuotaAccounts?["codex"] == codex[1].id }
+    #expect(store.load().quotaSlots().first?.quota?.remainingPercent == 96)
+    #expect(store.load().quotaShowsResetRing == true)
+    #expect(AppSettings(defaults: defaults).aiPreferredAccounts["codex"] == codex[1].id)
+    settings.aiPreferredAccounts["codex"] = "removed"
+    try await waitForWidget { store.load().preferredQuotaAccounts?["codex"] == "removed" }
+    #expect(store.load().quotaSlots().first?.quota == nil)
+    #expect(model.aiUsage.magpieQuotaReadings().allSatisfy { $0.sourceName != "codex" })
+    settings.aiPreferredAccounts["codex"] = codex[1].id
+    try await waitForWidget { store.load().preferredQuotaAccounts?["codex"] == codex[1].id }
     await magpie.fail(true)
     await model.aiUsage.refresh()
     try await waitForWidget { store.load().quotas.contains { $0.isStale } }
     #expect(store.load().quotas.allSatisfy { $0.isStale })
     #expect(store.load().visibleCumulativeTokens.first?.isStale == true)
     #expect(store.load().visibleCumulativeTokens.first?.total == 120)
+  }
+
+  @Test func deletedPreferredAccountReturnsToMagpieOnlyAfterSuccessfulRefresh() async throws {
+    let suite = "MagpieDeletedPreference.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.aiUsageEnabled = true
+    settings.aiUsageShowsLocalUsage = false
+    let client = MagpieStub()
+    let model = AppModel(settings: settings, historyURL: nil, magpieClient: client)
+    defer { model.aiUsage.stop() }
+    await model.aiUsage.refresh()
+    let selected = try #require(
+      model.aiUsage.widgetQuotaAccounts(at: .now).first { $0.name == "active" })
+    settings.aiPreferredAccounts["codex"] = selected.id
+    let store = WidgetSnapshotStore(defaults: defaults)
+    let app = AppController(model: model, widgetStore: store, reloadWidget: { _ in })
+    app.observeWidgetState()
+    await client.setQuotaPayload(
+      Data(
+        #"{"object":"list","data":[{"provider":"codex","name":"other","kind":"subscription","windows":[{"name":"7 days","remaining":10}]}]}"#
+          .utf8))
+    await client.fail(true)
+    await model.aiUsage.refresh()
+    #expect(settings.aiPreferredAccounts["codex"] == selected.id)
+    await client.fail(false)
+    // 账号仍在但额度读取失败，不能误判为删除。
+    await client.setQuotaPayload(
+      Data(
+        #"{"object":"list","data":[{"provider":"codex","name":"active","kind":"subscription","error":"unavailable","windows":[]}]}"#
+          .utf8))
+    await model.aiUsage.refresh()
+    #expect(settings.aiPreferredAccounts["codex"] == selected.id)
+    await client.setQuotaPayload(
+      Data(
+        #"{"object":"list","data":[{"provider":"codex","name":"other","kind":"subscription","windows":[{"name":"7 days","remaining":10}]}]}"#
+          .utf8))
+    await model.aiUsage.refresh()
+    #expect(settings.aiPreferredAccounts.isEmpty)
+    #expect(AppSettings(defaults: defaults).aiPreferredAccounts.isEmpty)
+    try await waitForWidget {
+      store.load().preferredQuotaAccounts == [:]
+        && store.load().quotaSlots().first?.quota?.remainingPercent == 10
+    }
+    #expect(model.aiUsage.magpieQuotaReadings().first?.remainingPercent == 10)
+    let remaining = try #require(model.aiUsage.widgetQuotaAccounts(at: .now).first)
+    settings.aiPreferredAccounts["codex"] = remaining.id
+    await client.setQuotaPayload(Data(#"{"object":"list","data":[]}"#.utf8))
+    await model.aiUsage.refresh()
+    #expect(settings.aiPreferredAccounts.isEmpty)
   }
 
   @Test func widgetSelectsQuotaUsingCurrentTimeInsteadOfMidnight() async throws {
@@ -213,6 +282,29 @@ struct MagpieControllerTests {
     app.syncWidgetSnapshot(now: now)
     #expect(store.load().currentQuotas(at: now).map(\.kind) == ["5 hours"])
     #expect(store.load().currentQuotas(at: now).first?.remainingPercent == 70)
+  }
+
+  @Test func widgetAccountIdentityIgnoresAliasAndSeparatesRemoteSources() async throws {
+    let payload = Data(
+      """
+      {"object":"list","data":[
+        {"provider":"workbuddy","name":"old","user":"same@example.invalid","alias":"First","kind":"subscription","windows":[]},
+        {"provider":"workbuddy","name":"new","user":"same@example.invalid","alias":"Renamed","kind":"subscription","windows":[]},
+        {"provider":"workbuddy","name":"new","user":"same@example.invalid","from":"remote","kind":"subscription","windows":[]}
+      ]}
+      """.utf8)
+    let controller = AIUsageController(
+      settings: settings(), magpieClient: MagpieStub(quotaPayload: payload))
+    defer { controller.stop() }
+    await controller.refresh()
+    let accounts = controller.widgetQuotaAccounts(at: .now)
+    #expect(accounts.count == 3)
+    #expect(accounts[0].id == accounts[1].id)
+    #expect(accounts[0].id != accounts[2].id)
+    #expect(accounts[0].name == "First")
+    #expect(accounts[1].name == "Renamed")
+    #expect(accounts[2].name.contains("remote"))
+    #expect(accounts.allSatisfy { $0.quota == nil })
   }
 
   private func waitForWidget(_ condition: () -> Bool) async throws {
@@ -413,8 +505,7 @@ struct MagpieControllerTests {
     #expect(TrioReading(model: model).aiDots.isEmpty)
   }
 
-  @Test func selectedUnavailableQuotasStayHiddenAndAnInvalidRecentAccountCanFallBack() async throws
-  {
+  @Test func selectedUnavailableQuotasStayHiddenWithoutSwitchingAccounts() async throws {
     let payload = Data(
       #"{"object":"list","data":[{"provider":"codex","name":"recent","kind":"subscription","last":true,"error":"unavailable","windows":[]},{"provider":"codex","name":"other","kind":"subscription","windows":[{"name":"7 days","remaining":73}]},{"provider":"claude","name":"expired","kind":"subscription","windows":[{"name":"7 days","remaining":80,"resetsAt":"2000-01-01T00:00:00Z"}]},{"provider":"grok","name":"unlimited","kind":"subscription","windows":[{"name":"7 days","unlimited":true}]},{"provider":"gemini","name":"missing","kind":"subscription","windows":[{"name":"7 days"}]}]}"#
         .utf8)
@@ -425,8 +516,7 @@ struct MagpieControllerTests {
     defer { controller.stop() }
     await controller.refresh()
     let quotas = controller.menuBarMagpieQuotas()
-    #expect(quotas.map(\.sourceName) == ["codex"])
-    #expect(quotas.first?.remainingPercent == 73)
+    #expect(quotas.isEmpty)
     #expect(settings.aiMenuBarProviders.count == 4)
   }
 
@@ -487,7 +577,7 @@ struct MagpieControllerTests {
     #expect(model.aiUsage.todayTokens == 120)
     #expect(model.aiUsage.magpieQuotas.count == 3)
     let reading = MenuBarReading(model: model, items: [.aiUsage])
-    #expect(reading.aiQuotas.first(where: { $0.sourceName == "codex" })?.remainingPercent == 96)
+    #expect(reading.aiQuotas.first(where: { $0.sourceName == "codex" })?.remainingPercent == 10)
     #expect(reading.aiQuotas.first(where: { $0.sourceName == "grok" })?.remainingPercent == 68)
     let image = MenuBarRenderer.image(
       reading: reading, items: [.aiUsage], style: { _ in .icon }, networkStyle: .dots,
@@ -642,6 +732,7 @@ struct MagpieControllerTests {
   @Test(arguments: [
     ["grok", "codex", "copilot"],
     ["claude", "gemini", "perplexity"],
+    ["workbuddy", "workbuddy-ai"],
     ["claude", "gemini", "perplexity", "grok", "codex", "copilot", "future-provider"],
   ])
   func nativeProviderPickerKeepsIconsAndMapsRapidSelections(providers: [String]) throws {

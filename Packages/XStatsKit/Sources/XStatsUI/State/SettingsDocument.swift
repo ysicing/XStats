@@ -52,6 +52,8 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var menuBarItemSpacing: Int?
   public var trio: TrioConfiguration?
   public var aiMenuBarProviders: [String]?
+  public var aiPreferredAccounts: [String: String]?
+  public var aiWidgetShowsResetRing: Bool?
   public var menuBarLayout: String?
   public var customPopoverContentEnabled: Bool?
   public var hiddenPopoverSections: [String]?
@@ -125,6 +127,8 @@ extension AppSettings {
     doc.menuBarItemSpacing = menuBarItemSpacing
     doc.trio = trio
     doc.aiMenuBarProviders = aiMenuBarProviders.sorted()
+    doc.aiPreferredAccounts = aiPreferredAccounts
+    doc.aiWidgetShowsResetRing = aiWidgetShowsResetRing
     doc.menuBarLayout = menuBarLayout.rawValue
     doc.customPopoverContentEnabled = customPopoverContentEnabled
     doc.hiddenPopoverSections = hiddenPopoverSections.map(\.rawValue).sorted()
@@ -218,6 +222,8 @@ extension AppSettings {
     assign(\.speedTestRoute, doc.speedTestRoute.flatMap(SpeedRoute.init(rawValue:)))
     assign(\.menuBarItemSpacing, option(doc.menuBarItemSpacing, in: Self.menuBarSpacingOptions))
     assign(\.trio, doc.trio)
+    if let accounts = doc.aiPreferredAccounts { aiPreferredAccounts = accounts }
+    if let showsReset = doc.aiWidgetShowsResetRing { aiWidgetShowsResetRing = showsReset }
     if let providers = doc.aiMenuBarProviders { aiMenuBarProviders = Set(providers) }
     assign(\.menuBarLayout, doc.menuBarLayout.flatMap(MenuBarLayout.init(rawValue:)))
     assign(

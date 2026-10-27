@@ -72,6 +72,11 @@ private struct MagpieUsageContent: View {
         MagpieConnectionGuide()
       } else {
         quotas
+        if !compact,
+          !model.aiUsage.magpieQuotas.isEmpty || !model.settings.aiPreferredAccounts.isEmpty
+        {
+          preferredAccounts
+        }
         if model.settings.aiUsageShowsLocalUsage {
           if let summary = model.aiUsage.magpieSummary(for: period) {
             usageSummary(summary)
@@ -119,7 +124,7 @@ private struct MagpieUsageContent: View {
       if model.aiUsage.magpieQuotas.isEmpty && model.aiUsage.magpieQuotaFailure == nil {
         Text(tr("暂无额度数据")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       }
-      Text(tr("额度按账户分别显示；菜单栏优先显示最近使用的账户。"))
+      Text(tr("额度按账户分别显示；菜单栏和小组件使用首选账号。"))
         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
         .fixedSize(horizontal: false, vertical: true)
       if !model.aiUsage.magpieQuotas.isEmpty {
@@ -127,6 +132,44 @@ private struct MagpieUsageContent: View {
       }
       if let failure = model.aiUsage.magpieQuotaFailure {
         connectionStatus(failure, stale: !model.aiUsage.magpieQuotas.isEmpty)
+      }
+    }
+  }
+
+  @ViewBuilder private var preferredAccounts: some View {
+    let accounts = model.aiUsage.widgetQuotaAccounts(at: .now)
+    let providers = Set(
+      Dictionary(grouping: accounts, by: \.provider)
+        .filter { $0.value.count > 1 }.keys)
+    let ordered =
+      AIServiceBrand.menuBarOrder.filter { providers.contains($0) }
+      + providers.subtracting(AIServiceBrand.menuBarOrder).sorted()
+    if !ordered.isEmpty {
+      Card(spacing: DS.Space.s3) {
+        Text(tr("首选账号")).dsFont(.sm, weight: .semibold)
+        ForEach(ordered, id: \.self) { provider in
+          let candidates = accounts.filter { $0.provider == provider }
+          let counts = Dictionary(grouping: candidates, by: \.id)
+          let selected = model.settings.aiPreferredAccounts[provider] ?? ""
+          SettingRow(title: AIServiceBrand.title(provider), subtitle: nil) {
+            Picker(
+              tr("首选账号"),
+              selection: Binding(
+                get: { model.settings.aiPreferredAccounts[provider] ?? "" },
+                set: { id in
+                  model.settings.aiPreferredAccounts[provider] = id.isEmpty ? nil : id
+                })
+            ) {
+              Text(tr("跟随 Magpie")).tag("")
+              ForEach(candidates.filter { counts[$0.id]?.count == 1 }) { account in
+                Text(account.name).tag(account.id)
+              }
+              if !selected.isEmpty, counts[selected]?.count != 1 {
+                Text(tr("账号不可用")).tag(selected)
+              }
+            }.labelsHidden()
+          }
+        }
       }
     }
   }
@@ -623,6 +666,12 @@ private struct UsageSettings: View {
             Text("K / M / B").tag(true)
           }.labelsHidden()
         }
+      }
+      SettingRow(title: tr("小组件圆环"), subtitle: nil) {
+        Picker(tr("小组件圆环"), selection: $settings.aiWidgetShowsResetRing) {
+          Text(tr("单圈")).tag(false)
+          Text(tr("双圈")).tag(true)
+        }.labelsHidden()
       }
       Text(tr("费用由 Magpie 估算，以美元显示；不代表订阅账单。"))
         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)

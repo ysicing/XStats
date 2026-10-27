@@ -787,7 +787,7 @@ once), deduplicating the selected cumulative period and responding to cancellati
 requests have bounded timeouts. Magpie is never started automatically, and an unavailable or unsupported
 API is shown explicitly without falling back to a different statistical source. Endpoint failures are
 independent; last good values are marked stale, and yesterday's summary is never republished as today's
-usage. There is no persisted Magpie account cache.
+usage. Only display summaries needed by widgets are persisted; credentials are never copied.
 
 Quotas remain separate per account and preserve Magpie's window names. The menu bar shows one valid
 account per selected provider (prefer the last active account), with at most four selected providers.
@@ -803,9 +803,35 @@ Account rows also preserve Magpie's optional `user`, subscription `until`, and `
 Reset credit counts remain distinct from the balance and quota-window reset times; missing counts
 are unknown, not zero. Individual credit expiry dates are disclosed on demand, with bounded lists
 and no additional requests, timers, or persistent account storage.
-The widget snapshot preserves up to four provider identities, one quota reading per provider,
+The widget snapshot preserves up to four provider identities and their account display summaries,
 today's aggregate and an optional cumulative input/output summary, independently of menu-bar
-provider selection. Only the main app reads Magpie; the widget itself never requests data. Token totals follow Magpie's `input + output` convention, excluding cache traffic;
+provider selection. The AI Usage page stores a preferred account per provider, shared by menu-bar
+quotas and all quota widgets. Choices are keyed by provider identity, so service reordering does
+not change the selected account.
+The default follows Magpie's first returned account for that service (current sign-in first for
+subscriptions), rather than `last`, which marks the most recently served request. Explicit choices
+use provider, kind, remote source and user identity, keeping aliases out of the identity when a
+user is available. A successful quota response removes preferences for missing accounts and restores the Magpie default.
+Failed requests, unavailable quotas and ambiguous identities retain the choice. Only services with
+multiple accounts show a preference picker; the entire section is hidden when none qualify. Optional account summaries preserve compatibility with older snapshots.
+The AI Usage settings select single-ring (default) or double-ring mode for all quota widgets.
+StaticConfiguration retains the existing widget kind. Both modes show a remaining-quota ring,
+a centered service logo and localized relative
+reset text, in a small 2-by-2 grid or a medium single row. Double-ring mode adds a remaining-week
+ring. Its outer ring
+always shows remaining quota independently of the menu-bar display preference. Only explicitly
+weekly windows with a reset date get an inner progress arc; unknown periods remain neutral.
+Bundled service logos use brand colors, with adaptive monochrome for Codex and Grok;
+unsupported brands retain their names. Relative reset labels show days, hours or "Resets soon"
+within the last hour; exact dates remain available in accessibility details.
+The shared brand mapping also covers common coding tools and plans (Cursor, Windsurf, Kiro,
+Antigravity, Qoder, Trae, CodeBuddy, Kimi Code, GLM/Z.ai, MiniMax, Qwen/Bailian and others),
+including explicit regional provider IDs. Widgets load only displayed bundled logos and cache
+by resource and appearance; mixed-color SVGs resolve `currentColor` for light/dark backgrounds.
+No remote icon lookup or provider-name substring matching is used.
+Hourly timeline entries update reset text and the weekly ring until the next reset or midnight
+without polling. Account and ring settings use the main app localization runtime.
+Only the main app reads Magpie; the widget itself never requests data. Token totals follow Magpie's `input + output` convention, excluding cache traffic;
 cache reads/writes are shown separately. Only traffic routed through Magpie is counted. Its own USD cost
 estimate is displayed directly and incomplete pricing is disclosed. All-time totals use Magpie's full
 recorded history; its timeline preserves the server's hourly, daily or weekly buckets rather than

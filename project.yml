@@ -291,6 +291,57 @@ targets:
       - path: Apps/XStats/Widget
         excludes:
           - "*.entitlements"
+      - path: Packages/XStatsKit/Sources/XStatsUI/Design/AIServiceBrand.swift
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-openai.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-claude.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-gemini.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-grok.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-copilot.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-perplexity.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-workbuddy.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-antigravity-color.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-bailian-color.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-cursor.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-deepseek-color.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-doubao-color.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-kimi-color.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-kiro-color.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-minimax-color.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-opencode.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-openrouter-color.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-qoder-color.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-qwen-color.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-stepfun-color.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-trae-color.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-windsurf.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-zai.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-zhipu-color.svg
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/tool-codebuddy.svg
+        buildPhase: resources
     info:
       path: Apps/XStats/Widget/Info.plist
       properties:

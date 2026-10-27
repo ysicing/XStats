@@ -1894,7 +1894,6 @@ Magpie 的 Token 总量不包含缓存读写；仅统计经过 Magpie 的请求�
 Magpie 数据无法读取，请检查版本或数据大小。	Magpie-Daten können nicht gelesen werden. Prüfen Sie Version oder Datenmenge.
 显示上次成功读取的数据。	Die zuletzt erfolgreich gelesenen Daten werden angezeigt.
 按周统计	Nach Woche
-额度按账户分别显示；菜单栏优先显示最近使用的账户。	Kontingente werden pro Konto angezeigt; die Menüleiste bevorzugt das zuletzt verwendete Konto.
 查看 AI 服务的 Token 用量与账户额度。	Token-Nutzung und Kontokontingente für KI-Dienste anzeigen.
 查看账户剩余额度与重置时间	Verbleibende Kontokontingente und Rücksetzzeiten anzeigen
 查看今天的 Token 用量	Heutige Token-Nutzung anzeigen
@@ -2590,3 +2589,12 @@ AI 用量需要安装并运行 Magpie。	Für die KI-Nutzung muss Magpie install
 无法打开 Magpie，请手动启动后重试。	Magpie konnte nicht geöffnet werden. Starte es manuell und versuche es erneut.
 安装 Magpie	Magpie installieren
 打开 Magpie	Magpie öffnen
+{}后重置	Reset in {}
+即将重置	Reset in Kürze
+首选账号	Bevorzugtes Konto
+跟随 Magpie	Magpie folgen
+账号不可用	Konto nicht verfügbar
+小组件圆环	Widget-Ringe
+单圈	Ein Ring
+双圈	Zwei Ringe
+额度按账户分别显示；菜单栏和小组件使用首选账号。	Kontingente werden pro Konto angezeigt; Menüleiste und Widgets verwenden das bevorzugte Konto.

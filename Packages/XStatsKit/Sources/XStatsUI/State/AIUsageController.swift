@@ -156,31 +156,54 @@ public final class AIUsageController {
     return readings.filter { settings.aiMenuBarProviders.contains($0.sourceName) }
   }
 
-  /// 每个服务取一个有效账户，优先最近账户；Widget 使用完整摘要，不受菜单栏选择影响。
+  /// 菜单栏与小组件共用首选账号，显式选择不可用时不回退。
   func magpieQuotaReadings(at date: Date = Date()) -> [MenuBarQuota] {
+    let allAccounts = widgetQuotaAccounts(at: date)
+    return availableMenuBarQuotaProviders.compactMap { provider in
+      let accounts = allAccounts.filter { $0.provider == provider }
+      let account: WidgetSnapshot.QuotaAccount?
+      if let id = settings.aiPreferredAccounts[provider] {
+        let matching = accounts.filter { $0.id == id }
+        account = matching.count == 1 ? matching.first : nil
+      } else {
+        account = accounts.first
+      }
+      guard let quota = account?.quota, quota.remainingPercent.isFinite else { return nil }
+      return MenuBarQuota(
+        provider: AIProviderID(rawValue: provider),
+        window: AIQuotaWindow(
+          kind: .weekly, usedPercent: 100 - quota.remainingPercent, resetsAt: quota.resetsAt),
+        fetchedAt: quota.fetchedAt, isStale: quota.isStale,
+        magpieName: provider, magpieWindow: quota.kind)
+    }
+  }
+
+  /// Widget 保留所有账号；Magpie 的当前登录账号排在前面，last 仅表示最近处理请求。
+  func widgetQuotaAccounts(at date: Date) -> [WidgetSnapshot.QuotaAccount] {
     guard settings.aiUsageEnabled else { return [] }
-    var selected: [String: MenuBarQuota] = [:]
-    let accounts = magpieQuotas.enumerated().sorted {
-      let leftIsLast = $0.element.last == true
-      let rightIsLast = $1.element.last == true
-      return leftIsLast == rightIsLast ? $0.offset < $1.offset : leftIsLast
-    }.map(\.element)
-    for account in accounts where selected[account.provider] == nil && account.error == nil {
+    return magpieQuotas.map { account in
+      // 长度前缀避免分隔符碰撞；有用户身份时改别名、调整顺序不会改变选择。
+      let identity = [
+        account.provider, account.kind, account.from ?? "", account.user ?? account.name,
+      ]
+      .map { "\($0.utf8.count):\($0)" }.joined()
+      let name = account.alias ?? account.user ?? account.name
+      let displayName = account.from.map { "\(name) · \($0)" } ?? name
       let windows = account.windows.filter {
         $0.unlimited != true && $0.remaining != nil && ($0.resetsAt.map { $0 > date } ?? true)
       }
-      guard let window = windows.first(where: { $0.name == "7 days" }) ?? windows.first,
-        let remaining = window.remaining
-      else { continue }
-      selected[account.provider] = MenuBarQuota(
-        provider: AIProviderID(rawValue: account.provider),
-        window: AIQuotaWindow(
-          kind: .weekly, usedPercent: 100 - remaining, resetsAt: window.resetsAt),
-        fetchedAt: account.readAt ?? magpieQuotaUpdatedAt ?? date,
-        isStale: magpieQuotaFailure != nil,
-        magpieName: account.provider, magpieWindow: window.name)
+      let window = windows.first { $0.name == "7 days" } ?? windows.first
+      let quota: WidgetSnapshot.Quota?
+      if account.error == nil, let window, let remaining = window.remaining {
+        quota = .init(
+          provider: account.provider, kind: window.name, remainingPercent: remaining,
+          resetsAt: window.resetsAt, fetchedAt: account.readAt ?? magpieQuotaUpdatedAt ?? date,
+          isStale: magpieQuotaFailure != nil)
+      } else {
+        quota = nil
+      }
+      return .init(id: identity, provider: account.provider, name: displayName, quota: quota)
     }
-    return availableMenuBarQuotaProviders.compactMap { selected[$0] }
   }
 
   /// 可见页请求所选周期；今日供菜单栏、累计按已安装的小组件需求读取，最多保留四个摘要。
@@ -241,6 +264,15 @@ public final class AIUsageController {
       magpieQuotas = value
       magpieQuotaFailure = nil
       magpieQuotaUpdatedAt = attempt
+      // 仅成功读取账号列表后清除已删除的身份；请求失败或额度不可用不代表账号删除。
+      let identities = Dictionary(grouping: widgetQuotaAccounts(at: attempt), by: \.provider)
+        .mapValues { Set($0.map(\.id)) }
+      let preferred = settings.aiPreferredAccounts.filter { provider, id in
+        identities[provider]?.contains(id) == true
+      }
+      if preferred != settings.aiPreferredAccounts {
+        settings.aiPreferredAccounts = preferred
+      }
     case .failure(let failure): magpieQuotaFailure = failure
     }
     if settings.aiUsageShowsLocalUsage {

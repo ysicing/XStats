@@ -4,6 +4,28 @@ import Foundation
 
 /// 主应用与 Widget 共用的纯显示格式化，不读取或修改全局语言偏好。
 public enum AIUsageFormat {
+  /// 使用条目时间和显式语言，不让多个 Widget 的渲染互相改变语言状态。
+  public static func quotaReset(
+    at reset: Date?, relativeTo date: Date, language: AppLanguage
+  ) -> String {
+    guard let reset else { return "—" }
+    let remaining = reset.timeIntervalSince(date)
+    guard remaining.isFinite, remaining > 0 else { return "—" }
+    if remaining < 3600 {
+      return L10n.translate("即将重置", language: language)
+    }
+    let formatter = DateComponentsFormatter()
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.locale = L10n.locale(for: language)
+    formatter.calendar = calendar
+    formatter.allowedUnits = remaining >= 86400 ? .day : .hour
+    formatter.unitsStyle = .abbreviated
+    formatter.maximumUnitCount = 1
+    let unit: TimeInterval = remaining >= 86400 ? 86400 : 3600
+    guard let duration = formatter.string(from: floor(remaining / unit) * unit) else { return "—" }
+    return L10n.translate("\(duration)后重置", language: language)
+  }
+
   /// 按指定语言缩写 token 数；中文默认使用万、亿，西式单位为 K、M、B。
   public static func tokens(_ value: Int, westernUnits: Bool = false, locale: Locale) -> String {
     let number = Double(value)

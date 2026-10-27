@@ -151,6 +151,31 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
       self.fetchedAt = fetchedAt
       self.isStale = isStale
     }
+
+    /// 只有明确的周窗口才可按七天计算；未知周期不能伪装成周重置。
+    public func weeklyResetFraction(at date: Date) -> Double? {
+      guard kind == "7 days" || kind == "7d" || kind == "weekly" || kind.hasSuffix("Weekly"),
+        let resetsAt
+      else { return nil }
+      let remaining = resetsAt.timeIntervalSince(date)
+      guard remaining.isFinite else { return nil }
+      return min(1, max(0, remaining / (7 * 24 * 3600)))
+    }
+  }
+
+  /// 按 Magpie 返回顺序保存账号摘要；每个服务首项为默认账号，不以最近请求标记替代。
+  public struct QuotaAccount: Codable, Equatable, Sendable, Identifiable {
+    public let id: String
+    public let provider: String
+    public let name: String
+    public let quota: Quota?
+
+    public init(id: String, provider: String, name: String, quota: Quota?) {
+      self.id = id
+      self.provider = provider
+      self.name = name
+      self.quota = quota
+    }
   }
 
   public struct QuotaSlot: Equatable, Sendable, Identifiable {
@@ -208,6 +233,10 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
   public var cumulativeTokens: [TokenUsage]?
   /// 保留无有效额度的服务身份，过期或暂时失败不能让后面的圆环前移。
   public var quotaProviders: [String]?
+  /// 只保存账号身份、显示名与额度，不包含凭据；nil 兼容旧版摘要。
+  public var quotaAccounts: [QuotaAccount]?
+  public var preferredQuotaAccounts: [String: String]?
+  public var quotaShowsResetRing: Bool?
   /// 可选以兼容旧版摘要；缺失时沿用 AI 总开关的旧行为。
   public var localUsageEnabled: Bool?
   /// 可选显示偏好；旧摘要沿用剩余额度和按语言缩写。
@@ -231,6 +260,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
   public init(
     aiEnabled: Bool = false, quotas: [Quota] = [], dailyTokens: [DailyTokenUsage]? = nil,
     cumulativeTokens: [TokenUsage]? = nil, quotaProviders: [String]? = nil,
+    quotaAccounts: [QuotaAccount]? = nil,
+    preferredQuotaAccounts: [String: String]? = nil, quotaShowsResetRing: Bool? = nil,
     localUsageEnabled: Bool? = nil, quotaShowsRemaining: Bool? = nil, westernUnits: Bool? = nil,
     publicIPEnabled: Bool = false,
     addresses: [Address] = [], language: String = "system",
@@ -244,6 +275,9 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     self.dailyTokens = dailyTokens
     self.cumulativeTokens = cumulativeTokens
     self.quotaProviders = quotaProviders
+    self.quotaAccounts = quotaAccounts
+    self.preferredQuotaAccounts = preferredQuotaAccounts
+    self.quotaShowsResetRing = quotaShowsResetRing
     self.localUsageEnabled = localUsageEnabled
     self.quotaShowsRemaining = quotaShowsRemaining
     self.westernUnits = westernUnits
@@ -282,6 +316,24 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     }
     let current = currentQuotas(at: date).filter { $0.remainingPercent.isFinite }
     return ordered.map { provider in
+      let selectedID = preferredQuotaAccounts?[provider]
+      if let quotaAccounts {
+        let accounts = quotaAccounts.filter { $0.provider == provider }
+        // 显式选择缺失或身份有歧义时不能回退到别的账号。
+        let account: QuotaAccount?
+        if let selectedID {
+          let matching = accounts.filter { $0.id == selectedID }
+          account = matching.count == 1 ? matching.first : nil
+        } else {
+          account = accounts.first
+        }
+        let quota = aiEnabled ? account?.quota : nil
+        let valid = quota.flatMap {
+          $0.remainingPercent.isFinite && ($0.resetsAt.map { $0 > date } ?? true) ? $0 : nil
+        }
+        return QuotaSlot(provider: provider, quota: valid)
+      }
+      guard selectedID == nil else { return QuotaSlot(provider: provider, quota: nil) }
       let windows = current.filter { $0.provider == provider }
       let quota =
         windows.first { $0.kind == "weekly" || $0.kind.hasSuffix("Weekly") }
@@ -319,6 +371,13 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
           resetsAt: $0.resetsAt, fetchedAt: .distantPast, isStale: $0.isStale)
       }
     }
+    func displayedAccounts(_ accounts: [QuotaAccount]?) -> [QuotaAccount]? {
+      accounts?.map {
+        QuotaAccount(
+          id: $0.id, provider: $0.provider, name: $0.name,
+          quota: $0.quota.flatMap { displayed([$0]).first })
+      }
+    }
     let relocalized = language != previous.language
     let quotaChanged =
       relocalized || aiEnabled != previous.aiEnabled
@@ -328,7 +387,10 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
       || (westernUnits == true) != (previous.westernUnits == true)
     var kinds: [String] = []
     if quotaChanged || quotaProviders != previous.quotaProviders
+      || preferredQuotaAccounts != previous.preferredQuotaAccounts
+      || (quotaShowsResetRing == true) != (previous.quotaShowsResetRing == true)
       || displayed(quotas) != displayed(previous.quotas)
+      || displayedAccounts(quotaAccounts) != displayedAccounts(previous.quotaAccounts)
     {
       kinds.append(WidgetKind.aiQuota)
     }

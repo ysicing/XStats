@@ -20,9 +20,15 @@ extension Translations {
     Magpie 数据无法读取，请检查版本或数据大小。	Cannot read Magpie data. Check its version or data size.
     显示上次成功读取的数据。	Showing the last successfully read data.
     按周统计	By week
-    额度按账户分别显示；菜单栏优先显示最近使用的账户。	Quotas are shown per account; the menu bar prefers the most recently used account.
     查看 AI 服务的 Token 用量与账户额度。	View token usage and account quotas for AI services.
     查看账户剩余额度与重置时间	View remaining account quotas and reset times
     查看今天的 Token 用量	View today’s token usage
+    首选账号	Preferred Account
+    跟随 Magpie	Follow Magpie
+    账号不可用	Account Unavailable
+    小组件圆环	Widget Rings
+    单圈	Single Ring
+    双圈	Double Ring
+    额度按账户分别显示；菜单栏和小组件使用首选账号。	Quotas are shown per account; the menu bar and widgets use the preferred account.
     """#
 }

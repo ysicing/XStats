@@ -7,6 +7,35 @@ import Testing
 
 @MainActor
 struct AIUsageSettingsTests {
+  @Test func preferredAccountsAndWidgetStylePersistAndExport() throws {
+    let name = "AIUsageSettingsTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let settings = AppSettings(defaults: defaults)
+    #expect(settings.aiPreferredAccounts.isEmpty)
+    #expect(!settings.aiWidgetShowsResetRing)
+    settings.aiPreferredAccounts = ["workbuddy": "account-b"]
+    settings.aiWidgetShowsResetRing = true
+    let restored = AppSettings(defaults: defaults)
+    #expect(restored.aiPreferredAccounts == settings.aiPreferredAccounts)
+    #expect(restored.aiWidgetShowsResetRing)
+    let document = try JSONDecoder().decode(
+      SettingsDocument.self, from: JSONEncoder().encode(settings.exportDocument()))
+    #expect(document.aiPreferredAccounts == ["workbuddy": "account-b"])
+    #expect(document.aiWidgetShowsResetRing == true)
+    settings.aiPreferredAccounts = [:]
+    settings.aiWidgetShowsResetRing = false
+    // 只恢复本用例的偏好，避免触及进程全局语言。
+    var imported = SettingsDocument()
+    imported.aiPreferredAccounts = document.aiPreferredAccounts
+    imported.aiWidgetShowsResetRing = document.aiWidgetShowsResetRing
+    settings.apply(imported)
+    #expect(settings.aiPreferredAccounts == ["workbuddy": "account-b"])
+    #expect(settings.aiWidgetShowsResetRing)
+    settings.aiPreferredAccounts["workbuddy"] = nil
+    #expect(AppSettings(defaults: defaults).aiPreferredAccounts.isEmpty)
+  }
+
   @Test func menuBarProviderChoicesPersistIncludingAnEmptySelection() throws {
     let name = "AIUsageSettingsTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: name))

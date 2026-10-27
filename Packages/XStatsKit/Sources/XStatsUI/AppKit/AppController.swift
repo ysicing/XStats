@@ -788,6 +788,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private func observeAIUsageState() {
     withObservationTracking {
       _ = model.aiUsage.lastAttemptAt
+      _ = model.settings.aiPreferredAccounts
+      _ = model.settings.aiWidgetShowsResetRing
       _ = model.settings.aiQuotaShowsRemaining
       _ = model.settings.aiMenuBarProviders
       _ = model.settings.aiUsageWesternUnits
@@ -805,6 +807,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
   func observeWidgetState() {
     withObservationTracking {
       _ = model.settings.aiUsageEnabled
+      _ = model.settings.aiPreferredAccounts
+      _ = model.settings.aiWidgetShowsResetRing
       _ = model.settings.aiQuotaShowsRemaining
       _ = model.settings.aiUsageWesternUnits
       _ = model.settings.aiUsageShowsLocalUsage
@@ -872,13 +876,17 @@ public final class AppController: NSObject, NSApplicationDelegate {
     let quotaProviders = Array(
       (AIServiceBrand.menuBarOrder.filter { available.contains($0) }
         + available.subtracting(AIServiceBrand.menuBarOrder).sorted()).prefix(4))
-    let quotas = model.aiUsage.magpieQuotaReadings(at: now)
-      .filter { quotaProviders.contains($0.sourceName) }.map { quota in
-        WidgetSnapshot.Quota(
-          provider: quota.sourceName, kind: quota.shortWindowName,
-          remainingPercent: quota.window.remainingPercent, resetsAt: quota.window.resetsAt,
-          fetchedAt: quota.fetchedAt, isStale: quota.isStale)
+    let quotaAccounts = model.aiUsage.widgetQuotaAccounts(at: now)
+      .filter { quotaProviders.contains($0.provider) }
+    // 旧扩展仍可读取每服务一条的默认摘要；新扩展使用完整账号列表。
+    let quotas: [WidgetSnapshot.Quota] = quotaProviders.compactMap { provider in
+      let accounts = quotaAccounts.filter { $0.provider == provider }
+      if let id = settings.aiPreferredAccounts[provider] {
+        let matching = accounts.filter { $0.id == id }
+        return matching.count == 1 ? matching.first?.quota : nil
       }
+      return accounts.first?.quota
+    }
     let dailyTokens = model.aiUsage.todayTokens.map { tokens in
       [WidgetSnapshot.DailyTokenUsage(provider: "Magpie", day: today, tokens: tokens)]
     }
@@ -909,6 +917,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
       aiEnabled: settings.aiUsageEnabled, quotas: quotas,
       dailyTokens: dailyTokens,
       cumulativeTokens: cumulativeTokens, quotaProviders: quotaProviders,
+      quotaAccounts: quotaAccounts,
+      preferredQuotaAccounts: settings.aiPreferredAccounts,
+      quotaShowsResetRing: settings.aiWidgetShowsResetRing,
       localUsageEnabled: settings.aiUsageShowsLocalUsage,
       quotaShowsRemaining: settings.aiQuotaShowsRemaining,
       westernUnits: settings.aiUsageWesternUnits,
