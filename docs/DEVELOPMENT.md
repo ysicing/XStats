@@ -63,7 +63,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 - macOS 14+，Apple Silicon Mac；构建固定使用 `arm64`。
 - Xcode 26+；仅安装 CommandLineTools 无法提供所需的 SwiftUI 宏插件。
-- GitHub Actions 使用 `macos-15` 镜像中已安装的最新稳定版 Xcode（`latest-stable`），并输出实际工具链版本。
+- GitHub Actions 使用 arm64 `xcode-27` 镜像中已安装的最新稳定版 Xcode（`latest-stable`）及其配套 Swift，排除 Xcode RC／Beta，并输出实际工具链版本。该 runner 镜像目前由 GitHub 标记为预览版。
 - Python 3、Go 1.25+、Go Task 和 XcodeGen；Go 用于 API 兼容性测试。
 
 ```bash
