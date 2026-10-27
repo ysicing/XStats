@@ -2,10 +2,43 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import AIUsage
+import AppKit
 import Foundation
 
 @MainActor
 enum MagpieInstallation {
+  enum Guidance: Equatable {
+    case install
+    case launch(URL)
+    case retry
+
+    static func resolve(application: URL?, commandLineInstalled: Bool, previouslyConnected: Bool)
+      -> Self
+    {
+      if let application { return .launch(application) }
+      return commandLineInstalled || previouslyConnected ? .retry : .install
+    }
+  }
+
+  static func guidance(previouslyConnected: Bool) -> Guidance {
+    let home = FileManager.default.homeDirectoryForCurrentUser
+    let candidates = [
+      NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.yetone.magpie"),
+      URL(fileURLWithPath: "/Applications/magpie.app"),
+      home.appendingPathComponent("Applications/magpie.app"),
+    ].compactMap { $0 }
+    let application = candidates.first {
+      Bundle(url: $0)?.bundleIdentifier == "com.yetone.magpie"
+    }
+    let commandLineInstalled = [
+      "/opt/homebrew/bin/magpie", "/usr/local/bin/magpie",
+      home.appendingPathComponent(".local/bin/magpie").path,
+    ].contains { FileManager.default.isExecutableFile(atPath: $0) }
+    return .resolve(
+      application: application, commandLineInstalled: commandLineInstalled,
+      previouslyConnected: previouslyConnected)
+  }
+
   /// 只读取本地网关端口，不启动 Magpie 或读取账户凭据。
   static func client() -> MagpieClient {
     let home = FileManager.default.homeDirectoryForCurrentUser

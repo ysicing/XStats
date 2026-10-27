@@ -2585,3 +2585,8 @@ macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macO
 费用	Kosten
 请求	Anfragen
 速度	Geschwindigkeit
+AI 用量需要安装并运行 Magpie。	Für die KI-Nutzung muss Magpie installiert sein und laufen.
+无法连接 Magpie，请确认它已运行并开启本地接口。	Keine Verbindung zu Magpie. Prüfe, ob es läuft und die lokale API aktiviert ist.
+无法打开 Magpie，请手动启动后重试。	Magpie konnte nicht geöffnet werden. Starte es manuell und versuche es erneut.
+安装 Magpie	Magpie installieren
+打开 Magpie	Magpie öffnen

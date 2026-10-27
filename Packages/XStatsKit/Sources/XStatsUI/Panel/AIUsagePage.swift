@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import AIUsage
+import AppKit
 import Localization
 import SwiftUI
 
@@ -62,6 +63,13 @@ private struct MagpieUsageContent: View {
           Button(tr("启用 AI 用量")) { model.settings.aiUsageEnabled = true }
             .buttonStyle(DSButtonStyle(kind: .primary))
         }
+      } else if model.aiUsage.magpieQuotas.isEmpty,
+        model.aiUsage.magpieSummary(for: period) == nil,
+        model.aiUsage.magpieQuotaFailure == .unavailable,
+        !model.settings.aiUsageShowsLocalUsage
+          || model.aiUsage.magpieUsageFailures[period] == .unavailable
+      {
+        MagpieConnectionGuide()
       } else {
         quotas
         if model.settings.aiUsageShowsLocalUsage {
@@ -175,6 +183,65 @@ private struct MagpieUsageContent: View {
       if stale { Text(tr("显示上次成功读取的数据。")) }
     }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       .fixedSize(horizontal: false, vertical: true)
+  }
+}
+
+struct MagpieConnectionGuide: View {
+  @Environment(AppModel.self) private var model
+  @State private var guidance: MagpieInstallation.Guidance?
+  @State private var opening = false
+  @State private var launchFailed = false
+
+  var body: some View {
+    Card(spacing: DS.Space.s3) {
+      Text(
+        tr(
+          guidance == .install
+            ? "AI 用量需要安装并运行 Magpie。"
+            : "无法连接 Magpie，请确认它已运行并开启本地接口。")
+      )
+      .dsFont(.sm).fixedSize(horizontal: false, vertical: true)
+      if launchFailed {
+        Text(tr("无法打开 Magpie，请手动启动后重试。"))
+          .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+      }
+      HStack(spacing: DS.Space.s2) {
+        if guidance == .install {
+          Link(tr("安装 Magpie"), destination: URL(string: "https://usemagpie.ai")!)
+            .buttonStyle(DSButtonStyle(kind: .primary))
+        } else if case .launch(let application) = guidance {
+          Button(tr("打开 Magpie")) {
+            opening = true
+            launchFailed = false
+            Task {
+              do {
+                _ = try await NSWorkspace.shared.openApplication(
+                  at: application, configuration: .init())
+                await model.aiUsage.refresh()
+              } catch { launchFailed = true }
+              opening = false
+            }
+          }.buttonStyle(DSButtonStyle(kind: .primary))
+        }
+        Button(tr("重新检测")) {
+          detect()
+          Task { await model.aiUsage.refresh() }
+        }.buttonStyle(DSButtonStyle())
+        if model.aiUsage.isRefreshing || opening {
+          ProgressView().controlSize(.small).accessibilityLabel(tr("正在刷新"))
+        }
+      }
+      .disabled(model.aiUsage.isRefreshing || opening)
+    }
+    .task { detect() }
+    .onChange(of: model.aiUsage.lastAttemptAt) { _, _ in detect() }
+  }
+
+  private func detect() {
+    // 安装检测只用于失败后的操作引导；真实接口可用时不依赖安装路径。
+    guidance = MagpieInstallation.guidance(
+      previouslyConnected: model.aiUsage.magpieQuotaUpdatedAt != nil
+        || !model.aiUsage.magpieUsageUpdatedAt.isEmpty)
   }
 }
 

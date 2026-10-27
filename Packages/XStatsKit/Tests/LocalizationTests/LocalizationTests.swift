@@ -3,6 +3,20 @@ import Testing
 
 // 不切换全局语言：其他测试套件并行运行，依赖中文原文
 @Suite struct LocalizationTests {
+  @Test func magpieConnectionGuidanceHasTranslationsInEveryCatalog() throws {
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for source in [
+        "AI 用量需要安装并运行 Magpie。",
+        "无法连接 Magpie，请确认它已运行并开启本地接口。",
+        "无法打开 Magpie，请手动启动后重试。",
+        "安装 Magpie", "打开 Magpie", "重新检测",
+      ] {
+        #expect(table.translate(source)?.isEmpty == false, "\(language): \(source)")
+      }
+    }
+  }
+
   @Test func aiWidgetSummaryLabelsAreTranslatedInEveryCatalog() throws {
     for language in AppLanguage.allCases where language != .system && language != .chinese {
       let table = try #require(Translations.catalog(for: language))

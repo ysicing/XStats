@@ -1277,7 +1277,7 @@ public final class AppSettings {
     aiUsageWesternUnits = defaults.bool(forKey: Keys.aiUsageWesternUnits)
     aiUsageRefreshMinutes =
       Self.aiUsageRefreshOptions.contains(defaults.integer(forKey: Keys.aiUsageRefreshMinutes))
-      ? defaults.integer(forKey: Keys.aiUsageRefreshMinutes) : 30
+      ? defaults.integer(forKey: Keys.aiUsageRefreshMinutes) : 5
     colorizeHighLoad = defaults.bool(forKey: Keys.colorizeHighLoad)
     loadSensitivity =
       defaults.string(forKey: Keys.loadSensitivity).flatMap(LoadSensitivity.init(rawValue:))

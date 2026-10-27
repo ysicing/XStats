@@ -771,7 +771,10 @@ Magpie's public loopback API: `/v1/magpie/quotas` and `/v1/magpie/usage?period=t
 The gateway defaults to `127.0.0.1:3425`; only the port is decoded from the bounded local
 `~/.config/magpie/settings.json`. No CLI credentials, session logs, Magpie request bodies or
 private database files are read. Tests and screenshots inject a `MagpieFetching` client.
-An absent or stopped Magpie is reported as unavailable; there is no alternate data source.
+When both endpoints are unavailable and there is no displayable data, a single guide offers
+installation, opening the detected app, or retrying. Installation checks only determine the available
+action; a working API is accepted regardless of the installation path. There is no alternate data
+source. The default refresh interval is five minutes; existing saved intervals remain unchanged.
 The old local-log readers, direct quota queries, SQLite scan/quota caches and independent
 price/exchange-rate service have been removed. Existing user database files are left untouched.
 

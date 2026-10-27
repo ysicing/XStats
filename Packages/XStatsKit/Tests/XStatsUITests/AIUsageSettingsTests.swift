@@ -49,7 +49,7 @@ struct AIUsageSettingsTests {
     let settings = AppSettings(defaults: defaults)
     #expect(settings.aiQuotaShowsRemaining)
     #expect(!settings.aiUsageWesternUnits)
-    #expect(settings.aiUsageRefreshMinutes == 30)
+    #expect(settings.aiUsageRefreshMinutes == 5)
     settings.aiQuotaShowsRemaining = false
     settings.aiUsageWesternUnits = true
     for interval in [1, 3, 5, 10, 15, 30, 60] {
@@ -61,7 +61,7 @@ struct AIUsageSettingsTests {
     }
     defaults.set(0, forKey: "aiUsageRefreshMinutes")
     let repaired = AppSettings(defaults: defaults)
-    #expect(repaired.aiUsageRefreshMinutes == 30)
+    #expect(repaired.aiUsageRefreshMinutes == 5)
   }
   @Test func navigationExposesAIUsageAsAMonitorAndMenuBarItem() throws {
     let name = "AIUsageSettingsTests.\(UUID())"
@@ -82,14 +82,14 @@ struct AIUsageSettingsTests {
     #expect(settings.style(for: .aiUsage) == .pie)
   }
 
-  @Test func settingsDefaultToOptInAndThirtyMinuteRefresh() throws {
+  @Test func settingsDefaultToOptInAndFiveMinuteRefresh() throws {
     let name = "AIUsageSettingsTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: name))
     defer { defaults.removePersistentDomain(forName: name) }
     let settings = AppSettings(defaults: defaults)
 
     #expect(!settings.aiUsageEnabled)
-    #expect(settings.aiUsageRefreshMinutes == 30)
+    #expect(settings.aiUsageRefreshMinutes == 5)
   }
 
   @Test func disablingAIUsageLeavesItsHiddenPageAndRestoresNavigationOnEnable() throws {

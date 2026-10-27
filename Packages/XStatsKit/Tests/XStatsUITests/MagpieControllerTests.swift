@@ -69,6 +69,38 @@ private final class MagpieTestClock: @unchecked Sendable {
 
 @MainActor
 struct MagpieControllerTests {
+  @Test func connectionGuidanceUsesInstallationOnlyAfterAnAPIFailure() {
+    let app = URL(fileURLWithPath: "/Applications/magpie.app")
+    #expect(
+      MagpieInstallation.Guidance.resolve(
+        application: app, commandLineInstalled: false, previouslyConnected: false) == .launch(app))
+    #expect(
+      MagpieInstallation.Guidance.resolve(
+        application: nil, commandLineInstalled: false, previouslyConnected: false) == .install)
+    #expect(
+      MagpieInstallation.Guidance.resolve(
+        application: nil, commandLineInstalled: true, previouslyConnected: false) == .retry)
+    #expect(
+      MagpieInstallation.Guidance.resolve(
+        application: nil, commandLineInstalled: false, previouslyConnected: true) == .retry)
+  }
+
+  @Test func unavailableMagpiePageFitsBothLayoutDirections() async {
+    let model = AppModel(
+      settings: settings(), historyURL: nil, magpieClient: UnavailableMagpieClient())
+    model.aiUsage.cumulativeWidgetIsInstalled = { false }
+    await model.aiUsage.refresh()
+    for direction in [LayoutDirection.leftToRight, .rightToLeft] {
+      let host = NSHostingView(
+        rootView: AIUsagePopover().environment(model).environment(\.layoutDirection, direction))
+      host.frame = NSRect(x: 0, y: 0, width: 360, height: 360)
+      host.layoutSubtreeIfNeeded()
+      #expect(host.fittingSize.width <= 360)
+      #expect(host.fittingSize.height.isFinite)
+    }
+    model.aiUsage.stop()
+  }
+
   @Test func displayPreferencesInvalidateOnlyRelevantMenuBarImages() async {
     let settings = settings()
     let model = AppModel(settings: settings, historyURL: nil, magpieClient: MagpieStub())

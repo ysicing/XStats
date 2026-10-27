@@ -453,6 +453,11 @@ extension Translations {
     支持	Supported
     无法检测	Can't determine
     仅显示本机模型当前是否可用；设备兼容不代表当前可用。	Shows whether the on-device model is available now; a compatible device may still be unable to use it.
+    AI 用量需要安装并运行 Magpie。	AI usage requires Magpie to be installed and running.
+    无法连接 Magpie，请确认它已运行并开启本地接口。	Unable to connect to Magpie. Make sure it is running with its local API enabled.
+    无法打开 Magpie，请手动启动后重试。	Unable to open Magpie. Start it manually and try again.
+    安装 Magpie	Install Magpie
+    打开 Magpie	Open Magpie
     活动走势	Activity trends
     费用	Cost
     请求	Requests

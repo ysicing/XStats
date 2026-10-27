@@ -2585,3 +2585,8 @@ macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macO
 费用	Coste
 请求	Solicitudes
 速度	Velocidad
+AI 用量需要安装并运行 Magpie。	El uso de IA requiere instalar y ejecutar Magpie.
+无法连接 Magpie，请确认它已运行并开启本地接口。	No se puede conectar con Magpie. Comprueba que esté en ejecución y que su API local esté activada.
+无法打开 Magpie，请手动启动后重试。	No se puede abrir Magpie. Inícialo manualmente e inténtalo de nuevo.
+安装 Magpie	Instalar Magpie
+打开 Magpie	Abrir Magpie
