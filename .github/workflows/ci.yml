@@ -29,7 +29,8 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: macos-15
+    # Xcode 27 系列需要对应的新镜像；该 runner 目前为预览版。
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v7
 
@@ -51,7 +52,7 @@ jobs:
             echo "- Commit: $GITHUB_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # SwiftUI 宏需要完整 Xcode；选择镜像内最新稳定版，排除预览版。
+      # SwiftUI 宏需要完整 Xcode；随镜像升级稳定工具链，排除 Xcode RC／Beta。
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
