@@ -17,7 +17,7 @@ struct PopoverSectionPresentationTests {
     settings.menuBarItems = []
     settings.historyEnabled = false
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     for dark in [false, true] {
       for rtl in [false, true] {
         for width: CGFloat in [320, 800] {

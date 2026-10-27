@@ -40,7 +40,7 @@ struct CompactPopoverTests {
     let settings = AppSettings(defaults: defaults)
     settings.menuBarItems = [.disk]
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     #expect(!model.diskVolumesVisible)
     model.openPopover = .disk
     #expect(model.diskVolumesVisible)

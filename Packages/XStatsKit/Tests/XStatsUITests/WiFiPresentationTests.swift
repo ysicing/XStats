@@ -19,7 +19,7 @@ struct WiFiPresentationTests {
     settings.menuBarItems = []
     settings.historyEnabled = false
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     let wifi = WiFiLink(
       ssid: "Example Wi-Fi with a very long network name", rssi: -58, noise: -92,
       transmitRate: 866.7, bssid: "02:00:00:00:00:01", bandGHz: 5, channel: 149,

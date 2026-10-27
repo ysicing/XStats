@@ -16,7 +16,8 @@ struct ProcessNavigationTests {
     settings.portsEnabled = true
     settings.portsPlacement = .network
     settings.panelTab = .network
-    let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [])
+    let model = AppModel(
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.isMainWindowVisible = true
     model.isPortsSheetPresented = true
     #expect(model.portsVisible)
@@ -65,7 +66,8 @@ struct ProcessNavigationTests {
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
-    let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [])
+    let model = AppModel(
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var opened: PanelTab?
     model.openMainWindow = { opened = $0 }
     model.showProcesses(.application("/Applications/Example.app"))
@@ -83,7 +85,8 @@ struct ProcessNavigationTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
     settings.appServicesSection = .services
-    let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [])
+    let model = AppModel(
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var opened: PanelTab?
     model.openMainWindow = { opened = $0 }
     #expect(AppModel.supportsApplicationNavigation(path))
@@ -109,7 +112,8 @@ struct ProcessNavigationTests {
     let settings = AppSettings(defaults: defaults)
     settings.processesEnabled = true
     settings.panelTab = .processes
-    let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [])
+    let model = AppModel(
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var opened: PanelTab?
     model.openMainWindow = { opened = $0 }
     #expect(!AppModel.supportsApplicationNavigation(path))

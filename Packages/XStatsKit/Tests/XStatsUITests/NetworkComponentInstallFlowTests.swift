@@ -52,8 +52,8 @@ import Testing
     let date = Date(timeIntervalSince1970: 1_700_000_000)
     defaults.set(date, forKey: "updateLastChecked")
     let model = AppModel(
-      settings: AppSettings(defaults: defaults), historyURL: nil, aiUsageProviders: [],
-      aiQuotaProviders: [])
+      settings: AppSettings(defaults: defaults), historyURL: nil,
+      magpieClient: UnavailableMagpieClient())
     #expect(model.updates.lastChecked == date)
     #expect(defaults.object(forKey: "SULastCheckTime") as? Date == date)
   }

@@ -94,45 +94,4 @@ struct AIUsageFormatTests {
     #expect(german.contains("12,3"))
   }
 
-  @Test(arguments: [(0.0, "$0"), (0.0123, "$0.012"), (1.234, "$1.23"), (100.49, "$100")])
-  func dollarsUseMagnitudePrecision(_ value: Double, _ expected: String) {
-    #expect(
-      AIUsageFormat.money(
-        usd: value, currency: .usd, usdToCNY: nil,
-        locale: Locale(identifier: "en_US")) == expected)
-  }
-
-  @Test func yuanRequiresExchangeRateAndConvertsForDisplay() {
-    let usd = 2.0
-    let locale = Locale(identifier: "zh_CN")
-    #expect(AIUsageFormat.money(usd: usd, currency: .cny, usdToCNY: nil, locale: locale) == nil)
-    #expect(
-      AIUsageFormat.money(usd: usd, currency: .cny, usdToCNY: 7.25, locale: locale) == "¥14.5")
-    #expect(usd == 2)
-    #expect(AIUsageCurrency.usd.currencyCode == "USD")
-    #expect(AIUsageCurrency.cny.currencyCode == "CNY")
-  }
-
-  @Test(arguments: [Double.nan, Double.infinity, -Double.infinity, -1])
-  func rejectsInvalidMoney(_ value: Double) {
-    #expect(
-      AIUsageFormat.money(
-        usd: value, currency: .usd, usdToCNY: nil,
-        locale: Locale(identifier: "en_US")) == nil)
-  }
-
-  @Test(arguments: [Double.nan, Double.infinity, -Double.infinity, -1, 0])
-  func rejectsInvalidRates(_ rate: Double) {
-    #expect(
-      AIUsageFormat.money(
-        usd: 1, currency: .cny, usdToCNY: rate,
-        locale: Locale(identifier: "zh_CN")) == nil)
-  }
-
-  @Test func rejectsConversionOverflow() {
-    #expect(
-      AIUsageFormat.money(
-        usd: Double.greatestFiniteMagnitude, currency: .cny,
-        usdToCNY: 2, locale: Locale(identifier: "zh_CN")) == nil)
-  }
 }

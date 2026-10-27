@@ -204,12 +204,7 @@ struct TrioSettings: View {
     if config.footer == .aiUsage {
       SettingsGroup(caption: tr("AI 用量")) {
         GroupRow(showsDivider: false) {
-          if model.aiUsage.usesMagpie {
-            AIQuotaMenuBarSelection()
-          } else {
-            Text(tr("订阅额度"))
-              .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
-          }
+          AIQuotaMenuBarSelection()
         }
       }
     }

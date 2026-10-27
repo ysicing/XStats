@@ -47,7 +47,7 @@ struct PopoverSectionOrderTests {
     settings.enabledAlerts = []
     settings.hiddenPopoverSections.insert(.gpuDetails)
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.openPopover = .gpu
     #expect(model.demand.gpuFrequency)
     settings.customPopoverContentEnabled = true

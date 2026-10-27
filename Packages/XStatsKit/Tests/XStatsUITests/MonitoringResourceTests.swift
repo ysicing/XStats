@@ -32,7 +32,7 @@ struct MonitoringResourceTests {
     settings.enabledAlerts = []
     settings.refreshSeconds = 2
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var samples: [MetricsSnapshot] = []
     await model.hub.update(model.demand)
     await model.hub.start(primeAllMetrics: false) { snapshot in
@@ -111,7 +111,7 @@ struct MonitoringResourceTests {
     settings.enabledAlerts = []
     settings.panelTab = .battery
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var samples: [MetricsSnapshot] = []
     var phases: [String: [String: Double]] = [:]
     var energyArrivalTimes: [Double] = []
@@ -217,7 +217,7 @@ struct MonitoringResourceTests {
     settings.historyEnabled = false
     settings.enabledAlerts = Set(AlertKind.allCases)
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var snapshots = 0
     await model.hub.update(model.demand)
     await model.hub.start(primeAllMetrics: false) { _ in snapshots += 1 }

@@ -148,8 +148,8 @@ struct HomebrewOperationTests {
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = AppModel(
-      settings: AppSettings(defaults: defaults), historyURL: nil, aiUsageProviders: [],
-      aiQuotaProviders: [])
+      settings: AppSettings(defaults: defaults), historyURL: nil,
+      magpieClient: UnavailableMagpieClient())
     #expect(model.appManagement.homebrewOperations === model.homebrewServices.homebrewOperations)
     model.settings.cleanerEnabled = true
     #expect(model.cleaner.mole.canStart)

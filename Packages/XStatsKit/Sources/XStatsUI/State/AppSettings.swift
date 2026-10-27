@@ -57,7 +57,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
     case .temperature: tr("CPU 核心最高温度")
     case .fan: tr("转速最高的风扇")
     case .battery: tr("电量与充电状态；没有电池的 Mac 显示蓝牙设备电量")
-    case .aiUsage: tr("Codex / Claude Code 本机 Token 用量与订阅额度")
+    case .aiUsage: tr("从 Magpie 读取 Token 用量与订阅额度")
     case .display: tr("显示器信息与支持的亮度、音量、对比度控制")
     case .audio: tr("系统音量、音频设备与应用音量")
     }
@@ -812,11 +812,7 @@ public final class AppSettings {
   public var agentDataEnabled: Bool {
     didSet { defaults.set(agentDataEnabled, forKey: Keys.agentDataEnabled) }
   }
-  /// 来源开关只保存在本机；关闭后不扫描，也不显示其历史缓存。
-  public var aiUsageSources: Set<AIProviderID> {
-    didSet { defaults.set(aiUsageSources.map(\.rawValue).sorted(), forKey: Keys.aiUsageSources) }
-  }
-  /// 订阅额度继续自动查询；关闭本地用量后停止扫描本机会话日志。
+  /// 关闭 Token 统计后仍查询 Magpie 订阅额度；保留原偏好键。
   public var aiUsageShowsLocalUsage: Bool {
     didSet { defaults.set(aiUsageShowsLocalUsage, forKey: Keys.aiUsageShowsLocalUsage) }
   }
@@ -850,9 +846,6 @@ public final class AppSettings {
   }
   public var aiUsageWesternUnits: Bool {
     didSet { defaults.set(aiUsageWesternUnits, forKey: Keys.aiUsageWesternUnits) }
-  }
-  public var aiUsageCurrency: AIUsageCurrency {
-    didSet { defaults.set(aiUsageCurrency.rawValue, forKey: Keys.aiUsageCurrency) }
   }
   public var aiUsageRefreshMinutes: Int {
     didSet { defaults.set(aiUsageRefreshMinutes, forKey: Keys.aiUsageRefreshMinutes) }
@@ -1271,9 +1264,6 @@ public final class AppSettings {
       defaults.string(forKey: Keys.portsPlacement).flatMap(PortsPlacement.init(rawValue:))
       ?? .sidebar
     portsPlacement = initialPortsPlacement
-    aiUsageSources =
-      defaults.stringArray(forKey: Keys.aiUsageSources)
-      .map { Set($0.compactMap(AIProviderID.init(rawValue:))) } ?? Set(AIProviderID.allCases)
     aiUsageShowsLocalUsage = defaults.object(forKey: Keys.aiUsageShowsLocalUsage) as? Bool ?? true
     aiQuotaShowsRemaining = defaults.object(forKey: Keys.aiQuotaShowsRemaining) as? Bool ?? true
     aiQuotaSelectedProvider = defaults.string(forKey: Keys.aiQuotaSelectedProvider) ?? ""
@@ -1285,8 +1275,6 @@ public final class AppSettings {
     // 无显式选择的旧安装也使用四个默认服务；保存空集合仍表示用户全部取消。
     defaults.set(initialAIMenuBarProviders.sorted(), forKey: Keys.aiMenuBarProviders)
     aiUsageWesternUnits = defaults.bool(forKey: Keys.aiUsageWesternUnits)
-    aiUsageCurrency =
-      defaults.string(forKey: Keys.aiUsageCurrency).flatMap(AIUsageCurrency.init(rawValue:)) ?? .usd
     aiUsageRefreshMinutes =
       Self.aiUsageRefreshOptions.contains(defaults.integer(forKey: Keys.aiUsageRefreshMinutes))
       ? defaults.integer(forKey: Keys.aiUsageRefreshMinutes) : 30
@@ -1653,13 +1641,11 @@ public final class AppSettings {
     static let processesEnabled = "processesEnabled"
     static let portsEnabled = "portsEnabled"
     static let portsPlacement = "portsPlacement"
-    static let aiUsageSources = "aiUsageSources"
     static let aiUsageShowsLocalUsage = "aiUsageShowsLocalUsage"
     static let aiQuotaShowsRemaining = "aiQuotaShowsRemaining"
     static let aiQuotaSelectedProvider = "aiQuotaSelectedProvider"
     static let aiMenuBarProviders = "aiMenuBarProviders"
     static let aiUsageWesternUnits = "aiUsageWesternUnits"
-    static let aiUsageCurrency = "aiUsageCurrency"
     static let aiUsageRefreshMinutes = "aiUsageRefreshMinutes"
     static let colorizeHighLoad = "colorizeHighLoad"
     static let loadSensitivity = "loadSensitivity"

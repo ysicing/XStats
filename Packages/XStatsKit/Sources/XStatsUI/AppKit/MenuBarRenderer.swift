@@ -52,7 +52,7 @@ struct MenuBarReading {
   var fanRPM: Double?
   var battery: Double?
   var batteryHistory: [Double] = []
-  /// 本机日志今日 Token 总量；扫描未开启或还没有数据时为 nil
+  /// Magpie 今日 Token 总量；统计关闭或还没有数据时为 nil
   var aiTokens: Int?
   var aiUsageShowsLocalUsage = true
   var aiQuotaShowsRemaining = true
@@ -118,27 +118,7 @@ struct MenuBarReading {
         aiUsageShowsLocalUsage = model.settings.aiUsageShowsLocalUsage
         aiQuotaShowsRemaining = model.settings.aiQuotaShowsRemaining
         aiUsageWesternUnits = model.settings.aiUsageWesternUnits
-        if model.aiUsage.usesMagpie {
-          aiQuotas = model.aiUsage.menuBarMagpieQuotas()
-          continue
-        }
-        aiQuotas = model.aiUsage.visibleQuotaProviders(for: nil).compactMap { provider in
-          let state = model.aiUsage.visibleQuotaState(for: provider)
-          guard let snapshot = state.snapshot else { return nil }
-          // 已过重置时间的窗口不再代表当前额度（常见于重启后离线恢复的缓存），不显示过期额度。
-          let now = Date()
-          let windows = snapshot.windows.filter { $0.resetsAt.map { $0 > now } ?? true }
-          // 周额度比短时会话额度更适合作为常驻读数；模型专属周额度仅在通用周额度缺席时使用。
-          let window =
-            windows.first(where: { $0.kind == .weekly })
-            ?? windows.first(where: { $0.kind == .opusWeekly || $0.kind == .sonnetWeekly })
-            ?? windows.first(where: { $0.kind == .session })
-          return window.map {
-            MenuBarQuota(
-              provider: provider, window: $0,
-              fetchedAt: snapshot.fetchedAt, isStale: state.isStale)
-          }
-        }
+        aiQuotas = model.aiUsage.menuBarMagpieQuotas()
       }
     }
     keepAwake = model.keepAwake.isActive
@@ -269,7 +249,7 @@ struct MenuBarReading {
           }.joined(separator: "\n")
         } else {
           aiTokens.map { "AI · \(UsageNumber.exact($0)) Tokens" }
-            ?? ("AI · " + tr(aiUsageShowsLocalUsage ? "暂无本机用量数据" : "暂无额度数据"))
+            ?? ("AI · " + tr(aiUsageShowsLocalUsage ? "暂无数据" : "暂无额度数据"))
         }
       }
     }

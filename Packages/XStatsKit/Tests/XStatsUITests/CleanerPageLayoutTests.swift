@@ -71,11 +71,11 @@ struct CleanerPageLayoutTests {
     settings.menuBarItems = []
     settings.historyEnabled = false
     settings.aiUsageEnabled = false
-    settings.aiUsageSources = []
+
     settings.cleanerEnabled = true
     settings.panelTab = .cleaner
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient(),
       networkCacheDefaults: defaults)
     let check = model.systemCheck
     defer {

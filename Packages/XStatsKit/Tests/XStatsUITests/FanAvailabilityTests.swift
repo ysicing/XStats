@@ -17,7 +17,7 @@ struct FanAvailabilityTests {
     settings.menuBarItems = [.temperature, .fan]
     settings.panelTab = .thermal
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.isMainWindowVisible = true
     #expect(!model.availableMenuBarItems.contains(.fan))
     #expect(!model.visibleMenuBarItems.contains(.fan))

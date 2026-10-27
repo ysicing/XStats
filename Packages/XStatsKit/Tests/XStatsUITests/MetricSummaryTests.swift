@@ -35,7 +35,7 @@ struct MetricSummaryTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     let demand = model.demand
     for enabled in [true, false] {
       settings.apply(
@@ -61,7 +61,7 @@ struct MetricSummaryTests {
     settings.enabledAlerts = []
     settings.menuBarItems = []
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.openPopover = .temperature
     let demand = model.demand
     #expect(!demand.cpu && !demand.temperatures.isEmpty)

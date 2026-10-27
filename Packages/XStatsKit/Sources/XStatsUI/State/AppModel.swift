@@ -117,21 +117,17 @@ public final class AppModel {
 
   public convenience init(
     settings: AppSettings = AppSettings(), historyURL: URL? = HistoryDatabase.defaultURL,
-    aiUsageProviders: [any AIUsageProvider]? = nil,
-    aiQuotaProviders: [any AIQuotaProvider]? = nil,
-    quotaCacheURL: URL? = nil, magpieClient: (any MagpieFetching)? = nil,
+    magpieClient: (any MagpieFetching)? = nil,
     networkCacheDefaults: UserDefaults = .standard
   ) {
     self.init(
-      settings: settings, historyURL: historyURL, aiUsageProviders: aiUsageProviders,
-      aiQuotaProviders: aiQuotaProviders, quotaCacheURL: quotaCacheURL, magpieClient: magpieClient,
+      settings: settings, historyURL: historyURL, magpieClient: magpieClient,
       networkCacheDefaults: networkCacheDefaults, fanControl: nil)
   }
 
   /// 测试可替换风扇特权调用，验证手动档位下的安全采样需求；nil 使用辅助工具。
   init(
-    settings: AppSettings, historyURL: URL?, aiUsageProviders: [any AIUsageProvider]?,
-    aiQuotaProviders: [any AIQuotaProvider]?, quotaCacheURL: URL?,
+    settings: AppSettings, historyURL: URL?,
     magpieClient: (any MagpieFetching)?,
     networkCacheDefaults: UserDefaults, fanControl: (any FanControlClient)?
   ) {
@@ -154,17 +150,8 @@ public final class AppModel {
     wellness = WellnessController(
       rest: rest, settings: settings, store: WellnessActivityStore(url: settings.wellnessStorageURL)
     )
-    // 显式注入的测试或截图来源不受开发机已安装应用影响。
-    let magpie =
-      magpieClient
-      ?? (aiUsageProviders == nil && aiQuotaProviders == nil ? MagpieInstallation.client() : nil)
     aiUsage = AIUsageController(
-      settings: settings,
-      providers: aiUsageProviders
-        ?? (magpie == nil ? [CodexLocalUsageProvider(), ClaudeLocalUsageProvider()] : []),
-      quotaProviders: aiQuotaProviders
-        ?? (magpie == nil ? [CodexQuotaProvider(), ClaudeQuotaProvider()] : []),
-      quotaCacheURL: quotaCacheURL, costReferenceStore: .shared, magpieClient: magpie)
+      settings: settings, magpieClient: magpieClient ?? MagpieInstallation.client())
     self.store = store
     self.helper = helper
     let samplingHub = hub

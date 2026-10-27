@@ -138,6 +138,26 @@ public struct MagpieUsageBucket: Decodable, Equatable, Sendable {
   public let time: Date
   public let input: Int
   public let output: Int
+  public let calls: Int?
+  public let cost: Double?
+  public let decodeMilliseconds: Double?
+  public let decodeOutput: Int?
+  public let decodeCount: Int?
+
+  enum CodingKeys: String, CodingKey {
+    case time, input, output, calls, cost
+    case decodeMilliseconds = "decode_ms"
+    case decodeOutput = "decode_out"
+    case decodeCount = "decode_n"
+  }
+
+  /// 使用有测速记录的输出量与生成耗时，不能将首字等待或未测速请求混入分母。
+  public var tokensPerSecond: Double? {
+    guard let decodeMilliseconds, decodeMilliseconds > 0,
+      let decodeOutput, let decodeCount, decodeCount > 0
+    else { return nil }
+    return Double(decodeOutput) / decodeMilliseconds * 1000
+  }
 }
 
 public enum MagpieFailure: Error, Sendable, Equatable {
@@ -280,7 +300,9 @@ public struct MagpieClient: MagpieFetching, Sendable {
         summary.input, summary.output, summary.cacheRead, summary.cacheWrite, summary.calls,
         summary.unpriced,
       ]
-      + summary.series.flatMap { [$0.input, $0.output] }
+      + summary.series.flatMap {
+        [$0.input, $0.output] + [$0.calls, $0.decodeOutput, $0.decodeCount].compactMap { $0 }
+      }
       + summary.models.flatMap { [$0.input, $0.output] }
     guard summary.period == period, summary.cost.isFinite, summary.cost >= 0,
       summary.models.count <= 2000, summary.series.count <= 10_000,
@@ -288,6 +310,10 @@ public struct MagpieClient: MagpieFetching, Sendable {
       Set(summary.series.map(\.time)).count == summary.series.count,
       Set(summary.models.map(\.id)).count == summary.models.count,
       counts.allSatisfy({ (0...100_000_000_000_000).contains($0) }),
+      summary.series.allSatisfy({
+        [$0.cost, $0.decodeMilliseconds].compactMap { $0 }.allSatisfy { $0.isFinite && $0 >= 0 }
+          && ($0.tokensPerSecond?.isFinite ?? true)
+      }),
       summary.models.allSatisfy({
         $0.id.count <= 512 && $0.model.count <= 1024 && $0.provider.count <= 256
       })

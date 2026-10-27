@@ -20,7 +20,7 @@ struct NetworkTrafficSettingsTests {
     #expect(settings.monitoringGeneration == generation + 1)
     #expect(AppSettings(defaults: defaults).networkInterfaceName == "utun99")
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient(),
       networkCacheDefaults: defaults)
     #expect(model.demand.networkInterfaceName == "utun99")
     var stale = MetricsSnapshot()
@@ -96,7 +96,7 @@ struct NetworkTrafficSettingsTests {
     let settings = AppSettings(defaults: defaults)
     settings.networkInterfaceName = "utun99"
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient(),
       networkCacheDefaults: defaults)
     for direction in [LayoutDirection.leftToRight, .rightToLeft] {
       let host = NSHostingView(

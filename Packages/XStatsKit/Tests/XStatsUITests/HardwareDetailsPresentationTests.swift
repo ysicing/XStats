@@ -24,7 +24,7 @@ final class HardwareDetailsPresentationTests {
     settings.menuBarItems = []
     settings.historyEnabled = false
     settings.enabledAlerts = []
-    return AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+    return AppModel(settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
   }
 
   @Test func gpuDetailsDemandAndStaleSnapshotsRespectVisibilityAndEnergy() throws {

@@ -33,7 +33,8 @@ struct ProcessFeatureTests {
 
   @Test func disablingProcessPageStopsSystemSamplingWithoutDisablingCPUDetails() {
     let settings = AppSettings(defaults: defaults())
-    let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [])
+    let model = AppModel(
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.isMainWindowVisible = true
     settings.processesEnabled = true
     settings.panelTab = .processes
@@ -51,7 +52,8 @@ struct ProcessFeatureTests {
 
   @Test func shortcutKeepsItsBindingAndRoutesToTheEnabledDestination() {
     let settings = AppSettings(defaults: defaults())
-    let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [])
+    let model = AppModel(
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var systemLaunches = 0
     var pages: [PanelTab?] = []
     model.openActivityMonitor = { systemLaunches += 1 }
@@ -75,7 +77,8 @@ struct ProcessFeatureTests {
 
   @Test func disabledFeatureDoesNotStartAnExplanationOrOpenItsPage() {
     let settings = AppSettings(defaults: defaults())
-    let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [])
+    let model = AppModel(
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var opened = false
     model.openMainWindow = { _ in opened = true }
     model.explainProcess(

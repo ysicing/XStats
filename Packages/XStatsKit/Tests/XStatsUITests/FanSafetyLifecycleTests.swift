@@ -106,8 +106,7 @@ struct FanSafetyLifecycleTests {
     settings.menuBarItems = []
     settings.setModuleEnabled(.battery, false)
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
-      quotaCacheURL: nil, magpieClient: nil, networkCacheDefaults: defaults,
+      settings: settings, historyURL: nil, magpieClient: nil, networkCacheDefaults: defaults,
       fanControl: FanControlFixture())
     var snapshot = MetricsSnapshot()
     snapshot.sensors = SensorReadings(

@@ -15,8 +15,8 @@ struct AudioPresentationTests {
     let app = AudioApplication(
       id: "demo.app", name: "Music", processObjectIDs: [1], isPlaying: true)
     let model = AppModel(
-      settings: AppSettings(defaults: defaults), historyURL: nil, aiUsageProviders: [],
-      aiQuotaProviders: [])
+      settings: AppSettings(defaults: defaults), historyURL: nil,
+      magpieClient: UnavailableMagpieClient())
     model.audio.showPreview(
       AudioHardwareSnapshot(devices: [], outputID: nil, inputID: nil, applications: [app]),
       volumes: [:], outputs: [:])

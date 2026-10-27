@@ -27,8 +27,8 @@ struct MenuBarEnhancementsTests {
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = AppModel(
-      settings: AppSettings(defaults: defaults), historyURL: nil, aiUsageProviders: [],
-      aiQuotaProviders: [])
+      settings: AppSettings(defaults: defaults), historyURL: nil,
+      magpieClient: UnavailableMagpieClient())
     model.settings.setModuleEnabled(.thermal, false)
     let menu = MenuBarController(model: model).contextMenu()
     let submenus = menu.items.compactMap(\.submenu)
@@ -63,7 +63,7 @@ struct MenuBarEnhancementsTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     func image(_ value: Int, items: [MenuBarItem]) throws -> NSImage {
       let document = try JSONDecoder().decode(
         SettingsDocument.self, from: Data("{\"menuBarItemSpacing\":\(value)}".utf8))

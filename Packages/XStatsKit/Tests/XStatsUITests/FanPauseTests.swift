@@ -70,7 +70,7 @@ struct FanPauseTests {
     let helper = PausedFanClient()
     let model = AppModel(
       settings: settings, historyURL: root.appendingPathComponent("history.sqlite"),
-      aiUsageProviders: [], aiQuotaProviders: [], quotaCacheURL: nil, magpieClient: nil,
+      magpieClient: nil,
       networkCacheDefaults: defaults, fanControl: helper)
     var snapshot = MetricsSnapshot()
     snapshot.sensors = SensorReadings(

@@ -6,6 +6,43 @@ import Foundation
 import Testing
 
 struct MagpieUsageTests {
+  @Test func activityMetricsKeepBucketValuesAndMeasuredSpeed() throws {
+    let data = Data(
+      #"{"period":"today","bucket":"hour","input":100,"output":50,"calls":3,"cost":0.125,"series":[{"time":"2026-10-27T09:00:00+08:00","input":100,"output":50,"calls":3,"cost":0.125,"decode_ms":2000,"decode_out":40,"decode_n":2},{"time":"2026-10-27T10:00:00+08:00","input":0,"output":0,"calls":0,"cost":0}]}"#
+        .utf8)
+    let summary = try MagpieClient.decodeUsage(data, period: .daily)
+    #expect(summary.series[0].calls == 3)
+    #expect(summary.series[0].cost == 0.125)
+    #expect(summary.series[0].tokensPerSecond == 20)
+    #expect(summary.series[1].calls == 0)
+    #expect(summary.series[1].cost == 0)
+    #expect(summary.series[1].tokensPerSecond == nil)
+  }
+
+  @Test func missingActivityMetricsRemainUnknown() throws {
+    let data = Data(
+      #"{"period":"today","input":0,"output":0,"calls":0,"cost":0,"series":[{"time":"2026-10-27T00:00:00Z","input":0,"output":0}]}"#
+        .utf8)
+    let bucket = try #require(MagpieClient.decodeUsage(data, period: .daily).series.first)
+    #expect(bucket.calls == nil)
+    #expect(bucket.cost == nil)
+    #expect(bucket.tokensPerSecond == nil)
+  }
+
+  @Test(arguments: [
+    #""calls":-1"#, #""cost":-0.1"#, #""decode_ms":-1"#, #""decode_out":-1"#,
+    #""decode_n":-1"#,
+  ])
+  func rejectsInvalidActivityMetrics(_ fields: String) {
+    let json =
+      """
+      {"period":"today","input":0,"output":0,"calls":0,"cost":0,"series":[{"time":"2026-10-27T00:00:00Z","input":0,"output":0,\(fields)}]}
+      """
+    #expect(throws: MagpieFailure.invalidResponse) {
+      try MagpieClient.decodeUsage(Data(json.utf8), period: .daily)
+    }
+  }
+
   @Test func preservesAccountSubscriptionAndResetCards() throws {
     let data = Data(
       #"{"object":"list","data":[{"provider":"codex","name":"Codex","kind":"subscription","user":"demo@example.com","plan":"pro","until":"2099-11-01T00:00:00Z","resets":{"count":2,"until":"2099-10-20T12:00:00Z","each":[{"until":"2099-10-21T12:00:00.000Z"},{"until":"2099-10-20T12:00:00Z"}]},"balance":"100 credits","windows":[{"name":"7 days","remaining":87,"resetsAt":"2099-10-18T12:00:00Z"}]}]}"#

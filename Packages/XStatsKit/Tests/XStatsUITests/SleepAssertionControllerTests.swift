@@ -125,7 +125,7 @@ struct SleepAssertionControllerTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     settings.setModuleEnabled(.battery, true)
     settings.panelTab = .battery
     #expect(!model.sleepAssertionsVisible)

@@ -106,11 +106,11 @@ Connections, addresses, countries or regions and component version information a
 
 Track AI service usage from the menu bar:
 
-- **Token statistics**: hourly for today, daily for the last 7 / 30 days, plus a yearly activity heatmap in local-log mode.
+- **Usage trends**: tokens, costs, request counts and generation speed for today, the last 7 / 30 days and all time.
 - **Subscription quotas**: used / remaining percentages, reset times and plan details.
-- **Estimated costs**: based on public base API prices in USD / CNY; not a subscription bill.
+- **Estimated costs**: USD estimates provided by Magpie; not a subscription bill.
 
-When Magpie is installed, account quotas, tokens and costs come from its local API, including Grok and other supported services. Only requests routed through Magpie count toward token usage; costs are shown in USD. Without Magpie, statistics read Codex / Claude Code session logs and quota queries require the corresponding CLI to be signed in.
+AI usage supports Magpie exclusively and requires it to be installed and running. XStats reads account quotas, tokens and costs from its local API, including Grok and other supported services. Only requests routed through Magpie count toward token usage.
 
 ### Tools
 
@@ -200,8 +200,7 @@ Or download the DMG from [GitHub Releases](https://github.com/ysicing/xstats/rel
 Monitoring data, local history and AI token statistics are processed locally and are not uploaded to the XStats update service. These features connect to external services and can be disabled or used on demand:
 
 - **Update checks**: the main app, independent network component and standalone Capture send their version and a hashed installation ID to retrieve their update feed.
-- **AI quota queries**: use your local CLI sign-in to query the provider; a configured fallback queries the server you specify.
-- **Cost estimates**: fetch public model prices and reference exchange rates on demand, without sending session logs or token statistics.
+- **AI usage**: reads quotas and statistics only from the local Magpie API, without reading CLI credentials or session logs.
 - **Network Monitor**: downloads the component and a public geography database; connection records and destination IPs are not uploaded.
 - **Network diagnostics**: public IP, location, speed tests, DNS, connectivity probes and global probes contact their services; global-probe targets and results may be queried by others.
 

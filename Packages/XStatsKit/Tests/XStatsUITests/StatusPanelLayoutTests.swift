@@ -16,7 +16,7 @@ struct StatusPanelLayoutTests {
     defer { defaults.removePersistentDomain(forName: defaultsName) }
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
-      aiUsageProviders: [], aiQuotaProviders: [])
+      magpieClient: UnavailableMagpieClient())
     let changes = PassthroughSubject<CGFloat, Never>()
     var measurements = 0
     let panel = StatusPanel(width: DS.Size.popoverWidth, minHeight: 100, maxHeight: 500) {

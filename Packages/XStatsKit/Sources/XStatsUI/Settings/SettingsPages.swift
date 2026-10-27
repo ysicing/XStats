@@ -448,7 +448,7 @@ struct MenuBarSettings: View {
             if moduleEnabled, settings.isEnabled(item) {
               if settings.menuBarLayout != .iconOnly {
                 ItemStyleRow(item: item)
-                if item == .aiUsage, model.aiUsage.usesMagpie,
+                if item == .aiUsage,
                   !model.aiUsage.availableMenuBarQuotaProviders.isEmpty
                 {
                   AIQuotaMenuBarSelection()

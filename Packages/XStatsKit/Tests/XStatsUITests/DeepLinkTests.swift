@@ -14,7 +14,7 @@ struct DeepLinkTests {
     let settings = AppSettings(defaults: defaults)
     settings.calendarEnabled = true
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     let controller = CalendarMenuBarController(model: model)
     defer { controller.dismiss() }
     #expect(controller.present())

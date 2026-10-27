@@ -37,7 +37,7 @@ struct AudioSettingsTests {
     settings.menuBarItems = [.audio]
     settings.refreshSeconds = 5
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.openPopover = .audio
     #expect(model.demand.interval == .seconds(5))
     model.isCombinedPopoverOpen = true

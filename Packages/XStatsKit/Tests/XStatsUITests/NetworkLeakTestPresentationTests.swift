@@ -19,7 +19,7 @@ struct NetworkLeakTestPresentationTests {
     settings.historyEnabled = false
     settings.aiUsageEnabled = false
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient(),
       networkCacheDefaults: defaults)
     defer { model.aiUsage.stop() }
     let controller = EgressWindowController(model: model)
@@ -53,9 +53,9 @@ struct NetworkLeakTestPresentationTests {
     settings.menuBarItems = []
     settings.historyEnabled = false
     settings.aiUsageEnabled = false
-    settings.aiUsageSources = []
+
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient(),
       networkCacheDefaults: defaults)
     defer { model.aiUsage.stop() }
     let session = EgressWindowSession(

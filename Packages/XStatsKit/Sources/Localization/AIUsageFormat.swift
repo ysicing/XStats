@@ -2,19 +2,6 @@
 
 import Foundation
 
-/// AI 费用的显示币种；底层统计始终保存美元金额。
-public enum AIUsageCurrency: String, CaseIterable, Codable, Sendable {
-  case usd
-  case cny
-
-  public var currencyCode: String {
-    switch self {
-    case .usd: "USD"
-    case .cny: "CNY"
-    }
-  }
-}
-
 /// 主应用与 Widget 共用的纯显示格式化，不读取或修改全局语言偏好。
 public enum AIUsageFormat {
   /// 按指定语言缩写 token 数；中文默认使用万、亿，西式单位为 K、M、B。
@@ -89,25 +76,4 @@ public enum AIUsageFormat {
     return (value / 100).formatted(style)
   }
 
-  /// 仅在显示时兑换美元金额；无效金额、缺失汇率或乘法上溢返回 nil。
-  /// 此接口仅接受美元费用，不用于 credits 等非货币计量。
-  public static func money(
-    usd: Double, currency: AIUsageCurrency, usdToCNY: Double?, locale: Locale
-  ) -> String? {
-    guard usd.isFinite, usd >= 0 else { return nil }
-    let amount: Double
-    switch currency {
-    case .usd:
-      amount = usd
-    case .cny:
-      guard let rate = usdToCNY, rate.isFinite, rate > 0 else { return nil }
-      amount = usd * rate
-    }
-    guard amount.isFinite else { return nil }
-    let fractionDigits = amount >= 100 ? 0 : amount >= 1 ? 2 : 3
-    return amount.formatted(
-      .currency(code: currency.currencyCode).locale(locale)
-        .precision(.fractionLength(0...fractionDigits))
-    )
-  }
 }

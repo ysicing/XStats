@@ -30,7 +30,7 @@ struct StartupRenderingTests {
     settings.historyEnabled = false
     settings.panelTab = page
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient(),
       networkCacheDefaults: defaults)
     let controller = MainWindowController(model: model)
     defer { controller.close() }

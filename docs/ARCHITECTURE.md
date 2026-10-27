@@ -292,7 +292,7 @@ The large month-calendar widget reads lightweight six-week grids for the current
 month from the same snapshot. It keeps Gregorian dates visible if that cache is missing,
 without inventing lunar or holiday annotations.
 The cumulative Token widget receives only bounded per-provider input/output summaries, never session
-logs. Direct mode covers the retained rolling 365 days; Magpie covers its full recorded history and
+logs. Magpie covers its full recorded history and
 excludes cache traffic. The secondary daily count still resets at local midnight. Existing Token
 widget kinds are retained. Quota widgets always show four slots (2×2 in small, one row in medium);
 missing or expired readings keep a gray slot, stale readings carry a clock, and remaining quota
@@ -766,15 +766,15 @@ light/dark calendar screenshots without starting unrelated samplers or scans.
 
 ## AI usage and quotas
 
-At production startup, `MagpieInstallation` detects the installed Magpie app (bundle ID
-`com.yetone.magpie`) or a standard CLI installation. If found, **all AI usage data** comes from
+AI usage supports Magpie exclusively. At startup, `MagpieInstallation` creates a client for
 Magpie's public loopback API: `/v1/magpie/quotas` and `/v1/magpie/usage?period=today|7d|30d|all`.
 The gateway defaults to `127.0.0.1:3425`; only the port is decoded from the bounded local
-`~/.config/magpie/settings.json`. No Magpie credentials, request bodies or private database files
-are read. Explicitly injected test/screenshot providers bypass automatic detection. Installing or
-removing Magpie takes effect after restarting XStats.
+`~/.config/magpie/settings.json`. No CLI credentials, session logs, Magpie request bodies or
+private database files are read. Tests and screenshots inject a `MagpieFetching` client.
+An absent or stopped Magpie is reported as unavailable; there is no alternate data source.
+The old local-log readers, direct quota queries, SQLite scan/quota caches and independent
+price/exchange-rate service have been removed. Existing user database files are left untouched.
 
-Magpie mode disables the direct quota readers, local session-log scans and models.dev price requests.
 It shares the existing AI refresh cadence and pause/cancellation lifecycle; token statistics can be
 disabled independently of quotas. The visible period and today's menu-bar total are fetched, with
 at most four summaries retained in memory and an 8 MiB response limit. The same refresh checks
@@ -794,9 +794,8 @@ Older selections above the limit are normalized in stable brand/name order. At t
 options are disabled until a selected provider is removed. Menu-bar settings always list the defaults
 and saved choices, plus providers returned by Magpie, deduplicated across accounts. Unavailable quotas
 remain hidden in the menu bar. A failed refresh preserves the last successful provider list. Saved
-choices remain editable when a provider disappears. Direct mode hides this selection control and uses
-the existing Codex/Claude source settings, independent of saved Magpie choices. Neither mode changes
-queries, page contents or the independent Widget summary when a menu-bar choice changes.
+choices remain editable when a provider disappears. Changing a menu-bar choice does not change
+queries, page contents or the independent Widget summary.
 Account rows also preserve Magpie's optional `user`, subscription `until`, and `resets` metadata.
 Reset credit counts remain distinct from the balance and quota-window reset times; missing counts
 are unknown, not zero. Individual credit expiry dates are disclosed on demand, with bounded lists
@@ -808,140 +807,10 @@ cache reads/writes are shown separately. Only traffic routed through Magpie is c
 estimate is displayed directly and incomplete pricing is disclosed. All-time totals use Magpie's full
 recorded history; its timeline preserves the server's hourly, daily or weekly buckets rather than
 turning weekly aggregates into fictitious daily heatmap entries.
-
-The following describes the direct mode used when Magpie is not installed.
-
-The local Codex provider reads JSONL rollouts from CODEX_HOME (default ~/.codex),
-including sessions and archived_sessions. It never reads credentials or calls quota APIs;
-independent quota providers do that only while the master AI Usage switch is enabled.
-Parsing runs in a background actor pinned to a dedicated serial executor, so a cold scan (tens of
-seconds over a multi-gigabyte log directory) never occupies a Swift concurrency cooperative thread
-and cannot stall per-second metric sampling. It uses bounded line buffers and a SQLite checkpoint store at
-~/Library/Application Support/XStats/ai-usage.sqlite. Each source/path row atomically stores file
-identity, size, mtime, newline-aligned byte offset and Codable parser/aggregate state. The preview
-state is stored only when the final line is still unterminated, so the common case keeps one copy.
-Rows whose files were not seen in a completed scan are pruned, which covers rollouts moved to
-archived_sessions, deleted project directories and superseded parser namespaces. Unchanged
-files reuse stored results even after restart. Appends validate prefix/boundary hashes and read
-only the suffix; truncation, replacement, parser namespace or time-zone changes rebuild that file.
-An unterminated final line is previewed separately from committed state, so completing it cannot
-double-count usage. No raw log lines, prompts or credentials are persisted. Directory metadata is
-still enumerated on each scheduled refresh; only currently discovered files contribute to totals.
-The dashboard defaults to today and retains the last 365 local-calendar days by model. It shows
-input/output tokens, cache hit rate, record count, period totals and model ranking. The menu bar shows today's token total.
-Cached input is a subset of input; reasoning is a subset of output, so neither is added twice.
-Rows are aggregated by day and model before leaving the provider, and ordered by day then model, so
-`ModelTokenUsage.id` stays unique and an unchanged corpus produces an equal report. Each daily row
-also retains a bounded histogram of hour-start timestamps to token counts (23–25 entries per local
-day). Only same-day/model aggregation merges these histograms; period totals and model rankings
-sum numeric fields without constructing a year-long hourly map. Parser namespace v3 rebuilds old
-checkpoints once to recover hours, then resumes normal unchanged-file and suffix-only reuse.
-Duplicate session IDs and unchanged cumulative snapshots are excluded. Child replayed history
-only seeds the cumulative baseline until the first `task_started`, which always follows that
-history; `started_at` is not compared against the session creation time, because a subagent's
-`started_at` is its parent turn's start and recent Codex builds omit the field entirely.
-Unknown models remain unknown.
-Local logs cannot reliably identify the paying account or usage on other devices. Public base API
-prices may estimate token costs, explicitly excluding tiered surcharges and subscription billing.
-Subscription limits and HTTP success rates are not inferred from local logs. The separate quota
-snapshot prefers the installed Codex CLI's local app-server `account/rateLimits/read`; the CLI
-owns token refresh and XStats receives quota and read-only subscription/reset-credit metadata. If that path is unavailable, XStats
-queries Codex `wham/usage` using its cached CLI OAuth token. Claude uses its CLI OAuth token for
-`api/oauth/usage`. It maps five-hour and seven-day windows, plus Claude's model-specific weekly
-windows, without combining them with local token totals. Direct credential discovery is repeated
-on each refresh; Codex reads `auth.json` under CODEX_HOME or the standard locations, while Claude
-reads its CLI credential file first, then a non-interactive Keychain item. The legacy login
-Keychain does not honor `LAContext.interactionNotAllowed`: its interaction switch is process-wide.
-XStats therefore reads that item in a short-lived mode of the same signed executable, before UI
-or background services initialize, with `SecKeychainSetUserInteractionAllowed(false)`. This mode
-requires its parent's code identity to satisfy XStats' own designated requirement, preventing
-external callers from using XStats' Keychain authorization to extract a token. The parent
-receives the token only through an anonymous pipe, with a 64 KiB limit, a five-second deadline,
-and cancellation that terminates the child. Denied or locked items return unavailable without an
-authorization prompt; neither credentials nor Keychain access controls are modified. Tokens are
-not persisted by XStats. Each provider's last
-successful quota snapshot is stored in a separate table of `ai-usage.sqlite`, without credentials.
-The controller restores it before the first network request and labels it with its fetch time.
-Requests use isolated URL sessions and reject redirects so bearer tokens cannot be forwarded.
-Codex app-server uses bounded stdio JSONL and falls back to direct HTTP if unavailable.
-An HTML 403 from an intermediary is a transient network failure, not proof of expired login.
-Codex quota snapshots retain optional plan type, subscription validity, reset-credit count and earliest
-available expiry. CLI camelCase and direct HTTP snake_case fields are normalized into the same summary.
-Local ID-token subscription dates are accepted only for matching account IDs, and never inferred from
-JWT expiry. Valid start/end claims supply a remaining-time progress bar; without a valid start only
-the expiry date is shown, never an assumed 30-day cycle. This bar uses existing page/usage refreshes
-and adds no timer. Reset-card count and earliest expiry sit next to the provider/plan heading. Old CLIs or missing claims leave the date absent. The direct fallback reads reset-credit
-details only when the known count is positive, with a four-second timeout and no retry; an auxiliary
-failure preserves the quota/count. No redeem/consume operation is implemented. Persisted metadata
-contains no account identifier, token or reset-credit IDs; legacy quota snapshots still decode.
-Missing or expired credentials clear that provider's quota display; transient errors keep the last
-successful result marked stale across restarts. Authentication failures delete that provider's cached
-snapshot. Both quota readers stop when AI Usage is disabled; disabled providers are hidden while
-their cached snapshot remains available on re-enable.
-In direct mode, only official Codex and Claude Code account quota readers are supported. Cached snapshots
-from retired third-party sources are ignored without discarding valid official-account snapshots.
-When one provider has a subscription snapshot, the menu bar AI reading shows its name and remaining
-percentage. It prefers the weekly window (or five-hour window if weekly is unavailable); the tooltip
-shows the chosen window and reset time without crowding the 22-point menu bar.
-When both sources are enabled and either has quota data, the item shows a compact named reading
-for each source; one without quota data shows a dash. The tooltip lists reset times and missing
-data by source. Without any subscription snapshot it keeps the local daily Token reading.
-The AI menu bar item follows the global or per-item style. Ring, pie, meter, and dot styles
-show remaining quota beside its percentage for each available source; a source without quota
-shows a dash rather than a zero gauge. Since quota history is not stored, global history or
-line styles use a current-value ring for this item.
-Icon style uses the bundled OpenAI and Claude logo shapes for the corresponding quota source,
-including a dash when that source has no quota; aggregated local-only tokens keep the generic AI icon.
-The quota detail card presents remaining allowance (not used allowance) and, when the server
-provides a reset date, a separate bar for elapsed time in that five-hour or seven-day window.
-Allowance turns red as it runs low; the reset bar turns green as reset approaches and updates
-while the view is open.
-The UI follows CC Switch's filter/summary/trend/model-table organization, implemented in SwiftUI.
-The desktop toolbar groups source controls and actions. In the compact menu-bar popover, its header
-owns refresh and AI Usage settings; the content shows a source switch only when multiple sources
-are enabled. Token totals use compact notation with
-exact hover/VoiceOver values. Cache details are
-disclosed on demand. AI usage settings open in a separate window. No manual server or account
-configuration is required; subscription quotas use the corresponding CLI's local login credentials.
-The main-window activity selector offers Today, 7 days, 30 days and Cumulative; menu-bar popovers
-only offer the first three and select at most 30 days for charts. Today shows hourly bars;
-the trailing 7/30 local-calendar days (including today) show daily bars. Cumulative shows a daily
-heatmap over the retained 365-day window. Summary, cost estimate and model ranking use the same
-source/model filters and time window as the chart. Hour buckets span actual 60-minute intervals from local midnight, with a shorter final bucket on
-fractional DST days, so parser and chart agree even across half-hour daylight-saving transitions. Missing legacy hourly details
-are reported, never assigned to midnight. Empty buckets remain zero and do not add to the totals.
-The heatmap legend explicitly labels the daily peak, separately from the cumulative summary.
-Pointer hover and accessibility expose exact bucket counts. The main-window year grid shrinks cells
-to fit the available width. Charts have no timers
-or continuous animation and use existing usage-refresh updates.
-Numbers and dates follow the app language rather than the system locale.
-Pointer selection fades only the selected control background (180 ms); keyboard selection and
-background data refresh do not animate the data layout. Reduced motion uses the existing quick fade.
-
-Claude Code is a second local provider. It scans projects/ recursively (including subagents) under
-CLAUDE_CONFIG_DIR when set, otherwise ~/.claude and XDG_CONFIG_HOME/claude (default ~/.config/claude).
-A checkpoint keeps every assistant event for its file, because the retention window is recomputed from
-the current date on each fetch: a stored cutoff would freeze at the first scan and keep aged-out events
-forever instead of dropping them.
-Assistant message IDs are deduplicated across files: completed messages win over partial snapshots,
-then the greater output count wins. Claude input is normalized as fresh input + cache reads + cache
-creation; nested 5-minute/1-hour creation counts are a fallback, never added to the aggregate twice.
-Independent local source switches enable Codex and Claude Code (both default on under the master
-opt-in). Disabled sources are not scanned or included in cached reports/menu totals, and are hidden
-from the source selector. Disabling the selected source resets the filter to all enabled sources.
-Both switches may be off, in which case polling stops and the page offers the source settings.
-The menu bar totals enabled sources for today; enabling the menu-bar item also turns scanning on,
-since that item is the most natural place to discover the feature.
-Refreshes are queued rather than dropped: a refresh arriving while another is in flight runs after it,
-so rebuilding the polling cadence cannot mistake a skipped call for a completed initial refresh and
-then sleep out the whole interval. Stopping cancels the in-flight scan. These settings are local and not synced through WebDAV.
-Local usage aggregates are reused only while the file set, metadata, local date and time zone remain
-unchanged. In-memory caching retains only the previous metadata and successful aggregate; failed
-scans do not populate it. Incremental parsing checkpoints stay in SQLite. Regression coverage includes
-`LocalUsageScanCacheTests` and `ScanCancellationTests`.
-Cache creation is shown separately but already included in the input total. Claude credentials,
-account data, Cowork containers and subscription limits remain outside the local scanner's scope;
-the quota reader has no access to session-log content.
+The activity chart switches between tokens, USD cost, request count and generation speed without
+fetching another copy of the same period. Speed uses each bucket's `decode_out * 1000 / decode_ms`
+only when `decode_n` and duration are positive; missing timing, cost or call fields stay unknown
+rather than becoming zero. The selected metric does not change the summary's period.
 
 ## Network details
 

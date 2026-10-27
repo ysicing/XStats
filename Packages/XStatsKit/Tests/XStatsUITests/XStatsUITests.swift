@@ -18,7 +18,8 @@ private func isolatedDefaults() -> UserDefaults {
 @Suite struct UpdatePromptLayoutTests {
   @Test func releaseSummaryDoesNotLeaveAnEmptyHeaderRow() {
     let model = AppModel(
-      settings: AppSettings(defaults: isolatedDefaults()), historyURL: nil, aiUsageProviders: [])
+      settings: AppSettings(defaults: isolatedDefaults()), historyURL: nil,
+      magpieClient: UnavailableMagpieClient())
     model.updates.showPreview(
       UpdateRelease(
         version: "0.8.1", build: "113", date: "2026-09-23", minimumSystem: "14.0",
@@ -748,7 +749,7 @@ private func isolatedDefaults() -> UserDefaults {
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
-      aiUsageProviders: [], aiQuotaProviders: [], networkCacheDefaults: defaults)
+      magpieClient: UnavailableMagpieClient(), networkCacheDefaults: defaults)
     let text = await DiagnosticsExporter.summary(model: model) {
       // 模拟 Security 的同步边界；即使从 MainActor 导出，也不能在主线程评估证书链。
       #expect(!Thread.isMainThread)

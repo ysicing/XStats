@@ -17,7 +17,7 @@ struct MenuBarOrderTests {
   }
 
   private func drawing(_ settings: AppSettings) -> [MenuBarItem] {
-    AppModel(settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+    AppModel(settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
       .drawnMenuBarItems
   }
 
@@ -115,7 +115,7 @@ struct MenuBarOrderTests {
     let settings = AppSettings(defaults: fixture.defaults)
     settings.menuBarLayout = .combined
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     await confirmation("drawing order changes", expectedCount: 1) { confirmed in
       withObservationTracking {
         _ = model.drawnMenuBarItems

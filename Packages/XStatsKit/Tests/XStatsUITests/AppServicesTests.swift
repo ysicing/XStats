@@ -80,7 +80,7 @@ struct AppServicesTests {
     settings.panelTab = .uninstaller
     settings.appServicesSection = .startup
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.isMainWindowVisible = true
     model.appManagement.showPreview(apps: [], metadata: [:], sizes: [:], packages: [])
     defer {

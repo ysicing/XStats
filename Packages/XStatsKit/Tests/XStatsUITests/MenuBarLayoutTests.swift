@@ -43,7 +43,7 @@ struct MenuBarLayoutTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
-      aiUsageProviders: [], aiQuotaProviders: [])
+      magpieClient: UnavailableMagpieClient())
     try body(model, defaults)
   }
 
@@ -286,7 +286,7 @@ struct MenuBarLayoutTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
-      aiUsageProviders: [], aiQuotaProviders: [])
+      magpieClient: UnavailableMagpieClient())
     model.settings.trio = TrioConfiguration(outer: .memory, center: .network, footer: .audio)
     model.settings.menuBarLayout = .iconOnly
     await confirmation(expectedCount: 0) { changed in
@@ -310,7 +310,7 @@ struct MenuBarLayoutTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
-      aiUsageProviders: [], aiQuotaProviders: [])
+      magpieClient: UnavailableMagpieClient())
     model.settings.menuBarItems = [.cpu, .memory, .gpu, .disk, .network, .temperature, .battery]
     model.settings.trio = TrioConfiguration(outer: .memory, center: .network, footer: .audio)
     model.settings.menuBarLayout = .iconOnly

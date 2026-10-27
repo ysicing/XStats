@@ -20,7 +20,7 @@ struct CalendarEnhancementTests {
     let settings = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "zh_CN"))
     settings.calendarFeatures = [.lunar, .holidays, .festivals, .seasonalInfo]
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     let date = try #require(ISO8601DateFormatter().date(from: "2026-09-23T04:00:00Z"))
     // StatusPanel 在挂载前测量，此时 onAppear 尚未运行；启用的卡片必须已计入这次测量的高度。
     let measuredHeight = { (showsHolidayOverview: Bool) -> CGFloat in
@@ -58,7 +58,7 @@ struct CalendarEnhancementTests {
     defer { defaults.removePersistentDomain(forName: name) }
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
-      aiUsageProviders: [], aiQuotaProviders: [])
+      magpieClient: UnavailableMagpieClient())
     let date = try #require(ISO8601DateFormatter().date(from: "2026-09-29T04:00:00Z"))
     var overflowReports = 0
     let reporter = PopoverHeightReporter { _ in overflowReports += 1 }

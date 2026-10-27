@@ -58,7 +58,7 @@ struct BatteryEnergyPresentationTests {
       .batteryApps, .thermalSensors,
     ])
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var snapshot = MetricsSnapshot()
     snapshot.battery = BatteryStatus(
       level: 0.8, isCharging: false, isPluggedIn: true,

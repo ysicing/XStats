@@ -44,7 +44,7 @@ enum SnapshotRenderer {
       settings.hiddenPopoverSections.formUnion(
         MenuBarItem.network.popoverSections.filter { $0 != .networkHistory })
       let model = AppModel(
-        settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+        settings: settings, historyURL: nil,
         networkCacheDefaults: defaults)
       var demand = MetricsDemand()
       demand.cpu = true
@@ -131,7 +131,7 @@ enum SnapshotRenderer {
       settings.enabledAlerts = []
       settings.panelTab = .gpu
       let model = AppModel(
-        settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        settings: settings, historyURL: nil)
       model.isMainWindowVisible = true
       var demand = model.demand
       demand.disk = true
@@ -174,7 +174,7 @@ enum SnapshotRenderer {
       settings.language = L10n.language
       settings.panelTab = .uninstaller
       let model = AppModel(
-        settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        settings: settings, historyURL: nil)
       let apps = ["Atlas", "Boreal", "Editor", "Studio", "Terminal", "Weather"].map {
         InstalledApp(
           url: URL(fileURLWithPath: "/Applications/\($0).app"), name: $0,
@@ -277,7 +277,7 @@ enum SnapshotRenderer {
       let settings = AppSettings(defaults: defaults)
       settings.language = L10n.language
       let model = AppModel(
-        settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        settings: settings, historyURL: nil)
       for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
         guard let appearance = NSAppearance(named: name) else { continue }
         NSApp.appearance = appearance
@@ -302,7 +302,7 @@ enum SnapshotRenderer {
       settings.panelTab = .cleaner
       settings.cleanExcludedPaths = ["/Users/demo/Library/Caches/com.example.kept"]
       let model = AppModel(
-        settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        settings: settings, historyURL: nil)
       guard let rule = RuleCatalog.rules().first(where: { $0.id == "system.caches" }) else {
         return
       }
@@ -460,7 +460,7 @@ enum SnapshotRenderer {
       let settings = AppSettings(defaults: defaults)
       settings.language = L10n.language
       let model = AppModel(
-        settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        settings: settings, historyURL: nil)
       let app = InstalledApp(
         url: URL(fileURLWithPath: "/Applications/Demo.app"), name: "Demo",
         bundleIdentifier: "com.example.demo", version: "1.0", teamIdentifier: nil)
@@ -610,7 +610,7 @@ enum SnapshotRenderer {
     }
     let model = AppModel(
       settings: settings, historyURL: historyURL,
-      aiUsageProviders: [SnapshotAIUsageProvider()])
+      magpieClient: ReadmeMagpieProvider())
     await model.aiUsage.refresh()
     model.displays.refreshCatalog()
     model.isMainWindowVisible = true
@@ -746,7 +746,7 @@ enum SnapshotRenderer {
     settings.networkConnectionsEnabled = true
     settings.panelTab = .connections
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil)
     let demo: [(String, String?, String?, UInt16, ConnectionTransport)] = [
       (
         "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app/Contents/MacOS/Safari",
@@ -844,7 +844,7 @@ enum SnapshotRenderer {
     settings.menuBarItems = [.audio]
     settings.panelTab = .audio
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil)
     if demo || CommandLine.arguments.contains("--audio-demo") {
       let builtIn = AudioDeviceInfo(
         id: 1, uid: "demo.builtin", name: tr("系统默认输出"), hasInput: true, hasOutput: true,
@@ -916,7 +916,7 @@ enum SnapshotRenderer {
     settings.language = L10n.language
     settings.restEnabled = true
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil)
     if CommandLine.arguments.contains("--native-preview") {
       settings.restHUDStyle = .hourglass
       model.rest.showPreview(phase: .work, action: .pause)
@@ -1000,7 +1000,7 @@ enum SnapshotRenderer {
     settings.restEnabled = true
     settings.language = L10n.language
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil)
     model.rest.sync()
     model.wellness.sync()
     let window = NSWindow(
@@ -1140,7 +1140,7 @@ enum SnapshotRenderer {
     settings.restEnabled = true
     settings.wellnessPreferences.breakEnabled = true
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil)
     model.rest.showPreview()
     model.wellness.showPreview(activities: [], at: Date())
     for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
@@ -1229,7 +1229,7 @@ enum SnapshotRenderer {
     settings.restEnabled = true
     settings.wellnessPreferences.breakEnabled = true
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil)
     model.rest.showPreview()
     let now = Calendar.current.startOfDay(for: Date()).addingTimeInterval(14 * 3600)
     let activities = (0..<7).flatMap { index -> [WellnessActivity] in
@@ -1307,22 +1307,14 @@ enum SnapshotRenderer {
       let settings = AppSettings(defaults: defaults)
       settings.language = L10n.language
       settings.aiUsageEnabled = true
-      settings.aiUsageSources = [.codex]
+
       settings.restEnabled = true
       settings.historyEnabled = true
       let model = AppModel(
         settings: settings, historyURL: historyURL,
-        aiUsageProviders: [SnapshotAIUsageProvider()], aiQuotaProviders: [SnapshotAIQuotaProvider()]
+        magpieClient: ReadmeMagpieProvider()
       )
       await model.aiUsage.refresh()
-      // 单价仅用于演示费用估算，不代表模型的当前公开价格或用户账单。
-      model.aiUsage.showPreview(
-        costReferences: .init(
-          catalog: .init(
-            prices: [
-              "gpt-5.4": .init(input: 2, output: 10, cacheRead: 0.2),
-              "gpt-5.4-mini": .init(input: 0.5, output: 2, cacheRead: 0.05),
-            ], fetchedAt: Date()), exchangeRate: nil))
       model.history.load(.day)
       while model.history.isQuerying { try await Task.sleep(for: .milliseconds(10)) }
       model.rest.showPreview()
@@ -1415,7 +1407,7 @@ enum SnapshotRenderer {
     settings.trio.footer = .aiUsage
     settings.menuBarStyle = .ring
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil,
       magpieClient: ReadmeMagpieProvider(), networkCacheDefaults: defaults)
     defer { model.aiUsage.stop() }
     await model.aiUsage.refresh()
@@ -1546,7 +1538,7 @@ enum SnapshotRenderer {
     settings.language = L10n.language
     settings.menuBarItems = [.display]
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil)
     model.displays.start()
     model.displays.setVisible(true)
     await model.displays.refresh()
@@ -1583,7 +1575,7 @@ enum SnapshotRenderer {
     settings.menuBarLayout = .iconOnly
     settings.panelTab = .settingsMenuBar
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil)
     model.isCombinedPopoverOpen = true
     await model.hub.update(model.demand)
     await model.hub.start(primeAllMetrics: false) { snapshot in model.store.apply(snapshot) }
@@ -1640,7 +1632,7 @@ enum SnapshotRenderer {
       defaults: defaults, calendarLocale: Locale(identifier: "zh_CN"), calendar: weekCalendar)
     settings.calendarEnabled = true
     settings.language = L10n.language
-    let model = AppModel(settings: settings, historyURL: nil, aiUsageProviders: [])
+    let model = AppModel(settings: settings, historyURL: nil)
     guard let september = CalendarEngine.day(year: 2026, month: 9, day: 23)?.date,
       let summer = CalendarEngine.day(year: 2024, month: 6, day: 11)?.date
     else { return }
@@ -1850,52 +1842,5 @@ private struct ReadmeMagpieProvider: MagpieFetching {
     decoder.dateDecodingStrategy = .iso8601
     return try decoder.decode(
       MagpieUsageSummary.self, from: JSONSerialization.data(withJSONObject: payload))
-  }
-}
-
-private struct SnapshotAIUsageProvider: AIUsageProvider {
-  let id = AIProviderID.codex
-
-  func fetch() async throws -> AIUsageSnapshot {
-    let now = Date()
-    var snapshot = AIUsageSnapshot(provider: .codex, fetchedAt: now)
-    snapshot.localUsage = LocalUsageReport(
-      rows: (0..<30).flatMap { day in
-        let date = Calendar.current.date(
-          byAdding: .day, value: -day, to: Calendar.current.startOfDay(for: now))!
-        return [
-          ModelTokenUsage(
-            day: date, model: "gpt-5.4", input: 240_000 + day * 3_000,
-            cached: 180_000, output: 32_000, records: 18),
-          ModelTokenUsage(
-            day: date, model: "gpt-5.4-mini", input: 80_000,
-            cached: 40_000, output: 12_000, records: 10),
-        ]
-      }, fileCount: 42)
-    return snapshot
-  }
-}
-
-private struct SnapshotAIQuotaProvider: AIQuotaProvider {
-  let id = AIProviderID.codex
-  func fetch() async throws -> AIQuotaSnapshot {
-    let now = Date()
-    let fields: [String: Any] = [
-      "provider": "codex", "source": "direct", "fetchedAt": now.timeIntervalSinceReferenceDate,
-      "windows": [
-        [
-          "kind": "session", "usedPercent": 32,
-          "resetsAt": now.addingTimeInterval(7200).timeIntervalSinceReferenceDate,
-        ],
-        [
-          "kind": "weekly", "usedPercent": 41,
-          "resetsAt": now.addingTimeInterval(4 * 86400).timeIntervalSinceReferenceDate,
-        ],
-      ],
-    ]
-    var snapshot = try JSONDecoder().decode(
-      AIQuotaSnapshot.self, from: JSONSerialization.data(withJSONObject: fields))
-    snapshot.details = .init(plan: "Pro")
-    return snapshot
   }
 }

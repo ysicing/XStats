@@ -462,7 +462,7 @@ struct MenuBarReadingTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
-      aiUsageProviders: [], aiQuotaProviders: [])
+      magpieClient: UnavailableMagpieClient())
     await confirmation(expectedCount: 0) { changed in
       withObservationTracking {
         _ = MenuBarReading(model: model, items: [.battery])
@@ -495,7 +495,7 @@ struct MenuBarReadingTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
-      aiUsageProviders: [], aiQuotaProviders: [])
+      magpieClient: UnavailableMagpieClient())
     var snapshot = MetricsSnapshot()
     snapshot.cpu = CPULoad(
       total: 0.83, user: 0.6, system: 0.23, perCore: [0.83], loadAverage: [1, 1, 1])

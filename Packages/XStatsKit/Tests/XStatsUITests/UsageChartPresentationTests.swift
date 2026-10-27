@@ -7,26 +7,27 @@ import Testing
 @testable import XStatsUI
 
 struct UsageChartPresentationTests {
+  @Test func metricsUseDistinctValuesWithoutTreatingMissingSpeedAsZero() throws {
+    let bucket = try JSONDecoder().decode(
+      MagpieUsageBucket.self,
+      from: Data(
+        #"{"time":0,"input":100,"output":50,"calls":3,"cost":0.125,"decode_ms":2000,"decode_out":40,"decode_n":2}"#
+          .utf8))
+    #expect(UsageActivityMetric.tokens.value(bucket) == 150)
+    #expect(UsageActivityMetric.calls.value(bucket) == 3)
+    #expect(UsageActivityMetric.cost.value(bucket) == 0.125)
+    #expect(UsageActivityMetric.speed.value(bucket) == 20)
+    let unknown = try JSONDecoder().decode(
+      MagpieUsageBucket.self, from: Data(#"{"time":0,"input":0,"output":0}"#.utf8))
+    #expect(UsageActivityMetric.speed.value(unknown) == nil)
+    #expect(UsageActivityMetric.cost.value(unknown) == nil)
+    #expect(UsageActivityMetric.calls.value(unknown) == nil)
+  }
+
   @Test func compactCumulativeUsesMonthlySummaryAndChartImmediately() throws {
     let mode = UsageChartPresentation.mode(.cumulative, compact: true)
     #expect(mode == .monthly)
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-    let now = try #require(ISO8601DateFormatter().date(from: "2026-10-03T12:00:00Z"))
-    let today = calendar.startOfDay(for: now)
-    let rows = [0, 29, 30, 364].map { offset in
-      ModelTokenUsage(
-        day: calendar.date(byAdding: .day, value: -offset, to: today)!, model: "fixture", input: 100
-      )
-    }
-    let report = LocalUsageReport(rows: rows, fileCount: 1)
-    let summary = report.summary(mode: mode, now: now, calendar: calendar)
-    let series = UsageTimeSeries(
-      rows: report.selected(days: 30, now: now, calendar: calendar), mode: mode, now: now,
-      calendar: calendar)
-    #expect(LocalUsageReport.total(summary).total == 200)
-    #expect(series.buckets.count == 30)
-    #expect(series.buckets.reduce(0) { $0 + $1.total } == LocalUsageReport.total(summary).total)
+
   }
 
   @Test(arguments: UsageActivityMode.allCases)

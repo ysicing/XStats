@@ -351,7 +351,7 @@ struct OverviewReading {
     case .aiUsage:
       let quotas: [MenuBarQuota]
       let selectedProvider = model.settings.aiQuotaSelectedProvider
-      if model.aiUsage.usesMagpie, !selectedProvider.isEmpty {
+      if !selectedProvider.isEmpty {
         // 跟随详情页选择；服务缺席时临时展示首项，不改写选择，也不受菜单栏四项配置限制。
         let accounts = model.aiUsage.magpieQuotas
         let provider =

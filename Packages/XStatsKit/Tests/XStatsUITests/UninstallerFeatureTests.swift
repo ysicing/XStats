@@ -50,7 +50,7 @@ struct UninstallerFeatureTests {
     let reloaded = AppSettings(defaults: defaults)
     #expect(reloaded.panelTab == .uninstaller && reloaded.appServicesSection == .apps)
     let model = AppModel(
-      settings: reloaded, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: reloaded, historyURL: nil, magpieClient: UnavailableMagpieClient())
     defer {
       model.uninstaller.setEnabled(false)
       model.appManagement.setVisible(false)

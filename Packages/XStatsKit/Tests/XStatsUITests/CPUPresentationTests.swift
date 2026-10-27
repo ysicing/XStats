@@ -71,7 +71,7 @@ struct CPUPresentationTests {
     settings.customPopoverContentEnabled = true
     for section in MenuBarItem.cpu.popoverSections { settings.setVisible(section, false) }
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var baseline: CGFloat?
     let states: [(String, ProcessInfo.ThermalState?)] = [
       ("unknown", nil), ("normal", .nominal), ("elevated", .fair), ("serious", .serious),

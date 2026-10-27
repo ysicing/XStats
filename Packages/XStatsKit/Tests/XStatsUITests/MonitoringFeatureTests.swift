@@ -19,7 +19,7 @@ final class MonitoringFeatureTests {
   @Test func changingFeatureCategoryKeepsPreferencesAndSamplingDemandUnchanged() {
     let settings = settings()
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     settings.setModuleEnabled(.gpu, false)
     settings.panelTab = .settingsFeatures
     model.isMainWindowVisible = true
@@ -84,7 +84,7 @@ final class MonitoringFeatureTests {
   @Test func noConsumerMeansNoSamplingEvenWhenModulesAreEnabled() {
     let settings = settings()
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     settings.menuBarItems = []
     settings.historyEnabled = false
     settings.enabledAlerts = []
@@ -98,7 +98,7 @@ final class MonitoringFeatureTests {
   @Test func disabledModulesCannotBeReactivatedByVisiblePagesOrAlerts() {
     let settings = settings()
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     settings.enabledMonitoringModules = []
     settings.enabledAlerts = Set(AlertKind.allCases)
     model.isMainWindowVisible = true
@@ -176,7 +176,7 @@ final class MonitoringFeatureTests {
   @Test func disabledEnergyPageDoesNotKeepOneSecondSampling() {
     let settings = settings()
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     settings.menuBarItems = []
     settings.panelTab = .battery
     model.isMainWindowVisible = true
@@ -196,7 +196,7 @@ final class MonitoringFeatureTests {
     settings.processesEnabled = true
     settings.panelTab = .processes
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.isMainWindowVisible = true
     #expect(model.demand.cpu && model.demand.systemProcesses)
     settings.setModuleEnabled(.cpu, false)
@@ -206,7 +206,7 @@ final class MonitoringFeatureTests {
   @Test func lateSnapshotsCannotRepublishDisabledMetrics() {
     let settings = settings()
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var snapshot = MetricsSnapshot()
     snapshot.cpu = CPULoad(total: 0.95, user: 0.6, system: 0.35, perCore: [0.95], loadAverage: [])
     model.handle(snapshot)
@@ -241,7 +241,7 @@ final class MonitoringFeatureTests {
   @Test func closingAndReenablingRejectsSnapshotsAlreadyQueuedBeforeDemandDelivery() {
     let settings = settings()
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var snapshot = MetricsSnapshot()
     snapshot.samplingGeneration = settings.monitoringGeneration
     snapshot.cpu = CPULoad(total: 0.95, user: 0.6, system: 0.35, perCore: [0.95], loadAverage: [])
@@ -257,7 +257,7 @@ final class MonitoringFeatureTests {
   @Test func cpuFrequencySurvivesWithoutThermalPowerAndDisabledThermalValuesStayHidden() {
     let settings = settings()
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     settings.setModuleEnabled(.thermal, false)
     var snapshot = MetricsSnapshot()
     snapshot.power = PowerReading(system: 30, gpu: 5, clusterFrequency: [0: 3_000])
@@ -275,7 +275,7 @@ final class MonitoringFeatureTests {
     settings.enabledAlerts = []
     settings.panelTab = .battery
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var basic = MetricsSnapshot()
     basic.battery = BatteryStatus(
       level: 0.8, isCharging: false, isPluggedIn: true,
@@ -303,7 +303,7 @@ final class MonitoringFeatureTests {
     settings.historyEnabled = false
     settings.enabledAlerts = []
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var basic = MetricsSnapshot()
     basic.battery = BatteryStatus(
       level: 0.8, isCharging: false, isPluggedIn: true,
@@ -342,7 +342,7 @@ final class MonitoringFeatureTests {
     settings.enabledAlerts = [.cpuTemperature]
     settings.panelTab = .battery
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.isMainWindowVisible = true
     var snapshot = MetricsSnapshot()
     snapshot.sensors = SensorReadings(
@@ -385,7 +385,7 @@ final class MonitoringFeatureTests {
     settings.historyEnabled = false
     settings.enabledAlerts = []
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.openPopover = .battery
     #expect(model.demand.power && model.demand.appEnergy, "能耗不依赖内置电池")
     var basic = MetricsSnapshot()
@@ -414,7 +414,7 @@ final class MonitoringFeatureTests {
     #expect(!settings.isModuleEnabled(.battery), "添加电池入口不能开启耗电采集")
     settings.panelTab = .battery
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.isMainWindowVisible = true
     #expect(settings.isEnabled(.battery) && settings.orderedMenuBarItems.contains(.battery))
     #expect(model.demand.battery && !model.demand.power && !model.demand.processes)
@@ -459,7 +459,7 @@ final class MonitoringFeatureTests {
       defaults.set(data, forKey: "publicAddressCache4")
     }
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient(),
       networkCacheDefaults: defaults)
     let initialPublicResults = model.network.publicResults
     #expect(initialPublicResults.isEmpty == !hasCachedPublicAddress)
@@ -526,7 +526,7 @@ final class MonitoringFeatureTests {
   @Test func disabledThermalShortcutOpensItsEnablePageWithoutStartingControl() {
     let settings = settings()
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     settings.setModuleEnabled(.thermal, false)
     var pages: [PanelTab?] = []
     model.openMainWindow = { pages.append($0) }

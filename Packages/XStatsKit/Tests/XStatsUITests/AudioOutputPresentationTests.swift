@@ -21,8 +21,8 @@ struct AudioOutputPresentationTests {
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = AppModel(
-      settings: AppSettings(defaults: defaults), historyURL: nil, aiUsageProviders: [],
-      aiQuotaProviders: [])
+      settings: AppSettings(defaults: defaults), historyURL: nil,
+      magpieClient: UnavailableMagpieClient())
     var previous: MenuBarReading?
     var previousImage: Data?
     for kind: AudioOutputKind in [.speaker, .headphones, .usb, .display, .bluetooth] {
@@ -87,7 +87,7 @@ struct AudioOutputPresentationTests {
     settings.menuBarItems = [.audio]
     settings.panelTab = .audio
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     let bluetooth = output(.headphones, address: "AA-BB-CC-DD-EE-FF")
     model.audio.showPreview(
       AudioHardwareSnapshot(

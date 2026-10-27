@@ -45,7 +45,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
   public override convenience init() {
     self.init(
-      model: AppModel(quotaCacheURL: AIQuotaCacheStore.defaultURL),
+      model: AppModel(),
       widgetStore: WidgetSnapshotStore())
   }
 
@@ -770,7 +770,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private func observeAIUsageSchedule() {
     withObservationTracking {
       _ = model.settings.aiUsageEnabled
-      _ = model.settings.aiUsageSources
       _ = model.settings.aiUsageShowsLocalUsage
       _ = model.settings.aiUsageRefreshMinutes
     } onChange: { [weak self] in
@@ -788,7 +787,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
   /// 一次低频查询结束后只重绘菜单栏和弹窗；不重启轮询，避免形成刷新回路。
   private func observeAIUsageState() {
     withObservationTracking {
-      _ = model.aiUsage.states
       _ = model.aiUsage.lastAttemptAt
       _ = model.settings.aiQuotaShowsRemaining
       _ = model.settings.aiMenuBarProviders
@@ -807,7 +805,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
   func observeWidgetState() {
     withObservationTracking {
       _ = model.settings.aiUsageEnabled
-      _ = model.settings.aiUsageSources
       _ = model.settings.aiQuotaShowsRemaining
       _ = model.settings.aiUsageWesternUnits
       _ = model.settings.aiUsageShowsLocalUsage
@@ -815,8 +812,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.settings.language
       _ = model.settings.calendarFirstWeekday
       _ = model.settings.calendarFeatures
-      _ = model.aiUsage.states
-      _ = model.aiUsage.quotaStates
       _ = model.aiUsage.lastAttemptAt
       _ = model.network.publicResults
     } onChange: { [weak self] in
@@ -872,67 +867,27 @@ public final class AppController: NSObject, NSApplicationDelegate {
         firstWeekday: settings.calendarFirstWeekday,
         features: settings.calendarFeatures)
     }
-    var quotas: [WidgetSnapshot.Quota] =
-      settings.aiUsageEnabled
-      ? AIProviderID.allCases.filter { settings.aiUsageSources.contains($0) }.flatMap {
-        provider -> [WidgetSnapshot.Quota] in
-        let state = model.aiUsage.quotaState(for: provider)
-        guard let quota = state.snapshot else { return [] }
-        return quota.windows.map { window in
-          WidgetSnapshot.Quota(
-            provider: provider.rawValue, kind: window.kind.rawValue,
-            remainingPercent: window.remainingPercent, resetsAt: window.resetsAt,
-            fetchedAt: quota.fetchedAt, isStale: state.isStale)
-        }
-      } : []
-    var dailyTokens: [WidgetSnapshot.DailyTokenUsage]? =
-      settings.aiUsageEnabled && settings.aiUsageShowsLocalUsage
-      ? AIProviderID.allCases.filter { settings.aiUsageSources.contains($0) }.compactMap {
-        provider in
-        guard let report = model.aiUsage.localReport(for: provider) else { return nil }
-        let tokens = LocalUsageReport.total(
-          report.selected(days: 1, now: today, calendar: calendar)
-        ).total
-        return WidgetSnapshot.DailyTokenUsage(
-          provider: provider.rawValue, day: today, tokens: tokens)
-      } : nil
-    var cumulativeTokens: [WidgetSnapshot.TokenUsage]? =
-      settings.aiUsageEnabled && settings.aiUsageShowsLocalUsage
-      ? AIProviderID.allCases.filter { settings.aiUsageSources.contains($0) }.compactMap {
-        provider in
-        guard let report = model.aiUsage.localReport(for: provider) else { return nil }
-        let total = LocalUsageReport.total(
-          report.summary(mode: .cumulative, now: now, calendar: calendar))
-        return WidgetSnapshot.TokenUsage(
-          provider: provider.rawValue, input: total.input, output: total.output,
-          scope: .recentYear, isStale: model.aiUsage.localState(for: provider).stale)
-      } : nil
-    var quotaProviders = AIProviderID.allCases.filter {
-      settings.aiUsageSources.contains($0)
-    }.map(\.rawValue)
-    if model.aiUsage.usesMagpie {
-      // 按账户身份决定圆环位置；暂时读不到额度时保留灰环，菜单栏选择不影响小组件。
-      let available = Set(model.aiUsage.magpieQuotas.map(\.provider))
-      quotaProviders = Array(
-        (AIServiceBrand.menuBarOrder.filter { available.contains($0) }
-          + available.subtracting(AIServiceBrand.menuBarOrder).sorted()).prefix(4))
-      quotas = model.aiUsage.magpieQuotaReadings(at: now)
-        .filter { quotaProviders.contains($0.sourceName) }.map { quota in
-          WidgetSnapshot.Quota(
-            provider: quota.sourceName, kind: quota.shortWindowName,
-            remainingPercent: quota.window.remainingPercent, resetsAt: quota.window.resetsAt,
-            fetchedAt: quota.fetchedAt, isStale: quota.isStale)
-        }
-      dailyTokens = model.aiUsage.todayTokens.map { tokens in
-        [WidgetSnapshot.DailyTokenUsage(provider: "Magpie", day: today, tokens: tokens)]
+    // 按账户身份决定圆环位置；暂时读不到额度时保留灰环，菜单栏选择不影响小组件。
+    let available = Set(model.aiUsage.magpieQuotas.map(\.provider))
+    let quotaProviders = Array(
+      (AIServiceBrand.menuBarOrder.filter { available.contains($0) }
+        + available.subtracting(AIServiceBrand.menuBarOrder).sorted()).prefix(4))
+    let quotas = model.aiUsage.magpieQuotaReadings(at: now)
+      .filter { quotaProviders.contains($0.sourceName) }.map { quota in
+        WidgetSnapshot.Quota(
+          provider: quota.sourceName, kind: quota.shortWindowName,
+          remainingPercent: quota.window.remainingPercent, resetsAt: quota.window.resetsAt,
+          fetchedAt: quota.fetchedAt, isStale: quota.isStale)
       }
-      cumulativeTokens = model.aiUsage.magpieSummary(for: .cumulative).map { summary in
-        [
-          WidgetSnapshot.TokenUsage(
-            provider: "Magpie", input: summary.input, output: summary.output, scope: .all,
-            isStale: model.aiUsage.magpieUsageFailures[.cumulative] != nil)
-        ]
-      }
+    let dailyTokens = model.aiUsage.todayTokens.map { tokens in
+      [WidgetSnapshot.DailyTokenUsage(provider: "Magpie", day: today, tokens: tokens)]
+    }
+    let cumulativeTokens = model.aiUsage.magpieSummary(for: .cumulative).map { summary in
+      [
+        WidgetSnapshot.TokenUsage(
+          provider: "Magpie", input: summary.input, output: summary.output, scope: .all,
+          isStale: model.aiUsage.magpieUsageFailures[.cumulative] != nil)
+      ]
     }
     let addresses: [WidgetSnapshot.Address] =
       settings.publicIPLookup
@@ -1239,7 +1194,6 @@ public enum XStatsApplication {
   @MainActor
   public static func main() {
     CleanerDirectoryReader.runIfRequested()
-    ClaudeKeychainReader.runIfRequested()
     // 只读诊断子进程不启动 UI、采样或更新服务，也不写入应用偏好。
     if CommandLine.arguments.contains(AppleIntelligenceDiagnostics.argument) {
       AppleIntelligenceDiagnostics.writeReport()

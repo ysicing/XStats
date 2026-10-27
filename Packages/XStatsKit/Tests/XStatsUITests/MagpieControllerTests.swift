@@ -10,6 +10,14 @@ import Testing
 import WidgetData
 @testable import XStatsUI
 
+/// 其他模块的测试不应访问开发机正在运行的 Magpie。
+struct UnavailableMagpieClient: MagpieFetching {
+  func quotas() async throws -> [MagpieQuota] { throw MagpieFailure.unavailable }
+  func usage(period: MagpiePeriod) async throws -> MagpieUsageSummary {
+    throw MagpieFailure.unavailable
+  }
+}
+
 private actor MagpieStub: MagpieFetching {
   private let quotaPayload: Data?
   private var failing = false
@@ -50,20 +58,6 @@ private actor MagpieStub: MagpieFetching {
   }
 }
 
-private actor UnexpectedLocalReader: AIUsageProvider, AIQuotaProvider {
-  nonisolated let id = AIProviderID.codex
-  private(set) var calls = 0
-  func fetch() async throws -> AIUsageSnapshot {
-    calls += 1
-    throw AIUsageFailure.network
-  }
-  func fetch() async throws -> AIQuotaSnapshot {
-    calls += 1
-    throw AIQuotaFailure.network
-  }
-  func count() -> Int { calls }
-}
-
 private final class MagpieTestClock: @unchecked Sendable {
   private let lock = NSLock()
   private var date = Date()
@@ -75,6 +69,58 @@ private final class MagpieTestClock: @unchecked Sendable {
 
 @MainActor
 struct MagpieControllerTests {
+  @Test func displayPreferencesInvalidateOnlyRelevantMenuBarImages() async {
+    let settings = settings()
+    let model = AppModel(settings: settings, historyURL: nil, magpieClient: MagpieStub())
+    model.aiUsage.cumulativeWidgetIsInstalled = { false }
+    await model.aiUsage.refresh()
+    let remaining = MenuBarReading(model: model)
+    settings.aiQuotaShowsRemaining = false
+    let used = MenuBarReading(model: model)
+    #expect(!used.aiQuotaShowsRemaining)
+    #expect(!used.hasSameImage(as: remaining, item: .aiUsage, style: .stacked))
+    #expect(used.hasSameImage(as: remaining, item: .cpu, style: .stacked))
+    #expect(used.aiQuotas.first?.remainingPercent == 96)
+    var tokens = remaining
+    tokens.aiQuotas = []
+    tokens.aiTokens = 123_456
+    var western = tokens
+    western.aiUsageWesternUnits = true
+    #expect(!western.hasSameImage(as: tokens, item: .aiUsage, style: .stacked))
+  }
+
+  @Test func unavailableMagpieDoesNotExposeTokenOrQuotaValues() async {
+    let controller = AIUsageController(
+      settings: settings(), magpieClient: UnavailableMagpieClient())
+    controller.cumulativeWidgetIsInstalled = { false }
+    await controller.refresh()
+    #expect(controller.magpieQuotaFailure == .unavailable)
+    #expect(controller.magpieUsageFailures[.daily] == .unavailable)
+    #expect(controller.todayTokens == nil)
+    #expect(controller.menuBarMagpieQuotas().isEmpty)
+    #expect(controller.lastAttemptAt != nil)
+    #expect(!controller.isRefreshing)
+  }
+
+  @Test func refreshArrivingDuringAnotherRunsAfterIt() async throws {
+    let magpie = MagpieStub()
+    await magpie.hold()
+    let controller = AIUsageController(settings: settings(), magpieClient: magpie)
+    controller.cumulativeWidgetIsInstalled = { false }
+    let first = Task { await controller.refresh() }
+    let deadline = ContinuousClock.now + .seconds(2)
+    while await magpie.counts().0 == 0, ContinuousClock.now < deadline { await Task.yield() }
+    let started = await magpie.counts().0 == 1
+    let second = Task { await controller.refresh() }
+    await magpie.release()
+    await first.value
+    await second.value
+    #expect(started)
+    #expect(await magpie.counts().0 == 2)
+    #expect(await magpie.counts().1 == [.daily, .daily])
+    #expect(controller.todayTokens == 120)
+  }
+
   @Test func magpieRefreshSynchronizesWidgetIncludingStaleFailure() async throws {
     let suite = "MagpieWidget.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
@@ -84,7 +130,7 @@ struct MagpieControllerTests {
     settings.aiUsageShowsLocalUsage = true
     let magpie = MagpieStub()
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil,
       magpieClient: magpie)
     model.aiUsage.cumulativeWidgetIsInstalled = { true }
     defer { model.aiUsage.stop() }
@@ -126,7 +172,7 @@ struct MagpieControllerTests {
     let settings = AppSettings(defaults: defaults)
     settings.aiUsageEnabled = true
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil,
       magpieClient: MagpieStub(quotaPayload: payload))
     defer { model.aiUsage.stop() }
     await model.aiUsage.refresh()
@@ -162,7 +208,7 @@ struct MagpieControllerTests {
     settings.aiMenuBarProviders = ["codex", "saved-provider"]
     let selection = settings.aiMenuBarProviders
     let magpie = MagpieStub(quotaPayload: payload)
-    let controller = AIUsageController(settings: settings, providers: [], magpieClient: magpie)
+    let controller = AIUsageController(settings: settings, magpieClient: magpie)
     defer { controller.stop() }
     #expect(
       controller.availableMenuBarQuotaProviders == [
@@ -201,7 +247,7 @@ struct MagpieControllerTests {
     let settings = AppSettings(defaults: defaults)
     #expect(settings.aiMenuBarProviders == ["codex", "claude", "gemini", "grok"])
     let controller = AIUsageController(
-      settings: settings, providers: [], magpieClient: MagpieStub(quotaPayload: payload))
+      settings: settings, magpieClient: MagpieStub(quotaPayload: payload))
     defer { controller.stop() }
     await controller.refresh()
     #expect(settings.aiMenuBarProviders == ["codex", "claude", "gemini", "grok"])
@@ -230,7 +276,7 @@ struct MagpieControllerTests {
     settings.aiUsageShowsLocalUsage = false
     let magpie = MagpieStub(quotaPayload: payload)
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil,
       magpieClient: magpie)
     defer { model.aiUsage.stop() }
     await model.aiUsage.refresh()
@@ -271,7 +317,7 @@ struct MagpieControllerTests {
     settings.aiMenuBarProviders = ["claude"]
     let magpie = MagpieStub(quotaPayload: payload)
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil,
       magpieClient: magpie)
     defer { model.aiUsage.stop() }
     await model.aiUsage.refresh()
@@ -318,7 +364,7 @@ struct MagpieControllerTests {
     settings.trio = TrioConfiguration(outer: .none, center: .none, footer: .aiUsage)
     let magpie = MagpieStub(quotaPayload: payload)
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil,
       magpieClient: magpie)
     defer { model.aiUsage.stop() }
     await model.aiUsage.refresh()
@@ -343,7 +389,7 @@ struct MagpieControllerTests {
     let settings = settings()
     settings.aiUsageShowsLocalUsage = false
     let controller = AIUsageController(
-      settings: settings, providers: [], magpieClient: MagpieStub(quotaPayload: payload))
+      settings: settings, magpieClient: MagpieStub(quotaPayload: payload))
     defer { controller.stop() }
     await controller.refresh()
     let quotas = controller.menuBarMagpieQuotas()
@@ -362,7 +408,7 @@ struct MagpieControllerTests {
       },
     ])
     let model = AppModel(
-      settings: settings(), historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings(), historyURL: nil,
       magpieClient: MagpieStub(quotaPayload: payload))
     defer { model.aiUsage.stop() }
     model.settings.aiMenuBarProviders = [
@@ -399,18 +445,14 @@ struct MagpieControllerTests {
     }
   }
 
-  @Test func magpieReplacesAllDirectReadersAndSupportsGrok() async throws {
+  @Test func magpieProvidesTokensAndQuotasIncludingGrok() async throws {
     let settings = settings()
     let magpie = MagpieStub()
-    let direct = UnexpectedLocalReader()
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [direct], aiQuotaProviders: [direct],
+      settings: settings, historyURL: nil,
       magpieClient: magpie)
     await model.aiUsage.refresh()
-    #expect(await direct.count() == 0)
     #expect(model.aiUsage.todayTokens == 120)
-    #expect(model.aiUsage.localReport(for: nil) == nil)
-    #expect(model.aiUsage.visibleQuotaProviders(for: nil).isEmpty)
     #expect(model.aiUsage.magpieQuotas.count == 3)
     let reading = MenuBarReading(model: model, items: [.aiUsage])
     #expect(reading.aiQuotas.first(where: { $0.sourceName == "codex" })?.remainingPercent == 96)
@@ -424,9 +466,8 @@ struct MagpieControllerTests {
   @Test func failureKeepsStaleMagpieDataWithoutFallingBack() async {
     let settings = settings()
     let magpie = MagpieStub()
-    let direct = UnexpectedLocalReader()
     let controller = AIUsageController(
-      settings: settings, providers: [direct], quotaProviders: [direct], magpieClient: magpie)
+      settings: settings, magpieClient: magpie)
     await controller.refresh()
     await magpie.fail(true)
     await controller.refresh()
@@ -434,7 +475,6 @@ struct MagpieControllerTests {
     #expect(controller.magpieUsageFailures[.daily] == .unavailable)
     #expect(controller.todayTokens == 120)
     #expect(controller.menuBarMagpieQuotas().allSatisfy { $0.isStale })
-    #expect(await direct.count() == 0)
     await magpie.fail(false)
     await controller.refresh()
     #expect(controller.magpieQuotaFailure == nil)
@@ -443,9 +483,9 @@ struct MagpieControllerTests {
 
   @Test func periodSelectionFetchesOnlyTodayAndChosenPeriod() async {
     let settings = settings()
-    settings.aiUsageSources = []
+
     let magpie = MagpieStub()
-    let controller = AIUsageController(settings: settings, providers: [], magpieClient: magpie)
+    let controller = AIUsageController(settings: settings, magpieClient: magpie)
     controller.cumulativeWidgetIsInstalled = { false }
     await controller.selectMagpiePeriod(.weekly)
     let counts = await magpie.counts()
@@ -456,7 +496,7 @@ struct MagpieControllerTests {
   @Test func cumulativeWidgetRequestsOnlyOneExtraSummaryAndStopsWhenRemoved() async {
     let settings = settings()
     let magpie = MagpieStub()
-    let controller = AIUsageController(settings: settings, providers: [], magpieClient: magpie)
+    let controller = AIUsageController(settings: settings, magpieClient: magpie)
     controller.cumulativeWidgetIsInstalled = { true }
     await controller.selectMagpiePeriod(.cumulative)
     #expect(await magpie.counts().1 == [.daily, .cumulative])
@@ -470,7 +510,7 @@ struct MagpieControllerTests {
   @Test func pauseDuringWidgetDemandCheckDoesNotStartMagpieRequests() async throws {
     let settings = settings()
     let magpie = MagpieStub()
-    let controller = AIUsageController(settings: settings, providers: [], magpieClient: magpie)
+    let controller = AIUsageController(settings: settings, magpieClient: magpie)
     var demand: CheckedContinuation<Bool, Never>?
     controller.cumulativeWidgetIsInstalled = {
       await withCheckedContinuation { demand = $0 }
@@ -490,7 +530,7 @@ struct MagpieControllerTests {
     let settings = settings()
     settings.aiUsageShowsLocalUsage = false
     let magpie = MagpieStub()
-    let controller = AIUsageController(settings: settings, providers: [], magpieClient: magpie)
+    let controller = AIUsageController(settings: settings, magpieClient: magpie)
     controller.cumulativeWidgetIsInstalled = {
       Issue.record("Disabled Token statistics must not query Widget configurations")
       return true
@@ -505,7 +545,7 @@ struct MagpieControllerTests {
   @Test func disabledAndPausedDoNotRequestMagpie() async {
     let settings = settings()
     let magpie = MagpieStub()
-    let controller = AIUsageController(settings: settings, providers: [], magpieClient: magpie)
+    let controller = AIUsageController(settings: settings, magpieClient: magpie)
     settings.aiUsageEnabled = false
     await controller.refresh()
     settings.aiUsageEnabled = true
@@ -518,7 +558,7 @@ struct MagpieControllerTests {
     let settings = settings()
     let magpie = MagpieStub()
     await magpie.hold()
-    let controller = AIUsageController(settings: settings, providers: [], magpieClient: magpie)
+    let controller = AIUsageController(settings: settings, magpieClient: magpie)
     let refresh = Task { await controller.refresh() }
     while await magpie.counts().0 == 0 { await Task.yield() }
     controller.stop()
@@ -530,9 +570,9 @@ struct MagpieControllerTests {
   }
   @Test func nativePopoverRendersInBothLayoutDirections() async throws {
     let settings = settings()
-    settings.aiUsageSources = []  // Magpie 独立于本地数据源开关，顶部刷新仍须可用。
+
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      settings: settings, historyURL: nil,
       magpieClient: MagpieStub())
     await model.aiUsage.refresh()
     for direction in [LayoutDirection.leftToRight, .rightToLeft] {
@@ -647,7 +687,7 @@ struct MagpieControllerTests {
       // 每轮重建偏好、模型和页面，覆盖关窗重开及应用重启后的恢复。
       let model = AppModel(
         settings: AppSettings(defaults: defaults), historyURL: nil,
-        aiUsageProviders: [], aiQuotaProviders: [])
+        magpieClient: UnavailableMagpieClient())
       defer { model.aiUsage.stop() }
       let host = NSHostingView(
         rootView: MagpieQuotaAccounts(accounts: accounts, settings: model.settings).environment(
@@ -705,7 +745,7 @@ struct MagpieControllerTests {
     let accounts = try MagpieClient.decodeQuotas(
       JSONSerialization.data(withJSONObject: ["object": "list", "data": records]))
     let model = AppModel(
-      settings: settings(), historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings(), historyURL: nil, magpieClient: UnavailableMagpieClient())
     let host = NSHostingView(
       rootView: Card { MagpieQuotaAccounts(accounts: accounts, settings: model.settings) }
         .environment(model).environment(\.layoutDirection, direction)
@@ -736,7 +776,7 @@ struct MagpieControllerTests {
 
   @Test func revisitingFreshPeriodDoesNotRepeatRequests() async {
     let controller = AIUsageController(
-      settings: settings(), providers: [], magpieClient: MagpieStub())
+      settings: settings(), magpieClient: MagpieStub())
     await controller.selectMagpiePeriod(.weekly)
     let attempt = controller.lastAttemptAt
     await controller.selectMagpiePeriod(.weekly)
@@ -746,7 +786,7 @@ struct MagpieControllerTests {
   @Test func yesterdayIsNotRepublishedAsTodaysTokens() async {
     let clock = MagpieTestClock()
     let controller = AIUsageController(
-      settings: settings(), providers: [], magpieClient: MagpieStub(), now: clock.read)
+      settings: settings(), magpieClient: MagpieStub(), now: clock.read)
     await controller.refresh()
     #expect(controller.todayTokens == 120)
     clock.nextDay()

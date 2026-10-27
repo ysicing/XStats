@@ -127,7 +127,7 @@ final class PortsPresentationTests {
     let settings = makeSettings()
     settings.portsEnabled = true
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.isMainWindowVisible = true
     settings.panelTab = .ports
     #expect(model.portsVisible)
@@ -168,7 +168,7 @@ final class PortsPresentationTests {
     settings.portsPlacement = .network
     settings.panelTab = .network
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.isMainWindowVisible = true
     #expect(model.isNetworkDetailVisible)
     for _ in 0..<5 {

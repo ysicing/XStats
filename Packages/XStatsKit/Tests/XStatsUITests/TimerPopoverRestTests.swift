@@ -19,7 +19,7 @@ import Testing
     settings.timerPreferences.mode = .stopwatch
     settings.timerPreferences.sleepDisplayDuringBreak = true
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     model.timer.startPauseStopwatch()
     var closed = 0
     let host = NSHostingView(
@@ -73,7 +73,7 @@ import Testing
     settings.restLongBreakMinutes = 20
     settings.timerPreferences.mode = .stopwatch
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var closed = 0
     let host = NSHostingView(
       rootView: TimerPopover(
@@ -126,7 +126,7 @@ import Testing
     settings.restEnabled = true
     settings.timerPreferences.sleepDisplayDuringBreak = false
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     let windows = RestWindowController(
       rest: model.rest, wellness: model.wellness, timer: model.timer)
     let menu = RestMenuBarController(model: model, windows: windows, prepareToShow: {})
@@ -163,7 +163,7 @@ import Testing
     settings.restEnabled = true
     settings.timerPreferences.sleepDisplayDuringBreak = false
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     let windows = RestWindowController(
       rest: model.rest, wellness: model.wellness, timer: model.timer)
     defer {

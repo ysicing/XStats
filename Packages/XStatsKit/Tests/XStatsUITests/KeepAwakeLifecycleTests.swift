@@ -34,7 +34,7 @@ struct KeepAwakeLifecycleTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
-      aiUsageProviders: [], aiQuotaProviders: [])
+      magpieClient: UnavailableMagpieClient())
     let initialBattery = model.store.battery
     var snapshot = MetricsSnapshot()
     snapshot.isSafetySample = true

@@ -57,13 +57,9 @@ struct TrioReading: Equatable {
       if source == .aiUsage {
         let menuQuotas = MenuBarReading(model: model, items: [.aiUsage]).aiQuotas
         if configuration.footer == .aiUsage {
-          let names =
-            model.aiUsage.usesMagpie
-            ? model.aiUsage.availableMenuBarQuotaProviders.filter {
-              model.settings.aiMenuBarProviders.contains($0)
-            }
-            : AIProviderID.allCases.filter { model.settings.aiUsageSources.contains($0) }.map(
-              \.rawValue)
+          let names = model.aiUsage.availableMenuBarQuotaProviders.filter {
+            model.settings.aiMenuBarProviders.contains($0)
+          }
           aiDots = names.prefix(AppSettings.aiMenuBarProviderLimit).map { name in
             let quota = menuQuotas.first {
               ($0.magpieName ?? $0.provider?.rawValue) == name

@@ -15,7 +15,7 @@ struct UninstallerPresentationTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
-      aiUsageProviders: [], aiQuotaProviders: [])
+      magpieClient: UnavailableMagpieClient())
     defer { model.uninstaller.setEnabled(false) }
     let app = InstalledApp(
       url: URL(fileURLWithPath: "/Applications/Progress Demo.app"), name: "Progress Demo",
@@ -71,7 +71,7 @@ struct UninstallerPresentationTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
-      aiUsageProviders: [], aiQuotaProviders: [])
+      magpieClient: UnavailableMagpieClient())
     defer { model.uninstaller.setEnabled(false) }
     let app = InstalledApp(
       url: URL(fileURLWithPath: "/Applications/Uninstall-Layout-Demo.app"),
@@ -128,7 +128,7 @@ struct UninstallerPresentationTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = AppModel(
       settings: AppSettings(defaults: defaults), historyURL: nil,
-      aiUsageProviders: [], aiQuotaProviders: [])
+      magpieClient: UnavailableMagpieClient())
     model.isMainWindowVisible = true
     model.appManagement.showPreview(apps: [], metadata: [:], sizes: [:], packages: [])
     defer {

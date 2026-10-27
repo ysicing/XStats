@@ -44,7 +44,7 @@ struct TrioIconTests {
     let settings = AppSettings(defaults: defaults)
     settings.menuBarLayout = .iconOnly
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     let controller = MenuBarController(model: model)
     #expect(app.setActivationPolicy(.regular))
     controller.refreshDockIcon()
@@ -217,7 +217,7 @@ struct TrioIconTests {
     settings.trio = TrioConfiguration(outer: .cpu, footer: .fan)
     settings.menuBarLayout = .iconOnly
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var imagesCreated = 0
     let controller = MenuBarController(model: model) { reading, configuration in
       imagesCreated += 1
@@ -465,7 +465,7 @@ struct TrioIconTests {
     let settings = AppSettings(defaults: defaults)
     settings.loadSensitivity = .sensitive
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     #expect(TrioReading(model: model).loadSensitivity == .sensitive)
   }
 
@@ -593,7 +593,7 @@ struct TrioIconTests {
     settings.menuBarLayout = .iconOnly
     settings.audioEnabled = false
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     defer { model.bluetooth.stop() }
     model.bluetooth.readDevices = {
       [
@@ -652,7 +652,7 @@ struct TrioIconTests {
     settings.menuBarItems = []
     settings.menuBarLayout = .iconOnly
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     for _ in 0..<10 {
       model.isMainWindowVisible = false
       #expect(model.bluetoothDemand == .background)
@@ -869,7 +869,7 @@ struct TrioIconTests {
     settings.menuBarLayout = .iconOnly
     settings.trio = TrioConfiguration(outer: .cpu, center: .network, footer: .audio)
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     #expect(model.demand.cpu && !model.demand.memory && model.demand.network)
     #expect(model.demand.networkConnection)
     #expect(!model.demand.gpu && !model.demand.battery && !model.demand.processes)
@@ -933,7 +933,7 @@ struct TrioIconTests {
     settings.trio = TrioConfiguration(outer: .cpu, center: .network, footer: .audio)
     settings.menuBarLayout = .iconOnly
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var snapshot = MetricsSnapshot()
     snapshot.cpu = CPULoad(total: 0.8, user: 0.5, system: 0.3, perCore: [], loadAverage: [])
     model.store.apply(snapshot)
@@ -1009,7 +1009,7 @@ struct TrioIconTests {
     settings.trio = TrioConfiguration(outer: .cpu, center: .network, footer: .fan)
     settings.menuBarLayout = .iconOnly
     let model = AppModel(
-      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     #expect(model.store.fanCount == nil && model.demand.fans)
     var snapshot = MetricsSnapshot()
     snapshot.sensors = SensorReadings(

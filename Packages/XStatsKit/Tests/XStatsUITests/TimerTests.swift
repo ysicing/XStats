@@ -342,7 +342,7 @@ struct TimerSessionTests {
   @Test func contextMenuRoutesToPageAndHUDWithoutStartingTimers() throws {
     try fixture { settings, _, _, _ in
       let model = AppModel(
-        settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [])
+        settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
       var openedPage: PanelTab?
       let windows = RestWindowController(
         rest: model.rest, wellness: model.wellness, timer: model.timer)

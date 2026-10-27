@@ -453,6 +453,10 @@ extension Translations {
     支持	Supported
     无法检测	Can't determine
     仅显示本机模型当前是否可用；设备兼容不代表当前可用。	Shows whether the on-device model is available now; a compatible device may still be unable to use it.
+    活动走势	Activity trends
+    费用	Cost
+    请求	Requests
+    速度	Speed
     Token 活动	Token activity
     每日	Daily
     每周	Weekly
@@ -493,7 +497,7 @@ extension Translations {
     显示本地用量	Show local usage
     读取本机会话日志；关闭后停止扫描并隐藏 Token 统计。	Reads local session logs; turning this off stops scanning and hides token statistics.
     查看 Codex / Claude 的 Token 用量与订阅额度。	View Codex / Claude token usage and subscription quotas.
-    Codex / Claude Code 本机 Token 用量与订阅额度	Local Codex / Claude Code tokens and subscription quotas
+    从 Magpie 读取 Token 用量与订阅额度	Token usage and subscription quotas from Magpie
     今天	Today
     模型	Model
     全部模型	All models
