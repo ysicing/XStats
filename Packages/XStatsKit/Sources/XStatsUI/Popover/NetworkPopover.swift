@@ -473,27 +473,6 @@ private struct AddressSection: View {
     return badges
   }
 
-  static func networkTypeLabel(_ raw: String) -> String {
-    switch raw.lowercased() {
-    case "residential", "isp": tr("住宅宽带")
-    case "business": tr("企业")
-    case "hosting", "datacenter", "data center": tr("机房")
-    case "mobile", "cellular": tr("移动网络")
-    case "education": tr("教育网")
-    case "government": tr("政府")
-    default: raw
-    }
-  }
-
-  static func ipTypeLabel(_ raw: String) -> String {
-    switch raw.lowercased() {
-    case "residential ip": tr("住宅 IP")
-    case "datacenter ip", "hosting ip": tr("机房 IP")
-    case "mobile ip": tr("移动网络 IP")
-    case "business ip": tr("企业 IP")
-    default: raw
-    }
-  }
 }
 
 // MARK: - IP 纯净度

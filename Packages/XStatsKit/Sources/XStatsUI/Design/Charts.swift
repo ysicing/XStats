@@ -407,39 +407,6 @@ struct HeatLegend: View {
   }
 }
 
-/// 压力走势条：每次采样一段，绿色正常、橙色偏高、红色严重
-struct PressureStrip: View {
-  let history: [MemoryPressure]
-  var capacity = MetricsStore.historyCapacity
-
-  var body: some View {
-    Canvas { context, size in
-      let width = size.width / CGFloat(capacity)
-      let offset = capacity - min(capacity, history.count)
-      let recent = history.suffix(capacity)
-      context.clip(
-        to: Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: size.height / 2))
-      context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(DS.Palette.track))
-      for (index, pressure) in recent.enumerated() {
-        let color: Color =
-          switch pressure {
-          case .normal: DS.Palette.success
-          case .warning: DS.Palette.warning
-          case .critical: DS.Palette.error
-          }
-        // 多画 1pt 盖住相邻段之间的缝
-        let rect = CGRect(
-          x: CGFloat(offset + index) * width, y: 0, width: width + DS.Size.stroke,
-          height: size.height)
-        context.fill(Path(rect), with: .color(color))
-      }
-    }
-    .frame(height: DS.Space.s2)
-    .accessibilityElement()
-    .accessibilityLabel(tr("最近的内存压力走势"))
-  }
-}
-
 /// 横向水位条：各段按大小依次排开，段与段之间留 1pt 缝
 struct WaterlineBar: View {
   let segments: [(value: Double, color: Color)]

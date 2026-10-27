@@ -2591,14 +2591,11 @@ AI 用量需要安装并运行 Magpie。	Für die KI-Nutzung muss Magpie install
 打开 Magpie	Magpie öffnen
 {}后重置	Reset in {}
 即将重置	Reset in Kürze
-首选账号	Bevorzugtes Konto
 跟随 Magpie	Magpie folgen
 账号不可用	Konto nicht verfügbar
 小组件圆环	Widget-Ringe
 单圈	Ein Ring
 双圈	Zwei Ringe
-额度按账户分别显示；菜单栏和小组件使用首选账号。	Kontingente werden pro Konto angezeigt; Menüleiste und Widgets verwenden das bevorzugte Konto.
-展示账号	Angezeigte Konten
 订阅账号	Abonnementkonten
 用于菜单栏与小组件	Für Menüleiste und Widgets
 默认	Standard

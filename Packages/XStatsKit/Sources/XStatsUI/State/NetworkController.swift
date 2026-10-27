@@ -53,7 +53,6 @@ public final class NetworkController {
   @ObservationIgnored private var probeTask: Task<Void, Never>?
   @ObservationIgnored private var detailTask: Task<Void, Never>?
   @ObservationIgnored private var processSampler = NetworkProcessSampler()
-  @ObservationIgnored private var probedAddress: String?
   @ObservationIgnored private var lastPublicLookup: (date: Date, localIPv4: [String])?
   @ObservationIgnored private var isPaused = false
   @ObservationIgnored private var wantsDetail = false

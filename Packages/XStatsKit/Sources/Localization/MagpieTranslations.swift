@@ -23,8 +23,6 @@ extension Translations {
     查看 AI 服务的 Token 用量与账户额度。	View token usage and account quotas for AI services.
     查看账户剩余额度与重置时间	View remaining account quotas and reset times
     查看今天的 Token 用量	View today’s token usage
-    首选账号	Preferred Account
-    展示账号	Display Accounts
     订阅账号	Subscription Accounts
     默认	Default
     设为默认	Set as Default
@@ -34,6 +32,5 @@ extension Translations {
     小组件圆环	Widget Rings
     单圈	Single Ring
     双圈	Double Ring
-    额度按账户分别显示；菜单栏和小组件使用首选账号。	Quotas are shown per account; the menu bar and widgets use the preferred account.
     """#
 }
