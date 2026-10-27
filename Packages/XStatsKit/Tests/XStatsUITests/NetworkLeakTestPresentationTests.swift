@@ -9,6 +9,41 @@ import Testing
 
 @MainActor
 struct NetworkLeakTestPresentationTests {
+  @Test func windowZoomFitsContentWithoutStartingChecksOrExceedingScreen() throws {
+    let name = "EgressWindowSizing.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let settings = AppSettings(defaults: defaults)
+    settings.enabledMonitoringModules = []
+    settings.menuBarItems = []
+    settings.historyEnabled = false
+    settings.aiUsageEnabled = false
+    let model = AppModel(
+      settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
+      networkCacheDefaults: defaults)
+    defer { model.aiUsage.stop() }
+    let controller = EgressWindowController(model: model)
+    let window = NSWindow(
+      contentRect: NSRect(x: 100, y: 100, width: 1000, height: 1200),
+      styleMask: [.titled, .resizable, .fullSizeContentView],
+      backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    window.contentMinSize = NSSize(width: 576, height: 480)
+    let original = window.frame
+    let screen = NSRect(x: 0, y: 0, width: 1600, height: 1400)
+    let fitted = controller.fittedFrame(for: window, within: screen)
+    #expect(fitted.width == original.width)
+    #expect(fitted.height < original.height)
+    #expect(fitted.height >= window.contentMinSize.height)
+    #expect(screen.contains(fitted))
+    #expect(window.frame == original)
+    #expect(!model.egress.isChecking)
+    #expect(controller.fittedFrame(for: window, within: screen) == fitted)
+    let smallScreen = NSRect(x: -800, y: -100, width: 800, height: 500)
+    #expect(smallScreen.contains(controller.fittedFrame(for: window, within: smallScreen)))
+  }
+
   @Test func egressWindowRendersAllTabsWithoutStartingLeakTests() async throws {
     let name = "EgressPresentation.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: name))

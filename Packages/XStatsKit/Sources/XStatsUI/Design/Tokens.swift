@@ -195,7 +195,7 @@ extension DS {
     static let speedTestWindowHeight: CGFloat = 840
     /// 出口与分流窗口
     static let egressWindowWidth: CGFloat = 720
-    static let egressWindowHeight: CGFloat = 800
+    static let egressWindowHeight: CGFloat = 640
     /// 主窗口首次打开的最小高度（屏幕放得下时）
     static let windowDefaultHeight: CGFloat = 720
     /// 主窗口默认内容区宽度（侧边栏另计）

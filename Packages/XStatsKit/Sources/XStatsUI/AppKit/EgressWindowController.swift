@@ -67,5 +67,28 @@ final class EgressWindowController: NSObject, NSWindowDelegate {
 
   func windowDidDeminiaturize(_ notification: Notification) { session.setSuspended(false) }
 
+  func windowWillUseStandardFrame(_ sender: NSWindow, defaultFrame: NSRect) -> NSRect {
+    fittedFrame(for: sender, within: sender.screen?.visibleFrame ?? defaultFrame)
+  }
+
+  /// 只在用户执行系统缩放时测量；切页和异步结果更新不触发窗口尺寸反馈。
+  func fittedFrame(for window: NSWindow, within visibleFrame: NSRect) -> NSRect {
+    let available = visibleFrame.insetBy(dx: DS.Space.s3, dy: DS.Space.s3)
+    guard available.width > 0, available.height > 0 else { return window.frame }
+    let width = min(max(window.frame.width, window.contentMinSize.width), available.width)
+    // 普通视图包含 ScrollView，其理想高度不代表内容高度；复用静态渲染路径展开内容。
+    let measuring = NSHostingView(
+      rootView: EgressWindowView(session: session).environment(model)
+        .environment(\.isSnapshot, true)
+        .frame(width: width)
+        .fixedSize(horizontal: false, vertical: true))
+    let height = min(
+      max(ceil(measuring.fittingSize.height), window.contentMinSize.height), available.height)
+    return NSRect(
+      x: min(max(window.frame.minX, available.minX), available.maxX - width),
+      y: max(available.minY, min(window.frame.maxY, available.maxY) - height),
+      width: width, height: height)
+  }
+
   func cancelLeakTests() { session.cancelLeakTests() }
 }
