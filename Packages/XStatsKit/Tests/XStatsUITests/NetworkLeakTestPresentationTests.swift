@@ -23,7 +23,16 @@ struct NetworkLeakTestPresentationTests {
       settings: settings, historyURL: nil, aiUsageProviders: [], aiQuotaProviders: [],
       networkCacheDefaults: defaults)
     defer { model.aiUsage.stop() }
-    let session = EgressWindowSession(egress: model.egress)
+    let session = EgressWindowSession(
+      egress: model.egress,
+      makeController: {
+        NetworkLeakTestController(
+          webRTCProbe: { WebRTCLeakProbe.Result(services: []) },
+          exitLookup: { "192.0.2.1" },
+          dnsProbe: {
+            try NetworkLeakTest.decodeDNS(Data("[{\"ip\":\"192.0.2.53\",\"type\":\"dns\"}]".utf8))
+          })
+      })
     defer { session.close() }
     for tab in EgressWindowSession.Tab.allCases {
       session.select(tab)
@@ -51,6 +60,29 @@ struct NetworkLeakTestPresentationTests {
               "egress-\(tab)-\(Int(width)).png"))
         }
         window.close()
+      }
+    }
+    // 已完成时间与另一项仍在检测的进度／取消按钮同时出现时，窄窗口也不能溢出。
+    session.webRTC.start(.webRTC)
+    session.dns.start(.dns)
+    let deadline = ContinuousClock.now + .seconds(1)
+    while session.isChecking, ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(session.webRTC.completedAt != nil)
+    #expect(session.dns.completedAt != nil)
+    for tab in [EgressWindowSession.Tab.webRTC, .dns] {
+      session.select(tab)
+      for rightToLeft in [false, true] {
+        let other = tab == .webRTC ? session.dns : session.webRTC
+        other.phase = .running
+        let host = NSHostingView(
+          rootView: EgressWindowView(session: session).environment(model)
+            .environment(\.layoutDirection, rightToLeft ? .rightToLeft : .leftToRight))
+        host.frame = NSRect(x: 0, y: 0, width: 576, height: 640)
+        host.layoutSubtreeIfNeeded()
+        #expect(host.fittingSize.width <= 576)
+        other.phase = .complete
       }
     }
   }

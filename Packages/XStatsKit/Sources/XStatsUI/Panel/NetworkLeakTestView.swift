@@ -14,6 +14,7 @@ final class NetworkLeakTestController {
   }
   enum Phase { case idle, running, complete, failed, cancelled }
   var phase: Phase = .idle
+  private(set) var completedAt: Date?
   var webRTCServices: [WebRTCLeakProbe.ServiceResult] = []
   var httpExit: String?
   var dnsResult: NetworkLeakTest.DNSResult?
@@ -46,6 +47,7 @@ final class NetworkLeakTestController {
 
   func start(_ mode: Mode) {
     cancel()
+    completedAt = nil
     webRTCServices = []
     httpExit = nil
     dnsResult = nil
@@ -69,6 +71,7 @@ final class NetworkLeakTestController {
           guard run == generation else { return }
           dnsResult = result
         }
+        completedAt = Date()
         phase = .complete
         logger.debug("Leak test completed: \(mode.rawValue, privacy: .public)")
       } catch {
@@ -110,7 +113,6 @@ struct NetworkLeakTestView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(DS.Space.s4)
     .frame(maxWidth: .infinity)
-    .onDisappear { controller.cancel() }
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.didHideNotification)) { _ in
       controller.cancel()
     }

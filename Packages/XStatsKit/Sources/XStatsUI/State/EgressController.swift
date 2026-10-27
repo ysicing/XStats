@@ -104,6 +104,11 @@ public final class EgressController {
   private func stopChecking() {
     watchTask?.cancel()
     watchTask = nil
+    cancelCheck()
+  }
+
+  /// 取消本轮测量并拒绝晚到结果，保持窗口的环境观察任务。
+  func cancelCheck() {
     checkGeneration &+= 1
     checkTask?.cancel()
     checkTask = nil
