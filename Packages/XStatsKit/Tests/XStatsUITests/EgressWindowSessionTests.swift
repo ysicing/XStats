@@ -180,8 +180,8 @@ struct EgressWindowSessionTests {
     #expect(egress.report == nil)
     #expect(defaults.data(forKey: "egressReport2") == nil)
     session.close()
-    #expect(session.webRTC !== oldWebRTC)
-    #expect(session.dns !== oldDNS)
+    #expect(session.webRTC === oldWebRTC)
+    #expect(session.dns === oldDNS)
     #expect(session.tab == .overview)
   }
 
@@ -223,6 +223,49 @@ struct EgressWindowSessionTests {
     date.addTimeInterval(601)
     session.setSuspended(false)
     try await waitUntil { calls == 3 && !session.isChecking }
+  }
+
+  @Test func reopeningWithinFreshWindowKeepsCompletedBatch() async throws {
+    let name = "EgressReopen.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let environment = ProxyEnvironment(dnsServers: ["192.0.2.53"])
+    var reads = 0
+    var calls = 0
+    var date = Date()
+    let egress = EgressController(
+      defaults: defaults,
+      environmentReader: {
+        reads += 1
+        return environment
+      }, measure: { _, _ in [] }, geoLookup: { _, _, _ in nil })
+    let session = EgressWindowSession(
+      egress: egress,
+      makeController: {
+        NetworkLeakTestController(
+          webRTCProbe: {
+            calls += 1
+            return WebRTCLeakProbe.Result(services: [])
+          }, exitLookup: { "192.0.2.1" }, dnsProbe: { try Self.dnsResult() })
+      }, now: { date })
+    session.open()
+    try await waitUntil { calls == 1 && !session.isChecking }
+    let report = egress.report
+    let webRTC = session.webRTC
+    session.close()
+    // 十分钟内、同一网络重开：三项结果沿用，不启动任何检测。
+    date.addTimeInterval(60)
+    let readsBeforeReopen = reads
+    session.open()
+    defer { session.close() }
+    try await waitUntil { reads > readsBeforeReopen }
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(calls == 1)
+    #expect(!session.isChecking)
+    #expect(egress.report?.date == report?.date)
+    #expect(session.webRTC === webRTC)
+    #expect(session.webRTC.phase == .complete)
+    #expect(session.dns.phase == .complete)
   }
 
   @Test func failedOrCancelledChecksDoNotRetryOnEveryEnvironmentTick() async throws {

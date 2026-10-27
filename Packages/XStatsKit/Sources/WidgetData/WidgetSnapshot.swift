@@ -299,6 +299,15 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     showsLocalUsage ? (cumulativeTokens ?? []) : []
   }
 
+  /// 按首选身份精确选择账号：未设置时取 Magpie 返回的首项；首选缺失或身份重复时不回退到其他账号。
+  public static func selectedQuotaAccount(
+    in accounts: [QuotaAccount], preferredID: String?
+  ) -> QuotaAccount? {
+    guard let preferredID else { return accounts.first }
+    let matching = accounts.filter { $0.id == preferredID }
+    return matching.count == 1 ? matching.first : nil
+  }
+
   /// 默认四个品牌保留位置；其他服务仅占用未使用的位置，额度失效不影响排序。
   public func quotaSlots(at date: Date = .now) -> [QuotaSlot] {
     let defaults = ["codex", "claude", "gemini", "grok"]
@@ -318,15 +327,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     return ordered.map { provider in
       let selectedID = preferredQuotaAccounts?[provider]
       if let quotaAccounts {
-        let accounts = quotaAccounts.filter { $0.provider == provider }
-        // 显式选择缺失或身份有歧义时不能回退到别的账号。
-        let account: QuotaAccount?
-        if let selectedID {
-          let matching = accounts.filter { $0.id == selectedID }
-          account = matching.count == 1 ? matching.first : nil
-        } else {
-          account = accounts.first
-        }
+        let account = Self.selectedQuotaAccount(
+          in: quotaAccounts.filter { $0.provider == provider }, preferredID: selectedID)
         let quota = aiEnabled ? account?.quota : nil
         let valid = quota.flatMap {
           $0.remainingPercent.isFinite && ($0.resetsAt.map { $0 > date } ?? true) ? $0 : nil
@@ -371,17 +373,14 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
           resetsAt: $0.resetsAt, fetchedAt: .distantPast, isStale: $0.isStale)
       }
     }
-    func displayedAccounts(_ accounts: [QuotaAccount]?) -> [QuotaAccount]? {
-      accounts?.map {
-        QuotaAccount(
-          id: $0.id, provider: $0.provider, name: $0.name,
-          quota: $0.quota.flatMap { displayed([$0]).first })
+    // 小组件只绘制每个服务选中的账号，未绘制账号的额度变化或别名变化不应触发重载。
+    func displayedSlots(_ snapshot: WidgetSnapshot) -> [QuotaSlot] {
+      snapshot.quotaSlots().map {
+        QuotaSlot(provider: $0.provider, quota: $0.quota.flatMap { displayed([$0]).first })
       }
     }
     let relocalized = language != previous.language
-    let quotaChanged =
-      relocalized || aiEnabled != previous.aiEnabled
-      || (quotaShowsRemaining != false) != (previous.quotaShowsRemaining != false)
+    let quotaChanged = relocalized || aiEnabled != previous.aiEnabled
     let localUsageChanged =
       relocalized || showsLocalUsage != previous.showsLocalUsage
       || (westernUnits == true) != (previous.westernUnits == true)
@@ -390,7 +389,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
       || preferredQuotaAccounts != previous.preferredQuotaAccounts
       || (quotaShowsResetRing == true) != (previous.quotaShowsResetRing == true)
       || displayed(quotas) != displayed(previous.quotas)
-      || displayedAccounts(quotaAccounts) != displayedAccounts(previous.quotaAccounts)
+      || displayedSlots(self) != displayedSlots(previous)
     {
       kinds.append(WidgetKind.aiQuota)
     }

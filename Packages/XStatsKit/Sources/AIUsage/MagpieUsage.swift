@@ -121,17 +121,6 @@ public struct MagpieUsageSummary: Decodable, Equatable, Sendable {
     series = try c.decodeIfPresent([MagpieUsageBucket].self, forKey: .series) ?? []
   }
 
-  /// 累计周期可能按周分桶；直接保留时间桶，不能将一周总量伪装为某一天的活动。
-  public var chartBuckets: [UsageTimeSeries.Bucket] {
-    let sorted = series.sorted { $0.time < $1.time }
-    return sorted.enumerated().map { index, item in
-      let interval: TimeInterval = bucket == "hour" ? 3600 : bucket == "week" ? 7 * 86400 : 86400
-      let end =
-        index + 1 < sorted.count ? sorted[index + 1].time : item.time.addingTimeInterval(interval)
-      return UsageTimeSeries.Bucket(start: item.time, end: end, total: item.input + item.output)
-    }
-  }
-
 }
 
 public struct MagpieUsageModel: Decodable, Equatable, Sendable, Identifiable {

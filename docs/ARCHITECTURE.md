@@ -102,8 +102,9 @@ All tabs reuse the overview's single network-environment watcher. Opening or res
 checks missing, unfinished or older-than-ten-minute results. A changed network signature cancels
 old work and starts all three tests again while the window remains visible.
 Failure or cancellation alone does not retry on every watcher tick. Manual rechecks remain available.
-Closing clears leak-test results and returns to the overview; minimizing, hiding or system inactivity
-suspends work without discarding completed results. Rendering a view without opening its session
+Closing cancels running leak tests and returns to the overview, keeping completed results. Reopening
+within ten minutes on the same network signature reuses all three results; otherwise all three tests
+run again. Minimizing, hiding or system inactivity suspends work without discarding completed results. Rendering a view without opening its session
 does not create a WebView or start network requests.
 WebRTC uses bundled JavaScript in an ephemeral WKWebView, a data channel and Cloudflare, Google,
 BlackBerry and Twilio STUN servers, without camera/microphone access or remote page scripts.
@@ -789,8 +790,9 @@ API is shown explicitly without falling back to a different statistical source. 
 independent; last good values are marked stale, and yesterday's summary is never republished as today's
 usage. Only display summaries needed by widgets are persisted; credentials are never copied.
 
-Quotas remain separate per account and preserve Magpie's window names. The menu bar shows one valid
-account per selected provider (prefer the last active account), with at most four selected providers.
+Quotas remain separate per account and preserve Magpie's window names. The menu bar shows one
+account per selected provider (the preferred account, or Magpie's first returned account by default;
+an unavailable account is not replaced), with at most four selected providers.
 The default selection and display order are Codex, Claude, Gemini and Grok. Installations without a
 saved selection use these defaults; explicit selections, including an empty set, are retained.
 Older selections above the limit are normalized in stable brand/name order. At the limit, unselected

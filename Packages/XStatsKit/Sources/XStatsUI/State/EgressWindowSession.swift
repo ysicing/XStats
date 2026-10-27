@@ -5,7 +5,7 @@ import Localization
 import Metrics
 import Observation
 
-/// 窗口统一启动三项检测；分类只筛选结果，关闭清空临时结果。
+/// 窗口统一启动三项检测；分类只筛选结果，关闭取消进行中的检测但保留已完成结果。
 @MainActor @Observable
 final class EgressWindowSession {
   enum Tab: Hashable, CaseIterable {
@@ -122,9 +122,7 @@ final class EgressWindowSession {
     visible = false
     egress.windowDidClose()
     cancelLeakTests()
-    webRTC = makeController()
-    dns = makeController()
-    attempt = nil
+    // 保留已完成的结果和批次时间；重开时由 checkIfNeeded 按时效与网络环境统一判断是否重测。
     tab = .overview
   }
 
@@ -154,8 +152,10 @@ final class EgressWindowSession {
     let changed = attempt.map { $0.signature != environment.signature } ?? false
     let stale =
       attempt.map { now().timeIntervalSince($0.date) > EgressController.staleAfter } ?? true
-    let unfinished =
-      egress.report == nil || webRTC.phase != .complete || dns.phase != .complete
+    // 出口报告跨批次保存，被取消的批次仍可能留着上一次的报告；必须属于本批次才算完成。
+    let reportIsCurrent =
+      attempt.flatMap { started in egress.report.map { $0.date >= started.date } } ?? false
+    let unfinished = !reportIsCurrent || webRTC.phase != .complete || dns.phase != .complete
     // 失败或手动取消只在再次打开／恢复时重试，不在每次环境轮询时重试。
     if changed || (first && !isChecking && (stale || unfinished)) {
       startChecks(signature: environment.signature)

@@ -84,10 +84,8 @@ import WidgetData
   let previous = snapshot(fetchedAt: now)
   #expect(
     snapshot(fetchedAt: now.addingTimeInterval(10)).changedWidgetKinds(from: previous).isEmpty)
-  #expect(
-    snapshot(name: "Renamed", fetchedAt: now).changedWidgetKinds(from: previous) == [
-      WidgetKind.aiQuota
-    ])
+  // 名称不在小组件上绘制，改别名不需要重载。
+  #expect(snapshot(name: "Renamed", fetchedAt: now).changedWidgetKinds(from: previous).isEmpty)
   #expect(
     snapshot(fetchedAt: now, remaining: 20).changedWidgetKinds(from: previous) == [
       WidgetKind.aiQuota
@@ -102,6 +100,33 @@ import WidgetData
   #expect(configured.quotaSlots(at: now).first { $0.provider == "workbuddy" }?.quota != nil)
   configured.quotaShowsResetRing = true
   #expect(configured.changedWidgetKinds(from: previous) == [WidgetKind.aiQuota])
+}
+
+@Test func widgetIgnoresQuotaChangesOfAccountsItDoesNotDraw() {
+  let now = Date()
+  func snapshot(preferredRemaining: Double, otherRemaining: Double) -> WidgetSnapshot {
+    func account(_ id: String, remaining: Double) -> WidgetSnapshot.QuotaAccount {
+      .init(
+        id: id, provider: "codex", name: id,
+        quota: .init(
+          provider: "codex", kind: "7 days", remainingPercent: remaining,
+          resetsAt: nil, fetchedAt: now, isStale: false))
+    }
+    return WidgetSnapshot(
+      aiEnabled: true, quotaProviders: ["codex"],
+      quotaAccounts: [
+        account("preferred", remaining: preferredRemaining),
+        account("other", remaining: otherRemaining),
+      ], preferredQuotaAccounts: ["codex": "preferred"])
+  }
+  let previous = snapshot(preferredRemaining: 80, otherRemaining: 40)
+  // 未绘制的备用账号每次刷新都会变化，不应消耗小组件重载预算。
+  #expect(
+    snapshot(preferredRemaining: 80, otherRemaining: 39).changedWidgetKinds(from: previous)
+      .isEmpty)
+  #expect(
+    snapshot(preferredRemaining: 79, otherRemaining: 40).changedWidgetKinds(from: previous)
+      == [WidgetKind.aiQuota])
 }
 
 @Test func missingAndCorruptSnapshotsDoNotMeanDisabledModules() throws {
@@ -497,8 +522,9 @@ func snapshotPreservesEveryWeekStartAndReloadsCalendars(firstWeekday: Int) throw
   current.quotaShowsRemaining = true
   current.westernUnits = false
   #expect(current.changedWidgetKinds(from: legacy).isEmpty)
+  // 小组件固定显示剩余额度，该偏好只保存在摘要中，不触发重载。
   current.quotaShowsRemaining = false
-  #expect(current.changedWidgetKinds(from: legacy) == [WidgetKind.aiQuota])
+  #expect(current.changedWidgetKinds(from: legacy).isEmpty)
   current.quotaShowsRemaining = true
   current.westernUnits = true
   #expect(current.changedWidgetKinds(from: legacy) == [WidgetKind.todayTokens])

@@ -144,8 +144,6 @@ struct MagpieUsageTests {
     let summary = try MagpieClient.decodeUsage(data, period: .weekly)
     #expect(summary.total == 120)
     #expect(summary.cost == 1.25)
-    #expect(summary.chartBuckets.count == 1)
-    #expect(summary.chartBuckets[0].total == 120)
   }
 
   @Test func rejectsWrongPeriodAndInvalidTotals() {
@@ -175,17 +173,6 @@ struct MagpieUsageTests {
         #"{"period":"today","bucket":"hour","input":0,"output":0,"calls":0,"cost":0,"models":[],"series":[]}"#
           .utf8), period: .daily)
     #expect(summary.total == 0)
-  }
-
-  @Test func cumulativeKeepsWeeklyBucketsWithoutInventingDailyUsage() throws {
-    let data = Data(
-      #"{"period":"all","bucket":"week","input":100,"output":20,"calls":0,"cost":0,"series":[{"time":"2026-10-05T00:00:00+08:00","input":100,"output":20}]}"#
-        .utf8)
-    let summary = try MagpieClient.decodeUsage(data, period: .cumulative)
-    #expect(summary.chartBuckets.count == 1)
-    #expect(summary.chartBuckets[0].total == 120)
-    #expect(
-      summary.chartBuckets[0].end.timeIntervalSince(summary.chartBuckets[0].start) == 7 * 86400)
   }
 
   @Test func endpointIsRestrictedToLoopback() throws {

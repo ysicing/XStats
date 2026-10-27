@@ -161,13 +161,8 @@ public final class AIUsageController {
     let allAccounts = widgetQuotaAccounts(at: date)
     return availableMenuBarQuotaProviders.compactMap { provider in
       let accounts = allAccounts.filter { $0.provider == provider }
-      let account: WidgetSnapshot.QuotaAccount?
-      if let id = settings.aiPreferredAccounts[provider] {
-        let matching = accounts.filter { $0.id == id }
-        account = matching.count == 1 ? matching.first : nil
-      } else {
-        account = accounts.first
-      }
+      let account = WidgetSnapshot.selectedQuotaAccount(
+        in: accounts, preferredID: settings.aiPreferredAccounts[provider])
       guard let quota = account?.quota, quota.remainingPercent.isFinite else { return nil }
       return MenuBarQuota(
         provider: AIProviderID(rawValue: provider),
