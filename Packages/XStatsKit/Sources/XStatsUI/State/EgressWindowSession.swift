@@ -5,7 +5,7 @@ import Localization
 import Metrics
 import Observation
 
-/// 窗口内的临时检测状态；切页停止任务，关闭清空结果，出口报告仍由原控制器保存。
+/// 窗口统一启动三项检测；分类只筛选结果，关闭清空临时结果。
 @MainActor @Observable
 final class EgressWindowSession {
   enum Tab: Hashable, CaseIterable {
@@ -48,13 +48,18 @@ final class EgressWindowSession {
   private let egress: EgressController
   private let makeController: () -> NetworkLeakTestController
   private let now: () -> Date
-  private var attempts: [Tab: (date: Date, signature: String)] = [:]
+  private var attempt: (date: Date, signature: String)?
 
   var isChecking: Bool {
+    egress.isChecking || webRTC.phase == .running || dns.phase == .running
+  }
+
+  /// 时间属于当前分类的有效结果；失败或取消不能沿用旧的成功时间。
+  var lastCheckedAt: Date? {
     switch tab {
-    case .webRTC: webRTC.phase == .running
-    case .dns: dns.phase == .running
-    default: egress.isChecking
+    case .webRTC: webRTC.completedAt
+    case .dns: dns.completedAt
+    default: egress.isChecking ? nil : egress.report?.date
     }
   }
 
@@ -75,16 +80,13 @@ final class EgressWindowSession {
     dns.cancel()
   }
 
-  func select(_ tab: Tab) {
-    guard tab != self.tab else { return }
-    if tab.isOverview && self.tab.isOverview {
-      self.tab = tab
-      return
-    }
+  func cancelChecks() {
+    egress.cancelCheck()
     cancelLeakTests()
-    egress.windowDidClose()
+  }
+
+  func select(_ tab: Tab) {
     self.tab = tab
-    if visible && !suspended && !hidden { observeEnvironment() }
   }
 
   func open() {
@@ -122,40 +124,41 @@ final class EgressWindowSession {
     cancelLeakTests()
     webRTC = makeController()
     dns = makeController()
-    attempts = [:]
+    attempt = nil
     tab = .overview
   }
 
   func check() {
     guard visible, !suspended, !hidden, !isChecking else { return }
-    if tab.isOverview {
-      egress.check()
-    } else {
-      checkLeakTest()
-    }
+    startChecks(signature: egress.environment?.signature ?? "")
   }
 
-  private func checkLeakTest() {
-    guard visible, !suspended, !hidden, !tab.isOverview else { return }
-    attempts[tab] = (now(), egress.environment?.signature ?? "")
-    if tab == .webRTC { webRTC.start(.webRTC) } else { dns.start(.dns) }
+  private func startChecks(signature: String) {
+    // 网络变更时取消上一轮的全部任务，避免混用不同网络环境的结果。
+    cancelChecks()
+    attempt = (now(), signature)
+    egress.check()
+    webRTC.start(.webRTC)
+    dns.start(.dns)
   }
 
   private func observeEnvironment() {
-    // 复用出口检测唯一的环境观察任务；仅当前页可以发起公网检测。
-    egress.windowDidOpen(automaticallyChecks: tab.isOverview) { [weak self] environment, first in
-      self?.checkLeakTestIfNeeded(environment: environment, first: first)
+    // 三项共用唯一的环境观察任务，不因分类切换重复注册或重测。
+    egress.windowDidOpen(automaticallyChecks: false) { [weak self] environment, first in
+      self?.checkIfNeeded(environment: environment, first: first)
     }
   }
 
-  private func checkLeakTestIfNeeded(environment: ProxyEnvironment, first: Bool) {
-    guard visible, !suspended, !hidden, !tab.isOverview else { return }
-    let controller = tab == .webRTC ? webRTC : dns
-    let attempt = attempts[tab]
+  private func checkIfNeeded(environment: ProxyEnvironment, first: Bool) {
+    guard visible, !suspended, !hidden else { return }
     let changed = attempt.map { $0.signature != environment.signature } ?? false
     let stale =
       attempt.map { now().timeIntervalSince($0.date) > EgressController.staleAfter } ?? true
-    let unfinished = controller.phase != .complete && controller.phase != .running
-    if changed || (first && (stale || unfinished)) { checkLeakTest() }
+    let unfinished =
+      egress.report == nil || webRTC.phase != .complete || dns.phase != .complete
+    // 失败或手动取消只在再次打开／恢复时重试，不在每次环境轮询时重试。
+    if changed || (first && !isChecking && (stale || unfinished)) {
+      startChecks(signature: environment.signature)
+    }
   }
 }

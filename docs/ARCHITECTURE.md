@@ -94,11 +94,13 @@ filter routing results without restarting their measurement. Leak-test results u
 existing scroll view rather than a second nested vertical scroll area.
 WebRTC and DNS show their results directly, without a hide-IP control or information footer.
 Each tab has a short description beneath the card heading. Manual detection and progress
-use the window header's shared control, targeting the selected tab; active WebRTC and DNS tests
-can be cancelled there. Each keeps its results while switching tabs; leaving a detection page cancels active work.
-All tabs reuse the overview's single network-environment watcher. Only the selected page runs
-network tests: entering or resuming a page checks missing, unfinished or older-than-ten-minute
-results, and a changed network signature triggers another test while the page remains visible.
+use the window header's shared control. Opening the window or manually rechecking starts routing,
+WebRTC and DNS together; switching categories only changes the displayed results and never cancels
+or restarts the batch. The header shows the selected result's own completion time; failed or cancelled
+leak tests never retain a previous success timestamp. Cancellation stops all three tests.
+All tabs reuse the overview's single network-environment watcher. Opening or resuming the window
+checks missing, unfinished or older-than-ten-minute results. A changed network signature cancels
+old work and starts all three tests again while the window remains visible.
 Failure or cancellation alone does not retry on every watcher tick. Manual rechecks remain available.
 Closing clears leak-test results and returns to the overview; minimizing, hiding or system inactivity
 suspends work without discarding completed results. Rendering a view without opening its session

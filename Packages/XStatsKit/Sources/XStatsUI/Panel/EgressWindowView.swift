@@ -102,13 +102,11 @@ private struct EgressHeader: View {
       .frame(maxHeight: .infinity)
       .background(WindowDragArea())
 
-      if session.tab.isOverview {
-        if let date = egress.report?.date, !egress.isChecking {
-          TimelineView(.periodic(from: .now, by: 30)) { context in
-            Text(verbatim: EgressText.checkedAt(date, now: context.date))
-              .dsFont(.xs)
-              .foregroundStyle(DS.Palette.textTertiary)
-          }
+      if let date = session.lastCheckedAt {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+          Text(verbatim: EgressText.checkedAt(date, now: context.date))
+            .dsFont(.xs)
+            .foregroundStyle(DS.Palette.textTertiary)
         }
       }
       Button {
@@ -117,7 +115,7 @@ private struct EgressHeader: View {
         HStack(spacing: DS.Space.s1) {
           if session.isChecking {
             ProgressView().controlSize(.mini)
-            if session.tab.isOverview {
+            if egress.isChecking {
               Text(tr("检测中 \(egress.progress)/\(EgressProber.jobCount)")).monospacedDigit()
             } else {
               Text(tr("正在检测…"))
@@ -132,8 +130,8 @@ private struct EgressHeader: View {
       }
       .buttonStyle(DSButtonStyle(kind: .secondary))
       .disabled(session.isChecking)
-      if !session.tab.isOverview && session.isChecking {
-        Button(tr("取消")) { session.cancelLeakTests() }
+      if session.isChecking {
+        Button(tr("取消")) { session.cancelChecks() }
           .buttonStyle(DSButtonStyle(kind: .secondary))
       }
     }
