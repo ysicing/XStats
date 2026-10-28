@@ -28,6 +28,7 @@ struct EgressWindowSessionTests {
       egress: egress,
       makeController: {
         NetworkLeakTestController(
+          geoLookup: { _ in nil },
           webRTCProbe: {
             webRTCCalls += 1
             await withCheckedContinuation { webRTCGate = $0 }
@@ -77,6 +78,7 @@ struct EgressWindowSessionTests {
       egress: egress,
       makeController: {
         NetworkLeakTestController(
+          geoLookup: { _ in nil },
           webRTCProbe: { WebRTCLeakProbe.Result(services: []) },
           exitLookup: { "192.0.2.1" },
           dnsProbe: {
@@ -149,6 +151,7 @@ struct EgressWindowSessionTests {
       egress: egress,
       makeController: {
         NetworkLeakTestController(
+          geoLookup: { _ in nil },
           webRTCProbe: { await withCheckedContinuation { webRTCGate = $0 } },
           exitLookup: { "192.0.2.1" },
           dnsProbe: { await withCheckedContinuation { dnsGate = $0 } })
@@ -199,6 +202,7 @@ struct EgressWindowSessionTests {
       egress: egress,
       makeController: {
         NetworkLeakTestController(
+          geoLookup: { _ in nil },
           webRTCProbe: {
             calls += 1
             return WebRTCLeakProbe.Result(services: [])
@@ -243,6 +247,7 @@ struct EgressWindowSessionTests {
       egress: egress,
       makeController: {
         NetworkLeakTestController(
+          geoLookup: { _ in nil },
           webRTCProbe: {
             calls += 1
             return WebRTCLeakProbe.Result(services: [])
@@ -284,6 +289,7 @@ struct EgressWindowSessionTests {
       egress: egress,
       makeController: {
         NetworkLeakTestController(
+          geoLookup: { _ in nil },
           webRTCProbe: {
             calls += 1
             throw NetworkLeakTest.Failure.unavailable
@@ -314,6 +320,7 @@ struct EgressWindowSessionTests {
 
   private static func offlineController() -> NetworkLeakTestController {
     NetworkLeakTestController(
+      geoLookup: { _ in nil },
       webRTCProbe: { WebRTCLeakProbe.Result(services: []) },
       exitLookup: { "192.0.2.1" }, dnsProbe: { try dnsResult() })
   }

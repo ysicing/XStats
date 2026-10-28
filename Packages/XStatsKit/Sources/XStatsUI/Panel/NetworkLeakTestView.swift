@@ -17,16 +17,21 @@ final class NetworkLeakTestController {
   private(set) var completedAt: Date?
   var webRTCServices: [WebRTCLeakProbe.ServiceResult] = []
   var httpExit: String?
+  var geolocations: [String: IPGeolocation] = [:]
   var dnsResult: NetworkLeakTest.DNSResult?
   @ObservationIgnored private(set) var task: Task<Void, Never>?
   @ObservationIgnored private var generation = UUID()
   @ObservationIgnored private let webRTCProbe: () async throws -> WebRTCLeakProbe.Result
   @ObservationIgnored private let exitLookup: () async -> String?
   @ObservationIgnored private let dnsProbe: () async throws -> NetworkLeakTest.DNSResult
+  @ObservationIgnored private let geoLookup: @MainActor (String) async -> IPGeolocation?
   @ObservationIgnored private let logger = Logger(
     subsystem: "work.12306.xstats", category: "LeakTest")
 
   init(
+    geoLookup: @escaping @MainActor (String) async -> IPGeolocation? = {
+      await IPGeolocationLookup.shared.lookup($0)
+    },
     webRTCProbe: @escaping () async throws -> WebRTCLeakProbe.Result = {
       try await WebRTCLeakProbe().run()
     },
@@ -43,6 +48,7 @@ final class NetworkLeakTestController {
     self.webRTCProbe = webRTCProbe
     self.exitLookup = exitLookup
     self.dnsProbe = dnsProbe
+    self.geoLookup = geoLookup
   }
 
   func start(_ mode: Mode) {
@@ -50,6 +56,7 @@ final class NetworkLeakTestController {
     completedAt = nil
     webRTCServices = []
     httpExit = nil
+    geolocations = [:]
     dnsResult = nil
     phase = .running
     let run = generation
@@ -74,6 +81,20 @@ final class NetworkLeakTestController {
         completedAt = Date()
         phase = .complete
         logger.debug("Leak test completed: \(mode.rawValue, privacy: .public)")
+        if mode == .webRTC {
+          // 先展示检测结果，再补齐归属；跨服务保留结果行，只对查询地址去重。
+          let addresses =
+            ([httpExit].compactMap { $0 })
+            + webRTCServices.flatMap(\.candidates).filter(\.isReflexive).map(\.address)
+          var queried = Set<String>()
+          for address in addresses where queried.insert(address).inserted {
+            try Task.checkCancellation()
+            let geo = await geoLookup(address)
+            try Task.checkCancellation()
+            guard run == generation else { return }
+            if let geo { geolocations[address] = geo }
+          }
+        }
       } catch {
         guard run == generation, !Task.isCancelled else { return }
         phase = .failed
@@ -193,9 +214,60 @@ struct NetworkLeakTestView: View {
 
   @ViewBuilder private func address(_ value: String?) -> some View {
     if let value {
-      Text(verbatim: value).font(.system(.body, design: .monospaced)).textSelection(.enabled)
+      VStack(alignment: .leading, spacing: DS.Space.s1) {
+        Text(verbatim: value).font(.system(.body, design: .monospaced)).textSelection(.enabled)
+        if let geo = controller.geolocations[value] {
+          let place = Self.location(geo, language: L10n.language)
+          if !place.isEmpty {
+            Text(verbatim: place).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
+          }
+          let network = [geo.providerName, geo.domain].filter { !$0.isEmpty }.joined(
+            separator: " · ")
+          if !network.isEmpty {
+            Text(verbatim: network).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+      }.textSelection(.enabled)
     } else {
       Text(tr("未获取到地址")).foregroundStyle(DS.Palette.textSecondary)
     }
+  }
+
+  static func location(_ geo: IPGeolocation, language: AppLanguage) -> String {
+    let country: String
+    let aliases: [String]
+    switch geo.countryCode {
+    case "HK":
+      country = L10n.translate("中国香港", language: language)
+      aliases = ["Hong Kong", "Hong Kong SAR", "香港", "中国香港", "中國香港"]
+    case "MO":
+      country = L10n.translate("中国澳门", language: language)
+      aliases = ["Macao", "Macau", "澳门", "澳門", "中国澳门", "中國澳門"]
+    case "TW":
+      country = L10n.translate("中国台湾", language: language)
+      aliases = ["Taiwan", "台湾", "台灣", "中国台湾", "中國台灣"]
+    default:
+      country =
+        L10n.locale(for: language).localizedString(forRegionCode: geo.countryCode)
+        ?? geo.country
+      aliases = []
+    }
+    var parts = [country].filter { !$0.isEmpty }
+    var seen = Set(
+      (aliases + [country, geo.country]).map {
+        $0.folding(
+          options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en")
+        )
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      })
+    for part in [geo.region, geo.city] where !part.isEmpty {
+      let key = part.folding(
+        options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en")
+      )
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      if seen.insert(key).inserted { parts.append(part) }
+    }
+    return parts.joined(separator: " · ")
   }
 }

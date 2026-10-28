@@ -9,6 +9,83 @@ import Testing
 
 @MainActor
 struct NetworkLeakTestPresentationTests {
+  @Test func geographyDeduplicatesPlacesAndUsesChinaRegionNames() {
+    func location(_ code: String, _ country: String, _ region: String, _ city: String) -> String {
+      NetworkLeakTestView.location(
+        IPGeolocation(
+          country: country, countryCode: code, region: region, city: city, isp: "", domain: ""),
+        language: .chinese)
+    }
+    #expect(location("SG", "Singapore", "Singapore", "singapore") == "新加坡")
+    let china = L10n.locale(for: .chinese).localizedString(forRegionCode: "CN") ?? "China"
+    #expect(location("CN", "China", "Beijing", "Beijing") == "\(china) · Beijing")
+    #expect(location("HK", "Hong Kong", "Hong Kong", "Hong Kong") == "中国香港")
+    #expect(location("MO", "Macao", "Macau", "Macao") == "中国澳门")
+    #expect(location("TW", "Taiwan", "Taipei", "Taipei") == "中国台湾 · Taipei")
+    for language in AppLanguage.allCases where language != .system {
+      for (code, source) in [("HK", "中国香港"), ("MO", "中国澳门"), ("TW", "中国台湾")] {
+        let geo = IPGeolocation(
+          country: "", countryCode: code, region: "", city: "", isp: "", domain: "")
+        #expect(
+          NetworkLeakTestView.location(geo, language: language)
+            == L10n.translate(source, language: language))
+      }
+    }
+  }
+
+  @Test func geolocationDoesNotDelayResultsAndDeduplicatesRequests() async throws {
+    let candidate = try #require(
+      NetworkLeakTest.candidate("candidate:a 1 udp 100 1.2.4.8 1234 typ srflx"))
+    let geo = IPGeolocation(
+      country: "China", countryCode: "CN", region: "Beijing", city: "Beijing",
+      isp: "Example", domain: "example.cn")
+    var gate: CheckedContinuation<IPGeolocation?, Never>?
+    var calls = 0
+    let controller = NetworkLeakTestController(
+      geoLookup: { _ in
+        calls += 1
+        return await withCheckedContinuation { gate = $0 }
+      },
+      webRTCProbe: {
+        WebRTCLeakProbe.Result(services: [
+          .init(provider: .cloudflare, candidates: [candidate], status: .complete),
+          .init(provider: .google, candidates: [candidate], status: .complete),
+        ])
+      }, exitLookup: { "1.2.4.8" })
+    controller.start(.webRTC)
+    let task = try #require(controller.task)
+    let deadline = ContinuousClock.now + .seconds(2)
+    while gate == nil, ContinuousClock.now < deadline { await Task.yield() }
+    let pending = try #require(gate)
+    #expect(controller.phase == .complete)
+    #expect(controller.httpExit == "1.2.4.8")
+    pending.resume(returning: geo)
+    await task.value
+    #expect(calls == 1)
+    #expect(controller.geolocations["1.2.4.8"] == geo)
+    #expect(controller.webRTCServices.count == 2)
+  }
+
+  @Test func cancellingRejectsLateGeolocationWithoutDiscardingDetectedIP() async throws {
+    var gate: CheckedContinuation<IPGeolocation?, Never>?
+    let controller = NetworkLeakTestController(
+      geoLookup: { _ in await withCheckedContinuation { gate = $0 } },
+      webRTCProbe: { WebRTCLeakProbe.Result(services: []) }, exitLookup: { "1.2.4.8" })
+    controller.start(.webRTC)
+    let task = try #require(controller.task)
+    let deadline = ContinuousClock.now + .seconds(2)
+    while gate == nil, ContinuousClock.now < deadline { await Task.yield() }
+    let pending = try #require(gate)
+    controller.cancel()
+    pending.resume(
+      returning: IPGeolocation(
+        country: "China", countryCode: "CN", region: "", city: "", isp: "", domain: ""))
+    await task.value
+    #expect(controller.phase == .complete)
+    #expect(controller.httpExit == "1.2.4.8")
+    #expect(controller.geolocations.isEmpty)
+  }
+
   @Test func windowZoomFitsContentWithoutStartingChecksOrExceedingScreen() throws {
     let name = "EgressWindowSizing.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: name))
@@ -62,6 +139,7 @@ struct NetworkLeakTestPresentationTests {
       egress: model.egress,
       makeController: {
         NetworkLeakTestController(
+          geoLookup: { _ in nil },
           webRTCProbe: { WebRTCLeakProbe.Result(services: []) },
           exitLookup: { "192.0.2.1" },
           dnsProbe: {
@@ -137,6 +215,13 @@ struct NetworkLeakTestPresentationTests {
           .init(provider: .blackBerry, status: .failed),
           .init(provider: .twilio, status: .timedOut),
         ]
+        let geo = IPGeolocation(
+          country: "China", countryCode: "HK", region: "Hong Kong", city: "Hong Kong",
+          isp: "Example International Network Operator with a long service provider name",
+          domain: "international-network.example.com", org: "Example Network")
+        controller.geolocations = [
+          "192.0.2.1": geo, "2001:db8:1234:5678:abcd:ef01:2345:6789": geo,
+        ]
         controller.dnsResult = try NetworkLeakTest.decodeDNS(
           Data(
             """
@@ -147,10 +232,10 @@ struct NetworkLeakTestPresentationTests {
         let host = NSHostingView(
           rootView:
             NetworkLeakTestView(controller: controller, mode: mode)
-            .frame(width: 640)
+            .frame(width: 576)
             .background(Color(nsColor: .windowBackgroundColor))
             .environment(\.layoutDirection, rightToLeft ? .rightToLeft : .leftToRight))
-        let size = NSSize(width: 640, height: 640)
+        let size = NSSize(width: 576, height: 640)
         let window = NSWindow(
           contentRect: NSRect(origin: .zero, size: size),
           styleMask: .borderless, backing: .buffered, defer: false)
