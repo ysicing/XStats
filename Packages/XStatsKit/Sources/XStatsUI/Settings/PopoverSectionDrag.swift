@@ -35,7 +35,7 @@ struct PopoverSectionDrag {
 }
 
 /// SwiftUI 没有旧版 macOS 通用的拖放结束回调；只把手柄交给 AppKit，确保 Esc 和列表外松手也清理草稿。
-struct PopoverSectionDragHandle: NSViewRepresentable {
+struct SettingsReorderHandle: NSViewRepresentable {
   // 源与 SwiftUI 目标共用系统声明的类型；未注册的自定义名称会在桥接时丢失。
   // 内容只是随机标记，目标仍要求自己的本地草稿，因此外部文本和跨指标拖入不会生效。
   static let pasteboardType = NSPasteboard.PasteboardType.string
@@ -82,7 +82,7 @@ struct PopoverSectionDragHandle: NSViewRepresentable {
       else { return }
       mouseDownEvent = nil
       let item = NSPasteboardItem()
-      item.setString(UUID().uuidString, forType: PopoverSectionDragHandle.pasteboardType)
+      item.setString(UUID().uuidString, forType: SettingsReorderHandle.pasteboardType)
       let draggingItem = NSDraggingItem(pasteboardWriter: item)
       let text = NSAttributedString(
         string: title,

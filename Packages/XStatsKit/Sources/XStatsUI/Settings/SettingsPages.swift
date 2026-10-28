@@ -362,6 +362,8 @@ struct ShortcutRecorder: View {
 
 struct MenuBarSettings: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var itemDrag: MenuBarItemDrag?
 
   var body: some View {
     @Bindable var settings = model.settings
@@ -431,7 +433,8 @@ struct MenuBarSettings: View {
       let order =
         (settings.menuBarLayout == .combined ? settings.menuBarOrder : MenuBarItem.allCases)
         .filter { model.availableMenuBarItems.contains($0) }
-      ForEach(Array(order.enumerated()), id: \.element) { index, item in
+      let displayOrder = itemDrag?.previewOrder ?? order
+      ForEach(Array(displayOrder.enumerated()), id: \.element) { index, item in
         let moduleEnabled = settings.isModuleEnabled(for: item)
         GroupRow(
           showsDivider: index > 0 || settings.menuBarLayout != .combined
@@ -445,12 +448,24 @@ struct MenuBarSettings: View {
             ) {
               HStack(spacing: DS.Space.s2) {
                 if settings.menuBarLayout == .combined {
-                  MiniIconButton(systemName: "arrow.up", help: tr("将\(item.title)向前移动")) {
+                  SettingsReorderHandle(title: item.title, animateCancellation: !reduceMotion) {
+                    itemDrag = MenuBarItemDrag(
+                      item: item, order: settings.menuBarOrder,
+                      available: model.availableMenuBarItems)
+                  } end: {
+                    itemDrag = nil
+                  }
+                  .frame(width: DS.Size.segmentHeight, height: DS.Size.segmentHeight)
+                  .help(tr("拖动以调整顺序"))
+                  .accessibilityElement(children: .ignore)
+                  .accessibilityAddTraits(.isButton)
+                  .accessibilityLabel(item.title)
+                  .accessibilityAction(named: tr("将\(item.title)向前移动")) {
                     settings.moveMenuBarItem(item, by: -1, among: model.availableMenuBarItems)
-                  }.disabled(index == 0)
-                  MiniIconButton(systemName: "arrow.down", help: tr("将\(item.title)向后移动")) {
+                  }
+                  .accessibilityAction(named: tr("将\(item.title)向后移动")) {
                     settings.moveMenuBarItem(item, by: 1, among: model.availableMenuBarItems)
-                  }.disabled(index == order.count - 1)
+                  }
                 }
                 if settings.menuBarLayout == .combined, settings.customMenuBarPlacementEnabled {
                   Toggle(
@@ -510,8 +525,28 @@ struct MenuBarSettings: View {
             }
           }
         }
+        .opacity(itemDrag?.item == item ? 0 : 1)
+        .onDrop(
+          of: [SettingsReorderHandle.pasteboardType.rawValue],
+          delegate: MenuBarItemDropDelegate(item: item, drag: $itemDrag) { draft in
+            guard settings.menuBarLayout == .combined,
+              let updated = draft.orderToCommit(
+                current: settings.menuBarOrder, available: model.availableMenuBarItems)
+            else { return false }
+            settings.setMenuBarOrder(updated)
+            return true
+          }
+        )
       }
+      .dsSelectionAnimation(DS.Motion.usageSelection, value: displayOrder)
     }
+    .onChange(of: settings.menuBarOrder) { itemDrag = nil }
+    .onChange(of: settings.menuBarLayout) { itemDrag = nil }
+    .onChange(of: model.availableMenuBarItems) { itemDrag = nil }
+    .onChange(of: model.isMainWindowVisible) {
+      if !model.isMainWindowVisible { itemDrag = nil }
+    }
+    .onDisappear { itemDrag = nil }
 
     SettingsGroup(caption: tr("高级")) {
       if settings.menuBarLayout != .iconOnly {
@@ -793,7 +828,7 @@ struct PopoverSectionPicker: View {
         VStack(spacing: 0) {
           ForEach(Array(displayOrder.enumerated()), id: \.element) { index, section in
             HStack(spacing: DS.Space.s3) {
-              PopoverSectionDragHandle(title: section.title, animateCancellation: !reduceMotion) {
+              SettingsReorderHandle(title: section.title, animateCancellation: !reduceMotion) {
                 sectionDrag = PopoverSectionDrag(section: section, order: order)
               } end: {
                 sectionDrag = nil
@@ -844,7 +879,7 @@ struct PopoverSectionPicker: View {
             .contentShape(Rectangle())
             .opacity(sectionDrag?.section == section ? 0 : 1)
             .onDrop(
-              of: [PopoverSectionDragHandle.pasteboardType.rawValue],
+              of: [SettingsReorderHandle.pasteboardType.rawValue],
               delegate: PopoverSectionDropDelegate(section: section, drag: $sectionDrag) { draft in
                 let currentOrder = settings.editablePopoverSections(
                   for: item, hasBattery: model.store.battery != nil,

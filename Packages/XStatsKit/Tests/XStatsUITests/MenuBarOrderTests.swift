@@ -125,4 +125,51 @@ struct MenuBarOrderTests {
       settings.moveMenuBarItem(.memory, by: -1)
     }
   }
+
+  @Test func dragOnlyPersistsOnDropAndPreservesUnavailablePositions() throws {
+    let fixture = Preferences()
+    defer { fixture.remove() }
+    let settings = AppSettings(defaults: fixture.defaults)
+    settings.menuBarLayout = .combined
+    settings.customMenuBarPlacementEnabled = true
+    settings.menuBarItems = [.cpu, .memory]
+    settings.combinedOverviewItems = [.cpu, .memory, .battery]
+    settings.setModuleEnabled(.gpu, false)
+    let original = settings.menuBarOrder
+    let modules = settings.enabledMonitoringModules
+    let available = MenuBarItem.allCases.filter { $0 != .fan }
+    var draft = MenuBarItemDrag(item: .battery, order: original, available: available)
+    draft.move(over: .cpu)
+    #expect(draft.previewOrder.first == .battery)
+    #expect(settings.menuBarOrder == original)
+    #expect(AppSettings(defaults: fixture.defaults).menuBarOrder == original)
+    let reordered = try #require(
+      draft.orderToCommit(current: settings.menuBarOrder, available: available))
+    #expect(reordered.firstIndex(of: .fan) == original.firstIndex(of: .fan))
+    settings.setMenuBarOrder(reordered)
+    #expect(settings.orderedOverviewItems == [.battery, .cpu, .memory])
+    #expect(settings.menuBarItems == [.cpu, .memory])
+    #expect(settings.enabledMonitoringModules == modules)
+    #expect(AppSettings(defaults: fixture.defaults).menuBarOrder == reordered)
+    #expect(draft.orderToCommit(current: reordered, available: available) == nil)
+  }
+
+  @Test func dragCanReverseAndRejectsChangedHardwareOrMissingSource() {
+    let original = MenuBarItem.allCases
+    var draft = MenuBarItemDrag(item: .cpu, order: original, available: original)
+    draft.move(over: .audio)
+    #expect(draft.previewOrder.last == .cpu)
+    draft.move(over: .memory)
+    #expect(draft.previewOrder == original)
+    draft.move(over: .cpu)
+    #expect(draft.orderToCommit(current: original, available: original) == original)
+    let available = original.filter { $0 != .fan }
+    #expect(draft.orderToCommit(current: original, available: available) == nil)
+    var hiddenSource = MenuBarItemDrag(item: .fan, order: original, available: available)
+    hiddenSource.move(over: .cpu)
+    #expect(hiddenSource.orderToCommit(current: original, available: available) == nil)
+    var hiddenTarget = MenuBarItemDrag(item: .cpu, order: original, available: available)
+    hiddenTarget.move(over: .fan)
+    #expect(hiddenTarget.previewOrder == available)
+  }
 }

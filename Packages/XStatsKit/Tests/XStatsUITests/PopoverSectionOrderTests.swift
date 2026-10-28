@@ -100,7 +100,7 @@ struct PopoverSectionOrderTests {
   @Test func dragPasteboardTypeIsRecognizedBySwiftUI() throws {
     // AppKit 允许任意粘贴板名称，SwiftUI 目标却需要可解析的 UTType。
     // 未声明的自定义名称会让源成功启动、目标始终收不到拖入和落下。
-    let type = try #require(UTType(PopoverSectionDragHandle.pasteboardType.rawValue))
+    let type = try #require(UTType(SettingsReorderHandle.pasteboardType.rawValue))
     #expect(type.conforms(to: .data))
   }
 

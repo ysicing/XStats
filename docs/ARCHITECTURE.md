@@ -513,7 +513,9 @@ pieces of read-mostly logic in `Cleaner/DiskTools.swift`, each testable without 
 
 `menuBarOrder` stores the complete metric order independently of enabled items. Combined mode
 uses this order for indicators and overview rows; separate status items retain macOS ordering.
-Settings arrows skip hardware-unavailable items while preserving their saved position. Moving an
+Settings drag handles reorder a local preview and save only on a valid drop; Esc or dropping
+outside discards the preview. Unavailable hardware keeps its saved position, and a changed order
+or hardware list invalidates the draft. Accessible move actions remain on each handle. Moving an
 item does not enable its monitoring module. The optional settings-document field syncs the order;
 older documents preserve the current order. `AppController` observes order changes to redraw once.
 
