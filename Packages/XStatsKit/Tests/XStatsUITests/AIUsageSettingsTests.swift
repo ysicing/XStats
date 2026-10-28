@@ -71,7 +71,9 @@ struct AIUsageSettingsTests {
     #expect(settings.orderedAIMenuBarProviders == order)
     let encoded = try JSONEncoder().encode(settings.exportDocument())
     let decoded = try JSONDecoder().decode(SettingsDocument.self, from: encoded)
-    #expect(decoded.aiMenuBarProviderOrder == order)
+    #expect(decoded.aiMenuBarProviderOrder == settings.completeAIMenuBarProviderOrder)
+    #expect(
+      decoded.aiMenuBarProviderOrder?.filter { settings.aiMenuBarProviders.contains($0) } == order)
     settings.setAIMenuBarProviderOrder(Array(order.reversed()))
     var imported = SettingsDocument()
     imported.aiMenuBarProviders = decoded.aiMenuBarProviders
@@ -80,6 +82,18 @@ struct AIUsageSettingsTests {
     #expect(settings.orderedAIMenuBarProviders == order)
     settings.apply(SettingsDocument())
     #expect(settings.orderedAIMenuBarProviders == order)
+    // 旧备份只保存选中项，同样能恢复；缺项、重复或空服务键均不覆盖。
+    imported.aiMenuBarProviderOrder = order
+    settings.apply(imported)
+    #expect(settings.orderedAIMenuBarProviders == order)
+    for invalid in [
+      ["claude"], ["claude", "claude", "workbuddy", "codex"],
+      order + [""],
+    ] {
+      imported.aiMenuBarProviderOrder = invalid
+      settings.apply(imported)
+      #expect(settings.orderedAIMenuBarProviders == order)
+    }
     settings.aiMenuBarProviders = []
     #expect(settings.orderedAIMenuBarProviders.isEmpty)
     #expect(AppSettings(defaults: defaults).orderedAIMenuBarProviders.isEmpty)
@@ -105,6 +119,58 @@ struct AIUsageSettingsTests {
     #expect(
       AppSettings(defaults: defaults).orderedAIMenuBarProviders
         == ["grok", "claude", "codex", "gemini"])
+  }
+
+  @Test func hiddenProviderKeepsItsSlotAfterReorderingAndBackupRestore() throws {
+    let name = "AIUsageSettingsTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let settings = AppSettings(defaults: defaults)
+    settings.aiMenuBarProviders = ["claude", "codex", "kimi"]
+    #expect(settings.setAIMenuBarProviderOrder(["claude", "codex", "kimi"]))
+    settings.aiMenuBarProviders.remove("codex")
+    #expect(settings.setAIMenuBarProviderOrder(["kimi", "claude"]))
+    let decoded = try JSONDecoder().decode(
+      SettingsDocument.self, from: JSONEncoder().encode(settings.exportDocument()))
+    #expect(decoded.aiMenuBarProviderOrder?.contains("codex") == true)
+    let restarted = AppSettings(defaults: defaults)
+    restarted.aiMenuBarProviders.insert("codex")
+    #expect(restarted.orderedAIMenuBarProviders == ["kimi", "codex", "claude"])
+    let backupName = "\(name).backup"
+    let backupDefaults = try #require(UserDefaults(suiteName: backupName))
+    defer { backupDefaults.removePersistentDomain(forName: backupName) }
+    let restored = AppSettings(defaults: backupDefaults)
+    // 只恢复本用例的字段，避免语言等全局偏好干扰其他用例。
+    var imported = SettingsDocument()
+    imported.aiMenuBarProviders = decoded.aiMenuBarProviders
+    imported.aiMenuBarProviderOrder = decoded.aiMenuBarProviderOrder
+    restored.apply(imported)
+    #expect(restored.aiMenuBarProviders == ["kimi", "claude"])
+    restored.aiMenuBarProviders.insert("codex")
+    #expect(restored.orderedAIMenuBarProviders == ["kimi", "codex", "claude"])
+    // 全部隐藏后导出仍保留顺序，再恢复显示时不能落回品牌默认顺序。
+    restored.aiMenuBarProviders = []
+    let hiddenExport = restored.exportDocument()
+    var hidden = SettingsDocument()
+    hidden.aiMenuBarProviders = hiddenExport.aiMenuBarProviders
+    hidden.aiMenuBarProviderOrder = hiddenExport.aiMenuBarProviderOrder
+    restored.aiMenuBarProviders = ["claude", "codex", "kimi"]
+    #expect(restored.setAIMenuBarProviderOrder(["claude", "codex", "kimi"]))
+    restored.apply(hidden)
+    #expect(restored.aiMenuBarProviders.isEmpty)
+    restored.aiMenuBarProviders = ["claude", "codex", "kimi"]
+    #expect(restored.orderedAIMenuBarProviders == ["kimi", "codex", "claude"])
+  }
+
+  @Test func hiddenDefaultProviderKeepsItsSlotBeforeTheFirstCustomOrder() throws {
+    let name = "AIUsageSettingsTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let settings = AppSettings(defaults: defaults)
+    settings.aiMenuBarProviders.remove("codex")
+    #expect(settings.setAIMenuBarProviderOrder(["gemini", "grok", "claude"]))
+    settings.aiMenuBarProviders.insert("codex")
+    #expect(settings.orderedAIMenuBarProviders == ["gemini", "codex", "grok", "claude"])
   }
 
   @Test func menuBarProviderLimitAppliesToSavedAndAssignedSelections() throws {

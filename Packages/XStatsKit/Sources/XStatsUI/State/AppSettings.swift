@@ -868,22 +868,43 @@ public final class AppSettings {
     didSet { defaults.set(aiMenuBarProviderOrder, forKey: Keys.aiMenuBarProviderOrder) }
   }
 
-  /// 未排序时优先 Claude、Codex、Grok、Gemini；重新勾选时保留已保存的相对位置。
-  public var orderedAIMenuBarProviders: [String] {
+  /// 完整序列保留隐藏服务的位置，显示和备份使用同一份顺序。
+  var completeAIMenuBarProviderOrder: [String] {
     var seen: Set<String> = []
     let defaultOrder = ["claude", "codex", "grok", "gemini"]
     return
       (aiMenuBarProviderOrder + defaultOrder + AIServiceBrand.menuBarOrder
       + aiMenuBarProviders.sorted())
-      .filter { aiMenuBarProviders.contains($0) && seen.insert($0).inserted }
+      .filter { !$0.isEmpty && seen.insert($0).inserted }
+  }
+
+  /// 未排序时优先 Claude、Codex、Grok、Gemini；重新勾选时恢复完整序列中的位置。
+  public var orderedAIMenuBarProviders: [String] {
+    completeAIMenuBarProviderOrder.filter { aiMenuBarProviders.contains($0) }
   }
 
   @discardableResult
   public func setAIMenuBarProviderOrder(_ providers: [String]) -> Bool {
     guard providers.count == aiMenuBarProviders.count, Set(providers) == aiMenuBarProviders
     else { return false }
-    if aiMenuBarProviderOrder != providers { aiMenuBarProviderOrder = providers }
+    var nextIndex = 0
+    // 仅替换已选服务占用的槽位，取消勾选的服务不会因其他服务排序而丢失位置。
+    let merged = completeAIMenuBarProviderOrder.map { provider in
+      guard aiMenuBarProviders.contains(provider) else { return provider }
+      defer { nextIndex += 1 }
+      return providers[nextIndex]
+    }
+    if aiMenuBarProviderOrder != merged { aiMenuBarProviderOrder = merged }
     return true
+  }
+
+  /// 备份可包含未选服务；兼容旧备份只包含已选服务的形式，非法序列不覆盖当前顺序。
+  func restoreAIMenuBarProviderOrder(_ providers: [String]) {
+    guard Set(providers).count == providers.count,
+      providers.allSatisfy({ !$0.isEmpty }),
+      aiMenuBarProviders.isSubset(of: Set(providers))
+    else { return }
+    if aiMenuBarProviderOrder != providers { aiMenuBarProviderOrder = providers }
   }
 
   private static func normalizedAIMenuBarProviders(_ providers: Set<String>) -> Set<String> {

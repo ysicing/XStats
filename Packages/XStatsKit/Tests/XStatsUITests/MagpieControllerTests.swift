@@ -178,7 +178,7 @@ struct MagpieControllerTests {
     #expect(store.load().dailyTokens?.first?.tokens == 120)
     #expect(store.load().visibleCumulativeTokens.first?.total == 120)
     #expect(store.load().visibleCumulativeTokens.first?.scope == .all)
-    #expect(store.load().quotaSlots().map(\.provider) == ["codex", "claude", "gemini", "grok"])
+    #expect(store.load().quotaSlots().map(\.provider) == ["codex", "grok", "claude", "gemini"])
     #expect(store.load().quotas.allSatisfy { !$0.isStale })
     let accounts = try #require(store.load().quotaAccounts)
     let codex = accounts.filter { $0.provider == "codex" }
@@ -223,12 +223,14 @@ struct MagpieControllerTests {
       model: model, widgetStore: store, reloadWidget: { reloaded.append($0) })
     app.syncWidgetSnapshot()
     app.observeWidgetState()
-    #expect(store.load().quotaSlots().map(\.provider) == settings.orderedAIMenuBarProviders)
+    #expect(store.load().quotaSlots().map(\.provider) == ["codex", "grok", "claude", "workbuddy"])
     reloaded.removeAll()
     let order = ["workbuddy", "grok", "codex", "claude"]
     #expect(settings.setAIMenuBarProviderOrder(order))
-    try await waitForWidget { store.load().quotaSlots().map(\.provider) == order }
-    #expect(store.load().quotaSlots().first?.quota == nil)
+    try await waitForWidget {
+      store.load().quotaSlots().map(\.provider) == ["grok", "codex", "workbuddy", "claude"]
+    }
+    #expect(store.load().quotaSlots().first { $0.provider == "workbuddy" }?.quota == nil)
     #expect(reloaded == [WidgetKind.aiQuota])
     #expect(
       model.aiUsage.menuBarMagpieQuotas().map(\.sourceName)
@@ -240,6 +242,46 @@ struct MagpieControllerTests {
     settings.aiMenuBarProviders.remove("workbuddy")
     try await waitForWidget { store.load().quotaProviders?.contains("workbuddy") == false }
     #expect(store.load().quotaSlots().count == 4)
+  }
+
+  @Test func widgetDefaultBrandsDoNotDisplaceExistingMagpieServices() async throws {
+    let payload = Data(
+      """
+      {"object":"list","data":[
+        {"provider":"codex","name":"A","kind":"subscription","windows":[{"name":"7 days","remaining":60}]},
+        {"provider":"claude","name":"B","kind":"subscription","windows":[{"name":"7 days","remaining":70}]},
+        {"provider":"kimi","name":"C","kind":"subscription","windows":[{"name":"7 days","remaining":80}]}
+      ]}
+      """.utf8)
+    let suite = "MagpieWidgetCandidates.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.aiUsageEnabled = true
+    let magpie = MagpieStub(quotaPayload: payload)
+    let model = AppModel(settings: settings, historyURL: nil, magpieClient: magpie)
+    defer { model.aiUsage.stop() }
+    await model.aiUsage.refresh()
+    let store = WidgetSnapshotStore(defaults: defaults)
+    let app = AppController(model: model, widgetStore: store, reloadWidget: { _ in })
+    app.syncWidgetSnapshot()
+    let slots = store.load().quotaSlots()
+    #expect(slots.map(\.provider) == ["claude", "codex", "kimi", "grok"])
+    #expect(slots.compactMap(\.quota).count == 3)
+    let failedPayload = try JSONSerialization.jsonObject(with: payload) as? [String: Any]
+    var accounts = try #require(failedPayload?["data"] as? [[String: Any]])
+    accounts[0]["error"] = "unavailable"
+    accounts[0]["windows"] = []
+    await magpie.setQuotaPayload(
+      try JSONSerialization.data(withJSONObject: ["object": "list", "data": accounts]))
+    await model.aiUsage.refresh()
+    app.syncWidgetSnapshot()
+    #expect(store.load().quotaSlots().map(\.provider) == slots.map(\.provider))
+    #expect(store.load().quotaSlots()[1].quota == nil)
+    await magpie.fail(true)
+    await model.aiUsage.refresh()
+    app.syncWidgetSnapshot()
+    #expect(store.load().quotaSlots().map(\.provider) == slots.map(\.provider))
   }
 
   @Test func deletedPreferredAccountReturnsToMagpieOnlyAfterSuccessfulRefresh() async throws {

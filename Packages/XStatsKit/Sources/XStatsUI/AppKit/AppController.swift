@@ -879,14 +879,15 @@ public final class AppController: NSObject, NSApplicationDelegate {
         firstWeekday: settings.calendarFirstWeekday,
         features: settings.calendarFeatures)
     }
-    // 已选服务跟随菜单栏排序；不足四个时补入可用服务，暂时无额度仍保留位置。
+    // 先展示 Magpie 中实际存在的服务，再用缺失的已选服务补位。
+    // 依据账号是否存在而非本次额度是否有效，短暂失败不会让圆环换位。
     let available = Set(model.aiUsage.magpieQuotas.map(\.provider))
     let selected = settings.orderedAIMenuBarProviders
     let quotaProviders = Array(
-      (selected
+      (selected.filter { available.contains($0) }
         + AIServiceBrand.menuBarOrder.filter { available.contains($0) && !selected.contains($0) }
-        + available.subtracting(AIServiceBrand.menuBarOrder).subtracting(selected).sorted()).prefix(
-          4))
+        + available.subtracting(AIServiceBrand.menuBarOrder).subtracting(selected).sorted()
+        + selected.filter { !available.contains($0) }).prefix(4))
     let quotaAccounts = model.aiUsage.widgetQuotaAccounts(at: now)
       .filter { quotaProviders.contains($0.provider) }
     // 旧扩展仍可读取每服务一条的默认摘要；新扩展使用完整账号列表。

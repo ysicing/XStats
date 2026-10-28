@@ -132,7 +132,7 @@ extension AppSettings {
     doc.menuBarItemSpacing = menuBarItemSpacing
     doc.trio = trio
     doc.aiMenuBarProviders = aiMenuBarProviders.sorted()
-    doc.aiMenuBarProviderOrder = orderedAIMenuBarProviders
+    doc.aiMenuBarProviderOrder = completeAIMenuBarProviderOrder
     doc.aiPreferredAccounts = aiPreferredAccounts
     doc.aiWidgetShowsResetRing = aiWidgetShowsResetRing
     doc.menuBarLayout = menuBarLayout.rawValue
@@ -241,7 +241,7 @@ extension AppSettings {
     if let accounts = doc.aiPreferredAccounts { aiPreferredAccounts = accounts }
     if let showsReset = doc.aiWidgetShowsResetRing { aiWidgetShowsResetRing = showsReset }
     if let providers = doc.aiMenuBarProviders { aiMenuBarProviders = Set(providers) }
-    if let order = doc.aiMenuBarProviderOrder { setAIMenuBarProviderOrder(order) }
+    if let order = doc.aiMenuBarProviderOrder { restoreAIMenuBarProviderOrder(order) }
     assign(\.menuBarLayout, doc.menuBarLayout.flatMap(MenuBarLayout.init(rawValue:)))
     assign(
       \.hiddenPopoverSections,
