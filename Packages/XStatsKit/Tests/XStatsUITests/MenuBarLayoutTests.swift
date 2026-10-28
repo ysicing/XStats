@@ -124,6 +124,7 @@ struct MenuBarLayoutTests {
       model.settings.menuBarLayout = layout
       for item: MenuBarItem in [.cpu, .memory] {
         model.settings.menuBarItems = [item]
+        model.settings.combinedOverviewItems = [item]
         model.settings.processesEnabled = false
         let idle = model.demand
         model.isCombinedPopoverOpen = true
@@ -151,6 +152,7 @@ struct MenuBarLayoutTests {
       let selections: [Set<MenuBarItem>] = [[], [.display], [.aiUsage], [.display, .aiUsage]]
       for items in selections {
         model.settings.menuBarItems = items
+        model.settings.combinedOverviewItems = items
         let idle = model.demand
         #expect(idle.interval == .seconds(5))
         model.isCombinedPopoverOpen = true
@@ -180,6 +182,7 @@ struct MenuBarLayoutTests {
       for item: MenuBarItem in [.cpu, .memory, .network, .gpu, .disk, .temperature, .fan, .battery]
       {
         model.settings.menuBarItems = [.display, item]
+        model.settings.combinedOverviewItems = [.display, item]
         let idle = model.demand
         model.isCombinedPopoverOpen = true
         #expect(model.demand.interval == .seconds(1))

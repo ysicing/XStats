@@ -714,6 +714,29 @@ public final class AppSettings {
       if added.contains(.audio) { audioEnabled = true }
     }
   }
+  /// 关闭时总览跟随菜单栏；保留独立选择，重新开启后恢复。
+  public var customMenuBarPlacementEnabled: Bool {
+    didSet {
+      if customMenuBarPlacementEnabled,
+        defaults.object(forKey: Keys.combinedOverviewItems) == nil
+      {
+        combinedOverviewItems = menuBarItems
+      }
+      defaults.set(customMenuBarPlacementEnabled, forKey: Keys.customMenuBarPlacementEnabled)
+    }
+  }
+  /// 自定义聚合总览独立保存；隐藏读数不影响总览，关闭功能仍由模块开关控制。
+  public var combinedOverviewItems: Set<MenuBarItem> {
+    didSet {
+      defaults.set(
+        combinedOverviewItems.map(\.rawValue).sorted(), forKey: Keys.combinedOverviewItems)
+      let added = combinedOverviewItems.subtracting(oldValue)
+      enabledMonitoringModules.formUnion(
+        added.filter { $0 != .battery }.compactMap(\.monitoringModule))
+      if added.contains(.aiUsage) { aiUsageEnabled = true }
+      if added.contains(.audio) { audioEnabled = true }
+    }
+  }
   /// 聚合模式顺序独立保存，暂未开启或硬件不可用的项目也保留位置。
   public private(set) var menuBarOrder: [MenuBarItem] {
     didSet { defaults.set(menuBarOrder.map(\.rawValue), forKey: Keys.menuBarOrder) }
@@ -1228,9 +1251,14 @@ public final class AppSettings {
       modules.map { Set($0.compactMap(MonitoringModule.init(rawValue:))) }
       ?? Set(MonitoringModule.allCases)
     enabledMonitoringModules = enabledModules
-    menuBarItems = Set(items ?? [.cpu, .memory, .network]).filter { item in
+    let initialMenuBarItems = Set(items ?? [.cpu, .memory, .network]).filter { item in
       item == .battery || (item.monitoringModule.map { enabledModules.contains($0) } ?? true)
     }
+    menuBarItems = initialMenuBarItems
+    customMenuBarPlacementEnabled = defaults.bool(forKey: Keys.customMenuBarPlacementEnabled)
+    combinedOverviewItems =
+      defaults.stringArray(forKey: Keys.combinedOverviewItems)
+      .map { Set($0.compactMap(MenuBarItem.init(rawValue:))) } ?? initialMenuBarItems
     menuBarOrder = Self.normalizedMenuBarOrder(
       defaults.stringArray(forKey: Keys.menuBarOrder)?.compactMap(MenuBarItem.init(rawValue:)) ?? []
     )
@@ -1434,6 +1462,13 @@ public final class AppSettings {
     }
   }
 
+  var orderedOverviewItems: [MenuBarItem] {
+    guard menuBarLayout == .combined, customMenuBarPlacementEnabled else {
+      return orderedMenuBarItems
+    }
+    return menuBarOrder.filter { combinedOverviewItems.contains($0) && isModuleEnabled(for: $0) }
+  }
+
   private static func normalizedMenuBarOrder(_ order: [MenuBarItem]) -> [MenuBarItem] {
     var seen: Set<MenuBarItem> = []
     return (order + MenuBarItem.allCases).filter { seen.insert($0).inserted }
@@ -1622,6 +1657,18 @@ public final class AppSettings {
     }
   }
 
+  func setOverviewEnabled(_ item: MenuBarItem, _ enabled: Bool) {
+    if enabled {
+      // 已保留的选择也须能重新启用已关闭的功能。
+      if item != .battery, let module = item.monitoringModule { setModuleEnabled(module, true) }
+      if item == .aiUsage { aiUsageEnabled = true }
+      if item == .audio { audioEnabled = true }
+      combinedOverviewItems.insert(item)
+    } else {
+      combinedOverviewItems.remove(item)
+    }
+  }
+
   private enum Keys {
     static let restEnabled = "restEnabled"
     static let wellnessPreferences = "wellnessPreferences"
@@ -1638,6 +1685,8 @@ public final class AppSettings {
     static let calendarFeatures = "calendarFeatures"
     static let calendarFirstWeekday = "calendarFirstWeekday"
     static let menuBarItems = "menuBarItems"
+    static let customMenuBarPlacementEnabled = "customMenuBarPlacementEnabled"
+    static let combinedOverviewItems = "combinedOverviewItems"
     static let menuBarOrder = "menuBarOrder"
     static let menuBarStyle = "menuBarStyle"
     static let menuBarValueOnTop = "menuBarValueOnTop"

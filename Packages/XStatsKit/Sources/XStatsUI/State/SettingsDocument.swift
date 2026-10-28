@@ -31,6 +31,8 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var calendarFeatures: [String]?
   public var calendarFirstWeekday: Int?
   public var menuBarItems: [String]?
+  public var customMenuBarPlacementEnabled: Bool?
+  public var combinedOverviewItems: [String]?
   public var menuBarOrder: [String]?
   public var enabledMonitoringModules: [String]?
   public var menuBarStyle: String?
@@ -105,6 +107,8 @@ extension AppSettings {
     doc.calendarFeatures = calendarFeatures.map(\.rawValue).sorted()
     doc.calendarFirstWeekday = calendarFirstWeekday
     doc.menuBarItems = menuBarItems.map(\.rawValue).sorted()
+    doc.customMenuBarPlacementEnabled = customMenuBarPlacementEnabled
+    doc.combinedOverviewItems = combinedOverviewItems.map(\.rawValue).sorted()
     doc.menuBarOrder = menuBarOrder.map(\.rawValue)
     doc.enabledMonitoringModules = enabledMonitoringModules.map(\.rawValue).sorted()
     doc.menuBarStyle = menuBarStyle.rawValue
@@ -190,6 +194,16 @@ extension AppSettings {
     assign(\.calendarFeatures, doc.calendarFeatures.map(CalendarFeature.restored(from:)))
     assign(\.calendarFirstWeekday, option(doc.calendarFirstWeekday, in: Array(1...7)))
     assign(\.menuBarItems, doc.menuBarItems.map { Set($0.compactMap(MenuBarItem.init(rawValue:))) })
+    // 即使与内存默认值相同也保存显式选择，避免首次开启时把导入值当成未配置覆盖。
+    // 旧备份里一份选择同时用于菜单栏和总览；空文档不改变现有选择。
+    if let items = doc.combinedOverviewItems ?? doc.menuBarItems {
+      combinedOverviewItems = Set(items.compactMap(MenuBarItem.init(rawValue:)))
+    }
+    if let enabled = doc.customMenuBarPlacementEnabled {
+      assign(\.customMenuBarPlacementEnabled, enabled)
+    } else if doc.menuBarItems != nil || doc.combinedOverviewItems != nil {
+      assign(\.customMenuBarPlacementEnabled, false)
+    }
     if let order = doc.menuBarOrder {
       setMenuBarOrder(order.compactMap(MenuBarItem.init(rawValue:)))
     }

@@ -471,7 +471,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
       model.openMainWindow(requested.map { AppDeepLink.page($0, settings: model.settings) })
     case .panel(let item):
       if let item {
-        guard model.visibleMenuBarItems.contains(item), menuBar.showPopover(item) else {
+        let items =
+          model.settings.menuBarLayout == .separate
+          ? model.visibleMenuBarItems : model.visibleOverviewItems
+        guard items.contains(item), menuBar.showPopover(item) else {
           model.openMainWindow(AppDeepLink.page(PanelTab(item: item), settings: model.settings))
           return
         }
@@ -653,6 +656,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.audio.output
       _ = model.displays.catalog
       _ = model.settings.menuBarItems
+      _ = model.settings.combinedOverviewItems
+      _ = model.settings.customMenuBarPlacementEnabled
       _ = model.settings.menuBarOrder
       _ = model.settings.menuBarItemSpacing
       _ = model.settings.trio

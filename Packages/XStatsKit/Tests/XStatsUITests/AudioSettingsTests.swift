@@ -35,6 +35,7 @@ struct AudioSettingsTests {
     let settings = AppSettings(defaults: defaults)
     settings.audioEnabled = true
     settings.menuBarItems = [.audio]
+    settings.combinedOverviewItems = [.audio]
     settings.refreshSeconds = 5
     let model = AppModel(
       settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())

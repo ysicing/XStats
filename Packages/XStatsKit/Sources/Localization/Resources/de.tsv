@@ -1036,7 +1036,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 菜单栏图标	Menüleistensymbole
 菜单栏布局	Menüleistenlayout
 菜单栏里的图标可以调整顺序：按住 ⌘ 键拖动任意一个，松开后位置会一直保留。新开启的项目由系统安排位置，可能离其他图标较远，拖一下就能挪到一起。	Menüleistensymbole lassen sich mit gedrückter ⌘-Taste verschieben; die Position bleibt gespeichert. Neue Elemente platziert macOS eventuell weiter entfernt. Ziehen Sie sie einfach zu den anderen.
-菜单栏里还没有开启任何项目。	Noch keine Elemente in der Menüleiste aktiviert.
+状态总览中还没有开启任何项目。	In der Statusübersicht sind noch keine Elemente aktiviert.
 菜单栏项目	Menüleistenelemente
 菜单栏风格	Menüleistenstil
 蓝牙设备	Bluetooth-Geräte
@@ -2297,6 +2297,7 @@ worktree 已锁定	Worktree ist gesperrt
 已显示 {} / {} 项	{} von {} Einträgen angezeigt
 拖动以调整顺序	Zum Sortieren ziehen
 自定义弹窗内容	Popover-Inhalt anpassen
+自定义展示位置	Anzeigeorte anpassen
 选择各指标弹窗显示的内容，并调整排列顺序。	Wähle die Inhalte der einzelnen Messwert-Popover und passe ihre Reihenfolge an.
 在菜单栏显示（最多 {} 个）	In der Menüleiste anzeigen (maximal {})
 自由搭配三合一图标，点击查看状态总览	Drei Anzeigen frei kombinieren; Klick öffnet die Statusübersicht

@@ -1570,6 +1570,7 @@ enum SnapshotRenderer {
     settings.language = L10n.language
     settings.menuBarItems = Set(MenuBarItem.allCases.filter { $0 != .aiUsage })
     settings.setMenuBarOrder([.network, .cpu, .memory, .gpu, .disk])
+    settings.combinedOverviewItems = settings.menuBarItems
     settings.processesEnabled = true
     settings.cleanerEnabled = true
     settings.menuBarLayout = .iconOnly

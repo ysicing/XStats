@@ -1036,7 +1036,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 菜单栏图标	Iconos de barra de menús
 菜单栏布局	Distribución de barra de menús
 菜单栏里的图标可以调整顺序：按住 ⌘ 键拖动任意一个，松开后位置会一直保留。新开启的项目由系统安排位置，可能离其他图标较远，拖一下就能挪到一起。	Para ordenar los iconos, mantén ⌘ y arrástralos; su posición se conserva. macOS decide dónde aparece cada elemento nuevo, a veces lejos de los demás; arrástralo para agruparlos.
-菜单栏里还没有开启任何项目。	Aún no hay elementos activados en la barra de menús.
+状态总览中还没有开启任何项目。	Aún no hay elementos activados en el resumen de estado.
 菜单栏项目	Elementos de barra de menús
 菜单栏风格	Estilo de barra de menús
 蓝牙设备	Dispositivos Bluetooth
@@ -2297,6 +2297,7 @@ worktree 已锁定	El worktree está bloqueado
 已显示 {} / {} 项	Se muestran {} de {} elementos
 拖动以调整顺序	Arrastra para reordenar
 自定义弹窗内容	Personalizar contenido de las ventanas
+自定义展示位置	Personalizar ubicaciones de visualización
 选择各指标弹窗显示的内容，并调整排列顺序。	Elige el contenido de la ventana de cada indicador y ajusta su orden.
 在菜单栏显示（最多 {} 个）	Mostrar en la barra de menús (máximo {})
 自由搭配三合一图标，点击查看状态总览	Combina tres indicadores; haz clic para ver el resumen

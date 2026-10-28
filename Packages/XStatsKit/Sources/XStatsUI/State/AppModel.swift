@@ -234,6 +234,10 @@ public final class AppModel {
     settings.orderedMenuBarItems.filter { $0 != .fan || store.supportsFans }
   }
 
+  var visibleOverviewItems: [MenuBarItem] {
+    settings.orderedOverviewItems.filter { $0 != .fan || store.supportsFans }
+  }
+
   /// 实际绘制读数的项目与面板项目分开，切换为仅图标时不改写用户的项目选择。
   var drawnMenuBarItems: [MenuBarItem] {
     guard settings.menuBarLayout == .iconOnly else { return visibleMenuBarItems }
@@ -259,7 +263,7 @@ public final class AppModel {
 
   var audioMenuVisible: Bool {
     drawnMenuBarItems.contains(.audio)
-      || (isCombinedOverviewVisible && visibleMenuBarItems.contains(.audio))
+      || (isCombinedOverviewVisible && visibleOverviewItems.contains(.audio))
   }
 
   var displayControlsVisible: Bool {
@@ -270,7 +274,7 @@ public final class AppModel {
   var fanFeedbackVisible: Bool {
     settings.isModuleEnabled(.thermal) && store.supportsFans
       && (drawnMenuBarItems.contains(.fan) || openPopover == .fan
-        || (isCombinedOverviewVisible && visibleMenuBarItems.contains(.fan))
+        || (isCombinedOverviewVisible && visibleOverviewItems.contains(.fan))
         || (isMainWindowVisible && [.overview, .thermal].contains(settings.panelTab)))
   }
 
@@ -286,7 +290,7 @@ public final class AppModel {
     let processPage = settings.processesEnabled && window && tab == .processes
     let popover = openPopover.flatMap { settings.isModuleEnabled(for: $0) ? $0 : nil }
     let menu = Set(drawnMenuBarItems)
-    let overview = isCombinedOverviewVisible ? Set(visibleMenuBarItems) : []
+    let overview = isCombinedOverviewVisible ? Set(visibleOverviewItems) : []
     let summary = menu.union(overview)
     let temperaturePopover = popover == .temperature
     let fanPopover = popover == .fan
@@ -381,7 +385,9 @@ public final class AppModel {
         || (store.fanCount == nil && settings.menuBarLayout == .iconOnly
           && settings.trio.footer == .fan)
         || (store.fanCount == nil && settings.menuBarItems.contains(.fan)
-          && (settings.menuBarLayout != .iconOnly || isCombinedOverviewVisible)))
+          && settings.menuBarLayout != .iconOnly)
+        || (store.fanCount == nil && isCombinedOverviewVisible
+          && settings.orderedOverviewItems.contains(.fan)))
     demand.gpu = demand.gpu && settings.isModuleEnabled(.gpu)
     demand.disk = demand.disk && settings.isModuleEnabled(.disk)
     demand.diskDetail = demand.diskDetail && settings.isModuleEnabled(.disk)
@@ -432,7 +438,8 @@ public final class AppModel {
     {
       return .foreground
     }
-    if isCombinedOverviewVisible && visibleMenuBarItems.contains(.battery) && store.battery == nil {
+    if isCombinedOverviewVisible && visibleOverviewItems.contains(.battery) && store.battery == nil
+    {
       return .foreground
     }
     if trioBluetooth, settings.trio.bluetoothDeviceID != nil,

@@ -402,10 +402,31 @@ struct MenuBarSettings: View {
     }
 
     SettingsGroup(caption: settings.menuBarLayout == .iconOnly ? tr("面板项目") : tr("显示项目")) {
-      GroupRow(showsDivider: false) {
-        if settings.menuBarLayout == .combined {
-          InfoBanner(icon: "arrow.up.arrow.down", text: tr("聚合模式下，用右侧按钮调整顺序；关闭再开启项目会保留位置。"))
-        } else {
+      if settings.menuBarLayout == .combined {
+        GroupRow(showsDivider: false) {
+          SettingRow(title: tr("自定义展示位置")) {
+            DSToggle(
+              isOn: $settings.customMenuBarPlacementEnabled, label: tr("自定义展示位置"))
+          }
+        }
+        if settings.customMenuBarPlacementEnabled {
+          GroupRow {
+            HStack(spacing: DS.Space.s2) {
+              Spacer()
+              Text(tr("菜单栏"))
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 80)
+              Text(tr("状态总览"))
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 96)
+            }
+            .dsFont(.xs, weight: .medium)
+            .multilineTextAlignment(.center)
+            .foregroundStyle(DS.Palette.textSecondary)
+          }
+        }
+      } else {
+        GroupRow(showsDivider: false) {
           InfoBanner(
             icon: settings.menuBarLayout == .iconOnly ? "square.grid.2x2" : "hand.draw",
             text: settings.menuBarLayout == .iconOnly
@@ -434,27 +455,55 @@ struct MenuBarSettings: View {
                     settings.moveMenuBarItem(item, by: 1, among: model.availableMenuBarItems)
                   }.disabled(index == order.count - 1)
                 }
-                DSToggle(
-                  isOn: Binding(
-                    get: { settings.isEnabled(item) },
-                    set: { settings.setEnabled(item, $0) }), label: item.title
-                )
-                .help(
-                  item == .display
-                    ? tr("只显示信息，参数控制在功能设置中启用")
-                    : item == .battery ? tr("仅显示电池信息，采集在功能设置中启用") : tr("加入菜单栏时会同时启用功能"))
+                if settings.menuBarLayout == .combined, settings.customMenuBarPlacementEnabled {
+                  Toggle(
+                    isOn: Binding(
+                      get: { settings.isEnabled(item) },
+                      set: { settings.setEnabled(item, $0) })
+                  ) {
+                    Text(item.title) + Text(" · ") + Text(tr("菜单栏"))
+                  }
+                  .toggleStyle(.checkbox)
+                  .labelsHidden()
+                  .frame(width: 80)
+                  Toggle(
+                    isOn: Binding(
+                      get: {
+                        settings.combinedOverviewItems.contains(item)
+                          && settings.isModuleEnabled(for: item)
+                      },
+                      set: { settings.setOverviewEnabled(item, $0) })
+                  ) {
+                    Text(item.title) + Text(" · ") + Text(tr("状态总览"))
+                  }
+                  .toggleStyle(.checkbox)
+                  .labelsHidden()
+                  .frame(width: 96)
+                } else {
+                  DSToggle(
+                    isOn: Binding(
+                      get: { settings.isEnabled(item) },
+                      set: { settings.setEnabled(item, $0) }), label: item.title
+                  )
+                  .help(
+                    item == .display
+                      ? tr("只显示信息，参数控制在功能设置中启用")
+                      : item == .battery ? tr("仅显示电池信息，采集在功能设置中启用") : tr("加入菜单栏时会同时启用功能"))
+                }
               }
             }
-            if moduleEnabled, settings.isEnabled(item) {
-              if settings.menuBarLayout != .iconOnly {
-                ItemStyleRow(item: item)
-                if item == .aiUsage,
+            if moduleEnabled {
+              if settings.isEnabled(item) {
+                if settings.menuBarLayout != .iconOnly {
+                  ItemStyleRow(item: item)
+                }
+                if settings.menuBarLayout != .iconOnly, item == .aiUsage,
                   !model.aiUsage.availableMenuBarQuotaProviders.isEmpty
                 {
                   AIQuotaMenuBarSelection()
                 }
               }
-              if item == .network {
+              if settings.isEnabled(item), item == .network {
                 SettingRow(
                   title: tr("IP 归属地"),
                   subtitle: tr("与网络详情中的 IP 归属地共用查询结果和刷新，不额外联网。需开启公网 IP 查询。")
@@ -470,7 +519,11 @@ struct MenuBarSettings: View {
                 }
                 .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
               }
-              if settings.customPopoverContentEnabled, !item.popoverSections.isEmpty {
+              if settings.customPopoverContentEnabled, !item.popoverSections.isEmpty,
+                settings.isEnabled(item)
+                  || (settings.menuBarLayout == .combined
+                    && settings.orderedOverviewItems.contains(item))
+              {
                 PopoverSectionPicker(item: item)
               }
             }

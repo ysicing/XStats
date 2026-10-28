@@ -98,6 +98,7 @@ extension Translations {
     信息已隐藏	Information Hidden
     未获取到地址，请检查网络或稍后重试。	No address received. Check your connection or try again later.
     自定义弹窗内容	Customize Popover Content
+    自定义展示位置	Customize Display Locations
     选择各指标弹窗显示的内容，并调整排列顺序。	Choose the content shown in each metric’s popover and adjust its order.
     弹窗内容	Popover Content
     恢复默认顺序	Restore Default Order
@@ -1568,7 +1569,7 @@ extension Translations {
     菜单栏图标	Menu Bar Icons
     菜单栏布局	Menu Bar Layout
     菜单栏里的图标可以调整顺序：按住 ⌘ 键拖动任意一个，松开后位置会一直保留。新开启的项目由系统安排位置，可能离其他图标较远，拖一下就能挪到一起。	You can reorder the icons in the menu bar: hold ⌘ and drag any of them, and the position sticks. macOS picks where a newly enabled item first appears, sometimes away from the others; just drag it over.
-    菜单栏里还没有开启任何项目。	No items are turned on in the menu bar yet.
+    状态总览中还没有开启任何项目。	No items are turned on in the status overview yet.
     菜单栏项目	Menu Bar Items
     菜单栏风格	Menu bar style
     蓝牙设备	Bluetooth Devices

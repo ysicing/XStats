@@ -517,6 +517,21 @@ Settings arrows skip hardware-unavailable items while preserving their saved pos
 item does not enable its monitoring module. The optional settings-document field syncs the order;
 older documents preserve the current order. `AppController` observes order changes to redraw once.
 
+Combined mode follows `menuBarItems` for both the status item and Status Overview by default.
+The combined-only “自定义展示位置” switch enables independent `combinedOverviewItems` and reveals
+the two checkbox columns in Menu Bar settings. Both destinations share `menuBarOrder`. First
+enabling customization copies the current menu selection, including an empty selection, unless
+an independent selection is already saved. Disabling customization preserves that selection
+while the overview follows menu items again. Settings backups include the optional switch and
+selection fields; restoring an older document with menu items disables customization and
+restores that selection to both destinations. Separate and icon-only layouts retain their
+existing panel selection. Adding an
+overview item enables its feature under the same rules as adding a menu item; removing it only
+hides that destination. Disabled modules and unavailable hardware stay filtered from both lists.
+Overview-only readings, audio, Bluetooth and unknown fan discovery request data while the panel
+is open and release that demand on close. An empty menu selection keeps the existing app-icon
+fallback. Deep links to hidden overview rows open the corresponding main-window page.
+
 `MenuBarController` owns the status items. In the *separate* layout every enabled metric gets
 its own `NSStatusItem` (created in reverse so they read left to right) and opens a 320 pt
 popover for that metric; in the *combined* layout a single item opens `CombinedPopoverView`: a status

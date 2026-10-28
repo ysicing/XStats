@@ -43,7 +43,7 @@ final class MenuBarController: NSObject {
   func update() {
     let settings = model.settings
     let enabled = model.visibleMenuBarItems
-    if let tab = model.combinedPopoverTab, !enabled.contains(tab) {
+    if let tab = model.combinedPopoverTab, !model.visibleOverviewItems.contains(tab) {
       model.combinedPopoverTab = nil
     }
     // 没有任何项目时保留一个图标，确保仍能打开面板与主窗口

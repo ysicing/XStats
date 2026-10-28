@@ -33,15 +33,15 @@ struct CombinedPopoverView: View {
         }
       } content: {
         VStack(spacing: DS.Space.s2) {
-          if model.visibleMenuBarItems.isEmpty {
+          if model.visibleOverviewItems.isEmpty {
             Card {
-              Text(tr("菜单栏里还没有开启任何项目。"))
+              Text(tr("状态总览中还没有开启任何项目。"))
                 .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
               Button(tr("选择显示项目")) { model.openMainWindow(.settingsMenuBar) }
                 .buttonStyle(DSButtonStyle(kind: .secondary))
             }
           }
-          ForEach(model.visibleMenuBarItems) { item in
+          ForEach(model.visibleOverviewItems) { item in
             OverviewMetricRow(item: item).id(item)
           }
         }

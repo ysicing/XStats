@@ -22,8 +22,10 @@ struct MenuBarResourceTests {
     let sensorSamples: Int
   }
 
-  @Test(.enabled(if: ProcessInfo.processInfo.environment["XSTATS_MENU_RESOURCE_REPORT"] != nil))
-  func realSamplingReturnsToIdleAfterClosingOverview() async throws {
+  @Test(
+    .enabled(if: ProcessInfo.processInfo.environment["XSTATS_MENU_RESOURCE_REPORT"] != nil),
+    arguments: [MenuBarLayout.iconOnly, .combined])
+  func realSamplingReturnsToIdleAfterClosingOverview(layout: MenuBarLayout) async throws {
     let output = try #require(ProcessInfo.processInfo.environment["XSTATS_MENU_RESOURCE_REPORT"])
     let screen = try #require(NSScreen.main)
     let suite = "MenuBarResourceTests.\(UUID())"
@@ -33,8 +35,13 @@ struct MenuBarResourceTests {
       settings: AppSettings(defaults: defaults), historyURL: nil,
       magpieClient: UnavailableMagpieClient())
     model.settings.trio = TrioConfiguration(outer: .memory, center: .network, footer: .audio)
-    model.settings.menuBarLayout = .iconOnly
+    model.settings.menuBarLayout = layout
     model.settings.menuBarItems = [.cpu, .memory, .network, .gpu, .disk, .temperature]
+    if layout == .combined {
+      model.settings.customMenuBarPlacementEnabled = true
+      model.settings.combinedOverviewItems = model.settings.menuBarItems
+      model.settings.menuBarItems = [.memory, .network]
+    }
     model.settings.processesEnabled = true
     model.settings.refreshSeconds = 2
     let panel = StatusPanel(width: DS.Size.combinedPopoverWidth, minHeight: 100, maxHeight: 500) {
@@ -111,7 +118,11 @@ struct MenuBarResourceTests {
     await model.hub.stop()
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    try encoder.encode(report).write(to: URL(fileURLWithPath: output), options: .atomic)
+    let url =
+      layout == .iconOnly
+      ? URL(fileURLWithPath: output)
+      : URL(fileURLWithPath: output).deletingPathExtension().appendingPathExtension("combined.json")
+    try encoder.encode(report).write(to: url, options: .atomic)
   }
 
   private static func cpuTime() -> Double {
