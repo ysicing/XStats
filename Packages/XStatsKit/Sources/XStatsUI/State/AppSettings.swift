@@ -41,7 +41,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
     case .temperature: tr("CPU 温度")
     case .fan: tr("风扇转速")
     case .battery: tr("电池")
-    case .aiUsage: tr("AI 用量")
+    case .aiUsage: tr("AI")
     case .display: tr("显示器")
     case .audio: tr("音频")
     }
@@ -91,7 +91,7 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
     case .temperature: tr("温度")
     case .fan: tr("风扇")
     case .battery: tr("电池")
-    case .aiUsage: tr("AI 用量")
+    case .aiUsage: tr("AI")
     case .display: tr("显示器")
     case .audio: tr("音频")
     }
@@ -388,12 +388,12 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
   public var id: String { rawValue }
 
   static let monitors: [PanelTab] = [
-    .overview, .system, .history, .aiUsage, .cpu, .gpu, .memory, .disk, .network, .battery,
+    .overview, .system, .history, .cpu, .gpu, .memory, .disk, .network, .battery,
     .thermal,
   ]
   // 按中文名称由短到长排列，所有语言沿用固定顺序，保持导航位置一致。
   static let tools: [PanelTab] = [
-    .audio, .processes, .ports, .rest, .keepAwake, .cleaner, .uninstaller,
+    .aiUsage, .audio, .processes, .ports, .rest, .keepAwake, .cleaner, .uninstaller,
     .connections,
   ]
   // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
@@ -412,7 +412,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .overview: tr("仪表盘")
     case .system: tr("本机信息")
     case .history: tr("历史")
-    case .aiUsage: tr("AI 用量")
+    case .aiUsage: tr("AI")
     case .cpu: "CPU"
     case .gpu: "GPU"
     case .memory: tr("内存")

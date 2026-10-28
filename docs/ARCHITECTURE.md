@@ -228,12 +228,12 @@ and Experimental Features. Menu bar folding lives in Experimental Features rathe
 Menu Bar settings; switching categories does not enable it or reset its local preferences.
 Basic Features contains seven monitoring groups. Each row has a feature enable switch and
 a directly visible Show in Menu Bar checkbox below its title, distinguishing collection from
-display without repeating the switch state in text. AI Usage and Audio have the same display
+display without repeating the switch state in text. AI and Audio have the same display
 checkboxes in Optional Features. Thermals exposes temperature and fan checkboxes separately, respecting detected hardware
 support. Detailed appearance settings remain in the existing Menu Bar settings page. Display Parameter Controls is in
 Optional Features; its information-only menu-bar toggle stays independent of DDC enablement.
 Optional Features uses separate cards: Network Monitor, Processes, Uninstaller and Cleanup;
-AI Usage, Audio and Display Parameter Controls; Timers; and Menu Bar Calendar.
+AI, Audio and Display Parameter Controls; Timers; and Menu Bar Calendar.
 Each card has consistent separators between rows, with no divider above its first row.
 Uninstaller is also optional and off by default. Its preference persists in settings backups;
 disabling it hides the sidebar entry, redirects its page/deep link to feature settings, cancels
@@ -807,7 +807,7 @@ are unknown, not zero. Individual credit expiry dates are disclosed on demand, w
 and no additional requests, timers, or persistent account storage.
 The widget snapshot preserves up to four provider identities and their account display summaries,
 today's aggregate and an optional cumulative input/output summary, independently of menu-bar
-provider selection. The AI Usage page stores a preferred account per provider, shared by menu-bar
+provider selection. The AI page stores a preferred account per provider, shared by menu-bar
 quotas and all quota widgets. Choices are keyed by provider identity, so service reordering does
 not change the selected account.
 The default follows Magpie's first returned account for that service (current sign-in first for
@@ -816,7 +816,7 @@ use provider, kind, remote source and user identity, keeping aliases out of the 
 user is available. A successful quota response removes preferences for missing accounts and restores the Magpie default.
 Failed requests, unavailable quotas and ambiguous identities retain the choice. Only services with
 multiple accounts show a preference picker; the entire section is hidden when none qualify. Optional account summaries preserve compatibility with older snapshots.
-The AI Usage settings select single-ring (default) or double-ring mode for all quota widgets.
+The AI settings select single-ring (default) or double-ring mode for all quota widgets.
 StaticConfiguration retains the existing widget kind. Both modes show a remaining-quota ring,
 a centered service logo and localized relative
 reset text, in a small 2-by-2 grid or a medium single row. Double-ring mode adds a remaining-week

@@ -12,7 +12,7 @@ final class AIUsageSettingsWindowController: NSObject, NSWindowDelegate {
   private var window: NSWindow?
   private(set) var isVisible = false
   var onVisibilityChange: ((Bool) -> Void)?
-  func refreshLanguage() { window?.title = tr("AI 用量") + " · " + tr("设置") }
+  func refreshLanguage() { window?.title = tr("AI") + " · " + tr("设置") }
 
   init(model: AppModel) {
     self.model = model
@@ -35,7 +35,7 @@ final class AIUsageSettingsWindowController: NSObject, NSWindowDelegate {
       contentRect: NSRect(x: 0, y: 0, width: 430, height: 560),
       styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered, defer: false)
-    window.title = tr("AI 用量") + " · " + tr("设置")
+    window.title = tr("AI") + " · " + tr("设置")
     window.isReleasedWhenClosed = false
     window.delegate = self
     window.contentMinSize = NSSize(width: 390, height: 480)

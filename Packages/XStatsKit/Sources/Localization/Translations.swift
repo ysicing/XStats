@@ -455,7 +455,7 @@ extension Translations {
     仅显示本机模型当前是否可用；设备兼容不代表当前可用。	Shows whether the on-device model is available now; a compatible device may still be unable to use it.
     {}后重置	Resets in {}
     即将重置	Resets soon
-    AI 用量需要安装并运行 Magpie。	AI usage requires Magpie to be installed and running.
+    AI 功能需要安装并运行 Magpie。	AI features require Magpie to be installed and running.
     无法连接 Magpie，请确认它已运行并开启本地接口。	Unable to connect to Magpie. Make sure it is running with its local API enabled.
     无法打开 Magpie，请手动启动后重试。	Unable to open Magpie. Start it manually and try again.
     安装 Magpie	Install Magpie
@@ -469,7 +469,7 @@ extension Translations {
     每周	Weekly
     累计	Cumulative
     缓存创建 Token	Cache creation tokens
-    AI 用量	AI Usage
+    AI	AI
     Token 用量	Tokens
     重置卡：{}	Reset credits: {}
     套餐剩余时间	Plan time remaining
@@ -514,7 +514,7 @@ extension Translations {
     缓存命中率	Cache hit rate
     用量记录	Usage records
     模型排行	Model ranking
-    启用 AI 用量	Enable AI Usage
+    启用 AI	Enable AI
     订阅额度	Subscription usage
     今日消耗的 Token	Tokens used today
     累计 Token	Cumulative tokens

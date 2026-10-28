@@ -60,7 +60,7 @@ private struct MagpieUsageContent: View {
       if !model.settings.aiUsageEnabled {
         Card {
           Text(tr("尚未启用")).dsFont(.xs)
-          Button(tr("启用 AI 用量")) { model.settings.aiUsageEnabled = true }
+          Button(tr("启用 AI")) { model.settings.aiUsageEnabled = true }
             .buttonStyle(DSButtonStyle(kind: .primary))
         }
       } else if model.aiUsage.magpieQuotas.isEmpty,
@@ -201,7 +201,7 @@ struct MagpieConnectionGuide: View {
       Text(
         tr(
           guidance == .install
-            ? "AI 用量需要安装并运行 Magpie。"
+            ? "AI 功能需要安装并运行 Magpie。"
             : "无法连接 Magpie，请确认它已运行并开启本地接口。")
       )
       .dsFont(.sm).fixedSize(horizontal: false, vertical: true)
@@ -571,7 +571,7 @@ struct AIUsageSettingsButton: View {
   @Environment(AppModel.self) private var model
 
   var body: some View {
-    MiniIconButton(systemName: "slider.horizontal.3", help: tr("AI 用量") + " · " + tr("设置")) {
+    MiniIconButton(systemName: "slider.horizontal.3", help: tr("AI") + " · " + tr("设置")) {
       model.openAIUsageSettings()
     }
   }
@@ -592,8 +592,8 @@ private struct UsageSettings: View {
     @Bindable var settings = model.settings
     VStack(alignment: .leading, spacing: DS.Space.s4) {
       Text(tr("设置")).dsFont(.base, weight: .semibold)
-      SettingRow(title: tr("AI 用量"), subtitle: nil) {
-        DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 用量"))
+      SettingRow(title: tr("AI"), subtitle: nil) {
+        DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI"))
       }
       SettingRow(
         title: tr("显示 Token 用量"),

@@ -199,11 +199,11 @@ struct FeatureSettings: View {
         GroupRow(showsDivider: false) {
           VStack(alignment: .leading, spacing: DS.Space.s2) {
             SettingRow(
-              title: tr("AI 用量"),
+              title: tr("AI"),
               subtitle: tr("查看 AI 服务的 Token 用量与账户额度。"),
               icon: "sparkles"
             ) {
-              DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI 用量"))
+              DSToggle(isOn: $settings.aiUsageEnabled, label: tr("AI"))
             }
             FeatureMenuBarToggle(item: .aiUsage)
               .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)

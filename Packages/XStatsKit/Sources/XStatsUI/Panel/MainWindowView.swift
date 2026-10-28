@@ -238,13 +238,13 @@ private struct MainSidebar: View {
       group(
         tr("监控"),
         PanelTab.monitors.filter {
-          ($0 != .aiUsage || model.settings.aiUsageEnabled)
-            && ($0 != .thermal || model.store.supportsFans)
+          $0 != .thermal || model.store.supportsFans
         })
       group(
         tr("工具"),
         PanelTab.tools.filter { tab in
           switch tab {
+          case .aiUsage: model.settings.aiUsageEnabled
           case .audio: model.settings.audioEnabled
           case .connections: model.settings.canViewNetworkConnections
           case .rest: model.settings.restEnabled

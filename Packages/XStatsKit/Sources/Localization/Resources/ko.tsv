@@ -1213,7 +1213,7 @@ Apple 智能本机模型当前不可用。	Apple Intelligence 온디바이스 �
 正在刷新	새로 고치는 중
 立即刷新	지금 새로 고침
 默认关闭	기본적으로 꺼짐
-AI 用量	AI 사용량
+AI	AI
 从 Magpie 读取 Token 用量与订阅额度	Magpie의 토큰 사용량 및 구독 한도
 今天	오늘
 模型	모델
@@ -1224,7 +1224,7 @@ AI 用量	AI 사용량
 缓存命中率	캐시 적중률
 用量记录	사용 기록
 模型排行	모델 순위
-启用 AI 用量	AI 사용량 켜기
+启用 AI	AI 켜기
 订阅额度	구독 한도
 服务端用量 · 与本机 Token 统计不同	Server usage · separate from local token statistics
 重置：	Resets:
@@ -2584,7 +2584,7 @@ macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macO
 费用	비용
 请求	요청
 速度	속도
-AI 用量需要安装并运行 Magpie。	AI 사용량을 보려면 Magpie를 설치하고 실행해야 합니다.
+AI 功能需要安装并运行 Magpie。	AI 기능을 사용하려면 Magpie를 설치하고 실행해야 합니다.
 无法连接 Magpie，请确认它已运行并开启本地接口。	Magpie에 연결할 수 없습니다. 실행 중이며 로컬 API가 활성화되어 있는지 확인하세요.
 无法打开 Magpie，请手动启动后重试。	Magpie를 열 수 없습니다. 수동으로 실행한 후 다시 시도하세요.
 安装 Magpie	Magpie 설치

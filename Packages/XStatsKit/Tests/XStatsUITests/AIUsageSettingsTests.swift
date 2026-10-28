@@ -92,11 +92,12 @@ struct AIUsageSettingsTests {
     let repaired = AppSettings(defaults: defaults)
     #expect(repaired.aiUsageRefreshMinutes == 5)
   }
-  @Test func navigationExposesAIUsageAsAMonitorAndMenuBarItem() throws {
+  @Test func navigationExposesAIAsAToolAndMenuBarItem() throws {
     let name = "AIUsageSettingsTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: name))
     defer { defaults.removePersistentDomain(forName: name) }
-    #expect(PanelTab.monitors.contains(.aiUsage))
+    #expect(!PanelTab.monitors.contains(.aiUsage))
+    #expect(PanelTab.tools.first == .aiUsage)
     #expect(PanelTab(item: .aiUsage) == .aiUsage)
     #expect(
       MenuBarStyle.options(for: .aiUsage) == [

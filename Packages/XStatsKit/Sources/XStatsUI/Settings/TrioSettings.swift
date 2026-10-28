@@ -202,7 +202,7 @@ struct TrioSettings: View {
       }
     }
     if config.footer == .aiUsage {
-      SettingsGroup(caption: tr("AI 用量")) {
+      SettingsGroup(caption: tr("AI")) {
         GroupRow(showsDivider: false) {
           AIQuotaMenuBarSelection()
         }

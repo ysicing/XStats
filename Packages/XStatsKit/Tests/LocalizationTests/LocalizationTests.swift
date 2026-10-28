@@ -16,10 +16,10 @@ import Testing
     for language in AppLanguage.allCases where language != .system && language != .chinese {
       let table = try #require(Translations.catalog(for: language))
       for source in [
-        "AI 用量需要安装并运行 Magpie。",
+        "AI 功能需要安装并运行 Magpie。",
         "无法连接 Magpie，请确认它已运行并开启本地接口。",
         "无法打开 Magpie，请手动启动后重试。",
-        "安装 Magpie", "打开 Magpie", "重新检测",
+        "安装 Magpie", "打开 Magpie", "重新检测", "AI", "启用 AI",
       ] {
         #expect(table.translate(source)?.isEmpty == false, "\(language): \(source)")
       }
@@ -86,7 +86,7 @@ import Testing
   @Test func translatesExactAndTemplates() {
     let table = Translations.shared
     #expect(table.translate("内存") == "Memory")
-    #expect(table.translate("AI 用量") == "AI Usage")
+    #expect(table.translate("AI") == "AI")
     #expect(table.translate("每日") == "Daily")
     #expect(table.translate("每周") == "Weekly")
     #expect(table.translate("累计") == "Cumulative")

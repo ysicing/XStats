@@ -6,7 +6,7 @@
 
 **System monitoring and everyday Mac tools, with a full app window and menu bar access.**
 
-See CPU, memory, network and temperature at a glance, and open the details for trends and app usage. Enable tools such as AI Usage, calendar and fan control when you need them.
+See CPU, memory, network and temperature at a glance, and open the details for trends and app usage. Enable tools such as AI, calendar and fan control when you need them.
 
 [![Release](https://img.shields.io/github/v/tag/ysicing/xstats?label=version&style=flat-square)](https://github.com/ysicing/xstats/releases)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
@@ -49,7 +49,7 @@ Menu bar layouts and the status overview use demo data to illustrate different l
 Manage Basic and Optional Features separately in Settings → Features.
 
 - **Basic monitoring**: turn CPU, GPU, memory, disk, network, energy and fan monitoring on or off individually. Disabling a module stops live collection, related alerts and new history records while keeping basic information, page access and existing history. System widgets refresh independently.
-- **Menu bar visibility**: selecting Show in Menu Bar for basic monitoring, AI Usage or Audio also enables that feature, except for the battery information entry. Clearing it removes the entry while leaving the feature enabled. AI Usage and Audio have their own display options.
+- **Menu bar visibility**: selecting Show in Menu Bar for basic monitoring, AI or Audio also enables that feature, except for the battery information entry. Clearing it removes the entry while leaving the feature enabled. AI and Audio have their own display options.
 - **Display parameter controls**: enable or disable brightness, contrast and volume reads and adjustments. Display information remains available, with a separate information-only menu bar option.
 
 <p align="center">
@@ -102,7 +102,7 @@ If you used a preview network component, upgrade the main app first, uninstall t
 
 Connections, addresses, countries or regions and component version information are demo data.
 
-### AI Usage
+### AI
 
 Track AI service usage from the menu bar:
 
@@ -200,7 +200,7 @@ Or download the DMG from [GitHub Releases](https://github.com/ysicing/xstats/rel
 Monitoring data, local history and AI token statistics are processed locally and are not uploaded to the XStats update service. These features connect to external services and can be disabled or used on demand:
 
 - **Update checks**: the main app, independent network component and standalone Capture send their version and a hashed installation ID to retrieve their update feed.
-- **AI usage**: reads quotas and statistics only from the local Magpie API, without reading CLI credentials or session logs.
+- **AI**: reads quotas and statistics only from the local Magpie API, without reading CLI credentials or session logs.
 - **Network Monitor**: downloads the component and a public geography database; connection records and destination IPs are not uploaded.
 - **Network diagnostics**: public IP, location, speed tests, DNS, connectivity probes and global probes contact their services; global-probe targets and results may be queried by others.
 
