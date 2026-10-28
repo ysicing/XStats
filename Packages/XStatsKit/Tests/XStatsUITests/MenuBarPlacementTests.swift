@@ -274,8 +274,12 @@ struct MenuBarPlacementTests {
       let settings = model.settings
       settings.setEnabled(.gpu, true)
       settings.setModuleEnabled(.gpu, false)
+      let selection = settings.menuBarItems
+      let modules = settings.enabledMonitoringModules
+      #expect(!selection.contains(.gpu))
       settings.customMenuBarPlacementEnabled = true
-      #expect(settings.combinedOverviewItems.contains(.gpu))
+      #expect(settings.combinedOverviewItems == selection)
+      #expect(settings.enabledMonitoringModules == modules)
       #expect(!settings.isModuleEnabled(.gpu))
     }
   }
