@@ -494,7 +494,7 @@ struct MenuBarSettings: View {
             }
             if moduleEnabled {
               if settings.isEnabled(item) {
-                if settings.menuBarLayout != .iconOnly {
+                if settings.menuBarLayout != .iconOnly || item == .network {
                   ItemStyleRow(item: item)
                 }
                 if settings.menuBarLayout != .iconOnly, item == .aiUsage,
@@ -502,22 +502,6 @@ struct MenuBarSettings: View {
                 {
                   AIQuotaMenuBarSelection()
                 }
-              }
-              if settings.isEnabled(item), item == .network {
-                SettingRow(
-                  title: tr("IP 归属地"),
-                  subtitle: tr("与网络详情中的 IP 归属地共用查询结果和刷新，不额外联网。需开启公网 IP 查询。")
-                ) {
-                  Picker(tr("IP 归属地"), selection: $settings.networkLocationStyle) {
-                    ForEach(NetworkLocationStyle.allCases) { style in
-                      Text(style.title).tag(style)
-                    }
-                  }
-                  .labelsHidden()
-                  .fixedSize()
-                  .disabled(!settings.publicIPLookup)
-                }
-                .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
               }
               if settings.customPopoverContentEnabled, !item.popoverSections.isEmpty,
                 settings.isEnabled(item)
@@ -662,7 +646,7 @@ struct AIQuotaMenuBarSelection: View {
 }
 
 /// 单个项目自己的菜单栏风格：网速有自己的三种样式；其他项目默认跟随整体，也可以单独选一种。
-/// 旁边用实时数据画出这一项现在在菜单栏里的样子，改了立刻能看到
+/// 旁边用实时数据画出这一项现在在菜单栏里的样子；网络附加选项共用标签列，适应不同语言的标签长度。
 private struct ItemStyleRow: View {
   @Environment(\.isSnapshot) private var isSnapshot
   @Environment(AppModel.self) private var model
@@ -671,38 +655,68 @@ private struct ItemStyleRow: View {
 
   var body: some View {
     @Bindable var settings = model.settings
-    HStack(spacing: DS.Space.s3) {
-      Text(tr("菜单栏风格"))
-        .dsFont(.xs)
-        .foregroundStyle(DS.Palette.textSecondary)
-        .fixedSize()
-      if item == .network {
-        SegmentedControl(
-          selection: $settings.networkStyle,
-          options: NetworkMenuStyle.allCases.map { ($0, $0.title) }
-        )
-        .frame(width: DS.Size.sidebarWidth + DS.Space.s6)
-      } else {
-        let inheritedStyle = settings.menuBarStyle.resolved(for: item)
-        Picker(
-          tr("菜单栏风格"),
-          selection: Binding(
-            get: { settings.styleOverrides[item] },
-            set: { settings.setStyleOverride($0, for: item) })
-        ) {
-          Text(tr("跟随整体（\(inheritedStyle.title)）")).tag(MenuBarStyle?.none)
-          Divider()
-          ForEach(MenuBarStyle.options(for: item)) { style in
-            Text(style.title).tag(MenuBarStyle?.some(style))
+    Grid(alignment: .leading, horizontalSpacing: DS.Space.s3, verticalSpacing: DS.Space.s3) {
+      if settings.menuBarLayout != .iconOnly {
+        GridRow {
+          Text(tr("菜单栏风格"))
+            .dsFont(.xs)
+            .foregroundStyle(DS.Palette.textSecondary)
+            .fixedSize()
+          HStack(spacing: DS.Space.s3) {
+            if item == .network {
+              Picker(tr("菜单栏风格"), selection: $settings.networkStyle) {
+                ForEach(NetworkMenuStyle.allCases) { style in
+                  Text(style.title).tag(style)
+                }
+              }
+              .pickerStyle(.menu)
+              .labelsHidden()
+              .fixedSize()
+            } else {
+              let inheritedStyle = settings.menuBarStyle.resolved(for: item)
+              Picker(
+                tr("菜单栏风格"),
+                selection: Binding(
+                  get: { settings.styleOverrides[item] },
+                  set: { settings.setStyleOverride($0, for: item) })
+              ) {
+                Text(tr("跟随整体（\(inheritedStyle.title)）")).tag(MenuBarStyle?.none)
+                Divider()
+                ForEach(MenuBarStyle.options(for: item)) { style in
+                  Text(style.title).tag(MenuBarStyle?.some(style))
+                }
+              }
+              .pickerStyle(.menu)
+              .labelsHidden()
+              .fixedSize()
+            }
+            // 窗口关闭后不再读取实时模型，解除 SwiftUI 对采样数据的观察。
+            if model.isMainWindowVisible || isSnapshot { preview }
+            Spacer(minLength: 0)
           }
         }
-        .pickerStyle(.menu)
-        .labelsHidden()
-        .fixedSize()
       }
-      // 窗口关闭后不再读取实时模型，解除 SwiftUI 对采样数据的观察。
-      if model.isMainWindowVisible || isSnapshot { preview }
-      Spacer(minLength: 0)
+      if item == .network {
+        GridRow {
+          Text(tr("IP 归属地"))
+            .dsFont(.xs)
+            .foregroundStyle(DS.Palette.textSecondary)
+            .fixedSize()
+          HStack(spacing: DS.Space.s3) {
+            Picker(tr("IP 归属地"), selection: $settings.networkLocationStyle) {
+              ForEach(NetworkLocationStyle.allCases) { style in
+                Text(style.title).tag(style)
+              }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .fixedSize()
+            .disabled(!settings.publicIPLookup)
+            Spacer(minLength: 0)
+          }
+        }
+        .help(tr("与网络详情中的 IP 归属地共用查询结果和刷新，不额外联网。需开启公网 IP 查询。"))
+      }
     }
     .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
   }
