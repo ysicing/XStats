@@ -224,7 +224,7 @@ task build BUMP=0 INSTALL=0
 <!-- changelog:start -->
 <!-- 由 scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->
 
-最新版本 **1.4.10**（2026-10-26） · [完整更新日志](CHANGELOG.md)
+最新版本 **1.4.11**（2026-10-28） · [完整更新日志](CHANGELOG.md)
 
 <!-- changelog:end -->
 
