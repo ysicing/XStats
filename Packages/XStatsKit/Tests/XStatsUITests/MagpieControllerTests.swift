@@ -161,6 +161,8 @@ struct MagpieControllerTests {
     let settings = AppSettings(defaults: defaults)
     settings.aiUsageEnabled = true
     settings.aiUsageShowsLocalUsage = true
+    settings.aiMenuBarProviders = ["codex", "claude", "gemini", "grok"]
+    settings.setAIMenuBarProviderOrder(["codex", "claude", "gemini", "grok"])
     let magpie = MagpieStub()
     let model = AppModel(
       settings: settings, historyURL: nil,
@@ -201,6 +203,43 @@ struct MagpieControllerTests {
     #expect(store.load().quotas.allSatisfy { $0.isStale })
     #expect(store.load().visibleCumulativeTokens.first?.isStale == true)
     #expect(store.load().visibleCumulativeTokens.first?.total == 120)
+  }
+
+  @Test func providerReorderSynchronizesWidgetWithoutRefreshingMagpie() async throws {
+    let suite = "MagpieWidgetOrder.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.aiUsageEnabled = true
+    settings.aiMenuBarProviders = ["claude", "codex", "grok", "workbuddy"]
+    let magpie = MagpieStub()
+    let model = AppModel(settings: settings, historyURL: nil, magpieClient: magpie)
+    defer { model.aiUsage.stop() }
+    await model.aiUsage.refresh()
+    let calls = await magpie.counts()
+    let store = WidgetSnapshotStore(defaults: defaults)
+    var reloaded: [String] = []
+    let app = AppController(
+      model: model, widgetStore: store, reloadWidget: { reloaded.append($0) })
+    app.syncWidgetSnapshot()
+    app.observeWidgetState()
+    #expect(store.load().quotaSlots().map(\.provider) == settings.orderedAIMenuBarProviders)
+    reloaded.removeAll()
+    let order = ["workbuddy", "grok", "codex", "claude"]
+    #expect(settings.setAIMenuBarProviderOrder(order))
+    try await waitForWidget { store.load().quotaSlots().map(\.provider) == order }
+    #expect(store.load().quotaSlots().first?.quota == nil)
+    #expect(reloaded == [WidgetKind.aiQuota])
+    #expect(
+      model.aiUsage.menuBarMagpieQuotas().map(\.sourceName)
+        == order.filter { provider in
+          model.aiUsage.magpieQuotaReadings().contains { $0.sourceName == provider }
+        })
+    #expect(await magpie.counts().0 == calls.0)
+    #expect(await magpie.counts().1 == calls.1)
+    settings.aiMenuBarProviders.remove("workbuddy")
+    try await waitForWidget { store.load().quotaProviders?.contains("workbuddy") == false }
+    #expect(store.load().quotaSlots().count == 4)
   }
 
   @Test func deletedPreferredAccountReturnsToMagpieOnlyAfterSuccessfulRefresh() async throws {
@@ -244,7 +283,7 @@ struct MagpieControllerTests {
     #expect(AppSettings(defaults: defaults).aiPreferredAccounts.isEmpty)
     try await waitForWidget {
       store.load().preferredQuotaAccounts == [:]
-        && store.load().quotaSlots().first?.quota?.remainingPercent == 10
+        && store.load().quotaSlots().first { $0.provider == "codex" }?.quota?.remainingPercent == 10
     }
     #expect(model.aiUsage.magpieQuotaReadings().first?.remainingPercent == 10)
     let remaining = try #require(model.aiUsage.widgetQuotaAccounts(at: .now).first)
@@ -550,15 +589,22 @@ struct MagpieControllerTests {
     await model.aiUsage.refresh()
     #expect(
       model.aiUsage.menuBarMagpieQuotas().map(\.sourceName) == [
-        "codex", "claude", "gemini", "grok",
+        "claude", "codex", "grok", "gemini",
       ])
     settings.aiMenuBarProviders = Set(providers)
     let all = MenuBarReading(model: model, items: [.aiUsage])
     #expect(all.aiQuotas.count == 4)
-    #expect(all.aiQuotas.map(\.sourceName) == ["codex", "claude", "gemini", "grok"])
+    #expect(all.aiQuotas.map(\.sourceName) == ["claude", "codex", "grok", "gemini"])
     settings.aiMenuBarProviders = ["copilot", "future-provider"]
     let selected = MenuBarReading(model: model, items: [.aiUsage])
     #expect(selected.aiQuotas.map(\.sourceName) == ["copilot", "future-provider"])
+    #expect(settings.setAIMenuBarProviderOrder(["future-provider", "copilot"]))
+    let reordered = MenuBarReading(model: model, items: [.aiUsage])
+    #expect(reordered.aiQuotas.map(\.sourceName) == ["future-provider", "copilot"])
+    #expect(!selected.hasSameImage(as: reordered, item: .aiUsage, style: .icon))
+    settings.setEnabled(.aiUsage, true)
+    settings.trio = TrioConfiguration(outer: .none, center: .none, footer: .aiUsage)
+    #expect(TrioReading(model: model).aiDots.map(\.name) == ["future-provider", "copilot"])
     #expect(model.aiUsage.magpieQuotaReadings().count == 7)
     #expect(model.aiUsage.magpieQuotas.count == 7)
     #expect(await magpie.counts().0 == 1)
@@ -637,8 +683,8 @@ struct MagpieControllerTests {
     defer { model.aiUsage.stop() }
     await model.aiUsage.refresh()
     let reading = TrioReading(model: model)
-    #expect(reading.aiDots.map(\.name) == ["codex", "claude", "gemini", "grok"])
-    #expect(reading.aiDots.map(\.fraction) == [1, 0.5, 0, nil])
+    #expect(reading.aiDots.map(\.name) == ["claude", "codex", "grok", "gemini"])
+    #expect(reading.aiDots.map(\.fraction) == [0.5, 1, nil, 0])
     #expect(TrioReading(model: model).aiDots == reading.aiDots)
     settings.aiMenuBarProviders = ["claude", "unavailable-service"]
     let selected = TrioReading(model: model)
@@ -664,8 +710,10 @@ struct MagpieControllerTests {
     #expect(settings.aiMenuBarProviders.count == 4)
   }
 
-  @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft])
-  func menuBarServiceSelectionFitsANarrowSettingsPage(direction: LayoutDirection) async throws {
+  @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft], [320.0, 1200.0])
+  func menuBarServiceSelectionFitsANarrowSettingsPage(
+    direction: LayoutDirection, width: Double
+  ) async throws {
     let providers = AIServiceBrand.menuBarOrder + ["future-provider-with-a-long-service-name"]
     let payload = try JSONSerialization.data(withJSONObject: [
       "object": "list",
@@ -684,9 +732,9 @@ struct MagpieControllerTests {
     let host = NSHostingView(
       rootView: AIQuotaMenuBarSelection().environment(model)
         .environment(\.layoutDirection, direction).environment(\.colorScheme, .light)
-        .padding(16).frame(width: 320).background(Color(nsColor: .windowBackgroundColor)))
+        .padding(16).frame(width: width).background(Color(nsColor: .windowBackgroundColor)))
     let size = host.fittingSize
-    #expect(size.width == 320 && size.height > 100 && size.height < 500)
+    #expect(size.width == width && size.height > 40 && size.height < 500)
     // 截图仅用于人工核对布局；未指定目录时不挂载窗口，也不依赖固定等待。
     guard
       let directory = ProcessInfo.processInfo.environment["XSTATS_AI_MENU_SELECTION_PREVIEW_DIR"]
@@ -706,7 +754,7 @@ struct MagpieControllerTests {
     host.cacheDisplay(in: host.bounds, to: bitmap)
     if let png = bitmap.representation(using: .png, properties: [:]) {
       let path = URL(fileURLWithPath: directory).appendingPathComponent(
-        direction == .leftToRight ? "selection-ltr.png" : "selection-rtl.png")
+        "selection-\(Int(width))-\(direction == .leftToRight ? "ltr" : "rtl").png")
       try png.write(to: path)
     }
   }

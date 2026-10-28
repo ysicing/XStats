@@ -68,6 +68,20 @@ import WidgetData
   #expect(snapshot.quotaSlots(at: now)[1].quota == first)
 }
 
+@Test func quotaProviderReorderReloadsOnlyQuotaWidgetAndKeepsUnavailableSlots() throws {
+  let original = WidgetSnapshot(
+    aiEnabled: true, quotaProviders: ["claude", "codex", "workbuddy", "grok"])
+  var reordered = original
+  reordered.quotaProviders = ["workbuddy", "grok", "claude", "codex"]
+  let restored = try JSONDecoder().decode(
+    WidgetSnapshot.self, from: JSONEncoder().encode(reordered))
+  #expect(restored.quotaSlots().map(\.provider) == reordered.quotaProviders)
+  #expect(restored.quotaSlots().allSatisfy { $0.quota == nil })
+  #expect(restored.changedWidgetKinds(from: original) == [WidgetKind.aiQuota])
+  reordered.quotaProviders = ["workbuddy"]
+  #expect(reordered.quotaSlots().map(\.provider) == ["workbuddy", "codex", "claude", "gemini"])
+}
+
 @Test func widgetAccountChangesReloadWithoutReloadingForReadTimeOnly() {
   let now = Date()
   func snapshot(name: String = "A", fetchedAt: Date, remaining: Double = 50) -> WidgetSnapshot {
@@ -393,7 +407,7 @@ func snapshotPreservesEveryWeekStartAndReloadsCalendars(firstWeekday: Int) throw
   #expect(slots.dropFirst().allSatisfy { $0.quota == nil })
   #expect(WidgetSnapshot(aiEnabled: true).quotaSlots(at: now).count == 4)
   snapshot.quotaProviders = ["copilot", "copilot", "custom", "", "claude", "codex", "extra"]
-  #expect(snapshot.quotaSlots(at: now).map(\.provider) == ["codex", "claude", "copilot", "custom"])
+  #expect(snapshot.quotaSlots(at: now).map(\.provider) == ["copilot", "custom", "claude", "codex"])
   snapshot.aiEnabled = false
   #expect(snapshot.quotaSlots(at: now).allSatisfy { $0.quota == nil })
   snapshot.quotaProviders = nil

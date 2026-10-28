@@ -519,6 +519,13 @@ or hardware list invalidates the draft. Accessible move actions remain on each h
 item does not enable its monitoring module. The optional settings-document field syncs the order;
 older documents preserve the current order. `AppController` observes order changes to redraw once.
 
+AI service selection fills the settings group width. Selected services appear first and can be
+reordered with drag handles or accessible move actions. `aiMenuBarProviderOrder` is independent of
+the four-service selection set, persists across restarts, and syncs as an optional document field.
+Normal AI indicators, Trio footer dots, and quota Widget slots use this order. The app requests
+a quota Widget reload when the selection or order changes, without refreshing Magpie. Without a saved order, services start with Claude,
+Codex, Grok, then Gemini; an explicit saved order always takes precedence.
+
 Combined mode follows `menuBarItems` for both the status item and Status Overview by default.
 The combined-only “自定义展示位置” switch enables independent `combinedOverviewItems` and reveals
 the two checkbox columns in Menu Bar settings. Both destinations share `menuBarOrder`. First
@@ -817,14 +824,16 @@ options are disabled until a selected provider is removed. Menu-bar settings alw
 and saved choices, plus providers returned by Magpie, deduplicated across accounts. Unavailable quotas
 remain hidden in the menu bar. A failed refresh preserves the last successful provider list. Saved
 choices remain editable when a provider disappears. Changing a menu-bar choice does not change
-queries, page contents or the independent Widget summary.
+queries or page contents; selected providers lead the quota Widget summary in their saved order.
 Account rows also preserve Magpie's optional `user`, subscription `until`, and `resets` metadata.
 Reset credit counts remain distinct from the balance and quota-window reset times; missing counts
 are unknown, not zero. Individual credit expiry dates are disclosed on demand, with bounded lists
 and no additional requests, timers, or persistent account storage.
 The widget snapshot preserves up to four provider identities and their account display summaries,
-today's aggregate and an optional cumulative input/output summary, independently of menu-bar
-provider selection. The AI page stores a preferred account per provider, shared by menu-bar
+today's aggregate and an optional cumulative input/output summary. Selected menu-bar providers
+lead the four Widget slots; remaining slots use other available providers, then default brands.
+Unavailable selected providers keep a gray slot. Older snapshots without a provider list retain
+their legacy placement. The AI page stores a preferred account per provider, shared by menu-bar
 quotas and all quota widgets. Choices are keyed by provider identity, so service reordering does
 not change the selected account.
 The default follows Magpie's first returned account for that service (current sign-in first for

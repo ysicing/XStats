@@ -308,20 +308,24 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     return matching.count == 1 ? matching.first : nil
   }
 
-  /// 默认四个品牌保留位置；其他服务仅占用未使用的位置，额度失效不影响排序。
+  /// 显式服务列表保留展示顺序；不足四个时补齐默认品牌，额度失效不影响排序。
   public func quotaSlots(at date: Date = .now) -> [QuotaSlot] {
     let defaults = ["codex", "claude", "gemini", "grok"]
     let providers =
       quotaProviders
       ?? (defaults.filter { provider in quotas.contains { $0.provider == provider } }
         + Set(quotas.map(\.provider)).subtracting(defaults).sorted())
-    var ordered = defaults
-    let vacancies = defaults.indices.filter { !providers.contains(defaults[$0]) }
-    var filled = 0
-    for provider in providers where !ordered.contains(provider) && !provider.isEmpty {
-      guard filled < vacancies.count else { break }
-      ordered[vacancies[filled]] = provider
-      filled += 1
+    var seen: Set<String> = []
+    // 旧摘要没有服务列表时仍沿用固定位置，避免缓存升级改变账号展示语义。
+    var ordered = Array(
+      (providers + defaults).filter { !$0.isEmpty && seen.insert($0).inserted }.prefix(4))
+    if quotaProviders == nil {
+      ordered = defaults
+      var extras = providers.filter { !defaults.contains($0) && !$0.isEmpty }.makeIterator()
+      for index in defaults.indices where !providers.contains(defaults[index]) {
+        guard let provider = extras.next() else { break }
+        ordered[index] = provider
+      }
     }
     let current = currentQuotas(at: date).filter { $0.remainingPercent.isFinite }
     return ordered.map { provider in

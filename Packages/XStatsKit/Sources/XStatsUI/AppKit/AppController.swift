@@ -797,6 +797,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.settings.aiWidgetShowsResetRing
       _ = model.settings.aiQuotaShowsRemaining
       _ = model.settings.aiMenuBarProviders
+      _ = model.settings.aiMenuBarProviderOrder
       _ = model.settings.aiUsageWesternUnits
     } onChange: { [weak self] in
       Task { @MainActor in
@@ -812,6 +813,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
   func observeWidgetState() {
     withObservationTracking {
       _ = model.settings.aiUsageEnabled
+      _ = model.settings.aiMenuBarProviders
+      _ = model.settings.aiMenuBarProviderOrder
       _ = model.settings.aiPreferredAccounts
       _ = model.settings.aiWidgetShowsResetRing
       _ = model.settings.aiQuotaShowsRemaining
@@ -876,11 +879,14 @@ public final class AppController: NSObject, NSApplicationDelegate {
         firstWeekday: settings.calendarFirstWeekday,
         features: settings.calendarFeatures)
     }
-    // 按账户身份决定圆环位置；暂时读不到额度时保留灰环，菜单栏选择不影响小组件。
+    // 已选服务跟随菜单栏排序；不足四个时补入可用服务，暂时无额度仍保留位置。
     let available = Set(model.aiUsage.magpieQuotas.map(\.provider))
+    let selected = settings.orderedAIMenuBarProviders
     let quotaProviders = Array(
-      (AIServiceBrand.menuBarOrder.filter { available.contains($0) }
-        + available.subtracting(AIServiceBrand.menuBarOrder).sorted()).prefix(4))
+      (selected
+        + AIServiceBrand.menuBarOrder.filter { available.contains($0) && !selected.contains($0) }
+        + available.subtracting(AIServiceBrand.menuBarOrder).subtracting(selected).sorted()).prefix(
+          4))
     let quotaAccounts = model.aiUsage.widgetQuotaAccounts(at: now)
       .filter { quotaProviders.contains($0.provider) }
     // 旧扩展仍可读取每服务一条的默认摘要；新扩展使用完整账号列表。

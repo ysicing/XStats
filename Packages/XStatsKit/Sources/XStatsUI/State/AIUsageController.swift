@@ -153,7 +153,9 @@ public final class AIUsageController {
 
   func menuBarMagpieQuotas(at date: Date = Date()) -> [MenuBarQuota] {
     let readings = magpieQuotaReadings(at: date)
-    return readings.filter { settings.aiMenuBarProviders.contains($0.sourceName) }
+    return settings.orderedAIMenuBarProviders.compactMap { provider in
+      readings.first { $0.sourceName == provider }
+    }
   }
 
   /// 菜单栏与小组件共用首选账号，显式选择不可用时不回退。

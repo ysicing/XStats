@@ -513,6 +513,7 @@ struct MenuBarSettings: View {
                   !model.aiUsage.availableMenuBarQuotaProviders.isEmpty
                 {
                   AIQuotaMenuBarSelection()
+                    .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
                 }
               }
               if settings.customPopoverContentEnabled, !item.popoverSections.isEmpty,
@@ -631,55 +632,117 @@ struct MenuBarSettings: View {
 /// 菜单栏服务多选与数据来源开关独立，未知服务也能保留选择。
 struct AIQuotaMenuBarSelection: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var providerDrag: AIQuotaProviderDrag?
 
   var body: some View {
     let limit = AppSettings.aiMenuBarProviderLimit.formatted(.number.locale(L10n.locale))
+    let selected = model.settings.orderedAIMenuBarProviders
+    let available = model.aiUsage.availableMenuBarQuotaProviders
+    let providers =
+      (providerDrag?.previewOrder ?? selected)
+      + available.filter { !model.settings.aiMenuBarProviders.contains($0) }
     VStack(alignment: .leading, spacing: DS.Space.s2) {
       Text(tr("在菜单栏显示（最多 \(limit) 个）"))
         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-      // 最多四列，避免服务选项随窗口变宽而分散；窄窗口由系统网格自然换行。
       LazyVGrid(
-        columns: [GridItem(.adaptive(minimum: 160), spacing: DS.Space.s4, alignment: .leading)],
+        columns: [GridItem(.adaptive(minimum: 180), spacing: DS.Space.s4, alignment: .leading)],
         alignment: .leading, spacing: DS.Space.s3
       ) {
-        ForEach(model.aiUsage.availableMenuBarQuotaProviders, id: \.self) { provider in
-          Toggle(
-            isOn: Binding(
-              get: { model.settings.aiMenuBarProviders.contains(provider) },
-              set: { enabled in
-                if enabled {
-                  guard model.settings.aiMenuBarProviders.count < AppSettings.aiMenuBarProviderLimit
-                  else { return }
-                  model.settings.aiMenuBarProviders.insert(provider)
+        ForEach(providers, id: \.self) { provider in
+          HStack(spacing: DS.Space.s2) {
+            Toggle(
+              isOn: Binding(
+                get: { model.settings.aiMenuBarProviders.contains(provider) },
+                set: { enabled in
+                  if enabled {
+                    guard
+                      model.settings.aiMenuBarProviders.count < AppSettings.aiMenuBarProviderLimit
+                    else { return }
+                    model.settings.aiMenuBarProviders.insert(provider)
+                  } else {
+                    model.settings.aiMenuBarProviders.remove(provider)
+                  }
+                })
+            ) {
+              Label {
+                Text(AIServiceBrand.menuBarTitle(provider))
+                  .fixedSize(horizontal: false, vertical: true)
+              } icon: {
+                if let name = AIServiceBrand.logoName(provider),
+                  let logo = LogoCache.shared.image(named: name, template: true)
+                {
+                  Image(nsImage: logo).resizable().scaledToFit().frame(width: 14, height: 14)
                 } else {
-                  model.settings.aiMenuBarProviders.remove(provider)
+                  Image(systemName: "sparkles")
                 }
-              })
-          ) {
-            Label {
-              Text(AIServiceBrand.menuBarTitle(provider))
-                .fixedSize(horizontal: false, vertical: true)
-            } icon: {
-              if let name = AIServiceBrand.logoName(provider),
-                let logo = LogoCache.shared.image(named: name, template: true)
-              {
-                Image(nsImage: logo).resizable().scaledToFit().frame(width: 14, height: 14)
-              } else {
-                Image(systemName: "sparkles")
+              }
+            }
+            .toggleStyle(.checkbox)
+            .dsFont(.sm)
+            .accessibilityLabel(AIServiceBrand.menuBarTitle(provider))
+            .disabled(
+              !model.settings.aiMenuBarProviders.contains(provider)
+                && selected.count >= AppSettings.aiMenuBarProviderLimit)
+            Spacer(minLength: 0)
+            if selected.count > 1, selected.contains(provider) {
+              SettingsReorderHandle(
+                title: AIServiceBrand.menuBarTitle(provider), animateCancellation: !reduceMotion
+              ) {
+                providerDrag = AIQuotaProviderDrag(
+                  provider: provider, order: model.settings.orderedAIMenuBarProviders)
+              } end: {
+                providerDrag = nil
+              }
+              .frame(width: DS.Size.segmentHeight, height: DS.Size.segmentHeight)
+              .help(tr("拖动以调整顺序"))
+              .accessibilityElement(children: .ignore)
+              .accessibilityAddTraits(.isButton)
+              .accessibilityLabel(AIServiceBrand.menuBarTitle(provider))
+              .accessibilityAction(
+                named: tr("将\(AIServiceBrand.menuBarTitle(provider))向前移动")
+              ) {
+                move(provider, by: -1)
+              }
+              .accessibilityAction(
+                named: tr("将\(AIServiceBrand.menuBarTitle(provider))向后移动")
+              ) {
+                move(provider, by: 1)
               }
             }
           }
-          .toggleStyle(.checkbox)
-          .dsFont(.sm)
-          .accessibilityLabel(AIServiceBrand.menuBarTitle(provider))
-          .disabled(
-            !model.settings.aiMenuBarProviders.contains(provider)
-              && model.settings.aiMenuBarProviders.count >= AppSettings.aiMenuBarProviderLimit)
+          .contentShape(Rectangle())
+          .opacity(providerDrag?.provider == provider ? 0 : 1)
+          .onDrop(
+            of: [SettingsReorderHandle.pasteboardType.rawValue],
+            delegate: AIQuotaProviderDropDelegate(provider: provider, drag: $providerDrag) {
+              draft in
+              guard
+                let order = draft.orderToCommit(
+                  current: model.settings.orderedAIMenuBarProviders)
+              else { return false }
+              return model.settings.setAIMenuBarProviderOrder(order)
+            })
         }
       }
-      .frame(maxWidth: 4 * 160 + 3 * DS.Space.s4, alignment: .leading)
+      .dsSelectionAnimation(DS.Motion.usageSelection, value: providers)
     }
-    .padding(.leading, DS.Size.iconStandalone + DS.Space.s3)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .onChange(of: selected) { providerDrag = nil }
+    .onChange(of: available) { providerDrag = nil }
+    .onChange(of: model.isMainWindowVisible) {
+      if !model.isMainWindowVisible { providerDrag = nil }
+    }
+    .onDisappear { providerDrag = nil }
+  }
+
+  private func move(_ provider: String, by offset: Int) {
+    var order = model.settings.orderedAIMenuBarProviders
+    guard let source = order.firstIndex(of: provider),
+      order.indices.contains(source + offset)
+    else { return }
+    order.swapAt(source, source + offset)
+    model.settings.setAIMenuBarProviderOrder(order)
   }
 }
 

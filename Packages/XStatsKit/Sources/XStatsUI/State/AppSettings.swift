@@ -864,6 +864,28 @@ public final class AppSettings {
     }
   }
 
+  public private(set) var aiMenuBarProviderOrder: [String] {
+    didSet { defaults.set(aiMenuBarProviderOrder, forKey: Keys.aiMenuBarProviderOrder) }
+  }
+
+  /// 未排序时优先 Claude、Codex、Grok、Gemini；重新勾选时保留已保存的相对位置。
+  public var orderedAIMenuBarProviders: [String] {
+    var seen: Set<String> = []
+    let defaultOrder = ["claude", "codex", "grok", "gemini"]
+    return
+      (aiMenuBarProviderOrder + defaultOrder + AIServiceBrand.menuBarOrder
+      + aiMenuBarProviders.sorted())
+      .filter { aiMenuBarProviders.contains($0) && seen.insert($0).inserted }
+  }
+
+  @discardableResult
+  public func setAIMenuBarProviderOrder(_ providers: [String]) -> Bool {
+    guard providers.count == aiMenuBarProviders.count, Set(providers) == aiMenuBarProviders
+    else { return false }
+    if aiMenuBarProviderOrder != providers { aiMenuBarProviderOrder = providers }
+    return true
+  }
+
   private static func normalizedAIMenuBarProviders(_ providers: Set<String>) -> Set<String> {
     guard providers.count > aiMenuBarProviderLimit else { return providers }
     // 旧版本允许超过上限；按固定品牌顺序、再按其他服务名收敛，避免 Set 遍历导致重启后组合变化。
@@ -1312,6 +1334,7 @@ public final class AppSettings {
     let initialAIMenuBarProviders = Self.normalizedAIMenuBarProviders(
       savedAIMenuBarProviders ?? Set(AIServiceBrand.defaultMenuBarProviders))
     aiMenuBarProviders = initialAIMenuBarProviders
+    aiMenuBarProviderOrder = defaults.stringArray(forKey: Keys.aiMenuBarProviderOrder) ?? []
     // 无显式选择的旧安装也使用四个默认服务；保存空集合仍表示用户全部取消。
     defaults.set(initialAIMenuBarProviders.sorted(), forKey: Keys.aiMenuBarProviders)
     aiPreferredAccounts =
@@ -1709,6 +1732,7 @@ public final class AppSettings {
     static let aiQuotaShowsRemaining = "aiQuotaShowsRemaining"
     static let aiQuotaSelectedProvider = "aiQuotaSelectedProvider"
     static let aiMenuBarProviders = "aiMenuBarProviders"
+    static let aiMenuBarProviderOrder = "aiMenuBarProviderOrder"
     static let aiPreferredAccounts = "aiPreferredAccounts"
     static let aiWidgetShowsResetRing = "aiWidgetShowsResetRing"
     static let aiUsageWesternUnits = "aiUsageWesternUnits"

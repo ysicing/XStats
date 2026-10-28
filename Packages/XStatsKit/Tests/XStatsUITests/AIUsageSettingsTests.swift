@@ -52,6 +52,61 @@ struct AIUsageSettingsTests {
     #expect(AppSettings(defaults: defaults).aiMenuBarProviders.isEmpty)
   }
 
+  @Test func providerOrderPersistsAndOldDocumentsKeepTheCurrentOrder() throws {
+    let name = "AIUsageSettingsTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let settings = AppSettings(defaults: defaults)
+    #expect(settings.orderedAIMenuBarProviders == ["claude", "codex", "grok", "gemini"])
+    settings.aiMenuBarProviders = ["codex", "claude", "workbuddy", "workbuddy-ai"]
+    let order = ["workbuddy-ai", "claude", "workbuddy", "codex"]
+    #expect(settings.setAIMenuBarProviderOrder(order))
+    #expect(AppSettings(defaults: defaults).orderedAIMenuBarProviders == order)
+    #expect(!settings.setAIMenuBarProviderOrder(["claude", "claude", "workbuddy", "codex"]))
+    #expect(!settings.setAIMenuBarProviderOrder(["claude"]))
+    #expect(settings.orderedAIMenuBarProviders == order)
+    settings.aiMenuBarProviders.remove("claude")
+    #expect(settings.orderedAIMenuBarProviders == ["workbuddy-ai", "workbuddy", "codex"])
+    settings.aiMenuBarProviders.insert("claude")
+    #expect(settings.orderedAIMenuBarProviders == order)
+    let encoded = try JSONEncoder().encode(settings.exportDocument())
+    let decoded = try JSONDecoder().decode(SettingsDocument.self, from: encoded)
+    #expect(decoded.aiMenuBarProviderOrder == order)
+    settings.setAIMenuBarProviderOrder(Array(order.reversed()))
+    var imported = SettingsDocument()
+    imported.aiMenuBarProviders = decoded.aiMenuBarProviders
+    imported.aiMenuBarProviderOrder = decoded.aiMenuBarProviderOrder
+    settings.apply(imported)
+    #expect(settings.orderedAIMenuBarProviders == order)
+    settings.apply(SettingsDocument())
+    #expect(settings.orderedAIMenuBarProviders == order)
+    settings.aiMenuBarProviders = []
+    #expect(settings.orderedAIMenuBarProviders.isEmpty)
+    #expect(AppSettings(defaults: defaults).orderedAIMenuBarProviders.isEmpty)
+  }
+
+  @Test func providerDragIsOnlyAPreviewAndRejectsChangedSelections() throws {
+    let name = "AIUsageSettingsTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let settings = AppSettings(defaults: defaults)
+    let original = settings.orderedAIMenuBarProviders
+    var draft = AIQuotaProviderDrag(provider: "grok", order: original)
+    draft.move(over: "claude")
+    #expect(draft.previewOrder == ["grok", "claude", "codex", "gemini"])
+    #expect(AppSettings(defaults: defaults).orderedAIMenuBarProviders == original)
+    #expect(draft.orderToCommit(current: original) == draft.previewOrder)
+    #expect(draft.orderToCommit(current: ["codex", "claude"]) == nil)
+    draft.move(over: "unselected")
+    #expect(draft.previewOrder == ["grok", "claude", "codex", "gemini"])
+    draft.move(over: "codex")
+    #expect(draft.previewOrder == original)
+    defaults.set(["grok", "grok", "unselected", "claude"], forKey: "aiMenuBarProviderOrder")
+    #expect(
+      AppSettings(defaults: defaults).orderedAIMenuBarProviders
+        == ["grok", "claude", "codex", "gemini"])
+  }
+
   @Test func menuBarProviderLimitAppliesToSavedAndAssignedSelections() throws {
     let name = "AIUsageSettingsTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: name))
