@@ -51,6 +51,8 @@ final class NetworkLeakTestController {
     self.geoLookup = geoLookup
   }
 
+  private var enrichingGeolocation = false
+
   func start(_ mode: Mode) {
     cancel()
     completedAt = nil
@@ -87,6 +89,8 @@ final class NetworkLeakTestController {
             ([httpExit].compactMap { $0 })
             + webRTCServices.flatMap(\.candidates).filter(\.isReflexive).map(\.address)
           var queried = Set<String>()
+          enrichingGeolocation = true
+          defer { enrichingGeolocation = false }
           for address in addresses where queried.insert(address).inserted {
             try Task.checkCancellation()
             let geo = await geoLookup(address)
@@ -108,7 +112,9 @@ final class NetworkLeakTestController {
     generation = UUID()
     task?.cancel()
     task = nil
-    if phase == .running {
+    // 归属补充被打断时结果不完整，须标为取消，恢复后才会重测。
+    if phase == .running || enrichingGeolocation {
+      enrichingGeolocation = false
       phase = .cancelled
       logger.debug("Leak test cancelled")
     }

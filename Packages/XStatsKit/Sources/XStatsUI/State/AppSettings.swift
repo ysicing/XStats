@@ -720,16 +720,21 @@ public final class AppSettings {
       if customMenuBarPlacementEnabled,
         defaults.object(forKey: Keys.combinedOverviewItems) == nil
       {
+        // 只是复制已有选择，不能触发 didSet 把已关闭的功能重新启用。
+        seedingOverviewItems = true
         combinedOverviewItems = menuBarItems
+        seedingOverviewItems = false
       }
       defaults.set(customMenuBarPlacementEnabled, forKey: Keys.customMenuBarPlacementEnabled)
     }
   }
+  private var seedingOverviewItems = false
   /// 自定义聚合总览独立保存；隐藏读数不影响总览，关闭功能仍由模块开关控制。
   public var combinedOverviewItems: Set<MenuBarItem> {
     didSet {
       defaults.set(
         combinedOverviewItems.map(\.rawValue).sorted(), forKey: Keys.combinedOverviewItems)
+      guard !seedingOverviewItems else { return }
       let added = combinedOverviewItems.subtracting(oldValue)
       enabledMonitoringModules.formUnion(
         added.filter { $0 != .battery }.compactMap(\.monitoringModule))

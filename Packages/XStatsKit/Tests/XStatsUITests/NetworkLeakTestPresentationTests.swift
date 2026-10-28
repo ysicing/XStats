@@ -81,7 +81,7 @@ struct NetworkLeakTestPresentationTests {
       returning: IPGeolocation(
         country: "China", countryCode: "CN", region: "", city: "", isp: "", domain: ""))
     await task.value
-    #expect(controller.phase == .complete)
+    #expect(controller.phase == .cancelled)
     #expect(controller.httpExit == "1.2.4.8")
     #expect(controller.geolocations.isEmpty)
   }

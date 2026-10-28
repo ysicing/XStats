@@ -128,14 +128,23 @@ public actor IPGeolocationLookup {
       guard ![0, 10, 127].contains(bytes[0]), bytes[0] < 224,
         !(bytes[0] == 169 && bytes[1] == 254),
         !(bytes[0] == 172 && (16...31).contains(bytes[1])),
-        !(bytes[0] == 192 && bytes[1] == 168)
+        !(bytes[0] == 192 && bytes[1] == 168),
+        !(bytes[0] == 100 && (64...127).contains(bytes[1])),
+        !(bytes[0] == 198 && (18...19).contains(bytes[1])),
+        !(bytes[0] == 192 && bytes[1] == 0 && bytes[2] == 0),
+        !(bytes[0] == 192 && bytes[1] == 0 && bytes[2] == 2),
+        !(bytes[0] == 198 && bytes[1] == 51 && bytes[2] == 100),
+        !(bytes[0] == 203 && bytes[1] == 0 && bytes[2] == 113)
       else { return nil }
       return ip.debugDescription
     }
     if let ip = IPv6Address(address) {
       let bytes = Array(ip.rawValue)
       // 仅全球单播；不将本地、链路本地、组播或 IPv4 映射地址发给第三方。
-      guard bytes[0] & 0xE0 == 0x20 else { return nil }
+      guard bytes[0] & 0xE0 == 0x20,
+        !(bytes[0] == 0x20 && bytes[1] == 0x01 && bytes[2] == 0 && bytes[3] == 0),  // Teredo
+        !(bytes[0] == 0x20 && bytes[1] == 0x01 && bytes[2] == 0x0d && bytes[3] == 0xb8)  // 文档
+      else { return nil }
       return ip.debugDescription
     }
     return nil

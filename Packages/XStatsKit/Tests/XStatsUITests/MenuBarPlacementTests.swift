@@ -268,4 +268,15 @@ struct MenuBarPlacementTests {
       }
     }
   }
+
+  @Test func firstEnablingCustomPlacementKeepsDisabledFeaturesOff() throws {
+    try withModel { model, _ in
+      let settings = model.settings
+      settings.setEnabled(.gpu, true)
+      settings.setModuleEnabled(.gpu, false)
+      settings.customMenuBarPlacementEnabled = true
+      #expect(settings.combinedOverviewItems.contains(.gpu))
+      #expect(!settings.isModuleEnabled(.gpu))
+    }
+  }
 }
