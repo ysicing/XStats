@@ -403,14 +403,8 @@ struct MenuBarSettings: View {
 
     SettingsGroup(caption: settings.menuBarLayout == .iconOnly ? tr("面板项目") : tr("显示项目")) {
       if settings.menuBarLayout == .combined {
-        GroupRow(showsDivider: false) {
-          SettingRow(title: tr("自定义展示位置")) {
-            DSToggle(
-              isOn: $settings.customMenuBarPlacementEnabled, label: tr("自定义展示位置"))
-          }
-        }
         if settings.customMenuBarPlacementEnabled {
-          GroupRow {
+          GroupRow(showsDivider: false) {
             HStack(spacing: DS.Space.s2) {
               Spacer()
               Text(tr("菜单栏"))
@@ -439,7 +433,10 @@ struct MenuBarSettings: View {
         .filter { model.availableMenuBarItems.contains($0) }
       ForEach(Array(order.enumerated()), id: \.element) { index, item in
         let moduleEnabled = settings.isModuleEnabled(for: item)
-        GroupRow {
+        GroupRow(
+          showsDivider: index > 0 || settings.menuBarLayout != .combined
+            || settings.customMenuBarPlacementEnabled
+        ) {
           VStack(alignment: .leading, spacing: DS.Space.s3) {
             SettingRow(
               title: item.title,
@@ -516,7 +513,7 @@ struct MenuBarSettings: View {
       }
     }
 
-    SettingsGroup(caption: tr("其他")) {
+    SettingsGroup(caption: tr("高级")) {
       if settings.menuBarLayout != .iconOnly {
         GroupRow(showsDivider: false) {
           SettingRow(title: tr("数值位置"), subtitle: tr("适用于双行文字及图形旁的双行文字")) {
@@ -537,6 +534,12 @@ struct MenuBarSettings: View {
         }
       }
       if settings.menuBarLayout == .combined {
+        GroupRow {
+          SettingRow(title: tr("自定义展示位置")) {
+            DSToggle(
+              isOn: $settings.customMenuBarPlacementEnabled, label: tr("自定义展示位置"))
+          }
+        }
         GroupRow {
           SettingRow(title: tr("项目间距"), subtitle: tr("调整合并菜单栏中各项目之间的距离")) {
             Picker(tr("项目间距"), selection: $settings.menuBarItemSpacing) {

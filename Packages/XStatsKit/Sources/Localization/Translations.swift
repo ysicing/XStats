@@ -825,6 +825,7 @@ extension Translations {
     关于 XStats	About XStats
     关闭	Off
     其他	Other
+    高级	Advanced
     其他位置	Other locations
     其他磁盘	Other disks
     其他程序手动控制	Controlled by another app
