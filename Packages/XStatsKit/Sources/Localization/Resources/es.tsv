@@ -1876,7 +1876,6 @@ pip3 下载与 wheel 缓存，不涉及虚拟环境或已安装的包	Cachés de
 检测到相同应用的其他安装副本；本次只移除所选应用，共用的数据会保留。	Se ha detectado otra copia de esta app. Solo se eliminará la seleccionada y se conservarán los datos compartidos.
 检测到相同应用的其他安装副本；共用的数据已保留，未移动任何文件。	Se ha detectado otra copia de esta app. Se conservaron los datos compartidos y no se movió ningún archivo.
 无法完整检查应用安装位置；为避免影响其他副本，本次保留共用数据。	No se pudieron comprobar todas las ubicaciones de instalación. Se conservarán los datos compartidos para proteger otras copias.
-聚合模式下，用右侧按钮调整顺序；关闭再开启项目会保留位置。	En el modo combinado, usa los botones adyacentes para cambiar el orden. Los elementos conservan su posición al desactivarlos y reactivarlos.
 将{}向前移动	Mover {} antes
 将{}向后移动	Mover {} después
 显示 Token 用量	Mostrar uso de tokens

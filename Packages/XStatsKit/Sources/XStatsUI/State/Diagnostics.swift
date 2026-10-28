@@ -163,6 +163,9 @@ final class DiagnosticsExporter {
 
     section(tr("设置"))
     row(tr("菜单栏项目"), settings.orderedMenuBarItems.map(\.rawValue).joined(separator: ", "))
+    if settings.menuBarLayout == .combined, settings.customMenuBarPlacementEnabled {
+      row(tr("状态总览"), settings.orderedOverviewItems.map(\.rawValue).joined(separator: ", "))
+    }
     row(tr("菜单栏布局"), settings.menuBarLayout.rawValue)
     row(tr("菜单栏风格"), settings.menuBarStyle.rawValue)
     row(tr("刷新间隔"), tr("\(settings.refreshSeconds) 秒"))
