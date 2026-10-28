@@ -1,25 +1,21 @@
 {
-  "version": "1.4.11",
+  "version": "1.4.12",
   "sourceNotes": [
-    "出口与分流窗口新增 WebRTC 与 DNS 检测",
-    "WebRTC 检测结果补充公网 IP 的国家、城市和网络归属信息",
-    "AI 入口移至工具分组",
-    "订阅账号支持设置首选账号，菜单栏和小组件统一使用",
-    "额度小组件支持小尺寸两行与中尺寸单行布局，补充服务图标、相对重置时间和单圈／双圈样式设置",
-    "完善 Magpie 未安装或未连接时的引导，默认刷新与失败重试间隔调整为 5 分钟",
-    "出口检测结果在关窗后保留，统一手动检测与完成时间，并按当前分类内容适配窗口缩放",
-    "AI 统计仅通过 Magpie 本地接口读取，移除独立日志扫描、直连额度与价格查询"
+    "聚合模式支持分别选择菜单栏与状态总览的展示项目",
+    "支持拖动调整聚合监控项目与 AI 服务顺序，AI 顺序同步到菜单栏、聚合圆点和额度小组件",
+    "优化菜单栏设置布局，统一网络样式与 IP 归属地控件对齐，并让 AI 服务选择铺满可用宽度",
+    "修复额度小组件的默认灰环挤掉实际服务，以及取消勾选后排序和备份丢失服务位置的问题",
+    "修复首次开启自定义展示位置时重新启用已关闭监控功能的问题",
+    "完善网络检测取消后的恢复，排除非公网测试地址的归属查询"
   ],
   "translations": {
     "en": [
-      "Add WebRTC and DNS tests to the egress and routing window to compare HTTP egress, public candidate addresses and DNS resolvers.",
-      "Show country, city and network information for public IP addresses in WebRTC results.",
-      "Move AI to Tools and add Token, cost, request and generation-speed trends. Fix clicks in the empty area of period buttons.",
-      "Choose a preferred subscription account shared by the menu bar and widgets. Show selection controls only for services with multiple accounts and return to Magpie order when a selected account is deleted.",
-      "Add two-row small and single-row medium quota widgets, service icons, relative reset times and single- or double-ring settings.",
-      "Improve setup guidance when Magpie is missing or disconnected and set refresh and failure retry intervals to five minutes by default.",
-      "Keep egress results after closing the window, unify manual testing and completion times, and fit window zoom to the current category.",
-      "Read AI statistics exclusively from the local Magpie API. Remove independent log scanning, direct quota access and price lookups; install and run Magpie to use AI statistics."
+      "Choose separate menu-bar and Status Overview items in combined mode. Enable Customize Display Locations in Advanced settings when needed (#22).",
+      "Drag to reorder combined monitoring items and AI services. Share the AI order across menu-bar indicators, combined dots and quota widgets.",
+      "Refine menu-bar settings, align the network style and IP location controls, and let AI service selection use the available width.",
+      "Keep default gray quota rings from displacing services present in Magpie. Preserve hidden service positions when reordering and restoring backups.",
+      "Fix enabling custom display locations for the first time unexpectedly turning disabled monitoring features back on.",
+      "Improve recovery after cancelling network tests and exclude non-public test addresses from geolocation queries."
     ]
   }
 }
