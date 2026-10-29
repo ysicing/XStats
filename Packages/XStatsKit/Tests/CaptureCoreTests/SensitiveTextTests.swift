@@ -4,6 +4,8 @@ import Testing
 import Foundation
 import AppKit
 import CoreText
+import Vision
+import os
 @testable import CaptureCore
 
 @Suite struct SensitiveTextTests {
@@ -44,6 +46,94 @@ import CoreText
     }
     #expect(regions.allSatisfy { crop.contains($0) })
   }
+  @Test func unavailableAccurateRecognitionUsesRealFastRecognitionWithOriginalCoordinates()
+    async throws
+  {
+    let attempts = OSAllocatedUnfairLock(initialState: [VNRequestTextRecognitionLevel]())
+    let detector = SensitiveTextDetector { request, image in
+      let level = request.recognitionLevel
+      attempts.withLock { $0.append(level) }
+      if level == .accurate { throw RecognitionFailure.unavailable }
+      #expect(request.recognitionLanguages.contains("en-US"))
+      let supported = try request.supportedRecognitionLanguages()
+      #expect(request.recognitionLanguages.allSatisfy { supported.contains($0) })
+      try VNImageRequestHandler(cgImage: image).perform([request])
+    }
+    let image = try fixture()
+    let crop = CGRect(x: 20, y: 20, width: 900, height: 460)
+    let regions = try await Task.detached { try detector.regions(in: image, crop: crop) }.value
+    #expect(attempts.withLock { $0 } == [.accurate, .fast])
+    #expect(detector.usedFastRecognition)
+    #expect(regions.count == 4)
+    for y in [80, 180, 280, 380] {
+      #expect(regions.contains { $0.contains(CGPoint(x: 150, y: y)) })
+    }
+    #expect(regions.allSatisfy { crop.contains($0) })
+  }
+  @Test func failureOfBothRecognizersIsReportedWithoutFurtherAttempts() async throws {
+    let attempts = OSAllocatedUnfairLock(initialState: [VNRequestTextRecognitionLevel]())
+    let detector = SensitiveTextDetector { request, _ in
+      let level = request.recognitionLevel
+      attempts.withLock { $0.append(level) }
+      throw RecognitionFailure.unavailable
+    }
+    let image = try fixture()
+    await #expect(throws: RecognitionFailure.unavailable) {
+      try await Task.detached {
+        try detector.regions(in: image, crop: CGRect(x: 0, y: 0, width: 1000, height: 500))
+      }.value
+    }
+    #expect(attempts.withLock { $0 } == [.accurate, .fast])
+  }
+  @Test func cancelledAccurateRequestDoesNotStartFallback() async throws {
+    let attempts = OSAllocatedUnfairLock(initialState: [VNRequestTextRecognitionLevel]())
+    let detector = SensitiveTextDetector { request, _ in
+      let level = request.recognitionLevel
+      attempts.withLock { $0.append(level) }
+      throw CancellationError()
+    }
+    let image = try fixture()
+    await #expect(throws: CancellationError.self) {
+      try await Task.detached {
+        try detector.regions(in: image, crop: CGRect(x: 0, y: 0, width: 1000, height: 500))
+      }.value
+    }
+    #expect(attempts.withLock { $0 } == [.accurate])
+  }
+  @Test func taskCancelledDuringAccurateFailureDoesNotStartFallback() async throws {
+    let attempts = OSAllocatedUnfairLock(initialState: [VNRequestTextRecognitionLevel]())
+    let detector = SensitiveTextDetector { request, _ in
+      let level = request.recognitionLevel
+      attempts.withLock { $0.append(level) }
+      withUnsafeCurrentTask { $0?.cancel() }
+      throw RecognitionFailure.unavailable
+    }
+    let image = try fixture()
+    await #expect(throws: CancellationError.self) {
+      try await Task.detached {
+        try detector.regions(in: image, crop: CGRect(x: 0, y: 0, width: 1000, height: 500))
+      }.value
+    }
+    #expect(attempts.withLock { $0 } == [.accurate])
+  }
+  @Test func successfulAccurateRecognitionDoesNotKeepEarlierFallbackState() async throws {
+    let attempts = OSAllocatedUnfairLock(initialState: 0)
+    let detector = SensitiveTextDetector { _, _ in
+      let count = attempts.withLock { count in
+        count += 1
+        return count
+      }
+      if count == 1 { throw RecognitionFailure.unavailable }
+    }
+    let image = try fixture()
+    let crop = CGRect(x: 0, y: 0, width: 1000, height: 500)
+    _ = try await Task.detached { try detector.regions(in: image, crop: crop) }.value
+    #expect(detector.usedFastRecognition)
+    _ = try await Task.detached { try detector.regions(in: image, crop: crop) }.value
+    #expect(!detector.usedFastRecognition)
+    #expect(attempts.withLock { $0 } == 3)
+  }
+  private enum RecognitionFailure: Error { case unavailable }
   @Test func cancelledRecognizerDoesNotRunVision() async throws {
     let detector = SensitiveTextDetector()
     detector.cancel()

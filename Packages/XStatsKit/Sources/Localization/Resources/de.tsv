@@ -2127,6 +2127,7 @@ CPU 占用口径	CPU-Anzeigeskala
 在本机识别手机号、邮箱、身份证号和银行卡号。	Telefonnummern, E-Mail-Adressen, Ausweisnummern und Bankkartennummern auf diesem Mac erkennen.
 正在识别敏感信息…	Sensible Informationen werden gesucht…
 未发现新的敏感信息，可手动补充马赛克。	Keine neuen sensiblen Informationen gefunden. Bei Bedarf Mosaike manuell hinzufügen.
+已使用快速识别，可能遗漏信息，请仔细检查并补充马赛克。	Die schnelle Erkennung kann Informationen übersehen. Prüfe das Bild sorgfältig und ergänze bei Bedarf Mosaike.
 已添加 {} 处马赛克，请检查并补充遗漏。	{} Mosaike hinzugefügt. Prüfe das Bild auf übersehene Informationen.
 标注数量已达上限，请先删除部分标注。	Die maximale Anzahl an Anmerkungen ist erreicht. Lösche zuerst einige Anmerkungen.
 敏感信息识别未完成，请重试。	Sensible Informationen konnten nicht erkannt werden. Versuche es erneut.

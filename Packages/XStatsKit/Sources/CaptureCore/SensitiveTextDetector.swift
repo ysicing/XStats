@@ -6,13 +6,27 @@ import os
 
 /// One on-demand, cancellable recognition. Recognized text never leaves this operation.
 public final class SensitiveTextDetector: Sendable {
+  private static let logger = Logger(
+    subsystem: CaptureRequest.bundleIdentifier, category: "sensitive-text")
   // VNRequest is confined to the worker except for its thread-safe cancellation method.
   private struct State {
     var request: VNRecognizeTextRequest?
     var cancelled = false
+    var usedFastRecognition = false
   }
   private let state = OSAllocatedUnfairLock(uncheckedState: State())
-  public init() {}
+  private let perform: @Sendable (VNRecognizeTextRequest, CGImage) throws -> Void
+  public var usedFastRecognition: Bool {
+    state.withLockUnchecked { $0.usedFastRecognition }
+  }
+  public init() {
+    perform = { request, image in
+      try VNImageRequestHandler(cgImage: image).perform([request])
+    }
+  }
+  init(perform: @escaping @Sendable (VNRecognizeTextRequest, CGImage) throws -> Void) {
+    self.perform = perform
+  }
   public func cancel() {
     state.withLockUnchecked { state in
       state.cancelled = true
@@ -28,18 +42,47 @@ public final class SensitiveTextDetector: Sendable {
       throw CaptureError.invalidRegion
     }
     let request = VNRecognizeTextRequest()
-    request.recognitionLevel = .accurate
     request.usesLanguageCorrection = false
-    let languages = try request.supportedRecognitionLanguages()
-    request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"].filter { languages.contains($0) }
     let cancelled = state.withLockUnchecked { state in
       guard !state.cancelled else { return true }
       state.request = request
+      state.usedFastRecognition = false
       return false
     }
     guard !cancelled else { throw CancellationError() }
     defer { state.withLockUnchecked { $0.request = nil } }
-    try VNImageRequestHandler(cgImage: cropped).perform([request])
+    for level in [VNRequestTextRecognitionLevel.accurate, .fast] {
+      try Task.checkCancellation()
+      guard !state.withLockUnchecked({ $0.cancelled }) else { throw CancellationError() }
+      request.recognitionLevel = level
+      do {
+        let languages = try request.supportedRecognitionLanguages()
+        request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"].filter {
+          languages.contains($0)
+        }
+        try perform(request, cropped)
+        if level == .fast { state.withLockUnchecked { $0.usedFastRecognition = true } }
+        break
+      } catch {
+        let failure = error as NSError
+        try Task.checkCancellation()
+        guard !state.withLockUnchecked({ $0.cancelled }),
+          !(error is CancellationError),
+          !(failure.domain == VNErrorDomain
+            && failure.code == VNErrorCode.requestCancelled.rawValue)
+        else { throw CancellationError() }
+        let domain = String(failure.domain.prefix(128))
+        if level == .fast {
+          Self.logger.error(
+            "Fast recognition failed: domain \(domain, privacy: .private), code \(failure.code)")
+          throw error
+        }
+        // Some environments cannot run the accurate model; keep failure visible if fast also fails.
+        Self.logger.notice(
+          "Accurate OCR failed; trying fast: \(domain, privacy: .private), code \(failure.code)"
+        )
+      }
+    }
     try Task.checkCancellation()
     guard !state.withLockUnchecked({ $0.cancelled }) else { throw CancellationError() }
     var regions: [CGRect] = []

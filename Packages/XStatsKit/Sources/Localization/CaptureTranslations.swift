@@ -129,6 +129,7 @@ extension Translations {
     在本机识别手机号、邮箱、身份证号和银行卡号。	Find phone numbers, email addresses, national ID numbers and bank card numbers on this Mac.
     正在识别敏感信息…	Finding sensitive information…
     未发现新的敏感信息，可手动补充马赛克。	No new sensitive information found. Add mosaic masks manually if needed.
+    已使用快速识别，可能遗漏信息，请仔细检查并补充马赛克。	Fast recognition may miss information. Review the image and add masks as needed.
     已添加 {} 处马赛克，请检查并补充遗漏。	Added {} mosaic masks. Review the image for anything missed.
     标注数量已达上限，请先删除部分标注。	The annotation limit has been reached. Delete some annotations first.
     敏感信息识别未完成，请重试。	Sensitive information could not be recognized. Try again.

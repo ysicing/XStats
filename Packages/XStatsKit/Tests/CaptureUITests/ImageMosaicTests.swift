@@ -83,7 +83,13 @@ import CaptureCore
     let model = ImageEditorModel(
       image: try image(),
       detectRegions: { _, _ in
-        [CGRect(x: 10, y: 20, width: 30, height: 10), CGRect(x: 80, y: 40, width: 40, height: 10)]
+        (
+          [
+            CGRect(x: 10, y: 20, width: 30, height: 10),
+            CGRect(x: 80, y: 40, width: 40, height: 10),
+          ],
+          false
+        )
       })
     model.detectSensitiveInformation()
     await model.waitForPendingWork()
@@ -117,7 +123,7 @@ import CaptureCore
         guard release.wait(timeout: .now() + 10) == .success else {
           throw CaptureError.captureFailed
         }
-        return [CGRect(x: 10, y: 20, width: 30, height: 10)]
+        return ([CGRect(x: 10, y: 20, width: 30, height: 10)], false)
       })
     var iterator = started.makeAsyncIterator()
     model.detectSensitiveInformation()
@@ -133,6 +139,15 @@ import CaptureCore
     release.signal()
     await model.waitForPendingWork()
     #expect(model.document.annotations.isEmpty && !model.rendering && !model.detecting)
+  }
+  @Test func fallbackRecognitionIsMarkedForReview() async throws {
+    let model = ImageEditorModel(
+      image: try image(),
+      detectRegions: { _, _ in ([CGRect(x: 10, y: 20, width: 30, height: 10)], true) })
+    model.detectSensitiveInformation()
+    await model.waitForPendingWork()
+    #expect(model.detectedCount == 1 && model.usedFastRecognition)
+    #expect(model.document.annotations.count == 1)
   }
   @Test func cropIsPassedToRecognitionAndFailedRecognitionKeepsExistingWork() async throws {
     let crop = CGRect(x: 20, y: 30, width: 100, height: 50)

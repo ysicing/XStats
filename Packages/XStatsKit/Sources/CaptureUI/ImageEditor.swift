@@ -32,8 +32,9 @@ extension ImageTool {
   var mosaics: ImageMosaics?
   private(set) var detecting = false
   var detectedCount: Int?
+  var usedFastRecognition = false
   private let mosaicWorker: Task<ImageMosaics, Error>
-  private var detectRegions: (@Sendable (CGImage, CGRect) throws -> [CGRect])?
+  private var detectRegions: (@Sendable (CGImage, CGRect) throws -> ([CGRect], Bool))?
   private var recognitionID: UUID?
   private var cancelRecognition: (() -> Void)?
   private static let logger = Logger(
@@ -78,7 +79,7 @@ extension ImageTool {
     }
   }
   convenience init(
-    image: CGImage, detectRegions: @escaping @Sendable (CGImage, CGRect) throws -> [CGRect]
+    image: CGImage, detectRegions: @escaping @Sendable (CGImage, CGRect) throws -> ([CGRect], Bool)
   ) {
     self.init(image: image)
     self.detectRegions = detectRegions
@@ -205,6 +206,7 @@ extension ImageTool {
     guard !rendering else { return }
     detecting = true
     detectedCount = nil
+    usedFastRecognition = false
     error = nil
     let id = UUID()
     recognitionID = id
@@ -214,7 +216,9 @@ extension ImageTool {
     let detector = SensitiveTextDetector()
     let worker = Task.detached(priority: .userInitiated) {
       try Task.checkCancellation()
-      return try detectRegions?(original, crop) ?? detector.regions(in: original, crop: crop)
+      if let detectRegions { return try detectRegions(original, crop) }
+      let regions = try detector.regions(in: original, crop: crop)
+      return (regions, detector.usedFastRecognition)
     }
     cancelRecognition = {
       worker.cancel()
@@ -230,7 +234,7 @@ extension ImageTool {
         cancelRecognition = nil
       }
       do {
-        let regions = try await withTaskCancellationHandler {
+        let (regions, usedFastRecognition) = try await withTaskCancellationHandler {
           try await worker.value
         } onCancel: {
           worker.cancel()
@@ -254,6 +258,7 @@ extension ImageTool {
           refresh()
         }
         detectedCount = items.count
+        self.usedFastRecognition = usedFastRecognition
         Self.logger.info("Sensitive text recognition finished; added \(items.count) masks")
       } catch {
         guard !terminating, recognitionID == id, !Task.isCancelled else { return }
@@ -547,10 +552,12 @@ private struct ImageEditorView: View {
         }.padding(.horizontal, 16).padding(.bottom, 12)
       } else if let count = model.detectedCount {
         Text(
-          count == 0
-            ? tr("未发现新的敏感信息，可手动补充马赛克。")
-            : tr("已添加 {} 处马赛克，请检查并补充遗漏。").replacingOccurrences(
-              of: "{}", with: count.formatted(.number.locale(L10n.locale)))
+          model.usedFastRecognition
+            ? tr("已使用快速识别，可能遗漏信息，请仔细检查并补充马赛克。")
+            : count == 0
+              ? tr("未发现新的敏感信息，可手动补充马赛克。")
+              : tr("已添加 {} 处马赛克，请检查并补充遗漏。").replacingOccurrences(
+                of: "{}", with: count.formatted(.number.locale(L10n.locale)))
         )
         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 16).padding(.bottom, 12)
