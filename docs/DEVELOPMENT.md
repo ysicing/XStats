@@ -107,9 +107,9 @@ GitHub Actions 在测试和构建前执行同一条 `task format-check`，检查
 在本地执行 `task format` 修正后再提交。
 保留现有导入顺序，避免格式器的导入排序合并脚本 shebang 与紧随其后的版权注释。
 
-`task test` 按 Swift 测试模块隔离运行，其中 `XStatsUITests` 显式使用 `--no-parallel`。
-UI 用例共享主 actor，同步布局、日历计算和阻塞夹具并发时会拖延取消与超时处理；串行执行保留全部断言与原有时限。
-单独运行整个 UI 模块时同样加上 `--no-parallel`，其他模块保留默认调度。
+`task test` 按 Swift 测试模块隔离运行，其中 `XStatsUITests`、`CaptureUITests` 和 `CleanerTests` 显式使用 `--no-parallel`。
+UI 的同步布局、日历计算及 Cleaner 的同步进程夹具并发时会拖延异步回调、取消与超时处理；串行执行保留全部断言与原有时限。
+单独运行这些模块时同样加上 `--no-parallel`，其他模块保留默认调度。
 串行不能代替全局状态隔离：UI 用例不得修改进程全局的 `L10n` 语言，需要切换语言的翻译测试放在并行运行的 `LocalizationTests` 并使用显式语言的翻译表。
 
 截图默认使用 `build/DerivedData-arm64/Build/Products/Release/XStats.app`，不会悄悄使用 `/Applications` 中的旧版本。
@@ -324,7 +324,7 @@ task compile CONFIG=Debug
 日程权限还需要最终 App 签名包含 `com.apple.security.personal-information.calendars`；
 仅有 Info.plist 说明不足以触发授权。授权由用户在应用中主动请求。
 
-清理审阅的定向验证：`swift test --package-path Packages/XStatsKit --filter 'ApplicationCacheTests|DeveloperCleanupCatalogTests|CleanupReviewTests|CleanupReviewRegressionTests|ToolCachePlanTests|CleanerReviewFlowTests|CleanerTests|CleanerSelectionTests|ScanCancellationTests|AppUninstall|LanguageSupportTests'`。
+清理审阅的定向验证：`swift test --package-path Packages/XStatsKit --no-parallel --filter 'ApplicationCacheTests|DeveloperCleanupCatalogTests|CleanupReviewTests|CleanupReviewRegressionTests|ToolCachePlanTests|CleanerReviewFlowTests|CleanerTests|CleanerSelectionTests|ScanCancellationTests|AppUninstall|LanguageSupportTests'`。
 使用临时目录与模拟 CLI 验证自定义缓存路径查询、路径锁定、版本子目录、保留项保护及不完整卸载扫描；不执行真实工具清理。验证工具缓存不重复覆盖、运行应用状态刷新、排除路径的父子与别名保护、逐项选择、错误语义及本机偏好不进入备份。
 开发者清单及原生工具的执行边界见 [CLEANUP.md](CLEANUP.md)。
 修改工具查询或路径校验后，另跑 `swift test --package-path Packages/XStatsKit -c release --filter 'ToolCachePlanTests|DeveloperCleanupCatalogTests|AppUninstallIdentityTests|AppUninstallerMoleTests'`。当前 Swift 6.4 工具链中，直接传入 `CharacterSet.controlCharacters.contains` 的实例方法引用曾在 Release 下误拒正常路径；应用标识的字符集成员检查也曾在 Release 下误拒正常标识；两处均保持显式闭包，并用正常路径、控制字符、目录边界和有效/无效应用标识验证优化构建。

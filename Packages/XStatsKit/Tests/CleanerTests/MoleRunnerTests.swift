@@ -49,19 +49,29 @@ struct MoleRunnerTests {
     #expect(MoleRunner.executable(in: []) == nil)
   }
 
-  @Test func usesExactArgumentsAndStreamsBeforeExit() async throws {
+  @Test(.timeLimit(.minutes(1))) func usesExactArgumentsAndStreamsBeforeExit() async throws {
     let fixture = try MoleFixture(
       #"""
-      printf '%s\n' "$@"
       printf 'first\n'
-      sleep 0.5
+      attempts=0
+      while [ ! -f "$0.continue" ]; do
+        attempts=$((attempts + 1))
+        [ "$attempts" -lt 200 ] || exit 99
+        sleep 0.05
+      done
+      printf '%s\n' "$@"
       printf 'last\n' >&2
       exit 7
       """#)
     defer { fixture.remove() }
+    // 收到首段输出后才放行脚本，验证流式回调，不依赖测试线程能在固定时间内获调度。
+    let acknowledgement = fixture.executable.appendingPathExtension("continue")
     let received = MoleOutputProbe()
     let status = try await MoleRunner.run(executable: fixture.executable, command: .scan) {
       await received.append($0)
+      if $0.text.contains("first") {
+        #expect(FileManager.default.createFile(atPath: acknowledgement.path, contents: nil))
+      }
     }
     let outputs = await received.outputs
     #expect(status == 7)
@@ -69,10 +79,16 @@ struct MoleRunnerTests {
     #expect(outputs.first?.text.contains("last") == false)
     #expect(outputs.last?.text.contains("clean\n--dry-run\n") == true)
     #expect(outputs.last?.text.contains("last") == true)
+    try FileManager.default.removeItem(at: acknowledgement)
     let clean = MoleOutputProbe()
-    _ = try await MoleRunner.run(executable: fixture.executable, command: .clean) {
+    let cleanStatus = try await MoleRunner.run(executable: fixture.executable, command: .clean) {
       await clean.append($0)
+      if $0.text.contains("first") {
+        #expect(FileManager.default.createFile(atPath: acknowledgement.path, contents: nil))
+      }
     }
+    #expect(cleanStatus == 7)
+    #expect(await clean.outputs.last?.text.contains("clean\n") == true)
     #expect(await clean.outputs.last?.text.contains("--dry-run") == false)
   }
 
