@@ -210,14 +210,12 @@ Or download the DMG from [GitHub Releases](https://github.com/ysicing/xstats/rel
 
 ## Data and privacy
 
-Monitoring data, local history and AI token statistics are processed locally and are not uploaded to the XStats update service. These features connect to external services and can be disabled or used on demand:
+Monitoring data, history and AI usage are processed locally.
 
-- **Update checks**: the main app, independent network component and standalone Capture send their version and a hashed installation ID to retrieve their update feed.
-- **AI**: reads quotas and statistics only from the local Magpie API, without reading CLI credentials or session logs.
-- **Network Monitor**: downloads the component and a public geography database; connection records and destination IPs are not uploaded.
-- **Network diagnostics**: public IP, location, speed tests, DNS, connectivity probes and global probes contact their services; global-probe targets and results may be queried by others.
-
-Experimental menu bar folding on macOS 27 asks for access to one system configuration file to hide and restore selected apps. It does not require screen recording or upload the app list.
+- **Update checks**: send the version and a hashed installation ID to retrieve the update feed.
+- **AI usage**: requires Magpie to be installed and running; reads quotas and statistics through its local API.
+- **Online features**: component and geography database downloads, along with network diagnostics, connect to their respective services. Global-probe targets and results may be queried by others.
+- **Menu bar folding**: this experimental macOS 27 feature requires access to one system configuration file to hide and restore selected apps.
 
 See the [Privacy Policy](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.en.md) and [Terms of Service](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.en.md) for details.
 
