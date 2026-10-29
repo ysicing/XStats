@@ -18,7 +18,6 @@ public enum L10n {
     get { lock.withLock { missingLogURL } }
     set { lock.withLock { missingLogURL = newValue } }
   }
-  public static var isEnglish: Bool { language == .english }
   /// 在线地名只有中英文两套数据时，其他语言使用英文，国家名称仍由当前 Locale 本地化。
   public static var usesEnglishNames: Bool { !language.isChinese }
   public static var locale: Locale { locale(for: language) }

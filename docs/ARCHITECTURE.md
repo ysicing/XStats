@@ -819,6 +819,9 @@ usage. Only display summaries needed by widgets are persisted; credentials are n
 Quotas remain separate per account and preserve Magpie's window names. The menu bar shows one
 account per selected provider (the preferred account, or Magpie's first returned account by default;
 an unavailable account is not replaced), with at most four selected providers.
+Menu-bar readings reuse `WidgetSnapshot.Quota`, retaining the provider identity, original window name,
+remaining percentage and freshness metadata without a provider-specific adapter or percentage conversion.
+The activity page uses `MagpiePeriod` directly for both selection and requests.
 The default selection and display order are Codex, Claude, Gemini and Grok. Installations without a
 saved selection use these defaults; explicit selections, including an empty set, are retained.
 Older selections above the limit are normalized in stable brand/name order. At the limit, unselected

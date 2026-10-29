@@ -194,7 +194,7 @@ struct MagpieControllerTests {
     settings.aiPreferredAccounts["codex"] = "removed"
     try await waitForWidget { store.load().preferredQuotaAccounts?["codex"] == "removed" }
     #expect(store.load().quotaSlots().first?.quota == nil)
-    #expect(model.aiUsage.magpieQuotaReadings().allSatisfy { $0.sourceName != "codex" })
+    #expect(model.aiUsage.magpieQuotaReadings().allSatisfy { $0.provider != "codex" })
     settings.aiPreferredAccounts["codex"] = codex[1].id
     try await waitForWidget { store.load().preferredQuotaAccounts?["codex"] == codex[1].id }
     await magpie.fail(true)
@@ -233,9 +233,9 @@ struct MagpieControllerTests {
     #expect(store.load().quotaSlots().first { $0.provider == "workbuddy" }?.quota == nil)
     #expect(reloaded == [WidgetKind.aiQuota])
     #expect(
-      model.aiUsage.menuBarMagpieQuotas().map(\.sourceName)
+      model.aiUsage.menuBarMagpieQuotas().map(\.provider)
         == order.filter { provider in
-          model.aiUsage.magpieQuotaReadings().contains { $0.sourceName == provider }
+          model.aiUsage.magpieQuotaReadings().contains { $0.provider == provider }
         })
     #expect(await magpie.counts().0 == calls.0)
     #expect(await magpie.counts().1 == calls.1)
@@ -601,7 +601,7 @@ struct MagpieControllerTests {
     await controller.refresh()
     #expect(settings.aiMenuBarProviders == ["codex", "claude", "gemini", "grok"])
     #expect(
-      Set(controller.menuBarMagpieQuotas().map(\.sourceName)) == [
+      Set(controller.menuBarMagpieQuotas().map(\.provider)) == [
         "codex", "claude", "gemini", "grok",
       ])
     #expect(
@@ -630,19 +630,19 @@ struct MagpieControllerTests {
     defer { model.aiUsage.stop() }
     await model.aiUsage.refresh()
     #expect(
-      model.aiUsage.menuBarMagpieQuotas().map(\.sourceName) == [
+      model.aiUsage.menuBarMagpieQuotas().map(\.provider) == [
         "claude", "codex", "grok", "gemini",
       ])
     settings.aiMenuBarProviders = Set(providers)
     let all = MenuBarReading(model: model, items: [.aiUsage])
     #expect(all.aiQuotas.count == 4)
-    #expect(all.aiQuotas.map(\.sourceName) == ["claude", "codex", "grok", "gemini"])
+    #expect(all.aiQuotas.map(\.provider) == ["claude", "codex", "grok", "gemini"])
     settings.aiMenuBarProviders = ["copilot", "future-provider"]
     let selected = MenuBarReading(model: model, items: [.aiUsage])
-    #expect(selected.aiQuotas.map(\.sourceName) == ["copilot", "future-provider"])
+    #expect(selected.aiQuotas.map(\.provider) == ["copilot", "future-provider"])
     #expect(settings.setAIMenuBarProviderOrder(["future-provider", "copilot"]))
     let reordered = MenuBarReading(model: model, items: [.aiUsage])
-    #expect(reordered.aiQuotas.map(\.sourceName) == ["future-provider", "copilot"])
+    #expect(reordered.aiQuotas.map(\.provider) == ["future-provider", "copilot"])
     #expect(!selected.hasSameImage(as: reordered, item: .aiUsage, style: .icon))
     settings.setEnabled(.aiUsage, true)
     settings.trio = TrioConfiguration(outer: .none, center: .none, footer: .aiUsage)
@@ -801,6 +801,37 @@ struct MagpieControllerTests {
     }
   }
 
+  @Test(arguments: [0.0, 0.1, 100.0])
+  func quotaReadingsPreserveProviderWindowAndExactRemaining(_ remaining: Double) async throws {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    let fetchedAt = now.addingTimeInterval(-60)
+    let resetsAt = now.addingTimeInterval(3600)
+    let payload = Data(
+      """
+      {"object":"list","data":[{"provider":"future-provider","name":"fixture","kind":"subscription",
+      "readAt":"\(fetchedAt.ISO8601Format())","windows":[
+        {"name":"5 hours","remaining":\(remaining),"resetsAt":"\(resetsAt.ISO8601Format())"}
+      ]}]}
+      """.utf8)
+    let settings = settings()
+    settings.aiUsageShowsLocalUsage = false
+    settings.aiMenuBarProviders = ["future-provider"]
+    let controller = AIUsageController(
+      settings: settings, magpieClient: MagpieStub(quotaPayload: payload), now: { now })
+    controller.cumulativeWidgetIsInstalled = { false }
+    defer { controller.stop() }
+    await controller.refresh()
+    let quotas = controller.menuBarMagpieQuotas(at: now)
+    #expect(quotas.count == 1)
+    let quota = try #require(quotas.first)
+    #expect(quota.provider == "future-provider")
+    #expect(quota.kind == "5 hours")
+    #expect(quota.remainingPercent == remaining)
+    #expect(quota.resetsAt == resetsAt)
+    #expect(quota.fetchedAt == fetchedAt)
+    #expect(!quota.isStale)
+  }
+
   @Test func magpieProvidesTokensAndQuotasIncludingGrok() async throws {
     let settings = settings()
     let magpie = MagpieStub()
@@ -811,8 +842,8 @@ struct MagpieControllerTests {
     #expect(model.aiUsage.todayTokens == 120)
     #expect(model.aiUsage.magpieQuotas.count == 3)
     let reading = MenuBarReading(model: model, items: [.aiUsage])
-    #expect(reading.aiQuotas.first(where: { $0.sourceName == "codex" })?.remainingPercent == 10)
-    #expect(reading.aiQuotas.first(where: { $0.sourceName == "grok" })?.remainingPercent == 68)
+    #expect(reading.aiQuotas.first(where: { $0.provider == "codex" })?.remainingPercent == 10)
+    #expect(reading.aiQuotas.first(where: { $0.provider == "grok" })?.remainingPercent == 68)
     let image = MenuBarRenderer.image(
       reading: reading, items: [.aiUsage], style: { _ in .icon }, networkStyle: .dots,
       colorizeHighLoad: false, fahrenheit: false)

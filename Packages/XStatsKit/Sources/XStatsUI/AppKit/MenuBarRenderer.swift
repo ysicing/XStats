@@ -1,28 +1,11 @@
 import AppKit
-import AIUsage
 import Localization
 import Metrics
+import WidgetData
 
-struct MenuBarQuota {
-  let provider: AIProviderID?
-  let window: AIQuotaWindow
-  let fetchedAt: Date
-  let isStale: Bool
-  var magpieName: String? = nil
-  var magpieWindow: String? = nil
-
-  var remainingPercent: Int { Int(window.remainingPercent.rounded()) }
-  var sourceName: String { magpieName ?? (provider == .codex ? "Codex" : "Claude") }
-  var shortWindowName: String {
-    if let magpieWindow { return magpieWindow }
-    return switch window.kind {
-    case .session: "5h"
-    default: "7d"
-    }
-  }
-
-  var resetText: String {
-    guard let reset = window.resetsAt else { return "—" }
+extension WidgetSnapshot.Quota {
+  fileprivate var resetText: String {
+    guard let reset = resetsAt else { return "—" }
     return reset.formatted(
       .dateTime.month(.defaultDigits).day().hour().minute().locale(L10n.locale))
   }
@@ -58,7 +41,7 @@ struct MenuBarReading {
   var aiQuotaShowsRemaining = true
   var aiUsageWesternUnits = false
   /// 只有可显示额度的来源才占用菜单栏读数；本机 Token 统计独立于订阅额度。
-  var aiQuotas: [MenuBarQuota] = []
+  var aiQuotas: [WidgetSnapshot.Quota] = []
   var batteryCharging = false
   /// 附在电池项旁的蓝牙设备：电量低的那一个，或没有电池的 Mac 上电量最低的那一个
   var bluetoothDevice: (symbol: String, percent: Int)?
@@ -201,8 +184,8 @@ struct MenuBarReading {
       }
       guard aiQuotaShowsRemaining == previous.aiQuotaShowsRemaining else { return false }
       return aiQuotas.elementsEqual(previous.aiQuotas) {
-        $0.sourceName == $1.sourceName && $0.shortWindowName == $1.shortWindowName
-          && $0.window.remainingPercent == $1.window.remainingPercent
+        $0.provider == $1.provider && $0.kind == $1.kind
+          && $0.remainingPercent == $1.remainingPercent
       }
     }
   }
@@ -245,7 +228,7 @@ struct MenuBarReading {
               ? " · \(tr("上次成功：\(quota.fetchedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: L10n.locale)))"))"
               : ""
             return
-              "\(previous)\(quota.sourceName) · \(quota.shortWindowName) · \(tr(aiQuotaShowsRemaining ? "剩余" : "已用")) \(AIUsageFormat.quotaPercent(remainingPercent: quota.window.remainingPercent, showsRemaining: aiQuotaShowsRemaining, locale: L10n.locale)) · \(tr("重置：")) \(quota.resetText)\(checked)"
+              "\(previous)\(quota.provider) · \(quota.kind) · \(tr(aiQuotaShowsRemaining ? "剩余" : "已用")) \(AIUsageFormat.quotaPercent(remainingPercent: quota.remainingPercent, showsRemaining: aiQuotaShowsRemaining, locale: L10n.locale)) · \(tr("重置：")) \(quota.resetText)\(checked)"
           }.joined(separator: "\n")
         } else {
           aiTokens.map { "AI · \(UsageNumber.exact($0)) Tokens" }
@@ -475,26 +458,26 @@ enum MenuBarRenderer {
       remainingPercent: 99, showsRemaining: true, locale: L10n.locale, compact: true)
     let status = combine(
       reading.aiQuotas.map { quota in
-        let name = quota.sourceName
-        let label = "\(name) · \(quota.shortWindowName)"
+        let name = quota.provider
+        let label = "\(name) · \(quota.kind)"
         let value = AIUsageFormat.quotaPercent(
-          remainingPercent: quota.window.remainingPercent,
+          remainingPercent: quota.remainingPercent,
           showsRemaining: reading.aiQuotaShowsRemaining, locale: L10n.locale, compact: true)
         let stacked = aiQuotaText(
           label: name, value: value, centered: style != .stacked,
           valueOnTop: valueOnTop)
         let fraction =
           (AIUsageFormat.quotaValue(
-            remainingPercent: quota.window.remainingPercent,
+            remainingPercent: quota.remainingPercent,
             showsRemaining: reading.aiQuotaShowsRemaining) ?? 0) / 100
-        let color = aiQuotaColor(quota.remainingPercent)
+        let color = aiQuotaColor(Int(quota.remainingPercent.rounded()))
         switch style {
         case .stacked, .stackedCenter: return stacked
         case .inline: return inlineText(label: label, value: value, sample: "100%", color: nil)
         case .icon:
           return combine(
             [
-              aiProviderLogo(quota.magpieName ?? quota.provider?.rawValue ?? ""),
+              aiProviderLogo(quota.provider),
               inlineValue(value, sample: iconSample, color: nil, leadingAligned: true),
             ],
             gap: Metrics.aiIconValueGap)

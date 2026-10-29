@@ -6,7 +6,7 @@ import Foundation
 import Observation
 import SMC
 import Testing
-import AIUsage
+import WidgetData
 @testable import Metrics
 @testable import XStatsUI
 
@@ -135,8 +135,8 @@ struct MenuBarReadingTests {
   func loadColorToggleDoesNotChangeAIQuota(style: MenuBarStyle) throws {
     var reading = MenuBarReading()
     reading.aiQuotas = [
-      MenuBarQuota(
-        provider: .codex, window: AIQuotaWindow(kind: .weekly, usedPercent: 96, resetsAt: nil),
+      WidgetSnapshot.Quota(
+        provider: "codex", kind: "7 days", remainingPercent: 4, resetsAt: nil,
         fetchedAt: Date(timeIntervalSince1970: 1_800_000_000), isStale: false)
     ]
     let images = [false, true].map { enabled in
@@ -208,10 +208,9 @@ struct MenuBarReadingTests {
   func valuePositionAppliesToQuotaAndBluetoothFallback(style: MenuBarStyle) throws {
     var quota = MenuBarReading.sample
     quota.aiQuotas = [
-      MenuBarQuota(
-        provider: nil, window: AIQuotaWindow(kind: .weekly, usedPercent: 19, resetsAt: nil),
-        fetchedAt: Date(timeIntervalSince1970: 1_800_000_000), isStale: false,
-        magpieName: "Magpie")
+      WidgetSnapshot.Quota(
+        provider: "Magpie", kind: "7 days", remainingPercent: 81, resetsAt: nil,
+        fetchedAt: Date(timeIntervalSince1970: 1_800_000_000), isStale: false)
     ]
     var bluetooth = MenuBarReading()
     bluetooth.bluetoothDevice = ("headphones", 19)
@@ -302,9 +301,8 @@ struct MenuBarReadingTests {
     var reading = MenuBarReading.sample
     reading.keepAwake = false
     reading.aiQuotas = [
-      MenuBarQuota(
-        provider: .codex,
-        window: AIQuotaWindow(kind: .weekly, usedPercent: 96, resetsAt: nil),
+      WidgetSnapshot.Quota(
+        provider: "codex", kind: "7 days", remainingPercent: 4, resetsAt: nil,
         fetchedAt: Date(timeIntervalSince1970: 1_800_000_000), isStale: false)
     ]
     for valueOnTop in [false, true] {
@@ -338,7 +336,7 @@ struct MenuBarReadingTests {
   }
 
   @Test(arguments: [false, true])
-  func quotaIconsMatchServicesAndDirectAccounts(dark: Bool) throws {
+  func quotaIconsMatchServices(dark: Bool) throws {
     let providers = ["grok", "codex", "copilot", "claude", "gemini", "perplexity"]
     let fallback = try #require(
       quotaIconImage(providers: ["unknown"], dark: dark).tiffRepresentation)
@@ -361,11 +359,6 @@ struct MenuBarReadingTests {
         }
       }
       #expect(monochrome, "菜单栏标志不应残留 SVG 原色")
-      if AIProviderID(rawValue: provider) != nil {
-        let direct = try #require(
-          quotaIconImage(providers: [provider], dark: dark, magpie: false).tiffRepresentation)
-        #expect(direct == data)
-      }
       let otherAppearance = try #require(
         quotaIconImage(providers: [provider], dark: !dark).tiffRepresentation)
       #expect(otherAppearance != data)
@@ -437,18 +430,16 @@ struct MenuBarReadingTests {
   }
 
   private func quotaIconImage(
-    providers: [String], dark: Bool, magpie: Bool = true,
+    providers: [String], dark: Bool,
     remainingPercents: [Double] = [], style: MenuBarStyle = .icon, itemGap: CGFloat = 8
   ) -> NSImage {
     var reading = MenuBarReading.sample
     reading.keepAwake = false
     reading.aiQuotas = providers.enumerated().map { index, provider in
       let remaining = remainingPercents.indices.contains(index) ? remainingPercents[index] : 68
-      return MenuBarQuota(
-        provider: AIProviderID(rawValue: provider),
-        window: AIQuotaWindow(kind: .weekly, usedPercent: 100 - remaining, resetsAt: nil),
-        fetchedAt: Date(timeIntervalSince1970: 1_800_000_000), isStale: false,
-        magpieName: magpie ? provider : nil)
+      return WidgetSnapshot.Quota(
+        provider: provider, kind: "7 days", remainingPercent: remaining, resetsAt: nil,
+        fetchedAt: Date(timeIntervalSince1970: 1_800_000_000), isStale: false)
     }
     let image = MenuBarRenderer.image(
       reading: reading, items: [.aiUsage], style: { _ in style },

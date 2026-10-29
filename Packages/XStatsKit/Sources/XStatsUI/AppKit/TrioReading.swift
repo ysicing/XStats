@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import AIUsage
 import Foundation
 import Localization
 import Metrics
@@ -60,9 +59,9 @@ struct TrioReading: Equatable {
           let names = model.settings.orderedAIMenuBarProviders
           aiDots = names.prefix(AppSettings.aiMenuBarProviderLimit).map { name in
             let quota = menuQuotas.first {
-              ($0.magpieName ?? $0.provider?.rawValue) == name
+              $0.provider == name
             }
-            let remaining = quota?.window.remainingPercent
+            let remaining = quota?.remainingPercent
             return AIDot(
               name: name,
               fraction: remaining.flatMap { $0.isFinite ? min(1, max(0, $0 / 100)) : nil })

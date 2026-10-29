@@ -30,8 +30,8 @@ struct UsageChartPresentationTests {
 
   }
 
-  @Test(arguments: UsageActivityMode.allCases)
-  func normalModesAndFullWindowRemainUnchanged(_ mode: UsageActivityMode) {
+  @Test(arguments: MagpiePeriod.allCases)
+  func normalModesAndFullWindowRemainUnchanged(_ mode: MagpiePeriod) {
     #expect(UsageChartPresentation.mode(mode, compact: false) == mode)
     if mode != .cumulative { #expect(UsageChartPresentation.mode(mode, compact: true) == mode) }
   }

@@ -2,6 +2,7 @@ import Localization
 import Metrics
 import SMC
 import SwiftUI
+import WidgetData
 
 /// 合并与仅图标模式共用紧凑总览；详情在所属行下展开，关闭后释放视图与采样需求。
 struct CombinedPopoverView: View {
@@ -349,7 +350,7 @@ struct OverviewReading {
         }
       }
     case .aiUsage:
-      let quotas: [MenuBarQuota]
+      let quotas: [WidgetSnapshot.Quota]
       let selectedProvider = model.settings.aiQuotaSelectedProvider
       if !selectedProvider.isEmpty {
         // 跟随详情页选择；服务缺席时临时展示首项，不改写选择，也不受菜单栏四项配置限制。
@@ -357,7 +358,7 @@ struct OverviewReading {
         let provider =
           accounts.contains(where: { $0.provider == selectedProvider })
           ? selectedProvider : accounts.first?.provider
-        quotas = model.aiUsage.magpieQuotaReadings().filter { $0.sourceName == provider }
+        quotas = model.aiUsage.magpieQuotaReadings().filter { $0.provider == provider }
       } else {
         // 未选择服务时沿用最紧张的订阅窗口，本机用量仍可在展开后查看。
         quotas = MenuBarReading(model: model, items: [.aiUsage]).aiQuotas
@@ -366,14 +367,14 @@ struct OverviewReading {
         $0.remainingPercent < $1.remainingPercent
       }) {
         value = AIUsageFormat.quotaPercent(
-          remainingPercent: quota.window.remainingPercent,
+          remainingPercent: quota.remainingPercent,
           showsRemaining: model.settings.aiQuotaShowsRemaining,
           locale: L10n.locale, compact: true)
         detail =
-          quota.sourceName + " · " + quota.shortWindowName + " · "
+          quota.provider + " · " + quota.kind + " · "
           + tr(model.settings.aiQuotaShowsRemaining ? "剩余" : "已用")
         if let percent = AIUsageFormat.quotaValue(
-          remainingPercent: quota.window.remainingPercent,
+          remainingPercent: quota.remainingPercent,
           showsRemaining: model.settings.aiQuotaShowsRemaining)
         {
           chart = .level(percent / 100, DS.Palette.primary)

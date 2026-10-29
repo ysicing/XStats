@@ -11,7 +11,7 @@ extension EnvironmentValues {
 }
 
 struct AIUsagePage: View {
-  var initialActivityMode = UsageActivityMode.daily
+  var initialActivityMode = MagpiePeriod.daily
   @Environment(AppModel.self) private var model
   var body: some View {
     PageScroll {
@@ -30,21 +30,12 @@ private struct MagpieUsageContent: View {
   @Environment(\.isSnapshot) private var isSnapshot
   let compact: Bool
   @Environment(AppModel.self) private var model
-  @State private var activityMode: UsageActivityMode
+  @State private var activityMode: MagpiePeriod
 
-  init(compact: Bool, initialActivityMode: UsageActivityMode = .daily) {
+  init(compact: Bool, initialActivityMode: MagpiePeriod = .daily) {
     self.compact = compact
     _activityMode = State(
       initialValue: UsageChartPresentation.mode(initialActivityMode, compact: compact))
-  }
-
-  private var period: MagpiePeriod {
-    switch activityMode {
-    case .daily: .daily
-    case .weekly: .weekly
-    case .monthly: .monthly
-    case .cumulative: .cumulative
-    }
   }
 
   var body: some View {
@@ -64,29 +55,30 @@ private struct MagpieUsageContent: View {
             .buttonStyle(DSButtonStyle(kind: .primary))
         }
       } else if model.aiUsage.magpieQuotas.isEmpty,
-        model.aiUsage.magpieSummary(for: period) == nil,
+        model.aiUsage.magpieSummary(for: activityMode) == nil,
         model.aiUsage.magpieQuotaFailure == .unavailable,
         !model.settings.aiUsageShowsLocalUsage
-          || model.aiUsage.magpieUsageFailures[period] == .unavailable
+          || model.aiUsage.magpieUsageFailures[activityMode] == .unavailable
       {
         MagpieConnectionGuide()
       } else {
         quotas
         if model.settings.aiUsageShowsLocalUsage {
-          if let summary = model.aiUsage.magpieSummary(for: period) {
+          if let summary = model.aiUsage.magpieSummary(for: activityMode) {
             usageSummary(summary)
           } else if model.aiUsage.magpieRefreshing {
             ProgressView().frame(maxWidth: .infinity).padding()
-          } else if model.aiUsage.magpieUsageFailures[period] == nil {
+          } else if model.aiUsage.magpieUsageFailures[activityMode] == nil {
             Text(tr("暂无数据")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
           }
           MagpieActivityPanel(
-            summary: model.aiUsage.magpieSummary(for: period), compact: compact, mode: $activityMode
+            summary: model.aiUsage.magpieSummary(for: activityMode), compact: compact,
+            mode: $activityMode
           )
-          if let failure = model.aiUsage.magpieUsageFailures[period] {
-            connectionStatus(failure, stale: model.aiUsage.magpieSummary(for: period) != nil)
+          if let failure = model.aiUsage.magpieUsageFailures[activityMode] {
+            connectionStatus(failure, stale: model.aiUsage.magpieSummary(for: activityMode) != nil)
           }
-          if let summary = model.aiUsage.magpieSummary(for: period), !summary.models.isEmpty {
+          if let summary = model.aiUsage.magpieSummary(for: activityMode), !summary.models.isEmpty {
             Card(spacing: DS.Space.s2) {
               Text(tr("模型用量")).dsFont(.sm, weight: .semibold)
               ForEach(summary.models.sorted { $0.total > $1.total }) { item in
@@ -107,9 +99,9 @@ private struct MagpieUsageContent: View {
       }
     }
     .environment(\.aiUsageWesternUnits, model.settings.aiUsageWesternUnits)
-    .task(id: period) {
+    .task(id: activityMode) {
       guard !isSnapshot else { return }
-      await model.aiUsage.selectMagpiePeriod(period)
+      await model.aiUsage.selectMagpiePeriod(activityMode)
     }
   }
 
@@ -252,7 +244,7 @@ struct MagpieConnectionGuide: View {
 private struct MagpieActivityPanel: View {
   let summary: MagpieUsageSummary?
   let compact: Bool
-  @Binding var mode: UsageActivityMode
+  @Binding var mode: MagpiePeriod
   @State private var hovered: String?
   @State private var metric = UsageActivityMetric.tokens
 
@@ -304,7 +296,7 @@ private struct MagpieActivityPanel: View {
   }
 
   private var periodChoices: some View {
-    let periods: [(UsageActivityMode, String)] = [
+    let periods: [(MagpiePeriod, String)] = [
       (.daily, tr("今天")), (.weekly, tr("7 天")), (.monthly, tr("30 天")),
     ]
     return UsageChoices(
@@ -353,7 +345,7 @@ enum UsageActivityMetric: CaseIterable, Hashable {
 
 /// 摘要、选项和图表共享的显示边界，首次测量时也必须使用同一模式。
 enum UsageChartPresentation {
-  static func mode(_ selected: UsageActivityMode, compact: Bool) -> UsageActivityMode {
+  static func mode(_ selected: MagpiePeriod, compact: Bool) -> MagpiePeriod {
     compact && selected == .cumulative ? .monthly : selected
   }
 

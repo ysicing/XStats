@@ -91,14 +91,6 @@ public final class NetworkComponentInstaller {
     self.dependencies = dependencies
   }
 
-  /// 只读取 plist 和静态签名，不加载组件代码；开发临时签名不能视为可信安装。
-  public static func isInstalled() async -> Bool {
-    do {
-      try await validateInstalled()
-      return true
-    } catch { return false }
-  }
-
   /// 启动前重新验证固定路径的组件，拒绝伪造、临时签名和未公证的应用。
   public static func validateInstalled() async throws {
     try await validateBundle(at: componentURL, hostApp: Bundle.main.bundleURL, dependencies: .live)

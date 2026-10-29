@@ -151,27 +151,22 @@ public final class AIUsageController {
       + available.subtracting(AIServiceBrand.menuBarOrder).sorted()
   }
 
-  func menuBarMagpieQuotas(at date: Date = Date()) -> [MenuBarQuota] {
+  func menuBarMagpieQuotas(at date: Date = Date()) -> [WidgetSnapshot.Quota] {
     let readings = magpieQuotaReadings(at: date)
     return settings.orderedAIMenuBarProviders.compactMap { provider in
-      readings.first { $0.sourceName == provider }
+      readings.first { $0.provider == provider }
     }
   }
 
   /// 菜单栏与小组件共用首选账号，显式选择不可用时不回退。
-  func magpieQuotaReadings(at date: Date = Date()) -> [MenuBarQuota] {
+  func magpieQuotaReadings(at date: Date = Date()) -> [WidgetSnapshot.Quota] {
     let allAccounts = widgetQuotaAccounts(at: date)
     return availableMenuBarQuotaProviders.compactMap { provider in
       let accounts = allAccounts.filter { $0.provider == provider }
       let account = WidgetSnapshot.selectedQuotaAccount(
         in: accounts, preferredID: settings.aiPreferredAccounts[provider])
       guard let quota = account?.quota, quota.remainingPercent.isFinite else { return nil }
-      return MenuBarQuota(
-        provider: AIProviderID(rawValue: provider),
-        window: AIQuotaWindow(
-          kind: .weekly, usedPercent: 100 - quota.remainingPercent, resetsAt: quota.resetsAt),
-        fetchedAt: quota.fetchedAt, isStale: quota.isStale,
-        magpieName: provider, magpieWindow: quota.kind)
+      return quota
     }
   }
 
