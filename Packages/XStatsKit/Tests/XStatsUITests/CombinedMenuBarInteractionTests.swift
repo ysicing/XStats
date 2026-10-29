@@ -71,12 +71,13 @@ struct CombinedMenuBarInteractionTests {
   }
 
   @Test func hitRegionsFollowStylesSpacingReadingsAndKeepAwakeMarker() throws {
-    let items: [MenuBarItem] = [.cpu, .network, .aiUsage, .memory]
+    let items: [MenuBarItem] = [.cpu, .network, .disk, .battery, .aiUsage, .memory]
     var reading = MenuBarReading()
     reading.cpu = 0.27
     reading.memory = 0.64
     reading.upload = 12_345
     reading.download = 98_765_432
+    reading.bluetoothDevice = ("computermouse", 58)
     reading.networkLocationStyle = .text
     reading.networkCountryCode = "US"
     reading.aiQuotas = ["claude", "codex", "grok", "gemini"].map {
@@ -134,7 +135,7 @@ struct CombinedMenuBarInteractionTests {
       magpieClient: UnavailableMagpieClient())
     let settings = model.settings
     settings.menuBarLayout = .combined
-    settings.menuBarItems = [.cpu, .memory]
+    settings.menuBarItems = [.cpu, .memory, .disk, .battery, .aiUsage]
     settings.historyEnabled = false
     settings.enabledAlerts = []
     let controller = MenuBarController(model: model)
@@ -144,7 +145,9 @@ struct CombinedMenuBarInteractionTests {
     let button = try #require(controller.combinedButton)
 
     // 使用真实 AppKit 图像区域和窗口坐标构造鼠标事件，不手填指标宽度。
-    @discardableResult func click(_ item: MenuBarItem?) throws -> NSEvent {
+    @discardableResult func click(
+      _ item: MenuBarItem?, forwardedEventItem: MenuBarItem? = nil
+    ) throws -> NSEvent {
       let rendering = MenuBarRenderer.render(
         reading: MenuBarReading(model: model, items: model.drawnMenuBarItems),
         items: model.drawnMenuBarItems, style: { settings.style(for: $0) },
@@ -160,12 +163,23 @@ struct CombinedMenuBarInteractionTests {
       let point = button.convert(
         NSPoint(x: item == nil ? button.bounds.minX : frame.midX, y: frame.midY), to: nil)
       let window = try #require(button.window)
+      let eventPoint: NSPoint
+      if let forwardedEventItem {
+        let forwardedFrame = try #require(rendering.frame(for: forwardedEventItem, in: imageFrame))
+        eventPoint = button.convert(
+          NSPoint(x: forwardedFrame.midX, y: forwardedFrame.midY), to: nil)
+      } else {
+        eventPoint = point
+      }
       let event = try #require(
         NSEvent.mouseEvent(
-          with: .leftMouseUp, location: point, modifierFlags: [], timestamp: 0,
+          with: .leftMouseUp, location: eventPoint, modifierFlags: [], timestamp: 0,
           windowNumber: window.windowNumber, context: nil,
           eventNumber: 1, clickCount: 1, pressure: 0))
-      controller.handleClick(button, event: event)
+      controller.handleClick(
+        button, event: event,
+        pointerLocationInScreen: forwardedEventItem == nil
+          ? nil : window.convertPoint(toScreen: point))
       return event
     }
 
@@ -177,7 +191,7 @@ struct CombinedMenuBarInteractionTests {
     settings.combinedItemDetailsEnabled = true
     controller.update()
     let actions = try #require(button.accessibilityCustomActions())
-    #expect(actions.count == 3)
+    #expect(actions.count == 6)
     for _ in 0..<3 {
       try click(.cpu)
       #expect(model.openPopover == .cpu && !model.isCombinedPopoverOpen)
@@ -188,6 +202,22 @@ struct CombinedMenuBarInteractionTests {
       #expect(model.openPopover == nil && !model.isCombinedPopoverOpen)
       #expect(!model.demand.processes)
     }
+
+    for item: MenuBarItem in [.battery, .aiUsage, .battery, .cpu, .aiUsage, .battery] {
+      try click(item)
+      #expect(model.openPopover == item && !model.isCombinedPopoverOpen)
+    }
+    controller.dismissPopovers()
+
+    // 系统转发事件的落点与实际鼠标位置不同时，SSD 和电池不能误开 AI。
+    for item: MenuBarItem in [.disk, .battery] {
+      try click(item, forwardedEventItem: .aiUsage)
+      #expect(model.openPopover == item)
+      controller.dismissPopovers()
+    }
+    try click(nil, forwardedEventItem: .aiUsage)
+    #expect(model.isCombinedPopoverOpen && model.openPopover == nil)
+    controller.dismissPopovers()
 
     let up = try click(.cpu)
     let down = try #require(

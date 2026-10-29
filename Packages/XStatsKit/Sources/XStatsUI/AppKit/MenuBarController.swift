@@ -234,22 +234,42 @@ final class MenuBarController: NSObject {
   // MARK: 点击
 
   @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
-    handleClick(sender, event: NSApp.currentEvent)
+    handleClick(
+      sender, event: NSApp.currentEvent, pointerLocationInScreen: NSEvent.mouseLocation)
   }
 
-  func handleClick(_ sender: NSStatusBarButton, event: NSEvent?) {
+  func handleClick(
+    _ sender: NSStatusBarButton, event: NSEvent?, pointerLocationInScreen: NSPoint? = nil
+  ) {
     guard let entry = items.first(where: { $0.statusItem.button === sender }) else { return }
     if event?.type == .rightMouseUp {
       showContextMenu(for: entry.statusItem)
     } else if let key = entry.key {
       togglePopover(key, button: sender)
     } else if opensCombinedDetails, let event, event.type == .leftMouseUp,
-      event.window === sender.window,
-      let imageFrame = sender.cell?.imageRect(forBounds: sender.bounds),
-      let item = combinedRendering?.item(
-        at: sender.convert(event.locationInWindow, from: nil), in: imageFrame)
+      let window = sender.window,
+      pointerLocationInScreen != nil || event.window === window,
+      let imageFrame = sender.cell?.imageRect(forBounds: sender.bounds)
     {
-      togglePopover(item, button: sender)
+      // 系统转发的状态项事件未必保留原始局部落点；聚合项以动作触发时的鼠标位置定位。
+      let locationInWindow =
+        pointerLocationInScreen.map { window.convertPoint(fromScreen: $0) }
+        ?? event.locationInWindow
+      let point = sender.convert(locationInWindow, from: nil)
+      if let item = combinedRendering?.item(at: point, in: imageFrame) {
+        if pointerLocationInScreen != nil {
+          let eventItem = combinedRendering?.item(
+            at: sender.convert(event.locationInWindow, from: nil), in: imageFrame)
+          if eventItem != item {
+            Log.app.debug(
+              "Combined menu click target changed: event=\(eventItem?.rawValue ?? "none", privacy: .public), pointer=\(item.rawValue, privacy: .public)"
+            )
+          }
+        }
+        togglePopover(item, button: sender)
+      } else {
+        toggleCombinedPanel(tab: nil, button: sender)
+      }
     } else {
       toggleCombinedPanel(tab: nil, button: sender)
     }
