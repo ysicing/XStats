@@ -134,7 +134,7 @@ AI 用量仅支持 Magpie，需要安装并运行 Magpie。XStats 从其本地�
 <details>
 <summary>更多截图</summary>
 
-菜单栏布局、状态总览、Wi-Fi 详情、网络连接、AI 用量与额度、历史、音频、显示器和日程截图使用演示数据；其余系统监控截图包含本机只读采样。截图不代表所有机型都提供相同的硬件能力。
+截图中的账号、地址、进程、实时指标、用量与清理结果均为演示数据；主窗口中的机型与硬件能力来自本机只读信息。截图不代表所有机型都提供相同的硬件能力。
 
 <p align="center">
   <img src="Assets/readme/trio-settings-zh-Hans-light.png" width="720" alt="三合一图标内容与外观设置">
@@ -146,7 +146,7 @@ AI 用量仅支持 Magpie，需要安装并运行 Magpie。XStats 从其本地�
   <img src="Assets/readme/wifi-details-zh-Hans-light.png" width="360" alt="Wi-Fi 信号、链路与安全详情">
 </p>
 <p align="center">
-  <img src="Assets/readme/thermal-dark.png" width="49%" alt="温度与风扇控制">
+  <img src="Assets/readme/thermal-dark.png" width="49%" alt="温度与系统热压力">
   <img src="Assets/readme/keepawake-light.png" width="49%" alt="防休眠设置">
 </p>
 <p align="center">
@@ -168,6 +168,10 @@ AI 用量仅支持 Magpie，需要安装并运行 Magpie。XStats 从其本地�
   <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="计时：番茄计时、健康提醒与今日概览">
 </p>
 
+<p align="center">
+  <img src="Assets/readme/calendar-almanac-zh-Hans-light.png" width="520" alt="日历日期详情与黄历">
+</p>
+
 </details>
 
 ### 集成
@@ -175,6 +179,15 @@ AI 用量仅支持 Magpie，需要安装并运行 Magpie。XStats 从其本地�
 - **桌面小组件**：系统概览、番茄钟、AI 额度与累计 Token、日历与整月日历、明天上班吗、IP 纯净度与公网 IP。
 - **多语言**：简体中文、繁體中文、English、日本語、한국어、Deutsch、Español、Français、العربية。
 - **深链**：通过 `xstats://` 从启动器、快捷指令或终端打开常用入口；已关闭的模块会转到设置，不会被隐式启用。
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/widgets-zh-Hans-dark.png">
+    <img src="Assets/readme/widgets-zh-Hans-light.png" width="760" alt="桌面小组件：单圈与双圈订阅额度、累计 Token、日历与整月日历">
+  </picture>
+</p>
+
+日历与小组件使用固定演示日期和数据；小组件图由当前原生视图渲染。
 
 ```bash
 open 'xstats://open/connections'   # 打开网络监视器

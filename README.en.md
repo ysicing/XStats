@@ -134,7 +134,7 @@ Optional tools can be enabled as needed. Privileged actions such as fan control 
 <details>
 <summary>More screenshots</summary>
 
-Menu bar layouts, the status overview, Wi-Fi details, network connections, AI usage and quotas, history, audio, displays and calendar screenshots use demo data. Other system monitoring screenshots include read-only measurements from this Mac. Hardware capabilities vary by model.
+Accounts, addresses, processes, live metrics, usage and cleanup results in screenshots are demo data. The main window’s Mac model and hardware capabilities come from read-only information on this Mac. Hardware capabilities vary by model.
 
 <p align="center">
   <img src="Assets/readme/trio-settings-zh-Hans-light.png" width="720" alt="Three-in-one icon sources and appearance">
@@ -146,7 +146,7 @@ Menu bar layouts, the status overview, Wi-Fi details, network connections, AI us
   <img src="Assets/readme/wifi-details-zh-Hans-light.png" width="360" alt="Wi-Fi signal, link and security details">
 </p>
 <p align="center">
-  <img src="Assets/readme/thermal-dark.png" width="49%" alt="Temperature and fan control">
+  <img src="Assets/readme/thermal-dark.png" width="49%" alt="Temperature and system thermal pressure">
   <img src="Assets/readme/keepawake-light.png" width="49%" alt="Keep-awake settings">
 </p>
 <p align="center">
@@ -168,6 +168,10 @@ Menu bar layouts, the status overview, Wi-Fi details, network connections, AI us
   <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="Timers: Pomodoro, reminders and today’s activity">
 </p>
 
+<p align="center">
+  <img src="Assets/readme/calendar-almanac-zh-Hans-light.png" width="520" alt="Calendar date details and almanac">
+</p>
+
 </details>
 
 ### Integrations
@@ -175,6 +179,15 @@ Menu bar layouts, the status overview, Wi-Fi details, network connections, AI us
 - **Desktop widgets**: system overview, Pomodoro, AI quotas and cumulative tokens, calendar and month view, “Work tomorrow?”, IP purity and public IP.
 - **Languages**: 简体中文, 繁體中文, English, 日本語, 한국어, Deutsch, Español, Français, العربية.
 - **Deep links**: open common views via `xstats://` from launchers, Shortcuts or the terminal. Disabled modules lead to Settings and are never enabled implicitly.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/widgets-zh-Hans-dark.png">
+    <img src="Assets/readme/widgets-zh-Hans-light.png" width="760" alt="Desktop widgets: single and double quota rings, cumulative tokens, calendar and month view">
+  </picture>
+</p>
+
+The calendar and widgets use fixed demo dates and data. Widget images are rendered from the current native views.
 
 ```bash
 open 'xstats://open/connections'   # Open Network Monitor

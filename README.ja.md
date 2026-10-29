@@ -134,7 +134,7 @@ AI 使用量は Magpie のみに対応し、インストールと起動が必要
 <details>
 <summary>その他のスクリーンショット</summary>
 
-メニューバーの各レイアウト、状態の概要、Wi-Fi 詳細、ネットワーク接続、AI 使用量と利用枠、履歴、オーディオ、ディスプレイ、予定はデモデータです。その他のシステム監視画面には本機の読み取り専用計測を含みます。利用できるハードウェア機能は機種によって異なります。
+スクリーンショットのアカウント、アドレス、プロセス、リアルタイム指標、使用量、クリーンアップ結果はデモデータです。メインウインドウの Mac の機種とハードウェア機能は、この Mac から読み取った情報に基づきます。対応機能は機種によって異なります。
 
 <p align="center">
   <img src="Assets/readme/trio-settings-zh-Hans-light.png" width="720" alt="3つの指標をまとめるアイコンの内容と外観設定">
@@ -146,7 +146,7 @@ AI 使用量は Magpie のみに対応し、インストールと起動が必要
   <img src="Assets/readme/wifi-details-zh-Hans-light.png" width="360" alt="Wi-Fi の信号、リンク、安全性の詳細">
 </p>
 <p align="center">
-  <img src="Assets/readme/thermal-dark.png" width="49%" alt="温度とファン制御">
+  <img src="Assets/readme/thermal-dark.png" width="49%" alt="温度とシステムの熱負荷">
   <img src="Assets/readme/keepawake-light.png" width="49%" alt="スリープ防止の設定">
 </p>
 <p align="center">
@@ -168,6 +168,10 @@ AI 使用量は Magpie のみに対応し、インストールと起動が必要
   <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="タイマー：ポモドーロ、健康通知、今日の活動">
 </p>
 
+<p align="center">
+  <img src="Assets/readme/calendar-almanac-zh-Hans-light.png" width="520" alt="カレンダーの日付詳細と暦注">
+</p>
+
 </details>
 
 ### 連携
@@ -175,6 +179,15 @@ AI 使用量は Magpie のみに対応し、インストールと起動が必要
 - **デスクトップウィジェット**：システム概要、ポモドーロ、AI 利用枠と累計トークン、カレンダーと月表示、「明日は出勤？」、IP クリーン度、公開 IP。
 - **表示言語**：简体中文、繁體中文、English、日本語、한국어、Deutsch、Español、Français、العربية。
 - **ディープリンク**：ランチャー、ショートカット、ターミナルから `xstats://` でよく使う画面を開けます。オフのモジュールは設定画面に移動し、自動では有効になりません。
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/widgets-zh-Hans-dark.png">
+    <img src="Assets/readme/widgets-zh-Hans-light.png" width="760" alt="デスクトップウィジェット：一重と二重の利用枠リング、累計トークン、カレンダーと月表示">
+  </picture>
+</p>
+
+カレンダーとウィジェットは固定のデモ日付とデータを使用しています。ウィジェット画像は現在のネイティブビューから描画しています。
 
 ```bash
 open 'xstats://open/connections'   # ネットワークモニターを開く

@@ -125,7 +125,7 @@ task snapshot SNAPSHOT_APP=/path/to/XStats.app SNAPSHOT_DIR=build/screens -- --c
 `--connections-only` 使用隔离偏好与虚构连接，不采集本机连接、不安装或注册组件、不触发更新检查。
 输出连接窗口、宽版连接页、暂停页、功能设置，以及组件未安装、已安装、待后台授权、可更新状态的明暗 PNG。
 连接地址采用文档示例网段，地图分布为演示值；组件版本 `9.9.9 (9999)` 明确为虚构。
-完整截图模式也会追加这些网络截图，但完整模式仍会读取本机指标、AI 用量及执行只读清理扫描；公开展示优先选定向模式。
+完整截图模式也会追加这些网络截图，但完整模式仍会读取本机指标及执行只读清理扫描；公开展示优先选定向模式。
 截图目录或 PNG 写入失败时进程返回非零退出码。四语言 README 共用一套中文界面截图，说明文字与图片替代文本分别翻译；不必为每种文档语言重新生成截图。网络图片来自
 `connections-page-wide-light.png` / `connections-page-wide-dark.png`，分别保存为
 `Assets/readme/connections-zh-Hans-<light|dark>.png`。
@@ -163,15 +163,36 @@ task snapshot SNAPSHOT_DIR=build/readme-gallery/zh-Hans -- --readme-only --langu
 ```
 
 `--readme-only` 使用隔离偏好，输出三种菜单栏布局、聚合状态总览、Magpie AI 用量、
-三合一设置、弹窗区块排序与 Wi-Fi 详情的明暗截图。仅短暂只读采样取得指标结构，
+三合一设置、弹窗区块排序与 Wi-Fi 详情，以及主窗口总览、能耗、防休眠、清理、CPU／内存／磁盘详情和 IP 纯净度的明暗截图。仅短暂只读采样取得指标结构与硬件能力，
 展示数值随后由演示值覆盖；不启动持续监控、不连接真实 Magpie、不读取个人 AI 日志，也不修改硬件设置。
-网络名称、接入点地址、音频设备和账户均为虚构数据。
+网络名称、接入点地址、音频设备、账户、进程、指标数值和清理列表均为虚构数据；清理列表直接注入，不扫描个人目录。硬件型号与传感器能力仍来自本机。
 `menubar-layouts-dark.png`、`combined-overview-<light|dark>.png`、
 `ai-usage-light.png`、`trio-settings-light.png`、`popover-order-light.png` 和
 `wifi-details-light.png` 分别保存为 `Assets/readme/<名称>-zh-Hans-<light|dark>.png`；
 菜单栏布局图使用 `menubar-layouts-zh-Hans-dark.png`。
+主窗口 `window-overview-<light|dark>.png` 保存为 `overview-<light|dark>.png`；
+`popover-temperature-dark.png`、`window-keepAwake-light.png`、`window-cleaner-light.png` 分别更新
+`thermal-dark.png`（温度与系统热压力）、`keepawake-light.png`、`cleaner-light.png`；
+CPU／内存详情和 IP 纯净度沿用对应的 `popover-*` 与 `ip-purity-*` 文件名。
+四语言 README 只维护当前引用的共用图库；目录中未引用的旧语言版本和历史截图保留为历史资源，不作为当前界面依据。
 更新后逐张检查内容与裁切，同步四语言 README 的图片引用、替代文本和演示数据说明。
 显示器控制页面可改用 `--display-only`，只读本机信息和 DDC 能力，不修改硬件设置。
+
+日历图库使用 `--calendar-only --language zh-Hans`，选取 `calendar-light.png` 与
+`calendar-almanac-light.png`，分别展示月历和日期黄历详情。日期固定为演示日期，不读取个人日程。
+
+小组件图库使用当前 Widget 源码和已编译的 Swift Package 模块：
+
+```bash
+python3 scripts/snapshot_widgets.py build/widget-gallery
+```
+
+若缺少模块，先串行执行 `swift build --package-path Packages/XStatsKit --jobs 2 --target XStatsUI`。
+脚本仅在临时目录中将 WidgetKit 容器适配为截图画布，并注入尺寸与固定演示数据；
+复用当前服务图标、额度、Token 和日历视图，不读写 App Group、不调用真实 Magpie，也不安装或启动系统小组件。
+输出的 `widgets-light.png` 与 `widgets-dark.png` 保存为
+`Assets/readme/widgets-zh-Hans-<light|dark>.png`，四语言 README 共用图片并分别翻译替代文本。
+图库展示单圈／双圈、中小尺寸、累计 Token 和日历布局；它是原生视图渲染图，不代表系统桌面实际安装验收。
 
 系统信息中的 Apple 智能详情可单独走查：
 

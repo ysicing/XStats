@@ -1399,6 +1399,8 @@ enum SnapshotRenderer {
     settings.probeEnabled = false
     settings.menuBarItems = [.cpu, .memory, .network, .disk, .aiUsage, .audio]
     settings.setMenuBarOrder([.cpu, .memory, .network, .disk, .aiUsage, .audio])
+    settings.enabledMonitoringModules = Set(MonitoringModule.allCases)
+    settings.cleanerEnabled = true
     settings.aiUsageEnabled = true
     settings.aiMenuBarProviders = ["codex", "claude", "gemini", "grok"]
     settings.aiQuotaSelectedProvider = "codex"
@@ -1432,15 +1434,16 @@ enum SnapshotRenderer {
     snapshot.cpu?.perCore = Array(repeating: 0.24, count: model.store.topology.logicalCores)
     snapshot.cpu?.loadAverage = [1.2, 1.4, 1.1]
     snapshot.cpu?.thermalState = .nominal
-    snapshot.memory?.total = 32_000_000_000
-    snapshot.memory?.app = 12_000_000_000
-    snapshot.memory?.wired = 3_000_000_000
-    snapshot.memory?.compressed = 2_000_000_000
-    snapshot.memory?.cached = 5_000_000_000
+    let memoryCapacity = ProcessInfo.processInfo.physicalMemory
+    snapshot.memory?.total = memoryCapacity
+    snapshot.memory?.app = memoryCapacity * 12 / 32
+    snapshot.memory?.wired = memoryCapacity * 3 / 32
+    snapshot.memory?.compressed = memoryCapacity * 2 / 32
+    snapshot.memory?.cached = memoryCapacity * 5 / 32
     snapshot.memory?.swapUsed = 0
     snapshot.memory?.swapTotal = 0
     snapshot.memory?.pressure = .normal
-    snapshot.memory?.uncompressed = 3_000_000_000
+    snapshot.memory?.uncompressed = memoryCapacity * 3 / 32
     snapshot.memory?.swapInBytes = 0
     snapshot.memory?.swapOutBytes = 0
     snapshot.network?.connection = .wifi(bars: 3)
@@ -1450,10 +1453,72 @@ enum SnapshotRenderer {
     snapshot.network?.totalUploaded = 2_400_000_000
     snapshot.disk = DiskUsage(
       volumeName: "Macintosh HD", total: 1_000_000_000_000, available: 640_000_000_000)
+    snapshot.battery = model.store.battery
+    snapshot.battery?.level = 0.86
+    snapshot.battery?.isCharging = false
+    snapshot.battery?.isPluggedIn = false
+    snapshot.battery?.isFullyCharged = false
+    snapshot.battery?.minutesRemaining = 240
+    snapshot.battery?.cycleCount = 42
+    snapshot.battery?.health = 0.98
+    snapshot.battery?.adapterWatts = nil
+    snapshot.battery?.designCapacity = 5000
+    snapshot.battery?.fullChargeCapacity = 4900
+    snapshot.battery?.voltage = 11.4
+    snapshot.battery?.amperage = -1.2
+    snapshot.gpu = GPUSampler.sample()
+    snapshot.gpu?.utilization = 0.16
+    snapshot.gpu?.rendererUtilization = 0.12
+    snapshot.gpu?.tilerUtilization = 0.08
+    snapshot.gpu?.memoryInUse = 512_000_000
+    snapshot.sensors = SensorSampler().sample()
+    if var sensors = snapshot.sensors {
+      sensors.temperatures = sensors.temperatures.map { summary in
+        var value = summary
+        value.average = summary.group == .cpu ? 48 : 36
+        value.maximum = value.average + 4
+        return value
+      }
+      sensors.fans = sensors.fans.map { fan in
+        var value = fan
+        value.current = 1700
+        value.target = 1700
+        value.isManual = false
+        value.isStarting = false
+        return value
+      }
+      snapshot.sensors = sensors
+    }
+    snapshot.power = PowerReading(
+      system: 24, gpu: 3,
+      clusterFrequency: Dictionary(
+        uniqueKeysWithValues: model.store.topology.clusters.map {
+          ($0.id, $0.kind == .efficiency ? 1800.0 : 2800.0)
+        }))
+    snapshot.processes = ["Editor", "Browser", "Terminal", "Studio", "Notes"].enumerated().map {
+      index, name in
+      ProcessUsage(
+        pid: Int32(900_000 + index), name: name, executablePath: nil, appBundlePath: nil,
+        cpu: Double(5 - index) * 0.06, memory: UInt64(5 - index) * 128_000_000)
+    }
     for index in 0..<60 {
       snapshot.date = Date().addingTimeInterval(Double(index - 59))
       snapshot.cpu?.total = 0.24 + 0.06 * sin(Double(index) / 6)
       model.store.apply(snapshot)
+    }
+    // 仅单次读取接口结构，覆盖地址后才允许展示公网区块；不启动网络查询或探测。
+    await model.network.refreshDetails(basicOnly: true)
+    model.network.maskForSnapshot()
+    if let rule = RuleCatalog.rules().first(where: { $0.id == "system.caches" }) {
+      model.cleaner.showPreview([
+        RuleScan(
+          rule: rule,
+          items: ["Editor", "Browser", "Studio"].enumerated().map { index, name in
+            CleanItem(
+              url: URL(fileURLWithPath: "/Users/demo/Library/Caches/com.example.\(name)"),
+              size: UInt64(index + 1) * 256_000_000)
+          }, skippedCount: 0, blocked: nil)
+      ])
     }
     let headphones = AudioDeviceInfo(
       id: 1, uid: "demo.headphones", name: "Studio Headphones", hasOutput: true,
@@ -1526,6 +1591,31 @@ enum SnapshotRenderer {
         }.padding(DS.Space.s3).frame(width: 360).appLanguageEnvironment(),
         model: model, appearance: appearance,
         to: outputDirectory.appendingPathComponent("wifi-details-\(suffix).png"))
+      for tab: PanelTab in [.overview, .keepAwake, .battery, .cleaner] {
+        settings.panelTab = tab
+        write(
+          MainWindowView(), model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent("window-\(tab.rawValue)-\(suffix).png"))
+      }
+      for item: MenuBarItem in [.cpu, .memory, .disk, .temperature] {
+        write(
+          PopoverRootView(item: item).appLanguageEnvironment(),
+          model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent("popover-\(item.rawValue)-\(suffix).png"))
+      }
+      let hiddenSections = settings.hiddenPopoverSections
+      settings.hiddenPopoverSections.formUnion(
+        MenuBarItem.network.popoverSections.filter {
+          $0 != .networkAddresses && $0 != .networkPurity
+        })
+      settings.publicIPLookup = true
+      write(
+        VStack(spacing: DS.Space.s3) { NetworkPopover() }
+          .padding(DS.Space.s3).frame(width: DS.Size.popoverWidth).appLanguageEnvironment(),
+        model: model, appearance: appearance,
+        to: outputDirectory.appendingPathComponent("ip-purity-\(suffix).png"))
+      settings.publicIPLookup = false
+      settings.hiddenPopoverSections = hiddenSections
     }
   }
 

@@ -134,7 +134,7 @@ AI 사용량은 Magpie만 지원하며 설치 후 실행해야 합니다. XStats
 <details>
 <summary>더 많은 스크린샷</summary>
 
-메뉴 막대 레이아웃, 상태 개요, Wi-Fi 상세 정보, 네트워크 연결, AI 사용량과 한도, 기록, 오디오, 디스플레이, 일정 화면은 데모 데이터입니다. 나머지 시스템 모니터링 화면에는 이 Mac의 읽기 전용 측정값이 포함됩니다. 하드웨어 기능은 기종에 따라 다릅니다.
+스크린샷의 계정, 주소, 프로세스, 실시간 지표, 사용량과 정리 결과는 데모 데이터입니다. 메인 윈도우의 Mac 모델과 하드웨어 기능은 이 Mac에서 읽은 정보를 사용합니다. 지원 기능은 모델에 따라 다릅니다.
 
 <p align="center">
   <img src="Assets/readme/trio-settings-zh-Hans-light.png" width="720" alt="세 가지 지표 아이콘의 내용 및 모양 설정">
@@ -146,7 +146,7 @@ AI 사용량은 Magpie만 지원하며 설치 후 실행해야 합니다. XStats
   <img src="Assets/readme/wifi-details-zh-Hans-light.png" width="360" alt="Wi-Fi 신호, 링크 및 보안 상세 정보">
 </p>
 <p align="center">
-  <img src="Assets/readme/thermal-dark.png" width="49%" alt="온도 및 팬 제어">
+  <img src="Assets/readme/thermal-dark.png" width="49%" alt="온도 및 시스템 열 압력">
   <img src="Assets/readme/keepawake-light.png" width="49%" alt="잠자기 방지 설정">
 </p>
 <p align="center">
@@ -168,6 +168,10 @@ AI 사용량은 Magpie만 지원하며 설치 후 실행해야 합니다. XStats
   <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="타이머: 뽀모도로, 건강 알림, 오늘의 활동">
 </p>
 
+<p align="center">
+  <img src="Assets/readme/calendar-almanac-zh-Hans-light.png" width="520" alt="달력 날짜 상세 및 역서">
+</p>
+
 </details>
 
 ### 연동
@@ -175,6 +179,15 @@ AI 사용량은 Magpie만 지원하며 설치 후 실행해야 합니다. XStats
 - **데스크톱 위젯**: 시스템 개요, 뽀모도로, AI 한도 및 누적 토큰, 달력과 월 달력, ‘내일 출근?’, IP 순도, 공인 IP.
 - **언어**: 简体中文, 繁體中文, English, 日本語, 한국어, Deutsch, Español, Français, العربية.
 - **딥 링크**: 런처, 단축어 또는 터미널에서 `xstats://`로 자주 쓰는 화면을 열 수 있습니다. 꺼진 모듈은 설정 페이지로 이동하며 자동으로 켜지지 않습니다.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/widgets-zh-Hans-dark.png">
+    <img src="Assets/readme/widgets-zh-Hans-light.png" width="760" alt="데스크톱 위젯: 단일 및 이중 한도 링, 누적 토큰, 달력과 월 달력">
+  </picture>
+</p>
+
+달력과 위젯은 고정된 데모 날짜와 데이터를 사용합니다. 위젯 이미지는 현재 네이티브 뷰에서 렌더링했습니다.
 
 ```bash
 open 'xstats://open/connections'   # 네트워크 모니터 열기
