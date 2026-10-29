@@ -1003,6 +1003,10 @@ public final class AppSettings {
       if menuBarLayout == .iconOnly { enableTrioSources(trio.sources) }
     }
   }
+  /// 聚合模式可直接打开点击指标的独立详情；默认仍打开状态总览。
+  public var combinedItemDetailsEnabled: Bool {
+    didSet { defaults.set(combinedItemDetailsEnabled, forKey: Keys.combinedItemDetailsEnabled) }
+  }
   @ObservationIgnored private let trioHasBattery: Bool
   @ObservationIgnored private var trioHasFans: Bool?
   private var trioConfiguration: TrioConfiguration
@@ -1431,6 +1435,7 @@ public final class AppSettings {
     let initialMenuBarLayout =
       savedMenuBarLayout ?? (items != nil || savedAIMenuBarProviders != nil ? .separate : .combined)
     menuBarLayout = initialMenuBarLayout
+    combinedItemDetailsEnabled = defaults.bool(forKey: Keys.combinedItemDetailsEnabled)
     if savedMenuBarLayout == nil {
       // 固化首次选择，避免下次启动时被本次写入的其他默认设置误判为旧版安装。
       defaults.set(initialMenuBarLayout.rawValue, forKey: Keys.menuBarLayout)
@@ -1778,6 +1783,7 @@ public final class AppSettings {
     static let menuBarFoldingCollapsed = "menuBarFoldingCollapsed"
     static let menuBarItemSpacing = "menuBarItemSpacing"
     static let menuBarLayout = "menuBarLayout"
+    static let combinedItemDetailsEnabled = "combinedItemDetailsEnabled"
     static let customPopoverContentEnabled = "customPopoverContentEnabled"
     static let hiddenPopoverSections = "hiddenPopoverSections"
     static let popoverSectionOrders = "popoverSectionOrders"

@@ -97,6 +97,13 @@ Popover content is created on opening and released on closing. Detail expansion
 adds only the detail's demand; collapsing or switching releases it. Hidden or
 minimized windows cannot retain foreground sampling through a mounted view.
 
+Combined mode opens the status overview by default. An opt-in advanced preference,
+`combinedItemDetailsEnabled`, opens the clicked metric's standalone detail instead.
+Hit regions come from the same rendering as the displayed image and also anchor
+the panel. Gaps, the keep-awake marker and keyboard activation retain the overview;
+the context menu and accessibility actions provide explicit overview access.
+Changing this interaction or removing an open metric dismisses its detail.
+
 `menuBarOrder` stores the complete metric order, including hidden items. Combined
 indicators and overview rows share it; separate status items retain macOS ordering.
 Drag operations preview a local draft and persist only a valid drop. Cancellation

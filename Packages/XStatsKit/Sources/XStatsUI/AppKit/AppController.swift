@@ -658,6 +658,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.settings.menuBarItems
       _ = model.settings.combinedOverviewItems
       _ = model.settings.customMenuBarPlacementEnabled
+      _ = model.settings.combinedItemDetailsEnabled
       _ = model.settings.menuBarOrder
       _ = model.settings.menuBarItemSpacing
       _ = model.settings.trio

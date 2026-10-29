@@ -2299,6 +2299,8 @@ worktree 已锁定	Worktree ist gesperrt
 拖动以调整顺序	Zum Sortieren ziehen
 自定义弹窗内容	Popover-Inhalt anpassen
 自定义展示位置	Anzeigeorte anpassen
+点击指标打开详情	Messwerte per Klick öffnen
+右键菜单可打开状态总览	Statusübersicht über das Rechtsklickmenü öffnen
 选择各指标弹窗显示的内容，并调整排列顺序。	Wähle die Inhalte der einzelnen Messwert-Popover und passe ihre Reihenfolge an.
 在菜单栏显示（最多 {} 个）	In der Menüleiste anzeigen (maximal {})
 自由搭配三合一图标，点击查看状态总览	Drei Anzeigen frei kombinieren; Klick öffnet die Statusübersicht

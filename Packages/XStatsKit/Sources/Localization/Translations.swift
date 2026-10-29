@@ -99,6 +99,8 @@ extension Translations {
     未获取到地址，请检查网络或稍后重试。	No address received. Check your connection or try again later.
     自定义弹窗内容	Customize Popover Content
     自定义展示位置	Customize Display Locations
+    点击指标打开详情	Click Metrics to Open Details
+    右键菜单可打开状态总览	Open the status overview from the right-click menu
     选择各指标弹窗显示的内容，并调整排列顺序。	Choose the content shown in each metric’s popover and adjust its order.
     弹窗内容	Popover Content
     恢复默认顺序	Restore Default Order

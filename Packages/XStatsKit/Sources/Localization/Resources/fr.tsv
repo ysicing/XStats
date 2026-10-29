@@ -2299,6 +2299,8 @@ worktree 已锁定	Le worktree est verrouillé
 拖动以调整顺序	Faire glisser pour réorganiser
 自定义弹窗内容	Personnaliser le contenu des fenêtres
 自定义展示位置	Personnaliser les emplacements d’affichage
+点击指标打开详情	Cliquer sur un indicateur pour afficher les détails
+右键菜单可打开状态总览	Ouvrir l’aperçu d’état depuis le menu contextuel
 选择各指标弹窗显示的内容，并调整排列顺序。	Choisissez le contenu affiché dans la fenêtre de chaque indicateur et ajustez son ordre.
 在菜单栏显示（最多 {} 个）	Afficher dans la barre des menus ({} maximum)
 自由搭配三合一图标，点击查看状态总览	Combinez trois indicateurs ; cliquez pour afficher l’aperçu

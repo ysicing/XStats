@@ -318,14 +318,57 @@ enum MenuBarRenderer {
     valueOnTop: Bool = false,
     loadSensitivity: LoadSensitivity = .standard
   ) -> NSImage {
+    render(
+      reading: reading, items: items, style: style, networkStyle: networkStyle,
+      colorizeHighLoad: colorizeHighLoad, fahrenheit: fahrenheit, itemGap: itemGap,
+      valueOnTop: valueOnTop, loadSensitivity: loadSensitivity
+    ).image
+  }
+
+  struct Rendering {
+    let image: NSImage
+    /// 与图像共用同一轮排版，不能用下一轮读数重新估算点击位置。
+    let itemFrames: [MenuBarItem: NSRect]
+
+    func frame(for item: MenuBarItem, in imageFrame: NSRect) -> NSRect? {
+      guard let frame = itemFrames[item], image.size.width > 0, image.size.height > 0 else {
+        return nil
+      }
+      return NSRect(
+        x: imageFrame.minX + frame.minX * imageFrame.width / image.size.width,
+        y: imageFrame.minY, width: frame.width * imageFrame.width / image.size.width,
+        height: imageFrame.height)
+    }
+
+    func item(at point: NSPoint, in imageFrame: NSRect) -> MenuBarItem? {
+      itemFrames.keys.first { frame(for: $0, in: imageFrame)?.contains(point) == true }
+    }
+  }
+
+  static func render(
+    reading: MenuBarReading,
+    items: [MenuBarItem],
+    style: (MenuBarItem) -> MenuBarStyle,
+    networkStyle: NetworkMenuStyle,
+    colorizeHighLoad: Bool,
+    fahrenheit: Bool,
+    itemGap: CGFloat = 8,
+    valueOnTop: Bool = false,
+    loadSensitivity: LoadSensitivity = .standard
+  ) -> Rendering {
     var segments: [Segment] = []
+    var itemFrames: [MenuBarItem: NSRect] = [:]
+    var x: CGFloat = 0
     if reading.keepAwake { segments.append(symbolSegment("cup.and.saucer.fill")) }
+    if let first = segments.first { x = first.width + itemGap }
     for item in items {
-      segments.append(
-        segment(
-          for: item, reading: reading, style: style(item), networkStyle: networkStyle,
-          colorizeHighLoad: colorizeHighLoad, fahrenheit: fahrenheit, valueOnTop: valueOnTop,
-          loadSensitivity: loadSensitivity))
+      let segment = segment(
+        for: item, reading: reading, style: style(item), networkStyle: networkStyle,
+        colorizeHighLoad: colorizeHighLoad, fahrenheit: fahrenheit, valueOnTop: valueOnTop,
+        loadSensitivity: loadSensitivity)
+      itemFrames[item] = NSRect(x: x, y: 0, width: segment.width, height: Metrics.barHeight)
+      segments.append(segment)
+      x += segment.width + itemGap
     }
     // 即使防休眠标记存在，空项目布局也保留 XStats 的主入口图标。
     if items.isEmpty { segments.append(symbolSegment("waveform.path.ecg")) }
@@ -342,7 +385,7 @@ enum MenuBarRenderer {
     }
     // 模板图自动适配浅色 / 深色菜单栏；含彩色元素时保留真实颜色，文字仍用动态的 labelColor
     image.isTemplate = !segments.contains(where: \.colored)
-    return image
+    return Rendering(image: image, itemFrames: itemFrames)
   }
 
   /// 设置页预览：按指定外观栅格化，透明区域由界面叠加底色。

@@ -571,6 +571,14 @@ struct MenuBarSettings: View {
       }
       if settings.menuBarLayout == .combined {
         GroupRow {
+          SettingRow(
+            title: tr("点击指标打开详情"), subtitle: tr("右键菜单可打开状态总览")
+          ) {
+            DSToggle(
+              isOn: $settings.combinedItemDetailsEnabled, label: tr("点击指标打开详情"))
+          }
+        }
+        GroupRow {
           SettingRow(title: tr("自定义展示位置")) {
             DSToggle(
               isOn: $settings.customMenuBarPlacementEnabled, label: tr("自定义展示位置"))

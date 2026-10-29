@@ -58,6 +58,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var aiPreferredAccounts: [String: String]?
   public var aiWidgetShowsResetRing: Bool?
   public var menuBarLayout: String?
+  public var combinedItemDetailsEnabled: Bool?
   public var customPopoverContentEnabled: Bool?
   public var hiddenPopoverSections: [String]?
   public var popoverSectionOrders: [String: [String]]?
@@ -136,6 +137,7 @@ extension AppSettings {
     doc.aiPreferredAccounts = aiPreferredAccounts
     doc.aiWidgetShowsResetRing = aiWidgetShowsResetRing
     doc.menuBarLayout = menuBarLayout.rawValue
+    doc.combinedItemDetailsEnabled = combinedItemDetailsEnabled
     doc.customPopoverContentEnabled = customPopoverContentEnabled
     doc.hiddenPopoverSections = hiddenPopoverSections.map(\.rawValue).sorted()
     doc.popoverSectionOrders = Dictionary(
@@ -243,6 +245,7 @@ extension AppSettings {
     if let providers = doc.aiMenuBarProviders { aiMenuBarProviders = Set(providers) }
     if let order = doc.aiMenuBarProviderOrder { restoreAIMenuBarProviderOrder(order) }
     assign(\.menuBarLayout, doc.menuBarLayout.flatMap(MenuBarLayout.init(rawValue:)))
+    assign(\.combinedItemDetailsEnabled, doc.combinedItemDetailsEnabled)
     assign(
       \.hiddenPopoverSections,
       doc.hiddenPopoverSections.map { Set($0.compactMap(PopoverSection.init(rawValue:))) })

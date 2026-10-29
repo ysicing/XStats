@@ -3,7 +3,7 @@ import Localization
 import SwiftUI
 
 /// 菜单栏图标：每项独立时一个指标一个图标，点击弹出该项详情；合并时只有一个图标，点击弹出状态总览，
-/// 总览中的指标行可以原地展开各项详情
+/// 总览中的指标行可以原地展开各项详情；聚合模式也可选择直接点击指标打开独立详情。
 @MainActor
 final class MenuBarController: NSObject {
   private let model: AppModel
@@ -12,6 +12,8 @@ final class MenuBarController: NSObject {
   private var panels: [MenuBarItem: StatusPanel] = [:]
   /// 合并模式的面板：状态总览与各项详情
   private var combinedPanel: StatusPanel?
+  private var combinedRendering: MenuBarRenderer.Rendering?
+  private var opensCombinedDetails = false
   private var layoutSignature: [MenuBarItem?] = []
   // 每个实际状态项只保留上一轮读数；布局、设置或外观变化时失效。
   private var renderedReadings:
@@ -25,6 +27,10 @@ final class MenuBarController: NSObject {
 
   /// 开发调试：启动后展开并固定某个弹窗
   var pinsNextPopover = false
+
+  var combinedButton: NSStatusBarButton? {
+    items.first { $0.key == nil }?.statusItem.button
+  }
 
   init(
     model: AppModel,
@@ -43,6 +49,16 @@ final class MenuBarController: NSObject {
   func update() {
     let settings = model.settings
     let enabled = model.visibleMenuBarItems
+    let opensDetails = settings.menuBarLayout == .combined && settings.combinedItemDetailsEnabled
+    if opensDetails != opensCombinedDetails {
+      dismissPopovers()
+      opensCombinedDetails = opensDetails
+    }
+    if opensDetails, let item = model.openPopover,
+      combinedRendering?.itemFrames[item] != nil, !enabled.contains(item)
+    {
+      panels[item]?.dismiss()
+    }
     if let tab = model.combinedPopoverTab, !model.visibleOverviewItems.contains(tab) {
       model.combinedPopoverTab = nil
     }
@@ -67,6 +83,7 @@ final class MenuBarController: NSObject {
     for (key, value) in positions { defaults.set(value, forKey: key) }
     items = []
     renderedReadings.removeAll()
+    combinedRendering = nil
     panels = panels.filter { key, _ in signature.contains(key) }
     layoutSignature = signature
 
@@ -99,6 +116,8 @@ final class MenuBarController: NSObject {
       let reading = TrioReading(model: model)
       refreshDockIcon(reading: reading)
       guard let button = items.first?.statusItem.button else { return }
+      combinedRendering = nil
+      if force { button.setAccessibilityCustomActions(nil) }
       let appearance = button.effectiveAppearance
       let sameImage =
         renderedTrio.map {
@@ -144,7 +163,7 @@ final class MenuBarController: NSObject {
             }
         } ?? false
       if force || !unchanged {
-        button.image = MenuBarRenderer.image(
+        let rendering = MenuBarRenderer.render(
           reading: entryReading, items: itemsToDraw,
           style: { settings.style(for: $0) },
           networkStyle: settings.networkStyle,
@@ -153,13 +172,34 @@ final class MenuBarController: NSObject {
           itemGap: CGFloat(settings.menuBarItemSpacing),
           valueOnTop: settings.menuBarValueOnTop,
           loadSensitivity: settings.loadSensitivity)
+        button.image = rendering.image
+        if entry.key == nil { combinedRendering = rendering }
         renderedReadings[entry.key] = (entryReading, appearance)
+      }
+      // 操作列表只随设置和布局更新，不随每次读数重建。
+      if force {
+        // 单个系统按钮仍可通过 VoiceOver 的操作菜单访问各指标。
+        if entry.key == nil, opensCombinedDetails {
+          button.setAccessibilityCustomActions(
+            itemsToDraw.map { item in
+              NSAccessibilityCustomAction(name: item.title) { [weak self] in
+                self?.showPopover(item) ?? false
+              }
+            } + [
+              NSAccessibilityCustomAction(name: tr("状态总览")) { [weak self] in
+                self?.showOverview() ?? false
+              }
+            ])
+        } else {
+          button.setAccessibilityCustomActions(nil)
+        }
       }
       // 额度的重置时间、过期状态等只影响提示，不必重画相同图像。
       let tooltip =
         itemsToDraw.isEmpty
         ? "XStats" : reading.tooltip(items: itemsToDraw, fahrenheit: settings.useFahrenheit)
       if button.toolTip != tooltip { button.toolTip = tooltip }
+      button.setAccessibilityLabel(tooltip)
     }
   }
 
@@ -194,26 +234,44 @@ final class MenuBarController: NSObject {
   // MARK: 点击
 
   @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
+    handleClick(sender, event: NSApp.currentEvent)
+  }
+
+  func handleClick(_ sender: NSStatusBarButton, event: NSEvent?) {
     guard let entry = items.first(where: { $0.statusItem.button === sender }) else { return }
-    if NSApp.currentEvent?.type == .rightMouseUp {
+    if event?.type == .rightMouseUp {
       showContextMenu(for: entry.statusItem)
     } else if let key = entry.key {
       togglePopover(key, button: sender)
+    } else if opensCombinedDetails, let event, event.type == .leftMouseUp,
+      event.window === sender.window,
+      let imageFrame = sender.cell?.imageRect(forBounds: sender.bounds),
+      let item = combinedRendering?.item(
+        at: sender.convert(event.locationInWindow, from: nil), in: imageFrame)
+    {
+      togglePopover(item, button: sender)
     } else {
       toggleCombinedPanel(tab: nil, button: sender)
     }
   }
 
   func togglePopover(_ item: MenuBarItem, button: NSStatusBarButton? = nil) {
-    // 合并模式下没有这一项自己的图标：打开合并面板并切到这一项
-    guard let button = button ?? items.first(where: { $0.key == item })?.statusItem.button else {
+    let individualButton = button ?? items.first(where: { $0.key == item })?.statusItem.button
+    let combinedButton = opensCombinedDetails ? self.combinedButton : nil
+    // 未开启逐项点击时，快捷入口继续在总览中展开详情。
+    guard let button = individualButton ?? combinedButton else {
       toggleCombinedPanel(tab: item, button: nil)
       return
     }
     guard let window = button.window else { return }
     combinedPanel?.dismiss()
     for (key, panel) in panels where key != item { panel.dismiss() }
-    let frame = window.convertToScreen(button.convert(button.bounds, to: nil))
+    let localFrame =
+      (button === self.combinedButton
+        ? button.cell.flatMap {
+          combinedRendering?.frame(for: item, in: $0.imageRect(forBounds: button.bounds))
+        } : nil) ?? button.bounds
+    let frame = window.convertToScreen(button.convert(localFrame, to: nil))
     let panel = self.panel(for: item)
     panel.toggle(below: frame, on: window.screen)
     if pinsNextPopover, panel.isVisible {
@@ -224,7 +282,7 @@ final class MenuBarController: NSObject {
 
   /// 外部打开请求保持幂等；合并面板已打开时只切换展开项，不把再次打开解释为关闭。
   @discardableResult func showPopover(_ item: MenuBarItem) -> Bool {
-    if model.isCombinedPopoverOpen {
+    if model.isCombinedPopoverOpen, !opensCombinedDetails {
       model.combinedPopoverTab = item
       combinedPanel?.refreshHeight()
       return true
@@ -275,7 +333,7 @@ final class MenuBarController: NSObject {
       guard let self else { return }
       self.model.isCombinedPopoverOpen = visible
       if visible { self.model.helper.refreshStatus() }
-      self.items.first { $0.key == nil }?.statusItem.button?.highlight(visible)
+      self.combinedButton?.highlight(visible || self.model.openPopover != nil)
     }
     combinedPanel = panel
     return panel
@@ -307,6 +365,10 @@ final class MenuBarController: NSObject {
         self.model.openPopover = nil
       }
       self.items.first { $0.key == item }?.statusItem.button?.highlight(visible)
+      if self.opensCombinedDetails {
+        self.combinedButton?.highlight(
+          self.model.openPopover != nil || self.model.isCombinedPopoverOpen)
+      }
     }
     panels[item] = panel
     return panel
@@ -326,6 +388,10 @@ final class MenuBarController: NSObject {
       .target = self
     menu.addItem(withTitle: tr("设置…"), action: #selector(openSettings), keyEquivalent: ",").target =
       self
+    if model.settings.menuBarLayout == .combined {
+      menu.addItem(withTitle: tr("状态总览"), action: #selector(openOverview), keyEquivalent: "")
+        .target = self
+    }
     menu.addItem(.separator())
     let awake = menu.addItem(
       withTitle: tr("防休眠"), action: #selector(toggleKeepAwake), keyEquivalent: "")
@@ -378,5 +444,6 @@ final class MenuBarController: NSObject {
   }
 
   @objc private func openMainWindow() { model.openMainWindow(nil) }
+  @objc private func openOverview() { showOverview() }
   @objc private func openSettings() { model.openSettings() }
 }
