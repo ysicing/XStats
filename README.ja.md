@@ -67,7 +67,7 @@ XStats は Swift、AppKit、SwiftUI で開発した、無料のオープンソ�
 | **ディスク** | 容量、読み書きの速度、アプリ別 I/O ランキング、SMART 健全性 |
 | **ネットワーク** | アップロード / ダウンロードの速度、ネットワークインターフェイス、接続の概要 |
 | **エネルギー** | 温度、システムの消費電力、App の CPU 消費電力、スリープを妨げるアプリ、バッテリー状態、Bluetooth 機器の残量 |
-| **XStats Capture** | 内蔵のスクリーンショット編集、ローカルでのマスキング、音声付き画面収録。[単独版 Capture](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.5) もダウンロードできます。[使い方と権限](docs/CAPTURE.md) |
+| **XStats Capture** | 内蔵のスクリーンショット編集、ローカルでのマスキング、音声付き画面収録。[単独版 Capture](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.6) もダウンロードできます。[使い方と権限](docs/CAPTURE.md) |
 | **ファン** | 回転数と対応機種でのファン制御 |
 | **ディスプレイ** | 解像度、スケーリング、リフレッシュレート。DDC/CI 対応の外部ディスプレイでは明るさ、コントラスト、音量を調節可能 |
 | **システム情報** | Mac とシステムの識別情報。Apple Intelligence 横の詳細アイコンで機能の設定状態、デバイス上のモデルの利用可否と容量を確認 |

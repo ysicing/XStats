@@ -116,7 +116,7 @@ AI usage supports Magpie exclusively and requires it to be installed and running
 
 | Tool | Description |
 |---|---|
-| **XStats Capture** | Built-in screenshot annotation, local redaction, and screen recording with audio; also available as a [standalone Capture download](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.5). See [Capture usage and permissions](docs/CAPTURE.md) |
+| **XStats Capture** | Built-in screenshot annotation, local redaction, and screen recording with audio; also available as a [standalone Capture download](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.6). See [Capture usage and permissions](docs/CAPTURE.md) |
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
 | **Apps & Services** | Manage apps, Homebrew packages, startup items and Homebrew services; view app information and available updates |

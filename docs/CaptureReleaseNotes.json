@@ -1,12 +1,12 @@
 {
-  "version": "0.1.5",
-  "date": "2026-10-23",
+  "version": "0.1.6",
+  "date": "2026-10-29",
   "sourceNotes": [
-    "修复保存截图期间仍可通过键盘修改或删除标注的问题。"
+    "敏感信息精确识别失败时自动尝试快速识别，并提示检查和补充马赛克。"
   ],
   "translations": {
     "en": [
-      "Prevent keyboard shortcuts from modifying or deleting annotations while a screenshot is being saved."
+      "Automatically try fast recognition if accurate sensitive-text recognition fails, and prompt you to review the result and add any missing redactions."
     ]
   }
 }
