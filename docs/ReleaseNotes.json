@@ -1,21 +1,13 @@
 {
-  "version": "1.4.12",
+  "version": "1.4.13",
   "sourceNotes": [
-    "聚合模式支持分别选择菜单栏与状态总览的展示项目",
-    "支持拖动调整聚合监控项目与 AI 服务顺序，AI 顺序同步到菜单栏、聚合圆点和额度小组件",
-    "优化菜单栏设置布局，统一网络样式与 IP 归属地控件对齐，并让 AI 服务选择铺满可用宽度",
-    "修复额度小组件的默认灰环挤掉实际服务，以及取消勾选后排序和备份丢失服务位置的问题",
-    "修复首次开启自定义展示位置时重新启用已关闭监控功能的问题",
-    "完善网络检测取消后的恢复，排除非公网测试地址的归属查询"
+    "聚合模式支持点击各指标直接打开详情",
+    "修复截图敏感信息识别失败的问题"
   ],
   "translations": {
     "en": [
-      "Choose separate menu-bar and Status Overview items in combined mode. Enable Customize Display Locations in Advanced settings when needed (#22).",
-      "Drag to reorder combined monitoring items and AI services. Share the AI order across menu-bar indicators, combined dots and quota widgets.",
-      "Refine menu-bar settings, align the network style and IP location controls, and let AI service selection use the available width.",
-      "Keep default gray quota rings from displacing services present in Magpie. Preserve hidden service positions when reordering and restoring backups.",
-      "Fix enabling custom display locations for the first time unexpectedly turning disabled monitoring features back on.",
-      "Improve recovery after cancelling network tests and exclude non-public test addresses from geolocation queries."
+      "Click individual indicators in combined mode to open their details. Enable Click Indicators to Open Details in menu-bar settings; the context menu still opens Status Overview.",
+      "Fix failures when recognizing sensitive text in screenshots. Automatically try fast recognition if accurate recognition is unavailable, and prompt you to review the result and add any missing redactions."
     ]
   }
 }
