@@ -986,6 +986,10 @@ public final class AppSettings {
   public var showDockIcon: Bool {
     didSet { defaults.set(showDockIcon, forKey: Keys.showDockIcon) }
   }
+  /// 仅控制普通手动冷启动；登录启动、深链和再次打开应用沿用各自的入口行为。
+  public var showMainWindowOnLaunch: Bool {
+    didSet { defaults.set(showMainWindowOnLaunch, forKey: Keys.showMainWindowOnLaunch) }
+  }
   // 本机菜单栏布局实验开关，不随设置文档同步到其他设备。
   public var menuBarFoldingEnabled: Bool {
     didSet { defaults.set(menuBarFoldingEnabled, forKey: Keys.menuBarFoldingEnabled) }
@@ -1414,6 +1418,8 @@ public final class AppSettings {
     appearance =
       defaults.string(forKey: Keys.appearance).flatMap(AppearanceMode.init(rawValue:)) ?? .system
     showDockIcon = defaults.bool(forKey: Keys.showDockIcon)
+    showMainWindowOnLaunch =
+      defaults.object(forKey: Keys.showMainWindowOnLaunch) as? Bool ?? true
     speedTestBudget =
       defaults.string(forKey: Keys.speedTestBudget).flatMap(SpeedTestBudget.init(rawValue:))
       ?? .full
@@ -1781,6 +1787,7 @@ public final class AppSettings {
     static let panelTab = "panelTab"
     static let appearance = "appearance"
     static let showDockIcon = "showDockIcon"
+    static let showMainWindowOnLaunch = "showMainWindowOnLaunch"
     static let speedTestBudget = "speedTestBudget"
     static let speedTestRoute = "speedTestRoute"
     static let cleanPrefersTrash = "cleanPrefersTrash"

@@ -50,6 +50,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var fanSafetyTemperature: Int?
   public var appearance: String?
   public var showDockIcon: Bool?
+  public var showMainWindowOnLaunch: Bool?
   public var speedTestRoute: String?
   public var menuBarItemSpacing: Int?
   public var trio: TrioConfiguration?
@@ -129,6 +130,7 @@ extension AppSettings {
     doc.fanSafetyTemperature = fanSafetyTemperature
     doc.appearance = appearance.rawValue
     doc.showDockIcon = showDockIcon
+    doc.showMainWindowOnLaunch = showMainWindowOnLaunch
     doc.speedTestRoute = speedTestRoute.rawValue
     doc.menuBarItemSpacing = menuBarItemSpacing
     doc.trio = trio
@@ -237,6 +239,7 @@ extension AppSettings {
     assign(\.fanSafetyTemperature, option(doc.fanSafetyTemperature, in: Self.fanSafetyOptions))
     assign(\.appearance, doc.appearance.flatMap(AppearanceMode.init(rawValue:)))
     assign(\.showDockIcon, doc.showDockIcon)
+    assign(\.showMainWindowOnLaunch, doc.showMainWindowOnLaunch)
     assign(\.speedTestRoute, doc.speedTestRoute.flatMap(SpeedRoute.init(rawValue:)))
     assign(\.menuBarItemSpacing, option(doc.menuBarItemSpacing, in: Self.menuBarSpacingOptions))
     assign(\.trio, doc.trio)

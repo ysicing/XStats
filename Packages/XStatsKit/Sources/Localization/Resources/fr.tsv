@@ -1978,6 +1978,7 @@ Homebrew 操作超过 1 小时仍未结束，请在终端核对其状态	L’op�
 全部显示	Tout afficher
 帮助	Aide
 使用文档	Guide d’utilisation
+启动时显示主窗口	Afficher la fenêtre principale au lancement
 关窗后保留程序坞图标	Garder l’icône du Dock après fermeture
 打开窗口时自动显示图标；关闭后仍可从程序坞与 ⌘Tab 找到 XStats	L’icône apparaît automatiquement lorsqu’une fenêtre est ouverte. Après fermeture, XStats reste accessible dans le Dock et avec ⌘Tab.
 截图	Capture d’écran

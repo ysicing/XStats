@@ -208,6 +208,7 @@ extension Translations {
     全部显示	Show All
     帮助	Help
     使用文档	User Guide
+    启动时显示主窗口	Show Main Window at Launch
     关窗后保留程序坞图标	Keep Dock Icon After Closing Windows
     打开窗口时自动显示图标；关闭后仍可从程序坞与 ⌘Tab 找到 XStats	The icon appears automatically while a window is open. Keep it after closing windows to find XStats in the Dock and ⌘Tab.
     """#

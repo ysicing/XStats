@@ -318,7 +318,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
     deepLinksReady = true
     if ApplicationLaunch.showsMainWindow(
-      event: launchEvent, arguments: arguments, hasPendingDeepLink: !pendingDeepLinks.isEmpty)
+      event: launchEvent, arguments: arguments, hasPendingDeepLink: !pendingDeepLinks.isEmpty,
+      showMainWindowOnLaunch: model.settings.showMainWindowOnLaunch)
     {
       mainWindow.show(tab: nil)
     }

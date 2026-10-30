@@ -85,6 +85,11 @@ struct GeneralSettings: View {
         }
       }
       GroupRow {
+        SettingRow(title: tr("启动时显示主窗口")) {
+          DSToggle(isOn: $settings.showMainWindowOnLaunch, label: tr("启动时显示主窗口"))
+        }
+      }
+      GroupRow {
         SettingRow(title: tr("关窗后保留程序坞图标"), subtitle: tr("打开窗口时自动显示图标；关闭后仍可从程序坞与 ⌘Tab 找到 XStats")) {
           DSToggle(isOn: $settings.showDockIcon, label: tr("关窗后保留程序坞图标"))
         }

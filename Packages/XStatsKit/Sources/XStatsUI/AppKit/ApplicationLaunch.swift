@@ -3,15 +3,18 @@
 
 import AppKit
 
-/// 登录、服务与显式后台启动不抢占桌面；手动启动提供主窗口。
+/// 登录、服务与显式后台启动不抢占桌面；手动启动按偏好显示主窗口。
 @MainActor
 enum ApplicationLaunch {
   static func showsMainWindow(
-    event: NSAppleEventDescriptor?, arguments: [String], hasPendingDeepLink: Bool
+    event: NSAppleEventDescriptor?, arguments: [String], hasPendingDeepLink: Bool,
+    showMainWindowOnLaunch: Bool
   ) -> Bool {
-    guard !hasPendingDeepLink, !arguments.contains("--background") else { return false }
+    guard showMainWindowOnLaunch, !hasPendingDeepLink, !arguments.contains("--background") else {
+      return false
+    }
     let presentationArguments: Set<String> = [
-      "--show-window", "--show-panel", "--show-calendar", "--show-speedtest",
+      "--show-window", "--show-panel", "--show-calendar", "--show-timer", "--show-speedtest",
       "--show-egress", "--probe", "--explain-process",
     ]
     guard !arguments.contains(where: presentationArguments.contains) else { return false }
