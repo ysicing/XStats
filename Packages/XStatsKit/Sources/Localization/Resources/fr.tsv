@@ -2411,6 +2411,7 @@ Wi-Fi 图标大小	Taille de l’icône Wi-Fi
 搜索软件包	Rechercher des paquets
 搜索启动项	Rechercher des éléments de démarrage
 搜索服务	Rechercher des services
+如果应用已卸载，但启动项仍在，可点击该项右侧的放大镜，在访达中手动删除对应的启动配置文件。	Si une app a été désinstallée mais que son élément de démarrage subsiste, cliquez sur la loupe à droite de la ligne, puis supprimez manuellement le fichier de configuration correspondant dans le Finder.
 后台守护进程（LaunchDaemons）只读展示，不会修改系统服务。	Les démons en arrière-plan (LaunchDaemons) sont en lecture seule. Les services système ne sont pas modifiés.
 登录后运行的代理（LaunchAgents）；当前用户的项目可启停，所有用户的项目只读。	Les agents (LaunchAgents) se lancent après la connexion. Vos éléments peuvent être activés ou désactivés ; ceux de tous les utilisateurs sont en lecture seule.
 1 项 · 可直接停用	1 élément · désactivable ici

@@ -138,6 +138,11 @@ struct StartupItemsPage: View {
                 .foregroundStyle(DS.Palette.textTertiary)
             }
           }
+          if scope == .system, !items.isEmpty {
+            InfoBanner(
+              icon: "info.circle",
+              text: tr("如果应用已卸载，但启动项仍在，可点击该项右侧的放大镜，在访达中手动删除对应的启动配置文件。"))
+          }
           if items.isEmpty {
             Text(controller.isLoading && controller.items.isEmpty ? tr("正在读取…") : tr("没有匹配的项目"))
               .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)

@@ -47,6 +47,7 @@ extension Translations {
     搜索服务	Search services
     1 项 · 可直接停用	1 item · can be turned off here
     1 项 · 需要管理员权限，只读	1 item · needs admin, read-only
+    如果应用已卸载，但启动项仍在，可点击该项右侧的放大镜，在访达中手动删除对应的启动配置文件。	If an app has been uninstalled but its startup item remains, click the magnifying glass on that row to reveal its startup configuration file in Finder, then delete the file manually.
     后台守护进程（LaunchDaemons）只读展示，不会修改系统服务。	Background daemons (LaunchDaemons) are read-only; system services are not modified.
     登录后运行的代理（LaunchAgents）；当前用户的项目可启停，所有用户的项目只读。	Agents (LaunchAgents) run after login. Your own items can be enabled or disabled; items for all users are read-only.
     """#
