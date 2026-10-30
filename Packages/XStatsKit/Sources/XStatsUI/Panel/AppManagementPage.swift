@@ -688,13 +688,14 @@ private struct ManagedApplicationRow: Identifiable {
 }
 
 private enum BrewFilter: String, CaseIterable, Identifiable {
-  case all, formula, cask, updates
+  case all, formula, cask, requested, updates
   var id: Self { self }
   var title: String {
     switch self {
     case .all: tr("全部")
     case .formula: "Formula"
     case .cask: "Cask"
+    case .requested: tr("手动安装")
     case .updates: tr("有可用更新")
     }
   }
@@ -703,6 +704,7 @@ private enum BrewFilter: String, CaseIterable, Identifiable {
     case .all: true
     case .formula: package.kind == .formula
     case .cask: package.kind == .cask
+    case .requested: package.kind == .formula && package.installReason == .requested
     case .updates: package.outdated
     }
   }
