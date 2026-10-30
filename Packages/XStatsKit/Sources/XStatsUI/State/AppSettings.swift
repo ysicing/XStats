@@ -156,8 +156,9 @@ public enum PopoverSection: String, CaseIterable, Identifiable, Sendable {
   /// 弹窗保留关键摘要与应用排行，次要硬件细节可在设置里展开。
   /// 主窗口详情页仍展示完整内容；已保存的显示选择优先于这些默认值。
   static let hiddenByDefault: Set<PopoverSection> = [
-    .cpuCores, .cpuClusters, .cpuLoadAverage, .memoryCompression, .diskHealth, .thermalPower,
+    .cpuCores, .cpuClusters, .cpuLoadAverage, .diskHealth, .thermalPower,
   ]
+  static let legacyHiddenByDefault = hiddenByDefault.union([.memoryCompression])
 
   var title: String {
     switch self {
@@ -1447,13 +1448,21 @@ public final class AppSettings {
     expandedPopoverSections = Set(
       (defaults.stringArray(forKey: Keys.expandedPopoverSections) ?? []).compactMap(
         PopoverSection.init(rawValue:)))
-    let savedHiddenSections =
+    var savedHiddenSections =
       defaults.stringArray(forKey: Keys.hiddenPopoverSections)
       .map { Set($0.compactMap(PopoverSection.init(rawValue:))) } ?? PopoverSection.hiddenByDefault
+    let savedCustomContent = defaults.object(forKey: Keys.customPopoverContentEnabled) as? Bool
+    if savedCustomContent == nil, savedPopoverOrders.isEmpty,
+      savedHiddenSections == PopoverSection.legacyHiddenByDefault
+    {
+      savedHiddenSections = PopoverSection.hiddenByDefault
+      defaults.set(
+        savedHiddenSections.map(\.rawValue).sorted(), forKey: Keys.hiddenPopoverSections)
+    }
     hiddenPopoverSections = savedHiddenSections
     // 升级时保留已有自定义效果，并固化开关，避免关闭后被旧配置再次自动开启。
     let initialCustomContent =
-      defaults.object(forKey: Keys.customPopoverContentEnabled) as? Bool
+      savedCustomContent
       ?? (!savedPopoverOrders.isEmpty || savedHiddenSections != PopoverSection.hiddenByDefault)
     customPopoverContentEnabled = initialCustomContent
     defaults.set(initialCustomContent, forKey: Keys.customPopoverContentEnabled)

@@ -13,13 +13,14 @@ struct CompactPopoverTests {
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
     for section in [
-      PopoverSection.cpuCores, .cpuClusters, .cpuLoadAverage, .memoryCompression, .diskHealth,
+      PopoverSection.cpuCores, .cpuClusters, .cpuLoadAverage, .diskHealth,
       .thermalPower,
     ] {
       #expect(!settings.isVisible(section))
     }
     for section in [
-      PopoverSection.cpuHeatmap, .cpuApps, .memoryWaterline, .memoryApps, .diskActivity,
+      PopoverSection.cpuHeatmap, .cpuApps, .memoryWaterline, .memoryCompression, .memoryApps,
+      .diskActivity,
       .diskProcesses,
     ] {
       #expect(settings.isVisible(section))
@@ -31,6 +32,15 @@ struct CompactPopoverTests {
     restored.hiddenPopoverSections = [.cpuApps]
     restored.apply(document)
     #expect(restored.hiddenPopoverSections.isEmpty)
+
+    restored.customPopoverContentEnabled = true
+    restored.setVisible(.memoryCompression, false)
+    let customized = AppSettings(defaults: defaults)
+    #expect(!customized.popoverSections(for: .memory).contains(.memoryCompression))
+    customized.customPopoverContentEnabled = false
+    #expect(customized.popoverSections(for: .memory).contains(.memoryCompression))
+    customized.customPopoverContentEnabled = true
+    #expect(!customized.popoverSections(for: .memory).contains(.memoryCompression))
   }
 
   @Test func diskVolumesAreRequestedOnlyByVisibleDiskContent() throws {

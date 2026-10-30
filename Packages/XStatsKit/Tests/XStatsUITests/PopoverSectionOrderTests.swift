@@ -77,6 +77,27 @@ struct PopoverSectionOrderTests {
     #expect(settings.popoverSections(for: .cpu).first == .cpuApps)
   }
 
+  @Test func migratesPreviouslySavedDefaultSectionsToNewDefaults() throws {
+    let suite = "PopoverSectionOrderTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(
+      PopoverSection.legacyHiddenByDefault.map(\.rawValue).sorted(),
+      forKey: "hiddenPopoverSections")
+
+    let settings = AppSettings(defaults: defaults)
+    #expect(!settings.customPopoverContentEnabled)
+    #expect(settings.isVisible(.memoryCompression))
+    #expect(
+      Set(defaults.stringArray(forKey: "hiddenPopoverSections") ?? [])
+        == Set(PopoverSection.hiddenByDefault.map(\.rawValue)))
+
+    settings.customPopoverContentEnabled = true
+    let restored = AppSettings(defaults: defaults)
+    #expect(restored.customPopoverContentEnabled)
+    #expect(restored.isVisible(.memoryCompression))
+  }
+
   @Test func customContentDocumentPreservesExplicitOffAndMigratesLegacyChoices() throws {
     let suite = "PopoverSectionOrderTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
