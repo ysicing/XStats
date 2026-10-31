@@ -32,6 +32,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private var wellnessNotifications: WellnessNotifications!
   private var widgetTimer: Timer?
   private let hotKeys = HotKeyCenter()
+  private let commandBar = CommandBarWindowController()
   private let displaySleep = DisplaySleepController()
   private var workspaceObservers: [NSObjectProtocol] = []
   private var screenLocked = false
@@ -173,6 +174,20 @@ public final class AppController: NSObject, NSApplicationDelegate {
       self?.calendarMenuBar.dismiss()
       self?.mainWindow.show(tab: tab)
     }
+    model.openCommandBar = { [weak self] in self?.openCommandBarFromMenu() }
+    commandBar.onSelect = { [weak self] command in
+      guard let self, self.model.settings.commandBarEnabled,
+        !self.isTerminating, !self.screenLocked
+      else { return }
+      switch command.action {
+      case .route(let link):
+        guard self.pendingDeepLinks.count < 16 else { return }
+        self.pendingDeepLinks.append(link)
+        self.drainDeepLinks()
+      case .checkForUpdates:
+        self.checkForUpdatesFromMenu()
+      }
+    }
     model.openAIUsageSettings = { [weak self] in
       self?.menuBar.dismissPopovers()
       self?.calendarMenuBar.dismiss()
@@ -215,6 +230,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.timer.sync()
     restMenuBar.sync()
     observeModel()
+    observeCommandBarSetting()
     observeNetworkObservationDemand()
     observePortsDemand()
     observeProbeSettings()
@@ -408,6 +424,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   }
 
   public func applicationWillTerminate(_ notification: Notification) {
+    commandBar.dismiss()
     model.cleaner.cancelOperation()
     model.cleaner.mole.cancel()
     model.fans.setPaused(true)
@@ -520,6 +537,16 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
   @objc private func openMainWindowFromMenu() { model.openMainWindow(nil) }
 
+  @objc private func openCommandBarFromMenu() {
+    guard model.settings.commandBarEnabled, !model.isRecordingShortcut,
+      !isTerminating, !screenLocked
+    else { return }
+    restMenuBar.dismiss()
+    menuBar.dismissPopovers()
+    calendarMenuBar.dismiss()
+    commandBar.show(commands: AppCommand.catalog(supportsFans: model.store.supportsFans))
+  }
+
   @objc private func openUserGuideFromMenu() {
     NSWorkspace.shared.open(FeedbackLinks.githubRepository)
   }
@@ -534,8 +561,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
       settingsAction: #selector(openSettingsFromMenu),
       updateAction: #selector(checkForUpdatesFromMenu),
       openWindowAction: #selector(openMainWindowFromMenu),
+      commandBarAction: #selector(openCommandBarFromMenu),
       guideAction: #selector(openUserGuideFromMenu),
-      feedbackAction: #selector(openFeedbackFromMenu))
+      feedbackAction: #selector(openFeedbackFromMenu),
+      commandBarEnabled: model.settings.commandBarEnabled)
   }
 
   @objc private func checkForUpdatesFromMenu() {
@@ -548,12 +577,13 @@ public final class AppController: NSObject, NSApplicationDelegate {
       model.isRecordingShortcut
         ? [:]
         : model.settings.hotKeys.filter {
-          !$0.key.requiresTimer || model.settings.restEnabled
+          $0.key.isEnabled(in: model.settings)
         })
     model.hotKeyConflicts = hotKeys.conflicts
     withObservationTracking {
       _ = model.settings.hotKeys
       _ = model.settings.restEnabled
+      _ = model.settings.commandBarEnabled
       _ = model.isRecordingShortcut
     } onChange: { [weak self] in
       Task { @MainActor in self?.applyHotKeys() }
@@ -570,6 +600,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
       } else {
         mainWindow.show(tab: nil)
       }
+    case .openCommandBar:
+      openCommandBarFromMenu()
     case .showProcesses:
       menuBar.dismissPopovers()
       model.openProcessMonitor()
@@ -641,6 +673,19 @@ public final class AppController: NSObject, NSApplicationDelegate {
   }
 
   // MARK: 观察
+
+  private func observeCommandBarSetting() {
+    withObservationTracking {
+      _ = model.settings.commandBarEnabled
+    } onChange: { [weak self] in
+      Task { @MainActor in
+        guard let self else { return }
+        self.observeCommandBarSetting()
+        if !self.model.settings.commandBarEnabled { self.commandBar.dismiss() }
+        self.installMainMenu()
+      }
+    }
+  }
 
   /// 设置或可见内容变化时，更新采样范围、网络探测并重绘菜单栏
   private func observeModel() {
@@ -957,6 +1002,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       return
     }
     appliedLanguage = language
+    commandBar.dismiss()
     model.displays.refreshCatalog()
     XStatsCapture.workspace.refreshLanguage()
     installMainMenu()
@@ -1034,6 +1080,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
   private func pauseForInactivity() {
     guard !isTerminating else { return }
+    commandBar.dismiss()
     restMenuBar.dismiss()
     menuBar.dismissPopovers()
     model.fans.setPaused(true)

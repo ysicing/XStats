@@ -127,9 +127,11 @@ struct AppPresentationTests {
 
   @Test func menusRouteAboutAndWindowCommandsAndRestoreHiddenApplications() throws {
     let app = NSApplication.shared
+    let previousMainMenu = app.mainMenu
     let previousWindowsMenu = app.windowsMenu
     let previousHelpMenu = app.helpMenu
     defer {
+      app.mainMenu = previousMainMenu
       app.windowsMenu = previousWindowsMenu
       app.helpMenu = previousHelpMenu
     }
@@ -137,7 +139,9 @@ struct AppPresentationTests {
     let command = #selector(MenuCommandTarget.performCommand)
     let menu = MainMenu.make(
       target: target, aboutAction: command, settingsAction: command, updateAction: command,
-      openWindowAction: command, guideAction: command, feedbackAction: command)
+      openWindowAction: command, commandBarAction: command, guideAction: command,
+      feedbackAction: command)
+    app.mainMenu = menu
     let application = try #require(menu.items.first?.submenu)
     application.performActionForItem(at: 0)
     #expect(target.commands == 1)
@@ -151,8 +155,19 @@ struct AppPresentationTests {
     let windows = try #require(app.windowsMenu)
     windows.performActionForItem(at: 0)
     #expect(target.commands == 2)
+    let commandBar = try #require(windows.items.first { $0.keyEquivalent == "p" })
+    #expect(commandBar.keyEquivalentModifierMask == [.command, .shift])
+    windows.performActionForItem(at: windows.index(of: commandBar))
+    #expect(target.commands == 3)
     #expect(windows.items.contains { $0.action == #selector(NSWindow.performMiniaturize(_:)) })
     #expect(app.helpMenu?.items.count == 2)
+    let disabledMenu = MainMenu.make(
+      target: target, aboutAction: command, settingsAction: command, updateAction: command,
+      openWindowAction: command, commandBarAction: command, guideAction: command,
+      feedbackAction: command, commandBarEnabled: false)
+    app.mainMenu = disabledMenu
+    #expect(disabledMenu.items.contains { $0.submenu === app.windowsMenu })
+    #expect(app.windowsMenu?.items.contains { $0.keyEquivalent == "p" } == false)
   }
 
   @Test func closedWindowDoesNotKeepTheApplicationInTheDock() throws {

@@ -31,6 +31,16 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 应用菜单的关于、设置与检查更新分别打开现有关于页、通用设置和 Sparkle 更新流程；窗口菜单通过 `⌘0` 恢复主窗口，帮助菜单链接项目使用说明与问题反馈。切换应用语言时重建菜单，普通编辑、隐藏、最小化与关闭操作继续使用系统响应链。
 
+### 命令栏
+
+命令栏位于“设置 → 功能 → 实验性功能”，默认启用。关闭后隐藏入口、关闭当前面板并注销对应全局快捷键，保留快捷键配置；再次启用时恢复。开关随偏好保存和备份恢复，旧备份缺少此字段时保留当前选择。
+
+主窗口侧栏底部的搜索按钮、菜单栏右键菜单和“窗口 → 命令栏”打开应用内命令栏；应用内快捷键为 `⌘⇧P`，全局快捷键在“设置 → 通用”中按需配置，默认不注册。支持当前语言名称、中英文关键词和多词搜索，上下键选择、回车执行、Esc 关闭；输入法组词期间这些按键仍交给输入法。
+
+页面、日历、测速、出口与分流、番茄专注和普通防休眠复用现有深链路由，检查更新复用原菜单入口。功能关闭时沿用路由的设置引导，不自动开启功能或绕过授权。命令栏不搜索文件、不读取剪贴板、不执行脚本；只在显示期间建立固定命令清单的内存索引，无轮询、后台索引或搜索历史。执行、失去焦点、锁屏、休眠及切换语言时关闭，释放窗口和搜索数据，浮动面板本身不改变程序坞显示策略。
+
+定向验证：`swift test --package-path Packages/XStatsKit --jobs 2 --no-parallel --filter 'CommandBarTests|CommandBarWindowTests|CommandBarLocalizationTests|DeepLinkTests|HotKeyTests|AppPresentationTests|CombinedMenuBarInteractionTests'`。可设置 `XSTATS_COMMAND_BAR_PREVIEW_DIR` 为已存在的目录，导出各语言的原生面板布局截图。
+
 ## xstats 深链
 
 安装 App 后，启动器或 `open 'xstats://open/audio'` 可通过系统 URL 事件调用现有入口。

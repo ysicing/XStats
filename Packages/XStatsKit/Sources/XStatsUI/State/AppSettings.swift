@@ -841,6 +841,10 @@ public final class AppSettings {
   public var agentDataEnabled: Bool {
     didSet { defaults.set(agentDataEnabled, forKey: Keys.agentDataEnabled) }
   }
+  /// 实验性命令栏默认开启；仅在唤出时创建窗口和搜索索引。
+  public var commandBarEnabled: Bool {
+    didSet { defaults.set(commandBarEnabled, forKey: Keys.commandBarEnabled) }
+  }
   /// 关闭 Token 统计后仍查询 Magpie 订阅额度；保留原偏好键。
   public var aiUsageShowsLocalUsage: Bool {
     didSet { defaults.set(aiUsageShowsLocalUsage, forKey: Keys.aiUsageShowsLocalUsage) }
@@ -1348,6 +1352,7 @@ public final class AppSettings {
     let isCleanerEnabled = defaults.object(forKey: Keys.cleanerEnabled) as? Bool ?? true
     cleanerEnabled = isCleanerEnabled
     agentDataEnabled = defaults.bool(forKey: Keys.agentDataEnabled)
+    commandBarEnabled = defaults.object(forKey: Keys.commandBarEnabled) as? Bool ?? true
     let isProcessesEnabled = defaults.bool(forKey: Keys.processesEnabled)
     processesEnabled = isProcessesEnabled
     let isPortsEnabled = defaults.bool(forKey: Keys.portsEnabled)
@@ -1766,6 +1771,7 @@ public final class AppSettings {
     static let aiUsageEnabled = "aiUsageEnabled"
     static let cleanerEnabled = "cleanerEnabled"
     static let agentDataEnabled = "agentDataEnabled"
+    static let commandBarEnabled = "commandBarEnabled"
     static let processesEnabled = "processesEnabled"
     static let portsEnabled = "portsEnabled"
     static let portsPlacement = "portsPlacement"

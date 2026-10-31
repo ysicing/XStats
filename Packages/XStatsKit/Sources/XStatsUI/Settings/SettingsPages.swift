@@ -258,7 +258,7 @@ struct HotKeySettings: View {
 
   var body: some View {
     let settings = model.settings
-    let actions = HotKeyAction.allCases.filter { !$0.requiresTimer || settings.restEnabled }
+    let actions = HotKeyAction.allCases.filter { $0.isEnabled(in: settings) }
     VStack(alignment: .leading, spacing: DS.Space.s4) {
       Text(tr("全局快捷键（在任何应用中都能使用，需要包含 ⌘、⌥ 或 ⌃）"))
         .dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)

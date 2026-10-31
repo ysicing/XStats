@@ -13,9 +13,17 @@ extension Translations {
       audioEnglish, networkObservationEnglish, monitoringEnglish, applicationManagementEnglish,
       appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish,
       hardwareDetailsEnglish, aiCleanupEnglish, networkPresentationEnglish, trioEnglish,
-      portsEnglish, appServicesEnglish, maintenancePreviewEnglish,
+      portsEnglish, appServicesEnglish, maintenancePreviewEnglish, commandBarEnglish,
     ]
   }
+
+  static let commandBarEnglish = #"""
+    命令栏	Command Bar
+    搜索功能与操作	Search features and actions
+    暂停专注	Pause focus
+    开启防休眠	Start keeping awake
+    停止防休眠	Stop keeping awake
+    """#
 
   static let appServicesEnglish = #"""
     只读	Read Only

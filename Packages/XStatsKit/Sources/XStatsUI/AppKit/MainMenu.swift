@@ -10,7 +10,8 @@ import Localization
 enum MainMenu {
   static func make(
     target: AnyObject, aboutAction: Selector, settingsAction: Selector, updateAction: Selector,
-    openWindowAction: Selector, guideAction: Selector, feedbackAction: Selector
+    openWindowAction: Selector, commandBarAction: Selector, guideAction: Selector,
+    feedbackAction: Selector, commandBarEnabled: Bool = true
   ) -> NSMenu {
     let main = NSMenu()
 
@@ -49,6 +50,12 @@ enum MainMenu {
     let window = NSMenu(title: tr("窗口"))
     window.addItem(withTitle: tr("打开 XStats 主窗口"), action: openWindowAction, keyEquivalent: "0")
       .target = target
+    if commandBarEnabled {
+      let commandBar = window.addItem(
+        withTitle: tr("命令栏"), action: commandBarAction, keyEquivalent: "p")
+      commandBar.target = target
+      commandBar.keyEquivalentModifierMask = [.command, .shift]
+    }
     window.addItem(.separator())
     window.addItem(
       withTitle: tr("最小化"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")

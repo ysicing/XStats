@@ -204,6 +204,9 @@ private struct MainSidebar: View {
       }
 
       HStack(spacing: 0) {
+        if model.settings.commandBarEnabled {
+          IconButton(systemName: "magnifyingglass", help: tr("命令栏")) { model.openCommandBar() }
+        }
         ThemeToggle()
         FeedbackMenu()
         IconButton(

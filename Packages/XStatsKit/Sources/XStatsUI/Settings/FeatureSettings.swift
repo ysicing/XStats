@@ -263,6 +263,13 @@ struct FeatureSettings: View {
       SettingsGroup {
         GroupRow(showsDivider: false) {
           SettingRow(
+            title: tr("命令栏"), subtitle: tr("搜索功能与操作"), icon: "magnifyingglass"
+          ) {
+            DSToggle(isOn: $settings.commandBarEnabled, label: tr("命令栏"))
+          }
+        }
+        GroupRow {
+          SettingRow(
             title: tr("Agent 数据"),
             subtitle: tr("在清理优化页查看已安装的 AI 工具及关联数据目录，并管理 worktree。"),
             icon: "terminal"

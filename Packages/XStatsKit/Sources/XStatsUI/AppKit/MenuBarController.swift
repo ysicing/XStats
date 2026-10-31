@@ -406,6 +406,10 @@ final class MenuBarController: NSObject {
     let menu = NSMenu()
     menu.addItem(withTitle: tr("打开 XStats"), action: #selector(openMainWindow), keyEquivalent: "")
       .target = self
+    if model.settings.commandBarEnabled {
+      menu.addItem(withTitle: tr("命令栏"), action: #selector(openCommandBar), keyEquivalent: "")
+        .target = self
+    }
     menu.addItem(withTitle: tr("设置…"), action: #selector(openSettings), keyEquivalent: ",").target =
       self
     if model.settings.menuBarLayout == .combined {
@@ -464,6 +468,8 @@ final class MenuBarController: NSObject {
   }
 
   @objc private func openMainWindow() { model.openMainWindow(nil) }
+
+  @objc private func openCommandBar() { model.openCommandBar() }
   @objc private func openOverview() { showOverview() }
   @objc private func openSettings() { model.openSettings() }
 }
