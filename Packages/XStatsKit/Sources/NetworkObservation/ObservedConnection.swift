@@ -163,7 +163,10 @@ public struct ObservationBatch: Codable, Sendable, Equatable {
 
 /// 只读增量接口；协议没有规则、放行或阻断入口。断开连接会终止观察租约。
 @objc public protocol NetworkObservationService {
+  /// 已发布客户端使用的 v2 接口，保留有界活动连接快照。
   func readEvents(after cursor: Int64, epoch: String, reply: @escaping (Data) -> Void)
+  /// 新客户端协商后读取完整 v3 增量；旧组件不会收到此消息。
+  func readJournal(after cursor: Int64, epoch: String, reply: @escaping (Data) -> Void)
   /// v3 停止接收新事件并排空已观察的尾批；不续租，不请求额外通信内容。
   func finishEvents(after cursor: Int64, epoch: String, reply: @escaping (Data) -> Void)
   /// 只读生命周期查询；未运行或 stopFilter 已完成收尾时返回 true，停止过程中保持 false。

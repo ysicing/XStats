@@ -53,7 +53,7 @@ private final class ComponentGUIModel: NSObject, NetworkComponentClientService {
       }
       guard data.count <= 256 * 1024 else { throw NetworkMonitorError.protocolMismatch }
       let response = try JSONDecoder().decode(NetworkComponentResponse.self, from: data)
-      guard response.protocolVersion == NetworkObservationProtocol.version else {
+      guard response.protocolVersion == NetworkObservationProtocol.controlVersion else {
         throw NetworkMonitorError.protocolMismatch
       }
       status = response.status

@@ -145,7 +145,7 @@ public final class ObservationServiceHost: NSObject, NSXPCListenerDelegate, @unc
     candidate.setCodeSigningRequirement(requiredClientCode)
     candidate.exportedInterface = NSXPCInterface(with: NetworkObservationService.self)
     candidate.exportedObject = ObservationServiceSession(
-      read: { [weak self] peer, first, cursor, epoch, finishing in
+      read: { [weak self] peer, first, cursor, epoch, finishing, legacy in
         guard let self else { return nil }
         self.lock.lock()
         guard self.filterActive, first || self.connection === peer else {
@@ -157,7 +157,7 @@ public final class ObservationServiceHost: NSObject, NSXPCListenerDelegate, @unc
         let current = self.generation
         let instant = self.now()
         let batch = self.buffer.read(
-          after: cursor, epoch: epoch, now: instant, renewLease: !finishing)
+          after: cursor, epoch: epoch, now: instant, renewLease: !finishing, legacy: legacy)
         let event: ObservationDemand?
         if finishing {
           event = self.endLeaseLocked()
@@ -225,12 +225,12 @@ private final class DispatchObservationDeadline: ObservationLeaseDeadline, @unch
 private final class ObservationServiceSession: NSObject, NetworkObservationService {
   private let lock = NSLock()
   private var hasRead = false
-  private let read: (NSXPCConnection, Bool, Int64, String, Bool) -> ObservationBatch?
+  private let read: (NSXPCConnection, Bool, Int64, String, Bool, Bool) -> ObservationBatch?
   private let diagnostics: (Double) -> FlowDiagnosticsDTO?
   private let stopped: () -> Bool
 
   init(
-    read: @escaping (NSXPCConnection, Bool, Int64, String, Bool) -> ObservationBatch?,
+    read: @escaping (NSXPCConnection, Bool, Int64, String, Bool, Bool) -> ObservationBatch?,
     diagnostics: @escaping (Double) -> FlowDiagnosticsDTO?, stopped: @escaping () -> Bool
   ) {
     self.read = read
@@ -239,6 +239,10 @@ private final class ObservationServiceSession: NSObject, NetworkObservationServi
   }
 
   func readEvents(after cursor: Int64, epoch: String, reply: @escaping (Data) -> Void) {
+    send(after: cursor, epoch: epoch, finishing: false, legacy: true, reply: reply)
+  }
+
+  func readJournal(after cursor: Int64, epoch: String, reply: @escaping (Data) -> Void) {
     send(after: cursor, epoch: epoch, finishing: false, reply: reply)
   }
 
@@ -247,14 +251,15 @@ private final class ObservationServiceSession: NSObject, NetworkObservationServi
   }
 
   private func send(
-    after cursor: Int64, epoch: String, finishing: Bool, reply: @escaping (Data) -> Void
+    after cursor: Int64, epoch: String, finishing: Bool, legacy: Bool = false,
+    reply: @escaping (Data) -> Void
   ) {
     guard epoch.utf8.count <= 36, cursor >= 0, let peer = NSXPCConnection.current() else {
       reply(Data())
       return
     }
     lock.lock()
-    let batch = read(peer, !hasRead, cursor, epoch, finishing)
+    let batch = read(peer, !hasRead, cursor, epoch, finishing, legacy)
     if batch != nil { hasRead = true }
     lock.unlock()
     guard let batch else {

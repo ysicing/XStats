@@ -42,7 +42,7 @@ import Updates
     let name = NetworkObservationProtocol.controlServiceName(team: team)
     guard
       Bundle.main.object(forInfoDictionaryKey: "NetworkObservationProtocolVersion") as? Int
-        == NetworkObservationProtocol.version,
+        == NetworkObservationProtocol.controlVersion,
       Bundle.main.object(forInfoDictionaryKey: "NetworkObservationControlMachService") as? String
         == name
     else {
@@ -73,7 +73,7 @@ import Updates
     listenerDelegate = delegate
     lifetime.start()
     ComponentLog.service.notice(
-      "Control service started protocol=\(NetworkObservationProtocol.version)")
+      "Control service started protocol=\(NetworkObservationProtocol.controlVersion)")
   }
 
   nonisolated func perform(_ command: String, reply: @escaping @Sendable (Data) -> Void) {

@@ -40,6 +40,7 @@ extension NetworkMonitorBackend {
   var onInstallationProgress: ((Double?) -> Void)?
   var onComponentStatus: ((NetworkComponentStatus) -> Void)?
   private var connection: NSXPCConnection?
+  private var usesJournalRPC = false
   private var control: NSXPCConnection?
   private var activationGeneration = 0
   private var componentPreparation: Task<Void, any Error>?
@@ -262,7 +263,7 @@ extension NetworkMonitorBackend {
   func finishRead(after cursor: Int64, epoch: String) async throws -> ObservationBatch? {
     let metadata = try await NetworkComponentMetadata.load(
       at: NetworkComponentInstaller.componentURL)
-    guard metadata.protocolVersion == 3 else { return nil }
+    guard metadata.supportsFinishing else { return nil }
     return try await readBatch(after: cursor, epoch: epoch, finishing: true)
   }
 
@@ -290,6 +291,10 @@ extension NetworkMonitorBackend {
         }
         if finishing {
           proxy.finishEvents(after: cursor, epoch: epoch) { @Sendable data in
+            reply.finish(.success(data))
+          }
+        } else if usesJournalRPC {
+          proxy.readJournal(after: cursor, epoch: epoch) { @Sendable data in
             reply.finish(.success(data))
           }
         } else {
@@ -324,6 +329,7 @@ extension NetworkMonitorBackend {
       "anchor apple generic and identifier \"\(Self.extensionIdentifier)\" and certificate leaf[subject.OU] = \"\(team)\""
     )
     candidate.remoteObjectInterface = NSXPCInterface(with: NetworkObservationService.self)
+    usesJournalRPC = metadata.usesJournalRPC
     candidate.resume()
     connection = candidate
     return candidate

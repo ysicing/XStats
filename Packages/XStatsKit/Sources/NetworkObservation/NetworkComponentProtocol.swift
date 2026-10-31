@@ -4,6 +4,8 @@ import Foundation
 
 public enum NetworkObservationProtocol {
   public static let version = 3
+  /// 控制与旧连接接口保持 v2；完整历史通过独立的 v3 增量接口协商。
+  public static let controlVersion = 2
   public static let trafficVersion = 2
   /// v3 的所有连接/统计均按游标增量传输；v2 仅兼容已有连接查看，不保证完整历史。
   public static func supports(_ version: Int?) -> Bool { version == 2 || version == Self.version }
@@ -74,7 +76,7 @@ public struct NetworkComponentResponse: Codable, Sendable {
   public init(
     needsRestart: Bool = false, error: String? = nil, status: NetworkComponentStatus? = nil
   ) {
-    self.protocolVersion = NetworkObservationProtocol.version
+    self.protocolVersion = NetworkObservationProtocol.controlVersion
     self.needsRestart = needsRestart
     self.error = error
     self.status = status
@@ -87,7 +89,7 @@ public struct FlowDiagnosticsDTO: Codable, Sendable, Equatable {
   public let token: String
   public let newFlowCallbacks: UInt64
   public init(token: String, newFlowCallbacks: UInt64) {
-    self.protocolVersion = NetworkObservationProtocol.version
+    self.protocolVersion = NetworkObservationProtocol.controlVersion
     self.token = token
     self.newFlowCallbacks = newFlowCallbacks
   }

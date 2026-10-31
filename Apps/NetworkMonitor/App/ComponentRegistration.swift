@@ -11,7 +11,7 @@ struct ComponentRegistrationResult: Codable, Sendable {
   let registration: NetworkComponentRegistration
   let error: String?
   init(error: String? = nil) {
-    protocolVersion = NetworkObservationProtocol.version
+    protocolVersion = NetworkObservationProtocol.controlVersion
     registration = ComponentRegistration.status
     self.error = error
   }
@@ -71,7 +71,7 @@ enum ComponentRegistration {
       let info = try PropertyListSerialization.propertyList(
         from: infoData, options: [], format: nil) as? [String: Any],
       info["CFBundleIdentifier"] as? String == NetworkObservationProtocol.componentBundleIdentifier,
-      info["NetworkObservationProtocolVersion"] as? Int == NetworkObservationProtocol.version
+      info["NetworkObservationProtocolVersion"] as? Int == NetworkObservationProtocol.controlVersion
     else {
       throw NetworkMonitorError.protocolMismatch
     }

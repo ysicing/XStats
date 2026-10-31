@@ -10,6 +10,11 @@ struct NetworkComponentMetadata: Sendable {
   let protocolVersion: Int?
   let version: String
   let build: String
+  var journalVersion: Int? = nil
+
+  var usesJournalRPC: Bool { protocolVersion == 2 && journalVersion == 3 }
+  /// 兼容曾安装的 v3 预览组件；正式组件通过独立能力字段声明。
+  var supportsFinishing: Bool { protocolVersion == 3 || usesJournalRPC }
 
   @concurrent static func load(at app: URL) async throws -> Self {
     try Task.checkCancellation()
@@ -29,6 +34,7 @@ struct NetworkComponentMetadata: Sendable {
       controlMachService: info["NetworkObservationControlMachService"] as? String,
       protocolVersion: info["NetworkObservationProtocolVersion"] as? Int,
       version: info["CFBundleShortVersionString"] as? String ?? "",
-      build: info["CFBundleVersion"] as? String ?? "")
+      build: info["CFBundleVersion"] as? String ?? "",
+      journalVersion: info["NetworkObservationJournalVersion"] as? Int)
   }
 }

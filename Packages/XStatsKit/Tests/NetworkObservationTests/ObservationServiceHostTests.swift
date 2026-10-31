@@ -8,6 +8,22 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct ObservationServiceHostTests {
+  @Test func originalReadRPCAndControlReplyRemainCompatibleWithPublishedClients() async throws {
+    let listener = NSXPCListener.anonymous()
+    let host = ObservationServiceHost(listener: listener, requiredClientCode: try requirement())
+    let generation = host.startFilter()
+    defer {
+      host.beginStoppingFilter(generation: generation)
+      listener.invalidate()
+    }
+    let reader = peer(listener)
+    defer { reader.invalidate() }
+    let batch = try await read(reader, legacy: true)
+    #expect(batch.protocolVersion == 2)
+    #expect(batch.activeIDs != nil)
+    #expect(NetworkComponentResponse().protocolVersion == 2)
+  }
+
   private func peer(_ listener: NSXPCListener) -> NSXPCConnection {
     let peer = NSXPCConnection(listenerEndpoint: listener.endpoint)
     peer.remoteObjectInterface = NSXPCInterface(with: NetworkObservationService.self)
@@ -16,7 +32,8 @@ struct ObservationServiceHostTests {
   }
 
   private func read(
-    _ peer: NSXPCConnection, cursor: Int64 = 0, epoch: String = "", finishing: Bool = false
+    _ peer: NSXPCConnection, cursor: Int64 = 0, epoch: String = "", finishing: Bool = false,
+    legacy: Bool = false
   ) async throws
     -> ObservationBatch
   {
@@ -28,6 +45,8 @@ struct ObservationServiceHostTests {
         as! NetworkObservationService
       if finishing {
         proxy.finishEvents(after: cursor, epoch: epoch) { data in reply.finish(.success(data)) }
+      } else if !legacy {
+        proxy.readJournal(after: cursor, epoch: epoch) { data in reply.finish(.success(data)) }
       } else {
         proxy.readEvents(after: cursor, epoch: epoch) { data in reply.finish(.success(data)) }
       }

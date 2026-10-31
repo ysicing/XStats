@@ -83,7 +83,7 @@ python3 - "$APP" "$TEAM_ID" <<'PY'
 import pathlib, plistlib, sys
 app=pathlib.Path(sys.argv[1]); info=plistlib.loads((app/'Contents/Info.plist').read_bytes())
 service=sys.argv[2]+'.work.12306.xstats.network-observation.control'
-if info.get('NetworkObservationProtocolVersion')!=3 or info.get('NetworkObservationControlMachService')!=service:
+if (info.get('NetworkObservationProtocolVersion')!=2 or info.get('NetworkObservationJournalVersion')!=3) or info.get('NetworkObservationControlMachService')!=service:
     raise SystemExit('error: 独立组件协议 2/control Mach service 不正确')
 file=app/'Contents/Library/LaunchAgents/work.12306.xstats.networkmonitor.agent.plist'
 if not file.is_file():

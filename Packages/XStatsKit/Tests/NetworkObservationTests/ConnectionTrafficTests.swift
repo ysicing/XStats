@@ -5,6 +5,30 @@ import Testing
 @testable import NetworkObservation
 
 struct ConnectionTrafficTests {
+  @Test func legacyActivityWindowDoesNotLimitJournalCaptureOrNewClientDelivery() throws {
+    let buffer = ObservationBuffer()
+    _ = buffer.read(after: 0, epoch: "", now: 1, legacy: true)
+    let records = (0..<2048).map { _ in connection() }
+    for record in records { #expect(buffer.record(record, now: 2)) }
+    let legacy = buffer.read(after: 0, epoch: "", now: 3, legacy: true)
+    #expect(legacy.protocolVersion == 2)
+    #expect(legacy.activeIDs?.count == 512)
+    #expect(try JSONEncoder().encode(legacy).count <= ObservationLimits.maximumPayloadBytes)
+    var cursor: Int64 = 0
+    var epoch = ""
+    var delivered: Set<UUID> = []
+    while true {
+      let batch = buffer.read(after: cursor, epoch: epoch, now: 4)
+      #expect(batch.protocolVersion == 3 && batch.activeIDs == nil)
+      #expect(batch.discarded == 0 && batch.captureDropped == 0)
+      delivered.formUnion(batch.events.map(\.id))
+      cursor = batch.cursor
+      epoch = batch.epoch
+      if batch.events.count < ObservationLimits.batchCount { break }
+    }
+    #expect(delivered == Set(records.map(\.id)))
+  }
+
   @Test func finishingSealsNewAndCloseEventsWithoutDiscardingTheTail() {
     let buffer = ObservationBuffer()
     _ = buffer.read(after: 0, epoch: "", now: 1)

@@ -9,7 +9,7 @@ mkdir -p "$APP/Contents"
 python3 - "$APP" <<'PY'
 import plistlib, pathlib, sys
 info={'CFBundleIdentifier':'work.12306.xstats.networkmonitor','CFBundleExecutable':'XStats Network Monitor',
-      'NetworkObservationProtocolVersion':3,'NetworkObservationControlMachService':'OLDTEAM.work.12306.xstats.network-observation.control'}
+      'NetworkObservationProtocolVersion':2,'NetworkObservationJournalVersion':3,'NetworkObservationControlMachService':'OLDTEAM.work.12306.xstats.network-observation.control'}
 pathlib.Path(sys.argv[1],'Contents/Info.plist').write_bytes(plistlib.dumps(info))
 PY
 bash "$ROOT/scripts/embed_network_agent.sh" "$APP" TESTTEAM01
@@ -30,7 +30,7 @@ cmp "$WORK/first.plist" "$APP/Contents/Library/LaunchAgents/work.12306.xstats.ne
 python3 - "$APP" <<'PY'
 import plistlib,pathlib,sys
 file=pathlib.Path(sys.argv[1],'Contents/Info.plist');info=plistlib.loads(file.read_bytes())
-info['NetworkObservationProtocolVersion']=2
+info['NetworkObservationJournalVersion']=2
 file.write_bytes(plistlib.dumps(info))
 PY
 if bash "$ROOT/scripts/embed_network_agent.sh" "$APP" TESTTEAM01 > "$WORK/output" 2>&1; then
@@ -40,7 +40,7 @@ grep -q '协议版本' "$WORK/output"
 python3 - "$APP" <<'PY'
 import plistlib,pathlib,sys
 file=pathlib.Path(sys.argv[1],'Contents/Info.plist');info=plistlib.loads(file.read_bytes())
-info['NetworkObservationProtocolVersion']=3
+info['NetworkObservationJournalVersion']=3
 info['NetworkObservationControlMachService']='$(TeamIdentifierPrefix)work.12306.xstats.network-observation.control'
 file.write_bytes(plistlib.dumps(info))
 PY

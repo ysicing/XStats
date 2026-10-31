@@ -115,7 +115,8 @@ public final class ObservationBuffer: @unchecked Sendable {
 
   public func read(
     after cursor: Int64, epoch: String,
-    now: TimeInterval = ProcessInfo.processInfo.systemUptime, renewLease: Bool = true
+    now: TimeInterval = ProcessInfo.processInfo.systemUptime, renewLease: Bool = true,
+    legacy: Bool = false
   ) -> ObservationBatch {
     lock.lock()
     defer { lock.unlock() }
@@ -127,6 +128,12 @@ public final class ObservationBuffer: @unchecked Sendable {
     var batch = journal.batch(after: cursor, epoch: epoch)
     batch.trafficVersion = NetworkObservationProtocol.trafficVersion
     batch.captureDropped = captureDropped
+    if legacy {
+      batch.protocolVersion = NetworkObservationProtocol.controlVersion
+      // 仅旧接口按需生成窗口，不额外常驻保存一份连接历史。
+      batch.activeIDs = Array(active.keys.prefix(ObservationLimits.displayCount))
+      batch.trafficVersion = nil
+    }
     return batch
   }
 
