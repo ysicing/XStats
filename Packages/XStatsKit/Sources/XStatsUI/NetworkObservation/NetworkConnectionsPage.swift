@@ -156,6 +156,7 @@ struct NetworkConnectionsPage: View {
   @Environment(AppModel.self) private var model
   @Environment(\.isSnapshot) private var isSnapshot
   @State private var managesNetworkComponent = false
+  @State private var showsMapInfo = false
   @State private var enablesAfterComponentInstall = false
   @State private var search = ""
   @State private var grouping = ConnectionGrouping.apps
@@ -322,7 +323,6 @@ struct NetworkConnectionsPage: View {
       } ?? NetworkConnectionGroup.selected(in: groups, id: nil)
     VStack(spacing: 0) {
       toolbar
-      if mode == .history { historyControls }
       if mode == .live
         && (monitor.installationProgress != nil || monitor.status == .needsApproval
           || monitor.status == .restartRequired || monitor.status == .failed)
@@ -372,7 +372,7 @@ struct NetworkConnectionsPage: View {
       historyGeneration &+= 1
       isQueryingHistory = false
     }
-    .frame(height: isSnapshot ? 580 : nil)
+    .frame(idealHeight: isSnapshot ? 580 : nil)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .task {
       world = await OfflineGeography.shared.world()
@@ -513,44 +513,55 @@ struct NetworkConnectionsPage: View {
     }
   }
 
-  private var historyControls: some View {
-    HStack(spacing: DS.Space.s3) {
-      Picker(tr("时间范围"), selection: $historyInterval) {
-        Text(tr("5 分钟")).tag(TimeInterval(300))
-        Text(tr("15 分钟")).tag(TimeInterval(900))
-      }.pickerStyle(.segmented).labelsHidden().fixedSize()
-      Text(
-        verbatim: historyEnd.addingTimeInterval(-historyInterval).formatted(
-          .dateTime.hour().minute().second().locale(L10n.locale))
-          + " – " + historyEnd.formatted(.dateTime.hour().minute().second().locale(L10n.locale))
-      )
-      .dsFont(.xs).monospacedDigit().foregroundStyle(DS.Palette.textSecondary)
-      Spacer(minLength: 0)
-      Button(tr("更新")) {
-        historyEnd = NetworkConnectionMode.historyEnd()
-        historyOffset = 0
-        historyRefresh &+= 1
-      }.buttonStyle(DSButtonStyle(kind: .ghost)).disabled(isQueryingHistory)
-    }.padding(.horizontal, DS.Space.s4).padding(.bottom, DS.Space.s2)
-      .fixedSize(horizontal: false, vertical: true)
+  private var modePicker: some View {
+    Picker(tr("查看方式"), selection: $mode) {
+      Text(tr("实时")).tag(NetworkConnectionMode.live)
+      Text(tr("历史")).tag(NetworkConnectionMode.history)
+    }.pickerStyle(.segmented).labelsHidden().fixedSize()
+  }
+
+  private var historyRangePicker: some View {
+    Picker(tr("时间范围"), selection: $historyInterval) {
+      Text(tr("5 分钟")).tag(TimeInterval(300))
+      Text(tr("15 分钟")).tag(TimeInterval(900))
+    }.pickerStyle(.segmented).labelsHidden().fixedSize()
   }
 
   private var toolbar: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: DS.Space.s4) {
+        modePicker
+        if mode == .history { historyRangePicker }
+        Spacer(minLength: DS.Space.s4)
+        captureControls
+      }
+      VStack(alignment: .leading, spacing: DS.Space.s2) {
+        HStack {
+          modePicker
+          Spacer(minLength: DS.Space.s2)
+          if mode == .history { historyRangePicker }
+        }
+        HStack {
+          Spacer(minLength: 0)
+          captureControls
+        }
+      }
+    }
+    .padding(.horizontal, DS.Space.s4).padding(.vertical, DS.Space.s2)
+    .fixedSize(horizontal: false, vertical: true)
+  }
+
+  private var captureControls: some View {
     HStack(spacing: DS.Space.s2) {
-      Picker(tr("查看方式"), selection: $mode) {
-        Text(tr("实时")).tag(NetworkConnectionMode.live)
-        Text(tr("历史")).tag(NetworkConnectionMode.history)
-      }.pickerStyle(.segmented).labelsHidden().frame(width: 148)
-      Spacer(minLength: DS.Space.s2)
-      Circle().fill(
-        monitor.isManuallyPaused
-          ? DS.Palette.warning
-          : (monitor.isReading || monitor.status == .preview
-            ? DS.Palette.success : DS.Palette.textTertiary)
-      )
-      .frame(width: 6, height: 6).accessibilityHidden(true)
-      Text(statusText).dsFont(.sm, weight: .medium)
-      Spacer(minLength: DS.Space.s2)
+      HStack(spacing: DS.Space.s1) {
+        Circle().fill(
+          monitor.isManuallyPaused
+            ? DS.Palette.warning
+            : (monitor.isReading || monitor.status == .preview
+              ? DS.Palette.success : DS.Palette.textTertiary)
+        ).frame(width: 6, height: 6).accessibilityHidden(true)
+        Text(statusText).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+      }.fixedSize()
       Button {
         if monitor.status == .preview {
           monitor.setObservationPaused(!monitor.isManuallyPaused)
@@ -592,8 +603,7 @@ struct NetworkConnectionsPage: View {
         Image(systemName: "ellipsis")
       }
       .menuStyle(.borderlessButton).fixedSize().help(tr("更多"))
-    }.padding(.horizontal, DS.Space.s4).padding(.vertical, DS.Space.s2)
-      .fixedSize(horizontal: false, vertical: true)
+    }.fixedSize()
   }
 
   private func groupList(_ groups: [NetworkConnectionGroup]) -> some View {
@@ -635,7 +645,7 @@ struct NetworkConnectionsPage: View {
               focusedGroup = NetworkConnectionGroup.allIdentifier
             } label: {
               HStack(spacing: DS.Space.s2) {
-                Image(systemName: "square.grid.2x2").frame(width: 26)
+                Image(systemName: "square.grid.2x2").frame(width: 22)
                   .foregroundStyle(DS.Palette.primary).accessibilityHidden(true)
                 Text(tr("全部")).dsFont(.sm, weight: selection == nil ? .semibold : .medium)
                   .foregroundStyle(DS.Palette.textPrimary)
@@ -654,7 +664,7 @@ struct NetworkConnectionsPage: View {
                   .dsFont(.xs, weight: .medium).monospacedDigit().foregroundStyle(
                     DS.Palette.textSecondary)
                 }
-              }.padding(.horizontal, DS.Space.s2).padding(.vertical, DS.Space.s3)
+              }.padding(.horizontal, DS.Space.s2).padding(.vertical, DS.Space.s2)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(RoundedRectangle(cornerRadius: DS.Radius.md))
                 .background(
@@ -702,10 +712,10 @@ struct NetworkConnectionsPage: View {
                   HStack(spacing: DS.Space.s2) {
                     if grouping == .apps || grouping == .process {
                       AppIconCache.shared.image(bundlePath: group.applicationPath)
-                        .resizable().frame(width: 26, height: 26).accessibilityHidden(true)
-                    } else {
-                      Image(systemName: grouping == .domain ? "globe" : "mappin.and.ellipse")
-                        .frame(width: 26).foregroundStyle(DS.Palette.textSecondary)
+                        .resizable().frame(width: 22, height: 22).accessibilityHidden(true)
+                    } else if grouping == .domain {
+                      Image(systemName: "globe")
+                        .frame(width: 22).foregroundStyle(DS.Palette.textSecondary)
                     }
                     VStack(alignment: .leading, spacing: 3) {
                       Text(
@@ -714,7 +724,7 @@ struct NetworkConnectionsPage: View {
                       ).dsFont(
                         .sm, weight: selection == group.id ? .semibold : .medium
                       )
-                      .foregroundStyle(DS.Palette.textPrimary).lineLimit(1)
+                      .foregroundStyle(DS.Palette.textPrimary).lineLimit(1).help(group.name)
                       if grouping == .process, let processID = group.processID {
                         Text(verbatim: "PID \(processID)")
                           .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
@@ -726,9 +736,8 @@ struct NetworkConnectionsPage: View {
                       .foregroundStyle(
                         selection == group.id ? DS.Palette.primary : DS.Palette.textSecondary
                       )
-                      .padding(.horizontal, 6).padding(.vertical, 3)
-                      .background(DS.Palette.elevated.opacity(0.7), in: Capsule())
-                  }.padding(.horizontal, DS.Space.s2).padding(.vertical, DS.Space.s3)
+
+                  }.padding(.horizontal, DS.Space.s2).padding(.vertical, DS.Space.s2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(RoundedRectangle(cornerRadius: DS.Radius.md))
                     .background(
@@ -770,151 +779,130 @@ struct NetworkConnectionsPage: View {
     let rowCountries = countries
     let filter = NetworkConnectionFilter(
       grouping: grouping, selection: selection, query: search, countries: places)
-    let providedPoints = usesHistory ? displayedHistory?.points ?? [] : nil
-    let hasStoredTraffic =
-      providedPoints?.contains {
-        $0.receivedBytesPerSecond != nil || $0.sentBytesPerSecond != nil
-      } ?? false
+    let interval = mode == .live ? 60 : historyInterval
+    let points =
+      usesHistory
+      ? NetworkTrafficChartSample.window(displayedHistory?.points ?? [], interval: interval)
+      : monitor.trafficHistory.points(interval: interval, matching: filter.matches)
+    let samples = NetworkTrafficChartSample.make(points: points)
+    let chart = NetworkTrafficChart(
+      points: points, samples: samples,
+      available: mode == .history || monitor.trafficAvailable || !samples.isEmpty,
+      interval: interval, summarizesHistory: mode == .history)
     // 节点数量来自完整 SQL 聚合；实时窗口只提供新到达反馈，历史不重播光环。
     let mapRecords =
       usesHistory
       ? monitor.records.filter {
         filter.matches($0) && (!activeOnly || monitor.activeConnectionIDs.contains($0.id))
       } : records
-    return VStack(alignment: .leading, spacing: DS.Space.s2) {
-      ScrollView {
-        VStack(alignment: .leading, spacing: DS.Space.s2) {
-          HStack(spacing: DS.Space.s3) {
-            if selected?.id == NetworkConnectionGroup.allIdentifier {
-              Image(systemName: "network").font(.system(size: 24)).foregroundStyle(
-                DS.Palette.primary
-              )
-              .frame(width: 32, height: 32).accessibilityHidden(true)
-            } else if let selected, grouping == .apps || grouping == .process {
-              AppIconCache.shared.image(bundlePath: selected.applicationPath)
-                .resizable().frame(width: 32, height: 32).accessibilityHidden(true)
+    return GeometryReader { geometry in
+      let contentWidth = max(0, geometry.size.width - DS.Space.s4 * 2)
+      let columns = contentWidth >= 840 ? NetworkConnectionColumns(width: contentWidth) : nil
+      VStack(alignment: .leading, spacing: DS.Space.s2) {
+        ScrollView {
+          VStack(alignment: .leading, spacing: DS.Space.s4) {
+            ViewThatFits(in: .horizontal) {
+              HStack(spacing: DS.Space.s4) {
+                detailHeading(selected, total: total)
+                Spacer(minLength: DS.Space.s2)
+                if mode == .history { historyTimestamp }
+              }
+              VStack(alignment: .leading, spacing: DS.Space.s2) {
+                detailHeading(selected, total: total)
+                if mode == .history { historyTimestamp }
+              }
             }
-            VStack(alignment: .leading, spacing: 3) {
-              Text(verbatim: selected?.name ?? tr("暂无连接记录")).dsFont(.lg, weight: .semibold)
-                .lineLimit(1)
-              Text(activeOnly ? tr("活动连接") : tr("最近连接记录"))
-                .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            if let error = monitor.error {
+              Text(verbatim: error).dsFont(.xs).foregroundStyle(DS.Palette.error)
+                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
             }
-            Spacer(minLength: DS.Space.s1)
-            Text(verbatim: total.formatted(.number.locale(L10n.locale)))
-              .dsFont(.lg, weight: .medium).monospacedDigit().foregroundStyle(
-                DS.Palette.textSecondary)
-          }
-          if let error = monitor.error {
-            Text(verbatim: error).dsFont(.xs).foregroundStyle(DS.Palette.error)
-              .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-          }
-          if usesHistory {
-            if let historyError {
-              VStack(alignment: .leading, spacing: DS.Space.s1) {
-                Text(displayedHistory == nil ? tr("无法读取") : tr("读取失败，显示上次统计结果"))
-                HStack(alignment: .top, spacing: DS.Space.s2) {
-                  DisclosureGroup(tr("错误详情")) {
-                    Text(verbatim: historyError).textSelection(.enabled)
+            if usesHistory {
+              if let historyError {
+                VStack(alignment: .leading, spacing: DS.Space.s1) {
+                  Text(displayedHistory == nil ? tr("无法读取") : tr("读取失败，显示上次统计结果"))
+                  HStack(alignment: .top, spacing: DS.Space.s2) {
+                    DisclosureGroup(tr("错误详情")) {
+                      Text(verbatim: historyError).textSelection(.enabled)
+                    }
+                    Button(tr("重试")) {
+                      clearingHistoryRevision = nil
+                      historyRefresh &+= 1
+                    }
+                    .buttonStyle(DSButtonStyle(kind: .ghost))
                   }
-                  Button(tr("重试")) {
-                    clearingHistoryRevision = nil
-                    historyRefresh &+= 1
-                  }
-                  .buttonStyle(DSButtonStyle(kind: .ghost))
+                }.dsFont(.xs).foregroundStyle(DS.Palette.error)
+              } else if isQueryingHistory && displayedHistory == nil {
+                ProgressView(tr("正在读取…")).controlSize(.small).dsFont(.xs)
+              }
+            }
+            if !isSnapshot { geographyStatus }
+            if selection != "LAN" && selection != "??" {
+              if !samples.isEmpty && contentWidth >= 720 {
+                HStack(alignment: .top, spacing: DS.Space.s4) {
+                  connectionMap(records: mapRecords, height: 164)
+                    .frame(width: (contentWidth - DS.Space.s4) * 0.48)
+                  chart.frame(maxWidth: .infinity)
                 }
-              }.dsFont(.xs).foregroundStyle(DS.Palette.error)
-            } else if isQueryingHistory && displayedHistory == nil {
-              ProgressView(tr("正在读取…")).controlSize(.small).dsFont(.xs)
+              } else {
+                VStack(alignment: .leading, spacing: DS.Space.s3) {
+                  connectionMap(records: mapRecords, height: samples.isEmpty ? 140 : 164)
+                  chart
+                }
+              }
+            } else {
+              chart
             }
-          }
-          if !isSnapshot { geographyStatus }
-          if selection != "LAN" && selection != "??" {
             VStack(alignment: .leading, spacing: DS.Space.s2) {
-              ConnectionWorldMap(
-                world: mapWorld, records: mapRecords, observedRecords: monitor.records,
-                countries: places, locations: locations,
-                providedDestinations: usesHistory
-                  ? NetworkMapDestination.make(
-                    world: mapWorld, regions: displayedHistory?.regions ?? []) : nil,
-                isReading: mode == .live && pageVisible && model.isMainWindowVisible
-                  && monitor.isReading
-                  && monitor.status != .preview && !isSnapshot
-              ) { code in
-                let parts = code.split(separator: "|").map(String.init)
-                let key =
-                  parts.count == 3 && parts[1] == parts[2]
-                  ? parts.prefix(2).joined(separator: "|") : parts.joined(separator: "|")
-                grouping = .country
-                selection = key
-                selectedTitle = networkRegionName(key)
-                for depth in 0..<NetworkRegionHierarchy.depth(key) {
-                  if let parent = NetworkRegionHierarchy.key(key, at: depth) {
-                    expandedRegions.insert(parent)
-                  }
-                }
-              }.frame(minHeight: 150, idealHeight: 170, maxHeight: 190)
-              HStack {
-                Text(mode == .history ? tr("近期连接地区分布") : tr("连接地区分布"))
-                  .dsFont(.xs, weight: .medium)
-                Image(systemName: "info.circle").foregroundStyle(DS.Palette.textTertiary)
-                  .help(tr("按城市、省份或国家聚合，非设备精确位置"))
-                  .accessibilityLabel(tr("按城市、省份或国家聚合，非设备精确位置"))
-                Spacer(minLength: DS.Space.s1)
-                Link("DB-IP", destination: URL(string: "https://db-ip.com/")!)
-                Link(
-                  "ip2region",
-                  destination: URL(string: "https://github.com/lionsoul2014/ip2region")!)
-              }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+              Text(tr("连接详情")).dsFont(.sm, weight: .semibold)
+              if let columns {
+                NetworkConnectionTableHeader(columns: columns)
+              }
             }
-          }
-          NetworkTrafficChart(
-            history: usesHistory ? NetworkTrafficHistory() : monitor.trafficHistory,
-            available: mode == .history || monitor.trafficAvailable || hasStoredTraffic,
-            matching: filter.matches,
-            providedPoints: providedPoints, interval: mode == .live ? 60 : historyInterval,
-            summarizesHistory: mode == .history)
-          Text(tr("连接详情")).dsFont(.sm, weight: .semibold)
-          if records.isEmpty && !isQueryingHistory && historyError == nil {
-            ContentUnavailableView(
-              search.isEmpty ? tr("暂无连接记录") : tr("没有匹配的连接"), systemImage: "network")
-          } else {
-            LazyVStack(spacing: 0) {
-              ForEach(records) { record in
-                let location = record.address.flatMap { rowLocations[$0]?.displayName } ?? ""
-                let name =
-                  location.isEmpty
-                  ? networkRegionName(
-                    record.address.flatMap { rowCountries[$0] } ?? "??", address: record.address)
-                  : location
-                connectionRow(record, locationName: name)
-                if record.id != records.last?.id { Divider().opacity(0.5) }
+            if records.isEmpty && !isQueryingHistory && historyError == nil {
+              ContentUnavailableView(
+                search.isEmpty ? tr("暂无连接记录") : tr("没有匹配的连接"), systemImage: "network")
+            } else {
+              LazyVStack(spacing: 0) {
+                ForEach(records) { record in
+                  let location = record.address.flatMap { rowLocations[$0]?.displayName } ?? ""
+                  let name =
+                    location.isEmpty
+                    ? networkRegionName(
+                      record.address.flatMap { rowCountries[$0] } ?? "??", address: record.address)
+                    : location
+                  NetworkConnectionRow(
+                    record: record, locationName: name, showsHistory: mode == .history,
+                    showsApplication: selection == nil || grouping == .country
+                      || grouping == .domain,
+                    columns: columns, availableWidth: contentWidth)
+                  if record.id != records.last?.id { Divider().opacity(0.5) }
+                }
               }
             }
           }
+        }.id([mode.rawValue, grouping.rawValue, selection ?? "", search, String(historyOffset)])
+        if usesHistory, let result = displayedHistory {
+          historyPagination(records: result.records.count, total: result.total)
         }
-      }.id([mode.rawValue, grouping.rawValue, selection ?? "", search, String(historyOffset)])
-      if usesHistory, let result = displayedHistory {
-        historyPagination(records: result.records.count, total: result.total)
-      }
-      HStack(alignment: .top, spacing: DS.Space.s2) {
-        Image(systemName: "info.circle").accessibilityHidden(true)
-        Text(
-          mode == .history
-            ? tr("仅保留最近 15 分钟的观察记录；过期数据会自动清理。")
-            : tr("显示观察期间的新连接；重新开始前已建立的连接不在此列。")
-        )
-        .fixedSize(horizontal: false, vertical: true)
-      }.dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
-      // 突发连接超出扩展缓冲时明确提示列表不完整，不把截断的观察当作完整结果。
-      if monitor.discarded > 0 {
         HStack(alignment: .top, spacing: DS.Space.s2) {
-          Image(systemName: "exclamationmark.triangle").accessibilityHidden(true)
-          Text(tr("扩展缓冲区已有 \(monitor.discarded.formatted(.number.locale(L10n.locale))) 条旧记录被淘汰。"))
-            .fixedSize(horizontal: false, vertical: true)
-        }.dsFont(.xs).foregroundStyle(DS.Palette.warning)
-      }
-    }.padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s3)
+          Image(systemName: "info.circle").accessibilityHidden(true)
+          Text(
+            mode == .history
+              ? tr("仅保留最近 15 分钟的观察记录；过期数据会自动清理。")
+              : tr("显示观察期间的新连接；重新开始前已建立的连接不在此列。")
+          )
+          .fixedSize(horizontal: false, vertical: true)
+        }.dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
+        // 突发连接超出扩展缓冲时明确提示列表不完整，不把截断的观察当作完整结果。
+        if monitor.discarded > 0 {
+          HStack(alignment: .top, spacing: DS.Space.s2) {
+            Image(systemName: "exclamationmark.triangle").accessibilityHidden(true)
+            Text(tr("扩展缓冲区已有 \(monitor.discarded.formatted(.number.locale(L10n.locale))) 条旧记录被淘汰。"))
+              .fixedSize(horizontal: false, vertical: true)
+          }.dsFont(.xs).foregroundStyle(DS.Palette.warning)
+        }
+      }.padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s3).padding(.bottom, DS.Space.s3)
+    }
   }
 
   private func historyPagination(records: Int, total: Int) -> some View {
@@ -946,50 +934,87 @@ struct NetworkConnectionsPage: View {
     }
   }
 
-  private func connectionRow(_ record: ObservedConnection, locationName: String) -> some View {
-    HStack(alignment: .top, spacing: DS.Space.s3) {
-      Image(systemName: record.direction == .outbound ? "arrow.up.right" : "arrow.down.left")
-        .font(.system(size: 11, weight: .medium)).foregroundStyle(DS.Palette.textSecondary)
-        .frame(width: 26, height: 26).background(
-          DS.Palette.surface, in: RoundedRectangle(cornerRadius: DS.Radius.sm)
-        )
-        .accessibilityLabel(record.direction == .outbound ? tr("出站") : tr("入站"))
-      VStack(alignment: .leading, spacing: DS.Space.s1) {
-        Text(verbatim: record.hostname ?? record.address ?? tr("目标未知"))
-          .dsFont(.sm, weight: .medium).textSelection(.enabled).lineLimit(2)
-        HStack(spacing: DS.Space.s2) {
-          Text(verbatim: record.transport.rawValue.uppercased())
-          if let port = record.port { Text(verbatim: String(port)) }
-          if let address = record.address, record.hostname != nil {
-            Text(verbatim: address).textSelection(.enabled).lineLimit(1).help(address)
-          }
-        }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-        if mode == .history {
-          HStack(spacing: DS.Space.s2) {
-            Text(record.timestamp, format: .dateTime.hour().minute().second().locale(L10n.locale))
-            if let closed = record.closedAt {
-              Image(systemName: "arrow.right").accessibilityHidden(true)
-              Text(closed, format: .dateTime.hour().minute().second().locale(L10n.locale))
-              Text(tr("已结束"))
-            } else {
-              Text(tr("未记录结束"))
-            }
-          }.dsFont(.xs).foregroundStyle(DS.Palette.textTertiary)
-        }
+  private func detailHeading(_ selected: NetworkConnectionGroup?, total: Int) -> some View {
+    HStack(spacing: DS.Space.s2) {
+      if selected?.id == NetworkConnectionGroup.allIdentifier {
+        Image(systemName: "network").font(.system(size: 22)).foregroundStyle(DS.Palette.primary)
+          .frame(width: 28, height: 28).accessibilityHidden(true)
+      } else if let selected, grouping == .apps || grouping == .process {
+        AppIconCache.shared.image(bundlePath: selected.applicationPath)
+          .resizable().frame(width: 28, height: 28).accessibilityHidden(true)
       }
-      Spacer(minLength: DS.Space.s1)
-      VStack(alignment: .trailing, spacing: DS.Space.s1) {
-        Text(verbatim: locationName)
-          .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary).lineLimit(1)
-          .help(locationName)
-        Text(
-          verbatim: selection == nil || grouping == .country || grouping == .domain
-            ? "\(record.applicationName) · PID \(record.processID)" : "PID \(record.processID)"
-        )
-        .dsFont(.xs).foregroundStyle(DS.Palette.textTertiary).lineLimit(1).help(
-          record.applicationName)
-      }.layoutPriority(-1)
-    }.padding(.vertical, DS.Space.s3)
+      Text(verbatim: selected?.name ?? tr("暂无连接记录"))
+        .dsFont(.lg, weight: .semibold).lineLimit(1).help(selected?.name ?? "")
+      Text(verbatim: total.formatted(.number.locale(L10n.locale)))
+        .dsFont(.sm).monospacedDigit().foregroundStyle(DS.Palette.textSecondary)
+    }
+  }
+
+  private var historyTimestamp: some View {
+    HStack(spacing: DS.Space.s2) {
+      Text(
+        verbatim: historyEnd.addingTimeInterval(-historyInterval).formatted(
+          .dateTime.hour().minute().second().locale(L10n.locale))
+          + " – " + historyEnd.formatted(.dateTime.hour().minute().second().locale(L10n.locale))
+      ).dsFont(.xs).monospacedDigit().foregroundStyle(DS.Palette.textSecondary)
+      Button {
+        historyEnd = NetworkConnectionMode.historyEnd()
+        historyOffset = 0
+        historyRefresh &+= 1
+      } label: {
+        Image(systemName: "arrow.clockwise")
+      }.buttonStyle(DSButtonStyle(kind: .ghost)).disabled(isQueryingHistory)
+        .accessibilityLabel(tr("更新")).help(tr("更新"))
+    }.fixedSize()
+  }
+
+  private func connectionMap(records: [ObservedConnection], height: CGFloat) -> some View {
+    VStack(alignment: .leading, spacing: DS.Space.s2) {
+      HStack(spacing: DS.Space.s2) {
+        Text(mode == .history ? tr("近期连接地区分布") : tr("连接地区分布"))
+          .dsFont(.sm, weight: .semibold)
+        Spacer(minLength: DS.Space.s1)
+        Button {
+          showsMapInfo.toggle()
+        } label: {
+          Image(systemName: "info.circle").foregroundStyle(DS.Palette.textTertiary)
+        }.buttonStyle(.plain).accessibilityLabel(tr("按城市、省份或国家聚合，非设备精确位置"))
+          .popover(isPresented: $showsMapInfo) {
+            VStack(alignment: .leading, spacing: DS.Space.s2) {
+              Text(tr("按城市、省份或国家聚合，非设备精确位置"))
+                .fixedSize(horizontal: false, vertical: true)
+              HStack(spacing: DS.Space.s3) {
+                Link("DB-IP", destination: URL(string: "https://db-ip.com/")!)
+                Link(
+                  "ip2region",
+                  destination: URL(string: "https://github.com/lionsoul2014/ip2region")!)
+              }
+            }.dsFont(.xs).padding(DS.Space.s4).frame(maxWidth: 300)
+          }
+      }
+      ConnectionWorldMap(
+        world: mapWorld, records: records, observedRecords: monitor.records,
+        countries: places, locations: locations,
+        providedDestinations: usesHistory
+          ? NetworkMapDestination.make(world: mapWorld, regions: displayedHistory?.regions ?? [])
+          : nil,
+        isReading: mode == .live && pageVisible && model.isMainWindowVisible
+          && monitor.isReading && monitor.status != .preview && !isSnapshot
+      ) { code in
+        let parts = code.split(separator: "|").map(String.init)
+        let key =
+          parts.count == 3 && parts[1] == parts[2]
+          ? parts.prefix(2).joined(separator: "|") : parts.joined(separator: "|")
+        grouping = .country
+        selection = key
+        selectedTitle = networkRegionName(key)
+        for depth in 0..<NetworkRegionHierarchy.depth(key) {
+          if let parent = NetworkRegionHierarchy.key(key, at: depth) {
+            expandedRegions.insert(parent)
+          }
+        }
+      }.frame(height: height)
+    }
   }
 
   @ViewBuilder private var geographyStatus: some View {

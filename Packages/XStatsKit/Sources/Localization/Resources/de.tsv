@@ -2642,3 +2642,6 @@ AI 功能需要安装并运行 Magpie。	Für die AI-Funktionen muss Magpie inst
 时段累计	Summe im Zeitraum
 最近 1 分钟	Letzte Minute
 仅保留最近 15 分钟的观察记录；过期数据会自动清理。	Nur Beobachtungen der letzten 15 Minuten bleiben erhalten. Ältere Daten werden automatisch gelöscht.
+此时段无流量统计	Keine Datenverkehrsstatistik für diesen Zeitraum
+协议 / 端口	Protokoll / Port
+应用 / PID	App / PID

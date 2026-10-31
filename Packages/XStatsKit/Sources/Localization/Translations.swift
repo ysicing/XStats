@@ -359,6 +359,9 @@ extension Translations {
     中国香港	Hong Kong, China
     中国澳门	Macao, China
     中国台湾	Taiwan, China
+    此时段无流量统计	No traffic statistics for this period
+    协议 / 端口	Protocol / Port
+    应用 / PID	App / PID
     连接详情	Connection details
     更新地图数据库	Update map database
     正在更新地图数据库…	Updating map database…

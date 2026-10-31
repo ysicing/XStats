@@ -56,49 +56,87 @@ struct NetworkTrafficChartSample: Identifiable {
 }
 
 struct NetworkTrafficChart: View {
-  let history: NetworkTrafficHistory
+  let points: [NetworkTrafficPoint]
+  let samples: [NetworkTrafficChartSample]
   let available: Bool
-  let matching: (ObservedConnection) -> Bool
-  var providedPoints: [NetworkTrafficPoint]? = nil
   var interval: TimeInterval = 300
   var summarizesHistory = false
 
   var body: some View {
-    let points =
-      providedPoints.map { NetworkTrafficChartSample.window($0, interval: interval) }
-      ?? history.points(interval: interval, matching: matching)
-    let samples = NetworkTrafficChartSample.make(points: points)
-    VStack(alignment: .leading, spacing: DS.Space.s2) {
-      HStack(spacing: DS.Space.s2) {
-        Text(tr("流量走势")).dsFont(.sm, weight: .semibold)
-        Spacer(minLength: DS.Space.s1)
-        Text(summarizesHistory ? tr("时段累计") : tr("最近 1 分钟"))
-          .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-      }
-      if available {
-        HStack(spacing: DS.Space.s4) {
-          ForEach(NetworkTrafficChartSample.Direction.allCases, id: \.self) { direction in
-            HStack(spacing: DS.Space.s2) {
-              Circle()
-                .fill(direction == .received ? DS.Palette.primary : DS.Palette.success)
-                .frame(width: 6, height: 6).accessibilityHidden(true)
-              Text(direction.title).foregroundStyle(DS.Palette.textSecondary)
-              Text(verbatim: summary(points: points, direction: direction)).monospacedDigit()
-            }
+    VStack(alignment: .leading, spacing: DS.Space.s3) {
+      if samples.isEmpty {
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: DS.Space.s3) {
+            title
+            emptyMessage
           }
-        }.dsFont(.sm)
-        if samples.isEmpty {
-          Text(tr("暂无流量数据")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-            .frame(maxWidth: .infinity, minHeight: 72)
-        } else {
-          chart(samples: samples, points: points)
+          VStack(alignment: .leading, spacing: DS.Space.s1) {
+            title
+            emptyMessage
+          }
         }
       } else {
-        Text(tr("更新网络组件后可查看流量走势"))
-          .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-          .fixedSize(horizontal: false, vertical: true)
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: DS.Space.s3) {
+            title
+            Spacer(minLength: DS.Space.s2)
+            summary
+          }
+          VStack(alignment: .leading, spacing: DS.Space.s2) {
+            title
+            summary
+          }
+        }
+        chart(samples: samples, points: points)
       }
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var title: some View {
+    Text(tr("流量走势")).dsFont(.sm, weight: .semibold).fixedSize()
+  }
+
+  private var emptyMessage: some View {
+    Text(
+      !available
+        ? tr("更新网络组件后可查看流量走势")
+        : (summarizesHistory ? tr("此时段无流量统计") : tr("暂无流量数据"))
+    )
+    .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+    .fixedSize(horizontal: false, vertical: true)
+  }
+
+  private var summary: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: DS.Space.s3) {
+        period
+        totals
+      }
+      VStack(alignment: .leading, spacing: DS.Space.s1) {
+        period
+        totals
+      }
+    }
+  }
+
+  private var period: some View {
+    Text(summarizesHistory ? tr("时段累计") : tr("最近 1 分钟"))
+      .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary).fixedSize()
+  }
+
+  private var totals: some View {
+    HStack(spacing: DS.Space.s3) {
+      ForEach(NetworkTrafficChartSample.Direction.allCases, id: \.self) { direction in
+        HStack(spacing: DS.Space.s1) {
+          Image(systemName: direction == .received ? "arrow.down" : "arrow.up")
+            .accessibilityHidden(true)
+          Text(direction.title)
+          Text(verbatim: summary(points: points, direction: direction)).monospacedDigit()
+        }
+        .foregroundStyle(direction == .received ? DS.Palette.primary : DS.Palette.success)
+      }
+    }.dsFont(.xs).fixedSize()
   }
 
   private func summary(
@@ -150,7 +188,10 @@ struct NetworkTrafficChart: View {
       range: [DS.Palette.primary, DS.Palette.success]
     )
     .chartLegend(.hidden)
-    .chartXScale(domain: end.addingTimeInterval(-interval)...end)
+    .chartXScale(
+      domain: end.addingTimeInterval(-interval)...end,
+      range: .plotDimension(padding: 20)
+    )
     .chartYScale(domain: .automatic(includesZero: true))
     .chartXAxis {
       AxisMarks(values: .automatic(desiredCount: 3)) { value in
@@ -171,7 +212,7 @@ struct NetworkTrafficChart: View {
         }
       }
     }
-    .frame(height: 94)
+    .frame(height: 132)
     .environment(\.locale, L10n.locale)
     .accessibilityLabel(tr("流量走势"))
   }

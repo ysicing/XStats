@@ -754,7 +754,7 @@ enum SnapshotRenderer {
       ),
       (
         "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app/Contents/MacOS/Safari",
-        "2001:db8::10", "static.example.invalid", 443, .udp
+        "2001:db8::10", "static.assets.network-observation.demo.example.invalid", 443, .udp
       ),
       (
         "/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal", "198.51.100.20",
@@ -773,6 +773,7 @@ enum SnapshotRenderer {
         "mo.example.invalid", 443, .tcp
       ),
       ("/usr/bin/z-demo-process", nil, nil, 443, .tcp),
+      ("/usr/bin/example-network-observation-background-service", "192.168.1.80", nil, 5351, .udp),
     ]
     let now = Date()
     let previewRecords = demo.enumerated().map { index, value in
@@ -808,6 +809,13 @@ enum SnapshotRenderer {
       "192.0.2.10": NetworkIPLocation.parse("中国|浙江省|杭州市|阿里|CN"),
       "198.51.100.20": NetworkIPLocation.parse("中国|广东省|\u{6df1}\u{5733}市|电信|CN"),
     ].compactMapValues { $0 }
+    let historyRecords = previewRecords.enumerated().map { index, record in
+      var record = record
+      if index == 2 || index == 3 {
+        record.closedAt = record.timestamp.addingTimeInterval(2)
+      }
+      return record
+    }
     let originalLanguage = L10n.language
     for language: AppLanguage in [.german, .arabic] {
       L10n.configure(language)
@@ -819,7 +827,8 @@ enum SnapshotRenderer {
             mode: .history, grouping: .country,
             expandedRegions: ["CN", "CN|浙江"]
           )
-          .frame(width: 900).background(DS.Palette.background).appLanguageEnvironment(),
+          .frame(width: 900, height: 640).background(DS.Palette.background)
+          .appLanguageEnvironment(),
           model: model, appearance: appearance,
           to: outputDirectory.appendingPathComponent(
             "connections-history-\(language.languageCode).png"))
@@ -835,16 +844,33 @@ enum SnapshotRenderer {
         MainWindowView(), model: model, appearance: appearance,
         to: outputDirectory.appendingPathComponent("connections-window-\(suffix).png"))
       write(
-        NetworkConnectionsPage().frame(width: 900).background(DS.Palette.background)
+        NetworkConnectionsPage().frame(width: 900, height: 640).background(DS.Palette.background)
           .appLanguageEnvironment(), model: model, appearance: appearance,
         to: outputDirectory.appendingPathComponent("connections-page-wide-\(suffix).png"))
+      model.connectionMonitor.showPreview(historyRecords, trafficSnapshots: trafficSnapshots)
+      for width: CGFloat in [1225, 720] {
+        write(
+          NetworkConnectionsPage(mode: .history)
+            .frame(width: width, height: 760).background(DS.Palette.background)
+            .appLanguageEnvironment(), model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent(
+            "connections-layout-\(Int(width))-\(suffix).png"))
+      }
+      model.connectionMonitor.showPreview(historyRecords, trafficSnapshots: [])
+      write(
+        NetworkConnectionsPage(mode: .history)
+          .frame(width: 1225, height: 760).background(DS.Palette.background)
+          .appLanguageEnvironment(), model: model, appearance: appearance,
+        to: outputDirectory.appendingPathComponent("connections-layout-empty-\(suffix).png"))
+      model.connectionMonitor.showPreview(previewRecords, trafficSnapshots: trafficSnapshots)
       for expanded: Bool in [false, true] {
         write(
           NetworkConnectionsPage(
             mode: .history, grouping: .country,
             expandedRegions: expanded ? ["CN", "CN|浙江", "CN|广东"] : []
           )
-          .frame(width: 900).background(DS.Palette.background).appLanguageEnvironment(),
+          .frame(width: 900, height: 640).background(DS.Palette.background)
+          .appLanguageEnvironment(),
           model: model, appearance: appearance,
           to: outputDirectory.appendingPathComponent(
             "connections-history-regions-\(expanded ? "expanded" : "collapsed")-\(suffix).png"))
@@ -874,7 +900,7 @@ enum SnapshotRenderer {
       }
       model.connectionMonitor.setObservationPaused(true)
       write(
-        NetworkConnectionsPage().frame(width: 900).background(DS.Palette.background)
+        NetworkConnectionsPage().frame(width: 900, height: 640).background(DS.Palette.background)
           .appLanguageEnvironment(), model: model, appearance: appearance,
         to: outputDirectory.appendingPathComponent("connections-paused-\(suffix).png"))
       model.featureSettingsTab = .optional

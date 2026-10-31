@@ -8,7 +8,7 @@ struct NetworkPresentationLocalizationTests {
   @Test func monitoringModesHaveExplicitTranslations() throws {
     let keys = [
       "实时", "查看方式", "停止采集", "开始采集", "采集已停止", "查看历史", "中国大陆", "已结束", "未记录结束", "时段累计", "最近 1 分钟",
-      "仅保留最近 15 分钟的观察记录；过期数据会自动清理。",
+      "仅保留最近 15 分钟的观察记录；过期数据会自动清理。", "此时段无流量统计", "协议 / 端口", "应用 / PID",
     ]
     for language in AppLanguage.allCases where language != .system && language != .chinese {
       let table = try #require(Translations.catalog(for: language))
