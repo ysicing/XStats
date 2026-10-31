@@ -1,13 +1,27 @@
 {
-  "version": "1.4.13",
+  "version": "1.5.0",
   "sourceNotes": [
-    "聚合模式支持点击各指标直接打开详情",
-    "修复截图敏感信息识别失败的问题"
+    "网络监视器新增实时与历史视图",
+    "网络监视器新增上下行流量趋势，需更新独立网络组件至1.0.2",
+    "连接地图支持展开、缩放与拖动",
+    "通用设置新增“启动时显示主窗口”开关",
+    "优化网络监视器布局、同名应用分组与程序名称识别，分别显示内网地址和位置未知",
+    "Homebrew 筛选新增“手动安装”，可快速区分主动安装的软件包与依赖",
+    "后台守护进程列表新增已卸载应用残留启动项的手动移除提示",
+    "内存弹窗默认显示“压缩与交换”，保留已启用的自定义显示选择（#23）",
+    "保留新旧主程序与网络组件之间的连接查看和组件管理兼容性，支持分别升级"
   ],
   "translations": {
     "en": [
-      "Click individual indicators in combined mode to open their details. Enable Click Indicators to Open Details in menu-bar settings; the context menu still opens Status Overview.",
-      "Fix failures when recognizing sensitive text in screenshots. Automatically try fast recognition if accurate recognition is unavailable, and prompt you to review the result and add any missing redactions."
+      "Add live and history views to Network Monitor. Keep the last 15 minutes of connection and traffic history on this Mac, with linked app, process, domain and region filters.",
+      "Add upload and download traffic trends. Update the independently installed network component to 1.0.2 to use them; saved history remains available after collection stops.",
+      "Expand, zoom and pan the connection map. Show province, city and provider details for mainland China IPs, group map markers by city and expand provinces and cities in the region list.",
+      "Add Show Main Window at Launch in General settings. Turn it off to keep manual launches in the background; login launches continue to run in the background (#23).",
+      "Refine the Network Monitor layout, group apps with the same name, improve executable names and distinguish private addresses from unknown locations.",
+      "Add a Manually Installed Homebrew filter to distinguish explicitly installed packages from dependencies.",
+      "Add manual removal guidance for leftover startup entries from uninstalled apps in the background daemon list.",
+      "Show compressed memory and swap by default in the memory popover while preserving existing custom selections (#23).",
+      "Preserve connection viewing and component management compatibility between old and new apps and network components so either can be upgraded first."
     ]
   }
 }
