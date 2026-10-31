@@ -131,10 +131,6 @@ final class ConnectionFilterProvider: NEFilterDataProvider, @unchecked Sendable 
       endpoint = (nil, nil)
     }
     let address = ["0.0.0.0", "::", ""].contains(endpoint.0 ?? "") ? nil : endpoint.0
-    let hostname = socket.remoteHostname.flatMap { value in
-      value.isEmpty || value.hasSuffix(".in-addr.arpa") || value.hasSuffix(".ip6.arpa")
-        ? nil : value
-    }
     var path = [CChar](repeating: 0, count: 4096)
     let length = pid > 0 ? proc_pidpath(pid, &path, UInt32(path.count)) : 0
     let executable =
@@ -151,7 +147,7 @@ final class ConnectionFilterProvider: NEFilterDataProvider, @unchecked Sendable 
     let recorded = buffer.record(
       ObservedConnection(
         id: flow.identifier, timestamp: Date(), processID: pid,
-        executablePath: executable, address: address, hostname: hostname,
+        executablePath: executable, address: address, hostname: socket.remoteHostname,
         port: endpoint.1, transport: transport,
         direction: flow.direction == .outbound ? .outbound : .inbound))
     guard recorded else { return .allow() }

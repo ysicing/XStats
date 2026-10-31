@@ -69,6 +69,17 @@ public final class ObservationBuffer: @unchecked Sendable {
     var event = event
     event.executablePath = boundedMetadata(event.executablePath, bytes: 768)
     event.hostname = event.hostname.map { boundedMetadata($0, bytes: 252) }
+    // DNS 流上的名称是查询对象，地址却属于解析器，不能将两者作为目标域名关联。
+    if event.port == 53 {
+      event.hostname = nil
+    } else if let hostname = event.hostname {
+      var name = hostname.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      if name.hasSuffix(".") { name.removeLast() }
+      // 同一域名统一大小写与根点；反向查询名不能标记成实际连接目标。
+      event.hostname =
+        name.isEmpty || name.hasSuffix(".in-addr.arpa") || name.hasSuffix(".ip6.arpa")
+        ? nil : boundedMetadata(name, bytes: 252)
+    }
     event.address = event.address.map { boundedMetadata($0, bytes: 125) }
     event.traffic = .init(
       id: event.id, timestamp: event.timestamp, receivedBytes: 0, sentBytes: 0)

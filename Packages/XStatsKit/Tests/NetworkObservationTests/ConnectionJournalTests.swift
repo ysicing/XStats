@@ -95,6 +95,71 @@ struct ConnectionJournalTests {
     #expect(buffer.read(after: 0, epoch: "", now: 12).events.isEmpty)
   }
 
+  @Test(arguments: [ConnectionTransport.tcp, .udp])
+  func dnsQueryNameDoesNotLabelTheResolver(transport: ConnectionTransport) throws {
+    let buffer = ObservationBuffer()
+    _ = buffer.read(after: 0, epoch: "", now: 1)
+    var connection = event(0)
+    connection.port = 53
+    connection.transport = transport
+    connection.hostname = "looked-up.example"
+    try #require(buffer.record(connection, now: 2))
+    buffer.updateTraffic(
+      connection.id, receivedBytes: 200, sentBytes: 100,
+      at: Date(timeIntervalSince1970: 3), now: 3)
+    buffer.close(
+      connection.id, receivedBytes: 240, sentBytes: 120,
+      at: Date(timeIntervalSince1970: 4), now: 4)
+    let observed = try ObservationBatch.decode(
+      JSONEncoder().encode(buffer.read(after: 0, epoch: "", now: 5)))
+    #expect(observed.events.count == 3)
+    for record in observed.events {
+      #expect(record.id == connection.id)
+      #expect(record.hostname == nil)
+      #expect(record.address == "203.0.113.10")
+      #expect(record.port == 53)
+      #expect(record.transport == transport)
+    }
+    #expect(observed.events.last?.closedAt == Date(timeIntervalSince1970: 4))
+    #expect(observed.events.last?.traffic?.receivedBytes == 240)
+    #expect(observed.events.last?.traffic?.sentBytes == 120)
+  }
+
+  @Test func destinationNamesAreCanonicalAndExcludeReverseLookups() throws {
+    let cases: [(String?, String?)] = [
+      ("EXAMPLE.Invalid.", "example.invalid"),
+      (" example.invalid \n", "example.invalid"),
+      ("example.invalid", "example.invalid"),
+      ("10.113.0.203.IN-ADDR.ARPA.", nil),
+      ("1.0.0.0.IP6.ARPA.", nil),
+      (" \n", nil),
+      (nil, nil),
+    ]
+    let buffer = ObservationBuffer()
+    _ = buffer.read(after: 0, epoch: "", now: 1)
+    for (name, _) in cases {
+      var connection = event(0)
+      connection.hostname = name
+      try #require(buffer.record(connection, now: 2))
+    }
+    let observed = try ObservationBatch.decode(
+      JSONEncoder().encode(buffer.read(after: 0, epoch: "", now: 3)))
+    #expect(observed.events.map(\.hostname) == cases.map(\.1))
+  }
+
+  @Test func hostnameCaseFoldingKeepsTheWireSizeBounded() throws {
+    let buffer = ObservationBuffer()
+    _ = buffer.read(after: 0, epoch: "", now: 1)
+    var connection = event(0)
+    // U+0130 小写后由两字节变为三个字节，归一化后仍须执行原有字节上限。
+    connection.hostname = String(repeating: "\u{130}", count: 200)
+    try #require(buffer.record(connection, now: 2))
+    let observed = try ObservationBatch.decode(
+      JSONEncoder().encode(buffer.read(after: 0, epoch: "", now: 3)))
+    let hostname = try #require(observed.events.first?.hostname)
+    #expect(hostname.utf8.count <= 252)
+  }
+
   @Test func activeCaptureIsNotEvictedByTheDisplayWindow() {
     let buffer = ObservationBuffer()
     _ = buffer.read(after: 0, epoch: "", now: 1)
