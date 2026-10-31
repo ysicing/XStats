@@ -9,6 +9,9 @@ struct NetworkCountry: Codable, Sendable, Equatable {
   let longitude: Double
   let latitude: Double
   let rings: [[[Double]]]
+
+  // 底图将台湾与中国大陆统一着色，连接定位和筛选仍使用原始地区代码。
+  var mapRegionCode: String { code == "TW" ? "CN" : code }
 }
 
 /// 离线、国家级查询。映射只读范围表，不向服务商发送目标 IP；按需在后台 actor 加载。
@@ -25,13 +28,15 @@ actor OfflineGeography {
   private let download: Download
   private var cache: CacheRecord?
   private var didLoadCache = false
+  private let regions: IPRegionDatabase?
 
-  init(cacheRoot: URL? = nil, download: Download? = nil) {
+  init(cacheRoot: URL? = nil, download: Download? = nil, regions: IPRegionDatabase? = nil) {
     self.cacheRoot =
       cacheRoot
       ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
       .appendingPathComponent("XStats/NetworkGeography", isDirectory: true)
     self.download = download ?? downloadGeography
+    self.regions = regions ?? (cacheRoot == nil && download == nil ? .shared : nil)
   }
 
   func loadCached() -> Bool {
@@ -56,6 +61,18 @@ actor OfflineGeography {
   func prepare(force: Bool = false, progress: @escaping @Sendable (Double) -> Void = { _ in })
     async throws -> String
   {
+    let version = try await prepareCountries(force: force) {
+      progress(self.regions == nil ? $0 : $0 * 0.15)
+    }
+    if let regions {
+      try await regions.prepare { progress(0.15 + $0 * 0.85) }
+    }
+    return version
+  }
+
+  private func prepareCountries(
+    force: Bool, progress: @escaping @Sendable (Double) -> Void
+  ) async throws -> String {
     _ = loadCached()
     if let cache, !force, Date().timeIntervalSince(cache.checkedAt) < 30 * 24 * 60 * 60 {
       return cache.manifest.version
@@ -163,6 +180,16 @@ actor OfflineGeography {
     return result
   }
 
+  func locationVersion() async -> String {
+    guard let regions, await regions.loadCached() else { return "" }
+    return IPRegionDatabase.version
+  }
+
+  func resolveLocations(_ addresses: [String]) async throws -> [String: NetworkIPLocation] {
+    guard let regions else { return [:] }
+    return try await regions.resolve(addresses)
+  }
+
   private func lookup(_ address: String) -> String? {
     var ipv4 = in_addr()
     var ipv6 = in6_addr()
@@ -184,7 +211,7 @@ actor OfflineGeography {
     return find(bytes, data: v6 ?? Data())
   }
 
-  private static func isLocalV4(_ bytes: [UInt8]) -> Bool {
+  static func isLocalV4(_ bytes: [UInt8]) -> Bool {
     let a = bytes[0]
     let b = bytes[1]
     let c = bytes[2]

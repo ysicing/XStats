@@ -2606,3 +2606,26 @@ AI 功能需要安装并运行 Magpie。	Für die AI-Funktionen muss Magpie inst
 用于菜单栏与小组件	Für Menüleiste und Widgets
 默认	Standard
 设为默认	Als Standard festlegen
+本机	Dieser Mac
+流量走势	Datenverkehrsverlauf
+时间范围	Zeitraum
+暂无流量数据	Noch keine Daten zum Datenverkehr
+更新网络组件后可查看流量走势	Netzwerkkomponente aktualisieren, um den Datenverkehrsverlauf anzuzeigen
+时间	Zeit
+方向	Richtung
+上一页	Zurück
+下一页	Weiter
+第 {}–{} 条，共 {} 条	Verbindungen {}–{} von {}
+近期连接国家或地域分布	Länder oder Regionen letzter Verbindungen
+采集负载超过安全预算，历史可能不完整，请停止后重新开始	Die Erfassungslast hat die Sicherheitsgrenze überschritten. Der Verlauf ist möglicherweise unvollständig. Überwachung stoppen und neu starten.
+无法保存网络历史，请检查磁盘空间后重试	Der Netzwerkverlauf konnte nicht gespeichert werden. Prüfen Sie den freien Speicherplatz und versuchen Sie es erneut.
+网络历史数据库版本不兼容	Die Version der Netzwerkverlaufsdatenbank ist nicht kompatibel.
+网络历史超过磁盘安全预算，请清空记录或释放空间后重试	Der Netzwerkverlauf hat die sichere Speicherplatzgrenze überschritten. Löschen Sie die Einträge oder geben Sie Speicherplatz frei und versuchen Sie es erneut.
+展开地图	Karte vergrößern
+缩小地图	Verkleinern
+放大地图	Vergrößern
+复位地图	Karte zurücksetzen
+地区	Regionen
+连接地区分布	Verbindungsregionen
+近期连接地区分布	Regionen letzter Verbindungen
+按城市、省份或国家聚合，非设备精确位置	Nach Stadt, Provinz oder Land gruppiert; kein genauer Gerätestandort

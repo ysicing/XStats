@@ -2606,3 +2606,26 @@ AI 功能需要安装并运行 Magpie。	Les fonctionnalités AI nécessitent qu
 用于菜单栏与小组件	Utilisés dans la barre des menus et les widgets
 默认	Par défaut
 设为默认	Définir par défaut
+本机	Ce Mac
+流量走势	Évolution du trafic
+时间范围	Période
+暂无流量数据	Aucune donnée de trafic pour le moment
+更新网络组件后可查看流量走势	Mettez à jour le composant réseau pour afficher l’évolution du trafic
+时间	Heure
+方向	Direction
+上一页	Précédent
+下一页	Suivant
+第 {}–{} 条，共 {} 条	Connexions {}–{} sur {}
+近期连接国家或地域分布	Pays ou régions des connexions récentes
+采集负载超过安全预算，历史可能不完整，请停止后重新开始	La charge de collecte a dépassé la limite de sécurité. L’historique peut être incomplet. Arrêtez la surveillance, puis relancez-la.
+无法保存网络历史，请检查磁盘空间后重试	Impossible d’enregistrer l’historique réseau. Vérifiez l’espace disque disponible, puis réessayez.
+网络历史数据库版本不兼容	La version de la base de données de l’historique réseau est incompatible.
+网络历史超过磁盘安全预算，请清空记录或释放空间后重试	L’historique réseau a dépassé la limite de sécurité d’utilisation du disque. Effacez les enregistrements ou libérez de l’espace disque, puis réessayez.
+展开地图	Agrandir la carte
+缩小地图	Zoom arrière
+放大地图	Zoom avant
+复位地图	Réinitialiser la carte
+地区	Régions
+连接地区分布	Régions des connexions
+近期连接地区分布	Régions des connexions récentes
+按城市、省份或国家聚合，非设备精确位置	Regroupement par ville, province ou pays ; pas la position exacte de l’appareil

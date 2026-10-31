@@ -32,6 +32,24 @@ import Testing
 }
 
 @MainActor @Suite(.timeLimit(.minutes(1))) struct NetworkComponentInstallFlowTests {
+  @Test func componentInstallWaitsForHistoryHandoffAndAbortsOnWriteFailure() async throws {
+    let backend = InstallFlowBackend()
+    let component = NetworkComponentController(backend: backend)
+    var started = false
+    var release: CheckedContinuation<Void, Never>?
+    component.prepareForUpdate = {
+      started = true
+      await withCheckedContinuation { release = $0 }
+      throw NetworkMonitorError.unavailable
+    }
+    component.installUpdate()
+    try await waitUntil { started && release != nil }
+    #expect(backend.commands.isEmpty)
+    release?.resume()
+    try await waitUntil { !component.busy }
+    #expect(backend.commands.isEmpty)
+    #expect(component.error != nil)
+  }
   private var ready: NetworkComponentResponse {
     .init(
       status: .init(

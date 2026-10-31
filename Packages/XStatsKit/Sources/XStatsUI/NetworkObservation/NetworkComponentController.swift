@@ -20,6 +20,7 @@ import Observation
   @ObservationIgnored private var activeCommand: String?
   @ObservationIgnored private var handoff: Task<Void, Never>?
   @ObservationIgnored var onPreparingUpdate: () -> Void = {}
+  @ObservationIgnored var prepareForUpdate: () async throws -> Void = {}
   @ObservationIgnored var onUpdateFinished: () -> Void = {}
   @ObservationIgnored var onUninstalled: () -> Void = {}
 
@@ -131,6 +132,8 @@ import Observation
         activeCommand = nil
       }
       do {
+        if command == "installUpdate" { try await prepareForUpdate() }
+        try Task.checkCancellation()
         let response = try await backend.componentCommand(command)
         try Task.checkCancellation()
         installed = true
@@ -138,6 +141,7 @@ import Observation
         if response.needsRestart { throw NetworkMonitorError.restartRequired }
         onSuccess?()
       } catch {
+        if command == "installUpdate", handoff == nil { onUpdateFinished() }
         // SDK接受安装后退出服务是正常handoff；进度推送已启动有界重连验收。
         if handoff == nil, reportsError {
           self.error = error.localizedDescription

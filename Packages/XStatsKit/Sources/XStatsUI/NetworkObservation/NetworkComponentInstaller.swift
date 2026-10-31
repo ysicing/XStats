@@ -167,7 +167,7 @@ public final class NetworkComponentInstaller {
     // 固定下载地址可能已指向更新协议的组件；写入前拒绝，避免装上后无法使用也无法通过组件卸载。
     let metadata = try await NetworkComponentMetadata.load(at: candidate)
     guard let team = dependencies.teamIdentifier(hostApp),
-      metadata.protocolVersion == NetworkObservationProtocol.version,
+      NetworkObservationProtocol.supports(metadata.protocolVersion),
       metadata.controlMachService == NetworkObservationProtocol.controlServiceName(team: team)
     else {
       throw NetworkMonitorError.protocolMismatch

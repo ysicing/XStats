@@ -13,9 +13,11 @@ import subprocess
 import tempfile
 import sys
 import unittest
+import zipfile
 from unittest.mock import patch
 
 from build_network_geography import convert_country_csv
+from build_network_cities import build as build_cities
 import sync_network_geography as sync
 
 
@@ -34,6 +36,27 @@ class HeadOnlyResponse(io.BytesIO):
 
 
 class ConversionTests(unittest.TestCase):
+    def test_city_points_prefer_seats_and_keep_provinces_distinct(self):
+        rows = []
+        for feature, province, name, longitude in [
+            ("ADM1", "02", "", "120"),
+            ("ADM2", "02", "杭州市", "120.1"),
+            ("PPLA", "02", "杭州市,Hangzhou", "120.2"),
+            ("ADM2", "01", "杭州市", "117"),
+        ]:
+            fields = ["0", "name", "name", name, "30", longitude, "A", feature,
+                      "CN", "", province] + [""] * 8
+            rows.append("\t".join(fields))
+        with tempfile.TemporaryDirectory() as root:
+            source = Path(root) / "CN.zip"
+            with zipfile.ZipFile(source, "w") as archive:
+                archive.writestr("CN.txt", "\n".join(rows).encode())
+            points = build_cities(source)
+        self.assertEqual(points["浙江|杭州"], [120.2, 30])
+        self.assertEqual(points["安徽|杭州"], [117, 30])
+        self.assertEqual(points["浙江|"], [120, 30])
+        self.assertNotIn("浙江|Hangzhou", points)
+
     def test_merges_adjacent_country_and_encodes_ipv6_big_endian(self):
         files = convert_country_csv(CSV)
         self.assertEqual(files[4], bytes.fromhex("0100000001000003") + b"AU")

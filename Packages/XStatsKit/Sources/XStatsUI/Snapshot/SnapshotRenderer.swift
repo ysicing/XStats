@@ -766,20 +766,39 @@ enum SnapshotRenderer {
       ),
       ("/usr/bin/z-demo-process", nil, nil, 443, .tcp),
     ]
-    model.connectionMonitor.showPreview(
-      demo.enumerated().map { index, value in
-        ObservedConnection(
-          id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", index + 1))!,
-          timestamp: Date(timeIntervalSince1970: 1_791_244_800 - Double(index * 5)),
-          processID: Int32(100 + index), executablePath: value.0,
-          address: value.1, hostname: value.2, port: value.3, transport: value.4,
-          direction: .outbound)
-      })
+    let previewRecords = demo.enumerated().map { index, value in
+      ObservedConnection(
+        id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", index + 1))!,
+        timestamp: Date(timeIntervalSince1970: 1_791_244_800 - Double(index * 5)),
+        processID: Int32(100 + index), executablePath: value.0,
+        address: value.1, hostname: value.2, port: value.3, transport: value.4,
+        direction: .outbound)
+    }
+    let now = Date()
+    var trafficSnapshots: [ConnectionTrafficSnapshot] = []
+    for (index, record) in previewRecords.enumerated() {
+      var received: UInt64 = 0
+      var sent: UInt64 = 0
+      for step in 0...60 {
+        let wave = sin(Double(step) * 0.23 + Double(index)) + 1.4
+        received += UInt64(wave * Double(index + 1) * 48_000)
+        sent += UInt64(wave * Double(index + 1) * 8_000)
+        trafficSnapshots.append(
+          .init(
+            id: record.id, timestamp: now.addingTimeInterval(Double(step * 5 - 300)),
+            receivedBytes: received, sentBytes: sent))
+      }
+    }
+    model.connectionMonitor.showPreview(previewRecords, trafficSnapshots: trafficSnapshots)
     model.connectionMonitor.previewWorld = await OfflineGeography.shared.world()
     // 文档地址及归属地均为演示值；截图不发送连接数据，也不访问地理数据库下载入口。
     model.connectionMonitor.previewCountries = [
-      "192.0.2.10": "AU", "2001:db8::10": "US", "198.51.100.20": "JP", "203.0.113.30": "HK",
+      "192.0.2.10": "CN", "2001:db8::10": "US", "198.51.100.20": "CN", "203.0.113.30": "HK",
     ]
+    model.connectionMonitor.previewLocations = [
+      "192.0.2.10": NetworkIPLocation.parse("中国|浙江省|杭州市|阿里|CN"),
+      "198.51.100.20": NetworkIPLocation.parse("中国|广东省|\u{6df1}\u{5733}市|电信|CN"),
+    ].compactMapValues { $0 }
     for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
       guard let appearance = NSAppearance(named: name) else { continue }
       NSApp.appearance = appearance
@@ -791,6 +810,29 @@ enum SnapshotRenderer {
         NetworkConnectionsPage().frame(width: 900).background(DS.Palette.background)
           .appLanguageEnvironment(), model: model, appearance: appearance,
         to: outputDirectory.appendingPathComponent("connections-page-wide-\(suffix).png"))
+      for scale: CGFloat in [1, 3] {
+        write(
+          VStack(alignment: .leading, spacing: DS.Space.s3) {
+            HStack {
+              Text(tr("连接地区分布")).dsFont(.lg, weight: .semibold)
+              Spacer()
+              Text(tr("示例数据")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            }
+            ConnectionMapSurface(
+              world: model.connectionMonitor.previewWorld, records: previewRecords,
+              observedRecords: previewRecords,
+              countries: model.connectionMonitor.previewCountries,
+              locations: model.connectionMonitor.previewLocations,
+              isReading: false, interactive: true,
+              initialViewport: NetworkMapViewport(scale: scale), selectCountry: { _ in }
+            ).frame(height: 480)
+          }
+          .padding(DS.Space.s4).frame(width: 920).background(DS.Palette.background)
+          .appLanguageEnvironment(),
+          model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent("connections-map-\(Int(scale))x-\(suffix).png")
+        )
+      }
       model.connectionMonitor.setObservationPaused(true)
       write(
         NetworkConnectionsPage().frame(width: 900).background(DS.Palette.background)

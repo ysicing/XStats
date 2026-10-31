@@ -170,10 +170,12 @@ XStats 的 AI Provider 契约与状态设计参考了以下项目公开的 Provi
 2.10.0。未修改上游源码；完整上游许可随应用资源中的 `Sparkle-License.txt` 分发。
 完整许可证及其内部组件声明见 [LICENSES/Sparkle-License.txt](LICENSES/Sparkle-License.txt)。
 
-## 网络地图与国家级 IP 位置
+## 网络地图与 IP 归属地
 
 - 地图轮廓及国家代表坐标来自 [Natural Earth 1:110m](https://github.com/nvkelso/natural-earth-vector)，Public Domain。转换为精简 JSON，仅用于国家级示意，不代表远端设备精确位置。
 - 离线 IP 国家表来自 [DB-IP Lite](https://db-ip.com/db/download/ip-to-country-lite)，© DB-IP，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。每次发布从 DB-IP 官方本月 CSV 获取 IPv4／IPv6 数据；合并相邻同国家范围，转换为大端二进制只读表并经系统 LZFSE 压缩，发布到 c-ip 后由启用监视的客户端按需下载。查询结果可能不准确或随地址分配变化，应用不向 DB-IP 发送目标 IP。
+- 大陆省市和运营商来自 [ip2region](https://github.com/lionsoul2014/ip2region)，固定提交 `6a276cc7c4f9f2d7ff1d8ace14b91af59752f943`，选用 Apache-2.0 许可。未修改官方 XDB 数据；原始双许可声明随应用内 `NetworkGeography/ip2region-LICENSE.txt` 分发。Swift 文件查询器独立实现，不引入上游运行时。
+- 中国城市／省份 WGS84 代表点从 [GeoNames CN.zip](https://download.geonames.org/export/dump/CN.zip) 提取，© GeoNames contributors，CC BY 4.0；选取行政区和行政中心、规范化中文名称并精简为 JSON，不代表设备精确位置。转换脚本为 `scripts/build_network_cities.py`。
 - 数据保留原许可；地图界面保留 DB-IP 链接。转换脚本见 `scripts/build_network_geography.py`，应用内资源 `Resources/NetworkGeography/ATTRIBUTION.md` 随安装包分发。
 
 ## 开发者清理清单参考

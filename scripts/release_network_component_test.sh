@@ -40,7 +40,7 @@ import os, pathlib, plistlib
 app=pathlib.Path('build/DerivedData-network-arm64/Build/Products/Release/XStats Network Monitor.app')
 (app/'Contents/MacOS').mkdir(parents=True,exist_ok=True)
 (app/'Contents/MacOS/XStats Network Monitor').write_text('fixture')
-(app/'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier':'work.12306.xstats.networkmonitor','CFBundleShortVersionString':'2.3.4','CFBundleVersion':'137','SUPublicEDKey':'j/I8zd8BXz4oPldnhocEySXTMmXPxKMyBRwoA4ewLIk=', 'NetworkObservationProtocolVersion':2, 'NetworkObservationControlMachService':'TESTTEAM01.work.12306.xstats.network-observation.control'}))
+(app/'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier':'work.12306.xstats.networkmonitor','CFBundleShortVersionString':'2.3.4','CFBundleVersion':'137','SUPublicEDKey':'j/I8zd8BXz4oPldnhocEySXTMmXPxKMyBRwoA4ewLIk=', 'NetworkObservationProtocolVersion':3, 'NetworkObservationControlMachService':'TESTTEAM01.work.12306.xstats.network-observation.control'}))
 a=app/'Contents/Library/LaunchAgents'; a.mkdir(parents=True,exist_ok=True)
 agent={'Label':'work.12306.xstats.networkmonitor.agent','BundleProgram':'Contents/MacOS/XStats Network Monitor','ProgramArguments':['XStats Network Monitor','--service'],'MachServices':{'TESTTEAM01.work.12306.xstats.network-observation.control':True}}
 if os.getenv('COMPONENT_AGENT_INVALID')=='1': agent['KeepAlive']=True

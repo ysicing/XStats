@@ -10,8 +10,8 @@ guard CommandLine.arguments.count == 3 else {
 let input = URL(fileURLWithPath: CommandLine.arguments[1])
 let output = URL(fileURLWithPath: CommandLine.arguments[2])
 let raw = try Data(contentsOf: input)
-guard !raw.isEmpty, raw.count <= 32 * 1024 * 1024 else {
-  fatalError("Country database must be nonempty and at most 32 MiB")
+guard !raw.isEmpty, raw.count <= 64 * 1024 * 1024 else {
+  fatalError("Geography database must be nonempty and at most 64 MiB")
 }
 let compressed = try (raw as NSData).compressed(using: .lzfse) as Data
 var decoded = Data(count: raw.count)

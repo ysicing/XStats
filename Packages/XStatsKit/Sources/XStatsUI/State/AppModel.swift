@@ -142,7 +142,10 @@ public final class AppModel {
     homebrewServices = HomebrewServicesController(homebrewOperations: homebrewOperations)
     let observationBackend = NativeNetworkMonitorBackend()
     connectionMonitor = NetworkMonitorController(
-      backend: observationBackend, defaults: settings.networkObservationDefaults)
+      backend: observationBackend, defaults: settings.networkObservationDefaults,
+      historyStore: NetworkHistoryStore(
+        url: historyURL == nil || settings.networkObservationDefaults !== UserDefaults.standard
+          ? nil : NetworkHistoryStore.defaultURL))
     networkComponent = NetworkComponentController(backend: observationBackend)
     audio = AudioController(defaults: settings.audioDefaults)
     rest = RestController(settings: settings)
@@ -188,6 +191,9 @@ public final class AppModel {
     }
     networkComponent.onPreparingUpdate = { [weak self] in
       self?.connectionMonitor.beginComponentUpdate()
+    }
+    networkComponent.prepareForUpdate = { [weak self] in
+      try await self?.connectionMonitor.prepareComponentUpdate()
     }
     networkComponent.onUpdateFinished = { [weak self] in
       self?.connectionMonitor.finishComponentUpdate()

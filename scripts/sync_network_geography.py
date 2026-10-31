@@ -171,7 +171,8 @@ def published_data_is_recent(max_age_days: int, now: datetime) -> bool:
     return True
 
 
-def publish(output: Path, manifest: dict) -> None:
+def publish(output: Path, manifest: dict, *, target: str = MC_TARGET,
+            download_base: str = DOWNLOAD_BASE, maximum: int = MAX_COMPRESSED_BYTES) -> None:
     """只有已验证的不可变对象全部就位后，才发布可变入口清单。"""
     manifest_data = (output / "current.json").read_bytes()
     if json.loads(manifest_data) != manifest:
@@ -179,17 +180,17 @@ def publish(output: Path, manifest: dict) -> None:
     for item in manifest["files"]:
         path = output / item["file"]
         data = path.read_bytes()
-        if len(data) != item["compressedBytes"] or hashlib.sha256(data).hexdigest() != item["compressedSHA256"]:
+        if not 0 < len(data) <= maximum or len(data) != item["compressedBytes"] or hashlib.sha256(data).hexdigest() != item["compressedSHA256"]:
             raise ValueError(f"本地压缩文件校验失败：{path.name}")
         subprocess.run(["mc", "cp", "--quiet", "--attr", "Cache-Control=public,max-age=31536000,immutable",
-                        str(path), f"{MC_TARGET}/{path.name}"], check=True, timeout=300)
-        online = download_bytes(f"{DOWNLOAD_BASE}/{path.name}", MAX_COMPRESSED_BYTES)
+                        str(path), f"{target}/{path.name}"], check=True, timeout=300)
+        online = download_bytes(f"{download_base}/{path.name}", maximum)
         if len(online) != item["compressedBytes"] or hashlib.sha256(online).hexdigest() != item["compressedSHA256"]:
             raise ValueError(f"CDN 压缩文件校验失败：{path.name}")
     subprocess.run(["mc", "cp", "--quiet", "--attr", "Cache-Control=max-age=300",
-                    str(output / "current.json"), f"{MC_TARGET}/current.json"], check=True, timeout=300)
+                    str(output / "current.json"), f"{target}/current.json"], check=True, timeout=300)
     # 可变清单已有五分钟 CDN 缓存；本次回读使用唯一查询，避免把旧缓存误判为上传失败。
-    online_manifest = download_bytes(f"{DOWNLOAD_BASE}/current.json?verify={uuid.uuid4().hex}", 64 * 1024)
+    online_manifest = download_bytes(f"{download_base}/current.json?verify={uuid.uuid4().hex}", 64 * 1024)
     if online_manifest != manifest_data:
         raise ValueError("CDN current.json 与本地清单不一致")
 

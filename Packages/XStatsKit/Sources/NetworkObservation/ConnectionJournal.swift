@@ -6,6 +6,7 @@ import Foundation
 /// 固定容量环形缓冲；连接回调中追加不移动已有记录，界面用游标读取增量。
 public struct ConnectionJournal: Sendable {
   private var slots: [ObservedConnection?]
+  private let capacity: Int
   private var head = 0
   private var count = 0
   private var sequence: Int64 = 0
@@ -14,16 +15,20 @@ public struct ConnectionJournal: Sendable {
 
   public init(capacity: Int = ObservationLimits.journalCount) {
     precondition(capacity > 0)
-    slots = Array(repeating: nil, count: capacity)
+    self.capacity = capacity
+    slots = []
   }
 
-  public mutating func append(_ event: ObservedConnection) {
+  public mutating func append(_ event: ObservedConnection, metadataIsBounded: Bool = false) {
     if sequence == .max { clear() }
+    prepare()
     var record = event
     // 对 UTF-8 字节限长，包含长路径及多字节名称时仍保持传输与内存上界。
-    record.executablePath = boundedMetadata(record.executablePath, bytes: 768)
-    record.hostname = record.hostname.map { boundedMetadata($0, bytes: 252) }
-    record.address = record.address.map { boundedMetadata($0, bytes: 125) }
+    if !metadataIsBounded {
+      record.executablePath = boundedMetadata(record.executablePath, bytes: 768)
+      record.hostname = record.hostname.map { boundedMetadata($0, bytes: 252) }
+      record.address = record.address.map { boundedMetadata($0, bytes: 125) }
+    }
     sequence += 1
     record.sequence = sequence
     if count == slots.count {
@@ -33,6 +38,21 @@ public struct ConnectionJournal: Sendable {
     } else {
       slots[(head + count) % slots.count] = record
       count += 1
+    }
+  }
+
+  /// 读取租约建立时预分配，避免首次网络回调承担整个环形队列的分配。
+  public mutating func prepare() {
+    if slots.isEmpty { slots = Array(repeating: nil, count: capacity) }
+  }
+
+  /// 调用方只在持久化成功后推进游标；正常消费回收不计入丢失计数。
+  public mutating func acknowledge(through cursor: Int64, epoch requestedEpoch: String) {
+    guard requestedEpoch == epoch else { return }
+    while count > 0, let record = slots[head], record.sequence <= cursor {
+      slots[head] = nil
+      head = (head + 1) % slots.count
+      count -= 1
     }
   }
 
@@ -52,7 +72,7 @@ public struct ConnectionJournal: Sendable {
   }
 
   public mutating func clear() {
-    slots = Array(repeating: nil, count: slots.count)
+    slots.removeAll()
     head = 0
     count = 0
     sequence = 0
@@ -62,7 +82,7 @@ public struct ConnectionJournal: Sendable {
 }
 
 /// 去掉控制字符并限制 UTF-8 大小；64 条记录即使 JSON 转义后也低于传输上限。
-private func boundedMetadata(_ text: String, bytes: Int) -> String {
+func boundedMetadata(_ text: String, bytes: Int) -> String {
   let prefix = String(decoding: text.utf8.prefix(bytes - 3), as: UTF8.self)
   return String(prefix.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) })
 }

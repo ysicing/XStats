@@ -95,19 +95,18 @@ struct ConnectionJournalTests {
     #expect(buffer.read(after: 0, epoch: "", now: 12).events.isEmpty)
   }
 
-  @Test func activeSnapshotKeepsNewestConnectionsWhenOlderLongLivedFlowsFillCapacity() {
+  @Test func activeCaptureIsNotEvictedByTheDisplayWindow() {
     let buffer = ObservationBuffer()
     _ = buffer.read(after: 0, epoch: "", now: 1)
     let connections = (0..<(ObservationLimits.displayCount * 2)).map { event($0) }
     for connection in connections { buffer.record(connection, now: 2) }
     let latest = buffer.read(after: 0, epoch: "", now: 3)
-    #expect(
-      Set(latest.activeIDs ?? [])
-        == Set(connections.suffix(ObservationLimits.displayCount).map(\.id)))
     buffer.close(connections[0].id)
-    #expect(
-      buffer.read(after: latest.cursor, epoch: latest.epoch, now: 4).activeIDs?.count
-        == ObservationLimits.displayCount)
+    let closed = buffer.read(
+      after: Int64(connections.count), epoch: latest.epoch, now: 4)
+    #expect(closed.events.first?.id == connections[0].id)
+    #expect(closed.events.first?.closedAt != nil)
+    #expect(closed.captureDropped == 0)
   }
 
   @Test func closedFlowLeavesActiveSnapshotWithoutDuplicatingIdentity() throws {
@@ -116,10 +115,10 @@ struct ConnectionJournalTests {
     let connection = event(0)
     buffer.record(connection, now: 2)
     let opened = buffer.read(after: 0, epoch: "", now: 3)
-    #expect(opened.activeIDs == [connection.id])
+    #expect(opened.events.map(\.id) == [connection.id])
     buffer.close(connection.id, at: Date(timeIntervalSince1970: 4))
     let closed = buffer.read(after: opened.cursor, epoch: opened.epoch, now: 5)
-    #expect(closed.activeIDs?.isEmpty == true)
+    #expect(closed.activeIDs == nil)
     #expect(closed.events.first?.id == connection.id)
     #expect(closed.events.first?.closedAt != nil)
     #expect(try ObservationBatch.decode(JSONEncoder().encode(closed)) == closed)
@@ -140,7 +139,7 @@ struct ConnectionJournalTests {
     buffer.close(shortLived.id, at: Date(timeIntervalSince1970: 4))
     let resumed = buffer.read(after: before.cursor, epoch: before.epoch, now: 5)
     #expect(resumed.epoch == before.epoch, "暂停不应换代，否则读取端会把旧连接当作未知")
-    #expect(resumed.activeIDs == [longLived.id], "暂停前建立且仍在进行的连接必须保留在活动快照中")
+    #expect(resumed.activeIDs == nil, "v3 只传增量，不再用受列表上限影响的全量活动快照")
     #expect(resumed.events.map(\.id) == [shortLived.id], "暂停期间只投递已知连接的结束事件，不记录新连接")
     #expect(resumed.events.first?.closedAt != nil)
   }

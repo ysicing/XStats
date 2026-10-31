@@ -3,7 +3,10 @@
 import Foundation
 
 public enum NetworkObservationProtocol {
-  public static let version = 2
+  public static let version = 3
+  public static let trafficVersion = 2
+  /// v3 的所有连接/统计均按游标增量传输；v2 仅兼容已有连接查看，不保证完整历史。
+  public static func supports(_ version: Int?) -> Bool { version == 2 || version == Self.version }
   public static let componentBundleIdentifier = "work.12306.xstats.networkmonitor"
   public static let extensionIdentifier = "work.12306.xstats.app.networkextension"
   public static let agentLabel = "work.12306.xstats.networkmonitor.agent"

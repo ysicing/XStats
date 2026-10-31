@@ -53,6 +53,10 @@ extension Translations {
     """#
 
   static let networkPresentationEnglish = #"""
+    地区	Regions
+    连接地区分布	Connection regions
+    近期连接地区分布	Regions of recent connections
+    按城市、省份或国家聚合，非设备精确位置	Grouped by city, province or country; not a precise device location
     出口概览	Egress overview
     通过四个 STUN 服务检测公网地址，与 HTTP 出口对照	Check public addresses through four STUN services against the HTTP exit
     查看本次请求实际使用的 DNS 解析服务器	See the DNS resolvers used for this request
@@ -317,6 +321,25 @@ extension Translations {
     将停止查看、移除系统扩展和后台项目，并删除伴随应用。	Stops viewing, removes the system extension and background service, and deletes the companion app.
     网络组件有更新	Network component update available
     全部连接	All connections
+    本机	This Mac
+    展开地图	Expand map
+    缩小地图	Zoom out
+    放大地图	Zoom in
+    复位地图	Reset map
+    流量走势	Traffic trend
+    时间范围	Time range
+    暂无流量数据	No traffic data yet
+    更新网络组件后可查看流量走势	Update the network component to view traffic trends
+    时间	Time
+    方向	Direction
+    上一页	Previous
+    下一页	Next
+    第 {}–{} 条，共 {} 条	Connections {}–{} of {}
+    近期连接国家或地域分布	Countries or regions of recent connections
+    采集负载超过安全预算，历史可能不完整，请停止后重新开始	Capture load exceeded the safety limit. History may be incomplete. Stop monitoring and start again.
+    无法保存网络历史，请检查磁盘空间后重试	Could not save network history. Check available disk space and try again.
+    网络历史数据库版本不兼容	The network history database version is incompatible.
+    网络历史超过磁盘安全预算，请清空记录或释放空间后重试	Network history has exceeded the safe disk usage limit. Clear the records or free up disk space and try again.
     国家或地域	Countries or regions
     国家或地域分布	Country or region distribution
     按国家或地域定位，非设备精确位置	Country or region location, not a precise device location

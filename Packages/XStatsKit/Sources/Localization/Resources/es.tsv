@@ -2606,3 +2606,26 @@ AI 功能需要安装并运行 Magpie。	Las funciones de AI requieren instalar 
 用于菜单栏与小组件	Se usan en la barra de menús y los widgets
 默认	Predeterminada
 设为默认	Establecer como predeterminada
+本机	Este Mac
+流量走势	Tendencia del tráfico
+时间范围	Intervalo de tiempo
+暂无流量数据	Aún no hay datos de tráfico
+更新网络组件后可查看流量走势	Actualiza el componente de red para ver las tendencias del tráfico
+时间	Hora
+方向	Dirección
+上一页	Anterior
+下一页	Siguiente
+第 {}–{} 条，共 {} 条	Conexiones {}–{} de {}
+近期连接国家或地域分布	Países o regiones de conexiones recientes
+采集负载超过安全预算，历史可能不完整，请停止后重新开始	La carga de captura superó el límite de seguridad. El historial puede estar incompleto. Detén la supervisión y vuelve a iniciarla.
+无法保存网络历史，请检查磁盘空间后重试	No se pudo guardar el historial de red. Comprueba el espacio libre en disco y vuelve a intentarlo.
+网络历史数据库版本不兼容	La versión de la base de datos del historial de red no es compatible.
+网络历史超过磁盘安全预算，请清空记录或释放空间后重试	El historial de red ha superado el límite seguro de uso del disco. Borra los registros o libera espacio en disco y vuelve a intentarlo.
+展开地图	Ampliar mapa
+缩小地图	Alejar
+放大地图	Acercar
+复位地图	Restablecer mapa
+地区	Regiones
+连接地区分布	Regiones de las conexiones
+近期连接地区分布	Regiones de conexiones recientes
+按城市、省份或国家聚合，非设备精确位置	Agrupado por ciudad, provincia o país; no es la ubicación exacta del dispositivo

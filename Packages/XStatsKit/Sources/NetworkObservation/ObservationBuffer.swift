@@ -3,13 +3,14 @@
 
 import Foundation
 
-/// 全部可变状态受同一锁保护；回调采用 try-lock，观察竞争不能延迟网络连接。
+/// 锁内只做有界队列操作，不访问磁盘或等待 IPC；竞争不能悄悄丢失观察事件。
 public final class ObservationBuffer: @unchecked Sendable {
   private let lock = NSLock()
   private var journal = ConnectionJournal()
   private var active: [UUID: ObservedConnection] = [:]
-  private var activeSlots: [UUID?] = Array(repeating: nil, count: ObservationLimits.displayCount)
-  private var nextActiveSlot = 0
+  private var captureDropped: Int64 = 0
+  private var sealed = false
+  private var observationID = UUID()
   private var leaseUntil: TimeInterval = 0
   private var diagnosticsUntil: TimeInterval = 0
   private var diagnosticsToken = UUID().uuidString
@@ -17,13 +18,21 @@ public final class ObservationBuffer: @unchecked Sendable {
 
   public init() {}
 
+  /// 租约检查只有常量时间临界区；不把锁竞争误认为观察停止。
+  public func trafficDemand(
+    now: TimeInterval = ProcessInfo.processInfo.systemUptime
+  ) -> Bool? {
+    lock.lock()
+    defer { lock.unlock() }
+    return now < leaseUntil
+  }
+
   public func isObserving(
     now: TimeInterval = ProcessInfo.processInfo.systemUptime, countNewFlow: Bool = false
   ) -> Bool {
-    guard lock.try() else { return false }
+    lock.lock()
     defer { lock.unlock() }
-    // 诊断默认关闭且不续租。复用网络回调已有 try-lock，竞争时不拖慢放行路径；
-    // 因此诊断值是成功取得锁的回调下界，不能据单次零值声称数学上的绝对零回调。
+    // 诊断默认关闭且不续租，不增加轮询或连接内容读取。
     if diagnosticsUntil > 0, now >= diagnosticsUntil { diagnosticsUntil = 0 }
     if countNewFlow, diagnosticsUntil > 0 { newFlowCallbacks &+= 1 }
     return now < leaseUntil
@@ -47,38 +56,77 @@ public final class ObservationBuffer: @unchecked Sendable {
     return .init(token: diagnosticsToken, newFlowCallbacks: newFlowCallbacks)
   }
 
-  public func record(
+  @discardableResult public func record(
     _ event: ObservedConnection, now: TimeInterval = ProcessInfo.processInfo.systemUptime
-  ) {
-    guard lock.try() else { return }
+  ) -> Bool {
+    lock.lock()
     defer { lock.unlock() }
-    guard now < leaseUntil else { return }
-    journal.append(event)
-    // 与界面的最近记录窗口一致地淘汰旧连接，避免最早的长连接占满集合后吞掉后续连接。
-    if let previous = activeSlots[nextActiveSlot] { active.removeValue(forKey: previous) }
-    activeSlots[nextActiveSlot] = event.id
-    nextActiveSlot = (nextActiveSlot + 1) % activeSlots.count
+    guard now < leaseUntil else { return false }
+    guard active.count < ObservationLimits.captureCount else {
+      captureDropped += 1
+      return false
+    }
+    var event = event
+    event.executablePath = boundedMetadata(event.executablePath, bytes: 768)
+    event.hostname = event.hostname.map { boundedMetadata($0, bytes: 252) }
+    event.address = event.address.map { boundedMetadata($0, bytes: 125) }
+    event.traffic = .init(
+      id: event.id, timestamp: event.timestamp, receivedBytes: 0, sentBytes: 0)
+    event.traffic?.observationID = observationID
+    journal.append(event, metadataIsBounded: true)
     active[event.id] = event
+    return true
+  }
+
+  /// 每个统计区间进入待确认增量队列，数据库成功写入后才回收；不能覆盖尚未落库的区间。
+  public func updateTraffic(
+    _ id: UUID, receivedBytes: UInt64, sentBytes: UInt64, at date: Date = Date(),
+    now: TimeInterval = ProcessInfo.processInfo.systemUptime
+  ) {
+    lock.lock()
+    defer { lock.unlock() }
+    guard now < leaseUntil, var record = active[id] else { return }
+    record.traffic = .init(
+      id: id, timestamp: date, receivedBytes: receivedBytes, sentBytes: sentBytes)
+    record.traffic?.observationID = observationID
+    active[id] = record
+    journal.append(record, metadataIsBounded: true)
   }
 
   /// 结束报告无数据内容。即使租约刚过期也移除已有标识，避免保留虚假的活动连接。
-  public func close(_ id: UUID, at date: Date = Date()) {
+  public func close(
+    _ id: UUID, receivedBytes: UInt64? = nil, sentBytes: UInt64? = nil,
+    at date: Date = Date(), now: TimeInterval = ProcessInfo.processInfo.systemUptime
+  ) {
     lock.lock()
     defer { lock.unlock() }
     guard var record = active.removeValue(forKey: id) else { return }
+    guard !sealed else { return }
     record.closedAt = date
-    journal.append(record)
+    if now < leaseUntil, let receivedBytes, let sentBytes {
+      record.traffic = .init(
+        id: id, timestamp: date, receivedBytes: receivedBytes, sentBytes: sentBytes)
+      record.traffic?.observationID = observationID
+    } else {
+      record.traffic = nil
+    }
+    journal.append(record, metadataIsBounded: true)
   }
 
   public func read(
     after cursor: Int64, epoch: String,
-    now: TimeInterval = ProcessInfo.processInfo.systemUptime
+    now: TimeInterval = ProcessInfo.processInfo.systemUptime, renewLease: Bool = true
   ) -> ObservationBatch {
     lock.lock()
     defer { lock.unlock() }
-    leaseUntil = now + ObservationLimits.leaseSeconds
+    if renewLease { journal.prepare() }
+    if renewLease && now >= leaseUntil { observationID = UUID() }
+    sealed = !renewLease
+    leaseUntil = renewLease ? now + ObservationLimits.leaseSeconds : 0
+    journal.acknowledge(through: cursor, epoch: epoch)
     var batch = journal.batch(after: cursor, epoch: epoch)
-    batch.activeIDs = Array(active.keys)
+    batch.trafficVersion = NetworkObservationProtocol.trafficVersion
+    batch.captureDropped = captureDropped
     return batch
   }
 
@@ -88,6 +136,7 @@ public final class ObservationBuffer: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
     leaseUntil = 0
+    for id in active.keys { active[id]?.traffic = nil }
   }
 
   /// 过滤器停止时清空全部状态。
@@ -97,7 +146,7 @@ public final class ObservationBuffer: @unchecked Sendable {
     leaseUntil = 0
     journal.clear()
     active.removeAll(keepingCapacity: true)
-    activeSlots = Array(repeating: nil, count: ObservationLimits.displayCount)
-    nextActiveSlot = 0
+    captureDropped = 0
+    sealed = false
   }
 }

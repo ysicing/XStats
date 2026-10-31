@@ -3,6 +3,7 @@
 
 import Foundation
 import NetworkObservation
+import SQLite3
 import Testing
 import Updates
 @testable import XStatsUI
@@ -18,6 +19,10 @@ import Updates
   var disableError: (any Error)?
   var enableContinuation: CheckedContinuation<Void, Never>?
   var readContinuation: CheckedContinuation<ObservationBatch, any Error>?
+  var finishBatches: [ObservationBatch] = []
+  var finishRequests = 0
+  var finishError: (any Error)?
+  private var readID = UUID()
   var holdShutdown = false
   var shutdownContinuation: CheckedContinuation<Void, Never>?
   var shutdownError: (any Error)?
@@ -37,7 +42,22 @@ import Updates
   }
   func read(after cursor: Int64, epoch: String) async throws -> ObservationBatch {
     readRequests += 1
-    return try await withCheckedThrowingContinuation { readContinuation = $0 }
+    let id = UUID()
+    readID = id
+    return try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { readContinuation = $0 }
+    } onCancel: {
+      Task { @MainActor in
+        guard self.readID == id, let continuation = self.readContinuation else { return }
+        self.readContinuation = nil
+        continuation.resume(throwing: CancellationError())
+      }
+    }
+  }
+  func finishRead(after cursor: Int64, epoch: String) async throws -> ObservationBatch? {
+    finishRequests += 1
+    if let finishError { throw finishError }
+    return finishBatches.isEmpty ? nil : finishBatches.removeFirst()
   }
   func stopReading() { stops += 1 }
   func uninstall() async throws -> Bool { true }
@@ -45,6 +65,164 @@ import Updates
 
 @Suite(.timeLimit(.minutes(1)))
 @MainActor struct NetworkMonitorTests {
+  @Test(arguments: [true, false])
+  func overloadedObservationCanPersistTailStopAndRestart(captureDropped: Bool) async throws {
+    let backend = ObservationBackendFixture()
+    let controller = NetworkMonitorController(backend: backend, isSupported: true)
+    controller.setDemand(enabled: true, visible: true)
+    controller.start()
+    try await waitUntil { backend.readContinuation != nil }
+    var flow = batch().events[0]
+    flow.timestamp = Date()
+    var journal = ConnectionJournal(capacity: 1)
+    if !captureDropped { journal.append(batch().events[0]) }
+    journal.append(flow)
+    var overloaded = journal.batch(after: 0, epoch: "")
+    overloaded.captureDropped = captureDropped ? 1 : 0
+    let reader = try #require(backend.readContinuation)
+    backend.readContinuation = nil
+    reader.resume(returning: overloaded)
+    try await waitUntil { controller.status == .failed }
+    #expect(controller.error != nil)
+    backend.finishBatches = [overloaded]
+    controller.stop()
+    try await waitUntil { !controller.isBusy }
+    try #require(controller.status == .idle)
+    #expect(backend.filterWrites == [true, false])
+    let saved = try await controller.historyStore.view(
+      filter: .init(), activeOnly: false, offset: 0)
+    #expect(saved.records.map(\.id) == [flow.id])
+    let diagnostics = try await controller.historyStore.diagnostics()
+    #expect(diagnostics.discarded == overloaded.discarded)
+    #expect(diagnostics.captureDropped == overloaded.captureDropped)
+    controller.start()
+    try await waitUntil { controller.isReading }
+    #expect(controller.error == nil)
+    try await controller.prepareForTermination()
+  }
+
+  @Test(arguments: [true, false], [true, false])
+  func failedTailDrainKeepsFilterEnabledUntilRetrySucceeds(
+    readFails: Bool, restart: Bool
+  ) async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let url = directory.appendingPathComponent("history.sqlite")
+    let store = NetworkHistoryStore(url: url)
+    _ = try await store.view(filter: .init(), activeOnly: false, offset: 0)
+    var external: OpaquePointer?
+    try #require(sqlite3_open(url.path, &external) == SQLITE_OK)
+    defer { sqlite3_close(external) }
+    if !readFails {
+      try #require(
+        sqlite3_exec(
+          external,
+          """
+          CREATE TRIGGER reject_tail BEFORE INSERT ON connections
+          BEGIN SELECT RAISE(ABORT, 'injected failure'); END;
+          """, nil, nil, nil) == SQLITE_OK)
+    }
+    let backend = ObservationBackendFixture()
+    let controller = NetworkMonitorController(
+      backend: backend, isSupported: true, historyStore: store)
+    controller.setDemand(enabled: true, visible: true)
+    controller.start()
+    try await waitUntil { backend.readContinuation != nil }
+    var flow = batch().events[0]
+    flow.timestamp = Date()
+    var journal = ConnectionJournal()
+    journal.append(flow)
+    let tail = journal.batch(after: 0, epoch: "")
+    backend.finishBatches = [tail]
+    if readFails { backend.finishError = NetworkMonitorError.timeout }
+    controller.stop()
+    try await waitUntil { !controller.isBusy }
+    #expect(controller.status == .failed && controller.error != nil)
+    #expect(backend.filterWrites == [true])
+    let failed = try await store.view(filter: .init(), activeOnly: false, offset: 0)
+    #expect(failed.total == 0)
+    backend.finishError = nil
+    backend.finishBatches = [tail]
+    if !readFails {
+      try #require(sqlite3_exec(external, "DROP TRIGGER reject_tail", nil, nil, nil) == SQLITE_OK)
+    }
+    if restart {
+      controller.start()
+      try await waitUntil { controller.isReading }
+    } else {
+      controller.stop()
+      try await waitUntil { !controller.isBusy }
+    }
+    let saved = try await store.view(filter: .init(), activeOnly: false, offset: 0)
+    #expect(saved.records.map(\.id) == [flow.id])
+    if restart {
+      controller.stop()
+      try await waitUntil { !controller.isBusy }
+    }
+    #expect(controller.status == .idle && controller.error == nil)
+    #expect(backend.filterWrites == (restart ? [true, true, false] : [true, false]))
+    await store.close()
+  }
+
+  @Test func resumedObservationRetriesFailedTailAndClearsLifecycleError() async throws {
+    let backend = ObservationBackendFixture()
+    let controller = NetworkMonitorController(backend: backend, isSupported: true)
+    controller.setDemand(enabled: true, visible: true)
+    controller.start()
+    try await waitUntil { backend.readContinuation != nil }
+    backend.finishError = NetworkMonitorError.timeout
+    controller.setObservationPaused(true)
+    try await waitUntil { controller.error != nil && backend.stops > 0 }
+    backend.finishError = nil
+    controller.setObservationPaused(false)
+    try await waitUntil { backend.readRequests >= 2 }
+    #expect(backend.finishRequests == 2)
+    #expect(controller.error == nil && controller.isReading)
+    try await controller.prepareComponentUpdate()
+    controller.finishComponentUpdate()
+    try await waitUntil { controller.isReading }
+    try await controller.prepareForTermination()
+    #expect(controller.status == .idle && controller.error == nil)
+    #expect(backend.filterWrites.last == false)
+  }
+
+  @Test func stopPersistsUnpolledTailBeforeDisablingFilter() async throws {
+    let backend = ObservationBackendFixture()
+    let store = NetworkHistoryStore()
+    let controller = NetworkMonitorController(
+      backend: backend, isSupported: true, historyStore: store)
+    controller.setDemand(enabled: true, visible: true)
+    controller.start()
+    try await waitUntil { backend.readContinuation != nil }
+    let now = Date()
+    var flow = batch().events[0]
+    flow.timestamp = now
+    flow.traffic = .init(id: flow.id, timestamp: now, receivedBytes: 0, sentBytes: 0)
+    var journal = ConnectionJournal()
+    journal.append(flow)
+    var opening = journal.batch(after: 0, epoch: "")
+    opening.trafficVersion = NetworkObservationProtocol.trafficVersion
+    let reader = try #require(backend.readContinuation)
+    backend.readContinuation = nil
+    reader.resume(returning: opening)
+    try await waitUntil { controller.records.count == 1 }
+    flow.closedAt = now.addingTimeInterval(1)
+    flow.traffic = .init(
+      id: flow.id, timestamp: now.addingTimeInterval(1), receivedBytes: 1000, sentBytes: 500)
+    journal.append(flow)
+    var tail = journal.batch(after: opening.cursor, epoch: opening.epoch)
+    tail.trafficVersion = NetworkObservationProtocol.trafficVersion
+    backend.finishBatches = [tail]
+    controller.stop()
+    try await waitUntil { !controller.isBusy }
+    let saved = try await store.view(
+      filter: .init(), activeOnly: false, offset: 0, now: now.addingTimeInterval(2))
+    #expect(saved.records.first?.closedAt != nil)
+    #expect(saved.records.first?.traffic?.receivedBytes == 1000)
+    #expect(backend.finishRequests >= 1)
+    #expect(backend.filterWrites.last == false)
+    await store.close()
+  }
   @Test func rejectedQuitRestoresViewerAfterComponentHandoffWasCancelled() async throws {
     let backend = ObservationBackendFixture()
     let monitor = NetworkMonitorController(backend: backend, isSupported: true)
@@ -302,7 +480,7 @@ import Updates
     await Task.yield()
     #expect(controller.records.isEmpty)
     #expect(!controller.isReading)
-    #expect(backend.stops == 1)
+    try await waitUntil { backend.stops == 1 }
     controller.stop()
     try await waitUntil { !controller.isBusy }
   }
@@ -335,10 +513,12 @@ import Updates
     backend.readContinuation = nil
     controller.setObservationPaused(true)
     controller.setObservationPaused(false)
+    // 恢复须等待旧读取取消和尾批交接，不能并发开启第二条读取。
+    #expect(backend.readRequests == 1)
+    pending.resume(throwing: CancellationError())
     try await waitUntil { backend.readRequests == 2 }
     #expect(controller.isReading && !controller.isManuallyPaused)
     #expect(backend.filterWrites == [true])
-    pending.resume(throwing: CancellationError())
     backend.readContinuation?.resume(throwing: CancellationError())
     backend.readContinuation = nil
     controller.stop()
@@ -371,7 +551,8 @@ import Updates
   }
 
   @Test func oldExtensionWithoutActiveSnapshotCannotSilentlyProduceAnEmptyActiveView() throws {
-    let legacy = batch()
+    var legacy = batch()
+    legacy.protocolVersion = 2
     #expect(legacy.activeIDs == nil)
     #expect(throws: (any Error).self) {
       try NativeNetworkMonitorBackend.decodeBatch(JSONEncoder().encode(legacy))

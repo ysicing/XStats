@@ -80,11 +80,11 @@ Frequency, temperature and power readings depend on what the Mac model and macOS
 
 ### Network Monitor
 
-**Optional on macOS 15 or later, disabled by default.** View new connections observed while monitoring, grouped by app, process, domain, country or region, with search, active-connection filtering, pause and resume.
+**Optional on macOS 15 or later, disabled by default.** View newly observed connections, destinations on a map, and upload/download trends together by app, process, domain, country or region, with search, active-connection filtering, pause and resume. Traffic trends require a network component that supports statistics.
 
-- **Read-only**: all traffic is allowed, communication content is never inspected, and no connection history is stored.
-- **On demand**: reads only while the page is visible and not paused, retaining at most 512 records in memory. It does not enumerate every connection that existed before observation began.
-- **World map**: download the public IP geography database only when first used, then look up locations offline. Positions represent countries or regions, not precise device locations.
+- **Read-only**: all traffic is allowed and communication content is never inspected. The last 15 minutes of connection and traffic history stay on this Mac and can be cleared at any time.
+- **On demand**: collects only while the page is visible and not paused, loading local history in pages. It does not enumerate every connection that existed before observation began.
+- **World map**: download the public IP geography database only when first used, then look up locations offline. Mainland China addresses include province, city and provider details and are grouped by city. Positions are area representatives, not precise device locations.
 
 First use: enable Network Monitor in Settings → Features → Optional Features, follow the component installation guide, and approve the system extension and network filter in macOS. Installation requires an administrator account. Use Manage Component to check independent updates or remove the component.
 

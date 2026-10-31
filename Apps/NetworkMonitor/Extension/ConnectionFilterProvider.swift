@@ -29,6 +29,11 @@ final class ConnectionFilterProvider: NEFilterDataProvider, @unchecked Sendable 
   private let lifecycleLock = NSLock()
   private var generation = 0
   private var lifecycle: FilterSettingsLifecycle?
+  // 单次状态/判决更新串行；批量切换在每条流之间释放锁，不能阻塞新连接或悄悄丢弃。
+  private let trafficLock = NSLock()
+  private var reportingEnabled = false
+  private var reportingRevision: UInt64 = 0
+  private var reportingFlows: [UUID: NEFilterSocketFlow] = [:]
   private static let logger = Logger(
     subsystem: "work.12306.xstats.app.networkextension", category: "ObservationDemand")
 
@@ -55,6 +60,7 @@ final class ConnectionFilterProvider: NEFilterDataProvider, @unchecked Sendable 
         }
         self.apply(NEFilterSettings(rules: rules, defaultAction: observing ? .filterData : .allow))
         { error in
+          self.setTrafficReporting(observing && error == nil)
           Self.logger.notice("Settings filterData=\(observing) success=\(error == nil)")
           completion(error)
         }
@@ -96,6 +102,11 @@ final class ConnectionFilterProvider: NEFilterDataProvider, @unchecked Sendable 
     lifecycleLock.unlock()
     Self.host.beginStoppingFilter(generation: current)
     settingsLifecycle.stop(generation: current) {
+      self.trafficLock.lock()
+      self.reportingFlows.removeAll(keepingCapacity: true)
+      self.reportingEnabled = false
+      self.reportingRevision &+= 1
+      self.trafficLock.unlock()
       completionHandler()
       Self.host.finishStoppingFilter(generation: current)
     }
@@ -134,21 +145,71 @@ final class ConnectionFilterProvider: NEFilterDataProvider, @unchecked Sendable 
       socket.socketProtocol == IPPROTO_TCP
       ? .tcp
       : socket.socketProtocol == IPPROTO_UDP ? .udp : .other
-    buffer.record(
+    // 采集登记必须原子完成，不能因列表换页或锁竞争丢掉仍活动的连接。
+    trafficLock.lock()
+    defer { trafficLock.unlock() }
+    let recorded = buffer.record(
       ObservedConnection(
         id: flow.identifier, timestamp: Date(), processID: pid,
         executablePath: executable, address: address, hostname: hostname,
         port: endpoint.1, transport: transport,
         direction: flow.direction == .outbound ? .outbound : .inbound))
+    guard recorded else { return .allow() }
     let verdict = NEFilterNewFlowVerdict.allow()
     // macOS 为 socket 的 allow verdict 投递结束报告；无需查看或缓存通信数据。
     verdict.shouldReport = true
+    reportingFlows[flow.identifier] = socket
+    // 返回 verdict 由系统在回调返回后应用；初始低频报告避免旧 none 覆盖恢复操作。
+    // 暂停后的尾部报告在核对当前状态后停报。
+    verdict.statisticsReportFrequency = .low
     return verdict
   }
 
   override func handle(_ report: NEFilterReport) {
-    guard report.event == .flowClosed, let flow = report.flow else { return }
-    buffer.close(flow.identifier)
+    guard let flow = report.flow else { return }
+    if report.event == .flowClosed {
+      buffer.close(
+        flow.identifier, receivedBytes: UInt64(report.bytesInboundCount),
+        sentBytes: UInt64(report.bytesOutboundCount))
+      trafficLock.lock()
+      reportingFlows.removeValue(forKey: flow.identifier)
+      trafficLock.unlock()
+    } else if report.event == .statistics {
+      guard let socket = flow as? NEFilterSocketFlow else { return }
+      trafficLock.lock()
+      defer { trafficLock.unlock() }
+      guard let observing = buffer.trafficDemand() else { return }
+      guard observing, reportingEnabled, reportingFlows[flow.identifier] != nil else {
+        updateTrafficReporting(socket, enabled: false)
+        return
+      }
+      buffer.updateTraffic(
+        flow.identifier, receivedBytes: UInt64(report.bytesInboundCount),
+        sentBytes: UInt64(report.bytesOutboundCount))
+    }
   }
 
+  /// 已放行的长连接也要跟随观察需求停报；只保留有界 socket 引用，不请求数据回调。
+  private func setTrafficReporting(_ enabled: Bool) {
+    trafficLock.lock()
+    reportingEnabled = enabled
+    reportingRevision &+= 1
+    let revision = reportingRevision
+    let flows = Array(reportingFlows.values)
+    trafficLock.unlock()
+    for flow in flows {
+      trafficLock.lock()
+      if reportingRevision == revision, reportingFlows[flow.identifier] != nil {
+        updateTrafficReporting(flow, enabled: enabled)
+      }
+      trafficLock.unlock()
+    }
+  }
+
+  private func updateTrafficReporting(_ flow: NEFilterSocketFlow, enabled: Bool) {
+    let verdict = NEFilterDataVerdict.allow()
+    verdict.shouldReport = true
+    verdict.statisticsReportFrequency = enabled ? .low : .none
+    update(flow, using: verdict, for: .any)
+  }
 }

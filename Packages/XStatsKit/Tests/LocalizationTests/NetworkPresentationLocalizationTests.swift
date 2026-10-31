@@ -5,6 +5,16 @@ import Testing
 @testable import Localization
 
 struct NetworkPresentationLocalizationTests {
+  @Test func cityMapLabelsHaveExplicitTranslations() throws {
+    let keys = ["地区", "连接地区分布", "近期连接地区分布", "按城市、省份或国家聚合，非设备精确位置"]
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for key in keys {
+        #expect(table.sourceKeys.contains(key), "\(language): \(key)")
+        #expect(table.translate(key)?.isEmpty == false, "\(language): \(key)")
+      }
+    }
+  }
   @Test func trioBatteryOptionsHaveExplicitTranslations() throws {
     let keys = [
       "电池图标", "显示顶部内容", "电源状态显示", "始终显示电量",

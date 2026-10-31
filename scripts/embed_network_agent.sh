@@ -11,8 +11,8 @@ app=pathlib.Path(sys.argv[1]); info_file=app/'Contents/Info.plist'
 info=plistlib.loads(info_file.read_bytes())
 if info.get('CFBundleIdentifier')!='work.12306.xstats.networkmonitor':
     raise SystemExit('error: LaunchAgent 只能嵌入独立网络组件')
-if info.get('NetworkObservationProtocolVersion')!=2:
-    raise SystemExit('error: 网络组件协议版本必须为 2')
+if info.get('NetworkObservationProtocolVersion')!=3:
+    raise SystemExit('error: 网络组件协议版本必须为 3')
 suffix='work.12306.xstats.network-observation.control'
 team=sys.argv[2]
 if team and not re.fullmatch(r'[A-Z0-9]+',team):

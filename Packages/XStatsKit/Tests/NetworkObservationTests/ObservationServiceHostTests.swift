@@ -15,7 +15,9 @@ struct ObservationServiceHostTests {
     return peer
   }
 
-  private func read(_ peer: NSXPCConnection, cursor: Int64 = 0, epoch: String = "") async throws
+  private func read(
+    _ peer: NSXPCConnection, cursor: Int64 = 0, epoch: String = "", finishing: Bool = false
+  ) async throws
     -> ObservationBatch
   {
     let reply = NetworkMonitorReply()
@@ -24,9 +26,42 @@ struct ObservationServiceHostTests {
       let proxy =
         peer.remoteObjectProxyWithErrorHandler { @Sendable error in reply.finish(.failure(error)) }
         as! NetworkObservationService
-      proxy.readEvents(after: cursor, epoch: epoch) { data in reply.finish(.success(data)) }
+      if finishing {
+        proxy.finishEvents(after: cursor, epoch: epoch) { data in reply.finish(.success(data)) }
+      } else {
+        proxy.readEvents(after: cursor, epoch: epoch) { data in reply.finish(.success(data)) }
+      }
     }
     return try ObservationBatch.decode(data)
+  }
+
+  @Test func finishRPCSealsAndDrainsTailEvenBeforeFirstClientCursor() async throws {
+    let listener = NSXPCListener.anonymous()
+    let clock = LeaseClockFixture()
+    let timers = LeaseTimerFactory()
+    let host = ObservationServiceHost(
+      listener: listener, requiredClientCode: try requirement(),
+      now: clock.read, makeDeadline: timers.make)
+    let generation = host.startFilter()
+    defer {
+      host.beginStoppingFilter(generation: generation)
+      listener.invalidate()
+    }
+    let reader = peer(listener)
+    defer { reader.invalidate() }
+    _ = try await read(reader)
+    let flow = ObservedConnection(
+      id: UUID(), timestamp: Date(), processID: 1, executablePath: "fixture",
+      address: nil, hostname: nil, port: nil, transport: .tcp, direction: .outbound)
+    host.buffer.record(flow, now: 101)
+    let final = try await read(reader, finishing: true)
+    #expect(final.events.map(\.id) == [flow.id])
+    #expect(!host.currentDemand.isActive)
+    #expect(!host.buffer.isObserving(now: 101))
+    host.buffer.close(flow.id)
+    #expect(
+      try await read(reader, cursor: final.cursor, epoch: final.epoch, finishing: true)
+        .events.isEmpty)
   }
 
   private func diagnostics(_ peer: NSXPCConnection, window: Double) async throws
@@ -80,7 +115,7 @@ struct ObservationServiceHostTests {
     let resumed = try await read(reader)
     #expect(resumed.epoch == before.epoch, "到期只停止新流观察，不清历史")
     #expect(resumed.events.count == 2 && resumed.events.last?.closedAt != nil)
-    #expect(resumed.activeIDs?.isEmpty == true)
+    #expect(resumed.activeIDs == nil)
     #expect(timers.count == 2, "到期源已销毁，恢复才创建新的一次性源")
   }
 

@@ -10,21 +10,41 @@ private final class GeographyDownload: NSObject, URLSessionDataDelegate, @unchec
   private let host: String?
   private let progress: @Sendable (Double) -> Void
   private var data = Data()
+  private let output: FileHandle?
+  private var received = 0
   private var result: Result<Data, any Error>?
   private var continuation: CheckedContinuation<Data, any Error>?
   private var task: URLSessionDataTask?
   private var lastStep = -1
 
-  init(maximum: Int, host: String?, progress: @escaping @Sendable (Double) -> Void) {
+  init(
+    maximum: Int, host: String?, output: FileHandle? = nil,
+    progress: @escaping @Sendable (Double) -> Void
+  ) {
     self.maximum = maximum
     self.host = host
     self.progress = progress
+    self.output = output
   }
 
-  static func fetch(_ url: URL, maximum: Int, progress: @escaping @Sendable (Double) -> Void)
+  static func fetch(
+    _ url: URL, maximum: Int, destination: URL? = nil,
+    progress: @escaping @Sendable (Double) -> Void
+  )
     async throws -> Data
   {
-    let delegate = GeographyDownload(maximum: maximum, host: url.host, progress: progress)
+    let output: FileHandle?
+    if let destination {
+      guard FileManager.default.createFile(atPath: destination.path, contents: nil) else {
+        throw CocoaError(.fileWriteUnknown)
+      }
+      output = try FileHandle(forWritingTo: destination)
+    } else {
+      output = nil
+    }
+    defer { try? output?.close() }
+    let delegate = GeographyDownload(
+      maximum: maximum, host: url.host, output: output, progress: progress)
     let configuration = URLSessionConfiguration.ephemeral
     configuration.timeoutIntervalForRequest = 60
     configuration.timeoutIntervalForResource = 120
@@ -110,13 +130,20 @@ private final class GeographyDownload: NSObject, URLSessionDataDelegate, @unchec
       lock.unlock()
       return
     }
-    guard data.count + chunk.count <= maximum else {
+    guard chunk.count <= maximum - received else {
       lock.unlock()
       finish(.failure(URLError(.dataLengthExceedsMaximum)))
       return
     }
-    data.append(chunk)
-    let fraction = Double(data.count) / Double(maximum)
+    do {
+      if let output { try output.write(contentsOf: chunk) } else { data.append(chunk) }
+    } catch {
+      lock.unlock()
+      finish(.failure(error))
+      return
+    }
+    received += chunk.count
+    let fraction = Double(received) / Double(maximum)
     let step = Int(fraction * 20)
     let publish = step > lastStep
     if publish { lastStep = step }
@@ -136,6 +163,14 @@ private final class GeographyDownload: NSObject, URLSessionDataDelegate, @unchec
     lock.unlock()
     finish(.success(complete))
   }
+}
+
+func downloadGeographyFile(
+  _ url: URL, maximum: Int, destination: URL,
+  progress: @escaping @Sendable (Double) -> Void
+) async throws {
+  _ = try await GeographyDownload.fetch(
+    url, maximum: maximum, destination: destination, progress: progress)
 }
 
 func downloadGeography(_ url: URL, maximum: Int, progress: @escaping @Sendable (Double) -> Void)

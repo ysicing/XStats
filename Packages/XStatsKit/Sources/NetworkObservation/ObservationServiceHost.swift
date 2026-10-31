@@ -145,7 +145,7 @@ public final class ObservationServiceHost: NSObject, NSXPCListenerDelegate, @unc
     candidate.setCodeSigningRequirement(requiredClientCode)
     candidate.exportedInterface = NSXPCInterface(with: NetworkObservationService.self)
     candidate.exportedObject = ObservationServiceSession(
-      read: { [weak self] peer, first, cursor, epoch in
+      read: { [weak self] peer, first, cursor, epoch, finishing in
         guard let self else { return nil }
         self.lock.lock()
         guard self.filterActive, first || self.connection === peer else {
@@ -156,21 +156,28 @@ public final class ObservationServiceHost: NSObject, NSXPCListenerDelegate, @unc
         if first { self.connection = peer }
         let current = self.generation
         let instant = self.now()
-        let batch = self.buffer.read(after: cursor, epoch: epoch, now: instant)
-        self.leaseUntil = instant + ObservationLimits.leaseSeconds
-        if self.deadline == nil {
-          self.deadline = self.makeDeadline { [weak self] in self?.expireLease(generation: current)
+        let batch = self.buffer.read(
+          after: cursor, epoch: epoch, now: instant, renewLease: !finishing)
+        let event: ObservationDemand?
+        if finishing {
+          event = self.endLeaseLocked()
+        } else {
+          self.leaseUntil = instant + ObservationLimits.leaseSeconds
+          if self.deadline == nil {
+            self.deadline = self.makeDeadline { [weak self] in
+              self?.expireLease(generation: current)
+            }
           }
+          self.deadline?.schedule(after: ObservationLimits.leaseSeconds)
+          self.demandActive = true
+          self.revision &+= 1
+          event = ObservationDemand(generation: current, revision: self.revision, isActive: true)
         }
-        self.deadline?.schedule(after: ObservationLimits.leaseSeconds)
         // 正常续租只更新需求序号，成功规则不会重复 apply；失败只能借下一次读取重试。
-        self.demandActive = true
-        self.revision &+= 1
-        let event = ObservationDemand(generation: current, revision: self.revision, isActive: true)
         let callback = self.demandChanged
         self.lock.unlock()
         previous?.invalidate()
-        callback(event)
+        if let event { callback(event) }
         self.lock.lock()
         defer { self.lock.unlock() }
         guard self.generation == current, !self.settingsFailed else { return nil }
@@ -218,12 +225,12 @@ private final class DispatchObservationDeadline: ObservationLeaseDeadline, @unch
 private final class ObservationServiceSession: NSObject, NetworkObservationService {
   private let lock = NSLock()
   private var hasRead = false
-  private let read: (NSXPCConnection, Bool, Int64, String) -> ObservationBatch?
+  private let read: (NSXPCConnection, Bool, Int64, String, Bool) -> ObservationBatch?
   private let diagnostics: (Double) -> FlowDiagnosticsDTO?
   private let stopped: () -> Bool
 
   init(
-    read: @escaping (NSXPCConnection, Bool, Int64, String) -> ObservationBatch?,
+    read: @escaping (NSXPCConnection, Bool, Int64, String, Bool) -> ObservationBatch?,
     diagnostics: @escaping (Double) -> FlowDiagnosticsDTO?, stopped: @escaping () -> Bool
   ) {
     self.read = read
@@ -232,12 +239,22 @@ private final class ObservationServiceSession: NSObject, NetworkObservationServi
   }
 
   func readEvents(after cursor: Int64, epoch: String, reply: @escaping (Data) -> Void) {
+    send(after: cursor, epoch: epoch, finishing: false, reply: reply)
+  }
+
+  func finishEvents(after cursor: Int64, epoch: String, reply: @escaping (Data) -> Void) {
+    send(after: cursor, epoch: epoch, finishing: true, reply: reply)
+  }
+
+  private func send(
+    after cursor: Int64, epoch: String, finishing: Bool, reply: @escaping (Data) -> Void
+  ) {
     guard epoch.utf8.count <= 36, cursor >= 0, let peer = NSXPCConnection.current() else {
       reply(Data())
       return
     }
     lock.lock()
-    let batch = read(peer, !hasRead, cursor, epoch)
+    let batch = read(peer, !hasRead, cursor, epoch, finishing)
     if batch != nil { hasRead = true }
     lock.unlock()
     guard let batch else {

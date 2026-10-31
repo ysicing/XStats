@@ -17,12 +17,14 @@ typealias NetworkMonitorReply = NetworkObservation.NetworkMonitorReply
   func cancelActivation()
   func setFilterEnabled(_ enabled: Bool) async throws
   func read(after cursor: Int64, epoch: String) async throws -> ObservationBatch
+  func finishRead(after cursor: Int64, epoch: String) async throws -> ObservationBatch?
   func stopReading()
   func uninstall() async throws -> Bool
   func componentCommand(_ command: String) async throws -> NetworkComponentResponse
 }
 
 extension NetworkMonitorBackend {
+  func finishRead(after cursor: Int64, epoch: String) async throws -> ObservationBatch? { nil }
   var onComponentStatus: ((NetworkComponentStatus) -> Void)? {
     get { nil }
     set {}
@@ -115,7 +117,7 @@ extension NetworkMonitorBackend {
     }
     let metadata = try await NetworkComponentMetadata.load(
       at: NetworkComponentInstaller.componentURL)
-    guard metadata.protocolVersion == NetworkObservationProtocol.version,
+    guard NetworkObservationProtocol.supports(metadata.protocolVersion),
       metadata.controlMachService == NetworkObservationProtocol.controlServiceName(team: team)
     else {
       throw NetworkMonitorError.protocolMismatch
@@ -136,7 +138,7 @@ extension NetworkMonitorBackend {
         ).path,
         arguments: ["--register-service"], limit: 32 * 1024)
       let registration = try JSONDecoder().decode(RegistrationReply.self, from: result)
-      guard registration.protocolVersion == NetworkObservationProtocol.version else {
+      guard NetworkObservationProtocol.supports(registration.protocolVersion) else {
         throw NetworkMonitorError.protocolMismatch
       }
       if let error = registration.error {
@@ -242,7 +244,7 @@ extension NetworkMonitorBackend {
     try Task.checkCancellation()
     guard data.count <= 256 * 1024 else { throw NetworkMonitorError.unavailable }
     let response = try JSONDecoder().decode(NetworkComponentResponse.self, from: data)
-    guard response.protocolVersion == NetworkObservationProtocol.version else {
+    guard NetworkObservationProtocol.supports(response.protocolVersion) else {
       throw NetworkMonitorError.protocolMismatch
     }
     if response.status?.needsSystemApproval == true { onApproval?() }
@@ -254,6 +256,19 @@ extension NetworkMonitorBackend {
     return response
   }
   func read(after cursor: Int64, epoch: String) async throws -> ObservationBatch {
+    try await readBatch(after: cursor, epoch: epoch, finishing: false)
+  }
+
+  func finishRead(after cursor: Int64, epoch: String) async throws -> ObservationBatch? {
+    let metadata = try await NetworkComponentMetadata.load(
+      at: NetworkComponentInstaller.componentURL)
+    guard metadata.protocolVersion == 3 else { return nil }
+    return try await readBatch(after: cursor, epoch: epoch, finishing: true)
+  }
+
+  private func readBatch(after cursor: Int64, epoch: String, finishing: Bool) async throws
+    -> ObservationBatch
+  {
     guard NetworkMonitorSupport.isAvailable else { throw NetworkMonitorError.unsupportedVersion }
     let connection = try await ensureConnection()
     let reply = NetworkMonitorReply()
@@ -273,8 +288,14 @@ extension NetworkMonitorBackend {
           reply.finish(.failure(NetworkMonitorError.unavailable))
           return
         }
-        proxy.readEvents(after: cursor, epoch: epoch) { @Sendable data in
-          reply.finish(.success(data))
+        if finishing {
+          proxy.finishEvents(after: cursor, epoch: epoch) { @Sendable data in
+            reply.finish(.success(data))
+          }
+        } else {
+          proxy.readEvents(after: cursor, epoch: epoch) { @Sendable data in
+            reply.finish(.success(data))
+          }
         }
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) {
           reply.finish(.failure(NetworkMonitorError.timeout))
@@ -293,7 +314,7 @@ extension NetworkMonitorBackend {
       at: NetworkComponentInstaller.componentURL)
     try Task.checkCancellation()
     if let connection { return connection }
-    guard metadata.protocolVersion == NetworkObservationProtocol.version else {
+    guard NetworkObservationProtocol.supports(metadata.protocolVersion) else {
       throw NetworkMonitorError.protocolMismatch
     }
     let team = try NetworkCodeIdentity.currentTeam()
@@ -311,7 +332,9 @@ extension NetworkMonitorBackend {
     guard !data.isEmpty else { throw NetworkMonitorError.unavailable }
     let batch = try ObservationBatch.decode(data)
     // 相同构建号可能让 macOS 继续运行旧扩展；缺字段是协议不匹配，不能当作零条活动连接。
-    guard batch.activeIDs != nil else { throw NetworkMonitorError.extensionNeedsUpdate }
+    guard batch.protocolVersion >= 3 || batch.activeIDs != nil else {
+      throw NetworkMonitorError.extensionNeedsUpdate
+    }
     return batch
   }
 
