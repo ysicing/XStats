@@ -12,6 +12,24 @@ struct NetworkMapDestination: Identifiable {
   let latest: Date
   var location: NetworkIPLocation? = nil
 
+  static func make(world: [NetworkCountry], regions: [NetworkHistoryRegion]) -> [Self] {
+    regions.compactMap { region in
+      let parts = region.key.components(separatedBy: "|")
+      guard let country = world.first(where: { $0.code == parts[0] }) else { return nil }
+      var location: NetworkIPLocation?
+      if parts[0] == "CN", parts.count > 1 {
+        let city = parts.count > 2 ? parts[2] : ""
+        let point =
+          NetworkCityCoordinates.points[parts[1] + "|" + city]
+          ?? NetworkCityCoordinates.points[parts[1] + "|"]
+        location = NetworkIPLocation(
+          province: parts[1], city: city,
+          longitude: point?.first, latitude: point?.last)
+      }
+      return Self(country: country, count: region.count, latest: region.latest, location: location)
+    }
+  }
+
   static func make(
     world: [NetworkCountry], records: [ObservedConnection], countries: [String: String],
     locations: [String: NetworkIPLocation] = [:], limit: Int = 12
@@ -67,6 +85,7 @@ struct ConnectionWorldMap: View {
   let observedRecords: [ObservedConnection]
   let countries: [String: String]
   var locations: [String: NetworkIPLocation] = [:]
+  var providedDestinations: [NetworkMapDestination]? = nil
   let isReading: Bool
   let selectCountry: (String) -> Void
 
@@ -75,7 +94,7 @@ struct ConnectionWorldMap: View {
   var body: some View {
     ConnectionMapSurface(
       world: world, records: records, observedRecords: observedRecords,
-      countries: countries, locations: locations,
+      countries: countries, locations: locations, providedDestinations: providedDestinations,
       isReading: isReading && !expanded, selectCountry: selectCountry
     )
     .overlay(alignment: .topTrailing) {
@@ -97,7 +116,8 @@ struct ConnectionWorldMap: View {
         }
         ConnectionMapSurface(
           world: world, records: records, observedRecords: observedRecords,
-          countries: countries, locations: locations, isReading: isReading, interactive: true
+          countries: countries, locations: locations, providedDestinations: providedDestinations,
+          isReading: isReading, interactive: true
         ) { code in
           selectCountry(code)
           expanded = false
@@ -160,6 +180,7 @@ struct ConnectionMapSurface: View {
   let observedRecords: [ObservedConnection]
   let countries: [String: String]
   var locations: [String: NetworkIPLocation] = [:]
+  var providedDestinations: [NetworkMapDestination]? = nil
   let isReading: Bool
   var interactive = false
   var initialViewport = NetworkMapViewport()
@@ -180,9 +201,11 @@ struct ConnectionMapSurface: View {
   private var pulseDuration: TimeInterval { DS.Motion.selectionDuration * 3 }
 
   var body: some View {
-    let destinations = NetworkMapDestination.make(
-      world: world, records: records, countries: countries, locations: locations,
-      limit: interactive ? 64 : 12)
+    let destinations =
+      providedDestinations.map { Array($0.prefix(interactive ? 64 : 12)) }
+      ?? NetworkMapDestination.make(
+        world: world, records: records, countries: countries, locations: locations,
+        limit: interactive ? 64 : 12)
     GeometryReader { geometry in
       let size = geometry.size
       let transform = viewport.zoomed(by: magnification, anchor: magnifyAnchor, in: size)

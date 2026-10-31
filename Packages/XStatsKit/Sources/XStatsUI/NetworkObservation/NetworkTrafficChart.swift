@@ -60,26 +60,33 @@ struct NetworkTrafficChart: View {
   let available: Bool
   let matching: (ObservedConnection) -> Bool
   var providedPoints: [NetworkTrafficPoint]? = nil
-  @State private var interval: TimeInterval = 300
+  var interval: TimeInterval = 300
+  var summarizesHistory = false
 
   var body: some View {
+    let points =
+      providedPoints.map { NetworkTrafficChartSample.window($0, interval: interval) }
+      ?? history.points(interval: interval, matching: matching)
+    let samples = NetworkTrafficChartSample.make(points: points)
     VStack(alignment: .leading, spacing: DS.Space.s2) {
       HStack(spacing: DS.Space.s2) {
         Text(tr("流量走势")).dsFont(.sm, weight: .semibold)
         Spacer(minLength: DS.Space.s1)
-        if available {
-          Picker(tr("时间范围"), selection: $interval) {
-            Text(tr("1 分钟")).tag(TimeInterval(60))
-            Text(tr("5 分钟")).tag(TimeInterval(300))
-            Text(tr("15 分钟")).tag(TimeInterval(900))
-          }.pickerStyle(.segmented).labelsHidden().fixedSize()
-        }
+        Text(summarizesHistory ? tr("时段累计") : tr("最近 1 分钟"))
+          .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       }
       if available {
-        let points =
-          providedPoints.map { NetworkTrafficChartSample.window($0, interval: interval) }
-          ?? history.points(interval: interval, matching: matching)
-        let samples = NetworkTrafficChartSample.make(points: points)
+        HStack(spacing: DS.Space.s4) {
+          ForEach(NetworkTrafficChartSample.Direction.allCases, id: \.self) { direction in
+            HStack(spacing: DS.Space.s2) {
+              Circle()
+                .fill(direction == .received ? DS.Palette.primary : DS.Palette.success)
+                .frame(width: 6, height: 6).accessibilityHidden(true)
+              Text(direction.title).foregroundStyle(DS.Palette.textSecondary)
+              Text(verbatim: summary(points: points, direction: direction)).monospacedDigit()
+            }
+          }
+        }.dsFont(.sm)
         if samples.isEmpty {
           Text(tr("暂无流量数据")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
             .frame(maxWidth: .infinity, minHeight: 72)
@@ -92,6 +99,25 @@ struct NetworkTrafficChart: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
+  }
+
+  private func summary(
+    points: [NetworkTrafficPoint], direction: NetworkTrafficChartSample.Direction
+  )
+    -> String
+  {
+    let rates = points.map {
+      direction == .received ? $0.receivedBytesPerSecond : $0.sentBytesPerSecond
+    }
+    let value: Double?
+    if summarizesHistory {
+      let known = rates.compactMap { $0 }.filter { $0.isFinite && $0 >= 0 }
+      value = known.isEmpty ? nil : known.reduce(0, +) * 5
+    } else {
+      value = rates.last ?? nil
+    }
+    guard let value, value.isFinite, value >= 0 else { return "—" }
+    return Format.bytes(value) + (summarizesHistory ? "" : "/s")
   }
 
   private func chart(samples: [NetworkTrafficChartSample], points: [NetworkTrafficPoint])
@@ -123,7 +149,7 @@ struct NetworkTrafficChart: View {
       domain: [tr("下行"), tr("上行")],
       range: [DS.Palette.primary, DS.Palette.success]
     )
-    .chartLegend(position: .top, alignment: .leading, spacing: DS.Space.s1)
+    .chartLegend(.hidden)
     .chartXScale(domain: end.addingTimeInterval(-interval)...end)
     .chartYScale(domain: .automatic(includesZero: true))
     .chartXAxis {

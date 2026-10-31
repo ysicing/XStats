@@ -764,17 +764,25 @@ enum SnapshotRenderer {
         "/System/Applications/Mail.app/Contents/MacOS/Mail", "203.0.113.30", "mail.example.invalid",
         993, .tcp
       ),
+      (
+        "/System/Applications/Mail.app/Contents/MacOS/Mail", "203.0.113.31",
+        "tw.example.invalid", 443, .tcp
+      ),
+      (
+        "/System/Applications/Mail.app/Contents/MacOS/Mail", "203.0.113.32",
+        "mo.example.invalid", 443, .tcp
+      ),
       ("/usr/bin/z-demo-process", nil, nil, 443, .tcp),
     ]
+    let now = Date()
     let previewRecords = demo.enumerated().map { index, value in
       ObservedConnection(
         id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", index + 1))!,
-        timestamp: Date(timeIntervalSince1970: 1_791_244_800 - Double(index * 5)),
+        timestamp: now.addingTimeInterval(-Double(index * 5)),
         processID: Int32(100 + index), executablePath: value.0,
         address: value.1, hostname: value.2, port: value.3, transport: value.4,
         direction: .outbound)
     }
-    let now = Date()
     var trafficSnapshots: [ConnectionTrafficSnapshot] = []
     for (index, record) in previewRecords.enumerated() {
       var received: UInt64 = 0
@@ -794,11 +802,31 @@ enum SnapshotRenderer {
     // 文档地址及归属地均为演示值；截图不发送连接数据，也不访问地理数据库下载入口。
     model.connectionMonitor.previewCountries = [
       "192.0.2.10": "CN", "2001:db8::10": "US", "198.51.100.20": "CN", "203.0.113.30": "HK",
+      "203.0.113.31": "TW", "203.0.113.32": "MO",
     ]
     model.connectionMonitor.previewLocations = [
       "192.0.2.10": NetworkIPLocation.parse("中国|浙江省|杭州市|阿里|CN"),
       "198.51.100.20": NetworkIPLocation.parse("中国|广东省|\u{6df1}\u{5733}市|电信|CN"),
     ].compactMapValues { $0 }
+    let originalLanguage = L10n.language
+    for language: AppLanguage in [.german, .arabic] {
+      L10n.configure(language)
+      settings.language = language
+      if let appearance = NSAppearance(named: .aqua) {
+        NSApp.appearance = appearance
+        write(
+          NetworkConnectionsPage(
+            mode: .history, grouping: .country,
+            expandedRegions: ["CN", "CN|浙江"]
+          )
+          .frame(width: 900).background(DS.Palette.background).appLanguageEnvironment(),
+          model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent(
+            "connections-history-\(language.languageCode).png"))
+      }
+    }
+    L10n.configure(originalLanguage)
+    settings.language = originalLanguage
     for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
       guard let appearance = NSAppearance(named: name) else { continue }
       NSApp.appearance = appearance
@@ -810,6 +838,17 @@ enum SnapshotRenderer {
         NetworkConnectionsPage().frame(width: 900).background(DS.Palette.background)
           .appLanguageEnvironment(), model: model, appearance: appearance,
         to: outputDirectory.appendingPathComponent("connections-page-wide-\(suffix).png"))
+      for expanded: Bool in [false, true] {
+        write(
+          NetworkConnectionsPage(
+            mode: .history, grouping: .country,
+            expandedRegions: expanded ? ["CN", "CN|浙江", "CN|广东"] : []
+          )
+          .frame(width: 900).background(DS.Palette.background).appLanguageEnvironment(),
+          model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent(
+            "connections-history-regions-\(expanded ? "expanded" : "collapsed")-\(suffix).png"))
+      }
       for scale: CGFloat in [1, 3] {
         write(
           VStack(alignment: .leading, spacing: DS.Space.s3) {

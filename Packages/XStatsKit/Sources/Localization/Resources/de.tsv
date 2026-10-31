@@ -1683,7 +1683,8 @@ XStats 网络连接查看	XStats Netzwerkverbindungsanzeige
 请在系统设置中允许 XStats 网络扩展，然后返回此处。	Erlauben Sie die XStats-Netzwerkerweiterung in den Systemeinstellungen und kehren Sie dann zurück.
 错误详情	Fehlerdetails
 正在监视	Überwachung aktiv
-内网或位置未知	Lokales Netzwerk oder unbekannter Standort
+内网地址	Lokale Netzwerkadresse
+位置未知	Unbekannter Standort
 网络扩展需要更新，请重新启用连接查看。	Die Netzwerkerweiterung muss aktualisiert werden. Aktivieren Sie die Verbindungsansicht erneut.
 更新地图数据库	Kartendatenbank aktualisieren
 正在更新地图数据库…	Kartendatenbank wird aktualisiert…
@@ -2629,3 +2630,15 @@ AI 功能需要安装并运行 Magpie。	Für die AI-Funktionen muss Magpie inst
 连接地区分布	Verbindungsregionen
 近期连接地区分布	Regionen letzter Verbindungen
 按城市、省份或国家聚合，非设备精确位置	Nach Stadt, Provinz oder Land gruppiert; kein genauer Gerätestandort
+实时	Live
+查看方式	Ansicht
+停止采集	Erfassung stoppen
+开始采集	Erfassung starten
+采集已停止	Erfassung gestoppt
+查看历史	Verlauf anzeigen
+中国大陆	Festlandchina
+已结束	Beendet
+未记录结束	Kein Ende erfasst
+时段累计	Summe im Zeitraum
+最近 1 分钟	Letzte Minute
+仅保留最近 15 分钟的观察记录；过期数据会自动清理。	Nur Beobachtungen der letzten 15 Minuten bleiben erhalten. Ältere Daten werden automatisch gelöscht.

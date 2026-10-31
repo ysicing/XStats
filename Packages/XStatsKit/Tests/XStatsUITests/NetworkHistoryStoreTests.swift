@@ -8,6 +8,32 @@ import Testing
 @testable import XStatsUI
 
 struct NetworkHistoryStoreTests {
+  @Test func mainlandAndTaiwanHongKongMacaoHaveIndependentHistoryGroups() async throws {
+    let store = NetworkHistoryStore()
+    let codes = ["CN", "TW", "HK", "MO"]
+    let flows = codes.indices.map { record($0) }
+    try await store.ingest(
+      batch(
+        flows.enumerated().map {
+          event($0.element, sequence: Int64($0.offset + 1), seconds: 0, received: 0)
+        }, epoch: "peer-regions"),
+      session: UUID(), sessionStartedAt: start, observedAt: start)
+    try await store.updateCountries(
+      Dictionary(uniqueKeysWithValues: zip(flows.compactMap(\.address), codes)))
+    let view = try await store.view(
+      filter: .init(grouping: "country"), activeOnly: false, offset: 0, now: start)
+    #expect(Set(view.groups.map(\.id)) == Set(codes))
+    #expect(view.groups.allSatisfy { $0.count == 1 && !$0.hasChildren })
+    for code in codes {
+      let selected = try await store.view(
+        filter: .init(grouping: "country", selection: code),
+        activeOnly: false, offset: 0, now: start)
+      #expect(
+        selected.total == 1 && selected.records.first?.id == flows[codes.firstIndex(of: code)!].id)
+    }
+    await store.close()
+  }
+
   @Test func schemaTwoAddsLocationMetadataWithoutLosingConnectionsOrTraffic() async throws {
     let url = temporaryURL()
     defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
@@ -70,7 +96,23 @@ struct NetworkHistoryStoreTests {
       activeOnly: false, offset: 200, now: now)
     #expect(view.total == 350 && view.records.count == 150)
     #expect(view.records.allSatisfy { $0.address == "223.5.5.5" })
-    #expect(view.groups.count == 2 && view.groups.allSatisfy { $0.count == 350 })
+    #expect(view.groups.count == 1 && view.groups.first?.id == "CN")
+    #expect(view.groups.first?.count == 700 && view.groups.first?.hasChildren == true)
+    #expect(view.regions.count == 1 && view.regions.first?.count == 350)
+    let expanded = try await store.view(
+      filter: .init(
+        grouping: "country", selection: "CN", expandedRegions: ["CN", "CN|浙江", "CN|江苏"]),
+      activeOnly: false, offset: 0, now: now)
+    #expect(expanded.total == 700 && expanded.records.count == 200)
+    #expect(expanded.groups.count == 5)
+    #expect(expanded.groups.filter { $0.id != "CN" }.allSatisfy { $0.count == 350 })
+    #expect(expanded.regions.count == 2 && expanded.regions.reduce(0) { $0 + $1.count } == 700)
+    #expect(integral(expanded.points) == 70_000)
+    let province = try await store.view(
+      filter: .init(grouping: "country", selection: "CN|浙江"), activeOnly: false, offset: 0, now: now
+    )
+    #expect(province.total == 350 && integral(province.points) == 35_000)
+    #expect(province.locations["223.5.5.5"] == locations["223.5.5.5"])
     #expect(view.locations.count == 1)
     #expect(integral(view.points) == 35_000)
     let expired = try await store.view(
@@ -81,6 +123,118 @@ struct NetworkHistoryStoreTests {
     try await store.updateLocations(locations, version: IPRegionDatabase.version)
     #expect(try await store.pendingLocationAddresses(version: "next").isEmpty)
   }
+  @Test func localAndUnknownHistoryGroupsKeepTheirRecordsAndTrafficSeparate() async throws {
+    let store = NetworkHistoryStore()
+    var local = record()
+    var unknown = record(1)
+    local.address = "192.168.31.80"
+    unknown.address = "8.8.8.8"
+    try await store.ingest(
+      batch(
+        [
+          event(local, sequence: 1, seconds: 0, received: 0),
+          event(unknown, sequence: 2, seconds: 0, received: 0),
+          event(local, sequence: 3, seconds: 5, received: 5000),
+          event(unknown, sequence: 4, seconds: 5, received: 10_000),
+        ], epoch: UUID().uuidString),
+      session: UUID(), sessionStartedAt: start, observedAt: start.addingTimeInterval(5))
+    for countries in [[:], ["192.168.31.80": "??", "8.8.8.8": "??"]] {
+      try await store.updateCountries(countries)
+      let view = try await store.view(
+        filter: .init(grouping: "country"), activeOnly: false, offset: 0,
+        now: start.addingTimeInterval(5))
+      #expect(view.groups.count == 2)
+      for (flow, expectedBytes) in [(local, 5000.0), (unknown, 10_000.0)] {
+        let key = ConnectionGrouping.country.identifier(for: flow, countries: countries)
+        let selected = try await store.view(
+          filter: .init(grouping: "country", selection: key), activeOnly: false, offset: 0,
+          now: start.addingTimeInterval(5))
+        #expect(selected.records.map(\.id) == [flow.id])
+        #expect(abs(integral(selected.points) - expectedBytes) < 0.01)
+      }
+    }
+    await store.close()
+  }
+
+  @Test func historyCutoffAndIntervalStayIndependentOfLiveCapture() async throws {
+    let store = NetworkHistoryStore()
+    let session = UUID()
+    let old = record()
+    let recent = record(1, at: start.addingTimeInterval(400))
+    let active = record(2)
+    try await store.ingest(
+      batch(
+        [
+          event(old, sequence: 1, seconds: 0, received: 0),
+          event(active, sequence: 2, seconds: 0, received: 0),
+          event(old, sequence: 3, seconds: 5, received: 100, closed: true),
+          event(recent, sequence: 4, seconds: 400, received: 0),
+          event(recent, sequence: 5, seconds: 410, received: 200, closed: true),
+        ], epoch: "cutoff"), session: session, sessionStartedAt: start,
+      observedAt: start.addingTimeInterval(410))
+    let first = try await store.view(
+      filter: .init(interval: 300, end: start.addingTimeInterval(300)),
+      activeOnly: false, offset: 0, now: start.addingTimeInterval(410))
+    #expect(Set(first.records.map(\.id)) == [old.id, active.id])
+    #expect(first.points.count == 60 && integral(first.points) == 100)
+    #expect(first.points.last?.date == start.addingTimeInterval(300))
+    let next = try await store.view(
+      filter: .init(interval: 300, end: start.addingTimeInterval(600)),
+      activeOnly: false, offset: 0, now: start.addingTimeInterval(610))
+    #expect(next.records.map(\.id) == [recent.id])
+    #expect(integral(next.points) == 200)
+    let live = try await store.view(
+      filter: .init(interval: 60), activeOnly: true, offset: 0,
+      now: start.addingTimeInterval(410))
+    #expect(live.records.map(\.id) == [active.id])
+    #expect(live.points.count == 12)
+    let expired = try await store.view(
+      filter: .init(interval: 300, end: start.addingTimeInterval(300)),
+      activeOnly: false, offset: 0, now: start.addingTimeInterval(1300))
+    #expect(expired.total == 0 && expired.points.allSatisfy { $0.receivedBytesPerSecond == nil })
+    await store.close()
+  }
+
+  @Test func historicalClosureIsEvaluatedAtTheCutoff() async throws {
+    let store = NetworkHistoryStore()
+    let flow = record()
+    try await store.ingest(
+      batch(
+        [
+          event(flow, sequence: 1, seconds: 0, received: 0),
+          event(flow, sequence: 2, seconds: 10, received: 100, closed: true),
+        ], epoch: "closure"), session: UUID(), sessionStartedAt: start,
+      observedAt: start.addingTimeInterval(10))
+    let before = try await store.view(
+      filter: .init(end: start.addingTimeInterval(5)),
+      activeOnly: false, offset: 0, now: start.addingTimeInterval(10))
+    #expect(before.records.count == 1 && before.records.first?.closedAt == nil)
+    let after = try await store.view(
+      filter: .init(end: start.addingTimeInterval(10)),
+      activeOnly: false, offset: 0, now: start.addingTimeInterval(10))
+    #expect(after.records.first?.closedAt == start.addingTimeInterval(10))
+    await store.close()
+  }
+
+  @Test func retiringAnObservationSessionDoesNotClaimTheConnectionEnded() async throws {
+    let store = NetworkHistoryStore()
+    let flow = record()
+    try await store.ingest(
+      batch([event(flow, sequence: 1, seconds: 0, received: 0)], epoch: "retirement"),
+      session: UUID(), sessionStartedAt: start, observedAt: start)
+    let nextStart = start.addingTimeInterval(10)
+    try await store.ingest(
+      batch([], epoch: "retirement"), session: UUID(), sessionStartedAt: nextStart,
+      observedAt: nextStart)
+    let history = try await store.view(
+      filter: .init(end: nextStart), activeOnly: false, offset: 0, now: nextStart)
+    #expect(history.total == 1 && history.records.first?.closedAt == nil)
+    let live = try await store.view(
+      filter: .init(), activeOnly: true, offset: 0, now: nextStart)
+    #expect(live.total == 0)
+    await store.close()
+  }
+
   // 对齐 5 秒边界：在 start+900 查询，窗口准确覆盖 [start,start+900)。
   private let start = Date(timeIntervalSince1970: 50_000)
 
@@ -181,7 +335,7 @@ struct NetworkHistoryStoreTests {
     #expect(integral(first.points, received: false) == Double(1024 * 450_000))
     #expect(integral(second.points) == integral(first.points))
     let editor = try await store.view(
-      filter: .init(selection: "/Applications/Editor.app"), activeOnly: true, offset: 400, now: now)
+      filter: .init(selection: "name:Editor"), activeOnly: true, offset: 400, now: now)
     #expect(editor.total == 512)
     #expect(editor.records.count == 112)
     #expect(editor.points.first?.receivedBytesPerSecond == 512_000)
@@ -237,7 +391,7 @@ struct NetworkHistoryStoreTests {
       let viewMilliseconds = milliseconds(viewStarted.duration(to: clock.now))
       let applicationViewStarted = clock.now
       let application = try await store.view(
-        filter: .init(selection: "/Applications/Editor.app"), activeOnly: false, offset: 0,
+        filter: .init(selection: "name:Editor"), activeOnly: false, offset: 0,
         now: start.addingTimeInterval(900))
       let applicationViewMilliseconds = milliseconds(applicationViewStarted.duration(to: clock.now))
       // 诊断计数放在计时窗口外，不以全表 COUNT 污染写入和 view 耗时。
@@ -312,7 +466,7 @@ struct NetworkHistoryStoreTests {
         observedAt: start.addingTimeInterval(895))
     }
     let view = try await store.view(
-      filter: .init(selection: "/Applications/Browser.app"), activeOnly: false, offset: 800,
+      filter: .init(selection: "name:Browser"), activeOnly: false, offset: 800,
       now: start.addingTimeInterval(895))
     #expect(view.total == 1024)
     #expect(view.records.count == 200)
@@ -692,7 +846,7 @@ struct NetworkHistoryStoreTests {
     let searched = try await store.view(
       filter: .init(search: "aPP599"), activeOnly: false, offset: 0, now: start)
     #expect(searched.total == 1)
-    #expect(searched.groups.first?.id == "/Applications/App599.app")
+    #expect(searched.groups.first?.id == "name:App599")
     let process = try await store.view(
       filter: .init(
         grouping: "process", selection: "\(flows[599].executablePath)#\(flows[599].processID)"),
@@ -735,6 +889,93 @@ struct NetworkHistoryStoreTests {
     await store.close()
   }
 
+  @Test func sameNamedExecutablesMergeHistoryAndTrafficAcrossInstallations() async throws {
+    let url = temporaryURL()
+    defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+    let store = NetworkHistoryStore(url: url)
+    var first = record()
+    var second = record(1)
+    first.executablePath = "/opt/tools/codex"
+    second.executablePath = "/Users/example/.vscode/bin/codex"
+    try await store.ingest(
+      batch(
+        [
+          event(first, sequence: 1, seconds: 0, received: 0),
+          event(second, sequence: 2, seconds: 0, received: 0),
+          event(first, sequence: 3, seconds: 5, received: 5000),
+          event(second, sequence: 4, seconds: 5, received: 10_000),
+        ], epoch: UUID().uuidString),
+      session: UUID(), sessionStartedAt: start, observedAt: start.addingTimeInterval(5))
+    let saved = try await store.view(
+      filter: .init(), activeOnly: false, offset: 0, now: start.addingTimeInterval(5))
+    #expect(saved.groups.count == 1)
+    #expect(saved.groups.first?.count == 2)
+    await store.close()
+    // 模拟按完整路径分组的旧库，升级必须保留并合并原有连接和流量。
+    var external: OpaquePointer?
+    try #require(sqlite3_open(url.path, &external) == SQLITE_OK)
+    let status = sqlite3_exec(
+      external, "UPDATE connections SET app_key=path; PRAGMA user_version=3", nil, nil, nil)
+    sqlite3_close(external)
+    try #require(status == SQLITE_OK)
+
+    let reopened = NetworkHistoryStore(url: url)
+    let now = start.addingTimeInterval(5)
+    let view = try await reopened.view(filter: .init(), activeOnly: false, offset: 0, now: now)
+    #expect(view.groups.count == 1)
+    let group = try #require(view.groups.first)
+    #expect(group.name == "codex")
+    #expect(group.count == 2)
+    for search in ["", "codex"] {
+      let selected = try await reopened.view(
+        filter: .init(selection: group.id, search: search),
+        activeOnly: false, offset: 0, now: now)
+      #expect(Set(selected.records.map(\.id)) == [first.id, second.id])
+      #expect(abs(integral(selected.points) - 15_000) < 0.01)
+      #expect(abs(integral(selected.points, received: false) - 7500) < 0.01)
+    }
+    let processes = try await reopened.view(
+      filter: .init(grouping: "process"), activeOnly: false, offset: 0, now: now)
+    #expect(processes.groups.count == 2)
+    let selectedProcess = try await reopened.view(
+      filter: .init(grouping: "process", selection: "\(first.executablePath)#\(first.processID)"),
+      activeOnly: false, offset: 0, now: now)
+    #expect(selectedProcess.total == 1)
+    #expect(abs(integral(selectedProcess.points) - 5000) < 0.01)
+    await reopened.close()
+  }
+
+  @Test func versionedToolNamesResolveInPreviouslySavedHistory() async throws {
+    let url = temporaryURL()
+    defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+    let store = NetworkHistoryStore(url: url)
+    var flow = record()
+    flow.executablePath = "/Users/example/.local/share/claude/versions/2.1.314"
+    try await store.ingest(
+      batch([event(flow, sequence: 1, seconds: 0, received: 0)], epoch: UUID().uuidString),
+      session: UUID(), sessionStartedAt: start, observedAt: start)
+    await store.close()
+    var external: OpaquePointer?
+    try #require(sqlite3_open(url.path, &external) == SQLITE_OK)
+    let status = sqlite3_exec(
+      external, "UPDATE connections SET name='2.1.314',app_key=path; PRAGMA user_version=3", nil,
+      nil, nil)
+    sqlite3_close(external)
+    try #require(status == SQLITE_OK)
+
+    let reopened = NetworkHistoryStore(url: url)
+    for grouping in ["apps", "process"] {
+      let view = try await reopened.view(
+        filter: .init(grouping: grouping, search: "claude"),
+        activeOnly: false, offset: 0, now: start)
+      #expect(view.total == 1)
+      #expect(view.groups.first?.name == "claude")
+      #expect(view.records.first?.applicationName == "claude")
+      #expect(view.groups.first?.applicationPath == nil)
+    }
+    await reopened.close()
+  }
+
   @Test func unsearchedTrafficFastPathsMatchMetadataSearchFallback() async throws {
     let store = NetworkHistoryStore()
     let epoch = UUID().uuidString
@@ -752,7 +993,7 @@ struct NetworkHistoryStoreTests {
       session: session, sessionStartedAt: start, observedAt: start.addingTimeInterval(5))
     for filter in [
       NetworkHistoryFilter(),
-      NetworkHistoryFilter(selection: "/Applications/Editor.app"),
+      NetworkHistoryFilter(selection: "name:Editor"),
       NetworkHistoryFilter(
         grouping: "process", selection: "\(editor.executablePath)#\(editor.processID)"),
     ] {
@@ -1170,7 +1411,7 @@ struct NetworkHistoryStoreTests {
       filter: .init(), activeOnly: false, offset: 0, now: start.addingTimeInterval(5))
     #expect(integral(result.points) == 5000)
     let filtered = try await store.view(
-      filter: .init(selection: "/Applications/Browser.app"), activeOnly: false, offset: 0,
+      filter: .init(selection: "name:Browser"), activeOnly: false, offset: 0,
       now: start.addingTimeInterval(5))
     #expect(integral(filtered.points) == integral(result.points))
     _ = try await store.view(

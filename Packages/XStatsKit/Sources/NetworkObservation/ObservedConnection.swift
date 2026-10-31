@@ -85,11 +85,44 @@ public struct ObservedConnection: Codable, Sendable, Equatable, Identifiable {
 
   /// 只去掉 .app 后缀；裸可执行文件名中的点属于名称本身（python3.12、node-v18.2）。
   public var applicationName: String {
-    if let applicationPath {
-      return URL(fileURLWithPath: applicationPath).deletingPathExtension().lastPathComponent
+    Self.applicationName(path: executablePath, processID: processID)
+  }
+
+  /// 应用视图合并同名程序；缺少路径的记录仍按 PID 区分。
+  public var applicationGroupKey: String {
+    Self.applicationGroupKey(path: executablePath, processID: processID)
+  }
+
+  /// 实时分组和 SQLite 旧数据迁移共用同一身份规则。
+  public static func applicationGroupKey(path: String, processID: Int32) -> String {
+    path.isEmpty ? "pid:\(processID)" : "name:\(applicationName(path: path, processID: processID))"
+  }
+
+  private static func applicationName(path: String, processID: Int32) -> String {
+    if let range = path.range(of: ".app/") {
+      return URL(fileURLWithPath: String(path[..<range.lowerBound])).lastPathComponent
     }
+    return executableName(path: path, processID: processID)
+  }
+
+  /// 从裸可执行路径解析程序名，保持实时记录和已保存历史的显示一致。
+  public static func executableName(path executablePath: String, processID: Int32) -> String {
     guard !executablePath.isEmpty else { return "PID \(processID)" }
-    return URL(fileURLWithPath: executablePath).lastPathComponent
+    let executable = URL(fileURLWithPath: executablePath)
+    let name = executable.lastPathComponent
+    let directory = executable.deletingLastPathComponent()
+    // Claude Code 等原生 CLI 使用 <工具>/versions/<版本号>，文件名不是程序名。
+    if directory.lastPathComponent == "versions" {
+      let components = name.split(separator: ".", omittingEmptySubsequences: false)
+      let toolName = directory.deletingLastPathComponent().lastPathComponent
+      if components.count == 3,
+        components.allSatisfy({ !$0.isEmpty && $0.utf8.allSatisfy { (48...57).contains($0) } }),
+        !toolName.isEmpty && toolName != "/"
+      {
+        return toolName
+      }
+    }
+    return name
   }
 }
 

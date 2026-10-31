@@ -2,12 +2,92 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import Localization
 import NetworkObservation
 import SwiftUI
 import Testing
 @testable import XStatsUI
 
 struct NetworkConnectionsPresentationTests {
+  @Test func regionHierarchyKeepsMainlandParentsSeparateFromOtherRegions() {
+    #expect(NetworkRegionHierarchy.key("CN|山东|济南", at: 0) == "CN")
+    #expect(NetworkRegionHierarchy.key("CN|山东|济南", at: 1) == "CN|山东")
+    #expect(NetworkRegionHierarchy.key("CN|北京|北京", at: 2) == nil)
+    #expect(NetworkRegionHierarchy.key("CN|山东|", at: 2) == nil)
+    #expect(NetworkRegionHierarchy.key("US", at: 1) == nil)
+    #expect(NetworkRegionHierarchy.matches("CN|山东|济南", selection: "CN"))
+    #expect(NetworkRegionHierarchy.matches("CN|山东|济南", selection: "CN|山东"))
+    #expect(!NetworkRegionHierarchy.matches("CN|山东|济南", selection: "CN|山"))
+    #expect(!NetworkRegionHierarchy.matches("TW", selection: "CN"))
+    #expect(!NetworkRegionHierarchy.matches("??", selection: "LAN"))
+  }
+
+  @Test(arguments: [("CN", "中国大陆"), ("TW", "中国台湾"), ("HK", "中国香港"), ("MO", "中国澳门")])
+  func chinaRegionsRemainPeers(_ region: (String, String)) {
+    let (code, title) = region
+    #expect(NetworkRegionHierarchy.key(code, at: 0) == code)
+    #expect(NetworkRegionHierarchy.key(code, at: 1) == nil)
+    #expect(NetworkRegionHierarchy.depth(code) == 0)
+    #expect(networkRegionName(code) == tr(title))
+    if code != "CN" {
+      #expect(!NetworkRegionHierarchy.matches(code, selection: "CN"))
+    }
+  }
+
+  @Test func historicalCutoffUsesCompletedBuckets() {
+    #expect(
+      NetworkConnectionMode.historyEnd(at: Date(timeIntervalSince1970: 103))
+        == Date(timeIntervalSince1970: 100))
+  }
+
+  @Test func unknownLocationDoesNotClaimToBeALocalAddress() {
+    #expect(networkRegionName("??") == tr("位置未知"))
+  }
+
+  @Test(arguments: [
+    "192.168.31.80", "10.0.0.1", "172.16.0.1", "172.31.255.255",
+    "100.64.0.1", "100.127.255.255", "127.0.0.1", "169.254.1.2",
+    "::1", "fc00::1", "fd12::1", "fe80::1", "febf::1", "fe80::1%en0",
+    "::ffff:192.168.31.80",
+  ])
+  func localAddressesHaveTheirOwnLocationLabel(_ address: String) {
+    #expect(OfflineGeography.isLocalAddress(address))
+    #expect(networkRegionName("??", address: address) == tr("内网地址"))
+  }
+
+  @Test(arguments: [
+    "", "invalid", "8.8.8.8", "172.15.255.255", "172.32.0.1",
+    "100.63.255.255", "100.128.0.1", "192.0.2.1", "198.51.100.1", "203.0.113.1",
+    "2001:db8::1", "2606:4700:4700::1111", "::ffff:8.8.8.8", "::",
+  ])
+  func unknownAddressesAreNotMislabeledAsLocal(_ address: String) {
+    #expect(!OfflineGeography.isLocalAddress(address))
+    #expect(networkRegionName("??", address: address) == tr("位置未知"))
+  }
+
+  @Test func knownLocationsKeepTheirRegionLabel() {
+    #expect(
+      networkRegionName("CN|浙江|杭州", address: "8.8.8.8")
+        == networkRegionName("CN|浙江|杭州"))
+  }
+
+  @Test func localAndUnknownRegionFiltersRemainSeparateBeforeAndAfterLookup() {
+    var local = record(0, at: 100)
+    var unknown = record(1, at: 101)
+    local.address = "192.168.31.80"
+    unknown.address = "8.8.8.8"
+    for countries in [[:], ["192.168.31.80": "??", "8.8.8.8": "??"]] {
+      let localKey = ConnectionGrouping.country.identifier(for: local, countries: countries)
+      let unknownKey = ConnectionGrouping.country.identifier(for: unknown, countries: countries)
+      #expect(localKey != unknownKey)
+      #expect(networkRegionName(localKey) == tr("内网地址"))
+      #expect(networkRegionName(unknownKey) == tr("位置未知"))
+      let filter = NetworkConnectionFilter(
+        grouping: .country, selection: localKey, query: "", countries: countries)
+      #expect(filter.matches(local) && !filter.matches(unknown))
+    }
+  }
+
   @Test func mapIncludesTaiwanInChinaHighlightWithoutChangingConnectionRegions() async throws {
     let world = await OfflineGeography().world()
     let mainland = try #require(world.first { $0.code == "CN" })
@@ -280,11 +360,30 @@ struct NetworkConnectionsPresentationTests {
     #expect(!unmatchedSearch.matches(ended))
   }
 
+  @Test func sameNamedExecutablesMergeAcrossInstallationsAndKeepProcessFiltersSeparate() {
+    var first = record(0, at: 100)
+    var second = record(1, at: 101)
+    first.executablePath = "/opt/tools/codex"
+    second.executablePath = "/Users/example/.vscode/bin/codex"
+    let groups = NetworkConnectionGroup.make(records: [first, second], query: "")
+    #expect(groups.count == 1)
+    #expect(groups.first?.name == "codex")
+    #expect(groups.first?.count == 2)
+    let application = NetworkConnectionFilter(
+      grouping: .apps, selection: groups.first?.id, query: "", countries: [:])
+    #expect(application.matches(first) && application.matches(second))
+    #expect(
+      ConnectionGrouping.process.identifier(for: first, countries: [:])
+        != ConnectionGrouping.process.identifier(for: second, countries: [:]))
+    #expect(
+      NetworkConnectionGroup.make(records: [first, second], query: ".vscode").first?.count == 1)
+  }
+
   @Test func applicationFilterIncludesSiblingProcessesButProcessFilterDoesNot() {
     let first = record(0, at: 100)
     let second = record(1, at: 101)
     let application = NetworkConnectionFilter(
-      grouping: .apps, selection: first.applicationPath, query: "", countries: [:])
+      grouping: .apps, selection: first.applicationGroupKey, query: "", countries: [:])
     let process = NetworkConnectionFilter(
       grouping: .process,
       selection: ConnectionGrouping.process.identifier(for: first, countries: [:]),

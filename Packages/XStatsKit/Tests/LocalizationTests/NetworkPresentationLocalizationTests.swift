@@ -5,8 +5,21 @@ import Testing
 @testable import Localization
 
 struct NetworkPresentationLocalizationTests {
+  @Test func monitoringModesHaveExplicitTranslations() throws {
+    let keys = [
+      "实时", "查看方式", "停止采集", "开始采集", "采集已停止", "查看历史", "中国大陆", "已结束", "未记录结束", "时段累计", "最近 1 分钟",
+      "仅保留最近 15 分钟的观察记录；过期数据会自动清理。",
+    ]
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for key in keys {
+        #expect(table.sourceKeys.contains(key), "\(language): \(key)")
+        #expect(table.translate(key)?.isEmpty == false, "\(language): \(key)")
+      }
+    }
+  }
   @Test func cityMapLabelsHaveExplicitTranslations() throws {
-    let keys = ["地区", "连接地区分布", "近期连接地区分布", "按城市、省份或国家聚合，非设备精确位置"]
+    let keys = ["地区", "连接地区分布", "近期连接地区分布", "按城市、省份或国家聚合，非设备精确位置", "内网地址", "位置未知"]
     for language in AppLanguage.allCases where language != .system && language != .chinese {
       let table = try #require(Translations.catalog(for: language))
       for key in keys {

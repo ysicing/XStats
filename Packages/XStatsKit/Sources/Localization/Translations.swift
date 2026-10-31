@@ -344,6 +344,18 @@ extension Translations {
     国家或地域分布	Country or region distribution
     按国家或地域定位，非设备精确位置	Country or region location, not a precise device location
     查看应用连接、域名和国家或地域分布，不读取通信内容。	View app connections, domains and countries or regions without reading communication content.
+    实时	Live
+    查看方式	View mode
+    停止采集	Stop capture
+    开始采集	Start capture
+    采集已停止	Capture stopped
+    查看历史	View history
+    中国大陆	Mainland China
+    已结束	Ended
+    未记录结束	No end recorded
+    时段累计	Period total
+    最近 1 分钟	Last minute
+    仅保留最近 15 分钟的观察记录；过期数据会自动清理。	Only the last 15 minutes of observed records are retained. Expired data is cleared automatically.
     中国香港	Hong Kong, China
     中国澳门	Macao, China
     中国台湾	Taiwan, China
@@ -370,7 +382,8 @@ extension Translations {
     请在系统设置中允许 XStats 网络扩展，然后返回此处。	Allow the XStats network extension in System Settings, then return here.
     错误详情	Error details
     正在监视	Monitoring
-    内网或位置未知	Local network or unknown location
+    内网地址	Local network address
+    位置未知	Unknown location
     需要 macOS 15 或更新版本	Requires macOS 15 or later
     出站	Outbound
     入站	Inbound

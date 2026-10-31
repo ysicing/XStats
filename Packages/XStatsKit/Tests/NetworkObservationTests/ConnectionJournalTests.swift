@@ -153,12 +153,28 @@ struct ConnectionJournalTests {
       ),
       ("/opt/homebrew/bin/python3.12", "python3.12"),
       ("/usr/local/bin/node-v18.2", "node-v18.2"),
+      ("/usr/local/bin/2.1.314", "2.1.314"),
+      ("/tmp/tool/versions/worker", "worker"),
+      ("/Applications/2.1.314.app/Contents/MacOS/worker", "2.1.314"),
       ("", "PID 42"),
     ]
     for (path, expected) in cases {
       var record = event(0)
       record.executablePath = path
       #expect(record.applicationName == expected, "路径：\(path)")
+    }
+  }
+
+  @Test func applicationNameUsesToolNameForVersionedInstallations() {
+    let cases = [
+      ("/Users/example/.local/share/claude/versions/2.1.314", "claude"),
+      ("/Users/example/.local/share/tool/versions/1.2.3", "tool"),
+    ]
+    for (path, expected) in cases {
+      var record = event(0)
+      record.executablePath = path
+      #expect(record.applicationName == expected)
+      #expect(record.applicationPath == nil)
     }
   }
 

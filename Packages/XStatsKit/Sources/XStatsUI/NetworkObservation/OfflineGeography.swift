@@ -211,6 +211,38 @@ actor OfflineGeography {
     return find(bytes, data: v6 ?? Data())
   }
 
+  /// 未定位地址的展示和筛选共用同一分类，不依赖地图库是否已完成查询。
+  static func regionKey(address: String?, country: String? = nil) -> String {
+    if let country, country != "??" { return country }
+    return address.map(isLocalAddress) == true ? "LAN" : "??"
+  }
+
+  /// 显示用的内网分类比不可定位范围更窄，文档、保留及无效地址不能误标为内网。
+  static func isLocalAddress(_ address: String) -> Bool {
+    var ipv4 = in_addr()
+    let bytes: [UInt8]
+    if inet_pton(AF_INET, address, &ipv4) == 1 {
+      bytes = withUnsafeBytes(of: ipv4) { Array($0) }
+    } else {
+      var ipv6 = in6_addr()
+      let literal = String(address.prefix { $0 != "%" })
+      guard inet_pton(AF_INET6, literal, &ipv6) == 1 else { return false }
+      let octets = withUnsafeBytes(of: ipv6) { Array($0) }
+      if octets.prefix(10).allSatisfy({ $0 == 0 }), octets[10] == 255, octets[11] == 255 {
+        bytes = Array(octets.suffix(4))
+      } else {
+        return octets[0] & 0xfe == 0xfc
+          || (octets[0] == 0xfe && octets[1] & 0xc0 == 0x80)
+          || (octets.prefix(15).allSatisfy({ $0 == 0 }) && octets[15] == 1)
+      }
+    }
+    let a = bytes[0]
+    let b = bytes[1]
+    return a == 10 || a == 127 || (a == 100 && (64...127).contains(b))
+      || (a == 169 && b == 254) || (a == 172 && (16...31).contains(b))
+      || (a == 192 && b == 168)
+  }
+
   static func isLocalV4(_ bytes: [UInt8]) -> Bool {
     let a = bytes[0]
     let b = bytes[1]

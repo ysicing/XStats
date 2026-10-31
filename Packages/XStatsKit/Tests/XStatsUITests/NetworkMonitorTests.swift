@@ -609,7 +609,7 @@ import Updates
       ])
   }
 
-  @Test func sameNamedApplicationCopiesKeepStableOrderingAcrossRefreshes() {
+  @Test func sameNamedApplicationCopiesMergeWithAStableIconPathAcrossRefreshes() {
     let original = batch().events[0]
     let paths = [
       "/Applications/Z/Browser.app/Contents/MacOS/Browser",
@@ -622,9 +622,11 @@ import Updates
       record.executablePath = path
       return record
     }
-    for _ in 0..<20 {
-      let groups = NetworkConnectionGroup.make(records: records, query: "")
-      #expect(groups.map(\.id) == groups.map(\.id).sorted())
+    for input in [records, Array(records.reversed())] {
+      let groups = NetworkConnectionGroup.make(records: input, query: "")
+      #expect(groups.count == 1)
+      #expect(groups.first?.count == 3)
+      #expect(groups.first?.applicationPath == "/Applications/A/Browser.app")
     }
   }
 

@@ -12,6 +12,9 @@ struct NetworkHistoryFilter: Hashable, Sendable {
   var grouping: String = "apps"
   var selection: String? = nil
   var search: String = ""
+  var interval: TimeInterval = 900
+  var end: Date? = nil
+  var expandedRegions: Set<String> = []
 }
 
 struct NetworkHistoryGroup: Identifiable, Sendable {
@@ -20,6 +23,7 @@ struct NetworkHistoryGroup: Identifiable, Sendable {
   let applicationPath: String?
   let processID: Int32?
   let count: Int
+  var hasChildren = false
 }
 
 struct NetworkHistoryView: Sendable {
@@ -30,6 +34,13 @@ struct NetworkHistoryView: Sendable {
   /// 仅返回当前页的归属；待查询地址通过 pendingAddresses 分批读取。
   let countries: [String: String]
   var locations: [String: NetworkIPLocation] = [:]
+  var regions: [NetworkHistoryRegion] = []
+}
+
+struct NetworkHistoryRegion: Sendable {
+  let key: String
+  let count: Int
+  let latest: Date
 }
 
 /// 元数据和累计基线留在数据库；展示上限不参与历史淘汰，整个批次与游标共同提交。
@@ -252,24 +263,37 @@ actor NetworkHistoryStore {
   ) throws -> NetworkHistoryView {
     let seconds = now.timeIntervalSince1970
     guard seconds.isFinite, abs(seconds) < 1e12 else { throw Failure.invalidData }
+    let end = min(seconds, filter.end?.timeIntervalSince1970 ?? seconds)
+    guard end.isFinite, filter.interval.isFinite, filter.interval > 0 else {
+      throw Failure.invalidData
+    }
+    let interval = min(Self.retention, filter.interval)
+    // 活动连接列表沿用保留窗口；一分钟仅限定实时曲线，不能丢掉较早建立的活动流。
+    let start = max(seconds - Self.retention, end - (activeOnly ? Self.retention : interval))
     let didPrune = seconds >= nextPruneAt
     let result = try transaction {
       if didPrune { try prune(now: seconds) }
       let group = groupExpression(filter.grouping)
       let base: [Value] = [
-        .real(seconds - Self.retention), .text(filter.search),
+        .real(start), .text(filter.search),
         filter.selection.map(Value.text) ?? .null, .text(owner), .integer(activeOnly ? 1 : 0),
+        .real(end),
       ]
       let matching = """
-        c.last_seen>=?1 AND COALESCE(c.closed_at,c.retired_at,?1)>=?1 AND \(Self.searchPredicate)
+        ?1<=?6 AND c.last_seen>=?1 AND COALESCE(c.closed_at,c.retired_at,?1)>=?1
+        AND c.opened_at<=?6 AND \(Self.searchPredicate)
         """
       let active = """
         c.closed_at IS NULL AND c.retired_at IS NULL AND c.live_owner=?4
         AND c.live_session=(SELECT session FROM state WHERE singleton=1)
         AND c.epoch=(SELECT epoch FROM state WHERE singleton=1)
         """
+      let selected =
+        filter.grouping == "country"
+        ? "(?3 IS NULL OR \(group.key)=?3 OR ((?3='CN' OR SUBSTR(?3,1,3)='CN|') AND SUBSTR(\(group.key),1,LENGTH(?3)+1)=?3||'|'))"
+        : "(?3 IS NULL OR \(group.key)=?3)"
       let pagePredicate = """
-        \(matching) AND (?3 IS NULL OR \(group.key)=?3) AND (?5=0 OR (\(active)))
+        \(matching) AND \(selected) AND (?5=0 OR (\(active)))
         """
       let total = Int(
         try scalar(
@@ -282,7 +306,7 @@ actor NetworkHistoryStore {
         SELECT c.id,c.sequence,c.opened_at,c.closed_at,c.pid,c.path,c.address,c.hostname,
           c.port,c.transport,c.direction,c.last_rx,c.last_tx,c.last_at,c.country,g.location
         FROM connections c LEFT JOIN geography g ON g.address=c.address WHERE \(pagePredicate)
-        ORDER BY c.opened_at DESC,c.id,c.epoch LIMIT 200 OFFSET ?6
+        ORDER BY c.opened_at DESC,c.id,c.epoch LIMIT 200 OFFSET ?7
         """, base + [.integer(Int64(pageOffset))]
       ) { query -> (ObservedConnection, String?, NetworkIPLocation?) in
         guard let id = UUID(uuidString: text(query, 0) ?? ""),
@@ -297,7 +321,9 @@ actor NetworkHistoryStore {
             ? nil : UInt16(exactly: sqlite3_column_int(query, 8)),
           transport: transport, direction: direction)
         record.sequence = sqlite3_column_int64(query, 1)
-        record.closedAt = optionalDouble(query, 3).map(Date.init(timeIntervalSince1970:))
+        // 观察会话退休不代表收到连接关闭事件，不能将 retired_at 当作真实结束时间。
+        let closed = optionalDouble(query, 3)
+        record.closedAt = closed.flatMap { $0 <= end ? Date(timeIntervalSince1970: $0) : nil }
         if let received = text(query, 11).flatMap(UInt64.init),
           let sent = text(query, 12).flatMap(UInt64.init),
           let at = optionalDouble(query, 13)
@@ -312,21 +338,71 @@ actor NetworkHistoryStore {
         return (record, text(query, 14), location)
       }
       // 活动开关只改变分组计数，保留有历史但当前为零的分组；选择不限制侧栏。
-      let groups = try rows(
+      var groups: [NetworkHistoryGroup] = []
+      if filter.grouping != "country" {
+        groups = try rows(
+          """
+          SELECT \(group.key),\(group.name),\(group.path),\(group.pid),
+            SUM(CASE WHEN ?5=0 OR (\(active)) THEN 1 ELSE 0 END),MIN(c.path)
+          FROM connections c LEFT JOIN geography g ON g.address=c.address
+          WHERE \(matching) GROUP BY \(group.key)
+          ORDER BY 2 COLLATE NOCASE,1 LIMIT 512
+          """, base
+        ) { query in
+          var name = text(query, 1) ?? "??"
+          if filter.grouping == "process",
+            text(query, 2) == nil, let path = text(query, 5), !path.isEmpty
+          {
+            // 旧记录可能存着版本号；只解析已聚合的路径，不扫描磁盘或改写历史。
+            name = ObservedConnection.executableName(path: path, processID: 0)
+          }
+          return NetworkHistoryGroup(
+            id: text(query, 0) ?? "??", name: name,
+            applicationPath: text(query, 2),
+            processID: sqlite3_column_type(query, 3) == SQLITE_NULL
+              ? nil : sqlite3_column_int(query, 3),
+            count: Int(sqlite3_column_int64(query, 4)))
+        }
+      }
+      if filter.grouping == "country" {
+        for depth in 0...2 {
+          let parents = filter.expandedRegions.filter {
+            NetworkRegionHierarchy.depth($0) == depth - 1
+          }.sorted()
+          if depth > 0 && parents.isEmpty { continue }
+          let region = "network_history_region_level(\(group.key),\(depth))"
+          let parent = "network_history_region_level(\(group.key),\(depth - 1))"
+          let placeholders = parents.indices.map { "?\($0 + 7)" }.joined(separator: ",")
+          let expanded = depth == 0 ? "1" : "\(parent) IN (\(placeholders))"
+          // 各层独立在完整记录集上汇总，父级总数不受城市数量或详情分页限制。
+          let level = try rows(
+            """
+            SELECT \(region),COUNT(*),MAX(CASE WHEN
+              network_history_region_level(\(group.key),\(depth + 1)) IS NOT NULL THEN 1 ELSE 0 END)
+            FROM connections c LEFT JOIN geography g ON g.address=c.address
+            WHERE \(matching) AND (?5=0 OR (\(active))) AND \(expanded) AND \(region) IS NOT NULL
+            GROUP BY \(region) ORDER BY 1 LIMIT 512
+            """, base + parents.map(Value.text)
+          ) { query in
+            NetworkHistoryGroup(
+              id: text(query, 0) ?? "??", name: text(query, 0) ?? "??",
+              applicationPath: nil, processID: nil, count: Int(sqlite3_column_int64(query, 1)),
+              hasChildren: sqlite3_column_int(query, 2) != 0)
+          }
+          groups += level
+        }
+      }
+      let regionKey = groupExpression("country").key
+      let regions = try rows(
         """
-        SELECT \(group.key),\(group.name),\(group.path),\(group.pid),
-          SUM(CASE WHEN ?5=0 OR (\(active)) THEN 1 ELSE 0 END)
+        SELECT \(regionKey),COUNT(*),MAX(c.opened_at)
         FROM connections c LEFT JOIN geography g ON g.address=c.address
-        WHERE \(matching) GROUP BY \(group.key)
-        ORDER BY 2 COLLATE NOCASE,1 LIMIT 512
+        WHERE \(pagePredicate) GROUP BY \(regionKey) ORDER BY 3 DESC,1 LIMIT 64
         """, base
       ) { query in
-        NetworkHistoryGroup(
-          id: text(query, 0) ?? "??", name: text(query, 1) ?? "??",
-          applicationPath: text(query, 2),
-          processID: sqlite3_column_type(query, 3) == SQLITE_NULL
-            ? nil : sqlite3_column_int(query, 3),
-          count: Int(sqlite3_column_int64(query, 4)))
+        NetworkHistoryRegion(
+          key: text(query, 0) ?? "??", count: Int(sqlite3_column_int64(query, 1)),
+          latest: Date(timeIntervalSince1970: sqlite3_column_double(query, 2)))
       }
       var countries: [String: String] = [:]
       var locations: [String: NetworkIPLocation] = [:]
@@ -336,7 +412,8 @@ actor NetworkHistoryStore {
       }
       return NetworkHistoryView(
         records: page.map(\.0), total: total, groups: groups,
-        points: try points(filter: filter, now: seconds), countries: countries, locations: locations
+        points: try points(filter: filter, now: end, earliest: seconds - Self.retention),
+        countries: countries, locations: locations, regions: regions
       )
     }
     if didPrune { nextPruneAt = seconds + (pruneHasMore ? 0 : 15) }
@@ -525,9 +602,7 @@ actor NetworkHistoryStore {
   private func save(
     _ record: ObservedConnection, epoch: String, state: State
   ) throws {
-    let key =
-      record.applicationPath
-      ?? (record.executablePath.isEmpty ? "pid:\(record.processID)" : record.executablePath)
+    let key = record.applicationGroupKey
     let evidence = (record.traffic?.timestamp ?? record.closedAt ?? record.timestamp)
       .timeIntervalSince1970
     let liveSession: Value = evidence >= state.startedAt ? .text(state.session) : .null
@@ -664,9 +739,14 @@ actor NetworkHistoryStore {
       ])
   }
 
-  private func points(filter: NetworkHistoryFilter, now: Double) throws -> [NetworkTrafficPoint] {
+  private func points(filter: NetworkHistoryFilter, now: Double, earliest: Double) throws
+    -> [NetworkTrafficPoint]
+  {
     let end = ceil(now / 5) * 5
-    let start = end - Self.retention
+    let interval = min(Self.retention, max(5, filter.interval))
+    let count = Int(ceil(interval / 5))
+    let start = end - Double(count) * 5
+    let retainedStart = max(start, ceil(earliest / 5) * 5)
     let key = groupExpression(filter.grouping).key
     let source: String
     let predicate: String
@@ -675,7 +755,7 @@ actor NetworkHistoryStore {
       // 全部走势读取独立全局桶，查询成本不随连接数量增加。
       source = "traffic_totals t"
       predicate = "t.bucket>=?1 AND t.bucket<?2"
-      parameters = [.real(start), .real(end)]
+      parameters = [.real(retainedStart), .real(end)]
     } else if filter.search.isEmpty, let selection = filter.selection,
       filter.grouping == "apps" || filter.grouping == "process"
     {
@@ -685,7 +765,7 @@ actor NetworkHistoryStore {
         t.bucket>=?1 AND t.bucket<?2 AND (t.epoch,t.id) IN (
           SELECT c.epoch,c.id FROM connections c WHERE \(key)=?3)
         """
-      parameters = [.real(start), .real(end), .text(selection)]
+      parameters = [.real(retainedStart), .real(end), .text(selection)]
     } else {
       source = """
         traffic t JOIN connections c ON c.epoch=t.epoch AND c.id=t.id
@@ -694,10 +774,11 @@ actor NetworkHistoryStore {
       predicate = """
         t.bucket>=?1 AND t.bucket<?2
         AND \(Self.searchPredicate.replacingOccurrences(of: "?2", with: "?3"))
-        AND (?4 IS NULL OR \(key)=?4)
+        AND (?4 IS NULL OR \(key)=?4
+          \(filter.grouping == "country" ? "OR ((?4='CN' OR SUBSTR(?4,1,3)='CN|') AND SUBSTR(\(key),1,LENGTH(?4)+1)=?4||'|')" : ""))
         """
       parameters = [
-        .real(start), .real(end), .text(filter.search),
+        .real(retainedStart), .real(end), .text(filter.search),
         filter.selection.map(Value.text) ?? .null,
       ]
     }
@@ -713,7 +794,7 @@ actor NetworkHistoryStore {
         sqlite3_column_double(query, 2), sqlite3_column_double(query, 3)
       )
     }
-    var points = (0..<180).map { index in
+    var points = (0..<count).map { index in
       NetworkTrafficPoint(
         date: Date(timeIntervalSince1970: start + Double(index + 1) * 5),
         receivedBytesPerSecond: nil, sentBytesPerSecond: nil, segment: 0)
@@ -749,10 +830,16 @@ actor NetworkHistoryStore {
       ("COALESCE(c.hostname,c.address,'??')", "COALESCE(c.hostname,c.address,'??')", "NULL", "NULL")
     case "country":
       (
-        "COALESCE(g.place_key,c.country,'??')", "COALESCE(g.place_key,c.country,'??')", "NULL",
+        "COALESCE(g.place_key,NULLIF(c.country,'??'),network_history_region(c.address))",
+        "COALESCE(g.place_key,NULLIF(c.country,'??'),network_history_region(c.address))", "NULL",
         "NULL"
       )
-    default: ("c.app_key", "MIN(c.name)", "MIN(c.application_path)", "NULL")
+    default:
+      (
+        "c.app_key",
+        "CASE WHEN SUBSTR(c.app_key,1,5)='name:' THEN SUBSTR(c.app_key,6) ELSE MIN(c.name) END",
+        "MIN(c.application_path)", "NULL"
+      )
     }
   }
 
@@ -902,6 +989,14 @@ actor NetworkHistoryStore {
       sqlite3_create_function_v2(
         handle, "network_history_matches", 7, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nil,
         networkHistoryMatches, nil, nil, nil))
+    try check(
+      sqlite3_create_function_v2(
+        handle, "network_history_region", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nil,
+        networkHistoryRegion, nil, nil, nil))
+    try check(
+      sqlite3_create_function_v2(
+        handle, "network_history_region_level", 2, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nil,
+        networkHistoryRegionLevel, nil, nil, nil))
     // 主库页数上限 256 MiB；WAL 另有 64 MiB 检查水位，不能把总存储声称为 256 MiB。
     try raw(
       """
@@ -914,7 +1009,7 @@ actor NetworkHistoryStore {
       PRAGMA journal_size_limit=8388608;
       """, db: db)
     let version = try scalar("PRAGMA user_version", db: db)
-    guard (0...3).contains(version) else { throw Failure.unsupportedSchema }
+    guard (0...4).contains(version) else { throw Failure.unsupportedSchema }
     let size = try scalar("PRAGMA page_size", db: db)
     guard size > 0 else { throw Failure.invalidData }
     guard try scalar("PRAGMA page_count", db: db) <= Int64(Self.maximumDatabaseBytes) / size else {
@@ -933,7 +1028,16 @@ actor NetworkHistoryStore {
             SELECT bucket,MAX(segment),SUM(rx),SUM(tx) FROM traffic GROUP BY bucket;
           """, db: db)
       }
-      try raw("PRAGMA user_version=3", db: db)
+      if version < 4 {
+        // 旧库一次性更新索引键；逐行由 SQLite 调用纯路径解析，不把历史载入内存。
+        try check(
+          sqlite3_create_function_v2(
+            handle, "network_history_app_key", 2, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nil,
+            networkHistoryApplicationKey, nil, nil, nil))
+        try raw(
+          "UPDATE connections SET app_key=network_history_app_key(path,pid)", db: db)
+      }
+      try raw("PRAGMA user_version=4", db: db)
       try raw("COMMIT", db: db)
     } catch {
       if sqlite3_get_autocommit(db.handle) == 0 {
@@ -1122,4 +1226,48 @@ private func networkHistoryMatches(
     }
   }
   sqlite3_result_int(context, 0)
+}
+
+/// 只对无归属地址进行按需分类，避免改写已有历史或依赖地图库下载状态。
+private func networkHistoryRegion(
+  _ context: OpaquePointer?, _ count: Int32, _ arguments: UnsafeMutablePointer<OpaquePointer?>?
+) {
+  guard count == 1, let arguments else {
+    sqlite3_result_error(context, "Invalid region arguments", -1)
+    return
+  }
+  let address = sqlite3_value_text(arguments[0]).map { String(cString: $0) }
+  OfflineGeography.regionKey(address: address).withCString {
+    sqlite3_result_text(context, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+  }
+}
+
+/// 仅用于升级分组索引，不读取文件或查询其他数据库。
+private func networkHistoryApplicationKey(
+  _ context: OpaquePointer?, _ count: Int32, _ arguments: UnsafeMutablePointer<OpaquePointer?>?
+) {
+  guard count == 2, let arguments, let rawPath = sqlite3_value_text(arguments[0]) else {
+    sqlite3_result_error(context, "Invalid application path", -1)
+    return
+  }
+  let key = ObservedConnection.applicationGroupKey(
+    path: String(cString: rawPath), processID: sqlite3_value_int(arguments[1]))
+  key.withCString {
+    sqlite3_result_text(context, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+  }
+}
+
+private func networkHistoryRegionLevel(
+  _ context: OpaquePointer?, _ count: Int32, _ arguments: UnsafeMutablePointer<OpaquePointer?>?
+) {
+  guard count == 2, let arguments, let raw = sqlite3_value_text(arguments[0]),
+    let key = NetworkRegionHierarchy.key(
+      String(cString: raw), at: Int(sqlite3_value_int(arguments[1])))
+  else {
+    sqlite3_result_null(context)
+    return
+  }
+  key.withCString {
+    sqlite3_result_text(context, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+  }
 }
