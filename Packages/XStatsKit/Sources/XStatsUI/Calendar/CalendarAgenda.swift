@@ -20,11 +20,20 @@ struct CalendarAgendaItem: Identifiable, Sendable {
   let isAllDay: Bool
   let isReminder: Bool
 
-  /// 在这一天显示的时间：跨天日程从前一天延续过来时显示“续”，而不是前一天的开始时间
-  func timeLabel(on date: Date, calendar: Calendar) -> String {
+  /// 提醒只显示到期时间；跨天日程在开始日带上日期，后续日期仍显示“续”。
+  func timeLabel(on date: Date, calendar: Calendar, locale: Locale = L10n.locale) -> String {
     if isAllDay { return tr("全天") }
     if let day = calendar.dateInterval(of: .day, for: date), start < day.start { return tr("续") }
-    return start.formatted(.dateTime.hour().minute().locale(L10n.locale))
+    guard !isReminder, end > start else {
+      return start.formatted(
+        Date.FormatStyle(
+          date: .omitted, time: .shortened, locale: locale,
+          calendar: calendar, timeZone: calendar.timeZone))
+    }
+    return (start..<end).formatted(
+      Date.IntervalFormatStyle(
+        date: calendar.isDate(start, inSameDayAs: end) ? .omitted : .abbreviated,
+        time: .shortened, locale: locale, calendar: calendar, timeZone: calendar.timeZone))
   }
 
   /// 全天及跨天事件的结束时间是开区间，不能在次日多画一个日程标记。

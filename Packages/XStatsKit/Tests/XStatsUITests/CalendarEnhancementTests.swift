@@ -401,6 +401,33 @@ struct CalendarEnhancementTests {
     #expect(reminder.occurs(on: next, calendar: calendar))
   }
 
+  @Test(arguments: ["en_GB", "zh_CN"])
+  func timedEventShowsStartAndEndInCalendarTimeZone(language: String) throws {
+    let calendar = CalendarEngine.gregorian(timeZone: zone)
+    let start = try #require(
+      calendar.date(from: DateComponents(year: 2026, month: 9, day: 28, hour: 14)))
+    let event = CalendarAgendaItem(
+      id: "event", title: "", source: "", start: start,
+      end: start.addingTimeInterval(90 * 60), isAllDay: false, isReminder: false)
+    let label = event.timeLabel(on: start, calendar: calendar, locale: Locale(identifier: language))
+    #expect(label.contains("14:00") && label.contains("15:30"))
+  }
+
+  @Test(arguments: [true, false])
+  func remindersAndEventsWithoutPositiveDurationShowOneTime(isReminder: Bool) throws {
+    let calendar = CalendarEngine.gregorian(timeZone: zone)
+    let start = try #require(
+      calendar.date(from: DateComponents(year: 2026, month: 9, day: 28, hour: 14)))
+    for duration in (isReminder ? [0, 3600] : [0, -3600]) {
+      let item = CalendarAgendaItem(
+        id: "point", title: "", source: "", start: start,
+        end: start.addingTimeInterval(Double(duration)), isAllDay: false, isReminder: isReminder)
+      #expect(
+        item.timeLabel(on: start, calendar: calendar, locale: Locale(identifier: "en_GB"))
+          == "14:00")
+    }
+  }
+
   @Test func overnightEventShowsContinuationInsteadOfYesterdaysStartTime() throws {
     let calendar = CalendarEngine.gregorian(timeZone: zone)
     let start = try #require(
@@ -409,13 +436,28 @@ struct CalendarEnhancementTests {
     let night = CalendarAgendaItem(
       id: "night", title: "", source: "", start: start,
       end: start.addingTimeInterval(4 * 3600), isAllDay: false, isReminder: false)
-    let first = night.timeLabel(on: start, calendar: calendar)
-    #expect(first != tr("续") && first != tr("全天"), "start day shows the start time: \(first)")
+    let first = night.timeLabel(
+      on: start, calendar: calendar, locale: Locale(identifier: "en_GB"))
+    #expect(first.contains("22:00") && first.contains("02:00"))
+    #expect(first.contains("28") && first.contains("29"), "cross-day ranges include dates")
     #expect(night.timeLabel(on: nextDay, calendar: calendar) == tr("续"))
     let allDay = CalendarAgendaItem(
       id: "all", title: "", source: "", start: nextDay,
       end: nextDay.addingTimeInterval(86_400), isAllDay: true, isReminder: false)
     #expect(allDay.timeLabel(on: nextDay, calendar: calendar) == tr("全天"))
+  }
+
+  @Test func midnightEndShowsNextDateWithoutMarkingAnExtraDay() throws {
+    let calendar = CalendarEngine.gregorian(timeZone: zone)
+    let start = try #require(
+      calendar.date(from: DateComponents(year: 2026, month: 9, day: 28, hour: 22)))
+    let end = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 29)))
+    let event = CalendarAgendaItem(
+      id: "midnight", title: "", source: "", start: start, end: end,
+      isAllDay: false, isReminder: false)
+    let label = event.timeLabel(on: start, calendar: calendar, locale: Locale(identifier: "en_GB"))
+    #expect(label.contains("22:00") && label.contains("00:00") && label.contains("29"))
+    #expect(!event.occurs(on: end, calendar: calendar))
   }
 
   @Test func refreshingUnchangedAuthorizationDoesNotRestartTheQuery() async throws {
