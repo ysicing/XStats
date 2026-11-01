@@ -28,4 +28,14 @@ struct AudioBluetoothLocalizationTests {
       for key in keys { #expect(table.translate(key)?.isEmpty == false, "\(language): \(key)") }
     }
   }
+
+  @Test func applicationPinActionsHaveExplicitTranslationsInEveryLanguage() throws {
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for key in ["置顶应用", "取消置顶"] {
+        #expect(table.sourceKeys.contains(key), "\(language): \(key)")
+        #expect(table.translate(key)?.isEmpty == false, "\(language): \(key)")
+      }
+    }
+  }
 }

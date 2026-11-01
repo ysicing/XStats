@@ -45,6 +45,10 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 定向验证：`swift test --package-path Packages/XStatsKit --jobs 2 --no-parallel --filter 'CommandBarTests|CommandBarWindowTests|CommandBarLocalizationTests|DeepLinkTests|HotKeyTests|AppPresentationTests|CombinedMenuBarInteractionTests'`。可设置 `XSTATS_COMMAND_BAR_PREVIEW_DIR` 为已存在的目录，导出各语言的原生面板布局截图。
 
+### 应用音量置顶
+
+音频页和音频弹窗复用应用行的“音频选项”菜单，可置顶应用或取消置顶。只把当前已可见的置顶应用排在前面，两组内部保持原有顺序；不会显示空闲隐藏应用或为已退出进程保留占位。置顶按稳定应用标识保存在本机，重启后仍生效，临时 `pid:` 标识不提供此操作；关闭音频、重置音量或应用退出不清除置顶偏好。偏好有界保存，操作只更新展示状态，不新增监听、轮询、音频处理或延长暂停宽限期。
+
 ## xstats 深链
 
 安装 App 后，启动器或 `open 'xstats://open/audio'` 可通过系统 URL 事件调用现有入口。

@@ -29,6 +29,7 @@ final class AudioController {
   var canRetryMixing: Bool { mixingError != nil }
   private(set) var volumes: [String: AudioAppVolume]
   private(set) var outputRoutes: [String: String]
+  private(set) var pinnedApplications: Set<String>
   @ObservationIgnored private let defaults: UserDefaults
   @ObservationIgnored private let hardware: AudioHardwareClient
   @ObservationIgnored private let mixer: AudioMixerClient
@@ -69,7 +70,8 @@ final class AudioController {
   }
   var supportsMixing: Bool { AudioMixerClient.isSupported }
   var listedApplications: [AudioApplication] {
-    applicationList.visible(snapshot.applications, volumes: volumes, outputs: outputRoutes)
+    applicationList.visible(
+      snapshot.applications, volumes: volumes, outputs: outputRoutes, pinned: pinnedApplications)
   }
   private var hasSavedAdjustments: Bool {
     volumes.values.contains(where: \.needsProcessing) || !outputRoutes.isEmpty
@@ -129,6 +131,13 @@ final class AudioController {
         !$0.key.hasPrefix("pid:") && !$0.key.isEmpty && $0.key.count <= 512 && !$0.value.isEmpty
           && $0.value.count <= 512
       })
+    let pins =
+      defaults.data(forKey: "audio.pinnedApplications").flatMap { data -> [String]? in
+        guard data.count <= 1_048_576 else { return nil }
+        return try? JSONDecoder().decode([String].self, from: data)
+      } ?? []
+    pinnedApplications = Set(
+      pins.prefix(256).filter { !$0.isEmpty && !$0.hasPrefix("pid:") && $0.utf8.count <= 512 })
     self.volumeWriter =
       volumeWriter
       ?? AudioDeviceVolumeWriter(
@@ -180,6 +189,19 @@ final class AudioController {
 
   func volume(for app: AudioApplication) -> AudioAppVolume {
     volumes[app.id] ?? AudioAppVolume(level: 1)!
+  }
+
+  func canPinApp(_ app: AudioApplication) -> Bool {
+    !app.id.isEmpty && !app.id.hasPrefix("pid:") && app.id.utf8.count <= 512
+      && (pinnedApplications.contains(app.id) || pinnedApplications.count < 256)
+  }
+
+  func toggleAppPin(_ app: AudioApplication) {
+    guard canPinApp(app) else { return }
+    if !pinnedApplications.insert(app.id).inserted { pinnedApplications.remove(app.id) }
+    // 置顶只是展示偏好；不保留连接、不刷新硬件，也不触发或延长音频处理。
+    defaults.set(
+      try? JSONEncoder().encode(pinnedApplications.sorted()), forKey: "audio.pinnedApplications")
   }
 
   func setDemand(enabled: Bool, visible: Bool, menuVisible: Bool) {

@@ -19,10 +19,12 @@ struct AudioApplicationListTests {
       outputs: [paused.id: "old-output"])
     // 同步检查重置结果，关闭展示需求，避免蓝牙读取或启动真实音频处理。
     controller.setDemand(enabled: true, visible: false, menuVisible: false)
+    controller.toggleAppPin(paused)
     controller.resetApp(paused)
     #expect(controller.volumes.isEmpty)
     #expect(controller.outputRoutes.isEmpty)
     #expect(controller.listedApplications.map(\.id) == [paused.id])
+    #expect(controller.pinnedApplications == [paused.id])
     #expect(!controller.snapshot.applications[0].isPlaying)
   }
 
@@ -61,6 +63,44 @@ struct AudioApplicationListTests {
     var list = AudioApplicationList()
     list.update(apps)
     #expect(list.visible(apps, volumes: [:], outputs: [:]).map(\.id) == ["player"])
+  }
+
+  @Test func pinsGroupVisibleAppsStablyAndUnpinningRestoresTheOriginalOrder() {
+    let apps = ["alpha", "beta", "gamma", "delta"].map { app($0, playing: true) }
+    var list = AudioApplicationList()
+    list.update(apps)
+    #expect(
+      list.visible(apps, volumes: [:], outputs: [:], pinned: ["delta", "beta"]).map(\.id) == [
+        "beta", "delta", "alpha", "gamma",
+      ])
+    #expect(
+      list.visible(apps, volumes: [:], outputs: [:], pinned: []).map(\.id) == [
+        "alpha", "beta", "gamma", "delta",
+      ])
+  }
+
+  @Test func pinsNeverAddRowsOrRetainConnectionsAfterExit() {
+    var list = AudioApplicationList()
+    let playing = app("player", playing: true, object: 11)
+    list.update([playing])
+    let paused = app("player", object: 11)
+    list.update([paused])
+    #expect(
+      list.visible([paused], volumes: [:], outputs: [:], pinned: ["player"]).map(\.id) == ["player"]
+    )
+    list.update([])
+    #expect(list.visible([], volumes: [:], outputs: [:], pinned: ["player"]).isEmpty)
+    let relaunched = app("player", object: 12)
+    list.update([relaunched])
+    #expect(list.visible([relaunched], volumes: [:], outputs: [:], pinned: ["player"]).isEmpty)
+    let apps = [app("other", playing: true), app("player", playing: true, object: 12)]
+    list.update(apps)
+    #expect(
+      list.visible(apps, volumes: [:], outputs: [:], pinned: ["player"]).map(\.id) == [
+        "player", "other",
+      ])
+    list.reset()
+    #expect(list.visible([relaunched], volumes: [:], outputs: [:], pinned: ["player"]).isEmpty)
   }
 
   @Test func pausedAppsWithVolumeMuteOrRoutingPreferencesRemainEditable() throws {

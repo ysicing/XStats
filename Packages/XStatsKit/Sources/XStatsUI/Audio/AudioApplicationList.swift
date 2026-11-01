@@ -29,12 +29,17 @@ struct AudioApplicationList {
   }
 
   func visible(
-    _ applications: [AudioApplication], volumes: [String: AudioAppVolume], outputs: [String: String]
+    _ applications: [AudioApplication], volumes: [String: AudioAppVolume],
+    outputs: [String: String],
+    pinned: Set<String> = []
   ) -> [AudioApplication] {
-    applications.filter {
+    let visible = applications.filter {
       $0.isPlaying || retainedConnections[$0.id] != nil || volumes[$0.id]?.needsProcessing == true
         || outputs[$0.id] != nil
     }
+    guard !pinned.isEmpty else { return visible }
+    // 仅对已可见的行稳定分组，不让置顶延长连接展示或改变原有组内顺序。
+    return visible.filter { pinned.contains($0.id) } + visible.filter { !pinned.contains($0.id) }
   }
 
   mutating func reset() { retainedConnections.removeAll() }

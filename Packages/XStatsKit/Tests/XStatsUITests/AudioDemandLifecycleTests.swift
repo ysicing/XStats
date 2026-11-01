@@ -119,6 +119,44 @@ struct AudioDemandLifecycleTests {
     #expect(saved[app.id]?.level == 0.5)
   }
 
+  @Test func repeatedPinningDoesNotCreateBackgroundAudioDemand() async throws {
+    let (defaults, suite) = try makeDefaults(appVolume: true)
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let log = DemandLog()
+    let mixer = AudioMixerClient(automaticHealthChecks: false) { target, output, _ in
+      DemandPipeline(target, output: output, log: log)
+    }
+    let (controller, hardware) = makeController(defaults, log: log, mixer: mixer)
+    defer { controller.stop() }
+    let app = AudioApplication(
+      id: "test.player", name: "Player", processObjectIDs: [11], isPlaying: true)
+    let output = AudioDeviceInfo(id: 1, uid: "test.output", name: "Output", hasOutput: true)
+    controller.showPreview(
+      AudioHardwareSnapshot(devices: [output], outputID: 1, inputID: nil, applications: [app]),
+      volumes: [:], outputs: [:])
+    controller.setDemand(enabled: true, visible: false, menuVisible: false)
+    for _ in 0..<20 {
+      controller.toggleAppPin(app)
+      controller.toggleAppPin(app)
+    }
+    controller.toggleAppPin(app)
+    #expect(await hardware.listenerCount() == 0)
+    _ = await mixer.unresolvedApplicationIDs()
+    #expect(log.activityReadCount == 0)
+    #expect(log.entries.isEmpty)
+    #expect(controller.volumes.isEmpty && controller.outputRoutes.isEmpty)
+    // 从已保存置顶启动，隐藏界面也不能新增监听或混音需求。
+    controller.stop()
+    let (restored, restoredHardware) = makeController(defaults, log: log, mixer: mixer)
+    defer { restored.stop() }
+    restored.setDemand(enabled: true, visible: false, menuVisible: false)
+    #expect(restored.pinnedApplications == [app.id])
+    #expect(await restoredHardware.listenerCount() == 0)
+    _ = await mixer.unresolvedApplicationIDs()
+    #expect(log.activityReadCount == 0)
+    #expect(log.entries.isEmpty)
+  }
+
   @Test func losingCapturePermissionTearsDownPipelinesThatStillWork() async throws {
     let (defaults, suite) = try makeDefaults(appVolume: true)
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -168,6 +206,7 @@ struct AudioDemandLifecycleTests {
         devices: [output], outputID: 1, inputID: nil, applications: [app]),
       volumes: [:], outputs: [:])
     controller.setDemand(enabled: true, visible: false, menuVisible: false)
+    controller.toggleAppPin(app)
     controller.setAppLevel(0.5, app: app)
     try await waitUntil { log.entries.contains("start:\(app.id)") }
     controller.disableMixing()
@@ -176,6 +215,7 @@ struct AudioDemandLifecycleTests {
     #expect(!defaults.bool(forKey: "audio.appVolumeEnabled"))
     #expect(await hardware.listenerCount() == 0, "隐藏界面关闭应用处理后不再保留设备或应用监听")
     #expect(controller.volume(for: app).level == 0.5)
+    #expect(controller.pinnedApplications == [app.id])
     let saved = try JSONDecoder().decode(
       [String: AudioAppVolume].self,
       from: try #require(defaults.data(forKey: "audio.applicationVolumes")))

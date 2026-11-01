@@ -440,6 +440,13 @@ struct AudioApplicationRow: View {
           help: volume.isMuted ? tr("取消“\(app.name)”静音") : tr("静音“\(app.name)”")
         ) { model.audio.toggleAppMute(app) }
         Menu {
+          if !app.id.hasPrefix("pid:") {
+            let pinned = model.audio.pinnedApplications.contains(app.id)
+            Button(tr(pinned ? "取消置顶" : "置顶应用"), systemImage: pinned ? "pin.slash" : "pin") {
+              model.audio.toggleAppPin(app)
+            }.disabled(!model.audio.canPinApp(app))
+            Divider()
+          }
           Picker(
             tr("\(app.name) 输出设备"),
             selection: Binding(

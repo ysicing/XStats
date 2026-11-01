@@ -63,6 +63,7 @@ extension Translations {
     断开此蓝牙音频设备的输入与输出连接	Disconnect both input and output for this Bluetooth audio device
     在滑杆上向上滚动调高音量，向下滚动调低音量	Scroll up on the slider to raise the volume; scroll down to lower it
     取消置顶	Unpin
+    置顶应用	Pin app
     置顶设备	Pin device
     显示设备	Show device
     隐藏设备	Hide device
