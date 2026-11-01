@@ -39,6 +39,7 @@ struct CalendarPopover: View {
   @State private var month: CalendarMonth
   @State private var yearInput: String
   @FocusState private var yearFocused: Bool
+  @FocusState private var navigationFocused: Bool
   @State private var selected: CalendarDay?
   @State private var days: [CalendarDay]
   @State private var lastTodayID: String?
@@ -106,11 +107,35 @@ struct CalendarPopover: View {
     .background(DS.Palette.background, in: RoundedRectangle(cornerRadius: DS.Radius.xl))
     .appLanguageEnvironment()
     .overlay { RoundedRectangle(cornerRadius: DS.Radius.xl).strokeBorder(DS.Palette.border) }
+    .focusable(!isSnapshot)
+    .focusEffectDisabled()
+    .focused($navigationFocused)
+    .onKeyPress(keys: [.leftArrow, .rightArrow, .space], phases: .down) { press in
+      // 仅处理日历本身的焦点，不抢年份编辑、月份选择和按钮的键盘操作。
+      guard !isSnapshot, navigationFocused, !yearFocused, press.modifiers.isEmpty else {
+        return .ignored
+      }
+      switch press.key {
+      case .leftArrow where !showsDayDetails:
+        shift(-1)
+      case .rightArrow where !showsDayDetails:
+        shift(1)
+      case .space:
+        guard let today = CalendarEngine.today(at: referenceDate ?? Date()) else { return .ignored }
+        goToToday(today)
+      default:
+        return .ignored
+      }
+      return .handled
+    }
     .onAppear {
       reload()
       refreshAlmanac()
       refreshHolidayPlan(at: referenceDate ?? Date())
-      if !isSnapshot { model.calendarAgenda.refreshAuthorization() }
+      if !isSnapshot {
+        navigationFocused = true
+        model.calendarAgenda.refreshAuthorization()
+      }
     }
     .task(id: agendaQuery) {
       guard !isSnapshot else { return }
@@ -219,7 +244,11 @@ struct CalendarPopover: View {
         .multilineTextAlignment(.center)
         .frame(width: 62)
         .focused($yearFocused)
-        .onSubmit(commitYearInput)
+        .onSubmit {
+          commitYearInput()
+          yearFocused = false
+          navigationFocused = true
+        }
         .onChange(of: yearFocused) { _, focused in
           if !focused { commitYearInput() }
         }
