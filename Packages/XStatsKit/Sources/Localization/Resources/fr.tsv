@@ -2652,3 +2652,5 @@ AI 功能需要安装并运行 Magpie。	Les fonctionnalités AI nécessitent qu
 停止防休眠	Autoriser la mise en veille
 切换麦克风静音	Activer/désactiver le micro
 切换到下一个音频输出	Passer à la sortie audio suivante
+拔掉电源后停止防休眠	Désactiver le maintien en éveil au débranchement
+已拔掉电源，防休眠已关闭	Alimentation débranchée ; maintien en éveil désactivé

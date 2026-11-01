@@ -2652,3 +2652,5 @@ AI 功能需要安装并运行 Magpie。	Für die AI-Funktionen muss Magpie inst
 停止防休眠	Ruhezustand wieder zulassen
 切换麦克风静音	Mikrofonstummschaltung umschalten
 切换到下一个音频输出	Zum nächsten Audioausgang wechseln
+拔掉电源后停止防休眠	Wachhalten beim Trennen der Stromversorgung beenden
+已拔掉电源，防休眠已关闭	Stromversorgung getrennt; Wachhalten ist aus

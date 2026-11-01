@@ -2652,3 +2652,5 @@ AI 功能需要安装并运行 Magpie。	Las funciones de AI requieren instalar 
 停止防休眠	Dejar de mantener el equipo despierto
 切换麦克风静音	Alternar silencio del micrófono
 切换到下一个音频输出	Cambiar a la siguiente salida de audio
+拔掉电源后停止防休眠	Desactivar Mantener activo al desconectar la alimentación
+已拔掉电源，防休眠已关闭	Alimentación desconectada; Mantener activo está desactivado

@@ -27,6 +27,7 @@ private struct HeroCard: View {
 
   var body: some View {
     let keepAwake = model.keepAwake
+    @Bindable var settings = model.settings
 
     Card {
       HStack(spacing: DS.Space.s3) {
@@ -50,6 +51,11 @@ private struct HeroCard: View {
             get: { keepAwake.isActive },
             set: { value in Task { await keepAwake.setActive(value) } }),
           label: tr("防休眠"))
+      }
+
+      HairlineDivider()
+      SettingRow(title: tr("拔掉电源后停止防休眠")) {
+        DSToggle(isOn: $settings.keepAwakeStopOnUnplug, label: tr("拔掉电源后停止防休眠"))
       }
 
       if let notice = keepAwake.notice {

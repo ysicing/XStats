@@ -85,6 +85,7 @@ public final class KeepAwakeController {
   @ObservationIgnored private var sleepStateUncertain = false
   @ObservationIgnored private var forceLidMode = false
   @ObservationIgnored private var sleepDisableInFlight = false
+  @ObservationIgnored private var lastIsPluggedIn: Bool?
   @ObservationIgnored private let helper: any SleepControlClient
   @ObservationIgnored private let settings: AppSettings
 
@@ -118,6 +119,7 @@ public final class KeepAwakeController {
   }
 
   func start() async {
+    lastIsPluggedIn = nil
     isActive = true
     notice = nil
     takeAssertion()
@@ -126,10 +128,18 @@ public final class KeepAwakeController {
   }
 
   func stop(reason: String?) async {
+    endSession()
+    await restoreSleepAfterStop(reason: reason)
+  }
+
+  private func endSession() {
     isActive = false
     endDate = nil
     expiryTask?.cancel()
     releaseAssertion()
+  }
+
+  private func restoreSleepAfterStop(reason: String?) async {
     await applyLidMode()
     if !isActive, !requiresTerminationRestoration, let reason {
       show(reason, isError: false)
@@ -143,12 +153,24 @@ public final class KeepAwakeController {
     await applyLidMode()
   }
 
-  /// 电池电量保护：使用电池供电且电量低于下限时关闭合盖运行
-  func evaluateBattery(_ battery: BatteryStatus?) {
-    guard lidClosedActive, let battery, !battery.isPluggedIn,
+  /// 拔电仅结束当前会话；首次电池读数建立基线，接电不会自动恢复。
+  @discardableResult
+  func evaluateBattery(_ battery: BatteryStatus?) -> Task<Void, Never>? {
+    guard let battery else { return nil }
+    let unplugged = lastIsPluggedIn == true && !battery.isPluggedIn
+    lastIsPluggedIn = isActive && settings.keepAwakeStopOnUnplug ? battery.isPluggedIn : nil
+    if isActive, settings.keepAwakeStopOnUnplug, unplugged {
+      // 先同步释放断言，异步恢复合盖设置不能延后停止新开启的会话。
+      endSession()
+      return Task {
+        await restoreSleepAfterStop(reason: tr("已拔掉电源，防休眠已关闭"))
+      }
+    }
+    // 原有低电量保护只关闭合盖运行，不结束普通防休眠。
+    guard lidClosedActive, !battery.isPluggedIn,
       battery.level * 100 < Double(settings.lidModeBatteryFloor)
-    else { return }
-    Task {
+    else { return nil }
+    return Task {
       lidClosedRequested = false
       await applyLidMode()
       show(tr("电量低于 \(settings.lidModeBatteryFloor)%，已关闭合盖运行"), isError: false)
@@ -157,10 +179,7 @@ public final class KeepAwakeController {
 
   /// 退出应用时释放电源断言（合盖设置由 HelperClient 同步恢复）
   func releaseForTermination() {
-    isActive = false
-    endDate = nil
-    expiryTask?.cancel()
-    releaseAssertion()
+    endSession()
   }
 
   private func applyLidMode() async {

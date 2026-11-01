@@ -405,13 +405,14 @@ public final class AppModel {
     demand.appEnergy =
       settings.isModuleEnabled(.battery)
       && ((window && tab == .battery) || (popover == .battery && settings.isVisible(.batteryApps)))
-    // 风扇交还系统和合盖电量保护仍须完成，不能由隐藏监控界面切断安全需求。
+    // 风扇交还系统和防休眠电源保护仍须完成，不能由隐藏监控界面切断安全需求。
     if fans.mode != .automatic || fans.isApplying || restoringFans != nil {
       demand.temperatures.insert(.cpu)
       demand.fans = true
     }
     demand.fanSafety = fans.requiresSafetySampling || restoringFans != nil
-    demand.batterySafety = keepAwake.lidClosedActive
+    demand.batterySafety =
+      keepAwake.lidClosedActive || (keepAwake.isActive && settings.keepAwakeStopOnUnplug)
     if demand.batterySafety { demand.battery = true }
     demand.processes =
       processPage

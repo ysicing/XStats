@@ -946,6 +946,9 @@ public final class AppSettings {
   public var useFahrenheit: Bool {
     didSet { defaults.set(useFahrenheit, forKey: Keys.useFahrenheit) }
   }
+  public var keepAwakeStopOnUnplug: Bool {
+    didSet { defaults.set(keepAwakeStopOnUnplug, forKey: Keys.keepAwakeStopOnUnplug) }
+  }
   /// 电量低于该值时自动关闭“合盖运行”
   public var lidModeBatteryFloor: Int {
     didSet { defaults.set(lidModeBatteryFloor, forKey: Keys.lidModeBatteryFloor) }
@@ -1386,6 +1389,7 @@ public final class AppSettings {
     bluetoothLowBatteryInMenuBar =
       defaults.object(forKey: Keys.bluetoothLowBatteryInMenuBar) as? Bool ?? true
     useFahrenheit = defaults.bool(forKey: Keys.useFahrenheit)
+    keepAwakeStopOnUnplug = defaults.bool(forKey: Keys.keepAwakeStopOnUnplug)
     lidModeBatteryFloor =
       Self.batteryFloorOptions.contains(defaults.integer(forKey: Keys.lidModeBatteryFloor))
       ? defaults.integer(forKey: Keys.lidModeBatteryFloor) : 20
@@ -1788,6 +1792,7 @@ public final class AppSettings {
     static let loadSensitivity = "loadSensitivity"
     static let bluetoothLowBatteryInMenuBar = "bluetoothLowBatteryInMenuBar"
     static let useFahrenheit = "useFahrenheit"
+    static let keepAwakeStopOnUnplug = "keepAwakeStopOnUnplug"
     static let lidModeBatteryFloor = "lidModeBatteryFloor"
     static let fanSafetyTemperature = "fanSafetyTemperature"
     static let panelTab = "panelTab"

@@ -1735,6 +1735,8 @@ extension Translations {
     闲	Idle
     防休眠	Keep Awake
     防休眠已开启	Keep Awake is on
+    拔掉电源后停止防休眠	Stop Keep Awake when power is unplugged
+    已拔掉电源，防休眠已关闭	Power was unplugged; Keep Awake is off
     阿里云	Alibaba Cloud
     阿里云（223.5.5.5）	Alibaba Cloud (223.5.5.5)
     降温	Cooling

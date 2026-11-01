@@ -10,12 +10,19 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct AppPresentationTests {
-  @Test(arguments: AppLanguage.allCases.filter { $0 != .system })
-  func launchWindowSettingFitsEveryLanguage(language: AppLanguage) throws {
+  @Test(
+    arguments: AppLanguage.allCases.filter { $0 != .system },
+    ["启动时显示主窗口", "拔掉电源后停止防休眠"])
+  func toggleSettingFitsEveryLanguage(language: AppLanguage, key: String) throws {
     let catalog = Translations.catalog(for: language)
     let title =
       language == .chinese
-      ? "启动时显示主窗口" : try #require(catalog?.translate("启动时显示主窗口"))
+      ? key : try #require(catalog?.translate(key))
+    if key == "拔掉电源后停止防休眠", language != .chinese {
+      #expect(catalog?.sourceKeys.contains(key) == true)
+      #expect(catalog?.sourceKeys.contains("已拔掉电源，防休眠已关闭") == true)
+      #expect(catalog?.translate("已拔掉电源，防休眠已关闭")?.isEmpty == false)
+    }
     let host = NSHostingView(
       rootView: SettingsGroup {
         GroupRow(showsDivider: false) {
@@ -42,7 +49,8 @@ struct AppPresentationTests {
     if let path = ProcessInfo.processInfo.environment["XSTATS_LAUNCH_SETTINGS_PREVIEW_DIR"] {
       let png = try #require(bitmap.representation(using: .png, properties: [:]))
       try png.write(
-        to: URL(fileURLWithPath: path).appendingPathComponent("\(language.rawValue).png"))
+        to: URL(fileURLWithPath: path).appendingPathComponent(
+          "\(language.rawValue)\(key == "启动时显示主窗口" ? "" : "-keep-awake").png"))
     }
   }
 

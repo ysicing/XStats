@@ -15,7 +15,7 @@ public struct MetricsDemand: Sendable, Equatable {
   public var gpu = false
   public var disk = false
   public var battery = false
-  /// 合盖运行的电量保护；锁屏后只保留此低频读取方。
+  /// 防休眠的拔电与合盖电量保护；锁屏后只保留此低频读取方。
   public var batterySafety = false
   /// 风扇未交还系统时，暂停期间仍按原间隔读取 CPU 温度。
   public var fanSafety = false
@@ -175,7 +175,7 @@ public actor MetricsHub {
     return sensors.sample(groups: [], includeFans: true)?.fans
   }
 
-  /// 暂停普通监控，仅保留尚未恢复的风扇与合盖低电量保护。
+  /// 暂停普通监控，仅保留尚未恢复的风扇与防休眠电源保护。
   public func setPaused(_ value: Bool) {
     guard value != paused else { return }
     paused = value
