@@ -187,7 +187,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
       case .checkForUpdates:
         self.checkForUpdatesFromMenu()
       case .toggleMicrophoneMute:
-        self.toggleMicrophoneMute()
+        self.performAudioShortcut { $0.toggleDeviceMute(.input) }
+      case .nextAudioOutput:
+        self.performAudioShortcut { $0.selectNextOutput() }
       }
     }
     model.openAIUsageSettings = { [weak self] in
@@ -606,7 +608,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
     case .openCommandBar:
       openCommandBarFromMenu()
     case .toggleMicrophoneMute:
-      toggleMicrophoneMute()
+      performAudioShortcut { $0.toggleDeviceMute(.input) }
+    case .nextAudioOutput:
+      performAudioShortcut { $0.selectNextOutput() }
     case .showProcesses:
       menuBar.dismissPopovers()
       model.openProcessMonitor()
@@ -636,13 +640,13 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
   }
 
-  private func toggleMicrophoneMute() {
+  private func performAudioShortcut(_ operation: (AudioController) -> Task<Void, Never>?) {
     guard !isTerminating, !screenLocked, !model.isRecordingShortcut else { return }
     guard model.settings.audioEnabled else {
       model.openMainWindow(.settingsFeatures)
       return
     }
-    guard let operation = model.audio.toggleDeviceMute(.input) else { return }
+    guard let operation = operation(model.audio) else { return }
     Task { [weak self] in
       await operation.value
       guard let self, !self.isTerminating, !self.screenLocked,

@@ -39,6 +39,7 @@ extension Translations {
     取消麦克风静音	Unmute microphone
     静音麦克风	Mute microphone
     切换麦克风静音	Toggle microphone mute
+    切换到下一个音频输出	Switch to next audio output
     取消输出静音	Unmute output
     静音输出	Mute output
     取消“{}”静音	Unmute {}

@@ -41,6 +41,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 “切换麦克风静音”可通过命令栏执行，也可在“设置 → 通用”绑定全局快捷键，默认不绑定。复用音频控制，仅在触发时读取当前系统默认输入设备并切换设备静音，不开启应用音量、音频捕获或额外后台监听。关闭音频功能后注销快捷键并保留绑定，命令栏入口引导到功能设置；设备不支持控制、设备变化或操作失败时打开音频页显示错误。该操作只控制默认输入设备支持的静音属性，不保证其他应用或独立输入路径全部静音。
 
+“切换到下一个音频输出”同样接入命令栏与全局快捷键，默认不绑定。触发时按现有设备目录顺序循环选择已连接、可作为系统默认输出的设备；只有当前设备时不写入，当前默认设备不在可用列表时选择第一台。复用音频控制的输出过渡保护、设备校验、取消和失败提示，不连接未连接的蓝牙设备，不新增后台监听或轮询。关闭音频功能后注销快捷键并保留绑定，命令栏入口引导到功能设置。
+
 定向验证：`swift test --package-path Packages/XStatsKit --jobs 2 --no-parallel --filter 'CommandBarTests|CommandBarWindowTests|CommandBarLocalizationTests|DeepLinkTests|HotKeyTests|AppPresentationTests|CombinedMenuBarInteractionTests'`。可设置 `XSTATS_COMMAND_BAR_PREVIEW_DIR` 为已存在的目录，导出各语言的原生面板布局截图。
 
 ## xstats 深链

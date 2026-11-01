@@ -178,11 +178,12 @@ private final class OutputSwitchFixture {
       outputs: [:])
   }
 
-  func startSwitch() async throws -> Task<Void, Never> {
+  func startSwitch(shortcut: Bool = false) async throws -> Task<Void, Never> {
     controller.setDemand(enabled: true, visible: false, menuVisible: true)
     await state.wait(for: "pipeline.gain.1.0.0")
     _ = await mixer.unresolvedApplicationIDs()
-    let operation = try #require(controller.selectDevice(2, direction: .output))
+    let operation = try #require(
+      shortcut ? controller.selectNextOutput() : controller.selectDevice(2, direction: .output))
     await state.wait(for: "select.started")
     return operation
   }
@@ -255,10 +256,12 @@ struct AudioDeviceSwitchTests {
     await fixture.stop()
   }
 
-  @Test(.timeLimit(.minutes(1)), arguments: [false, true])
-  func completedOrFailedSelectionRestoresBeforeReleasingTheGuard(fails: Bool) async throws {
+  @Test(.timeLimit(.minutes(1)), arguments: [false, true], [false, true])
+  func completedOrFailedSelectionRestoresBeforeReleasingTheGuard(fails: Bool, shortcut: Bool)
+    async throws
+  {
     let fixture = try OutputSwitchFixture(selectionError: fails ? .hardware(-9) : nil)
-    let operation = try await fixture.startSwitch()
+    let operation = try await fixture.startSwitch(shortcut: shortcut)
     fixture.state.selectionRelease.signal()
     await operation.value
     await fixture.state.wait(for: "guard.stop.1")

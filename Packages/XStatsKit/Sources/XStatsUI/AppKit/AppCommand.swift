@@ -10,6 +10,7 @@ struct AppCommand: Identifiable {
     case route(AppDeepLink)
     case checkForUpdates
     case toggleMicrophoneMute
+    case nextAudioOutput
   }
 
   let id: String
@@ -32,6 +33,10 @@ struct AppCommand: Identifiable {
         id: "audio.toggleMicrophoneMute", title: tr("切换麦克风静音"), symbol: "mic.slash",
         keywords: "microphone mic mute unmute 麦克风 静音 取消静音",
         action: .toggleMicrophoneMute),
+      AppCommand(
+        id: "audio.nextAudioOutput", title: tr("切换到下一个音频输出"), symbol: "speaker.wave.2",
+        keywords: "next audio output device speaker headphones 下一个 音频 输出 设备 扬声器 耳机",
+        action: .nextAudioOutput),
       AppCommand(
         id: "calendar", title: tr("打开日历"), symbol: "calendar",
         keywords: "calendar 日历", action: .route(.calendar)),

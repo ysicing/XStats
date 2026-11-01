@@ -598,6 +598,28 @@ final class AudioController {
   }
 
   @discardableResult
+  func selectNextOutput() -> Task<Void, Never>? {
+    guard !isWorking else { return nil }
+    return perform(switching: .output) { [self] in
+      // 离屏快捷操作只按需读取已连接设备，不使用缓存或探测未连接的蓝牙设备。
+      let current = await hardware.snapshot(includeApplications: false)
+      try Task.checkCancellation()
+      let outputs = current.devices.filter { $0.canBeDefault(.output) }
+      guard let first = outputs.first else { throw AudioControlError.unavailable }
+      let next: AudioDeviceInfo
+      if let index = outputs.firstIndex(where: { $0.id == current.outputID }) {
+        next = outputs[(index + 1) % outputs.count]
+      } else {
+        next = first
+      }
+      guard next.id != current.outputID else { return }
+      try await changeDevice(direction: .output, command: operationRevision) { [hardware] in
+        try await hardware.select(next, direction: .output)
+      }
+    }
+  }
+
+  @discardableResult
   func selectDevice(_ id: UInt32, direction: AudioDirection) -> Task<Void, Never>? {
     guard !isWorking, let device = snapshot.devices.first(where: { $0.id == id }) else {
       return nil

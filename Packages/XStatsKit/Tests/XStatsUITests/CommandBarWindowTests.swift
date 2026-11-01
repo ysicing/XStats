@@ -131,19 +131,24 @@ struct CommandBarWindowTests {
   }
 
   @Test(
-    arguments: AppLanguage.allCases.filter { $0 != .system }, ["停止防休眠", "切换麦克风静音"])
+    arguments: AppLanguage.allCases.filter { $0 != .system },
+    ["停止防休眠", "切换麦克风静音", "切换到下一个音频输出"])
   func nativePanelFitsTranslatedLabelsAndReadingDirection(language: AppLanguage, key: String) throws
   {
     _ = NSApplication.shared
     let controller = CommandBarWindowController()
     defer { controller.dismiss() }
     let title = L10n.translate(key, language: language)
-    let microphone = key == "切换麦克风静音"
+    let action: AppCommand.Action =
+      switch key {
+      case "切换麦克风静音": .toggleMicrophoneMute
+      case "切换到下一个音频输出": .nextAudioOutput
+      default: .route(.keepAwake(.stop))
+      }
     controller.show(
       commands: [
         AppCommand(
-          id: key, title: title, symbol: microphone ? "mic.slash" : "moon", keywords: "",
-          action: microphone ? .toggleMicrophoneMute : .route(.keepAwake(.stop)))
+          id: key, title: title, symbol: "speaker.wave.2", keywords: "", action: action)
       ], language: language)
     let panel = try #require(controller.panel)
     let content = try #require(panel.contentView)
