@@ -153,23 +153,29 @@ public final class KeepAwakeController {
     await applyLidMode()
   }
 
-  /// 拔电仅结束当前会话；首次电池读数建立基线，接电不会自动恢复。
+  /// 拔电与低电量只结束当前会话；仅拔电规则需要先建立电源基线，不自动恢复。
   @discardableResult
   func evaluateBattery(_ battery: BatteryStatus?) -> Task<Void, Never>? {
     guard let battery else { return nil }
     let unplugged = lastIsPluggedIn == true && !battery.isPluggedIn
     lastIsPluggedIn = isActive && settings.keepAwakeStopOnUnplug ? battery.isPluggedIn : nil
-    if isActive, settings.keepAwakeStopOnUnplug, unplugged {
+    let lowBattery =
+      !battery.isPluggedIn
+      && battery.level * 100 < Double(settings.lidModeBatteryFloor)
+    let stopOnUnplug = settings.keepAwakeStopOnUnplug && unplugged
+    if isActive, stopOnUnplug || (settings.keepAwakeStopOnLowBattery && lowBattery) {
+      let reason =
+        stopOnUnplug
+        ? tr("已拔掉电源，防休眠已关闭")
+        : tr("电量低于 \(settings.lidModeBatteryFloor)%，防休眠已关闭")
       // 先同步释放断言，异步恢复合盖设置不能延后停止新开启的会话。
       endSession()
       return Task {
-        await restoreSleepAfterStop(reason: tr("已拔掉电源，防休眠已关闭"))
+        await restoreSleepAfterStop(reason: reason)
       }
     }
-    // 原有低电量保护只关闭合盖运行，不结束普通防休眠。
-    guard lidClosedActive, !battery.isPluggedIn,
-      battery.level * 100 < Double(settings.lidModeBatteryFloor)
-    else { return nil }
+    // 未启用低电量停止时，保留原有只关闭合盖运行的保护。
+    guard lidClosedActive, lowBattery else { return nil }
     return Task {
       lidClosedRequested = false
       await applyLidMode()

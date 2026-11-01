@@ -2654,3 +2654,7 @@ AI 功能需要安装并运行 Magpie。	Las funciones de AI requieren instalar 
 切换到下一个音频输出	Cambiar a la siguiente salida de audio
 拔掉电源后停止防休眠	Desactivar Mantener activo al desconectar la alimentación
 已拔掉电源，防休眠已关闭	Alimentación desconectada; Mantener activo está desactivado
+低电量保护	Protección por batería baja
+低电量时停止防休眠	Desactivar Mantener activo con batería baja
+用于合盖运行保护和低电量停止防休眠	Para proteger el uso con la tapa cerrada y desactivar Mantener activo con batería baja
+电量低于 {}%，防休眠已关闭	Batería por debajo del {} %; Mantener activo está desactivado

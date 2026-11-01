@@ -2654,3 +2654,7 @@ AI 功能需要安装并运行 Magpie。	Für die AI-Funktionen muss Magpie inst
 切换到下一个音频输出	Zum nächsten Audioausgang wechseln
 拔掉电源后停止防休眠	Wachhalten beim Trennen der Stromversorgung beenden
 已拔掉电源，防休眠已关闭	Stromversorgung getrennt; Wachhalten ist aus
+低电量保护	Schutz bei niedrigem Akkustand
+低电量时停止防休眠	Ruhezustandsverhinderung bei niedrigem Akkustand beenden
+用于合盖运行保护和低电量停止防休眠	Für den Schutz bei geschlossenem Deckel und das Beenden der Ruhezustandsverhinderung bei niedrigem Akkustand
+电量低于 {}%，防休眠已关闭	Akku unter {} %; Ruhezustandsverhinderung beendet

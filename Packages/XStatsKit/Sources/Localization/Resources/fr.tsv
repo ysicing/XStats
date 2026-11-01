@@ -2654,3 +2654,7 @@ AI 功能需要安装并运行 Magpie。	Les fonctionnalités AI nécessitent qu
 切换到下一个音频输出	Passer à la sortie audio suivante
 拔掉电源后停止防休眠	Désactiver le maintien en éveil au débranchement
 已拔掉电源，防休眠已关闭	Alimentation débranchée ; maintien en éveil désactivé
+低电量保护	Protection en cas de batterie faible
+低电量时停止防休眠	Arrêter le maintien en éveil si la batterie est faible
+用于合盖运行保护和低电量停止防休眠	Pour protéger le fonctionnement capot fermé et arrêter le maintien en éveil si la batterie est faible
+电量低于 {}%，防休眠已关闭	Batterie sous {} % ; maintien en éveil désactivé

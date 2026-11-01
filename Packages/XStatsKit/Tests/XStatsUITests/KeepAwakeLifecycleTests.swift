@@ -29,6 +29,58 @@ private final class SleepControlFixture: SleepControlClient {
 @MainActor
 struct KeepAwakeLifecycleTests {
   @Test(arguments: [false, true], KeepAwakeController.Mode.allCases.map(\.rawValue))
+  func lowBatteryStopsOnlyWhenEnabled(enabled: Bool, rawMode: String) async throws {
+    try await withController(stopOnLowBattery: enabled) { controller, helper in
+      controller.setMode(try #require(KeepAwakeController.Mode(rawValue: rawMode)))
+      controller.setDuration(.minutes15)
+      await controller.start()
+      #expect(controller.evaluateBattery(nil) == nil)
+      // 接电但不充电时仍不触发；等于下限也不触发。
+      #expect(
+        controller.evaluateBattery(
+          BatteryStatus(level: 0.1, isCharging: false, isPluggedIn: true, isFullyCharged: false))
+          == nil)
+      #expect(
+        controller.evaluateBattery(
+          BatteryStatus(level: 0.2, isCharging: false, isPluggedIn: false, isFullyCharged: false))
+          == nil)
+      #expect(controller.isActive)
+      let stop = controller.evaluateBattery(
+        BatteryStatus(level: 0.19, isCharging: false, isPluggedIn: false, isFullyCharged: false))
+      #expect(controller.isActive == !enabled)
+      await stop?.value
+      #expect((controller.endDate == nil) == enabled)
+      #expect(helper.requests.isEmpty)
+    }
+  }
+
+  @Test func lowBatteryStopsOnFirstReadingAndNeverAutomaticallyRestarts() async throws {
+    try await withController(stopOnLowBattery: true) { controller, _ in
+      let low = BatteryStatus(
+        level: 0.1, isCharging: false, isPluggedIn: false, isFullyCharged: false)
+      await controller.start()
+      let stop = try #require(controller.evaluateBattery(low))
+      #expect(!controller.isActive)
+      // 恢复任务晚于用户手动开启时，不能停止新会话。
+      await controller.start()
+      await stop.value
+      #expect(controller.isActive && !controller.noticeIsError)
+      await controller.evaluateBattery(low)?.value
+      #expect(!controller.isActive)
+      #expect(controller.evaluateBattery(low) == nil)
+      #expect(
+        controller.evaluateBattery(
+          BatteryStatus(level: 0.8, isCharging: true, isPluggedIn: true, isFullyCharged: false))
+          == nil)
+      #expect(
+        controller.evaluateBattery(
+          BatteryStatus(level: 0.8, isCharging: false, isPluggedIn: false, isFullyCharged: false))
+          == nil)
+      #expect(!controller.isActive)
+    }
+  }
+
+  @Test(arguments: [false, true], KeepAwakeController.Mode.allCases.map(\.rawValue))
   func unplugStopsOnlyWhenEnabled(enabled: Bool, rawMode: String) async throws {
     try await withController(stopOnUnplug: enabled) { controller, helper in
       controller.setMode(try #require(KeepAwakeController.Mode(rawValue: rawMode)))
@@ -85,9 +137,12 @@ struct KeepAwakeLifecycleTests {
     }
   }
 
-  @Test(arguments: [false, true])
-  func unplugRestoresPendingLidEnableAndPreservesRecoveryErrors(failsRestore: Bool) async throws {
-    try await withController(stopOnUnplug: true) { controller, helper in
+  @Test(arguments: [false, true], [false, true])
+  func batteryStopRestoresPendingLidEnableAndPreservesRecoveryErrors(
+    failsRestore: Bool, lowBattery: Bool
+  ) async throws {
+    try await withController(stopOnUnplug: !lowBattery, stopOnLowBattery: lowBattery) {
+      controller, helper in
       await controller.start()
       controller.evaluateBattery(
         BatteryStatus(level: 0.8, isCharging: false, isPluggedIn: true, isFullyCharged: false))
@@ -99,7 +154,7 @@ struct KeepAwakeLifecycleTests {
       helper.restorationError = failsRestore ? "fixture-restore-failure" : nil
       let stop = try #require(
         controller.evaluateBattery(
-          BatteryStatus(level: 0.8, isCharging: false, isPluggedIn: false, isFullyCharged: false)))
+          BatteryStatus(level: 0.1, isCharging: false, isPluggedIn: false, isFullyCharged: false)))
       #expect(!controller.isActive)
       helper.enableContinuation?.resume(returning: nil)
       helper.enableContinuation = nil
@@ -114,30 +169,39 @@ struct KeepAwakeLifecycleTests {
     }
   }
 
-  @Test func unplugPreferenceDefaultsOffPersistsAndRoundTripsBackups() throws {
+  @Test(arguments: [false, true])
+  func batteryStopPreferencesDefaultOffPersistAndRoundTripBackups(lowBattery: Bool) throws {
     let suite = "KeepAwakePreferences.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
-    #expect(!settings.keepAwakeStopOnUnplug)
-    settings.keepAwakeStopOnUnplug = true
-    #expect(AppSettings(defaults: defaults).keepAwakeStopOnUnplug)
+    let preference =
+      lowBattery
+      ? \AppSettings.keepAwakeStopOnLowBattery : \AppSettings.keepAwakeStopOnUnplug
+    #expect(!settings[keyPath: preference])
+    settings[keyPath: preference] = true
+    #expect(AppSettings(defaults: defaults)[keyPath: preference])
     let data = try JSONEncoder().encode(settings.exportDocument())
     var document = try JSONDecoder().decode(SettingsDocument.self, from: data)
     // 导入测试只验证本选项，不改动进程的全局语言。
     document.language = nil
-    settings.keepAwakeStopOnUnplug = false
+    settings[keyPath: preference] = false
     settings.apply(document)
-    #expect(settings.keepAwakeStopOnUnplug)
+    #expect(settings[keyPath: preference])
     settings.apply(try JSONDecoder().decode(SettingsDocument.self, from: Data("{}".utf8)))
-    #expect(settings.keepAwakeStopOnUnplug)
+    #expect(settings[keyPath: preference])
     var disabled = SettingsDocument()
-    disabled.keepAwakeStopOnUnplug = false
+    if lowBattery {
+      disabled.keepAwakeStopOnLowBattery = false
+    } else {
+      disabled.keepAwakeStopOnUnplug = false
+    }
     settings.apply(disabled)
-    #expect(!settings.keepAwakeStopOnUnplug)
+    #expect(!settings[keyPath: preference])
   }
 
-  @Test func hiddenDisabledMonitoringRetainsOnlyNeededBatterySafetyDemand() async throws {
+  @Test(arguments: [false, true])
+  func hiddenDisabledMonitoringRetainsOnlyNeededBatterySafetyDemand(lowBattery: Bool) async throws {
     let suite = "KeepAwakeUnplugDemand.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -148,11 +212,14 @@ struct KeepAwakeLifecycleTests {
     settings.historyEnabled = false
     let model = AppModel(
       settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
+    let preference =
+      lowBattery
+      ? \AppSettings.keepAwakeStopOnLowBattery : \AppSettings.keepAwakeStopOnUnplug
     await model.hub.setPaused(true)
     for _ in 0..<12 {
       await model.keepAwake.start()
       #expect(!model.demand.batterySafety)
-      settings.keepAwakeStopOnUnplug = true
+      settings[keyPath: preference] = true
       let demand = model.demand
       #expect(demand.batterySafety && demand.battery)
       #expect(demand.interval == .seconds(10))
@@ -161,11 +228,11 @@ struct KeepAwakeLifecycleTests {
       let paused = await model.hub.samplingDemand
       #expect(paused.battery && paused.interval == .seconds(30))
       #expect(!paused.cpu && !paused.memory && !paused.fans && !paused.processes)
-      settings.keepAwakeStopOnUnplug = false
+      settings[keyPath: preference] = false
       await model.hub.update(model.demand)
       #expect(model.keepAwake.isActive && !model.demand.hasSamples)
       #expect(await !model.hub.samplingDemand.hasSamples)
-      settings.keepAwakeStopOnUnplug = true
+      settings[keyPath: preference] = true
       await model.hub.update(model.demand)
       var snapshot = MetricsSnapshot()
       snapshot.isSafetySample = true
@@ -173,14 +240,53 @@ struct KeepAwakeLifecycleTests {
         level: 0.8, isCharging: false, isPluggedIn: true, isFullyCharged: false)
       model.handle(snapshot)
       snapshot.battery?.isPluggedIn = false
+      snapshot.battery?.level = 0.1
       model.handle(snapshot)
       #expect(!model.keepAwake.isActive)
       #expect(!model.demand.batterySafety && !model.demand.hasSamples)
       await model.hub.update(model.demand)
       #expect(await !model.hub.samplingDemand.hasSamples)
-      settings.keepAwakeStopOnUnplug = false
+      settings[keyPath: preference] = false
       await model.keepAwake.stop(reason: nil)
     }
+    await model.hub.stop()
+  }
+
+  @Test func lowBatteryUsesExistingFloorAndKeepsDemandUntilBothRulesAreDisabled() async throws {
+    let suite = "KeepAwakeBatteryRules.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.enabledMonitoringModules = []
+    settings.menuBarItems = []
+    settings.combinedOverviewItems = []
+    settings.historyEnabled = false
+    settings.lidModeBatteryFloor = 40
+    let model = AppModel(
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
+    await model.keepAwake.start()
+    settings.keepAwakeStopOnUnplug = true
+    settings.keepAwakeStopOnLowBattery = true
+    settings.keepAwakeStopOnUnplug = false
+    #expect(model.demand.batterySafety)
+    settings.keepAwakeStopOnLowBattery = false
+    #expect(!model.demand.hasSamples)
+    // 低电量读数在关闭规则后到达，不应停止当前会话。
+    let battery = BatteryStatus(
+      level: 0.3, isCharging: false, isPluggedIn: false, isFullyCharged: false)
+    #expect(model.keepAwake.evaluateBattery(battery) == nil)
+    #expect(model.keepAwake.isActive)
+    settings.keepAwakeStopOnLowBattery = true
+    await model.keepAwake.evaluateBattery(battery)?.value
+    #expect(!model.keepAwake.isActive && !model.demand.hasSamples)
+    settings.keepAwakeStopOnUnplug = true
+    await model.keepAwake.start()
+    model.keepAwake.evaluateBattery(
+      BatteryStatus(level: 0.8, isCharging: true, isPluggedIn: true, isFullyCharged: false))
+    let stop = try #require(model.keepAwake.evaluateBattery(battery))
+    #expect(model.keepAwake.evaluateBattery(battery) == nil)
+    await stop.value
+    #expect(!model.keepAwake.isActive && !model.demand.hasSamples)
     await model.hub.stop()
   }
 
@@ -215,6 +321,7 @@ struct KeepAwakeLifecycleTests {
       }
       #expect(helper.requests == [true, false])
       #expect(!helper.sleepDisabled && !controller.lidClosedActive)
+      #expect(controller.isActive)
     }
   }
   @Test func stopWaitsForLateEnableAndRestoresSystemSleep() async throws {
@@ -354,12 +461,14 @@ struct KeepAwakeLifecycleTests {
 
   private func withController(
     stopOnUnplug: Bool = false,
+    stopOnLowBattery: Bool = false,
     _ operation: (KeepAwakeController, SleepControlFixture) async throws -> Void
   ) async throws {
     let suite = "KeepAwakeLifecycleTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     defaults.set(stopOnUnplug, forKey: "keepAwakeStopOnUnplug")
+    defaults.set(stopOnLowBattery, forKey: "keepAwakeStopOnLowBattery")
     let helper = SleepControlFixture()
     let controller = KeepAwakeController(helper: helper, settings: AppSettings(defaults: defaults))
     do {

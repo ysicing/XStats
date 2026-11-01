@@ -1209,9 +1209,14 @@ struct LidBatterySettings: View {
   var body: some View {
     @Bindable var settings = model.settings
 
-    SettingsGroup(caption: tr("合盖运行设置")) {
+    SettingsGroup(caption: tr("低电量保护")) {
       GroupRow(showsDivider: false) {
-        SettingRow(title: tr("电量下限"), subtitle: tr("使用电池且电量低于该值时，自动关闭合盖运行")) {
+        SettingRow(title: tr("低电量时停止防休眠")) {
+          DSToggle(isOn: $settings.keepAwakeStopOnLowBattery, label: tr("低电量时停止防休眠"))
+        }
+      }
+      GroupRow {
+        SettingRow(title: tr("电量下限"), subtitle: tr("用于合盖运行保护和低电量停止防休眠")) {
           SegmentedControl(
             selection: $settings.lidModeBatteryFloor,
             options: AppSettings.batteryFloorOptions.map { ($0, "\($0)%") }

@@ -1737,6 +1737,10 @@ extension Translations {
     防休眠已开启	Keep Awake is on
     拔掉电源后停止防休眠	Stop Keep Awake when power is unplugged
     已拔掉电源，防休眠已关闭	Power was unplugged; Keep Awake is off
+    低电量保护	Low Battery Protection
+    低电量时停止防休眠	Stop Keep Awake on low battery
+    用于合盖运行保护和低电量停止防休眠	Used for lid-closed protection and stopping Keep Awake on low battery
+    电量低于 {}%，防休眠已关闭	Battery below {}%; Keep Awake is off
     阿里云	Alibaba Cloud
     阿里云（223.5.5.5）	Alibaba Cloud (223.5.5.5)
     降温	Cooling

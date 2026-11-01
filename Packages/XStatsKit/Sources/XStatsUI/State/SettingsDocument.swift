@@ -47,6 +47,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var bluetoothLowBatteryInMenuBar: Bool?
   public var useFahrenheit: Bool?
   public var keepAwakeStopOnUnplug: Bool?
+  public var keepAwakeStopOnLowBattery: Bool?
   public var lidModeBatteryFloor: Int?
   public var fanSafetyTemperature: Int?
   public var appearance: String?
@@ -129,6 +130,7 @@ extension AppSettings {
     doc.bluetoothLowBatteryInMenuBar = bluetoothLowBatteryInMenuBar
     doc.useFahrenheit = useFahrenheit
     doc.keepAwakeStopOnUnplug = keepAwakeStopOnUnplug
+    doc.keepAwakeStopOnLowBattery = keepAwakeStopOnLowBattery
     doc.lidModeBatteryFloor = lidModeBatteryFloor
     doc.fanSafetyTemperature = fanSafetyTemperature
     doc.appearance = appearance.rawValue
@@ -240,6 +242,7 @@ extension AppSettings {
     assign(\.bluetoothLowBatteryInMenuBar, doc.bluetoothLowBatteryInMenuBar)
     assign(\.useFahrenheit, doc.useFahrenheit)
     assign(\.keepAwakeStopOnUnplug, doc.keepAwakeStopOnUnplug)
+    assign(\.keepAwakeStopOnLowBattery, doc.keepAwakeStopOnLowBattery)
     assign(\.lidModeBatteryFloor, option(doc.lidModeBatteryFloor, in: Self.batteryFloorOptions))
     assign(\.fanSafetyTemperature, option(doc.fanSafetyTemperature, in: Self.fanSafetyOptions))
     assign(\.appearance, doc.appearance.flatMap(AppearanceMode.init(rawValue:)))

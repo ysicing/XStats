@@ -949,7 +949,10 @@ public final class AppSettings {
   public var keepAwakeStopOnUnplug: Bool {
     didSet { defaults.set(keepAwakeStopOnUnplug, forKey: Keys.keepAwakeStopOnUnplug) }
   }
-  /// 电量低于该值时自动关闭“合盖运行”
+  public var keepAwakeStopOnLowBattery: Bool {
+    didSet { defaults.set(keepAwakeStopOnLowBattery, forKey: Keys.keepAwakeStopOnLowBattery) }
+  }
+  /// 合盖运行保护与可选的防休眠低电量停止共用下限，保留已有偏好键。
   public var lidModeBatteryFloor: Int {
     didSet { defaults.set(lidModeBatteryFloor, forKey: Keys.lidModeBatteryFloor) }
   }
@@ -1390,6 +1393,7 @@ public final class AppSettings {
       defaults.object(forKey: Keys.bluetoothLowBatteryInMenuBar) as? Bool ?? true
     useFahrenheit = defaults.bool(forKey: Keys.useFahrenheit)
     keepAwakeStopOnUnplug = defaults.bool(forKey: Keys.keepAwakeStopOnUnplug)
+    keepAwakeStopOnLowBattery = defaults.bool(forKey: Keys.keepAwakeStopOnLowBattery)
     lidModeBatteryFloor =
       Self.batteryFloorOptions.contains(defaults.integer(forKey: Keys.lidModeBatteryFloor))
       ? defaults.integer(forKey: Keys.lidModeBatteryFloor) : 20
@@ -1793,6 +1797,7 @@ public final class AppSettings {
     static let bluetoothLowBatteryInMenuBar = "bluetoothLowBatteryInMenuBar"
     static let useFahrenheit = "useFahrenheit"
     static let keepAwakeStopOnUnplug = "keepAwakeStopOnUnplug"
+    static let keepAwakeStopOnLowBattery = "keepAwakeStopOnLowBattery"
     static let lidModeBatteryFloor = "lidModeBatteryFloor"
     static let fanSafetyTemperature = "fanSafetyTemperature"
     static let panelTab = "panelTab"

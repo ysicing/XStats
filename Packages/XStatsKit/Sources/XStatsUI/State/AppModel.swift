@@ -412,7 +412,9 @@ public final class AppModel {
     }
     demand.fanSafety = fans.requiresSafetySampling || restoringFans != nil
     demand.batterySafety =
-      keepAwake.lidClosedActive || (keepAwake.isActive && settings.keepAwakeStopOnUnplug)
+      keepAwake.lidClosedActive
+      || (keepAwake.isActive
+        && (settings.keepAwakeStopOnUnplug || settings.keepAwakeStopOnLowBattery))
     if demand.batterySafety { demand.battery = true }
     demand.processes =
       processPage
