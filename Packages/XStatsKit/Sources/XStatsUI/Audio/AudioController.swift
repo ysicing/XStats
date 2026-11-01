@@ -23,7 +23,7 @@ final class AudioController {
   private(set) var pendingOutputApps: Set<String> = []
   private(set) var failedOutputApps: Set<String> = []
   private(set) var unresolvedApps: Set<String> = []
-  private var operationError: AudioControlError?
+  private(set) var operationError: AudioControlError?
   private var mixingError: AudioControlError?
   var error: AudioControlError? { operationError ?? mixingError }
   var canRetryMixing: Bool { mixingError != nil }
@@ -579,11 +579,20 @@ final class AudioController {
     if let refreshTask { await refreshTask.value }
   }
 
-  func toggleDeviceMute(_ direction: AudioDirection) {
-    guard !isWorking, let device = direction == .output ? output : input else { return }
-    let muted = direction == .output ? device.outputMuted : device.inputMuted
-    guard let muted else { return }
-    perform { [hardware] in
+  @discardableResult
+  func toggleDeviceMute(_ direction: AudioDirection) -> Task<Void, Never>? {
+    guard !isWorking else { return nil }
+    return perform { [hardware] in
+      // 快捷操作可能发生在界面关闭后，只按需读取设备，不启动应用检测或音频捕获。
+      let current = await hardware.snapshot(includeApplications: false)
+      try Task.checkCancellation()
+      let id = direction == .output ? current.outputID : current.inputID
+      guard let device = current.devices.first(where: { $0.id == id }) else {
+        throw AudioControlError.unavailable
+      }
+      let muted = direction == .output ? device.outputMuted : device.inputMuted
+      let canSetMute = direction == .output ? device.canSetOutputMute : device.canSetInputMute
+      guard canSetMute, let muted else { throw AudioControlError.unsupported }
       try await hardware.setMuted(!muted, device: device, direction: direction)
     }
   }

@@ -38,6 +38,7 @@ extension Translations {
     输出切换未完成，请重试。	Output switching did not complete. Try again.
     取消麦克风静音	Unmute microphone
     静音麦克风	Mute microphone
+    切换麦克风静音	Toggle microphone mute
     取消输出静音	Unmute output
     静音输出	Mute output
     取消“{}”静音	Unmute {}

@@ -130,17 +130,20 @@ struct CommandBarWindowTests {
     panel.sendEvent(event)
   }
 
-  @Test(arguments: AppLanguage.allCases.filter { $0 != .system })
-  func nativePanelFitsTranslatedLabelsAndReadingDirection(language: AppLanguage) throws {
+  @Test(
+    arguments: AppLanguage.allCases.filter { $0 != .system }, ["停止防休眠", "切换麦克风静音"])
+  func nativePanelFitsTranslatedLabelsAndReadingDirection(language: AppLanguage, key: String) throws
+  {
     _ = NSApplication.shared
     let controller = CommandBarWindowController()
     defer { controller.dismiss() }
-    let title = L10n.translate("停止防休眠", language: language)
+    let title = L10n.translate(key, language: language)
+    let microphone = key == "切换麦克风静音"
     controller.show(
       commands: [
         AppCommand(
-          id: "stop", title: title, symbol: "moon", keywords: "",
-          action: .route(.keepAwake(.stop)))
+          id: key, title: title, symbol: microphone ? "mic.slash" : "moon", keywords: "",
+          action: microphone ? .toggleMicrophoneMute : .route(.keepAwake(.stop)))
       ], language: language)
     let panel = try #require(controller.panel)
     let content = try #require(panel.contentView)

@@ -186,6 +186,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         self.drainDeepLinks()
       case .checkForUpdates:
         self.checkForUpdatesFromMenu()
+      case .toggleMicrophoneMute:
+        self.toggleMicrophoneMute()
       }
     }
     model.openAIUsageSettings = { [weak self] in
@@ -584,6 +586,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.settings.hotKeys
       _ = model.settings.restEnabled
       _ = model.settings.commandBarEnabled
+      _ = model.settings.audioEnabled
       _ = model.isRecordingShortcut
     } onChange: { [weak self] in
       Task { @MainActor in self?.applyHotKeys() }
@@ -602,6 +605,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
       }
     case .openCommandBar:
       openCommandBarFromMenu()
+    case .toggleMicrophoneMute:
+      toggleMicrophoneMute()
     case .showProcesses:
       menuBar.dismissPopovers()
       model.openProcessMonitor()
@@ -628,6 +633,23 @@ public final class AppController: NSObject, NSApplicationDelegate {
       case .startLongBreak: model.wellness.startBreak(.long)
       default: model.wellness.startShortRest()
       }
+    }
+  }
+
+  private func toggleMicrophoneMute() {
+    guard !isTerminating, !screenLocked, !model.isRecordingShortcut else { return }
+    guard model.settings.audioEnabled else {
+      model.openMainWindow(.settingsFeatures)
+      return
+    }
+    guard let operation = model.audio.toggleDeviceMute(.input) else { return }
+    Task { [weak self] in
+      await operation.value
+      guard let self, !self.isTerminating, !self.screenLocked,
+        self.model.settings.audioEnabled, self.model.audio.operationError != nil
+      else { return }
+      // 全局操作失败时沿用音频页的具体错误提示，避免无声失败或新增常驻反馈窗口。
+      self.model.openMainWindow(.audio)
     }
   }
 

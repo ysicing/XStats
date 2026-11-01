@@ -39,6 +39,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 页面、日历、测速、出口与分流、番茄专注和普通防休眠复用现有深链路由，检查更新复用原菜单入口。功能关闭时沿用路由的设置引导，不自动开启功能或绕过授权。命令栏不搜索文件、不读取剪贴板、不执行脚本；只在显示期间建立固定命令清单的内存索引，无轮询、后台索引或搜索历史。执行、失去焦点、锁屏、休眠及切换语言时关闭，释放窗口和搜索数据，浮动面板本身不改变程序坞显示策略。
 
+“切换麦克风静音”可通过命令栏执行，也可在“设置 → 通用”绑定全局快捷键，默认不绑定。复用音频控制，仅在触发时读取当前系统默认输入设备并切换设备静音，不开启应用音量、音频捕获或额外后台监听。关闭音频功能后注销快捷键并保留绑定，命令栏入口引导到功能设置；设备不支持控制、设备变化或操作失败时打开音频页显示错误。该操作只控制默认输入设备支持的静音属性，不保证其他应用或独立输入路径全部静音。
+
 定向验证：`swift test --package-path Packages/XStatsKit --jobs 2 --no-parallel --filter 'CommandBarTests|CommandBarWindowTests|CommandBarLocalizationTests|DeepLinkTests|HotKeyTests|AppPresentationTests|CombinedMenuBarInteractionTests'`。可设置 `XSTATS_COMMAND_BAR_PREVIEW_DIR` 为已存在的目录，导出各语言的原生面板布局截图。
 
 ## xstats 深链

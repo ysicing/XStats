@@ -23,6 +23,11 @@ public final class AudioHardwareClient: @unchecked Sendable {
   private var activityInterval: TimeInterval?
   private let selectDevice:
     @Sendable (AudioDeviceInfo, AudioDirection, AudioOperationCancellation) -> AudioControlError?
+  private let muteDevice:
+    (
+      @Sendable (Bool, AudioDeviceInfo, AudioDirection, AudioOperationCancellation) ->
+        AudioControlError?
+    )?
 
   public convenience init() { self.init(selectDevice: Self.selectDefaultDevice) }
   init(
@@ -30,11 +35,17 @@ public final class AudioHardwareClient: @unchecked Sendable {
       @escaping @Sendable (AudioDeviceInfo, AudioDirection, AudioOperationCancellation) ->
       AudioControlError?,
     applicationActivity: @escaping @Sendable () -> [UInt32] = AudioHAL.applicationActivity,
-    readSnapshot: (@Sendable (Bool) -> AudioHardwareSnapshot)? = nil
+    readSnapshot: (@Sendable (Bool) -> AudioHardwareSnapshot)? = nil,
+    muteDevice:
+      (
+        @Sendable (Bool, AudioDeviceInfo, AudioDirection, AudioOperationCancellation) ->
+          AudioControlError?
+      )? = nil
   ) {
     self.selectDevice = selectDevice
     self.applicationActivity = applicationActivity
     self.readSnapshot = readSnapshot
+    self.muteDevice = muteDevice
     queue.setSpecific(key: queueKey, value: 1)
   }
 
@@ -163,8 +174,10 @@ public final class AudioHardwareClient: @unchecked Sendable {
     let cancellation = AudioOperationCancellation()
     try await withTaskCancellationHandler {
       try Task.checkCancellation()
-      let result: AudioControlError? = await execute {
-        guard !cancellation.isCancelled, AudioHAL.defaultDevice(direction) == device.id,
+      let result: AudioControlError? = await execute { [muteDevice] in
+        guard !cancellation.isCancelled else { return AudioControlError.routeChanged }
+        if let muteDevice { return muteDevice(muted, device, direction, cancellation) }
+        guard AudioHAL.defaultDevice(direction) == device.id,
           AudioHAL.string(device.id, kAudioDevicePropertyDeviceUID) == device.uid
         else { return .routeChanged }
         let properties = AudioHAL.writableElements(

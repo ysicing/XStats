@@ -9,6 +9,7 @@ struct AppCommand: Identifiable {
   enum Action: Equatable {
     case route(AppDeepLink)
     case checkForUpdates
+    case toggleMicrophoneMute
   }
 
   let id: String
@@ -27,6 +28,10 @@ struct AppCommand: Identifiable {
         keywords: "\(tab.rawValue) \(aliases(for: tab))", action: .route(.open(tab)))
     }
     commands += [
+      AppCommand(
+        id: "audio.toggleMicrophoneMute", title: tr("切换麦克风静音"), symbol: "mic.slash",
+        keywords: "microphone mic mute unmute 麦克风 静音 取消静音",
+        action: .toggleMicrophoneMute),
       AppCommand(
         id: "calendar", title: tr("打开日历"), symbol: "calendar",
         keywords: "calendar 日历", action: .route(.calendar)),

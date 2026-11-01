@@ -8,6 +8,7 @@ public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable 
   // 追加新动作，保持现有 Carbon 编号和保存的标识不变。
   case openTimer, toggleTimerHUD, startShortBreak, startLongBreak, sleepDisplay
   case openCommandBar
+  case toggleMicrophoneMute
 
   var requiresTimer: Bool {
     [.startEyeRest, .openTimer, .toggleTimerHUD, .startShortBreak, .startLongBreak].contains(self)
@@ -16,6 +17,7 @@ public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable 
   @MainActor func isEnabled(in settings: AppSettings) -> Bool {
     (!requiresTimer || settings.restEnabled)
       && (self != .openCommandBar || settings.commandBarEnabled)
+      && (self != .toggleMicrophoneMute || settings.audioEnabled)
   }
 
   /// 展示分组独立于动作声明顺序，避免调整界面时改变 Carbon 编号。
@@ -34,7 +36,7 @@ public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable 
   var category: Category {
     switch self {
     case .toggleMainWindow, .showProcesses, .openCalendar, .openCommandBar: .navigation
-    case .toggleKeepAwake, .purgeMemory, .sleepDisplay: .system
+    case .toggleKeepAwake, .purgeMemory, .sleepDisplay, .toggleMicrophoneMute: .system
     case .startEyeRest, .openTimer, .toggleTimerHUD, .startShortBreak, .startLongBreak:
       .timersAndBreaks
     }
@@ -56,6 +58,7 @@ public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable 
     case .startLongBreak: tr("开始长休息")
     case .sleepDisplay: tr("关闭显示器")
     case .openCommandBar: tr("命令栏")
+    case .toggleMicrophoneMute: tr("切换麦克风静音")
     }
   }
 
