@@ -117,7 +117,7 @@ struct EgressNSFWTests {
     }
   }
 
-  @Test func narrowWindowRendersWithNSFWSelectedInBothDirections() async throws {
+  @Test func narrowAndWideWindowsRenderWithNSFWSelectedInBothDirections() async throws {
     _ = NSApplication.shared
     let name = "EgressNSFWLayout.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: name))
@@ -133,26 +133,28 @@ struct EgressNSFWTests {
     await controller.checkTask?.value
     let session = EgressWindowSession(egress: controller)
     session.select(.nsfw)
-    for direction in [LayoutDirection.leftToRight, .rightToLeft] {
-      let host = NSHostingView(
-        rootView: EgressWindowView(session: session).content
-          .environment(\.layoutDirection, direction).frame(width: 576))
-      let size = host.fittingSize
-      #expect(abs(size.width - 576) < 1)
-      try #require(size.height.isFinite && size.height > 0)
-      let window = NSWindow(
-        contentRect: NSRect(x: 0, y: 0, width: 576, height: 640),
-        styleMask: .borderless, backing: .buffered, defer: false)
-      window.isReleasedWhenClosed = false
-      defer { window.close() }
-      window.contentView = host
-      host.layoutSubtreeIfNeeded()
-      let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-      host.cacheDisplay(in: host.bounds, to: bitmap)
-      #expect(bitmap.pixelsWide > 0 && bitmap.pixelsHigh > 0)
-      let suffix = direction == .leftToRight ? "ltr" : "rtl"
-      try #require(bitmap.representation(using: .png, properties: [:])).write(
-        to: URL(fileURLWithPath: "/private/tmp/xstats-nsfw-\(suffix).png"))
+    for width: CGFloat in [576, 1400] {
+      for direction in [LayoutDirection.leftToRight, .rightToLeft] {
+        let host = NSHostingView(
+          rootView: EgressWindowView(session: session).content
+            .environment(\.layoutDirection, direction).frame(width: width))
+        let size = host.fittingSize
+        #expect(abs(size.width - width) < 1)
+        try #require(size.height.isFinite && size.height > 0)
+        let window = NSWindow(
+          contentRect: NSRect(x: 0, y: 0, width: width, height: 640),
+          styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        #expect(bitmap.pixelsWide > 0 && bitmap.pixelsHigh > 0)
+        let suffix = direction == .leftToRight ? "ltr" : "rtl"
+        try #require(bitmap.representation(using: .png, properties: [:])).write(
+          to: URL(fileURLWithPath: "/private/tmp/xstats-nsfw-\(Int(width))-\(suffix).png"))
+      }
     }
     #expect(!session.isChecking)
   }

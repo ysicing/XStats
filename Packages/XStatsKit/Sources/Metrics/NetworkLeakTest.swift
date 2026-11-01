@@ -2,6 +2,7 @@
 
 import Foundation
 import Network
+import dnssd
 
 /// 按需检测当前请求路径；观察到的地址不是 VPN 是否泄漏的自动判决。
 public enum NetworkLeakTest {
@@ -66,50 +67,127 @@ public enum NetworkLeakTest {
     configuration.waitsForConnectivity = false
     let session = URLSession(configuration: configuration)
     defer { session.invalidateAndCancel() }
-    return try await dns { url, timeout in
-      var request = URLRequest(url: url)
-      request.timeoutInterval = timeout
-      let (bytes, response) = try await session.bytes(for: request)
-      defer { bytes.task.cancel() }
-      guard let response = response as? HTTPURLResponse, response.statusCode == 200,
-        response.expectedContentLength <= 65_536
-      else { throw Failure.unavailable }
-      var data = Data()
-      for try await byte in bytes {
+    return try await dns(
+      request: { request in
+        let (bytes, response) = try await session.bytes(for: request)
+        defer { bytes.task.cancel() }
+        guard let response = response as? HTTPURLResponse, response.statusCode == 200,
+          response.expectedContentLength <= 65_536
+        else { throw Failure.unavailable }
+        var data = Data()
+        for try await byte in bytes {
+          try Task.checkCancellation()
+          guard data.count < 65_536 else { throw Failure.invalidResponse }
+          data.append(byte)
+        }
+        return data
+      },
+      register: { url, ipv6 in
+        // 与脚本的 curl -4/-6 一致；缺少某个地址族不应阻止 DNS 检测。
+        _ = await AddressFamilyRequest.get(url, ipv6: ipv6, timeout: 5)
         try Task.checkCancellation()
-        guard data.count < 65_536 else { throw Failure.invalidResponse }
-        data.append(byte)
-      }
-      return data
-    }
+      },
+      resolve: { host in
+        await DNSLeakQuery(host: host).run()
+        try Task.checkCancellation()
+      })
   }
 
   // 传输可替换，回归不访问真实服务，也不污染开发机 DNS。
-  static func dns(request: @Sendable (URL, TimeInterval) async throws -> Data) async throws
-    -> DNSResult
-  {
+  static func dns(
+    request: @Sendable (URLRequest) async throws -> Data,
+    register: @Sendable (URL, Bool) async throws -> Void,
+    resolve: @escaping @Sendable (String) async throws -> Void
+  ) async throws -> DNSResult {
     try Task.checkCancellation()
-    let sessionData = try await request(URL(string: "https://bash.ws/id")!, 6)
-    let token = String(decoding: sessionData, as: UTF8.self).trimmingCharacters(
-      in: .whitespacesAndNewlines)
+    struct Run: Decodable {
+      let kind: String
+      let run_id: String
+      let cmd: String
+      let url: String
+    }
+    let sessionData = try await request(dnsCommand("start", path: "/dnsleak"))
+    guard sessionData.count <= 65_536,
+      let run = try? JSONDecoder().decode(Run.self, from: sessionData)
+    else { throw Failure.invalidResponse }
+    let token = run.run_id
     guard (1...63).contains(token.utf8.count),
       token.utf8.allSatisfy({
         (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0)
-      })
+      }),
+      run.kind == "test", run.cmd == "dnsleaktest", run.url == "/dnsleak/test/\(token)"
     else { throw Failure.invalidResponse }
-    for index in 1...3 {
+    // 使用当前网页的 start / exec / checkrun 协议；不采纳服务端的泄漏结论。
+    for ipv6 in [false, true] {
       try Task.checkCancellation()
       do {
-        _ = try await request(URL(string: "https://ex.\(index).\(token).bash.ws/css/z.css")!, 2)
+        let host = ipv6 ? "ipv6.bash.ws" : "ipv4.bash.ws"
+        try await register(URL(string: "https://\(host)/myip/test/\(token)")!, ipv6)
       } catch {
-        // TLS 失败仍可能已触发 DNS；以服务端观察结果为准，但取消必须立即停止后续探测。
         try Task.checkCancellation()
       }
     }
     try Task.checkCancellation()
-    let data = try await request(URL(string: "https://bash.ws/dnsleak/test/\(token)?json")!, 6)
+    struct Execution: Decodable { let started: Int }
+    let execution = try await request(dnsCommand("exec", path: run.url))
+    guard execution.count <= 65_536,
+      let status = try? JSONDecoder().decode(Execution.self, from: execution), status.started == 1
+    else { throw Failure.invalidResponse }
+    // 30 个不同域名采样递归出口池，最多两个查询同时进行；只解析，不发送 ICMP 或 HTTPS。
+    try await withThrowingTaskGroup(of: Void.self) { group in
+      for index in 1...30 {
+        try Task.checkCancellation()
+        if index > 2 { try await group.next() }
+        group.addTask {
+          try Task.checkCancellation()
+          do {
+            try await resolve("\(index).\(token).bash.ws")
+          } catch {
+            // NXDOMAIN 等失败仍可能已触发权威查询，最终以服务端观察为准。
+            try Task.checkCancellation()
+          }
+          try Task.checkCancellation()
+        }
+      }
+      try await group.waitForAll()
+    }
+    try Task.checkCancellation()
+    struct Progress: Decodable { let done: Int }
+    var completed = false
+    // 权威查询记录可能稍晚入库；只在当前检测期间有界等待，取消后不继续轮询。
+    for attempt in 0..<4 {
+      if attempt > 0 { try await Task.sleep(for: .milliseconds(1500)) }
+      try Task.checkCancellation()
+      let data = try await request(dnsCommand("checkrun", path: run.url))
+      guard data.count <= 65_536,
+        let progress = try? JSONDecoder().decode(Progress.self, from: data),
+        progress.done == 0 || progress.done == 1
+      else { throw Failure.invalidResponse }
+      if progress.done == 1 {
+        completed = true
+        break
+      }
+    }
+    guard completed else { throw Failure.unavailable }
+    try Task.checkCancellation()
+    let resultRequest = URLRequest(
+      url: URL(string: "https://bash.ws/dnsleak/test/\(token)?json=2")!, timeoutInterval: 6)
+    let data = try await request(resultRequest)
     try Task.checkCancellation()
     return try decodeDNS(data)
+  }
+
+  private static func dnsCommand(_ action: String, path: String) -> URLRequest {
+    var request = URLRequest(url: URL(string: "https://bash.ws/dnsleak")!, timeoutInterval: 6)
+    request.httpMethod = "POST"
+    request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+    // path 仅由固定路径和已校验的字母数字 run_id 构成，不接受服务端任意 URL。
+    request.httpBody = Data("ajax=1&\(action)=1&url=\(path)".utf8)
+    if action == "checkrun" {
+      // 仅查询完成状态，避免服务端附带完整 HTML 超过有界响应上限。
+      request.httpBody?.append(Data("&summary=1".utf8))
+    }
+    return request
   }
 
   static func decodeDNS(_ data: Data) throws -> DNSResult {
@@ -149,5 +227,70 @@ public enum NetworkLeakTest {
     }
     guard !resolvers.isEmpty else { throw Failure.invalidResponse }
     return DNSResult(exits: exits.sorted(), resolvers: resolvers.sorted { $0.address < $1.address })
+  }
+}
+
+/// 复现脚本 ping 前的系统解析，避免 HTTPS 代理代替本机解析探测域名。
+/// 每个实例仅运行一次；DNS 回调、超时和取消都在同一串行队列上释放查询并恢复一次。
+final class DNSLeakQuery: @unchecked Sendable {
+  private static let queue = DispatchQueue(label: "XStats.DNSLeakQuery")
+  private let host: String
+  private let timeout: TimeInterval
+  private var service: DNSServiceRef?
+  private var continuation: CheckedContinuation<Void, Never>?
+  private var finished = false
+  private var deadline: DispatchWorkItem?
+
+  init(host: String, timeout: TimeInterval = 2) {
+    self.host = host.hasSuffix(".") ? host : host + "."
+    self.timeout = timeout
+  }
+
+  func run() async {
+    await withTaskCancellationHandler {
+      await withCheckedContinuation { continuation in
+        let cancelled = Task.isCancelled
+        Self.queue.async { [self] in
+          guard !cancelled, !finished else {
+            continuation.resume()
+            return
+          }
+          self.continuation = continuation
+          let status = DNSServiceGetAddrInfo(
+            &service, 0, 0, DNSServiceProtocol(kDNSServiceProtocol_IPv4), host,
+            { _, _, _, _, _, _, _, context in
+              guard let context else { return }
+              Unmanaged<DNSLeakQuery>.fromOpaque(context).takeUnretainedValue().finish()
+            }, Unmanaged.passUnretained(self).toOpaque())
+          guard status == kDNSServiceErr_NoError, let service,
+            DNSServiceSetDispatchQueue(service, Self.queue) == kDNSServiceErr_NoError
+          else {
+            finish()
+            return
+          }
+          let deadline = DispatchWorkItem { [weak self] in self?.finish() }
+          self.deadline = deadline
+          Self.queue.asyncAfter(deadline: .now() + timeout, execute: deadline)
+        }
+      }
+    } onCancel: {
+      Self.queue.async { self.finish() }
+    }
+    // C 回调只持有非拥有指针，确保完成和释放查询之前实例始终存活。
+    withExtendedLifetime(self) {}
+  }
+
+  private func finish() {
+    guard !finished else { return }
+    finished = true
+    deadline?.cancel()
+    deadline = nil
+    if let service {
+      DNSServiceRefDeallocate(service)
+      self.service = nil
+    }
+    let continuation = continuation
+    self.continuation = nil
+    continuation?.resume()
   }
 }

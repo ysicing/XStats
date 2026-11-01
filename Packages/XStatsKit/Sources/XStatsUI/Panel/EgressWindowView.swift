@@ -409,29 +409,35 @@ private struct SitesCard: View {
 
   var body: some View {
     let groups = siteGroups
+    let heading = VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
+      Text(tr("网站分流")).dsFont(.base, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
+      Text(tr(subtitle))
+        .dsFont(.xs)
+        .foregroundStyle(DS.Palette.textTertiary)
+        .lineLimit(1)
+        .help(tr(subtitle))
+    }
+    let selection = Binding(get: { session.tab }, set: { session.select($0) })
+    let options = session.tabs.map { ($0, $0.title) }
+    let tabs = SegmentedControl(selection: selection, options: options)
     Card(padding: 0, spacing: 0) {
-      VStack(alignment: .leading, spacing: DS.Space.s3) {
-        VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
-          Text(tr("网站分流")).dsFont(.base, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
-          Text(tr(subtitle))
-            .dsFont(.xs)
-            .foregroundStyle(DS.Palette.textTertiary)
-            .lineLimit(1)
-            .help(tr(subtitle))
+      // 宽窗口同排右对齐；容纳不下完整标题和分类时再换行，避免裁切或横向滚动。
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: DS.Space.s4) {
+          heading.fixedSize(horizontal: true, vertical: false)
+          Spacer(minLength: 0)
+          tabs.fixedSize(horizontal: true, vertical: false)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // 分类独占一行并按实际宽度换行，窄窗口和长译文也无需横向滚动。
-        ViewThatFits(in: .horizontal) {
-          SegmentedControl(
-            selection: Binding(get: { session.tab }, set: { session.select($0) }),
-            options: session.tabs.map { ($0, $0.title) }
-          )
-          .fixedSize(horizontal: true, vertical: false)
-          SegmentedControl(
-            selection: Binding(get: { session.tab }, set: { session.select($0) }),
-            options: session.tabs.map { ($0, $0.title) }, wraps: true)
+        VStack(alignment: .leading, spacing: DS.Space.s3) {
+          heading.frame(maxWidth: .infinity, alignment: .leading)
+          ViewThatFits(in: .horizontal) {
+            tabs.fixedSize(horizontal: true, vertical: false)
+            SegmentedControl(selection: selection, options: options, wraps: true)
+          }
         }
       }
+      // 标题栏跟随窗口宽度，不让横排方案的固有宽度反向撑大 HostingView。
+      .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, alignment: .leading)
       .padding(DS.Space.s4)
 
       switch session.tab {
