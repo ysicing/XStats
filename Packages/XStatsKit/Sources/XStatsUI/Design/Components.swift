@@ -716,12 +716,15 @@ private struct SidebarGlider: View {
 struct SegmentedControl<Value: Hashable>: View {
   @Binding var selection: Value
   let options: [(value: Value, title: String)]
+  var wraps = false
   @Namespace private var namespace
 
   private static var radius: CGFloat { DS.Radius.md - DS.Space.s1 / 2 }
 
   var body: some View {
-    HStack(spacing: 0) {
+    let layout =
+      wraps ? AnyLayout(FlowLayout(spacing: DS.Space.s1)) : AnyLayout(HStackLayout(spacing: 0))
+    layout {
       ForEach(options, id: \.value) { option in
         let selected = option.value == selection
         Button {

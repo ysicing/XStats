@@ -106,6 +106,12 @@ MIT License，Copyright (c) 2023 LobeHub。各 SVG 保留完整许可和精确�
 不改变路径坐标；渲染时按外观解析 `currentColor`，保留固有品牌色。
 这些资源用于识别对应服务及其地区版本，不代表服务商认可或合作；名称和标志属于各自权利人。
 
+网站分流图标 `site-{spotify,kali,nodejs,sony,okx}.svg` 来自
+[Simple Icons 的固定版本](https://github.com/simple-icons/simple-icons/tree/b86d5c9a0bdd4f3f5c30898a63654dd32f39fd76/icons)，
+`site-amazon.svg` 来自其 [v11.15.0 固定提交](https://github.com/simple-icons/simple-icons/blob/0af835e2949a9222965522780e5e0810d3c53382/icons/amazon.svg)，
+使用 CC0-1.0。各 SVG 保留精确来源；XStats 仅补充尺寸和固定填色以供 AppKit 渲染。
+这些标志仅用于识别检测站点，名称与商标属于各自权利人。
+
 ## 开发工具品牌图标
 
 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/tool-codebuddy.svg` 来自

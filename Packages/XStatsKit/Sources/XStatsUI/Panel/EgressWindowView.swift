@@ -14,6 +14,22 @@ struct EgressWindowView: View {
   @Bindable var session: EgressWindowSession
 
   var body: some View {
+    content
+      .appLanguageEnvironment()
+      .onChange(of: model.settings.language) {
+        session.egress.refreshNSFWVisibility()
+      }
+      .onReceive(NotificationCenter.default.publisher(for: NSApplication.didHideNotification)) {
+        _ in
+        session.setHidden(true)
+      }
+      .onReceive(NotificationCenter.default.publisher(for: NSApplication.didUnhideNotification)) {
+        _ in
+        session.setHidden(false)
+      }
+  }
+
+  var content: some View {
     VStack(spacing: 0) {
       // 滚动视图会自动向上延伸到标题栏下面：顶栏垫上底色、放在它之上，滚动的内容才不会盖住按钮
       EgressHeader(session: session)
@@ -23,26 +39,20 @@ struct EgressWindowView: View {
     }
     .background(DS.Palette.background)
     .ignoresSafeArea()
-    .appLanguageEnvironment()
-    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didHideNotification)) { _ in
-      session.setHidden(true)
-    }
-    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didUnhideNotification)) {
-      _ in
-      session.setHidden(false)
-    }
   }
 
   private var overview: some View {
-    let egress = model.egress
+    let egress = session.egress
     let context = egress.report.flatMap { report in
-      egress.analysis.map { EgressContext(report: report, analysis: $0) }
+      egress.analysis.map {
+        EgressContext(report: report, analysis: $0, sites: egress.visibleSites)
+      }
     }
     return PageScroll {
       if let context {
-        OverviewCard(context: context)
+        OverviewCard(context: context, networkChanged: egress.networkChanged)
       } else if session.tab.isOverview {
-        FirstCheckCard()
+        FirstCheckCard(egress: egress)
       }
       SitesCard(context: context, session: session)
       if let environment = egress.environment ?? egress.report?.environment {
@@ -57,6 +67,7 @@ struct EgressWindowView: View {
 private struct EgressContext {
   let report: EgressController.Report
   let analysis: EgressAnalysis
+  let sites: [EgressTarget]
 
   func hit(_ target: EgressTarget, _ route: EgressRoute) -> EgressHit? {
     EgressAnalysis.hit(report.hits, target, route)
@@ -68,7 +79,7 @@ private struct EgressContext {
 
   /// 网站表里的条目（不含基准目标），按出口分组后的数量
   var siteCounts: (proxy: Int, direct: Int, unknown: Int, failed: Int) {
-    let siteIDs = Set(EgressTarget.sites.map(\.id))
+    let siteIDs = Set(sites.map(\.id))
     var counts = (proxy: 0, direct: 0, unknown: 0, failed: 0)
     for exit in analysis.exits {
       let count = exit.entries.filter { siteIDs.contains($0.targetID) }.count
@@ -87,11 +98,10 @@ private struct EgressContext {
 // MARK: - 顶栏
 
 private struct EgressHeader: View {
-  @Environment(AppModel.self) private var model
   let session: EgressWindowSession
 
   var body: some View {
-    let egress = model.egress
+    @Bindable var egress = session.egress
     HStack(spacing: DS.Space.s3) {
       HStack(spacing: 0) {
         Text(tr("出口与分流"))
@@ -116,7 +126,7 @@ private struct EgressHeader: View {
           if session.isChecking {
             ProgressView().controlSize(.mini)
             if egress.isChecking {
-              Text(tr("检测中 \(egress.progress)/\(EgressProber.jobCount)")).monospacedDigit()
+              Text(tr("检测中 \(egress.progress)/\(egress.jobCount)")).monospacedDigit()
             } else {
               Text(tr("正在检测…"))
             }
@@ -134,6 +144,23 @@ private struct EgressHeader: View {
         Button(tr("取消")) { session.cancelChecks() }
           .buttonStyle(DSButtonStyle(kind: .secondary))
       }
+      if egress.nsfwAvailable {
+        Menu {
+          Toggle(tr("显示 NSFW"), isOn: $egress.nsfwEnabled)
+            .accessibilityIdentifier("egress.nsfw.enabled")
+          Toggle(tr("工作时段隐藏"), isOn: $egress.hideNSFWDuringWork)
+            .disabled(!egress.nsfwEnabled)
+            .help(tr("按本地时间，在中国大陆工作日（含调休）08:00–22:00 隐藏 NSFW 分类及站点；节假日安排未知时每天隐藏。"))
+            .accessibilityIdentifier("egress.nsfw.hideDuringWork")
+        } label: {
+          Image(systemName: "gearshape")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(tr("检测选项"))
+        .accessibilityLabel(tr("检测选项"))
+        .accessibilityIdentifier("egress.options")
+      }
     }
     // 让出红绿灯按钮，再隔开一段，标题不贴着最右边的按钮
     .padding(.leading, DS.Size.trafficLightsWidth + DS.Space.s4)
@@ -143,14 +170,14 @@ private struct EgressHeader: View {
 }
 
 private struct FirstCheckCard: View {
-  @Environment(AppModel.self) private var model
+  let egress: EgressController
 
   var body: some View {
     Card(spacing: DS.Space.s3) {
       Text(tr("正在检测出口与分流…"))
         .dsFont(.base, weight: .semibold)
         .foregroundStyle(DS.Palette.textPrimary)
-      ProgressView(value: Double(model.egress.progress), total: Double(EgressProber.jobCount))
+      ProgressView(value: Double(egress.progress), total: Double(egress.jobCount))
         .tint(DS.Palette.primary)
       Text(tr("分别经物理网卡、系统代理与 VPN 隧道访问检测目标，约需 10 秒。"))
         .dsFont(.xs)
@@ -162,8 +189,8 @@ private struct FirstCheckCard: View {
 // MARK: - 总览
 
 private struct OverviewCard: View {
-  @Environment(AppModel.self) private var model
   let context: EgressContext
+  let networkChanged: Bool
 
   var body: some View {
     let analysis = context.analysis
@@ -191,9 +218,9 @@ private struct OverviewCard: View {
       HairlineDivider()
       RouteDiagram(context: context)
 
-      if model.egress.networkChanged || !analysis.findings.isEmpty {
+      if networkChanged || !analysis.findings.isEmpty {
         VStack(alignment: .leading, spacing: DS.Space.s2) {
-          if model.egress.networkChanged {
+          if networkChanged {
             InfoBanner(
               icon: "arrow.triangle.2.circlepath", text: tr("网络环境变了，下面是之前的结果，正在重新检测。"),
               tone: .primary)
@@ -383,7 +410,7 @@ private struct SitesCard: View {
   var body: some View {
     let groups = siteGroups
     Card(padding: 0, spacing: 0) {
-      HStack(spacing: DS.Space.s3) {
+      VStack(alignment: .leading, spacing: DS.Space.s3) {
         VStack(alignment: .leading, spacing: DS.Space.s1 / 2) {
           Text(tr("网站分流")).dsFont(.base, weight: .semibold).foregroundStyle(DS.Palette.textPrimary)
           Text(tr(subtitle))
@@ -392,20 +419,18 @@ private struct SitesCard: View {
             .lineLimit(1)
             .help(tr(subtitle))
         }
-        // 标题使用分类栏之外的剩余宽度，避免单行说明把窄窗口撑大。
-        .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, alignment: .leading)
-        Spacer(minLength: DS.Space.s3)
-        ScrollView(.horizontal) {
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // 分类独占一行并按实际宽度换行，窄窗口和长译文也无需横向滚动。
+        ViewThatFits(in: .horizontal) {
           SegmentedControl(
             selection: Binding(get: { session.tab }, set: { session.select($0) }),
-            options: EgressWindowSession.Tab.allCases.map { ($0, $0.title) }
+            options: session.tabs.map { ($0, $0.title) }
           )
           .fixedSize(horizontal: true, vertical: false)
+          SegmentedControl(
+            selection: Binding(get: { session.tab }, set: { session.select($0) }),
+            options: session.tabs.map { ($0, $0.title) }, wraps: true)
         }
-        .scrollIndicators(.hidden)
-        .frame(
-          width: DS.Size.sidebarWidth * 2, height: DS.Size.segmentHeight + DS.Space.s1,
-          alignment: .trailing)
       }
       .padding(DS.Space.s4)
 
@@ -469,7 +494,7 @@ private struct SitesCard: View {
     guard let context, session.tab.isOverview else { return [] }
     let analysis = context.analysis
     func target(_ id: String) -> EgressTarget? {
-      EgressTarget.sites.first { $0.id == id && session.tab.includes($0) }
+      session.egress.visibleSites.first { $0.id == id && session.tab.includes($0) }
     }
     var groups: [SiteGroup] = []
     for exit in analysis.exits {

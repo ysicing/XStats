@@ -2659,3 +2659,7 @@ AI 功能需要安装并运行 Magpie。	Für die AI-Funktionen muss Magpie inst
 低电量时停止防休眠	Ruhezustandsverhinderung bei niedrigem Akkustand beenden
 用于合盖运行保护和低电量停止防休眠	Für den Schutz bei geschlossenem Deckel und das Beenden der Ruhezustandsverhinderung bei niedrigem Akkustand
 电量低于 {}%，防休眠已关闭	Akku unter {} %; Ruhezustandsverhinderung beendet
+显示 NSFW	NSFW anzeigen
+工作时段隐藏	Während der Arbeitszeit ausblenden
+检测选项	Testoptionen
+按本地时间，在中国大陆工作日（含调休）08:00–22:00 隐藏 NSFW 分类及站点；节假日安排未知时每天隐藏。	Die NSFW-Kategorie und ihre Websites an Arbeitstagen in Festlandchina einschließlich Ausgleichsarbeitstagen von 08:00 bis 22:00 Uhr Ortszeit ausblenden. Ohne Feiertagsdaten gilt dies täglich.

@@ -9,7 +9,7 @@ import Observation
 @MainActor @Observable
 final class EgressWindowSession {
   enum Tab: Hashable, CaseIterable {
-    case overview, ai, media, social, developer, domestic, webRTC, dns
+    case overview, ai, media, social, developer, domestic, nsfw, webRTC, dns
 
     var isOverview: Bool { self != .webRTC && self != .dns }
 
@@ -20,7 +20,8 @@ final class EgressWindowSession {
       case .media: tr("影音")
       case .social: tr("社交")
       case .developer: tr("开发")
-      case .domestic: tr("国内")
+      case .domestic: tr("中国大陆")
+      case .nsfw: "NSFW"
       case .webRTC: "WebRTC"
       case .dns: "DNS"
       }
@@ -34,18 +35,30 @@ final class EgressWindowSession {
       case .social: target.category == .social
       case .developer: target.category == .developer
       case .domestic: target.category == .domestic
+      case .nsfw: target.category == .nsfw
       case .webRTC, .dns: false
       }
     }
   }
 
-  private(set) var tab: Tab = .overview
+  private var selectedTab: Tab = .overview
+  private var selectedNSFWRevision = 0
+  var tab: Tab {
+    // 隐藏使旧选择失效；恢复可见时也不能自动跳回敏感分类。
+    if selectedTab == .nsfw,
+      !egress.nsfwVisible || selectedNSFWRevision != egress.nsfwVisibilityRevision
+    {
+      return .overview
+    }
+    return selectedTab
+  }
+  var tabs: [Tab] { Tab.allCases.filter { $0 != .nsfw || egress.nsfwVisible } }
   private(set) var webRTC: NetworkLeakTestController
   private(set) var dns: NetworkLeakTestController
   private var visible = false
   private var suspended = false
   private var hidden = false
-  private let egress: EgressController
+  let egress: EgressController
   private let makeController: () -> NetworkLeakTestController
   private let now: () -> Date
   private var attempt: (date: Date, signature: String)?
@@ -86,7 +99,8 @@ final class EgressWindowSession {
   }
 
   func select(_ tab: Tab) {
-    self.tab = tab
+    selectedTab = tabs.contains(tab) ? tab : .overview
+    selectedNSFWRevision = egress.nsfwVisibilityRevision
   }
 
   func open() {
@@ -123,7 +137,7 @@ final class EgressWindowSession {
     egress.windowDidClose()
     cancelLeakTests()
     // 保留已完成的结果和批次时间；重开时由 checkIfNeeded 按时效与网络环境统一判断是否重测。
-    tab = .overview
+    selectedTab = .overview
   }
 
   func check() {
@@ -149,6 +163,7 @@ final class EgressWindowSession {
 
   private func checkIfNeeded(environment: ProxyEnvironment, first: Bool) {
     guard visible, !suspended, !hidden else { return }
+    if !egress.nsfwVisible, selectedTab == .nsfw { selectedTab = .overview }
     let changed = attempt.map { $0.signature != environment.signature } ?? false
     let stale =
       attempt.map { now().timeIntervalSince($0.date) > EgressController.staleAfter } ?? true

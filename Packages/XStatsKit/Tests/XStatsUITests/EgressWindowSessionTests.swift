@@ -7,6 +7,87 @@ import Testing
 
 @MainActor
 struct EgressWindowSessionTests {
+  @Test func nsfwVisibilityChangesDoNotRestartTheSharedBatch() async throws {
+    let name = "EgressNSFWSession.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    var date = try #require(ISO8601DateFormatter().date(from: "2026-09-24T07:59:00Z"))
+    var measurements: [[EgressTarget]] = []
+    var leakChecks = 0
+    var environmentReads = 0
+    let controller = EgressController(
+      defaults: defaults, now: { date }, timeZone: { TimeZone(secondsFromGMT: 0)! },
+      language: { .chinese }, isMainlandChinaDevice: true,
+      environmentReader: {
+        environmentReads += 1
+        return ProxyEnvironment()
+      },
+      measure: { _, sites, _ in
+        await MainActor.run { measurements.append(sites) }
+        return sites.map { EgressHit(targetID: $0.id, route: .system) }
+      }, geoLookup: { _, _, _ in nil })
+    let session = EgressWindowSession(
+      egress: controller,
+      makeController: {
+        NetworkLeakTestController(
+          geoLookup: { _ in nil },
+          webRTCProbe: {
+            leakChecks += 1
+            return WebRTCLeakProbe.Result(services: [])
+          }, exitLookup: { "192.0.2.1" }, dnsProbe: { try Self.dnsResult() })
+      }, now: { date })
+    session.open()
+    defer { session.close() }
+    try await waitUntil { measurements.count == 1 && !session.isChecking }
+    #expect(measurements[0].contains { $0.category == .nsfw })
+    controller.nsfwEnabled = true
+    #expect(!session.isChecking && measurements.count == 1)
+    #expect(leakChecks == 1)
+    session.select(.nsfw)
+    // 只跨过显示边界，保持结果在十分钟有效期内，避免恢复时正常的过期重测。
+    date = try #require(ISO8601DateFormatter().date(from: "2026-09-24T08:01:00Z"))
+    let readsBeforeWorkHours = environmentReads
+    try await waitUntil { environmentReads > readsBeforeWorkHours }
+    #expect(!controller.nsfwVisible && session.tab == .overview)
+    #expect(!session.isChecking && measurements.count == 1 && leakChecks == 1)
+    controller.nsfwEnabled = false
+    #expect(session.tab == .overview)
+    #expect(controller.report?.hits.contains { $0.targetID == "javdb.com" } == true)
+    #expect(!session.isChecking && measurements.count == 1)
+    controller.hideNSFWDuringWork = false
+    #expect(measurements.count == 1)
+    session.setSuspended(true)
+    controller.nsfwEnabled = true
+    #expect(!session.isChecking && measurements.count == 1)
+    session.setSuspended(false)
+    let readsBeforeResume = environmentReads
+    try await waitUntil { environmentReads > readsBeforeResume }
+    #expect(!session.isChecking && measurements.count == 1)
+    #expect(session.tab == .overview)
+    #expect(leakChecks == 1)
+  }
+
+  @Test func siteCategoriesIncludeSpotifyAndOverseasServices() throws {
+    let spotify = try #require(EgressTarget.sites.first { $0.host == "open.spotify.com" })
+    #expect(EgressWindowSession.Tab.media.includes(spotify))
+    for host in [
+      "www.google.com", "www.sony.com", "www.amazon.com", "www.cloudflare.com", "www.okx.com",
+    ] {
+      let target = try #require(EgressTarget.sites.first { $0.host == host })
+      #expect(EgressWindowSession.Tab.overview.includes(target))
+      #expect(
+        EgressWindowSession.Tab.allCases.filter { $0.includes(target) } == [.overview])
+      #expect(target.region == .international)
+    }
+    for host in ["kali.download", "nodejs.org"] {
+      let target = try #require(EgressTarget.sites.first { $0.host == host })
+      #expect(EgressWindowSession.Tab.developer.includes(target))
+      #expect(EgressWindowSession.Tab.overview.includes(target))
+      #expect(target.region == .international)
+    }
+    #expect(Set(EgressTarget.sites.map(\.id)).count == EgressTarget.sites.count)
+  }
+
   @Test func sharedCheckStartsAllTestsAndSwitchingDoesNotCancelOrDuplicate() async throws {
     let name = "EgressSharedCheck.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: name))
@@ -19,7 +100,7 @@ struct EgressWindowSessionTests {
     var dnsCalls = 0
     let egress = EgressController(
       defaults: defaults, environmentReader: { ProxyEnvironment() },
-      measure: { _, _ in
+      measure: { _, _, _ in
         await MainActor.run { overviewCalls += 1 }
         await overviewGate.wait()
         return []
@@ -73,7 +154,7 @@ struct EgressWindowSessionTests {
     var failDNS = false
     let egress = EgressController(
       defaults: defaults, environmentReader: { ProxyEnvironment() },
-      measure: { _, _ in [] }, geoLookup: { _, _, _ in nil })
+      measure: { _, _, _ in [] }, geoLookup: { _, _, _ in nil })
     let session = EgressWindowSession(
       egress: egress,
       makeController: {
@@ -115,7 +196,7 @@ struct EgressWindowSessionTests {
     defer { defaults.removePersistentDomain(forName: name) }
     let egress = EgressController(
       defaults: defaults, environmentReader: { ProxyEnvironment() },
-      measure: { _, _ in [] }, geoLookup: { _, _, _ in nil })
+      measure: { _, _, _ in [] }, geoLookup: { _, _, _ in nil })
     let session = EgressWindowSession(egress: egress, makeController: Self.offlineController)
     session.setHidden(true)
     session.open()
@@ -143,7 +224,7 @@ struct EgressWindowSessionTests {
     var dnsGate: CheckedContinuation<NetworkLeakTest.DNSResult, Never>?
     let egress = EgressController(
       defaults: defaults, environmentReader: { ProxyEnvironment() },
-      measure: { _, _ in
+      measure: { _, _, _ in
         try? await Task.sleep(for: .seconds(30))
         return []
       }, geoLookup: { _, _, _ in nil })
@@ -197,7 +278,7 @@ struct EgressWindowSessionTests {
     var date = Date()
     let egress = EgressController(
       defaults: defaults, environmentReader: { environment },
-      measure: { _, _ in [] }, geoLookup: { _, _, _ in nil })
+      measure: { _, _, _ in [] }, geoLookup: { _, _, _ in nil })
     let session = EgressWindowSession(
       egress: egress,
       makeController: {
@@ -242,7 +323,7 @@ struct EgressWindowSessionTests {
       environmentReader: {
         reads += 1
         return environment
-      }, measure: { _, _ in [] }, geoLookup: { _, _, _ in nil })
+      }, measure: { _, _, _ in [] }, geoLookup: { _, _, _ in nil })
     let session = EgressWindowSession(
       egress: egress,
       makeController: {
@@ -284,7 +365,7 @@ struct EgressWindowSessionTests {
       environmentReader: {
         reads += 1
         return ProxyEnvironment()
-      }, measure: { _, _ in [] }, geoLookup: { _, _, _ in nil })
+      }, measure: { _, _, _ in [] }, geoLookup: { _, _, _ in nil })
     let session = EgressWindowSession(
       egress: egress,
       makeController: {

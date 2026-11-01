@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Localization
 import Metrics
 import Observation
 
@@ -21,8 +22,28 @@ public final class EgressController {
   /// 实时读到的代理环境；与报告里的不同说明网络已经变了
   public private(set) var environment: ProxyEnvironment?
   public private(set) var isChecking = false
-  /// 本次检测已完成的测量数，总数见 `EgressProber.jobCount`
+  /// 本次检测已完成的测量数，总数见 `jobCount`
   public private(set) var progress = 0
+
+  var nsfwEnabled: Bool {
+    didSet {
+      defaults.set(nsfwEnabled, forKey: "egressNSFWEnabled")
+      refreshNSFWVisibility()
+    }
+  }
+  var hideNSFWDuringWork: Bool {
+    didSet {
+      defaults.set(hideNSFWDuringWork, forKey: "egressHideNSFWDuringWork")
+      refreshNSFWVisibility()
+    }
+  }
+  private(set) var nsfwVisible = false
+  private(set) var nsfwVisibilityRevision = 0
+  var nsfwAvailable: Bool { language() == .chinese && isMainlandChinaDevice }
+  var visibleSites: [EgressTarget] {
+    EgressTarget.sites.filter { $0.category != .nsfw || nsfwVisible }
+  }
+  var jobCount: Int { EgressProber.jobCount }
 
   @ObservationIgnored private var watchTask: Task<Void, Never>?
   @ObservationIgnored private(set) var checkTask: Task<Void, Never>?
@@ -33,9 +54,13 @@ public final class EgressController {
   @ObservationIgnored private var onEnvironment: ((ProxyEnvironment, Bool) -> Void)?
   @ObservationIgnored private var geoCache: [String: (geo: EgressGeo, date: Date)] = [:]
   @ObservationIgnored private let defaults: UserDefaults
+  @ObservationIgnored private let now: @MainActor () -> Date
+  @ObservationIgnored private let timeZone: @MainActor () -> TimeZone
+  @ObservationIgnored private let language: @MainActor () -> AppLanguage
+  @ObservationIgnored private let isMainlandChinaDevice: Bool
   @ObservationIgnored private let environmentReader: @MainActor () async -> ProxyEnvironment
   @ObservationIgnored private let measure:
-    @Sendable (String?, @escaping @Sendable (Int) -> Void) async -> [EgressHit]
+    @Sendable (String?, [EgressTarget], @escaping @Sendable (Int) -> Void) async -> [EgressHit]
   @ObservationIgnored private let geoLookup:
     @Sendable (EgressRoute, Bool, String?) async -> (ip: String, geo: EgressGeo)?
 
@@ -46,12 +71,18 @@ public final class EgressController {
 
   init(
     defaults: UserDefaults = .standard,
+    now: @escaping @MainActor () -> Date = Date.init,
+    timeZone: @escaping @MainActor () -> TimeZone = { .autoupdatingCurrent },
+    language: @escaping @MainActor () -> AppLanguage = { L10n.language },
+    isMainlandChinaDevice: Bool = EgressNSFWPolicy.deviceIsMainlandChina,
     environmentReader: @escaping @MainActor () async -> ProxyEnvironment = {
       await EgressController.readEnvironment()
     },
-    measure: @escaping @Sendable (String?, @escaping @Sendable (Int) -> Void) async -> [EgressHit] =
+    measure:
+      @escaping @Sendable (String?, [EgressTarget], @escaping @Sendable (Int) -> Void) async ->
+      [EgressHit] =
       {
-        await EgressProber.measure(interfaceName: $0, progress: $1)
+        await EgressProber.measure(interfaceName: $0, sites: $1, progress: $2)
       },
     geoLookup:
       @escaping @Sendable (EgressRoute, Bool, String?) async -> (ip: String, geo: EgressGeo)? = {
@@ -59,9 +90,16 @@ public final class EgressController {
       }
   ) {
     self.defaults = defaults
+    self.now = now
+    self.timeZone = timeZone
+    self.language = language
+    self.isMainlandChinaDevice = isMainlandChinaDevice
+    nsfwEnabled = defaults.bool(forKey: "egressNSFWEnabled")
+    hideNSFWDuringWork = defaults.object(forKey: "egressHideNSFWDuringWork") as? Bool ?? true
     self.environmentReader = environmentReader
     self.measure = measure
     self.geoLookup = geoLookup
+    refreshNSFWVisibility()
     if let data = defaults.data(forKey: Self.cacheKey),
       let report = try? JSONDecoder().decode(Report.self, from: data)
     {
@@ -79,6 +117,7 @@ public final class EgressController {
     automaticallyChecks: Bool = true,
     onEnvironment: ((ProxyEnvironment, Bool) -> Void)? = nil
   ) {
+    refreshNSFWVisibility()
     self.automaticallyChecks = automaticallyChecks
     self.onEnvironment = onEnvironment
     windowOpen = true
@@ -117,11 +156,13 @@ public final class EgressController {
   }
 
   func check() {
+    refreshNSFWVisibility()
     guard !paused, !isChecking else { return }
     checkGeneration &+= 1
     let generation = checkGeneration
     isChecking = true
     progress = 0
+    let sites = EgressTarget.sites
     checkTask = Task { [self] in
       defer {
         if checkGeneration == generation {
@@ -133,7 +174,7 @@ public final class EgressController {
       let environment = await environmentReader()
       guard !Task.isCancelled, checkGeneration == generation else { return }
       self.environment = environment
-      let hits = await measure(environment.physicalInterface) { done in
+      let hits = await measure(environment.physicalInterface, sites) { done in
         Task { @MainActor [weak self] in
           guard let self, self.checkGeneration == generation else { return }
           self.progress = done
@@ -144,7 +185,7 @@ public final class EgressController {
       let geo = await lookUpGeo(
         hits: hits, analysis: analysis, interfaceName: environment.physicalInterface)
       guard !Task.isCancelled, checkGeneration == generation else { return }
-      let report = Report(date: Date(), environment: environment, hits: hits, geo: geo)
+      let report = Report(date: now(), environment: environment, hits: hits, geo: geo)
       apply(report)
       defaults.set(try? JSONEncoder().encode(report), forKey: Self.cacheKey)
     }
@@ -155,23 +196,45 @@ public final class EgressController {
     analysis = EgressAnalysis.evaluate(report.hits, environment: report.environment)
   }
 
+  func refreshNSFWVisibility() {
+    let visible =
+      nsfwAvailable && nsfwEnabled
+      && (!hideNSFWDuringWork || !EgressNSFWPolicy.isWorkHours(at: now(), timeZone: timeZone()))
+    guard visible != nsfwVisible else { return }
+    nsfwVisible = visible
+    nsfwVisibilityRevision &+= 1
+  }
+
   private func startWatching() {
     watchTask?.cancel()
+    refreshNSFWVisibility()
     watchTask = Task { [weak self] in
       var first = true
       while !Task.isCancelled {
+        self?.refreshNSFWVisibility()
         let environment = await self?.environmentReader()
         guard let environment else { return }
         guard !Task.isCancelled, let self else { return }
+        self.refreshNSFWVisibility()
         if environment != self.environment { self.environment = environment }
-        let stale = self.report.map { Date().timeIntervalSince($0.date) > Self.staleAfter } ?? true
+        let stale =
+          self.report.map { self.now().timeIntervalSince($0.date) > Self.staleAfter } ?? true
         // 刚打开：没有结果或过期了就测；开着期间：网络变了就重测
-        if self.automaticallyChecks, !self.isChecking, (first && stale) || self.networkChanged {
+        if self.automaticallyChecks, !self.isChecking,
+          (first && stale) || self.networkChanged
+        {
           self.check()
         }
         self.onEnvironment?(environment, first)
         first = false
-        try? await Task.sleep(for: .seconds(3))
+        // 复用窗口的观察任务，在 08:00／22:00 边界提前唤醒；关闭或暂停窗口后不保留计时器。
+        var delay: TimeInterval = 3
+        if self.nsfwEnabled, self.hideNSFWDuringWork,
+          let boundary = EgressNSFWPolicy.nextBoundary(after: self.now(), timeZone: self.timeZone())
+        {
+          delay = max(0.01, min(delay, boundary.timeIntervalSince(self.now())))
+        }
+        try? await Task.sleep(for: .seconds(delay))
       }
     }
   }

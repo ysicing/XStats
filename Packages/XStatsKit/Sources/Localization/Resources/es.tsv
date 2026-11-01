@@ -2659,3 +2659,7 @@ AI 功能需要安装并运行 Magpie。	Las funciones de AI requieren instalar 
 低电量时停止防休眠	Desactivar Mantener activo con batería baja
 用于合盖运行保护和低电量停止防休眠	Para proteger el uso con la tapa cerrada y desactivar Mantener activo con batería baja
 电量低于 {}%，防休眠已关闭	Batería por debajo del {} %; Mantener activo está desactivado
+显示 NSFW	Mostrar NSFW
+工作时段隐藏	Ocultar en horario laboral
+检测选项	Opciones de prueba
+按本地时间，在中国大陆工作日（含调休）08:00–22:00 隐藏 NSFW 分类及站点；节假日安排未知时每天隐藏。	Oculta la categoría NSFW y sus sitios de 08:00 a 22:00, hora local, en días laborables de China continental, incluidos los días de trabajo compensatorios. Sin datos de festivos, se ocultan todos los días.

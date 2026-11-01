@@ -61,6 +61,10 @@ extension Translations {
     """#
 
   static let networkPresentationEnglish = #"""
+    显示 NSFW	Show NSFW
+    工作时段隐藏	Hide during work hours
+    检测选项	Test options
+    按本地时间，在中国大陆工作日（含调休）08:00–22:00 隐藏 NSFW 分类及站点；节假日安排未知时每天隐藏。	Hide the NSFW category and sites from 08:00 to 22:00 local time on mainland China workdays, including makeup workdays. Hide every day when holiday schedules are unavailable.
     地区	Regions
     连接地区分布	Connection regions
     近期连接地区分布	Regions of recent connections

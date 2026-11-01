@@ -14,7 +14,7 @@ public struct EgressTarget: Sendable, Hashable, Identifiable {
   public enum Region: String, Sendable, Codable { case domestic, international }
 
   public enum Category: String, Sendable, CaseIterable {
-    case ai, media, social, developer, common, domestic
+    case ai, media, social, developer, common, domestic, nsfw
   }
 
   enum Probe: Sendable, Hashable {
@@ -71,35 +71,51 @@ public struct EgressTarget: Sendable, Hashable, Identifiable {
   public static let baseline = [domestic, cloudflare, cloudflareIPv6]
 
   /// 精选网站，只按系统代理测。能读 trace 的优先用 trace（实测出口）
-  public static let sites: [EgressTarget] = [
-    trace("chatgpt.com", "ChatGPT", .ai, "openai"),
-    trace("claude.ai", "Claude", .ai, "claude"),
-    reach("gemini.google.com", "Gemini", .ai, "gemini"),
-    trace("grok.com", "Grok", .ai, "grok"),
-    trace("x.ai", "xAI", .ai, "grok"),
-    trace("www.perplexity.ai", "Perplexity", .ai, "perplexity"),
-    trace("www.midjourney.com", "Midjourney", .ai, "midjourney"),
-    reach("www.youtube.com", "YouTube", .media, "youtube", path: "/generate_204", head: false),
-    reach("www.netflix.com", "Netflix", .media, "netflix"),
-    reach("www.tiktok.com", "TikTok", .media, "tiktok"),
-    reach("www.twitch.tv", "Twitch", .media, "twitch"),
-    trace("x.com", "X", .social, "x"),
-    reach("telegram.org", "Telegram", .social, "telegram"),
-    reach("www.instagram.com", "Instagram", .social, "instagram"),
-    reach("discord.com", "Discord", .social, "discord"),
-    reach("www.reddit.com", "Reddit", .social, "reddit"),
-    reach("github.com", "GitHub", .developer, "github"),
-    trace("www.npmjs.com", "npm", .developer, "npm"),
-    trace("hub.docker.com", "Docker Hub", .developer, "docker"),
-    reach("www.google.com", "Google", .common, "google", path: "/generate_204", head: false),
-    trace("www.cloudflare.com", "Cloudflare", .common, "cloudflare"),
-    reach("www.baidu.com", tr("百度"), .domestic, "baidu"),
-    reach("www.taobao.com", tr("淘宝"), .domestic, "taobao"),
-    reach("www.bilibili.com", tr("哔哩哔哩"), .domestic, "bilibili"),
-    reach("www.douyin.com", tr("抖音"), .domestic, "douyin"),
-    reach("weixin.qq.com", tr("微信"), .domestic, "wechat"),
+  public static let sites: [EgressTarget] =
+    [
+      trace("chatgpt.com", "ChatGPT", .ai, "openai"),
+      trace("claude.ai", "Claude", .ai, "claude"),
+      reach("gemini.google.com", "Gemini", .ai, "gemini"),
+      trace("grok.com", "Grok", .ai, "grok"),
+      trace("x.ai", "xAI", .ai, "grok"),
+      trace("www.perplexity.ai", "Perplexity", .ai, "perplexity"),
+      trace("www.midjourney.com", "Midjourney", .ai, "midjourney"),
+      reach("www.youtube.com", "YouTube", .media, "youtube", path: "/generate_204", head: false),
+      reach("www.netflix.com", "Netflix", .media, "netflix"),
+      reach("www.tiktok.com", "TikTok", .media, "tiktok"),
+      reach("www.twitch.tv", "Twitch", .media, "twitch"),
+      reach("open.spotify.com", "Spotify", .media, "spotify"),
+      trace("x.com", "X", .social, "x"),
+      reach("telegram.org", "Telegram", .social, "telegram"),
+      reach("www.instagram.com", "Instagram", .social, "instagram"),
+      reach("discord.com", "Discord", .social, "discord"),
+      reach("www.reddit.com", "Reddit", .social, "reddit"),
+      reach("github.com", "GitHub", .developer, "github"),
+      trace("www.npmjs.com", "npm", .developer, "npm"),
+      trace("hub.docker.com", "Docker Hub", .developer, "docker"),
+      reach("kali.download", "Kali", .developer, "kali"),
+      reach("nodejs.org", "Node.js", .developer, "nodejs"),
+      reach("www.google.com", "Google", .common, "google", path: "/generate_204", head: false),
+      reach("www.sony.com", "Sony", .common, "sony"),
+      reach("www.amazon.com", "Amazon", .common, "amazon"),
+      reach("www.okx.com", "OKX", .common, "okx"),
+      trace("www.cloudflare.com", "Cloudflare", .common, "cloudflare"),
+      reach("www.baidu.com", tr("百度"), .domestic, "baidu"),
+      reach("www.taobao.com", tr("淘宝"), .domestic, "taobao"),
+      reach("www.bilibili.com", tr("哔哩哔哩"), .domestic, "bilibili"),
+      reach("www.douyin.com", tr("抖音"), .domestic, "douyin"),
+      reach("weixin.qq.com", tr("微信"), .domestic, "wechat"),
+    ] + nsfwSites
+
+  /// 与其他网站一同检测和保存，显示开关与工作时段只影响界面展示。
+  public static let nsfwSites: [EgressTarget] = [
+    reach("missav.ws", "MissAV WS", .nsfw),
+    reach("missav.ai", "MissAV AI", .nsfw),
+    reach("missav.live", "MissAV Live", .nsfw),
+    reach("javdb.com", "JavDB", .nsfw),
   ]
 
+  /// 完整分类索引，不作为默认测量清单。
   public static let all = baseline + sites
 
   private static func trace(_ host: String, _ name: String, _ category: Category, _ logo: String)
@@ -111,11 +127,11 @@ public struct EgressTarget: Sendable, Hashable, Identifiable {
 
   /// 默认用 HEAD 请求 favicon：响应小、不跳转到大页面
   private static func reach(
-    _ host: String, _ name: String, _ category: Category, _ logo: String,
+    _ host: String, _ name: String, _ category: Category, _ logo: String? = nil,
     path: String = "/favicon.ico", head: Bool = true
   ) -> EgressTarget {
     EgressTarget(
-      id: host, name: name, host: host, category: category, logo: "site-" + logo,
+      id: host, name: name, host: host, category: category, logo: logo.map { "site-" + $0 },
       probe: .reach(path: path, head: head))
   }
 }
@@ -201,7 +217,8 @@ public enum EgressProber {
 
   /// `progress` 每完成一项回调一次（已完成数）
   public static func measure(
-    interfaceName: String?, progress: @escaping @Sendable (Int) -> Void = { _ in }
+    interfaceName: String?, sites: [EgressTarget] = EgressTarget.sites,
+    progress: @escaping @Sendable (Int) -> Void = { _ in }
   ) async -> [EgressHit] {
     let interface = await physicalInterface(named: interfaceName)
     guard !Task.isCancelled else { return [] }
@@ -211,7 +228,7 @@ public enum EgressProber {
       jobs.append((target, .socket))
       jobs.append((target, .interface))
     }
-    jobs += EgressTarget.sites.map { ($0, .system) }
+    jobs += sites.map { ($0, .system) }
 
     return await withTaskGroup(of: (Int, EgressHit).self) { group in
       var results = [EgressHit?](repeating: nil, count: jobs.count)

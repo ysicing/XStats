@@ -56,7 +56,7 @@ struct EgressLifecycleTests {
     let probe = EgressLifecycleProbe(holdGeo: true)
     let controller = EgressController(
       defaults: defaults, environmentReader: { ProxyEnvironment() },
-      measure: { _, progress in await probe.measure(progress: progress) },
+      measure: { _, _, progress in await probe.measure(progress: progress) },
       geoLookup: { _, _, _ in await probe.geo() })
     controller.check()
     try await waitUntil { await probe.measuring }
@@ -80,7 +80,7 @@ struct EgressLifecycleTests {
     let probe = EgressLifecycleProbe()
     let controller = EgressController(
       defaults: defaults, environmentReader: { ProxyEnvironment() },
-      measure: { _, progress in await probe.measure(progress: progress) },
+      measure: { _, _, progress in await probe.measure(progress: progress) },
       geoLookup: { _, _, _ in await probe.geo() })
     controller.check()
     try await waitUntil { await probe.measuring }
@@ -109,7 +109,7 @@ struct EgressLifecycleTests {
     let probe = EgressLifecycleProbe()
     let controller = EgressController(
       defaults: defaults, environmentReader: { ProxyEnvironment() },
-      measure: { _, progress in await probe.measure(progress: progress) },
+      measure: { _, _, progress in await probe.measure(progress: progress) },
       geoLookup: { _, _, _ in await probe.geo() })
     controller.check()
     try await waitUntil { await probe.measuring }

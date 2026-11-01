@@ -229,6 +229,18 @@ enum CalendarEngine {
 
   /// 年份覆盖来自固定版本的数据本身；未收录年份不能把 nil 解读为“无需调休”。
   static func hasHolidayData(year: Int) -> Bool { holidayYears.contains(year) }
+
+  /// 未收录年份返回 nil；仅查工作日安排，不计算农历与黄历详情。
+  static func isMainlandWorkday(at date: Date, timeZone: TimeZone) -> Bool? {
+    let calendar = gregorian(timeZone: timeZone)
+    let parts = calendar.dateComponents([.year, .month, .day, .weekday], from: date)
+    guard let year = parts.year, let month = parts.month, let day = parts.day,
+      hasHolidayData(year: year), let solar = try? SolarDay.fromYmd(year, month, day)
+    else { return nil }
+    if let holiday = solar.legalHoliday { return holiday.isWork }
+    return parts.weekday != 1 && parts.weekday != 7
+  }
+
   private static let holidayYears: Set<Int> = {
     let data = Array(LegalHoliday.DATA.utf8)
     return Set(

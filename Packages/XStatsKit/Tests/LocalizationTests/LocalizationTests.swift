@@ -3,6 +3,25 @@ import Testing
 
 // 不切换全局语言：其他测试套件并行运行，依赖中文原文
 @Suite struct LocalizationTests {
+  @Test func nsfwOptionsHaveTranslationsInEveryCatalog() throws {
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for source in [
+        "显示 NSFW", "工作时段隐藏", "检测选项",
+        "按本地时间，在中国大陆工作日（含调休）08:00–22:00 隐藏 NSFW 分类及站点；节假日安排未知时每天隐藏。",
+      ] {
+        #expect(table.translate(source)?.isEmpty == false, "\(language): \(source)")
+      }
+    }
+  }
+
+  @Test func otherCategoryHasTranslationsInEveryCatalog() throws {
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      #expect(table.translate("其他")?.isEmpty == false, "\(language)")
+    }
+  }
+
   @Test func preferredAccountLabelsHaveTranslationsInEveryCatalog() throws {
     for language in AppLanguage.allCases where language != .system && language != .chinese {
       let table = try #require(Translations.catalog(for: language))
