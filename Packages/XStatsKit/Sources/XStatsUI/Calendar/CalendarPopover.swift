@@ -112,7 +112,9 @@ struct CalendarPopover: View {
     .focused($navigationFocused)
     .onKeyPress(keys: [.leftArrow, .rightArrow, .space], phases: .down) { press in
       // 仅处理日历本身的焦点，不抢年份编辑、月份选择和按钮的键盘操作。
-      guard !isSnapshot, navigationFocused, !yearFocused, press.modifiers.isEmpty else {
+      // 方向键本身会带 numericPad / function 标记，不能据此判断用户按了组合键。
+      let shortcutModifiers = press.modifiers.intersection([.command, .option, .control, .shift])
+      guard !isSnapshot, navigationFocused, !yearFocused, shortcutModifiers.isEmpty else {
         return .ignored
       }
       switch press.key {
