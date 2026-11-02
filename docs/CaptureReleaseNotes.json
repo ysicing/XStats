@@ -1,12 +1,12 @@
 {
-  "version": "0.1.7",
+  "version": "0.1.8",
   "date": "2026-11-02",
   "sourceNotes": [
-    "精简共享更新模块的冗余代码，保持现有截图、录屏与更新功能。"
+    "更新共享的 Sparkle 更新组件，保持现有截图、录屏与更新功能。"
   ],
   "translations": {
     "en": [
-      "Remove unused code from the shared update module while preserving existing screenshot, recording and update features."
+      "Update the shared Sparkle updater while preserving existing screenshot, recording and update features."
     ]
   }
 }
