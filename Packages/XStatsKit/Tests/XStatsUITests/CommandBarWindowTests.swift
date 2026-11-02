@@ -62,6 +62,24 @@ struct CommandBarWindowTests {
     #expect(controller.panel == nil)
   }
 
+  @Test func closeButtonIsVisibleOutsideSearchFieldAndClosesPanel() throws {
+    _ = NSApplication.shared
+    let controller = CommandBarWindowController()
+    defer { controller.dismiss() }
+    controller.show(commands: commands)
+    let panel = try #require(controller.panel)
+    let content = try #require(panel.contentView)
+    content.layoutSubtreeIfNeeded()
+    let field = try #require(descendant(NSSearchField.self, in: content))
+    let close = try #require(panel.standardWindowButton(.closeButton))
+    let closeFrame = content.convert(close.bounds, from: close)
+    let fieldFrame = content.convert(field.bounds, from: field)
+    #expect(!close.isHiddenOrHasHiddenAncestor)
+    #expect(!closeFrame.intersects(fieldFrame))
+    close.performClick(nil)
+    #expect(controller.panel == nil)
+  }
+
   @Test func compositionKeepsNavigationAndEscapeInsideTheInputMethod() throws {
     _ = NSApplication.shared
     let controller = CommandBarWindowController()

@@ -204,19 +204,15 @@ private struct MainSidebar: View {
       }
 
       HStack(spacing: 0) {
-        if model.settings.commandBarEnabled {
-          IconButton(systemName: "magnifyingglass", help: tr("命令栏")) { model.openCommandBar() }
-        }
         ThemeToggle()
-        FeedbackMenu()
+        IconButton(systemName: "ladybug", help: tr("在 GitHub 提交问题")) {
+          NSWorkspace.shared.open(FeedbackLinks.githubBugReport)
+        }
         IconButton(
           systemName: "chevron.left.forwardslash.chevron.right", logoName: "github",
           help: tr("GitHub 项目")
         ) {
           NSWorkspace.shared.open(FeedbackLinks.githubRepository)
-        }
-        IconButton(systemName: "heart", help: tr("赞助 XStats")) {
-          NSWorkspace.shared.open(FeedbackLinks.sponsor)
         }
         Spacer(minLength: 0)
         IconButton(systemName: "power", help: tr("退出 XStats")) { model.quit() }
@@ -296,51 +292,6 @@ private struct MainSidebar: View {
         model.settings.panelTab = tab
       }
     }
-  }
-}
-
-private struct FeedbackMenu: View {
-  @Environment(\.isInsideGlass) private var isInsideGlass
-  @State private var hovering = false
-
-  var body: some View {
-    let glass = DS.Glass.isAvailable && !isInsideGlass
-    Menu {
-      Button {
-        NSWorkspace.shared.open(FeedbackLinks.githubBugReport)
-      } label: {
-        Label(tr("在 GitHub 提交问题"), systemImage: "ladybug")
-      }
-      Button {
-        let version =
-          Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-          ?? tr("开发版")
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-        let systemVersion = ProcessInfo.processInfo.operatingSystemVersionString
-        if let url = FeedbackLinks.email(
-          version: version, build: build, systemVersion: systemVersion)
-        {
-          NSWorkspace.shared.open(url)
-        }
-      } label: {
-        Label(tr("发送反馈邮件"), systemImage: "envelope")
-      }
-    } label: {
-      Image(systemName: "ladybug")
-        .font(.system(size: DS.TextSize.sm.rawValue, weight: .medium))
-        .foregroundStyle(
-          hovering ? DS.Palette.primary : glass ? DS.Palette.textPrimary : DS.Palette.textSecondary
-        )
-        .frame(width: DS.Size.controlHeight, height: DS.Size.controlHeight)
-        .modifier(IconButtonSurface(hovering: hovering, glass: glass))
-        .contentShape(Circle())
-    }
-    .menuStyle(.borderlessButton)
-    .menuIndicator(.hidden)
-    .frame(width: DS.Size.controlHeight)
-    .onHover { hovering = $0 }
-    .help(tr("反馈问题"))
-    .accessibilityLabel(tr("反馈问题"))
   }
 }
 

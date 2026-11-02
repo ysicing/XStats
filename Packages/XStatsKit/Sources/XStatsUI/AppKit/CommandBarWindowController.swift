@@ -36,7 +36,6 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     panel.identifier = NSUserInterfaceItemIdentifier("XStatsCommandBar")
     panel.titleVisibility = .hidden
     panel.titlebarAppearsTransparent = true
-    panel.standardWindowButton(.closeButton)?.isHidden = true
     panel.isReleasedWhenClosed = false
     panel.isMovableByWindowBackground = true
     panel.hidesOnDeactivate = false
@@ -102,7 +101,7 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
       background.addSubview(view)
     }
     NSLayoutConstraint.activate([
-      field.topAnchor.constraint(equalTo: background.topAnchor, constant: 16),
+      field.topAnchor.constraint(equalTo: background.topAnchor, constant: 36),
       field.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 16),
       field.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -16),
       field.heightAnchor.constraint(equalToConstant: 40),
