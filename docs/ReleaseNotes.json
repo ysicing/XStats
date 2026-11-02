@@ -1,27 +1,21 @@
 {
-  "version": "1.5.0",
+  "version": "1.5.1",
   "sourceNotes": [
-    "网络监视器新增实时与历史视图",
-    "网络监视器新增上下行流量趋势，需更新独立网络组件至1.0.2",
-    "连接地图支持展开、缩放与拖动",
-    "通用设置新增“启动时显示主窗口”开关",
-    "优化网络监视器布局、同名应用分组与程序名称识别，分别显示内网地址和位置未知",
-    "Homebrew 筛选新增“手动安装”，可快速区分主动安装的软件包与依赖",
-    "后台守护进程列表新增已卸载应用残留启动项的手动移除提示",
-    "内存弹窗默认显示“压缩与交换”，保留已启用的自定义显示选择（#23）",
-    "保留新旧主程序与网络组件之间的连接查看和组件管理兼容性，支持分别升级"
+    "新增默认启用的实验性命令栏，支持搜索功能与执行常用操作，可通过应用内快捷键 ⌘⇧P 打开",
+    "音频新增麦克风静音与切换输出设备快捷操作，支持自定义全局快捷键，并可置顶常用应用的音量控制",
+    "防休眠支持拔掉电源或低电量时自动停止，可分别按需开启",
+    "日历日程显示起止时间，支持左右方向键翻月和空格返回今天",
+    "出口与分流支持按分类查看网站检测结果，并补充更多检测站点",
+    "修复 DNS 检测响应过大导致失败的问题，并完善本机 DNS 解析检测"
   ],
   "translations": {
     "en": [
-      "Add live and history views to Network Monitor. Keep the last 15 minutes of connection and traffic history on this Mac, with linked app, process, domain and region filters.",
-      "Add upload and download traffic trends. Update the independently installed network component to 1.0.2 to use them; saved history remains available after collection stops.",
-      "Expand, zoom and pan the connection map. Show province, city and provider details for mainland China IPs, group map markers by city and expand provinces and cities in the region list.",
-      "Add Show Main Window at Launch in General settings. Turn it off to keep manual launches in the background; login launches continue to run in the background (#23).",
-      "Refine the Network Monitor layout, group apps with the same name, improve executable names and distinguish private addresses from unknown locations.",
-      "Add a Manually Installed Homebrew filter to distinguish explicitly installed packages from dependencies.",
-      "Add manual removal guidance for leftover startup entries from uninstalled apps in the background daemon list.",
-      "Show compressed memory and swap by default in the memory popover while preserving existing custom selections (#23).",
-      "Preserve connection viewing and component management compatibility between old and new apps and network components so either can be upgraded first."
+      "Add an experimental Command Bar, enabled by default, to search features and run common actions. Open it with Command-Shift-P in the app.",
+      "Add actions to toggle microphone mute and cycle audio outputs, with customizable global shortcuts, and pin frequently used apps in volume controls.",
+      "Optionally stop Keep Awake when power is unplugged or the battery is low. Each option can be enabled separately.",
+      "Show event start and end times in the calendar. Use the left and right arrow keys to switch months and Space to return to today.",
+      "Group website tests by category in Egress & Routing and add more test sites.",
+      "Fix DNS tests failing on oversized responses and improve tests of local DNS resolution."
     ]
   }
 }
