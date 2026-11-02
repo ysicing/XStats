@@ -2664,3 +2664,9 @@ AI 功能需要安装并运行 Magpie。	Les fonctionnalités AI nécessitent qu
 检测选项	Options de test
 按本地时间，在中国大陆工作日（含调休）08:00–22:00 隐藏 NSFW 分类及站点；节假日安排未知时每天隐藏。	Masque la catégorie NSFW et ses sites de 08:00 à 22:00, heure locale, les jours ouvrés en Chine continentale, y compris les jours de travail compensatoires. Sans calendrier des jours fériés, les masque tous les jours.
 圆点颜色	Couleur des points
+输出切换器	Sélecteur de sortie
+按快捷键在勾选且已连接的输出设备之间循环切换。	Utilisez le raccourci pour parcourir les sorties sélectionnées et connectées.
+参与切换的输出	Sorties à parcourir
+使用所有输出	Utiliser toutes les sorties
+当前输出	Sortie actuelle
+请选择至少一个可用输出设备	Sélectionnez au moins une sortie disponible

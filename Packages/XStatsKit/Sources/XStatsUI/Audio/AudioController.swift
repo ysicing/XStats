@@ -30,6 +30,8 @@ final class AudioController {
   private(set) var volumes: [String: AudioAppVolume]
   private(set) var outputRoutes: [String: String]
   private(set) var pinnedApplications: Set<String>
+  /// nil 沿用所有可用输出；空集合表示用户主动取消全部，不能回退到未勾选的设备。
+  private(set) var outputCycleDeviceUIDs: Set<String>?
   @ObservationIgnored private let defaults: UserDefaults
   @ObservationIgnored private let hardware: AudioHardwareClient
   @ObservationIgnored private let mixer: AudioMixerClient
@@ -138,6 +140,12 @@ final class AudioController {
       } ?? []
     pinnedApplications = Set(
       pins.prefix(256).filter { !$0.isEmpty && !$0.hasPrefix("pid:") && $0.utf8.count <= 512 })
+    if let data = defaults.data(forKey: "audio.outputCycleDevices"), data.count <= 1_048_576,
+      let uids = try? JSONDecoder().decode([String].self, from: data)
+    {
+      outputCycleDeviceUIDs = Set(
+        uids.prefix(256).filter { !$0.isEmpty && $0.utf8.count <= 512 })
+    }
     self.volumeWriter =
       volumeWriter
       ?? AudioDeviceVolumeWriter(
@@ -626,7 +634,9 @@ final class AudioController {
       // 离屏快捷操作只按需读取已连接设备，不使用缓存或探测未连接的蓝牙设备。
       let current = await hardware.snapshot(includeApplications: false)
       try Task.checkCancellation()
-      let outputs = current.devices.filter { $0.canBeDefault(.output) }
+      let outputs = current.devices.filter {
+        $0.canBeDefault(.output) && (outputCycleDeviceUIDs?.contains($0.uid) ?? true)
+      }
       guard let first = outputs.first else { throw AudioControlError.unavailable }
       let next: AudioDeviceInfo
       if let index = outputs.firstIndex(where: { $0.id == current.outputID }) {
@@ -639,6 +649,32 @@ final class AudioController {
         try await hardware.select(next, direction: .output)
       }
     }
+  }
+
+  func setOutputCycleDevice(_ device: AudioDeviceInfo, included: Bool) {
+    guard device.canBeDefault(.output), !device.uid.isEmpty, device.uid.utf8.count <= 512
+    else { return }
+    // 首次自定义以当前可用输出为起点；之后保留断开设备的 UID，不使用会重排的 HAL ID。
+    var selected =
+      outputCycleDeviceUIDs
+      ?? Set(
+        snapshot.devices.filter {
+          $0.canBeDefault(.output) && !$0.uid.isEmpty && $0.uid.utf8.count <= 512
+        }.prefix(256).map(\.uid))
+    if included {
+      guard selected.contains(device.uid) || selected.count < 256 else { return }
+      selected.insert(device.uid)
+    } else {
+      selected.remove(device.uid)
+    }
+    guard let data = try? JSONEncoder().encode(selected.sorted()) else { return }
+    outputCycleDeviceUIDs = selected
+    defaults.set(data, forKey: "audio.outputCycleDevices")
+  }
+
+  func resetOutputCycleDevices() {
+    outputCycleDeviceUIDs = nil
+    defaults.removeObject(forKey: "audio.outputCycleDevices")
   }
 
   @discardableResult

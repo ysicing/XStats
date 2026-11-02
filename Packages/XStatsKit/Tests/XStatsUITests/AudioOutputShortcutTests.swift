@@ -135,6 +135,113 @@ struct AudioOutputShortcutTests {
     #expect(fixture.requests == (currentID == 1 ? [] : [1]))
   }
 
+  @Test func selectedOutputsPersistAndSkipExcludedDevicesWithoutBackgroundDemand() async throws {
+    let suite = "XStats.AudioOutputShortcutTests.selection.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let fixture = OutputShortcutHardware(devices: devices)
+    let hardware = fixture.client()
+    let controller = AudioController(defaults: defaults, hardware: hardware)
+    defer { controller.stop() }
+    controller.showPreview(
+      AudioHardwareSnapshot(devices: devices, outputID: 1, inputID: nil, applications: []),
+      volumes: [:], outputs: [:])
+    #expect(controller.outputCycleDeviceUIDs == nil)
+    controller.setOutputCycleDevice(devices[3], included: false)
+    #expect(controller.outputCycleDeviceUIDs == ["test.a", "test.c"])
+    controller.setOutputCycleDevice(devices[1], included: true)
+    controller.setOutputCycleDevice(devices[2], included: true)
+    #expect(controller.outputCycleDeviceUIDs == ["test.a", "test.c"])
+    let restored = AudioController(defaults: defaults)
+    defer { restored.stop() }
+    #expect(restored.outputCycleDeviceUIDs == controller.outputCycleDeviceUIDs)
+    #expect(await hardware.listenerCount() == 0)
+    controller.setDemand(enabled: true, visible: false, menuVisible: false)
+    for _ in 0..<4 {
+      let operation = try #require(controller.selectNextOutput())
+      await operation.value
+    }
+    #expect(fixture.requests == [3, 1, 3, 1])
+    #expect(!fixture.enumeratedApplications)
+    #expect(await hardware.listenerCount() == 0)
+    controller.resetOutputCycleDevices()
+    #expect(controller.outputCycleDeviceUIDs == nil)
+    #expect(defaults.object(forKey: "audio.outputCycleDevices") == nil)
+    let operation = try #require(controller.selectNextOutput())
+    await operation.value
+    #expect(fixture.requests.last == 2)
+  }
+
+  @Test(arguments: [false, true])
+  func explicitSelectionNeverFallsBackToExcludedOutputs(emptySelection: Bool) async throws {
+    let suite = "XStats.AudioOutputShortcutTests.disconnected.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let selected = emptySelection ? [] : ["test.disconnected"]
+    defaults.set(try JSONEncoder().encode(selected), forKey: "audio.outputCycleDevices")
+    let fixture = OutputShortcutHardware(devices: devices)
+    let controller = AudioController(defaults: defaults, hardware: fixture.client())
+    defer { controller.stop() }
+    controller.setDemand(enabled: true, visible: false, menuVisible: false)
+    let operation = try #require(controller.selectNextOutput())
+    await operation.value
+    #expect(fixture.requests.isEmpty)
+    #expect(controller.operationError == .unavailable)
+    #expect(controller.outputCycleDeviceUIDs == Set(selected))
+  }
+
+  @Test func deviceSelectionUsesStableUIDRatherThanNameOrHALID() async throws {
+    let suite = "XStats.AudioOutputShortcutTests.identity.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(
+      try JSONEncoder().encode(["test.b", "test.disconnected"]),
+      forKey: "audio.outputCycleDevices")
+    let reconnected = AudioDeviceInfo(
+      id: 42, uid: "test.b", name: "Renamed device", hasOutput: true)
+    let impostor = AudioDeviceInfo(id: 2, uid: "test.other", name: "B", hasOutput: true)
+    let fixture = OutputShortcutHardware(devices: [devices[0], impostor, reconnected])
+    let controller = AudioController(defaults: defaults, hardware: fixture.client())
+    defer { controller.stop() }
+    controller.setDemand(enabled: true, visible: false, menuVisible: false)
+    let operation = try #require(controller.selectNextOutput())
+    await operation.value
+    #expect(fixture.requests == [42])
+    controller.setOutputCycleDevice(reconnected, included: false)
+    #expect(controller.outputCycleDeviceUIDs == ["test.disconnected"])
+    controller.setDemand(enabled: false, visible: false, menuVisible: false)
+    #expect(controller.outputCycleDeviceUIDs == ["test.disconnected"])
+  }
+
+  @Test func outputSelectionStorageIsBoundedAndCanBeClearedAtCapacity() throws {
+    let suite = "XStats.AudioOutputShortcutTests.storage.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(
+      try JSONEncoder().encode((0..<300).map { "device.\($0)" }),
+      forKey: "audio.outputCycleDevices")
+    let controller = AudioController(defaults: defaults)
+    defer { controller.stop() }
+    #expect(controller.outputCycleDeviceUIDs?.count == 256)
+    controller.setOutputCycleDevice(devices[0], included: true)
+    #expect(controller.outputCycleDeviceUIDs?.count == 256)
+    controller.setOutputCycleDevice(
+      AudioDeviceInfo(id: 99, uid: "device.0", name: "Saved", hasOutput: true), included: false)
+    controller.setOutputCycleDevice(devices[0], included: true)
+    #expect(controller.outputCycleDeviceUIDs?.contains("test.a") == true)
+    for uid in ["", String(repeating: "a", count: 513)] {
+      controller.setOutputCycleDevice(
+        AudioDeviceInfo(id: 99, uid: uid, name: "Invalid", hasOutput: true), included: true)
+      #expect(controller.outputCycleDeviceUIDs?.contains(uid) == false)
+    }
+    for data in [Data("invalid".utf8), Data(repeating: 32, count: 1_048_577)] {
+      defaults.set(data, forKey: "audio.outputCycleDevices")
+      let restored = AudioController(defaults: defaults)
+      #expect(restored.outputCycleDeviceUIDs == nil)
+      restored.stop()
+    }
+  }
+
   @Test func noAvailableOutputsReportsUnavailableWithoutWriting() async throws {
     let suite = "XStats.AudioOutputShortcutTests.empty.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

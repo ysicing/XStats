@@ -9,6 +9,52 @@ import Testing
 
 @MainActor
 struct AudioPresentationTests {
+  @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft])
+  func outputSwitcherFitsDeviceNamesAndKeepsSelectionWithoutStartingAudio(
+    direction: LayoutDirection
+  ) throws {
+    let (model, _, defaults, suite) = try preview()
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let devices = [
+      AudioDeviceInfo(id: 1, uid: "demo.speaker", name: "MacBook Pro Speakers", hasOutput: true),
+      AudioDeviceInfo(id: 2, uid: "demo.airpods", name: "AirPods Pro", hasOutput: true),
+      AudioDeviceInfo(
+        id: 3, uid: "demo.display",
+        name: "Studio Display Speakers · Externer Bildschirm · مكبرات الصوت", hasOutput: true),
+      AudioDeviceInfo(
+        id: 4, uid: "demo.lg", name: "LG UltraFine Display Audio", hasOutput: true),
+    ]
+    model.audio.showPreview(
+      AudioHardwareSnapshot(devices: devices, outputID: 1, inputID: nil, applications: []),
+      volumes: [:], outputs: [:])
+    let appVolumeEnabled = model.audio.appVolumeEnabled
+    model.audio.setOutputCycleDevice(devices[2], included: false)
+    model.settings.hotKeys[.nextAudioOutput] = HotKey(
+      keyCode: 1, modifiers: [.control, .option, .command], key: "s")
+    let host = NSHostingView(
+      rootView: AudioOutputSwitcher().environment(model)
+        .environment(\.layoutDirection, direction).frame(width: 560))
+    let size = host.fittingSize
+    #expect(size.width == 560 && size.height > 150 && size.height < 360)
+    let window = NSWindow(
+      contentRect: NSRect(origin: .zero, size: size), styleMask: .borderless,
+      backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    window.appearance = NSAppearance(named: .darkAqua)
+    window.contentView = host
+    host.layoutSubtreeIfNeeded()
+    let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+    host.cacheDisplay(in: host.bounds, to: bitmap)
+    if let path = ProcessInfo.processInfo.environment["XSTATS_AUDIO_SWITCHER_PREVIEW_DIR"] {
+      let png = try #require(bitmap.representation(using: .png, properties: [:]))
+      let name = direction == .rightToLeft ? "rtl.png" : "ltr.png"
+      try png.write(to: URL(fileURLWithPath: path).appendingPathComponent(name))
+    }
+    #expect(model.audio.outputCycleDeviceUIDs == ["demo.speaker", "demo.airpods", "demo.lg"])
+    #expect(!model.audio.isWorking && model.audio.appVolumeEnabled == appVolumeEnabled)
+  }
+
   private func preview() throws -> (AppModel, AudioApplication, UserDefaults, String) {
     let suite = "XStats.AudioPresentationTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

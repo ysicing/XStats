@@ -32,6 +32,7 @@ struct AudioMixerContent: View {
         AudioDeviceSection(direction: .output).frame(maxWidth: .infinity)
         AudioDeviceSection(direction: .input).frame(maxWidth: .infinity)
       }
+      AudioOutputSwitcher()
     }
     SectionCard(
       title: tr("应用音量"), hint: tr("应用音量支持 0–200%；高增益时自动限制峰值，不改变系统音量。"),
@@ -91,6 +92,62 @@ struct AudioMixerContent: View {
     case .bluetoothDisconnectionFailed: tr("蓝牙设备未断开，请重试。")
     case .listeningModeUnconfirmed: tr("聆听模式切换未确认，请检查耳机后重试。")
     case .unavailable, .hardware: tr("音频操作未完成，请重试。")
+    }
+  }
+}
+
+struct AudioOutputSwitcher: View {
+  @Environment(AppModel.self) private var model
+
+  var body: some View {
+    let audio = model.audio
+    let devices = audio.snapshot.devices.filter { $0.canBeDefault(.output) }
+    SectionCard(
+      title: tr("输出切换器"), hint: tr("按快捷键在勾选且已连接的输出设备之间循环切换。")
+    ) {
+      SettingRow(
+        title: tr("切换到下一个音频输出"),
+        subtitle: model.hotKeyConflicts.contains(.nextAudioOutput)
+          ? tr("这个快捷键已被其他应用或系统占用，请换一个") : nil
+      ) {
+        ShortcutRecorder(
+          hotKey: Binding(
+            get: { model.settings.hotKeys[.nextAudioOutput] },
+            set: { model.settings.hotKeys[.nextAudioOutput] = $0 }))
+      }
+      HStack {
+        Text(tr("参与切换的输出")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+        Spacer()
+        if audio.outputCycleDeviceUIDs != nil {
+          Button(tr("使用所有输出")) { audio.resetOutputCycleDevices() }
+            .buttonStyle(.borderless).dsFont(.xs)
+        }
+      }
+      if devices.isEmpty {
+        Text(tr("没有可用音频设备")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
+      }
+      ForEach(devices) { device in
+        Toggle(
+          isOn: Binding(
+            get: { audio.outputCycleDeviceUIDs?.contains(device.uid) ?? true },
+            set: { audio.setOutputCycleDevice(device, included: $0) })
+        ) {
+          HStack {
+            Text(verbatim: device.name).lineLimit(2)
+            if device.id == audio.snapshot.outputID {
+              Text(tr("当前输出")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+            }
+          }
+        }
+        .toggleStyle(.checkbox).dsFont(.sm)
+        .disabled(device.uid.isEmpty || device.uid.utf8.count > 512)
+        .accessibilityIdentifier("audio.outputCycle.\(device.id)")
+      }
+      if !devices.isEmpty,
+        !devices.contains(where: { audio.outputCycleDeviceUIDs?.contains($0.uid) ?? true })
+      {
+        Text(tr("请选择至少一个可用输出设备")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+      }
     }
   }
 }

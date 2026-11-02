@@ -325,6 +325,11 @@ verification remain distinct from explicitly confirmed snapshot deletion or repa
 Core Audio HAL access and writes are serialized. Device identity and generation
 checks reject stale work; mute, routing and listening-mode writes use bounded
 confirmation. Listeners belong to visible controls and stop on close or suspension.
+The output-switching shortcut and command use the audio page's cycle selection. An absent
+selection cycles all eligible connected outputs; an explicit selection uses stable
+device UIDs, preserves disconnected devices and never falls back to excluded outputs.
+These device preferences stay local. Cycling reads fresh hardware on demand and adds
+no listeners or polling when controls are closed.
 Bluetooth matching uses normalized hardware addresses, not device names; optional
 controls require advertised capabilities. Battery reads share demand and connection
 events, coalesce changes and stop on inactivity without nearby-device discovery.

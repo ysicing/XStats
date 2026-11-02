@@ -40,6 +40,12 @@ extension Translations {
     静音麦克风	Mute microphone
     切换麦克风静音	Toggle microphone mute
     切换到下一个音频输出	Switch to next audio output
+    输出切换器	Output switcher
+    按快捷键在勾选且已连接的输出设备之间循环切换。	Use the shortcut to cycle through selected, connected output devices.
+    参与切换的输出	Outputs to cycle through
+    使用所有输出	Use all outputs
+    当前输出	Current output
+    请选择至少一个可用输出设备	Select at least one available output device
     取消输出静音	Unmute output
     静音输出	Mute output
     取消“{}”静音	Unmute {}
