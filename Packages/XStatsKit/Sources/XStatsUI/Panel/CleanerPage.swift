@@ -61,12 +61,17 @@ struct CleanerPage: View {
       guard !isSnapshot else { return }
       await model.cleaner.mole.refreshAvailability()
       guard !Task.isCancelled else { return }
+      model.cleaner.updateEngineAvailability()
       updateTab()
     }
     .onChange(of: tab) { _, _ in updateTab() }
     .onChange(of: model.cleaner.engine) { _, _ in updateTab() }
-    .onChange(of: model.cleaner.mole.executable) { _, executable in
-      if executable == nil { model.cleaner.selectEngine(.native) }
+    .onChange(of: model.cleaner.mole.executable) { _, _ in
+      model.cleaner.updateEngineAvailability()
+    }
+    .onChange(of: model.cleaner.mole.isRunning) { _, isRunning in
+      // 安装期间检测结果可能先到达，待命令完全退出后再应用默认引擎。
+      if !isRunning { model.cleaner.updateEngineAvailability() }
     }
     .onDisappear {
       model.systemCheck.cancel()

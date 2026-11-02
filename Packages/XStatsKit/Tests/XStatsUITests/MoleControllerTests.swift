@@ -775,12 +775,125 @@ struct MoleControllerTests {
     cleaner.selectEngine(.mole)
     #expect(cleaner.engine == .native)
     await mole.refreshAvailability()
-    cleaner.selectEngine(.mole)
+    cleaner.updateEngineAvailability()
     #expect(cleaner.engine == .mole)
     cleaner.scan()
     #expect(cleaner.phase == .idle)
     cleaner.selectEngine(.native)
     #expect(cleaner.engine == .native)
+    await mole.refreshAvailability()
+    cleaner.updateEngineAvailability()
+    #expect(cleaner.engine == .native)
+  }
+
+  @Test func missingMoleKeepsNativeWithoutStartingWork() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let mole = MoleController(
+      settings: fixture.settings, detect: { nil },
+      run: { _, _, _ in
+        Issue.record("检测可用性不应执行命令")
+        return 0
+      })
+    let cleaner = CleanerController(
+      settings: fixture.settings, mole: mole,
+      scanOperation: { _, _ in
+        Issue.record("检测可用性不应启动原生扫描")
+        return (nil, [])
+      })
+    await mole.refreshAvailability()
+    cleaner.updateEngineAvailability()
+    #expect(cleaner.engine == .native && cleaner.phase == .idle && !mole.isRunning)
+  }
+
+  @Test(arguments: [CleanerController.Engine.native, .mole])
+  func temporaryMoleAbsencePreservesManualEngine(engine: CleanerController.Engine) async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let detections = MoleCommands()
+    let mole = MoleController(
+      settings: fixture.settings,
+      detect: {
+        let count = await detections.values.count
+        await detections.append(.scan)
+        return count == 1 ? nil : URL(fileURLWithPath: "/fixture/mo")
+      },
+      run: { _, _, _ in
+        Issue.record("引擎切换不应执行命令")
+        return 0
+      })
+    let cleaner = CleanerController(settings: fixture.settings, mole: mole)
+    await mole.refreshAvailability()
+    cleaner.updateEngineAvailability()
+    #expect(cleaner.engine == .mole)
+    cleaner.selectEngine(engine)
+    await mole.refreshAvailability()
+    cleaner.updateEngineAvailability()
+    #expect(cleaner.engine == .native)
+    await mole.refreshAvailability()
+    cleaner.updateEngineAvailability()
+    #expect(cleaner.engine == engine && !mole.isRunning)
+  }
+
+  @Test(arguments: [false, true])
+  func installationUpdatesDefaultWithoutOverridingManualEngine(manuallySelectsNative: Bool)
+    async throws
+  {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let gate = MoleRunGate()
+    let commands = MoleCommands()
+    let mole = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      findBrew: { URL(fileURLWithPath: "/fixture/brew") },
+      run: { _, command, _ in
+        await commands.append(command)
+        await gate.wait()
+        return 0
+      })
+    let cleaner = CleanerController(settings: fixture.settings, mole: mole)
+    if manuallySelectsNative { cleaner.selectEngine(.native) }
+    mole.install()
+    await gate.waitForStart()
+    cleaner.updateEngineAvailability()
+    cleaner.selectEngine(.mole)
+    #expect(cleaner.engine == .native && mole.isRunning)
+    await gate.release()
+    await mole.waitForExit()
+    cleaner.updateEngineAvailability()
+    #expect(cleaner.engine == (manuallySelectsNative ? .native : .mole))
+    #expect(await commands.values == [.install])
+    #expect(cleaner.phase == .idle && !mole.isConfirming)
+  }
+
+  @Test func defaultEngineSwitchCancelsScanAndPreservesBusyGuardUntilExit() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let gate = MoleRunGate()
+    let mole = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      run: { _, _, _ in
+        Issue.record("原生扫描退出前不应执行 Mole")
+        return 0
+      })
+    let cleaner = CleanerController(
+      settings: fixture.settings, mole: mole,
+      scanOperation: { _, _ in
+        await gate.wait()
+        return (nil, [])
+      })
+    cleaner.scan()
+    await gate.waitForStart()
+    await mole.refreshAvailability()
+    cleaner.updateEngineAvailability()
+    #expect(cleaner.engine == .mole && cleaner.isBusy && cleaner.isCancelling)
+    #expect(!mole.canStart)
+    mole.scan()
+    #expect(!mole.isRunning)
+    await gate.release()
+    await cleaner.waitForExit()
+    #expect(!cleaner.isBusy && !cleaner.isCancelling && cleaner.lastScan == nil)
+    #expect(mole.canStart)
   }
 
   @Test(arguments: [MoleCommand.scan, .optimizePreview, .install])

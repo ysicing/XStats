@@ -8,16 +8,31 @@ import Observation
 public final class CleanerController {
   enum Engine: Hashable { case native, mole }
   private(set) var engine: Engine = .native
+  private var preferredEngine: Engine?
   let mole: MoleController
 
   func selectEngine(_ engine: Engine) {
+    guard setEngine(engine) else { return }
+    preferredEngine = engine
+  }
+
+  func updateEngineAvailability() {
+    // 自动选择不覆盖本次会话的手动选择；Mole 消失时暂时回退，恢复后仍沿用原选择。
+    let engine: Engine = mole.executable == nil ? .native : preferredEngine ?? .mole
+    setEngine(engine)
+  }
+
+  @discardableResult
+  private func setEngine(_ engine: Engine) -> Bool {
     guard phase != .cleaning, !mole.isRunning, engine != .mole || mole.executable != nil else {
-      return
+      return false
     }
+    guard self.engine != engine else { return true }
     if phase == .scanning { cancelOperation() }
     cancelClean()
     mole.cancelConfirmation()
     self.engine = engine
+    return true
   }
 
   public enum Phase: Equatable {
