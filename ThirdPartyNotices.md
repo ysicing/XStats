@@ -1,25 +1,20 @@
 # 第三方声明
 
-XStats 新增代码与修改采用 AGPL-3.0-or-later，范围见 [LICENSING.md](LICENSING.md)。以下原有第三方许可与版权声明继续保留。
+XStats 新增代码与修改采用 AGPL-3.0-or-later，范围见 [LICENSING.md](LICENSING.md)。以下列出当前使用的第三方代码、依赖、素材与参考来源。
 
 ## 网络泄漏检测协议参考
 
 内置 WebRTC / DNS 检测参考 [MyIP（ipcheck.ing）](https://github.com/jason5ng32/MyIP)
 （MIT，Copyright (c) 2026 Jason Ng）的 STUN / ICE 检测思路及 bash.ws 会话探测协议。
 XStats 的 Swift 网络请求、原生结果界面与本地 JavaScript 为独立实现，未引入其 Vue 源码或运行时依赖。
-检测按需连接 Cloudflare STUN、ipify 与 bash.ws，服务可用性和使用条件由各提供方决定。
-
-## 使用统计设计参考
-
-本机 Codex 模型统计参考 [CC Switch](https://github.com/farion1231/cc-switch)（MIT，Copyright (c) 2025 Jason Young）
-的时间/模型筛选、总览、趋势与模型排行，以及 OpenUsage 的本地会话日志解析边界。
-本轮 SwiftUI 界面与本机扫描器为 XStats 独立实现，未引入 CC Switch 的 Rust/React 源码或依赖。
+检测按需使用 STUN、ipify 与 bash.ws 等服务，服务可用性和使用条件由各提供方决定。
 
 ## 项目产物与应用缓存清理范围参考
 
 项目产物的候选目录、默认搜索位置及安全检查参考 [tw93/Mole 的 `mo purge`](https://github.com/tw93/Mole)（GPL-3.0）。
 Slack、Discord、旧版 Microsoft Teams、Claude、Codex、Antigravity、Qoder、CodeBuddy 及编辑器的明确缓存位置参考 [Mole V1.61.0 的应用缓存规则](https://github.com/tw93/Mole/blob/V1.61.0/lib/clean/app_caches.sh)及[开发工具规则](https://github.com/tw93/Mole/blob/V1.61.0/lib/clean/dev.sh)（GPL-3.0）。
-XStats 使用独立编写的 Swift 扫描、路径保护与原生确认流程，未引入 Mole 的 Shell 源码或运行时依赖。
+原生清理使用独立编写的 Swift 扫描、路径保护与确认流程，未引入 Mole 的 Shell 源码。
+可选 Mole 引擎调用用户另行安装的 `mo` 命令，按 Mole 自身规则执行。
 
 ## 休息与活动回顾设计参考
 
@@ -60,7 +55,7 @@ GPU 工作频率、电池电气参数及 APFS 容量组成参考原项目实现�
 上游的残留目录、容器元数据和应用组查找思路参考
 [alienator88/Pearcleaner](https://github.com/alienator88/Pearcleaner)，并依据
 [Mole](https://github.com/tw93/Mole) 的公开规则独立实现残留识别。
-XStats 未复制 Pearcleaner 或 Mole 源码，也未引入其运行时依赖。
+残留识别未复制 Pearcleaner 或 Mole 源码，也不依赖其运行时。
 
 ## 运营商标志
 
@@ -85,12 +80,12 @@ XStats 未复制 Pearcleaner 或 Mole 源码，也未引入其运行时依赖。
 
 ## 品牌标志资源
 
-GitHub 标志用于主窗口侧边栏的项目入口。账号登录入口已移除，其余登录品牌标志作为旧资源保留。
+GitHub 标志用于主窗口侧边栏的项目入口。
 
 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/github.svg` 来自
 [primer/octicons](https://github.com/primer/octicons) 的 mark-github，MIT License，Copyright (c) GitHub Inc.；
 `site-copilot.svg` 来自同项目的 copilot-16，用于订阅额度服务选择与菜单栏，MIT License，Copyright (c) 2026 GitHub Inc.，完整许可保留在 SVG 文件中。
-`google.svg` 是 Google 的品牌标志，仅按其品牌规范用于“使用 Google 登录”按钮。Apple 标志使用系统 SF Symbols 的 `apple.logo`。
+`google.svg` 是已移除登录入口遗留的 Google 品牌资源，仍随资源目录打包。Apple 标志使用系统 SF Symbols 的 `apple.logo`。
 GitHub、GitHub Copilot、Google 与 Apple 的名称和标志均为各自公司的商标。
 
 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-workbuddy.svg` 来自
@@ -155,14 +150,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## AI Provider 契约参考
-
-XStats 的 AI Provider 契约与状态设计参考了以下项目公开的 Provider 契约与行为说明。
-当前版本未包含这些项目的源码或素材：
-
-- [burakgon/ai-usage-menubar](https://github.com/burakgon/ai-usage-menubar)，MIT License，Copyright (c) 2026 Burak Gon
-- [robinebers/openusage](https://github.com/robinebers/openusage)，MIT License，Copyright (c) 2026 Robin Ebers
-
 ## Tyme4Swift
 
 日历功能通过 Swift Package Manager 使用 [6tail/tyme4swift](https://github.com/6tail/tyme4swift)
@@ -172,8 +159,8 @@ XStats 的 AI Provider 契约与状态设计参考了以下项目公开的 Provi
 
 ## Sparkle
 
-应用内安装通过 Swift Package Manager 使用 [sparkle-project/Sparkle](https://github.com/sparkle-project/Sparkle)
-2.10.0。未修改上游源码；完整上游许可随应用资源中的 `Sparkle-License.txt` 分发。
+应用内更新通过 Swift Package Manager 使用 [sparkle-project/Sparkle](https://github.com/sparkle-project/Sparkle)，
+版本以 [Package.swift](Packages/XStatsKit/Package.swift) 为准。未修改上游源码；完整上游许可随应用资源中的 `Sparkle-License.txt` 分发。
 完整许可证及其内部组件声明见 [LICENSES/Sparkle-License.txt](LICENSES/Sparkle-License.txt)。
 
 ## 网络地图与 IP 归属地
