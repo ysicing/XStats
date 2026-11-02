@@ -23,7 +23,7 @@ let package = Package(
   ],
   dependencies: [
     .package(url: "https://github.com/6tail/tyme4swift.git", exact: "1.5.0"),
-    .package(url: "https://github.com/sparkle-project/Sparkle.git", exact: "2.10.0"),
+    .package(url: "https://github.com/sparkle-project/Sparkle.git", exact: "2.10.1"),
   ],
   targets: [
     .target(name: "CaptureCore", dependencies: ["Localization"]),
