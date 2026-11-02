@@ -90,14 +90,6 @@ public enum UpdateArchitecture: Sendable, Equatable {
       return translated == 1 ? .appleSilicon : .intel
     #endif
   }
-
-  /// Bundle.executableArchitectures 里对应的值
-  var executableArchitecture: Int {
-    switch self {
-    case .appleSilicon: NSBundleExecutableArchitectureARM64
-    case .intel: NSBundleExecutableArchitectureX86_64
-    }
-  }
 }
 
 public enum UpdateFeed {

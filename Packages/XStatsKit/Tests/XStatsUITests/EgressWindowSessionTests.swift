@@ -215,8 +215,12 @@ struct EgressWindowSessionTests {
     #expect(!session.isChecking)
   }
 
-  @Test(arguments: [false, true])
-  func cancellingBatchRejectsLateResults(manually: Bool) async throws {
+  enum Cancellation: CaseIterable {
+    case manual, hidden, suspended, closed
+  }
+
+  @Test(arguments: Cancellation.allCases)
+  func cancellingBatchRejectsLateResults(reason: Cancellation) async throws {
     let name = "EgressCancellation.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: name))
     defer { defaults.removePersistentDomain(forName: name) }
@@ -245,10 +249,11 @@ struct EgressWindowSessionTests {
     let webRTCTask = try #require(oldWebRTC.task)
     let dnsTask = try #require(oldDNS.task)
     let overviewTask = try #require(egress.checkTask)
-    if manually {
-      session.cancelChecks()
-    } else {
-      session.setSuspended(true)
+    switch reason {
+    case .manual: session.cancelChecks()
+    case .hidden: session.setHidden(true)
+    case .suspended: session.setSuspended(true)
+    case .closed: session.close()
     }
     #expect(!session.isChecking)
     #expect(oldWebRTC.phase == .cancelled)

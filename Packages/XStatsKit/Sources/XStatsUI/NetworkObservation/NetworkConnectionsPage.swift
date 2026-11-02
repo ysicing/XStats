@@ -783,7 +783,7 @@ struct NetworkConnectionsPage: View {
     let points =
       usesHistory
       ? NetworkTrafficChartSample.window(displayedHistory?.points ?? [], interval: interval)
-      : monitor.trafficHistory.points(interval: interval, matching: filter.matches)
+      : monitor.previewTrafficPoints(interval: interval, matching: filter.matches)
     let samples = NetworkTrafficChartSample.make(points: points)
     let chart = NetworkTrafficChart(
       points: points, samples: samples,

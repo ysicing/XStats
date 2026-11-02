@@ -784,21 +784,18 @@ enum SnapshotRenderer {
         address: value.1, hostname: value.2, port: value.3, transport: value.4,
         direction: .outbound)
     }
-    var trafficSnapshots: [ConnectionTrafficSnapshot] = []
+    let end = ceil(now.timeIntervalSince1970 / 5) * 5
+    var traffic: [UUID: [NetworkTrafficPoint]] = [:]
     for (index, record) in previewRecords.enumerated() {
-      var received: UInt64 = 0
-      var sent: UInt64 = 0
-      for step in 0...60 {
+      traffic[record.id] = (1...60).map { step in
         let wave = sin(Double(step) * 0.23 + Double(index)) + 1.4
-        received += UInt64(wave * Double(index + 1) * 48_000)
-        sent += UInt64(wave * Double(index + 1) * 8_000)
-        trafficSnapshots.append(
-          .init(
-            id: record.id, timestamp: now.addingTimeInterval(Double(step * 5 - 300)),
-            receivedBytes: received, sentBytes: sent))
+        return NetworkTrafficPoint(
+          date: Date(timeIntervalSince1970: end + Double(step * 5 - 300)),
+          receivedBytesPerSecond: wave * Double(index + 1) * 9600,
+          sentBytesPerSecond: wave * Double(index + 1) * 1600, segment: 0)
       }
     }
-    model.connectionMonitor.showPreview(previewRecords, trafficSnapshots: trafficSnapshots)
+    model.connectionMonitor.showPreview(previewRecords, traffic: traffic)
     model.connectionMonitor.previewWorld = await OfflineGeography.shared.world()
     // 文档地址及归属地均为演示值；截图不发送连接数据，也不访问地理数据库下载入口。
     model.connectionMonitor.previewCountries = [
@@ -847,7 +844,7 @@ enum SnapshotRenderer {
         NetworkConnectionsPage().frame(width: 900, height: 640).background(DS.Palette.background)
           .appLanguageEnvironment(), model: model, appearance: appearance,
         to: outputDirectory.appendingPathComponent("connections-page-wide-\(suffix).png"))
-      model.connectionMonitor.showPreview(historyRecords, trafficSnapshots: trafficSnapshots)
+      model.connectionMonitor.showPreview(historyRecords, traffic: traffic)
       for width: CGFloat in [1225, 720] {
         write(
           NetworkConnectionsPage(mode: .history)
@@ -856,13 +853,13 @@ enum SnapshotRenderer {
           to: outputDirectory.appendingPathComponent(
             "connections-layout-\(Int(width))-\(suffix).png"))
       }
-      model.connectionMonitor.showPreview(historyRecords, trafficSnapshots: [])
+      model.connectionMonitor.showPreview(historyRecords)
       write(
         NetworkConnectionsPage(mode: .history)
           .frame(width: 1225, height: 760).background(DS.Palette.background)
           .appLanguageEnvironment(), model: model, appearance: appearance,
         to: outputDirectory.appendingPathComponent("connections-layout-empty-\(suffix).png"))
-      model.connectionMonitor.showPreview(previewRecords, trafficSnapshots: trafficSnapshots)
+      model.connectionMonitor.showPreview(previewRecords, traffic: traffic)
       for expanded: Bool in [false, true] {
         write(
           NetworkConnectionsPage(

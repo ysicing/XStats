@@ -59,7 +59,6 @@ final class EgressWindowSession {
   private var suspended = false
   private var hidden = false
   let egress: EgressController
-  private let makeController: () -> NetworkLeakTestController
   private let now: () -> Date
   private var attempt: (date: Date, signature: String)?
 
@@ -78,11 +77,10 @@ final class EgressWindowSession {
 
   init(
     egress: EgressController,
-    makeController: @escaping () -> NetworkLeakTestController = { NetworkLeakTestController() },
+    makeController: () -> NetworkLeakTestController = { NetworkLeakTestController() },
     now: @escaping () -> Date = Date.init
   ) {
     self.egress = egress
-    self.makeController = makeController
     self.now = now
     webRTC = makeController()
     dns = makeController()

@@ -15,7 +15,7 @@ import Updates
   private(set) var error: String?
   private(set) var installationProgress: Double?
   private(set) var records: [ObservedConnection] = []
-  private(set) var trafficHistory = NetworkTrafficHistory()
+  private var previewTraffic: [UUID: [NetworkTrafficPoint]] = [:]
   private(set) var trafficAvailable = false
   let historyStore: NetworkHistoryStore
   var historyEnabled: Bool { status != .preview }
@@ -82,7 +82,7 @@ import Updates
     self.visible = visible
     if !enabled {
       records = []
-      trafficHistory.clear()
+      previewTraffic = [:]
     }
     if !enabled && (disabling || wantsRunning || status != .idle) {
       stop()
@@ -121,7 +121,7 @@ import Updates
     backend.cancelActivation()
     beginHistoryDrain()
     records = []
-    trafficHistory.clear()
+    previewTraffic = [:]
     trafficAvailable = false
     activeConnectionIDs = []
     reconcileConfiguration()
@@ -232,7 +232,6 @@ import Updates
           if batch.events.count == ObservationLimits.batchCount { continue }
         } catch {
           guard !Task.isCancelled, self.readGeneration == generation else { return }
-          self.trafficHistory.pause()
           self.backend.stopReading()
           self.historySession = UUID()
           self.historySessionStartedAt = Date()
@@ -306,15 +305,11 @@ import Updates
     readTask?.cancel()
     readTask = nil
     isReading = false
-    trafficHistory.pause()
     if closeConnection { backend.stopReading() }
   }
 
   func accept(_ batch: ObservationBatch) {
-    if epoch != batch.epoch {
-      epoch = batch.epoch
-      trafficHistory.pause()
-    }
+    epoch = batch.epoch
     cursor = batch.cursor
     if !batch.events.isEmpty {
       // 关闭事件沿用连接标识；更新原记录，不把同一连接计数两次。
@@ -347,7 +342,7 @@ import Updates
     stopReading()
     records = []
     activeConnectionIDs = []
-    trafficHistory.clear()
+    previewTraffic = [:]
     enqueueHistoryOperation {
       do {
         try await self.historyStore.clear()
@@ -374,7 +369,7 @@ import Updates
         self.status = try await self.backend.uninstall() ? .restartRequired : .idle
         self.error = nil
         self.records = []
-        self.trafficHistory.clear()
+        self.previewTraffic = [:]
       } catch {
         self.status = .failed
         self.error = error.localizedDescription
@@ -384,18 +379,41 @@ import Updates
 
   /// 离屏走查只注入虚构元数据，不激活扩展或写系统网络设置。
   func showPreview(
-    _ records: [ObservedConnection], trafficSnapshots: [ConnectionTrafficSnapshot] = []
+    _ records: [ObservedConnection], traffic: [UUID: [NetworkTrafficPoint]] = [:]
   ) {
     self.records = Array(records.suffix(ObservationLimits.displayCount))
-    trafficHistory.clear()
-    trafficAvailable = !trafficSnapshots.isEmpty
-    let metadata = Dictionary(
-      self.records.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
-    for snapshot in trafficSnapshots {
-      if let record = metadata[snapshot.id] { trafficHistory.observe(record, snapshot: snapshot) }
-    }
-    activeConnectionIDs = Set(self.records.map(\.id))
+    let ids = Set(self.records.map(\.id))
+    previewTraffic = traffic.filter { ids.contains($0.key) }
+    trafficAvailable = previewTraffic.values.contains { !$0.isEmpty }
+    activeConnectionIDs = ids
     status = .preview
+  }
+
+  /// 演示输入已是五秒速率点，只按当前筛选求和，不维护第二套历史采样状态。
+  func previewTrafficPoints(
+    interval: TimeInterval, matching: (ObservedConnection) -> Bool
+  ) -> [NetworkTrafficPoint] {
+    guard status == .preview,
+      let end = previewTraffic.values.compactMap({ $0.last?.date }).max()
+    else { return [] }
+    let start = end.addingTimeInterval(-interval)
+    var points: [Date: NetworkTrafficPoint] = [:]
+    for record in records where matching(record) {
+      for point in previewTraffic[record.id] ?? [] where point.date > start && point.date <= end {
+        var total =
+          points[point.date]
+          ?? NetworkTrafficPoint(
+            date: point.date, receivedBytesPerSecond: nil, sentBytesPerSecond: nil, segment: 0)
+        if let received = point.receivedBytesPerSecond {
+          total.receivedBytesPerSecond = (total.receivedBytesPerSecond ?? 0) + received
+        }
+        if let sent = point.sentBytesPerSecond {
+          total.sentBytesPerSecond = (total.sentBytesPerSecond ?? 0) + sent
+        }
+        points[point.date] = total
+      }
+    }
+    return points.values.sorted { $0.date < $1.date }
   }
 
   var terminationRequiresPreparation: Bool {

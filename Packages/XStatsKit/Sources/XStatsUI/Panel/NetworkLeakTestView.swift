@@ -140,20 +140,6 @@ struct NetworkLeakTestView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(DS.Space.s4)
     .frame(maxWidth: .infinity)
-    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didHideNotification)) { _ in
-      controller.cancel()
-    }
-    .onReceive(
-      NSWorkspace.shared.notificationCenter.publisher(
-        for: NSWorkspace.sessionDidResignActiveNotification)
-    ) { _ in
-      controller.cancel()
-    }
-    .onReceive(
-      NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)
-    ) { _ in
-      controller.cancel()
-    }
   }
 
   private var status: String {

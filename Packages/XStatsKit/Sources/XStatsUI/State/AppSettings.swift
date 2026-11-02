@@ -120,9 +120,6 @@ public enum MenuBarItem: String, CaseIterable, Identifiable, Sendable {
     }
   }
 
-  /// 可以单独指定风格的指标（网速有自己的样式）
-  var supportsStyleOverride: Bool { self != .network }
-
   var symbol: String {
     switch self {
     case .cpu: "cpu"

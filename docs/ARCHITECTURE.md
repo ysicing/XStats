@@ -253,6 +253,8 @@ The shared environment watcher restarts on network change and checks missing,
 unfinished or stale results on reopen/resume. Failure alone does not retry on every
 watcher tick. Closing, hiding, minimizing, lock and sleep stop active work while
 retaining completed results.
+Window/session and application lifecycle handlers own cancellation; result views
+do not install duplicate hide, sleep or session observers.
 
 WebRTC uses an ephemeral WebView and one PeerConnection per STUN service; a native
 deadline handles throttled WebKit timers. Completion/cancellation closes connections
@@ -274,6 +276,8 @@ Events use a bounded 256-entry ring, batches of at most 64 events below 256 KiB,
 epoch/cursor validation and active-ID snapshots; the UI retains at most 512 entries
 in memory. Missing active-ID support is an upgrade error. Three consecutive read
 failures stop the viewer; no background retry timer remains.
+Offline screenshots inject prepared per-connection rate points, filter and sum
+them for display, and do not maintain a second traffic-history engine.
 
 Local geography uses validated DB-IP Lite IPv4/IPv6 tables, fetched only while needed
 and reused for 30 days. Bounded downloads, decompression and hashing run off the main
