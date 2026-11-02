@@ -1818,6 +1818,7 @@ extension Translations {
     目录无效或已经添加	The folder is invalid or already added
     添加目录…	Add Folder…
     恢复默认	Restore Defaults
+    圆点颜色	Dot Colors
     完成	Done
     选择项目目录	Choose Project Folders
     添加	Add

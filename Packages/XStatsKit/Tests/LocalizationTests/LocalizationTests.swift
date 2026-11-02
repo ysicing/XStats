@@ -73,6 +73,7 @@ import Testing
       let table = try #require(Translations.catalog(for: language))
       for source in [
         "数值位置", "适用于双行文字及图形旁的双行文字", "上方", "下方",
+        "圆点颜色",
         "点击指标打开详情", "右键菜单可打开状态总览",
         "实验性功能", "折叠菜单栏图标",
         "实验性功能仍在探索中，可能存在兼容性或稳定性问题，后续更新中可能调整或移除。",

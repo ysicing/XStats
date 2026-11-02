@@ -762,6 +762,13 @@ public final class AppSettings {
   public var networkStyle: NetworkMenuStyle {
     didSet { defaults.set(networkStyle.rawValue, forKey: Keys.networkStyle) }
   }
+  public var networkMenuColors: NetworkMenuColors {
+    didSet {
+      let normalized = networkMenuColors.normalized
+      if networkMenuColors != normalized { networkMenuColors = normalized }
+      defaults.set(try? JSONEncoder().encode(networkMenuColors), forKey: Keys.networkMenuColors)
+    }
+  }
   public var networkLocationStyle: NetworkLocationStyle {
     didSet { defaults.set(networkLocationStyle.rawValue, forKey: Keys.networkLocationStyle) }
   }
@@ -1332,6 +1339,10 @@ public final class AppSettings {
     networkInterfaceName = defaults.string(forKey: "networkInterfaceName") ?? ""
     networkStyle =
       defaults.string(forKey: Keys.networkStyle).flatMap(NetworkMenuStyle.init(rawValue:)) ?? .dots
+    networkMenuColors =
+      defaults.data(forKey: Keys.networkMenuColors)
+      .flatMap { try? JSONDecoder().decode(NetworkMenuColors.self, from: $0) }?.normalized
+      ?? NetworkMenuColors()
     networkLocationStyle =
       defaults.string(forKey: Keys.networkLocationStyle).flatMap(
         NetworkLocationStyle.init(rawValue:)) ?? .off
@@ -1770,6 +1781,7 @@ public final class AppSettings {
     static let menuBarStyle = "menuBarStyle"
     static let menuBarValueOnTop = "menuBarValueOnTop"
     static let networkStyle = "networkStyle"
+    static let networkMenuColors = "networkMenuColors"
     static let networkLocationStyle = "networkLocationStyle"
     static let styleOverrides = "styleOverrides"
     static let refreshSeconds = "refreshSeconds"

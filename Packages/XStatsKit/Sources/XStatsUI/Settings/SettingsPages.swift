@@ -811,6 +811,17 @@ private struct ItemStyleRow: View {
         }
       }
       if item == .network {
+        if settings.menuBarLayout != .iconOnly && settings.networkStyle == .dots {
+          GridRow(alignment: .firstTextBaseline) {
+            Text(tr("圆点颜色"))
+              .dsFont(.xs)
+              .foregroundStyle(DS.Palette.textSecondary)
+              .fixedSize()
+            NetworkMenuColorControls(
+              colors: $settings.networkMenuColors,
+              uploadTitle: tr("上传"), downloadTitle: tr("下载"), resetTitle: tr("恢复默认"))
+          }
+        }
         GridRow {
           Text(tr("IP 归属地"))
             .dsFont(.xs)
@@ -841,6 +852,7 @@ private struct ItemStyleRow: View {
     let image = MenuBarRenderer.image(
       reading: MenuBarReading(model: model, items: [item]), items: [item],
       style: { settings.style(for: $0) }, networkStyle: settings.networkStyle,
+      networkColors: settings.networkMenuColors,
       colorizeHighLoad: settings.colorizeHighLoad, fahrenheit: settings.useFahrenheit,
       itemGap: CGFloat(settings.menuBarItemSpacing), valueOnTop: settings.menuBarValueOnTop,
       loadSensitivity: settings.loadSensitivity)
@@ -849,6 +861,53 @@ private struct ItemStyleRow: View {
       .frame(height: DS.Size.segmentHeight + DS.Space.s1)
       .background(DS.Palette.track, in: RoundedRectangle(cornerRadius: DS.Radius.sm))
       .accessibilityLabel(tr("该项目在菜单栏里的实时效果"))
+  }
+}
+
+/// 窄窗口和长译文将恢复按钮放到下一行，颜色选择仍与网络选项共用标签列。
+struct NetworkMenuColorControls: View {
+  @Binding var colors: NetworkMenuColors
+  let uploadTitle: String
+  let downloadTitle: String
+  let resetTitle: String
+
+  var body: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: DS.Space.s3) {
+        pickers
+        reset
+      }
+      VStack(alignment: .leading, spacing: DS.Space.s2) {
+        pickers
+        reset
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .controlSize(.small)
+  }
+
+  private var pickers: some View {
+    HStack(spacing: DS.Space.s3) {
+      ColorPicker(
+        uploadTitle,
+        selection: Binding(
+          get: { Color(nsColor: colors.uploadColor) },
+          set: { if let rgb = NetworkMenuColors.rgb(NSColor($0)) { colors.upload = rgb } }),
+        supportsOpacity: false)
+      ColorPicker(
+        downloadTitle,
+        selection: Binding(
+          get: { Color(nsColor: colors.downloadColor) },
+          set: { if let rgb = NetworkMenuColors.rgb(NSColor($0)) { colors.download = rgb } }),
+        supportsOpacity: false)
+    }
+    .fixedSize()
+  }
+
+  private var reset: some View {
+    Button(resetTitle) { colors = NetworkMenuColors() }
+      .disabled(colors == NetworkMenuColors())
+      .fixedSize()
   }
 }
 
@@ -1021,6 +1080,7 @@ private struct StyleCard: View {
     let sample = MenuBarRenderer.image(
       reading: previewReading, items: previewItems,
       style: { _ in style }, networkStyle: model.settings.networkStyle,
+      networkColors: model.settings.networkMenuColors,
       colorizeHighLoad: false, fahrenheit: model.settings.useFahrenheit,
       valueOnTop: model.settings.menuBarValueOnTop)
     Button(action: action) {

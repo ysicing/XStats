@@ -167,6 +167,7 @@ final class MenuBarController: NSObject {
           reading: entryReading, items: itemsToDraw,
           style: { settings.style(for: $0) },
           networkStyle: settings.networkStyle,
+          networkColors: settings.networkMenuColors,
           colorizeHighLoad: settings.colorizeHighLoad,
           fahrenheit: settings.useFahrenheit,
           itemGap: CGFloat(settings.menuBarItemSpacing),

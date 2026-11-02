@@ -104,6 +104,11 @@ the panel. Gaps, the keep-awake marker and keyboard activation retain the overvi
 the context menu and accessibility actions provide explicit overview access.
 Changing this interaction or removing an open metric dismisses its detail.
 
+The network dots style supports independent, opaque sRGB upload/download colors.
+An unset color follows the appearance-aware default; resetting clears both
+overrides. These preferences are backed up and shared by menu rendering and
+settings previews, while network charts retain their semantic palette.
+
 `menuBarOrder` stores the complete metric order, including hidden items. Combined
 indicators and overview rows share it; separate status items retain macOS ordering.
 Drag operations preview a local draft and persist only a valid drop. Cancellation

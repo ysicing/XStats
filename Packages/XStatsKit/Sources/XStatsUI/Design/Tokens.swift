@@ -64,7 +64,7 @@ extension DS {
 }
 
 extension DS {
-  /// 网速配色：上传绿、下载蓝，面板与菜单栏保持一致
+  /// 网速默认配色；菜单栏圆点可单独覆盖，面板保留此配色。
   enum NetworkPalette {
     static let upload = NSColor.dynamic(light: 0x16A34A, dark: 0x22C55E)
     static let download = NSColor.dynamic(light: 0x2563EB, dark: 0x3B82F6)

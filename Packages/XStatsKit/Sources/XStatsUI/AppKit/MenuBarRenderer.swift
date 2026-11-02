@@ -301,6 +301,7 @@ enum MenuBarRenderer {
       items: items,
       style: { settings.style(for: $0) },
       networkStyle: settings.networkStyle,
+      networkColors: settings.networkMenuColors,
       colorizeHighLoad: settings.colorizeHighLoad,
       fahrenheit: settings.useFahrenheit,
       itemGap: CGFloat(settings.menuBarItemSpacing), valueOnTop: settings.menuBarValueOnTop,
@@ -312,6 +313,7 @@ enum MenuBarRenderer {
     items: [MenuBarItem],
     style: (MenuBarItem) -> MenuBarStyle,
     networkStyle: NetworkMenuStyle,
+    networkColors: NetworkMenuColors = NetworkMenuColors(),
     colorizeHighLoad: Bool,
     fahrenheit: Bool,
     itemGap: CGFloat = 8,
@@ -320,6 +322,7 @@ enum MenuBarRenderer {
   ) -> NSImage {
     render(
       reading: reading, items: items, style: style, networkStyle: networkStyle,
+      networkColors: networkColors,
       colorizeHighLoad: colorizeHighLoad, fahrenheit: fahrenheit, itemGap: itemGap,
       valueOnTop: valueOnTop, loadSensitivity: loadSensitivity
     ).image
@@ -350,6 +353,7 @@ enum MenuBarRenderer {
     items: [MenuBarItem],
     style: (MenuBarItem) -> MenuBarStyle,
     networkStyle: NetworkMenuStyle,
+    networkColors: NetworkMenuColors = NetworkMenuColors(),
     colorizeHighLoad: Bool,
     fahrenheit: Bool,
     itemGap: CGFloat = 8,
@@ -364,6 +368,7 @@ enum MenuBarRenderer {
     for item in items {
       let segment = segment(
         for: item, reading: reading, style: style(item), networkStyle: networkStyle,
+        networkColors: networkColors,
         colorizeHighLoad: colorizeHighLoad, fahrenheit: fahrenheit, valueOnTop: valueOnTop,
         loadSensitivity: loadSensitivity)
       itemFrames[item] = NSRect(x: x, y: 0, width: segment.width, height: Metrics.barHeight)
@@ -430,7 +435,8 @@ enum MenuBarRenderer {
 
   private static func segment(
     for item: MenuBarItem, reading: MenuBarReading, style: MenuBarStyle,
-    networkStyle: NetworkMenuStyle, colorizeHighLoad: Bool, fahrenheit: Bool, valueOnTop: Bool,
+    networkStyle: NetworkMenuStyle, networkColors: NetworkMenuColors,
+    colorizeHighLoad: Bool, fahrenheit: Bool, valueOnTop: Bool,
     loadSensitivity: LoadSensitivity
   ) -> Segment {
     switch item {
@@ -443,7 +449,8 @@ enum MenuBarRenderer {
       )
     case .network:
       let speed = networkSegment(
-        upload: reading.upload, download: reading.download, style: networkStyle)
+        upload: reading.upload, download: reading.download, style: networkStyle,
+        colors: networkColors)
       guard reading.networkLocationStyle != .off, let code = reading.networkCountryCode else {
         return speed
       }
@@ -1045,7 +1052,9 @@ enum MenuBarRenderer {
     }
   }
 
-  private static func networkSegment(upload: Double?, download: Double?, style: NetworkMenuStyle)
+  private static func networkSegment(
+    upload: Double?, download: Double?, style: NetworkMenuStyle, colors: NetworkMenuColors
+  )
     -> Segment
   {
     let up = upload.map { Format.menuBarRate($0) } ?? "— KB/s"
@@ -1062,8 +1071,8 @@ enum MenuBarRenderer {
       var segment = Segment(width: markerWidth + Metrics.innerGap + textWidth) { rect in
         let base = baselineOrigin(in: rect)
         let rows: [(String, String, NSColor, CGFloat)] = [
-          (up, "↑", DS.NetworkPalette.upload, base + Metrics.upperBaseline - 1),
-          (down, "↓", DS.NetworkPalette.download, base + Metrics.lowerBaseline),
+          (up, "↑", colors.uploadColor, base + Metrics.upperBaseline - 1),
+          (down, "↓", colors.downloadColor, base + Metrics.lowerBaseline),
         ]
         for (text, arrow, color, baseline) in rows {
           if style == .dots {

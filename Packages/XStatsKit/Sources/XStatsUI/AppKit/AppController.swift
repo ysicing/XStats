@@ -744,6 +744,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.settings.menuBarValueOnTop
       _ = model.settings.menuBarStyle
       _ = model.settings.networkStyle
+      _ = model.settings.networkMenuColors
       _ = model.settings.processesEnabled
       _ = model.settings.networkLocationStyle
       _ = model.settings.publicIPLookup
