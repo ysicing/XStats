@@ -1,12 +1,12 @@
 {
-  "version": "0.1.6",
-  "date": "2026-10-29",
+  "version": "0.1.7",
+  "date": "2026-11-02",
   "sourceNotes": [
-    "敏感信息精确识别失败时自动尝试快速识别，并提示检查和补充马赛克。"
+    "精简共享更新模块的冗余代码，保持现有截图、录屏与更新功能。"
   ],
   "translations": {
     "en": [
-      "Automatically try fast recognition if accurate sensitive-text recognition fails, and prompt you to review the result and add any missing redactions."
+      "Remove unused code from the shared update module while preserving existing screenshot, recording and update features."
     ]
   }
 }

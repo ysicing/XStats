@@ -117,7 +117,7 @@ AI 用量仅支持 Magpie，需要安装并运行 Magpie。XStats 从其本地�
 | 工具 | 说明 |
 |---|---|
 | **命令栏（实验性）** | 快速搜索 XStats 页面与常用操作，支持键盘选择和执行 |
-| **XStats Capture** | 内置截图标注、本地打码与带声音的录屏；可单独[下载 Capture](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.6)，详见 [Capture 使用说明](docs/CAPTURE.md) |
+| **XStats Capture** | 内置截图标注、本地打码与带声音的录屏；可单独[下载 Capture](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.7)，详见 [Capture 使用说明](docs/CAPTURE.md) |
 | **风扇控制** | 在支持的设备上切换自动或手动控制 |
 | **防休眠** | 保持系统或屏幕唤醒，可配置合盖运行 |
 | **应用服务** | 统一管理应用、Homebrew、启动项与 Homebrew 服务，查看应用信息和可用更新 |
