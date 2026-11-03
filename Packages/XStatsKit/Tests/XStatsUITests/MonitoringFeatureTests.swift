@@ -42,6 +42,26 @@ final class MonitoringFeatureTests {
     return AppSettings(defaults: defaults)
   }
 
+  @Test func overviewStatusOnlyAssessesAvailableEnabledReadings() {
+    let store = MetricsStore(readBattery: false)
+    let pending = HealthReport(store: store, modules: [.cpu, .memory])
+    #expect(pending.tone == .neutral)
+    var snapshot = MetricsSnapshot()
+    snapshot.cpu = CPULoad(total: 0.8, user: 0.5, system: 0.3, perCore: [0.8], loadAverage: [])
+    store.apply(snapshot)
+    let elevated = HealthReport(store: store, modules: [.cpu])
+    #expect(elevated.tone == .warning)
+    #expect(!elevated.details.isEmpty)
+    let disabled = HealthReport(store: store, modules: [.memory])
+    #expect(disabled.tone == .neutral)
+    snapshot.cpu = CPULoad(total: 0.95, user: 0.6, system: 0.35, perCore: [0.95], loadAverage: [])
+    store.apply(snapshot)
+    #expect(HealthReport(store: store, modules: [.cpu]).tone == .error)
+    snapshot.cpu = CPULoad(total: 0.1, user: 0.05, system: 0.05, perCore: [0.1], loadAverage: [])
+    store.apply(snapshot)
+    #expect(HealthReport(store: store, modules: [.cpu]).tone == .success)
+  }
+
   @Test func menuEntryEnablesItsModuleButRemovingItDoesNotDisableTheModule() {
     let settings = settings()
     settings.setModuleEnabled(.gpu, false)

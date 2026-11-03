@@ -102,9 +102,9 @@ struct WeightedRow: Layout {
 // MARK: - 健康度与徽章
 
 struct HealthReport {
-  let score: Int
   let summary: String
   let tone: Tone
+  let details: String
 
   @MainActor
   init(store: MetricsStore, modules: Set<MonitoringModule> = Set(MonitoringModule.allCases)) {
@@ -139,9 +139,22 @@ struct HealthReport {
       issues.append((5, tr("电池健康度下降")))
     }
 
-    score = max(0, 100 - issues.reduce(0) { $0 + $1.penalty })
-    summary = issues.max { $0.penalty < $1.penalty }?.text ?? tr("各项指标正常")
-    tone = score >= 85 ? .success : score >= 60 ? .warning : .error
+    let hasReadings =
+      (modules.contains(.cpu) && store.cpu != nil)
+      || (modules.contains(.memory) && store.memory != nil)
+      || (modules.contains(.disk) && store.disk != nil)
+      || (modules.contains(.battery)
+        && (store.sensors?.temperature(.cpu) != nil || store.battery?.health != nil))
+    summary =
+      issues.max { $0.penalty < $1.penalty }?.text
+      ?? (hasReadings ? tr("已采集指标未见异常") : tr("等待监控数据"))
+    tone =
+      !hasReadings
+      ? .neutral
+      : issues.isEmpty
+        ? .success
+        : issues.contains { $0.penalty >= 20 } ? .error : .warning
+    details = issues.isEmpty ? summary : issues.map(\.text).joined(separator: "\n")
   }
 }
 
@@ -157,25 +170,24 @@ private struct HealthHeader: View {
         Text(tr("没有启用监控功能")).dsFont(.base, weight: .medium)
           .foregroundStyle(DS.Palette.textSecondary)
       } else if model.settings.enabledMonitoringModules.isDisjoint(with: [
-        .cpu, .memory, .disk, .thermal, .battery,
+        .cpu, .memory, .disk, .battery,
       ]) {
         Text(tr("已启用，按需采集")).dsFont(.base, weight: .medium)
           .foregroundStyle(DS.Palette.textSecondary)
       } else {
         HStack(alignment: .center, spacing: DS.Space.s3) {
           Image(
-            systemName: report.tone == .success
-              ? "checkmark.seal.fill" : "exclamationmark.triangle.fill"
+            systemName: report.tone == .neutral
+              ? "clock"
+              : report.tone == .success ? "checkmark.seal.fill" : "exclamationmark.triangle.fill"
           )
           .font(.system(size: DS.TextSize.xl.rawValue, weight: .semibold))
           .foregroundStyle(report.tone.color)
-          Text(verbatim: "\(report.score)")
-            .dsFont(.xxl, weight: .semibold)
-            .monospacedDigit()
-            .foregroundStyle(DS.Palette.textPrimary)
           Text(report.summary)
-            .dsFont(.base, weight: .medium)
-            .foregroundStyle(DS.Palette.textSecondary)
+            .dsFont(.xl, weight: .semibold)
+            .foregroundStyle(DS.Palette.textPrimary)
+            .help(report.details)
+            .accessibilityValue(report.details == report.summary ? "" : report.details)
           Spacer()
         }
       }
@@ -616,6 +628,7 @@ private struct TopProcessesCard: View {
       .menuStyle(.borderlessButton)
       .menuIndicator(.hidden)
       .frame(width: DS.Size.iconInline)
+      .accessibilityLabel(tr("更多操作：\(process.displayName)"))
     }
   }
 

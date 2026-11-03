@@ -9,6 +9,42 @@ import Testing
 @testable import XStatsUI
 
 struct NetworkConnectionsPresentationTests {
+  @Test func captureEmptyStatesKeepConsentProgressAndFailureDistinct() {
+    let cases: [(NetworkMonitorController.Status, Bool, Bool, NetworkConnectionEmptyState)] = [
+      (.idle, false, false, .stopped),
+      (.running, false, false, .paused),
+      (.idle, true, false, .updating),
+      (.starting, true, false, .starting),
+      (.needsApproval, true, true, .needsApproval),
+      (.restartRequired, false, true, .restartRequired),
+      (.failed, false, true, .failed),
+      (.running, false, true, .failed),
+      (.idle, false, true, .failed),
+    ]
+    for (status, busy, error, expected) in cases {
+      #expect(
+        NetworkConnectionEmptyState.capture(
+          status: status, isReading: false, isBusy: busy, hasError: error) == expected)
+    }
+  }
+
+  @Test func captureEmptyStateDoesNotHideActiveOrPreviewConnections() {
+    #expect(
+      NetworkConnectionEmptyState.capture(
+        status: .running, isReading: true, isBusy: false, hasError: true) == nil)
+    #expect(
+      NetworkConnectionEmptyState.capture(
+        status: .preview, isReading: false, isBusy: false, hasError: false) == nil)
+  }
+
+  @Test func recordEmptyStatesDistinguishLiveHistoryAndFilters() {
+    #expect(NetworkConnectionEmptyState.records(mode: .live, hasFilter: false) == .waiting)
+    #expect(NetworkConnectionEmptyState.records(mode: .history, hasFilter: false) == .history)
+    for mode in NetworkConnectionMode.allCases {
+      #expect(NetworkConnectionEmptyState.records(mode: mode, hasFilter: true) == .filtered)
+    }
+  }
+
   @Test func regionHierarchyKeepsMainlandParentsSeparateFromOtherRegions() {
     #expect(NetworkRegionHierarchy.key("CN|山东|济南", at: 0) == "CN")
     #expect(NetworkRegionHierarchy.key("CN|山东|济南", at: 1) == "CN|山东")

@@ -616,7 +616,9 @@ struct MoleControllerTests {
     }
     await gate.waitForStart()
     #expect(controller.lastCommand == command && operations.isRunning)
-    #expect(MoleCommandView(controller: controller, nativeBusy: false).status == tr("执行中"))
+    #expect(
+      MoleCommandView(controller: controller, nativeBusy: false).status
+        == (command.isPreview ? tr("正在预览…") : tr("执行中")))
     controller.cancel()
     #expect(controller.isRunning && controller.isCancelling && !controller.canExecute)
     #expect(MoleCommandView(controller: controller, nativeBusy: false).status == tr("正在停止…"))

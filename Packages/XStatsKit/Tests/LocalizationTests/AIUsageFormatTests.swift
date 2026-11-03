@@ -5,6 +5,46 @@ import Testing
 import Localization
 
 struct AIUsageFormatTests {
+  @Test(arguments: [
+    ("self_serve_business_prolite", "Business Pro Lite"),
+    ("pro", "Pro"),
+    ("Pro", "Pro"),
+    ("ChatGPT Plus", "ChatGPT Plus"),
+    ("Claude Max", "Claude Max"),
+    ("Gemini Advanced", "Gemini Advanced"),
+    ("unknown_business_prolite", "unknown_business_prolite"),
+    ("self_serve_business_prolite_v2", "self_serve_business_prolite_v2"),
+    (" custom_plan ", " custom_plan "),
+    ("", ""),
+  ])
+  func quotaPlanOnlyFormatsKnownIdentifiers(_ name: String, _ expected: String) {
+    #expect(AIUsageFormat.quotaPlan(name) == expected)
+  }
+
+  @Test(arguments: [
+    ("5hours", "5 小时"), ("5 hours", "5 小时"),
+    ("7days", "7 天"), ("7 days", "7 天"),
+    ("1day", "1 天"), ("1 day", "1 天"),
+  ])
+  func quotaWindowUsesExplicitLanguage(_ name: String, _ source: String) {
+    for language in AppLanguage.allCases where language != .system {
+      #expect(
+        AIUsageFormat.quotaWindow(name, language: language)
+          == L10n.translate(source, language: language))
+    }
+    #expect(AIUsageFormat.quotaWindow(name, language: .chinese) == source)
+    #expect(AIUsageFormat.quotaWindow(name, language: .english) != source)
+  }
+
+  @Test(arguments: [
+    "custom_window", "7days (Sonnet)", "5hours_extra", "70days", " 7days ", "",
+  ])
+  func quotaWindowPreservesUnknownNames(_ name: String) {
+    for language in AppLanguage.allCases where language != .system {
+      #expect(AIUsageFormat.quotaWindow(name, language: language) == name)
+    }
+  }
+
   @Test func quotaResetUsesExplicitLanguageAndDoesNotGuessMissingDates() {
     let now = Date(timeIntervalSince1970: 1_800_000_000)
     #expect(AIUsageFormat.quotaReset(at: nil, relativeTo: now, language: .english) == "—")

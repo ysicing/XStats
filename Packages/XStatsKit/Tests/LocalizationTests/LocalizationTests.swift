@@ -3,6 +3,17 @@ import Testing
 
 // 不切换全局语言：其他测试套件并行运行，依赖中文原文
 @Suite struct LocalizationTests {
+  @Test func designAuditLabelsHaveExplicitTranslationsInEveryCatalog() throws {
+    let keys = Translations(tables: [Translations.designAuditEnglish]).sourceKeys
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for key in keys {
+        #expect(table.sourceKeys.contains(key), "\(language): \(key)")
+        #expect(table.translate(key)?.isEmpty == false, "\(language): \(key)")
+      }
+    }
+  }
+
   @Test func nsfwOptionsHaveTranslationsInEveryCatalog() throws {
     for language in AppLanguage.allCases where language != .system && language != .chinese {
       let table = try #require(Translations.catalog(for: language))

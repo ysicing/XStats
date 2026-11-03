@@ -15,7 +15,7 @@ struct SettingsTabPage<Content: View>: View {
   @ViewBuilder var content: Content
 
   var body: some View {
-    PageScroll { content }
+    PageScroll(contentMaxWidth: DS.Size.settingsContentWidth) { content }
       .onAppear {
         model.refreshLaunchAtLogin()
         model.helper.refreshStatus()
@@ -282,6 +282,7 @@ struct HotKeySettings: View {
                   subtitle: subtitle
                 ) {
                   ShortcutRecorder(
+                    actionTitle: action.title(processesEnabled: settings.processesEnabled),
                     hotKey: Binding(
                       get: { settings.hotKeys[action] },
                       set: { settings.hotKeys[action] = $0 }))
@@ -298,6 +299,7 @@ struct HotKeySettings: View {
 /// 点一下开始录制，按下组合键完成；Esc 取消，⌫ 清除
 struct ShortcutRecorder: View {
   @Environment(AppModel.self) private var model
+  let actionTitle: String
   @Binding var hotKey: HotKey?
   @State private var recordingID = UUID()
   @State private var recording = false
@@ -314,8 +316,12 @@ struct ShortcutRecorder: View {
           .frame(minWidth: DS.Space.s16 + DS.Space.s12)
       }
       .buttonStyle(DSButtonStyle(kind: recording ? .primary : .secondary))
+      .accessibilityLabel(tr("录制快捷键：\(actionTitle)"))
+      .accessibilityValue(recording ? tr("按下快捷键…") : hotKey?.display ?? tr("未设置"))
       if hotKey != nil && !recording {
-        MiniIconButton(systemName: "xmark.circle.fill", help: tr("清除快捷键")) { hotKey = nil }
+        MiniIconButton(systemName: "xmark.circle.fill", help: tr("清除快捷键：\(actionTitle)")) {
+          hotKey = nil
+        }
       }
     }
     .onDisappear { stop() }
@@ -1427,12 +1433,14 @@ struct AboutSettings: View {
         SettingRow(title: tr("服务条款"), subtitle: tr("了解 XStats 的使用条件与责任边界")) {
           Button(tr("查看")) { legalDocument = .terms }
             .buttonStyle(DSButtonStyle(kind: .secondary))
+            .accessibilityLabel(tr("查看服务条款"))
         }
       }
       GroupRow {
         SettingRow(title: tr("隐私政策"), subtitle: tr("了解本机数据、联网功能与信息处理方式")) {
           Button(tr("查看")) { legalDocument = .privacy }
             .buttonStyle(DSButtonStyle(kind: .secondary))
+            .accessibilityLabel(tr("查看隐私政策"))
         }
       }
     }
@@ -1449,6 +1457,7 @@ struct AboutSettings: View {
             }
           }
           .buttonStyle(DSButtonStyle(kind: .secondary))
+          .accessibilityLabel(tr("查看 \(String("gentpan/OpenStats"))"))
         }
       }
       GroupRow(showsDivider: false) {
@@ -1461,6 +1470,7 @@ struct AboutSettings: View {
             }
           }
           .buttonStyle(DSButtonStyle(kind: .secondary))
+          .accessibilityLabel(tr("查看 \(String("exelban/stats"))"))
         }
       }
     }

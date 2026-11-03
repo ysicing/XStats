@@ -4,6 +4,25 @@ import Foundation
 
 /// 主应用与 Widget 共用的纯显示格式化，不读取或修改全局语言偏好。
 public enum AIUsageFormat {
+  public static func quotaPlan(_ name: String) -> String {
+    switch name {
+    case "self_serve_business_prolite": "Business Pro Lite"
+    case "pro": "Pro"
+    default: name
+    }
+  }
+
+  public static func quotaWindow(_ name: String, language: AppLanguage) -> String {
+    let label: String
+    switch name {
+    case "5hours", "5 hours": label = "5 小时"
+    case "7days", "7 days": label = "7 天"
+    case "1day", "1 day": label = "1 天"
+    default: return name
+    }
+    return L10n.translate(label, language: language)
+  }
+
   /// 使用条目时间和显式语言，不让多个 Widget 的渲染互相改变语言状态。
   public static func quotaReset(
     at reset: Date?, relativeTo date: Date, language: AppLanguage

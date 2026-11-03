@@ -1,5 +1,45 @@
 # Copyright (C) 2026 ysicing
 # SPDX-License-Identifier: AGPL-3.0-or-later
+正在更新采集状态…	Actualizando el estado de captura…
+采集出错	Error de captura
+等待新连接	Esperando nuevas conexiones
+所选时段没有连接记录	No hay conexiones en este intervalo
+继续采集	Reanudar captura
+暂无可定位的连接	No hay conexiones con datos de ubicación
+地图数据读取失败，连接列表仍可使用。	No se pudieron leer los datos del mapa. La lista de conexiones sigue disponible.
+网站出口：实测 {} · 推断 {}	Salidas de sitios: {} medidas · {} inferidas
+未取得可用出口	No hay resultados de salida utilizables
+本次检测未取得可用于判断的出口。请查看下方各目标结果，并通过顶部“重新检测”重试。	Esta comprobación no obtuvo datos de salida para el análisis. Revisa los resultados de abajo y pulsa «Comprobar de nuevo» arriba.
+本次检测未见代理出口	No se observó una salida de proxy en esta comprobación
+未检测到 VPN 或系统代理配置，本次已测得出口的请求均为直连。	No se detectó una configuración de VPN ni de proxy del sistema. Las solicitudes con salida medida fueron directas.
+本次检测未见代理生效	No se observó uso del proxy en esta comprobación
+检测到 {}，但本次已测得出口的请求均为直连。	Se detectó {}, pero las solicitudes con salida medida fueron directas.
+本次国内直连、国际代理	Nacional directo, internacional por proxy en esta comprobación
+本次实测国内请求直连，国际请求经代理；各目标的出口见下方。	Las solicitudes nacionales medidas fueron directas y las internacionales usaron un proxy. Consulta las salidas de cada destino abajo.
+本次检测存在分流	Se observaron rutas divididas en esta comprobación
+本次实测请求中有直连与代理出口，各网站的测量与推断结果见下方。	Las solicitudes medidas usaron salidas directas y de proxy. Consulta abajo los resultados medidos e inferidos de cada sitio.
+本次实测均经代理	Todas las solicitudes medidas usaron un proxy
+本次实测国内请求也经过代理，是否影响访问速度需以实际使用为准。	Las solicitudes nacionales medidas también usaron un proxy. El efecto sobre la velocidad depende del uso real.
+本次已测得出口的请求均经过代理；各目标的出口及 WebRTC、DNS 结果见下方。	Todas las solicitudes con salida medida usaron un proxy. Consulta abajo las salidas y los resultados separados de WebRTC y DNS.
+本次未测得物理网卡的基准出口，无法区分代理与直连。下方仍显示已取得的出口。	No se pudo medir la salida de referencia de la interfaz física, por lo que no se pueden distinguir rutas directas y de proxy. Las salidas disponibles se muestran abajo.
+本次 IPv6 直连测试读到了本机出口地址 {}，该请求未经过代理。	Esta prueba de conexión directa IPv6 obtuvo la dirección de salida local {}. Esa solicitud no usó un proxy.
+本次 IPv6 直连测试未取得出口地址，无法据此确认是否存在地址泄漏。	Esta prueba de conexión directa IPv6 no obtuvo una dirección de salida, por lo que no permite determinar si existe una fuga de dirección.
+本次 IPv6 直连测试经过代理。	Esta prueba de conexión directa IPv6 usó un proxy.
+本次不读取系统代理设置的 IPv4 测试为直连。若希望代理接管此类连接，可检查代理的增强模式或 TUN 设置。	Esta prueba IPv4, que no usa el proxy del sistema, fue directa. Para enviar estas conexiones por un proxy, revisa su modo mejorado o TUN.
+本次实测国内请求经过代理，是否影响访问速度需以实际使用为准。	Las solicitudes nacionales medidas usaron un proxy. El efecto sobre la velocidad depende del uso real.
+录制快捷键：{}	Grabar atajo: {}
+清除快捷键：{}	Borrar atajo: {}
+查看服务条款	Ver términos del servicio
+查看隐私政策	Ver política de privacidad
+查看 {}	Ver {}
+更多操作：{}	Más acciones para {}
+已采集指标未见异常	No hay problemas en las mediciones disponibles
+等待监控数据	Esperando datos de monitorización
+预览日志	Registro de vista previa
+仅预览，未应用更改	Solo vista previa. No se han aplicado cambios.
+正在预览…	Generando vista previa…
+无样本	Sin muestra
+使用左右方向键逐点查看历史数据	Usa las flechas izquierda y derecha para explorar el historial punto por punto
 暂无数据	Aún no hay datos
 共享数据不可用	Datos compartidos no disponibles
 主应用缓存	Caché de XStats

@@ -9,6 +9,55 @@ import Testing
 
 @MainActor
 struct NetworkLeakTestPresentationTests {
+  @Test func egressEvidenceCountsExcludeBaselinesHiddenSitesAndUnknownExits() throws {
+    let sites = Array(EgressTarget.sites.prefix(4))
+    let hidden = try #require(EgressTarget.sites.last)
+    let analysis = EgressAnalysis(
+      verdict: .mixed, rawAddresses: ["192.0.2.1"], rawCountry: "CN",
+      exits: [
+        .init(
+          ip: "198.51.100.1", path: .proxy,
+          entries: [
+            .init(targetID: EgressTarget.cloudflare.id, measured: true),
+            .init(targetID: sites[0].id, measured: true),
+            .init(targetID: sites[1].id, measured: false),
+            .init(targetID: hidden.id, measured: true),
+          ], country: "US")
+      ],
+      failedTargetIDs: [sites[3].id], unassignedTargetIDs: [sites[2].id],
+      findings: [], directCount: 0, proxyCount: 2)
+    let report = EgressController.Report(
+      date: .now, environment: ProxyEnvironment(), hits: [], geo: [:])
+    let counts = EgressContext(report: report, analysis: analysis, sites: sites).siteCounts
+    #expect(counts.proxy == 2 && counts.direct == 0)
+    #expect(counts.measured == 1 && counts.inferred == 1)
+    #expect(counts.unknown == 1 && counts.failed == 1)
+  }
+
+  @Test func domesticProxyWarningRequiresAMeasuredDomesticRequest() {
+    var analysis = EgressAnalysis(
+      verdict: .fullProxy, rawAddresses: ["192.0.2.1"], rawCountry: "CN",
+      exits: [
+        .init(
+          ip: "198.51.100.1", path: .proxy,
+          entries: [.init(targetID: EgressTarget.cloudflare.id, measured: true)], country: "US")
+      ],
+      failedTargetIDs: [EgressTarget.domestic.id], unassignedTargetIDs: [],
+      findings: [], directCount: 0, proxyCount: 1)
+    let report = EgressController.Report(
+      date: .now, environment: ProxyEnvironment(), hits: [], geo: [:])
+    #expect(EgressText.verdict(analysis, report: report).icon == "checkmark")
+    analysis.exits[0].entries.append(.init(targetID: EgressTarget.domestic.id, measured: false))
+    #expect(EgressText.verdict(analysis, report: report).icon == "checkmark")
+    analysis.exits[0].entries[1].measured = true
+    #expect(EgressText.verdict(analysis, report: report).icon == "exclamationmark")
+  }
+
+  @Test func failedIPv6ProbeDoesNotReportLeakProtection() {
+    let finding = EgressText.finding(.ipv6Blocked)
+    #expect(finding.icon == "questionmark.circle")
+  }
+
   @Test func geographyDeduplicatesPlacesAndUsesChinaRegionNames() {
     func location(_ code: String, _ country: String, _ region: String, _ city: String) -> String {
       NetworkLeakTestView.location(

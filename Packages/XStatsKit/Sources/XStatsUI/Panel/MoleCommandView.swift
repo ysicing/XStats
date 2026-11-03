@@ -137,11 +137,16 @@ struct MoleCommandView: View {
   private var executionLog: some View {
     VStack(alignment: .leading, spacing: DS.Space.s3) {
       HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
-        Text(tr("执行日志")).dsFont(.sm, weight: .semibold)
+        Text(controller.lastCommand?.isPreview == true ? tr("预览日志") : tr("执行日志"))
+          .dsFont(.sm, weight: .semibold)
         Text(status).dsFont(.sm)
           .foregroundStyle(isFailure ? DS.Palette.warning : DS.Palette.textSecondary)
         Spacer(minLength: DS.Space.s2)
         Toggle(tr("跟随输出"), isOn: $followsOutput).toggleStyle(.checkbox).fixedSize()
+      }
+      if controller.lastCommand?.isPreview == true {
+        Text(tr("仅预览，未应用更改"))
+          .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
       }
       if controller.outputWasTruncated {
         Text(tr("日志较长，仅保留最近 128 KiB。"))
@@ -205,7 +210,9 @@ struct MoleCommandView: View {
   var status: String {
     let mole = controller
     if mole.isCancelling { return tr("正在停止…") }
-    if mole.isRunning { return tr("执行中") }
+    if mole.isRunning {
+      return mole.lastCommand?.isPreview == true ? tr("正在预览…") : tr("执行中")
+    }
     if mole.wasCancelled {
       if mole.lastCommand == .install { return tr("安装已停止") }
       if mole.lastCommand?.isPreview == true { return tr("预览已取消") }

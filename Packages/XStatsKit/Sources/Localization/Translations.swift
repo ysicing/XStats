@@ -14,8 +14,52 @@ extension Translations {
       appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish,
       hardwareDetailsEnglish, aiCleanupEnglish, networkPresentationEnglish, trioEnglish,
       portsEnglish, appServicesEnglish, maintenancePreviewEnglish, commandBarEnglish,
+      designAuditEnglish,
     ]
   }
+
+  static let designAuditEnglish = #"""
+    录制快捷键：{}	Record shortcut: {}
+    清除快捷键：{}	Clear shortcut: {}
+    查看服务条款	View Terms of Service
+    查看隐私政策	View Privacy Policy
+    查看 {}	View {}
+    更多操作：{}	More actions for {}
+    已采集指标未见异常	No issues in available readings
+    等待监控数据	Waiting for monitoring data
+    预览日志	Preview Log
+    仅预览，未应用更改	Preview only. No changes applied.
+    正在预览…	Previewing…
+    无样本	No sample
+    使用左右方向键逐点查看历史数据	Use the Left and Right Arrow keys to explore historical data point by point
+    正在更新采集状态…	Updating capture status…
+    采集出错	Capture error
+    等待新连接	Waiting for new connections
+    所选时段没有连接记录	No connections in this time range
+    继续采集	Resume capture
+    暂无可定位的连接	No connections with location data
+    地图数据读取失败，连接列表仍可使用。	Map data could not be read. The connection list is still available.
+    网站出口：实测 {} · 推断 {}	Website exits: {} measured · {} inferred
+    未取得可用出口	No usable exit result
+    本次检测未取得可用于判断的出口。请查看下方各目标结果，并通过顶部“重新检测”重试。	This check found no exit data suitable for analysis. Review the target results below, then use “Check Again” at the top to retry.
+    本次检测未见代理出口	No proxy exit observed in this check
+    未检测到 VPN 或系统代理配置，本次已测得出口的请求均为直连。	No VPN or system proxy configuration was detected. Requests with measured exits in this check used direct connections.
+    本次检测未见代理生效	Proxy use not observed in this check
+    检测到 {}，但本次已测得出口的请求均为直连。	{} was detected, but requests with measured exits in this check used direct connections.
+    本次国内直连、国际代理	Domestic direct, international proxied in this check
+    本次实测国内请求直连，国际请求经代理；各目标的出口见下方。	In this check, measured domestic requests connected directly and international requests used a proxy. See each target’s exit below.
+    本次检测存在分流	Split routing observed in this check
+    本次实测请求中有直连与代理出口，各网站的测量与推断结果见下方。	Measured requests in this check used both direct and proxy exits. See the measured and inferred website results below.
+    本次实测均经代理	All measured requests used a proxy in this check
+    本次实测国内请求也经过代理，是否影响访问速度需以实际使用为准。	Measured domestic requests also used a proxy in this check. Any effect on speed depends on actual usage.
+    本次已测得出口的请求均经过代理；各目标的出口及 WebRTC、DNS 结果见下方。	Requests with measured exits in this check all used a proxy. See target exits and the separate WebRTC and DNS results below.
+    本次未测得物理网卡的基准出口，无法区分代理与直连。下方仍显示已取得的出口。	This check could not measure the physical interface’s baseline exit, so proxy and direct routes cannot be distinguished. Available exits are still shown below.
+    本次 IPv6 直连测试读到了本机出口地址 {}，该请求未经过代理。	This IPv6 direct-connection test observed the local network’s exit address {}. That request did not use a proxy.
+    本次 IPv6 直连测试未取得出口地址，无法据此确认是否存在地址泄漏。	This IPv6 direct-connection test returned no exit address, so it cannot establish whether an address leak exists.
+    本次 IPv6 直连测试经过代理。	This IPv6 direct-connection test used a proxy.
+    本次不读取系统代理设置的 IPv4 测试为直连。若希望代理接管此类连接，可检查代理的增强模式或 TUN 设置。	This IPv4 test, which does not use system proxy settings, connected directly. To route such connections through a proxy, check its enhanced or TUN mode settings.
+    本次实测国内请求经过代理，是否影响访问速度需以实际使用为准。	Measured domestic requests used a proxy in this check. Any effect on speed depends on actual usage.
+    """#
 
   static let commandBarEnglish = #"""
     命令栏	Command Bar

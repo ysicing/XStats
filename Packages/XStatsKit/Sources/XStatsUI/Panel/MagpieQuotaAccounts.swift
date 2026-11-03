@@ -88,20 +88,21 @@ struct MagpieQuotaAccounts: View {
       MainActorForEach(Array(visibleAccounts.enumerated()), id: \.element.quota.id) {
         index, account in
         let quota = account.quota
+        let plan = quota.plan.map(AIUsageFormat.quotaPlan)
         if index > 0 { Divider() }
         VStack(alignment: .leading, spacing: DS.Space.s2) {
           HStack(alignment: .firstTextBaseline) {
             ViewThatFits(in: .horizontal) {
               HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
                 Text(account.name).dsFont(.sm, weight: .semibold)
-                if let plan = quota.plan, !plan.isEmpty {
+                if let plan, !plan.isEmpty {
                   Text(plan).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                 }
               }.fixedSize(horizontal: true, vertical: false)
               VStack(alignment: .leading, spacing: DS.Space.s1) {
                 Text(account.name).dsFont(.sm, weight: .semibold)
                   .lineLimit(1).truncationMode(.middle)
-                if let plan = quota.plan, !plan.isEmpty {
+                if let plan, !plan.isEmpty {
                   Text(plan).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 }
@@ -127,7 +128,8 @@ struct MagpieQuotaAccounts: View {
           } else {
             MainActorForEach(Array(quota.windows.enumerated()), id: \.offset) { _, window in
               HStack {
-                Text(window.name).foregroundStyle(DS.Palette.textSecondary)
+                Text(AIUsageFormat.quotaWindow(window.name, language: L10n.language))
+                  .foregroundStyle(DS.Palette.textSecondary)
                 Spacer(minLength: DS.Space.s2)
                 if window.unlimited == true {
                   Text(tr("不限额"))

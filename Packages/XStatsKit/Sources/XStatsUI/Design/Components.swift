@@ -424,6 +424,8 @@ private struct DSButtonBody: View {
   @State private var hovering = false
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.isInsideGlass) private var isInsideGlass
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+  @Environment(\.colorSchemeContrast) private var contrast
 
   var body: some View {
     if DS.Glass.isAvailable {
@@ -433,7 +435,6 @@ private struct DSButtonBody: View {
     }
   }
 
-  /// macOS 26：胶囊形玻璃按钮。主按钮是蓝色玻璃，次要按钮是透明玻璃，文字按钮不加玻璃
   private var glassBody: some View {
     configuration.label
       .dsFont(.sm, weight: .medium)
@@ -443,7 +444,6 @@ private struct DSButtonBody: View {
       .contentShape(Capsule())
       .modifier(GlassButtonSurface(kind: kind, active: active, isInsideGlass: isInsideGlass))
       .onHover { hovering = $0 }
-      .animation(DS.Motion.quick, value: hovering)
       .opacity(buttonOpacity)
   }
 
@@ -462,7 +462,6 @@ private struct DSButtonBody: View {
       }
       .contentShape(Rectangle())
       .onHover { hovering = $0 }
-      .animation(DS.Motion.quick, value: hovering)
       .opacity(buttonOpacity)
   }
 
@@ -472,7 +471,8 @@ private struct DSButtonBody: View {
     guard isEnabled else { return 0.5 }
     // 原生 interactive glass 自带按压效果；自绘按钮需区别悬停和按下，且立即响应。
     let systemFeedback =
-      DS.Glass.isAvailable && (kind == .primary || (kind == .secondary && !isInsideGlass))
+      DS.Glass.isAvailable && kind == .secondary && !isInsideGlass
+      && !reduceTransparency && contrast != .increased
     return configuration.isPressed && !systemFeedback ? 0.65 : 1
   }
 
@@ -486,7 +486,7 @@ private struct DSButtonBody: View {
 
   private var background: Color {
     switch kind {
-    case .primary: active ? DS.Palette.primaryHover : DS.Palette.primary
+    case .primary: active ? DS.Palette.primaryActionHover : DS.Palette.primaryAction
     case .secondary: active ? DS.Palette.surfaceHover : DS.Palette.elevated
     case .ghost: active ? DS.Palette.surfaceHover : .clear
     }
@@ -529,7 +529,6 @@ struct IconButton: View {
   }
 }
 
-/// 玻璃按钮的底：主按钮蓝色玻璃，次要按钮透明玻璃；文字按钮、或已在玻璃面板里的次要按钮只有悬停底色
 private struct GlassButtonSurface: ViewModifier {
   let kind: DSButtonStyle.Kind
   let active: Bool
@@ -538,7 +537,8 @@ private struct GlassButtonSurface: ViewModifier {
   func body(content: Content) -> some View {
     switch kind {
     case .primary:
-      content.dsGlass(in: Capsule(), tint: DS.Palette.primary, interactive: true)
+      content.background(
+        active ? DS.Palette.primaryActionHover : DS.Palette.primaryAction, in: Capsule())
     case .secondary where !isInsideGlass:
       content.dsGlass(in: Capsule(), interactive: true)
     default:
@@ -599,8 +599,7 @@ struct SidebarButton: View {
       .padding(.trailing, DS.Space.s2)
       .frame(height: DS.Size.controlHeight)
       .contentShape(Rectangle())
-      .animation(DS.Motion.quick, value: isSelected)
-      .animation(DS.Motion.quick, value: hovering)
+      .dsSelectionAnimation(DS.Motion.quick, value: isSelected)
     }
     .buttonStyle(.plain)
     .onHover { hovering = $0 }
@@ -994,11 +993,14 @@ struct PopoverHeightPreference: PreferenceKey {
 struct PageScroll<Content: View>: View {
   @Environment(\.isSnapshot) private var isSnapshot
   @Environment(\.isPopover) private var isPopover
+  var contentMaxWidth: CGFloat = .infinity
   @ViewBuilder var content: Content
 
   var body: some View {
     // 弹窗里区块之间靠分隔线隔开，不再额外留间距
     let stack = VStack(alignment: .leading, spacing: isPopover ? 0 : DS.Space.s3) { content }
+      .frame(maxWidth: isPopover ? .infinity : contentMaxWidth)
+      .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.horizontal, DS.Space.s3)
       .padding(.bottom, isPopover ? DS.Space.s1 : DS.Space.s3)
     if isSnapshot {
@@ -1058,7 +1060,9 @@ struct ChipButton: View {
   var body: some View {
     if DS.Glass.isAvailable {
       // macOS 26：每个选项是一颗玻璃胶囊，选中的是蓝色玻璃
-      Button(action: action) {
+      Button {
+        DS.Motion.select(action)
+      } label: {
         Text(title)
           .dsFont(.xs, weight: isSelected ? .semibold : .medium)
           .foregroundStyle(isSelected ? DS.Palette.onPrimary : DS.Palette.textPrimary)
@@ -1066,10 +1070,11 @@ struct ChipButton: View {
           .frame(maxWidth: .infinity)
           .frame(height: DS.Size.segmentHeight)
           .contentShape(Capsule())
-          .dsGlass(in: Capsule(), tint: isSelected ? DS.Palette.primary : nil, interactive: true)
+          .dsGlass(
+            in: Capsule(), tint: isSelected ? DS.Palette.primaryAction : nil, interactive: true)
       }
       .buttonStyle(.plain)
-      .animation(DS.Motion.quick, value: isSelected)
+      .dsSelectionAnimation(DS.Motion.quick, value: isSelected)
       .accessibilityAddTraits(isSelected ? .isSelected : [])
     } else {
       solidBody

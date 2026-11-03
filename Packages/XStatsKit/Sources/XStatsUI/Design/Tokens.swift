@@ -11,6 +11,8 @@ extension DS {
     // 品牌色（单个视图内不超过 3 种）
     static let primary = Color.dynamic(light: 0x2563EB, dark: 0x3B82F6)
     static let primaryHover = Color.dynamic(light: 0x1D4ED8, dark: 0x2563EB)  // 加深约 10%
+    static let primaryAction = Color.dynamic(light: 0x2563EB, dark: 0x2563EB)
+    static let primaryActionHover = Color.dynamic(light: 0x1D4ED8, dark: 0x1D4ED8)
     static let secondary = Color.dynamic(light: 0x0D9488, dark: 0x2DD4BF)
 
     // 语义色
@@ -203,6 +205,7 @@ extension DS {
     static let sidebarWidth: CGFloat = 192
     /// 设置页的内嵌列表保持紧凑，让行操作靠近对应内容。
     static let settingsListWidth: CGFloat = 480
+    static let settingsContentWidth: CGFloat = 880
     /// 升级提示窗口
     static let updateWindowWidth: CGFloat = 480
     static let updateNotesHeight: CGFloat = 192

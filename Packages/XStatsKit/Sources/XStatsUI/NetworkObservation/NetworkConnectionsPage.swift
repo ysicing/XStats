@@ -152,6 +152,72 @@ struct NetworkConnectionFilter {
   }
 }
 
+enum NetworkConnectionEmptyState: Equatable {
+  case stopped, paused, starting, updating, needsApproval, restartRequired, failed
+  case waiting, history, filtered
+
+  static func capture(
+    status: NetworkMonitorController.Status, isReading: Bool, isBusy: Bool, hasError: Bool
+  ) -> Self? {
+    guard !isReading, status != .preview else { return nil }
+    switch status {
+    case .needsApproval: return .needsApproval
+    case .restartRequired: return .restartRequired
+    case .starting: return .starting
+    case .failed: return .failed
+    default:
+      if hasError { return .failed }
+      if isBusy { return .updating }
+      return status == .running ? .paused : .stopped
+    }
+  }
+
+  static func records(mode: NetworkConnectionMode, hasFilter: Bool) -> Self {
+    if hasFilter { return .filtered }
+    return mode == .history ? .history : .waiting
+  }
+
+  var title: String {
+    switch self {
+    case .stopped: tr("采集已停止")
+    case .paused: tr("采集已暂停")
+    case .starting: tr("正在启用…")
+    case .updating: tr("正在更新采集状态…")
+    case .needsApproval: tr("等待系统授权")
+    case .restartRequired: tr("需要重启系统")
+    case .failed: tr("采集出错")
+    case .waiting: tr("等待新连接")
+    case .history: tr("所选时段没有连接记录")
+    case .filtered: tr("没有匹配的连接")
+    }
+  }
+
+  var systemImage: String {
+    switch self {
+    case .stopped: "stop.circle"
+    case .paused: "pause.circle"
+    case .starting, .updating: "gearshape"
+    case .needsApproval: "lock.shield"
+    case .restartRequired: "arrow.clockwise"
+    case .failed: "exclamationmark.triangle"
+    case .waiting: "network"
+    case .history: "clock"
+    case .filtered: "magnifyingglass"
+    }
+  }
+
+  var detail: String? {
+    switch self {
+    case .stopped, .paused, .waiting:
+      tr("显示观察期间的新连接；重新开始前已建立的连接不在此列。")
+    case .needsApproval:
+      tr("请在系统设置中允许 XStats 网络扩展，然后返回此处。")
+    case .starting, .updating, .restartRequired, .failed, .history, .filtered:
+      nil
+    }
+  }
+}
+
 struct NetworkConnectionsPage: View {
   @Environment(AppModel.self) private var model
   @Environment(\.isSnapshot) private var isSnapshot
@@ -178,6 +244,7 @@ struct NetworkConnectionsPage: View {
   @State private var historyGeneration = 0
   @State private var loadedHistoryQuery: NetworkHistoryQueryKey?
   @State private var historyError: String?
+  @State private var geographyError: String?
   @State private var isQueryingHistory = false
   @State private var clearingHistoryRevision: Int?
 
@@ -211,9 +278,11 @@ struct NetworkConnectionsPage: View {
       && (monitor.isReading
         || (!monitor.isManuallyPaused && (monitor.status == .idle || monitor.status == .failed)))
   }
-  private var showsConnectionDetail: Bool {
-    monitor.status == .running || monitor.status == .preview || !monitor.records.isEmpty
-      || (usesHistory && (historyView != nil || isQueryingHistory || historyError != nil))
+  private var captureEmptyState: NetworkConnectionEmptyState? {
+    guard mode == .live else { return nil }
+    return NetworkConnectionEmptyState.capture(
+      status: monitor.status, isReading: monitor.isReading,
+      isBusy: monitor.isBusy || monitor.installationProgress != nil, hasError: monitor.error != nil)
   }
   private var historyQuery: NetworkHistoryQueryKey {
     NetworkHistoryQueryKey(
@@ -323,19 +392,9 @@ struct NetworkConnectionsPage: View {
       } ?? NetworkConnectionGroup.selected(in: groups, id: nil)
     VStack(spacing: 0) {
       toolbar
-      if mode == .live
-        && (monitor.installationProgress != nil || monitor.status == .needsApproval
-          || monitor.status == .restartRequired || monitor.status == .failed)
-      {
-        setup
-      }
-      if mode == .live && !monitor.isReading && monitor.status != .preview {
-        VStack(spacing: DS.Space.s3) {
-          ContentUnavailableView(tr("采集已停止"), systemImage: "pause.circle")
-          Button(tr("查看历史")) { mode = .history }
-            .buttonStyle(DSButtonStyle(kind: .ghost))
-        }.frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else if showsConnectionDetail {
+      if let captureEmptyState {
+        captureUnavailable(captureEmptyState)
+      } else {
         HSplitView {
           groupList(groups).frame(minWidth: 190, idealWidth: 220, maxWidth: 280)
           connectionDetail(
@@ -345,8 +404,6 @@ struct NetworkConnectionsPage: View {
           ).frame(
             minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
         }
-      } else {
-        Spacer(minLength: 0)
       }
     }
     .sheet(
@@ -499,9 +556,10 @@ struct NetworkConnectionsPage: View {
         guard !Task.isCancelled else { return }
         if refreshesHistory { historyRefresh &+= 1 }
       }
+      geographyError = nil
     } catch {
       guard !Task.isCancelled else { return }
-      historyError = error.localizedDescription
+      geographyError = error.localizedDescription
     }
   }
 
@@ -533,7 +591,7 @@ struct NetworkConnectionsPage: View {
         modePicker
         if mode == .history { historyRangePicker }
         Spacer(minLength: DS.Space.s4)
-        captureControls
+        if captureEmptyState == nil { captureControls }
       }
       VStack(alignment: .leading, spacing: DS.Space.s2) {
         HStack {
@@ -541,9 +599,11 @@ struct NetworkConnectionsPage: View {
           Spacer(minLength: DS.Space.s2)
           if mode == .history { historyRangePicker }
         }
-        HStack {
-          Spacer(minLength: 0)
-          captureControls
+        if captureEmptyState == nil {
+          HStack {
+            Spacer(minLength: 0)
+            captureControls
+          }
         }
       }
     }
@@ -553,15 +613,17 @@ struct NetworkConnectionsPage: View {
 
   private var captureControls: some View {
     HStack(spacing: DS.Space.s2) {
-      HStack(spacing: DS.Space.s1) {
-        Circle().fill(
-          monitor.isManuallyPaused
-            ? DS.Palette.warning
-            : (monitor.isReading || monitor.status == .preview
-              ? DS.Palette.success : DS.Palette.textTertiary)
-        ).frame(width: 6, height: 6).accessibilityHidden(true)
-        Text(statusText).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-      }.fixedSize()
+      if captureEmptyState == nil {
+        HStack(spacing: DS.Space.s1) {
+          Circle().fill(
+            monitor.isManuallyPaused
+              ? DS.Palette.warning
+              : (monitor.isReading || monitor.status == .preview
+                ? DS.Palette.success : DS.Palette.textTertiary)
+          ).frame(width: 6, height: 6).accessibilityHidden(true)
+          Text(statusText).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+        }.fixedSize()
+      }
       Button {
         if monitor.status == .preview {
           monitor.setObservationPaused(!monitor.isManuallyPaused)
@@ -577,8 +639,14 @@ struct NetworkConnectionsPage: View {
         }
       } label: {
         Label(
-          monitor.isReading ? tr("停止采集") : tr("开始采集"),
-          systemImage: monitor.isReading ? "stop.fill" : "play.fill")
+          monitor.isReading || (monitor.status == .preview && !monitor.isManuallyPaused)
+            ? tr("停止采集")
+            : (monitor.status == .running
+              || (monitor.status == .preview && monitor.isManuallyPaused)
+              ? tr("继续采集") : tr("开始采集")),
+          systemImage: monitor.isReading
+            || (monitor.status == .preview && !monitor.isManuallyPaused) ? "stop.fill" : "play.fill"
+        )
       }.buttonStyle(DSButtonStyle(kind: .ghost)).disabled(monitor.isBusy)
       Menu {
         Button(tr("管理组件")) { managesNetworkComponent = true }
@@ -835,7 +903,6 @@ struct NetworkConnectionsPage: View {
                 ProgressView(tr("正在读取…")).controlSize(.small).dsFont(.xs)
               }
             }
-            if !isSnapshot { geographyStatus }
             if selection != "LAN" && selection != "??" {
               if !samples.isEmpty && contentWidth >= 720 {
                 HStack(alignment: .top, spacing: DS.Space.s4) {
@@ -859,8 +926,26 @@ struct NetworkConnectionsPage: View {
               }
             }
             if records.isEmpty && !isQueryingHistory && historyError == nil {
-              ContentUnavailableView(
-                search.isEmpty ? tr("暂无连接记录") : tr("没有匹配的连接"), systemImage: "network")
+              let state = NetworkConnectionEmptyState.records(
+                mode: mode, hasFilter: !search.isEmpty || selection != nil)
+              ContentUnavailableView {
+                Label(state.title, systemImage: state.systemImage)
+              } description: {
+                if let detail = state.detail { Text(detail) }
+              } actions: {
+                if state == .filtered {
+                  Button(tr("清除筛选")) {
+                    search = ""
+                    selection = nil
+                    selectedTitle = ""
+                    historyOffset = 0
+                  }
+                } else if state == .history {
+                  Button(tr("实时")) { mode = .live }
+                } else if state == .waiting {
+                  Button(tr("查看历史")) { mode = .history }
+                }
+              }
             } else {
               LazyVStack(spacing: 0) {
                 ForEach(records) { record in
@@ -969,7 +1054,12 @@ struct NetworkConnectionsPage: View {
   }
 
   private func connectionMap(records: [ObservedConnection], height: CGFloat) -> some View {
-    VStack(alignment: .leading, spacing: DS.Space.s2) {
+    let destinations =
+      usesHistory
+      ? NetworkMapDestination.make(world: mapWorld, regions: displayedHistory?.regions ?? [])
+      : NetworkMapDestination.make(
+        world: mapWorld, records: records, countries: places, locations: locations, limit: 64)
+    return VStack(alignment: .leading, spacing: DS.Space.s2) {
       HStack(spacing: DS.Space.s2) {
         Text(mode == .history ? tr("近期连接地区分布") : tr("连接地区分布"))
           .dsFont(.sm, weight: .semibold)
@@ -992,35 +1082,47 @@ struct NetworkConnectionsPage: View {
             }.dsFont(.xs).padding(DS.Space.s4).frame(maxWidth: 300)
           }
       }
-      ConnectionWorldMap(
-        world: mapWorld, records: records, observedRecords: monitor.records,
-        countries: places, locations: locations,
-        providedDestinations: usesHistory
-          ? NetworkMapDestination.make(world: mapWorld, regions: displayedHistory?.regions ?? [])
-          : nil,
-        isReading: mode == .live && pageVisible && model.isMainWindowVisible
-          && monitor.isReading && monitor.status != .preview && !isSnapshot
-      ) { code in
-        let parts = code.split(separator: "|").map(String.init)
-        let key =
-          parts.count == 3 && parts[1] == parts[2]
-          ? parts.prefix(2).joined(separator: "|") : parts.joined(separator: "|")
-        grouping = .country
-        selection = key
-        selectedTitle = networkRegionName(key)
-        for depth in 0..<NetworkRegionHierarchy.depth(key) {
-          if let parent = NetworkRegionHierarchy.key(key, at: depth) {
-            expandedRegions.insert(parent)
+      if !isSnapshot { geographyStatus }
+      if destinations.isEmpty {
+        Text(tr("暂无可定位的连接")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+      } else {
+        ConnectionWorldMap(
+          world: mapWorld, records: records, observedRecords: monitor.records,
+          countries: places, locations: locations,
+          providedDestinations: destinations,
+          isReading: mode == .live && pageVisible && model.isMainWindowVisible
+            && monitor.isReading && monitor.status != .preview && !isSnapshot
+        ) { code in
+          let parts = code.split(separator: "|").map(String.init)
+          let key =
+            parts.count == 3 && parts[1] == parts[2]
+            ? parts.prefix(2).joined(separator: "|") : parts.joined(separator: "|")
+          grouping = .country
+          selection = key
+          selectedTitle = networkRegionName(key)
+          for depth in 0..<NetworkRegionHierarchy.depth(key) {
+            if let parent = NetworkRegionHierarchy.key(key, at: depth) {
+              expandedRegions.insert(parent)
+            }
           }
-        }
-      }.frame(height: height)
+        }.frame(height: height)
+      }
     }
   }
 
   @ViewBuilder private var geographyStatus: some View {
     let geography = model.networkGeography
+    if let geographyError {
+      DisclosureGroup(tr("地图数据读取失败，连接列表仍可使用。")) {
+        Text(verbatim: geographyError).textSelection(.enabled)
+      }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+    }
     switch geography.state {
-    case .ready: EmptyView()
+    case .ready:
+      if geographyError != nil {
+        Button(tr("更新地图数据库")) { geography.retry() }
+          .buttonStyle(DSButtonStyle(kind: .ghost)).disabled(!monitor.isReading)
+      }
     case .downloading(let progress):
       ProgressView(value: progress) {
         HStack {
@@ -1042,59 +1144,45 @@ struct NetworkConnectionsPage: View {
     }
   }
 
-  private var setup: some View {
-    VStack(alignment: .leading, spacing: DS.Space.s3) {
-      if !showsConnectionDetail {
-        Label(tr("网络监视器"), systemImage: "network").dsFont(.lg, weight: .semibold)
-        Text(tr("查看应用连接、域名和国家或地域分布，不读取通信内容。"))
-          .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
+  private func captureUnavailable(_ state: NetworkConnectionEmptyState) -> some View {
+    ContentUnavailableView {
+      Label(state.title, systemImage: state.systemImage)
+    } description: {
+      if let detail = state.detail { Text(detail) }
+      if let error = monitor.error {
+        DisclosureGroup(tr("错误详情")) {
+          Text(verbatim: error).textSelection(.enabled)
+        }.foregroundStyle(DS.Palette.error)
       }
       if let progress = monitor.installationProgress {
-        Text(tr("正在下载")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
-        ProgressView(value: progress)
+        ProgressView(value: progress) { Text(tr("正在下载")) }
+          .controlSize(.small)
       }
-      if monitor.status == .needsApproval {
-        Text(tr("请在系统设置中允许 XStats 网络扩展，然后返回此处。"))
-          .dsFont(.sm).fixedSize(horizontal: false, vertical: true)
-        HStack(spacing: DS.Space.s2) {
+    } actions: {
+      captureControls
+      HStack(spacing: DS.Space.s2) {
+        if state == .needsApproval {
           Button(tr("打开系统设置")) {
             if let url = URL(string: "x-apple.systempreferences:com.apple.ExtensionsPreferences") {
               NSWorkspace.shared.open(url)
             }
-          }.buttonStyle(DSButtonStyle(kind: .primary))
-          Button(tr("启用连接查看")) { monitor.start() }
-            .buttonStyle(DSButtonStyle(kind: .ghost)).disabled(monitor.isBusy)
-        }
-      } else if monitor.status == .restartRequired {
-        Text(tr("需要重启系统")).foregroundStyle(DS.Palette.warning)
-      } else {
-        Button(tr("启用连接查看")) {
-          if model.networkComponent.requiresInstallation {
-            enablesAfterComponentInstall = true
-            managesNetworkComponent = true
-          } else {
-            monitor.start()
           }
         }
-        .buttonStyle(DSButtonStyle(kind: .primary)).disabled(monitor.isBusy)
+        Button(tr("查看历史")) { mode = .history }
       }
-      if let error = monitor.error, !showsConnectionDetail {
-        DisclosureGroup(tr("错误详情")) { Text(verbatim: error).dsFont(.xs).textSelection(.enabled) }
-          .dsFont(.sm).foregroundStyle(DS.Palette.error)
-      }
-    }.padding(showsConnectionDetail ? DS.Space.s2 : DS.Space.s6)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(DS.Palette.surface, in: RoundedRectangle(cornerRadius: DS.Radius.lg)).padding(
-        DS.Space.s3)
+      .buttonStyle(.bordered)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
   private var statusText: String {
-    switch monitor.status {
+    if let captureEmptyState { return captureEmptyState.title }
+    return switch monitor.status {
     case .idle: tr("采集已停止")
     case .starting: tr("正在启用…")
     case .needsApproval: tr("等待系统授权")
     case .running: monitor.isReading ? tr("正在监视") : tr("采集已暂停")
-    case .failed: tr("未能启用")
+    case .failed: tr("采集出错")
     case .restartRequired: tr("需要重启系统")
     case .preview: monitor.isManuallyPaused ? tr("采集已暂停") : tr("示例数据")
     }

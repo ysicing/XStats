@@ -182,7 +182,7 @@ private struct DetailPage<Content: View>: View {
   @ViewBuilder var content: Content
 
   var body: some View {
-    PageScroll { content }
+    PageScroll(contentMaxWidth: DS.Size.settingsContentWidth) { content }
       .environment(\.isDetailPage, true)
   }
 }

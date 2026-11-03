@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import AppKit
+import Localization
 import SwiftUI
 import Testing
+@testable import Metrics
 @testable import XStatsUI
 
 @MainActor
@@ -14,6 +16,101 @@ struct DesignAccessibilityTests {
     for text in [DS.Palette.textSecondary, DS.Palette.textTertiary] {
       for background in [DS.Palette.background, DS.Palette.surface, DS.Palette.elevated] {
         #expect(try contrast(text, on: background, appearance: appearance) >= 4.5)
+      }
+    }
+  }
+
+  @Test(arguments: [false, true])
+  func primaryActionsKeepReadableTextInBothAppearances(dark: Bool) throws {
+    let appearance = try #require(NSAppearance(named: dark ? .darkAqua : .aqua))
+    for background in [DS.Palette.primaryAction, DS.Palette.primaryActionHover] {
+      #expect(try contrast(DS.Palette.onPrimary, on: background, appearance: appearance) >= 4.5)
+    }
+  }
+
+  @Test(arguments: [640.0, 1600.0], [false, true])
+  func designControlsFitNarrowAndWideWindows(width: Double, dark: Bool) throws {
+    for language in [AppLanguage.chinese, .german, .arabic] {
+      let direction: LayoutDirection = language.isRightToLeft ? .rightToLeft : .leftToRight
+      let start = Date(timeIntervalSince1970: 1_800_000_000)
+      let points: [HistoryPoint] = (0..<20).map { index -> HistoryPoint in
+        let average: Double? = index == 10 ? nil : Double(index % 5) / 10
+        let maximum: Double? = index == 10 ? nil : Double(index % 5 + 3) / 10
+        return HistoryPoint(
+          date: start.addingTimeInterval(Double(index) * 60),
+          cpu: average, cpuMax: maximum)
+      }
+      let view = PageScroll(contentMaxWidth: DS.Size.settingsContentWidth) {
+        SettingsGroup {
+          GroupRow(showsDivider: false) {
+            SettingRow(
+              title: L10n.translate("刷新频率", language: language),
+              subtitle: L10n.translate(
+                "只显示菜单栏时的采样间隔；打开弹窗或主窗口时为 1 秒（进程页 2 秒）", language: language)
+            ) {
+              SegmentedControl(
+                selection: .constant(1), options: [(1, "1"), (2, "2"), (3, "3")]
+              )
+              .frame(width: 160)
+            }
+          }
+          GroupRow {
+            SettingRow(title: L10n.translate("XStats 辅助工具", language: language)) {
+              Button(L10n.translate("安装辅助工具", language: language)) {}
+                .buttonStyle(DSButtonStyle(kind: .primary))
+            }
+          }
+          GroupRow {
+            SettingRow(title: L10n.translate("正在启用…", language: language)) {
+              Button(L10n.translate("安装辅助工具", language: language)) {}
+                .buttonStyle(DSButtonStyle(kind: .primary))
+                .disabled(true)
+            }
+          }
+        }
+        HistoryChartCard(
+          icon: "cpu", title: "CPU", points: points, start: start,
+          end: start.addingTimeInterval(1200), hoverDate: .constant(nil),
+          series: [
+            .init(
+              label: L10n.translate("平均", language: language),
+              color: DS.Palette.primary, value: \.cpu),
+            .init(
+              label: L10n.translate("峰值", language: language),
+              color: DS.Palette.primarySoft, value: \.cpuMax, filled: false),
+          ], maxValue: 1,
+          format: {
+            $0.formatted(.percent.precision(.fractionLength(0)).locale(L10n.locale(for: language)))
+          }, language: language)
+      }
+      .environment(\.isSnapshot, true)
+      .environment(\.layoutDirection, direction)
+      .environment(\.locale, L10n.locale(for: language))
+      .environment(\.colorScheme, dark ? .dark : .light)
+      .background(DS.Palette.background)
+      .frame(width: width)
+      let host = NSHostingView(rootView: view)
+      let size = host.fittingSize
+      #expect(size.width == width && size.height > 200 && size.height < 900)
+      let window = NSWindow(
+        contentRect: NSRect(origin: .zero, size: size),
+        styleMask: .borderless, backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false
+      window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+      window.contentView = host
+      defer {
+        window.contentView = nil
+        window.close()
+      }
+      host.layoutSubtreeIfNeeded()
+      if let path = ProcessInfo.processInfo.environment["XSTATS_DESIGN_PREVIEW_DIR"] {
+        let folder = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        try #require(bitmap.representation(using: .png, properties: [:])).write(
+          to: folder.appendingPathComponent(
+            "design-\(language.languageCode)-\(Int(width))-\(dark ? "dark" : "light").png"))
       }
     }
   }

@@ -1,11 +1,48 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import SwiftUI
 import Testing
 @testable import Metrics
 @testable import XStatsUI
 
 @Suite @MainActor struct HistoryRecorderTests {
+  @Test func chartSelectionStopsAtBoundsAndCanStartFromEitherEnd() {
+    let points = [0.0, 60, 120].map { HistoryPoint(date: Date(timeIntervalSince1970: $0)) }
+    var selectedDate: Date?
+    let chart = TimeSeriesChart(
+      points: points, start: points[0].date, end: points[2].date,
+      series: [], maxValue: 1, bucket: 60, selectedPoint: nil, format: { String($0) },
+      title: "CPU", accessibilitySummary: "",
+      hoverDate: Binding(get: { selectedDate }, set: { selectedDate = $0 }))
+    chart.moveSelection(by: 1)
+    #expect(selectedDate == points[0].date)
+    chart.moveSelection(by: -1)
+    #expect(selectedDate == points[0].date)
+    chart.moveSelection(by: 1)
+    #expect(selectedDate == points[1].date)
+    chart.moveSelection(by: 1)
+    chart.moveSelection(by: 1)
+    #expect(selectedDate == points[2].date)
+    selectedDate = nil
+    chart.moveSelection(by: -1)
+    #expect(selectedDate == points[2].date)
+  }
+
+  @Test func chartDoesNotBorrowReadingsAcrossMissingBuckets() {
+    let points = [0.0, 60, 600].map { HistoryPoint(date: Date(timeIntervalSince1970: $0)) }
+    var selectedDate: Date? = Date(timeIntervalSince1970: 300)
+    let card = HistoryChartCard(
+      icon: "cpu", title: "CPU", points: points, start: points[0].date, end: points[2].date,
+      hoverDate: Binding(get: { selectedDate }, set: { selectedDate = $0 }),
+      series: [.init(label: "CPU", color: .blue, value: \.cpu)], maxValue: 1,
+      format: { String($0) })
+    #expect(card.hoverPoint(bucket: 60) == nil)
+    selectedDate = Date(timeIntervalSince1970: 65)
+    #expect(card.hoverPoint(bucket: 60)?.date == points[1].date)
+    #expect(card.hoverPoint(bucket: 60)?.cpu == nil)
+  }
+
   @Test func flushAndWaitPreservesSameMinuteSamples() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let suite = "HistoryRecorderTests.\(UUID())"

@@ -38,9 +38,11 @@ private struct GlassSurface<S: InsettableShape>: ViewModifier {
   let interactive: Bool
   let fallback: Color
   @Environment(\.isSnapshot) private var isSnapshot
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+  @Environment(\.colorSchemeContrast) private var contrast
 
   func body(content: Content) -> some View {
-    if #available(macOS 26.0, *), !isSnapshot {
+    if #available(macOS 26.0, *), !isSnapshot, !reduceTransparency, contrast != .increased {
       content.glassEffect(DS.Glass.style(tint: tint, interactive: interactive), in: shape)
     } else {
       content.background(tint ?? fallback, in: shape)
@@ -222,6 +224,6 @@ extension View {
           cleanerStage: cleanerStage, onCancel: onCancel)
       }
     }
-    .animation(DS.Motion.quick, value: message)
+    .dsSelectionAnimation(DS.Motion.quick, value: message)
   }
 }

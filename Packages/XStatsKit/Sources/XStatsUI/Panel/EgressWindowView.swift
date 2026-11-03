@@ -64,7 +64,7 @@ struct EgressWindowView: View {
 }
 
 /// 视图共用的查询：某个目标的测量、某个出口的归属地
-private struct EgressContext {
+struct EgressContext {
   let report: EgressController.Report
   let analysis: EgressAnalysis
   let sites: [EgressTarget]
@@ -78,11 +78,16 @@ private struct EgressContext {
   }
 
   /// 网站表里的条目（不含基准目标），按出口分组后的数量
-  var siteCounts: (proxy: Int, direct: Int, unknown: Int, failed: Int) {
+  var siteCounts: (proxy: Int, direct: Int, unknown: Int, failed: Int, measured: Int, inferred: Int)
+  {
     let siteIDs = Set(sites.map(\.id))
-    var counts = (proxy: 0, direct: 0, unknown: 0, failed: 0)
+    var counts = (proxy: 0, direct: 0, unknown: 0, failed: 0, measured: 0, inferred: 0)
     for exit in analysis.exits {
-      let count = exit.entries.filter { siteIDs.contains($0.targetID) }.count
+      let entries = exit.entries.filter { siteIDs.contains($0.targetID) }
+      let count = entries.count
+      let measured = entries.filter(\.measured).count
+      counts.measured += measured
+      counts.inferred += count - measured
       switch exit.path {
       case .proxy: counts.proxy += count
       case .direct: counts.direct += count
@@ -195,6 +200,7 @@ private struct OverviewCard: View {
   var body: some View {
     let analysis = context.analysis
     let summary = EgressText.verdict(analysis, report: context.report)
+    let counts = context.siteCounts
     Card(spacing: DS.Space.s4) {
       HStack(alignment: .top, spacing: DS.Space.s3) {
         Image(systemName: summary.icon)
@@ -210,9 +216,17 @@ private struct OverviewCard: View {
             .dsFont(.sm)
             .foregroundStyle(DS.Palette.textSecondary)
             .fixedSize(horizontal: false, vertical: true)
+          Text(
+            tr(
+              "网站出口：实测 \(counts.measured.formatted(.number.locale(L10n.locale))) · 推断 \(counts.inferred.formatted(.number.locale(L10n.locale)))"
+            )
+          )
+          .dsFont(.xs)
+          .foregroundStyle(DS.Palette.textTertiary)
+          .fixedSize(horizontal: false, vertical: true)
         }
         Spacer(minLength: DS.Space.s4)
-        SiteStats(counts: context.siteCounts, verified: analysis.verdict != .unverified)
+        SiteStats(counts: counts, verified: analysis.verdict != .unverified)
       }
 
       HairlineDivider()
@@ -236,7 +250,7 @@ private struct OverviewCard: View {
 }
 
 private struct SiteStats: View {
-  let counts: (proxy: Int, direct: Int, unknown: Int, failed: Int)
+  let counts: (proxy: Int, direct: Int, unknown: Int, failed: Int, measured: Int, inferred: Int)
   let verified: Bool
 
   var body: some View {
@@ -776,7 +790,7 @@ private struct EgressFootnote: View {
 // MARK: - 文案
 
 @MainActor
-private enum EgressText {
+enum EgressText {
   struct Summary {
     let icon: String
     let tone: Tone
@@ -787,43 +801,44 @@ private enum EgressText {
   static func verdict(_ analysis: EgressAnalysis, report: EgressController.Report) -> Summary {
     let environment = report.environment
     let proxyName = environment.tunnelName ?? environment.apps.first ?? tr("代理")
-    let proxyExit = analysis.exits.first { $0.path == .proxy }
-    let proxyLocation = proxyExit.map { location(report.geo[$0.ip], fallback: $0.country) } ?? ""
-    let exitText = proxyLocation.isEmpty ? tr("代理出口") : tr("代理出口（\(proxyLocation)）")
-
     switch analysis.verdict {
     case .offline:
       return Summary(
-        icon: "wifi.exclamationmark", tone: .error, title: tr("网络不通"),
-        detail: tr("所有检测目标都连不上。请检查网络连接，或者代理软件是否正常运行。"))
+        icon: "wifi.exclamationmark", tone: .error, title: tr("未取得可用出口"),
+        detail: tr("本次检测未取得可用于判断的出口。请查看下方各目标结果，并通过顶部“重新检测”重试。"))
     case .noProxy:
       return Summary(
-        icon: "checkmark", tone: .success, title: tr("未使用代理"),
-        detail: tr("没有检测到 VPN 或系统代理，所有流量都从本机网络直接出去。"))
+        icon: "checkmark", tone: .success, title: tr("本次检测未见代理出口"),
+        detail: tr("未检测到 VPN 或系统代理配置，本次已测得出口的请求均为直连。"))
     case .proxyInactive:
       return Summary(
-        icon: "exclamationmark", tone: .warning, title: tr("代理没有生效"),
-        detail: tr("检测到 \(proxyName)，但测试的网站都在直连，没有经过代理出口。"))
+        icon: "exclamationmark", tone: .warning, title: tr("本次检测未见代理生效"),
+        detail: tr("检测到 \(proxyName)，但本次已测得出口的请求均为直连。"))
     case .split:
       return Summary(
-        icon: "checkmark", tone: .success, title: tr("分流正常"),
-        detail: tr("国内网站直连，国际网站经 \(proxyName) 的\(exitText)。"))
+        icon: "checkmark", tone: .success, title: tr("本次国内直连、国际代理"),
+        detail: tr("本次实测国内请求直连，国际请求经代理；各目标的出口见下方。"))
     case .mixed:
       return Summary(
-        icon: "arrow.triangle.branch", tone: .primary, title: tr("按规则分流"),
-        detail: tr("部分网站直连、部分经代理，每个网站走哪个出口见下方。"))
-    case .fullProxy where analysis.rawCountry == "CN":
+        icon: "arrow.triangle.branch", tone: .primary, title: tr("本次检测存在分流"),
+        detail: tr("本次实测请求中有直连与代理出口，各网站的测量与推断结果见下方。"))
+    case .fullProxy
+    where analysis.rawCountry == "CN"
+      && analysis.exits.contains(where: {
+        $0.path == .proxy
+          && $0.entries.contains { $0.targetID == EgressTarget.domestic.id && $0.measured }
+      }):
       return Summary(
-        icon: "exclamationmark", tone: .warning, title: tr("全局代理"),
-        detail: tr("国内网站也绕到了\(exitText)，访问会变慢，也可能触发风控。"))
+        icon: "exclamationmark", tone: .warning, title: tr("本次实测均经代理"),
+        detail: tr("本次实测国内请求也经过代理，是否影响访问速度需以实际使用为准。"))
     case .fullProxy:
       return Summary(
-        icon: "checkmark", tone: .success, title: tr("全部经代理"),
-        detail: tr("测试的网站都经 \(proxyName) 的\(exitText)，没有暴露本机网络的地址。"))
+        icon: "checkmark", tone: .success, title: tr("本次实测均经代理"),
+        detail: tr("本次已测得出口的请求均经过代理；各目标的出口及 WebRTC、DNS 结果见下方。"))
     case .unverified:
       return Summary(
         icon: "questionmark", tone: .primary, title: tr("无法确认是否经过代理"),
-        detail: tr("VPN 不允许绕开它连接，读不到本机网络原本的出口。下方按出口列出各网站。"))
+        detail: tr("本次未测得物理网卡的基准出口，无法区分代理与直连。下方仍显示已取得的出口。"))
     }
   }
 
@@ -832,20 +847,20 @@ private enum EgressText {
     switch finding {
     case .ipv6Leak(let address):
       (
-        "exclamationmark.triangle.fill", tr("IPv6 没有经过代理：只走 IPv6 的连接会直接暴露本机地址 \(address)。"),
+        "exclamationmark.triangle.fill", tr("本次 IPv6 直连测试读到了本机出口地址 \(address)，该请求未经过代理。"),
         .warning
       )
     case .ipv6Blocked:
-      ("checkmark.shield.fill", tr("代理出口不支持 IPv6，IPv6 连接也不会绕过代理泄露地址。"), .success)
+      ("questionmark.circle", tr("本次 IPv6 直连测试未取得出口地址，无法据此确认是否存在地址泄漏。"), .warning)
     case .ipv6Proxied:
-      ("checkmark.shield.fill", tr("IPv6 连接也经过代理。"), .success)
+      ("checkmark.shield.fill", tr("本次 IPv6 直连测试经过代理。"), .success)
     case .socketBypass:
       (
         "exclamationmark.triangle.fill",
-        tr("只设置了系统代理：浏览器等应用走代理，命令行工具、游戏等不读代理设置的程序仍在直连。要接管全部流量，可以开启增强模式或 TUN 模式。"), .warning
+        tr("本次不读取系统代理设置的 IPv4 测试为直连。若希望代理接管此类连接，可检查代理的增强模式或 TUN 设置。"), .warning
       )
     case .domesticProxied:
-      ("exclamationmark.triangle.fill", tr("国内网站走了代理，访问会绕路变慢。"), .warning)
+      ("exclamationmark.triangle.fill", tr("本次实测国内请求经过代理，是否影响访问速度需以实际使用为准。"), .warning)
     }
   }
 
