@@ -1918,6 +1918,9 @@ extension Translations {
 
 extension Translations {
   static let applicationManagementEnglish = #"""
+    权限不足，无法完成卸载	Insufficient permissions to finish uninstalling
+    请在访达中移到废纸篓，按提示输入管理员密码。	Move the item to the Trash in Finder and enter an administrator password if prompted.
+    打开访达	Open Finder
     正在核对应用身份…	Checking app identity…
     正在核对其他安装副本…	Checking other installations…
     正在统计大小（{} / {}）…	Measuring size ({} / {})…

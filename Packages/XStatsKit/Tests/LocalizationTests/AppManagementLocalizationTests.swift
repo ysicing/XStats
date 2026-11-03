@@ -5,6 +5,19 @@ import Testing
 @testable import Localization
 
 struct AppManagementLocalizationTests {
+  @Test func uninstallPermissionRecoveryHasExplicitTranslations() throws {
+    let sources = [
+      "权限不足，无法完成卸载", "请在访达中移到废纸篓，按提示输入管理员密码。", "打开访达", "错误详情",
+    ]
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for source in sources {
+        let translated = try #require(table.translate(source), "\(language): \(source)")
+        #expect(!translated.isEmpty && translated != source)
+      }
+    }
+  }
+
   @Test func uninstallScanStagesAndMeasuredCountsHaveExplicitTranslations() throws {
     let sources = [
       "正在核对应用身份…", "正在核对其他安装副本…", "正在统计大小（2 / 12）…", "待统计",

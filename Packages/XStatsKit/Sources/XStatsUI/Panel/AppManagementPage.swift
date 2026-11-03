@@ -834,10 +834,6 @@ struct AppUninstallInspector: View {
   }
 
   @ViewBuilder private var outcomeBanner: some View {
-    if let outcome = model.uninstaller.outcome {
-      InfoBanner(
-        icon: outcome.isError ? "exclamationmark.triangle" : "checkmark.circle",
-        text: outcome.text, tone: outcome.isError ? .error : .success)
-    }
+    UninstallOutcomeBanner(uninstaller: model.uninstaller)
   }
 }

@@ -5,6 +5,7 @@
 
 import AppKit
 import Cleaner
+import Darwin
 import Foundation
 import Localization
 import Metrics
@@ -29,6 +30,7 @@ public final class UninstallerController {
   @ObservationIgnored private var selectedScan: AppLeftoverScan?
   public private(set) var isRemoving = false
   public private(set) var outcome: (text: String, isError: Bool)?
+  private(set) var permissionRecoveryURL: URL?
   var chosen: Set<String> = []
   /// 有应用启动或退出时变化，让“正在运行”的提示跟着刷新
   private var runningRevision = 0
@@ -42,7 +44,7 @@ public final class UninstallerController {
     @Sendable (InstalledApp) throws -> AppInstallationCheck
   @ObservationIgnored private let measureSize: @Sendable (URL) throws -> UInt64
   @ObservationIgnored private let recycleFiles:
-    ([URL], @escaping @Sendable ([URL: URL], String?) -> Void) -> Void
+    ([URL], @escaping @Sendable ([URL: URL], NSError?) -> Void) -> Void
   @ObservationIgnored private var preflightTask: Task<Void, Never>?
   @ObservationIgnored private var applicationTask: Task<Void, Never>?
   @ObservationIgnored private var selectionTask: Task<Void, Never>?
@@ -69,10 +71,10 @@ public final class UninstallerController {
     measureSize: @escaping @Sendable (URL) throws -> UInt64 = {
       try CleanEngine.scanAllocatedSize(of: $0)
     },
-    recycleFiles: @escaping ([URL], @escaping @Sendable ([URL: URL], String?) -> Void) -> Void = {
+    recycleFiles: @escaping ([URL], @escaping @Sendable ([URL: URL], NSError?) -> Void) -> Void = {
       urls, completion in
       NSWorkspace.shared.recycle(urls) { moved, error in
-        completion(moved, error?.localizedDescription)
+        completion(moved, error as NSError?)
       }
     }
   ) {
@@ -119,6 +121,7 @@ public final class UninstallerController {
         otherInstalledCopies = []
         installationCheckIncomplete = false
         outcome = nil
+        permissionRecoveryURL = nil
       }
     }
   }
@@ -181,6 +184,7 @@ public final class UninstallerController {
       } catch {
         guard let self, self.applicationGeneration == generation, !Task.isCancelled else { return }
         self.outcome = (error.localizedDescription, true)
+        self.permissionRecoveryURL = nil
       }
     }
   }
@@ -211,6 +215,7 @@ public final class UninstallerController {
   @discardableResult
   func select(_ app: InstalledApp?) -> Task<Void, Never>? {
     guard enabled, !isRemoving else { return nil }
+    permissionRecoveryURL = nil
     if let app,
       currentBundleIdentifier?.caseInsensitiveCompare(app.bundleIdentifier) == .orderedSame
     {
@@ -303,6 +308,7 @@ public final class UninstallerController {
       } catch {
         guard let self, self.selectionGeneration == generation, !Task.isCancelled else { return }
         self.outcome = (error.localizedDescription, true)
+        self.permissionRecoveryURL = nil
         Log.app.error(
           "Uninstall scan failed: \(error.localizedDescription.prefix(512), privacy: .private)")
       }
@@ -351,6 +357,7 @@ public final class UninstallerController {
   /// 拖进来的 .app
   func select(url: URL) {
     guard enabled, !isRemoving else { return }
+    permissionRecoveryURL = nil
     guard let app = AppUninstaller.app(at: url) else {
       outcome = (tr("不是应用程序"), true)
       return
@@ -384,6 +391,7 @@ public final class UninstallerController {
     guard currentBundleIdentifier?.caseInsensitiveCompare(app.bundleIdentifier) != .orderedSame
     else {
       outcome = (AppUninstallError.currentApp.description, true)
+      permissionRecoveryURL = nil
       return
     }
     for running in NSRunningApplication.runningApplications(
@@ -392,6 +400,7 @@ public final class UninstallerController {
       // 防御直接调用或异常 Bundle 元数据，绝不向当前进程发送退出请求。
       guard running.processIdentifier != ProcessInfo.processInfo.processIdentifier else {
         outcome = (AppUninstallError.currentApp.description, true)
+        permissionRecoveryURL = nil
         continue
       }
       let accepted = running.terminate()
@@ -431,6 +440,8 @@ public final class UninstallerController {
     otherInstalledCopies = copies
     self.installationCheckIncomplete = installationCheckIncomplete
     self.applicationRemoved = applicationRemoved
+    outcome = nil
+    permissionRecoveryURL = nil
   }
 
   @discardableResult
@@ -445,11 +456,13 @@ public final class UninstallerController {
     let requested = leftovers.filter { chosen.contains($0.id) }
     let scan = selectedScan
     let check = checkInstallations
+    let recovering = permissionRecoveryURL != nil && scan != nil
     // 在副本检查期间也固定目标和选择，检查通过后再交给系统回收。
     cancelScanning()
     isRemoving = true
     outcome = nil
-    let task = Task {
+    permissionRecoveryURL = nil
+    let task = Task { [self] in
       var recyclingStarted = false
       defer {
         preflightTask = nil
@@ -469,13 +482,36 @@ public final class UninstallerController {
         }
       }
       do {
-        let installations = try await Self.scan { try check(app) }
+        let (installations, applicationMissing) = try await Self.scan {
+          var information = stat()
+          let missing =
+            recovering && app.url.path.withCString({ lstat($0, &information) }) != 0
+            && errno == ENOENT
+          return (try check(app), missing)
+        }
         guard enabled, !Task.isCancelled else { return }
+        if applicationMissing {
+          applicationRemoved = true
+          leftovers.removeAll { $0.kind == .application }
+          chosen.formIntersection(leftovers.map(\.id))
+          apps.removeAll { $0 == app }
+          sizes.removeValue(forKey: app.id)
+          if leftovers.isEmpty {
+            outcome = (tr("已卸载“\(app.name)”"), false)
+            isRemoving = false
+            selected = nil
+            applicationRemoved = false
+            return
+          }
+        }
         otherInstalledCopies = installations.otherInstalledCopies
         installationCheckIncomplete = !installations.unreadableDirectories.isEmpty
+        let remaining =
+          applicationMissing ? requested.filter { $0.kind != .application } : requested
+        guard !remaining.isEmpty else { return }
         let items =
           installations.preservesSharedData
-          ? requested.filter { $0.kind == .application } : requested
+          ? remaining.filter { $0.kind == .application } : remaining
         if installations.preservesSharedData {
           leftovers.removeAll { $0.kind != .application }
           chosen = Set(leftovers.filter { !$0.requiresReview }.map(\.id))
@@ -504,9 +540,9 @@ public final class UninstallerController {
           }
         }
         recyclingStarted = true
-        recycleFiles(items.map(\.url)) { [weak self] moved, message in
+        recycleFiles(items.map(\.url)) { [weak self] moved, error in
           Task { @MainActor in
-            self?.finishUninstall(app, items: items, moved: moved, errorMessage: message)
+            self?.finishUninstall(app, items: items, moved: moved, error: error)
           }
         }
       } catch {
@@ -524,23 +560,34 @@ public final class UninstallerController {
 
   /// 回收可部分成功；只有本体确实移动后，才能移除列表和程序坞入口。
   func finishUninstall(
-    _ app: InstalledApp, items: [AppLeftover], moved: [URL: URL], errorMessage: String?
+    _ app: InstalledApp, items: [AppLeftover], moved: [URL: URL], error: NSError?
   ) {
     isRemoving = false
     // 回收结果的键可能是规范化后的 URL（如目录末尾斜杠不同），按标准化路径比对。
-    let movedPaths = Set(moved.keys.map(\.standardizedFileURL.path))
+    let movedPaths = Set(
+      moved.filter { $0.key.standardizedFileURL.path != $0.value.standardizedFileURL.path }
+        .keys.map(\.standardizedFileURL.path))
     let wasMoved = { (url: URL) in movedPaths.contains(url.standardizedFileURL.path) }
     let movedItems = items.filter { wasMoved($0.url) }
+    let failedItems = items.filter { !wasMoved($0.url) }
+    permissionRecoveryURL =
+      error.map(Self.isPermissionError) == true
+      ? (failedItems.first { $0.kind == .application } ?? failedItems.first)?.url : nil
+    let detail = error.map { tr("：\($0.localizedDescription)") } ?? ""
+    if let error {
+      Log.app.error(
+        "Uninstall recycle failed domain=\(error.domain, privacy: .public) code=\(error.code) moved=\(movedItems.count) remaining=\(failedItems.count)"
+      )
+    }
     guard !movedItems.isEmpty else {
-      outcome = (tr("没有移动任何文件\(errorMessage.map { tr("：\($0)") } ?? "")"), true)
+      outcome = (tr("没有移动任何文件\(detail)"), true)
       return
     }
     let bytes = movedItems.reduce(0) { $0 + $1.size }
     let remaining = items.count - movedItems.count
     let partial =
       remaining > 0 ? tr("，\(remaining.formatted(.number.locale(L10n.locale))) 项未能移动") : ""
-    let detail = errorMessage.map { tr("：\($0)") } ?? ""
-    let appMoved = wasMoved(app.url)
+    let appMoved = movedItems.contains { $0.kind == .application }
     if appMoved {
       let dock = Self.removeDockTile(for: app.url)
       let residualCount = movedItems.filter { $0.kind != .application }.count.formatted(
@@ -549,7 +596,7 @@ public final class UninstallerController {
         tr(
           "已将 \(app.name) 与 \(residualCount) 项残留移到废纸篓，约 \(Format.bytes(bytes, base: .decimal))\(dock ? tr("，已从程序坞移除") : "")\(partial)。需要时可以在废纸篓里放回。"
         ) + detail,
-        remaining > 0 || errorMessage != nil
+        remaining > 0 || error != nil
       )
       apps.removeAll { $0 == app }
       sizes.removeValue(forKey: app.id)
@@ -565,7 +612,7 @@ public final class UninstallerController {
         tr(
           "已将 \(app.name) 的 \(count) 项残留移到废纸篓，约 \(Format.bytes(bytes, base: .decimal))\(partial)。需要时可以在废纸篓里放回。"
         ) + detail,
-        remaining > 0 || errorMessage != nil
+        remaining > 0 || error != nil
       )
     }
     if selected == app {
@@ -582,6 +629,24 @@ public final class UninstallerController {
     Log.app.notice(
       "卸载 \(app.bundleIdentifier, privacy: .public)，实际移到废纸篓 \(movedItems.count) 项，本体已移动：\(appMoved)"
     )
+  }
+
+  static func isPermissionError(_ error: NSError) -> Bool {
+    var current: NSError? = error
+    for _ in 0..<8 {
+      guard let error = current else { return false }
+      if error.domain == NSCocoaErrorDomain,
+        [CocoaError.fileWriteNoPermission.rawValue, CocoaError.fileReadNoPermission.rawValue]
+          .contains(error.code)
+      {
+        return true
+      }
+      if error.domain == NSPOSIXErrorDomain, [Int(EACCES), Int(EPERM)].contains(error.code) {
+        return true
+      }
+      current = error.userInfo[NSUnderlyingErrorKey] as? NSError
+    }
+    return false
   }
 
   /// 修改程序坞偏好里的 persistent-apps 并重启程序坞

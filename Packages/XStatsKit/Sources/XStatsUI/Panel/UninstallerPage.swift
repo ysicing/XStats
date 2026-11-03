@@ -32,11 +32,7 @@ struct UninstallerPage: View {
         } else {
           DropHint(isTargeted: isDropTargeted)
         }
-        if let outcome = uninstaller.outcome {
-          InfoBanner(
-            icon: outcome.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill",
-            text: outcome.text, tone: outcome.isError ? .error : .success)
-        }
+        UninstallOutcomeBanner(uninstaller: uninstaller)
       }
     }
     .padding(.leading, DS.Space.s3)
@@ -67,6 +63,56 @@ struct UninstallerPage: View {
       )
     ) { app in
       UninstallConfirmationSheet(app: app, uninstaller: uninstaller)
+    }
+  }
+}
+
+struct UninstallOutcomeBanner: View {
+  let uninstaller: UninstallerController
+  var language: AppLanguage = L10n.language
+
+  var body: some View {
+    if let outcome = uninstaller.outcome {
+      if let url = uninstaller.permissionRecoveryURL {
+        HStack(alignment: .top, spacing: DS.Space.s3) {
+          Image(systemName: "exclamationmark.triangle")
+            .dsFont(.sm, weight: .semibold)
+            .foregroundStyle(DS.Palette.error)
+            .frame(width: DS.Size.iconInline)
+            .accessibilityHidden(true)
+          VStack(alignment: .leading, spacing: DS.Space.s2) {
+            Text(L10n.translate("权限不足，无法完成卸载", language: language))
+              .dsFont(.sm, weight: .semibold)
+              .foregroundStyle(DS.Palette.textPrimary)
+            Text(L10n.translate("请在访达中移到废纸篓，按提示输入管理员密码。", language: language))
+              .dsFont(.sm)
+              .foregroundStyle(DS.Palette.textSecondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Button(L10n.translate("打开访达", language: language)) {
+              NSWorkspace.shared.activateFileViewerSelecting([url])
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
+            .disabled(uninstaller.isRemoving)
+            DisclosureGroup(L10n.translate("错误详情", language: language)) {
+              Text(verbatim: outcome.text)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .dsFont(.xs)
+            .foregroundStyle(DS.Palette.textSecondary)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(DS.Space.s3)
+        .background(
+          DS.Palette.error.opacity(0.08), in: RoundedRectangle(cornerRadius: DS.Radius.md))
+      } else {
+        InfoBanner(
+          icon: outcome.isError ? "exclamationmark.triangle" : "checkmark.circle",
+          text: outcome.text, tone: outcome.isError ? .error : .success)
+      }
     }
   }
 }
@@ -343,8 +389,12 @@ struct AppDetailCard: View {
                 .dsFont(.xs)
                 .foregroundStyle(DS.Palette.textTertiary)
                 .monospacedDigit()
-                MiniIconButton(systemName: "magnifyingglass", help: tr("在访达中显示")) {
-                  NSWorkspace.shared.activateFileViewerSelecting([item.url])
+                if item.url.standardizedFileURL.path
+                  != uninstaller.permissionRecoveryURL?.standardizedFileURL.path
+                {
+                  MiniIconButton(systemName: "magnifyingglass", help: tr("在访达中显示")) {
+                    NSWorkspace.shared.activateFileViewerSelecting([item.url])
+                  }
                 }
               }
             }

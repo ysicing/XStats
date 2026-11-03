@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import Darwin
 import Metrics
 import Testing
 @testable import Cleaner
@@ -49,7 +50,9 @@ struct UninstallerSafetyTests {
     controller.finishUninstall(
       app, items: [body, cache],
       moved: [cache.url: URL(fileURLWithPath: "/tmp/trash-cache")],
-      errorMessage: "permission denied")
+      error: NSError(
+        domain: NSCocoaErrorDomain, code: CocoaError.fileWriteNoPermission.rawValue,
+        userInfo: [NSLocalizedDescriptionKey: "permission denied"]))
     #expect(controller.selected == app)
     #expect(controller.leftovers == [body])
     #expect(controller.chosen == [body.id] && controller.canUninstall)
@@ -73,11 +76,12 @@ struct UninstallerSafetyTests {
       try await Task.sleep(for: .milliseconds(10))
     }
     try #require(controller.canUninstall)
-    controller.finishUninstall(app, items: [body], moved: [:], errorMessage: "denied")
+    controller.finishUninstall(
+      app, items: [body], moved: [:], error: CocoaError(.fileWriteNoPermission) as NSError)
     #expect(controller.selected == app && controller.outcome?.isError == true)
     controller.finishUninstall(
       app, items: [body], moved: [app.url: URL(fileURLWithPath: "/tmp/trash-app")],
-      errorMessage: nil)
+      error: nil)
     #expect(controller.selected == nil && controller.outcome?.isError == false)
   }
 
@@ -104,9 +108,109 @@ struct UninstallerSafetyTests {
         bodyKey: URL(fileURLWithPath: "/tmp/trash-app"),
         cacheKey: URL(fileURLWithPath: "/tmp/trash-cache"),
       ],
-      errorMessage: nil)
+      error: nil)
     #expect(controller.selected == nil && controller.outcome?.isError == false)
     #expect(!controller.apps.contains(app))
+  }
+
+  @Test func unchangedRecycleDestinationDoesNotCountAsMovedResidue() {
+    let app = target()
+    let body = AppLeftover(url: app.url, kind: .application, size: 52_800_000)
+    let controller = UninstallerController(currentBundleIdentifier: nil)
+    defer { controller.setEnabled(false) }
+    controller.showPreview(app: app, items: [body], applicationRemoved: false)
+    controller.finishUninstall(
+      app, items: [body],
+      moved: [app.url: URL(fileURLWithPath: app.url.path + "/", isDirectory: true)],
+      error: CocoaError(.fileWriteNoPermission) as NSError)
+    #expect(controller.selected == app && controller.leftovers == [body])
+    #expect(controller.chosen == [body.id] && controller.canUninstall)
+    #expect(controller.outcome?.isError == true)
+    #expect(controller.permissionRecoveryURL == app.url)
+    #expect(controller.outcome?.text.contains(Format.bytes(body.size, base: .decimal)) == false)
+  }
+
+  @Test func applicationCandidateDefinesBodySuccessEvenWithDifferentDirectoryURLForm() {
+    let app = target()
+    let body = AppLeftover(
+      url: URL(fileURLWithPath: app.url.path + "/", isDirectory: true),
+      kind: .application, size: 52_800_000)
+    let controller = UninstallerController(currentBundleIdentifier: nil)
+    defer { controller.setEnabled(false) }
+    controller.showPreview(app: app, items: [body], applicationRemoved: false)
+    controller.finishUninstall(
+      app, items: [body], moved: [body.url: URL(fileURLWithPath: "/tmp/trash-body")],
+      error: nil)
+    #expect(controller.selected == nil)
+    #expect(controller.outcome?.isError == false)
+  }
+
+  @Test(arguments: [
+    NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteNoPermission.rawValue),
+    NSError(domain: NSPOSIXErrorDomain, code: Int(EACCES)),
+    NSError(domain: NSPOSIXErrorDomain, code: Int(EPERM)),
+    NSError(
+      domain: "RecycleFixture", code: 1,
+      userInfo: [NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain, code: Int(EACCES))]),
+  ])
+  func permissionFailureKeepsSelectionAndOffersRecovery(error: NSError) {
+    let app = target()
+    let body = AppLeftover(url: app.url, kind: .application, size: 52_800_000)
+    let controller = UninstallerController(currentBundleIdentifier: nil)
+    defer { controller.setEnabled(false) }
+    controller.showPreview(app: app, items: [body], applicationRemoved: false)
+    controller.finishUninstall(app, items: [body], moved: [:], error: error)
+    #expect(controller.permissionRecoveryURL == app.url)
+    #expect(controller.selected == app && controller.canUninstall)
+    controller.select(nil)
+    #expect(controller.permissionRecoveryURL == nil && controller.outcome == nil)
+  }
+
+  @Test func unrelatedFailureDoesNotOfferPermissionRecovery() {
+    let app = target()
+    let body = AppLeftover(url: app.url, kind: .application, size: 1000)
+    let controller = UninstallerController(currentBundleIdentifier: nil)
+    defer { controller.setEnabled(false) }
+    controller.showPreview(app: app, items: [body], applicationRemoved: false)
+    controller.finishUninstall(
+      app, items: [body], moved: [:], error: CocoaError(.fileNoSuchFile) as NSError)
+    #expect(controller.permissionRecoveryURL == nil)
+    #expect(controller.selected == app && controller.outcome?.isError == true)
+  }
+
+  @Test func invalidDropClearsPreviousPermissionRecovery() {
+    let app = target()
+    let body = AppLeftover(url: app.url, kind: .application, size: 1000)
+    let controller = UninstallerController(currentBundleIdentifier: nil)
+    defer { controller.setEnabled(false) }
+    controller.showPreview(app: app, items: [body], applicationRemoved: false)
+    controller.finishUninstall(
+      app, items: [body], moved: [:], error: CocoaError(.fileWriteNoPermission) as NSError)
+    #expect(controller.permissionRecoveryURL == app.url)
+    controller.select(url: URL(fileURLWithPath: "/tmp/not-an-application-\(UUID()).txt"))
+    #expect(controller.permissionRecoveryURL == nil)
+    #expect(controller.outcome?.isError == true && controller.selected == app)
+  }
+
+  @Test func residualPermissionFailureRevealsRemainingItemAndClearsAfterRetry() {
+    let app = target()
+    let body = AppLeftover(url: app.url, kind: .application, size: 1000)
+    let cache = AppLeftover(
+      url: URL(fileURLWithPath: "/tmp/uninstall-recovery-cache"), kind: .caches, size: 100)
+    let controller = UninstallerController(currentBundleIdentifier: nil)
+    defer { controller.setEnabled(false) }
+    controller.showPreview(app: app, items: [body, cache], applicationRemoved: false)
+    controller.finishUninstall(
+      app, items: [body, cache],
+      moved: [body.url: URL(fileURLWithPath: "/tmp/trash-recovery-body")],
+      error: CocoaError(.fileWriteNoPermission) as NSError)
+    #expect(controller.permissionRecoveryURL == cache.url)
+    #expect(controller.leftovers == [cache] && controller.canUninstall)
+    controller.finishUninstall(
+      app, items: [cache],
+      moved: [cache.url: URL(fileURLWithPath: "/tmp/trash-recovery-cache")], error: nil)
+    #expect(controller.permissionRecoveryURL == nil)
+    #expect(controller.selected == nil && controller.outcome?.isError == false)
   }
 
   @Test func removalFreezesSelectionAndBlocksNewScans() async throws {
@@ -160,5 +264,5 @@ struct UninstallerSafetyTests {
 @MainActor
 private final class RecycleTransaction {
   var urls: [URL] = []
-  var completion: (@Sendable ([URL: URL], String?) -> Void)?
+  var completion: (@Sendable ([URL: URL], NSError?) -> Void)?
 }

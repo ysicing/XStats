@@ -1,13 +1,76 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import Cleaner
 import Foundation
 import Testing
+@testable import Cleaner
 @testable import XStatsUI
 
 @MainActor
 struct UninstallerEnhancedFlowTests {
+  @Test(arguments: [false, true], [false, true])
+  func finderRecoveryKeepsOriginalResidualIdentity(replaced: Bool, hasResidual: Bool) async throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "UninstallFinderRecovery-\(UUID())"
+    ).resolvingSymlinksInPath()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let appURL = home.appendingPathComponent("Applications/Fixture.app")
+    let info = appURL.appendingPathComponent("Contents/Info.plist")
+    try FileManager.default.createDirectory(
+      at: info.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let metadata = try PropertyListSerialization.data(
+      fromPropertyList: ["CFBundleIdentifier": "com.example.finderrecovery"],
+      format: .xml, options: 0)
+    try metadata.write(to: info)
+    let app = try #require(AppUninstaller.app(at: appURL))
+    let body = AppLeftover(url: appURL, kind: .application, size: 1000)
+    let cache = AppLeftover(
+      url: home.appendingPathComponent("Library/Caches/com.example.finderrecovery"),
+      kind: .caches, size: 100)
+    try FileManager.default.createDirectory(at: cache.url, withIntermediateDirectories: true)
+    let items = hasResidual ? [body, cache] : [body]
+    var batches: [[URL]] = []
+    let controller = UninstallerController(
+      currentBundleIdentifier: nil, home: home.path,
+      findLeftoversReport: { app in
+        AppLeftoverScan(
+          items: items, unreadablePaths: [], installations: AppInstallationCheck(),
+          identity: AppUninstallIdentity(app: app), applicationURL: app.url,
+          applicationIdentity: AppUninstallFileIdentity(at: app.url),
+          applicationIdentifier: app.bundleIdentifier)
+      },
+      checkInstallations: { _ in AppInstallationCheck() },
+      recycleFiles: { urls, reply in
+        batches.append(urls)
+        reply([:], nil)
+      })
+    defer { controller.setEnabled(false) }
+    await controller.select(app)?.value
+    controller.finishUninstall(
+      app, items: items, moved: [:], error: CocoaError(.fileWriteNoPermission) as NSError)
+    try FileManager.default.moveItem(at: appURL, to: home.appendingPathComponent("Original.app"))
+    if replaced {
+      try FileManager.default.createDirectory(
+        at: info.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try metadata.write(to: info)
+    }
+    controller.requestUninstall()
+    await controller.confirmUninstall()?.value
+    if replaced {
+      #expect(batches.isEmpty && controller.outcome?.isError == true)
+      #expect(controller.leftovers == items && controller.includesApplication)
+    } else {
+      #expect(batches == (hasResidual ? [[cache.url]] : []))
+      #expect(controller.leftovers == (hasResidual ? [cache] : []))
+      #expect(!controller.includesApplication)
+      #expect(controller.selected == (hasResidual ? app : nil))
+      if !hasResidual {
+        #expect(controller.outcome?.isError == false && !controller.isRemoving)
+      }
+    }
+    #expect(FileManager.default.fileExists(atPath: cache.url.path))
+  }
+
   @Test func uncertainCandidatesStartUnselectedAndRetryKeepsOnlyRemainingItems() async throws {
     let app = InstalledApp(
       url: URL(fileURLWithPath: "/Applications/Uninstall-\(UUID()).app"), name: "Fixture",
@@ -26,7 +89,7 @@ struct UninstallerEnhancedFlowTests {
       try FileManager.default.createDirectory(at: item.url, withIntermediateDirectories: true)
     }
     var batches: [[URL]] = []
-    var completion: (@Sendable ([URL: URL], String?) -> Void)?
+    var completion: (@Sendable ([URL: URL], NSError?) -> Void)?
     let controller = UninstallerController(
       currentBundleIdentifier: nil, home: home.path, findLeftovers: { _ in [body, cache, shared] },
       checkInstallations: { _ in AppInstallationCheck() },
@@ -49,12 +112,15 @@ struct UninstallerEnhancedFlowTests {
     await controller.confirmUninstall()?.value
     try #require(controller.isRemoving)
     #expect(batches == [[body.url, cache.url]])
-    completion?([body.url: URL(fileURLWithPath: "/tmp/trash-fixture")], "permission denied")
+    completion?(
+      [body.url: URL(fileURLWithPath: "/tmp/trash-fixture")],
+      CocoaError(.fileWriteNoPermission) as NSError)
     while controller.isRemoving, ContinuousClock.now < deadline {
       try await Task.sleep(for: .milliseconds(10))
     }
     try #require(!controller.isRemoving && controller.canUninstall)
     #expect(controller.selected == app && controller.leftovers == [cache, shared])
+    #expect(controller.permissionRecoveryURL == cache.url)
     #expect(!controller.includesApplication && controller.chosen == [cache.id])
     controller.requestUninstall()
     controller.cancelUninstall()
@@ -63,6 +129,7 @@ struct UninstallerEnhancedFlowTests {
     controller.requestUninstall()
     await controller.confirmUninstall()?.value
     #expect(batches.last == [cache.url])
+    #expect(controller.permissionRecoveryURL == nil)
     completion?([cache.url: URL(fileURLWithPath: "/tmp/trash-cache")], nil)
     while controller.isRemoving, ContinuousClock.now < deadline {
       try await Task.sleep(for: .milliseconds(10))
