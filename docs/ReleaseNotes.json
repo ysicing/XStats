@@ -1,15 +1,23 @@
 {
-  "version": "1.5.2",
+  "version": "1.5.3",
   "sourceNotes": [
-    "菜单栏网速圆点支持分别自定义上传与下载颜色，并可恢复默认配色（#24）",
-    "音频输出切换器支持选择参与快捷键循环切换的设备，保留暂时断开设备的选择",
-    "检测到 Mole 时默认使用其清理引擎，保留当前会话中手动选择的引擎"
+    "音频新增输出静音快捷操作和耳机断开音量保护",
+    "日历支持分别显示或隐藏宜忌、时辰吉凶与黄历详细信息",
+    "音频输出快捷切换默认选择内置扬声器与可识别的耳机，保留已有自定义选择",
+    "优化历史图表键盘浏览、按钮对比度和网络连接状态提示",
+    "简化卸载权限失败提示，支持打开访达处理应用后继续清理残留，错误详情可按需展开",
+    "修复日历方向键翻月被误拦截的问题，统一日历设置入口",
+    "出口检测区分实测、推断与失败，不再将 IPv6 检测失败显示为防护生效"
   ],
   "translations": {
     "en": [
-      "Customize upload and download dot colors independently in the menu bar, with an option to restore the default palette (#24).",
-      "Choose which audio outputs participate in shortcut cycling, retaining selections for temporarily disconnected devices.",
-      "Use Mole as the default cleanup engine when detected, while preserving manual engine selections for the current app session."
+      "Add a quick action to mute audio output and headphone disconnection protection: when falling back to built-in speakers, reduce volume above 20% to 20% without raising lower volume or unmuting.",
+      "Show or hide auspicious activities, hourly fortunes, and detailed Chinese almanac information independently in the calendar.",
+      "Default audio output shortcut cycling to built-in speakers and recognized headphones, preserving existing custom selections.",
+      "Improve keyboard navigation in history charts, button contrast, and network connection status messages.",
+      "Simplify uninstall permission errors and let users continue removing leftovers after handling the app in Finder, with expandable error details.",
+      "Fix calendar arrow-key month navigation being intercepted and unify the calendar settings entry point.",
+      "Distinguish measured, inferred, and failed egress checks; no longer report failed IPv6 checks as active protection."
     ]
   }
 }
