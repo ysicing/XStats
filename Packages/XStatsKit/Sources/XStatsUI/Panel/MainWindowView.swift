@@ -334,6 +334,7 @@ struct PageHeader: View {
         .dsFont(.base, weight: .semibold)
         .foregroundStyle(DS.Palette.textPrimary)
         .lineLimit(1)
+        .layoutPriority(tab == .network ? 1 : 0)
         .frame(maxHeight: .infinity)
         .background(WindowDragArea())
 
@@ -407,32 +408,8 @@ struct PageHeader: View {
         .help(tr("按需扫描项目构建产物，逐项选择后移到废纸篓。"))
       }
       if tab == .network {
-        if settings.showsPortsInNetwork {
-          PortsButton()
-        }
-        LocalIPQueryButton()
-        Button {
-          model.openSpeedTestWindow()
-        } label: {
-          HStack(spacing: DS.Space.s1) {
-            Image(systemName: "gauge.with.dots.needle.67percent")
-            Text(tr("网络测速")).lineLimit(1).fixedSize()
-          }
-        }
-        .buttonStyle(DSButtonStyle(kind: .secondary))
-        .help(tr("测本机宽带、国内分省三网延迟与全球节点"))
-      }
-      if tab == .network {
-        Button {
-          model.openEgressWindow()
-        } label: {
-          HStack(spacing: DS.Space.s1) {
-            Image(systemName: "arrow.triangle.branch")
-            Text(tr("出口与分流")).lineLimit(1).fixedSize()
-          }
-        }
-        .buttonStyle(DSButtonStyle(kind: .secondary))
-        .help(tr("检查 VPN 与代理是否生效、各网站从哪个出口出去"))
+        NetworkToolsToolbar()
+          .layoutPriority(1)
       }
       // 每个监控页都能在这里开关自己的菜单栏项目；能耗页有两项，各带一个小标签
       let items = tab.menuBarItems.filter { model.availableMenuBarItems.contains($0) }
@@ -467,6 +444,93 @@ struct PageHeader: View {
         AICleanupSheet(controller: model.agentData)
       }
     }
+  }
+}
+
+struct NetworkToolsToolbar: View {
+  private enum Sheet: String, Identifiable {
+    case ip, ports
+    var id: Self { self }
+  }
+
+  @Environment(AppModel.self) private var model
+  @State private var presentedSheet: Sheet?
+
+  var body: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: DS.Space.s2) {
+        speedButton
+        inspectionButtons
+      }
+      .fixedSize()
+      HStack(spacing: DS.Space.s2) {
+        speedButton
+        moreMenu(includesSpeedTest: false)
+      }
+      .fixedSize()
+      moreMenu(includesSpeedTest: true).fixedSize()
+    }
+    .buttonStyle(DSButtonStyle(kind: .secondary))
+    .sheet(item: $presentedSheet) { sheet in
+      switch sheet {
+      case .ip:
+        LocalIPQueryView(openEgress: model.openEgressWindow)
+          .environment(\.isPopover, false)
+      case .ports:
+        PortsSheet().environment(\.isPopover, false)
+      }
+    }
+    .onChange(of: model.settings.showsPortsInNetwork) { _, visible in
+      if !visible && presentedSheet == .ports { presentedSheet = nil }
+    }
+    .onDisappear { presentedSheet = nil }
+  }
+
+  private var speedButton: some View {
+    Button {
+      model.openSpeedTestWindow()
+    } label: {
+      Label(tr("网络测速"), systemImage: "gauge.with.dots.needle.67percent").fixedSize()
+    }
+    .help(tr("测本机宽带、国内分省三网延迟与全球节点"))
+    .accessibilityIdentifier("network.tools.speed")
+  }
+
+  @ViewBuilder
+  private var inspectionButtons: some View {
+    Button {
+      presentedSheet = .ip
+    } label: {
+      Label(tr("本机 IP 查询"), systemImage: "globe").fixedSize()
+    }
+    .accessibilityIdentifier("network.tools.ip")
+    Button {
+      model.openEgressWindow()
+    } label: {
+      Label(tr("出口与分流"), systemImage: "arrow.triangle.branch").fixedSize()
+    }
+    .help(tr("检查 VPN 与代理是否生效、各网站从哪个出口出去"))
+    .accessibilityIdentifier("network.tools.egress")
+    if model.settings.showsPortsInNetwork {
+      Button {
+        presentedSheet = .ports
+      } label: {
+        Label(tr("端口"), systemImage: "point.3.connected.trianglepath.dotted").fixedSize()
+      }
+      .accessibilityIdentifier("network.tools.ports")
+    }
+  }
+
+  private func moreMenu(includesSpeedTest: Bool) -> some View {
+    Menu {
+      if includesSpeedTest { speedButton }
+      inspectionButtons
+    } label: {
+      Label(tr("更多"), systemImage: "ellipsis").fixedSize()
+    }
+    .menuStyle(.button)
+    .menuIndicator(.hidden)
+    .accessibilityIdentifier("network.tools.more")
   }
 }
 

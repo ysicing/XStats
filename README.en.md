@@ -122,7 +122,7 @@ AI usage supports Magpie exclusively and requires it to be installed and running
 | **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
 | **Apps & Services** | Manage apps, Homebrew packages, startup items and Homebrew services; view app information and available updates |
 | **Clean & Optimize** | Review caches and build artifacts, use an installed Mole engine with live logs, preview dependencies, and run maintenance on demand · [Cleanup scope](docs/CLEANUP.md) |
-| **Network diagnostics** | Speed tests, DNS queries, egress checks, local interface addresses and multi-source public IP lookup, location and purity, connectivity probes, and integrated WebRTC / DNS leak tests |
+| **Network diagnostics** | Speed tests, DNS queries and benchmarks, egress checks, local interface addresses and multi-source public IP lookup, location and purity, connectivity probes, and integrated WebRTC / DNS leak tests |
 | **Menu bar calendar** | Chinese lunar calendar, holidays and make-up workdays, almanac, calendar events and reminders |
 | **Audio** | System volume and input/output switching; per-app volume and output on macOS 14.4+, processed locally |
 | **Timers** | Countdown, Pomodoro and stopwatch; multi-display break screens, mini HUD, independent eye-break reminders and local focus statistics |

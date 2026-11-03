@@ -120,6 +120,7 @@ public final class AppModel {
   @ObservationIgnored var openCommandBar: () -> Void = {}
   @ObservationIgnored var openEgressWindow: () -> Void = {}
   @ObservationIgnored var openSpeedTestWindow: () -> Void = {}
+  @ObservationIgnored var openDNSBenchmarkWindow: () -> Void = {}
   @ObservationIgnored var openProjectPurgeWindow: () -> Void = {}
   @ObservationIgnored var collapseToRestHUD: () -> Void = {}
   @ObservationIgnored var quit: () -> Void = {}

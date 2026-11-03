@@ -5,26 +5,6 @@ import Localization
 import Metrics
 import SwiftUI
 
-/// 网络页入口采用原生 sheet，复用完整端口页和主窗口的可见性需求。
-struct PortsButton: View {
-  @Environment(AppModel.self) private var model
-  @State private var presented = false
-
-  var body: some View {
-    MiniIconButton(systemName: "point.3.connected.trianglepath.dotted", help: tr("端口")) {
-      presented = true
-    }
-    .sheet(isPresented: $presented) {
-      PortsSheet()
-        .environment(\.isPopover, false)
-    }
-    .onChange(of: model.settings.showsPortsInNetwork) { _, visible in
-      if !visible { presented = false }
-    }
-    .onChange(of: model.settings.panelTab) { _, _ in presented = false }
-  }
-}
-
 struct PortsSheet: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss

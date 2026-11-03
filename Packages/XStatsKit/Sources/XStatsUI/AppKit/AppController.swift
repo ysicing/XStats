@@ -24,6 +24,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private var aiUsageSettingsWindow: AIUsageSettingsWindowController!
   private var updateWindow: UpdateWindowController!
   private var speedTestWindow: SpeedTestWindowController!
+  private var dnsBenchmarkWindow: DNSBenchmarkWindowController!
   private var projectPurgeWindow: ProjectPurgeWindowController!
   private var egressWindow: EgressWindowController!
   private var rest: RestController { model.rest }
@@ -79,6 +80,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
     updateWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
     speedTestWindow = SpeedTestWindowController(model: model)
     speedTestWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
+    dnsBenchmarkWindow = DNSBenchmarkWindowController(model: model)
+    dnsBenchmarkWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
     projectPurgeWindow = ProjectPurgeWindowController(model: model)
     projectPurgeWindow.onVisibilityChange = { [weak self] _ in self?.updateActivationPolicy() }
     egressWindow = EgressWindowController(model: model)
@@ -208,6 +211,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
       self?.menuBar.dismissPopovers()
       self?.calendarMenuBar.dismiss()
       self?.speedTestWindow.show()
+    }
+    model.openDNSBenchmarkWindow = { [weak self] in
+      self?.menuBar.dismissPopovers()
+      self?.calendarMenuBar.dismiss()
+      self?.dnsBenchmarkWindow.show()
     }
     model.openProjectPurgeWindow = { [weak self] in
       guard let self, self.model.settings.cleanerEnabled else { return }
@@ -429,7 +437,12 @@ public final class AppController: NSObject, NSApplicationDelegate {
     return .terminateLater
   }
 
+  public func applicationDidHide(_ notification: Notification) {
+    dnsBenchmarkWindow?.cancel()
+  }
+
   public func applicationWillTerminate(_ notification: Notification) {
+    dnsBenchmarkWindow?.cancel()
     commandBar.dismiss()
     model.cleaner.cancelOperation()
     model.cleaner.mole.cancel()
@@ -689,7 +702,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private func updateActivationPolicy() {
     let hasWindow =
       mainWindow.isOpen || aiUsageSettingsWindow.isVisible || updateWindow.isOpen
-      || egressWindow.isVisible || speedTestWindow.isVisible || projectPurgeWindow.isOpen
+      || egressWindow.isVisible || speedTestWindow.isVisible || dnsBenchmarkWindow.isVisible
+      || projectPurgeWindow.isOpen
       || XStatsCapture.workspace.hasOpenWindows
     let policy: NSApplication.ActivationPolicy =
       hasWindow || model.settings.showDockIcon ? .regular : .accessory
@@ -1040,6 +1054,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     menuBar.dismissPopovers()
     menuBar.refreshImages(force: true)
     speedTestWindow.refreshLanguage()
+    dnsBenchmarkWindow.refreshLanguage()
     projectPurgeWindow.refreshLanguage()
     egressWindow.refreshLanguage()
     aiUsageSettingsWindow.refreshLanguage()
@@ -1118,6 +1133,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.network.setPaused(true)
     model.egress.setPaused(true)
     egressWindow.cancelLeakTests()
+    dnsBenchmarkWindow.cancel()
     model.diskTools.setPaused(true)
     model.aiUsage.setPaused(true)
     model.displays.setPaused(true)

@@ -14,7 +14,7 @@ extension Translations {
       appleIntelligenceEnglish, wellnessEnglish, magpieEnglish, applicationPresentationEnglish,
       hardwareDetailsEnglish, aiCleanupEnglish, networkPresentationEnglish, trioEnglish,
       portsEnglish, appServicesEnglish, maintenancePreviewEnglish, commandBarEnglish,
-      designAuditEnglish,
+      designAuditEnglish, dnsBenchmarkEnglish,
     ]
   }
 

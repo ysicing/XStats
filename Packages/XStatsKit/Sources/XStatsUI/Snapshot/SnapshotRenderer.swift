@@ -30,6 +30,47 @@ enum SnapshotRenderer {
       return
     }
 
+    if CommandLine.arguments.contains("--network-tools-only") {
+      let suite = "XStats.networkToolsSnapshot.\(UUID())"
+      guard let defaults = UserDefaults(suiteName: suite) else { return }
+      defer { defaults.removePersistentDomain(forName: suite) }
+      let settings = AppSettings(defaults: defaults)
+      settings.language = L10n.language
+      settings.enabledMonitoringModules = []
+      settings.historyEnabled = false
+      settings.aiUsageEnabled = false
+      settings.portsEnabled = true
+      settings.portsPlacement = .network
+      settings.panelTab = .network
+      let model = AppModel(settings: settings, historyURL: nil, networkCacheDefaults: defaults)
+      await model.network.refreshDetails(basicOnly: true)
+      model.network.maskForSnapshot()
+      settings.setExpanded(.networkDNS, true)
+      for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+        guard let appearance = NSAppearance(named: name) else { continue }
+        NSApp.appearance = appearance
+        for width: CGFloat in [640, 900, 1200] {
+          write(
+            PageHeader(cleanerTab: .constant(.clean))
+              .appLanguageEnvironment()
+              .frame(width: width, height: DS.Size.windowHeader),
+            model: model, appearance: appearance,
+            to: outputDirectory.appendingPathComponent("network-tools-\(Int(width))-\(suffix).png"))
+        }
+        for width: CGFloat in [360, 640, 1200] {
+          write(
+            DNSSection()
+              .environment(\.isPopover, width == 360)
+              .appLanguageEnvironment()
+              .padding(DS.Space.s3)
+              .frame(width: width),
+            model: model, appearance: appearance,
+            to: outputDirectory.appendingPathComponent("network-dns-\(Int(width))-\(suffix).png"))
+        }
+      }
+      return
+    }
+
     if CommandLine.arguments.contains("--metric-summary-only") {
       let suite = "XStats.metricSummarySnapshot.\(UUID())"
       guard let defaults = UserDefaults(suiteName: suite) else { return }

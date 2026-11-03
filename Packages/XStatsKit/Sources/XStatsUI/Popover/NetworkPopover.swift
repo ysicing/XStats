@@ -646,7 +646,7 @@ private struct PuritySection: View {
 
 // MARK: - DNS
 
-private struct DNSSection: View {
+struct DNSSection: View {
   @Environment(AppModel.self) private var model
   @Environment(\.isPopover) private var isPopover
   @State private var editingManual = false
@@ -696,6 +696,15 @@ private struct DNSSection: View {
           TagBadge(icon: "arrow.right", text: tr("直连"), tone: .neutral, compact: true)
         }
       }
+      Button {
+        model.openDNSBenchmarkWindow()
+      } label: {
+        Label(tr("DNS 测试"), systemImage: "server.rack").fixedSize()
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+      .foregroundStyle(DS.Palette.textPrimary)
+      .accessibilityIdentifier("network.dns.test")
       RefreshButton(loading: maintenance.running == .flushDNS, help: tr("刷新 DNS 缓存")) {
         Task { await maintenance.run(.flushDNS) }
       }

@@ -2719,3 +2719,36 @@ AI 功能需要安装并运行 Magpie。	Las funciones de AI requieren instalar 
 使用所有输出	Usar todas las salidas
 当前输出	Salida actual
 请选择至少一个可用输出设备	Selecciona al menos una salida disponible
+DNS 测试	Prueba de DNS
+比较各家 DNS 的速度与稳定性	Compara la velocidad y estabilidad de los DNS
+测试协议	Protocolo de prueba
+测试轮数	Rondas de prueba
+自定义 DNS	DNS personalizado
+最多添加 8 个自定义 DNS	Añade hasta 8 servidores DNS personalizados
+系统 DNS	DNS del sistema
+P90 延迟	Latencia P90
+失败率	Tasa de fallos
+握手耗时	Tiempo de negociación
+解析结果	Direcciones resueltas
+疑似 DNS 拦截	Posible interceptación de DNS
+普通 DNS 应答可能被沿途接管，相关结果不参与推荐。	Las respuestas DNS sin cifrar pueden ser interceptadas en la ruta. Estos resultados se excluyen de las recomendaciones.
+检测到代理或 VPN，测试结果受当前路由影响；DoH 也可能经过系统代理。	Proxy o VPN detectado; los resultados dependen de la ruta actual. DoH también puede usar el proxy del sistema.
+点击开始测试，比较当前系统与公共 DNS。	Inicia una prueba para comparar los DNS actuales del sistema con los públicos.
+先预热，再交错查询；握手单独计时，结果仅保留在窗口中。	Tras el calentamiento, las consultas se intercalan. La negociación se mide por separado; los resultados solo se conservan en esta ventana.
+开始测试	Iniciar prueba
+测试中 {}/{}	Probando {}/{}
+测试已取消	Prueba cancelada
+测试完成	Prueba completada
+没有有效应答	Sin respuesta válida
+查询超时	Tiempo de consulta agotado
+连接失败	Error de conexión
+应答无效	Respuesta no válida
+按延迟排序	Ordenar por latencia
+按失败率排序	Ordenar por tasa de fallos
+本次推荐	Recomendado en esta prueba
+移除自定义 DNS	Eliminar DNS personalizado
+测试未完成，请重试。	La prueba no se completó. Inténtalo de nuevo.
+首次查询	Primera consulta
+普通 DNS 推荐	DNS sin cifrar recomendado
+点击开始测试，并发比较各家 DNS 的四种协议。	Inicia la prueba para comparar cuatro protocolos DNS de cada proveedor al mismo tiempo.
+四种协议并发实测；握手单独计时，结果仅保留在窗口中。	Los cuatro protocolos se miden simultáneamente. Las negociaciones se cronometran por separado; los resultados permanecen en esta ventana.
