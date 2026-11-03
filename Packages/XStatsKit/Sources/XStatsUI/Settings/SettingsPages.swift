@@ -15,7 +15,7 @@ struct SettingsTabPage<Content: View>: View {
   @ViewBuilder var content: Content
 
   var body: some View {
-    PageScroll(contentMaxWidth: DS.Size.settingsContentWidth) { content }
+    PageScroll { content }
       .onAppear {
         model.refreshLaunchAtLogin()
         model.helper.refreshStatus()
