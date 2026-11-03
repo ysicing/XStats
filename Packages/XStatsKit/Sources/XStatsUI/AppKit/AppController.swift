@@ -188,6 +188,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         self.checkForUpdatesFromMenu()
       case .toggleMicrophoneMute:
         self.performAudioShortcut { $0.toggleDeviceMute(.input) }
+      case .toggleOutputMute:
+        self.performAudioShortcut { $0.toggleDeviceMute(.output) }
       case .nextAudioOutput:
         self.performAudioShortcut { $0.selectNextOutput() }
       }
@@ -609,6 +611,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
       openCommandBarFromMenu()
     case .toggleMicrophoneMute:
       performAudioShortcut { $0.toggleDeviceMute(.input) }
+    case .toggleOutputMute:
+      performAudioShortcut { $0.toggleDeviceMute(.output) }
     case .nextAudioOutput:
       performAudioShortcut { $0.selectNextOutput() }
     case .showProcesses:

@@ -12,6 +12,7 @@ private final class MicrophoneHardware: @unchecked Sendable {
   private var muted: Bool?
   private let writable: Bool
   private let failure: AudioControlError?
+  let direction: AudioDirection
   private var writes: [Bool] = []
   private var includedApplications = false
   var requests: [Bool] { lock.withLock { writes } }
@@ -21,10 +22,14 @@ private final class MicrophoneHardware: @unchecked Sendable {
   let started: AsyncStream<Void>
   private let signal: AsyncStream<Void>.Continuation
 
-  init(muted: Bool? = false, writable: Bool = true, failure: AudioControlError? = nil) {
+  init(
+    muted: Bool? = false, writable: Bool = true, failure: AudioControlError? = nil,
+    direction: AudioDirection = .input
+  ) {
     self.muted = muted
     self.writable = writable
     self.failure = failure
+    self.direction = direction
     (started, signal) = AsyncStream<Void>.makeStream()
   }
 
@@ -37,9 +42,14 @@ private final class MicrophoneHardware: @unchecked Sendable {
       includedApplications = includedApplications || applications
       let input = AudioDeviceInfo(
         id: 987_654, uid: "test.current.microphone", name: "Current microphone",
-        hasInput: true, inputMuted: muted, canSetInputMute: writable)
+        hasInput: direction == .input, hasOutput: direction == .output,
+        inputMuted: direction == .input ? muted : nil,
+        outputMuted: direction == .output ? muted : nil,
+        canSetInputMute: direction == .input && writable,
+        canSetOutputMute: direction == .output && writable)
       return AudioHardwareSnapshot(
-        devices: [input], outputID: nil, inputID: input.id, applications: [])
+        devices: [input], outputID: direction == .output ? input.id : nil,
+        inputID: direction == .input ? input.id : nil, applications: [])
     }
   }
 
@@ -48,7 +58,7 @@ private final class MicrophoneHardware: @unchecked Sendable {
     cancellation: AudioOperationCancellation
   ) -> AudioControlError? {
     #expect(device.uid == "test.current.microphone")
-    #expect(direction == .input)
+    #expect(direction == self.direction)
     guard !cancellation.isCancelled else { return .routeChanged }
     return lock.withLock {
       writes.append(value)
@@ -70,16 +80,20 @@ private final class MicrophoneHardware: @unchecked Sendable {
 
 @MainActor
 struct MicrophoneMuteTests {
-  @Test func missingInputReportsUnavailableWithoutOpeningAudioControls() async throws {
+  @Test(arguments: [AudioDirection.input, .output])
+  func missingDeviceReportsUnavailableWithoutOpeningAudioControls(direction: AudioDirection)
+    async throws
+  {
     let suite = "XStats.MicrophoneMuteTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(false, forKey: "audio.lowerVolumeOnHeadphoneDisconnect")
     let hardware = AudioHardwareClient(
       selectDevice: { _, _, _ in nil }, readSnapshot: { _ in .empty })
     let controller = AudioController(defaults: defaults, hardware: hardware)
     defer { controller.stop() }
     controller.setDemand(enabled: true, visible: false, menuVisible: false)
-    controller.toggleDeviceMute(.input)
+    controller.toggleDeviceMute(direction)
     let deadline = ContinuousClock.now + .seconds(5)
     while controller.isWorking, ContinuousClock.now < deadline {
       try await Task.sleep(for: .milliseconds(5))
@@ -121,11 +135,15 @@ struct MicrophoneMuteTests {
     #expect(HotKeyAction.toggleMicrophoneMute.isEnabled(in: settings))
   }
 
-  @Test func repeatedHiddenOperationsUseCurrentInputAndLeaveNoListeners() async throws {
+  @Test(arguments: [AudioDirection.input, .output])
+  func repeatedHiddenOperationsUseCurrentDeviceAndLeaveNoListeners(direction: AudioDirection)
+    async throws
+  {
     let suite = "XStats.MicrophoneMuteTests.repeat.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = MicrophoneHardware()
+    defaults.set(false, forKey: "audio.lowerVolumeOnHeadphoneDisconnect")
+    let fixture = MicrophoneHardware(direction: direction)
     let hardware = fixture.client()
     let controller = AudioController(defaults: defaults, hardware: hardware)
     defer { controller.stop() }
@@ -138,7 +156,7 @@ struct MicrophoneMuteTests {
     controller.disableMixing()
     controller.setDemand(enabled: true, visible: false, menuVisible: false)
     for _ in 0..<20 {
-      let operation = try #require(controller.toggleDeviceMute(.input))
+      let operation = try #require(controller.toggleDeviceMute(direction))
       await operation.value
       #expect(controller.operationError == nil)
       #expect(!controller.isWorking)
@@ -149,42 +167,53 @@ struct MicrophoneMuteTests {
     #expect(await hardware.listenerCount() == 0)
   }
 
-  @Test(arguments: [false, true])
-  func unsupportedInputReportsFailureWithoutWriting(unknownState: Bool) async throws {
+  @Test(arguments: [false, true], [AudioDirection.input, .output])
+  func unsupportedDeviceReportsFailureWithoutWriting(
+    unknownState: Bool, direction: AudioDirection
+  ) async throws {
     let suite = "XStats.MicrophoneMuteTests.unsupported.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = MicrophoneHardware(muted: unknownState ? nil : false, writable: unknownState)
+    let fixture = MicrophoneHardware(
+      muted: unknownState ? nil : false, writable: unknownState, direction: direction)
     let controller = AudioController(defaults: defaults, hardware: fixture.client())
     defer { controller.stop() }
     controller.setDemand(enabled: true, visible: false, menuVisible: false)
-    let operation = try #require(controller.toggleDeviceMute(.input))
+    let operation = try #require(controller.toggleDeviceMute(direction))
     await operation.value
     #expect(controller.operationError == .unsupported)
     #expect(fixture.requests.isEmpty)
   }
 
-  @Test(arguments: [AudioControlError.routeChanged, .hardware(-1), .unavailable])
-  func failedWriteKeepsTheActualMuteState(failure: AudioControlError) async throws {
+  @Test(
+    arguments: [AudioControlError.routeChanged, .hardware(-1), .unavailable],
+    [AudioDirection.input, .output])
+  func failedWriteKeepsTheActualMuteState(failure: AudioControlError, direction: AudioDirection)
+    async throws
+  {
     let suite = "XStats.MicrophoneMuteTests.failure.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = MicrophoneHardware(failure: failure)
+    let fixture = MicrophoneHardware(failure: failure, direction: direction)
     let controller = AudioController(defaults: defaults, hardware: fixture.client())
     defer { controller.stop() }
     controller.setDemand(enabled: true, visible: false, menuVisible: false)
-    let operation = try #require(controller.toggleDeviceMute(.input))
+    let operation = try #require(controller.toggleDeviceMute(direction))
     await operation.value
     #expect(controller.operationError == failure)
-    #expect(fixture.snapshot(false).devices.first?.inputMuted == false)
+    let device = fixture.snapshot(false).devices.first
+    #expect((direction == .output ? device?.outputMuted : device?.inputMuted) == false)
   }
 
-  @Test(arguments: ["disable", "sleep", "stop"])
-  func pendingReadRejectsDuplicatesAndCancellationPreventsWriting(action: String) async throws {
+  @Test(arguments: ["disable", "sleep", "stop"], [AudioDirection.input, .output])
+  func pendingReadRejectsDuplicatesAndCancellationPreventsWriting(
+    action: String, direction: AudioDirection
+  ) async throws {
     let suite = "XStats.MicrophoneMuteTests.cancel.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = MicrophoneHardware()
+    defaults.set(false, forKey: "audio.lowerVolumeOnHeadphoneDisconnect")
+    let fixture = MicrophoneHardware(direction: direction)
     fixture.blockSnapshot = true
     defer { fixture.release.signal() }
     let notifications = NotificationCenter()
@@ -192,11 +221,11 @@ struct MicrophoneMuteTests {
     let controller = AudioController(
       defaults: defaults, hardware: hardware, sleepNotifications: notifications)
     defer { controller.stop() }
-    #expect(controller.toggleDeviceMute(.input) == nil)
+    #expect(controller.toggleDeviceMute(direction) == nil)
     controller.setDemand(enabled: true, visible: false, menuVisible: false)
-    let operation = try #require(controller.toggleDeviceMute(.input))
+    let operation = try #require(controller.toggleDeviceMute(direction))
     for await _ in fixture.started { break }
-    #expect(controller.toggleDeviceMute(.input) == nil)
+    #expect(controller.toggleDeviceMute(direction) == nil)
     switch action {
     case "disable": controller.setDemand(enabled: false, visible: false, menuVisible: false)
     case "sleep": notifications.post(name: NSWorkspace.willSleepNotification, object: nil)

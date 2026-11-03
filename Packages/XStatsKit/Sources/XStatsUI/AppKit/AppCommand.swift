@@ -11,6 +11,7 @@ struct AppCommand: Identifiable {
     case checkForUpdates
     case toggleMicrophoneMute
     case nextAudioOutput
+    case toggleOutputMute
   }
 
   let id: String
@@ -29,6 +30,10 @@ struct AppCommand: Identifiable {
         keywords: "\(tab.rawValue) \(aliases(for: tab))", action: .route(.open(tab)))
     }
     commands += [
+      AppCommand(
+        id: "audio.toggleOutputMute", title: tr("切换输出静音"), symbol: "speaker.slash",
+        keywords: "output speaker headphones mute unmute 输出 扬声器 耳机 静音 取消静音",
+        action: .toggleOutputMute),
       AppCommand(
         id: "audio.toggleMicrophoneMute", title: tr("切换麦克风静音"), symbol: "mic.slash",
         keywords: "microphone mic mute unmute 麦克风 静音 取消静音",

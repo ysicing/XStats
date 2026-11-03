@@ -46,8 +46,9 @@ private final class OutputSwitchState: @unchecked Sendable {
     signal = stream.continuation
     snapshot = AudioHardwareSnapshot(
       devices: [
-        AudioDeviceInfo(id: 1, uid: "test.a", name: "A", hasOutput: true),
-        AudioDeviceInfo(id: 2, uid: "test.b", name: "B", hasOutput: true),
+        AudioDeviceInfo(
+          id: 1, uid: "test.a", name: "A", hasOutput: true, outputKind: .speaker, isBuiltIn: true),
+        AudioDeviceInfo(id: 2, uid: "test.b", name: "B", hasOutput: true, outputKind: .headphones),
       ], outputID: 1, inputID: nil,
       applications: [
         AudioApplication(id: "muted", name: "Muted", processObjectIDs: [101], isPlaying: true)

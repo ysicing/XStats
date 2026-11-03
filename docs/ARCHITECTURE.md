@@ -324,12 +324,19 @@ verification remain distinct from explicitly confirmed snapshot deletion or repa
 
 Core Audio HAL access and writes are serialized. Device identity and generation
 checks reject stale work; mute, routing and listening-mode writes use bounded
-confirmation. Listeners belong to visible controls and stop on close or suspension.
+confirmation. UI listeners belong to visible controls and stop on close or suspension.
 The output-switching shortcut and command use the audio page's cycle selection. An absent
-selection cycles all eligible connected outputs; an explicit selection uses stable
+selection includes built-in speakers and recognized headphones; an explicit selection uses stable
 device UIDs, preserves disconnected devices and never falls back to excluded outputs.
 These device preferences stay local. Cycling reads fresh hardware on demand and adds
 no listeners or polling when controls are closed.
+Headphone disconnect protection is enabled by default with the audio feature. Separate
+HAL device/default-output/data-source listeners remain active while controls are closed,
+without process enumeration, polling or capture. A disconnected current headphone route
+falling back to a writable speaker caps output channels at 20%, preserving lower levels
+and mute. Manual switching with headphones still connected does not trigger it.
+Disabling the option or audio, inactivity and sleep remove these listeners; resuming
+starts a new baseline without retroactive writes.
 Bluetooth matching uses normalized hardware addresses, not device names; optional
 controls require advertised capabilities. Battery reads share demand and connection
 events, coalesce changes and stop on inactivity without nearby-device discovery.

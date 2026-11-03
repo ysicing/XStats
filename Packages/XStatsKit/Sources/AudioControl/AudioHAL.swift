@@ -207,18 +207,25 @@ enum AudioHAL {
           dataSource: output
             ? uint(id, kAudioDevicePropertyDataSource, scope: kAudioDevicePropertyScopeOutput)
             : nil,
-          terminalTypes: outputStreams.compactMap { uint($0, kAudioStreamPropertyTerminalType) }),
-        isRunningOutput: output ? playing.map { $0.contains(id) } : nil)
+          terminalTypes: outputStreams.compactMap { uint($0, kAudioStreamPropertyTerminalType) },
+          bluetoothHeadphones: bluetooth
+            && BluetoothAudioClient.isHeadphone(address: BluetoothAudioDevice.address(in: uid))),
+        isRunningOutput: output ? playing.map { $0.contains(id) } : nil,
+        isBuiltIn: transport == kAudioDeviceTransportTypeBuiltIn)
     }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
   }
 
   /// 端点信息优先于连接方式；未知蓝牙设备保留通用无线类别，不按名称猜测型号。
-  static func outputKind(transport: UInt32?, dataSource: UInt32?, terminalTypes: [UInt32])
+  static func outputKind(
+    transport: UInt32?, dataSource: UInt32?, terminalTypes: [UInt32],
+    bluetoothHeadphones: Bool = false
+  )
     -> AudioOutputKind
   {
     if dataSource == 0x6864_706E { return .headphones }  // 内置插孔的 'hdpn'
     if dataSource == 0x6973_706B { return .speaker }  // 内置扬声器的 'ispk'
     if terminalTypes.contains(kAudioStreamTerminalTypeHeadphones) { return .headphones }
+    if bluetoothHeadphones { return .headphones }
     if terminalTypes.contains(kAudioStreamTerminalTypeSpeaker) { return .speaker }
     switch transport {
     case kAudioDeviceTransportTypeBuiltIn: return .speaker

@@ -45,6 +45,7 @@ struct AudioDemandLifecycleTests {
     let suite = "XStats.AudioDemandLifecycleTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defaults.set(appVolume, forKey: "audio.appVolumeEnabled")
+    defaults.set(false, forKey: "audio.lowerVolumeOnHeadphoneDisconnect")
     return (defaults, suite)
   }
 

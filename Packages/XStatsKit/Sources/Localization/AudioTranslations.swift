@@ -39,6 +39,9 @@ extension Translations {
     取消麦克风静音	Unmute microphone
     静音麦克风	Mute microphone
     切换麦克风静音	Toggle microphone mute
+    切换输出静音	Toggle output mute
+    耳机断开时降低音量	Lower volume when headphones disconnect
+    断开耳机后，将扬声器音量降至不高于 20%，不取消静音。	After headphones disconnect, lower speaker volume to at most 20% without unmuting.
     切换到下一个音频输出	Switch to next audio output
     输出切换器	Output switcher
     按快捷键在勾选且已连接的输出设备之间循环切换。	Use the shortcut to cycle through selected, connected output devices.

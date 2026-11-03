@@ -2652,6 +2652,9 @@ AI 功能需要安装并运行 Magpie。	Für die AI-Funktionen muss Magpie inst
 开启防休眠	Ruhezustand verhindern
 停止防休眠	Ruhezustand wieder zulassen
 切换麦克风静音	Mikrofonstummschaltung umschalten
+切换输出静音	Ausgabestummschaltung umschalten
+耳机断开时降低音量	Lautstärke beim Trennen der Kopfhörer senken
+断开耳机后，将扬声器音量降至不高于 20%，不取消静音。	Nach dem Trennen der Kopfhörer die Lautsprecherlautstärke auf höchstens 20 % senken, ohne die Stummschaltung aufzuheben.
 切换到下一个音频输出	Zum nächsten Audioausgang wechseln
 拔掉电源后停止防休眠	Wachhalten beim Trennen der Stromversorgung beenden
 已拔掉电源，防休眠已关闭	Stromversorgung getrennt; Wachhalten ist aus

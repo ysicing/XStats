@@ -237,6 +237,21 @@ public final class BluetoothAudioClient: Sendable {
     }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
   }
 
+  static func isHeadphone(address: String?) -> Bool {
+    guard let address, address.count == 12 else { return false }
+    let characters = Array(address)
+    let formatted = stride(from: 0, to: 12, by: 2).map {
+      String(characters[$0...($0 + 1)])
+    }.joined(separator: "-")
+    guard let device = IOBluetoothDevice(addressString: formatted),
+      device.deviceClassMajor == kBluetoothDeviceClassMajorAudio
+    else { return false }
+    return [
+      kBluetoothDeviceClassMinorAudioHeadset, kBluetoothDeviceClassMinorAudioHandsFree,
+      kBluetoothDeviceClassMinorAudioHeadphones,
+    ].contains(Int(device.deviceClassMinor))
+  }
+
   private static func openConnection(_ address: String) throws {
     guard let host = IOBluetoothHostController.default(),
       host.powerState == kBluetoothHCIPowerStateON

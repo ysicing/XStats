@@ -55,6 +55,7 @@ public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
   /// HAL 输出方向运行标记；未知时为 nil，不能把仅连接视为正在播放。
   public let isRunningOutput: Bool?
   public let outputKind: AudioOutputKind
+  public let isBuiltIn: Bool
   public init(
     id: UInt32, uid: String, name: String, hasInput: Bool = false, hasOutput: Bool = false,
     inputVolume: Double? = nil, outputVolume: Double? = nil, inputMuted: Bool? = nil,
@@ -63,7 +64,8 @@ public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
     canSetInputMute: Bool = false, canSetOutputMute: Bool = false,
     bluetoothAddress: String? = nil, canBeDefaultInput: Bool? = nil,
     canBeDefaultOutput: Bool? = nil,
-    outputKind: AudioOutputKind = .unknown, isRunningOutput: Bool? = nil
+    outputKind: AudioOutputKind = .unknown, isRunningOutput: Bool? = nil,
+    isBuiltIn: Bool = false
   ) {
     self.id = id
     self.uid = uid
@@ -80,6 +82,7 @@ public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
     self.canSetOutputMute = canSetOutputMute
     self.bluetoothAddress = bluetoothAddress
     self.outputKind = outputKind
+    self.isBuiltIn = isBuiltIn
     self.isRunningOutput = isRunningOutput
     self.canBeDefaultInput = canBeDefaultInput ?? hasInput
     self.canBeDefaultOutput = canBeDefaultOutput ?? hasOutput
@@ -88,6 +91,11 @@ public struct AudioDeviceInfo: Sendable, Equatable, Identifiable {
   /// 系统选择器要求流存在且可作为默认设备；独立输出仍按 hasOutput 使用完整设备目录。
   public func canBeDefault(_ direction: AudioDirection) -> Bool {
     direction == .input ? hasInput && canBeDefaultInput : hasOutput && canBeDefaultOutput
+  }
+
+  public var isDefaultCycleOutput: Bool {
+    canBeDefault(.output) && (outputKind == .headphones || (isBuiltIn && outputKind == .speaker))
+      && !uid.isEmpty && uid.utf8.count <= 512
   }
 
   /// 只按规范化的硬件地址关联，不以名称或不完整地址推断同一设备。

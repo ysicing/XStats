@@ -63,13 +63,14 @@ private final class OutputShortcutHardware: @unchecked Sendable {
 @MainActor
 struct AudioOutputShortcutTests {
   private let devices = [
-    AudioDeviceInfo(id: 1, uid: "test.a", name: "A", hasOutput: true),
+    AudioDeviceInfo(
+      id: 1, uid: "test.a", name: "A", hasOutput: true, outputKind: .speaker, isBuiltIn: true),
     AudioDeviceInfo(id: 9, uid: "test.input", name: "Input", hasInput: true),
     AudioDeviceInfo(
       id: 8, uid: "test.unsupported", name: "Unsupported", hasOutput: true,
       canBeDefaultOutput: false),
-    AudioDeviceInfo(id: 2, uid: "test.b", name: "B", hasOutput: true),
-    AudioDeviceInfo(id: 3, uid: "test.c", name: "C", hasOutput: true),
+    AudioDeviceInfo(id: 2, uid: "test.b", name: "B", hasOutput: true, outputKind: .headphones),
+    AudioDeviceInfo(id: 3, uid: "test.c", name: "C", hasOutput: true, outputKind: .headphones),
   ]
 
   @Test func catalogAndShortcutFollowTheAudioFeature() throws {
@@ -95,10 +96,111 @@ struct AudioOutputShortcutTests {
     #expect(restored.hotKeys[.nextAudioOutput] == settings.hotKeys[.nextAudioOutput])
   }
 
+  @Test func outputMuteShortcutIsUnboundAndKeepsExistingCarbonIDs() throws {
+    let suite = "XStats.AudioOutputShortcutTests.mute.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    #expect(settings.hotKeys[.toggleOutputMute] == nil)
+    #expect(HotKeyAction.nextAudioOutput.carbonID == 14)
+    #expect(HotKeyAction.toggleOutputMute.carbonID == 15)
+    settings.hotKeys[.toggleOutputMute] = HotKey(
+      keyCode: 46, modifiers: [.command, .control], key: "m")
+    settings.audioEnabled = true
+    #expect(HotKeyAction.toggleOutputMute.isEnabled(in: settings))
+    settings.audioEnabled = false
+    #expect(!HotKeyAction.toggleOutputMute.isEnabled(in: settings))
+    #expect(
+      AppSettings(defaults: defaults).hotKeys[.toggleOutputMute]
+        == settings.hotKeys[.toggleOutputMute])
+    let search = CommandBarSearch(commands: AppCommand.catalog(supportsFans: false))
+    for query in ["输出 静音", "speaker mute", "headphones unmute"] {
+      #expect(search.results(for: query).contains { $0.action == .toggleOutputMute })
+    }
+  }
+
+  @Test func defaultsExcludeDisplaysAndUnknownDevicesEvenWhenTheyAreCurrent() async throws {
+    let suite = "XStats.AudioOutputShortcutTests.defaults.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let display = AudioDeviceInfo(
+      id: 15, uid: "test.display", name: "Display", hasOutput: true, outputKind: .display)
+    let unknown = AudioDeviceInfo(
+      id: 16, uid: "test.unknown", name: "Virtual", hasOutput: true)
+    let connected = [display, unknown, devices[0], devices[3]]
+    let fixture = OutputShortcutHardware(devices: connected, outputID: display.id)
+    let controller = AudioController(defaults: defaults, hardware: fixture.client())
+    defer { controller.stop() }
+    controller.showPreview(
+      AudioHardwareSnapshot(
+        devices: connected, outputID: display.id, inputID: nil, applications: []),
+      volumes: [:], outputs: [:])
+    #expect(!controller.isOutputCycleDeviceSelected(display))
+    #expect(!controller.isOutputCycleDeviceSelected(unknown))
+    controller.setDemand(enabled: true, visible: false, menuVisible: false)
+    await controller.selectNextOutput()?.value
+    #expect(fixture.requests == [1])
+    controller.setOutputCycleDevice(display, included: true)
+    #expect(controller.outputCycleDeviceUIDs == ["test.a", "test.b", "test.display"])
+    let restored = AudioController(defaults: defaults)
+    defer { restored.stop() }
+    #expect(restored.isOutputCycleDeviceSelected(display))
+    controller.resetOutputCycleDevices()
+    #expect(!controller.isOutputCycleDeviceSelected(display))
+  }
+
+  @Test func headphoneProtectionPreferenceDefaultsOnAndStopsWithLifecycle() async throws {
+    let suite = "XStats.AudioOutputShortcutTests.protection.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let notifications = NotificationCenter()
+    let hardware = OutputShortcutHardware(devices: []).client()
+    let controller = AudioController(
+      defaults: defaults, hardware: hardware, sleepNotifications: notifications)
+    defer { controller.stop() }
+    #expect(controller.lowerVolumeOnHeadphoneDisconnect)
+    controller.setDemand(enabled: true, visible: false, menuVisible: false)
+    #expect(await hardware.headphoneListenerCount() > 0)
+    notifications.post(name: NSWorkspace.willSleepNotification, object: nil)
+    #expect(await hardware.headphoneListenerCount() == 0)
+    notifications.post(name: NSWorkspace.didWakeNotification, object: nil)
+    #expect(await hardware.headphoneListenerCount() > 0)
+    controller.setPaused(true)
+    #expect(await hardware.headphoneListenerCount() == 0)
+    controller.setPaused(false)
+    #expect(await hardware.headphoneListenerCount() > 0)
+    controller.setLowerVolumeOnHeadphoneDisconnect(false)
+    #expect(await hardware.headphoneListenerCount() == 0)
+    let restored = AudioController(defaults: defaults)
+    defer { restored.stop() }
+    #expect(!restored.lowerVolumeOnHeadphoneDisconnect)
+    controller.setLowerVolumeOnHeadphoneDisconnect(true)
+    #expect(await hardware.headphoneListenerCount() > 0)
+    controller.stop()
+    #expect(await hardware.headphoneListenerCount() == 0)
+  }
+
+  @Test(arguments: [AudioOutputKind.display, .unknown, .bluetooth, .usb, .speaker])
+  func noRecognizedDefaultNeverFallsBackToAllOutputs(kind: AudioOutputKind) async throws {
+    let suite = "XStats.AudioOutputShortcutTests.noDefault.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let external = AudioDeviceInfo(
+      id: 1, uid: "test.external", name: "External", hasOutput: true, outputKind: kind)
+    let fixture = OutputShortcutHardware(devices: [external])
+    let controller = AudioController(defaults: defaults, hardware: fixture.client())
+    defer { controller.stop() }
+    controller.setDemand(enabled: true, visible: false, menuVisible: false)
+    await controller.selectNextOutput()?.value
+    #expect(fixture.requests.isEmpty)
+    #expect(controller.operationError == .unavailable)
+  }
+
   @Test func hiddenOperationsCycleFreshAvailableOutputsWithoutListeners() async throws {
     let suite = "XStats.AudioOutputShortcutTests.repeat.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(false, forKey: "audio.lowerVolumeOnHeadphoneDisconnect")
     let fixture = OutputShortcutHardware(devices: devices)
     let hardware = fixture.client()
     let controller = AudioController(defaults: defaults, hardware: hardware)
@@ -139,6 +241,7 @@ struct AudioOutputShortcutTests {
     let suite = "XStats.AudioOutputShortcutTests.selection.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(false, forKey: "audio.lowerVolumeOnHeadphoneDisconnect")
     let fixture = OutputShortcutHardware(devices: devices)
     let hardware = fixture.client()
     let controller = AudioController(defaults: defaults, hardware: hardware)
@@ -276,6 +379,7 @@ struct AudioOutputShortcutTests {
     let suite = "XStats.AudioOutputShortcutTests.cancel.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(false, forKey: "audio.lowerVolumeOnHeadphoneDisconnect")
     let fixture = OutputShortcutHardware(devices: devices, blocksSnapshot: true)
     defer { fixture.release.signal() }
     let notifications = NotificationCenter()

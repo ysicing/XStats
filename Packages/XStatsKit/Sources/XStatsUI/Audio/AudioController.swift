@@ -30,8 +30,9 @@ final class AudioController {
   private(set) var volumes: [String: AudioAppVolume]
   private(set) var outputRoutes: [String: String]
   private(set) var pinnedApplications: Set<String>
-  /// nil 沿用所有可用输出；空集合表示用户主动取消全部，不能回退到未勾选的设备。
+  /// nil 使用内置扬声器和可识别耳机；显式选择（含空集合）始终优先。
   private(set) var outputCycleDeviceUIDs: Set<String>?
+  private(set) var lowerVolumeOnHeadphoneDisconnect: Bool
   @ObservationIgnored private let defaults: UserDefaults
   @ObservationIgnored private let hardware: AudioHardwareClient
   @ObservationIgnored private let mixer: AudioMixerClient
@@ -101,6 +102,8 @@ final class AudioController {
     self.listeningModes = listeningModes
     self.activationNotifications = activationNotifications
     self.sleepNotifications = sleepNotifications
+    lowerVolumeOnHeadphoneDisconnect =
+      defaults.object(forKey: "audio.lowerVolumeOnHeadphoneDisconnect") as? Bool ?? true
     let activationKey = "audio.appVolumeEnabled"
     let savedActivation =
       defaults.object(forKey: activationKey) == nil
@@ -220,13 +223,15 @@ final class AudioController {
   func setPaused(_ paused: Bool) {
     guard inactive != paused else { return }
     inactive = paused
-    applyDemand(enabled: enabled)
+    applyDemand(enabled: enabled, forceUpdate: true)
   }
 
-  private func applyDemand(enabled: Bool) {
+  private func applyDemand(enabled: Bool, forceUpdate: Bool = false) {
     let visible = requestedVisibility.visible && !inactive
     let menuVisible = requestedVisibility.menuVisible && !inactive
-    guard self.enabled != enabled || self.visible != visible || self.menuVisible != menuVisible
+    guard
+      forceUpdate || self.enabled != enabled || self.visible != visible
+        || self.menuVisible != menuVisible
     else { return }
     let wasBluetoothVisible = self.enabled && self.visible && !sleeping
     self.enabled = enabled
@@ -283,6 +288,8 @@ final class AudioController {
   }
 
   private func updateWatchers() {
+    hardware.setHeadphoneDisconnectProtection(
+      enabled && !sleeping && !inactive && lowerVolumeOnHeadphoneDisconnect)
     updateBluetoothActivationObserver()
     if !enabled || !visible || sleeping {
       listeningModes.stopWatching()
@@ -635,7 +642,7 @@ final class AudioController {
       let current = await hardware.snapshot(includeApplications: false)
       try Task.checkCancellation()
       let outputs = current.devices.filter {
-        $0.canBeDefault(.output) && (outputCycleDeviceUIDs?.contains($0.uid) ?? true)
+        $0.canBeDefault(.output) && isOutputCycleDeviceSelected($0)
       }
       guard let first = outputs.first else { throw AudioControlError.unavailable }
       let next: AudioDeviceInfo
@@ -654,12 +661,12 @@ final class AudioController {
   func setOutputCycleDevice(_ device: AudioDeviceInfo, included: Bool) {
     guard device.canBeDefault(.output), !device.uid.isEmpty, device.uid.utf8.count <= 512
     else { return }
-    // 首次自定义以当前可用输出为起点；之后保留断开设备的 UID，不使用会重排的 HAL ID。
+    // 首次自定义以默认选择为起点；之后保留断开设备的稳定 UID。
     var selected =
       outputCycleDeviceUIDs
       ?? Set(
         snapshot.devices.filter {
-          $0.canBeDefault(.output) && !$0.uid.isEmpty && $0.uid.utf8.count <= 512
+          $0.isDefaultCycleOutput
         }.prefix(256).map(\.uid))
     if included {
       guard selected.contains(device.uid) || selected.count < 256 else { return }
@@ -675,6 +682,16 @@ final class AudioController {
   func resetOutputCycleDevices() {
     outputCycleDeviceUIDs = nil
     defaults.removeObject(forKey: "audio.outputCycleDevices")
+  }
+
+  func isOutputCycleDeviceSelected(_ device: AudioDeviceInfo) -> Bool {
+    outputCycleDeviceUIDs?.contains(device.uid) ?? device.isDefaultCycleOutput
+  }
+
+  func setLowerVolumeOnHeadphoneDisconnect(_ enabled: Bool) {
+    lowerVolumeOnHeadphoneDisconnect = enabled
+    defaults.set(enabled, forKey: "audio.lowerVolumeOnHeadphoneDisconnect")
+    updateWatchers()
   }
 
   @discardableResult
@@ -867,6 +884,7 @@ final class AudioController {
 
   func stop() {
     enabled = false
+    hardware.setHeadphoneDisconnectProtection(false)
     awaitingOutputSnapshot = false
     if persistTask != nil { persist() }
     updateBluetoothActivationObserver()

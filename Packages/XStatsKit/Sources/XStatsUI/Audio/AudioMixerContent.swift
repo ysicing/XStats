@@ -98,6 +98,11 @@ struct AudioMixerContent: View {
 
 struct AudioOutputSwitcher: View {
   @Environment(AppModel.self) private var model
+  @State private var devicesExpanded: Bool
+
+  init(devicesExpanded: Bool = false) {
+    _devicesExpanded = State(initialValue: devicesExpanded)
+  }
 
   var body: some View {
     let audio = model.audio
@@ -115,39 +120,55 @@ struct AudioOutputSwitcher: View {
             get: { model.settings.hotKeys[.nextAudioOutput] },
             set: { model.settings.hotKeys[.nextAudioOutput] = $0 }))
       }
-      HStack {
-        Text(tr("参与切换的输出")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-        Spacer()
-        if audio.outputCycleDeviceUIDs != nil {
-          Button(tr("使用所有输出")) { audio.resetOutputCycleDevices() }
-            .buttonStyle(.borderless).dsFont(.xs)
-        }
-      }
-      if devices.isEmpty {
-        Text(tr("没有可用音频设备")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
-      }
-      ForEach(devices) { device in
-        Toggle(
-          isOn: Binding(
-            get: { audio.outputCycleDeviceUIDs?.contains(device.uid) ?? true },
-            set: { audio.setOutputCycleDevice(device, included: $0) })
-        ) {
-          HStack {
-            Text(verbatim: device.name).lineLimit(2)
-            if device.id == audio.snapshot.outputID {
-              Text(tr("当前输出")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-            }
+      DisclosureGroup(isExpanded: $devicesExpanded) {
+        VStack(alignment: .leading, spacing: 8) {
+          if audio.outputCycleDeviceUIDs != nil {
+            Button(tr("恢复默认")) { audio.resetOutputCycleDevices() }
+              .buttonStyle(.borderless).dsFont(.xs)
           }
-        }
-        .toggleStyle(.checkbox).dsFont(.sm)
-        .disabled(device.uid.isEmpty || device.uid.utf8.count > 512)
-        .accessibilityIdentifier("audio.outputCycle.\(device.id)")
+          if devices.isEmpty {
+            Text(tr("没有可用音频设备")).dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
+          }
+          ForEach(devices) { device in
+            Toggle(
+              isOn: Binding(
+                get: { audio.isOutputCycleDeviceSelected(device) },
+                set: { audio.setOutputCycleDevice(device, included: $0) })
+            ) {
+              HStack {
+                Text(verbatim: device.name).lineLimit(2)
+                if device.id == audio.snapshot.outputID {
+                  Text(tr("当前输出")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+                }
+              }
+            }
+            .toggleStyle(.checkbox).dsFont(.sm)
+            .disabled(device.uid.isEmpty || device.uid.utf8.count > 512)
+            .accessibilityIdentifier("audio.outputCycle.\(device.id)")
+          }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+      } label: {
+        HStack {
+          Text(tr("参与切换的输出"))
+          Spacer()
+          Text(tr("已选 \(devices.filter { audio.isOutputCycleDeviceSelected($0) }.count) 项"))
+            .foregroundStyle(DS.Palette.textSecondary)
+        }.dsFont(.sm)
       }
+      .accessibilityIdentifier("audio.outputCycle.disclosure")
       if !devices.isEmpty,
-        !devices.contains(where: { audio.outputCycleDeviceUIDs?.contains($0.uid) ?? true })
+        !devices.contains(where: { audio.isOutputCycleDeviceSelected($0) })
       {
         Text(tr("请选择至少一个可用输出设备")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       }
+      Toggle(
+        tr("耳机断开时降低音量"),
+        isOn: Binding(
+          get: { audio.lowerVolumeOnHeadphoneDisconnect },
+          set: { audio.setLowerVolumeOnHeadphoneDisconnect($0) })
+      ).toggleStyle(.checkbox).dsFont(.sm)
+        .help(tr("断开耳机后，将扬声器音量降至不高于 20%，不取消静音。"))
+        .accessibilityIdentifier("audio.lowerVolumeOnHeadphoneDisconnect")
     }
   }
 }

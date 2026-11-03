@@ -3,6 +3,7 @@
 
 import CoreAudio
 import Foundation
+import os
 
 /// 所有 HAL 读写、观察者和回调状态均限定在 queue；向调用方只返回 Sendable 快照。
 public final class AudioHardwareClient: @unchecked Sendable {
@@ -16,6 +17,13 @@ public final class AudioHardwareClient: @unchecked Sendable {
   private var detailListeners:
     [(AudioObjectID, AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
   private var detailKey: [UInt32] = []
+  private var headphoneProtectionEnabled = false
+  private var headphoneState = AudioHeadphoneDisconnectState()
+  private var headphoneListeners:
+    [(AudioObjectID, AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
+  private var headphoneOutputID: UInt32?
+  private static let logger = Logger(subsystem: "work.12306.xstats", category: "AudioProtection")
+  private let limitOutputVolume: (@Sendable (AudioDeviceInfo) -> AudioControlError?)?
   private let applicationActivity: @Sendable () -> [UInt32]
   private let readSnapshot: (@Sendable (Bool) -> AudioHardwareSnapshot)?
   private var activitySignature: [UInt32] = []
@@ -40,26 +48,36 @@ public final class AudioHardwareClient: @unchecked Sendable {
       (
         @Sendable (Bool, AudioDeviceInfo, AudioDirection, AudioOperationCancellation) ->
           AudioControlError?
-      )? = nil
+      )? = nil,
+    limitOutputVolume: (@Sendable (AudioDeviceInfo) -> AudioControlError?)? = nil
   ) {
     self.selectDevice = selectDevice
     self.applicationActivity = applicationActivity
     self.readSnapshot = readSnapshot
     self.muteDevice = muteDevice
+    self.limitOutputVolume = limitOutputVolume
     queue.setSpecific(key: queueKey, value: 1)
   }
 
   deinit {
     if DispatchQueue.getSpecific(key: queueKey) != nil {
       removeListeners()
+      removeHeadphoneListeners()
     } else {
-      queue.sync { removeListeners() }
+      queue.sync {
+        removeListeners()
+        removeHeadphoneListeners()
+      }
     }
   }
 
   public func snapshot(includeApplications: Bool) async -> AudioHardwareSnapshot {
     await execute { [self] in
-      if let readSnapshot { return readSnapshot(includeApplications) }
+      if let readSnapshot {
+        let current = readSnapshot(includeApplications)
+        checkHeadphoneDisconnect(current)
+        return current
+      }
       let catalog: (applications: [AudioApplication], activity: [UInt32]) =
         includeApplications ? AudioHAL.applicationSnapshot() : ([], [])
       let snapshot = AudioHardwareSnapshot(
@@ -68,6 +86,7 @@ public final class AudioHardwareClient: @unchecked Sendable {
       // 签名与发布数据使用同一次播放标记读取；不能用轮询读数提前确认尚未发布的变化。
       if includeApplications, watchingApplications { activitySignature = catalog.activity }
       if listening { bindDetails(snapshot) }
+      checkHeadphoneDisconnect(snapshot)
       return snapshot
     }
   }
@@ -131,6 +150,106 @@ public final class AudioHardwareClient: @unchecked Sendable {
       removeListeners()
       callback = nil
     }
+  }
+
+  public func setHeadphoneDisconnectProtection(_ enabled: Bool) {
+    queue.async { [self] in
+      guard headphoneProtectionEnabled != enabled else { return }
+      headphoneProtectionEnabled = enabled
+      removeHeadphoneListeners()
+      headphoneState = AudioHeadphoneDisconnectState()
+      guard enabled else {
+        Self.logger.info("Headphone disconnect protection stopped")
+        return
+      }
+      for selector in [
+        kAudioHardwarePropertyDevices, kAudioHardwarePropertyDefaultOutputDevice,
+      ] {
+        addHeadphoneListener(AudioHAL.system, AudioHAL.address(selector))
+      }
+      refreshHeadphoneProtection()
+      Self.logger.info("Headphone disconnect protection started")
+    }
+  }
+
+  private func refreshHeadphoneProtection() {
+    guard headphoneProtectionEnabled else { return }
+    let current =
+      readSnapshot?(false)
+      ?? AudioHardwareSnapshot(
+        devices: AudioHAL.devices(), outputID: AudioHAL.defaultDevice(.output),
+        inputID: nil, applications: [])
+    checkHeadphoneDisconnect(current)
+  }
+
+  private func checkHeadphoneDisconnect(_ current: AudioHardwareSnapshot) {
+    guard headphoneProtectionEnabled else { return }
+    if let target = headphoneState.outputToLimit(in: current) {
+      let failure: AudioControlError?
+      if let limitOutputVolume {
+        failure = limitOutputVolume(target)
+      } else {
+        failure = capOutputVolume(target)
+      }
+      if failure != nil {
+        Self.logger.error("Could not lower output volume after headphone disconnect")
+      } else {
+        Self.logger.info("Lowered output volume after headphone disconnect")
+      }
+    }
+    guard headphoneOutputID != current.outputID else { return }
+    for (object, var property, listener) in headphoneListeners where object != AudioHAL.system {
+      AudioObjectRemovePropertyListenerBlock(object, &property, queue, listener)
+    }
+    headphoneListeners.removeAll { $0.0 != AudioHAL.system }
+    headphoneOutputID = current.outputID
+    if let outputID = current.outputID {
+      addHeadphoneListener(
+        outputID,
+        AudioHAL.address(kAudioDevicePropertyDataSource, scope: kAudioDevicePropertyScopeOutput))
+    }
+  }
+
+  private func capOutputVolume(_ device: AudioDeviceInfo) -> AudioControlError? {
+    guard AudioHAL.defaultDevice(.output) == device.id,
+      AudioHAL.string(device.id, kAudioDevicePropertyDeviceUID) == device.uid
+    else { return .routeChanged }
+    let properties = AudioHAL.writableElements(
+      device.id, direction: .output, selector: kAudioDevicePropertyVolumeScalar)
+    guard !properties.isEmpty else { return .unsupported }
+    for var property in properties {
+      guard let current = AudioHAL.scalar(device.id, property), current.isFinite else {
+        return .unavailable
+      }
+      guard current > 0.2 else { continue }
+      var level: Float32 = 0.2
+      let status = AudioObjectSetPropertyData(
+        device.id, &property, 0, nil, UInt32(MemoryLayout<Float32>.size), &level)
+      if status != noErr { return .hardware(status) }
+    }
+    return nil
+  }
+
+  private func addHeadphoneListener(
+    _ object: AudioObjectID, _ address: AudioObjectPropertyAddress
+  ) {
+    var address = address
+    let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+      self?.refreshHeadphoneProtection()
+    }
+    guard AudioObjectAddPropertyListenerBlock(object, &address, queue, listener) == noErr else {
+      Self.logger.error("Could not observe headphone output changes")
+      return
+    }
+    headphoneListeners.append((object, address, listener))
+  }
+
+  private func removeHeadphoneListeners() {
+    for (object, var property, listener) in headphoneListeners {
+      AudioObjectRemovePropertyListenerBlock(object, &property, queue, listener)
+    }
+    headphoneListeners.removeAll()
+    headphoneOutputID = nil
   }
 
   public func setVolume(_ level: Double, device: AudioDeviceInfo, direction: AudioDirection)
@@ -246,7 +365,13 @@ public final class AudioHardwareClient: @unchecked Sendable {
 
   // 内部诊断供资源释放验证使用；读取也在同一 HAL 队列中完成。
   func listenerCount() async -> Int {
-    await execute { [self] in systemListeners.count + detailListeners.count }
+    await execute { [self] in
+      systemListeners.count + detailListeners.count + headphoneListeners.count
+    }
+  }
+
+  func headphoneListenerCount() async -> Int {
+    await execute { [self] in headphoneListeners.count }
   }
 
   private func execute<Value: Sendable>(_ operation: @escaping @Sendable () -> Value) async -> Value

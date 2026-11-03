@@ -9,15 +9,18 @@ import Testing
 
 @MainActor
 struct AudioPresentationTests {
-  @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft])
+  @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft], [false, true])
   func outputSwitcherFitsDeviceNamesAndKeepsSelectionWithoutStartingAudio(
-    direction: LayoutDirection
+    direction: LayoutDirection, expanded: Bool
   ) throws {
     let (model, _, defaults, suite) = try preview()
     defer { defaults.removePersistentDomain(forName: suite) }
     let devices = [
-      AudioDeviceInfo(id: 1, uid: "demo.speaker", name: "MacBook Pro Speakers", hasOutput: true),
-      AudioDeviceInfo(id: 2, uid: "demo.airpods", name: "AirPods Pro", hasOutput: true),
+      AudioDeviceInfo(
+        id: 1, uid: "demo.speaker", name: "MacBook Pro Speakers", hasOutput: true,
+        outputKind: .speaker, isBuiltIn: true),
+      AudioDeviceInfo(
+        id: 2, uid: "demo.airpods", name: "AirPods Pro", hasOutput: true, outputKind: .headphones),
       AudioDeviceInfo(
         id: 3, uid: "demo.display",
         name: "Studio Display Speakers · Externer Bildschirm · مكبرات الصوت", hasOutput: true),
@@ -32,10 +35,11 @@ struct AudioPresentationTests {
     model.settings.hotKeys[.nextAudioOutput] = HotKey(
       keyCode: 1, modifiers: [.control, .option, .command], key: "s")
     let host = NSHostingView(
-      rootView: AudioOutputSwitcher().environment(model)
+      rootView: AudioOutputSwitcher(devicesExpanded: expanded).environment(model)
         .environment(\.layoutDirection, direction).frame(width: 560))
     let size = host.fittingSize
-    #expect(size.width == 560 && size.height > 150 && size.height < 360)
+    #expect(size.width == 560 && size.height > 100 && size.height < 440)
+    #expect(expanded || size.height < 250)
     let window = NSWindow(
       contentRect: NSRect(origin: .zero, size: size), styleMask: .borderless,
       backing: .buffered, defer: false)
@@ -48,10 +52,11 @@ struct AudioPresentationTests {
     host.cacheDisplay(in: host.bounds, to: bitmap)
     if let path = ProcessInfo.processInfo.environment["XSTATS_AUDIO_SWITCHER_PREVIEW_DIR"] {
       let png = try #require(bitmap.representation(using: .png, properties: [:]))
-      let name = direction == .rightToLeft ? "rtl.png" : "ltr.png"
+      let name =
+        "\(direction == .rightToLeft ? "rtl" : "ltr")-\(expanded ? "expanded" : "collapsed").png"
       try png.write(to: URL(fileURLWithPath: path).appendingPathComponent(name))
     }
-    #expect(model.audio.outputCycleDeviceUIDs == ["demo.speaker", "demo.airpods", "demo.lg"])
+    #expect(model.audio.outputCycleDeviceUIDs == ["demo.speaker", "demo.airpods"])
     #expect(!model.audio.isWorking && model.audio.appVolumeEnabled == appVolumeEnabled)
   }
 

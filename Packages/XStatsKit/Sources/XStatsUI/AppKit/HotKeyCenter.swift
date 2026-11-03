@@ -10,6 +10,7 @@ public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable 
   case openCommandBar
   case toggleMicrophoneMute
   case nextAudioOutput
+  case toggleOutputMute
 
   var requiresTimer: Bool {
     [.startEyeRest, .openTimer, .toggleTimerHUD, .startShortBreak, .startLongBreak].contains(self)
@@ -20,6 +21,7 @@ public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable 
       && (self != .openCommandBar || settings.commandBarEnabled)
       && (self != .toggleMicrophoneMute || settings.audioEnabled)
       && (self != .nextAudioOutput || settings.audioEnabled)
+      && (self != .toggleOutputMute || settings.audioEnabled)
   }
 
   /// 展示分组独立于动作声明顺序，避免调整界面时改变 Carbon 编号。
@@ -38,7 +40,8 @@ public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable 
   var category: Category {
     switch self {
     case .toggleMainWindow, .showProcesses, .openCalendar, .openCommandBar: .navigation
-    case .toggleKeepAwake, .purgeMemory, .sleepDisplay, .toggleMicrophoneMute, .nextAudioOutput:
+    case .toggleKeepAwake, .purgeMemory, .sleepDisplay, .toggleMicrophoneMute, .nextAudioOutput,
+      .toggleOutputMute:
       .system
     case .startEyeRest, .openTimer, .toggleTimerHUD, .startShortBreak, .startLongBreak:
       .timersAndBreaks
@@ -63,6 +66,7 @@ public enum HotKeyAction: String, CaseIterable, Identifiable, Codable, Sendable 
     case .openCommandBar: tr("命令栏")
     case .toggleMicrophoneMute: tr("切换麦克风静音")
     case .nextAudioOutput: tr("切换到下一个音频输出")
+    case .toggleOutputMute: tr("切换输出静音")
     }
   }
 
