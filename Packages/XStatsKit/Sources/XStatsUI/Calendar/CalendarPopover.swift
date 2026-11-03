@@ -26,7 +26,7 @@ struct CalendarPopoverSizing: Equatable {
       max(1, visibleSize.height - DS.Space.s2))
     return .init(
       width: width, cellHeight: compact ? 48 : 56,
-      dayFontSize: compact ? 17 : 19, subtitleFontSize: compact ? 9 : 10,
+      dayFontSize: compact ? 17 : 19, subtitleFontSize: compact ? 10 : 11,
       headerPadding: compact ? 14 : 16, sectionSpacing: compact ? 12 : 14,
       maxHeight: maxHeight)
   }
@@ -186,7 +186,8 @@ struct CalendarPopover: View {
         // 挂载前的测量尚未触发 onAppear，须同步准备详情，首次高度才能包含完整内容。
         let displayedAlmanac = isSnapshot ? CalendarEngine.almanac(for: selected) : almanac
         CalendarAlmanacView(
-          day: selected, almanac: displayedAlmanac, features: model.settings.calendarFeatures)
+          day: selected, almanac: displayedAlmanac, features: model.settings.calendarFeatures,
+          preferences: model.settings.calendarPreferences)
         if model.settings.calendarPreferences.showEvents
           || model.settings.calendarPreferences.showReminders
         {
@@ -239,12 +240,17 @@ struct CalendarPopover: View {
   }
 
   private func header(today: CalendarDay?) -> some View {
-    HStack(spacing: 10) {
-      Image(systemName: "calendar").foregroundStyle(Color.accentColor)
+    HStack(spacing: 6) {
       TextField(tr("年份"), text: $yearInput)
-        .textFieldStyle(.roundedBorder)
+        .textFieldStyle(.plain)
+        .font(.system(size: 16, weight: .semibold))
         .multilineTextAlignment(.center)
-        .frame(width: 62)
+        .frame(width: 50, height: 28)
+        .background(
+          yearFocused ? DS.Palette.surface : .clear,
+          in: RoundedRectangle(cornerRadius: DS.Radius.sm)
+        )
+        .accessibilityLabel(tr("年份"))
         .focused($yearFocused)
         .onSubmit {
           commitYearInput()
@@ -257,27 +263,32 @@ struct CalendarPopover: View {
       Picker(tr("月份"), selection: $month.month) {
         ForEach(1...12, id: \.self) { value in Text(monthName(value)).tag(value) }
       }
+      .font(.system(size: 16, weight: .semibold))
       .labelsHidden().fixedSize()
       Spacer(minLength: 0)
       Button {
         shift(-1)
       } label: {
-        Image(systemName: "chevron.left")
+        Image(systemName: "chevron.left").frame(width: 28, height: 28)
       }
       .help(tr("上个月")).accessibilityLabel(tr("上个月"))
       .disabled(month.shifted(by: -1) == nil)
-      Button(tr("今天")) { if let today { goToToday(today) } }
+      Button {
+        if let today { goToToday(today) }
+      } label: {
+        Text(tr("今天")).frame(minWidth: 32, minHeight: 28)
+      }
       Button {
         shift(1)
       } label: {
-        Image(systemName: "chevron.right")
+        Image(systemName: "chevron.right").frame(width: 28, height: 28)
       }
       .help(tr("下个月")).accessibilityLabel(tr("下个月"))
       .disabled(month.shifted(by: 1) == nil)
       Button {
-        model.openMainWindow(.settingsMenuBar)
+        model.openCalendarSettings()
       } label: {
-        Image(systemName: "gearshape")
+        Image(systemName: "gearshape").frame(width: 28, height: 28)
       }
       .help(tr("日历设置…")).accessibilityLabel(tr("日历设置…"))
     }
@@ -293,7 +304,7 @@ struct CalendarPopover: View {
           let weekday = (firstWeekday - 1 + offset) % 7 + 1
           Text(weekdayName(weekday))
             .font(.system(size: sizing.cellHeight < 50 ? 11 : 12, weight: .medium))
-            .foregroundStyle(weekday == 1 || weekday == 7 ? Color.red : .secondary)
+            .foregroundStyle(DS.Palette.textSecondary)
             .frame(maxWidth: .infinity)
         }
       }
@@ -338,9 +349,9 @@ struct CalendarPopover: View {
         if let today { goToToday(today) }
       }
       Button {
-        model.openMainWindow(.settingsMenuBar)
+        model.openCalendarSettings()
       } label: {
-        Image(systemName: "gearshape")
+        Image(systemName: "gearshape").frame(width: 28, height: 28)
       }
       .help(tr("日历设置…")).accessibilityLabel(tr("日历设置…"))
     }
@@ -430,7 +441,9 @@ private struct CalendarDayCell: View {
 
   private var holiday: CalendarDay.Holiday? { features.contains(.holidays) ? day.holiday : nil }
   private var isRest: Bool { holiday.map { !$0.isWork } ?? day.isWeekend }
-  private var foreground: Color { isSelected ? .white : isRest ? .red : DS.Palette.textPrimary }
+  private var foreground: Color {
+    isSelected ? .accentColor : isRest ? DS.Palette.error : DS.Palette.textPrimary
+  }
 
   var body: some View {
     let showsLunar = features.contains(.lunar)
@@ -441,28 +454,30 @@ private struct CalendarDayCell: View {
         Text(String(day.day)).font(
           .system(
             size: sizing.dayFontSize,
-            weight: isToday ? .semibold : .regular, design: .rounded))
+            weight: isToday || isSelected ? .semibold : .regular, design: .rounded)
+        )
+        .foregroundStyle(isToday ? DS.Palette.onPrimary : foreground)
+        .frame(width: sizing.dayFontSize + 10, height: sizing.dayFontSize + 10)
+        .background(isToday ? Color.accentColor : .clear, in: Circle())
         Text(tr(day.subtitle(features: features)))
           .font(
             .system(
               size: largeLunarText ? sizing.subtitleFontSize + 2 : sizing.subtitleFontSize,
               weight: strongerLunarText ? .semibold : .regular)
           )
+          .foregroundStyle(isSelected ? Color.accentColor : DS.Palette.textSecondary)
           .lineLimit(1)
           .minimumScaleFactor(0.75)
+        Circle().fill(Color.accentColor).frame(width: 4, height: 4)
+          .opacity(hasAgenda ? 1 : 0)
       }
-      .foregroundStyle(foreground)
       .frame(maxWidth: .infinity)
       .frame(height: sizing.cellHeight + (largeLunarText ? 8 : 0))
       .background(
-        isSelected ? Color.accentColor : holiday != nil ? foreground.opacity(0.05) : .clear,
+        isSelected
+          ? DS.Palette.sidebarSelected : holiday != nil ? foreground.opacity(0.05) : .clear,
         in: RoundedRectangle(cornerRadius: 10)
       )
-      .overlay {
-        if isToday && !isSelected {
-          RoundedRectangle(cornerRadius: 10).strokeBorder(Color.accentColor, lineWidth: 1.5)
-        }
-      }
       .overlay(alignment: .topTrailing) {
         if let holiday {
           Text(tr(holiday.isWork ? "班" : "休"))
@@ -470,21 +485,13 @@ private struct CalendarDayCell: View {
             .foregroundStyle(.white)
             .padding(2)
             .background(
-              holiday.isWork ? Color.secondary : .red, in: RoundedRectangle(cornerRadius: 3)
+              holiday.isWork ? Color.secondary : DS.Palette.error,
+              in: RoundedRectangle(cornerRadius: 3)
             )
             .padding(2)
-        } else if isToday {
-          Circle().fill(isSelected ? .white : Color.accentColor).frame(width: 5, height: 5).padding(
-            5)
         }
       }
-      .overlay(alignment: .bottom) {
-        if hasAgenda {
-          Circle().fill(isSelected ? .white : Color.accentColor).frame(width: 4, height: 4).padding(
-            .bottom, 3)
-        }
-      }
-      .opacity(isCurrentMonth ? 1 : 0.35)
+      .opacity(isCurrentMonth ? 1 : 0.5)
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)

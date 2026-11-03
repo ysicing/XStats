@@ -122,6 +122,7 @@ struct LanguageSupportTests {
       "搜索应用、地址或端口", "启用连接查看", "移除网络扩展",
       "扩展缓冲区已有 12 条旧记录被淘汰。",
       "设置", "功能", "发现新版本，查看更新", "内存", "下载并应用", "中国大陆节假日与调休", "黄历", "每日", "每周", "累计",
+      "日期详情", "宜忌", "黄历详细信息",
       "XStats 基于 OpenStats 开发，感谢原项目的开源贡献 · MIT License",
     ] {
       #expect(catalog.translate(key)?.isEmpty == false)

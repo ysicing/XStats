@@ -5,31 +5,51 @@ import Foundation
 import Localization
 import SwiftUI
 
-/// 日期详情保留已启用的历法信息；黄历开启时才展示传统宜忌表。
+/// 日期详情按显示偏好分区；其他历法沿用各自的功能开关。
 struct CalendarAlmanacView: View {
   let day: CalendarDay
   let almanac: CalendarAlmanac?
   let features: Set<CalendarFeature>
-  private let heading = Color.dynamic(light: 0xAE743F, dark: 0xDBAC79)
+  var preferences = CalendarPreferences()
   private let lucky = Color.dynamic(light: 0x288B3B, dark: 0x63CC76)
 
   var body: some View {
-    VStack(spacing: 16) {
+    VStack(spacing: 20) {
       VStack(spacing: 8) {
         Text(dateTitle).font(.system(size: 13)).foregroundStyle(.secondary)
         if features.contains(.lunar) {
-          Text(day.lunarSummary).font(.system(size: 21)).foregroundStyle(.red)
+          Text(day.lunarSummary).font(.system(size: 21, weight: .semibold))
+            .foregroundStyle(DS.Palette.textPrimary)
         }
-        if let almanac {
+        if preferences.showAlmanacDetails, let almanac {
           Text(almanac.ganzhiSummary).font(.system(size: 13)).foregroundStyle(.secondary)
         }
       }
       if let almanac {
-        VStack(alignment: .leading, spacing: 10) {
-          advice(tr("宜"), entries: almanac.recommends, color: lucky)
-          advice(tr("忌"), entries: almanac.avoids, color: .red)
+        if preferences.showAlmanacAdvice {
+          VStack(alignment: .leading, spacing: 12) {
+            advice(tr("宜"), entries: almanac.recommends, color: lucky)
+            advice(tr("忌"), entries: almanac.avoids, color: .red)
+          }
         }
-        almanacTable(almanac)
+        if preferences.showAlmanacDetails {
+          HStack(alignment: .top, spacing: 12) {
+            tile(tr("纳音")) { Text(almanac.sound) }
+            tile(tr("冲煞")) { Text(tr("冲\(almanac.opposingZodiac) 煞\(almanac.ominousDirection)")) }
+            tile(tr("值神")) {
+              HStack(spacing: 4) {
+                Text(almanac.twelveStar)
+                luckLabel(almanac.twelveStarIsLucky)
+              }
+            }
+          }
+        }
+        if preferences.showAlmanacHours {
+          hourTable(almanac)
+        }
+        if preferences.showAlmanacDetails {
+          almanacDetails(almanac)
+        }
       }
       supplementaryDetails
     }
@@ -47,130 +67,77 @@ struct CalendarAlmanacView: View {
 
   private func advice(_ label: String, entries: [String], color: Color) -> some View {
     HStack(alignment: .top, spacing: 10) {
-      Text(label).font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
-        .padding(4).background(color, in: Capsule())
+      Text(label).font(.system(size: 12, weight: .semibold)).foregroundStyle(color)
+        .frame(minWidth: 24, minHeight: 24)
+        .padding(.horizontal, 4)
+        .background(color.opacity(0.1), in: Capsule())
       Text(entries.isEmpty ? tr("无") : entries.joined(separator: "  "))
-        .font(.system(size: 12)).foregroundStyle(.secondary)
+        .font(.system(size: 13)).foregroundStyle(DS.Palette.textPrimary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
         .padding(.top, 3)
     }
   }
 
-  private func almanacTable(_ almanac: CalendarAlmanac) -> some View {
-    VStack(spacing: 0) {
-      HStack(spacing: 0) {
-        tile(tr("纳音")) { Text(almanac.sound) }
-        verticalLine
-        tile(tr("冲煞")) { Text(tr("冲\(almanac.opposingZodiac) 煞\(almanac.ominousDirection)")) }
-        verticalLine
-        tile(tr("值神")) {
-          HStack(spacing: 4) {
-            Text(almanac.twelveStar)
-            luckLabel(almanac.twelveStarIsLucky)
-          }
-        }
-      }
-      .fixedSize(horizontal: false, vertical: true)
+  private func almanacDetails(_ almanac: CalendarAlmanac) -> some View {
+    VStack(alignment: .leading, spacing: 16) {
       Divider()
-      hourTable(almanac)
-      Divider()
-      HStack(spacing: 0) {
-        sideTile(tr("建除十二神"), value: almanac.duty)
-        verticalLine
-        VStack(spacing: 0) {
-          HStack(alignment: .top, spacing: 0) {
-            tile(tr("吉神宜趋")) { Text(almanac.luckyGods.joined(separator: "  ")) }
-            verticalLine
-            tile(tr("今日胎神")) { Text(almanac.fetus) }
-            verticalLine
-            tile(tr("凶神宜忌")) { Text(almanac.unluckyGods.joined(separator: "  ")) }
+      HStack(alignment: .top, spacing: 20) {
+        tile(tr("建除十二神")) { Text(almanac.duty) }
+        tile(tr("二十八星宿")) {
+          HStack(spacing: 6) {
+            Text(almanac.star)
+            luckLabel(almanac.starIsLucky)
           }
-          .fixedSize(horizontal: false, vertical: true)
-          Divider()
-          tile(tr("彭祖百忌")) { Text(almanac.pengZu.joined(separator: "\n")) }
-        }
-        verticalLine
-        sideTile(tr("二十八星宿"), value: almanac.star, isLucky: almanac.starIsLucky)
-      }
-      .fixedSize(horizontal: false, vertical: true)
-    }
-    .overlay { Rectangle().strokeBorder(DS.Palette.border, lineWidth: 1) }
-  }
-
-  private func sideTile(_ title: String, value: String, isLucky: Bool? = nil) -> some View {
-    // 拆出无障碍文案：写在视图链里时 Swift 6.2 无法在限时内完成类型推断。
-    let luck: String = isLucky.map { " " + tr($0 ? "吉" : "凶") } ?? ""
-    let accessibilityText: String = title + " " + value + luck
-    return Group {
-      if L10n.language.isChinese {
-        HStack(spacing: 6) {
-          Text(title.map(String.init).joined(separator: "\n"))
-            .font(.system(size: 16)).foregroundStyle(heading)
-          VStack(spacing: 5) {
-            Text(value.map(String.init).joined(separator: "\n")).foregroundStyle(.secondary)
-            if let isLucky { luckLabel(isLucky) }
-          }
-          .font(.system(size: 12))
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText)
-      } else {
-        VStack(spacing: 8) {
-          Text(title).font(.system(size: 13)).foregroundStyle(heading)
-          Text(value).font(.system(size: 12)).foregroundStyle(.secondary)
-          if let isLucky { luckLabel(isLucky) }
         }
       }
+      HStack(alignment: .top, spacing: 20) {
+        tile(tr("吉神宜趋")) { Text(almanac.luckyGods.joined(separator: "  ")) }
+        tile(tr("凶神宜忌")) { Text(almanac.unluckyGods.joined(separator: "  ")) }
+      }
+      tile(tr("今日胎神")) { Text(almanac.fetus) }
+      tile(tr("彭祖百忌")) { Text(almanac.pengZu.joined(separator: "\n")) }
     }
-    .multilineTextAlignment(.center)
-    .frame(width: L10n.language.isChinese ? 52 : 72)
-    .padding(.horizontal, 5)
-    .padding(.vertical, 10)
   }
 
   private func hourTable(_ almanac: CalendarAlmanac) -> some View {
-    HStack(spacing: 0) {
+    VStack(alignment: .leading, spacing: 12) {
+      Divider()
       Text(tr("时辰吉凶"))
-        .font(.system(size: 15)).foregroundStyle(heading)
-        .multilineTextAlignment(.center)
-        .frame(width: L10n.language.isChinese ? 42 : 60).padding(.horizontal, 6)
+        .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+        .accessibilityAddTraits(.isHeader)
         .help(tr("子时显示当日早子时；23 点起的晚子时按次日干支计算"))
-      verticalLine
-      ForEach(almanac.hours) { hour in
-        VStack(spacing: 2) {
-          Text(hour.stem)
-          Text(hour.branch)
-          luckLabel(hour.isLucky, compact: true)
+      Grid(horizontalSpacing: 6, verticalSpacing: 14) {
+        ForEach(0..<2) { row in
+          GridRow {
+            ForEach(almanac.hours.dropFirst(row * 6).prefix(6)) { hour in
+              VStack(spacing: 5) {
+                Text(hour.stem + hour.branch).font(.system(size: 13, weight: .medium))
+                Text(hour.timeRange).font(.system(size: 10)).monospacedDigit()
+                  .foregroundStyle(.secondary)
+                  .environment(\.layoutDirection, .leftToRight)
+                luckLabel(hour.isLucky, compact: true).font(.system(size: 11))
+              }
+              .frame(maxWidth: .infinity)
+              .accessibilityElement(children: .ignore)
+              .accessibilityLabel(
+                "\(hour.stem)\(hour.branch) \(hour.timeRange) \(tr(hour.isLucky ? "吉" : "凶"))")
+            }
+          }
         }
-        .font(.system(size: 12))
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .help(hour.timeRange)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-          "\(hour.stem)\(hour.branch) \(hour.timeRange) \(tr(hour.isLucky ? "吉" : "凶"))")
       }
     }
     .fixedSize(horizontal: false, vertical: true)
   }
 
-  private var verticalLine: some View {
-    Rectangle().fill(DS.Palette.border).frame(width: 1)
-  }
-
   private func tile<Content: View>(_ title: String, @ViewBuilder content: () -> Content)
     -> some View
   {
-    VStack(spacing: 5) {
-      Text(title).font(.system(size: 16)).foregroundStyle(heading)
-      content().font(.system(size: 12)).foregroundStyle(.secondary)
+    VStack(alignment: .leading, spacing: 6) {
+      Text(title).font(.system(size: 12)).foregroundStyle(.secondary)
+      content().font(.system(size: 13)).foregroundStyle(DS.Palette.textPrimary)
     }
-    .multilineTextAlignment(.center)
-    .frame(maxWidth: .infinity)
-    .padding(.horizontal, 6)
-    .padding(.vertical, 10)
+    .frame(maxWidth: .infinity, alignment: .leading)
     .fixedSize(horizontal: false, vertical: true)
   }
 

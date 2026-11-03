@@ -33,6 +33,9 @@ public struct CalendarPreferences: Codable, Equatable, Sendable {
   public var showHolidayOverview: Bool
   public var showEvents = false
   public var showReminders = false
+  public var showAlmanacAdvice = true
+  public var showAlmanacHours = true
+  public var showAlmanacDetails = true
 
   public init(locale: Locale = .current) {
     let isMainlandChina = locale.region?.identifier == "CN"
@@ -42,6 +45,7 @@ public struct CalendarPreferences: Codable, Equatable, Sendable {
   private enum CodingKeys: String, CodingKey {
     case display, dateFormat, largeLunarText, strongerLunarText, openOnHover
     case showHolidayOverview, showEvents, showReminders
+    case showAlmanacAdvice, showAlmanacHours, showAlmanacDetails
   }
 
   public init(from decoder: any Decoder) throws {
@@ -60,6 +64,9 @@ public struct CalendarPreferences: Codable, Equatable, Sendable {
       try values.decodeIfPresent(Bool.self, forKey: .showHolidayOverview) ?? true
     showEvents = try values.decodeIfPresent(Bool.self, forKey: .showEvents) ?? false
     showReminders = try values.decodeIfPresent(Bool.self, forKey: .showReminders) ?? false
+    showAlmanacAdvice = try values.decodeIfPresent(Bool.self, forKey: .showAlmanacAdvice) ?? true
+    showAlmanacHours = try values.decodeIfPresent(Bool.self, forKey: .showAlmanacHours) ?? true
+    showAlmanacDetails = try values.decodeIfPresent(Bool.self, forKey: .showAlmanacDetails) ?? true
   }
 
   /// 只接受年月日字段和分隔文字；避免误用周历年 Y、年内日 D 或时间字段后显示错误日期。

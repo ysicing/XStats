@@ -233,10 +233,68 @@ struct CalendarEnhancementTests {
     let old = try JSONDecoder().decode(CalendarPreferences.self, from: Data("{}".utf8))
     #expect(old == CalendarPreferences(locale: Locale(identifier: "zh_CN")))
     #expect(old.showHolidayOverview)
+    #expect(old.showAlmanacAdvice && old.showAlmanacHours && old.showAlmanacDetails)
     #expect(!old.showEvents && !old.showReminders && !old.openOnHover)
     let future = try JSONDecoder().decode(
       CalendarPreferences.self, from: Data(#"{"display":"future"}"#.utf8))
     #expect(future.display == .standard)
+  }
+
+  @Test(arguments: [true, false])
+  func calendarDetailPreferencesPersistIndependently(enabled: Bool) throws {
+    let name = "CalendarDetailPreferencesTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let settings = AppSettings(defaults: defaults, calendarLocale: Locale(identifier: "zh_CN"))
+    settings.calendarFeatures.remove(.lunar)
+    settings.calendarPreferences.showAlmanacAdvice = enabled
+    settings.calendarPreferences.showAlmanacHours = !enabled
+    settings.calendarPreferences.showAlmanacDetails = enabled
+    let restored = AppSettings(defaults: defaults)
+    #expect(restored.calendarPreferences.showAlmanacAdvice == enabled)
+    #expect(restored.calendarPreferences.showAlmanacHours == !enabled)
+    #expect(restored.calendarPreferences.showAlmanacDetails == enabled)
+    #expect(!restored.calendarFeatures.contains(.lunar))
+  }
+
+  @Test func calendarSettingsOpenCurrentFeatureOptions() throws {
+    let name = "CalendarSettingsRouteTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let model = AppModel(
+      settings: AppSettings(defaults: defaults), historyURL: nil,
+      magpieClient: UnavailableMagpieClient())
+    model.featureSettingsTab = .experimental
+    var destination: PanelTab?
+    model.openMainWindow = { destination = $0 }
+    model.openCalendarSettings()
+    #expect(destination == .settingsFeatures)
+    #expect(model.featureSettingsTab == .optional)
+    #expect(model.calendarSettingsPresented)
+    #expect(!model.settings.calendarEnabled)
+  }
+
+  @Test func calendarDetailSectionsCollapseWhenHidden() throws {
+    let date = try #require(ISO8601DateFormatter().date(from: "2026-11-03T04:00:00Z"))
+    let day = try #require(CalendarEngine.today(at: date))
+    let almanac = try #require(CalendarEngine.almanac(for: day))
+    let height = { (preferences: CalendarPreferences) -> CGFloat in
+      NSHostingView(
+        rootView: CalendarAlmanacView(
+          day: day, almanac: almanac, features: [.lunar], preferences: preferences
+        ).frame(width: 460)
+      ).fittingSize.height
+    }
+    let full = CalendarPreferences()
+    var noAdvice = full
+    noAdvice.showAlmanacAdvice = false
+    var noHours = full
+    noHours.showAlmanacHours = false
+    var noDetails = full
+    noDetails.showAlmanacDetails = false
+    #expect(height(full) > height(noAdvice))
+    #expect(height(full) > height(noHours))
+    #expect(height(full) > height(noDetails))
   }
 
   @Test(arguments: [

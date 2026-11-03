@@ -118,6 +118,9 @@ extension Translations {
     彭祖百忌	Peng Zu taboos
     二十八星宿	Lunar mansions
     时辰吉凶	Hour fortunes
+    日期详情	Date details
+    宜忌	Favorable activities and taboos
+    黄历详细信息	Almanac details
     子时显示当日早子时；23 点起的晚子时按次日干支计算	Zi shows 00:00–00:59; late Zi from 23:00 uses the next day's cycle
     吉	Lucky
     凶	Unlucky

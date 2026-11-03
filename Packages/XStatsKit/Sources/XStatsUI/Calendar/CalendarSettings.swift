@@ -7,14 +7,11 @@ import Localization
 import SwiftUI
 
 struct CalendarOptionsButton: View {
-  @State private var isPresented = false
+  @Environment(AppModel.self) private var model
 
   var body: some View {
-    Button(tr("设置")) { isPresented = true }
+    Button(tr("设置")) { model.calendarSettingsPresented = true }
       .buttonStyle(DSButtonStyle(kind: .secondary))
-      .popover(isPresented: $isPresented, arrowEdge: .top) {
-        CalendarOptionsPopover()
-      }
   }
 }
 
@@ -81,6 +78,7 @@ struct CalendarOptionsPopover: View {
             }
           }
         }
+        detailOptions
         agendaOptions
       }
       .padding(.vertical, DS.Space.s4)
@@ -104,6 +102,27 @@ struct CalendarOptionsPopover: View {
         await model.calendarAgenda.refreshSources(
           events: settings.calendarPreferences.showEvents,
           reminders: settings.calendarPreferences.showReminders)
+      }
+    }
+  }
+
+  private var detailOptions: some View {
+    @Bindable var settings = model.settings
+    return SettingsGroup(caption: tr("日期详情")) {
+      GroupRow(showsDivider: false) {
+        SettingRow(title: tr("宜忌")) {
+          DSToggle(isOn: $settings.calendarPreferences.showAlmanacAdvice, label: tr("宜忌"))
+        }
+      }
+      GroupRow {
+        SettingRow(title: tr("时辰吉凶")) {
+          DSToggle(isOn: $settings.calendarPreferences.showAlmanacHours, label: tr("时辰吉凶"))
+        }
+      }
+      GroupRow {
+        SettingRow(title: tr("黄历详细信息")) {
+          DSToggle(isOn: $settings.calendarPreferences.showAlmanacDetails, label: tr("黄历详细信息"))
+        }
       }
     }
   }

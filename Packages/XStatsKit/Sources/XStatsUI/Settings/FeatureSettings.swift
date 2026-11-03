@@ -53,6 +53,7 @@ struct FeatureSettings: View {
   @Environment(\.isSnapshot) private var isSnapshot
 
   var body: some View {
+    @Bindable var model = model
     VStack(alignment: .leading, spacing: 0) {
       if isSnapshot {
         Text(tr("功能")).dsFont(.sm, weight: .semibold)
@@ -91,6 +92,20 @@ struct FeatureSettings: View {
       ).environment(model)
     }
     .onDisappear { enablesAfterComponentInstall = false }
+    .sheet(isPresented: $model.calendarSettingsPresented) {
+      VStack(spacing: 0) {
+        HStack {
+          Text(tr("日历")).dsFont(.sm, weight: .semibold)
+          Spacer()
+          Button(tr("完成")) { model.calendarSettingsPresented = false }
+            .keyboardShortcut(.cancelAction)
+        }
+        .padding(DS.Space.s4)
+        Divider()
+        CalendarOptionsPopover()
+      }
+      .environment(model)
+    }
   }
 
   private var basicFeatures: some View {

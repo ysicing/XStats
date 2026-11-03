@@ -20,12 +20,11 @@ struct CalendarAgendaView: View {
     let items = self.items
     let preferences = model.settings.calendarPreferences
     VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Label(tr("日程与提醒事项"), systemImage: "calendar.badge.clock").font(.subheadline.weight(.medium))
-        Spacer()
-        Text(day.date.formatted(.dateTime.month().day().locale(L10n.locale))).font(.caption)
-          .foregroundStyle(.secondary)
-      }
+      Divider()
+        .padding(.bottom, 2)
+      Text(day.date.formatted(.dateTime.month().day().weekday(.wide).locale(L10n.locale)))
+        .font(.system(size: DS.TextSize.sm.rawValue, weight: .medium))
+        .accessibilityAddTraits(.isHeader)
       if preferences.showEvents && agenda.eventsAccess != .fullAccess {
         accessNotice(tr("日程尚未授权"))
       }
@@ -39,15 +38,25 @@ struct CalendarAgendaView: View {
       } else if !items.isEmpty {
         ForEach(items.prefix(40)) { item in
           HStack(alignment: .top, spacing: 10) {
-            Image(systemName: item.isReminder ? "checklist" : "calendar")
-              .foregroundStyle(item.isReminder ? .orange : Color.accentColor)
+            if item.isReminder {
+              Image(systemName: "checklist")
+                .foregroundStyle(DS.Palette.warning)
+            } else {
+              RoundedRectangle(cornerRadius: 2)
+                .fill(Color.accentColor)
+                .frame(width: 3, height: 32)
+                .accessibilityHidden(true)
+            }
             VStack(alignment: .leading, spacing: 3) {
-              Text(item.title.isEmpty ? tr("无标题") : item.title).font(.subheadline)
+              Text(item.title.isEmpty ? tr("无标题") : item.title)
+                .font(.system(size: DS.TextSize.sm.rawValue))
                 .frame(maxWidth: .infinity, alignment: .leading)
-              Text(item.source).font(.caption).foregroundStyle(.secondary)
+              Text(item.source).font(.caption).foregroundStyle(DS.Palette.textSecondary)
             }
             Text(item.timeLabel(on: day.date, calendar: CalendarEngine.gregorian()))
-              .font(.caption).foregroundStyle(.secondary)
+              .font(.caption).foregroundStyle(DS.Palette.textSecondary)
+              .multilineTextAlignment(.trailing)
+              .fixedSize(horizontal: false, vertical: true)
           }
         }
         if items.count > 40 {
@@ -64,15 +73,14 @@ struct CalendarAgendaView: View {
           .font(.caption).foregroundStyle(.secondary)
       }
     }
-    .padding(12)
-    .background(DS.Palette.textSecondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
+    .padding(.bottom, DS.Space.s1)
   }
 
   private func accessNotice(_ title: String) -> some View {
     HStack {
       Text(title).font(.caption).foregroundStyle(.secondary)
       Spacer()
-      Button(tr("日历设置…")) { model.openMainWindow(.settingsMenuBar) }.buttonStyle(.borderless)
+      Button(tr("日历设置…")) { model.openCalendarSettings() }.buttonStyle(.borderless)
     }
   }
 }

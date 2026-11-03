@@ -106,6 +106,14 @@ public final class AppModel {
       URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
   }
   @ObservationIgnored var openCalendar: () -> Void = {}
+  var calendarSettingsPresented = false
+
+  func openCalendarSettings() {
+    featureSettingsTab = .optional
+    calendarSettingsPresented = true
+    openMainWindow(.settingsFeatures)
+  }
+
   @ObservationIgnored var restoreCalendarEntry: () -> Void = {}
   @ObservationIgnored var openAIUsageSettings: () -> Void = {}
   @ObservationIgnored var openMainWindow: (PanelTab?) -> Void = { _ in }

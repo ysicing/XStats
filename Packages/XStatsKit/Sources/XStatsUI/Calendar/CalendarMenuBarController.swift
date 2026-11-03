@@ -221,7 +221,7 @@ final class CalendarMenuBarController: NSObject {
 
   @objc private func openSettings() {
     dismiss()
-    model.openMainWindow(.settingsMenuBar)
+    model.openCalendarSettings()
   }
 }
 
