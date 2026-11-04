@@ -8,6 +8,7 @@ import AIUsage
 import Cleaner
 import Localization
 import Metrics
+import OSLog
 import SwiftUI
 import WidgetData
 import WidgetKit
@@ -33,7 +34,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private var wellnessNotifications: WellnessNotifications!
   private var widgetTimer: Timer?
   private let hotKeys = HotKeyCenter()
-  private let commandBar = CommandBarWindowController()
+  private let launcherUsage = CommandBarUsage(defaults: .standard)
+  private lazy var commandBar = CommandBarWindowController(usage: launcherUsage)
   private let displaySleep = DisplaySleepController()
   private var workspaceObservers: [NSObjectProtocol] = []
   private var screenLocked = false
@@ -201,7 +203,31 @@ public final class AppController: NSObject, NSApplicationDelegate {
         self.model.showHomebrewPackage(query)
       case .dnsBenchmark:
         self.model.openDNSBenchmarkWindow()
+      case .findProcesses(let query):
+        self.model.showProcesses(.query(query))
+      case .localIPQuery:
+        self.model.showLocalIPQuery()
+      case .systemSetting(let pane):
+        guard NSWorkspace.shared.open(pane.url) else {
+          self.showCommandBarLaunchError()
+          return
+        }
+      case .openApplication(let url):
+        NSWorkspace.shared.openApplication(
+          at: url, configuration: NSWorkspace.OpenConfiguration()
+        ) { [weak self] application, error in
+          Task { @MainActor [weak self] in
+            guard let self, !self.isTerminating else { return }
+            if application != nil, error == nil {
+              self.commandBar.recordUsage(command)
+            } else {
+              self.showCommandBarLaunchError()
+            }
+          }
+        }
+        return
       }
+      self.commandBar.recordUsage(command)
     }
     model.openAIUsageSettings = { [weak self] in
       self?.menuBar.dismissPopovers()
@@ -569,7 +595,19 @@ public final class AppController: NSObject, NSApplicationDelegate {
     restMenuBar.dismiss()
     menuBar.dismissPopovers()
     calendarMenuBar.dismiss()
-    commandBar.show(commands: AppCommand.catalog(supportsFans: model.store.supportsFans))
+    commandBar.show(
+      commands: AppCommand.catalog(supportsFans: model.store.supportsFans),
+      applicationLoader: { try CommandBarApplications.scan() })
+  }
+
+  private func showCommandBarLaunchError() {
+    Logger(subsystem: Log.subsystem, category: "CommandBar").error("Launch request failed")
+    guard !screenLocked, !isTerminating else { return }
+    let alert = NSAlert()
+    alert.messageText = tr("无法打开项目")
+    alert.informativeText = tr("项目可能已移动或不可用，请重新搜索后再试。")
+    alert.addButton(withTitle: tr("确定"))
+    alert.runModal()
   }
 
   @objc private func openUserGuideFromMenu() {
@@ -731,7 +769,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
       Task { @MainActor in
         guard let self else { return }
         self.observeCommandBarSetting()
-        if !self.model.settings.commandBarEnabled { self.commandBar.dismiss() }
+        if !self.model.settings.commandBarEnabled {
+          self.commandBar.dismiss()
+        }
         self.installMainMenu()
       }
     }

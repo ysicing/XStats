@@ -488,7 +488,16 @@ struct NetworkToolsToolbar: View {
         presentedSheet = .ports
       }
     }
-    .onDisappear { presentedSheet = nil }
+    .onChange(of: model.localIPQueryRequested, initial: true) { _, requested in
+      if requested {
+        presentedSheet = .ip
+        model.localIPQueryRequested = false
+      }
+    }
+    .onDisappear {
+      presentedSheet = nil
+      model.localIPQueryRequested = false
+    }
   }
 
   private var speedButton: some View {

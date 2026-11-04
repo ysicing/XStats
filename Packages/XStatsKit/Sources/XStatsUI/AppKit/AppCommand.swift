@@ -4,9 +4,9 @@
 import Foundation
 import Localization
 
-/// 只描述应用内已有入口；执行仍由原有路由负责功能开关、权限和忙碌保护。
-struct AppCommand: Identifiable {
-  enum Action: Equatable {
+/// 描述固定入口或本机应用；执行仍由原有路由负责功能开关、权限和忙碌保护。
+struct AppCommand: Identifiable, Sendable {
+  enum Action: Equatable, Sendable {
     case route(AppDeepLink)
     case checkForUpdates
     case toggleMicrophoneMute
@@ -15,6 +15,10 @@ struct AppCommand: Identifiable {
     case findPort(UInt16)
     case findPackage(String)
     case dnsBenchmark
+    case openApplication(URL)
+    case findProcesses(String)
+    case localIPQuery
+    case systemSetting(CommandBarSystemSetting)
   }
 
   let id: String
@@ -22,6 +26,15 @@ struct AppCommand: Identifiable {
   let symbol: String
   let keywords: String
   let action: Action
+
+  var usageID: String {
+    switch action {
+    case .findPort: "page.ports"
+    case .findPackage: "homebrew"
+    case .findProcesses: "page.processes"
+    default: id
+    }
+  }
 
   @MainActor static func catalog(supportsFans: Bool) -> [AppCommand] {
     let pages = (PanelTab.monitors + PanelTab.tools + PanelTab.settings).filter {
@@ -33,6 +46,9 @@ struct AppCommand: Identifiable {
         keywords: "\(tab.rawValue) \(aliases(for: tab))", action: .route(.open(tab)))
     }
     commands += [
+      AppCommand(
+        id: "localIP", title: tr("本机 IP 查询"), symbol: "globe",
+        keywords: "ip local address 本机 地址", action: .localIPQuery),
       AppCommand(
         id: "audio.toggleOutputMute", title: tr("切换输出静音"), symbol: "speaker.slash",
         keywords: "output speaker headphones mute unmute 输出 扬声器 耳机 静音 取消静音",
@@ -77,6 +93,11 @@ struct AppCommand: Identifiable {
         keywords: "check updates 检查更新", action: .checkForUpdates),
     ]
     return commands
+      + CommandBarSystemSetting.allCases.map {
+        AppCommand(
+          id: "systemSetting.\($0.rawValue)", title: $0.title, symbol: "gearshape",
+          keywords: "settings system preferences 系统设置 \($0.rawValue)", action: .systemSetting($0))
+      }
   }
 
   private static func aliases(for tab: PanelTab) -> String {
@@ -111,18 +132,21 @@ struct AppCommand: Identifiable {
   }
 }
 
-/// 索引仅随面板存活；固定数量的应用命令无需磁盘索引、后台任务或防抖计时器。
-struct CommandBarSearch {
-  private struct Entry {
+/// 索引仅随面板存活；应用目录和拼音一次构建，不在按键热路径中读取磁盘。
+struct CommandBarSearch: Sendable {
+  private struct Entry: Sendable {
     let command: AppCommand
     let title: String
     let text: String
     let pinyin: [String]
   }
   private let entries: [Entry]
+  private let supportsParameterQueries: Bool
 
-  init(commands: [AppCommand]) {
-    entries = commands.map {
+  init(commands: [AppCommand], supportsParameterQueries: Bool = true) {
+    self.supportsParameterQueries = supportsParameterQueries
+    entries = commands.compactMap {
+      guard !Task.isCancelled else { return nil }
       let text = "\($0.title) \($0.keywords)"
       return Entry(
         command: $0, title: Self.fold($0.title), text: Self.fold(text),
@@ -130,15 +154,26 @@ struct CommandBarSearch {
     }
   }
 
-  func results(for query: String) -> [AppCommand] {
+  func results(for query: String, favorites: [String] = [], recent: [String] = []) -> [AppCommand] {
     // 大段粘贴不参与搜索，避免在每次输入时处理无界文本。
     guard query.utf8.prefix(2049).count <= 2048 else { return [] }
     let bounded = String(query.prefix(257))
     guard bounded.count <= 256 else { return [] }
     let query = Self.fold(bounded).trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !query.isEmpty else { return entries.map(\.command) }
+    let priority = favorites + recent.filter { !favorites.contains($0) }
+    let order = Dictionary(
+      priority.enumerated().map { ($0.element, $0.offset) },
+      uniquingKeysWith: { first, _ in first })
+    guard !query.isEmpty else {
+      return entries.enumerated().sorted {
+        (order[$0.element.command.id] ?? priority.count, $0.offset)
+          < (order[$1.element.command.id] ?? priority.count, $1.offset)
+      }.map(\.element.command)
+    }
     let words = query.split(whereSeparator: \.isWhitespace)
-    if let command = words.first, command == "port" || command == "brew" || query == "dns" {
+    if supportsParameterQueries, let command = words.first,
+      ["port", "brew", "ps"].contains(String(command)) || query == "dns" || query == "ip"
+    {
       return parameterResults(command: command, arguments: words.dropFirst())
     }
     return entries.enumerated().compactMap { index, entry -> (Int, Int, AppCommand)? in
@@ -159,7 +194,10 @@ struct CommandBarSearch {
       }
       return (rank, index, entry.command)
     }
-    .sorted { ($0.0, $0.1) < ($1.0, $1.1) }
+    .sorted {
+      ($0.0, order[$0.2.id] ?? priority.count, $0.1)
+        < ($1.0, order[$1.2.id] ?? priority.count, $1.1)
+    }
     .map(\.2)
   }
 
@@ -167,6 +205,20 @@ struct CommandBarSearch {
     -> [AppCommand]
   {
     switch command {
+    case "ps":
+      guard let base = entries.first(where: { $0.command.id == "page.processes" })?.command else {
+        return []
+      }
+      guard !arguments.isEmpty else { return [base] }
+      let query = arguments.joined(separator: " ")
+      if query.utf8.allSatisfy({ (48...57).contains($0) }) {
+        guard let pid = Int32(query), pid > 0 else { return [] }
+      }
+      return [
+        AppCommand(
+          id: "ps.\(query)", title: tr("查找进程：\(query)"), symbol: base.symbol,
+          keywords: "", action: .findProcesses(query))
+      ]
     case "port":
       guard let base = entries.first(where: { $0.command.id == "page.ports" })?.command else {
         return []
@@ -200,6 +252,8 @@ struct CommandBarSearch {
       ]
     case "dns" where arguments.isEmpty:
       return entries.filter { $0.command.id == "dnsBenchmark" }.map(\.command)
+    case "ip" where arguments.isEmpty:
+      return entries.filter { $0.command.id == "localIP" }.map(\.command)
     default:
       return []
     }

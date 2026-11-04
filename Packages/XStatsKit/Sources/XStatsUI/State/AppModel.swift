@@ -123,6 +123,7 @@ public final class AppModel {
   @ObservationIgnored var openEgressWindow: () -> Void = {}
   @ObservationIgnored var openSpeedTestWindow: () -> Void = {}
   @ObservationIgnored var openDNSBenchmarkWindow: () -> Void = {}
+  var localIPQueryRequested = false
   @ObservationIgnored var openProjectPurgeWindow: () -> Void = {}
   @ObservationIgnored var collapseToRestHUD: () -> Void = {}
   @ObservationIgnored var quit: () -> Void = {}

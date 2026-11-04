@@ -16,17 +16,40 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
   private var emptyLabel: NSTextField?
   private var search: CommandBarSearch?
   private var results: [AppCommand] = []
+  private var hintLabel: NSTextField?
+  private var favoriteButton: NSButton?
+  private var catalogTask: Task<Void, Never>?
+  private var sessionID: UUID?
+  private var language: AppLanguage = .system
+  private var icons: [URL: NSImage] = [:]
+  private var hasMovedSelection = false
+  private let usage: CommandBarUsage?
   var onSelect: (AppCommand) -> Void = { _ in }
   var isVisible: Bool { panel?.isVisible == true }
 
-  func show(commands: [AppCommand], language: AppLanguage = L10n.language) {
+  init(usage: CommandBarUsage? = nil) {
+    self.usage = usage
+    super.init()
+  }
+
+  func recordUsage(_ command: AppCommand) { usage?.record(command) }
+
+  func show(
+    commands: [AppCommand], language: AppLanguage = L10n.language,
+    applicationLoader: (@Sendable () throws -> [AppCommand])? = nil
+  ) {
     if let panel {
       panel.makeKeyAndOrderFront(nil)
       panel.makeFirstResponder(searchField)
       return
     }
+    self.language = language
+    hasMovedSelection = false
+    let session = UUID()
+    sessionID = session
     search = CommandBarSearch(commands: commands)
-    results = commands
+    results =
+      search?.results(for: "", favorites: usage?.favorites ?? [], recent: usage?.recent ?? []) ?? []
     let panel = NSPanel(
       contentRect: NSRect(x: 0, y: 0, width: 560, height: 432),
       styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
@@ -59,7 +82,7 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     background.userInterfaceLayoutDirection = direction
 
     let field = NSSearchField()
-    field.placeholderString = L10n.translate("搜索功能与操作", language: language)
+    field.placeholderString = L10n.translate("搜索应用、功能与操作", language: language)
     field.setAccessibilityLabel(field.placeholderString)
     field.font = .systemFont(ofSize: DS.TextSize.lg.rawValue)
     field.controlSize = .large
@@ -121,7 +144,39 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     empty.userInterfaceLayoutDirection = direction
     emptyLabel = empty
 
-    for view in [searchBackground, searchIcon, field, scroll, empty] {
+    let hint = NSTextField(labelWithString: "")
+    hint.font = .systemFont(ofSize: DS.TextSize.xs.rawValue)
+    hint.textColor = .secondaryLabelColor
+    hint.lineBreakMode = .byTruncatingTail
+    hint.userInterfaceLayoutDirection = direction
+    hint.alignment = direction == .rightToLeft ? .right : .left
+    hintLabel = hint
+
+    let favorite = NSButton(title: "", target: self, action: #selector(toggleFavorite))
+    favorite.bezelStyle = .inline
+    favorite.keyEquivalent = "d"
+    favorite.keyEquivalentModifierMask = .command
+    favorite.isHidden = usage == nil
+    favoriteButton = favorite
+
+    let more = NSPopUpButton()
+    more.pullsDown = true
+    more.bezelStyle = .inline
+    more.addItem(withTitle: "…")
+    more.setAccessibilityLabel(L10n.translate("更多", language: language))
+    let clear = NSMenuItem(
+      title: L10n.translate("清除最近使用", language: language),
+      action: #selector(clearRecent), keyEquivalent: "")
+    clear.target = self
+    more.menu?.addItem(clear)
+    let clearFavorites = NSMenuItem(
+      title: L10n.translate("清除收藏", language: language),
+      action: #selector(clearFavorites), keyEquivalent: "")
+    clearFavorites.target = self
+    more.menu?.addItem(clearFavorites)
+    more.isHidden = usage == nil
+
+    for view in [searchBackground, searchIcon, field, scroll, empty, hint, favorite, more] {
       view.translatesAutoresizingMaskIntoConstraints = false
       background.addSubview(view)
     }
@@ -146,7 +201,14 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
       scroll.topAnchor.constraint(equalTo: searchBackground.bottomAnchor, constant: DS.Space.s2),
       scroll.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 8),
       scroll.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -8),
-      scroll.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -8),
+      scroll.bottomAnchor.constraint(equalTo: hint.topAnchor, constant: -8),
+      hint.leadingAnchor.constraint(equalTo: searchBackground.leadingAnchor),
+      hint.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -12),
+      hint.trailingAnchor.constraint(lessThanOrEqualTo: favorite.leadingAnchor, constant: -8),
+      favorite.centerYAnchor.constraint(equalTo: hint.centerYAnchor),
+      favorite.trailingAnchor.constraint(equalTo: more.leadingAnchor, constant: -8),
+      more.trailingAnchor.constraint(equalTo: searchBackground.trailingAnchor),
+      more.centerYAnchor.constraint(equalTo: hint.centerYAnchor),
       empty.centerYAnchor.constraint(equalTo: scroll.centerYAnchor),
       empty.leadingAnchor.constraint(equalTo: field.leadingAnchor),
       empty.trailingAnchor.constraint(equalTo: field.trailingAnchor),
@@ -167,9 +229,34 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     }
     panel.makeKeyAndOrderFront(nil)
     panel.makeFirstResponder(field)
+    if let applicationLoader {
+      hint.stringValue = L10n.translate("正在读取应用…", language: language)
+      catalogTask = Task { [weak self] in
+        let worker = Task.detached(priority: .userInitiated) {
+          let applications = try applicationLoader()
+          try Task.checkCancellation()
+          return CommandBarSearch(commands: commands + applications)
+        }
+        let index = await withTaskCancellationHandler {
+          try? await worker.value
+        } onCancel: {
+          worker.cancel()
+        }
+        guard !Task.isCancelled, let self, self.sessionID == session else { return }
+        if let index { self.search = index }
+        self.catalogTask = nil
+        let hasQuery =
+          self.searchField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+          == false
+        self.refreshResults(preservingSelection: self.hasMovedSelection || hasQuery)
+      }
+    }
   }
 
   func dismiss() {
+    catalogTask?.cancel()
+    catalogTask = nil
+    sessionID = nil
     guard let panel else { return }
     self.panel = nil
     panel.delegate = nil
@@ -182,25 +269,84 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     emptyLabel = nil
     search = nil
     results = []
+    icons = [:]
+    hintLabel = nil
+    favoriteButton = nil
   }
 
   func windowDidResignKey(_ notification: Notification) { dismiss() }
   func windowWillClose(_ notification: Notification) { dismiss() }
 
   func controlTextDidChange(_ notification: Notification) {
-    guard let field = searchField, let search else { return }
-    results = search.results(for: field.stringValue)
-    reloadResults()
+    refreshResults()
   }
 
-  private func reloadResults() {
+  private func refreshResults(preservingSelection: Bool = false) {
+    guard let field = searchField, let search else { return }
+    let selectedID = selectedCommand?.id
+    results = search.results(
+      for: field.stringValue, favorites: usage?.favorites ?? [], recent: usage?.recent ?? [])
+    reloadResults(selectedID: preservingSelection ? selectedID : nil)
+  }
+
+  private var selectedCommand: AppCommand? {
+    guard let row = table?.selectedRow, results.indices.contains(row) else { return nil }
+    return results[row]
+  }
+
+  private func reloadResults(selectedID: String? = nil) {
     table?.reloadData()
     emptyLabel?.isHidden = !results.isEmpty
     scroll?.isHidden = results.isEmpty
     if !results.isEmpty {
-      table?.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-      table?.scrollRowToVisible(0)
+      let row = results.firstIndex { $0.id == selectedID } ?? 0
+      table?.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+      table?.scrollRowToVisible(row)
     }
+    updateFooter()
+  }
+
+  func tableViewSelectionDidChange(_ notification: Notification) { updateFooter() }
+
+  private func updateFooter() {
+    let prefix = searchField?.stringValue.lowercased().split(whereSeparator: \.isWhitespace).first
+    let hint: String
+    switch prefix {
+    case "port": hint = L10n.translate("port <端口号 1–65535>", language: language)
+    case "brew": hint = L10n.translate("brew <软件包名>", language: language)
+    case "ps": hint = L10n.translate("ps <进程名或 PID>", language: language)
+    default: hint = L10n.translate("↑↓ 选择 · ↩ 打开", language: language)
+    }
+    hintLabel?.stringValue = hint
+    hintLabel?.toolTip = hint
+    let favorite = selectedCommand.map { usage?.favorites.contains($0.id) == true } ?? false
+    favoriteButton?.title = L10n.translate(favorite ? "取消收藏" : "收藏", language: language) + " ⌘D"
+    favoriteButton?.image = NSImage(
+      systemSymbolName: favorite ? "star.fill" : "star", accessibilityDescription: nil)
+    favoriteButton?.imagePosition = .imageLeading
+    favoriteButton?.isEnabled =
+      selectedCommand.map {
+        $0.id == $0.usageID && (favorite || (usage?.favorites.count ?? 0) < 8)
+      } ?? false
+    favoriteButton?.toolTip = L10n.translate("最多收藏 8 项", language: language)
+  }
+
+  @objc private func toggleFavorite() {
+    guard let command = selectedCommand, command.id == command.usageID,
+      (searchField?.currentEditor() as? NSTextView)?.hasMarkedText() != true
+    else { return }
+    usage?.toggleFavorite(command.id)
+    refreshResults(preservingSelection: true)
+  }
+
+  @objc private func clearRecent() {
+    usage?.clearRecent()
+    refreshResults(preservingSelection: true)
+  }
+
+  @objc private func clearFavorites() {
+    usage?.clearFavorites()
+    refreshResults(preservingSelection: true)
   }
 
   func control(
@@ -224,6 +370,7 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
 
   private func moveSelection(by offset: Int) {
     guard let table, !results.isEmpty else { return }
+    hasMovedSelection = true
     let row = min(max(table.selectedRow + offset, 0), results.count - 1)
     table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
     table.scrollRowToVisible(row)
@@ -251,8 +398,32 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
       ?? makeCell(identifier: identifier)
     let command = results[row]
     cell.textField?.stringValue = command.title
-    cell.imageView?.image = NSImage(
-      systemSymbolName: command.symbol, accessibilityDescription: nil)
+    if case .openApplication(let url) = command.action {
+      if icons[url] == nil {
+        if icons.count >= 64 { icons.removeAll(keepingCapacity: true) }
+        icons[url] = NSWorkspace.shared.icon(forFile: url.path)
+      }
+      cell.imageView?.image = icons[url]
+      cell.imageView?.contentTintColor = nil
+      cell.toolTip = url.path
+    } else {
+      cell.imageView?.image = NSImage(
+        systemSymbolName: command.symbol, accessibilityDescription: nil)
+      cell.imageView?.contentTintColor = NSColor(DS.Palette.textSecondary)
+      cell.toolTip = command.title
+    }
+    let badge = cell.subviews.first { $0.identifier?.rawValue == "badge" } as? NSTextField
+    let badgeTitle: String
+    if usage?.favorites.contains(command.id) == true {
+      badgeTitle = "收藏"
+    } else if usage?.recent.contains(command.id) == true {
+      badgeTitle = "最近使用"
+    } else if case .openApplication = command.action {
+      badgeTitle = "应用"
+    } else {
+      badgeTitle = ""
+    }
+    badge?.stringValue = L10n.translate(badgeTitle, language: language)
     return cell
   }
 
@@ -263,13 +434,18 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     image.contentTintColor = NSColor(DS.Palette.textSecondary)
     image.symbolConfiguration = .init(pointSize: DS.Size.iconInline, weight: .regular)
     let label = NSTextField(labelWithString: "")
+    let badge = NSTextField(labelWithString: "")
+    badge.identifier = NSUserInterfaceItemIdentifier("badge")
+    badge.font = .systemFont(ofSize: DS.TextSize.xs.rawValue)
+    badge.textColor = .secondaryLabelColor
+    badge.setContentCompressionResistancePriority(.required, for: .horizontal)
     label.font = .systemFont(ofSize: DS.TextSize.sm.rawValue, weight: .medium)
     label.textColor = NSColor(DS.Palette.textPrimary)
     label.lineBreakMode = .byTruncatingTail
     cell.userInterfaceLayoutDirection = table?.userInterfaceLayoutDirection ?? .leftToRight
     label.userInterfaceLayoutDirection = cell.userInterfaceLayoutDirection
     label.alignment = cell.userInterfaceLayoutDirection == .rightToLeft ? .right : .left
-    for view in [image, label] {
+    for view in [image, label, badge] {
       view.translatesAutoresizingMaskIntoConstraints = false
       cell.addSubview(view)
     }
@@ -281,7 +457,10 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
       image.widthAnchor.constraint(equalToConstant: DS.Size.iconStandalone),
       image.heightAnchor.constraint(equalToConstant: DS.Size.iconStandalone),
       label.leadingAnchor.constraint(equalTo: image.trailingAnchor, constant: DS.Space.s3),
-      label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -DS.Space.s4),
+      label.trailingAnchor.constraint(
+        lessThanOrEqualTo: badge.leadingAnchor, constant: -DS.Space.s3),
+      badge.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -DS.Space.s4),
+      badge.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
       label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
     ])
     return cell

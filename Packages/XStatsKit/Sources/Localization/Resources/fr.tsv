@@ -2776,3 +2776,24 @@ Homebrew（缓存）	Homebrew (en cache)
 不自动移除依赖，不执行额外的用户数据清理。	Les dépendances ne sont pas supprimées automatiquement. Aucun nettoyage supplémentaire des données utilisateur n’est effectué.
 预览基于当前清单；实际影响由执行时的 Homebrew 状态决定。	Cet aperçu utilise l’inventaire actuel. L’impact réel dépend de l’état de Homebrew lors de l’exécution.
 执行命令	Commande
+搜索应用、功能与操作	Rechercher apps, fonctions et actions
+查找进程：{}	Rechercher le processus : {}
+系统设置：网络	Réglages Système : Réseau
+系统设置：蓝牙	Réglages Système : Bluetooth
+系统设置：显示器	Réglages Système : Moniteurs
+系统设置：声音	Réglages Système : Son
+系统设置：键盘	Réglages Système : Clavier
+系统设置：隐私与安全性	Réglages Système : Confidentialité et sécurité
+收藏	Favori
+取消收藏	Retirer des favoris
+最近使用	Récent
+清除最近使用	Effacer les éléments récents
+清除收藏	Effacer les favoris
+最多收藏 8 项	Enregistrer jusqu’à 8 favoris
+正在读取应用…	Chargement des apps…
+port <端口号 1–65535>	port <numéro de port 1–65535>
+brew <软件包名>	brew <nom du paquet>
+ps <进程名或 PID>	ps <nom du processus ou PID>
+↑↓ 选择 · ↩ 打开	↑↓ Sélectionner · ↩ Ouvrir
+无法打开项目	Impossible d’ouvrir l’élément
+项目可能已移动或不可用，请重新搜索后再试。	L’élément a peut-être été déplacé ou est indisponible. Relancez la recherche et réessayez.

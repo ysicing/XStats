@@ -7,12 +7,14 @@ import Metrics
 enum ProcessNavigationTarget: Equatable {
   case portOwner(PortSocket)
   case application(String)
+  case query(String)
 
   var title: String {
     switch self {
     case .portOwner(let socket): "PID \(socket.pid)"
     case .application(let path):
       URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+    case .query(let query): query
     }
   }
 
@@ -29,11 +31,25 @@ enum ProcessNavigationTarget: Equatable {
         && process.appBundlePath == socket.appBundlePath
     case .application(let path):
       process.appBundlePath == path
+    case .query(let query):
+      if let pid = Int32(query) {
+        process.pid == pid
+      } else {
+        process.name.localizedCaseInsensitiveContains(query)
+      }
     }
   }
 }
 
 extension AppModel {
+  func showLocalIPQuery() {
+    portNavigationTarget = nil
+    isPortsSheetPresented = false
+    localIPQueryRequested = true
+    settings.panelTab = .network
+    openMainWindow(.network)
+  }
+
   static func supportsApplicationNavigation(_ path: String?, home: String = NSHomeDirectory())
     -> Bool
   {

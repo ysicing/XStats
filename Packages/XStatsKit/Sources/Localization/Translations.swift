@@ -62,6 +62,27 @@ extension Translations {
     """#
 
   static let commandBarEnglish = #"""
+    搜索应用、功能与操作	Search apps, features and actions
+    查找进程：{}	Find process: {}
+    系统设置：网络	System Settings: Network
+    系统设置：蓝牙	System Settings: Bluetooth
+    系统设置：显示器	System Settings: Displays
+    系统设置：声音	System Settings: Sound
+    系统设置：键盘	System Settings: Keyboard
+    系统设置：隐私与安全性	System Settings: Privacy & Security
+    收藏	Favorite
+    取消收藏	Unfavorite
+    最近使用	Recent
+    清除最近使用	Clear Recents
+    清除收藏	Clear Favorites
+    最多收藏 8 项	Save up to 8 favorites
+    正在读取应用…	Loading apps…
+    port <端口号 1–65535>	port <port number 1–65535>
+    brew <软件包名>	brew <package name>
+    ps <进程名或 PID>	ps <process name or PID>
+    ↑↓ 选择 · ↩ 打开	↑↓ Select · ↩ Open
+    无法打开项目	Unable to open item
+    项目可能已移动或不可用，请重新搜索后再试。	The item may have moved or become unavailable. Search again and retry.
     查询端口：{}	Find port: {}
     查找软件包：{}	Find package: {}
     命令栏	Command Bar
