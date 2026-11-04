@@ -108,6 +108,50 @@ struct AppServicesTests {
     model.appManagement.setVisible(false)
   }
 
+  @Test func commandQueryReplacesOldHomebrewSearchAcrossCategoryChanges() async throws {
+    let suite = "AppServicesTests.commandQuery.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.panelTab = .uninstaller
+    settings.appServicesSection = .apps
+    let model = AppModel(
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
+    model.appManagement.showPreview(apps: [], metadata: [:], sizes: [:], packages: [])
+    let host = NSHostingView(rootView: AppServicesNavigationTestHost(model: model))
+    let window = NSWindow(
+      contentRect: NSRect(x: -10_000, y: -10_000, width: 800, height: 700),
+      styleMask: .borderless, backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentView = host
+    defer {
+      window.close()
+      model.appManagement.setVisible(false)
+    }
+    window.orderFrontRegardless()
+    try await Task.sleep(for: .milliseconds(100))
+    for query in ["buildkit", "openssl@3", ""] {
+      model.showHomebrewPackage(query)
+      host.layoutSubtreeIfNeeded()
+      try await Task.sleep(for: .milliseconds(100))
+      let field = try #require(editableField(in: host))
+      #expect(field.stringValue == query)
+      #expect(model.homebrewNavigationQuery == nil)
+      #expect(!model.appManagement.isReading && model.appManagement.operation == nil)
+      settings.appServicesSection = .apps
+      host.layoutSubtreeIfNeeded()
+      try await Task.sleep(for: .milliseconds(100))
+    }
+  }
+
+  private func editableField(in view: NSView) -> NSTextField? {
+    if let field = view as? NSTextField, field.isEditable { return field }
+    for child in view.subviews {
+      if let field = editableField(in: child) { return field }
+    }
+    return nil
+  }
+
   @Test func closingAndPausingDiscardReadsAndDoNotStartHiddenWork() async throws {
     let gate = AppServicesReadGate()
     let controller = StartupItemsController(readInventory: { await gate.read($0) })

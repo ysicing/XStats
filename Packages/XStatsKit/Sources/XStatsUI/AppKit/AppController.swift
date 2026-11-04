@@ -195,6 +195,12 @@ public final class AppController: NSObject, NSApplicationDelegate {
         self.performAudioShortcut { $0.toggleDeviceMute(.output) }
       case .nextAudioOutput:
         self.performAudioShortcut { $0.selectNextOutput() }
+      case .findPort(let port):
+        self.model.showPort(port)
+      case .findPackage(let query):
+        self.model.showHomebrewPackage(query)
+      case .dnsBenchmark:
+        self.model.openDNSBenchmarkWindow()
       }
     }
     model.openAIUsageSettings = { [weak self] in

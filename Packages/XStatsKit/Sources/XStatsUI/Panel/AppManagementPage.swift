@@ -21,6 +21,10 @@ struct AppManagementPage: View {
     var sortOrder = [KeyPathComparator<ManagedApplicationRow>(\.name)]
     var filter: BrewFilter = .all
   }
+  private struct BrowsingDestination: Equatable {
+    var section: AppServicesSection
+    var homebrewQuery: String?
+  }
   @State private var browsingStates: [AppServicesSection: BrowsingState] = [:]
   @State private var search = ""
   @FocusState private var isSearchFocused: Bool
@@ -118,25 +122,37 @@ struct AppManagementPage: View {
         model.uninstaller.cancelScanning(preservingConfirmation: true)
       }
     }
-    .onChange(of: section) { previous, current in
-      browsingStates[previous] = BrowsingState(
-        search: search, selection: selection, sortOrder: sortOrder, filter: filter)
-      let state = browsingStates[current] ?? BrowsingState()
-      search = state.search
-      selection = state.selection
-      sortOrder = state.sortOrder
-      filter = state.filter
-      pendingBrew = nil
-      Task { @MainActor in
-        // 分类更新可能处于布局周期内；延后控制器更新，避免在 AppKit 布局中再次使约束失效。
-        await Task.yield()
-        guard model.settings.panelTab == .uninstaller,
-          model.settings.appServicesSection == current
-        else { return }
-        controller.setVisible(false)
-        controller.selectTab(tab)
-        controller.setVisible(
-          model.isMainWindowVisible && current.managesApplications, tab: tab)
+    .onChange(
+      of: BrowsingDestination(section: section, homebrewQuery: model.homebrewNavigationQuery),
+      initial: true
+    ) { previous, current in
+      if previous.section != current.section {
+        browsingStates[previous.section] = BrowsingState(
+          search: search, selection: selection, sortOrder: sortOrder, filter: filter)
+        let state = browsingStates[current.section] ?? BrowsingState()
+        search = state.search
+        selection = state.selection
+        sortOrder = state.sortOrder
+        filter = state.filter
+        pendingBrew = nil
+        Task { @MainActor in
+          // 分类更新可能处于布局周期内；延后控制器更新，避免在 AppKit 布局中再次使约束失效。
+          await Task.yield()
+          guard model.settings.panelTab == .uninstaller,
+            model.settings.appServicesSection == current.section
+          else { return }
+          controller.setVisible(false)
+          controller.selectTab(tab)
+          controller.setVisible(
+            model.isMainWindowVisible && current.section.managesApplications, tab: tab)
+        }
+      }
+      if current.section == .homebrew, let query = current.homebrewQuery {
+        // 分类恢复与导航查询按同一次状态变化处理，避免旧搜索覆盖新参数。
+        search = query
+        filter = .all
+        selection = nil
+        model.homebrewNavigationQuery = nil
       }
     }
     .onChange(of: model.uninstaller.isRemoving) { old, new in

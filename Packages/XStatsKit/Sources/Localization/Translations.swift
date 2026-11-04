@@ -62,6 +62,8 @@ extension Translations {
     """#
 
   static let commandBarEnglish = #"""
+    查询端口：{}	Find port: {}
+    查找软件包：{}	Find package: {}
     命令栏	Command Bar
     搜索功能与操作	Search features and actions
     暂停专注	Pause focus

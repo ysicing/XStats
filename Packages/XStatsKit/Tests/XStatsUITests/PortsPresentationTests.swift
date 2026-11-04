@@ -45,6 +45,23 @@ final class PortsPresentationTests {
     #expect(AppDeepLink.page(.ports, settings: settings) == .ports)
   }
 
+  @Test func exactLocalPortQueryDoesNotMatchPrefixPIDOrRemotePort() {
+    let sockets = [
+      socket(pid: 42, port: 3000),
+      socket(pid: 43, port: 30000),
+      socket(pid: 3000, port: 8080),
+      socket(pid: 44, port: 9090, remotePort: 3000),
+      socket(pid: 45, name: "service3000", port: 8081),
+    ]
+    let rows = PortListing.rows(
+      sockets, filter: .all, query: ":3000", column: .port, ascending: true, rates: [:])
+    #expect(rows.map(\.pid) == [42])
+    #expect(!sockets[0].matches(":0"))
+    #expect(!sockets[0].matches(":65536"))
+    #expect(sockets[1].matches("3000"))
+    #expect(socket(pid: 46, port: 6000, remote: "::1").matches("::1"))
+  }
+
   @Test func disablingPortsLeavesThePortsPage() {
     let settings = makeSettings()
     settings.portsEnabled = true

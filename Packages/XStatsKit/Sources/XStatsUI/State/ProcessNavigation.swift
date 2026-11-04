@@ -62,9 +62,27 @@ extension AppModel {
 
   func showApplication(_ path: String) {
     guard Self.supportsApplicationNavigation(path) else { return }
+    homebrewNavigationQuery = nil
     applicationNavigationPath = URL(fileURLWithPath: path).standardizedFileURL.path
     settings.appServicesSection = .apps
     settings.panelTab = .uninstaller
     if !isMainWindowVisible { openMainWindow(.uninstaller) }
+  }
+
+  func showPort(_ port: UInt16) {
+    guard port > 0 else { return }
+    portNavigationTarget = settings.portsEnabled ? port : nil
+    if !settings.portsEnabled { featureSettingsTab = .optional }
+    let destination = AppDeepLink.page(.ports, settings: settings)
+    settings.panelTab = destination
+    openMainWindow(destination)
+  }
+
+  func showHomebrewPackage(_ query: String) {
+    applicationNavigationPath = nil
+    settings.appServicesSection = .homebrew
+    homebrewNavigationQuery = query
+    settings.panelTab = .uninstaller
+    openMainWindow(.uninstaller)
   }
 }

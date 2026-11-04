@@ -69,6 +69,8 @@ public final class AppModel {
   /// 页面间的临时定位，不持久化，也不额外请求后台采样。
   var processNavigationTarget: ProcessNavigationTarget?
   var applicationNavigationPath: String?
+  var portNavigationTarget: UInt16?
+  var homebrewNavigationQuery: String?
 
   var portsVisible: Bool {
     isMainWindowVisible

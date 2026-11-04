@@ -12,6 +12,9 @@ struct AppCommand: Identifiable {
     case toggleMicrophoneMute
     case nextAudioOutput
     case toggleOutputMute
+    case findPort(UInt16)
+    case findPackage(String)
+    case dnsBenchmark
   }
 
   let id: String
@@ -49,6 +52,12 @@ struct AppCommand: Identifiable {
         id: "speedTest", title: tr("网络测速"), symbol: "speedometer",
         keywords: "speed test 测速", action: .route(.speedTest)),
       AppCommand(
+        id: "dnsBenchmark", title: tr("DNS 测试"), symbol: "server.rack",
+        keywords: "dns benchmark test 域名 解析 测试", action: .dnsBenchmark),
+      AppCommand(
+        id: "homebrew", title: "Homebrew", symbol: "shippingbox",
+        keywords: "brew packages 软件包 包管理", action: .findPackage("")),
+      AppCommand(
         id: "egress", title: tr("出口与分流"), symbol: "globe",
         keywords: "egress public ip dns webrtc 出口 公网 分流", action: .route(.egress)),
       AppCommand(
@@ -84,7 +93,7 @@ struct AppCommand: Identifiable {
     case .thermal: "fans 风扇 散热"
     case .battery: "battery energy temperature 电池 能耗 温度"
     case .processes: "processes 进程"
-    case .ports: "ports 端口"
+    case .ports: "port ports 端口"
     case .keepAwake: "keep awake caffeine 防休眠"
     case .rest: "timer countdown stopwatch pomodoro 计时 倒计时 秒表 番茄"
     case .cleaner: "clean optimize 清理 优化"
@@ -108,29 +117,105 @@ struct CommandBarSearch {
     let command: AppCommand
     let title: String
     let text: String
+    let pinyin: [String]
   }
   private let entries: [Entry]
 
   init(commands: [AppCommand]) {
     entries = commands.map {
-      Entry(command: $0, title: Self.fold($0.title), text: Self.fold("\($0.title) \($0.keywords)"))
+      let text = "\($0.title) \($0.keywords)"
+      return Entry(
+        command: $0, title: Self.fold($0.title), text: Self.fold(text),
+        pinyin: Self.pinyinTerms(text))
     }
   }
 
   func results(for query: String) -> [AppCommand] {
     // 大段粘贴不参与搜索，避免在每次输入时处理无界文本。
+    guard query.utf8.prefix(2049).count <= 2048 else { return [] }
     let bounded = String(query.prefix(257))
     guard bounded.count <= 256 else { return [] }
     let query = Self.fold(bounded).trimmingCharacters(in: .whitespacesAndNewlines)
     guard !query.isEmpty else { return entries.map(\.command) }
     let words = query.split(whereSeparator: \.isWhitespace)
+    if let command = words.first, command == "port" || command == "brew" || query == "dns" {
+      return parameterResults(command: command, arguments: words.dropFirst())
+    }
     return entries.enumerated().compactMap { index, entry -> (Int, Int, AppCommand)? in
-      guard words.allSatisfy({ entry.text.contains($0) }) else { return nil }
-      let rank = entry.title == query ? 0 : entry.title.hasPrefix(query) ? 1 : 2
+      guard
+        words.allSatisfy({ word in
+          entry.text.contains(word) || entry.pinyin.contains { $0.contains(word) }
+        })
+      else { return nil }
+      let rank: Int
+      if entry.title == query {
+        rank = 0
+      } else if entry.title.hasPrefix(query) {
+        rank = 1
+      } else if words.allSatisfy({ entry.text.contains($0) }) {
+        rank = 2
+      } else {
+        rank = 3
+      }
       return (rank, index, entry.command)
     }
     .sorted { ($0.0, $0.1) < ($1.0, $1.1) }
     .map(\.2)
+  }
+
+  private func parameterResults(command: Substring, arguments: ArraySlice<Substring>)
+    -> [AppCommand]
+  {
+    switch command {
+    case "port":
+      guard let base = entries.first(where: { $0.command.id == "page.ports" })?.command else {
+        return []
+      }
+      guard !arguments.isEmpty else { return [base] }
+      guard arguments.count == 1, let argument = arguments.first,
+        argument.utf8.allSatisfy({ (48...57).contains($0) }),
+        let port = UInt16(argument), port > 0
+      else { return [] }
+      return [
+        AppCommand(
+          id: "port.\(port)", title: tr("查询端口：\(port)"), symbol: base.symbol,
+          keywords: "", action: .findPort(port))
+      ]
+    case "brew":
+      guard let base = entries.first(where: { $0.command.id == "homebrew" })?.command else {
+        return []
+      }
+      guard !arguments.isEmpty else { return [base] }
+      guard arguments.count == 1, let argument = arguments.first,
+        let first = argument.utf8.first, (97...122).contains(first) || (48...57).contains(first),
+        argument.utf8.allSatisfy({
+          (97...122).contains($0) || (48...57).contains($0) || "-_+@./".utf8.contains($0)
+        })
+      else { return [] }
+      let name = String(argument)
+      return [
+        AppCommand(
+          id: "brew.\(name)", title: tr("查找软件包：\(name)"), symbol: base.symbol,
+          keywords: "", action: .findPackage(name))
+      ]
+    case "dns" where arguments.isEmpty:
+      return entries.filter { $0.command.id == "dnsBenchmark" }.map(\.command)
+    default:
+      return []
+    }
+  }
+
+  private static func pinyinTerms(_ text: String) -> [String] {
+    var terms = Set<String>()
+    for word in Set(text.split(whereSeparator: \.isWhitespace).map(String.init)) {
+      guard word.range(of: #"\p{Han}"#, options: .regularExpression) != nil,
+        let latin = word.applyingTransform(.mandarinToLatin, reverse: false)
+      else { continue }
+      let syllables = fold(latin).split(whereSeparator: \.isWhitespace)
+      terms.insert(syllables.joined())
+      terms.insert(String(syllables.compactMap(\.first)))
+    }
+    return terms.sorted()
   }
 
   private static func fold(_ value: String) -> String {

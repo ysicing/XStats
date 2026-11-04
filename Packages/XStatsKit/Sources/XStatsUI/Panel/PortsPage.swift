@@ -111,6 +111,14 @@ struct PortsPage: View {
     // 顶部不留边距：主窗口顶栏已经在按钮上下留了对称的空
     .padding([.horizontal, .bottom], DS.Space.s3)
     .frame(maxHeight: isSnapshot ? nil : .infinity, alignment: .top)
+    .task(id: model.portNavigationTarget) {
+      guard let port = model.portNavigationTarget else { return }
+      search = ":\(port)"
+      filter = .all
+      selection = nil
+      actionError = nil
+      model.portNavigationTarget = nil
+    }
     .confirmationDialog(
       // 辅助进程的 displayName 是主应用名，而这里只会结束这一个进程，标题必须写出真实进程名与 PID
       pendingQuit.map { tr("结束“\($0.name)”（PID \($0.pid)）？") } ?? "",
@@ -329,9 +337,14 @@ extension PortSocket {
     return name.hasPrefix(appName) ? AppNameCache.shared.name(forBundle: appBundlePath) : name
   }
 
-  /// 端口号按前缀匹配，PID 精确匹配；名称、服务名与地址按包含匹配
+  /// `:端口号` 精确匹配本地端口；普通数字保留端口前缀和 PID 匹配，名称、服务名与地址按包含匹配。
   func matches(_ query: String) -> Bool {
-    String(localPort).hasPrefix(query) || remotePort.map { String($0).hasPrefix(query) } == true
+    if query.hasPrefix(":"), query.dropFirst().utf8.allSatisfy({ (48...57).contains($0) }) {
+      guard let port = UInt16(query.dropFirst()), port > 0 else { return false }
+      return localPort == Int(port)
+    }
+    return String(localPort).hasPrefix(query)
+      || remotePort.map { String($0).hasPrefix(query) } == true
       || String(pid) == query
       || displayName.localizedCaseInsensitiveContains(query)
       || name.localizedCaseInsensitiveContains(query)

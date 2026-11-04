@@ -28,14 +28,16 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     search = CommandBarSearch(commands: commands)
     results = commands
     let panel = NSPanel(
-      contentRect: NSRect(x: 0, y: 0, width: 560, height: 390),
+      contentRect: NSRect(x: 0, y: 0, width: 560, height: 432),
       styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
       backing: .buffered, defer: false)
     self.panel = panel
     panel.title = L10n.translate("命令栏", language: language)
     panel.identifier = NSUserInterfaceItemIdentifier("XStatsCommandBar")
-    panel.titleVisibility = .hidden
+    panel.titleVisibility = .visible
     panel.titlebarAppearsTransparent = true
+    panel.backgroundColor = .dsBackground
+    panel.animationBehavior = .none
     panel.isReleasedWhenClosed = false
     panel.isMovableByWindowBackground = true
     panel.hidesOnDeactivate = false
@@ -43,10 +45,15 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
     panel.delegate = self
 
-    let background = NSVisualEffectView()
-    background.material = .popover
-    background.state = .active
-    panel.contentView = background
+    let surface = NSBox()
+    surface.boxType = .custom
+    surface.borderWidth = 0
+    surface.titlePosition = .noTitle
+    surface.fillColor = .dsBackground
+    surface.contentViewMargins = .zero
+    let background = NSView()
+    surface.contentView = background
+    panel.contentView = surface
     let direction: NSUserInterfaceLayoutDirection =
       language.resolved.isRightToLeft ? .rightToLeft : .leftToRight
     background.userInterfaceLayoutDirection = direction
@@ -54,24 +61,42 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     let field = NSSearchField()
     field.placeholderString = L10n.translate("搜索功能与操作", language: language)
     field.setAccessibilityLabel(field.placeholderString)
-    field.font = .systemFont(ofSize: 20)
+    field.font = .systemFont(ofSize: DS.TextSize.lg.rawValue)
     field.controlSize = .large
+    field.isBezeled = false
+    field.drawsBackground = false
+    field.focusRingType = .none
+    (field.cell as? NSSearchFieldCell)?.searchButtonCell = nil
     field.maximumRecents = 0
     field.recentsAutosaveName = nil
     field.searchMenuTemplate = nil
     field.sendsSearchStringImmediately = true
     field.userInterfaceLayoutDirection = direction
+    field.alignment = direction == .rightToLeft ? .right : .left
     field.delegate = self
     searchField = field
+
+    let searchBackground = NSBox()
+    searchBackground.boxType = .custom
+    searchBackground.borderWidth = 0
+    searchBackground.titlePosition = .noTitle
+    searchBackground.cornerRadius = DS.Radius.md
+    searchBackground.fillColor = NSColor(DS.Palette.surface)
+
+    let searchIcon = NSImageView()
+    searchIcon.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
+    searchIcon.contentTintColor = NSColor(DS.Palette.textSecondary)
+    searchIcon.symbolConfiguration = .init(pointSize: DS.Size.iconInline, weight: .regular)
 
     let table = NSTableView()
     let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("command"))
     table.addTableColumn(column)
     table.headerView = nil
-    table.rowHeight = 36
+    table.rowHeight = DS.Size.controlHeight + DS.Space.s2
     table.intercellSpacing = NSSize(width: 0, height: 2)
     table.backgroundColor = .clear
     table.style = .fullWidth
+    table.focusRingType = .none
     table.allowsEmptySelection = false
     table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
     table.userInterfaceLayoutDirection = direction
@@ -96,16 +121,29 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     empty.userInterfaceLayoutDirection = direction
     emptyLabel = empty
 
-    for view in [field, scroll, empty] {
+    for view in [searchBackground, searchIcon, field, scroll, empty] {
       view.translatesAutoresizingMaskIntoConstraints = false
       background.addSubview(view)
     }
     NSLayoutConstraint.activate([
-      field.topAnchor.constraint(equalTo: background.topAnchor, constant: 36),
-      field.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 16),
-      field.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -16),
-      field.heightAnchor.constraint(equalToConstant: 40),
-      scroll.topAnchor.constraint(equalTo: field.bottomAnchor, constant: 12),
+      searchBackground.topAnchor.constraint(equalTo: background.topAnchor, constant: 36),
+      searchBackground.leadingAnchor.constraint(
+        equalTo: background.leadingAnchor, constant: DS.Space.s4),
+      searchBackground.trailingAnchor.constraint(
+        equalTo: background.trailingAnchor, constant: -DS.Space.s4),
+      searchBackground.heightAnchor.constraint(equalToConstant: DS.Space.s12),
+      searchIcon.leadingAnchor.constraint(
+        equalTo: searchBackground.leadingAnchor, constant: DS.Space.s3),
+      searchIcon.centerYAnchor.constraint(equalTo: searchBackground.centerYAnchor),
+      searchIcon.widthAnchor.constraint(equalToConstant: DS.Size.iconStandalone),
+      searchIcon.heightAnchor.constraint(equalToConstant: DS.Size.iconStandalone),
+      field.centerYAnchor.constraint(equalTo: searchBackground.centerYAnchor),
+      field.leadingAnchor.constraint(
+        equalTo: searchIcon.trailingAnchor, constant: DS.Space.s2),
+      field.trailingAnchor.constraint(
+        equalTo: searchBackground.trailingAnchor, constant: -DS.Space.s3),
+      field.heightAnchor.constraint(equalToConstant: DS.Size.controlHeight),
+      scroll.topAnchor.constraint(equalTo: searchBackground.bottomAnchor, constant: DS.Space.s2),
       scroll.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 8),
       scroll.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -8),
       scroll.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -8),
@@ -200,6 +238,10 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
 
   func numberOfRows(in tableView: NSTableView) -> Int { results.count }
 
+  func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+    CommandBarRowView()
+  }
+
   func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
   {
     guard results.indices.contains(row) else { return nil }
@@ -218,13 +260,15 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     let cell = NSTableCellView()
     cell.identifier = identifier
     let image = NSImageView()
-    image.contentTintColor = .secondaryLabelColor
+    image.contentTintColor = NSColor(DS.Palette.textSecondary)
+    image.symbolConfiguration = .init(pointSize: DS.Size.iconInline, weight: .regular)
     let label = NSTextField(labelWithString: "")
-    label.font = .systemFont(ofSize: 14)
+    label.font = .systemFont(ofSize: DS.TextSize.sm.rawValue, weight: .medium)
+    label.textColor = NSColor(DS.Palette.textPrimary)
     label.lineBreakMode = .byTruncatingTail
     cell.userInterfaceLayoutDirection = table?.userInterfaceLayoutDirection ?? .leftToRight
     label.userInterfaceLayoutDirection = cell.userInterfaceLayoutDirection
-    label.alignment = .natural
+    label.alignment = cell.userInterfaceLayoutDirection == .rightToLeft ? .right : .left
     for view in [image, label] {
       view.translatesAutoresizingMaskIntoConstraints = false
       cell.addSubview(view)
@@ -232,14 +276,31 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     cell.imageView = image
     cell.textField = label
     NSLayoutConstraint.activate([
-      image.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 10),
+      image.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: DS.Space.s4),
       image.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-      image.widthAnchor.constraint(equalToConstant: 18),
-      image.heightAnchor.constraint(equalToConstant: 18),
-      label.leadingAnchor.constraint(equalTo: image.trailingAnchor, constant: 10),
-      label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -10),
+      image.widthAnchor.constraint(equalToConstant: DS.Size.iconStandalone),
+      image.heightAnchor.constraint(equalToConstant: DS.Size.iconStandalone),
+      label.leadingAnchor.constraint(equalTo: image.trailingAnchor, constant: DS.Space.s3),
+      label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -DS.Space.s4),
       label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
     ])
     return cell
+  }
+}
+
+private final class CommandBarRowView: NSTableRowView {
+  override var interiorBackgroundStyle: NSView.BackgroundStyle { .normal }
+
+  override func drawSelection(in dirtyRect: NSRect) {
+    let selection = NSBezierPath(
+      roundedRect: bounds.insetBy(dx: DS.Space.s2, dy: DS.Space.s1 / 2),
+      xRadius: DS.Radius.md, yRadius: DS.Radius.md)
+    NSColor(DS.Palette.sidebarSelected).setFill()
+    selection.fill()
+    if NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast {
+      NSColor(DS.Palette.primary).setStroke()
+      selection.lineWidth = DS.Size.stroke
+      selection.stroke()
+    }
   }
 }

@@ -7,6 +7,55 @@ import Testing
 
 @MainActor
 struct ProcessNavigationTests {
+  @Test(arguments: PortsPlacement.allCases)
+  func commandPortQueryRespectsPlacementWithoutStartingHiddenSampling(
+    placement: PortsPlacement
+  ) throws {
+    let suite = "ProcessNavigationTests.commandPort.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.portsEnabled = true
+    settings.portsPlacement = placement
+    let model = AppModel(
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
+    var opened: PanelTab?
+    model.openMainWindow = { opened = $0 }
+    model.showPort(3000)
+    let expected: PanelTab = placement == .network ? .network : .ports
+    #expect(opened == expected && settings.panelTab == expected)
+    #expect(model.portNavigationTarget == 3000)
+    #expect(!model.portsVisible)
+    #expect(!model.isPortsSheetPresented)
+    settings.portsEnabled = false
+    model.showPort(8080)
+    #expect(opened == .settingsFeatures)
+    #expect(model.featureSettingsTab == .optional)
+    #expect(!settings.portsEnabled && model.portNavigationTarget == nil)
+  }
+
+  @Test func commandPackageQuerySelectsHomebrewAndDoesNotRunAnOperation() throws {
+    let suite = "ProcessNavigationTests.commandPackage.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.appServicesSection = .services
+    let model = AppModel(
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
+    var opened: PanelTab?
+    model.openMainWindow = { opened = $0 }
+    model.applicationNavigationPath = "/Applications/Example.app"
+    model.showHomebrewPackage("buildkit")
+    #expect(opened == .uninstaller && settings.panelTab == .uninstaller)
+    #expect(settings.appServicesSection == .homebrew)
+    #expect(model.homebrewNavigationQuery == "buildkit")
+    #expect(model.applicationNavigationPath == nil)
+    #expect(!model.appManagement.visible && !model.appManagement.isReading)
+    #expect(model.appManagement.operation == nil)
+    model.showApplication("/Applications/Example.app")
+    #expect(model.homebrewNavigationQuery == nil)
+  }
+
   @Test func portNavigationReleasesSheetDemandAndSelectsOnlyItsOwner() throws {
     let suite = "ProcessNavigationTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

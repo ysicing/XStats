@@ -483,6 +483,11 @@ struct NetworkToolsToolbar: View {
     .onChange(of: model.settings.showsPortsInNetwork) { _, visible in
       if !visible && presentedSheet == .ports { presentedSheet = nil }
     }
+    .onChange(of: model.portNavigationTarget, initial: true) { _, port in
+      if port != nil, model.settings.showsPortsInNetwork {
+        presentedSheet = .ports
+      }
+    }
     .onDisappear { presentedSheet = nil }
   }
 

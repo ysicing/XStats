@@ -78,6 +78,64 @@ struct CommandBarTests {
     #expect(search.results(for: " \n ").map(\.id) == commands.map(\.id))
     #expect(search.results(for: "not-a-command").isEmpty)
     #expect(search.results(for: String(repeating: "x", count: 10_000)).isEmpty)
+    #expect(search.results(for: "e" + String(repeating: "\u{301}", count: 10_000)).isEmpty)
+  }
+
+  @MainActor @Test(arguments: ["wangluo", "wl", "WANG LUO", "ｗｌ", "network wl"])
+  func searchesPinyinFromChineseAliases(query: String) {
+    let search = CommandBarSearch(commands: AppCommand.catalog(supportsFans: false))
+    #expect(search.results(for: query).contains { $0.action == .route(.open(.network)) })
+    #expect(search.results(for: "ruanjianbao").contains { $0.action == .findPackage("") })
+    #expect(search.results(for: "rjb").contains { $0.action == .findPackage("") })
+  }
+
+  @Test func pinyinRanksAfterLiteralMatchesWithoutChangingEmptyQueryOrder() {
+    let commands = [
+      AppCommand(
+        id: "chinese", title: "Network", symbol: "network", keywords: "网络",
+        action: .route(.open(.network))),
+      AppCommand(
+        id: "literal", title: "WL", symbol: "network", keywords: "",
+        action: .route(.open(.network))),
+    ]
+    let search = CommandBarSearch(commands: commands)
+    #expect(search.results(for: "wl").map(\.id) == ["literal", "chinese"])
+    #expect(search.results(for: "").map(\.id) == commands.map(\.id))
+    #expect(search.results(for: "wl missing").isEmpty)
+  }
+
+  @MainActor @Test func parameterQueriesProduceOnlyNavigationActions() {
+    let search = CommandBarSearch(commands: AppCommand.catalog(supportsFans: false))
+    for query in ["port 3000", " PORT \t003000 ", "ｐｏｒｔ　３０００"] {
+      #expect(search.results(for: query).map(\.action) == [.findPort(3000)])
+    }
+    #expect(search.results(for: "port 1").first?.action == .findPort(1))
+    #expect(search.results(for: "port 65535").first?.action == .findPort(65535))
+    #expect(search.results(for: "port").first?.action == .route(.open(.ports)))
+    #expect(search.results(for: "brew").first?.action == .findPackage(""))
+    for name in ["buildkit", "openssl@3", "user/tap/tool", "7zip", "libstdc++", "tool_name"] {
+      #expect(search.results(for: "brew \(name)").map(\.action) == [.findPackage(name)])
+    }
+    #expect(search.results(for: "dns").map(\.action) == [.dnsBenchmark])
+    #expect(search.results(for: "dns 测试").contains { $0.action == .dnsBenchmark })
+  }
+
+  @MainActor
+  @Test(arguments: [
+    "port 0", "port 65536", "port -1", "port +80", "port 1.5", "port 3000 extra",
+    "port 3 000", "port 3000;kill", "port $PORT", "port example.com",
+    "brew -v", "brew $(whoami)", "brew git;open", "brew git && reboot", "brew git extra",
+  ])
+  func invalidParametersDoNotOfferAnExecutableResult(query: String) {
+    let search = CommandBarSearch(commands: AppCommand.catalog(supportsFans: false))
+    #expect(search.results(for: query).isEmpty)
+  }
+
+  @Test func queryDoesNotInventCommandsOutsideTheProvidedCatalog() {
+    let search = CommandBarSearch(commands: [])
+    for query in ["port 3000", "brew git", "dns"] {
+      #expect(search.results(for: query).isEmpty)
+    }
   }
 
   @MainActor @Test func commandHotKeyIsOptInAndPreservesExistingCarbonIDs() throws {

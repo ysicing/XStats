@@ -47,6 +47,36 @@ struct CommandBarWindowTests {
     #expect(controller.isVisible)
   }
 
+  @Test(arguments: ["port 3000", "brew buildkit", "dns", "wangluo", "wl"])
+  func querySelectionClosesBeforeDispatch(query: String) throws {
+    _ = NSApplication.shared
+    let controller = CommandBarWindowController()
+    defer {
+      controller.onSelect = { _ in }
+      controller.dismiss()
+    }
+    let catalog = AppCommand.catalog(supportsFans: false)
+    let expected = try #require(CommandBarSearch(commands: catalog).results(for: query).first)
+    var selected: AppCommand.Action?
+    controller.onSelect = { command in
+      #expect(controller.panel == nil)
+      selected = command.action
+    }
+    controller.show(commands: catalog)
+    let field = try #require(descendant(NSSearchField.self, in: controller.panel?.contentView))
+    field.stringValue = query
+    controller.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+    try capturePreview(controller.panel, name: query)
+    let editor = try #require(field.currentEditor() as? NSTextView)
+    _ = controller.control(
+      field, textView: editor, doCommandBy: #selector(NSResponder.insertNewline(_:)))
+    #expect(selected == expected.action)
+    #expect(controller.panel == nil)
+    controller.show(commands: catalog)
+    let freshField = try #require(descendant(NSSearchField.self, in: controller.panel?.contentView))
+    #expect(freshField.stringValue.isEmpty)
+  }
+
   @Test func escapeAndStandardCloseReleaseThePanelWithTableFocus() throws {
     _ = NSApplication.shared
     let controller = CommandBarWindowController()
@@ -122,15 +152,9 @@ struct CommandBarWindowTests {
       #expect(releasedContent == nil)
       #expect(releasedPanel == nil)
     }
-    if let directory = ProcessInfo.processInfo.environment["XSTATS_COMMAND_BAR_PREVIEW_DIR"] {
+    if ProcessInfo.processInfo.environment["XSTATS_COMMAND_BAR_PREVIEW_DIR"] != nil {
       controller.show(commands: AppCommand.catalog(supportsFans: true))
-      let content = try #require(controller.panel?.contentView)
-      content.layoutSubtreeIfNeeded()
-      let bitmap = try #require(content.bitmapImageRepForCachingDisplay(in: content.bounds))
-      content.cacheDisplay(in: content.bounds, to: bitmap)
-      let png = try #require(bitmap.representation(using: .png, properties: [:]))
-      try png.write(
-        to: URL(fileURLWithPath: directory).appendingPathComponent("catalog.png"))
+      try capturePreview(controller.panel, name: "catalog")
       controller.dismiss()
     }
     controller.show(commands: commands)
@@ -150,17 +174,20 @@ struct CommandBarWindowTests {
 
   @Test(
     arguments: AppLanguage.allCases.filter { $0 != .system },
-    ["停止防休眠", "切换麦克风静音", "切换到下一个音频输出"])
+    ["停止防休眠", "切换麦克风静音", "切换到下一个音频输出", "查询端口：{}", "查找软件包：{}"])
   func nativePanelFitsTranslatedLabelsAndReadingDirection(language: AppLanguage, key: String) throws
   {
     _ = NSApplication.shared
     let controller = CommandBarWindowController()
     defer { controller.dismiss() }
-    let title = L10n.translate(key, language: language)
+    let title = L10n.translate(key, language: language).replacingOccurrences(
+      of: "{}", with: key == "查询端口：{}" ? "3000" : "buildkit")
     let action: AppCommand.Action =
       switch key {
       case "切换麦克风静音": .toggleMicrophoneMute
       case "切换到下一个音频输出": .nextAudioOutput
+      case "查询端口：{}": .findPort(3000)
+      case "查找软件包：{}": .findPackage("buildkit")
       default: .route(.keepAwake(.stop))
       }
     controller.show(
@@ -187,12 +214,28 @@ struct CommandBarWindowTests {
     #expect(
       language.isRightToLeft
         ? label.frame.midX < image.frame.midX : label.frame.midX > image.frame.midX)
-    if let directory = ProcessInfo.processInfo.environment["XSTATS_COMMAND_BAR_PREVIEW_DIR"] {
+    try capturePreview(panel, name: language.rawValue)
+  }
+
+  private func capturePreview(_ panel: NSPanel?, name: String) throws {
+    guard let directory = ProcessInfo.processInfo.environment["XSTATS_COMMAND_BAR_PREVIEW_DIR"]
+    else {
+      return
+    }
+    let panel = try #require(panel)
+    let content = try #require(panel.contentView)
+    let previousAppearance = panel.appearance
+    defer { panel.appearance = previousAppearance }
+    for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+      panel.appearance = NSAppearance(named: appearance)
+      content.layoutSubtreeIfNeeded()
+      content.display()
       let bitmap = try #require(content.bitmapImageRepForCachingDisplay(in: content.bounds))
       content.cacheDisplay(in: content.bounds, to: bitmap)
       let png = try #require(bitmap.representation(using: .png, properties: [:]))
       try png.write(
-        to: URL(fileURLWithPath: directory).appendingPathComponent("\(language.rawValue).png"))
+        to: URL(fileURLWithPath: directory).appendingPathComponent(
+          "\(name)-\(appearance.rawValue).png"))
     }
   }
 

@@ -8,7 +8,10 @@ struct CommandBarLocalizationTests {
   @Test(arguments: AppLanguage.allCases.filter { $0 != .system && $0 != .chinese })
   func newCommandLabelsHaveExplicitTranslations(language: AppLanguage) throws {
     let table = try #require(Translations.catalog(for: language))
-    for key in ["命令栏", "搜索功能与操作", "暂停专注", "开启防休眠", "停止防休眠", "切换麦克风静音", "切换到下一个音频输出"] {
+    for key in [
+      "命令栏", "搜索功能与操作", "暂停专注", "开启防休眠", "停止防休眠", "切换麦克风静音", "切换到下一个音频输出",
+      "查询端口：{}", "查找软件包：{}",
+    ] {
       #expect(table.sourceKeys.contains(key), "\(language): \(key)")
       #expect(table.translate(key)?.isEmpty == false, "\(language): \(key)")
     }
