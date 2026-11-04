@@ -320,6 +320,23 @@ import Testing
     #expect(result.cleanupReport == nil)
   }
 
+  @Test func upgradeDryRunUsesCancellableBoundedPreviewRunner() async throws {
+    let home = try stubBrew("#!/bin/sh\nprintf 'large plan'\nexec /bin/sleep 30\n")
+    defer { try? FileManager.default.removeItem(at: home) }
+    await #expect(throws: ToolExecutionError.self) {
+      try await DeveloperToolRunner.run(
+        "brew", arguments: ["upgrade", "--dry-run", "--formula", "fixture"],
+        home: home.path, previewTimeout: 0.1, outputLimit: 8)
+    }
+    let timeoutHome = try stubBrew("#!/bin/sh\nexec /bin/sleep 30\n")
+    defer { try? FileManager.default.removeItem(at: timeoutHome) }
+    await #expect(throws: ToolExecutionError.self) {
+      try await DeveloperToolRunner.run(
+        "brew", arguments: ["upgrade", "--dry-run", "--cask", "fixture"],
+        home: timeoutHome.path, previewTimeout: 0.1)
+    }
+  }
+
   @Test(arguments: ["cleanup", "upgrade", "uninstall"])
   func brewRunnerCancellationStopsTheStartedProcess(_ command: String) async throws {
     let home = try stubBrew("#!/bin/sh\necho $$ > \"$HOME/pid\"\nexec /bin/sleep 30\n")

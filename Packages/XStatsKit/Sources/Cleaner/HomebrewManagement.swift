@@ -22,13 +22,15 @@ public struct HomebrewPackage: Sendable, Identifiable, Equatable {
   public let installedAt: Date?
   public let summary: String?
   public let installReason: InstallReason
+  let caskDependencies: [String]?
   public var version: String { installedVersions.joined(separator: ", ") }
 
   init(
     name: String, displayName: String, kind: Kind, installedVersions: [String],
     latestVersion: String?,
     outdated: Bool, pinned: Bool, installationURLs: [URL], applicationURLs: [URL],
-    installedAt: Date? = nil, summary: String? = nil, installReason: InstallReason = .unknown
+    installedAt: Date? = nil, summary: String? = nil, installReason: InstallReason = .unknown,
+    caskDependencies: [String]? = nil
   ) {
     self.name = name
     self.displayName = displayName
@@ -42,6 +44,7 @@ public struct HomebrewPackage: Sendable, Identifiable, Equatable {
     self.installedAt = installedAt
     self.summary = summary
     self.installReason = installReason
+    self.caskDependencies = caskDependencies
   }
 }
 
@@ -196,7 +199,17 @@ public enum HomebrewManagement {
       installedVersions: [installed], latestVersion: cask["version"] as? String,
       outdated: cask["outdated"] as? Bool ?? false, pinned: cask["pinned"] as? Bool ?? false,
       installationURLs: applications, applicationURLs: applications,
-      installedAt: installationDate(cask["installed_time"]), summary: packageSummary(cask["desc"]))
+      installedAt: installationDate(cask["installed_time"]), summary: packageSummary(cask["desc"]),
+      caskDependencies: caskDependencies(cask["depends_on"]))
+  }
+
+  private static func caskDependencies(_ value: Any?) -> [String]? {
+    guard let value else { return nil }
+    if value is NSNull { return [] }
+    guard let dependencies = value as? [String: Any] else { return nil }
+    guard let casks = dependencies["cask"], !(casks is NSNull) else { return [] }
+    guard let names = casks as? [String], names.allSatisfy(validToken) else { return nil }
+    return names
   }
 
   private static func installationDate(_ value: Any?) -> Date? {
@@ -236,7 +249,7 @@ public enum HomebrewManagement {
     return applications.appendingPathComponent(URL(fileURLWithPath: source).lastPathComponent)
   }
 
-  private static func validToken(_ value: String) -> Bool {
+  static func validToken(_ value: String) -> Bool {
     let allowed = CharacterSet(
       charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@+_.-/")
     guard !value.isEmpty, value.utf8.count <= 255, value.first != "-", !value.hasPrefix("/"),

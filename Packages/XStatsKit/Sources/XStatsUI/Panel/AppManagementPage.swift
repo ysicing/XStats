@@ -156,9 +156,18 @@ struct AppManagementPage: View {
         model.uninstaller.isRemoving)
     }
     .sheet(item: $pendingBrew) { confirmation in
-      HomebrewConfirmationSheet(confirmation: confirmation) {
+      HomebrewConfirmationSheet(
+        controller: controller, isRemoving: model.uninstaller.isRemoving, confirmation: confirmation
+      ) {
         guard !model.uninstaller.isRemoving else { return }
-        controller.perform(confirmation.action, package: confirmation.package)
+        if confirmation.action == .upgrade {
+          guard controller.perform(.upgrade, package: confirmation.package) else { return }
+        } else {
+          guard let preview = controller.impactPreview,
+            preview.package == confirmation.package, preview.action == confirmation.action,
+            controller.performPreviewedAction(preview)
+          else { return }
+        }
         pendingBrew = nil
       } cancel: {
         pendingBrew = nil
@@ -380,7 +389,7 @@ struct AppManagementPage: View {
         if let path = row.app?.url.path ?? row.package?.applicationURLs.first?.path {
           AppIconCache.shared.image(bundlePath: path).resizable().frame(width: 18, height: 18)
         } else {
-          Image(systemName: "shippingbox").foregroundStyle(DS.Palette.textSecondary).frame(
+          Image(systemName: "shippingbox").foregroundStyle(.secondary).frame(
             width: 18)
         }
         Text(verbatim: row.name).lineLimit(1)
@@ -389,7 +398,7 @@ struct AppManagementPage: View {
             tr("正在运行"))
         }
         if row.package?.pinned == true {
-          Image(systemName: "pin.fill").foregroundStyle(DS.Palette.textTertiary).help(tr("已固定版本"))
+          Image(systemName: "pin.fill").foregroundStyle(.tertiary).help(tr("已固定版本"))
         }
       }.help(row.app?.url.path ?? row.package?.name ?? row.name)
     }.width(min: 170, ideal: 240)
@@ -398,9 +407,9 @@ struct AppManagementPage: View {
         HStack(spacing: DS.Space.s1) {
           Text(verbatim: row.version)
             .foregroundStyle(
-              row.availableVersion == nil ? DS.Palette.textPrimary : DS.Palette.textSecondary)
+              row.availableVersion == nil ? .primary : .secondary)
           if let latest = row.availableVersion {
-            Text(verbatim: "→").foregroundStyle(DS.Palette.textTertiary).accessibilityHidden(true)
+            Text(verbatim: "→").foregroundStyle(.tertiary).accessibilityHidden(true)
             Text(verbatim: latest)
           }
         }
@@ -409,29 +418,20 @@ struct AppManagementPage: View {
         if let package = row.package, package.outdated {
           let updating =
             controller.operation == .upgrade && controller.operationPackage?.id == package.id
-          Button {
+          AppManagementUpdateButton(isUpdating: updating, isSelected: selection == row.id) {
             pendingBrew = BrewConfirmation(package: package, action: .upgrade)
-          } label: {
-            ZStack {
-              Text(tr("更新")).hidden()
-              Text(tr("更新中…")).hidden()
-              Text(updating ? tr("更新中…") : tr("更新"))
-                .contentTransition(.opacity)
-                .animation(reduceMotion ? nil : DS.Motion.usageSelection, value: updating)
-            }
-            .dsFont(.sm)
           }
-          .buttonStyle(.bordered).tint(DS.Palette.primary).controlSize(.small).fixedSize()
           .help(tr("更新软件包…"))
           .accessibilityLabel(updating ? tr("更新中…") : tr("更新软件包…"))
           .disabled(upgradeIsDisabled(for: row))
         }
         if let app = row.app, row.storeUpdate != nil {
-          Button(tr("更新")) { controller.openAppStoreUpdate(for: app) }
-            .buttonStyle(.bordered).tint(DS.Palette.primary).controlSize(.small).fixedSize()
-            .help(tr("在 App Store 更新"))
-            .accessibilityLabel(tr("在 App Store 更新"))
-            .disabled(controller.operation != nil || model.uninstaller.isRemoving)
+          AppManagementUpdateButton(isSelected: selection == row.id) {
+            controller.openAppStoreUpdate(for: app)
+          }
+          .help(tr("在 App Store 更新"))
+          .accessibilityLabel(tr("在 App Store 更新"))
+          .disabled(controller.operation != nil || model.uninstaller.isRemoving)
         }
       }
     }.width(min: 150, ideal: 200, max: 360)
@@ -474,7 +474,7 @@ struct AppManagementPage: View {
   {
     TableColumn(tr("描述"), value: \.summary) { row in
       Text(verbatim: row.summary).lineLimit(1).help(row.summary)
-        .foregroundStyle(DS.Palette.textSecondary)
+        .foregroundStyle(.secondary)
     }.width(min: 150, ideal: 240)
   }
 
@@ -482,7 +482,10 @@ struct AppManagementPage: View {
     some TableColumnContent<ManagedApplicationRow, KeyPathComparator<ManagedApplicationRow>>
   {
     TableColumn(tr("来源"), value: \.source) { row in
-      Text(verbatim: row.source).lineLimit(1).help(row.source)
+      InstallationSourceButton(
+        label: row.source == "—" ? tr("未知") : row.source,
+        evidence: row.app.map { controller.installationSource(for: $0) }
+          ?? row.package.map { .homebrew($0, nil) } ?? .unknown)
     }
     .width(min: 85, ideal: 110, max: 180)
   }
@@ -734,63 +737,6 @@ extension ApplicationMetadata.Architecture {
     case .iOS: tr("iPhone 与 iPad")
     case .unknown: "—"
     }
-  }
-}
-
-private struct BrewConfirmation: Identifiable {
-  var id: String { action.rawValue + package.id }
-  let package: HomebrewPackage
-  let action: HomebrewManagement.Action
-}
-
-private struct HomebrewConfirmationSheet: View {
-  let confirmation: BrewConfirmation
-  let confirm: () -> Void
-  let cancel: () -> Void
-  var body: some View {
-    VStack(alignment: .leading, spacing: DS.Space.s6) {
-      VStack(alignment: .leading, spacing: DS.Space.s2) {
-        Text(
-          confirmation.action == .upgrade
-            ? tr("更新“\(confirmation.package.displayName)”？")
-            : tr("卸载“\(confirmation.package.displayName)”？")
-        )
-        .dsFont(.lg, weight: .semibold)
-        .fixedSize(horizontal: false, vertical: true)
-        Text(
-          confirmation.action == .upgrade
-            ? tr("Homebrew 会更新所选项目及必要的依赖。") : tr("将通过 Homebrew 从电脑中卸载此项目。")
-        )
-        .dsFont(.sm).foregroundStyle(DS.Palette.textSecondary)
-        .fixedSize(horizontal: false, vertical: true)
-        // 标题已说明对象；仅在完整标识不同（如自定义 tap）时补充，避免重复显示。
-        if confirmation.package.name != confirmation.package.displayName {
-          Text(verbatim: confirmation.package.name)
-            .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .environment(\.layoutDirection, .leftToRight)
-        }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      HStack(spacing: DS.Space.s2) {
-        Spacer()
-        Button(action: cancel) {
-          Text(tr("取消")).frame(minWidth: 64)
-        }
-        .buttonStyle(.bordered).keyboardShortcut(.cancelAction)
-        Button(
-          role: confirmation.action == .uninstall ? .destructive : nil, action: confirm
-        ) {
-          Text(confirmation.action == .upgrade ? tr("更新软件包") : tr("卸载"))
-            .frame(minWidth: 64)
-        }
-        .buttonStyle(.borderedProminent).tint(
-          confirmation.action == .upgrade ? DS.Palette.primary : DS.Palette.error)
-      }
-      .controlSize(.large).fixedSize(horizontal: false, vertical: true)
-    }
-    .padding(DS.Space.s6).frame(width: 420)
-    .fixedSize(horizontal: false, vertical: true).appLanguageEnvironment()
   }
 }
 

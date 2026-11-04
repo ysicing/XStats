@@ -127,7 +127,10 @@ enum DeveloperToolRunner {
       let changesService =
         arguments.first == "services" && arguments.count > 1
         && ["start", "stop", "restart"].contains(arguments[1])
-      if ["upgrade", "uninstall"].contains(arguments.first ?? "") || changesService {
+      let changesPackage =
+        arguments.first == "uninstall"
+        || (arguments.first == "upgrade" && !arguments.contains("--dry-run"))
+      if changesPackage || changesService {
         // 已确认的安装修改与服务启停不受预览时限和输出限额约束，避免中断部分完成的操作。
         return try await runHomebrewOperation(process, timeout: timeout ?? homebrewOperationTimeout)
       }

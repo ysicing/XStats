@@ -2755,3 +2755,22 @@ P90 延迟	P90-Latenz
 普通 DNS 推荐	Empfehlung für unverschlüsseltes DNS
 点击开始测试，并发比较各家 DNS 的四种协议。	Starten Sie den Test, um vier DNS-Protokolle bei allen Anbietern gleichzeitig zu vergleichen.
 四种协议并发实测；握手单独计时，结果仅保留在窗口中。	Alle vier Protokolle werden gleichzeitig gemessen. Handshakes werden separat erfasst; Ergebnisse bleiben nur in diesem Fenster.
+Homebrew（缓存）	Homebrew (zwischengespeichert)
+来源识别依据	Nachweise zur Installationsquelle
+来自本次读取的 Homebrew 安装清单。	In der während dieser Sitzung gelesenen Homebrew-Installationsliste gefunden.
+应用路径与 Cask 的安装产物匹配。	Der App-Pfad entspricht einem installierten Cask-Artefakt.
+来自上次保存的 Homebrew 来源记录，尚未通过本次清单核实。	Basiert auf einem gespeicherten Homebrew-Quelleneintrag, der noch nicht mit der aktuellen Installationsliste abgeglichen wurde.
+应用包中存在 App Store 收据；未验证收据签名。	Das App-Bundle enthält einen App-Store-Beleg; dessen Signatur wurde nicht geprüft.
+未找到可确认来源的记录，不能仅凭名称或目录判断。	Kein Eintrag bestätigt die Quelle. Name oder Verzeichnis allein reichen nicht aus.
+查看来源依据	Quellennachweise anzeigen
+软件包状态已变化，请刷新后重试	Der Paketstatus hat sich geändert. Bitte aktualisieren und erneut versuchen.
+无法生成操作预览，请刷新清单后重试	Die Vorgangsvorschau konnte nicht erstellt werden. Installationsliste aktualisieren und erneut versuchen.
+正在读取操作影响…	Auswirkungen werden ermittelt…
+请重新读取操作预览	Vorgangsvorschau erneut laden
+操作影响	Auswirkungen des Vorgangs
+查看影响预览	Auswirkungen anzeigen
+未发现依赖此项目的已安装软件包。	Keine installierten Pakete gefunden, die von diesem Element abhängen.
+以下已安装软件包依赖此项目，暂不能卸载。	Diese installierten Pakete hängen von diesem Element ab. Die Deinstallation ist daher gesperrt.
+不自动移除依赖，不执行额外的用户数据清理。	Abhängigkeiten werden nicht automatisch entfernt. Benutzerdaten werden nicht zusätzlich bereinigt.
+预览基于当前清单；实际影响由执行时的 Homebrew 状态决定。	Diese Vorschau basiert auf der aktuellen Installationsliste. Die tatsächlichen Auswirkungen hängen vom Homebrew-Status bei der Ausführung ab.
+执行命令	Befehl

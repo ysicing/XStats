@@ -2755,3 +2755,22 @@ P90 延迟	Latence P90
 普通 DNS 推荐	DNS non chiffré recommandé
 点击开始测试，并发比较各家 DNS 的四种协议。	Lancez le test pour comparer simultanément quatre protocoles DNS chez chaque fournisseur.
 四种协议并发实测；握手单独计时，结果仅保留在窗口中。	Les quatre protocoles sont mesurés simultanément. Les négociations sont chronométrées séparément ; les résultats restent dans cette fenêtre.
+Homebrew（缓存）	Homebrew (en cache)
+来源识别依据	Justificatifs de la source
+来自本次读取的 Homebrew 安装清单。	Présent dans l’inventaire Homebrew lu pendant cette session.
+应用路径与 Cask 的安装产物匹配。	Le chemin de l’app correspond à un artefact Cask installé.
+来自上次保存的 Homebrew 来源记录，尚未通过本次清单核实。	D’après un enregistrement Homebrew sauvegardé, pas encore vérifié dans l’inventaire de cette session.
+应用包中存在 App Store 收据；未验证收据签名。	Le paquet de l’app contient un reçu App Store ; sa signature n’a pas été vérifiée.
+未找到可确认来源的记录，不能仅凭名称或目录判断。	Aucun enregistrement ne confirme la source. Le nom ou le dossier seul ne suffit pas.
+查看来源依据	Afficher les justificatifs de la source
+软件包状态已变化，请刷新后重试	L’état du paquet a changé. Actualisez puis réessayez.
+无法生成操作预览，请刷新清单后重试	Impossible de préparer l’aperçu. Actualisez l’inventaire puis réessayez.
+正在读取操作影响…	Lecture de l’impact de l’opération…
+请重新读取操作预览	Rechargez l’aperçu de l’opération
+操作影响	Impact de l’opération
+查看影响预览	Voir l’aperçu de l’impact
+未发现依赖此项目的已安装软件包。	Aucun paquet installé dépendant de cet élément n’a été trouvé.
+以下已安装软件包依赖此项目，暂不能卸载。	Ces paquets installés dépendent de cet élément. La désinstallation est bloquée.
+不自动移除依赖，不执行额外的用户数据清理。	Les dépendances ne sont pas supprimées automatiquement. Aucun nettoyage supplémentaire des données utilisateur n’est effectué.
+预览基于当前清单；实际影响由执行时的 Homebrew 状态决定。	Cet aperçu utilise l’inventaire actuel. L’impact réel dépend de l’état de Homebrew lors de l’exécution.
+执行命令	Commande

@@ -517,12 +517,14 @@ import Testing
     controller.setVisible(true)
     try await waitFor { controller.apps.count == 1 && entered.withLock { $0 } }
     #expect(controller.homebrewAppPaths.contains(fixture.id))
+    #expect(controller.installationSource(for: fixture) == .cachedHomebrew)
     #expect(!controller.hasBrewInventory && controller.casksByPath.isEmpty)
     controller.perform(.uninstall, package: package)
     #expect(controller.operation == nil && writes.withLock { $0 } == 0)
     release.withLock { $0 = true }
     try await waitFor { !controller.isReading }
     #expect(controller.hasBrewInventory && controller.homebrewAppPaths.isEmpty)
+    #expect(controller.installationSource(for: fixture) == .unknown)
     #expect(try AppInventoryCache.load(from: url)?.entries.first?.isHomebrew == false)
   }
 
@@ -1193,9 +1195,9 @@ import Testing
     defer { controller.setVisible(false) }
     controller.setVisible(true, tab: .homebrew)
     try await waitFor { !controller.isLoadingBrew && controller.packages.count == 2 }
-    controller.perform(.uninstall, package: current)
-    controller.perform(.upgrade, package: pinned)
-    controller.perform(.upgrade, package: stale)
+    #expect(!controller.perform(.uninstall, package: current))
+    #expect(!controller.perform(.upgrade, package: pinned))
+    #expect(!controller.perform(.upgrade, package: stale))
     #expect(controller.operation == nil && writes.withLock { $0 } == 0)
   }
 

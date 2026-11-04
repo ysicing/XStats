@@ -51,6 +51,13 @@ final class AppManagementController {
   private(set) var brewInventoryFailed = false
   private(set) var operation: HomebrewManagement.Action?
   private(set) var operationPackage: HomebrewPackage?
+  private(set) var impactPreview: HomebrewImpactPreview?
+  private(set) var isPreparingPreview = false
+  private(set) var previewError: String?
+  @ObservationIgnored private var previewTask: Task<Void, Never>?
+  @ObservationIgnored private var previewGeneration = UUID()
+  @ObservationIgnored private let prepareAction:
+    @Sendable (HomebrewManagement.Action, HomebrewPackage) async throws -> HomebrewImpactPreview
   let homebrewOperations: HomebrewOperationState
   var error: String?
   struct Completion: Identifiable {
@@ -79,6 +86,7 @@ final class AppManagementController {
   private(set) var visible = false
   private var enabled = true
   private var paused = false
+  var canPreparePreview: Bool { enabled && visible && !paused }
   private var tab: Tab = .apps
   @ObservationIgnored private var appTask: Task<Void, Never>?
   @ObservationIgnored private var brewTask: Task<Void, Never>?
@@ -176,6 +184,9 @@ final class AppManagementController {
       @escaping @Sendable (HomebrewManagement.Action, HomebrewPackage) async throws -> Void = {
         try await HomebrewManagement.perform($0, package: $1)
       },
+    prepareAction:
+      @escaping @Sendable (HomebrewManagement.Action, HomebrewPackage) async throws ->
+      HomebrewImpactPreview = { try await HomebrewManagement.preview($0, package: $1) },
     checkStore:
       @escaping @Sendable ([AppStoreUpdates.Candidate], String) async throws ->
       AppStoreUpdates.Report = { try await AppStoreUpdates.check($0, country: $1) },
@@ -192,6 +203,7 @@ final class AppManagementController {
       listPackages ?? { try await HomebrewManagement.inventory(requiresCompleteInventory: true) }
     self.updateIndex = updateIndex
     self.performAction = performAction
+    self.prepareAction = prepareAction
     self.checkStore = checkStore
     self.openStore = openStore
     self.cacheURL = cacheURL
@@ -343,6 +355,7 @@ final class AppManagementController {
   }
 
   private func cancelReading() {
+    cancelPreview()
     appGeneration = UUID()
     brewGeneration = UUID()
     appTask?.cancel()
@@ -910,18 +923,95 @@ final class AppManagementController {
     brewReadDate = Date()
   }
 
-  func perform(_ action: HomebrewManagement.Action, package: HomebrewPackage) {
+  func installationSource(for app: InstalledApp) -> InstallationSourceEvidence {
+    if let package = casksByPath[app.id] { return .homebrew(package, app.url) }
+    if homebrewAppPaths.contains(app.id) { return .cachedHomebrew }
+    if metadata[app.id]?.isAppStore == true {
+      return .appStore(app.url.appendingPathComponent("Contents/_MASReceipt/receipt"))
+    }
+    return .unknown
+  }
+
+  func preparePreview(_ action: HomebrewManagement.Action, package: HomebrewPackage) {
+    cancelPreview()
+    guard enabled, visible, !paused, operation == nil, !isCheckingUpdates,
+      !isLoadingBrew, packages.contains(package), !isCurrentApp(package),
+      !(action == .upgrade && (!package.outdated || package.pinned))
+    else {
+      previewError = tr("软件包状态已变化，请刷新后重试")
+      return
+    }
+    guard homebrewOperations.begin() else {
+      previewError = tr("Homebrew 操作尚未完成")
+      return
+    }
+    isPreparingPreview = true
+    let generation = previewGeneration
+    let prepare = prepareAction
+    let gate = homebrewOperations
+    previewTask = Task { [weak self] in
+      defer {
+        gate.finish()
+        if let self, self.previewGeneration == generation {
+          self.isPreparingPreview = false
+          self.previewTask = nil
+        }
+      }
+      do {
+        let preview = try await prepare(action, package)
+        try Task.checkCancellation()
+        guard let self, self.previewGeneration == generation else { return }
+        guard preview.package == package, preview.action == action,
+          self.packages.contains(package)
+        else { throw HomebrewManagement.InventoryError.invalidPackage }
+        self.impactPreview = preview
+      } catch {
+        guard let self, !Task.isCancelled, self.previewGeneration == generation else { return }
+        self.previewError = tr("无法生成操作预览，请刷新清单后重试")
+        Log.app.error(
+          "Homebrew impact preview failed action=\(action.rawValue, privacy: .public) error=\(String(describing: error).prefix(500), privacy: .private)"
+        )
+      }
+    }
+  }
+
+  func cancelPreview() {
+    previewGeneration = UUID()
+    previewTask?.cancel()
+    previewTask = nil
+    isPreparingPreview = false
+    impactPreview = nil
+    previewError = nil
+  }
+
+  @discardableResult
+  func performPreviewedAction(_ preview: HomebrewImpactPreview) -> Bool {
+    guard impactPreview == preview, preview.canProceed, !isPreparingPreview,
+      !homebrewOperations.isRunning
+    else { return false }
+    guard perform(preview.action, package: preview.package) else {
+      impactPreview = nil
+      previewError =
+        isRunning(preview.package)
+        ? tr("应用正在运行，请先退出") : tr("软件包状态已变化，请刷新后重试")
+      return false
+    }
+    return true
+  }
+
+  @discardableResult
+  func perform(_ action: HomebrewManagement.Action, package: HomebrewPackage) -> Bool {
     guard enabled, visible, !paused, operation == nil, !isCheckingUpdates,
       !isLoadingBrew,
       packages.contains(package), !isCurrentApp(package),
       !(action == .upgrade && (!package.outdated || package.pinned))
-    else { return }
+    else { return false }
     guard !isRunning(package) else {
       error = tr("应用正在运行，请先退出")
-      return
+      return false
     }
     let homebrewOperations = homebrewOperations
-    guard homebrewOperations.begin() else { return }
+    guard homebrewOperations.begin() else { return false }
     cancelReading()
     operation = action
     operationPackage = package
@@ -976,6 +1066,7 @@ final class AppManagementController {
       }
       if self.visible, !self.paused, self.enabled { self.resume() }
     }
+    return true
   }
 
   func showUninstallCompletion(for app: InstalledApp) {
