@@ -116,7 +116,7 @@ AI usage supports Magpie exclusively and requires it to be installed and running
 
 | Tool | Description |
 |---|---|
-| **Command Bar (experimental)** | Find and launch apps, favorite common actions, and quickly look up processes, ports, and packages |
+| **Command Bar & Launchpad (experimental)** | Launch apps through search or an icon grid, favorite common actions, and quickly look up processes, ports, and packages |
 | **XStats Capture** | Built-in screenshot annotation, local redaction, and screen recording with audio; also available as a [standalone Capture download](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.8). See [Capture usage and permissions](docs/CAPTURE.md) |
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, with optional lid-closed operation |

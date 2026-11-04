@@ -36,6 +36,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private let hotKeys = HotKeyCenter()
   private let launcherUsage = CommandBarUsage(defaults: .standard)
   private lazy var commandBar = CommandBarWindowController(usage: launcherUsage)
+  private lazy var launchpad = LaunchpadWindowController(usage: launcherUsage)
   private let displaySleep = DisplaySleepController()
   private var workspaceObservers: [NSObjectProtocol] = []
   private var screenLocked = false
@@ -180,6 +181,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       self?.mainWindow.show(tab: tab)
     }
     model.openCommandBar = { [weak self] in self?.openCommandBarFromMenu() }
+    model.openLaunchpad = { [weak self] in self?.openLaunchpadFromMenu() }
     commandBar.onSelect = { [weak self] command in
       guard let self, self.model.settings.commandBarEnabled,
         !self.isTerminating, !self.screenLocked
@@ -203,6 +205,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
         self.model.showHomebrewPackage(query)
       case .dnsBenchmark:
         self.model.openDNSBenchmarkWindow()
+      case .launchpad:
+        self.openLaunchpadFromMenu()
       case .findProcesses(let query):
         self.model.showProcesses(.query(query))
       case .localIPQuery:
@@ -229,6 +233,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       }
       self.commandBar.recordUsage(command)
     }
+    launchpad.onSelect = commandBar.onSelect
     model.openAIUsageSettings = { [weak self] in
       self?.menuBar.dismissPopovers()
       self?.calendarMenuBar.dismiss()
@@ -471,11 +476,13 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
   public func applicationDidHide(_ notification: Notification) {
     dnsBenchmarkWindow?.cancel()
+    launchpad.dismiss()
   }
 
   public func applicationWillTerminate(_ notification: Notification) {
     dnsBenchmarkWindow?.cancel()
     commandBar.dismiss()
+    launchpad.dismiss()
     model.cleaner.cancelOperation()
     model.cleaner.mole.cancel()
     model.fans.setPaused(true)
@@ -595,9 +602,21 @@ public final class AppController: NSObject, NSApplicationDelegate {
     restMenuBar.dismiss()
     menuBar.dismissPopovers()
     calendarMenuBar.dismiss()
+    launchpad.dismiss()
     commandBar.show(
       commands: AppCommand.catalog(supportsFans: model.store.supportsFans),
       applicationLoader: { try CommandBarApplications.scan() })
+  }
+
+  @objc private func openLaunchpadFromMenu() {
+    guard model.settings.commandBarEnabled, !model.isRecordingShortcut,
+      !isTerminating, !screenLocked
+    else { return }
+    commandBar.dismiss()
+    restMenuBar.dismiss()
+    menuBar.dismissPopovers()
+    calendarMenuBar.dismiss()
+    launchpad.show()
   }
 
   private func showCommandBarLaunchError() {
@@ -627,7 +646,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
       commandBarAction: #selector(openCommandBarFromMenu),
       guideAction: #selector(openUserGuideFromMenu),
       feedbackAction: #selector(openFeedbackFromMenu),
-      commandBarEnabled: model.settings.commandBarEnabled)
+      commandBarEnabled: model.settings.commandBarEnabled,
+      launchpadAction: #selector(openLaunchpadFromMenu))
   }
 
   @objc private func checkForUpdatesFromMenu() {
@@ -771,6 +791,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         self.observeCommandBarSetting()
         if !self.model.settings.commandBarEnabled {
           self.commandBar.dismiss()
+          self.launchpad.dismiss()
         }
         self.installMainMenu()
       }
@@ -1094,6 +1115,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
     appliedLanguage = language
     commandBar.dismiss()
+    launchpad.dismiss()
     model.displays.refreshCatalog()
     XStatsCapture.workspace.refreshLanguage()
     installMainMenu()
@@ -1173,6 +1195,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private func pauseForInactivity() {
     guard !isTerminating else { return }
     commandBar.dismiss()
+    launchpad.dismiss()
     restMenuBar.dismiss()
     menuBar.dismissPopovers()
     model.fans.setPaused(true)

@@ -62,6 +62,9 @@ extension Translations {
     """#
 
   static let commandBarEnglish = #"""
+    启动台	Launchpad
+    命令栏与启动台	Command Bar & Launchpad
+    无法读取应用，请关闭后重试。	Unable to load apps. Close and try again.
     搜索应用、功能与操作	Search apps, features and actions
     查找进程：{}	Find process: {}
     系统设置：网络	System Settings: Network

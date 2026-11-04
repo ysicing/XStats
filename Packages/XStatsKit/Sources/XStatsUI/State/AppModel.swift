@@ -120,6 +120,7 @@ public final class AppModel {
   @ObservationIgnored var openAIUsageSettings: () -> Void = {}
   @ObservationIgnored var openMainWindow: (PanelTab?) -> Void = { _ in }
   @ObservationIgnored var openCommandBar: () -> Void = {}
+  @ObservationIgnored var openLaunchpad: () -> Void = {}
   @ObservationIgnored var openEgressWindow: () -> Void = {}
   @ObservationIgnored var openSpeedTestWindow: () -> Void = {}
   @ObservationIgnored var openDNSBenchmarkWindow: () -> Void = {}

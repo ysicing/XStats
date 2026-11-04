@@ -410,6 +410,8 @@ final class MenuBarController: NSObject {
     if model.settings.commandBarEnabled {
       menu.addItem(withTitle: tr("命令栏"), action: #selector(openCommandBar), keyEquivalent: "")
         .target = self
+      menu.addItem(withTitle: tr("启动台"), action: #selector(openLaunchpad), keyEquivalent: "")
+        .target = self
     }
     menu.addItem(withTitle: tr("设置…"), action: #selector(openSettings), keyEquivalent: ",").target =
       self
@@ -471,6 +473,7 @@ final class MenuBarController: NSObject {
   @objc private func openMainWindow() { model.openMainWindow(nil) }
 
   @objc private func openCommandBar() { model.openCommandBar() }
+  @objc private func openLaunchpad() { model.openLaunchpad() }
   @objc private func openOverview() { showOverview() }
   @objc private func openSettings() { model.openSettings() }
 }

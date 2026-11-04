@@ -2776,6 +2776,9 @@ Homebrew（缓存）	Homebrew (zwischengespeichert)
 不自动移除依赖，不执行额外的用户数据清理。	Abhängigkeiten werden nicht automatisch entfernt. Benutzerdaten werden nicht zusätzlich bereinigt.
 预览基于当前清单；实际影响由执行时的 Homebrew 状态决定。	Diese Vorschau basiert auf der aktuellen Installationsliste. Die tatsächlichen Auswirkungen hängen vom Homebrew-Status bei der Ausführung ab.
 执行命令	Befehl
+启动台	Launchpad
+命令栏与启动台	Befehlsleiste und Launchpad
+无法读取应用，请关闭后重试。	Apps konnten nicht geladen werden. Schließe das Launchpad und versuche es erneut.
 搜索应用、功能与操作	Apps, Funktionen und Aktionen suchen
 查找进程：{}	Prozess suchen: {}
 系统设置：网络	Systemeinstellungen: Netzwerk

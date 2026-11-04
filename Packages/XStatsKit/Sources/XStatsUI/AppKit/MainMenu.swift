@@ -11,7 +11,7 @@ enum MainMenu {
   static func make(
     target: AnyObject, aboutAction: Selector, settingsAction: Selector, updateAction: Selector,
     openWindowAction: Selector, commandBarAction: Selector, guideAction: Selector,
-    feedbackAction: Selector, commandBarEnabled: Bool = true
+    feedbackAction: Selector, commandBarEnabled: Bool = true, launchpadAction: Selector? = nil
   ) -> NSMenu {
     let main = NSMenu()
 
@@ -55,6 +55,10 @@ enum MainMenu {
         withTitle: tr("命令栏"), action: commandBarAction, keyEquivalent: "p")
       commandBar.target = target
       commandBar.keyEquivalentModifierMask = [.command, .shift]
+      if let launchpadAction {
+        window.addItem(withTitle: tr("启动台"), action: launchpadAction, keyEquivalent: "")
+          .target = target
+      }
     }
     window.addItem(.separator())
     window.addItem(

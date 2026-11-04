@@ -278,9 +278,9 @@ struct FeatureSettings: View {
       SettingsGroup {
         GroupRow(showsDivider: false) {
           SettingRow(
-            title: tr("命令栏"), subtitle: tr("搜索应用、功能与操作"), icon: "magnifyingglass"
+            title: tr("命令栏与启动台"), subtitle: tr("搜索应用、功能与操作"), icon: "magnifyingglass"
           ) {
-            DSToggle(isOn: $settings.commandBarEnabled, label: tr("命令栏"))
+            DSToggle(isOn: $settings.commandBarEnabled, label: tr("命令栏与启动台"))
           }
         }
         GroupRow {

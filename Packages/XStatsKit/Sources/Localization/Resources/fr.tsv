@@ -2776,6 +2776,9 @@ Homebrew（缓存）	Homebrew (en cache)
 不自动移除依赖，不执行额外的用户数据清理。	Les dépendances ne sont pas supprimées automatiquement. Aucun nettoyage supplémentaire des données utilisateur n’est effectué.
 预览基于当前清单；实际影响由执行时的 Homebrew 状态决定。	Cet aperçu utilise l’inventaire actuel. L’impact réel dépend de l’état de Homebrew lors de l’exécution.
 执行命令	Commande
+启动台	Launchpad
+命令栏与启动台	Barre de commandes et Launchpad
+无法读取应用，请关闭后重试。	Impossible de charger les apps. Fermez puis réessayez.
 搜索应用、功能与操作	Rechercher apps, fonctions et actions
 查找进程：{}	Rechercher le processus : {}
 系统设置：网络	Réglages Système : Réseau
