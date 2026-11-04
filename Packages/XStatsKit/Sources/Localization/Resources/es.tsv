@@ -1989,6 +1989,9 @@ Homebrew 会更新所选项目及必要的依赖。	Homebrew actualizará el ele
 Homebrew 操作失败，请在终端检查后重试	La operación de Homebrew falló. Comprueba en Terminal y reinténtalo.
 已更新“{}”	“{}” actualizado
 已卸载“{}”	“{}” desinstalado
+“{}”的更新命令已完成，但未检测到新版本	El comando de actualización de “{}” terminó, pero no se detectó una versión nueva.
+“{}”的卸载命令已完成，但仍在安装清单中	El comando de desinstalación de “{}” terminó, pero sigue figurando como instalado.
+“{}”的命令已完成，暂时无法核实结果，请刷新后检查	El comando de “{}” terminó, pero no se pudo verificar el resultado. Actualiza para comprobarlo.
 筛选	Filtrar
 通用架构	Universal
 Homebrew 操作尚未完成	La operación de Homebrew sigue en curso

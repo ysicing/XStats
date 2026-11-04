@@ -54,14 +54,28 @@ final class AppManagementController {
   let homebrewOperations: HomebrewOperationState
   var error: String?
   struct Completion: Identifiable {
+    enum Verification { case verified, unchanged, unavailable }
     let id = UUID()
     let action: HomebrewManagement.Action
     let packageName: String
+    var verification: Verification = .verified
     var text: String {
-      action == .upgrade ? tr("已更新“\(packageName)”") : tr("已卸载“\(packageName)”")
+      switch verification {
+      case .verified:
+        action == .upgrade ? tr("已更新“\(packageName)”") : tr("已卸载“\(packageName)”")
+      case .unchanged:
+        action == .upgrade
+          ? tr("“\(packageName)”的更新命令已完成，但未检测到新版本")
+          : tr("“\(packageName)”的卸载命令已完成，但仍在安装清单中")
+      case .unavailable:
+        tr("“\(packageName)”的命令已完成，暂时无法核实结果，请刷新后检查")
+      }
     }
   }
   private(set) var completion: Completion?
+  @ObservationIgnored private var pendingVerification:
+    (action: HomebrewManagement.Action, package: HomebrewPackage)?
+  @ObservationIgnored private var feedbackGeneration = UUID()
   private(set) var visible = false
   private var enabled = true
   private var paused = false
@@ -95,6 +109,8 @@ final class AppManagementController {
   @ObservationIgnored private let inspectApp: @Sendable (InstalledApp) -> ApplicationMetadata
   @ObservationIgnored private let measureSize: @Sendable (URL) throws -> UInt64
   @ObservationIgnored private let listPackages: @Sendable () async throws -> [HomebrewPackage]
+  @ObservationIgnored private let listCompletePackages:
+    @Sendable () async throws -> [HomebrewPackage]
   @ObservationIgnored private let updateIndex: @Sendable () async throws -> Void
   @ObservationIgnored private let performAction:
     @Sendable (HomebrewManagement.Action, HomebrewPackage) async throws -> Void
@@ -152,9 +168,7 @@ final class AppManagementController {
       try CleanEngine.bundleAllocatedSize(of: $0)
     },
     brewAvailable: Bool = HomebrewManagement.isAvailable,
-    listPackages: @escaping @Sendable () async throws -> [HomebrewPackage] = {
-      try await HomebrewManagement.inventory()
-    },
+    listPackages: (@Sendable () async throws -> [HomebrewPackage])? = nil,
     updateIndex: @escaping @Sendable () async throws -> Void = {
       try await HomebrewManagement.checkUpdates()
     },
@@ -173,7 +187,9 @@ final class AppManagementController {
     self.inspectApp = inspectApp
     self.measureSize = measureSize
     self.brewAvailable = brewAvailable
-    self.listPackages = listPackages
+    self.listPackages = listPackages ?? { try await HomebrewManagement.inventory() }
+    self.listCompletePackages =
+      listPackages ?? { try await HomebrewManagement.inventory(requiresCompleteInventory: true) }
     self.updateIndex = updateIndex
     self.performAction = performAction
     self.checkStore = checkStore
@@ -216,6 +232,8 @@ final class AppManagementController {
     paused = value
     if value {
       completion = nil
+      pendingVerification = nil
+      feedbackGeneration = UUID()
       cancelReading()
     } else if visible {
       resume()
@@ -223,9 +241,15 @@ final class AppManagementController {
   }
 
   func setVisible(_ value: Bool, tab: Tab? = nil) {
+    let changedTab = tab.map { $0 != self.tab } ?? false
     if let tab { self.tab = tab }
     visible = value && enabled
-    if !visible { completion = nil }
+    if !visible || changedTab {
+      completion = nil
+      pendingVerification = nil
+      feedbackGeneration = UUID()
+      cancelReading()
+    }
     if visible && !paused { resume() } else { cancelReading() }
   }
 
@@ -233,6 +257,8 @@ final class AppManagementController {
     guard tab != value else { return }
     tab = value
     completion = nil
+    pendingVerification = nil
+    feedbackGeneration = UUID()
     cancelReading()
     if visible && !paused { resume() }
   }
@@ -301,6 +327,7 @@ final class AppManagementController {
     cancelReading()
     error = nil
     completion = nil
+    pendingVerification = nil
     if tab == .apps { readApps(force: true) }
     readBrew(force: true)
     resume()
@@ -680,7 +707,7 @@ final class AppManagementController {
     }
     let generation = UUID()
     brewGeneration = generation
-    let list = listPackages
+    let list = pendingVerification == nil ? listPackages : listCompletePackages
     let measure = measureSize
     isLoadingBrew = needsInventory
     brewTask = Task { [weak self] in
@@ -703,6 +730,7 @@ final class AppManagementController {
           if self.brewFailureDate != nil { Log.app.notice("Homebrew inventory recovered") }
           self.brewFailureDate = nil
           self.brewInventoryFailed = false
+          self.finishBrewVerification(in: packages)
           let ids = Set(packages.map(\.id))
           // 手动刷新重新计量全部；其余情况只重测新增或内容变化（版本、产物等）的包。
           // 描述、安装原因与可用更新等元数据变化不触发目录重新计量。
@@ -761,7 +789,11 @@ final class AppManagementController {
           self.packages = []
           self.updatePackageIdentities()
         }
-        self.error = tr("Homebrew 操作失败，请在终端检查后重试")
+        if self.pendingVerification != nil {
+          self.finishBrewVerification(in: nil)
+        } else {
+          self.error = tr("Homebrew 操作失败，请在终端检查后重试")
+        }
         if firstFailure {
           Log.app.error(
             "Homebrew inventory failed: \(String(describing: error).prefix(500), privacy: .private)"
@@ -769,6 +801,40 @@ final class AppManagementController {
         }
       }
     }
+  }
+
+  private func finishBrewVerification(in packages: [HomebrewPackage]?) {
+    guard let pending = pendingVerification else { return }
+    pendingVerification = nil
+    guard visible, enabled, !paused else { return }
+    var verification = Completion.Verification.unavailable
+    if let packages {
+      let current = packages.first { $0.id == pending.package.id }
+      if pending.action == .uninstall {
+        verification = current == nil ? .verified : .unchanged
+      } else if let current {
+        let previousVersions = Set(pending.package.installedVersions)
+        let versions = Set(current.installedVersions)
+        // latest 等占位值不能证明实际版本变化；只移除了旧版本也不能算作更新。
+        if !previousVersions.isEmpty, !versions.isEmpty,
+          previousVersions.union(versions).allSatisfy({ !$0.isEmpty && $0.lowercased() != "latest" }
+          )
+        {
+          if versions.subtracting(previousVersions).isEmpty {
+            verification = .unchanged
+          } else if !current.outdated,
+            current.latestVersion.map({ versions.contains($0) }) ?? true
+          {
+            verification = .verified
+          }
+        }
+      }
+    }
+    completion = Completion(
+      action: pending.action, packageName: pending.package.displayName, verification: verification)
+    Log.app.notice(
+      "Homebrew operation verification action=\(pending.action.rawValue, privacy: .public) result=\(String(describing: verification), privacy: .public)"
+    )
   }
 
   /// 用户主动发起的 brew update 与写操作一样独立收尾，不随切换标签、关闭窗口或锁屏取消；App 退出时允许终止。
@@ -784,6 +850,7 @@ final class AppManagementController {
     isLoadingBrew = false
     error = nil
     completion = nil
+    pendingVerification = nil
     isCheckingUpdates = true
     let update = updateIndex
     updateTask = Task { [weak self] in
@@ -845,6 +912,7 @@ final class AppManagementController {
 
   func perform(_ action: HomebrewManagement.Action, package: HomebrewPackage) {
     guard enabled, visible, !paused, operation == nil, !isCheckingUpdates,
+      !isLoadingBrew,
       packages.contains(package), !isCurrentApp(package),
       !(action == .upgrade && (!package.outdated || package.pinned))
     else { return }
@@ -859,15 +927,17 @@ final class AppManagementController {
     operationPackage = package
     error = nil
     completion = nil
+    pendingVerification = nil
     let perform = performAction
+    let feedbackGeneration = feedbackGeneration
     // 已确认的安装／卸载不能因为切换标签或关闭窗口被中途打断。
     operationTask = Task { [weak self] in
       defer { homebrewOperations.finish() }
       do {
         try await perform(action, package)
         // 离开页面后不补播过时的成功反馈；写操作本身仍然正常收尾。
-        if let self, self.visible, !self.paused {
-          self.completion = Completion(action: action, packageName: package.displayName)
+        if let self, self.visible, !self.paused, self.feedbackGeneration == feedbackGeneration {
+          self.pendingVerification = (action, package)
         }
         Log.app.notice("Homebrew operation completed action=\(action.rawValue, privacy: .public)")
       } catch let timeout as HomebrewOperationTimeout {

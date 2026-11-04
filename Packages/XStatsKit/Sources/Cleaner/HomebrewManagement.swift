@@ -55,7 +55,9 @@ public enum HomebrewManagement {
 
   /// 只读本地清单；不执行 brew update，不触发自动更新、清理或依赖移除。
   @concurrent
-  public static func inventory(home: String = NSHomeDirectory()) async throws -> [HomebrewPackage] {
+  public static func inventory(
+    home: String = NSHomeDirectory(), requiresCompleteInventory: Bool = false
+  ) async throws -> [HomebrewPackage] {
     // 清单只解析 stdout；brew 的警告写入 stderr，丢弃以免混入 JSON。
     let prefix = try await DeveloperToolRunner.run(
       "brew", arguments: ["--prefix"], home: home,
@@ -67,7 +69,9 @@ public enum HomebrewManagement {
       "brew", arguments: ["info", "--json=v2", "--installed"],
       home: home, outputLimit: 16_000_000, includesStandardError: false)
     try Task.checkCancellation()
-    return try parse(result.output, prefix: URL(fileURLWithPath: prefix))
+    return try parse(
+      result.output, prefix: URL(fileURLWithPath: prefix),
+      requiresCompleteInventory: requiresCompleteInventory)
   }
 
   /// 用户主动刷新远端索引；随后重新读取清单，由 Homebrew 判定 outdated。
@@ -97,7 +101,11 @@ public enum HomebrewManagement {
   /// 顶层结构非法时整体失败；单个异常 Formula（缺字段、标识不合法）和重复包跳过，汇总记一条日志。
   /// Cask 决定应用的卸载路由：任一 Cask 无法识别时整体失败，由调用方降级并提示来源未知，
   /// 不能让被跳过的 Cask 应用静默走普通卸载。
-  public static func parse(_ output: String, prefix: URL, home: String = NSHomeDirectory()) throws
+  /// 操作后核验要求完整清单，不能把解析时跳过的包误判为已经卸载。
+  public static func parse(
+    _ output: String, prefix: URL, home: String = NSHomeDirectory(),
+    requiresCompleteInventory: Bool = false
+  ) throws
     -> [HomebrewPackage]
   {
     guard let object = try JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any],
@@ -111,6 +119,7 @@ public enum HomebrewManagement {
       guard let formula = formula as? [String: Any],
         let package = formulaPackage(formula, prefix: prefix)
       else {
+        if requiresCompleteInventory { throw InventoryError.invalidOutput }
         skipped += 1
         continue
       }
@@ -127,6 +136,7 @@ public enum HomebrewManagement {
     var seen = Set<String>()
     let unique = packages.filter { seen.insert($0.id).inserted }
     skipped += packages.count - unique.count
+    if requiresCompleteInventory, skipped > 0 { throw InventoryError.invalidOutput }
     if skipped > 0 {
       logger.notice(
         "Homebrew inventory skipped invalid packages count=\(skipped, privacy: .public) kept=\(unique.count, privacy: .public)"

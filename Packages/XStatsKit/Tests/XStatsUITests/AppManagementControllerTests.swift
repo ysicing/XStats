@@ -751,6 +751,7 @@ import Testing
     try await waitFor { controller.operation == nil && !controller.isReading }
     let first = try #require(controller.completion)
     #expect(first.action == action && first.packageName == package.displayName)
+    #expect(first.verification == .unchanged)
     controller.perform(action, package: package)
     try await waitFor { controller.operation == nil && !controller.isReading }
     let second = try #require(controller.completion)
@@ -767,6 +768,198 @@ import Testing
     controller.selectTab(.homebrew)
     controller.setVisible(false)
     controller.setVisible(true)
+    #expect(controller.completion == nil)
+  }
+
+  @Test(
+    arguments: [HomebrewManagement.Action.upgrade, .uninstall],
+    [HomebrewPackage.Kind.formula, .cask])
+  func brewSuccessWaitsForInventoryVerification(
+    _ action: HomebrewManagement.Action, _ kind: HomebrewPackage.Kind
+  ) async throws {
+    let package = HomebrewPackage(
+      name: "custom/tap/tool", displayName: "Example Tool", kind: kind,
+      installedVersions: ["1"], latestVersion: "2", outdated: true, pinned: false,
+      installationURLs: [], applicationURLs: [])
+    let updated = HomebrewPackage(
+      name: package.name, displayName: package.displayName, kind: kind,
+      installedVersions: ["1", "2"], latestVersion: "2", outdated: false, pinned: false,
+      installationURLs: [], applicationURLs: [])
+    let reads = AppManagementTestValue(0)
+    let release = AppManagementTestValue(false)
+    let controller = AppManagementController(
+      listApps: { [] }, brewAvailable: true,
+      listPackages: {
+        let call = reads.withLock {
+          $0 += 1
+          return $0
+        }
+        guard call > 1 else { return [package] }
+        while !release.withLock({ $0 }) { try await Task.sleep(for: .milliseconds(10)) }
+        return action == .upgrade ? [updated] : []
+      }, performAction: { _, _ in })
+    defer {
+      release.withLock { $0 = true }
+      controller.setVisible(false)
+    }
+    controller.setVisible(true, tab: .homebrew)
+    try await waitFor { !controller.isReading && controller.hasBrewInventory }
+    controller.perform(action, package: package)
+    try await waitFor { reads.withLock { $0 } == 2 }
+    #expect(controller.completion == nil && controller.isLoadingBrew)
+    controller.perform(action, package: package)
+    #expect(controller.operation == nil)
+    release.withLock { $0 = true }
+    try await waitFor { !controller.isReading }
+    let completion = try #require(controller.completion)
+    #expect(completion.verification == .verified)
+    #expect(completion.action == action && completion.packageName == package.displayName)
+    #expect(reads.withLock { $0 } == 2)
+  }
+
+  @Test func failedVerificationDoesNotClaimThatTheCommandFailed() async throws {
+    let package = HomebrewPackage(
+      name: "tool", displayName: "Tool", kind: .formula, installedVersions: ["1"],
+      latestVersion: "2", outdated: true, pinned: false, installationURLs: [], applicationURLs: [])
+    let reads = AppManagementTestValue(0)
+    let controller = AppManagementController(
+      listApps: { [] }, brewAvailable: true,
+      listPackages: {
+        let call = reads.withLock {
+          $0 += 1
+          return $0
+        }
+        if call > 1 { throw URLError(.cannotParseResponse) }
+        return [package]
+      }, performAction: { _, _ in })
+    defer { controller.setVisible(false) }
+    controller.setVisible(true, tab: .homebrew)
+    try await waitFor { !controller.isReading && controller.hasBrewInventory }
+    controller.perform(.upgrade, package: package)
+    try await waitFor { controller.operation == nil && !controller.isReading }
+    #expect(controller.completion?.verification == .unavailable)
+    #expect(controller.error == nil)
+    #expect(controller.brewInventoryFailed && controller.packages.isEmpty)
+    controller.setVisible(false)
+    controller.setVisible(true)
+    #expect(controller.completion == nil)
+    try await waitFor { !controller.isReading }
+    #expect(reads.withLock { $0 } == 2)
+  }
+
+  @Test(arguments: ["hidden", "paused", "tab", "visibleTab"])
+  func leavingAndReturningDuringACommandDoesNotReplayItsFeedback(_ transition: String) async throws
+  {
+    let package = HomebrewPackage(
+      name: "tool", displayName: "Tool", kind: .formula, installedVersions: ["1"],
+      latestVersion: "2", outdated: true, pinned: false, installationURLs: [], applicationURLs: [])
+    let started = AppManagementTestValue(false)
+    let release = AppManagementTestValue(false)
+    let controller = AppManagementController(
+      listApps: { [] }, brewAvailable: true, listPackages: { [package] },
+      performAction: { _, _ in
+        started.withLock { $0 = true }
+        while !release.withLock({ $0 }) { try await Task.sleep(for: .milliseconds(10)) }
+      })
+    defer {
+      release.withLock { $0 = true }
+      controller.setVisible(false)
+    }
+    controller.setVisible(true, tab: .homebrew)
+    try await waitFor { !controller.isReading && controller.hasBrewInventory }
+    controller.perform(.upgrade, package: package)
+    try await waitFor { started.withLock { $0 } }
+    switch transition {
+    case "hidden":
+      controller.setVisible(false)
+      controller.setVisible(true)
+    case "paused":
+      controller.setPaused(true)
+      controller.setPaused(false)
+    case "visibleTab":
+      controller.setVisible(true, tab: .apps)
+      controller.setVisible(true, tab: .homebrew)
+    default:
+      controller.selectTab(.apps)
+      controller.selectTab(.homebrew)
+    }
+    release.withLock { $0 = true }
+    try await waitFor { controller.operation == nil && !controller.isReading }
+    #expect(controller.completion == nil)
+  }
+
+  @Test(arguments: [
+    (["1", "2"], ["2"], "3", true),
+    (["1", "2"], ["2", "1"], "3", true),
+    (["1"], ["2"], "3", true),
+    (["latest"], ["latest"], "latest", false),
+    (["1"], ["2"], "3", false),
+  ])
+  func ambiguousUpgradeNeverReportsVerifiedSuccess(
+    _ before: [String], _ after: [String], _ latest: String, _ outdated: Bool
+  ) async throws {
+    let package = HomebrewPackage(
+      name: "tool", displayName: "Tool", kind: .formula, installedVersions: before,
+      latestVersion: latest, outdated: true, pinned: false, installationURLs: [],
+      applicationURLs: [])
+    let updated = HomebrewPackage(
+      name: package.name, displayName: package.displayName, kind: .formula,
+      installedVersions: after,
+      latestVersion: latest, outdated: outdated, pinned: false, installationURLs: [],
+      applicationURLs: [])
+    let reads = AppManagementTestValue(0)
+    let controller = AppManagementController(
+      listApps: { [] }, brewAvailable: true,
+      listPackages: {
+        reads.withLock {
+          $0 += 1
+          return $0 == 1 ? [package] : [updated]
+        }
+      },
+      performAction: { _, _ in })
+    defer { controller.setVisible(false) }
+    controller.setVisible(true, tab: .homebrew)
+    try await waitFor { !controller.isReading && controller.hasBrewInventory }
+    controller.perform(.upgrade, package: package)
+    try await waitFor { controller.operation == nil && !controller.isReading }
+    let completion = try #require(controller.completion)
+    #expect(completion.verification != .verified)
+  }
+
+  @Test func leavingDuringVerificationRejectsLateFeedback() async throws {
+    let package = HomebrewPackage(
+      name: "tool", displayName: "Tool", kind: .formula, installedVersions: ["1"],
+      latestVersion: "2", outdated: true, pinned: false, installationURLs: [], applicationURLs: [])
+    let reads = AppManagementTestValue(0)
+    let gate = StoreLookupGate()
+    let finished = AppManagementTestValue(false)
+    let controller = AppManagementController(
+      listApps: { [] }, brewAvailable: true,
+      listPackages: {
+        let call = reads.withLock {
+          $0 += 1
+          return $0
+        }
+        if call == 2 {
+          await gate.wait()
+          finished.withLock { $0 = true }
+        }
+        return [package]
+      }, performAction: { _, _ in })
+    defer {
+      controller.setVisible(false)
+      Task { await gate.release() }
+    }
+    controller.setVisible(true, tab: .homebrew)
+    try await waitFor { !controller.isReading && controller.hasBrewInventory }
+    controller.perform(.upgrade, package: package)
+    try await waitFor { reads.withLock { $0 } == 2 }
+    controller.setVisible(false)
+    controller.setVisible(true)
+    try await waitFor { reads.withLock { $0 } == 3 && !controller.isReading }
+    await gate.release()
+    try await waitFor { finished.withLock { $0 } }
+    await Task.yield()
     #expect(controller.completion == nil)
   }
 

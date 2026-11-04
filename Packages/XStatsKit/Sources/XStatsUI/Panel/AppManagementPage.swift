@@ -77,17 +77,9 @@ struct AppManagementPage: View {
     .overlay(alignment: .bottom) {
       ZStack {
         if section.managesApplications, let completion = controller.completion {
-          Label {
-            Text(completion.text).foregroundStyle(DS.Palette.textPrimary)
-          } icon: {
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(DS.Badge.successText)
-          }
-          .dsFont(.sm)
-          .lineLimit(2)
-          .padding(.horizontal, DS.Space.s4).padding(.vertical, DS.Space.s3)
-          .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
-          .dsShadow(DS.Shadow.level1)
-          .frame(maxWidth: 420)
+          AppManagementCompletionBanner(
+            text: completion.text, isVerified: completion.verification == .verified
+          )
           .padding(.horizontal, DS.Space.s4).padding(.bottom, DS.Space.s12)
           .id(completion.id)
           .transition(.opacity)
@@ -98,7 +90,9 @@ struct AppManagementPage: View {
     }
     .task(id: controller.completion?.id) {
       guard let id = controller.completion?.id else { return }
-      do { try await Task.sleep(for: .seconds(3)) } catch { return }
+      let duration: Duration =
+        controller.completion?.verification == .verified ? .seconds(3) : .seconds(6)
+      do { try await Task.sleep(for: duration) } catch { return }
       controller.dismissCompletion(id)
     }
     .onAppear {
@@ -653,6 +647,27 @@ struct AppManagementPage: View {
         || ($0.package?.summary?.localizedStandardContains(query) == true)
     }
     .sorted(using: sortOrder)
+  }
+}
+
+struct AppManagementCompletionBanner: View {
+  let text: String
+  let isVerified: Bool
+
+  var body: some View {
+    Label {
+      Text(text).foregroundStyle(DS.Palette.textPrimary)
+    } icon: {
+      Image(systemName: isVerified ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+        .foregroundStyle(isVerified ? DS.Badge.successText : DS.Badge.warningText)
+    }
+    .dsFont(.sm)
+    .lineLimit(isVerified ? 2 : nil)
+    .fixedSize(horizontal: false, vertical: true)
+    .padding(.horizontal, DS.Space.s4).padding(.vertical, DS.Space.s3)
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
+    .dsShadow(DS.Shadow.level1)
+    .frame(maxWidth: 420)
   }
 }
 

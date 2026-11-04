@@ -1989,6 +1989,9 @@ Homebrew 会更新所选项目及必要的依赖。	Homebrew aktualisiert das au
 Homebrew 操作失败，请在终端检查后重试	Homebrew-Vorgang fehlgeschlagen. Im Terminal prüfen und erneut versuchen.
 已更新“{}”	„{}“ aktualisiert
 已卸载“{}”	„{}“ deinstalliert
+“{}”的更新命令已完成，但未检测到新版本	Der Aktualisierungsbefehl für „{}“ wurde beendet, aber keine neue Version wurde erkannt.
+“{}”的卸载命令已完成，但仍在安装清单中	Der Deinstallationsbefehl für „{}“ wurde beendet, das Paket wird aber weiterhin als installiert aufgeführt.
+“{}”的命令已完成，暂时无法核实结果，请刷新后检查	Der Befehl für „{}“ wurde beendet, das Ergebnis konnte jedoch nicht bestätigt werden. Bitte aktualisieren und prüfen.
 筛选	Filtern
 通用架构	Universal
 Homebrew 操作尚未完成	Homebrew-Vorgang läuft noch

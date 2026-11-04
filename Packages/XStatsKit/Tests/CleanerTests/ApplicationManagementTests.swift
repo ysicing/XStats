@@ -178,6 +178,26 @@ struct ApplicationManagementTests {
     }
   }
 
+  @Test(arguments: [
+    #"[{"name":"tool","full_name":"tool","installed":null}]"#,
+    #"[{"name":"tool","full_name":"tool","installed":[{"version":"1"}]},{"name":"tool","full_name":"tool","installed":[{"version":"2"}]}]"#,
+    #"["invalid"]"#,
+  ])
+  func verificationRejectsIncompleteOrAmbiguousInventory(_ formulae: String) throws {
+    #expect(throws: HomebrewManagement.InventoryError.self) {
+      try HomebrewManagement.parse(
+        #"{"formulae":\#(formulae),"casks":[]}"#,
+        prefix: URL(fileURLWithPath: "/opt/homebrew"), requiresCompleteInventory: true)
+    }
+  }
+
+  @Test func verificationAcceptsAnEmptyCompleteInventory() throws {
+    let packages = try HomebrewManagement.parse(
+      #"{"formulae":[],"casks":[]}"#, prefix: URL(fileURLWithPath: "/opt/homebrew"),
+      requiresCompleteInventory: true)
+    #expect(packages.isEmpty)
+  }
+
   @Test func dangerousTokensAreSkippedAndInvalidStructureIsRejected() throws {
     for token in ["--help", "../tool", "vendor//tool", "tool;rm", "tool\nother"] {
       let object: [String: Any] = [

@@ -10,6 +10,36 @@ import Testing
 
 @MainActor
 struct UninstallerPresentationTests {
+  @Test(arguments: [AppLanguage.chinese, .english, .german, .arabic], [false, true])
+  func homebrewVerificationWarningFitsLongTextAndRTL(language: AppLanguage, dark: Bool) throws {
+    _ = NSApplication.shared
+    let text = L10n.translate(
+      "“Example Developer Tool”的命令已完成，暂时无法核实结果，请刷新后检查", language: language)
+    let host = NSHostingView(
+      rootView: AppManagementCompletionBanner(text: text, isVerified: false)
+        .environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight)
+        .environment(\.locale, L10n.locale(for: language))
+        .environment(\.colorScheme, dark ? .dark : .light)
+        .padding(16)
+        .frame(width: 340)
+        .background(DS.Palette.background))
+    host.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+    let size = host.fittingSize
+    #expect(abs(size.width - 340) < 1 && size.height > 60 && size.height < 240)
+    if let output = ProcessInfo.processInfo.environment["XSTATS_UNINSTALLER_PREVIEW_DIRECTORY"] {
+      host.frame.size = size
+      host.layoutSubtreeIfNeeded()
+      let image = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+      host.cacheDisplay(in: host.bounds, to: image)
+      let data = try #require(image.representation(using: .png, properties: [:]))
+      let directory = URL(fileURLWithPath: output, isDirectory: true)
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      try data.write(
+        to: directory.appendingPathComponent(
+          "homebrew-verification-\(language.languageCode)-\(dark ? "dark" : "light").png"))
+    }
+  }
+
   @Test func permissionFailureKeepsInspectorAndFinderRecoveryVisible() async throws {
     let suite = "UninstallerPermissionPresentationTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

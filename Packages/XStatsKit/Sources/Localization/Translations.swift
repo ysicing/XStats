@@ -1976,6 +1976,9 @@ extension Translations {
     Homebrew 操作失败，请在终端检查后重试	Homebrew operation failed. Check in Terminal and try again.
     已更新“{}”	Updated “{}”
     已卸载“{}”	Uninstalled “{}”
+    “{}”的更新命令已完成，但未检测到新版本	The update command for “{}” completed, but no new version was detected.
+    “{}”的卸载命令已完成，但仍在安装清单中	The uninstall command for “{}” completed, but it is still listed as installed.
+    “{}”的命令已完成，暂时无法核实结果，请刷新后检查	The command for “{}” completed, but the result could not be verified. Refresh to check.
     暂时无法读取清单	Inventory temporarily unavailable
     尚未安装软件包	No packages installed
     没有可用更新	No updates available

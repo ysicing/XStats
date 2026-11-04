@@ -135,7 +135,12 @@ import Testing
   @Test func homebrewCompletionPreservesPackageNamesInEveryCatalog() throws {
     for language in AppLanguage.allCases where language != .system && language != .chinese {
       let table = try #require(Translations.catalog(for: language))
-      for source in ["已更新“Example Tool”", "已卸载“Example Tool”"] {
+      for source in [
+        "已更新“Example Tool”", "已卸载“Example Tool”",
+        "“Example Tool”的更新命令已完成，但未检测到新版本",
+        "“Example Tool”的卸载命令已完成，但仍在安装清单中",
+        "“Example Tool”的命令已完成，暂时无法核实结果，请刷新后检查",
+      ] {
         let translated = try #require(table.translate(source))
         #expect(translated.contains("Example Tool"))
         #expect(translated != source)
