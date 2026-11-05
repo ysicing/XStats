@@ -3,11 +3,49 @@
 
 import Foundation
 import Testing
-import Metrics
+@testable import Metrics
 @testable import XStatsUI
 
 @MainActor
 struct MetricsStoreTests {
+  /// onChange 是 @Sendable 闭包，用带锁的计数器记录通知次数。
+  private final class ChangeCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.withLock { count } }
+    func increment() { lock.withLock { count += 1 } }
+  }
+
+  @Test func batteryPresenceChangesOnlyOnFirstReading() {
+    let store = MetricsStore(readBattery: false)
+    let changes = ChangeCounter()
+    func observe() {
+      withObservationTracking {
+        _ = store.hasBattery
+      } onChange: {
+        changes.increment()
+      }
+    }
+    func apply(amperage: Double) {
+      var snapshot = MetricsSnapshot()
+      snapshot.battery = BatteryStatus(
+        level: 0.8, isCharging: false, isPluggedIn: true, isFullyCharged: false,
+        minutesRemaining: nil, cycleCount: 100, health: 0.9, amperage: amperage)
+      store.apply(snapshot)
+    }
+
+    #expect(!store.hasBattery)
+    observe()
+    apply(amperage: -1.0)
+    #expect(store.hasBattery && changes.value == 1)
+
+    // 之后电压、电流等读数持续变化，不应再通知只关心"是否有电池"的观察者。
+    observe()
+    apply(amperage: -1.2)
+    apply(amperage: -0.9)
+    #expect(changes.value == 1)
+  }
+
   @Test func diskRankingPreservesGroupingAndDecay() {
     let store = MetricsStore()
     var expected = ActivityRanking()

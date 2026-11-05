@@ -48,6 +48,9 @@ public final class MetricsStore {
   public private(set) var disk: DiskUsage?
   /// 启动时读取一次，确保面板首次打开时布局（是否有电池卡片）就已确定
   public private(set) var battery: BatteryStatus?
+  /// 是否已有电池读数，只会由 false 翻转为 true。采样需求只需要这一位，
+  /// 读取它不会让每次电池采样（电压、电流随时变化）都重跑设置与菜单栏流水线。
+  public private(set) var hasBattery = false
   public private(set) var processes: [ProcessUsage] = []
   public private(set) var appEnergy: AppEnergyReading?
   /// 按应用汇总的磁盘读写排行，分数是最近十几秒的平均速率
@@ -67,7 +70,10 @@ public final class MetricsStore {
   public private(set) var diskHealth: DiskHealth?
   public private(set) var lastUpdate: Date?
 
-  public init(readBattery: Bool = true) { battery = readBattery ? BatterySampler.sample() : nil }
+  public init(readBattery: Bool = true) {
+    battery = readBattery ? BatterySampler.sample() : nil
+    hasBattery = battery != nil
+  }
 
   /// 关闭功能后移除实时缓存，避免重新打开页面把旧值当作当前值。
   /// 持久化历史由 HistoryRecorder 管理，不在这里删除。
@@ -189,7 +195,10 @@ public final class MetricsStore {
       gpuHistory.append(gpu.utilization)
     }
     if let disk = snapshot.disk { self.disk = disk }
-    if let battery = snapshot.battery { self.battery = battery }
+    if let battery = snapshot.battery {
+      self.battery = battery
+      if !hasBattery { hasBattery = true }
+    }
     if let processes = snapshot.processes {
       self.processes = processes
       // 排行只需要磁盘计数，不必构建带名称、文案和其他指标的完整界面行。

@@ -463,8 +463,7 @@ public final class AppModel {
     {
       return .foreground
     }
-    if isCombinedOverviewVisible && visibleOverviewItems.contains(.battery) && store.battery == nil
-    {
+    if isCombinedOverviewVisible && visibleOverviewItems.contains(.battery) && !store.hasBattery {
       return .foreground
     }
     if trioBluetooth, settings.trio.bluetoothDeviceID != nil,
@@ -473,7 +472,7 @@ public final class AppModel {
       return .background
     }
     if drawnMenuBarItems.contains(.battery)
-      && (settings.bluetoothLowBatteryInMenuBar || store.battery == nil)
+      && (settings.bluetoothLowBatteryInMenuBar || !store.hasBattery)
     {
       return .background
     }
