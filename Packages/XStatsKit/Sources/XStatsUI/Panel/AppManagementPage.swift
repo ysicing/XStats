@@ -499,7 +499,7 @@ struct AppManagementPage: View {
   {
     TableColumn(tr("来源"), value: \.source) { row in
       InstallationSourceButton(
-        label: row.source == "—" ? tr("未知") : row.source,
+        label: row.source,
         evidence: row.app.map { controller.installationSource(for: $0) }
           ?? row.package.map { .homebrew($0, nil) } ?? .unknown)
     }
@@ -628,7 +628,7 @@ struct AppManagementPage: View {
           size: controller.sizes[app.id], kind: metadata?.architecture.title ?? "—",
           lastOpened: metadata?.lastOpened,
           source: controller.homebrewAppPaths.contains(app.id)
-            ? "Homebrew" : metadata?.isAppStore == true ? "App Store" : "—",
+            ? "Homebrew" : controller.installationSource(for: app).title,
           isRunning: controller.runningAppIDs.contains(app.id), app: app, package: nil,
           storeUpdate: controller.homebrewAppPaths.contains(app.id)
             ? nil : controller.appStoreUpdates[app.id])

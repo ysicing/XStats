@@ -9,6 +9,7 @@ enum InstallationSourceEvidence: Equatable {
   case homebrew(HomebrewPackage, URL?)
   case cachedHomebrew
   case appStore(URL)
+  case xstats(String)
   case unknown
 
   var title: String {
@@ -20,7 +21,8 @@ enum InstallationSourceEvidence: Equatable {
     case .homebrew: "Homebrew"
     case .cachedHomebrew: L10n.translate("Homebrew（缓存）", language: language)
     case .appStore: "App Store"
-    case .unknown: L10n.translate("未知", language: language)
+    case .xstats: "ysicing"
+    case .unknown: "-"
     }
   }
 }
@@ -54,6 +56,10 @@ struct InstallationSourceView: View {
       case .appStore(let receipt):
         Text(verbatim: text("应用包中存在 App Store 收据；未验证收据签名。"))
         path(receipt)
+      case .xstats(let bundleIdentifier):
+        Text(verbatim: bundleIdentifier)
+          .monospaced()
+          .environment(\.layoutDirection, .leftToRight)
       case .unknown:
         Text(verbatim: text("未找到可确认来源的记录，不能仅凭名称或目录判断。"))
       }
@@ -84,18 +90,22 @@ struct InstallationSourceButton: View {
   @State private var showsEvidence = false
 
   var body: some View {
-    Button {
-      showsEvidence.toggle()
-    } label: {
-      HStack(spacing: DS.Space.s1) {
-        Text(verbatim: label).lineLimit(1)
-        Image(systemName: "info.circle").foregroundStyle(.secondary)
+    if evidence == .unknown {
+      Text(verbatim: evidence.title)
+    } else {
+      Button {
+        showsEvidence.toggle()
+      } label: {
+        HStack(spacing: DS.Space.s1) {
+          Text(verbatim: label).lineLimit(1)
+          Image(systemName: "info.circle").foregroundStyle(.secondary)
+        }
       }
+      .buttonStyle(.plain)
+      .help(tr("查看来源依据"))
+      .accessibilityLabel(tr("查看来源依据"))
+      .accessibilityValue(evidence.title)
+      .popover(isPresented: $showsEvidence) { InstallationSourceView(evidence: evidence) }
     }
-    .buttonStyle(.plain)
-    .help(tr("查看来源依据"))
-    .accessibilityLabel(tr("查看来源依据"))
-    .accessibilityValue(evidence.title)
-    .popover(isPresented: $showsEvidence) { InstallationSourceView(evidence: evidence) }
   }
 }

@@ -952,6 +952,11 @@ final class AppManagementController {
     if metadata[app.id]?.isAppStore == true {
       return .appStore(app.url.appendingPathComponent("Contents/_MASReceipt/receipt"))
     }
+    switch app.bundleIdentifier {
+    case "work.12306.xstats.app", "work.12306.xstats.capture", "work.12306.xstats.networkmonitor":
+      return .xstats(app.bundleIdentifier)
+    default: break
+    }
     return .unknown
   }
 

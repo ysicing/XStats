@@ -143,6 +143,37 @@ struct HomebrewImpactControllerTests {
         == .appStore(app.url.appendingPathComponent("Contents/_MASReceipt/receipt")))
   }
 
+  @Test(arguments: [
+    "work.12306.xstats.app", "work.12306.xstats.capture", "work.12306.xstats.networkmonitor",
+  ])
+  func xstatsSourceUsesExactApplicationIdentifiers(bundleIdentifier: String) {
+    let app = InstalledApp(
+      url: URL(fileURLWithPath: "/Applications/Renamed.app"), name: "Renamed",
+      bundleIdentifier: bundleIdentifier, version: "1", teamIdentifier: nil)
+    let controller = AppManagementController(brewAvailable: false)
+    controller.showPreview(apps: [app], metadata: [:], sizes: [:], packages: [])
+    #expect(controller.installationSource(for: app) == .xstats(bundleIdentifier))
+    #expect(controller.installationSource(for: app).title == "ysicing")
+    controller.showPreview(
+      apps: [app], metadata: [app.id: ApplicationMetadata(isAppStore: true)],
+      sizes: [:], packages: [])
+    #expect(
+      controller.installationSource(for: app)
+        == .appStore(app.url.appendingPathComponent("Contents/_MASReceipt/receipt")))
+  }
+
+  @Test(arguments: [
+    "test.xstats", "work.12306.xstats.app.other", "work.12306.xstats.helper",
+  ])
+  func unknownSourceDoesNotGuessFromApplicationNameOrIdentifierPrefix(bundleIdentifier: String) {
+    let app = InstalledApp(
+      url: URL(fileURLWithPath: "/Applications/XStats.app"), name: "XStats",
+      bundleIdentifier: bundleIdentifier, version: "1", teamIdentifier: nil)
+    let controller = AppManagementController(brewAvailable: false)
+    #expect(controller.installationSource(for: app) == .unknown)
+    #expect(controller.installationSource(for: app).title == "-")
+  }
+
   private func makeController(
     gate: ImpactPreviewTestGate, state: HomebrewOperationState
   ) -> AppManagementController {

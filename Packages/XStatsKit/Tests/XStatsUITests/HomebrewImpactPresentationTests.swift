@@ -42,6 +42,8 @@ struct HomebrewImpactPresentationTests {
         evidence: .homebrew(cask, URL(fileURLWithPath: "/Applications/Example Editor.app")),
         language: language)
       InstallationSourceView(evidence: .cachedHomebrew, language: language)
+      InstallationSourceView(evidence: .xstats("work.12306.xstats.app"), language: language)
+      InstallationSourceButton(label: "-", evidence: .unknown)
     }
     .frame(width: 520)
     .background(Color(nsColor: .windowBackgroundColor))
