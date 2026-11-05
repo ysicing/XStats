@@ -27,7 +27,8 @@ struct HomebrewConfirmationSheet: View {
   }
   var canConfirm: Bool {
     (!requiresPreview || preview?.canProceed == true) && !controller.isPreparingPreview
-      && !controller.homebrewOperations.isRunning && !isRemoving && controller.canPreparePreview
+      && !controller.homebrewOperations.isRunning && !isRemoving
+      && controller.canPerform(confirmation.action, package: confirmation.package)
   }
 
   var body: some View {
@@ -55,6 +56,9 @@ struct HomebrewConfirmationSheet: View {
         }
         .dsFont(.sm)
         .accessibilityIdentifier("homebrew-impact-preview")
+        if !showsPreview, let error = controller.previewError {
+          Text(verbatim: error).dsFont(.sm).foregroundStyle(DS.Palette.error)
+        }
       }
       InstallationSourceButton(
         label: tr("来源识别依据"), evidence: .homebrew(confirmation.package, nil)
@@ -153,7 +157,7 @@ struct HomebrewImpactView: View {
         }
       }
       if preview.action == .upgrade {
-        Text(verbatim: preview.output)
+        Text(verbatim: Self.displayed(preview.output))
           .dsFont(.xs).monospaced()
           .environment(\.layoutDirection, .leftToRight)
       } else {
@@ -186,6 +190,17 @@ struct HomebrewImpactView: View {
     .fixedSize(horizontal: false, vertical: true)
     .environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight)
     .environment(\.locale, L10n.locale(for: language))
+  }
+
+  /// 升级计划最多 256KB；整段放进单个 Text 会拖慢布局，展示层只取前若干行与有限字符。
+  static func displayed(_ output: String, maxLines: Int = 200, maxCharacters: Int = 20_000)
+    -> String
+  {
+    let clipped = String(output.prefix(maxCharacters))
+    let lines = clipped.split(
+      separator: "\n", maxSplits: maxLines, omittingEmptySubsequences: false)
+    guard lines.count > maxLines else { return clipped }
+    return lines.prefix(maxLines).joined(separator: "\n")
   }
 
   private func text(_ source: String) -> String { L10n.translate(source, language: language) }

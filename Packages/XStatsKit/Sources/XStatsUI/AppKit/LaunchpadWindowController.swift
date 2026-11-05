@@ -122,9 +122,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   func show(
     language: AppLanguage = L10n.language, frame: NSRect? = nil,
     wallpaperURL: URL? = nil,
-    applicationLoader: @escaping @Sendable () throws -> [AppCommand] = {
-      try CommandBarApplications.scan()
-    }
+    applicationLoader: (@Sendable () throws -> [AppCommand])? = nil
   ) {
     guard frame != nil || LaunchpadAvailability.isSupported else { return }
     if let panel {
@@ -207,7 +205,15 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     let importsSystemLayout = layoutStore != nil && savedLayout == nil
     catalogTask = Task { [weak self] in
       let worker = Task.detached(priority: .userInitiated) {
-        let applications = try applicationLoader().filter {
+        // 默认扫描能报告是否触顶；自定义加载器仅能以数量达到上限推断。
+        let scanned: (commands: [AppCommand], isTruncated: Bool)
+        if let applicationLoader {
+          let commands = try applicationLoader()
+          scanned = (commands, commands.count >= CommandBarApplications.maxApplications)
+        } else {
+          scanned = try CommandBarApplications.scanResult()
+        }
+        let applications = scanned.commands.filter {
           if case .openApplication = $0.action { return true }
           return false
         }
@@ -224,15 +230,16 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
           })
         return (
           CommandBarSearch(commands: applications, supportsParameterQueries: false),
-          applications, imported, candidates
+          applications, imported, candidates, scanned.isTruncated
         )
       }
       do {
-        let (index, applications, imported, candidates) = try await withTaskCancellationHandler {
-          try await worker.value
-        } onCancel: {
-          worker.cancel()
-        }
+        let (index, applications, imported, candidates, isTruncated) =
+          try await withTaskCancellationHandler {
+            try await worker.value
+          } onCancel: {
+            worker.cancel()
+          }
         guard !Task.isCancelled, let self, self.sessionID == session else { return }
         self.catalogTask = nil
         self.search = index
@@ -244,10 +251,11 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
             "Initial layout loaded; system layout available: \(imported != nil)")
         }
         self.layout = savedLayout ?? imported ?? LaunchpadLayout()
+        // 扫描触顶时缺失不等于已卸载：保留已有布局项，也不落盘，避免永久丢失用户整理结果。
         self.layout.reconcile(
           appIDs: index.results(for: "", favorites: self.usage?.favorites ?? []).map(\.id),
-          capacity: self.pageSize)
-        if !applications.isEmpty { self.layoutStore?.save(self.layout) }
+          capacity: self.pageSize, pruneMissing: !isTruncated)
+        if !applications.isEmpty && !isTruncated { self.layoutStore?.save(self.layout) }
         self.refreshResults()
       } catch {
         guard !Task.isCancelled, let self, self.sessionID == session else { return }
@@ -614,7 +622,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       button.onDrop = { [weak self] id, group in
         guard let self else { return }
         if group && self.folderID == nil {
-          self.layout.group(id, into: command.id, name: self.text("文件夹"))
+          self.layout.group(id, into: command.id, name: "")
           self.saveLayout()
         } else {
           self.moveItem(id, before: command.id)
@@ -627,7 +635,8 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
           let wobble = CAKeyframeAnimation(keyPath: "transform.rotation.z")
           wobble.values = [-0.018, 0.018, -0.018]
           wobble.duration = 0.24
-          wobble.repeatCount = .infinity
+          // 限时抖动，避免编辑模式长期挂着时持续驱动动画。
+          wobble.repeatDuration = 10
           button.layer?.add(wobble, forKey: "editing")
         }
         if candidates.contains(command.id) {
@@ -639,7 +648,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
             x: button.frame.minX + 8, y: button.frame.maxY - 25, width: 24, height: 24)
           remove.tag = index
           remove.isBordered = false
-          remove.setAccessibilityLabel(text("移到废纸篓") + " " + command.title)
+          remove.setAccessibilityLabel(text("移到废纸篓 \(command.title)"))
           grid.addSubview(remove)
         }
       }
@@ -658,7 +667,8 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     }
     let selected = results.indices.contains(selectedIndex) ? results[selectedIndex] : nil
     let favorite = selected.map { usage?.favorites.contains($0.id) == true } ?? false
-    favoriteButton?.title = text(favorite ? "取消收藏" : "收藏") + " ⌘D"
+    let shortcut = "⌘D"
+    favoriteButton?.title = text(favorite ? "取消收藏 \(shortcut)" : "收藏 \(shortcut)")
     favoriteButton?.isEnabled =
       selected != nil && selected?.id.hasPrefix("folder.") != true
       && usage != nil && (favorite || (usage?.favorites.count ?? 0) < 8)
@@ -670,7 +680,10 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     editButton?.title = text(isEditing ? "完成" : "整理应用")
     backButton?.isHidden = folderID == nil
     renameButton?.isHidden = folderID == nil
-    heading?.stringValue = folderID.flatMap { layout.item($0)?.name } ?? text("启动台")
+    // 默认文件夹名不落盘，展示时按当前语言翻译；旧数据中已存的名字原样显示。
+    heading?.stringValue =
+      folderID.flatMap { layout.item($0)?.name }.flatMap { $0.isEmpty ? nil : $0 }
+      ?? (folderID == nil ? text("启动台") : text("文件夹"))
   }
 
   private func folderImage(_ id: String) -> NSImage {
@@ -793,7 +806,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       return
     }
     let alert = NSAlert()
-    alert.messageText = text("移到废纸篓") + " — " + command.title
+    alert.messageText = text("移到废纸篓 — \(command.title)")
     alert.informativeText = text("仅移除应用，保留文稿和个人数据。")
     alert.addButton(withTitle: text("取消"))
     alert.addButton(withTitle: text("移到废纸篓"))
@@ -822,8 +835,8 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
           self.removalTask = nil
           self.layout.remove(command.id)
           self.applicationMap.removeValue(forKey: command.id)
-          self.search = CommandBarSearch(
-            commands: Array(self.applicationMap.values), supportsParameterQueries: false)
+          // 沿用现有索引仅剔除被删项，避免在主线程重建拼音索引。
+          self.search = self.search?.removing(command.id)
           self.saveLayout()
           Logger(subsystem: Log.subsystem, category: "Launchpad").info("Application moved to Trash")
         } catch {
@@ -869,9 +882,8 @@ private final class LaunchpadPanel: NSPanel {
     guard event.momentumPhase.isEmpty else { return }
     if event.timestamp - lastScrollTime > 0.25 { scrollAmount = 0 }
     lastScrollTime = event.timestamp
-    scrollAmount +=
-      abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
-      ? event.scrollingDeltaX : event.scrollingDeltaY
+    let horizontal = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
+    scrollAmount += horizontal ? event.scrollingDeltaX : event.scrollingDeltaY
     guard abs(scrollAmount) >= (event.hasPreciseScrollingDeltas ? 50 : 2),
       event.timestamp - lastPageTime > 0.3
     else { return }

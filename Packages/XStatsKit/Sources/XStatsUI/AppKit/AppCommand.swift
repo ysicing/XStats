@@ -150,6 +150,18 @@ struct CommandBarSearch: Sendable {
   private let entries: [Entry]
   private let supportsParameterQueries: Bool
 
+  private init(entries: [Entry], supportsParameterQueries: Bool) {
+    self.entries = entries
+    self.supportsParameterQueries = supportsParameterQueries
+  }
+
+  /// 仅过滤已有条目，不重新计算拼音；用于应用被移除后沿用当前索引。
+  func removing(_ id: String) -> CommandBarSearch {
+    CommandBarSearch(
+      entries: entries.filter { $0.command.id != id },
+      supportsParameterQueries: supportsParameterQueries)
+  }
+
   init(commands: [AppCommand], supportsParameterQueries: Bool = true) {
     self.supportsParameterQueries = supportsParameterQueries
     entries = commands.compactMap {
@@ -219,7 +231,7 @@ struct CommandBarSearch: Sendable {
       guard !arguments.isEmpty else { return [base] }
       let query = arguments.joined(separator: " ")
       if query.utf8.allSatisfy({ (48...57).contains($0) }) {
-        guard let pid = Int32(query), pid > 0 else { return [] }
+        guard (Int32(query) ?? 0) > 0 else { return [] }
       }
       return [
         AppCommand(

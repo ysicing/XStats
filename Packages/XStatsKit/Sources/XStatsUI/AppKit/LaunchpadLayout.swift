@@ -14,8 +14,14 @@ struct LaunchpadLayout: Codable, Equatable, Sendable {
 
   var pages: [[Item]] = []
 
-  mutating func reconcile(appIDs: [String], capacity: Int) {
-    let available = Set(appIDs.prefix(2000))
+  /// `pruneMissing` 为 false 时（扫描被截断，缺失不代表已卸载）保留布局中本次未扫到的应用。
+  mutating func reconcile(appIDs: [String], capacity: Int, pruneMissing: Bool = true) {
+    var available = Set(appIDs.prefix(2000))
+    if !pruneMissing {
+      for page in pages.prefix(2000) {
+        for item in page.prefix(2000) { available.formUnion(item.apps.prefix(2000)) }
+      }
+    }
     var seen = Set<String>()
     var folderIDs = Set<String>()
     pages = pages.prefix(2000).flatMap { page -> [[Item]] in

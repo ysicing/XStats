@@ -489,6 +489,31 @@ import Testing
     #expect(packages.map(\.id) == ["formula:tool"])
   }
 
+  @Test(arguments: [HomebrewPackage.Kind.formula, .cask])
+  func previewToleratesUnidentifiedFormulaeButCompletionVerificationDoesNot(
+    kind: HomebrewPackage.Kind
+  ) async throws {
+    let home = try stubBrew(
+      """
+      #!/bin/sh
+      case "$1" in
+        --prefix) echo /opt/homebrew ;;
+        info) echo '{"formulae":["invalid",{"name":"tool","full_name":"tool","installed":[{"version":"1"}]}],"casks":[{"full_token":"viewer","installed":"1","depends_on":null}]}' ;;
+        uses) exit 0 ;;
+        *) exit 9 ;;
+      esac
+      """)
+    defer { try? FileManager.default.removeItem(at: home) }
+    let packages = try await HomebrewManagement.inventory(home: home.path)
+    let package = try #require(packages.first { $0.kind == kind })
+    let preview = try await HomebrewManagement.preview(
+      .uninstall, package: package, home: home.path)
+    #expect(preview.canProceed)
+    await #expect(throws: HomebrewManagement.InventoryError.self) {
+      try await HomebrewManagement.inventory(home: home.path, completeFor: [package.name])
+    }
+  }
+
   @Test func cleanupCancellationAfterParentExitInterruptsInheritedPipe() async throws {
     let home = try stubBrew(
       "#!/bin/sh\necho $$ > \"$HOME/parent\"\n/bin/sleep 30 &\necho $! > \"$HOME/child\"\nexit 0\n")

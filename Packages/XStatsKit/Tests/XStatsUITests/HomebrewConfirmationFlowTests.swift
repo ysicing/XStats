@@ -10,6 +10,48 @@ import Testing
 @MainActor
 struct HomebrewConfirmationFlowTests {
   enum PreviewChoice: String, CaseIterable, Sendable { case skip, show, fail }
+  enum ConfirmationBlock: CaseIterable, Sendable { case indexUpdate, packageWrite, stalePackage }
+
+  @Test(arguments: ConfirmationBlock.allCases)
+  func unavailableUpgradeCannotConfirmAndExplainsRejectedExecution(block: ConfirmationBlock)
+    async throws
+  {
+    let package = try #require(
+      HomebrewManagement.parse(
+        #"{"formulae":[{"name":"tool","full_name":"tool","installed":[{"version":"1"}],"outdated":true}],"casks":[]}"#,
+        prefix: URL(fileURLWithPath: "/opt/homebrew")
+      ).first)
+    let (events, release) = AsyncStream<Void>.makeStream()
+    let controller = AppManagementController(
+      listApps: { [] }, brewAvailable: true, listPackages: { [package] },
+      updateIndex: { for await _ in events {} },
+      performAction: { _, _ in for await _ in events {} })
+    controller.setVisible(true, tab: .homebrew)
+    defer {
+      release.finish()
+      controller.setVisible(false)
+    }
+    try await waitFor { !controller.isLoadingBrew && !controller.packages.isEmpty }
+    let sheet = HomebrewConfirmationSheet(
+      controller: controller, confirmation: BrewConfirmation(package: package, action: .upgrade),
+      confirm: {}, cancel: {})
+    #expect(sheet.canConfirm)
+    switch block {
+    case .indexUpdate:
+      controller.checkBrewUpdates()
+      #expect(controller.isCheckingUpdates)
+    case .packageWrite:
+      try #require(controller.perform(.upgrade, package: package))
+      #expect(controller.operation != nil)
+    case .stalePackage:
+      controller.showPreview(apps: [], metadata: [:], sizes: [:], packages: [])
+    }
+    #expect(!sheet.canConfirm)
+    #expect(!controller.perform(.upgrade, package: package))
+    #expect(controller.previewError != nil)
+    release.finish()
+    try await waitFor { controller.operation == nil && !controller.isCheckingUpdates }
+  }
 
   @Test(arguments: PreviewChoice.allCases)
   func upgradeConfirmationLoadsOnlyRequestedPreviews(choice: PreviewChoice) async throws {

@@ -82,4 +82,13 @@ struct HomebrewImpactPresentationTests {
       #expect(L10n.translate(text, language: language) != text)
     }
   }
+
+  @Test func upgradeOutputIsBoundedByLinesAndCharacters() {
+    let many = (0..<1_000).map { "line \($0)" }.joined(separator: "\n")
+    let byLines = HomebrewImpactView.displayed(many, maxLines: 10, maxCharacters: 1_000_000)
+    #expect(byLines.split(separator: "\n").count == 10 && byLines.hasPrefix("line 0\n"))
+    let long = String(repeating: "x", count: 50_000)
+    #expect(HomebrewImpactView.displayed(long, maxLines: 10, maxCharacters: 100).count == 100)
+    #expect(HomebrewImpactView.displayed("a\nb") == "a\nb")
+  }
 }

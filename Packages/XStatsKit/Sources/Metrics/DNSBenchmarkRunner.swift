@@ -7,6 +7,10 @@ public enum DNSBenchmark {
   typealias Probe = @Sendable (DNSBenchmarkTarget, String) async throws -> DNSBenchmarkSample
   static let domains = ["www.apple.com", "www.baidu.com", "www.cloudflare.com"]
   static let maximumConcurrentQueries = 6
+  /// 连续失败达到该次数即判定端点不可达，跳过其剩余查询，避免每个查询都等满超时。
+  static let consecutiveFailureLimit = 3
+  /// 进度发布间隔；窗口按此频率整体刷新，过密会让视图反复重算。
+  static let progressInterval: Duration = .milliseconds(300)
 
   private struct CompletedQuery: Sendable {
     let index: Int
@@ -66,6 +70,8 @@ public enum DNSBenchmark {
     var pending = Array(targets.indices).shuffled()
     var next = 0
     var completedRounds = Array(repeating: 0, count: targets.count)
+    var consecutiveFailures = Array(repeating: 0, count: targets.count)
+    let queriesPerTarget = rounds + domains.count
     try await withThrowingTaskGroup(of: CompletedQuery.self) { group in
       for _ in 0..<min(maximumConcurrentQueries, targets.count) {
         let index = pending[next]
@@ -82,12 +88,27 @@ public enum DNSBenchmark {
         if query.round >= domains.count { results[query.index].record(query.outcome) }
         completed += 1
         completedRounds[query.index] += 1
-        if completed == total || ContinuousClock.now - lastPublished >= .milliseconds(100) {
+        if case .success = query.outcome {
+          consecutiveFailures[query.index] = 0
+        } else {
+          consecutiveFailures[query.index] += 1
+        }
+        if consecutiveFailures[query.index] >= consecutiveFailureLimit,
+          completedRounds[query.index] < queriesPerTarget
+        {
+          // 不可达端点：剩余查询直接记为超时，计入进度以保持 completed 与 total 守恒，结果结构不变。
+          for round in completedRounds[query.index]..<queriesPerTarget {
+            completed += 1
+            if round >= domains.count { results[query.index].record(.failure(.timeout)) }
+          }
+          completedRounds[query.index] = queriesPerTarget
+        }
+        if completed == total || ContinuousClock.now - lastPublished >= progressInterval {
           progress(results, completed, total)
           lastPublished = ContinuousClock.now
         }
         // 每个端点仅有一个在途请求；完成后排到队尾，慢端点不会阻塞其他协议的下一轮。
-        if completedRounds[query.index] < rounds + domains.count { pending.append(query.index) }
+        if completedRounds[query.index] < queriesPerTarget { pending.append(query.index) }
         if next < pending.count {
           let index = pending[next]
           let round = completedRounds[index]
@@ -161,6 +182,9 @@ public enum DNSBenchmark {
   }
 
   private static func interceptionTarget(_ transport: DNSBenchmarkProtocol) -> DNSBenchmarkTarget {
-    DNSBenchmarkTarget(name: "Interception", host: "192.0.2.1", transport: transport)
+    // 独立的 TLS 名称让探针 id 与用户填写的同址端点（如 192.0.2.1）不冲突；UDP/TCP 不使用该字段。
+    DNSBenchmarkTarget(
+      name: "Interception", host: "192.0.2.1", transport: transport,
+      tlsServerName: "interception.probe.invalid")
   }
 }

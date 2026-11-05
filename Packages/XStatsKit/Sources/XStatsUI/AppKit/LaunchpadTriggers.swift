@@ -14,6 +14,14 @@ struct LaunchpadPinch: Sendable {
     case progress(Double)
     case end(Bool)
   }
+  /// 松手提交所需进度；AppController 也以此作为开始显示启动台的门槛。
+  static let commitProgress = 0.65
+
+  /// 延迟到提交门槛才加载内容，同时让可见阶段仍从透明开始。
+  static func revealProgress(for progress: Double) -> Double {
+    min(1, max(0, (progress - commitProgress) / (1 - commitProgress)))
+  }
+
   var fingers = 4
   private var identifiers: Set<Int32> = []
   private var initialRadius = 0.0
@@ -39,7 +47,7 @@ struct LaunchpadPinch: Sendable {
         && contacts.allSatisfy {
           $0.x.isFinite && $0.y.isFinite
         }
-      let result: Event? = active ? .end(validRelease && progress >= 0.65) : nil
+      let result: Event? = active ? .end(validRelease && progress >= Self.commitProgress) : nil
       self = Self(fingers: fingers)
       return result
     }
@@ -162,27 +170,39 @@ final class LaunchpadTriggers {
     @convention(c) (UnsafeMutableRawPointer, LaunchpadTouchCallback) -> Void
   private typealias Start = @convention(c) (UnsafeMutableRawPointer, Int32) -> Void
   private typealias Stop = @convention(c) (UnsafeMutableRawPointer) -> Void
-  private var handle: UnsafeMutableRawPointer?
   private var devices: CFMutableArray?
   private var unregister: Register?
   private var stopDevice: Stop?
   private var globalMonitor: Any?
   private var localMonitor: Any?
   private var cornerTask: Task<Void, Never>?
-  private var corner = 0
-  private var fingers = 0
+  private(set) var corner = 0
+  private(set) var fingers = 0
   private var cornerLatched = false
   private var cornerScreen: NSScreen?
+  /// 各屏幕的当前坐标，仅在触发角启用期间保留，屏幕参数变化时刷新。
+  private var cornerTargets: [(screen: NSScreen, frame: NSRect)] = []
+  private var screenObserver: NSObjectProtocol?
   var onOpen: () -> Void = {}
   var onPinch: (LaunchpadPinch.Event) -> Void = { _ in }
 
   func configure(fingers: Int, corner: Int) {
+    // 先规范化再比较，非法值不会每次都触发 stop/重启。
+    let fingers = [4, 5].contains(fingers) ? fingers : 0
+    let corner = (1...4).contains(corner) ? corner : 0
     guard fingers != self.fingers || corner != self.corner else { return }
     stop()
-    self.fingers = [4, 5].contains(fingers) ? fingers : 0
-    self.corner = (1...4).contains(corner) ? corner : 0
-    if self.fingers != 0 { startTouchpad() }
-    if self.corner != 0 {
+    self.fingers = fingers
+    self.corner = corner
+    // 启用失败时回滚，状态不假装已开启，下次 configure 才会重试。
+    if fingers != 0 && !startTouchpad() { self.fingers = 0 }
+    if corner != 0 {
+      refreshCornerTargets()
+      screenObserver = NotificationCenter.default.addObserver(
+        forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+      ) { [weak self] _ in
+        MainActor.assumeIsolated { self?.refreshCornerTargets() }
+      }
       globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
         MainActor.assumeIsolated { self?.mouseMoved() }
       }
@@ -206,8 +226,11 @@ final class LaunchpadTriggers {
     devices = nil
     unregister = nil
     stopDevice = nil
-    if let handle { dlclose(handle) }
-    handle = nil
+    // 不 dlclose：框架回调可能仍在其他线程执行，卸载私有框架会让其返回到已释放的代码页。
+    // 句柄常驻，重复 dlopen 只增加引用计数；注销与 MTDeviceStop 后设备数组仅作 id 比较，释放是安全的。
+    if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+    screenObserver = nil
+    cornerTargets = []
     if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
     if let localMonitor { NSEvent.removeMonitor(localMonitor) }
     globalMonitor = nil
@@ -220,14 +243,15 @@ final class LaunchpadTriggers {
     fingers = 0
   }
 
-  private func startTouchpad() {
+  @discardableResult
+  private func startTouchpad() -> Bool {
     guard
       let library = dlopen(
         "/System/Library/PrivateFrameworks/MultitouchSupport.framework/MultitouchSupport",
         RTLD_LAZY | RTLD_LOCAL)
     else {
       reportUnavailable()
-      return
+      return false
     }
     guard let createSymbol = dlsym(library, "MTDeviceCreateList"),
       let registerSymbol = dlsym(library, "MTRegisterContactFrameCallback"),
@@ -235,19 +259,16 @@ final class LaunchpadTriggers {
       let startSymbol = dlsym(library, "MTDeviceStart"),
       let stopSymbol = dlsym(library, "MTDeviceStop")
     else {
-      dlclose(library)
       reportUnavailable()
-      return
+      return false
     }
     let create = unsafeBitCast(createSymbol, to: Create.self)
     guard let list = create()?.takeRetainedValue(), CFArrayGetCount(list) > 0,
       CFArrayGetCount(list) <= 16
     else {
-      dlclose(library)
       reportUnavailable()
-      return
+      return false
     }
-    handle = library
     devices = list
     unregister = unsafeBitCast(unregisterSymbol, to: Register.self)
     stopDevice = unsafeBitCast(stopSymbol, to: Stop.self)
@@ -264,6 +285,7 @@ final class LaunchpadTriggers {
     }
     Logger(subsystem: Log.subsystem, category: "Launchpad").info(
       "Optional touchpad trigger started")
+    return true
   }
 
   private func reportUnavailable() {
@@ -271,10 +293,19 @@ final class LaunchpadTriggers {
       "Optional touchpad trigger unavailable")
   }
 
+  private func refreshCornerTargets() {
+    cornerTargets = NSScreen.screens.map { ($0, $0.frame) }
+    if let cornerScreen, !cornerTargets.contains(where: { $0.screen === cornerScreen }) {
+      cornerTask?.cancel()
+      cornerTask = nil
+      self.cornerScreen = nil
+    }
+  }
+
   private func mouseMoved() {
     let point = NSEvent.mouseLocation
-    let screen = NSScreen.screens.first { Self.hitsCorner(point, frame: $0.frame, corner: corner) }
-    guard let screen else {
+    let target = cornerTargets.first { Self.hitsCorner(point, frame: $0.frame, corner: corner) }
+    guard let target else {
       cornerTask?.cancel()
       cornerTask = nil
       cornerScreen = nil
@@ -282,10 +313,10 @@ final class LaunchpadTriggers {
       return
     }
     guard !cornerLatched else { return }
-    if cornerScreen !== screen {
+    if cornerScreen !== target.screen {
       cornerTask?.cancel()
       cornerTask = nil
-      cornerScreen = screen
+      cornerScreen = target.screen
     }
     guard cornerTask == nil else { return }
     let keys = ["", "tl", "tr", "bl", "br"]
@@ -297,7 +328,7 @@ final class LaunchpadTriggers {
     cornerTask = Task { [weak self] in
       do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
       guard let self, self.corner != 0,
-        Self.hitsCorner(NSEvent.mouseLocation, frame: screen.frame, corner: self.corner)
+        Self.hitsCorner(NSEvent.mouseLocation, frame: target.frame, corner: self.corner)
       else { return }
       self.cornerLatched = true
       self.cornerTask = nil

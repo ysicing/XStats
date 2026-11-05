@@ -245,11 +245,92 @@ struct DNSBenchmarkTests {
     #expect(await ledger.calls.count == 6)
   }
 
+  @Test func unreachableEndpointsStopAfterConsecutiveFailuresAndKeepProgressConserved() async throws
+  {
+    let ledger = DNSBenchmarkLedger()
+    let progress = DNSBenchmarkProgressRecorder()
+    let dead = DNSBenchmarkTarget(name: "Dead", host: "198.51.100.1", transport: .dot)
+    let alive = DNSBenchmarkTarget(name: "Alive", host: "198.51.100.2", transport: .dot)
+    let results = try await DNSBenchmark.run(
+      targets: [dead, alive], rounds: 10,
+      probe: { target, _ in
+        await ledger.begin(target.id)
+        await ledger.end()
+        if target.id == dead.id { throw DNSBenchmarkFailure.timeout }
+        return DNSBenchmarkSample(milliseconds: 5)
+      },
+      progress: { _, completed, total in progress.record(completed, total) })
+    let calls = await ledger.calls
+    #expect(calls.filter { $0 == dead.id }.count == DNSBenchmark.consecutiveFailureLimit)
+    #expect(calls.filter { $0 == alive.id }.count == 13)
+    let deadResult = try #require(results.first { $0.target.id == dead.id })
+    #expect(deadResult.attempts == 10)
+    #expect(deadResult.samples.isEmpty)
+    #expect(deadResult.failureRate == 1)
+    #expect(deadResult.lastFailure == .timeout)
+    let aliveResult = try #require(results.first { $0.target.id == alive.id })
+    #expect(aliveResult.attempts == 10 && aliveResult.median == 5)
+    let last = try #require(progress.last)
+    #expect(last.completed == 26 && last.total == 26)
+    #expect(progress.isMonotonic)
+  }
+
+  @Test func intermittentFailuresBelowTheLimitDoNotSkipQueries() async throws {
+    let counter = DNSBenchmarkLedger()
+    let target = DNSBenchmarkTarget(name: "Flaky", host: "198.51.100.3", transport: .dot)
+    let results = try await DNSBenchmark.run(
+      targets: [target], rounds: 4,
+      probe: { target, _ in
+        await counter.begin(target.id)
+        await counter.end()
+        // 每三次查询失败两次，连续失败永远不到上限。
+        if await counter.calls.count % 3 != 0 { throw DNSBenchmarkFailure.timeout }
+        return DNSBenchmarkSample(milliseconds: 7)
+      })
+    #expect(await counter.calls.count == 7)
+    #expect(results.first?.attempts == 4)
+  }
+
+  @Test func interceptionProbeNeverSharesAnIDWithACustomEndpointAtTheSameAddress() async throws {
+    let ledger = DNSBenchmarkLedger()
+    let custom = try #require(DNSBenchmarkTarget.custom("192.0.2.1", transport: .udp))
+    _ = try await DNSBenchmark.run(
+      targets: [custom], rounds: 1,
+      probe: { target, _ in
+        await ledger.begin(target.id)
+        await ledger.end()
+        return DNSBenchmarkSample(milliseconds: 3, addresses: ["192.0.2.10"])
+      })
+    let ids = Set(await ledger.calls)
+    #expect(ids.count == 2)
+    #expect(ids.contains(custom.id))
+  }
+
   static let reply = Data([
     0x12, 0x34, 0x81, 0x80, 0, 1, 0, 1, 0, 0, 0, 0,
     7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0, 0, 1, 0, 1,
     0xc0, 0x0c, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4, 93, 184, 216, 34,
   ])
+}
+
+private final class DNSBenchmarkProgressRecorder: @unchecked Sendable {
+  private let lock = NSLock()
+  private var values: [(completed: Int, total: Int)] = []
+  func record(_ completed: Int, _ total: Int) {
+    lock.lock()
+    values.append((completed, total))
+    lock.unlock()
+  }
+  var last: (completed: Int, total: Int)? {
+    lock.lock()
+    defer { lock.unlock() }
+    return values.last
+  }
+  var isMonotonic: Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return zip(values, values.dropFirst()).allSatisfy { $0.completed <= $1.completed }
+  }
 }
 
 private actor DNSBenchmarkLedger {

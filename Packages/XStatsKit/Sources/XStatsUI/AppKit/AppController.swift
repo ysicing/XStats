@@ -815,14 +815,20 @@ public final class AppController: NSObject, NSApplicationDelegate {
       guard let self else { return }
       switch event {
       case .progress(let progress):
+        // 打开会触发应用扫描、拼音索引和壁纸解码；进度未达提交门槛时不做，放弃的手势不产生开销。
         if !self.launchpad.isVisible {
+          guard progress >= LaunchpadPinch.commitProgress else { return }
           self.openLaunchpadFromMenu()
-          self.launchpad.setRevealProgress(progress)
+          self.launchpad.setRevealProgress(LaunchpadPinch.revealProgress(for: progress))
         } else if self.launchpad.isRevealing {
-          self.launchpad.setRevealProgress(progress)
+          self.launchpad.setRevealProgress(LaunchpadPinch.revealProgress(for: progress))
         }
       case .end(let commit):
-        if self.launchpad.isRevealing { self.launchpad.finishReveal(commit: commit) }
+        if self.launchpad.isRevealing {
+          self.launchpad.finishReveal(commit: commit)
+        } else if commit && !self.launchpad.isVisible {
+          self.openLaunchpadFromMenu()
+        }
       }
     }
     if launchpad.isRevealing {

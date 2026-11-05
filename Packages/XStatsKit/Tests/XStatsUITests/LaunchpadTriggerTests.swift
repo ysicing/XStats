@@ -32,6 +32,38 @@ struct LaunchpadTriggerTests {
     #expect(pinch.update(contacts(count: fingers)) == nil)
   }
 
+  @Test func revealThresholdMatchesCommitProgress() {
+    var pinch = LaunchpadPinch()
+    _ = pinch.update(contacts())
+    // 进度略高于提交门槛（进度 = 收缩比 / 0.4），松手应提交。
+    let radius = 0.25 * (1 - 0.4 * (LaunchpadPinch.commitProgress + 0.02))
+    guard case .progress(let value) = pinch.update(contacts(radius: radius)) else {
+      Issue.record("Pinch did not start")
+      return
+    }
+    #expect(value >= LaunchpadPinch.commitProgress)
+    #expect(pinch.update([]) == .end(true))
+  }
+
+  @Test func visiblePinchStageFadesFromTransparentToOpaque() {
+    #expect(LaunchpadPinch.revealProgress(for: 0) == 0)
+    #expect(LaunchpadPinch.revealProgress(for: LaunchpadPinch.commitProgress) == 0)
+    let midpoint = (1 + LaunchpadPinch.commitProgress) / 2
+    #expect(abs(LaunchpadPinch.revealProgress(for: midpoint) - 0.5) < 0.001)
+    #expect(LaunchpadPinch.revealProgress(for: 1) == 1)
+    #expect(LaunchpadPinch.revealProgress(for: 2) == 1)
+  }
+
+  @MainActor @Test func invalidSettingsNormalizeWithoutRestartingTriggers() {
+    let trigger = LaunchpadTriggers()
+    trigger.configure(fingers: 9, corner: 9)
+    #expect(trigger.fingers == 0)
+    #expect(trigger.corner == 0)
+    trigger.configure(fingers: -1, corner: 0)
+    #expect(trigger.fingers == 0)
+    trigger.stop()
+  }
+
   @Test func translationWrongCountIdentityAndInvalidCoordinatesCannotOpen() {
     var pinch = LaunchpadPinch()
     #expect(pinch.update(contacts(count: 3)) == nil)

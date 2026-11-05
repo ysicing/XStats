@@ -168,6 +168,29 @@ struct DNSBenchmarkControllerTests {
     #expect(plainOnly.result(for: .doh) == nil)
   }
 
+  @Test func encryptedDNSRequiresAnExplicitSchemeAndUnknownSchemesAreRejected() {
+    let controller = DNSBenchmarkController()
+    controller.customInput = "dns.google:853"
+    controller.addCustomTarget()
+    #expect(controller.customTargets.isEmpty)
+    #expect(controller.customError)
+    controller.customInput = "tls://dns.google:853"
+    controller.addCustomTarget()
+    let target = controller.customTargets.first
+    #expect(target?.transport == .dot)
+    #expect(target?.host == "dns.google")
+    #expect(target?.port == 853)
+    #expect(!controller.customError)
+    controller.customInput = "ftp://dns.google"
+    controller.addCustomTarget()
+    #expect(controller.customTargets.count == 1)
+    #expect(controller.customError)
+    controller.customInput = "192.0.2.53:5353"
+    controller.addCustomTarget()
+    #expect(controller.customTargets.last?.transport == .udp)
+    #expect(controller.customTargets.last?.port == 5353)
+  }
+
   @Test func customSchemesAreDetectedAndPlainAddressesTestUDPAndTCP() async throws {
     let controller = DNSBenchmarkController(
       environmentReader: { ProxyEnvironment() },

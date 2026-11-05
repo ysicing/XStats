@@ -269,7 +269,12 @@ private final class DNSBenchmarkHTTPMetrics: NSObject, URLSessionTaskDelegate, S
   func urlSession(
     _ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?
   ) {
-    gate.resume(nil)
+    // 回调顺序不保证 didFinishCollecting 先于 didCompleteWithError；立即收口会用 nil 覆盖尚未到达的耗时。
+    // 这里仅在短暂宽限后仍无 metrics 时才收口，gate 只接受第一次结果。
+    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(250)) {
+      [gate] in
+      gate.resume(nil)
+    }
   }
 
   func urlSession(

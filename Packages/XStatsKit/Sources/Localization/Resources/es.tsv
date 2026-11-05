@@ -2817,3 +2817,7 @@ ps <进程名或 PID>	ps <nombre del proceso o PID>
 ↑↓ 选择 · ↩ 打开	↑↓ Seleccionar · ↩ Abrir
 无法打开项目	No se puede abrir el elemento
 项目可能已移动或不可用，请重新搜索后再试。	El elemento puede haberse movido o no estar disponible. Búscalo de nuevo e inténtalo otra vez.
+收藏 {}	Favorito {}
+取消收藏 {}	Quitar favorito {}
+移到废纸篓 {}	Mover a la Papelera {}
+移到废纸篓 — {}	Mover a la Papelera — {}

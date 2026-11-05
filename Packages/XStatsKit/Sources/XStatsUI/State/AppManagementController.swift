@@ -117,8 +117,9 @@ final class AppManagementController {
   @ObservationIgnored private let inspectApp: @Sendable (InstalledApp) -> ApplicationMetadata
   @ObservationIgnored private let measureSize: @Sendable (URL) throws -> UInt64
   @ObservationIgnored private let listPackages: @Sendable () async throws -> [HomebrewPackage]
+  /// 操作后核验：只要求目标包（名称集合）的清单条目完整。
   @ObservationIgnored private let listCompletePackages:
-    @Sendable () async throws -> [HomebrewPackage]
+    @Sendable (Set<String>) async throws -> [HomebrewPackage]
   @ObservationIgnored private let updateIndex: @Sendable () async throws -> Void
   @ObservationIgnored private let performAction:
     @Sendable (HomebrewManagement.Action, HomebrewPackage) async throws -> Void
@@ -199,8 +200,13 @@ final class AppManagementController {
     self.measureSize = measureSize
     self.brewAvailable = brewAvailable
     self.listPackages = listPackages ?? { try await HomebrewManagement.inventory() }
-    self.listCompletePackages =
-      listPackages ?? { try await HomebrewManagement.inventory(requiresCompleteInventory: true) }
+    if let listPackages {
+      self.listCompletePackages = { @Sendable _ in try await listPackages() }
+    } else {
+      self.listCompletePackages = { @Sendable names in
+        try await HomebrewManagement.inventory(completeFor: names)
+      }
+    }
     self.updateIndex = updateIndex
     self.performAction = performAction
     self.prepareAction = prepareAction
@@ -720,7 +726,13 @@ final class AppManagementController {
     }
     let generation = UUID()
     brewGeneration = generation
-    let list = pendingVerification == nil ? listPackages : listCompletePackages
+    let list: @Sendable () async throws -> [HomebrewPackage]
+    if let target = pendingVerification?.package.name {
+      let listComplete = listCompletePackages
+      list = { try await listComplete([target]) }
+    } else {
+      list = listPackages
+    }
     let measure = measureSize
     isLoadingBrew = needsInventory
     brewTask = Task { [weak self] in
@@ -795,12 +807,23 @@ final class AppManagementController {
         let firstFailure = self.brewFailureDate == nil
         self.brewFailureDate = Date()
         if self.brewReadDate == nil {
-          // 来源未知时不保留旧包列表与来源标记，避免界面显示 Homebrew 却走普通卸载。
-          self.brewInventoryFailed = true
-          self.casksByPath = [:]
-          self.homebrewAppPaths = []
-          self.packages = []
-          self.updatePackageIdentities()
+          if self.packages.isEmpty {
+            // 从未读到清单：来源未知时不保留来源标记，避免界面显示 Homebrew 却走普通卸载。
+            self.brewInventoryFailed = true
+            self.casksByPath = [:]
+            self.homebrewAppPaths = []
+            self.updatePackageIdentities()
+          } else {
+            // 操作后重读失败（含核验失败）：旧清单仍是最近一次确认的状态，保留列表与来源路由，
+            // 仅让清单视为过期，由退避后的自动读取或手动刷新恢复；不清空成功操作后的列表。
+            self.casksByPath = [:]
+            for package in self.packages where package.kind == .cask {
+              for url in package.applicationURLs {
+                self.casksByPath[url.standardizedFileURL.path] = package
+              }
+            }
+            self.brewReadDate = .distantPast
+          }
         }
         if self.pendingVerification != nil {
           self.finishBrewVerification(in: nil)
@@ -932,11 +955,15 @@ final class AppManagementController {
     return .unknown
   }
 
+  func canPerform(_ action: HomebrewManagement.Action, package: HomebrewPackage) -> Bool {
+    enabled && visible && !paused && operation == nil && !isCheckingUpdates
+      && !isLoadingBrew && packages.contains(package) && !isCurrentApp(package)
+      && !(action == .upgrade && (!package.outdated || package.pinned))
+  }
+
   func preparePreview(_ action: HomebrewManagement.Action, package: HomebrewPackage) {
     cancelPreview()
-    guard enabled, visible, !paused, operation == nil, !isCheckingUpdates,
-      !isLoadingBrew, packages.contains(package), !isCurrentApp(package),
-      !(action == .upgrade && (!package.outdated || package.pinned))
+    guard canPerform(action, package: package)
     else {
       previewError = tr("软件包状态已变化，请刷新后重试")
       return
@@ -991,9 +1018,6 @@ final class AppManagementController {
     else { return false }
     guard perform(preview.action, package: preview.package) else {
       impactPreview = nil
-      previewError =
-        isRunning(preview.package)
-        ? tr("应用正在运行，请先退出") : tr("软件包状态已变化，请刷新后重试")
       return false
     }
     return true
@@ -1001,17 +1025,21 @@ final class AppManagementController {
 
   @discardableResult
   func perform(_ action: HomebrewManagement.Action, package: HomebrewPackage) -> Bool {
-    guard enabled, visible, !paused, operation == nil, !isCheckingUpdates,
-      !isLoadingBrew,
-      packages.contains(package), !isCurrentApp(package),
-      !(action == .upgrade && (!package.outdated || package.pinned))
-    else { return false }
+    guard canPerform(action, package: package) else {
+      previewError = tr("软件包状态已变化，请刷新后重试")
+      return false
+    }
     guard !isRunning(package) else {
       error = tr("应用正在运行，请先退出")
+      previewError = error
       return false
     }
     let homebrewOperations = homebrewOperations
-    guard homebrewOperations.begin() else { return false }
+    guard homebrewOperations.begin() else {
+      previewError = tr("Homebrew 操作尚未完成")
+      return false
+    }
+    previewError = nil
     cancelReading()
     operation = action
     operationPackage = package

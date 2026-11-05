@@ -39,12 +39,23 @@ enum CommandBarApplications {
     ].map { URL(fileURLWithPath: $0) }
   }
 
-  /// 仅访问根目录和一层分类目录；不进入应用包、不使用 Spotlight 或卸载器的全盘清单。
+  static let maxApplications = 2_000
+  static let maxVisited = 10_000
+
   static func scan(directories: [URL] = directories) throws -> [AppCommand] {
+    try scanResult(directories: directories).commands
+  }
+
+  /// 仅访问根目录和一层分类目录；不进入应用包、不使用 Spotlight 或卸载器的全盘清单。
+  /// `isTruncated` 表示触及数量上限，结果可能缺少实际存在的应用，调用方不得据此清理用户数据。
+  static func scanResult(directories: [URL] = directories) throws -> (
+    commands: [AppCommand], isTruncated: Bool
+  ) {
     let manager = FileManager.default
     var paths = Set<String>()
     var commands: [AppCommand] = []
     var visited = 0
+    var isTruncated = false
     for directory in directories {
       try Task.checkCancellation()
       guard
@@ -55,7 +66,10 @@ enum CommandBarApplications {
       for case let candidate as URL in enumerator {
         try Task.checkCancellation()
         visited += 1
-        if visited > 10_000 || commands.count >= 2_000 { break }
+        if visited > maxVisited || commands.count >= maxApplications {
+          isTruncated = true
+          break
+        }
         let values = try? candidate.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
         // 对符号链接或已经自动跳过的包再次 skip，会跳过后续目录。
         if values?.isDirectory == true, values?.isSymbolicLink != true,
@@ -78,12 +92,16 @@ enum CommandBarApplications {
             keywords: "\(filename) \(bundle.bundleIdentifier ?? "")",
             action: .openApplication(url)))
       }
-      if visited > 10_000 || commands.count >= 2_000 { break }
+      if visited > maxVisited || commands.count >= maxApplications {
+        isTruncated = true
+        break
+      }
     }
-    return commands.sorted {
+    let sorted = commands.sorted {
       let comparison = $0.title.localizedStandardCompare($1.title)
       return comparison == .orderedSame ? $0.id < $1.id : comparison == .orderedAscending
     }
+    return (sorted, isTruncated)
   }
 }
 

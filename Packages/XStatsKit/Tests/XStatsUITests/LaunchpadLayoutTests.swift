@@ -24,6 +24,29 @@ struct LaunchpadLayoutTests {
     #expect(layout.pages == [[.app("b")], [.app("a")], [.app("c")]])
   }
 
+  @Test func truncatedScanKeepsMissingApplicationsAndFolders() {
+    var layout = LaunchpadLayout(pages: [
+      [.app("a"), .init(id: "folder.x", name: "", apps: ["b", "missing"]), .app("gone")]
+    ])
+    layout.reconcile(appIDs: ["a", "b", "c"], capacity: 8, pruneMissing: false)
+    let apps = layout.pages.joined().flatMap(\.apps)
+    #expect(apps.contains("missing") && apps.contains("gone"))
+    #expect(apps.contains("c"))
+    layout.reconcile(appIDs: ["a", "b", "c"], capacity: 8)
+    let pruned = layout.pages.joined().flatMap(\.apps)
+    #expect(!pruned.contains("missing") && !pruned.contains("gone"))
+  }
+
+  @Test func defaultFolderNameStaysEmptyWhileFolderRemainsAFolder() {
+    var layout = LaunchpadLayout(pages: [[.app("a"), .app("b")]])
+    layout.group("a", into: "b", name: "")
+    let folder = layout.pages[0][0]
+    #expect(folder.isFolder)
+    #expect(folder.name == "")
+    layout.reconcile(appIDs: ["a", "b"], capacity: 4)
+    #expect(layout.pages[0][0].isFolder)
+  }
+
   @Test func malformedAndDuplicateFoldersDoNotLoseApplications() {
     var layout = LaunchpadLayout(pages: [
       [

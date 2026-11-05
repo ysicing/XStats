@@ -6,7 +6,9 @@ import Localization
 import Testing
 @testable import XStatsUI
 
+// 用例共享 AppKit 的 key window；异步等待时也不能互相抢焦点触发 dismiss。
 @MainActor
+@Suite(.serialized)
 struct LaunchpadTests {
   private let frame = NSRect(x: -10_000, y: -10_000, width: 900, height: 650)
 
@@ -78,6 +80,29 @@ struct LaunchpadTests {
     #expect(oldPanel.contentView == nil)
     controller.windowDidResignKey(Notification(name: NSWindow.didResignKeyNotification))
     #expect(controller.panel == nil && controller.results.isEmpty)
+  }
+
+  @Test(arguments: [AppLanguage.chinese, .arabic])
+  func wheelPagingKeepsPhysicalDirectionAcrossLanguages(language: AppLanguage) async throws {
+    _ = NSApplication.shared
+    let controller = LaunchpadWindowController()
+    defer { controller.dismiss() }
+    let applications = (0..<120).map { application("App \($0)") }
+    controller.show(language: language, frame: frame, applicationLoader: { applications })
+    try await waitForCatalog(controller, count: applications.count)
+    let panel = try #require(controller.panel)
+    for horizontal in [true, false] {
+      controller.changePage(by: -10_000)
+      let scroll = try #require(
+        CGEvent(
+          scrollWheelEvent2Source: nil, units: .line, wheelCount: 2,
+          wheel1: horizontal ? 0 : -3, wheel2: horizontal ? -3 : 0, wheel3: 0))
+      // 合成事件默认时间戳为零；间隔超过翻页防抖时间，避免被当作重复事件丢弃。
+      scroll.timestamp = horizontal ? 1_000_000_000 : 2_000_000_000
+      let event = try #require(NSEvent(cgEvent: scroll))
+      panel.sendEvent(event)
+      #expect(controller.page == 1)
+    }
   }
 
   @Test func queryEnteredWhileLoadingIsPreservedAndOnlyApplicationsAreIncluded() async throws {

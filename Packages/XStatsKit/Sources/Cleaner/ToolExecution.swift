@@ -53,6 +53,13 @@ enum DeveloperToolRunner {
   /// 只从常见的用户工具目录和系统工具目录解析，避免依赖 GUI 进程通常不完整的 PATH。
   static func executable(named name: String, home: String) -> URL? {
     guard !name.isEmpty, !name.contains("/") else { return nil }
+    if name == "brew", home == NSHomeDirectory() {
+      // brew 拥有安装与卸载权限；只信任 Homebrew 固定安装位置，不让用户可写 PATH 目录抢先。
+      // 应用始终以真实主目录调用；显式传入其他 home（测试隔离环境）时保留原有查找，便于放置桩程序。
+      return ["/opt/homebrew/bin", "/usr/local/bin"]
+        .map { URL(fileURLWithPath: $0, isDirectory: true).appendingPathComponent(name) }
+        .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+    }
     return searchDirectories(home: home)
       .map { $0.appendingPathComponent(name) }
       .first { FileManager.default.isExecutableFile(atPath: $0.path) }

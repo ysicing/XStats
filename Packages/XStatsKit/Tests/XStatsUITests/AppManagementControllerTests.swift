@@ -841,7 +841,9 @@ import Testing
     try await waitFor { controller.operation == nil && !controller.isReading }
     #expect(controller.completion?.verification == .unavailable)
     #expect(controller.error == nil)
-    #expect(controller.brewInventoryFailed && controller.packages.isEmpty)
+    // 核验读取失败只标记结果不可用，已有清单保留，不降级为来源未知。
+    #expect(!controller.brewInventoryFailed && controller.packages == [package])
+    #expect(controller.hasBrewInventory)
     controller.setVisible(false)
     controller.setVisible(true)
     #expect(controller.completion == nil)

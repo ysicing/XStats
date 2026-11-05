@@ -96,6 +96,10 @@ extension Translations {
     清除最近使用	Clear Recents
     清除收藏	Clear Favorites
     最多收藏 8 项	Save up to 8 favorites
+    收藏 {}	Favorite {}
+    取消收藏 {}	Unfavorite {}
+    移到废纸篓 {}	Move to Trash {}
+    移到废纸篓 — {}	Move to Trash — {}
     正在读取应用…	Loading apps…
     port <端口号 1–65535>	port <port number 1–65535>
     brew <软件包名>	brew <package name>

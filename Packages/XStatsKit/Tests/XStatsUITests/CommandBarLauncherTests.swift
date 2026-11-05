@@ -26,8 +26,21 @@ struct CommandBarLauncherTests {
     #expect(Set(commands.map(\.id)).count == 2)
     #expect(commands.contains { $0.action == .openApplication(primary.resolvingSymlinksInPath()) })
     #expect(CommandBarSearch(commands: commands).results(for: "gongju").count == 1)
+    #expect(try CommandBarApplications.scanResult(directories: [root]).isTruncated == false)
     try manager.removeItem(at: utility)
     #expect(try CommandBarApplications.scan(directories: [root]).count == 1)
+  }
+
+  @Test func removingDropsOnlyTheNamedEntryFromSearch() {
+    let first = AppCommand(
+      id: "application.a", title: "Alpha", symbol: "app", keywords: "",
+      action: .openApplication(URL(fileURLWithPath: "/tmp/Alpha.app")))
+    let second = AppCommand(
+      id: "application.b", title: "Alpha Two", symbol: "app", keywords: "",
+      action: .openApplication(URL(fileURLWithPath: "/tmp/AlphaTwo.app")))
+    let search = CommandBarSearch(commands: [first, second], supportsParameterQueries: false)
+    #expect(search.removing(first.id).results(for: "alpha").map(\.id) == [second.id])
+    #expect(search.results(for: "alpha").count == 2)
   }
 
   @Test func usageIsBoundedPersistentAndDoesNotStoreQueryArguments() throws {

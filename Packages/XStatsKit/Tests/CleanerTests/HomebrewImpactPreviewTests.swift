@@ -83,7 +83,6 @@ struct HomebrewImpactPreviewTests {
       #"[{"full_token":"base","installed":"1","depends_on":null},{"full_token":"editor","installed":"1","depends_on":{"cask":42}}]"#,
       #"[{"full_token":"a/apps/base","installed":"1","depends_on":null},{"full_token":"b/apps/base","installed":"1","depends_on":null},{"full_token":"editor","installed":"1","depends_on":{"cask":["base"]}}]"#,
       #"[{"full_token":"base","installed":"1"}]"#,
-      #"[{"full_token":"base","installed":"1","depends_on":{"cask":["unknown-or-renamed"]}}]"#,
     ] {
       let packages = try inventory(casks)
       let base = try #require(packages.first)
@@ -91,6 +90,76 @@ struct HomebrewImpactPreviewTests {
         try HomebrewManagement.caskDependents(of: base, in: packages)
       }
     }
+  }
+
+  @Test(arguments: [
+    ("new-base", "old-base", "old-base"),
+    ("vendor/apps/new-base", "old-base", "vendor/apps/old-base"),
+    ("vendor/apps/new-base", "legacy/apps/old-base", "legacy/apps/old-base"),
+    ("vendor/apps/new-base", "old-base", "old-base"),
+  ])
+  func renamedCaskDependenciesBlockUninstall(
+    name: String, oldToken: String, dependency: String
+  ) async throws {
+    let packages = try inventory(
+      #"""
+      [{"full_token":"\#(name)","old_tokens":["\#(oldToken)"],"installed":"1","depends_on":null},
+       {"full_token":"editor","old_tokens":["old-editor"],"installed":"1","depends_on":{"cask":["\#(dependency)"]}},
+       {"full_token":"viewer","installed":"1","depends_on":{"cask":["old-editor"]}},
+       {"full_token":"other/apps/old-base","installed":"1","depends_on":null}]
+      """#)
+    let base = try #require(packages.first { $0.name == name })
+    if dependency == "old-base" {
+      await #expect(throws: HomebrewManagement.InventoryError.self) {
+        try await HomebrewManagement.preview(.uninstall, package: base, inventory: packages) { _ in
+          ""
+        }
+      }
+    } else {
+      let preview = try await HomebrewManagement.preview(
+        .uninstall, package: base, inventory: packages
+      ) { _ in "" }
+      #expect(preview.dependents == ["editor", "viewer"])
+      #expect(!preview.canProceed)
+    }
+  }
+
+  @Test func renamedCoreCaskDependenciesBlockUninstall() async throws {
+    let packages = try inventory(
+      #"""
+      [{"full_token":"new-base","old_tokens":["old-base"],"installed":"1","depends_on":null},
+       {"full_token":"editor","installed":"1","depends_on":{"cask":["old-base"]}}]
+      """#)
+    let base = try #require(packages.first { $0.name == "new-base" })
+    let preview = try await HomebrewManagement.preview(
+      .uninstall, package: base, inventory: packages
+    ) { _ in "" }
+    #expect(preview.dependents == ["editor"])
+    #expect(!preview.canProceed)
+  }
+
+  @Test(arguments: ["42", #"["--invalid"]"#, #"[""]"#, "null"])
+  func malformedCaskRenamesBlockThePreview(_ oldTokens: String) throws {
+    let packages = try inventory(
+      #"[{"full_token":"base","old_tokens":\#(oldTokens),"installed":"1","depends_on":null}]"#)
+    let base = try #require(packages.first)
+    #expect(throws: HomebrewManagement.InventoryError.self) {
+      try HomebrewManagement.caskDependents(of: base, in: packages)
+    }
+  }
+
+  @Test func unrelatedUnmatchedOrAmbiguousCaskEdgesDoNotBlockThePreview() throws {
+    let packages = try inventory(
+      #"""
+      [{"full_token":"base","installed":"1","depends_on":null},
+       {"full_token":"editor","installed":"1","depends_on":{"cask":["base"]}},
+       {"full_token":"stray","installed":"1","depends_on":{"cask":["unknown-or-renamed"]}},
+       {"full_token":"a/apps/lib","installed":"1","depends_on":null},
+       {"full_token":"b/apps/lib","installed":"1","depends_on":null},
+       {"full_token":"user","installed":"1","depends_on":{"cask":["lib"]}}]
+      """#)
+    let base = try #require(packages.first { $0.name == "base" })
+    #expect(try HomebrewManagement.caskDependents(of: base, in: packages) == ["editor"])
   }
 
   @Test func caskUninstallDoesNotSendACaskTokenToFormulaUses() async throws {
@@ -109,6 +178,6 @@ struct HomebrewImpactPreviewTests {
   private func inventory(_ casks: String) throws -> [HomebrewPackage] {
     try HomebrewManagement.parse(
       #"{"formulae":[],"casks":"# + casks + "}",
-      prefix: URL(fileURLWithPath: "/opt/homebrew"), requiresCompleteInventory: true)
+      prefix: URL(fileURLWithPath: "/opt/homebrew"))
   }
 }

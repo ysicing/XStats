@@ -23,6 +23,7 @@ public struct HomebrewPackage: Sendable, Identifiable, Equatable {
   public let summary: String?
   public let installReason: InstallReason
   let caskDependencies: [String]?
+  let caskOldTokens: [String]?
   public var version: String { installedVersions.joined(separator: ", ") }
 
   init(
@@ -30,7 +31,7 @@ public struct HomebrewPackage: Sendable, Identifiable, Equatable {
     latestVersion: String?,
     outdated: Bool, pinned: Bool, installationURLs: [URL], applicationURLs: [URL],
     installedAt: Date? = nil, summary: String? = nil, installReason: InstallReason = .unknown,
-    caskDependencies: [String]? = nil
+    caskDependencies: [String]? = nil, caskOldTokens: [String]? = []
   ) {
     self.name = name
     self.displayName = displayName
@@ -45,6 +46,7 @@ public struct HomebrewPackage: Sendable, Identifiable, Equatable {
     self.summary = summary
     self.installReason = installReason
     self.caskDependencies = caskDependencies
+    self.caskOldTokens = caskOldTokens
   }
 }
 
@@ -59,7 +61,7 @@ public enum HomebrewManagement {
   /// 只读本地清单；不执行 brew update，不触发自动更新、清理或依赖移除。
   @concurrent
   public static func inventory(
-    home: String = NSHomeDirectory(), requiresCompleteInventory: Bool = false
+    home: String = NSHomeDirectory(), completeFor: Set<String> = []
   ) async throws -> [HomebrewPackage] {
     // 清单只解析 stdout；brew 的警告写入 stderr，丢弃以免混入 JSON。
     let prefix = try await DeveloperToolRunner.run(
@@ -74,7 +76,7 @@ public enum HomebrewManagement {
     try Task.checkCancellation()
     return try parse(
       result.output, prefix: URL(fileURLWithPath: prefix),
-      requiresCompleteInventory: requiresCompleteInventory)
+      completeFor: completeFor)
   }
 
   /// 用户主动刷新远端索引；随后重新读取清单，由 Homebrew 判定 outdated。
@@ -104,10 +106,12 @@ public enum HomebrewManagement {
   /// 顶层结构非法时整体失败；单个异常 Formula（缺字段、标识不合法）和重复包跳过，汇总记一条日志。
   /// Cask 决定应用的卸载路由：任一 Cask 无法识别时整体失败，由调用方降级并提示来源未知，
   /// 不能让被跳过的 Cask 应用静默走普通卸载。
-  /// 操作后核验要求完整清单，不能把解析时跳过的包误判为已经卸载。
+  /// `completeFor` 为目标包名：这些包若在解析时被跳过（异常条目或重复）则整体失败，
+  /// 避免把跳过的目标误判为已经卸载；无法识别身份的 Formula 也须失败，已确认无关的异常 Formula 仍可跳过。
+  /// Formula 依赖方由 `brew uses` 给出，Cask 依赖方要求全部 Cask 可识别，故无需对其余 Formula 要求完整。
   public static func parse(
     _ output: String, prefix: URL, home: String = NSHomeDirectory(),
-    requiresCompleteInventory: Bool = false
+    completeFor: Set<String> = []
   ) throws
     -> [HomebrewPackage]
   {
@@ -117,12 +121,17 @@ public enum HomebrewManagement {
     else { throw InventoryError.invalidOutput }
     var packages: [HomebrewPackage] = []
     var skipped = 0
+    var skippedNames = Set<String>()
     for formula in formulae {
       try Task.checkCancellation()
       guard let formula = formula as? [String: Any],
         let package = formulaPackage(formula, prefix: prefix)
       else {
-        if requiresCompleteInventory { throw InventoryError.invalidOutput }
+        if let name = (formula as? [String: Any])?["full_name"] as? String, validToken(name) {
+          skippedNames.insert(name)
+        } else if !completeFor.isEmpty {
+          throw InventoryError.invalidOutput
+        }
         skipped += 1
         continue
       }
@@ -137,9 +146,17 @@ public enum HomebrewManagement {
       packages.append(package)
     }
     var seen = Set<String>()
-    let unique = packages.filter { seen.insert($0.id).inserted }
-    skipped += packages.count - unique.count
-    if requiresCompleteInventory, skipped > 0 { throw InventoryError.invalidOutput }
+    var duplicates = 0
+    let unique = packages.filter {
+      let inserted = seen.insert($0.id).inserted
+      if !inserted {
+        duplicates += 1
+        skippedNames.insert($0.name)
+      }
+      return inserted
+    }
+    skipped += duplicates
+    if !skippedNames.isDisjoint(with: completeFor) { throw InventoryError.invalidOutput }
     if skipped > 0 {
       logger.notice(
         "Homebrew inventory skipped invalid packages count=\(skipped, privacy: .public) kept=\(unique.count, privacy: .public)"
@@ -200,7 +217,14 @@ public enum HomebrewManagement {
       outdated: cask["outdated"] as? Bool ?? false, pinned: cask["pinned"] as? Bool ?? false,
       installationURLs: applications, applicationURLs: applications,
       installedAt: installationDate(cask["installed_time"]), summary: packageSummary(cask["desc"]),
-      caskDependencies: caskDependencies(cask["depends_on"]))
+      caskDependencies: caskDependencies(cask["depends_on"]),
+      caskOldTokens: caskOldTokens(cask["old_tokens"]))
+  }
+
+  private static func caskOldTokens(_ value: Any?) -> [String]? {
+    guard let value else { return [] }
+    guard let names = value as? [String], names.allSatisfy(validToken) else { return nil }
+    return names
   }
 
   private static func caskDependencies(_ value: Any?) -> [String]? {

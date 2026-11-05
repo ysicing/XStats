@@ -27,7 +27,8 @@ extension HomebrewManagement {
   public static func preview(
     _ action: Action, package: HomebrewPackage, home: String = NSHomeDirectory()
   ) async throws -> HomebrewImpactPreview {
-    let packages = try await inventory(home: home, requiresCompleteInventory: true)
+    // 预览要求目标仍在清单中；只有操作后的缺失核验才要求完整识别所有 Formula。
+    let packages = try await inventory(home: home)
     return try await preview(action, package: package, inventory: packages) { arguments in
       try await DeveloperToolRunner.run(
         "brew", arguments: arguments, home: home,
@@ -73,28 +74,44 @@ extension HomebrewManagement {
     return Set(names).sorted()
   }
 
-  /// uses 仅接受 Formula。Cask 从完整清单的 depends_on.cask 反向遍历，
-  /// 短名有歧义或任一依赖字段损坏时拒绝预览，不能把未知误报成没有依赖方。
+  /// uses 仅接受 Formula。Cask 从完整清单的 depends_on.cask 反向遍历，并用 old_tokens 识别改名前的依赖。
+  /// 依赖或旧名称字段损坏时拒绝预览；依赖名无法唯一匹配时，只有可能指向目标或其传递依赖方才拒绝，
+  /// 其余无关的未命中或歧义边不影响本次预览，也不能把未知误报成没有依赖方。
   static func caskDependents(
     of package: HomebrewPackage, in inventory: [HomebrewPackage]
   ) throws -> [String] {
     let casks = inventory.filter { $0.kind == .cask }
-    let byName = Dictionary(casks.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
-    let byShortName = Dictionary(grouping: casks) {
-      $0.name.split(separator: "/").last.map(String.init) ?? $0.name
+    var byName: [String: Set<String>] = [:]
+    var byShortName: [String: Set<String>] = [:]
+    for cask in casks {
+      try Task.checkCancellation()
+      guard let oldTokens = cask.caskOldTokens else { throw InventoryError.invalidOutput }
+      for token in [cask.name] + oldTokens {
+        let fullToken: String
+        if !token.contains("/"), let separator = cask.name.lastIndex(of: "/") {
+          fullToken = String(cask.name[...separator]) + token
+        } else {
+          fullToken = token
+        }
+        byName[fullToken, default: []].insert(cask.name)
+        let shortToken = token.split(separator: "/").last.map(String.init) ?? token
+        byShortName[shortToken, default: []].insert(cask.name)
+      }
     }
     var reverse: [String: Set<String>] = [:]
+    var ambiguous: [Set<String>] = []
     for cask in casks {
       try Task.checkCancellation()
       guard let dependencies = cask.caskDependencies else { throw InventoryError.invalidOutput }
       for dependency in dependencies {
         let matches =
           dependency.contains("/")
-          ? byName[dependency].map { [$0] } ?? [] : byShortName[dependency] ?? []
-        guard matches.count == 1, let installed = matches.first else {
-          throw InventoryError.invalidOutput
+          ? byName[dependency] ?? [] : byShortName[dependency] ?? []
+        if matches.count == 1, let installed = matches.first {
+          reverse[installed, default: []].insert(cask.name)
+        } else if matches.count > 1 {
+          ambiguous.append(matches)
         }
-        reverse[installed.name, default: []].insert(cask.name)
       }
     }
     var visited: Set<String> = [package.name]
@@ -104,6 +121,9 @@ extension HomebrewManagement {
       for dependent in reverse[name] ?? [] where visited.insert(dependent).inserted {
         pending.append(dependent)
       }
+    }
+    if ambiguous.contains(where: { !$0.isDisjoint(with: visited) }) {
+      throw InventoryError.invalidOutput
     }
     visited.remove(package.name)
     return visited.sorted()

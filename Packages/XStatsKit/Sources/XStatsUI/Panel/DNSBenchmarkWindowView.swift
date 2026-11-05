@@ -10,19 +10,19 @@ struct DNSBenchmarkWindowView: View {
   @State private var sortByFailure = false
 
   private var sortedProviders: [DNSBenchmarkController.Provider] {
-    controller.providers.sorted {
-      let first = $0.result(for: controller.rankingTransport)
-      let second = $1.result(for: controller.rankingTransport)
-      if sortByFailure {
-        let firstFailure = first.flatMap { $0.attempts > 0 ? $0.failureRate : nil } ?? .infinity
-        let secondFailure = second.flatMap { $0.attempts > 0 ? $0.failureRate : nil } ?? .infinity
-        if firstFailure != secondFailure { return firstFailure < secondFailure }
-      }
-      let firstLatency = first?.median ?? .infinity
-      let secondLatency = second?.median ?? .infinity
-      if firstLatency == secondLatency { return $0.id < $1.id }
-      return firstLatency < secondLatency
+    // 排序键只算一次，避免比较器内反复对样本排序求中位数。
+    let transport = controller.rankingTransport
+    let keyed = controller.providers.map { provider in
+      let result = provider.result(for: transport)
+      let failure =
+        sortByFailure ? result.flatMap { $0.attempts > 0 ? $0.failureRate : nil } ?? .infinity : 0
+      return (provider: provider, failure: failure, latency: result?.median ?? .infinity)
     }
+    return keyed.sorted {
+      if $0.failure != $1.failure { return $0.failure < $1.failure }
+      if $0.latency == $1.latency { return $0.provider.id < $1.provider.id }
+      return $0.latency < $1.latency
+    }.map(\.provider)
   }
 
   var body: some View {

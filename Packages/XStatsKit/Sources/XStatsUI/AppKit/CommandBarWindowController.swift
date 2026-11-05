@@ -15,6 +15,8 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
   private var scroll: NSScrollView?
   private var emptyLabel: NSTextField?
   private var search: CommandBarSearch?
+  /// 固定命令的索引（含拼音转换）在面板关闭后保留；命令集或语言变化时重建。
+  private var fixedIndex: (signature: [String], language: AppLanguage, search: CommandBarSearch)?
   private var results: [AppCommand] = []
   private var hintLabel: NSTextField?
   private var favoriteButton: NSButton?
@@ -47,7 +49,15 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     hasMovedSelection = false
     let session = UUID()
     sessionID = session
-    search = CommandBarSearch(commands: commands)
+    // 标题已按当前语言翻译，签名同时覆盖命令集与语言变化。
+    let signature = commands.map { "\($0.id)\u{0}\($0.title)" }
+    if let fixedIndex, fixedIndex.signature == signature, fixedIndex.language == language {
+      search = fixedIndex.search
+    } else {
+      let index = CommandBarSearch(commands: commands)
+      fixedIndex = (signature, language, index)
+      search = index
+    }
     results =
       search?.results(for: "", favorites: usage?.favorites ?? [], recent: usage?.recent ?? []) ?? []
     let panel = NSPanel(

@@ -181,20 +181,30 @@ struct ApplicationManagementTests {
   @Test(arguments: [
     #"[{"name":"tool","full_name":"tool","installed":null}]"#,
     #"[{"name":"tool","full_name":"tool","installed":[{"version":"1"}]},{"name":"tool","full_name":"tool","installed":[{"version":"2"}]}]"#,
+    #"[{"name":"tool","installed":[{"version":"1"}]}]"#,
+    #"[{"name":"tool","full_name":42,"installed":[{"version":"1"}]}]"#,
+    #"[{"name":"tool","full_name":"","installed":[{"version":"1"}]}]"#,
     #"["invalid"]"#,
   ])
-  func verificationRejectsIncompleteOrAmbiguousInventory(_ formulae: String) throws {
+  func verificationRejectsAnIncompleteOrAmbiguousTarget(_ formulae: String) throws {
     #expect(throws: HomebrewManagement.InventoryError.self) {
       try HomebrewManagement.parse(
         #"{"formulae":\#(formulae),"casks":[]}"#,
-        prefix: URL(fileURLWithPath: "/opt/homebrew"), requiresCompleteInventory: true)
+        prefix: URL(fileURLWithPath: "/opt/homebrew"), completeFor: ["tool"])
     }
+  }
+
+  @Test func skippedUnrelatedFormulaeDoNotBlockVerification() throws {
+    let packages = try HomebrewManagement.parse(
+      #"{"formulae":[{"name":"broken","full_name":"vendor/tap/broken","installed":null},{"name":"ok","full_name":"ok","installed":[{"version":"1"}]}],"casks":[]}"#,
+      prefix: URL(fileURLWithPath: "/opt/homebrew"), completeFor: ["tool"])
+    #expect(packages.map(\.name) == ["ok"])
   }
 
   @Test func verificationAcceptsAnEmptyCompleteInventory() throws {
     let packages = try HomebrewManagement.parse(
       #"{"formulae":[],"casks":[]}"#, prefix: URL(fileURLWithPath: "/opt/homebrew"),
-      requiresCompleteInventory: true)
+      completeFor: ["tool"])
     #expect(packages.isEmpty)
   }
 
