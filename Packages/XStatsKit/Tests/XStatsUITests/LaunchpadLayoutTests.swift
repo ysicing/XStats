@@ -62,6 +62,8 @@ struct LaunchpadLayoutTests {
     #expect(store.load() == layout)
     #expect(!LaunchpadAvailability.supports(majorVersion: 14))
     #expect(!LaunchpadAvailability.supports(majorVersion: 15))
+    #expect(!LaunchpadAvailability.supports(majorVersion: 25))
     #expect(LaunchpadAvailability.supports(majorVersion: 26))
+    #expect(LaunchpadAvailability.supports(majorVersion: 27))
   }
 }
