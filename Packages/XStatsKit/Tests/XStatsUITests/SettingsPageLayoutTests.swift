@@ -8,17 +8,23 @@ import Testing
 
 @MainActor
 struct SettingsPageLayoutTests {
-  @Test(arguments: [PanelTab.settingsGeneral, .settingsFeatures], [840.0, 1753.0])
-  func settingsPagesRenderInMainWindow(page: PanelTab, width: Double) throws {
+  @Test(
+    arguments: [
+      PanelTab.settingsGeneral, .settingsFeatures, .audio, .cpu, .gpu, .memory, .network,
+    ], [840.0, 1753.0])
+  func pagesRenderInMainWindow(page: PanelTab, width: Double) throws {
     _ = NSApplication.shared
     let suite = "SettingsMainWindowLayout.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
-    settings.enabledMonitoringModules = []
+    settings.enabledMonitoringModules =
+      page == .settingsGeneral || page == .settingsFeatures ? [] : Set(MonitoringModule.allCases)
+    settings.audioEnabled = page == .audio
     settings.menuBarItems = []
     settings.historyEnabled = false
     settings.panelTab = page
+    #expect(settings.panelTab == page)
     let model = AppModel(
       settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient(),
       networkCacheDefaults: defaults)
@@ -38,6 +44,7 @@ struct SettingsPageLayoutTests {
     host.layoutSubtreeIfNeeded()
     let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
     host.cacheDisplay(in: host.bounds, to: bitmap)
+    #expect(settings.panelTab == page)
     #expect(bitmap.pixelsWide > 0 && bitmap.pixelsHigh > 0)
     if let path = ProcessInfo.processInfo.environment["XSTATS_SETTINGS_PREVIEW_DIR"] {
       let folder = URL(fileURLWithPath: path, isDirectory: true)

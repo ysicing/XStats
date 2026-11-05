@@ -178,11 +178,11 @@ private struct SidebarPanel: ViewModifier {
 }
 
 /// 指标详情页：复用菜单栏弹窗的内容，显示全部区块
-private struct DetailPage<Content: View>: View {
+struct DetailPage<Content: View>: View {
   @ViewBuilder var content: Content
 
   var body: some View {
-    PageScroll(contentMaxWidth: DS.Size.settingsContentWidth) { content }
+    PageScroll { content }
       .environment(\.isDetailPage, true)
   }
 }
@@ -334,6 +334,7 @@ struct PageHeader: View {
         .dsFont(.base, weight: .semibold)
         .foregroundStyle(DS.Palette.textPrimary)
         .lineLimit(1)
+        .fixedSize(horizontal: tab == .network, vertical: false)
         .layoutPriority(tab == .network ? 1 : 0)
         .frame(maxHeight: .infinity)
         .background(WindowDragArea())
