@@ -118,9 +118,10 @@ struct HistoryPage: View {
         }
       }
     }
-    .task {
-      guard !isSnapshot else { return }
-      // 页面打开期间每分钟补上新记录的一点
+    // 主窗口只是关闭而不销毁视图，需随可见性启停轮询；重新可见时立即补一次。
+    .task(id: model.isMainWindowVisible) {
+      guard !isSnapshot, model.isMainWindowVisible else { return }
+      // 页面可见期间每分钟补上新记录的一点
       history.load()
       while !Task.isCancelled {
         do { try await Task.sleep(for: .seconds(60)) } catch { break }
