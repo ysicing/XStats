@@ -81,6 +81,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var updateCheckSchedule: String?
   public var cleanerEnabled: Bool?
   public var agentDataEnabled: Bool?
+  public var finderDocumentsEnabled: Bool?
   public var commandBarEnabled: Bool?
   public var launchpadPinchFingers: Int?
   public var launchpadHotCorner: Int?
@@ -170,6 +171,7 @@ extension AppSettings {
     doc.updateCheckSchedule = updateCheckSchedule.rawValue
     doc.cleanerEnabled = cleanerEnabled
     doc.agentDataEnabled = agentDataEnabled
+    doc.finderDocumentsEnabled = finderDocumentsEnabled
     doc.commandBarEnabled = commandBarEnabled
     doc.launchpadPinchFingers = launchpadPinchFingers
     doc.launchpadHotCorner = launchpadHotCorner
@@ -299,6 +301,7 @@ extension AppSettings {
     }
     assign(\.cleanerEnabled, doc.cleanerEnabled)
     assign(\.agentDataEnabled, doc.agentDataEnabled)
+    assign(\.finderDocumentsEnabled, doc.finderDocumentsEnabled)
     assign(\.commandBarEnabled, doc.commandBarEnabled)
     if let fingers = doc.launchpadPinchFingers {
       launchpadPinchFingers = [4, 5].contains(fingers) ? fingers : 0

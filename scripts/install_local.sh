@@ -12,6 +12,8 @@ TARGET="/Applications/XStats.app"
 BUNDLE_ID="work.12306.xstats.app"
 WIDGET_ID="${BUNDLE_ID}.widget"
 WIDGET_SUFFIX="/Contents/PlugIns/XStatsWidget.appex"
+FINDER_ID="${BUNDLE_ID}.finder"
+FINDER_SUFFIX="/Contents/PlugIns/XStatsFinderExtension.appex"
 LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
 [ -d "$SOURCE" ] || { echo "error: 找不到 $SOURCE" >&2; exit 1; }
@@ -26,20 +28,26 @@ esac
 codesign --verify --deep --strict "$SOURCE"
 
 # 在退出旧应用前核对身份，避免把独立预览产品覆盖到正式安装路径。
-python3 - "$SOURCE" "$BUNDLE_ID" "$WIDGET_ID" "$WIDGET_SUFFIX" <<'PY'
+python3 - "$SOURCE" "$BUNDLE_ID" "$WIDGET_ID" "$WIDGET_SUFFIX" "$FINDER_ID" "$FINDER_SUFFIX" <<'PY'
 from pathlib import Path
 import plistlib
 import sys
 
-source, app_id, widget_id, suffix = sys.argv[1:]
+source, app_id, widget_id, suffix, finder_id, finder_suffix = sys.argv[1:]
 try:
     app = plistlib.loads((Path(source) / "Contents/Info.plist").read_bytes())
     widget = plistlib.loads(Path(source + suffix + "/Contents/Info.plist").read_bytes())
+    finder = plistlib.loads(Path(source + finder_suffix + "/Contents/Info.plist").read_bytes())
     if (app.get("CFBundleIdentifier") != app_id
             or widget.get("CFBundleIdentifier") != widget_id
             or widget.get("NSExtension", {}).get("NSExtensionPointIdentifier")
             != "com.apple.widgetkit-extension"):
         raise ValueError("应用或 Widget 标识不匹配")
+    if (finder.get("CFBundleIdentifier") != finder_id
+            or finder.get("NSExtension", {}).get("NSExtensionPointIdentifier") != "com.apple.FinderSync"
+            or any(finder.get(key) != app.get(key) for key in
+                   ("CFBundleShortVersionString", "CFBundleVersion"))):
+        raise ValueError("Finder 扩展标识或版本不匹配")
 except (OSError, ValueError, TypeError, AttributeError) as error:
     sys.exit(f"error: 无效的安装源：{error}")
 PY
@@ -48,16 +56,17 @@ PY
 REGISTRATION_DIR="$(mktemp -d "${TMPDIR:-/private/tmp}/xstats-install.XXXXXX")"
 echo "Widget 登记快照：$REGISTRATION_DIR"
 
-read_widget_registration() {
+read_extension_registration() {
   local snapshot="$1"
-  if ! pluginkit -m -A -D -vvv -i "$WIDGET_ID" >"$snapshot" 2>"$snapshot.stderr" \
+  local identifier="$2" suffix="$3"
+  if ! pluginkit -m -A -D -vvv -i "$identifier" >"$snapshot" 2>"$snapshot.stderr" \
       || [ -s "$snapshot.stderr" ]; then
     cat "$snapshot.stderr" >&2
-    echo "error: 无法读取 Widget 登记，停止安装；快照：$REGISTRATION_DIR" >&2
+    echo "error: 无法读取 $identifier 登记，停止安装；快照：$REGISTRATION_DIR" >&2
     return 1
   fi
   # --raw 在部分系统上返回 XPC 描述而非 plist，解析带字段名的详细列表。
-  python3 - "$snapshot" "$WIDGET_ID" "$WIDGET_SUFFIX" >"$snapshot.paths" <<'PY'
+  python3 - "$snapshot" "$identifier" "$suffix" >"$snapshot.paths" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -90,7 +99,7 @@ try:
     if (path is not None or len(headers) != len(records)
             or (count and int(count[1]) != len(records))
             or (text.strip() and not records and (not count or count[1] != "0"))):
-        raise ValueError("无法确认 Widget 登记列表完整性")
+        raise ValueError("无法确认扩展登记列表完整性")
 except ValueError as error:
     sys.exit(f"error: {error}；登记快照：{snapshot}")
 for path, parent in records:
@@ -98,7 +107,8 @@ for path, parent in records:
 PY
 }
 
-read_widget_registration "$REGISTRATION_DIR/before.txt"
+read_extension_registration "$REGISTRATION_DIR/before.txt" "$WIDGET_ID" "$WIDGET_SUFFIX"
+read_extension_registration "$REGISTRATION_DIR/finder-before.txt" "$FINDER_ID" "$FINDER_SUFFIX"
 
 # 旧扩展可能在主应用退出后继续运行，必须在替换包之前结束。
 # 按完整可执行路径匹配，避免终止其他工作区的同名应用或扩展。
@@ -108,7 +118,8 @@ import sys
 
 for app in [*sys.argv[1:], "/Applications/OpenStats.app"]:
     for executable in ["/Contents/MacOS/XStats",
-                       "/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget"]:
+                       "/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget",
+                       "/Contents/PlugIns/XStatsFinderExtension.appex/Contents/MacOS/XStatsFinderExtension"]:
         print("^" + re.escape(app + executable) + "([[:space:]]|$)")
 print("^" + re.escape("/Applications/OpenStats.app/Contents/MacOS/OpenStats") + "([[:space:]]|$)")
 PY
@@ -139,6 +150,16 @@ while IFS=$'\t' read -r widget parent; do
   fi
 done <"$REGISTRATION_DIR/before.txt.paths"
 
+while IFS=$'\t' read -r finder parent; do
+  pluginkit -r "$finder"
+  if ! cut -f2 "$REGISTRATION_DIR/before.txt.paths" | grep -Fxq "$parent"; then
+    "$LSREGISTER" -u "$parent"
+  fi
+  if [ "$parent" = /Applications/OpenStats.app ]; then
+    LEGACY_UNREGISTERED=1
+  fi
+done <"$REGISTRATION_DIR/finder-before.txt.paths"
+
 # 仅移除旧应用包；旧偏好、日志与历史数据库不迁移，也不删除。
 if [ -d /Applications/OpenStats.app ]; then
   if [ "$LEGACY_UNREGISTERED" -eq 0 ]; then
@@ -152,17 +173,25 @@ if [ -d "$TARGET" ]; then
   rm -rf "$TARGET"
 fi
 mv "$SOURCE" "$TARGET"
-if ! "$LSREGISTER" -f "$TARGET" || ! pluginkit -a "$TARGET$WIDGET_SUFFIX"; then
+if ! "$LSREGISTER" -f "$TARGET" || ! pluginkit -a "$TARGET$WIDGET_SUFFIX" \
+    || ! pluginkit -a "$TARGET$FINDER_SUFFIX"; then
   echo "error: 应用已替换，但主应用或 Widget 登记失败；保留现有配置，登记快照：$REGISTRATION_DIR" >&2
   exit 1
 fi
 
 # 只接受正式安装这一条记录，避免登记失败后仍输出“安装成功”。
-read_widget_registration "$REGISTRATION_DIR/after.txt"
+read_extension_registration "$REGISTRATION_DIR/after.txt" "$WIDGET_ID" "$WIDGET_SUFFIX"
 expected="$(printf '%s\t%s' "$TARGET$WIDGET_SUFFIX" "$TARGET")"
 if [ "$(cat "$REGISTRATION_DIR/after.txt.paths")" != "$expected" ]; then
   cat "$REGISTRATION_DIR/after.txt" >&2
   echo "error: Widget 登记未收敛到正式安装；应用已替换，保留全部配置和其他构建，请检查快照：$REGISTRATION_DIR" >&2
+  exit 1
+fi
+read_extension_registration "$REGISTRATION_DIR/finder-after.txt" "$FINDER_ID" "$FINDER_SUFFIX"
+expected="$(printf '%s\t%s' "$TARGET$FINDER_SUFFIX" "$TARGET")"
+if [ "$(cat "$REGISTRATION_DIR/finder-after.txt.paths")" != "$expected" ]; then
+  cat "$REGISTRATION_DIR/finder-after.txt" >&2
+  echo "error: Finder 扩展登记未收敛到正式安装；请检查快照：$REGISTRATION_DIR" >&2
   exit 1
 fi
 

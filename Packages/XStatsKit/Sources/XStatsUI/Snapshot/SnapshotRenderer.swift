@@ -30,6 +30,33 @@ enum SnapshotRenderer {
       return
     }
 
+    if CommandLine.arguments.contains("--finder-documents-only") {
+      let suite = "XStats.finderDocumentsSnapshot.\(UUID())"
+      guard let defaults = UserDefaults(suiteName: suite) else { return }
+      defer { defaults.removePersistentDomain(forName: suite) }
+      let settings = AppSettings(defaults: defaults)
+      settings.language = L10n.language
+      settings.enabledMonitoringModules = []
+      settings.historyEnabled = false
+      let model = AppModel(settings: settings, historyURL: nil, networkCacheDefaults: defaults)
+      for enabled in [false, true] {
+        settings.finderDocumentsEnabled = enabled
+        for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+          guard let appearance = NSAppearance(named: name) else { continue }
+          for width: CGFloat in [576, 900] {
+            write(
+              SettingsGroup {
+                GroupRow(showsDivider: false) { FinderDocumentSettings() }
+              }.padding(DS.Space.s4).frame(width: width).appLanguageEnvironment(),
+              model: model, appearance: appearance,
+              to: outputDirectory.appendingPathComponent(
+                "finder-\(enabled ? "enabled" : "disabled")-\(Int(width))-\(suffix).png"))
+          }
+        }
+      }
+      return
+    }
+
     if CommandLine.arguments.contains("--network-tools-only") {
       let suite = "XStats.networkToolsSnapshot.\(UUID())"
       guard let defaults = UserDefaults(suiteName: suite) else { return }

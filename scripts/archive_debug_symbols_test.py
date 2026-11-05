@@ -46,6 +46,7 @@ class DebugSymbolsTests(unittest.TestCase):
             ("Contents/MacOS/XStats", "XStats.app.dSYM"),
             ("Contents/MacOS/XStatsHelper", "XStatsHelper.dSYM"),
             ("Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget", "XStatsWidget.appex.dSYM"),
+            ("Contents/PlugIns/XStatsFinderExtension.appex/Contents/MacOS/XStatsFinderExtension", "XStatsFinderExtension.appex.dSYM"),
             ("Contents/Frameworks/Sparkle.framework/Versions/A/Sparkle", "Sparkle.framework.dSYM"),
             ("Contents/Frameworks/Sparkle.framework/Versions/A/Autoupdate", "Autoupdate.dSYM"),
             ("Contents/Frameworks/Sparkle.framework/Versions/A/Updater.app/Contents/MacOS/Updater", "Updater.app.dSYM"),
@@ -73,7 +74,7 @@ class DebugSymbolsTests(unittest.TestCase):
         extracted = self.root / "extracted" / archive.name.removesuffix(".zip")
         manifest = json.loads((extracted / "manifest.json").read_text())
         self.assertEqual((manifest["version"], manifest["build"]), ("9.9.9", "999"))
-        self.assertEqual(len(manifest["binaries"]), 8)
+        self.assertEqual(len(manifest["binaries"]), 9)
         self.assertTrue(all(entry["uuids"].keys() == {"arm64"} for entry in manifest["binaries"]))
         dwarf = extracted / "XStats.app.dSYM/Contents/Resources/DWARF/probe"
         resolved = subprocess.check_output(["xcrun", "atos", "-arch", "arm64", "-o", str(dwarf), self.address], text=True)

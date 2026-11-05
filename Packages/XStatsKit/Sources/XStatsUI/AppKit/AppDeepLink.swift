@@ -11,6 +11,7 @@ enum AppDeepLink: Equatable, Sendable {
   case calendar, speedTest, egress
   case rest(RestAction)
   case keepAwake(KeepAwakeAction)
+  case finderCreate(UUID)
 
   static let pages: [String: PanelTab] = [
     "overview": .overview, "system": .system, "history": .history, "ai-usage": .aiUsage,
@@ -69,6 +70,9 @@ enum AppDeepLink: Equatable, Sendable {
     case "keep-awake":
       guard let action = KeepAwakeAction(rawValue: path) else { return nil }
       self = .keepAwake(action)
+    case "finder-create":
+      guard let identifier = UUID(uuidString: path) else { return nil }
+      self = .finderCreate(identifier)
     default: return nil
     }
   }

@@ -75,6 +75,7 @@ if [ "$IDENTITY" = "-" ]; then
   elif [ "$MODE" = main ]; then
     codesign --force --sign - --timestamp=none --options 0 "$APP/Contents/MacOS/XStatsHelper"
     codesign --force --sign - --timestamp=none --options 0 --entitlements "$ROOT/Apps/XStats/Widget/XStatsWidget.entitlements" "$APP/Contents/PlugIns/XStatsWidget.appex"
+    codesign --force --sign - --timestamp=none --options 0 --entitlements "$ROOT/Apps/XStats/FinderExtension/XStatsFinderExtension.entitlements" "$APP/Contents/PlugIns/XStatsFinderExtension.appex"
   fi
   # 临时签名不具备受 profile 约束的网络权限，仅用于 UI/CI；主 App 必须仍可启动。
   # 签名团队缺失时，启用查看的入口也会拒绝提交系统扩展激活请求。
@@ -97,6 +98,7 @@ else
     codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$SYSTEM_EXTENSION"
   elif [ "$MODE" = main ]; then
     codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$APP/Contents/PlugIns/XStatsWidget.appex"
+    codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$APP/Contents/PlugIns/XStatsFinderExtension.appex"
   fi
   codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" --preserve-metadata=identifier,entitlements,flags "$APP"
 fi

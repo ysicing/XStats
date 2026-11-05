@@ -1,0 +1,87 @@
+Finder native blank document templates
+
+These templates retain their upstream MIT licenses. Apple's product names
+and document formats are used for interoperability; Apple has not endorsed
+XStats or these templates.
+
+Sources and changes
+
+blank.pages:
+  cupertino-files, commit 9550fc8163c64774f4400b98e0542823da59f8b6,
+  data/blanks/blank.pages, copied unchanged.
+  https://github.com/den-frie-vilje/cupertino-files
+  Upstream emptied fixtures/iwork-mcp-v14.5-sample.pages, removed previews,
+  and applied A4 page setup and its typography.
+
+blank.key:
+  The same cupertino-files commit, data/blanks/blank.key.
+  Upstream emptied fixtures/iwork-mcp-v14.5-sample.key, removed previews,
+  and applied its typography. XStats additionally clears all text storages
+  outside master-slide components, including retained, unlinked slides.
+  The result has one slide with empty text and notes; master styles and
+  placeholder instructions remain.
+
+  Both source documents originated in examples/sample.{pages,key} from:
+  https://github.com/reichenbach/iwork_mcp
+  commit f26bb077ca684f4ce39958b9bdb01667a5a22b6d.
+  That project's package.json declares MIT. It supplies no separate
+  copyright notice or license file; no copyright attribution is invented.
+
+blank.numbers:
+  numbers_parser 4.18.5 source distribution,
+  numbers_parser-4.18.5/src/numbers_parser/data/empty.numbers,
+  copied unchanged. One sheet, one table, no cell values.
+  https://files.pythonhosted.org/packages/04/95/0c2086cabd2b65efaafa2ad0a8fd87434ea7463eebac228c974cf22e08cd/numbers_parser-4.18.5.tar.gz
+  The same distribution includes the MIT license in LICENSE.rst.
+  The byte-identical fixture is available in the above cupertino-files
+  commit as fixtures/pypi-numbers-parser-v14.1.1-empty-template.numbers.
+
+Reproduction
+
+Clone cupertino-files and check out the exact commit above. From XStats,
+with Node.js 24 (used only for asset preparation), run:
+  node --experimental-transform-types scripts/prepare_finder_native_templates.mjs /path/to/cupertino-files
+The script checks the revision, clears non-master Keynote text, verifies
+blank content and format versions, then writes the three templates.
+No npm installation or runtime dependency is required by XStats.
+
+MIT License — cupertino-files
+
+Copyright (c) 2026 Ole Kristensen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+MIT License — numbers-parser
+
+Copyright 2021 Jon Connell
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+and associated documentation files (the "Software"), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE

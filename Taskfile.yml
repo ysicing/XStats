@@ -89,7 +89,7 @@ tasks:
     deps: [generate]
     cmds:
       - |
-        # Xcode 增量构建不会自动移除旧目标留下的扩展目录；主包只保留 Widget。
+        # Xcode 增量构建不会自动移除旧目标留下的网络系统扩展；Widget 与 Finder 扩展继续内嵌。
         rm -rf "{{.APP}}/Contents/Library/SystemExtensions"
         xcodebuild -project "{{.PROJECT}}" -scheme "{{.SCHEME}}" -configuration "{{.CONFIG}}" \
           -derivedDataPath "{{.DERIVED}}" \

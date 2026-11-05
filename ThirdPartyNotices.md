@@ -2,6 +2,17 @@
 
 XStats 新增代码与修改采用 AGPL-3.0-or-later，范围见 [LICENSING.md](LICENSING.md)。以下列出当前使用的第三方代码、依赖、素材与参考来源。
 
+## Finder 苹果原生空白模板
+
+`Packages/XStatsKit/Sources/FinderDocuments/Templates/blank.{pages,key}` 基于
+[cupertino-files 的固定提交](https://github.com/den-frie-vilje/cupertino-files/tree/9550fc8163c64774f4400b98e0542823da59f8b6)
+提供的 MIT 空白模板；其源文档来自 [reichenbach/iwork_mcp](https://github.com/reichenbach/iwork_mcp/tree/f26bb077ca684f4ce39958b9bdb01667a5a22b6d)，
+该源项目在 `package.json` 声明 MIT，未提供独立版权署名或许可文件。Keynote 模板额外清空非母版存档中的示例文字，保留母版样式与占位说明。
+`blank.numbers` 来自 numbers-parser 4.18.5 源码分发包内的 `data/empty.numbers`（MIT，Copyright 2021 Jon Connell）。
+XStats 只分发静态模板，不引入这些项目的运行时、代码或自动化权限。
+完整许可、精确来源和复现方法保留在
+[模板目录的声明](Packages/XStatsKit/Sources/FinderDocuments/Templates/ThirdPartyNotices.txt)，并随模板资源一同打包。
+
 ## 网络泄漏检测协议参考
 
 内置 WebRTC / DNS 检测参考 [MyIP（ipcheck.ing）](https://github.com/jason5ng32/MyIP)

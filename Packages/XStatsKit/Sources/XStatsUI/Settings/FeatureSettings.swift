@@ -131,6 +131,9 @@ struct FeatureSettings: View {
         GroupRow(showsDivider: false) {
           CaptureFeatureSettings()
         }
+        GroupRow {
+          FinderDocumentSettings()
+        }
       }
       SettingsGroup {
         if #available(macOS 15, *) {

@@ -20,6 +20,7 @@ BINARIES = (
     ("Contents/MacOS/XStats", "XStats.app.dSYM"),
     ("Contents/MacOS/XStatsHelper", "XStatsHelper.dSYM"),
     ("Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget", "XStatsWidget.appex.dSYM"),
+    ("Contents/PlugIns/XStatsFinderExtension.appex/Contents/MacOS/XStatsFinderExtension", "XStatsFinderExtension.appex.dSYM"),
     ("Contents/Frameworks/Sparkle.framework/Versions/Current/Sparkle", "Sparkle.framework.dSYM"),
     ("Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate", "Autoupdate.dSYM"),
     ("Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app/Contents/MacOS/Updater", "Updater.app.dSYM"),
@@ -28,7 +29,7 @@ BINARIES = (
 )
 
 
-CAPTURE_BINARIES = (("Contents/MacOS/XStats Capture", "XStats Capture.app.dSYM"),) + BINARIES[3:]
+CAPTURE_BINARIES = (("Contents/MacOS/XStats Capture", "XStats Capture.app.dSYM"),) + BINARIES[4:]
 
 def uuids(path: Path) -> dict[str, str]:
     output = subprocess.check_output(["xcrun", "dwarfdump", "--uuid", str(path)], text=True)

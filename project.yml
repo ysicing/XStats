@@ -32,7 +32,7 @@ packages:
     path: Packages/XStatsKit
 
 settingGroups:
-  # 仅应用于主程序、Widget 与 Helper；Xcode 先生成 dSYM，再裁剪，最后签名。
+  # 应用于主程序、内嵌扩展与 Helper；Xcode 先生成 dSYM，再裁剪，最后签名。
   releaseSymbols:
     configs:
       Release:
@@ -128,6 +128,7 @@ targets:
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         LSUIElement: true
         NetworkComponentVersion: $(NETWORK_EXTENSION_VERSION)
+        FinderDocumentsGroup: $(TeamIdentifierPrefix)work.12306.xstats.finder
         SUPublicEDKey: "j/I8zd8BXz4oPldnhocEySXTMmXPxKMyBRwoA4ewLIk="
         SUEnableAutomaticChecks: false
         SUAutomaticallyUpdate: false
@@ -152,6 +153,7 @@ targets:
         com.apple.security.application-groups:
           - group.work.12306.xstats
           - $(TeamIdentifierPrefix)work.12306.xstats.network-observation
+          - $(TeamIdentifierPrefix)work.12306.xstats.finder
     settings:
       base:
         PRODUCT_NAME: XStats
@@ -168,6 +170,44 @@ targets:
           destination: executables
       - target: XStatsWidget
         embed: true
+      - target: XStatsFinderExtension
+        embed: true
+
+  XStatsFinderExtension:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Apps/XStats/FinderExtension
+        excludes: ["*.plist", "*.entitlements"]
+    info:
+      path: Apps/XStats/FinderExtension/Info.plist
+      properties:
+        CFBundleName: XStats Finder
+        CFBundleDisplayName: XStats Finder
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDevelopmentRegion: zh-Hans
+        CFBundleLocalizations: [zh-Hans, zh-Hant, ja, ko, en, de, es, fr, ar]
+        FinderDocumentsGroup: $(TeamIdentifierPrefix)work.12306.xstats.finder
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.FinderSync
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).FinderExtension
+    entitlements:
+      path: Apps/XStats/FinderExtension/XStatsFinderExtension.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.application-groups:
+          - $(TeamIdentifierPrefix)work.12306.xstats.finder
+    settings:
+      base:
+        PRODUCT_NAME: XStatsFinderExtension
+        PRODUCT_BUNDLE_IDENTIFIER: work.12306.xstats.app.finder
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+      groups: [releaseSymbols]
+    dependencies:
+      - package: XStatsKit
+        product: FinderDocuments
 
   XStatsNetworkMonitor:
     type: application

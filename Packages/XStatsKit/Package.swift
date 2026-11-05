@@ -9,6 +9,7 @@ let package = Package(
     .library(name: "CaptureCore", targets: ["CaptureCore"]),
     .library(name: "CaptureUI", targets: ["CaptureUI"]),
     .library(name: "Localization", targets: ["Localization"]),
+    .library(name: "FinderDocuments", targets: ["FinderDocuments"]),
     .library(name: "AIUsage", targets: ["AIUsage"]),
     .library(name: "SMC", targets: ["SMC"]),
     .library(name: "Metrics", targets: ["Metrics"]),
@@ -35,6 +36,9 @@ let package = Package(
     .testTarget(name: "CaptureCoreTests", dependencies: ["CaptureCore"]),
     .testTarget(name: "CaptureUITests", dependencies: ["CaptureUI"]),
     .target(name: "Localization", resources: [.process("Resources")]),
+    .target(
+      name: "FinderDocuments", dependencies: ["Localization"], resources: [.copy("Templates")]),
+    .testTarget(name: "FinderDocumentsTests", dependencies: ["FinderDocuments", "Localization"]),
     .target(name: "AIUsage"),
     .target(name: "SMC", dependencies: ["Localization"]),
     .target(
@@ -59,6 +63,7 @@ let package = Package(
       dependencies: [
         "CaptureUI", "CaptureCore", "NetworkObservation", "AudioControl", "AIUsage", "Localization",
         "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync", "WidgetData",
+        "FinderDocuments",
         .product(name: "Tyme4Swift", package: "tyme4swift"),
         .product(name: "Sparkle", package: "Sparkle"),
       ],

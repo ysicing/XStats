@@ -845,6 +845,9 @@ public final class AppSettings {
   public var agentDataEnabled: Bool {
     didSet { defaults.set(agentDataEnabled, forKey: Keys.agentDataEnabled) }
   }
+  public var finderDocumentsEnabled: Bool {
+    didSet { defaults.set(finderDocumentsEnabled, forKey: "finderDocumentsEnabled") }
+  }
   /// 实验性命令栏默认开启；仅在唤出时创建窗口和搜索索引。
   public var commandBarEnabled: Bool {
     didSet { defaults.set(commandBarEnabled, forKey: Keys.commandBarEnabled) }
@@ -1372,6 +1375,7 @@ public final class AppSettings {
     let isCleanerEnabled = defaults.object(forKey: Keys.cleanerEnabled) as? Bool ?? true
     cleanerEnabled = isCleanerEnabled
     agentDataEnabled = defaults.bool(forKey: Keys.agentDataEnabled)
+    finderDocumentsEnabled = defaults.bool(forKey: "finderDocumentsEnabled")
     commandBarEnabled = defaults.object(forKey: Keys.commandBarEnabled) as? Bool ?? true
     let pinch = defaults.integer(forKey: Keys.launchpadPinchFingers)
     launchpadPinchFingers = [4, 5].contains(pinch) ? pinch : 0

@@ -2821,3 +2821,20 @@ ps <进程名或 PID>	ps <nom du processus ou PID>
 取消收藏 {}	Retirer des favoris {}
 移到废纸篓 {}	Déplacer vers la Corbeille {}
 移到废纸篓 — {}	Déplacer vers la Corbeille — {}
+Finder 新建文档	Nouveaux documents dans le Finder
+在任意文件夹中右键新建演示文稿、表格、文字文档、TXT 和 Markdown。	Faites un clic droit dans n’importe quel dossier pour créer des présentations, feuilles de calcul, documents et fichiers TXT ou Markdown.
+在系统设置中启用 Finder 扩展…	Activer l’extension Finder dans Réglages Système…
+新建文档	Nouveau document
+文字文档	Document
+电子表格	Feuille de calcul
+演示文稿	Présentation
+文本文件	Fichier texte
+Finder 扩展暂不可用，请重新安装 XStats 后重试。	L’extension Finder n’est pas disponible. Réinstallez XStats et réessayez.
+创建请求已失效，请在 Finder 中重试。	La demande a expiré. Réessayez dans le Finder.
+Markdown 文档	Document Markdown
+请先在 XStats 中启用 Finder 新建文档。	Activez d’abord la création de documents dans le Finder dans XStats.
+同名文档过多，请重命名后重试。	Trop de documents portent ce nom. Renommez-en quelques-uns et réessayez.
+无法新建文档	Impossible de créer le document
+Keynote 演示文稿	Présentation Keynote
+Numbers 表格	Feuille de calcul Numbers
+Pages 文稿	Document Pages

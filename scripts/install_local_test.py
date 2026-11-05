@@ -13,6 +13,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 WIDGET_ID = "work.12306.xstats.app.widget"
 SUFFIX = "/Contents/PlugIns/XStatsWidget.appex"
+FINDER_ID = "work.12306.xstats.app.finder"
+FINDER_SUFFIX = "/Contents/PlugIns/XStatsFinderExtension.appex"
 
 SERVICE = r'''#!/usr/bin/env python3
 import json, os, pathlib, re, sys
@@ -34,11 +36,15 @@ if name == "pluginkit":
         if os.environ.get("INSTALL_TEST_REPLY"):
             print(os.environ["INSTALL_TEST_REPLY"])
             sys.exit(0)
-        for entry in state:
-            print("     work.12306.xstats.app.widget(1.4.10)")
+        identifier = args[args.index("-i") + 1]
+        suffix = ("/Contents/PlugIns/XStatsFinderExtension.appex" if identifier.endswith(".finder")
+                  else "/Contents/PlugIns/XStatsWidget.appex")
+        entries = [entry for entry in state if entry["path"].endswith(suffix)]
+        for entry in entries:
+            print("     " + identifier + "(1.4.10)")
             print("            Path = " + entry["path"])
             print("            Parent Bundle = " + entry["parent"])
-        print(" (%d plug-ins)" % len(state))
+        print(" (%d plug-ins)" % len(entries))
     elif args[0] == "-r":
         if os.environ.get("INSTALL_TEST_REMOVE_FAIL"):
             sys.exit(2)
@@ -47,14 +53,16 @@ if name == "pluginkit":
         if os.environ.get("INSTALL_TEST_ADD_FAIL"):
             sys.exit(2)
         path = args[1]
-        state = [{"path": path, "parent": path.removesuffix(
-            "/Contents/PlugIns/XStatsWidget.appex")}]
+        suffix = ("/Contents/PlugIns/XStatsFinderExtension.appex" if "XStatsFinderExtension" in path
+                  else "/Contents/PlugIns/XStatsWidget.appex")
+        state = [entry for entry in state if entry["path"] != path]
+        state.append({"path": path, "parent": path.removesuffix(suffix)})
         if os.environ.get("INSTALL_TEST_REDISCOVER"):
             state.append({"path": str(root / "other workspace/Old.app") +
                           "/Contents/PlugIns/XStatsWidget.appex",
                           "parent": str(root / "other workspace/Old.app")})
         if os.environ.get("INSTALL_TEST_WRONG_PARENT"):
-            state[0]["parent"] = str(root / "Wrong.app")
+            state[-1]["parent"] = str(root / "Wrong.app")
     state_file.write_text(json.dumps(state))
 elif name == "lsregister":
     if args[0] == "-f" and os.environ.get("INSTALL_TEST_REGISTER_FAIL"):
@@ -125,13 +133,16 @@ class InstallLocalTests(unittest.TestCase):
                         INSTALL_TEST_ROOT=str(self.root), TMPDIR=str(self.root))
 
     def make_app(self, path, bundle_id="work.12306.xstats.app"):
-        for bundle, identifier in [(path, bundle_id), (Path(str(path) + SUFFIX), WIDGET_ID)]:
+        for bundle, identifier in [(path, bundle_id), (Path(str(path) + SUFFIX), WIDGET_ID),
+                                   (Path(str(path) + FINDER_SUFFIX), FINDER_ID)]:
             (bundle / "Contents").mkdir(parents=True, exist_ok=True)
             info = {"CFBundleIdentifier": identifier,
                     "CFBundleShortVersionString": "1.4.10", "CFBundleVersion": "159"}
             if identifier == WIDGET_ID:
                 info["NSExtension"] = {
                     "NSExtensionPointIdentifier": "com.apple.widgetkit-extension"}
+            if identifier == FINDER_ID:
+                info["NSExtension"] = {"NSExtensionPointIdentifier": "com.apple.FinderSync"}
             (bundle / "Contents/Info.plist").write_bytes(plistlib.dumps(info))
         (path / "marker").write_text(str(path))
 
@@ -156,7 +167,8 @@ class InstallLocalTests(unittest.TestCase):
         # LaunchServices may fail with -10814 when a bundle is unregistered twice.
         self.assertEqual(calls.count(["lsregister", "-u", str(self.target)]), 1)
         self.assertEqual(json.loads((self.root / "registry.json").read_text()), [
-            {"path": str(self.target) + SUFFIX, "parent": str(self.target)}])
+            {"path": str(self.target) + SUFFIX, "parent": str(self.target)},
+            {"path": str(self.target) + FINDER_SUFFIX, "parent": str(self.target)}])
         for app in [self.other, self.stale]:
             self.assertEqual((app / "marker").read_text(), str(app))
         self.assertEqual(self.settings.read_bytes(), b"existing-five-widgets-and-layout")
@@ -173,6 +185,30 @@ class InstallLocalTests(unittest.TestCase):
                 self.assertEqual((self.target / "marker").read_text(), str(self.target))
                 self.assertTrue(self.source.exists())
                 self.assertNotIn(["open", str(self.target)], self.calls())
+
+    def test_finder_registration_does_not_unregister_parent_twice(self):
+        self.registry.extend([
+            {"path": str(app) + FINDER_SUFFIX, "parent": str(app)}
+            for app in [self.target, self.source, self.other]
+        ])
+        (self.root / "registry.json").write_text(json.dumps(self.registry))
+        result = self.run_install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for app in [self.target, self.source, self.other]:
+            self.assertIn(["pluginkit", "-r", str(app) + FINDER_SUFFIX,], self.calls())
+            self.assertEqual(self.calls().count(["lsregister", "-u", str(app)]), 1)
+        self.assertIn(["pluginkit", "-a", str(self.target) + FINDER_SUFFIX], self.calls())
+        self.assertFalse(any(call[:3] == ["pluginkit", "-e", "use"] for call in self.calls()))
+
+    def test_finder_version_mismatch_stops_before_mutating(self):
+        path = Path(str(self.source) + FINDER_SUFFIX) / "Contents/Info.plist"
+        info = plistlib.loads(path.read_bytes())
+        info["CFBundleVersion"] = "1"
+        path.write_bytes(plistlib.dumps(info))
+        result = self.run_install()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(any(call[0] in ["pkill", "pluginkit", "lsregister", "open"]
+                             for call in self.calls()))
 
     def test_registered_legacy_app_is_only_unregistered_once(self):
         legacy = self.root / "Applications/OpenStats.app"

@@ -75,6 +75,7 @@ SYMBOL_BACKUP="$(python3 scripts/backup_debug_symbols.py "$SYMBOL_ARCHIVE")"
 
 for binary in "$APP/Contents/MacOS/XStats" "$APP/Contents/MacOS/XStatsHelper" \
               "$APP/Contents/PlugIns/XStatsWidget.appex/Contents/MacOS/XStatsWidget" \
+              "$APP/Contents/PlugIns/XStatsFinderExtension.appex/Contents/MacOS/XStatsFinderExtension" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Sparkle" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app/Contents/MacOS/Updater" \
@@ -85,6 +86,7 @@ for binary in "$APP/Contents/MacOS/XStats" "$APP/Contents/MacOS/XStatsHelper" \
 done
 codesign --verify --deep --strict --verbose=2 "$APP"
 for binary in "$APP" "$APP/Contents/MacOS/XStatsHelper" "$APP/Contents/PlugIns/XStatsWidget.appex" \
+              "$APP/Contents/PlugIns/XStatsFinderExtension.appex" \
               "$APP/Contents/Frameworks/Sparkle.framework" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate" \
               "$APP/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app" \

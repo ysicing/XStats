@@ -387,6 +387,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       }
     }
     deepLinksReady = true
+    model.finderDocuments.start()
     if ApplicationLaunch.showsMainWindow(
       event: launchEvent, arguments: arguments, hasPendingDeepLink: !pendingDeepLinks.isEmpty,
       showMainWindowOnLaunch: model.settings.showMainWindowOnLaunch)
@@ -451,6 +452,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         rest.prepareForTermination()
         await model.wellness.prepareForTermination()
         await XStatsCapture.workspace.prepareForTermination()
+        await model.finderDocuments.waitForCreation()
         model.cleaner.cancelOperation()
         await model.cleaner.waitForExit()
         model.cleaner.mole.cancel()
@@ -547,6 +549,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
   private func performDeepLink(_ link: AppDeepLink) async {
     switch link {
+    case .finderCreate(let identifier):
+      guard terminationTask == nil else { return }
+      await model.finderDocuments.create(identifier)
     case .open(let requested):
       model.openMainWindow(requested.map { AppDeepLink.page($0, settings: model.settings) })
     case .panel(let item):

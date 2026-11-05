@@ -18,6 +18,7 @@ public final class AppModel {
   let networkComponent: NetworkComponentController
   let networkGeography = NetworkGeographyController()
   public let settings: AppSettings
+  let finderDocuments: FinderDocumentsController
   let timer: TimerController
   let rest: RestController
   let wellness: WellnessController
@@ -148,6 +149,7 @@ public final class AppModel {
     let store = MetricsStore()
     let helper = HelperClient()
     self.settings = settings
+    finderDocuments = FinderDocumentsController(settings: settings)
     menuBarApplicationFolding = MenuBarApplicationFolding(settings: settings)
     uninstaller = UninstallerController()
     let homebrewOperations = HomebrewOperationState()

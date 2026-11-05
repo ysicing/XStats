@@ -6,6 +6,7 @@
 	<array>
 		<string>group.work.12306.xstats</string>
 		<string>$(TeamIdentifierPrefix)work.12306.xstats.network-observation</string>
+		<string>$(TeamIdentifierPrefix)work.12306.xstats.finder</string>
 	</array>
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
