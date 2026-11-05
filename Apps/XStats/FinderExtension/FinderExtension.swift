@@ -9,6 +9,7 @@ import OSLog
 final class FinderExtension: FIFinderSync {
   private let store = FinderDocumentStore.shared()
   private let logger = Logger(subsystem: "work.12306.xstats.app", category: "FinderExtension")
+  private var registeredEnabled: Bool?
 
   override init() {
     super.init()
@@ -20,7 +21,7 @@ final class FinderExtension: FIFinderSync {
       NSWorkspace.didRenameVolumeNotification,
     ] {
       NSWorkspace.shared.notificationCenter.addObserver(
-        self, selector: #selector(configurationChanged), name: notification, object: nil)
+        self, selector: #selector(mountedVolumesChanged), name: notification, object: nil)
     }
     configurationChanged()
   }
@@ -31,9 +32,21 @@ final class FinderExtension: FIFinderSync {
   }
 
   @objc private func configurationChanged() {
+    reloadConfiguration(refreshVolumes: false)
+  }
+
+  @objc private func mountedVolumesChanged() {
+    reloadConfiguration(refreshVolumes: true)
+  }
+
+  private func reloadConfiguration(refreshVolumes: Bool) {
     do {
       guard let store else { throw FinderDocumentError.unavailable }
       let configuration = try store.configuration()
+      guard
+        configuration.enabled != registeredEnabled
+          || (refreshVolumes && configuration.enabled)
+      else { return }
       // Finder Sync 的目录范围不跨挂载卷，网络共享和外置磁盘须单独登记。
       let volumes =
         configuration.enabled
@@ -41,12 +54,20 @@ final class FinderExtension: FIFinderSync {
           includingResourceValuesForKeys: nil, options: .skipHiddenVolumes) ?? []
         : []
       let directories = configuration.directoryURLs(mountedVolumes: volumes)
-      FIFinderSyncController.default().directoryURLs = directories
+      let controller = FIFinderSyncController.default()
+      if controller.directoryURLs != directories {
+        controller.directoryURLs = directories
+      }
+      registeredEnabled = configuration.enabled
       logger.notice(
         "Finder configuration loaded; enabled=\(configuration.enabled, privacy: .public); roots=\(directories.count, privacy: .public)"
       )
     } catch {
-      FIFinderSyncController.default().directoryURLs = []
+      registeredEnabled = nil
+      let controller = FIFinderSyncController.default()
+      if !controller.directoryURLs.isEmpty {
+        controller.directoryURLs = []
+      }
       logger.error(
         "Finder configuration unavailable: \(String(error.localizedDescription.prefix(256)), privacy: .private)"
       )
