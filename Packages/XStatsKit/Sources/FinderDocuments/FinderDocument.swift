@@ -31,7 +31,7 @@ public enum FinderDocumentKind: String, CaseIterable, Codable, Sendable {
 }
 
 public enum FinderDocumentError: LocalizedError {
-  case unavailable, invalidRequest, disabled, nameLimit
+  case unavailable, invalidRequest, disabled, nameLimit, invalidName
 
   public var errorDescription: String? {
     switch self {
@@ -39,25 +39,85 @@ public enum FinderDocumentError: LocalizedError {
     case .invalidRequest: tr("创建请求已失效，请在 Finder 中重试。")
     case .disabled: tr("请先在 XStats 中启用 Finder 新建文档。")
     case .nameLimit: tr("同名文档过多，请重命名后重试。")
+    case .invalidName: tr("请输入有效文件名，不含路径分隔符或控制字符，且不超过 220 字节。")
     }
   }
 }
 
+public enum FinderDocumentNamingMode: String, CaseIterable, Codable, Sendable {
+  case random, fixed, manual
+}
+
 public struct FinderDocumentConfiguration: Codable, Equatable, Sendable {
   public var enabled: Bool
+  public var namingMode: FinderDocumentNamingMode
+  public var fixedName: String
+  public var enabledKinds: Set<FinderDocumentKind>
   private var languageCode: String
   public var language: AppLanguage {
     get { AppLanguage(rawValue: languageCode) ?? .chinese }
     set { languageCode = newValue.rawValue }
   }
 
-  public init(enabled: Bool = false, language: AppLanguage = .chinese) {
+  public init(
+    enabled: Bool = false, language: AppLanguage = .chinese,
+    namingMode: FinderDocumentNamingMode = .fixed, fixedName: String = "",
+    enabledKinds: Set<FinderDocumentKind> = Set(FinderDocumentKind.allCases)
+  ) {
     self.enabled = enabled
     languageCode = language.rawValue
+    self.namingMode = namingMode
+    self.fixedName = fixedName
+    self.enabledKinds = enabledKinds
   }
 
-  public var directoryURLs: Set<URL> {
-    enabled ? [URL(fileURLWithPath: "/", isDirectory: true)] : []
+  private enum CodingKeys: String, CodingKey {
+    case enabled, languageCode, namingMode, fixedName, enabledKinds
+  }
+
+  public init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    enabled = try values.decode(Bool.self, forKey: .enabled)
+    languageCode = try values.decode(String.self, forKey: .languageCode)
+    namingMode =
+      try values.decodeIfPresent(String.self, forKey: .namingMode)
+      .flatMap(FinderDocumentNamingMode.init(rawValue:)) ?? .fixed
+    fixedName = try values.decodeIfPresent(String.self, forKey: .fixedName) ?? ""
+    let kinds = try values.decodeIfPresent([String].self, forKey: .enabledKinds)
+    enabledKinds =
+      kinds.map { Set($0.compactMap(FinderDocumentKind.init(rawValue:))) }
+      ?? Set(FinderDocumentKind.allCases)
+  }
+
+  public func baseName(for kind: FinderDocumentKind, manualName: String? = nil) throws -> String {
+    let input: String
+    switch namingMode {
+    case .random:
+      input = UUID().uuidString.lowercased()
+    case .fixed:
+      input =
+        fixedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        ? L10n.translate(kind.title, language: language) : fixedName
+    case .manual:
+      guard let manualName else { throw FinderDocumentError.invalidName }
+      input = manualName
+    }
+    var name = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    if name.lowercased().hasSuffix(".\(kind.rawValue)") {
+      name.removeLast(kind.rawValue.count + 1)
+      name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    guard !name.isEmpty, name != ".", name != "..", name.utf8.count <= 220,
+      name.rangeOfCharacter(from: .controlCharacters) == nil,
+      !name.contains("/"), !name.contains("\\"), !name.contains(":")
+    else { throw FinderDocumentError.invalidName }
+    return name
+  }
+
+  public func directoryURLs(mountedVolumes: [URL]) -> Set<URL> {
+    guard enabled else { return [] }
+    return Set(mountedVolumes.filter(permits))
+      .union([URL(fileURLWithPath: "/", isDirectory: true)])
   }
 
   public func permits(_ directory: URL) -> Bool {
@@ -81,10 +141,14 @@ public struct FinderDocumentRequest: Codable, Sendable {
 
 public enum FinderDocumentCreator {
   public static func create(
-    _ request: FinderDocumentRequest, configuration: FinderDocumentConfiguration
+    _ request: FinderDocumentRequest, configuration: FinderDocumentConfiguration,
+    manualName: String? = nil
   ) throws -> URL {
     guard configuration.enabled else { throw FinderDocumentError.disabled }
-    guard configuration.permits(request.directory) else { throw FinderDocumentError.invalidRequest }
+    guard configuration.permits(request.directory),
+      configuration.enabledKinds.contains(request.kind)
+    else { throw FinderDocumentError.invalidRequest }
+    let title = try configuration.baseName(for: request.kind, manualName: manualName)
     let directory = request.directory.standardizedFileURL.resolvingSymlinksInPath()
     let folder = open(directory.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
     guard folder >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
@@ -95,7 +159,6 @@ public enum FinderDocumentCreator {
         subdirectory: "Templates")
     else { throw FinderDocumentError.unavailable }
     let data = try Data(contentsOf: template)
-    let title = L10n.translate(request.kind.title, language: configuration.language)
     for attempt in 0..<100 {
       try Task.checkCancellation()
       let suffix = attempt == 0 ? "" : " \(attempt + 1)"

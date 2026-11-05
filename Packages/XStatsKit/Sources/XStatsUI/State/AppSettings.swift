@@ -5,6 +5,7 @@
 
 import AIUsage
 import Cleaner
+import FinderDocuments
 import Foundation
 import Localization
 import Metrics
@@ -848,6 +849,18 @@ public final class AppSettings {
   public var finderDocumentsEnabled: Bool {
     didSet { defaults.set(finderDocumentsEnabled, forKey: "finderDocumentsEnabled") }
   }
+  public var finderDocumentNamingMode: FinderDocumentNamingMode {
+    didSet { defaults.set(finderDocumentNamingMode.rawValue, forKey: "finderDocumentNamingMode") }
+  }
+  public var finderDocumentFixedName: String {
+    didSet { defaults.set(finderDocumentFixedName, forKey: "finderDocumentFixedName") }
+  }
+  public var finderDocumentFormats: Set<FinderDocumentKind> {
+    didSet {
+      defaults.set(
+        finderDocumentFormats.map(\.rawValue).sorted(), forKey: "finderDocumentFormats")
+    }
+  }
   /// 实验性命令栏默认开启；仅在唤出时创建窗口和搜索索引。
   public var commandBarEnabled: Bool {
     didSet { defaults.set(commandBarEnabled, forKey: Keys.commandBarEnabled) }
@@ -1376,6 +1389,14 @@ public final class AppSettings {
     cleanerEnabled = isCleanerEnabled
     agentDataEnabled = defaults.bool(forKey: Keys.agentDataEnabled)
     finderDocumentsEnabled = defaults.bool(forKey: "finderDocumentsEnabled")
+    finderDocumentNamingMode =
+      defaults.string(forKey: "finderDocumentNamingMode")
+      .flatMap(FinderDocumentNamingMode.init(rawValue:)) ?? .fixed
+    finderDocumentFixedName = defaults.string(forKey: "finderDocumentFixedName") ?? ""
+    finderDocumentFormats =
+      defaults.stringArray(forKey: "finderDocumentFormats")
+      .map { Set($0.compactMap(FinderDocumentKind.init(rawValue:))) }
+      ?? Set(FinderDocumentKind.allCases)
     commandBarEnabled = defaults.object(forKey: Keys.commandBarEnabled) as? Bool ?? true
     let pinch = defaults.integer(forKey: Keys.launchpadPinchFingers)
     launchpadPinchFingers = [4, 5].contains(pinch) ? pinch : 0

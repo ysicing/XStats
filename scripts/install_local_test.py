@@ -44,10 +44,13 @@ if name == "pluginkit":
             print("     " + identifier + "(1.4.10)")
             print("            Path = " + entry["path"])
             print("            Parent Bundle = " + entry["parent"])
-        print(" (%d plug-ins)" % len(entries))
+        print(" (%d plug-ins)" % len(entries) if entries else "  (no matches)")
     elif args[0] == "-r":
         if os.environ.get("INSTALL_TEST_REMOVE_FAIL"):
             sys.exit(2)
+        if not any(entry["path"] == args[1] for entry in state):
+            print("remove: no plugin at " + args[1], file=sys.stderr)
+            sys.exit(1)
         state = [x for x in state if x["path"] != args[1]]
     elif args[0] == "-a":
         if os.environ.get("INSTALL_TEST_ADD_FAIL"):
@@ -67,6 +70,9 @@ if name == "pluginkit":
 elif name == "lsregister":
     if args[0] == "-f" and os.environ.get("INSTALL_TEST_REGISTER_FAIL"):
         sys.exit(2)
+    if args[0] == "-u":
+        state = [entry for entry in state if entry["parent"] != args[1]]
+        state_file.write_text(json.dumps(state))
 elif name == "mdfind":
     print(root / "other workspace/Old.app")
 elif name in ["pgrep", "pkill"]:
@@ -197,6 +203,9 @@ class InstallLocalTests(unittest.TestCase):
         for app in [self.target, self.source, self.other]:
             self.assertIn(["pluginkit", "-r", str(app) + FINDER_SUFFIX,], self.calls())
             self.assertEqual(self.calls().count(["lsregister", "-u", str(app)]), 1)
+            self.assertLess(
+                self.calls().index(["pluginkit", "-r", str(app) + FINDER_SUFFIX]),
+                self.calls().index(["lsregister", "-u", str(app)]))
         self.assertIn(["pluginkit", "-a", str(self.target) + FINDER_SUFFIX], self.calls())
         self.assertFalse(any(call[:3] == ["pluginkit", "-e", "use"] for call in self.calls()))
 
@@ -247,6 +256,7 @@ class InstallLocalTests(unittest.TestCase):
 
     def test_partial_or_inconsistent_registry_stops_before_unregistering(self):
         for reply in [
+            "  (no matches)\nunexpected registry reply",
             f" {WIDGET_ID}(1.4.10)\n Path = {self.other}{SUFFIX}\n (1 plug-in)",
             f" {WIDGET_ID}(1.4.10)\n Path = {self.other}{SUFFIX}\n"
             f" Parent Bundle = {self.other}\n (2 plug-ins)",

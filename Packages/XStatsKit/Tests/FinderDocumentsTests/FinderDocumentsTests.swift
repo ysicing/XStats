@@ -6,6 +6,73 @@ import Testing
 @testable import FinderDocuments
 
 struct FinderDocumentsTests {
+  @Test func decodesLegacyConfigurationAndPreservesEmptyFormatSelection() throws {
+    let legacy = Data(#"{"enabled":true,"languageCode":"en"}"#.utf8)
+    let configuration = try JSONDecoder().decode(FinderDocumentConfiguration.self, from: legacy)
+    #expect(configuration.namingMode == .fixed)
+    #expect(configuration.fixedName.isEmpty)
+    #expect(configuration.enabledKinds == Set(FinderDocumentKind.allCases))
+    let empty = FinderDocumentConfiguration(
+      enabled: true, namingMode: .manual, fixedName: "Notes", enabledKinds: [])
+    let decoded = try JSONDecoder().decode(
+      FinderDocumentConfiguration.self, from: JSONEncoder().encode(empty))
+    #expect(decoded == empty)
+    let future = Data(
+      #"{"enabled":true,"languageCode":"en","namingMode":"future","enabledKinds":["txt","future"]}"#
+        .utf8)
+    let compatible = try JSONDecoder().decode(FinderDocumentConfiguration.self, from: future)
+    #expect(compatible.namingMode == .fixed)
+    #expect(compatible.enabledKinds == [.txt])
+  }
+
+  @Test func createsFixedRandomAndManualNamesWithoutOverwriting() throws {
+    let root = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    var configuration = FinderDocumentConfiguration(enabled: true, fixedName: "项目记录")
+    let request = FinderDocumentRequest(kind: .md, directory: root)
+    let first = try FinderDocumentCreator.create(request, configuration: configuration)
+    #expect(first.lastPathComponent == "项目记录.md")
+    let second = try FinderDocumentCreator.create(request, configuration: configuration)
+    #expect(second.lastPathComponent == "项目记录 2.md")
+    configuration.namingMode = .random
+    let random = try FinderDocumentCreator.create(request, configuration: configuration)
+    #expect(UUID(uuidString: random.deletingPathExtension().lastPathComponent) != nil)
+    #expect(random.pathExtension == "md")
+    configuration.namingMode = .manual
+    let manual = try FinderDocumentCreator.create(
+      request, configuration: configuration, manualName: " 周报.MD ")
+    #expect(manual.lastPathComponent == "周报.md")
+    #expect(throws: FinderDocumentError.invalidName) {
+      try FinderDocumentCreator.create(request, configuration: configuration)
+    }
+    #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).count == 4)
+  }
+
+  @Test(arguments: [
+    "", " ", ".", "..", "../escape", "a/b", "a\\b", "a:b", "a\u{0}b", "a\nb",
+    String(repeating: "文", count: 74),
+  ])
+  func rejectsUnsafeManualNames(name: String) throws {
+    let configuration = FinderDocumentConfiguration(enabled: true, namingMode: .manual)
+    #expect(throws: FinderDocumentError.invalidName) {
+      try configuration.baseName(for: .txt, manualName: name)
+    }
+  }
+
+  @Test func rejectsDeselectedFormatsInQueueAndCreator() throws {
+    let root = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = FinderDocumentStore(directory: root.appendingPathComponent("shared"))
+    let configuration = FinderDocumentConfiguration(enabled: true, enabledKinds: [.txt])
+    try store.save(configuration)
+    let request = FinderDocumentRequest(kind: .md, directory: root)
+    #expect(throws: FinderDocumentError.invalidRequest) { try store.enqueue(request) }
+    #expect(throws: FinderDocumentError.invalidRequest) {
+      try FinderDocumentCreator.create(request, configuration: configuration)
+    }
+    #expect(try FileManager.default.contentsOfDirectory(atPath: root.path) == ["shared"])
+  }
+
   @Test func createsAllFormatsWithoutOverwritingAndUsesExplicitLanguage() throws {
     let root = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: root) }
@@ -61,7 +128,10 @@ struct FinderDocumentsTests {
     let root = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: root) }
     let configuration = FinderDocumentConfiguration(enabled: true)
-    #expect(configuration.directoryURLs == [URL(fileURLWithPath: "/", isDirectory: true)])
+    #expect(
+      configuration.directoryURLs(mountedVolumes: []) == [
+        URL(fileURLWithPath: "/", isDirectory: true)
+      ])
     for name in ["first", "second/nested"] {
       let directory = root.appendingPathComponent(name)
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -78,10 +148,28 @@ struct FinderDocumentsTests {
     #expect(result.deletingLastPathComponent().path == target.path)
   }
 
+  @Test func registersMountedVolumesAndClearsAllRootsWhenDisabled() throws {
+    let root = URL(fileURLWithPath: "/", isDirectory: true)
+    let networkVolume = URL(fileURLWithPath: "/Volumes/workdata", isDirectory: true)
+    let externalVolume = URL(fileURLWithPath: "/Volumes/External Disk", isDirectory: true)
+    let remote = try #require(URL(string: "file://example.invalid/share"))
+    let web = try #require(URL(string: "https://example.invalid/share"))
+    let volumes = [root, networkVolume, externalVolume, networkVolume, remote, web]
+    var configuration = FinderDocumentConfiguration(enabled: true)
+    #expect(
+      configuration.directoryURLs(mountedVolumes: volumes) == [
+        root, networkVolume, externalVolume,
+      ])
+    #expect(
+      configuration.directoryURLs(mountedVolumes: [externalVolume]) == [root, externalVolume])
+    configuration.enabled = false
+    #expect(configuration.directoryURLs(mountedVolumes: volumes).isEmpty)
+  }
+
   @Test func rejectsDisabledAndNonFileRequests() throws {
     let root = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: root) }
-    #expect(FinderDocumentConfiguration().directoryURLs.isEmpty)
+    #expect(FinderDocumentConfiguration().directoryURLs(mountedVolumes: []).isEmpty)
     #expect(throws: FinderDocumentError.self) {
       try FinderDocumentCreator.create(
         .init(kind: .txt, directory: root), configuration: .init(enabled: false))

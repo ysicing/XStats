@@ -98,7 +98,8 @@ try:
     count = re.search(r"^\s*\((\d+) plug-ins?\)\s*$", text, re.MULTILINE)
     if (path is not None or len(headers) != len(records)
             or (count and int(count[1]) != len(records))
-            or (text.strip() and not records and (not count or count[1] != "0"))):
+            or (text.strip() not in ("", "(no matches)")
+                and not records and (not count or count[1] != "0"))):
         raise ValueError("无法确认扩展登记列表完整性")
 except ValueError as error:
     sys.exit(f"error: {error}；登记快照：{snapshot}")
@@ -141,24 +142,22 @@ while IFS=$'\t' read -r widget parent; do
   if [ "$parent" != "$TARGET" ] && [ "$parent" != "$SOURCE" ]; then
     echo "提示：取消旧 Widget 登记，保留文件（仍可能被系统重新发现）：$parent"
   fi
-  if ! pluginkit -r "$widget" || ! "$LSREGISTER" -u "$parent"; then
-    echo "error: 无法注销旧 Widget 或父应用，停止替换应用；登记快照：$REGISTRATION_DIR" >&2
+  if ! pluginkit -r "$widget"; then
+    echo "error: 无法注销旧 Widget，停止替换应用；登记快照：$REGISTRATION_DIR" >&2
     exit 1
-  fi
-  if [ "$parent" = /Applications/OpenStats.app ]; then
-    LEGACY_UNREGISTERED=1
   fi
 done <"$REGISTRATION_DIR/before.txt.paths"
 
 while IFS=$'\t' read -r finder parent; do
   pluginkit -r "$finder"
-  if ! cut -f2 "$REGISTRATION_DIR/before.txt.paths" | grep -Fxq "$parent"; then
-    "$LSREGISTER" -u "$parent"
-  fi
+done <"$REGISTRATION_DIR/finder-before.txt.paths"
+
+while IFS= read -r parent; do
+  "$LSREGISTER" -u "$parent"
   if [ "$parent" = /Applications/OpenStats.app ]; then
     LEGACY_UNREGISTERED=1
   fi
-done <"$REGISTRATION_DIR/finder-before.txt.paths"
+done < <(cut -f2 "$REGISTRATION_DIR/before.txt.paths" "$REGISTRATION_DIR/finder-before.txt.paths" | sort -u)
 
 # 仅移除旧应用包；旧偏好、日志与历史数据库不迁移，也不删除。
 if [ -d /Applications/OpenStats.app ]; then

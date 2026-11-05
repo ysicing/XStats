@@ -131,9 +131,6 @@ struct FeatureSettings: View {
         GroupRow(showsDivider: false) {
           CaptureFeatureSettings()
         }
-        GroupRow {
-          FinderDocumentSettings()
-        }
       }
       SettingsGroup {
         if #available(macOS 15, *) {
@@ -280,6 +277,9 @@ struct FeatureSettings: View {
         .fixedSize(horizontal: false, vertical: true)
       SettingsGroup {
         GroupRow(showsDivider: false) {
+          FinderDocumentSettings()
+        }
+        GroupRow {
           SettingRow(
             title: tr(LaunchpadAvailability.isSupported ? "命令栏与启动台" : "命令栏"),
             subtitle: tr("搜索应用、功能与操作"), icon: "magnifyingglass"

@@ -6,6 +6,7 @@
 // XStats modifications are licensed under AGPL-3.0-or-later.
 // See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
 
+import FinderDocuments
 import Foundation
 import Localization
 import Metrics
@@ -82,6 +83,9 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var cleanerEnabled: Bool?
   public var agentDataEnabled: Bool?
   public var finderDocumentsEnabled: Bool?
+  public var finderDocumentNamingMode: String?
+  public var finderDocumentFixedName: String?
+  public var finderDocumentFormats: [String]?
   public var commandBarEnabled: Bool?
   public var launchpadPinchFingers: Int?
   public var launchpadHotCorner: Int?
@@ -172,6 +176,9 @@ extension AppSettings {
     doc.cleanerEnabled = cleanerEnabled
     doc.agentDataEnabled = agentDataEnabled
     doc.finderDocumentsEnabled = finderDocumentsEnabled
+    doc.finderDocumentNamingMode = finderDocumentNamingMode.rawValue
+    doc.finderDocumentFixedName = finderDocumentFixedName
+    doc.finderDocumentFormats = finderDocumentFormats.map(\.rawValue).sorted()
     doc.commandBarEnabled = commandBarEnabled
     doc.launchpadPinchFingers = launchpadPinchFingers
     doc.launchpadHotCorner = launchpadHotCorner
@@ -302,6 +309,13 @@ extension AppSettings {
     assign(\.cleanerEnabled, doc.cleanerEnabled)
     assign(\.agentDataEnabled, doc.agentDataEnabled)
     assign(\.finderDocumentsEnabled, doc.finderDocumentsEnabled)
+    if let mode = doc.finderDocumentNamingMode.flatMap(FinderDocumentNamingMode.init(rawValue:)) {
+      assign(\.finderDocumentNamingMode, mode)
+    }
+    assign(\.finderDocumentFixedName, doc.finderDocumentFixedName)
+    if let formats = doc.finderDocumentFormats {
+      assign(\.finderDocumentFormats, Set(formats.compactMap(FinderDocumentKind.init(rawValue:))))
+    }
     assign(\.commandBarEnabled, doc.commandBarEnabled)
     if let fingers = doc.launchpadPinchFingers {
       launchpadPinchFingers = [4, 5].contains(fingers) ? fingers : 0

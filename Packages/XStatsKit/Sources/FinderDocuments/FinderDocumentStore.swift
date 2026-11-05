@@ -32,7 +32,9 @@ public struct FinderDocumentStore: Sendable {
   public func enqueue(_ request: FinderDocumentRequest) throws -> UUID {
     let configuration = try configuration()
     guard configuration.enabled else { throw FinderDocumentError.disabled }
-    guard configuration.permits(request.directory) else { throw FinderDocumentError.invalidRequest }
+    guard configuration.permits(request.directory),
+      configuration.enabledKinds.contains(request.kind)
+    else { throw FinderDocumentError.invalidRequest }
     let requests = directory.appendingPathComponent("Requests", isDirectory: true)
     try FileManager.default.createDirectory(at: requests, withIntermediateDirectories: true)
     guard

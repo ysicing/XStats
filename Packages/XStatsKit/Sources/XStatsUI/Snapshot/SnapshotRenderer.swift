@@ -54,6 +54,13 @@ enum SnapshotRenderer {
           }
         }
       }
+      for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+        guard let appearance = NSAppearance(named: name) else { continue }
+        write(
+          FinderDocumentOptions().appLanguageEnvironment(),
+          model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent("finder-options-\(suffix).png"))
+      }
       return
     }
 

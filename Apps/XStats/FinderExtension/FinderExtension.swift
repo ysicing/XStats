@@ -15,14 +15,42 @@ final class FinderExtension: FIFinderSync {
     DistributedNotificationCenter.default().addObserver(
       self, selector: #selector(configurationChanged),
       name: NSNotification.Name(FinderDocumentStore.changedNotification), object: nil)
+    for notification in [
+      NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification,
+      NSWorkspace.didRenameVolumeNotification,
+    ] {
+      NSWorkspace.shared.notificationCenter.addObserver(
+        self, selector: #selector(configurationChanged), name: notification, object: nil)
+    }
     configurationChanged()
   }
 
-  deinit { DistributedNotificationCenter.default().removeObserver(self) }
+  deinit {
+    DistributedNotificationCenter.default().removeObserver(self)
+    NSWorkspace.shared.notificationCenter.removeObserver(self)
+  }
 
   @objc private func configurationChanged() {
-    let configuration = try? store?.configuration()
-    FIFinderSyncController.default().directoryURLs = configuration?.directoryURLs ?? []
+    do {
+      guard let store else { throw FinderDocumentError.unavailable }
+      let configuration = try store.configuration()
+      // Finder Sync 的目录范围不跨挂载卷，网络共享和外置磁盘须单独登记。
+      let volumes =
+        configuration.enabled
+        ? FileManager.default.mountedVolumeURLs(
+          includingResourceValuesForKeys: nil, options: .skipHiddenVolumes) ?? []
+        : []
+      let directories = configuration.directoryURLs(mountedVolumes: volumes)
+      FIFinderSyncController.default().directoryURLs = directories
+      logger.notice(
+        "Finder configuration loaded; enabled=\(configuration.enabled, privacy: .public); roots=\(directories.count, privacy: .public)"
+      )
+    } catch {
+      FIFinderSyncController.default().directoryURLs = []
+      logger.error(
+        "Finder configuration unavailable: \(String(error.localizedDescription.prefix(256)), privacy: .private)"
+      )
+    }
   }
 
   override func menu(for menuKind: FIMenuKind) -> NSMenu? {
@@ -37,6 +65,7 @@ final class FinderExtension: FIFinderSync {
       action: nil, keyEquivalent: "")
     let documents = NSMenu()
     for (index, kind) in FinderDocumentKind.allCases.enumerated() {
+      guard configuration.enabledKinds.contains(kind) else { continue }
       if let identifier = kind.applicationBundleIdentifier,
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) == nil
       {
@@ -50,6 +79,7 @@ final class FinderExtension: FIFinderSync {
       item.target = self
       documents.addItem(item)
     }
+    guard !documents.items.isEmpty else { return nil }
     parent.submenu = documents
     menu.addItem(parent)
     return menu
