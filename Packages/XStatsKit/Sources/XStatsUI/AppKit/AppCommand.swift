@@ -46,10 +46,13 @@ struct AppCommand: Identifiable, Sendable {
         id: "page.\(tab.rawValue)", title: tab.headerTitle, symbol: tab.symbol,
         keywords: "\(tab.rawValue) \(aliases(for: tab))", action: .route(.open(tab)))
     }
+    if LaunchpadAvailability.isSupported {
+      commands.append(
+        AppCommand(
+          id: "launchpad", title: tr("启动台"), symbol: "square.grid.3x3",
+          keywords: "launchpad apps 应用 启动台", action: .launchpad))
+    }
     commands += [
-      AppCommand(
-        id: "launchpad", title: tr("启动台"), symbol: "square.grid.3x3",
-        keywords: "launchpad apps 应用 启动台", action: .launchpad),
       AppCommand(
         id: "localIP", title: tr("本机 IP 查询"), symbol: "globe",
         keywords: "ip local address 本机 地址", action: .localIPQuery),

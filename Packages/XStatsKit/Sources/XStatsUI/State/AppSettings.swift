@@ -849,6 +849,12 @@ public final class AppSettings {
   public var commandBarEnabled: Bool {
     didSet { defaults.set(commandBarEnabled, forKey: Keys.commandBarEnabled) }
   }
+  public var launchpadPinchFingers: Int {
+    didSet { defaults.set(launchpadPinchFingers, forKey: Keys.launchpadPinchFingers) }
+  }
+  public var launchpadHotCorner: Int {
+    didSet { defaults.set(launchpadHotCorner, forKey: Keys.launchpadHotCorner) }
+  }
   /// 关闭 Token 统计后仍查询 Magpie 订阅额度；保留原偏好键。
   public var aiUsageShowsLocalUsage: Bool {
     didSet { defaults.set(aiUsageShowsLocalUsage, forKey: Keys.aiUsageShowsLocalUsage) }
@@ -1367,6 +1373,10 @@ public final class AppSettings {
     cleanerEnabled = isCleanerEnabled
     agentDataEnabled = defaults.bool(forKey: Keys.agentDataEnabled)
     commandBarEnabled = defaults.object(forKey: Keys.commandBarEnabled) as? Bool ?? true
+    let pinch = defaults.integer(forKey: Keys.launchpadPinchFingers)
+    launchpadPinchFingers = [4, 5].contains(pinch) ? pinch : 0
+    let corner = defaults.integer(forKey: Keys.launchpadHotCorner)
+    launchpadHotCorner = (1...4).contains(corner) ? corner : 0
     let isProcessesEnabled = defaults.bool(forKey: Keys.processesEnabled)
     processesEnabled = isProcessesEnabled
     let isPortsEnabled = defaults.bool(forKey: Keys.portsEnabled)
@@ -1789,6 +1799,8 @@ public final class AppSettings {
     static let cleanerEnabled = "cleanerEnabled"
     static let agentDataEnabled = "agentDataEnabled"
     static let commandBarEnabled = "commandBarEnabled"
+    static let launchpadPinchFingers = "launchpadPinchFingers"
+    static let launchpadHotCorner = "launchpadHotCorner"
     static let processesEnabled = "processesEnabled"
     static let portsEnabled = "portsEnabled"
     static let portsPlacement = "portsPlacement"

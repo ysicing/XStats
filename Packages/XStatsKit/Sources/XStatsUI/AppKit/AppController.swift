@@ -36,7 +36,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private let hotKeys = HotKeyCenter()
   private let launcherUsage = CommandBarUsage(defaults: .standard)
   private lazy var commandBar = CommandBarWindowController(usage: launcherUsage)
-  private lazy var launchpad = LaunchpadWindowController(usage: launcherUsage)
+  private lazy var launchpad = LaunchpadWindowController(
+    usage: launcherUsage, layoutStore: LaunchpadLayoutStore(defaults: .standard))
+  private let launchpadTriggers = LaunchpadTriggers()
+  private var launchpadTriggersPaused = false
   private let displaySleep = DisplaySleepController()
   private var workspaceObservers: [NSObjectProtocol] = []
   private var screenLocked = false
@@ -483,6 +486,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     dnsBenchmarkWindow?.cancel()
     commandBar.dismiss()
     launchpad.dismiss()
+    launchpadTriggers.stop()
     model.cleaner.cancelOperation()
     model.cleaner.mole.cancel()
     model.fans.setPaused(true)
@@ -609,7 +613,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
   }
 
   @objc private func openLaunchpadFromMenu() {
-    guard model.settings.commandBarEnabled, !model.isRecordingShortcut,
+    guard LaunchpadAvailability.isSupported, model.settings.commandBarEnabled,
+      !model.isRecordingShortcut,
       !isTerminating, !screenLocked
     else { return }
     commandBar.dismiss()
@@ -783,8 +788,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
   // MARK: 观察
 
   private func observeCommandBarSetting() {
+    configureLaunchpadTriggers()
     withObservationTracking {
       _ = model.settings.commandBarEnabled
+      _ = model.settings.launchpadPinchFingers
+      _ = model.settings.launchpadHotCorner
     } onChange: { [weak self] in
       Task { @MainActor in
         guard let self else { return }
@@ -796,6 +804,33 @@ public final class AppController: NSObject, NSApplicationDelegate {
         self.installMainMenu()
       }
     }
+  }
+
+  private func configureLaunchpadTriggers() {
+    let enabled =
+      LaunchpadAvailability.isSupported && model.settings.commandBarEnabled
+      && !launchpadTriggersPaused && !screenLocked && !isTerminating
+    launchpadTriggers.onOpen = { [weak self] in self?.openLaunchpadFromMenu() }
+    launchpadTriggers.onPinch = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case .progress(let progress):
+        if !self.launchpad.isVisible {
+          self.openLaunchpadFromMenu()
+          self.launchpad.setRevealProgress(progress)
+        } else if self.launchpad.isRevealing {
+          self.launchpad.setRevealProgress(progress)
+        }
+      case .end(let commit):
+        if self.launchpad.isRevealing { self.launchpad.finishReveal(commit: commit) }
+      }
+    }
+    if launchpad.isRevealing {
+      launchpad.dismiss()
+    }
+    launchpadTriggers.configure(
+      fingers: enabled ? model.settings.launchpadPinchFingers : 0,
+      corner: enabled ? model.settings.launchpadHotCorner : 0)
   }
 
   /// 设置或可见内容变化时，更新采样范围、网络探测并重绘菜单栏
@@ -1196,6 +1231,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
     guard !isTerminating else { return }
     commandBar.dismiss()
     launchpad.dismiss()
+    launchpadTriggersPaused = true
+    configureLaunchpadTriggers()
     restMenuBar.dismiss()
     menuBar.dismissPopovers()
     model.fans.setPaused(true)
@@ -1228,6 +1265,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private func resumeFromInactivity() {
     // 系统唤醒时常仍停在锁屏界面，要等解锁后再恢复。
     guard !screenLocked, !isTerminating else { return }
+    launchpadTriggersPaused = false
+    configureLaunchpadTriggers()
     model.fans.setPaused(false)
     model.network.setPaused(false)
     model.egress.setPaused(false)

@@ -278,9 +278,38 @@ struct FeatureSettings: View {
       SettingsGroup {
         GroupRow(showsDivider: false) {
           SettingRow(
-            title: tr("命令栏与启动台"), subtitle: tr("搜索应用、功能与操作"), icon: "magnifyingglass"
+            title: tr(LaunchpadAvailability.isSupported ? "命令栏与启动台" : "命令栏"),
+            subtitle: tr("搜索应用、功能与操作"), icon: "magnifyingglass"
           ) {
-            DSToggle(isOn: $settings.commandBarEnabled, label: tr("命令栏与启动台"))
+            DSToggle(isOn: $settings.commandBarEnabled, label: tr("命令栏"))
+          }
+        }
+        if LaunchpadAvailability.isSupported && settings.commandBarEnabled {
+          GroupRow {
+            SettingRow(
+              title: tr("启动台手势"), subtitle: tr("使用私有触控板接口；系统更新后可能不可用。"),
+              icon: "hand.draw"
+            ) {
+              Picker(tr("启动台手势"), selection: $settings.launchpadPinchFingers) {
+                Text(tr("关闭")).tag(0)
+                Text(tr("四指捏合")).tag(4)
+                Text(tr("五指捏合")).tag(5)
+              }.labelsHidden().fixedSize()
+            }
+          }
+          GroupRow {
+            SettingRow(
+              title: tr("启动台触发角"), subtitle: tr("停留片刻打开；系统已分配的触发角优先。"),
+              icon: "arrow.up.left.and.arrow.down.right"
+            ) {
+              Picker(tr("启动台触发角"), selection: $settings.launchpadHotCorner) {
+                Text(tr("关闭")).tag(0)
+                Text(tr("左上角")).tag(1)
+                Text(tr("右上角")).tag(2)
+                Text(tr("左下角")).tag(3)
+                Text(tr("右下角")).tag(4)
+              }.labelsHidden().fixedSize()
+            }
           }
         }
         GroupRow {

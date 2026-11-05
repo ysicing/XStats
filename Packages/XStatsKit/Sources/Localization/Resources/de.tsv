@@ -1,5 +1,22 @@
 # Copyright (C) 2026 ysicing
 # SPDX-License-Identifier: AGPL-3.0-or-later
+文件夹	Ordner
+整理应用	Apps bearbeiten
+返回	Zurück
+重命名	Umbenennen
+仅移除应用，保留文稿和个人数据。	Nur die App wird entfernt. Dokumente und persönliche Daten bleiben erhalten.
+无法移除应用	App kann nicht entfernt werden
+请先退出应用，并检查安装来源和访问权限。	Beende zuerst die App und prüfe dann ihre Installationsquelle und Zugriffsrechte.
+启动台手势	Launchpad-Geste
+使用私有触控板接口；系统更新后可能不可用。	Nutzt eine private Trackpad-Schnittstelle, die nach Systemupdates ausfallen kann.
+四指捏合	Mit vier Fingern zusammenziehen
+五指捏合	Mit fünf Fingern zusammenziehen
+启动台触发角	Aktive Ecke für Launchpad
+停留片刻打开；系统已分配的触发角优先。	Kurz in der Ecke verweilen. Bereits belegte aktive Systemecken haben Vorrang.
+左上角	Oben links
+右上角	Oben rechts
+左下角	Unten links
+右下角	Unten rechts
 查询端口：{}	Port suchen: {}
 查找软件包：{}	Paket suchen: {}
 权限不足，无法完成卸载	Deinstallation wegen fehlender Zugriffsrechte nicht abgeschlossen

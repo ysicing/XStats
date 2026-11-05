@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import AppKit
+import ImageIO
 import Localization
 import Testing
 @testable import XStatsUI
@@ -190,7 +191,7 @@ struct LaunchpadTests {
     try await waitForCatalog(controller, count: applications.count)
     let content = try #require(controller.panel?.contentView)
     content.layoutSubtreeIfNeeded()
-    let buttons = descendants(NSButton.self, in: content)
+    let buttons = descendants(NSButton.self, in: content).filter { !$0.isHiddenOrHasHiddenAncestor }
     for (index, button) in buttons.enumerated() {
       let rect = content.convert(button.bounds, from: button)
       #expect(content.bounds.contains(rect))
@@ -250,6 +251,170 @@ struct LaunchpadTests {
             "launchpad-\(language.rawValue)-\(appearance.rawValue).png"))
       }
     }
+  }
+
+  @Test(arguments: [AppLanguage.chinese, .german, .arabic])
+  func foldersSupportSearchEditingExtractionAndRestore(language: AppLanguage) async throws {
+    _ = NSApplication.shared
+    let suite = "LaunchpadTests.folders.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let store = LaunchpadLayoutStore(defaults: defaults)
+    let applications = ["Calendar", "Mail", "Notes", "活动监视器"].map { application($0) }
+    let controller = LaunchpadWindowController(layoutStore: store)
+    defer { controller.dismiss() }
+    store.save(LaunchpadLayout(pages: [applications.map { .app($0.id) }]))
+    controller.show(language: language, frame: frame, applicationLoader: { applications })
+    try await waitForCatalog(controller, count: 4)
+    let panel = try #require(controller.panel)
+    let target = try #require(
+      descendants(LaunchpadTileButton.self, in: panel.contentView).first {
+        $0.itemID == applications[0].id
+      })
+    target.onDrop(applications[1].id, true)
+    #expect(controller.results.count == 3)
+    let folder = try #require(controller.layout.pages[0].first { $0.isFolder })
+    let folderButton = try #require(
+      descendants(LaunchpadTileButton.self, in: panel.contentView).first {
+        $0.itemID == folder.id
+      })
+    #expect(
+      NSApp.sendAction(
+        try #require(folderButton.action), to: folderButton.target, from: folderButton))
+    #expect(controller.folderID == folder.id && controller.results.count == 2)
+    controller.setEditing(true)
+    #expect(controller.isEditing)
+    let exit = try #require(
+      descendants(LaunchpadDropView.self, in: panel.contentView).first {
+        $0.identifier?.rawValue == "launchpad.folderExit"
+      })
+    #expect(!exit.isHidden)
+    exit.onDrop(applications[0].id)
+    #expect(controller.folderID == nil && controller.results.count == 4)
+    #expect(!controller.layout.pages.joined().contains { $0.isFolder })
+    let field = try #require(descendant(NSSearchField.self, in: panel.contentView))
+    field.stringValue = "hdjsq"
+    controller.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+    #expect(controller.results.map(\.id) == [applications[3].id])
+    field.stringValue = ""
+    controller.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+    if let directory = ProcessInfo.processInfo.environment["XSTATS_LAUNCHPAD_PREVIEW_DIR"] {
+      let bitmap = try #require(
+        panel.contentView?.bitmapImageRepForCachingDisplay(
+          in: NSRect(origin: .zero, size: frame.size)))
+      panel.contentView?.cacheDisplay(in: NSRect(origin: .zero, size: frame.size), to: bitmap)
+      let data = try #require(bitmap.representation(using: .png, properties: [:]))
+      try data.write(
+        to: URL(fileURLWithPath: directory).appendingPathComponent(
+          "launchpad-editing-\(language.rawValue).png"))
+    }
+    let saved = controller.layout
+    controller.dismiss()
+    controller.show(language: language, frame: frame, applicationLoader: { applications })
+    try await waitForCatalog(controller, count: 4)
+    #expect(controller.layout == saved && !controller.isEditing)
+  }
+
+  @Test func wallpaperUsesBoundedThumbnailAndIsReleasedOnClose() async throws {
+    _ = NSApplication.shared
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "LaunchpadWallpaperTests-\(UUID())")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let url = directory.appendingPathComponent("wallpaper.png")
+    let context = try #require(
+      CGContext(
+        data: nil, width: 2560, height: 1440, bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+    let colors = [
+      CGColor(red: 0.13, green: 0.28, blue: 0.58, alpha: 1),
+      CGColor(red: 0.55, green: 0.23, blue: 0.36, alpha: 1),
+    ]
+    let gradient = try #require(
+      CGGradient(
+        colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: nil))
+    context.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 2560, y: 1440), options: [])
+    let original = try #require(context.makeImage())
+    let destination = try #require(
+      CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil))
+    CGImageDestinationAddImage(destination, original, nil)
+    #expect(CGImageDestinationFinalize(destination))
+    let blurred = try LaunchpadWallpaper.image(at: url)
+    let image = try #require(blurred)
+    #expect(max(image.width, image.height) <= 1536)
+    let controller = LaunchpadWindowController()
+    defer { controller.dismiss() }
+    controller.show(frame: frame, wallpaperURL: url, applicationLoader: { [] })
+    if !NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency {
+      for _ in 0..<100 {
+        if controller.panel?.contentView?.subviews.contains(where: {
+          $0.identifier?.rawValue == "launchpad.wallpaper"
+        }) == true {
+          break
+        }
+        try await Task.sleep(for: .milliseconds(20))
+      }
+      #expect(
+        controller.panel?.contentView?.subviews.contains(where: {
+          $0.identifier?.rawValue == "launchpad.wallpaper"
+        }) == true)
+    }
+    weak var content = controller.panel?.contentView
+    controller.dismiss()
+    for _ in 0..<20 {
+      if content == nil { break }
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(content == nil)
+  }
+
+  @Test func revealCancellationCannotDismissAnExplicitReopenOrNewGesture() async throws {
+    _ = NSApplication.shared
+    let controller = LaunchpadWindowController()
+    defer { controller.dismiss() }
+    controller.show(frame: frame, applicationLoader: { [] })
+    let panel = try #require(controller.panel)
+    controller.setRevealProgress(0.4)
+    #expect(controller.isRevealing)
+    controller.finishReveal(commit: false)
+    controller.show(frame: frame, applicationLoader: { [] })
+    try await Task.sleep(for: .milliseconds(250))
+    #expect(controller.panel === panel && controller.isVisible && !controller.isRevealing)
+    #expect(abs(panel.alphaValue - 1) < 0.01)
+    controller.setRevealProgress(0.5)
+    controller.finishReveal(commit: false)
+    controller.setRevealProgress(0.7)
+    try await Task.sleep(for: .milliseconds(250))
+    #expect(controller.panel === panel && controller.isRevealing)
+    controller.finishReveal(commit: true)
+    try await Task.sleep(for: .milliseconds(250))
+    #expect(controller.isVisible && !controller.isRevealing)
+    #expect(abs(panel.alphaValue - 1) < 0.01)
+    controller.finishReveal(commit: false)
+    for _ in 0..<50 {
+      if controller.panel == nil { break }
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(controller.panel == nil && !controller.isRevealing)
+  }
+
+  @Test func abandonedRevealTimesOutAndAllowsAnotherOpen() async throws {
+    _ = NSApplication.shared
+    let controller = LaunchpadWindowController()
+    defer { controller.dismiss() }
+    controller.show(frame: frame, applicationLoader: { [] })
+    controller.setRevealProgress(0.4)
+    for _ in 0..<175 {
+      if controller.panel == nil { break }
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(controller.panel == nil && !controller.isRevealing)
+    controller.show(frame: frame, applicationLoader: { [] })
+    controller.setRevealProgress(0.8)
+    #expect(controller.isVisible && controller.isRevealing)
+    controller.dismiss()
+    #expect(!controller.isRevealing)
   }
 
   private func waitForCatalog(_ controller: LaunchpadWindowController, count: Int) async throws {

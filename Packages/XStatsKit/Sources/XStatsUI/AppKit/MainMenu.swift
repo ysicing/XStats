@@ -55,7 +55,7 @@ enum MainMenu {
         withTitle: tr("命令栏"), action: commandBarAction, keyEquivalent: "p")
       commandBar.target = target
       commandBar.keyEquivalentModifierMask = [.command, .shift]
-      if let launchpadAction {
+      if LaunchpadAvailability.isSupported, let launchpadAction {
         window.addItem(withTitle: tr("启动台"), action: launchpadAction, keyEquivalent: "")
           .target = target
       }

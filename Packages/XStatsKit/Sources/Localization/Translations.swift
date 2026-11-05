@@ -62,6 +62,23 @@ extension Translations {
     """#
 
   static let commandBarEnglish = #"""
+    文件夹	Folder
+    整理应用	Edit Apps
+    返回	Back
+    重命名	Rename
+    仅移除应用，保留文稿和个人数据。	Only the app is removed. Documents and personal data are kept.
+    无法移除应用	Unable to remove app
+    请先退出应用，并检查安装来源和访问权限。	Quit the app first, then check its installation source and access permissions.
+    启动台手势	Launchpad Gesture
+    使用私有触控板接口；系统更新后可能不可用。	Uses a private trackpad interface; system updates may affect availability.
+    四指捏合	Four-finger pinch
+    五指捏合	Five-finger pinch
+    启动台触发角	Launchpad Hot Corner
+    停留片刻打开；系统已分配的触发角优先。	Pause in the corner to open. Existing system hot corners take priority.
+    左上角	Top Left
+    右上角	Top Right
+    左下角	Bottom Left
+    右下角	Bottom Right
     启动台	Launchpad
     命令栏与启动台	Command Bar & Launchpad
     无法读取应用，请关闭后重试。	Unable to load apps. Close and try again.

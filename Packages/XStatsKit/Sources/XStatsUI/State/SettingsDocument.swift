@@ -82,6 +82,8 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var cleanerEnabled: Bool?
   public var agentDataEnabled: Bool?
   public var commandBarEnabled: Bool?
+  public var launchpadPinchFingers: Int?
+  public var launchpadHotCorner: Int?
   /// 仅兼容旧备份解码；应用服务现为基础功能，导入时忽略，导出时不再写入。
   public var uninstallerEnabled: Bool?
   public var processesEnabled: Bool?
@@ -169,6 +171,8 @@ extension AppSettings {
     doc.cleanerEnabled = cleanerEnabled
     doc.agentDataEnabled = agentDataEnabled
     doc.commandBarEnabled = commandBarEnabled
+    doc.launchpadPinchFingers = launchpadPinchFingers
+    doc.launchpadHotCorner = launchpadHotCorner
     doc.processesEnabled = processesEnabled
     doc.portsEnabled = portsEnabled
     doc.portsPlacement = portsPlacement.rawValue
@@ -296,6 +300,12 @@ extension AppSettings {
     assign(\.cleanerEnabled, doc.cleanerEnabled)
     assign(\.agentDataEnabled, doc.agentDataEnabled)
     assign(\.commandBarEnabled, doc.commandBarEnabled)
+    if let fingers = doc.launchpadPinchFingers {
+      launchpadPinchFingers = [4, 5].contains(fingers) ? fingers : 0
+    }
+    if let corner = doc.launchpadHotCorner {
+      launchpadHotCorner = (1...4).contains(corner) ? corner : 0
+    }
     assign(\.processesEnabled, doc.processesEnabled)
     assign(\.portsEnabled, doc.portsEnabled)
     assign(\.portsPlacement, doc.portsPlacement.flatMap(PortsPlacement.init(rawValue:)))
