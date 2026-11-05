@@ -1,12 +1,12 @@
 {
-  "version": "0.1.8",
-  "date": "2026-11-02",
+  "version": "0.1.9",
+  "date": "2026-11-06",
   "sourceNotes": [
-    "更新共享的 Sparkle 更新组件，保持现有截图、录屏与更新功能。"
+    "同步共享签名与调试符号打包脚本，截图、录屏与更新功能保持不变。"
   ],
   "translations": {
     "en": [
-      "Update the shared Sparkle updater while preserving existing screenshot, recording and update features."
+      "Refresh the shared signing and debug-symbol packaging scripts. Screenshot, recording, and update features remain unchanged."
     ]
   }
 }
