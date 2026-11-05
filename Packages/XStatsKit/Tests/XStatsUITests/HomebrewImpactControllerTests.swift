@@ -51,11 +51,13 @@ struct HomebrewImpactControllerTests {
     #expect(state.isRunning)
     controller.cancelPreview()
     #expect(state.isRunning && controller.impactPreview == nil)
+    #expect(controller.previewError == nil)
     #expect(!controller.perform(.upgrade, package: package))
+    let rejection = try #require(controller.previewError)
     #expect(controller.operation == nil)
     await gate.release()
     try await waitFor { !state.isRunning }
-    #expect(controller.impactPreview == nil && controller.previewError == nil)
+    #expect(controller.impactPreview == nil && controller.previewError == rejection)
     #expect(await gate.writes == 0)
   }
 
