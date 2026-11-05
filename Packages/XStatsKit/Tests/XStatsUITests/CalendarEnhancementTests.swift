@@ -619,15 +619,15 @@ struct CalendarEnhancementTests {
   @Test func unsupportedDisplayedYearDoesNotReuseCurrentHolidayPlan() throws {
     let today = try #require(CalendarEngine.day(year: 2026, month: 9, day: 23, timeZone: zone))
     let current = try #require(CalendarEngine.holidayPlan(from: today.date, timeZone: zone))
-    #expect(!CalendarEngine.hasHolidayData(year: 2027))
+    #expect(CalendarEngine.hasHolidayData(year: 2099) == false)
     #expect(
-      CalendarEngine.holidayPlan(from: today.date, timeZone: zone, displayedYear: 2027) == nil)
+      CalendarEngine.holidayPlan(from: today.date, timeZone: zone, displayedYear: 2099) == nil)
     // 返回已有数据的年份后，仍可复用当前日期的有效概览。
     let restored = try #require(
       CalendarEngine.holidayPlan(from: today.date, timeZone: zone, displayedYear: 2026))
     #expect(restored.start == current.start)
     let month = CalendarEngine.widgetMonthSummary(
-      year: 2027, month: 9, firstWeekday: 2,
+      year: 2099, month: 9, firstWeekday: 2,
       features: [.holidays], timeZone: zone)
     #expect(month.days.allSatisfy { $0.holidayName == nil && $0.isWork == nil })
   }
@@ -676,8 +676,40 @@ struct CalendarEnhancementTests {
       ongoing.leaveOptions.allSatisfy {
         $0.leaveDates.allSatisfy { $0 >= calendar.startOfDay(for: during.date) }
       })
-    let unknown = try #require(CalendarEngine.day(year: 2027, month: 1, day: 1, timeZone: zone))
+    let unknown = try #require(CalendarEngine.day(year: 2099, month: 1, day: 1, timeZone: zone))
     #expect(CalendarEngine.holidayPlan(from: unknown.date, timeZone: zone) == nil)
+  }
+
+  @Test(arguments: [
+    (2026, 12, 31, 1, 1, 3, 1, 3),
+    (2027, 1, 31, 2, 5, 13, 5, 9),
+    (2027, 2, 7, 2, 5, 13, 0, 9),
+  ])
+  func holidayPlan2027HandlesYearTransitionAndSpringFestival(
+    _ sample: (Int, Int, Int, Int, Int, Int, Int, Int)
+  ) throws {
+    let (year, month, number, holidayMonth, first, last, daysUntil, totalDays) = sample
+    let today = try #require(
+      CalendarEngine.day(year: year, month: month, day: number, timeZone: zone))
+    let start = try #require(
+      CalendarEngine.day(year: 2027, month: holidayMonth, day: first, timeZone: zone))
+    let end = try #require(
+      CalendarEngine.day(year: 2027, month: holidayMonth, day: last, timeZone: zone))
+    let plan = try #require(
+      CalendarEngine.holidayPlan(from: today.date, timeZone: zone, displayedYear: 2027))
+    let calendar = CalendarEngine.gregorian(timeZone: zone)
+    #expect(plan.start == calendar.startOfDay(for: start.date))
+    #expect(plan.end == calendar.startOfDay(for: end.date))
+    #expect(plan.daysUntil == daysUntil)
+    #expect(plan.totalDays == totalDays)
+    #expect(plan.leaveOptions.isEmpty == false)
+    for option in plan.leaveOptions {
+      #expect(option.leaveDates.allSatisfy { $0 >= calendar.startOfDay(for: today.date) })
+      #expect(
+        option.leaveDates.allSatisfy {
+          CalendarEngine.isMainlandWorkday(at: $0, timeZone: zone) == true
+        })
+    }
   }
 
   @Test func makeupSaturdayIsCountedAsLeaveRatherThanAFreeWeekend() throws {

@@ -47,7 +47,7 @@ struct CalendarTests {
     let adjustedDayOff = try #require(
       CalendarEngine.day(year: 2026, month: 10, day: 5, timeZone: zone))
     let ordinary = try #require(CalendarEngine.day(year: 2026, month: 9, day: 24, timeZone: zone))
-    let unknown = try #require(CalendarEngine.day(year: 2027, month: 1, day: 4, timeZone: zone))
+    let unknown = try #require(CalendarEngine.day(year: 2099, month: 1, day: 4, timeZone: zone))
 
     #expect(CalendarEngine.widgetSummary(for: work).schedule == .makeupWork)
     #expect(CalendarEngine.widgetSummary(for: holiday).schedule.rawValue == "holiday")
@@ -59,6 +59,50 @@ struct CalendarTests {
     #expect(CalendarEngine.widgetSummary(for: unknown).schedule == .unknown)
     #expect(CalendarEngine.widgetSummary(for: holiday).festivals.contains("中秋节"))
     #expect(CalendarEngine.widgetSummary(for: holiday).recommends.isEmpty == false)
+  }
+
+  @Test(arguments: [
+    (1, 1, false, "元旦", "dayOff"),
+    (1, 4, true, "", "work"),
+    (1, 9, false, "", "weekend"),
+    (1, 31, true, "春节", "makeupWork"),
+    (2, 5, false, "春节", "dayOff"),
+    (2, 13, false, "春节", "dayOff"),
+    (2, 14, true, "春节", "makeupWork"),
+    (2, 15, true, "", "work"),
+    (10, 1, false, "国庆节", "dayOff"),
+    (10, 9, true, "国庆节", "makeupWork"),
+  ])
+  func holidayData2027ReachesWorkdayAndWidgetSummaries(
+    _ sample: (Int, Int, Bool, String, String)
+  ) throws {
+    let (month, number, isWork, name, schedule) = sample
+    let day = try #require(
+      CalendarEngine.day(year: 2027, month: month, day: number, timeZone: zone))
+    #expect(CalendarEngine.hasHolidayData(year: 2027))
+    #expect(CalendarEngine.isMainlandWorkday(at: day.date, timeZone: zone) == isWork)
+    #expect((day.holiday?.name ?? "") == name)
+    let summary = CalendarEngine.widgetSummary(for: day, features: [.holidays])
+    #expect(summary.schedule.rawValue == schedule)
+    #expect(summary.holidayName == day.holiday?.name)
+    let disabled = CalendarEngine.widgetSummary(for: day, features: [])
+    #expect(disabled.schedule == .holidaysDisabled)
+    #expect(disabled.holidayName == nil)
+  }
+
+  @Test func widgetMonth2027PreservesHolidayAndMakeupWorkBoundaries() throws {
+    let month = CalendarEngine.widgetMonthSummary(
+      year: 2027, month: 2, firstWeekday: 2, features: [.holidays], timeZone: zone)
+    #expect(month.days.count == 42)
+    let first = try #require(month.days.first { $0.dateKey == "2027-02-05" })
+    let last = try #require(month.days.first { $0.dateKey == "2027-02-13" })
+    let makeup = try #require(month.days.first { $0.dateKey == "2027-02-14" })
+    #expect(first.holidayName == "春节" && first.isWork == false)
+    #expect(last.holidayName == "春节" && last.isWork == false)
+    #expect(makeup.holidayName == "春节" && makeup.isWork == true)
+    let plain = CalendarEngine.widgetMonthSummary(
+      year: 2027, month: 2, firstWeekday: 2, features: [], timeZone: zone)
+    #expect(plain.days.allSatisfy { $0.holidayName == nil && $0.isWork == nil })
   }
 
   @Test func widgetMonthContainsSixWeeksAndOfficialHolidayNames() throws {
