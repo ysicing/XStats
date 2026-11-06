@@ -5,14 +5,10 @@ extension Translations {
     Finder 新建文档	New Documents in Finder
     Finder 新建文档设置	New Document Settings
     文件名生成方式	File naming
-    随机	Random
-    固定	Fixed
-    每次手动输入	Ask every time
-    留空则按文档类型命名	Leave blank to use the document type
-    固定文件名	Fixed file name
+    随机字符串（8 位）	Random string (8 characters)
+    随机 UUID	Random UUID
     菜单显示的格式	Formats shown in the menu
     Keynote、Numbers 和 Pages 格式仅在安装对应应用后显示。	Keynote, Numbers and Pages formats appear only when the corresponding app is installed.
-    文件名（无需扩展名）	File name (without extension)
     创建	Create
     请输入有效文件名，不含路径分隔符或控制字符，且不超过 220 字节。	Enter a valid file name with no path separators or control characters, up to 220 bytes.
     在 Finder 文件夹空白处右键新建演示文稿、表格、文字文档、TXT 和 Markdown。	Right-click an empty area in a Finder folder to create presentations, spreadsheets, documents, TXT and Markdown files.

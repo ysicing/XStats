@@ -15,20 +15,18 @@ final class FinderDocumentsController {
   @ObservationIgnored private var started = false
   @ObservationIgnored private var creation: Task<URL, Error>?
   @ObservationIgnored private var isCreating = false
-  @ObservationIgnored private var nameAlert: NSAlert?
-  @ObservationIgnored private let namePrompt:
-    ((FinderDocumentRequest, FinderDocumentConfiguration) -> String?)?
+  @ObservationIgnored private let presentDocument: ((URL) -> Void)?
   private let logger = Logger(subsystem: "work.12306.xstats.app", category: "FinderDocuments")
   private(set) var extensionEnabled = false
   private(set) var error: String?
 
   init(
     settings: AppSettings, store: FinderDocumentStore? = nil,
-    namePrompt: ((FinderDocumentRequest, FinderDocumentConfiguration) -> String?)? = nil
+    presentDocument: ((URL) -> Void)? = nil
   ) {
     self.settings = settings
     self.store = store
-    self.namePrompt = namePrompt
+    self.presentDocument = presentDocument
   }
 
   func start() {
@@ -60,27 +58,21 @@ final class FinderDocumentsController {
       guard configuration.enabledKinds.contains(request.kind),
         configuration.permits(request.directory)
       else { throw FinderDocumentError.invalidRequest }
-      var manualName: String?
-      if configuration.namingMode == .manual {
-        manualName =
-          if let namePrompt { namePrompt(request, configuration) } else {
-            promptForName(request, configuration: configuration)
-          }
-        guard manualName != nil else { return }
-      }
-      // 输入期间设置可能改变，创建前重新读取，避免关闭功能后仍写入文件。
       let configuration = configuration
-      let confirmedName = manualName
       let task = Task.detached(priority: .userInitiated) {
-        try FinderDocumentCreator.create(
-          request, configuration: configuration, manualName: confirmedName)
+        try FinderDocumentCreator.create(request, configuration: configuration)
       }
       creation = task
       defer { creation = nil }
       let result = try await task.value
       error = nil
       logger.notice("Finder document created: \(request.kind.rawValue, privacy: .public)")
-      NSWorkspace.shared.activateFileViewerSelecting([result])
+      guard settings.finderDocumentsEnabled, !Task.isCancelled else { return }
+      if let presentDocument {
+        presentDocument(result)
+      } else {
+        NSWorkspace.shared.activateFileViewerSelecting([result])
+      }
     } catch is CancellationError {
       logger.info("Finder document creation cancelled")
     } catch {
@@ -99,43 +91,14 @@ final class FinderDocumentsController {
   private var configuration: FinderDocumentConfiguration {
     FinderDocumentConfiguration(
       enabled: settings.finderDocumentsEnabled, language: settings.language.resolved,
-      namingMode: settings.finderDocumentNamingMode, fixedName: settings.finderDocumentFixedName,
+      namingMode: settings.finderDocumentNamingMode,
       enabledKinds: settings.finderDocumentFormats)
-  }
-
-  private func promptForName(
-    _ request: FinderDocumentRequest, configuration: FinderDocumentConfiguration
-  ) -> String? {
-    let alert = NSAlert()
-    alert.messageText = tr("新建文档")
-    alert.informativeText = tr("文件名（无需扩展名）")
-    alert.addButton(withTitle: tr("创建"))
-    alert.addButton(withTitle: tr("取消"))
-    let field = NSTextField(
-      frame: NSRect(x: 0, y: 0, width: 340, height: 24))
-    field.stringValue = L10n.translate(request.kind.title, language: configuration.language)
-    field.setAccessibilityLabel(tr("文件名（无需扩展名）"))
-    alert.accessoryView = field
-    alert.window.initialFirstResponder = field
-    nameAlert = alert
-    defer { nameAlert = nil }
-    NSApp.activate()
-    while alert.runModal() == .alertFirstButtonReturn {
-      do {
-        _ = try configuration.baseName(for: request.kind, manualName: field.stringValue)
-        return field.stringValue
-      } catch {
-        alert.informativeText = error.localizedDescription
-      }
-    }
-    return nil
   }
 
   private func reconcile() {
     refreshStatus()
     if !settings.finderDocumentsEnabled {
       creation?.cancel()
-      if nameAlert?.window.isVisible == true { NSApp.abortModal() }
     }
     guard started else { return }
     do {
@@ -160,7 +123,6 @@ final class FinderDocumentsController {
     withObservationTracking {
       _ = settings.finderDocumentsEnabled
       _ = settings.finderDocumentNamingMode
-      _ = settings.finderDocumentFixedName
       _ = settings.finderDocumentFormats
       _ = settings.language
     } onChange: { [weak self] in

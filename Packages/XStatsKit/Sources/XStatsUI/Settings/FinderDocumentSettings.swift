@@ -64,22 +64,11 @@ struct FinderDocumentOptions: View {
       VStack(alignment: .leading, spacing: DS.Space.s2) {
         Text(tr("文件名生成方式")).dsFont(.sm, weight: .medium)
         Picker(tr("文件名生成方式"), selection: $settings.finderDocumentNamingMode) {
-          Text(tr("随机")).tag(FinderDocumentNamingMode.random)
-          Text(tr("固定")).tag(FinderDocumentNamingMode.fixed)
-          Text(tr("每次手动输入")).tag(FinderDocumentNamingMode.manual)
+          Text(tr("随机字符串（8 位）")).tag(FinderDocumentNamingMode.randomString)
+          Text(tr("随机 UUID")).tag(FinderDocumentNamingMode.random)
         }
         .labelsHidden()
         .pickerStyle(.menu)
-        if settings.finderDocumentNamingMode == .fixed {
-          TextField(tr("留空则按文档类型命名"), text: $settings.finderDocumentFixedName)
-            .textFieldStyle(.roundedBorder)
-            .accessibilityLabel(tr("固定文件名"))
-          if let validationError {
-            Text(verbatim: validationError)
-              .dsFont(.xs).foregroundStyle(DS.Palette.error)
-              .fixedSize(horizontal: false, vertical: true)
-          }
-        }
       }
       VStack(alignment: .leading, spacing: DS.Space.s2) {
         Text(tr("菜单显示的格式")).dsFont(.sm, weight: .medium)
@@ -108,16 +97,4 @@ struct FinderDocumentOptions: View {
     .frame(width: 440, alignment: .leading)
   }
 
-  private var validationError: String? {
-    let configuration = FinderDocumentConfiguration(
-      fixedName: model.settings.finderDocumentFixedName)
-    do {
-      for kind in model.settings.finderDocumentFormats {
-        _ = try configuration.baseName(for: kind)
-      }
-      return nil
-    } catch {
-      return error.localizedDescription
-    }
-  }
 }

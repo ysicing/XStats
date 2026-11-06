@@ -84,7 +84,6 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var agentDataEnabled: Bool?
   public var finderDocumentsEnabled: Bool?
   public var finderDocumentNamingMode: String?
-  public var finderDocumentFixedName: String?
   public var finderDocumentFormats: [String]?
   public var commandBarEnabled: Bool?
   public var launchpadPinchFingers: Int?
@@ -177,7 +176,6 @@ extension AppSettings {
     doc.agentDataEnabled = agentDataEnabled
     doc.finderDocumentsEnabled = finderDocumentsEnabled
     doc.finderDocumentNamingMode = finderDocumentNamingMode.rawValue
-    doc.finderDocumentFixedName = finderDocumentFixedName
     doc.finderDocumentFormats = finderDocumentFormats.map(\.rawValue).sorted()
     doc.commandBarEnabled = commandBarEnabled
     doc.launchpadPinchFingers = launchpadPinchFingers
@@ -309,10 +307,9 @@ extension AppSettings {
     assign(\.cleanerEnabled, doc.cleanerEnabled)
     assign(\.agentDataEnabled, doc.agentDataEnabled)
     assign(\.finderDocumentsEnabled, doc.finderDocumentsEnabled)
-    if let mode = doc.finderDocumentNamingMode.flatMap(FinderDocumentNamingMode.init(rawValue:)) {
-      assign(\.finderDocumentNamingMode, mode)
+    if let mode = doc.finderDocumentNamingMode {
+      assign(\.finderDocumentNamingMode, FinderDocumentNamingMode(rawValue: mode) ?? .randomString)
     }
-    assign(\.finderDocumentFixedName, doc.finderDocumentFixedName)
     if let formats = doc.finderDocumentFormats {
       assign(\.finderDocumentFormats, Set(formats.compactMap(FinderDocumentKind.init(rawValue:))))
     }

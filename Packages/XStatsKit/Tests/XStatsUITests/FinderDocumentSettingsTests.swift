@@ -7,28 +7,29 @@ import Testing
 
 @MainActor
 struct FinderDocumentSettingsTests {
-  @Test func namingAndFormatsPersistAndRoundTripWithoutResettingOlderBackups() throws {
+  @Test(arguments: [FinderDocumentNamingMode.randomString, .random])
+  func namingAndFormatsPersistAndRoundTripWithoutResettingOlderBackups(
+    mode: FinderDocumentNamingMode
+  ) throws {
     let suite = "FinderDocumentSettingsTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
-    #expect(settings.finderDocumentNamingMode == .fixed)
+    #expect(settings.finderDocumentNamingMode == .randomString)
     #expect(settings.finderDocumentFormats == Set(FinderDocumentKind.allCases))
-    settings.finderDocumentNamingMode = .manual
-    settings.finderDocumentFixedName = "Notes"
+    settings.finderDocumentNamingMode = mode
     settings.finderDocumentFormats = [.txt, .md]
     let restored = AppSettings(defaults: defaults)
-    #expect(restored.finderDocumentNamingMode == .manual)
-    #expect(restored.finderDocumentFixedName == "Notes")
+    #expect(restored.finderDocumentNamingMode == mode)
     #expect(restored.finderDocumentFormats == [.txt, .md])
     let backup = try JSONEncoder().encode(settings.exportDocument())
-    settings.finderDocumentNamingMode = .random
+    settings.finderDocumentNamingMode = mode == .random ? .randomString : .random
     settings.finderDocumentFormats = []
     settings.apply(try JSONDecoder().decode(SettingsDocument.self, from: backup))
-    #expect(settings.finderDocumentNamingMode == .manual)
+    #expect(settings.finderDocumentNamingMode == mode)
     #expect(settings.finderDocumentFormats == [.txt, .md])
     settings.apply(try JSONDecoder().decode(SettingsDocument.self, from: Data("{}".utf8)))
-    #expect(settings.finderDocumentNamingMode == .manual)
+    #expect(settings.finderDocumentNamingMode == mode)
     #expect(settings.finderDocumentFormats == [.txt, .md])
     settings.finderDocumentFormats = []
     #expect(AppSettings(defaults: defaults).finderDocumentFormats.isEmpty)
@@ -38,7 +39,33 @@ struct FinderDocumentSettingsTests {
     #expect(settings.finderDocumentFormats.isEmpty)
   }
 
-  @Test func cancellingManualNameConsumesRequestWithoutCreatingFile() async throws {
+  @Test(arguments: ["manual", "fixed", "random", "future"])
+  func legacyNamingMigratesWithoutRestoringFixedNames(mode: String) throws {
+    let suite = "FinderDocumentSettingsTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(mode, forKey: "finderDocumentNamingMode")
+    defaults.set("Notes", forKey: "finderDocumentFixedName")
+    let settings = AppSettings(defaults: defaults)
+    let expected: FinderDocumentNamingMode = mode == "random" ? .random : .randomString
+    #expect(settings.finderDocumentNamingMode == expected)
+    settings.finderDocumentNamingMode = expected == .random ? .randomString : .random
+    let legacy = Data(
+      """
+      {"finderDocumentNamingMode":"\(mode)","finderDocumentFixedName":"Notes"}
+      """.utf8)
+    settings.apply(try JSONDecoder().decode(SettingsDocument.self, from: legacy))
+    #expect(settings.finderDocumentNamingMode == expected)
+    #expect(AppSettings(defaults: defaults).finderDocumentNamingMode == expected)
+    #expect(settings.exportDocument().finderDocumentNamingMode == expected.rawValue)
+    let exported = try JSONEncoder().encode(settings.exportDocument())
+    #expect(!String(decoding: exported, as: UTF8.self).contains("finderDocumentFixedName"))
+  }
+
+  @Test(arguments: [FinderDocumentNamingMode.randomString, .random])
+  func randomNamingCreatesAndSelectsFilesWithoutOverwriting(
+    mode: FinderDocumentNamingMode
+  ) async throws {
     let suite = "FinderDocumentSettingsTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -49,24 +76,37 @@ struct FinderDocumentSettingsTests {
     let store = FinderDocumentStore(directory: root.appendingPathComponent("shared"))
     let settings = AppSettings(defaults: defaults)
     settings.finderDocumentsEnabled = true
-    settings.finderDocumentNamingMode = .manual
+    settings.finderDocumentNamingMode = mode
     settings.finderDocumentFormats = [.md]
-    var prompts = 0
-    let controller = FinderDocumentsController(settings: settings, store: store) { _, _ in
-      prompts += 1
-      return nil
+    var presented: [URL] = []
+    let controller = FinderDocumentsController(settings: settings, store: store) { url in
+      #expect(url.deletingLastPathComponent().path == output.path)
+      #expect(url.pathExtension == "md")
+      #expect(FileManager.default.fileExists(atPath: url.path))
+      let name = url.deletingPathExtension().lastPathComponent
+      if mode == .randomString {
+        #expect(name.utf8.count == 8)
+        #expect(
+          name.utf8.allSatisfy {
+            (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0)
+          })
+      } else {
+        #expect(UUID(uuidString: name) != nil)
+      }
+      presented.append(url)
     }
     controller.start()
-    #expect(try store.configuration().namingMode == .manual)
+    #expect(try store.configuration().namingMode == mode)
     #expect(try store.configuration().enabledKinds == [.md])
     for _ in 0..<2 {
       let identifier = try store.enqueue(.init(kind: .md, directory: output))
       await controller.create(identifier)
       #expect(throws: (any Error).self) { try store.consume(identifier) }
     }
-    #expect(prompts == 2)
+    #expect(presented.count == 2)
+    #expect(Set(presented).count == 2)
     #expect(controller.error == nil)
-    #expect(try FileManager.default.contentsOfDirectory(atPath: output.path).isEmpty)
+    #expect(try FileManager.default.contentsOfDirectory(atPath: output.path).count == 2)
   }
 
   @Test func featureEnablesWithoutFolderSelectionAndPreservesBackupChoice() throws {

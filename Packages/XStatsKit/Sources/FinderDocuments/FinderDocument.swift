@@ -28,6 +28,16 @@ public enum FinderDocumentKind: String, CaseIterable, Codable, Sendable {
     case .pptx, .xlsx, .docx, .txt, .md: nil
     }
   }
+
+  public func isAvailable(applicationIsInstalled: (String) -> Bool) -> Bool {
+    guard let identifier = applicationBundleIdentifier else { return true }
+    if applicationIsInstalled(identifier) { return true }
+    switch self {
+    case .key: return applicationIsInstalled("com.apple.Keynote")
+    case .numbers: return applicationIsInstalled("com.apple.Numbers")
+    case .pages, .pptx, .xlsx, .docx, .txt, .md: return false
+    }
+  }
 }
 
 public enum FinderDocumentError: LocalizedError {
@@ -45,13 +55,12 @@ public enum FinderDocumentError: LocalizedError {
 }
 
 public enum FinderDocumentNamingMode: String, CaseIterable, Codable, Sendable {
-  case random, fixed, manual
+  case randomString, random
 }
 
 public struct FinderDocumentConfiguration: Codable, Equatable, Sendable {
   public var enabled: Bool
   public var namingMode: FinderDocumentNamingMode
-  public var fixedName: String
   public var enabledKinds: Set<FinderDocumentKind>
   private var languageCode: String
   public var language: AppLanguage {
@@ -61,18 +70,17 @@ public struct FinderDocumentConfiguration: Codable, Equatable, Sendable {
 
   public init(
     enabled: Bool = false, language: AppLanguage = .chinese,
-    namingMode: FinderDocumentNamingMode = .fixed, fixedName: String = "",
+    namingMode: FinderDocumentNamingMode = .randomString,
     enabledKinds: Set<FinderDocumentKind> = Set(FinderDocumentKind.allCases)
   ) {
     self.enabled = enabled
     languageCode = language.rawValue
     self.namingMode = namingMode
-    self.fixedName = fixedName
     self.enabledKinds = enabledKinds
   }
 
   private enum CodingKeys: String, CodingKey {
-    case enabled, languageCode, namingMode, fixedName, enabledKinds
+    case enabled, languageCode, namingMode, enabledKinds
   }
 
   public init(from decoder: Decoder) throws {
@@ -81,37 +89,21 @@ public struct FinderDocumentConfiguration: Codable, Equatable, Sendable {
     languageCode = try values.decode(String.self, forKey: .languageCode)
     namingMode =
       try values.decodeIfPresent(String.self, forKey: .namingMode)
-      .flatMap(FinderDocumentNamingMode.init(rawValue:)) ?? .fixed
-    fixedName = try values.decodeIfPresent(String.self, forKey: .fixedName) ?? ""
+      .flatMap(FinderDocumentNamingMode.init(rawValue:)) ?? .randomString
     let kinds = try values.decodeIfPresent([String].self, forKey: .enabledKinds)
     enabledKinds =
       kinds.map { Set($0.compactMap(FinderDocumentKind.init(rawValue:))) }
       ?? Set(FinderDocumentKind.allCases)
   }
 
-  public func baseName(for kind: FinderDocumentKind, manualName: String? = nil) throws -> String {
-    let input: String
+  public func baseName() -> String {
     switch namingMode {
+    case .randomString:
+      let characters = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+      return String((0..<8).map { _ in characters[Int.random(in: characters.indices)] })
     case .random:
-      input = UUID().uuidString.lowercased()
-    case .fixed:
-      input =
-        fixedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        ? L10n.translate(kind.title, language: language) : fixedName
-    case .manual:
-      guard let manualName else { throw FinderDocumentError.invalidName }
-      input = manualName
+      return UUID().uuidString.lowercased()
     }
-    var name = input.trimmingCharacters(in: .whitespacesAndNewlines)
-    if name.lowercased().hasSuffix(".\(kind.rawValue)") {
-      name.removeLast(kind.rawValue.count + 1)
-      name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    guard !name.isEmpty, name != ".", name != "..", name.utf8.count <= 220,
-      name.rangeOfCharacter(from: .controlCharacters) == nil,
-      !name.contains("/"), !name.contains("\\"), !name.contains(":")
-    else { throw FinderDocumentError.invalidName }
-    return name
   }
 
   public func directoryURLs(mountedVolumes: [URL]) -> Set<URL> {
@@ -141,14 +133,19 @@ public struct FinderDocumentRequest: Codable, Sendable {
 
 public enum FinderDocumentCreator {
   public static func create(
+    _ request: FinderDocumentRequest, configuration: FinderDocumentConfiguration
+  ) throws -> URL {
+    try create(request, configuration: configuration, generateName: configuration.baseName)
+  }
+
+  static func create(
     _ request: FinderDocumentRequest, configuration: FinderDocumentConfiguration,
-    manualName: String? = nil
+    generateName: () -> String
   ) throws -> URL {
     guard configuration.enabled else { throw FinderDocumentError.disabled }
     guard configuration.permits(request.directory),
       configuration.enabledKinds.contains(request.kind)
     else { throw FinderDocumentError.invalidRequest }
-    let title = try configuration.baseName(for: request.kind, manualName: manualName)
     let directory = request.directory.standardizedFileURL.resolvingSymlinksInPath()
     let folder = open(directory.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
     guard folder >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
@@ -159,10 +156,14 @@ public enum FinderDocumentCreator {
         subdirectory: "Templates")
     else { throw FinderDocumentError.unavailable }
     let data = try Data(contentsOf: template)
-    for attempt in 0..<100 {
+    for _ in 0..<100 {
       try Task.checkCancellation()
-      let suffix = attempt == 0 ? "" : " \(attempt + 1)"
-      let name = "\(title)\(suffix).\(request.kind.rawValue)"
+      let title = generateName()
+      guard !title.isEmpty, title != ".", title != "..", title.utf8.count <= 220,
+        title.rangeOfCharacter(from: .controlCharacters) == nil,
+        !title.contains("/"), !title.contains("\\"), !title.contains(":")
+      else { throw FinderDocumentError.invalidName }
+      let name = "\(title).\(request.kind.rawValue)"
       let file = openat(folder, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o644)
       if file < 0 {
         if errno == EEXIST { continue }

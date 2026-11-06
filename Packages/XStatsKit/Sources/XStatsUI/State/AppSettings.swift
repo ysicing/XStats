@@ -852,9 +852,6 @@ public final class AppSettings {
   public var finderDocumentNamingMode: FinderDocumentNamingMode {
     didSet { defaults.set(finderDocumentNamingMode.rawValue, forKey: "finderDocumentNamingMode") }
   }
-  public var finderDocumentFixedName: String {
-    didSet { defaults.set(finderDocumentFixedName, forKey: "finderDocumentFixedName") }
-  }
   public var finderDocumentFormats: Set<FinderDocumentKind> {
     didSet {
       defaults.set(
@@ -1391,8 +1388,7 @@ public final class AppSettings {
     finderDocumentsEnabled = defaults.bool(forKey: "finderDocumentsEnabled")
     finderDocumentNamingMode =
       defaults.string(forKey: "finderDocumentNamingMode")
-      .flatMap(FinderDocumentNamingMode.init(rawValue:)) ?? .fixed
-    finderDocumentFixedName = defaults.string(forKey: "finderDocumentFixedName") ?? ""
+      .flatMap(FinderDocumentNamingMode.init(rawValue:)) ?? .randomString
     finderDocumentFormats =
       defaults.stringArray(forKey: "finderDocumentFormats")
       .map { Set($0.compactMap(FinderDocumentKind.init(rawValue:))) }

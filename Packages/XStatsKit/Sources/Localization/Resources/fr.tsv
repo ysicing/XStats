@@ -2824,14 +2824,10 @@ ps <进程名或 PID>	ps <nom du processus ou PID>
 Finder 新建文档	Nouveaux documents dans le Finder
 Finder 新建文档设置	Réglages des nouveaux documents
 文件名生成方式	Nommage des fichiers
-随机	Aléatoire
-固定	Fixe
-每次手动输入	Saisir à chaque fois
-留空则按文档类型命名	Laisser vide pour utiliser le type de document
-固定文件名	Nom de fichier fixe
+随机字符串（8 位）	Chaîne aléatoire (8 caractères)
+随机 UUID	UUID aléatoire
 菜单显示的格式	Formats du menu
 Keynote、Numbers 和 Pages 格式仅在安装对应应用后显示。	Les formats Keynote, Numbers et Pages ne s’affichent que si l’application correspondante est installée.
-文件名（无需扩展名）	Nom du fichier (sans extension)
 创建	Créer
 请输入有效文件名，不含路径分隔符或控制字符，且不超过 220 字节。	Saisissez un nom valide sans séparateur de chemin ni caractère de contrôle, de 220 octets maximum.
 在 Finder 文件夹空白处右键新建演示文稿、表格、文字文档、TXT 和 Markdown。	Faites un clic droit dans une zone vide d’un dossier du Finder pour créer des présentations, feuilles de calcul, documents et fichiers TXT ou Markdown.

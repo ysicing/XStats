@@ -6,14 +6,26 @@ import Testing
 @testable import FinderDocuments
 
 struct FinderDocumentsTests {
+  @Test func nativeFormatsRecognizeInstalledApplicationIdentifiers() {
+    let installed: Set<String> = ["com.apple.Keynote", "com.apple.Numbers"]
+    #expect(FinderDocumentKind.key.isAvailable(applicationIsInstalled: installed.contains))
+    #expect(FinderDocumentKind.numbers.isAvailable(applicationIsInstalled: installed.contains))
+    #expect(!FinderDocumentKind.pages.isAvailable(applicationIsInstalled: installed.contains))
+    #expect(FinderDocumentKind.txt.isAvailable(applicationIsInstalled: { _ in false }))
+    #expect(
+      FinderDocumentKind.key.isAvailable {
+        $0 == "com.apple.iWork.Keynote"
+      })
+    #expect(!FinderDocumentKind.key.isAvailable(applicationIsInstalled: { _ in false }))
+  }
+
   @Test func decodesLegacyConfigurationAndPreservesEmptyFormatSelection() throws {
     let legacy = Data(#"{"enabled":true,"languageCode":"en"}"#.utf8)
     let configuration = try JSONDecoder().decode(FinderDocumentConfiguration.self, from: legacy)
-    #expect(configuration.namingMode == .fixed)
-    #expect(configuration.fixedName.isEmpty)
+    #expect(configuration.namingMode == .randomString)
     #expect(configuration.enabledKinds == Set(FinderDocumentKind.allCases))
     let empty = FinderDocumentConfiguration(
-      enabled: true, namingMode: .manual, fixedName: "Notes", enabledKinds: [])
+      enabled: true, namingMode: .random, enabledKinds: [])
     let decoded = try JSONDecoder().decode(
       FinderDocumentConfiguration.self, from: JSONEncoder().encode(empty))
     #expect(decoded == empty)
@@ -21,42 +33,70 @@ struct FinderDocumentsTests {
       #"{"enabled":true,"languageCode":"en","namingMode":"future","enabledKinds":["txt","future"]}"#
         .utf8)
     let compatible = try JSONDecoder().decode(FinderDocumentConfiguration.self, from: future)
-    #expect(compatible.namingMode == .fixed)
+    #expect(compatible.namingMode == .randomString)
     #expect(compatible.enabledKinds == [.txt])
+    for mode in ["manual", "fixed", "random", "randomString"] {
+      let legacy = Data(
+        """
+        {"enabled":true,"languageCode":"en","namingMode":"\(mode)","fixedName":"Notes"}
+        """.utf8)
+      let migrated = try JSONDecoder().decode(FinderDocumentConfiguration.self, from: legacy)
+      #expect(migrated.namingMode == (mode == "random" ? .random : .randomString))
+      let encoded = try JSONEncoder().encode(migrated)
+      #expect(!String(decoding: encoded, as: UTF8.self).contains("fixedName"))
+    }
   }
 
-  @Test func createsFixedRandomAndManualNamesWithoutOverwriting() throws {
+  @Test(arguments: [FinderDocumentNamingMode.randomString, .random])
+  func createsRandomNamesWithoutOverwriting(mode: FinderDocumentNamingMode) throws {
     let root = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: root) }
-    var configuration = FinderDocumentConfiguration(enabled: true, fixedName: "项目记录")
+    let configuration = FinderDocumentConfiguration(enabled: true, namingMode: mode)
     let request = FinderDocumentRequest(kind: .md, directory: root)
     let first = try FinderDocumentCreator.create(request, configuration: configuration)
-    #expect(first.lastPathComponent == "项目记录.md")
     let second = try FinderDocumentCreator.create(request, configuration: configuration)
-    #expect(second.lastPathComponent == "项目记录 2.md")
-    configuration.namingMode = .random
-    let random = try FinderDocumentCreator.create(request, configuration: configuration)
-    #expect(UUID(uuidString: random.deletingPathExtension().lastPathComponent) != nil)
-    #expect(random.pathExtension == "md")
-    configuration.namingMode = .manual
-    let manual = try FinderDocumentCreator.create(
-      request, configuration: configuration, manualName: " 周报.MD ")
-    #expect(manual.lastPathComponent == "周报.md")
-    #expect(throws: FinderDocumentError.invalidName) {
-      try FinderDocumentCreator.create(request, configuration: configuration)
+    #expect(first != second)
+    for url in [first, second] {
+      let name = url.deletingPathExtension().lastPathComponent
+      if mode == .randomString {
+        #expect(name.utf8.count == 8)
+        #expect(
+          name.utf8.allSatisfy {
+            (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0)
+          })
+      } else {
+        #expect(UUID(uuidString: name) != nil)
+        #expect(name == name.lowercased())
+      }
+      #expect(url.pathExtension == "md")
+      #expect(try Data(contentsOf: url).isEmpty)
     }
-    #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).count == 4)
+    #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).count == 2)
+  }
+
+  @Test func shortRandomNamesAlwaysUseEightASCIIAlphanumericCharacters() {
+    let configuration = FinderDocumentConfiguration(namingMode: .randomString)
+    let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".utf8)
+    for _ in 0..<128 {
+      let name = configuration.baseName()
+      #expect(name.utf8.count == 8)
+      #expect(name.utf8.allSatisfy(allowed.contains))
+    }
   }
 
   @Test(arguments: [
-    "", " ", ".", "..", "../escape", "a/b", "a\\b", "a:b", "a\u{0}b", "a\nb",
+    "", ".", "..", "../escape", "a/b", "a\\b", "a:b", "a\u{0}b", "a\nb",
     String(repeating: "文", count: 74),
   ])
-  func rejectsUnsafeManualNames(name: String) throws {
-    let configuration = FinderDocumentConfiguration(enabled: true, namingMode: .manual)
+  func rejectsUnsafeBaseNames(name: String) throws {
+    let root = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
     #expect(throws: FinderDocumentError.invalidName) {
-      try configuration.baseName(for: .txt, manualName: name)
+      try FinderDocumentCreator.create(
+        .init(kind: .txt, directory: root), configuration: .init(enabled: true),
+        generateName: { name })
     }
+    #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
   }
 
   @Test func rejectsDeselectedFormatsInQueueAndCreator() throws {
@@ -73,7 +113,7 @@ struct FinderDocumentsTests {
     #expect(try FileManager.default.contentsOfDirectory(atPath: root.path) == ["shared"])
   }
 
-  @Test func createsAllFormatsWithoutOverwritingAndUsesExplicitLanguage() throws {
+  @Test func createsAllFormatsWithoutOverwriting() throws {
     let root = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: root) }
     let configuration = FinderDocumentConfiguration(
@@ -87,7 +127,8 @@ struct FinderDocumentsTests {
       let original = try Data(contentsOf: first)
       let second = try FinderDocumentCreator.create(request, configuration: configuration)
       #expect(first != second)
-      #expect(second.lastPathComponent.hasSuffix(" 2.\(kind.rawValue)"))
+      #expect(first.pathExtension == kind.rawValue)
+      #expect(second.pathExtension == kind.rawValue)
       #expect(try Data(contentsOf: second) == original)
       if kind == .txt || kind == .md {
         #expect(original.isEmpty)
@@ -95,8 +136,7 @@ struct FinderDocumentsTests {
         #expect(original.starts(with: [0x50, 0x4b, 0x03, 0x04]))
       }
     }
-    #expect(
-      FileManager.default.fileExists(atPath: root.appendingPathComponent("Document.docx").path))
+    #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).count == 16)
   }
 
   @Test func nativeTemplatesContainIWorkArchivesAndPreserveSourceBytes() throws {
@@ -214,13 +254,24 @@ struct FinderDocumentsTests {
     defer { try? FileManager.default.removeItem(at: root) }
     let target = root.appendingPathComponent("original")
     try Data("keep".utf8).write(to: target)
+    try Data("existing".utf8).write(to: root.appendingPathComponent("Existing.docx"))
     try FileManager.default.createSymbolicLink(
-      at: root.appendingPathComponent("Document.docx"), withDestinationURL: target)
+      at: root.appendingPathComponent("Symlink1.docx"), withDestinationURL: target)
+    var names = ["Existing", "Symlink1", "NewName1"].makeIterator()
     let result = try FinderDocumentCreator.create(
       .init(kind: .docx, directory: root),
-      configuration: .init(enabled: true, language: .english))
-    #expect(result.lastPathComponent == "Document 2.docx")
+      configuration: .init(enabled: true, language: .english),
+      generateName: { names.next() ?? "Fallback" })
+    #expect(result.lastPathComponent == "NewName1.docx")
     #expect(try String(contentsOf: target, encoding: .utf8) == "keep")
+    #expect(
+      try String(contentsOf: root.appendingPathComponent("Existing.docx"), encoding: .utf8)
+        == "existing")
+    #expect(throws: FinderDocumentError.nameLimit) {
+      try FinderDocumentCreator.create(
+        .init(kind: .docx, directory: root), configuration: .init(enabled: true),
+        generateName: { "Existing" })
+    }
   }
 
   @Test func requestsAreOneUseBoundedAndExpire() throws {

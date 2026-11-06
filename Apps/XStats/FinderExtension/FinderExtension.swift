@@ -5,6 +5,7 @@ import FinderDocuments
 import FinderSync
 import Localization
 import OSLog
+import UniformTypeIdentifiers
 
 final class FinderExtension: FIFinderSync {
   private let store = FinderDocumentStore.shared()
@@ -87,15 +88,21 @@ final class FinderExtension: FIFinderSync {
     let documents = NSMenu()
     for (index, kind) in FinderDocumentKind.allCases.enumerated() {
       guard configuration.enabledKinds.contains(kind) else { continue }
-      if let identifier = kind.applicationBundleIdentifier,
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) == nil
-      {
+      guard
+        kind.isAvailable(applicationIsInstalled: {
+          NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil
+        })
+      else {
         continue
       }
       let title = L10n.translate(kind.title, language: configuration.language)
       let item = NSMenuItem(
         title: "\(title) (.\(kind.rawValue))", action: #selector(createDocument(_:)),
         keyEquivalent: "")
+      let type = UTType(filenameExtension: kind.rawValue) ?? .data
+      let icon = NSWorkspace.shared.icon(for: type).copy() as? NSImage
+      icon?.size = NSSize(width: 16, height: 16)
+      item.image = icon
       item.tag = index
       item.target = self
       documents.addItem(item)
