@@ -85,6 +85,9 @@ final class FinderExtension: FIFinderSync {
     let parent = NSMenuItem(
       title: L10n.translate("新建文档", language: configuration.language),
       action: nil, keyEquivalent: "")
+    parent.image = NSImage(systemSymbolName: "doc.badge.plus", accessibilityDescription: nil)
+    parent.image?.size = NSSize(width: 16, height: 16)
+    parent.image?.isTemplate = true
     let documents = NSMenu()
     for (index, kind) in FinderDocumentKind.allCases.enumerated() {
       guard configuration.enabledKinds.contains(kind) else { continue }
