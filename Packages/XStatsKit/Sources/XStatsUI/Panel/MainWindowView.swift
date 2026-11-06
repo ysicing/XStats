@@ -214,10 +214,18 @@ private struct MainSidebar: View {
         ) {
           NSWorkspace.shared.open(FeedbackLinks.githubRepository)
         }
+        if showsFollowButton {
+          IconButton(
+            systemName: "person.badge.plus", logoName: "site-twitter", logoIsTemplate: false,
+            help: tr("在 X 上关注 @ysicing")
+          ) {
+            NSWorkspace.shared.open(FeedbackLinks.xProfile)
+          }
+        }
         Spacer(minLength: 0)
         IconButton(systemName: "power", help: tr("退出 XStats")) { model.quit() }
       }
-      .padding(.leading, DS.Space.s2)
+      .padding(.leading, usesGlassPanel && showsFollowButton ? 0 : DS.Space.s2)
     }
     .padding(.leading, DS.Space.s1)
     .padding(.trailing, DS.Space.s3)
@@ -226,6 +234,8 @@ private struct MainSidebar: View {
   }
 
   private var usesGlassPanel: Bool { DS.Glass.isAvailable && !isSnapshot }
+
+  private var showsFollowButton: Bool { model.settings.language.resolved != .chinese }
 
   /// 侧边栏内容离自身顶边的距离：玻璃面板在标题栏下方，只留一点边距；没有面板时给红绿灯留出标题栏的高度
   private var sidebarTopPadding: CGFloat {
@@ -297,6 +307,7 @@ private struct MainSidebar: View {
 
 enum FeedbackLinks {
   static let githubRepository = URL(string: "https://github.com/ysicing/XStats")!
+  static let xProfile = URL(string: "https://x.com/ysicing")!
   static let sponsor = URL(string: "https://ysicing.me/sponsor")!
   static let githubBugReport = URL(
     string: "https://github.com/ysicing/XStats/issues/new?template=bug_report.md")!

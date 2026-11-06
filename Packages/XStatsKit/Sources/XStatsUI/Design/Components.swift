@@ -496,6 +496,7 @@ private struct DSButtonBody: View {
 struct IconButton: View {
   let systemName: String
   var logoName: String? = nil
+  var logoIsTemplate: Bool = true
   let help: String
   let action: () -> Void
   @State private var hovering = false
@@ -506,7 +507,9 @@ struct IconButton: View {
     let glass = DS.Glass.isAvailable && !isInsideGlass
     Button(action: action) {
       Group {
-        if let logoName, let logo = LogoCache.shared.image(named: logoName, template: true) {
+        if let logoName,
+          let logo = LogoCache.shared.image(named: logoName, template: logoIsTemplate)
+        {
           Image(nsImage: logo)
             .resizable()
             .frame(width: DS.Size.iconInline, height: DS.Size.iconInline)

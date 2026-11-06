@@ -99,6 +99,10 @@ GitHub 标志用于主窗口侧边栏的项目入口。
 `google.svg` 是已移除登录入口遗留的 Google 品牌资源，仍随资源目录打包。Apple 标志使用系统 SF Symbols 的 `apple.logo`。
 GitHub、GitHub Copilot、Google 与 Apple 的名称和标志均为各自公司的商标。
 
+`Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-twitter.svg` 来自
+[Simple Icons v9.21.0 的固定提交](https://github.com/simple-icons/simple-icons/blob/14a89c73d3a1666d3fa073f865fc45ec98b88850/icons/twitter.svg)，
+使用 CC0-1.0。XStats 仅补充尺寸与蓝色填色，用于侧边栏的 X 关注入口；名称和商标属于其权利人。
+
 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-workbuddy.svg` 来自
 [LobeHub Icons](https://github.com/lobehub/lobe-icons/blob/8b7bbc433d38437fa2b0cca58ae896917162b812/packages/static-svg/icons/workbuddy.svg)，
 MIT License，Copyright (c) 2023 LobeHub。完整许可保留在 SVG 中；XStats 仅将尺寸单位调整为像素以供 AppKit 渲染。

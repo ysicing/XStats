@@ -611,6 +611,7 @@ extension Translations {
     由 macOS 报告的系统热状态，与 CPU 温度读数独立。	System thermal state reported by macOS, independent of CPU temperature readings.
     核心最高温度；余量以 100°C 为参考，不代表设备实际降频阈值。	Highest core temperature; headroom uses 100°C as a reference, not the device’s actual throttling threshold.
     GitHub 项目	GitHub Repository
+    在 X 上关注 @ysicing	Follow @ysicing on X
     赞助 XStats	Support XStats
     Apple 智能	Apple Intelligence
     设备不支持	Device not supported
