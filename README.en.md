@@ -117,6 +117,7 @@ AI usage supports Magpie exclusively and requires it to be installed and running
 | Tool | Description |
 |---|---|
 | **Command Bar & Launchpad (experimental)** | Search apps and common actions, quickly look up processes, ports, and packages; macOS 26+ adds a paged app grid, folders, and custom layouts |
+| **New documents in Finder (experimental)** | Enable the Finder extension to create Office, text, and iWork documents from a folder's context menu, with configurable naming and formats |
 | **XStats Capture** | Built-in screenshot annotation, local redaction, and screen recording with audio; also available as a [standalone Capture download](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.9). See [Capture usage and permissions](docs/CAPTURE.md) |
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
@@ -236,7 +237,7 @@ Issues and pull requests are welcome. See [DEVELOPMENT.md](docs/DEVELOPMENT.md) 
 <!-- changelog:start -->
 <!-- Generated from CHANGELOG.md by scripts/sync_changelog.py. Do not edit by hand. -->
 
-Latest release **1.5.5** (2026-11-05) · [full changelog](CHANGELOG.md) (kept in Chinese)
+Latest release **1.5.6** (2026-11-06) · [full changelog](CHANGELOG.md) (kept in Chinese)
 
 <!-- changelog:end -->
 
