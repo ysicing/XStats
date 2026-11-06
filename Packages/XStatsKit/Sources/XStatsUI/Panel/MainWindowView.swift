@@ -580,8 +580,12 @@ private struct ThemeToggle: View {
 struct AppGlyph: View {
   var size: CGFloat = DS.Size.controlHeight
 
+  private static let brandIcon: NSImage =
+    Bundle.module.url(forResource: "xstats-logo", withExtension: "png", subdirectory: "Logos")
+    .flatMap { NSImage(contentsOf: $0) } ?? NSApp.applicationIconImage
+
   var body: some View {
-    Image(nsImage: NSApp.applicationIconImage)
+    Image(nsImage: Self.brandIcon)
       .resizable()
       .interpolation(.high)
       .frame(width: size, height: size)

@@ -78,7 +78,7 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
   <img src="Assets/readme/popover-memory-dark.png" width="49%" alt="内存构成与压力详情">
 </p>
 
-### 网络监视器
+### <img src="Assets/branding/network-monitor/xstats-network-logo-128.png" width="28" height="28" alt=""> 网络监视器
 
 **macOS 15+ 的可选功能，默认关闭。** 查看观察期间的新连接、地图连接去向与上下行流量走势，可按应用、进程、域名、国家或地域联动查看，支持搜索、活动连接筛选、暂停与恢复。流量走势需要支持统计的网络组件。
 
@@ -118,7 +118,7 @@ AI 用量仅支持 Magpie，需要安装并运行 Magpie。XStats 从其本地�
 |---|---|
 | **命令栏与启动台（实验性）** | 搜索应用、文件与常用操作，快速查找和结束后台进程、查询端口与软件包；macOS 26+ 支持分页应用网格、文件夹和自定义布局 |
 | **Finder 新建文档（实验性）** | 启用 Finder 扩展后，可在文件夹中右键新建 Office、文本和 iWork 文档，自定义命名与可用格式 |
-| **XStats Capture** | 内置截图标注、本地打码与带声音的录屏；可单独[下载 Capture](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.9)，详见 [Capture 使用说明](docs/CAPTURE.md) |
+| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 内置截图标注、本地打码与带声音的录屏；可单独[下载 Capture](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.9)，详见 [Capture 使用说明](docs/CAPTURE.md) |
 | **风扇控制** | 在支持的设备上切换自动或手动控制 |
 | **防休眠** | 保持系统或屏幕唤醒，可配置合盖运行 |
 | **应用服务** | 统一管理应用、Homebrew、启动项与 Homebrew 服务，查看应用信息和可用更新 |

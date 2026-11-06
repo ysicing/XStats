@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+  <title id="title">XStats</title>
+  <defs>
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="260" y1="750" x2="999" y2="500">
+      <stop offset="0" stop-color="#0050FF"/>
+      <stop offset="0.52" stop-color="#008CFF"/>
+      <stop offset="1" stop-color="#00CFE3"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#wave)" transform="matrix(1.16 0 0 1.16 -218.22 -204.88)" d="
+    M 348 775
+    L 453 630
+    C 464 615 483 615 489 635
+    L 523 763
+    C 532 797 551 815 581 815
+    C 608 815 625 799 640 774
+    L 741 590
+    C 751 573 771 575 776 595
+    L 804 703
+    C 813 736 831 755 858 758
+    C 882 761 901 751 916 730
+    L 991 623
+    C 1004 605 1000 580 982 568
+    C 963 555 941 560 928 578
+    L 905 610
+    C 895 625 876 623 872 605
+    L 842 480
+    C 834 445 811 424 780 421
+    C 748 418 725 433 708 462
+    L 611 625
+    C 601 643 580 639 576 620
+    L 553 540
+    C 545 508 523 486 493 482
+    C 465 477 443 490 425 514
+    L 269 725
+    C 253 747 258 776 280 790
+    C 302 804 332 798 348 775
+    Z"/>
+</svg>

@@ -67,7 +67,7 @@ XStats は Swift、AppKit、SwiftUI で開発した、無料のオープンソ�
 | **ディスク** | 容量、読み書きの速度、アプリ別 I/O ランキング、SMART 健全性 |
 | **ネットワーク** | アップロード / ダウンロードの速度、ネットワークインターフェイス、接続の概要 |
 | **エネルギー** | 温度、システムの消費電力、App の CPU 消費電力、スリープを妨げるアプリ、バッテリー状態、Bluetooth 機器の残量 |
-| **XStats Capture** | 内蔵のスクリーンショット編集、ローカルでのマスキング、音声付き画面収録。[単独版 Capture](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.9) もダウンロードできます。[使い方と権限](docs/CAPTURE.md) |
+| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 内蔵のスクリーンショット編集、ローカルでのマスキング、音声付き画面収録。[単独版 Capture](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.9) もダウンロードできます。[使い方と権限](docs/CAPTURE.md) |
 | **ファン** | 回転数と対応機種でのファン制御 |
 | **ディスプレイ** | 解像度、スケーリング、リフレッシュレート。DDC/CI 対応の外部ディスプレイでは明るさ、コントラスト、音量を調節可能 |
 | **システム情報** | Mac とシステムの識別情報。Apple Intelligence 横の詳細アイコンで機能の設定状態、デバイス上のモデルの利用可否と容量を確認 |
@@ -79,7 +79,7 @@ XStats は Swift、AppKit、SwiftUI で開発した、無料のオープンソ�
   <img src="Assets/readme/popover-memory-dark.png" width="49%" alt="メモリ構成とプレッシャー">
 </p>
 
-### ネットワークモニター
+### <img src="Assets/branding/network-monitor/xstats-network-logo-128.png" width="28" height="28" alt=""> ネットワークモニター
 
 **macOS 15 以降のオプション機能で、初期状態はオフです。** 観測した新しい接続、地図上の接続先、上り・下り通信量の推移をアプリ、プロセス、ドメイン、国・地域別に連動表示し、検索、アクティブ接続の絞り込み、一時停止と再開に対応します。通信量の推移には統計対応のネットワークコンポーネントが必要です。
 

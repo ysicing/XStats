@@ -216,7 +216,7 @@ targets:
     sources:
       - path: Apps/NetworkMonitor/App
         excludes: ["*.plist", "*.entitlements"]
-      - path: Apps/XStats/App/Assets.xcassets
+      - path: Apps/NetworkMonitor/App/Assets.xcassets
         buildPhase: resources
       - path: LICENSES/Sparkle-License.txt
         buildPhase: resources

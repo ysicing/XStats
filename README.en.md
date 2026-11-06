@@ -78,7 +78,7 @@ Frequency, temperature and power readings depend on what the Mac model and macOS
   <img src="Assets/readme/popover-memory-dark.png" width="49%" alt="Memory composition and pressure">
 </p>
 
-### Network Monitor
+### <img src="Assets/branding/network-monitor/xstats-network-logo-128.png" width="28" height="28" alt=""> Network Monitor
 
 **Optional on macOS 15 or later, disabled by default.** View newly observed connections, destinations on a map, and upload/download trends together by app, process, domain, country or region, with search, active-connection filtering, pause and resume. Traffic trends require a network component that supports statistics.
 
@@ -118,7 +118,7 @@ AI usage supports Magpie exclusively and requires it to be installed and running
 |---|---|
 | **Command Bar & Launchpad (experimental)** | Search apps, files, and common actions, find and quit background processes, and look up ports and packages; macOS 26+ adds a paged app grid, folders, and custom layouts |
 | **New documents in Finder (experimental)** | Enable the Finder extension to create Office, text, and iWork documents from a folder's context menu, with configurable naming and formats |
-| **XStats Capture** | Built-in screenshot annotation, local redaction, and screen recording with audio; also available as a [standalone Capture download](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.9). See [Capture usage and permissions](docs/CAPTURE.md) |
+| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | Built-in screenshot annotation, local redaction, and screen recording with audio; also available as a [standalone Capture download](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.9). See [Capture usage and permissions](docs/CAPTURE.md) |
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
 | **Apps & Services** | Manage apps, Homebrew packages, startup items and Homebrew services; view app information and available updates |

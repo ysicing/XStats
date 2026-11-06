@@ -21,7 +21,9 @@ XStats 自行编写的新增代码、测试及对上游代码的修改，自本�
 - 更新摘要译文：`docs/ReleaseNotes.json`、`docs/NetworkComponentReleaseNotes.json`。
 - 格式化配置：`.swift-format`。
 - XcodeGen 配置：`Apps/XStats/App/XStats.entitlements`、`Apps/NetworkMonitor/Extension/Info.plist`、`Apps/NetworkMonitor/Extension/XStatsNetworkExtension.entitlements`、`Apps/Capture/App/Info.plist`、`Apps/Capture/App/XStatsCapture.entitlements`。
-- Capture 图标及资源配置：`Apps/Capture/App/Assets.xcassets`，由 `scripts/render_capture_icon.swift` 原创生成，未使用第三方字体或图形素材。
+- Capture 图标及资源配置：`Apps/Capture/App/Assets.xcassets`、`Assets/branding/capture`，由 `scripts/render_capture_icon.swift` 原创生成，中央曲线复用 XStats 主标识，未使用第三方字体或图形素材。
+- XStats 主程序图标与品牌图片：`Apps/XStats/App/Assets.xcassets/AppIcon.appiconset`、`Assets/icon.png`、`Assets/branding` 的 PNG 和 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/xstats-logo.png`，由 `scripts/render_xstats_icon.sh` 从用户提供参考后重绘的 `Assets/branding/xstats-logo.svg` 生成，未使用第三方字体或图形素材。
+- 网络组件图标与品牌图片：`Apps/NetworkMonitor/App/Assets.xcassets` 和 `Assets/branding/network-monitor` 的 PNG，由 `scripts/render_network_icon.sh` 从用户提供参考后重绘的 `Assets/branding/network-monitor/xstats-network-logo.svg` 生成，未使用第三方字体或图形素材。
 - Finder 扩展配置：`Apps/XStats/FinderExtension/Info.plist`、`Apps/XStats/FinderExtension/XStatsFinderExtension.entitlements`；原创 Office／文本空白模板：`Packages/XStatsKit/Sources/FinderDocuments/Templates/blank.{docx,xlsx,pptx,txt}`，仅含空白文档结构，不包含第三方示例内容或宏。苹果原生空白模板保留第三方 MIT 许可，来源、处理方式与完整声明见同目录 `ThirdPartyNotices.txt`。
 
 网络连接模块和 Capture 为独立实现；FreeSnitch、Vorssaint 分别仅用于架构和功能流程调研，未复制其代码或素材。

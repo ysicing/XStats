@@ -169,6 +169,19 @@ task version                        # 查看版本与构建号
 task clean                          # 删除 build/
 ```
 
+主程序图标和品牌图片共用 `Assets/branding/xstats-logo.svg` 透明矢量母版。修改母版后运行
+`bash scripts/render_xstats_icon.sh`（需安装 librsvg），统一生成品牌 PNG、四语言 README 共用的
+`Assets/icon.png`、应用内的 `Resources/Logos/xstats-logo.png` 和
+`Apps/XStats/App/Assets.xcassets/AppIcon.appiconset` 的全部尺寸。
+品牌与关于／更新页使用透明背景；Dock／Finder 应用图标采用明亮近白纯色底，
+不绘制金属渐变、边框或阴影，圆角由系统管理。
+Capture 图标保留四角取景框，在中央画面边框内复用主曲线；更新主标识后运行
+`swift scripts/render_capture_icon.swift`，生成 `Assets/branding/capture` 的透明品牌 PNG 与
+`Apps/Capture/App/Assets.xcassets/AppIcon.appiconset` 的近白底应用图标。
+网络组件独立使用 `Assets/branding/network-monitor/xstats-network-logo.svg`，运行
+`bash scripts/render_network_icon.sh` 生成透明品牌 PNG 和
+`Apps/NetworkMonitor/App/Assets.xcassets/AppIcon.appiconset`，不再复用主程序的图标目录。
+
 本地安装脚本 `scripts/install_local.sh <XStats.app>` 沿用输入产物的签名，将所选产物移动到
 `/Applications/XStats.app`，保留桌面小组件配置、偏好与历史，不自动删除其他构建或工作区文件。
 安装前保存 PlugInKit 登记快照，按 Widget 标识核对扩展与父应用，定向注销旧登记；

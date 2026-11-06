@@ -67,7 +67,7 @@ XStats는 Swift, AppKit, SwiftUI로 만든 무료 오픈소스 네이티브 앱�
 | **디스크** | 용량, 읽기/쓰기 속도, 앱별 I/O 순위, SMART 상태 |
 | **네트워크** | 업로드/다운로드 속도, 네트워크 인터페이스와 연결 개요 |
 | **에너지** | 온도, 시스템 소비 전력, 앱 CPU 전력 사용량, 잠자기 방지 앱, 배터리 상태, Bluetooth 기기 잔량 |
-| **XStats Capture** | 내장 스크린샷 편집, 로컬 정보 가리기 및 오디오 화면 녹화 도구. [독립 Capture 앱](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.9)도 다운로드할 수 있습니다. [사용법과 권한](docs/CAPTURE.md) |
+| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 내장 스크린샷 편집, 로컬 정보 가리기 및 오디오 화면 녹화 도구. [독립 Capture 앱](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.9)도 다운로드할 수 있습니다. [사용법과 권한](docs/CAPTURE.md) |
 | **팬** | 회전수와 지원 기종의 팬 제어 |
 | **디스플레이** | 해상도, 스케일링, 주사율. DDC/CI를 지원하는 외부 디스플레이의 밝기, 대비, 음량 조절 |
 | **시스템 정보** | Mac 및 시스템 식별 정보. Apple Intelligence 옆 상세 아이콘에서 기능 설정 상태, 온디바이스 모델 가용성 및 저장 공간 확인 |
@@ -79,7 +79,7 @@ XStats는 Swift, AppKit, SwiftUI로 만든 무료 오픈소스 네이티브 앱�
   <img src="Assets/readme/popover-memory-dark.png" width="49%" alt="메모리 구성과 압력">
 </p>
 
-### 네트워크 모니터
+### <img src="Assets/branding/network-monitor/xstats-network-logo-128.png" width="28" height="28" alt=""> 네트워크 모니터
 
 **macOS 15 이상에서 선택적으로 사용하며 기본적으로 꺼져 있습니다.** 관찰 중 새로 발생한 연결, 지도상의 목적지, 업로드·다운로드 추이를 앱, 프로세스, 도메인, 국가 또는 지역별로 함께 표시하고 검색, 활성 연결 필터, 일시 정지와 재개를 지원합니다. 트래픽 추이에는 통계를 지원하는 네트워크 구성요소가 필요합니다.
 
