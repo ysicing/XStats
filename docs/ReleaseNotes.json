@@ -1,15 +1,21 @@
 {
-  "version": "1.5.7",
+  "version": "1.5.8",
   "sourceNotes": [
-    "计时弹窗新增时区页，并提供中号桌面时区小组件",
-    "Finder 新建文档改为随机生成 8 位字母数字或 UUID 文件名，移除固定命名与手动输入",
-    "Finder 新建文档菜单显示对应格式图标，完善 Keynote 与 Numbers 安装识别"
+    "命令栏新增文件与文件夹搜索，支持打开、在 Finder 中显示、快速预览及常用文件操作",
+    "命令栏新增后台进程查询与结束操作，支持按名称、PID 或端口筛选，结束前确认并重新核验进程身份",
+    "减少实时查询、历史数据读取与测速进度更新的资源开销",
+    "修复重复启动时出现多个应用实例的问题，将启动请求交由已有实例处理",
+    "修复中文时区时间在午夜显示为 24 点的问题",
+    "修复 Finder「新建文档」主菜单缺少图标的问题"
   ],
   "translations": {
     "en": [
-      "Add a time zone page to the timer popover and a medium desktop widget showing local, UTC, and US Pacific dates and times. The local time zone name follows system settings, and Pacific time adjusts automatically for daylight saving time.",
-      "Use random 8-character alphanumeric strings or UUIDs for new Finder document names, replacing fixed names and manual input.",
-      "Show file format icons in the Finder document menu, improve detection of installed Keynote and Numbers apps, and show the settings button only while the feature is enabled."
+      "Search for files and folders from the command bar, with open, reveal in Finder, Quick Look, and common file actions. Chinese names support pinyin and initials within a limited scope; file contents are not read.",
+      "Find background processes by name, PID, or port and end them from the command bar, with confirmation and a fresh identity check before termination.",
+      "Reduce resource overhead from live queries, history reads, and speed test progress updates.",
+      "Prevent duplicate app instances by forwarding launch requests to the existing instance.",
+      "Fix Chinese time zone clocks showing hour 24 at midnight.",
+      "Restore the icon on Finder's New Document parent menu."
     ]
   }
 }
