@@ -1,6 +1,7 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import AppKit
+import DockIcons
 import Foundation
 import Localization
 import NetworkObservation
@@ -116,6 +117,7 @@ private final class ComponentGUIModel: NSObject, NetworkComponentClientService {
 
 private struct ComponentView: View {
   @Bindable var model: ComponentGUIModel
+  @AppStorage(DockIconStyle.preferenceKey) private var dockIconStyle: DockIconStyle = .standard
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       Label(tr("网络监视器"), systemImage: "network").font(.title2.bold())
@@ -123,6 +125,15 @@ private struct ComponentView: View {
       HStack {
         Button(tr("启用连接查看")) { Task { await model.run("enable") } }.disabled(model.busy)
         Button(tr("停止查看")) { Task { await model.run("disable") } }
+      }
+      Divider()
+      HStack {
+        Text(tr("程序坞图标"))
+        Spacer()
+        DockIconPicker(selection: $dockIconStyle, product: .network)
+      }
+      .onChange(of: dockIconStyle) {
+        DockIconRenderer.apply(dockIconStyle, product: .network)
       }
       Divider()
       Button(tr("检查更新")) { Task { await model.run("checkUpdates") } }.disabled(model.busy)
@@ -161,6 +172,7 @@ private struct ComponentView: View {
         NSApp.terminate(nil)
       }
     } else {
+      DockIconRenderer.apply(DockIconStyle.load(from: .standard), product: .network)
       UserDefaults.standard.synchronize()
       if let previous = UserDefaults.standard.string(
         forKey: NetworkComponentServiceHost.relaunchKey),
@@ -259,6 +271,6 @@ if registrationMode {
   let app = NSApplication.shared
   let delegate = ComponentAppDelegate()
   app.delegate = delegate
-  app.setActivationPolicy(arguments.contains("--service") ? .prohibited : .accessory)
+  app.setActivationPolicy(arguments.contains("--service") ? .prohibited : .regular)
   app.run()
 }

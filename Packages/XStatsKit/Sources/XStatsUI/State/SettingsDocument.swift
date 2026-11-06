@@ -7,6 +7,7 @@
 // See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
 
 import FinderDocuments
+import DockIcons
 import Foundation
 import Localization
 import Metrics
@@ -54,6 +55,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var fanSafetyTemperature: Int?
   public var appearance: String?
   public var showDockIcon: Bool?
+  public var dockIconStyle: String?
   public var showMainWindowOnLaunch: Bool?
   public var speedTestRoute: String?
   public var menuBarItemSpacing: Int?
@@ -143,6 +145,7 @@ extension AppSettings {
     doc.fanSafetyTemperature = fanSafetyTemperature
     doc.appearance = appearance.rawValue
     doc.showDockIcon = showDockIcon
+    doc.dockIconStyle = dockIconStyle.rawValue
     doc.showMainWindowOnLaunch = showMainWindowOnLaunch
     doc.speedTestRoute = speedTestRoute.rawValue
     doc.menuBarItemSpacing = menuBarItemSpacing
@@ -261,6 +264,7 @@ extension AppSettings {
     assign(\.fanSafetyTemperature, option(doc.fanSafetyTemperature, in: Self.fanSafetyOptions))
     assign(\.appearance, doc.appearance.flatMap(AppearanceMode.init(rawValue:)))
     assign(\.showDockIcon, doc.showDockIcon)
+    assign(\.dockIconStyle, doc.dockIconStyle.flatMap(DockIconStyle.init(rawValue:)))
     assign(\.showMainWindowOnLaunch, doc.showMainWindowOnLaunch)
     assign(\.speedTestRoute, doc.speedTestRoute.flatMap(SpeedRoute.init(rawValue:)))
     assign(\.menuBarItemSpacing, option(doc.menuBarItemSpacing, in: Self.menuBarSpacingOptions))

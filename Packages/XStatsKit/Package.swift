@@ -9,6 +9,7 @@ let package = Package(
     .library(name: "CaptureCore", targets: ["CaptureCore"]),
     .library(name: "CaptureUI", targets: ["CaptureUI"]),
     .library(name: "Localization", targets: ["Localization"]),
+    .library(name: "DockIcons", targets: ["DockIcons"]),
     .library(name: "FinderDocuments", targets: ["FinderDocuments"]),
     .library(name: "AIUsage", targets: ["AIUsage"]),
     .library(name: "SMC", targets: ["SMC"]),
@@ -31,11 +32,14 @@ let package = Package(
     .target(
       name: "CaptureUI",
       dependencies: [
-        "CaptureCore", "Localization", "Updates", .product(name: "Sparkle", package: "Sparkle"),
+        "CaptureCore", "Localization", "DockIcons", "Updates",
+        .product(name: "Sparkle", package: "Sparkle"),
       ]),
     .testTarget(name: "CaptureCoreTests", dependencies: ["CaptureCore"]),
     .testTarget(name: "CaptureUITests", dependencies: ["CaptureUI"]),
     .target(name: "Localization", resources: [.process("Resources")]),
+    .target(name: "DockIcons", dependencies: ["Localization"], resources: [.process("Resources")]),
+    .testTarget(name: "DockIconsTests", dependencies: ["DockIcons"]),
     .target(
       name: "FinderDocuments", dependencies: ["Localization"], resources: [.copy("Templates")]),
     .testTarget(name: "FinderDocumentsTests", dependencies: ["FinderDocuments", "Localization"]),
@@ -63,7 +67,7 @@ let package = Package(
       dependencies: [
         "CaptureUI", "CaptureCore", "NetworkObservation", "AudioControl", "AIUsage", "Localization",
         "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync", "WidgetData",
-        "FinderDocuments",
+        "FinderDocuments", "DockIcons",
         .product(name: "Tyme4Swift", package: "tyme4swift"),
         .product(name: "Sparkle", package: "Sparkle"),
       ],
@@ -78,7 +82,7 @@ let package = Package(
     .testTarget(name: "WebDAVSyncTests", dependencies: ["WebDAVSync"]),
     .testTarget(
       name: "XStatsUITests",
-      dependencies: ["XStatsUI", "Metrics", "WebDAVSync", "Localization", "Updates"]),
+      dependencies: ["XStatsUI", "Metrics", "WebDAVSync", "Localization", "Updates", "DockIcons"]),
     .testTarget(name: "LocalizationTests", dependencies: ["Localization"]),
     .testTarget(name: "AIUsageTests", dependencies: ["AIUsage"]),
     .testTarget(name: "WidgetDataTests", dependencies: ["WidgetData"]),

@@ -1,6 +1,7 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import AppKit
+import DockIcons
 import Localization
 import OSLog
 import Sparkle
@@ -42,7 +43,9 @@ import Updates
     menuItem.action != #selector(checkForUpdates) || controller.updater.canCheckForUpdates
   }
 
-  @objc private func aboutApp() { NSApp.orderFrontStandardAboutPanel(nil) }
+  @objc private func aboutApp() {
+    NSApp.orderFrontStandardAboutPanel(options: [.applicationIcon: DockIconRenderer.standardIcon])
+  }
   @objc private func checkForUpdates() { controller.checkForUpdates(nil) }
   @objc private func toggleAutomaticChecks(_ sender: NSMenuItem) {
     controller.updater.automaticallyChecksForUpdates.toggle()

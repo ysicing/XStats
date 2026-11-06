@@ -1,4 +1,5 @@
 import AppKit
+import DockIcons
 import Localization
 import SwiftUI
 
@@ -24,6 +25,7 @@ final class MenuBarController: NSObject {
   private var renderedDockTrio:
     (reading: TrioReading, configuration: TrioConfiguration, language: AppLanguage)?
   private var renderedItemSpacing: Int?
+  private var renderedDockStyle: DockIconStyle?
 
   /// 开发调试：启动后展开并固定某个弹窗
   var pinsNextPopover = false
@@ -206,13 +208,24 @@ final class MenuBarController: NSObject {
 
   /// 共用现有采样刷新；隐藏程序坞时释放动态图标，重新显示时立即补上当前状态。
   func refreshDockIcon(reading: TrioReading? = nil) {
-    guard model.settings.menuBarLayout == .iconOnly, NSApp.activationPolicy() == .regular else {
-      if renderedDockTrio != nil {
+    let style = model.settings.dockIconStyle
+    guard NSApp.activationPolicy() == .regular else {
+      if renderedDockTrio != nil || renderedDockStyle == .mascot {
         NSApp.applicationIconImage = nil
+      }
+      renderedDockTrio = nil
+      renderedDockStyle = nil
+      return
+    }
+    guard style == .automatic, model.settings.menuBarLayout == .iconOnly else {
+      if renderedDockStyle != style || renderedDockTrio != nil {
+        DockIconRenderer.apply(style, product: .xstats)
+        renderedDockStyle = style
         renderedDockTrio = nil
       }
       return
     }
+    renderedDockStyle = style
     let reading = reading ?? TrioReading(model: model)
     let configuration = model.settings.trio
     let language = model.settings.language

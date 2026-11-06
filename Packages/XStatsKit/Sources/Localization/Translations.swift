@@ -15,8 +15,15 @@ extension Translations {
       hardwareDetailsEnglish, aiCleanupEnglish, networkPresentationEnglish, trioEnglish,
       portsEnglish, appServicesEnglish, maintenancePreviewEnglish, commandBarEnglish,
       designAuditEnglish, dnsBenchmarkEnglish, homebrewImpactEnglish, finderDocumentEnglish,
+      dockIconEnglish,
     ]
   }
+
+  static let dockIconEnglish = #"""
+    程序坞图标	Dock Icon
+    自动（跟随菜单栏）	Automatic (Follow Menu Bar)
+    手绘	Hand-drawn
+    """#
 
   static let designAuditEnglish = #"""
     录制快捷键：{}	Record shortcut: {}

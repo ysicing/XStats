@@ -8,6 +8,7 @@ import HelperShared
 import Localization
 import Metrics
 import SwiftUI
+import DockIcons
 
 /// 主窗口里的设置页：与其他页面同样的滚动容器，打开时刷新登录项与辅助工具状态
 struct SettingsTabPage<Content: View>: View {
@@ -92,6 +93,12 @@ struct GeneralSettings: View {
       GroupRow {
         SettingRow(title: tr("关窗后保留程序坞图标"), subtitle: tr("打开窗口时自动显示图标；关闭后仍可从程序坞与 ⌘Tab 找到 XStats")) {
           DSToggle(isOn: $settings.showDockIcon, label: tr("关窗后保留程序坞图标"))
+        }
+      }
+      GroupRow {
+        SettingRow(title: tr("程序坞图标")) {
+          DockIconPicker(
+            selection: $settings.dockIconStyle, product: .xstats, includesAutomatic: true)
         }
       }
       GroupRow {

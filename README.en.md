@@ -33,7 +33,7 @@ XStats is a free, open-source native app built with Swift, AppKit and SwiftUI. N
 
 ### Menu bar layout
 
-Show metrics **separately**, in **Aggregated Mode**, or as **a three-in-one icon** with freely combined sources. In icon-only mode, the Dock icon shows the same live status. Items, order and styles (text, icons, rings, progress bars, history charts) are all configurable.
+Show metrics **separately**, in **Aggregated Mode**, or as **a three-in-one icon** with freely combined sources. Choose an automatic, standard or hand-drawn Dock icon; automatic mode mirrors live status in the icon-only layout. Items, order and styles (text, icons, rings, progress bars, history charts) are all configurable.
 
 Aggregated Mode lets you choose menu bar and status overview items independently, with individual details available in the overview.
 

@@ -74,6 +74,15 @@ class CaptureReleaseTests(unittest.TestCase):
         self.commit()
         self.assertFalse(capture.follow_required())
 
+    def test_dock_icon_artwork_and_shared_translations_are_related(self):
+        path = "Packages/XStatsKit/Sources/DockIcons/DockIconStyle.swift"
+        self.write(path, 'tr("手绘")\n')
+        self.assertTrue(capture.follow_required())
+        self.commit()
+        self.git("tag", "capture-v0.1.1")
+        self.write("Packages/XStatsKit/Sources/Localization/Resources/en.tsv", "截图\tScreenshot\n手绘\tHand-drawn\n")
+        self.assertTrue(capture.follow_required())
+
     def test_sparkle_change_is_related(self):
         self.write("Packages/XStatsKit/Package.swift", 'name: "CaptureUI", dependencies: ["CaptureCore"]\n.package(url: "Sparkle", exact: "3.0.0")\n')
         self.commit()

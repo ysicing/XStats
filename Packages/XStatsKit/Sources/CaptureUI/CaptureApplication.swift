@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import AppKit
 import CaptureCore
+import DockIcons
 import Localization
 
 @MainActor private final class CaptureAppDelegate: NSObject, NSApplicationDelegate {
@@ -10,6 +11,7 @@ import Localization
   private var launched = false
   private var terminationTask: Task<Void, Never>?
   func applicationDidFinishLaunching(_ notification: Notification) {
+    DockIconRenderer.apply(DockIconStyle.load(from: .standard), product: .capture)
     launched = true
     workspace.open(.open)
     CaptureApplication.updateMenu()

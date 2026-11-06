@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import SwiftUI
 import CaptureCore
+import DockIcons
 import Localization
 
 struct CaptureSettingsView: View {
   @ObservedObject var controller: CaptureController
   @Environment(\.dismiss) private var dismiss
+  @AppStorage(DockIconStyle.preferenceKey) private var dockIconStyle: DockIconStyle = .standard
 
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
@@ -51,6 +53,17 @@ struct CaptureSettingsView: View {
       // AppKit caches the selected item's label; rebuild the picker when its language changes.
       .id(controller.language)
       Divider()
+      if controller.host == .standalone {
+        HStack {
+          Text(tr("程序坞图标"))
+          Spacer()
+          DockIconPicker(selection: $dockIconStyle, product: .capture)
+        }
+        .onChange(of: dockIconStyle) {
+          DockIconRenderer.apply(dockIconStyle, product: .capture)
+        }
+        Divider()
+      }
       CaptureCacheSettingsView()
     }
     .padding(20).frame(width: 340)

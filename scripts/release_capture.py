@@ -27,6 +27,7 @@ TARGET = "c-ip/oss/apps/macOS/XStats/capture"
 IDENTIFIER = "work.12306.xstats.capture"
 # 仅包含独立 Capture 的代码、资源与实际使用的共享更新代码。
 RELATED = ("Apps/Capture/", "Packages/XStatsKit/Sources/CaptureCore/", "Packages/XStatsKit/Sources/CaptureUI/",
+           "Packages/XStatsKit/Sources/DockIcons/",
            "Packages/XStatsKit/Sources/Localization/CaptureTranslations.swift",
            "Packages/XStatsKit/Sources/Localization/L10n.swift", "Packages/XStatsKit/Sources/Localization/AppLanguage.swift",
            "Packages/XStatsKit/Sources/Localization/LanguagePickerTranslations.swift",
@@ -89,7 +90,7 @@ def localization_changed(baseline, paths):
     sources = []
     # 不带 ref 的 git grep 读取工作区（含未提交修改），--untracked 再补上未跟踪文件。
     for ref in ((baseline,), ("--untracked",)):
-        sources.append(run("git", "grep", "-h", "-I", "-e", ".", *ref, "--", "Apps/Capture/", "Packages/XStatsKit/Sources/CaptureCore/", "Packages/XStatsKit/Sources/CaptureUI/", capture=True))
+        sources.append(run("git", "grep", "-h", "-I", "-e", ".", *ref, "--", "Apps/Capture/", "Packages/XStatsKit/Sources/CaptureCore/", "Packages/XStatsKit/Sources/CaptureUI/", "Packages/XStatsKit/Sources/DockIcons/", capture=True))
     # 键可能由枚举 rawValue 传入 tr；取两个版本所有字面量，避免只匹配 tr("...") 漏掉动态入口。
     keys = {re.sub(r'\\\([^)]*\)', '{}', value) for value in re.findall(r'"((?:\\.|[^"\\])*)"', "\n".join(sources))}
     untracked = set(untracked_files())
@@ -141,7 +142,7 @@ def related_changes(baseline):
     if "Packages/XStatsKit/Package.swift" in paths:
         old = run("git", "show", f"{baseline}:Packages/XStatsKit/Package.swift", capture=True)
         new = (ROOT / "Packages/XStatsKit/Package.swift").read_text()
-        relevant = r'^.*(?:Sparkle|name: "Capture(?:Core|UI)").*$|\.target\(\s*name: "Capture(?:Core|UI)"[\s\S]*?(?=\n    \.(?:target|testTarget)\(|\n  \])'
+        relevant = r'^.*(?:Sparkle|name: "(?:Capture(?:Core|UI)|DockIcons)").*$|\.target\(\s*name: "(?:Capture(?:Core|UI)|DockIcons)"[\s\S]*?(?=\n    \.(?:target|testTarget)\(|\n  \])'
         if re.findall(relevant, old, re.M) != re.findall(relevant, new, re.M):
             return True
     return False

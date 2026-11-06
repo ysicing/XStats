@@ -280,6 +280,8 @@ targets:
         product: Updates
       - package: XStatsKit
         product: Localization
+      - package: XStatsKit
+        product: DockIcons
       - target: XStatsNetworkExtension
         embed: true
 
