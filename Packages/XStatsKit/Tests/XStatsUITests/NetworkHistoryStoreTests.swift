@@ -8,6 +8,64 @@ import Testing
 @testable import XStatsUI
 
 struct NetworkHistoryStoreTests {
+  @Test(arguments: ["apps", "process", "domain", "country"])
+  func liveQueriesPreserveHistoryAndRespectSelection(_ grouping: String) async throws {
+    let store = NetworkHistoryStore()
+    let session = UUID()
+    let live = record(0, name: "Live")
+    let closed = record(1, name: "Closed")
+    let now = start.addingTimeInterval(5)
+    try await store.ingest(
+      batch(
+        [
+          event(live, sequence: 1, seconds: 0, received: 0),
+          event(closed, sequence: 2, seconds: 0, received: 0),
+          event(live, sequence: 3, seconds: 5, received: 100),
+          event(closed, sequence: 4, seconds: 5, received: 200, closed: true),
+        ], epoch: "live-query"),
+      session: session, sessionStartedAt: start, observedAt: now)
+    try await store.updateCountries([live.address!: "CN", closed.address!: "JP"])
+    let location = try #require(NetworkIPLocation.parse("中国|浙江省|杭州市|0|CN"))
+    try await store.updateLocations([live.address!: location], version: IPRegionDatabase.version)
+    let key: String
+    let closedKey: String
+    switch grouping {
+    case "process":
+      key = "\(live.executablePath)#\(live.processID)"
+      closedKey = "\(closed.executablePath)#\(closed.processID)"
+    case "domain":
+      key = live.hostname!
+      closedKey = closed.hostname!
+    case "country":
+      key = "CN|浙江"
+      closedKey = "JP"
+    default:
+      key = "name:Live"
+      closedKey = "name:Closed"
+    }
+    let active = try await store.view(
+      filter: .init(grouping: grouping, selection: key, search: "live"),
+      activeOnly: true, offset: 0, now: now)
+    #expect(active.total == 1)
+    #expect(active.records.map(\.id) == [live.id])
+    #expect(active.locations[live.address!] == location)
+    #expect(active.regions.count == 1 && active.regions.first?.count == 1)
+    let zero = try await store.view(
+      filter: .init(grouping: grouping, selection: closedKey),
+      activeOnly: true, offset: 0, now: now)
+    #expect(zero.total == 0 && zero.records.isEmpty && zero.regions.isEmpty)
+    if grouping != "country" {
+      #expect(zero.groups.first { $0.id == closedKey }?.count == 0)
+      #expect(zero.groups.first { $0.id == key }?.count == 1)
+    }
+    let history = try await store.view(
+      filter: .init(grouping: grouping, selection: closedKey),
+      activeOnly: false, offset: 0, now: now)
+    #expect(history.total == 1 && history.records.first?.id == closed.id)
+    #expect(history.regions.first?.count == 1)
+    await store.close()
+  }
+
   @Test func mainlandAndTaiwanHongKongMacaoHaveIndependentHistoryGroups() async throws {
     let store = NetworkHistoryStore()
     let codes = ["CN", "TW", "HK", "MO"]

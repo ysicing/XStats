@@ -199,6 +199,7 @@ public enum ThroughputProbe {
       slot.hold(connection)
       defer { connection.cancel() }
       var meter = SpeedMeter(limit: limit)
+      var reporter = SpeedProgress()
       guard
         await connection.sendRequest(
           "POST",
@@ -209,11 +210,12 @@ public enum ThroughputProbe {
       else { return nil }
       let complete = await connection.sendBody(bytes: bytes) { count in
         meter.add(count)
-        progress(meter.rate, meter.bytes)
+        reporter.report(meter, to: progress)
         return !meter.reachedLimit
       }
       // 整段交给协议栈时还有一部分在发送缓冲区里，等服务器回了响应（收齐了）再停表
       if complete { _ = await connection.readResponse() }
+      reporter.report(meter, force: true, to: progress)
       return meter.result()
     } ?? nil
   }
@@ -227,6 +229,7 @@ public enum ThroughputProbe {
     let headers = range ? [("Range", "bytes=0-\(limit.bytes - 1)")] : []
     return await guarded(limit: limit) { slot in
       var meter = SpeedMeter(limit: limit)
+      var reporter = SpeedProgress()
       var connection: SpeedConnection?
       var responseHeaders: [String: String] = [:]
       defer { connection?.cancel() }
@@ -242,7 +245,7 @@ public enum ThroughputProbe {
         responseHeaders = response.headers
         let complete = await current.readBody(response) { count in
           meter.add(count)
-          progress(meter.rate, meter.bytes)
+          reporter.report(meter, to: progress)
           return !meter.reachedLimit
         }
         // 还没到上限、这次响应又正常收完：接着请求，把测量凑满
@@ -252,6 +255,7 @@ public enum ThroughputProbe {
           connection = nil
         }
       }
+      reporter.report(meter, force: true, to: progress)
       return (meter.result(), responseHeaders)
     } ?? (nil, [:])
   }
@@ -272,6 +276,23 @@ public enum ThroughputProbe {
       slot.cancel()
     }
     return Task.isCancelled ? nil : value
+  }
+}
+
+/// 传输仍逐块计量；只合并进度通知，避免快网逐块调度主线程任务。
+struct SpeedProgress {
+  private var lastReport: ContinuousClock.Instant?
+  private var reportedBytes = 0
+
+  mutating func report(
+    _ meter: SpeedMeter, at now: ContinuousClock.Instant = .now, force: Bool = false,
+    to progress: (Double, Int) -> Void
+  ) {
+    guard !Task.isCancelled, meter.bytes > reportedBytes else { return }
+    if !force, let lastReport, now - lastReport < .milliseconds(100) { return }
+    lastReport = now
+    reportedBytes = meter.bytes
+    progress(meter.rate, meter.bytes)
   }
 }
 

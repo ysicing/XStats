@@ -284,7 +284,7 @@ actor NetworkHistoryStore {
         AND c.opened_at<=?6 AND \(Self.searchPredicate)
         """
       let active = """
-        c.closed_at IS NULL AND c.retired_at IS NULL AND c.live_owner=?4
+        COALESCE(c.closed_at,c.retired_at) IS NULL AND c.live_owner=?4
         AND c.live_session=(SELECT session FROM state WHERE singleton=1)
         AND c.epoch=(SELECT epoch FROM state WHERE singleton=1)
         """
@@ -292,12 +292,16 @@ actor NetworkHistoryStore {
         filter.grouping == "country"
         ? "(?3 IS NULL OR \(group.key)=?3 OR ((?3='CN' OR SUBSTR(?3,1,3)='CN|') AND SUBSTR(\(group.key),1,LENGTH(?3)+1)=?3||'|'))"
         : "(?3 IS NULL OR \(group.key)=?3)"
+      // 展开实时谓词并匹配 connections_ended 的表达式，复用现有索引定位未结束连接。
+      let visibility = activeOnly ? active : "1"
       let pagePredicate = """
-        \(matching) AND \(selected) AND (?5=0 OR (\(active)))
+        \(matching) AND \(selected) AND (\(visibility))
         """
+      let countJoin =
+        filter.grouping == "country" ? "LEFT JOIN geography g ON g.address=c.address" : ""
       let total = Int(
         try scalar(
-          "SELECT COUNT(*) FROM connections c LEFT JOIN geography g ON g.address=c.address WHERE \(pagePredicate)",
+          "SELECT COUNT(*) FROM connections c \(countJoin) WHERE \(pagePredicate)",
           base))
       // offset 来自界面但仍钳制在合法范围；超出总数返回空页，不回绕到第一页。
       let pageOffset = min(max(0, offset), total)
@@ -344,7 +348,7 @@ actor NetworkHistoryStore {
           """
           SELECT \(group.key),\(group.name),\(group.path),\(group.pid),
             SUM(CASE WHEN ?5=0 OR (\(active)) THEN 1 ELSE 0 END),MIN(c.path)
-          FROM connections c LEFT JOIN geography g ON g.address=c.address
+          FROM connections c
           WHERE \(matching) GROUP BY \(group.key)
           ORDER BY 2 COLLATE NOCASE,1 LIMIT 512
           """, base
@@ -380,7 +384,7 @@ actor NetworkHistoryStore {
             SELECT \(region),COUNT(*),MAX(CASE WHEN
               network_history_region_level(\(group.key),\(depth + 1)) IS NOT NULL THEN 1 ELSE 0 END)
             FROM connections c LEFT JOIN geography g ON g.address=c.address
-            WHERE \(matching) AND (?5=0 OR (\(active))) AND \(expanded) AND \(region) IS NOT NULL
+            WHERE \(matching) AND (\(visibility)) AND \(expanded) AND \(region) IS NOT NULL
             GROUP BY \(region) ORDER BY 1 LIMIT 512
             """, base + parents.map(Value.text)
           ) { query in

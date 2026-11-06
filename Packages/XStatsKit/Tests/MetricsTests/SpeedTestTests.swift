@@ -9,6 +9,64 @@ import Testing
 
 @Suite("网络测速")
 struct SpeedTestTests {
+  @Test func progressCoalescesBurstWithoutDroppingBytesAndFlushesFinalChunk() {
+    var meter = SpeedMeter(limit: SpeedLimit(seconds: 10, megabytes: 25))
+    var reporter = SpeedProgress()
+    let now = ContinuousClock.now
+    var reports: [Int] = []
+    for _ in 0..<400 {
+      meter.add(64 * 1024)
+      reporter.report(meter, at: now) { _, bytes in reports.append(bytes) }
+    }
+    #expect(reports == [64 * 1024])
+    #expect(meter.bytes == 25 * 1024 * 1024)
+    #expect(meter.reachedLimit)
+    reporter.report(meter, at: now, force: true) { _, bytes in reports.append(bytes) }
+    #expect(reports == [64 * 1024, 25 * 1024 * 1024])
+    reporter.report(meter, at: now, force: true) { _, bytes in reports.append(bytes) }
+    #expect(reports.count == 2)
+  }
+
+  @Test func progressReportsLatestBytesAtIntervalAndDoesNotDelayShortTransfers() {
+    var meter = SpeedMeter(limit: SpeedLimit(seconds: 10, megabytes: 25))
+    var reporter = SpeedProgress()
+    let now = ContinuousClock.now
+    var reports: [Int] = []
+    reporter.report(meter, at: now, force: true) { _, bytes in reports.append(bytes) }
+    #expect(reports.isEmpty)
+    meter.add(1)
+    reporter.report(meter, at: now) { _, bytes in reports.append(bytes) }
+    meter.add(2)
+    reporter.report(meter, at: now.advanced(by: .milliseconds(99))) { _, bytes in
+      reports.append(bytes)
+    }
+    #expect(reports == [1])
+    meter.add(4)
+    reporter.report(meter, at: now.advanced(by: .milliseconds(100))) { _, bytes in
+      reports.append(bytes)
+    }
+    #expect(reports == [1, 7])
+    meter.add(8)
+    reporter.report(meter, at: now.advanced(by: .milliseconds(101)), force: true) { _, bytes in
+      reports.append(bytes)
+    }
+    #expect(reports == [1, 7, 15])
+  }
+
+  @Test func cancelledMeasurementDoesNotPublishProgressEvenWhenFlushed() async {
+    let task = Task {
+      withUnsafeCurrentTask { $0?.cancel() }
+      var meter = SpeedMeter(limit: SpeedLimit(seconds: 10, megabytes: 25))
+      meter.add(64 * 1024)
+      var reporter = SpeedProgress()
+      var reports: [Int] = []
+      reporter.report(meter) { _, bytes in reports.append(bytes) }
+      reporter.report(meter, force: true) { _, bytes in reports.append(bytes) }
+      return reports
+    }
+    #expect(await task.value.isEmpty)
+  }
+
   @Test(arguments: [
     "-1", String(Int.min), "-0", "+1", "", "invalid", "1, 1", "9223372036854775808",
   ])
