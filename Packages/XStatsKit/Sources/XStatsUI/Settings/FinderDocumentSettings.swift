@@ -18,9 +18,11 @@ struct FinderDocumentSettings: View {
         icon: "doc.badge.plus"
       ) {
         HStack(spacing: DS.Space.s2) {
-          Button(tr("设置")) { showsOptions = true }
-            .buttonStyle(DSButtonStyle(kind: .secondary))
-            .accessibilityLabel(tr("Finder 新建文档设置"))
+          if model.settings.finderDocumentsEnabled {
+            Button(tr("设置")) { showsOptions = true }
+              .buttonStyle(DSButtonStyle(kind: .secondary))
+              .accessibilityLabel(tr("Finder 新建文档设置"))
+          }
           DSToggle(
             isOn: Binding(
               get: { model.settings.finderDocumentsEnabled },
