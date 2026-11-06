@@ -10,8 +10,9 @@ struct TimerPopover: View {
   @State private var editsDuration = false
   @State private var showsRestSettings = false
   @State private var settingsShortcutBlocker = UUID()
-  // 休息是弹窗内的操作页，不写入三种计时模式的持久化配置。
+  // 休息与时区仅在弹窗内切换，不写入三种计时模式的持久化配置。
   @State var showsRest = false
+  @State var showsTimeZones = false
   @State var breakKind: ManualBreakKind = .short
   var windows: RestWindowController? = nil
   var openPage: () -> Void
@@ -34,21 +35,23 @@ struct TimerPopover: View {
         HStack(spacing: 12) {
           modeTabs.fixedSize()
           Spacer(minLength: 0)
-          primaryButton
+          if !showsTimeZones { primaryButton }
           moreMenu
         }
         VStack(spacing: 8) {
           modeTabs
           HStack {
             Spacer()
-            primaryButton
+            if !showsTimeZones { primaryButton }
             moreMenu
           }
         }
       }
     } content: {
       VStack(spacing: 10) {
-        if showsRest {
+        if showsTimeZones {
+          TimerTimeZoneContent(language: model.settings.language)
+        } else if showsRest {
           breakContent
         } else {
           timerContent
@@ -64,7 +67,7 @@ struct TimerPopover: View {
           .frame(maxWidth: .infinity, alignment: .leading)
           .accessibilityIdentifier("timer-restore-reminder")
         }
-        if timer.pendingStart != nil {
+        if !showsTimeZones && timer.pendingStart != nil {
           VStack(alignment: .leading, spacing: 8) {
             Text(tr("切换正在运行的计时？")).font(.system(size: 12, weight: .semibold))
             Text(tr("当前倒计时或番茄钟将暂停并保留进度，秒表不受影响。")).font(.system(size: 11)).foregroundStyle(
@@ -76,7 +79,9 @@ struct TimerPopover: View {
             }
           }.padding(10).background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
-        if timer.mode != .stopwatch && (timer.stopwatch.isRunning || timer.elapsed > 0) {
+        if !showsTimeZones && timer.mode != .stopwatch
+          && (timer.stopwatch.isRunning || timer.elapsed > 0)
+        {
           HStack {
             Label(tr("秒表"), systemImage: "stopwatch")
             Text(TimerFormat.clock(timer.elapsed, countingDown: false)).monospacedDigit()
@@ -96,8 +101,10 @@ struct TimerPopover: View {
             .disabled(timer.stopwatch.isRunning).help(tr("重置")).accessibilityLabel(tr("重置"))
           }.font(.system(size: 11)).buttonStyle(.plain).foregroundStyle(.secondary)
         }
-        Divider()
-        eyeRestRow
+        if !showsTimeZones {
+          Divider()
+          eyeRestRow
+        }
       }.padding(.vertical, 4)
     }
     .onChange(of: timer.mode) { _, _ in editsDuration = false }
@@ -112,7 +119,7 @@ struct TimerPopover: View {
     .tint(.orange)
     .background(
       TimerKeyboardShortcuts(
-        model: model, enabled: !editsDuration,
+        model: model, enabled: !editsDuration && !showsTimeZones,
         primaryAction: showsRest ? { performPrimaryAction() } : nil, allowsLaps: !showsRest))
   }
 
@@ -167,25 +174,32 @@ struct TimerPopover: View {
       ForEach(TimerMode.allCases) { mode in
         Button {
           showsRest = false
+          showsTimeZones = false
           timer.select(mode)
         } label: {
           Text(mode.title).font(
-            .system(size: 12, weight: !showsRest && timer.mode == mode ? .semibold : .regular)
+            .system(
+              size: 12,
+              weight: !showsRest && !showsTimeZones && timer.mode == mode ? .semibold : .regular)
           )
           .foregroundStyle(
-            !showsRest && timer.mode == mode ? DS.Palette.textPrimary : DS.Palette.textSecondary
+            !showsRest && !showsTimeZones && timer.mode == mode
+              ? DS.Palette.textPrimary : DS.Palette.textSecondary
           )
           .padding(.vertical, 7)
           .overlay(alignment: .bottom) {
-            if !showsRest && timer.mode == mode { Capsule().fill(.orange).frame(height: 2) }
+            if !showsRest && !showsTimeZones && timer.mode == mode {
+              Capsule().fill(.orange).frame(height: 2)
+            }
           }
         }.buttonStyle(.plain).accessibilityAddTraits(
-          !showsRest && timer.mode == mode ? .isSelected : []
+          !showsRest && !showsTimeZones && timer.mode == mode ? .isSelected : []
         )
         .accessibilityIdentifier("timer-tab-\(mode.rawValue)")
       }
       Button {
         editsDuration = false
+        showsTimeZones = false
         showsRest = true
       } label: {
         Text(tr("休息")).font(.system(size: 12, weight: showsRest ? .semibold : .regular))
@@ -196,6 +210,19 @@ struct TimerPopover: View {
           }
       }.buttonStyle(.plain).accessibilityAddTraits(showsRest ? .isSelected : [])
         .accessibilityIdentifier("timer-tab-rest")
+      Button {
+        editsDuration = false
+        showsRest = false
+        showsTimeZones = true
+      } label: {
+        Text(tr("时区")).font(.system(size: 12, weight: showsTimeZones ? .semibold : .regular))
+          .foregroundStyle(showsTimeZones ? DS.Palette.textPrimary : DS.Palette.textSecondary)
+          .padding(.vertical, 7)
+          .overlay(alignment: .bottom) {
+            if showsTimeZones { Capsule().fill(.orange).frame(height: 2) }
+          }
+      }.buttonStyle(.plain).accessibilityAddTraits(showsTimeZones ? .isSelected : [])
+        .accessibilityIdentifier("timer-tab-time-zones")
     }.accessibilityElement(children: .contain).accessibilityLabel(tr("计时模式"))
   }
 
@@ -210,6 +237,7 @@ struct TimerPopover: View {
   }
 
   private func performPrimaryAction() {
+    guard !showsTimeZones else { return }
     editsDuration = false
     guard showsRest else {
       timer.performPrimaryAction()

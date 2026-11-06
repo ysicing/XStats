@@ -3,6 +3,10 @@
 
 extension Translations {
   static let wellnessEnglish = #"""
+    时区	Time zones
+    当地时间	Local time
+    UTC 时间	UTC time
+    美西时间	US Pacific time
     收起提醒	Dismiss reminder
     恢复全屏提醒	Restore full-screen reminder
     跳过休息并开始专注	Skip break and start focus
