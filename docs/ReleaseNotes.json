@@ -1,19 +1,15 @@
 {
-  "version": "1.5.6",
+  "version": "1.5.7",
   "sourceNotes": [
-    "实验性功能新增 Finder 新建文档",
-    "更新 2027 年节假日与调休数据，覆盖日历、假期概览和小组件",
-    "减少电池采样引发的重复设置更新、隐藏历史页的轮询与 Finder 设置变更时的磁盘卷枚举",
-    "修复详情页在大窗口下留白过多、网络页标题被工具栏挤压的问题",
-    "XStats 系列应用来源显示为 ysicing，无法识别的来源统一显示为「-」"
+    "计时弹窗新增时区页，并提供中号桌面时区小组件",
+    "Finder 新建文档改为随机生成 8 位字母数字或 UUID 文件名，移除固定命名与手动输入",
+    "Finder 新建文档菜单显示对应格式图标，完善 Keynote 与 Numbers 安装识别"
   ],
   "translations": {
     "en": [
-      "Add experimental document creation from Finder, with Office, TXT, Markdown, and formats for installed iWork apps. Choose naming rules and menu formats, and enable the Finder extension in System Settings before use.",
-      "Update 2027 public holiday and makeup-workday data for the calendar, holiday overview, and widgets.",
-      "Reduce redundant settings updates from battery sampling, polling while the history page is hidden, and volume enumeration when Finder settings change.",
-      "Fix excessive whitespace on detail pages in large windows and prevent the network toolbar from squeezing the page title.",
-      "Show ysicing as the source for XStats apps and display a dash for unidentified sources."
+      "Add a time zone page to the timer popover and a medium desktop widget showing local, UTC, and US Pacific dates and times. The local time zone name follows system settings, and Pacific time adjusts automatically for daylight saving time.",
+      "Use random 8-character alphanumeric strings or UUIDs for new Finder document names, replacing fixed names and manual input.",
+      "Show file format icons in the Finder document menu, improve detection of installed Keynote and Numbers apps, and show the settings button only while the feature is enabled."
     ]
   }
 }
