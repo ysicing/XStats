@@ -3,6 +3,8 @@
 
 import AppKit
 import Localization
+import QuickLookUI
+import UniformTypeIdentifiers
 
 /// 原生文本系统负责输入法与编辑快捷键，面板只在显示期间持有索引和控件。
 @MainActor
@@ -20,7 +22,14 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
   private var results: [AppCommand] = []
   private var hintLabel: NSTextField?
   private var favoriteButton: NSButton?
+  private var actionsButton: NSButton?
+  private(set) var previewPanel: NSPanel?
   private var catalogTask: Task<Void, Never>?
+  private var liveTask: Task<Void, Never>?
+  private var liveRequest: CommandBarLiveRequest?
+  private var processTargets: [CommandBarProcessTarget]?
+  let fileSearch = CommandBarFileSearch()
+  private let processLoader: @Sendable (Set<Int32>) throws -> [CommandBarProcessTarget]
   private var sessionID: UUID?
   private var language: AppLanguage = .system
   private var icons: [URL: NSImage] = [:]
@@ -29,8 +38,13 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
   var onSelect: (AppCommand) -> Void = { _ in }
   var isVisible: Bool { panel?.isVisible == true }
 
-  init(usage: CommandBarUsage? = nil) {
+  init(
+    usage: CommandBarUsage? = nil,
+    processLoader: @escaping @Sendable (Set<Int32>) throws -> [CommandBarProcessTarget] =
+      CommandBarProcessTarget.snapshot
+  ) {
     self.usage = usage
+    self.processLoader = processLoader
     super.init()
   }
 
@@ -60,11 +74,13 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     }
     results =
       search?.results(for: "", favorites: usage?.favorites ?? [], recent: usage?.recent ?? []) ?? []
-    let panel = NSPanel(
+    let panel = CommandBarPanel(
       contentRect: NSRect(x: 0, y: 0, width: 560, height: 432),
       styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
       backing: .buffered, defer: false)
     self.panel = panel
+    panel.onPreview = { [weak self] in self?.togglePreview() ?? false }
+    panel.onCancel = { [weak self] in self?.dismiss() }
     panel.title = L10n.translate("命令栏", language: language)
     panel.identifier = NSUserInterfaceItemIdentifier("XStatsCommandBar")
     panel.titleVisibility = .visible
@@ -185,8 +201,17 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     clearFavorites.target = self
     more.menu?.addItem(clearFavorites)
     more.isHidden = usage == nil
+    let actions = NSButton(
+      title: L10n.translate("动作", language: language) + " ⌘K",
+      target: self, action: #selector(showActions))
+    actions.keyEquivalent = "k"
+    actions.keyEquivalentModifierMask = [.command]
+    actions.bezelStyle = .inline
+    actions.isHidden = true
+    actionsButton = actions
 
-    for view in [searchBackground, searchIcon, field, scroll, empty, hint, favorite, more] {
+    for view in [searchBackground, searchIcon, field, scroll, empty, hint, actions, favorite, more]
+    {
       view.translatesAutoresizingMaskIntoConstraints = false
       background.addSubview(view)
     }
@@ -214,7 +239,9 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
       scroll.bottomAnchor.constraint(equalTo: hint.topAnchor, constant: -8),
       hint.leadingAnchor.constraint(equalTo: searchBackground.leadingAnchor),
       hint.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -12),
-      hint.trailingAnchor.constraint(lessThanOrEqualTo: favorite.leadingAnchor, constant: -8),
+      hint.trailingAnchor.constraint(lessThanOrEqualTo: actions.leadingAnchor, constant: -8),
+      actions.centerYAnchor.constraint(equalTo: hint.centerYAnchor),
+      actions.trailingAnchor.constraint(equalTo: favorite.leadingAnchor, constant: -8),
       favorite.centerYAnchor.constraint(equalTo: hint.centerYAnchor),
       favorite.trailingAnchor.constraint(equalTo: more.leadingAnchor, constant: -8),
       more.trailingAnchor.constraint(equalTo: searchBackground.trailingAnchor),
@@ -264,6 +291,8 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
   }
 
   func dismiss() {
+    closePreview(restoringFocus: false)
+    cancelLiveSearch()
     catalogTask?.cancel()
     catalogTask = nil
     sessionID = nil
@@ -282,10 +311,33 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     icons = [:]
     hintLabel = nil
     favoriteButton = nil
+    actionsButton = nil
   }
 
-  func windowDidResignKey(_ notification: Notification) { dismiss() }
-  func windowWillClose(_ notification: Notification) { dismiss() }
+  func windowDidResignKey(_ notification: Notification) {
+    guard previewPanel != nil else {
+      dismiss()
+      return
+    }
+    let session = sessionID
+    // 失焦通知先于新窗口获得焦点；下一轮再区分内部切换和离开整个命令栏。
+    Task { @MainActor [weak self] in
+      await Task.yield()
+      guard let self, self.sessionID == session else { return }
+      guard self.panel?.isKeyWindow != true, self.previewPanel?.isKeyWindow != true else {
+        return
+      }
+      self.dismiss()
+    }
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    if notification.object as? NSWindow === previewPanel {
+      closePreview(restoringFocus: true)
+    } else {
+      dismiss()
+    }
+  }
 
   func controlTextDidChange(_ notification: Notification) {
     refreshResults()
@@ -294,9 +346,99 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
   private func refreshResults(preservingSelection: Bool = false) {
     guard let field = searchField, let search else { return }
     let selectedID = selectedCommand?.id
+    if let request = CommandBarLiveRequest(field.stringValue) {
+      refreshLiveResults(request, selectedID: preservingSelection ? selectedID : nil)
+      return
+    }
+    cancelLiveSearch()
     results = search.results(
       for: field.stringValue, favorites: usage?.favorites ?? [], recent: usage?.recent ?? [])
     reloadResults(selectedID: preservingSelection ? selectedID : nil)
+  }
+
+  private func cancelLiveSearch(keepingFileIndex: Bool = false) {
+    liveTask?.cancel()
+    liveTask = nil
+    fileSearch.stop(keepingPinyinIndex: keepingFileIndex)
+    liveRequest = nil
+    processTargets = nil
+  }
+
+  private func refreshLiveResults(_ request: CommandBarLiveRequest, selectedID: String?) {
+    let previous = liveRequest
+    switch request {
+    case .files(let text), .revealFiles(let text):
+      guard request != previous else { return }
+      let keepingFileIndex: Bool
+      switch previous {
+      case .files, .revealFiles: keepingFileIndex = true
+      default: keepingFileIndex = false
+      }
+      cancelLiveSearch(keepingFileIndex: keepingFileIndex)
+      liveRequest = request
+      results = []
+      reloadResults()
+      guard CommandBarFileSearch.predicate(text) != nil else {
+        emptyLabel?.stringValue = L10n.translate("输入文件名以搜索", language: language)
+        return
+      }
+      emptyLabel?.stringValue = L10n.translate("正在搜索…", language: language)
+      let session = sessionID
+      liveTask = Task { [weak self] in
+        do { try await Task.sleep(for: .milliseconds(180)) } catch { return }
+        guard let self, self.sessionID == session, self.liveRequest == request else { return }
+        self.fileSearch.start(text) { [weak self] commands in
+          guard let self, self.sessionID == session, self.liveRequest == request else { return }
+          let selection = self.hasMovedSelection ? self.selectedCommand?.id : nil
+          self.results = commands.map { command in
+            guard case .revealFiles = request, let url = command.fileURL else { return command }
+            return AppCommand(
+              id: command.id, title: command.title, symbol: command.symbol,
+              keywords: command.keywords, action: .revealFile(url),
+              subtitle: command.subtitle, badge: command.badge)
+          }
+          self.emptyLabel?.stringValue = L10n.translate(
+            "没有匹配的项目", language: self.language)
+          self.reloadResults(selectedID: selection)
+        }
+      }
+    case .processes(let text):
+      if case .processes = previous {
+        liveRequest = request
+      } else {
+        cancelLiveSearch()
+        liveRequest = request
+        let excluded = Set(
+          NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular
+          }.map(\.processIdentifier))
+        let loader = processLoader
+        let session = sessionID
+        liveTask = Task { [weak self] in
+          let worker = Task.detached(priority: .userInitiated) {
+            let targets = try loader(excluded)
+            try Task.checkCancellation()
+            return targets
+          }
+          let targets = await withTaskCancellationHandler {
+            try? await worker.value
+          } onCancel: {
+            worker.cancel()
+          }
+          guard !Task.isCancelled, let self, self.sessionID == session,
+            case .processes = self.liveRequest
+          else { return }
+          self.liveTask = nil
+          self.processTargets = targets ?? []
+          self.refreshResults(preservingSelection: true)
+        }
+      }
+      results = Array((processTargets ?? []).lazy.filter { $0.matches(text) }.prefix(50))
+        .map { $0.command(language: language) }
+      emptyLabel?.stringValue = L10n.translate(
+        processTargets == nil ? "正在读取进程…" : "没有匹配的项目", language: language)
+      reloadResults(selectedID: selectedID)
+    }
   }
 
   private var selectedCommand: AppCommand? {
@@ -305,6 +447,11 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
   }
 
   private func reloadResults(selectedID: String? = nil) {
+    table?.rowHeight =
+      results.contains { !$0.subtitle.isEmpty } ? 52 : DS.Size.controlHeight + DS.Space.s2
+    if liveRequest == nil {
+      emptyLabel?.stringValue = L10n.translate("没有匹配的项目", language: language)
+    }
     table?.reloadData()
     emptyLabel?.isHidden = !results.isEmpty
     scroll?.isHidden = results.isEmpty
@@ -325,10 +472,20 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     case "port": hint = L10n.translate("port <端口号 1–65535>", language: language)
     case "brew": hint = L10n.translate("brew <软件包名>", language: language)
     case "ps": hint = L10n.translate("ps <进程名或 PID>", language: language)
+    case "kill": hint = L10n.translate("↑↓ 选择 · ↩ 结束", language: language)
+    case "find": hint = L10n.translate("↩ 在访达中显示 · ⌘Y 快速查看", language: language)
+    case "open": hint = L10n.translate("↩ 打开 · ⌘Y 快速查看", language: language)
     default: hint = L10n.translate("↑↓ 选择 · ↩ 打开", language: language)
     }
     hintLabel?.stringValue = hint
     hintLabel?.toolTip = hint
+    let supportsActions: Bool
+    switch selectedCommand?.action {
+    case .openFile, .revealFile, .terminateProcess: supportsActions = true
+    default: supportsActions = false
+    }
+    actionsButton?.isHidden = !supportsActions
+    actionsButton?.isEnabled = selectedCommand != nil
     let favorite = selectedCommand.map { usage?.favorites.contains($0.id) == true } ?? false
     favoriteButton?.title = L10n.translate(favorite ? "取消收藏" : "收藏", language: language) + " ⌘D"
     favoriteButton?.image = NSImage(
@@ -389,8 +546,167 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
   @objc private func executeSelection() {
     guard let row = table?.selectedRow, results.indices.contains(row) else { return }
     let command = results[row]
+    if case .completeQuery(let query) = command.action {
+      searchField?.stringValue = query
+      refreshResults()
+      panel?.makeFirstResponder(searchField)
+      return
+    }
     dismiss()
     onSelect(command)
+  }
+
+  @objc private func showActions(_ sender: NSButton) {
+    guard let menu = resultActionsMenu() else { return }
+    menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.maxY), in: sender)
+  }
+
+  func resultActionsMenu() -> NSMenu? {
+    guard let command = selectedCommand, let session = sessionID,
+      (searchField?.currentEditor() as? NSTextView)?.hasMarkedText() != true
+    else { return nil }
+    let entries: [(String, Int)]
+    switch command.action {
+    case .openFile, .revealFile:
+      entries = [
+        ("打开", 0), ("在访达中显示", 1), ("快速查看", 4),
+        ("打开方式", 5), ("拷贝路径", 2), ("移到废纸篓", 6),
+      ]
+    case .terminateProcess:
+      entries = [("结束进程", 0), ("强制退出", 3), ("拷贝 PID", 2)]
+    default: return nil
+    }
+    let menu = NSMenu()
+    for (title, tag) in entries {
+      let item = NSMenuItem(
+        title: L10n.translate(title, language: language),
+        action: #selector(performResultAction), keyEquivalent: "")
+      item.tag = tag
+      item.target = self
+      item.representedObject = (session, command)
+      if tag == 4 {
+        item.keyEquivalent = "y"
+        item.keyEquivalentModifierMask = .command
+      }
+      if tag == 5, let url = command.fileURL {
+        let apps = NSMenu()
+        for app in NSWorkspace.shared.urlsForApplications(toOpen: url).prefix(20) {
+          let entry = NSMenuItem(
+            title: app.deletingPathExtension().lastPathComponent,
+            action: #selector(openWithApplication), keyEquivalent: "")
+          entry.target = self
+          entry.representedObject = (session, command, app)
+          apps.addItem(entry)
+        }
+        let other = NSMenuItem(
+          title: L10n.translate("其他…", language: language),
+          action: #selector(performResultAction), keyEquivalent: "")
+        other.tag = 5
+        other.target = self
+        other.representedObject = (session, command)
+        apps.addItem(other)
+        item.submenu = apps
+      }
+      menu.addItem(item)
+    }
+    return menu
+  }
+
+  @objc private func openWithApplication(_ sender: NSMenuItem) {
+    guard
+      let (session, command, application) = sender.representedObject as? (UUID, AppCommand, URL),
+      sessionID == session, selectedCommand?.id == command.id, let url = command.fileURL
+    else { return }
+    dismiss()
+    CommandBarFileActions.open(url, using: application)
+  }
+
+  @objc private func performResultAction(_ sender: NSMenuItem) {
+    guard let (session, command) = sender.representedObject as? (UUID, AppCommand),
+      sessionID == session, selectedCommand?.id == command.id
+    else { return }
+    if sender.tag == 4 {
+      _ = togglePreview()
+      return
+    }
+    if sender.tag == 2 {
+      let value: String
+      switch command.action {
+      case .openFile(let url), .revealFile(let url): value = url.path
+      case .terminateProcess(let target): value = String(target.process.pid)
+      default: return
+      }
+      NSPasteboard.general.clearContents()
+      NSPasteboard.general.setString(value, forType: .string)
+      return
+    }
+    dismiss()
+    if let url = command.fileURL {
+      switch sender.tag {
+      case 0:
+        onSelect(
+          AppCommand(
+            id: command.id, title: command.title, symbol: command.symbol,
+            keywords: command.keywords, action: .openFile(url)))
+      case 1: NSWorkspace.shared.activateFileViewerSelecting([url])
+      case 5: CommandBarFileActions.chooseApplication(for: url)
+      case 6: CommandBarFileActions.confirmTrash(url)
+      default: break
+      }
+    } else if sender.tag == 3, case .terminateProcess(let target) = command.action {
+      CommandBarProcessActions.confirm(target, force: true)
+    } else {
+      onSelect(command)
+    }
+  }
+
+  @discardableResult
+  func togglePreview() -> Bool {
+    guard (searchField?.currentEditor() as? NSTextView)?.hasMarkedText() != true else {
+      return false
+    }
+    if previewPanel != nil {
+      closePreview(restoringFocus: true)
+      return true
+    }
+    guard let command = selectedCommand, let url = command.fileURL, let panel,
+      FileManager.default.fileExists(atPath: url.path),
+      let view = QLPreviewView(frame: NSRect(x: 0, y: 0, width: 640, height: 480), style: .normal)
+    else { return false }
+    let preview = CommandBarPanel(
+      contentRect: view.frame, styleMask: [.titled, .closable, .resizable, .nonactivatingPanel],
+      backing: .buffered, defer: false)
+    preview.isReleasedWhenClosed = false
+    preview.title = command.title
+    preview.contentView = view
+    preview.delegate = self
+    preview.level = .floating
+    preview.onPreview = { [weak self] in
+      self?.closePreview(restoringFocus: true)
+      return true
+    }
+    preview.onCancel = { [weak self] in self?.closePreview(restoringFocus: true) }
+    previewPanel = preview
+    view.autostarts = false
+    view.previewItem = url as NSURL
+    preview.setFrameOrigin(
+      NSPoint(x: panel.frame.midX - 320, y: panel.frame.midY - 240))
+    preview.makeKeyAndOrderFront(nil)
+    return true
+  }
+
+  private func closePreview(restoringFocus: Bool) {
+    guard let preview = previewPanel else { return }
+    previewPanel = nil
+    preview.delegate = nil
+    (preview.contentView as? QLPreviewView)?.close()
+    preview.orderOut(nil)
+    preview.close()
+    preview.contentView = nil
+    if restoringFocus {
+      panel?.makeKeyAndOrderFront(nil)
+      panel?.makeFirstResponder(searchField)
+    }
   }
 
   func numberOfRows(in tableView: NSTableView) -> Int { results.count }
@@ -408,12 +724,24 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
       ?? makeCell(identifier: identifier)
     let command = results[row]
     cell.textField?.stringValue = command.title
+    let subtitle =
+      (cell.subviews.first { $0 is NSStackView } as? NSStackView)?
+      .arrangedSubviews.last as? NSTextField
+    subtitle?.stringValue = command.subtitle
+    subtitle?.isHidden = command.subtitle.isEmpty
     if case .openApplication(let url) = command.action {
       if icons[url] == nil {
         if icons.count >= 64 { icons.removeAll(keepingCapacity: true) }
         icons[url] = NSWorkspace.shared.icon(forFile: url.path)
       }
       cell.imageView?.image = icons[url]
+      cell.imageView?.contentTintColor = nil
+      cell.toolTip = url.path
+    } else if let url = command.fileURL {
+      let type =
+        url.hasDirectoryPath
+        ? UTType.folder : (UTType(filenameExtension: url.pathExtension) ?? .data)
+      cell.imageView?.image = NSWorkspace.shared.icon(for: type)
       cell.imageView?.contentTintColor = nil
       cell.toolTip = url.path
     } else {
@@ -424,7 +752,9 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     }
     let badge = cell.subviews.first { $0.identifier?.rawValue == "badge" } as? NSTextField
     let badgeTitle: String
-    if usage?.favorites.contains(command.id) == true {
+    if !command.badge.isEmpty {
+      badgeTitle = command.badge
+    } else if usage?.favorites.contains(command.id) == true {
       badgeTitle = "收藏"
     } else if usage?.recent.contains(command.id) == true {
       badgeTitle = "最近使用"
@@ -444,6 +774,11 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     image.contentTintColor = NSColor(DS.Palette.textSecondary)
     image.symbolConfiguration = .init(pointSize: DS.Size.iconInline, weight: .regular)
     let label = NSTextField(labelWithString: "")
+    let subtitle = NSTextField(labelWithString: "")
+    subtitle.font = .systemFont(ofSize: DS.TextSize.xs.rawValue)
+    subtitle.textColor = .secondaryLabelColor
+    subtitle.lineBreakMode = .byTruncatingMiddle
+    subtitle.isHidden = true
     let badge = NSTextField(labelWithString: "")
     badge.identifier = NSUserInterfaceItemIdentifier("badge")
     badge.font = .systemFont(ofSize: DS.TextSize.xs.rawValue)
@@ -455,7 +790,12 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     cell.userInterfaceLayoutDirection = table?.userInterfaceLayoutDirection ?? .leftToRight
     label.userInterfaceLayoutDirection = cell.userInterfaceLayoutDirection
     label.alignment = cell.userInterfaceLayoutDirection == .rightToLeft ? .right : .left
-    for view in [image, label, badge] {
+    subtitle.alignment = label.alignment
+    let text = NSStackView(views: [label, subtitle])
+    text.orientation = .vertical
+    text.alignment = cell.userInterfaceLayoutDirection == .rightToLeft ? .trailing : .leading
+    text.spacing = 2
+    for view in [image, text, badge] {
       view.translatesAutoresizingMaskIntoConstraints = false
       cell.addSubview(view)
     }
@@ -466,15 +806,33 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
       image.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
       image.widthAnchor.constraint(equalToConstant: DS.Size.iconStandalone),
       image.heightAnchor.constraint(equalToConstant: DS.Size.iconStandalone),
-      label.leadingAnchor.constraint(equalTo: image.trailingAnchor, constant: DS.Space.s3),
-      label.trailingAnchor.constraint(
+      text.leadingAnchor.constraint(equalTo: image.trailingAnchor, constant: DS.Space.s3),
+      text.trailingAnchor.constraint(
         lessThanOrEqualTo: badge.leadingAnchor, constant: -DS.Space.s3),
       badge.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -DS.Space.s4),
       badge.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-      label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+      text.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+      label.widthAnchor.constraint(lessThanOrEqualTo: text.widthAnchor),
+      subtitle.widthAnchor.constraint(lessThanOrEqualTo: text.widthAnchor),
     ])
     return cell
   }
+}
+
+private final class CommandBarPanel: NSPanel {
+  var onPreview: () -> Bool = { false }
+  var onCancel: () -> Void = {}
+
+  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    if event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
+      event.charactersIgnoringModifiers?.lowercased() == "y", onPreview()
+    {
+      return true
+    }
+    return super.performKeyEquivalent(with: event)
+  }
+
+  override func cancelOperation(_ sender: Any?) { onCancel() }
 }
 
 private final class CommandBarRowView: NSTableRowView {

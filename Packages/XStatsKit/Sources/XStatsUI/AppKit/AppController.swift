@@ -226,6 +226,18 @@ public final class AppController: NSObject, NSApplicationDelegate {
           self.showCommandBarLaunchError()
           return
         }
+      case .completeQuery:
+        return
+      case .openFile(let url):
+        guard NSWorkspace.shared.open(url) else {
+          self.showCommandBarLaunchError()
+          return
+        }
+      case .revealFile(let url):
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+      case .terminateProcess(let target):
+        CommandBarProcessActions.confirm(target)
+        return
       case .openApplication(let url):
         NSWorkspace.shared.openApplication(
           at: url, configuration: NSWorkspace.OpenConfiguration()

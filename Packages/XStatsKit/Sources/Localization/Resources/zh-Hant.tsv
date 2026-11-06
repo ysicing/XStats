@@ -2,6 +2,11 @@
 # XStats modifications Copyright (C) 2026 ysicing
 # SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
 文件夹	資料夾
+快速查看	快速查看
+打开方式	打開方式
+其他…	其他…
+↩ 在访达中显示 · ⌘Y 快速查看	↩ 在 Finder 中顯示 · ⌘Y 快速查看
+↩ 打开 · ⌘Y 快速查看	↩ 打開 · ⌘Y 快速查看
 整理应用	整理 App
 返回	返回
 重命名	重新命名
@@ -2852,3 +2857,10 @@ Pages 文稿	Pages 文件
 UTC 时间	UTC 時間
 美西时间	美西時間
 查看当地、UTC 与美西时间。	查看當地、UTC 與美西時間。
+搜索文件	搜尋檔案
+结束进程	結束程序
+文件	檔案
+输入文件名以搜索	輸入檔名以搜尋
+正在搜索…	正在搜尋…
+动作	動作
+↑↓ 选择 · ↩ 结束	↑↓ 選擇 · ↩ 結束

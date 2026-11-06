@@ -62,6 +62,18 @@ extension Translations {
     """#
 
   static let commandBarEnglish = #"""
+    搜索文件	Search Files
+    结束进程	End Process
+    文件	File
+    输入文件名以搜索	Enter a filename to search
+    正在搜索…	Searching…
+    动作	Actions
+    ↑↓ 选择 · ↩ 结束	↑↓ Select · ↩ End
+    快速查看	Quick Look
+    打开方式	Open With
+    其他…	Other…
+    ↩ 在访达中显示 · ⌘Y 快速查看	↩ Show in Finder · ⌘Y Quick Look
+    ↩ 打开 · ⌘Y 快速查看	↩ Open · ⌘Y Quick Look
     文件夹	Folder
     整理应用	Edit Apps
     返回	Back

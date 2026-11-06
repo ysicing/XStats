@@ -9,6 +9,8 @@ struct CommandBarLocalizationTests {
   func newCommandLabelsHaveExplicitTranslations(language: AppLanguage) throws {
     let table = try #require(Translations.catalog(for: language))
     for key in [
+      "搜索文件", "结束进程", "文件", "输入文件名以搜索", "正在搜索…", "动作", "↑↓ 选择 · ↩ 结束",
+      "快速查看", "打开方式", "↩ 在访达中显示 · ⌘Y 快速查看", "↩ 打开 · ⌘Y 快速查看", "其他…",
       "命令栏", "搜索功能与操作", "暂停专注", "开启防休眠", "停止防休眠", "切换麦克风静音", "切换到下一个音频输出",
       "启动台", "命令栏与启动台", "无法读取应用，请关闭后重试。", "搜索应用", "上一页", "下一页",
       "文件夹", "整理应用", "返回", "重命名", "仅移除应用，保留文稿和个人数据。", "无法移除应用",

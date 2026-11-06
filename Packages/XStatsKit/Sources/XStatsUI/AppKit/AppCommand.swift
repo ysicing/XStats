@@ -4,7 +4,7 @@
 import Foundation
 import Localization
 
-/// 描述固定入口或本机应用；执行仍由原有路由负责功能开关、权限和忙碌保护。
+/// 描述命令栏入口与即时搜索结果；执行由路由负责功能开关、权限和忙碌保护。
 struct AppCommand: Identifiable, Sendable {
   enum Action: Equatable, Sendable {
     case route(AppDeepLink)
@@ -20,6 +20,10 @@ struct AppCommand: Identifiable, Sendable {
     case localIPQuery
     case systemSetting(CommandBarSystemSetting)
     case launchpad
+    case completeQuery(String)
+    case openFile(URL)
+    case revealFile(URL)
+    case terminateProcess(CommandBarProcessTarget)
   }
 
   let id: String
@@ -27,13 +31,24 @@ struct AppCommand: Identifiable, Sendable {
   let symbol: String
   let keywords: String
   let action: Action
+  var subtitle: String = ""
+  var badge: String = ""
 
   var usageID: String {
     switch action {
     case .findPort: "page.ports"
     case .findPackage: "homebrew"
     case .findProcesses: "page.processes"
+    case .openFile, .revealFile: "search.files"
+    case .terminateProcess: "search.processes"
     default: id
+    }
+  }
+
+  var fileURL: URL? {
+    switch action {
+    case .openFile(let url), .revealFile(let url): url
+    default: nil
     }
   }
 
@@ -53,6 +68,12 @@ struct AppCommand: Identifiable, Sendable {
           keywords: "launchpad apps 应用 启动台", action: .launchpad))
     }
     commands += [
+      AppCommand(
+        id: "search.files", title: tr("搜索文件"), symbol: "doc.text.magnifyingglass",
+        keywords: "open find files 文件 文稿", action: .completeQuery("open ")),
+      AppCommand(
+        id: "search.processes", title: tr("结束进程"), symbol: "terminal",
+        keywords: "kill process 结束 进程", action: .completeQuery("kill ")),
       AppCommand(
         id: "localIP", title: tr("本机 IP 查询"), symbol: "globe",
         keywords: "ip local address 本机 地址", action: .localIPQuery),

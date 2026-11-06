@@ -1,6 +1,11 @@
 # Copyright (C) 2026 ysicing
 # SPDX-License-Identifier: AGPL-3.0-or-later
 文件夹	Dossier
+快速查看	Coup d’œil
+打开方式	Ouvrir avec
+其他…	Autre…
+↩ 在访达中显示 · ⌘Y 快速查看	↩ Afficher dans le Finder · ⌘Y Coup d’œil
+↩ 打开 · ⌘Y 快速查看	↩ Ouvrir · ⌘Y Coup d’œil
 整理应用	Modifier les apps
 返回	Retour
 重命名	Renommer
@@ -2851,3 +2856,10 @@ Pages 文稿	Document Pages
 UTC 时间	Heure UTC
 美西时间	Heure du Pacifique des États-Unis
 查看当地、UTC 与美西时间。	Consultez l’heure locale, UTC et du Pacifique des États-Unis.
+搜索文件	Rechercher des fichiers
+结束进程	Terminer le processus
+文件	Fichier
+输入文件名以搜索	Saisissez un nom de fichier à rechercher
+正在搜索…	Recherche…
+动作	Actions
+↑↓ 选择 · ↩ 结束	↑↓ Sélectionner · ↩ Terminer
