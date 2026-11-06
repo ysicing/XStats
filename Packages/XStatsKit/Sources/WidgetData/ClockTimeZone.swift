@@ -28,8 +28,12 @@ public enum ClockTimeZone: String, CaseIterable, Identifiable, Sendable {
   }
 
   public func timeStyle(locale: Locale, includesSeconds: Bool = true) -> Date.FormatStyle {
+    var components = Locale.Components(locale: locale)
+    if locale.language.languageCode == .chinese {
+      components.hourCycle = .zeroToTwentyThree
+    }
     let style = Date.FormatStyle(
-      date: .omitted, time: .omitted, locale: locale, timeZone: timeZone
+      date: .omitted, time: .omitted, locale: Locale(components: components), timeZone: timeZone
     ).hour(.twoDigits(amPM: .abbreviated)).minute(.twoDigits)
     return includesSeconds ? style.second(.twoDigits) : style
   }

@@ -70,6 +70,24 @@ import WidgetData
       ).format(date).contains("PM"))
   }
 
+  @Test(arguments: [
+    "zh_Hans", "zh_Hans_CN", "zh_Hans_SG", "zh_Hant", "zh_Hant_TW", "zh_Hant_HK",
+  ])
+  func chineseClocksDistinguishMidnightAndNoon(localeID: String) throws {
+    let locale = Locale(identifier: localeID)
+    for (instant, time) in [
+      ("2026-11-06T08:50:41Z", "00:50:41"),
+      ("2026-11-06T20:50:41Z", "12:50:41"),
+      ("2026-11-07T07:50:41Z", "23:50:41"),
+    ] {
+      let date = try #require(ISO8601DateFormatter().date(from: instant))
+      #expect(ClockTimeZone.pacific.timeStyle(locale: locale).format(date) == time)
+      #expect(
+        ClockTimeZone.pacific.timeStyle(locale: locale, includesSeconds: false).format(date)
+          == String(time.prefix(5)))
+    }
+  }
+
   @Test func clockPagePreservesTimersAndDisablesTimerKeys() async throws {
     let suite = "TimerPopoverTimeZoneTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

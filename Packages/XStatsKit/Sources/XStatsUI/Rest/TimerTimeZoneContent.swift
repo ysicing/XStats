@@ -23,6 +23,7 @@ struct TimerTimeZoneContent: View {
   private func clocks(at date: Date) -> some View {
     VStack(spacing: 0) {
       ForEach(ClockTimeZone.allCases) { zone in
+        let timeStyle = zone.timeStyle(locale: locale)
         if zone != .local { Divider() }
         HStack(spacing: 12) {
           VStack(alignment: .leading, spacing: 4) {
@@ -39,8 +40,9 @@ struct TimerTimeZoneContent: View {
               .font(.system(size: 11)).foregroundStyle(.secondary)
           }
           Spacer(minLength: 0)
-          Text(date, format: zone.timeStyle(locale: locale))
+          Text(date, format: timeStyle)
             .font(.system(size: 24, weight: .light)).monospacedDigit()
+            .environment(\.locale, timeStyle.locale)
             .environment(\.layoutDirection, .leftToRight)
         }
         .environment(\.timeZone, zone.timeZone)

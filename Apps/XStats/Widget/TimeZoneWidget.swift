@@ -57,6 +57,7 @@ struct TimeZoneWidgetView: View {
   var body: some View {
     VStack(spacing: 0) {
       ForEach(ClockTimeZone.allCases) { zone in
+        let timeStyle = zone.timeStyle(locale: locale, includesSeconds: false)
         if zone != .local { Divider() }
         HStack(spacing: 12) {
           VStack(alignment: .leading, spacing: 2) {
@@ -74,8 +75,9 @@ struct TimeZoneWidgetView: View {
               .lineLimit(1).minimumScaleFactor(0.8)
           }
           Spacer(minLength: 0)
-          clockText(style: zone.timeStyle(locale: locale, includesSeconds: false))
+          clockText(style: timeStyle)
             .font(.system(size: 24, weight: .light)).monospacedDigit()
+            .environment(\.locale, timeStyle.locale)
             .lineLimit(1).minimumScaleFactor(0.8)
             .fixedSize(horizontal: true, vertical: false)
             .environment(\.layoutDirection, .leftToRight)

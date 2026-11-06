@@ -18,6 +18,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private let model: AppModel
   private let widgetStore: WidgetSnapshotStore
   private let reloadWidget: (String) -> Void
+  private let applicationInstance: ApplicationInstance?
   private var menuBarFolding: MenuBarFoldingController!
   private var menuBar: MenuBarController!
   private var calendarMenuBar: CalendarMenuBarController!
@@ -52,18 +53,24 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private var hubPauseTask: Task<Void, Never>?
 
   public override convenience init() {
+    self.init(applicationInstance: nil)
+  }
+
+  convenience init(applicationInstance: ApplicationInstance?) {
     self.init(
       model: AppModel(),
-      widgetStore: WidgetSnapshotStore())
+      widgetStore: WidgetSnapshotStore(), applicationInstance: applicationInstance)
   }
 
   init(
     model: AppModel, widgetStore: WidgetSnapshotStore,
-    reloadWidget: @escaping (String) -> Void = { WidgetCenter.shared.reloadTimelines(ofKind: $0) }
+    reloadWidget: @escaping (String) -> Void = { WidgetCenter.shared.reloadTimelines(ofKind: $0) },
+    applicationInstance: ApplicationInstance? = nil
   ) {
     self.model = model
     self.widgetStore = widgetStore
     self.reloadWidget = reloadWidget
+    self.applicationInstance = applicationInstance
     super.init()
   }
 
@@ -314,10 +321,41 @@ public final class AppController: NSObject, NSApplicationDelegate {
     hotKeys.onAction = { [weak self] action in self?.perform(action) }
     applyHotKeys()
 
-    // 开发调试：--show-panel [overview|cpu|memory|network|gpu|disk|temperature|fan|battery|aiUsage] 启动后展开并固定弹窗
-    // （overview 是合并模式的状态总览；合并模式下给某一项则打开面板并切到这一项）；--show-window 打开主窗口；
-    // --show-egress 打开出口与分流窗口
     let arguments = CommandLine.arguments
+    handleLaunchArguments(arguments)
+
+    let appModel = model
+    appModel.bluetooth.setDemand(appModel.bluetoothDemand)
+    appModel.sleepAssertions.setVisible(appModel.sleepAssertionsVisible)
+    appModel.displays.setVisible(appModel.displayControlsVisible)
+    Task { [weak self] in
+      await appModel.hub.update(appModel.demand)
+      await appModel.hub.start(primeAllMetrics: false) { [weak self] snapshot in
+        appModel.handle(snapshot)
+        if !snapshot.isSafetySample { self?.menuBar.refreshImages() }
+      }
+    }
+    deepLinksReady = true
+    model.finderDocuments.start()
+    if ApplicationLaunch.showsMainWindow(
+      event: launchEvent, arguments: arguments, hasPendingDeepLink: !pendingDeepLinks.isEmpty,
+      showMainWindowOnLaunch: model.settings.showMainWindowOnLaunch)
+    {
+      mainWindow.show(tab: nil)
+    }
+    applicationInstance?.handleRequests { [weak self] request in
+      guard let self else { return }
+      handleLaunchArguments(request.arguments)
+      application(NSApp, open: request.urls)
+      if request.reopen { mainWindow.show(tab: nil) }
+    }
+    updateActivationPolicy()
+    drainDeepLinks()
+  }
+
+  private func handleLaunchArguments(_ arguments: [String]) {
+    // 首次和重复启动共用参数入口，重复进程本身不创建窗口或修改业务偏好。
+    // --show-panel 固定指定面板；overview 是合并模式的总览。
     if let index = arguments.firstIndex(of: "--show-panel") {
       let argument = arguments.dropFirst(index + 1).first
       let item = argument.flatMap(MenuBarItem.init(rawValue:)) ?? .network
@@ -374,28 +412,6 @@ public final class AppController: NSObject, NSApplicationDelegate {
         self.model.explainProcess(.init(process))
       }
     }
-
-    let appModel = model
-    appModel.bluetooth.setDemand(appModel.bluetoothDemand)
-    appModel.sleepAssertions.setVisible(appModel.sleepAssertionsVisible)
-    appModel.displays.setVisible(appModel.displayControlsVisible)
-    Task { [weak self] in
-      await appModel.hub.update(appModel.demand)
-      await appModel.hub.start(primeAllMetrics: false) { [weak self] snapshot in
-        appModel.handle(snapshot)
-        if !snapshot.isSafetySample { self?.menuBar.refreshImages() }
-      }
-    }
-    deepLinksReady = true
-    model.finderDocuments.start()
-    if ApplicationLaunch.showsMainWindow(
-      event: launchEvent, arguments: arguments, hasPendingDeepLink: !pendingDeepLinks.isEmpty,
-      showMainWindowOnLaunch: model.settings.showMainWindowOnLaunch)
-    {
-      mainWindow.show(tab: nil)
-    }
-    updateActivationPolicy()
-    drainDeepLinks()
   }
 
   public func applicationDidBecomeActive(_ notification: Notification) {
@@ -1434,6 +1450,26 @@ public enum XStatsApplication {
       AppleIntelligenceDiagnostics.writeReport()
       return
     }
+    let instance: ApplicationInstance?
+    if CommandLine.arguments.contains("--snapshot") {
+      instance = nil
+    } else {
+      do {
+        instance = try ApplicationInstance.acquire()
+      } catch {
+        Log.app.error("Cannot acquire application instance lock: \(error, privacy: .private)")
+        exit(EXIT_FAILURE)
+      }
+      if let instance, !instance.isPrimary {
+        Log.app.notice("Forwarding duplicate launch to the running XStats instance")
+        let app = NSApplication.shared
+        let relay = DuplicateApplicationLaunch(instance: instance, arguments: CommandLine.arguments)
+        app.delegate = relay
+        app.setActivationPolicy(.prohibited)
+        withExtendedLifetime(relay) { app.run() }
+        return
+      }
+    }
     // 滚动条一律用浮层样式：接了鼠标时系统默认是常驻滚动条，SwiftUI 的 ScrollView 会给它预留一条宽度，
     // 弹窗里的内容就会整体偏左。这是本应用自己的偏好域，只影响 XStats
     if CommandLine.arguments.contains("--snapshot") {
@@ -1472,7 +1508,7 @@ public enum XStatsApplication {
     }
     stored.applyToProcessLocale()
 
-    let controller = AppController()
+    let controller = AppController(applicationInstance: instance)
     app.delegate = controller
     app.setActivationPolicy(.accessory)
     withExtendedLifetime(controller) {
