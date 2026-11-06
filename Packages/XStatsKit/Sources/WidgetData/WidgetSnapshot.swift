@@ -420,7 +420,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     {
       kinds.append(WidgetKind.calendarMonth)
     }
-    if relocalized { kinds.append(WidgetKind.system) }
+    if relocalized { kinds += [WidgetKind.system, WidgetKind.timeZones] }
     return kinds
   }
 
@@ -464,6 +464,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
 /// 各 Widget 的 kind，主应用据此按需重载
 public enum WidgetKind {
   public static let system = "work.12306.xstats.widget.system"
+  public static let timeZones = "work.12306.xstats.widget.timeZones"
   public static let aiQuota = "work.12306.xstats.widget.aiQuota"
   public static let todayTokens = "work.12306.xstats.widget.todayTokens"
   public static let ipPurity = "work.12306.xstats.widget.ipPurity"

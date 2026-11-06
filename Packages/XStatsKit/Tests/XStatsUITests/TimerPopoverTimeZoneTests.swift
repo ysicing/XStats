@@ -4,14 +4,33 @@ import AppKit
 import Localization
 import SwiftUI
 import Testing
+import WidgetData
 @testable import XStatsUI
 
 @MainActor struct TimerPopoverTimeZoneTests {
   @Test func clockOrderAndLocalZoneFollowTheSystem() {
-    #expect(TimerTimeZone.allCases == [.local, .utc, .pacific])
-    #expect(TimerTimeZone.local.timeZone == .autoupdatingCurrent)
-    #expect(TimerTimeZone.utc.timeZone.secondsFromGMT() == 0)
-    #expect(TimerTimeZone.pacific.timeZone.identifier == "America/Los_Angeles")
+    #expect(ClockTimeZone.allCases == [.local, .utc, .pacific])
+    #expect(ClockTimeZone.local.timeZone == .autoupdatingCurrent)
+    #expect(ClockTimeZone.utc.timeZone.secondsFromGMT() == 0)
+    #expect(ClockTimeZone.pacific.timeZone.identifier == "America/Los_Angeles")
+  }
+
+  @Test(arguments: [
+    ("Asia/Singapore", "zh_CN", "新加坡时间"),
+    ("Asia/Singapore", "en_US", "Singapore Time"),
+    ("America/Los_Angeles", "zh_CN", "洛杉矶时间"),
+    ("America/Los_Angeles", "en_US", "Los Angeles Time"),
+  ])
+  func localClockNameUsesTheSystemZone(
+    identifier: String, locale: String, name: String
+  ) throws {
+    var style = ClockTimeZone.local.locationStyle(locale: Locale(identifier: locale))
+    #expect(style.timeZone == .autoupdatingCurrent)
+    style.timeZone = try #require(TimeZone(identifier: identifier))
+    for instant in ["2026-01-01T00:30:00Z", "2026-07-01T00:30:00Z"] {
+      let date = try #require(ISO8601DateFormatter().date(from: instant))
+      #expect(style.format(date) == name)
+    }
   }
 
   @Test(arguments: [
@@ -24,22 +43,31 @@ import Testing
   ])
   func pacificClockFollowsDaylightSaving(instant: String, time: String, offset: Int) throws {
     let date = try #require(ISO8601DateFormatter().date(from: instant))
-    #expect(TimerTimeZone.pacific.time(at: date, locale: Locale(identifier: "en_GB")) == time)
-    #expect(TimerTimeZone.pacific.timeZone.secondsFromGMT(for: date) == offset * 3600)
+    let locale = Locale(identifier: "en_GB")
+    #expect(ClockTimeZone.pacific.timeStyle(locale: locale).format(date) == time)
+    #expect(
+      ClockTimeZone.pacific.timeStyle(locale: locale, includesSeconds: false).format(date)
+        == String(time.prefix(5)))
+    #expect(ClockTimeZone.pacific.timeZone.secondsFromGMT(for: date) == offset * 3600)
   }
 
   @Test func datesMakePreviousDayAndYearVisible() throws {
     let date = try #require(ISO8601DateFormatter().date(from: "2026-01-01T00:30:00Z"))
     #expect(
-      TimerTimeZone.utc.time(at: date, locale: Locale(identifier: "en_GB")) == "00:30:00")
+      ClockTimeZone.utc.timeStyle(locale: Locale(identifier: "en_GB")).format(date) == "00:30:00")
     #expect(
-      TimerTimeZone.utc.calendarDate(at: date, locale: Locale(identifier: "en_US")) == "Jan 1, 2026"
+      ClockTimeZone.utc.dateStyle(locale: Locale(identifier: "en_US")).format(date) == "Jan 1, 2026"
     )
     #expect(
-      TimerTimeZone.pacific.calendarDate(at: date, locale: Locale(identifier: "en_US"))
+      ClockTimeZone.pacific.dateStyle(locale: Locale(identifier: "en_US")).format(date)
         == "Dec 31, 2025")
     #expect(
-      TimerTimeZone.pacific.time(at: date, locale: Locale(identifier: "en_US")).contains("PM"))
+      ClockTimeZone.pacific.timeStyle(locale: Locale(identifier: "en_US")).format(date).contains(
+        "PM"))
+    #expect(
+      ClockTimeZone.pacific.timeStyle(
+        locale: Locale(identifier: "en_US"), includesSeconds: false
+      ).format(date).contains("PM"))
   }
 
   @Test func clockPagePreservesTimersAndDisablesTimerKeys() async throws {

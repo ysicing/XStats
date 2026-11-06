@@ -178,7 +178,7 @@ Accounts, addresses, processes, live metrics, usage and cleanup results in scree
 
 ### Integrations
 
-- **Desktop widgets**: system overview, Pomodoro, AI quotas and cumulative tokens, calendar and month view, “Work tomorrow?”, IP purity and public IP.
+- **Desktop widgets**: system overview, Pomodoro, time zone clocks, AI quotas and cumulative tokens, calendar and month view, “Work tomorrow?”, IP purity and public IP.
 - **Languages**: 简体中文, 繁體中文, English, 日本語, 한국어, Deutsch, Español, Français, العربية.
 - **Deep links**: open common views via `xstats://` from launchers, Shortcuts or the terminal. Disabled modules lead to Settings and are never enabled implicitly.
 

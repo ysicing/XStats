@@ -13,6 +13,8 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 HARNESS = r"""
+import Vision
+
 @main
 struct WidgetGallery {
   @MainActor
@@ -21,6 +23,7 @@ struct WidgetGallery {
     L10n.configure(.chinese)
     let output = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
     try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+    try timeZonePreviews(output)
     let day = CalendarEngine.day(year: 2026, month: 9, day: 23)!
     let tomorrow = CalendarEngine.day(year: 2026, month: 9, day: 24)!
     let features = CalendarFeature.mainlandChinaDefaults
@@ -78,6 +81,69 @@ struct WidgetGallery {
   }
 
   @MainActor
+  static func timeZonePreviews(_ output: URL) throws {
+    let date = ISO8601DateFormatter().date(from: "2026-01-01T00:30:12Z")!
+    let live = TimeZoneProvider.timeline(at: date, language: .french, usesLiveClock: true)
+    precondition(live.entries.count == 1 && live.entries[0].date == date)
+    precondition(live.entries[0].language == .french && !live.entries[0].isPreview)
+    precondition(live.policy == .after(date.addingTimeInterval(6 * 3600)))
+    for instant in [
+      "2026-01-01T00:30:12Z", "2026-03-08T09:59:59Z", "2026-11-01T08:59:59Z",
+    ] {
+      let start = ISO8601DateFormatter().date(from: instant)!
+      let timeline = TimeZoneProvider.timeline(
+        at: start, language: .arabic, usesLiveClock: false)
+      precondition(timeline.entries.count == 361 && timeline.entries[0].date == start)
+      precondition(timeline.policy == .atEnd)
+      precondition(timeline.entries.allSatisfy { $0.language == .arabic && !$0.isPreview })
+      let future = Array(timeline.entries.dropFirst())
+      precondition(future[0].date > start && future[0].date.timeIntervalSince(start) <= 60)
+      precondition(future.allSatisfy {
+        $0.date.timeIntervalSince1970.truncatingRemainder(dividingBy: 60) == 0
+      })
+      precondition(zip(future, future.dropFirst()).allSatisfy {
+        $1.date.timeIntervalSince($0.date) == 60
+      })
+      precondition(future.last!.date.timeIntervalSince(start) <= 6 * 3600)
+    }
+    for language in AppLanguage.allCases where language != .system {
+      for dark in [false, true] {
+        NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        let suffix = dark ? "dark" : "light"
+        let view = TimeZoneWidgetView(
+          entry: TimeZoneEntry(date: date, language: language, isPreview: true))
+        try write(
+          card(view, width: 344, height: 164), dark: dark,
+          to: output.appendingPathComponent(
+            "widget-time-zones-\(language.languageCode)-\(suffix).png"))
+        if language == .english && !dark {
+          let request = VNRecognizeTextRequest()
+          request.recognitionLevel = .accurate
+          request.recognitionLanguages = ["en-US"]
+          request.usesLanguageCorrection = false
+          let url = output.appendingPathComponent(
+            "widget-time-zones-\(language.languageCode)-\(suffix).png")
+          try VNImageRequestHandler(url: url).perform([request])
+          let recognized = (request.results ?? []).compactMap {
+            $0.topCandidates(1).first?.string
+          }.joined().filter { !$0.isWhitespace }
+          let location = ClockTimeZone.local.locationStyle(
+            locale: L10n.locale(for: language)
+          ).format(date).filter { !$0.isWhitespace }
+          precondition(recognized.contains(location), "Rendered local time zone name mismatch")
+          for zone in ClockTimeZone.allCases {
+            let expected = zone.timeStyle(
+              locale: L10n.locale(for: language), includesSeconds: false
+            ).format(date).filter { !$0.isWhitespace }
+            precondition(recognized.contains(expected), "Rendered clock mismatch: \(zone)")
+          }
+        }
+      }
+    }
+    print("Time zone timeline checks and nine-language previews passed")
+  }
+
+  @MainActor
   static func card<V: View>(_ view: V, width: CGFloat, height: CGFloat, inset: CGFloat = 16)
     -> some View
   {
@@ -128,7 +194,7 @@ def main() -> None:
         parser.error("先执行 swift build --package-path Packages/XStatsKit --jobs 2 --target XStatsUI")
     # 只将 WidgetKit 容器改为截图画布，并显式注入 family；业务布局仍取自当前源码。
     sources = []
-    for name in ("SharedDataWidgets.swift", "CalendarWidget.swift"):
+    for name in ("SharedDataWidgets.swift", "CalendarWidget.swift", "TimeZoneWidget.swift"):
         text = (ROOT / "Apps/XStats/Widget" / name).read_text()
         text = text.replace(
             r"@Environment(\.widgetFamily) private var family",

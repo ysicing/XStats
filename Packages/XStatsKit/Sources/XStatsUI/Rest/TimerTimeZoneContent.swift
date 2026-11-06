@@ -2,40 +2,7 @@
 
 import Localization
 import SwiftUI
-
-enum TimerTimeZone: String, CaseIterable, Identifiable {
-  case local
-  case utc = "UTC"
-  case pacific = "America/Los_Angeles"
-
-  var id: String { rawValue }
-
-  var title: String {
-    switch self {
-    case .local: "当地时间"
-    case .utc: "UTC 时间"
-    case .pacific: "美西时间"
-    }
-  }
-
-  var timeZone: TimeZone {
-    self == .local ? .autoupdatingCurrent : TimeZone(identifier: rawValue)!
-  }
-
-  func time(at date: Date, locale: Locale) -> String {
-    date.formatted(
-      Date.FormatStyle(
-        date: .omitted, time: .omitted, locale: locale, timeZone: timeZone
-      ).hour(.twoDigits(amPM: .abbreviated)).minute(.twoDigits).second(.twoDigits))
-  }
-
-  func calendarDate(at date: Date, locale: Locale) -> String {
-    date.formatted(
-      Date.FormatStyle(
-        date: .omitted, time: .omitted, locale: locale, timeZone: timeZone
-      ).year().month(.abbreviated).day())
-  }
-}
+import WidgetData
 
 struct TimerTimeZoneContent: View {
   var language: AppLanguage
@@ -55,20 +22,28 @@ struct TimerTimeZoneContent: View {
 
   private func clocks(at date: Date) -> some View {
     VStack(spacing: 0) {
-      ForEach(TimerTimeZone.allCases) { zone in
+      ForEach(ClockTimeZone.allCases) { zone in
         if zone != .local { Divider() }
         HStack(spacing: 12) {
           VStack(alignment: .leading, spacing: 4) {
-            Text(L10n.translate(zone.title, language: language))
-              .font(.system(size: 12, weight: .medium))
-            Text(zone.calendarDate(at: date, locale: locale))
+            Group {
+              if zone == .local {
+                Text(date, format: zone.locationStyle(locale: locale))
+              } else {
+                Text(L10n.translate(zone.title, language: language))
+              }
+            }
+            .font(.system(size: 12, weight: .medium))
+            .lineLimit(1).minimumScaleFactor(0.75)
+            Text(date, format: zone.dateStyle(locale: locale))
               .font(.system(size: 11)).foregroundStyle(.secondary)
           }
           Spacer(minLength: 0)
-          Text(zone.time(at: date, locale: locale))
+          Text(date, format: zone.timeStyle(locale: locale))
             .font(.system(size: 24, weight: .light)).monospacedDigit()
             .environment(\.layoutDirection, .leftToRight)
         }
+        .environment(\.timeZone, zone.timeZone)
         .padding(.vertical, 12)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("timer-time-zone-\(zone.id)")

@@ -243,6 +243,7 @@ struct XStatsWidgets: WidgetBundle {
   var body: some Widget {
     SystemWidget()
     RestWidget()
+    TimeZoneWidget()
     CalendarWidget()
     MonthCalendarWidget()
     TomorrowWorkWidget()

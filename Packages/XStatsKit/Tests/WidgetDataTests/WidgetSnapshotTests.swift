@@ -526,7 +526,7 @@ func snapshotPreservesEveryWeekStartAndReloadsCalendars(firstWeekday: Int) throw
       WidgetKind.aiQuota, WidgetKind.todayTokens,
       WidgetKind.ipPurity, WidgetKind.publicIP,
       WidgetKind.calendar, WidgetKind.tomorrowWork,
-      WidgetKind.calendarMonth, WidgetKind.system,
+      WidgetKind.calendarMonth, WidgetKind.system, WidgetKind.timeZones,
     ])
 }
 
