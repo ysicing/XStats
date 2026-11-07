@@ -3,18 +3,19 @@ import AppKit
 import UniformTypeIdentifiers
 
 @MainActor public enum DockIconRenderer {
-  private static var mascots: [DockIconProduct: NSImage] = [:]
+  private static var mascots: [DockIconProduct: (url: URL, image: NSImage)] = [:]
   private static let systemIcon = SystemAppIcon(bundle: .main)
   public static let standardIcon =
     systemIcon.standardImage ?? NSWorkspace.shared.icon(for: .applicationBundle)
 
-  public static func mascot(for product: DockIconProduct) -> NSImage? {
-    if let image = mascots[product] { return image }
-    guard let url = Bundle.module.url(forResource: product.rawValue, withExtension: "png"),
-      let artwork = NSImage(contentsOf: url)
-    else { return nil }
+  public static func mascot(for product: DockIconProduct, in bundle: Bundle = .main) -> NSImage? {
+    guard let url = bundle.url(forResource: product.rawValue, withExtension: "png") else {
+      return nil
+    }
+    if let cached = mascots[product], cached.url == url { return cached.image }
+    guard let artwork = NSImage(contentsOf: url) else { return nil }
     let image = DockIconCanvas.image(artwork: artwork, hasPaperBackground: true)
-    mascots[product] = image
+    mascots[product] = (url, image)
     return image
   }
 

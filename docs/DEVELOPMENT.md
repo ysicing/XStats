@@ -178,6 +178,8 @@ task clean                          # 删除 build/
 `DockIconCanvas` 的近白圆角底板和透明外缘；静态图标按主体边界等比居中，
 不依赖系统为运行时替换图标裁切圆角。手绘纸白通过正片叠底融入近白底板，
 只在首次加载时计算主体边界并缓存最终图标，不在监控刷新时扫描图片。
+手绘原图保留在 `Packages/XStatsKit/Sources/DockIcons/Resources`，由 `project.yml`
+分别将对应 PNG 加入三款应用的资源；共享 `DockIcons` 模块不携带整套图片，运行时从宿主应用读取。
 Capture 图标保留四角取景框，在中央画面边框内复用主曲线；更新主标识后运行
 `swift scripts/render_capture_icon.swift`，生成 `Assets/branding/capture` 的透明品牌 PNG 与
 `Apps/Capture/App/Assets.xcassets/AppIcon.appiconset` 的近白底应用图标。

@@ -53,6 +53,8 @@ targets:
         buildPhase: resources
       - path: Apps/Capture/App
         excludes: ["*.plist", "*.entitlements"]
+      - path: Packages/XStatsKit/Sources/DockIcons/Resources/capture.png
+        buildPhase: resources
     info:
       path: Apps/Capture/App/Info.plist
       properties:
@@ -105,6 +107,8 @@ targets:
     platform: macOS
     sources:
       - path: Apps/XStats/App
+      - path: Packages/XStatsKit/Sources/DockIcons/Resources/xstats.png
+        buildPhase: resources
       - path: LICENSES/Sparkle-License.txt
         buildPhase: resources
       - path: Apps/XStats/Helper/work.12306.xstats.helper.plist
@@ -217,6 +221,8 @@ targets:
       - path: Apps/NetworkMonitor/App
         excludes: ["*.plist", "*.entitlements"]
       - path: Apps/NetworkMonitor/App/Assets.xcassets
+        buildPhase: resources
+      - path: Packages/XStatsKit/Sources/DockIcons/Resources/network.png
         buildPhase: resources
       - path: LICENSES/Sparkle-License.txt
         buildPhase: resources

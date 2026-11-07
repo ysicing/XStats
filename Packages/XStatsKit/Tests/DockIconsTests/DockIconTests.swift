@@ -4,6 +4,12 @@ import Testing
 @testable import DockIcons
 
 @MainActor struct DockIconTests {
+  @Test func missingHostResourcesDoNotFallBackToSharedArtwork() {
+    for product in DockIconProduct.allCases {
+      #expect(DockIconRenderer.mascot(for: product) == nil)
+    }
+  }
+
   @Test func preferencesUseProductDefaultsAndIgnoreUnknownValues() throws {
     let suite = "DockIconTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
@@ -18,8 +24,13 @@ import Testing
 
   @Test(arguments: DockIconProduct.allCases)
   func mascotResourcesHaveTransparentMarginsAndReadableWhiteTiles(product: DockIconProduct) throws {
-    let image = try #require(DockIconRenderer.mascot(for: product))
-    #expect(DockIconRenderer.mascot(for: product) === image)
+    let resources = try resourceBundle(products: [product])
+    defer { try? FileManager.default.removeItem(at: resources.directory) }
+    let image = try #require(DockIconRenderer.mascot(for: product, in: resources.bundle))
+    #expect(DockIconRenderer.mascot(for: product, in: resources.bundle) === image)
+    for other in DockIconProduct.allCases where other != product {
+      #expect(DockIconRenderer.mascot(for: other, in: resources.bundle) == nil)
+    }
     #expect(image.size == NSSize(width: 512, height: 512))
     let data = try #require(image.tiffRepresentation)
     let bitmap = try #require(NSBitmapImageRep(data: data))
@@ -36,7 +47,10 @@ import Testing
 
   @Test func eachProductUsesDifferentArtwork() throws {
     let images = try DockIconProduct.allCases.map {
-      try #require(DockIconRenderer.mascot(for: $0)?.tiffRepresentation)
+      let resources = try resourceBundle(products: [$0])
+      defer { try? FileManager.default.removeItem(at: resources.directory) }
+      return try #require(
+        DockIconRenderer.mascot(for: $0, in: resources.bundle)?.tiffRepresentation)
     }
     #expect(Set(images).count == DockIconProduct.allCases.count)
   }
@@ -75,7 +89,9 @@ import Testing
       images.append(image)
       return true
     }
-    let mascot = try #require(DockIconRenderer.mascot(for: .xstats))
+    let resources = try resourceBundle(products: [.xstats])
+    defer { try? FileManager.default.removeItem(at: resources.directory) }
+    let mascot = try #require(DockIconRenderer.mascot(for: .xstats, in: resources.bundle))
     #expect(icon.apply(.mascot, mascot: mascot))
     #expect(icon.apply(.mascot, mascot: mascot))
     #expect(images.count == 1)
@@ -94,7 +110,9 @@ import Testing
       attempts += 1
       return false
     }
-    let mascot = try #require(DockIconRenderer.mascot(for: .capture))
+    let resources = try resourceBundle(products: [.capture])
+    defer { try? FileManager.default.removeItem(at: resources.directory) }
+    let mascot = try #require(DockIconRenderer.mascot(for: .capture, in: resources.bundle))
     #expect(!icon.apply(.mascot, mascot: nil))
     #expect(attempts == 0)
     #expect(!icon.apply(.mascot, mascot: mascot))
@@ -102,5 +120,32 @@ import Testing
     #expect(attempts == 1)
     #expect(!icon.apply(.standard, mascot: nil))
     #expect(attempts == 2)
+  }
+
+  private func resourceBundle(products: [DockIconProduct]) throws -> (
+    bundle: Bundle, directory: URL
+  ) {
+    let directory = FileManager.default.temporaryDirectory.appending(
+      path: "DockIconTests.\(UUID()).bundle")
+    let resources = directory.appending(path: "Contents/Resources")
+    try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+    do {
+      let info = ["CFBundleIdentifier": "DockIconTests.\(UUID())", "CFBundlePackageType": "BNDL"]
+      let data = try PropertyListSerialization.data(
+        fromPropertyList: info, format: .xml, options: 0)
+      try data.write(to: directory.appending(path: "Contents/Info.plist"))
+      let source = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        .deletingLastPathComponent().deletingLastPathComponent()
+        .appending(path: "Sources/DockIcons/Resources")
+      for product in products {
+        let name = "\(product.rawValue).png"
+        try FileManager.default.copyItem(
+          at: source.appending(path: name), to: resources.appending(path: name))
+      }
+      return (try #require(Bundle(url: directory)), directory)
+    } catch {
+      try? FileManager.default.removeItem(at: directory)
+      throw error
+    }
   }
 }

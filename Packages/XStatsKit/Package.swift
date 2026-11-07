@@ -38,7 +38,7 @@ let package = Package(
     .testTarget(name: "CaptureCoreTests", dependencies: ["CaptureCore"]),
     .testTarget(name: "CaptureUITests", dependencies: ["CaptureUI"]),
     .target(name: "Localization", resources: [.process("Resources")]),
-    .target(name: "DockIcons", dependencies: ["Localization"], resources: [.process("Resources")]),
+    .target(name: "DockIcons", dependencies: ["Localization"], exclude: ["Resources"]),
     .testTarget(name: "DockIconsTests", dependencies: ["DockIcons"]),
     .target(
       name: "FinderDocuments", dependencies: ["Localization"], resources: [.copy("Templates")]),
