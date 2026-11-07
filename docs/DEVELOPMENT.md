@@ -701,6 +701,11 @@ XSTATS_COMPONENT_PROFILE='组件 profile 名称' XSTATS_NETWORK_PROFILE='扩展 
 
 ## 发布
 
+主程序 DMG 使用 APFS 文件系统与 ULMO（LZMA）压缩，压缩块为 8192 个扇区（4 MiB），
+兼容最低要求的 macOS 14；仅改变安装包压缩方式，不裁剪应用内容或语言。
+在线升级 ZIP 保持现有格式与更新协议，使用 DEFLATE 级别 9。包大小取决于构建内容，
+须以签名、公证和装订后的制品为准，不保证后续版本始终小于 10 MB。
+
 主应用、Widget 与 Helper 的 Release 构建在 Xcode 签名前裁剪调试符号和非外部符号，
 保留外部符号、Swift 运行时元数据以及独立的 `dwarf-with-dsym` 调试信息；Debug 不裁剪。
 正式打包通过 `task build CONFIG=Release INSTALL=0 BUMP=0 CLEAN=1` 执行 Xcode `clean build`，

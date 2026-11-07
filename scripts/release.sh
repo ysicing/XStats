@@ -132,7 +132,8 @@ rm -rf "$WORK/dmg"
 mkdir -p "$WORK/dmg"
 ditto "$APP" "$WORK/dmg/XStats.app"
 ln -s /Applications "$WORK/dmg/Applications"
-hdiutil create -volname "XStats ${VERSION}" -srcfolder "$WORK/dmg" -ov -format UDZO "$DIST/$NAME.dmg" >/dev/null
+hdiutil create -volname "XStats ${VERSION}" -srcfolder "$WORK/dmg" -ov \
+  -fs APFS -format ULMO -imagekey udif-chunk-size=8192 "$DIST/$NAME.dmg" >/dev/null
 codesign_with_timestamp_retry --force --timestamp --sign "$SIGN_ID" "$DIST/$NAME.dmg"
 
 if [ "${SKIP_NOTARIZE:-0}" != "1" ]; then
@@ -144,7 +145,7 @@ fi
 # ---- 在线升级 ----------------------------------------------------------------
 
 # 应用内升级下载已装订票据的 .app 压缩包
-ditto -c -k --keepParent "$APP" "$DIST/$NAME.zip"
+ditto -c -k --keepParent --zlibCompressionLevel 9 "$APP" "$DIST/$NAME.zip"
 
 # 版本清单只包含 Apple Silicon 安装包
 python3 scripts/appcast.py "$VERSION" "$BUILD" "$DOWNLOAD_BASE" \
