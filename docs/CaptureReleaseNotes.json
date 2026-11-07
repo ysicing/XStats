@@ -1,12 +1,14 @@
 {
-  "version": "0.1.9",
-  "date": "2026-11-06",
+  "version": "0.1.10",
+  "date": "2026-11-07",
   "sourceNotes": [
-    "同步共享签名与调试符号打包脚本，截图、录屏与更新功能保持不变。"
+    "更新 Capture 品牌图标，统一近白圆角底板与视觉比例，品牌素材保留透明背景（#20）。",
+    "新增标准与手绘图标切换，选择在重启后保留，并同步到 Dock、访达与聚焦搜索使用的系统应用图标。"
   ],
   "translations": {
     "en": [
-      "Refresh the shared signing and debug-symbol packaging scripts. Screenshot, recording, and update features remain unchanged."
+      "Refresh the Capture icon with a near-white rounded backplate and consistent visual proportions, while retaining transparent branding assets (#20).",
+      "Switch between standard and hand-drawn icons, preserve the choice across restarts, and synchronize the system app icon used by the Dock, Finder, and Spotlight."
     ]
   }
 }
