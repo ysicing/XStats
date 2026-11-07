@@ -24,17 +24,6 @@ done
 
 cp "$BRANDING/xstats-logo-512.png" Assets/icon.png
 cp "$BRANDING/xstats-logo-256.png" Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/xstats-logo.png
-for points in 16 32 128 256 512; do
-  for scale in 1 2; do
-    pixels=$((points * scale))
-    if [ "$scale" -eq 2 ]; then
-      filename="icon_${points}x${points}@2x.png"
-    else
-      filename="icon_${points}x${points}.png"
-    fi
-    rsvg-convert --background-color '#FCFDFF' --width "$pixels" --height "$pixels" \
-      --output "$APPICON/$filename" "$SOURCE"
-  done
-done
+bash scripts/render_dock_icon.sh "$BRANDING/xstats-logo-2048.png" "$APPICON"
 
 echo "已从 SVG 母版更新透明品牌 Logo、应用内标识及近白底应用图标"

@@ -16,12 +16,7 @@ guard let wave = NSImage(contentsOf: waveURL) else {
 try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 try FileManager.default.createDirectory(at: branding, withIntermediateDirectories: true)
 
-func drawCaptureIcon(includingBackground: Bool) {
-  if includingBackground {
-    NSColor(srgbRed: 252 / 255, green: 253 / 255, blue: 1, alpha: 1).setFill()
-    NSRect(x: 0, y: 0, width: 1024, height: 1024).fill()
-  }
-
+func drawCaptureIcon() {
   let blue = NSGradient(
     starting: NSColor(srgbRed: 0, green: 0.31, blue: 1, alpha: 1),
     ending: NSColor(srgbRed: 0, green: 0.81, blue: 0.89, alpha: 1))!
@@ -62,54 +57,41 @@ func drawCaptureIcon(includingBackground: Bool) {
   wave.draw(in: NSRect(x: 296, y: 296, width: 432, height: 432))
 }
 
-for includingBackground in [false, true] {
-  var entries: [[String: String]] = []
-  let sizes =
-    includingBackground
-    ? [16, 32, 128, 256, 512].flatMap { points in
-      [1, 2].map { scale in (points: points, scale: scale) }
-    }
-    : [16, 32, 64, 128, 256, 512, 1024, 2048].map { (points: $0, scale: 1) }
-  for (points, scale) in sizes {
-    let pixels = points * scale
-    // Supersampling keeps the frame and wave smooth at menu/Finder sizes.
-    let renderSize = max(1024, pixels)
-    let bitmap = NSBitmapImageRep(
-      bitmapDataPlanes: nil, pixelsWide: renderSize, pixelsHigh: renderSize,
-      bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-      colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
-    NSGraphicsContext.saveGraphicsState()
-    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
-    NSGraphicsContext.current!.cgContext.scaleBy(
-      x: CGFloat(renderSize) / 1024, y: CGFloat(renderSize) / 1024)
-    drawCaptureIcon(includingBackground: includingBackground)
-    NSGraphicsContext.restoreGraphicsState()
+for pixels in [16, 32, 64, 128, 256, 512, 1024, 2048] {
+  // Supersampling keeps the frame and wave smooth at menu/Finder sizes.
+  let renderSize = max(1024, pixels)
+  let bitmap = NSBitmapImageRep(
+    bitmapDataPlanes: nil, pixelsWide: renderSize, pixelsHigh: renderSize,
+    bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+    colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+  NSGraphicsContext.saveGraphicsState()
+  NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+  NSGraphicsContext.current!.cgContext.scaleBy(
+    x: CGFloat(renderSize) / 1024, y: CGFloat(renderSize) / 1024)
+  drawCaptureIcon()
+  NSGraphicsContext.restoreGraphicsState()
 
-    let resized = NSBitmapImageRep(
-      bitmapDataPlanes: nil, pixelsWide: pixels, pixelsHigh: pixels,
-      bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-      colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
-    NSGraphicsContext.saveGraphicsState()
-    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: resized)
-    NSGraphicsContext.current!.imageInterpolation = .high
-    NSImage(cgImage: bitmap.cgImage!, size: NSSize(width: renderSize, height: renderSize))
-      .draw(in: NSRect(x: 0, y: 0, width: pixels, height: pixels))
-    NSGraphicsContext.restoreGraphicsState()
-    let filename =
-      includingBackground
-      ? "icon_\(points)x\(points)\(scale == 2 ? "@2x" : "").png"
-      : pixels == 1024 ? "xstats-capture-logo.png" : "xstats-capture-logo-\(pixels).png"
-    try resized.representation(using: .png, properties: [:])!.write(
-      to: (includingBackground ? output : branding).appendingPathComponent(filename))
-    if includingBackground {
-      entries.append([
-        "filename": filename, "idiom": "mac", "size": "\(points)x\(points)", "scale": "\(scale)x",
-      ])
-    }
-  }
-  if includingBackground {
-    let catalog: [String: Any] = ["images": entries, "info": ["author": "xcode", "version": 1]]
-    try JSONSerialization.data(withJSONObject: catalog, options: [.prettyPrinted, .sortedKeys])
-      .write(to: output.appendingPathComponent("Contents.json"))
-  }
+  let resized = NSBitmapImageRep(
+    bitmapDataPlanes: nil, pixelsWide: pixels, pixelsHigh: pixels,
+    bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+    colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+  NSGraphicsContext.saveGraphicsState()
+  NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: resized)
+  NSGraphicsContext.current!.imageInterpolation = .high
+  NSImage(cgImage: bitmap.cgImage!, size: NSSize(width: renderSize, height: renderSize))
+    .draw(in: NSRect(x: 0, y: 0, width: pixels, height: pixels))
+  NSGraphicsContext.restoreGraphicsState()
+  let filename = pixels == 1024 ? "xstats-capture-logo.png" : "xstats-capture-logo-\(pixels).png"
+  try resized.representation(using: .png, properties: [:])!.write(
+    to: branding.appendingPathComponent(filename))
 }
+
+let dockRenderer = Process()
+dockRenderer.executableURL = URL(fileURLWithPath: "/bin/bash")
+dockRenderer.arguments = [
+  "scripts/render_dock_icon.sh",
+  branding.appendingPathComponent("xstats-capture-logo-2048.png").path, output.path,
+]
+try dockRenderer.run()
+dockRenderer.waitUntilExit()
+guard dockRenderer.terminationStatus == 0 else { fatalError("生成 Capture 应用图标失败") }

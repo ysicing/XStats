@@ -96,12 +96,6 @@ struct GeneralSettings: View {
         }
       }
       GroupRow {
-        SettingRow(title: tr("程序坞图标")) {
-          DockIconPicker(
-            selection: $settings.dockIconStyle, product: .xstats, includesAutomatic: true)
-        }
-      }
-      GroupRow {
         SettingRow(title: tr("刷新频率"), subtitle: tr("只显示菜单栏时的采样间隔；打开弹窗或主窗口时为 1 秒（进程页 2 秒）")) {
           SegmentedControl(
             selection: $settings.refreshSeconds,
@@ -568,8 +562,15 @@ struct MenuBarSettings: View {
     .onDisappear { itemDrag = nil }
 
     SettingsGroup(caption: tr("高级")) {
+      GroupRow(showsDivider: false) {
+        SettingRow(title: tr("程序坞图标")) {
+          DockIconPicker(
+            selection: $settings.dockIconStyle,
+            includesAutomatic: settings.menuBarLayout == .iconOnly)
+        }
+      }
       if settings.menuBarLayout != .iconOnly {
-        GroupRow(showsDivider: false) {
+        GroupRow {
           SettingRow(title: tr("数值位置"), subtitle: tr("适用于双行文字及图形旁的双行文字")) {
             SegmentedControl(
               selection: $settings.menuBarValueOnTop,
@@ -579,7 +580,7 @@ struct MenuBarSettings: View {
           }
         }
       }
-      GroupRow(showsDivider: settings.menuBarLayout != .iconOnly) {
+      GroupRow {
         SettingRow(
           title: tr("自定义弹窗内容"),
           subtitle: tr("选择各指标弹窗显示的内容，并调整排列顺序。")

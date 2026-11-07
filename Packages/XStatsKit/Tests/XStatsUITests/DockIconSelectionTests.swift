@@ -10,7 +10,7 @@ import Testing
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = AppSettings(defaults: defaults)
-    #expect(settings.dockIconStyle == .automatic)
+    #expect(settings.dockIconStyle == .standard)
     settings.dockIconStyle = .mascot
     #expect(AppSettings(defaults: defaults).dockIconStyle == .mascot)
     let document = try JSONDecoder().decode(
@@ -24,6 +24,42 @@ import Testing
     future.dockIconStyle = "future-style"
     settings.apply(future)
     #expect(settings.dockIconStyle == .mascot)
+  }
+
+  @Test(arguments: [MenuBarLayout.separate, .combined])
+  func liveIconsAreOnlyAvailableInIconOnlyLayout(layout: MenuBarLayout) throws {
+    let suite = "DockIconLayout.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.menuBarLayout = layout
+    #expect(settings.dockIconStyle == .standard)
+    settings.menuBarLayout = .iconOnly
+    #expect(settings.dockIconStyle == .automatic)
+    settings.dockIconStyle = .mascot
+    settings.menuBarLayout = layout
+    #expect(settings.dockIconStyle == .mascot)
+    settings.menuBarLayout = .iconOnly
+    #expect(settings.dockIconStyle == .mascot)
+    settings.dockIconStyle = .automatic
+    settings.menuBarLayout = layout
+    #expect(settings.dockIconStyle == .standard)
+    #expect(AppSettings(defaults: defaults).dockIconStyle == .standard)
+    let document = settings.exportDocument()
+    #expect(document.dockIconStyle == DockIconStyle.automatic.rawValue)
+    let restored = AppSettings(defaults: defaults)
+    restored.dockIconStyle = .standard
+    restored.apply(document)
+    restored.menuBarLayout = .iconOnly
+    #expect(restored.dockIconStyle == .automatic)
+    settings.menuBarLayout = .iconOnly
+    #expect(settings.dockIconStyle == .automatic)
+    settings.menuBarLayout = layout
+    var standardDocument = SettingsDocument()
+    standardDocument.dockIconStyle = DockIconStyle.standard.rawValue
+    settings.apply(standardDocument)
+    settings.menuBarLayout = .iconOnly
+    #expect(settings.dockIconStyle == .standard)
   }
 
   @Test func explicitLogosOverrideLiveReadingsAndRestoreAfterHiding() throws {

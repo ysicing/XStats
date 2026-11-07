@@ -209,6 +209,7 @@ final class MenuBarController: NSObject {
   /// 共用现有采样刷新；隐藏程序坞时释放动态图标，重新显示时立即补上当前状态。
   func refreshDockIcon(reading: TrioReading? = nil) {
     let style = model.settings.dockIconStyle
+    DockIconRenderer.synchronizeSystemIcon(style, product: .xstats)
     guard NSApp.activationPolicy() == .regular else {
       if renderedDockTrio != nil || renderedDockStyle == .mascot {
         NSApp.applicationIconImage = nil

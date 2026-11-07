@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import AppKit
+import DockIcons
 
 /// 用原生路径和 SF Symbols 绘制固定大小的单图标；没有常驻动画或独立刷新循环。
 @MainActor
@@ -9,14 +10,8 @@ enum TrioIconRenderer {
     let content = image(reading: reading, configuration: configuration, dark: false)
     content.isTemplate = false
     let image = NSImage(size: NSSize(width: 256, height: 256), flipped: false) { _ in
-      let tile = NSBezierPath(
-        roundedRect: NSRect(x: 16, y: 16, width: 224, height: 224), xRadius: 48, yRadius: 48)
-      NSColor.white.setFill()
-      tile.fill()
-      NSColor.black.withAlphaComponent(0.08).setStroke()
-      tile.lineWidth = 1
-      tile.stroke()
-      content.draw(in: NSRect(x: 32, y: 40, width: 192, height: 176))
+      DockIconCanvas.drawBackground(in: NSRect(x: 0, y: 0, width: 256, height: 256))
+      content.draw(in: NSRect(x: 36, y: 44, width: 184, height: 168))
       return true
     }
     image.accessibilityDescription = content.accessibilityDescription

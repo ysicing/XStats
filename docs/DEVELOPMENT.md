@@ -174,13 +174,28 @@ task clean                          # 删除 build/
 `Assets/icon.png`、应用内的 `Resources/Logos/xstats-logo.png` 和
 `Apps/XStats/App/Assets.xcassets/AppIcon.appiconset` 的全部尺寸。
 品牌与关于／更新页使用透明背景；Dock／Finder 应用图标采用明亮近白纯色底，
-不绘制金属渐变、边框或阴影，圆角由系统管理。
+不绘制金属渐变、边框或阴影。标准、手绘与自动 Dock 图标共用
+`DockIconCanvas` 的近白圆角底板和透明外缘；静态图标按主体边界等比居中，
+不依赖系统为运行时替换图标裁切圆角。手绘纸白通过正片叠底融入近白底板，
+只在首次加载时计算主体边界并缓存最终图标，不在监控刷新时扫描图片。
 Capture 图标保留四角取景框，在中央画面边框内复用主曲线；更新主标识后运行
 `swift scripts/render_capture_icon.swift`，生成 `Assets/branding/capture` 的透明品牌 PNG 与
 `Apps/Capture/App/Assets.xcassets/AppIcon.appiconset` 的近白底应用图标。
 网络组件独立使用 `Assets/branding/network-monitor/xstats-network-logo.svg`，运行
 `bash scripts/render_network_icon.sh` 生成透明品牌 PNG 和
 `Apps/NetworkMonitor/App/Assets.xcassets/AppIcon.appiconset`，不再复用主程序的图标目录。
+三个生成入口均调用 `scripts/render_dock_icon.sh`，直接复用应用内的底板与主体布局，
+只为 AppIcon 导出加底板，品牌 PNG／SVG 继续保持透明。
+
+主程序的图标选择位于“菜单栏 → 高级”。每项独立与聚合模式默认使用标准图标，
+可切换手绘；仅图标模式默认自动跟随菜单栏，也可选择标准或手绘。
+三款应用通过 `NSWorkspace.setIcon` 同步标准／手绘到系统应用图标，只在启动及样式变化时处理，
+隐藏 Dock 不撤销系统图标；自动模式的实时读数仅覆盖运行中的 Dock，系统图标使用标准款。
+标准预览直接读取包内 `CFBundleIconFile`，避免把 Finder 自定义图标误当成标准图标。
+图标切换不改写包内已签名资源，不重新签名，不清空系统缓存或重启 Dock／Finder。
+手绘模式会产生系统自定义图标的 Finder 元数据，普通 `codesign --verify --deep` 仍可验证签名，
+但 `--strict` 会拒绝该元数据；切回标准后再核对严格校验。发布制品始终使用未定制图标的原始构建，
+不得将带本机自定义图标元数据的安装副本作为发布源。
 
 本地安装脚本 `scripts/install_local.sh <XStats.app>` 沿用输入产物的签名，将所选产物移动到
 `/Applications/XStats.app`，保留桌面小组件配置、偏好与历史，不自动删除其他构建或工作区文件。

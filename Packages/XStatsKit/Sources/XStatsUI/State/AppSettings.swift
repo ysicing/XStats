@@ -1020,8 +1020,15 @@ public final class AppSettings {
   public var showDockIcon: Bool {
     didSet { defaults.set(showDockIcon, forKey: Keys.showDockIcon) }
   }
+  private(set) var preferredDockIconStyle: DockIconStyle {
+    didSet { defaults.set(preferredDockIconStyle.rawValue, forKey: DockIconStyle.preferenceKey) }
+  }
   public var dockIconStyle: DockIconStyle {
-    didSet { defaults.set(dockIconStyle.rawValue, forKey: DockIconStyle.preferenceKey) }
+    get {
+      preferredDockIconStyle == .automatic && menuBarLayout != .iconOnly
+        ? .standard : preferredDockIconStyle
+    }
+    set { preferredDockIconStyle = newValue }
   }
   /// 仅控制普通手动冷启动；登录启动、深链和再次打开应用沿用各自的入口行为。
   public var showMainWindowOnLaunch: Bool {
@@ -1474,7 +1481,7 @@ public final class AppSettings {
     appearance =
       defaults.string(forKey: Keys.appearance).flatMap(AppearanceMode.init(rawValue:)) ?? .system
     showDockIcon = defaults.bool(forKey: Keys.showDockIcon)
-    dockIconStyle = DockIconStyle.load(from: defaults, fallback: .automatic)
+    preferredDockIconStyle = DockIconStyle.load(from: defaults, fallback: .automatic)
     showMainWindowOnLaunch =
       defaults.object(forKey: Keys.showMainWindowOnLaunch) as? Bool ?? true
     speedTestBudget =

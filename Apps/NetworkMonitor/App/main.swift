@@ -130,7 +130,7 @@ private struct ComponentView: View {
       HStack {
         Text(tr("程序坞图标"))
         Spacer()
-        DockIconPicker(selection: $dockIconStyle, product: .network)
+        DockIconPicker(selection: $dockIconStyle)
       }
       .onChange(of: dockIconStyle) {
         DockIconRenderer.apply(dockIconStyle, product: .network)
