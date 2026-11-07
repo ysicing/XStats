@@ -1,6 +1,8 @@
 // Copyright (C) 2026 ysicing
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import Foundation
+import CoreBluetooth
+import IOBluetooth
 import Testing
 @testable import AudioControl
 
@@ -18,6 +20,31 @@ private final class BluetoothReadinessFixture: @unchecked Sendable {
 }
 
 struct BluetoothAudioTests {
+  @Test(arguments: [
+    CBManagerAuthorization.notDetermined, .denied, .restricted,
+  ])
+  func headphoneClassificationDoesNotRequestBluetoothAccess(
+    authorization: CBManagerAuthorization
+  ) {
+    let headphone = BluetoothAudioClient.isHeadphone(
+      address: "aabbccddeeff", authorization: authorization,
+      readDeviceClass: { _ in
+        Issue.record("Background classification must not access Bluetooth before authorization")
+        return (kBluetoothDeviceClassMajorAudio, kBluetoothDeviceClassMinorAudioHeadphones)
+      })
+    #expect(headphone == false)
+  }
+
+  @Test func authorizedHeadphoneClassificationUsesTheDeviceAddress() {
+    let headphone = BluetoothAudioClient.isHeadphone(
+      address: "aabbccddeeff", authorization: .allowedAlways,
+      readDeviceClass: { address in
+        #expect(address == "aa-bb-cc-dd-ee-ff")
+        return (kBluetoothDeviceClassMajorAudio, kBluetoothDeviceClassMinorAudioHeadphones)
+      })
+    #expect(headphone)
+  }
+
   @Test func cancellationDuringCatalogReadDoesNotStartANativeConnection() async throws {
     let paired = BluetoothAudioDevice(
       address: "AA-BB-CC-DD-EE-FF", name: "Headphones", hasInput: true, hasOutput: true)
