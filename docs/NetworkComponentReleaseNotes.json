@@ -1,15 +1,15 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "sourceNotes": [
-    "支持上下行流量统计与增量连接记录，配合 XStats 1.5.0 查看最近 15 分钟历史和应用流量趋势，不读取通信内容",
-    "保留旧版主程序的连接查看与组件管理接口，主程序和组件可分别升级",
-    "分离采集预算与界面窗口，按需采集并在停止时保存尾批，过载时明确提示数据不完整"
+    "更新为 Wi-Fi 信号弧线与 XStats 监控曲线组合图标，统一近白底板、视觉大小与留白（#20）",
+    "支持标准与手绘图标切换，保留选择并同步程序坞、访达和聚焦搜索中的应用图标",
+    "修正 DNS 查询名称与解析器地址的错误关联，统一域名格式并过滤反向查询名称"
   ],
   "translations": {
     "en": [
-      "Add upload and download counters and incremental connection records; use XStats 1.5.0 for 15-minute history and per-app traffic trends without inspecting communication content",
-      "Preserve connection viewing and component management for older XStats clients so either product can be upgraded first",
-      "Separate capture budgets from the display window, collect on demand, drain recorded events on stop and explicitly report incomplete data under overload"
+      "Combine Wi-Fi signal arcs with the XStats monitoring curve, using a consistent near-white tile, visual size and spacing (#20)",
+      "Switch between standard and hand-drawn icons, remember the selection and synchronize the application icon across the Dock, Finder and Spotlight",
+      "Prevent DNS query names from being associated with resolver addresses, normalize domain names and filter reverse lookup names"
     ]
   }
 }
