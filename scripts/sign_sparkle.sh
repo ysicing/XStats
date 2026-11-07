@@ -45,6 +45,12 @@ elif ! security find-identity -v -p codesigning 2>/dev/null | grep -qF "$IDENTIT
   exit 1
 fi
 
+if [ "$MODE" = main ]; then
+  python3 "$ROOT/scripts/prepare_finder_resources.py" "$APP"
+  codesign_with_timestamp_retry --force --sign "$IDENTITY" "${STAMP[@]}" "${OPTIONS[@]}" \
+    "$APP/Contents/PlugIns/XStatsFinderExtension.appex/Contents/Resources/XStatsKit_Localization.bundle"
+fi
+
 # 官方框架包含 Intel 切片；只修改嵌入副本，保持 Swift Package 原始制品完整。
 for binary in "$FRAMEWORK/Versions/Current/Sparkle" \
               "$FRAMEWORK/Versions/Current/Autoupdate" \
