@@ -21,6 +21,10 @@ import UniformTypeIdentifiers
 
   public static func apply(_ style: DockIconStyle, product: DockIconProduct) {
     synchronizeSystemIcon(style, product: product)
+    applyDockIcon(style, product: product)
+  }
+
+  public static func applyDockIcon(_ style: DockIconStyle, product: DockIconProduct) {
     NSApp.applicationIconImage = style == .mascot ? mascot(for: product) : standardIcon
   }
 

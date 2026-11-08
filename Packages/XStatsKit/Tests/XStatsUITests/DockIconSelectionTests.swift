@@ -5,6 +5,102 @@ import Testing
 @testable import XStatsUI
 
 @MainActor struct DockIconSelectionTests {
+  @Test(arguments: DockIconStyle.allCases)
+  func applicationIconMigratesOnceAndPersistsIndependently(legacyStyle: DockIconStyle) throws {
+    let suite = "ApplicationIconMigration.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(legacyStyle.rawValue, forKey: DockIconStyle.preferenceKey)
+    let settings = AppSettings(defaults: defaults)
+    let expected: DockIconStyle = legacyStyle == .mascot ? .mascot : .standard
+    #expect(settings.applicationIconStyle == expected)
+    settings.dockIconStyle = .standard
+    #expect(settings.applicationIconStyle == expected)
+    #expect(AppSettings(defaults: defaults).applicationIconStyle == expected)
+    settings.applicationIconStyle = .standard
+    settings.dockIconStyle = .mascot
+    #expect(AppSettings(defaults: defaults).applicationIconStyle == .standard)
+    #expect(AppSettings(defaults: defaults).dockIconStyle == .mascot)
+  }
+
+  @Test func applicationIconRoundTripsAndOlderBackupsPreserveItsSelection() throws {
+    let suite = "ApplicationIconBackup.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.menuBarLayout = .iconOnly
+    #expect(settings.applicationIconStyle == .standard)
+    settings.applicationIconStyle = .mascot
+    let document = try JSONDecoder().decode(
+      SettingsDocument.self, from: JSONEncoder().encode(settings.exportDocument()))
+    settings.applicationIconStyle = .standard
+    settings.apply(document)
+    #expect(settings.applicationIconStyle == .mascot)
+    #expect(settings.dockIconStyle == .automatic)
+    var legacy = SettingsDocument()
+    legacy.dockIconStyle = DockIconStyle.standard.rawValue
+    settings.apply(legacy)
+    #expect(settings.applicationIconStyle == .mascot)
+    for rawValue in ["future-style", DockIconStyle.automatic.rawValue] {
+      var invalid = SettingsDocument()
+      invalid.applicationIconStyle = rawValue
+      settings.apply(invalid)
+      #expect(settings.applicationIconStyle == .mascot)
+    }
+  }
+
+  @Test func systemIconChangesKeepTheSelectedDockStyleAndUpdateWhileDockIsHidden() throws {
+    let app = NSApplication.shared
+    let previousPolicy = app.activationPolicy()
+    let originalIcon = app.applicationIconImage
+    defer {
+      app.applicationIconImage = originalIcon
+      _ = app.setActivationPolicy(previousPolicy)
+    }
+    let suite = "ApplicationIconRuntime.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.menuBarLayout = .iconOnly
+    let model = AppModel(
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
+    var systemStyles: [DockIconStyle] = []
+    var renders = 0
+    let controller = MenuBarController(
+      model: model,
+      synchronizeApplicationIcon: {
+        systemStyles.append($0)
+        app.applicationIconImage = NSImage(size: NSSize(width: 1, height: 1))
+      },
+      makeDockImage: { _, _ in
+        renders += 1
+        return NSImage(size: NSSize(width: 256, height: 256))
+      })
+    #expect(app.setActivationPolicy(.regular))
+    controller.refreshDockIcon()
+    settings.applicationIconStyle = .mascot
+    controller.refreshDockIcon()
+    #expect(systemStyles == [.standard, .mascot])
+    #expect(renders == 2)
+    #expect(app.applicationIconImage?.size == NSSize(width: 256, height: 256))
+    settings.dockIconStyle = .standard
+    controller.refreshDockIcon()
+    let standard = try #require(app.applicationIconImage?.tiffRepresentation)
+    controller.refreshDockIcon()
+    #expect(systemStyles == [.standard, .mascot])
+    settings.applicationIconStyle = .standard
+    controller.refreshDockIcon()
+    #expect(app.applicationIconImage?.tiffRepresentation == standard)
+    #expect(app.setActivationPolicy(.accessory))
+    settings.applicationIconStyle = .mascot
+    controller.refreshDockIcon()
+    #expect(systemStyles == [.standard, .mascot, .standard, .mascot])
+    #expect(renders == 2)
+    #expect(app.setActivationPolicy(.regular))
+    controller.refreshDockIcon()
+    #expect(app.applicationIconImage?.tiffRepresentation == standard)
+  }
+
   @Test func selectionPersistsAndRoundTripsWithoutOverwritingOlderBackups() throws {
     let suite = "DockIconSelection.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
@@ -78,10 +174,12 @@ import Testing
     let model = AppModel(
       settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var renders = 0
-    let controller = MenuBarController(model: model) { _, _ in
-      renders += 1
-      return NSImage(size: NSSize(width: 256, height: 256))
-    }
+    let controller = MenuBarController(
+      model: model,
+      makeDockImage: { _, _ in
+        renders += 1
+        return NSImage(size: NSSize(width: 256, height: 256))
+      })
     #expect(app.setActivationPolicy(.regular))
     controller.refreshDockIcon()
     #expect(renders == 1)

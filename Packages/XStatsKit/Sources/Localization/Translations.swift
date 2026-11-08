@@ -21,6 +21,7 @@ extension Translations {
 
   static let dockIconEnglish = #"""
     程序坞图标	Dock Icon
+    启动台与搜索图标	Launchpad & Search Icon
     自动（跟随菜单栏）	Automatic (Follow Menu Bar)
     手绘	Hand-drawn
     """#

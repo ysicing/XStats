@@ -921,6 +921,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.settings.appearance
       _ = model.settings.showDockIcon
       _ = model.settings.dockIconStyle
+      _ = model.settings.applicationIconStyle
       _ = model.isNetworkDetailVisible
       _ = model.settings.probeEnabled
       _ = model.settings.probeInBackground

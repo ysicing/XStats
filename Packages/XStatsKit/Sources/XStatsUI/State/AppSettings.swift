@@ -1030,6 +1030,9 @@ public final class AppSettings {
     }
     set { preferredDockIconStyle = newValue }
   }
+  public var applicationIconStyle: DockIconStyle {
+    didSet { defaults.set(applicationIconStyle.rawValue, forKey: Keys.applicationIconStyle) }
+  }
   /// 仅控制普通手动冷启动；登录启动、深链和再次打开应用沿用各自的入口行为。
   public var showMainWindowOnLaunch: Bool {
     didSet { defaults.set(showMainWindowOnLaunch, forKey: Keys.showMainWindowOnLaunch) }
@@ -1481,7 +1484,18 @@ public final class AppSettings {
     appearance =
       defaults.string(forKey: Keys.appearance).flatMap(AppearanceMode.init(rawValue:)) ?? .system
     showDockIcon = defaults.bool(forKey: Keys.showDockIcon)
-    preferredDockIconStyle = DockIconStyle.load(from: defaults, fallback: .automatic)
+    let initialDockIconStyle = DockIconStyle.load(from: defaults, fallback: .automatic)
+    preferredDockIconStyle = initialDockIconStyle
+    let savedApplicationIcon = defaults.string(forKey: Keys.applicationIconStyle)
+      .flatMap(DockIconStyle.init(rawValue:))
+    let applicationIcon =
+      savedApplicationIcon.flatMap { $0 == .automatic ? nil : $0 }
+      ?? (initialDockIconStyle == .mascot ? DockIconStyle.mascot : .standard)
+    applicationIconStyle = applicationIcon
+    // 旧版共用 Dock 偏好；仅首次迁移，避免之后修改 Dock 再次改变系统图标。
+    if savedApplicationIcon != applicationIcon {
+      defaults.set(applicationIcon.rawValue, forKey: Keys.applicationIconStyle)
+    }
     showMainWindowOnLaunch =
       defaults.object(forKey: Keys.showMainWindowOnLaunch) as? Bool ?? true
     speedTestBudget =
@@ -1857,6 +1871,7 @@ public final class AppSettings {
     static let panelTab = "panelTab"
     static let appearance = "appearance"
     static let showDockIcon = "showDockIcon"
+    static let applicationIconStyle = "applicationIconStyle"
     static let showMainWindowOnLaunch = "showMainWindowOnLaunch"
     static let speedTestBudget = "speedTestBudget"
     static let speedTestRoute = "speedTestRoute"

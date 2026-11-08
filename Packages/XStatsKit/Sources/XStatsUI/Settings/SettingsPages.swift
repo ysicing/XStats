@@ -569,6 +569,12 @@ struct MenuBarSettings: View {
             includesAutomatic: settings.menuBarLayout == .iconOnly)
         }
       }
+      GroupRow {
+        SettingRow(title: tr("启动台与搜索图标")) {
+          DockIconPicker(
+            selection: $settings.applicationIconStyle, title: tr("启动台与搜索图标"))
+        }
+      }
       if settings.menuBarLayout != .iconOnly {
         GroupRow {
           SettingRow(title: tr("数值位置"), subtitle: tr("适用于双行文字及图形旁的双行文字")) {

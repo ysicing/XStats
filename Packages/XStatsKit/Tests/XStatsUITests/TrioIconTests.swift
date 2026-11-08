@@ -219,10 +219,12 @@ struct TrioIconTests {
     let model = AppModel(
       settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
     var imagesCreated = 0
-    let controller = MenuBarController(model: model) { reading, configuration in
-      imagesCreated += 1
-      return TrioIconRenderer.dockImage(reading: reading, configuration: configuration)
-    }
+    let controller = MenuBarController(
+      model: model,
+      makeDockImage: { reading, configuration in
+        imagesCreated += 1
+        return TrioIconRenderer.dockImage(reading: reading, configuration: configuration)
+      })
     #expect(app.setActivationPolicy(.regular))
     var reading = TrioReading()
     for index in 0..<100 {

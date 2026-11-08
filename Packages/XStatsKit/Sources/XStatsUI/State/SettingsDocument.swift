@@ -56,6 +56,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var appearance: String?
   public var showDockIcon: Bool?
   public var dockIconStyle: String?
+  public var applicationIconStyle: String?
   public var showMainWindowOnLaunch: Bool?
   public var speedTestRoute: String?
   public var menuBarItemSpacing: Int?
@@ -146,6 +147,7 @@ extension AppSettings {
     doc.appearance = appearance.rawValue
     doc.showDockIcon = showDockIcon
     doc.dockIconStyle = preferredDockIconStyle.rawValue
+    doc.applicationIconStyle = applicationIconStyle.rawValue
     doc.showMainWindowOnLaunch = showMainWindowOnLaunch
     doc.speedTestRoute = speedTestRoute.rawValue
     doc.menuBarItemSpacing = menuBarItemSpacing
@@ -268,6 +270,11 @@ extension AppSettings {
       preferredDockIconStyle != style
     {
       dockIconStyle = style
+    }
+    if let style = doc.applicationIconStyle.flatMap(DockIconStyle.init(rawValue:)),
+      style != .automatic
+    {
+      assign(\.applicationIconStyle, style)
     }
     assign(\.showMainWindowOnLaunch, doc.showMainWindowOnLaunch)
     assign(\.speedTestRoute, doc.speedTestRoute.flatMap(SpeedRoute.init(rawValue:)))
