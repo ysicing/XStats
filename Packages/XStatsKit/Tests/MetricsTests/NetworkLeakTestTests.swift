@@ -43,6 +43,36 @@ struct NetworkLeakTestTests {
     }
   }
 
+  @Test func acceptsLargeResolverPoolsWithinResponseLimit() throws {
+    let addresses =
+      (1...188).map { "192.0.2.\($0)" }
+      + (1...75).map { "2001:db8::\(String($0, radix: 16))" }
+    let records =
+      [["ip": "198.51.100.1", "type": "ip"]]
+      + addresses.map { ["ip": $0, "type": "dns", "org": "Example"] }
+      + [["ip": "Ignored", "type": "conclusion"]]
+    let data = try JSONSerialization.data(withJSONObject: records)
+    #expect(records.count == 265)
+    #expect(data.count < 65_536)
+
+    let result = try NetworkLeakTest.decodeDNS(data)
+    #expect(result.exits == ["198.51.100.1"])
+    #expect(result.resolvers.map(\.address) == addresses.sorted())
+  }
+
+  @Test func largeResolverResponsesRemainBoundedAndDeduplicated() throws {
+    let record = ["ip": "192.0.2.53", "type": "dns"]
+    var data = try JSONSerialization.data(withJSONObject: Array(repeating: record, count: 300))
+    data.append(Data(repeating: 32, count: 65_536 - data.count))
+
+    let result = try NetworkLeakTest.decodeDNS(data)
+    #expect(result.resolvers.map(\.address) == ["192.0.2.53"])
+    data.append(32)
+    #expect(throws: NetworkLeakTest.Failure.invalidResponse) {
+      try NetworkLeakTest.decodeDNS(data)
+    }
+  }
+
   @Test func acceptsUnavailableDNSMetadataWithoutDiscardingResolvers() throws {
     let data = Data(
       """

@@ -3,10 +3,12 @@
 import Foundation
 import Network
 import dnssd
+import os
 
 /// 按需检测当前请求路径；观察到的地址不是 VPN 是否泄漏的自动判决。
 public enum NetworkLeakTest {
   public enum Failure: Error, Sendable { case invalidResponse, unavailable }
+  private static let logger = Logger(subsystem: "work.12306.xstats", category: "DNSLeakTest")
 
   public struct Resolver: Sendable, Equatable, Identifiable {
     public let address: String
@@ -69,22 +71,49 @@ public enum NetworkLeakTest {
     defer { session.invalidateAndCancel() }
     return try await dns(
       request: { request in
-        let (bytes, response) = try await session.bytes(for: request)
-        defer { bytes.task.cancel() }
-        guard let response = response as? HTTPURLResponse, response.statusCode == 200,
-          response.expectedContentLength <= 65_536
-        else { throw Failure.unavailable }
-        var data = Data()
-        for try await byte in bytes {
-          try Task.checkCancellation()
-          guard data.count < 65_536 else { throw Failure.invalidResponse }
-          data.append(byte)
+        do {
+          let (bytes, response) = try await session.bytes(for: request)
+          defer { bytes.task.cancel() }
+          guard let response = response as? HTTPURLResponse else {
+            logger.notice("DNS response rejected: non-HTTP response")
+            throw Failure.unavailable
+          }
+          let contentKind =
+            response.mimeType == "application/json"
+            ? "json" : (response.mimeType == "text/html" ? "html" : "other")
+          logger.debug(
+            "DNS HTTP response: status=\(response.statusCode) content=\(contentKind, privacy: .public) declaredBytes=\(response.expectedContentLength)"
+          )
+          guard response.statusCode == 200, response.expectedContentLength <= 65_536 else {
+            logger.notice("DNS response rejected: HTTP status or declared size")
+            throw Failure.unavailable
+          }
+          var data = Data()
+          for try await byte in bytes {
+            try Task.checkCancellation()
+            guard data.count < 65_536 else {
+              logger.notice("DNS response rejected: body exceeds 65536 bytes")
+              throw Failure.invalidResponse
+            }
+            data.append(byte)
+          }
+          logger.debug("DNS response body read: bytes=\(data.count)")
+          return data
+        } catch {
+          if !Task.isCancelled, !(error is CancellationError) {
+            let failure = error as NSError
+            let kind = error is URLError ? "transport" : "response"
+            logger.notice(
+              "DNS request failed: kind=\(kind, privacy: .public) code=\(failure.code)"
+            )
+          }
+          throw error
         }
-        return data
       },
       register: { url, ipv6 in
         // 与脚本的 curl -4/-6 一致；缺少某个地址族不应阻止 DNS 检测。
-        _ = await AddressFamilyRequest.get(url, ipv6: ipv6, timeout: 5)
+        let (_, status) = await AddressFamilyRequest.get(url, ipv6: ipv6, timeout: 5)
+        logger.debug("DNS exit registration: ipv6=\(ipv6) status=\(status)")
         try Task.checkCancellation()
       },
       resolve: { host in
@@ -106,18 +135,26 @@ public enum NetworkLeakTest {
       let cmd: String
       let url: String
     }
+    logger.debug("DNS stage=start")
     let sessionData = try await request(dnsCommand("start", path: "/dnsleak"))
     guard sessionData.count <= 65_536,
       let run = try? JSONDecoder().decode(Run.self, from: sessionData)
-    else { throw Failure.invalidResponse }
+    else {
+      logger.notice("DNS start rejected: invalid session response")
+      throw Failure.invalidResponse
+    }
     let token = run.run_id
     guard (1...63).contains(token.utf8.count),
       token.utf8.allSatisfy({
         (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0)
       }),
       run.kind == "test", run.cmd == "dnsleaktest", run.url == "/dnsleak/test/\(token)"
-    else { throw Failure.invalidResponse }
+    else {
+      logger.notice("DNS start rejected: invalid session identity")
+      throw Failure.invalidResponse
+    }
     // 使用当前网页的 start / exec / checkrun 协议；不采纳服务端的泄漏结论。
+    logger.debug("DNS stage=register")
     for ipv6 in [false, true] {
       try Task.checkCancellation()
       do {
@@ -129,11 +166,16 @@ public enum NetworkLeakTest {
     }
     try Task.checkCancellation()
     struct Execution: Decodable { let started: Int }
+    logger.debug("DNS stage=execute")
     let execution = try await request(dnsCommand("exec", path: run.url))
     guard execution.count <= 65_536,
       let status = try? JSONDecoder().decode(Execution.self, from: execution), status.started == 1
-    else { throw Failure.invalidResponse }
+    else {
+      logger.notice("DNS execution rejected: invalid start acknowledgement")
+      throw Failure.invalidResponse
+    }
     // 30 个不同域名采样递归出口池，最多两个查询同时进行；只解析，不发送 ICMP 或 HTTPS。
+    logger.debug("DNS stage=resolve queryCount=30")
     try await withThrowingTaskGroup(of: Void.self) { group in
       for index in 1...30 {
         try Task.checkCancellation()
@@ -158,22 +200,31 @@ public enum NetworkLeakTest {
     for attempt in 0..<4 {
       if attempt > 0 { try await Task.sleep(for: .milliseconds(1500)) }
       try Task.checkCancellation()
+      logger.debug("DNS stage=poll attempt=\(attempt + 1)")
       let data = try await request(dnsCommand("checkrun", path: run.url))
       guard data.count <= 65_536,
         let progress = try? JSONDecoder().decode(Progress.self, from: data),
         progress.done == 0 || progress.done == 1
-      else { throw Failure.invalidResponse }
+      else {
+        logger.notice("DNS progress rejected: invalid completion response")
+        throw Failure.invalidResponse
+      }
       if progress.done == 1 {
         completed = true
         break
       }
     }
-    guard completed else { throw Failure.unavailable }
+    guard completed else {
+      logger.notice("DNS progress incomplete after bounded polling")
+      throw Failure.unavailable
+    }
     try Task.checkCancellation()
     let resultRequest = URLRequest(
       url: URL(string: "https://bash.ws/dnsleak/test/\(token)?json=2")!, timeoutInterval: 6)
+    logger.debug("DNS stage=result")
     let data = try await request(resultRequest)
     try Task.checkCancellation()
+    logger.debug("DNS stage=decode bytes=\(data.count)")
     return try decodeDNS(data)
   }
 
@@ -210,9 +261,27 @@ public enum NetworkLeakTest {
         asn = try? values.decode(String.self, forKey: .asn)
       }
     }
-    guard data.count <= 65_536,
-      let entries = try? JSONDecoder().decode([Entry].self, from: data), entries.count <= 256
-    else { throw Failure.invalidResponse }
+    guard data.count <= 65_536 else {
+      logger.notice("DNS result rejected: body exceeds 65536 bytes")
+      throw Failure.invalidResponse
+    }
+    let entries: [Entry]
+    do {
+      entries = try JSONDecoder().decode([Entry].self, from: data)
+    } catch {
+      let reason: String
+      switch error {
+      case DecodingError.dataCorrupted: reason = "invalid-json"
+      case DecodingError.keyNotFound: reason = "missing-field"
+      case DecodingError.typeMismatch: reason = "type-mismatch"
+      case DecodingError.valueNotFound: reason = "null-field"
+      default: reason = "unknown"
+      }
+      logger.notice(
+        "DNS result rejected: reason=\(reason, privacy: .public)"
+      )
+      throw Failure.invalidResponse
+    }
     var exits: [String] = []
     var resolvers: [Resolver] = []
     for entry in entries {
@@ -225,7 +294,11 @@ public enum NetworkLeakTest {
             organization: String((entry.org ?? entry.asn ?? "").prefix(256))))
       }
     }
-    guard !resolvers.isEmpty else { throw Failure.invalidResponse }
+    guard !resolvers.isEmpty else {
+      logger.notice("DNS result rejected: no valid resolvers recordCount=\(entries.count)")
+      throw Failure.invalidResponse
+    }
+    logger.debug("DNS result accepted: exits=\(exits.count) resolvers=\(resolvers.count)")
     return DNSResult(exits: exits.sorted(), resolvers: resolvers.sorted { $0.address < $1.address })
   }
 }
