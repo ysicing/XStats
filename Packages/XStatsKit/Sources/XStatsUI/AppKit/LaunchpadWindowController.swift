@@ -5,7 +5,7 @@ import Localization
 import OSLog
 import QuartzCore
 
-/// 仅显示期间读取应用与图标；分页使控件和图标数量不随应用清单增长。
+/// 分页限制当前控件数量；应用清单和图标由有界共享缓存按需提供。
 @MainActor
 final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchFieldDelegate {
   private(set) var panel: NSPanel?
@@ -13,6 +13,12 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   private(set) var selectedIndex = 0
   private(set) var columns = 1
   private(set) var pageSize = 1
+  private(set) var browsingMode: LaunchpadBrowsingMode
+  private var gridColumns = 1
+  private var gridCapacity = 1
+  private var listCapacity = 1
+  private var pageCategories: [LaunchpadApplicationCategory?] = []
+  private var modeButton: NSPopUpButton?
   private var search: CommandBarSearch?
   private var field: NSSearchField?
   private var grid: NSView?
@@ -27,6 +33,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   private var removalTask: Task<Void, Never>?
   private var applicationMap: [String: AppCommand] = [:]
   private var displayPages: [[AppCommand]] = []
+  private var gridLayoutPageIndices: [Int] = []
   private(set) var layout = LaunchpadLayout()
   private(set) var folderID: String?
   private(set) var isEditing = false
@@ -42,9 +49,13 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   private var lastRevealUpdate = ContinuousClock.now
   private var dragZones: [LaunchpadDropView] = []
   private var sessionID: UUID?
+  private var catalogRequestID: UUID?
+  private var applicationLoader: (@Sendable () throws -> [AppCommand])?
   private var language: AppLanguage = .system
   private let usage: CommandBarUsage?
   private let layoutStore: LaunchpadLayoutStore?
+  private let defaults: UserDefaults
+  private let applicationRemover: @Sendable (URL) throws -> Void
   var onSelect: (AppCommand) -> Void = { _ in }
   var isVisible: Bool { panel?.isVisible == true }
   var page: Int {
@@ -56,6 +67,13 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     return 0
   }
   var pageCount: Int { max(1, displayPages.count) }
+  private var currentLayoutPage: Int? {
+    if let folderID {
+      return layout.pages.firstIndex { $0.contains { $0.id == folderID } }
+    }
+    guard gridLayoutPageIndices.indices.contains(page) else { return nil }
+    return gridLayoutPageIndices[page]
+  }
 
   func setRevealProgress(_ progress: Double) {
     guard let panel else { return }
@@ -113,9 +131,20 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     }
   }
 
-  init(usage: CommandBarUsage? = nil, layoutStore: LaunchpadLayoutStore? = nil) {
+  init(
+    usage: CommandBarUsage? = nil, layoutStore: LaunchpadLayoutStore? = nil,
+    defaults: UserDefaults = .standard,
+    applicationRemover: @escaping @Sendable (URL) throws -> Void = {
+      try LaunchpadApplicationRemoval.trash($0)
+    }
+  ) {
     self.usage = usage
     self.layoutStore = layoutStore
+    self.defaults = defaults
+    self.applicationRemover = applicationRemover
+    browsingMode =
+      defaults.string(forKey: LaunchpadBrowsingMode.preferenceKey)
+      .flatMap(LaunchpadBrowsingMode.init(rawValue:)) ?? .grid
     super.init()
   }
 
@@ -132,6 +161,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       return
     }
     self.language = language
+    self.applicationLoader = applicationLoader
     let screen =
       NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
     guard let frame = frame ?? screen?.frame else { return }
@@ -200,48 +230,75 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     NSWorkspace.shared.notificationCenter.addObserver(
       self, selector: #selector(displayOptionsChanged),
       name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+    // 注入加载器用于隔离测试，不订阅也不触碰共享目录缓存。
+    if applicationLoader == nil {
+      _ = LauncherApplicationCatalog.shared
+      NotificationCenter.default.addObserver(
+        self, selector: #selector(applicationsChanged), name: .launcherApplicationsChanged,
+        object: nil)
+    }
+    reloadApplications()
+  }
 
-    let savedLayout = layoutStore?.load()
+  @objc private func applicationsChanged() { reloadApplications() }
+
+  func reloadApplications() {
+    guard let session = sessionID else { return }
+    catalogTask?.cancel()
+    let request = UUID()
+    catalogRequestID = request
+    let applicationLoader = applicationLoader
+    let savedLayout = search == nil ? layoutStore?.load() : layout
     let importsSystemLayout = layoutStore != nil && savedLayout == nil
     catalogTask = Task { [weak self] in
-      let worker = Task.detached(priority: .userInitiated) {
-        // 默认扫描能报告是否触顶；自定义加载器仅能以数量达到上限推断。
-        let scanned: (commands: [AppCommand], isTruncated: Bool)
-        if let applicationLoader {
-          let commands = try applicationLoader()
-          scanned = (commands, commands.count >= CommandBarApplications.maxApplications)
+      do {
+        let snapshot: LauncherApplicationSnapshot?
+        if applicationLoader == nil {
+          snapshot = try await LauncherApplicationCatalog.shared.load()
         } else {
-          scanned = try CommandBarApplications.scanResult()
-        }
-        let applications = scanned.commands.filter {
-          if case .openApplication = $0.action { return true }
-          return false
+          snapshot = nil
         }
         try Task.checkCancellation()
-        let imported =
-          importsSystemLayout
-          ? try? LaunchpadImport.systemLayout(applications: applications) : nil
-        let candidates = Set(
-          applications.compactMap { command -> String? in
-            guard case .openApplication(let url) = command.action,
-              LaunchpadApplicationRemoval.isCandidate(url)
-            else { return nil }
-            return command.id
-          })
-        return (
-          CommandBarSearch(commands: applications, supportsParameterQueries: false),
-          applications, imported, candidates, scanned.isTruncated
-        )
-      }
-      do {
+        let worker = Task.detached(priority: .userInitiated) {
+          let scanned: (commands: [AppCommand], isTruncated: Bool)
+          if let applicationLoader {
+            let commands = try applicationLoader()
+            scanned = (commands, commands.count >= CommandBarApplications.maxApplications)
+          } else {
+            scanned = (snapshot?.commands ?? [], snapshot?.isTruncated ?? false)
+          }
+          try Task.checkCancellation()
+          let applications = scanned.commands.filter {
+            if case .openApplication = $0.action { return true }
+            return false
+          }
+          let imported =
+            importsSystemLayout
+            ? try? LaunchpadImport.systemLayout(applications: applications) : nil
+          let candidates = Set(
+            applications.compactMap { command -> String? in
+              guard !Task.isCancelled, case .openApplication(let url) = command.action,
+                LaunchpadApplicationRemoval.isCandidate(url)
+              else { return nil }
+              return command.id
+            })
+          try Task.checkCancellation()
+          return (
+            CommandBarSearch(commands: applications, supportsParameterQueries: false),
+            applications, imported, candidates, scanned.isTruncated
+          )
+        }
         let (index, applications, imported, candidates, isTruncated) =
           try await withTaskCancellationHandler {
             try await worker.value
           } onCancel: {
             worker.cancel()
           }
-        guard !Task.isCancelled, let self, self.sessionID == session else { return }
+        guard !Task.isCancelled, let self, self.sessionID == session,
+          self.catalogRequestID == request
+        else { return }
         self.catalogTask = nil
+        let isInitialLoad = self.search == nil
         self.search = index
         self.applicationMap = Dictionary(
           applications.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -250,15 +307,21 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
           Logger(subsystem: Log.subsystem, category: "Launchpad").info(
             "Initial layout loaded; system layout available: \(imported != nil)")
         }
-        self.layout = savedLayout ?? imported ?? LaunchpadLayout()
+        // 刷新期间仍可整理；完成时基于当前布局合并，不能用任务启动时的快照覆盖。
+        if isInitialLoad { self.layout = savedLayout ?? imported ?? LaunchpadLayout() }
         // 扫描触顶时缺失不等于已卸载：保留已有布局项，也不落盘，避免永久丢失用户整理结果。
         self.layout.reconcile(
           appIDs: index.results(for: "", favorites: self.usage?.favorites ?? []).map(\.id),
-          capacity: self.pageSize, pruneMissing: !isTruncated)
+          capacity: self.gridCapacity, pruneMissing: !isTruncated)
         if !applications.isEmpty && !isTruncated { self.layoutStore?.save(self.layout) }
-        self.refreshResults()
+        if let folderID = self.folderID, self.layout.item(folderID)?.isFolder != true {
+          self.folderID = nil
+        }
+        self.refreshResults(preservingSelection: true)
       } catch {
-        guard !Task.isCancelled, let self, self.sessionID == session else { return }
+        guard !Task.isCancelled, let self, self.sessionID == session,
+          self.catalogRequestID == request
+        else { return }
         self.catalogTask = nil
         self.status?.stringValue = self.text("无法读取应用，请关闭后重试。")
         Logger(subsystem: Log.subsystem, category: "Launchpad").error("Application catalog failed")
@@ -275,12 +338,16 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     revealTimeoutTask = nil
     catalogTask?.cancel()
     catalogTask = nil
+    catalogRequestID = nil
+    applicationLoader = nil
     wallpaperTask?.cancel()
     wallpaperTask = nil
     removalTask?.cancel()
     removalTask = nil
     NotificationCenter.default.removeObserver(
       self, name: NSApplication.didChangeScreenParametersNotification, object: nil)
+    NotificationCenter.default.removeObserver(
+      self, name: .launcherApplicationsChanged, object: nil)
     NSWorkspace.shared.notificationCenter.removeObserver(
       self, name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
     let closing = panel
@@ -302,6 +369,9 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     nextButton = nil
     buttons = []
     displayPages = []
+    gridLayoutPageIndices = []
+    pageCategories = []
+    modeButton = nil
     applicationMap = [:]
     layout = LaunchpadLayout()
     folderID = nil
@@ -373,6 +443,40 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   private var isRTL: Bool { language.resolved.isRightToLeft }
   private func text(_ key: String) -> String { L10n.translate(key, language: language) }
 
+  @objc private func changeBrowsingMode(_ sender: NSPopUpButton) {
+    guard LaunchpadBrowsingMode.allCases.indices.contains(sender.indexOfSelectedItem) else {
+      return
+    }
+    setBrowsingMode(LaunchpadBrowsingMode.allCases[sender.indexOfSelectedItem])
+  }
+
+  func setBrowsingMode(_ mode: LaunchpadBrowsingMode) {
+    guard mode != browsingMode else { return }
+    browsingMode = mode
+    defaults.set(mode.rawValue, forKey: LaunchpadBrowsingMode.preferenceKey)
+    isEditing = false
+    folderID = nil
+    columns = mode == .list ? 1 : gridColumns
+    pageSize = mode == .list ? listCapacity : gridCapacity
+    modeButton?.selectItem(at: LaunchpadBrowsingMode.allCases.firstIndex(of: mode) ?? 0)
+    if mode == .grid {
+      grid?.registerForDraggedTypes([LaunchpadTileButton.pasteboardType])
+    } else {
+      grid?.unregisterDraggedTypes()
+    }
+    refreshResults(preservingSelection: true)
+    panel?.makeFirstResponder(field)
+  }
+
+  @objc private func refreshApplications() {
+    if applicationLoader == nil {
+      NotificationCenter.default.post(name: .launcherApplicationsChanged, object: nil)
+    } else {
+      reloadApplications()
+    }
+    panel?.makeFirstResponder(field)
+  }
+
   private func buildContent(size: NSSize) {
     let background = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
     background.material = .fullScreenUI
@@ -397,6 +501,32 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     let title = NSTextField(labelWithString: text("启动台"))
     heading = title
     title.font = .systemFont(ofSize: DS.TextSize.xl.rawValue, weight: .semibold)
+    title.lineBreakMode = .byTruncatingTail
+    title.alignment = isRTL ? .right : .left
+    title.identifier = NSUserInterfaceItemIdentifier("launchpad.heading")
+    title.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    let modes = NSPopUpButton(frame: .zero, pullsDown: false)
+    modes.addItems(withTitles: LaunchpadBrowsingMode.allCases.map { text($0.titleKey) })
+    modes.selectItem(at: LaunchpadBrowsingMode.allCases.firstIndex(of: browsingMode) ?? 0)
+    modes.target = self
+    modes.action = #selector(changeBrowsingMode(_:))
+    modes.identifier = NSUserInterfaceItemIdentifier("launchpad.browsingMode")
+    modes.setAccessibilityLabel(text("浏览方式"))
+    modes.userInterfaceLayoutDirection = background.userInterfaceLayoutDirection
+    modeButton = modes
+    let refresh = NSButton(
+      image: NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: text("刷新"))!,
+      target: self, action: #selector(refreshApplications))
+    refresh.bezelStyle = .circular
+    refresh.setAccessibilityLabel(text("刷新"))
+    refresh.toolTip = text("刷新")
+    refresh.identifier = NSUserInterfaceItemIdentifier("launchpad.refresh")
+    let header = NSStackView(views: [title, modes, refresh])
+    header.spacing = DS.Space.s2
+    header.distribution = .fill
+    header.alignment = .centerY
+    header.userInterfaceLayoutDirection = background.userInterfaceLayoutDirection
     let close = NSButton(
       image: NSImage(systemSymbolName: "xmark", accessibilityDescription: text("关闭"))!,
       target: self, action: #selector(dismiss))
@@ -406,12 +536,17 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     close.keyEquivalent = "w"
     close.keyEquivalentModifierMask = .command
 
-    columns = max(1, min(8, Int((size.width - 64) / 132)))
+    gridColumns = max(1, min(8, Int((size.width - 64) / 132)))
     let rows = max(1, min(6, Int((size.height - 240) / 132)))
-    pageSize = columns * rows
+    gridCapacity = gridColumns * rows
+    listCapacity = max(1, min(24, rows * 132 / 40))
+    columns = browsingMode == .list ? 1 : gridColumns
+    pageSize = browsingMode == .list ? listCapacity : gridCapacity
     let grid = LaunchpadDropView(frame: .zero)
+    grid.identifier = NSUserInterfaceItemIdentifier("launchpad.grid")
     grid.dragToken = sessionID?.uuidString ?? ""
     grid.onDrop = { [weak self] id in self?.moveItem(id, before: nil) }
+    if browsingMode != .grid { grid.unregisterDraggedTypes() }
     self.grid = grid
     grid.wantsLayer = true
     let status = NSTextField(labelWithString: text("正在读取应用…"))
@@ -457,31 +592,24 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     footer.spacing = DS.Space.s8
     footer.userInterfaceLayoutDirection = background.userInterfaceLayoutDirection
 
-    for view in [title, field, close, grid, status, footer] {
+    for view in [header, field, close, grid, status, footer] {
       view.translatesAutoresizingMaskIntoConstraints = false
       background.addSubview(view)
     }
     for side in [-1, 1] {
       let delta = isRTL ? -side : side
       let zone = LaunchpadDropView(frame: .zero)
+      zone.identifier = NSUserInterfaceItemIdentifier(
+        delta < 0 ? "launchpad.page.previous" : "launchpad.page.next")
       zone.dragToken = sessionID?.uuidString ?? ""
       zone.onHover = { [weak self] in
-        guard let self, self.folderID == nil else { return false }
+        guard let self, self.browsingMode == .grid, self.folderID == nil else { return false }
         let previous = self.page
         self.changePage(by: delta)
         return self.page != previous
       }
       zone.onDrop = { [weak self, weak zone] id in
-        guard let self, self.field?.stringValue.isEmpty == true else { return }
-        let sourcePage =
-          self.folderID.flatMap { folder in
-            self.layout.pages.firstIndex(where: { $0.contains { $0.id == folder } })
-          } ?? self.page
-        let target = min(
-          self.layout.pages.count, max(0, sourcePage + (zone?.didNavigate == true ? 0 : delta)))
-        self.folderID = nil
-        self.layout.move(id, toPage: target, before: nil, capacity: self.pageSize)
-        self.saveLayout()
+        self?.moveItem(id, toAdjacentPage: delta, afterHover: zone?.didNavigate == true)
       }
       zone.translatesAutoresizingMaskIntoConstraints = false
       background.addSubview(zone)
@@ -499,10 +627,10 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     folderExit.identifier = NSUserInterfaceItemIdentifier("launchpad.folderExit")
     folderExit.dragToken = sessionID?.uuidString ?? ""
     folderExit.onDrop = { [weak self] id in
-      guard let self, let folderID = self.folderID,
+      guard let self, self.browsingMode == .grid, let folderID = self.folderID,
         let sourcePage = self.layout.pages.firstIndex(where: { $0.contains { $0.id == folderID } })
       else { return }
-      self.layout.move(id, toPage: sourcePage, before: folderID, capacity: self.pageSize)
+      self.layout.move(id, toPage: sourcePage, before: folderID, capacity: self.gridCapacity)
       self.folderID = nil
       self.saveLayout()
     }
@@ -520,17 +648,21 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       back.centerYAnchor.constraint(equalTo: folderExit.centerYAnchor),
     ])
     NSLayoutConstraint.activate([
-      title.centerXAnchor.constraint(equalTo: background.centerXAnchor),
-      title.topAnchor.constraint(equalTo: background.topAnchor, constant: 44),
+      header.centerXAnchor.constraint(equalTo: background.centerXAnchor),
+      header.topAnchor.constraint(equalTo: background.topAnchor, constant: 40),
+      header.widthAnchor.constraint(equalTo: field.widthAnchor),
+      header.heightAnchor.constraint(equalToConstant: 30),
+      modes.widthAnchor.constraint(equalToConstant: min(200, (size.width - 112) * 0.42)),
+      refresh.widthAnchor.constraint(equalToConstant: 28),
       close.topAnchor.constraint(equalTo: background.topAnchor, constant: 40),
       close.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -32),
-      field.topAnchor.constraint(equalTo: title.bottomAnchor, constant: DS.Space.s4),
+      field.topAnchor.constraint(equalTo: header.bottomAnchor, constant: DS.Space.s4),
       field.centerXAnchor.constraint(equalTo: background.centerXAnchor),
       field.widthAnchor.constraint(equalToConstant: min(440, size.width - 112)),
       field.heightAnchor.constraint(equalToConstant: DS.Size.controlHeight),
       grid.centerXAnchor.constraint(equalTo: background.centerXAnchor),
       grid.topAnchor.constraint(equalTo: field.bottomAnchor, constant: DS.Space.s6),
-      grid.widthAnchor.constraint(equalToConstant: CGFloat(columns) * 132),
+      grid.widthAnchor.constraint(equalToConstant: CGFloat(gridColumns) * 132),
       grid.heightAnchor.constraint(equalToConstant: CGFloat(rows) * 132),
       status.centerXAnchor.constraint(equalTo: grid.centerXAnchor),
       status.centerYAnchor.constraint(equalTo: grid.centerYAnchor),
@@ -545,22 +677,37 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     guard let search else { return }
     let selectedID = results.indices.contains(selectedIndex) ? results[selectedIndex].id : nil
     let query = field?.stringValue ?? ""
-    if !query.isEmpty {
+    pageCategories = []
+    // 不可用页仍属于持久化布局；显示过滤后必须保留真实页号供拖动使用。
+    gridLayoutPageIndices = layout.pages.indices.filter { index in
+      layout.pages[index].contains { $0.isFolder || applicationMap[$0.id] != nil }
+    }
+    if browsingMode != .grid {
+      let applications =
+        query.isEmpty
+        ? LaunchpadBrowsing.applications(in: layout, catalog: applicationMap)
+        : search.results(for: query, favorites: usage?.favorites ?? [])
+      let pages = LaunchpadBrowsing.pages(
+        applications: applications, mode: browsingMode, capacity: pageSize)
+      displayPages = pages.map(\.commands)
+      pageCategories = pages.map(\.category)
+      results = displayPages.flatMap { $0 }
+    } else if !query.isEmpty {
       results = search.results(for: query, favorites: usage?.favorites ?? [])
-      displayPages = LaunchpadLayout.paginate(results, capacity: pageSize)
+      displayPages = LaunchpadLayout.paginate(results, capacity: gridCapacity)
     } else if let folderID, let folder = layout.item(folderID) {
       results = folder.apps.compactMap { applicationMap[$0] }
       displayPages = LaunchpadLayout.paginate(results, capacity: pageSize)
     } else {
       folderID = nil
-      displayPages = layout.pages.map { page in
-        page.compactMap { item in
+      displayPages = gridLayoutPageIndices.map { index in
+        layout.pages[index].compactMap { item in
           if !item.isFolder { return applicationMap[item.id] }
           return AppCommand(
             id: item.id, title: item.name?.isEmpty == false ? item.name! : text("文件夹"),
             symbol: "folder", keywords: "", action: .launchpad)
         }
-      }.filter { !$0.isEmpty }
+      }
       results = displayPages.flatMap { $0 }
     }
     selectedIndex = preservingSelection ? results.firstIndex { $0.id == selectedID } ?? 0 : 0
@@ -576,21 +723,29 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     grid.layer?.cornerRadius = DS.Radius.lg
     grid.layer?.backgroundColor =
       folderID == nil ? nil : NSColor.controlBackgroundColor.withAlphaComponent(0.3).cgColor
-    dragZones.forEach { $0.isHidden = field?.stringValue.isEmpty != true }
-    dragZones.last?.isHidden = folderID == nil || field?.stringValue.isEmpty != true
+    dragZones.forEach {
+      $0.isHidden = browsingMode != .grid || field?.stringValue.isEmpty != true
+    }
+    dragZones.last?.isHidden =
+      browsingMode != .grid || folderID == nil || field?.stringValue.isEmpty != true
     grid.layoutSubtreeIfNeeded()
-    // 图标仅随当前页的按钮存活，不保留所有页面的原始 NSImage。
+    // 仅为当前页创建控件，图标交由有界缓存复用。
     let start = displayPages.prefix(page).reduce(0) { $0 + $1.count }
     let count = displayPages.indices.contains(page) ? displayPages[page].count : 0
     for index in start..<(start + count) {
       let command = results[index]
       let offset = index - start
       let column = isRTL ? columns - 1 - offset % columns : offset % columns
+      let isList = browsingMode == .list
       let button = LaunchpadTileButton(
-        frame: NSRect(
-          x: CGFloat(column) * 132 + 6,
-          y: grid.bounds.height - CGFloat(offset / columns + 1) * 132 + 6,
-          width: 120, height: 120))
+        frame: isList
+          ? NSRect(
+            x: 6, y: grid.bounds.height - CGFloat(offset + 1) * 40 + 2,
+            width: grid.bounds.width - 12, height: 36)
+          : NSRect(
+            x: CGFloat(column) * 132 + 6,
+            y: grid.bounds.height - CGFloat(offset / columns + 1) * 132 + 6,
+            width: 120, height: 120))
       button.attributedTitle = NSAttributedString(
         string: command.title,
         attributes: [
@@ -598,12 +753,13 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
           .foregroundColor: NSColor.labelColor,
         ])
       if case .openApplication(let url) = command.action {
-        button.image = NSWorkspace.shared.icon(forFile: url.path).copy() as? NSImage
+        button.image = LauncherIconCache.shared.image(for: url, size: isList ? 28 : 64)
       } else {
         button.image = folderImage(command.id)
       }
-      button.image?.size = NSSize(width: 64, height: 64)
-      button.imagePosition = .imageAbove
+      button.imagePosition = isList ? .imageLeading : .imageAbove
+      button.alignment = isList ? (isRTL ? .right : .left) : .center
+      button.userInterfaceLayoutDirection = isRTL ? .rightToLeft : .leftToRight
       button.imageScaling = .scaleProportionallyDown
       button.isBordered = false
       button.lineBreakMode = .byTruncatingTail
@@ -617,10 +773,12 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       button.layer?.cornerRadius = DS.Radius.lg
       button.itemID = command.id
       button.dragToken = sessionID?.uuidString ?? ""
-      button.canDrag = field?.stringValue.isEmpty == true
+      button.canDrag = browsingMode == .grid && field?.stringValue.isEmpty == true
       button.onHold = { [weak self] in self?.setEditing(true) }
       button.onDrop = { [weak self] id, group in
-        guard let self else { return }
+        guard let self, self.browsingMode == .grid, self.field?.stringValue.isEmpty == true else {
+          return
+        }
         if group && self.folderID == nil {
           self.layout.group(id, into: command.id, name: "")
           self.saveLayout()
@@ -630,7 +788,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       }
       grid.addSubview(button)
       buttons.append(button)
-      if isEditing {
+      if isEditing && browsingMode == .grid {
         if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
           let wobble = CAKeyframeAnimation(keyPath: "transform.rotation.z")
           wobble.values = [-0.018, 0.018, -0.018]
@@ -678,12 +836,18 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     previousButton?.isEnabled = page > 0
     nextButton?.isEnabled = page + 1 < pageCount
     editButton?.title = text(isEditing ? "完成" : "整理应用")
+    editButton?.isHidden = browsingMode != .grid
     backButton?.isHidden = folderID == nil
     renameButton?.isHidden = folderID == nil
     // 默认文件夹名不落盘，展示时按当前语言翻译；旧数据中已存的名字原样显示。
     heading?.stringValue =
       folderID.flatMap { layout.item($0)?.name }.flatMap { $0.isEmpty ? nil : $0 }
       ?? (folderID == nil ? text("启动台") : text("文件夹"))
+    if pageCategories.indices.contains(page), let category = pageCategories[page] {
+      heading?.stringValue = text(category.titleKey)
+    }
+    heading?.toolTip = heading?.stringValue
+    heading?.setAccessibilityLabel(heading?.stringValue)
   }
 
   private func folderImage(_ id: String) -> NSImage {
@@ -691,7 +855,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       guard let command = applicationMap[id], case .openApplication(let url) = command.action else {
         return nil
       }
-      return NSWorkspace.shared.icon(forFile: url.path).copy() as? NSImage
+      return LauncherIconCache.shared.image(for: url, size: 21)
     }
     return NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
       NSColor.controlColor.withAlphaComponent(0.8).setFill()
@@ -720,7 +884,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     let index = sender?.tag ?? selectedIndex
     guard results.indices.contains(index) else { return }
     let command = results[index]
-    if layout.item(command.id)?.isFolder == true {
+    if browsingMode == .grid && layout.item(command.id)?.isFolder == true {
       folderID = command.id
       field?.stringValue = ""
       refreshResults()
@@ -733,7 +897,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   }
 
   func moveItem(_ id: String, before target: String?) {
-    guard field?.stringValue.isEmpty == true else { return }
+    guard browsingMode == .grid, field?.stringValue.isEmpty == true else { return }
     if let folderID, let folder = layout.item(folderID), folder.apps.contains(id) {
       var apps = folder.apps
       apps.removeAll { $0 == id }
@@ -744,8 +908,23 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
         }
       }
     } else {
-      layout.move(id, toPage: page, before: target, capacity: pageSize)
+      guard let currentLayoutPage else { return }
+      layout.move(id, toPage: currentLayoutPage, before: target, capacity: gridCapacity)
     }
+    saveLayout()
+  }
+
+  func moveItem(_ id: String, toAdjacentPage delta: Int, afterHover: Bool) {
+    guard browsingMode == .grid, field?.stringValue.isEmpty == true,
+      let currentLayoutPage,
+      let visiblePage = gridLayoutPageIndices.firstIndex(of: currentLayoutPage)
+    else { return }
+    let targetPage = max(0, visiblePage + (afterHover ? 0 : delta))
+    let target =
+      gridLayoutPageIndices.indices.contains(targetPage)
+      ? gridLayoutPageIndices[targetPage] : layout.pages.count
+    folderID = nil
+    layout.move(id, toPage: target, before: nil, capacity: gridCapacity)
     saveLayout()
   }
 
@@ -757,6 +936,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   @objc private func toggleEditing() { setEditing(!isEditing) }
 
   func setEditing(_ value: Bool) {
+    guard browsingMode == .grid else { return }
     guard isEditing != value else { return }
     isEditing = value
     renderPage()
@@ -783,7 +963,9 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   }
 
   @objc private func renameFolder() {
-    guard let folderID, let folder = layout.item(folderID), let panel else { return }
+    guard browsingMode == .grid, let folderID, let folder = layout.item(folderID), let panel else {
+      return
+    }
     let alert = NSAlert()
     alert.messageText = text("重命名")
     let input = NSTextField(string: folder.name ?? "")
@@ -793,14 +975,18 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     alert.addButton(withTitle: text("取消"))
     let session = sessionID
     alert.beginSheetModal(for: panel) { [weak self] response in
-      guard response == .alertFirstButtonReturn, let self, self.sessionID == session else { return }
+      guard response == .alertFirstButtonReturn, let self, self.sessionID == session,
+        self.browsingMode == .grid
+      else { return }
       self.layout.rename(folderID, to: input.stringValue)
       self.saveLayout()
     }
   }
 
   @objc private func confirmRemoval(_ sender: NSButton) {
-    guard results.indices.contains(sender.tag), let panel, removalTask == nil else { return }
+    guard browsingMode == .grid, results.indices.contains(sender.tag), let panel,
+      removalTask == nil
+    else { return }
     let command = results[sender.tag]
     guard case .openApplication(let url) = command.action, candidates.contains(command.id) else {
       return
@@ -815,35 +1001,49 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     alert.beginSheetModal(for: panel) { [weak self] response in
       guard let self, self.sessionID == confirmationSession else { return }
       self.pendingDeletion = false
-      guard response == .alertSecondButtonReturn else { return }
+      guard response == .alertSecondButtonReturn, self.browsingMode == .grid else { return }
       guard !NSWorkspace.shared.runningApplications.contains(where: { $0.bundleURL == url }) else {
         self.showRemovalError()
         return
       }
-      let session = self.sessionID
-      self.removalTask = Task { [weak self] in
-        let worker = Task.detached(priority: .userInitiated) {
-          try LaunchpadApplicationRemoval.trash(url)
+      self.removeApplication(command)
+    }
+  }
+
+  func removeApplication(_ command: AppCommand) {
+    guard browsingMode == .grid, removalTask == nil, let session = sessionID,
+      case .openApplication(let url) = command.action
+    else { return }
+    _ = LauncherApplicationCatalog.shared
+    let applicationRemover = applicationRemover
+    removalTask = Task { [weak self] in
+      let worker = Task.detached(priority: .userInitiated) {
+        try applicationRemover(url)
+      }
+      do {
+        try await withTaskCancellationHandler {
+          try await worker.value
+        } onCancel: {
+          worker.cancel()
         }
-        do {
-          try await withTaskCancellationHandler {
-            try await worker.value
-          } onCancel: {
-            worker.cancel()
-          }
-          guard !Task.isCancelled, let self, self.sessionID == session else { return }
+        if !Task.isCancelled, let self, self.sessionID == session {
           self.removalTask = nil
+          self.catalogTask?.cancel()
+          self.catalogTask = nil
+          self.catalogRequestID = nil
           self.layout.remove(command.id)
           self.applicationMap.removeValue(forKey: command.id)
-          // 沿用现有索引仅剔除被删项，避免在主线程重建拼音索引。
           self.search = self.search?.removing(command.id)
           self.saveLayout()
-          Logger(subsystem: Log.subsystem, category: "Launchpad").info("Application moved to Trash")
-        } catch {
-          guard !Task.isCancelled, let self, self.sessionID == session else { return }
-          self.removalTask = nil
-          self.showRemovalError()
         }
+        // 实际删除成功即通知所有入口；窗口关闭或换会话不应吞掉这个结果。
+        // 当前会话先更新布局并取消旧扫描，再通知触发重载，避免旧清单重新加入被删项。
+        NotificationCenter.default.post(name: .launcherApplicationsChanged, object: nil)
+        Logger(subsystem: Log.subsystem, category: "Launchpad").info("Application moved to Trash")
+      } catch {
+        guard !Task.isCancelled, let self, self.sessionID == session else { return }
+        self.removalTask = nil
+        self.showRemovalError()
       }
     }
   }

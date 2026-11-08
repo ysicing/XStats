@@ -1,5 +1,30 @@
 # Copyright (C) 2026 ysicing
 # SPDX-License-Identifier: AGPL-3.0-or-later
+应用目录	Carpetas de aplicaciones
+保留系统默认目录；最多添加 16 个自定义目录，仅扫描目录及下一层。	Se mantienen las carpetas del sistema. Añade hasta 16 carpetas; se incluye un nivel de subcarpetas.
+移除应用目录	Quitar carpeta de aplicaciones
+刷新应用	Actualizar aplicaciones
+已请求刷新应用	Actualización de aplicaciones solicitada
+添加应用目录	Añadir carpeta de aplicaciones
+已添加目录，已请求刷新应用	Carpeta añadida; actualización solicitada
+该目录已包含在应用扫描范围中	Esta carpeta ya está incluida
+已移除目录，已请求刷新应用	Carpeta eliminada de la lista; actualización solicitada
+请选择应用所在的文件夹，不能选择应用包	Selecciona una carpeta con aplicaciones, no un paquete de aplicación
+请选择文件夹	Selecciona una carpeta
+无法读取该目录，请检查访问权限	No se puede leer esta carpeta. Revisa los permisos.
+最多添加 16 个自定义应用目录	Puedes añadir hasta 16 carpetas de aplicaciones
+无法保存应用目录授权，请重新选择目录	No se pudo guardar el acceso. Selecciona la carpeta de nuevo.
+网格	Cuadrícula
+列表	Lista
+分类	Categorías
+浏览方式	Vista
+工作效率	Productividad
+开发工具	Herramientas de desarrollo
+创作与媒体	Creación y multimedia
+实用工具	Utilidades
+游戏	Juegos
+教育与参考	Educación y consulta
+生活	Estilo de vida
 程序坞图标	Icono del Dock
 启动台与搜索图标	Icono de Launchpad y búsqueda
 自动（跟随菜单栏）	Automático (seguir barra de menús)

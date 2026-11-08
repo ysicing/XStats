@@ -1544,7 +1544,7 @@ enum SnapshotRenderer {
           appearance: appearance,
           to: outputDirectory.appendingPathComponent("experimental-features-\(suffix).png"))
         write(
-          LaunchpadOptionsPopover(), model: model, appearance: appearance,
+          LaunchpadOptionsSheet(), model: model, appearance: appearance,
           to: outputDirectory.appendingPathComponent("launchpad-options-\(suffix).png"))
         settings.commandBarEnabled = false
         write(

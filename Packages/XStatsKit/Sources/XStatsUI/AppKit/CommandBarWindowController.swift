@@ -25,6 +25,10 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
   private var actionsButton: NSButton?
   private(set) var previewPanel: NSPanel?
   private var catalogTask: Task<Void, Never>?
+  private var catalogRequestID: UUID?
+  private var catalogCommands: [AppCommand] = []
+  private var applicationLoader: (@Sendable () throws -> [AppCommand])?
+  private var includesApplications = false
   private var liveTask: Task<Void, Never>?
   private var liveRequest: CommandBarLiveRequest?
   private var processTargets: [CommandBarProcessTarget]?
@@ -32,7 +36,6 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
   private let processLoader: @Sendable (Set<Int32>) throws -> [CommandBarProcessTarget]
   private var sessionID: UUID?
   private var language: AppLanguage = .system
-  private var icons: [URL: NSImage] = [:]
   private var hasMovedSelection = false
   private let usage: CommandBarUsage?
   var onSelect: (AppCommand) -> Void = { _ in }
@@ -52,6 +55,7 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
 
   func show(
     commands: [AppCommand], language: AppLanguage = L10n.language,
+    includesApplications: Bool = false,
     applicationLoader: (@Sendable () throws -> [AppCommand])? = nil
   ) {
     if let panel {
@@ -60,6 +64,9 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
       return
     }
     self.language = language
+    self.includesApplications = includesApplications
+    self.applicationLoader = applicationLoader
+    catalogCommands = commands
     hasMovedSelection = false
     let session = UUID()
     sessionID = session
@@ -200,7 +207,15 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
       action: #selector(clearFavorites), keyEquivalent: "")
     clearFavorites.target = self
     more.menu?.addItem(clearFavorites)
-    more.isHidden = usage == nil
+    if includesApplications {
+      let refresh = NSMenuItem(
+        title: L10n.translate("刷新应用", language: language),
+        action: #selector(refreshApplications), keyEquivalent: "")
+      refresh.target = self
+      more.menu?.addItem(.separator())
+      more.menu?.addItem(refresh)
+    }
+    more.isHidden = usage == nil && !includesApplications
     let actions = NSButton(
       title: L10n.translate("动作", language: language) + " ⌘K",
       target: self, action: #selector(showActions))
@@ -266,26 +281,66 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     }
     panel.makeKeyAndOrderFront(nil)
     panel.makeFirstResponder(field)
-    if let applicationLoader {
-      hint.stringValue = L10n.translate("正在读取应用…", language: language)
-      catalogTask = Task { [weak self] in
+    if includesApplications || applicationLoader != nil {
+      _ = LauncherApplicationCatalog.shared
+      NotificationCenter.default.addObserver(
+        self, selector: #selector(reloadApplications),
+        name: .launcherApplicationsChanged, object: nil)
+      reloadApplications()
+    }
+  }
+
+  @objc private func refreshApplications() {
+    NotificationCenter.default.post(name: .launcherApplicationsChanged, object: nil)
+  }
+
+  @objc private func reloadApplications() {
+    guard panel != nil else { return }
+    catalogTask?.cancel()
+    let request = UUID()
+    catalogRequestID = request
+    let session = sessionID
+    let commands = catalogCommands
+    let loader = applicationLoader
+    hintLabel?.stringValue = L10n.translate("正在读取应用…", language: language)
+    catalogTask = Task { [weak self] in
+      do {
+        let applications: [AppCommand]
+        if let loader {
+          let scan = Task.detached(priority: .userInitiated) { try loader() }
+          applications = try await withTaskCancellationHandler {
+            try await scan.value
+          } onCancel: {
+            scan.cancel()
+          }
+        } else {
+          applications = try await LauncherApplicationCatalog.shared.load().commands
+        }
+        try Task.checkCancellation()
         let worker = Task.detached(priority: .userInitiated) {
-          let applications = try applicationLoader()
           try Task.checkCancellation()
           return CommandBarSearch(commands: commands + applications)
         }
-        let index = await withTaskCancellationHandler {
-          try? await worker.value
+        let index = try await withTaskCancellationHandler {
+          try await worker.value
         } onCancel: {
           worker.cancel()
         }
-        guard !Task.isCancelled, let self, self.sessionID == session else { return }
-        if let index { self.search = index }
+        guard !Task.isCancelled, let self, self.sessionID == session,
+          self.catalogRequestID == request
+        else { return }
+        self.search = index
         self.catalogTask = nil
         let hasQuery =
           self.searchField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
           == false
         self.refreshResults(preservingSelection: self.hasMovedSelection || hasQuery)
+      } catch {
+        guard !Task.isCancelled, let self, self.sessionID == session,
+          self.catalogRequestID == request
+        else { return }
+        self.catalogTask = nil
+        self.hintLabel?.stringValue = L10n.translate("无法读取应用，请关闭后重试。", language: self.language)
       }
     }
   }
@@ -295,6 +350,11 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     cancelLiveSearch()
     catalogTask?.cancel()
     catalogTask = nil
+    catalogRequestID = nil
+    catalogCommands = []
+    applicationLoader = nil
+    NotificationCenter.default.removeObserver(
+      self, name: .launcherApplicationsChanged, object: nil)
     sessionID = nil
     guard let panel else { return }
     self.panel = nil
@@ -308,7 +368,6 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     emptyLabel = nil
     search = nil
     results = []
-    icons = [:]
     hintLabel = nil
     favoriteButton = nil
     actionsButton = nil
@@ -730,11 +789,7 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     subtitle?.stringValue = command.subtitle
     subtitle?.isHidden = command.subtitle.isEmpty
     if case .openApplication(let url) = command.action {
-      if icons[url] == nil {
-        if icons.count >= 64 { icons.removeAll(keepingCapacity: true) }
-        icons[url] = NSWorkspace.shared.icon(forFile: url.path)
-      }
-      cell.imageView?.image = icons[url]
+      cell.imageView?.image = LauncherIconCache.shared.image(for: url, size: 32)
       cell.imageView?.contentTintColor = nil
       cell.toolTip = url.path
     } else if let url = command.fileURL {

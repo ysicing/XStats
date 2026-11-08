@@ -1,5 +1,30 @@
 # Copyright (C) 2026 ysicing
 # SPDX-License-Identifier: AGPL-3.0-or-later
+应用目录	App-Ordner
+保留系统默认目录；最多添加 16 个自定义目录，仅扫描目录及下一层。	Systemordner bleiben enthalten. Bis zu 16 Ordner hinzufügen; einbezogen wird eine Unterordnerebene.
+移除应用目录	App-Ordner entfernen
+刷新应用	Apps aktualisieren
+已请求刷新应用	Aktualisierung der Apps angefordert
+添加应用目录	App-Ordner hinzufügen
+已添加目录，已请求刷新应用	Ordner hinzugefügt; Aktualisierung angefordert
+该目录已包含在应用扫描范围中	Dieser Ordner ist bereits enthalten
+已移除目录，已请求刷新应用	Ordner entfernt; Aktualisierung angefordert
+请选择应用所在的文件夹，不能选择应用包	Einen Ordner mit Apps auswählen, kein App-Paket
+请选择文件夹	Einen Ordner auswählen
+无法读取该目录，请检查访问权限	Ordner nicht lesbar. Zugriffsrechte prüfen.
+最多添加 16 个自定义应用目录	Bis zu 16 App-Ordner können hinzugefügt werden
+无法保存应用目录授权，请重新选择目录	Ordnerzugriff konnte nicht gespeichert werden. Ordner erneut auswählen.
+网格	Raster
+列表	Liste
+分类	Kategorien
+浏览方式	Ansicht
+工作效率	Produktivität
+开发工具	Entwicklerwerkzeuge
+创作与媒体	Kreativität & Medien
+实用工具	Dienstprogramme
+游戏	Spiele
+教育与参考	Bildung & Nachschlagewerke
+生活	Lifestyle
 程序坞图标	Dock-Symbol
 启动台与搜索图标	Symbol für Launchpad und Suche
 自动（跟随菜单栏）	Automatisch (wie Menüleiste)

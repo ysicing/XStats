@@ -15,9 +15,37 @@ extension Translations {
       hardwareDetailsEnglish, aiCleanupEnglish, networkPresentationEnglish, trioEnglish,
       portsEnglish, appServicesEnglish, maintenancePreviewEnglish, commandBarEnglish,
       designAuditEnglish, dnsBenchmarkEnglish, homebrewImpactEnglish, finderDocumentEnglish,
-      dockIconEnglish,
+      dockIconEnglish, launcherEnglish,
     ]
   }
+
+  static let launcherEnglish = #"""
+    应用目录	Application Folders
+    保留系统默认目录；最多添加 16 个自定义目录，仅扫描目录及下一层。	System folders remain included. Add up to 16 folders; scans include one subfolder level.
+    移除应用目录	Remove Application Folder
+    刷新应用	Refresh Applications
+    已请求刷新应用	Application refresh requested
+    添加应用目录	Add Application Folder
+    已添加目录，已请求刷新应用	Folder added; application refresh requested
+    该目录已包含在应用扫描范围中	This folder is already included
+    已移除目录，已请求刷新应用	Folder removed; application refresh requested
+    请选择应用所在的文件夹，不能选择应用包	Select a folder containing applications, not an application bundle
+    请选择文件夹	Select a folder
+    无法读取该目录，请检查访问权限	Cannot read this folder. Check its permissions.
+    最多添加 16 个自定义应用目录	You can add up to 16 application folders
+    无法保存应用目录授权，请重新选择目录	Cannot save folder access. Select the folder again.
+    网格	Grid
+    列表	List
+    分类	Categories
+    浏览方式	View
+    工作效率	Productivity
+    开发工具	Developer Tools
+    创作与媒体	Creativity & Media
+    实用工具	Utilities
+    游戏	Games
+    教育与参考	Education & Reference
+    生活	Lifestyle
+    """#
 
   static let dockIconEnglish = #"""
     程序坞图标	Dock Icon

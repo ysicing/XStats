@@ -33,6 +33,7 @@ struct AppCommand: Identifiable, Sendable {
   let action: Action
   var subtitle: String = ""
   var badge: String = ""
+  var applicationCategory: String? = nil
 
   var usageID: String {
     switch action {

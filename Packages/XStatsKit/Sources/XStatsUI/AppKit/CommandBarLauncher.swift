@@ -42,27 +42,81 @@ enum CommandBarApplications {
   static let maxApplications = 2_000
   static let maxVisited = 10_000
 
-  static func scan(directories: [URL] = directories) throws -> [AppCommand] {
+  static func scan() throws -> [AppCommand] {
+    try scanResult().commands
+  }
+
+  static func scan(directories: [URL]) throws -> [AppCommand] {
     try scanResult(directories: directories).commands
   }
 
+  static func scanResult() throws -> (commands: [AppCommand], isTruncated: Bool) {
+    try scanResult(directories: directories, customDirectories: LauncherApplicationDirectories())
+  }
+
+  static func scanResult(
+    directories: [URL], customDirectories: LauncherApplicationDirectories
+  ) throws -> (commands: [AppCommand], isTruncated: Bool) {
+    try customDirectories.withResolvedDirectories { custom, incomplete in
+      let result = try scanResult(
+        directories: directories + custom,
+        optionalDirectories: Set(directories.map { $0.standardizedFileURL.path }))
+      return (result.commands, result.isTruncated || incomplete)
+    }
+  }
+
   /// 仅访问根目录和一层分类目录；不进入应用包、不使用 Spotlight 或卸载器的全盘清单。
-  /// `isTruncated` 表示触及数量上限，结果可能缺少实际存在的应用，调用方不得据此清理用户数据。
-  static func scanResult(directories: [URL] = directories) throws -> (
+  /// `isTruncated` 也涵盖目录不可用或枚举失败，调用方不得据此清理用户数据。
+  static func scanResult(directories: [URL]) throws -> (
+    commands: [AppCommand], isTruncated: Bool
+  ) {
+    try scanResult(directories: directories, optionalDirectories: [])
+  }
+
+  private static func scanResult(directories: [URL], optionalDirectories: Set<String>) throws -> (
     commands: [AppCommand], isTruncated: Bool
   ) {
     let manager = FileManager.default
     var paths = Set<String>()
+    var scannedDirectories = Set<String>()
     var commands: [AppCommand] = []
     var visited = 0
     var isTruncated = false
     for directory in directories {
       try Task.checkCancellation()
+      let canonical = directory.resolvingSymlinksInPath().standardizedFileURL
+      guard scannedDirectories.insert(canonical.path).inserted else { continue }
+      guard !canonical.pathComponents.contains(where: { $0.lowercased().hasSuffix(".app") }) else {
+        isTruncated = true
+        continue
+      }
+      do {
+        let values = try canonical.resourceValues(forKeys: [.isDirectoryKey])
+        guard values.isDirectory == true, manager.isReadableFile(atPath: canonical.path),
+          manager.isExecutableFile(atPath: canonical.path)
+        else {
+          isTruncated = true
+          continue
+        }
+      } catch {
+        let missing = (error as? CocoaError)?.code == .fileReadNoSuchFile
+        if !missing || !optionalDirectories.contains(directory.standardizedFileURL.path) {
+          isTruncated = true
+        }
+        continue
+      }
       guard
         let enumerator = manager.enumerator(
-          at: directory, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-          options: [.skipsHiddenFiles])
-      else { continue }
+          at: canonical, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+          options: [.skipsHiddenFiles],
+          errorHandler: { _, _ in
+            isTruncated = true
+            return !Task.isCancelled
+          })
+      else {
+        isTruncated = true
+        continue
+      }
       for case let candidate as URL in enumerator {
         try Task.checkCancellation()
         visited += 1
@@ -71,6 +125,7 @@ enum CommandBarApplications {
           break
         }
         let values = try? candidate.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        if values == nil { isTruncated = true }
         // 对符号链接或已经自动跳过的包再次 skip，会跳过后续目录。
         if values?.isDirectory == true, values?.isSymbolicLink != true,
           enumerator.level >= 2 || candidate.pathExtension.lowercased() == "app"
@@ -79,24 +134,48 @@ enum CommandBarApplications {
         }
         guard candidate.pathExtension.lowercased() == "app" else { continue }
         let url = candidate.resolvingSymlinksInPath().standardizedFileURL
+        guard manager.isReadableFile(atPath: url.path), manager.isExecutableFile(atPath: url.path)
+        else {
+          isTruncated = true
+          continue
+        }
         guard paths.insert(url.path).inserted,
           let bundle = Bundle(url: url),
           bundle.object(forInfoDictionaryKey: "CFBundlePackageType") as? String == "APPL"
         else { continue }
         let filename = url.deletingPathExtension().lastPathComponent
         let displayName = manager.displayName(atPath: url.path)
-        let title = displayName.hasSuffix(".app") ? String(displayName.dropLast(4)) : displayName
+        let finderName =
+          displayName.lowercased().hasSuffix(".app") ? String(displayName.dropLast(4)) : displayName
+        let nameCandidates: [Any?] = [
+          bundle.object(forInfoDictionaryKey: "CrAppModeShortcutName"),
+          bundle.localizedInfoDictionary?["CFBundleDisplayName"],
+          bundle.localizedInfoDictionary?["CFBundleName"],
+          bundle.infoDictionary?["CFBundleDisplayName"],
+          finderName != filename ? finderName : nil,
+          bundle.infoDictionary?["CFBundleName"],
+          finderName,
+          filename,
+        ]
+        let title =
+          nameCandidates.compactMap {
+            ($0 as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+          }
+          .first { !$0.isEmpty } ?? filename
         commands.append(
           AppCommand(
             id: "application.\(url.path)", title: title, symbol: "app",
             keywords: "\(filename) \(bundle.bundleIdentifier ?? "")",
-            action: .openApplication(url)))
+            action: .openApplication(url),
+            applicationCategory: bundle.infoDictionary?["LSApplicationCategoryType"] as? String))
       }
+      try Task.checkCancellation()
       if visited > maxVisited || commands.count >= maxApplications {
         isTruncated = true
         break
       }
     }
+    try Task.checkCancellation()
     let sorted = commands.sorted {
       let comparison = $0.title.localizedStandardCompare($1.title)
       return comparison == .orderedSame ? $0.id < $1.id : comparison == .orderedAscending

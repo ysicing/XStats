@@ -25,6 +25,7 @@ final class LaunchpadTileButton: NSButton, NSDraggingSource {
     pressedAt = event.locationInWindow
     didHold = false
     holdTask?.cancel()
+    guard canDrag else { return }
     holdTask = Task { [weak self] in
       do { try await Task.sleep(for: .milliseconds(550)) } catch { return }
       guard let self, self.window?.isVisible == true else { return }

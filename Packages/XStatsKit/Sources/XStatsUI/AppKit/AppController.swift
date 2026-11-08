@@ -642,7 +642,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     launchpad.dismiss()
     commandBar.show(
       commands: AppCommand.catalog(supportsFans: model.store.supportsFans),
-      applicationLoader: { try CommandBarApplications.scan() })
+      includesApplications: true)
   }
 
   @objc private func openLaunchpadFromMenu() {

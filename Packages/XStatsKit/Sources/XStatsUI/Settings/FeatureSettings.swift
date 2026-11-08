@@ -285,7 +285,7 @@ struct FeatureSettings: View {
             subtitle: tr("搜索应用、功能与操作"), icon: "magnifyingglass"
           ) {
             HStack(spacing: DS.Space.s2) {
-              if LaunchpadAvailability.isSupported && settings.commandBarEnabled {
+              if settings.commandBarEnabled {
                 LaunchpadOptionsButton()
               }
               DSToggle(isOn: $settings.commandBarEnabled, label: tr("命令栏"))
@@ -327,18 +327,44 @@ struct LaunchpadOptionsButton: View {
   var body: some View {
     Button(tr("设置")) { isPresented = true }
       .buttonStyle(DSButtonStyle(kind: .secondary))
-      .popover(isPresented: $isPresented, arrowEdge: .top) {
-        LaunchpadOptionsPopover()
+      .sheet(isPresented: $isPresented) {
+        LaunchpadOptionsSheet()
       }
   }
 }
 
-struct LaunchpadOptionsPopover: View {
+struct LaunchpadOptionsSheet: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dismiss) private var dismiss
 
   var body: some View {
+    VStack(spacing: 0) {
+      HStack {
+        Text(tr(LaunchpadAvailability.isSupported ? "命令栏与启动台" : "命令栏"))
+          .dsFont(.sm, weight: .semibold)
+        Spacer()
+        Button(tr("完成")) { dismiss() }
+          .keyboardShortcut(.defaultAction)
+      }
+      .padding(DS.Space.s4)
+      Divider()
+      ScrollView {
+        VStack(alignment: .leading, spacing: DS.Space.s4) {
+          LauncherDirectorySettings()
+          if LaunchpadAvailability.isSupported {
+            launchpadOptions
+          }
+        }
+        .padding(DS.Space.s4)
+      }
+    }
+    .frame(width: 480, height: LaunchpadAvailability.isSupported ? 560 : 400)
+    .appLanguageEnvironment()
+  }
+
+  private var launchpadOptions: some View {
     @Bindable var settings = model.settings
-    SettingsGroup(caption: tr("启动台")) {
+    return SettingsGroup(caption: tr("启动台")) {
       GroupRow(showsDivider: false) {
         VStack(alignment: .leading, spacing: DS.Space.s2) {
           SettingRow(title: tr("启动台手势"), icon: "hand.draw") {
@@ -370,10 +396,6 @@ struct LaunchpadOptionsPopover: View {
         }
       }
     }
-    .padding(DS.Space.s4)
-    .frame(width: 480)
-    .fixedSize(horizontal: false, vertical: true)
-    .appLanguageEnvironment()
   }
 }
 

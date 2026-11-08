@@ -1,5 +1,30 @@
 # Copyright (C) 2026 ysicing
 # SPDX-License-Identifier: AGPL-3.0-or-later
+应用目录	Dossiers d’applications
+保留系统默认目录；最多添加 16 个自定义目录，仅扫描目录及下一层。	Les dossiers système restent inclus. Ajoutez jusqu’à 16 dossiers ; un niveau de sous-dossiers est analysé.
+移除应用目录	Retirer le dossier d’applications
+刷新应用	Actualiser les applications
+已请求刷新应用	Actualisation des applications demandée
+添加应用目录	Ajouter un dossier d’applications
+已添加目录，已请求刷新应用	Dossier ajouté ; actualisation demandée
+该目录已包含在应用扫描范围中	Ce dossier est déjà inclus
+已移除目录，已请求刷新应用	Dossier retiré ; actualisation demandée
+请选择应用所在的文件夹，不能选择应用包	Sélectionnez un dossier contenant des applications, pas une application
+请选择文件夹	Sélectionnez un dossier
+无法读取该目录，请检查访问权限	Impossible de lire ce dossier. Vérifiez les autorisations.
+最多添加 16 个自定义应用目录	Vous pouvez ajouter jusqu’à 16 dossiers d’applications
+无法保存应用目录授权，请重新选择目录	Impossible d’enregistrer l’accès. Sélectionnez à nouveau le dossier.
+网格	Grille
+列表	Liste
+分类	Catégories
+浏览方式	Affichage
+工作效率	Productivité
+开发工具	Outils de développement
+创作与媒体	Création et médias
+实用工具	Utilitaires
+游戏	Jeux
+教育与参考	Éducation et références
+生活	Style de vie
 程序坞图标	Icône du Dock
 启动台与搜索图标	Icône du Launchpad et de recherche
 自动（跟随菜单栏）	Automatique (suivre la barre des menus)
