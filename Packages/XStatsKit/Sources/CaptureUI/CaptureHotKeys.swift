@@ -6,10 +6,16 @@ import SwiftUI
 import CaptureCore
 import Localization
 
-struct CaptureHotKey: Codable, Equatable {
-  var code: UInt16
-  var modifiers: UInt
-  var characters: String
+public struct CaptureHotKey: Codable, Equatable, Sendable {
+  public var code: UInt16
+  public var modifiers: UInt
+  public var characters: String
+
+  public init(code: UInt16, modifiers: UInt, characters: String) {
+    self.code = code
+    self.modifiers = modifiers
+    self.characters = characters
+  }
   var flags: NSEvent.ModifierFlags { NSEvent.ModifierFlags(rawValue: modifiers) }
   var display: String {
     (flags.contains(.control) ? "⌃" : "") + (flags.contains(.option) ? "⌥" : "")

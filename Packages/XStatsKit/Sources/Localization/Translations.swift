@@ -27,6 +27,11 @@ extension Translations {
     """#
 
   static let designAuditEnglish = #"""
+    快捷键	Keyboard Shortcuts
+    管理快捷键	Manage Shortcuts
+    功能未启用，启用后生效	Available when the feature is enabled
+    与「{}」的快捷键重复	Shortcut already assigned to “{}”
+    独立版快捷键请在 XStats Capture 的设置中管理。	Manage standalone shortcuts in XStats Capture settings.
     录制快捷键：{}	Record shortcut: {}
     清除快捷键：{}	Clear shortcut: {}
     查看服务条款	View Terms of Service

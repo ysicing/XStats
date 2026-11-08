@@ -383,7 +383,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
   case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery,
     processes, ports, keepAwake, rest, cleaner, uninstaller, startupItems, audio, connections
   case settingsGeneral, settingsFeatures, settingsMenuBar, settingsNotifications, settingsAccount,
-    settingsHelper, settingsAbout
+    settingsHelper, settingsAbout, settingsShortcuts
 
   public var id: String { rawValue }
 
@@ -398,11 +398,13 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
   ]
   // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
   static let settings: [PanelTab] = [
-    .settingsGeneral, .settingsFeatures, .settingsMenuBar, .settingsNotifications,
-    /* .settingsAccount, */ .settingsHelper, .settingsAbout,
+    .settingsGeneral, .settingsFeatures, .settingsMenuBar, .settingsShortcuts,
+    .settingsNotifications, /* .settingsAccount, */ .settingsAbout,
   ]
 
-  var isSettings: Bool { Self.settings.contains(self) }
+  var isSettings: Bool { Self.settings.contains(self) || self == .settingsHelper }
+
+  var sidebarTab: PanelTab { self == .settingsHelper ? .settingsGeneral : self }
 
   /// 页面顶栏的标题：设置页带上分组名
   var headerTitle: String { isSettings ? tr("设置 · \(title)") : title }
@@ -429,6 +431,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .audio: tr("音频")
     case .connections: tr("网络监视器")
     case .settingsGeneral: tr("通用")
+    case .settingsShortcuts: tr("快捷键")
     case .settingsFeatures: tr("功能")
     case .settingsMenuBar: tr("菜单栏")
     case .settingsNotifications: tr("通知")
@@ -461,6 +464,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .audio: "speaker.wave.2"
     case .connections: "network.badge.shield.half.filled"
     case .settingsGeneral: "gearshape"
+    case .settingsShortcuts: "keyboard"
     case .settingsFeatures: "switch.2"
     case .settingsMenuBar: "menubar.rectangle"
     case .settingsNotifications: "bell.badge"

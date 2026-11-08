@@ -138,6 +138,7 @@ public struct MainWindowView: View {
         case .uninstaller: AppManagementPage()
         case .startupItems: AppManagementPage()
         case .settingsGeneral: SettingsTabPage { GeneralSettings() }
+        case .settingsShortcuts: ShortcutSettingsPage()
         case .settingsFeatures: FeatureSettings()
         case .settingsMenuBar: SettingsTabPage { MenuBarSettings() }
         case .settingsNotifications: SettingsTabPage { NotificationSettings() }
@@ -274,7 +275,7 @@ private struct MainSidebar: View {
   private func badge(for tab: PanelTab) -> Tone? {
     switch tab {
     case .settingsAbout: model.updates.hasAvailableUpdate ? .primary : nil
-    case .settingsHelper: model.helper.isOutdated ? .warning : nil
+    case .settingsGeneral: model.helper.isOutdated ? .warning : nil
     case .settingsAccount:
       if model.sync.pendingDownload != nil {
         .primary
@@ -297,7 +298,7 @@ private struct MainSidebar: View {
     MainActorForEach(tabs) { tab in
       SidebarButton(
         title: tab.title, symbol: tab.symbol,
-        isSelected: model.settings.panelTab == tab, badge: badge(for: tab)
+        isSelected: model.settings.panelTab.sidebarTab == tab, badge: badge(for: tab)
       ) {
         model.settings.panelTab = tab
       }
@@ -340,6 +341,11 @@ struct PageHeader: View {
     let tab = settings.panelTab
 
     HStack(spacing: DS.Space.s3) {
+      if tab == .settingsHelper {
+        IconButton(systemName: "chevron.backward", help: tr("返回")) {
+          settings.panelTab = .settingsGeneral
+        }
+      }
       // 拖动层只覆盖标题和空白，操作控件保持可点击。
       Text(tab.headerTitle)
         .dsFont(.base, weight: .semibold)

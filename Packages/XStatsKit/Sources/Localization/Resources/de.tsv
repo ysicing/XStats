@@ -2868,3 +2868,8 @@ UTC 时间	UTC-Zeit
 正在搜索…	Suchen…
 动作	Aktionen
 ↑↓ 选择 · ↩ 结束	↑↓ Auswählen · ↩ Beenden
+快捷键	Tastaturkurzbefehle
+管理快捷键	Kurzbefehle verwalten
+功能未启用，启用后生效	Verfügbar, sobald die Funktion aktiviert ist
+与「{}」的快捷键重复	Kurzbefehl bereits „{}“ zugewiesen
+独立版快捷键请在 XStats Capture 的设置中管理。	Verwalten Sie die Kurzbefehle der eigenständigen App in den Einstellungen von XStats Capture.

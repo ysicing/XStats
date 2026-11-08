@@ -4,6 +4,7 @@
 // See LICENSE, LICENSING.md and LICENSES/OpenStats-MIT.txt.
 
 import AppKit
+import CaptureUI
 import HelperShared
 import Localization
 import Metrics
@@ -120,7 +121,37 @@ struct GeneralSettings: View {
       }
     }
 
-    HotKeySettings()
+    SettingsGroup {
+      GroupRow(showsDivider: false) {
+        SettingRow(title: tr("快捷键"), icon: "keyboard") {
+          Button(tr("管理快捷键")) { model.openShortcutSettings() }
+            .buttonStyle(DSButtonStyle(kind: .secondary))
+        }
+      }
+      GroupRow {
+        Button {
+          model.settings.panelTab = .settingsHelper
+        } label: {
+          HStack(spacing: DS.Space.s3) {
+            Label(tr("辅助工具"), systemImage: "lock.shield")
+              .foregroundStyle(DS.Palette.textPrimary)
+            Spacer(minLength: DS.Space.s2)
+            Text(model.helper.status.title)
+              .foregroundStyle(DS.Palette.textSecondary)
+            if model.helper.isOutdated {
+              Image(systemName: "exclamationmark.circle.fill")
+                .foregroundStyle(DS.Palette.warning)
+            }
+            Image(systemName: "chevron.forward")
+              .foregroundStyle(DS.Palette.textTertiary)
+          }
+          .dsFont(.sm)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.helper")
+      }
+    }
   }
 }
 
@@ -254,57 +285,16 @@ struct DiagnosticsSettings: View {
 
 // MARK: - 快捷键
 
-struct HotKeySettings: View {
-  @Environment(AppModel.self) private var model
-
-  var body: some View {
-    let settings = model.settings
-    let actions = HotKeyAction.allCases.filter { $0.isEnabled(in: settings) }
-    VStack(alignment: .leading, spacing: DS.Space.s4) {
-      Text(tr("全局快捷键（在任何应用中都能使用，需要包含 ⌘、⌥ 或 ⌃）"))
-        .dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
-        .fixedSize(horizontal: false, vertical: true)
-      ForEach(HotKeyAction.Category.allCases, id: \.self) { category in
-        let groupedActions = actions.filter { $0.category == category }
-        if !groupedActions.isEmpty {
-          SettingsGroup(caption: category.title) {
-            ForEach(Array(groupedActions.enumerated()), id: \.element) { index, action in
-              let subtitle: String? =
-                if model.hotKeyConflicts.contains(action) {
-                  tr("这个快捷键已被其他应用或系统占用，请换一个")
-                } else if action == .showProcesses {
-                  tr("进程功能开启时打开 XStats 进程页，关闭时打开系统活动监视器。")
-                } else {
-                  nil
-                }
-              GroupRow(showsDivider: index > 0) {
-                SettingRow(
-                  title: action.title(processesEnabled: settings.processesEnabled),
-                  subtitle: subtitle
-                ) {
-                  ShortcutRecorder(
-                    actionTitle: action.title(processesEnabled: settings.processesEnabled),
-                    hotKey: Binding(
-                      get: { settings.hotKeys[action] },
-                      set: { settings.hotKeys[action] = $0 }))
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
 /// 点一下开始录制，按下组合键完成；Esc 取消，⌫ 清除
 struct ShortcutRecorder: View {
   @Environment(AppModel.self) private var model
   let actionTitle: String
   @Binding var hotKey: HotKey?
+  var captureShortcuts: CaptureShortcuts = XStatsCapture.workspace.shortcuts
   @State private var recordingID = UUID()
   @State private var recording = false
   @State private var monitor: Any?
+  @State private var recordingWindow: NSWindow?
 
   var body: some View {
     HStack(spacing: DS.Space.s1) {
@@ -328,14 +318,24 @@ struct ShortcutRecorder: View {
     .onDisappear { stop() }
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification))
     { _ in stop() }
+    .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) {
+      notification in
+      if let window = notification.object as? NSWindow, window === recordingWindow { stop() }
+    }
   }
 
   private func start() {
+    guard let window = NSApp.keyWindow else { return }
     ShortcutRecordingSession.shared.begin(recordingID, stop: stop)
+    recordingWindow = window
     recording = true
     model.isRecordingShortcut = true
-    XStatsCapture.workspace.shortcuts.setExternalRecording(true)
+    captureShortcuts.setExternalRecording(true)
     monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+      guard event.window === recordingWindow else {
+        stop()
+        return event
+      }
       switch Int(event.keyCode) {
       case 53:  // Esc
         stop()
@@ -362,9 +362,10 @@ struct ShortcutRecorder: View {
     ShortcutRecordingSession.shared.end(recordingID)
     if recording {
       model.isRecordingShortcut = false
-      XStatsCapture.workspace.shortcuts.setExternalRecording(false)
+      captureShortcuts.setExternalRecording(false)
     }
     recording = false
+    recordingWindow = nil
     if let monitor { NSEvent.removeMonitor(monitor) }
     monitor = nil
   }

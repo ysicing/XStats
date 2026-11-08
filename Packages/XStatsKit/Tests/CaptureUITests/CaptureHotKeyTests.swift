@@ -82,6 +82,26 @@ import Localization
     UnregisterEventHotKey(disabledReservation)
     #expect(shortcuts.enabled == false && shortcuts.screenshotKey == key)
   }
+  @Test func hostEditingDoesNotRegisterNewBindingsUntilRecordingEnds() throws {
+    _ = NSApplication.shared
+    let name = "capture-host-edit-" + UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let settings = CaptureShortcuts(defaults: defaults)
+    defer { settings.stop() }
+    settings.setEnabled(true)
+    settings.setExternalRecording(true)
+    let key = binding(91)
+    #expect(settings.setShortcut(key, for: .screenshot))
+    let reservation = try reserve(key)
+    #expect(settings.screenshotKey == key && settings.enabled)
+    UnregisterEventHotKey(reservation)
+    settings.setExternalRecording(false)
+    let competing = CaptureHotKeys()
+    defer { competing.clear() }
+    #expect(!competing.apply([.screenshot: key]))
+    #expect(!settings.conflict)
+  }
   @Test func inactiveSettingsRejectDuplicateWithoutReplacingSavedBinding() {
     let name = "capture-shortcuts-" + UUID().uuidString
     let defaults = UserDefaults(suiteName: name)!

@@ -22,6 +22,7 @@ enum AppDeepLink: Equatable, Sendable {
     "keep-awake": .keepAwake, "rest": .rest, "cleaner": .cleaner, "uninstaller": .uninstaller,
     "startup-items": .startupItems, "settings": .settingsGeneral,
     "settings/general": .settingsGeneral,
+    "settings/shortcuts": .settingsShortcuts,
     "settings/features": .settingsFeatures, "settings/menu-bar": .settingsMenuBar,
     "settings/notifications": .settingsNotifications,
     "settings/helper": .settingsHelper, "settings/about": .settingsAbout,

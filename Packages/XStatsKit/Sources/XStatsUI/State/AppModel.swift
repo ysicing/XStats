@@ -110,6 +110,12 @@ public final class AppModel {
   }
   @ObservationIgnored var openCalendar: () -> Void = {}
   var calendarSettingsPresented = false
+  var shortcutSettingsTarget: ShortcutSettingsTarget?
+
+  func openShortcutSettings(_ target: ShortcutSettingsTarget? = nil) {
+    shortcutSettingsTarget = target
+    openMainWindow(.settingsShortcuts)
+  }
 
   func openCalendarSettings() {
     featureSettingsTab = .optional

@@ -2868,3 +2868,8 @@ UTC 时间	Hora UTC
 正在搜索…	Buscando…
 动作	Acciones
 ↑↓ 选择 · ↩ 结束	↑↓ Seleccionar · ↩ Terminar
+快捷键	Atajos de teclado
+管理快捷键	Gestionar atajos
+功能未启用，启用后生效	Disponible al activar la función
+与「{}」的快捷键重复	El atajo ya está asignado a «{}»
+独立版快捷键请在 XStats Capture 的设置中管理。	Gestiona los atajos de la aplicación independiente en los ajustes de XStats Capture.

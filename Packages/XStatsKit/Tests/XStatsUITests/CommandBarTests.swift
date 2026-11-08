@@ -6,6 +6,21 @@ import Testing
 @testable import XStatsUI
 
 struct CommandBarTests {
+  @MainActor @Test func settingsKeepSixEntriesAndExposeShortcutAndHelperRoutes() throws {
+    #expect(PanelTab.settings.count == 6)
+    #expect(!PanelTab.settings.contains(.settingsHelper))
+    #expect(PanelTab.settings.contains { $0.rawValue == "settingsShortcuts" })
+    let search = CommandBarSearch(commands: AppCommand.catalog(supportsFans: false))
+    #expect(search.results(for: "快捷键").first?.id == "page.settingsShortcuts")
+    #expect(search.results(for: "shortcuts").first?.id == "page.settingsShortcuts")
+    #expect(search.results(for: "辅助工具").first?.action == .route(.open(.settingsHelper)))
+    #expect(
+      AppDeepLink(url: try #require(URL(string: "xstats://open/settings/helper")))
+        == .open(.settingsHelper))
+    #expect(
+      AppDeepLink(url: try #require(URL(string: "xstats://open/settings/shortcuts"))) != nil)
+  }
+
   @MainActor @Test func experimentalFeatureDefaultsOnAndPersistsItsChoice() throws {
     let suite = "XStats.CommandBarTests.feature.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

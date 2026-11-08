@@ -10,7 +10,8 @@ import Testing
 struct SettingsPageLayoutTests {
   @Test(
     arguments: [
-      PanelTab.settingsGeneral, .settingsFeatures, .audio, .cpu, .gpu, .memory, .network,
+      PanelTab.settingsGeneral, .settingsShortcuts, .settingsHelper, .settingsFeatures,
+      .audio, .cpu, .gpu, .memory, .network,
     ], [840.0, 1753.0])
   func pagesRenderInMainWindow(page: PanelTab, width: Double) throws {
     _ = NSApplication.shared

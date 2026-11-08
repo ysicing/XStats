@@ -115,11 +115,13 @@ struct AudioOutputSwitcher: View {
         subtitle: model.hotKeyConflicts.contains(.nextAudioOutput)
           ? tr("这个快捷键已被其他应用或系统占用，请换一个") : nil
       ) {
-        ShortcutRecorder(
-          actionTitle: tr("切换到下一个音频输出"),
-          hotKey: Binding(
-            get: { model.settings.hotKeys[.nextAudioOutput] },
-            set: { model.settings.hotKeys[.nextAudioOutput] = $0 }))
+        Button {
+          model.openShortcutSettings(.action(.nextAudioOutput))
+        } label: {
+          Text(model.settings.hotKeys[.nextAudioOutput]?.display ?? tr("设置快捷键"))
+        }
+        .buttonStyle(DSButtonStyle(kind: .secondary))
+        .accessibilityLabel(tr("管理快捷键"))
       }
       DisclosureGroup(isExpanded: $devicesExpanded) {
         VStack(alignment: .leading, spacing: 8) {

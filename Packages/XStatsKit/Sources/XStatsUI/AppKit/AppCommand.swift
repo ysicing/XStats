@@ -53,7 +53,8 @@ struct AppCommand: Identifiable, Sendable {
   }
 
   @MainActor static func catalog(supportsFans: Bool) -> [AppCommand] {
-    let pages = (PanelTab.monitors + PanelTab.tools + PanelTab.settings).filter {
+    let pages = (PanelTab.monitors + PanelTab.tools + PanelTab.settings + [.settingsHelper]).filter
+    {
       $0 != .thermal || supportsFans
     }
     var commands = pages.map { tab in
@@ -149,7 +150,8 @@ struct AppCommand: Identifiable, Sendable {
     case .uninstaller, .startupItems: "apps services homebrew startup 应用服务 卸载 启动项 服务"
     case .audio: "audio sound volume 音频 音量"
     case .connections: "network monitor connections 网络监视器 连接"
-    case .settingsGeneral: "settings general shortcuts 设置 通用 快捷键"
+    case .settingsGeneral: "settings general 设置 通用"
+    case .settingsShortcuts: "settings keyboard hotkeys shortcuts 设置 键盘 快捷键"
     case .settingsFeatures: "settings features 设置 功能"
     case .settingsMenuBar: "settings menu bar 设置 菜单栏"
     case .settingsNotifications: "settings notifications 设置 通知"

@@ -8,9 +8,9 @@ import OSLog
 
 /// Lightweight host-owned settings. Registering shortcuts never creates a capture controller.
 @MainActor public final class CaptureShortcuts: ObservableObject {
-  @Published private(set) var screenshotKey: CaptureHotKey?
-  @Published private(set) var recordingKey: CaptureHotKey?
-  @Published private(set) var conflict = false
+  @Published public private(set) var screenshotKey: CaptureHotKey?
+  @Published public private(set) var recordingKey: CaptureHotKey?
+  @Published public private(set) var conflict = false
   @Published private(set) var enabled = false
   private let defaults: UserDefaults
   private let hotKeys = CaptureHotKeys()
@@ -40,27 +40,31 @@ import OSLog
     let combinations = Set(bindings.values.map { UInt64($0.code) << 32 | UInt64($0.carbon) })
     return combinations.count == bindings.count && bindings.values.allSatisfy(\.isUsable)
   }
-  func setShortcut(_ key: CaptureHotKey?, for action: CaptureRequest.Action) {
-    guard action == .screenshot || action == .record else { return }
+  @discardableResult
+  public func setShortcut(_ key: CaptureHotKey?, for action: CaptureRequest.Action) -> Bool {
+    guard action == .screenshot || action == .record else { return false }
     let previous = bindings
     var candidate = previous
     candidate[action] = key
     guard valid(candidate) else {
       conflict = true
-      return
+      return false
     }
-    if enabled, !hotKeys.apply(candidate) {
-      // Carbon registers each binding separately. Restore the last working group
-      // before publishing or persisting anything from the rejected edit.
-      _ = hotKeys.apply(previous)
-      conflict = true
-      Self.logger.notice("Shortcut edit rejected; previous bindings restored when available")
-      return
+    if enabled {
+      let accepted = hotKeys.apply(candidate)
+      if editing || externalRecording { hotKeys.clear() }
+      if !accepted {
+        if !editing && !externalRecording { _ = hotKeys.apply(previous) }
+        conflict = true
+        Self.logger.notice("Shortcut edit rejected; previous bindings restored when available")
+        return false
+      }
     }
     if action == .screenshot { screenshotKey = key } else { recordingKey = key }
     let name = action == .screenshot ? "capture.screenshotKey" : "capture.recordingKey"
     defaults.set(key.flatMap { try? JSONEncoder().encode($0) }, forKey: name)
     conflict = false
+    return true
   }
   func setEnabled(_ value: Bool) {
     guard value else {
