@@ -1,14 +1,12 @@
 {
-  "version": "0.1.10",
-  "date": "2026-11-07",
+  "version": "0.1.11",
+  "date": "2026-11-08",
   "sourceNotes": [
-    "更新 Capture 品牌图标，统一近白圆角底板与视觉比例，品牌素材保留透明背景（#20）。",
-    "新增标准与手绘图标切换，选择在重启后保留，并同步到 Dock、访达与聚焦搜索使用的系统应用图标。"
+    "精简随包图标资源并无损压缩手绘图片，减小下载体积，保留图标效果与标准／手绘切换。"
   ],
   "translations": {
     "en": [
-      "Refresh the Capture icon with a near-white rounded backplate and consistent visual proportions, while retaining transparent branding assets (#20).",
-      "Switch between standard and hand-drawn icons, preserve the choice across restarts, and synchronize the system app icon used by the Dock, Finder, and Spotlight."
+      "Reduce download size by bundling only Capture's icon artwork and losslessly compressing the hand-drawn image, preserving its appearance and standard/hand-drawn switching."
     ]
   }
 }
