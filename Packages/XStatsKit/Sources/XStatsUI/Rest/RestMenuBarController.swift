@@ -129,13 +129,13 @@ final class RestMenuBarController: NSObject {
         width: 400, minHeight: 180,
         content: { [weak self] in
           TimerPopover(
-            windows: windows,
+            showsTimeZones: true, windows: windows,
             openPage: { self?.openPage() }, showHUD: { self?.openHUD() }, close: { self?.dismiss() }
           )
           .environment(model)
         },
         measuring: {
-          TimerPopover(windows: windows, openPage: {}, showHUD: {}, close: {})
+          TimerPopover(showsTimeZones: true, windows: windows, openPage: {}, showHUD: {}, close: {})
             .environment(model).environment(\.isSnapshot, true)
         })
       panel.onVisibilityChange = { [weak self] visible in
