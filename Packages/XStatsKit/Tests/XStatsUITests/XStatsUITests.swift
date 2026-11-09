@@ -509,8 +509,10 @@ private func isolatedDefaults() -> UserDefaults {
 
   @Test func sidebarGroupsCoverEveryTabOnce() {
     let grouped = PanelTab.monitors + PanelTab.tools + PanelTab.settings
-    // 同步页和旧启动项路由保留枚举值，但不再作为独立侧栏入口。
-    let visible = PanelTab.allCases.filter { $0 != .settingsAccount && $0 != .startupItems }
+    // 同步页、旧启动项路由和通用设置下的辅助工具页均不作为独立侧栏入口。
+    let visible = PanelTab.allCases.filter {
+      $0 != .settingsAccount && $0 != .startupItems && $0 != .settingsHelper
+    }
     #expect(grouped.count == visible.count)
     #expect(Set(grouped) == Set(visible))
     #expect(PanelTab.settings.allSatisfy { $0.isSettings })
