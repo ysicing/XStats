@@ -1,6 +1,7 @@
 <div align="center">
 
 <img src="Assets/icon.png" alt="XStats" width="96" height="96">
+<img src="Packages/XStatsKit/Sources/DockIcons/Resources/xstats.png" alt="XStats 手绘形象" width="96" height="96">
 
 # XStats
 
@@ -22,123 +23,138 @@ CPU、内存、网络与温度一眼可见，展开即可查看趋势与应用�
 
 </div>
 
-<p align="center">
-  <img src="Assets/readme/overview-dark.png" width="49%" alt="XStats 深色仪表盘">
-  <img src="Assets/readme/overview-light.png" width="49%" alt="XStats 浅色仪表盘">
-</p>
+截图中的账号、地址、进程、指标、用量与清理结果均为演示数据；主窗口的机型与硬件能力来自本机只读信息，支持情况因机型而异。
+
+## 安装
+
+需要 **Apple 芯片 Mac 与 macOS 14 或更新版本**。
+
+从 [GitHub Releases](https://github.com/ysicing/xstats/releases) 下载 DMG，将 XStats 拖入“应用程序”。应用内置更新检查，是否安装新版本由你决定。
+
+也可通过 Homebrew 安装：
+
+```bash
+brew tap ysicing/tap
+brew trust ysicing/tap
+brew install --cask xstats
+```
 
 ## 功能
 
 XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注册账号。
 
-### 菜单栏布局
+### 菜单栏与按需启用
 
-指标可**独立显示**、使用**聚合模式**，或合成一个内容自由搭配的**三合一图标**。应用图标可选择标准 Logo 或手绘形象，程序坞与系统应用图标同步；仅图标布局还支持在程序坞自动跟随菜单栏显示实时状态。显示项目、顺序与样式（文字、图标、圆环、进度条、历史图）均可自定义。
+指标可**独立显示**、使用**聚合模式**，或合成一个自由搭配的**三合一图标**。显示项目、顺序与样式均可自定义，聚合总览可直接打开指标详情。应用图标可选择标准 Logo 或手绘形象，支持程序坞实时状态。
 
-聚合模式可分别选择菜单栏与状态总览中的项目，在总览中集中查看指标并打开详情。
-
-<p align="center">
-  <img src="Assets/readme/combined-overview-zh-Hans-light.png" width="360" alt="聚合模式状态总览，浅色">
-  <img src="Assets/readme/combined-overview-zh-Hans-dark.png" width="360" alt="聚合模式状态总览，深色">
-</p>
-
-菜单栏布局与状态总览使用演示数据，便于展示不同布局与信息组合。
-
-### 按需启用与菜单栏展示
-
-在“设置 → 功能”中，基础监控与可选功能分别管理。
-
-- **基础监控**：CPU、GPU、内存、磁盘、网络、能耗与风扇可分别关闭。关闭后停止实时采集、相关提醒和新增历史记录，基础信息、页面入口与已有历史保留；系统小组件仍独立刷新。
-- **菜单栏展示**：除电池信息入口外，基础监控、AI 与音频勾选“在菜单栏显示”时，会同时启用对应功能；取消勾选只移除入口，不会关闭功能。AI 与音频也有独立的展示选项。
-- **显示器参数控制**：只控制亮度、对比度与音量的读写。关闭后仍能查看显示器信息，并单独选择是否在菜单栏显示。
+监控与工具可按需启用，菜单栏入口单独配置。隐藏入口不会关闭功能；关闭监控会停止实时采集、相关提醒与新增历史，保留已有记录。
 
 <p align="center">
-  <img src="Assets/readme/monitoring-features-zh-Hans-light.png" width="49%" alt="基础功能：启用开关与菜单栏展示分别设置">
-  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="可选功能：工具、常用模块、计时和日历分组管理">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/combined-overview-zh-Hans-dark.png">
+    <img src="Assets/readme/combined-overview-zh-Hans-light.png" width="360" alt="聚合模式状态总览">
+  </picture>
 </p>
 
 ### 系统监控
 
 | 模块 | 内容 |
 |---|---|
-| **CPU** | 用户 / 系统 / 空闲占用、逐核与核心组负载、负载平均、频率与温度、热压力提示 |
-| **GPU** | 图形负载、核心数、温度与功耗 |
-| **内存** | 内存压力、应用 / 压缩 / 缓存构成、交换空间与换入换出速率 |
-| **磁盘** | 容量、读写速率、应用读写排行、SMART 健康信息 |
-| **网络** | 上传 / 下载速率、网络接口与连接概况 |
-| **能耗** | 温度、整机功耗、App CPU 能耗、阻止睡眠的应用、电池状态与蓝牙设备电量 |
-| **风扇** | 转速与支持机型的调速控制 |
-| **显示器** | 分辨率、缩放与刷新率；支持 DDC/CI 的外接屏可调节亮度、对比度与音量 |
-| **系统信息** | 机型与系统标识；点击 Apple 智能旁的详情图标，查看功能配置状态、本机模型可用性与磁盘占用 |
+| **CPU** | 总体与逐核占用、负载、频率和温度 |
+| **GPU** | 图形负载、温度与功耗 |
+| **内存** | 内存压力、使用构成与交换空间 |
+| **磁盘** | 容量、读写速率、应用读写排行与 SMART 健康信息 |
+| **网络** | 上下行速率、网络接口与连接概况 |
+| **能耗** | 温度、功耗、App 能耗、电池与蓝牙设备电量 |
+| **风扇** | 转速与支持机型的调速 |
+| **显示器** | 分辨率与刷新率，支持 DDC/CI 的外接屏参数调节 |
+| **系统信息** | 机型、系统、Apple 智能状态与本机模型占用 |
 
 频率、温度、功耗等读数取决于机型和系统是否提供。
 
 <p align="center">
-  <img src="Assets/readme/popover-cpu-light.png" width="49%" alt="CPU 占用与核心详情">
-  <img src="Assets/readme/popover-memory-dark.png" width="49%" alt="内存构成与压力详情">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/overview-dark.png">
+    <img src="Assets/readme/overview-light.png" width="760" alt="XStats 系统监控仪表盘">
+  </picture>
 </p>
 
 ### <img src="Assets/branding/network-monitor/xstats-network-logo-128.png" width="28" height="28" alt=""> 网络监视器
 
-**macOS 15+ 的可选功能，默认关闭。** 查看观察期间的新连接、地图连接去向与上下行流量走势，可按应用、进程、域名、国家或地域联动查看，支持搜索、活动连接筛选、暂停与恢复。流量走势需要支持统计的网络组件。
+**macOS 15+ 的可选功能，默认关闭，需要独立网络组件。** 按应用、进程、域名或地区查看观察期间的新连接、地图去向与上下行走势。
 
-- **只读**：全部连接放行，不读取通信内容；最近15分钟的连接和流量历史仅保存在本机，可随时清空。
-- **按需运行**：仅在页面可见且未暂停时采集，界面分页加载本地历史；不会枚举开始观察之前的全部连接。
-- **世界地图**：首次使用时按需下载公共 IP 地理数据库，之后离线查询。中国大陆地址显示省市和运营商，地图按城市聚合；位置是地区代表点，不是设备精确位置。
-
-首次使用：在“设置 → 功能 → 可选功能”启用网络监视器，按引导安装 XStats Network Monitor 组件，并在 macOS 中批准系统扩展与网络过滤。安装需要管理员账户。之后可通过“管理组件”检查独立更新或卸载组件。
-
-使用过网络组件预览版的用户：先升级主程序，再通过“管理组件”卸载旧组件，按系统提示完成必要的重启后重新启用，以迁移到当前更新入口。
+只读观察，全部连接放行，不读取通信内容；仅在页面可见且未暂停时采集，最近 15 分钟的历史保留在本机，可随时清空。地图数据库首次按需下载，之后离线查询，位置为地区代表点。
 
 <p align="center">
-  <img src="Assets/readme/connections-zh-Hans-light.png" width="49%" alt="网络监视器浅色连接总览，演示数据">
-  <img src="Assets/readme/connections-zh-Hans-dark.png" width="49%" alt="网络监视器深色连接总览，演示数据">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/connections-zh-Hans-dark.png">
+    <img src="Assets/readme/connections-zh-Hans-light.png" width="760" alt="网络监视器连接总览，演示数据">
+  </picture>
 </p>
-
-<p align="center">
-  <img src="Assets/readme/component-install-zh-Hans-light.png" width="49%" alt="网络组件首次安装面板，演示状态">
-  <img src="Assets/readme/component-management-zh-Hans-light.png" width="49%" alt="网络组件管理面板，演示版本信息">
-</p>
-
-连接、地址、国家或地域与组件版本信息均为演示数据。
 
 ### AI
 
-在菜单栏查看 AI 服务用量：
+安装并运行 [Magpie](https://usemagpie.ai) 后，可在菜单栏查看 AI 服务用量：
 
-- **用量走势**：查看今日、近 7 / 30 天及累计的 Token、费用、请求数与生成速度。
-- **订阅账号**：各服务账号、套餐类型、额度使用情况与重置时间。
-- **费用估算**：显示 Magpie 提供的美元费用估算，不代表订阅账单。
+- **用量走势**：Token、请求数、生成速度与美元费用估算，费用不代表订阅账单。
+- **订阅账号**：套餐、额度使用情况与重置时间。
 
-AI 用量仅支持 Magpie，需要安装并运行 Magpie。XStats 从其本地接口读取各账户额度、Token 与费用，支持 Grok 等 Magpie 已接入的服务；Token 仅统计经过 Magpie 的请求。
+AI 用量仅支持 Magpie 本地接口；Token 仅统计经过 Magpie 的请求。
 
 ### 工具
 
+命令栏、启动台与 Finder 新建文档均为独立启用的实验性功能。
+
 | 工具 | 说明 |
 |---|---|
-| **命令栏（实验性）** | 搜索应用、文件与常用操作，支持自定义应用目录，快速查找和结束后台进程、查询端口与软件包 |
-| **启动台（实验性）** | 独立启用的应用启动器；macOS 26+ 支持网格、列表与分类浏览，以及文件夹和自定义布局 |
-| **Finder 新建文档（实验性）** | 启用 Finder 扩展后，可在文件夹中右键新建 Office、文本和 iWork 文档，自定义命名与可用格式 |
-| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 内置截图标注、本地打码与带声音的录屏；可单独[下载 Capture](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.12)，详见 [Capture 使用说明](docs/CAPTURE.md) |
+| **命令栏** | 搜索应用、文件与操作，查询进程、端口和软件包 |
+| **启动台** | 仅限 **macOS 26+**；网格、列表、分类与文件夹，自定义应用布局 |
+| **Finder 新建文档** | 通过右键菜单新建文本、Office 与 iWork 文档 |
+| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 截图标注、本地打码与带声音的录屏；也可[单独下载](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.12) |
 | **风扇控制** | 在支持的设备上切换自动或手动控制 |
-| **防休眠** | 保持系统或屏幕唤醒，可配置合盖运行 |
-| **应用服务** | 统一管理应用、Homebrew、启动项与 Homebrew 服务，查看应用信息和可用更新 |
-| **清理优化** | 审阅缓存与项目产物，支持已安装的 Mole 引擎与执行日志，预览依赖并按需维护 · [清理范围](docs/CLEANUP.md) |
-| **网络诊断** | 测速、DNS 查询与测速、出口检测、本地接口与多来源公网 IP 查询、归属地与纯净度、连通性探测，以及内置 WebRTC / DNS 泄漏检测 |
-| **菜单栏日历** | 农历、节假日与调休、黄历，以及系统日程和提醒事项 |
-| **音频** | 系统音量与输入 / 输出设备切换；macOS 14.4+ 可按应用调节音量与输出，仅在本机处理 |
-| **计时** | 倒计时、番茄钟与秒表；多屏休息幕布、迷你 HUD、独立护眼提醒与本机专注统计 |
+| **防休眠** | 保持系统或屏幕唤醒，支持合盖运行 |
+| **应用服务** | 管理应用、Homebrew 软件包、启动项与服务 |
+| **清理优化** | 审阅缓存与项目产物，支持 Mole 引擎 · [清理范围](docs/CLEANUP.md) |
+| **网络诊断** | 测速、DNS、出口与公网 IP、连通性及 WebRTC / DNS 泄漏检测 |
+| **日历** | 农历、节假日与调休、黄历、系统日程和提醒事项 |
+| **音频** | 音量与设备切换；macOS 14.4+ 支持应用音量与输出调节 |
+| **计时** | 倒计时、番茄钟、秒表、休息与护眼提醒、本机专注统计 |
 | **进程管理** | 搜索、排序、按应用分组与结束进程 |
 
-计时支持倒计时、番茄钟和秒表，支持随时短休或长休、休息时息屏，以及独立护眼提醒、休息声音与本机专注统计。
+### 集成
 
-可选工具可按需启用。风扇控制、合盖防休眠等特权操作需要安装并授权辅助工具；清理与卸载会先预览并请求确认。原生清理按项目类型和设置移到废纸篓或直接删除；Mole 引擎按自身规则永久清理，不沿用原生勾选和保留项。卸载使用废纸篓。
+- **桌面小组件**：系统概览、AI 额度与 Token、日历、计时、时区与网络信息。
+- **多语言**：简体中文、繁體中文、English、日本語、한국어、Deutsch、Español、Français、العربية。
+- **深链**：从启动器、快捷指令或终端打开常用入口 · [深链协议](docs/DEVELOPMENT.md#xstats-深链)。
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/widgets-zh-Hans-dark.png">
+    <img src="Assets/readme/widgets-zh-Hans-light.png" width="760" alt="桌面小组件：订阅额度、累计 Token、日历与整月日历">
+  </picture>
+</p>
 
 <details>
 <summary>更多截图</summary>
 
-截图中的账号、地址、进程、实时指标、用量与清理结果均为演示数据；主窗口中的机型与硬件能力来自本机只读信息。截图不代表所有机型都提供相同的硬件能力。
-
+<p align="center">
+  <img src="Assets/readme/monitoring-features-zh-Hans-light.png" width="760" alt="基础功能：启用开关与菜单栏展示分别设置">
+</p>
+<p align="center">
+  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="760" alt="可选功能：工具、常用模块、计时和日历分组管理">
+</p>
+<p align="center">
+  <img src="Assets/readme/popover-cpu-light.png" width="360" alt="CPU 占用与核心详情">
+</p>
+<p align="center">
+  <img src="Assets/readme/popover-memory-dark.png" width="360" alt="内存构成与压力详情">
+</p>
+<p align="center">
+  <img src="Assets/readme/component-install-zh-Hans-light.png" width="760" alt="网络组件首次安装面板，演示状态">
+</p>
+<p align="center">
+  <img src="Assets/readme/component-management-zh-Hans-light.png" width="760" alt="网络组件管理面板，演示版本信息">
+</p>
 <p align="center">
   <img src="Assets/readme/trio-settings-zh-Hans-light.png" width="720" alt="三合一图标内容与外观设置">
 </p>
@@ -149,12 +165,16 @@ AI 用量仅支持 Magpie，需要安装并运行 Magpie。XStats 从其本地�
   <img src="Assets/readme/wifi-details-zh-Hans-light.png" width="360" alt="Wi-Fi 信号、链路与安全详情">
 </p>
 <p align="center">
-  <img src="Assets/readme/thermal-dark.png" width="49%" alt="温度与系统热压力">
-  <img src="Assets/readme/keepawake-light.png" width="49%" alt="防休眠设置">
+  <img src="Assets/readme/thermal-dark.png" width="760" alt="温度与系统热压力">
 </p>
 <p align="center">
-  <img src="Assets/readme/cleaner-light.png" width="49%" alt="清理预览">
-  <img src="Assets/readme/ip-purity-light.png" width="49%" alt="公网 IP 与纯净度检测">
+  <img src="Assets/readme/keepawake-light.png" width="760" alt="防休眠设置">
+</p>
+<p align="center">
+  <img src="Assets/readme/cleaner-light.png" width="760" alt="清理预览">
+</p>
+<p align="center">
+  <img src="Assets/readme/ip-purity-light.png" width="760" alt="公网 IP 与纯净度检测">
 </p>
 <p align="center">
   <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="760" alt="Magpie AI 用量、服务选择与订阅额度">
@@ -163,12 +183,16 @@ AI 用量仅支持 Magpie，需要安装并运行 Magpie。XStats 从其本地�
   <img src="Assets/readme/history-zh-Hans-dark.png" width="760" alt="历史趋势">
 </p>
 <p align="center">
-  <img src="Assets/readme/audio-zh-Hans-light.png" width="49%" alt="音频与应用混音">
-  <img src="Assets/readme/displays-zh-Hans-dark.png" width="49%" alt="外接显示器控制">
+  <img src="Assets/readme/audio-zh-Hans-light.png" width="760" alt="音频与应用混音">
 </p>
 <p align="center">
-  <img src="Assets/readme/calendar-zh-Hans-light.png" width="49%" alt="菜单栏日历">
-  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="计时：番茄计时、健康提醒与今日概览">
+  <img src="Assets/readme/displays-zh-Hans-dark.png" width="760" alt="外接显示器控制">
+</p>
+<p align="center">
+  <img src="Assets/readme/calendar-zh-Hans-light.png" width="360" alt="菜单栏日历">
+</p>
+<p align="center">
+  <img src="Assets/readme/rest-zh-Hans-dark.png" width="760" alt="计时：番茄计时、健康提醒与今日概览">
 </p>
 
 <p align="center">
@@ -177,59 +201,27 @@ AI 用量仅支持 Magpie，需要安装并运行 Magpie。XStats 从其本地�
 
 </details>
 
-### 集成
+## 可选组件与权限
 
-- **桌面小组件**：系统概览、番茄钟、时区时钟、AI 额度与累计 Token、日历与整月日历、明天上班吗、IP 纯净度与公网 IP。
-- **多语言**：简体中文、繁體中文、English、日本語、한국어、Deutsch、Español、Français、العربية。
-- **深链**：通过 `xstats://` 从启动器、快捷指令或终端打开常用入口；已关闭的模块会转到设置，不会被隐式启用。
+- **网络监视器**：按引导安装独立组件，需要管理员账户，并在 macOS 中批准系统扩展与网络过滤；组件独立更新 · [安装与升级说明](docs/DEVELOPMENT.md#网络连接试验模块)。
+- **辅助工具**：风扇控制、合盖防休眠等特权操作需要安装并授权辅助工具。
+- **Finder 新建文档**：需要在系统设置中启用 Finder 扩展 · [启用说明](docs/DEVELOPMENT.md#finder-新建文档)。
+- **XStats Capture**：截图与录屏的授权范围见 [Capture 使用说明](docs/CAPTURE.md)。
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/widgets-zh-Hans-dark.png">
-    <img src="Assets/readme/widgets-zh-Hans-light.png" width="760" alt="桌面小组件：单圈与双圈订阅额度、累计 Token、日历与整月日历">
-  </picture>
-</p>
-
-日历与小组件使用固定演示日期和数据；小组件图由当前原生视图渲染。
-
-```bash
-open 'xstats://open/connections'   # 打开网络监视器
-open 'xstats://panel/cpu'          # 显示 CPU 弹窗
-```
-
-完整路径与操作见[深链协议](docs/DEVELOPMENT.md#xstats-深链)。
-
-## 安装
-
-需要 **Apple 芯片 Mac 与 macOS 14 或更新版本**。
-
-```bash
-brew tap ysicing/tap
-brew trust ysicing/tap
-brew install --cask xstats
-```
-
-也可从 [GitHub Releases](https://github.com/ysicing/xstats/releases) 下载 DMG，将 XStats 拖入“应用程序”。应用内置更新检查，是否安装新版本由你决定。
+原生清理先预览、选择并确认，按项目类型和设置移到废纸篓或直接删除。Mole 可不经预览直接确认执行，按自身规则永久清理，不沿用原生勾选、保留项或废纸篓设置。卸载需确认，使用废纸篓。
 
 ## 数据与隐私
 
 监控数据、历史记录与 AI 用量在本机处理。
 
 - **检查更新**：发送版本号与安装标识哈希，获取更新清单。
-- **AI 用量**：需要安装并运行 Magpie，通过本地接口读取额度与统计。
+- **AI 用量**：通过 Magpie 本地接口读取额度与统计。
 - **联网功能**：组件与地理数据库下载、网络诊断会连接相应服务；全球探针的测量目标与结果可能被他人查询。
 - **菜单栏折叠**：macOS 27 实验功能，需要授权访问单个系统配置文件，以隐藏和恢复所选应用。
 
 完整说明见[隐私政策](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.zh-Hans.md)和[服务条款](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.zh-Hans.md)。
 
 ## 构建与贡献
-
-需要 Xcode 26+、Go 1.25+、[Go Task](https://taskfile.dev/) 和 [XcodeGen](https://github.com/yonaskolb/XcodeGen)：
-
-```bash
-task test
-task build BUMP=0 INSTALL=0
-```
 
 欢迎提交 Issue 和 Pull Request。开发环境与发布流程见 [DEVELOPMENT.md](docs/DEVELOPMENT.md)，模块边界与实现约束见 [ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 

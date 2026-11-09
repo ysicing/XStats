@@ -1,6 +1,7 @@
 <div align="center">
 
 <img src="Assets/icon.png" alt="XStats" width="96" height="96">
+<img src="Packages/XStatsKit/Sources/DockIcons/Resources/xstats.png" alt="XStats hand-drawn mascot" width="96" height="96">
 
 # XStats
 
@@ -22,123 +23,138 @@ See CPU, memory, network and temperature at a glance, and open the details for t
 
 </div>
 
-<p align="center">
-  <img src="Assets/readme/overview-dark.png" width="49%" alt="XStats dashboard, dark">
-  <img src="Assets/readme/overview-light.png" width="49%" alt="XStats dashboard, light">
-</p>
+Accounts, addresses, processes, metrics, usage and cleanup results in screenshots are demo data. The main window’s Mac model and hardware capabilities come from read-only information on this Mac; support varies by model.
+
+## Install
+
+Requires an **Apple silicon Mac with macOS 14 or later**.
+
+Download the DMG from [GitHub Releases](https://github.com/ysicing/xstats/releases) and drag XStats into Applications. XStats checks for updates, and you decide whether to install them.
+
+Or install with Homebrew:
+
+```bash
+brew tap ysicing/tap
+brew trust ysicing/tap
+brew install --cask xstats
+```
 
 ## Features
 
 XStats is a free, open-source native app built with Swift, AppKit and SwiftUI. No account is required.
 
-### Menu bar layout
+### Menu bar and optional features
 
-Show metrics **separately**, in **Aggregated Mode**, or as **a three-in-one icon** with freely combined sources. Choose standard or hand-drawn artwork for both the Dock and system app icon; the icon-only layout also supports live status in the Dock. Items, order and styles (text, icons, rings, progress bars, history charts) are all configurable.
+Show metrics **separately**, in **Aggregated Mode**, or as **a three-in-one icon** with freely combined sources. Customize items, order and styles, and open metric details from the overview. Choose standard or hand-drawn app artwork, with live status available in the Dock.
 
-Aggregated Mode lets you choose menu bar and status overview items independently, with individual details available in the overview.
-
-<p align="center">
-  <img src="Assets/readme/combined-overview-zh-Hans-light.png" width="360" alt="Aggregated menu bar overview, light mode">
-  <img src="Assets/readme/combined-overview-zh-Hans-dark.png" width="360" alt="Aggregated menu bar overview, dark mode">
-</p>
-
-Menu bar layouts and the status overview use demo data to illustrate different layouts and combinations.
-
-### Feature activation and menu bar visibility
-
-Manage Basic and Optional Features separately in Settings → Features.
-
-- **Basic monitoring**: turn CPU, GPU, memory, disk, network, energy and fan monitoring on or off individually. Disabling a module stops live collection, related alerts and new history records while keeping basic information, page access and existing history. System widgets refresh independently.
-- **Menu bar visibility**: selecting Show in Menu Bar for basic monitoring, AI or Audio also enables that feature, except for the battery information entry. Clearing it removes the entry while leaving the feature enabled. AI and Audio have their own display options.
-- **Display parameter controls**: enable or disable brightness, contrast and volume reads and adjustments. Display information remains available, with a separate information-only menu bar option.
+Enable monitoring and tools as needed, and configure menu bar entries separately. Hiding an entry leaves the feature running. Disabling monitoring stops live collection, related alerts and new history while keeping existing records.
 
 <p align="center">
-  <img src="Assets/readme/monitoring-features-zh-Hans-light.png" width="49%" alt="Basic Features: separate activation and menu bar display controls">
-  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="Optional Features: grouped tools, modules, Timers and calendar">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/combined-overview-zh-Hans-dark.png">
+    <img src="Assets/readme/combined-overview-zh-Hans-light.png" width="360" alt="Aggregated menu bar overview">
+  </picture>
 </p>
 
 ### System monitoring
 
 | Module | Details |
 |---|---|
-| **CPU** | User / system / idle utilization, per-core and core-group load, load averages, frequency and temperature, thermal pressure alerts |
-| **GPU** | Graphics utilization, core count, temperature and power |
-| **Memory** | Memory pressure, app / compressed / cached composition, swap space and swap rates |
-| **Disk** | Capacity, read/write rates, per-app I/O ranking, SMART health |
-| **Network** | Upload/download rates, network interfaces and connection summary |
-| **Energy** | Temperatures, system power, app CPU energy, apps preventing sleep, battery status and Bluetooth device battery levels |
-| **Fans** | Fan speeds and controls on supported Macs |
-| **Displays** | Resolution, scaling and refresh rate; brightness, contrast and volume on DDC/CI-capable external displays |
-| **System information** | Mac and system identifiers; click the detail icon beside Apple Intelligence to view feature configuration, on-device model availability and storage |
+| **CPU** | Overall and per-core utilization, load, frequency and temperature |
+| **GPU** | Graphics utilization, temperature and power |
+| **Memory** | Memory pressure, usage breakdown and swap |
+| **Disk** | Capacity, read/write rates, per-app I/O and SMART health |
+| **Network** | Upload/download rates, interfaces and connection summary |
+| **Energy** | Temperatures, power, app energy, battery and Bluetooth device charge |
+| **Fans** | Fan speeds and adjustment on supported Macs |
+| **Displays** | Resolution, refresh rate and DDC/CI external display controls |
+| **System info** | Mac, macOS, Apple Intelligence status and on-device model storage |
 
 Frequency, temperature and power readings depend on what the Mac model and macOS expose.
 
 <p align="center">
-  <img src="Assets/readme/popover-cpu-light.png" width="49%" alt="CPU utilization and core details">
-  <img src="Assets/readme/popover-memory-dark.png" width="49%" alt="Memory composition and pressure">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/overview-dark.png">
+    <img src="Assets/readme/overview-light.png" width="760" alt="XStats system monitoring dashboard">
+  </picture>
 </p>
 
 ### <img src="Assets/branding/network-monitor/xstats-network-logo-128.png" width="28" height="28" alt=""> Network Monitor
 
-**Optional on macOS 15 or later, disabled by default.** View newly observed connections, destinations on a map, and upload/download trends together by app, process, domain, country or region, with search, active-connection filtering, pause and resume. Traffic trends require a network component that supports statistics.
+**Optional on macOS 15+, disabled by default, and requires a separate network component.** Explore newly observed connections, map destinations and upload/download trends by app, process, domain or region.
 
-- **Read-only**: all traffic is allowed and communication content is never inspected. The last 15 minutes of connection and traffic history stay on this Mac and can be cleared at any time.
-- **On demand**: collects only while the page is visible and not paused, loading local history in pages. It does not enumerate every connection that existed before observation began.
-- **World map**: download the public IP geography database only when first used, then look up locations offline. Mainland China addresses include province, city and provider details and are grouped by city. Positions are area representatives, not precise device locations.
-
-First use: enable Network Monitor in Settings → Features → Optional Features, follow the component installation guide, and approve the system extension and network filter in macOS. Installation requires an administrator account. Use Manage Component to check independent updates or remove the component.
-
-If you used a preview network component, upgrade the main app first, uninstall the old component through Manage Component, complete any restart requested by macOS, and enable it again to move to the current update source.
+Observation is read-only: all traffic is allowed and communication content is never inspected. Collection runs only while the page is visible and not paused; the last 15 minutes of history stay on this Mac and can be cleared. The map database downloads on first use, then works offline. Locations represent areas, not precise device positions.
 
 <p align="center">
-  <img src="Assets/readme/connections-zh-Hans-light.png" width="49%" alt="Network Monitor connection overview, light mode, demo data">
-  <img src="Assets/readme/connections-zh-Hans-dark.png" width="49%" alt="Network Monitor connection overview, dark mode, demo data">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/connections-zh-Hans-dark.png">
+    <img src="Assets/readme/connections-zh-Hans-light.png" width="760" alt="Network Monitor connection overview, demo data">
+  </picture>
 </p>
-
-<p align="center">
-  <img src="Assets/readme/component-install-zh-Hans-light.png" width="49%" alt="First-time network component installation panel, demo state">
-  <img src="Assets/readme/component-management-zh-Hans-light.png" width="49%" alt="Network component management panel, demo version information">
-</p>
-
-Connections, addresses, countries or regions and component version information are demo data.
 
 ### AI
 
-Track AI service usage from the menu bar:
+Install and run [Magpie](https://usemagpie.ai) to track AI service usage from the menu bar:
 
-- **Usage trends**: tokens, costs, request counts and generation speed for today, the last 7 / 30 days and all time.
-- **Subscription accounts**: service accounts, plan types, quota usage and reset times.
-- **Estimated costs**: USD estimates provided by Magpie; not a subscription bill.
+- **Usage trends**: tokens, requests, generation speed and estimated USD costs. Estimates are not subscription bills.
+- **Subscription accounts**: plans, quota usage and reset times.
 
-AI usage supports Magpie exclusively and requires it to be installed and running. XStats reads account quotas, tokens and costs from its local API, including Grok and other supported services. Only requests routed through Magpie count toward token usage.
+AI usage supports Magpie’s local API exclusively. Only requests routed through Magpie count toward token usage.
 
 ### Tools
 
+Command Bar, Launchpad and new documents in Finder are experimental features, each enabled independently.
+
 | Tool | Description |
 |---|---|
-| **Command Bar (experimental)** | Search apps, files, and common actions, include custom app folders, find and quit background processes, and look up ports and packages |
-| **Launchpad (experimental)** | An independently enabled app launcher; macOS 26+ supports grid, list, and category views, folders, and custom layouts |
-| **New documents in Finder (experimental)** | Enable the Finder extension to create Office, text, and iWork documents from a folder's context menu, with configurable naming and formats |
-| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | Built-in screenshot annotation, local redaction, and screen recording with audio; also available as a [standalone Capture download](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.12). See [Capture usage and permissions](docs/CAPTURE.md) |
+| **Command Bar** | Search apps, files and actions; look up processes, ports and packages |
+| **Launchpad** | **macOS 26+ only**; grid, list, categories, folders and custom app layouts |
+| **Finder documents** | Create text, Office and iWork documents from the context menu |
+| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | Annotate and redact screenshots locally, record with audio; also a [standalone app](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.12) |
 | **Fan control** | Switch between automatic and manual control on supported Macs |
-| **Keep awake** | Keep the system or display awake, with optional lid-closed operation |
-| **Apps & Services** | Manage apps, Homebrew packages, startup items and Homebrew services; view app information and available updates |
-| **Clean & Optimize** | Review caches and build artifacts, use an installed Mole engine with live logs, preview dependencies, and run maintenance on demand · [Cleanup scope](docs/CLEANUP.md) |
-| **Network diagnostics** | Speed tests, DNS queries and benchmarks, egress checks, local interface addresses and multi-source public IP lookup, location and purity, connectivity probes, and integrated WebRTC / DNS leak tests |
-| **Menu bar calendar** | Chinese lunar calendar, holidays and make-up workdays, almanac, calendar events and reminders |
-| **Audio** | System volume and input/output switching; per-app volume and output on macOS 14.4+, processed locally |
-| **Timers** | Countdown, Pomodoro and stopwatch; multi-display break screens, mini HUD, independent eye-break reminders and local focus statistics |
+| **Keep awake** | Keep the system or display awake, including with the lid closed |
+| **Apps & Services** | Manage apps, Homebrew packages, startup items and services |
+| **Clean & Optimize** | Review caches and build artifacts, with optional Mole support · [Scope](docs/CLEANUP.md) |
+| **Diagnostics** | Speed, DNS, egress, public IP, connectivity and WebRTC / DNS leak tests |
+| **Calendar** | Chinese lunar dates, holidays, make-up workdays, almanac, events and reminders |
+| **Audio** | Volume and device switching; per-app volume and output on macOS 14.4+ |
+| **Timers** | Countdown, Pomodoro, stopwatch, break reminders and local focus statistics |
 | **Process manager** | Search, sort, group by app and end processes |
 
-Timers brings together countdown, Pomodoro and stopwatch, with on-demand short and long breaks, optional display sleep, independent eye-break reminders, break sounds and local focus statistics.
+### Integrations
 
-Optional tools can be enabled as needed. Privileged actions such as fan control and lid-closed keep-awake require an authorized helper. Cleanup and uninstall require preview and confirmation. Native cleanup moves items to Trash or deletes them directly depending on the item type and settings. The Mole engine permanently cleans using its own rules; native selections and exclusions do not apply. Uninstall uses Trash.
+- **Desktop widgets**: system overview, AI quotas and tokens, calendar, timers, time zones and network information.
+- **Languages**: 简体中文, 繁體中文, English, 日本語, 한국어, Deutsch, Español, Français, العربية.
+- **Deep links**: open common views from launchers, Shortcuts or the terminal · [Protocol](docs/DEVELOPMENT.md#xstats-深链).
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/widgets-zh-Hans-dark.png">
+    <img src="Assets/readme/widgets-zh-Hans-light.png" width="760" alt="Desktop widgets: subscription quotas, cumulative tokens, calendar and month view">
+  </picture>
+</p>
 
 <details>
 <summary>More screenshots</summary>
 
-Accounts, addresses, processes, live metrics, usage and cleanup results in screenshots are demo data. The main window’s Mac model and hardware capabilities come from read-only information on this Mac. Hardware capabilities vary by model.
-
+<p align="center">
+  <img src="Assets/readme/monitoring-features-zh-Hans-light.png" width="760" alt="Basic Features: separate activation and menu bar display controls">
+</p>
+<p align="center">
+  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="760" alt="Optional Features: grouped tools, modules, Timers and calendar">
+</p>
+<p align="center">
+  <img src="Assets/readme/popover-cpu-light.png" width="360" alt="CPU utilization and core details">
+</p>
+<p align="center">
+  <img src="Assets/readme/popover-memory-dark.png" width="360" alt="Memory composition and pressure">
+</p>
+<p align="center">
+  <img src="Assets/readme/component-install-zh-Hans-light.png" width="760" alt="First-time network component installation panel, demo state">
+</p>
+<p align="center">
+  <img src="Assets/readme/component-management-zh-Hans-light.png" width="760" alt="Network component management panel, demo version information">
+</p>
 <p align="center">
   <img src="Assets/readme/trio-settings-zh-Hans-light.png" width="720" alt="Three-in-one icon sources and appearance">
 </p>
@@ -149,12 +165,16 @@ Accounts, addresses, processes, live metrics, usage and cleanup results in scree
   <img src="Assets/readme/wifi-details-zh-Hans-light.png" width="360" alt="Wi-Fi signal, link and security details">
 </p>
 <p align="center">
-  <img src="Assets/readme/thermal-dark.png" width="49%" alt="Temperature and system thermal pressure">
-  <img src="Assets/readme/keepawake-light.png" width="49%" alt="Keep-awake settings">
+  <img src="Assets/readme/thermal-dark.png" width="760" alt="Temperature and system thermal pressure">
 </p>
 <p align="center">
-  <img src="Assets/readme/cleaner-light.png" width="49%" alt="Cleanup preview">
-  <img src="Assets/readme/ip-purity-light.png" width="49%" alt="Public IP and purity checks">
+  <img src="Assets/readme/keepawake-light.png" width="760" alt="Keep-awake settings">
+</p>
+<p align="center">
+  <img src="Assets/readme/cleaner-light.png" width="760" alt="Cleanup preview">
+</p>
+<p align="center">
+  <img src="Assets/readme/ip-purity-light.png" width="760" alt="Public IP and purity checks">
 </p>
 <p align="center">
   <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="760" alt="Magpie AI usage, service selection and subscription quotas">
@@ -163,12 +183,16 @@ Accounts, addresses, processes, live metrics, usage and cleanup results in scree
   <img src="Assets/readme/history-zh-Hans-dark.png" width="760" alt="History trends">
 </p>
 <p align="center">
-  <img src="Assets/readme/audio-zh-Hans-light.png" width="49%" alt="Audio and app mixing">
-  <img src="Assets/readme/displays-zh-Hans-dark.png" width="49%" alt="External display controls">
+  <img src="Assets/readme/audio-zh-Hans-light.png" width="760" alt="Audio and app mixing">
 </p>
 <p align="center">
-  <img src="Assets/readme/calendar-zh-Hans-light.png" width="49%" alt="Menu bar calendar">
-  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="Timers: Pomodoro, reminders and today’s activity">
+  <img src="Assets/readme/displays-zh-Hans-dark.png" width="760" alt="External display controls">
+</p>
+<p align="center">
+  <img src="Assets/readme/calendar-zh-Hans-light.png" width="360" alt="Menu bar calendar">
+</p>
+<p align="center">
+  <img src="Assets/readme/rest-zh-Hans-dark.png" width="760" alt="Timers: Pomodoro, reminders and today’s activity">
 </p>
 
 <p align="center">
@@ -177,59 +201,27 @@ Accounts, addresses, processes, live metrics, usage and cleanup results in scree
 
 </details>
 
-### Integrations
+## Optional components and permissions
 
-- **Desktop widgets**: system overview, Pomodoro, time zone clocks, AI quotas and cumulative tokens, calendar and month view, “Work tomorrow?”, IP purity and public IP.
-- **Languages**: 简体中文, 繁體中文, English, 日本語, 한국어, Deutsch, Español, Français, العربية.
-- **Deep links**: open common views via `xstats://` from launchers, Shortcuts or the terminal. Disabled modules lead to Settings and are never enabled implicitly.
+- **Network Monitor**: follow the separate component’s installation guide. An administrator account and macOS approval for the system extension and network filter are required. The component updates independently · [Installation and upgrades (Chinese)](docs/DEVELOPMENT.md#网络连接试验模块).
+- **Helper**: privileged actions such as fan control and lid-closed keep-awake require installation and authorization of the helper.
+- **Finder documents**: enable the Finder extension in System Settings · [Setup (Chinese)](docs/DEVELOPMENT.md#finder-新建文档).
+- **XStats Capture**: see [Capture usage and permissions](docs/CAPTURE.md) for screenshot and recording access.
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/widgets-zh-Hans-dark.png">
-    <img src="Assets/readme/widgets-zh-Hans-light.png" width="760" alt="Desktop widgets: single and double quota rings, cumulative tokens, calendar and month view">
-  </picture>
-</p>
-
-The calendar and widgets use fixed demo dates and data. Widget images are rendered from the current native views.
-
-```bash
-open 'xstats://open/connections'   # Open Network Monitor
-open 'xstats://panel/cpu'          # Show the CPU popover
-```
-
-See the [deep-link protocol](docs/DEVELOPMENT.md#xstats-深链) for all routes and actions.
-
-## Install
-
-Requires an **Apple silicon Mac with macOS 14 or later**.
-
-```bash
-brew tap ysicing/tap
-brew trust ysicing/tap
-brew install --cask xstats
-```
-
-Or download the DMG from [GitHub Releases](https://github.com/ysicing/xstats/releases) and drag XStats into Applications. XStats checks for updates, and you decide whether to install them.
+Native cleanup requires preview, selection and confirmation; items go to Trash or are deleted directly depending on type and settings. Mole can run after confirmation without a preview and permanently cleans using its own rules; native selections, exclusions and Trash settings do not apply. Uninstall requires confirmation and uses Trash.
 
 ## Data and privacy
 
 Monitoring data, history and AI usage are processed locally.
 
 - **Update checks**: send the version and a hashed installation ID to retrieve the update feed.
-- **AI usage**: requires Magpie to be installed and running; reads quotas and statistics through its local API.
+- **AI usage**: reads quotas and statistics through Magpie’s local API.
 - **Online features**: component and geography database downloads, along with network diagnostics, connect to their respective services. Global-probe targets and results may be queried by others.
 - **Menu bar folding**: this experimental macOS 27 feature requires access to one system configuration file to hide and restore selected apps.
 
 See the [Privacy Policy](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.en.md) and [Terms of Service](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.en.md) for details.
 
 ## Build and contribute
-
-Requires Xcode 26+, Go 1.25+, [Go Task](https://taskfile.dev/) and [XcodeGen](https://github.com/yonaskolb/XcodeGen):
-
-```bash
-task test
-task build BUMP=0 INSTALL=0
-```
 
 Issues and pull requests are welcome. See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for setup and releases, and [ARCHITECTURE.md](docs/ARCHITECTURE.md) for module boundaries and implementation constraints.
 

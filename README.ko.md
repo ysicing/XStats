@@ -1,6 +1,7 @@
 <div align="center">
 
 <img src="Assets/icon.png" alt="XStats" width="96" height="96">
+<img src="Packages/XStatsKit/Sources/DockIcons/Resources/xstats.png" alt="XStats 손그림 캐릭터" width="96" height="96">
 
 # XStats
 
@@ -22,123 +23,138 @@ CPU, 메모리, 네트워크, 온도를 한눈에 보고, 세부 화면에서 �
 
 </div>
 
-<p align="center">
-  <img src="Assets/readme/overview-dark.png" width="49%" alt="XStats 대시보드(다크)">
-  <img src="Assets/readme/overview-light.png" width="49%" alt="XStats 대시보드(라이트)">
-</p>
+스크린샷의 계정, 주소, 프로세스, 지표, 사용량과 정리 결과는 데모 데이터입니다. 메인 윈도우의 Mac 모델과 하드웨어 기능은 이 Mac에서 읽은 정보이며, 지원 여부는 모델에 따라 다릅니다.
+
+## 설치
+
+**Apple Silicon Mac과 macOS 14 이상**이 필요합니다.
+
+[GitHub Releases](https://github.com/ysicing/xstats/releases)에서 DMG를 받아 XStats를 ‘응용 프로그램’으로 드래그하세요. 앱이 업데이트를 확인하며, 설치 여부는 사용자가 선택합니다.
+
+Homebrew로도 설치할 수 있습니다.
+
+```bash
+brew tap ysicing/tap
+brew trust ysicing/tap
+brew install --cask xstats
+```
 
 ## 기능
 
 XStats는 Swift, AppKit, SwiftUI로 만든 무료 오픈소스 네이티브 앱입니다. 계정 등록이 필요 없습니다.
 
-### 메뉴 막대 표시
+### 메뉴 막대와 기능 활성화
 
-지표를 **개별 표시**, **통합 모드** 또는 내용을 자유롭게 조합하는 **세 가지 지표 아이콘**으로 표시할 수 있습니다. 표준 또는 손그림 앱 아이콘을 선택하면 Dock과 시스템 앱 아이콘에 함께 반영됩니다. 아이콘 전용 레이아웃에서는 Dock에 실시간 상태를 표시할 수도 있습니다. 항목, 순서, 스타일(텍스트, 아이콘, 링, 진행률 표시줄, 기록 그래프)을 사용자 지정할 수 있습니다.
+지표를 **개별 표시**, **통합 모드** 또는 자유롭게 조합하는 **세 가지 지표 아이콘**으로 표시할 수 있습니다. 항목, 순서와 스타일을 바꾸고 개요에서 상세 정보를 열 수 있습니다. 표준 또는 손그림 앱 아이콘과 Dock의 실시간 상태 표시도 지원합니다.
 
-통합 모드에서는 메뉴 막대와 상태 개요에 표시할 항목을 각각 선택하고, 개요에서 개별 상세 정보를 열 수 있습니다.
-
-<p align="center">
-  <img src="Assets/readme/combined-overview-zh-Hans-light.png" width="360" alt="통합 메뉴 막대 개요, 밝은 화면">
-  <img src="Assets/readme/combined-overview-zh-Hans-dark.png" width="360" alt="통합 메뉴 막대 개요, 어두운 화면">
-</p>
-
-메뉴 막대 레이아웃과 상태 개요는 다양한 표시 방식과 정보 조합을 보여 주는 데모 데이터를 사용합니다.
-
-### 기능 활성화와 메뉴 막대 표시
-
-설정 → 기능에서 기본 기능과 선택 기능을 별도로 관리합니다.
-
-- **기본 모니터링**: CPU, GPU, 메모리, 디스크, 네트워크, 에너지, 팬을 각각 켜거나 끌 수 있습니다. 끄면 실시간 수집, 관련 알림, 새 기록 저장을 중단하고 기본 정보, 페이지 접근, 기존 기록은 유지합니다. 시스템 위젯은 독립적으로 갱신됩니다.
-- **메뉴 막대 표시**: 배터리 정보 항목을 제외하고 기본 모니터링, AI, 오디오에서 메뉴 막대에 표시를 선택하면 해당 기능도 켜집니다. 선택을 해제해도 기능은 켜진 상태로 유지됩니다. AI와 오디오에도 별도 표시 옵션이 있습니다.
-- **디스플레이 매개변수 제어**: 밝기, 대비, 음량의 읽기와 조절을 제어합니다. 꺼도 디스플레이 정보는 확인할 수 있으며 정보만 표시하는 메뉴 막대 항목도 별도로 설정할 수 있습니다.
+모니터링과 도구는 필요에 따라 켜고 메뉴 막대 항목은 별도로 설정합니다. 항목을 숨겨도 기능은 꺼지지 않습니다. 모니터링을 끄면 실시간 수집, 관련 알림과 새 기록 저장을 중단하며 기존 기록은 유지합니다.
 
 <p align="center">
-  <img src="Assets/readme/monitoring-features-zh-Hans-light.png" width="49%" alt="기본 기능: 활성화와 메뉴 막대 표시를 별도로 설정">
-  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="49%" alt="선택 기능: 도구, 모듈, 타이머, 달력을 분류">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/combined-overview-zh-Hans-dark.png">
+    <img src="Assets/readme/combined-overview-zh-Hans-light.png" width="360" alt="통합 메뉴 막대 개요">
+  </picture>
 </p>
 
 ### 시스템 모니터링
 
 | 모듈 | 내용 |
 |---|---|
-| **CPU** | 사용자 / 시스템 / 유휴 사용률, 코어별 및 코어 그룹 부하, 평균 부하, 주파수와 온도, 열 상태 경고 |
-| **GPU** | 그래픽 사용률, 코어 수, 온도와 소비 전력 |
-| **메모리** | 메모리 압력, 앱 / 압축 / 캐시 구성, 스왑 공간과 스왑 속도 |
-| **디스크** | 용량, 읽기/쓰기 속도, 앱별 I/O 순위, SMART 상태 |
-| **네트워크** | 업로드/다운로드 속도, 네트워크 인터페이스와 연결 개요 |
-| **에너지** | 온도, 시스템 소비 전력, 앱 CPU 전력 사용량, 잠자기 방지 앱, 배터리 상태, Bluetooth 기기 잔량 |
-| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 내장 스크린샷 편집, 로컬 정보 가리기 및 오디오 화면 녹화 도구. [독립 Capture 앱](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.12)도 다운로드할 수 있습니다. [사용법과 권한](docs/CAPTURE.md) |
-| **팬** | 회전수와 지원 기종의 팬 제어 |
-| **디스플레이** | 해상도, 스케일링, 주사율. DDC/CI를 지원하는 외부 디스플레이의 밝기, 대비, 음량 조절 |
-| **시스템 정보** | Mac 및 시스템 식별 정보. Apple Intelligence 옆 상세 아이콘에서 기능 설정 상태, 온디바이스 모델 가용성 및 저장 공간 확인 |
+| **CPU** | 전체 및 코어별 사용률, 부하, 주파수, 온도 |
+| **GPU** | 그래픽 사용률, 온도, 소비 전력 |
+| **메모리** | 메모리 압력, 사용량 구성, 스왑 |
+| **디스크** | 용량, 읽기/쓰기 속도, 앱별 I/O, SMART 상태 |
+| **네트워크** | 업로드/다운로드 속도, 인터페이스, 연결 개요 |
+| **에너지** | 온도, 소비 전력, 앱 에너지, 배터리와 Bluetooth 기기 잔량 |
+| **팬** | 회전수와 지원 기종의 속도 조절 |
+| **디스플레이** | 해상도, 주사율, DDC/CI 외부 화면 조절 |
+| **시스템 정보** | 기종, macOS, Apple Intelligence 상태, 로컬 모델 용량 |
 
 주파수, 온도, 소비 전력 등의 수치는 기종과 macOS가 제공하는 경우에 표시됩니다.
 
 <p align="center">
-  <img src="Assets/readme/popover-cpu-light.png" width="49%" alt="CPU 사용률과 코어 세부 정보">
-  <img src="Assets/readme/popover-memory-dark.png" width="49%" alt="메모리 구성과 압력">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/overview-dark.png">
+    <img src="Assets/readme/overview-light.png" width="760" alt="XStats 시스템 모니터링 대시보드">
+  </picture>
 </p>
 
 ### <img src="Assets/branding/network-monitor/xstats-network-logo-128.png" width="28" height="28" alt=""> 네트워크 모니터
 
-**macOS 15 이상에서 선택적으로 사용하며 기본적으로 꺼져 있습니다.** 관찰 중 새로 발생한 연결, 지도상의 목적지, 업로드·다운로드 추이를 앱, 프로세스, 도메인, 국가 또는 지역별로 함께 표시하고 검색, 활성 연결 필터, 일시 정지와 재개를 지원합니다. 트래픽 추이에는 통계를 지원하는 네트워크 구성요소가 필요합니다.
+**macOS 15 이상에서 선택적으로 사용하며 기본적으로 꺼져 있고, 별도 네트워크 구성요소가 필요합니다.** 관찰 중 새로 발생한 연결, 지도상의 목적지와 업로드·다운로드 추이를 앱, 프로세스, 도메인 또는 지역별로 확인합니다.
 
-- **읽기 전용**: 모든 통신을 허용하고 통신 내용은 읽지 않습니다. 최근 15분의 연결 및 트래픽 이력은 이 Mac에만 저장되며 언제든지 지울 수 있습니다.
-- **필요할 때만 동작**: 페이지가 보이고 일시 정지하지 않은 동안만 수집하며 로컬 이력은 페이지 단위로 불러옵니다. 관찰을 시작하기 전부터 존재하던 모든 연결을 나열하지는 않습니다.
-- **세계 지도**: 처음 사용할 때 공개 IP 지리 데이터베이스를 내려받고 이후에는 오프라인으로 조회합니다. 중국 본토 IP는 성, 도시와 통신사를 표시하고 도시별로 집계합니다. 위치는 지역의 대표 지점이며 기기의 정확한 위치가 아닙니다.
-
-처음 사용할 때 설정 → 기능 → 선택 기능에서 네트워크 모니터를 켜고 구성요소 설치 안내를 따른 뒤 macOS에서 시스템 확장과 네트워크 필터를 허용하세요. 설치에는 관리자 계정이 필요합니다. 구성요소 관리에서 독립 업데이트를 확인하거나 구성요소를 제거할 수 있습니다.
-
-미리 보기 구성요소를 사용했다면 먼저 본체 앱을 업데이트하고 구성요소 관리에서 이전 구성요소를 제거하세요. macOS가 재시동을 요구하면 완료한 뒤 다시 켜서 현재 업데이트 소스로 전환합니다.
+읽기 전용으로 모든 통신을 허용하며 통신 내용은 읽지 않습니다. 페이지가 보이고 일시 정지하지 않은 동안만 수집하고 최근 15분의 이력은 이 Mac에 저장되어 언제든 지울 수 있습니다. 지도 데이터베이스는 처음 사용할 때 내려받고 이후 오프라인으로 조회하며, 위치는 지역의 대표 지점입니다.
 
 <p align="center">
-  <img src="Assets/readme/connections-zh-Hans-light.png" width="49%" alt="네트워크 모니터 연결 개요, 밝은 화면, 데모 데이터">
-  <img src="Assets/readme/connections-zh-Hans-dark.png" width="49%" alt="네트워크 모니터 연결 개요, 어두운 화면, 데모 데이터">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/connections-zh-Hans-dark.png">
+    <img src="Assets/readme/connections-zh-Hans-light.png" width="760" alt="네트워크 모니터 연결 개요, 데모 데이터">
+  </picture>
 </p>
-
-<p align="center">
-  <img src="Assets/readme/component-install-zh-Hans-light.png" width="49%" alt="네트워크 구성요소 최초 설치 화면, 데모 상태">
-  <img src="Assets/readme/component-management-zh-Hans-light.png" width="49%" alt="네트워크 구성요소 관리 화면, 데모 버전 정보">
-</p>
-
-연결, 주소, 국가 또는 지역, 구성요소 버전 정보는 데모 데이터입니다.
 
 ### AI
 
-메뉴 막대에서 AI 서비스 사용량을 확인할 수 있습니다.
+[Magpie](https://usemagpie.ai)를 설치하고 실행하면 메뉴 막대에서 AI 서비스 사용량을 확인할 수 있습니다.
 
-- **사용량 추이**: 오늘, 최근 7일 / 30일 및 누적 토큰, 비용, 요청 수와 생성 속도를 확인합니다.
-- **구독 계정**: 서비스 계정, 요금제 유형, 한도 사용량과 초기화 시각.
-- **추정 비용**: Magpie가 제공하는 미국 달러 추정액이며 구독 청구액이 아닙니다.
+- **사용량 추이**: 토큰, 요청 수, 생성 속도와 미국 달러 추정 비용. 추정액은 구독 청구액이 아닙니다.
+- **구독 계정**: 요금제, 한도 사용량과 초기화 시각.
 
-AI 사용량은 Magpie만 지원하며 설치 후 실행해야 합니다. XStats는 로컬 API에서 각 계정의 한도, 토큰, 비용을 가져오며 Grok 등 지원 서비스를 표시합니다. 토큰은 Magpie를 거친 요청만 집계합니다.
+AI 사용량은 Magpie의 로컬 API만 지원하며 토큰은 Magpie를 거친 요청만 집계합니다.
 
 ### 도구
 
+명령 모음, Launchpad와 Finder의 새 문서 만들기는 각각 독립적으로 켜는 실험적 기능입니다.
+
 | 도구 | 설명 |
 |---|---|
-| **명령 모음(실험적)** | 앱·파일·작업 검색, 앱 폴더 추가, 백그라운드 프로세스 검색과 종료, 포트·패키지 빠른 조회 |
-| **Launchpad(실험적)** | 독립적으로 활성화하는 앱 실행기. macOS 26 이상에서 격자·목록·카테고리 보기, 폴더, 사용자 지정 배치 지원 |
-| **Finder에서 새 문서 만들기(실험적)** | Finder 확장을 활성화하면 폴더의 우클릭 메뉴에서 Office·텍스트·iWork 문서를 만들고 이름과 형식을 설정 가능 |
+| **명령 모음** | 앱·파일·작업 검색, 프로세스·포트·패키지 조회 |
+| **Launchpad** | **macOS 26 이상 전용**. 격자·목록·분류·폴더와 앱 배치 설정 |
+| **Finder 새 문서** | 우클릭 메뉴에서 텍스트·Office·iWork 문서 만들기 |
+| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 스크린샷 주석·로컬 정보 가리기, 소리 포함 화면 녹화. [독립 앱](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.12)도 제공 |
 | **팬 제어** | 지원되는 기기에서 자동 / 수동 제어 전환 |
-| **잠자기 방지** | 시스템이나 화면을 깨어 있게 유지하며 덮개를 닫은 상태 동작도 설정 가능 |
-| **앱 및 서비스** | 앱, Homebrew, 시작 항목과 Homebrew 서비스를 한곳에서 관리하고 앱 정보와 업데이트 확인 |
-| **정리 및 최적화** | 캐시와 빌드 결과물 검토, 설치된 Mole 엔진과 실시간 실행 로그, 의존성 미리 보기 및 필요할 때 유지 관리 · [정리 범위](docs/CLEANUP.md) |
-| **네트워크 진단** | 속도 테스트, DNS 조회 및 속도 비교, 외부 연결 경로 검사, 로컬 인터페이스 주소 및 여러 서비스의 공인 IP 조회, 위치 및 순도, 연결 탐색, 내장 WebRTC / DNS 유출 검사 |
-| **메뉴 막대 달력** | 음력, 중국 공휴일과 대체 근무일, 역서, 캘린더 일정과 미리 알림 |
-| **오디오** | 시스템 음량과 입출력 기기 전환. macOS 14.4 이상에서 앱별 음량과 출력 조절(기기에서만 처리) |
-| **타이머** | 카운트다운, 뽀모도로, 스톱워치. 여러 화면의 휴식 표시, 미니 HUD, 독립적인 눈 휴식 알림과 로컬 집중 통계 |
+| **잠자기 방지** | 덮개를 닫은 상태를 포함해 시스템이나 화면을 깨어 있게 유지 |
+| **앱 및 서비스** | 앱, Homebrew 패키지, 시작 항목과 서비스 관리 |
+| **정리 및 최적화** | 캐시와 빌드 결과물 검토, Mole도 지원 · [정리 범위](docs/CLEANUP.md) |
+| **네트워크 진단** | 속도, DNS, 외부 연결 경로, 공인 IP, 연결 및 WebRTC / DNS 유출 검사 |
+| **달력** | 음력, 중국 공휴일과 대체 근무일, 역서, 일정과 미리 알림 |
+| **오디오** | 음량·기기 전환. macOS 14.4 이상에서 앱별 음량·출력 조절 |
+| **타이머** | 카운트다운, 뽀모도로, 스톱워치, 휴식·눈 휴식 알림, 로컬 집중 통계 |
 | **프로세스 관리** | 검색, 정렬, 앱별 그룹화, 프로세스 종료 |
 
-타이머는 카운트다운, 뽀모도로, 스톱워치와 함께 원할 때 시작하는 짧은 휴식과 긴 휴식, 휴식 중 화면 끄기, 눈 휴식 알림, 휴식 소리와 로컬 집중 통계를 제공합니다.
+### 연동
 
-선택 기능은 필요에 따라 켤 수 있습니다. 팬 제어와 덮개를 닫은 상태의 잠자기 방지에는 보조 도구 설치와 권한 허용이 필요합니다. 정리와 앱 제거는 미리보기와 확인 후 실행됩니다. 기본 엔진은 항목 유형과 설정에 따라 휴지통으로 옮기거나 직접 삭제합니다. Mole 엔진은 자체 규칙으로 영구 정리하며 기본 엔진의 선택 및 제외 항목은 적용되지 않습니다. 앱 제거는 휴지통을 사용합니다.
+- **데스크톱 위젯**: 시스템 개요, AI 한도와 토큰, 달력, 타이머, 시간대와 네트워크 정보.
+- **언어**: 简体中文, 繁體中文, English, 日本語, 한국어, Deutsch, Español, Français, العربية.
+- **딥 링크**: 런처, 단축어 또는 터미널에서 자주 쓰는 화면 열기 · [프로토콜(중국어)](docs/DEVELOPMENT.md#xstats-深链).
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/widgets-zh-Hans-dark.png">
+    <img src="Assets/readme/widgets-zh-Hans-light.png" width="760" alt="데스크톱 위젯: 구독 한도, 누적 토큰, 달력과 월 달력">
+  </picture>
+</p>
 
 <details>
 <summary>더 많은 스크린샷</summary>
 
-스크린샷의 계정, 주소, 프로세스, 실시간 지표, 사용량과 정리 결과는 데모 데이터입니다. 메인 윈도우의 Mac 모델과 하드웨어 기능은 이 Mac에서 읽은 정보를 사용합니다. 지원 기능은 모델에 따라 다릅니다.
-
+<p align="center">
+  <img src="Assets/readme/monitoring-features-zh-Hans-light.png" width="760" alt="기본 기능: 활성화와 메뉴 막대 표시를 별도로 설정">
+</p>
+<p align="center">
+  <img src="Assets/readme/optional-features-zh-Hans-light.png" width="760" alt="선택 기능: 도구, 모듈, 타이머, 달력을 분류">
+</p>
+<p align="center">
+  <img src="Assets/readme/popover-cpu-light.png" width="360" alt="CPU 사용률과 코어 세부 정보">
+</p>
+<p align="center">
+  <img src="Assets/readme/popover-memory-dark.png" width="360" alt="메모리 구성과 압력">
+</p>
+<p align="center">
+  <img src="Assets/readme/component-install-zh-Hans-light.png" width="760" alt="네트워크 구성요소 최초 설치 화면, 데모 상태">
+</p>
+<p align="center">
+  <img src="Assets/readme/component-management-zh-Hans-light.png" width="760" alt="네트워크 구성요소 관리 화면, 데모 버전 정보">
+</p>
 <p align="center">
   <img src="Assets/readme/trio-settings-zh-Hans-light.png" width="720" alt="세 가지 지표 아이콘의 내용 및 모양 설정">
 </p>
@@ -149,12 +165,16 @@ AI 사용량은 Magpie만 지원하며 설치 후 실행해야 합니다. XStats
   <img src="Assets/readme/wifi-details-zh-Hans-light.png" width="360" alt="Wi-Fi 신호, 링크 및 보안 상세 정보">
 </p>
 <p align="center">
-  <img src="Assets/readme/thermal-dark.png" width="49%" alt="온도 및 시스템 열 압력">
-  <img src="Assets/readme/keepawake-light.png" width="49%" alt="잠자기 방지 설정">
+  <img src="Assets/readme/thermal-dark.png" width="760" alt="온도 및 시스템 열 압력">
 </p>
 <p align="center">
-  <img src="Assets/readme/cleaner-light.png" width="49%" alt="정리 미리보기">
-  <img src="Assets/readme/ip-purity-light.png" width="49%" alt="공인 IP 및 순도 확인">
+  <img src="Assets/readme/keepawake-light.png" width="760" alt="잠자기 방지 설정">
+</p>
+<p align="center">
+  <img src="Assets/readme/cleaner-light.png" width="760" alt="정리 미리보기">
+</p>
+<p align="center">
+  <img src="Assets/readme/ip-purity-light.png" width="760" alt="공인 IP 및 순도 확인">
 </p>
 <p align="center">
   <img src="Assets/readme/ai-usage-zh-Hans-light.png" width="760" alt="Magpie AI 사용량, 서비스 선택 및 구독 한도">
@@ -163,12 +183,16 @@ AI 사용량은 Magpie만 지원하며 설치 후 실행해야 합니다. XStats
   <img src="Assets/readme/history-zh-Hans-dark.png" width="760" alt="기록 추이">
 </p>
 <p align="center">
-  <img src="Assets/readme/audio-zh-Hans-light.png" width="49%" alt="오디오와 앱 믹서">
-  <img src="Assets/readme/displays-zh-Hans-dark.png" width="49%" alt="외부 디스플레이 제어">
+  <img src="Assets/readme/audio-zh-Hans-light.png" width="760" alt="오디오와 앱 믹서">
 </p>
 <p align="center">
-  <img src="Assets/readme/calendar-zh-Hans-light.png" width="49%" alt="메뉴 막대 달력">
-  <img src="Assets/readme/rest-zh-Hans-dark.png" width="49%" alt="타이머: 뽀모도로, 건강 알림, 오늘의 활동">
+  <img src="Assets/readme/displays-zh-Hans-dark.png" width="760" alt="외부 디스플레이 제어">
+</p>
+<p align="center">
+  <img src="Assets/readme/calendar-zh-Hans-light.png" width="360" alt="메뉴 막대 달력">
+</p>
+<p align="center">
+  <img src="Assets/readme/rest-zh-Hans-dark.png" width="760" alt="타이머: 뽀모도로, 건강 알림, 오늘의 활동">
 </p>
 
 <p align="center">
@@ -177,59 +201,27 @@ AI 사용량은 Magpie만 지원하며 설치 후 실행해야 합니다. XStats
 
 </details>
 
-### 연동
+## 선택 구성요소와 권한
 
-- **데스크톱 위젯**: 시스템 개요, 뽀모도로, 시간대 시계, AI 한도 및 누적 토큰, 달력과 월 달력, ‘내일 출근?’, IP 순도, 공인 IP.
-- **언어**: 简体中文, 繁體中文, English, 日本語, 한국어, Deutsch, Español, Français, العربية.
-- **딥 링크**: 런처, 단축어 또는 터미널에서 `xstats://`로 자주 쓰는 화면을 열 수 있습니다. 꺼진 모듈은 설정 페이지로 이동하며 자동으로 켜지지 않습니다.
+- **네트워크 모니터**: 안내에 따라 별도 구성요소를 설치합니다. 관리자 계정과 macOS의 시스템 확장·네트워크 필터 승인이 필요하며, 구성요소는 독립적으로 업데이트됩니다 · [설치와 업그레이드(중국어)](docs/DEVELOPMENT.md#网络连接试验模块).
+- **보조 도구**: 팬 제어와 덮개를 닫은 상태의 잠자기 방지 등 권한이 필요한 작업에는 보조 도구 설치와 승인이 필요합니다.
+- **Finder 새 문서**: 시스템 설정에서 Finder 확장을 켜야 합니다 · [설정 안내(중국어)](docs/DEVELOPMENT.md#finder-新建文档).
+- **XStats Capture**: 스크린샷과 화면 녹화의 권한 범위는 [사용법과 권한(중국어)](docs/CAPTURE.md)을 참고하세요.
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/widgets-zh-Hans-dark.png">
-    <img src="Assets/readme/widgets-zh-Hans-light.png" width="760" alt="데스크톱 위젯: 단일 및 이중 한도 링, 누적 토큰, 달력과 월 달력">
-  </picture>
-</p>
-
-달력과 위젯은 고정된 데모 날짜와 데이터를 사용합니다. 위젯 이미지는 현재 네이티브 뷰에서 렌더링했습니다.
-
-```bash
-open 'xstats://open/connections'   # 네트워크 모니터 열기
-open 'xstats://panel/cpu'          # CPU 팝오버 표시
-```
-
-전체 경로와 동작은 [딥 링크 프로토콜](docs/DEVELOPMENT.md#xstats-深链)을 참고하세요.
-
-## 설치
-
-**Apple Silicon Mac과 macOS 14 이상**이 필요합니다.
-
-```bash
-brew tap ysicing/tap
-brew trust ysicing/tap
-brew install --cask xstats
-```
-
-또는 [GitHub Releases](https://github.com/ysicing/xstats/releases)에서 DMG를 받아 XStats를 ‘응용 프로그램’으로 드래그하세요. 앱이 업데이트를 확인하며, 설치 여부는 사용자가 선택합니다.
+기본 정리는 미리 보기·선택·확인 후 실행하며, 유형과 설정에 따라 휴지통으로 옮기거나 직접 삭제합니다. Mole은 미리 보기 없이도 확인 후 실행할 수 있고 자체 규칙으로 영구 정리합니다. 기본 엔진의 선택·제외 항목과 휴지통 설정은 적용되지 않습니다. 앱 제거는 확인 후 휴지통으로 옮깁니다.
 
 ## 데이터와 개인정보
 
 모니터링 데이터, 기록, AI 사용량은 기기에서 처리합니다.
 
 - **업데이트 확인**: 버전과 설치 ID의 해시를 보내 업데이트 정보를 가져옵니다.
-- **AI 사용량**: Magpie를 설치하고 실행해야 하며, 로컬 API에서 한도와 통계를 읽습니다.
+- **AI 사용량**: Magpie의 로컬 API에서 한도와 통계를 읽습니다.
 - **온라인 기능**: 구성요소와 지리 데이터베이스 다운로드, 네트워크 진단은 해당 서비스에 연결합니다. 글로벌 프로브의 대상과 결과는 다른 사람이 조회할 수 있습니다.
 - **메뉴 막대 접기**: macOS 27의 실험적 기능으로, 선택한 앱을 숨기고 복원하기 위해 시스템 설정 파일 하나에 대한 접근 권한이 필요합니다.
 
 자세한 내용은 [개인정보 처리방침(영어)](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Privacy.en.md)과 [서비스 약관(영어)](Packages/XStatsKit/Sources/XStatsUI/Resources/Legal/Terms.en.md)을 확인하세요.
 
 ## 빌드와 기여
-
-Xcode 26+, Go 1.25+, [Go Task](https://taskfile.dev/), [XcodeGen](https://github.com/yonaskolb/XcodeGen)이 필요합니다.
-
-```bash
-task test
-task build BUMP=0 INSTALL=0
-```
 
 Issue와 Pull Request를 환영합니다. 환경 설정과 릴리스 과정은 [DEVELOPMENT.md(중국어)](docs/DEVELOPMENT.md), 모듈 경계와 구현 제약은 [ARCHITECTURE.md(영어)](docs/ARCHITECTURE.md)을 참고하세요.
 
