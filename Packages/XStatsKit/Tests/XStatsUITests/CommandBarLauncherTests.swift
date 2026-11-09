@@ -186,6 +186,44 @@ struct CommandBarLauncherTests {
     print("Launcher scan and index: \(count) apps, \(duration)")
   }
 
+  @Test(arguments: ["open", "find"], [AppLanguage.chinese, .english, .german, .arabic])
+  func applicationRefreshRestoresUnchangedFileSearchHint(
+    query: String, language: AppLanguage
+  ) async throws {
+    _ = NSApplication.shared
+    let controller = CommandBarWindowController()
+    defer { controller.dismiss() }
+    controller.show(
+      commands: [], language: language, includesApplications: true, applicationLoader: { [] })
+    let field = try #require(descendant(NSSearchField.self, in: controller.panel?.contentView))
+    let key = query == "open" ? "↩ 打开 · ⌘Y 快速查看" : "↩ 在访达中显示 · ⌘Y 快速查看"
+    let expected = L10n.translate(key, language: language)
+    for refresh in 0..<3 {
+      if refresh > 0 {
+        NotificationCenter.default.post(name: .launcherApplicationsChanged, object: nil)
+      }
+      let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+      while ContinuousClock.now < deadline {
+        let task = Mirror(reflecting: controller).children.first { $0.label == "catalogTask" }
+        if let task, Mirror(reflecting: task.value).children.isEmpty { break }
+        try await Task.sleep(for: .milliseconds(10))
+      }
+      let task = try #require(
+        Mirror(reflecting: controller).children.first { $0.label == "catalogTask" })
+      try #require(Mirror(reflecting: task.value).children.isEmpty)
+      if refresh == 0 {
+        field.stringValue = query
+        controller.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+      }
+      #expect(controller.isVisible)
+      #expect(field.stringValue == query)
+      let hints = descendants(NSTextField.self, in: controller.panel?.contentView)
+        .filter { $0.toolTip == expected }
+      let hint = try #require(hints.first)
+      #expect(hint.stringValue == expected)
+    }
+  }
+
   @Test(arguments: [false, true])
   func arrivingFavoritesSelectFirstOnlyBeforeUserNavigation(navigate: Bool) async throws {
     _ = NSApplication.shared

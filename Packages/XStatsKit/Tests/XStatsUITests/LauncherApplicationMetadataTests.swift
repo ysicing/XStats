@@ -100,6 +100,53 @@ struct LauncherApplicationMetadataTests {
     #expect(overlapping.commands.count == 1 && overlapping.isTruncated == false)
   }
 
+  @Test(
+    arguments: ["CrAppModeShortcutName", "CFBundleDisplayName", "CFBundleName"], [false, true])
+  func rescanningReadsUpdatedMetadataAtTheSamePath(nameKey: String, localized: Bool) async throws {
+    defer { try? FileManager.default.removeItem(at: root) }
+    let application = try makeApplication(
+      filename: "Refresh",
+      info: [nameKey: "Before", "LSApplicationCategoryType": "public.app-category.utilities"])
+    if localized {
+      try writeLocalizedInfo([nameKey: "Localized Before"], application: application)
+    }
+    let directory = root
+    let before = try await Task.detached {
+      try autoreleasepool { try CommandBarApplications.scan(directories: [directory]) }
+    }.value
+    #expect(before.first?.title == (localized ? "Localized Before" : "Before"))
+    let infoURL = application.appendingPathComponent("Contents/Info.plist")
+    var info = try #require(
+      PropertyListSerialization.propertyList(from: Data(contentsOf: infoURL), format: nil)
+        as? [String: Any])
+    info[nameKey] = "After"
+    info["CFBundleIdentifier"] = "test.launcher.updated"
+    info["LSApplicationCategoryType"] = "public.app-category.games"
+    try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+      .write(to: infoURL)
+    if localized {
+      try writeLocalizedInfo([nameKey: "Localized After"], application: application)
+    }
+    let after = try await Task.detached {
+      try autoreleasepool { try CommandBarApplications.scan(directories: [directory]) }
+    }.value
+    let command = try #require(after.first)
+    #expect(command.id == before.first?.id)
+    #expect(command.title == (localized ? "Localized After" : "After"))
+    #expect(command.applicationCategory == "public.app-category.games")
+    let search = CommandBarSearch(commands: after, supportsParameterQueries: false)
+    #expect(search.results(for: "test.launcher.updated").map(\.id) == [command.id])
+  }
+
+  @Test func oversizedMetadataMakesTheScanIncomplete() throws {
+    defer { try? FileManager.default.removeItem(at: root) }
+    _ = try makeApplication(
+      filename: "Oversized", info: ["Unused": String(repeating: "x", count: 1024 * 1024)])
+    let result = try CommandBarApplications.scanResult(directories: [root])
+    #expect(result.commands.isEmpty)
+    #expect(result.isTruncated)
+  }
+
   private func makeApplication(filename: String, info: [String: Any]) throws -> URL {
     let application = root.appendingPathComponent("\(filename).app")
     let contents = application.appendingPathComponent("Contents")

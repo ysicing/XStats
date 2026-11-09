@@ -427,7 +427,10 @@ final class CommandBarWindowController: NSObject, NSWindowDelegate, NSSearchFiel
     let previous = liveRequest
     switch request {
     case .files(let text), .revealFiles(let text):
-      guard request != previous else { return }
+      guard request != previous else {
+        updateFooter()
+        return
+      }
       let keepingFileIndex: Bool
       switch previous {
       case .files, .revealFiles: keepingFileIndex = true

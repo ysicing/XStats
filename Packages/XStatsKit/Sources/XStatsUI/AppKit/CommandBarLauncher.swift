@@ -139,21 +139,30 @@ enum CommandBarApplications {
           isTruncated = true
           continue
         }
-        guard paths.insert(url.path).inserted,
-          let bundle = Bundle(url: url),
-          bundle.object(forInfoDictionaryKey: "CFBundlePackageType") as? String == "APPL"
+        guard paths.insert(url.path).inserted else { continue }
+        let infoURL = url.appendingPathComponent("Contents/Info.plist")
+        guard let info = metadata(at: infoURL) else {
+          if manager.fileExists(atPath: infoURL.path) { isTruncated = true }
+          continue
+        }
+        guard info["CFBundlePackageType"] as? String == "APPL",
+          let bundle = Bundle(url: url)
         else { continue }
+        // Bundle 按路径缓存元数据；只借用其本地化资源定位，刷新时直接读取文件。
+        let localized =
+          bundle.url(forResource: "InfoPlist", withExtension: "strings")
+          .flatMap { metadata(at: $0) } ?? [:]
         let filename = url.deletingPathExtension().lastPathComponent
         let displayName = manager.displayName(atPath: url.path)
         let finderName =
           displayName.lowercased().hasSuffix(".app") ? String(displayName.dropLast(4)) : displayName
         let nameCandidates: [Any?] = [
-          bundle.object(forInfoDictionaryKey: "CrAppModeShortcutName"),
-          bundle.localizedInfoDictionary?["CFBundleDisplayName"],
-          bundle.localizedInfoDictionary?["CFBundleName"],
-          bundle.infoDictionary?["CFBundleDisplayName"],
+          localized["CrAppModeShortcutName"] ?? info["CrAppModeShortcutName"],
+          localized["CFBundleDisplayName"],
+          localized["CFBundleName"],
+          info["CFBundleDisplayName"],
           finderName != filename ? finderName : nil,
-          bundle.infoDictionary?["CFBundleName"],
+          info["CFBundleName"],
           finderName,
           filename,
         ]
@@ -165,9 +174,9 @@ enum CommandBarApplications {
         commands.append(
           AppCommand(
             id: "application.\(url.path)", title: title, symbol: "app",
-            keywords: "\(filename) \(bundle.bundleIdentifier ?? "")",
+            keywords: "\(filename) \(info["CFBundleIdentifier"] as? String ?? "")",
             action: .openApplication(url),
-            applicationCategory: bundle.infoDictionary?["LSApplicationCategoryType"] as? String))
+            applicationCategory: info["LSApplicationCategoryType"] as? String))
       }
       try Task.checkCancellation()
       if visited > maxVisited || commands.count >= maxApplications {
@@ -181,6 +190,16 @@ enum CommandBarApplications {
       return comparison == .orderedSame ? $0.id < $1.id : comparison == .orderedAscending
     }
     return (sorted, isTruncated)
+  }
+
+  private static func metadata(at url: URL) -> [String: Any]? {
+    guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+    defer { try? handle.close() }
+    let maximumBytes = 1024 * 1024
+    guard let data = try? handle.read(upToCount: maximumBytes + 1),
+      data.count <= maximumBytes
+    else { return nil }
+    return (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any]
   }
 }
 
