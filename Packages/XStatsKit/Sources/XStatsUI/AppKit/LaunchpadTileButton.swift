@@ -3,6 +3,32 @@
 import AppKit
 
 @MainActor
+final class LaunchpadListButtonCell: NSButtonCell {
+  override func imageRect(forBounds rect: NSRect) -> NSRect {
+    let rtl = controlView?.userInterfaceLayoutDirection == .rightToLeft
+    return NSRect(
+      x: rtl ? rect.maxX - DS.Space.s3 - 28 : rect.minX + DS.Space.s3,
+      y: rect.midY - 14, width: 28, height: 28)
+  }
+
+  override func titleRect(forBounds rect: NSRect) -> NSRect {
+    let rtl = controlView?.userInterfaceLayoutDirection == .rightToLeft
+    let height = attributedTitle.size().height
+    return NSRect(
+      x: rect.minX + DS.Space.s3 + (rtl ? 0 : 28 + DS.Space.s3),
+      y: rect.midY - height / 2,
+      width: max(0, rect.width - DS.Space.s3 * 3 - 28), height: height)
+  }
+
+  override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
+    image?.draw(
+      in: imageRect(forBounds: cellFrame), from: .zero, operation: .sourceOver,
+      fraction: 1, respectFlipped: true, hints: nil)
+    attributedTitle.draw(in: titleRect(forBounds: cellFrame))
+  }
+}
+
+@MainActor
 final class LaunchpadTileButton: NSButton, NSDraggingSource {
   static let pasteboardType = NSPasteboard.PasteboardType("com.xstats.launchpad.item")
   var itemID = ""

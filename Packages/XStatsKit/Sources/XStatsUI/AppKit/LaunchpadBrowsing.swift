@@ -2,6 +2,37 @@
 
 import Foundation
 
+enum LaunchpadIconSize: String, CaseIterable, Sendable {
+  case small
+  case large
+
+  static let preferenceKey = "launchpadIconSize"
+
+  var titleKey: String { self == .small ? "小图标" : "大图标" }
+  var points: CGFloat { self == .small ? 64 : 96 }
+}
+
+enum LaunchpadGridLayout: String, CaseIterable, Sendable {
+  case automatic
+  case sevenByFive
+  case eightByFive
+  case eightBySix
+
+  static let preferenceKey = "launchpadGridLayout"
+
+  var titleKey: String {
+    switch self {
+    case .automatic: "自动"
+    case .sevenByFive: "7 × 5"
+    case .eightByFive: "8 × 5"
+    case .eightBySix: "8 × 6"
+    }
+  }
+
+  var maximumColumns: Int { self == .sevenByFive ? 7 : 8 }
+  var maximumRows: Int { self == .sevenByFive || self == .eightByFive ? 5 : 6 }
+}
+
 enum LaunchpadBrowsingMode: String, CaseIterable, Sendable {
   case grid
   case list

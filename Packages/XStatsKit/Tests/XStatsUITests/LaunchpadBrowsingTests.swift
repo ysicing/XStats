@@ -92,6 +92,8 @@ struct LaunchpadBrowsingTests {
     controller.show(frame: frame, applicationLoader: { applications })
     try await waitForResults(controller, count: 15)
     let folderButton = try #require(tiles(in: controller).first { $0.itemID == folder.id })
+    #expect(folderButton.imagePosition == .imageAbove && folderButton.title == folder.name)
+    #expect(folderButton.accessibilityLabel() == folder.name)
     #expect(
       NSApp.sendAction(
         try #require(folderButton.action), to: folderButton.target, from: folderButton))
@@ -125,6 +127,319 @@ struct LaunchpadBrowsingTests {
     controller.show(frame: frame, applicationLoader: { applications })
     try await waitForResults(controller, count: applications.count)
     #expect(controller.browsingMode == .list && controller.layout == saved && store.load() == saved)
+  }
+
+  @Test func gridLayoutPreferenceIsLocalAndInvalidValuesFallBack() throws {
+    let suite = "LaunchpadBrowsingTests.gridPreference.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let standardValue = UserDefaults.standard.string(forKey: LaunchpadGridLayout.preferenceKey)
+    let standardIconSize = UserDefaults.standard.string(forKey: LaunchpadIconSize.preferenceKey)
+    let controller = LaunchpadWindowController(defaults: defaults)
+    #expect(controller.gridLayout == .automatic)
+    #expect(controller.gridIconSize == .small)
+    for value in LaunchpadGridLayout.allCases {
+      controller.setGridLayout(value)
+      #expect(LaunchpadWindowController(defaults: defaults).gridLayout == value)
+    }
+    defaults.set("future-layout", forKey: LaunchpadGridLayout.preferenceKey)
+    #expect(LaunchpadWindowController(defaults: defaults).gridLayout == .automatic)
+    #expect(
+      UserDefaults.standard.string(forKey: LaunchpadGridLayout.preferenceKey) == standardValue)
+    for value in LaunchpadIconSize.allCases {
+      controller.setIconSize(value)
+      #expect(LaunchpadWindowController(defaults: defaults).gridIconSize == value)
+    }
+    defaults.set("future-size", forKey: LaunchpadIconSize.preferenceKey)
+    #expect(LaunchpadWindowController(defaults: defaults).gridIconSize == .small)
+    #expect(
+      UserDefaults.standard.string(forKey: LaunchpadIconSize.preferenceKey) == standardIconSize)
+  }
+
+  @Test(arguments: [AppLanguage.chinese, .german, .arabic])
+  func listKeepsCenteredColumnAcrossPagesAndSearch(language: AppLanguage) async throws {
+    _ = NSApplication.shared
+    let suite = "LaunchpadBrowsingTests.listColumn.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let applications =
+      ["App Store", "Calendar", "Notes", "Calculator"].map { application($0) }
+      + (0..<46).map { application("Application with a long name \($0)") }
+    let controller = LaunchpadWindowController(defaults: defaults)
+    defer { controller.dismiss() }
+    controller.setBrowsingMode(.list)
+    for size in [
+      NSSize(width: 640, height: 480), NSSize(width: 1920, height: 1080),
+      NSSize(width: 2560, height: 1440),
+    ] {
+      controller.show(
+        language: language, frame: NSRect(origin: frame.origin, size: size),
+        applicationLoader: { applications })
+      try await waitForResults(controller, count: applications.count)
+      let content = try #require(controller.panel?.contentView)
+      let field = try #require(descendants(NSSearchField.self, in: content).first)
+      content.layoutSubtreeIfNeeded()
+      let first = try #require(tiles(in: controller).first)
+      let rowFrame = content.convert(first.bounds, from: first)
+      let searchFrame = content.convert(field.bounds, from: field)
+      #expect(abs(rowFrame.midX - searchFrame.midX) < 1)
+      #expect(abs(rowFrame.midX - content.bounds.midX) < 1)
+      #expect(abs(field.alignmentRect(forFrame: searchFrame).width - rowFrame.width) < 1)
+      #expect(searchFrame.minY - rowFrame.maxY >= DS.Space.s4)
+      #expect(searchFrame.minY - rowFrame.maxY <= DS.Space.s6)
+      #expect(first.alignment == (language.isRightToLeft ? .right : .left))
+      #expect(first.imagePosition == .imageLeading)
+      let surface = try #require(
+        descendants(NSBox.self, in: content).first {
+          $0.identifier?.rawValue == "launchpad.listSurface"
+        })
+      let surfaceFrame = content.convert(surface.bounds, from: surface)
+      #expect(!surface.isHidden && content.bounds.contains(surfaceFrame))
+      #expect(surfaceFrame.contains(rowFrame) && surfaceFrame.contains(searchFrame))
+      let surfaceColor = try #require(surface.fillColor.usingColorSpace(.deviceRGB))
+      #expect(
+        max(surfaceColor.redComponent, surfaceColor.greenComponent, surfaceColor.blueComponent)
+          < 0.3)
+      let cell = try #require(first.cell as? LaunchpadListButtonCell)
+      let imageFrame = cell.imageRect(forBounds: first.bounds)
+      let titleFrame = cell.titleRect(forBounds: first.bounds)
+      #expect(
+        language.isRightToLeft
+          ? imageFrame.minX - titleFrame.maxX == DS.Space.s3
+          : titleFrame.minX - imageFrame.maxX == DS.Space.s3)
+      #expect(first.layer?.borderWidth == 0)
+      let gridMenu = try #require(
+        descendants(NSPopUpButton.self, in: content).first {
+          $0.identifier?.rawValue == "launchpad.gridLayout"
+        })
+      #expect(gridMenu.isHidden)
+      if let directory = ProcessInfo.processInfo.environment["XSTATS_LAUNCHPAD_PREVIEW_DIR"] {
+        try FileManager.default.createDirectory(
+          atPath: directory, withIntermediateDirectories: true)
+        let bitmap = try #require(content.bitmapImageRepForCachingDisplay(in: content.bounds))
+        content.cacheDisplay(in: content.bounds, to: bitmap)
+        try #require(bitmap.representation(using: .png, properties: [:])).write(
+          to: URL(fileURLWithPath: directory).appendingPathComponent(
+            "list-column-\(Int(size.width))-\(language.rawValue).png"))
+      }
+      #expect(
+        controller.control(
+          field, textView: NSTextView(), doCommandBy: #selector(NSResponder.pageDown(_:))))
+      #expect(controller.page == 1)
+      let nextPageFirst = try #require(tiles(in: controller).first)
+      #expect(content.convert(nextPageFirst.bounds, from: nextPageFirst) == rowFrame)
+      field.stringValue = "Calendar"
+      controller.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+      #expect(controller.results.map(\.id) == [applications[1].id])
+      let searchResult = try #require(tiles(in: controller).first)
+      #expect(content.convert(searchResult.bounds, from: searchResult) == rowFrame)
+      #expect(searchResult.tag == controller.selectedIndex)
+      content.layoutSubtreeIfNeeded()
+      #expect(content.convert(surface.bounds, from: surface).height < surfaceFrame.height)
+      field.stringValue = "No application matches this query"
+      controller.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+      content.layoutSubtreeIfNeeded()
+      #expect(controller.results.isEmpty && tiles(in: controller).isEmpty)
+      #expect(content.bounds.contains(content.convert(surface.bounds, from: surface)))
+      #expect(content.convert(field.bounds, from: field) == searchFrame)
+      controller.setBrowsingMode(.grid)
+      content.layoutSubtreeIfNeeded()
+      #expect(surface.isHidden && !gridMenu.isHidden)
+      #expect(field.focusRingType == .default)
+      controller.setBrowsingMode(.list)
+      controller.dismiss()
+    }
+  }
+
+  @Test(arguments: [AppLanguage.chinese, .german, .arabic])
+  func gridLayoutMenuPreservesPagesSelectionAndSearch(language: AppLanguage) async throws {
+    _ = NSApplication.shared
+    let suite = "LaunchpadBrowsingTests.gridMenu.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let applications = (0..<90).map { application("App \($0)") }
+    let folder = LaunchpadLayout.Item(
+      id: "folder.grid", name: "Tools", apps: applications.prefix(3).map(\.id))
+    let saved = LaunchpadLayout(pages: [
+      [folder] + applications[3..<47].map { .app($0.id) },
+      applications[47...].map { .app($0.id) },
+    ])
+    let store = LaunchpadLayoutStore(defaults: defaults)
+    store.save(saved)
+    let controller = LaunchpadWindowController(layoutStore: store, defaults: defaults)
+    defer { controller.dismiss() }
+    controller.show(
+      language: language, frame: NSRect(x: -10_000, y: -10_000, width: 1920, height: 1080),
+      applicationLoader: { applications })
+    try await waitForResults(controller, count: 88)
+    let content = try #require(controller.panel?.contentView)
+    let menu = try #require(
+      descendants(NSPopUpButton.self, in: content).first {
+        $0.identifier?.rawValue == "launchpad.gridLayout"
+      }?.menu)
+    controller.moveSelection(by: 40)
+    let selectedID = controller.results[controller.selectedIndex].id
+    for (index, value) in LaunchpadGridLayout.allCases.enumerated() {
+      let item = try #require(menu.item(at: index + 1))
+      #expect(NSApp.sendAction(try #require(item.action), to: item.target, from: item))
+      #expect(controller.gridLayout == value && item.state == .on)
+      #expect(controller.columns == value.maximumColumns)
+      #expect(controller.pageSize == value.maximumColumns * value.maximumRows)
+      #expect(controller.results[controller.selectedIndex].id == selectedID)
+      #expect(tiles(in: controller).contains { $0.itemID == selectedID })
+      #expect(controller.pageCount == (88 + controller.pageSize - 1) / controller.pageSize)
+      for target in 0..<controller.pageCount {
+        controller.changePage(by: target - controller.page)
+        let start = target * controller.pageSize
+        #expect(
+          tiles(in: controller).map(\.itemID)
+            == Array(saved.pages.joined().map(\.id)[start..<min(start + controller.pageSize, 88)]))
+      }
+      controller.moveSelection(
+        by: try #require(controller.results.firstIndex { $0.id == selectedID })
+          - controller.selectedIndex)
+      #expect(controller.layout == saved && store.load() == saved)
+      for (sizeIndex, size) in LaunchpadIconSize.allCases.enumerated() {
+        let sizeItem = try #require(
+          menu.item(at: LaunchpadGridLayout.allCases.count + 2 + sizeIndex))
+        #expect(
+          NSApp.sendAction(try #require(sizeItem.action), to: sizeItem.target, from: sizeItem))
+        #expect(controller.gridIconSize == size && sizeItem.state == .on)
+        #expect(controller.results[controller.selectedIndex].id == selectedID)
+        let expectedPoints: CGFloat = size == .small ? 64 : value.maximumRows == 6 ? 84 : 96
+        #expect(
+          tiles(in: controller).allSatisfy {
+            $0.image?.size == NSSize(width: expectedPoints, height: expectedPoints)
+          })
+        let gridTile = try #require(tiles(in: controller).first)
+        let gridFrame = try #require(gridTile.superview).frame
+        let imageFrame = content.convert(
+          try #require(gridTile.cell).imageRect(forBounds: gridTile.bounds), from: gridTile)
+        controller.setBrowsingMode(.categories)
+        content.layoutSubtreeIfNeeded()
+        let categoryTile = try #require(tiles(in: controller).first)
+        #expect(categoryTile.superview?.frame == gridFrame)
+        #expect(
+          content.convert(
+            try #require(categoryTile.cell).imageRect(forBounds: categoryTile.bounds),
+            from: categoryTile) == imageFrame)
+        #expect(
+          tiles(in: controller).allSatisfy {
+            $0.imagePosition == .imageOnly && !$0.canDrag
+              && $0.image?.size == NSSize(width: expectedPoints, height: expectedPoints)
+          })
+        #expect(controller.layout == saved && store.load() == saved)
+        #expect(controller.results[controller.selectedIndex].id == selectedID)
+        controller.setBrowsingMode(.grid)
+      }
+      controller.setIconSize(.small)
+      let bitmap = try #require(content.bitmapImageRepForCachingDisplay(in: content.bounds))
+      if let directory = ProcessInfo.processInfo.environment["XSTATS_LAUNCHPAD_PREVIEW_DIR"] {
+        try FileManager.default.createDirectory(
+          atPath: directory, withIntermediateDirectories: true)
+        for mode in [LaunchpadBrowsingMode.grid, .categories] {
+          controller.setBrowsingMode(mode)
+          content.layoutSubtreeIfNeeded()
+          content.cacheDisplay(in: content.bounds, to: bitmap)
+          try #require(bitmap.representation(using: .png, properties: [:])).write(
+            to: URL(fileURLWithPath: directory).appendingPathComponent(
+              "\(mode.rawValue)-layout-\(value.rawValue)-\(language.rawValue).png"))
+        }
+      }
+      controller.setBrowsingMode(.list)
+      content.layoutSubtreeIfNeeded()
+      let grid = try #require(
+        descendants(LaunchpadDropView.self, in: content).first {
+          $0.identifier?.rawValue == "launchpad.grid"
+        })
+      #expect(controller.pageSize == 12)
+      #expect(tiles(in: controller).allSatisfy { grid.bounds.contains($0.frame) })
+      controller.setBrowsingMode(.grid)
+    }
+    let field = try #require(descendants(NSSearchField.self, in: content).first)
+    field.stringValue = "App 8"
+    controller.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+    let searchIDs = controller.results.map(\.id)
+    controller.setGridLayout(.sevenByFive)
+    controller.setIconSize(.large)
+    #expect(field.stringValue == "App 8" && controller.results.map(\.id) == searchIDs)
+    controller.dismiss()
+    controller.show(
+      language: language, frame: NSRect(x: -10_000, y: -10_000, width: 1920, height: 1080),
+      applicationLoader: { applications })
+    try await waitForResults(controller, count: 88)
+    #expect(
+      controller.gridLayout == .sevenByFive && controller.gridIconSize == .large
+        && controller.layout == saved)
+    controller.setGridLayout(.automatic)
+    #expect(controller.pageCount == 2 && store.load() == saved)
+  }
+
+  @Test func draggingFromProjectedPageUsesVisiblePage() async throws {
+    _ = NSApplication.shared
+    let suite = "LaunchpadBrowsingTests.gridDrag.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let applications = (0..<60).map { application("App \($0)") }
+    let saved = LaunchpadLayout(pages: [
+      applications.prefix(45).map { .app($0.id) },
+      applications.dropFirst(45).map { .app($0.id) },
+    ])
+    let store = LaunchpadLayoutStore(defaults: defaults)
+    store.save(saved)
+    let controller = LaunchpadWindowController(layoutStore: store, defaults: defaults)
+    defer { controller.dismiss() }
+    controller.setGridLayout(.sevenByFive)
+    controller.show(
+      frame: NSRect(x: -10_000, y: -10_000, width: 1920, height: 1080),
+      applicationLoader: { applications })
+    try await waitForResults(controller, count: 60)
+    controller.changePage(by: 1)
+    controller.moveItem(applications[36].id, before: applications[35].id)
+    #expect(controller.layout.pages.map(\.count) == [35, 25])
+    #expect(
+      controller.layout.pages[1].prefix(2).map(\.id) == [applications[36].id, applications[35].id])
+    controller.changePage(by: -1)
+    controller.moveItem(applications[36].id, before: applications[3].id)
+    #expect(controller.results[3].id == applications[36].id)
+    #expect(tiles(in: controller).count == 35)
+    controller.moveItem(applications[2].id, toAdjacentPage: 1, afterHover: false)
+    #expect(controller.results.last?.id == applications[2].id)
+    #expect(tiles(in: controller).count == 35)
+    controller.changePage(by: 1)
+    #expect(tiles(in: controller).count == 25 && controller.pageCount == 2)
+    #expect(Set(controller.layout.pages.joined().flatMap(\.apps)) == Set(applications.map(\.id)))
+    #expect(store.load() == controller.layout)
+  }
+
+  @Test func draggingFromFolderUsesItsRootPage() async throws {
+    _ = NSApplication.shared
+    let suite = "LaunchpadBrowsingTests.folderPage.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let applications = (0..<80).map { application("App \($0)") }
+    let folder = LaunchpadLayout.Item(
+      id: "folder.last", name: "Last", apps: applications.suffix(2).map(\.id))
+    let store = LaunchpadLayoutStore(defaults: defaults)
+    store.save(
+      LaunchpadLayout(pages: [applications.dropLast(2).map { .app($0.id) } + [folder]]))
+    let controller = LaunchpadWindowController(layoutStore: store, defaults: defaults)
+    defer { controller.dismiss() }
+    controller.setGridLayout(.sevenByFive)
+    controller.show(
+      frame: NSRect(x: -10_000, y: -10_000, width: 1920, height: 1080),
+      applicationLoader: { applications })
+    try await waitForResults(controller, count: 79)
+    controller.changePage(by: 2)
+    let tile = try #require(tiles(in: controller).first { $0.itemID == folder.id })
+    #expect(NSApp.sendAction(try #require(tile.action), to: tile.target, from: tile))
+    #expect(controller.folderID == folder.id && controller.pageCount == 1)
+    controller.moveItem(applications[78].id, toAdjacentPage: 1, afterHover: false)
+    #expect(controller.folderID == nil && controller.pageCount == 3)
+    #expect(
+      controller.results.suffix(2).map(\.id) == [applications[79].id, applications[78].id])
+    #expect(Set(controller.results.map(\.id)) == Set(applications.map(\.id)))
+    #expect(store.load() == controller.layout)
   }
 
   @Test(arguments: LaunchpadBrowsingMode.allCases)
@@ -174,7 +489,7 @@ struct LaunchpadBrowsingTests {
   }
 
   @Test(arguments: [0, 1])
-  func gridDropsPreserveUnavailablePages(offlinePage: Int) async throws {
+  func gridDropsFillPagesAndPreserveUnavailableApps(offlinePage: Int) async throws {
     _ = NSApplication.shared
     let suite = "LaunchpadBrowsingTests.offline.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
@@ -198,41 +513,42 @@ struct LaunchpadBrowsingTests {
     defer { controller.dismiss() }
     controller.show(frame: frame, applicationLoader: { applications })
     try await waitForResults(controller, count: applications.count)
-    let sourcePage = offlinePage == 0 ? 1 : 0
     #expect(controller.layout.pages[offlinePage] == [.app(offlineID)])
+    #expect(tiles(in: controller).count == controller.pageSize)
+    #expect(controller.results.map(\.id) == applications.map(\.id))
     controller.moveItem(visible[1].id, before: visible[0].id)
     #expect(
-      controller.layout.pages[sourcePage].map(\.id) == [
+      controller.results.prefix(3).map(\.id) == [
         visible[1].id, visible[0].id, visible[2].id,
       ])
-    #expect(controller.layout.pages[offlinePage] == [.app(offlineID)])
+    #expect(controller.layout.item(offlineID) != nil)
     let zones = descendants(LaunchpadDropView.self, in: controller.panel?.contentView)
     let background = try #require(zones.first { $0.identifier?.rawValue == "launchpad.grid" })
     background.onDrop(visible[1].id)
-    #expect(
-      controller.layout.pages[sourcePage].map(\.id) == [
-        visible[0].id, visible[2].id, visible[1].id,
-      ])
-    #expect(controller.layout.pages[offlinePage] == [.app(offlineID)])
+    #expect(controller.results[controller.pageSize - 1].id == visible[1].id)
+    #expect(controller.results.prefix(2).map(\.id) == [visible[0].id, visible[2].id])
     let next = try #require(zones.first { $0.identifier?.rawValue == "launchpad.page.next" })
     next.onDrop(visible[1].id)
-    #expect(
-      controller.layout.pages[2].map(\.id) == [
-        visible[3].id, visible[4].id, visible[1].id,
-      ])
-    #expect(controller.layout.pages[offlinePage] == [.app(offlineID)])
+    #expect(controller.results[controller.pageSize * 2 - 1].id == visible[1].id)
     try #require(next.onHover())
     #expect(controller.page == 1)
     controller.moveItem(visible[0].id, toAdjacentPage: 1, afterHover: true)
-    #expect(
-      controller.layout.pages[2].map(\.id) == [
-        visible[3].id, visible[4].id, visible[1].id, visible[0].id,
-      ])
+    #expect(controller.results[controller.pageSize * 2 - 1].id == visible[0].id)
+    controller.changePage(by: 1 - controller.page)
     let previous = try #require(
       zones.first { $0.identifier?.rawValue == "launchpad.page.previous" })
     previous.onDrop(visible[0].id)
-    #expect(controller.layout.pages[sourcePage].map(\.id) == [visible[2].id, visible[0].id])
-    #expect(controller.layout.pages[offlinePage] == [.app(offlineID)])
+    #expect(controller.results[controller.pageSize].id == visible[0].id)
+    #expect(controller.layout.item(offlineID) != nil)
+    #expect(controller.results.count == applications.count)
+    #expect(Set(controller.results.map(\.id)) == Set(applications.map(\.id)))
+    #expect(Set(controller.layout.pages.joined().flatMap(\.apps)).count == applications.count + 1)
+    for target in 0..<controller.pageCount {
+      controller.changePage(by: target - controller.page)
+      #expect(
+        tiles(in: controller).count
+          == min(controller.pageSize, applications.count - target * controller.pageSize))
+    }
     #expect(store.load() == controller.layout)
   }
 
@@ -370,6 +686,71 @@ struct LaunchpadBrowsingTests {
     #expect(!controller.layout.pages.joined().flatMap(\.apps).contains(stale.id))
   }
 
+  @Test(arguments: [AppLanguage.chinese, .arabic])
+  func gridFoldersAndAppsShareIconAlignment(language: AppLanguage) async throws {
+    _ = NSApplication.shared
+    let suite = "LaunchpadBrowsingTests.iconAlignment.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let applications = ["App Store", "Calendar", "Notes", "Calculator"].map { application($0) }
+    let folder = LaunchpadLayout.Item(
+      id: "folder.alignment", name: "Tools 工具 تطبيقات", apps: applications.suffix(2).map(\.id))
+    let store = LaunchpadLayoutStore(defaults: defaults)
+    store.save(
+      LaunchpadLayout(pages: [[.app(applications[0].id), folder, .app(applications[1].id)]]))
+    let controller = LaunchpadWindowController(layoutStore: store, defaults: defaults)
+    defer { controller.dismiss() }
+    for size in [
+      NSSize(width: 640, height: 480), NSSize(width: 1920, height: 1080),
+      NSSize(width: 2560, height: 1440),
+    ] {
+      controller.show(
+        language: language, frame: NSRect(origin: frame.origin, size: size),
+        applicationLoader: { applications })
+      try await waitForResults(controller, count: 3)
+      let content = try #require(controller.panel?.contentView)
+      let field = try #require(descendants(NSSearchField.self, in: content).first)
+      for layout in LaunchpadGridLayout.allCases {
+        controller.setGridLayout(layout)
+        for iconSize in LaunchpadIconSize.allCases {
+          controller.setIconSize(iconSize)
+          content.layoutSubtreeIfNeeded()
+          let buttons = tiles(in: controller)
+          let app = try #require(buttons.first { $0.itemID == applications[0].id })
+          let folderButton = try #require(buttons.first { $0.itemID == folder.id })
+          let appRect = try #require(app.cell).imageRect(forBounds: app.bounds)
+          let folderRect = try #require(folderButton.cell).imageRect(forBounds: folderButton.bounds)
+          let appPosition = content.convert(appRect, from: app)
+          let folderPosition = content.convert(folderRect, from: folderButton)
+          let searchGap = content.convert(field.bounds, from: field).minY - appPosition.maxY
+          #expect(searchGap >= 32 && searchGap <= 64)
+          #expect(abs(appPosition.midY - folderPosition.midY) < 1)
+          #expect(appPosition.size == folderPosition.size)
+          #expect(app.bounds.contains(appRect) && folderButton.bounds.contains(folderRect))
+          let titleRect = try #require(folderButton.cell).titleRect(forBounds: folderButton.bounds)
+          #expect(folderButton.bounds.contains(titleRect) && !titleRect.intersects(folderRect))
+          #expect(titleRect.minY - folderRect.maxY <= DS.Space.s2)
+          #expect(
+            abs(appPosition.midX - folderPosition.midX)
+              <= max(132, iconSize.points + DS.Space.s16))
+          #expect(folderButton.accessibilityLabel() == folder.name)
+          #expect(app.imagePosition == .imageOnly && folderButton.imagePosition == .imageAbove)
+          if let directory = ProcessInfo.processInfo.environment["XSTATS_LAUNCHPAD_PREVIEW_DIR"] {
+            try FileManager.default.createDirectory(
+              atPath: directory, withIntermediateDirectories: true)
+            let bitmap = try #require(content.bitmapImageRepForCachingDisplay(in: content.bounds))
+            content.cacheDisplay(in: content.bounds, to: bitmap)
+            try #require(bitmap.representation(using: .png, properties: [:])).write(
+              to: URL(fileURLWithPath: directory).appendingPathComponent(
+                "icon-alignment-\(Int(size.width))-\(layout.rawValue)-\(iconSize.rawValue)-\(language.rawValue).png"
+              ))
+          }
+        }
+      }
+      controller.dismiss()
+    }
+  }
+
   @Test(arguments: [AppLanguage.chinese, .german, .arabic])
   func smallWindowKeepsModesSearchAndFooterSeparateAndCapturesPNG(language: AppLanguage)
     async throws
@@ -393,11 +774,13 @@ struct LaunchpadBrowsingTests {
     let panel = try #require(controller.panel)
     let content = try #require(panel.contentView)
     let popups = descendants(NSPopUpButton.self, in: content)
-    let popup = try #require(popups.first)
+    let popup = try #require(popups.first { $0.identifier?.rawValue == "launchpad.browsingMode" })
     for mode in LaunchpadBrowsingMode.allCases {
       popup.selectItem(at: try #require(LaunchpadBrowsingMode.allCases.firstIndex(of: mode)))
       #expect(NSApp.sendAction(try #require(popup.action), to: popup.target, from: popup))
       #expect(controller.browsingMode == mode)
+      controller.setGridLayout(.eightBySix)
+      #expect(controller.columns == (mode == .list ? 1 : 4))
       content.layoutSubtreeIfNeeded()
       let controls = descendants(NSControl.self, in: content)
         .filter { !$0.isHiddenOrHasHiddenAncestor }
@@ -410,8 +793,14 @@ struct LaunchpadBrowsingTests {
       }
       let buttons = tiles(in: controller)
       #expect(buttons.count <= controller.pageSize)
+      for button in buttons {
+        let command = try #require(controller.results.first { $0.id == button.itemID })
+        #expect(button.toolTip == command.title && button.accessibilityLabel() == command.title)
+        #expect(
+          button.imagePosition == (mode == .list ? .imageLeading : .imageOnly))
+      }
       if mode == .list {
-        #expect(buttons.allSatisfy { !$0.canDrag && $0.frame.height < 40 })
+        #expect(buttons.allSatisfy { !$0.canDrag && $0.frame.height == 44 })
         #expect(Set(buttons.map { $0.frame.minX }).count == 1)
         #expect(buttons.first?.alignment == (language.isRightToLeft ? .right : .left))
       } else if mode == .categories {

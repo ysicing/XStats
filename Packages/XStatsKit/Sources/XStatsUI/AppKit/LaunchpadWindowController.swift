@@ -14,14 +14,45 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   private(set) var columns = 1
   private(set) var pageSize = 1
   private(set) var browsingMode: LaunchpadBrowsingMode
+  private(set) var gridLayout: LaunchpadGridLayout
+  private(set) var gridIconSize: LaunchpadIconSize
   private var gridColumns = 1
   private var gridCapacity = 1
   private var listCapacity = 1
   private var pageCategories: [LaunchpadApplicationCategory?] = []
   private var modeButton: NSPopUpButton?
+  private var gridLayoutButton: NSPopUpButton?
   private var search: CommandBarSearch?
   private var field: NSSearchField?
   private var grid: NSView?
+  private var cellSize = NSSize(width: 132, height: 132)
+  private var gridSize = NSSize.zero
+  private var gridWidthConstraint: NSLayoutConstraint?
+  private var gridHeightConstraint: NSLayoutConstraint?
+  private var gridTopConstraint: NSLayoutConstraint?
+  private var gridCenterConstraint: NSLayoutConstraint?
+  private var listSurface: NSBox?
+  private var headerTopConstraint: NSLayoutConstraint?
+  private var searchWidthConstraint: NSLayoutConstraint?
+  private var searchHeightConstraint: NSLayoutConstraint?
+  private var footer: NSStackView?
+  private var footerBottomConstraint: NSLayoutConstraint?
+  private var footerTopConstraint: NSLayoutConstraint?
+  private var footerWidthConstraint: NSLayoutConstraint?
+  private var iconSize: CGFloat = 64
+  private var pager: NSStackView?
+  private var pageDots: NSStackView?
+  private var folderBackdrop: LaunchpadFolderBackdrop?
+  private var folderSurface: NSView?
+  private var folderTitle: NSTextField?
+  private var parentFolderID: String?
+  private var pagePreview: LaunchpadPagePreview?
+  private var pageSwipe = LaunchpadPageSwipe()
+  private var swipePage = 0
+  private var pageSettleTask: Task<Void, Never>?
+  private var folderAnchor = NSPoint(x: 0.5, y: 0.5)
+  private var folderExitPreview: NSView?
+  private var folderExitTask: Task<Void, Never>?
   private var status: NSTextField?
   private var pageLabel: NSTextField?
   private var favoriteButton: NSButton?
@@ -33,14 +64,12 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   private var removalTask: Task<Void, Never>?
   private var applicationMap: [String: AppCommand] = [:]
   private var displayPages: [[AppCommand]] = []
-  private var gridLayoutPageIndices: [Int] = []
   private(set) var layout = LaunchpadLayout()
   private(set) var folderID: String?
   private(set) var isEditing = false
   private(set) var isRevealing = false
   private var editButton: NSButton?
   private var backButton: NSButton?
-  private var renameButton: NSButton?
   private var heading: NSTextField?
   private var candidates = Set<String>()
   private var pendingDeletion = false
@@ -71,8 +100,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     if let folderID {
       return layout.pages.firstIndex { $0.contains { $0.id == folderID } }
     }
-    guard gridLayoutPageIndices.indices.contains(page) else { return nil }
-    return gridLayoutPageIndices[page]
+    return displayPages.indices.contains(page) ? page : nil
   }
 
   func setRevealProgress(_ progress: Double) {
@@ -145,6 +173,12 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     browsingMode =
       defaults.string(forKey: LaunchpadBrowsingMode.preferenceKey)
       .flatMap(LaunchpadBrowsingMode.init(rawValue:)) ?? .grid
+    gridLayout =
+      defaults.string(forKey: LaunchpadGridLayout.preferenceKey)
+      .flatMap(LaunchpadGridLayout.init(rawValue:)) ?? .automatic
+    gridIconSize =
+      defaults.string(forKey: LaunchpadIconSize.preferenceKey)
+      .flatMap(LaunchpadIconSize.init(rawValue:)) ?? .small
     super.init()
   }
 
@@ -184,6 +218,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     panel.animationBehavior = .none
     panel.delegate = self
     panel.onPage = { [weak self] delta in self?.changePage(by: delta) }
+    panel.onSwipe = { [weak self] event in self?.handlePageSwipe(event) }
     panel.onDismiss = { [weak self] in self?.goBack() }
     buildContent(size: frame.size)
     if !NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency,
@@ -312,7 +347,8 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
         // 扫描触顶时缺失不等于已卸载：保留已有布局项，也不落盘，避免永久丢失用户整理结果。
         self.layout.reconcile(
           appIDs: index.results(for: "", favorites: self.usage?.favorites ?? []).map(\.id),
-          capacity: self.gridCapacity, pruneMissing: !isTruncated)
+          capacity: self.gridCapacity, pruneMissing: !isTruncated,
+          preservingPageBoundaries: true)
         if !applications.isEmpty && !isTruncated { self.layoutStore?.save(self.layout) }
         if let folderID = self.folderID, self.layout.item(folderID)?.isFolder != true {
           self.folderID = nil
@@ -331,6 +367,11 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   }
 
   @objc func dismiss() {
+    cancelPageSwipe()
+    folderExitTask?.cancel()
+    folderExitTask = nil
+    folderExitPreview?.removeFromSuperview()
+    folderExitPreview = nil
     sessionID = nil
     isRevealing = false
     revealAnimationID = nil
@@ -362,6 +403,24 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     selectedIndex = 0
     field = nil
     grid = nil
+    gridWidthConstraint = nil
+    gridHeightConstraint = nil
+    gridTopConstraint = nil
+    gridCenterConstraint = nil
+    listSurface = nil
+    headerTopConstraint = nil
+    searchWidthConstraint = nil
+    searchHeightConstraint = nil
+    footer = nil
+    footerBottomConstraint = nil
+    footerTopConstraint = nil
+    footerWidthConstraint = nil
+    pager = nil
+    pageDots = nil
+    folderBackdrop = nil
+    folderSurface = nil
+    folderTitle = nil
+    parentFolderID = nil
     status = nil
     pageLabel = nil
     favoriteButton = nil
@@ -369,9 +428,9 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     nextButton = nil
     buttons = []
     displayPages = []
-    gridLayoutPageIndices = []
     pageCategories = []
     modeButton = nil
+    gridLayoutButton = nil
     applicationMap = [:]
     layout = LaunchpadLayout()
     folderID = nil
@@ -379,7 +438,6 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     candidates = []
     editButton = nil
     backButton = nil
-    renameButton = nil
     heading = nil
     pendingDeletion = false
     dragZones = []
@@ -390,7 +448,20 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     if panel?.attachedSheet == nil && !pendingDeletion { dismiss() }
   }
 
-  func controlTextDidChange(_ notification: Notification) { refreshResults() }
+  func controlTextDidChange(_ notification: Notification) {
+    if let control = notification.object as? NSControl, control !== field { return }
+    refreshResults()
+  }
+
+  func controlTextDidEndEditing(_ notification: Notification) {
+    guard let input = notification.object as? NSTextField, input === folderTitle,
+      let folderID
+    else { return }
+    layout.rename(folderID, to: input.stringValue)
+    input.stringValue =
+      (layout.item(folderID)?.name).flatMap { $0.isEmpty ? nil : $0 } ?? text("文件夹")
+    saveLayout()
+  }
 
   @objc private func displayOptionsChanged() {
     if NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency {
@@ -399,17 +470,32 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       panel?.contentView?.subviews.filter {
         $0.identifier?.rawValue == "launchpad.wallpaper"
       }.forEach { $0.removeFromSuperview() }
-      panel?.contentView?.appearance = nil
     }
     if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
       panel?.alphaValue = 1
       grid?.layer?.setAffineTransform(.identity)
+      folderExitTask?.cancel()
+      folderExitTask = nil
+      folderExitPreview?.removeFromSuperview()
+      folderExitPreview = nil
     }
     renderPage()
   }
 
   func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
     guard !textView.hasMarkedText() else { return false }
+    if control === folderTitle {
+      if selector == #selector(NSResponder.cancelOperation(_:)) {
+        folderTitle?.stringValue = folderID.flatMap { layout.item($0)?.name } ?? ""
+        panel?.makeFirstResponder(field)
+        return true
+      }
+      if selector == #selector(NSResponder.insertNewline(_:)) {
+        panel?.makeFirstResponder(field)
+        return true
+      }
+      return false
+    }
     switch selector {
     case #selector(NSResponder.moveLeft(_:)): moveSelection(by: isRTL ? 1 : -1)
     case #selector(NSResponder.moveRight(_:)): moveSelection(by: isRTL ? -1 : 1)
@@ -425,6 +511,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   }
 
   func moveSelection(by delta: Int) {
+    cancelPageSwipe()
     guard !results.isEmpty else { return }
     let previousPage = page
     selectedIndex = min(max(0, selectedIndex + delta), results.count - 1)
@@ -432,6 +519,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   }
 
   func changePage(by delta: Int) {
+    cancelPageSwipe()
     guard !results.isEmpty else { return }
     let target = min(max(0, page + delta), pageCount - 1)
     guard target != page else { return }
@@ -452,10 +540,12 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
 
   func setBrowsingMode(_ mode: LaunchpadBrowsingMode) {
     guard mode != browsingMode else { return }
+    panel?.makeFirstResponder(field)
     browsingMode = mode
     defaults.set(mode.rawValue, forKey: LaunchpadBrowsingMode.preferenceKey)
     isEditing = false
     folderID = nil
+    if let size = panel?.contentView?.bounds.size { updateGridGeometry(size: size) }
     columns = mode == .list ? 1 : gridColumns
     pageSize = mode == .list ? listCapacity : gridCapacity
     modeButton?.selectItem(at: LaunchpadBrowsingMode.allCases.firstIndex(of: mode) ?? 0)
@@ -477,11 +567,67 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     panel?.makeFirstResponder(field)
   }
 
+  @objc private func changeGridLayout(_ sender: NSMenuItem) {
+    guard LaunchpadGridLayout.allCases.indices.contains(sender.tag) else { return }
+    setGridLayout(LaunchpadGridLayout.allCases[sender.tag])
+  }
+
+  func setGridLayout(_ value: LaunchpadGridLayout) {
+    guard value != gridLayout else { return }
+    panel?.makeFirstResponder(field)
+    gridLayout = value
+    defaults.set(value.rawValue, forKey: LaunchpadGridLayout.preferenceKey)
+    folderID = nil
+    isEditing = false
+    if let size = panel?.contentView?.bounds.size { updateGridGeometry(size: size) }
+    refreshResults(preservingSelection: true)
+  }
+
+  @objc private func changeIconSize(_ sender: NSMenuItem) {
+    guard LaunchpadIconSize.allCases.indices.contains(sender.tag) else { return }
+    setIconSize(LaunchpadIconSize.allCases[sender.tag])
+  }
+
+  func setIconSize(_ value: LaunchpadIconSize) {
+    guard value != gridIconSize else { return }
+    panel?.makeFirstResponder(field)
+    gridIconSize = value
+    defaults.set(value.rawValue, forKey: LaunchpadIconSize.preferenceKey)
+    if let size = panel?.contentView?.bounds.size { updateGridGeometry(size: size) }
+    refreshResults(preservingSelection: true)
+  }
+
+  private func updateGridGeometry(size: NSSize) {
+    let availableColumns = max(1, min(8, Int((size.width - 64) / 132)))
+    let availableRows = max(1, min(6, Int((size.height - 240) / 132)))
+    gridColumns = min(gridLayout.maximumColumns, availableColumns)
+    let rows = min(gridLayout.maximumRows, availableRows)
+    gridCapacity = gridColumns * rows
+    listCapacity = max(1, min(12, Int((size.height - 224) / DS.Space.s12)))
+    var gridWidth = min(size.width - 64, max(CGFloat(gridColumns) * 132, size.width * 0.8))
+    var gridHeight = max(
+      CGFloat(browsingMode == .list ? availableRows : rows) * 132, (size.height - 240) * 0.88)
+    if browsingMode != .list {
+      let preferredCellSide = max(132, gridIconSize.points + DS.Space.s16)
+      gridWidth = min(gridWidth, CGFloat(gridColumns) * preferredCellSide)
+      gridHeight = min(gridHeight, CGFloat(rows) * preferredCellSide)
+    } else {
+      gridWidth = min(480, size.width - 112)
+      gridHeight = CGFloat(listCapacity) * DS.Space.s12
+    }
+    gridSize = NSSize(width: gridWidth, height: gridHeight)
+    cellSize = NSSize(width: gridWidth / CGFloat(gridColumns), height: gridHeight / CGFloat(rows))
+    iconSize = min(gridIconSize.points, max(48, min(cellSize.width - 40, cellSize.height - 48)))
+    columns = browsingMode == .list ? 1 : gridColumns
+    pageSize = browsingMode == .list ? listCapacity : gridCapacity
+  }
+
   private func buildContent(size: NSSize) {
     let background = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
     background.material = .fullScreenUI
     background.blendingMode = .behindWindow
     background.state = .active
+    background.appearance = NSAppearance(named: .darkAqua)
     background.userInterfaceLayoutDirection = isRTL ? .rightToLeft : .leftToRight
     panel?.contentView = background
 
@@ -489,7 +635,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     field.placeholderString = text("搜索应用")
     field.setAccessibilityLabel(field.placeholderString)
     field.controlSize = .large
-    field.font = .systemFont(ofSize: DS.TextSize.lg.rawValue)
+    field.font = .systemFont(ofSize: DS.TextSize.sm.rawValue)
     field.maximumRecents = 0
     field.recentsAutosaveName = nil
     field.sendsSearchStringImmediately = true
@@ -513,8 +659,34 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     modes.action = #selector(changeBrowsingMode(_:))
     modes.identifier = NSUserInterfaceItemIdentifier("launchpad.browsingMode")
     modes.setAccessibilityLabel(text("浏览方式"))
+    modes.setContentHuggingPriority(.defaultHigh, for: .horizontal)
     modes.userInterfaceLayoutDirection = background.userInterfaceLayoutDirection
     modeButton = modes
+    let gridLayouts = NSPopUpButton(frame: .zero, pullsDown: true)
+    gridLayouts.addItem(withTitle: "")
+    gridLayouts.item(at: 0)?.image = NSImage(
+      systemSymbolName: "square.grid.3x3", accessibilityDescription: text("网格布局"))
+    gridLayouts.imagePosition = .imageOnly
+    gridLayouts.identifier = NSUserInterfaceItemIdentifier("launchpad.gridLayout")
+    gridLayouts.setAccessibilityLabel(text("网格布局"))
+    gridLayouts.userInterfaceLayoutDirection = background.userInterfaceLayoutDirection
+    for (index, value) in LaunchpadGridLayout.allCases.enumerated() {
+      let item = NSMenuItem(
+        title: value == .automatic ? text(value.titleKey) : "\u{2066}\(value.titleKey)\u{2069}",
+        action: #selector(changeGridLayout(_:)), keyEquivalent: "")
+      item.tag = index
+      item.target = self
+      gridLayouts.menu?.addItem(item)
+    }
+    gridLayouts.menu?.addItem(.separator())
+    for (index, value) in LaunchpadIconSize.allCases.enumerated() {
+      let item = NSMenuItem(
+        title: text(value.titleKey), action: #selector(changeIconSize(_:)), keyEquivalent: "")
+      item.tag = index
+      item.target = self
+      gridLayouts.menu?.addItem(item)
+    }
+    gridLayoutButton = gridLayouts
     let refresh = NSButton(
       image: NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: text("刷新"))!,
       target: self, action: #selector(refreshApplications))
@@ -522,7 +694,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     refresh.setAccessibilityLabel(text("刷新"))
     refresh.toolTip = text("刷新")
     refresh.identifier = NSUserInterfaceItemIdentifier("launchpad.refresh")
-    let header = NSStackView(views: [title, modes, refresh])
+    let header = NSStackView(views: [title, modes, gridLayouts, refresh])
     header.spacing = DS.Space.s2
     header.distribution = .fill
     header.alignment = .centerY
@@ -536,12 +708,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     close.keyEquivalent = "w"
     close.keyEquivalentModifierMask = .command
 
-    gridColumns = max(1, min(8, Int((size.width - 64) / 132)))
-    let rows = max(1, min(6, Int((size.height - 240) / 132)))
-    gridCapacity = gridColumns * rows
-    listCapacity = max(1, min(24, rows * 132 / 40))
-    columns = browsingMode == .list ? 1 : gridColumns
-    pageSize = browsingMode == .list ? listCapacity : gridCapacity
+    updateGridGeometry(size: size)
     let grid = LaunchpadDropView(frame: .zero)
     grid.identifier = NSUserInterfaceItemIdentifier("launchpad.grid")
     grid.dragToken = sessionID?.uuidString ?? ""
@@ -569,7 +736,11 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     next.setAccessibilityLabel(text("下一页"))
     previousButton = previous
     nextButton = next
-    let pager = NSStackView(views: [previous, pageLabel, next])
+    let dots = NSStackView()
+    dots.spacing = DS.Space.s1
+    pageDots = dots
+    let pager = NSStackView(views: [previous, dots, pageLabel, next])
+    self.pager = pager
     pager.spacing = DS.Space.s4
     pager.userInterfaceLayoutDirection = background.userInterfaceLayoutDirection
     let favorite = NSButton(title: text("收藏"), target: self, action: #selector(toggleFavorite))
@@ -583,11 +754,9 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     let back = NSButton(title: text("返回"), target: self, action: #selector(closeFolder))
     back.bezelStyle = .rounded
     backButton = back
-    let rename = NSButton(title: text("重命名"), target: self, action: #selector(renameFolder))
-    rename.bezelStyle = .rounded
-    renameButton = rename
-    let actions = NSStackView(views: [favorite, edit, rename])
+    let actions = NSStackView(views: [favorite, edit])
     let footer = NSStackView(views: [pager, actions])
+    self.footer = footer
     footer.orientation = .vertical
     footer.spacing = DS.Space.s8
     footer.userInterfaceLayoutDirection = background.userInterfaceLayoutDirection
@@ -596,6 +765,21 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       view.translatesAutoresizingMaskIntoConstraints = false
       background.addSubview(view)
     }
+    let surface = NSBox()
+    surface.boxType = .custom
+    surface.titlePosition = .noTitle
+    surface.borderWidth = 0
+    surface.cornerRadius = DS.Radius.xl
+    surface.identifier = NSUserInterfaceItemIdentifier("launchpad.listSurface")
+    surface.translatesAutoresizingMaskIntoConstraints = false
+    background.addSubview(surface, positioned: .below, relativeTo: header)
+    listSurface = surface
+    NSLayoutConstraint.activate([
+      surface.leadingAnchor.constraint(equalTo: field.leadingAnchor, constant: -DS.Space.s6),
+      surface.trailingAnchor.constraint(equalTo: field.trailingAnchor, constant: DS.Space.s6),
+      surface.topAnchor.constraint(equalTo: header.topAnchor, constant: -DS.Space.s6),
+      surface.bottomAnchor.constraint(equalTo: footer.bottomAnchor, constant: DS.Space.s6),
+    ])
     for side in [-1, 1] {
       let delta = isRTL ? -side : side
       let zone = LaunchpadDropView(frame: .zero)
@@ -627,7 +811,9 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     folderExit.identifier = NSUserInterfaceItemIdentifier("launchpad.folderExit")
     folderExit.dragToken = sessionID?.uuidString ?? ""
     folderExit.onDrop = { [weak self] id in
-      guard let self, self.browsingMode == .grid, let folderID = self.folderID,
+      guard let self, self.browsingMode == .grid, let folderID = self.folderID else { return }
+      self.materializeGridPages()
+      guard
         let sourcePage = self.layout.pages.firstIndex(where: { $0.contains { $0.id == folderID } })
       else { return }
       self.layout.move(id, toPage: sourcePage, before: folderID, capacity: self.gridCapacity)
@@ -639,6 +825,26 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     folderExit.addSubview(back)
     background.addSubview(folderExit)
     dragZones.append(folderExit)
+    let width = grid.widthAnchor.constraint(equalToConstant: gridSize.width)
+    let height = grid.heightAnchor.constraint(equalToConstant: gridSize.height)
+    let center = grid.centerYAnchor.constraint(equalTo: background.centerYAnchor, constant: -8)
+    gridWidthConstraint = width
+    gridHeightConstraint = height
+    gridTopConstraint = grid.topAnchor.constraint(
+      equalTo: field.bottomAnchor, constant: DS.Space.s4)
+    gridCenterConstraint = center
+    let headerTop = header.topAnchor.constraint(equalTo: background.topAnchor, constant: 40)
+    headerTopConstraint = headerTop
+    let searchWidth = field.widthAnchor.constraint(equalToConstant: min(440, size.width - 112))
+    searchWidthConstraint = searchWidth
+    let searchHeight = field.heightAnchor.constraint(equalToConstant: DS.Size.controlHeight)
+    searchHeightConstraint = searchHeight
+    let footerBottom = footer.bottomAnchor.constraint(
+      equalTo: background.bottomAnchor, constant: -44)
+    footerBottomConstraint = footerBottom
+    footerTopConstraint = footer.topAnchor.constraint(
+      equalTo: grid.bottomAnchor, constant: DS.Space.s4)
+    footerWidthConstraint = footer.widthAnchor.constraint(equalTo: field.widthAnchor)
     NSLayoutConstraint.activate([
       folderExit.leadingAnchor.constraint(equalTo: grid.leadingAnchor),
       folderExit.trailingAnchor.constraint(equalTo: grid.trailingAnchor),
@@ -649,25 +855,27 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     ])
     NSLayoutConstraint.activate([
       header.centerXAnchor.constraint(equalTo: background.centerXAnchor),
-      header.topAnchor.constraint(equalTo: background.topAnchor, constant: 40),
+      headerTop,
       header.widthAnchor.constraint(equalTo: field.widthAnchor),
       header.heightAnchor.constraint(equalToConstant: 30),
-      modes.widthAnchor.constraint(equalToConstant: min(200, (size.width - 112) * 0.42)),
+      modes.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
+      modes.widthAnchor.constraint(lessThanOrEqualToConstant: min(200, (size.width - 112) * 0.42)),
+      gridLayouts.widthAnchor.constraint(equalToConstant: 44),
       refresh.widthAnchor.constraint(equalToConstant: 28),
       close.topAnchor.constraint(equalTo: background.topAnchor, constant: 40),
       close.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -32),
       field.topAnchor.constraint(equalTo: header.bottomAnchor, constant: DS.Space.s4),
       field.centerXAnchor.constraint(equalTo: background.centerXAnchor),
-      field.widthAnchor.constraint(equalToConstant: min(440, size.width - 112)),
-      field.heightAnchor.constraint(equalToConstant: DS.Size.controlHeight),
+      searchWidth,
+      searchHeight,
       grid.centerXAnchor.constraint(equalTo: background.centerXAnchor),
-      grid.topAnchor.constraint(equalTo: field.bottomAnchor, constant: DS.Space.s6),
-      grid.widthAnchor.constraint(equalToConstant: CGFloat(gridColumns) * 132),
-      grid.heightAnchor.constraint(equalToConstant: CGFloat(rows) * 132),
+      center,
+      width,
+      height,
       status.centerXAnchor.constraint(equalTo: grid.centerXAnchor),
       status.centerYAnchor.constraint(equalTo: grid.centerYAnchor),
       footer.centerXAnchor.constraint(equalTo: background.centerXAnchor),
-      footer.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -44),
+      footerBottom,
       pageLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 72),
     ])
     updateSelection()
@@ -677,11 +885,18 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     guard let search else { return }
     let selectedID = results.indices.contains(selectedIndex) ? results[selectedIndex].id : nil
     let query = field?.stringValue ?? ""
+    let inFolder = browsingMode == .grid && folderID != nil && query.isEmpty
+    let folderCount =
+      folderID.flatMap { layout.item($0) }?.apps.filter {
+        applicationMap[$0] != nil
+      }.count ?? 0
+    columns =
+      browsingMode == .list ? 1 : inFolder ? min(6, gridColumns, max(1, folderCount)) : gridColumns
+    pageSize =
+      browsingMode == .list
+      ? listCapacity
+      : inFolder ? columns * min(4, gridCapacity / gridColumns) : gridCapacity
     pageCategories = []
-    // 不可用页仍属于持久化布局；显示过滤后必须保留真实页号供拖动使用。
-    gridLayoutPageIndices = layout.pages.indices.filter { index in
-      layout.pages[index].contains { $0.isFolder || applicationMap[$0.id] != nil }
-    }
     if browsingMode != .grid {
       let applications =
         query.isEmpty
@@ -700,15 +915,13 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       displayPages = LaunchpadLayout.paginate(results, capacity: pageSize)
     } else {
       folderID = nil
-      displayPages = gridLayoutPageIndices.map { index in
-        layout.pages[index].compactMap { item in
-          if !item.isFolder { return applicationMap[item.id] }
-          return AppCommand(
-            id: item.id, title: item.name?.isEmpty == false ? item.name! : text("文件夹"),
-            symbol: "folder", keywords: "", action: .launchpad)
-        }
+      results = layout.pages.joined().compactMap { item -> AppCommand? in
+        if !item.isFolder { return applicationMap[item.id] }
+        return AppCommand(
+          id: item.id, title: item.name?.isEmpty == false ? item.name! : text("文件夹"),
+          symbol: "folder", keywords: "", action: .launchpad)
       }
-      results = displayPages.flatMap { $0 }
+      displayPages = LaunchpadLayout.paginate(results, capacity: gridCapacity)
     }
     selectedIndex = preservingSelection ? results.firstIndex { $0.id == selectedID } ?? 0 : 0
     status?.stringValue = text("没有匹配的项目")
@@ -716,13 +929,44 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     renderPage()
   }
 
-  private func renderPage() {
+  private func renderPage(preservingSwipe: Bool = false) {
+    if !preservingSwipe { cancelPageSwipe() }
     grid?.subviews.forEach { $0.removeFromSuperview() }
     buttons = []
     guard let grid else { return }
+    let inFolder = browsingMode == .grid && folderID != nil && field?.stringValue.isEmpty == true
+    let followsSearch = !inFolder
+    if followsSearch {
+      gridCenterConstraint?.isActive = false
+      gridTopConstraint?.isActive = true
+    } else {
+      gridTopConstraint?.isActive = false
+      gridCenterConstraint?.isActive = true
+    }
+    let count = displayPages.indices.contains(page) ? displayPages[page].count : 0
+    let folderRows = max(1, min(pageSize / columns, (results.count + columns - 1) / columns))
+    var folderHeight = gridSize.height
+    if inFolder, let content = panel?.contentView, let field {
+      content.layoutSubtreeIfNeeded()
+      let center = content.convert(grid.bounds, from: grid).midY
+      let searchBottom = content.convert(field.bounds, from: field).minY
+      folderHeight = max(1, 2 * (searchBottom - DS.Space.s4 - 48 - center))
+    }
+    let tileSize =
+      inFolder
+      ? NSSize(
+        width: min(cellSize.width, 160),
+        height: min(cellSize.height, 160, folderHeight / CGFloat(folderRows))) : cellSize
+    let tileIconSize = inFolder ? min(iconSize, max(48, tileSize.height - 48)) : iconSize
+    gridWidthConstraint?.constant = inFolder ? CGFloat(columns) * tileSize.width : gridSize.width
+    gridHeightConstraint?.constant =
+      browsingMode == .list
+      ? CGFloat(max(1, count)) * DS.Space.s12
+      : inFolder ? CGFloat(folderRows) * tileSize.height : gridSize.height
+    panel?.contentView?.layoutSubtreeIfNeeded()
     grid.layer?.cornerRadius = DS.Radius.lg
-    grid.layer?.backgroundColor =
-      folderID == nil ? nil : NSColor.controlBackgroundColor.withAlphaComponent(0.3).cgColor
+    grid.layer?.backgroundColor = nil
+    updateFolderPresentation()
     dragZones.forEach {
       $0.isHidden = browsingMode != .grid || field?.stringValue.isEmpty != true
     }
@@ -731,7 +975,6 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     grid.layoutSubtreeIfNeeded()
     // 仅为当前页创建控件，图标交由有界缓存复用。
     let start = displayPages.prefix(page).reduce(0) { $0 + $1.count }
-    let count = displayPages.indices.contains(page) ? displayPages[page].count : 0
     for index in start..<(start + count) {
       let command = results[index]
       let offset = index - start
@@ -740,29 +983,53 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       let button = LaunchpadTileButton(
         frame: isList
           ? NSRect(
-            x: 6, y: grid.bounds.height - CGFloat(offset + 1) * 40 + 2,
-            width: grid.bounds.width - 12, height: 36)
+            x: 0, y: grid.bounds.height - CGFloat(offset + 1) * DS.Space.s12 + 2,
+            width: grid.bounds.width, height: DS.Space.s12 - DS.Space.s1)
           : NSRect(
-            x: CGFloat(column) * 132 + 6,
-            y: grid.bounds.height - CGFloat(offset / columns + 1) * 132 + 6,
-            width: 120, height: 120))
+            x: CGFloat(column) * tileSize.width + 6,
+            y: grid.bounds.height - CGFloat(offset / columns + 1) * tileSize.height + 6,
+            width: tileSize.width - 12, height: tileSize.height - 12))
+      if isList { button.cell = LaunchpadListButtonCell() }
+      let paragraph = NSMutableParagraphStyle()
+      paragraph.alignment = isList ? (isRTL ? .right : .left) : .center
+      paragraph.lineBreakMode = .byTruncatingTail
       button.attributedTitle = NSAttributedString(
         string: command.title,
         attributes: [
           .font: NSFont.systemFont(ofSize: DS.TextSize.sm.rawValue),
           .foregroundColor: NSColor.labelColor,
+          .paragraphStyle: paragraph,
         ])
+      button.imagePosition = isList ? .imageLeading : .imageAbove
       if case .openApplication(let url) = command.action {
-        button.image = LauncherIconCache.shared.image(for: url, size: isList ? 28 : 64)
+        button.image = LauncherIconCache.shared.image(for: url, size: isList ? 28 : tileIconSize)
+        if !isList {
+          button.imagePosition = .imageOnly
+        }
       } else {
         button.image = folderImage(command.id)
       }
-      button.imagePosition = isList ? .imageLeading : .imageAbove
       button.alignment = isList ? (isRTL ? .right : .left) : .center
       button.userInterfaceLayoutDirection = isRTL ? .rightToLeft : .leftToRight
       button.imageScaling = .scaleProportionallyDown
       button.isBordered = false
       button.lineBreakMode = .byTruncatingTail
+      grid.addSubview(button)
+      if !isList {
+        let center = NSPoint(x: button.frame.midX, y: button.frame.midY)
+        let side = min(button.frame.width, button.frame.height, tileIconSize + DS.Space.s6)
+        button.setFrameSize(
+          NSSize(
+            width: button.imagePosition == .imageAbove
+              ? min(tileSize.width - 12, max(side, 120)) : side,
+            height: side))
+        let imageRect = button.cell?.imageRect(forBounds: button.bounds) ?? button.bounds
+        let imagePosition = grid.convert(imageRect, from: button)
+        button.setFrameOrigin(
+          NSPoint(
+            x: button.frame.minX + center.x - imagePosition.midX,
+            y: button.frame.minY + center.y - imagePosition.midY))
+      }
       button.toolTip = command.title
       button.setAccessibilityLabel(command.title)
       button.identifier = NSUserInterfaceItemIdentifier(command.id)
@@ -786,7 +1053,6 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
           self.moveItem(id, before: command.id)
         }
       }
-      grid.addSubview(button)
       buttons.append(button)
       if isEditing && browsingMode == .grid {
         if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
@@ -815,11 +1081,36 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   }
 
   private func updateSelection() {
+    let isList = browsingMode == .list
+    if let surface = listSurface {
+      surface.isHidden = !isList
+      surface.effectiveAppearance.performAsCurrentDrawingAppearance {
+        surface.fillColor =
+          (NSColor.windowBackgroundColor.usingColorSpace(.deviceRGB) ?? .windowBackgroundColor)
+          .withAlphaComponent(
+            NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1 : 0.92)
+      }
+    }
+    if let size = panel?.contentView?.bounds.size {
+      let listContentHeight =
+        30 + DS.Space.s4 + 40 + DS.Space.s4 + gridSize.height
+        + DS.Space.s4 + DS.Size.controlHeight
+      headerTopConstraint?.constant = isList ? max(40, (size.height - listContentHeight) / 2) : 40
+      searchWidthConstraint?.constant = min(isList ? 480 : 440, size.width - 112)
+    }
+    searchHeightConstraint?.constant = isList ? 40 : DS.Size.controlHeight
+    field?.focusRingType = isList ? .none : .default
+    footerBottomConstraint?.isActive = !isList
+    footerTopConstraint?.isActive = isList
+    footerWidthConstraint?.isActive = isList
+    footer?.orientation = isList ? .horizontal : .vertical
+    footer?.distribution = isList ? .equalSpacing : .fill
+    footer?.spacing = isList ? DS.Space.s4 : DS.Space.s8
     for button in buttons {
       let selected = button.tag == selectedIndex
       button.layer?.backgroundColor =
-        selected ? NSColor.controlAccentColor.withAlphaComponent(0.15).cgColor : nil
-      button.layer?.borderWidth = selected ? 2 : 0
+        selected ? NSColor.controlAccentColor.withAlphaComponent(isList ? 0.28 : 0.15).cgColor : nil
+      button.layer?.borderWidth = selected && !isList ? 2 : 0
       button.layer?.borderColor = NSColor.controlAccentColor.cgColor
       button.setAccessibilityValue(selected)
     }
@@ -835,10 +1126,22 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       "\( (page + 1).formatted(.number.locale(L10n.locale(for: language)))) / \(pageCount.formatted(.number.locale(L10n.locale(for: language))))"
     previousButton?.isEnabled = page > 0
     nextButton?.isEnabled = page + 1 < pageCount
+    pager?.isHidden = pageCount <= 1
+    updatePageDots()
     editButton?.title = text(isEditing ? "完成" : "整理应用")
     editButton?.isHidden = browsingMode != .grid
+    gridLayoutButton?.isEnabled = browsingMode != .list && folderID == nil
+    gridLayoutButton?.isHidden = isList
+    gridLayoutButton?.toolTip =
+      text("网格布局") + ": " + text(gridLayout.titleKey) + " · " + text(gridIconSize.titleKey)
+    for item in gridLayoutButton?.menu?.items.dropFirst() ?? [] {
+      if item.action == #selector(changeGridLayout(_:)) {
+        item.state = LaunchpadGridLayout.allCases[item.tag] == gridLayout ? .on : .off
+      } else if item.action == #selector(changeIconSize(_:)) {
+        item.state = LaunchpadIconSize.allCases[item.tag] == gridIconSize ? .on : .off
+      }
+    }
     backButton?.isHidden = folderID == nil
-    renameButton?.isHidden = folderID == nil
     // 默认文件夹名不落盘，展示时按当前语言翻译；旧数据中已存的名字原样显示。
     heading?.stringValue =
       folderID.flatMap { layout.item($0)?.name }.flatMap { $0.isEmpty ? nil : $0 }
@@ -846,8 +1149,282 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     if pageCategories.indices.contains(page), let category = pageCategories[page] {
       heading?.stringValue = text(category.titleKey)
     }
+    if folderSurface?.isHidden == false {
+      if folderTitle?.currentEditor() == nil {
+        folderTitle?.stringValue = heading?.stringValue ?? text("文件夹")
+      }
+      heading?.stringValue = text("启动台")
+    }
     heading?.toolTip = heading?.stringValue
     heading?.setAccessibilityLabel(heading?.stringValue)
+  }
+
+  private func updatePageDots() {
+    guard let pageDots else { return }
+    pageDots.isHidden = browsingMode == .list
+    let first = max(0, min(page - 3, pageCount - 7))
+    let indices = Array(first..<min(pageCount, first + 7))
+    if pageDots.arrangedSubviews.compactMap({ ($0 as? NSButton)?.tag }) != indices {
+      pageDots.arrangedSubviews.forEach { $0.removeFromSuperview() }
+      for index in indices {
+        let dot = NSButton(
+          image: NSImage(systemSymbolName: "circle.fill", accessibilityDescription: nil)!,
+          target: self, action: #selector(selectPage(_:)))
+        dot.isBordered = false
+        dot.imageScaling = .scaleNone
+        dot.image = dot.image?.withSymbolConfiguration(.init(pointSize: 6, weight: .regular))
+        dot.tag = index
+        dot.identifier = NSUserInterfaceItemIdentifier("launchpad.dot.\(index)")
+        dot.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+          dot.widthAnchor.constraint(equalToConstant: 20),
+          dot.heightAnchor.constraint(equalToConstant: 24),
+        ])
+        pageDots.addArrangedSubview(dot)
+      }
+    }
+    for case let dot as NSButton in pageDots.arrangedSubviews {
+      dot.setAccessibilityLabel(
+        "\((dot.tag + 1).formatted(.number.locale(L10n.locale(for: language)))) / \(pageCount.formatted(.number.locale(L10n.locale(for: language))))"
+      )
+      dot.contentTintColor = dot.tag == page ? .labelColor : .tertiaryLabelColor
+      dot.setAccessibilityValue(dot.tag == page)
+    }
+    pageLabel?.isHidden = browsingMode != .list && pageCount <= 7
+  }
+
+  @objc private func selectPage(_ sender: NSButton) { changePage(by: sender.tag - page) }
+
+  private func prepareFolderPresentation(_ id: String) {
+    guard let grid, let content = panel?.contentView else { return }
+    folderExitTask?.cancel()
+    folderExitTask = nil
+    folderExitPreview?.removeFromSuperview()
+    folderExitPreview = nil
+    content.layoutSubtreeIfNeeded()
+    if let button = buttons.first(where: { $0.identifier?.rawValue == id }) {
+      folderAnchor = NSPoint(
+        x: button.frame.midX / grid.bounds.width, y: button.frame.midY / grid.bounds.height)
+    }
+    parentFolderID = id
+    let backdrop = LaunchpadFolderBackdrop(frame: content.bounds)
+    backdrop.identifier = NSUserInterfaceItemIdentifier("launchpad.folderBackdrop")
+    backdrop.wantsLayer = true
+    backdrop.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.5).cgColor
+    if let image = LaunchpadPagePreview.snapshot(grid) {
+      let parent = CALayer()
+      parent.contents = image
+      parent.frame = content.convert(grid.bounds, from: grid)
+      parent.opacity = 0.25
+      backdrop.layer?.addSublayer(parent)
+    }
+    backdrop.onClose = { [weak self] in self?.closeFolder() }
+    content.addSubview(backdrop, positioned: .below, relativeTo: heading?.superview)
+    folderBackdrop = backdrop
+    let surface = NSView()
+    surface.identifier = NSUserInterfaceItemIdentifier("launchpad.folderSurface")
+    surface.wantsLayer = true
+    surface.layer?.cornerRadius = DS.Radius.xl
+    content.addSubview(surface, positioned: .below, relativeTo: grid)
+    folderSurface = surface
+    let title = NSTextField(string: "")
+    title.identifier = NSUserInterfaceItemIdentifier("launchpad.folderTitle")
+    title.font = .systemFont(ofSize: DS.TextSize.xl.rawValue, weight: .medium)
+    title.alignment = .center
+    title.isBordered = false
+    title.drawsBackground = false
+    title.focusRingType = .none
+    title.delegate = self
+    title.setAccessibilityLabel(text("重命名"))
+    surface.addSubview(title)
+    folderTitle = title
+  }
+
+  private func updateFolderPresentation() {
+    guard let content = panel?.contentView, let grid else { return }
+    guard browsingMode == .grid, folderID != nil else {
+      folderBackdrop?.removeFromSuperview()
+      folderSurface?.removeFromSuperview()
+      folderBackdrop = nil
+      folderSurface = nil
+      folderTitle = nil
+      parentFolderID = nil
+      return
+    }
+    let searching = field?.stringValue.isEmpty != true
+    folderBackdrop?.isHidden = searching
+    folderSurface?.isHidden = searching
+    content.layoutSubtreeIfNeeded()
+    let rect = content.convert(grid.bounds, from: grid)
+    folderSurface?.frame = NSRect(
+      x: rect.minX - 12, y: rect.minY - 32, width: rect.width + 24, height: rect.height + 80)
+    content.effectiveAppearance.performAsCurrentDrawingAppearance {
+      folderSurface?.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+      folderSurface?.layer?.borderWidth =
+        NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast ? 1 : 0
+      folderSurface?.layer?.borderColor = NSColor.labelColor.cgColor
+    }
+    folderTitle?.frame = NSRect(x: 24, y: rect.height + 40, width: rect.width - 24, height: 30)
+  }
+
+  private func cancelPageSwipe() {
+    pageSettleTask?.cancel()
+    pageSettleTask = nil
+    pagePreview?.removeFromSuperview()
+    pagePreview = nil
+    grid?.layer?.opacity = 1
+    pageSwipe = LaunchpadPageSwipe()
+  }
+
+  func handlePageSwipe(_ event: NSEvent) {
+    guard let grid, let content = panel?.contentView, !results.isEmpty else { return }
+    let ending = event.phase.contains(.ended) || event.phase.contains(.cancelled)
+    let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    if reduceMotion {
+      if !pageSwipe.isActive { swipePage = page }
+      if event.scrollingDeltaX != 0 {
+        pageSwipe.update(delta: event.scrollingDeltaX, timestamp: event.timestamp)
+      }
+      if ending {
+        let target =
+          event.phase.contains(.cancelled)
+          ? swipePage
+          : pageSwipe.destination(
+            width: grid.bounds.width, page: swipePage, count: pageCount, timestamp: event.timestamp)
+        changePage(by: target - page)
+      }
+      return
+    }
+    guard !ending || pagePreview != nil else { return }
+    if event.phase.contains(.began) || pagePreview == nil || pageSettleTask != nil {
+      panel?.makeFirstResponder(field)
+      var offset: CGFloat = 0
+      if let previous = pagePreview {
+        let translation = previous.translation
+        let anchor = min(
+          pageCount - 1, max(0, swipePage - Int((translation / grid.bounds.width).rounded())))
+        offset = translation + CGFloat(anchor - swipePage) * grid.bounds.width
+        selectedIndex = displayPages.prefix(anchor).reduce(0) { $0 + $1.count }
+      }
+      cancelPageSwipe()
+      swipePage = page
+      var previewFrame = content.convert(grid.bounds, from: grid)
+      if browsingMode == .list {
+        previewFrame.origin.y = previewFrame.maxY - gridSize.height
+        previewFrame.size.height = gridSize.height
+      }
+      let preview = LaunchpadPagePreview(frame: previewFrame)
+      let selection = selectedIndex
+      for target in max(0, page - 1)...min(pageCount - 1, page + 1) {
+        selectedIndex = displayPages.prefix(target).reduce(0) { $0 + $1.count }
+        renderPage()
+        if let image = LaunchpadPagePreview.snapshot(grid) {
+          preview.add(image, delta: target - swipePage, size: grid.bounds.size)
+        }
+      }
+      selectedIndex = selection
+      renderPage()
+      pageSwipe = LaunchpadPageSwipe(offset: offset)
+      pagePreview = preview
+      content.addSubview(preview, positioned: .above, relativeTo: grid)
+      grid.layer?.opacity = 0
+    }
+    guard let preview = pagePreview else { return }
+    if event.scrollingDeltaX != 0 {
+      pageSwipe.update(delta: event.scrollingDeltaX, timestamp: event.timestamp)
+    }
+    let offset = pageSwipe.translation(width: grid.bounds.width, page: swipePage, count: pageCount)
+    preview.track(offset)
+    guard ending else { return }
+    let target =
+      event.phase.contains(.cancelled)
+      ? swipePage
+      : pageSwipe.destination(
+        width: grid.bounds.width, page: swipePage, count: pageCount, timestamp: event.timestamp)
+    preview.settle(
+      at: CGFloat(swipePage - target) * grid.bounds.width, velocity: pageSwipe.velocity)
+    selectedIndex = displayPages.prefix(target).reduce(0) { $0 + $1.count }
+    renderPage(preservingSwipe: true)
+    let session = sessionID
+    pageSettleTask = Task { [weak self] in
+      do { try await Task.sleep(for: .seconds(DS.Motion.launchpadResponse * 2)) } catch { return }
+      guard let self, self.sessionID == session else { return }
+      self.changePage(by: target - self.page)
+    }
+  }
+
+  private func animateFolderEntrance() {
+    guard NSApp.currentEvent?.type == .leftMouseUp,
+      !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    else { return }
+    for view in [grid, folderSurface].compactMap({ $0 }) {
+      guard let layer = view.layer else { continue }
+      let start = CGAffineTransform(
+        translationX: view.bounds.width * folderAnchor.x * 0.04,
+        y: view.bounds.height * folderAnchor.y * 0.04
+      ).scaledBy(x: 0.96, y: 0.96)
+      let grow = CABasicAnimation(keyPath: "transform")
+      grow.fromValue = NSValue(caTransform3D: CATransform3DMakeAffineTransform(start))
+      grow.toValue = NSValue(caTransform3D: CATransform3DIdentity)
+      grow.duration = DS.Motion.selectionDuration
+      grow.timingFunction = CAMediaTimingFunction(controlPoints: 0.23, 1, 0.32, 1)
+      layer.add(grow, forKey: "folder")
+    }
+  }
+
+  private func animateFolderExit() {
+    guard
+      NSApp.currentEvent?.type == .leftMouseDown
+        || NSApp.currentEvent?.type == .leftMouseUp,
+      !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+      let grid, let surface = folderSurface, !surface.isHidden,
+      let content = panel?.contentView, let image = LaunchpadPagePreview.snapshot(grid)
+    else { return }
+    let preview = LaunchpadFolderTransition(frame: surface.frame)
+    preview.wantsLayer = true
+    preview.layer?.cornerRadius = DS.Radius.xl
+    surface.effectiveAppearance.performAsCurrentDrawingAppearance {
+      preview.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+    }
+    let icons = CALayer()
+    icons.frame = preview.convert(grid.bounds, from: grid)
+    icons.contents = image
+    preview.layer?.addSublayer(icons)
+    if let title = folderTitle, let image = LaunchpadPagePreview.snapshot(title) {
+      let heading = CALayer()
+      heading.frame = title.frame
+      heading.contents = image
+      preview.layer?.addSublayer(heading)
+    }
+    preview.setAccessibilityElement(false)
+    content.addSubview(preview)
+    folderExitPreview = preview
+    let shrink = CABasicAnimation(keyPath: "transform")
+    shrink.fromValue = NSValue(caTransform3D: CATransform3DIdentity)
+    shrink.toValue = NSValue(
+      caTransform3D: CATransform3DMakeAffineTransform(
+        CGAffineTransform(
+          translationX: preview.bounds.width * folderAnchor.x * 0.04,
+          y: preview.bounds.height * folderAnchor.y * 0.04
+        ).scaledBy(x: 0.96, y: 0.96)))
+    shrink.duration = DS.Motion.selectionDuration
+    shrink.timingFunction = CAMediaTimingFunction(controlPoints: 0.23, 1, 0.32, 1)
+    let fade = CABasicAnimation(keyPath: "opacity")
+    fade.fromValue = 1
+    fade.toValue = 0
+    fade.duration = DS.Motion.selectionDuration
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    preview.layer?.opacity = 0
+    preview.layer?.add(shrink, forKey: "folder")
+    preview.layer?.add(fade, forKey: "fade")
+    CATransaction.commit()
+    folderExitTask = Task { [weak self] in
+      do { try await Task.sleep(for: .seconds(DS.Motion.selectionDuration)) } catch { return }
+      self?.folderExitPreview?.removeFromSuperview()
+      self?.folderExitPreview = nil
+      self?.folderExitTask = nil
+    }
   }
 
   private func folderImage(_ id: String) -> NSImage {
@@ -855,9 +1432,18 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       guard let command = applicationMap[id], case .openApplication(let url) = command.action else {
         return nil
       }
-      return LauncherIconCache.shared.image(for: url, size: 21)
+      return LauncherIconCache.shared.image(for: url, size: 21 * iconSize / 64)
     }
-    return NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+    return NSImage(size: NSSize(width: iconSize, height: iconSize), flipped: false) { rect in
+      NSGraphicsContext.saveGraphicsState()
+      defer { NSGraphicsContext.restoreGraphicsState() }
+      let inset = rect.width * 0.08
+      let scale = (rect.width - inset * 2) / 64
+      let transform = NSAffineTransform()
+      transform.translateX(by: rect.minX + inset, yBy: rect.minY + inset)
+      transform.scale(by: scale)
+      transform.concat()
+      let rect = NSRect(x: 0, y: 0, width: 64, height: 64)
       NSColor.controlColor.withAlphaComponent(0.8).setFill()
       NSBezierPath(roundedRect: rect.insetBy(dx: 1, dy: 1), xRadius: 14, yRadius: 14).fill()
       for (index, image) in icons.enumerated() {
@@ -881,13 +1467,16 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   }
 
   @objc private func executeSelection(_ sender: NSButton?) {
+    cancelPageSwipe()
     let index = sender?.tag ?? selectedIndex
     guard results.indices.contains(index) else { return }
     let command = results[index]
     if browsingMode == .grid && layout.item(command.id)?.isFolder == true {
+      prepareFolderPresentation(command.id)
       folderID = command.id
       field?.stringValue = ""
       refreshResults()
+      animateFolderEntrance()
       panel?.makeFirstResponder(field)
       return
     }
@@ -908,6 +1497,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
         }
       }
     } else {
+      materializeGridPages()
       guard let currentLayoutPage else { return }
       layout.move(id, toPage: currentLayoutPage, before: target, capacity: gridCapacity)
     }
@@ -915,17 +1505,26 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   }
 
   func moveItem(_ id: String, toAdjacentPage delta: Int, afterHover: Bool) {
-    guard browsingMode == .grid, field?.stringValue.isEmpty == true,
-      let currentLayoutPage,
-      let visiblePage = gridLayoutPageIndices.firstIndex(of: currentLayoutPage)
-    else { return }
-    let targetPage = max(0, visiblePage + (afterHover ? 0 : delta))
-    let target =
-      gridLayoutPageIndices.indices.contains(targetPage)
-      ? gridLayoutPageIndices[targetPage] : layout.pages.count
+    guard browsingMode == .grid, field?.stringValue.isEmpty == true else { return }
+    materializeGridPages()
+    guard let currentLayoutPage else { return }
+    let target = min(layout.pages.count, max(0, currentLayoutPage + (afterHover ? 0 : delta)))
     folderID = nil
     layout.move(id, toPage: target, before: nil, capacity: gridCapacity)
     saveLayout()
+  }
+
+  private func materializeGridPages() {
+    let items = Array(layout.pages.joined())
+    let visible = items.filter { $0.isFolder || applicationMap[$0.id] != nil }
+    let unavailable = items.filter { !$0.isFolder && applicationMap[$0.id] == nil }
+    // 拖动前将显示页落实到布局；扫描不完整时仍保留未读到的应用，避免误删布局。
+    let pages =
+      LaunchpadLayout.paginate(visible, capacity: gridCapacity)
+      + LaunchpadLayout.paginate(unavailable, capacity: gridCapacity)
+    guard pages != layout.pages else { return }
+    layout.pages = pages
+    refreshResults(preservingSelection: true)
   }
 
   private func saveLayout() {
@@ -943,9 +1542,16 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   }
 
   @objc private func closeFolder() {
+    panel?.makeFirstResponder(field)
+    animateFolderExit()
+    let previousFolder = parentFolderID ?? folderID
     folderID = nil
     field?.stringValue = ""
     refreshResults()
+    if let index = results.firstIndex(where: { $0.id == previousFolder }) {
+      selectedIndex = index
+      renderPage()
+    }
     panel?.makeFirstResponder(field)
   }
 
@@ -959,27 +1565,6 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       closeFolder()
     } else {
       dismiss()
-    }
-  }
-
-  @objc private func renameFolder() {
-    guard browsingMode == .grid, let folderID, let folder = layout.item(folderID), let panel else {
-      return
-    }
-    let alert = NSAlert()
-    alert.messageText = text("重命名")
-    let input = NSTextField(string: folder.name ?? "")
-    input.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
-    alert.accessoryView = input
-    alert.addButton(withTitle: text("保存"))
-    alert.addButton(withTitle: text("取消"))
-    let session = sessionID
-    alert.beginSheetModal(for: panel) { [weak self] response in
-      guard response == .alertFirstButtonReturn, let self, self.sessionID == session,
-        self.browsingMode == .grid
-      else { return }
-      self.layout.rename(folderID, to: input.stringValue)
-      self.saveLayout()
     }
   }
 
@@ -1062,10 +1647,12 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
 @MainActor
 private final class LaunchpadPanel: NSPanel {
   var onPage: (Int) -> Void = { _ in }
+  var onSwipe: (NSEvent) -> Void = { _ in }
   var onDismiss: () -> Void = {}
   private var scrollAmount: CGFloat = 0
   private var lastScrollTime: TimeInterval = 0
   private var lastPageTime: TimeInterval = 0
+  private var horizontalSwipe: Bool?
 
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { false }
@@ -1080,6 +1667,24 @@ private final class LaunchpadPanel: NSPanel {
       return
     }
     guard event.momentumPhase.isEmpty else { return }
+    if event.hasPreciseScrollingDeltas && !event.phase.isEmpty {
+      if event.phase.contains(.began) {
+        horizontalSwipe = nil
+        scrollAmount = 0
+      }
+      if horizontalSwipe == nil,
+        max(abs(event.scrollingDeltaX), abs(event.scrollingDeltaY)) > 2
+      {
+        horizontalSwipe = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
+      }
+      if horizontalSwipe == true {
+        onSwipe(event)
+        if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+          horizontalSwipe = nil
+        }
+        return
+      }
+    }
     if event.timestamp - lastScrollTime > 0.25 { scrollAmount = 0 }
     lastScrollTime = event.timestamp
     let horizontal = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)

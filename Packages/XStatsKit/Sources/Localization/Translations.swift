@@ -38,6 +38,9 @@ extension Translations {
     列表	List
     分类	Categories
     浏览方式	View
+    网格布局	Grid Layout
+    小图标	Small Icons
+    大图标	Large Icons
     工作效率	Productivity
     开发工具	Developer Tools
     创作与媒体	Creativity & Media

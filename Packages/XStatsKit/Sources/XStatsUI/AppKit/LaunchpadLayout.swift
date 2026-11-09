@@ -15,7 +15,10 @@ struct LaunchpadLayout: Codable, Equatable, Sendable {
   var pages: [[Item]] = []
 
   /// `pruneMissing` 为 false 时（扫描被截断，缺失不代表已卸载）保留布局中本次未扫到的应用。
-  mutating func reconcile(appIDs: [String], capacity: Int, pruneMissing: Bool = true) {
+  mutating func reconcile(
+    appIDs: [String], capacity: Int, pruneMissing: Bool = true,
+    preservingPageBoundaries: Bool = false
+  ) {
     var available = Set(appIDs.prefix(2000))
     if !pruneMissing {
       for page in pages.prefix(2000) {
@@ -40,7 +43,8 @@ struct LaunchpadLayout: Codable, Equatable, Sendable {
         item.name = String((item.name ?? "").prefix(80))
         return [item]
       }
-      return Self.paginate(items, capacity: capacity)
+      return preservingPageBoundaries
+        ? (items.isEmpty ? [] : [items]) : Self.paginate(items, capacity: capacity)
     }
     for id in appIDs.prefix(2000) where seen.insert(id).inserted {
       if pages.isEmpty || pages[pages.count - 1].count >= max(1, capacity) {
