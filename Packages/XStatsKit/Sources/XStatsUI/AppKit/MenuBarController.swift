@@ -436,10 +436,10 @@ final class MenuBarController: NSObject {
     if model.settings.commandBarEnabled {
       menu.addItem(withTitle: tr("命令栏"), action: #selector(openCommandBar), keyEquivalent: "")
         .target = self
-      if LaunchpadAvailability.isSupported {
-        menu.addItem(withTitle: tr("启动台"), action: #selector(openLaunchpad), keyEquivalent: "")
-          .target = self
-      }
+    }
+    if LaunchpadAvailability.isSupported && model.settings.launchpadEnabled {
+      menu.addItem(withTitle: tr("启动台"), action: #selector(openLaunchpad), keyEquivalent: "")
+        .target = self
     }
     menu.addItem(withTitle: tr("设置…"), action: #selector(openSettings), keyEquivalent: ",").target =
       self

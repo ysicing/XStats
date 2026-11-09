@@ -89,6 +89,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
   public var finderDocumentNamingMode: String?
   public var finderDocumentFormats: [String]?
   public var commandBarEnabled: Bool?
+  public var launchpadEnabled: Bool?
   public var launchpadPinchFingers: Int?
   public var launchpadHotCorner: Int?
   /// 仅兼容旧备份解码；应用服务现为基础功能，导入时忽略，导出时不再写入。
@@ -183,6 +184,7 @@ extension AppSettings {
     doc.finderDocumentNamingMode = finderDocumentNamingMode.rawValue
     doc.finderDocumentFormats = finderDocumentFormats.map(\.rawValue).sorted()
     doc.commandBarEnabled = commandBarEnabled
+    doc.launchpadEnabled = launchpadEnabled
     doc.launchpadPinchFingers = launchpadPinchFingers
     doc.launchpadHotCorner = launchpadHotCorner
     doc.processesEnabled = processesEnabled
@@ -329,6 +331,7 @@ extension AppSettings {
       assign(\.finderDocumentFormats, Set(formats.compactMap(FinderDocumentKind.init(rawValue:))))
     }
     assign(\.commandBarEnabled, doc.commandBarEnabled)
+    assign(\.launchpadEnabled, doc.launchpadEnabled)
     if let fingers = doc.launchpadPinchFingers {
       launchpadPinchFingers = [4, 5].contains(fingers) ? fingers : 0
     }

@@ -192,9 +192,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
     model.openCommandBar = { [weak self] in self?.openCommandBarFromMenu() }
     model.openLaunchpad = { [weak self] in self?.openLaunchpadFromMenu() }
-    commandBar.onSelect = { [weak self] command in
-      guard let self, self.model.settings.commandBarEnabled,
-        !self.isTerminating, !self.screenLocked
+    let performLauncherCommand: @MainActor (AppCommand) -> Void = { [weak self] command in
+      guard let self, !self.isTerminating, !self.screenLocked
       else { return }
       switch command.action {
       case .route(let link):
@@ -255,7 +254,16 @@ public final class AppController: NSObject, NSApplicationDelegate {
       }
       self.commandBar.recordUsage(command)
     }
-    launchpad.onSelect = commandBar.onSelect
+    commandBar.onSelect = { [weak self] command in
+      guard self?.model.settings.commandBarEnabled == true else { return }
+      performLauncherCommand(command)
+    }
+    launchpad.onSelect = { [weak self] command in
+      guard LaunchpadAvailability.isSupported, self?.model.settings.launchpadEnabled == true else {
+        return
+      }
+      performLauncherCommand(command)
+    }
     model.openAIUsageSettings = { [weak self] in
       self?.menuBar.dismissPopovers()
       self?.calendarMenuBar.dismiss()
@@ -304,6 +312,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     restMenuBar.sync()
     observeModel()
     observeCommandBarSetting()
+    observeLaunchpadSettings()
     observeNetworkObservationDemand()
     observePortsDemand()
     observeProbeSettings()
@@ -641,12 +650,13 @@ public final class AppController: NSObject, NSApplicationDelegate {
     calendarMenuBar.dismiss()
     launchpad.dismiss()
     commandBar.show(
-      commands: AppCommand.catalog(supportsFans: model.store.supportsFans),
+      commands: AppCommand.catalog(
+        supportsFans: model.store.supportsFans, launchpadEnabled: model.settings.launchpadEnabled),
       includesApplications: true)
   }
 
   @objc private func openLaunchpadFromMenu() {
-    guard LaunchpadAvailability.isSupported, model.settings.commandBarEnabled,
+    guard LaunchpadAvailability.isSupported, model.settings.launchpadEnabled,
       !model.isRecordingShortcut,
       !isTerminating, !screenLocked
     else { return }
@@ -685,7 +695,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
       guideAction: #selector(openUserGuideFromMenu),
       feedbackAction: #selector(openFeedbackFromMenu),
       commandBarEnabled: model.settings.commandBarEnabled,
-      launchpadAction: #selector(openLaunchpadFromMenu))
+      launchpadAction: #selector(openLaunchpadFromMenu),
+      launchpadEnabled: model.settings.launchpadEnabled)
   }
 
   @objc private func checkForUpdatesFromMenu() {
@@ -821,17 +832,31 @@ public final class AppController: NSObject, NSApplicationDelegate {
   // MARK: 观察
 
   private func observeCommandBarSetting() {
-    configureLaunchpadTriggers()
     withObservationTracking {
       _ = model.settings.commandBarEnabled
-      _ = model.settings.launchpadPinchFingers
-      _ = model.settings.launchpadHotCorner
     } onChange: { [weak self] in
       Task { @MainActor in
         guard let self else { return }
         self.observeCommandBarSetting()
         if !self.model.settings.commandBarEnabled {
           self.commandBar.dismiss()
+        }
+        self.installMainMenu()
+      }
+    }
+  }
+
+  private func observeLaunchpadSettings() {
+    configureLaunchpadTriggers()
+    withObservationTracking {
+      _ = model.settings.launchpadEnabled
+      _ = model.settings.launchpadPinchFingers
+      _ = model.settings.launchpadHotCorner
+    } onChange: { [weak self] in
+      Task { @MainActor in
+        guard let self else { return }
+        self.observeLaunchpadSettings()
+        if !self.model.settings.launchpadEnabled {
           self.launchpad.dismiss()
         }
         self.installMainMenu()
@@ -841,7 +866,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
   private func configureLaunchpadTriggers() {
     let enabled =
-      LaunchpadAvailability.isSupported && model.settings.commandBarEnabled
+      LaunchpadAvailability.isSupported && model.settings.launchpadEnabled
       && !launchpadTriggersPaused && !screenLocked && !isTerminating
     launchpadTriggers.onOpen = { [weak self] in self?.openLaunchpadFromMenu() }
     launchpadTriggers.onPinch = { [weak self] event in

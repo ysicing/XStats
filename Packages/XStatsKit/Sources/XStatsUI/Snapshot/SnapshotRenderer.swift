@@ -1539,20 +1539,26 @@ enum SnapshotRenderer {
           to: outputDirectory.appendingPathComponent("optional-features-\(suffix).png"))
         model.featureSettingsTab = .experimental
         settings.commandBarEnabled = true
+        settings.launchpadEnabled = true
         write(
           FeatureSettings().frame(width: 900).appLanguageEnvironment(), model: model,
           appearance: appearance,
           to: outputDirectory.appendingPathComponent("experimental-features-\(suffix).png"))
         write(
-          LaunchpadOptionsSheet(), model: model, appearance: appearance,
+          LauncherOptionsSheet(showsLaunchpadOptions: true), model: model, appearance: appearance,
           to: outputDirectory.appendingPathComponent("launchpad-options-\(suffix).png"))
+        write(
+          LauncherOptionsSheet(showsLaunchpadOptions: false), model: model, appearance: appearance,
+          to: outputDirectory.appendingPathComponent("command-bar-options-\(suffix).png"))
         settings.commandBarEnabled = false
+        settings.launchpadEnabled = false
         write(
           FeatureSettings().frame(width: 900).appLanguageEnvironment(), model: model,
           appearance: appearance,
           to: outputDirectory.appendingPathComponent("experimental-features-disabled-\(suffix).png")
         )
         settings.commandBarEnabled = true
+        settings.launchpadEnabled = true
         write(
           DisabledMonitoringPage(module: .gpu).frame(width: 900).appLanguageEnvironment(),
           model: model, appearance: appearance,

@@ -12,7 +12,7 @@ import Testing
 struct AppPresentationTests {
   @Test(
     arguments: AppLanguage.allCases.filter { $0 != .system },
-    ["启动时显示主窗口", "拔掉电源后停止防休眠"])
+    ["启动时显示主窗口", "拔掉电源后停止防休眠", "命令栏", "启动台"])
   func toggleSettingFitsEveryLanguage(language: AppLanguage, key: String) throws {
     let catalog = Translations.catalog(for: language)
     let title =
@@ -178,6 +178,39 @@ struct AppPresentationTests {
     #expect(app.windowsMenu?.items.contains { $0.keyEquivalent == "p" } == false)
   }
 
+  @Test(arguments: [false, true], [false, true])
+  func launcherMenusRespectIndependentChoices(
+    commandBarEnabled: Bool, launchpadEnabled: Bool
+  ) throws {
+    let app = NSApplication.shared
+    let previousMainMenu = app.mainMenu
+    let previousWindowsMenu = app.windowsMenu
+    let previousHelpMenu = app.helpMenu
+    defer {
+      app.mainMenu = previousMainMenu
+      app.windowsMenu = previousWindowsMenu
+      app.helpMenu = previousHelpMenu
+    }
+    let target = MenuCommandTarget()
+    let command = #selector(MenuCommandTarget.performCommand)
+    let launchpadAction = #selector(MenuCommandTarget.openLaunchpad)
+    app.mainMenu = MainMenu.make(
+      target: target, aboutAction: command, settingsAction: command, updateAction: command,
+      openWindowAction: command, commandBarAction: command, guideAction: command,
+      feedbackAction: command, commandBarEnabled: commandBarEnabled,
+      launchpadAction: launchpadAction,
+      launchpadEnabled: launchpadEnabled)
+    let windows = try #require(app.windowsMenu)
+    #expect(windows.items.contains { $0.keyEquivalent == "p" } == commandBarEnabled)
+    #expect(
+      windows.items.contains { $0.action == launchpadAction }
+        == (launchpadEnabled && LaunchpadAvailability.isSupported))
+    if let item = windows.items.first(where: { $0.action == launchpadAction }) {
+      windows.performActionForItem(at: windows.index(of: item))
+      #expect(target.commands == 1)
+    }
+  }
+
   @Test func closedWindowDoesNotKeepTheApplicationInTheDock() throws {
     _ = NSApplication.shared
     let suite = "XStats.AppPresentationTests.\(UUID())"
@@ -211,4 +244,5 @@ struct AppPresentationTests {
 private final class MenuCommandTarget: NSObject {
   private(set) var commands = 0
   @objc func performCommand() { commands += 1 }
+  @objc func openLaunchpad() { commands += 1 }
 }

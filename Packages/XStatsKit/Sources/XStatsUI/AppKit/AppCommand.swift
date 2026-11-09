@@ -53,7 +53,8 @@ struct AppCommand: Identifiable, Sendable {
     }
   }
 
-  @MainActor static func catalog(supportsFans: Bool) -> [AppCommand] {
+  @MainActor static func catalog(supportsFans: Bool, launchpadEnabled: Bool = true) -> [AppCommand]
+  {
     let pages = (PanelTab.monitors + PanelTab.tools + PanelTab.settings + [.settingsHelper]).filter
     {
       $0 != .thermal || supportsFans
@@ -63,7 +64,7 @@ struct AppCommand: Identifiable, Sendable {
         id: "page.\(tab.rawValue)", title: tab.headerTitle, symbol: tab.symbol,
         keywords: "\(tab.rawValue) \(aliases(for: tab))", action: .route(.open(tab)))
     }
-    if LaunchpadAvailability.isSupported {
+    if LaunchpadAvailability.isSupported && launchpadEnabled {
       commands.append(
         AppCommand(
           id: "launchpad", title: tr("启动台"), symbol: "square.grid.3x3",

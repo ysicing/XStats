@@ -57,6 +57,27 @@ struct MenuBarEnhancementsTests {
     }
   }
 
+  @Test(arguments: [false, true], [false, true])
+  func launcherContextMenuChoicesAreIndependent(
+    commandBarEnabled: Bool, launchpadEnabled: Bool
+  ) throws {
+    let suite = "MenuBarEnhancementsTests.launchers.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.commandBarEnabled = commandBarEnabled
+    settings.launchpadEnabled = launchpadEnabled
+    let model = AppModel(
+      settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
+    let menu = MenuBarController(model: model).contextMenu()
+    #expect(
+      menu.items.contains { $0.action == NSSelectorFromString("openCommandBar") }
+        == commandBarEnabled)
+    #expect(
+      menu.items.contains { $0.action == NSSelectorFromString("openLaunchpad") }
+        == (launchpadEnabled && LaunchpadAvailability.isSupported))
+  }
+
   @Test func spacingChangesCombinedImageWithoutChangingSingleItem() throws {
     let suite = "MenuBarEnhancementsTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

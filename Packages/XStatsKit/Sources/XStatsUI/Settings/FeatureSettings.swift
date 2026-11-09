@@ -281,14 +281,26 @@ struct FeatureSettings: View {
         }
         GroupRow {
           SettingRow(
-            title: tr(LaunchpadAvailability.isSupported ? "命令栏与启动台" : "命令栏"),
+            title: tr("命令栏"),
             subtitle: tr("搜索应用、功能与操作"), icon: "magnifyingglass"
           ) {
             HStack(spacing: DS.Space.s2) {
               if settings.commandBarEnabled {
-                LaunchpadOptionsButton()
+                LauncherOptionsButton(showsLaunchpadOptions: false)
               }
               DSToggle(isOn: $settings.commandBarEnabled, label: tr("命令栏"))
+            }
+          }
+        }
+        if LaunchpadAvailability.isSupported {
+          GroupRow {
+            SettingRow(title: tr("启动台"), icon: "square.grid.3x3") {
+              HStack(spacing: DS.Space.s2) {
+                if settings.launchpadEnabled {
+                  LauncherOptionsButton(showsLaunchpadOptions: true)
+                }
+                DSToggle(isOn: $settings.launchpadEnabled, label: tr("启动台"))
+              }
             }
           }
         }
@@ -321,26 +333,28 @@ struct FeatureSettings: View {
   }
 }
 
-struct LaunchpadOptionsButton: View {
+struct LauncherOptionsButton: View {
+  let showsLaunchpadOptions: Bool
   @State private var isPresented = false
 
   var body: some View {
     Button(tr("设置")) { isPresented = true }
       .buttonStyle(DSButtonStyle(kind: .secondary))
       .sheet(isPresented: $isPresented) {
-        LaunchpadOptionsSheet()
+        LauncherOptionsSheet(showsLaunchpadOptions: showsLaunchpadOptions)
       }
   }
 }
 
-struct LaunchpadOptionsSheet: View {
+struct LauncherOptionsSheet: View {
+  let showsLaunchpadOptions: Bool
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
     VStack(spacing: 0) {
       HStack {
-        Text(tr(LaunchpadAvailability.isSupported ? "命令栏与启动台" : "命令栏"))
+        Text(tr(showsLaunchpadOptions ? "启动台" : "命令栏"))
           .dsFont(.sm, weight: .semibold)
         Spacer()
         Button(tr("完成")) { dismiss() }
@@ -351,14 +365,14 @@ struct LaunchpadOptionsSheet: View {
       ScrollView {
         VStack(alignment: .leading, spacing: DS.Space.s4) {
           LauncherDirectorySettings()
-          if LaunchpadAvailability.isSupported {
+          if showsLaunchpadOptions && LaunchpadAvailability.isSupported {
             launchpadOptions
           }
         }
         .padding(DS.Space.s4)
       }
     }
-    .frame(width: 480, height: LaunchpadAvailability.isSupported ? 560 : 400)
+    .frame(width: 480, height: showsLaunchpadOptions ? 560 : 400)
     .appLanguageEnvironment()
   }
 

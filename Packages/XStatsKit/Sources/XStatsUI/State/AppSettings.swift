@@ -867,6 +867,9 @@ public final class AppSettings {
   public var commandBarEnabled: Bool {
     didSet { defaults.set(commandBarEnabled, forKey: Keys.commandBarEnabled) }
   }
+  public var launchpadEnabled: Bool {
+    didSet { defaults.set(launchpadEnabled, forKey: Keys.launchpadEnabled) }
+  }
   public var launchpadPinchFingers: Int {
     didSet { defaults.set(launchpadPinchFingers, forKey: Keys.launchpadPinchFingers) }
   }
@@ -1411,7 +1414,13 @@ public final class AppSettings {
       defaults.stringArray(forKey: "finderDocumentFormats")
       .map { Set($0.compactMap(FinderDocumentKind.init(rawValue:))) }
       ?? Set(FinderDocumentKind.allCases)
-    commandBarEnabled = defaults.object(forKey: Keys.commandBarEnabled) as? Bool ?? true
+    let isCommandBarEnabled = defaults.object(forKey: Keys.commandBarEnabled) as? Bool ?? true
+    commandBarEnabled = isCommandBarEnabled
+    let savedLaunchpadEnabled = defaults.object(forKey: Keys.launchpadEnabled) as? Bool
+    launchpadEnabled = savedLaunchpadEnabled ?? isCommandBarEnabled
+    if savedLaunchpadEnabled == nil {
+      defaults.set(isCommandBarEnabled, forKey: Keys.launchpadEnabled)
+    }
     let pinch = defaults.integer(forKey: Keys.launchpadPinchFingers)
     launchpadPinchFingers = [4, 5].contains(pinch) ? pinch : 0
     let corner = defaults.integer(forKey: Keys.launchpadHotCorner)
@@ -1850,6 +1859,7 @@ public final class AppSettings {
     static let cleanerEnabled = "cleanerEnabled"
     static let agentDataEnabled = "agentDataEnabled"
     static let commandBarEnabled = "commandBarEnabled"
+    static let launchpadEnabled = "launchpadEnabled"
     static let launchpadPinchFingers = "launchpadPinchFingers"
     static let launchpadHotCorner = "launchpadHotCorner"
     static let processesEnabled = "processesEnabled"

@@ -71,6 +71,61 @@ struct CommandBarTests {
       })
   }
 
+  @MainActor @Test(arguments: [false, true])
+  func launchpadInheritsLegacyChoiceOnlyOnce(legacyEnabled: Bool) throws {
+    let suite = "XStats.CommandBarTests.migration.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(legacyEnabled, forKey: "commandBarEnabled")
+    let settings = AppSettings(defaults: defaults)
+    #expect(settings.launchpadEnabled == legacyEnabled)
+    settings.commandBarEnabled = !legacyEnabled
+    let restored = AppSettings(defaults: defaults)
+    #expect(restored.commandBarEnabled == !legacyEnabled)
+    #expect(restored.launchpadEnabled == legacyEnabled)
+    restored.launchpadEnabled = !legacyEnabled
+    #expect(AppSettings(defaults: defaults).launchpadEnabled == !legacyEnabled)
+  }
+
+  @MainActor @Test(arguments: [false, true], [false, true])
+  func launcherChoicesPersistAndRestoreIndependently(
+    commandBarEnabled: Bool, launchpadEnabled: Bool
+  ) throws {
+    let suite = "XStats.CommandBarTests.independent.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    #expect(settings.launchpadEnabled)
+    settings.commandBarEnabled = commandBarEnabled
+    settings.launchpadEnabled = launchpadEnabled
+    let restored = AppSettings(defaults: defaults)
+    #expect(restored.commandBarEnabled == commandBarEnabled)
+    #expect(restored.launchpadEnabled == launchpadEnabled)
+    #expect(HotKeyAction.openCommandBar.isEnabled(in: restored) == commandBarEnabled)
+    let saved = try JSONDecoder().decode(
+      SettingsDocument.self, from: JSONEncoder().encode(settings.exportDocument()))
+    settings.commandBarEnabled = !commandBarEnabled
+    settings.launchpadEnabled = !launchpadEnabled
+    settings.apply(saved)
+    #expect(settings.commandBarEnabled == commandBarEnabled)
+    #expect(settings.launchpadEnabled == launchpadEnabled)
+    let legacy = try JSONDecoder().decode(
+      SettingsDocument.self,
+      from: Data("{\"commandBarEnabled\":\(!commandBarEnabled)}".utf8))
+    settings.apply(legacy)
+    #expect(settings.commandBarEnabled == !commandBarEnabled)
+    #expect(settings.launchpadEnabled == launchpadEnabled)
+  }
+
+  @MainActor @Test(arguments: [false, true])
+  func catalogRespectsIndependentLaunchpadChoice(enabled: Bool) {
+    let commands = AppCommand.catalog(supportsFans: false, launchpadEnabled: enabled)
+    #expect(
+      commands.contains { $0.action == .launchpad }
+        == (enabled && LaunchpadAvailability.isSupported))
+    #expect(commands.contains { $0.action == .completeQuery("open ") })
+  }
+
   @MainActor @Test(arguments: ["网络", " NETWORK ", "network", "网 络"])
   func searchesChineseAndEnglishAliases(query: String) {
     let search = CommandBarSearch(commands: AppCommand.catalog(supportsFans: false))

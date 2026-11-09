@@ -29,29 +29,35 @@ struct SettingsPageLayoutTests {
     let model = AppModel(
       settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient(),
       networkCacheDefaults: defaults)
-    let host = NSHostingView(
-      rootView: MainWindowView().environment(model).environment(\.colorScheme, .light)
-        .frame(width: width, height: 1160))
-    let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: width, height: 1160),
-      styleMask: .borderless, backing: .buffered, defer: false)
-    window.isReleasedWhenClosed = false
-    window.appearance = NSAppearance(named: .aqua)
-    window.contentView = host
-    defer {
-      window.contentView = nil
-      window.close()
-    }
-    host.layoutSubtreeIfNeeded()
-    let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-    host.cacheDisplay(in: host.bounds, to: bitmap)
-    #expect(settings.panelTab == page)
-    #expect(bitmap.pixelsWide > 0 && bitmap.pixelsHigh > 0)
-    if let path = ProcessInfo.processInfo.environment["XSTATS_SETTINGS_PREVIEW_DIR"] {
-      let folder = URL(fileURLWithPath: path, isDirectory: true)
-      try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-      try #require(bitmap.representation(using: .png, properties: [:])).write(
-        to: folder.appendingPathComponent("main-\(page.rawValue)-\(Int(width)).png"))
+    let featureTabs: [FeatureSettingsTab] =
+      page == .settingsFeatures ? FeatureSettingsTab.allCases : [.basic]
+    for featureTab in featureTabs {
+      model.featureSettingsTab = featureTab
+      let host = NSHostingView(
+        rootView: MainWindowView().environment(model).environment(\.colorScheme, .light)
+          .frame(width: width, height: 1160))
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: width, height: 1160),
+        styleMask: .borderless, backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false
+      window.appearance = NSAppearance(named: .aqua)
+      window.contentView = host
+      defer {
+        window.contentView = nil
+        window.close()
+      }
+      host.layoutSubtreeIfNeeded()
+      let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+      host.cacheDisplay(in: host.bounds, to: bitmap)
+      #expect(settings.panelTab == page)
+      #expect(bitmap.pixelsWide > 0 && bitmap.pixelsHigh > 0)
+      if let path = ProcessInfo.processInfo.environment["XSTATS_SETTINGS_PREVIEW_DIR"] {
+        let folder = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try #require(bitmap.representation(using: .png, properties: [:])).write(
+          to: folder.appendingPathComponent(
+            "main-\(page.rawValue)-\(featureTab.rawValue)-\(Int(width)).png"))
+      }
     }
   }
 
