@@ -118,7 +118,7 @@ Command Bar, Launchpad and new documents in Finder are experimental features, ea
 | **Diagnostics** | Speed, DNS, egress, public IP, connectivity and WebRTC / DNS leak tests |
 | **Calendar** | Chinese lunar dates, holidays, make-up workdays, almanac, events and reminders |
 | **Audio** | Volume and device switching; per-app volume and output on macOS 14.4+ |
-| **Timers** | Countdown, Pomodoro, stopwatch, break reminders and local focus statistics |
+| **Timers** | Countdown, Pomodoro, stopwatch, world clocks, break reminders and local focus statistics |
 | **Process manager** | Search, sort, group by app and end processes |
 
 ### Integrations
