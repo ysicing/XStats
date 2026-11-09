@@ -1,12 +1,12 @@
 {
-  "version": "0.1.11",
-  "date": "2026-11-08",
+  "version": "0.1.12",
+  "date": "2026-11-09",
   "sourceNotes": [
-    "精简随包图标资源并无损压缩手绘图片，减小下载体积，保留图标效果与标准／手绘切换。"
+    "修复编辑或录制其他快捷键期间修改截图、录屏快捷键时，快捷键被提前重新启用的问题。"
   ],
   "translations": {
     "en": [
-      "Reduce download size by bundling only Capture's icon artwork and losslessly compressing the hand-drawn image, preserving its appearance and standard/hand-drawn switching."
+      "Keep screenshot and screen recording shortcuts suspended when changing them while editing or recording other keyboard shortcuts."
     ]
   }
 }

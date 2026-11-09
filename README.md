@@ -118,7 +118,7 @@ AI 用量仅支持 Magpie，需要安装并运行 Magpie。XStats 从其本地�
 |---|---|
 | **命令栏与启动台（实验性）** | 搜索应用、文件与常用操作，支持自定义应用目录，快速查找和结束后台进程、查询端口与软件包；macOS 26+ 支持网格、列表与分类浏览，以及文件夹和自定义布局 |
 | **Finder 新建文档（实验性）** | 启用 Finder 扩展后，可在文件夹中右键新建 Office、文本和 iWork 文档，自定义命名与可用格式 |
-| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 内置截图标注、本地打码与带声音的录屏；可单独[下载 Capture](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.11)，详见 [Capture 使用说明](docs/CAPTURE.md) |
+| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 内置截图标注、本地打码与带声音的录屏；可单独[下载 Capture](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.12)，详见 [Capture 使用说明](docs/CAPTURE.md) |
 | **风扇控制** | 在支持的设备上切换自动或手动控制 |
 | **防休眠** | 保持系统或屏幕唤醒，可配置合盖运行 |
 | **应用服务** | 统一管理应用、Homebrew、启动项与 Homebrew 服务，查看应用信息和可用更新 |
