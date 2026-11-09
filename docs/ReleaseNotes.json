@@ -1,17 +1,23 @@
 {
-  "version": "1.6.1",
+  "version": "1.6.2",
   "sourceNotes": [
-    "Dock 与启动台／聚焦搜索图标可独立设置，选择在重启后保留",
-    "减小安装包与在线升级包体积，保留所有功能、语言和图标样式",
-    "避免未授权时的后台耳机识别触发蓝牙权限提示",
-    "修复 DNS 检测返回大量解析服务器时整批结果被拒绝的问题"
+    "设置新增统一的全局快捷键页面，集中管理常用操作、截图与录屏快捷键，并检查重复绑定",
+    "启动台新增列表与分类浏览，支持大小图标及 7 × 5、8 × 5、8 × 6 网格布局",
+    "命令栏与启动台支持添加应用目录，完善网页应用名称与分类识别",
+    "优化启动台搜索、内容间距、文件夹展开与触控板翻页，网格优先填满前页，保留已有排序与文件夹",
+    "计时菜单默认打开时区页，便于直接查看所在时区、UTC 与美西时间",
+    "修复应用刷新后名称、图标及搜索状态未及时更新的问题，目录暂时不可用时保留已有布局",
+    "修复编辑或录制其他快捷键期间修改截图、录屏快捷键时，快捷键被提前重新启用的问题"
   ],
   "translations": {
     "en": [
-      "Set Dock and Launchpad/Spotlight icons independently, with both choices preserved across restarts.",
-      "Reduce installer and online update download sizes while preserving all features, languages, and icon styles.",
-      "Avoid triggering Bluetooth permission prompts during background headphone identification when permission has not been granted.",
-      "Fix DNS detection rejecting an entire result set when many resolver addresses are returned."
+      "Manage global shortcuts for common actions, screenshots, and screen recording on one settings page, with duplicate binding checks.",
+      "Add list and category browsing to Launchpad, with small or large icons and 7 × 5, 8 × 5, or 8 × 6 grids.",
+      "Add custom application directories for the command bar and Launchpad, and improve web app names and category recognition.",
+      "Refine Launchpad search, spacing, folder transitions, and trackpad paging; fill earlier grid pages while preserving existing ordering and folders.",
+      "Open the time zone tab by default from the timer menu for quick access to local, UTC, and US Pacific time.",
+      "Refresh application names, icons, and search state reliably, and preserve existing layouts when an application directory is temporarily unavailable.",
+      "Keep screenshot and screen recording shortcuts suspended when changing them while editing or recording other keyboard shortcuts."
     ]
   }
 }
