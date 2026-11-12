@@ -1,23 +1,13 @@
 {
-  "version": "1.6.2",
+  "version": "1.6.3",
   "sourceNotes": [
-    "设置新增统一的全局快捷键页面，集中管理常用操作、截图与录屏快捷键，并检查重复绑定",
-    "启动台新增列表与分类浏览，支持大小图标及 7 × 5、8 × 5、8 × 6 网格布局",
-    "命令栏与启动台支持添加应用目录，完善网页应用名称与分类识别",
-    "优化启动台搜索、内容间距、文件夹展开与触控板翻页，网格优先填满前页，保留已有排序与文件夹",
-    "计时菜单默认打开时区页，便于直接查看所在时区、UTC 与美西时间",
-    "修复应用刷新后名称、图标及搜索状态未及时更新的问题，目录暂时不可用时保留已有布局",
-    "修复编辑或录制其他快捷键期间修改截图、录屏快捷键时，快捷键被提前重新启用的问题"
+    "时区面板与小组件的日期增加星期显示，便于辨别不同时区的跨日时间",
+    "命令栏与启动台可独立启用和设置，升级时保留原有启用状态"
   ],
   "translations": {
     "en": [
-      "Manage global shortcuts for common actions, screenshots, and screen recording on one settings page, with duplicate binding checks.",
-      "Add list and category browsing to Launchpad, with small or large icons and 7 × 5, 8 × 5, or 8 × 6 grids.",
-      "Add custom application directories for the command bar and Launchpad, and improve web app names and category recognition.",
-      "Refine Launchpad search, spacing, folder transitions, and trackpad paging; fill earlier grid pages while preserving existing ordering and folders.",
-      "Open the time zone tab by default from the timer menu for quick access to local, UTC, and US Pacific time.",
-      "Refresh application names, icons, and search state reliably, and preserve existing layouts when an application directory is temporarily unavailable.",
-      "Keep screenshot and screen recording shortcuts suspended when changing them while editing or recording other keyboard shortcuts."
+      "Show weekdays alongside dates in the time zone panel and widget to make day differences across time zones easier to identify.",
+      "Enable and configure the command bar and Launchpad independently while preserving their previous enabled state on upgrade."
     ]
   }
 }
