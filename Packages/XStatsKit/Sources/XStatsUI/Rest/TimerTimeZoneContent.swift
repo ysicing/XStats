@@ -38,6 +38,7 @@ struct TimerTimeZoneContent: View {
             .lineLimit(1).minimumScaleFactor(0.75)
             Text(date, format: zone.dateStyle(locale: locale))
               .font(.system(size: 11)).foregroundStyle(.secondary)
+              .lineLimit(1).minimumScaleFactor(0.8)
           }
           Spacer(minLength: 0)
           Text(date, format: timeStyle)

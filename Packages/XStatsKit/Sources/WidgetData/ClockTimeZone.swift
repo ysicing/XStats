@@ -41,6 +41,6 @@ public enum ClockTimeZone: String, CaseIterable, Identifiable, Sendable {
   public func dateStyle(locale: Locale) -> Date.FormatStyle {
     Date.FormatStyle(
       date: .omitted, time: .omitted, locale: locale, timeZone: timeZone
-    ).year().month(.abbreviated).day()
+    ).year().month(.abbreviated).day().weekday(.abbreviated)
   }
 }

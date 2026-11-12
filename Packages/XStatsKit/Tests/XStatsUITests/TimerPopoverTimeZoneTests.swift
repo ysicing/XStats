@@ -56,11 +56,12 @@ import WidgetData
     #expect(
       ClockTimeZone.utc.timeStyle(locale: Locale(identifier: "en_GB")).format(date) == "00:30:00")
     #expect(
-      ClockTimeZone.utc.dateStyle(locale: Locale(identifier: "en_US")).format(date) == "Jan 1, 2026"
+      ClockTimeZone.utc.dateStyle(locale: Locale(identifier: "en_US")).format(date)
+        == "Thu, Jan 1, 2026"
     )
     #expect(
       ClockTimeZone.pacific.dateStyle(locale: Locale(identifier: "en_US")).format(date)
-        == "Dec 31, 2025")
+        == "Wed, Dec 31, 2025")
     #expect(
       ClockTimeZone.pacific.timeStyle(locale: Locale(identifier: "en_US")).format(date).contains(
         "PM"))
