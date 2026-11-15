@@ -1,12 +1,12 @@
 {
-  "version": "0.1.12",
-  "date": "2026-11-09",
+  "version": "0.1.13",
+  "date": "2026-11-15",
   "sourceNotes": [
-    "修复编辑或录制其他快捷键期间修改截图、录屏快捷键时，快捷键被提前重新启用的问题。"
+    "切换程序坞图标时不再改写已签名应用包，避免影响签名校验。"
   ],
   "translations": {
     "en": [
-      "Keep screenshot and screen recording shortcuts suspended when changing them while editing or recording other keyboard shortcuts."
+      "Dock icon changes no longer modify the signed app bundle, preserving code-signature validation."
     ]
   }
 }

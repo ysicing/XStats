@@ -1,13 +1,17 @@
 {
-  "version": "1.6.3",
+  "version": "1.6.4",
   "sourceNotes": [
-    "时区面板与小组件的日期增加星期显示，便于辨别不同时区的跨日时间",
-    "命令栏与启动台可独立启用和设置，升级时保留原有启用状态"
+    "关于页新增「更多应用」分组，提供 51Code 项目入口",
+    "Mole 清理预览与清理共用默认关闭的管理员授权选项",
+    "修复切换应用图标影响签名校验及 Widget、Finder 登记的问题",
+    "修复 Mole 操作期间停止按钮错位"
   ],
   "translations": {
     "en": [
-      "Show weekdays alongside dates in the time zone panel and widget to make day differences across time zones easier to identify.",
-      "Enable and configure the command bar and Launchpad independently while preserving their previous enabled state on upgrade."
+      "The About page adds a More Apps section with a link to 51Code.",
+      "Mole cleanup previews and cleanup share an administrator authorization option, off by default. If authorization is canceled or fails, the operation continues with standard privileges.",
+      "Fix app icon changes affecting code-signature verification and Widget and Finder registration.",
+      "Fix the misaligned Stop button while Mole is running."
     ]
   }
 }

@@ -110,7 +110,7 @@ AI 사용량은 Magpie의 로컬 API만 지원하며 토큰은 Magpie를 거친 
 | **명령 모음** | 앱·파일·작업 검색, 프로세스·포트·패키지 조회 |
 | **Launchpad** | **macOS 26 이상 전용**. 격자·목록·분류·폴더와 앱 배치 설정 |
 | **Finder 새 문서** | 우클릭 메뉴에서 텍스트·Office·iWork 문서 만들기 |
-| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 스크린샷 주석·로컬 정보 가리기, 소리 포함 화면 녹화. [독립 앱](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.12)도 제공 |
+| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 스크린샷 주석·로컬 정보 가리기, 소리 포함 화면 녹화. [독립 앱](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.13)도 제공 |
 | **팬 제어** | 지원되는 기기에서 자동 / 수동 제어 전환 |
 | **잠자기 방지** | 덮개를 닫은 상태를 포함해 시스템이나 화면을 깨어 있게 유지 |
 | **앱 및 서비스** | 앱, Homebrew 패키지, 시작 항목과 서비스 관리 |

@@ -110,7 +110,7 @@ AI 使用量は Magpie のローカル API のみに対応し、トークンは 
 | **コマンドバー** | アプリ・ファイル・操作の検索、プロセス・ポート・パッケージの照会 |
 | **Launchpad** | **macOS 26 以降のみ**。グリッド・リスト・分類・フォルダ、自由なアプリ配置 |
 | **Finder 書類作成** | 右クリックでテキスト・Office・iWork 書類を作成 |
-| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | スクリーンショットの注釈・ローカルでのマスキング、音声付き画面収録。[単独版](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.12)も利用可能 |
+| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | スクリーンショットの注釈・ローカルでのマスキング、音声付き画面収録。[単独版](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.13)も利用可能 |
 | **ファン制御** | 対応機種で自動 / 手動制御を切り替え |
 | **スリープ防止** | 蓋を閉じた状態を含め、システムや画面のスリープを防止 |
 | **アプリとサービス** | アプリ、Homebrew パッケージ、起動項目、サービスを管理 |

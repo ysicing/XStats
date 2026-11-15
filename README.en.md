@@ -110,7 +110,7 @@ Command Bar, Launchpad and new documents in Finder are experimental features, ea
 | **Command Bar** | Search apps, files and actions; look up processes, ports and packages |
 | **Launchpad** | **macOS 26+ only**; grid, list, categories, folders and custom app layouts |
 | **Finder documents** | Create text, Office and iWork documents from the context menu |
-| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | Annotate and redact screenshots locally, record with audio; also a [standalone app](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.12) |
+| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | Annotate and redact screenshots locally, record with audio; also a [standalone app](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.13) |
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, including with the lid closed |
 | **Apps & Services** | Manage apps, Homebrew packages, startup items and services |
@@ -230,7 +230,7 @@ Issues and pull requests are welcome. See [DEVELOPMENT.md](docs/DEVELOPMENT.md) 
 <!-- changelog:start -->
 <!-- Generated from CHANGELOG.md by scripts/sync_changelog.py. Do not edit by hand. -->
 
-Latest release **1.6.3** (2026-11-12) · [full changelog](CHANGELOG.md) (kept in Chinese)
+Latest release **1.6.4** (2026-11-15) · [full changelog](CHANGELOG.md) (kept in Chinese)
 
 <!-- changelog:end -->
 
